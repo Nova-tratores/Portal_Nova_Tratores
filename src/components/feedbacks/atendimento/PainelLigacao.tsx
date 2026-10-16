@@ -5,6 +5,7 @@
 //  3) ao encerrar → desfecho em botões grandes + campos que o desfecho pede
 import { useEffect, useMemo, useState } from "react";
 import styles from "../feedbacks.module.css";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { DESFECHOS, DESFECHO_POR_VALOR, ehDesfecho, efeitosDoDesfecho, validarEncerramento, type Desfecho, type PayloadEncerrar } from "@/lib/feedbacks/atendimento/chamada";
 import { CONFIG_RETORNO_PADRAO, HUMORES, QUALIDADES, TAG_CLIENTE_SENSIVEL, emojiHumor, sugerirCaveira, sugerirRetorno, type ConfigRetorno } from "@/lib/feedbacks/atendimento/retorno";
 import type { EstadoChamada } from "@/lib/feedbacks/atendimento/use-chamada";
@@ -37,6 +38,7 @@ export default function PainelLigacao(p: Props) {
   const { estado } = p;
   const ch = estado.chamada;
   const [telSel, setTelSel] = useState<string>("");
+  const isMobile = useIsMobile();
   const [notas, setNotas] = useState<string>("");
   const [desfecho, setDesfecho] = useState<Desfecho | null>(null);
   const [motivoId, setMotivoId] = useState<number | "">("");
@@ -121,8 +123,12 @@ export default function PainelLigacao(p: Props) {
             {estado.ocupado ? "Iniciando…" : "▶ Iniciar ligação"}
           </button>
           {telefoneAtual && (
-            <a href={`tel:${telefoneAtual.wa ? `+${telefoneAtual.wa}` : telefoneAtual.numero.replace(/\D/g, "")}`} style={{ display: "block", textAlign: "center", marginTop: 6, fontSize: 12, color: "#0369a1" }}>
-              discar {telefoneAtual.numero} pelo computador
+            // celular: vira um botão grande "Discar" (abre o discador do aparelho; não grava nada)
+            <a href={`tel:${telefoneAtual.wa ? `+${telefoneAtual.wa}` : telefoneAtual.numero.replace(/\D/g, "")}`}
+              style={isMobile
+                ? { display: "flex", alignItems: "center", justifyContent: "center", minHeight: 44, marginTop: 8, borderRadius: 12, border: "1px solid #0369a1", fontSize: 14, fontWeight: 700, color: "#0369a1", textDecoration: "none" }
+                : { display: "block", textAlign: "center", marginTop: 6, fontSize: 12, color: "#0369a1" }}>
+              {isMobile ? `📞 Discar ${telefoneAtual.numero} no celular` : `discar ${telefoneAtual.numero} pelo computador`}
             </a>
           )}
           {(erroLocal || estado.erro) && estado.situacao !== "erro" && <Aviso cor="#991b1b" bg="#fee2e2">{erroLocal || estado.erro}</Aviso>}
@@ -199,7 +205,7 @@ export default function PainelLigacao(p: Props) {
               {HUMORES.map((h) => (
                 <button key={h.valor} type="button" onClick={() => setHumor(h.valor)} title={h.rotulo}
                   style={{ ...btnNota(humor === h.valor, h.valor <= cfg.humor_baixo_max ? "#b45309" : "#16a34a"), fontSize: 20 }}>
-                  {h.emoji}<small style={{ fontSize: 9, display: "block" }}>{h.rotulo}</small>
+                  {h.emoji}<small style={{ fontSize: isMobile ? 11 : 9, display: "block" }}>{h.rotulo}</small>
                 </button>
               ))}
             </div>
@@ -208,7 +214,7 @@ export default function PainelLigacao(p: Props) {
               {QUALIDADES.map((q) => (
                 <button key={q.valor} type="button" onClick={() => setQualidade(q.valor)} title={q.rotulo}
                   style={{ ...btnNota(qualidade === q.valor, "#0369a1"), fontSize: 15 }}>
-                  {q.emoji}<small style={{ fontSize: 9, display: "block" }}>{q.rotulo}</small>
+                  {q.emoji}<small style={{ fontSize: isMobile ? 11 : 9, display: "block" }}>{q.rotulo}</small>
                 </button>
               ))}
             </div>

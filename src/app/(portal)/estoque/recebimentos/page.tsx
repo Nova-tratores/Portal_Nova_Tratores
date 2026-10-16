@@ -10,6 +10,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { supabase } from '@/lib/supabase';
 import { authHeaders } from '@/lib/auth/client';
 
@@ -224,6 +225,7 @@ export default function RecebimentosPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
+  const isMobile = useIsMobile();
   const criadoPor = userProfile?.nome || 'portal';
 
   // janela padrão: pendentes desde 01/11/2022 (o cache guarda o histórico; só o recente
@@ -397,7 +399,7 @@ export default function RecebimentosPage() {
           )}
           {modo === 'pendentes' && (<>
           {/* Atalhos rápidos: chips por tipo */}
-          <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+          <div className="m-rolar-x" style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
             {TIPOS_CHIP.map((t) => (
               <Chip key={t.v} label={t.label} active={tipoFiltro === t.v}
                 count={t.v === '' ? contagens.total : (contagens.porTipo[t.v] || 0)}
@@ -435,12 +437,29 @@ export default function RecebimentosPage() {
             <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 40, textAlign: 'center', color: '#94a3b8' }}>Clique em <b>Buscar</b> para listar os recebimentos pendentes.</div>
           ) : (
             <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
-              <CabecalhoReceb
+              {isMobile ? (
+                // Celular: ordenar/filtrar por coluna fica recolhido (a faixa rola de lado)
+                <details style={{ marginBottom: 10 }}>
+                  <summary style={{ cursor: 'pointer', fontSize: 14, fontWeight: 600, color: '#334155', padding: '10px 12px', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+                    Ordenar e filtrar por coluna{temFiltro ? ' (ativo)' : ''}
+                  </summary>
+                  <div style={{ overflowX: 'auto', marginTop: 8 }}>
+                    <CabecalhoReceb
                 sort={sort}
                 filtros={filtros}
                 onSort={ordenarPor}
                 onFiltro={(k, v) => setFiltros((f) => ({ ...f, [k]: v }))}
               />
+                  </div>
+                </details>
+              ) : (
+                <CabecalhoReceb
+                sort={sort}
+                filtros={filtros}
+                onSort={ordenarPor}
+                onFiltro={(k, v) => setFiltros((f) => ({ ...f, [k]: v }))}
+              />
+              )}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {(() => {
                   let lista = (dados.recebimentos || []).filter((r) => {
@@ -1332,13 +1351,13 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
   };
 
   return (
-    <div className="est-overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 920, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
-        <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div className="m-tela-cheia-fundo" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div className="m-tela-cheia" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 920, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
+        <div className="m-quebrar" style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Dar entrada na NF {r.numeroNFe || '?'}{r.serieNFe ? `/${r.serieNFe}` : ''} - {r.fornecedorNome || ''}</h2>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
             <NotaFiscalAcoes chave={r.chaveNFe} idReceb={r.idReceb} conta={conta} />
-            <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
+            <button onClick={onClose} aria-label="Fechar" className="m-toque" style={{ background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
           </span>
         </div>
         <div style={{ padding: 18, overflowY: 'auto', fontSize: '.82rem' }}>

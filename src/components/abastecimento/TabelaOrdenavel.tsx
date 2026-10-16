@@ -99,7 +99,8 @@ export default function TabelaOrdenavel<T>({ colunas, linhas, chaveLinha, carreg
 
   return (
     <div>
-      <div style={{ overflowX: 'auto' }}>
+      {/* celular: rola de lado dentro do quadro com a 1ª coluna fixa */}
+      <div className="m-tabela m-tabela-fixa" style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr>

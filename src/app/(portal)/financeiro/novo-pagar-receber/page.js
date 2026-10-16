@@ -362,7 +362,8 @@ export default function NovoPagarReceber() {
                     placeholder="Digite o numero da nota fiscal..."
                     value={buscaNota}
                     onChange={e => setBuscaNota(e.target.value)}
-                    style={{ ...inputStyle, paddingLeft: '38px', background: '#fff', border: '1px solid #fde68a', fontSize: '14px' }}
+                    // paddingRight: o texto não passa por baixo do contador "N requisicoes" (no celular encavalava)
+                    style={{ ...inputStyle, paddingLeft: '38px', paddingRight: reqsFinanceiro.length > 0 ? '110px' : inputStyle.paddingRight, background: '#fff', border: '1px solid #fde68a', fontSize: '14px', textOverflow: 'ellipsis' }}
                   />
                   {reqsFinanceiro.length > 0 && <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: '#d97706' }}>{reqsFinanceiro.length} requisicoes</span>}
 

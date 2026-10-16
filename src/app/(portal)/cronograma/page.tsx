@@ -140,16 +140,16 @@ export default function CronogramaGeralPage() {
         {vista !== 'fila' && ([['tudo', 'Tudo'], ['faco', 'Que eu faço'], ['pedi', 'Que eu pedi']] as [Filtro, string][]).map(([v, l]) => (
           <button key={v} onClick={() => setFiltro(v)} style={pilula(filtro === v)}>{l}</button>
         ))}
-        <div role="group" aria-label="Forma de ver o cronograma" style={{ display: 'flex', flexWrap: 'wrap', maxWidth: '100%', gap: 4, marginLeft: isMobile ? 0 : 'auto', padding: 3, borderRadius: 10, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)' }}>
+        <div role="group" aria-label="Forma de ver o cronograma" style={{ display: 'flex', flexWrap: isMobile ? 'nowrap' : 'wrap', maxWidth: '100%', gap: 4, marginLeft: isMobile ? 0 : 'auto', padding: 3, order: isMobile ? 2 : undefined, flex: isMobile ? '1 1 100%' : undefined, borderRadius: 10, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)' }}>
           {VISTAS.map(([v, txt, ic]) => (
             <button key={v} aria-pressed={vista === v} onClick={() => trocarVista(v)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: isMobile ? '8px 10px' : '5px 10px', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none',
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: isMobile ? 4 : 6, padding: isMobile ? '9px 4px' : '5px 10px', flex: isMobile ? '1 1 0' : undefined, minWidth: 0, borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none',
                 background: vista === v ? 'rgba(220,38,38,.1)' : 'transparent', color: vista === v ? '#dc2626' : 'var(--portal-text-muted,#666)' }}>
-              {ic} {txt}
+              {!isMobile && ic} {txt}
             </button>
           ))}
         </div>
-        <button onClick={() => carregar()} title="Atualizar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: isMobile ? 36 : undefined, minHeight: isMobile ? 36 : undefined, padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
+        <button onClick={() => carregar()} title="Atualizar" aria-label="Atualizar" style={{ marginLeft: isMobile ? 'auto' : undefined, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: isMobile ? 36 : undefined, minHeight: isMobile ? 36 : undefined, padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
           <RefreshCw size={14} />
         </button>
       </div>

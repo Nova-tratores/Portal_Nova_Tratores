@@ -6,6 +6,7 @@ import { authHeaders } from '@/lib/auth/client'
 import { CONF_COR, CONF_ROTULO, codCarCurto, corCultura, fmtBRL, fmtData, fmtHa, gerarCSVProspeccao, nomeCultura, type ImovelProspeccao } from '@/lib/agro/prospeccao'
 import FichaImovel from './FichaImovel'
 import RegrasOportunidade from './RegrasOportunidade'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 // Guia "Prospecção" do /dashboard-agro: os imóveis rurais (CAR) ativos dos
 // municípios da NOVA, ordenados pelo score de oportunidade. É a lista que o
@@ -39,6 +40,7 @@ const FILTROS_PADRAO: Filtros = { municipio: '', cultura: '', confianca: 'alta,m
 export default function ProspeccaoCar() {
   const [f, setF] = useState<Filtros>(() => { try { return { ...FILTROS_PADRAO, ...JSON.parse(localStorage.getItem(FILTROS_KEY) || '{}') } } catch { return FILTROS_PADRAO } })
   const [ordem, setOrdem] = useState<{ col: Ordem; dir: 'asc' | 'desc' }>({ col: 'score', dir: 'desc' })
+  const isMobile = useIsMobile()
   const [pagina, setPagina] = useState(0)
   const [dados, setDados] = useState<ImovelProspeccao[]>([])
   const [total, setTotal] = useState(0)
@@ -153,6 +155,52 @@ export default function ProspeccaoCar() {
 
       {erro && <div style={{ display: 'flex', gap: 8, padding: '9px 12px', borderRadius: 8, marginBottom: 10, background: 'rgba(245,158,11,.12)', borderLeft: '4px solid #f59e0b', color: txt, fontSize: 13 }}><AlertTriangle size={16} style={{ color: '#d97706', flexShrink: 0 }} /> {erro}</div>}
 
+      {isMobile ? (
+        // celular: um cartão por imóvel (a tabela tinha 10 colunas); ordem num seletor; toque abre a ficha
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <select value={`${ordem.col}:${ordem.dir}`} aria-label="Ordenar"
+            onChange={(e) => { const [col, dir] = e.target.value.split(':'); setPagina(0); setOrdem({ col: col as Ordem, dir: dir as 'asc' | 'desc' }) }}
+            style={{ padding: '9px 10px', borderRadius: 8, border: borda, background: 'var(--portal-bg-card,#fefefe)', color: txt }}>
+            {COLUNAS.filter((c) => c.ordem).flatMap((c) => [
+              <option key={`${c.ordem}:desc`} value={`${c.ordem}:desc`}>Ordenar: {c.rotulo} (maior / Z→A)</option>,
+              <option key={`${c.ordem}:asc`} value={`${c.ordem}:asc`}>Ordenar: {c.rotulo} (menor / A→Z)</option>,
+            ])}
+          </select>
+          {carregando && <div style={{ padding: 16, textAlign: 'center', color: mut }}>Carregando…</div>}
+          {!carregando && dados.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: mut }}>Nenhum imóvel neste filtro.</div>}
+          {!carregando && dados.map((i) => (
+            <button key={i.cod_car} type="button" onClick={() => setFicha(i.cod_car)}
+              style={{ textAlign: 'left', width: '100%', padding: 12, borderRadius: 10, border: borda, background: 'var(--portal-bg-card,#fefefe)', color: txt, cursor: 'pointer', font: 'inherit' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: corCultura(i.cultura_principal), border: '1px solid rgba(0,0,0,.2)', flexShrink: 0 }} />
+                    {nomeCultura(i)}{i.pct_area_util != null && <span style={{ color: mut, fontSize: 12, fontWeight: 400 }}> · {Number(i.pct_area_util).toFixed(0)}%</span>}
+                  </div>
+                  <div style={{ fontSize: 13, color: mut }}>{i.municipio} · {fmtHa(i.area_ha)}</div>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: 11, color: mut, fontWeight: 700 }}>SCORE</div>
+                  <div style={{ fontSize: 18, fontWeight: 800 }}>{i.score_oportunidade != null ? Number(i.score_oportunidade).toFixed(1) : '—'}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', marginTop: 6, fontSize: 12 }}>
+                {i.confianca && <span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 999, color: '#fefefe', background: CONF_COR[i.confianca] }}>{CONF_ROTULO[i.confianca]}</span>}
+                <span>Crédito 36 m: <b>{Number(i.credito_36m) > 0 ? fmtBRL(i.credito_36m) : '—'}</b></span>
+                {Number(i.credito_invest_36m) > 0 && <span style={{ color: VERDE_ESCURO, fontWeight: 800 }}>invest. {fmtBRL(i.credito_invest_36m)}</span>}
+              </div>
+              <div style={{ marginTop: 4, fontSize: 12 }}>
+                {(i.clientes || []).length > 0 ? <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', color: '#1d4ed8', fontWeight: 700 }}><Link2 size={12} /> {i.clientes!.join(' / ')}</span>
+                  : i.sugestoes_pendentes ? <span style={{ color: '#b45309' }}>{i.sugestoes_pendentes} sugestão(ões) de cliente</span>
+                  : <span style={{ color: mut }}>sem vínculo</span>}
+              </div>
+              <div style={{ marginTop: 4, fontSize: 11, color: mut, fontFamily: 'ui-monospace,Consolas,monospace', overflowWrap: 'anywhere' }}>
+                {i.cod_car}{Number(i.sobreposicao_pct) > 20 && <span style={{ color: '#b45309', fontFamily: 'inherit' }}> · ⚠ {Number(i.sobreposicao_pct).toFixed(0)}% sobreposto</span>}
+              </div>
+            </button>
+          ))}
+        </div>
+      ) : (
       <div style={{ overflowX: 'auto', background: 'var(--portal-bg-card,#fefefe)', border: borda, borderRadius: 10 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1150 }}>
           <thead>
@@ -203,6 +251,7 @@ export default function ProspeccaoCar() {
           </tbody>
         </table>
       </div>
+      )}
 
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10, fontSize: 12, color: mut }}>
         <button type="button" disabled={pagina === 0} onClick={() => setPagina((p) => Math.max(p - 1, 0))} style={{ ...botao('#6b7280', false), opacity: pagina === 0 ? .4 : 1 }}>← Anterior</button>

@@ -5,10 +5,12 @@ import { useRouter } from 'next/navigation'
 export default function SemPermissao() {
   const router = useRouter()
   return (
-    <div style={{
+    <div className="semperm" style={{
       minHeight: 'calc(100vh - 64px)', display: 'flex', alignItems: 'center',
       justifyContent: 'center', fontFamily: 'Inter, sans-serif'
     }}>
+      {/* Celular: cabe na tela sem rolar (barra do topo é 60px) e o botão vira alvo grande */}
+      <style>{`@media (max-width: 768px){.semperm{min-height:calc(100dvh - var(--portal-header-h, 60px)) !important;padding:0 16px}.semperm h2{font-size:21px !important}.semperm p{margin-bottom:24px !important}.semperm button{width:100%;min-height:48px;font-size:15px !important}}`}</style>
       <div style={{ textAlign: 'center', maxWidth: '420px', padding: 'clamp(20px, 6vw, 40px)' }}>
         <div style={{
           width: '80px', height: '80px', borderRadius: '20px', margin: '0 auto 24px',

@@ -384,7 +384,8 @@ function PosPageInner() {
   };
 
   return (
-    <div className="pos-container" style={{ height: "calc(100vh - 64px)", overflow: "auto" }}>
+    // Celular: a página rola inteira (sem altura fixa) — evita rolagem dentro de rolagem
+    <div className="pos-container" style={isMobile ? undefined : { height: "calc(100vh - 64px)", overflow: "auto" }}>
       <LoadingIndicator visible={loading} />
       {isMobile ? (
         // ===== CELULAR: tela própria (o desktop abaixo não é usado no mobile) =====
@@ -396,7 +397,20 @@ function PosPageInner() {
           onNewOS={handleNewOS}
           podeCriar={podeCriar}
           loading={loading}
-        />
+          visao={viewMode}
+          onVisao={trocarViewMode}
+          tecnicosPerfil={tecnicosPerfil}
+          abertasPorTecnico={abertasPorTecnico}
+          tecnicoFiltro={tecnicoFiltro}
+          onTecnicoFiltro={setTecnicoFiltro}
+          onLembretes={() => setLembretesVisible(true)}
+        >
+          {viewMode === "relacao" ? (
+            <RelacaoOS orders={ordersNfse} searchTerm={searchTerm} tecnicoFiltro={tecnicoFiltro} onCardClick={handleCardClick} onPhaseChange={podeMoverFase ? handlePhaseChange : undefined} />
+          ) : viewMode === "dashboard" ? (
+            <DashboardOS orders={ordersNfse} searchTerm={searchTerm} tecnicoFiltro={tecnicoFiltro} onAbrirOS={handleCardClick} />
+          ) : null}
+        </PosMobile>
       ) : (
         <>
           <Header

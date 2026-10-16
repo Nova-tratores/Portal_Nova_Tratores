@@ -148,7 +148,7 @@ export default function PlanosPage() {
                 <strong style={{ fontSize: 15.5, color: 'var(--portal-text)' }}>{m.nome}</strong>
                 <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>{m.itens.length} itens · {m.veiculos.length} carro(s)</span>
                 {m.manual_url && <a href={m.manual_url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: AZUL_FROTA, fontWeight: 700 }}><FileText size={13} /> Manual</a>}
-                {podeEditar && <button type="button" onClick={() => abrir(m)} style={{ marginLeft: 'auto', padding: '6px 12px', border: `1px solid ${AZUL_FROTA}`, background: 'none', color: AZUL_FROTA, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Editar</button>}
+                {podeEditar && <button type="button" onClick={() => abrir(m)} className="frota-touch" style={{ marginLeft: 'auto', padding: '6px 12px', border: `1px solid ${AZUL_FROTA}`, background: 'none', color: AZUL_FROTA, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Editar</button>}
               </div>
               {m.manual_referencia && <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>{m.manual_referencia}</span>}
               <span style={{ fontSize: 13, color: 'var(--portal-text)' }}>
@@ -164,8 +164,8 @@ export default function PlanosPage() {
 
       {editando && (
         <div role="dialog" aria-modal="true" aria-label="Plano do modelo" onClick={(e) => { if (e.target === e.currentTarget && !salvando) setEditando(null); }}
-          style={{ position: 'fixed', inset: 0, zIndex: 10500, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ width: '100%', maxWidth: 980, maxHeight: '94vh', overflowY: 'auto', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', padding: 18, display: 'grid', gap: 14 }}>
+          className="m-tela-cheia-fundo" style={{ position: 'fixed', inset: 0, zIndex: 10500, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="m-tela-cheia" style={{ width: '100%', maxWidth: 980, maxHeight: '94vh', overflowY: 'auto', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', padding: 18, display: 'grid', gap: 14 }}>
             <strong style={{ fontSize: 17, color: 'var(--portal-text)' }}>{editando.id ? 'Editar plano' : 'Novo modelo de manutenção'}</strong>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 260px), 1fr))', gap: 10 }}>
@@ -189,7 +189,7 @@ export default function PlanosPage() {
             <div style={{ display: 'grid', gap: 8 }}>
               <strong style={{ fontSize: 14, color: 'var(--portal-text)' }}>Itens do plano (do manual)</strong>
               <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>Preencha só os intervalos que o manual dá — vence o que chegar primeiro. “Marcos fixos” = o manual fala em 10.000, 20.000, 30.000 km (fazer antes não empurra o próximo).</span>
-              <div style={{ overflowX: 'auto' }}>
+              <div className="m-tabela m-tabela-fixa" style={{ overflowX: 'auto' }}>
                 <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: 860, fontSize: 13 }}>
                   <thead>
                     <tr style={{ textAlign: 'left', color: 'var(--portal-text-secondary)', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: 0.3 }}>

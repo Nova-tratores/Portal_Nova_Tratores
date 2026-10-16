@@ -7,6 +7,7 @@
 // pura lib/marketing/roi.ts, testada no vitest.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { TIPOS_ACAO, rotulo } from '@/lib/marketing/tipos';
 import {
   apiGet, brl, multiplicador, pct, periodoBR, Painel, Kpi, Vazio, AvisoMigracao, Erro, estiloInput,
@@ -22,6 +23,7 @@ export default function ResultadosPage() {
   const [fAno, setFAno] = useState('');
   const [fTipo, setFTipo] = useState('');
   const [ordem, setOrdem] = useState<Ordem>('data');
+  const isMobile = useIsMobile();
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -109,6 +111,35 @@ export default function ResultadosPage() {
         <Vazio>Calculando…</Vazio>
       ) : ordenadas.length === 0 ? (
         <Vazio>Nenhuma ação no período.</Vazio>
+      ) : isMobile ? (
+        // celular: um cartão por ação, com os números em grade (a tabela tinha 11 colunas)
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {ordenadas.map(({ acao, roi }) => (
+            <Painel key={acao.id} style={{ padding: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                <div style={{ minWidth: 0 }}>
+                  <Link href={`/marketing/${acao.id}`} style={{ color: '#2563eb', textDecoration: 'none', fontWeight: 700, fontSize: 15, overflowWrap: 'anywhere' }}>{acao.nome}</Link>
+                  <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>
+                    {rotulo(TIPOS_ACAO, acao.tipo)}{acao.cidade ? ` · ${acao.cidade}` : ''} · {periodoBR(acao.data_inicio, acao.data_fim)}
+                  </div>
+                </div>
+                <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                  <div style={{ fontSize: 11, color: 'var(--portal-text-muted, #64748b)', textTransform: 'uppercase', fontWeight: 700 }}>Retorno</div>
+                  <div style={{ fontSize: 18, fontWeight: 800, color: '#7c3aed' }}>{multiplicador(roi.roi)}</div>
+                </div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '6px 12px', marginTop: 10, fontSize: 13, color: 'var(--portal-text)' }}>
+                <span>Investido: <b>{brl(roi.custoConfirmado)}</b></span>
+                <span>Apoio: <b style={{ color: '#16a34a' }}>{brl(roi.apoioRecebido)}</b></span>
+                <span>Líquido: <b>{brl(roi.custoLiquido)}</b></span>
+                <span>Receita: <b>{brl(roi.receitaAtribuida)}</b></span>
+                <span>Leads: <b>{roi.leads}</b>{roi.metaLeadsPercent !== null && <span style={{ fontSize: 11, color: 'var(--portal-text-muted, #64748b)' }}> ({pct(roi.metaLeadsPercent)})</span>}</span>
+                <span>Propostas: <b>{roi.propostasN}</b> · Vendas: <b>{roi.vendasN}</b></span>
+                <span style={{ gridColumn: '1 / -1' }}>Custo por lead: <b>{roi.custoPorLead === null ? '—' : brl(roi.custoPorLead)}</b></span>
+              </div>
+            </Painel>
+          ))}
+        </div>
       ) : (
         <Painel style={{ padding: 0, overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 1000 }}>

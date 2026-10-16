@@ -17,6 +17,7 @@ import {
 import { situacaoNota } from "@/lib/pos/nota";
 import { gerarPdfLista, hojeISO } from "@/lib/propostas/pdf-lista";
 import { useAuditLog } from "@/hooks/useAuditLog";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface Props {
   orders: KanbanCard[];
@@ -40,6 +41,7 @@ const inputBase: React.CSSProperties = { width: "100%", minWidth: 60, padding: "
 
 export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCardClick, onPhaseChange }: Props) {
   const { log } = useAuditLog();
+  const isMobile = useIsMobile();
   const [filtroStatus, setFiltroStatus] = useState("");
   const [cobranca, setCobranca] = useState<CobrancaOS>("");
   const [filtrosCol, setFiltrosCol] = useState<Partial<Record<ColOSKey, string>>>({});
@@ -130,10 +132,25 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
   const ResumoCard = ({ titulo, n, valor, cor, ativo, onClick, sub }: { titulo: string; n: number; valor?: number; cor: string; ativo?: boolean; onClick?: () => void; sub?: string }) => (
     <button type="button" onClick={onClick} disabled={!onClick}
       style={{ textAlign: "left", border: `1px solid ${ativo ? AZUL : T.border}`, borderLeft: `4px solid ${cor}`, borderRadius: 8, padding: "10px 14px", background: ativo ? "#E0F2FE" : T.surface, cursor: onClick ? "pointer" : "default", fontFamily: "inherit" }}>
-      <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: T.light }}>{titulo}</div>
-      <div style={{ fontSize: 19, fontWeight: 800, color: cor, marginTop: 2 }}>{valor != null ? fmtBRL(valor) : n}</div>
+      <div style={{ fontSize: isMobile ? 11 : 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: T.light }}>{titulo}</div>
+      <div style={{ fontSize: isMobile ? 16 : 19, fontWeight: 800, color: cor, marginTop: 2, ...(isMobile ? { overflowWrap: "anywhere" as const } : {}) }}>{valor != null ? fmtBRL(valor) : n}</div>
       <div style={{ fontSize: 12, color: T.light }}>{valor != null ? `${n} OS` : ""}{sub ? `${valor != null ? " · " : ""}${sub}` : ""}</div>
     </button>
+  );
+
+  // Ações do topo (limpar, CSV, imprimir) — no PC na faixa dos atalhos; no celular numa linha própria
+  const btnTopo: React.CSSProperties = isMobile ? { ...btnBase, height: 42, padding: "0 16px", fontSize: 13.5 } : btnBase;
+  const acoesTopo = (
+    <>
+      {(filtroStatus || cobranca || temFiltroCol) && (
+        <button type="button" style={{ ...btnTopo, color: "#b91c1c", borderColor: "#fecaca", background: "#fef2f2" }} onClick={limpar}><i className="fas fa-times" /> Limpar filtros</button>
+      )}
+      <button type="button" style={btnTopo} onClick={baixarCSV} title="Baixa um CSV (Excel) com a relação como está na tela"><i className="fas fa-file-csv" /> CSV</button>
+      <button type="button" style={{ ...btnTopo, background: "#111111", color: "#fefefe", borderColor: "#111111" }} onClick={imprimir} disabled={gerando}
+        title="Gera um PDF com a relação exatamente como está na tela (busca, técnico, atalhos, filtros do cabeçalho e ordenação)">
+        <i className={`fas fa-print ${gerando ? "fa-beat" : ""}`} /> {gerando ? "Gerando..." : "Imprimir"}
+      </button>
+    </>
   );
 
   const renderFiltro = (c: (typeof COLS_RELACAO_OS)[number]) => {
@@ -172,10 +189,10 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
   };
 
   return (
-    <div style={{ padding: "8px 16px 24px", display: "flex", flexDirection: "column", gap: 12, fontFamily: "inherit", color: T.text }}>
-      {/* ATALHOS por fase */}
-      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: T.light, marginRight: 4 }}>Atalhos:</span>
+    <div style={{ padding: isMobile ? "10px 12px 24px" : "8px 16px 24px", display: "flex", flexDirection: "column", gap: 12, fontFamily: "inherit", color: T.text }}>
+      {/* ATALHOS por fase — no celular, uma faixa que rola de lado + ações embaixo */}
+      <div className={isMobile ? "m-rolar-x" : undefined} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, ...(isMobile ? { margin: "0 -12px", padding: "0 12px 2px" } : {}) }}>
+        <span className={isMobile ? "m-esconder" : undefined} style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: T.light, marginRight: 4 }}>Atalhos:</span>
         <button type="button" style={chip(!filtroStatus)} onClick={() => setFiltroStatus("")}>Todas ({porFase.total})</button>
         <button type="button" style={chip(filtroStatus === FASE_PENDENTE_OS, filtroStatus === FASE_PENDENTE_OS ? { background: "#047857", borderColor: "#047857" } : {})} onClick={() => setFiltroStatus(filtroStatus === FASE_PENDENTE_OS ? "" : FASE_PENDENTE_OS)} title="Todas as fases menos Concluída e Cancelada">Pendente ({porFase.pendentes})</button>
         {fasesPresentes.map((f) => {
@@ -187,27 +204,21 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
             </button>
           );
         })}
-        <div style={{ flex: 1 }} />
-        {(filtroStatus || cobranca || temFiltroCol) && (
-          <button type="button" style={{ ...btnBase, color: "#b91c1c", borderColor: "#fecaca", background: "#fef2f2" }} onClick={limpar}><i className="fas fa-times" /> Limpar filtros</button>
-        )}
-        <button type="button" style={btnBase} onClick={baixarCSV} title="Baixa um CSV (Excel) com a relação como está na tela"><i className="fas fa-file-csv" /> CSV</button>
-        <button type="button" style={{ ...btnBase, background: "#111111", color: "#fefefe", borderColor: "#111111" }} onClick={imprimir} disabled={gerando}
-          title="Gera um PDF com a relação exatamente como está na tela (busca, técnico, atalhos, filtros do cabeçalho e ordenação)">
-          <i className={`fas fa-print ${gerando ? "fa-beat" : ""}`} /> {gerando ? "Gerando..." : "Imprimir"}
-        </button>
+        {!isMobile && <div style={{ flex: 1 }} />}
+        {!isMobile && acoesTopo}
       </div>
+      {isMobile && <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{acoesTopo}</div>}
       {aviso && <div style={{ fontSize: 13, fontWeight: 600, color: "#b91c1c" }}>{aviso}</div>}
 
-      {/* CARDS DE RESUMO — sempre sobre o filtrado */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+      {/* CARDS DE RESUMO — sempre sobre o filtrado (2 por linha no celular) */}
+      <div className="m-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
         <ResumoCard titulo="No filtro" n={totais.n} valor={totais.valor} cor={AZUL} ativo={!filtroStatus} onClick={() => setFiltroStatus("")} />
         <ResumoCard titulo="Pendentes" n={totais.pendentesN} valor={totais.pendentesV} cor="#047857" ativo={filtroStatus === FASE_PENDENTE_OS} onClick={() => setFiltroStatus(filtroStatus === FASE_PENDENTE_OS ? "" : FASE_PENDENTE_OS)} sub="menos Concluída/Cancelada" />
         <ResumoCard titulo="Concluídas" n={totais.concluidasN} valor={totais.concluidasV} cor="#1d4ed8" ativo={filtroStatus === "Concluída"} onClick={() => setFiltroStatus(filtroStatus === "Concluída" ? "" : "Concluída")} />
         <ResumoCard titulo="Atrasadas (pendentes)" n={totais.atrasadasN} cor="#b91c1c" sub={`${totais.horas} h · ${totais.km} km no filtro`} />
       </div>
       {/* COM NOTA × INTERNO (selo da OS) e o que já virou NFS-e de serviço */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+      <div className="m-grid-2" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
         <ResumoCard titulo="Com nota" n={totais.comNotaN} valor={totais.comNotaV} cor={AZUL} ativo={cobranca === "nota"} onClick={() => setCobranca(cobranca === "nota" ? "" : "nota")} sub="sem as OS internas" />
         <ResumoCard titulo="Interno" n={totais.internoN} valor={totais.internoV} cor={ROXO} ativo={cobranca === "interno"} onClick={() => setCobranca(cobranca === "interno" ? "" : "interno")} sub="não vira nota de serviço" />
         <ResumoCard titulo="NFS-e emitidas (serviço)" n={totais.nfseN} valor={totais.nfseV} cor="#047857" sub={totais.semNfseN ? `${totais.semNfseN} concluída${totais.semNfseN !== 1 ? "s" : ""} sem nota` : "peças saem por pedido de venda"} />
@@ -217,7 +228,7 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
       </div>
 
       {/* TABELA */}
-      <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, overflowX: "auto" }}>
+      <div className="m-tabela m-tabela-fixa" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1720 }}>
           <thead>
             <tr style={{ borderBottom: `2px solid ${T.border}` }}>

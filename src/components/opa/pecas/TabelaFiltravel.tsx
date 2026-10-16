@@ -66,15 +66,16 @@ export type ListaFiltrada<T> = ReturnType<typeof useListaFiltrada<T>>
 /** Botões Cards | Lista (a escolha fica lembrada pela tela que usa). */
 export function SeletorVisao({ modo, onChange, cor }: { modo: ModoVisao; onChange: (m: ModoVisao) => void; cor: string }) {
   const item = (m: ModoVisao, icone: React.ReactNode, rotulo: string) => (
-    <button type="button" onClick={() => onChange(m)} aria-pressed={modo === m} title={`Ver em ${rotulo.toLowerCase()}`} style={{
+    <button type="button" onClick={() => onChange(m)} aria-pressed={modo === m} aria-label={`Ver em ${rotulo.toLowerCase()}`} title={`Ver em ${rotulo.toLowerCase()}`} style={{
       display: 'inline-flex', alignItems: 'center', gap: 5, height: 32, padding: '0 11px', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
       fontSize: 12.5, fontWeight: 700, background: modo === m ? cor : 'transparent', color: modo === m ? '#fefefe' : 'var(--portal-text-secondary)',
-    }}>{icone} {rotulo}</button>
+    }}>{icone} <span className="opa-seletor-rotulo">{rotulo}</span></button>
   )
   return (
-    <div role="group" aria-label="Modo de visualização" style={{ display: 'inline-flex', borderRadius: 9, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', overflow: 'hidden', flexShrink: 0 }}>
+    <div role="group" aria-label="Modo de visualização" className="opa-seletor-visao" style={{ display: 'inline-flex', borderRadius: 9, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', overflow: 'hidden', flexShrink: 0 }}>
       {item('cards', <LayoutGrid size={14} />, 'Cards')}
       {item('lista', <List size={14} />, 'Lista')}
+      <style>{CSS_SELETOR}</style>
     </div>
   )
 }
@@ -111,7 +112,7 @@ export default function TabelaFiltravel<T>({ colunas, todas, lista, chaveLinha, 
 
   return (
     <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', boxShadow: '0 1px 3px rgba(16,24,40,0.05)' }}>
-      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, color: 'var(--portal-text)' }}>
+      <table className="opa-tabela" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, color: 'var(--portal-text)' }}>
         <thead>
           <tr style={{ background: 'var(--portal-bg-secondary)' }}>
             {antes && <th style={{ ...TH, width: 36, paddingLeft: 12 }}>{antes.cabecalho}</th>}
@@ -161,7 +162,7 @@ export default function TabelaFiltravel<T>({ colunas, todas, lista, chaveLinha, 
           )}
         </tbody>
       </table>
-      <style>{'.opa-lista-linha { border-top: 1px solid var(--portal-border); transition: background 0.12s } .opa-lista-linha:hover { background: var(--portal-bg-hover, var(--portal-bg-secondary)) }'}</style>
+      <style>{'.opa-lista-linha { border-top: 1px solid var(--portal-border); transition: background 0.12s } .opa-lista-linha:hover { background: var(--portal-bg-hover, var(--portal-bg-secondary)) }' + CSS_CELULAR}</style>
       {aberta && (() => {
         const c = colunas.find((x) => x.chave === aberta.chave)
         return c ? <PopoverColuna coluna={c} todas={todas} colunas={colunas} lista={lista} cor={cor} x={aberta.x} y={aberta.y} onFechar={() => setAberta(null)} /> : null
@@ -228,7 +229,7 @@ function PopoverColuna<T>({ coluna, todas, colunas, lista, cor, x, y, onFechar }
   }
 
   return (
-    <div ref={ref} role="dialog" aria-label={`Coluna ${coluna.titulo}`} style={{
+    <div ref={ref} role="dialog" aria-label={`Coluna ${coluna.titulo}`} className="opa-pop-coluna" style={{
       position: 'fixed', left: pos.x, top: pos.y, zIndex: 10050, width: 260, maxHeight: '70vh', display: 'flex', flexDirection: 'column',
       background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 10, boxShadow: '0 10px 30px rgba(0,0,0,.18)',
       textTransform: 'none', letterSpacing: 0, fontSize: 13, fontWeight: 500, color: 'var(--portal-text)',
@@ -264,6 +265,22 @@ function PopoverColuna<T>({ coluna, todas, colunas, lista, cor, x, y, onFechar }
     </div>
   )
 }
+
+/* CELULAR (≤768px): a 1ª coluna (o que identifica a linha) fica presa ao rolar de lado,
+   cabeçalho legível, o filtro da coluna vira folha de baixo com alvos de dedo e o
+   seletor Cards | Lista ganha altura de toque. O PC não muda. */
+const CSS_CELULAR = `
+@media (max-width: 768px) {
+  .opa-tabela th { font-size: 11.5px !important; }
+  .opa-tabela th:first-child, .opa-tabela td:first-child { position: sticky; left: 0; z-index: 1; background: var(--portal-bg-card); box-shadow: 1px 0 0 var(--portal-border); }
+  .opa-tabela thead th:first-child { background: var(--portal-bg-secondary); }
+  .opa-tabela th button { min-height: 32px; }
+  .opa-pop-coluna { left: 0 !important; right: 0 !important; top: auto !important; bottom: 0 !important; width: auto !important; max-height: 75dvh !important; border-radius: 16px 16px 0 0 !important; padding-bottom: env(safe-area-inset-bottom); }
+  .opa-pop-coluna button, .opa-pop-coluna label { min-height: 42px; }
+  .opa-pop-coluna input[type=checkbox] { width: 18px; height: 18px; }
+}`
+// celular: só os ícones (cabe na mesma linha das abas), com alvo de dedo
+const CSS_SELETOR = '@media (max-width: 768px) { .opa-seletor-visao button { height: 40px !important; min-width: 44px; justify-content: center; padding: 0 12px !important; } .opa-seletor-visao .opa-seletor-rotulo { display: none; } }'
 
 const TH: React.CSSProperties = { padding: '10px 10px', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--portal-text-muted)', whiteSpace: 'nowrap', position: 'relative' }
 const TD: React.CSSProperties = { padding: '10px 10px', verticalAlign: 'middle' }

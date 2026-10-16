@@ -1,5 +1,5 @@
 'use client'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { BarChart3, Sprout, Link2, MapPin, Target } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
@@ -47,6 +47,13 @@ export default function DashboardAgroPage() {
   // endereço do iframe (com token). null = ainda pedindo; erro = não veio.
   const [iframeUrl, setIframeUrl] = useState<string | null>(null)
   const [erroIframe, setErroIframe] = useState<string | null>(null)
+  // celular: a faixa de guias rola de lado — leva a guia ativa para a vista (ex.: ?tab=mapa)
+  const faixaRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const f = faixaRef.current
+    const a = f?.querySelector<HTMLElement>('[data-ativo="1"]')
+    if (f && a && mobile) f.scrollLeft = a.offsetLeft - f.offsetLeft - (f.clientWidth - a.offsetWidth) / 2
+  }, [aba, mobile])
   const podeVer = !loading && !!userProfile && temAcesso('dashboard-agro')
 
   const pedirEndereco = useCallback(async () => {
@@ -75,9 +82,10 @@ export default function DashboardAgroPage() {
 
   return (
     // dvh = altura VISÍVEL (no celular a barra do navegador não corta o rodapé); no PC é igual a vh
-    <div style={{ width: '100%', height: 'calc(100dvh - 84px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ width: '100%', height: 'calc(100dvh - var(--portal-header-h))', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {/* Faixa verde com guias estilo Chrome (mesmo desenho do FrotaNav) */}
       <div
+        ref={faixaRef}
         style={{
           display: 'flex', alignItems: 'flex-end', gap: 3, padding: mobile ? '8px 12px 0' : '10px 24px 0',
           height: ALTURA_FAIXA, boxSizing: 'border-box', flexShrink: 0,
@@ -92,6 +100,7 @@ export default function DashboardAgroPage() {
             <button
               key={g.id}
               type="button"
+              data-ativo={ativo ? '1' : undefined}
               onClick={() => trocar(g.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 7,

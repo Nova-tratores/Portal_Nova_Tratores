@@ -84,7 +84,7 @@ export default function SplitPage() {
 
   return (
     <div
-      style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 84px)' }}
+      style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - var(--portal-header-h))' }}
       onMouseMove={(e) => mover(e.clientX, e.clientY)}
       onMouseUp={() => setArrastando(false)}
       onMouseLeave={() => setArrastando(false)}

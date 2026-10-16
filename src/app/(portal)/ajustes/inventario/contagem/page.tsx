@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 // ---------- tipos do payload ----------
 interface Ciclo {
@@ -41,6 +42,7 @@ function BadgeClasse({ c }: { c?: string | null }) {
 export default function ContagemPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
+  const isMobile = useIsMobile();
 
   const [contador, setContador] = useState('');
   const [ciclo, setCiclo] = useState<Ciclo | null>(null);
@@ -137,12 +139,12 @@ export default function ContagemPage() {
     <div className="est-page est-touch" style={{ maxWidth: 760, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 8 }}>
         <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Contagem de inventario</h1>
+          <h1 className="m-titulo" style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Contagem de inventario</h1>
           <p style={{ color: '#64748b', fontSize: '.82rem' }}>
             Conte a quantidade <b>fisica</b> de cada produto (o estoque e&apos; um so, das duas empresas juntas) e digite abaixo. A contagem e&apos; <b>cega</b>: o sistema nao mostra o saldo esperado. Se a diferenca for grande, ele vai pedir uma <b>recontagem</b>.
           </p>
         </div>
-        <button onClick={carregar} style={{ marginLeft: 'auto', padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Atualizar</button>
+        <button onClick={carregar} className="m-toque" style={{ marginLeft: 'auto', padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Atualizar</button>
       </div>
 
       <div style={{ margin: '6px 0 14px', display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: '.8rem' }}>
@@ -150,8 +152,8 @@ export default function ContagemPage() {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 14, flexWrap: 'wrap', fontSize: '.82rem' }}>
-        <label style={{ color: '#64748b' }}>Seu nome
-          <input type="text" value={contador} onChange={(e) => salvarContador(e.target.value)} placeholder="quem esta contando" style={{ display: 'block', border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 8px', marginTop: 2, width: 224, maxWidth: '100%' }} />
+        <label style={{ color: '#64748b', flex: isMobile ? '1 1 160px' : undefined }}>Seu nome
+          <input type="text" value={contador} onChange={(e) => salvarContador(e.target.value)} placeholder="quem esta contando" style={{ display: 'block', border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 8px', marginTop: 2, width: isMobile ? '100%' : 224, maxWidth: '100%', boxSizing: 'border-box' }} />
         </label>
         <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
           <div style={{ fontSize: '.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '.4px' }}>Progresso do dia</div>
@@ -177,9 +179,9 @@ export default function ContagemPage() {
               <div key={id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 16, marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                   <BadgeClasse c={t.classe_abc} />
-                  <span style={{ fontFamily: 'monospace', fontSize: '.72rem', color: '#64748b' }}>{t.sku}</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: isMobile ? 15 : '.72rem', fontWeight: isMobile ? 700 : undefined, color: isMobile ? '#334155' : '#64748b' }}>{t.sku}</span>
                 </div>
-                <div style={{ fontWeight: 500, color: '#1e293b', marginBottom: 10 }}>{t.descricao_produto || '(sem descricao)'}</div>
+                <div className="m-quebra-texto" style={{ fontWeight: isMobile ? 600 : 500, fontSize: isMobile ? 15 : undefined, color: '#1e293b', marginBottom: 10 }}>{t.descricao_produto || '(sem descricao)'}</div>
                 {t.status === 'conciliada' ? (
                   <div style={{ color: '#059669', fontWeight: 600 }}>✓ Conferido</div>
                 ) : t.status === 'pendente' ? (
@@ -189,22 +191,26 @@ export default function ContagemPage() {
                     {t.status === 'recontagem' && (
                       <div style={{ color: '#b45309', fontSize: '.82rem', marginBottom: 8 }}>🔁 Diferenca grande na 1a contagem — <b>conte de novo</b> com cuidado.</div>
                     )}
-                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
-                      <label style={{ fontSize: '.7rem', color: '#64748b' }}>Quantidade fisica contada
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: isMobile ? 10 : 8, flexWrap: 'wrap' }}>
+                      <label style={{ fontSize: isMobile ? 12 : '.7rem', color: '#64748b', flex: isMobile ? '1 1 100%' : undefined }}>Quantidade fisica contada
                         <input
                           type="number" step="any" min="0"
+                          inputMode="decimal"
                           value={qtdEdit[id] ?? ''}
                           onChange={(e) => setQtdEdit((s) => ({ ...s, [id]: e.target.value }))}
                           onKeyDown={(e) => { if (e.key === 'Enter') enviar(t); }}
                           disabled={enviandoId === id}
-                          style={{ display: 'block', width: 160, border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 10px', fontSize: '1.05rem', marginTop: 2 }}
+                          style={isMobile
+                            // Celular: campo grande, fácil de acertar com o dedo andando no estoque
+                            ? { display: 'block', width: '100%', boxSizing: 'border-box', border: '1px solid #cbd5e1', borderRadius: 10, padding: '10px 14px', fontSize: 22, fontWeight: 700, height: 54, marginTop: 4 }
+                            : { display: 'block', width: 160, border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 10px', fontSize: '1.05rem', marginTop: 2 }}
                         />
                       </label>
-                      <button onClick={() => enviar(t)} disabled={enviandoId === id} style={{ padding: '9px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: enviandoId === id ? 'wait' : 'pointer', opacity: enviandoId === id ? 0.6 : 1 }}>
+                      <button onClick={() => enviar(t)} disabled={enviandoId === id} style={{ padding: '9px 18px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: isMobile ? 10 : 6, fontSize: isMobile ? 16 : '.82rem', fontWeight: isMobile ? 700 : undefined, cursor: enviandoId === id ? 'wait' : 'pointer', opacity: enviandoId === id ? 0.6 : 1, ...(isMobile ? { flex: '1 1 100%', minHeight: 50 } : {}) }}>
                         {enviandoId === id ? 'enviando...' : 'Confirmar'}
                       </button>
                       {msg && (
-                        <span style={{ fontSize: '.82rem', fontWeight: 600, color: msg.tipo === 'ok' ? '#059669' : msg.tipo === 'recontar' ? '#b45309' : '#dc2626' }}>{msg.texto}</span>
+                        <span style={{ fontSize: isMobile ? 14 : '.82rem', fontWeight: 600, color: msg.tipo === 'ok' ? '#059669' : msg.tipo === 'recontar' ? '#b45309' : '#dc2626' }}>{msg.texto}</span>
                       )}
                     </div>
                   </>

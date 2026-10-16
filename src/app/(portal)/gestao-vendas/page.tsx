@@ -2,7 +2,7 @@
 // Dashboard do Gestão de Vendas: KPIs do mês + faturamento por vendedor e por
 // família (série única → uma cor só, sem legenda) + top 10 vendas.
 
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   Bar,
@@ -46,6 +46,9 @@ export default function GvDashboardPage() {
   const { mes, ano, conta } = useGv()
   const { vendas, loading, error } = useGvMes()
   const { dados: familiasCards, loading: loadingFam, error: errorFam } = useGvFamilias()
+  const isMobile = useIsMobile()
+  // celular: famílias sem venda no mês ficam recolhidas (eram ~15 cartões de R$ 0,00)
+  const [verZeradas, setVerZeradas] = useState(false)
 
   const totalFaturado = vendas.reduce((s, v) => s + (v.valor_total ?? 0), 0)
   const totalCmc = vendas.reduce((s, v) => s + (v.cmc_unitario ?? 0) * (v.quantidade ?? 0), 0)
@@ -73,7 +76,7 @@ export default function GvDashboardPage() {
 
       {error && <ErroCard msg={error} />}
 
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 m-grid-2">
         <KPI titulo="Total Faturado" valor={loading ? '…' : formatBRL(totalFaturado)} />
         <KPI
           titulo="Venda − Custo"
@@ -98,11 +101,20 @@ export default function GvDashboardPage() {
         ) : !familiasCards || familiasCards.familias.length === 0 ? (
           <p className="text-sm text-gray-500">Sem dados de família no período.</p>
         ) : (
-          <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr))]">
-            {familiasCards.familias.map((f) => (
-              <CardFamilia key={f.nome} f={f} />
+          <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr))] m-grid-2">
+            {familiasCards.familias.filter((f) => !isMobile || verZeradas || f.venda !== 0).map((f) => (
+              <CardFamilia key={f.nome} f={f} compacto={isMobile} />
             ))}
-            <CardFamilia f={familiasCards.total} destaque />
+            {isMobile && familiasCards.familias.some((f) => f.venda === 0) && (
+              <button type="button" onClick={() => setVerZeradas((v) => !v)}
+                className="rounded-xl border border-dashed border-gray-300 bg-white px-3 text-sm font-semibold text-gray-600"
+                style={{ minHeight: 44, gridColumn: '1 / -1' }}>
+                {verZeradas ? 'Esconder famílias sem venda' : `Mostrar ${familiasCards.familias.filter((f) => f.venda === 0).length} famílias sem venda no mês`}
+              </button>
+            )}
+            <div style={isMobile ? { gridColumn: '1 / -1' } : { display: 'contents' }}>
+              <CardFamilia f={familiasCards.total} destaque />
+            </div>
           </div>
         )}
       </div>
@@ -125,6 +137,20 @@ export default function GvDashboardPage() {
           <p className="px-4 py-3 text-sm text-gray-500">Carregando…</p>
         ) : topVendas.length === 0 ? (
           <p className="px-4 py-3 text-sm text-gray-500">Sem vendas para essa empresa/competência.</p>
+        ) : isMobile ? (
+          // celular: cartões (a tabela de 5 colunas cortava descrição e cliente)
+          <ul className="divide-y divide-gray-100">
+            {topVendas.map((v) => (
+              <li key={v.id} className="px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <p className="min-w-0 text-sm font-semibold text-gray-900 m-quebra-texto">{v.descricao ?? '—'}</p>
+                  <p className="shrink-0 text-sm font-bold tabular-nums text-gray-900">{formatBRL(v.valor_total)}</p>
+                </div>
+                <p className="mt-0.5 text-[13px] text-gray-700 m-quebra-texto">{v.cliente_nome ?? `#${v.codigo_cliente ?? '—'}`}</p>
+                <p className="mt-0.5 text-xs text-gray-500">{[v.numero_pedido && `Pedido ${v.numero_pedido}`, v.vendedor || 'sem vendedor'].filter(Boolean).join(' · ')}</p>
+              </li>
+            ))}
+          </ul>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -166,24 +192,24 @@ function calcVar(atual: number, ref: number): number | null {
   return (atual - ref) / Math.abs(ref)
 }
 
-function CardFamilia({ f, destaque }: { f: FamiliaCard; destaque?: boolean }) {
+function CardFamilia({ f, destaque, compacto }: { f: FamiliaCard; destaque?: boolean; compacto?: boolean }) {
   const varM = calcVar(f.venda, f.vendaMesAnt)
   const varA = calcVar(f.venda, f.vendaAnoAnt)
   const vMenosC = f.venda - f.cmc
   return (
     <div
-      className={`rounded-xl border bg-white p-4 shadow-sm ${
+      className={`rounded-xl border bg-white ${compacto ? 'p-3' : 'p-4'} shadow-sm ${
         destaque ? 'border-red-300 ring-1 ring-red-200' : 'border-gray-200'
       }`}
     >
       <p className="mb-1.5 truncate text-[11px] font-bold uppercase tracking-wide text-gray-500" title={f.nome}>
         {f.nome}
       </p>
-      <p className="text-xl font-bold text-red-600">{formatBRL(f.venda)}</p>
+      <p className={`${compacto ? 'text-base' : 'text-xl'} font-bold text-red-600`}>{formatBRL(f.venda)}</p>
       <p className="mt-1 text-[11px] text-gray-500">
         {f.qtd} item(ns) · V−C: <span className={vMenosC < 0 ? 'font-semibold text-red-600' : 'font-semibold text-gray-700'}>{formatBRL(vMenosC)}</span>
       </p>
-      <div className="mt-2 flex gap-3 text-[11px]">
+      <div className={`mt-2 flex ${compacto ? 'flex-col gap-0.5' : 'gap-3'} text-[11px]`}>
         <Variacao rotulo="Mês ant" valor={varM} />
         <Variacao rotulo="Ano ant" valor={varA} />
       </div>
@@ -205,7 +231,7 @@ function KPI({ titulo, valor, sub }: { titulo: string; valor: string; sub?: stri
   return (
     <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
       <p className="text-xs text-gray-500">{titulo}</p>
-      <p className="mt-0.5 text-xl font-bold text-gray-900">{valor}</p>
+      <p className="mt-0.5 text-xl max-md:text-lg font-bold text-gray-900 m-quebra-texto">{valor}</p>
       {sub && <p className="mt-1 text-xs text-gray-500">{sub}</p>}
     </div>
   )
@@ -235,6 +261,24 @@ function GraficoBarras({
           <p className="text-sm text-gray-500">Carregando…</p>
         ) : dados.length === 0 ? (
           <p className="text-sm text-gray-500">Sem dados.</p>
+        ) : isMobile ? (
+          // celular: barras simples em HTML — nome inteiro em cima, valor ao lado (o eixo do gráfico espremia os nomes)
+          <ul className="flex flex-col gap-2.5">
+            {dados.map((d) => {
+              const max = Math.max(...dados.map((x) => x.venda), 1)
+              return (
+                <li key={d.nome}>
+                  <div className="flex items-baseline justify-between gap-2 text-[13px]">
+                    <span className="min-w-0 truncate text-gray-700" title={d.nome}>{d.nome}</span>
+                    <span className="shrink-0 font-semibold tabular-nums text-gray-900">{brlCompacto(d.venda)}</span>
+                  </div>
+                  <div className="mt-1 h-2.5 rounded bg-gray-100">
+                    <div className="h-2.5 rounded" style={{ width: `${Math.max(2, (d.venda / max) * 100)}%`, background: COR_SERIE }} />
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
         ) : (
           <ResponsiveContainer width="100%" height={altura}>
             <BarChart data={dados} layout="vertical" margin={{ left: isMobile ? 0 : 8, right: isMobile ? 44 : 56, top: 4 }}>

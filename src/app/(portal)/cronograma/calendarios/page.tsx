@@ -33,7 +33,8 @@ export default function CalendariosPage() {
 
   return (
     <div style={{ padding: 'clamp(12px, 3vw, 24px)', maxWidth: 980, margin: '0 auto' }}>
-      <style>{`@media (max-width: 700px){.ct-cal-grid{grid-template-columns:1fr !important}}`}</style>
+      <style>{`@media (max-width: 700px){.ct-cal-grid{grid-template-columns:minmax(0,1fr) !important}}
+        @media (max-width: 768px){.ct-cal-lista{flex-direction:row !important;overflow-x:auto;scrollbar-width:none;margin:0 -12px;padding:0 12px 2px}.ct-cal-lista::-webkit-scrollbar{display:none}.ct-cal-lista>button{flex:0 0 auto;max-width:72vw}.ct-cal-ed{padding:14px !important}.ct-cal-exc{flex-wrap:wrap}.ct-cal-exc>input{flex:1 1 100%;width:100% !important}.ct-cal-exc>select{flex:1 1 auto;width:auto}.ct-cal-exc>button{min-height:44px}.ct-cal-exc-item button{padding:10px !important}.ct-cal-acoes button{min-height:44px}}`}</style>
       <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}>
         <h1 style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 20, fontWeight: 700, color: 'var(--portal-text)' }}>
           <CalendarDays size={22} color="#dc2626" /> Calendários
@@ -45,7 +46,7 @@ export default function CalendariosPage() {
         <div style={{ display: 'flex', justifyContent: 'center', padding: 50 }}><Loader2 className="animate-spin" /></div>
       ) : (
         <div className="ct-cal-grid" style={{ display: 'grid', gridTemplateColumns: '240px minmax(0, 1fr)', gap: 16 }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div className="ct-cal-lista" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {cals.map((c) => (
               <button key={c.id} onClick={() => setSel(c.id)} style={{
                 textAlign: 'left', padding: '10px 12px', borderRadius: 10, cursor: 'pointer',
@@ -105,7 +106,7 @@ function Editor({ cal, onChanged }: { cal: CalendarioRow; onChanged: () => Promi
   }
 
   return (
-    <div style={{ background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#eee)', borderRadius: 12, padding: 18 }}>
+    <div className="ct-cal-ed" style={{ background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#eee)', borderRadius: 12, padding: 18 }}>
       <div style={{ marginBottom: 12 }}>
         <label style={lbl}>Nome</label>
         <input value={nome} onChange={(e) => setNome(e.target.value)} style={input} />
@@ -132,7 +133,7 @@ function Editor({ cal, onChanged }: { cal: CalendarioRow; onChanged: () => Promi
         <label style={lbl}>Horas por dia</label>
         <input type="number" min={1} max={24} step={0.5} value={horas} onChange={(e) => setHoras(Number(e.target.value))} style={input} />
       </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
+      <div className="ct-cal-acoes" style={{ display: 'flex', gap: 8, marginBottom: 18 }}>
         <button onClick={salvar} disabled={salvando} style={btnPrimary}>
           {salvando ? <Loader2 size={16} className="animate-spin" /> : salvo ? <Check size={16} /> : null}
           {salvo ? 'Salvo' : 'Salvar'}
@@ -144,13 +145,13 @@ function Editor({ cal, onChanged }: { cal: CalendarioRow; onChanged: () => Promi
         <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 8 }}>Exceções (feriados / dias extras)</h3>
         {exc.length === 0 && <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)', marginBottom: 8 }}>Nenhuma.</div>}
         {exc.map((e) => (
-          <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 13 }}>
+          <div key={e.id} className="ct-cal-exc-item" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, fontSize: 13 }}>
             <span style={{ width: 10, height: 10, borderRadius: '50%', background: e.tipo === 'folga' ? '#dc2626' : '#10b981' }} />
             <span style={{ flex: 1, color: 'var(--portal-text)' }}>{fmt(e.data)} — {e.tipo === 'folga' ? 'Folga (remove dia)' : 'Extra (adiciona dia)'}</span>
             <button onClick={async () => { await removerExcecao(e.id); await carregarExc(); await recalcularProjetosDoCalendario(cal.id); }} style={iconBtn}><Trash2 size={14} color="#dc2626" /></button>
           </div>
         ))}
-        <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8 }}>
+        <div className="ct-cal-exc" style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 8 }}>
           <input type="date" value={data} onChange={(e) => setData(e.target.value)} style={{ ...input, width: 'auto' }} />
           <select value={tipo} onChange={(e) => setTipo(e.target.value as 'folga' | 'extra')} style={{ ...input, width: 'auto' }}>
             <option value="folga">Folga</option><option value="extra">Extra</option>

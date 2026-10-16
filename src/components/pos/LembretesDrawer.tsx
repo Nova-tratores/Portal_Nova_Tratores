@@ -171,7 +171,16 @@ export default function LembretesDrawer({ visible, clientes, userName, onClose }
   if (!visible) return null;
 
   return (
-    <div className="drawer-overlay active">
+    <div className="drawer-overlay active pos-lemb">
+      {/* Celular: título e o X na mesma linha, janela ocupando a tela */}
+      <style>{`@media (max-width: 768px) {
+        .pos-lemb { padding-top: 0 !important; }
+        .pos-lemb .modal-container { width: 100vw !important; padding-bottom: 0 !important; }
+        .pos-lemb .drawer { max-height: 100dvh !important; border-radius: 0 !important; }
+        .pos-lemb .os-header { flex-wrap: nowrap !important; padding: 10px 12px !important; gap: 8px; }
+        .pos-lemb .os-header-title { font-size: 17px !important; }
+        .pos-lemb .os-body { padding: 12px !important; }
+      }`}</style>
       <div className="modal-container">
         <div className="drawer os-drawer">
           {/* Header */}

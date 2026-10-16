@@ -1656,7 +1656,7 @@ export default function DrePage() {
               : 'NOVA + CASTRO - vendas intercompany. Fonte: API ListarDRE do Omie.'}
           </p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+        <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap max-md:w-full max-md:items-end">
           <div className="inline-flex rounded border border-slate-300 overflow-hidden"
             title="Omie: regime misto (Receita por vencimento, CMV por emissao). Competencia: tudo por emissao NF (Receita+CMV) e contas a pagar por emissao (Despesas).">
             <button onClick={() => trocarRegime('omie')}
@@ -1664,12 +1664,19 @@ export default function DrePage() {
             <button onClick={() => trocarRegime('competencia')}
               className={'px-3 py-1 text-xs border-l border-slate-300 ' + (regime === 'competencia' ? tgAtivo : tgInativo)}>Competência</button>
           </div>
-          <label className="ml-2">De:</label>
+          {/* Celular: De/Até lado a lado, rótulo em cima (no PC "contents" = igual a antes) */}
+          <span className="hidden max-md:block max-md:basis-full max-md:h-0" />
+          <span className="contents max-md:flex max-md:flex-col max-md:gap-0.5 max-md:flex-1 max-md:min-w-0">
+          <label className="ml-2 max-md:ml-0">De:</label>
           <input type="month" value={desde} onChange={(e) => setDesde(e.target.value)}
-            className="border border-slate-300 rounded px-2 py-1" />
+            className="border border-slate-300 rounded px-2 py-1 max-md:w-full max-md:min-w-0" />
+          </span>
+          <span className="contents max-md:flex max-md:flex-col max-md:gap-0.5 max-md:flex-1 max-md:min-w-0">
           <label>Ate:</label>
           <input type="month" value={ate} onChange={(e) => setAte(e.target.value)}
-            className="border border-slate-300 rounded px-2 py-1" />
+            className="border border-slate-300 rounded px-2 py-1 max-md:w-full max-md:min-w-0" />
+          </span>
+          <span className="hidden max-md:block max-md:basis-full max-md:h-0" />
           {regime === 'omie' && (
             <label className="ml-2">Tipo de data:
               <select value={tipoData} onChange={(e) => setTipoData(e.target.value)}
@@ -2023,10 +2030,10 @@ export default function DrePage() {
 
       {/* Modal de drill-down */}
       {modalAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4"
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 m-folha-fundo"
           style={{ background: 'rgba(15,23,42,0.6)' }}
           onClick={(e) => { if (e.target === e.currentTarget) fecharModal() }}>
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] md:max-h-[88vh] flex flex-col" style={{ minWidth: 0 }}>
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] md:max-h-[88vh] flex flex-col m-folha" style={{ minWidth: 0 }}>
             <div className="px-4 py-3 border-b border-slate-200 flex justify-between items-center gap-3">
               <div style={{ minWidth: 0 }}>
                 <div className="text-xs uppercase tracking-wide text-slate-500">{modalCtx ? modalCtx.classif : '--'}</div>
@@ -2118,10 +2125,10 @@ export default function DrePage() {
 
       {/* Modal de detalhe do grafico de familias: vendas que compoem o ponto clicado */}
       {famDetCtx && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4"
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4 m-folha-fundo"
           style={{ background: 'rgba(15,23,42,0.6)' }}
           onClick={(e) => { if (e.target === e.currentTarget) setFamDetCtx(null) }}>
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] md:max-h-[88vh] flex flex-col" style={{ minWidth: 0 }}>
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] md:max-h-[88vh] flex flex-col m-folha" style={{ minWidth: 0 }}>
             <div className="px-4 py-3 border-b border-slate-200 flex justify-between items-center gap-3">
               <div style={{ minWidth: 0 }}>
                 <div className="text-xs uppercase tracking-wide text-slate-500">Vendas que compõem a margem</div>

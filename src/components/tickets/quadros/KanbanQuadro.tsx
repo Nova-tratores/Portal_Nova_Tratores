@@ -75,8 +75,11 @@ export default function KanbanQuadro({
     onColuna({ acao: 'colunas_ordenar', ids })
   }
 
+  // Celular: botões das colunas maiores (alvo de dedo) e uma coluna por tela, com encaixe.
+  const ib: React.CSSProperties = isMobile ? { ...iconeBtn, width: 34, height: 34 } : iconeBtn
+
   return (
-    <div style={{ display: 'flex', gap: 12, overflowX: 'auto', alignItems: 'flex-start', paddingBottom: 10 }}>
+    <div style={{ display: 'flex', gap: 12, overflowX: 'auto', alignItems: 'flex-start', paddingBottom: 10, ...(isMobile ? { scrollSnapType: 'x mandatory', scrollPaddingLeft: 2, overscrollBehaviorX: 'contain' } : {}) }}>
       {colunas.map((col, idx) => {
         const lista = porColuna.get(col.id) || []
         const alvo = !!arrastando && over === col.id
@@ -87,7 +90,8 @@ export default function KanbanQuadro({
             onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node) && over === col.id) setOver(null) }}
             onDrop={(e) => { e.preventDefault(); const id = arrastando; const a = antesDe; setArrastando(null); setOver(null); setAntesDe(null); if (id) mover(id, col.id, a) }}
             style={{
-              flex: '0 0 270px', width: 270, borderRadius: 12, padding: 10,
+              flex: isMobile ? '0 0 84vw' : '0 0 270px', width: isMobile ? '84vw' : 270, borderRadius: 12, padding: 10,
+              scrollSnapAlign: isMobile ? 'start' : undefined,
               background: alvo ? 'rgba(220,38,38,.06)' : 'var(--portal-bg,#f3f4f6)',
               border: alvo ? `1.5px dashed ${cor}` : '1.5px solid transparent',
             }}>
@@ -102,8 +106,8 @@ export default function KanbanQuadro({
                       if (e.key === 'Enter' && renomeando.nome.trim()) { if (await onColuna({ acao: 'coluna_renomear', coluna_id: col.id, nome: renomeando.nome })) setRenomeando(null) }
                     }}
                     style={{ flex: 1, minWidth: 0, padding: '4px 8px', borderRadius: 6, fontSize: 13, fontWeight: 700, border: '1px solid var(--portal-border,#ddd)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)' }} />
-                  <button style={iconeBtn} title="Salvar" onClick={async () => { if (renomeando.nome.trim() && await onColuna({ acao: 'coluna_renomear', coluna_id: col.id, nome: renomeando.nome })) setRenomeando(null) }}><Check size={15} /></button>
-                  <button style={iconeBtn} title="Cancelar" onClick={() => setRenomeando(null)}><X size={15} /></button>
+                  <button style={ib} title="Salvar" onClick={async () => { if (renomeando.nome.trim() && await onColuna({ acao: 'coluna_renomear', coluna_id: col.id, nome: renomeando.nome })) setRenomeando(null) }}><Check size={15} /></button>
+                  <button style={ib} title="Cancelar" onClick={() => setRenomeando(null)}><X size={15} /></button>
                 </>
               ) : (
                 <>
@@ -111,11 +115,11 @@ export default function KanbanQuadro({
                   <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)', marginRight: 2 }}>{lista.length}</span>
                   {podeGerenciar && (
                     <>
-                      <button style={{ ...iconeBtn, opacity: idx === 0 ? .25 : 1 }} disabled={idx === 0} title="Mover coluna para a esquerda" onClick={() => reordenar(idx, -1)}><ChevronLeft size={15} /></button>
-                      <button style={{ ...iconeBtn, opacity: idx === colunas.length - 1 ? .25 : 1 }} disabled={idx === colunas.length - 1} title="Mover coluna para a direita" onClick={() => reordenar(idx, 1)}><ChevronRight size={15} /></button>
-                      <button style={iconeBtn} title="Renomear coluna" onClick={() => setRenomeando({ id: col.id, nome: col.nome })}><Pencil size={13} /></button>
+                      <button style={{ ...ib, opacity: idx === 0 ? .25 : 1 }} disabled={idx === 0} title="Mover coluna para a esquerda" onClick={() => reordenar(idx, -1)}><ChevronLeft size={15} /></button>
+                      <button style={{ ...ib, opacity: idx === colunas.length - 1 ? .25 : 1 }} disabled={idx === colunas.length - 1} title="Mover coluna para a direita" onClick={() => reordenar(idx, 1)}><ChevronRight size={15} /></button>
+                      <button style={ib} title="Renomear coluna" onClick={() => setRenomeando({ id: col.id, nome: col.nome })}><Pencil size={13} /></button>
                       {colunas.length > 1 && (
-                        <button style={iconeBtn} title="Remover coluna" onClick={() => {
+                        <button style={ib} title="Remover coluna" onClick={() => {
                           if (lista.length === 0) {
                             if (window.confirm(`Remover a coluna "${col.nome}"?`)) onColuna({ acao: 'coluna_remover', coluna_id: col.id })
                           } else setRemovendo({ id: col.id, destino: outras[0].id })
@@ -198,7 +202,7 @@ export default function KanbanQuadro({
                       <select aria-label="Mover para a coluna" value={colunaDoTicket(t.quadro_coluna_id, colunas) || ''}
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => mover(t.id, e.target.value)}
-                        style={{ marginTop: 2, padding: '6px 8px', borderRadius: 6, fontSize: 12.5, border: '1px solid var(--portal-border,#ddd)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)' }}>
+                        style={{ marginTop: 2, padding: isMobile ? '9px 10px' : '6px 8px', borderRadius: 6, fontSize: 12.5, border: '1px solid var(--portal-border,#ddd)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)' }}>
                         {colunas.map((c) => <option key={c.id} value={c.id}>Mover para: {c.nome}</option>)}
                       </select>
                     )}
@@ -222,7 +226,7 @@ export default function KanbanQuadro({
       })}
 
       {podeGerenciar && (
-        <div style={{ flex: '0 0 250px', width: 250 }}>
+        <div style={{ flex: isMobile ? '0 0 84vw' : '0 0 250px', width: isMobile ? '84vw' : 250, scrollSnapAlign: isMobile ? 'start' : undefined }}>
           {novaColuna === null ? (
             <button onClick={() => setNovaColuna('')}
               style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', padding: '11px 12px', borderRadius: 12, border: '1.5px dashed var(--portal-border,#d1d5db)', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }}>

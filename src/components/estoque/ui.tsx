@@ -10,7 +10,7 @@ export function fmtRS(v: number | string | null | undefined): string {
 
 export function Card({ titulo, children }: { titulo: string; children: ReactNode }) {
   return (
-    <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 18, marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
+    <div className="est-card" style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 18, marginBottom: 12, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
       <h2 style={{ color: '#dc2626', marginBottom: 12, fontSize: '.95rem', fontWeight: 700, borderBottom: '1px solid #f5f5f5', paddingBottom: 8 }}>
         {titulo}
       </h2>
@@ -28,7 +28,7 @@ export function InfoItem({ label, valor, tom }: { label: string; valor: ReactNod
   const v = valor === undefined || valor === null || valor === 'N/D' ? 'N/D' : valor;
   return (
     <div style={{ background: '#fafafa', padding: 10, borderRadius: 8, border: '1px solid #f0f0f0', minWidth: 0, overflowWrap: 'anywhere' }}>
-      <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 2, fontWeight: 600 }}>
+      <label className="est-rotulo" style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 2, fontWeight: 600 }}>
         {label}
       </label>
       <div style={{ fontSize: '.88rem', fontWeight: 600, color: cor }}>{v}</div>
@@ -47,7 +47,7 @@ export function VendaCard({ periodo, qtd, label, atual }: { periodo: string; qtd
         textAlign: 'center',
       }}
     >
-      <div style={{ color: '#888', fontSize: '.6rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4, fontWeight: 600 }}>{label}</div>
+      <div className="est-rotulo" style={{ color: '#888', fontSize: '.6rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4, fontWeight: 600 }}>{label}</div>
       <div style={{ fontSize: '1.35rem', fontWeight: 700, color: atual ? '#dc2626' : '#333' }}>{qtd}</div>
       <div style={{ fontSize: '.68rem', color: '#aaa', marginTop: 3 }}>{periodo}</div>
     </div>

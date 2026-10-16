@@ -126,8 +126,8 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
       {/* 1) Confirmação de ticket recebido */}
       {/* Com um ticket aberto por aqui, o aviso some (senão ficaria por cima dele) e volta ao fechar */}
       {pend && !ticketAberto && (
-        <div style={fundo} role="dialog" aria-modal="true" aria-labelledby="aceite-t">
-          <div style={caixa}>
+        <div className="m-folha-fundo" style={fundo} role="dialog" aria-modal="true" aria-labelledby="aceite-t">
+          <div className="m-folha" style={caixa}>
             <div style={topo}>
               <div style={{ fontSize: 12, opacity: .9 }}>Novo ticket para você{h.pendentes.length > 1 ? ` · 1 de ${h.pendentes.length}` : ''}</div>
               <div id="aceite-t" style={{ fontSize: 19, fontWeight: 800 }}>{pend.solicitante_nome} criou um ticket para você</div>
@@ -183,8 +183,8 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
 
       {/* 2) Seu dia (7:30) */}
       {mostrarDia && !ticketAberto && (
-        <div style={fundo} role="dialog" aria-modal="true" aria-labelledby="dia-t">
-          <div style={caixa}>
+        <div className="m-folha-fundo" style={fundo} role="dialog" aria-modal="true" aria-labelledby="dia-t">
+          <div className="m-folha" style={caixa}>
             <div style={topo}>
               <div style={{ fontSize: 12, opacity: .9 }}>Hoje · {h.hora}</div>
               <div id="dia-t" style={{ fontSize: 20, fontWeight: 800 }}>Bom dia{nome ? `, ${nome.split(' ')[0]}` : ''}!</div>

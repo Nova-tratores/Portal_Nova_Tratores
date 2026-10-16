@@ -8,6 +8,7 @@ import { atualizarRegistro, buscarUltimasOSPorCliente, listarRegistros, listarCl
 import { marcarNaoContatar, reativarContato } from "@/lib/feedbacks/caveira";
 import { clienteKey, TAG_NAO_CONTATAR, type ClienteInfo, type FeedbackRegistro, type StatusAtendimento, type TipoFeedback } from "@/lib/feedbacks/types";
 import { useAuditLog } from "@/hooks/useAuditLog";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
@@ -101,6 +102,7 @@ export default function ListaRegistros({ tipo }: Props) {
   const [caveiraAlvo, setCaveiraAlvo] = useState<FeedbackRegistro | null>(null);
   const [caveiraProcessando, setCaveiraProcessando] = useState(false);
   const { log } = useAuditLog();
+  const isMobile = useIsMobile();
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -261,7 +263,8 @@ export default function ListaRegistros({ tipo }: Props) {
     <div style={{ paddingTop: 20, fontFamily: "Inter, sans-serif" }}>
       {/* Topo */}
       <div style={topoStyle}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: "var(--portal-text)", margin: 0, flex: 1 }}>
+        {/* celular: título numa linha só, ações embaixo */}
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: "var(--portal-text)", margin: 0, flex: isMobile ? "1 1 100%" : 1 }}>
           {titulo}
         </h1>
         <span style={badgeStyle}>{filtradas.length} de {rows.length}</span>

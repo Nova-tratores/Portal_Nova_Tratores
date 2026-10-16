@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { authHeaders } from "@/lib/auth/client";
 import styles from "../feedbacks.module.css";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { fmtDataBR, fmtMoeda, haQuanto } from "@/lib/feedbacks/atendimento/rotulos";
 import { TIPO_EVENTO_ROTULO, type EventoMaquina, type RefEvento, type TipoEvento } from "@/lib/feedbacks/atendimento/maquina";
 import type { HistoricoMaquina } from "@/lib/feedbacks/atendimento/maquina-db";
@@ -41,6 +42,7 @@ export default function ModalHistoricoMaquina({ maquina, acesso, onFechar, onAbr
   const [dados, setDados] = useState<HistoricoMaquina | null>(cache.get(chassi) ?? null);
   const [erro, setErro] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(false);
+  const isMobile = useIsMobile();
   const [filtro, setFiltro] = useState<Set<TipoEvento>>(new Set());
   const [tentativa, setTentativa] = useState(0);
 
@@ -90,15 +92,16 @@ export default function ModalHistoricoMaquina({ maquina, acesso, onFechar, onAbr
   const hrefProjeto = linkProjeto(projeto);
 
   return (
-    <div style={overlay} onClick={onFechar} role="dialog" aria-modal="true" aria-label={`Histórico da máquina ${modelo}`}>
-      <div style={modal} onClick={(e) => e.stopPropagation()}>
+    // celular: folha de baixo para cima, largura toda, botão fechar de 44px
+    <div style={isMobile ? { ...overlay, alignItems: "flex-end", padding: 0 } : overlay} onClick={onFechar} role="dialog" aria-modal="true" aria-label={`Histórico da máquina ${modelo}`}>
+      <div style={isMobile ? { ...modal, width: "100%", maxHeight: "94dvh", borderRadius: "18px 18px 0 0" } : modal} onClick={(e) => e.stopPropagation()}>
         <header style={cabecalho}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.85, textTransform: "uppercase", letterSpacing: 0.8 }}>🚜 Histórico da máquina</div>
             <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.2, marginTop: 2 }}>{modelo}</div>
             <div style={{ fontFamily: "ui-monospace, Consolas, monospace", fontSize: 13, opacity: 0.9 }}>{chassi || "sem chassi"}</div>
           </div>
-          <button type="button" onClick={onFechar} style={btnFechar} aria-label="Fechar">✕</button>
+          <button type="button" onClick={onFechar} style={isMobile ? { ...btnFechar, width: 44, height: 44, fontSize: 16 } : btnFechar} aria-label="Fechar">✕</button>
         </header>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 14, padding: "10px 18px", borderBottom: "1px solid var(--portal-border)", fontSize: 12 }}>

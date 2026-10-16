@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import "./mobile.css";
 
 export const metadata: Metadata = {
   title: "Portal Nova Tratores",
@@ -17,6 +18,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   // deixa o usuário dar zoom (acessibilidade); não trava a escala
   maximumScale: 5,
+  // usa a tela toda no iPhone com "ilha"/notch (env(safe-area-inset-*) no CSS)
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

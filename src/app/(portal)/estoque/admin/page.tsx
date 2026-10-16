@@ -146,10 +146,10 @@ export default function AdminEstoquePage() {
           &ldquo;Peças diversas&rdquo; recolhe as peças sem tipo (palavras-chave opcionais).
         </p>
         {cats.map((c, i) => (
-          <div key={c.slug || i} style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, padding: 12, background: '#fafafa', borderRadius: 10, border: '1px solid #f0f0f0' }}>
+          <div key={c.slug || i} className="est-wrap" style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, padding: 12, background: '#fafafa', borderRadius: 10, border: '1px solid #f0f0f0' }}>
             <span style={{ width: 28, height: 28, background: '#dc2626', color: '#fff', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>{i + 1}</span>
-            <input value={c.nome} placeholder="Nome" onChange={(e) => setCats((p) => p.map((x, j) => (j === i ? { ...x, nome: e.target.value } : x)))} style={{ ...inp, flex: 1 }} />
-            <input value={c.palavras_chave} placeholder={c.slug === 'pecas_diversas' ? 'palavras,chave (opcional)' : 'palavras,chave'} onChange={(e) => setCats((p) => p.map((x, j) => (j === i ? { ...x, palavras_chave: e.target.value } : x)))} style={{ ...inp, flex: 2 }} />
+            <input className="est-grow" value={c.nome} placeholder="Nome" onChange={(e) => setCats((p) => p.map((x, j) => (j === i ? { ...x, nome: e.target.value } : x)))} style={{ ...inp, flex: 1 }} />
+            <input className="est-fill" value={c.palavras_chave} placeholder={c.slug === 'pecas_diversas' ? 'palavras,chave (opcional)' : 'palavras,chave'} onChange={(e) => setCats((p) => p.map((x, j) => (j === i ? { ...x, palavras_chave: e.target.value } : x)))} style={{ ...inp, flex: 2 }} />
           </div>
         ))}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>

@@ -14,6 +14,7 @@ import type { FrappeTask } from 'frappe-gantt'
 import { STATUS_INFO, type Ticket } from '@/lib/tickets/constantes'
 import type { ViewMode } from '@/components/cronograma/GanttView'
 import { fimDeSemana, diaUtil } from '@/lib/trabalho/agenda'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 const GanttView = dynamic(() => import('@/components/cronograma/GanttView'), { ssr: false })
 
@@ -156,6 +157,8 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
   const dias = Array.from({ length: diasNoMes }, (_, i) => new Date(mes.getFullYear(), mes.getMonth(), i + 1))
   const casaVazia = (key: string) => <div key={key} style={{ minHeight: 96, background: COR_FOLGA, borderRight: '1px solid var(--portal-border,#e5e7eb)', borderBottom: '1px solid var(--portal-border,#e5e7eb)' }} />
   const [aberto, setAberto] = useState<string | null>(null) // dia com "+N" expandido
+  const isMobile = useIsMobile()
+  const [diaSel, setDiaSel] = useState<string>(hoje) // celular: dia tocado na grade
   // Ticket em CADA dia do trabalho (início → prazo). Atrasado aparece só em
   // hoje (com "desde dd/mm") para não encher o mês de repetição. Contínuo
   // (sem prazo) aparece em todo dia a partir do início, até alguém concluir.
@@ -200,6 +203,91 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
     onMudarDatas(t.id, ni, diaUtil(somaDias(ni, dur)))
   }
   const nav: React.CSSProperties = { display: 'flex', alignItems: 'center', padding: 6, borderRadius: 8, border: '1px solid var(--portal-border,#ddd)', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text,#111)' }
+
+  // Celular: grade do mês compacta (número + bolinhas na cor do bloco) e,
+  // embaixo, os tickets do dia tocado em cartões. No toque não há arrastar —
+  // a data muda dentro do ticket, como em qualquer outro lugar.
+  if (isMobile) {
+    const trocarMes = (delta: number) => {
+      const novo = new Date(mes.getFullYear(), mes.getMonth() + delta, 1)
+      setMes(novo)
+      const h = diaDe(hoje)
+      setDiaSel(h.getFullYear() === novo.getFullYear() && h.getMonth() === novo.getMonth() ? hoje : iso(novo))
+    }
+    const itensSel = porDia.get(diaSel) || []
+    const navM: React.CSSProperties = { ...nav, width: 40, height: 40, justifyContent: 'center' }
+    const plural = (n: number) => (n === 1 ? '1 ticket' : `${n} tickets`)
+    return (
+      <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ ...cartao, padding: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <button style={navM} aria-label="Mês anterior" onClick={() => trocarMes(-1)}><ChevronLeft size={18} /></button>
+            <b style={{ flex: 1, textAlign: 'center', fontSize: 16, color: 'var(--portal-text,#111)', textTransform: 'capitalize' }}>{mes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</b>
+            <button style={navM} aria-label="Próximo mês" onClick={() => trocarMes(1)}><ChevronRight size={18} /></button>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 2 }}>
+            {SEMANA_SEG.map((d, i) => (
+              <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 800, textTransform: 'uppercase', padding: '4px 0', color: i >= 5 ? '#94a3b8' : '#dc2626' }}>{d}</div>
+            ))}
+            {Array.from({ length: antes }, (_, i) => <div key={`a${i}`} />)}
+            {dias.map((d) => {
+              const k = iso(d)
+              const itens = porDia.get(k) || []
+              const sel = k === diaSel
+              const fds = d.getDay() === 0 || d.getDay() === 6
+              const temAtraso = k === hoje && itens.some((t) => !!t.prazo && t.prazo < hoje)
+              return (
+                <button key={k} type="button" onClick={() => setDiaSel(k)} aria-label={`${d.getDate()}: ${plural(itens.length)}`}
+                  style={{ minHeight: 50, padding: '4px 0 3px', borderRadius: 10, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
+                    border: sel ? '2px solid #dc2626' : '1px solid transparent', background: sel ? 'rgba(220,38,38,.08)' : fds ? COR_FOLGA : 'transparent' }}>
+                  <span style={{ fontSize: 14, fontWeight: k === hoje ? 900 : 600, color: k === hoje ? '#dc2626' : fds ? 'var(--portal-text-muted,#999)' : 'var(--portal-text,#111)' }}>{d.getDate()}</span>
+                  <span style={{ display: 'flex', gap: 2, height: 6 }}>
+                    {itens.slice(0, 3).map((t) => <span key={t.id} style={{ width: 6, height: 6, borderRadius: '50%', background: corDe(t) }} />)}
+                  </span>
+                  {itens.length > 0 && <span style={{ fontSize: 11, fontWeight: 800, lineHeight: 1, color: temAtraso ? '#dc2626' : 'var(--portal-text-muted,#888)' }}>{itens.length}</span>}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text,#111)', margin: '0 2px 8px' }}>
+            <span style={{ textTransform: 'capitalize' }}>{diaDe(diaSel).toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long' })}</span>{diaSel === hoje ? ' · hoje' : ''}
+            {itensSel.length > 0 && <span style={{ marginLeft: 6, fontWeight: 600, color: 'var(--portal-text-muted,#888)' }}>{plural(itensSel.length)}</span>}
+          </div>
+          {itensSel.length === 0 ? (
+            <div style={{ padding: '22px 16px', textAlign: 'center', borderRadius: 12, border: '1px dashed var(--portal-border,#ddd)', fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Nada neste dia.</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {itensSel.map((t) => {
+                const atrasado = !!t.prazo && t.prazo < hoje
+                const p = noPlano(t, hoje)
+                const total = difDias(p.inicio, p.fim) + 1
+                const diaN = difDias(p.inicio, diaSel) + 1
+                return (
+                  <button key={t.id} type="button" onClick={() => onAbrir(t.id)}
+                    style={{ display: 'flex', alignItems: 'stretch', textAlign: 'left', padding: 0, borderRadius: 12, overflow: 'hidden', cursor: 'pointer', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)' }}>
+                    <span style={{ width: 6, flex: 'none', background: corDe(t) }} />
+                    <span style={{ flex: 1, minWidth: 0, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)' }}>
+                        #{t.numero} {ehUrgente(t) && <SeloUrgente />}
+                        <span style={{ marginLeft: 'auto', fontWeight: 700, color: STATUS_INFO[t.status]?.cor }}>{STATUS_INFO[t.status]?.label || t.status}</span>
+                      </span>
+                      <span style={{ fontSize: 14.5, fontWeight: 700, lineHeight: 1.3, overflowWrap: 'anywhere' }}>{t.titulo}</span>
+                      <span style={{ fontSize: 12.5, fontWeight: atrasado ? 700 : 500, color: atrasado ? '#dc2626' : 'var(--portal-text-muted,#888)' }}>
+                        {atrasado ? `atrasado desde ${br(t.prazo)}` : p.continuo ? '∞ contínuo (sem prazo)' : total > 1 ? `dia ${diaN} de ${total} · até ${br(p.fim)}` : `prazo ${br(p.fim)}`}
+                      </span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div style={{ marginTop: 16 }}>
     <div style={{ ...cartao, overflow: 'auto' }}>

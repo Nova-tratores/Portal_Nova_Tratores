@@ -378,7 +378,7 @@ export default function FrotaMultasPage() {
   return (
     <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <h2 className="frota-titulo" style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <ShieldAlert size={20} color="#b91c1c" /> Multas
         </h2>
         <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
@@ -387,7 +387,7 @@ export default function FrotaMultasPage() {
         </span>
         <div style={{ flex: 1 }} />
         {/* Abas: em aberto / encerradas (pagas · descontadas · arquivadas) / todas */}
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 10, padding: 3 }}>
+        <div className="frota-seg" style={{ display: 'flex', flexWrap: 'wrap', gap: 4, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 10, padding: 3 }}>
           {([
             ['abertas', `Em aberto (${abertas.length})`],
             ['encerradas', `Encerradas (${encerradas.length})`],
@@ -413,6 +413,7 @@ export default function FrotaMultasPage() {
           <button
             onClick={() => setNovaMulta(true)}
             title="Cadastrar multa que não veio pela Rota Exata (notificação por correio etc.)"
+            className="frota-full-m"
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#b91c1c,#7f1d1d)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
           >
             <Plus size={14} /> Nova multa
@@ -476,13 +477,13 @@ export default function FrotaMultasPage() {
         {visiveis.map((m) => {
           const st = STATUS[m.status_interno] || STATUS.nova;
           return (
-            <div key={m.id} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: '12px 16px', display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              <div style={{ minWidth: 90 }}>
+            <div key={m.id} className="frota-multa" style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: '12px 16px', display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div className="frota-multa-placa" style={{ minWidth: 90 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>{formatarPlaca(m.placa)}</div>
                 <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{fmtDataHoraMulta(m.dt_multa)}</div>
               </div>
 
-              <div style={{ flex: 2, minWidth: 220 }}>
+              <div className="frota-multa-desc" style={{ flex: 2, minWidth: 220 }}>
                 <div style={{ fontSize: 13, color: 'var(--portal-text)', fontWeight: 600 }}>
                   {m.descricao || 'Infração'}
                   {m.numero_auto && <span style={{ color: 'var(--portal-text-muted)', fontWeight: 400 }}> · auto {m.numero_auto}</span>}
@@ -604,13 +605,13 @@ export default function FrotaMultasPage() {
                 </div>
               </div>
 
-              <div style={{ textAlign: 'right', minWidth: 90 }}>
+              <div className="frota-multa-valor" style={{ textAlign: 'right', minWidth: 90 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: '#b91c1c' }}>{fmtRS(m.valor)}</div>
                 <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{m.pontos ?? 0} pts · {m.nivel_infracao || '—'}</div>
                 {m.dt_vencimento && <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>vence {fmtData(m.dt_vencimento)}</div>}
               </div>
 
-              <div style={{ minWidth: 150 }}>
+              <div className="frota-multa-status" style={{ minWidth: 150 }}>
                 <select
                   value={m.status_interno}
                   disabled={!podeEditar || busy === m.id}

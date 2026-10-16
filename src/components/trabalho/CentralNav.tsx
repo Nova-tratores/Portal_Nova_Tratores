@@ -99,10 +99,13 @@ export default function CentralNav() {
   return (
     <>
       {/* Tela estreita: abas numa linha (rolam de lado) e os botões de criar na linha de baixo. */}
-      <style>{`@media (max-width: 900px){.ct-nav{flex-wrap:wrap;padding:0 12px !important}.ct-nav-abas{flex:1 1 100% !important}.ct-nav-acoes{flex:1 1 100%;margin-left:0 !important;padding:8px 0 10px !important;justify-content:flex-end}.ct-nav-acoes button{min-height:36px}.ct-nav-acoes .ct-nav-ajuda{width:36px !important;height:36px !important}}`}</style>
+      <style>{`@media (max-width: 900px){.ct-nav{flex-wrap:wrap;padding:0 12px !important}.ct-nav-abas{flex:1 1 100% !important}.ct-nav-acoes{flex:1 1 100%;margin-left:0 !important;padding:8px 0 10px !important;justify-content:flex-end}.ct-nav-acoes button{min-height:36px}.ct-nav-acoes .ct-nav-ajuda{width:36px !important;height:36px !important}}
+        /* Celular: some o rótulo "Central de Trabalho" (as abas já dizem onde está),
+           abas grudam/rolam de lado e os dois botões de criar dividem a linha. */
+        @media (max-width: 768px){.ct-nav-titulo{display:none !important}.ct-nav-abas{scrollbar-width:none;scroll-snap-type:x proximity}.ct-nav-abas::-webkit-scrollbar{display:none}.ct-nav-abas a{padding:13px 12px !important;scroll-snap-align:start}.ct-nav-acoes{gap:8px !important;padding:8px 0 10px !important}.ct-nav-acoes button:not(.ct-nav-ajuda){flex:1 1 0 !important;justify-content:center;min-height:42px !important;font-size:14px !important}.ct-nav-acoes .ct-nav-ajuda{width:42px !important;height:42px !important}svg[style*="vertical-align"]{display:inline-block}:root{--portal-surface:var(--portal-bg-card)}}`}</style>
       <nav aria-label="Central de Trabalho" className="ct-nav" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 16px', borderBottom: '1px solid var(--portal-border,#eee)', background: 'var(--portal-surface,#fff)' }}>
         <div className="ct-nav-abas" style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 0, overflowX: 'auto' }}>
-        <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text,#111)', padding: '12px 12px 12px 0', marginRight: 4, borderRight: '1px solid var(--portal-border,#eee)', whiteSpace: 'nowrap' }}>Central de Trabalho</span>
+        <span className="ct-nav-titulo" style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text,#111)', padding: '12px 12px 12px 0', marginRight: 4, borderRight: '1px solid var(--portal-border,#eee)', whiteSpace: 'nowrap' }}>Central de Trabalho</span>
         {abas.map((a) => (
           <Link key={a.label} href={a.href} style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '12px 14px', whiteSpace: 'nowrap',
@@ -191,24 +194,26 @@ function ComoFunciona({ onFechar }: { onFechar: () => void }) {
     ['5. Cronograma', 'Tudo que você pode ver, por dia, cada ticket na cor do seu bloco. Atrasados aparecem primeiro.'],
   ]
   return (
-    <div onClick={(e) => { if (e.target === e.currentTarget) onFechar() }} style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div role="dialog" aria-modal="true" aria-labelledby="cf-t" style={{ width: '100%', maxWidth: 760, maxHeight: '90vh', overflowY: 'auto', background: 'var(--portal-surface,#fff)', borderRadius: 16, boxShadow: '0 24px 70px rgba(0,0,0,.35)' }}>
+    <div className="m-folha-fundo" onClick={(e) => { if (e.target === e.currentTarget) onFechar() }} style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      {/* Celular: folha de baixo; o fluxo Ticket → Bloco → Cronograma fica em pé (setas para baixo) */}
+      <style>{`@media (max-width: 768px){.cf-fluxo{flex-direction:column;align-items:stretch !important;gap:6px !important}.cf-fluxo>div{flex:none !important}.cf-seta{flex-direction:row !important;justify-content:center;gap:6px}.cf-seta br{display:none}.cf-seta svg{transform:rotate(90deg)}.cf-leg>div{display:block !important}.cf-leg svg{vertical-align:-3px;margin-right:6px}.cf-fechar{min-height:42px}}`}</style>
+      <div role="dialog" aria-modal="true" aria-labelledby="cf-t" className="m-folha" style={{ width: '100%', maxWidth: 760, maxHeight: '90vh', overflowY: 'auto', background: 'var(--portal-surface,#fff)', borderRadius: 16, boxShadow: '0 24px 70px rgba(0,0,0,.35)' }}>
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '14px 18px', borderBottom: '1px solid var(--portal-border,#eee)' }}>
           <h2 id="cf-t" style={{ margin: 0, fontSize: 18, color: 'var(--portal-text,#111)' }}>Como funciona</h2>
-          <button onClick={onFechar} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text,#111)' }}><X size={15} /> Fechar</button>
+          <button onClick={onFechar} className="cf-fechar" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text,#111)' }}><X size={15} /> Fechar</button>
         </header>
         <div style={{ padding: 18, color: 'var(--portal-text,#111)' }}>
           <p style={{ margin: 0, color: 'var(--portal-text-secondary,#555)', fontSize: 13.5 }}>
             O <b>Ticket</b> é o pedido. Quem recebe guarda num dos seus <b>Blocos</b> (por assunto, cada um de uma cor). As <b>Tarefas</b> são os passos dentro do ticket. O <b>Cronograma</b> junta tudo por dia.
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0', flexWrap: 'wrap' }}>
+          <div className="cf-fluxo" style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0', flexWrap: 'wrap' }}>
             <div style={caixa(true)}><TicketIcon size={22} color="#dc2626" /><b>Ticket</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>o pedido</small></div>
-            <div style={seta}><span>quem recebe<br />escolhe</span><ArrowRight size={18} /></div>
+            <div className="cf-seta" style={seta}><span>quem recebe<br />escolhe</span><ArrowRight size={18} /></div>
             <div style={caixa(false)}><LayoutGrid size={22} color="#dc2626" /><b>Bloco</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>organização, com cor</small></div>
-            <div style={seta}><span>por dia</span><ArrowRight size={18} /></div>
+            <div className="cf-seta" style={seta}><span>por dia</span><ArrowRight size={18} /></div>
             <div style={caixa(false)}><Calendar size={22} color="#dc2626" /><b>Cronograma</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>tudo, na cor do bloco</small></div>
           </div>
-          <div style={{ display: 'grid', gap: 6, marginBottom: 14, fontSize: 13.5 }}>
+          <div className="cf-leg" style={{ display: 'grid', gap: 6, marginBottom: 14, fontSize: 13.5 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Lock size={16} color="#6b7280" /> <b>Privado</b>: só você, quem pediu e quem estiver no ticket</div>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Users size={16} color="#059669" /> <b>Compartilhado</b>: quem participa do bloco também vê</div>
           </div>

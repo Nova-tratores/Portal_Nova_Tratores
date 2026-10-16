@@ -1410,6 +1410,45 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
             .pos-osd .os-rail-btn, .pos-osd .os-action-rail > div { flex-basis: 45%; }
             .pos-osd .os-rail-btn.primary { flex-basis: 100%; }
           }
+          /* ── CELULAR (≤768px): uma rolagem só. Antes a coluna de ações grudava embaixo
+             e ocupava quase a tela toda (sobravam ~60px pro conteúdo). Agora: cabeçalho
+             gruda no topo, conteúdo rola, as ações vão pro FIM da OS e o Salvar flutua
+             no rodapé, sempre à mão. ── */
+          @media (max-width: 768px) {
+            .pos-osd.fs .modal-container { display: block !important; height: 100dvh !important; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+            /* a "folha" da OS vira só um agrupador: o cabeçalho gruda no topo da rolagem
+               inteira (inclusive quando se chega às ações, lá no fim) */
+            .pos-osd.fs .modal-container { background: var(--primary-light); }
+            .pos-osd .drawer.os-drawer { display: contents !important; }
+            .pos-osd .drawer.os-drawer > .os-header { position: sticky !important; top: 0; z-index: 30; }
+            [data-theme="dark"] .pos-osd img[alt="Omie"] { filter: brightness(0) invert(1); }
+            .pos-osd .os-body { overflow: visible !important; padding: 12px 12px 16px !important; }
+            /* cabeçalho em 2 linhas: [título · Fechar] / [fase na largura toda] */
+            .pos-osd .os-header { padding: 8px 12px 10px !important; gap: 6px 8px !important; flex-wrap: wrap !important; align-items: center !important; }
+            .pos-osd .os-header-left { display: contents !important; }
+            .pos-osd .os-header-title { font-size: 17px !important; flex: 1 1 0; min-width: 0; order: 1; }
+            .pos-osd .os-header-actions { order: 2; margin-left: auto; }
+            .pos-osd .os-header-left select { order: 3; flex: 1 1 100%; max-width: 100% !important; min-height: 40px; }
+            .pos-osd .os-btn-close { min-height: 44px; min-width: 44px; }
+            /* grades do cabeçalho da OS: coluna nunca maior que a tela */
+            .pos-osd .pos-osd-grid2 { grid-template-columns: minmax(0, 1fr) !important; }
+            .pos-osd .pos-osd-grid2 > *, .pos-osd .pos-osd-grid5 > * { min-width: 0; }
+            .pos-osd .pos-osd-grid2 input, .pos-osd .pos-osd-grid2 select { width: 100%; max-width: 100%; box-sizing: border-box; }
+            .pos-osd .os-tabs { margin: 0 -12px; padding: 0 12px 2px; scrollbar-width: none; }
+            .pos-osd .os-tabs::-webkit-scrollbar { display: none; }
+            .pos-osd .os-tab { min-height: 44px; }
+            .pos-osd .os-tabs { scroll-margin-top: 112px; background: var(--primary-light); }
+            .pos-osd .os-action-rail.os-rail-nova { position: static !important; box-shadow: none !important; max-height: none !important; overflow: visible !important;
+              display: flex !important; flex-direction: column !important; flex-wrap: nowrap !important; gap: 12px !important;
+              padding: 14px 12px calc(88px + env(safe-area-inset-bottom)) !important; border-top: 1px solid var(--border); }
+            .pos-osd .os-action-rail > *, .pos-osd .os-action-rail > div { flex: 0 0 auto !important; width: 100% !important; margin-left: 0 !important; margin-right: 0 !important; }
+            .pos-osd .os-action-rail .os-rail-btn { width: 100% !important; min-height: 44px; justify-content: flex-start; }
+            .pos-osd .os-rail-acoes { display: grid !important; grid-template-columns: 1fr 1fr; gap: 4px !important; }
+            .pos-osd .os-rail-acoes-titulo { grid-column: 1 / -1; }
+            /* Salvar / Criar flutuando no rodapé da tela */
+            .pos-osd .os-action-rail .os-rail-btn.primary { position: fixed !important; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 40;
+              width: auto !important; height: 52px !important; justify-content: center !important; margin: 0 !important; box-shadow: 0 8px 24px rgba(8,145,168,.45) !important; }
+          }
         `}</style>
         <div className="modal-container">
           <div className="drawer os-drawer">
@@ -1629,7 +1668,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
 
                   {/* ── Abas (edit): Ordem de Serviço / Peças (PPV) ── */}
                   {mode === "edit" && (
-                    <div className="os-tabs">
+                    // Celular: ao trocar de aba, a faixa de abas sobe pro topo (o conteúdo da aba fica logo abaixo)
+                    <div className="os-tabs" onClickCapture={(e) => { if (typeof window !== "undefined" && window.matchMedia("(max-width: 768px)").matches) { const el = e.currentTarget; setTimeout(() => el.scrollIntoView({ block: "start", behavior: "smooth" }), 30); } }}>
                       <button type="button" className={`os-tab ${aba === "os" && abaOmie === "servicos" ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie("servicos"); }}>
                         Lista de Serviços
                       </button>

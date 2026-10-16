@@ -49,14 +49,14 @@ export default function TabelaAgendamentos({ agendamentos, podeAlterar, aoMudar 
   const linha = (a: AgendamentoPainel) => {
     const u = a.ultima
     return (
-      <div key={a.chave} style={{ display: 'grid', gridTemplateColumns: 'minmax(220px,1.4fr) 170px minmax(200px,1.3fr) 120px minmax(150px,1fr)' + (podeAlterar ? ' 230px' : ''), gap: 12, padding: '10px 14px', borderTop: '1px solid #f3f4f6', alignItems: 'center', opacity: a.ativo ? 1 : 0.75 }}>
+      <div key={a.chave} className="ag-linha" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px,1.4fr) 170px minmax(200px,1.3fr) 120px minmax(150px,1fr)' + (podeAlterar ? ' 230px' : ''), gap: 12, padding: '10px 14px', borderTop: '1px solid #f3f4f6', alignItems: 'center', opacity: a.ativo ? 1 : 0.75 }}>
         <div>
           <div style={{ fontWeight: 700, fontSize: '.84rem', color: '#111111' }}>{a.nome}</div>
           <div style={{ fontSize: '.68rem', color: '#6b7280' }}>{a.modulo}{a.usa_omie ? ' · usa a Omie' : ''}{a.grupo ? ` · grupo ${a.grupo}` : ''}</div>
           {!a.tarefaExiste && <div style={{ fontSize: '.68rem', color: '#b91c1c', fontWeight: 700 }}>tarefa “{a.handler}” não existe no código</div>}
         </div>
-        <div style={{ fontSize: '.78rem', color: '#111111' }}>{a.quando}</div>
-        <div style={{ fontSize: '.74rem', color: '#374151' }}>
+        <div className="ag-cel" data-rotulo="Quando" style={{ fontSize: '.78rem', color: '#111111' }}>{a.quando}</div>
+        <div className="ag-cel" data-rotulo="Última execução" style={{ fontSize: '.74rem', color: '#374151' }}>
           {a.rodandoAgora ? (
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#1d4ed8', fontWeight: 700 }}>
               <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> rodando há {tempoRelativo(a.rodandoAgora.desde).replace('há ', '')}
@@ -69,16 +69,16 @@ export default function TabelaAgendamentos({ agendamentos, podeAlterar, aoMudar 
             </div>
           ) : <span style={{ color: '#9ca3af' }}>ainda não rodou</span>}
         </div>
-        <div style={{ fontSize: '.76rem', color: '#111111' }}>
+        <div className="ag-cel" data-rotulo="Próxima" style={{ fontSize: '.76rem', color: '#111111' }}>
           {a.ativo ? (a.proxima ? <>{horaSP(a.proxima, true)}<div style={{ fontSize: '.66rem', color: '#9ca3af' }}>{tempoRelativo(a.proxima)}</div></> : <span style={{ color: '#9ca3af' }}>{a.tipo === 'uma_vez' ? 'já rodou' : '—'}</span>) : '—'}
         </div>
-        <div style={{ fontSize: '.72rem' }}>
+        <div className="ag-cel" data-rotulo="Situação" style={{ fontSize: '.72rem' }}>
           {a.ativo
             ? <span style={{ color: '#047857', fontWeight: 700 }}>● ligado</span>
             : <span style={{ color: '#92400e' }}><strong>○ pausado</strong>{a.pausado_por ? ` por ${a.pausado_por}` : ''}{a.pausado_motivo ? <div style={{ color: '#6b7280' }}>{a.pausado_motivo}</div> : null}</span>}
         </div>
         {podeAlterar && (
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          <div className="ag-acoes" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {ocupado === a.chave ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : (
               <>
                 {a.tipo !== 'uma_vez' && (
@@ -99,7 +99,7 @@ export default function TabelaAgendamentos({ agendamentos, podeAlterar, aoMudar 
   }
 
   const cabecalho = (
-    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(220px,1.4fr) 170px minmax(200px,1.3fr) 120px minmax(150px,1fr)' + (podeAlterar ? ' 230px' : ''), gap: 12, padding: '8px 14px', background: '#fafafa', fontSize: '.62rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase' }}>
+    <div className="ag-th" style={{ display: 'grid', gridTemplateColumns: 'minmax(220px,1.4fr) 170px minmax(200px,1.3fr) 120px minmax(150px,1fr)' + (podeAlterar ? ' 230px' : ''), gap: 12, padding: '8px 14px', background: '#fafafa', fontSize: '.62rem', fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase' }}>
       <span>Agendamento</span><span>Quando</span><span>Última execução</span><span>Próxima</span><span>Situação</span>{podeAlterar && <span>Ações (Dev)</span>}
     </div>
   )
@@ -113,7 +113,7 @@ export default function TabelaAgendamentos({ agendamentos, podeAlterar, aoMudar 
       )}
       {!podeAlterar && <p style={{ fontSize: '.74rem', color: '#6b7280', marginBottom: 8 }}>Só o Dev pausa, muda horário ou roda na hora. Você vê tudo.</p>}
       <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflowX: 'auto' }}>
-        <div style={{ minWidth: podeAlterar ? 1160 : 920 }}>
+        <div className="ag-min" style={{ minWidth: podeAlterar ? 1160 : 920 }}>
           {cabecalho}
           {recorrentes.map(linha)}
         </div>
@@ -122,7 +122,7 @@ export default function TabelaAgendamentos({ agendamentos, podeAlterar, aoMudar 
         <>
           <h4 style={{ fontSize: '.82rem', fontWeight: 800, margin: '18px 0 8px', color: '#111111' }}>Marcados para rodar uma vez</h4>
           <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, overflowX: 'auto' }}>
-            <div style={{ minWidth: podeAlterar ? 1160 : 920 }}>{cabecalho}{umaVez.map(linha)}</div>
+            <div className="ag-min" style={{ minWidth: podeAlterar ? 1160 : 920 }}>{cabecalho}{umaVez.map(linha)}</div>
           </div>
         </>
       )}
@@ -130,7 +130,20 @@ export default function TabelaAgendamentos({ agendamentos, podeAlterar, aoMudar 
       {modal?.tipo === 'pausar' && <ModalPausar ag={modal.ag} fechar={() => setModal(null)} confirmar={(motivo) => executar(modal.ag.chave, { acao: 'pausar', motivo }, `${modal.ag.nome}: pausado.`)} />}
       {modal?.tipo === 'horario' && <ModalHorario ag={modal.ag} fechar={() => setModal(null)} confirmar={(c) => executar(modal.ag.chave, { acao: 'alterar', ...c }, `${modal.ag.nome}: horário alterado.`)} />}
       {modal?.tipo === 'marcar' && <ModalMarcar ag={modal.ag} fechar={() => setModal(null)} confirmar={(iso) => executar(modal.ag.chave, { acao: 'marcar', executar_em: iso }, `${modal.ag.nome}: marcado.`)} />}
-      <style>{`@keyframes spin { from { transform: rotate(0) } to { transform: rotate(360deg) } }`}</style>
+      <style>{`@keyframes spin { from { transform: rotate(0) } to { transform: rotate(360deg) } }
+        /* Celular: cada agendamento vira um cartão (rótulos no lugar do cabeçalho) */
+        @media (max-width: 768px) {
+          .ag-min { min-width: 0 !important; }
+          .ag-th { display: none !important; }
+          .ag-linha { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px 12px !important; padding: 12px !important; align-items: start !important; }
+          .ag-linha > :first-child, .ag-linha > .ag-acoes, .ag-linha > .ag-cel[data-rotulo='Última execução'] { grid-column: 1 / -1; }
+          .ag-linha > :first-child > div:first-child { font-size: 15px !important; }
+          .ag-linha > :first-child > div { font-size: 12px !important; }
+          .ag-cel { font-size: 13px !important; }
+          .ag-cel span, .ag-cel div { font-size: 12px !important; max-width: none !important; white-space: normal !important; }
+          .ag-cel::before { content: attr(data-rotulo); display: block; font-size: 11px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: #9ca3af; margin-bottom: 2px; }
+          .ag-acoes button { flex: 1 1 calc(50% - 6px); justify-content: center; min-height: 40px; font-size: 13px !important; }
+        }`}</style>
     </div>
   )
 }

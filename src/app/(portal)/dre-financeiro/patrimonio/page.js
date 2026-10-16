@@ -1069,10 +1069,10 @@ export default function PatrimonioPage() {
       {modalAberto && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={fecharModal} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-24px)] max-w-3xl max-h-[90vh] md:max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 dre-folha w-[calc(100%-24px)] max-w-3xl max-h-[90vh] md:max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
             <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
               <h2 className="font-semibold text-slate-800 min-w-0 break-words">{modalTitulo}</h2>
-              <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-9 max-md:min-h-9">×</button>
+              <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-11 max-md:min-h-11">×</button>
             </div>
             <div className="p-3 sm:p-5 overflow-y-auto" onClick={onModalBodyClick}>
               {modalCorpo.tipo === 'carregando' && <div className="text-slate-500 text-sm">Carregando...</div>}
@@ -1096,13 +1096,13 @@ export default function PatrimonioPage() {
       {modal2Aberto && (
         <>
           <div className="fixed inset-0 bg-black/50 z-[60]" onClick={fecharModal2} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-24px)] max-w-2xl max-h-[90vh] md:max-h-[85vh] bg-white rounded-lg shadow-2xl z-[70] flex flex-col">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 dre-folha w-[calc(100%-24px)] max-w-2xl max-h-[90vh] md:max-h-[85vh] bg-white rounded-lg shadow-2xl z-[70] flex flex-col">
             <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-2 bg-slate-50">
               <div className="min-w-0 break-words">
                 <h2 className="font-semibold text-slate-800">{modal2Titulo}</h2>
                 <div className="text-xs text-slate-500 mt-0.5" dangerouslySetInnerHTML={{ __html: modal2Subtitulo }} />
               </div>
-              <button onClick={fecharModal2} className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-9 max-md:min-h-9">×</button>
+              <button onClick={fecharModal2} className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-11 max-md:min-h-11">×</button>
             </div>
             <div className="p-3 sm:p-5 overflow-y-auto" dangerouslySetInnerHTML={{ __html: modal2Html }} />
           </div>

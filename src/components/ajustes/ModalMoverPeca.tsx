@@ -65,8 +65,8 @@ export function ModalMover({ produto, produtosEmpresa, salvando, onCancelar, onC
   const vazio = !pos.prat && !pos.andar && !pos.caixa;
 
   return (
-    <div style={modalWrap} onClick={onCancelar}>
-      <div className="est-touch" style={modalCard} onClick={(e) => e.stopPropagation()}>
+    <div className="m-folha-fundo" style={modalWrap} onClick={onCancelar}>
+      <div className="est-touch m-folha" style={modalCard} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
           <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>{titulo}</h2>
           <button onClick={onCancelar} style={{ ...btn, marginLeft: 'auto', padding: 6 }}><X size={16} /></button>

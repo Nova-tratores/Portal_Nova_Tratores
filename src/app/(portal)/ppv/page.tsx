@@ -28,7 +28,7 @@ import ItemOrcamentoModal from "@/components/ppv/ItemOrcamentoModal";
 import ModalProdutoManual from "@/components/ppv/ModalProdutoManual";
 import ModalRevisoes from "@/components/ppv/ModalRevisoes";
 import BotaoRetiradas from "@/components/ppv/BotaoRetiradas";
-import { PECAS_TOPBAR_CSS } from "@/components/ppv/PecasNav";
+import { PECAS_TOPBAR_CSS, rolarGuiaAtiva } from "@/components/ppv/PecasNav";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 
@@ -70,6 +70,9 @@ function PPVApp() {
       window.history.replaceState(null, "", destino);
     }
   }, [activeTab]);
+  // celular: a guia ativa aparece na faixa que rola de lado (de novo quando as
+  // guias que dependem de permissão terminam de aparecer)
+  useEffect(() => { rolarGuiaAtiva(); }, [activeTab, podeCatalogo, podeEtiquetas]);
   const [searchFilter, setSearchFilter] = useState("");
   const [tipoFilter, setTipoFilter] = useState("TODOS");
   const [activePhase, setActivePhase] = useState("");
@@ -375,7 +378,7 @@ function PPVApp() {
   );
 
   return (
-    <div className="flex flex-col overflow-hidden font-[Poppins] text-[14px] text-slate-800" style={{ height: "calc(100vh - 84px)" }}>
+    <div className="flex flex-col overflow-hidden font-[Poppins] text-[14px] text-slate-800" style={{ height: "calc(100vh - var(--portal-header-h))" }}>
       <GlobalLoader visible={globalLoading} />
       <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={hideToast} />
 
@@ -420,8 +423,18 @@ function PPVApp() {
         {activeTab === "kanbanTab" && isMobile && (
           // ===== CELULAR: lista própria (o kanban de colunas do PC não é usado) =====
           <PPVMobile
-            orders={kanbanItems}
+            orders={filteredKanban}
             searchTerm={searchFilter} onSearchChange={setSearchFilter}
+            menu={[
+              { icone: "fa-boxes-stacked", label: "Produtos - Peças em estoque", onClick: () => setProdutosEstoqueOpen(true) },
+              ...(podeCatalogo ? [
+                { icone: "fa-tools", label: "Gerenciar Kits", onClick: () => setShowGerenciarKits(true) },
+                { icone: "fa-box-open", label: "Criar Produto", onClick: () => { setProdutoManualEdit(null); setProdutoManualProvisorio(false); setProdutoManualOpen(true); } },
+                { icone: "fa-edit", label: "Editar Produto", onClick: () => handleBuscaProduto("edit") },
+                { icone: `fa-sync-alt ${syncingProdutos ? "fa-spin" : ""}`, label: syncingProdutos ? "Sincronizando..." : "Sync Preços", onClick: syncPrecosOmie, disabled: syncingProdutos },
+              ] : []),
+            ]}
+            avisoMenu={syncResult || undefined}
             onCardClick={openCardDetails}
             onNovo={() => setActiveTab("formTab")}
             podeCriar={podeCriar}

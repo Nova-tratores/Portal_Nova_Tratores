@@ -7,6 +7,7 @@ import { Coffee, MapPin, MessageSquarePlus, EyeOff, ExternalLink, Gauge } from '
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { authHeaders } from '@/lib/auth/client';
 import { formatarPlaca } from '@/lib/frota/placa';
 import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui';
@@ -44,6 +45,8 @@ export default function FrotaParadasPage() {
   const { userProfile } = useAuth();
   const { pode } = usePermissoes(userProfile?.id);
   const podeJustificar = pode('frota', 'paradas:justificar');
+  // celular: filtros em grade 2×2, botões maiores e o uso diário em cartões
+  const mobile = useIsMobile();
 
   const [periodo, setPeriodo] = useState(14); // dias
   const [placaFiltro, setPlacaFiltro] = useState('');
@@ -140,11 +143,11 @@ export default function FrotaParadasPage() {
 
   return (
     <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div className="frota-filtros-m" style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
+        <h2 className="frota-titulo" style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <Coffee size={20} color="#1e40af" /> Paradas & trajetos
         </h2>
-        <div style={{ flex: 1 }} />
+        <div className="m-esconder" style={{ flex: 1 }} />
         <select value={periodo} onChange={(e) => setPeriodo(Number(e.target.value))} style={selStyle}>
           <option value={7}>últimos 7 dias</option>
           <option value={14}>últimos 14 dias</option>
@@ -207,12 +210,13 @@ export default function FrotaParadasPage() {
               href={`https://www.google.com/maps?q=${p.latitude},${p.longitude}`}
               target="_blank" rel="noopener noreferrer"
               title="Ver o local no mapa"
+              className="frota-touch"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: '#1e40af', textDecoration: 'none', fontWeight: 600 }}
             >
               <MapPin size={12} /> local <ExternalLink size={10} />
             </a>
             {p.atipica && (
-              <div style={{ display: 'flex', gap: 6 }}>
+              <div className="frota-acoes-m" style={{ display: 'flex', gap: 6 }}>
                 <button
                   onClick={() => justificar(p)}
                   disabled={!podeJustificar || busy === p.id}
@@ -247,6 +251,39 @@ export default function FrotaParadasPage() {
       <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
         <Gauge size={13} /> Uso diário (dias com movimento)
       </div>
+      {mobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {diasVisiveis.map((d) => (
+            <div key={`${d.veiculo_id}-${d.data}`} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderLeft: `4px solid ${d.paradas_atipicas > 0 ? '#b91c1c' : '#1e40af'}`, padding: '10px 12px', display: 'flex', flexDirection: 'column', gap: 6, color: 'var(--portal-text)' }}>
+              <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <strong style={{ fontSize: 15 }}>{formatarPlaca(d.placa)}</strong>
+                <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>{fmtData(d.data)}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 700, color: d.paradas_atipicas > 0 ? '#b91c1c' : 'var(--portal-text-secondary)' }}>
+                  {d.paradas_atipicas} atípica{d.paradas_atipicas === 1 ? '' : 's'}
+                </span>
+              </span>
+              <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{d.motorista_nome || 'motorista não informado'}</span>
+              <span style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 4, fontSize: 12, color: 'var(--portal-text-secondary)' }}>
+                {([
+                  ['KM', Number(d.km_odometro ?? d.km_total).toFixed(0)],
+                  ['Partidas', String(d.partidas)],
+                  ['Ligado', fmtMin(d.tempo_ligado_min)],
+                  ['M. lenta', fmtMin(d.tempo_marcha_lenta_min)],
+                  ['Paradas', String(d.paradas_total)],
+                ] as [string, string][]).map(([rot, val]) => (
+                  <span key={rot} style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ fontSize: 11, textTransform: 'uppercase' }}>{rot}</span>
+                    <strong style={{ fontSize: 13.5, color: rot === 'M. lenta' && d.tempo_marcha_lenta_min >= 60 ? '#b45309' : 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{val}</strong>
+                  </span>
+                ))}
+              </span>
+            </div>
+          ))}
+          {diasVisiveis.length === 0 && (
+            <div style={{ padding: 20, textAlign: 'center', color: 'var(--portal-text)', fontSize: 13.5 }}>Sem dias consolidados no período.</div>
+          )}
+        </div>
+      ) : (
       <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'auto' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '90px 100px 1fr 70px 80px 90px 100px 90px 90px', padding: '10px 14px', background: 'var(--portal-bg-secondary)', fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.5, minWidth: 860 }}>
           <span>Data</span><span>Placa</span><span>Motorista</span><span>KM</span><span>Partidas</span><span>Ligado</span><span>M. lenta</span><span>Paradas</span><span>Atípicas</span>
@@ -268,6 +305,7 @@ export default function FrotaParadasPage() {
           <div style={{ padding: 20, textAlign: 'center', color: 'var(--portal-text)', fontSize: 13.5 }}>Sem dias consolidados no período.</div>
         )}
       </div>
+      )}
     </div>
   );
 }

@@ -260,15 +260,16 @@ export default function FormModal({ onClose, initialData }) {
   )
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[3000] p-2 md:p-4">
-      <div className="bg-white w-full max-w-[1000px] h-[92vh] rounded-2xl flex flex-col border border-zinc-200 shadow-2xl overflow-hidden">
+    // celular: formulário em tela cheia
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[3000] p-2 md:p-4 m-tela-cheia-fundo">
+      <div className="bg-white w-full max-w-[1000px] h-[92vh] rounded-2xl flex flex-col border border-zinc-200 shadow-2xl overflow-hidden m-tela-cheia">
         {/* HEADER */}
         <div className="px-4 md:px-7 py-4 bg-white border-b border-zinc-200 flex justify-between items-center gap-4">
           <div>
             <h2 className="text-[17px] font-extrabold text-zinc-900 tracking-tight">Nova proposta comercial</h2>
             <p className="text-[12.5px] text-zinc-500 mt-0.5">Preencha os dados do cliente e do produto</p>
           </div>
-          <button onClick={onClose} title="Fechar" className="w-9 h-9 flex items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-500 hover:text-red-600 hover:bg-zinc-100 transition-colors cursor-pointer shrink-0">
+          <button onClick={onClose} title="Fechar" aria-label="Fechar" className="max-md:w-11 max-md:h-11 w-9 h-9 flex items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 text-zinc-500 hover:text-red-600 hover:bg-zinc-100 transition-colors cursor-pointer shrink-0">
             <X size={18} />
           </button>
         </div>

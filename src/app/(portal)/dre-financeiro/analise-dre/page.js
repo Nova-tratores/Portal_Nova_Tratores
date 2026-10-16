@@ -19,6 +19,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
 import { simlogY, yScaleSimlog, LIN_MIN, LIN_MAX } from '@/lib/dre-financeiro/escala-simlog'
@@ -116,6 +117,9 @@ export default function AnaliseDre() {
   // Popup de composicao do mes (duplo clique numa bolinha do grafico de linha):
   // waterfall do DRE do mes + tabela por maquina (venda minima p/ ficar positiva).
   const [popupMes, setPopupMes] = useState(null)     // 'YYYY-MM' aberto (null = fechado)
+  // Celular: eixos que pulam rotulos, legenda embaixo, popup como folha e
+  // botao "Ver composicao" (duplo toque no grafico nao e confiavel no dedo).
+  const isMobile = useIsMobile()
   const [popupItens, setPopupItens] = useState(null) // vendas do mes (fetch /margens)
   const [popupRateio, setPopupRateio] = useState(null) // { porMes } (fetch /rateio)
   const [popupCarregando, setPopupCarregando] = useState(false)
@@ -646,7 +650,7 @@ export default function AnaliseDre() {
           onClick: onClickChart,
           onHover: onHoverChart,
           scales: {
-            x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, font: { size: 9 } } },
+            x: { ticks: { autoSkip: isMobile, maxRotation: isMobile ? 0 : 90, minRotation: 0, font: { size: isMobile ? 10 : 9 } } },
             y: emRS
               ? {
                   position: 'left',
@@ -656,7 +660,7 @@ export default function AnaliseDre() {
               : yScaleSimlog(todosPct, { position: 'left' })
           },
           plugins: {
-            legend: { labels: { boxWidth: 12, padding: 10 } },
+            legend: isMobile ? { position: 'bottom', labels: { boxWidth: 10, padding: 6, font: { size: 11 } } } : { labels: { boxWidth: 12, padding: 10 } },
             tooltip: { callbacks: { label: function (item) {
               // No modo % o dado plotado e transformado; o valor REAL esta em rawData.
               var real = item.dataset.rawData ? item.dataset.rawData[item.dataIndex] : item.raw
@@ -688,7 +692,7 @@ export default function AnaliseDre() {
           onClick: onClickChart,
           onHover: onHoverChart,
           scales: {
-            x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, font: { size: 9 } } },
+            x: { ticks: { autoSkip: isMobile, maxRotation: isMobile ? 0 : 90, minRotation: 0, font: { size: isMobile ? 10 : 9 } } },
             y: { position: 'left', ticks: { callback: function (v) { return fmtBRLs(v) } } }
           },
           plugins: {
@@ -717,7 +721,7 @@ export default function AnaliseDre() {
     setChartInfo(infoTxt)
     return function () { if (canvasM) canvasM.removeEventListener('dblclick', onDbl) }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartPronto, dados, granularidade, margemModo, regime, mesFoco, mostrarDespFin])
+  }, [chartPronto, dados, granularidade, margemModo, regime, mesFoco, mostrarDespFin, isMobile])
 
   // Destroi as instancias Chart.js ao desmontar a tela.
   useEffect(() => {
@@ -941,15 +945,22 @@ export default function AnaliseDre() {
           <h1 className="text-2xl font-semibold text-slate-800">Análise do DRE</h1>
           <p className="text-xs text-slate-500" id="adre-subtitulo">{subtitulo}</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+        <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap max-md:w-full max-md:items-end">
           <div className="inline-flex rounded border border-slate-300 overflow-hidden" title="Omie: regime misto (Receita por vencimento, CMV por emissao). Competencia: tudo por emissao NF.">
             <button onClick={() => setRegime('omie')} className={'px-3 py-1 text-xs ' + (regime === 'omie' ? ativo : 'bg-white text-slate-700 hover:bg-slate-100')}>Omie</button>
             <button onClick={() => setRegime('competencia')} className={'px-3 py-1 text-xs border-l border-slate-300 ' + (regime === 'competencia' ? ativo : 'bg-white text-slate-700 hover:bg-slate-100')}>Competência</button>
           </div>
-          <label className="ml-2">De:</label>
-          <input value={desde} onChange={(e) => setDesde(e.target.value)} type="month" className="border border-slate-300 rounded px-2 py-1" />
+          {/* Celular: De/Até lado a lado, rótulo em cima (no PC "contents" = igual a antes) */}
+          <span className="hidden max-md:block max-md:basis-full max-md:h-0" />
+          <span className="contents max-md:flex max-md:flex-col max-md:gap-0.5 max-md:flex-1 max-md:min-w-0">
+          <label className="ml-2 max-md:ml-0">De:</label>
+          <input value={desde} onChange={(e) => setDesde(e.target.value)} type="month" className="border border-slate-300 rounded px-2 py-1 max-md:w-full max-md:min-w-0" />
+          </span>
+          <span className="contents max-md:flex max-md:flex-col max-md:gap-0.5 max-md:flex-1 max-md:min-w-0">
           <label>Até:</label>
-          <input value={ate} onChange={(e) => setAte(e.target.value)} type="month" className="border border-slate-300 rounded px-2 py-1" />
+          <input value={ate} onChange={(e) => setAte(e.target.value)} type="month" className="border border-slate-300 rounded px-2 py-1 max-md:w-full max-md:min-w-0" />
+          </span>
+          <span className="hidden max-md:block max-md:basis-full max-md:h-0" />
           <div className="ml-2 inline-flex rounded border border-slate-300 overflow-hidden">
             <button onClick={() => setGran('mes')} className={'px-3 py-1 text-xs ' + (granularidade === 'mes' ? ativo : inativo)} title="Coluna por mes">Mês</button>
             <button onClick={() => setGran('ano')} className={'px-3 py-1 text-xs border-l border-slate-300 ' + (granularidade === 'ano' ? ativo : inativo)} title="Coluna por ano (agrupado)">Ano</button>
@@ -965,10 +976,16 @@ export default function AnaliseDre() {
         {mesFoco ? (
           <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 rounded px-2 py-0.5 text-[11px] font-medium">
             Foco: {rotuloMes(mesFoco)}
-            <button onClick={() => setMesFoco(null)} className="text-amber-700 hover:text-amber-950 leading-none" title="Voltar ao último mês do recorte">&times;</button>
+            <button onClick={() => setMesFoco(null)} className="text-amber-700 hover:text-amber-950 leading-none max-md:min-w-9 max-md:text-lg" title="Voltar ao último mês do recorte" aria-label="Tirar foco">&times;</button>
           </span>
         ) : (
-          <span className="text-[11px] text-slate-400">Clique num mês nos gráficos para focar · duplo clique numa bolinha da linha abre a composição</span>
+          <span className="text-[11px] text-slate-400">{isMobile
+            ? 'Toque num mês nos gráficos para focar e depois em "Ver composição"'
+            : 'Clique num mês nos gráficos para focar · duplo clique numa bolinha da linha abre a composição'}</span>
+        )}
+        {isMobile && mesFoco && granularidade !== 'ano' && (
+          <button onClick={() => setPopupMes(mesFoco)}
+            className="px-3 rounded bg-fuchsia-600 text-white text-xs font-semibold">Ver composição de {rotuloMes(mesFoco)}</button>
         )}
       </div>
 
@@ -1113,7 +1130,7 @@ export default function AnaliseDre() {
       {popup && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setPopupMes(null)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[96vw] max-w-[1100px] max-h-[88vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 dre-folha w-[96vw] max-w-[1100px] max-h-[88vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col max-md:top-auto max-md:bottom-0 max-md:left-0 max-md:translate-x-0 max-md:translate-y-0 max-md:w-full max-md:max-h-[92dvh] max-md:rounded-b-none max-md:rounded-t-2xl">
             <div className="border-b border-slate-200 px-3 md:px-5 py-3 flex items-center justify-between gap-3 dre-a-popup-head">
               <div style={{ minWidth: 0 }}>
                 <h2 className="text-lg font-semibold text-slate-800">Composição de {rotuloMes(popup.k)}</h2>
@@ -1124,7 +1141,7 @@ export default function AnaliseDre() {
                   {' · '}regime {regime === 'competencia' ? 'Competência' : 'Omie'}
                 </div>
               </div>
-              <button onClick={() => setPopupMes(null)} className="text-slate-500 hover:text-slate-900 text-3xl leading-none" style={{ minWidth: 36, minHeight: 36, flexShrink: 0 }}>&times;</button>
+              <button onClick={() => setPopupMes(null)} className="text-slate-500 hover:text-slate-900 text-3xl leading-none" style={{ minWidth: isMobile ? 44 : 36, minHeight: isMobile ? 44 : 36, flexShrink: 0 }} aria-label="Fechar">&times;</button>
             </div>
 
             <div className="overflow-y-auto p-3 md:p-4 space-y-4">
@@ -1191,6 +1208,40 @@ export default function AnaliseDre() {
                         {popup.agg.fd !== null && <> · despesa rateada do mês = <b>{(popup.agg.fd * 100).toFixed(1)}%</b> da receita</>}
                       </div>
                     )}
+                    {isMobile ? (
+                      // Celular: um cartao por maquina (mesmos numeros da tabela)
+                      <div className="border border-slate-200 rounded divide-y divide-slate-100">
+                        {popup.maquinas.map((it, idx) => {
+                          const faltou = it.custo_total - it.receita
+                          const pctNec = it.receita > 0 ? ((it.custo_total - it.receita) / it.receita) * 100 : null
+                          const corPct = (p) => (p == null ? 'text-slate-400' : (p > 0.05 ? 'text-red-700' : 'text-emerald-700'))
+                          const fmtSig = (p) => (p == null ? '—' : (p >= 0 ? '+' : '') + p.toFixed(1) + '%')
+                          return (
+                            <div key={idx} className={'px-3 py-2 text-sm ' + (it.margem_real < 0 ? 'bg-red-50' : (it.sem_cmc ? 'bg-amber-50' : ''))}>
+                              <div className="flex justify-between gap-2">
+                                <div className="min-w-0">
+                                  <div className="font-semibold text-slate-800 m-quebra-texto">{it.descricao || '(sem)'}</div>
+                                  <div className="text-xs text-slate-500 m-quebra-texto">{it.familia} · {it.cliente || '-'}</div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <div className="font-semibold">{fmtBRL(it.receita)}</div>
+                                  <div className={'text-xs font-bold ' + corMargem(it.margem_pct)}>{it.margem_pct.toFixed(1)}%</div>
+                                </div>
+                              </div>
+                              <div className="text-xs text-slate-600 mt-1">
+                                CMV {it.sem_cmc ? <span className="text-amber-700">s/ CMC</span> : fmtBRL(it.cmv)} · Capital <span className="text-amber-700">{fmtBRL(it.custo_capital)}</span>
+                              </div>
+                              <div className="text-xs mt-0.5">
+                                Venda p/ positivo <b className={it.margem_real < 0 ? 'text-red-700' : 'text-slate-600'}>≥ {fmtBRL(it.custo_total)}</b>{' '}
+                                <span className={'font-bold ' + corPct(pctNec)}>({fmtSig(pctNec)})</span>
+                                {it.margem_real < 0 && <span className="text-red-600"> · faltou {fmtBRL(faltou)}</span>}
+                                {it.posDre != null && <div className="text-violet-700">c/ despesas ≥ {fmtBRL(it.posDre)}</div>}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    ) : (
                     <div className="border border-slate-200 rounded overflow-x-auto max-h-[42vh] overflow-y-auto">
                       <table className="w-full text-sm">
                         <thead className="bg-slate-50 text-slate-600 sticky top-0">
@@ -1249,6 +1300,7 @@ export default function AnaliseDre() {
                         </tbody>
                       </table>
                     </div>
+                    )}
                   </>
                 )}
               </div>

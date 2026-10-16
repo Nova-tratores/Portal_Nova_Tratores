@@ -221,7 +221,7 @@ function CapturaLead() {
   const acaoEscolhida = acoes.find((a) => a.id === acaoId);
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 84px)', background: 'var(--portal-bg)' }}>
+    <div style={{ minHeight: 'calc(100vh - var(--portal-header-h))', background: 'var(--portal-bg)' }}>
       <div style={{ background: `linear-gradient(135deg, ${ROSA_CLARO}, ${ROSA_ESCURO})`, padding: '14px 16px' }}>
         <div style={{ fontSize: 17, fontWeight: 800, color: '#111111' }}>Captura de Leads</div>
         <div style={{ fontSize: 12, color: '#111111', opacity: 0.8 }}>
@@ -311,6 +311,7 @@ function CapturaLead() {
               <button
                 type="button"
                 onClick={() => { setFoto(null); if (inputFoto.current) inputFoto.current.value = ''; }}
+                className="m-toque"
                 style={{ marginTop: 6, fontSize: 12, background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer' }}
               >
                 Tirar a foto
@@ -319,10 +320,11 @@ function CapturaLead() {
           </div>
 
           <div style={{ display: 'flex', gap: 10 }}>
-            <Campo label="Nome"><input style={estiloInput} value={nome} onChange={(e) => setNome(e.target.value)} /></Campo>
+            <Campo label="Nome"><input style={estiloInput} autoCapitalize="words" autoComplete="off" value={nome} onChange={(e) => setNome(e.target.value)} /></Campo>
             <Campo label="Telefone">
               <input
                 style={estiloInput}
+                type="tel"
                 inputMode="tel"
                 value={telefone}
                 onChange={(e) => setTelefone(e.target.value)}
@@ -342,6 +344,7 @@ function CapturaLead() {
           <button
             type="button"
             onClick={() => setMais((v) => !v)}
+            className="m-toque"
             style={{ alignSelf: 'flex-start', fontSize: 13, fontWeight: 600, background: 'none', border: 'none', color: ROSA, cursor: 'pointer', padding: 0 }}
           >
             {maisDetalhes ? '− Menos detalhes' : '+ Mais detalhes'}

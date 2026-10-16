@@ -517,7 +517,7 @@ function PainelMargens({ conta, chartReady }) {
           <h1 className="text-2xl font-semibold text-slate-800">Margens de Vendas</h1>
           <p className="text-xs text-slate-500">Margem real por venda historica: Receita − (CMV + Capital empatado ate a venda)</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+        <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap dre-barra-pares">
           <label>Periodo:</label>
           <select value={meses} onChange={(e) => setMeses(e.target.value)} className="border border-slate-300 rounded px-2 py-1">
             <option value="1">1 mes</option>
@@ -658,7 +658,7 @@ function PainelMargens({ conta, chartReady }) {
 
       {/* Modal detalhe da venda */}
       {modalAberto && <div className="fixed inset-0 bg-black/40 z-40" onClick={fecharDetalheVenda} />}
-      <div className={'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[94vw] max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex-col ' + (modalAberto ? 'flex' : 'hidden')}>
+      <div className={'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 dre-folha w-[94vw] max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex-col ' + (modalAberto ? 'flex' : 'hidden')}>
         <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-3">
           <h2 className="font-semibold text-slate-800" style={{ minWidth: 0 }}>{modalTitulo}</h2>
           <button onClick={fecharDetalheVenda} className="text-slate-500 hover:text-slate-900 text-2xl leading-none" style={{ minWidth: 36, minHeight: 36, flexShrink: 0 }}>&times;</button>
@@ -1022,7 +1022,7 @@ function PainelCapital({ conta, chartReady }) {
       <section className="mb-8">
         <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
           <h2 className="text-lg font-semibold text-slate-800">Capital Parado em Estoque</h2>
-          <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+          <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap dre-barra-pares">
             <label>Familia:</label>
             <select value={cpFamilia} onChange={(e) => setCpFamilia(e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white min-w-[170px]" style={{ maxWidth: '100%' }}>
               <option value="">Todas</option>
@@ -1101,8 +1101,8 @@ function PainelCapital({ conta, chartReady }) {
           </div>
           <div className="bg-white rounded-lg border border-slate-200 p-4" style={{ minWidth: 0 }}>
             <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">Top produtos parados (por valor)</div>
-            <div className="overflow-y-auto" style={{ maxHeight: '240px', overflowX: 'auto' }}>
-              <table className="w-full text-xs">
+            <div className="overflow-y-auto m-tabela m-tabela-fixa" style={{ maxHeight: '240px', overflowX: 'auto' }}>
+              <table className="w-full text-xs dre-tab-compacta">
                 <thead className="bg-slate-50 text-slate-600 sticky top-0">
                   <tr>
                     <th className="text-left px-2 py-1">Descricao</th>
@@ -1123,7 +1123,7 @@ function PainelCapital({ conta, chartReady }) {
       <section>
         <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
           <h2 className="text-lg font-semibold text-slate-800">Margem Bruta Operacional</h2>
-          <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+          <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap dre-barra-pares">
             <label>Periodo:</label>
             <select value={mesesMargem} onChange={(e) => setMesesMargem(e.target.value)} className="border border-slate-300 rounded px-2 py-1">
               <option value="3">3 meses</option>
@@ -1175,8 +1175,8 @@ function PainelCapital({ conta, chartReady }) {
           </div>
           <div className="bg-white rounded-lg border border-slate-200 p-4" style={{ minWidth: 0 }}>
             <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">Margem por familia</div>
-            <div className="overflow-y-auto" style={{ maxHeight: '300px', overflowX: 'auto' }}>
-              <table className="w-full text-xs">
+            <div className="overflow-y-auto m-tabela m-tabela-fixa" style={{ maxHeight: '300px', overflowX: 'auto' }}>
+              <table className="w-full text-xs dre-tab-compacta">
                 <thead className="bg-slate-50 text-slate-600 sticky top-0">
                   <tr>
                     <th className="text-left px-2 py-1">Familia</th>

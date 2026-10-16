@@ -32,6 +32,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 // ---------------------------------------------------------------------------
 // Formatadores locais (identicos aos do <script> da fonte). Mantidos inline para
@@ -171,6 +172,8 @@ export default function VencidosPage() {
   // --- Estado (espelha as vars do IIFE da fonte) ----------------------------
   // TIPO replicado localmente (na fonte vinha do header global). Default 'pagar'.
   const [tipo, setTipo] = useState('pagar') // 'pagar' | 'receber' | 'ambos'
+  // Celular: lista em cartoes (com seletor de ordenacao) e detalhe como folha.
+  const isMobile = useIsMobile()
   const [dados, setDados] = useState(null)   // resposta da API
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(true)
@@ -498,12 +501,14 @@ export default function VencidosPage() {
             className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (tab === 'terceiro' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>Por terceiro</button>
         </div>
 
+        {/* Celular: PDF e CSV numa linha propria, meio a meio */}
+        <span className="hidden max-md:block max-md:basis-full max-md:h-0" />
         <button type="button" onClick={exportarPDF}
-          className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 max-md:min-h-9 rounded-md text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition">
+          className="ml-auto max-md:ml-0 max-md:flex-1 max-md:justify-center inline-flex items-center gap-1.5 px-3 py-1.5 max-md:min-h-9 rounded-md text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition">
           ⬇ Baixar PDF
         </button>
         <button type="button" onClick={exportarCSV}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 max-md:min-h-9 rounded-md text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition">
+          className="max-md:flex-1 max-md:justify-center inline-flex items-center gap-1.5 px-3 py-1.5 max-md:min-h-9 rounded-md text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition">
           ⬇ Exportar CSV
         </button>
       </div>
@@ -586,7 +591,7 @@ export default function VencidosPage() {
                     className="w-full text-left px-3 sm:px-4 py-3 hover:bg-slate-50 transition flex items-center gap-2 sm:gap-3">
                     <div className="text-slate-400 font-bold w-6 text-right shrink-0">{i + 1}</div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-slate-900 truncate text-base">
+                      <div className={'font-semibold text-slate-900 text-base ' + (isMobile ? 'm-quebra-texto text-sm' : 'truncate')}>
                         <EmpresaBadge conta={g.conta} />{' '}
                         {showTipo ? <><TipoBadge tipo={g.tipo} />{' '}</> : null}
                         {g.nome}
@@ -601,7 +606,25 @@ export default function VencidosPage() {
                     </div>
                     <div className="text-slate-400">{aberto ? '▾' : '▸'}</div>
                   </button>
-                  {aberto && (
+                  {aberto && isMobile && (
+                    // Celular: titulos do terceiro em linhas de 2 andares (sem rolar de lado)
+                    <div className="bg-slate-50/60 px-3 pb-2">
+                      {titulosDoTerceiro(g.chave).map((t) => (
+                        <button key={uidDe(t)} type="button" onClick={() => abrirModal(uidDe(t))}
+                          className="w-full text-left border-t border-slate-200 py-2 flex items-center gap-2">
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs text-slate-600 m-quebra-texto">{docDe(t)}</div>
+                            <div className="text-xs text-slate-500">venc {fmtData(t.data_vencimento)}</div>
+                          </div>
+                          <span className={'shrink-0 inline-block px-1.5 py-0.5 rounded-full text-xs font-bold ' + corAtraso(t.dias_atraso)}>{t.dias_atraso}d</span>
+                          <span className="shrink-0 text-sm font-semibold text-slate-900 whitespace-nowrap">
+                            {fmtBRLfull(t.valor_aberto)}{t.parcial ? <span className="text-orange-600"> (parc)</span> : null}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {aberto && !isMobile && (
                     <div className="bg-slate-50/60 px-3 sm:px-4 pb-3 overflow-x-auto">
                       <table className="w-full text-sm">
                         <tbody>
@@ -636,6 +659,45 @@ export default function VencidosPage() {
             </div>
             {lista.length === 0 ? (
               <div className="p-8 text-center text-emerald-600 font-medium">Nenhum título vencido. 🎉</div>
+            ) : isMobile ? (
+              // Celular: 1 cartao por titulo; toque abre o mesmo detalhe da tabela.
+              <div>
+                <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100">
+                  <span className="text-xs text-slate-500">Ordenar</span>
+                  <select value={sortCol} onChange={(e) => clicarCabecalho(e.target.value)}
+                    className="flex-1 min-w-0 border border-slate-300 rounded px-2 py-1 text-sm">
+                    {COLUNAS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+                  </select>
+                  <button type="button" onClick={() => clicarCabecalho(sortCol)}
+                    className="min-w-9 px-2 border border-slate-300 rounded text-sm"
+                    aria-label="Inverter ordem" title="Inverter ordem">{sortDir === 'asc' ? '▲' : '▼'}</button>
+                </div>
+                {lista.map((t) => {
+                  const sub = [t.grupo_categoria, t.descricao_categoria].filter(Boolean).join(' · ')
+                  return (
+                    <button key={uidDe(t)} type="button" onClick={() => abrirModal(uidDe(t))}
+                      className="w-full text-left px-3 py-2.5 border-b border-slate-100 flex gap-3 items-start active:bg-blue-50">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-semibold text-slate-900 m-quebra-texto">
+                          {showTipo ? <><TipoBadge tipo={t.tipo} />{' '}</> : null}
+                          {t.nome || 'Sem nome'}
+                          {t.parcial ? <span className="text-[11px] text-orange-600 font-semibold"> (parcial)</span> : null}
+                        </div>
+                        {sub ? <div className="text-xs text-slate-500 m-quebra-texto">{sub}</div> : null}
+                        <div className="text-xs text-slate-500 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                          <EmpresaBadge conta={t.conta_omie} />
+                          <span>{docDe(t)}</span>
+                          <span>venc {fmtData(t.data_vencimento)}</span>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <div className="text-sm font-bold text-slate-900 whitespace-nowrap">{fmtBRLfull(t.valor_aberto)}</div>
+                        <span className={'inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-bold ' + corAtraso(t.dias_atraso)}>{t.dias_atraso}d</span>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-base text-slate-800">
@@ -695,12 +757,12 @@ export default function VencidosPage() {
 
       {/* Modal de detalhes do titulo */}
       {modalTitulo && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3 sm:p-4"
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3 sm:p-4 m-folha-fundo"
           onClick={(e) => { if (e.target === e.currentTarget) fecharModal() }}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto m-folha">
             <div className="sticky top-0 bg-white border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
               <h2 className="font-bold text-slate-800 text-lg">Detalhes do título</h2>
-              <button onClick={fecharModal} className="text-slate-400 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-9 max-md:min-h-9">&times;</button>
+              <button onClick={fecharModal} aria-label="Fechar" className="text-slate-400 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-11 max-md:min-h-11">&times;</button>
             </div>
             <div className="p-3 sm:p-5">
               <ModalBody t={modalTitulo} />

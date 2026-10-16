@@ -100,7 +100,9 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
           return (
             <div key={item.id} style={{ display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--portal-border,#e5e7eb)', background: r ? 'var(--portal-bg,#f9fafb)' : 'var(--portal-surface,#fff)', opacity: r && modo === 'conducao' ? .75 : 1 }}>
               {modo === 'pauta' && podeEditar && (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--portal-text-muted,#999)' }}>
+                <div className="pi-mover" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--portal-text-muted,#999)' }}>
+                  {/* Celular: setas e lixeira com alvo de dedo (34px) */}
+                  <style>{'@media (max-width:768px){.pi-mover>button,.pi-remover{min-width:34px;min-height:34px;display:flex !important;align-items:center;justify-content:center}}'}</style>
                   <button onClick={() => mover(item.id, -1)} disabled={idx === 0} style={{ border: 'none', background: 'transparent', cursor: idx === 0 ? 'default' : 'pointer', padding: 2, color: 'inherit', opacity: idx === 0 ? .25 : .8 }}><ChevronUp size={14} /></button>
                   <span style={{ fontSize: 11, fontWeight: 800 }}>{idx + 1}</span>
                   <button onClick={() => mover(item.id, 1)} disabled={idx === lista.length - 1} style={{ border: 'none', background: 'transparent', cursor: idx === lista.length - 1 ? 'default' : 'pointer', padding: 2, color: 'inherit', opacity: idx === lista.length - 1 ? .25 : .8 }}><ChevronDown size={14} /></button>
@@ -167,7 +169,7 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
                 )}
               </div>
               {modo === 'pauta' && podeEditar && !r && onRemover && (
-                <button onClick={() => { if (window.confirm('Tirar este item da pauta?')) onRemover(item.id) }} title="Remover" style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted,#999)', alignSelf: 'flex-start', padding: 2 }}><Trash2 size={14} /></button>
+                <button className="pi-remover" onClick={() => { if (window.confirm('Tirar este item da pauta?')) onRemover(item.id) }} title="Remover" aria-label="Remover da pauta" style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted,#999)', alignSelf: 'flex-start', padding: 2 }}><Trash2 size={14} /></button>
               )}
             </div>
           )

@@ -21,9 +21,9 @@ export function CabecalhoFrota({ titulo, resumo, acoes, icone }: {
   icone?: ReactNode;
 }) {
   return (
-    <header style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
+    <header className="frota-cab" style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
       <div style={{ minWidth: 0, flex: '1 1 320px' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8, lineHeight: 1.2 }}>
+        <h1 className="frota-titulo" style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8, lineHeight: 1.2 }}>
           {icone}{titulo}
         </h1>
         {resumo && <p style={{ margin: '4px 0 0', fontSize: 13.5, color: 'var(--portal-text-secondary)', maxWidth: '75ch' }}>{resumo}</p>}
@@ -38,7 +38,7 @@ const TOM_COR: Record<TomKpi, string> = { neutro: AZUL_FROTA, bom: '#15803d', at
 
 export function KpisFrota({ children }: { children: ReactNode }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(190px, 100%), 1fr))', gap: 12, marginBottom: 22 }}>
+    <div className="frota-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(190px, 100%), 1fr))', gap: 12, marginBottom: 22 }}>
       {children}
     </div>
   );
@@ -62,10 +62,10 @@ export function KpiFrota({ rotulo, valor, contexto, tom = 'neutro', icone, href,
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: 'var(--portal-text-secondary)' }}>
         {icone}{rotulo}
       </span>
-      <strong style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.1, color: tom === 'neutro' ? 'var(--portal-text)' : cor, fontVariantNumeric: 'tabular-nums' }}>
+      <strong className="frota-kpi-valor" style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.1, color: tom === 'neutro' ? 'var(--portal-text)' : cor, fontVariantNumeric: 'tabular-nums' }}>
         {valor}
       </strong>
-      {contexto && <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>{contexto}</span>}
+      {contexto && <span className="frota-kpi-ctx" style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>{contexto}</span>}
     </>
   );
   const estilo: React.CSSProperties = {
@@ -74,9 +74,9 @@ export function KpiFrota({ rotulo, valor, contexto, tom = 'neutro', icone, href,
     borderLeft: `4px solid ${cor}`, borderRadius: 0, textAlign: 'left', textDecoration: 'none',
     font: 'inherit', color: 'inherit', cursor: href || onClick ? 'pointer' : 'default',
   };
-  if (href) return <Link href={href} title={title} style={estilo}>{corpo}</Link>;
-  if (onClick) return <button type="button" onClick={onClick} title={title} style={estilo}>{corpo}</button>;
-  return <div title={title} style={estilo}>{corpo}</div>;
+  if (href) return <Link href={href} title={title} className="frota-kpi" style={estilo}>{corpo}</Link>;
+  if (onClick) return <button type="button" onClick={onClick} title={title} className="frota-kpi" style={estilo}>{corpo}</button>;
+  return <div title={title} className="frota-kpi" style={estilo}>{corpo}</div>;
 }
 
 export function VazioFrota({ titulo, texto, acao }: { titulo: string; texto?: ReactNode; acao?: ReactNode }) {

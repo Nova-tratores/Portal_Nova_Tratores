@@ -11,6 +11,7 @@ import Toast, { type ToastMsg } from "@/components/feedbacks/atendimento/Toast";
 import ModalConfirmarCaveira from "@/components/feedbacks/ModalConfirmarCaveira";
 import { marcarNaoContatar, reativarContato } from "@/lib/feedbacks/caveira";
 import { useAuditLog } from "@/hooks/useAuditLog";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import styles from "@/components/feedbacks/feedbacks.module.css";
 import { COR_ATENDIMENTO } from "@/components/feedbacks/atendimento/Cockpit";
 import { REGRA_ROTULO, fmtDataBR, haQuanto } from "@/lib/feedbacks/atendimento/rotulos";
@@ -38,6 +39,9 @@ export default function FilaAtendimentoPage() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
+  // Celular: desenha a fila aos poucos (são centenas de cartões) — "Mostrar mais" no fim
+  const isMobile = useIsMobile();
+  const [limiteMobile, setLimiteMobile] = useState(40);
   const [chips, setChips] = useState<Set<Chip>>(new Set());
   const [areas, setAreas] = useState<Areas | null>(null);
   // motivos (regras) escolhidos — OR entre eles; vazio = todos. Aceita ?regra=R5_pecas,R8_cadastro
@@ -146,18 +150,21 @@ export default function FilaAtendimentoPage() {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar cliente ou código…"
+          className="m-full"
           style={{ marginLeft: "auto", padding: "8px 12px", borderRadius: 999, border: "1px solid var(--portal-border)", fontSize: 13, minWidth: "min(260px, 100%)", maxWidth: "100%", background: "var(--portal-bg-card)" }}
         />
-        <div style={{ display: "inline-flex", border: "1px solid var(--portal-border)", borderRadius: 999, overflow: "hidden" }}>
+        {/* celular: sempre cartões (a lista tem 9 colunas) — o seletor some */}
+        <div className="m-esconder" style={{ display: "inline-flex", border: "1px solid var(--portal-border)", borderRadius: 999, overflow: "hidden" }}>
           <button type="button" onClick={() => trocarModo("cards")} style={{ ...btnChip(modo === "cards" ? COR_ATENDIMENTO : "#64748b", modo === "cards"), border: 0, borderRadius: 0 }}>▤ Cards</button>
           <button type="button" onClick={() => trocarModo("lista")} style={{ ...btnChip(modo === "lista" ? COR_ATENDIMENTO : "#64748b", modo === "lista"), border: 0, borderRadius: 0 }}>☰ Lista</button>
         </div>
         <Link href="/feedbacks/atendimento/contatos" style={{ ...btnChip("#64748b", false), textDecoration: "none" }}>👥 Contatos por cargo</Link>
-        <button type="button" onClick={carregar} disabled={carregando} style={btnChip(COR_ATENDIMENTO, false)}>↻</button>
+        <button type="button" onClick={carregar} disabled={carregando} aria-label="Atualizar a fila" title="Atualizar a fila" style={{ ...btnChip(COR_ATENDIMENTO, false), ...(isMobile ? { minWidth: 40, minHeight: 36 } : {}) }}>↻</button>
       </header>
 
       {/* motivo (regra) — OR entre os escolhidos */}
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
+      {/* celular: cada grupo de filtros vira uma faixa que rola de lado (não empilha 8 linhas) */}
+      <div className="m-rolar-x" style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8, alignItems: "center", ...(isMobile ? { paddingBottom: 2 } : {}) }}>
         <span style={{ fontSize: 11, opacity: 0.6, fontWeight: 700 }}>Motivo:</span>
         {minhaArea && (
           <button type="button" onClick={() => toggle("minha_area")} title={`Sua área (${minhaArea.area}): ${minhaArea.regras.map((r) => REGRA_ROTULO[r]?.titulo ?? r).join(", ")}`} style={btnChip(chips.has("minha_area") ? "#16a34a" : "#16a34a", chips.has("minha_area"))}>
@@ -175,7 +182,7 @@ export default function FilaAtendimentoPage() {
         })}
         {regras.size > 0 && <button type="button" onClick={() => setRegras(new Set())} style={{ ...btnChip("#64748b", false), border: 0 }}>limpar</button>}
       </div>
-      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+      <div className="m-rolar-x" style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
         {([
           ["urgentes", "🔴 Urgentes"],
           ["em_atendimento", "🎧 Em atendimento"],
@@ -197,11 +204,18 @@ export default function FilaAtendimentoPage() {
           <div style={{ fontSize: 28 }}>✨</div>
           <div style={{ fontWeight: 700 }}>Ninguém na fila com esse filtro.</div>
         </div>
-      ) : modo === "lista" ? (
+      ) : modo === "lista" && !isMobile ? (
         <Lista linhas={filtradas} meuId={userProfile?.id ?? null} atendendo={atendendo} onAtender={atender} onCaveira={pedirCaveira} />
       ) : (
         <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-          {filtradas.map((l) => <Item key={l.cliente_key} l={l} meuId={userProfile?.id ?? null} atendendo={atendendo === l.cliente_key} onAtender={atender} />)}
+          {(isMobile ? filtradas.slice(0, limiteMobile) : filtradas).map((l) => <Item key={l.cliente_key} l={l} meuId={userProfile?.id ?? null} atendendo={atendendo === l.cliente_key} onAtender={atender} />)}
+          {isMobile && filtradas.length > limiteMobile && (
+            <li style={{ listStyle: "none" }}>
+              <button type="button" onClick={() => setLimiteMobile((n) => n + 40)} style={{ width: "100%", minHeight: 44, borderRadius: 12, border: `1px solid ${COR_ATENDIMENTO}`, background: "var(--portal-bg-card)", color: COR_ATENDIMENTO, fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
+                Mostrar mais ({filtradas.length - limiteMobile} restantes)
+              </button>
+            </li>
+          )}
         </ul>
       )}
       <Toast msg={toast} onFechar={() => setToast(null)} ms={8000} />

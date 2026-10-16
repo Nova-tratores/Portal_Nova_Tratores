@@ -944,7 +944,7 @@ export default function CalendarioPage() {
       >
         <div className="sticky top-0 bg-white border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
           <h2 className="font-semibold text-slate-800">Titulos {eixo === 'emissao' ? 'emitidos' : eixo === 'inclusao' ? 'criados' : 'vencendo'} em {fmtBRdata(drawerData)}</h2>
-          <button onClick={fecharDrawer} className="text-slate-500 hover:text-slate-900 text-2xl leading-none max-md:min-w-9 max-md:min-h-9 shrink-0">{'×'}</button>
+          <button onClick={fecharDrawer} className="text-slate-500 hover:text-slate-900 text-2xl leading-none max-md:min-w-11 max-md:min-h-11 shrink-0">{'×'}</button>
         </div>
         <div className="p-3 sm:p-5">
           {drawerCarregando ? (

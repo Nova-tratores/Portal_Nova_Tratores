@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import TimelineRegistros from "@/components/feedbacks/TimelineRegistros";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import ModalPerfilCliente from "@/components/feedbacks/ModalPerfilCliente";
 import ModalFeedback from "@/components/feedbacks/ModalFeedback";
 import { listarClientesInfo, listarRegistros } from "@/lib/feedbacks/api";
@@ -114,6 +115,7 @@ export default function ClientesPage() {
   const [filtro, setFiltro] = useState("");
   const [ordem, setOrdem] = useState<Ordem>("recente");
   const [selecionadaKey, setSelecionadaKey] = useState<string | null>(null);
+  const isMobile = useIsMobile();
 
   const [modalPerfilAberto, setModalPerfilAberto] = useState(false);
   const [registroEdit, setRegistroEdit] = useState<FeedbackRegistro | null>(null);
@@ -208,7 +210,8 @@ export default function ClientesPage() {
           {/* Celular/tablet: lista em cima (altura limitada) e a ficha embaixo. */}
           <style>{`@media (max-width: 860px){.fbcli-layout{grid-template-columns:minmax(0,1fr) !important;height:auto !important;min-height:0 !important}.fbcli-side{max-height:45vh}.fbcli-main{padding:14px !important;overflow:visible !important}.fbcli-head{flex-wrap:wrap}} @media (max-width: 560px){.fbcli-extra{grid-template-columns:minmax(0,1fr) !important}}`}</style>
           {/* Sidebar — lista de clientes */}
-          <aside className="fbcli-side" style={sidebarStyle}>
+          {/* celular: lista OU ficha (uma de cada vez), com "voltar" na ficha */}
+          <aside className="fbcli-side" style={{ ...sidebarStyle, ...(isMobile ? { maxHeight: "none", display: selecionada ? "none" : sidebarStyle.display } : {}) }}>
             <input
               type="text"
               value={filtro}
@@ -230,7 +233,7 @@ export default function ClientesPage() {
                 return (
                   <button
                     key={c.key}
-                    onClick={() => setSelecionadaKey(c.key)}
+                    onClick={() => { setSelecionadaKey(c.key); if (isMobile) window.scrollTo({ top: 0 }); }}
                     style={{
                       ...clienteItemStyle,
                       background: ativa ? "#fef2f2" : "transparent",
@@ -260,7 +263,12 @@ export default function ClientesPage() {
           </aside>
 
           {/* Conteúdo — perfil do selecionado */}
-          <main className="fbcli-main" style={{ ...mainStyle, minWidth: 0 }}>
+          <main className="fbcli-main" style={{ ...mainStyle, minWidth: 0, ...(isMobile && !selecionada ? { display: "none" } : {}) }}>
+            {isMobile && selecionada && (
+              <button type="button" onClick={() => setSelecionadaKey(null)} style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 44, padding: "0 4px", marginBottom: 6, background: "none", border: "none", color: "#dc2626", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                ← Voltar à lista
+              </button>
+            )}
             {!selecionada ? (
               <div style={{ padding: 60, textAlign: "center", color: "var(--portal-text-muted)", fontSize: 14, fontStyle: "italic" }}>
                 Selecione um cliente à esquerda para ver perfil e histórico.

@@ -133,18 +133,18 @@ function GarantiasPageInner() {
         </button>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-        <StatCard label="Solicitadas" valor={stats.solicitadas} cor="#0ea5e9" />
-        <StatCard label="Em análise" valor={stats.analise} cor="#6366f1" />
-        <StatCard label="Na fábrica" valor={stats.fabrica} cor="#8b5cf6" />
-        {stats.servico > 0 && <StatCard label="Aguardando serviço" valor={stats.servico} cor="#0d9488" />}
-        {stats.devolucao > 0 && <StatCard label="Devolver peças" valor={stats.devolucao} cor="#b45309" />}
-        <StatCard label="Devolvidas ao técnico" valor={stats.tecnico} cor="#f59e0b" />
+      {/* Stats — no celular, grade de 3 compacta (antes ocupava meia tela) */}
+      <div style={isMobile ? { display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8, marginBottom: 14 } : { display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+        <StatCard label="Solicitadas" valor={stats.solicitadas} cor="#0ea5e9" compacto={isMobile} />
+        <StatCard label="Em análise" valor={stats.analise} cor="#6366f1" compacto={isMobile} />
+        <StatCard label="Na fábrica" valor={stats.fabrica} cor="#8b5cf6" compacto={isMobile} />
+        {stats.servico > 0 && <StatCard label="Aguardando serviço" valor={stats.servico} cor="#0d9488" compacto={isMobile} />}
+        {stats.devolucao > 0 && <StatCard label="Devolver peças" valor={stats.devolucao} cor="#b45309" compacto={isMobile} />}
+        <StatCard label="Devolvidas ao técnico" valor={stats.tecnico} cor="#f59e0b" compacto={isMobile} />
       </div>
 
-      {/* Abas */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 18, borderBottom: '1px solid var(--portal-border)', paddingBottom: 10 }}>
+      {/* Abas — no celular, uma faixa só que rola de lado */}
+      <div className={isMobile ? 'm-rolar-x' : undefined} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 18, borderBottom: '1px solid var(--portal-border)', paddingBottom: 10, ...(isMobile ? { margin: '0 -12px 14px', padding: '0 12px 10px' } : {}) }}>
         {abas.map((a) => (
           <button
             key={a.id}
@@ -153,8 +153,9 @@ function GarantiasPageInner() {
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              padding: '8px 14px',
+              padding: isMobile ? '10px 14px' : '8px 14px',
               borderRadius: 9,
+              whiteSpace: isMobile ? 'nowrap' : undefined,
               border: 'none',
               background: aba === a.id ? 'linear-gradient(135deg, #dc2626, #7f1d1d)' : 'var(--portal-bg-input)',
               color: aba === a.id ? '#fff' : 'var(--portal-text-secondary)',
@@ -221,7 +222,7 @@ function GarantiasPageInner() {
   );
 }
 
-function StatCard({ label, valor, cor }: { label: string; valor: number; cor: string }) {
+function StatCard({ label, valor, cor, compacto = false }: { label: string; valor: number; cor: string; compacto?: boolean }) {
   return (
     <div
       style={{
@@ -230,11 +231,12 @@ function StatCard({ label, valor, cor }: { label: string; valor: number; cor: st
         border: '1px solid var(--portal-border)',
         borderLeft: `4px solid ${cor}`,
         borderRadius: 12,
-        padding: '12px 16px',
+        padding: compacto ? '8px 10px' : '12px 16px',
+        ...(compacto ? { minWidth: 0 } : {}),
       }}
     >
-      <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--portal-text)' }}>{valor}</div>
+      <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', ...(compacto ? { lineHeight: 1.25, minHeight: 30 } : {}) }}>{label}</div>
+      <div style={{ fontSize: compacto ? 21 : 26, fontWeight: 800, color: 'var(--portal-text)' }}>{valor}</div>
     </div>
   );
 }

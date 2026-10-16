@@ -2,7 +2,7 @@
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import {
@@ -52,6 +52,15 @@ export default function FinanceiroNav({ children = null }) {
   const { userProfile } = useAuth()
   const [vencidosCount, setVencidosCount] = useState(0)
   const isMobile = useIsMobile()
+  const navRef = useRef(null)
+
+  // Celular: a faixa de guias rola de lado; traz a guia ATIVA pra dentro da tela
+  // (senão quem está em Vencidos/Relatório vê a guia cortada na borda).
+  useEffect(() => {
+    if (!isMobile || !navRef.current) return
+    const ativa = navRef.current.querySelector('[data-ativa="1"]')
+    if (ativa) ativa.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  }, [isMobile, pathname])
 
   const funcao = userProfile?.funcao
   const links = funcao === 'Financeiro' ? LINKS_FINANCEIRO
@@ -88,7 +97,7 @@ export default function FinanceiroNav({ children = null }) {
 
   return (
     <div className="fin-band-verde" style={{
-      position: 'sticky', top: '84px', zIndex: 30,
+      position: 'sticky', top: 'var(--portal-header-h)', zIndex: 30,
       background: 'linear-gradient(135deg, #D8F0B2, #A9D47D)',
       boxShadow: '0 1px 4px var(--portal-shadow)',
       padding: isMobile ? '0 12px' : '0 24px',
@@ -103,7 +112,7 @@ export default function FinanceiroNav({ children = null }) {
         {/* Nav — guias estilo Chrome, ancoradas na base da faixa verde.
             className fin-tabs-nav: exceção à regra ".portal-dark nav" que
             pintava um card escuro POR CIMA da faixa verde no modo escuro. */}
-        <nav className="fin-tabs-nav" style={{
+        <nav ref={navRef} className="fin-tabs-nav" style={{
           display: 'flex', alignItems: 'flex-end', gap: '3px',
           flex: isMobile ? '1 1 100%' : 1, overflowX: 'auto', minWidth: 0, WebkitOverflowScrolling: 'touch',
           paddingTop: isMobile ? '6px' : undefined,
@@ -115,7 +124,7 @@ export default function FinanceiroNav({ children = null }) {
             const hasVencidos = isVencidosTab && vencidosCount > 0
 
             return (
-              <Link key={link.href} href={link.href} style={{
+              <Link key={link.href} href={link.href} data-ativa={isActive ? "1" : undefined} style={{
                 display: 'flex', alignItems: 'center', gap: '7px',
                 padding: isMobile ? '10px 12px' : '11px 20px', borderRadius: '11px 11px 0 0',
                 fontSize: isMobile ? '13px' : '15px', flexShrink: 0, fontWeight: isActive ? '600' : '500',

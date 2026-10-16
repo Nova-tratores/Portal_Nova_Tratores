@@ -13,6 +13,7 @@ import { autoEnviarENotificar } from '@/lib/financeiro/envioBoleto'
 import { marcarMinhaAcao } from '@/components/financeiro/NotificationSystem'
 import { EnviarParaOmieBox } from '@/components/financeiro/OmieContaPagar'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
+import SeletorColunasMobile from '@/components/financeiro/SeletorColunasMobile'
 import { formatarDataBR, formatarMoeda, getRequisicoes } from '@/lib/financeiro/utils'
 import {
  X, PlusCircle, FileText, Download,
@@ -34,7 +35,7 @@ function AttachmentTag({ icon, label, fileUrl, onUpload, onRemove, disabled }) {
         <div style={{ display: 'flex', alignItems: 'center', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: '12px', minWidth:'min(320px, 100%)', maxWidth: '100%', boxSizing: 'border-box', overflow: 'hidden', boxShadow: '0 2px 4px rgba(0,0,0,0.02)' }}>
             <div style={{ padding: '0 18px', color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)' }}>{icon || <Paperclip size={18}/>}</div>
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, padding: '12px 15px' }}>
-                <span style={{ fontSize: '13px', color: 'var(--portal-text)', fontWeight: '500', letterSpacing: '0.5px', overflowWrap: 'anywhere' }}>{label}</span>
+                <span style={{ fontSize: '13px', color: 'var(--portal-text)', fontWeight: '500', letterSpacing: '0.5px', overflowWrap: 'break-word', wordBreak: 'normal' }}>{label}</span>
                 <span style={{ fontSize: '11px', color: fileUrl ? '#10b981' : '#f43f5e', fontWeight: '500' }}>{fileUrl ? 'ARQUIVO PRONTO' : 'PENDENTE'}</span>
             </div>
             <div style={{ display: 'flex', borderLeft: '1px solid var(--portal-border)' }}>
@@ -426,7 +427,8 @@ function HomeFinanceiroContent() {
  return (
   <div style={{ fontFamily: 'Inter, sans-serif' }}>
    <FinanceiroNav>
-      <div style={{ display: 'flex', alignItems: 'center', background: 'var(--portal-bg-secondary)', borderRadius: '8px', padding: '4px 10px', gap: '6px' }}>
+      {/* Zoom só no computador: no celular as colunas já rolam de lado, uma por tela */}
+      <div className="m-esconder" style={{ display: 'flex', alignItems: 'center', background: 'var(--portal-bg-secondary)', borderRadius: '8px', padding: '4px 10px', gap: '6px' }}>
         <button onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))} className="fin-h-touch" style={zoomBtnStyle} title="Diminuir zoom"><ZoomOut size={15} color="#737373" /></button>
         <span style={{ fontSize: '12px', fontWeight: '500', color: 'var(--portal-text-secondary)', minWidth: '38px', textAlign: 'center' }}>{Math.round(zoom * 100)}%</span>
         <button onClick={() => setZoom(prev => Math.min(1.5, prev + 0.1))} className="fin-h-touch" style={zoomBtnStyle} title="Aumentar zoom"><ZoomIn size={15} color="#737373" /></button>
@@ -456,6 +458,9 @@ function HomeFinanceiroContent() {
    </FinanceiroNav>
 
    <div style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)' }}>
+
+    {/* Celular: pílulas para pular entre as colunas (que rolam de lado, uma por tela) */}
+    <SeletorColunasMobile alvoSel=".fin-h-cols" itemSel=".fin-h-col" colunas={[{ rotulo: 'Faturamento', qtd: listaBoletos.filter(c => c.status === 'gerar_boleto' || c.status === 'validar_pix' || (c.status === 'aguardando_vencimento' && (c.isTarefaPagamentoRealizado || c.parcelaVencida))).length }, { rotulo: 'Requisições', qtd: listaPagar.length }, { rotulo: 'Sem boleto', qtd: listaSemBoleto.length }]} />
 
     <div className="fin-h-cols" style={{
         display: 'grid',
@@ -1164,13 +1169,22 @@ function HomeFinanceiroContent() {
       .fin-h-reqrow-old { grid-template-columns: minmax(0, 1fr) !important; }
     }
     @media (max-width: 768px) {
+      /* rótulos de 9–10.5px nos cards e na janela ficavam ilegíveis no celular: mínimo 11px */
+      .fin-h-cols [style*="font-size: 9"], .fin-h-cols [style*="font-size: 10"],
+      .fin-h-overlay [style*="font-size: 9"], .fin-h-overlay [style*="font-size: 10"] { font-size: 11px !important; }
       .fin-h-touch { min-height: 36px; min-width: 36px; }
       .fin-h-cols { display: flex !important; overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; gap: 12px !important; padding-bottom: 6px; }
       .fin-h-cols > .fin-h-col { flex: 0 0 min(85%, 380px); scroll-snap-align: start; border-right: none !important; padding: 8px 0 !important; }
-      .fin-h-overlay { padding: 12px; box-sizing: border-box; }
-      .fin-h-modal { max-width: 100% !important; max-height: 90vh !important; }
-      .fin-h-mhead { flex-wrap: wrap; gap: 8px; padding: 10px 12px !important; }
-      .fin-h-mhead > div { flex-wrap: wrap; }
+      /* Celular: a janela do card vira TELA CHEIA (antes sobrava moldura de 12px e o topo ocupava 2 linhas) */
+      .fin-h-overlay { padding: 0 !important; align-items: stretch !important; box-sizing: border-box; }
+      .fin-h-modal { width: 100% !important; max-width: 100% !important; height: 100dvh; max-height: 100dvh !important; border-radius: 0 !important; border: none !important; }
+      /* "Voltar ao painel" faz o mesmo que "Fechar": no celular fica só o Fechar, numa linha */
+      .fin-h-mhead { padding: 8px 12px !important; justify-content: flex-end !important; }
+      .fin-h-mhead > button:first-child { display: none !important; }
+      .fin-h-mhead > div { gap: 12px !important; }
+      .fin-h-mhead > div > button { min-height: 44px; padding: 0 16px !important; }
+      /* campos "invisíveis" (sem borda) da janela: altura de dedo */
+      .fin-h-overlay input.fin-h-mtitle, .fin-h-mfield input, .fin-h-mfield select { min-height: 40px; }
       .fin-h-mbody { padding: 14px 14px 24px !important; }
       .fin-h-mtitlebox { margin-top: 8px !important; margin-bottom: 20px !important; }
       .fin-h-mtitle { font-size: 24px !important; }

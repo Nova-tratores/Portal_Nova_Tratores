@@ -66,7 +66,7 @@ export default function ComprasPipelinePage() {
 
   return (
     <div style={{ padding: 'clamp(12px, 2.5vw, 20px)', maxWidth: 1280, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
+      <div className="sc-topo" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <h1 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 18, fontWeight: 800, color: 'var(--portal-text,#111)', margin: 0 }}>
           <ShoppingCart size={19} color="#dc2626" /> Solicitações de Compras
         </h1>
@@ -98,7 +98,9 @@ export default function ComprasPipelinePage() {
         <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted,#888)', fontSize: 14 }}>Carregando pipeline...</div>
       ) : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(${COLUNAS.length}, minmax(220px, 1fr))`, gap: 12, overflowX: 'auto' }}>
+          {/* Celular: uma etapa por tela (84% da largura), rolando de lado com encaixe */}
+          <style>{'@media (max-width:768px){.sc-board{grid-template-columns:none !important;grid-auto-flow:column;grid-auto-columns:84vw;scroll-snap-type:x mandatory;overscroll-behavior-x:contain}.sc-board>div{scroll-snap-align:start;min-width:0 !important}.sc-topo>div>button{min-height:42px}}'}</style>
+          <div className="sc-board" style={{ display: 'grid', gridTemplateColumns: `repeat(${COLUNAS.length}, minmax(220px, 1fr))`, gap: 12, overflowX: 'auto' }}>
             {COLUNAS.map((etapa) => {
               const info = SC_ETAPA_INFO[etapa]
               const lista = porEtapa[etapa] || []

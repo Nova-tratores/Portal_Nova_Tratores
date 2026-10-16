@@ -72,12 +72,12 @@ export default function VisualEstoqueDashboard() {
               { l: 'Custo Capital Acumulado', v: fmt(data.custoCapitalTotal), icon: TrendingDown, bg: '#FEF2F2', c: '#DC2626', b: '#FECACA' },
               { l: 'Custo Capital / Mês', v: fmt(data.custoCapitalMes), icon: BarChart3, bg: '#FFF7ED', c: '#EA580C', b: '#FED7AA' },
             ].map((c, i) => (
-              <div key={i} style={{ padding: '20px 22px', borderRadius: 14, background: c.bg, border: `1px solid ${c.b}` }}>
+              <div key={i} className="vest-kpi" style={{ padding: '20px 22px', borderRadius: 14, background: c.bg, border: `1px solid ${c.b}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
                   <c.icon size={18} color={c.c} />
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>{c.l}</span>
                 </div>
-                <div style={{ fontSize: 24, fontWeight: 800, color: c.c }}>{c.v}</div>
+                <div className="vest-kpi-v" style={{ fontSize: 24, fontWeight: 800, color: c.c }}>{c.v}</div>
               </div>
             ))}
           </div>
@@ -89,7 +89,7 @@ export default function VisualEstoqueDashboard() {
               <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text, #1a1a1a)' }}>Máquinas por Família</span>
               <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 500 }}>({data.familias.length})</span>
             </div>
-            <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div className="est-scroll m-tabela m-tabela-fixa"><table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--portal-bg, #fafafa)' }}>
                   {['Família', 'Produtos', 'Estoque', 'Valor Total', 'Custo Capital'].map(h => (

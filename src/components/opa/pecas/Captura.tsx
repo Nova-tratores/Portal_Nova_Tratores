@@ -228,7 +228,8 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
           )}
         </div>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 8 }}>
-          <button type="button" onClick={() => galRef.current?.click()} style={{ background: 'none', border: 'none', color: 'var(--portal-text-secondary)', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
+          <style>{'@media (max-width: 768px) { .opa-galeria { min-height: 40px; font-size: 14px !important; } }'}</style>
+          <button type="button" className="opa-galeria" onClick={() => galRef.current?.click()} style={{ background: 'none', border: 'none', color: 'var(--portal-text-secondary)', fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>
             <ImagePlus size={14} /> Escolher da galeria
           </button>
           {MODO_TESTE && (

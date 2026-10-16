@@ -229,9 +229,9 @@ export default function Formulario({ base, item, inicial, onSalvo, onCancelar }:
         <h2 style={TITULO_SECAO}>Tags e observações</h2>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {form.tags.map((t) => (
-            <span key={t} style={CHIP_ON}>
+            <span key={t} className="pat-chip" style={CHIP_ON}>
               <Tag size={12} /> {t}
-              <button type="button" aria-label={`Tirar ${t}`} onClick={() => muda('tags', form.tags.filter((x) => x !== t))} style={{ border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 0, display: 'flex' }}><X size={13} /></button>
+              <button type="button" className="pat-chip-x" aria-label={`Tirar ${t}`} onClick={() => muda('tags', form.tags.filter((x) => x !== t))} style={{ border: 'none', background: 'transparent', color: 'inherit', cursor: 'pointer', padding: 0, display: 'flex' }}><X size={13} /></button>
             </span>
           ))}
         </div>
@@ -240,7 +240,7 @@ export default function Formulario({ base, item, inicial, onSalvo, onCancelar }:
           onBlur={() => { if (novaTag.trim()) { muda('tags', juntarTags(form.tags, novaTag)); setNovaTag('') } }} style={INP} />
         {sugestoesTag.length > 0 && (
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {sugestoesTag.map((t) => <button key={t} type="button" onClick={() => muda('tags', juntarTags(form.tags, t))} style={CHIP_OFF}>+ {t}</button>)}
+            {sugestoesTag.map((t) => <button key={t} type="button" onClick={() => muda('tags', juntarTags(form.tags, t))} className="pat-chip" style={CHIP_OFF}>+ {t}</button>)}
           </div>
         )}
         <div>
@@ -250,7 +250,14 @@ export default function Formulario({ base, item, inicial, onSalvo, onCancelar }:
       </section>
 
       {erro && <Aviso>{erro}</Aviso>}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+      {/* celular: chips com altura de dedo e Salvar/Cancelar presos no rodapé */}
+      <style>{`@media (max-width: 768px) {
+        .pat-chip { min-height: 36px; font-size: 13px !important; padding: 6px 12px !important; box-sizing: border-box; }
+        .pat-chip-x { min-width: 28px; min-height: 28px; justify-content: center; align-items: center; }
+        .pat-acoes { margin: 0 -12px; }
+        .pat-acoes > button:first-child { flex: 1; }
+      }`}</style>
+      <div className="pat-acoes m-rodape-fixo" style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <button type="button" onClick={salvar} disabled={salvando || enviando || faltas.length > 0} style={botao(COR_PAT, { grande: true, desab: salvando || enviando || faltas.length > 0 })}>
           {salvando ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <Save size={18} />} {item ? 'Salvar alterações' : 'Cadastrar item'}
         </button>

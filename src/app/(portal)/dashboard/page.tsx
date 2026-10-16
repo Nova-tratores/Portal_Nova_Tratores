@@ -379,6 +379,40 @@ export default function DashboardPage() {
     })
   }
 
+  // Celular: setas ◀ ▶ no lugar do arrastar para reordenar os favoritos
+  const moverFavorito = (id: string, direcao: -1 | 1) => {
+    setFavoritos(prev => {
+      const i = prev.indexOf(id)
+      const j = i + direcao
+      if (i < 0 || j < 0 || j >= prev.length) return prev
+      const arr = [...prev]
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+      return arr
+    })
+  }
+
+  // "Mais usados" do celular: o mesmo contador que o PortalLayout usa nos atalhos
+  // do topo (localStorage portal-uso-<id>, chave = id do item do menu ≈ módulo).
+  // Lê o contador uma vez por usuário; o casamento com os sistemas permitidos é
+  // derivado (useMemo) — antes o efeito dependia de allowedSystems, que muda de
+  // identidade a cada render, e entrava em loop ("Maximum update depth").
+  const [usoContador, setUsoContador] = useState<Record<string, number>>({})
+  useEffect(() => {
+    if (!userProfile?.id) return
+    try { setUsoContador(JSON.parse(localStorage.getItem(`portal-uso-${userProfile.id}`) || '{}')) }
+    catch { setUsoContador({}) }
+  }, [userProfile?.id])
+  const idsPermitidos = allowedSystems.map(s => s.id).join(',')
+  const maisUsadosIds = useMemo(() => {
+    const permitidos = idsPermitidos.split(',')
+    const ids = Object.entries(usoContador)
+      .filter(([k, n]) => k !== 'dashboard' && n > 0)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k]) => permitidos.find(id => id === k || systemToModulo[id] === k))
+      .filter((id): id is string => Boolean(id))
+    return [...new Set(ids)]
+  }, [usoContador, idsPermitidos])
+
   const groupedDisplayed = useMemo(() => {
     const groups: { key: string; config: typeof DASH_GROUPS[string]; items: typeof displayedSystems }[] = []
     for (const gk of DASH_GROUP_ORDER) {
@@ -485,20 +519,196 @@ export default function DashboardPage() {
     }
   }
 
+  // Modal "Sincronizar com Omie" — o mesmo no desktop e no celular.
+  const modalSync = showSync && (
+        <div
+          onClick={(e) => { if (e.target === e.currentTarget && !syncRunning) setShowSync(false) }}
+          style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(8px)', zIndex: 50000, padding: 16,
+            display: 'flex', alignItems: 'center', justifyContent: 'center'
+          }}
+        >
+          <div style={{
+            background: '#fff', borderRadius: '24px', width: '100%', maxWidth: '480px',
+            maxHeight: '90vh', overflowY: 'auto',
+            padding: 'clamp(20px, 5vw, 40px)', boxShadow: '0 25px 60px rgba(0,0,0,0.15)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '44px', height: '44px', borderRadius: '12px',
+                  background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  <Database size={22} color="#dc2626" />
+                </div>
+                <div>
+                  <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)', margin: 0 }}>Sync Omie</h3>
+                  <p style={{ fontSize: '12px', color: '#a3a3a3', margin: 0 }}>Clientes, projetos e produtos</p>
+                </div>
+              </div>
+              {!syncRunning && (
+                <button onClick={() => setShowSync(false)} style={{
+                  background: '#f5f5f5', border: 'none', borderRadius: '10px',
+                  width: '36px', height: '36px', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', cursor: 'pointer', color: '#737373'
+                }}>
+                  <X size={18} />
+                </button>
+              )}
+            </div>
+
+            {/* Barra de progresso */}
+            <div style={{
+              background: '#f5f5f5', borderRadius: '12px', height: '12px',
+              overflow: 'hidden', marginBottom: '16px'
+            }}>
+              <div style={{
+                height: '100%', borderRadius: '12px',
+                background: syncError ? '#ef4444' : syncProgress === 100 ? '#22c55e' : 'linear-gradient(90deg, #dc2626, #ef4444)',
+                width: `${syncProgress}%`,
+                transition: 'width 0.4s ease-out'
+              }} />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <span style={{ fontSize: '13px', color: syncError ? '#ef4444' : '#737373', fontWeight: '500' }}>
+                {syncError || syncStep || 'Pronto para sincronizar'}
+              </span>
+              <span style={{ fontSize: '20px', fontWeight: '700', color: syncProgress === 100 ? '#22c55e' : '#1a1a1a' }}>
+                {syncProgress}%
+              </span>
+            </div>
+
+            {/* Etapas + seleção (checkboxes) */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
+              {([
+                { label: 'Clientes', key: 'clientes' as const },
+                { label: 'Projetos', key: 'projetos' as const },
+                { label: 'Produtos', key: 'produtos' as const },
+              ]).map(s => {
+                const selected = syncSelection[s.key]
+                const hasResult = !!syncResults?.[s.key]
+                const done = hasResult
+                const active = syncRunning && selected && !done && syncStep.toLowerCase().includes(s.key)
+                const disabledVisual = !selected && !syncRunning
+                return (
+                  <label key={s.key} style={{
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    padding: '12px 16px', borderRadius: '12px',
+                    background: done ? '#f0fdf4' : active ? '#fef2f2' : disabledVisual ? '#fafafa' : '#fff7ed',
+                    border: `1px solid ${done ? '#bbf7d0' : active ? '#fecaca' : disabledVisual ? '#f0f0f0' : '#fed7aa'}`,
+                    transition: 'all 0.3s',
+                    cursor: syncRunning ? 'not-allowed' : 'pointer',
+                    opacity: disabledVisual ? 0.6 : 1,
+                  }}>
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      disabled={syncRunning}
+                      onChange={e => setSyncSelection(prev => ({ ...prev, [s.key]: e.target.checked }))}
+                      style={{
+                        width: 18, height: 18, accentColor: '#dc2626',
+                        cursor: syncRunning ? 'not-allowed' : 'pointer', flexShrink: 0,
+                      }}
+                    />
+                    <div style={{
+                      width: '28px', height: '28px', borderRadius: '8px',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: done ? '#22c55e' : active ? '#dc2626' : '#e5e5e5',
+                      color: '#fff', flexShrink: 0
+                    }}>
+                      {done ? <Check size={14} /> : active ? <RefreshCw size={14} className="animate-spin" /> : <Database size={14} />}
+                    </div>
+                    <span style={{
+                      fontSize: '14px', fontWeight: done ? '600' : '500',
+                      color: done ? '#16a34a' : active ? '#dc2626' : '#525252'
+                    }}>
+                      {s.label}
+                    </span>
+                    {done && syncResults?.[s.key] && (
+                      <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#16a34a', fontWeight: '600' }}>
+                        {syncResults[s.key].total} registros
+                      </span>
+                    )}
+                  </label>
+                )
+              })}
+            </div>
+
+            {/* Botão */}
+            {!syncRunning && syncProgress < 100 && (
+              <button
+                onClick={executarSync}
+                style={{
+                  width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
+                  background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff',
+                  fontSize: '15px', fontWeight: '700', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+                  boxShadow: '0 4px 12px rgba(220,38,38,0.3)', transition: 'all 0.2s'
+                }}
+              >
+                <RefreshCw size={18} /> Iniciar Sincronizacao
+              </button>
+            )}
+
+            {syncProgress === 100 && !syncError && (
+              <button
+                onClick={() => { setShowSync(false); setSyncProgress(0); setSyncStep(''); setSyncResults(null) }}
+                style={{
+                  width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
+                  background: '#22c55e', color: '#fff',
+                  fontSize: '15px', fontWeight: '700', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
+                }}
+              >
+                <Check size={18} /> Concluido — Fechar
+              </button>
+            )}
+
+            {syncError && !syncRunning && (
+              <button
+                onClick={executarSync}
+                style={{
+                  width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
+                  background: '#ef4444', color: '#fff',
+                  fontSize: '15px', fontWeight: '700', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
+                }}
+              >
+                <RefreshCw size={18} /> Tentar Novamente
+              </button>
+            )}
+          </div>
+        </div>
+  )
+
   if (isMobile) {
     // ===== CELULAR: lançador de apps próprio (o desktop abaixo não é usado) =====
     return (
-      <DashboardMobile
-        systems={allowedSystems}
-        favoritos={favoritos}
-        onToggleFav={toggleFavorito}
-        onOpen={(s) => openSystem(s as unknown as typeof allowedSystems[number])}
-        searchTerm={searchTerm}
-        onSearch={setSearchTerm}
-        telas={telasEncontradas}
-        onAbrirTela={abrirTela}
-        userNome={userProfile?.nome}
-      />
+      <>
+        <DashboardMobile
+          systems={allowedSystems}
+          grupos={DASH_GROUP_ORDER.map(key => ({ key, label: DASH_GROUPS[key].label, color: DASH_GROUPS[key].color }))}
+          favoritos={favoritos}
+          onToggleFav={toggleFavorito}
+          onMoverFav={moverFavorito}
+          maisUsados={maisUsadosIds}
+          pastas={folders}
+          onCriarPasta={createFolder}
+          onRenomearPasta={renameFolder}
+          onExcluirPasta={deleteFolder}
+          onAlternarNaPasta={toggleCardInFolder}
+          onOpen={(s) => openSystem(s as unknown as typeof allowedSystems[number])}
+          searchTerm={searchTerm}
+          onSearch={setSearchTerm}
+          telas={telasEncontradas}
+          onAbrirTela={abrirTela}
+          userNome={userProfile?.nome}
+          onSincronizar={() => setShowSync(true)}
+        />
+        {modalSync}
+      </>
     )
   }
 
@@ -1046,168 +1256,7 @@ export default function DashboardPage() {
       })()}
 
       {/* Modal Sync Omie */}
-      {showSync && (
-        <div
-          onClick={(e) => { if (e.target === e.currentTarget && !syncRunning) setShowSync(false) }}
-          style={{
-            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-            backdropFilter: 'blur(8px)', zIndex: 50000, padding: 16,
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}
-        >
-          <div style={{
-            background: '#fff', borderRadius: '24px', width: '100%', maxWidth: '480px',
-            maxHeight: '90vh', overflowY: 'auto',
-            padding: 'clamp(20px, 5vw, 40px)', boxShadow: '0 25px 60px rgba(0,0,0,0.15)'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{
-                  width: '44px', height: '44px', borderRadius: '12px',
-                  background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}>
-                  <Database size={22} color="#dc2626" />
-                </div>
-                <div>
-                  <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)', margin: 0 }}>Sync Omie</h3>
-                  <p style={{ fontSize: '12px', color: '#a3a3a3', margin: 0 }}>Clientes, projetos e produtos</p>
-                </div>
-              </div>
-              {!syncRunning && (
-                <button onClick={() => setShowSync(false)} style={{
-                  background: '#f5f5f5', border: 'none', borderRadius: '10px',
-                  width: '36px', height: '36px', display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', cursor: 'pointer', color: '#737373'
-                }}>
-                  <X size={18} />
-                </button>
-              )}
-            </div>
-
-            {/* Barra de progresso */}
-            <div style={{
-              background: '#f5f5f5', borderRadius: '12px', height: '12px',
-              overflow: 'hidden', marginBottom: '16px'
-            }}>
-              <div style={{
-                height: '100%', borderRadius: '12px',
-                background: syncError ? '#ef4444' : syncProgress === 100 ? '#22c55e' : 'linear-gradient(90deg, #dc2626, #ef4444)',
-                width: `${syncProgress}%`,
-                transition: 'width 0.4s ease-out'
-              }} />
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-              <span style={{ fontSize: '13px', color: syncError ? '#ef4444' : '#737373', fontWeight: '500' }}>
-                {syncError || syncStep || 'Pronto para sincronizar'}
-              </span>
-              <span style={{ fontSize: '20px', fontWeight: '700', color: syncProgress === 100 ? '#22c55e' : '#1a1a1a' }}>
-                {syncProgress}%
-              </span>
-            </div>
-
-            {/* Etapas + seleção (checkboxes) */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginBottom: '28px' }}>
-              {([
-                { label: 'Clientes', key: 'clientes' as const },
-                { label: 'Projetos', key: 'projetos' as const },
-                { label: 'Produtos', key: 'produtos' as const },
-              ]).map(s => {
-                const selected = syncSelection[s.key]
-                const hasResult = !!syncResults?.[s.key]
-                const done = hasResult
-                const active = syncRunning && selected && !done && syncStep.toLowerCase().includes(s.key)
-                const disabledVisual = !selected && !syncRunning
-                return (
-                  <label key={s.key} style={{
-                    display: 'flex', alignItems: 'center', gap: '12px',
-                    padding: '12px 16px', borderRadius: '12px',
-                    background: done ? '#f0fdf4' : active ? '#fef2f2' : disabledVisual ? '#fafafa' : '#fff7ed',
-                    border: `1px solid ${done ? '#bbf7d0' : active ? '#fecaca' : disabledVisual ? '#f0f0f0' : '#fed7aa'}`,
-                    transition: 'all 0.3s',
-                    cursor: syncRunning ? 'not-allowed' : 'pointer',
-                    opacity: disabledVisual ? 0.6 : 1,
-                  }}>
-                    <input
-                      type="checkbox"
-                      checked={selected}
-                      disabled={syncRunning}
-                      onChange={e => setSyncSelection(prev => ({ ...prev, [s.key]: e.target.checked }))}
-                      style={{
-                        width: 18, height: 18, accentColor: '#dc2626',
-                        cursor: syncRunning ? 'not-allowed' : 'pointer', flexShrink: 0,
-                      }}
-                    />
-                    <div style={{
-                      width: '28px', height: '28px', borderRadius: '8px',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: done ? '#22c55e' : active ? '#dc2626' : '#e5e5e5',
-                      color: '#fff', flexShrink: 0
-                    }}>
-                      {done ? <Check size={14} /> : active ? <RefreshCw size={14} className="animate-spin" /> : <Database size={14} />}
-                    </div>
-                    <span style={{
-                      fontSize: '14px', fontWeight: done ? '600' : '500',
-                      color: done ? '#16a34a' : active ? '#dc2626' : '#525252'
-                    }}>
-                      {s.label}
-                    </span>
-                    {done && syncResults?.[s.key] && (
-                      <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#16a34a', fontWeight: '600' }}>
-                        {syncResults[s.key].total} registros
-                      </span>
-                    )}
-                  </label>
-                )
-              })}
-            </div>
-
-            {/* Botão */}
-            {!syncRunning && syncProgress < 100 && (
-              <button
-                onClick={executarSync}
-                style={{
-                  width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
-                  background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff',
-                  fontSize: '15px', fontWeight: '700', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                  boxShadow: '0 4px 12px rgba(220,38,38,0.3)', transition: 'all 0.2s'
-                }}
-              >
-                <RefreshCw size={18} /> Iniciar Sincronizacao
-              </button>
-            )}
-
-            {syncProgress === 100 && !syncError && (
-              <button
-                onClick={() => { setShowSync(false); setSyncProgress(0); setSyncStep(''); setSyncResults(null) }}
-                style={{
-                  width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
-                  background: '#22c55e', color: '#fff',
-                  fontSize: '15px', fontWeight: '700', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
-                }}
-              >
-                <Check size={18} /> Concluido — Fechar
-              </button>
-            )}
-
-            {syncError && !syncRunning && (
-              <button
-                onClick={executarSync}
-                style={{
-                  width: '100%', padding: '14px', borderRadius: '14px', border: 'none',
-                  background: '#ef4444', color: '#fff',
-                  fontSize: '15px', fontWeight: '700', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px'
-                }}
-              >
-                <RefreshCw size={18} /> Tentar Novamente
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+      {modalSync}
 
       {/* Footer */}
       <div style={{

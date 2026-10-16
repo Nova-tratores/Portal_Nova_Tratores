@@ -829,13 +829,13 @@ export default function ComposicaoPage() {
       {modalAberto && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={fecharModal} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-24px)] max-w-2xl max-h-[90vh] md:max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 dre-folha w-[calc(100%-24px)] max-w-2xl max-h-[90vh] md:max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
             <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
               <div className="min-w-0 break-words">
                 <h2 className="font-semibold text-slate-800">{modalTitulo}</h2>
                 <div className="text-xs text-slate-500 mt-0.5" dangerouslySetInnerHTML={{ __html: modalSubtitulo }} />
               </div>
-              <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-9 max-md:min-h-9">×</button>
+              <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-11 max-md:min-h-11">×</button>
             </div>
 
             {/* Abas Cliente x Modelo — só em categorias de receita (venda). A aba

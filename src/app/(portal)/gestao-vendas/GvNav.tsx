@@ -2,8 +2,10 @@
 // Nav interno do Gestão de Vendas + seletores de empresa e competência.
 
 import Link from 'next/link'
+import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { useGv, type ContaGv } from './GvProvider'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { nomeMes } from '@/lib/gestao-vendas/calculos'
 
 // Mesmo estilo do seletor de conta do DRE (botões segmentados)
@@ -29,23 +31,66 @@ export default function GvNav() {
   const { mes, ano, conta, setCompetencia, setConta } = useGv()
   const anoAtual = new Date().getFullYear()
   const anos = Array.from({ length: 6 }, (_, i) => anoAtual - 3 + i)
+  const isMobile = useIsMobile()
+  // celular: a página ativa pode estar fora da faixa — rola a faixa até ela
+  const faixaRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const f = faixaRef.current
+    const a = f?.querySelector<HTMLElement>('[data-ativo="1"]')
+    if (f && a) f.scrollLeft = a.offsetLeft - f.offsetLeft - (f.clientWidth - a.offsetWidth) / 2
+  }, [pathname, isMobile])
+
+  const links = PAGINAS.map((p) => {
+    const ativo = p.href === '/gestao-vendas' ? pathname === p.href : pathname.startsWith(p.href)
+    return (
+      <Link
+        key={p.href}
+        href={p.href}
+        data-ativo={ativo ? '1' : undefined}
+        className={`whitespace-nowrap rounded-md px-2.5 py-2 sm:py-1 text-xs font-medium no-underline ${
+          ativo ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`}
+        // celular: alvo de toque maior e fonte legível
+        style={isMobile ? { fontSize: 13, minHeight: 40, display: 'inline-flex', alignItems: 'center' } : undefined}
+      >
+        {p.label}
+      </Link>
+    )
+  })
+
+  // Celular: páginas numa faixa que rola de lado; Loja (segmentado, linha toda)
+  // e Mês/Ano embaixo — numa linha só o mês ficava espremido em 360px.
+  if (isMobile) {
+    return (
+      <nav className="print:hidden mb-2 border-b border-gray-200 bg-white px-3 py-2" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div ref={faixaRef} className="m-rolar-x" style={{ gap: 6 }}>{links}</div>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+          <div className="inline-flex overflow-hidden rounded-lg border border-red-600" role="group" aria-label="Loja" style={{ flex: '1 1 100%' }}>
+            {LOJAS.map((e, i) => {
+              const ativo = conta === e.value
+              return (
+                <button key={e.value} type="button" onClick={() => setConta(e.value)}
+                  className={`text-xs font-semibold ${i > 0 ? 'border-l border-red-600' : ''} ${ativo ? 'bg-red-600 text-white' : 'bg-white text-red-700'}`}
+                  style={{ minHeight: 40, padding: '0 9px', flex: 1 }}>
+                  {e.label}
+                </button>
+              )
+            })}
+          </div>
+          <select value={mes} onChange={(e) => setCompetencia(Number(e.target.value), ano)} className={selectClass} aria-label="Mês" style={{ flex: 1, minWidth: 0, minHeight: 40 }}>
+            {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => <option key={m} value={m}>{nomeMes(m)}</option>)}
+          </select>
+          <select value={ano} onChange={(e) => setCompetencia(mes, Number(e.target.value))} className={selectClass} aria-label="Ano" style={{ width: 84, flexShrink: 0, minHeight: 40 }}>
+            {anos.map((a) => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </div>
+      </nav>
+    )
+  }
 
   return (
     <nav className="print:hidden sticky top-0 z-20 mb-2 flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-2 py-2 sm:px-4">
-      {PAGINAS.map((p) => {
-        const ativo = p.href === '/gestao-vendas' ? pathname === p.href : pathname.startsWith(p.href)
-        return (
-          <Link
-            key={p.href}
-            href={p.href}
-            className={`whitespace-nowrap rounded-md px-2.5 py-2 sm:py-1 text-xs font-medium no-underline ${
-              ativo ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            {p.label}
-          </Link>
-        )
-      })}
+      {links}
 
       <div className="ml-auto flex flex-wrap items-center gap-2">
         <span className="text-xs sm:text-[11px] text-gray-500">Loja</span>

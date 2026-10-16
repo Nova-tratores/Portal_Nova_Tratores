@@ -187,6 +187,17 @@ function AtividadesPageInner() {
         @media (max-width: 768px) {
           .ativ-root { padding: 16px 12px !important; }
           .ativ-root h2 { font-size: 22px !important; }
+          /* Lista de ações: um cartão por linha, sem rolar de lado */
+          .ativ-min { min-width: 0 !important; }
+          .ativ-th { display: none !important; }
+          .ativ-linha { grid-template-columns: minmax(0, 1fr) auto !important; gap: 8px 10px !important; padding: 12px 14px !important; }
+          .ativ-linha > :nth-child(1) { grid-column: 1; grid-row: 1; }
+          .ativ-linha > :nth-child(6) { grid-column: 2; grid-row: 1; }
+          .ativ-linha > :nth-child(2) { grid-column: 1; grid-row: 2; }
+          .ativ-linha > :nth-child(3) { grid-column: 2; grid-row: 2; justify-self: end; }
+          .ativ-linha > :nth-child(4), .ativ-linha > :nth-child(5) { grid-column: 1 / -1; min-width: 0; }
+          .ativ-linha > :nth-child(4) p { overflow-wrap: anywhere; }
+          .ativ-linha > :nth-child(5) { white-space: normal !important; overflow-wrap: anywhere; }
         }
       `}</style>
       {/* Header */}
@@ -352,9 +363,9 @@ function AtividadesPageInner() {
         boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflowX: 'auto', WebkitOverflowScrolling: 'touch'
       }}>
         {/* Largura mínima: no celular/tablet a tabela rola na horizontal DENTRO da caixa */}
-        <div style={{ minWidth: 860 }}>
+        <div className="ativ-min" style={{ minWidth: 860 }}>
         {/* Header da tabela */}
-        <div style={{
+        <div className="ativ-th" style={{
           display: 'grid',
           gridTemplateColumns: '1fr 140px 100px 1.2fr 200px 120px',
           padding: '12px 24px',
@@ -409,6 +420,7 @@ function AtividadesPageInner() {
           return (
             <div
               key={entry.id}
+              className="ativ-linha"
               style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 140px 100px 1.2fr 200px 120px',

@@ -102,7 +102,7 @@ function FichaDocumento({ ficha, onMudou }) {
   return (
     <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e9ecf1', overflow: 'hidden', boxShadow: '0 1px 3px rgba(16,24,40,0.05)' }}>
       {/* cabeçalho */}
-      <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', background: 'linear-gradient(135deg,#f8fafc,#fff)' }}>
+      <div className="fin-r-fichatopo" style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', background: 'linear-gradient(135deg,#f8fafc,#fff)' }}>
         <div style={{ flex: '1 1 220px', minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
@@ -345,7 +345,7 @@ function RastreioInner() {
               style={{ width: '100%', boxSizing: 'border-box', padding: '14px 14px 14px 45px', borderRadius: '12px', border: '1px solid #d1d5db', outline: 'none', fontSize: '14px' }}
             />
           </div>
-          <button onClick={submeter} disabled={carregando || termo.trim().length < 2}
+          <button className="m-full" onClick={submeter} disabled={carregando || termo.trim().length < 2}
             style={{ padding: '14px 26px', borderRadius: '12px', border: 'none', justifyContent: 'center', flex: '0 1 auto', background: carregando || termo.trim().length < 2 ? '#c7d2fe' : '#2563eb', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
             {carregando ? <Loader2 size={16} className="animate-spin" /> : <ScanSearch size={16} />} RASTREAR
           </button>
@@ -399,6 +399,8 @@ export default function RastreioPage() {
   return (
     <div style={{ minHeight: '100vh', background: '#f7f8fa', fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav />
+      {/* modo escuro: o degradê claro do topo da ficha deixava o texto (já clareado) ilegível */}
+      <style>{`[data-theme="dark"] .fin-r-fichatopo, .portal-dark .fin-r-fichatopo { background: var(--portal-bg-secondary) !important; }`}</style>
       <Suspense fallback={<div style={{ padding: '60px', textAlign: 'center', color: '#94a3b8' }}>Carregando…</div>}>
         <RastreioInner />
       </Suspense>

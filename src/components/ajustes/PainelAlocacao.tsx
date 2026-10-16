@@ -197,7 +197,7 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
             <span style={{ fontSize: '.74rem', color: '#64748b' }}>
               {lista.totais.pecas} peça(s) recebida(s) sem Prateleira / Andar / Caixa
             </span>
-            <button onClick={onFechar} style={{ ...btn, marginLeft: 'auto', padding: 6 }} title="Fechar"><X size={16} /></button>
+            <button onClick={onFechar} className="m-toque" aria-label="Fechar" style={{ ...btn, marginLeft: 'auto', padding: 6, justifyContent: 'center' }} title="Fechar"><X size={16} /></button>
           </div>
           <p style={{ margin: '6px 0 10px', fontSize: '.74rem', color: '#64748b' }}>
             A demanda nasce em até 10 minutos depois que a nota é recebida (portal ou Omie) e fecha sozinha quando a peça ganha as três posições.

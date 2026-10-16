@@ -5,10 +5,12 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { BarChart3, ClipboardList, Library, PlayCircle, Stamp, Users } from 'lucide-react'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { chamar, COR_POPS } from './comum'
 
 export default function PopsNav() {
   const path = usePathname() || ''
+  const isMobile = useIsMobile()
   const [pendentes, setPendentes] = useState(0)
   const [admin, setAdmin] = useState(false)
   const [cuida, setCuida] = useState(false)   // tem o módulo ou papel numa área → vê o painel
@@ -38,15 +40,18 @@ export default function PopsNav() {
   if (path.startsWith('/pops/executar')) return null
 
   return (
-    <div style={{ background: `linear-gradient(135deg, #14b8a6, ${COR_POPS})`, padding: '10px 16px 0' }}>
-      <div style={{ maxWidth: 1180, margin: '0 auto', display: 'flex', alignItems: 'flex-end', gap: 4, overflowX: 'auto' }}>
-        <span style={{ color: '#fefefe', fontWeight: 900, fontSize: 15, marginRight: 14, paddingBottom: 9, whiteSpace: 'nowrap' }}>
-          Procedimentos (POP)
+    <div style={{ background: `linear-gradient(135deg, #14b8a6, ${COR_POPS})`, padding: isMobile ? '8px 0 0' : '10px 16px 0' }}>
+      {/* Celular: ícone com vertical-align fica na linha do texto (o reset do Tailwind deixa svg em bloco) */}
+      <style>{'@media (max-width:768px){svg[style*="vertical-align"]{display:inline-block}:root{--portal-surface:var(--portal-bg-card)}}'}</style>
+      {/* Celular: guias numa linha que rola de lado (sem barra), título curto */}
+      <div className={isMobile ? 'm-rolar-x' : undefined} style={{ maxWidth: 1180, margin: '0 auto', display: 'flex', alignItems: 'flex-end', gap: 4, overflowX: 'auto', padding: isMobile ? '0 12px' : undefined }}>
+        <span style={{ color: '#fefefe', fontWeight: 900, fontSize: 15, marginRight: isMobile ? 8 : 14, paddingBottom: isMobile ? 11 : 9, whiteSpace: 'nowrap' }}>
+          {isMobile ? 'POP' : 'Procedimentos (POP)'}
         </span>
         {guias.map((g) => (
           <Link key={g.href} href={g.href}
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: '10px 10px 0 0',
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: isMobile ? '11px 13px' : '8px 14px', borderRadius: '10px 10px 0 0',
               fontSize: 13, fontWeight: 800, textDecoration: 'none', whiteSpace: 'nowrap',
               background: g.ativa ? 'var(--portal-bg,#f6f7f9)' : 'rgba(255,255,255,.18)',
               color: g.ativa ? 'var(--portal-text,#111)' : '#111111',

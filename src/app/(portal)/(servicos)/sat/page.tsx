@@ -247,7 +247,7 @@ export default function SatPage() {
         {COLUNAS.map(col => {
           const itens = sats.filter(s => s.status === col.key)
           return (
-            <div key={col.key} style={{ background: 'var(--portal-bg-secondary, #f7f7f8)', borderRadius: 14, padding: 12, minHeight: 200 }}>
+            <div key={col.key} style={{ background: 'var(--portal-bg-secondary, #f7f7f8)', borderRadius: 14, padding: 12, minHeight: isMobile ? undefined : 200 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, padding: '0 4px' }}>
                 <span style={{ width: 10, height: 10, borderRadius: '50%', background: col.cor }} />
                 <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text, #1a1a1a)' }}>{col.label}</span>
@@ -255,7 +255,7 @@ export default function SatPage() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {itens.length === 0
-                  ? <div style={{ padding: '24px 8px', textAlign: 'center', color: 'var(--portal-text-muted, #b8b8b8)', fontSize: 12 }}>Nenhum SAT</div>
+                  ? <div style={{ padding: isMobile ? '6px 8px 4px' : '24px 8px', textAlign: 'center', color: 'var(--portal-text-muted, #b8b8b8)', fontSize: isMobile ? 13 : 12 }}>Nenhum SAT</div>
                   : itens.map(renderCard)}
               </div>
             </div>

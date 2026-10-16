@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { authHeaders } from '@/lib/auth/client';
 import { Settings, Flag, AlertTriangle, Pencil, Layers, CheckCircle, PackageOpen } from 'lucide-react';
 import PainelAlocacao, { useAlocacao } from '@/components/ajustes/PainelAlocacao';
@@ -325,12 +326,12 @@ function ModalFlashcard({ deck, colsCarac, valCol, sinalizadas, okProdutos, onTo
   const naFrente = idx >= total - 1;
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: '96vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 16px 50px rgba(0,0,0,.3)' }}>
+    <div className="m-tela-cheia-fundo" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 60, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div className="m-tela-cheia" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: '96vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 16px 50px rgba(0,0,0,.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
           <b style={{ fontSize: '.92rem', color: '#1e293b' }}>Conferir</b>
           <span style={{ fontSize: '.78rem', color: '#64748b' }}>{Math.min(idx + 1, total)} / {total}</span>
-          <button onClick={onClose} title="Fechar (Esc)" style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: '1.5rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
+          <button onClick={onClose} title="Fechar (Esc)" aria-label="Fechar" className="m-toque" style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: '1.5rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
         <div style={{ overflow: 'auto', padding: '14px 16px', flex: 1 }}>
           {!p ? (
@@ -428,6 +429,10 @@ export default function CaracteristicasPage() {
   const [colunasOcultas, setColunasOcultas] = useState<string[]>([]);
   const [seletorAberto, setSeletorAberto] = useState(false);
   const [flashAberto, setFlashAberto] = useState(false); // modo "Conferir" (flashcard)
+  // Celular: lista em cartões; tocar num cartão abre o Conferir a partir dele.
+  const isMobile = useIsMobile();
+  const [flashInicio, setFlashInicio] = useState(0);
+  const [limiteMobile, setLimiteMobile] = useState(60);
   // "A alocar": peças RECEBIDAS sem Prateleira/Andar/Caixa. A demanda nasce sozinha no
   // recebimento da nota e fecha sozinha quando a locação fica completa (qualquer tela).
   const [painelAlocar, setPainelAlocar] = useState(false);
@@ -1018,7 +1023,7 @@ export default function CaracteristicasPage() {
     <div className="est-page" style={{ maxWidth: 1500, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ marginBottom: 14 }}>
         <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Caracteristicas por produto</h1>
-        <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 900 }}>
+        <p className="est-hide-sm" style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 900 }}>
           Matriz das <b>duas empresas</b> (NOVA + CASTRO): cada caracteristica da Omie vira uma coluna. Todas as <b>peças ativas</b> (inclusive as sem nenhuma caracteristica, para o &quot;Sugerir Tipo:&quot; alcancar todas). <b>Clique numa celula</b> para editar (grava na Omie). Os dados vem da ultima <b>sincronizacao</b>.
         </p>
       </div>
@@ -1055,7 +1060,7 @@ export default function CaracteristicasPage() {
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: alocacao.lista.totais.pecas > 0 ? '#b45309' : '#64748b', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', fontWeight: 600 }}>
           <PackageOpen size={15} /> A alocar{alocacao.lista.totais.pecas > 0 ? ` (${alocacao.lista.totais.pecas})` : ''}
         </button>
-        <button onClick={() => setFlashAberto(true)} disabled={linhas.length === 0} title="Conferir um produto por vez (bom no tablet): sinalizar/corrigir cada caracteristica"
+        <button onClick={() => { setFlashInicio(0); setFlashAberto(true); }} disabled={linhas.length === 0} title="Conferir um produto por vez (bom no tablet): sinalizar/corrigir cada caracteristica"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#0f766e', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: linhas.length === 0 ? 'not-allowed' : 'pointer', opacity: linhas.length === 0 ? 0.5 : 1 }}>
           <Layers size={15} /> Conferir
         </button>
@@ -1077,7 +1082,7 @@ export default function CaracteristicasPage() {
 
       {flashAberto && (
         <ModalFlashcard
-          deck={linhas}
+          deck={flashInicio ? linhas.slice(flashInicio) : linhas}
           colsCarac={colsVisiveis.filter((c) => !ehFixa(c))}
           valCol={valCol}
           sinalizadas={sinalizadas}
@@ -1107,7 +1112,7 @@ export default function CaracteristicasPage() {
         />
       )}
 
-      <div style={{ marginBottom: 8, fontSize: '.72rem', color: '#94a3b8' }}>
+      <div className="est-hide-sm" style={{ marginBottom: 8, fontSize: '.72rem', color: '#94a3b8' }}>
         Arraste o <b>⠿</b> no cabecalho para reordenar colunas, ou use o botao <b>Colunas</b> para escolher quais mostrar (tudo salvo neste navegador). Clique no titulo para ordenar; <b>Shift+clique</b> adiciona um 2o criterio (desempate).
       </div>
 
@@ -1119,6 +1124,58 @@ export default function CaracteristicasPage() {
         </span>
       </div>
 
+      {isMobile ? (
+        // Celular: um cartão por peça; tocar abre o "Conferir" (edita cada característica com o dedo).
+        <div>
+          {totalProdutos === 0 ? (
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>
+              {rodando ? 'Sincronizando com a Omie…' : <>Nenhum dado ainda. Toque em <b>Sincronizar agora</b> para varrer a Omie.</>}
+            </div>
+          ) : linhas.length === 0 ? (
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Nenhum produto bate com o filtro.</div>
+          ) : (
+            <>
+              {linhas.slice(0, limiteMobile).map((p, i) => {
+                const prodKey = `${p.empresa}:${p.codigo_produto}`;
+                const temFlag = produtosSinalizados.has(prodKey);
+                const temOk = okProdutos.has(prodKey);
+                const caracs = colsVisiveis.filter((c) => !ehFixa(c)).map((c) => ({ c, v: valCol(p, c) })).filter((x) => x.v);
+                return (
+                  <button key={prodKey} type="button" onClick={() => { setFlashInicio(i); setFlashAberto(true); }}
+                    style={{ display: 'block', width: '100%', textAlign: 'left', background: temFlag ? '#fef9c3' : temOk ? '#dcfce7' : '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 12px', marginBottom: 8, cursor: 'pointer', color: 'inherit' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <EmpBadge empresa={p.empresa} />
+                      <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#334155' }}>{p.codigo || '-'}</span>
+                      {temOk && <CheckCircle size={16} color="#16a34a" />}
+                      {temFlag && <AlertTriangle size={15} color="#ea580c" />}
+                      <span style={{ marginLeft: 'auto', fontSize: 12, color: (p.estoque ?? 0) < 0 ? '#dc2626' : '#64748b' }}>estq <b>{p.estoque ?? '-'}</b></span>
+                    </span>
+                    <span className="m-quebra-texto" style={{ display: 'block', fontSize: 14, fontWeight: 600, color: '#1e293b', marginTop: 4 }}>{p.descricao || '(sem descricao)'}</span>
+                    {caracs.length > 0 ? (
+                      <span style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 6 }}>
+                        {caracs.slice(0, 6).map(({ c, v }) => (
+                          <span key={c} className="m-quebra-texto" style={{ fontSize: 12, padding: '2px 8px', borderRadius: 999, background: '#f1f5f9', color: '#475569' }}>
+                            {labelCol(c).replace(/:$/, '')}: <b>{v}</b>
+                          </span>
+                        ))}
+                        {caracs.length > 6 && <span style={{ fontSize: 12, color: '#94a3b8', padding: '2px 4px' }}>+{caracs.length - 6}</span>}
+                      </span>
+                    ) : (
+                      <span style={{ display: 'block', fontSize: 12, color: '#94a3b8', marginTop: 4 }}>sem características — toque para preencher</span>
+                    )}
+                  </button>
+                );
+              })}
+              {linhas.length > limiteMobile && (
+                <button type="button" onClick={() => setLimiteMobile((n) => n + 60)}
+                  style={{ width: '100%', minHeight: 44, border: '1px solid #cbd5e1', background: '#fff', borderRadius: 10, fontSize: 14, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+                  Mostrar mais ({linhas.length - limiteMobile} restantes)
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      ) : (
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'auto', maxHeight: '72vh' }}>
         {totalProdutos === 0 ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>
@@ -1239,6 +1296,7 @@ export default function CaracteristicasPage() {
           </table>
         )}
       </div>
+      )}
 
       {sugestoes && (
         <ModalSugestoes d={sugestoes} onClose={() => setSugestoes(null)} onAplicado={(msg) => { setSugestoes(null); setMsg(msg, 'ok'); carregar(); }} />

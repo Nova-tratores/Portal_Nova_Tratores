@@ -42,6 +42,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { simlogY, yScaleSimlog } from '@/lib/dre-financeiro/escala-simlog'
 
 // ---------------------------------------------------------------------------
@@ -114,6 +115,8 @@ export default function MargensPage() {
   const { userProfile, loading } = useAuth()
   const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
+  // Celular: eixo X do grafico de margens pula rotulos e legenda vai embaixo.
+  const isMobile = useIsMobile()
 
   const [chartReady, setChartReady] = useState(false)
 
@@ -579,7 +582,7 @@ export default function MargensPage() {
           if (evt.native && evt.native.target) evt.native.target.style.cursor = elements.length ? 'pointer' : 'default'
         },
         scales: {
-          x: { ticks: { autoSkip: false, maxRotation: 90, minRotation: 0, font: { size: 9 } } },
+          x: { ticks: { autoSkip: isMobile, maxRotation: isMobile ? 0 : 90, minRotation: 0, font: { size: isMobile ? 10 : 9 } } },
           y: {
             position: 'left',
             min: esc ? esc.min : undefined,
@@ -591,7 +594,7 @@ export default function MargensPage() {
           },
         },
         plugins: {
-          legend: { labels: { boxWidth: 12, padding: 10 } },
+          legend: isMobile ? { position: 'bottom', labels: { boxWidth: 10, padding: 6, font: { size: 11 } } } : { labels: { boxWidth: 12, padding: 10 } },
           tooltip: { callbacks: { label: function (item) {
             if (item.raw === null) return item.dataset.label + ': n/d'
             return item.dataset.label + ': ' + (emRS ? fmtBRL(item.raw) : Number(item.raw).toFixed(1) + '%')
@@ -601,7 +604,7 @@ export default function MargensPage() {
     })
     return () => { if (instChartEvo.current) { instChartEvo.current.destroy(); instChartEvo.current = null } }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartReady, visao, incluirPecas, margemModoEvo, JSON.stringify(dataView.evolucao)])
+  }, [chartReady, visao, incluirPecas, margemModoEvo, JSON.stringify(dataView.evolucao), isMobile])
 
   // Paleta de cores das linhas por familia (visao DATA).
   const PALETA = ['#2563eb', '#059669', '#dc2626', '#d97706', '#7c3aed', '#0891b2', '#be185d', '#65a30d', '#475569', '#ea580c', '#0d9488', '#9333ea']
@@ -758,7 +761,7 @@ export default function MargensPage() {
           <h1 className="text-2xl font-semibold text-slate-800">Margens de Vendas</h1>
           <p className="text-xs text-slate-500">Margem real por venda historica: Receita − (CMV + Capital empatado ate a venda)</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+        <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap dre-barra-pares">
           <label>Periodo:</label>
           <select
             value={mesesSel}
@@ -1177,7 +1180,7 @@ export default function MargensPage() {
       {mesSel && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => { setMesSel(null); setMesSelFam(null) }} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[96vw] max-w-[1500px] max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 dre-folha w-[96vw] max-w-[1500px] max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
             <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-3">
               <div style={{ minWidth: 0 }}>
                 <h2 className="font-semibold text-slate-800">
@@ -1289,7 +1292,7 @@ export default function MargensPage() {
       {famSel && aggFamSel && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setFamSel(null)} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[96vw] max-w-[1500px] max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 dre-folha w-[96vw] max-w-[1500px] max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
             <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-3">
               <div style={{ minWidth: 0 }}>
                 <h2 className="font-semibold text-slate-800">{ehPeca(famSel) ? '🔩 ' : '⚙ '}{famSel}</h2>
@@ -1373,7 +1376,7 @@ export default function MargensPage() {
           <>
             {/* z acima do popup de familia (z-40/z-50): o detalhe abre por cima dele */}
             <div className="fixed inset-0 bg-black/40 z-[60]" onClick={() => setDetalhe(null)} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[94vw] max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-[70] flex flex-col">
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 dre-folha w-[94vw] max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-[70] flex flex-col">
               <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-3">
                 <h2 className="font-semibold text-slate-800" style={{ minWidth: 0 }}>Venda · Pedido {it.pedido || '?'}</h2>
                 <button onClick={() => setDetalhe(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none" style={{ minWidth: 36, minHeight: 36, flexShrink: 0 }}>&times;</button>

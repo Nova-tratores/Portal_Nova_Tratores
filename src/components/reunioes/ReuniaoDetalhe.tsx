@@ -181,7 +181,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
   }
 
   return (
-    <div style={{ padding: isMobile ? '12px 10px 90px' : '18px 20px 40px', maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ padding: isMobile ? `12px 12px ${modo === 'conducao' && conduz ? 150 : 90}px` : '18px 20px 40px', maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
       <button onClick={() => router.push('/reunioes')} style={{ display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-muted,#888)', padding: 0, alignSelf: 'flex-start' }}><ArrowLeft size={15} /> Reuniões</button>
       {cabecalho}
       {erroBox}
@@ -207,10 +207,11 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
           {presencas(true)}
           {conduz && (
             <div style={{ position: isMobile ? 'fixed' : 'sticky', bottom: isMobile ? 0 : 8, left: 0, right: 0, zIndex: 50, padding: isMobile ? '10px 10px 12px' : 0, background: isMobile ? 'var(--portal-surface,#fff)' : 'transparent', borderTop: isMobile ? '1px solid var(--portal-border,#e5e7eb)' : 'none', boxShadow: isMobile ? '0 -6px 20px rgba(0,0,0,.08)' : 'none' }}>
-              <div style={{ display: 'flex', gap: 8, maxWidth: 1100, margin: '0 auto' }}>
-                <input value={parking} onChange={(e) => setParking(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') incluirParking() }} placeholder="Surgiu outro assunto? Anote para a próxima reunião" style={{ ...campo, flex: 1 }} />
-                <button onClick={incluirParking} disabled={!parking.trim()} title="O assunto não é tratado hoje: fica anotado e entra na pauta da próxima reunião da série." style={{ ...botao('#6b7280', true), opacity: parking.trim() ? 1 : .5 }}><CalendarPlus size={16} /> Anotar p/ próxima</button>
-                <button onClick={() => setAcaoDe(null)} style={botao('#dc2626', true)}><Plus size={16} /> Ação</button>
+              {/* Celular: campo na linha de cima (largura toda), os dois botões dividem a de baixo */}
+              <div style={{ display: 'flex', flexWrap: isMobile ? 'wrap' : undefined, gap: 8, maxWidth: 1100, margin: '0 auto', paddingBottom: isMobile ? 'env(safe-area-inset-bottom)' : undefined }}>
+                <input value={parking} onChange={(e) => setParking(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') incluirParking() }} placeholder={isMobile ? 'Outro assunto? Anote p/ a próxima' : 'Surgiu outro assunto? Anote para a próxima reunião'} style={{ ...campo, flex: isMobile ? '1 1 100%' : 1, minWidth: 0 }} />
+                <button onClick={incluirParking} disabled={!parking.trim()} title="O assunto não é tratado hoje: fica anotado e entra na pauta da próxima reunião da série." style={{ ...botao('#6b7280', true), opacity: parking.trim() ? 1 : .5, ...(isMobile ? { flex: 1, justifyContent: 'center', minHeight: 44 } : {}) }}><CalendarPlus size={16} /> Anotar p/ próxima</button>
+                <button onClick={() => setAcaoDe(null)} style={{ ...botao('#dc2626', true), ...(isMobile ? { flex: 1, justifyContent: 'center', minHeight: 44 } : {}) }}><Plus size={16} /> Ação</button>
               </div>
             </div>
           )}

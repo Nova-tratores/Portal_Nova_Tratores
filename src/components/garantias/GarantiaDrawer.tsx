@@ -528,8 +528,11 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
           </div>
         ) : (
           <>
+            {/* Celular: botões do topo com alvo de 44px e selo de status legível */}
+            <style>{`@media (max-width: 768px) { .gd-topo-btn { min-width: 44px !important; min-height: 44px !important; } .gd-topo-status { font-size: 11px !important; } .gd-topo { padding: 10px 12px !important; } }`}</style>
             {/* Header */}
             <div
+              className="gd-topo"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -542,6 +545,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)' }}>{g.numero}</span>
                 <span
+                  className="gd-topo-status"
                   style={{
                     fontSize: 10,
                     fontWeight: 700,
@@ -557,13 +561,15 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
+                  className="gd-topo-btn"
                   onClick={() => setVerTimeline((v) => !v)}
                   title="Histórico"
+                  aria-label="Histórico"
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: verTimeline ? '#0ea5e9' : 'var(--portal-text-muted)', minWidth: 36, minHeight: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   <History size={19} />
                 </button>
-                <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', minWidth: 36, minHeight: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                <button className="gd-topo-btn" aria-label="Fechar" onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', minWidth: 36, minHeight: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                   <X size={20} />
                 </button>
               </div>

@@ -146,12 +146,12 @@ export default function FormSC({ onFechar, onCriado }: Props) {
   )
 
   return (
-    <div style={{
+    <div className="m-folha-fundo" style={{
       position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.45)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
     }} onClick={onFechar}>
       <style>{`@media (max-width: 520px){.ct-sc-caixa{padding:16px !important}.ct-sc-grid{grid-template-columns:1fr 1fr !important}.ct-sc-grid > div:first-child{grid-column:1 / -1}.ct-sc-grid2{grid-template-columns:1fr !important}}`}</style>
-      <div onClick={(e) => e.stopPropagation()} className="ct-sc-caixa"
+      <div onClick={(e) => e.stopPropagation()} className="ct-sc-caixa m-folha"
         style={{
           width: '100%', maxWidth: 600, maxHeight: '92vh', overflowY: 'auto',
           background: 'var(--portal-surface, #fff)', borderRadius: 14, padding: 22,

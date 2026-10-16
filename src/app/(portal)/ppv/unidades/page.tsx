@@ -228,16 +228,18 @@ export default function UnidadesRastreioPage() {
   return (
     <div className="pecas-skin">
     <PecasNav />
-    <style>{'@media (max-width: 768px) { .ppv-x-unid { padding: 12px 10px !important; } }'}</style>
+    {/* celular: respiro menor, abas e busca com alvo de dedo (busca na largura toda),
+        voltar maior e a coluna Unidade presa ao rolar a tabela de lado */}
+    <style>{'@media (max-width: 768px) { .ppv-x-unid { padding: 12px !important; } .ppv-x-unid .unid-abas > button { min-height: 40px; } .ppv-x-unid .unid-abas > input { margin-left: 0 !important; flex: 1 1 100%; min-height: 42px; } .ppv-x-unid .unid-voltar, .ppv-x-unid .unid-atualizar { min-height: 40px; } .ppv-x-unid .unid-tabela tr > :first-child { position: sticky; left: 0; background: var(--portal-bg-card); z-index: 1; } }'}</style>
     <div className="ppv-x-unid" style={{ padding: '18px 22px', maxWidth: 1200, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
-        <Link href="/ppv" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--portal-text-muted)', textDecoration: 'none' }}>
+        <Link href="/ppv" className="unid-voltar" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--portal-text-muted)', textDecoration: 'none' }}>
           <ArrowLeft size={15} /> PPV
         </Link>
         <h1 style={{ fontSize: 19, fontWeight: 800, color: 'var(--portal-text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <QrCode size={18} color="#EA580C" /> Rastreio de unidades
         </h1>
-        <button onClick={buscar} title="Atualizar" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+        <button onClick={buscar} title="Atualizar" className="unid-atualizar" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
           <RefreshCw size={13} /> Atualizar
         </button>
       </div>
@@ -249,7 +251,7 @@ export default function UnidadesRastreioPage() {
       </p>
 
       {/* Abas */}
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+      <div className="unid-abas" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
         {ABAS.map(a => (
           <button key={a.id} onClick={() => setAba(a.id)} style={{
             padding: '7px 14px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
@@ -342,7 +344,7 @@ export default function UnidadesRastreioPage() {
       {/* Tabela */}
       {aba !== 'conferencia' && (
       <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'auto' }}>
-        <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', fontSize: 12.5 }}>
+        <table className="unid-tabela" style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', fontSize: 12.5 }}>
           <thead>
             <tr style={{ background: 'var(--portal-bg-secondary)', textAlign: 'left' }}>
               {aba === 'pendentes' && podeLiberar && <th style={{ padding: '8px 8px', width: 26 }} />}

@@ -1,0 +1,115 @@
+/* ============================================================ */
+/* KIT MOBILE do portal — só vale em tela de celular/tablet em pé */
+/* (até 768px). No computador NADA aqui se aplica.               */
+/*                                                               */
+/* 1) Redes de segurança globais (todas as telas ganham)         */
+/* 2) Classes utilitárias m-* para as telas usarem               */
+/*                                                               */
+/* Regra da casa: telas novas usam as classes m-* (ou o hook     */
+/* useIsMobile) em vez de criar @media próprio.                  */
+/* ============================================================ */
+
+/* Barra do topo mais baixa no celular (84px → 60px). Telas que grudam
+   abaixo dela usam var(--portal-header-h), então acompanham sozinhas. */
+@media (max-width: 640px) {
+  :root { --portal-header-h: 60px; }
+}
+
+@media (max-width: 768px) {
+  /* ---------- 1) Redes de segurança ---------- */
+
+  /* A página NUNCA rola de lado: o que for largo rola dentro do próprio bloco.
+     `clip` (e não `hidden`) para não quebrar os position: sticky. */
+  html, body { overflow-x: clip; }
+
+  /* iPhone dá zoom sozinho ao tocar num campo com fonte < 16px e não volta.
+     16px em todo campo de digitação elimina o "pulo" de zoom. */
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Imagens e vídeos nunca passam da largura da tela */
+  img, video { max-width: 100%; }
+
+  /* Toque: sem o "flash" azul do Android/iOS e sem atraso de duplo toque */
+  a, button, [role="button"], label, summary { -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+
+  /* ---------- 2) Utilitárias ---------- */
+
+  /* Visibilidade */
+  .m-esconder { display: none !important; }
+
+  /* Layout */
+  .m-coluna { flex-direction: column !important; align-items: stretch !important; }
+  .m-quebrar { flex-wrap: wrap !important; }
+  .m-full { width: 100% !important; max-width: 100% !important; min-width: 0 !important; }
+  .m-grid-1 { grid-template-columns: minmax(0, 1fr) !important; }
+  .m-grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .m-pad { padding: 12px !important; }
+  .m-pad-x { padding-left: 12px !important; padding-right: 12px !important; }
+  .m-gap { gap: 10px !important; }
+  .m-sem-margem { margin-left: 0 !important; margin-right: 0 !important; }
+
+  /* Faixa (abas, filtros, botões) que rola de lado DENTRO dela, sem quebrar
+     a página. A barra de rolagem fica escondida; o dedo arrasta. */
+  .m-rolar-x {
+    display: flex; flex-wrap: nowrap !important; overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch; scrollbar-width: none; max-width: 100%;
+    overscroll-behavior-x: contain;
+  }
+  .m-rolar-x::-webkit-scrollbar { display: none; }
+  .m-rolar-x > * { flex-shrink: 0; }
+
+  /* Tabela larga: rola de lado dentro do próprio quadro (colocar no wrapper) */
+  .m-tabela {
+    overflow-x: auto !important; max-width: 100%;
+    -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain;
+  }
+  .m-tabela table { min-width: 100%; }
+  /* Primeira coluna grudada enquanto a tabela rola de lado */
+  .m-tabela.m-tabela-fixa th:first-child,
+  .m-tabela.m-tabela-fixa td:first-child {
+    position: sticky; left: 0; z-index: 1; background: var(--portal-bg-card);
+  }
+
+  /* Janela (modal) que vira "folha" de baixo para cima, ocupando a tela */
+  .m-folha {
+    width: 100% !important; max-width: 100% !important;
+    max-height: 92dvh !important; margin: 0 !important;
+    border-radius: 18px 18px 0 0 !important;
+    align-self: flex-end !important;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .m-folha-fundo { align-items: flex-end !important; padding: 0 !important; }
+  /* Janela que ocupa a tela inteira (formulários longos) */
+  .m-tela-cheia {
+    width: 100% !important; max-width: 100% !important;
+    height: 100dvh !important; max-height: 100dvh !important;
+    margin: 0 !important; border-radius: 0 !important;
+  }
+  .m-tela-cheia-fundo { padding: 0 !important; }
+
+  /* Botões e alvos de toque confortáveis (mínimo recomendado ~44px) */
+  .m-toque { min-height: 44px !important; min-width: 44px; }
+  .m-toque-filhos > button, .m-toque-filhos > a { min-height: 44px; }
+
+  /* Barra de ações fixa no rodapé (salvar/cancelar de formulário) */
+  .m-rodape-fixo {
+    position: sticky !important; bottom: 0; z-index: 20;
+    background: var(--portal-bg-card);
+    border-top: 1px solid var(--portal-border);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Texto longo que não pode estourar (nomes, e-mails, códigos) */
+  .m-quebra-texto { overflow-wrap: anywhere; word-break: break-word; }
+  .m-texto-menor { font-size: 13px !important; }
+  .m-titulo { font-size: 18px !important; line-height: 1.25 !important; }
+}
+
+/* Classe para o que só existe no celular (some no computador) */
+@media (min-width: 769px) {
+  .m-so-mobile { display: none !important; }
+}

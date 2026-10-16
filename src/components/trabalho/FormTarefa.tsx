@@ -107,9 +107,9 @@ export default function FormTarefa({ onFechar, onCriada, onNovoTicket, ticketIni
   const rotulo: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: 'var(--portal-text-secondary,#555)', textTransform: 'uppercase', letterSpacing: .4 }
 
   return (
-    <div onMouseDown={(e) => { downNoFundo.current = e.target === e.currentTarget }}
+    <div className="m-folha-fundo" onMouseDown={(e) => { downNoFundo.current = e.target === e.currentTarget }}
       onClick={(e) => { if (e.target === e.currentTarget && downNoFundo.current) fecharPeloFundo() }} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div role="dialog" aria-modal="true" aria-labelledby="ft-t" style={{ width: '100%', maxWidth: 560, maxHeight: '92vh', display: 'flex', flexDirection: 'column', background: 'var(--portal-surface,#fff)', borderRadius: 14, boxShadow: '0 24px 70px rgba(0,0,0,.3)' }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="ft-t" className="m-folha" style={{ width: '100%', maxWidth: 560, maxHeight: '92vh', display: 'flex', flexDirection: 'column', background: 'var(--portal-surface,#fff)', borderRadius: 14, boxShadow: '0 24px 70px rgba(0,0,0,.3)' }}>
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--portal-border,#eee)' }}>
           <h2 id="ft-t" style={{ margin: 0, fontSize: 17, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--portal-text,#111)' }}><SquareCheck size={18} color={VERDE} /> Nova tarefa</h2>
           <button onClick={onFechar} aria-label="Fechar" style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted,#888)', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flex: 'none' }}><X size={18} /></button>

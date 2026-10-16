@@ -39,14 +39,14 @@ const FASE_ENVIAR_OMIE = "Enviar Omie";
 // cada aba mostra as mesmas fases, só com as ordens daquele tipo; o que muda
 // é a COR do card. Garantia = OS com garantia registrada (o escudo do card);
 // interna = "Ordem interna". Garantia vale mais que interna.
-type TipoOS = "cliente" | "garantia" | "interna";
-const TIPOS_OS: { id: TipoOS; rotulo: string; curto: string; dica: string; cor: string; icone: string }[] = [
+export type TipoOS = "cliente" | "garantia" | "interna";
+export const TIPOS_OS: { id: TipoOS; rotulo: string; curto: string; dica: string; cor: string; icone: string }[] = [
   { id: "cliente", rotulo: "Faturamento Cliente", curto: "Cliente", dica: "Serviços cobrados do cliente", cor: "#2563EB", icone: "fa-file-invoice-dollar" },
   { id: "garantia", rotulo: "Garantias", curto: "Garantias", dica: "OS com garantia registrada (fábrica)", cor: "#DB2777", icone: "fa-shield-halved" },
   { id: "interna", rotulo: "Internas", curto: "Internas", dica: "Ordens internas da loja", cor: "#64748B", icone: "fa-tools" },
 ];
 const COR_TIPO: Record<TipoOS, string> = { cliente: "#2563EB", garantia: "#DB2777", interna: "#64748B" };
-function tipoDaOS(o: KanbanCard, temGarantia: boolean): TipoOS {
+export function tipoDaOS(o: KanbanCard, temGarantia: boolean): TipoOS {
   if (temGarantia) return "garantia";
   if (o.servicoInterno) return "interna";
   return "cliente";

@@ -82,13 +82,30 @@ export default function KanbanTickets({
     await mover(atual.id, para)
   }
 
+  // Celular: atalho para cada coluna (uma coluna por tela; o toque rola até ela).
+  const irPara = (status: TicketStatus) => document.getElementById(`kt-col-${status}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'start' })
+
   return (
+    <>
+    <div className="m-so-mobile m-rolar-x" role="group" aria-label="Ir para a coluna" style={{ gap: 6, marginBottom: 10 }}>
+      {colunas.map((status) => {
+        const info = STATUS_INFO[status]
+        const n = (porStatus[status] || []).length
+        return (
+          <button key={status} type="button" onClick={() => irPara(status)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 36, padding: '6px 12px', borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', opacity: n ? 1 : .6 }}>
+            <span style={{ width: 8, height: 8, borderRadius: '50%', background: info.cor }} /> {info.label}
+            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)' }}>{n}</span>
+          </button>
+        )
+      })}
+    </div>
     <div className="kt-board" style={{
       display: 'grid', gridTemplateColumns: `repeat(${colunas.length}, minmax(230px, 1fr))`, gap: 12,
       overflowX: 'auto', alignItems: 'start', paddingBottom: 8, maxWidth: '100%',
     }}>
       {/* Celular/tablet: as colunas rolam de lado e "encaixam" uma por vez. */}
-      <style>{`@media (max-width: 768px){.kt-board{scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}.kt-col{scroll-snap-align:start}.kt-zap{min-width:36px;min-height:32px;justify-content:center}}`}</style>
+      <style>{`@media (max-width: 768px){.kt-board{scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain;grid-template-columns:none !important;grid-auto-flow:column;grid-auto-columns:84vw;scroll-padding-left:2px}.kt-col{scroll-snap-align:start;min-width:0 !important}.kt-zap{min-width:36px;min-height:32px;justify-content:center}}`}</style>
       {colunas.map((status) => {
         const info = STATUS_INFO[status]
         const lista = porStatus[status] || []
@@ -96,7 +113,7 @@ export default function KanbanTickets({
         const bloqueada = !!arrastando && !arrastando.permitidos.has(status)
         const alvo = !!arrastando && colunaOver === status && !bloqueada
         return (
-          <div key={status} className="kt-col"
+          <div key={status} id={`kt-col-${status}`} className="kt-col"
             onDragOver={(e) => {
               if (!arrastando) return
               e.preventDefault()
@@ -219,5 +236,6 @@ export default function KanbanTickets({
         )
       })}
     </div>
+    </>
   )
 }

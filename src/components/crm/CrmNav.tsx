@@ -2,6 +2,7 @@
 // Faixa do módulo CRM (DEMONSTRAÇÃO) — verde-escuro, guias estilo Chrome,
 // mesmo esquema das faixas Peças/Serviços/Frota/Financeiro.
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
@@ -17,8 +18,16 @@ const ABAS = [
 export default function CrmNav() {
   const pathname = usePathname() ?? '';
   const isMobile = useIsMobile();
+  // celular: a faixa rola de lado — leva a guia ativa para a vista
+  const faixaRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const f = faixaRef.current;
+    const a = f?.querySelector<HTMLElement>('[data-ativo="1"]');
+    if (f && a && isMobile) f.scrollLeft = a.offsetLeft - f.offsetLeft - (f.clientWidth - a.offsetWidth) / 2;
+  }, [pathname, isMobile]);
   return (
     <div
+      ref={faixaRef}
       className="print:hidden"
       style={{
         display: 'flex',
@@ -37,6 +46,7 @@ export default function CrmNav() {
           <Link
             key={a.href}
             href={a.href}
+            data-ativo={ativo ? '1' : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',

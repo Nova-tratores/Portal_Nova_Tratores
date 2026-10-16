@@ -422,7 +422,7 @@ export default function LucratividadePage() {
       <section className="mb-8">
         <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
           <h2 className="text-lg font-semibold text-slate-800">Capital Parado em Estoque</h2>
-          <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+          <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap dre-barra-pares">
             <label>Familia:</label>
             <select
               value={familia}
@@ -519,8 +519,8 @@ export default function LucratividadePage() {
           </div>
           <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
             <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">Top produtos parados (por valor)</div>
-            <div className="overflow-auto" style={{ maxHeight: '240px' }}>
-              <table className="w-full text-xs">
+            <div className="overflow-auto m-tabela m-tabela-fixa" style={{ maxHeight: '240px' }}>
+              <table className="w-full text-xs dre-tab-compacta">
                 <thead className="bg-slate-50 text-slate-600 sticky top-0">
                   <tr>
                     <th className="text-left px-2 py-1">Descricao</th>
@@ -557,7 +557,7 @@ export default function LucratividadePage() {
       <section>
         <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
           <h2 className="text-lg font-semibold text-slate-800">Margem Bruta Operacional</h2>
-          <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+          <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap dre-barra-pares">
             <label>Periodo:</label>
             <select
               value={mesesMargem}
@@ -621,8 +621,8 @@ export default function LucratividadePage() {
           </div>
           <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
             <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">Margem por familia</div>
-            <div className="overflow-auto" style={{ maxHeight: '300px' }}>
-              <table className="w-full text-xs">
+            <div className="overflow-auto m-tabela m-tabela-fixa" style={{ maxHeight: '300px' }}>
+              <table className="w-full text-xs dre-tab-compacta">
                 <thead className="bg-slate-50 text-slate-600 sticky top-0">
                   <tr>
                     <th className="text-left px-2 py-1">Familia</th>

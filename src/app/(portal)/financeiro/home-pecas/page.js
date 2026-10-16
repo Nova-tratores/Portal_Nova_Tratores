@@ -16,6 +16,8 @@ import {
   FileText, Download, Eye, Calendar, CreditCard, User as UserIcon, Tag, Search, DollarSign, Upload, Barcode, Trash2, Paperclip, AlertCircle, Clock, Wallet
 } from 'lucide-react'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
+import { useIsMobile } from '@/hooks/useIsMobile'
+import SeletorColunasMobile from '@/components/financeiro/SeletorColunasMobile'
 import ConfirmarFaseModal from '@/components/ConfirmarFaseModal'
 import { EnviarParaOmieBox } from '@/components/financeiro/OmieContaPagar'
 import PreferenciaEnvioBoleto from '@/components/financeiro/PreferenciaEnvioBoleto'
@@ -41,7 +43,7 @@ function AttachmentTag({ label, fileUrl, onUpload, disabled = false }) {
                 <FileText size={18} />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, padding: '12px 15px' }}>
-                <span style={{ fontSize: '13px', color: 'var(--portal-text)', fontWeight: '600', letterSpacing: '0.5px', overflowWrap: 'anywhere' }}>{label}</span>
+                <span style={{ fontSize: '13px', color: 'var(--portal-text)', fontWeight: '600', letterSpacing: '0.5px', overflowWrap: 'break-word', wordBreak: 'normal' }}>{label}</span>
                 <span style={{ fontSize: '11px', color: fileUrl ? '#10b981' : '#f87171', fontWeight: '600' }}>{fileUrl ? 'ARQUIVO PRONTO' : 'PENDENTE'}</span>
             </div>
             <div style={{ display: 'flex', borderLeft: '1px solid var(--portal-border)' }}>
@@ -95,6 +97,7 @@ function HomePosVendasContent() {
     finally { setSincPecas(false); }
   };
   const router = useRouter();
+  const isMobile = useIsMobile();
   const searchParams = useSearchParams();
 
   // --- CARREGAMENTO UNIFICADO: FIM DOS CARDS FILHOS E FILTRO DE PIX ---
@@ -404,14 +407,28 @@ function HomePosVendasContent() {
               <div style={{ fontWeight: 700, marginBottom: '4px' }}>
                 {vencidos.length} conta(s) aguardando envio pro Omie há mais de 30 dias.
               </div>
-              <div style={{ fontSize: '12px', color: '#991b1b' }}>
-                Verifique se existe um boleto pra enviar pro financeiro sobre {vencidos.length === 1 ? 'esse fornecedor' : 'esses fornecedores'}:{' '}
-                <strong>{vencidos.map(v => v.fornecedor?.trim() || `Pagar #${v.id}`).join(', ')}</strong>.
-              </div>
+              {(() => {
+                const lista = (
+                  <div style={{ fontSize: '12px', color: '#991b1b' }}>
+                    Verifique se existe um boleto pra enviar pro financeiro sobre {vencidos.length === 1 ? 'esse fornecedor' : 'esses fornecedores'}:{' '}
+                    <strong>{vencidos.map(v => v.fornecedor?.trim() || `Pagar #${v.id}`).join(', ')}</strong>.
+                  </div>
+                )
+                // Celular: a lista de fornecedores ocupava a tela toda — fica recolhida
+                return isMobile ? (
+                  <details>
+                    <summary style={{ cursor: 'pointer', fontSize: '13px', fontWeight: 600, color: '#991b1b', minHeight: '32px', display: 'flex', alignItems: 'center' }}>Ver fornecedores</summary>
+                    {lista}
+                  </details>
+                ) : lista
+              })()}
             </div>
           </div>
         )
       })()}
+
+      {/* Celular: pílulas para pular entre as colunas (que rolam de lado, uma por tela) */}
+      <SeletorColunasMobile alvoSel=".fin-h-cols" itemSel=".fin-h-col" colunas={[{ rotulo: 'Faturamento', qtd: listaBoletos.length }, { rotulo: 'Sem boleto', qtd: listaSemBoleto.length }]} />
 
       <div className="fin-h-cols" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: '30px' }}>
           {/* COLUNA FATURAMENTO (FILTRADA: SEM PIX, APENAS ENVIAR OU COBRAR) */}
@@ -883,13 +900,22 @@ function HomePosVendasContent() {
           .fin-h-reqrow-old { grid-template-columns: minmax(0, 1fr) !important; }
         }
         @media (max-width: 768px) {
+      /* rótulos de 9–10.5px nos cards e na janela ficavam ilegíveis no celular: mínimo 11px */
+      .fin-h-cols [style*="font-size: 9"], .fin-h-cols [style*="font-size: 10"],
+      .fin-h-overlay [style*="font-size: 9"], .fin-h-overlay [style*="font-size: 10"] { font-size: 11px !important; }
           .fin-h-touch { min-height: 36px; }
           .fin-h-cols { display: flex !important; overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; gap: 12px !important; padding-bottom: 6px; }
           .fin-h-cols > .fin-h-col { flex: 0 0 min(85%, 380px); scroll-snap-align: start; border-right: none !important; padding-right: 0 !important; }
-          .fin-h-overlay { padding: 12px; box-sizing: border-box; }
-          .fin-h-modal { max-width: 100% !important; max-height: 90vh !important; border-radius: 16px !important; }
-          .fin-h-mhead { flex-wrap: wrap; gap: 8px; padding: 10px 12px !important; }
-          .fin-h-mhead > div { flex-wrap: wrap; }
+          /* Celular: a janela do card vira TELA CHEIA (antes sobrava moldura de 12px e o topo ocupava 2 linhas) */
+          .fin-h-overlay { padding: 0 !important; align-items: stretch !important; box-sizing: border-box; }
+          .fin-h-modal { width: 100% !important; max-width: 100% !important; height: 100dvh; max-height: 100dvh !important; border-radius: 0 !important; border: none !important; }
+          /* "Voltar ao painel" faz o mesmo que "Fechar": no celular fica só o Fechar, numa linha */
+          .fin-h-mhead { padding: 8px 12px !important; justify-content: flex-end !important; }
+          .fin-h-mhead > button:first-child { display: none !important; }
+          .fin-h-mhead > div { gap: 12px !important; }
+          .fin-h-mhead > div > button { min-height: 44px; padding: 0 16px !important; }
+      /* campos "invisíveis" (sem borda) da janela: altura de dedo */
+      .fin-h-overlay input.fin-h-mtitle, .fin-h-mfield input, .fin-h-mfield select { min-height: 40px; }
           .fin-h-back { padding: 8px 12px !important; margin-bottom: 0 !important; font-size: 13px !important; }
           .fin-h-mbody { padding: 14px 14px 24px !important; }
           .fin-h-mtitlebox { margin-top: 8px !important; }

@@ -13,6 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 // --- helpers fieis ao <script> da view original -----------------------------
 
@@ -42,6 +43,8 @@ function corAtraso(dias) {
 }
 
 export default function ClientesPage() {
+  // Celular: as duas listas (ABC e inadimplencia) viram cartoes; no PC, tabelas.
+  const isMobile = useIsMobile()
   const { conta } = useDreConta()
 
   // Periodo (inputs type=month). Iniciam no default da fonte.
@@ -190,6 +193,8 @@ export default function ClientesPage() {
         .cli-table td { padding: 4px 8px; border-bottom: 1px solid #e2e8f0; }
         .cli-table tr:hover td { background: #f8fafc; }
         .cli-scroll { max-height: 60vh; overflow: auto; }
+        .cli-cards { max-height: 70vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+        .cli-card { padding: 10px 12px; border-bottom: 1px solid var(--portal-border, #e2e8f0); display: flex; gap: 10px; align-items: flex-start; }
         .badge-A { background: #d1fae5; color: #065f46; }
         .badge-B { background: #fef3c7; color: #92400e; }
         .badge-C { background: #e2e8f0; color: #475569; }
@@ -212,21 +217,27 @@ export default function ClientesPage() {
           <h1 className="text-2xl font-semibold text-slate-800">Clientes</h1>
           <p className="text-xs text-slate-500">Análise ABC de receita e ranking de inadimplência (NOVA + CASTRO consolidado por CNPJ).</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+        <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap max-md:w-full max-md:items-end">
+          {/* Celular: De/Até lado a lado, rótulo em cima (no PC "contents" = igual a antes) */}
+          <span className="contents max-md:flex max-md:flex-col max-md:gap-0.5 max-md:flex-1 max-md:min-w-0">
           <label>De:</label>
           <input
             type="month"
-            className="border border-slate-300 rounded px-2 py-1 max-md:min-h-9"
+            className="border border-slate-300 rounded px-2 py-1 max-md:min-h-9 max-md:w-full max-md:min-w-0"
             value={desde}
             onChange={(e) => setDesde(e.target.value)}
           />
+          </span>
+          <span className="contents max-md:flex max-md:flex-col max-md:gap-0.5 max-md:flex-1 max-md:min-w-0">
           <label>Até:</label>
           <input
             type="month"
-            className="border border-slate-300 rounded px-2 py-1 max-md:min-h-9"
+            className="border border-slate-300 rounded px-2 py-1 max-md:min-h-9 max-md:w-full max-md:min-w-0"
             value={ate}
             onChange={(e) => setAte(e.target.value)}
           />
+          </span>
+          <span className="hidden max-md:block max-md:basis-full max-md:h-0" />
           <button
             className="px-3 py-1 max-md:min-h-9 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded disabled:opacity-60"
             onClick={carregar}
@@ -279,9 +290,45 @@ export default function ClientesPage() {
             <label><input type="radio" name="cli-filtro-abc" value="A" checked={filtroAbc === 'A'} onChange={() => setFiltroAbc('A')} /> só A</label>
             <label><input type="radio" name="cli-filtro-abc" value="B" checked={filtroAbc === 'B'} onChange={() => setFiltroAbc('B')} /> só B</label>
             <label><input type="radio" name="cli-filtro-abc" value="C" checked={filtroAbc === 'C'} onChange={() => setFiltroAbc('C')} /> só C</label>
-            <label>Buscar: <input type="text" className="border border-slate-300 rounded px-2 py-0.5 text-xs ml-1 w-48 max-w-full max-md:min-h-9" placeholder="nome / CNPJ" value={buscaAbc} onChange={(e) => setBuscaAbc(e.target.value)} /></label>
+            <label className="max-md:w-full max-md:flex max-md:items-center">Buscar: <input type="text" className="border border-slate-300 rounded px-2 py-0.5 text-xs ml-1 w-48 max-w-full max-md:min-h-9 max-md:flex-1 max-md:min-w-0" placeholder="nome / CNPJ" value={buscaAbc} onChange={(e) => setBuscaAbc(e.target.value)} /></label>
           </div>
         </div>
+        {isMobile ? (
+          // Celular: 1 cartao por cliente (nome, CNPJ/local, receita, classe,
+          // participacao, margem e atraso). Mesmos dados da tabela.
+          <div className="cli-cards">
+            {listaAbc.length === 0 ? (
+              <div className="text-center py-4 text-slate-400 text-sm">Nenhum cliente nesse filtro.</div>
+            ) : listaAbc.map((c) => {
+              const localTxt = [c.cidade, c.estado].filter(Boolean).join('/')
+              const corMargem = c.margemPct >= 15 ? 'text-emerald-700' : c.margemPct >= 5 ? 'text-amber-700' : 'text-red-700'
+              const corDias = c.maiorAtraso > 90 ? 'atraso-alto' : c.maiorAtraso > 30 ? 'atraso-medio' : 'atraso-baixo'
+              return (
+                <div key={c.cnpj ? c.cnpj + '|' + c.rank : 'r' + c.rank} className="cli-card">
+                  <div className="text-xs text-slate-400 w-6 shrink-0 pt-0.5">{c.rank}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-800 m-quebra-texto">{c.nome}</div>
+                    <div className="text-[11px] text-slate-500 m-quebra-texto">{[c.cnpj, localTxt, c.contas].filter(Boolean).join(' · ')}</div>
+                    <div className="text-xs text-slate-600 mt-1">
+                      {c.pctReceita.toFixed(2)}% da receita · acum. {c.pctAcumulado.toFixed(1)}% · margem <span className={corMargem}>{c.margemPct.toFixed(1)}%</span>
+                    </div>
+                    {c.valorAtraso > 0 && (
+                      <div className="text-xs mt-1">
+                        <span className="font-semibold text-red-700">{fmtBRL(c.valorAtraso)} em atraso</span>
+                        {' '}<span className={'font-bold px-1.5 py-0.5 rounded ' + corDias}>{c.maiorAtraso}d</span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-sm font-semibold text-slate-800">{fmtBRL(c.receita)}</div>
+                    <div className={'text-[11px] ' + (c.lucroBruto >= 0 ? 'text-emerald-700' : 'text-red-700')}>LB {fmtBRL(c.lucroBruto)}</div>
+                    <span className={'inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded badge-' + c.classe}>{c.classe}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
         <div className="cli-scroll">
           <table className="cli-table dre-b-cli-abc">
             <thead>
@@ -348,10 +395,11 @@ export default function ClientesPage() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Inadimplencia: KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 [&>div]:min-w-0 [&>div]:break-words">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 [&>div]:min-w-0 [&>div]:break-words max-md:grid-cols-2 max-md:[&>div:first-child]:col-span-2">
         <div className="bg-white rounded-lg border border-red-300 p-3 bg-red-50/30">
           <div className="text-[10px] text-red-700 uppercase tracking-wide">Total em atraso</div>
           <div className="text-xl font-bold text-red-700 mt-1">{kpis.inadTotal}</div>
@@ -373,9 +421,32 @@ export default function ClientesPage() {
           <div className="flex items-center gap-3 text-[10px] flex-wrap">
             <label><input type="radio" name="cli-filtro-inad" value="todos" checked={filtroInad === 'todos'} onChange={() => setFiltroInad('todos')} /> todos</label>
             <label><input type="radio" name="cli-filtro-inad" value="alto" checked={filtroInad === 'alto'} onChange={() => setFiltroInad('alto')} /> só &gt;90d</label>
-            <label>Buscar: <input type="text" className="border border-slate-300 rounded px-2 py-0.5 text-xs ml-1 w-48 max-w-full max-md:min-h-9" placeholder="nome / CNPJ" value={buscaInad} onChange={(e) => setBuscaInad(e.target.value)} /></label>
+            <label className="max-md:w-full max-md:flex max-md:items-center">Buscar: <input type="text" className="border border-slate-300 rounded px-2 py-0.5 text-xs ml-1 w-48 max-w-full max-md:min-h-9 max-md:flex-1 max-md:min-w-0" placeholder="nome / CNPJ" value={buscaInad} onChange={(e) => setBuscaInad(e.target.value)} /></label>
           </div>
         </div>
+        {isMobile ? (
+          <div className="cli-cards">
+            {listaInad.length === 0 ? (
+              <div className="text-center py-4 text-slate-400 text-sm">Nenhum devedor nesse filtro.</div>
+            ) : listaInad.map((c) => {
+              const localTxt = [c.cidade, c.estado].filter(Boolean).join('/')
+              return (
+                <div key={c.cnpj ? c.cnpj + '|' + c.rank : 'r' + c.rank} className="cli-card">
+                  <div className="text-xs text-slate-400 w-6 shrink-0 pt-0.5">{c.rank}</div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-800 m-quebra-texto">{c.nome}</div>
+                    <div className="text-[11px] text-slate-500 m-quebra-texto">{[c.cnpj, localTxt, c.contas].filter(Boolean).join(' · ')}</div>
+                    <div className="text-xs text-slate-600 mt-1">{c.qtdTitulos} {c.qtdTitulos === 1 ? 'título' : 'títulos'}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-sm font-bold text-red-700">{fmtBRL(c.valorAtraso)}</div>
+                    <span className={'inline-block mt-1 text-xs font-bold px-2 py-0.5 rounded ' + corAtraso(c.maiorAtraso)}>{c.maiorAtraso} dias</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
         <div className="cli-scroll">
           <table className="cli-table dre-b-cli-inad">
             <thead>
@@ -412,6 +483,7 @@ export default function ClientesPage() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </>
   )

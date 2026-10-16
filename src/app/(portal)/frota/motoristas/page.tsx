@@ -152,7 +152,7 @@ export default function FrotaMotoristasPage() {
         <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'var(--portal-text)' }}>Pessoas</h3>
         <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>{filtrados.length} de {motoristas.length}</span>
         <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden', overflowX: 'auto', maxWidth: '100%' }}>
+        <div className="frota-seg m-rolar-x" style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden', overflowX: 'auto', maxWidth: '100%' }}>
           {([
             ['todos', `Ativos (${ativos.length})`],
             ['motoristas', `Só motoristas (${kMotoristas.length})`],

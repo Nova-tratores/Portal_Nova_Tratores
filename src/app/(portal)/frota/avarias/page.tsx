@@ -138,7 +138,7 @@ export default function FrotaAvariasPage() {
   return (
     <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <h2 className="frota-titulo" style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <CarFront size={20} color="#b45309" /> Avarias
         </h2>
         <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
@@ -151,6 +151,7 @@ export default function FrotaAvariasPage() {
         <button
           onClick={() => (podeEditar ? setFormAberto((v) => !v) : alert(MSG_SEM_PERMISSAO))}
           title={podeEditar ? 'Registrar uma avaria/dano de veículo' : MSG_SEM_PERMISSAO}
+          className="frota-full-m"
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700,
             color: '#fff', background: podeEditar ? '#1e40af' : '#94a3b8', border: 'none',
@@ -167,7 +168,7 @@ export default function FrotaAvariasPage() {
       </p>
 
       {formAberto && (
-        <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, padding: 16, marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div className="frota-form-m" style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, padding: 16, marginBottom: 16, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <div>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 4 }}>VEÍCULO</div>
             <select value={form.placa} onChange={(e) => setForm((f) => ({ ...f, placa: e.target.value }))} style={{ ...inputStyle, minWidth: 180 }}>
@@ -221,12 +222,12 @@ export default function FrotaAvariasPage() {
         {visiveis.map((a) => {
           const st = STATUS[a.status] || STATUS.aberta;
           return (
-            <div key={a.id} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, padding: '12px 16px', display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
-              <div style={{ minWidth: 90 }}>
+            <div key={a.id} className="frota-multa" style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, padding: '12px 16px', display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+              <div className="frota-multa-placa" style={{ minWidth: 90 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>{formatarPlaca(a.placa)}</div>
                 <div style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>{fmtData(a.data)}</div>
               </div>
-              <div style={{ flex: 2, minWidth: 220 }}>
+              <div className="frota-multa-desc" style={{ flex: 2, minWidth: 220 }}>
                 <div style={{ fontSize: 13, color: 'var(--portal-text)', fontWeight: 600 }}>{a.descricao}</div>
                 <div style={{ fontSize: 13, color: 'var(--portal-text)', marginTop: 3 }}>
                   <strong>{a.motorista_nome || 'sem responsável'}</strong>
@@ -234,10 +235,10 @@ export default function FrotaAvariasPage() {
                 </div>
                 {a.obs && <div style={{ fontSize: 12.5, color: 'var(--portal-text)', marginTop: 2 }}>{a.obs}</div>}
               </div>
-              <div style={{ textAlign: 'right', minWidth: 90 }}>
+              <div className="frota-multa-valor" style={{ textAlign: 'right', minWidth: 90 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: '#b45309' }}>{fmtRS(a.valor)}</div>
               </div>
-              <div style={{ minWidth: 190 }}>
+              <div className="frota-multa-status" style={{ minWidth: 190 }}>
                 <select
                   value={a.status}
                   disabled={!podeEditar || busy === a.id}

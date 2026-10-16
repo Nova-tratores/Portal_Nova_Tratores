@@ -5,6 +5,7 @@
 // renderiza a barra (Gestão/Catálogo/Etiquetas são abas internas de lá); este
 // componente é a mesma barra pras telas irmãs, com links de volta.
 // Só mostra as guias que a pessoa tem permissão de ver (módulos do Admin).
+import { useEffect } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -31,14 +32,44 @@ export const PECAS_TOPBAR_CSS = `
 @media (min-width: 769px) and (max-width: 1023px) {
   .ppv-x-topbar .ppv-topbar-nav-btn { padding: 10px 12px; font-size: 13px; gap: 6px; }
 }
+/* CELULAR: segmentado que ROLA de lado (6 guias não cabem em 390px). Cada guia
+   no tamanho do texto (sem flex:1 espremendo), ativa na cor do módulo (laranja,
+   não o vermelho genérico do globals) e a página leva a ativa até a vista. */
+@media (max-width: 768px) {
+  .ppv-x-topbar .ppv-topbar-actions {
+    overflow-x: auto; overflow-y: hidden; scrollbar-width: none; scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch; box-sizing: border-box; max-width: 100%; min-width: 0;
+  }
+  .ppv-x-topbar .ppv-topbar-actions::-webkit-scrollbar { display: none; }
+  .ppv-x-topbar .ppv-topbar-nav-btn {
+    flex: 0 0 auto !important; min-height: 40px; padding: 9px 13px !important; font-size: 13px !important;
+    color: #475569; scroll-snap-align: start;
+  }
+  .ppv-x-topbar .ppv-topbar-nav-btn.active {
+    background: #EA580C !important; color: #fefefe !important; box-shadow: 0 2px 6px rgba(234,88,12,0.30) !important;
+  }
+}
 `;
+
+/** Celular: rola a faixa de guias até a ativa ficar visível (chamar num useEffect). */
+export function rolarGuiaAtiva() {
+  if (typeof window === 'undefined' || window.innerWidth > 768) return;
+  const rolar = () => document.querySelectorAll<HTMLElement>('.ppv-x-topbar .ppv-topbar-nav-btn.active').forEach((el) => {
+    const pai = el.parentElement;
+    if (pai) pai.scrollLeft += el.getBoundingClientRect().left - pai.getBoundingClientRect().left - 12;
+  });
+  requestAnimationFrame(rolar);
+  setTimeout(rolar, 600); // a faixa pode montar depois (permissões carregando)
+}
 
 export default function PecasNav() {
   const pathname = usePathname() ?? '';
   const { userProfile } = useAuth();
   const { temAcesso, pode, loading } = usePermissoes(userProfile?.id);
+  const pronto = !loading && !!userProfile;
+  useEffect(() => { if (pronto) rolarGuiaAtiva(); }, [pronto, pathname]);
 
-  if (loading || !userProfile) return null;
+  if (!pronto) return null;
 
   const abas = [
     { ok: temAcesso('ppv'), icone: 'fa-th-large', label: 'Pré-Pedido de Venda', href: '/ppv', ativo: pathname === '/ppv' },

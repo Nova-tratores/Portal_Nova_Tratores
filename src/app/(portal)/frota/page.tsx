@@ -7,10 +7,11 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  OctagonAlert, AlertTriangle, FileWarning, Fuel, ClipboardCheck, UserX, MapPinned, IdCard, Check, Loader2, Gauge, CalendarClock,
+  OctagonAlert, AlertTriangle, FileWarning, Fuel, ClipboardCheck, UserX, MapPinned, IdCard, Check, Loader2, Gauge, CalendarClock, ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { authHeaders } from '@/lib/auth/client';
 import { formatarPlaca } from '@/lib/frota/placa';
 import { podeTelaFrota } from '@/lib/permissoes/frota';
@@ -265,15 +266,35 @@ const linhaEstilo: React.CSSProperties = {
 function Bloco({ id, titulo, icone, cor, n, ajuda, children }: {
   id?: string; titulo: string; icone: React.ReactNode; cor: string; n: number; ajuda?: string; children: React.ReactNode;
 }) {
+  // Celular: a tela tinha 12 mil px de altura com tudo aberto. Lá cada bloco
+  // vira uma sanfona (título + número sempre à vista; toque abre a lista).
+  // Blocos pequenos (até 3 itens) já nascem abertos. No PC nada muda.
+  const mobile = useIsMobile();
+  const [aberto, setAberto] = useState(n <= 3);
+  const fechado = mobile && !aberto;
+  const cabecalho = (
+    <>
+      <span style={{ color: cor, display: 'flex' }}>{icone}</span>
+      <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 800, color: 'var(--portal-text)', flex: mobile ? '1 1 0' : undefined, minWidth: 0 }}>{titulo}</h2>
+      <span style={{ fontSize: 12, fontWeight: 800, color: '#fefefe', background: cor, borderRadius: 999, padding: '1px 9px' }}>{n}</span>
+      {mobile && <ChevronDown size={18} color="var(--portal-text-secondary)" style={{ flexShrink: 0, transform: aberto ? 'rotate(180deg)' : 'none', transition: 'transform .15s' }} />}
+    </>
+  );
   return (
     <section id={id} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderLeft: `4px solid ${cor}`, scrollMarginTop: 100 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', flexWrap: 'wrap' }}>
-        <span style={{ color: cor, display: 'flex' }}>{icone}</span>
-        <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 800, color: 'var(--portal-text)' }}>{titulo}</h2>
-        <span style={{ fontSize: 12, fontWeight: 800, color: '#fefefe', background: cor, borderRadius: 999, padding: '1px 9px' }}>{n}</span>
-        {ajuda && <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', flexBasis: '100%' }}>{ajuda}</span>}
-      </div>
-      {children}
+      {mobile ? (
+        <button type="button" onClick={() => setAberto((a) => !a)} aria-expanded={aberto}
+          style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', minHeight: 52, padding: '10px 12px', border: 'none', background: 'transparent', textAlign: 'left', cursor: 'pointer', font: 'inherit' }}>
+          {cabecalho}
+        </button>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', flexWrap: 'wrap' }}>
+          {cabecalho}
+          {ajuda && <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', flexBasis: '100%' }}>{ajuda}</span>}
+        </div>
+      )}
+      {!fechado && mobile && ajuda && <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', padding: '0 12px 10px' }}>{ajuda}</div>}
+      {!fechado && children}
     </section>
   );
 }
@@ -283,7 +304,7 @@ function Linha({ placa, modelo, texto, selo, acao, destaque }: {
 }) {
   return (
     <div style={linhaEstilo}>
-      <Link href={linkFicha(placa)} title="Abrir a Ficha do veículo" style={{ textDecoration: 'none', minWidth: 0, flex: '0 1 220px', display: 'flex', flexDirection: 'column' }}>
+      <Link href={linkFicha(placa)} title="Abrir a Ficha do veículo" className="frota-linha-placa" style={{ textDecoration: 'none', minWidth: 0, flex: '0 1 220px', display: 'flex', flexDirection: 'column' }}>
         <strong style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{formatarPlaca(placa)}</strong>
         {modelo && <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{modelo}</span>}
       </Link>
@@ -296,7 +317,7 @@ function Linha({ placa, modelo, texto, selo, acao, destaque }: {
 
 function Acao({ href, children }: { href: string; children: React.ReactNode }) {
   return (
-    <Link href={href} style={{ fontSize: 12.5, fontWeight: 700, color: AZUL_FROTA, textDecoration: 'none', padding: '6px 12px', border: `1px solid ${AZUL_FROTA}`, whiteSpace: 'nowrap' }}>
+    <Link href={href} className="frota-touch frota-acao" style={{ fontSize: 12.5, fontWeight: 700, color: AZUL_FROTA, textDecoration: 'none', padding: '6px 12px', border: `1px solid ${AZUL_FROTA}`, whiteSpace: 'nowrap' }}>
       {children} →
     </Link>
   );
@@ -305,7 +326,7 @@ function Acao({ href, children }: { href: string; children: React.ReactNode }) {
 function Mais({ href, n }: { href: string; n: number }) {
   return (
     <div style={{ ...linhaEstilo, justifyContent: 'center' }}>
-      <Link href={href} style={{ fontSize: 13, fontWeight: 700, color: AZUL_FROTA, textDecoration: 'none' }}>+ {n} outros →</Link>
+      <Link href={href} className="frota-touch" style={{ fontSize: 13, fontWeight: 700, color: AZUL_FROTA, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>+ {n} outros →</Link>
     </div>
   );
 }

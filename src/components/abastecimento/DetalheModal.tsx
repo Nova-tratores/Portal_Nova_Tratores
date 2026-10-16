@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ResponsiveContainer, Treemap, Tooltip } from 'recharts';
 import { authHeaders } from '@/lib/auth/client';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { FileDown, FileSpreadsheet, LayoutGrid, List, X } from 'lucide-react';
 import { fmtRS } from '@/components/estoque/ui';
 import TabelaOrdenavel, { type ColunaDef } from '@/components/abastecimento/TabelaOrdenavel';
@@ -89,6 +90,8 @@ export default function DetalheModal({ titulo, params, onClose }: DetalheParams 
   const [somas, setSomas] = useState({ valor: 0, litros: 0, economia: 0 });
   const [carregando, setCarregando] = useState(true);
   const [gerando, setGerando] = useState('');
+  // celular: título e X na 1ª linha; PDF/CSV meio a meio na 2ª
+  const mobile = useIsMobile();
   const [erro, setErro] = useState('');
   const [visao, setVisao] = useState<'tabela' | 'treemap'>('tabela');
   const [dimensao, setDimensao] = useState<DimensaoTreemap>('placa');
@@ -146,7 +149,7 @@ export default function DetalheModal({ titulo, params, onClose }: DetalheParams 
     <button
       onClick={() => exportar(formato)}
       disabled={!!gerando || linhas.length === 0}
-      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: formato === 'pdf' ? '#dc2626' : '#166534', border: `1px solid ${formato === 'pdf' ? '#dc2626' : '#166534'}`, borderRadius: 8, padding: '7px 12px', fontSize: '.78rem', fontWeight: 600, cursor: 'pointer' }}
+      style={{ ...(mobile ? { order: 2, flex: '1 1 calc(50% - 6px)', justifyContent: 'center', minHeight: 40 } : {}), display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff', color: formato === 'pdf' ? '#dc2626' : '#166534', border: `1px solid ${formato === 'pdf' ? '#dc2626' : '#166534'}`, borderRadius: 8, padding: '7px 12px', fontSize: '.78rem', fontWeight: 600, cursor: 'pointer' }}
     >
       {formato === 'pdf' ? <FileDown size={14} /> : <FileSpreadsheet size={14} />} {gerando === formato ? 'Gerando…' : rotulo}
     </button>
@@ -155,14 +158,16 @@ export default function DetalheModal({ titulo, params, onClose }: DetalheParams 
   return (
     <div
       onClick={onClose}
+      className="m-folha-fundo"
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(6px, 2vw, 16px)' }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        className="m-folha"
         style={{ background: '#fff', borderRadius: 12, width: 'min(1150px, 100%)', maxHeight: '86vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.2)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '14px clamp(12px, 3vw, 18px)', borderBottom: '1px solid #eee' }}>
-          <div style={{ flex: '1 1 200px', minWidth: 0 }}>
+          <div style={{ flex: mobile ? '1 1 calc(100% - 60px)' : '1 1 200px', minWidth: 0 }}>
             <div style={{ fontWeight: 700, color: '#333', fontSize: '.95rem' }}>{titulo}</div>
             <div style={{ color: '#888', fontSize: '.76rem', marginTop: 2 }}>
               {linhas.length} abastecimento(s) · {somas.litros.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L · <strong style={{ color: '#dc2626' }}>{fmtRS(somas.valor)}</strong>
@@ -171,7 +176,7 @@ export default function DetalheModal({ titulo, params, onClose }: DetalheParams 
           </div>
           {botao('PDF', 'pdf')}
           {botao('CSV', 'csv')}
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 4, minWidth: 36, minHeight: 36 }}>
+          <button onClick={onClose} aria-label="Fechar" title="Fechar" className="m-toque" style={{ order: mobile ? 1 : undefined, background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 4, minWidth: 36, minHeight: 36 }}>
             <X size={20} />
           </button>
         </div>

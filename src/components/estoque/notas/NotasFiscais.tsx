@@ -12,6 +12,7 @@ import { authHeaders } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento';
 import {
   CAMPOS_BUSCA, ROTULO_BATEU, ROTULO_SELO, ROTULO_TIPO, TIPOS, chassiPrincipal, ehCampoBusca, linkPasta, ondeBateu, percent, selo,
@@ -93,6 +94,9 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
   const [ocupado, setOcupado] = useState<number | null>(null);
   const [aviso, setAviso] = useState('');
   const [indexando, setIndexando] = useState(false);
+  const isMobile = useIsMobile();
+  // Celular: tipo/período/situação/máquinas ficam atrás do botão Filtros; a busca fica visível.
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
 
   // q/campo vivem também na URL (deep-link de outras telas; F5 mantém a busca)
   useEffect(() => {
@@ -190,7 +194,7 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
   const mostrarBateu = campo === 'auto' && !!q.trim();
 
   return (
-    <div style={{ maxWidth: 1380, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1380, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Notas fiscais</h1>
@@ -237,17 +241,34 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
       {aviso && <div style={{ fontSize: '.8rem', color: '#444', background: '#f5f5f5', border: '1px solid #e5e5e5', borderRadius: 10, padding: '8px 12px', marginBottom: 12 }}>{aviso}</div>}
 
       {/* Filtros */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        <div>
+      <div className="est-touch" style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        {isMobile && (
+          <button type="button" onClick={() => setFiltrosAbertos((v) => !v)} aria-expanded={filtrosAbertos}
+            style={{ ...btn, order: 2, minHeight: 44, fontSize: 14, color: '#dc2626', borderColor: filtrosAbertos ? '#dc2626' : '#e0e0e0', background: filtrosAbertos ? '#fef2f2' : '#fff' }}>
+            Filtros{(tipo ? 1 : 0) + (situacao ? 1 : 0) + (soMaquinas ? 1 : 0) > 0 ? ` (${(tipo ? 1 : 0) + (situacao ? 1 : 0) + (soMaquinas ? 1 : 0)})` : ''} {filtrosAbertos ? '▲' : '▼'}
+          </button>
+        )}
+        {isMobile && (
+          <select value={`${ordem.coluna}|${ordem.dir}`} aria-label="Ordenar"
+            onChange={(e) => { const [c, d] = e.target.value.split('|'); setOrdem({ coluna: c as ColunaOrdem, dir: d as Ordem['dir'] }); setPagina(1); }}
+            style={{ ...inp, order: 2, flex: 1, minWidth: 0 }}>
+            {!CABECALHO.some((h) => h.col === ordem.coluna) && <option value={`${ordem.coluna}|${ordem.dir}`}>Ordem atual</option>}
+            {CABECALHO.filter((h) => h.col).flatMap((h) => [
+              <option key={h.col + 'd'} value={`${h.col}|desc`}>{h.label} ↓</option>,
+              <option key={h.col + 'a'} value={`${h.col}|asc`}>{h.label} ↑</option>,
+            ])}
+          </select>
+        )}
+        <div style={isMobile ? { display: filtrosAbertos ? 'block' : 'none', order: 3 } : undefined}>
           <label style={rotulo}>Tipo</label>
           <select value={mostraEntrada || tipo !== 'entrada' ? tipo : ''} onChange={(e) => { setTipo(e.target.value); setPagina(1); }} style={inp}>
             <option value="">{mostraEntrada ? 'Todas' : 'Todas (saída)'}</option>
             {tiposVisiveis.map((t) => <option key={t} value={t}>{ROTULO_TIPO[t]}</option>)}
           </select>
         </div>
-        <div>
+        <div style={isMobile ? { display: filtrosAbertos ? 'block' : 'none', order: 3, width: '100%' } : undefined}>
           <label style={rotulo}>Período (emissão)</label>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: isMobile ? 'wrap' : undefined }}>
             {PRESETS.map((p) => {
               const ativo = p.dias == null ? !de && !ate : de === menosDias(p.dias) && ate === hojeLocal();
               return <button key={p.label} onClick={() => { setDe(p.dias == null ? '' : menosDias(p.dias)); setAte(p.dias == null ? '' : hojeLocal()); setPagina(1); }} style={{ ...btn, padding: '7px 10px', background: ativo ? '#fef2f2' : '#fff', color: ativo ? '#dc2626' : '#666', border: ativo ? '1px solid #fecaca' : '1px solid #e0e0e0' }}>{p.label}</button>;
@@ -257,7 +278,7 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
             <input type="date" value={ate} onChange={(e) => { setAte(e.target.value); setPagina(1); }} style={inp} />
           </div>
         </div>
-        <div>
+        <div style={isMobile ? { display: filtrosAbertos ? 'block' : 'none', order: 3 } : undefined}>
           <label style={rotulo}>Situação</label>
           <select value={situacao} onChange={(e) => { setSituacao(e.target.value); setPagina(1); }} style={inp}>
             <option value="">Todas</option>
@@ -266,7 +287,7 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
             <option value="sem_documento">Sem documento na Omie</option>
           </select>
         </div>
-        <div>
+        <div style={isMobile ? { display: filtrosAbertos ? 'block' : 'none', order: 3 } : undefined}>
           <label style={rotulo}>Máquinas</label>
           <button type="button" onClick={() => { setSoMaquinas((v) => !v); setPagina(1); }}
             title="Só notas que citam máquina (chassi / nº de série) — vendas e compras de máquinas"
@@ -274,7 +295,7 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
             <i className="fas fa-tractor" /> {soMaquinas ? 'Só máquinas' : 'Todas'}
           </button>
         </div>
-        <div style={{ flex: 1, minWidth: 320 }}>
+        <div style={isMobile ? { flex: '1 1 100%', minWidth: 0, order: 1 } : { flex: 1, minWidth: 320 }}>
           <label style={rotulo}>Buscar</label>
           <div style={{ display: 'flex', gap: 6 }}>
             <div style={{ position: 'relative', flex: 1 }}>
@@ -301,6 +322,56 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
             {q.trim() && campo === 'os' ? <span style={{ color: '#a3a3a3' }}> (NFS-e da OS + NF-e das peças ligadas a ela)</span> : null}
             {resp.numeroComoTexto && ordem.coluna === 'numero' ? <span style={{ color: '#b45309' }}> · nº ordenado como texto (aplicar sql/notas-fiscais-ordem.sql para ordem numérica)</span> : null}
           </div>
+          {isMobile ? (
+            // Celular: um cartão por nota (a tabela de 9 colunas estourava a tela).
+            <div>
+              {resp.notas.length === 0 && <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 20, color: '#a3a3a3', fontSize: 14 }}>Nenhuma nota com esses filtros.{q.trim() && (de || ate) ? ' O período está limitando — escolha "Tudo" no período (Filtros).' : ''}</div>}
+              {resp.notas.map((n) => {
+                const s = selo(n);
+                const c = COR_SELO[s];
+                const bateu = mostrarBateu ? ondeBateu(n, q) : [];
+                const chassi = chassiPrincipal(n.maquina);
+                const acao: React.CSSProperties = { ...btn, minHeight: 40, fontSize: 13, flex: '1 1 0', justifyContent: 'center' };
+                return (
+                  <div key={n.id} style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '10px 12px', marginBottom: 8, opacity: n.cancelada ? 0.6 : 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="m-quebra-texto" style={{ fontSize: 14, fontWeight: 700, color: n.parte_nome ? '#333' : '#c00' }}>{n.parte_nome || '—'}</div>
+                        <div style={{ fontSize: 12, color: '#777', marginTop: 2 }}>
+                          <span style={{ fontWeight: 700, color: n.tipo === 'entrada' ? '#047857' : '#b45309' }}>{ROTULO_TIPO[n.tipo]}</span>
+                          {' · '}NF <b style={{ color: '#444' }}>{n.numero || '—'}</b>{n.serie ? `/${n.serie}` : ''} · {fmtData(n.data_emissao)}{conta === '' ? ` · ${n.conta_omie}` : ''}
+                        </div>
+                        {n.cancelada && <div style={{ fontSize: 12, color: '#dc2626', fontWeight: 700 }}>CANCELADA</div>}
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ fontSize: 15, fontWeight: 800, color: '#333' }}>{n.valor != null ? fmtRS(n.valor) : '—'}</div>
+                        <span title={n.ultimo_erro || ''} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 3, fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 999, background: c.bg, color: c.fg, border: `1px solid ${c.bd}` }}>
+                          {s === 'completa' ? <ShieldCheck size={11} /> : null}{ROTULO_SELO[s]}
+                        </span>
+                      </div>
+                    </div>
+                    {(n.pedido_num || n.os_num || n.maquina || bateu.length > 0) && (
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', alignItems: 'center', marginTop: 6, fontSize: 13 }}>
+                        {n.pedido_num && <span><span style={{ color: '#a3a3a3' }}>PV </span><Link href={linkPasta(n, { pv: n.pedido_num })} target="_blank" style={linkPastaSt}>{n.pedido_num}</Link></span>}
+                        {n.os_num && <span><span style={{ color: '#a3a3a3' }}>OS </span><Link href={linkPasta(n, { os: n.os_num })} target="_blank" style={linkPastaSt}>{n.os_num}</Link></span>}
+                        {n.maquina && (
+                          <button onClick={() => buscar(chassi || n.maquina || '', 'maquina')} style={{ ...linkBtn, color: '#374151', textDecoration: 'none', textAlign: 'left', whiteSpace: 'normal', fontWeight: 500, fontSize: 12, lineHeight: 1.3 }}>
+                            <Tractor size={13} color="#b45309" style={{ flex: '0 0 auto' }} /> <span className="m-quebra-texto">{n.maquina.length > 60 ? n.maquina.slice(0, 58) + '…' : n.maquina}</span>
+                          </button>
+                        )}
+                        {bateu.map((b) => <span key={b} style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', borderRadius: 999, background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' }}>bateu em: {ROTULO_BATEU[b]}</span>)}
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                      <button onClick={() => verPdf(n)} style={{ ...acao, color: '#dc2626', borderColor: '#fecaca' }}><FileText size={14} /> Ver PDF</button>
+                      {podeXml && <button onClick={() => baixarXml(n)} disabled={ocupado === n.id} style={acao}><Download size={14} /> XML</button>}
+                      {s !== 'completa' && <button onClick={() => guardarAgora(n)} disabled={ocupado === n.id} style={acao}><RefreshCw size={13} className={ocupado === n.id ? 'animate-spin' : ''} /> Guardar</button>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
           <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>
@@ -387,7 +458,8 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
               </tbody>
             </table>
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center' }}>
+          )}
+          <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', justifyContent: isMobile ? 'space-between' : undefined }}>
             <button onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={pagina <= 1} style={{ ...btn, color: pagina <= 1 ? '#ccc' : '#666' }}>← Anterior</button>
             <span style={{ fontSize: '.8rem', color: '#888' }}>{pagina}/{resp.totalPaginas}</span>
             <button onClick={() => setPagina((p) => p + 1)} disabled={pagina >= resp.totalPaginas} style={{ ...btn, color: pagina >= resp.totalPaginas ? '#ccc' : '#666' }}>Próxima →</button>

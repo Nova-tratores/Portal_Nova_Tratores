@@ -50,7 +50,7 @@ export default function ContatosPorCargoPage() {
           <div style={{ fontSize: 12, opacity: 0.65 }}>{carregando ? "lendo o NovaZap…" : `${lista.length} contato${lista.length === 1 ? "" : "s"}`}</div>
         </div>
         <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar contato ou cliente…" style={{ marginLeft: "auto", padding: "8px 12px", borderRadius: 999, border: "1px solid var(--portal-border)", fontSize: 13, minWidth: "min(240px, 100%)", maxWidth: "100%", background: "var(--portal-bg-card)" }} />
-        <button type="button" onClick={carregar} disabled={carregando} style={chip(COR_ATENDIMENTO, false)}>↻</button>
+        <button type="button" onClick={carregar} disabled={carregando} aria-label="Atualizar" title="Atualizar" style={chip(COR_ATENDIMENTO, false)}>↻</button>
       </header>
 
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>

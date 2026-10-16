@@ -87,14 +87,14 @@ export default function FrotaCustosPage() {
   return (
     <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <h2 className="frota-titulo" style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <DollarSign size={20} color="#1e40af" /> Custos & TCO
         </h2>
-        <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
+        <span className="frota-sub-m" style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
           combustível + manutenção + multas + requisições ÷ km rodado — por departamento; quem custa caro primeiro
         </span>
         <div style={{ flex: 1 }} />
-        <select value={meses} onChange={(e) => setMeses(Number(e.target.value))} style={{ padding: '7px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13.5 }}>
+        <select value={meses} onChange={(e) => setMeses(Number(e.target.value))} className="frota-full-m" style={{ padding: '7px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13.5 }}>
           <option value={3}>Últimos 3 meses</option>
           <option value={6}>Últimos 6 meses</option>
           <option value={12}>Últimos 12 meses</option>
@@ -112,7 +112,8 @@ export default function FrotaCustosPage() {
       {carregando && <div style={{ color: 'var(--portal-text)', fontSize: 13 }}>Carregando…</div>}
 
       {!carregando && (
-        <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'auto' }}>
+        // celular: grade numérica de comparar → rola de lado com a coluna do veículo fixa
+        <div className="m-tabela m-tabela-fixa frota-tco" style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 860 }}>
             <thead>
               <tr style={{ background: 'var(--portal-bg-secondary)' }}>
@@ -271,8 +272,8 @@ function ModalCustos({ linha, meses, entradas, onClose }: {
   }, [entradas]);
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 950, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(680px, 96vw)', maxHeight: '85vh', background: 'var(--portal-bg)', borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.4)' }}>
+    <div onClick={onClose} className="m-folha-fundo" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 950, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} className="m-folha" style={{ width: 'min(680px, 96vw)', maxHeight: '85vh', background: 'var(--portal-bg)', borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.4)' }}>
         <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <DollarSign size={17} color="#1e40af" />
           <strong style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>Custos · {formatarPlaca(linha.placa)}</strong>
@@ -280,7 +281,7 @@ function ModalCustos({ linha, meses, entradas, onClose }: {
           {linha.status === 'vendido' && <span style={{ fontSize: 9.5, fontWeight: 800, color: '#6d28d9', background: '#ede9fe', borderRadius: 999, padding: '2px 7px' }}>VENDIDO</span>}
           {linha.status === 'arquivado' && <span style={{ fontSize: 9.5, fontWeight: 800, color: '#475569', background: '#e2e8f0', borderRadius: 999, padding: '2px 7px' }}>ARQUIVADO</span>}
           <div style={{ flex: 1 }} />
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)', minWidth: 36, minHeight: 36 }}><X size={18} /></button>
+          <button onClick={onClose} aria-label="Fechar" className="m-toque" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)', minWidth: 36, minHeight: 36 }}><X size={18} /></button>
         </div>
         <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--portal-border)', display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 13.5, color: 'var(--portal-text)' }}>
           <span>Últimos {meses} meses</span>

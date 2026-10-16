@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ClipboardCheck, Loader2, AlertTriangle, ChevronRight } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { CabecalhoFrota } from '@/components/frota/ui';
 
 type Status = 'ok' | 'suspeito' | 'em_andamento' | 'pendente';
@@ -37,6 +38,8 @@ export default function FrotaChecklistsPage() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [filtro, setFiltro] = useState<'todos' | Status>('todos');
+  // celular: contadores em faixa que rola e a grade de 7 colunas vira cartões
+  const mobile = useIsMobile();
 
   const carregar = useCallback(async (m: string) => {
     setCarregando(true); setErro('');
@@ -57,10 +60,10 @@ export default function FrotaChecklistsPage() {
     const ativo = (chave === 'total' && filtro === 'todos') || filtro === chave;
     return (
       <button onClick={() => setFiltro(chave === 'total' ? 'todos' : chave)}
-        style={{ textAlign: 'left', flex: 1, minWidth: 130, padding: '14px 16px', borderRadius: 0, cursor: 'pointer',
+        style={{ textAlign: 'left', flex: 1, minWidth: mobile ? 104 : 130, padding: mobile ? '10px 12px' : '14px 16px', borderRadius: 0, cursor: 'pointer',
           border: `1px solid ${ativo ? cor : 'var(--portal-border)'}`, background: ativo ? `${cor}14` : 'var(--portal-bg-card)' }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{rot}</div>
-        <div style={{ fontSize: 26, fontWeight: 800, color: cor, marginTop: 4 }}>{n}</div>
+        <div style={{ fontSize: mobile ? 22 : 26, fontWeight: 800, color: cor, marginTop: 4 }}>{n}</div>
       </button>
     );
   };
@@ -77,7 +80,7 @@ export default function FrotaChecklistsPage() {
         }
       />
 
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
+      <div className="m-rolar-x" style={{ display: 'flex', gap: mobile ? 8 : 10, flexWrap: 'wrap', marginBottom: 18 }}>
         {card('total', 'Total', '#334155')}
         {card('pendente', 'Não fizeram', ST.pendente.cor)}
         {card('suspeito', 'Suspeitos', ST.suspeito.cor)}
@@ -98,6 +101,34 @@ export default function FrotaChecklistsPage() {
       ) : itens.length === 0 ? (
         <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text)', fontSize: 14 }}>
           {data && data.resumo.total === 0 ? 'Nenhum técnico com veículo atribuído (cadastro feito no NT Mecânico).' : 'Nada neste filtro.'}
+        </div>
+      ) : mobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {itens.map((it, i) => {
+            const st = ST[it.status];
+            const abre = it.origem === 'nao_vinculado' && it.placa_key;
+            return (
+              <div key={i} role={abre ? 'button' : undefined}
+                onClick={abre ? () => router.push(`/frota/checklist/${encodeURIComponent(it.placa_key)}`) : undefined}
+                style={{ display: 'flex', flexDirection: 'column', gap: 5, padding: '12px 14px', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderLeft: `4px solid ${st.cor}`, cursor: abre ? 'pointer' : 'default' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <strong style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{it.placa}</strong>
+                  <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: st.bg, color: st.cor, marginLeft: 'auto' }}>{st.label}</span>
+                  {abre ? <ChevronRight size={16} color="var(--portal-text-muted)" /> : null}
+                </span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  {it.tecnico_nome}
+                  {it.origem === 'nao_vinculado' && <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 6px', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', textTransform: 'uppercase' }}>sem resp.</span>}
+                </span>
+                {it.descricao && <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)' }}>{it.descricao}</span>}
+                <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>
+                  Score <strong style={{ color: it.score != null && it.score < 50 ? '#b91c1c' : 'var(--portal-text)' }}>{it.score != null ? `${it.score}%` : '—'}</strong>
+                  {' · '}{it.km != null ? `${it.km.toLocaleString('pt-BR')} km` : 'sem km'}
+                  {' · '}concluído {fmtDataHora(it.fim_em)}
+                </span>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <div style={{ border: '1px solid var(--portal-border)', borderRadius: 0, overflowX: 'auto', background: 'var(--portal-bg-card)' }}>

@@ -114,9 +114,9 @@ export default function PreventivasPage() {
               tom={d.semPlano.length + r.sem_historico ? 'atencao' : 'bom'} onClick={() => setFiltro(d.semPlano.length ? 'sem_plano' : 'sem_historico')} />
           </KpisFrota>
 
-          <div role="group" aria-label="Filtrar" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+          <div role="group" aria-label="Filtrar" className="m-rolar-x" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
             {chips.map(([k, rot]) => (
-              <button key={k} type="button" onClick={() => setFiltro(k)} aria-pressed={filtro === k}
+              <button key={k} type="button" onClick={() => setFiltro(k)} aria-pressed={filtro === k} className="frota-touch"
                 style={{ padding: '6px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', borderRadius: 999,
                   border: `1px solid ${filtro === k ? AZUL_FROTA : 'var(--portal-border)'}`,
                   background: filtro === k ? AZUL_FROTA : 'var(--portal-bg-card)', color: filtro === k ? '#fff' : 'var(--portal-text)' }}>
@@ -154,7 +154,7 @@ export default function PreventivasPage() {
                     {[...v.itens].sort((a, b) => PESO[b.situacao.estado] - PESO[a.situacao.estado]).map((i) => {
                       const c = ESTADO_COR[i.situacao.estado];
                       return (
-                        <button key={i.plano.id} type="button" onClick={() => setAberto({ v, item: i })}
+                        <button key={i.plano.id} type="button" onClick={() => setAberto({ v, item: i })} className="frota-touch"
                           title={`${ESTADO_LABEL[i.situacao.estado]}${i.ultimo ? ` · feito em ${fmtData(i.ultimo.data)}` : ''}`}
                           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 10px', border: `1px solid ${c.forte}`, background: c.bg, color: c.cor, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
                           <span style={{ width: 8, height: 8, borderRadius: '50%', background: c.forte }} />
@@ -215,11 +215,11 @@ function RegistrarServico({ veiculo, item, podeRegistrar, onClose, onSalvo }: {
 
   return (
     <div role="dialog" aria-modal="true" aria-label={`Preventiva ${p.nome}`} onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: 'fixed', inset: 0, zIndex: 10500, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      className="m-folha-fundo" style={{ position: 'fixed', inset: 0, zIndex: 10500, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div className="m-folha" style={{ width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', padding: 18, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <strong style={{ flex: 1, fontSize: 16, color: 'var(--portal-text)' }}>{formatarPlaca(veiculo.placa)} · {p.nome}</strong>
-          <button type="button" onClick={onClose} aria-label="Fechar" style={{ width: 36, height: 36, border: 'none', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', cursor: 'pointer' }}><X size={16} /></button>
+          <button type="button" onClick={onClose} aria-label="Fechar" className="m-toque" style={{ width: 36, height: 36, border: 'none', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', cursor: 'pointer' }}><X size={16} /></button>
         </div>
         <div style={{ fontSize: 13.5, color: 'var(--portal-text)', display: 'grid', gap: 4 }}>
           <span><strong>Situação:</strong> <span style={{ color: ESTADO_COR[item.situacao.estado].cor }}>{ESTADO_LABEL[item.situacao.estado]}</span> — {item.situacao.texto}</span>

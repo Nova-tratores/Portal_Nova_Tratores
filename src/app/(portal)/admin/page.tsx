@@ -484,6 +484,30 @@ export default function AdminPage() {
         @media (max-width: 768px) {
           .adm-root { padding: 16px 12px !important; }
           .adm-root h2 { font-size: 22px !important; }
+          /* Celular: topo enxuto, números em 2 colunas, busca de largura cheia */
+          .adm-topo { margin-bottom: 18px !important; }
+          .adm-topo p { font-size: 13px !important; }
+          .adm-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 10px !important; margin-bottom: 18px !important; }
+          .adm-stats > div { padding: 12px !important; }
+          .adm-stats > div > div > div:first-child { width: 34px !important; height: 34px !important; }
+          .adm-stats p:first-child { letter-spacing: .3px !important; font-size: 10.5px !important; }
+          .adm-busca { gap: 10px !important; margin-bottom: 14px !important; }
+          .adm-busca > div { width: 100% !important; }
+          .adm-busca > button { width: 100%; justify-content: center; min-height: 44px; }
+          /* Tabela de usuários vira um cartão por pessoa (sem rolar de lado) */
+          .adm-tabela-min { min-width: 0 !important; }
+          .adm-th { display: none !important; }
+          .adm-linha { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 12px 10px !important; padding: 14px 12px !important; align-items: end !important; }
+          .adm-linha > :first-child { grid-column: 1 / -1; }
+          .adm-linha > .adm-cel { display: flex !important; flex-direction: column !important; align-items: stretch !important; gap: 4px !important; text-align: left !important; }
+          .adm-linha > .adm-cel::before { content: attr(data-rotulo); font-size: 11px; font-weight: 700; letter-spacing: .4px; color: var(--portal-text-muted, #999); text-transform: uppercase; }
+          .adm-linha select { width: 100% !important; min-height: 40px; font-size: 14px !important; }
+          .adm-linha .adm-todos button { margin: 0 !important; width: 100% !important; height: 40px !important; }
+          .adm-linha > .adm-acoes { grid-column: 1 / -1; flex-direction: row !important; flex-wrap: wrap; gap: 8px !important; }
+          .adm-linha > .adm-acoes::before { flex: 1 1 100%; }
+          .adm-linha > .adm-acoes button { flex: 1 1 0; min-height: 40px; font-size: 12.5px !important; }
+          .adm-exp { padding: 2px 12px 16px !important; }
+          .adm-linha > :first-child > button { min-width: 36px; min-height: 36px; justify-content: center; align-items: center; }
         }
       `}</style>
       {avisoOrfas && (
@@ -505,7 +529,7 @@ export default function AdminPage() {
         </div>
       )}
       {/* Header */}
-      <div style={{ marginBottom: '40px' }}>
+      <div className="adm-topo" style={{ marginBottom: '40px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
           <div style={{
             width: '48px', height: '48px', borderRadius: '14px', flexShrink: 0,
@@ -526,7 +550,7 @@ export default function AdminPage() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '16px', marginBottom: '32px' }}>
+      <div className="adm-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '16px', marginBottom: '32px' }}>
         {[
           { label: 'TOTAL USUÁRIOS', value: usuarios.length, icon: <Users size={20} /> },
           { label: 'ADMINISTRADORES', value: Object.values(permissoes).filter(p => p.is_admin).length, icon: <Shield size={20} /> },
@@ -555,7 +579,7 @@ export default function AdminPage() {
       </div>
 
       {/* Search + Novo Usuário */}
-      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+      <div className="adm-busca" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
         <div style={{ position: 'relative', width: '360px', maxWidth: '100%' }}>
           <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#a3a3a3' }} />
           <input
@@ -757,9 +781,9 @@ export default function AdminPage() {
         boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
       }}>
         {/* Largura mínima das colunas: em tela estreita a tabela rola DENTRO da caixa */}
-        <div style={{ minWidth: 968 }}>
+        <div className="adm-tabela-min" style={{ minWidth: 968 }}>
         {/* Table Header */}
-        <div style={{
+        <div className="adm-th" style={{
           display: 'grid', gridTemplateColumns: 'minmax(240px,1fr) 120px 150px 200px 80px 130px',
           padding: '16px 24px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)',
           fontSize: '11px', fontWeight: '700', color: '#a3a3a3', letterSpacing: '1px'
@@ -791,7 +815,7 @@ export default function AdminPage() {
                 background: perm?.is_admin ? '#fffbeb' : (expandido ? 'var(--portal-bg-secondary)' : 'var(--portal-bg-card)')
               }}
             >
-            <div style={{
+            <div className="adm-linha" style={{
               display: 'grid', gridTemplateColumns: 'minmax(240px,1fr) 120px 150px 200px 80px 130px',
               padding: '16px 24px', alignItems: 'center'
             }}>
@@ -844,6 +868,7 @@ export default function AdminPage() {
                     ? { bg: '#fef3c7', fg: '#d97706', bd: '#fde68a' }
                     : { bg: '#fff', fg: '#737373', bd: '#e5e5e5' }
                 return (
+                  <div className="adm-cel" data-rotulo="Nível">
                   <select
                     value={nivelAtual}
                     onChange={(e) => { if (!bloqueado) setNivel(user.id, e.target.value) }}
@@ -860,11 +885,12 @@ export default function AdminPage() {
                     <option value="admin" style={{ background: '#fff', color: '#111' }}>Admin</option>
                     {(isDev || perm?.is_dev) && <option value="dev" style={{ background: '#fff', color: '#111' }}>Dev</option>}
                   </select>
+                  </div>
                 )
               })()}
 
               {/* Categoria */}
-              <div>
+              <div className="adm-cel" data-rotulo="Categoria">
                 <select
                   value={perm?.categoria || ''}
                   onChange={(e) => setCategoria(user.id, e.target.value)}
@@ -883,7 +909,7 @@ export default function AdminPage() {
               </div>
 
               {/* App Mecânicos */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <div className="adm-cel" data-rotulo="App Mecânicos" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <select
                   value={perm?.mecanico_role || ''}
                   onChange={(e) => setMecanicoRole(user.id, e.target.value)}
@@ -912,7 +938,7 @@ export default function AdminPage() {
               </div>
 
               {/* Toggle All */}
-              <div style={{ textAlign: 'center' }}>
+              <div className="adm-cel adm-todos" data-rotulo="Todos os módulos" style={{ textAlign: 'center' }}>
                 <button
                   onClick={() => toggleTodos(user.id)}
                   style={{
@@ -928,7 +954,7 @@ export default function AdminPage() {
               </div>
 
               {/* Ações */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
+              <div className="adm-cel adm-acoes" data-rotulo="Ações" style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
                 <button
                   onClick={() => {
                     if (!user.email) { alert('Usuário sem email cadastrado'); return }
@@ -978,7 +1004,7 @@ export default function AdminPage() {
             </div>
 
             {expandido && (
-              <div style={{ padding: '2px 24px 18px 56px' }}>
+              <div className="adm-exp" style={{ padding: '2px 24px 18px 56px' }}>
                 {perm?.is_admin && (
                   <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '8px 12px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <Shield size={13} /> {perm?.is_dev ? 'Dev' : 'Admin'} já tem acesso a tudo — as marcações abaixo só valem se virar Usuário.

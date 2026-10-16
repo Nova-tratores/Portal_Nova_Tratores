@@ -16,6 +16,7 @@ import {
   Eye, Search, RefreshCw, AlertCircle, Clock, Trash2, Wallet, Link2
 } from 'lucide-react'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
+import SeletorColunasMobile from '@/components/financeiro/SeletorColunasMobile'
 import ConfirmarFaseModal from '@/components/ConfirmarFaseModal'
 import { anotarGrupos, ehFilhoDeGrupo, sincronizarFilhosComPai, nfsLabel } from '@/lib/financeiro/grupo'
 import AgruparCardsModal from '@/components/financeiro/AgruparCardsModal'
@@ -425,6 +426,8 @@ export default function Kanban() {
       <div className="fin-k-count" style={{ padding: '0 50px', marginBottom: '4px', fontSize: '14px', color: 'var(--portal-text-muted)' }}>{chamadosFiltrados.length} resultado{chamadosFiltrados.length !== 1 ? 's' : ''}</div>
     )}
     {/* Uma rolagem só: o board inteiro desce junto (as colunas não rolam individualmente) */}
+    {/* Celular: pílulas para pular entre as colunas (o board rola de lado, uma coluna por tela) */}
+    <SeletorColunasMobile alvoSel=".fin-k-board" itemSel=".fin-k-col" style={{ padding: '0 12px' }} colunas={colunas.map(col => ({ rotulo: col.titulo.charAt(0) + col.titulo.slice(1).toLowerCase(), qtd: chamadosFiltrados.filter(c => col.id === 'gerar_boleto' ? (c.status === 'gerar_boleto' || c.status === 'validar_pix') : c.status === col.id).length }))} />
     {(
     <div className="fin-k-board" style={{ flex: 1, display: 'flex', alignItems: 'flex-start', gap: '0', overflowX: 'auto', overflowY: 'auto', padding: '0 clamp(10px, 4vw, 50px) 40px', boxSizing: 'border-box', minWidth: 0 }}>
      {colunas.map(col => {
@@ -966,6 +969,11 @@ const FIN_K_CSS = `
   .fin-k-actions > * { min-width: 220px; }
 }
 @media (max-width: 768px) {
+  /* rótulos de 9–10.5px nos cards e na janela ficavam ilegíveis no celular: mínimo 11px */
+  .fin-k-board [style*="font-size: 9"], .fin-k-board [style*="font-size: 10"],
+  .fin-k-results [style*="font-size: 9"], .fin-k-results [style*="font-size: 10"],
+  .fin-k-overlay [style*="font-size: 9"], .fin-k-overlay [style*="font-size: 10"] { font-size: 11px !important; }
+  .fin-col-title button { min-height: 36px; padding-left: 14px !important; padding-right: 14px !important; }
   .fin-k-header { padding: 12px 12px 10px !important; }
   .fin-k-toolbar { gap: 10px !important; }
   .fin-k-search { flex: 1 1 100% !important; min-width: 0; max-width: 100% !important; }
@@ -975,11 +983,16 @@ const FIN_K_CSS = `
   .fin-k-results { padding: 0 12px 20px !important; }
   .fin-k-board { scroll-snap-type: x mandatory; padding: 0 12px 24px !important; gap: 10px !important; }
   .fin-k-col { flex: 0 0 85% !important; width: 85% !important; min-width: 0; max-width: 400px; padding: 0 8px !important; box-sizing: border-box; }
-  .fin-k-overlay { padding: 12px; box-sizing: border-box; }
-  .fin-k-modal { width: 100% !important; max-width: 100% !important; max-height: 92vh !important; border-radius: 18px !important; }
-  .fin-k-modal-top { padding: 10px 12px !important; flex-wrap: wrap; gap: 8px; }
-  .fin-k-modal-top .btn-back { padding: 10px 14px; font-size: 12px; }
-  .fin-k-modal-top > div { flex-wrap: wrap; }
+  /* Celular: a janela do card vira TELA CHEIA (antes sobrava moldura de 12px e o topo ocupava 2 linhas) */
+  .fin-k-overlay { padding: 0 !important; align-items: stretch !important; box-sizing: border-box; }
+  .fin-k-modal { width: 100% !important; max-width: 100% !important; height: 100dvh; max-height: 100dvh !important; border-radius: 0 !important; border: none !important; }
+  /* "Voltar ao painel" faz o mesmo que "Fechar": no celular fica só o Fechar, numa linha */
+  .fin-k-modal-top { padding: 8px 12px !important; justify-content: flex-end !important; }
+  .fin-k-modal-top > button:first-child { display: none !important; }
+  .fin-k-modal-top > div { gap: 12px !important; }
+  .fin-k-modal-top > div > button { min-height: 44px; padding: 0 16px !important; }
+  /* campos "invisíveis" (sem borda) da janela: altura de dedo */
+  .fin-k-overlay input.fin-k-title, .fin-k-fields input, .fin-k-fields select { min-height: 40px; }
   .fin-k-modal-body { padding: 14px 14px 24px !important; }
   .fin-k-title { font-size: 22px !important; margin: 10px 0 18px !important; letter-spacing: -0.5px !important; }
   .fin-k-fields { flex-wrap: wrap; gap: 12px !important; margin-bottom: 24px !important; }

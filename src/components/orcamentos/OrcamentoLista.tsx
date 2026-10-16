@@ -350,23 +350,23 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
                   <span style={{ fontWeight: 800, color: '#EA580C', fontSize: 15 }}>{item.numero}</span>
                   <span style={{ fontWeight: 800, fontSize: 15, color: '#1a1a1a' }}>R$ {fmt(item.total)}</span>
                 </div>
-                <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.cliente_nome}</div>
+                <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', marginTop: 6, overflowWrap: 'anywhere', lineHeight: 1.3 }}>{item.cliente_nome}</div>
                 <div style={{ fontSize: 12.5, color: '#737373', marginTop: 2 }}>{item.cliente_cidade || '—'} · {new Date(item.created_at).toLocaleDateString('pt-BR')}{item.criado_por ? ` · ${item.criado_por}` : ''}</div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, flexWrap: 'wrap' }} onClick={e => e.stopPropagation()}>
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, background: '#f5f5f5', padding: '4px 10px', borderRadius: 6, fontWeight: 600, color: '#525252' }}>
                     {tipoIcon(item.tipo)} {tipoLabel[item.tipo] || item.tipo}
                   </span>
                   <select value={item.status} onChange={e => alterarStatus(item.id, e.target.value)} disabled={!podeStatus}
-                    style={{ fontSize: 12, fontWeight: 700, padding: '5px 8px', borderRadius: 6, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`, cursor: podeStatus ? 'pointer' : 'default', outline: 'none', fontFamily: "'Poppins', sans-serif", appearance: 'auto' }}>
+                    style={{ fontSize: 12, fontWeight: 700, padding: '5px 8px', minHeight: 40, borderRadius: 6, background: sc.bg, color: sc.color, border: `1px solid ${sc.border}`, cursor: podeStatus ? 'pointer' : 'default', outline: 'none', fontFamily: "'Poppins', sans-serif", appearance: 'auto' }}>
                     <option value="ativo">Ativo</option>
                     <option value="aprovado">Aprovado</option>
                     <option value="rejeitado">Rejeitado</option>
                     <option value="expirado">Expirado</option>
                   </select>
-                  <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-                    <button onClick={() => { setTecnicoGerar(''); setGerarModal({ id: item.id, tipoOrc: item.tipo }) }} disabled={!podeGerar} title="Gerar OS/PPV" style={{ ...actionBtn, padding: 8, ...estiloSemPermissao(podeGerar) }}><Send size={16} color="#EA580C" /></button>
-                    <button onClick={() => verPDF(item.id)} title="Imprimir" style={{ ...actionBtn, padding: 8 }}><Printer size={16} color="#737373" /></button>
-                    <button onClick={() => excluir(item.id)} {...gateBtn(podeExcluir)} title="Excluir" style={{ ...actionBtn, padding: 8, ...estiloSemPermissao(podeExcluir) }}><Trash2 size={16} color="#F97316" /></button>
+                  <div style={{ display: 'flex', gap: 8, marginLeft: 'auto' }}>
+                    <button onClick={() => { setTecnicoGerar(''); setGerarModal({ id: item.id, tipoOrc: item.tipo }) }} disabled={!podeGerar} title="Gerar OS/PPV" aria-label="Gerar OS/PPV" style={{ ...actionBtn, padding: 0, width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', ...estiloSemPermissao(podeGerar) }}><Send size={16} color="#EA580C" /></button>
+                    <button onClick={() => verPDF(item.id)} title="Imprimir" aria-label="Imprimir" style={{ ...actionBtn, padding: 0, width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><Printer size={16} color="#737373" /></button>
+                    <button onClick={() => excluir(item.id)} {...gateBtn(podeExcluir)} title="Excluir" aria-label="Excluir" style={{ ...actionBtn, padding: 0, width: 40, height: 40, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', ...estiloSemPermissao(podeExcluir) }}><Trash2 size={16} color="#F97316" /></button>
                   </div>
                 </div>
               </div>

@@ -214,7 +214,7 @@ function TarefasPageInner() {
     <div style={{ fontFamily: 'Montserrat, sans-serif', color: '#1a1a1a' }}>
       {/* Header */}
       <div className="ct-tf-head" style={{
-        position: 'sticky', top: '84px', zIndex: 30,
+        position: 'sticky', top: 'var(--portal-header-h)', zIndex: 30,
         background: '#fff', borderBottom: '1px solid #f0f0f0',
         padding: '16px 32px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',

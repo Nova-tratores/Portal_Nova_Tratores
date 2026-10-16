@@ -145,6 +145,18 @@ export default function HomeDreFinanceiro() {
 
   return (
     <>
+      {/* Celular: os 6 KPIs viram uma grade 2x3 compacta (no PC nada muda) */}
+      <style>{`
+        @media (max-width: 768px) {
+          #home-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 20px; }
+          #home-kpis > a { padding: 12px; border-radius: 12px; display: flex; flex-direction: column; }
+          #home-kpis > a > div:nth-child(1) { font-size: 11px; line-height: 1.25; }
+          #home-kpis > a > div:nth-child(2) { font-size: 22px; line-height: 1.15; margin-top: 6px; }
+          #home-kpis > a > div:nth-child(2) > span { font-size: 17px; }
+          #home-kpis > a > div:nth-child(3) { font-size: 12px; line-height: 1.35; margin-top: 6px; flex: 1; }
+          #home-kpis > a > div:nth-child(4) { font-size: 12px; margin-top: 8px; }
+        }
+      `}</style>
       <div className="flex items-baseline justify-between mb-5 flex-wrap gap-2">
         <div>
           <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-800">Resumo Executivo</h1>
@@ -169,7 +181,7 @@ export default function HomeDreFinanceiro() {
             {saude.indice && <StatusResumo indice={saude.indice} />}
             <span className="text-sm text-slate-400">semaforo de deterioracao · caixa primeiro · tendencia dos ult. 3 meses</span>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 max-md:grid-cols-2 max-md:gap-2 max-md:[&>a]:p-3 max-md:[&_.text-3xl]:text-2xl">
             {saude.sinais.filter(s => podeVerTela(s.href)).map(s => (
               <TileSemaforo key={s.chave} sinal={s} />
             ))}

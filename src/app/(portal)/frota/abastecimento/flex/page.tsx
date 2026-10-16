@@ -126,7 +126,7 @@ export default function FlexPage() {
                 key={p.meses}
                 type="button"
                 onClick={() => setMeses(p.meses)}
-                className={`px-3 py-1 text-xs font-semibold ${i > 0 ? 'border-l border-blue-800' : ''} ${
+                className={`frota-touch px-3 py-1 text-xs font-semibold ${i > 0 ? 'border-l border-blue-800' : ''} ${
                   meses === p.meses ? 'bg-blue-800 text-white' : 'bg-white text-blue-800 hover:bg-blue-50'
                 }`}
               >
@@ -167,7 +167,7 @@ export default function FlexPage() {
           Nenhum veículo abasteceu com os dois combustíveis no período.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <div className="m-tabela m-tabela-fixa frota-flex-tab overflow-x-auto rounded-lg border border-gray-200 bg-white">
           <table className="w-full text-xs">
             <thead>
               <tr className="bg-gray-50 text-[10px] uppercase text-gray-500">

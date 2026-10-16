@@ -6,12 +6,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import NavMobile from '@/components/estoque/NavMobile';
 import { PAGINAS_AJUSTES, DEPARTAMENTOS } from './paginas';
 
 export default function AjustesNav() {
   const { userProfile } = useAuth();
   const { pode, loading } = usePermissoes(userProfile?.id);
   const pathname = usePathname();
+  const isMobile = useIsMobile();
 
   if (loading) return null;
   const visiveis = PAGINAS_AJUSTES.filter((p) => pode('ajustes', p.key.slice('ajustes:'.length)));
@@ -21,6 +24,18 @@ export default function AjustesNav() {
   const blocos = DEPARTAMENTOS
     .map((dep) => ({ dep, itens: visiveis.filter((p) => p.departamento === dep.key) }))
     .filter((b) => b.itens.length > 0);
+
+  // Celular: uma barra só ("Ajustes · página atual ▾") que abre a lista numa folha.
+  if (isMobile) {
+    return (
+      <NavMobile
+        modulo="Ajustes"
+        icone="🛠️"
+        pathname={pathname}
+        grupos={blocos.map(({ dep, itens }) => ({ ...dep, itens }))}
+      />
+    );
+  }
 
   const linkBase: React.CSSProperties = {
     padding: '4px 10px',

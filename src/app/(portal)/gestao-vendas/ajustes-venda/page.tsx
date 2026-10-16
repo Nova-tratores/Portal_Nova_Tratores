@@ -30,6 +30,7 @@ import {
 import { nomeEmpresaGV, type Vendedor, type VendaEnriquecida } from '@/lib/gestao-vendas/tipos'
 import { ErroCard, MultiSelectFiltro } from '../componentes'
 import CarimboVendedores from '@/components/gestao-vendas/CarimboVendedores'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 type Edits = {
   vendedor?: string | null
@@ -197,6 +198,7 @@ export default function GvAjustesPage() {
   const [fCliente, setFCliente] = useState('')
   const [fVendedor, setFVendedor] = useState('') // '' = todos · SEM_VENDEDOR · nome
   const [fStatus, setFStatus] = useState('') // '' = todos · ajustado · pendente · sem
+  const isMobile = useIsMobile()
 
   const filtradas = useMemo(() => {
     const inclui = (v: string, alvo: string) => alvo.toLowerCase().includes(v.trim().toLowerCase())
@@ -365,6 +367,59 @@ export default function GvAjustesPage() {
           <p className="px-4 py-3 text-sm text-gray-500">Carregando…</p>
         ) : linhas.length === 0 ? (
           <p className="px-4 py-3 text-sm text-gray-500">Sem vendas para essa empresa/competência.</p>
+        ) : isMobile ? (
+          // Celular: um cartão por venda com os mesmos campos editáveis (salvam ao sair do campo)
+          <div>
+            <details className="border-b border-gray-100 px-3 py-2">
+              <summary className="flex cursor-pointer items-center justify-between text-sm font-semibold text-gray-700" style={{ minHeight: 40 }}>
+                <span>Filtros e ordem{filtroColunaAtivo ? ' · ativos' : ''}</span>
+                <span className="text-xs text-gray-500">{ordenadas.length} venda(s)</span>
+              </summary>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <input value={fPedido} onChange={(e) => setFPedido(e.target.value)} placeholder="Pedido" aria-label="Filtrar pedido" className="rounded border border-gray-300 px-2 py-2 text-sm" />
+                <input value={fProduto} onChange={(e) => setFProduto(e.target.value)} placeholder="Produto" aria-label="Filtrar produto" className="rounded border border-gray-300 px-2 py-2 text-sm" />
+                <input value={fCliente} onChange={(e) => setFCliente(e.target.value)} placeholder="Cliente" aria-label="Filtrar cliente" className="col-span-2 rounded border border-gray-300 px-2 py-2 text-sm" />
+                <select value={fVendedor} onChange={(e) => setFVendedor(e.target.value)} aria-label="Filtrar vendedor" className="rounded border border-gray-300 bg-white px-2 py-2 text-sm">
+                  <option value="">Vendedor: todos</option>
+                  <option value={SEM_VENDEDOR}>{SEM_VENDEDOR}</option>
+                  {vendedores.map((v) => <option key={v.id} value={v.nome}>{v.nome}</option>)}
+                </select>
+                <select value={fStatus} onChange={(e) => setFStatus(e.target.value)} aria-label="Filtrar status" className="rounded border border-gray-300 bg-white px-2 py-2 text-sm">
+                  <option value="">Status: todos</option>
+                  <option value="ajustado">ajustado</option>
+                  <option value="pendente">pendente</option>
+                  <option value="sem">sem</option>
+                </select>
+                <select value={`${sort.col}:${sort.dir}`} onChange={(e) => { const [col, dir] = e.target.value.split(':'); setSort({ col: col as ColKey, dir: dir as 'asc' | 'desc' }) }} aria-label="Ordenar" className="col-span-2 rounded border border-gray-300 bg-white px-2 py-2 text-sm">
+                  {COLUNAS.flatMap((c) => [
+                    <option key={`${c.key}:desc`} value={`${c.key}:desc`}>Ordenar: {c.rotulo} {c.numerica ? '(maior → menor)' : '(Z → A)'}</option>,
+                    <option key={`${c.key}:asc`} value={`${c.key}:asc`}>Ordenar: {c.rotulo} {c.numerica ? '(menor → maior)' : '(A → Z)'}</option>,
+                  ])}
+                </select>
+                {filtroColunaAtivo && (
+                  <button type="button" onClick={() => { setFPedido(''); setFProduto(''); setFCliente(''); setFVendedor(''); setFStatus('') }}
+                    className="col-span-2 rounded border border-gray-300 text-sm text-gray-600" style={{ minHeight: 40 }}>
+                    ✕ Limpar filtros
+                  </button>
+                )}
+              </div>
+            </details>
+            <ul className="divide-y divide-gray-100">
+              {ordenadas.map((l) => (
+                <LinhaRow key={l.venda.id} linha={l} vendedores={vendedores} onSave={(e) => salvar(l, e)} cartao />
+              ))}
+            </ul>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-1 border-t-2 border-gray-300 bg-gray-50 px-3 py-3 text-xs">
+              <span className="col-span-2 text-sm font-semibold text-gray-800">Total ({ordenadas.length} vendas)</span>
+              <span>Venda: <b className="tabular-nums">{formatBRL(totais.venda)}</b></span>
+              <span>CMC: <b className="tabular-nums">{formatBRL(totais.cmc)}</b></span>
+              <span>V−C: <b className="tabular-nums">{formatBRL(totais.venda - totais.cmc)}</b></span>
+              <span>Comissão: <b className="tabular-nums">{formatBRL(totais.comm)}</b></span>
+              <span>Extra: <b className="tabular-nums">{formatBRL(totais.extra)}</b></span>
+              <span>Desc: <b className="tabular-nums">{formatBRL(totais.desc)}</b></span>
+              <span className="col-span-2">Margem loja: <b className="tabular-nums">{formatBRL(totais.mLoja)}</b></span>
+            </div>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
@@ -462,7 +517,7 @@ export default function GvAjustesPage() {
               <tfoot>
                 <tr className="border-t-2 border-gray-300 bg-gray-50 font-medium">
                   <td className="px-2 py-2" colSpan={4}>Total ({ordenadas.length} vendas)</td>
-                  <td /> {/* Faturamento */}
+                  <td />{/* Faturamento */}
                   <td className="px-2 py-2 text-right tabular-nums">{formatBRL(totais.cmc)}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{formatBRL(totais.venda)}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{formatBRL(totais.venda - totais.cmc)}</td>
@@ -471,7 +526,7 @@ export default function GvAjustesPage() {
                   <td className="px-2 py-2 text-right tabular-nums">{formatBRL(totais.desc)}</td>
                   <td />
                   <td className="px-2 py-2 text-right tabular-nums">{formatBRL(totais.comm)}</td>
-                  <td /> {/* Pgto Comissão */}
+                  <td />{/* Pgto Comissão */}
                   <td className="px-2 py-2 text-right tabular-nums">{formatBRL(totais.mLoja)}</td>
                   <td />
                 </tr>
@@ -707,10 +762,13 @@ function LinhaRow({
   linha,
   vendedores,
   onSave,
+  cartao,
 }: {
   linha: LinhaAjuste
   vendedores: Vendedor[]
   onSave: (edits: Edits) => Promise<{ ok: boolean; error?: string }>
+  /** celular: desenha como cartão (mesmos campos e mesmo salvamento) */
+  cartao?: boolean
 }) {
   const { venda, ajuste } = linha
   const clienteNome = venda.cliente_nome
@@ -775,6 +833,83 @@ function LinhaRow({
     const result = await onSave(edits)
     setSaving(false)
     if (!result.ok) setSaveError(result.error ?? 'erro')
+  }
+
+  const blurVendedor = (v: string) => { if ((ajuste?.vendedor ?? '') !== v) save({ vendedor: v || null }) }
+  const blurCmc = (v: string) => {
+    const original = ajuste?.cmc_override == null ? '' : String(ajuste.cmc_override)
+    if (original !== v) save({ cmc_override: v === '' ? null : Number(v) })
+  }
+  const blurExtras = (v: string) => { if (String(ajuste?.custos_extras ?? 0) !== v) save({ custos_extras: Number(v) || 0 }) }
+  const blurDesconto = (v: string) => { if (String(ajuste?.desconto ?? 0) !== v) save({ desconto: Number(v) || 0 }) }
+  const blurComm = (v: string) => {
+    const original = String(ajuste?.comissao_override_pct ?? ajuste?.comissao_pct ?? 0)
+    if (original !== v) save({ comissao_override_pct: v === '' ? null : Number(v) })
+  }
+  const blurPgto = (val: string) => {
+    const atual = ajuste?.data_pagamento_comissao_override ?? null
+    // vazio ou igual à data da regra → volta a usar a regra (null)
+    const novo = val === '' || val === prevComissaoCalcIso ? null : val
+    if (novo !== atual) save({ data_pagamento_comissao_override: novo })
+  }
+
+  if (cartao) {
+    const campo = 'h-10 w-full rounded-md border border-gray-300 bg-white px-2 text-right tabular-nums'
+    const rot = 'mb-0.5 block text-[11px] font-medium uppercase tracking-wide text-gray-500'
+    return (
+      <li className={`px-3 py-3 ${saving ? 'opacity-60' : ''} ${avisoMargemNegativa ? 'bg-red-50' : ''}`}>
+        <div className="flex items-start justify-between gap-3">
+          <p className="min-w-0 text-sm font-semibold text-gray-900 m-quebra-texto">{venda.descricao ?? '—'}</p>
+          <p className="shrink-0 text-sm font-bold tabular-nums text-gray-900">{formatBRL(venda.valor_total)}</p>
+        </div>
+        <p className="mt-0.5 text-[13px] text-gray-700 m-quebra-texto">{clienteNome ?? `#${venda.codigo_cliente ?? '—'}`}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+          <span>Pedido {venda.numero_pedido ?? '—'}</span>
+          <span>· Fat. {faturamento ?? '—'}</span>
+          <span className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${statusBadge}`}>{status === 'sem' ? 'sem ajuste' : status}</span>
+          {saveError && <span className="text-red-600" title={saveError}>erro ao salvar</span>}
+        </div>
+        {avisoMargemNegativa && <p className="mt-1 text-xs font-semibold text-red-600">⚠ Margem negativa com comissão &gt; 0</p>}
+        <div className="mt-2">
+          <label className={rot}>Vendedor</label>
+          <select value={vendedor} onChange={(e) => setVendedor(e.target.value)} onBlur={(e) => blurVendedor(e.target.value)} className="h-10 w-full rounded-md border border-gray-300 bg-white px-2">
+            <option value="">— escolher —</option>
+            {vendedores.map((v) => <option key={v.id} value={v.nome}>{v.codigo != null ? `${v.codigo} — ${v.nome}` : v.nome}</option>)}
+          </select>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <div>
+            <label className={rot}>CMC {cmcOverridden ? '(à mão)' : ''}</label>
+            <input type="number" inputMode="decimal" step="0.01" value={cmcOverride} onChange={(e) => setCmcOverride(e.target.value)} onBlur={(e) => blurCmc(e.target.value)}
+              placeholder={venda.cmc_unitario == null ? 'CMC' : formatBRL(cmcSnapshot)}
+              className={`${campo} ${cmcOverridden ? 'font-medium text-amber-700 ring-1 ring-amber-300' : 'text-gray-600'}`} />
+          </div>
+          <div>
+            <label className={rot}>% Comissão</label>
+            <input type="number" inputMode="decimal" step="0.01" value={commPct} onChange={(e) => setCommPct(e.target.value)} onBlur={(e) => blurComm(e.target.value)} className={campo} />
+          </div>
+          <div>
+            <label className={rot}>Custos extras</label>
+            <input type="number" inputMode="decimal" step="0.01" value={custosExtras} onChange={(e) => setCustosExtras(e.target.value)} onBlur={(e) => blurExtras(e.target.value)} className={campo} />
+          </div>
+          <div>
+            <label className={rot}>Desconto</label>
+            <input type="number" inputMode="decimal" step="0.01" value={desconto} onChange={(e) => setDesconto(e.target.value)} onBlur={(e) => blurDesconto(e.target.value)} className={campo} />
+          </div>
+          <div className="col-span-2">
+            <label className={rot}>Pagamento da comissão {(ajuste?.data_pagamento_comissao_override ?? null) != null ? '(ajustado à mão)' : '(regra: dia 20 do mês seguinte)'}</label>
+            <input type="date" value={pgtoComissao} onChange={(e) => setPgtoComissao(e.target.value)} onBlur={(e) => blurPgto(e.target.value)}
+              className={`h-10 w-full rounded-md border px-2 ${(ajuste?.data_pagamento_comissao_override ?? null) != null ? 'border-amber-300 font-medium text-amber-700 ring-1 ring-amber-300' : 'border-gray-300 text-gray-700'}`} />
+          </div>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5 rounded-md bg-gray-50 px-2 py-2 text-xs text-gray-600">
+          <span>V−C: <b className="tabular-nums text-gray-900">{formatBRL(calc.margem_bruta_valor)}</b></span>
+          <span>Margem: <b className={`tabular-nums ${corClass}`}>{formatPercent(calc.margem_bruta_pct, 0)}</b></span>
+          <span>Comissão: <b className="tabular-nums text-gray-900">{formatBRL(calc.valor_comissao)}</b></span>
+          <span>Mrg loja: <b className={`tabular-nums ${calc.margem_loja_valor < 0 ? 'text-red-600' : 'text-gray-900'}`}>{formatBRL(calc.margem_loja_valor)}</b></span>
+        </div>
+      </li>
+    )
   }
 
   return (

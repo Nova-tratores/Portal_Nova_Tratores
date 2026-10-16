@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
@@ -26,15 +27,23 @@ export default function FeedbackTabs() {
   const pathname = usePathname() ?? "";
   const { userProfile } = useAuth();
   const { pode } = usePermissoes(userProfile?.id);
+  // celular: a faixa rola de lado — leva a aba ativa para o meio (ex.: Agenda ficava escondida à direita)
+  const navRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const n = navRef.current;
+    const a = n?.querySelector<HTMLElement>("[data-ativo='1']");
+    if (n && a && n.scrollWidth > n.clientWidth) n.scrollLeft = a.offsetLeft - n.offsetLeft - (n.clientWidth - a.offsetWidth) / 2;
+  }, [pathname]);
 
   return (
-    <nav className={styles.tabBar}>
+    <nav ref={navRef} className={styles.tabBar}>
       {TABS.filter((tab) => pode("feedbacks", tab.href.slice("/feedbacks/".length))).map((tab) => {
         const ativo = pathname === tab.href || pathname.startsWith(tab.href + "/");
         return (
           <Link
             key={tab.href}
             href={tab.href}
+            data-ativo={ativo ? "1" : undefined}
             className={`${styles.tab} ${ativo ? styles.tabActive : ""}`}
             style={{ ["--fb-accent" as string]: tab.cor }}
           >

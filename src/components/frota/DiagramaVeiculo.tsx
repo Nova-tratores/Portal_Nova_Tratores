@@ -24,6 +24,7 @@
 // (fill-rule evenodd) ou traços na cor do CARD (var --portal-bg-card): no modo
 // escuro eles acompanham o fundo — um branco fixo viraria um recorte aceso.
 import { lazy, Suspense, useMemo, useState } from 'react';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { GRAVIDADE_COR, GRAVIDADE_LABEL, type ContagemGravidade, type Gravidade } from '@/lib/frota/gravidade';
 import { SISTEMAS_FORA, type TipoSilhueta } from '@/lib/frota/silhueta';
 import { FORMAS_CENAS } from '@/lib/frota/formas-cenas';
@@ -1313,6 +1314,9 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
   onAbrirHistorico?: (sistema: string) => void;
 }) {
   const s = SILHUETAS[tipo] || CARRO;
+  // celular: o desenho mantém 580px (abaixo disso os rótulos ficam ilegíveis)
+  // e rola de lado dentro do quadro — o aviso embaixo diz que dá pra arrastar
+  const mobile = useIsMobile();
   const fora = new Set(SISTEMAS_FORA[tipo] || []);
   const pontos = s.pontos.filter((p) => !fora.has(p.sistema));
 
@@ -1408,7 +1412,7 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
   };
 
   return (
-    <div style={{ width: '100%', overflowX: 'auto' }}>
+    <div style={{ width: '100%', overflowX: 'auto', overscrollBehaviorX: mobile ? 'contain' : undefined }}>
       {/* ── seletor de vistas: pula direto pra qualquer cena ── */}
       {temCenas && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '0 0 10px' }}>
@@ -1639,10 +1643,14 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
         {/* ── PAINEL DE PEÇAS: explode ao lado da região com zoom ── */}
         {zoom && pecasPorSistema && (
           <div style={{
-            position: 'absolute', top: 8, right: 8, bottom: 8, width: 'min(46%, 330px)',
+            // celular: o painel ficava à direita do desenho de 580px (fora da
+            // tela); lá ele sobe como folha de baixo, com o desenho visível em cima
+            ...(mobile
+              ? { position: 'fixed', left: 0, right: 0, bottom: 0, maxHeight: '52dvh', zIndex: 1000, borderRadius: '16px 16px 0 0', paddingBottom: 'env(safe-area-inset-bottom)' } as React.CSSProperties
+              : { position: 'absolute', top: 8, right: 8, bottom: 8, width: 'min(46%, 330px)', borderRadius: 0 } as React.CSSProperties),
             display: 'flex', flexDirection: 'column',
             background: 'var(--portal-bg-card, #fff)', border: '1.5px solid var(--portal-border, #e2e8f0)',
-            boxShadow: '0 12px 40px rgba(0,0,0,.18)', borderRadius: 0,
+            boxShadow: '0 12px 40px rgba(0,0,0,.18)',
             animation: 'diagrama-painel .45s cubic-bezier(.3,0,.2,1)',
           }} onClick={(e) => e.stopPropagation()}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: '1px solid var(--portal-border, #e2e8f0)' }}>
@@ -1657,8 +1665,8 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
                     : 'nenhuma pendência aberta'}
                 </div>
               </div>
-              <button onClick={() => setZoom(null)} title="Fechar"
-                style={{ marginLeft: 'auto', width: 26, height: 26, border: '1px solid var(--portal-border, #e2e8f0)', background: 'transparent', color: 'var(--portal-text-secondary)', cursor: 'pointer', fontSize: 14, fontWeight: 700, lineHeight: 1 }}>
+              <button onClick={() => setZoom(null)} title="Fechar" aria-label="Fechar"
+                style={{ marginLeft: 'auto', width: mobile ? 40 : 26, height: mobile ? 40 : 26, border: '1px solid var(--portal-border, #e2e8f0)', background: 'transparent', color: 'var(--portal-text-secondary)', cursor: 'pointer', fontSize: 14, fontWeight: 700, lineHeight: 1 }}>
                 ×
               </button>
             </div>
@@ -1683,7 +1691,7 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
                     <span style={{ color: cg ? cg.forte : CINZA, display: 'flex' }}>
                       <svg width="30" height="30" viewBox="-11.5 -11.5 23 23"><MiniGlifo nome={pc.rotulo} /></svg>
                     </span>
-                    <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.2, textTransform: 'uppercase', lineHeight: 1.15 }}>{pc.rotulo}</span>
+                    <span style={{ fontSize: mobile ? 11 : 9.5, fontWeight: 700, letterSpacing: 0.2, textTransform: 'uppercase', lineHeight: 1.15 }}>{pc.rotulo}</span>
                     {pc.total > 0 && (
                       <span style={{ position: 'absolute', top: 3, right: 3, minWidth: 15, height: 15, borderRadius: 999, background: cg!.forte, color: '#fff', fontSize: 9.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px' }}>
                         {pc.total}

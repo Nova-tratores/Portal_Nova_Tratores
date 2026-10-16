@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import SemPermissao from "@/components/SemPermissao";
 import { authHeaders } from "@/lib/auth/client";
 import { validarCampos, CAMPOS_FISCAIS, mostrarValor, type CamposFiscais } from "@/lib/pos/modelo-fiscal";
@@ -34,6 +35,7 @@ const fmtDoc = (d: string) => d.length === 14
 export default function ModelosFiscaisPage() {
   const { userProfile } = useAuth();
   const { pode, loading } = usePermissoes(userProfile?.id);
+  const isMobile = useIsMobile();
   const [dados, setDados] = useState<Dados | null>(null);
   const [erro, setErro] = useState("");
   const [editando, setEditando] = useState<{ id: string | null; nome: string; descricao: string; padrao: boolean; valores: ValoresTela } | null>(null);
@@ -81,8 +83,9 @@ export default function ModelosFiscaisPage() {
   };
 
   const card: React.CSSProperties = { background: "var(--surface, #fff)", border: "1px solid var(--portal-border, #e2e8f0)", borderRadius: 6, padding: 14 };
-  const btn = (cor: string): React.CSSProperties => ({ padding: "7px 12px", borderRadius: 4, border: "none", background: cor, color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer" });
-  const inp: React.CSSProperties = { padding: "7px 9px", borderRadius: 4, border: "1px solid #cbd5e1", fontSize: 13, background: "#fff", color: "#1e293b", boxSizing: "border-box" };
+  // Celular: botões e campos com alvo de toque confortável (~40px)
+  const btn = (cor: string): React.CSSProperties => ({ padding: "7px 12px", borderRadius: 4, border: "none", background: cor, color: "#fff", fontWeight: 700, fontSize: 12.5, cursor: "pointer", ...(isMobile ? { minHeight: 40, padding: "8px 14px", borderRadius: 8, fontSize: 13.5 } : {}) });
+  const inp: React.CSSProperties = { padding: "7px 9px", borderRadius: 4, border: "1px solid #cbd5e1", fontSize: 13, background: "#fff", color: "#1e293b", boxSizing: "border-box", ...(isMobile ? { minHeight: 42, borderRadius: 8 } : {}) };
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "18px 16px 60px", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -172,9 +175,9 @@ export default function ModelosFiscaisPage() {
         <div style={{ fontWeight: 800, marginBottom: 4 }}>Modelo de cada cliente</div>
         <div style={{ fontSize: 12.5, color: "#64748b", marginBottom: 10 }}>Também dá para vincular direto na janela de faturar (&quot;Usar sempre este modelo para este cliente&quot;).</div>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-          <input style={{ ...inp, width: 190 }} placeholder="CNPJ/CPF" value={novoVinc.documento} onChange={(e) => setNovoVinc({ ...novoVinc, documento: e.target.value })} />
+          <input style={{ ...inp, width: isMobile ? "100%" : 190 }} placeholder="CNPJ/CPF" value={novoVinc.documento} onChange={(e) => setNovoVinc({ ...novoVinc, documento: e.target.value })} />
           <input style={{ ...inp, flex: "1 1 220px" }} placeholder="Nome do cliente (opcional)" value={novoVinc.clienteNome} onChange={(e) => setNovoVinc({ ...novoVinc, clienteNome: e.target.value })} />
-          <select style={inp} value={novoVinc.modeloId} onChange={(e) => setNovoVinc({ ...novoVinc, modeloId: e.target.value })}>
+          <select style={isMobile ? { ...inp, flex: "1 1 auto", minWidth: 0 } : inp} value={novoVinc.modeloId} onChange={(e) => setNovoVinc({ ...novoVinc, modeloId: e.target.value })}>
             <option value="">Modelo…</option>
             {(dados?.modelos || []).map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
           </select>
@@ -183,7 +186,24 @@ export default function ModelosFiscaisPage() {
             Vincular
           </button>
         </div>
-        {!dados?.vinculos.length ? <div style={{ fontSize: 13, color: "#64748b" }}>Nenhum cliente com modelo próprio — todos usam o padrão.</div> : (
+        {!dados?.vinculos.length ? <div style={{ fontSize: 13, color: "#64748b" }}>Nenhum cliente com modelo próprio — todos usam o padrão.</div> : isMobile ? (
+          // Celular: um cartão por cliente (a tabela de 4 colunas não cabia)
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {dados.vinculos.map((v) => (
+              <div key={v.documento} style={{ border: "1px solid var(--portal-border, #e2e8f0)", borderRadius: 10, padding: 12 }}>
+                <div className="m-quebra-texto" style={{ fontWeight: 700, fontSize: 14 }}>{v.clienteNome || "—"}</div>
+                <div style={{ fontSize: 12.5, color: "var(--portal-text-secondary, #64748b)", marginTop: 2 }}>{fmtDoc(v.documento)}</div>
+                <div style={{ display: "flex", gap: 8, marginTop: 10, alignItems: "center" }}>
+                  <select aria-label="Modelo do cliente" style={{ ...inp, flex: 1, minWidth: 0 }} value={v.modeloId} onChange={(e) => vincular(v.documento, e.target.value, v.clienteNome)}>
+                    {(dados.modelos || []).map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                    {!dados.modelos.some((m) => m.id === v.modeloId) && <option value={v.modeloId}>{nomeModelo(v.modeloId)}</option>}
+                  </select>
+                  <button style={{ ...btn("#f1f5f9"), color: "#b91c1c" }} onClick={() => { if (confirm("Tirar o modelo deste cliente? Ele volta a usar o padrão.")) void vincular(v.documento, null, null); }}>Tirar</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
             <thead><tr style={{ textAlign: "left", color: "#64748b" }}><th style={{ padding: 6 }}>Cliente</th><th style={{ padding: 6 }}>CNPJ/CPF</th><th style={{ padding: 6 }}>Modelo</th><th /></tr></thead>
             <tbody>

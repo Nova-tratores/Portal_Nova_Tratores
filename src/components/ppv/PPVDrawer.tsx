@@ -974,12 +974,72 @@ export default function PPVDrawer({
               .ppv-x-drawer .ppv-g-vendedor { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
               .ppv-x-drawer .ppv-g-empilha { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important; }
             }
+            /* ===== CELULAR (≤768px) =====
+               A coluna de ações (232px, com os blocos Omie/portal) não cabe ao lado
+               nem como barrinha embaixo: a janela inteira passa a rolar como UMA
+               página — pedido em cima, blocos Omie/portal e ações embaixo, em
+               largura toda. "Salvar" fica preso no rodapé da tela. */
+            @media (max-width: 768px) {
+              .ppv-x-drawer { overflow-y: auto !important; overflow-x: hidden; -webkit-overflow-scrolling: touch; display: block !important; padding-bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+              .ppv-x-drawer > .ppv-drawer { max-height: none !important; overflow: visible !important; display: block; }
+              /* topo compacto: [nº do pedido] ........ [⚠] [X]  /  [fase em largura toda] */
+              .ppv-x-drawer .ppv-omie-topbar { padding: 8px 12px !important; gap: 8px; flex-wrap: wrap; }
+              .ppv-x-drawer .ppv-omie-topbar > div:first-child { display: contents !important; }
+              .ppv-x-drawer .ppv-omie-topbar .ppv-tit-txt { display: none; }
+              .ppv-x-drawer .ppv-omie-topbar > div:first-child > span { font-size: 15px !important; padding: 6px 10px !important; }
+              .ppv-x-drawer .ppv-omie-topbar > div:last-child { margin-left: auto; }
+              .ppv-x-drawer .ppv-omie-topbar > div:last-child > button { min-height: 44px; min-width: 44px; justify-content: center; padding: 0 12px !important; font-size: 16px !important; }
+              .ppv-x-drawer .ppv-omie-topbar > div:first-child > select { order: 2; flex: 1 1 100%; max-width: none !important; min-height: 44px; }
+              .ppv-x-drawer .ppv-drawer-body { padding: 12px !important; }
+              .ppv-x-drawer .ppv-drawer-body * { min-width: 0; }
+              .ppv-x-drawer .ppv-x-head > div { min-width: 0 !important; }
+              /* itens da venda: cada linha vira um cartão (descrição, código, valores) */
+              .ppv-x-drawer .ppv-tabela-itens { overflow: visible !important; border: none !important; }
+              .ppv-x-drawer .ppv-tabela-itens .ppv-item-linha { min-width: 0 !important; }
+              .ppv-x-drawer .ppv-tabela-itens .ppv-item-linha:first-child { display: none !important; }
+              .ppv-x-drawer .ppv-tabela-itens .ppv-item-linha:not(:first-child) {
+                grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.2fr) minmax(0, 1fr) !important; gap: 6px 8px !important; padding: 12px !important;
+                grid-template-areas: "desc desc acao" "prod prod qtd" "cmc preco total" "cat cat cat";
+                border: 1px solid var(--portal-border, #E2E8F0) !important; border-radius: 10px !important; margin-bottom: 8px;
+              }
+              .ppv-item-linha > :nth-child(1) { grid-area: prod; }
+              .ppv-item-linha > :nth-child(2) { grid-area: qtd; text-align: right !important; }
+              .ppv-item-linha > :nth-child(3) { grid-area: desc; white-space: normal !important; font-weight: 700 !important; color: var(--portal-text, #0f172a) !important; line-height: 1.3; }
+              .ppv-item-linha > :nth-child(4) { grid-area: cmc; text-align: left !important; }
+              .ppv-item-linha > :nth-child(5) { grid-area: preco; text-align: left !important; }
+              .ppv-item-linha > :nth-child(5) > span, .ppv-item-linha > :nth-child(5) > div { justify-content: flex-start !important; gap: 2px !important; }
+              .ppv-item-linha > :nth-child(4), .ppv-item-linha > :nth-child(5), .ppv-item-linha > :nth-child(6) { font-size: 13px !important; }
+              .ppv-item-linha > :nth-child(6) { grid-area: total; font-weight: 800 !important; white-space: normal !important; }
+              .ppv-item-linha > :nth-child(7) { grid-area: cat; font-size: 12px !important; color: #64748b !important; }
+              .ppv-item-linha > :nth-child(8) { grid-area: acao; }
+              .ppv-item-linha > :nth-child(4)::before, .ppv-item-linha > :nth-child(5)::before, .ppv-item-linha > :nth-child(6)::before {
+                display: block; font-size: 11px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: .3px;
+              }
+              .ppv-item-linha > :nth-child(4)::before { content: "Custo (CMC)"; }
+              .ppv-item-linha > :nth-child(5)::before { content: "Preço un."; }
+              .ppv-item-linha > :nth-child(6)::before { content: "Total"; }
+              .ppv-item-linha .ppv-btn-devolver, .ppv-item-linha button[title="Editar preço unitário"] { min-width: 40px; min-height: 40px; }
+              .ppv-item-linha button[title^="Copiar"] { min-height: 32px; font-size: 12px !important; }
+              /* coluna de ações embaixo, largura toda */
+              .ppv-x-drawer .ppv-rail-nova { width: auto !important; flex-direction: column !important; overflow: visible !important; border-top: 1px solid #E2E8F0; border-left: none !important; padding: 14px 12px 18px !important; }
+              .ppv-x-drawer .ppv-rail-nova .ppv-rail-btn { flex-direction: row; justify-content: flex-start; min-width: 0; width: 100%; text-align: left; font-size: 14px; }
+              .ppv-x-drawer .ppv-rail-nova .ppv-rail-btn.primary {
+                position: fixed; left: 12px; right: 12px; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); z-index: 30; width: auto;
+                height: 52px; justify-content: center; font-size: 16px; margin: 0;
+              }
+              .ppv-x-drawer .ppv-rail-acoes { display: grid !important; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px !important; }
+              .ppv-x-drawer .ppv-rail-acoes-titulo { grid-column: 1 / -1; font-size: 11.5px !important; }
+              .ppv-x-drawer .ppv-rail-nova .ppv-rail-acoes .ppv-rail-btn { flex-direction: column; justify-content: center; text-align: center; gap: 6px; min-height: 76px; padding: 8px 4px; font-size: 12.5px; }
+              .ppv-x-drawer .ppv-rail-nova .ppv-rail-acoes .ppv-rail-btn > span[title] { left: calc(50% + 8px) !important; top: 8px !important; }
+              .ppv-x-drawer .ppv-rail-perigo .ppv-rail-btn { min-height: 46px; }
+              .ppv-x-drawer .ppv-rail-nova button[title] { min-height: 36px; }
+            }
           `}</style>
           <div className="ppv-drawer" style={{ maxHeight: "100vh" }} onInput={() => { if (!editou) setEditou(true); }}>
             {/* ── Barra superior (estilo Omie) ── */}
             <div className="ppv-omie-topbar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 22px", borderBottom: "1px solid #E2E8F0", background: "#fff", position: "sticky", top: 0, zIndex: 12, flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flexWrap: "wrap" }}>
-                <span style={{ fontSize: 18, fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>Pedido de Venda</span>
+                <span className="ppv-tit-txt" style={{ fontSize: 18, fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>Pedido de Venda</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#c2570a", background: "#fff3e6", border: "1px solid #f5c99a", borderRadius: 6, padding: "2px 8px", whiteSpace: "nowrap" }}>#{ppvId}</span>
                 <select value={status} onChange={(e) => mudarStatusPPV(e.target.value)} disabled={!podeEditar} title="Fase do PPV"
                   style={{ fontWeight: 700, color: statusColor.text, background: statusColor.bg, width: "auto", maxWidth: 230, padding: "6px 10px", borderRadius: 8, fontSize: 13, marginBottom: 0 }}>
@@ -991,10 +1051,10 @@ export default function PPVDrawer({
                   <button onClick={() => setShowOcorrencia(true)}
                     title="Registrar ocorrência ligada a este PV (falta de informação, extravio, peça danificada…)"
                     style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#c2570a", background: "#fff3e6", border: "1px solid #f5c99a", borderRadius: 6, padding: "6px 12px", cursor: "pointer" }}>
-                    ⚠ Ocorrência
+                    ⚠<span className="ppv-tit-txt"> Ocorrência</span>
                   </button>
                 )}
-                <button onClick={fecharComSalvar} style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#475569", fontSize: 14, fontWeight: 600, cursor: "pointer" }}><i className="fas fa-times" /> Fechar</button>
+                <button onClick={fecharComSalvar} aria-label="Fechar" style={{ display: "inline-flex", alignItems: "center", gap: 7, padding: "8px 16px", borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff", color: "#475569", fontSize: 14, fontWeight: 600, cursor: "pointer" }}><i className="fas fa-times" /><span className="ppv-tit-txt"> Fechar</span></button>
               </div>
             </div>
 

@@ -1247,6 +1247,7 @@ function ClientesPageInner() {
                     value={osFiltroTipo}
                     onChange={e => setOsFiltroTipo(e.target.value)}
                     style={{
+                      ...(isMobile ? { flex: '1 1 40%', minWidth: 0 } : {}),
                       padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                       border: osFiltroTipo ? '1px solid #DC2626' : '1px solid #E5E7EB',
                       background: osFiltroTipo ? '#FEF2F2' : '#fff',
@@ -1265,6 +1266,7 @@ function ClientesPageInner() {
                       value={osFiltroTipo.startsWith('maq:') ? osFiltroTipo : ''}
                       onChange={e => setOsFiltroTipo(e.target.value)}
                       style={{
+                        ...(isMobile ? { flex: '1 1 40%', minWidth: 0 } : {}),
                         padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                         border: osFiltroTipo.startsWith('maq:') ? '1px solid #DC2626' : '1px solid #E5E7EB',
                         background: osFiltroTipo.startsWith('maq:') ? '#FEF2F2' : '#fff',
@@ -1275,12 +1277,13 @@ function ClientesPageInner() {
                       {maquinas.map(m => <option key={m} value={`maq:${m}`}>{m}</option>)}
                     </select>
                   )}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 8, border: osBuscaNF ? '1px solid #DC2626' : '1px solid #E5E7EB', background: osBuscaNF ? '#FEF2F2' : '#fff' }}>
+                  {/* celular: os dois filtros dividem a linha e a busca ocupa a linha de baixo inteira */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 8, border: osBuscaNF ? '1px solid #DC2626' : '1px solid #E5E7EB', background: osBuscaNF ? '#FEF2F2' : '#fff', ...(isMobile ? { flex: '1 1 100%' } : {}) }}>
                     <Search size={13} color={osBuscaNF ? '#DC2626' : 'var(--portal-text-muted)'} />
                     <input
                       type="text" placeholder="Buscar NF, OS..."
                       value={osBuscaNF} onChange={e => setOsBuscaNF(e.target.value)}
-                      style={{ border: 'none', outline: 'none', background: 'none', fontSize: 12, width: 130, color: 'var(--portal-text)' }}
+                      style={{ border: 'none', outline: 'none', background: 'none', fontSize: 12, width: isMobile ? '100%' : 130, minWidth: 0, color: 'var(--portal-text)' }}
                     />
                     {osBuscaNF && <X size={12} onClick={() => setOsBuscaNF('')} style={{ cursor: 'pointer', color: 'var(--portal-text-muted)' }} />}
                   </div>
@@ -1735,21 +1738,22 @@ function ClientesPageInner() {
           const pvs = (ref.tipo === 'pv' || ref.tipo === 'remessa') ? findAllPVs(os.num_pedido_cli, os.empresa) : []
 
           return (
-            <div className="cli-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            <div className="cli-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: isMobile ? 'flex-end' : 'center', justifyContent: 'center' }}
               onClick={() => setModalOS(null)}>
-              <div className="cli-modal" style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: '92%', maxWidth: 860, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }}
+              {/* celular: vira folha de baixo para cima, largura toda */}
+              <div className="cli-modal" style={{ background: 'var(--portal-bg-card)', borderRadius: isMobile ? '18px 18px 0 0' : 16, width: isMobile ? '100%' : '92%', maxWidth: isMobile ? '100%' : 860, maxHeight: isMobile ? '94dvh' : '90vh', overflow: 'auto', overscrollBehavior: 'contain', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }}
                 onClick={e => e.stopPropagation()}>
 
                 {/* Fechar — preso no topo da janela mesmo rolando o conteúdo */}
                 <div style={{ position: 'sticky', top: 0, height: 0, zIndex: 5 }}>
-                  <button onClick={() => setModalOS(null)} title="Fechar"
-                    style={{ position: 'absolute', top: 10, right: 10, width: 32, height: 32, background: 'var(--portal-bg-card)', border: '1px solid #E5E7EB', borderRadius: '50%', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', boxShadow: '0 2px 8px rgba(16,24,40,0.15)' }}>
+                  <button onClick={() => setModalOS(null)} title="Fechar" aria-label="Fechar"
+                    style={{ position: 'absolute', top: 10, right: 10, width: isMobile ? 44 : 32, height: isMobile ? 44 : 32, background: 'var(--portal-bg-card)', border: '1px solid #E5E7EB', borderRadius: '50%', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', boxShadow: '0 2px 8px rgba(16,24,40,0.15)' }}>
                     <X size={16} />
                   </button>
                 </div>
 
                 {/* Header — estilo documento (formal) */}
-                <div style={{ padding: '22px 64px 18px 28px', borderBottom: '2px solid #0F172A', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, position: 'relative' }}>
+                <div style={{ padding: isMobile ? '16px 64px 14px 16px' : '22px 64px 18px 28px', borderBottom: '2px solid #0F172A', display: 'flex', flexDirection: isMobile ? 'column-reverse' : 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: isMobile ? 10 : 16, position: 'relative' }}>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--portal-text)' }}>{cli.nome_fantasia || cli.razao_social}</div>
                     <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>{formatCNPJ(cli.cnpj_cpf)}{(os.cidade || cli.cidade) ? ` · ${os.cidade || cli.cidade}` : ''}</div>
@@ -1758,8 +1762,8 @@ function ClientesPageInner() {
                       {os.contrato && <span style={{ fontSize: 11.5, fontWeight: 600, padding: '3px 10px', borderRadius: 8, background: '#F8FAFC', border: '1px solid #E5E7EB', color: '#475569' }}>Contrato: {os.contrato}</span>}
                     </div>
                   </div>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.6, color: '#94A3B8' }}>Ordem de Serviço</div>
+                  <div style={{ textAlign: isMobile ? 'left' : 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: isMobile ? 11 : 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.6, color: '#94A3B8' }}>Ordem de Serviço</div>
                     <div style={{ fontSize: 26, fontWeight: 600, color: 'var(--portal-text)', lineHeight: 1, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{os.num_os}</div>
                     <div style={{ marginTop: 8 }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, padding: '3px 11px', borderRadius: 999, background: os.cancelada ? '#FEE2E2' : os.faturada ? '#DCFCE7' : '#FEF3C7', color: os.cancelada ? '#DC2626' : os.faturada ? '#16A34A' : '#D97706' }}>
@@ -1769,7 +1773,7 @@ function ClientesPageInner() {
                   </div>
                 </div>
 
-                <div style={{ padding: '24px 28px' }}>
+                <div style={{ padding: isMobile ? '16px 14px calc(24px + env(safe-area-inset-bottom))' : '24px 28px' }}>
                   {/* Info grid — Valor Total = serviço (OS) + peças (PVs vinculados),
                       que é o mesmo total que vai pro card do financeiro. */}
                   {(() => {
@@ -1790,11 +1794,14 @@ function ClientesPageInner() {
                       { l: os.projeto ? 'Máquina / Chassi' : 'Contrato', v: os.projeto || os.contrato || '—', c: undefined, sub: null },
                     ]
                     return (
-                      <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', marginBottom: 22, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)' }}>
+                      <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', marginBottom: 22, display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, 1fr)' }}>
                         {celulas.map((f, i) => (
-                          <div key={i} title={String(f.v)} style={{ padding: '11px 14px', borderRight: i % 3 !== 2 ? '1px solid #F1F5F9' : 'none', borderBottom: i < 6 ? '1px solid #F1F5F9' : 'none', minWidth: 0 }}>
-                            <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: '#94A3B8' }}>{f.l}</div>
-                            <div style={{ fontSize: 14, fontWeight: 600, color: f.c || 'var(--portal-text)', marginTop: 3, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.v}</div>
+                          <div key={i} title={String(f.v)} style={isMobile
+                            // celular: 2 colunas; o "Valor total" ocupa a linha toda e o texto quebra em vez de cortar
+                            ? { padding: '10px 12px', gridColumn: i === 0 ? '1 / -1' : undefined, borderRight: i > 0 && i % 2 === 1 ? '1px solid #F1F5F9' : 'none', borderBottom: '1px solid #F1F5F9', minWidth: 0 }
+                            : { padding: '11px 14px', borderRight: i % 3 !== 2 ? '1px solid #F1F5F9' : 'none', borderBottom: i < 6 ? '1px solid #F1F5F9' : 'none', minWidth: 0 }}>
+                            <div style={{ fontSize: isMobile ? 11 : 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: '#94A3B8' }}>{f.l}</div>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: f.c || 'var(--portal-text)', marginTop: 3, fontVariantNumeric: 'tabular-nums', ...(isMobile ? { overflowWrap: 'anywhere' as const } : { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const }) }}>{f.v}</div>
                             {f.sub && <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{f.sub}</div>}
                           </div>
                         ))}
@@ -3354,7 +3361,8 @@ function ClientesPageInner() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <span style={{ width: 38, height: 38, borderRadius: 11, background: emp.bg, color: emp.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, flexShrink: 0 }}>{iniciaisCli(cli)}</span>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 14.5, color: 'var(--portal-text)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cli.nome_fantasia || cli.razao_social}</div>
+                    {/* nome inteiro em até 2 linhas (antes cortava com reticências) */}
+                    <div style={{ fontSize: 14.5, color: 'var(--portal-text)', fontWeight: 700, lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflowWrap: 'anywhere' }}>{cli.nome_fantasia || cli.razao_social}</div>
                     <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 1 }}>{cli.cidade ? `${cli.cidade}/${cli.estado}` : '-'}</div>
                   </div>
                   <ChevronRight size={16} color="var(--portal-text-muted)" />

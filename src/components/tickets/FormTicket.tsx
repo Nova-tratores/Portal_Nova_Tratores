@@ -163,13 +163,13 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
   }
 
   return (
-    <div style={{
+    <div className="m-folha-fundo" style={{
       position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.45)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
     }} onMouseDown={(e) => { downNoFundo.current = e.target === e.currentTarget }}
       onClick={(e) => { if (e.target === e.currentTarget && downNoFundo.current) fecharPeloFundo() }}>
       <style>{`@media (max-width: 480px){.ct-ft-caixa{padding:16px !important}.ct-ft-quando{grid-template-columns:1fr 1fr !important}.ct-ft-quando > div:first-child{grid-column:1 / -1}}`}</style>
-      <div className="ct-ft-caixa"
+      <div className="ct-ft-caixa m-folha"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto',

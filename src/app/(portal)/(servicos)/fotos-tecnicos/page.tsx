@@ -144,9 +144,9 @@ export default function FotosTecnicosPage() {
             </div>
           ) : (
             <div className="ft-lista-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
-              {listaFiltrada.map(item => (
+              {listaFiltrada.map((item, idx) => (
                 <div
-                  key={item.os}
+                  key={`${item.os}-${idx}`}
                   onClick={() => abrirOS(item.os)}
                   style={{
                     background: osSelecionada?.os === item.os ? '#EFF6FF' : '#fff',

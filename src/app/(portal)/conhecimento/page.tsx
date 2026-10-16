@@ -69,6 +69,8 @@ function ConhecimentoPage() {
 
   return (
     <div style={{ padding: "20px 12px 0", maxWidth: "calc(1100px + 24px)", margin: "0 auto", fontFamily: "Inter, sans-serif" }}>
+      {/* Celular: filtros de módulo e de situação numa faixa que rola de lado (não empilham na tela). */}
+      <style>{`.kb-chips{display:contents}@media (max-width:768px){.kb-chips{display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;scrollbar-width:none;width:calc(100% + 24px);margin:0 -12px;padding:0 12px 2px}.kb-chips::-webkit-scrollbar{display:none}.kb-chips>button{flex-shrink:0;min-height:38px}.kb-faixa{flex-wrap:nowrap !important;overflow-x:auto;scrollbar-width:none;margin-left:-12px !important;margin-right:-12px !important;padding:0 12px;white-space:nowrap}.kb-faixa::-webkit-scrollbar{display:none}.kb-faixa>button{flex-shrink:0;min-height:36px}}`}</style>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
         <div style={{ flex: 1, minWidth: "min(240px, 100%)" }}>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "var(--portal-text)" }}>📚 Base de conhecimento</h1>
@@ -83,7 +85,7 @@ function ConhecimentoPage() {
       </div>
 
       {podeCriar && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+        <div className="kb-faixa" style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
           {([
             ["artigos", `Artigos`],
             ["fila", `Para aprovar${fila.length ? ` (${fila.length})` : ""}`],
@@ -105,14 +107,16 @@ function ConhecimentoPage() {
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
             <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar: fase, botão, regra, tela…" autoFocus
               style={{ flex: 1, minWidth: "min(260px, 100%)", padding: "10px 14px", borderRadius: 999, border: "1.5px solid var(--portal-border)", background: "var(--portal-bg-card)", color: "var(--portal-text)", fontSize: 14, outline: "none" }} />
+            <div className="kb-chips">
             <button type="button" onClick={() => setModulo("")} style={{ ...pill, background: !modulo ? "#111111" : "transparent", color: !modulo ? "#fefefe" : "var(--portal-text-secondary)" }}>Todos</button>
             {modulosComArtigo.map((m) => (
               <button key={m.id} type="button" onClick={() => setModulo(modulo === m.id ? "" : m.id)} style={{ ...pill, background: modulo === m.id ? m.cor : "transparent", color: modulo === m.id ? "#fefefe" : m.cor, borderColor: m.cor }}>{m.rotulo}</button>
             ))}
+            </div>
           </div>
 
           {podeCriar && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 14, fontSize: 12, color: "var(--portal-text-muted)" }}>
+            <div className="kb-faixa" style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 14, fontSize: 12, color: "var(--portal-text-muted)" }}>
               Mostrar:
               {([["todos", "Tudo"], ["publicados", "Só publicados"], ["rascunhos", "Só rascunhos e edições pendentes"]] as const).map(([k, rot]) => (
                 <button key={k} type="button" onClick={() => setSituacao(k)} style={{ ...pill, padding: "4px 12px", background: situacao === k ? "#475569" : "transparent", color: situacao === k ? "#fefefe" : "var(--portal-text-secondary)" }}>{rot}</button>

@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { Search, X, Printer } from 'lucide-react'
 import { gerarPdfLista, hojeISO } from '@/lib/propostas/pdf-lista'
 import { useAuditLog } from '@/hooks/useAuditLog'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import MotivoPerdaModal, { STATUS_PERDIDO } from './MotivoPerdaModal'
 
 // `nome` = valor real gravado no banco (não mexer). `label` = como aparece pro usuário (padronizado).
@@ -121,6 +122,7 @@ function colTexto(c, k) {
 
 export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' }) {
   const { log } = useAuditLog()
+  const isMobile = useIsMobile()
   const [cards, setCards] = useState([])
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
@@ -285,7 +287,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
   const ResumoCard = ({ titulo, n, valor, onClick, cor, ativo }) => (
     <button onClick={onClick} className={`text-left border rounded-xl p-4 transition-all cursor-pointer bg-white ${ativo ? 'border-red-400 ring-2 ring-red-100' : 'border-zinc-200 hover:border-zinc-300'}`}>
       <div className="text-[11px] font-bold text-zinc-400 uppercase tracking-wide">{titulo}</div>
-      <div className={`text-xl font-bold mt-1 ${cor}`}>R$ {formatBRL(valor)}</div>
+      <div className={`${isMobile ? 'text-base' : 'text-xl'} font-bold mt-1 ${cor}`}>R$ {formatBRL(valor)}</div>
       <div className="text-xs text-zinc-500 mt-0.5">{n} proposta{n !== 1 ? 's' : ''}</div>
     </button>
   )
@@ -313,7 +315,8 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
       </div>
 
       {/* ATALHOS RÁPIDOS — configuram os filtros da tabela */}
-      <div className="flex flex-wrap items-center gap-2 mb-4">
+      {/* celular: atalhos numa faixa que rola de lado */}
+      <div className="flex flex-wrap items-center gap-2 mb-4 m-rolar-x m-toque-filhos">
         <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wide mr-1">Atalhos:</span>
         <button onClick={() => { setFiltroStatus(''); setSoFab(false) }} className={chipCls(!filtroStatus && !soFab)}>Todas</button>
         {COLUNAS.map(c => <button key={c.nome} onClick={() => setFiltroStatus(filtroStatus === c.nome ? '' : c.nome)} className={chipCls(filtroStatus === c.nome)}>{c.label}</button>)}
@@ -324,7 +327,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
         <div className="text-left border border-red-200 rounded-xl p-4 bg-red-50/40">
           <div className="text-[11px] font-bold text-red-400 uppercase tracking-wide">Previsão de faturamento</div>
-          <div className="text-xl font-bold mt-1 text-red-600">R$ {formatBRL(resumo.prevV)}</div>
+          <div className={`${isMobile ? 'text-base' : 'text-xl'} font-bold mt-1 text-red-600`}>R$ {formatBRL(resumo.prevV)}</div>
           <div className="text-xs text-zinc-500 mt-0.5">ponderada pelo termômetro (em aberto)</div>
         </div>
         <ResumoCard titulo="Criadas (no filtro)" n={resumo.criN} valor={resumo.criV} cor="text-zinc-800"
@@ -337,11 +340,12 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
 
       {modo === 'kanban' ? (
         /* VISÃO KANBAN */
-        <div className="flex gap-4 overflow-x-auto snap-x pb-2">
+        <div className={`flex gap-4 overflow-x-auto snap-x pb-2 ${isMobile ? 'snap-mandatory' : ''}`}>
           {COLUNAS.map(col => {
             const doStatus = filtradas.filter(c => c.status === col.nome)
             return (
-              <div key={col.nome} className="flex-1 min-w-[260px] snap-start">
+              // celular: cada coluna ocupa ~85% da tela e encaixa ao rolar
+              <div key={col.nome} className="flex-1 min-w-[260px] snap-start" style={isMobile ? { minWidth: '85vw', maxWidth: '85vw' } : undefined}>
                 <div className="flex items-center justify-between mb-2 px-1">
                   <span className={`text-sm font-semibold px-2.5 py-1 rounded-md ${col.cor}`}>{col.label}</span>
                   <span className="text-sm font-bold text-zinc-400">{doStatus.length}</span>
@@ -374,6 +378,47 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
               </div>
             )
           })}
+        </div>
+      ) : isMobile ? (
+        /* VISÃO LISTA no celular: um cartão por proposta + ordenação num seletor */
+        <div className="flex flex-col gap-2.5">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-zinc-500">Ordenar</span>
+            <select value={`${sort.key}:${sort.dir}`} onChange={e => { const [key, dir] = e.target.value.split(':'); setSort({ key, dir }) }}
+              aria-label="Ordenar propostas" className="flex-1 bg-white border border-zinc-200 text-zinc-700 text-sm rounded-lg px-3 py-2.5">
+              {COLS_LISTA.filter(c => sortGet[c.k]).flatMap(c => [
+                <option key={`${c.k}:desc`} value={`${c.k}:desc`}>{c.label} (Z → A / maior)</option>,
+                <option key={`${c.k}:asc`} value={`${c.k}:asc`}>{c.label} (A → Z / menor)</option>,
+              ])}
+            </select>
+          </div>
+          {ordenadas.length === 0 && <div className="text-center py-12 text-zinc-400 text-base font-medium bg-white border border-zinc-200 rounded-xl">Nenhuma proposta encontrada</div>}
+          {ordenadas.map(card => (
+            <div key={card.id} onClick={() => onCardClick(card)} className="bg-white border border-zinc-200 rounded-xl p-3.5 cursor-pointer active:border-red-300">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-zinc-500 flex items-center gap-1.5">#{card.id}{card.fabrica_pedido_id != null && <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">FAB</span>}<span className="font-normal text-zinc-400">· {fmtData(card.criado_em)}</span></div>
+                  <div className="text-base font-semibold text-zinc-800 leading-snug m-quebra-texto">{card.Cliente || 'Sem nome'}</div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="text-base font-bold text-red-600 whitespace-nowrap">R$ {formatBRL(card.Valor_Total)}</div>
+                  {card.fabrica_pedido_id != null && card.fabrica_custo != null && <div className="text-[11px] text-zinc-400">custo fáb: R$ {formatBRL(card.fabrica_custo)}</div>}
+                </div>
+              </div>
+              <div className="text-sm text-zinc-600 mt-1 m-quebra-texto">{[`${card.Marca || ''} ${card.Modelo || ''}`.trim(), card.Cidade].filter(Boolean).join(' · ') || '---'}</div>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                <span className={`text-xs font-semibold px-2 py-1 rounded-md ${getStatusStyle(card.status)}`}>{statusLabel(card.status)}</span>
+                {card.tag_nome && <span style={{ background: (card.tag_cor || '#64748b') + '22', color: card.tag_cor || '#64748b', padding: '2px 8px', borderRadius: 8, fontSize: 12, fontWeight: 700 }}>{card.tag_nome}</span>}
+                <span className={`text-xs ${agingCor(card.dias_na_fase)}`}>parado há {agingTexto(card.dias_na_fase)}</span>
+              </div>
+              {card.vendedor_nome && <div className="text-xs text-zinc-500 mt-1">Vendedor: {card.vendedor_nome}</div>}
+              <div className="mt-2"><TermoBar v={termoValor(card)} /></div>
+              <select onClick={e => e.stopPropagation()} value={card.status} onChange={(e) => updateStatus(card.id, e.target.value, e)} aria-label="Alterar status"
+                className="mt-2.5 w-full bg-zinc-50 border border-zinc-200 text-zinc-600 text-sm font-semibold p-2.5 rounded-md outline-none">
+                {COLUNAS.map(f => <option key={f.nome} value={f.nome}>{f.label}</option>)}
+              </select>
+            </div>
+          ))}
         </div>
       ) : (
         /* VISÃO LISTA */

@@ -35,6 +35,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
 
@@ -100,6 +101,8 @@ export default function AderenciaPage() {
   const { userProfile, loading } = useAuth()
   const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
+  // Celular: grafico mais baixo com legenda embaixo e desvios em cartoes.
+  const isMobile = useIsMobile()
 
   // --- Estado de controles (espelha as vars do IIFE da fonte) ----------------
   // tipo: na fonte vinha da header global; aqui e toggle local. Default 'pagar'.
@@ -172,12 +175,16 @@ export default function AderenciaPage() {
       },
       options: {
         responsive: true,
+        // Celular: altura vem do conteiner (sem proporcao fixa) e eixos enxutos.
+        maintainAspectRatio: !isMobile,
         interaction: { mode: 'index', intersect: false },
         scales: {
-          y: { position: 'left', title: { display: true, text: 'Valor R$' }, ticks: { callback: function (v) { return fmtBRLcurto(v) } } },
-          y1: { position: 'right', title: { display: true, text: 'Atraso (d)' }, grid: { drawOnChartArea: false } },
+          y: { position: 'left', title: { display: !isMobile, text: 'Valor R$' }, ticks: { callback: function (v) { return fmtBRLcurto(v) }, ...(isMobile ? { font: { size: 10 }, maxTicksLimit: 5 } : {}) } },
+          y1: { position: 'right', title: { display: !isMobile, text: 'Atraso (d)' }, grid: { drawOnChartArea: false }, ...(isMobile ? { ticks: { font: { size: 10 }, maxTicksLimit: 5 } } : {}) },
+          ...(isMobile ? { x: { type: 'category', ticks: { font: { size: 10 }, maxRotation: 0, autoSkip: true } } } : {}),
         },
         plugins: {
+          ...(isMobile ? { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } : {}),
           tooltip: {
             callbacks: {
               label: function (item) {
@@ -197,7 +204,7 @@ export default function AderenciaPage() {
       if (chartInst.current) { chartInst.current.destroy(); chartInst.current = null }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartReady, dados])
+  }, [chartReady, dados, isMobile])
 
   // =========================================================================
   // Ordenacao da tabela de desvios (port fiel de renderTabelaDesvios + o
@@ -302,6 +309,8 @@ export default function AderenciaPage() {
             className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (tipo === 'ambos' ? 'bg-slate-800 text-white' : inativoToggle)}>Ambos</button>
         </div>
 
+        {/* Celular: rotulo + campo juntos na mesma linha (no PC "contents" = igual a antes) */}
+        <span className="contents max-md:flex max-md:items-center max-md:gap-2">
         <span className="text-xs text-slate-500 ml-0 sm:ml-4">Janela:</span>
         <select value={dias} onChange={(e) => setDias(parseInt(e.target.value, 10))}
           className="border border-slate-300 rounded px-2 py-1 text-sm max-md:min-h-9">
@@ -312,7 +321,9 @@ export default function AderenciaPage() {
           <option value={540}>Ult. 18 meses</option>
           <option value={730}>Ult. 24 meses</option>
         </select>
+        </span>
 
+        <span className="contents max-md:flex max-md:items-center max-md:gap-2">
         <span className="text-xs text-slate-500 ml-0 sm:ml-2">Granularidade:</span>
         <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm">
           <button type="button" onClick={() => setGran('mes')}
@@ -320,6 +331,7 @@ export default function AderenciaPage() {
           <button type="button" onClick={() => setGran('semana')}
             className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (gran === 'semana' ? 'bg-slate-800 text-white' : inativoToggle)}>Semana</button>
         </div>
+        </span>
       </div>
 
       {/* KPIs */}
@@ -344,7 +356,7 @@ export default function AderenciaPage() {
           <div className="text-2xl font-bold text-red-700 mt-1">{kpiAtrasado}</div>
           <div className="text-xs text-slate-500">{kpiAtrasadoSub}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 max-md:col-span-2">
           <div className="text-xs text-slate-500 uppercase tracking-wide">R$ atrasado</div>
           <div className="text-2xl font-bold text-red-700 mt-1">{kpiValorAtrasado}</div>
           <div className="text-xs text-slate-500">{kpiValorAtrasadoSub}</div>
@@ -380,7 +392,9 @@ export default function AderenciaPage() {
 
       {/* Grafico previsto vs realizado */}
       <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 mb-6 min-w-0">
-        <canvas ref={chartRef} height="120" />
+        {isMobile
+          ? <div style={{ position: 'relative', height: 260 }}><canvas ref={chartRef} /></div>
+          : <canvas ref={chartRef} height="120" />}
       </div>
 
       {/* Top desvios */}
@@ -388,6 +402,50 @@ export default function AderenciaPage() {
         <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase">
           Top desvios (maior atraso x valor)
         </div>
+        {isMobile ? (
+          // Celular: um cartao por titulo (terceiro, NF, datas, atraso e valor)
+          // + seletor de ordenacao no lugar dos cabecalhos clicaveis.
+          <div>
+            <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-100">
+              <span className="text-xs text-slate-500">Ordenar</span>
+              <select value={ordem.campo} onChange={(e) => clicarOrdenacao(e.target.value)}
+                className="flex-1 min-w-0 border border-slate-300 rounded px-2 py-1 text-sm min-h-9">
+                <option value="valor">Valor</option>
+                <option value="atraso_dias">Atraso (dias)</option>
+                <option value="nome">Terceiro</option>
+                <option value="vencimento">Vencimento</option>
+                <option value="pagamento">Pagamento</option>
+                <option value="nf">NF</option>
+                <option value="tipo">Tipo</option>
+              </select>
+              <button type="button" onClick={() => clicarOrdenacao(ordem.campo)}
+                className="min-h-9 min-w-9 px-2 border border-slate-300 rounded text-sm"
+                aria-label="Inverter ordem" title="Inverter ordem">{ordem.dir === 'asc' ? '▲' : '▼'}</button>
+            </div>
+            {desvios.length === 0 ? (
+              <div className="px-4 py-6 text-center text-slate-500 text-sm">Sem desvios relevantes no periodo.</div>
+            ) : desvios.map((dv, i) => {
+              const corTipo = dv.tipo === 'receber' ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'
+              const corAtr = dv.atraso_dias > 0 ? 'text-red-700' : 'text-blue-700'
+              return (
+                <div key={i} className="px-3 py-2.5 border-b border-slate-100 flex gap-3 items-start">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-800 m-quebra-texto">{dv.nome ? String(dv.nome).replace(/&amp;/g, '&') : <span className="text-slate-400">Sem nome</span>}</div>
+                    <div className="text-xs text-slate-500 mt-0.5 flex flex-wrap gap-x-2">
+                      <span className={'inline-block px-1.5 rounded ' + corTipo}>{dv.tipo === 'receber' ? 'Receber' : 'Pagar'}</span>
+                      {dv.nf && <span className="font-mono">NF {dv.nf}</span>}
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5">Venc. {fmtBRdata(dv.vencimento)} · Pago {fmtBRdata(dv.pagamento)}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-sm font-semibold text-slate-800">{fmtBRL(dv.valor)}</div>
+                    <div className={'text-xs font-semibold ' + corAtr}>{(dv.atraso_dias > 0 ? '+' : '') + dv.atraso_dias + ' d'}</div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-xs text-slate-600 select-none">
@@ -426,6 +484,7 @@ export default function AderenciaPage() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </>
   )

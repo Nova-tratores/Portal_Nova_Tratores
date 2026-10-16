@@ -56,11 +56,13 @@ export function EtapaChip({ etapa }: { etapa: ReuniaoEtapa }) {
 /** Overlay de modal no padrão dos Quadros. */
 export function Modal({ titulo, onFechar, children, largura = 560 }: { titulo: string; onFechar: () => void; children: React.ReactNode; largura?: number }) {
   return (
-    <div onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 1400, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: largura, maxHeight: '92vh', overflowY: 'auto', background: 'var(--portal-surface,#fff)', borderRadius: 14, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
+    // Celular: vira folha de baixo (classes m-folha do kit) com o × num alvo de 44px.
+    <div className="m-folha-fundo" onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 1400, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <style>{'@media (max-width:768px){:root{--portal-surface:var(--portal-bg-card)}.rc-modal{padding:16px 14px 20px !important}.rc-modal-x{min-width:44px;min-height:44px;margin:-10px -8px -10px 0}}'}</style>
+      <div className="m-folha rc-modal" onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: largura, maxHeight: '92vh', overflowY: 'auto', background: 'var(--portal-surface,#fff)', borderRadius: 14, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--portal-text,#111)' }}>{titulo}</h2>
-          <button onClick={onFechar} aria-label="Fechar" style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 20, color: 'var(--portal-text-muted,#888)', lineHeight: 1 }}>×</button>
+          <button className="rc-modal-x" onClick={onFechar} aria-label="Fechar" style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 20, color: 'var(--portal-text-muted,#888)', lineHeight: 1 }}>×</button>
         </div>
         {children}
       </div>

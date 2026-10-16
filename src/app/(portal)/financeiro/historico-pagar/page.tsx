@@ -185,7 +185,8 @@ export default function HistoricoPagar() {
         {/* controle: busca inteligente + período + chips */}
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 16 }}>
           <BuscaInteligente valor={busca} onChange={setBusca} achados={filtradas.length} />
-          <div style={{ display: 'flex', flexWrap: 'wrap', maxWidth: '100%', gap: 4, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: 3 }}>
+          {/* celular: os 4 períodos numa linha só (antes "24 meses" caía sozinho na 2ª linha) */}
+          <div className="m-rolar-x m-full" style={{ display: 'flex', flexWrap: 'wrap', maxWidth: '100%', gap: 4, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: 3 }}>
             {PRESETS.map((p) => (
               <button
                 key={p.id}

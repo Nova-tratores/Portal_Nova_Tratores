@@ -595,7 +595,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
 
   return (
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', zIndex: 900, display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(1120px, 100%)', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '94vh', background: 'var(--portal-bg)', display: 'flex', flexDirection: 'column', borderRadius: 0, overflow: 'hidden', border: '1px solid var(--portal-border)', boxShadow: '0 25px 60px rgba(0,0,0,0.35)' }}>
+      <div onClick={(e) => e.stopPropagation()} className="frota-ficha" style={{ width: 'min(1120px, 100%)', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '94vh', background: 'var(--portal-bg)', display: 'flex', flexDirection: 'column', borderRadius: 0, overflow: 'hidden', border: '1px solid var(--portal-border)', boxShadow: '0 25px 60px rgba(0,0,0,0.35)' }}>
         {/* Header */}
         <div style={{ padding: isMobile ? '10px 12px' : '14px 18px', borderBottom: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <label
@@ -1094,7 +1094,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                           ) : (
                             <div style={{ height: 95, borderRadius: 0, background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text)', fontSize: 11 }}>sem arquivo</div>
                           )}
-                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <span style={{ fontSize: isMobile ? 12 : 11, fontWeight: 700, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: isMobile ? '2px 10px' : 5, flexWrap: isMobile ? 'wrap' : undefined }}>
                             {doc.tipo.toUpperCase()}
                             {dias != null && (
                               <span style={{ fontWeight: 700, color: dias < 0 ? '#b91c1c' : dias <= 30 ? '#b45309' : '#15803d' }}>
@@ -1203,9 +1203,9 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       return (
                         <a key={c.id} href={printUrl} target="_blank" rel="noopener noreferrer"
                           title={printUrl ? 'Abrir checklist (imprimir / salvar em PDF)' : 'Este checklist não tem link para abrir'}
-                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--portal-border)', borderRadius: 0, textDecoration: 'none', color: 'inherit', cursor: printUrl ? 'pointer' : 'default' }}>
+                          style={{ display: 'flex', alignItems: 'center', flexWrap: isMobile ? 'wrap' : undefined, gap: isMobile ? '4px 10px' : 10, padding: '10px 12px', border: '1px solid var(--portal-border)', borderRadius: 0, textDecoration: 'none', color: 'inherit', cursor: printUrl ? 'pointer' : 'default' }}>
                           <span style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--portal-text)', minWidth: 66 }}>{fmtMes(c.mes_referencia)}</span>
-                          <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', order: isMobile ? 9 : undefined, flexBasis: isMobile ? '100%' : undefined }}>
                             <span style={{ fontSize: 12, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.tecnico_nome || '—'}</span>
                             {c.placa_registrada && (
                               <span title={`Vinculado pelo responsável — no NT Mecânico este checklist foi registrado com a placa ${c.placa_registrada}`} style={{ fontSize: 11.5, color: '#b45309' }}>
@@ -1262,9 +1262,9 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       {det.uso_30d.ultimos_dias.length > 0 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, borderTop: '1px dashed var(--portal-border)', paddingTop: 8 }}>
                           {det.uso_30d.ultimos_dias.map((d) => (
-                            <div key={d.data} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12.5, color: 'var(--portal-text)' }}>
-                              <span>{fmtData(d.data)}</span>
-                              <span>
+                            <div key={d.data} style={{ display: 'flex', flexDirection: isMobile ? 'column' : undefined, justifyContent: 'space-between', gap: isMobile ? 1 : undefined, padding: isMobile ? '4px 0' : undefined, fontSize: 12.5, color: 'var(--portal-text)' }}>
+                              <span style={isMobile ? { fontWeight: 700 } : undefined}>{fmtData(d.data)}</span>
+                              <span style={isMobile ? { color: 'var(--portal-text-secondary)' } : undefined}>
                                 {Math.round(Number(d.km_odometro ?? d.km_total))} km · {d.partidas} partida(s) · {d.tempo_ligado_min}min ligado
                                 {d.paradas_atipicas > 0 && <strong style={{ color: '#b91c1c' }}> · {d.paradas_atipicas} atípica(s)</strong>}
                               </span>

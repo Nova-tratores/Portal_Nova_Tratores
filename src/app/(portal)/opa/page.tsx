@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Car, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Eye, Film, Image as ImageIcon,
+  Camera, Car, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Eye, Film, Image as ImageIcon,
   Paperclip, Plus, Send, Trash2, User, X,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
@@ -171,7 +171,7 @@ export default function OpaPage() {
       <div role="tablist" style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         {([['abertos', 'Abertos', abertos.length], ['concluidos', 'Concluídos', concluidos.length]] as const).map(([k, rotulo, n]) => (
           <button key={k} role="tab" aria-selected={aba === k} type="button" onClick={() => setAba(k)} style={{
-            display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
+            display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', minHeight: isMobile ? 40 : undefined, borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
             border: `1.5px solid ${aba === k ? VERMELHO : 'var(--portal-border)'}`, fontSize: 13.5, fontWeight: 700,
             background: aba === k ? '#FEF2F2' : 'var(--portal-bg-card)', color: aba === k ? '#991B1B' : 'var(--portal-text-secondary)',
           }}>
@@ -333,9 +333,9 @@ function CartaoOpa({ opa, aberto, onAlternar, isAdmin, usuarioId, usuarioNome, u
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', marginRight: 2 }}>{opa.titulo}</span>
-            {opa.origem === 'mecanico' && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#FEF3C7', color: '#92400E' }}>MECÂNICO</span>}
+            {opa.origem === 'mecanico' && <span style={{ fontSize: isMobile ? 11 : 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#FEF3C7', color: '#92400E' }}>MECÂNICO</span>}
             {opa.vinculo_tipo === 'veiculo' && opa.vinculo_ref && (
-              <span title="Vinculado a um veículo da frota — vira pendência no carro" style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#DBEAFE', color: '#1E40AF', ...meta }}>
+              <span title="Vinculado a um veículo da frota — vira pendência no carro" style={{ fontSize: isMobile ? 11 : 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#DBEAFE', color: '#1E40AF', ...meta }}>
                 <Car size={11} /> {opa.vinculo_ref}
               </span>
             )}
@@ -448,6 +448,7 @@ function NovoOpa({ usuarioId, usuarioNome, onFechar, onCriado }: {
   const [enviando, setEnviando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const arqRef = useRef<HTMLInputElement>(null)
+  const camRef = useRef<HTMLInputElement>(null) // celular: abre direto a câmera traseira
 
   useEffect(() => {
     if (vincTipo !== 'veiculo' || veiculos.length > 0) return
@@ -504,7 +505,7 @@ function NovoOpa({ usuarioId, usuarioNome, onFechar, onCriado }: {
       <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--portal-bg-card)', borderRadius: isMobile ? 0 : 14, width: '100%', maxWidth: isMobile ? '100%' : 540, maxHeight: isMobile ? '100%' : '90vh', overflow: 'auto', boxSizing: 'border-box' }}>
         <div style={{ position: 'sticky', top: 0, display: 'flex', alignItems: 'center', padding: '12px 16px', background: 'var(--portal-bg-card)', borderBottom: '1px solid var(--portal-border)' }}>
           <span style={{ flex: 1, fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>Novo Opa</span>
-          <button type="button" aria-label="Fechar" onClick={onFechar} style={{ width: 34, height: 34, borderRadius: 8, border: 'none', background: 'var(--portal-bg-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text)' }}><X size={17} /></button>
+          <button type="button" aria-label="Fechar" onClick={onFechar} style={{ width: isMobile ? 44 : 34, height: isMobile ? 44 : 34, borderRadius: 8, border: 'none', background: 'var(--portal-bg-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text)' }}><X size={17} /></button>
         </div>
         <div style={{ padding: isMobile ? 16 : 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {erro && <div role="alert" style={{ padding: 10, borderRadius: 8, background: '#FEF2F2', color: '#991B1B', fontSize: 13.5, fontWeight: 600 }}>{erro}</div>}
@@ -539,19 +540,27 @@ function NovoOpa({ usuarioId, usuarioNome, onFechar, onCriado }: {
           <div>
             <label style={rotulo}>Fotos ou vídeos</label>
             <input ref={arqRef} type="file" accept="image/*,video/*" multiple hidden onChange={(e) => { setArquivos((a) => [...a, ...Array.from(e.target.files || [])]); e.target.value = '' }} />
+            <input ref={camRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { setArquivos((a) => [...a, ...Array.from(e.target.files || [])]); e.target.value = '' }} />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: 8 }}>
               {arquivos.map((f, i) => <MiniaturaArquivo key={`${f.name}-${i}`} arquivo={f} onRemover={() => setArquivos((a) => a.filter((_, j) => j !== i))} />)}
+              {isMobile && (
+                <button type="button" onClick={() => camRef.current?.click()} style={{ aspectRatio: '1', borderRadius: 8, border: `2px dashed ${VERMELHO}`, background: '#FEF2F2', color: '#991B1B', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 12, fontWeight: 700, fontFamily: 'inherit' }}>
+                  <Camera size={20} /> Tirar foto
+                </button>
+              )}
               <button type="button" onClick={() => arqRef.current?.click()} style={{ aspectRatio: '1', borderRadius: 8, border: '2px dashed var(--portal-border)', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-secondary)', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 12, fontWeight: 700, fontFamily: 'inherit' }}>
-                <Paperclip size={18} /> Adicionar
+                <Paperclip size={18} /> {isMobile ? 'Galeria' : 'Adicionar'}
               </button>
             </div>
           </div>
+          <div className={isMobile ? 'm-rodape-fixo' : undefined} style={isMobile ? { margin: '0 -16px -16px' } : { display: 'contents' }}>
           <button type="button" onClick={publicar} disabled={enviando || !titulo.trim()} style={{
-            padding: 13, borderRadius: 10, fontSize: 15, fontWeight: 800, background: VERMELHO, color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+            width: '100%', padding: 13, borderRadius: 10, fontSize: 15, fontWeight: 800, background: VERMELHO, color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
             opacity: enviando || !titulo.trim() ? 0.5 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}>
             <Send size={16} /> {enviando ? 'Publicando…' : 'Publicar Opa'}
           </button>
+          </div>
         </div>
       </div>
     </div>
@@ -566,10 +575,10 @@ function MiniaturaArquivo({ arquivo, onRemover }: { arquivo: File; onRemover: ()
     <div style={{ position: 'relative', aspectRatio: '1', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--portal-border)', background: '#000' }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {video ? <video src={url} muted style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <img src={url} alt={arquivo.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-      <button type="button" aria-label="Remover" onClick={onRemover} style={{ position: 'absolute', top: 3, right: 3, background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer', width: 22, height: 22, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <button type="button" aria-label="Remover" onClick={onRemover} style={{ position: 'absolute', top: 3, right: 3, background: 'rgba(0,0,0,0.6)', border: 'none', cursor: 'pointer', width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <X size={12} color="#fff" />
       </button>
-      <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, fontSize: 9, color: '#fff', background: 'rgba(0,0,0,0.5)', padding: '1px 4px' }}>{fmtBytes(arquivo.size)}</span>
+      <span style={{ position: 'absolute', bottom: 0, left: 0, right: 0, fontSize: 11, color: '#fff', background: 'rgba(0,0,0,0.5)', padding: '1px 4px' }}>{fmtBytes(arquivo.size)}</span>
     </div>
   )
 }

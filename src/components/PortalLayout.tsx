@@ -749,7 +749,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {!emIframe && (
       <header className="portal-header" style={{
         position: 'sticky', top: 0, zIndex: 50,
-        padding: '0 32px', height: '84px',
+        padding: '0 32px', height: 'var(--portal-header-h)',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
         background: 'var(--portal-header-bg)',
         borderBottom: '1px solid var(--portal-border)',
@@ -1301,7 +1301,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
       {/* ===== SIDEBAR ===== */}
       <div style={{
-        position: 'fixed', top: '84px', left: 0, bottom: 0,
+        position: 'fixed', top: 'var(--portal-header-h)', left: 0, bottom: 0,
         width: sidebarOpen ? 'min(260px, 85vw)' : '0px', overflow: 'hidden',
         transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         zIndex: 40, background: 'var(--portal-sidebar-bg)',
@@ -1567,7 +1567,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         <div
           onClick={() => setSidebarOpen(false)}
           style={{
-            position: 'fixed', inset: 0, top: '84px',
+            position: 'fixed', inset: 0, top: 'var(--portal-header-h)',
             background: 'rgba(0,0,0,0.2)', zIndex: 35,
             transition: 'opacity 0.3s'
           }}
@@ -1578,7 +1578,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <main style={{
         marginLeft: sidebarOpen && !sidebarSobrepoe ? '260px' : '0px',
         transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-        minHeight: 'calc(100vh - 84px)',
+        minHeight: 'calc(100vh - var(--portal-header-h))',
         background: 'var(--portal-bg)'
       }}>
         {children}
@@ -1656,7 +1656,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         >
           <style>{`@keyframes cfgSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
           <div style={{
-            background: 'var(--portal-bg-card)', width: '440px', maxWidth: '96vw', height: '100%',
+            // no celular ocupa a tela toda (sobrava uma faixa de 16px do fundo)
+            background: 'var(--portal-bg-card)', width: isMobile ? '100%' : '440px', maxWidth: isMobile ? '100%' : '96vw', height: '100%',
+            paddingBottom: 'env(safe-area-inset-bottom)',
             boxShadow: '-8px 0 40px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column',
             animation: 'cfgSlideIn 0.25s ease-out'
           }}>

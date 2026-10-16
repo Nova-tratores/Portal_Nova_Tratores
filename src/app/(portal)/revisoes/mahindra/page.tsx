@@ -9,6 +9,7 @@ import { ArrowLeft, FileSpreadsheet, Loader2, Search, Wrench } from 'lucide-reac
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
 import { extrairLinhas, filtrarLinhas, REV_LABEL, type TipoRevisao, type TratorRow } from '@/lib/revisoes/mahindra'
@@ -16,6 +17,7 @@ import { extrairLinhas, filtrarLinhas, REV_LABEL, type TipoRevisao, type TratorR
 export default function RevisoesMahindraPage() {
   const { userProfile } = useAuth()
   const { temAcesso, loading: pLoading } = usePermissoes(userProfile?.id)
+  const isMobile = useIsMobile()
 
   const [tratores, setTratores] = useState<TratorRow[]>([])
   const [carregando, setCarregando] = useState(true)
@@ -106,12 +108,13 @@ export default function RevisoesMahindraPage() {
     }
   }
 
-  const inp: React.CSSProperties = { padding: '8px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }
+  const inp: React.CSSProperties = { padding: '8px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)', ...(isMobile ? { minHeight: 42, width: '100%', boxSizing: 'border-box' } : {}) }
+  const corRev = (r: string) => r === '50h' ? '#0d9488' : r === '900h' ? '#7c3aed' : '#0369a1'
 
   return (
     <div style={{ padding: 'clamp(12px, 2vw, 18px) clamp(12px, 2.2vw, 22px)', maxWidth: 1250, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
-        <Link href="/revisoes" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--portal-text-muted)', textDecoration: 'none' }}>
+        <Link href="/revisoes" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, ...(isMobile ? { minHeight: 36 } : {}), color: 'var(--portal-text-muted)', textDecoration: 'none' }}>
           <ArrowLeft size={15} /> Revisões
         </Link>
         <h1 style={{ fontSize: 19, fontWeight: 800, color: 'var(--portal-text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -129,20 +132,23 @@ export default function RevisoesMahindraPage() {
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {(['todas', '50h', '900h', 'inspecao'] as const).map(t => (
             <button key={t} onClick={() => setTipo(t)} style={{
-              padding: '7px 14px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+              padding: isMobile ? '9px 14px' : '7px 14px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
               border: tipo === t ? '2px solid #C41E2A' : '1px solid var(--portal-border)',
               background: tipo === t ? '#fef2f2' : 'var(--portal-bg-card)',
               color: tipo === t ? '#C41E2A' : 'var(--portal-text-secondary)',
             }}>{t === 'todas' ? 'Todas' : t === 'inspecao' ? 'Pré-entrega' : `Revisão ${t}`}</button>
           ))}
         </div>
-        <label style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>De <input type="date" value={de} onChange={e => setDe(e.target.value)} style={inp} /></label>
-        <label style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>Até <input type="date" value={ate} onChange={e => setAte(e.target.value)} style={inp} /></label>
-        <div style={{ position: 'relative' }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: 10, color: 'var(--portal-text-muted)' }} />
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Chassi, cliente, modelo…" style={{ ...inp, paddingLeft: 30, minWidth: 220 }} />
+        {/* Celular: De/Até lado a lado e a busca na largura toda */}
+        <div style={isMobile ? { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, width: '100%' } : { display: 'contents' }}>
+        <label style={{ fontSize: 12, color: 'var(--portal-text-muted)', ...(isMobile ? { minWidth: 0 } : {}) }}>De <input type="date" value={de} onChange={e => setDe(e.target.value)} style={inp} /></label>
+        <label style={{ fontSize: 12, color: 'var(--portal-text-muted)', ...(isMobile ? { minWidth: 0 } : {}) }}>Até <input type="date" value={ate} onChange={e => setAte(e.target.value)} style={inp} /></label>
         </div>
-        <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', marginLeft: 'auto' }}>
+        <div style={{ position: 'relative', ...(isMobile ? { width: '100%' } : {}) }}>
+          <Search size={14} style={{ position: 'absolute', left: 10, top: isMobile ? 14 : 10, color: 'var(--portal-text-muted)' }} />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Chassi, cliente, modelo…" style={{ ...inp, paddingLeft: 30, minWidth: isMobile ? 0 : 220 }} />
+        </div>
+        <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', marginLeft: isMobile ? 0 : 'auto' }}>
           <strong>{filtradas.length}</strong> no filtro · {tot50}× 50h · {tot900}× 900h · {totIns}× pré-entrega
         </span>
         <button onClick={abrirModalExcel} disabled={exportando || filtradas.length === 0} style={{
@@ -156,8 +162,35 @@ export default function RevisoesMahindraPage() {
 
       {erro && <div style={{ fontSize: 12.5, color: '#dc2626', fontWeight: 600, marginBottom: 10 }}>{erro}</div>}
 
+      {/* Celular: um cartão por revisão (a tabela de 9 colunas rolava de lado) */}
+      {isMobile && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {carregando && <div style={{ padding: 18, textAlign: 'center', color: 'var(--portal-text-muted)' }}><Loader2 size={15} className="animate-spin" style={{ verticalAlign: -3, marginRight: 6 }} /> Carregando…</div>}
+          {!carregando && filtradas.length === 0 && <div style={{ padding: 18, textAlign: 'center', color: 'var(--portal-text-muted)' }}>Nenhuma revisão no filtro.</div>}
+          {!carregando && filtradas.map((l, i) => (
+            <div key={`${l.tratorId}-${l.revisao}-${i}`} style={{ border: '1px solid var(--portal-border)', borderLeft: `4px solid ${corRev(l.revisao)}`, borderRadius: 10, padding: '10px 12px', background: 'var(--portal-bg-card)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11.5, fontWeight: 800, padding: '2px 10px', borderRadius: 999, color: '#fff', whiteSpace: 'nowrap', background: corRev(l.revisao) }}>{REV_LABEL[l.revisao]}</span>
+                <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--portal-text)' }}>{l.data}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--portal-text-secondary)' }}>{l.horimetro ? `${l.horimetro} h` : '—'}</span>
+              </div>
+              <div className="m-quebra-texto" style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text)', marginTop: 6 }}>{l.cliente || '—'}</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '2px 12px', fontSize: 12.5, color: 'var(--portal-text-secondary)', marginTop: 3 }}>
+                <span style={{ fontFamily: 'monospace', color: 'var(--portal-text)', wordBreak: 'break-all' }}>{l.chassis || '—'}</span>
+                {l.modelo && <span>{l.modelo}</span>}
+                {l.cidade && <span>{l.cidade}</span>}
+                {l.entrega && <span>Entrega {l.entrega}</span>}
+              </div>
+              {l.pdf && (
+                <a href={l.pdf} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', marginTop: 8, minHeight: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #0ea5e9', color: '#0284c7', fontWeight: 700, fontSize: 13, textDecoration: 'none' }}>Ver check (PDF)</a>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Tabela */}
-      <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'auto' }}>
+      {!isMobile && <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'auto' }}>
         <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', fontSize: 12.5 }}>
           <thead>
             <tr style={{ background: 'var(--portal-bg-secondary)', textAlign: 'left' }}>
@@ -204,7 +237,7 @@ export default function RevisoesMahindraPage() {
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {/* Modal: escolher a data-limite antes de baixar o Excel */}
       {modalExcel && (

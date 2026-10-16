@@ -1,0 +1,91 @@
+/* ============================================================ */
+/* DRE Financeiro + Vendas por Modelo: ajustes SÓ do celular    */
+/* (até 768px). Escopo: .dre-m (conteúdo do layout do módulo e  */
+/* a raiz do VendasModelo). No computador nada aqui se aplica.  */
+/* ============================================================ */
+@media (max-width: 768px) {
+  /* Título da tela 20px (os h1 legados são text-2xl..4xl) */
+  .dre-m h1 { font-size: 20px !important; line-height: 1.25 !important; }
+
+  /* Botões/campos das barras de filtros: alvo de toque mínimo de 36px.
+     Fora de tabelas (cabeçalhos/linhas mantêm a densidade da grade). */
+  .dre-m button:not(table button):not(.dre-m-livre),
+  .dre-m select,
+  .dre-m input[type="month"],
+  .dre-m input[type="date"],
+  .dre-m input[type="search"],
+  .dre-m input[type="text"],
+  .dre-m input[type="number"] { min-height: 36px; }
+
+  /* Rótulos miúdos (9–10px) sobem para 11px */
+  .dre-m .text-\[9px\],
+  .dre-m .text-\[10px\] { font-size: 11px !important; }
+
+  /* Grades numéricas: rolagem lateral suave dentro do quadro */
+  .dre-m .overflow-x-auto { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; max-width: 100%; }
+}
+
+/* Janelas centralizadas (fixed + translate -50%) viram folha de baixo no
+   celular. Marcadas com .dre-folha no JSX. */
+@media (max-width: 768px) {
+  .dre-m .dre-folha {
+    top: auto !important; bottom: 0 !important; left: 0 !important; right: 0 !important;
+    translate: none !important; transform: none !important;
+    width: 100% !important; max-width: 100% !important;
+    max-height: 92dvh !important;
+    border-radius: 18px 18px 0 0 !important;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Grades de KPI em 2 colunas: se sobrar um cartão sozinho na última linha,
+   ele ocupa a linha inteira (fica alinhado e cabe valor grande).
+   < 768px porque em 768 o "md:" do Tailwind já troca a grade. */
+@media (max-width: 767.98px) {
+  .dre-m .grid.grid-cols-2.gap-3 > :last-child:nth-child(odd) { grid-column: span 2 / span 2; }
+}
+
+/* Números grandes dos KPIs em meia largura: um pouco menores para caber
+   "R$ 1.234.567,89" sem quebrar no meio do número. */
+@media (max-width: 767.98px) {
+  .dre-m .grid.grid-cols-2.gap-3 > * { padding: 12px; overflow-wrap: normal; word-break: normal; }
+  .dre-m .grid.grid-cols-2.gap-3 > * .text-2xl,
+  .dre-m .grid.grid-cols-2.gap-3 > * .text-xl { font-size: 18px; line-height: 1.3; }
+  .dre-m .grid.grid-cols-2.gap-3 > * .text-3xl { font-size: 22px; line-height: 1.25; }
+  .dre-m .grid.grid-cols-2.gap-3 > * .break-words,
+  .dre-m .grid.grid-cols-2.gap-3 > .break-words { overflow-wrap: normal; word-break: normal; }
+}
+
+/* Tabelinhas de cartão (top produtos, margem por família): números sem
+   quebrar; a descrição (1ª coluna, fixa) quebra em até ~130px. */
+@media (max-width: 768px) {
+  .dre-m .dre-tab-compacta td,
+  .dre-m .dre-tab-compacta th { white-space: nowrap; }
+  .dre-m .dre-tab-compacta td:first-child {
+    white-space: normal; overflow: visible; text-overflow: clip;
+    min-width: 120px; max-width: 140px; overflow-wrap: anywhere;
+  }
+}
+
+/* Movimentações: KPIs (grade com estilo inline auto-fit) em 2 colunas */
+@media (max-width: 768px) {
+  .dre-m .dre-kpis-mov { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 8px !important; }
+  .dre-m .dre-kpis-mov > div { padding: 10px 12px !important; }
+  .dre-m .dre-kpis-mov > div > div:nth-child(2) { font-size: 17px !important; }
+}
+
+/* Barras de filtro "rótulo: campo rótulo: campo [Aplicar]" (Margens,
+   Lucratividade, Rentabilidade): no celular viram pares rótulo | campo,
+   um por linha, e o botão ocupa a linha toda. */
+@media (max-width: 768px) {
+  .dre-m .dre-barra-pares {
+    display: grid !important; grid-template-columns: auto minmax(0, 1fr);
+    align-items: center; gap: 8px 10px; width: 100%;
+  }
+  .dre-m .dre-barra-pares > label { margin-left: 0 !important; }
+  .dre-m .dre-barra-pares > select,
+  .dre-m .dre-barra-pares > input { width: 100% !important; min-width: 0 !important; max-width: 100% !important; }
+  .dre-m .dre-barra-pares > input[type="month"] { grid-column: 2; }
+  .dre-m .dre-barra-pares > button,
+  .dre-m .dre-barra-pares > span { grid-column: 1 / -1; margin-left: 0 !important; }
+}

@@ -369,8 +369,9 @@ export default function EditModal({ proposal, onClose }) {
   const labelStyle = "text-[11px] font-medium text-zinc-500 uppercase tracking-wide"
 
   return (
-    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex justify-center items-center z-[9999]">
-      <div className="bg-white w-[95%] max-w-[1100px] h-[95vh] rounded-2xl flex flex-col border border-zinc-200 shadow-2xl overflow-hidden">
+    // celular: tela cheia (m-tela-cheia) e o X vai para o começo da faixa de botões
+    <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex justify-center items-center z-[9999] m-tela-cheia-fundo">
+      <div className="bg-white w-[95%] max-w-[1100px] h-[95vh] rounded-2xl flex flex-col border border-zinc-200 shadow-2xl overflow-hidden m-tela-cheia">
         <div className="px-4 md:px-10 py-5 bg-white border-b border-zinc-200 flex flex-wrap justify-between items-center gap-4">
           <div className="flex items-center gap-4">
             <div className="w-1.5 h-7 bg-red-600 rounded" />
@@ -389,7 +390,7 @@ export default function EditModal({ proposal, onClose }) {
             <button onClick={handlePrint} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-100 text-zinc-700 border border-zinc-200 rounded-lg text-sm font-medium cursor-pointer hover:bg-zinc-200 transition-colors">
               <FileDown size={16} /> Imprimir PDF
             </button>
-            <button onClick={onClose} title="Fechar" className="flex items-center justify-center w-10 h-10 rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-red-600 cursor-pointer transition-colors">
+            <button onClick={onClose} title="Fechar" aria-label="Fechar" className="flex items-center justify-center w-10 h-10 rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-red-600 cursor-pointer transition-colors max-md:order-first max-md:w-11 max-md:h-11 max-md:border max-md:border-zinc-200">
               <X size={20} />
             </button>
           </div>

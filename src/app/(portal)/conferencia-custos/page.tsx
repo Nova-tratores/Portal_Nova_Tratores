@@ -157,7 +157,7 @@ export default function ConferenciaCustosPage() {
   if (!isAdmin) return <SemPermissao />
 
   return (
-    <div style={{ padding: isMobile ? '14px 8px' : '24px 32px', maxWidth: 1500, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '14px 12px' : '24px 32px', maxWidth: 1500, margin: '0 auto' }}>
       <div style={{ marginBottom: 4 }}>
         <h1 style={{ fontSize: isMobile ? 19 : 22, fontWeight: 800, margin: 0 }}>Conferência de custo das máquinas</h1>
         <p style={{ fontSize: 13, color: 'var(--portal-text-secondary,#737373)', margin: '4px 0 0' }}>
@@ -216,6 +216,61 @@ export default function ConferenciaCustosPage() {
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: 40, color: '#999' }}>
           <Loader2 size={18} className="animate-spin" /> Carregando estoque de máquinas…
         </div>
+      ) : isMobile ? (
+        // Celular: um cartão por máquina com os campos da ligação (salva ao sair do campo, como na tabela)
+        <div>
+          {filtradas.length === 0 && <div style={{ padding: 30, textAlign: 'center', color: '#999', fontSize: 14 }}>Nenhuma máquina encontrada.</div>}
+          {filtradas.map(m => {
+            const key = keyOf(m)
+            const rot: React.CSSProperties = { display: 'block', fontSize: 11, fontWeight: 600, color: 'var(--portal-text-secondary,#737373)', marginBottom: 3 }
+            const campo: React.CSSProperties = { ...inpText, width: '100%', boxSizing: 'border-box', padding: '8px 10px', minHeight: 40 }
+            return (
+              <div key={`${key}|${m.origem}|${m.numero_remessa}`} style={{ border: '1px solid var(--portal-border,#e5e5e5)', borderLeft: `4px solid ${m.contatado ? '#22c55e' : m.origem === 'demonstracao' ? '#dc2626' : 'var(--portal-border,#e5e5e5)'}`, borderRadius: 12, padding: '10px 12px', marginBottom: 10, background: 'var(--portal-bg-card,#fff)' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: 'ui-monospace,monospace', fontSize: 12, color: 'var(--portal-text-secondary,#737373)' }}>{m.codigo} · {m.conta_omie}</div>
+                    <div className="m-quebra-texto" style={{ fontSize: 14, fontWeight: 700, marginTop: 2 }}>{m.descricao}</div>
+                    <div style={{ fontSize: 12, color: 'var(--portal-text-secondary,#737373)', marginTop: 2 }}>
+                      {m.familia_nome} · {m.dias_em_estoque} dias{m.estoque > 1 ? ` · ${m.estoque} un.` : ''}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 11, color: 'var(--portal-text-secondary,#737373)' }}>custo portal</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, fontFamily: 'ui-monospace,monospace' }}>{fmt(m.cmc_portal)}</div>
+                    {m.origem === 'demonstracao'
+                      ? <span style={{ display: 'inline-block', marginTop: 3, padding: '1px 6px', borderRadius: 5, background: 'rgba(220,38,38,0.1)', color: '#dc2626', fontWeight: 700, fontSize: 11 }}>Demonstração</span>
+                      : <span style={{ display: 'inline-block', marginTop: 3, padding: '1px 6px', borderRadius: 5, background: 'rgba(107,114,128,0.12)', color: '#6b7280', fontWeight: 600, fontSize: 11 }}>No pátio</span>}
+                  </div>
+                </div>
+                {m.origem === 'demonstracao' && m.destinatario && (
+                  <div className="m-quebra-texto" style={{ fontSize: 12, color: '#999', marginTop: 2 }}>para {m.destinatario}{m.numero_remessa ? ` · remessa ${m.numero_remessa}` : ''}</div>
+                )}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, marginTop: 10 }}>
+                  <label style={{ gridColumn: '1 / -1' }}><span style={rot}>Fornecedor</span>
+                    <input value={m.fornecedor} onChange={e => editar(key, 'fornecedor', e.target.value)} onBlur={() => salvar(m)} style={campo} placeholder="—" />
+                  </label>
+                  <label><span style={rot}>Custo pago</span>
+                    <input type="number" inputMode="decimal" step="0.01" value={m.custo_pago ?? ''} onChange={e => editar(key, 'custo_pago', e.target.value === '' ? null : Number(e.target.value))} onBlur={() => salvar(m)} style={{ ...campo, textAlign: 'right' }} placeholder="—" />
+                  </label>
+                  <label><span style={rot}>Custo acumulado</span>
+                    <input type="number" inputMode="decimal" step="0.01" value={m.custo_acumulado ?? ''} onChange={e => editar(key, 'custo_acumulado', e.target.value === '' ? null : Number(e.target.value))} onBlur={() => salvar(m)} style={{ ...campo, textAlign: 'right' }} placeholder="—" />
+                  </label>
+                  <label><span style={rot}>Custo fábrica</span>
+                    <input type="number" inputMode="decimal" step="0.01" value={m.custo_fabrica ?? ''} onChange={e => editar(key, 'custo_fabrica', e.target.value === '' ? null : Number(e.target.value))} onBlur={() => salvar(m)} style={{ ...campo, textAlign: 'right' }} placeholder="—" />
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, alignSelf: 'end', minHeight: 40 }}>
+                    <input type="checkbox" checked={m.contatado} style={{ width: 20, height: 20 }}
+                      onChange={e => { editar(key, 'contatado', e.target.checked); setTimeout(() => salvar({ ...m, contatado: e.target.checked }), 0) }} />
+                    Contatado
+                  </label>
+                  <label style={{ gridColumn: '1 / -1' }}><span style={rot}>Observação {salvandoKey === key && <Loader2 size={12} className="animate-spin" style={{ color: '#999', verticalAlign: 'middle' }} />}{salvoKey === key && <CheckCircle2 size={13} style={{ color: '#22c55e', verticalAlign: 'middle' }} />}</span>
+                    <input value={m.observacao} onChange={e => editar(key, 'observacao', e.target.value)} onBlur={() => salvar(m)} style={campo} placeholder="—" />
+                  </label>
+                </div>
+              </div>
+            )
+          })}
+        </div>
       ) : (
         <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid var(--portal-border,#e5e5e5)', borderRadius: 10 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
@@ -239,7 +294,7 @@ export default function ConferenciaCustosPage() {
               {filtradas.map(m => {
                 const key = keyOf(m)
                 return (
-                  <tr key={key} style={{ borderTop: '1px solid var(--portal-border,#f0f0f0)', background: m.contatado ? 'rgba(34,197,94,0.05)' : 'transparent' }}>
+                  <tr key={`${key}|${m.origem}|${m.numero_remessa}`} style={{ borderTop: '1px solid var(--portal-border,#f0f0f0)', background: m.contatado ? 'rgba(34,197,94,0.05)' : 'transparent' }}>
                     <Td mono>{m.codigo}</Td>
                     <Td>
                       <span style={{ display: 'block', maxWidth: isMobile ? 170 : 260, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={m.descricao}>{m.descricao}</span>

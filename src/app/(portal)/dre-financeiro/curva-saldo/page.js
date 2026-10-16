@@ -36,6 +36,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 // ---------------------------------------------------------------------------
 // Formatadores locais (identicos aos do <script> da fonte). Mantidos inline para
@@ -107,6 +108,9 @@ export default function CurvaSaldoPage() {
   const { userProfile, loading } = useAuth()
   const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
+  // Celular: grafico com altura fixa e eixos enxutos, tabela com a data
+  // grudada a esquerda e o modal de titulos do dia como folha de baixo.
+  const isMobile = useIsMobile()
 
   // --- Estado de controles (espelha as vars do IIFE da fonte) ----------------
   // dias/inicial: na fonte vinham do servidor (default 90 / 0) e o "Aplicar"
@@ -208,6 +212,7 @@ export default function CurvaSaldoPage() {
       },
       options: {
         responsive: true,
+        maintainAspectRatio: !isMobile,
         interaction: { mode: 'index', intersect: false },
         onClick: function (evt, elements) {
           if (!elements || !elements.length) return
@@ -224,22 +229,24 @@ export default function CurvaSaldoPage() {
                 const p = iso.split('-')
                 return p[2] + '/' + p[1]
               },
-              maxTicksLimit: 15,
+              maxTicksLimit: isMobile ? 6 : 15,
+              ...(isMobile ? { maxRotation: 0, font: { size: 10 } } : {}),
             },
           },
           y: {
             position: 'left',
-            title: { display: true, text: 'Saldo acumulado' },
-            ticks: { callback: function (v) { return fmtBRLcurto(v) } },
+            title: { display: !isMobile, text: 'Saldo acumulado' },
+            ticks: { callback: function (v) { return fmtBRLcurto(v) }, ...(isMobile ? { font: { size: 10 }, maxTicksLimit: 6 } : {}) },
           },
           y1: {
             position: 'right',
-            title: { display: true, text: 'Entradas / Saidas do dia' },
+            title: { display: !isMobile, text: 'Entradas / Saidas do dia' },
             grid: { drawOnChartArea: false },
-            ticks: { callback: function (v) { return fmtBRLcurto(v) } },
+            ticks: { callback: function (v) { return fmtBRLcurto(v) }, ...(isMobile ? { font: { size: 10 }, maxTicksLimit: 6 } : {}) },
           },
         },
         plugins: {
+          ...(isMobile ? { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } } : {}),
           tooltip: {
             callbacks: {
               title: function (items) { return fmtBRdata(items[0].label) },
@@ -258,7 +265,7 @@ export default function CurvaSaldoPage() {
       if (chartInst.current) { chartInst.current.destroy(); chartInst.current = null }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartReady, dados])
+  }, [chartReady, dados, isMobile])
 
   // =========================================================================
   // abrirModal(dataISO): titulos do dia. Port fiel de window.abrirModal.
@@ -351,6 +358,8 @@ export default function CurvaSaldoPage() {
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Curva de Saldo Projetado</h1>
 
+        {/* Celular: rotulo + campo juntos (no PC "contents" = igual a antes) */}
+        <span className="contents max-md:flex max-md:items-center max-md:gap-2">
         <span className="text-xs text-slate-500 ml-0 sm:ml-4">Saldo inicial:</span>
         <input
           type="number" step="100" value={inicialInput}
@@ -358,7 +367,9 @@ export default function CurvaSaldoPage() {
           onKeyDown={(e) => { if (e.key === 'Enter') aplicar() }}
           className="border border-slate-300 rounded px-2 py-1 text-sm w-32 max-md:min-h-9"
         />
+        </span>
 
+        <span className="contents max-md:flex max-md:items-center max-md:gap-2">
         <span className="text-xs text-slate-500 ml-0 sm:ml-2">Janela:</span>
         <select
           value={diasInput}
@@ -371,6 +382,7 @@ export default function CurvaSaldoPage() {
           <option value={180}>180 dias</option>
           <option value={365}>1 ano</option>
         </select>
+        </span>
 
         <button onClick={aplicar}
           className="px-3 py-1 max-md:min-h-9 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Aplicar</button>
@@ -395,7 +407,7 @@ export default function CurvaSaldoPage() {
           <div className="text-xs text-slate-500 uppercase tracking-wide">Total saidas</div>
           <div className="text-2xl font-bold text-red-700 mt-1">{d ? fmtBRL(d.totalSaidas) : '--'}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words max-md:col-span-2">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Dias negativos</div>
           <div className="text-2xl font-bold text-red-600 mt-1">{d ? String(d.diasNegativos.length) : '--'}</div>
         </div>
@@ -413,8 +425,10 @@ export default function CurvaSaldoPage() {
 
       {/* Grafico */}
       <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 mb-6 min-w-0">
-        <canvas ref={chartRef} height="120" />
-        <div className="text-xs text-slate-500 mt-2">Clique numa barra ou ponto para ver os titulos do dia.</div>
+        {isMobile
+          ? <div style={{ position: 'relative', height: 260 }}><canvas ref={chartRef} /></div>
+          : <canvas ref={chartRef} height="120" />}
+        <div className="text-xs text-slate-500 mt-2">{isMobile ? 'Toque numa barra ou ponto para ver os titulos do dia.' : 'Clique numa barra ou ponto para ver os titulos do dia.'}</div>
       </div>
 
       {/* Tabela compacta de movimentos relevantes */}
@@ -422,11 +436,11 @@ export default function CurvaSaldoPage() {
         <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-700 uppercase">
           Dias com movimento — clique numa linha para ver os titulos do dia
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto m-tabela m-tabela-fixa">
+          <table className="w-full text-sm max-md:text-xs max-md:whitespace-nowrap">
             <thead className="bg-slate-50 text-xs text-slate-600">
               <tr>
-                <th className="text-left px-4 py-2">Data</th>
+                <th className="text-left px-4 py-2 max-md:px-2">Data</th>
                 <th className="text-right px-4 py-2">Entradas</th>
                 <th className="text-right px-4 py-2">Saidas</th>
                 <th className="text-right px-4 py-2">Saldo do dia</th>
@@ -462,10 +476,10 @@ export default function CurvaSaldoPage() {
       {modalAberto && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={fecharModal} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-24px)] max-w-3xl max-h-[90vh] md:max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 dre-folha w-[calc(100%-24px)] max-w-3xl max-h-[90vh] md:max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col max-md:top-auto max-md:bottom-0 max-md:left-0 max-md:translate-x-0 max-md:translate-y-0 max-md:w-full max-md:max-h-[92dvh] max-md:rounded-b-none max-md:rounded-t-2xl">
             <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
               <h2 className="font-semibold text-slate-800 min-w-0 break-words">{modalTitulo}</h2>
-              <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-9 max-md:min-h-9">×</button>
+              <button onClick={fecharModal} aria-label="Fechar" className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-11 max-md:min-h-11">×</button>
             </div>
             {/* Resumo */}
             <div className="px-3 sm:px-5 py-3 border-b border-slate-100 bg-slate-50">

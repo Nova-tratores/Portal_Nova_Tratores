@@ -20,6 +20,9 @@ interface Props {
   /** liberação de peças por QR (rastreio): botão por card quando permitido */
   podeLiberar?: boolean;
   onLiberar?: (id: string) => void;
+  /** ações do menu do PC (produtos, kits, sync) — no celular abrem numa folha */
+  menu?: { icone: string; label: string; onClick: () => void; disabled?: boolean }[];
+  avisoMenu?: string;
 }
 
 const cor = (s: string) => PHASE_COLORS[s] || "#64748b";
@@ -33,8 +36,9 @@ const dataBR = (d: string) => {
 };
 const rs = (v: number) => `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function PPVMobile({ orders, searchTerm, onSearchChange, onCardClick, onNovo, podeCriar, loading, podeLiberar, onLiberar }: Props) {
+export default function PPVMobile({ orders, searchTerm, onSearchChange, onCardClick, onNovo, podeCriar, loading, podeLiberar, onLiberar, menu = [], avisoMenu }: Props) {
   const [fase, setFase] = useState("TODAS");
+  const [menuAberto, setMenuAberto] = useState(false);
 
   const fasesPresentes = useMemo(() => {
     const m = new Map<string, number>();
@@ -56,23 +60,29 @@ export default function PPVMobile({ orders, searchTerm, onSearchChange, onCardCl
   }, [orders, fase, searchTerm]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, background: "#f1f5f9" }}>
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, background: "var(--portal-bg, #f1f5f9)" }}>
       {/* Topo: título + busca */}
-      <div style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 14px 10px" }}>
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-          <span style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>Peças (PPV)</span>
-          <span style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>{filtradas.length}</span>
+      <div style={{ background: "var(--portal-bg-card, #fff)", borderBottom: "1px solid var(--portal-border, #e2e8f0)", padding: "12px 14px 10px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+          <span style={{ fontSize: 18, fontWeight: 800, color: "var(--portal-text, #0f172a)", flex: 1 }}>Peças (PPV)</span>
+          <span style={{ fontSize: 13, color: "var(--portal-text-secondary, #64748b)", fontWeight: 600 }}>{filtradas.length} pedido{filtradas.length === 1 ? "" : "s"}</span>
+          {menu.length > 0 && (
+            <button type="button" onClick={() => setMenuAberto(true)} aria-label="Mais ações (produtos, kits, preços)" title="Mais ações"
+              style={{ width: 42, height: 42, borderRadius: 10, border: "1px solid var(--portal-border, #e2e8f0)", background: "var(--portal-bg-card, #fff)", color: "var(--portal-text, #0f172a)", fontSize: 17, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+              <i className="fas fa-ellipsis-vertical" />
+            </button>
+          )}
         </div>
         <div style={{ position: "relative" }}>
           <i className="fas fa-search" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 15 }} />
           <input value={searchTerm} onChange={(e) => onSearchChange(e.target.value)} placeholder="Buscar PPV, cliente, técnico…"
             style={{ width: "100%", padding: "12px 14px 12px 40px", borderRadius: 12, border: "1.5px solid #e2e8f0", fontSize: 16, outline: "none", boxSizing: "border-box", background: "#f8fafc" }} />
-          {searchTerm && <button onClick={() => onSearchChange("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 16 }}><i className="fas fa-times" /></button>}
+          {searchTerm && <button onClick={() => onSearchChange("")} aria-label="Limpar busca" style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", width: 40, height: 40, border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 16 }}><i className="fas fa-times" /></button>}
         </div>
       </div>
 
       {/* Fase — dropdown */}
-      <div style={{ padding: "10px 14px", background: "#fff", borderBottom: "1px solid #eef2f7", display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ padding: "10px 14px", background: "var(--portal-bg-card, #fff)", borderBottom: "1px solid var(--portal-border, #eef2f7)", display: "flex", alignItems: "center", gap: 10 }}>
         <span style={{ width: 10, height: 10, borderRadius: "50%", background: fase === "TODAS" ? "#0f172a" : cor(fase), flexShrink: 0 }} />
         <select value={fase} onChange={(e) => setFase(e.target.value)}
           style={{ flex: 1, padding: "11px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 15, background: "#f8fafc", color: "#0f172a", fontWeight: 600, outline: "none" }}>
@@ -112,7 +122,7 @@ export default function PPVMobile({ orders, searchTerm, onSearchChange, onCardCl
                     <div style={{ width: 5, background: c, flexShrink: 0 }} />
                     <div style={{ flex: 1, minWidth: 0, padding: "13px 14px" }}>
                       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
-                        <span style={{ fontSize: 15.5, fontWeight: 700, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.cliente || "Sem cliente"}</span>
+                        <span style={{ fontSize: 15.5, fontWeight: 700, color: "#0f172a", overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflowWrap: "anywhere", lineHeight: 1.3 }}>{o.cliente || "Sem cliente"}</span>
                         <span style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", flexShrink: 0 }}>{rs(o.valor)}</span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "7px 0", flexWrap: "wrap" }}>
@@ -120,7 +130,7 @@ export default function PPVMobile({ orders, searchTerm, onSearchChange, onCardCl
                         <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: remessa ? "#eef2ff" : "#fef2f2", color: remessa ? "#4338ca" : "#dc2626" }}>{remessa ? "REMESSA" : "PEDIDO"}</span>
                       </div>
                       <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12.5, color: "#64748b", flexWrap: "wrap" }}>
-                        <span style={{ fontWeight: 700, color: "#dc2626" }}>{o.id}</span>
+                        <span style={{ fontWeight: 800, color: "#c2410c" }}>{o.id}</span>
                         {o.tecnico && <span><i className="fas fa-user-gear" style={{ marginRight: 4, opacity: .7 }} />{o.tecnico}</span>}
                         {o.data && <span><i className="fas fa-calendar" style={{ marginRight: 4, opacity: .7 }} />{dataBR(o.data)}</span>}
                       </div>
@@ -143,13 +153,33 @@ export default function PPVMobile({ orders, searchTerm, onSearchChange, onCardCl
       </div>
 
       {podeCriar && (
-        <button onClick={onNovo} title="Novo Lançamento" style={{
+        <button onClick={onNovo} title="Novo Lançamento" aria-label="Novo Lançamento" style={{
           position: "fixed", right: 18, bottom: 22, zIndex: 20, width: 58, height: 58, borderRadius: "50%", border: "none",
-          background: "#dc2626", color: "#fff", fontSize: 24, cursor: "pointer", boxShadow: "0 8px 22px rgba(220,38,38,0.45)",
+          background: "#EA580C", color: "#fefefe", fontSize: 24, cursor: "pointer", boxShadow: "0 8px 22px rgba(234,88,12,0.45)",
           display: "flex", alignItems: "center", justifyContent: "center",
         }}>
           <i className="fas fa-plus" />
         </button>
+      )}
+
+      {/* Folha com as ações do menu do PC */}
+      {menuAberto && (
+        <div className="m-folha-fundo" onClick={() => setMenuAberto(false)} style={{ position: "fixed", inset: 0, zIndex: 300, background: "rgba(15,23,42,.45)", display: "flex" }}>
+          <div className="m-folha" onClick={(e) => e.stopPropagation()} style={{ background: "var(--portal-bg-card, #fff)", padding: "8px 14px 18px", boxShadow: "0 -10px 30px rgba(0,0,0,.2)" }}>
+            <div style={{ width: 40, height: 4, borderRadius: 2, background: "var(--portal-border, #e2e8f0)", margin: "4px auto 10px" }} />
+            <div style={{ display: "flex", alignItems: "center", marginBottom: 6 }}>
+              <span style={{ flex: 1, fontSize: 16, fontWeight: 800, color: "var(--portal-text, #0f172a)" }}>Mais ações</span>
+              <button type="button" onClick={() => setMenuAberto(false)} aria-label="Fechar" style={{ width: 44, height: 44, border: "none", borderRadius: 10, background: "var(--portal-bg-secondary, #f1f5f9)", color: "var(--portal-text, #0f172a)", fontSize: 18, cursor: "pointer" }}><i className="fas fa-times" /></button>
+            </div>
+            {menu.map((m) => (
+              <button key={m.label} type="button" disabled={m.disabled} onClick={() => { setMenuAberto(false); m.onClick(); }}
+                style={{ display: "flex", alignItems: "center", gap: 14, width: "100%", minHeight: 52, padding: "0 6px", border: "none", borderBottom: "1px solid var(--portal-border, #eef2f7)", background: "transparent", color: "var(--portal-text, #0f172a)", fontSize: 15, fontWeight: 600, textAlign: "left", cursor: m.disabled ? "not-allowed" : "pointer", opacity: m.disabled ? 0.6 : 1, fontFamily: "inherit" }}>
+                <i className={`fas ${m.icone}`} style={{ width: 22, textAlign: "center", color: "#EA580C", fontSize: 16 }} /> {m.label}
+              </button>
+            ))}
+            {avisoMenu && <div style={{ padding: "10px 6px 0", fontSize: 13, fontWeight: 600, color: avisoMenu.startsWith("Erro") ? "#DC2626" : "#065F46" }}>{avisoMenu}</div>}
+          </div>
+        </div>
       )}
     </div>
   );

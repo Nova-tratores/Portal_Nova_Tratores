@@ -149,6 +149,7 @@ export default function LogsFinanceiro() {
           <select
             value={filtroUsuario}
             onChange={(e) => setFiltroUsuario(e.target.value)}
+            className="m-full"
             style={{ padding: '10px 14px', maxWidth: '100%', minWidth: 0, flex: '0 1 auto', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b', fontSize: '13px', outline: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
           >
             <option value="">Todos os usuarios</option>
@@ -160,6 +161,7 @@ export default function LogsFinanceiro() {
           <select
             value={filtroAcao}
             onChange={(e) => setFiltroAcao(e.target.value)}
+            className="m-full"
             style={{ padding: '10px 14px', maxWidth: '100%', minWidth: 0, flex: '0 1 auto', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b', fontSize: '13px', outline: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
           >
             <option value="">Todas as ações</option>

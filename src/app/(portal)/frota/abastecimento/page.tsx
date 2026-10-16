@@ -14,6 +14,7 @@ import {
 import { AlertTriangle, FileDown, FileSpreadsheet, Upload, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { authHeaders } from '@/lib/auth/client';
 import { Card, fmtRS } from '@/components/estoque/ui';
 import UploadLotes from '@/components/abastecimento/UploadLotes';
@@ -39,6 +40,26 @@ const COR_COMBUSTIVEL: Record<string, string> = {
   'Diesel S10': '#2563eb',
 };
 const CORES_SOBRA = ['#7c3aed', '#b45309', '#2563eb', '#059669', '#dc2626'];
+
+// Celular (≤768px): filtros em grade, KPIs 2 por linha, abas numa faixa que
+// rola, gráficos mais baixos. Os estilos da tela são inline → !important.
+const ABAST_MOBILE_CSS = `
+@media (max-width: 768px) {
+  .abast-filtros { display: grid !important; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px !important; }
+  .abast-filtros > * { min-height: 42px; box-sizing: border-box; width: 100%; }
+  .abast-filtros > .abast-preset { grid-column: span 2; padding: 6px 4px !important; font-size: 12.5px !important; }
+  .abast-filtros > input[type=date] { grid-column: span 3; }
+  .abast-filtros > select, .abast-filtros > .abast-info { grid-column: 1 / -1; }
+  .abast-filtros > .abast-a { display: none; }
+  .abast-export { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .abast-export > button { min-height: 42px; justify-content: center; }
+  .abast-kpi { padding: 10px 12px !important; }
+  .abast-kpi-rot { font-size: 11px !important; }
+  .abast-kpi-sub { font-size: 11.5px !important; }
+  .abast-abas > button { min-height: 44px; font-size: 14px !important; white-space: nowrap; }
+  .abast-graf { height: 230px !important; }
+}
+`;
 
 function corDoCombustivel(nome: string, todos: string[]): string {
   if (COR_COMBUSTIVEL[nome]) return COR_COMBUSTIVEL[nome];
@@ -97,11 +118,12 @@ function KPI({ label, valor, sub, cor, onClick }: { label: string; valor: string
     <div
       onClick={onClick}
       title={onClick ? 'Clique para ver os abastecimentos' : undefined}
+      className="abast-kpi"
       style={{ background: '#fff', border: '1px solid #eee', borderRadius: 0, padding: 16, cursor: onClick ? 'pointer' : 'default' }}
     >
-      <div style={{ color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600, marginBottom: 4 }}>{label}</div>
+      <div className="abast-kpi-rot" style={{ color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 600, marginBottom: 4 }}>{label}</div>
       <div style={{ fontSize: '1.2rem', fontWeight: 700, color: cor || '#333' }}>{valor}</div>
-      {sub && <div style={{ fontSize: '.68rem', color: '#aaa', marginTop: 2 }}>{sub}</div>}
+      {sub && <div className="abast-kpi-sub" style={{ fontSize: '.68rem', color: '#aaa', marginTop: 2 }}>{sub}</div>}
     </div>
   );
 }
@@ -162,7 +184,7 @@ function ComparadorVeiculos({ serie, veiculos, meses }: {
       {escolhidas.length < 2 ? (
         <p style={{ color: '#888', fontSize: '.8rem' }}>Escolha pelo menos dois veículos para comparar {rotMetrica.toLowerCase()} mês a mês.</p>
       ) : (
-        <div style={{ width: '100%', height: 280 }}>
+        <div className="abast-graf" style={{ width: '100%', height: 280 }}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={dadosGrafico}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
@@ -194,6 +216,8 @@ function RankingChart({ dados, cor, formato, onItemClick }: {
   onItemClick?: (chave: string) => void;
 }) {
   const altura = Math.max(180, dados.length * 32);
+  // celular: coluna dos nomes mais estreita para sobrar espaço às barras
+  const mobile = useIsMobile();
   return (
     <div style={{ width: '100%', height: altura }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -201,9 +225,9 @@ function RankingChart({ dados, cor, formato, onItemClick }: {
           <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f0f0f0" />
           <XAxis type="number" tick={{ fontSize: 12, fill: '#888' }} tickFormatter={(v) => formato(Number(v))} />
           <YAxis
-            type="category" dataKey="nome" width={155} interval={0}
+            type="category" dataKey="nome" width={mobile ? 104 : 155} interval={0}
             tick={{ fontSize: 11.5, fill: '#444' }}
-            tickFormatter={(v) => truncar(String(v))}
+            tickFormatter={(v) => truncar(String(v), mobile ? 15 : 24)}
           />
           <Tooltip formatter={(v) => formato(Number(v))} labelStyle={{ color: '#444' }} />
           <Bar
@@ -229,6 +253,7 @@ export default function AbastecimentoPage() {
   // (a camada de compat foi removida em 16/07 — ninguém mais tinha chave legada).
   const podeDash = true;
   const podeUpload = pode('frota', 'abastecimento:upload');
+  const mobile = useIsMobile();
 
   // Padrão ao abrir: mês atual, do dia 1 até hoje (o dia em que o usuário abre).
   const [preset, setPreset] = useState<Preset>('mes');
@@ -400,22 +425,34 @@ export default function AbastecimentoPage() {
 
   return (
     <div style={{ padding: 'clamp(12px, 3vw, 20px)', maxWidth: 1300, margin: '0 auto' }}>
+      <style>{ABAST_MOBILE_CSS}</style>
       <CabecalhoFrota
         titulo="Abastecimento"
         resumo="Quanto a frota gasta com combustível, por veículo, motorista, posto e departamento."
         acoes={
-          <a href="/frota/abastecimento/flex" style={{ fontSize: 13, color: '#1e40af', fontWeight: 700, textDecoration: 'none' }}>
+          <a href="/frota/abastecimento/flex" className="frota-touch" style={{ fontSize: 13, color: '#1e40af', fontWeight: 700, textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
             Álcool × Gasolina por veículo →
           </a>
         }
       />
-      <p style={{ color: 'var(--portal-text-secondary)', fontSize: '.82rem', marginBottom: 16 }}>
-        Gastos com combustível por veículo, motorista e posto — relatório mensal da operadora do cartão
-        <strong style={{ color: '#666' }}> + requisições de abastecimento</strong> (Veicular, Trator e Quadri — entram
-        sozinhas assim que vão pro financeiro). Trator/Quadri aparecem agrupados como{' '}
-        <strong style={{ color: '#666' }}>TRATOR</strong> e <strong style={{ color: '#666' }}>QUADRI</strong>.
-        Clique nas barras e linhas dos gráficos para ver os abastecimentos que compõem cada valor.
-      </p>
+      {/* celular: a explicação longa fica recolhida (toque para ler) */}
+      {(() => {
+        const intro = (
+          <p style={{ color: 'var(--portal-text-secondary)', fontSize: mobile ? 13 : '.82rem', marginBottom: 16, marginTop: mobile ? 6 : undefined }}>
+            Gastos com combustível por veículo, motorista e posto — relatório mensal da operadora do cartão
+            <strong style={{ color: '#666' }}> + requisições de abastecimento</strong> (Veicular, Trator e Quadri — entram
+            sozinhas assim que vão pro financeiro). Trator/Quadri aparecem agrupados como{' '}
+            <strong style={{ color: '#666' }}>TRATOR</strong> e <strong style={{ color: '#666' }}>QUADRI</strong>.
+            Clique nas barras e linhas dos gráficos para ver os abastecimentos que compõem cada valor.
+          </p>
+        );
+        return mobile ? (
+          <details style={{ marginBottom: 8 }}>
+            <summary style={{ fontSize: 13, fontWeight: 700, color: '#1e40af', cursor: 'pointer', minHeight: 32, display: 'flex', alignItems: 'center' }}>De onde vêm estes números?</summary>
+            {intro}
+          </details>
+        ) : intro;
+      })()}
 
       {/* A importação do CSV foi movida para uma linha no rodapé (abre em popup)
           — ver o final desta página. */}
@@ -423,18 +460,19 @@ export default function AbastecimentoPage() {
       {podeDash && (
         <>
           {/* filtros + PDFs */}
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', margin: '16px 0 8px' }}>
+          <div className="abast-filtros" style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', margin: '16px 0 8px' }}>
             {(['mes', '3m', '12m'] as Preset[]).map((p) => (
               <button
                 key={p}
+                className="abast-preset"
                 onClick={() => aplicarPreset(p)}
-                style={{ ...selStyle, cursor: 'pointer', fontWeight: preset === p ? 700 : 400, borderColor: preset === p ? '#dc2626' : '#ddd', color: preset === p ? '#dc2626' : '#444' }}
+                style={{ ...selStyle, cursor: 'pointer', fontWeight: preset === p ? 700 : 400, borderColor: preset === p ? '#dc2626' : '#ddd', color: preset === p ? '#dc2626' : mobile ? 'var(--portal-text)' : '#444' }}
               >
                 {p === 'mes' ? 'Mês atual' : p === '3m' ? 'Últimos 3 meses' : 'Últimos 12 meses'}
               </button>
             ))}
             <input type="date" value={de} onChange={(e) => { setDe(e.target.value); setPreset('custom'); }} style={selStyle} />
-            <span style={{ color: '#888', fontSize: '.8rem' }}>a</span>
+            <span className="abast-a" style={{ color: '#888', fontSize: '.8rem' }}>a</span>
             <input type="date" value={ate} onChange={(e) => { setAte(e.target.value); setPreset('custom'); }} style={selStyle} />
             <select value={placa} onChange={(e) => setPlaca(e.target.value)} style={selStyle}>
               <option value="">Todos os veículos</option>
@@ -446,8 +484,25 @@ export default function AbastecimentoPage() {
               <option value="">Todos os departamentos</option>
               {opcoes.departamentos.map((d) => <option key={d} value={d}>{d}</option>)}
             </select>
-            {carregando && <span style={{ color: '#888', fontSize: '.8rem' }}>Carregando…</span>}
+            {carregando && <span className="abast-info" style={{ color: '#888', fontSize: '.8rem' }}>Carregando…</span>}
           </div>
+          {/* celular: os 7 botões de exportar ficam atrás de um toque (no PC continuam à vista) */}
+          {mobile ? (
+            <details style={{ marginBottom: 14, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)' }}>
+              <summary style={{ display: 'flex', alignItems: 'center', gap: 8, minHeight: 44, padding: '0 12px', fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', cursor: 'pointer' }}>
+                <FileDown size={16} /> Exportar (PDF / CSV)
+              </summary>
+              <div className="abast-export" style={{ gap: 8, padding: '0 10px 10px' }}>
+                {botaoExportar('PDF analítico', 'analitico', pdfAnalitico)}
+                {botaoExportar('PDF por veículo', 'veiculo', () => pdfConsolidado('veiculo'))}
+                {botaoExportar('PDF por motorista', 'motorista', () => pdfConsolidado('motorista'))}
+                {botaoExportar('PDF por departamento', 'departamento', pdfDepartamento)}
+                {botaoExportar('CSV analítico', 'csv-analitico', csvAnalitico, 'csv')}
+                {botaoExportar('CSV por veículo', 'csv-veiculo', () => csvConsolidado('veiculo'), 'csv')}
+                {botaoExportar('CSV por motorista', 'csv-motorista', () => csvConsolidado('motorista'), 'csv')}
+              </div>
+            </details>
+          ) : (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
             {botaoExportar('PDF analítico', 'analitico', pdfAnalitico)}
             {botaoExportar('PDF por veículo', 'veiculo', () => pdfConsolidado('veiculo'))}
@@ -457,6 +512,7 @@ export default function AbastecimentoPage() {
             {botaoExportar('CSV por veículo', 'csv-veiculo', () => csvConsolidado('veiculo'), 'csv')}
             {botaoExportar('CSV por motorista', 'csv-motorista', () => csvConsolidado('motorista'), 'csv')}
           </div>
+          )}
 
           {erro && (
             <div style={{ background: '#fef2f2', border: '1px solid #fca5a5', color: '#b91c1c', borderRadius: 0, padding: '10px 12px', fontSize: '.82rem', marginBottom: 16 }}>
@@ -467,7 +523,7 @@ export default function AbastecimentoPage() {
           {dados && (
             <>
               {/* KPIs */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))', gap: 12, marginBottom: 16 }}>
+              <div className="m-grid-2" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))', gap: mobile ? 8 : 12, marginBottom: 16 }}>
                 <KPI label="Gasto total" valor={fmtRS(dados.totais.valor)} sub="pago (com desconto)" onClick={() => abrirDetalhe('Todos os abastecimentos do período', {})} />
                 <KPI
                   label="Economizado (desconto)"
@@ -499,7 +555,7 @@ export default function AbastecimentoPage() {
               </div>
 
               {/* abas */}
-              <div style={{ display: 'flex', gap: 4, borderBottom: '2px solid #eee', marginBottom: 14, flexWrap: 'wrap' }}>
+              <div className="abast-abas m-rolar-x" style={{ display: 'flex', gap: 4, borderBottom: '2px solid #eee', marginBottom: 14, flexWrap: 'wrap' }}>
                 {ABAS.map((a) => (
                   <button
                     key={a.id}
@@ -519,7 +575,7 @@ export default function AbastecimentoPage() {
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 12 }}>
                     <Card titulo="Gasto por mês (R$) — barra atual, linha = mesmo mês do ano passado">
-                      <div style={{ width: '100%', height: 280 }}>
+                      <div className="abast-graf" style={{ width: '100%', height: 280 }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <ComposedChart
                             data={evolucao}
@@ -556,7 +612,7 @@ export default function AbastecimentoPage() {
                     </Card>
 
                     <Card titulo="Litros por mês — separa efeito consumo do efeito preço">
-                      <div style={{ width: '100%', height: 280 }}>
+                      <div className="abast-graf" style={{ width: '100%', height: 280 }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <ComposedChart
                             data={evolucao}
@@ -579,7 +635,7 @@ export default function AbastecimentoPage() {
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 12 }}>
                     <Card titulo="Preço médio do litro por combustível">
-                      <div style={{ width: '100%', height: 280 }}>
+                      <div className="abast-graf" style={{ width: '100%', height: 280 }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart
                             data={precoMensal}
@@ -601,7 +657,7 @@ export default function AbastecimentoPage() {
                     </Card>
 
                     <Card titulo="Gasto mensal por combustível (empilhado)">
-                      <div style={{ width: '100%', height: 280 }}>
+                      <div className="abast-graf" style={{ width: '100%', height: 280 }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <BarChart data={gastoComb}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f0f0f0" />
@@ -889,7 +945,7 @@ export default function AbastecimentoPage() {
                       <p style={{ color: '#888', fontSize: '.76rem', marginBottom: 8 }}>
                         Pontos no canto superior esquerdo (pouco tempo, muitos litros) merecem verificação.
                       </p>
-                      <div style={{ width: '100%', height: 300 }}>
+                      <div className="abast-graf" style={{ width: '100%', height: 300 }}>
                         <ResponsiveContainer width="100%" height="100%">
                           <ScatterChart margin={{ left: 8, right: 16, bottom: 12 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -964,7 +1020,7 @@ export default function AbastecimentoPage() {
           style={{ marginTop: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, borderTop: '1px dashed #e5e5e5', background: '#fafafa', color: '#dc2626', fontSize: '.8rem', fontWeight: 600, padding: '13px 16px', borderRadius: 0, cursor: 'pointer' }}
         >
           <Upload size={15} /> Importar CSV da operadora
-          <span style={{ color: '#aaa', fontWeight: 400 }}>· clique para enviar o arquivo do mês</span>
+          <span className="m-esconder" style={{ color: '#aaa', fontWeight: 400 }}>· clique para enviar o arquivo do mês</span>
         </div>
       )}
 

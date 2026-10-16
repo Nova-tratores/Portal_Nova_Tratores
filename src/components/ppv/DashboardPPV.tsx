@@ -148,7 +148,9 @@ export default function DashboardPPV({ orders, onAbrirPedido }: Props) {
       </div>
 
       {/* NÚMEROS DE CABEÇA */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(170px, 100%), 1fr))", gap: 10 }}>
+      {/* celular: 2 por linha, valor em fonte menor (R$ 291.790,00 cabia cortado) e legenda em 2 linhas */}
+      <style>{"@media (max-width: 768px) { .ppv-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } .ppv-kpis > div > span:nth-child(2) { font-size: 17px !important; } .ppv-kpis > div > span:nth-child(3) { white-space: normal !important; } }"}</style>
+      <div className="ppv-kpis" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(170px, 100%), 1fr))", gap: 10 }}>
         <Tile tema={TEMA_PPV} label="Pedidos" valor={String(kpi.n)} sub={`${kpi.clientes} cliente${kpi.clientes !== 1 ? "s" : ""}`} />
         <Tile tema={TEMA_PPV} label="Valor total" valor={fmtBRL(kpi.valor)} sub={filtrosTexto} destaque />
         <Tile tema={TEMA_PPV} label="Ticket médio" valor={fmtBRL(kpi.ticket)} sub="valor ÷ pedidos" />

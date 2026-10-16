@@ -12,6 +12,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Camera, Car, CheckCircle2, ChevronDown, Gauge, Loader2, Plus, Search, WifiOff, Wrench, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
@@ -39,6 +40,8 @@ const fmtDataHora = (s: string | null | undefined) =>
 
 function PendenciasInner() {
   const { userProfile } = useAuth();
+  // celular (técnicos): botões grandes lado a lado e formulário em tela cheia
+  const mobile = useIsMobile();
   const [veiculos, setVeiculos] = useState<Veiculo[]>([]);
   const [componentes, setComponentes] = useState<Componente[]>([]);
   const [pendencias, setPendencias] = useState<Pend[]>([]);
@@ -83,7 +86,11 @@ function PendenciasInner() {
         fetch('/api/frota/pendencias', { headers: h }),
         fetch('/api/frota/componentes', { headers: h }),
       ]);
-      const dv = await rv.json(); const dp = await rp.json(); const dk = await rk.json();
+      // resposta que não é JSON (servidor reiniciando, página de erro) não pode
+      // derrubar a tela com "Unexpected token '<'": vira a mensagem de falha
+      // abaixo; a taxonomia de componentes é opcional
+      const lerJson = (r: Response) => r.json().catch(() => ({ error: `Servidor indisponível (${r.status}). Tente de novo.` }));
+      const dv = await lerJson(rv); const dp = await lerJson(rp); const dk = await lerJson(rk);
       if (!rv.ok) throw new Error(dv.error || 'Falha ao carregar os veículos.');
       if (!rp.ok) throw new Error(dp.error || 'Falha ao carregar as pendências.');
       setVeiculos(dv.veiculos || []);
@@ -246,7 +253,7 @@ function PendenciasInner() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{formatarPlaca(p.placa)}</span>
             <span style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>{nomeVeiculo(p.placa)}</span>
-            <span style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: resolvida ? '#16a34a' : '#dc2626', padding: '1px 8px', marginLeft: 'auto' }}>
+            <span style={{ fontSize: mobile ? 11 : 10.5, fontWeight: 800, color: '#fff', background: resolvida ? '#16a34a' : '#dc2626', padding: '1px 8px', marginLeft: 'auto' }}>
               {resolvida ? 'RESOLVIDA' : 'ABERTA'}
             </span>
           </div>
@@ -277,15 +284,18 @@ function PendenciasInner() {
       {/* topo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
         <Wrench size={20} color="#1e40af" />
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0, flex: 1 }}>Pendências da frota</h1>
-        <button onClick={abrirForm}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 18px', border: 'none', borderRadius: 0, background: '#1e40af', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
-          <Plus size={17} /> Abrir pendência
-        </button>
-        <button onClick={() => setKmAberto(true)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 16px', border: '1px solid #1e40af', borderRadius: 0, background: 'var(--portal-bg-card)', color: '#1e40af', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
-          <Gauge size={17} /> Registrar km
-        </button>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0, flex: 1, whiteSpace: mobile ? 'nowrap' : undefined }}>Pendências da frota</h1>
+        {/* celular: as duas ações numa linha só, metade cada, na altura do polegar */}
+        <div style={mobile ? { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 8, flexBasis: '100%' } : { display: 'contents' }}>
+          <button onClick={abrirForm}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: mobile ? '0 10px' : '12px 18px', minHeight: mobile ? 48 : undefined, border: 'none', borderRadius: 0, background: '#1e40af', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <Plus size={17} /> Abrir pendência
+          </button>
+          <button onClick={() => setKmAberto(true)}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: mobile ? '0 10px' : '12px 16px', minHeight: mobile ? 48 : undefined, border: '1px solid #1e40af', borderRadius: 0, background: 'var(--portal-bg-card)', color: '#1e40af', fontSize: 15, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+            <Gauge size={17} /> Registrar km
+          </button>
+        </div>
       </div>
       {filaKm > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', marginBottom: 12, background: 'rgba(180,83,9,.12)', color: '#b45309', fontSize: 13.5 }}>
@@ -310,7 +320,13 @@ function PendenciasInner() {
 
       {erro && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: 13.5, marginBottom: 14 }}>
-          <AlertTriangle size={16} /> {erro}
+          <AlertTriangle size={16} style={{ flexShrink: 0 }} /> <span style={{ flex: 1, minWidth: 0 }}>{erro}</span>
+          {/* sinal ruim no campo: recarregar sem precisar do F5 (só lê de novo) */}
+          {mobile && (
+            <button type="button" onClick={carregar} style={{ flexShrink: 0, minHeight: 40, padding: '0 12px', border: '1px solid #fecaca', background: 'transparent', color: '#b91c1c', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+              Tentar de novo
+            </button>
+          )}
         </div>
       )}
 
@@ -348,12 +364,12 @@ function PendenciasInner() {
       {/* ══════════ FORMULÁRIO (tela cheia no celular) ══════════ */}
       {fAberto && (
         <div onClick={(e) => { if (e.target === e.currentTarget) setFAberto(false); }}
-          style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(0px, 2vw, 16px)' }}>
-          <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', width: '100%', maxWidth: 560, height: '100%', maxHeight: 'min(94vh, 900px)', overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-            <div style={{ position: 'sticky', top: 0, zIndex: 5, display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', background: '#1e40af', color: '#fff' }}>
+          style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: mobile ? 0 : 'clamp(0px, 2vw, 16px)' }}>
+          <div style={{ background: 'var(--portal-bg-card)', border: mobile ? 'none' : '1px solid var(--portal-border)', width: '100%', maxWidth: mobile ? '100%' : 560, height: mobile ? '100dvh' : '100%', maxHeight: mobile ? '100dvh' : 'min(94vh, 900px)', overflowY: 'auto', overscrollBehavior: 'contain', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ position: 'sticky', top: 0, zIndex: 5, display: 'flex', alignItems: 'center', gap: 8, padding: mobile ? '8px 8px 8px 16px' : '14px 16px', background: '#1e40af', color: '#fff' }}>
               <Plus size={18} />
               <div style={{ flex: 1, fontSize: 16, fontWeight: 800 }}>Abrir pendência</div>
-              <button onClick={() => setFAberto(false)} style={{ width: 36, height: 36, flexShrink: 0, border: 'none', cursor: 'pointer', background: 'rgba(255,255,255,.18)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
+              <button onClick={() => setFAberto(false)} aria-label="Fechar" title="Fechar" style={{ width: mobile ? 44 : 36, height: mobile ? 44 : 36, flexShrink: 0, border: 'none', cursor: 'pointer', background: 'rgba(255,255,255,.18)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={mobile ? 22 : 18} /></button>
             </div>
             <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
@@ -444,12 +460,24 @@ function PendenciasInner() {
                 📅 Data, hora e quem abriu são registrados automaticamente.
               </div>
 
-              <button onClick={salvar} disabled={salvando}
-                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '15px', border: 'none', background: '#1e40af', color: '#fff', fontSize: 16, fontWeight: 800, cursor: salvando ? 'wait' : 'pointer' }}>
-                {salvando ? <Loader2 size={18} className="spin" /> : <CheckCircle2 size={18} />}
-                {salvando ? 'Enviando…' : 'Abrir pendência'}
-              </button>
+              {!mobile && (
+                <button onClick={salvar} disabled={salvando}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '15px', border: 'none', background: '#1e40af', color: '#fff', fontSize: 16, fontWeight: 800, cursor: salvando ? 'wait' : 'pointer' }}>
+                  {salvando ? <Loader2 size={18} className="spin" /> : <CheckCircle2 size={18} />}
+                  {salvando ? 'Enviando…' : 'Abrir pendência'}
+                </button>
+              )}
             </div>
+            {/* celular: o botão de enviar fica sempre à vista no rodapé (o formulário é comprido) */}
+            {mobile && (
+              <div className="m-rodape-fixo" style={{ marginTop: 'auto' }}>
+                <button onClick={salvar} disabled={salvando}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', minHeight: 50, border: 'none', background: '#1e40af', color: '#fff', fontSize: 16, fontWeight: 800, cursor: salvando ? 'wait' : 'pointer' }}>
+                  {salvando ? <Loader2 size={18} className="spin" /> : <CheckCircle2 size={18} />}
+                  {salvando ? 'Enviando…' : 'Abrir pendência'}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

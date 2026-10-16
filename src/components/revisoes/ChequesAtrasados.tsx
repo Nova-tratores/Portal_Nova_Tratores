@@ -5,6 +5,7 @@
 // sem abrir OS por OS. "Verificar agora" roda a varredura na hora.
 import { useCallback, useEffect, useState } from "react";
 import { authHeaders } from "@/lib/auth/client";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface Item {
   id: string;
@@ -31,6 +32,7 @@ export default function ChequesAtrasados({ podeVarrer, onIrParaChassi }: { podeV
   const [erro, setErro] = useState("");
   const [aberto, setAberto] = useState(true);
   const [resumo, setResumo] = useState("");
+  const isMobile = useIsMobile();
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -90,7 +92,7 @@ export default function ChequesAtrasados({ podeVarrer, onIrParaChassi }: { podeV
               onClick={varrer}
               disabled={varrendo}
               title="Recalcula agora: OS de revisão dos últimos 60 dias faturadas no Omie e sem cheque enviado"
-              className="px-3 py-1.5 text-sm rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+              className="px-3 py-1.5 max-md:py-2.5 max-md:px-4 text-sm rounded-md border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
             >
               {varrendo ? "Verificando…" : "Verificar agora"}
             </button>
@@ -98,7 +100,36 @@ export default function ChequesAtrasados({ podeVarrer, onIrParaChassi }: { podeV
         </div>
       </div>
       {erro && <p className="px-4 pb-3 text-sm text-red-600">{erro}</p>}
-      {aberto && total > 0 && (
+      {/* Celular: um cartão por OS (a tabela de 7 colunas rolava de lado) */}
+      {aberto && total > 0 && isMobile && (
+        <div className="border-t border-red-200 p-3 flex flex-col gap-2">
+          {itens.map((it) => (
+            <div key={it.id} className="rounded-lg border border-red-200 bg-white p-3">
+              <div className="flex items-center justify-between gap-2">
+                <a href={`/pos?id=${encodeURIComponent(it.id)}`} className="font-semibold text-red-700 py-1">
+                  {it.id}
+                  {it.nova && <span className="ml-1.5 text-[11px] font-bold text-white bg-red-600 rounded px-1">NOVA</span>}
+                </a>
+                <span className="text-sm font-semibold text-zinc-800">{it.horas ? `${it.horas}h` : "—"}</span>
+              </div>
+              <div className="text-sm font-medium text-zinc-900 break-words">{it.cliente || "—"}</div>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-[13px] text-zinc-600">
+                {onIrParaChassi
+                  ? <button type="button" className="font-mono text-zinc-800 underline" onClick={() => onIrParaChassi(it.chassis)}>{it.chassis}</button>
+                  : <span className="font-mono break-all">{it.chassis}</span>}
+                <span>{fmt(it.dataFim || it.data)}</span>
+                <span>{it.status || "—"}</span>
+              </div>
+              {it.detalhes.length > 0 && (
+                <ul className="mt-1.5 list-disc pl-4 space-y-0.5 text-[13px] text-zinc-800">
+                  {it.detalhes.map((d, i) => <li key={i}>{d}</li>)}
+                </ul>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {aberto && total > 0 && !isMobile && (
         <div className="border-t border-red-200 overflow-x-auto">
           <table className="w-full min-w-[720px] text-sm">
             <thead>

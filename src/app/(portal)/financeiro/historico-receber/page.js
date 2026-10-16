@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { formatarMoeda, formatarDataBR } from '@/lib/financeiro/utils'
 import { FileText, CheckCircle, Download, Search } from 'lucide-react'
 
@@ -22,6 +23,7 @@ export default function HistoricoReceber() {
   const [loading, setLoading] = useState(true)
   const [pesquisa, setPesquisa] = useState('')
   const router = useRouter()
+  const isMobile = useIsMobile()
 
   useEffect(() => {
     const fetchData = async () => {
@@ -54,7 +56,7 @@ export default function HistoricoReceber() {
 
         {/* BARRA DE PESQUISA */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginBottom: '30px', alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '300px', minWidth: 0 }}>
+          <div className="m-full" style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '300px', minWidth: 0 }}>
             <label style={{ fontSize: '10px', color: '#9e9e9e', letterSpacing: '1px', marginLeft: '5px' }}>PESQUISAR CLIENTE / ID</label>
             <div style={{ position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#9e9e9e' }} />
@@ -69,8 +71,32 @@ export default function HistoricoReceber() {
           </div>
         </div>
 
+        {/* CELULAR: um cartão por recebimento (cliente, valor, vencimento e documentos) */}
+        {isMobile && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {listaFiltrada.map((item) => (
+              <div key={item.id} style={{ background: 'var(--portal-bg-card)', borderRadius: '14px', border: '1px solid var(--portal-border)', padding: '12px 14px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: '4px 12px', alignItems: 'center' }}>
+                <div className="m-quebra-texto" style={{ fontSize: '15px', fontWeight: 600, color: 'var(--portal-text)', minWidth: 0 }}>{item.cliente?.toUpperCase() || '—'}</div>
+                <div style={{ fontSize: '15px', color: 'var(--portal-text)', fontWeight: 600, whiteSpace: 'nowrap' }}>{formatarMoeda(item.valor)}</div>
+                <div style={{ fontSize: '13px', color: 'var(--portal-text-secondary)' }}>#{item.id} · Venc. {formatarDataBR(item.data_vencimento)}</div>
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  {(item.anexo_nf_servico || item.anexo_nf_peca) && (
+                    <a href={item.anexo_nf_servico || item.anexo_nf_peca} target="_blank" title="Ver NF" aria-label="Ver NF" style={{ ...actionIcon, padding: '11px' }}><FileText size={18} /></a>
+                  )}
+                  {item.anexo_boleto && (
+                    <a href={item.anexo_boleto} target="_blank" title="Ver Boleto" aria-label="Ver boleto" style={{ ...actionIcon, padding: '11px' }}><Download size={18} /></a>
+                  )}
+                </div>
+              </div>
+            ))}
+            {listaFiltrada.length === 0 && (
+              <p style={{ fontSize: '15px', color: 'var(--portal-text-secondary)', textAlign: 'center', padding: '32px 16px' }}>Nenhum registro encontrado no histórico.</p>
+            )}
+          </div>
+        )}
+
         {/* TABELA */}
-        <div style={{ background: '#fff', borderRadius: '25px', border: '0.5px solid #d1d1d1', overflow: 'hidden', boxShadow: '0 15px 35px rgba(0,0,0,0.05)' }}>
+        {!isMobile && <div style={{ background: '#fff', borderRadius: '25px', border: '0.5px solid #d1d1d1', overflow: 'hidden', boxShadow: '0 15px 35px rgba(0,0,0,0.05)' }}>
           {/* rolagem horizontal só da tabela no celular (a página não rola de lado) */}
           <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <table style={{ width:'100%', minWidth: '640px', borderCollapse:'collapse', textAlign:'left' }}>
@@ -117,7 +143,7 @@ export default function HistoricoReceber() {
                 <p style={{ fontSize:'16px', color:'#9e9e9e' }}>Nenhum registro encontrado no histórico.</p>
             </div>
           )}
-        </div>
+        </div>}
       </main>
 
       <style jsx global>{`

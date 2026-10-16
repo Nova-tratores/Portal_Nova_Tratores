@@ -49,9 +49,9 @@ export default function OrganizarTicket({ ticket, onFechar, onFeito }: {
   const campo: React.CSSProperties = { display: 'block', width: '100%', marginTop: 4, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)', boxSizing: 'border-box' }
 
   return (
-    <div onMouseDown={(e) => { downNoFundo.current = e.target === e.currentTarget }}
+    <div className="m-folha-fundo" onMouseDown={(e) => { downNoFundo.current = e.target === e.currentTarget }}
       onClick={(e) => { if (e.target === e.currentTarget && downNoFundo.current) fecharPeloFundo() }} style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div role="dialog" aria-modal="true" aria-labelledby="org-t" style={{ width: '100%', maxWidth: 540, maxHeight: '92vh', overflowY: 'auto', background: 'var(--portal-bg-card,#fff)', borderRadius: 16, boxShadow: '0 24px 70px rgba(0,0,0,.35)' }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="org-t" className="m-folha" style={{ width: '100%', maxWidth: 540, maxHeight: '92vh', overflowY: 'auto', background: 'var(--portal-bg-card,#fff)', borderRadius: 16, boxShadow: '0 24px 70px rgba(0,0,0,.35)' }}>
         <header style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, padding: '16px 18px', borderBottom: '1px solid var(--portal-border,#eee)' }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#888)' }}>

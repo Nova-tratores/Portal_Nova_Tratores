@@ -192,7 +192,9 @@ function EnviosEmailInner() {
         <div style={{ ...card, marginTop: 18, padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '12px 16px', fontSize: 14, fontWeight: 800, borderBottom: '1px solid var(--portal-border, #e5e7eb)' }}>Histórico de envios (últimos {painel.log.length})</div>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            {/* Celular: cada envio vira um cartão (quando · resultado / envio / origem · registros · quem / destinatários) */}
+            <style>{`@media (max-width: 768px){.env-tab thead{display:none}.env-tab tr{display:grid;grid-auto-flow:dense;grid-template-columns:minmax(0,1fr) auto;gap:4px 10px;padding:10px 14px}.env-tab td{display:block;padding:0 !important;max-width:none !important}.env-tab td:nth-child(1){grid-column:1;grid-row:1;font-size:12px;color:var(--portal-text-secondary,#64748b)}.env-tab td:nth-child(4){grid-column:2;grid-row:1;justify-self:end}.env-tab td:nth-child(2){grid-column:1/-1;font-weight:700}.env-tab td:nth-child(3){grid-column:1}.env-tab td:nth-child(6){grid-column:2;justify-self:end;font-size:12px}.env-tab td:nth-child(7){grid-column:1/-1;font-size:12px;color:var(--portal-text-secondary,#64748b)}.env-tab td:nth-child(5){grid-column:1/-1;white-space:normal !important;overflow-wrap:anywhere;font-size:12.5px}.env-tab td[colspan]{grid-column:1/-1}}`}</style>
+            <table className="env-tab" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
               <thead>
                 <tr style={{ background: 'var(--portal-bg-secondary, #f8fafc)' }}>
                   {['Quando', 'Envio', 'Origem', 'Resultado', 'Destinatários', 'Registros', 'Quem'].map((h) => <th key={h} style={{ textAlign: 'left', padding: '9px 14px', fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--portal-text-secondary, #64748b)', whiteSpace: 'nowrap' }}>{h}</th>)}

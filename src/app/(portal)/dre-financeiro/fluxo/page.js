@@ -883,7 +883,10 @@ export default function FluxoPage() {
           <div className="dre-a-sankey-scroll">
             <div ref={sankeyRef} className="dre-a-sankey" style={{ width: '100%', height: 1000 }} />
           </div>
-          <div className="text-xs text-slate-500 mt-2">Passe o mouse num no para destacar o caminho. Da esquerda p/ direita: Grupo &rarr; Categoria &rarr; Top Terceiros.</div>
+          <div className="text-xs text-slate-500 mt-2">
+            <span className="m-esconder">Passe o mouse num no para destacar o caminho. Da esquerda p/ direita: Grupo &rarr; Categoria &rarr; Top Terceiros.</span>
+            <span className="m-so-mobile">Arraste o diagrama para o lado para ver Categoria &rarr; Top Terceiros. Toque num nó ou fluxo para ver os títulos.</span>
+          </div>
         </div>
       )}
 
@@ -1014,7 +1017,7 @@ export default function FluxoPage() {
       {modalAberto && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={fecharModal} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[94vw] max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 dre-folha w-[94vw] max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
             <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-3">
               <div style={{ minWidth: 0 }}>
                 <h2 className="font-semibold text-slate-800">{modalTitulo}</h2>
@@ -1033,7 +1036,7 @@ export default function FluxoPage() {
       {drillMaq && (
         <>
           <div className="fixed inset-0 bg-black/40 z-[60]" onClick={fecharDrillMaq} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[94vw] max-w-xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-[70] flex flex-col">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 dre-folha w-[94vw] max-w-xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-[70] flex flex-col">
             <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <h2 className="font-semibold text-slate-800 truncate">{drillMaq.terceiro}</h2>

@@ -350,8 +350,10 @@ function DashboardAgrupadoInner() {
   }, []);
 
   const fetchUsuariosPortal = useCallback(async () => {
-    const { data } = await supabase.from("portal_permissoes").select("user_id, nome");
-    if (data) setUsuariosPortal(data.filter((u: any) => u.nome));
+    // portal_permissoes não tem "nome" (a consulta dava 400 e a lista de quem avisar vinha vazia):
+    // o nome mora em financeiro_usu, cujo id é o mesmo user_id das permissões.
+    const { data } = await supabase.from("financeiro_usu").select("id, nome, ativo").order("nome");
+    if (data) setUsuariosPortal(data.filter((u) => u.nome && u.ativo !== false).map((u) => ({ user_id: String(u.id), nome: String(u.nome) })));
   }, []);
 
   const criarLembrete = async () => {
@@ -941,12 +943,12 @@ function DashboardAgrupadoInner() {
     : [], [selecionado, emailsDoChassis]);
 
   return (
-    <div className="min-h-screen text-zinc-800 p-4 md:p-12 overflow-x-hidden">
+    <div className="min-h-screen text-zinc-800 p-4 max-md:px-3 md:p-12 overflow-x-hidden">
       <div className="max-w-6xl mx-auto">
-        <header className="mb-12">
-          <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
+        <header className="mb-12 max-md:mb-6">
+          <div className="flex flex-wrap items-end justify-between gap-4 mb-8 max-md:mb-4 max-md:gap-3">
             <div>
-              <h1 className="text-3xl md:text-4xl font-semibold text-zinc-900 tracking-tight">Controle Revisões</h1>
+              <h1 className="text-3xl md:text-4xl max-md:text-xl font-semibold text-zinc-900 tracking-tight">Controle Revisões</h1>
               <p className="text-zinc-500 text-base mt-1">
                 {tratores.length} unidades
                 {loadingEmails && <span className="text-zinc-500 ml-3 animate-pulse">carregando emails...</span>}
@@ -1008,7 +1010,7 @@ function DashboardAgrupadoInner() {
           <p className="text-center py-20 text-zinc-400 text-sm">Nenhum trator encontrado.</p>
         )}
 
-        <div className="space-y-10">
+        <div className="space-y-10 max-md:space-y-6">
           {(Object.entries(grupos) as [string, Trator[]][]).map(([cliente, lista]) => (
             <section key={cliente}>
               <div className="flex items-center gap-3 mb-4">
@@ -1032,11 +1034,11 @@ function DashboardAgrupadoInner() {
                         fetchUsuariosPortal();
                         auditLog({ sistema: 'revisoes', acao: 'visualizar', entidade: 'trator', entidade_id: t.ID, entidade_label: `${t.Modelo} - ${t.Chassis}` });
                       }}
-                      className="bg-white p-5 rounded-xl border border-zinc-200 hover:border-red-200 transition-all cursor-pointer group"
+                      className="bg-white p-5 max-md:p-3.5 rounded-xl border border-zinc-200 hover:border-red-200 transition-all cursor-pointer group"
                     >
-                      <div className="flex justify-between items-start mb-3">
+                      <div className="flex justify-between items-start mb-3 max-md:mb-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-base text-zinc-500 font-medium">{t.Modelo}</span>
+                          <span className="text-base max-md:text-sm text-zinc-500 font-medium">{t.Modelo}</span>
                           {obsDoTrator.length > 0 && (
                             <span
                               className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-100 text-amber-700 font-bold text-xs cursor-help"
@@ -1046,7 +1048,7 @@ function DashboardAgrupadoInner() {
                             </span>
                           )}
                         </div>
-                        <span className={`text-base font-medium px-2 py-0.5 rounded-md ${
+                        <span className={`text-base max-md:text-[13px] font-medium px-2 py-0.5 rounded-md ${
                           previsao.atrasada
                             ? "bg-red-50 text-red-600"
                             : "bg-emerald-50 text-emerald-600"
@@ -1055,43 +1057,43 @@ function DashboardAgrupadoInner() {
                         </span>
                       </div>
 
-                      <h3 className="text-2xl font-semibold text-zinc-900 mb-3 group-hover:text-zinc-800">{t.Chassis}</h3>
+                      <h3 className="text-2xl max-md:text-lg max-md:mb-1 break-all font-semibold text-zinc-900 mb-3 group-hover:text-zinc-800">{t.Chassis}</h3>
 
                       {emailsCarregados && (
-                        <div className="mb-3">
-                          <span className={`text-base font-medium ${emailsCount > 0 ? "text-zinc-400" : "text-zinc-600"}`}>
+                        <div className="mb-3 max-md:mb-2">
+                          <span className={`text-base max-md:text-[13px] font-medium ${emailsCount > 0 ? "text-zinc-400" : "text-zinc-600"}`}>
                             {emailsCount > 0 ? `${emailsCount} email(s)` : "Nenhum email"}
                           </span>
                         </div>
                       )}
 
-                      <div className="grid grid-cols-2 gap-2 text-base">
-                        <div>
-                          <p className="text-zinc-400 text-sm">Motor</p>
-                          <p className="text-zinc-800 font-medium text-lg">{t.Numero_Motor || "—"}</p>
+                      <div className="grid grid-cols-2 gap-2 max-md:gap-x-3 max-md:gap-y-1 text-base">
+                        <div className="min-w-0">
+                          <p className="text-zinc-400 text-sm max-md:text-xs">Motor</p>
+                          <p className="text-zinc-800 font-medium text-lg max-md:text-sm truncate">{t.Numero_Motor || "—"}</p>
                         </div>
-                        <div>
-                          <p className="text-zinc-400 text-sm">Entrega</p>
-                          <p className="text-zinc-600 text-lg">{formatarData(t.Entrega)}</p>
+                        <div className="min-w-0">
+                          <p className="text-zinc-400 text-sm max-md:text-xs">Entrega</p>
+                          <p className="text-zinc-600 text-lg max-md:text-sm">{formatarData(t.Entrega)}</p>
                         </div>
-                        <div>
-                          <p className="text-zinc-400 text-sm">Vendedor</p>
-                          <p className="text-zinc-600 text-base truncate">{t.Vendedor || "—"}</p>
+                        <div className="min-w-0">
+                          <p className="text-zinc-400 text-sm max-md:text-xs">Vendedor</p>
+                          <p className="text-zinc-600 text-base max-md:text-sm truncate">{t.Vendedor || "—"}</p>
                         </div>
-                        <div>
-                          <p className="text-zinc-400 text-sm">Cidade</p>
-                          <p className="text-zinc-600 text-base truncate">{t.Cidade || "—"}</p>
+                        <div className="min-w-0">
+                          <p className="text-zinc-400 text-sm max-md:text-xs">Cidade</p>
+                          <p className="text-zinc-600 text-base max-md:text-sm truncate">{t.Cidade || "—"}</p>
                         </div>
                       </div>
 
-                      <div className="flex items-center gap-3 mt-3 pt-3 border-t border-zinc-200">
-                        <div className="flex-1">
-                          <p className="text-zinc-400 text-base">Próxima</p>
-                          <p className="text-zinc-900 font-semibold text-lg">{previsao.proximaRevHoras}h</p>
+                      <div className="flex items-center gap-3 mt-3 pt-3 max-md:mt-2 max-md:pt-2 border-t border-zinc-200">
+                        <div className="flex-1 max-md:flex max-md:items-baseline max-md:gap-2">
+                          <p className="text-zinc-400 text-base max-md:text-xs">Próxima</p>
+                          <p className="text-zinc-900 font-semibold text-lg max-md:text-base">{previsao.proximaRevHoras}h</p>
                         </div>
-                        <div className="flex-1">
-                          <p className="text-zinc-400 text-base">Última</p>
-                          <p className="text-zinc-600 font-semibold text-lg">{previsao.ultimaRevHoras > 0 ? `${previsao.ultimaRevHoras}h` : "—"}</p>
+                        <div className="flex-1 max-md:flex max-md:items-baseline max-md:gap-2">
+                          <p className="text-zinc-400 text-base max-md:text-xs">Última</p>
+                          <p className="text-zinc-600 font-semibold text-lg max-md:text-base">{previsao.ultimaRevHoras > 0 ? `${previsao.ultimaRevHoras}h` : "—"}</p>
                         </div>
                       </div>
                     </div>
@@ -1113,16 +1115,17 @@ function DashboardAgrupadoInner() {
 
         return (
         <div
-          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 md:p-4 z-50"
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-2 max-md:p-0 md:p-4 z-50"
           onClick={(e) => { if (e.target === e.currentTarget) setSelecionado(null); }}
         >
-          <div className="modal-enter bg-white rounded-2xl w-full max-w-5xl max-h-[94vh] md:max-h-[90vh] overflow-hidden border border-zinc-200 shadow-xl flex flex-col">
-            <div className="px-4 md:px-8 pt-4 md:pt-6 pb-3 md:pb-4 border-b border-zinc-100">
-              <div className="flex justify-between items-start mb-4">
+          <div className="modal-enter bg-white rounded-2xl w-full max-w-5xl max-h-[94vh] md:max-h-[90vh] overflow-hidden border border-zinc-200 shadow-xl flex flex-col max-md:rounded-none max-md:border-0 max-md:h-[100dvh] max-md:max-h-[100dvh] max-md:overflow-y-auto">
+            {/* Celular: tela cheia e uma rolagem só (cabeçalho + conteúdo rolam juntos) */}
+            <div className="px-4 max-md:px-3 md:px-8 pt-4 max-md:pt-3 md:pt-6 pb-3 md:pb-4 border-b border-zinc-100">
+              <div className="flex justify-between items-start mb-4 max-md:mb-3 gap-2">
                 <div className="flex items-center gap-4">
                   <div>
                     <div className="flex items-center gap-3 flex-wrap">
-                      <h2 className="text-2xl md:text-3xl font-semibold text-zinc-900">{selecionado.Chassis}</h2>
+                      <h2 className="text-2xl max-md:text-xl break-all md:text-3xl font-semibold text-zinc-900">{selecionado.Chassis}</h2>
                       <span className={`text-sm font-medium px-2.5 py-1 rounded-full ${
                         prev.atrasada
                           ? "bg-red-50 text-red-600 border border-red-200"
@@ -1140,13 +1143,14 @@ function DashboardAgrupadoInner() {
                 </div>
                 <button
                   onClick={() => setSelecionado(null)}
-                  className="text-zinc-400 hover:text-zinc-600 transition-colors p-1.5 hover:bg-zinc-100 rounded-lg"
+                  aria-label="Fechar"
+                  className="text-zinc-400 hover:text-zinc-600 transition-colors p-1.5 max-md:p-3.5 max-md:-mr-2 max-md:-mt-1 max-md:bg-zinc-100 shrink-0 hover:bg-zinc-100 rounded-lg"
                 >
                   <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M12 4L4 12M4 4l8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                 </button>
               </div>
 
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-md:gap-2 mb-4 max-md:mb-3 [&_.text-2xl]:max-md:text-lg">
                 <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200 min-w-0 overflow-hidden">
                   <p className="text-xs text-zinc-400 uppercase tracking-wider font-medium">Motor</p>
                   {editandoMotor ? (
@@ -1171,7 +1175,7 @@ function DashboardAgrupadoInner() {
                       title={podeTratores ? "Clique para editar" : undefined}
                     >
                       {selecionado.Numero_Motor || <span className="text-zinc-400">—</span>}
-                      <span className="text-xs text-zinc-400 group-hover/motor:text-red-500 ml-1 font-normal">editar</span>
+                      <span className="text-xs text-zinc-400 group-hover/motor:text-red-500 ml-1 font-normal max-md:inline-block">editar</span>
                     </p>
                   )}
                 </div>
@@ -1185,7 +1189,7 @@ function DashboardAgrupadoInner() {
                 <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200 min-w-0 overflow-hidden">
                   <p className="text-xs text-zinc-400 uppercase tracking-wider font-medium">Próxima</p>
                   <p className="text-2xl font-semibold text-zinc-900 mt-0.5">{prev.proximaRevHoras}<span className="text-zinc-600 text-base font-normal">h</span></p>
-                  <p className="text-sm text-zinc-400 mt-1">{prev.dataEstimada.toLocaleDateString("pt-BR")}</p>
+                  <p className="text-sm text-zinc-400 mt-1">{isNaN(prev.dataEstimada.getTime()) ? "—" : prev.dataEstimada.toLocaleDateString("pt-BR")}</p>
                 </div>
                 <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-200 min-w-0 overflow-hidden">
                   <p className="text-xs text-zinc-400 uppercase tracking-wider font-medium">Emails</p>
@@ -1222,9 +1226,9 @@ function DashboardAgrupadoInner() {
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 md:p-8">
+            <div className="flex-1 overflow-y-auto p-4 max-md:p-3 max-md:flex-none max-md:overflow-visible md:p-8">
               {tabModal === "timeline" && (
-                <div key="timeline" className="tab-content-enter grid lg:grid-cols-3 gap-5 md:gap-8 min-w-0">
+                <div key="timeline" className="tab-content-enter grid max-md:grid-cols-[minmax(0,1fr)] lg:grid-cols-3 gap-5 md:gap-8 min-w-0">
                   <div className="space-y-4 min-w-0">
                     <h4 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Informações</h4>
                     <div className="space-y-2">
@@ -1775,7 +1779,7 @@ function DashboardAgrupadoInner() {
                 const inspecaoPdfSalvo = selecionado["Inspecao PDF"] as string | undefined;
                 const pdfUrl = inspecaoPdfSalvo || insp?.attachments?.[0]?.part;
                 return (
-                  <div key="inspecao" className="tab-content-enter grid lg:grid-cols-2 gap-8">
+                  <div key="inspecao" className="tab-content-enter grid max-md:grid-cols-[minmax(0,1fr)] lg:grid-cols-2 gap-8">
                     <div className="space-y-5">
                       <div>
                         <h4 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-3">Status</h4>
@@ -2126,7 +2130,7 @@ function DashboardAgrupadoInner() {
                 const horasPreview = revisaoEnvio ? revisaoEnvio.replace("h", "") : "___";
                 const chassisFinalPreview = selecionado.Chassis.slice(-4);
                 return (
-                  <div key="enviar" className="tab-content-enter grid lg:grid-cols-2 gap-8">
+                  <div key="enviar" className="tab-content-enter grid max-md:grid-cols-[minmax(0,1fr)] lg:grid-cols-2 gap-8">
                     <div>
                       <h4 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-3">Preview</h4>
                       <div className="rounded-xl border border-zinc-200 p-5 space-y-4">

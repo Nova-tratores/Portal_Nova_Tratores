@@ -575,7 +575,8 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
 
             {/* Comentar */}
             {podeComentar && (
-              <div style={{ display: 'flex', gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--portal-border,#f0f0f0)' }}>
+              // Celular: a caixa de texto ocupa a linha toda; anexar e Enviar ficam embaixo.
+              <div style={{ display: 'flex', flexWrap: isMobile ? 'wrap' : undefined, gap: 8, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--portal-border,#f0f0f0)' }}>
                 <input ref={fileRef} type="file" accept="image/*" multiple style={{ display: 'none' }}
                   onChange={(e) => anexarArquivos(Array.from(e.target.files || []))} />
                 <button
@@ -600,9 +601,9 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                     if (imagens.length > 0) { e.preventDefault(); anexarArquivos(imagens) }
                   }}
                   rows={2}
-                  placeholder="Escreva aqui... (Ctrl+Enter envia · Ctrl+V cola print)"
+                  placeholder={isMobile ? 'Escreva aqui...' : 'Escreva aqui... (Ctrl+Enter envia · Ctrl+V cola print)'}
                   style={{
-                    flex: 1, padding: '10px 12px', borderRadius: 10, fontSize: 14, resize: 'vertical', outline: 'none', minWidth: 0,
+                    flex: isMobile ? '1 1 100%' : 1, order: isMobile ? -1 : undefined, padding: '10px 12px', borderRadius: 10, fontSize: 14, resize: 'vertical', outline: 'none', minWidth: 0,
                     border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)',
                   }}
                 />
@@ -610,7 +611,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                   disabled={!comentario.trim()}
                   onClick={enviarComentario}
                   style={{
-                    alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px',
+                    alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', marginLeft: isMobile ? 'auto' : undefined, minHeight: isMobile ? 42 : undefined,
                     borderRadius: 10, border: 'none', background: '#dc2626', color: '#fff', fontWeight: 700,
                     fontSize: 13, cursor: 'pointer', opacity: !comentario.trim() ? .5 : 1,
                   }}>

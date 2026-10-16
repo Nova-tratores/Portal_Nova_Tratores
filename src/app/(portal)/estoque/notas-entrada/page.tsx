@@ -9,6 +9,7 @@ import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 
@@ -55,6 +56,9 @@ export default function NotasEntradaPage() {
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
   const [valorPorId, setValorPorId] = useState<Record<number, number>>({});
   const [carregandoTodas, setCarregandoTodas] = useState(false);
+  const isMobile = useIsMobile();
+  // Celular: filtros secundários (mês/ano/fornecedor/descrição/ações) ficam recolhidos.
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
 
   // Filtros da busca: NF, fornecedor (nome_emitente) e/ou descrição do produto
   // (varre os itens). Qualquer texto ignora o mês/ano; sem texto, usa mês/ano.
@@ -242,10 +246,26 @@ export default function NotasEntradaPage() {
         {pode('estoque', 'dashboard') && (<Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Dashboard</Link>)}
       </div>
 
-      <div className="est-touch" style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+      {isMobile && (
+        // Celular: busca por NF sempre à mão; o resto atrás do botão "Filtros".
+        <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+          <input value={nf} onChange={(e) => { setNf(e.target.value); setPagina(1); }} placeholder="Buscar nº da NF" inputMode="numeric"
+            style={{ flex: 1, minWidth: 0, padding: '10px 12px', border: '1px solid #e0e0e0', borderRadius: 8, outline: 'none', background: '#fff' }} />
+          <button onClick={() => setFiltrosAbertos((v) => !v)} aria-expanded={filtrosAbertos}
+            style={{ minHeight: 44, padding: '0 14px', border: `1px solid ${filtrosAbertos ? '#dc2626' : '#e0e0e0'}`, background: filtrosAbertos ? '#fef2f2' : '#fff', color: '#dc2626', borderRadius: 8, fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap' }}>
+            Filtros{(fornecedor.trim() ? 1 : 0) + (descricao.trim() ? 1 : 0) > 0 ? ` (${(fornecedor.trim() ? 1 : 0) + (descricao.trim() ? 1 : 0)})` : ''} {filtrosAbertos ? '▲' : '▼'}
+          </button>
+        </div>
+      )}
+      {isMobile && !filtrosAbertos && (
+        <div style={{ fontSize: 12, color: '#888', marginTop: -4, marginBottom: 10 }}>
+          {nf.trim() || fornecedor.trim() || descricao.trim() ? 'Buscando em todo o histórico' : `Período: ${MESES[mes - 1]}/${ano}`}
+        </div>
+      )}
+      <div className="est-touch" style={{ display: isMobile && !filtrosAbertos ? 'none' : 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <Sel label="Mês" value={mes} onChange={(v) => { setMes(parseInt(v)); setPagina(1); }} options={MESES.map((m, i) => ({ value: i + 1, label: m }))} />
         <Sel label="Ano" value={ano} onChange={(v) => { setAno(parseInt(v)); setPagina(1); }} options={anos.map((y) => ({ value: y, label: String(y) }))} />
-        <div className="est-grow">
+        <div className="est-grow" style={isMobile ? { display: 'none' } : undefined}>
           <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>Buscar NF</label>
           <input value={nf} onChange={(e) => { setNf(e.target.value); setPagina(1); }} placeholder="nº da NF" style={{ padding: '9px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: '.82rem', outline: 'none', width: 140 }} />
         </div>
@@ -327,6 +347,23 @@ export default function NotasEntradaPage() {
             </div>
           )}
 
+          {isMobile ? (
+            <div>
+              {resp.notas.length === 0 && <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 24, textAlign: 'center', color: '#999', fontSize: 14 }}>Nenhuma nota neste filtro.</div>}
+              {resp.notas.map((n) => (
+                <NotaCardMobile key={n.id}
+                  n={n}
+                  expandida={expandida === n.id}
+                  onToggle={() => setExpandida(expandida === n.id ? null : n.id)}
+                  selecionado={selecionados.has(n.id)}
+                  onToggleSelecao={() => toggleSelecao(n.id)}
+                  titulos={titulos[n.id]}
+                  onVerContasPagar={() => verContasPagar(n)}
+                  onVerDanfe={() => verDanfe(n)}
+                />
+              ))}
+            </div>
+          ) : (
           <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>
@@ -351,7 +388,8 @@ export default function NotasEntradaPage() {
               </tbody>
             </table>
           </div>
-          <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center' }}>
+          )}
+          <div style={{ display: 'flex', gap: 10, marginTop: 14, alignItems: 'center', justifyContent: isMobile ? 'space-between' : undefined }}>
             <button onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={pagina <= 1} style={pgBtn(pagina <= 1)}>← Anterior</button>
             <span style={{ fontSize: '.8rem', color: '#888' }}>{pagina}/{resp.totalPaginas || 1}</span>
             <button onClick={() => setPagina((p) => p + 1)} disabled={pagina >= (resp.totalPaginas || 1)} style={pgBtn(pagina >= (resp.totalPaginas || 1))}>Próxima →</button>
@@ -428,6 +466,74 @@ function NotaRow({ n, expandida, onToggle, selecionado, onToggleSelecao, titulos
         </tr>
       )}
     </>
+  );
+}
+
+// Celular: um cartão por nota. Toque abre DANFE / contas a pagar / itens.
+function NotaCardMobile({ n, expandida, onToggle, selecionado, onToggleSelecao, titulos, onVerContasPagar, onVerDanfe }: {
+  n: Nota; expandida: boolean; onToggle: () => void; selecionado: boolean; onToggleSelecao: () => void;
+  titulos: Titulo[] | 'loading' | undefined; onVerContasPagar: () => void; onVerDanfe: () => void;
+}) {
+  const acao: React.CSSProperties = { flex: 1, minHeight: 40, border: '1px solid #fecaca', background: '#fff', color: '#dc2626', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer' };
+  return (
+    <div style={{ background: selecionado ? '#fff7f7' : '#fff', border: `1px solid ${selecionado ? '#fecaca' : '#eee'}`, borderRadius: 12, marginBottom: 8, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'stretch' }}>
+        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, flexShrink: 0, cursor: 'pointer' }} aria-label="Selecionar nota">
+          <input type="checkbox" checked={selecionado} onChange={onToggleSelecao} style={{ width: 20, height: 20 }} />
+        </label>
+        <button type="button" onClick={onToggle} aria-expanded={expandida}
+          style={{ flex: 1, minWidth: 0, display: 'flex', gap: 10, alignItems: 'flex-start', textAlign: 'left', padding: '10px 12px 10px 0', background: 'none', border: 'none', cursor: 'pointer', color: 'inherit' }}>
+          <span style={{ flex: 1, minWidth: 0 }}>
+            <span className="m-quebra-texto" style={{ display: 'block', fontSize: 14, fontWeight: 700, color: n.nome_emitente ? '#333' : '#c00' }}>{n.nome_emitente || 'Emitente não identificado'}</span>
+            <span style={{ display: 'block', fontSize: 12, color: '#777', marginTop: 2 }}>NF {n.numero_nf}{n.serie ? `/${n.serie}` : ''} · {n.data_emissao}</span>
+            {n.categoria && <span className="m-quebra-texto" style={{ display: 'block', fontSize: 12, color: '#999', marginTop: 1 }}>{n.categoria}</span>}
+          </span>
+          <span style={{ textAlign: 'right', flexShrink: 0 }}>
+            <span style={{ display: 'block', fontSize: 15, fontWeight: 800, color: '#333' }}>{fmtRS(n.valor_nf)}</span>
+            <span style={{ display: 'block', fontSize: 12, color: '#dc2626', marginTop: 2 }}>{expandida ? 'fechar ▲' : 'detalhes ▼'}</span>
+          </span>
+        </button>
+      </div>
+      {expandida && (
+        <div style={{ borderTop: '1px solid #f3f3f3', background: '#fafafa', padding: 12 }}>
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <button onClick={onVerDanfe} style={acao}>Ver DANFE</button>
+            <button onClick={onVerContasPagar} style={acao}>Contas a pagar</button>
+          </div>
+          {n.itens && n.itens.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>Itens ({n.itens.length})</div>
+              {n.itens.map((it, i) => (
+                <div key={i} style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: '8px 10px', marginBottom: 4 }}>
+                  <div className="m-quebra-texto" style={{ fontSize: 13, color: '#333' }}>{it.descricao}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: '#777', marginTop: 2 }}>
+                    <span>{it.codigo_produto} · {it.quantidade} × {fmtRS(it.valor_unitario)}</span>
+                    <b style={{ color: '#333' }}>{fmtRS(it.valor_total)}</b>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          {titulos === 'loading' && <div style={{ fontSize: 13, color: '#888' }}>Buscando contas a pagar…</div>}
+          {Array.isArray(titulos) && (
+            titulos.length === 0 ? <div style={{ fontSize: 13, color: '#888' }}>Nenhum título encontrado.</div> : (
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#888', textTransform: 'uppercase', letterSpacing: '.4px', marginBottom: 4 }}>Contas a pagar</div>
+                {titulos.map((t, i) => (
+                  <div key={i} style={{ background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: '8px 10px', marginBottom: 4, fontSize: 12, color: '#555' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                      <span>{t.numero_documento} · venc. {t.data_vencimento}</span>
+                      <b style={{ color: '#333' }}>{fmtRS(t.valor_documento)}</b>
+                    </div>
+                    <div style={{ marginTop: 2 }}>{t.status_titulo}{t.data_pagamento ? ` · pago em ${t.data_pagamento}` : ''}{t.valor_pago ? ` · ${fmtRS(t.valor_pago)}` : ''}</div>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

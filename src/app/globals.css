@@ -12,6 +12,10 @@
 
 /* ===== Portal Theme Variables ===== */
 :root {
+  /* Altura da barra do topo do portal. Telas que grudam (sticky) ou ocupam
+     "o resto da tela" usam calc(100vh - var(--portal-header-h)). No celular
+     a barra é mais baixa (ver o @media logo abaixo). */
+  --portal-header-h: 84px;
   --portal-bg: #fafafa;
   --portal-bg-card: #ffffff;
   --portal-bg-hover: #fef2f2;
@@ -340,8 +344,8 @@ body {
 
 /* FinanceiroNav + sub-nav bars (a faixa VERDE .fin-band-verde fica de fora) */
 [data-theme="dark"] .fin-nav,
-[data-theme="dark"] div[style*="position: sticky"][style*="top: 84px"]:not(.fin-band-verde),
-[data-theme="dark"] div[style*="position:sticky"][style*="top:84px"]:not(.fin-band-verde) {
+[data-theme="dark"] div[style*="position: sticky"][style*="top: var(--portal-header-h)"]:not(.fin-band-verde),
+[data-theme="dark"] div[style*="position:sticky"][style*="top:var(--portal-header-h)"]:not(.fin-band-verde) {
   background: var(--portal-header-bg) !important;
   border-color: var(--portal-border) !important;
 }
@@ -354,7 +358,7 @@ body {
 
 /* EXCEÇÃO: a faixa VERDE do Financeiro fica verde nos dois temas (a regra
    acima pegava o sticky top:84px e pintava de escuro por cima dela). */
-[data-theme="dark"] div.fin-band-verde[style*="position: sticky"][style*="top: 84px"],
+[data-theme="dark"] div.fin-band-verde[style*="position: sticky"][style*="top: var(--portal-header-h)"],
 [data-theme="dark"] .fin-band-verde,
 .portal-dark div.fin-band-verde[style*="position: sticky"],
 .portal-dark .fin-band-verde {
@@ -871,8 +875,8 @@ body {
 
 /* Dentro dos painéis da TELA DIVIDIDA (/split) o cabeçalho do portal some;
    as barras que grudavam 84px abaixo dele grudam no topo do painel. */
-.em-iframe [style*="top: 84px"],
-.em-iframe [style*="top:84px"] {
+.em-iframe [style*="top: var(--portal-header-h)"],
+.em-iframe [style*="top:var(--portal-header-h)"] {
   top: 0 !important;
 }
 

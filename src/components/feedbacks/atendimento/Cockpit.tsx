@@ -3,6 +3,7 @@
 // Três colunas: quem é (esq.) · contexto (centro) · a ligação (dir., fixa).
 // Linguagem de balcão, poucos botões, tudo visível sem caçar informação.
 import { useMemo, useState } from "react";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import styles from "../feedbacks.module.css";
 import CardContatosWhatsapp from "./CardContatosWhatsapp";
 import { BannerBloqueio, FaixaBloqueio, VERMELHO, VERMELHO_ESCURO } from "./Bloqueado";
@@ -68,12 +69,38 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
   const abertos = ctx?.motivos?.registros_abertos ?? [];
   const oportunidades = ctx?.motivos?.oportunidades ?? [];
 
+  // Celular: as 3 colunas viram 3 abas (Cliente · Ficha · Ligação). As três
+  // continuam montadas (só escondidas) para a ligação não perder notas/cronômetro.
+  const isMobile = useIsMobile();
+  const [abaMobile, setAbaMobile] = useState<"cliente" | "ficha" | "ligacao">(emLigacao ? "ligacao" : "cliente");
+  const escondeNoMobile = (aba: typeof abaMobile): React.CSSProperties => (isMobile && abaMobile !== aba ? { display: "none" } : {});
+  const qtdMotivos = oportunidades.length + abertos.length;
+
   return (
     <>
     {bloqueado && <BannerBloqueio mostrarTudo={mostrarTudo} onAlternar={() => setMostrarTudo((v) => !v)} />}
+    {isMobile && (
+      <div role="tablist" aria-label="Partes da ficha" style={{ position: "sticky", top: "var(--portal-header-h)", zIndex: 15, display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 4, padding: 4, marginBottom: 12, borderRadius: 14, background: "var(--portal-bg-card)", border: "1px solid var(--portal-border)", boxShadow: "0 2px 8px rgba(0,0,0,0.06)" }}>
+        {([
+          ["cliente", "👤 Cliente", null],
+          ["ficha", "📋 Ficha", qtdMotivos > 0 ? qtdMotivos : null],
+          ["ligacao", emLigacao ? "● Ligação" : "📞 Ligação", null],
+        ] as const).map(([k, rotulo, n]) => {
+          const ativo = abaMobile === k;
+          const cor = k === "ligacao" && emLigacao ? "#16a34a" : COR_ATENDIMENTO;
+          return (
+            <button key={k} type="button" role="tab" aria-selected={ativo} onClick={() => { setAbaMobile(k); window.scrollTo({ top: 0 }); }}
+              style={{ minHeight: 44, borderRadius: 10, border: 0, background: ativo ? cor : "transparent", color: ativo ? "#fff" : "var(--portal-text)", fontSize: 14, fontWeight: 800, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "0 6px", whiteSpace: "nowrap" }}>
+              {rotulo}
+              {n != null && <span style={{ fontSize: 11, fontWeight: 800, minWidth: 18, padding: "1px 6px", borderRadius: 999, background: ativo ? "rgba(255,255,255,0.3)" : "#dc2626", color: "#fff" }}>{n}</span>}
+            </button>
+          );
+        })}
+      </div>
+    )}
     <div className={styles.cockpitGrid} style={{ display: "grid", gridTemplateColumns: "300px minmax(0, 1fr) 380px", gap: 14, alignItems: "start" }}>
       {/* ───────── ESQUERDA: quem é ───────── */}
-      <div className={styles.cockpitEsq} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+      <div className={styles.cockpitEsq} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, ...escondeNoMobile("cliente") }}>
         {bloqueado && <FaixaBloqueio texto="NÃO CONTATAR" />}
         <section className={styles.card} style={{ ["--fb-accent" as string]: bloqueado ? VERMELHO : COR_ATENDIMENTO }}>
           {carregando && !ctx ? (
@@ -131,7 +158,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
       </div>
 
       {/* ───────── CENTRO: contexto ───────── */}
-      <div className={styles.cockpitMeio} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+      <div className={styles.cockpitMeio} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0, ...escondeNoMobile("ficha") }}>
         {bloqueado && <FaixaBloqueio />}
         {!ocultar && roteiro && roteiro.length > 0 && (
           <Card cinza={cinza} titulo="Roteiro" emoji="🗣️" cor="#d97706" contagem={null} carregando={carregando && !ctx}>
@@ -199,6 +226,11 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
           {!ctx?.maquinas?.length ? (
             <Vazio>Nenhuma máquina encontrada (controle de revisões, projetos Omie, OS/PPV, CRM ou pasta).</Vazio>
           ) : (
+            isMobile ? (
+              <ul style={lista}>
+                {ctx.maquinas.map((m, i) => <CartaoMaquina key={`${m.chassi || m.modelo}-${i}`} m={m} onAbrir={onAbrirMaquina} />)}
+              </ul>
+            ) : (
             <>
               <div style={{ overflowX: "auto", maxWidth: "100%" }}>
               <table style={tabela}>
@@ -212,6 +244,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
               </div>
               <div style={{ fontSize: 10, opacity: 0.55, marginTop: 6 }}>Clique na máquina para ver o histórico completo (entrega, revisões, OS, peças, garantias, atendimentos).</div>
             </>
+            )
           )}
         </Card>
 
@@ -375,7 +408,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
       </div>
 
       {/* ───────── DIREITA: a ligação (fixa) ───────── */}
-      <div className={styles.cockpitDir} style={{ position: "sticky", top: 96, display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
+      <div className={styles.cockpitDir} style={{ position: "sticky", top: 96, display: "flex", flexDirection: "column", gap: 12, minWidth: 0, ...escondeNoMobile("ligacao") }}>
         {painelDireito}
         {ctx && Object.keys(ctx.erros).length > 0 && (
           <Aviso cor="#92400e" bg="#fef3c7">
@@ -429,6 +462,45 @@ function LinhaMaquina({ m, onAbrir }: { m: Maquina; onAbrir?: (m: Maquina) => vo
         {hrefProjeto && <a href={hrefProjeto} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="Ficha completa do projeto (Pasta Clientes)" style={{ fontSize: 11, color: COR_MAQUINAS, marginLeft: 6 }}>ficha ↗</a>}
       </td>
     </tr>
+  );
+}
+
+/** Celular: a mesma máquina em cartão (a tabela de 6 colunas não cabe). Toque abre o histórico. */
+function CartaoMaquina({ m, onAbrir }: { m: Maquina; onAbrir?: (m: Maquina) => void }) {
+  const p = m.proxima_revisao;
+  const clicavel = !!onAbrir && !!m.chassi;
+  const hrefProjeto = linkProjeto(m.projeto);
+  const linhaInfo = (rotulo: string, valor: React.ReactNode) => (
+    <div style={{ display: "flex", gap: 8, fontSize: 13, lineHeight: 1.45 }}>
+      <span style={{ opacity: 0.6, minWidth: 92, flexShrink: 0 }}>{rotulo}</span>
+      <span style={{ fontWeight: 600, minWidth: 0, overflowWrap: "anywhere" }}>{valor}</span>
+    </div>
+  );
+  return (
+    <li style={{ ...item, borderLeft: `4px solid ${COR_MAQUINAS}` }}>
+      <strong style={{ fontSize: 15, color: clicavel ? COR_MAQUINAS : "inherit", overflowWrap: "anywhere" }}>🚜 {m.modelo ?? "—"}</strong>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+        {m.fontes.map((f) => <span key={f} className={styles.pill} style={{ background: FONTE_PILULA[f].bg, color: FONTE_PILULA[f].fg, fontSize: 11 }} title={FONTE_PILULA[f].titulo}>{FONTE_PILULA[f].rotulo}</span>)}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 8 }}>
+        {linhaInfo("Chassi", <span style={{ fontFamily: "monospace" }}>{m.chassi ?? "—"}</span>)}
+        {linhaInfo("Entrega", fmtDataBR(m.entrega))}
+        {linhaInfo("Última rev.", m.ultima_revisao ? `${m.ultima_revisao.rotulo} · ${fmtDataBR(m.ultima_revisao.data)}${m.ultima_revisao.horimetro != null ? ` · ${m.ultima_revisao.horimetro} h` : ""}` : m.fontes.includes("tratores") ? "nenhuma registrada" : "—")}
+        {linhaInfo("Próxima rev.", p ? (
+          <span style={{ color: p.atrasada ? "#b91c1c" : "inherit", fontWeight: p.atrasada ? 800 : 600 }}>
+            {p.horas} h · {p.data_estimada ? `${fmtDataBR(p.data_estimada)}${p.atrasada ? " · ATRASADA" : ` (${haQuanto(p.data_estimada)})`}` : "sem estimativa"}
+          </span>
+        ) : "—")}
+        {m.dono_tratores && <div style={{ fontSize: 12, color: "#92400e", marginTop: 2 }}>no controle de revisões: {m.dono_tratores}</div>}
+        {m.crm && <div style={{ fontSize: 12, color: "#166534", marginTop: 2 }}>CRM: {[m.crm.tipo, m.crm.ano && `ano ${m.crm.ano}`, m.crm.estado && `estado ${m.crm.estado}`, m.crm.horimetro != null && `${m.crm.horimetro} h`].filter(Boolean).join(" · ")}</div>}
+      </div>
+      {(clicavel || hrefProjeto) && (
+        <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+          {clicavel && <button type="button" onClick={() => onAbrir!(m)} style={{ ...btn(COR_MAQUINAS, false), flex: 1, minHeight: 40, fontSize: 13 }}>Histórico da máquina ›</button>}
+          {hrefProjeto && <a href={hrefProjeto} target="_blank" rel="noopener noreferrer" style={{ ...btn(COR_MAQUINAS, false), minHeight: 40, fontSize: 13, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>Ficha ↗</a>}
+        </div>
+      )}
+    </li>
   );
 }
 

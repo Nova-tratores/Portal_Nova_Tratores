@@ -87,13 +87,14 @@ function ReunioesInner() {
     <div style={{ padding: isMobile ? '14px 12px' : '18px 20px', maxWidth: 1100, margin: '0 auto' }}>
       {tutorial && <TutorialReunioes onFechar={() => setTutorial(false)} />}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {/* Celular: abas numa linha (rola de lado se precisar) e as ações numa linha só embaixo */}
+        <div className={isMobile ? 'm-rolar-x' : undefined} style={{ display: 'flex', gap: 6, flexWrap: 'wrap', flex: isMobile ? '1 1 100%' : undefined }}>
           {abas.map((a) => {
             const ativo = aba === a.id
             return (
               <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
               <button onClick={() => router.push(`/reunioes?aba=${a.id}`)}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: ativo ? '1.5px solid #dc2626' : '1px solid var(--portal-border,#e5e7eb)', background: ativo ? 'rgba(220,38,38,.07)' : 'var(--portal-surface,#fff)', color: ativo ? '#dc2626' : 'var(--portal-text-secondary,#555)' }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: isMobile ? '10px 12px' : '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: ativo ? '1.5px solid #dc2626' : '1px solid var(--portal-border,#e5e7eb)', background: ativo ? 'rgba(220,38,38,.07)' : 'var(--portal-surface,#fff)', color: ativo ? '#dc2626' : 'var(--portal-text-secondary,#555)' }}>
                 {a.icone} {a.label}
               </button>
               <AjudaAba chave={a.id} />
@@ -101,11 +102,11 @@ function ReunioesInner() {
             )
           })}
         </div>
-        <span style={{ flex: 1 }} />
-        <button onClick={() => setTutorial(true)} title="Rever o passo a passo das Reuniões" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-secondary,#555)', fontSize: 13, fontWeight: 700 }}><GraduationCap size={14} /> Tutorial</button>
-        <button onClick={() => carregar()} title="Atualizar" style={{ display: 'flex', padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}><RefreshCw size={14} /></button>
-        <button onClick={() => setSerieForm(null)} style={{ ...botao('#4f46e5') }}><Repeat size={14} /> Nova série</button>
-        <button onClick={() => setNovaReuniao(null)} style={botao()}><Plus size={15} /> Nova reunião</button>
+        <span style={{ flex: isMobile ? 'none' : 1 }} />
+        <button onClick={() => setTutorial(true)} title="Rever o passo a passo das Reuniões" aria-label="Tutorial" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 12px', minHeight: isMobile ? 40 : undefined, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-secondary,#555)', fontSize: 13, fontWeight: 700 }}><GraduationCap size={14} />{!isMobile && ' Tutorial'}</button>
+        <button onClick={() => carregar()} title="Atualizar" aria-label="Atualizar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 8, minWidth: isMobile ? 40 : undefined, minHeight: isMobile ? 40 : undefined, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}><RefreshCw size={14} /></button>
+        <button onClick={() => setSerieForm(null)} style={{ ...botao('#4f46e5'), ...(isMobile ? { flex: 1, justifyContent: 'center', minHeight: 40 } : {}) }}><Repeat size={14} /> Nova série</button>
+        <button onClick={() => setNovaReuniao(null)} style={{ ...botao(), ...(isMobile ? { flex: 1, justifyContent: 'center', minHeight: 40 } : {}) }}><Plus size={15} /> Nova reunião</button>
       </div>
 
       {(erro || aviso) && (

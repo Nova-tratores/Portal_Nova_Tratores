@@ -73,6 +73,8 @@ export default function SalasPage() {
 
   return (
     <div style={{ padding: isMobile ? '12px 10px' : '18px 20px', maxWidth: 1200, margin: '0 auto' }}>
+      {/* Celular no modo escuro: --portal-surface não existe no tema, então cai no branco; aponta para o cartão do tema */}
+      <style>{'@media (max-width:768px){:root{--portal-surface:var(--portal-bg-card)}}'}</style>
       {/* topo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 8 }}>

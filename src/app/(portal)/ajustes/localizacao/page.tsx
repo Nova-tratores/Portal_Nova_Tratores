@@ -548,13 +548,13 @@ function ModalConferirPosicao({ deck, daEmpresa, conferidas, onMarcar, onTrocar,
   const bigBtn: React.CSSProperties = { flex: 1, padding: '14px 12px', borderRadius: 12, fontSize: '1rem', fontWeight: 800, border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8 };
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 45, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: '96vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 16px 50px rgba(0,0,0,.3)' }}>
+    <div className="m-tela-cheia-fundo" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 45, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div className="m-tela-cheia" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: '96vw', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 16px 50px rgba(0,0,0,.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
           <ClipboardCheck size={18} color="#16a34a" />
           <b style={{ fontSize: '.92rem', color: '#1e293b' }}>Conferir por posição</b>
           <span style={{ fontSize: '.78rem', color: '#64748b' }}>{Math.min(idx + 1, total)} / {total}</span>
-          <button onClick={onClose} title="Fechar (Esc)" style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: '1.5rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
+          <button onClick={onClose} title="Fechar (Esc)" aria-label="Fechar" className="m-toque" style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: '1.5rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
         <div style={{ overflow: 'auto', padding: 16, flex: 1 }}>
           {!pos ? (
@@ -634,8 +634,8 @@ function ModalColocar({ posicao, produtosEmpresa, salvando, onCancelar, onConfir
   const ocupantes = ocupantesDe(produtosEmpresa, posicao, sel ? chaveProd(sel) : undefined);
 
   return (
-    <div style={modalWrap} onClick={onCancelar}>
-      <div style={modalCard} onClick={(e) => e.stopPropagation()}>
+    <div className="m-folha-fundo" style={modalWrap} onClick={onCancelar}>
+      <div className="m-folha" style={modalCard} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
           <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>Colocar peça na posição</h2>
           <button onClick={onCancelar} style={{ ...btn, marginLeft: 'auto', padding: 6 }}><X size={16} /></button>

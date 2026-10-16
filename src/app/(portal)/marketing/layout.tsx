@@ -23,7 +23,13 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 84px)', background: 'var(--portal-bg)' }}>
+    <div className="mkt-corpo" style={{ minHeight: 'calc(100vh - var(--portal-header-h))', background: 'var(--portal-bg)' }}>
+      {/* Celular: nas barras de filtro (flex com quebra) os selects de largura fixa
+          cortavam o texto ("Todo per…"); aqui eles dividem a linha por igual. */}
+      <style>{`@media (max-width: 768px) {
+        .mkt-corpo div[style*="flex-wrap: wrap"] > select { flex: 1 1 140px !important; min-width: 0 !important; }
+        .mkt-corpo div[style*="flex-wrap: wrap"] > button { min-height: 42px; }
+      }`}</style>
       <MarketingNav />
       {children}
     </div>

@@ -20,6 +20,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 // ---------------------------------------------------------------------------
 // Constantes de UI (port fiel das vars do <script> da fonte)
@@ -168,6 +169,8 @@ export default function MonitorPage() {
   const { conta } = useDreConta()
 
   // --- Estado (espelha as vars/elementos do IIFE da fonte) ------------------
+  // Celular: anomalias em cartoes + filtros por coluna num bloco recolhivel.
+  const isMobile = useIsMobile()
   const [avisoSetup, setAvisoSetup] = useState('')   // texto do aviso de setup (#aviso-setup); '' = oculto
   const [resumo, setResumo] = useState(null)          // d.resumo dos cards; null = "Carregando…"
   const [cardsErro, setCardsErro] = useState('')      // erro de fetch dos cards
@@ -506,11 +509,14 @@ export default function MonitorPage() {
               ✉ Criar tarefa de correção ({nSel})
             </button>
           ) : null}
+          <span className="hidden max-md:block max-md:basis-full max-md:h-0" />
+          {/* Celular: rotulo em cima do campo, os dois filtros lado a lado (no PC "contents" = igual a antes) */}
+          <span className="contents max-md:flex max-md:flex-col max-md:gap-0.5 max-md:flex-1 max-md:min-w-[45%]">
           <label className="text-xs text-slate-500 md:ml-auto">Módulo</label>
           <select
             value={fModulo}
             onChange={(e) => setFModulo(e.target.value)}
-            className="border border-slate-300 rounded px-2 py-1 text-sm max-md:min-h-9"
+            className="border border-slate-300 rounded px-2 py-1 text-sm max-md:min-h-9 max-md:w-full"
           >
             <option value="">Todos</option>
             <option value="contas_pagar">Contas a Pagar</option>
@@ -518,22 +524,117 @@ export default function MonitorPage() {
             <option value="faturamento">Faturamento / Vendas</option>
             <option value="compras">Compras / Notas de Entrada</option>
           </select>
+          </span>
+          <span className="contents max-md:flex max-md:flex-col max-md:gap-0.5 max-md:flex-1 max-md:min-w-[35%]">
           <label className="text-xs text-slate-500">Situação</label>
           <select
             value={fStatus}
             onChange={(e) => setFStatus(e.target.value)}
-            className="border border-slate-300 rounded px-2 py-1 text-sm max-md:min-h-9"
+            className="border border-slate-300 rounded px-2 py-1 text-sm max-md:min-h-9 max-md:w-full"
           >
             <option value="aberta">Abertas</option>
             <option value="resolvida">Resolvidas</option>
             <option value="ignorada">Ignoradas</option>
             <option value="todas">Todas</option>
           </select>
+          </span>
         </div>
         <div className="text-xs text-slate-500 mb-2">
           {tabelaStatus}
           {anomalias.length !== linhasVisiveis.length ? ' — ' + linhasVisiveis.length + ' após filtros' : ''}
         </div>
+        {isMobile ? (
+          <div>
+            {/* Filtros por coluna + ordenacao (no PC ficam no cabecalho da tabela) */}
+            <details className="mb-2 border border-slate-200 rounded-lg">
+              <summary className="px-3 py-2 text-sm font-semibold text-slate-700 cursor-pointer select-none min-h-11 flex items-center">
+                Filtrar e ordenar{Object.values(filtros).filter(Boolean).length > 0 ? ' (' + Object.values(filtros).filter(Boolean).length + ' ativos)' : ''}
+              </summary>
+              <div className="px-3 pb-3 grid grid-cols-2 gap-2">
+                <label className="col-span-2 text-xs text-slate-500">Ordenar por
+                  <div className="flex gap-2 mt-0.5">
+                    <select value={sortCol} onChange={(e) => clicarCabecalho(e.target.value)}
+                      className="flex-1 min-w-0 border border-slate-300 rounded px-2 py-1">
+                      <option value="">Padrão</option>
+                      {COLUNAS.map((col) => <option key={col.key} value={col.key}>{col.label}</option>)}
+                    </select>
+                    {sortCol && (
+                      <button type="button" onClick={() => clicarCabecalho(sortCol)} aria-label="Inverter ordem"
+                        className="min-w-11 border border-slate-300 rounded">{setaCol(sortCol)}</button>
+                    )}
+                  </div>
+                </label>
+                {COLUNAS.map((col) => (
+                  <label key={col.key} className={'text-xs text-slate-500 min-w-0 ' + (col.tipo === 'texto' && col.key === 'problema' ? 'col-span-2' : '')}>
+                    {col.label}
+                    {col.tipo === 'menu' ? (
+                      <select value={filtros[col.key] || ''} onChange={(e) => setFiltro(col.key, e.target.value)}
+                        className="w-full mt-0.5 border border-slate-300 rounded px-2 py-1">
+                        <option value="">Todos</option>
+                        {(opcoesMenu[col.key] || []).map((o) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ) : (
+                      <input type="text" value={filtros[col.key] || ''} onChange={(e) => setFiltro(col.key, e.target.value)}
+                        placeholder="filtrar…" className="w-full mt-0.5 border border-slate-300 rounded px-2 py-1" />
+                    )}
+                  </label>
+                ))}
+              </div>
+            </details>
+            {idsSelecionaveis.length > 0 && (
+              <label className="flex items-center gap-2 text-xs text-slate-600 px-1 py-2">
+                <input type="checkbox" checked={todosSelecionados} onChange={toggleTodos} />
+                Selecionar todas as visíveis
+              </label>
+            )}
+            <div className="divide-y divide-slate-100 border-t border-slate-100">
+              {linhasVisiveis.map((a) => {
+                const hint = hintDetalhe(a)
+                const enviado = !!a.tarefa_id
+                return (
+                  <div key={a.id} className={'py-2.5 flex gap-2 items-start ' + (enviado ? 'bg-emerald-50/40' : '')}>
+                    <div className="pt-0.5 w-6 shrink-0 text-center">
+                      {enviado
+                        ? <span className="text-emerald-600" title="Enviado para correção">✔</span>
+                        : <input type="checkbox" checked={selecionadas.has(a.id)} onChange={() => toggleLinha(a.id)} aria-label="Selecionar" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="font-semibold text-sm text-slate-800 m-quebra-texto">{REGRA_LABEL[a.regra] || a.regra}</div>
+                        <span className={'shrink-0 px-2 py-0.5 rounded-full text-xs font-bold border ' + (SEV_BADGE[a.severidade] || SEV_BADGE.baixa)}>{a.severidade}</span>
+                      </div>
+                      {hint ? <div className="text-xs text-slate-500 mt-0.5 m-quebra-texto">{decodeEnt(hint)}</div> : null}
+                      <div className="text-xs text-slate-600 mt-1 m-quebra-texto">
+                        {MODULO_LABEL[a.modulo] || a.modulo} · {a.conta_omie} · {decodeEnt(a.registro_ref) || '—'}
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        {decodeEnt(a.incluido_por_nome) || '—'} · data {fmtData(a.data_ref)} · venc {fmtData(a.data_vencimento)}
+                      </div>
+                      <div className="flex items-center justify-between gap-2 mt-1">
+                        <span className="text-sm font-semibold text-slate-800">{fmtBRL(a.valor)}</span>
+                        <span className="whitespace-nowrap">
+                          {enviado ? (
+                            <span className="text-xs text-emerald-700 font-semibold">✔ enviado</span>
+                          ) : a.status === 'aberta' ? (
+                            <>
+                              <button type="button" onClick={() => marcar(a.id, 'ignorada')}
+                                className="text-xs text-slate-500 underline px-2">ignorar</button>
+                              <button type="button" onClick={() => marcar(a.id, 'resolvida')}
+                                className="text-xs text-emerald-700 underline px-2">resolver</button>
+                            </>
+                          ) : (
+                            <button type="button" onClick={() => marcar(a.id, 'aberta')}
+                              className="text-xs text-sky-700 underline px-2">reabrir</button>
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        ) : (
         <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
           <table className="w-full text-sm max-md:min-w-[900px]">
             <thead>
@@ -635,12 +736,13 @@ export default function MonitorPage() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {/* Modal: criar tarefa(s) de correcao */}
       {modalAberto ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4" onClick={() => !enviando && setModalAberto(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] md:max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4 m-folha-fundo" onClick={() => !enviando && setModalAberto(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] md:max-h-[85vh] overflow-hidden flex flex-col m-folha" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-200">
               <h3 className="text-lg font-extrabold text-slate-800">Criar tarefa de correção</h3>
               <p className="text-xs text-slate-500 mt-1">Uma tarefa por anomalia. O responsável já vem pré-selecionado pelo &quot;Incluído Por&quot; quando identificado — ajuste se precisar.</p>

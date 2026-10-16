@@ -6,6 +6,7 @@
 // pergunta que hoje ninguém consegue responder sem abrir planilha.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { TriangleAlert } from 'lucide-react';
 import { CATEGORIAS_CUSTO, ORIGENS_CUSTO, TIPOS_ACAO, rotulo } from '@/lib/marketing/tipos';
 import { totaisCusto, rankingCategorias, divergente, parseValorMisto } from '@/lib/marketing/custos';
@@ -22,6 +23,7 @@ export default function CustosGeraisPage() {
   const [fAno, setFAno] = useState('');
   const [fCategoria, setFCategoria] = useState('');
   const [fAcao, setFAcao] = useState('');
+  const isMobile = useIsMobile();
 
   const carregar = useCallback(async () => {
     try {
@@ -84,11 +86,12 @@ export default function CustosGeraisPage() {
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-        <select style={{ ...estiloInput, flex: '0 1 110px' }} value={fAno} onChange={(e) => setFAno(e.target.value)}>
+        {/* celular: período e categoria lado a lado, ação na linha de baixo */}
+        <select style={{ ...estiloInput, flex: isMobile ? '1 1 40%' : '0 1 110px' }} value={fAno} onChange={(e) => setFAno(e.target.value)}>
           <option value="">Todo período</option>
           {anos.map((a) => <option key={a} value={a}>{a}</option>)}
         </select>
-        <select style={{ ...estiloInput, flex: '0 1 180px' }} value={fCategoria} onChange={(e) => setFCategoria(e.target.value)}>
+        <select style={{ ...estiloInput, flex: isMobile ? '1 1 50%' : '0 1 180px', minWidth: 0 }} value={fCategoria} onChange={(e) => setFCategoria(e.target.value)}>
           <option value="">Todas as categorias</option>
           {CATEGORIAS_CUSTO.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
         </select>
@@ -139,6 +142,29 @@ export default function CustosGeraisPage() {
             </div>
           </Painel>
 
+          {isMobile ? (
+            // celular: um cartão por lançamento (a tabela de 7 colunas não cabia)
+            <Painel style={{ padding: 0 }}>
+              {lista.map((c) => (
+                <div key={c.id} style={{ padding: '12px 14px', borderBottom: '1px solid var(--portal-border)', opacity: c.status === 'cancelado' ? 0.5 : 1 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', minWidth: 0, overflowWrap: 'anywhere' }}>{c.descricao}</div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{brl(parseValorMisto(c.valor) * (Number(c.rateio_percent ?? 100) / 100))}</div>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)', marginTop: 3 }}>
+                    {[rotulo(CATEGORIAS_CUSTO, c.categoria), c.fornecedor, dataBR(c.data)].filter((x) => x && x !== '—').join(' · ')}
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 4, fontSize: 12 }}>
+                    <Link href={`/marketing/${c.acao_id}`} style={{ color: '#2563eb', textDecoration: 'none', minWidth: 0, overflowWrap: 'anywhere' }}>{acoes[c.acao_id]?.nome ?? '—'}</Link>
+                    <span style={{ color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>
+                      {rotulo(ORIGENS_CUSTO, c.origem)}{c.vinculo_ref ? ` #${c.vinculo_ref}` : ''}
+                      {divergente(c) && <span title={`Origem está em ${brl(c.valor_fonte)}`} style={{ marginLeft: 5, color: '#dc2626', display: 'inline-flex', verticalAlign: 'middle' }}><TriangleAlert size={13} /></span>}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </Painel>
+          ) : (
           <Painel style={{ padding: 0, overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 800 }}>
               <thead>
@@ -176,6 +202,7 @@ export default function CustosGeraisPage() {
               </tbody>
             </table>
           </Painel>
+          )}
         </div>
       )}
     </div>

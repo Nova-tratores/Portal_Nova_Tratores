@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { formatarMoeda, formatarDataBR } from '@/lib/financeiro/utils'
 import {
   TrendingUp, AlertTriangle,
@@ -74,6 +75,9 @@ export default function Dashboard() {
   const [filtroDataInicio, setFiltroDataInicio] = useState('')
   const [filtroDataFim, setFiltroDataFim] = useState('')
   const router = useRouter()
+  const isMobile = useIsMobile()
+  // Celular: filtros de status/período ficam recolhidos atrás do botão "Filtros"
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false)
 
   const handleImprimir = () => { window.print() }
 
@@ -248,7 +252,8 @@ export default function Dashboard() {
           <div style={{ background: '#fff', borderRadius: '20px', border: '0.5px solid #e2e8f0', padding: 'clamp(16px, 3vw, 24px) clamp(16px, 3vw, 30px)', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <p style={{ margin: 0, fontSize: '11px', letterSpacing: '1.5px', color: '#9e9e9e' }}>FILTROS E VISUALIZACAO</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {/* Zoom não faz sentido no celular (lista vira cartões) */}
+              <div className="m-esconder" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <button onClick={() => setZoom(z => Math.max(50, z - 10))} style={{ background: '#f5f5f5', border: 'none', borderRadius: '8px', padding: '6px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><ZoomOut size={16} color="#666" /></button>
                 <span style={{ fontSize: '12px', color: '#666', minWidth: '40px', textAlign: 'center' }}>{zoom}%</span>
                 <button onClick={() => setZoom(z => Math.min(150, z + 10))} style={{ background: '#f5f5f5', border: 'none', borderRadius: '8px', padding: '6px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><ZoomIn size={16} color="#666" /></button>
@@ -267,6 +272,16 @@ export default function Dashboard() {
                   />
                 </div>
               </div>
+              {isMobile && (() => {
+                const nAtivos = [filtroStatus !== 'todos', filtroDataInicio, filtroDataFim].filter(Boolean).length
+                return (
+                  <button type="button" onClick={() => setFiltrosAbertos(v => !v)} aria-expanded={filtrosAbertos}
+                    style={{ width: '100%', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', background: nAtivos ? '#1a1a1a' : '#f5f5f5', color: nAtivos ? '#fff' : '#333', border: '0.5px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', fontFamily: 'Inter', cursor: 'pointer' }}>
+                    {filtrosAbertos ? 'Esconder filtros' : 'Filtros'}{nAtivos ? ` (${nAtivos})` : ''}
+                  </button>
+                )
+              })()}
+              {(!isMobile || filtrosAbertos) && <>
               <div style={{ flex: '1 1 160px', minWidth: 0 }}>
                 <label style={{ fontSize: '10px', letterSpacing: '1px', color: '#9e9e9e', display: 'block', marginBottom: '6px' }}>STATUS</label>
                 <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'Inter', outline: 'none', background: '#fff', cursor: 'pointer' }}>
@@ -284,8 +299,9 @@ export default function Dashboard() {
                 <label style={{ fontSize: '10px', letterSpacing: '1px', color: '#9e9e9e', display: 'block', marginBottom: '6px' }}>VENCIMENTO ATE</label>
                 <input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'Inter', outline: 'none', boxSizing: 'border-box' }} />
               </div>
+              </>}
               {temFiltroAtivo && (
-                <button onClick={limparFiltros} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: '#ef444415', color: '#ef4444', border: 'none', borderRadius: '10px', padding: '10px 16px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter', letterSpacing: '0.5px', whiteSpace: 'nowrap' }}>
+                <button onClick={limparFiltros} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px', background: '#ef444415', color: '#ef4444', border: 'none', borderRadius: '10px', padding: '10px 16px', cursor: 'pointer', fontSize: '12px', fontFamily: 'Inter', letterSpacing: '0.5px', whiteSpace: 'nowrap', minHeight: isMobile ? '44px' : undefined, width: isMobile ? '100%' : undefined }}>
                   <X size={14} /> Limpar
                 </button>
               )}
@@ -296,8 +312,34 @@ export default function Dashboard() {
           </div>
         </section>
 
+        {/* CELULAR: um cartão por processo (título, setor/forma, vencimento, status e valor) */}
+        {isMobile && (
+          <section className="no-print" style={{ marginBottom: '32px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px', padding: '0 2px 10px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--portal-text-secondary)', letterSpacing: '0.5px' }}>{boletosRelatorio.length} processo(s)</span>
+              <span style={{ fontSize: '15px', color: 'var(--portal-text)', fontWeight: 600 }}>{formatarMoeda(boletosRelatorio.reduce((acc, b) => acc + (parseFloat(b.valor_servico) || 0), 0))}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {boletosRelatorio.map(b => (
+                <div key={b.id} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderLeft: `4px solid ${STATUS_COLORS[b.status] || '#ccc'}`, borderRadius: '12px', padding: '12px 14px', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: '4px 12px' }}>
+                  <div className="m-quebra-texto" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--portal-text)', minWidth: 0 }}>{b.tarefa || b.id} <span style={{ fontWeight: 400, color: 'var(--portal-text-secondary)', fontSize: '12px' }}>#{b.id}</span></div>
+                  <div style={{ fontSize: '14px', color: 'var(--portal-text)', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 600 }}>{formatarMoeda(b.valor_servico)}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--portal-text-secondary)', minWidth: 0 }}>{[b.setor, b.forma_pagamento].filter(Boolean).join(' · ') || '—'}</div>
+                  <div style={{ textAlign: 'right' }}>
+                    <span style={{ background: (STATUS_COLORS[b.status] || '#999') + '22', color: STATUS_COLORS[b.status] || '#666', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', whiteSpace: 'nowrap' }}>{STATUS_LABELS[b.status] || String(b.status || '—').replace(/_/g, ' ').replace(/^./, l => l.toUpperCase())}</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--portal-text-secondary)', gridColumn: '1 / -1' }}>Vencimento: {formatarDataBR(b.vencimento_boleto)}</div>
+                </div>
+              ))}
+              {boletosRelatorio.length === 0 && (
+                <div style={{ padding: '30px', textAlign: 'center', color: '#bbb', fontSize: '13px' }}>Nenhum processo encontrado.</div>
+              )}
+            </div>
+          </section>
+        )}
+
         {/* TABELA NA TELA */}
-        <section className="no-print" style={{ marginBottom: '40px', transform: `scale(${zoom / 100})`, transformOrigin: 'top left', width: `${10000 / zoom}%` }}>
+        {!isMobile && <section className="no-print" style={{ marginBottom: '40px', transform: `scale(${zoom / 100})`, transformOrigin: 'top left', width: `${10000 / zoom}%` }}>
           <div style={{ background: '#fff', borderRadius: '20px', border: '0.5px solid #e2e8f0', padding: 'clamp(12px, 3vw, 30px)', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
@@ -341,7 +383,7 @@ export default function Dashboard() {
               )}
             </table>
           </div>
-        </section>
+        </section>}
 
         {/* RELATORIO PARA IMPRESSAO */}
         <div className="print-only" style={{ display: 'none' }}>

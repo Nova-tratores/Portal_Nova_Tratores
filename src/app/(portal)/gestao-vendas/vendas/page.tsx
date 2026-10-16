@@ -11,6 +11,7 @@ import { useGvMes } from '../hooks'
 import { dataBrParaIso, formatBRL, formatCompetencia } from '@/lib/gestao-vendas/calculos'
 import { nomeEmpresaGV, type VendaEnriquecida } from '@/lib/gestao-vendas/tipos'
 import { ErroCard, MultiSelectFiltro } from '../componentes'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 const FAMILIA_EXCLUIDA_PADRAO = /pe[çc]a|trator|m[áa]quina/i
 
@@ -63,6 +64,7 @@ function valorColuna(v: VendaEnriquecida, col: ColKey): string | number {
 export default function GvVendasPage() {
   const { mes, ano, conta } = useGv()
   const { vendas: vendasCruas, loading, error } = useGvMes()
+  const isMobile = useIsMobile()
 
   // itens sem família ficam de fora da tela
   const vendas = useMemo(() => vendasCruas.filter((v) => familiaDe(v) !== ''), [vendasCruas])
@@ -174,7 +176,7 @@ export default function GvVendasPage() {
         </span>
       </div>
 
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4 m-grid-2">
         <KPI titulo="Itens (filtro)" valor={loading ? '…' : String(filtradas.length)} />
         <KPI titulo="Total Faturado" valor={loading ? '…' : formatBRL(totalFaturado)} />
         <KPI titulo="Total CMC" valor={loading ? '…' : formatBRL(totalCmc)} />
@@ -198,6 +200,42 @@ export default function GvVendasPage() {
           <p className="px-4 py-3 text-sm text-gray-500">
             Nada a mostrar — confira os filtros acima (ou o sync do mês ainda não rodou).
           </p>
+        ) : isMobile ? (
+          // Celular: um cartão por item (a tabela de 10 colunas não cabe); ordenação num seletor
+          <div>
+            <div className="flex items-center gap-2 px-3 py-2">
+              <span className="text-xs text-gray-500">Ordenar</span>
+              <select
+                value={`${sort.col}:${sort.dir}`}
+                onChange={(e) => { const [col, dir] = e.target.value.split(':'); setSort({ col: col as ColKey, dir: dir as 'asc' | 'desc' }) }}
+                className="flex-1 rounded border border-gray-300 bg-white px-2 py-2 text-sm"
+                aria-label="Ordenar itens"
+              >
+                {COLUNAS.flatMap((c) => [
+                  <option key={`${c.key}:desc`} value={`${c.key}:desc`}>{c.rotulo} {c.numerica ? '(maior → menor)' : '(Z → A)'}</option>,
+                  <option key={`${c.key}:asc`} value={`${c.key}:asc`}>{c.rotulo} {c.numerica ? '(menor → maior)' : '(A → Z)'}</option>,
+                ])}
+              </select>
+            </div>
+            <ul className="divide-y divide-gray-100">
+              {ordenadas.map((v) => (
+                <li key={`${v.conta_omie}-${v.id}`} className="px-3 py-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="min-w-0 text-sm font-semibold text-gray-900 m-quebra-texto">{v.descricao ?? '—'}</p>
+                    <p className="shrink-0 text-sm font-bold tabular-nums text-gray-900">{formatBRL(v.valor_total)}</p>
+                  </div>
+                  <p className="mt-0.5 text-[13px] text-gray-700 m-quebra-texto">{v.cliente_nome ?? `#${v.codigo_cliente ?? '—'}`}</p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {[nomeEmpresaGV(v.conta_omie), v.numero_pedido && `Pedido ${v.numero_pedido}`, v.data_pedido, familiaDe(v)].filter(Boolean).join(' · ')}
+                  </p>
+                  <p className="mt-0.5 text-xs text-gray-500">
+                    {`Qtd ${v.quantidade ?? 0} · CMC un. ${v.cmc_unitario == null ? '—' : formatBRL(v.cmc_unitario)} · `}
+                    {v.vendedor ? `Vendedor: ${v.vendedor}` : <span className="text-amber-700">sem vendedor</span>}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -259,7 +297,7 @@ function KPI({ titulo, valor }: { titulo: string; valor: string }) {
   return (
     <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
       <p className="text-xs text-gray-500">{titulo}</p>
-      <p className="mt-0.5 text-xl font-bold text-gray-900">{valor}</p>
+      <p className="mt-0.5 text-xl max-md:text-lg font-bold text-gray-900 m-quebra-texto">{valor}</p>
     </div>
   )
 }

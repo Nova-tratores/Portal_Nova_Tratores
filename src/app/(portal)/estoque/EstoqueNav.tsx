@@ -6,12 +6,15 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import NavMobile from '@/components/estoque/NavMobile';
 import { PAGINAS_ESTOQUE, GRUPOS_ESTOQUE } from './paginas';
 
 export default function EstoqueNav() {
   const { userProfile } = useAuth();
   const { pode, loading } = usePermissoes(userProfile?.id);
   const pathname = usePathname();
+  const isMobile = useIsMobile();
 
   if (loading) return null;
   const visiveis = PAGINAS_ESTOQUE.filter((p) => pode('estoque', p.key));
@@ -21,6 +24,21 @@ export default function EstoqueNav() {
   const blocos = GRUPOS_ESTOQUE
     .map((g) => ({ g, itens: visiveis.filter((p) => p.grupo === g.key) }))
     .filter((b) => b.itens.length > 0);
+
+  // Celular: uma barra só ("Estoque · página atual ▾") que abre a lista numa folha.
+  if (isMobile) {
+    return (
+      <NavMobile
+        modulo="Estoque"
+        icone="🏭"
+        pathname={pathname}
+        grupos={[
+          { key: 'inicio', label: 'Início', icon: '🏭', cor: '#334155', corBg: '#f1f5f9', itens: [{ key: 'consulta', label: 'Consulta de Produto', href: '/estoque' }] },
+          ...blocos.map(({ g, itens }) => ({ ...g, itens })),
+        ]}
+      />
+    );
+  }
 
   const linkBase: React.CSSProperties = {
     padding: '4px 10px',

@@ -149,10 +149,10 @@ export default function FrotaMapaPage() {
   return (
     <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
-        <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <h2 className="frota-titulo" style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <MapIcon size={20} color="#1e40af" /> Mapa & rastreamento
         </h2>
-        <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
+        <span className="frota-sub-m" style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
           {carros.length} veículos rastreados · escolha um carro e uma data pra ver o trajeto e as paradas
         </span>
         <div style={{ flex: 1 }} />
@@ -164,7 +164,7 @@ export default function FrotaMapaPage() {
             onChange={(e) => { setBusca(e.target.value); setBuscaAberta(true); }}
             onFocus={() => setBuscaAberta(true)}
             placeholder={`Buscar cliente/local no mapa… (${locais.length})`}
-            style={{ width: '100%', padding: '8px 30px 8px 30px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
+            className="frota-touch" style={{ width: '100%', padding: '8px 30px 8px 30px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
           />
           {busca && (
             <button

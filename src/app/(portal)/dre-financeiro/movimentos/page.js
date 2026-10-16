@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatBRL, useDreConta } from '@/lib/dre-financeiro/format'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 const VERDE = '#059669'
 const VERMELHO = '#dc2626'
@@ -119,6 +120,8 @@ const estiloAtalho = {
 
 export default function MovimentosPage() {
   const { conta } = useDreConta()
+  // Celular: extrato e lista de duplicatas em cartoes (com seletor de ordem).
+  const isMobile = useIsMobile()
 
   const agora = new Date()
   const [de, setDe] = useState(toISO(new Date(agora.getFullYear(), agora.getMonth(), 1)))
@@ -501,7 +504,7 @@ export default function MovimentosPage() {
 
       {modo === 'extrato' && (<>
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: '10px' }}>
+      <div className="dre-kpis-mov" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: '10px' }}>
         {kpis.map((k) => (
           <div key={k.label} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 14px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.5px' }}>{k.label}</div>
@@ -522,6 +525,45 @@ export default function MovimentosPage() {
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
             Nenhum movimento no período.
             {!dados?.precisaMigration && ' Clique em "Sincronizar período (Omie)" para buscar os movimentos.'}
+          </div>
+        ) : isMobile ? (
+          <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderBottom: '1px solid #f1f5f9' }}>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>Ordenar</span>
+                <select value={ordem.key} onChange={(e) => toggleOrdem(e.target.value)} style={{ ...estiloInput, flex: 1, minWidth: 0 }}>
+                  {COLUNAS.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+                </select>
+                <button type="button" onClick={() => toggleOrdem(ordem.key)} aria-label="Inverter ordem" title="Inverter ordem"
+                  style={{ ...estiloInput, minWidth: '40px', cursor: 'pointer' }}>{ordem.dir === 'asc' ? '▲' : '▼'}</button>
+              </div>
+            {linhas.map((m) => {
+              const entrada = m.natureza === 'R'
+              return (
+                <div key={m.id} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '10px 12px', borderBottom: '1px solid #f1f5f9' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="m-quebra-texto" style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>
+                      {m.nome_cliente_fornecedor || <span style={{ color: '#94a3b8' }}>—</span>}
+                    </div>
+                    <div className="m-quebra-texto" style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                      {[m.descricao_categoria, m.nome_conta_corrente].filter(Boolean).join(' · ') || '—'}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 8px', marginTop: '4px', fontSize: '12px', color: '#475569' }}>
+                      <span>{fmtData(m.data_pagamento)}</span>
+                      <EmpresaBadge conta={m.conta_omie} />
+                      <NaturezaBadge natureza={m.natureza} />
+                      {docDe(m) ? <span>{docDe(m)}</span> : null}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: '14px', fontWeight: 700, whiteSpace: 'nowrap', color: entrada ? VERDE : VERMELHO }}>
+                    {entrada ? '+' : '−'} {formatBRL(m.valor_pago)}
+                  </div>
+                </div>
+              )
+            })}
+            <div style={{ padding: '10px 12px', background: '#f8fafc', fontSize: '12px', color: '#475569', fontWeight: 700 }}>
+              {linhas.length.toLocaleString('pt-BR')} movimento(s) · entradas {formatBRL(totaisFiltro.entradas)} · saídas {formatBRL(totaisFiltro.saidas)} · saldo{' '}
+              <span style={{ color: totaisFiltro.saldo >= 0 ? VERDE : VERMELHO }}>{formatBRL(totaisFiltro.saldo)}</span>
+            </div>
           </div>
         ) : (
           <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
@@ -586,7 +628,7 @@ export default function MovimentosPage() {
 
       {modo === 'antecipacoes' && (<>
       {/* KPIs das antecipações */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: '10px' }}>
+      <div className="dre-kpis-mov" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: '10px' }}>
         {[
           { label: 'Valor antecipado (cheio)', valor: ant?.totais?.valorCheio || 0, cor: '#334155' },
           { label: 'Juros pagos', valor: ant?.totais?.juros || 0, cor: VERMELHO },
@@ -696,6 +738,44 @@ export default function MovimentosPage() {
         ) : dupsFlat.length === 0 ? (
           <div style={{ padding: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '13px' }}>
             Nenhuma duplicata descontada no período.
+          </div>
+        ) : isMobile ? (
+          <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', borderBottom: '1px solid #f1f5f9' }}>
+                <span style={{ fontSize: '12px', color: '#64748b' }}>Ordenar</span>
+                <select value={ordemDup.key} onChange={(e) => toggleOrdemDup(e.target.value)} style={{ ...estiloInput, flex: 1, minWidth: 0 }}>
+                  {COLUNAS_DUP.map((c) => <option key={c.key} value={c.key}>{c.label}</option>)}
+                </select>
+                <button type="button" onClick={() => toggleOrdemDup(ordemDup.key)} aria-label="Inverter ordem" title="Inverter ordem"
+                  style={{ ...estiloInput, minWidth: '40px', cursor: 'pointer' }}>{ordemDup.dir === 'asc' ? '▲' : '▼'}</button>
+              </div>
+            {dupsFlat.map((d, i) => (
+              <div key={i} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', padding: '10px 12px', borderBottom: '1px solid #f1f5f9' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div className="m-quebra-texto" style={{ fontSize: '14px', fontWeight: 600, color: '#1e293b' }}>
+                    {d.cliente}
+                    {d.parcial && (
+                      <span style={{ marginLeft: 6, fontSize: 11, color: '#b45309', background: '#fef3c7', padding: '1px 6px', borderRadius: 6 }}>
+                        parte ({formatBRL(d.usado)})
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 8px', marginTop: '4px', fontSize: '12px', color: '#475569' }}>
+                    <span>op. {fmtData(d.dataOp)}</span>
+                    <EmpresaBadge conta={d.conta_omie} />
+                    <span>entrada {fmtData(d.entrada)}</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>
+                    original {formatBRL(d.original)} · taxa <b style={{ color: '#7c3aed' }}>{d.taxaPct.toFixed(2).replace('.', ',')}%</b>
+                  </div>
+                </div>
+                <div style={{ fontSize: '14px', fontWeight: 700, whiteSpace: 'nowrap', color: VERDE }}>{formatBRL(d.liquido)}</div>
+              </div>
+            ))}
+            <div style={{ padding: '10px 12px', background: '#f8fafc', fontSize: '12px', color: '#475569', fontWeight: 700 }}>
+              {dupsFlat.length.toLocaleString('pt-BR')} duplicata(s) · original {formatBRL(totaisDup.original)} · taxa {totaisDup.taxaPct.toFixed(2).replace('.', ',')}% · líquido{' '}
+              <span style={{ color: VERDE }}>{formatBRL(totaisDup.liquido)}</span>
+            </div>
           </div>
         ) : (
           <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>

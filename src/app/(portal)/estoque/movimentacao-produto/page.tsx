@@ -10,6 +10,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 // ---------- tipos (espelham lib/ajustes/movimentacao.ts) ----------
 interface ProdutoSugestao { codigoProduto: number; codigo: string; descricao: string; estoque: number | null }
@@ -90,6 +91,7 @@ export default function MovimentacaoProdutoPage() {
   const [ate, setAte] = useState(isoOffset(0));
   const [mostrarCancelados, setMostrarCancelados] = useState(false);
   const [dados, setDados] = useState<MovPayload | null>(null);
+  const isMobile = useIsMobile();
   const [carregando, setCarregando] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
   const [erro, setErro] = useState('');
@@ -356,7 +358,7 @@ export default function MovimentacaoProdutoPage() {
       </div>
 
       {/* Busca do produto + período */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
+      <div className="est-touch m-toque-filhos" style={{ display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
         <div style={{ position: 'relative', flex: '1 1 340px', maxWidth: 560 }}>
           <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Produto (código ou descrição)</label>
           <input
@@ -427,7 +429,7 @@ export default function MovimentacaoProdutoPage() {
 
       {/* Cards de resumo */}
       {dados && resumo && (
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
+        <div style={{ display: isMobile ? 'grid' : 'flex', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: isMobile ? 8 : 10, flexWrap: 'wrap', marginBottom: 14 }}>
           <div style={cardStyle}>
             <div style={cardLabel}>Saldo anterior</div>
             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#334155' }}>{fmtNum(resumo.saldoAnterior)}</div>
@@ -446,7 +448,7 @@ export default function MovimentacaoProdutoPage() {
             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: '#334155' }}>{fmtNum(resumo.saldoFinal)}</div>
             {resumo.custoFinal != null && <div style={{ fontSize: '.7rem', color: '#64748b' }}>custo {fmtBRL(resumo.custoFinal)}</div>}
           </div>
-          <div style={{ ...cardStyle, minWidth: 220, flex: '1 1 auto' }}>
+          <div style={{ ...cardStyle, minWidth: isMobile ? 0 : 220, flex: '1 1 auto', gridColumn: '1 / -1' }}>
             <div style={cardLabel}>Produto · {dados.dataDeBR} a {dados.dataAteBR}</div>
             <div style={{ fontSize: '.82rem', color: '#334155' }}>
               <span style={{ fontFamily: 'monospace', color: '#2563eb' }}>{dados.produto?.codigo || dados.produto?.codigoProduto}</span>{' '}
@@ -459,6 +461,67 @@ export default function MovimentacaoProdutoPage() {
       {!conta && !dados ? (
         <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: 16, fontSize: '.85rem' }}>
           Esta tela precisa de uma conta especifica. Selecione <b>NOVA</b> ou <b>CASTRO</b> no menu acima.
+        </div>
+      ) : isMobile ? (
+        // Celular: um cartão por movimento (a tabela de 11 colunas não cabia).
+        <div>
+          {!dados ? (
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Busque um produto (código ou descrição) para ver as entradas e saídas do período.</div>
+          ) : (
+            <>
+              {resumo && (
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 12px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13, fontWeight: 700, color: '#334155' }}>
+                  <span>Saldo inicial · {dados.dataDeBR}</span>
+                  <span>{fmtNum(resumo.saldoAnterior)}{resumo.custoInicial != null ? <span style={{ fontWeight: 500, color: '#64748b' }}> · {fmtBRL(resumo.custoInicial)}</span> : null}</span>
+                </div>
+              )}
+              {movsView.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>Nenhum movimento no período.</div>
+              ) : movsView.map((m, i) => {
+                const riscado: React.CSSProperties = m.cancelado ? { textDecoration: 'line-through', color: '#94a3b8' } : {};
+                const temNF = !!(m.idDoc || m.numDoc);
+                const buscandoEsta = danfeBuscando === `${m.idDoc}|${m.numDoc}`;
+                const entrada = m.qtdeEntrada ? '+' + fmtNum(Math.abs(m.qtdeEntrada)) : '';
+                const saida = m.qtdeSaida ? '-' + fmtNum(Math.abs(m.qtdeSaida)) : '';
+                return (
+                  <div key={i} style={{ background: m.cancelado ? '#fafafa' : '#fff', border: '1px solid #e2e8f0', borderLeft: `4px solid ${m.cancelado ? '#cbd5e1' : entrada ? '#16a34a' : '#dc2626'}`, borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div className="m-quebra-texto" style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', ...riscado }}>{m.clienteFornecedor || '—'}</div>
+                        <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, ...riscado }}>
+                          {m.data || '-'} · {m.origem || m.codOrigem || '-'}
+                          {m.devolucao && <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, fontSize: 11, background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }}>devolução</span>}
+                          {m.cancelado && <span style={{ marginLeft: 6, padding: '1px 6px', borderRadius: 4, fontSize: 11, background: '#f1f5f9', color: '#64748b' }}>cancelado</span>}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ fontSize: 17, fontWeight: 800, color: m.cancelado ? '#94a3b8' : entrada ? '#16a34a' : '#dc2626', ...riscado }}>{entrada || saida || '0'}</div>
+                        {!m.cancelado && <div style={{ fontSize: 12, color: '#475569' }}>saldo <b>{fmtNum(m.qtdeAtual)}</b></div>}
+                      </div>
+                    </div>
+                    {m.operacao && <div className="m-quebra-texto" style={{ fontSize: 12, color: '#64748b', marginTop: 4, ...riscado }}>{m.operacao}</div>}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '4px 12px', marginTop: 6, fontSize: 12, color: '#475569' }}>
+                      {m.numDoc && (temNF ? (
+                        <button onClick={() => verDanfe(m)} disabled={!!danfeBuscando} title="Abrir DANFE (PDF)"
+                          style={{ minHeight: 36, padding: '4px 10px', borderRadius: 6, border: '1px solid #bfdbfe', background: '#eff6ff', color: m.cancelado ? '#94a3b8' : '#2563eb', fontSize: 13, fontWeight: 600, cursor: danfeBuscando ? 'wait' : 'pointer' }}>
+                          {buscandoEsta ? 'abrindo…' : `NF ${m.numDoc}`}
+                        </button>
+                      ) : <span>NF {m.numDoc}</span>)}
+                      {m.entradaCMC ? <span>CMC {fmtBRL(m.entradaCMC)}</span> : null}
+                      {m.valorVendaUnit ? <span>venda un. {fmtBRL(m.valorVendaUnit)}</span> : null}
+                      {m.valorVendaTotal ? <span style={{ fontWeight: 700 }}>total {fmtBRL(m.valorVendaTotal)}</span> : null}
+                    </div>
+                  </div>
+                );
+              })}
+              {resumo && (
+                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 12px', display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13, fontWeight: 700, color: '#334155' }}>
+                  <span>Saldo final · {dados.dataAteBR}</span>
+                  <span>{fmtNum(resumo.saldoFinal)}{resumo.custoFinal != null ? <span style={{ fontWeight: 500, color: '#64748b' }}> · {fmtBRL(resumo.custoFinal)}</span> : null}</span>
+                </div>
+              )}
+            </>
+          )}
         </div>
       ) : (
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>

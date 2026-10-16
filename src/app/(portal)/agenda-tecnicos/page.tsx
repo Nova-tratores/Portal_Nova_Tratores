@@ -216,7 +216,14 @@ export default function AgendaTecnicosPage() {
   }
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+    <div className="agt-pagina" style={{ maxWidth: 1200, margin: '0 auto' }}>
+      {/* Celular: respiro nas laterais, título menor e a 1ª coluna (técnico) fixa ao rolar a semana */}
+      <style>{`@media (max-width: 768px) {
+        .agt-pagina { padding: 14px 12px 24px; }
+        .agt-pagina h1 { font-size: 19px !important; }
+        .agt-pagina .agt-grade th:first-child, .agt-pagina .agt-grade td:first-child { width: 96px !important; min-width: 96px; font-size: 12.5px !important; }
+        .agt-pagina .agt-grade td button { min-height: 36px; }
+      }`}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1E3A5F', margin: 0 }}>
           <Calendar size={22} style={{ verticalAlign: 'middle', marginRight: 8 }} />
@@ -270,7 +277,7 @@ export default function AgendaTecnicosPage() {
       {loading ? (
         <div style={{ textAlign: 'center', padding: 60, color: '#9CA3AF' }}>Carregando...</div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
+        <div className="m-tabela m-tabela-fixa agt-grade" style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 800 }}>
             <thead>
               <tr>

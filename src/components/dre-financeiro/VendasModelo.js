@@ -59,6 +59,9 @@ import AjudaTela from '@/components/dre-financeiro/AjudaTela'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+// Ajustes só do celular do módulo (escopo .dre-m). Na variante 'dre' o layout
+// do DRE já aplica .dre-m; na 'comercial' a classe vai no contêiner abaixo.
+import '@/app/(portal)/dre-financeiro/dre-mobile.css'
 import {
   rotuloPeriodo, rotuloMetrica, rotuloFamilia, rotuloTop, rotuloVisualizacao, rotuloAgrupamento,
 } from '@/lib/dre-financeiro/vendas-modelo-pdf'
@@ -816,7 +819,10 @@ export default function VendasModelo({ variante = 'dre' }) {
             Sincronizar modelos do Omie
           </button>
           <span className="text-slate-500 text-[10px]">{backfillStatus}</span>
-          <label className="ml-2">Periodo:</label>
+          <span className="hidden max-md:block max-md:basis-full max-md:h-0" />
+          {/* Celular: rotulo em cima do campo, campos lado a lado (no PC "contents" = igual a antes) */}
+          <span className="contents max-md:flex max-md:flex-col max-md:gap-0.5 max-md:min-w-0 max-md:flex-1">
+          <label className="ml-2 max-md:ml-0">Periodo:</label>
           <select
             value={meses}
             onChange={(e) => setMeses(e.target.value)}
@@ -834,7 +840,9 @@ export default function VendasModelo({ variante = 'dre' }) {
             onChange={(e) => setDesde(e.target.value)}
             className={'border border-slate-300 rounded px-2 py-1 max-md:min-h-9' + (meses === '__desde__' ? '' : ' hidden')}
           />
-          <label className="ml-2">Metrica:</label>
+          </span>
+          <span className="contents max-md:flex max-md:flex-col max-md:gap-0.5 max-md:min-w-0 max-md:flex-1">
+          <label className="ml-2 max-md:ml-0">Metrica:</label>
           <select
             value={metrica}
             onChange={(e) => { setMetrica(e.target.value); setGridPage(0) }}
@@ -844,6 +852,7 @@ export default function VendasModelo({ variante = 'dre' }) {
             <option value="qtd">Quantidade</option>
             <option value="eventos">Nº de vendas</option>
           </select>
+          </span>
         </div>
       </div>
 
@@ -882,11 +891,12 @@ export default function VendasModelo({ variante = 'dre' }) {
 
       {/* ---- Filtros + busca ------------------------------------------------ */}
       <div className="flex items-center gap-2 mb-3 flex-wrap text-sm">
+        <span className="contents max-md:flex max-md:flex-col max-md:gap-0.5 max-md:min-w-0 max-md:basis-[calc(50%-4px)] max-md:grow">
         <label className="text-xs text-slate-500">Familia:</label>
         <select
           value={familia}
           onChange={(e) => setFamilia(e.target.value)}
-          className="border border-slate-300 rounded px-2 py-1 bg-white min-w-[180px] max-md:min-h-9 max-md:flex-1"
+          className="border border-slate-300 rounded px-2 py-1 bg-white min-w-[180px] max-md:min-h-9 max-md:flex-1 max-md:min-w-0 max-md:w-full"
         >
           <option value="">Todas</option>
           <option value="__TODAS_MAQUINAS__">⚙ Todas as maquinas</option>
@@ -896,6 +906,8 @@ export default function VendasModelo({ variante = 'dre' }) {
             <option key={f} value={f}>{f}</option>
           ))}
         </select>
+        </span>
+        <span className="contents max-md:flex max-md:flex-col max-md:gap-0.5 max-md:min-w-0 max-md:basis-[calc(50%-4px)] max-md:grow">
         <label className="text-xs text-slate-500 ml-0 sm:ml-2">Modelo:</label>
         <select
           value={modelo}
@@ -907,14 +919,18 @@ export default function VendasModelo({ variante = 'dre' }) {
             <option key={m} value={m}>{m}</option>
           ))}
         </select>
+        </span>
+        <span className="contents max-md:flex max-md:flex-col max-md:gap-0.5 max-md:min-w-0 max-md:basis-[calc(65%-4px)] max-md:grow">
         <label className="text-xs text-slate-500 ml-0 sm:ml-2">Busca:</label>
         <input
           type="text"
           placeholder="texto livre..."
           value={busca}
           onChange={(e) => { setBusca(e.target.value); setGridPage(0) }}
-          className="border border-slate-300 rounded px-2 py-1 w-60 max-w-full max-md:min-h-9 max-md:flex-1 max-md:min-w-0"
+          className="border border-slate-300 rounded px-2 py-1 w-60 max-w-full max-md:min-h-9 max-md:flex-1 max-md:min-w-0 max-md:w-full"
         />
+        </span>
+        <span className="contents max-md:flex max-md:flex-col max-md:gap-0.5 max-md:min-w-0 max-md:basis-[calc(35%-4px)] max-md:grow">
         <label className="text-xs text-slate-500 ml-0 sm:ml-2">Top:</label>
         <select
           value={top}
@@ -926,7 +942,8 @@ export default function VendasModelo({ variante = 'dre' }) {
           <option value={100}>Top 100</option>
           <option value={0}>Todos</option>
         </select>
-        <span className="text-xs text-slate-500 ml-2">
+        </span>
+        <span className="text-xs text-slate-500 ml-2 max-md:ml-0">
           Mostrando <span>{modelosVisiveis.length}</span> de <span>{modelosBase.length}</span>
         </span>
       </div>
@@ -1109,7 +1126,7 @@ export default function VendasModelo({ variante = 'dre' }) {
   return (
     <div style={{ fontFamily: 'Inter, sans-serif' }}>
       <FaixaComercial conta={conta} setConta={setConta} contas={contas} />
-      <div className="p-[10px] md:p-4 min-w-0">{corpo}</div>
+      <div className="dre-m p-[10px] md:p-4 min-w-0">{corpo}</div>
     </div>
   )
 }
@@ -1458,18 +1475,18 @@ function VmModal({ ctx, dados, erro, carregando, showCmc, setShowCmc, onClose })
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 m-folha-fundo"
       style={{ background: 'rgba(15,23,42,0.6)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] md:max-h-[88vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] md:max-h-[88vh] flex flex-col m-folha">
         {/* Header */}
         <div className="px-3 sm:px-4 py-3 border-b border-slate-200 flex justify-between items-center gap-3">
           <div className="min-w-0 break-words">
             <div className="text-xs uppercase tracking-wide text-slate-500">{classif}</div>
             <h3 className="font-bold text-lg text-slate-800">{titulo}</h3>
           </div>
-          <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-700 leading-none shrink-0 max-md:min-w-9 max-md:min-h-9">×</button>
+          <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-700 leading-none shrink-0 max-md:min-w-11 max-md:min-h-11">×</button>
         </div>
 
         {/* Resumo + toggle CMC */}

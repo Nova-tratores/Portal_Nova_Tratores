@@ -1,5 +1,6 @@
 'use client'
 import { usePathname } from 'next/navigation'
+import { useEffect } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -22,6 +23,13 @@ export default function VisualEstoqueLayout({ children }: { children: React.Reac
   const { userProfile } = useAuth()
   const { pode } = usePermissoes(userProfile?.id)
 
+  // Celular/tablet: a faixa de abas rola de lado — traz a aba ativa para a vista.
+  useEffect(() => {
+    const el = document.querySelector('.vest-tabs a[data-ativa="1"]') as HTMLElement | null
+    const faixa = el?.parentElement
+    if (el && faixa && faixa.scrollWidth > faixa.clientWidth) faixa.scrollLeft += el.getBoundingClientRect().left - faixa.getBoundingClientRect().left - (faixa.clientWidth - el.offsetWidth) / 2
+  }, [pathname])
+
   // Esconde da sub-nav as telas que o usuário não pode ver. A Home
   // (/visual-estoque) é sempre visível; as sub-telas seguem pode('consulta-estoque', slug).
   const podeVerTela = (href: string) => {
@@ -30,7 +38,7 @@ export default function VisualEstoqueLayout({ children }: { children: React.Reac
   }
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 84px)' }}>
+    <div style={{ minHeight: 'calc(100vh - var(--portal-header-h))' }}>
       <EstResponsiveStyles />
       <div className="vest-tabs" style={{
         display: 'flex', gap: 6, padding: '16px 32px 0',
@@ -40,7 +48,7 @@ export default function VisualEstoqueLayout({ children }: { children: React.Reac
         {tabs.filter(t => podeVerTela(t.href)).map(t => {
           const active = pathname === t.href
           return (
-            <Link key={t.href} href={t.href} style={{
+            <Link key={t.href} href={t.href} data-ativa={active ? '1' : undefined} style={{
               display: 'flex', alignItems: 'center', gap: 7,
               padding: '10px 20px', fontSize: 13, fontWeight: active ? 700 : 500,
               color: active ? '#dc2626' : 'var(--portal-text-secondary, #737373)',

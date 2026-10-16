@@ -187,7 +187,8 @@ export default function RegistroCard({ registro: r, ultimaOS, clienteTags, onEdi
       )}
 
       {onMudarAtendimento && (
-        <div style={acoesAtendimentoStyle} onClick={(e) => e.stopPropagation()}>
+        // celular: botões com altura de dedo (m-toque-filhos)
+        <div className="m-toque-filhos" style={acoesAtendimentoStyle} onClick={(e) => e.stopPropagation()}>
           {r.status_atendimento === "arquivado" ? (
             <button onClick={() => onMudarAtendimento(r, "em_andamento")} style={btnAcao("#e5e7eb", "#374151")} type="button">
               Desarquivar
@@ -222,7 +223,7 @@ export default function RegistroCard({ registro: r, ultimaOS, clienteTags, onEdi
       )}
 
       {onEditar && (
-        <footer style={footerStyle} onClick={(e) => e.stopPropagation()}>
+        <footer className="m-toque-filhos" style={footerStyle} onClick={(e) => e.stopPropagation()}>
           <button onClick={() => onEditar(r)} style={btnAcao("#fef3c7", "#92400e")} type="button">
             Preencher atendimento
           </button>

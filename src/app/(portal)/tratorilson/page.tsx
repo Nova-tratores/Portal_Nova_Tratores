@@ -137,7 +137,9 @@ export default function TratorilsonPainel() {
 
   return (
     <div style={{ padding: 'clamp(12px, 3vw, 24px)', width: '100%', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' }}>
-      <style>{`@media (max-width: 900px){.trt-split{grid-template-columns:minmax(0,1fr) !important}}`}</style>
+      <style>{`@media (max-width: 900px){.trt-split{grid-template-columns:minmax(0,1fr) !important}}
+        /* Celular: cada solicitação vira um cartão (data · função / usuário · tokens / pergunta) */
+        @media (max-width: 768px){.trt-kpis{grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:10px !important}.trt-tab thead{display:none}.trt-tab tr{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:10px 14px}.trt-tab td{display:block;padding:0 !important;max-width:none !important}.trt-tab td:nth-child(1){grid-column:1;grid-row:1;font-size:12px}.trt-tab td:nth-child(3){grid-column:2;grid-row:1;justify-self:end}.trt-tab td:nth-child(2){grid-column:1;grid-row:2;font-weight:700;font-size:14px}.trt-tab td:nth-child(5){grid-column:2;grid-row:2;align-self:end}.trt-tab td:nth-child(4){grid-column:1/-1;white-space:normal !important;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;font-size:13px}.trt-tab td[colspan]{grid-column:1/-1}}`}</style>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
         <div style={{ width: 38, height: 38, borderRadius: 11, background: 'linear-gradient(135deg,#dc2626,#991b1b)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Bot size={20} color="#fff" />
@@ -149,7 +151,7 @@ export default function TratorilsonPainel() {
       </div>
 
       {/* Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 16 }}>
+      <div className="trt-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, marginTop: 16 }}>
         <div style={card}><div style={rotulo}>Solicitações no mês</div><div style={valor}>{nf(dados?.solicitacoesMes || 0)}</div></div>
         <div style={card}><div style={rotulo}>Tokens no mês</div><div style={valor}>{nf(usados)}</div></div>
         <div style={card}>
@@ -324,7 +326,7 @@ export default function TratorilsonPainel() {
             Solicitações {loading && <Loader2 size={12} className="spin" style={{ verticalAlign: 'middle' }} />}
           </div>
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+            <table className="trt-tab" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
               <thead>
                 <tr style={{ color: 'var(--portal-text-muted)', textAlign: 'left' }}>
                   <th style={{ padding: '8px 12px', fontWeight: 600 }}>Data</th>

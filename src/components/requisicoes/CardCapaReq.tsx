@@ -82,12 +82,14 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
 
   return (
     <>
+      {/* celular: rótulos de 10px sobem para 11px (legíveis) e os botões ganham alvo de dedo */}
+      {isMobile && <style>{'.req-capa .text-\\[10px\\] { font-size: 11px !important; } .req-capa .absolute > button, .req-capa > button.absolute { padding: 11px !important; }'}</style>}
       {/* CAPA DO CARD NO KANBAN - LEVE */}
       <div
         draggable={podeMoverFase && !modoComparar}
         onDragStart={(e) => { if (podeMoverFase && !modoComparar) e.dataTransfer.setData("idRequisicao", req.id.toString()); }}
         onClick={() => (modoComparar ? onEscolherComparar?.(req) : setModalAberto(true))}
-        className={`bg-white border rounded-2xl p-4 md:p-6 hover:shadow-lg transition-all group mb-4 md:mb-5 border-l-[6px] relative overflow-hidden ${modoComparar ? 'cursor-pointer' : podeMoverFase ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${
+        className={`req-capa bg-white border rounded-2xl p-4 md:p-6 hover:shadow-lg transition-all group mb-4 md:mb-5 border-l-[6px] relative overflow-hidden ${modoComparar ? 'cursor-pointer' : podeMoverFase ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${
           escolhidoParaComparar ? 'border-amber-500 border-l-amber-500 ring-2 ring-amber-300'
             : modoComparar ? 'border-zinc-200 border-l-zinc-400 hover:border-amber-400'
             : veioDoApp ? 'border-orange-500 border-l-blue-600 shadow-md shadow-blue-900/10 hover:border-orange-500'
@@ -108,25 +110,25 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
         {/* Ações sempre à mostra (antes só apareciam no hover, e ninguém achava).
             Ficam discretas e só ganham cor ao passar o mouse. */}
         <div className={`absolute top-4 right-4 md:top-6 md:right-6 flex gap-1.5 ${modoComparar ? 'hidden' : ''}`}>
-          <button onClick={(e) => { e.stopPropagation(); setModalAberto(true); }} className="p-2.5 rounded-xl bg-zinc-100 text-orange-600 hover:bg-orange-600 hover:text-white transition-all" title="Abrir requisição / Mapa de Cotações"><ClipboardList size={15} /></button>
-          <button onClick={(e) => { e.stopPropagation(); setHistAberto(true); }} className="p-2.5 rounded-xl bg-zinc-100 text-black hover:bg-zinc-800 hover:text-white transition-all" title="Histórico da requisição"><Clock size={15} /></button>
+          <button onClick={(e) => { e.stopPropagation(); setModalAberto(true); }} className="p-2.5 rounded-xl bg-zinc-100 text-orange-600 hover:bg-orange-600 hover:text-white transition-all" title="Abrir requisição / Mapa de Cotações" aria-label="Abrir requisição / Mapa de Cotações"><ClipboardList size={15} /></button>
+          <button onClick={(e) => { e.stopPropagation(); setHistAberto(true); }} className="p-2.5 rounded-xl bg-zinc-100 text-black hover:bg-zinc-800 hover:text-white transition-all" title="Histórico da requisição" aria-label="Histórico da requisição"><Clock size={15} /></button>
           {podeImprimir && (
-            <button onClick={handlePrintClick} className="p-2.5 rounded-xl bg-zinc-100 text-black hover:bg-orange-600 hover:text-white transition-all" title="Imprimir requisição"><Printer size={15} /></button>
+            <button onClick={handlePrintClick} className="p-2.5 rounded-xl bg-zinc-100 text-black hover:bg-orange-600 hover:text-white transition-all" title="Imprimir requisição" aria-label="Imprimir requisição"><Printer size={15} /></button>
           )}
         </div>
 
         {podeExcluir && !modoComparar && (
-          <button onClick={handleTrash} className="absolute bottom-4 right-4 md:bottom-6 md:right-6 p-2.5 rounded-xl bg-zinc-100 text-black hover:bg-orange-600 hover:text-white transition-all" title="Mover para a lixeira"><Trash2 size={15} /></button>
+          <button onClick={handleTrash} className="absolute bottom-4 right-4 md:bottom-6 md:right-6 p-2.5 rounded-xl bg-zinc-100 text-black hover:bg-orange-600 hover:text-white transition-all" title="Mover para a lixeira" aria-label="Mover para a lixeira"><Trash2 size={15} /></button>
         )}
 
-        <div className="flex items-start gap-4 mb-5 mt-2">
+        <div className={`flex mb-5 mt-2 ${isMobile ? 'flex-col items-start gap-3' : 'items-start gap-4'}`}>
           <div className={`min-w-[50px] h-[50px] rounded-xl flex items-center justify-center ${veioDoApp ? 'bg-orange-500/15 text-orange-600' : 'bg-zinc-50 text-zinc-500'}`}>
             <span className="text-lg font-light tracking-tighter">{req.id}</span>
           </div>
           {/* pr no bloco inteiro: os botões de ação agora ficam fixos no canto,
               e sem isso tanto a etiqueta do tipo quanto o título passavam por
               baixo deles. */}
-          <div className={`flex flex-col gap-1 min-w-0 ${modoComparar ? '' : 'pr-[112px]'}`}>
+          <div className={`flex flex-col gap-1 min-w-0 ${modoComparar || isMobile ? '' : 'pr-[112px]'}`}>
             <span className="text-xs font-bold text-orange-600 uppercase tracking-[0.15em] self-start">{req.tipo || req.ReqTipo}</span>
             <h4 className="text-[15px] font-normal text-black leading-tight group-hover:text-orange-600 transition-colors line-clamp-2">
               {req.titulo}

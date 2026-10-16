@@ -238,7 +238,7 @@ export default function FrotaHome() {
         )}
         <div style={{ flex: 1 }} />
         {/* Onde cada carro mora: Ativos = frota de verdade; Vendidos/Arquivados = histórico */}
-        <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden', overflowX: 'auto', maxWidth: '100%' }}>
+        <div className="frota-seg" style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden', overflowX: 'auto', maxWidth: '100%' }}>
           {([
             ['ativos', `Ativos (${soCarros.filter((v) => v.ativo).length})`],
             ['vendidos', `Vendidos (${soCarros.filter((v) => v.status === 'vendido').length})`],
@@ -273,7 +273,7 @@ export default function FrotaHome() {
         {pode('frota', 'veiculos:editar') && (
           <button
             onClick={() => setNovoAberto(true)}
-            className="frota-touch"
+            className="frota-touch frota-full-m"
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 0, border: 'none', background: '#1e40af', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
           >
             <Plus size={15} /> Novo veículo
@@ -342,6 +342,7 @@ export default function FrotaHome() {
         {filtrados.map((v) => (
           <button
             key={v.id}
+            className="frota-vcard"
             onClick={() => setPlacaAberta(v.placa)}
             title={(v.pendencias || []).length > 0 ? `Pendências:\n• ${v.pendencias.join('\n• ')}` : undefined}
             style={{
@@ -355,9 +356,9 @@ export default function FrotaHome() {
             }}
           >
             {v.imagem_url ? (
-              <img src={v.imagem_url} alt="" style={{ width: 74, height: 74, borderRadius: 0, objectFit: 'cover', background: 'var(--portal-bg-secondary)', flexShrink: 0 }} />
+              <img className="frota-vcard-img" src={v.imagem_url} alt="" style={{ width: 74, height: 74, borderRadius: 0, objectFit: 'cover', background: 'var(--portal-bg-secondary)', flexShrink: 0 }} />
             ) : (
-              <div style={{ width: 74, height: 74, borderRadius: 0, background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <div className="frota-vcard-img" style={{ width: 74, height: 74, borderRadius: 0, background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <Car size={30} color="var(--portal-text)" />
               </div>
             )}
@@ -447,7 +448,7 @@ export default function FrotaHome() {
               )}
             </span>
             <div style={{ flex: 1 }} />
-            <Link href="/frota/motoristas" style={{ fontSize: 12.5, fontWeight: 700, color: '#1e40af', textDecoration: 'none' }}>
+            <Link href="/frota/motoristas" className="frota-touch" style={{ fontSize: 12.5, fontWeight: 700, color: '#1e40af', textDecoration: 'none', display: 'inline-flex', alignItems: 'center' }}>
               Ver todos →
             </Link>
           </div>

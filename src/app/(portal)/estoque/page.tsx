@@ -9,6 +9,7 @@ import ContaSelector from '@/components/estoque/ContaSelector';
 import CmcChart from '@/components/estoque/CmcChart';
 import { Card, InfoGrid, InfoItem, VendaCard, fmtRS } from '@/components/estoque/ui';
 import type { BuscarResult, HistoricoPonto } from '@/lib/estoque/types';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 // Navegação do módulo migrou para o submenu central (EstoqueNav, injetado no layout).
 
@@ -19,6 +20,7 @@ export default function EstoqueBuscaPage() {
   const { userProfile } = useAuth();
   const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
   const { contaParam } = useConta();
+  const isMobile = useIsMobile();
 
   const [codigo, setCodigo] = useState('');
   const [carregando, setCarregando] = useState(false);
@@ -105,10 +107,11 @@ export default function EstoqueBuscaPage() {
           onKeyDown={(e) => e.key === 'Enter' && buscar()}
           placeholder="Codigo do produto"
           style={{ padding: '10px 16px', border: '1px solid #e0e0e0', background: '#fff', color: '#333', borderRadius: 10, fontSize: 13, width: 320, maxWidth: '100%', minWidth: 0, outline: 'none' }}
-          className="est-grow"
+          className="est-fill"
         />
         <button
           onClick={() => buscar()}
+          className="est-grow"
           disabled={carregando}
           style={{ padding: '10px 22px', background: carregando ? '#bbb' : '#dc2626', color: '#fff', border: 'none', borderRadius: 10, cursor: carregando ? 'wait' : 'pointer', fontSize: 13, fontWeight: 600 }}
         >
@@ -175,7 +178,9 @@ export default function EstoqueBuscaPage() {
                 <VendaCard label="Mes Ant. Ano Ant." periodo={v.mantaa.p} qtd={v.mantaa.q} />
               </div>
               <div style={{ marginTop: 10 }}>
-                {dados.vendasLista.length > 0 ? (
+                {dados.vendasLista.length > 0 && isMobile ? (
+                  <ListaMobile itens={dados.vendasLista.map((x) => ({ data: x.data, doc: `Ped. ${x.numero}`, nome: x.cliente, qtd: x.qtd, vu: x.vu, vt: x.vt }))} />
+                ) : dados.vendasLista.length > 0 ? (
                   <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
                     <thead>
                       <tr>
@@ -207,7 +212,9 @@ export default function EstoqueBuscaPage() {
           </Card>
 
           <Card titulo="Ultimas Compras (Notas de Entrada)">
-            {dados.compras.length > 0 ? (
+            {dados.compras.length > 0 && isMobile ? (
+              <ListaMobile itens={dados.compras.map((x) => ({ data: x.data, doc: `NF ${x.nf}`, nome: x.fornecedor, qtd: x.qtd, vu: x.vu, vt: x.vt }))} />
+            ) : dados.compras.length > 0 ? (
               <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
                 <thead>
                   <tr>
@@ -233,6 +240,26 @@ export default function EstoqueBuscaPage() {
           </Card>
         </>
       )}
+    </div>
+  );
+}
+
+// Celular: lista de vendas/compras em cartões (a tabela de 6 colunas não cabia).
+function ListaMobile({ itens }: { itens: Array<{ data?: string | null; doc: string; nome?: string | null; qtd: number | string; vu: number | string; vt: number | string }> }) {
+  return (
+    <div>
+      {itens.map((x, i) => (
+        <div key={i} style={{ padding: '8px 2px', borderBottom: '1px solid #f3f3f3' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+            <span className="m-quebra-texto" style={{ fontSize: 13, fontWeight: 600, color: '#333', minWidth: 0 }}>{x.nome || '-'}</span>
+            <b style={{ fontSize: 13, color: '#333', whiteSpace: 'nowrap' }}>{fmtRS(x.vt)}</b>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 12, color: '#888', marginTop: 2 }}>
+            <span>{x.data || 'N/D'} · {x.doc}</span>
+            <span style={{ whiteSpace: 'nowrap' }}>{x.qtd} × <span style={{ color: '#16a34a', fontWeight: 600 }}>{fmtRS(x.vu)}</span></span>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

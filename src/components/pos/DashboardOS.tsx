@@ -13,6 +13,7 @@ import {
   porMesDataOS, porMesFimOS, porTecnicoOS, porClienteOS, porTipoOS, porFaseOS, porMesPrevisaoOS, topComOutros, colTextoOS, totaisOS, passaCobranca,
   type Agregado, type CobrancaOS,
 } from "@/lib/pos/relacao";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { Painel, Tile, PopupComposicao, estilosTema, useTemaEscuro, type Metrica, type Tema } from "@/components/comum/PainelBarras";
 
 interface Props {
@@ -31,6 +32,7 @@ const TEMA: Tema = {
 
 export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "", onAbrirOS }: Props) {
   const dark = useTemaEscuro();
+  const isMobile = useIsMobile();
   const { card, select, lbl } = estilosTema(TEMA);
   const [periodo, setPeriodo] = useState("ultimos_90");
   const [aPartir, setAPartir] = useState("");
@@ -106,8 +108,10 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
   const comum = { tema: TEMA, metrica, dark, onBarra };
 
   return (
-    <div style={{ padding: "14px 16px 30px", display: "flex", flexDirection: "column", gap: 12, fontFamily: "inherit", color: TEMA.text }}>
-      <div style={{ ...card, flexDirection: "row", flexWrap: "wrap", alignItems: "flex-end", gap: 12 }}>
+    <div style={{ padding: isMobile ? "12px 12px 30px" : "14px 16px 30px", display: "flex", flexDirection: "column", gap: 12, fontFamily: "inherit", color: TEMA.text }}>
+      {/* Celular: filtros em grade de 2 colunas, campos na largura toda */}
+      <div className={isMobile ? "pos-dash-filtros-m" : undefined} style={{ ...card, flexDirection: "row", flexWrap: "wrap", alignItems: "flex-end", gap: 12, ...(isMobile ? { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 10 } : {}) }}>
+        {isMobile && <style>{`.pos-dash-filtros-m select, .pos-dash-filtros-m input { width: 100% !important; max-width: 100% !important; min-height: 42px; box-sizing: border-box; } .pos-dash-filtros-m > div { min-width: 0; } .pos-dash-filtros-m > div:last-child { grid-column: 1 / -1; } .pos-dash-filtros-m > div:last-child > div { display: flex !important; } .pos-dash-filtros-m > div:last-child button { flex: 1; min-height: 40px; }`}</style>}
         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           <span style={lbl}>Período (data da OS)</span>
           <div style={{ display: "flex", gap: 6 }}>
@@ -147,7 +151,7 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
             <option value="interno">Interno</option>
           </select>
         </div>
-        <div style={{ flex: 1 }} />
+        {!isMobile && <div style={{ flex: 1 }} />}
         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           <span style={lbl}>Métrica dos gráficos</span>
           <div style={{ display: "inline-flex", border: `1px solid ${TEMA.border}`, borderRadius: 6, overflow: "hidden" }}>
@@ -160,7 +164,7 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
         </div>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
+      <div className="m-grid-1" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
         <Tile tema={TEMA} label="Ordens de serviço" valor={String(kpi.n)} sub={`${kpi.clientes} cliente${kpi.clientes !== 1 ? "s" : ""} · ${kpi.horas} h · ${kpi.km} km`} />
         <Tile tema={TEMA} label="Valor total" valor={fmtBRL(kpi.valor)} sub={filtrosTexto} destaque />
         <Tile tema={TEMA} label="Com nota × interno" valor={fmtBRL(nota.comNotaV)} sub={`${nota.comNotaN} OS com nota · interno ${fmtBRL(nota.internoV)} (${nota.internoN} OS)`} />
@@ -186,7 +190,7 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
             <Painel {...comum} titulo="Por tipo de serviço" itens={agTipo} horizontal />
             <Painel {...comum} titulo="Por previsão de faturamento" sub={kpi.semPrev ? `${kpi.semPrev} sem previsão informada` : "todas com previsão"} itens={agPrev} horizontal={false} corDe={(a) => (a.chave === "zzzz" ? (dark ? "#64748b" : "#94a3b8") : dark ? TEMA.accentDark : TEMA.accent)} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)", gap: 12 }}>
+          <div className="m-grid-1" style={{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)", gap: 12 }}>
             <Painel {...comum} titulo="Por cliente" sub="top 12 + outros" itens={agCliTop} horizontal altura={Math.max(300, agCliTop.length * 30 + 40)} />
             <div style={{ ...card, padding: 0, overflow: "hidden" }}>
               <div style={{ padding: "12px 16px 8px", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>

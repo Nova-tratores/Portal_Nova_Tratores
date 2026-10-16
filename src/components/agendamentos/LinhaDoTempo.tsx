@@ -48,8 +48,10 @@ export default function LinhaDoTempo({ hoje, agendamentos }: { hoje: Rodada[]; a
 
   return (
     <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 12, padding: '12px 16px', overflowX: 'auto' }}>
-      <div style={{ minWidth: 860 }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '230px 1fr 130px', gap: 10, fontSize: '.62rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>
+      {/* Celular: nome do agendamento mais estreito e grudado à esquerda enquanto a linha do tempo rola */}
+      <style>{'@media (max-width:768px){.lt-min{min-width:720px !important}.lt-linha{grid-template-columns:140px 1fr 110px !important}.lt-linha>:first-child{position:sticky;left:0;z-index:1;background:#fff;padding-left:2px;box-shadow:6px 0 6px -6px rgba(0,0,0,.15)}}'}</style>
+      <div className="lt-min" style={{ minWidth: 860 }}>
+        <div className="lt-linha" style={{ display: 'grid', gridTemplateColumns: '230px 1fr 130px', gap: 10, fontSize: '.62rem', color: '#9ca3af', fontWeight: 700, textTransform: 'uppercase', marginBottom: 6 }}>
           <span>Agendamento</span>
           <div style={{ position: 'relative', height: 14 }}>
             {[0, 3, 6, 9, 12, 15, 18, 21, 24].map((h) => (
@@ -64,7 +66,7 @@ export default function LinhaDoTempo({ hoje, agendamentos }: { hoje: Rodada[]; a
           const ok = rs.filter((r) => r.status === 'ok' || r.status === 'pulado').length
           const ruins = rs.filter((r) => ['erro', 'interrompida', 'bloqueio'].includes(r.status)).length
           return (
-            <div key={job} style={{ display: 'grid', gridTemplateColumns: '230px 1fr 130px', gap: 10, alignItems: 'center', padding: '5px 0', borderTop: '1px solid #f3f4f6' }}>
+            <div key={job} className="lt-linha" style={{ display: 'grid', gridTemplateColumns: '230px 1fr 130px', gap: 10, alignItems: 'center', padding: '5px 0', borderTop: '1px solid #f3f4f6' }}>
               <span style={{ fontSize: '.78rem', fontWeight: 600, color: '#111111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job}>
                 {nomes.get(job) ?? job}
                 {!nomes.has(job) && <span style={{ fontWeight: 400, color: '#9ca3af' }}> · GitHub</span>}

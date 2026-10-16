@@ -13,6 +13,8 @@ import SemPermissao from '@/components/SemPermissao'
 import AjudaTela from '@/components/dre-financeiro/AjudaTela'
 import { useDreConta } from '@/lib/dre-financeiro/format'
 import { AJUDA } from '@/lib/dre-financeiro/ajuda'
+// Ajustes só do celular (escopo .dre-m, @media max-width 768px)
+import './dre-mobile.css'
 
 // Cor verde do grupo "financeiro" do portal (usada no titulo + seletor de conta).
 const VERDE = '#10B981'
@@ -213,7 +215,7 @@ export default function DreFinanceiroLayout({ children }) {
       </div>
 
       {/* Conteudo da tela */}
-      <div style={{ padding: isMobile ? '10px' : '16px', minWidth: 0 }}>
+      <div className="dre-m" style={{ padding: isMobile ? '10px 12px' : '16px', minWidth: 0 }}>
         {children}
       </div>
     </div>

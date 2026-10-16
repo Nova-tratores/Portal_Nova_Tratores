@@ -35,7 +35,12 @@ const CSS = `
   .est-ml0{margin-left:0!important}
   .est-hide-sm{display:none!important}
   .est-h1{font-size:1.2rem!important}
-  .est-touch button,.est-touch select,.est-touch input:not([type=checkbox]):not([type=radio]),button.est-touch,a.est-touch{min-height:36px}
+  .est-card{padding:14px 12px!important}
+  .vest-kpi{padding:14px 12px!important}
+  .vest-kpi-v{font-size:18px!important;overflow-wrap:anywhere}
+  .est-rotulo{font-size:11px!important}
+  .est-page h1{font-size:1.25rem!important;line-height:1.25!important}
+  .est-touch button,.est-touch select,.est-touch input:not([type=checkbox]):not([type=radio]),button.est-touch,a.est-touch{min-height:40px}
   .est-touch input:not([type=checkbox]):not([type=radio]),.est-touch select,.est-touch textarea{font-size:16px!important}
   .est-pa-row{flex-direction:column!important;align-items:stretch!important}
   .est-pa-acoes{flex-direction:row!important}
@@ -49,6 +54,7 @@ const CSS = `
   .loc-ind{padding-left:8px!important}
   .loc-item{flex-wrap:wrap}
   .loc-item>div{flex:1 1 140px}
+  .loc-item>div>div{white-space:normal!important;overflow:visible!important}
   .est-overlay{padding:8px!important}
   .est-modal{width:100%!important;max-width:calc(100vw - 16px)!important;max-height:90vh!important;overflow-y:auto!important;padding:14px!important;box-sizing:border-box}
   .est-nav{position:static!important;padding:4px 10px!important}
@@ -63,7 +69,9 @@ const CSS = `
   .rec-grid>.rec-wide{grid-column:1/-1}
   .rec-grid>[data-l]{text-align:left!important}
   .rec-grid>[data-l]::before{content:attr(data-l);display:block;font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:.3px;margin-bottom:1px}
-  .rec-grid select{min-height:36px}
+  .rec-grid select{min-height:40px}
+  .rec-card button{min-height:36px;font-size:13px!important}
+  .rec-card .est-wrap{margin-left:0!important;width:100%}
 }
 @media (max-width:480px){
   .est-stack-xs{grid-template-columns:minmax(0,1fr)!important}

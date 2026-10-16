@@ -529,13 +529,13 @@ export default function FrotaPendenciasPage() {
           titulo="Pendências por veículo"
           resumo="Tudo que está aberto em cada carro, do mais urgente para o menos: parado, defeito, cadastro."
         />
-        <button onClick={() => { setNgAberta(true); setNgPlaca(''); setNgTitulo(''); setNgKm(''); setNgSistema(''); setNgCompId(''); setNgDesc(''); setNgResp(''); }}
+        <button className="frota-touch frota-flex1-m" onClick={() => { setNgAberta(true); setNgPlaca(''); setNgTitulo(''); setNgKm(''); setNgSistema(''); setNgCompId(''); setNgDesc(''); setNgResp(''); }}
           style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', padding: '9px 16px', border: 'none', borderRadius: 0, background: '#1e40af', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>
           <Plus size={15} /> Nova pendência
         </button>
         <div style={{ display: 'flex', gap: 2, border: '1px solid var(--portal-border)', borderRadius: 0, padding: 2, background: 'var(--portal-bg-card)' }}>
           {([['cards', LayoutGrid, 'Dashboard'], ['lista', List, 'Lista']] as const).map(([m, Icone, rot]) => (
-            <button key={m} onClick={() => trocarModo(m)} title={rot}
+            <button key={m} onClick={() => trocarModo(m)} title={rot} className="frota-touch"
               style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 0, border: 'none', cursor: 'pointer', fontSize: 13.5, fontWeight: 600,
                 background: modo === m ? '#1e40af' : 'transparent', color: modo === m ? '#fff' : 'var(--portal-text-secondary)' }}>
               <Icone size={14} /> {rot}
@@ -550,14 +550,14 @@ export default function FrotaPendenciasPage() {
       </div>
 
       {!carregando && todosGrupos.size > 0 && (
-        <div role="group" aria-label="Filtrar por classe" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+        <div role="group" aria-label="Filtrar por classe" className="m-rolar-x" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
           {([
             ['todas', `Todas (${todosGrupos.size})`],
             ['parado', `${CLASSE_LABEL.parado}s (${contagemClasse.parado})`],
             ['defeito', `Com defeito (${contagemClasse.defeito})`],
             ['cadastro', `${CLASSE_LABEL.cadastro} (${contagemClasse.cadastro})`],
           ] as ['todas' | ClasseProblema, string][]).map(([k, rot]) => (
-            <button key={k} type="button" onClick={() => setClasse(k)} aria-pressed={classe === k}
+            <button key={k} type="button" onClick={() => setClasse(k)} aria-pressed={classe === k} className="frota-touch"
               style={{
                 padding: '6px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', borderRadius: 999,
                 border: `1px solid ${classe === k ? '#1e40af' : 'var(--portal-border)'}`,
@@ -629,12 +629,12 @@ export default function FrotaPendenciasPage() {
       {/* ══════════ NOVA PENDÊNCIA (escolhe o carro) ══════════ */}
       {ngAberta && (
         <div onClick={(e) => { if (e.target === e.currentTarget) setNgAberta(false); }}
-          style={{ position: 'fixed', inset: 0, zIndex: 10500, background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, width: '100%', maxWidth: 600, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,.3)' }}>
+          className="m-tela-cheia-fundo" style={{ position: 'fixed', inset: 0, zIndex: 10500, background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="m-tela-cheia" style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, width: '100%', maxWidth: 600, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,.3)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.5)' }}>
               <Plus size={17} color="#1e40af" />
               <div style={{ flex: 1, fontSize: 16, fontWeight: 800, color: 'var(--portal-text)' }}>Nova pendência</div>
-              <button onClick={() => setNgAberta(false)} style={{ width: 36, height: 36, flexShrink: 0, border: 'none', borderRadius: 0, cursor: 'pointer', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
+              <button onClick={() => setNgAberta(false)} aria-label="Fechar" className="m-toque" style={{ width: 36, height: 36, flexShrink: 0, border: 'none', borderRadius: 0, cursor: 'pointer', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
             </div>
             <div style={{ padding: 'clamp(12px, 3vw, 16px) clamp(12px, 3vw, 20px) clamp(14px, 3vw, 20px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
@@ -700,11 +700,11 @@ export default function FrotaPendenciasPage() {
       {/* ══════════ MODAL DO VEÍCULO ══════════ */}
       {aberto && (
         <div onClick={(e) => { if (e.target === e.currentTarget) fecharModal(); }}
-          style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, width: '100%', maxWidth: 960, maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,.3)' }}>
+          className="m-tela-cheia-fundo" style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div className="m-tela-cheia" style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, width: '100%', maxWidth: 960, maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,.3)' }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
               {fotoBox(aberto, 150, '0', 1200)}
-              <button onClick={fecharModal} title="Fechar"
+              <button onClick={fecharModal} title="Fechar" aria-label="Fechar" className="m-toque"
                 style={{ position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: 0, border: '1.5px solid rgba(255,255,255,.55)', cursor: 'pointer', background: 'rgba(15,23,42,.65)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <X size={18} />
               </button>

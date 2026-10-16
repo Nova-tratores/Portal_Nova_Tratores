@@ -51,7 +51,7 @@ export default function Modelos() {
   return (
     <div style={pagina}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14, flexWrap: 'wrap' }}>
-        <p style={{ margin: 0, fontSize: 14, color: 'var(--portal-text-secondary,#555)', flex: 1 }}>
+        <p style={{ margin: 0, fontSize: 14, color: 'var(--portal-text-secondary,#555)', flex: '1 1 260px' }}>
           Pontos de partida prontos. Duplicar cria um POP seu, em rascunho, para ajustar à realidade da loja — o modelo não muda.
         </p>
         {areas?.eu.admin && <button onClick={() => setNovo(true)} style={botao(COR_POPS)}><Plus size={15} /> Novo modelo do sistema</button>}

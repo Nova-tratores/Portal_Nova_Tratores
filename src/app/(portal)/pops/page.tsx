@@ -4,8 +4,9 @@ export const dynamic = 'force-dynamic'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { AlertTriangle, Plus, Search } from 'lucide-react'
+import { AlertTriangle, Plus, Search, SlidersHorizontal } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import ModalNovoPop from '@/components/pops/ModalNovoPop'
 import {
   COR_POPS, EstadoChip, areasQuePossoCriar, botao, br, campo, cartao, chamar, chip, pagina, primeiroNome, vazio,
@@ -30,6 +31,10 @@ export default function PopsLista() {
   const [dono, setDono] = useState('')
   const [vencida, setVencida] = useState(false)
   const [arquivados, setArquivados] = useState(false)
+  // Celular: busca sempre à vista; o resto dos filtros abre num bloco (botão com contador).
+  const isMobile = useIsMobile()
+  const [verFiltros, setVerFiltros] = useState(false)
+  const nFiltros = [area, estado, dono].filter(Boolean).length + (vencida ? 1 : 0) + (arquivados ? 1 : 0)
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro('')
@@ -77,18 +82,26 @@ export default function PopsLista() {
           <Search size={15} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--portal-text-muted,#888)' }} />
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por código ou título" style={{ ...campo, paddingLeft: 32 }} />
         </div>
-        <select value={area} onChange={(e) => setArea(e.target.value)} style={{ ...campo, width: 'auto' }}>
+        {isMobile && (
+          <button onClick={() => setVerFiltros((v) => !v)} aria-expanded={verFiltros}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 42, padding: '0 14px', borderRadius: 10, cursor: 'pointer', fontSize: 14, fontWeight: 700,
+              border: `1px solid ${nFiltros ? COR_POPS : 'var(--portal-border,#e5e7eb)'}`, background: nFiltros ? 'rgba(15,118,110,.08)' : 'var(--portal-surface,#fff)', color: nFiltros ? COR_POPS : 'var(--portal-text,#111)' }}>
+            <SlidersHorizontal size={15} /> Filtros{nFiltros ? ` (${nFiltros})` : ''}
+          </button>
+        )}
+        {(!isMobile || verFiltros) && <>
+        <select value={area} onChange={(e) => setArea(e.target.value)} style={{ ...campo, width: isMobile ? '100%' : 'auto' }}>
           <option value="">Todas as áreas</option>
           {(areas?.areas || []).filter((a) => a.ativo).map((a) => <option key={a.id} value={a.id}>{a.sigla} — {a.nome}</option>)}
         </select>
-        <select value={estado} onChange={(e) => setEstado(e.target.value as FiltroEstado)} style={{ ...campo, width: 'auto' }}>
+        <select value={estado} onChange={(e) => setEstado(e.target.value as FiltroEstado)} style={{ ...campo, width: isMobile ? 'calc(50% - 5px)' : 'auto' }}>
           <option value="">Qualquer estado</option>
           <option value="publicado">Publicado</option>
           <option value="edicao">Com rascunho</option>
           <option value="em_revisao">Em revisão</option>
           <option value="sem_publicacao">Nunca publicado</option>
         </select>
-        <select value={dono} onChange={(e) => setDono(e.target.value)} style={{ ...campo, width: 'auto' }}>
+        <select value={dono} onChange={(e) => setDono(e.target.value)} style={{ ...campo, width: isMobile ? 'calc(50% - 5px)' : 'auto' }}>
           <option value="">Qualquer dono</option>
           {donos.map((d) => <option key={d.id} value={d.id}>{d.nome}</option>)}
         </select>
@@ -98,8 +111,9 @@ export default function PopsLista() {
         <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-secondary,#555)' }}>
           <input type="checkbox" checked={arquivados} onChange={(e) => setArquivados(e.target.checked)} /> Arquivados
         </label>
+        </>}
         {posso.length > 0 && (
-          <button onClick={() => setNovo(true)} style={botao(COR_POPS)}><Plus size={15} /> Novo POP</button>
+          <button onClick={() => setNovo(true)} style={{ ...botao(COR_POPS), ...(isMobile ? { minHeight: 42, marginLeft: 'auto' } : {}) }}><Plus size={15} /> Novo POP</button>
         )}
       </div>
 
@@ -128,13 +142,14 @@ export default function PopsLista() {
             <div style={{ ...cartao, padding: 0, overflow: 'hidden' }}>
               {lista.map((p, i) => (
                 <Link key={p.id} href={`/pops/${p.id}`} style={{
-                  display: 'grid', gridTemplateColumns: 'minmax(90px,110px) 1fr auto', gap: 12, alignItems: 'center',
+                  // Celular: código + selos em cima, título (até 2 linhas) e dono embaixo
+                  display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0,1fr) auto' : 'minmax(90px,110px) 1fr auto', gap: isMobile ? '4px 10px' : 12, alignItems: 'center',
                   padding: '11px 14px', textDecoration: 'none', color: 'inherit',
                   borderTop: i ? '1px solid var(--portal-border,#e5e7eb)' : 'none', opacity: p.arquivado ? .55 : 1,
                 }}>
                   <span style={{ fontFamily: 'ui-monospace,monospace', fontWeight: 800, color: COR_POPS, fontSize: 13 }}>{p.codigo}</span>
-                  <span style={{ minWidth: 0 }}>
-                    <span style={{ display: 'block', fontWeight: 700, color: 'var(--portal-text,#111)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.titulo}</span>
+                  <span style={{ minWidth: 0, gridColumn: isMobile ? '1 / -1' : undefined, gridRow: isMobile ? 2 : undefined }}>
+                    <span style={{ display: 'block', fontWeight: 700, color: 'var(--portal-text,#111)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: isMobile ? 'normal' : 'nowrap', overflowWrap: 'anywhere' }}>{p.titulo}</span>
                     <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>
                       dono {primeiroNome(usuarios[p.dono_id]?.nome)}
                       {p.publicada && <> · revisar até {br(p.proxima_revisao_em)}</>}

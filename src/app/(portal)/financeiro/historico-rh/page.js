@@ -56,7 +56,7 @@ export default function HistoricoRH() {
 
         {/* BARRA DE PESQUISA */}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginBottom: '30px', alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '300px', minWidth: 0 }}>
+          <div className="m-full" style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '300px', minWidth: 0 }}>
             <label style={{ fontSize: '10px', color: '#9e9e9e', letterSpacing: '1px', marginLeft: '5px' }}>PESQUISAR FUNCIONÁRIO / TÍTULO</label>
             <div style={{ position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#9e9e9e' }} />
@@ -93,9 +93,10 @@ export default function HistoricoRH() {
                   <span style={{ fontSize: '14px', color: '#424242' }}>{c.titulo}</span>
                 </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '0.5px solid #f1f5f9', paddingTop: '16px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', borderTop: '0.5px solid #f1f5f9', paddingTop: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#9e9e9e', fontSize: '13px' }}>
-                    <Calendar size={14} /> {formatarDataBR(c.created_at)}
+                    {/* created_at é timestamp ISO: só a data (o formatador partia no "-" e saía "13T19:58…/04/2026") */}
+                    <Calendar size={14} /> {formatarDataBR(String(c.created_at || '').slice(0, 10))}
                   </div>
                   <button style={{ background: 'none', border: 'none', color: '#9e9e9e', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <FileText size={16} /> VER RESUMO

@@ -1,8 +1,10 @@
 'use client';
 import Link from 'next/link';
+import { useEffect, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { GRUPOS_MKT, PAGINAS_MARKETING, slugDaPagina } from '@/app/(portal)/marketing/paginas';
 import { podeTelaMarketing } from '@/lib/permissoes/marketing';
 
@@ -13,6 +15,14 @@ export default function MarketingNav() {
   const pathname = usePathname() ?? '';
   const { userProfile } = useAuth();
   const { permissoes, isAdmin, loading } = usePermissoes(userProfile?.id);
+  const isMobile = useIsMobile();
+  // celular: a guia ativa pode estar fora da faixa — rola a faixa até ela
+  const faixaRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const f = faixaRef.current;
+    const a = f?.querySelector<HTMLElement>('[data-ativo="1"]');
+    if (f && a && isMobile) f.scrollLeft = a.offsetLeft - f.offsetLeft - (f.clientWidth - a.offsetWidth) / 2;
+  }, [pathname, isMobile, loading]);
 
   if (loading) return null;
 
@@ -25,12 +35,14 @@ export default function MarketingNav() {
 
   return (
     <div
-      className="print:hidden"
+      ref={faixaRef}
+      // celular: uma linha só que rola de lado (antes quebrava em 2 linhas de guias)
+      className="print:hidden m-rolar-x"
       style={{
         display: 'flex',
         alignItems: 'flex-end',
         gap: 3,
-        padding: '10px 24px 0',
+        padding: isMobile ? '8px 12px 0' : '10px 24px 0',
         background: 'linear-gradient(135deg, #F472B6, #9D174D)',
         overflowX: 'auto',
         WebkitOverflowScrolling: 'touch', // celular: as guias rolam DENTRO da faixa
@@ -48,12 +60,14 @@ export default function MarketingNav() {
             <Link
               key={p.key}
               href={p.href}
+              data-ativo={ativo ? '1' : undefined}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 7,
-                padding: '11px 20px',
-                fontSize: 14,
+                padding: isMobile ? '10px 14px' : '11px 20px',
+                fontSize: isMobile ? 13.5 : 14,
+                flexShrink: 0,
                 fontWeight: ativo ? 700 : 500,
                 color: '#111111', // preto sempre (#111827 é remapeado pra branco no escuro)
                 // #fefefe: branco que o modo escuro NÃO converte (o #fff vira card escuro)

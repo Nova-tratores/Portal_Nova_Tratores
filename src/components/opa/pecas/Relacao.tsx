@@ -146,7 +146,7 @@ function Cartao({ l, local, mobile }: { l: LinhaRelacao; local: string; mobile: 
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap' }}>
         <div style={{ flex: 1, minWidth: 200 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <Link href={`/opa/pecas/${encodeURIComponent(i.codigo)}`} style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 14, color: LARANJA, textDecoration: 'none' }}>{i.codigo}</Link>
+            <Link href={`/opa/pecas/${encodeURIComponent(i.codigo)}`} style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 14, color: LARANJA, textDecoration: 'none', ...(mobile ? { display: 'inline-flex', alignItems: 'center', minHeight: 36 } : {}) }}>{i.codigo}</Link>
             <SeloStatus status={i.status} />
             {l.motivo && <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 999, background: '#FFF7ED', color: '#9A3412' }}>{ROTULO_MOTIVO[l.motivo]}</span>}
           </div>
@@ -157,7 +157,7 @@ function Cartao({ l, local, mobile }: { l: LinhaRelacao; local: string; mobile: 
           </div>
         </div>
         <div style={{ textAlign: mobile ? 'left' : 'right' }}>
-          <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--portal-text-muted)' }}>Código existente</div>
+          <div style={{ fontSize: mobile ? 11.5 : 10.5, fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--portal-text-muted)' }}>Código existente</div>
           <div style={{ fontFamily: 'monospace', fontWeight: 800, fontSize: 14, color: 'var(--portal-text)', textDecoration: i.codigo_correto ? 'line-through' : undefined }}>{i.codigo_fabricante || '—'}</div>
           {i.codigo_correto && (
             <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: '#B45309' }}>

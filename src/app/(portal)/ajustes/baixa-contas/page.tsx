@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { authHeaders } from '@/lib/auth/client';
@@ -101,6 +102,9 @@ export default function BaixaContasPage() {
   const [sort, setSort] = useState<{ key: string; dir: number }>({ key: 'previsao', dir: 1 });
   const [filtros, setFiltros] = useState<Record<string, string>>({});
   const [modalTitulo, setModalTitulo] = useState<Titulo | null>(null);
+  const isMobile = useIsMobile();
+  // Celular: uma busca só (em todas as colunas) no lugar dos filtros por coluna.
+  const [buscaMobile, setBuscaMobile] = useState('');
 
   const buscar = useCallback(async () => {
     if (!conta) { setTitulos([]); return; }
@@ -172,7 +176,7 @@ export default function BaixaContasPage() {
           <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 820 }}>
             Marca titulos <b>a pagar</b> e <b>a receber</b> como pagos/recebidos direto no Omie. Lista os titulos <b>em aberto</b> da empresa selecionada — <b>uma empresa por vez</b>. Clique em <b>Baixar</b> para liquidar um titulo.
           </p>
-          <p style={{ color: '#94a3b8', fontSize: '.72rem', maxWidth: 820, marginTop: 4 }}>
+          <p className="est-hide-sm" style={{ color: '#94a3b8', fontSize: '.72rem', maxWidth: 820, marginTop: 4 }}>
             A lista vem do <b>espelho sincronizado</b> da Omie (cron a cada poucas horas); a baixa vai <b>direto na Omie</b>. Ordenada por <b>previsão</b>, como o card &quot;Pagar/Receber hoje&quot; da Omie.
           </p>
         </div>
@@ -189,7 +193,7 @@ export default function BaixaContasPage() {
         </div>
       ) : (
         <>
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, marginBottom: 14 }}>
+          <div className="est-touch" style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, marginBottom: 14 }}>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Tipo</label>
@@ -223,6 +227,60 @@ export default function BaixaContasPage() {
             </div>
           </div>
 
+          {isMobile ? (
+            // Celular: busca única + ordenação + um cartão por título.
+            <div>
+              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+                <input value={buscaMobile} onChange={(e) => setBuscaMobile(e.target.value)} placeholder="Buscar fornecedor, doc, categoria…"
+                  style={{ flex: 1, minWidth: 0, border: '1px solid #cbd5e1', borderRadius: 8, padding: '10px 12px', background: '#fff' }} />
+                <select value={`${sort.key}|${sort.dir}`} onChange={(e) => { const [k, d] = e.target.value.split('|'); setSort({ key: k, dir: Number(d) }); }}
+                  aria-label="Ordenar" style={{ width: 128, border: '1px solid #cbd5e1', borderRadius: 8, padding: '10px 6px', background: '#fff' }}>
+                  <option value="previsao|1">Previsão ↑</option>
+                  <option value="previsao|-1">Previsão ↓</option>
+                  <option value="vencimento|1">Vencimento ↑</option>
+                  <option value="valorAberto|-1">Maior valor</option>
+                  <option value="valorAberto|1">Menor valor</option>
+                  <option value="contraparte|1">Nome A→Z</option>
+                </select>
+              </div>
+              {(() => {
+                const t = norm(buscaMobile.trim());
+                const lista = t ? linhasVisiveis.filter((l) => COLS.some((c) => norm(c.txt(l)).includes(t))) : linhasVisiveis;
+                if (lista.length === 0) return (
+                  <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, textAlign: 'center', color: '#94a3b8', padding: 28, fontSize: 14 }}>
+                    {carregando ? 'Carregando…' : titulos.length && recorte !== 'todos' ? 'Nenhum titulo neste recorte de previsão — veja "Todos".' : 'Nenhum titulo em aberto para esta empresa/tipo.'}
+                  </div>
+                );
+                return lista.map((l) => {
+                  const parcial = (Number(l.valorPago) || 0) > 0;
+                  const prevDif = l.previsao && l.previsao !== l.vencimento;
+                  return (
+                    <div key={String(l.codigoLancamento)} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: '10px 12px', marginBottom: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div className="m-quebra-texto" style={{ fontSize: 14, fontWeight: 700, color: '#1e293b' }}>{l.contraparte || '-'}</div>
+                          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                            doc {l.numeroDoc || '-'}{l.parcela ? ` · parc. ${l.parcela}` : ''}
+                          </div>
+                        </div>
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <div style={{ fontSize: 16, fontWeight: 800, color: '#0f172a', fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(l.valorAberto)}</div>
+                          {parcial && <div style={{ fontSize: 11, color: '#94a3b8' }}>doc {fmtBRL(l.valorDocumento)}</div>}
+                        </div>
+                      </div>
+                      {l.categoria && <div className="m-quebra-texto" style={{ fontSize: 12, color: '#64748b', marginTop: 4 }}>{l.categoria}</div>}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                        <StatusBadge s={l.status} />
+                        <span style={{ fontSize: 12, color: prevDif ? '#b45309' : '#475569' }}>prev. {fmtData(l.previsao || l.vencimento) || '-'}</span>
+                        {prevDif && <span style={{ fontSize: 12, color: '#64748b' }}>venc. {fmtData(l.vencimento)}</span>}
+                        <button onClick={() => setModalTitulo(l)} style={{ marginLeft: 'auto', minHeight: 40, padding: '0 18px', background: '#059669', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>Baixar</button>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+          ) : (
           <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
             <div style={{ overflow: 'auto', maxHeight: '70vh' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -272,6 +330,7 @@ export default function BaixaContasPage() {
               </table>
             </div>
           </div>
+          )}
         </>
       )}
 
@@ -390,11 +449,11 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
   }, [ccSel, valor, data, juros, multa, desconto, obs, conciliar, conta, tipo, titulo, onBaixado]);
 
   return (
-    <div className="est-overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
+    <div className="m-folha-fundo" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      <div className="m-folha" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
         <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Marcar como pago / recebido</h2>
-          <button onClick={onClose} style={closeBtn}>×</button>
+          <button onClick={onClose} aria-label="Fechar" className="m-toque" style={closeBtn}>×</button>
         </div>
         <div style={{ padding: 18, overflowY: 'auto', fontSize: '.85rem' }}>
           {carregando ? <div style={{ color: '#94a3b8' }}>consultando titulo no Omie...</div>
@@ -443,7 +502,7 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
               </>
             )}
         </div>
-        <div style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="m-toque-filhos" style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: '.72rem', color: modalStatus.includes('✓') ? '#047857' : '#dc2626', marginRight: 'auto' }}>{modalStatus}</span>
           <button onClick={onClose} style={btnSec}>Cancelar</button>
           <button onClick={aplicar} disabled={aplicando || carregando || bloqueada || !!erroConsulta} style={{ ...btnPrim, background: '#059669', opacity: aplicando || carregando || bloqueada || erroConsulta ? 0.5 : 1 }}>Baixar no Omie</button>

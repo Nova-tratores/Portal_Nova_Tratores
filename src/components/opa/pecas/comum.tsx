@@ -141,7 +141,7 @@ export function OpaBarra({ acao, podeGerir = false }: { acao?: React.ReactNode; 
               <Plus size={16} strokeWidth={2.5} /> Novo produto
             </Link>
           </>
-        ) : acao}
+        ) : isMobile ? <div style={{ gridColumn: '1 / -1' }}>{acao}</div> : acao}
       </div>
     </div>
   )

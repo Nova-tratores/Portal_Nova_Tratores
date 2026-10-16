@@ -199,7 +199,8 @@ function ProjetosPageInner() {
             {data ? `${data.total_projetos} projetos de ${data.total_clientes} clientes` : 'Carregando...'}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        {/* celular: os botões quebram linha em vez de passar da tela */}
+        <div className="m-quebrar" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <button onClick={syncNfs} disabled={syncNfLoading}
             style={{ padding: '10px 18px', borderRadius: 8, border: '1px solid #E5E7EB', background: syncNfLoading ? '#F9FAFB' : '#fff', color: syncNfLoading ? '#9CA3AF' : '#374151', fontSize: 13, fontWeight: 600, cursor: syncNfLoading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
             <RefreshCw size={15} style={syncNfLoading ? { animation: 'spin 1s linear infinite' } : {}} /> Sync NFs

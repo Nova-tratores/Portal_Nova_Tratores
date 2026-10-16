@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link2, Check, X, RefreshCw, Search, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { ROTULO_TIPO_VINCULO, TIPOS_VINCULO } from '@/lib/agro/vinculo'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 // Guia "Vínculos" do /dashboard-agro: sugestões de vínculo CAR↔cliente geradas
 // pelas visitas presenciais com GPS do CRM (sql/agro-visitas-vinculo.sql).
@@ -76,6 +77,7 @@ export default function VinculosSugeridos() {
   const [ocupado, setOcupado] = useState<string | null>(null)
   const [tipoSel, setTipoSel] = useState('')   // tipo do vínculo: obrigatório pra aceitar
   const [ordem, setOrdem] = useState<{ col: Col; dir: 'asc' | 'desc' }>({ col: 'score', dir: 'desc' })
+  const isMobile = useIsMobile()
 
   const ordenarPor = (col: Col) => setOrdem((o) => {
     if (o.col !== col) return { col, dir: col === 'score' || col === 'area_ha' || col === 'n_presenciais' || col === 'ultima_visita' ? 'desc' : 'asc' }
@@ -131,6 +133,33 @@ export default function VinculosSugeridos() {
     })
   }, [dados, ordem])
 
+  // Aceitar / rejeitar (ou o que já foi decidido) — usado pela linha da tabela e pelo cartão do celular
+  const acoes = (s: Sugestao, chave: string) => (
+    s.status !== 'pendente' ? (
+      <span style={{ fontSize: 12 }}>
+        <b style={{ color: s.status === 'aceita' ? VERDE : '#dc2626', textTransform: 'capitalize' }}>{s.status}</b>
+        <div style={{ fontSize: 11, color: 'var(--portal-text-muted,#6b7280)' }}>{s.decidido_por} · {fmtData(s.decidido_em)}</div>
+      </span>
+    ) : confirmando?.startsWith(chave) ? (
+      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 12 }}>
+        {confirmando.endsWith('|1') ? 'Vincular como' : 'Rejeitar sugestão?'}
+        {confirmando.endsWith('|1') && (
+          <select value={tipoSel} onChange={(e) => setTipoSel(e.target.value)} style={{ padding: '4px 6px', borderRadius: 6, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg-input,#fefefe)', color: 'var(--portal-text,#111111)', fontSize: 12 }}>
+            <option value="">tipo…</option>
+            {TIPOS_VINCULO.map((t) => <option key={t} value={t}>{ROTULO_TIPO_VINCULO[t]}</option>)}
+          </select>
+        )}
+        <button type="button" disabled={ocupado === chave || (confirmando.endsWith('|1') && !tipoSel)} onClick={() => decidir(s, confirmando.endsWith('|1'))} style={botao(confirmando.endsWith('|1') ? VERDE : '#dc2626', true)}>Sim</button>
+        <button type="button" onClick={() => setConfirmando(null)} style={botao('#6b7280', false)}>Não</button>
+      </span>
+    ) : (
+      <span style={{ display: 'inline-flex', gap: 6 }}>
+        <button type="button" disabled={ocupado === chave} onClick={() => { setTipoSel(''); setConfirmando(`${chave}|1`) }} style={botao(VERDE, true)}><Check size={13} /> Aceitar</button>
+        <button type="button" disabled={ocupado === chave} onClick={() => setConfirmando(`${chave}|0`)} style={botao('#dc2626', false)}><X size={13} /> Rejeitar</button>
+      </span>
+    )
+  )
+
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px clamp(10px, 2.5vw, 16px) 60px' }}>
       {/* cabeçalho */}
@@ -173,7 +202,54 @@ export default function VinculosSugeridos() {
         </div>
       )}
 
-      {/* tabela */}
+      {/* tabela (no celular: um cartão por sugestão) */}
+      {isMobile ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* botões Aceitar/Rejeitar/Sim/Não com altura de dedo */}
+          <style>{`.vinc-acoes button, .vinc-acoes select { min-height: 40px; }`}</style>
+          <select value={`${ordem.col}:${ordem.dir}`} aria-label="Ordenar" onChange={(e) => { const [col, dir] = e.target.value.split(':'); setOrdem({ col: col as Col, dir: dir as 'asc' | 'desc' }) }}
+            style={{ padding: '9px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg-card,#fefefe)', color: 'var(--portal-text,#111111)' }}>
+            {COLUNAS.flatMap((c) => [
+              <option key={`${c.col}:desc`} value={`${c.col}:desc`}>Ordenar: {c.rotulo} (maior / Z→A)</option>,
+              <option key={`${c.col}:asc`} value={`${c.col}:asc`}>Ordenar: {c.rotulo} (menor / A→Z)</option>,
+            ])}
+          </select>
+          {carregando && <div style={{ padding: 16, textAlign: 'center', color: 'var(--portal-text-muted,#6b7280)' }}>Carregando…</div>}
+          {!carregando && dados.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: 'var(--portal-text-muted,#6b7280)' }}>Nenhuma sugestão neste filtro.</div>}
+          {ordenados.map((s) => {
+            const chave = `${s.cod_car}|${s.cliente_ref}`
+            const ambiguo = carsAmbiguos.has(s.cod_car)
+            const mut = 'var(--portal-text-muted,#6b7280)'
+            return (
+              <div key={chave} style={{ padding: 12, borderRadius: 10, border: `1px solid ${ambiguo ? '#f59e0b' : 'var(--portal-border,#e5e7eb)'}`, background: ambiguo ? 'rgba(245,158,11,0.06)' : 'var(--portal-bg-card,#fefefe)', color: 'var(--portal-text,#111111)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontWeight: 800, fontSize: 15, overflowWrap: 'anywhere' }}>{s.cliente_nome || `cliente ${s.cliente_ref}`}</div>
+                    {s.propriedade_nome && s.propriedade_nome !== s.cliente_nome && <div style={{ fontSize: 13, color: mut }}>{s.propriedade_nome}</div>}
+                    <div style={{ fontSize: 12, color: mut }}>Omie {s.cliente_omie_id} · {s.municipio}</div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 11, color: mut, fontWeight: 700 }}>SCORE</div>
+                    <div style={{ fontSize: 18, fontWeight: 800 }}>{Number(s.score).toFixed(1)}</div>
+                  </div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '3px 10px', marginTop: 8, fontSize: 12 }}>
+                  <span>Área: <b>{fmtHa(s.area_ha)}</b> (útil {fmtHa(s.area_util_ha)})</span>
+                  <span>Cultura: <b>{s.cultura_nome || 'diversificado'}</b>{s.confianca && <span style={{ color: CONF_COR[s.confianca] || '#6b7280', fontWeight: 700 }}> · {s.confianca}</span>}</span>
+                  <span>Visitas: <b>{s.n_presenciais}</b> · GPS {s.gps_accuracy_media != null ? `${Math.round(Number(s.gps_accuracy_media))} m` : '—'}</span>
+                  <span>Última: <b>{fmtData(s.ultima_visita)}</b></span>
+                  {(s.vendedores || []).length > 0 && <span style={{ gridColumn: '1 / -1' }}>Vendedor: {(s.vendedores || []).join(', ')}</span>}
+                </div>
+                {s.motivo && <div style={{ fontSize: 12, marginTop: 6, color: 'var(--portal-text-secondary,#374151)' }}>{s.motivo}</div>}
+                <div style={{ fontSize: 11, marginTop: 4, color: mut, fontFamily: 'ui-monospace, Consolas, monospace', overflowWrap: 'anywhere' }}>
+                  {s.cod_car}{ambiguo && <span style={{ color: '#b45309', fontWeight: 700, fontFamily: 'inherit' }}> · ⚠ vários clientes</span>}
+                </div>
+                <div className="vinc-acoes" style={{ marginTop: 10, display: 'flex', flexWrap: 'wrap', gap: 8 }}>{acoes(s, chave)}</div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
       <div style={{ overflowX: 'auto', background: 'var(--portal-bg-card,#fefefe)', border: '1px solid var(--portal-border,#e5e7eb)', borderRadius: 10 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
           <thead>
@@ -221,29 +297,7 @@ export default function VinculosSugeridos() {
                   <td style={{ ...td, fontSize: 12 }}>{(s.vendedores || []).join(', ')}</td>
                   <td style={{ ...td, fontSize: 12, maxWidth: 260, color: 'var(--portal-text-secondary,#374151)' }}>{s.motivo}</td>
                   <td style={{ ...td, whiteSpace: 'nowrap' }}>
-                    {s.status !== 'pendente' ? (
-                      <span style={{ fontSize: 12 }}>
-                        <b style={{ color: s.status === 'aceita' ? VERDE : '#dc2626', textTransform: 'capitalize' }}>{s.status}</b>
-                        <div style={{ fontSize: 11, color: 'var(--portal-text-muted,#6b7280)' }}>{s.decidido_por} · {fmtData(s.decidido_em)}</div>
-                      </span>
-                    ) : confirmando?.startsWith(chave) ? (
-                      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 12 }}>
-                        {confirmando.endsWith('|1') ? 'Vincular como' : 'Rejeitar sugestão?'}
-                        {confirmando.endsWith('|1') && (
-                          <select value={tipoSel} onChange={(e) => setTipoSel(e.target.value)} style={{ padding: '4px 6px', borderRadius: 6, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg-input,#fefefe)', color: 'var(--portal-text,#111111)', fontSize: 12 }}>
-                            <option value="">tipo…</option>
-                            {TIPOS_VINCULO.map((t) => <option key={t} value={t}>{ROTULO_TIPO_VINCULO[t]}</option>)}
-                          </select>
-                        )}
-                        <button type="button" disabled={ocupado === chave || (confirmando.endsWith('|1') && !tipoSel)} onClick={() => decidir(s, confirmando.endsWith('|1'))} style={botao(confirmando.endsWith('|1') ? VERDE : '#dc2626', true)}>Sim</button>
-                        <button type="button" onClick={() => setConfirmando(null)} style={botao('#6b7280', false)}>Não</button>
-                      </span>
-                    ) : (
-                      <span style={{ display: 'inline-flex', gap: 6 }}>
-                        <button type="button" disabled={ocupado === chave} onClick={() => { setTipoSel(''); setConfirmando(`${chave}|1`) }} style={botao(VERDE, true)}><Check size={13} /> Aceitar</button>
-                        <button type="button" disabled={ocupado === chave} onClick={() => setConfirmando(`${chave}|0`)} style={botao('#dc2626', false)}><X size={13} /> Rejeitar</button>
-                      </span>
-                    )}
+                    {acoes(s, chave)}
                   </td>
                 </tr>
               )
@@ -251,6 +305,7 @@ export default function VinculosSugeridos() {
           </tbody>
         </table>
       </div>
+      )}
       <div style={{ marginTop: 8, fontSize: 12, color: 'var(--portal-text-muted,#6b7280)' }}>
         {dados.length} sugestão(ões) no filtro · linhas em âmbar = o mesmo CAR recebeu visitas de mais de um cliente (decida com cuidado) · gerado por <code>scripts/agro/sugerir_vinculos_visitas.py</code>
       </div>

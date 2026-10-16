@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { Search, X } from 'lucide-react'
 
 const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -35,6 +36,8 @@ export default function NotasEntradaPage() {
   const [conta, setConta] = useState('todas')
   const [status, setStatus] = useState('todas')
   const [busca, setBusca] = useState('')
+  const isMobile = useIsMobile()
+  const [limite, setLimite] = useState(60)
 
   useEffect(() => {
     setLoading(true)
@@ -94,6 +97,34 @@ export default function NotasEntradaPage() {
 
       {loading ? (
         <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF' }}>Carregando notas...</div>
+      ) : isMobile ? (
+        // Celular: cartões (a tabela de 7 colunas rolava de lado), com "mostrar mais"
+        <div>
+          {filtradas.length === 0 && <div style={{ padding: 32, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Nenhuma nota encontrada.</div>}
+          {filtradas.slice(0, limite).map(n => {
+            const c = statusCor(n.status)
+            return (
+              <div key={`${n.conta_omie}-${n.id}`} style={{ background: 'var(--portal-bg-card, #fff)', border: '1px solid var(--portal-border, #e5e5e5)', borderRadius: 12, padding: '10px 12px', marginBottom: 8 }}>
+                <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="m-quebra-texto" style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text, #1a1a1a)' }}>{n.fornecedor || '—'}</div>
+                    <div style={{ fontSize: 12, color: 'var(--portal-text-secondary, #6B7280)', marginTop: 2 }}>NF {n.numero_nfe}{n.serie_nfe ? `/${n.serie_nfe}` : ''} · {fmtData(n.emissao_nfe)}</div>
+                    <div style={{ fontSize: 12, color: 'var(--portal-text-secondary, #6B7280)', marginTop: 1 }}>{n.qtd_maquinas || 0} máquina(s) · {n.qtd_itens || 0} iten(s)</div>
+                  </div>
+                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text, #1a1a1a)' }}>{fmt(n.total_nfe)}</div>
+                    <span style={{ display: 'inline-block', marginTop: 4, padding: '2px 10px', borderRadius: 20, background: c.bg, color: c.fg, fontSize: 12, fontWeight: 700 }}>{n.status || '—'}</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+          {filtradas.length > limite && (
+            <button onClick={() => setLimite(l => l + 60)} style={{ width: '100%', minHeight: 44, borderRadius: 10, border: '1px solid var(--portal-border, #e5e5e5)', background: 'var(--portal-bg-card, #fff)', color: 'var(--portal-text, #1a1a1a)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
+              Mostrar mais ({filtradas.length - limite} restantes)
+            </button>
+          )}
+        </div>
       ) : (
         <div style={{ overflow: 'auto', border: '1px solid var(--portal-border, #e5e5e5)', borderRadius: 12 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>

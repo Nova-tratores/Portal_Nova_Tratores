@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 
@@ -170,6 +171,10 @@ export default function AlertasPage() {
   const [erro, setErro] = useState('');
   const [filtros, setFiltros] = useState<Record<string, string>>({}); // filtro por coluna (cabecalho)
   const [sort, setSort] = useState<{ key: string | null; dir: number }>({ key: null, dir: 1 });
+  // Celular: busca única + lista em cartões (com "mostrar mais").
+  const isMobile = useIsMobile();
+  const [buscaMobile, setBuscaMobile] = useState('');
+  const [limiteMobile, setLimiteMobile] = useState(60);
 
   const verifTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const contaRef = useRef(conta);
@@ -404,6 +409,50 @@ export default function AlertasPage() {
         <span style={{ fontSize: '.8rem', color: '#64748b' }}>{listaStatus}</span>
       </div>
 
+      {isMobile ? (() => {
+        const t = buscaMobile.trim().toLowerCase();
+        const lista = t ? linhas.filter((a) => COLS.some((c) => valTexto(a, c.key).toLowerCase().includes(t))) : linhas;
+        return (
+          <div>
+            <input value={buscaMobile} onChange={(e) => setBuscaMobile(e.target.value)} placeholder="Buscar produto, tipo, detalhe…"
+              style={{ width: '100%', boxSizing: 'border-box', border: '1px solid #cbd5e1', borderRadius: 8, padding: '10px 12px', marginBottom: 10, background: '#fff' }} />
+            {lista.length === 0 && (
+              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, padding: 28, textAlign: 'center', color: '#94a3b8', fontSize: 14 }}>
+                {alertas.length === 0 ? <>Nenhum alerta{filtroLido === '0' ? ' nao lido' : ''}. 🎉</> : 'Nenhum alerta bate com o filtro.'}
+              </div>
+            )}
+            {lista.slice(0, limiteMobile).map((a) => {
+              const prod = a.codigo_produto != null ? a.codigo_produto : (a.codigo_integracao || '');
+              const ti = tipoInfo(a.tipo);
+              return (
+                <div key={a.id} style={{ background: '#fff', border: '1px solid #e2e8f0', borderLeft: `4px solid ${ti.cor}`, borderRadius: 10, padding: '10px 12px', marginBottom: 8, opacity: a.lido ? 0.6 : 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 6, fontSize: 12, fontWeight: 600, background: ti.bg, color: ti.cor }}>{ti.label}</span>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>{a.conta_omie || ''} · {fmtDataHora(a.criado_em)}</span>
+                  </div>
+                  <div className="m-quebra-texto" style={{ fontSize: 14, fontWeight: 600, color: '#1e293b', marginTop: 6 }}>
+                    {prod !== '' && <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#64748b' }}>{prod} </span>}{a.descricao_produto || ''}
+                  </div>
+                  <div className="m-quebra-texto" style={{ fontSize: 13, color: '#475569', marginTop: 4 }}><DetalheAlerta a={a} /></div>
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
+                    {a.lido ? (
+                      <button onClick={() => marcar([a.id], false)} style={{ minHeight: 40, padding: '0 14px', fontSize: 13, background: '#f1f5f9', color: '#475569', border: 'none', borderRadius: 8, cursor: 'pointer' }}>marcar nao lido</button>
+                    ) : (
+                      <button onClick={() => marcar([a.id], true)} style={{ minHeight: 40, padding: '0 14px', fontSize: 13, fontWeight: 600, background: '#2563eb', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer' }}>marcar lido</button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+            {lista.length > limiteMobile && (
+              <button onClick={() => setLimiteMobile((n) => n + 60)}
+                style={{ width: '100%', minHeight: 44, border: '1px solid #cbd5e1', background: '#fff', borderRadius: 10, fontSize: 14, fontWeight: 600, color: '#334155', cursor: 'pointer' }}>
+                Mostrar mais ({lista.length - limiteMobile} restantes)
+              </button>
+            )}
+          </div>
+        );
+      })() : (
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -455,6 +504,7 @@ export default function AlertasPage() {
           </table>
         </div>
       </div>
+      )}
     </div>
   );
 }
