@@ -12,6 +12,10 @@ import type { VeiculoVivo } from '@/lib/frota/mapa-vivo-server'
 interface Carro { placa: string; descricao?: string | null; pessoa_nome?: string | null; vinculo_tipo?: string | null }
 
 // nomes vêm do CRM / geocercas / cadastro — nunca interpolar cru no HTML do Leaflet
+// Volta à loja prevista (lib/frota/retorno-loja): "14:32" no fuso da loja
+const horaBR = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+const textoRetorno = (r: NonNullable<VeiculoVivo['retorno']>) =>
+  `Voltando para a loja · chega ~${horaBR(r.eta)} (faltam ${kmBR(r.kmRestante)}, ~${r.kmh} km/h${r.mesmoCaminho ? ', pelo caminho da ida' : ', aproximado'})`
 const kmBR = (km: number) => `${(Math.round(km * 10) / 10).toLocaleString('pt-BR')} km`
 const esc = (s: unknown) => String(s ?? '').replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c] || c))
 
@@ -331,6 +335,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
           html: `<div style="display:flex;flex-direction:column;align-items:center;opacity:${apagado ? 0.35 : 1}">
             <div style="position:relative;width:30px;height:30px;border-radius:50%;background:${cor};border:3px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:${escolhido ? `0 0 0 5px ${cor}55,` : ''}0 2px 6px rgba(0,0,0,0.45)">${seta}${ICONE_CARRO}</div>
             <div style="margin-top:2px;background:rgba(15,23,42,0.9);color:#fff;font:700 10.5px Inter,sans-serif;padding:1px 6px;border-radius:4px;white-space:nowrap">${v.nome ? `${esc(primeiroNome(v.nome))} · ` : ''}${esc(v.placa_exibicao)}</div>
+            ${st === 'andando' && v.retorno ? `<div style="margin-top:1px;background:#1d4ed8;color:#fff;font:700 9.5px Inter,sans-serif;padding:0 5px;border-radius:4px;white-space:nowrap">↩ Loja ~${horaBR(v.retorno.eta)}</div>` : ''}
             ${v.os_execucao?.length ? `<div style="margin-top:1px;background:#15803d;color:#fff;font:700 9.5px Inter,sans-serif;padding:0 5px;border-radius:4px;white-space:nowrap">${esc(v.os_execucao[0].id)}</div>` : ''}
           </div>`,
           iconSize: [140, 64], iconAnchor: [70, 18],
@@ -340,6 +345,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
           `<b>${esc(v.nome || v.placa_exibicao)}</b>${v.nome ? ` · ${esc(v.placa_exibicao)}` : ''}<br/>` +
           `<span style="color:${cor};font-weight:700">${STATUS_INFO[st].label}</span>${st === 'andando' && v.rumo != null ? ` para o ${nomeRumo(v.rumo)}` : ''} · ${esc(haQuanto(v.dt, agoraMs))}` +
           (v.local ? `<br/>${esc(v.local)}` : '') +
+          (st === 'andando' && v.retorno ? `<br/><span style="color:#1d4ed8;font-weight:700">${esc(textoRetorno(v.retorno))}</span>` : '') +
           (v.os_execucao || []).map((o) => `<br/><span style="color:#15803d;font-weight:700">${esc(o.id)}</span> em execução${o.cliente ? ` · ${esc(o.cliente)}` : ''}`).join(''),
           { direction: 'top', offset: [0, -20] },
         )
@@ -728,6 +734,11 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                         <span style={{ display: 'block', fontSize: 11, color: st === 'sem_sinal' ? '#b91c1c' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {!v.tem_rastreador ? 'sem rastreador vinculado' : `${haQuanto(v.dt, agoraMs)}${v.local ? ` · ${v.local}` : ''}`}
                         </span>
+                        {st === 'andando' && v.retorno && (
+                          <span title={textoRetorno(v.retorno)} style={{ display: 'block', fontSize: 11, color: '#1d4ed8', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            ↩ Voltando · chega ~{horaBR(v.retorno.eta)} · {kmBR(v.retorno.kmRestante)}
+                          </span>
+                        )}
                         {(v.os_execucao || []).map((o) => (
                           <span key={o.id} style={{ display: 'block', fontSize: 11, color: '#15803d', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {o.id} em execução{o.cliente ? ` · ${o.cliente}` : ''}

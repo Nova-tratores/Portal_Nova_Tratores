@@ -9,7 +9,8 @@
 // 30 s em memória e é COMPARTILHADA entre abas e usuários (antes cada aba
 // baixava o dia inteiro de cada carro a cada 30 s).
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { fetchTudo } from '@/lib/pos/rastreamento';
+import { fetchTudo, LOJA_LAT, LOJA_LNG } from '@/lib/pos/rastreamento';
+import { estimarRetorno, type PontoDia, type Retorno } from '@/lib/frota/retorno-loja';
 import { classificarParada, type GeocercaCtx } from '@/lib/frota/paradas';
 import { carregarPropriedades, propriedadesComoGeocercas } from '@/lib/frota/propriedades';
 import { chaveNome, diaBR, limparNome, ordenarVivos, osDosTecnicos, rotuloLocal, rumoDosPontos, statusVivo, type OsExecucao, type StatusVivo } from '@/lib/frota/mapa-vivo';
@@ -38,6 +39,8 @@ export interface VeiculoVivo {
   local: string | null;
   /** para onde está indo (0° = norte), pelos últimos pontos; null parado/sem dado */
   rumo: number | null;
+  /** andando de volta para a loja: hora estimada de chegada (lib/frota/retorno-loja) */
+  retorno: Retorno | null;
 }
 
 interface Pos { lat: number; lng: number; ignicao: boolean; velocidade: number; dt: string | null; fonte: 'ao_vivo' | 'cache'; rumo?: number | null }
@@ -81,6 +84,26 @@ async function ultimaPosicaoCache(supabase: SupabaseClient, placa: string): Prom
     if (last?.lat && last?.lng) return { lat: last.lat, lng: last.lng, ignicao: false, velocidade: 0, dt: last.dt || null, fonte: 'cache' };
   }
   return null;
+}
+
+// Pontos do DIA de um carro andando (para a previsão de volta à loja). Guardados
+// por carro e só completados com o que chegou desde a última busca: o carro
+// andando custa uma página da Rota Exata a cada 30 s, não o dia inteiro.
+const trilhas = new Map<number, { dia: string; pontos: PontoDia[] }>();
+async function pontosDoDia(adesaoId: number): Promise<PontoDia[]> {
+  const dia = diaBR();
+  let t = trilhas.get(adesaoId);
+  if (!t || t.dia !== dia) { t = { dia, pontos: [] }; trilhas.set(adesaoId, t); }
+  const ultimo = t.pontos[t.pontos.length - 1]?.dt;
+  const de = ultimo ? new Date(new Date(ultimo).getTime() + 1000).toISOString() : new Date(`${dia}T00:00:00-03:00`).toISOString();
+  const w = JSON.stringify({ adesao_id: adesaoId, dt_posicao: { $gte: de, $lte: new Date().toISOString() } });
+  type PosRE = { latitude: number; longitude: number; velocidade: number; dt_posicao: string };
+  const novos = ((await fetchTudo('/posicoes', { where: w }, 1000)) as PosRE[])
+    .filter((x) => x.latitude && x.longitude && x.dt_posicao)
+    .map((x) => ({ dt: new Date(x.dt_posicao).toISOString(), lat: x.latitude, lng: x.longitude, vel: Number(x.velocidade) || 0 }))
+    .sort((a, b) => a.dt.localeCompare(b.dt));
+  t.pontos.push(...novos.filter((x) => !ultimo || x.dt > ultimo));
+  return t.pontos;
 }
 
 // geocercas + propriedades mudam pouco: 10 min em memória
@@ -145,6 +168,21 @@ async function montar(supabase: SupabaseClient): Promise<VeiculoVivo[]> {
     }));
   }
 
+  // previsão de volta à loja: só para quem está andando ao vivo
+  const retornos = new Map<string, Retorno>();
+  const andando = veiculos.filter((v) => {
+    const p = posicoes.get(v.placa);
+    return p && p.fonte === 'ao_vivo' && p.ignicao && p.velocidade >= 5 && Number(v.adesao_id) > 0;
+  });
+  for (let i = 0; i < andando.length; i += LOTE) {
+    await Promise.all(andando.slice(i, i + LOTE).map(async (v) => {
+      try {
+        const r = estimarRetorno(await pontosDoDia(Number(v.adesao_id)), { lat: LOJA_LAT, lng: LOJA_LNG });
+        if (r) retornos.set(v.placa, r);
+      } catch { /* sem previsão */ }
+    }));
+  }
+
   const agora = Date.now();
   const lista: VeiculoVivo[] = veiculos.map((v) => {
     const pos = posicoes.get(v.placa) || null;
@@ -183,6 +221,7 @@ async function montar(supabase: SupabaseClient): Promise<VeiculoVivo[]> {
       status: statusVivo(pos, agora),
       local,
       rumo: pos?.rumo ?? null,
+      retorno: retornos.get(v.placa) ?? null,
     };
   });
   return ordenarVivos(lista);

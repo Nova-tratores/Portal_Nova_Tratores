@@ -73,6 +73,7 @@ const AJUDA: Record<string, AjudaFrota> = {
     ],
     termos: [
       { t: 'Seta no carro', d: 'Para onde o carro andando está indo, pelos últimos pontos do rastreador.' },
+      { t: '↩ Loja ~14:32', d: 'O carro está andando e se aproximando da loja: hora prevista de chegada. Se ele está refazendo o caminho da ida, conta o km desse caminho e a velocidade que fez nele na ida; senão, a distância com as curvas da estrada e a velocidade dos últimos 20 min ("aproximado"). Parada no meio do caminho atrasa a chegada.' },
       { t: 'Tempo com a loja', d: 'Mediana das viagens reais (desde jan/2026) que saíram da loja e pararam a até 2 km do ponto (ou 5 km), sem as fora da curva: as que levaram mais de 2,5× o normal para a distância e as que ficam fora dos quartis. Sem viagens por perto, é estimado pela distância.' },
       { t: 'Km rodados × projetado', d: 'Rodados = mediana do que os carros andaram de verdade nessas viagens (pontos do rastreador dos últimos 90 dias). Projetado = o caminho mais curto pela estrada, calculado pelo mapa de rotas.' },
       { t: 'Andando', d: 'Motor ligado e acima de 5 km/h.' },
