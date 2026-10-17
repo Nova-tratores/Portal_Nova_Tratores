@@ -23,7 +23,7 @@ import { normalizarPagamento, OPCOES_PAGAMENTO } from './cobranca';
 import { alertaCepGeral } from '@/lib/clientes/novo-cliente';
 import { CONTA_INTERNO, EMAIL_INTERNO } from './omie-espelho';
 import {
-  bloqueioFaturar, conferirIdentidade, estadoNoOmie, situacaoNfse, statusPendente, travaAtiva,
+  bloqueioFaturar, conferirIdentidade, estadoNoOmie, faturamentoFantasma, situacaoNfse, statusPendente, travaAtiva,
   chaveNum, motivoPPVFora, valorMudou, valorLiquido, TRAVA_MINUTOS,
   type OSParaFaturar, type PPVDaOS, type RpsNfse, type StatusFaturamento,
 } from './faturamento-regras';
@@ -821,6 +821,7 @@ export async function faturarOSNoOmie(
       respostaCrua = JSON.stringify(resp).slice(0, 500);
       return resp;
     },
+    esperar: (ms) => new Promise((ok) => setTimeout(ok, ms)),
   }, { forma, aplicarParcelas: true, hojeISO: hojeSaoPaulo(), totalConfirmado: Number(entrada.totalConfirmado) || 0, impostos: camposImpostos });
 
   // "usar sempre para este cliente": vale mesmo se o faturamento falhar depois (é uma escolha do cadastro)
@@ -990,6 +991,12 @@ export async function reconciliarFaturamentoOS(id: string, opts: { forcar?: bool
   if (!os?.Ordem_Omie) return 'sem Omie';
 
   if (os.faturado_omie_em) {
+    // o portal carimbou "faturada", mas o Omie seguiu com a OS aberta (OS-0822): desfaz
+    if (faturamentoFantasma({ faturadoEm: os.faturado_omie_em, faturadoPor: os.faturado_por, status: os.faturamento_status, nfseNumero: os.nfse_numero }, 'aberta')) {
+      let r: { nCodOS: number; dados: OSConsultada } | null = null;
+      try { r = await resolverOSNoOmie(os); } catch { r = null; }
+      if (r && estadoNoOmie(r.dados.Cabecalho, r.dados.InfoCadastro) === 'aberta') return desfazerFaturamentoNaoFeito(os);
+    }
     // pedido de peças faturado depois por outro caminho (tela do PPV / direto no Omie): conclui agora
     if (!ehConcluidaOuCancelada(os.Status) && os.faturado_por !== 'Omie (faturada direto lá)') {
       await concluirSeTudoFaturado(id, os.faturado_por || 'Sistema', 'pedido de peças faturado depois da OS');
@@ -1034,6 +1041,37 @@ export async function reconciliarFaturamentoOS(id: string, opts: { forcar?: bool
     return 'não faturada (liberada)';
   }
   return 'aberta';
+}
+
+/**
+ * O FaturarOS respondeu "sucesso", o portal carimbou e concluiu, mas a OS segue
+ * aberta no Omie e a nota nunca vem (OS-0822, 16/10/2026). Tira o carimbo, volta
+ * a OS para Cobrando Cliente (se o portal tinha concluído) e avisa quem faturou.
+ * Os pedidos de peças NÃO são mexidos (a NF-e deles é real). Tirar o carimbo
+ * exige sql/pos-omie-nao-faturou.sql (a trava do banco protege faturado_omie_em).
+ */
+async function desfazerFaturamentoNaoFeito(os: LinhaOS): Promise<string> {
+  const id = os.Id_Ordem;
+  const msg = 'O Omie respondeu que faturou, mas a OS continua aberta lá, sem nota. O portal desfez o "faturada": veja no Omie por que não faturou e fature de novo.';
+  await gravarOS(id, { faturamento_status: 'omie_nao_faturou', faturamento_erro: msg, faturando_desde: null });
+  const voltar = /conclu/i.test(String(os.Status || ''));
+  await gravarOS(id, { faturado_omie_em: null, faturado_por: null, nfse_numero: null, nfse_link: null, ...(voltar ? { Status: 'Cobrando Cliente' } : {}) });
+  const depois = await lerOS(id);
+  if (depois?.faturado_omie_em) {
+    // banco sem o SQL novo: a trava manteve o carimbo — ao menos para de procurar a nota
+    await gravarOS(id, { faturamento_erro: `${msg} (Falta rodar o sql/pos-omie-nao-faturou.sql para o portal liberar a OS.)` });
+    return 'Omie não faturou — falta sql/pos-omie-nao-faturou.sql';
+  }
+  await gravarOS(id, { faturamento_status: 'erro' });
+  await supabase.from(TBL_LOGS_PPO).insert({
+    Id_ppo: id,
+    Data_Acao: new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo' }).format(new Date()),
+    Hora_Acao: new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' }),
+    UsuEmail: 'Sistema', acao: `Faturamento desfeito: ${msg}`,
+    Status_Anterior: os.Status, Status_Atual: voltar ? 'Cobrando Cliente' : os.Status, Dias_Na_Fase: 0, Total_Dias_Aberto: 0,
+  });
+  await notificarQuemFaturou(os.faturado_por, `OS ${id}: o Omie NÃO faturou`, msg, `/pos?id=${id}`);
+  return 'Omie não faturou — desfeito';
 }
 
 /**

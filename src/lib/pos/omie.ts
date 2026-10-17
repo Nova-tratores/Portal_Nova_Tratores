@@ -12,6 +12,7 @@ const OMIE_APP_SECRET = process.env.OMIE_APP_SECRET || "";
 import { PORTAL_BASE } from "@/lib/portal-url";
 import { omie } from "@/lib/omie/porta";
 import { dadosAdicionaisAuto, CONTA_INTERNO, EMAIL_INTERNO } from "@/lib/pos/omie-espelho";
+import { distribuirDescontoGeral } from "@/lib/pos/desconto-geral";
 
 // --- Constantes Omie ---
 const OMIE_ETAPA_EXECUTADA = "30";
@@ -353,6 +354,11 @@ function montarServicos(os: Record<string, unknown>): ServicoItem[] {
 
 /** Monta serviços base + serviços "div." para cada requisição vinculada */
 export async function montarServicosComReqs(os: Record<string, unknown>, idOrdem: string): Promise<ServicoItem[]> {
+  return (await montarServicosDetalhe(os, idOrdem)).servicos;
+}
+
+/** Igual, e diz quanto do desconto geral NÃO coube nos serviços (a conferência avisa). */
+export async function montarServicosDetalhe(os: Record<string, unknown>, idOrdem: string): Promise<{ servicos: ServicoItem[]; descontoGeral: number; descontoNaoAplicado: number }> {
   const servicos = montarServicos(os);
 
   // Busca requisições vinculadas à OS
@@ -384,7 +390,10 @@ export async function montarServicosComReqs(os: Record<string, unknown>, idOrdem
     }
   }
 
-  return servicos;
+  // "Valor do Desconto" (geral) da OS: não ia ao Omie (OS-0803, R$ 400 — José, 16/10/2026)
+  const geral = toNum(os.Desconto);
+  const d = distribuirDescontoGeral(servicos, geral);
+  return { servicos: d.linhas, descontoGeral: geral, descontoNaoAplicado: d.naoAplicado };
 }
 
 export function montarDadosAdic(os: Record<string, unknown>): string {

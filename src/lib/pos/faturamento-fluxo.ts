@@ -10,7 +10,10 @@
 //  - qualquer divergência (valor, parcelas, OS já faturada/cancelada, ValidarOS
 //    recusando) para ANTES de emitir;
 //  - erro de rede/timeout no FaturarOS vira "desconhecido" (pode ter emitido) —
-//    a trava continua e a reconciliação confere no Omie; nunca "tente de novo".
+//    a trava continua e a reconciliação confere no Omie; nunca "tente de novo";
+//  - "sucesso" do FaturarOS NÃO basta: o Omie já respondeu "A NFS-e foi faturada
+//    com sucesso" e deixou a OS aberta na etapa 30 (OS-0822, 16/10/2026). Só vira
+//    "faturada" quando o ConsultarOS mostra etapa 50/60; senão "desconhecido".
 import { estadoNoOmie, valorMudou, valorLiquido, type CabecalhoOmie, type InfoCadastroOmie } from './faturamento-regras';
 import { conferirImpostos, type CamposFiscais, type ItemServicoOmie } from './modelo-fiscal';
 import { parcelasDoPagamento, conferirParcelas, type PlanoParcelas } from '@/lib/pagamento/parcelas';
@@ -33,7 +36,12 @@ export interface DepsFaturamento {
   alterarParcelas(plano: PlanoParcelas): Promise<void>;
   validar(): Promise<void>;
   faturar(): Promise<{ cCodStatus?: string; cDescStatus?: string } | null | undefined>;
+  /** espera entre as conferências depois do FaturarOS (nos testes: não espera) */
+  esperar?(ms: number): Promise<void>;
 }
+
+/** Esperas (ms) antes de cada conferência do estado depois do FaturarOS (~20 s no total). */
+export const ESPERAS_CONFIRMACAO = [2000, 4000, 6000, 8000];
 
 export type ResultadoFluxo =
   | { tipo: 'faturada'; plano: PlanoParcelas | null; resposta: string; liquido: number }
@@ -100,24 +108,32 @@ export async function executarFaturamento(
   try { await deps.validar(); } catch (e) { return { tipo: 'erro', mensagem: `O Omie não validou a OS para faturar: ${msg(e)}` }; }
 
   // 5) FaturarOS — UMA chamada, sem repetir
+  let cod = '', desc = '';
   try {
     const r = await deps.faturar();
-    const cod = String(r?.cCodStatus ?? '');
-    const desc = String(r?.cDescStatus ?? '');
-    if (cod && cod !== '0') {
-      // resposta sem fault mas com status diferente de "ok": o Omie decide pelo estado
-      try {
-        const os3 = await deps.consultar();
-        const est3 = estadoNoOmie(os3.Cabecalho, os3.InfoCadastro);
-        if (est3 === 'faturada' || est3 === 'faturando') return { tipo: 'faturada', plano, liquido, resposta: `${cod} ${desc}`.trim() };
-      } catch { /* sem como conferir: desconhecido */
-        return { tipo: 'desconhecido', mensagem: `O Omie respondeu "${cod} ${desc}" e não deu para conferir a OS.` };
-      }
-      return { tipo: 'erro', mensagem: `O Omie não faturou: ${desc || cod}` };
-    }
-    return { tipo: 'faturada', plano, liquido, resposta: `${cod} ${desc}`.trim() || 'ok' };
+    cod = String(r?.cCodStatus ?? '');
+    desc = String(r?.cDescStatus ?? '');
   } catch (e) {
     if (e instanceof ErroOmie) return { tipo: 'erro', mensagem: `O Omie recusou o faturamento: ${e.message}` };
     return { tipo: 'desconhecido', mensagem: `Sem resposta do Omie ao faturar (${msg(e)}). A nota PODE ter sido emitida — o portal vai conferir antes de qualquer nova tentativa.` };
   }
+  const resposta = `${cod} ${desc}`.trim() || 'ok';
+
+  // 6) confere no Omie: a resposta do FaturarOS sozinha não prova nada
+  let conferiu = false;
+  for (const ms of ESPERAS_CONFIRMACAO) {
+    if (deps.esperar) await deps.esperar(ms);
+    try {
+      const os3 = await deps.consultar();
+      conferiu = true;
+      const est3 = estadoNoOmie(os3.Cabecalho, os3.InfoCadastro);
+      if (est3 === 'faturada' || est3 === 'faturando') return { tipo: 'faturada', plano, liquido, resposta };
+      if (est3 === 'cancelada') return { tipo: 'erro', mensagem: 'A OS aparece CANCELADA no Omie depois do faturamento. Confira no Omie.' };
+    } catch { /* tenta de novo na próxima espera */ }
+  }
+  if (!conferiu) return { tipo: 'desconhecido', mensagem: `O Omie respondeu "${resposta}" e não deu para conferir a OS.` };
+  return {
+    tipo: 'desconhecido',
+    mensagem: `O Omie respondeu "${resposta}", mas a OS continua ABERTA lá (não foi faturada e não tem nota). O portal confere de novo em alguns minutos; se continuar aberta, libera para faturar outra vez — confira no Omie o motivo.`,
+  };
 }

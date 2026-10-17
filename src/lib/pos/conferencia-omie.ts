@@ -8,7 +8,7 @@ import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS } from "@/lib/pos/constants";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie as omiePorta } from "@/lib/omie/porta";
-import { montarServicosComReqs, montarDadosAdic } from "@/lib/pos/omie";
+import { montarServicosDetalhe, montarDadosAdic } from "@/lib/pos/omie";
 import { normalizarEspelho, espelhoPadrao, calcularParcelas, diasDoEspelho, type OmieEspelho } from "@/lib/pos/omie-espelho";
 import { estadoNoOmie } from "@/lib/pos/faturamento-regras";
 import {
@@ -42,7 +42,8 @@ const descontoOmie = (s: ItemOmieOS) => n(s.nValorDesconto) > 0 ? n(s.nValorDesc
 
 /** o que a OS do portal manda (mesma montagem do envio + serviços extras do espelho) */
 async function esperadoDaOS(os: Rec, esp: OmieEspelho | null) {
-  const base = await montarServicosComReqs(os, String(os.Id_Ordem));
+  const det = await montarServicosDetalhe(os, String(os.Id_Ordem));
+  const base = det.servicos;
   const itens: (ItemComparavel & { nCodServico: number })[] = base.map((s) => ({
     chave: String(s.nCodServico), nCodServico: s.nCodServico,
     rotulo: nomeServ[s.nCodServico] || (s.cDescServ ? `"${String(s.cDescServ).slice(0, 40)}"` : `serviço ${s.nCodServico}`),
@@ -63,7 +64,7 @@ async function esperadoDaOS(os: Rec, esp: OmieEspelho | null) {
     if (!nCod) continue;
     itens.push({ chave: String(nCod), nCodServico: nCod, rotulo: x.nome || x.codigo, qtde: n(x.qtde), unit: n(x.unit), desconto: x.cobrar ? 0 : n(x.qtde) * n(x.unit), descricao: x.descricao || undefined });
   }
-  return itens;
+  return Object.assign(itens, { descontoGeral: det.descontoGeral, descontoNaoAplicado: det.descontoNaoAplicado });
 }
 
 const hojeISO = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
@@ -116,6 +117,13 @@ export async function conferirOS(idOs: string): Promise<ResultadoConferencia & {
   // o texto só conta onde o portal tem texto (solicitação e "div.")
   const omieAjust = omieItens.map((o) => esperado.some((p) => p.chave === o.chave && p.descricao !== undefined) ? o : { ...o, descricao: undefined });
   const div: Divergencia[] = compararItens(idOs, esperado, omieAjust, "Serviço");
+  if (esperado.descontoNaoAplicado > 0) {
+    const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    div.push({
+      doc: idOs, campo: "descontoGeral", rotulo: "Desconto geral da OS", portal: brl(esperado.descontoGeral), omie: brl(esperado.descontoGeral - esperado.descontoNaoAplicado), ajustavel: false,
+      explicacao: `O desconto da OS (${brl(esperado.descontoGeral)}) é maior que os serviços: ${brl(esperado.descontoNaoAplicado)} não cabem na OS do Omie. Dê essa parte como desconto no pedido de peças (PPV) ou diminua o desconto da OS.`,
+    });
+  }
 
   // cabeçalho: só quando a OS já tem o espelho do Omie salvo (OS antigas não têm)
   const ia = dados.InformacoesAdicionais || {};

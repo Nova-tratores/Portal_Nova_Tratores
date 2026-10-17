@@ -123,13 +123,25 @@ describe('fluxo do faturamento (Omie simulado)', () => {
   }
   const entrada = { forma: '30/60', aplicarParcelas: true, hojeISO: '2026-10-10', totalConfirmado: 300 };
 
-  it('caminho feliz: parcelas → conferência → valida → fatura uma vez', async () => {
-    const d = deps();
+  const faturadaOmie: OSNoOmie = { Cabecalho: { nCodOS: 9, cNumOS: '777', cEtapa: '60', nValorTotal: 300 }, InfoCadastro: { cFaturada: 'S' } };
+  it('caminho feliz: parcelas → conferência → valida → fatura uma vez → confere no Omie', async () => {
+    const d = deps({}, [aberta(), aberta(300, [{ nValor: 150 }, { nValor: 150 }]), faturadaOmie]);
     const r = await executarFaturamento(d, entrada);
     expect(r.tipo).toBe('faturada');
     expect(d.alterarParcelas).toHaveBeenCalledTimes(1);
     expect(d.validar).toHaveBeenCalledTimes(1);
     expect(d.faturar).toHaveBeenCalledTimes(1);
+  });
+  it('"faturada com sucesso" mas a OS segue aberta no Omie = desconhecido (OS-0822)', async () => {
+    const d = deps({ faturar: vi.fn(async () => ({ cCodStatus: '0', cDescStatus: 'A NFS-e foi faturada com sucesso.' })) });
+    const r = await executarFaturamento(d, entrada);
+    expect(r.tipo).toBe('desconhecido');
+    expect(r.tipo === 'desconhecido' && r.mensagem).toContain('continua ABERTA');
+    expect(d.faturar).toHaveBeenCalledTimes(1);
+  });
+  it('Omie demora: aberta na 1ª conferência, faturada na 2ª', async () => {
+    const d = deps({}, [aberta(), aberta(300, [{ nValor: 150 }, { nValor: 150 }]), aberta(300, [{ nValor: 150 }, { nValor: 150 }]), faturadaOmie]);
+    expect((await executarFaturamento(d, entrada)).tipo).toBe('faturada');
   });
   it('timeout no FaturarOS = desconhecido, sem 2ª chamada', async () => {
     const d = deps({ faturar: vi.fn(async () => { throw new Error('fetch failed: timeout'); }) });
@@ -189,7 +201,7 @@ describe('fluxo do faturamento (Omie simulado)', () => {
     const antes = { ...aberta(), ServicosPrestados: [item('120015000', '')] };
     const depois = { ...aberta(), ServicosPrestados: [item('120015000', '000')] };
     const comParc = { ...depois, Parcelas: [{ nValor: 150 }, { nValor: 150 }] };
-    const d = deps({}, [antes, depois, comParc]);
+    const d = deps({}, [antes, depois, comParc, { ...comParc, Cabecalho: { ...comParc.Cabecalho, cEtapa: '60' } }]);
     const r = await executarFaturamento(d, { ...entrada, impostos: { cCST: '000' } });
     expect(r.tipo).toBe('faturada');
     expect(d.alterarImpostos).toHaveBeenCalledTimes(1);
@@ -205,7 +217,7 @@ describe('fluxo do faturamento (Omie simulado)', () => {
   });
   it('parcelas saem sobre o LÍQUIDO (total − retidos)', async () => {
     const comRet = (parc?: OSNoOmie['Parcelas']): OSNoOmie => ({ Cabecalho: { nCodOS: 9, cNumOS: '777', cEtapa: '30', nValorTotal: 300, nValorTotalImpRet: 15 }, InfoCadastro: {}, Parcelas: parc });
-    const d = deps({}, [comRet(), comRet([{ nValor: 142.5 }, { nValor: 142.5 }])]);
+    const d = deps({}, [comRet(), comRet([{ nValor: 142.5 }, { nValor: 142.5 }]), faturadaOmie]);
     const r = await executarFaturamento(d, entrada);
     expect(r.tipo).toBe('faturada');
     const plano = (d.alterarParcelas as ReturnType<typeof vi.fn>).mock.calls[0][0];

@@ -6,7 +6,9 @@ export type StatusFaturamento =
   | 'faturando' | 'desconhecido' | 'erro'
   | 'nfse_aguardando' | 'nfse_autorizada' | 'nfse_rejeitada' | 'nfse_cancelada'
   /** OS interna: faturada com RECIBO no Omie (sem NFS-e, sem conta a receber) */
-  | 'recibo_emitido';
+  | 'recibo_emitido'
+  /** o portal carimbou "faturada", mas o Omie seguiu com a OS aberta — desfeito */
+  | 'omie_nao_faturou';
 
 /** A trava de faturamento vale 10 min (lease) — depois disso a reconciliação decide. */
 export const TRAVA_MINUTOS = 10;
@@ -146,6 +148,22 @@ export function situacaoNfse(lista: RpsNfse[] | null | undefined): { status: Sta
   return { status: 'nfse_aguardando', numero: null, mensagem: null };
 }
 
+/**
+ * "Faturada" no portal, mas a OS segue ABERTA no Omie (sem nota) depois de um
+ * tempo: o FaturarOS disse "sucesso" e não fez (OS-0822, 16/10/2026). Só vale
+ * para faturamento feito PELO PORTAL e ainda sem NFS-e; dá 10 min ao Omie.
+ */
+export function faturamentoFantasma(os: {
+  faturadoEm: string | null; faturadoPor: string | null; status: string | null; nfseNumero: string | null;
+}, estadoOmie: EstadoOmie, agora: Date = new Date()): boolean {
+  if (!os.faturadoEm || os.nfseNumero) return false;
+  if (os.faturadoPor === 'Omie (faturada direto lá)') return false;
+  if (os.status !== 'nfse_aguardando' && os.status !== 'nfse_rejeitada') return false;
+  if (estadoOmie !== 'aberta') return false;
+  const t = new Date(os.faturadoEm).getTime();
+  return Number.isFinite(t) && agora.getTime() - t >= TRAVA_MINUTOS * 60_000;
+}
+
 /** Status ainda em aberto (a reconciliação volta a olhar). */
 export function statusPendente(st: string | null | undefined): boolean {
   return st === 'faturando' || st === 'desconhecido' || st === 'nfse_aguardando';
@@ -161,6 +179,7 @@ export function rotuloStatus(st: string | null | undefined): { texto: string; co
     case 'nfse_rejeitada': return { texto: 'NFS-e rejeitada', cor: 'vermelho' };
     case 'nfse_cancelada': return { texto: 'NFS-e cancelada no Omie', cor: 'vermelho' };
     case 'recibo_emitido': return { texto: 'Faturada com recibo (interna)', cor: 'verde' };
+    case 'omie_nao_faturou': return { texto: 'O Omie não faturou — confira e fature de novo', cor: 'vermelho' };
     default: return null;
   }
 }

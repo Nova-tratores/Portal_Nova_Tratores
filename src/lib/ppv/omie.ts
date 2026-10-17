@@ -1507,8 +1507,17 @@ export async function garantirCst60(acc: OmieAccount, chave: Record<string, unkn
       informacoes_adicionais: { consumidor_final: "S" },
       det: detNovo,
     }, acc.key, acc.secret);
-    return { trocados: errados.length };
   } catch (e) { return { trocados: 0, erro: e instanceof Error ? e.message : String(e) }; }
+  // confere: o Omie aceita a alteração e às vezes deixa o CST como estava
+  // (PPV-0494, 16/10/2026 — ficou 51 e ninguém foi avisado)
+  const depois = await consultarPedidoOmie(chave, acc).catch(() => null);
+  if (!depois) return { trocados: 0, erro: "não deu para conferir o CST no Omie depois da troca" };
+  const aindaErrados = (depois.det || []).filter((d) => String(d.imposto?.icms?.cod_sit_trib_icms ?? "") !== CST_ICMS_PECAS);
+  if (aindaErrados.length) {
+    const lista = aindaErrados.slice(0, 5).map((d) => `${d.produto?.codigo || "?"} (CST ${d.imposto?.icms?.cod_sit_trib_icms ?? "?"})`).join(", ");
+    return { trocados: errados.length - aindaErrados.length, erro: `o Omie não trocou o CST para ${CST_ICMS_PECAS} em ${aindaErrados.length} peça(s): ${lista}. Troque no Omie antes de faturar.` };
+  }
+  return { trocados: errados.length };
 }
 
 export interface PatchFiscalItem {
