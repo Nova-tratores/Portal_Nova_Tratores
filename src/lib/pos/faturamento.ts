@@ -1053,13 +1053,20 @@ export async function reconciliarFaturamentoOS(id: string, opts: { forcar?: bool
 async function desfazerFaturamentoNaoFeito(os: LinhaOS): Promise<string> {
   const id = os.Id_Ordem;
   const msg = 'O Omie respondeu que faturou, mas a OS continua aberta lá, sem nota. O portal desfez o "faturada": veja no Omie por que não faturou e fature de novo.';
-  await gravarOS(id, { faturamento_status: 'omie_nao_faturou', faturamento_erro: msg, faturando_desde: null });
+  // o CHECK de faturamento_status (sql/pos-recibo-status.sql) pode não ter o valor
+  // novo: aí a liberação passa pelo 'nfse_cancelada', que a trava também aceita
+  try {
+    await gravarOS(id, { faturamento_status: 'omie_nao_faturou', faturamento_erro: msg, faturando_desde: null });
+  } catch (e) {
+    if (!/faturamento_status_chk|check constraint/i.test(e instanceof Error ? e.message : String(e))) throw e;
+    await gravarOS(id, { faturamento_status: 'nfse_cancelada', faturamento_erro: msg, faturando_desde: null });
+  }
   const voltar = /conclu/i.test(String(os.Status || ''));
   await gravarOS(id, { faturado_omie_em: null, faturado_por: null, nfse_numero: null, nfse_link: null, ...(voltar ? { Status: 'Cobrando Cliente' } : {}) });
   const depois = await lerOS(id);
   if (depois?.faturado_omie_em) {
     // banco sem o SQL novo: a trava manteve o carimbo — ao menos para de procurar a nota
-    await gravarOS(id, { faturamento_erro: `${msg} (Falta rodar o sql/pos-omie-nao-faturou.sql para o portal liberar a OS.)` });
+    await gravarOS(id, { faturamento_status: 'erro', faturamento_erro: `${msg} (Falta rodar o sql/pos-omie-nao-faturou.sql para o portal liberar a OS.)` });
     return 'Omie não faturou — falta sql/pos-omie-nao-faturou.sql';
   }
   await gravarOS(id, { faturamento_status: 'erro' });

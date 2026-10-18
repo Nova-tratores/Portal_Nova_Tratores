@@ -25,3 +25,15 @@ BEGIN
 END $$;
 
 NOTIFY pgrst, 'reload schema';
+
+-- (opcional) a situação nova na lista do CHECK — sem isto o portal usa 'nfse_cancelada'
+-- só durante a liberação e termina em 'erro' do mesmo jeito.
+ALTER TABLE "Ordem_Servico" DROP CONSTRAINT IF EXISTS ordem_servico_faturamento_status_chk;
+ALTER TABLE "Ordem_Servico" ADD CONSTRAINT ordem_servico_faturamento_status_chk CHECK (
+  faturamento_status IS NULL OR faturamento_status IN (
+    'faturando','desconhecido','erro',
+    'nfse_aguardando','nfse_autorizada','nfse_rejeitada','nfse_cancelada',
+    'recibo_emitido','omie_nao_faturou'
+  )
+);
+NOTIFY pgrst, 'reload schema';
