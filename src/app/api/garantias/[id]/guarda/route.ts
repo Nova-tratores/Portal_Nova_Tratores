@@ -3,6 +3,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_ANEXOS, GUARDA_DIAS_PADRAO } from '@/lib/garantias/constants';
 import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
 import { diasAte } from '@/lib/garantias/format';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // PATCH /api/garantias/[id]/guarda — guarda das peças antes do descarte
 // (padrão da empresa, todas as montadoras). Pendência anexa à garantia
@@ -13,10 +14,13 @@ import { diasAte } from '@/lib/garantias/format';
 //   "dispensar" → guarda dispensada (ex.: peças foram pro cliente) — reversível
 //   "reabrir"   → 'descartada' ou 'dispensada' volta pra 'pendente'
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // Mesmo critério das ações guarda_* no drawer (podeFinalizar), igual à devolução de peças.
+  const acesso = await protegerRota(req, [{ modulo: 'garantias', acao: 'finalizar' }]);
+  if (acesso.resposta) return acesso.resposta;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const acao = String(body.acao || '');
-  const ator = body.ator || 'Garantista';
+  const ator = autorDe(acesso.user);
 
   const { data: g, error: gErr } = await supabase
     .from(TBL_GARANTIAS)
