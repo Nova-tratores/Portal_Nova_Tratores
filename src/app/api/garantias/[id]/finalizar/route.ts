@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
-import { TBL_GARANTIAS, TBL_GAR_PEND, TBL_GAR_PECAS, valoresFabrica } from '@/lib/garantias/constants';
+import { TBL_GARANTIAS, TBL_GAR_PEND, TBL_GAR_PECAS, valoresFabrica, GUARDA_DIAS_PADRAO } from '@/lib/garantias/constants';
 import { registrarEvento, notificarTecnico, notificarGarantistas } from '@/lib/garantias/server';
 import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
@@ -169,6 +169,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       update.devolucao_status = 'nao_aplicavel';
     }
   }
+  // Guarda de peças antes do descarte (padrão da empresa, TODAS as montadoras):
+  // abre em aprovada COM peça e SEM devolução à fábrica (nesse caso as peças
+  // vão embora). Checkbox do drawer decide; cliente antigo sem o campo = liga.
+  // Pré-migration o UPDATE falharia por coluna inexistente — o retry lá embaixo
+  // tira os campos guarda_* e segue (a finalização nunca quebra por isso).
+  const guardaPedida =
+    resultado === 'aprovada' &&
+    todasPecas.length > 0 &&
+    !devolucaoPedida &&
+    (body.guarda_pedida === undefined ? true : body.guarda_pedida === true);
+  const prazoGuarda = new Date(Date.now() - 3 * 3600000 + GUARDA_DIAS_PADRAO * 86400000)
+    .toISOString()
+    .slice(0, 10);
+  if (guardaPedida) {
+    update.guarda_status = 'pendente';
+    update.guarda_prazo = prazoGuarda;
+  } else {
+    update.guarda_status = 'nao_aplicavel';
+  }
   if (resultado === 'aprovada') {
     const vh = (gHoras ?? 0) * valFab.hora;
     const vk = (gKm ?? 0) * valFab.km;
@@ -239,12 +258,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from(TBL_GARANTIAS)
     .update(update)
     .eq('id', id)
     .select()
     .single();
+  if (error && ('guarda_status' in update)) {
+    // Migration add-garantia-guarda-pecas pendente (coluna inexistente derruba
+    // o UPDATE inteiro) — refaz sem os campos guarda_* pra finalização seguir.
+    console.warn('Finalizar com guarda falhou, tentando sem:', error.message);
+    delete update.guarda_status;
+    delete update.guarda_prazo;
+    ({ data, error } = await supabase
+      .from(TBL_GARANTIAS)
+      .update(update)
+      .eq('id', id)
+      .select()
+      .single());
+  }
   if (error) {
     console.error('Erro ao finalizar garantia:', error.message);
     return NextResponse.json({ error: 'Falha ao finalizar garantia.' }, { status: 500 });
@@ -258,7 +290,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ator: autorDe(user),
     detalhe:
       resultado === 'aprovada'
-        ? `Garantia aprovada — pago em garantia${devolucaoPedida ? ` · devolução das peças pendente (prazo ${prazoDevolucao.split('-').reverse().join('/')})` : ''}`
+        ? `Garantia aprovada — pago em garantia${devolucaoPedida ? ` · devolução das peças pendente (prazo ${prazoDevolucao.split('-').reverse().join('/')})` : ''}${guardaPedida ? ` · peças em guarda até ${prazoGuarda.split('-').reverse().join('/')} (descarte liberado depois)` : ''}`
         : recusaInterna
           ? `Garantia recusada pelo garantista (sem enviar à fábrica) — ${motivoCurto}`
           : `Garantia recusada pela fábrica — ${motivoCurto}`,

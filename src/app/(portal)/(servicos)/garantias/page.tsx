@@ -72,6 +72,7 @@ function GarantiasPageInner() {
     fabrica: garantias.filter((g) => g.status === 'enviada' || g.status === 'ressarcimento_fabrica').length,
     servico: garantias.filter((g) => g.status === 'aguardando_servico').length,
     devolucao: garantias.filter((g) => g.status === 'aprovada' && g.devolucao_status === 'pendente').length,
+    guarda: garantias.filter((g) => g.status === 'aprovada' && g.devolucao_status !== 'pendente' && g.guarda_status === 'pendente').length,
     tecnico: garantias.filter((g) => g.status === 'bo_tecnico' || g.status === 'info_pendente').length,
   };
 
@@ -134,14 +135,15 @@ function GarantiasPageInner() {
         </button>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-        <StatCard label="Solicitadas" valor={stats.solicitadas} cor="#0ea5e9" />
-        <StatCard label="Em análise" valor={stats.analise} cor="#6366f1" />
-        <StatCard label="Na fábrica" valor={stats.fabrica} cor="#8b5cf6" />
-        {stats.servico > 0 && <StatCard label="Aguardando serviço" valor={stats.servico} cor="#0d9488" />}
-        {stats.devolucao > 0 && <StatCard label="Devolver peças" valor={stats.devolucao} cor="#b45309" />}
-        <StatCard label="Devolvidas ao técnico" valor={stats.tecnico} cor="#f59e0b" />
+      {/* Stats — compactos no celular (até 7 cards, senão comem a tela toda) */}
+      <div style={{ display: 'flex', gap: isMobile ? 8 : 12, flexWrap: 'wrap', marginBottom: 18 }}>
+        <StatCard label="Solicitadas" valor={stats.solicitadas} cor="#0ea5e9" compacto={isMobile} />
+        <StatCard label="Em análise" valor={stats.analise} cor="#6366f1" compacto={isMobile} />
+        <StatCard label="Na fábrica" valor={stats.fabrica} cor="#8b5cf6" compacto={isMobile} />
+        {stats.servico > 0 && <StatCard label="Aguardando serviço" valor={stats.servico} cor="#0d9488" compacto={isMobile} />}
+        {stats.devolucao > 0 && <StatCard label="Devolver peças" valor={stats.devolucao} cor="#b45309" compacto={isMobile} />}
+        {stats.guarda > 0 && <StatCard label="Peças em guarda" valor={stats.guarda} cor="#0e7490" compacto={isMobile} />}
+        <StatCard label="Devolvidas ao técnico" valor={stats.tecnico} cor="#f59e0b" compacto={isMobile} />
       </div>
 
       {/* Abas */}
@@ -222,20 +224,21 @@ function GarantiasPageInner() {
   );
 }
 
-function StatCard({ label, valor, cor }: { label: string; valor: number; cor: string }) {
+function StatCard({ label, valor, cor, compacto }: { label: string; valor: number; cor: string; compacto?: boolean }) {
   return (
     <div
       style={{
-        flex: '1 1 150px',
+        flex: compacto ? '1 1 30%' : '1 1 150px',
         background: 'var(--portal-bg-card)',
         border: '1px solid var(--portal-border)',
         borderLeft: `4px solid ${cor}`,
         borderRadius: 12,
-        padding: '12px 16px',
+        padding: compacto ? '8px 10px' : '12px 16px',
+        minWidth: 0,
       }}
     >
-      <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--portal-text)' }}>{valor}</div>
+      <div style={{ fontSize: compacto ? 10.5 : 12, color: 'var(--portal-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+      <div style={{ fontSize: compacto ? 20 : 26, fontWeight: 800, color: 'var(--portal-text)' }}>{valor}</div>
     </div>
   );
 }

@@ -22,7 +22,7 @@ import {
   LayoutGrid, List, CircleDot, Clock, Truck, Bot, Ticket, Cctv, GraduationCap, UserPlus, Tags,
   ListPlus, CircleCheckBig, MessageSquarePlus, BadgeCheck
 } from 'lucide-react'
-import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias, CalendarClock, CalendarDays, LineChart } from 'lucide-react'
+import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias, CalendarClock, CalendarDays, LineChart, Radar } from 'lucide-react'
 import BotaoAjuda from '@/components/conhecimento/BotaoAjuda'
 import IlhaNotificacao, { AjustesIlha, type AvisoIlha } from '@/components/notif/IlhaNotificacao'
 import Link from 'next/link'
@@ -105,6 +105,7 @@ const navItems: NavItem[] = [
   // Mesma tela de /dre-financeiro/vendas-modelo; o id É o módulo (gate do menu usa item.id).
   { id: 'vendas-modelo', name: 'Vendas por Modelo', href: '/vendas-modelo', icon: <Tags size={18} />, tag: 'MODELOS', gradient: '', group: 'comercial' },
   { id: 'marketing', name: 'Marketing & Eventos', href: '/marketing', icon: <Megaphone size={18} />, tag: 'EVENTOS', gradient: '', group: 'comercial' },
+  { id: 'inteligencia-vendas', name: 'Inteligência de Vendas', href: '/inteligencia-vendas', icon: <Radar size={18} />, tag: 'RADAR', gradient: '', group: 'comercial' },
   // Tela mobile do estande: quem só captura lead não precisa do módulo inteiro.
   { id: 'lead', name: 'Captura de Leads', href: '/lead', icon: <UserPlus size={18} />, tag: 'FEIRA', gradient: '', group: 'comercial' },
 

@@ -12,9 +12,10 @@ import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLin
 import type { LinhaTecnico, OSFaturada, DiaRegistrado } from '@/lib/mecanicos/painel'
 import { brl, brl2, horas, kmFmt, COR, Kpi, Cartao, EstilosCPV, Numero, useContador } from './ui'
 import { SeletorCartoes, ESTILO_SO } from './SeletorOpcoes'
+import { DinheiroSimulador, contaDe, ESTILO_DX } from './DinheiroOpcoes'
 import FaturamentoVivo from './FaturamentoVivo'
-import DinheiroParado from './DinheiroParado'
-import GastosPosVendas from './GastosPosVendas'
+import { useParadoVivo } from './DinheiroParado'
+import { ParadoFilaEstilo, ESTILO_PA } from './ParadoOpcoes'
 import Comparador, { type PessoaComparada } from './Comparador'
 import CartaJogo, { type DadosCarta } from './CartaJogo'
 import { faltasCartao, montarPainel, agruparBase, andarPeriodo, grupoDe, SEM_META, SEM_TECNICO, type Escala, type PainelMontado } from '@/lib/mecanicos/painel'
@@ -29,9 +30,15 @@ type Metrica = 'bruto' | 'resultado' | 'faturadas' | 'gastos'
 const hojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
 const br = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 interface OSInterna { os: string; cliente: string; motivo: string; horas: number; tecnicos: string[] }
-const TXT = 'var(--portal-text, #0f172a)', MUDO = 'var(--portal-text-muted, #64748b)'
+const MUDO = 'var(--portal-text-muted, #64748b)'
 const COR_GASTO = '#ea580c'
 const COR_RESULT = '#0f766e'
+const ESTILO_SIM = `.pt-secao { display: flex; gap: 12px; align-items: center; margin: 34px 0 14px; animation: cpvEntra .45s both } .pt-secao.primeira { margin-top: 6px }
+.pt-secao-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; background: color-mix(in srgb, var(--c) 12%, var(--portal-bg-card, #fefefe)); color: var(--c); font-size: 15px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 22%, transparent) }
+.pt-secao > div { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; flex-shrink: 0 } .pt-secao em { font-style: normal; font-size: 11px; font-weight: 900; color: var(--c); letter-spacing: .06em } .pt-secao small { grid-column: 2 } .pt-secao b { font-size: 16px; font-weight: 900; color: var(--portal-text, #0f172a); letter-spacing: -.01em } .pt-secao small { font-size: 12.5px; color: var(--portal-text-muted, #64748b) }
+.pt-secao-linha { flex: 1; height: 2px; border-radius: 99px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, transparent), transparent 70%); align-self: center; margin-left: 6px; transform-origin: left; animation: ptLinha .8s .15s cubic-bezier(.2,.8,.2,1) both } @keyframes ptLinha { from { transform: scaleX(0) } }
+.pt-horas2 { display: flex; gap: 6px 8px; align-items: center; flex-wrap: wrap; margin: 12px 0; padding: 8px 12px; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 14px; background: var(--portal-bg-card, #fefefe) } .pt-horas2 > b { font-size: 14px; color: var(--portal-text, #0f172a); margin-right: 4px } .pt-horas2 > b i { color: #0891b2 } .pt-horas2 > span, .pt-horas2 > button { display: inline-flex; gap: 6px; align-items: center; font-family: inherit; font-size: 13px; color: var(--portal-text-muted, #64748b); background: var(--portal-bg-secondary, #f8fafc); border: 1px solid transparent; border-radius: 99px; padding: 4px 11px } .pt-horas2 > button { cursor: pointer } .pt-horas2 > button:hover { border-color: #8b5cf6 } .pt-horas2 i { width: 9px; height: 9px; border-radius: 3px; display: inline-block } .pt-horas2 span b, .pt-horas2 button b { color: var(--portal-text, #0f172a); font-size: 13.5px } .pt-horas2 em { font-style: normal; font-size: 11.5px; font-weight: 800; color: #0891b2 } .pt-horas2 > small { margin-left: auto; font-size: 12px; color: var(--portal-text-muted, #64748b) }
+.pt-sim { margin: 14px 0; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; background: var(--portal-bg-card, #fefefe); overflow: hidden } .pt-sim > summary { cursor: pointer; list-style: none; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; padding: 14px 18px; font-size: 16px; font-weight: 900; color: var(--portal-text, #0f172a) } .pt-sim > summary::-webkit-details-marker { display: none } .pt-sim > summary i { color: #7c3aed } .pt-sim > summary small { font-size: 12.5px; font-weight: 600; color: var(--portal-text-muted, #64748b) } .pt-sim > summary::after { content: "▸"; margin-left: auto; transition: transform .25s } .pt-sim[open] > summary::after { transform: rotate(90deg) } .pt-sim > .dx-caixa { border: none; border-top: 1px dashed var(--portal-border, #e5e7eb); border-radius: 0; animation: dxEntra .35s both }`
 const ROTULO_HIST: Record<Escala, string> = { dia: 'últimos 14 dias', semana: 'últimas 8 semanas', mes: 'últimos 6 meses', ano: 'últimos 3 anos' }
 const METRICAS: [Metrica, string][] = [['bruto', 'Faturado'], ['resultado', 'Resultado'], ['faturadas', 'Horas faturadas'], ['gastos', 'Gastos']]
 
@@ -185,7 +192,15 @@ export default function PainelTecnicos() {
       <style>{ESTILO}</style>
       <FaturamentoVivo compacto />
       <style>{ESTILO_SO}</style>
+      <style>{ESTILO_DX}</style>
+      <style>{ESTILO_SIM}</style>
+      <style>{ESTILO_PA}</style>
+      <style>{ESTILO_TRILHO}</style>
+      <div className="pt-amb">
+      <TrilhoAssuntos topo />
+      <div className="pt-corpo">
       {/* P3 "Cartões de período" escolhida na página de teste (19/10) no lugar da fita antiga (SeletorTempo) */}
+      <Secao n={1} cor="#2563eb" ic="fa-chart-column" titulo="Faturamento por período" sub="escolha a semana, o mês ou o ano: o resto da tela segue" primeira />
       {fatFita && <SeletorCartoes faturadas={fatFita} hoje={hojeSP()} escala={tipo} refDia={ref} onMudar={(e, r) => { setTipo(e); setRef(r) }} carregando={carregando} onAtualizar={() => void recarregar()} />}
       {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
       {!d && carregando && <div style={{ padding: 40, textAlign: 'center', color: MUDO }}><i className="fas fa-circle-notch fa-spin" /> carregando o histórico…</div>}
@@ -203,44 +218,18 @@ export default function PainelTecnicos() {
               </span>
             </div>
           )}
-          {/* 3. para onde foi o dinheiro */}
-          <Dinheiro t={t} g={g} salarios={salarios} eq={d!.equipe} notas={d!.notas} resultado={resultado} nOS={Math.round(t.os)} nReqs={reqsDoPeriodo.length} anterior={anteriorPor100}
-            onOS={() => setListaOS({ titulo: 'período', os: d!.os })} onTerceiros={() => setVerReqs(true)} onGastos={() => setVerGastos('todos')} onSalarios={() => setVerSal(true)} />
+          <Secao n={2} cor="#0f766e" ic="fa-sack-dollar" titulo="Para onde foi o dinheiro" sub="o que entrou, o que saiu e quanto ficou, com o simulador" />
+          {/* simulador "e se…" (D5 da página de teste, 19/10): mexe nas entradas, gastos e pessoal e vê o que ficaria */}
+          <details className="pt-sim cpv-entra" open>
+            <summary><i className="fas fa-sliders" /> Simulador: e se…? <small>mude horas, valor da hora, km, peças, descontos, cada gasto e cada pessoa da equipe e veja quanto ficaria</small></summary>
+            <DinheiroSimulador key={`${tipo}|${ref}`} c={contaDe(d!, d!.periodo.rotulo)} />
+          </details>
 
           {/* dinheiro parado: OS feitas e não faturadas / passou da data sem preencher (foto de agora) */}
-          {base?.pendencias && base.pendencias.length > 0 && <DinheiroParado pendencias={base.pendencias} />}
+          <Secao n={3} cor="#d97706" ic="fa-hourglass-half" titulo="Dinheiro parado" sub="OS feitas e ainda não faturadas, agora" />
+          {base && <ParadoNoPainel inicial={base.pendencias || []} />}
 
-          {/* gastos do pós-vendas: tudo separado + internas fechadas + descontos, contra o período anterior */}
-          <GastosPosVendas atual={d!.despesas} anterior={d!.despesasAnterior}
-            internas={(base?.internasFechadas || []).filter((x) => x.data >= d!.periodo.de && x.data <= d!.periodo.ate)}
-            osComDesconto={d!.os.filter((o) => o.descontos && o.descontos.hora + o.descontos.km + o.descontos.geral + o.descontos.pecas > 0.009)}
-            onGastos={(tp) => setVerGastos(tp)} onTerceiros={() => setVerReqs(true)} />
-
-          {/* horas da equipe */}
-          <section className="pt-horas cpv-entra" style={{ animationDelay: '80ms' }}>
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
-              <b style={{ fontSize: 16, color: TXT }}>Horas da equipe</b>
-              <span style={{ fontSize: 13.5, color: MUDO }}>meta {horas(t.meta)} ({horas(tecnicos[0]?.meta || 0)} por técnico) · trabalhadas no app {horas(t.trabalhadas)}</span>
-            </div>
-            <BarraHoras faturadas={t.faturadas} aguardando={t.aguardando} internas={t.internas} ociosas={t.ociosas} meta={t.meta} grande />
-            <div className="pt-legenda">
-              <span><i style={{ background: COR.faturadas }} /> Faturadas <b>{horas(t.faturadas)}</b></span>
-              <button type="button" onClick={() => setVerInternas(true)}><i style={{ background: COR.internas }} /> Internas <b>{horas(t.internas)}</b> · {d!.internas.length} OS <u>ver</u></button>
-              <span title="Horas do app em OS já preenchidas e ainda não faturadas (garantia inclusa). Contam na meta; quando a OS faturar, viram faturadas."><i style={{ background: COR_AGUARDANDO }} /> Aguardando faturar <b>{horas(t.aguardando)}</b></span>
-              <span><i style={{ background: COR.ociosas }} /> Ociosas <b>{horas(t.ociosas)}</b></span>
-              <span><i style={{ background: COR.km }} /> Km cobrados <b>{kmFmt(t.km)}</b></span>
-            </div>
-          </section>
-
-          {/* 4. um cartão por técnico */}
-          <div className="pt-cards">
-            {tecnicos.map((l, i) => (
-              <CartaoTecnico key={l.tecnico} l={l} i={i} gasto={gastoDe(l.tecnico)?.total || 0} salario={d!.equipe.porPessoa[l.tecnico] || 0} pontos={pontos[l.tecnico]}
-                historico={d!.serie.map((b) => b.porTecnico[l.tecnico]?.bruto || 0)} rotuloHist={ROTULO_HIST[tipo]} onClick={() => setFicha(l.tecnico)}
-                onDetalhes={() => setCarta(i)} arrastando={arrastando} alvo={alvo} onFoco={focar} onArrastar={setArrastando} onAlvo={setAlvo}
-                onSoltar={(de, para) => setCmp([de, para])} onComparar={() => abrirComparar(l.tecnico)} />
-            ))}
-          </div>
+          {apoio.length > 0 && <Secao n={4} cor="#7c3aed" ic="fa-users-gear" titulo="Apoio ao pós-vendas" sub="Garantia e Outros: o que custam e o que passa por eles" />}
           {apoio.length > 0 && <Apoio linhas={apoio} salarios={d!.equipe.porPessoa} gastoDe={(n) => gastoDe(n)?.total || 0}
             pendencias={(base?.pendencias || []).filter((p) => (p.garantia || p.tecnicos.map(grupoDe).includes('Garantia')) && p.tipo === 'preenchida')}
             garantias={d!.os.filter((o) => o.garantia)}
@@ -252,6 +241,7 @@ export default function PainelTecnicos() {
             </button>
           )}
 
+          <Secao n={5} cor="#0891b2" ic="fa-chart-line" titulo="Evolução" sub="faturado, resultado, horas e gastos ao longo dos períodos" />
           {/* 5. evolução */}
           <Cartao titulo="Evolução" atraso={200}
             extra={<div className="pt-metricas">{METRICAS.map(([k, r]) => <button key={k} type="button" className={metrica === k ? 'pt-m-on' : ''} onClick={() => setMetrica(k)}>{r}</button>)}</div>}>
@@ -275,6 +265,8 @@ export default function PainelTecnicos() {
           </Cartao>
         </div>
       )}
+      </div>
+      </div>
 
       {ficha && d && <FichaTecnico tecnico={ficha} linha={d.linhas.find((l) => l.tecnico === ficha)} dias={d.dias.filter((x) => x.tecnico === ficha)} os={osDoTecnico(ficha)} gasto={gastoDe(ficha)} salario={d.equipe.porPessoa[ficha] || 0} onFechar={() => setFicha(null)} />}
       {listaOS && <ListaOS titulo={listaOS.titulo} os={listaOS.os} onFechar={() => setListaOS(null)} />}
@@ -291,17 +283,130 @@ export default function PainelTecnicos() {
   )
 }
 
-/** Barra de horas: faturadas + aguardando faturar + internas + ociosas contra a meta. */
 const COR_AGUARDANDO = '#f59e0b'
-function BarraHoras({ faturadas, aguardando = 0, internas, ociosas, meta, grande = false }: { faturadas: number; aguardando?: number; internas: number; ociosas: number; meta: number; grande?: boolean }) {
-  const total = Math.max(meta, faturadas + aguardando + internas + ociosas, 1)
-  const pct = (v: number) => `${(v / total) * 100}%`
+
+/** Dinheiro parado ao vivo, no estilo E1b escolhido na página de teste (19/10). */
+function ParadoNoPainel({ inicial }: { inicial: import('@/lib/mecanicos/pendencias').Pendencia[] }) {
+  const pend = useParadoVivo(inicial)
+  return <div style={{ marginBottom: 14 }}><ParadoFilaEstilo estilo="cheio" pendencias={pend} /></div>
+}
+
+const ASSUNTOS = [
+  { n: 1, cor: '#2563eb', ic: 'fa-chart-column', titulo: 'Faturamento por período' },
+  { n: 2, cor: '#0f766e', ic: 'fa-sack-dollar', titulo: 'Para onde foi o dinheiro' },
+  { n: 3, cor: '#d97706', ic: 'fa-hourglass-half', titulo: 'Dinheiro parado' },
+  { n: 4, cor: '#7c3aed', ic: 'fa-users-gear', titulo: 'Apoio ao pós-vendas' },
+  { n: 5, cor: '#0891b2', ic: 'fa-chart-line', titulo: 'Evolução' },
+]
+
+/** Trilho de assuntos ao lado (N3 escolhida na página de teste, 19/10): a bolinha do assunto em que você está
+ *  acende, a linha vai enchendo conforme rola e clicar leva até o assunto. */
+function TrilhoAssuntos({ mostrar = true, topo = false }: { mostrar?: boolean; topo?: boolean }) {
+  const [atual, setAtual] = useState(1)
+  const [prog, setProg] = useState(0)
+  const [existe, setExiste] = useState<number[]>([1])
+  useEffect(() => {
+    const medir = () => {
+      const els = ASSUNTOS.map((a) => document.getElementById(`sec-${a.n}`)).filter((x): x is HTMLElement => !!x)
+      if (!els.length) return
+      const linha = window.innerHeight * 0.35
+      const tops = els.map((e) => e.getBoundingClientRect().top)
+      let i = 0
+      tops.forEach((t, k) => { if (t < linha) i = k })
+      const ate = tops[i + 1] ?? tops[i] + 600
+      const parcial = Math.max(0, Math.min(1, (linha - tops[i]) / Math.max(1, ate - tops[i])))
+      setAtual(Number(els[i].id.slice(4)))
+      document.documentElement.style.setProperty('--cpv-amb', ASSUNTOS.find((a) => a.n === Number(els[i].id.slice(4)))?.cor || '#2563eb')
+      els.forEach((e, k) => e.classList.toggle('pt-atual', k === i))
+      setProg(els.length > 1 ? Math.min(1, (i + parcial) / (els.length - 1)) : 0)
+      setExiste(els.map((e) => Number(e.id.slice(4))))
+      els.forEach((e) => { if (e.getBoundingClientRect().top < window.innerHeight * 0.9) e.classList.add('pt-visto') })
+    }
+    medir()
+    const t = setInterval(medir, 1500) // as seções aparecem quando os dados chegam
+    document.addEventListener('scroll', medir, { capture: true, passive: true })
+    window.addEventListener('resize', medir)
+    return () => { clearInterval(t); document.removeEventListener('scroll', medir, { capture: true }); window.removeEventListener('resize', medir); document.documentElement.style.removeProperty('--cpv-amb') }
+  }, [])
+  const lista = ASSUNTOS.filter((a) => existe.includes(a.n))
+  const cor = ASSUNTOS.find((a) => a.n === atual)?.cor || '#2563eb'
+  const ir = (n: number) => document.getElementById(`sec-${n}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  // bolinhas numeradas em cima, com os títulos (José 19/10: "pro usuário clicar e ir pro módulo")
+  if (topo) return (
+    <nav className="pt-atalhos" aria-label="Assuntos do painel">
+      <div className="pt-atalhos-trilha"><i style={{ transform: `scaleX(${prog})`, background: `linear-gradient(90deg, #2563eb, ${cor})` }} /></div>
+      {lista.map((a, k) => (
+        <button key={a.n} type="button" className={atual === a.n ? 'on' : atual > a.n ? 'feito' : ''} style={{ '--c': a.cor, animationDelay: `${k * 80}ms` } as React.CSSProperties} onClick={() => ir(a.n)}>
+          <em>{String(a.n).padStart(2, '0')}</em><b>{a.titulo}</b>
+        </button>
+      ))}
+    </nav>
+  )
+  if (!mostrar) return null
+
   return (
-    <div className="pt-barra" style={{ height: grande ? 18 : 10 }} title={`faturadas ${horas(faturadas)} · aguardando faturar ${horas(aguardando)} · internas ${horas(internas)} · ociosas ${horas(ociosas)} · meta ${horas(meta)}`}>
-      <i style={{ width: pct(faturadas), background: COR.faturadas }} />
-      <i style={{ width: pct(aguardando), background: COR_AGUARDANDO }} />
-      <i style={{ width: pct(internas), background: COR.internas }} />
-      <i style={{ width: pct(ociosas), background: COR.ociosas }} />
+    <nav className="pt-trilho" aria-label="Assuntos do painel">
+      <div className="pt-trilho-in" style={{ '--c': cor } as React.CSSProperties}>
+        <small>Assuntos</small>
+        <div className="pt-trilho-lista">
+          <i className="pt-trilho-fundo" />
+          <i className="pt-trilho-cheio" style={{ transform: `scaleY(${prog})` }} />
+          {lista.map((a, k) => (
+            <button key={a.n} type="button" className={atual === a.n ? 'on' : atual > a.n ? 'feito' : ''} style={{ '--c': a.cor, animationDelay: `${k * 90}ms` } as React.CSSProperties}
+              onClick={() => document.getElementById(`sec-${a.n}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}>
+              <span><i className={`fas ${a.ic}`} /></span><b>{a.titulo}</b>
+            </button>
+          ))}
+        </div>
+      </div>
+    </nav>
+  )
+}
+const ESTILO_TRILHO = `
+.pt-com-trilho { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 18px; align-items: start } .pt-corpo { min-width: 0 }
+@media (max-width: 1100px) { .pt-com-trilho { grid-template-columns: minmax(0, 1fr) } .pt-trilho { display: none } }
+.pt-amb .pt-secao em { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: #fefefe; border: 2px solid color-mix(in srgb, var(--c) 35%, transparent); font-size: 17px; line-height: 1; font-weight: 900; color: var(--c); grid-row: span 2; align-self: center; margin-right: 6px; box-shadow: 0 2px 8px rgba(15,23,42,.08); font-variant-numeric: tabular-nums; transition: transform .4s cubic-bezier(.3,1.5,.5,1), border-color .4s, box-shadow .4s }
+.pt-amb .pt-secao.pt-atual em { border-color: var(--c); transform: scale(1.08); box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 16%, transparent), 0 4px 12px rgba(15,23,42,.1) }
+.pt-amb .pt-secao:not(.pt-visto) em { transform: scale(.4); opacity: 0 } .pt-amb .pt-secao em { opacity: 1 }
+.pt-atalhos { position: sticky; top: 92px; z-index: 30; display: flex; gap: 6px; justify-content: space-between; margin: 0 0 14px; padding: 8px 10px; border-radius: 99px; background: color-mix(in srgb, var(--portal-bg-card, #fefefe) 88%, transparent); backdrop-filter: blur(10px); box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 6px 18px rgba(15,23,42,.06); border: 1px solid var(--portal-border, #e5e7eb); overflow-x: auto; scrollbar-width: none }
+.pt-atalhos::-webkit-scrollbar { display: none }
+.pt-atalhos-trilha { position: absolute; left: 34px; right: 34px; top: 50%; height: 2px; margin-top: -1px; background: var(--portal-border, #e2e8f0); pointer-events: none } .pt-atalhos-trilha i { display: block; height: 100%; transform-origin: left; transition: transform .35s cubic-bezier(.2,.8,.2,1) }
+.pt-atalhos button { position: relative; display: inline-flex; gap: 8px; align-items: center; border: none; background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 4px 12px 4px 4px; font-family: inherit; cursor: pointer; white-space: nowrap; animation: ptTrEntra .45s cubic-bezier(.2,.8,.2,1) both; transition: background .25s }
+.pt-atalhos button em { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 12.5px; font-weight: 900; color: var(--c); background: #fefefe; border: 2px solid color-mix(in srgb, var(--c) 35%, transparent); transition: all .35s cubic-bezier(.3,1.4,.5,1) }
+.pt-atalhos button b { font-size: 13px; font-weight: 700; color: var(--portal-text-muted, #64748b); transition: color .25s }
+.pt-atalhos button:hover { background: color-mix(in srgb, var(--c) 8%, var(--portal-bg-card, #fefefe)) } .pt-atalhos button:hover em { transform: scale(1.1); border-color: var(--c) }
+.pt-atalhos button.feito em { border-color: var(--c) }
+.pt-atalhos button.on { background: color-mix(in srgb, var(--c) 10%, var(--portal-bg-card, #fefefe)) } .pt-atalhos button.on em { background: var(--c); border-color: var(--c); color: #fefefe; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent) } .pt-atalhos button.on b { color: var(--portal-text, #0f172a); font-weight: 900 }
+.pt-trilho { position: sticky; top: 96px; align-self: start; padding-top: 4px }
+.pt-trilho-in > small { display: block; font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; color: var(--portal-text-muted, #64748b); margin: 0 0 8px 4px }
+.pt-trilho-lista { position: relative; display: grid; gap: 6px }
+.pt-trilho-fundo, .pt-trilho-cheio { position: absolute; left: 21px; top: 22px; bottom: 22px; width: 3px; border-radius: 99px }
+.pt-trilho-fundo { background: var(--portal-border, #e2e8f0) }
+.pt-trilho-cheio { background: linear-gradient(180deg, #2563eb, var(--c)); transform-origin: top; transition: transform .35s cubic-bezier(.2,.8,.2,1), background .4s }
+.pt-trilho-lista button { position: relative; display: flex; gap: 10px; align-items: center; border: none; background: transparent; padding: 4px; border-radius: 12px; font-family: inherit; text-align: left; cursor: pointer; animation: ptTrEntra .5s cubic-bezier(.2,.8,.2,1) both; transition: background .25s }
+@keyframes ptTrEntra { from { opacity: 0; transform: translateX(-14px) } }
+.pt-trilho-lista button:hover { background: color-mix(in srgb, var(--c) 7%, transparent) }
+.pt-trilho-lista button span { position: relative; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; background: var(--portal-bg-card, #fefefe); border: 2px solid var(--portal-border, #e2e8f0); color: var(--portal-text-muted, #94a3b8); font-size: 13.5px; transition: all .4s cubic-bezier(.3,1.4,.5,1) }
+.pt-trilho-lista button b { font-size: 13px; font-weight: 700; color: var(--portal-text-muted, #64748b); transition: color .3s, transform .3s }
+.pt-trilho-lista button:hover span { transform: scale(1.08); border-color: var(--c); color: var(--c) }
+.pt-trilho-lista button.feito span { border-color: color-mix(in srgb, var(--c) 50%, transparent); color: var(--c) }
+.pt-trilho-lista button.on span { background: var(--c); border-color: var(--c); color: #fefefe; transform: scale(1.16) }
+.pt-trilho-lista button.on span::after { content: ''; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid var(--c); opacity: 0; animation: ptTrPulso 2s ease-out infinite }
+@keyframes ptTrPulso { 0% { transform: scale(.85); opacity: .55 } 100% { transform: scale(1.35); opacity: 0 } }
+.pt-trilho-lista button.on b { color: var(--portal-text, #0f172a); font-weight: 900; transform: translateX(3px) }
+/* seção entra quando aparece na tela: ícone dá um pulinho e a linha se desenha */
+.pt-secao .pt-secao-ic { transition: transform .5s cubic-bezier(.3,1.6,.5,1), opacity .4s } .pt-secao:not(.pt-visto) .pt-secao-ic { transform: scale(.5); opacity: 0 }
+.pt-secao > div { transition: transform .5s cubic-bezier(.2,.8,.2,1), opacity .5s } .pt-secao:not(.pt-visto) > div { transform: translateX(-12px); opacity: 0 }
+.pt-secao:not(.pt-visto) .pt-secao-linha { animation: none; transform: scaleX(0) } .pt-secao.pt-visto .pt-secao-linha { animation: ptLinha .9s .15s cubic-bezier(.2,.8,.2,1) both }
+@media (prefers-reduced-motion: reduce) { .pt-trilho-lista button, .pt-trilho-lista button.on span::after { animation: none } }
+`
+
+/** Título de seção: deixa claro que começa "outro assunto" (José 19/10: "visível, clean, moderno e profissional"). */
+function Secao({ ic, titulo, sub, primeira, cor, n }: { ic: string; titulo: string; sub?: string; primeira?: boolean; cor: string; n: number }) {
+  return (
+    <div id={`sec-${n}`} className={`pt-secao ${primeira ? 'primeira' : ''}`} style={{ '--c': cor } as React.CSSProperties}>
+      <div><em>{String(n).padStart(2, '0')}</em><b>{titulo}</b>{sub && <small>{sub}</small>}</div>
+      <i className="pt-secao-linha" />
     </div>
   )
 }

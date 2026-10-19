@@ -24,6 +24,7 @@ import SolicitacaoEmailSecao from './SolicitacaoEmailSecao';
 import RelatoTratorilsonSecao from './RelatoTratorilsonSecao';
 import ConversaFabrica from './ConversaFabrica';
 import DevolucaoPecasSecao from './DevolucaoPecasSecao';
+import GuardaPecasSecao from './GuardaPecasSecao';
 import { guiaDaMontadora } from '@/lib/garantias/guias';
 import { ESTANTES, PRATELEIRAS, montarLocalizacao, partesLocalizacao, rotuloLocalizacao } from '@/lib/garantias/localizacao';
 import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui';
@@ -140,6 +141,9 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   // finalização.
   const [devolucaoPedida, setDevolucaoPedida] = useState(false);
   const devolucaoInitRef = useRef<string | null>(null);
+  // Guarda de peças antes do descarte (padrão da empresa): checkbox da
+  // finalização, ligado por padrão. Só se aplica quando NÃO há devolução.
+  const [guardaPedida, setGuardaPedida] = useState(true);
 
   // Recusa interna (em_analise)
   const [recusaTexto, setRecusaTexto] = useState('');
@@ -278,7 +282,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   // Centraliza o enforcement: cada ação do drawer mapeia pra uma permissão.
   function acaoPermitida(acao: string): boolean {
     if (acao === 'enviar' || acao === 'enviar_sg' || acao === 'solicitar_ressarcimento') return podeEnviarFabrica;
-    if (acao === 'finalizar' || acao === 'retorno_pecas' || acao === 'recusar_interno' || acao === 'reabrir_recusa' || acao === 'cancelar_duplicada' || acao.startsWith('cobranca_') || acao.startsWith('devolucao_')) return podeFinalizar;
+    if (acao === 'finalizar' || acao === 'retorno_pecas' || acao === 'recusar_interno' || acao === 'reabrir_recusa' || acao === 'cancelar_duplicada' || acao.startsWith('cobranca_') || acao.startsWith('devolucao_') || acao.startsWith('guarda_')) return podeFinalizar;
     return podeAnalisar; // assumir, montadora, analise, pendencia, tipo_garantia, gerar_sg, atualizar_precos...
   }
 
@@ -382,6 +386,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
         mo_aprovada: moAprovada,
         desloc_aprovado: deslocAprovado,
         devolucao_pedida: devolucaoPedida,
+        guarda_pedida: guardaPedida,
       }),
     });
 
@@ -405,6 +410,14 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   // Devolução das peças à fábrica (registrar/prazo/dispensar/reabrir)
   const acaoDevolucao = (acao: string, payload?: Record<string, unknown>) =>
     chamar(`devolucao_${acao}`, `/api/garantias/${garantiaId}/devolucao`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao, ator: userName, ...payload }),
+    });
+
+  // Guarda de peças antes do descarte (abrir/prazo/descartar/dispensar/reabrir)
+  const acaoGuarda = (acao: string, payload?: Record<string, unknown>) =>
+    chamar(`guarda_${acao}`, `/api/garantias/${garantiaId}/guarda`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ acao, ator: userName, ...payload }),
@@ -1764,6 +1777,25 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                           </span>
                         </span>
                       </label>
+                      {/* Guarda antes do descarte: padrão da empresa pra TODAS as
+                          montadoras. Some quando a devolução está marcada (as
+                          peças vão pra fábrica) ou quando não há peça. */}
+                      {!devolucaoPedida && g.pecas.length > 0 && (
+                        <label style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
+                          <input
+                            type="checkbox"
+                            checked={guardaPedida}
+                            onChange={(e) => setGuardaPedida(e.target.checked)}
+                            style={{ marginTop: 2 }}
+                          />
+                          <span>
+                            <strong>Guardar as peças substituídas por 90 dias</strong> antes do descarte (padrão da empresa)
+                            <span style={{ display: 'block', fontSize: 10.5, color: 'var(--portal-text-faint)' }}>
+                              Aplica-se só se aprovar — o card vai pra fase &quot;Guarda de peças&quot; pra registrar foto de onde ficaram e, no fim do prazo, o descarte.
+                            </span>
+                          </span>
+                        </label>
+                      )}
                       <textarea
                         placeholder="Motivo da recusa (obrigatório se recusar)"
                         value={motivoRecusa}
@@ -1936,6 +1968,20 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                   userName={userName}
                   busy={busy}
                   onAcao={acaoDevolucao}
+                  onAnexosChange={carregar}
+                />
+              )}
+
+              {/* Guarda das peças antes do descarte (padrão da empresa). A seção
+                  decide sozinha o que mostrar: pendente/descartada/dispensada, ou
+                  a oferta de "Iniciar guarda" em aprovada antiga sem guarda
+                  (escondida se devolução pendente/enviada ou sem peças). */}
+              {g.status === 'aprovada' && (
+                <GuardaPecasSecao
+                  garantia={g}
+                  userName={userName}
+                  busy={busy}
+                  onAcao={acaoGuarda}
                   onAnexosChange={carregar}
                 />
               )}

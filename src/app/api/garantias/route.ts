@@ -10,7 +10,9 @@ export async function GET(req: NextRequest) {
   if (guarda.resposta) return guarda.resposta;
   const sp = req.nextUrl.searchParams;
 
-  const montarQuery = (comDevolucao: boolean) => {
+  // nivel 2 = devolução + guarda de peças · 1 = só devolução (migration da
+  // guarda pendente) · 0 = filtro antigo (nenhuma das migrations)
+  const montarQuery = (nivel: 0 | 1 | 2) => {
     let query = supabase
       .from(TBL_GARANTIAS)
       .select(
@@ -32,9 +34,13 @@ export async function GET(req: NextRequest) {
     if (tecnico) query = query.eq('tecnico_nome', tecnico);
     if (finalizadas === 'true') query = query.in('status', STATUS_FINALIZADOS);
     if (finalizadas === 'false') {
-      // O kanban puxa também as APROVADAS com devolução de peças pendente
-      // (fase "Devolução de peças" — coluna virtual do board)
-      if (comDevolucao) {
+      // O kanban puxa também as APROVADAS com devolução de peças OU guarda de
+      // peças pendente (colunas virtuais do board)
+      if (nivel === 2) {
+        query = query.or(
+          `status.not.in.(${STATUS_FINALIZADOS.join(',')}),and(status.eq.aprovada,devolucao_status.eq.pendente),and(status.eq.aprovada,guarda_status.eq.pendente)`
+        );
+      } else if (nivel === 1) {
         query = query.or(
           `status.not.in.(${STATUS_FINALIZADOS.join(',')}),and(status.eq.aprovada,devolucao_status.eq.pendente)`
         );
@@ -45,12 +51,17 @@ export async function GET(req: NextRequest) {
     return query;
   };
 
-  let { data, error } = await montarQuery(true);
+  let { data, error } = await montarQuery(2);
   if (error) {
-    // Fallback: migration add-garantia-devolucao-pecas ainda não aplicada
-    // (coluna devolucao_status inexistente) — kanban não pode cair por isso.
+    // Fallback: migration add-garantia-guarda-pecas ainda não aplicada
+    // (coluna guarda_status inexistente) — kanban não pode cair por isso.
+    console.warn('Listagem com guarda falhou, tentando só devolução:', error.message);
+    ({ data, error } = await montarQuery(1));
+  }
+  if (error) {
+    // Fallback 2: nem a migration da devolução existe — filtro antigo.
     console.warn('Listagem com devolução falhou, usando filtro antigo:', error.message);
-    ({ data, error } = await montarQuery(false));
+    ({ data, error } = await montarQuery(0));
   }
   if (error) {
     console.error('Erro ao listar garantias:', error.message);

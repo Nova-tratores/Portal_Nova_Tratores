@@ -43,7 +43,18 @@ async function api(body?: object) {
 const chaveFeito = (g: string) => `tratorilson-feito:${g}`
 const lerFeitos = (g: string): number[] => { try { return JSON.parse(localStorage.getItem(chaveFeito(g)) || '[]') } catch { return [] } }
 
-export default function TratorilsonLeitura() {
+/** Perguntas-chave: as do Tratorilson abrem o relatório; as outras levam até a parte da tela que responde. */
+const PERGUNTAS: { txt: string; ic: string; relatorio?: Aba; alvo?: string }[] = [
+  { txt: 'O que fazer agora?', ic: 'fa-list-check', relatorio: 'plano' },
+  { txt: 'Quem precisa de atenção?', ic: 'fa-user-clock', relatorio: 'tecnicos' },
+  { txt: 'Quanto faturamos?', ic: 'fa-chart-column', alvo: 'sec-1' },
+  { txt: 'Para onde foi o dinheiro?', ic: 'fa-sack-dollar', alvo: 'sec-2' },
+  { txt: 'Quanto falta para empatar?', ic: 'fa-scale-balanced', alvo: 'sim-alvos' },
+  { txt: 'Quanto está parado sem faturar?', ic: 'fa-hourglass-half', alvo: 'sec-3' },
+  { txt: 'Como estão as horas da equipe?', ic: 'fa-clock', alvo: 'aba:ocorrencias' },
+]
+
+export default function TratorilsonLeitura({ onIr }: { onIr?: (alvo: string) => void }) {
   const [ultima, setUltima] = useState<Guardada | null>(null)
   const [ens, setEns] = useState<Ensinamento[]>([])
   const [gerando, setGerando] = useState(false)
@@ -79,45 +90,23 @@ export default function TratorilsonLeitura() {
   return (
     <>
       <style>{ESTILO}</style>
-      <div className={`tl2 cpv-entra ${gerando ? 'tl2-pensando' : ''}`}>
-        {/* situação */}
-        <button type="button" className="tl2-sit" style={{ background: a ? sit.fundo : 'var(--portal-bg-secondary, #f1f5f9)', color: a ? sit.cor : MUDO }} onClick={() => setAberto({ aba: 'plano' })}>
-          <i className={`fas ${a ? sit.icone : 'fa-robot'}`} />
-          <b>{a ? sit.rotulo : 'Tratorilson'}</b>
-          <small>{gerando ? 'lendo…' : quando ? `lida ${quando}` : ''}</small>
+      {/* só o rosto do Tratorilson + perguntas-chave que levam direto à resposta (José 19/10) */}
+      <div className={`tl3 cpv-entra ${gerando ? 'tl3-pensando' : ''}`} style={{ '--c': a ? sit.cor : '#0369a1' } as React.CSSProperties}>
+        <button type="button" className="tl3-bot" onClick={() => setAberto({ aba: 'plano' })}
+          title={a ? `${sit.rotulo}: ${a.manchete}${quando ? ` (lida ${quando})` : ''}` : gerando ? 'Tratorilson lendo…' : rapida?.texto || 'Tratorilson'}>
+          <span className="tl3-rosto"><i className="fas fa-robot" /></span>
+          <i className="tl3-st"><i className={`fas ${a ? sit.icone : 'fa-circle'}`} /></i>
         </button>
-
-        {/* manchete + urgentes */}
-        <div className="tl2-meio" role="button" tabIndex={0} onClick={() => setAberto({ aba: 'plano' })} onKeyDown={(e) => { if (e.key === 'Enter') setAberto({ aba: 'plano' }) }}>
-          <div className="tl2-rot">Tratorilson · leitura de agora</div>
-          {a ? <div className="tl2-manchete"><Digitando key={ultima?.geradaEm} texto={a.manchete} /></div>
-            : <div className="tl2-manchete" style={{ color: MUDO }}>{gerando ? <><span className="tl-pontos"><span /><span /><span /></span> {ETAPAS[etapa]}</> : rapida ? rapida.texto : carregou ? (erro || 'Ainda não há leitura. Clique para pedir.') : 'Carregando…'}</div>}
-          {urgentes.length > 0 && (
-            <ul className="tl2-urg">
-              {urgentes.map((x, i) => (
-                <li key={i} style={{ animationDelay: `${700 + i * 140}ms` }}>
-                  <i style={{ background: PRIO[x.prioridade].cor }} />
-                  <span>{x.oque}</span>
-                  {x.quem && <em>{x.quem}</em>}
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-
-        {/* técnicos com a cor da situação */}
-        <div className="tl2-lado">
-          {a && a.porTecnico.length > 0 && (
-            <div className="tl2-avs">
-              {a.porTecnico.map((t, i) => (
-                <button key={t.tecnico} type="button" className="tl2-av" title={`${t.tecnico}: ${t.acao || t.leitura}`} style={{ borderColor: SIT[t.situacao].cor, animationDelay: `${300 + i * 80}ms` }}
-                  onClick={() => setAberto({ aba: 'tecnicos', tecnico: t.tecnico })}>
-                  {iniciais(t.tecnico)}<i style={{ background: SIT[t.situacao].cor }} />
-                </button>
-              ))}
-            </div>
-          )}
-          <button type="button" className="tl2-abrir" onClick={() => setAberto({ aba: 'plano' })}>Abrir relatório <i className="fas fa-chevron-right" /></button>
+        <div className="tl3-perg">
+          <small>{gerando ? 'Tratorilson está lendo…' : 'Pergunte ao Tratorilson'}</small>
+          <div>
+            {PERGUNTAS.map((q, i) => (
+              <button key={q.txt} type="button" className="tl3-q" style={{ animationDelay: `${150 + i * 60}ms` }}
+                onClick={() => (q.relatorio ? setAberto({ aba: q.relatorio }) : onIr?.(q.alvo!))}>
+                <i className={`fas ${q.ic}`} />{q.txt}{q.relatorio === 'plano' && urgentes.length > 0 && <em>{urgentes.length}</em>}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -325,6 +314,17 @@ function Digitando({ texto }: { texto: string }) {
 }
 
 const ESTILO = `
+.tl3 { display: flex; gap: 14px; align-items: center; margin-bottom: 16px }
+.tl3-bot { position: relative; width: 52px; height: 52px; flex-shrink: 0; border: none; background: transparent; padding: 0; cursor: pointer }
+.tl3-rosto { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; font-size: 24px; color: #fefefe; background: linear-gradient(140deg, #0ea5e9, #0369a1); box-shadow: 0 8px 20px rgba(3,105,161,.3); transition: transform .25s }
+.tl3-bot:hover .tl3-rosto { transform: translateY(-2px) rotate(-6deg) } .tl3-rosto i { animation: tl3Pisca 5s infinite } @keyframes tl3Pisca { 0%, 92%, 100% { transform: scaleY(1) } 95% { transform: scaleY(.15) } }
+.tl3-pensando .tl3-rosto i { animation: tlGira 1.4s linear infinite }
+.tl3-st { position: absolute; right: -5px; bottom: -5px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--c); color: #fefefe; font-size: 11px; border: 3px solid var(--portal-bg, #f8fafc); font-style: normal }
+.tl3-perg { flex: 1; min-width: 0; display: grid; gap: 5px } .tl3-perg > small { font-size: 11.5px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; color: var(--portal-text-muted, #64748b) }
+.tl3-perg > div { display: flex; gap: 6px; flex-wrap: wrap }
+.tl3-q { position: relative; display: inline-flex; gap: 7px; align-items: center; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 6px 13px; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--portal-text, #334155); cursor: pointer; animation: tlEntra .4s both; transition: border-color .2s, color .2s, transform .2s, box-shadow .2s }
+.tl3-q i { color: #0369a1; font-size: 12px } .tl3-q:hover { border-color: #7dd3fc; color: #0369a1; transform: translateY(-2px); box-shadow: 0 6px 14px rgba(3,105,161,.12) }
+.tl3-q em { font-style: normal; min-width: 17px; height: 17px; border-radius: 99px; background: #dc2626; color: #fefefe; font-size: 10.5px; font-weight: 900; display: grid; place-items: center; padding: 0 4px }
 .tl2 { display: flex; align-items: stretch; gap: 0; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(15,23,42,.05); transition: box-shadow .2s }
 .tl2:hover { box-shadow: 0 12px 28px rgba(15,23,42,.08) }
 .tl2-sit { width: 128px; flex-shrink: 0; border: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-family: inherit; cursor: pointer; padding: 12px 8px }
@@ -345,6 +345,21 @@ const ESTILO = `
 .tl2-av:hover { transform: scale(1.12) }
 .tl2-av i { position: absolute; right: -3px; bottom: -3px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--portal-bg-card, #fefefe) }
 @keyframes tlPop { from { opacity: 0; transform: scale(.4) } to { opacity: 1; transform: none } }
+.tl2 { overflow: visible } .tl2-sit { border-radius: 17px 0 0 17px }
+.tl2-botoes { display: flex; gap: 8px; align-items: center }
+.tl2-dicas { position: relative }
+.tl2-dicas-btn { position: relative; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: #0369a1; cursor: pointer; transition: all .2s }
+.tl2-dicas-btn:hover, .tl2-dicas-btn.on { background: #e0f2fe; border-color: #7dd3fc }
+.tl2-dicas-btn em { position: absolute; top: -4px; right: -4px; min-width: 17px; height: 17px; border-radius: 99px; background: #dc2626; color: #fefefe; font-style: normal; font-size: 10.5px; font-weight: 900; display: grid; place-items: center; padding: 0 4px; border: 2px solid var(--portal-bg-card, #fefefe) }
+.tl2-balao { position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; width: min(440px, 80vw); background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 14px; box-shadow: 0 18px 40px rgba(15,23,42,.18); padding: 12px 14px; display: grid; gap: 8px; text-align: left; animation: tlBalao .25s cubic-bezier(.2,1.1,.3,1) both }
+.tl2-balao::before { content: ''; position: absolute; top: -6px; right: 13px; width: 10px; height: 10px; background: inherit; border-left: 1px solid var(--portal-border, #e5e7eb); border-top: 1px solid var(--portal-border, #e5e7eb); transform: rotate(45deg) }
+@keyframes tlBalao { from { opacity: 0; transform: translateY(-6px) scale(.97) } }
+.tl2-balao > b { font-size: 13.5px; color: var(--portal-text, #0f172a) } .tl2-balao > b i { color: #0369a1 }
+.tl2-balao ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px }
+.tl2-balao li { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; line-height: 1.4; color: var(--portal-text, #334155); animation: tlEntra .35s ease both }
+.tl2-balao li > i { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 6px }
+.tl2-balao li em { display: inline-block; margin-left: 6px; font-style: normal; font-size: 11.5px; font-weight: 800; color: var(--portal-text-muted, #64748b); background: var(--portal-bg-secondary, #f1f5f9); border-radius: 99px; padding: 0 8px }
+.tl2-balao > button { justify-self: start; border: none; background: transparent; color: #0369a1; font-family: inherit; font-weight: 800; font-size: 12.5px; cursor: pointer; padding: 0 }
 .tl2-abrir { border: none; background: #0369a1; color: #fefefe; border-radius: 99px; padding: 7px 14px; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; white-space: nowrap }
 .tl2-abrir:hover { background: #075985 }
 .tl-cursor { display: inline-block; width: 2px; height: 1em; background: #0369a1; margin-left: 2px; vertical-align: -2px; animation: tlPisca .8s steps(2) infinite }

@@ -4,7 +4,7 @@ import { TBL_GARANTIAS, TBL_GAR_ANEXOS, BUCKET_GARANTIAS } from '@/lib/garantias
 import { registrarEvento, guardarLoginGarantias } from '@/lib/garantias/server';
 import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
-const CATEGORIAS = ['tecnico', 'garantista', 'pendencia_pedido', 'pendencia_resposta', 'retorno_fabrica', 'envio_fabrica', 'foto_garantista', 'nf_venda', 'relatorio_at', 'devolucao_pecas'];
+const CATEGORIAS = ['tecnico', 'garantista', 'pendencia_pedido', 'pendencia_resposta', 'retorno_fabrica', 'envio_fabrica', 'foto_garantista', 'nf_venda', 'relatorio_at', 'devolucao_pecas', 'guarda_pecas', 'descarte_pecas'];
 
 function sanitize(name: string) {
   return name

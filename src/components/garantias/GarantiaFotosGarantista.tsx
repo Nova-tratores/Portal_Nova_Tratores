@@ -1,7 +1,7 @@
 'use client';
 import { fetchAuth } from '@/lib/auth/client';
 import { useState } from 'react';
-import { Upload, Loader2, Download, X, ImagePlus } from 'lucide-react';
+import { Upload, Loader2, Download, X, ImagePlus, Camera } from 'lucide-react';
 import type { GarantiaAnexo } from '@/lib/garantias/types';
 
 interface Props {
@@ -73,28 +73,53 @@ export default function GarantiaFotosGarantista({ garantiaId, fotos, enviadoPor,
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       {!readOnly && (
-        <label
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-            padding: '7px 12px', borderRadius: 8, border: '1px dashed var(--portal-border)',
-            background: 'var(--portal-bg-input)', fontSize: 12, fontWeight: 600,
-            color: 'var(--portal-text-secondary)', cursor: enviando ? 'default' : 'pointer',
-          }}
-        >
-          {enviando ? <Loader2 size={14} className="spin" /> : <Upload size={14} />}
-          {enviando ? 'Enviando...' : 'Adicionar fotos'}
-          <input
-            type="file"
-            accept="image/*"
-            multiple
-            style={{ display: 'none' }}
-            disabled={enviando}
-            onChange={(e) => {
-              if (e.target.files && e.target.files.length > 0) enviar(e.target.files);
-              e.target.value = '';
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {/* capture="environment" abre a câmera traseira direto no celular */}
+          <label
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '9px 14px', minHeight: 40, borderRadius: 9, border: '1px dashed var(--portal-border)',
+              background: 'var(--portal-bg-input)', fontSize: 12, fontWeight: 600,
+              color: 'var(--portal-text-secondary)', cursor: enviando ? 'default' : 'pointer', flex: '1 1 auto',
             }}
-          />
-        </label>
+          >
+            {enviando ? <Loader2 size={14} className="spin" /> : <Camera size={14} />}
+            {enviando ? 'Enviando...' : 'Tirar foto'}
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              disabled={enviando}
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) enviar(e.target.files);
+                e.target.value = '';
+              }}
+            />
+          </label>
+          <label
+            style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              padding: '9px 14px', minHeight: 40, borderRadius: 9, border: '1px dashed var(--portal-border)',
+              background: 'var(--portal-bg-input)', fontSize: 12, fontWeight: 600,
+              color: 'var(--portal-text-secondary)', cursor: enviando ? 'default' : 'pointer', flex: '1 1 auto',
+            }}
+          >
+            {enviando ? <Loader2 size={14} className="spin" /> : <Upload size={14} />}
+            {enviando ? 'Enviando...' : 'Adicionar fotos'}
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              style={{ display: 'none' }}
+              disabled={enviando}
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) enviar(e.target.files);
+                e.target.value = '';
+              }}
+            />
+          </label>
+        </div>
       )}
 
       {fotos.length === 0 ? (

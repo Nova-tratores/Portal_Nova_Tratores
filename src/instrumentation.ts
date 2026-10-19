@@ -333,5 +333,39 @@ export async function register(): Promise<void> {
     log('plano safra: páginas oficiais vigiadas a cada 12 h');
   }
 
+  // INTELIGÊNCIA DE VENDAS — base dos clientes pronta no banco (iv_snapshot), recalculada a
+  // cada 20 min para a tela abrir na hora (José, 19/10/2026: "não pode demorar"). Só produção;
+  // IV_SNAPSHOT=on liga no local, =off desliga.
+  if (rodaRobos && ((process.env.NODE_ENV === 'production' && process.env.IV_SNAPSHOT !== 'off') || process.env.IV_SNAPSHOT === 'on')) {
+    const recalcularBase = async () => {
+      try {
+        const { carregarBase } = await import('./lib/inteligencia-vendas/server');
+        const t0 = Date.now();
+        const { clientes } = await carregarBase(true);
+        log(`inteligência de vendas: base recalculada (${clientes.length} clientes, ${Math.round((Date.now() - t0) / 1000)} s)`);
+      } catch (e) { log('inteligência de vendas: base falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { recalcularBase().catch(() => {}); }, 20 * 60 * 1000);
+    setTimeout(() => { recalcularBase().catch(() => {}); }, 2 * 60 * 1000);
+    log('inteligência de vendas: base dos clientes recalculada a cada 20 min');
+  }
+
+  // INTELIGÊNCIA DE VENDAS — Boletim do agro (19/10/2026): notícias, preços CONAB, Focus, dólar
+  // e clima da região, editados pela IA. 1x por dia a partir das 06:30 BRT (e na subida do
+  // processo se o boletim de hoje ainda não existe). Uma execução por vez (trava em memória
+  // no noticias-server). Só produção; IV_NOTICIAS=on liga no local, =off desliga.
+  if (rodaRobos && ((process.env.NODE_ENV === 'production' && process.env.IV_NOTICIAS !== 'off') || process.env.IV_NOTICIAS === 'on')) {
+    const rodarBoletim = async (boot = false) => {
+      try {
+        const { rodarBoletimAgendado } = await import('./lib/inteligencia-vendas/noticias-server');
+        const r = await rodarBoletimAgendado(boot);
+        if (r) log(`boletim do agro: ${r}`);
+      } catch (e) { log('boletim do agro falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarBoletim().catch(() => {}); }, 10 * 60 * 1000);
+    setTimeout(() => { rodarBoletim(true).catch(() => {}); }, 7 * 60 * 1000); // 1ª rodada ~7 min após o boot
+    log('boletim do agro: gerado 1x por dia a partir das 06:30 BRT');
+  }
+
   log('schedulers registrados (lembrete-nf 5min, pasta-cliente 5min; financeiro-scanner sob SYNC_FINANCEIRO_AUTO). sync-incremental e backfill-cmc agora no GitHub Actions.');
 }

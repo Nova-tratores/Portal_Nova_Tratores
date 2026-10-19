@@ -5,19 +5,20 @@ import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants';
 import GarantiaMiniCard from './GarantiaMiniCard';
 import { useIsMobile } from '@/hooks/useIsMobile';
 
-// 'devolucao_pecas' é coluna VIRTUAL (não é status): garantias APROVADAS com
-// devolução das peças à fábrica pendente (prova de destruição).
-type Coluna = GarantiaStatus | 'devolucao_pecas';
+// 'devolucao_pecas' e 'guarda_pecas' são colunas VIRTUAIS (não são status):
+// garantias APROVADAS com devolução à fábrica pendente (prova de destruição)
+// ou com peças em guarda aguardando o prazo de descarte (padrão da empresa).
+type Coluna = GarantiaStatus | 'devolucao_pecas' | 'guarda_pecas';
 
 const COLUNAS: Coluna[] = [
   'aberta', 'em_analise', 'bo_tecnico', 'enviada', 'info_pendente',
-  'aguardando_servico', 'ressarcimento_fabrica', 'devolucao_pecas',
+  'aguardando_servico', 'ressarcimento_fabrica', 'devolucao_pecas', 'guarda_pecas',
 ];
 // Fases que só aparecem quando têm card (o board não alarga pra quem não usa).
-const COLUNAS_CONDICIONAIS: Coluna[] = ['aguardando_servico', 'ressarcimento_fabrica', 'devolucao_pecas'];
+const COLUNAS_CONDICIONAIS: Coluna[] = ['aguardando_servico', 'ressarcimento_fabrica', 'devolucao_pecas', 'guarda_pecas'];
 
-const COL_LABEL: Record<Coluna, string> = { ...STATUS_LABEL, devolucao_pecas: 'Devolução de peças' };
-const COL_COR: Record<Coluna, string> = { ...STATUS_COR, devolucao_pecas: '#b45309' };
+const COL_LABEL: Record<Coluna, string> = { ...STATUS_LABEL, devolucao_pecas: 'Devolução de peças', guarda_pecas: 'Guarda de peças' };
+const COL_COR: Record<Coluna, string> = { ...STATUS_COR, devolucao_pecas: '#b45309', guarda_pecas: '#0e7490' };
 
 interface Props {
   garantias: GarantiaResumo[];
@@ -30,9 +31,14 @@ export default function GarantiasBoard({ garantias, onCardClick }: Props) {
     const map: Record<string, GarantiaResumo[]> = {};
     for (const col of COLUNAS) map[col] = [];
     for (const g of garantias) {
-      // Aprovada com devolução pendente vai pra coluna virtual (sem isso ela
-      // sumiria do board em silêncio — 'aprovada' não tem coluna própria)
-      const col = g.status === 'aprovada' && g.devolucao_status === 'pendente' ? 'devolucao_pecas' : g.status;
+      // Aprovada com devolução/guarda pendente vai pra coluna virtual (sem isso
+      // ela sumiria do board em silêncio — 'aprovada' não tem coluna própria).
+      // Devolução vence a guarda (as duas não coexistem, mas na dúvida a
+      // devolução tem prazo que ATRASA; a guarda só espera).
+      const col =
+        g.status === 'aprovada' && g.devolucao_status === 'pendente' ? 'devolucao_pecas'
+        : g.status === 'aprovada' && g.guarda_status === 'pendente' ? 'guarda_pecas'
+        : g.status;
       if (map[col]) map[col].push(g);
     }
     return map;
