@@ -19,7 +19,7 @@ import {
 import type { EventoTipo } from '@/lib/tickets/constantes'
 import {
   SC_TRANSICOES, SC_ETAPA_INFO, proximoResponsavel, podeExecutarAuth,
-  type PayloadSC, type ScAcao, type ScEtapa,
+  faseFabricaAposPC, type PayloadSC, type ScAcao, type ScEtapa,
 } from '@/lib/tickets/compras'
 import { avaliarBloqueio, carregarConfigCompras } from '@/lib/tickets/compras-server'
 
@@ -142,6 +142,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const errEvento = await registrarEvento(id, auth.userId, evento, eventoPayload)
   if (errEvento) return erro(errEvento, 500)
+
+  // PC emitido → o pedido fábrica de onde a SC saiu vira "Pedido Feito / Aguardando Maq"
+  // (só se ainda estava em proposta; falha aqui não desfaz a emissão do PC).
+  if (acao === 'emitir_pc' && payload.pedido_fabrica_id) {
+    const { data: fab } = await supabaseAdmin.from('Proposta_Fabrica')
+      .select('status').eq('id', payload.pedido_fabrica_id).maybeSingle()
+    const nova = faseFabricaAposPC(fab?.status)
+    if (nova) {
+      const { error: errFab } = await supabaseAdmin.from('Proposta_Fabrica')
+        .update({ status: nova }).eq('id', payload.pedido_fabrica_id).eq('status', fab!.status)
+      if (errFab) console.error('[compras] pedido fábrica não avançou:', errFab.message)
+    }
+  }
 
   // O novo ator entra como participante; o vendedor (solicitante) nunca sai.
   if (novoResponsavel && novoResponsavel !== ticket.responsavel_id) {

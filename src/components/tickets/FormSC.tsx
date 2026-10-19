@@ -3,16 +3,18 @@
 // preenche os campos estruturados; a bola vai direto para a Diretoria.
 // O motivo + complemento viram a origem do ticket, imutável depois de criada.
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { X, ShoppingCart, Search, Users, Warehouse } from 'lucide-react'
+import { X, ShoppingCart, Search, Users, Warehouse, Factory } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
+import { supabase } from '@/lib/supabase'
 import {
-  SC_CONFIANCA_INFO, SC_DESTINO_LABEL, motivosDoDestino, validarNovaSC, margemPrevista, rotuloModelo,
+  SC_CONFIANCA_INFO, SC_DESTINO_LABEL, motivosDoDestino, validarNovaSC, margemPrevista, rotuloModelo, scDoPedidoFabrica,
   type ModeloOpcao, type ProdutoLinha, type ScConfianca, type ScDestino,
 } from '@/lib/tickets/compras'
 
 interface Props {
   onFechar: () => void
   onCriado: (ticketId: string) => void
+  pedidoFabricaId?: number // aberta a partir de um pedido fábrica (/propostas)
 }
 
 const campoStyle: React.CSSProperties = {
@@ -36,7 +38,7 @@ const opcaoStyle: React.CSSProperties = {
 
 const moeda = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
-export default function FormSC({ onFechar, onCriado }: Props) {
+export default function FormSC({ onFechar, onCriado, pedidoFabricaId }: Props) {
   const [produto, setProduto] = useState('')
   const [produtoCodigo, setProdutoCodigo] = useState('')
   const [marca, setMarca] = useState('')
@@ -59,6 +61,30 @@ export default function FormSC({ onFechar, onCriado }: Props) {
   const [modelos, setModelos] = useState<ModeloOpcao[]>([])
   const [itens, setItens] = useState<ProdutoLinha[]>([])
   const pedido = useRef(0)
+
+  // Vinda de um pedido fábrica: preenche máquina, quantidade, custo e cliente
+  // (o da proposta comercial ligada ao pedido, se houver). Tudo continua editável.
+  const [fabInfo, setFabInfo] = useState<string>('')
+  useEffect(() => {
+    if (!pedidoFabricaId) return
+    let vivo = true
+    ;(async () => {
+      const { data: fab } = await supabase.from('Proposta_Fabrica')
+        .select('id,cliente,marca,modelo,qtd,custo,status').eq('id', pedidoFabricaId).maybeSingle()
+      if (!vivo) return
+      if (!fab) { setErro(`Pedido fábrica #${pedidoFabricaId} não encontrado`); return }
+      const { data: prop } = await supabase.from('Formulario')
+        .select('Cliente').eq('id_fabrica_ref', String(pedidoFabricaId)).is('deleted_at', null).maybeSingle()
+      if (!vivo) return
+      const f = scDoPedidoFabrica(fab, prop?.Cliente)
+      setProduto(f.produto); setMarca(f.marca); setModelo(f.modelo)
+      setQuantidade(String(f.quantidade))
+      if (f.custo != null) setCustoAlvo(String(f.custo))
+      setDestino(f.destino); setClienteDestino(f.cliente)
+      setFabInfo(`#${fab.id} · ${f.produto || 'sem modelo'} · ${fab.status || ''}`)
+    })()
+    return () => { vivo = false }
+  }, [pedidoFabricaId])
 
   useEffect(() => {
     if (!listaAberta) return
@@ -112,6 +138,7 @@ export default function FormSC({ onFechar, onCriado }: Props) {
       preco_alvo: custoAlvo, preco_venda_previsto: precoVenda,
       destino, cliente_destino: clienteDestino, pv_numero: pvNumero, confianca,
       motivo, descricao,
+      ...(pedidoFabricaId ? { pedido_fabrica_id: pedidoFabricaId } : {}),
     }
     const validado = validarNovaSC(corpo)
     if ('erro' in validado) { setErro(validado.erro); return }
@@ -166,13 +193,19 @@ export default function FormSC({ onFechar, onCriado }: Props) {
           </button>
         </div>
 
+        {pedidoFabricaId && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 12px', borderRadius: 8, marginBottom: 14, fontSize: 12.5, fontWeight: 600, background: 'rgba(29,78,216,.08)', color: '#1d4ed8' }}>
+            <Factory size={15} style={{ flexShrink: 0 }} />
+            <span>Aberta a partir do pedido fábrica {fabInfo || `#${pedidoFabricaId}`}. Quando o PC for emitido, o pedido passa para &quot;Pedido Feito / Aguardando Maq&quot;.</span>
+          </div>
+        )}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Produto: lista pronta, ou digita o que não estiver nela */}
           <div style={{ position: 'relative' }}>
             <label style={rotuloStyle}>Produto *</label>
             <div style={{ position: 'relative' }}>
               <Search size={15} style={{ position: 'absolute', left: 11, top: 12, color: 'var(--portal-text-muted, #999)' }} />
-              <input value={produto} maxLength={160} autoFocus
+              <input value={produto} maxLength={160} autoFocus={!pedidoFabricaId}
                 onChange={(e) => { setProduto(e.target.value); setProdutoCodigo(''); setListaAberta(true) }}
                 onFocus={() => setListaAberta(true)}
                 onBlur={() => setTimeout(() => setListaAberta(false), 180)}

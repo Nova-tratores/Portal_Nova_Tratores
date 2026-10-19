@@ -264,6 +264,18 @@ async function criarSC(auth: Autenticado, body: Record<string, unknown>) {
   const bloqueio = await avaliarBloqueio(payload, config)
   if (bloqueio) payload.bloqueio = bloqueio
 
+  // Aberta a partir de um pedido fábrica: ele precisa existir e não pode já ter
+  // outra SC em andamento (uma SC por pedido; a cancelada libera o pedido).
+  if (payload.pedido_fabrica_id) {
+    const { data: fab } = await supabaseAdmin.from('Proposta_Fabrica')
+      .select('id').eq('id', payload.pedido_fabrica_id).is('deleted_at', null).maybeSingle()
+    if (!fab) return NextResponse.json({ error: `Pedido fábrica #${payload.pedido_fabrica_id} não encontrado` }, { status: 400 })
+    const { data: outra } = await supabaseAdmin.from('tickets')
+      .select('numero').eq('tipo', 'compras').eq('payload->>pedido_fabrica_id', String(payload.pedido_fabrica_id))
+      .neq('sc_etapa', 'cancelada').limit(1).maybeSingle()
+    if (outra) return NextResponse.json({ error: `O pedido fábrica #${payload.pedido_fabrica_id} já tem a Solicitação de Compras #${outra.numero}.` }, { status: 409 })
+  }
+
   const { data: criado, error } = await supabaseAdmin
     .from('tickets')
     .insert({

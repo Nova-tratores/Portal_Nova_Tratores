@@ -3,6 +3,7 @@ import {
   SC_TRANSICOES, SC_ETAPA_INFO, SC_ETAPAS_ATIVAS, SC_ETAPAS_FINAIS,
   pessoaDoPapel, podeExecutar, proximoResponsavel,
   validarNovaSC, margemPrevista, agruparModelos, rotuloModelo, motivosDoDestino, SC_MOTIVOS,
+  idPedidoFabrica, faseFabricaAposPC, scDoPedidoFabrica, PEDIDO_FABRICA_STATUS_PC,
   type ConfigCompras, type ScEtapa, type ScAcao,
 } from '../compras'
 import { STATUS_FINAIS } from '../constantes'
@@ -277,5 +278,37 @@ describe('pessoaDoPapel', () => {
     expect(pessoaDoPapel(config, 'financeiro')).toBe('u-financeiro')
     expect(pessoaDoPapel(config, 'comprador')).toBe('u-comprador')
     expect(pessoaDoPapel(semConfig, 'comprador')).toBeNull()
+  })
+})
+
+describe('SC aberta a partir do pedido fábrica', () => {
+  const baseSC = { produto: 'MAHINDRA 6075', quantidade_solicitada: 1, motivo: 'reposicao_estoque', destino: 'estoque' }
+
+  it('guarda o id do pedido fábrica; inválido é erro', () => {
+    const ok = validarNovaSC({ ...baseSC, pedido_fabrica_id: '12' })
+    expect('dados' in ok && ok.dados.payload.pedido_fabrica_id).toBe(12)
+    const sem = validarNovaSC(baseSC)
+    expect('dados' in sem && sem.dados.payload.pedido_fabrica_id).toBeUndefined()
+    expect(validarNovaSC({ ...baseSC, pedido_fabrica_id: 'abc' })).toEqual({ erro: 'Pedido fábrica inválido' })
+    expect(idPedidoFabrica(0)).toBeNaN()
+    expect(idPedidoFabrica('')).toBeUndefined()
+  })
+
+  it('PC emitido só avança o pedido que ainda está em proposta', () => {
+    expect(faseFabricaAposPC('Proposta solicitada')).toBe(PEDIDO_FABRICA_STATUS_PC)
+    expect(faseFabricaAposPC('Proposta Recebida')).toBe(PEDIDO_FABRICA_STATUS_PC)
+    expect(faseFabricaAposPC('Pedido Feito / Aguardando Maq')).toBeNull()
+    expect(faseFabricaAposPC('Faturado por nós')).toBeNull()
+    expect(faseFabricaAposPC(null)).toBeNull()
+  })
+
+  it('pré-preenche máquina, qtd, custo e cliente da proposta ligada', () => {
+    const f = scDoPedidoFabrica({ id: 7, cliente: 'JOÃO', marca: 'MAHINDRA', modelo: '6075 4WD', qtd: '2.00', custo: '185000' }, 'JOÃO DA SILVA')
+    expect(f).toEqual({ produto: 'MAHINDRA 6075 4WD', marca: 'MAHINDRA', modelo: '6075 4WD', quantidade: 2, custo: 185000, destino: 'cliente', cliente: 'JOÃO DA SILVA' })
+  })
+
+  it('sem cliente (ou ESTOQUE) vira compra para estoque', () => {
+    expect(scDoPedidoFabrica({ id: 1, cliente: '', modelo: 'X' }).destino).toBe('estoque')
+    expect(scDoPedidoFabrica({ id: 1, cliente: 'estoque', modelo: 'X' })).toMatchObject({ destino: 'estoque', cliente: '', quantidade: 1, custo: null })
   })
 })

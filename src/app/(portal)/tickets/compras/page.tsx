@@ -31,6 +31,17 @@ export default function ComprasPipelinePage() {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [modalNovo, setModalNovo] = useState(false)
+  // /tickets/compras?fab=<id> — vem do pedido fábrica (Propostas → Pedidos Fabrica).
+  const [pedidoFabricaId, setPedidoFabricaId] = useState<number | undefined>()
+  useEffect(() => {
+    const fab = Number(new URLSearchParams(window.location.search).get('fab'))
+    if (!Number.isInteger(fab) || fab <= 0) return
+    queueMicrotask(() => { setPedidoFabricaId(fab); setModalNovo(true) })
+  }, [])
+  const fecharNovo = () => {
+    setModalNovo(false)
+    if (pedidoFabricaId) { setPedidoFabricaId(undefined); router.replace('/tickets/compras') }
+  }
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -192,7 +203,7 @@ export default function ComprasPipelinePage() {
       )}
 
       {modalNovo && (
-        <FormSC onFechar={() => setModalNovo(false)} onCriado={(id) => { setModalNovo(false); router.push(`/tickets/${id}`) }} />
+        <FormSC pedidoFabricaId={pedidoFabricaId} onFechar={fecharNovo} onCriado={(id) => { setModalNovo(false); router.push(`/tickets/${id}`) }} />
       )}
     </div>
   )
