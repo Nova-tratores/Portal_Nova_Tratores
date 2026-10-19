@@ -38,7 +38,7 @@ export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a
     if (aba !== 'painel') { onAba('painel'); setTimeout(rolar, 600) } else rolar()
   }
   return (
-    <div ref={raiz} style={{ padding: 'clamp(14px, 2vw, 24px) clamp(12px, 2vw, 28px)', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'clip', background: 'color-mix(in srgb, var(--cpv-amb, transparent) 7%, color-mix(in srgb, var(--portal-bg, #f8fafc) 95%, #0f172a))', transition: 'background .7s ease', minHeight: cheia ? '100vh' : undefined, overflowY: cheia ? 'auto' : undefined }}>
+    <div ref={raiz} style={{ padding: 'clamp(14px, 2vw, 24px) clamp(12px, 2vw, 28px)', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'clip', background: 'color-mix(in srgb, var(--cpv-amb, transparent) 7%, var(--tom-modulo, color-mix(in srgb, var(--portal-bg, #f8fafc) 95%, #0f172a)))', transition: 'background .7s ease', minHeight: cheia ? '100vh' : undefined, overflowY: cheia ? 'auto' : undefined }}>
       <style>{`
         .cpv-topo { display: flex; align-items: center; gap: 12px; margin-bottom: 16px }
         .cpv-acende { animation: cpvAcende 1.6s ease both; border-radius: 16px } @keyframes cpvAcende { 0%, 40% { box-shadow: 0 0 0 4px rgba(14,165,233,.45) } 100% { box-shadow: 0 0 0 0 rgba(14,165,233,0) } }
