@@ -171,6 +171,13 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: r.avisos.length ? `${r.avisos.length} cliente(s) sem resposta` : 'ninguém esperando' };
   },
 
+  // Planta Viva: recalcula os números da tela /planta (tabela planta_kpi). Só lê espelhos.
+  'planta-snapshot': async () => {
+    if (desligada('PLANTA')) return { pular: 'desligado (PLANTA=off)' };
+    const { rodarSnapshot } = await import('@/lib/planta/server');
+    return rodarSnapshot();
+  },
+
   'vigia-saude': async () => {
     const { checarSaudeCrons } = await import('@/lib/agendamentos/heartbeat');
     const r = await checarSaudeCrons();

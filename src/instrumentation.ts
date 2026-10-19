@@ -149,6 +149,22 @@ export async function register(): Promise<void> {
     log('vigia de conversas do NovaZap LIGADO (a cada 5 min)');
   }
 
+  // Planta Viva (docs/planta-viva-plano.md): recalcula a tabela planta_kpi a cada 5 min.
+  // Só lê espelhos do Supabase (nada de Omie). Com o agendador ligado, é a tarefa
+  // `planta-snapshot` dele. PLANTA=off desliga. Só produção.
+  if (rodaRobos && !agendadorLigado && process.env.NODE_ENV === 'production' && process.env.PLANTA !== 'off') {
+    const { comCronRun } = await import('./lib/cron/observar');
+    const rodarPlanta = async () => {
+      try {
+        const { rodarSnapshot } = await import('./lib/planta/server');
+        await comCronRun('planta-snapshot', rodarSnapshot, { lockMinutos: 4 });
+      } catch (e) { log('planta-snapshot falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarPlanta().catch(() => {}); }, CINCO_MIN);
+    setTimeout(() => { rodarPlanta().catch(() => {}); }, 2 * 60 * 1000);
+    log('planta viva LIGADA (a cada 5 min)');
+  }
+
   // Vigia de saúde dos robôs: alerta os admins no sino se um cron crítico PARAR.
   // Lê o heartbeat no Supabase (não depende do GITHUB_TOKEN) e não toca chave
   // Omie — só lê + escreve notificação —, então roda seguro aqui in-process. SÓ
