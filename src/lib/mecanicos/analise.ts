@@ -74,12 +74,21 @@ export interface Analise {
   /** ligando os pontos: horas × faturamento × ocorrências × agenda */
   conexoes: { titulo: string; texto: string }[]
   destaques: { titulo: string; texto: string; tipo: TipoDestaque }[]
-  porTecnico: { tecnico: string; leitura: string; acao: string }[]
+  porTecnico: {
+    tecnico: string; leitura: string; acao: string
+    situacao: TipoDestaque
+    pontosFortes: string[]; atencao: string[]
+    /** 2 a 3 dicas práticas do que fazer com ele */
+    dicas: string[]
+    /** como puxar a conversa com ele (uma frase respeitosa) */
+    conversa: string
+  }[]
   proximosDias: { leitura: string; alertas: string[] }
-  acoes: { oque: string; quem: string; quando: string; porque: string }[]
+  acoes: { oque: string; quem: string; quando: string; porque: string; prioridade: 'alta' | 'media' | 'baixa' }[]
 }
 
 const txt = (v: unknown, max = 600) => String(v ?? '').trim().slice(0, max)
+const textos = (v: unknown, max: number) => (Array.isArray(v) ? v : []).slice(0, max).map((x) => txt(x, 300)).filter(Boolean)
 const lista = (v: unknown) => (Array.isArray(v) ? v : []) as Record<string, unknown>[]
 
 /** Lê o JSON da IA sem confiar no formato: campo faltando vira vazio, nunca quebra a tela. */
@@ -100,9 +109,16 @@ export function lerAnalise(bruto: string): Analise | null {
       titulo: txt(d.titulo, 120), texto: txt(d.texto),
       tipo: (['bom', 'atencao', 'critico'].includes(String(d.tipo)) ? d.tipo : 'atencao') as TipoDestaque,
     })).filter((d) => d.titulo || d.texto),
-    porTecnico: lista(j.porTecnico).slice(0, 20).map((t) => ({ tecnico: txt(t.tecnico, 80), leitura: txt(t.leitura), acao: txt(t.acao) })).filter((t) => t.tecnico),
+    porTecnico: lista(j.porTecnico).slice(0, 20).map((t) => ({
+      tecnico: txt(t.tecnico, 80), leitura: txt(t.leitura), acao: txt(t.acao),
+      situacao: (['bom', 'atencao', 'critico'].includes(String(t.situacao)) ? t.situacao : 'atencao') as TipoDestaque,
+      pontosFortes: textos(t.pontosFortes, 4), atencao: textos(t.atencao, 4), dicas: textos(t.dicas, 4), conversa: txt(t.conversa, 400),
+    })).filter((t) => t.tecnico),
     proximosDias: { leitura: txt(pd.leitura, 1000), alertas: (Array.isArray(pd.alertas) ? pd.alertas : []).slice(0, 10).map((x) => txt(x, 300)).filter(Boolean) },
-    acoes: lista(j.acoes).slice(0, 12).map((x) => ({ oque: txt(x.oque, 300), quem: txt(x.quem, 80), quando: txt(x.quando, 80), porque: txt(x.porque, 300) })).filter((x) => x.oque),
+    acoes: lista(j.acoes).slice(0, 12).map((x) => ({
+      oque: txt(x.oque, 300), quem: txt(x.quem, 80), quando: txt(x.quando, 80), porque: txt(x.porque, 300),
+      prioridade: (['alta', 'media', 'baixa'].includes(String(x.prioridade)) ? x.prioridade : 'media') as 'alta' | 'media' | 'baixa',
+    })).filter((x) => x.oque).sort((a, b) => ['alta', 'media', 'baixa'].indexOf(a.prioridade) - ['alta', 'media', 'baixa'].indexOf(b.prioridade)),
   }
   if (!a.manchete) a.manchete = a.resumo.split(/(?<=[.!?])\s/)[0] || ''
   return a.resumo || a.destaques.length || a.acoes.length ? a : null

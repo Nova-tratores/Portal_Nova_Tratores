@@ -6,6 +6,35 @@ import { protegerRota } from '@/lib/ajustes/permissao-server'
 import { carregarBase } from '@/lib/mecanicos/painel-server'
 import { comCache } from '@/lib/mecanicos/cache'
 import { segundaDa, type OSFaturada } from '@/lib/mecanicos/painel'
+import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
+import { parseValorMisto } from '@/lib/marketing/custos'
+import { carregarDiretorio } from '@/lib/agenda/server'
+
+/** Requisição ligada à OS (para o feed): cobrada ou não do cliente; alimentação vira "almoço". */
+export interface ReqDaOS { id: number; tipo: string; titulo: string; valor: number; cobrado: number; status: string; nota: string | null }
+
+/** Requisições das OS do feed + fotos dos técnicos (José, 17/10/2026: "foto do técnico, valor hr, km,
+ *  peças e requisições se tiver, almoço também"). */
+async function extrasDoFeed(ultimos: OSFaturada[]) {
+  const ids = ultimos.map((o) => o.os).filter((id) => !id.startsWith('OMIE'))
+  const extras: Record<string, { reqs: ReqDaOS[]; almoco: ReqDaOS[] }> = {}
+  if (ids.length) {
+    const { data } = await sb.from('Requisicao').select('id, ordem_servico, tipo, titulo, valor_despeza, valor_cobrado_cliente, status, foto_nf').in('ordem_servico', ids)
+    for (const r of (data || []) as Record<string, unknown>[]) {
+      if (/lixeira|cancel/i.test(String(r.status || ''))) continue
+      const x = (extras[String(r.ordem_servico)] ||= { reqs: [], almoco: [] })
+      const item: ReqDaOS = { id: Number(r.id), tipo: String(r.tipo || ''), titulo: String(r.titulo || ''), valor: parseValorMisto(r.valor_despeza), cobrado: parseValorMisto(r.valor_cobrado_cliente), status: String(r.status || ''), nota: r.foto_nf ? String(r.foto_nf) : null }
+      if (/aliment/i.test(item.tipo)) x.almoco.push(item); else x.reqs.push(item)
+    }
+  }
+  const fotos: Record<string, string> = {}
+  try {
+    const dir = await carregarDiretorio()
+    const nomes = new Set(ultimos.flatMap((o) => o.tecnicos))
+    for (const p of dir.pessoas) if (p.avatar_url && nomes.has(p.nome)) fotos[p.nome] = p.avatar_url
+  } catch { /* sem fotos: iniciais */ }
+  return { extras, fotos }
+}
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -30,6 +59,7 @@ async function montar() {
   const fat = base.faturadas
   const mes = fat.filter((o) => o.data >= ini)
   const ultimos = [...fat].sort((a, b) => (b.em || `${b.data}T12:00`).localeCompare(a.em || `${a.data}T12:00`)).slice(0, 15)
+  const { extras, fotos } = await extrasDoFeed(ultimos).catch(() => ({ extras: {}, fotos: {} }))
   // dia a dia do mês (gráfico)
   const porDia: Record<string, { bruto: number; liquido: number }> = {}
   for (const o of mes) { const d = (porDia[o.data] ||= { bruto: 0, liquido: 0 }); d.bruto += o.bruto; d.liquido += o.bruto - o.custo }
@@ -39,7 +69,7 @@ async function montar() {
     semana: somar(fat.filter((o) => o.data >= seg)),
     mes: somar(mes),
     porDia: Object.entries(porDia).sort().map(([data, v]) => ({ data, bruto: Math.round(v.bruto * 100) / 100, liquido: Math.round(v.liquido * 100) / 100 })),
-    ultimos,
+    ultimos, extras, fotos,
   }
 }
 
@@ -49,7 +79,7 @@ export async function GET(req: NextRequest) {
   try {
     // gravado em posvendas_painel_cache; recalculado por trás quando passa de 60 s.
     // A chave leva o dia: virou o dia, semana e mês recomeçam.
-    const r = await comCache(`vivo:${hojeSP()}`, 60_000, montar, req.nextUrl.searchParams.get('forcar') === '1')
+    const r = await comCache(`vivo2:${hojeSP()}`, 60_000, montar, req.nextUrl.searchParams.get('forcar') === '1')
     return NextResponse.json({ ...r.dados, geradoEm: r.geradoEm })
   } catch (e) {
     console.error('[mecanicos/faturamento-vivo]', e)

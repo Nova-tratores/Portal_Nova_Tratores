@@ -66,8 +66,14 @@ export async function valorPecasDosPPVs(ids: string[]): Promise<ValorPecasPPV> {
  * Mesma conta de valorPecasDosPPVs, em lote (painel do pós-vendas, 16/10/2026).
  */
 export async function valorPecasPorPPV(ids: string[]): Promise<Map<string, number>> {
+  const det = await pecasPorPPVComDesconto(ids);
+  return new Map([...det].map(([k, v]) => [k, v.total]));
+}
+
+/** Por PPV: total com desconto e o desconto dado em R$ (painel do pós-vendas: "descontos dados"). */
+export async function pecasPorPPVComDesconto(ids: string[]): Promise<Map<string, { total: number; desconto: number }>> {
   const lista = [...new Set((ids || []).map((s) => String(s).trim()).filter(Boolean))];
-  const out = new Map<string, number>();
+  const out = new Map<string, { total: number; desconto: number }>();
   for (let i = 0; i < lista.length; i += 150) {
     const grupo = lista.slice(i, i + 150);
     const [itensQ, pedsQ] = await Promise.all([
@@ -94,7 +100,9 @@ export async function valorPecasPorPPV(ids: string[]): Promise<Map<string, numbe
     for (const g of porChave.values()) {
       if (g.qtde === 0 || cancelado.has(g.ppv)) continue;
       const pct = Math.min(100, Math.max(0, descPct.get(g.ppv) || 0));
-      out.set(g.ppv, (out.get(g.ppv) || 0) + g.totalFin * (1 - pct / 100));
+      const x = out.get(g.ppv) || { total: 0, desconto: 0 };
+      x.total += g.totalFin * (1 - pct / 100); x.desconto += g.totalFin * (pct / 100);
+      out.set(g.ppv, x);
     }
   }
   return out;

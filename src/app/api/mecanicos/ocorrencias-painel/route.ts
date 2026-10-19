@@ -28,7 +28,9 @@ export async function GET(req: NextRequest) {
       padronizadorOcorrencias(),
       sb.from('tecnico_justificativas').select('id_ocorrencia').eq('status', 'pendente').not('id_ocorrencia', 'is', null).limit(500),
     ])
-    const janela = await ocorrenciasEntre(de, fim, padronizar)
+    // só técnicos (José, 17/10/2026: "outro dia a gente faz de todos os usuários")
+    const ehTec = new Set(tecnicos)
+    const janela = (await ocorrenciasEntre(de, fim, padronizar)).filter((o) => ehTec.has(o.tecnico))
 
     // defesas pendentes de ocorrências fora da janela de 6 meses também entram na fila
     const idsPend = [...new Set(((rPend.data || []) as { id_ocorrencia: number }[]).map((j) => j.id_ocorrencia))]
@@ -37,7 +39,7 @@ export async function GET(req: NextRequest) {
     let antigas: typeof janela = []
     if (faltam.length) {
       const r = await sb.from('tecnico_ocorrencias').select(COLS).in('id', faltam)
-      antigas = (r.data || []).map((o) => paraOcorrencia(o as Record<string, unknown>, padronizar))
+      antigas = (r.data || []).map((o) => paraOcorrencia(o as Record<string, unknown>, padronizar)).filter((o) => ehTec.has(o.tecnico))
     }
 
     const doMes = janela.filter((o) => o.data >= ini && o.data <= fim)

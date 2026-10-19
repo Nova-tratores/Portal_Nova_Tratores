@@ -13,6 +13,18 @@
 //    requisições da OS; LÍQUIDO = bruto − custo. OS interna não gera faturamento.
 
 export const SEM_TECNICO = 'Sem técnico'
+/**
+ * Pessoas que aparecem em OS mas NÃO são técnicos de campo (José, 16/10/2026): tudo delas (OS,
+ * horas, gastos, salário) vai para um GRUPO — sem meta de horas e sem hora ociosa.
+ *  - Vinicius Correa → "Garantia" (as OS dele são sempre de garantia)
+ *  - José Ortiz      → "Outros"
+ */
+export const GRUPO_GARANTIA = 'Garantia'
+export const GRUPO_OUTROS = 'Outros'
+export const GRUPOS: Record<string, string> = { 'Vinicius Correa': GRUPO_GARANTIA, 'José Ortiz': GRUPO_OUTROS }
+export const grupoDe = (nome: string) => GRUPOS[nome] || nome
+/** linhas que não têm meta de horas (não são técnicos de campo) */
+export const SEM_META = new Set([SEM_TECNICO, GRUPO_GARANTIA, GRUPO_OUTROS])
 export const HORAS_DIA = 8
 
 export interface DiaRegistrado { os: string; data: string; tecnico: string; horas: number; interna: boolean }
@@ -31,8 +43,47 @@ export interface OSFaturada {
   pecas: number              // R$ das peças (PPV)
   outros: number             // requisições repassadas, extras, desconto geral
   bruto: number
-  custo: number              // requisições (fornecedores) da OS
+  custo: number              // custo de terceiros (ehCustoTerceiro)
   custoPorTipo?: Record<string, number>
+  requisicoes?: ReqCusto[]   // as requisições que formam o custo (abrem no modal)
+  /** OS de garantia (Tipo_Servico "Garantia…"): quem paga é a montadora; o técnico é quem fez */
+  garantia?: boolean
+  /** saiu com NFS-e (os_nfse); false = faturada com recibo. É a régua do Dashboard de Vendas. */
+  nota?: boolean
+  /** descontos dados na OS (R$): hora, km, desconto geral e peças (desconto do PPV) */
+  descontos?: Descontos
+}
+
+export interface Descontos { hora: number; km: number; geral: number; pecas: number }
+
+/** OS INTERNA fechada (Nº do contrato interno, cortesia, tipo de serviço interno…): o valor que a
+ *  oficina deixou de cobrar. Não entra no resultado (as horas já estão no salário) — é para ficar de olho. */
+export interface InternaFechada {
+  os: string; numeroOmie: string | null; cliente: string; contrato: string; motivo: string
+  data: string; valor: number; horas: number; tecnicos: string[]
+  /** R$ das horas (base da comissão); só na leitura ao vivo, não fica na tabela */
+  valorHoras?: number
+}
+
+/** Requisição que entra no custo de terceiros da OS. */
+export interface ReqCusto { id: number; tipo: string; valor: number; status: string; titulo: string; fornecedor: string; data: string; solicitante: string; nota: string | null }
+
+const valorNum = (v: unknown) => {
+  const s = String(v ?? '').replace(/[^\d,.-]/g, '')
+  const n = Number(s.includes(',') ? s.replace(/\./g, '').replace(',', '.') : s)
+  return Number.isFinite(n) ? n : 0
+}
+
+/**
+ * CUSTO DE TERCEIROS (José, 16/10/2026): requisição que o técnico pediu como "Trator-Cliente"
+ * e que NÃO foi cobrada do cliente. Alimentação e abastecimento não entram (são gastos do
+ * pós-vendas); lixeira/cancelada não conta.
+ */
+export function ehCustoTerceiro(r: { setor?: unknown; tipo?: unknown; status?: unknown; valor_cobrado_cliente?: unknown }): boolean {
+  if (!/trator-cliente/i.test(String(r.setor ?? ''))) return false
+  if (/aliment|abastec/i.test(String(r.tipo ?? ''))) return false
+  if (/lixeira|cancel/i.test(String(r.status ?? ''))) return false
+  return !(valorNum(r.valor_cobrado_cliente) > 0)
 }
 
 export interface LinhaTecnico {
@@ -42,6 +93,8 @@ export interface LinhaTecnico {
   internas: number      // trabalhadas em OS interna
   extras: number        // sábado/domingo
   faturadas: number     // horas cobradas nas OS faturadas
+  /** horas do app em OS já preenchida e ainda não faturada — contam na meta (José, 17/10/2026) */
+  aguardando: number
   ociosas: number
   meta: number
   km: number
@@ -66,7 +119,7 @@ export function diasUteis(de: string, ate: string): number {
 }
 
 function linhaVazia(tecnico: string, meta: number): LinhaTecnico {
-  return { tecnico, trabalhadas: 0, cliente: 0, internas: 0, extras: 0, faturadas: 0, ociosas: 0, meta, km: 0, servico: 0, kmValor: 0, pecas: 0, outros: 0, bruto: 0, custo: 0, liquido: 0, os: 0 }
+  return { tecnico, trabalhadas: 0, cliente: 0, internas: 0, extras: 0, faturadas: 0, aguardando: 0, ociosas: 0, meta, km: 0, servico: 0, kmValor: 0, pecas: 0, outros: 0, bruto: 0, custo: 0, liquido: 0, os: 0 }
 }
 
 /**
@@ -77,10 +130,14 @@ function linhaVazia(tecnico: string, meta: number): LinhaTecnico {
 export function agregar(
   de: string, ate: string, tecnicos: string[], dias: DiaRegistrado[], faturadas: OSFaturada[],
   pesos?: Map<string, Map<string, number>>,
+  /** meta de cada pessoa (ex.: só os dias em que estava na empresa); sem isso = dias úteis do período */
+  metaDe?: (tecnico: string) => number,
+  /** OS preenchidas e ainda não faturadas: as horas do app nelas contam na meta como "aguardando faturar" */
+  aguardandoOS?: Set<string>,
 ): { linhas: LinhaTecnico[]; total: LinhaTecnico } {
   const meta = diasUteis(de, ate) * HORAS_DIA
   const m = new Map<string, LinhaTecnico>()
-  const de_ = (t: string) => { let l = m.get(t); if (!l) { l = linhaVazia(t, meta); m.set(t, l) } return l }
+  const de_ = (t: string) => { let l = m.get(t); if (!l) { l = linhaVazia(t, SEM_META.has(t) ? 0 : metaDe ? metaDe(t) : meta); m.set(t, l) } return l }
   for (const t of tecnicos) de_(t)
 
   for (const d of dias) {
@@ -89,7 +146,8 @@ export function agregar(
     const w = diaSemana(d.data)
     if (w === 0 || w === 6) { l.extras += d.horas; continue }
     l.trabalhadas += d.horas
-    if (d.interna) l.internas += d.horas; else l.cliente += d.horas
+    if (d.interna) l.internas += d.horas
+    else { l.cliente += d.horas; if (aguardandoOS?.has(d.os)) l.aguardando += d.horas }
   }
 
   for (const o of faturadas) {
@@ -112,17 +170,17 @@ export function agregar(
   const linhas = [...m.values()].map((l) => {
     const x = { ...l }
     x.liquido = x.bruto - x.custo
-    x.ociosas = l.tecnico === SEM_TECNICO ? 0 : Math.max(0, x.meta - x.faturadas - x.internas)
-    for (const k of ['trabalhadas', 'cliente', 'internas', 'extras', 'faturadas', 'ociosas', 'km', 'servico', 'kmValor', 'pecas', 'outros', 'bruto', 'custo', 'liquido', 'os'] as const) x[k] = r2(x[k])
+    x.ociosas = SEM_META.has(l.tecnico) ? 0 : Math.max(0, x.meta - x.faturadas - x.internas - x.aguardando)
+    for (const k of ['trabalhadas', 'cliente', 'internas', 'extras', 'faturadas', 'aguardando', 'ociosas', 'km', 'servico', 'kmValor', 'pecas', 'outros', 'bruto', 'custo', 'liquido', 'os'] as const) x[k] = r2(x[k])
     return x
   }).sort((a, b) => (a.tecnico === SEM_TECNICO ? 1 : b.tecnico === SEM_TECNICO ? -1 : b.bruto - a.bruto || a.tecnico.localeCompare(b.tecnico, 'pt-BR')))
 
   const total = linhas.reduce((t, l) => {
-    for (const k of ['trabalhadas', 'cliente', 'internas', 'extras', 'faturadas', 'km', 'servico', 'kmValor', 'pecas', 'outros', 'bruto', 'custo', 'liquido', 'os'] as const) t[k] = r2(t[k] + l[k])
+    for (const k of ['trabalhadas', 'cliente', 'internas', 'extras', 'faturadas', 'aguardando', 'km', 'servico', 'kmValor', 'pecas', 'outros', 'bruto', 'custo', 'liquido', 'os'] as const) t[k] = r2(t[k] + l[k])
     return t
   }, linhaVazia('Equipe', 0))
-  const comMeta = linhas.filter((l) => l.tecnico !== SEM_TECNICO)
-  total.meta = r2(meta * comMeta.length)
+  const comMeta = linhas.filter((l) => !SEM_META.has(l.tecnico))
+  total.meta = r2(comMeta.reduce((s, l) => s + l.meta, 0))
   total.ociosas = r2(comMeta.reduce((s, l) => s + l.ociosas, 0))
   return { linhas, total }
 }
@@ -131,41 +189,122 @@ export function agregar(
 export interface Gasto {
   data: string
   pessoa: string
-  tipo: 'abastecimento' | 'alimentacao'
+  tipo: 'abastecimento' | 'manutencao' | 'alimentacao' | 'materiais'
   origem: 'cartao' | 'requisicao'
+  /** requisição que ainda não chegou ao financeiro: valor não confirmado, fica fora do total */
+  aberto?: boolean
   valor: number
   litros: number
   /** requisição ligada a OS: já está no custo de terceiros da OS */
   naOS: boolean
   ref?: string
+  placa?: string
 }
 
 export interface ResumoGastos {
   abastecimento: number
+  manutencao: number
   alimentacao: number
+  /** ferramenta, peça e material de uso da oficina, serviço de terceiro que não é de OS */
+  materiais: number
   total: number
+  /** requisições ainda não confirmadas (fora do total) */
+  emAberto: number
   litros: number
   /** a parte que NÃO está no custo das OS (para o resultado não descontar duas vezes) */
   foraDasOS: number
-  porPessoa: { pessoa: string; abastecimento: number; alimentacao: number; total: number; litros: number; foraDasOS: number }[]
+  porPessoa: { pessoa: string; abastecimento: number; manutencao: number; alimentacao: number; materiais: number; total: number; litros: number; foraDasOS: number }[]
 }
 
 /** Soma os gastos do período, por tipo e por pessoa. */
 export function resumirGastos(gastos: Gasto[], de: string, ate: string): ResumoGastos {
-  const r: ResumoGastos = { abastecimento: 0, alimentacao: 0, total: 0, litros: 0, foraDasOS: 0, porPessoa: [] }
+  const r: ResumoGastos = { abastecimento: 0, manutencao: 0, alimentacao: 0, materiais: 0, total: 0, emAberto: 0, litros: 0, foraDasOS: 0, porPessoa: [] }
   const m = new Map<string, ResumoGastos['porPessoa'][number]>()
   for (const g of gastos) {
     if (g.data < de || g.data > ate) continue
+    if (g.aberto) { r.emAberto += g.valor; continue }
     r[g.tipo] += g.valor; r.total += g.valor; r.litros += g.litros
     if (!g.naOS) r.foraDasOS += g.valor
-    const p = m.get(g.pessoa) || { pessoa: g.pessoa, abastecimento: 0, alimentacao: 0, total: 0, litros: 0, foraDasOS: 0 }
+    const p = m.get(g.pessoa) || { pessoa: g.pessoa, abastecimento: 0, manutencao: 0, alimentacao: 0, materiais: 0, total: 0, litros: 0, foraDasOS: 0 }
     p[g.tipo] += g.valor; p.total += g.valor; p.litros += g.litros
     if (!g.naOS) p.foraDasOS += g.valor
     m.set(g.pessoa, p)
   }
   const arred = (n: number) => Math.round(n * 100) / 100
-  for (const k of ['abastecimento', 'alimentacao', 'total', 'litros', 'foraDasOS'] as const) r[k] = arred(r[k])
-  r.porPessoa = [...m.values()].map((p) => ({ ...p, abastecimento: arred(p.abastecimento), alimentacao: arred(p.alimentacao), total: arred(p.total), litros: arred(p.litros), foraDasOS: arred(p.foraDasOS) })).sort((a, b) => b.total - a.total)
+  for (const k of ['abastecimento', 'manutencao', 'alimentacao', 'materiais', 'total', 'emAberto', 'litros', 'foraDasOS'] as const) r[k] = arred(r[k])
+  r.porPessoa = [...m.values()].map((p) => ({ ...p, abastecimento: arred(p.abastecimento), manutencao: arred(p.manutencao), alimentacao: arred(p.alimentacao), materiais: arred(p.materiais), total: arred(p.total), litros: arred(p.litros), foraDasOS: arred(p.foraDasOS) })).sort((a, b) => b.total - a.total)
+  return r
+}
+
+/** Pessoa do pós-vendas (RH): salário + encargos, admissão/demissão em YYYY-MM e, por mês,
+ *  comissão (já com encargos) e rescisão/acertos pagos no Omie. */
+export interface MembroEquipe {
+  pessoa: string; salario: number; encargos: number; admissao: string | null; demissao: string | null
+  extras?: ExtraEquipe[]
+}
+export interface ExtraEquipe { mes: string; comissao: number; rescisao: number }
+export interface CustoEquipe {
+  total: number
+  porPessoa: Record<string, number>
+  salario: number
+  /** comissão já lançada no RH (com encargos) */
+  comissao: number
+  /** comissão PREVISTA (mês ainda sem comissão no RH), com encargos */
+  comissaoPrevista: number
+  rescisao: number
+  detalhe: Record<string, { salario: number; comissao: number; comissaoPrevista: number; rescisao: number }>
+}
+
+export interface OpcoesCusto {
+  /** salário do MÊS INTEIRO em cada mês tocado (José: "o que ele custou não pode se dividir ao longo do mês") */
+  inteiro?: boolean
+  /** comissão prevista da pessoa entre duas datas (sem encargos) — usada no mês sem comissão no RH */
+  previsao?: (pessoa: string, de: string, ate: string) => number
+}
+
+/**
+ * Custo da equipe no período: (salário + encargos) de cada mês × dias do período naquele mês ÷
+ * dias do mês, só nos meses entre a admissão e a demissão (como o "custo fixo RH" do sistema do Omie).
+ */
+export function custoEquipe(equipe: MembroEquipe[], de: string, ate: string, op: OpcoesCusto = {}): CustoEquipe {
+  const r: CustoEquipe = { total: 0, porPessoa: {}, salario: 0, comissao: 0, comissaoPrevista: 0, rescisao: 0, detalhe: {} }
+  if (ate < de) return r
+  const diasNoMes = (mes: string) => { const [a, m] = mes.split('-').map(Number); return new Date(Date.UTC(a, m, 0)).getUTCDate() }
+  // meses tocados pelo período, com o trecho de cada um
+  const meses: { mes: string; de: string; ate: string; frac: number }[] = []
+  for (let m = de.slice(0, 7); m <= ate.slice(0, 7); ) {
+    const n = diasNoMes(m), ini = `${m}-01`, fimM = `${m}-${String(n).padStart(2, '0')}`
+    const a = de > ini ? de : ini, b = ate < fimM ? ate : fimM
+    const dias = Math.round((Date.parse(`${b}T12:00:00Z`) - Date.parse(`${a}T12:00:00Z`)) / 86_400_000) + 1
+    meses.push({ mes: m, de: a, ate: b, frac: op.inteiro ? 1 : dias / n })
+    const [y, mm] = m.split('-').map(Number)
+    m = mm === 12 ? `${y + 1}-01` : `${y}-${String(mm + 1).padStart(2, '0')}`
+  }
+  for (const p of equipe) {
+    const mensal = (p.salario || 0) + (p.encargos || 0)
+    const fatorEnc = p.salario ? 1 + (p.encargos || 0) / p.salario : 1.44
+    const extras = new Map((p.extras || []).map((x) => [x.mes, x]))
+    let sal = 0, com = 0, prev = 0, res = 0
+    for (const m of meses) {
+      const ativo = !(p.admissao && m.mes < p.admissao) && !(p.demissao && m.mes > p.demissao)
+      if (ativo) sal += mensal * m.frac
+      const x = extras.get(m.mes)
+      res += (x?.rescisao || 0) * m.frac
+      if (x && x.comissao > 0) com += x.comissao * m.frac
+      else if (ativo && op.previsao) prev += op.previsao(p.pessoa, m.de, m.ate) * fatorEnc
+    }
+    const tot = sal + com + prev + res
+    if (tot <= 0) continue
+    const a = r.detalhe[p.pessoa] || { salario: 0, comissao: 0, comissaoPrevista: 0, rescisao: 0 }
+    a.salario += sal; a.comissao += com; a.comissaoPrevista += prev; a.rescisao += res
+    r.detalhe[p.pessoa] = a
+    r.porPessoa[p.pessoa] = (r.porPessoa[p.pessoa] || 0) + tot
+    r.salario += sal; r.comissao += com; r.comissaoPrevista += prev; r.rescisao += res; r.total += tot
+  }
+  const arred = (n: number) => Math.round(n * 100) / 100
+  for (const k of Object.keys(r.porPessoa)) r.porPessoa[k] = arred(r.porPessoa[k])
+  for (const v of Object.values(r.detalhe)) { v.salario = arred(v.salario); v.comissao = arred(v.comissao); v.comissaoPrevista = arred(v.comissaoPrevista); v.rescisao = arred(v.rescisao) }
+  r.total = arred(r.total); r.salario = arred(r.salario); r.comissao = arred(r.comissao); r.comissaoPrevista = arred(r.comissaoPrevista); r.rescisao = arred(r.rescisao)
   return r
 }
 
@@ -177,6 +316,14 @@ export interface BaseDados {
   osInternas: Record<string, { cliente: string; motivo: string }>
   /** abastecimento e alimentação do pós-vendas (pode faltar em base gravada antes de 16/10) */
   gastos?: Gasto[]
+  /** salário + encargos dos técnicos (pode faltar em base antiga) */
+  equipe?: MembroEquipe[]
+  /** % de comissão de cada técnico (config do painel Omie) — para a comissão PREVISTA */
+  pctComissao?: Record<string, number>
+  /** OS internas fechadas (contrato Interno, Cortesia Oficina…), no mês em que fecharam */
+  internasFechadas?: InternaFechada[]
+  /** dinheiro parado agora: OS preenchidas sem faturar e OS que passaram da data sem relatório */
+  pendencias?: import('./pendencias').Pendencia[]
 }
 export interface OSInterna { os: string; cliente: string; motivo: string; horas: number; tecnicos: string[] }
 
@@ -186,15 +333,72 @@ export const QTD_SERIE = { dia: 14, semana: 8, mes: 6, ano: 3 } as const
  * O painel de um período a partir da base inteira — puro, roda no navegador (troca de data na hora).
  * Período em andamento conta a meta só até hoje (dia que nem chegou não vira hora ociosa).
  */
-export function montarPainel(base: BaseDados, tipo: 'dia' | 'semana' | 'mes' | 'ano', ref: string, hoje: string, pesos?: Map<string, Map<string, number>>) {
+/**
+ * Quem estava na empresa no período (José, 16/10/2026: "só deixa eles nas datas em que eram
+ * ativos"): admissão/demissão do RH (equipe, em YYYY-MM). Quem não está no RH continua aparecendo
+ * (e quem trabalhou no período aparece de qualquer jeito, pelas horas/OS dele).
+ */
+export function ativoEm(e: { admissao: string | null; demissao: string | null } | undefined, de: string, ate: string): boolean {
+  if (!e) return true
+  return (!e.admissao || e.admissao <= ate.slice(0, 7)) && (!e.demissao || e.demissao >= de.slice(0, 7))
+}
+export function ativosEm(base: BaseDados, de: string, ate: string): string[] {
+  return base.tecnicos.filter((t) => ativoEm((base.equipe || []).find((e) => e.pessoa === t), de, ate))
+}
+/** Meta só dos dias úteis em que a pessoa estava na empresa. */
+export function metaAtiva(base: BaseDados) {
+  return (de: string, ate: string) => (t: string) => {
+    const e = (base.equipe || []).find((x) => x.pessoa === t)
+    if (!e) return diasUteis(de, ate) * HORAS_DIA
+    let n = 0
+    for (let d = de; d <= ate; d = somarDias(d, 1)) { const w = diaSemana(d); if (w >= 1 && w <= 5 && ativoEm(e, d, d)) n++ }
+    return n * HORAS_DIA
+  }
+}
+
+/** Troca o nome das pessoas que são GRUPO (Garantia, Outros) em todos os dados da base. */
+export function agruparBase(base: BaseDados): BaseDados {
+  const g = grupoDe
+  return {
+    ...base,
+    // o grupo aparece como cartão sempre que tem salário cadastrado (mesmo sem OS no período)
+    tecnicos: [...new Set([...base.tecnicos.filter((t) => !GRUPOS[t]), ...(base.equipe || []).map((e) => GRUPOS[e.pessoa]).filter(Boolean)])],
+    faturadas: base.faturadas.map((o) => ({ ...o, tecnicos: [...new Set(o.tecnicos.map(g))] })),
+    diasTodos: base.diasTodos.map((d) => ({ ...d, tecnico: g(d.tecnico) })),
+    gastos: (base.gastos || []).map((x) => ({ ...x, pessoa: g(x.pessoa) })),
+    equipe: (base.equipe || []).map((e) => ({ ...e, pessoa: g(e.pessoa) })),
+  }
+}
+
+/** OS preenchidas (relatório feito / executada) que ainda não faturaram — garantia inclusa. */
+export function osAguardandoFaturar(base: BaseDados): Set<string> {
+  return new Set((base.pendencias || []).filter((p) => p.tipo === 'preenchida').map((p) => p.os))
+}
+
+export function montarPainel(baseBruta: BaseDados, tipo: 'dia' | 'semana' | 'mes' | 'ano', ref: string, hoje: string) {
+  const base = agruparBase(baseBruta)
   const buckets = periodos(tipo, ref, QTD_SERIE[tipo])
   const atual = buckets[buckets.length - 1]
-  const p = pesos || pesosPorOS(base.diasTodos)
+  const p = pesosPorOS(base.diasTodos)
   const ate = (b: Bucket) => (b.ate > hoje ? hoje : b.ate)
-  const periodo = agregar(atual.de, ate(atual), base.tecnicos, base.diasTodos, base.faturadas, p)
+  const aguardandoOS = osAguardandoFaturar(base)
+  // custo do técnico: salário do mês inteiro (mês/ano) + comissão do RH ou, sem ela, a PREVISTA
+  // (regra do painel Omie; no mês em andamento, projetada até o fim do mês)
+  const pctTodos = base.pctComissao || {}
+  const opCusto: OpcoesCusto = {
+    inteiro: tipo === 'mes' || tipo === 'ano',
+    previsao: (pessoa, d1, d2) => {
+      if (!pctTodos[pessoa]) return 0
+      const fim = d2 > hoje ? hoje : d2
+      if (fim < d1) return 0
+      const v = calcularComissoes(d1, fim, { [pessoa]: pctTodos[pessoa] }, base.faturadas, base.internasFechadas || [])[pessoa]?.total || 0
+      return d2 > hoje && (tipo === 'mes' || tipo === 'ano') ? projetarMes(v, d1.slice(0, 7), hoje) : v
+    },
+  }
+  const periodo = agregar(atual.de, ate(atual), ativosEm(base, atual.de, ate(atual)), base.diasTodos, base.faturadas, p, metaAtiva(base)(atual.de, ate(atual)), aguardandoOS)
   const serie = buckets.map((b) => {
-    const r = agregar(b.de, ate(b), base.tecnicos, base.diasTodos, base.faturadas, p)
-    return { ...b, total: r.total, porTecnico: Object.fromEntries(r.linhas.map((l) => [l.tecnico, { faturadas: l.faturadas, internas: l.internas, ociosas: l.ociosas, bruto: l.bruto, liquido: l.liquido, km: l.km }])) }
+    const r = agregar(b.de, ate(b), ativosEm(base, b.de, ate(b)), base.diasTodos, base.faturadas, p, metaAtiva(base)(b.de, ate(b)), aguardandoOS)
+    return { ...b, total: r.total, porTecnico: Object.fromEntries(r.linhas.map((l) => [l.tecnico, { faturadas: l.faturadas, aguardando: l.aguardando, internas: l.internas, ociosas: l.ociosas, bruto: l.bruto, liquido: l.liquido, km: l.km }])) }
   })
   const noPeriodo = (d: string) => d >= atual.de && d <= atual.ate
   const dias = base.diasTodos.filter((d) => noPeriodo(d.data))
@@ -214,8 +418,24 @@ export function montarPainel(base: BaseDados, tipo: 'dia' | 'semana' | 'mes' | '
     dias,
     internas: [...porInterna.values()].sort((a, b) => b.horas - a.horas),
     gastos: resumirGastos(base.gastos || [], atual.de, ate(atual)),
-    gastosSerie: buckets.map((b) => ({ rotulo: b.rotulo, ...resumirGastos(base.gastos || [], b.de, ate(b)) })).map((g) => ({ abastecimento: g.abastecimento, alimentacao: g.alimentacao, total: g.total, rotulo: g.rotulo })),
+    gastosSerie: buckets.map((b) => ({ rotulo: b.rotulo, ...resumirGastos(base.gastos || [], b.de, ate(b)) })).map((g) => ({ abastecimento: g.abastecimento, manutencao: g.manutencao, alimentacao: g.alimentacao, materiais: g.materiais, total: g.total, rotulo: g.rotulo })),
+    equipe: custoEquipe(base.equipe || [], atual.de, atual.ate, opCusto),
+    equipeSerie: buckets.map((b) => custoEquipe(base.equipe || [], b.de, b.ate, opCusto).total),
+    notas: resumoNotas(base.faturadas.filter((o) => noPeriodo(o.data))),
+    despesas: resumoDespesas(base, atual.de, ate(atual)),
+    despesasAnterior: buckets.length > 1 ? { rotulo: (tipo === 'semana' ? 'semana de ' : tipo === 'dia' ? 'dia ' : '') + buckets[buckets.length - 2].rotulo, ...resumoDespesas(base, buckets[buckets.length - 2].de, ate(buckets[buckets.length - 2])) } : null,
   }
+}
+
+/** Serviço (mão de obra + km + outros itens da OS) com NFS-e × com recibo — a régua do Dashboard de Vendas. */
+export function resumoNotas(os: OSFaturada[]) {
+  const r = { comNota: 0, recibo: 0, qtdNota: 0, qtdRecibo: 0 }
+  for (const o of os) {
+    const v = o.servico + o.kmValor + o.outros
+    if (o.nota) { r.comNota += v; r.qtdNota++ } else { r.recibo += v; r.qtdRecibo++ }
+  }
+  r.comNota = Math.round(r.comNota * 100) / 100; r.recibo = Math.round(r.recibo * 100) / 100
+  return r
 }
 export type PainelMontado = ReturnType<typeof montarPainel>
 
@@ -302,3 +522,59 @@ export function pesosPorOS(dias: DiaRegistrado[]): Map<string, Map<string, numbe
   }
   return m
 }
+
+/**
+ * O cartão-frota chega por PLANILHA (Frota → Abastecimento), não sozinho. Devolve o que falta no
+ * período: dias depois da última transação importada e meses inteiros sem nenhuma transação.
+ */
+export function faltasCartao(gastos: Gasto[], de: string, ate: string): { ultimo: string | null; depoisDe: string | null; mesesSem: string[] } {
+  const dias = gastos.filter((g) => g.origem === 'cartao').map((g) => g.data).sort()
+  if (!dias.length) return { ultimo: null, depoisDe: null, mesesSem: [] }
+  const primeiro = dias[0], ultimo = dias[dias.length - 1]
+  const comCartao = new Set(dias.map((d) => d.slice(0, 7)))
+  const mesesSem: string[] = []
+  for (let m = de.slice(0, 7); m <= ate.slice(0, 7) && m < ultimo.slice(0, 7); ) {
+    if (m > primeiro.slice(0, 7) && !comCartao.has(m)) mesesSem.push(m)
+    const [a, mm] = m.split('-').map(Number)
+    m = mm === 12 ? `${a + 1}-01` : `${a}-${String(mm + 1).padStart(2, '0')}`
+  }
+  return { ultimo, depoisDe: ate > ultimo ? ultimo : null, mesesSem }
+}
+
+import { calcularComissoes, projetarMes } from './comissao'
+
+/** Contratos que a oficina assume (o José quer ver em destaque). */
+export const CONTRATOS_ATENCAO = ['interno', 'cortesia oficina']
+export const contratoAtencao = (c: string) => CONTRATOS_ATENCAO.includes(String(c || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase())
+
+/** Tudo que o pós-vendas gastou ou deixou de cobrar no período, separado. */
+export function resumoDespesas(base: BaseDados, de: string, ate: string) {
+  const g = resumirGastos(base.gastos || [], de, ate)
+  const os = base.faturadas.filter((o) => o.data >= de && o.data <= ate)
+  const terceiros = os.reduce((a, o) => a + o.custo, 0)
+  const desc: Descontos & { total: number; qtdOS: number } = { hora: 0, km: 0, geral: 0, pecas: 0, total: 0, qtdOS: 0 }
+  for (const o of os) {
+    const d = o.descontos
+    if (!d) continue
+    const t = d.hora + d.km + d.geral + d.pecas
+    if (t <= 0.009) continue
+    desc.hora += d.hora; desc.km += d.km; desc.geral += d.geral; desc.pecas += d.pecas; desc.total += t; desc.qtdOS++
+  }
+  const internas = (base.internasFechadas || []).filter((x) => x.data >= de && x.data <= ate)
+  const porContrato: Record<string, { qtd: number; valor: number; horas: number }> = {}
+  for (const x of internas) {
+    const k = x.contrato || x.motivo || 'interna'
+    const c = porContrato[k] || { qtd: 0, valor: 0, horas: 0 }
+    c.qtd++; c.valor += x.valor; c.horas += x.horas
+    porContrato[k] = c
+  }
+  const r2 = (n: number) => Math.round(n * 100) / 100
+  return {
+    abastecimento: g.abastecimento, manutencao: g.manutencao, alimentacao: g.alimentacao, materiais: g.materiais, emAberto: g.emAberto,
+    terceiros: r2(terceiros),
+    gastosTotal: r2(g.total + terceiros),
+    internas: { qtd: internas.length, valor: r2(internas.reduce((a, x) => a + x.valor, 0)), horas: r2(internas.reduce((a, x) => a + x.horas, 0)), porContrato },
+    descontos: { hora: r2(desc.hora), km: r2(desc.km), geral: r2(desc.geral), pecas: r2(desc.pecas), total: r2(desc.total), qtdOS: desc.qtdOS },
+  }
+}
+export type ResumoDespesas = ReturnType<typeof resumoDespesas>

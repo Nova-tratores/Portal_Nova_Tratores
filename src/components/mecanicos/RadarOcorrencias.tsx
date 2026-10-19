@@ -13,6 +13,10 @@ import { authHeaders } from '@/lib/auth/client'
 import { supabase } from '@/lib/supabase'
 import { BASE_PONTOS, faixa, type Cat, type HistoricoPessoa, type LinhaEscudo, type OcorrenciaPainel } from '@/lib/mecanicos/ocorrencias-painel'
 import { Kpi, Cartao, EstilosCPV, useContador, brl } from './ui'
+import CarreiraComissoes from './CarreiraComissoes'
+import CartaLiga, { IconeLiga } from './CartaLiga'
+import { useCarreira } from './useCarreira'
+import { patente } from '@/lib/mecanicos/carreira'
 
 interface Resp {
   mes: string
@@ -60,6 +64,8 @@ const haQuanto = (iso: string | null) => {
 }
 
 export default function RadarOcorrencias() {
+  const { dados: carreira } = useCarreira()
+  const [carta, setCarta] = useState<number | null>(null)
   const [mes, setMes] = useState(mesSP)
   const [d, setD] = useState<Resp | null>(null)
   const [erro, setErro] = useState('')
@@ -141,6 +147,10 @@ export default function RadarOcorrencias() {
     <div>
       <EstilosCPV />
       <EstilosRadar />
+      {carta != null && d && d.linhas.length > 0 && (
+        <CartaLiga lista={d.linhas.map((l) => ({ tecnico: l.tecnico, escudo: l, carreira: carreira?.carreira.find((c) => c.tecnico === l.tecnico) }))}
+          inicio={Math.min(carta, d.linhas.length - 1)} nomesCat={NOME_CAT} coresCat={COR_CAT} onFechar={() => setCarta(null)} />
+      )}
 
       {/* mês */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
@@ -163,6 +173,9 @@ export default function RadarOcorrencias() {
             <Kpi titulo="Pontos anulados" valor={tot.anulados} formato={(v) => String(Math.round(v))} cor="#059669" icone="fa-shield-halved" atraso={180} sub="defesas aceitas" />
           </div>
 
+          {/* carreira (Ferro → Diamante) e comissões */}
+          <CarreiraComissoes />
+
           <div className="rdr-duas">
             <Cartao titulo="Radar do mês" atraso={120} extra={filtro}>
               <Radar ocs={filtradas} periodo={d.periodo} atual={ehAtual} cat={cat} onCat={(c) => setCat(cat === c ? null : c)} onHover={setHover} onAbrir={setAberta} />
@@ -170,9 +183,9 @@ export default function RadarOcorrencias() {
                 <span>centro = agora · borda = início do mês</span><span>tamanho = pontos</span><span>○ vazio = anulada</span><span>clique no quadrante para filtrar</span>
               </div>
             </Cartao>
-            <Cartao titulo="Escudos" atraso={180} extra={<span style={{ fontSize: 11.5, color: MUDO }}>clique para focar</span>}>
+            <Cartao titulo="Escudos e ligas" atraso={180} extra={<span style={{ fontSize: 11.5, color: MUDO }}>clique no técnico para ver a carta</span>}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))', gap: 10 }}>
-                {d.linhas.map((l, i) => <Escudo key={l.tecnico} l={l} i={i} treme={tremer === l.tecnico} ativo={tec === l.tecnico} apagado={!!tec && tec !== l.tecnico} onClick={() => setTec(tec === l.tecnico ? null : l.tecnico)} />)}
+                {d.linhas.map((l, i) => <Escudo key={l.tecnico} l={l} i={i} nivel={carreira?.carreira.find((c) => c.tecnico === l.tecnico)?.nivel} treme={tremer === l.tecnico} ativo={tec === l.tecnico} apagado={!!tec && tec !== l.tecnico} onClick={() => { setTec(l.tecnico); setCarta(i) }} />)}
               </div>
             </Cartao>
           </div>
@@ -355,7 +368,7 @@ function Avatar({ nome, cor }: { nome: string; cor: string }) {
   return <span style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: 13, color: '#fefefe', background: cor }}>{iniciais(nome)}</span>
 }
 
-function Escudo({ l, i, ativo, apagado, treme, onClick }: { l: LinhaEscudo; i: number; ativo: boolean; apagado: boolean; treme?: boolean; onClick: () => void }) {
+function Escudo({ l, i, nivel, ativo, apagado, treme, onClick }: { l: LinhaEscudo; i: number; nivel?: number; ativo: boolean; apagado: boolean; treme?: boolean; onClick: () => void }) {
   const saldo = useContador(l.saldo, 1300)
   const f = faixa(l.saldo)
   const cor = FAIXA[f]
@@ -374,8 +387,10 @@ function Escudo({ l, i, ativo, apagado, treme, onClick }: { l: LinhaEscudo; i: n
           <span style={{ fontSize: 9.5, color: MUDO, letterSpacing: 1 }}>PONTOS</span>
         </div>
         {l.pendentes > 0 && <span className="rdr-badge" style={{ position: 'absolute', top: -2, right: -6 }} title="defesas aguardando">{l.pendentes}</span>}
+        {nivel != null && <span style={{ position: 'absolute', bottom: -4, left: -8 }} className="rdr-liga"><IconeLiga nivel={nivel} tamanho={30} /></span>}
       </div>
       <div style={{ fontWeight: 800, fontSize: 12.5, marginTop: 8, color: TXT, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{l.tecnico}</div>
+      {nivel != null && <div style={{ fontSize: 11, fontWeight: 900, color: patente(nivel).cor, textTransform: 'uppercase', letterSpacing: .5 }}>{patente(nivel).nome}</div>}
       <div style={{ fontSize: 11, color: MUDO }}>{l.qtd ? `${l.qtd} ocorrência${l.qtd > 1 ? 's' : ''}` : 'sem ocorrências'}</div>
       <div style={{ display: 'flex', height: 4, borderRadius: 99, overflow: 'hidden', marginTop: 7, background: 'var(--portal-bg-secondary, #f1f5f9)' }}>
         {l.descontado > 0 && (Object.keys(l.porCategoria) as Cat[]).filter((c) => l.porCategoria[c] > 0).map((c) => (

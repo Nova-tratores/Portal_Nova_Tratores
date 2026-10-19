@@ -1,9 +1,11 @@
 'use client'
 // Tratorilson no topo do Centro do Pós-Vendas (José, 16/10/2026) — sem aba própria.
-// Faixa: a manchete de agora (situação boa/atenção/crítica) + os pontos que ele ligou.
-// Clicar abre o painel lateral com a leitura completa e o lugar para ENSINAR o Tratorilson.
+// Faixa: situação de agora + as 3 ações mais urgentes + cada técnico com a cor da situação dele.
+// Clicar abre o RELATÓRIO: plano de ação (com "feito"), técnico por técnico (pontos fortes,
+// atenção, dicas e como puxar a conversa), ligações causa → efeito e "ensinar o Tratorilson".
 // A análise se refaz sozinha quando passa de 3 h (o servidor gera por trás; aqui só pergunta de novo).
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { authHeaders } from '@/lib/auth/client'
 import type { Analise, TipoDestaque } from '@/lib/mecanicos/analise'
 import { leituraRapida, porDiaDe } from '@/lib/mecanicos/fita'
@@ -11,19 +13,22 @@ import { useBasePosVendas } from './useBasePosVendas'
 
 interface Ensinamento { id: number; conteudo: string }
 interface Guardada { analise: Analise; geradaEm: string; por: string | null }
+type Aba = 'plano' | 'tecnicos' | 'ligacoes' | 'ensinar'
 
-const ETAPAS = ['Lendo as horas das últimas 8 semanas…', 'Conferindo faturamento, km e OS internas…', 'Cruzando com as ocorrências de cada um…', 'Olhando a agenda dos próximos 14 dias…', 'Ligando os pontos…', 'Escrevendo a leitura…']
+const ETAPAS = ['Lendo as horas das últimas 8 semanas…', 'Conferindo faturamento, km e OS internas…', 'Cruzando com as ocorrências de cada um…', 'Olhando a agenda dos próximos 14 dias…', 'Ligando os pontos…', 'Escrevendo as dicas de cada técnico…']
 const SIT: Record<TipoDestaque, { cor: string; fundo: string; rotulo: string; icone: string }> = {
   bom: { cor: '#047857', fundo: '#ecfdf5', rotulo: 'Situação boa', icone: 'fa-circle-check' },
   atencao: { cor: '#b45309', fundo: '#fffbeb', rotulo: 'Atenção', icone: 'fa-triangle-exclamation' },
   critico: { cor: '#b91c1c', fundo: '#fef2f2', rotulo: 'Situação crítica', icone: 'fa-circle-exclamation' },
 }
-const TXT = 'var(--portal-text, #0f172a)', MUDO = 'var(--portal-text-muted, #64748b)', BORDA = 'var(--portal-border, #e5e7eb)'
+const PRIO = { alta: { cor: '#dc2626', rotulo: 'Esta semana', fundo: '#fef2f2' }, media: { cor: '#d97706', rotulo: 'Este mês', fundo: '#fffbeb' }, baixa: { cor: '#0369a1', rotulo: 'Quando der', fundo: '#eff6ff' } } as const
+const MUDO = 'var(--portal-text-muted, #64748b)'
 const EXEMPLOS = [
   'Semana fechada com menos de 25 h faturadas por técnico é preocupante; menos de 15 h é crítico.',
   'Técnico com dia livre na agenda deve receber revisão de cliente com revisão vencendo.',
   'Excesso de velocidade 2 vezes no mês: sugerir conversa individual.',
 ]
+const iniciais = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase()
 
 async function api(body?: object) {
   const r = await fetch('/api/mecanicos/analise', body
@@ -34,16 +39,19 @@ async function api(body?: object) {
   return j
 }
 
+// ações marcadas como "feito" — por leitura, lembradas neste navegador
+const chaveFeito = (g: string) => `tratorilson-feito:${g}`
+const lerFeitos = (g: string): number[] => { try { return JSON.parse(localStorage.getItem(chaveFeito(g)) || '[]') } catch { return [] } }
+
 export default function TratorilsonLeitura() {
   const [ultima, setUltima] = useState<Guardada | null>(null)
   const [ens, setEns] = useState<Ensinamento[]>([])
   const [gerando, setGerando] = useState(false)
   const [carregou, setCarregou] = useState(false)
   const [etapa, setEtapa] = useState(0)
-  const [aberto, setAberto] = useState(false)
+  const [aberto, setAberto] = useState<{ aba: Aba; tecnico?: string } | null>(null)
   const [erro, setErro] = useState('')
   const [agoraMs, setAgoraMs] = useState(0)
-  // enquanto a leitura do Tratorilson não chega, a faixa já mostra os números do momento
   const { base } = useBasePosVendas()
   const rapida = useMemo(() => (base ? leituraRapida(porDiaDe(base.faturadas), new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())) : null), [base])
 
@@ -52,7 +60,6 @@ export default function TratorilsonLeitura() {
     catch (e) { setErro(e instanceof Error ? e.message : 'Falha') } finally { setCarregou(true) }
   }, [])
   useEffect(() => { let vivo = true; Promise.resolve().then(() => { if (vivo) void carregar() }); return () => { vivo = false } }, [carregar])
-  // enquanto o servidor gera, pergunta de novo a cada 6 s
   useEffect(() => { if (!gerando) return; const t = setTimeout(() => void carregar(), 6000); return () => clearTimeout(t) }, [gerando, carregar, ultima])
   useEffect(() => { if (!gerando) return; const t = setInterval(() => setEtapa((e) => (e + 1) % ETAPAS.length), 1800); return () => clearInterval(t) }, [gerando])
   useEffect(() => { const tick = () => setAgoraMs(Date.now()); const t0 = setTimeout(tick, 0), t = setInterval(tick, 60_000); return () => { clearTimeout(t0); clearInterval(t) } }, [ultima])
@@ -67,247 +74,348 @@ export default function TratorilsonLeitura() {
   const sit = SIT[a?.situacao || 'atencao']
   const ha = ultima && agoraMs ? Math.max(0, Math.round((agoraMs - Date.parse(ultima.geradaEm)) / 60_000)) : null
   const quando = ha == null ? '' : ha < 1 ? 'agora' : ha < 60 ? `há ${ha} min` : `há ${Math.round(ha / 60)} h`
-  const pontos = a ? [...a.conexoes.map((c) => c.titulo || c.texto), ...a.destaques.filter((d) => d.tipo !== 'bom').map((d) => d.titulo)].filter(Boolean).slice(0, 3) : []
+  const urgentes = (a?.acoes || []).slice(0, 3)
 
   return (
     <>
       <style>{ESTILO}</style>
-      <div className={`tl-faixa cpv-entra ${gerando ? 'tl-pensando' : ''}`} role="button" tabIndex={0}
-        onClick={() => setAberto(true)} onKeyDown={(e) => { if (e.key === 'Enter') setAberto(true) }}
-        style={{ borderLeftColor: a ? sit.cor : '#cbd5e1' }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="tl-rotulo">
-            Tratorilson · leitura de agora
-            {a && !gerando && <span className="tl-sit" style={{ color: sit.cor, background: sit.fundo }}><i className={`fas ${sit.icone}`} /> {sit.rotulo}</span>}
-          </div>
-          {!a && rapida ? (
-            <>
-              <div className="tl-manchete">{rapida.texto}</div>
-              <div className="tl-chips"><span className="tl-chip" style={{ color: MUDO, background: 'transparent', paddingLeft: 0 }}>{gerando ? <><span className="tl-pontos"><span /><span /><span /></span> <span key={etapa} className="tl-etapa">{ETAPAS[etapa]}</span></> : 'leitura rápida dos números'}</span></div>
-            </>
-          ) : gerando && !a ? (
-            <div className="tl-manchete" style={{ color: MUDO }}><span className="tl-pontos"><span /><span /><span /></span> <span key={etapa} className="tl-etapa">{ETAPAS[etapa]}</span></div>
-          ) : a ? (
-            <>
-              <div className="tl-manchete">{a.manchete}</div>
-              {pontos.length > 0 && (
-                <div className="tl-chips">
-                  {pontos.map((p, i) => <span key={i} className="tl-chip" style={{ animationDelay: `${200 + i * 90}ms` }}><i className="fas fa-link" /> {p}</span>)}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="tl-manchete" style={{ color: MUDO }}>{carregou ? (erro || 'Ainda não há leitura. Clique para pedir.') : 'Carregando…'}</div>
+      <div className={`tl2 cpv-entra ${gerando ? 'tl2-pensando' : ''}`}>
+        {/* situação */}
+        <button type="button" className="tl2-sit" style={{ background: a ? sit.fundo : 'var(--portal-bg-secondary, #f1f5f9)', color: a ? sit.cor : MUDO }} onClick={() => setAberto({ aba: 'plano' })}>
+          <i className={`fas ${a ? sit.icone : 'fa-robot'}`} />
+          <b>{a ? sit.rotulo : 'Tratorilson'}</b>
+          <small>{gerando ? 'lendo…' : quando ? `lida ${quando}` : ''}</small>
+        </button>
+
+        {/* manchete + urgentes */}
+        <div className="tl2-meio" role="button" tabIndex={0} onClick={() => setAberto({ aba: 'plano' })} onKeyDown={(e) => { if (e.key === 'Enter') setAberto({ aba: 'plano' }) }}>
+          <div className="tl2-rot">Tratorilson · leitura de agora</div>
+          {a ? <div className="tl2-manchete"><Digitando key={ultima?.geradaEm} texto={a.manchete} /></div>
+            : <div className="tl2-manchete" style={{ color: MUDO }}>{gerando ? <><span className="tl-pontos"><span /><span /><span /></span> {ETAPAS[etapa]}</> : rapida ? rapida.texto : carregou ? (erro || 'Ainda não há leitura. Clique para pedir.') : 'Carregando…'}</div>}
+          {urgentes.length > 0 && (
+            <ul className="tl2-urg">
+              {urgentes.map((x, i) => (
+                <li key={i} style={{ animationDelay: `${700 + i * 140}ms` }}>
+                  <i style={{ background: PRIO[x.prioridade].cor }} />
+                  <span>{x.oque}</span>
+                  {x.quem && <em>{x.quem}</em>}
+                </li>
+              ))}
+            </ul>
           )}
         </div>
-        <div className="tl-lado">
-          <span className="tl-abrir">Ver leitura completa <i className="fas fa-chevron-right" /></span>
-          <span className="tl-quando">{gerando ? <><i className="fas fa-circle-notch fa-spin" /> {a ? 'atualizando…' : ''}</> : quando && `lida ${quando}`}</span>
+
+        {/* técnicos com a cor da situação */}
+        <div className="tl2-lado">
+          {a && a.porTecnico.length > 0 && (
+            <div className="tl2-avs">
+              {a.porTecnico.map((t, i) => (
+                <button key={t.tecnico} type="button" className="tl2-av" title={`${t.tecnico}: ${t.acao || t.leitura}`} style={{ borderColor: SIT[t.situacao].cor, animationDelay: `${300 + i * 80}ms` }}
+                  onClick={() => setAberto({ aba: 'tecnicos', tecnico: t.tecnico })}>
+                  {iniciais(t.tecnico)}<i style={{ background: SIT[t.situacao].cor }} />
+                </button>
+              ))}
+            </div>
+          )}
+          <button type="button" className="tl2-abrir" onClick={() => setAberto({ aba: 'plano' })}>Abrir relatório <i className="fas fa-chevron-right" /></button>
         </div>
       </div>
 
-      {aberto && <Painel ultima={ultima} ens={ens} setEns={setEns} gerando={gerando} etapa={etapa} quando={quando} onRefazer={refazer} onFechar={() => setAberto(false)} erro={erro} />}
+      {aberto && <Relatorio ultima={ultima} ens={ens} setEns={setEns} gerando={gerando} etapa={etapa} quando={quando} onRefazer={refazer} erro={erro}
+        abaInicial={aberto.aba} tecnicoInicial={aberto.tecnico} onFechar={() => setAberto(null)} />}
     </>
   )
 }
 
-function Painel({ ultima, ens, setEns, gerando, etapa, quando, onRefazer, onFechar, erro }: {
+function Relatorio({ ultima, ens, setEns, gerando, etapa, quando, onRefazer, erro, abaInicial, tecnicoInicial, onFechar }: {
   ultima: Guardada | null; ens: Ensinamento[]; setEns: (e: Ensinamento[]) => void; gerando: boolean; etapa: number; quando: string
-  onRefazer: () => void; onFechar: () => void; erro: string
+  onRefazer: () => void; erro: string; abaInicial: Aba; tecnicoInicial?: string; onFechar: () => void
 }) {
-  const [novo, setNovo] = useState('')
-  const [editando, setEditando] = useState<{ id: number; texto: string } | null>(null)
-  const [salvando, setSalvando] = useState(false)
+  const [aba, setAba] = useState<Aba>(abaInicial)
+  const [feitos, setFeitos] = useState<number[]>([])
+  const [copiado, setCopiado] = useState<string | null>(null)
+  const a = ultima?.analise
   useEffect(() => {
     const f = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar() }
     window.addEventListener('keydown', f); return () => window.removeEventListener('keydown', f)
   }, [onFechar])
+  useEffect(() => { if (!ultima) return; const t = setTimeout(() => setFeitos(lerFeitos(ultima.geradaEm)), 0); return () => clearTimeout(t) }, [ultima])
+  useEffect(() => {
+    if (aba !== 'tecnicos' || !tecnicoInicial) return
+    const t = setTimeout(() => document.getElementById(`tl-tec-${tecnicoInicial}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250)
+    return () => clearTimeout(t)
+  }, [aba, tecnicoInicial])
+  const marcar = (i: number) => {
+    if (!ultima) return
+    const n = feitos.includes(i) ? feitos.filter((x) => x !== i) : [...feitos, i]
+    setFeitos(n); try { localStorage.setItem(chaveFeito(ultima.geradaEm), JSON.stringify(n)) } catch { /* sem armazenamento */ }
+  }
+  const copiar = async (t: string, k: string) => { try { await navigator.clipboard.writeText(t); setCopiado(k); setTimeout(() => setCopiado(null), 1500) } catch { /* sem clipboard */ } }
+  const sit = SIT[a?.situacao || 'atencao']
+  if (typeof document === 'undefined') return null
+  return createPortal(
+    <div className="rl-fundo" onClick={onFechar}>
+      <div className="rl-caixa" onClick={(e) => e.stopPropagation()}>
+        <style>{ESTILO}</style>
+        <header className="rl-cab" style={{ background: `linear-gradient(120deg, ${sit.fundo}, var(--portal-bg-card, #fefefe) 60%)` }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="rl-sit" style={{ color: sit.cor }}><i className={`fas ${sit.icone}`} /> {sit.rotulo} · Tratorilson {quando && <small>· lida {quando}{ultima?.por ? ` por ${ultima.por}` : ''}</small>}</div>
+            <h2>{a?.manchete || (gerando ? ETAPAS[etapa] : 'Sem leitura ainda')}</h2>
+            {a?.resumo && <p>{a.resumo}</p>}
+          </div>
+          <div className="rl-cab-acoes">
+            <button type="button" className="rl-btn" onClick={onRefazer} disabled={gerando}><i className={`fas ${gerando ? 'fa-circle-notch fa-spin' : 'fa-rotate'}`} /> {gerando ? 'Lendo…' : 'Ler de novo'}</button>
+            <button type="button" className="rl-btn rl-x" onClick={onFechar} aria-label="Fechar"><i className="fas fa-xmark" /></button>
+          </div>
+        </header>
+
+        <nav className="rl-abas">
+          {([['plano', 'Plano de ação', 'fa-list-check', a?.acoes.length], ['tecnicos', 'Técnico por técnico', 'fa-user-gear', a?.porTecnico.length], ['ligacoes', 'Ligando os pontos', 'fa-diagram-project', a?.conexoes.length], ['ensinar', 'Ensinar o Tratorilson', 'fa-graduation-cap', ens.length]] as [Aba, string, string, number | undefined][]).map(([k, r, ic, n]) => (
+            <button key={k} type="button" className={aba === k ? 'on' : ''} onClick={() => setAba(k)}><i className={`fas ${ic}`} /> {r}{n ? <em>{n}</em> : null}</button>
+          ))}
+        </nav>
+
+        <div className="rl-corpo">
+          {erro && <div className="rl-erro">{erro}</div>}
+
+          {aba === 'plano' && a && (
+            <div className="rl-plano">
+              {(['alta', 'media', 'baixa'] as const).map((p) => {
+                const itens = a.acoes.map((x, i) => ({ x, i })).filter(({ x }) => x.prioridade === p)
+                return (
+                  <div key={p} className="rl-col">
+                    <div className="rl-col-cab" style={{ color: PRIO[p].cor }}><i style={{ background: PRIO[p].cor }} /> {PRIO[p].rotulo} <em>{itens.length}</em></div>
+                    {itens.length === 0 && <div className="rl-vazio">nada aqui</div>}
+                    {itens.map(({ x, i }, k) => {
+                      const ok = feitos.includes(i)
+                      return (
+                        <label key={i} className={`rl-acao ${ok ? 'rl-feito' : ''}`} style={{ animationDelay: `${k * 70}ms`, borderLeftColor: PRIO[p].cor }}>
+                          <input type="checkbox" checked={ok} onChange={() => marcar(i)} />
+                          <div>
+                            <b>{x.oque}</b>
+                            {x.porque && <span>{x.porque}</span>}
+                            <div className="rl-meta">{x.quem && <span><i className="fas fa-user" /> {x.quem}</span>}{x.quando && <span><i className="fas fa-clock" /> {x.quando}</span>}</div>
+                          </div>
+                        </label>
+                      )
+                    })}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {aba === 'tecnicos' && a && (
+            <div className="rl-tecs">
+              {a.porTecnico.map((t, i) => {
+                const s = SIT[t.situacao]
+                return (
+                  <article key={t.tecnico} id={`tl-tec-${t.tecnico}`} className={`rl-tec ${tecnicoInicial === t.tecnico ? 'rl-tec-foco' : ''}`} style={{ animationDelay: `${i * 70}ms`, borderTopColor: s.cor }}>
+                    <div className="rl-tec-cab">
+                      <span className="rl-av" style={{ background: s.cor }}>{iniciais(t.tecnico)}</span>
+                      <div style={{ flex: 1, minWidth: 0 }}><b>{t.tecnico}</b><small style={{ color: s.cor }}><i className={`fas ${s.icone}`} /> {s.rotulo}</small></div>
+                    </div>
+                    {t.leitura && <p className="rl-leitura">{t.leitura}</p>}
+                    <div className="rl-duas">
+                      {t.pontosFortes.length > 0 && <div><h4 style={{ color: '#047857' }}><i className="fas fa-thumbs-up" /> Pontos fortes</h4><ul>{t.pontosFortes.map((x, k) => <li key={k}>{x}</li>)}</ul></div>}
+                      {t.atencao.length > 0 && <div><h4 style={{ color: '#b45309' }}><i className="fas fa-triangle-exclamation" /> Atenção</h4><ul>{t.atencao.map((x, k) => <li key={k}>{x}</li>)}</ul></div>}
+                    </div>
+                    {t.dicas.length > 0 && (
+                      <div className="rl-dicas">
+                        <h4><i className="fas fa-lightbulb" /> O que fazer com ele</h4>
+                        <ol>{t.dicas.map((x, k) => <li key={k}><span>{k + 1}</span>{x}</li>)}</ol>
+                      </div>
+                    )}
+                    {t.conversa && (
+                      <div className="rl-conversa">
+                        <i className="fas fa-comment-dots" />
+                        <p>“{t.conversa}”</p>
+                        <button type="button" onClick={() => copiar(t.conversa, t.tecnico)} title="Copiar a frase">{copiado === t.tecnico ? <><i className="fas fa-check" /> copiada</> : <><i className="fas fa-copy" /> copiar</>}</button>
+                      </div>
+                    )}
+                  </article>
+                )
+              })}
+            </div>
+          )}
+
+          {aba === 'ligacoes' && a && (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {a.conexoes.map((c, i) => {
+                const nos = (c.titulo || '').split(/\s*(?:→|->|>)\s*/).filter(Boolean)
+                return (
+                  <div key={i} className="rl-lig" style={{ animationDelay: `${i * 90}ms` }}>
+                    {nos.length > 1 ? <div className="rl-cadeia">{nos.map((n, k) => <span key={k}>{k > 0 && <i className="fas fa-arrow-right-long" />}<b>{n}</b></span>)}</div> : c.titulo && <b className="rl-lig-tit">{c.titulo}</b>}
+                    <p>{c.texto}</p>
+                  </div>
+                )
+              })}
+              {a.destaques.length > 0 && (
+                <div className="rl-dest">
+                  {a.destaques.map((d, i) => <div key={i} style={{ borderLeftColor: SIT[d.tipo].cor, background: SIT[d.tipo].fundo }}><b>{d.titulo}</b><span>{d.texto}</span></div>)}
+                </div>
+              )}
+              {(a.proximosDias.leitura || a.proximosDias.alertas.length > 0) && (
+                <div className="rl-lig"><b className="rl-lig-tit"><i className="fas fa-calendar-days" /> Próximos 14 dias</b><p>{a.proximosDias.leitura}</p>{a.proximosDias.alertas.length > 0 && <ul>{a.proximosDias.alertas.map((x, k) => <li key={k}>{x}</li>)}</ul>}</div>
+              )}
+            </div>
+          )}
+
+          {aba === 'ensinar' && <Ensinar ens={ens} setEns={setEns} />}
+          {!a && aba !== 'ensinar' && <div className="rl-vazio" style={{ padding: 40 }}>{gerando ? ETAPAS[etapa] : 'Clique em "Ler de novo" para o Tratorilson fazer a primeira leitura.'}</div>}
+        </div>
+      </div>
+    </div>,
+    (document.fullscreenElement as HTMLElement | null) || document.body,
+  )
+}
+
+function Ensinar({ ens, setEns }: { ens: Ensinamento[]; setEns: (e: Ensinamento[]) => void }) {
+  const [novo, setNovo] = useState('')
+  const [editando, setEditando] = useState<{ id: number; texto: string } | null>(null)
+  const [salvando, setSalvando] = useState(false)
   const mexer = async (body: object, depois?: () => void) => {
     setSalvando(true)
     try { const j = await api(body); setEns(j.ensinamentos || []); depois?.() }
     catch (e) { alert(e instanceof Error ? e.message : 'Falha') } finally { setSalvando(false) }
   }
-  const a = ultima?.analise
-  const sit = SIT[a?.situacao || 'atencao']
   return (
-    <div className="tl-fundo" onClick={onFechar}>
-      <aside className="tl-painel" onClick={(e) => e.stopPropagation()}>
-        <div className="tl-cab">
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 18, fontWeight: 900, color: TXT }}>Leitura do Tratorilson</div>
-            <div style={{ fontSize: 13, color: MUDO }}>{gerando ? ETAPAS[etapa] : quando ? `lida ${quando}${ultima?.por ? ` · ${ultima.por}` : ''}` : ''}</div>
-          </div>
-          <button type="button" className="tl-btn" onClick={onRefazer} disabled={gerando}><i className={`fas ${gerando ? 'fa-circle-notch fa-spin' : 'fa-rotate'}`} /> Ler de novo</button>
-          <button type="button" className="tl-btn tl-x" onClick={onFechar} aria-label="Fechar"><i className="fas fa-xmark" /></button>
-        </div>
-
-        <div className="tl-corpo">
-          {erro && <div style={{ background: '#fef2f2', color: '#991b1b', borderRadius: 10, padding: '10px 12px', fontSize: 14 }}>{erro}</div>}
-          {a && (
+    <div style={{ display: 'grid', gap: 10, maxWidth: 760 }}>
+      <p style={{ margin: 0, color: MUDO, fontSize: 14, lineHeight: 1.55 }}>Ele já sabe as regras da casa (meta de 40 h, OS interna, como ler hora parada, pontuação, custo de terceiros, salários). Aqui você ensina <b>como a gestão pensa</b>: o que é bom, o que é ruim e o que fazer. Vale para as próximas leituras.</p>
+      <textarea value={novo} onChange={(e) => setNovo(e.target.value)} rows={3} placeholder={`Ex.: ${EXEMPLOS[0]}`} className="rl-texto"
+        onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && novo.trim()) void mexer({ acao: 'ensinar', conteudo: novo }, () => setNovo('')) }} />
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <button type="button" className="rl-btn rl-roxo" disabled={salvando || novo.trim().length < 5} onClick={() => mexer({ acao: 'ensinar', conteudo: novo }, () => setNovo(''))}><i className="fas fa-plus" /> Ensinar</button>
+        <span style={{ fontSize: 12, color: MUDO }}>Ctrl+Enter</span>
+      </div>
+      {ens.length === 0 && EXEMPLOS.map((x) => <button key={x} type="button" className="rl-ens rl-ex" onClick={() => setNovo(x)}><i className="fas fa-wand-magic-sparkles" /> {x}</button>)}
+      {ens.map((e, i) => (
+        <div key={e.id} className="rl-ens">
+          {editando?.id === e.id ? (
+            <div style={{ display: 'grid', gap: 6, width: '100%' }}>
+              <textarea value={editando.texto} onChange={(ev) => setEditando({ id: e.id, texto: ev.target.value })} rows={3} autoFocus className="rl-texto" />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button type="button" className="rl-btn rl-roxo" disabled={salvando} onClick={() => mexer({ acao: 'editar', id: e.id, conteudo: editando.texto }, () => setEditando(null))}>Salvar</button>
+                <button type="button" className="rl-btn" onClick={() => setEditando(null)}>Cancelar</button>
+              </div>
+            </div>
+          ) : (
             <>
-              <section className="tl-sec" style={{ background: sit.fundo, borderColor: `${sit.cor}33` }}>
-                <div style={{ fontSize: 12.5, fontWeight: 800, color: sit.cor, textTransform: 'uppercase', letterSpacing: .5 }}><i className={`fas ${sit.icone}`} /> {sit.rotulo}</div>
-                <div style={{ fontSize: 19, fontWeight: 900, color: TXT, margin: '6px 0' }}>{a.manchete}</div>
-                <div style={{ fontSize: 15, lineHeight: 1.65, color: TXT }}>{a.resumo}</div>
-              </section>
-
-              {a.conexoes.length > 0 && (
-                <section className="tl-sec">
-                  <h3><i className="fas fa-diagram-project" /> Ligando os pontos</h3>
-                  <div style={{ display: 'grid', gap: 10 }}>
-                    {a.conexoes.map((c, i) => (
-                      <div key={i} className="tl-conexao cpv-entra" style={{ animationDelay: `${i * 80}ms` }}>
-                        {c.titulo && <b>{c.titulo}</b>}
-                        <span>{c.texto}</span>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {a.acoes.length > 0 && (
-                <section className="tl-sec">
-                  <h3><i className="fas fa-list-check" /> O que fazer</h3>
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    {a.acoes.map((x, i) => (
-                      <div key={i} className="tl-acao cpv-entra" style={{ animationDelay: `${i * 70}ms` }}>
-                        <span className="tl-num">{i + 1}</span>
-                        <div>
-                          <div style={{ fontWeight: 800, fontSize: 15, color: TXT }}>{x.oque}</div>
-                          <div style={{ fontSize: 13, color: MUDO, display: 'flex', gap: 12, flexWrap: 'wrap', marginTop: 2 }}>
-                            {x.quem && <span><i className="fas fa-user" /> {x.quem}</span>}{x.quando && <span><i className="fas fa-clock" /> {x.quando}</span>}
-                          </div>
-                          {x.porque && <div style={{ fontSize: 13.5, color: TXT, marginTop: 4 }}>{x.porque}</div>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {a.destaques.length > 0 && (
-                <section className="tl-sec">
-                  <h3><i className="fas fa-star" /> Destaques</h3>
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    {a.destaques.map((d, i) => (
-                      <div key={i} style={{ borderLeft: `4px solid ${SIT[d.tipo].cor}`, background: SIT[d.tipo].fundo, borderRadius: 10, padding: '9px 12px' }}>
-                        <div style={{ fontWeight: 800, fontSize: 14.5, color: TXT }}>{d.titulo}</div>
-                        <div style={{ fontSize: 14, color: TXT, marginTop: 2 }}>{d.texto}</div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {a.porTecnico.length > 0 && (
-                <section className="tl-sec">
-                  <h3><i className="fas fa-user-gear" /> Pessoa por pessoa</h3>
-                  <div style={{ display: 'grid', gap: 8 }}>
-                    {a.porTecnico.map((t, i) => (
-                      <div key={i} style={{ border: `1px solid ${BORDA}`, borderRadius: 10, padding: '9px 12px' }}>
-                        <div style={{ fontWeight: 800, fontSize: 14.5, color: TXT }}>{t.tecnico}</div>
-                        <div style={{ fontSize: 14, color: TXT, marginTop: 2, lineHeight: 1.5 }}>{t.leitura}</div>
-                        {t.acao && <div style={{ fontSize: 13.5, marginTop: 5, color: '#0369a1', fontWeight: 700 }}><i className="fas fa-arrow-right" /> {t.acao}</div>}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )}
-
-              {(a.proximosDias.leitura || a.proximosDias.alertas.length > 0) && (
-                <section className="tl-sec">
-                  <h3><i className="fas fa-calendar-days" /> Próximos 14 dias</h3>
-                  {a.proximosDias.leitura && <div style={{ fontSize: 14.5, lineHeight: 1.6, color: TXT }}>{a.proximosDias.leitura}</div>}
-                  {a.proximosDias.alertas.length > 0 && <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: 14, lineHeight: 1.6, color: TXT }}>{a.proximosDias.alertas.map((x, i) => <li key={i}>{x}</li>)}</ul>}
-                </section>
-              )}
+              <b style={{ color: '#7c3aed' }}>{i + 1}.</b>
+              <span style={{ flex: 1, whiteSpace: 'pre-wrap' }}>{e.conteudo}</span>
+              <button type="button" className="rl-mini" title="Editar" onClick={() => setEditando({ id: e.id, texto: e.conteudo })}><i className="fas fa-pen" /></button>
+              <button type="button" className="rl-mini" title="Apagar" disabled={salvando} onClick={() => { if (confirm('Apagar este ensinamento?')) void mexer({ acao: 'apagar', id: e.id }) }}><i className="fas fa-trash" /></button>
             </>
           )}
-
-          {/* ensinar */}
-          <section className="tl-sec" style={{ borderStyle: 'dashed' }}>
-            <h3><i className="fas fa-graduation-cap" /> Ensinar o Tratorilson</h3>
-            <div style={{ fontSize: 13.5, color: MUDO, lineHeight: 1.5, marginBottom: 8 }}>
-              Ele já sabe as regras da casa (meta de 40 h, o que é OS interna, como ler hora ociosa, pontuação). Aqui você ensina <b>como a gestão pensa</b>: o que é bom, o que é ruim e o que fazer. Vale para as próximas leituras.
-            </div>
-            <textarea value={novo} onChange={(e) => setNovo(e.target.value)} rows={3} placeholder={`Ex.: ${EXEMPLOS[0]}`}
-              onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && novo.trim()) void mexer({ acao: 'ensinar', conteudo: novo }, () => setNovo('')) }}
-              className="tl-texto" />
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', margin: '8px 0 10px' }}>
-              <button type="button" className="tl-btn tl-roxo" disabled={salvando || novo.trim().length < 5} onClick={() => mexer({ acao: 'ensinar', conteudo: novo }, () => setNovo(''))}><i className="fas fa-plus" /> Ensinar</button>
-              <span style={{ fontSize: 12, color: MUDO }}>Ctrl+Enter</span>
-            </div>
-            {ens.length === 0 && (
-              <div style={{ display: 'grid', gap: 6 }}>
-                <div style={{ fontSize: 12.5, fontWeight: 800, color: MUDO }}>Ideias (clique para usar):</div>
-                {EXEMPLOS.map((x) => <button key={x} type="button" className="tl-ens" style={{ cursor: 'pointer', textAlign: 'left', borderStyle: 'dashed' }} onClick={() => setNovo(x)}>{x}</button>)}
-              </div>
-            )}
-            <div style={{ display: 'grid', gap: 6 }}>
-              {ens.map((e, i) => (
-                <div key={e.id} className="tl-ens">
-                  {editando?.id === e.id ? (
-                    <>
-                      <textarea value={editando.texto} onChange={(ev) => setEditando({ id: e.id, texto: ev.target.value })} rows={3} autoFocus className="tl-texto" />
-                      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                        <button type="button" className="tl-btn tl-roxo" disabled={salvando} onClick={() => mexer({ acao: 'editar', id: e.id, conteudo: editando.texto }, () => setEditando(null))}>Salvar</button>
-                        <button type="button" className="tl-btn" onClick={() => setEditando(null)}>Cancelar</button>
-                      </div>
-                    </>
-                  ) : (
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <b style={{ color: '#7c3aed' }}>{i + 1}.</b>
-                      <span style={{ flex: 1, whiteSpace: 'pre-wrap' }}>{e.conteudo}</span>
-                      <button type="button" className="tl-mini" title="Editar" onClick={() => setEditando({ id: e.id, texto: e.conteudo })}><i className="fas fa-pen" /></button>
-                      <button type="button" className="tl-mini" title="Apagar" disabled={salvando} onClick={() => { if (confirm('Apagar este ensinamento?')) void mexer({ acao: 'apagar', id: e.id }) }}><i className="fas fa-trash" /></button>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
         </div>
-      </aside>
+      ))}
     </div>
   )
 }
 
+/** A frase aparece sendo digitada (quando chega uma leitura nova ou ao abrir a tela). */
+function Digitando({ texto }: { texto: string }) {
+  const [n, setN] = useState(0)
+  useEffect(() => {
+    const passo = Math.max(1, Math.round(texto.length / 70))
+    const t = setInterval(() => setN((x) => { if (x >= texto.length) { clearInterval(t); return x } return x + passo }), 18)
+    return () => clearInterval(t)
+  }, [texto])
+  return <>{texto.slice(0, n)}{n < texto.length && <span className="tl-cursor" />}</>
+}
+
 const ESTILO = `
-.tl-faixa { display: flex; align-items: center; gap: 14px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-left: 5px solid; border-radius: 16px; padding: 12px 16px; margin-bottom: 16px; cursor: pointer; transition: box-shadow .2s, transform .2s; box-shadow: 0 1px 3px rgba(15,23,42,.05) }
-.tl-faixa:hover { box-shadow: 0 10px 26px rgba(15,23,42,.10); transform: translateY(-1px) }
-.tl-rotulo { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; color: var(--portal-text-muted, #64748b) }
-.tl-sit { text-transform: none; letter-spacing: 0; font-size: 12.5px; border-radius: 99px; padding: 2px 10px }
-.tl-manchete { font-size: 17.5px; font-weight: 800; color: var(--portal-text, #0f172a); margin-top: 3px; line-height: 1.35; animation: tlEntra .5s ease both }
+.tl2 { display: flex; align-items: stretch; gap: 0; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(15,23,42,.05); transition: box-shadow .2s }
+.tl2:hover { box-shadow: 0 12px 28px rgba(15,23,42,.08) }
+.tl2-sit { width: 128px; flex-shrink: 0; border: none; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-family: inherit; cursor: pointer; padding: 12px 8px }
+.tl2-sit i { font-size: 26px } .tl2-sit b { font-size: 13.5px; font-weight: 900; text-align: center } .tl2-sit small { font-size: 11px; opacity: .8 }
+.tl2-pensando .tl2-sit i { animation: tlGira 1.4s linear infinite } @keyframes tlGira { to { transform: rotate(360deg) } }
+.tl2-meio { flex: 1; min-width: 0; padding: 12px 16px; cursor: pointer }
+.tl2-rot { font-size: 11.5px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--portal-text-muted, #94a3b8) }
+.tl2-manchete { font-size: 17px; font-weight: 800; color: var(--portal-text, #0f172a); margin-top: 2px; line-height: 1.35 }
+.tl2-urg { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px }
+.tl2-urg li { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--portal-text, #334155); animation: tlEntra .45s ease both; min-width: 0 }
+.tl2-urg li i { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0 }
+.tl2-urg li span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.tl2-urg li em { font-style: normal; font-size: 12px; font-weight: 800; color: var(--portal-text-muted, #64748b); background: var(--portal-bg-secondary, #f1f5f9); border-radius: 99px; padding: 1px 8px; white-space: nowrap; flex-shrink: 0 }
 @keyframes tlEntra { from { opacity: 0; transform: translateY(5px) } to { opacity: 1; transform: none } }
-.tl-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 7px }
-.tl-chip { font-size: 12.5px; font-weight: 700; color: #0369a1; background: rgba(3,105,161,.07); border-radius: 99px; padding: 3px 10px; animation: tlEntra .5s ease both; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-.tl-lado { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0 }
-.tl-abrir { font-size: 13.5px; font-weight: 800; color: #0369a1; white-space: nowrap }
-.tl-quando { font-size: 12px; color: var(--portal-text-muted, #94a3b8); white-space: nowrap }
+.tl2-lado { display: flex; flex-direction: column; justify-content: center; align-items: flex-end; gap: 10px; padding: 12px 16px; border-left: 1px solid var(--portal-border, #f1f5f9) }
+.tl2-avs { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; max-width: 260px }
+.tl2-av { position: relative; width: 38px; height: 38px; border-radius: 50%; border: 3px solid; background: var(--portal-bg-secondary, #f1f5f9); color: var(--portal-text, #0f172a); font-family: inherit; font-weight: 900; font-size: 12.5px; cursor: pointer; animation: tlPop .4s cubic-bezier(.3,1.5,.5,1) both; transition: transform .15s }
+.tl2-av:hover { transform: scale(1.12) }
+.tl2-av i { position: absolute; right: -3px; bottom: -3px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--portal-bg-card, #fefefe) }
+@keyframes tlPop { from { opacity: 0; transform: scale(.4) } to { opacity: 1; transform: none } }
+.tl2-abrir { border: none; background: #0369a1; color: #fefefe; border-radius: 99px; padding: 7px 14px; font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer; white-space: nowrap }
+.tl2-abrir:hover { background: #075985 }
+.tl-cursor { display: inline-block; width: 2px; height: 1em; background: #0369a1; margin-left: 2px; vertical-align: -2px; animation: tlPisca .8s steps(2) infinite }
+@keyframes tlPisca { 50% { opacity: 0 } }
 .tl-pontos span { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #0369a1; margin: 0 2px; animation: tlPonto 1.2s infinite }
 .tl-pontos span:nth-child(2) { animation-delay: .15s } .tl-pontos span:nth-child(3) { animation-delay: .3s }
-@keyframes tlPonto { 0%, 80%, 100% { opacity: .2; transform: none } 40% { opacity: 1; transform: translateY(-4px) } }
-.tl-etapa { animation: tlEntra .4s ease both; display: inline-block }
-.tl-fundo { position: fixed; inset: 0; z-index: 9300; background: rgba(15,23,42,.35); backdrop-filter: blur(2px); display: flex; justify-content: flex-end; animation: tlFade .25s ease both }
-@keyframes tlFade { from { opacity: 0 } to { opacity: 1 } }
-.tl-painel { width: min(620px, 100%); height: 100%; background: var(--portal-bg, #f8fafc); box-shadow: -20px 0 50px rgba(15,23,42,.2); display: flex; flex-direction: column; animation: tlDesliza .35s cubic-bezier(.2,.8,.2,1) both }
-@keyframes tlDesliza { from { transform: translateX(40px); opacity: 0 } to { transform: none; opacity: 1 } }
-.tl-cab { display: flex; align-items: center; gap: 12px; padding: 14px 18px; background: var(--portal-bg-card, #fefefe); border-bottom: 1px solid var(--portal-border, #e5e7eb) }
-.tl-corpo { flex: 1; overflow-y: auto; padding: 16px 18px 40px; display: grid; gap: 14px; align-content: start }
-.tl-sec { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 14px; padding: 14px 16px }
-.tl-sec h3 { margin: 0 0 10px; font-size: 13px; font-weight: 900; letter-spacing: .5px; text-transform: uppercase; color: var(--portal-text-muted, #475569) }
-.tl-sec h3 i { color: #0369a1; margin-right: 6px }
-.tl-conexao { display: grid; gap: 3px; border-left: 3px solid #0369a1; padding: 4px 0 4px 12px; font-size: 14.5px; line-height: 1.55; color: var(--portal-text, #0f172a) }
-.tl-acao { display: flex; gap: 12px; align-items: flex-start }
-.tl-num { width: 26px; height: 26px; border-radius: 50%; background: #0369a1; color: #fefefe; font-weight: 900; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0 }
-.tl-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #334155); border-radius: 10px; padding: 8px 12px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit }
-.tl-btn:hover:not(:disabled) { border-color: #0369a1; color: #0369a1 }
-.tl-btn:disabled { opacity: .5; cursor: default }
-.tl-x { width: 36px; height: 36px; padding: 0; justify-content: center }
-.tl-roxo { background: #7c3aed; color: #fefefe; border-color: #7c3aed } .tl-roxo:hover:not(:disabled) { color: #fefefe; background: #6d28d9 }
-.tl-texto { width: 100%; box-sizing: border-box; border-radius: 10px; border: 1px solid var(--portal-border, #d1d5db); padding: 9px 11px; font-size: 14px; font-family: inherit; resize: vertical; background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #0f172a) }
-.tl-ens { border: 1px solid var(--portal-border, #e5e7eb); border-radius: 10px; padding: 9px 11px; font-size: 14px; line-height: 1.5; background: var(--portal-bg-secondary, #f8fafc); color: var(--portal-text, #0f172a); font-family: inherit }
-.tl-mini { border: none; background: transparent; cursor: pointer; color: var(--portal-text-muted, #64748b); padding: 2px 6px; border-radius: 6px }
-.tl-mini:hover { background: rgba(100,116,139,.12) }
-@media (max-width: 720px) { .tl-lado { display: none } .tl-manchete { font-size: 15.5px } }
+@keyframes tlPonto { 0%, 80%, 100% { opacity: .2 } 40% { opacity: 1; transform: translateY(-3px) } }
+.rl-fundo { position: fixed; inset: 0; z-index: 100055; background: rgba(15,23,42,.45); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: rlFade .2s ease both }
+@keyframes rlFade { from { opacity: 0 } }
+.rl-caixa { width: min(1160px, 100%); height: min(88vh, 900px); background: var(--portal-bg, #f8fafc); border-radius: 22px; box-shadow: 0 30px 80px rgba(15,23,42,.35); display: flex; flex-direction: column; overflow: hidden; animation: rlAbre .35s cubic-bezier(.2,1,.3,1) both }
+@keyframes rlAbre { from { opacity: 0; transform: translateY(16px) scale(.98) } to { opacity: 1; transform: none } }
+.rl-cab { display: flex; gap: 16px; padding: 18px 22px 14px; align-items: flex-start }
+.rl-sit { font-size: 13px; font-weight: 900 } .rl-sit small { font-weight: 600; color: var(--portal-text-muted, #64748b) }
+.rl-cab h2 { margin: 4px 0 6px; font-size: 22px; font-weight: 900; color: var(--portal-text, #0f172a); line-height: 1.25 }
+.rl-cab p { margin: 0; font-size: 14.5px; line-height: 1.6; color: var(--portal-text, #334155); max-width: 860px }
+.rl-cab-acoes { display: flex; gap: 8px }
+.rl-btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #334155); border-radius: 10px; padding: 8px 12px; font-weight: 700; font-size: 13px; cursor: pointer; font-family: inherit }
+.rl-btn:hover:not(:disabled) { border-color: #0369a1; color: #0369a1 } .rl-btn:disabled { opacity: .5 }
+.rl-x { width: 38px; justify-content: center; padding: 0 }
+.rl-roxo { background: #7c3aed; color: #fefefe; border-color: #7c3aed } .rl-roxo:hover:not(:disabled) { background: #6d28d9; color: #fefefe }
+.rl-abas { display: flex; gap: 4px; padding: 0 22px; border-bottom: 1px solid var(--portal-border, #e5e7eb); overflow-x: auto }
+.rl-abas button { position: relative; border: none; background: transparent; font-family: inherit; font-size: 14.5px; font-weight: 800; color: var(--portal-text-muted, #64748b); padding: 10px 12px 12px; cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 7px }
+.rl-abas button em { font-style: normal; font-size: 11px; background: var(--portal-bg-secondary, #e2e8f0); border-radius: 99px; padding: 1px 7px }
+.rl-abas button.on { color: #0369a1 } .rl-abas button.on::after { content: ''; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 3px; border-radius: 3px; background: #0369a1 }
+.rl-corpo { flex: 1; overflow-y: auto; padding: 18px 22px 28px }
+.rl-erro { background: #fef2f2; color: #991b1b; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px }
+.rl-vazio { text-align: center; color: var(--portal-text-muted, #94a3b8); font-size: 13px; padding: 12px }
+.rl-plano { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start }
+.rl-col { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 16px; padding: 12px; display: grid; gap: 8px }
+.rl-col-cab { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 900; text-transform: uppercase; letter-spacing: .5px }
+.rl-col-cab i { width: 10px; height: 10px; border-radius: 50% } .rl-col-cab em { font-style: normal; margin-left: auto; color: var(--portal-text-muted, #94a3b8) }
+.rl-acao { display: flex; gap: 10px; align-items: flex-start; border: 1px solid var(--portal-border, #eef2f7); border-left: 4px solid; border-radius: 12px; padding: 10px; cursor: pointer; animation: tlEntra .4s ease both; transition: opacity .2s, background .2s }
+.rl-acao:hover { background: var(--portal-bg-secondary, #f8fafc) }
+.rl-acao input { margin-top: 3px; width: 17px; height: 17px; accent-color: #059669; flex-shrink: 0 }
+.rl-acao b { display: block; font-size: 14px; color: var(--portal-text, #0f172a); line-height: 1.35 }
+.rl-acao > div > span { display: block; font-size: 12.5px; color: var(--portal-text-muted, #64748b); margin-top: 3px; line-height: 1.4 }
+.rl-meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--portal-text-muted, #94a3b8); margin-top: 5px }
+.rl-feito { opacity: .5 } .rl-feito b { text-decoration: line-through }
+.rl-tecs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px; align-items: start }
+.rl-tec { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-top: 4px solid; border-radius: 16px; padding: 14px 16px; display: grid; gap: 10px; animation: tlEntra .45s ease both }
+.rl-tec-foco { box-shadow: 0 0 0 3px rgba(3,105,161,.25) }
+.rl-tec-cab { display: flex; gap: 10px; align-items: center }
+.rl-tec-cab b { display: block; font-size: 16px; color: var(--portal-text, #0f172a) } .rl-tec-cab small { font-size: 12px; font-weight: 800 }
+.rl-av { width: 40px; height: 40px; border-radius: 50%; color: #fefefe; font-weight: 900; font-size: 14px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0 }
+.rl-leitura { margin: 0; font-size: 13.5px; line-height: 1.55; color: var(--portal-text, #334155) }
+.rl-duas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+.rl-tec h4 { margin: 0 0 4px; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .4px }
+.rl-tec ul { margin: 0; padding-left: 16px; font-size: 13px; line-height: 1.5; color: var(--portal-text, #334155) }
+.rl-dicas { background: #fefce8; border: 1px solid #fde68a; border-radius: 12px; padding: 10px 12px }
+.rl-dicas h4 { color: #a16207 }
+.rl-dicas ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px }
+.rl-dicas li { display: flex; gap: 8px; font-size: 13.5px; line-height: 1.45; color: var(--portal-text, #1f2937) }
+.rl-dicas li span { width: 20px; height: 20px; border-radius: 50%; background: #eab308; color: #fefefe; font-size: 11px; font-weight: 900; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0 }
+.rl-conversa { display: flex; gap: 10px; align-items: flex-start; background: #eff6ff; border-radius: 14px 14px 14px 4px; padding: 10px 12px }
+.rl-conversa > i { color: #0369a1; font-size: 18px; margin-top: 2px }
+.rl-conversa p { margin: 0; flex: 1; font-size: 13.5px; line-height: 1.5; font-style: italic; color: #0c4a6e }
+.rl-conversa button { border: none; background: #fefefe; color: #0369a1; border-radius: 99px; padding: 4px 10px; font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer; white-space: nowrap }
+.rl-lig { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 14px; padding: 12px 14px; animation: tlEntra .45s ease both }
+.rl-lig p { margin: 6px 0 0; font-size: 14px; line-height: 1.55; color: var(--portal-text, #334155) }
+.rl-lig ul { margin: 6px 0 0; padding-left: 18px; font-size: 13.5px }
+.rl-lig-tit { font-size: 14.5px; color: var(--portal-text, #0f172a) }
+.rl-cadeia { display: flex; flex-wrap: wrap; align-items: center; gap: 6px }
+.rl-cadeia span { display: inline-flex; align-items: center; gap: 6px }
+.rl-cadeia b { background: #eff6ff; color: #0369a1; border-radius: 99px; padding: 4px 12px; font-size: 13.5px }
+.rl-cadeia i { color: #94a3b8 }
+.rl-dest { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px }
+.rl-dest > div { border-left: 4px solid; border-radius: 12px; padding: 10px 12px; display: grid; gap: 3px; font-size: 13.5px }
+.rl-texto { width: 100%; box-sizing: border-box; border-radius: 10px; border: 1px solid var(--portal-border, #d1d5db); padding: 9px 11px; font-size: 14px; font-family: inherit; resize: vertical; background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #0f172a) }
+.rl-ens { display: flex; gap: 8px; align-items: flex-start; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 12px; padding: 10px 12px; font-size: 14px; line-height: 1.5; background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #0f172a); font-family: inherit; text-align: left }
+.rl-ex { border-style: dashed; cursor: pointer; color: var(--portal-text-muted, #475569) } .rl-ex i { color: #7c3aed; margin-top: 4px }
+.rl-mini { border: none; background: transparent; cursor: pointer; color: var(--portal-text-muted, #64748b); padding: 3px 6px; border-radius: 6px }
+.rl-mini:hover { background: rgba(100,116,139,.12) }
+@media (max-width: 900px) { .rl-plano { grid-template-columns: 1fr } .tl2 { flex-wrap: wrap } .tl2-sit { width: 100%; flex-direction: row; padding: 8px } .tl2-lado { border-left: none; width: 100%; flex-direction: row; justify-content: space-between } .rl-duas { grid-template-columns: 1fr } }
 `

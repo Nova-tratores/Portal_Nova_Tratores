@@ -26,7 +26,7 @@ describe('análise do Tratorilson', () => {
     const a = lerAnalise('Segue:\n{"resumo":"Semana boa","destaques":[{"titulo":"Horas","texto":"subiu","tipo":"xx"}],"acoes":[{"oque":"Falar com o Gabriel"}]}')!
     expect(a.resumo).toBe('Semana boa')
     expect(a.destaques[0].tipo).toBe('atencao')
-    expect(a.acoes[0]).toEqual({ oque: 'Falar com o Gabriel', quem: '', quando: '', porque: '' })
+    expect(a.acoes[0]).toEqual({ oque: 'Falar com o Gabriel', quem: '', quando: '', porque: '', prioridade: 'media' })
     expect(a.proximosDias.alertas).toEqual([])
     expect(lerAnalise('não sei')).toBeNull()
   })
@@ -39,5 +39,13 @@ describe('manchete e conexões', () => {
     expect(a.manchete).toBe('Mês fraco.')
     expect(a.conexoes).toEqual([{ titulo: 'Velocidade', texto: 'km alto e multas' }])
     expect(lerAnalise('{"situacao":"x","resumo":"ok"}')!.situacao).toBe('atencao')
+  })
+})
+
+describe('dicas por técnico e prioridade', () => {
+  it('lê pontos fortes, dicas, conversa e ordena ações por prioridade', () => {
+    const a = lerAnalise('{"resumo":"x","porTecnico":[{"tecnico":"Ana","situacao":"critico","pontosFortes":["rápida"],"atencao":["não aponta horas"],"dicas":["d1","d2"],"conversa":"Ana, vi que…"}],"acoes":[{"oque":"b","prioridade":"baixa"},{"oque":"a","prioridade":"alta"}]}')!
+    expect(a.porTecnico[0]).toMatchObject({ situacao: 'critico', pontosFortes: ['rápida'], atencao: ['não aponta horas'], dicas: ['d1', 'd2'], conversa: 'Ana, vi que…' })
+    expect(a.acoes.map((x) => x.oque)).toEqual(['a', 'b'])
   })
 })

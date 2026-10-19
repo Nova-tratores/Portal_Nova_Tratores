@@ -73,6 +73,43 @@ export function EstilosCPV() {
       @keyframes cpvNovo { 0% { background: rgba(250,204,21,.45); transform: translateX(-12px) } 100% { background: transparent; transform: none } }
       .cpv-novo { animation: cpvNovo 2.2s ease-out both }
       .cpv-linha:hover { background: var(--portal-bg-secondary, #f8fafc) }
+      @keyframes cpvAbre { from { opacity: 0; transform: translateY(28px) scale(.94); filter: blur(4px) } to { opacity: 1; transform: none; filter: none } }
+      .cpv-abre { animation: cpvAbre .45s cubic-bezier(.2,1.15,.3,1) both }
+      @keyframes cpvFundo { from { opacity: 0 } }
+      .cpv-fundo { animation: cpvFundo .25s ease both }
+      @keyframes cpvLinha { from { opacity: 0; transform: translateX(-10px) } }
     `}</style>
+  )
+}
+
+/**
+ * Número de odômetro: cada dígito é uma coluna 0–9 que ROLA até o valor (quando o valor muda,
+ * os dígitos giram). Começa em zero e rola na primeira exibição.
+ */
+export function Odometro({ texto }: { texto: string }) {
+  const [mostrar, setMostrar] = useState(false)
+  useEffect(() => { const t = setTimeout(() => setMostrar(true), 30); return () => clearTimeout(t) }, [])
+  const chars = texto.split('')
+  return (
+    <span className="odo" aria-label={texto}>
+      {chars.map((ch, i) => {
+        const pos = chars.length - i // estável da direita para a esquerda
+        if (!/\d/.test(ch)) return <span key={`s${pos}`} className="odo-s">{ch}</span>
+        const n = mostrar ? Number(ch) : 0
+        return (
+          <span key={`d${pos}`} className="odo-c">
+            <span className="odo-fita" style={{ transform: `translateY(-${n * 10}%)`, transitionDelay: `${(chars.length - i) * 40}ms` }}>
+              {'0123456789'.split('').map((x) => <span key={x}>{x}</span>)}
+            </span>
+          </span>
+        )
+      })}
+      <style>{`
+        .odo { display: inline-flex; font-variant-numeric: tabular-nums; line-height: 1 }
+        .odo-c { display: inline-block; height: 1em; overflow: hidden; position: relative }
+        .odo-fita { display: flex; flex-direction: column; transition: transform 1.1s cubic-bezier(.2,.9,.2,1) }
+        .odo-fita span, .odo-s { height: 1em; line-height: 1em; display: block }
+      `}</style>
+    </span>
   )
 }

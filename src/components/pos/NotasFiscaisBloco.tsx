@@ -130,7 +130,7 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
   );
   // botão de imprimir com cara de botão: ícone + "Imprimir", fundo e borda
   const estiloImprimir: React.CSSProperties = {
-    display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8,
+    display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 12px", borderRadius: 8,
     border: "1px solid #0891A8", background: "#0891A8", color: "#fefefe", fontSize: 11.5, fontWeight: 800,
     textDecoration: "none", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap", boxShadow: "0 1px 2px rgba(8,145,168,.25)",
   };
@@ -148,13 +148,13 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
       {rodape}
     </div>
   ) : linhaSo(chave, titulo, sub, direita, primeira);
+  // coluna estreita: título e situação em cima, o botão de imprimir embaixo na largura toda
+  // (ao lado, o botão espremia o número: "NFS- / e 82")
   const linhaSo = (chave: string, titulo: string, sub: React.ReactNode, direita: React.ReactNode, primeira: boolean) => (
-    <div key={chave} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 2px", borderTop: primeira ? "none" : "1px solid var(--border)" }}>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{titulo}</div>
-        <div style={{ fontSize: 10.5, color: "var(--portal-text-muted)", marginTop: 1, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap" }}>{sub}</div>
-      </div>
-      {direita}
+    <div key={chave} style={{ padding: "9px 2px", borderTop: primeira ? "none" : "1px solid var(--border)" }}>
+      <div style={{ fontSize: 13.5, fontWeight: 800, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{titulo}</div>
+      <div style={{ fontSize: 11, color: "var(--portal-text-muted)", marginTop: 2, display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap", lineHeight: 1.5 }}>{sub}</div>
+      {direita ? <div className="nf-acoes" style={{ marginTop: 8 }}>{direita}</div> : null}
     </div>
   );
 
@@ -186,6 +186,10 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
 
   return (
     <div style={{ margin: "4px 0 8px", padding: 10, borderRadius: 12, border: "1px solid color-mix(in srgb, #16a34a 35%, var(--border))", background: "color-mix(in srgb, #16a34a 5%, var(--surface))", display: "flex", flexDirection: "column", gap: 7 }}>
+      {/* linha de ações: Imprimir estica, o ícone do governo fica do lado */}
+      <style>{`.nf-acoes { display: flex; } .nf-acoes > span { display: flex !important; width: 100%; gap: 6px; align-items: stretch; }
+        .nf-acoes > button, .nf-acoes > a, .nf-acoes > span > a, .nf-acoes > span > button { flex: 1; }
+        .nf-acoes > span > span { flex: none; display: flex; } .nf-acoes > span > span > button { width: 32px !important; height: auto !important; min-height: 30px; }`}</style>
       <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 2px" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/marcas/nfse.png" alt="NFS-e" style={{ height: 17, width: "auto", display: "block" }} />

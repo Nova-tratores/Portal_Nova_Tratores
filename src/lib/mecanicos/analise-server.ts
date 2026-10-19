@@ -8,9 +8,8 @@ import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
 import { chamarIA } from '@/lib/assistente/ia'
 import { carregarAgenda } from '@/lib/agenda/server'
 import type { Autenticado } from '@/lib/auth/server'
-import { carregarBase } from './painel-server'
-import { agregar, pesosPorOS, resumirGastos, somarDias, ultimasSemanas, ultimosMeses, type LinhaTecnico } from './painel'
-import { carregarGastos } from './gastos-server'
+import { baseComCache } from './base-cache'
+import { agregar, osAguardandoFaturar, agruparBase, ativosEm, metaAtiva, custoEquipe, pesosPorOS, resumirGastos, somarDias, ultimasSemanas, ultimosMeses, type LinhaTecnico } from './painel'
 import { padronizadorOcorrencias, ocorrenciasEntre } from './ocorrencias-server'
 import { escudos, motivos, historicoPorPessoa } from './ocorrencias-painel'
 import { agendaPorTecnico, diasDoIntervalo, lerAnalise, DIAS_FUTURO, MODULO_ENSINAMENTOS, type Analise, type ItemFuturo } from './analise'
@@ -77,24 +76,27 @@ export async function montarContexto(auth: Autenticado) {
   const hoje = hojeSP()
   const semanas = ultimasSemanas(hoje, 8)
   const meses = ultimosMeses(hoje, 6)
-  const de = semanas[0].de < meses[0].de ? semanas[0].de : meses[0].de
-  const ate = semanas[semanas.length - 1].ate
   const futuroAte = somarDias(hoje, DIAS_FUTURO)
   const mesAtual = meses[meses.length - 1]
 
   const { padronizar, tecnicos: tecOc } = await padronizadorOcorrencias()
-  const [base, ocs, agenda, gastos] = await Promise.all([
-    carregarBase(de, ate),
+  // a mesma base da tela (tabelas posvendas_*): faturamento, horas, internas, gastos e salários
+  const [{ dados: baseBruta }, ocs, agenda] = await Promise.all([
+    baseComCache(),
     ocorrenciasEntre(meses[0].de, mesAtual.ate, padronizar),
     carregarAgenda(auth, hoje, futuroAte, 'tecnicos'),
-    carregarGastos(meses[0].de, hoje, padronizar),
   ])
+  // Vinicius → Garantia, José Ortiz → Outros (grupos, sem meta de horas)
+  const base = agruparBase(baseBruta)
+  const gastos = base.gastos || []
+  const equipe = base.equipe || []
   const ocor = { ocs, tecnicos: tecOc }
   const pesos = pesosPorOS(base.diasTodos)
   // período em andamento conta só até hoje (senão a meta dos dias que nem chegaram vira ociosidade)
   const passo = (b: { de: string; ate: string; rotulo: string }) => {
     const fim = b.ate > hoje ? hoje : b.ate
-    const r = agregar(b.de, fim, base.tecnicos, base.dias, base.faturadas, pesos)
+    // só quem estava na empresa no período (admissão/demissão do RH); meta só dos dias ativos
+    const r = agregar(b.de, fim, ativosEm(base, b.de, fim), base.diasTodos, base.faturadas, pesos, metaAtiva(base)(b.de, fim), osAguardandoFaturar(base))
     return { periodo: `${b.rotulo} (${b.de} a ${fim}${fim !== b.ate ? ', EM ANDAMENTO' : ''})`, total: resumoLinha({ ...r.total, tecnico: 'TOTAL' }), linhas: r.linhas }
   }
   const semanasR = semanas.map(passo)
@@ -120,7 +122,7 @@ export async function montarContexto(auth: Autenticado) {
 
   // OS internas trabalhadas no mês (horas do app)
   const internas = new Map<string, { os: string; motivo: string; cliente: string; horas: number; tecnicos: Set<string> }>()
-  for (const d of base.dias) {
+  for (const d of base.diasTodos) {
     if (!d.interna || d.data < mesAtual.de) continue
     const info = base.osInternas[d.os]
     const x = internas.get(d.os) || { os: d.os, motivo: info?.motivo || 'interna', cliente: info?.cliente || '', horas: 0, tecnicos: new Set<string>() }
@@ -150,7 +152,9 @@ export async function montarContexto(auth: Autenticado) {
         defesas_aguardando: e?.pendentes || 0,
         do_mes: ocsT.map((o) => ({ data: o.data, motivo: o.rotulo, categoria: o.categoria, pontos: o.pontos, automatica: o.origem === 'auto', vale: o.vale, os: o.idOrdem })),
       },
-      gastos_por_mes_6m: meses.map((m) => { const g = resumirGastos(gastos, m.de, m.ate).porPessoa.find((x) => x.pessoa === t); return g ? { abastecimento: r0(g.abastecimento), alimentacao: r0(g.alimentacao), litros: r0(g.litros) } : null }),
+      gastos_por_mes_6m: meses.map((m) => { const g = resumirGastos(gastos, m.de, m.ate).porPessoa.find((x) => x.pessoa === t); return g ? { abastecimento: r0(g.abastecimento), manutencao_carro: r0(g.manutencao), alimentacao: r0(g.alimentacao), litros: r0(g.litros) } : null }),
+      salario_encargos_mes_atual: r0(custoEquipe(equipe, mesAtual.de, hoje).detalhe[t]?.salario || 0),
+      comissao_mes_atual: r0(custoEquipe(equipe, mesAtual.de, hoje).detalhe[t]?.comissao || 0),
       agenda_14_dias: a ? { dias_uteis: a.diasUteis, dias_ocupados: a.diasOcupados, servicos: a.servicos.slice(0, 8).map((s) => `${s.dia} ${s.titulo}`) } : null,
     }
   })
@@ -160,7 +164,14 @@ export async function montarContexto(auth: Autenticado) {
     meses_6: mesesChave,
     semanas: semanasR.map((s) => ({ periodo: s.periodo, total: s.total })),
     meses: mesesR.map((m) => ({ periodo: m.periodo, total: m.total })),
-    gastos_por_mes_6m: meses.map((m) => { const g = resumirGastos(gastos, m.de, m.ate > hoje ? hoje : m.ate); return { mes: m.rotulo, abastecimento: r0(g.abastecimento), alimentacao: r0(g.alimentacao), litros: r0(g.litros), fora_das_os: r0(g.foraDasOS) } }),
+    resultado_por_mes_6m: meses.map((m, i) => {
+      const g = resumirGastos(gastos, m.de, m.ate > hoje ? hoje : m.ate)
+      const tot = mesesR[i].total
+      const eqm = custoEquipe(equipe, m.de, m.ate > hoje ? hoje : m.ate)
+      const salarios = eqm.total
+      const resultado = tot.liquido - g.foraDasOS - salarios
+      return { mes: m.rotulo, faturado: tot.bruto, mao_de_obra: tot.servico, deslocamento: tot.km_valor, pecas: tot.pecas, custo_terceiros: tot.custo_terceiros, abastecimento: r0(g.abastecimento), manutencao_carro: r0(g.manutencao), alimentacao: r0(g.alimentacao), materiais_oficina: r0(g.materiais), salarios_encargos: r0(eqm.salario), comissoes: r0(eqm.comissao), rescisoes: r0(eqm.rescisao), pessoal_total: r0(salarios), litros: r0(g.litros), resultado: r0(resultado), sobra_de_cada_100: tot.bruto ? Math.round((resultado / tot.bruto) * 100) : null }
+    }),
     os_internas_do_mes: [...internas.values()].map((x) => ({ ...x, horas: r1(x.horas), tecnicos: [...x.tecnicos] })),
     ocorrencias_do_mes_motivos: motivos(ocMes).slice(0, 10),
     defesas_aguardando_total: escMes.reduce((s, e) => s + e.pendentes, 0),
@@ -179,9 +190,15 @@ COMO LER OS NÚMEROS
 - faturadas_h: horas COBRADAS em OS JÁ FATURADAS no período. A OS fatura dias ou semanas depois do serviço, então semana/mês em andamento SEMPRE tem poucas faturadas. Não chame isso de queda sem olhar as trabalhadas.
 - internas_h: horas em OS INTERNA = não cobrada do cliente (tipo de serviço interno no portal, conta corrente interna ou contrato interno no Omie: entrega técnica, revisão pré-entrega, cortesia oficina/comercial, garantia assumida pela Nova). É custo da empresa; algumas são investimento (entrega técnica de máquina vendida).
 - ociosas_h = meta − faturadas − internas.
-- Valor: bruto = serviço (horas) + km + peças das OS; custo_terceiros = requisições/compras ligadas à OS; líquido = bruto − custo. OS com 2 técnicos: valor e km divididos.
+- Valor: bruto (total faturado) = mão de obra (servico) + deslocamento (km_valor) + peças da oficina (pecas). custo_terceiros = requisições que o técnico pediu como "Trator-Cliente" e que NÃO foram cobradas do cliente (serviço de terceiros, peças compradas fora…) — é dinheiro que saiu e não voltou. líquido = bruto − custo. OS com 2 técnicos: valor e km divididos.
 - km: deslocamento cobrado. Muito km com pouco serviço = viagem cara.
-- GASTOS do pós-vendas: abastecimento (cartão-frota do departamento Oficina + requisições de abastecimento) e alimentação (requisições da OS e da Oficina). A alimentação ligada a OS já está no custo de terceiros da OS; fora_das_os é o que ainda não foi descontado. O cartão-frota é importado por arquivo — mês atual pode estar incompleto.
+- GASTOS do pós-vendas: abastecimento (cartão-frota + requisições de abastecimento) e manutenção do carro, atribuídos ao DONO do carro (vínculo técnico ↔ placa da Frota), e alimentação (requisições). Não estão no custo de terceiros. O cartão-frota é importado por arquivo — mês atual pode estar incompleto.
+- SALÁRIOS: salário + encargos de cada técnico (cadastro do RH), proporcional aos dias do período.
+- GRUPOS (não são técnicos de campo, não têm meta de horas nem hora ociosa): "Garantia" = tudo do Vinicius Correa (as OS dele são sempre de garantia); "Outros" = José Ortiz. O salário deles entra no custo do pós-vendas, mas não compare a produção deles com a dos técnicos.
+- FATURADO = o que foi faturado no Omie (mão de obra, km e outros itens da OS) no mês do faturamento + o pedido de peças faturado; "com nota" é o mesmo número do Dashboard de Vendas, "recibo" é o que saiu sem NFS-e.
+- PESSOAL = salário + encargos (RH, departamento Pós Vendas) + COMISSÃO do mês com encargos (RH) + rescisões/acertos pagos no Omie. A comissão costuma somar 50% ou mais em cima dos salários: quando o resultado cai, veja se foi a comissão.
+- GASTOS incluem "materiais da oficina" (ferramenta, peça de uso, terceiros fora de OS); requisição só conta quando chega ao financeiro; o que o funcionário devolveu (desconto em folha) não conta.
+- RESULTADO = total faturado − custo de terceiros − gastos do pós-vendas − pessoal (salário, comissão, encargos, rescisões). É o que o pós-vendas realmente deixou para a empresa no período (antes de impostos). Resultado negativo = o pós-vendas não se pagou. Explique SEMPRE em palavras simples no resumo, assim: "de cada R$ 100 faturados, sobraram R$ X depois de pagar terceiros, os gastos e os salários da equipe" e diga se isso é bom ou ruim comparando com os meses anteriores. Custo de terceiros alto = serviço que não está sendo repassado ao cliente (cobrar ou rever o preço).
 - Ligue gastos com produção: abastecimento alto com pouco km cobrado/pouca hora faturada = carro rodando sem gerar receita (ou uso fora do serviço); compare gasto ÷ faturado entre pessoas e meses.
 
 COMO DIAGNOSTICAR HORA OCIOSA (o ponto mais importante)
@@ -214,8 +231,14 @@ REGRAS
 - Os ENSINAMENTOS DA GESTÃO valem como regra acima do seu julgamento.
 - Português simples, frases curtas, sem jargão de TI. Seja direto: o gestor prefere a verdade.
 
+COMO ORIENTAR CADA TÉCNICO (a parte mais valiosa para a gestão)
+- Para CADA técnico de campo: situação (bom|atencao|critico), 1 a 3 pontos fortes REAIS (com número), 1 a 3 pontos de atenção (com número), 2 a 3 DICAS PRÁTICAS do que o gestor deve fazer com ele esta semana (específicas, nada genérico: "encaixar a revisão do cliente X na quarta, que a agenda dele está livre", "pedir para lançar as horas da OS-0824 no app", "conversar sobre as 3 velocidades acima de 115 km/h no carro TKC5D99") e uma frase de abertura para a CONVERSA com ele — respeitosa, começando pelo ponto forte e depois o ajuste.
+- Reconheça quem vai bem: elogio concreto também é dica.
+- Grupos "Garantia" e "Outros" e "Sem técnico" não recebem dicas de produção.
+- Plano de ação: cada ação com prioridade (alta = esta semana e mexe em dinheiro ou segurança; média = este mês; baixa = melhoria).
+
 Responda APENAS um JSON:
-{"manchete":"1 frase com a situação de agora","situacao":"bom|atencao|critico","resumo":"3 a 5 frases","conexoes":[{"titulo":"","texto":"ligando 2 ou mais números/ocorrências"}],"destaques":[{"titulo":"","texto":"","tipo":"bom|atencao|critico"}],"porTecnico":[{"tecnico":"","leitura":"o que os números e as ocorrências dele dizem juntos","acao":""}],"proximosDias":{"leitura":"","alertas":[""]},"acoes":[{"oque":"","quem":"","quando":"","porque":""}]}`
+{"manchete":"1 frase com a situação de agora","situacao":"bom|atencao|critico","resumo":"3 a 5 frases — a 1ª explica o Resultado em palavras simples (de cada R$ 100…)","conexoes":[{"titulo":"causa → efeito curto","texto":"ligando 2 ou mais números/ocorrências"}],"destaques":[{"titulo":"","texto":"","tipo":"bom|atencao|critico"}],"porTecnico":[{"tecnico":"","situacao":"bom|atencao|critico","leitura":"o que os números e as ocorrências dele dizem juntos","pontosFortes":[""],"atencao":[""],"dicas":[""],"conversa":"","acao":"a ação mais importante com ele"}],"proximosDias":{"leitura":"","alertas":[""]},"acoes":[{"oque":"","quem":"","quando":"","porque":"","prioridade":"alta|media|baixa"}]}`
 
 /** Gera a análise agora, guarda no log e devolve. */
 export async function gerarAnalise(auth: Autenticado, autor: string): Promise<AnaliseGuardada> {

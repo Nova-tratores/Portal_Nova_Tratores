@@ -6,18 +6,22 @@
 //  4. Um CARTÃO por técnico: horas × meta, faturado, gastos, km, pontos de ocorrência e resultado
 //  5. Evolução com UM gráfico (escolhe o que ver; clicar na barra vai para aquele período)
 // Dados: base inteira de GET /api/mecanicos/base (gravada no banco), calculada na tela por montarPainel.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLine, Cell, CartesianGrid } from 'recharts'
 import type { LinhaTecnico, OSFaturada, DiaRegistrado } from '@/lib/mecanicos/painel'
-import { brl, brl2, horas, kmFmt, COR, Kpi, Cartao, EstilosCPV, Numero } from './ui'
-import SeletorTempo from './SeletorTempo'
+import { brl, brl2, horas, kmFmt, COR, Kpi, Cartao, EstilosCPV, Numero, useContador } from './ui'
+import { SeletorCartoes, ESTILO_SO } from './SeletorOpcoes'
 import FaturamentoVivo from './FaturamentoVivo'
-import { montarPainel, pesosPorOS, SEM_TECNICO, type Escala, type PainelMontado } from '@/lib/mecanicos/painel'
-import { porDiaDe } from '@/lib/mecanicos/fita'
+import DinheiroParado from './DinheiroParado'
+import GastosPosVendas from './GastosPosVendas'
+import Comparador, { type PessoaComparada } from './Comparador'
+import CartaJogo, { type DadosCarta } from './CartaJogo'
+import { faltasCartao, montarPainel, agruparBase, andarPeriodo, grupoDe, SEM_META, SEM_TECNICO, type Escala, type PainelMontado } from '@/lib/mecanicos/painel'
 import { faixa } from '@/lib/mecanicos/ocorrencias-painel'
 import { authHeaders } from '@/lib/auth/client'
 import { useBasePosVendas } from './useBasePosVendas'
+import type { Pendencia } from '@/lib/mecanicos/pendencias'
 
 type Resp = PainelMontado & { geradoEm?: string }
 type Metrica = 'bruto' | 'resultado' | 'faturadas' | 'gastos'
@@ -28,6 +32,7 @@ interface OSInterna { os: string; cliente: string; motivo: string; horas: number
 const TXT = 'var(--portal-text, #0f172a)', MUDO = 'var(--portal-text-muted, #64748b)'
 const COR_GASTO = '#ea580c'
 const COR_RESULT = '#0f766e'
+const ROTULO_HIST: Record<Escala, string> = { dia: 'últimos 14 dias', semana: 'últimas 8 semanas', mes: 'últimos 6 meses', ano: 'últimos 3 anos' }
 const METRICAS: [Metrica, string][] = [['bruto', 'Faturado'], ['resultado', 'Resultado'], ['faturadas', 'Horas faturadas'], ['gastos', 'Gastos']]
 
 export default function PainelTecnicos() {
@@ -37,13 +42,31 @@ export default function PainelTecnicos() {
   const [ficha, setFicha] = useState<string | null>(null)
   const [listaOS, setListaOS] = useState<{ titulo: string; os: OSFaturada[] } | null>(null)
   const [verInternas, setVerInternas] = useState(false)
+  const [verReqs, setVerReqs] = useState(false)
+  const [verGastos, setVerGastos] = useState<false | 'todos' | 'abastecimento' | 'manutencao' | 'alimentacao' | 'materiais'>(false)
+  const [verSal, setVerSal] = useState(false)
+  const [focoFita, setFocoFita] = useState<string | null>(null)
+  const [cmp, setCmp] = useState<[string, string] | null>(null)
+  const [arrastando, setArrastando] = useState<string | null>(null)
+  const [alvo, setAlvo] = useState<string | null>(null)
+  const [carta, setCarta] = useState<number | null>(null)
+  const [busca, setBusca] = useState(false)
+  const [ajuda, setAjuda] = useState(false)
   const [pontos, setPontos] = useState<Record<string, number>>({})
 
   // base baixada uma vez; cada período é calculado aqui mesmo (troca de data instantânea)
   const { base, carregando, erro, recarregar } = useBasePosVendas()
-  const pesos = useMemo(() => (base ? pesosPorOS(base.diasTodos) : undefined), [base])
-  const porDia = useMemo(() => (base ? porDiaDe(base.faturadas) : null), [base])
-  const d: Resp | null = useMemo(() => (base ? { ...montarPainel(base, tipo, ref, hojeSP(), pesos), geradoEm: base.geradoEm } : null), [base, tipo, ref, pesos])
+  const agrupada = useMemo(() => (base ? agruparBase(base) : null), [base])
+  // passando o mouse num cartão de técnico, os cartões de período mostram só ele (valor dividido quando a OS tem 2)
+  const fatFita = useMemo(() => {
+    if (!agrupada) return null
+    if (!focoFita) return agrupada.faturadas
+    return agrupada.faturadas.filter((o) => o.tecnicos.includes(focoFita)).map((o) => {
+      const n = o.tecnicos.length
+      return { ...o, bruto: o.bruto / n, horasCobradas: o.horasCobradas / n, servico: o.servico / n, km: o.km / n, kmValor: o.kmValor / n, pecas: o.pecas / n, outros: o.outros / n }
+    })
+  }, [agrupada, focoFita])
+  const d: Resp | null = useMemo(() => (base ? { ...montarPainel(base, tipo, ref, hojeSP()), geradoEm: base.geradoEm } : null), [base, tipo, ref])
 
   // pontos de ocorrência do mês do período (escudo de 100)
   const mesRef = ref.slice(0, 7)
@@ -60,16 +83,98 @@ export default function PainelTecnicos() {
   }, [mesRef])
 
   const t = d?.total
+  // requisições que formam o custo de terceiros do período
+  const reqsDoPeriodo = useMemo(() => (d?.os || []).flatMap((o) => (o.requisicoes || []).map((r) => ({ ...r, os: o.os, cliente: o.cliente }))).sort((a, b) => b.valor - a.valor), [d])
   const g = d?.gastos
-  const resultado = t && g ? t.liquido - g.foraDasOS : 0
-  const tecnicos = useMemo(() => (d?.linhas || []).filter((l) => l.tecnico !== SEM_TECNICO), [d])
+  const salarios = d?.equipe.total || 0
+  const resultado = t && g ? t.liquido - g.foraDasOS - salarios : 0
+  // quanto ficou de cada R$ 100 no período anterior (para o medidor comparar)
+  const anteriorPor100 = useMemo(() => {
+    if (!d || d.serie.length < 2) return null
+    const i = d.serie.length - 2, tt = d.serie[i].total
+    if (!tt.bruto) return null
+    return ((tt.liquido - (d.gastosSerie[i]?.total || 0) - (d.equipeSerie[i] || 0)) / tt.bruto) * 100
+  }, [d])
+  const tecnicos = useMemo(() => (d?.linhas || []).filter((l) => l.tecnico !== SEM_TECNICO && !SEM_META.has(l.tecnico)), [d])
+  // Garantia (Vinicius) e Outros (José Ortiz) não são técnicos de campo: ficam na faixa "Apoio"
+  const apoio = useMemo(() => (d?.linhas || []).filter((l) => l.tecnico !== SEM_TECNICO && SEM_META.has(l.tecnico)), [d])
   const semTecnico = d?.linhas.find((l) => l.tecnico === SEM_TECNICO)
   const osDoTecnico = (tec: string) => (d?.os || []).filter((o) => (o.tecnicos.length ? o.tecnicos : [SEM_TECNICO]).includes(tec))
+  // cartão-frota importado por planilha: avisa o que ainda não chegou no período
+  const cartao = useMemo(() => (base && d ? faltasCartao(base.gastos || [], d.periodo.de, d.periodo.ate > hojeSP() ? hojeSP() : d.periodo.ate) : null), [base, d])
+  const gastosDoPeriodo = useMemo(() => { if (!base || !d) return []; const fim = d.periodo.ate > hojeSP() ? hojeSP() : d.periodo.ate; return (base.gastos || []).filter((x) => x.data >= d.periodo.de && x.data <= fim).map((x) => ({ ...x, pessoa: grupoDe(x.pessoa) })) }, [base, d])
+  const versoDe = (l: LinhaTecnico): VersoCartao => {
+    const gp = gastoDe(l.tecnico)
+    const cli = new Map<string, number>()
+    for (const o of osDoTecnico(l.tecnico)) cli.set(o.cliente || 'Omie', (cli.get(o.cliente || 'Omie') || 0) + o.bruto / Math.max(1, o.tecnicos.length))
+    return { abastecimento: gp?.abastecimento || 0, manutencao: gp?.manutencao || 0, alimentacao: gp?.alimentacao || 0, litros: gp?.litros || 0, internas: l.internas, clientes: [...cli.entries()].sort((x, y) => y[1] - x[1]).slice(0, 3) }
+  }
+  // mouse entrando/saindo dos cartões sem piscar a fita
+  const focoTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const focar = (t: string | null) => { if (focoTimer.current) clearTimeout(focoTimer.current); focoTimer.current = setTimeout(() => setFocoFita(t), t ? 120 : 250) }
+  const abrirComparar = (nome: string) => { const outro = tecnicos.find((x) => x.tecnico !== nome); if (outro) setCmp([nome, outro.tecnico]) }
+  const pessoaCmp = (nome: string): PessoaComparada => ({ nome, l: d?.linhas.find((x) => x.tecnico === nome), gastos: gastoDe(nome)?.total || 0, salario: d?.equipe.porPessoa[nome] || 0, pontos: pontos[nome] })
   const gastoDe = (tec: string) => d?.gastos.porPessoa.find((p) => p.pessoa === tec)
+
+  useEffect(() => {
+    const f = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable)) return
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setBusca(true); return }
+      if (e.ctrlKey || e.metaKey || e.altKey || busca || ficha || cmp || carta != null) return
+      const k = e.key.toLowerCase()
+      const esc: Record<string, Escala> = { d: 'dia', s: 'semana', m: 'mes', a: 'ano' }
+      if (esc[k]) setTipo(esc[k])
+      else if (k === '/') { e.preventDefault(); setBusca(true) }
+      else if (e.key === '?') setAjuda(true)
+      else if (k === 'h') setRef(hojeSP())
+      else if (k === 'c' && tecnicos.length > 1) setCmp([tecnicos[0].tecnico, tecnicos[1].tecnico])
+      else if (e.key === 'ArrowLeft') setRef((r) => andarPeriodo(tipo, r, -1))
+      else if (e.key === 'ArrowRight') setRef((r) => { const n = andarPeriodo(tipo, r, 1); return n > hojeSP() ? r : n })
+    }
+    window.addEventListener('keydown', f)
+    return () => window.removeEventListener('keydown', f)
+  }, [busca, ficha, cmp, carta, tecnicos, tipo])
+
+  const itensBusca = (q: string): ItemBusca[] => {
+    const n = q.trim().toLowerCase()
+    const out: ItemBusca[] = []
+    for (const l of tecnicos) if (!n || l.tecnico.toLowerCase().includes(n)) out.push({ grupo: 'Técnicos', titulo: l.tecnico, sub: `${brl(l.bruto)} no período`, icone: 'fa-user-gear', acao: () => setFicha(l.tecnico) })
+    if (n.length >= 2 && agrupada) {
+      const lista = agrupada.faturadas.filter((o) => o.os.toLowerCase().includes(n) || (o.numeroOmie || '').includes(n) || o.cliente.toLowerCase().includes(n)).sort((x, y) => y.data.localeCompare(x.data)).slice(0, 8)
+      for (const o of lista) out.push({
+        grupo: 'OS faturadas', titulo: `${o.os} · ${o.cliente || 'Omie'}`, sub: `${br(o.data)}/${o.data.slice(2, 4)} · ${brl(o.bruto)} · ${o.tecnicos.join(' + ') || 'sem técnico'}`,
+        icone: 'fa-file-invoice-dollar', acao: () => { if (!o.os.startsWith('OMIE')) window.open(`/pos?id=${encodeURIComponent(o.os)}`, '_blank') },
+      })
+    }
+    const acoes: ItemBusca[] = [
+      { grupo: 'Ir para', titulo: 'Hoje', icone: 'fa-location-crosshairs', acao: () => { setTipo('dia'); setRef(hojeSP()) } },
+      { grupo: 'Ir para', titulo: 'Esta semana', icone: 'fa-calendar-week', acao: () => { setTipo('semana'); setRef(hojeSP()) } },
+      { grupo: 'Ir para', titulo: 'Este mês', icone: 'fa-calendar', acao: () => { setTipo('mes'); setRef(hojeSP()) } },
+      { grupo: 'Ir para', titulo: 'Este ano', icone: 'fa-calendar-days', acao: () => { setTipo('ano'); setRef(hojeSP()) } },
+      ...(tecnicos.length > 1 ? [{ grupo: 'Ir para', titulo: `Comparar ${tecnicos[0].tecnico} × ${tecnicos[1].tecnico}`, icone: 'fa-code-compare', acao: () => setCmp([tecnicos[0].tecnico, tecnicos[1].tecnico]) }] : []),
+      { grupo: 'Ir para', titulo: 'Gastos do período', icone: 'fa-gas-pump', acao: () => setVerGastos('todos') },
+      { grupo: 'Ir para', titulo: 'Requisições de terceiros', icone: 'fa-receipt', acao: () => setVerReqs(true) },
+    ]
+    out.push(...acoes.filter((x) => !n || x.titulo.toLowerCase().includes(n)))
+    return out.slice(0, 18)
+  }
+
+  const maxBruto = Math.max(1, ...tecnicos.map((l) => l.bruto))
+  const cartas: DadosCarta[] = tecnicos.map((l) => {
+    const gp = gastoDe(l.tecnico), v = versoDe(l)
+    const parado = (base?.pendencias || []).filter((p) => p.tecnicos.map(grupoDe).includes(l.tecnico)).reduce((a, p) => a + p.total / Math.max(1, p.tecnicos.length), 0)
+    return {
+      l, maxBruto, parado, clientes: v.clientes, salario: d?.equipe.porPessoa[l.tecnico] || 0, pontos: pontos[l.tecnico],
+      gasto: { abastecimento: gp?.abastecimento || 0, manutencao: gp?.manutencao || 0, alimentacao: gp?.alimentacao || 0, materiais: gp?.materiais || 0, total: gp?.total || 0, litros: gp?.litros || 0 },
+      comissao: (d?.equipe.detalhe[l.tecnico]?.comissao || 0) + (d?.equipe.detalhe[l.tecnico]?.comissaoPrevista || 0),
+      comissaoPrevista: (d?.equipe.detalhe[l.tecnico]?.comissaoPrevista || 0) > 0,
+    }
+  })
 
   const serie = (d?.serie || []).map((b, i) => {
     const gs = d!.gastosSerie[i]
-    const v = metrica === 'bruto' ? b.total.bruto : metrica === 'faturadas' ? b.total.faturadas : metrica === 'gastos' ? gs?.total || 0 : b.total.liquido - (gs ? gs.total : 0)
+    const v = metrica === 'bruto' ? b.total.bruto : metrica === 'faturadas' ? b.total.faturadas : metrica === 'gastos' ? gs?.total || 0 : b.total.liquido - (gs ? gs.total : 0) - (d!.equipeSerie[i] || 0)
     return { rotulo: b.rotulo, de: b.de, valor: Math.round(v * 10) / 10, atual: ref >= b.de && ref <= b.ate }
   })
   const corMetrica = metrica === 'bruto' ? '#0369a1' : metrica === 'faturadas' ? COR.faturadas : metrica === 'gastos' ? COR_GASTO : COR_RESULT
@@ -79,39 +184,37 @@ export default function PainelTecnicos() {
       <EstilosCPV />
       <style>{ESTILO}</style>
       <FaturamentoVivo compacto />
-      <SeletorTempo escala={tipo} refDia={ref} onMudar={(e, r) => { setTipo(e); setRef(r) }} porDia={porDia} desde={base?.de} carregando={carregando} geradoEm={base?.geradoEm} onAtualizar={() => void recarregar()} />
+      <style>{ESTILO_SO}</style>
+      {/* P3 "Cartões de período" escolhida na página de teste (19/10) no lugar da fita antiga (SeletorTempo) */}
+      {fatFita && <SeletorCartoes faturadas={fatFita} hoje={hojeSP()} escala={tipo} refDia={ref} onMudar={(e, r) => { setTipo(e); setRef(r) }} carregando={carregando} onAtualizar={() => void recarregar()} />}
       {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
       {!d && carregando && <div style={{ padding: 40, textAlign: 'center', color: MUDO }}><i className="fas fa-circle-notch fa-spin" /> carregando o histórico…</div>}
 
       {t && g && (
-        <>
-          {/* 3. a conta do período */}
-          <section className="pt-conta cpv-entra">
-            <button type="button" className="pt-passo" onClick={() => setListaOS({ titulo: 'período', os: d!.os })} title="Ver as OS faturadas">
-              <span className="pt-rot">Faturado</span>
-              <span className="pt-val" style={{ color: '#0369a1' }}><Numero valor={t.bruto} formato={brl} /></span>
-              <span className="pt-sub">{Math.round(t.os)} OS · serviço {brl(t.servico)} · km {brl(t.kmValor)} · peças {brl(t.pecas)}</span>
-              <span className="pt-mini">{[['servico', COR.servico], ['kmValor', COR.km], ['pecas', COR.pecas], ['outros', COR.outros]].map(([k, c]) => <i key={k} style={{ width: `${t.bruto ? (Math.max(0, t[k as keyof LinhaTecnico] as number) / t.bruto) * 100 : 0}%`, background: c }} />)}</span>
-            </button>
-            <span className="pt-op">−</span>
-            <div className="pt-passo">
-              <span className="pt-rot">Custo de terceiros</span>
-              <span className="pt-val" style={{ color: COR.custo }}><Numero valor={t.custo} formato={brl} /></span>
-              <span className="pt-sub">requisições ligadas às OS</span>
+        <div key={`${tipo}|${ref}`} className="pt-troca">
+          {cartao && (cartao.depoisDe || cartao.mesesSem.length > 0) && (
+            <div className="pt-aviso-cartao">
+              <i className="fas fa-gas-pump" />
+              <span>
+                <b>Abastecimento do cartão incompleto neste período.</b>{' '}
+                {cartao.depoisDe && <>A planilha do cartão-frota foi importada só até <b>{br(cartao.depoisDe)}/{cartao.depoisDe.slice(2, 4)}</b> — o que foi abastecido depois ainda não está aqui (só as requisições). </>}
+                {cartao.mesesSem.length > 0 && <>Sem nenhuma transação do cartão em <b>{cartao.mesesSem.map((m) => `${m.slice(5)}/${m.slice(2, 4)}`).join(', ')}</b>. </>}
+                Importe a planilha em <a href="/frota/abastecimento" target="_blank" rel="noreferrer">Frota → Abastecimento</a>.
+              </span>
             </div>
-            <span className="pt-op">−</span>
-            <div className="pt-passo">
-              <span className="pt-rot">Gastos do pós-vendas</span>
-              <span className="pt-val" style={{ color: COR_GASTO }}><Numero valor={g.foraDasOS} formato={brl} /></span>
-              <span className="pt-sub">abastecimento {brl(g.abastecimento)} · alimentação {brl(g.alimentacao)}{g.total > g.foraDasOS ? ` (${brl(g.total - g.foraDasOS)} já nas OS)` : ''}</span>
-            </div>
-            <span className="pt-op">=</span>
-            <div className="pt-passo pt-final" style={{ background: resultado >= 0 ? '#f0fdfa' : '#fef2f2', borderColor: resultado >= 0 ? '#99f6e4' : '#fecaca' }}>
-              <span className="pt-rot">Resultado</span>
-              <span className="pt-val" style={{ color: resultado >= 0 ? COR_RESULT : '#b91c1c' }}><Numero valor={resultado} formato={brl} /></span>
-              <span className="pt-sub">{t.bruto ? `${Math.round((resultado / t.bruto) * 100)}% do faturado` : '—'}</span>
-            </div>
-          </section>
+          )}
+          {/* 3. para onde foi o dinheiro */}
+          <Dinheiro t={t} g={g} salarios={salarios} eq={d!.equipe} notas={d!.notas} resultado={resultado} nOS={Math.round(t.os)} nReqs={reqsDoPeriodo.length} anterior={anteriorPor100}
+            onOS={() => setListaOS({ titulo: 'período', os: d!.os })} onTerceiros={() => setVerReqs(true)} onGastos={() => setVerGastos('todos')} onSalarios={() => setVerSal(true)} />
+
+          {/* dinheiro parado: OS feitas e não faturadas / passou da data sem preencher (foto de agora) */}
+          {base?.pendencias && base.pendencias.length > 0 && <DinheiroParado pendencias={base.pendencias} />}
+
+          {/* gastos do pós-vendas: tudo separado + internas fechadas + descontos, contra o período anterior */}
+          <GastosPosVendas atual={d!.despesas} anterior={d!.despesasAnterior}
+            internas={(base?.internasFechadas || []).filter((x) => x.data >= d!.periodo.de && x.data <= d!.periodo.ate)}
+            osComDesconto={d!.os.filter((o) => o.descontos && o.descontos.hora + o.descontos.km + o.descontos.geral + o.descontos.pecas > 0.009)}
+            onGastos={(tp) => setVerGastos(tp)} onTerceiros={() => setVerReqs(true)} />
 
           {/* horas da equipe */}
           <section className="pt-horas cpv-entra" style={{ animationDelay: '80ms' }}>
@@ -119,10 +222,11 @@ export default function PainelTecnicos() {
               <b style={{ fontSize: 16, color: TXT }}>Horas da equipe</b>
               <span style={{ fontSize: 13.5, color: MUDO }}>meta {horas(t.meta)} ({horas(tecnicos[0]?.meta || 0)} por técnico) · trabalhadas no app {horas(t.trabalhadas)}</span>
             </div>
-            <BarraHoras faturadas={t.faturadas} internas={t.internas} ociosas={t.ociosas} meta={t.meta} grande />
+            <BarraHoras faturadas={t.faturadas} aguardando={t.aguardando} internas={t.internas} ociosas={t.ociosas} meta={t.meta} grande />
             <div className="pt-legenda">
               <span><i style={{ background: COR.faturadas }} /> Faturadas <b>{horas(t.faturadas)}</b></span>
               <button type="button" onClick={() => setVerInternas(true)}><i style={{ background: COR.internas }} /> Internas <b>{horas(t.internas)}</b> · {d!.internas.length} OS <u>ver</u></button>
+              <span title="Horas do app em OS já preenchidas e ainda não faturadas (garantia inclusa). Contam na meta; quando a OS faturar, viram faturadas."><i style={{ background: COR_AGUARDANDO }} /> Aguardando faturar <b>{horas(t.aguardando)}</b></span>
               <span><i style={{ background: COR.ociosas }} /> Ociosas <b>{horas(t.ociosas)}</b></span>
               <span><i style={{ background: COR.km }} /> Km cobrados <b>{kmFmt(t.km)}</b></span>
             </div>
@@ -130,33 +234,18 @@ export default function PainelTecnicos() {
 
           {/* 4. um cartão por técnico */}
           <div className="pt-cards">
-            {tecnicos.map((l, i) => {
-              const gp = gastoDe(l.tecnico)
-              const res = l.liquido - (gp?.foraDasOS || 0)
-              const pts = pontos[l.tecnico]
-              const pct = l.meta ? Math.round(((l.faturadas + l.internas) / l.meta) * 100) : 0
-              return (
-                <button key={l.tecnico} type="button" className="pt-card cpv-entra" style={{ animationDelay: `${120 + i * 60}ms` }} onClick={() => setFicha(l.tecnico)}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="pt-nome">{l.tecnico}</span>
-                    {pts != null && <span className="pt-pts" style={{ color: { ok: '#047857', atencao: '#b45309', critico: '#b91c1c' }[faixa(pts)], background: { ok: '#ecfdf5', atencao: '#fffbeb', critico: '#fef2f2' }[faixa(pts)] }} title="Pontos de ocorrência no mês (começa com 100)"><i className="fas fa-shield-halved" /> {pts}</span>}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 8 }}>
-                    <span style={{ fontSize: 24, fontWeight: 900, color: pct >= 80 ? '#047857' : pct >= 50 ? '#b45309' : '#b91c1c' }}>{pct}%</span>
-                    <span style={{ fontSize: 13, color: MUDO }}>da meta · {horas(l.faturadas)} faturadas{l.internas ? ` + ${horas(l.internas)} internas` : ''}</span>
-                  </div>
-                  <BarraHoras faturadas={l.faturadas} internas={l.internas} ociosas={l.ociosas} meta={l.meta} />
-                  <div className="pt-nums">
-                    <span><small>Faturado</small><b style={{ color: '#0369a1' }}>{brl(l.bruto)}</b></span>
-                    <span><small>Gastos</small><b style={{ color: COR_GASTO }}>{brl(gp?.total || 0)}</b></span>
-                    <span><small>Km</small><b>{kmFmt(l.km)}</b></span>
-                    <span><small>Resultado</small><b style={{ color: res >= 0 ? COR_RESULT : '#b91c1c' }}>{brl(res)}</b></span>
-                  </div>
-                  <span className="pt-abrir">ver detalhes <i className="fas fa-chevron-right" /></span>
-                </button>
-              )
-            })}
+            {tecnicos.map((l, i) => (
+              <CartaoTecnico key={l.tecnico} l={l} i={i} gasto={gastoDe(l.tecnico)?.total || 0} salario={d!.equipe.porPessoa[l.tecnico] || 0} pontos={pontos[l.tecnico]}
+                historico={d!.serie.map((b) => b.porTecnico[l.tecnico]?.bruto || 0)} rotuloHist={ROTULO_HIST[tipo]} onClick={() => setFicha(l.tecnico)}
+                onDetalhes={() => setCarta(i)} arrastando={arrastando} alvo={alvo} onFoco={focar} onArrastar={setArrastando} onAlvo={setAlvo}
+                onSoltar={(de, para) => setCmp([de, para])} onComparar={() => abrirComparar(l.tecnico)} />
+            ))}
           </div>
+          {apoio.length > 0 && <Apoio linhas={apoio} salarios={d!.equipe.porPessoa} gastoDe={(n) => gastoDe(n)?.total || 0}
+            pendencias={(base?.pendencias || []).filter((p) => (p.garantia || p.tecnicos.map(grupoDe).includes('Garantia')) && p.tipo === 'preenchida')}
+            garantias={d!.os.filter((o) => o.garantia)}
+            onOS={(n) => setListaOS({ titulo: n, os: osDoTecnico(n) })}
+            onGarantias={() => setListaOS({ titulo: 'garantias faturadas', os: d!.os.filter((o) => o.garantia) })} />}
           {semTecnico && semTecnico.bruto > 0 && (
             <button type="button" className="pt-sem" onClick={() => setListaOS({ titulo: 'sem técnico (abertas direto no Omie)', os: osDoTecnico(SEM_TECNICO) })}>
               <i className="fas fa-circle-info" /> {brl(semTecnico.bruto)} faturados em {Math.round(semTecnico.os)} OS sem técnico (abertas direto no Omie) <u>ver</u>
@@ -182,32 +271,625 @@ export default function PainelTecnicos() {
                 </BarChart>
               </ResponsiveContainer>
             </div>
-            <div style={{ fontSize: 12, color: MUDO }}>Clique numa barra para ir para aquele período. Resultado = líquido − todos os gastos do período.</div>
+            <div style={{ fontSize: 12, color: MUDO }}>Clique numa barra para ir para aquele período. Resultado = faturado − terceiros − gastos − pessoal do período.</div>
           </Cartao>
-        </>
+        </div>
       )}
 
-      {ficha && d && <FichaTecnico tecnico={ficha} linha={d.linhas.find((l) => l.tecnico === ficha)} dias={d.dias.filter((x) => x.tecnico === ficha)} os={osDoTecnico(ficha)} gasto={gastoDe(ficha)} onFechar={() => setFicha(null)} />}
+      {ficha && d && <FichaTecnico tecnico={ficha} linha={d.linhas.find((l) => l.tecnico === ficha)} dias={d.dias.filter((x) => x.tecnico === ficha)} os={osDoTecnico(ficha)} gasto={gastoDe(ficha)} salario={d.equipe.porPessoa[ficha] || 0} onFechar={() => setFicha(null)} />}
       {listaOS && <ListaOS titulo={listaOS.titulo} os={listaOS.os} onFechar={() => setListaOS(null)} />}
+      {cmp && d && <Comparador a={pessoaCmp(cmp[0])} b={pessoaCmp(cmp[1])} pessoas={tecnicos.map((x) => x.tecnico)} onTrocar={(lado, nome) => setCmp((cc) => (cc ? (lado ? [cc[0], nome] : [nome, cc[1]]) : cc))} onFechar={() => setCmp(null)} />}
+      {carta != null && cartas.length > 0 && <CartaJogo lista={cartas} inicio={Math.min(carta, cartas.length - 1)} onFechar={() => setCarta(null)} />}
+      {busca && <BuscaRapida itens={itensBusca} onFechar={() => setBusca(false)} />}
+      {ajuda && <Atalhos onFechar={() => setAjuda(false)} />}
+      <button type="button" className="bq-flutua" onClick={() => setBusca(true)} title="Busca rápida (Ctrl+K) · ? = atalhos"><i className="fas fa-magnifying-glass" /> Buscar <kbd>Ctrl K</kbd></button>
+      {verGastos && <ListaGastos gastos={gastosDoPeriodo} inicial={verGastos} onFechar={() => setVerGastos(false)} />}
+      {verSal && d && <ListaSalarios porPessoa={d.equipe.porPessoa} detalhe={d.equipe.detalhe} equipe={(base?.equipe || []).map((e) => ({ ...e, pessoa: grupoDe(e.pessoa) }))} onFechar={() => setVerSal(false)} />}
+      {verReqs && <ListaRequisicoes reqs={reqsDoPeriodo} onFechar={() => setVerReqs(false)} />}
       {verInternas && <ListaInternas internas={d?.internas || []} onFechar={() => setVerInternas(false)} />}
     </div>
   )
 }
 
-/** Barra de horas: faturadas + internas + ociosas contra a meta. */
-function BarraHoras({ faturadas, internas, ociosas, meta, grande = false }: { faturadas: number; internas: number; ociosas: number; meta: number; grande?: boolean }) {
-  const total = Math.max(meta, faturadas + internas + ociosas, 1)
+/** Barra de horas: faturadas + aguardando faturar + internas + ociosas contra a meta. */
+const COR_AGUARDANDO = '#f59e0b'
+function BarraHoras({ faturadas, aguardando = 0, internas, ociosas, meta, grande = false }: { faturadas: number; aguardando?: number; internas: number; ociosas: number; meta: number; grande?: boolean }) {
+  const total = Math.max(meta, faturadas + aguardando + internas + ociosas, 1)
   const pct = (v: number) => `${(v / total) * 100}%`
   return (
-    <div className="pt-barra" style={{ height: grande ? 18 : 10 }} title={`faturadas ${horas(faturadas)} · internas ${horas(internas)} · ociosas ${horas(ociosas)} · meta ${horas(meta)}`}>
+    <div className="pt-barra" style={{ height: grande ? 18 : 10 }} title={`faturadas ${horas(faturadas)} · aguardando faturar ${horas(aguardando)} · internas ${horas(internas)} · ociosas ${horas(ociosas)} · meta ${horas(meta)}`}>
       <i style={{ width: pct(faturadas), background: COR.faturadas }} />
+      <i style={{ width: pct(aguardando), background: COR_AGUARDANDO }} />
       <i style={{ width: pct(internas), background: COR.internas }} />
       <i style={{ width: pct(ociosas), background: COR.ociosas }} />
     </div>
   )
 }
 
+// ---------------------------------------------------------------- "Para onde foi o dinheiro"
+
+type Parte = { chave: string; rotulo: string; valor: number; cor: string; onClick?: () => void; detalhe?: [string, number][] }
+
+/** Medidor de meia-lua: quanto de cada R$ 100 ficou (agulha anima até o valor). */
+function Medidor({ pct, anterior }: { pct: number; anterior: number | null }) {
+  const v = useContador(Math.max(-50, Math.min(100, pct)), 1200)
+  const ang = (Math.max(0, Math.min(100, v)) / 100) * 180 - 90 // -90 = 0%, +90 = 100%
+  const cor = pct >= 50 ? COR_RESULT : pct >= 20 ? '#d97706' : '#dc2626'
+  const R = 70, C = Math.PI * R
+  const dif = anterior == null ? null : Math.round(pct - anterior)
+  return (
+    <div className="dm-medidor">
+      <svg viewBox="0 0 180 104" width="190" height="110">
+        <path d={`M 20 92 A ${R} ${R} 0 0 1 160 92`} fill="none" stroke="var(--portal-bg-secondary, #eef2f7)" strokeWidth="14" strokeLinecap="round" />
+        <path d={`M 20 92 A ${R} ${R} 0 0 1 160 92`} fill="none" stroke={cor} strokeWidth="14" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - Math.max(0, Math.min(100, v)) / 100)} />
+        <g transform={`rotate(${ang} 90 92)`}>
+          <line x1="90" y1="92" x2="90" y2="34" stroke="#0f172a" strokeWidth="3" strokeLinecap="round" />
+          <circle cx="90" cy="92" r="6" fill="#0f172a" />
+        </g>
+        <text x="20" y="104" fontSize="9" fill="#94a3b8" textAnchor="middle">0</text>
+        <text x="160" y="104" fontSize="9" fill="#94a3b8" textAnchor="middle">100</text>
+      </svg>
+      <div className="dm-med-txt">
+        <b style={{ color: cor }}>R$ {Math.round(v)}</b>
+        <small>de cada R$ 100 ficaram</small>
+        {dif != null && <span style={{ color: dif > 0 ? '#047857' : dif < 0 ? '#b91c1c' : MUDO }}>{dif > 0 ? '▲' : dif < 0 ? '▼' : '='} {Math.abs(dif)} vs período anterior (R$ {Math.round(anterior!)})</span>}
+      </div>
+    </div>
+  )
+}
+
+function Dinheiro({ t, g, salarios, eq, notas, resultado, nOS, nReqs, anterior, onOS, onTerceiros, onGastos, onSalarios }: {
+  t: LinhaTecnico; g: { abastecimento: number; manutencao: number; alimentacao: number; materiais: number; total: number; emAberto: number }; salarios: number
+  eq: PainelMontado['equipe']; notas: PainelMontado['notas']; resultado: number
+  nOS: number; nReqs: number; anterior: number | null
+  onOS: () => void; onTerceiros: () => void; onGastos: () => void; onSalarios: () => void
+}) {
+  const [aceso, setAceso] = useState<{ lado: 'e' | 's'; chave: string; x: number; y: number } | null>(null)
+  const caixa = useRef<HTMLDivElement>(null)
+  const por100 = t.bruto ? (resultado / t.bruto) * 100 : 0
+  const custos = t.custo + g.total + salarios
+  const entradas = ([
+    { chave: 'mo', rotulo: 'Mão de obra', valor: t.servico, cor: COR.servico, onClick: onOS, detalhe: [[`${horas(t.faturadas)} cobradas`, t.servico]] },
+    { chave: 'km', rotulo: 'Deslocamento', valor: t.kmValor, cor: COR.km, onClick: onOS, detalhe: [[kmFmt(t.km), t.kmValor]] },
+    { chave: 'pc', rotulo: 'Peças (oficina)', valor: t.pecas, cor: COR.pecas, onClick: onOS },
+    { chave: 'ou', rotulo: 'Outros', valor: Math.max(0, t.outros), cor: COR.outros, onClick: onOS },
+  ] as Parte[]).filter((p) => p.valor > 0.5)
+  const saidas = ([
+    { chave: 'te', rotulo: 'Terceiros', valor: t.custo, cor: '#dc2626', onClick: onTerceiros, detalhe: [[`${nReqs} requisição(ões) não cobradas`, t.custo]] },
+    { chave: 'ga', rotulo: 'Gastos', valor: g.total, cor: COR_GASTO, onClick: onGastos, detalhe: [['Abastecimento', g.abastecimento], ['Manutenção do carro', g.manutencao], ['Alimentação', g.alimentacao], ['Materiais da oficina', g.materiais], ...(g.emAberto > 0.5 ? [[`Em aberto, fora do total: ${brl(g.emAberto)}`, 0] as [string, number]] : [])] },
+    { chave: 'sa', rotulo: 'Pessoal', valor: salarios, cor: '#7c3aed', onClick: onSalarios, detalhe: [['Salários + encargos (mês inteiro)', eq.salario], ['Comissão lançada no RH', eq.comissao], ['Comissão PREVISTA (ainda não no RH)', eq.comissaoPrevista], ['Rescisões e acertos', eq.rescisao]] },
+    { chave: 're', rotulo: resultado >= 0 ? 'Ficou para a empresa' : 'Faltou', valor: Math.abs(resultado), cor: resultado >= 0 ? COR_RESULT : '#fca5a5' },
+  ] as Parte[]).filter((p) => p.valor > 0.5)
+  const baseE = entradas.reduce((s, p) => s + p.valor, 0) || 1
+  const baseS = saidas.reduce((s, p) => s + p.valor, 0) || 1
+  // faixas: cada entrada se divide nas saídas na mesma proporção (o dinheiro "escorre")
+  const W = 1000, H = 130
+  const fitas: { e: string; s: string; d: string; cor: string; valor: number }[] = []
+  if (resultado >= 0) {
+    const offS = new Map<string, number>(); let accS = 0
+    for (const s of saidas) { offS.set(s.chave, accS); accS += s.valor }
+    const dentroS = new Map<string, number>(saidas.map((s) => [s.chave, 0]))
+    let accE = 0
+    for (const e of entradas) {
+      let dentroE = 0
+      for (const s of saidas) {
+        const v = e.valor * (s.valor / baseS)
+        const x0 = ((accE + dentroE) / baseE) * W, x1 = ((accE + dentroE + v) / baseE) * W
+        const y0 = ((offS.get(s.chave)! + dentroS.get(s.chave)!) / baseS) * W, y1 = ((offS.get(s.chave)! + dentroS.get(s.chave)! + v) / baseS) * W
+        fitas.push({ e: e.chave, s: s.chave, cor: s.cor, valor: v, d: `M${x0},0 C${x0},${H / 2} ${y0},${H / 2} ${y0},${H} L${y1},${H} C${y1},${H / 2} ${x1},${H / 2} ${x1},0 Z` })
+        dentroE += v; dentroS.set(s.chave, dentroS.get(s.chave)! + v)
+      }
+      accE += e.valor
+    }
+  }
+  const ligada = (f: { e: string; s: string }) => !aceso || (aceso.lado === 'e' ? f.e === aceso.chave : f.s === aceso.chave)
+  const acender = (lado: 'e' | 's', chave: string) => (ev: React.MouseEvent) => {
+    const r = caixa.current?.getBoundingClientRect()
+    setAceso({ lado, chave, x: r ? Math.min(Math.max(ev.clientX - r.left, 160), r.width - 160) : 0, y: r ? ev.clientY - r.top : 0 })
+  }
+  const parteAcesa = aceso ? (aceso.lado === 'e' ? entradas : saidas).find((p) => p.chave === aceso.chave) : null
+  const barra = (lista: Parte[], base: number, lado: 'e' | 's') => (
+    <div className="dm-barra">
+      {lista.map((p, i) => {
+        const pct = (p.valor / base) * 100
+        const apagada = aceso && !(aceso.lado === lado ? aceso.chave === p.chave : fitas.some((f) => ligada(f) && (lado === 'e' ? f.e === p.chave : f.s === p.chave)))
+        return (
+          <button key={p.chave} type="button" className={`dm-fatia ${apagada ? 'dm-apagada' : ''}`} style={{ width: `${pct}%`, background: p.cor, animationDelay: `${i * 110}ms` }}
+            onMouseEnter={acender(lado, p.chave)} onMouseMove={acender(lado, p.chave)} onMouseLeave={() => setAceso(null)} onClick={p.onClick} disabled={!p.onClick}>
+            {pct >= 8 && <span><b>{brl(p.valor)}</b><small>{p.rotulo} · {Math.round(pct)}%</small></span>}
+          </button>
+        )
+      })}
+    </div>
+  )
+  return (
+    <section className="dm-caixa cpv-entra" ref={caixa}>
+      <div className="dm-topo">
+        <div style={{ flex: 1, minWidth: 260 }}>
+          <div className="dn-rot">Para onde foi o dinheiro</div>
+          <div className="dn-frase">
+            De cada <b>R$ 100</b> faturados, {resultado >= 0
+              ? <>ficaram <b style={{ color: COR_RESULT }}>R$ {Math.round(por100)}</b> para a empresa</>
+              : <>faltaram <b style={{ color: '#b91c1c' }}>R$ {Math.abs(Math.round(por100))}</b> — o pós-vendas não se pagou</>}
+          </div>
+          <div className="dm-resumo">
+            <span><small>Entrou</small><b style={{ color: '#0369a1' }}><Numero valor={t.bruto} formato={brl} /></b><em title="Com NFS-e = o número do Dashboard de Vendas (serviços); recibo = faturada sem nota">{nOS} OS · com nota {brl(notas.comNota)} · recibo {brl(notas.recibo)}</em></span>
+            <i className="fas fa-minus" />
+            <span><small>Saiu</small><b style={{ color: '#be123c' }}><Numero valor={custos} formato={brl} /></b><em>terceiros + gastos + pessoal</em></span>
+            <i className="fas fa-equals" />
+            <span><small>Resultado</small><b style={{ color: resultado >= 0 ? COR_RESULT : '#b91c1c' }}><Numero valor={resultado} formato={brl} /></b><em>passe o mouse nas barras</em></span>
+          </div>
+        </div>
+        <Medidor pct={por100} anterior={anterior} />
+      </div>
+
+      <div className="dm-fluxo">
+        <div className="dm-lado"><small>Entrou</small></div>
+        {barra(entradas, baseE, 'e')}
+        {fitas.length > 0 && (
+          <svg className="dm-fitas" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+            {fitas.map((f, i) => (
+              <path key={i} d={f.d} fill={f.cor} className={aceso && ligada(f) ? 'dm-fita-on' : ''} style={{ opacity: aceso ? (ligada(f) ? 0.55 : 0.04) : 0.16, animationDelay: `${300 + i * 25}ms` }} />
+            ))}
+          </svg>
+        )}
+        <div className="dm-lado"><small>Para onde foi</small></div>
+        {barra(saidas, baseS, 's')}
+      </div>
+
+      {aceso && parteAcesa && (
+        <div className="dm-dica" style={{ left: aceso.x, top: aceso.lado === 'e' ? aceso.y + 22 : undefined, bottom: aceso.lado === 's' ? `calc(100% - ${aceso.y - 22}px)` : undefined }}>
+          <b style={{ color: parteAcesa.cor }}>{parteAcesa.rotulo} · {brl(parteAcesa.valor)}</b>
+          {aceso.lado === 'e' && resultado >= 0 ? (
+            <>
+              <small>Desse dinheiro:</small>
+              {fitas.filter((f) => f.e === aceso.chave).map((f) => { const s = saidas.find((x) => x.chave === f.s)!; return <div key={f.s} className="dm-dl"><i style={{ background: s.cor }} /><span>{s.rotulo}</span><b>{brl(f.valor)}</b></div> })}
+            </>
+          ) : (
+            <>
+              {(parteAcesa.detalhe || []).filter(([, v]) => v > 0).map(([r, v]) => <div key={r} className="dm-dl"><span>{r}</span><b>{brl(v)}</b></div>)}
+              {aceso.lado === 's' && resultado >= 0 && <><small>Veio de:</small>{fitas.filter((f) => f.s === aceso.chave).map((f) => { const e = entradas.find((x) => x.chave === f.e)!; return <div key={f.e} className="dm-dl"><i style={{ background: e.cor }} /><span>{e.rotulo}</span><b>{brl(f.valor)}</b></div> })}</>}
+            </>
+          )}
+          {parteAcesa.onClick && <em>clique para ver a lista</em>}
+        </div>
+      )}
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------- cartão do técnico
+
+function Anel({ pct, tam = 64 }: { pct: number; tam?: number }) {
+  const R = tam / 2 - 6, C = 2 * Math.PI * R
+  const cor = pct >= 80 ? '#059669' : pct >= 50 ? '#d97706' : '#dc2626'
+  const v = useContador(Math.min(pct, 100))
+  return (
+    <div style={{ position: 'relative', width: tam, height: tam, flexShrink: 0 }}>
+      <svg width={tam} height={tam} style={{ transform: 'rotate(-90deg)' }}>
+        <circle cx={tam / 2} cy={tam / 2} r={R} fill="none" stroke="var(--portal-bg-secondary, #eef2f7)" strokeWidth="6" />
+        <circle cx={tam / 2} cy={tam / 2} r={R} fill="none" stroke={cor} strokeWidth="6" strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - v / 100)} />
+      </svg>
+      <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>
+        <b style={{ fontSize: 16, color: cor }}>{Math.round(pct)}%</b>
+        <small style={{ fontSize: 9, color: MUDO, marginTop: 2 }}>da meta</small>
+      </div>
+    </div>
+  )
+}
+
+function Faisca({ valores, cor = '#0369a1' }: { valores: number[]; cor?: string }) {
+  const W = 120, H = 34
+  const max = Math.max(1, ...valores)
+  const pts = valores.map((v, i) => [valores.length > 1 ? (i / (valores.length - 1)) * W : W / 2, H - 3 - (v / max) * (H - 8)])
+  if (!pts.length) return null
+  const ult = pts[pts.length - 1]
+  return (
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="ct-faisca">
+      <polyline points={`0,${H} ${pts.map((p) => p.join(',')).join(' ')} ${W},${H}`} fill={`${cor}18`} stroke="none" />
+      <polyline points={pts.map((p) => p.join(',')).join(' ')} fill="none" stroke={cor} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+      <circle cx={ult[0]} cy={ult[1]} r="3.5" fill={cor} />
+    </svg>
+  )
+}
+
+interface VersoCartao { abastecimento: number; manutencao: number; alimentacao: number; litros: number; clientes: [string, number][]; internas: number }
+
+function CartaoTecnico({ l, gasto, salario, pontos, historico, rotuloHist, i, onDetalhes, arrastando, alvo, onClick, onComparar, onFoco, onArrastar, onAlvo, onSoltar }: {
+  l: LinhaTecnico; gasto: number; salario: number; pontos?: number; historico: number[]; rotuloHist: string; i: number; onDetalhes: () => void
+  arrastando: string | null; alvo: string | null
+  onClick: () => void; onComparar: () => void; onFoco: (t: string | null) => void
+  onArrastar: (t: string | null) => void; onAlvo: (t: string | null) => void; onSoltar: (de: string, para: string) => void
+}) {
+  const pct = l.meta ? ((l.faturadas + l.aguardando + l.internas) / l.meta) * 100 : 0
+  const custo = salario + gasto + l.custo
+  // para cada R$ 1 que ele custa, quanto SOBRA (negativo = prejuízo)
+  const porReal = custo > 0 ? (l.bruto - custo) / custo : null
+  const resultado = l.bruto - custo
+  const corRende = porReal == null ? MUDO : porReal >= 1 ? '#047857' : porReal >= 0 ? '#b45309' : '#b91c1c'
+  const fx = pontos == null ? null : faixa(pontos)
+  const grupo = SEM_META.has(l.tecnico)
+  const souAlvo = alvo === l.tecnico && arrastando && arrastando !== l.tecnico
+  // inclinação 3D acompanhando o mouse (sem re-render: mexe direto no estilo)
+  const inclinar = (e: React.MouseEvent<HTMLDivElement>) => {
+    const r = e.currentTarget.getBoundingClientRect()
+    const x = (e.clientX - r.left) / r.width - 0.5, y = (e.clientY - r.top) / r.height - 0.5
+    e.currentTarget.style.setProperty('--ry', `${x * 10}deg`); e.currentTarget.style.setProperty('--rx', `${-y * 10}deg`)
+    e.currentTarget.style.setProperty('--gx', `${(x + 0.5) * 100}%`); e.currentTarget.style.setProperty('--gy', `${(y + 0.5) * 100}%`)
+  }
+  const soltarInclinacao = (e: React.MouseEvent<HTMLDivElement>) => { e.currentTarget.style.setProperty('--ry', '0deg'); e.currentTarget.style.setProperty('--rx', '0deg') }
+  return (
+    <div className={`ct-palco cpv-entra ${souAlvo ? 'ct-alvo' : ''} ${arrastando === l.tecnico ? 'ct-arrastado' : ''}`} style={{ animationDelay: `${120 + i * 60}ms` }}
+      draggable onDragStart={(e) => { e.dataTransfer.setData('text/plain', l.tecnico); e.dataTransfer.effectAllowed = 'link'; onArrastar(l.tecnico) }}
+      onDragEnd={() => { onArrastar(null); onAlvo(null) }}
+      onDragOver={(e) => { if (arrastando && arrastando !== l.tecnico) { e.preventDefault(); onAlvo(l.tecnico) } }}
+      onDragLeave={() => onAlvo(null)}
+      onDrop={(e) => { e.preventDefault(); const de = e.dataTransfer.getData('text/plain'); if (de && de !== l.tecnico) onSoltar(de, l.tecnico); onArrastar(null); onAlvo(null) }}
+      onMouseEnter={() => onFoco(l.tecnico)} onMouseLeave={(e) => { soltarInclinacao(e); onFoco(null) }} onMouseMove={inclinar}>
+      {souAlvo && <div className="ct-solte"><i className="fas fa-code-compare" /> solte para comparar com {arrastando}</div>}
+      <div className="ct">
+        {/* frente */}
+        <div className="ct-face ct-frente" role="button" tabIndex={0} onClick={onClick} onKeyDown={(e) => { if (e.key === 'Enter') onClick() }}>
+          <div className="ct-brilho" />
+          <div className="ct-topo">
+            {grupo ? <span className="ct-grupo"><i className={`fas ${l.tecnico === 'Garantia' ? 'fa-shield-heart' : 'fa-users'}`} /></span> : <Anel pct={pct} />}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="ct-nome">{l.tecnico}</div>
+              <div className="ct-sub">{grupo && <b style={{ color: '#7c3aed' }}>grupo · </b>}{horas(l.faturadas)} faturadas{l.aguardando ? ` · ${horas(l.aguardando)} aguardando faturar` : ''}{l.internas ? ` · ${horas(l.internas)} internas` : ''} · {grupo ? 'sem meta de horas' : `${horas(l.ociosas)} paradas`}</div>
+            </div>
+            {fx && <span className="ct-pts" title="Pontos de ocorrência no mês (começa com 100)" style={{ color: { ok: '#047857', atencao: '#b45309', critico: '#b91c1c' }[fx], background: { ok: '#ecfdf5', atencao: '#fffbeb', critico: '#fef2f2' }[fx] }}><i className="fas fa-shield-halved" /> {pontos}</span>}
+          </div>
+          <div className="ct-rende">
+            <div>
+              <small>{porReal == null ? 'Sem custo no período' : porReal >= 0 ? 'Lucro para cada R$ 1 que custa' : 'Prejuízo para cada R$ 1 que custa'}</small>
+              <b style={{ color: corRende }} title={`faturou ${brl(l.bruto)} ÷ custou ${brl(custo)}`}>{porReal == null ? '—' : `${porReal >= 0 ? '+' : '−'}R$ ${Math.abs(porReal).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</b>
+              <small>{porReal == null ? '' : porReal >= 0 ? 'ele se paga' : 'não se pagou no período'}</small>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <Faisca valores={historico} />
+              <small style={{ display: 'block' }}>faturado · {rotuloHist}</small>
+            </div>
+          </div>
+          <div className="ct-dinheiro" title={`faturou ${brl(l.bruto)} · custou ${brl(custo)} (pessoal ${brl(salario)} + gastos ${brl(gasto)} + terceiros ${brl(l.custo)})`}>
+            <i style={{ width: `${l.bruto ? Math.min(100, (custo / Math.max(l.bruto, custo)) * 100) : 100}%`, background: '#fda4af' }} />
+            <i style={{ flex: 1, background: resultado >= 0 ? '#5eead4' : 'transparent' }} />
+          </div>
+          <div className="ct-nums">
+            <span><small>Faturou</small><b style={{ color: '#0369a1' }}>{brl(l.bruto)}</b></span>
+            <span><small>Custou</small><b style={{ color: '#be123c' }}>{brl(custo)}</b></span>
+            <span><small>Sobrou</small><b style={{ color: resultado >= 0 ? COR_RESULT : '#b91c1c' }}>{brl(resultado)}</b></span>
+          </div>
+          <div className="ct-acoes" onClick={(e) => e.stopPropagation()}>
+            <button type="button" onClick={onDetalhes} title="Abrir a carta do técnico"><i className="fas fa-id-badge" /> detalhes</button>
+            <button type="button" onClick={onComparar} title="Comparar com outro técnico (ou arraste o cartão sobre outro)"><i className="fas fa-code-compare" /> comparar</button>
+            <span><i className="fas fa-up-down-left-right" /> arraste para comparar</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------- apoio ao pós-vendas (Garantia / Outros)
+// Não são técnicos de campo (sem meta de horas): mostra o que custam e o que passa por eles, sem "lucro".
+
+function Apoio({ linhas, salarios, gastoDe, pendencias, garantias, onOS, onGarantias }: {
+  linhas: LinhaTecnico[]; salarios: Record<string, number>; gastoDe: (n: string) => number; pendencias: Pendencia[]
+  garantias: OSFaturada[]; onOS: (n: string) => void; onGarantias: () => void
+}) {
+  // garantia é pelo TIPO da OS: quem executa são os técnicos de campo
+  const fezGarantia = new Map<string, number>()
+  for (const o of garantias) for (const t of o.tecnicos.length ? o.tecnicos : ['Sem técnico']) fezGarantia.set(t, (fezGarantia.get(t) || 0) + 1 / Math.max(1, o.tecnicos.length))
+  const brutoGar = garantias.reduce((a, o) => a + o.bruto, 0)
+  return (
+    <section className="ap cpv-entra" style={{ animationDelay: '160ms' }}>
+      <div className="ap-cab"><b>Apoio ao pós-vendas</b><span>não são técnicos de campo: sem meta de horas e sem conta de lucro — aqui só o que custam e o que passa por eles</span></div>
+      <div className="ap-grade">
+        {linhas.map((l) => {
+          const garantia = l.tecnico === 'Garantia'
+          const custo = (salarios[l.tecnico] || 0) + gastoDe(l.tecnico) + l.custo
+          const aguardando = garantia ? pendencias : []
+          const valorAguardando = aguardando.reduce((a, p) => a + p.total, 0)
+          return (
+            <div key={l.tecnico} className={`ap-item ${garantia ? 'ap-gar' : 'ap-out'}`}>
+              <div className="ap-ic"><i className={`fas ${garantia ? 'fa-shield-heart' : 'fa-users'}`} /></div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div className="ap-nome">{garantia ? 'Garantia' : 'Outros'} <small>{garantia ? 'Vinicius Correa' : 'José Ortiz'}</small></div>
+                <div className="ap-desc">{garantia ? 'OS do tipo garantia (quem paga é a montadora). Quem executa são os técnicos; o Vinicius cuida do processo.' : 'Serviços que não são de um técnico de campo.'}</div>
+                <div className="ap-nums">
+                  {garantia
+                    ? <button type="button" onClick={onGarantias} disabled={!garantias.length}><small>Garantias faturadas</small><b>{garantias.length} OS · {brl(brutoGar)}</b></button>
+                    : <button type="button" onClick={() => onOS(l.tecnico)} disabled={!l.os}><small>OS faturadas</small><b>{Math.round(l.os)} OS · {brl(l.bruto)}</b></button>}
+                  {garantia && <span><small>Aguardando faturar</small><b style={{ color: aguardando.length ? '#b45309' : undefined }}>{aguardando.length} OS · {brl(valorAguardando)}</b></span>}
+                  {garantia && l.os > 0 && <button type="button" onClick={() => onOS(l.tecnico)}><small>Faturadas pelo Vinicius</small><b>{Math.round(l.os)} OS · {brl(l.bruto)}</b></button>}
+                  <span title={`pessoal ${brl(salarios[l.tecnico] || 0)} · gastos ${brl(gastoDe(l.tecnico))} · terceiros ${brl(l.custo)}`}><small>Custo no período</small><b style={{ color: '#be123c' }}>{brl(custo)}</b></span>
+                </div>
+                {garantia && fezGarantia.size > 0 && <div className="ap-quem">Quem fez: {[...fezGarantia.entries()].sort((a, b) => b[1] - a[1]).map(([t, n]) => `${t.split(' ')[0]} ${Math.round(n * 10) / 10}`).join(' · ')}</div>}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------- busca rápida (Ctrl+K) e atalhos
+
+type ItemBusca = { grupo: string; titulo: string; sub?: string; icone: string; acao: () => void }
+
+function BuscaRapida({ itens, onFechar }: { itens: (q: string) => ItemBusca[]; onFechar: () => void }) {
+  const [q, setQ] = useState('')
+  const [sel, setSel] = useState(0)
+  const lista = itens(q)
+  const executar = (it?: ItemBusca) => { if (it) { it.acao(); onFechar() } }
+  if (typeof document === 'undefined') return null
+  return createPortal(
+    <div className="bq-fundo" onClick={onFechar}>
+      <div className="bq-caixa" onClick={(e) => e.stopPropagation()}>
+        <div className="bq-campo">
+          <i className="fas fa-magnifying-glass" />
+          <input autoFocus value={q} placeholder="Técnico, nº da OS, cliente ou um comando…" onChange={(e) => { setQ(e.target.value); setSel(0) }}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') { e.preventDefault(); setSel((s) => Math.min(s + 1, lista.length - 1)) }
+              if (e.key === 'ArrowUp') { e.preventDefault(); setSel((s) => Math.max(s - 1, 0)) }
+              if (e.key === 'Enter') executar(lista[sel])
+              if (e.key === 'Escape') onFechar()
+            }} />
+          <kbd>Esc</kbd>
+        </div>
+        <div className="bq-lista">
+          {lista.length === 0 && <div style={{ padding: 20, textAlign: 'center', color: MUDO }}>Nada encontrado.</div>}
+          {lista.map((it, i) => (
+            <div key={i}>
+              {(i === 0 || lista[i - 1].grupo !== it.grupo) && <div className="bq-grupo">{it.grupo}</div>}
+              <button type="button" className={`bq-item ${i === sel ? 'bq-on' : ''}`} onMouseEnter={() => setSel(i)} onClick={() => executar(it)}>
+                <i className={`fas ${it.icone}`} />
+                <span>{it.titulo}</span>
+                {it.sub && <small>{it.sub}</small>}
+                {i === sel && <kbd>Enter</kbd>}
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>,
+    (document.fullscreenElement as HTMLElement | null) || document.body,
+  )
+}
+
+function Atalhos({ onFechar }: { onFechar: () => void }) {
+  const lista: [string, string][] = [['Ctrl + K  ou  /', 'busca rápida'], ['D · S · M · A', 'dia, semana, mês, ano'], ['← →', 'período anterior / seguinte'], ['H', 'voltar para hoje'], ['C', 'comparar os dois que mais faturaram'], ['?', 'esta ajuda'], ['Esc', 'fechar']]
+  return (
+    <Janela titulo="Atalhos do teclado" onFechar={onFechar} largura={460}>
+      <div style={{ display: 'grid', gap: 8 }}>
+        {lista.map(([k, v]) => <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 14 }}><kbd className="bq-kbd">{k}</kbd><span style={{ color: MUDO }}>{v}</span></div>)}
+        <div style={{ fontSize: 12.5, color: MUDO, marginTop: 6 }}>Passe o mouse num técnico para a fita do tempo mostrar só ele. Arraste um cartão sobre outro para comparar.</div>
+      </div>
+    </Janela>
+  )
+}
+
+// ---------------------------------------------------------------- janelas de gastos e salários
+
+type GastoLinha = { data: string; pessoa: string; tipo: 'abastecimento' | 'manutencao' | 'alimentacao' | 'materiais'; origem: string; valor: number; litros: number; placa?: string; ref?: string; aberto?: boolean }
+const NOME_GASTO = { abastecimento: 'Abastecimento', manutencao: 'Manutenção do carro', alimentacao: 'Alimentação', materiais: 'Materiais da oficina' } as const
+const COR_TIPO_GASTO = { abastecimento: '#ea580c', manutencao: '#a16207', alimentacao: '#ca8a04', materiais: '#0d9488' } as const
+
+function ListaGastos({ gastos, inicial = 'todos', onFechar }: { gastos: GastoLinha[]; inicial?: 'todos' | GastoLinha['tipo']; onFechar: () => void }) {
+  const [tipo, setTipo] = useState<'todos' | 'aberto' | GastoLinha['tipo']>(inicial)
+  const lista = gastos.filter((g) => tipo === 'todos' ? !g.aberto : tipo === 'aberto' ? g.aberto : g.tipo === tipo && !g.aberto).sort((a, b) => b.data.localeCompare(a.data))
+  const porPessoa = new Map<string, { total: number; itens: GastoLinha[] }>()
+  for (const g of lista) { const x = porPessoa.get(g.pessoa) || { total: 0, itens: [] }; x.total += g.valor; x.itens.push(g); porPessoa.set(g.pessoa, x) }
+  const total = lista.reduce((s, g) => s + g.valor, 0)
+  const nAberto = gastos.filter((g) => g.aberto).length
+  return (
+    <Janela titulo={<>Gastos do pós-vendas · {brl2(total)}</>} onFechar={onFechar} largura={900}>
+      <div className="pt-metricas" style={{ marginBottom: 12 }}>
+        {(['todos', 'abastecimento', 'manutencao', 'alimentacao', 'materiais'] as const).map((k) => (
+          <button key={k} type="button" className={tipo === k ? 'pt-m-on' : ''} onClick={() => setTipo(k)}>{k === 'todos' ? 'Todos' : NOME_GASTO[k]}</button>
+        ))}
+        {nAberto > 0 && <button type="button" className={tipo === 'aberto' ? 'pt-m-on' : ''} onClick={() => setTipo('aberto')}>Em aberto ({nAberto})</button>}
+      </div>
+      <div style={{ fontSize: 12.5, color: MUDO, marginBottom: 10 }}>
+        Gasto do carro vai para o dono do carro (vínculo da Frota); sem dono, para quem abasteceu ou pediu. Gasto da Oficina de quem não é técnico fica em &quot;Oficina (geral)&quot;.
+        Requisição só conta quando chega ao financeiro; o que o funcionário devolveu (desconto em folha/caixinha) já sai do valor.
+        {tipo === 'aberto' && <b> Em aberto: ainda não chegaram ao financeiro — fora do total.</b>}
+      </div>
+      {[...porPessoa.entries()].sort((a, b) => b[1].total - a[1].total).map(([pessoa, x]) => (
+        <details key={pessoa} className="gl-pessoa" open={porPessoa.size <= 3}>
+          <summary><b>{pessoa}</b><span>{x.itens.length} lançamento(s)</span><b style={{ color: COR_GASTO }}>{brl2(x.total)}</b></summary>
+          <div style={{ display: 'grid', gap: 4, marginTop: 6 }}>
+            {x.itens.map((g, i) => (
+              <div key={i} className="gl-item">
+                <i style={{ background: COR_TIPO_GASTO[g.tipo] }} />
+                <span style={{ width: 46 }}>{br(g.data)}</span>
+                <span style={{ flex: 1, minWidth: 0 }}>{NOME_GASTO[g.tipo]}{g.placa ? ` · ${g.placa}` : ''}{g.litros ? ` · ${Math.round(g.litros)} L` : ''} <small>({g.origem === 'cartao' ? 'cartão-frota' : g.ref?.split(' · ')[0].replace('req:', 'requisição #')})</small></span>
+                <b>{brl2(g.valor)}</b>
+              </div>
+            ))}
+          </div>
+        </details>
+      ))}
+      {!lista.length && <div style={{ padding: 20, textAlign: 'center', color: MUDO }}>Nenhum gasto no período.</div>}
+    </Janela>
+  )
+}
+
+function ListaSalarios({ porPessoa, detalhe, equipe, onFechar }: { porPessoa: Record<string, number>; detalhe: Record<string, { salario: number; comissao: number; comissaoPrevista: number; rescisao: number }>; equipe: { pessoa: string; salario: number; encargos: number }[]; onFechar: () => void }) {
+  const linhas = Object.entries(porPessoa).sort((a, b) => b[1] - a[1])
+  return (
+    <Janela titulo={<>Pessoal no período · {brl2(linhas.reduce((s, [, v]) => s + v, 0))}</>} onFechar={onFechar} largura={720}>
+      <div style={{ fontSize: 12.5, color: MUDO, marginBottom: 10 }}>Do RH (departamento Pós Vendas). Salário + encargos do <b>mês inteiro</b> (na semana e no dia, a parte daqueles dias), só entre a admissão e a demissão. Comissão: a lançada no RH; se o mês ainda não tem, a <b>prevista</b> pela regra do painel do Omie (no mês em andamento, projetada até o fim do mês). Rescisões/acertos pagos no Omie.</div>
+      <div style={{ display: 'grid', gap: 6 }}>
+        {linhas.map(([p, v]) => {
+          const e = equipe.find((x) => x.pessoa === p)
+          return (
+            <div key={p} className="gl-item" style={{ padding: '10px 12px' }}>
+              <i style={{ background: '#7c3aed' }} />
+              <b style={{ flex: 1 }}>{p}</b>
+              <span style={{ color: MUDO, fontSize: 12.5 }}>
+                {e ? `salário ${brl(detalhe[p]?.salario || 0)} (${brl(e.salario)} + ${brl(e.encargos)}/mês)` : ''}
+                {detalhe[p]?.comissao ? ` · comissão (RH) ${brl(detalhe[p].comissao)}` : ''}
+                {detalhe[p]?.comissaoPrevista ? ` · comissão PREVISTA ${brl(detalhe[p].comissaoPrevista)}` : ''}
+                {detalhe[p]?.rescisao ? ` · rescisão/acertos ${brl(detalhe[p].rescisao)}` : ''}
+              </span>
+              <b style={{ color: '#7c3aed', minWidth: 90, textAlign: 'right' }}>{brl2(v)}</b>
+            </div>
+          )
+        })}
+      </div>
+    </Janela>
+  )
+}
+
 const ESTILO = `
+.dm-caixa { position: relative; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; padding: 18px 20px 20px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(15,23,42,.05) }
+.dm-topo { display: flex; gap: 20px; align-items: center; flex-wrap: wrap; margin-bottom: 14px }
+.dm-resumo { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 12px }
+.dm-resumo > i { color: var(--portal-text-muted, #cbd5e1); font-size: 13px }
+.dm-resumo span { display: flex; flex-direction: column; line-height: 1.15 }
+.dm-resumo small { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--portal-text-muted, #94a3b8) }
+.dm-resumo b { font-size: 24px; font-weight: 900; font-variant-numeric: tabular-nums }
+.dm-resumo em { font-style: normal; font-size: 11.5px; color: var(--portal-text-muted, #94a3b8) }
+.dm-medidor { display: flex; align-items: center; gap: 4px; background: var(--portal-bg-secondary, #f8fafc); border-radius: 16px; padding: 8px 14px 8px 8px }
+.dm-med-txt { display: flex; flex-direction: column; line-height: 1.15 }
+.dm-med-txt b { font-size: 30px; font-weight: 900 } .dm-med-txt small { font-size: 12.5px; color: var(--portal-text-muted, #64748b); font-weight: 700 }
+.dm-med-txt span { font-size: 12px; font-weight: 800; margin-top: 4px }
+.dm-fluxo { display: grid; grid-template-columns: 1fr; gap: 0 }
+.dm-lado small { font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--portal-text-muted, #94a3b8); display: block; margin: 4px 0 6px }
+.dm-barra { display: flex; height: 52px; gap: 3px }
+.dm-fatia { border: none; border-radius: 10px; padding: 0 12px; color: #fefefe; font-family: inherit; display: flex; align-items: center; min-width: 0; cursor: pointer; transform-origin: left; animation: dnCresce .9s cubic-bezier(.2,.8,.2,1) both; transition: opacity .2s, filter .2s, transform .2s }
+.dm-fatia:hover:not(:disabled) { filter: brightness(1.1); transform: translateY(-2px) }
+.dm-fatia:disabled { cursor: default }
+.dm-apagada { opacity: .25 }
+.dm-fatia span { display: flex; flex-direction: column; line-height: 1.15; white-space: nowrap; overflow: hidden; text-align: left }
+.dm-fatia b { font-size: 15px; font-weight: 900 } .dm-fatia small { font-size: 11.5px; opacity: .92; overflow: hidden; text-overflow: ellipsis }
+@keyframes dnCresce { from { transform: scaleX(0); opacity: .3 } to { transform: none; opacity: 1 } }
+.dm-fitas { width: 100%; height: 110px; display: block; margin: 3px 0 0 }
+.dm-fitas path { transition: opacity .25s; animation: dmFita .7s ease both }
+@keyframes dmFita { from { opacity: 0 } }
+.dm-fita-on { animation: dmPulsa 1.6s ease-in-out infinite !important }
+@keyframes dmPulsa { 50% { opacity: .75 } }
+.dm-dica { position: absolute; z-index: 6; transform: translateX(-50%); width: 300px; pointer-events: none; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 14px; padding: 12px 14px; box-shadow: 0 16px 40px rgba(15,23,42,.18); display: grid; gap: 4px; font-size: 13px; animation: stEntra .2s ease both }
+.dm-dica > b { font-size: 15px } .dm-dica small { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--portal-text-muted, #94a3b8); margin-top: 4px }
+.dm-dica em { font-style: normal; font-size: 11.5px; color: #0369a1; font-weight: 700; margin-top: 4px }
+.dm-dl { display: flex; align-items: center; gap: 8px } .dm-dl span { flex: 1; color: var(--portal-text-muted, #475569) } .dm-dl b { font-variant-numeric: tabular-nums }
+.dm-dl i { width: 9px; height: 9px; border-radius: 3px; flex-shrink: 0 }
+@media (max-width: 720px) { .dm-medidor { width: 100% } .dm-resumo b { font-size: 19px } .dm-fatia small { display: none } }
+
+.ct-palco { position: relative; perspective: 1000px; --rx: 0deg; --ry: 0deg; --gx: 50%; --gy: 50% }
+.ct-palco .ct { transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .5s cubic-bezier(.2,.8,.2,1), box-shadow .2s, border-color .2s; transform-style: preserve-3d; display: grid; padding: 0; gap: 0 }
+.ct-palco:hover .ct { transition: transform .08s linear, box-shadow .2s }
+.ct-palco .ct.ct-virado { transform: rotateY(180deg) }
+.ct-face { grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden; padding: 14px 16px 12px; display: grid; gap: 10px; border-radius: 18px; position: relative; overflow: hidden; align-content: start }
+.ct-frente { cursor: pointer }
+.ct-verso { transform: rotateY(180deg); background: linear-gradient(160deg, #f8fafc, #eef2ff); font-size: 13.5px }
+.ct-brilho { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .2s; background: radial-gradient(400px circle at var(--gx) var(--gy), rgba(3,105,161,.10), transparent 45%) }
+.ct-palco:hover .ct-brilho { opacity: 1 }
+.ct-acoes { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; border-top: 1px solid var(--portal-border, #f1f5f9); padding-top: 8px }
+.ct-acoes button { border: 1px solid var(--portal-border, #e2e8f0); background: transparent; border-radius: 99px; padding: 4px 10px; font-family: inherit; font-size: 12.5px; font-weight: 700; color: var(--portal-text-muted, #475569); cursor: pointer }
+.ct-acoes button:hover { border-color: #0369a1; color: #0369a1 }
+.ct-acoes span { margin-left: auto; font-size: 11.5px; color: var(--portal-text-muted, #cbd5e1) }
+.ct-volta { border: 1px solid #c7d2fe; background: #fefefe; color: #4f46e5; border-radius: 99px; padding: 4px 10px; font-family: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer }
+.ct-vbloco { display: grid; gap: 3px }
+.ct-vbloco small { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--portal-text-muted, #94a3b8) }
+.ct-vl { display: flex; justify-content: space-between; gap: 10px } .ct-vl b { font-variant-numeric: tabular-nums; white-space: nowrap }
+.ct-palco[draggable="true"] { cursor: grab }
+.ct-arrastado { opacity: .45; transform: scale(.97) }
+.ct-alvo .ct { border-color: #7c3aed !important; box-shadow: 0 0 0 4px rgba(124,58,237,.18), 0 18px 40px rgba(124,58,237,.18) }
+.ct-solte { position: absolute; z-index: 5; inset: 10px 10px auto 10px; background: #7c3aed; color: #fefefe; border-radius: 12px; padding: 8px 12px; font-size: 13px; font-weight: 800; text-align: center; pointer-events: none; animation: stEntra .25s ease both }
+.bq-flutua { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 9000; display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #334155); border-radius: 99px; padding: 8px 14px; font-family: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; box-shadow: 0 10px 28px rgba(15,23,42,.16) }
+.bq-flutua:hover { border-color: #0369a1; color: #0369a1 }
+.bq-flutua kbd, .bq-campo kbd, .bq-item kbd, .bq-kbd { font-family: inherit; font-size: 11px; font-weight: 800; background: var(--portal-bg-secondary, #f1f5f9); border: 1px solid var(--portal-border, #e2e8f0); border-bottom-width: 2px; border-radius: 6px; padding: 1px 6px; color: var(--portal-text-muted, #64748b) }
+.bq-fundo { position: fixed; inset: 0; z-index: 100070; background: rgba(15,23,42,.4); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 0; animation: cmpFade .15s ease both }
+@keyframes cmpFade { from { opacity: 0 } to { opacity: 1 } }
+.bq-caixa { width: min(640px, 100%); background: var(--portal-bg-card, #fefefe); border-radius: 18px; box-shadow: 0 30px 80px rgba(15,23,42,.35); overflow: hidden; animation: bqEntra .25s cubic-bezier(.2,1.1,.3,1) both }
+@keyframes bqEntra { from { transform: translateY(-12px) scale(.97); opacity: 0 } to { transform: none; opacity: 1 } }
+.bq-campo { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--portal-border, #e5e7eb) }
+.bq-campo i { color: #0369a1; font-size: 16px }
+.bq-campo input { flex: 1; border: none; outline: none; font-family: inherit; font-size: 17px; background: transparent; color: var(--portal-text, #0f172a) }
+.bq-lista { max-height: 55vh; overflow-y: auto; padding: 6px }
+.bq-grupo { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--portal-text-muted, #94a3b8); padding: 8px 12px 4px }
+.bq-item { width: 100%; display: flex; align-items: center; gap: 10px; border: none; background: transparent; border-radius: 10px; padding: 9px 12px; font-family: inherit; font-size: 14px; color: var(--portal-text, #0f172a); cursor: pointer; text-align: left }
+.bq-item i { width: 18px; color: var(--portal-text-muted, #94a3b8) }
+.bq-item small { color: var(--portal-text-muted, #94a3b8); font-size: 12.5px; margin-left: auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.bq-on { background: #eff6ff } .bq-on i { color: #0369a1 }
+@media (max-width: 720px) { .bq-flutua { display: none } .ct-acoes span { display: none } }
+
+.dn-caixa { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; padding: 18px 20px; margin-bottom: 14px; box-shadow: 0 1px 3px rgba(15,23,42,.05) }
+.dn-topo { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; justify-content: space-between; margin-bottom: 14px }
+.dn-rot { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: var(--portal-text-muted, #64748b) }
+.dn-frase { font-size: 21px; font-weight: 700; color: var(--portal-text, #0f172a); margin-top: 2px }
+.dn-frase b { font-weight: 900 }
+.dn-resultado { display: flex; flex-direction: column; align-items: flex-end; border-radius: 14px; padding: 10px 16px }
+.dn-resultado b { font-size: 30px; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1.1 }
+.dn-resultado small { font-size: 11.5px; font-weight: 700; opacity: .8 }
+.dn-linha { display: flex; gap: 16px; align-items: flex-start; padding: 12px 0; border-top: 1px dashed var(--portal-border, #e5e7eb) }
+.dn-lado { width: 150px; flex-shrink: 0; display: flex; flex-direction: column }
+.dn-lado small { font-size: 12px; color: var(--portal-text-muted, #64748b) }
+.dn-lado small:first-child { font-weight: 800; text-transform: uppercase; letter-spacing: .5px }
+.dn-lado b { font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums }
+.dn-barra { display: flex; height: 44px; border-radius: 12px; overflow: hidden; background: var(--portal-bg-secondary, #f1f5f9); gap: 2px }
+.dn-fatia { border: none; padding: 0 10px; color: #fefefe; font-family: inherit; display: flex; align-items: center; min-width: 0; cursor: pointer; transform-origin: left; animation: dnCresce .9s cubic-bezier(.2,.8,.2,1) both; transition: filter .15s }
+.dn-fatia:hover:not(:disabled) { filter: brightness(1.12) }
+.dn-fatia:disabled { cursor: default }
+.dn-fatia span { display: flex; flex-direction: column; line-height: 1.1; white-space: nowrap; overflow: hidden; text-align: left }
+.dn-fatia b { font-size: 14px; font-weight: 900 } .dn-fatia small { font-size: 11px; opacity: .9 }
+@keyframes dnCresce { from { transform: scaleX(0); opacity: .3 } to { transform: none; opacity: 1 } }
+.dn-legenda { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 8px }
+.dn-legenda button { display: inline-flex; align-items: center; gap: 6px; border: none; background: transparent; font-family: inherit; font-size: 13.5px; color: var(--portal-text-muted, #475569); padding: 3px 6px; border-radius: 8px; cursor: pointer }
+.dn-legenda button:hover:not(:disabled) { background: var(--portal-bg-secondary, #f1f5f9) }
+.dn-legenda button:disabled { cursor: default }
+.dn-legenda i { width: 11px; height: 11px; border-radius: 3px; display: inline-block }
+.dn-legenda b { color: var(--portal-text, #0f172a) } .dn-legenda small { color: var(--portal-text-muted, #94a3b8) }
+.dn-legenda em { font-style: normal; font-size: 12px; font-weight: 800; color: #0369a1 } .dn-legenda em i { width: auto; height: auto; background: none; font-size: 10px }
+.ct { text-align: left; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; padding: 14px 16px 12px; cursor: pointer; font-family: inherit; color: inherit; transition: box-shadow .2s, transform .2s, border-color .2s; min-width: 0; display: grid; gap: 10px }
+.ct:hover { box-shadow: 0 14px 30px rgba(15,23,42,.10); border-color: #93c5fd }
+.pt-troca { animation: ptTroca .45s cubic-bezier(.2,.8,.2,1) both }
+@keyframes ptTroca { from { opacity: 0; transform: translateY(14px) scale(.995); filter: blur(2px) } to { opacity: 1; transform: none; filter: none } }
+.pt-aviso-cartao { display: flex; gap: 10px; align-items: flex-start; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 12px; padding: 10px 14px; margin-bottom: 12px; font-size: 13.5px; line-height: 1.45 }
+.pt-aviso-cartao i { margin-top: 3px } .pt-aviso-cartao a { color: #b45309; font-weight: 800 }
+.ap { margin: 14px 0; border: 1px solid var(--portal-border, #e2e8f0); border-radius: 16px; background: var(--portal-bg-card, #fefefe); padding: 14px 16px }
+.ap-cab { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; margin-bottom: 10px } .ap-cab b { font-size: 16px } .ap-cab span { font-size: 13px; color: var(--portal-text-muted, #64748b) }
+.ap-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 10px }
+.ap-item { display: flex; gap: 12px; border-radius: 14px; padding: 12px; border: 1px solid transparent }
+.ap-gar { background: linear-gradient(135deg, #f5f3ff, #ede9fe); border-color: #ddd6fe } .ap-out { background: linear-gradient(135deg, #f8fafc, #f1f5f9); border-color: #e2e8f0 }
+.ap-ic { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 19px; flex-shrink: 0; background: #fefefe; color: #7c3aed }
+.ap-out .ap-ic { color: #475569 }
+.ap-nome { font-size: 15.5px; font-weight: 900; color: #0f172a } .ap-nome small { font-size: 12.5px; font-weight: 700; color: #64748b; margin-left: 4px }
+.ap-desc { font-size: 12.5px; color: #64748b; margin: 2px 0 8px }
+.ap-quem { margin-top: 8px; font-size: 12.5px; color: #6d28d9; font-weight: 700 }
+.ap-nums { display: flex; gap: 8px; flex-wrap: wrap }
+.ap-nums > * { display: flex; flex-direction: column; background: rgba(255,255,255,.8); border: none; border-radius: 10px; padding: 6px 10px; font-family: inherit; text-align: left; color: #0f172a }
+.ap-nums button { cursor: pointer } .ap-nums button:hover:not(:disabled) { box-shadow: 0 0 0 2px #c4b5fd }
+.ap-nums small { font-size: 11px; font-weight: 800; text-transform: uppercase; color: #64748b } .ap-nums b { font-size: 14px; font-variant-numeric: tabular-nums }
+.ct-grupo { width: 64px; height: 64px; border-radius: 50%; background: #f5f3ff; color: #7c3aed; display: flex; align-items: center; justify-content: center; font-size: 24px; flex-shrink: 0 }
+.ct-topo { display: flex; gap: 12px; align-items: center }
+.ct-nome { font-size: 17px; font-weight: 900; color: var(--portal-text, #0f172a); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.ct-sub { font-size: 12.5px; color: var(--portal-text-muted, #64748b); margin-top: 2px }
+.ct-pts { font-size: 12.5px; font-weight: 800; border-radius: 99px; padding: 3px 9px; white-space: nowrap; align-self: flex-start }
+.ct-rende { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; background: var(--portal-bg-secondary, #f8fafc); border-radius: 12px; padding: 8px 12px }
+.ct-rende > div:first-child { display: flex; flex-direction: column; line-height: 1.1 }
+.ct-rende small { font-size: 11.5px; color: var(--portal-text-muted, #64748b); font-weight: 700 }
+.ct-rende b { font-size: 30px; font-weight: 900; font-variant-numeric: tabular-nums }
+.ct-faisca { display: block }
+.ct-dinheiro { display: flex; height: 8px; border-radius: 99px; overflow: hidden; background: var(--portal-bg-secondary, #f1f5f9) }
+.ct-dinheiro i { display: block; height: 100%; transition: width .8s cubic-bezier(.2,.8,.2,1) }
+.ct-nums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
+.ct-nums span { display: flex; flex-direction: column }
+.ct-nums small { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; color: var(--portal-text-muted, #94a3b8) }
+.ct-nums b { font-size: 15.5px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.ct-rodape { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 12px; color: var(--portal-text-muted, #94a3b8); border-top: 1px solid var(--portal-border, #f1f5f9); padding-top: 8px }
+.gl-pessoa { border: 1px solid var(--portal-border, #e5e7eb); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px }
+.gl-pessoa summary { display: flex; gap: 10px; align-items: center; cursor: pointer; font-size: 14px }
+.gl-pessoa summary span { flex: 1; color: var(--portal-text-muted, #64748b); font-size: 12.5px }
+.gl-item { display: flex; align-items: center; gap: 10px; font-size: 13px; padding: 5px 4px; border-radius: 8px }
+.gl-item:hover { background: var(--portal-bg-secondary, #f8fafc) }
+.gl-item i { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0 }
+.gl-item small { color: var(--portal-text-muted, #94a3b8) }
+@media (max-width: 720px) { .dn-linha { flex-direction: column; gap: 6px } .dn-lado { width: auto; flex-direction: row; gap: 8px; align-items: baseline } .dn-frase { font-size: 17px } .dn-resultado { align-items: flex-start } }
+
 .pt-conta { display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap; margin-bottom: 14px }
 .pt-passo { flex: 1 1 200px; display: flex; flex-direction: column; gap: 3px; text-align: left; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 16px; padding: 14px 16px; font-family: inherit; color: inherit; min-width: 0 }
 button.pt-passo { cursor: pointer; transition: box-shadow .2s, transform .2s }
@@ -226,7 +908,7 @@ button.pt-passo:hover { box-shadow: 0 8px 20px rgba(15,23,42,.08); transform: tr
 .pt-legenda button { cursor: pointer } .pt-legenda button:hover { color: #0369a1 }
 .pt-legenda i { width: 11px; height: 11px; border-radius: 3px; display: inline-block }
 .pt-legenda b { color: var(--portal-text, #0f172a) }
-.pt-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 12px }
+.pt-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; margin-bottom: 12px }
 .pt-card { text-align: left; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 16px; padding: 14px 16px 12px; cursor: pointer; font-family: inherit; color: inherit; transition: box-shadow .2s, transform .2s, border-color .2s; min-width: 0 }
 .pt-card:hover { box-shadow: 0 10px 24px rgba(15,23,42,.09); transform: translateY(-2px); border-color: #93c5fd }
 .pt-nome { font-size: 16.5px; font-weight: 900; color: var(--portal-text, #0f172a); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
@@ -235,6 +917,15 @@ button.pt-passo:hover { box-shadow: 0 8px 20px rgba(15,23,42,.08); transform: tr
 .pt-nums span { display: flex; flex-direction: column }
 .pt-nums small { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--portal-text-muted, #94a3b8) }
 .pt-nums b { font-size: 16px; font-variant-numeric: tabular-nums; color: var(--portal-text, #0f172a) }
+.pt-reqs { display: grid; grid-template-columns: minmax(260px, 380px) 1fr; gap: 14px; height: min(72vh, 760px) }
+.pt-reqs-lista { overflow-y: auto; display: grid; gap: 8px; align-content: start; padding-right: 4px }
+.pt-req { text-align: left; border: 1px solid var(--portal-border, #e5e7eb); background: var(--portal-bg-card, #fefefe); border-radius: 12px; padding: 10px 12px; cursor: pointer; font-family: inherit; font-size: 13.5px; color: var(--portal-text, #0f172a); transition: border-color .15s, background .15s }
+.pt-req:hover { border-color: #93c5fd }
+.pt-req-on { border-color: #0369a1; background: #eff6ff; box-shadow: inset 3px 0 0 #0369a1 }
+.pt-reqs-doc { display: flex; flex-direction: column; min-width: 0 }
+.pt-reqs-frame { flex: 1; width: 100%; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 12px; background: #fefefe }
+@media (max-width: 860px) { .pt-reqs { grid-template-columns: 1fr; height: auto } .pt-reqs-frame { height: 70vh } }
+.pt-det { font-style: normal; font-size: 11.5px; color: var(--portal-text-muted, #94a3b8); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
 .pt-abrir { display: block; margin-top: 10px; font-size: 12.5px; font-weight: 800; color: #0369a1; opacity: .7 }
 .pt-card:hover .pt-abrir { opacity: 1 }
 .pt-sem { display: block; width: 100%; text-align: left; border: 1px dashed var(--portal-border, #cbd5e1); background: transparent; border-radius: 12px; padding: 9px 12px; font-family: inherit; font-size: 13px; color: var(--portal-text-muted, #64748b); cursor: pointer; margin-bottom: 14px }
@@ -251,8 +942,8 @@ const btnSeta: React.CSSProperties = { width: 34, height: 34, borderRadius: 9, b
 function Janela({ titulo, children, onFechar, largura = 760 }: { titulo: React.ReactNode; children: React.ReactNode; onFechar: () => void; largura?: number }) {
   if (typeof document === 'undefined') return null
   return createPortal(
-    <div onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 100050, background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} className="cpv-entra" style={{ width: '100%', maxWidth: largura, maxHeight: '90vh', overflowY: 'auto', background: 'var(--portal-bg-card, #fefefe)', color: 'var(--portal-text, #0f172a)', borderRadius: 16, boxShadow: '0 24px 60px rgba(15,23,42,.35)' }}>
+    <div onClick={onFechar} className="cpv-fundo" style={{ position: 'fixed', inset: 0, zIndex: 100050, background: 'rgba(15,23,42,.55)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} className="cpv-abre" style={{ width: '100%', maxWidth: largura, maxHeight: '90vh', overflowY: 'auto', background: 'var(--portal-bg-card, #fefefe)', color: 'var(--portal-text, #0f172a)', borderRadius: 16, boxShadow: '0 24px 60px rgba(15,23,42,.35)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid var(--portal-border, #e2e8f0)', position: 'sticky', top: 0, background: 'var(--portal-bg-card, #fefefe)' }}>
           <div style={{ flex: 1, fontSize: 16, fontWeight: 800 }}>{titulo}</div>
           <button type="button" onClick={onFechar} aria-label="Fechar" style={{ ...btnSeta, borderRadius: 17 }}><i className="fas fa-xmark" /></button>
@@ -312,11 +1003,54 @@ function ListaInternas({ internas, onFechar }: { internas: OSInterna[]; onFechar
   )
 }
 
+type ReqLinha = { id: number; tipo: string; valor: number; status: string; titulo: string; fornecedor: string; data: string; solicitante: string; nota: string | null; os: string; cliente: string }
+
+/** Custo de terceiros: as requisições e o documento de cada uma ali mesmo (sem sair da tela). */
+function ListaRequisicoes({ reqs, onFechar }: { reqs: ReqLinha[]; onFechar: () => void }) {
+  const [sel, setSel] = useState<ReqLinha | null>(reqs[0] || null)
+  const [ver, setVer] = useState<'req' | 'nota'>('req')
+  const total = reqs.reduce((s, r) => s + r.valor, 0)
+  return (
+    <Janela titulo={<>Custo de terceiros · {brl2(total)} <span style={{ fontSize: 13, fontWeight: 600, color: MUDO }}>· requisições Trator-Cliente não cobradas do cliente</span></>} onFechar={onFechar} largura={1240}>
+      {!reqs.length ? <div style={{ padding: 30, textAlign: 'center', color: MUDO }}>Nenhuma requisição de terceiros no período.</div> : (
+        <div className="pt-reqs">
+          <div className="pt-reqs-lista">
+            {reqs.map((r) => (
+              <button key={r.id} type="button" className={`pt-req ${sel?.id === r.id ? 'pt-req-on' : ''}`} onClick={() => { setSel(r); setVer('req') }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                  <b style={{ flex: 1 }}>#{r.id} · {r.tipo}</b>
+                  <b style={{ color: COR.custo }}>{brl2(r.valor)}</b>
+                </div>
+                <div style={{ fontSize: 12.5, color: MUDO, marginTop: 2 }}>{r.fornecedor || r.titulo || '—'}</div>
+                <div style={{ fontSize: 12, color: MUDO, marginTop: 2 }}>{r.os} · {r.cliente || '—'} · {r.data ? br(r.data) : ''} · {r.solicitante || '—'} · {r.status}</div>
+              </button>
+            ))}
+          </div>
+          <div className="pt-reqs-doc">
+            {sel && (
+              <>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
+                  <div className="pt-metricas">
+                    <button type="button" className={ver === 'req' ? 'pt-m-on' : ''} onClick={() => setVer('req')}>Requisição</button>
+                    <button type="button" className={ver === 'nota' ? 'pt-m-on' : ''} disabled={!sel.nota} onClick={() => setVer('nota')} title={sel.nota ? 'Ver a nota anexada' : 'Sem nota anexada'}>Nota anexada</button>
+                  </div>
+                  <a href={ver === 'nota' && sel.nota ? sel.nota : `/requisicoes/imprimir/${sel.id}`} target="_blank" rel="noreferrer" style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: '#0369a1' }}>abrir em nova aba <i className="fas fa-arrow-up-right-from-square" /></a>
+                </div>
+                <iframe key={`${sel.id}:${ver}`} src={ver === 'nota' && sel.nota ? sel.nota : `/requisicoes/imprimir/${sel.id}`} title={`Requisição ${sel.id}`} className="pt-reqs-frame" />
+              </>
+            )}
+          </div>
+        </div>
+      )}
+    </Janela>
+  )
+}
+
 function ListaOS({ titulo, os, onFechar }: { titulo: string; os: OSFaturada[]; onFechar: () => void }) {
   return <Janela titulo={<>OS faturadas · {titulo}</>} onFechar={onFechar}><TabelaOS os={os} /></Janela>
 }
 
-function FichaTecnico({ tecnico, linha, dias, os, gasto, onFechar }: { tecnico: string; linha?: LinhaTecnico; dias: DiaRegistrado[]; os: OSFaturada[]; gasto?: { abastecimento: number; alimentacao: number; total: number; litros: number; foraDasOS: number }; onFechar: () => void }) {
+function FichaTecnico({ tecnico, linha, dias, os, gasto, salario, onFechar }: { tecnico: string; linha?: LinhaTecnico; dias: DiaRegistrado[]; os: OSFaturada[]; gasto?: { abastecimento: number; manutencao: number; alimentacao: number; materiais: number; total: number; litros: number; foraDasOS: number }; salario: number; onFechar: () => void }) {
   const porDia = Object.entries(dias.reduce<Record<string, { cliente: number; interna: number }>>((m, x) => {
     const k = (m[x.data] ||= { cliente: 0, interna: 0 }); if (x.interna) k.interna += x.horas; else k.cliente += x.horas; return m
   }, {})).sort().map(([data, v]) => ({ dia: br(data), Cliente: Math.round(v.cliente * 10) / 10, Interna: Math.round(v.interna * 10) / 10 }))
@@ -324,12 +1058,13 @@ function FichaTecnico({ tecnico, linha, dias, os, gasto, onFechar }: { tecnico: 
     <Janela titulo={tecnico} onFechar={onFechar} largura={860}>
       {linha && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, marginBottom: 14 }}>
-          <Kpi titulo="Faturadas" valor={linha.faturadas} formato={horas} cor={COR.faturadas} sub={linha.meta ? `${Math.round(((linha.faturadas + linha.internas) / linha.meta) * 100)}% da meta` : undefined} />
+          <Kpi titulo="Faturadas" valor={linha.faturadas} formato={horas} cor={COR.faturadas} sub={linha.meta ? `${Math.round(((linha.faturadas + linha.aguardando + linha.internas) / linha.meta) * 100)}% da meta` : undefined} />
           <Kpi titulo="Internas" valor={linha.internas} formato={horas} cor={COR.internas} atraso={60} />
           <Kpi titulo="Ociosas" valor={linha.ociosas} formato={horas} cor="#64748b" atraso={120} />
           <Kpi titulo="Km" valor={linha.km} formato={kmFmt} cor={COR.km} atraso={180} />
-          <Kpi titulo="Gastos" valor={gasto?.total || 0} formato={brl} cor={COR_GASTO} atraso={210} sub={`abastec. ${brl(gasto?.abastecimento || 0)} · alim. ${brl(gasto?.alimentacao || 0)}`} />
-          <Kpi titulo="Resultado" valor={linha.liquido - (gasto?.foraDasOS || 0)} formato={brl} cor={COR_RESULT} destaque atraso={240} sub={`bruto ${brl(linha.bruto)} · líquido ${brl(linha.liquido)}`} />
+          <Kpi titulo="Gastos" valor={gasto?.total || 0} formato={brl} cor={COR_GASTO} atraso={210} sub={`abastec. ${brl(gasto?.abastecimento || 0)} · manut. ${brl(gasto?.manutencao || 0)} · alim. ${brl(gasto?.alimentacao || 0)} · mat. ${brl(gasto?.materiais || 0)}`} />
+          <Kpi titulo="Pessoal" valor={salario} formato={brl} cor="#7c3aed" atraso={225} sub="salário, comissão e encargos no período" />
+          <Kpi titulo="Resultado" valor={linha.liquido - (gasto?.foraDasOS || 0) - salario} formato={brl} cor={COR_RESULT} destaque atraso={240} sub={`faturado ${brl(linha.bruto)} − terceiros − gastos − salário`} />
         </div>
       )}
       <div style={{ fontSize: 13.5, fontWeight: 800, margin: '4px 0 8px' }}>Horas registradas no app, por dia</div>

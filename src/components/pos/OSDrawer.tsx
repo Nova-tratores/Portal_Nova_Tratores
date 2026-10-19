@@ -1423,7 +1423,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
             {/* Header */}
             <div className="os-header">
               <div className="os-header-left">
-                <span className="os-header-title">
+                <span className="os-header-title" style={{ whiteSpace: "nowrap", flexShrink: 0 }}>
                   {mode === "create" ? "Nova Ordem de Serviço" : `Ordem de Serviço Nº ${String(osId || "").replace(/^OS-?/i, "")}`}
                 </span>
                 {mode === "edit" && (
@@ -1432,14 +1432,14 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                     onChange={(e) => mudarStatus(e.target.value)}
                     disabled={!podeEditar || (!!faturadaEm && status === "Concluída")}
                     title={faturadaEm ? "OS faturada: a fase fica travada (só pode ir para Concluída)" : "Alterar status da OS"}
-                    style={{ ...STATUS_BADGE_STYLE(status), border: "none", outline: "none", cursor: podeEditar && !(faturadaEm && status === "Concluída") ? "pointer" : "not-allowed", maxWidth: 340 }}
+                    style={{ ...STATUS_BADGE_STYLE(status), border: "none", outline: "none", cursor: podeEditar && !(faturadaEm && status === "Concluída") ? "pointer" : "not-allowed", maxWidth: 340, minWidth: 0, ...(faturadaEm && status === "Concluída" ? { appearance: "none" as const, opacity: 1 } : {}) }}
                   >
                     {(faturadaEm ? PHASES.filter((p) => p === status || p === "Concluída") : PHASES).map((p) => <option key={p} value={p}>{p}</option>)}
                   </select>
                 )}
                 {mode === "edit" && faturadaEm && (
-                  <span title="OS faturada no Omie: a fase não muda mais" style={{ display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 8, padding: "3px 9px", borderRadius: 999, fontSize: 11.5, fontWeight: 800, color: "#047857", background: "#d1fae5" }}>
-                    <i className="fas fa-lock" /> Faturada · fase travada
+                  <span title="OS faturada no Omie (NFS-e ou recibo): a fase não muda mais" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "#065F46", background: "#ECFDF5", border: "1px solid #A7F3D0", whiteSpace: "nowrap", flexShrink: 0 }}>
+                    <i className="fas fa-lock" style={{ fontSize: 10 }} /> Faturada
                   </span>
                 )}
               </div>

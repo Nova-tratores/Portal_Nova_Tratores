@@ -48,6 +48,7 @@ const MODULOS = [
   // Marketing inteiro — mesmo desenho do 'pendencias' em relação ao 'frota'.
   { id: 'lead', label: 'Captura de Leads (celular)', color: '#DB2777' },
   { id: 'marketing', label: 'Marketing & Eventos', color: '#DB2777' },
+  { id: 'inteligencia-vendas', label: 'Inteligência de Vendas', color: '#dc2626' },
   { id: 'mecanicos', label: 'Janela Mecânicos', color: '#1d4ed8' },
   { id: 'mapa', label: 'Mapeamento Técnico', color: '#b91c1c' },
   // Lousa Virtual (agenda semanal dos técnicos; também lança na Agenda coletiva) — faltava aqui (16/10/2026)

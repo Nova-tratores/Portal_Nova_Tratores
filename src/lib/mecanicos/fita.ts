@@ -55,6 +55,39 @@ export function leituraRapida(porDia: PorDia, hoje: string): { texto: string; va
   return { texto: `Esta semana: ${reais(sem.bruto)} faturados em ${sem.os} OS. ${nomeMes[0].toUpperCase()}${nomeMes.slice(1)} até hoje: ${reais(mes.bruto)}${comp}.`, variacao }
 }
 
+export interface Ritmo {
+  /** mesmo trecho do período anterior (até o mesmo ponto) */
+  anterior: number
+  /** período anterior inteiro */
+  anteriorCheio: number
+  rotulo: string
+  /** só no mês: projeção até o fim pelo ritmo dos dias úteis */
+  projecao?: number
+}
+
+/**
+ * Comparação do "ao vivo": hoje × mesmo dia da semana passada; semana (seg até hoje) × mesmo
+ * trecho da semana passada; mês (dia 1 até hoje) × mesmo trecho do mês passado + projeção do mês.
+ */
+export function ritmoVivo(porDia: PorDia, hoje: string, atualMes: number): { dia: Ritmo; semana: Ritmo; mes: Ritmo } {
+  const b = (de: string, ate: string) => somar(porDia, de, ate).bruto
+  const semanaPassada = somarDias(hoje, -7)
+  const seg = segundaDa(hoje), segAnt = somarDias(seg, -7)
+  const [a, m] = hoje.split('-').map(Number)
+  const pa = m === 1 ? a - 1 : a, pm = m === 1 ? 12 : m - 1
+  const iniAnt = `${pa}-${String(pm).padStart(2, '0')}-01`
+  const fimAnt = `${iniAnt.slice(0, 8)}${String(ultimoDia(pa, pm)).padStart(2, '0')}`
+  const diaAnt = `${iniAnt.slice(0, 8)}${String(Math.min(Number(hoje.slice(8, 10)), ultimoDia(pa, pm))).padStart(2, '0')}`
+  const ini = `${hoje.slice(0, 8)}01`, fimMes = `${hoje.slice(0, 8)}${String(ultimoDia(a, m)).padStart(2, '0')}`
+  const uteis = (de: string, ate: string) => { let n = 0; for (let d = de; d <= ate; d = somarDias(d, 1)) { const w = new Date(`${d}T12:00:00Z`).getUTCDay(); if (w >= 1 && w <= 5) n++ } return n }
+  const passados = uteis(ini, hoje), total = uteis(ini, fimMes)
+  return {
+    dia: { anterior: b(semanaPassada, semanaPassada), anteriorCheio: b(semanaPassada, semanaPassada), rotulo: 'mesmo dia da semana passada' },
+    semana: { anterior: b(segAnt, somarDias(hoje, -7)), anteriorCheio: b(segAnt, somarDias(segAnt, 6)), rotulo: 'mesmo trecho da semana passada' },
+    mes: { anterior: b(iniAnt, diaAnt), anteriorCheio: b(iniAnt, fimAnt), rotulo: `mesmo trecho de ${MESES[pm - 1]}`, projecao: passados ? (atualMes / passados) * total : undefined },
+  }
+}
+
 /** Soma do dia a dia entre `de` e `ate` (inclusive). */
 export function somar(porDia: PorDia, de: string, ate: string): Soma {
   const s = { bruto: 0, horas: 0, os: 0 }
@@ -117,4 +150,24 @@ export function trilha(escala: Escala, ref: string): Passo[] {
   if (escala === 'semana') return t
   t.push({ rotulo: `${SEMANA[new Date(`${ref}T12:00:00Z`).getUTCDay()]} ${br(ref)}`, escala: 'dia', ref })
   return t
+}
+
+/** Desloca um dia N meses (dia 31 → último dia do mês de destino). */
+export function deslocarMeses(dia: string, n: number): string {
+  const a = Number(dia.slice(0, 4)), m = Number(dia.slice(5, 7)) - 1 + n, d = Number(dia.slice(8, 10))
+  const ano = a + Math.floor(m / 12), mes = ((m % 12) + 12) % 12 + 1
+  const ult = new Date(Date.UTC(ano, mes, 0)).getUTCDate()
+  return `${ano}-${String(mes).padStart(2, '0')}-${String(Math.min(d, ult)).padStart(2, '0')}`
+}
+
+export type Comparar = 'nao' | 'anterior' | 'ano'
+
+/** Quanto deu o MESMO pedaço no passado: dia → mesmo dia do mês anterior (ou do ano passado);
+ *  mês → mesmo mês do ano passado; ano → ano anterior. */
+export function valorPassado(b: BarraFita, modo: Comparar, porDia: PorDia): number | null {
+  if (modo === 'nao') return null
+  const meses = b.escala === 'dia' ? (modo === 'anterior' ? -1 : -12) : -12
+  const de = deslocarMeses(b.de, meses)
+  const ate = b.escala === 'dia' ? de : deslocarMeses(b.ate, meses)
+  return somar(porDia, de, ate).bruto
 }

@@ -11,6 +11,7 @@ import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas';
 import { PAGINAS_ESTOQUE } from '@/app/(portal)/estoque/paginas';
 import { PAGINAS_FROTA } from '@/app/(portal)/frota/paginas';
 import { PAGINAS_MARKETING } from '@/app/(portal)/marketing/paginas';
+import { PAGINAS_IV } from '@/app/(portal)/inteligencia-vendas/paginas';
 import { ACOES_POR_MODULO, grupoDoModulo } from './catalogo';
 import { ACOES_EXPLICITAS, ACOES_SO_DEV } from './explicitas';
 
@@ -61,6 +62,7 @@ export const MODULOS_TELAS: { id: string; nome: string }[] = [
   { id: 'lousa', nome: 'Lousa Virtual' },
   { id: 'mapa', nome: 'Mapeamento Técnico' },
   { id: 'marketing', nome: 'Marketing & Eventos' },
+  { id: 'inteligencia-vendas', nome: 'Inteligência de Vendas' },
   { id: 'mecanicos', nome: 'Janela Mecânicos' },
   { id: 'opa', nome: 'Opa (Ocorrências)' },
   { id: 'opa-pecas', nome: 'Opa Peças — editar peças S/Estoque' },
@@ -165,6 +167,7 @@ export function catalogoRotas(): RotaDef[] {
   for (const p of PAGINAS_AJUSTES) tela(p.href, p.key);
   for (const p of PAGINAS_FROTA) tela(p.href, p.key);
   for (const p of PAGINAS_MARKETING) tela(p.href, p.key);
+  for (const p of PAGINAS_IV) tela(p.href, p.key);
   for (const a of ACOES_POR_MODULO.dre) tela(`/dre-financeiro/${a.id}`, `dre:${a.id}`, ['financeiro']);
   for (const a of ACOES_POR_MODULO['consulta-estoque']) tela(`/visual-estoque/${a.id}`, `consulta-estoque:${a.id}`);
   for (const a of ACOES_POR_MODULO.feedbacks) tela(`/feedbacks/${a.id}`, `feedbacks:${a.id}`);

@@ -13,7 +13,7 @@ import {
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
   FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck, Building,
-  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset, LayoutDashboard, Truck, UserPlus, Tags, BookOpen, CalendarClock, CalendarDays,
+  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset, LayoutDashboard, Truck, UserPlus, Tags, BookOpen, CalendarClock, CalendarDays, Radar,
 } from 'lucide-react'
 
 interface SystemCard {
@@ -72,6 +72,7 @@ const systems: SystemCard[] = [
   { id: 'gestao-vendas', name: 'Gestão de Vendas', description: 'Resultado mensal: margens, comissões e custos por vendedor', icon: <BarChart3 size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #7F1D1D)', href: '/gestao-vendas', tag: 'RESULTADOS', group: 'comercial' },
   // Mesma tela de /dre-financeiro/vendas-modelo, exposta no Comercial com módulo próprio.
   { id: 'vendas-modelo', name: 'Vendas por Modelo', description: 'Receita e quantidade mês a mês, modelo a modelo, com grade anual e detalhe por venda', icon: <Tags size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #991B1B)', href: '/vendas-modelo', tag: 'MODELOS', group: 'comercial' },
+  { id: 'inteligencia-vendas', name: 'Inteligência de Vendas', description: 'Quem renovar, a quem oferecer implemento, propostas sem retorno, municípios para focar, calculadora de retorno, indicações e concorrência', icon: <Radar size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #F87171, #991B1B)', href: '/inteligencia-vendas', tag: 'RADAR', group: 'comercial' },
   { id: 'marketing', name: 'Marketing & Eventos', description: 'Feiras, dias de campo e patrocínios: investimento, apoio de fábrica, leads e retorno', icon: <Megaphone size={28} />, color: '#DB2777', gradient: 'linear-gradient(135deg, #F472B6, #9D174D)', href: '/marketing', tag: 'EVENTOS', group: 'comercial' },
   { id: 'lead', name: 'Captura de Leads', description: 'Anote o contato no estande direto do celular, com foto — texto livre', icon: <UserPlus size={28} />, color: '#DB2777', gradient: 'linear-gradient(135deg, #DB2777, #9D174D)', href: '/lead', tag: 'FEIRA', group: 'comercial' },
 
@@ -109,6 +110,7 @@ const systemToModulo: Record<string, string> = {
   // ⚠️ Card que NÃO estiver aqui aparece pra TODO MUNDO (o filtro devolve true
   // quando não acha o módulo). Card novo = entrada nova aqui, sempre.
   'marketing': 'marketing',
+  'inteligencia-vendas': 'inteligencia-vendas',
   'lead': 'lead',
   'sistema-financeiro': 'financeiro',
   'app-requisicoes': 'requisicoes',

@@ -45,3 +45,17 @@ describe('leitura rápida', () => {
     expect(r.texto).toContain('▼ 25%')
   })
 })
+
+describe('ritmo do ao vivo', () => {
+  it('compara com o mesmo trecho anterior e projeta o mês', async () => {
+    const { ritmoVivo } = await import('../fita')
+    const pd = { '2026-10-09': [500, 1, 1], '2026-10-06': [300, 1, 1], '2026-10-11': [999, 1, 1], '2026-09-10': [2000, 1, 1], '2026-09-25': [4000, 1, 1] } as Record<string, [number, number, number]>
+    const r = ritmoVivo(pd, '2026-10-16', 12000)
+    expect(r.dia.anterior).toBe(500)                 // sex 09/10
+    expect(r.semana.anterior).toBe(800)              // seg 05 a sex 09/10
+    expect(r.semana.anteriorCheio).toBe(1799)        // seg 05 a dom 11/10
+    expect(r.mes.anterior).toBe(2000)                // 01 a 16/09
+    expect(r.mes.anteriorCheio).toBe(6000)
+    expect(r.mes.projecao).toBe(12000 / 12 * 22)     // 12 dias úteis passados de 22
+  })
+})

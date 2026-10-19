@@ -313,5 +313,21 @@ export async function register(): Promise<void> {
     log('centro do pós-vendas: base + leitura do Tratorilson aquecidas a cada 10 min');
   }
 
+  // INTELIGÊNCIA DE VENDAS — Plano Safra (19/10/2026): o robô lê as páginas oficiais do BNDES
+  // 2x por dia; se as condições mudaram, a IA propõe os números e avisa quem confere.
+  // Só produção; PLANO_SAFRA_MONITOR=on liga no local, =off desliga.
+  if (rodaRobos && ((process.env.NODE_ENV === 'production' && process.env.PLANO_SAFRA_MONITOR !== 'off') || process.env.PLANO_SAFRA_MONITOR === 'on')) {
+    const rodarPlanoSafra = async () => {
+      try {
+        const { verificarFontes } = await import('./lib/inteligencia-vendas/plano-safra-server');
+        const r = await verificarFontes('Robô do Plano Safra');
+        log(`plano-safra: ${r.verificadas} páginas, mudaram: ${r.mudaram.join(', ') || 'nenhuma'}${r.erros.length ? `, erros: ${r.erros.length}` : ''}`);
+      } catch (e) { log('plano-safra falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarPlanoSafra().catch(() => {}); }, 12 * 60 * 60 * 1000);
+    setTimeout(() => { rodarPlanoSafra().catch(() => {}); }, 6 * 60 * 1000); // 1ª rodada ~6 min após o boot
+    log('plano safra: páginas oficiais vigiadas a cada 12 h');
+  }
+
   log('schedulers registrados (lembrete-nf 5min, pasta-cliente 5min; financeiro-scanner sob SYNC_FINANCEIRO_AUTO). sync-incremental e backfill-cmc agora no GitHub Actions.');
 }
