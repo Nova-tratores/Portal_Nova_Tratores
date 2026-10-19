@@ -118,6 +118,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     valorHora: safeGet(row, "Valor_HR"), valorKm: safeGet(row, "Valor_KM"),
     status: safeGet(row, "Status"), ppv: safeGet(row, "ID_PPV"),
     projeto: safeGet(row, "Projeto"), ordemOmie: safeGet(row, "Ordem_Omie"),
+    // faturada (NFS-e ou recibo): a tela tranca a fase — só pode ir para Concluída
+    faturadoOmieEm: safeGet(row, "faturado_omie_em") || null,
     omieEspelho: safeGet(row, "Omie_Espelho") || null,
     pendenciaMahindra: (safeGet(row, "pendencia_mahindra") as { detalhes?: string[] } | null) || null,
     pedidoVenda,

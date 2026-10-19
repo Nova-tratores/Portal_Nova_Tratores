@@ -118,6 +118,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [clienteChave, setClienteChave] = useState("");
   const [clienteInfo, setClienteInfo] = useState<ClienteDados | null>(null);
   const [status, setStatus] = useState("Orçamento");
+  // OS faturada (NFS-e ou recibo): fase trancada — só pode ir para Concluída (o servidor também recusa)
+  const [faturadaEm, setFaturadaEm] = useState<string | null>(null);
   const [tecnico1, setTecnico1] = useState("");
   const [tecnico2, setTecnico2] = useState("");
   const [tipoServico, setTipoServico] = useState("Manutenção");
@@ -225,6 +227,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [cancelModal, setCancelModal] = useState(false);
   const [motivoTmp, setMotivoTmp] = useState("");
   const mudarStatus = (novo: string) => {
+    if (faturadaEm && novo !== status && novo !== "Concluída") {
+      alert("Esta OS já foi faturada no Omie (NFS-e ou recibo): a fase fica travada — só pode ir para Concluída.");
+      return;
+    }
     if (novo === "Cancelada" && status !== "Cancelada") {
       setMotivoTmp(motivoCancel);
       setCancelModal(true);
@@ -1103,6 +1109,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           const sub = (d.qtdHoras || 0) * (uH ?? VH) + (d.qtdKm || 0) * (uK ?? VK);
           setDescPorc(sub > 0 ? parseFloat(((dv / sub) * 100).toFixed(2)) : 0);
           setOrdemOmie(d.ordemOmie || ""); setMotivoCancel(d.motivoCancelamento || "");
+          setFaturadaEm(d.faturadoOmieEm || null);
           setPendenciaMahindra(Array.isArray(d.pendenciaMahindra?.detalhes) ? d.pendenciaMahindra!.detalhes! : []);
           setPedidoVenda(d.pedidoVenda || ""); setOmieLog(d.omieEnvioLog || "");
           setTemSubstituto(!!(d.substitutoTipo && d.substitutoId));
@@ -1423,12 +1430,17 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   <select
                     value={status}
                     onChange={(e) => mudarStatus(e.target.value)}
-                    disabled={!podeEditar}
-                    title="Alterar status da OS"
-                    style={{ ...STATUS_BADGE_STYLE(status), border: "none", outline: "none", cursor: podeEditar ? "pointer" : "not-allowed", maxWidth: 340 }}
+                    disabled={!podeEditar || (!!faturadaEm && status === "Concluída")}
+                    title={faturadaEm ? "OS faturada: a fase fica travada (só pode ir para Concluída)" : "Alterar status da OS"}
+                    style={{ ...STATUS_BADGE_STYLE(status), border: "none", outline: "none", cursor: podeEditar && !(faturadaEm && status === "Concluída") ? "pointer" : "not-allowed", maxWidth: 340 }}
                   >
-                    {PHASES.map((p) => <option key={p} value={p}>{p}</option>)}
+                    {(faturadaEm ? PHASES.filter((p) => p === status || p === "Concluída") : PHASES).map((p) => <option key={p} value={p}>{p}</option>)}
                   </select>
+                )}
+                {mode === "edit" && faturadaEm && (
+                  <span title="OS faturada no Omie: a fase não muda mais" style={{ display: "inline-flex", alignItems: "center", gap: 5, marginLeft: 8, padding: "3px 9px", borderRadius: 999, fontSize: 11.5, fontWeight: 800, color: "#047857", background: "#d1fae5" }}>
+                    <i className="fas fa-lock" /> Faturada · fase travada
+                  </span>
                 )}
               </div>
               <div className="os-header-actions">
@@ -2764,7 +2776,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           onAtualizar={async () => {
                             try {
                               const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
-                              if (d?.status) setStatus(d.status);
+                              if (d?.status) setStatus(d.status); if (d && "faturadoOmieEm" in d) setFaturadaEm(d.faturadoOmieEm || null);
                               if (d?.ordemOmie !== undefined) setOrdemOmie(d.ordemOmie || "");
                             } catch { /* a lista recarrega */ }
                             setLogRefreshKey((k) => k + 1);
@@ -2775,7 +2787,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                             setNotasEsperaDesde(Date.now());
                             try {
                               const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
-                              if (d?.status) setStatus(d.status);
+                              if (d?.status) setStatus(d.status); if (d && "faturadoOmieEm" in d) setFaturadaEm(d.faturadoOmieEm || null);
                             } catch { /* a lista recarrega */ }
                             setLogRefreshKey((k) => k + 1);
                             onSaved?.();

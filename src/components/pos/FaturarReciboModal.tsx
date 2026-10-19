@@ -12,6 +12,8 @@ interface Previa {
   ok: boolean; erro?: string; numeroOmie?: string; cliente?: string; total?: number;
   servicos?: Array<{ descricao: string; total: number; naoGeraFinanceiro: boolean }>;
   remessas?: Array<{ id: string; pedidoOmie: string; valor: number }>;
+  /** o que faria a NF-e de remessa ser recusada (lido no Omie) — trava o faturamento */
+  pendencias?: string[];
 }
 type Resultado = { ok: boolean; tipo: string; mensagem?: string; recibo?: string | null; concluida?: boolean; remessas?: Array<{ id: string; ok: boolean; nf?: string | null; erro?: string }> };
 
@@ -165,14 +167,23 @@ export default function FaturarReciboModal({ osId, onClose, onFaturado }: { osId
                     : <>• Sem peças vinculadas.</>}
                 </div>
 
+                {/* remessa com dado fiscal faltando: corrige no Omie ANTES — senão o recibo sai e a remessa trava */}
+                {!!previa.pendencias?.length && (
+                  <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", fontSize: 12.5, color: "#b91c1c", lineHeight: 1.55 }}>
+                    <div style={{ fontWeight: 800, marginBottom: 3 }}><i className="fas fa-triangle-exclamation" /> Corrija antes no Omie — nada será faturado</div>
+                    {previa.pendencias.map((p, i) => <div key={i}>• {p}</div>)}
+                    <div style={{ marginTop: 4, color: "#7f1d1d" }}>Depois de corrigir, feche e abra esta janela de novo.</div>
+                  </div>
+                )}
+
                 <label style={{ display: "flex", gap: 9, alignItems: "center", marginTop: 14, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                  <input type="checkbox" checked={certeza} onChange={(e) => setCerteza(e.target.checked)} style={{ width: 17, height: 17, margin: 0 }} />
+                  <input type="checkbox" checked={certeza} onChange={(e) => setCerteza(e.target.checked)} disabled={!!previa.pendencias?.length} style={{ width: 17, height: 17, margin: 0 }} />
                   Confirmo que esta OS é interna e deve sair com recibo
                 </label>
                 <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
                   <button type="button" onClick={onClose} style={{ flex: 1, height: 42, borderRadius: 10, border: "1px solid #cbd5e1", background: "#fefefe", color: "#334155", fontWeight: 700, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Cancelar</button>
-                  <button type="button" onClick={faturar} disabled={!certeza}
-                    style={{ flex: 1.5, height: 42, borderRadius: 10, border: "none", background: certeza ? "#6d28d9" : "#c4b5fd", color: "#fefefe", fontWeight: 800, fontSize: 14, cursor: certeza ? "pointer" : "not-allowed", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                  <button type="button" onClick={faturar} disabled={!certeza || !!previa.pendencias?.length}
+                    style={{ flex: 1.5, height: 42, borderRadius: 10, border: "none", background: certeza && !previa.pendencias?.length ? "#6d28d9" : "#c4b5fd", color: "#fefefe", fontWeight: 800, fontSize: 14, cursor: certeza && !previa.pendencias?.length ? "pointer" : "not-allowed", fontFamily: "inherit", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
                     <i className="fas fa-receipt" /> Faturar com recibo
                   </button>
                 </div>

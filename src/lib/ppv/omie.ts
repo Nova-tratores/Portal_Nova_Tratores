@@ -129,6 +129,9 @@ export async function faturarRemessaPPV(idPPV: string, usuario = "Portal"): Prom
   };
   if (st0.st.faturada === "S") { const nf = nfDe(st0.st); if (!cab.faturado_omie_em) await marcar(nf); return { ok: true, nf, jaFaturada: true }; }
   const acc = st0.acc;
+  // dado fiscal faltando: avisa com o nome do produto antes de pedir a nota ao Omie
+  const pend = await pendenciasFiscaisRemessa(idPPV).catch(() => [] as string[]);
+  if (pend.length) return { ok: false, erro: pend.join(" ") };
   await alinharRemessaDaOS(idPPV).catch(() => null); // contrato/projeto/previsão iguais à OS antes da nota
   const rc = await omieCall<{ cabec?: { nCodRem?: number } }>("/produtos/remessa/", "ConsultarRemessa", { cCodIntRem: `RM-${idPPV}` }, acc.key, acc.secret);
   const nCodRem = Number(rc.cabec?.nCodRem || 0);
@@ -150,6 +153,47 @@ export async function faturarRemessaPPV(idPPV: string, usuario = "Portal"): Prom
   await registrarLog(idPPV, `Remessa faturada pelo portal${nf ? ` — NF-e de remessa ${nf}` : " (NF-e ainda sendo gerada)"} (${usuario}).`).catch(() => {});
   return { ok: true, nf };
 }
+
+/**
+ * Confere, SÓ LENDO a remessa no Omie, o que faria a NF-e de remessa ser recusada —
+ * para avisar ANTES de faturar a OS com recibo (caso OS-0821, 19/10/2026: o recibo saiu e
+ * a remessa travou em "falta preencher a Situação Tribut. do ICMS do produto PRO 10p").
+ * Devolve a lista de problemas (vazia = pode faturar). Remessa já faturada/cancelada ou
+ * que não deu para ler não gera aviso aqui (o faturamento trata).
+ */
+export async function pendenciasFiscaisRemessa(idPPV: string): Promise<string[]> {
+  const cab = await lerCabecalhoPPV(idPPV).catch(() => null);
+  if (!cab || String(cab.Tipo_Pedido || "") !== "Remessa") return [];
+  const st = await statusRemessaPPV(idPPV, (cab.omie_empresa as string) || null).catch(() => null);
+  if (!st || st.st.faturada === "S" || st.st.cancelada === "S") return [];
+  type ItemRem = { nCodProd?: number; cNCM?: string; cCFOP?: string; ICMS?: { cSitTrib?: string }; ICMS_SN?: { cSitTribSN?: string } };
+  let itens: ItemRem[] = [];
+  try {
+    const rc = await omieCall<{ produtos?: ItemRem[] }>("/produtos/remessa/", "ConsultarRemessa", { cCodIntRem: `RM-${idPPV}` }, st.acc.key, st.acc.secret);
+    itens = rc.produtos || [];
+  } catch { return []; }
+  const conta = /castro/i.test(st.acc.name) ? "castro" : "nova";
+  const empresa = /castro/i.test(st.acc.name) ? "Castro" : "Nova";
+  const nomes = new Map<number, string>();
+  const ids = [...new Set(itens.map((i) => Number(i.nCodProd || 0)).filter(Boolean))];
+  if (ids.length) {
+    const rows = await supabaseFetch<Array<{ codigo_produto: number; codigo?: string; descricao?: string }>>(
+      `produtos?conta_omie=eq.${conta}&codigo_produto=in.(${ids.join(",")})&select=codigo_produto,codigo,descricao`,
+    ).catch(() => null);
+    for (const r of rows || []) nomes.set(Number(r.codigo_produto), `${r.codigo || r.codigo_produto}${r.descricao ? ` — ${String(r.descricao).slice(0, 50)}` : ""}`);
+  }
+  const problemas: string[] = [];
+  for (const i of itens) {
+    const nome = nomes.get(Number(i.nCodProd || 0)) || `produto ${i.nCodProd}`;
+    const falta: string[] = [];
+    if (!String(i.ICMS?.cSitTrib || "").trim() && !String(i.ICMS_SN?.cSitTribSN || "").trim()) falta.push("a Situação Tributária do ICMS");
+    if (!String(i.cNCM || "").trim()) falta.push("o NCM");
+    if (!String(i.cCFOP || "").trim()) falta.push("o CFOP");
+    if (falta.length) problemas.push(`Remessa ${sem0Rem(st.st.cNumeroRemessa) || idPPV} (${empresa}), "${nome}": falta ${falta.join(", ")} no cadastro do produto no Omie.`);
+  }
+  return problemas;
+}
+const sem0Rem = (x: unknown) => String(x || "").replace(/^0+(?=\d)/, "");
 
 /** Remessa no Omie: situação + NF-e (StatusRemessa pelo código de integração RM-<PPV>). */
 export async function statusRemessaPPV(idPPV: string, empresa: string | null): Promise<{ acc: OmieAccount; st: { faturada?: string; cancelada?: string; cNumeroRemessa?: string; ListaNfe?: Array<{ cNumNFe?: string; cChaveNFe?: string; cDanfe?: string; dtEmissao?: string; cStatusNFe?: string }> } } | null> {

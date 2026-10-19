@@ -516,7 +516,18 @@ async function reciboDaOS(id: string): Promise<string | null> {
 }
 
 /** Prévia da janela "Faturar com recibo": o que está no Omie agora. */
-export async function previaRecibo(id: string): Promise<{ ok: boolean; erro?: string; numeroOmie?: string; cliente?: string; total?: number; contrato?: string; servicos?: Array<{ descricao: string; total: number; naoGeraFinanceiro: boolean }>; remessas?: Array<{ id: string; pedidoOmie: string; valor: number; faturada: boolean }> }> {
+/** Problemas fiscais das remessas (ainda não faturadas) da OS — só leitura no Omie. */
+async function pendenciasDasRemessas(ppvs: PPVDaOS[]): Promise<string[]> {
+  const { pendenciasFiscaisRemessa } = await import('@/lib/ppv/omie');
+  const out: string[] = [];
+  for (const p of ppvs) {
+    if (!/remessa/i.test(p.tipo) || /cancel/i.test(String(p.status || '')) || !p.pedidoOmie || p.faturadoEm) continue;
+    out.push(...(await pendenciasFiscaisRemessa(p.id).catch(() => [] as string[])));
+  }
+  return out;
+}
+
+export async function previaRecibo(id: string): Promise<{ ok: boolean; erro?: string; numeroOmie?: string; pendencias?: string[]; cliente?: string; total?: number; contrato?: string; servicos?: Array<{ descricao: string; total: number; naoGeraFinanceiro: boolean }>; remessas?: Array<{ id: string; pedidoOmie: string; valor: number; faturada: boolean }> }> {
   const os = await lerOS(id);
   if (!os) return { ok: false, erro: 'OS não encontrada.' };
   if (!os.Servico_Interno) return { ok: false, erro: 'Só OS interna fatura com recibo.' };
@@ -529,8 +540,9 @@ export async function previaRecibo(id: string): Promise<{ ok: boolean; erro?: st
   const ppvs = await ppvsDaOS(os).catch(() => [] as PPVDaOS[]);
   const contrato = await contratoDaOS(id);
   if (!contrato) return { ok: false, erro: 'OS interna: escolha o "Nº do Contrato de Venda" (código interno) na aba Informações adicionais e salve antes de faturar.' };
+  const pendencias = await pendenciasDasRemessas(ppvs);
   return {
-    ok: true, contrato, numeroOmie: chaveNum(os.Ordem_Omie), cliente: String(os.Os_Cliente || ''), total: Number(r.dados.Cabecalho?.nValorTotal || 0),
+    ok: true, contrato, numeroOmie: chaveNum(os.Ordem_Omie), pendencias, cliente: String(os.Os_Cliente || ''), total: Number(r.dados.Cabecalho?.nValorTotal || 0),
     servicos: (r.dados.ServicosPrestados || []).map((s) => {
       const it = s as Record<string, unknown>;
       const q = Number(it.nQtde || 0), u = Number(it.nValUnit || 0);
@@ -633,6 +645,13 @@ export async function faturarOSComRecibo(id: string, entrada: { totalConfirmado:
       if (r.mudou.length) await logOS(id, `Remessa ${p.id} ajustada igual à OS: ${r.mudou.join(', ')}.`, userName, String(os.Status || ''));
       if (r.aviso) await logOS(id, `Remessa: ${r.aviso}`, userName, String(os.Status || ''));
     }
+  }
+
+  // 2d) peças vão junto: confere ANTES do recibo o que faria a NF-e de remessa ser recusada
+  //     (OS-0821, 19/10/2026: o recibo saiu e a remessa travou por falta do CST do ICMS)
+  if (entrada.faturarRemessas !== false) {
+    const pend = await pendenciasDasRemessas(await ppvsDaOS(os).catch(() => [] as PPVDaOS[]));
+    if (pend.length) return falhar(`Nada foi faturado — corrija antes no Omie: ${pend.join(' ')}`, 'remessa');
   }
 
   // 3) ValidarOS + FaturarOS (uma chamada, sem repetir)

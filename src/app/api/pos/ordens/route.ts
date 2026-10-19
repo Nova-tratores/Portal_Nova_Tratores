@@ -63,7 +63,8 @@ async function autoMoveByDate() {
     .select("Id_Ordem, Status, Previsao_Execucao")
     .not("Previsao_Execucao", "is", null)
     .lte("Previsao_Execucao", hojeISO)
-    .in("Status", ["Orçamento", "Orçamento enviado para o cliente e aguardando"]);
+    .in("Status", ["Orçamento", "Orçamento enviado para o cliente e aguardando"])
+    .is("faturado_omie_em", null); // OS faturada não muda de fase sozinha
 
   for (const os of paraExecucao || []) {
     if (await autoMoveJaFoiRevertido(os.Id_Ordem, "Auto-move: Previsão de execução atingida")) continue;
@@ -79,7 +80,8 @@ async function autoMoveByDate() {
   const { data: emExecucao } = await supabase
     .from(TBL_OS)
     .select("Id_Ordem, Status, Previsao_Execucao, Dias_Execucao, Os_Tecnico")
-    .in("Status", ["Execução"]);
+    .in("Status", ["Execução"])
+    .is("faturado_omie_em", null); // OS faturada não muda de fase sozinha
 
   const execAtrasadas = (emExecucao || []).filter((os) => {
     const ultimo = ultimoDiaServico(os.Previsao_Execucao, os.Dias_Execucao);
@@ -106,7 +108,8 @@ async function autoMoveByDate() {
     .select("Id_Ordem, Status, Previsao_Faturamento")
     .not("Previsao_Faturamento", "is", null)
     .lte("Previsao_Faturamento", hojeISO)
-    .in("Status", ["Executada aguardando comercial"]);
+    .in("Status", ["Executada aguardando comercial"])
+    .is("faturado_omie_em", null); // OS faturada não muda de fase sozinha
 
   for (const os of paraFaturamento || []) {
     if (await autoMoveJaFoiRevertido(os.Id_Ordem, "Auto-move: Previsão de faturamento atingida")) continue;
