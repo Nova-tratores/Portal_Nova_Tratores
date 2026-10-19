@@ -24,6 +24,7 @@ import {
 } from 'lucide-react'
 import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias, CalendarClock, CalendarDays, LineChart } from 'lucide-react'
 import BotaoAjuda from '@/components/conhecimento/BotaoAjuda'
+import IlhaNotificacao, { AjustesIlha, type AvisoIlha } from '@/components/notif/IlhaNotificacao'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import ChatPanel from './chat/ChatPanel'
@@ -137,6 +138,12 @@ const NOTIF_ICONS: Record<string, import('react').ReactNode> = {
   sistema: <Bell size={18} />,
   tickets: <Ticket size={18} />,
   frota: <Truck size={18} />,
+}
+
+// Nome do módulo no aviso da ilha
+const NOME_MODULO_NOTIF: Record<string, string> = {
+  chat: 'Chat', financeiro: 'Financeiro', requisicao: 'Requisições', revisao: 'Revisões', pos: 'Pós-Vendas', ppv: 'Peças',
+  garantia: 'Garantias', proposta: 'Propostas', tickets: 'Central de Trabalho', frota: 'Frota', novazap: 'NovaZap', agenda: 'Agenda', avisos: 'Aviso',
 }
 
 // Cor de acento por tipo de notificação
@@ -616,10 +623,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     setToasts(prev => prev.filter(x => x.id !== t.id))
   }
 
-  const dismissToast = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation()
-    setToasts(prev => prev.filter(t => t.id !== id))
-  }
+  // o aviso saiu da tela: o sino dá um pulinho (é onde ele ficou)
+  const [sinoPulo, setSinoPulo] = useState(0)
+  const avisoFoiProSino = useCallback(() => setSinoPulo((n) => n + 1), [])
 
   // Total de notificações do sino (sistema + chat não lidas)
   const totalBell = notifData.naoLidas + chatData.totalNaoLidas
@@ -963,7 +969,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }}
           >
-            <Bell size={20} className={notifData.naoLidas > 0 ? 'bell-ring' : ''} />
+            <span key={sinoPulo} className={sinoPulo ? 'sino-pulo' : ''} style={{ display: 'flex' }}><Bell size={20} className={notifData.naoLidas > 0 ? 'bell-ring' : ''} /></span>
             {notifData.naoLidas > 0 && (
               <span className="notif-badge-pulse" style={{
                 position: 'absolute', top: '-5px', right: '-5px', minWidth: 18, height: 18, borderRadius: 9,
@@ -1132,6 +1138,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                     )}
                   </div>
                 </div>
+
+                {/* aviso na tela (ilha): modo e posição — cada usuário escolhe */}
+                <AjustesIlha />
 
                 {/* Lista */}
                 <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -2000,115 +2009,25 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         </div>
       )}
 
-      {/* ===== TOASTS ===== */}
-      <div className="print-hidden notif-toast-wrap" style={{
-        position: 'fixed', top: '92px', right: '24px',
-        display: 'flex', flexDirection: 'column', gap: '12px',
-        zIndex: 9999, pointerEvents: 'none'
-      }}>
-        {toasts.map((t, i) => {
+      {/* ===== AVISO NA TELA = ILHA (José, 19/10/2026) — aparece só quando chega, some e fica no sino ===== */}
+      <IlhaNotificacao
+        avisos={toasts.map((t): AvisoIlha => {
           const isChat = t.tipo === 'chat'
-          return (
-            <div
-              key={t.id}
-              onClick={() => handleToastClick(t)}
-              className="notif-toast"
-              style={{
-                width: '380px', maxWidth: 'calc(100vw - 48px)',
-                background: 'var(--portal-bg-card)',
-                borderRadius: isChat ? '20px' : '16px',
-                boxShadow: isChat
-                  ? '0 8px 32px rgba(59,130,246,0.18), 0 2px 8px rgba(0,0,0,0.06)'
-                  : `0 8px 32px var(--portal-shadow), 0 2px 8px rgba(0,0,0,0.06)`,
-                border: isChat ? '2px solid #bfdbfe' : `1px solid var(--portal-border)`,
-                cursor: 'pointer',
-                overflow: 'hidden', pointerEvents: 'auto',
-                animation: 'toastSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
-                opacity: i > 2 ? 0.7 : 1,
-                position: 'relative'
-              }}
-            >
-              {/* Barra de chat tipo balão */}
-              {isChat && (
-                <div style={{
-                  position: 'absolute', top: 0, left: 0, right: 0, height: '3px',
-                  background: 'linear-gradient(90deg, #3b82f6, #60a5fa, #3b82f6)',
-                  backgroundSize: '200% 100%',
-                  animation: 'toastBarShimmer 2s linear infinite'
-                }} />
-              )}
-              {!isChat && (
-                <div style={{ height: '3px', background: variante(t.varianteId) ? variante(t.varianteId)!.cor : 'linear-gradient(90deg, #dc2626, #ef4444)', animation: 'toastProgress 6s linear forwards' }} />
-              )}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 18px' }}>
-                {/* Avatar / Ícone */}
-                <div style={{
-                  width: '46px', height: '46px',
-                  borderRadius: isChat ? '50%' : '12px',
-                  background: isChat
-                    ? 'linear-gradient(135deg, #3b82f6, #2563eb)'
-                    : 'var(--portal-bg-secondary)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '20px', flexShrink: 0, overflow: 'hidden',
-                  boxShadow: isChat ? '0 4px 14px rgba(59,130,246,0.3)' : 'none',
-                  border: isChat ? '3px solid #dbeafe' : 'none'
-                }}>
-                  {t.avatar ? (
-                    <img src={t.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : isChat ? (
-                    <MessageCircle size={20} color="#fff" />
-                  ) : (
-                    <span style={{ display: 'flex', color: variante(t.varianteId)?.cor || 'var(--portal-text-secondary)' }}>{variante(t.varianteId)?.icone || NOTIF_ICONS[t.tipo] || <Bell size={18} />}</span>
-                  )}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
-                    <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--portal-text)' }}>{t.titulo}</span>
-                    <span style={{
-                      fontSize: '9px', fontWeight: '800', color: '#fff',
-                      background: isChat ? '#3b82f6' : '#dc2626',
-                      padding: '2px 7px', borderRadius: '4px'
-                    }}>
-                      {isChat ? 'CHAT' : 'NOVA'}
-                    </span>
-                  </div>
-                  <p style={{
-                    fontSize: '13px', color: 'var(--portal-text-secondary)', margin: 0,
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    ...(isChat ? {
-                      background: tema === 'dark' ? '#1a2332' : '#f0f7ff',
-                      padding: '6px 10px',
-                      borderRadius: '0 12px 12px 12px',
-                      border: tema === 'dark' ? '1px solid #1e3a5f' : '1px solid #e0edff',
-                      marginTop: '4px',
-                      fontSize: '12px'
-                    } : {})
-                  }}>{t.preview}</p>
-                </div>
-                <button onClick={(e) => dismissToast(e, t.id)} style={{
-                  background: 'var(--portal-bg-secondary)', border: 'none', color: 'var(--portal-text-muted)',
-                  fontSize: '10px', cursor: 'pointer', padding: '6px',
-                  borderRadius: '8px', flexShrink: 0, display: 'flex',
-                  alignItems: 'center', justifyContent: 'center',
-                  width: '28px', height: '28px', transition: 'all 0.2s'
-                }}>
-                  <X size={12} />
-                </button>
-              </div>
-              {!isChat && (
-                <div style={{ height: '3px', background: 'var(--portal-bg-secondary)' }}>
-                  <div style={{ height: '100%', background: 'linear-gradient(90deg, #dc2626, #ef4444)', animation: 'toastProgress 6s linear forwards' }} />
-                </div>
-              )}
-              {isChat && (
-                <div style={{ height: '3px', background: tema === 'dark' ? '#1a2332' : '#eff6ff' }}>
-                  <div style={{ height: '100%', background: 'linear-gradient(90deg, #3b82f6, #60a5fa)', animation: 'toastProgress 6s linear forwards' }} />
-                </div>
-              )}
-            </div>
-          )
+          const v = variante(t.varianteId)
+          return {
+            id: t.id, titulo: t.titulo, texto: t.preview,
+            icone: t.avatar ? <img src={t.avatar} alt="" /> : isChat ? <MessageCircle size={18} /> : (v?.icone || NOTIF_ICONS[t.tipo] || <Bell size={18} />),
+            cor: v?.cor || NOTIF_COLORS[t.tipo] || '#64748b',
+            modulo: v?.rotulo || NOME_MODULO_NOTIF[t.tipo] || '',
+            urgente: t.tipo === 'novazap',
+          }
         })}
-      </div>
+        naoLidas={totalBell}
+        onAbrir={(id) => { const t = toasts.find((x) => x.id === id); if (t) handleToastClick(t) }}
+        onFechar={(id) => setToasts((prev) => prev.filter((x) => x.id !== id))}
+        onAbrirSino={() => { setBellOpen(true); setTopMenuOpen(false) }}
+        onFoiProSino={avisoFoiProSino}
+      />
 
       {/* ===== CSS ===== */}
       <style>{`
