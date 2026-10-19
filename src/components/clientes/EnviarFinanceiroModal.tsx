@@ -3,6 +3,7 @@
 // Substitui o window.confirm: confirma → tela de carregamento (Omie) → resultado.
 import { useState } from "react";
 import { createPortal } from "react-dom";
+import { authHeaders } from "@/lib/auth/client";
 import CronometroEstimado, { useSegundos, pctPeloTempo } from "@/components/comum/CronometroEstimado";
 
 export interface EnvioFinanceiroOS {
@@ -77,7 +78,7 @@ export default function EnviarFinanceiroModal({ os, motivo, onFechar, onConcluid
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 120_000);
     try {
-      const res = await fetch(`/api/financeiro/sync-os?os=${encodeURIComponent(os.num_os)}&manual=1`, { method: "POST", signal: ctrl.signal });
+      const res = await fetch(`/api/financeiro/sync-os?os=${encodeURIComponent(os.num_os)}&manual=1`, { method: "POST", headers: { ...(await authHeaders()) }, signal: ctrl.signal });
       const d = await res.json().catch(() => ({}));
       const r = String(d?.resultado || d?.error || "");
       const criou = /Card criado/i.test(r);

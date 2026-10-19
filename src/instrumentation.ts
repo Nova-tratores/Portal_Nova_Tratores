@@ -80,8 +80,9 @@ export async function register(): Promise<void> {
     log('agendamentos internos com o AGENDADOR (tela /agendamentos)');
   } else if (rodaRobos && process.env.SYNC_FINANCEIRO_AUTO === 'on') {
     const rodarSyncFinanceiro = async () => {
+      const { fetchInterno } = await import('./lib/auth/chamada-interna');
       for (const path of ['/api/financeiro/sync-os', '/api/financeiro/sync-pecas?dias=3']) {
-        try { await fetch(`${base}${path}`, { method: 'POST' }); } catch (e) { log('sync financeiro falhou: ' + (e as Error).message); }
+        try { await fetchInterno(`${base}${path}`, { method: 'POST' }); } catch (e) { log('sync financeiro falhou: ' + (e as Error).message); }
       }
     };
     setInterval(() => { rodarSyncFinanceiro().catch(() => {}); }, CINCO_MIN);

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PECAS, STATUS_FINALIZADOS } from '@/lib/garantias/constants';
-import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
+import { registrarEvento, notificarGarantistas, guardarLoginGarantias } from '@/lib/garantias/server';
+import { autorDe } from '@/lib/ajustes/permissao-server';
 
 // GET /api/garantias?status=&os=&chassis=&montadora=&tecnico=&finalizadas=
 export async function GET(req: NextRequest) {
+  const guarda = await guardarLoginGarantias(req);
+  if (guarda.resposta) return guarda.resposta;
   const sp = req.nextUrl.searchParams;
 
   const montarQuery = (comDevolucao: boolean) => {
@@ -58,6 +61,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/garantias — técnico cria a requisição de garantia
 export async function POST(req: NextRequest) {
+  const guarda = await guardarLoginGarantias(req);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const body = await req.json();
   const idOrdem = String(body.id_ordem || '').trim();
   const tecnicoNome = String(body.tecnico_nome || '').trim();
@@ -138,7 +144,7 @@ export async function POST(req: NextRequest) {
   await registrarEvento(garantia.id, {
     tipo: 'criada',
     statusNovo: 'aberta',
-    ator: tecnicoNome,
+    ator: autorDe(user),
     detalhe: `Garantia ${garantia.numero} solicitada para a OS ${idOrdem}`,
   });
   await notificarGarantistas({

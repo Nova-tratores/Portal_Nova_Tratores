@@ -6,11 +6,14 @@ import { faltaParaEnviarOmie } from "@/lib/pos/envio-omie-regras";
 import { registrarAlimentacaoOS } from "@/lib/pos/alimentacao-os";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // Mesmo critério do botão "Enviar ao Omie" da OS (pode('pos','enviar_omie') em /pos)
+  const g = await protegerRota(req, [{ modulo: "pos", acao: "enviar_omie" }]);
+  if (g.resposta) return g.resposta;
   const { id: idOs } = await params;
-  let userName = "Sistema";
-  try { const body = await req.json(); userName = body.userName || "Sistema"; } catch {}
+  const userName = autorDe(g.user);
 
   // Qualquer fase serve, desde que a descrição SALVA tenha solicitação + serviço realizado
   const { data: osTexto } = await supabase.from(TBL_OS).select("Serv_Solicitado").eq("Id_Ordem", idOs).maybeSingle();

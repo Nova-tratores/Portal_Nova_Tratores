@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState, useEffect } from 'react';
 import { Mail, ChevronDown, ChevronUp, Loader2, Send, Inbox, FileText, Download } from 'lucide-react';
 import type { GarantiaEmail } from '@/lib/garantias/types';
@@ -36,13 +37,13 @@ export default function ConversaFabrica({ garantiaId, naoLidos = 0 }: Props) {
       // fechar o drawer inteiro.
       setLoading(true);
       try {
-        const res = await fetch(`/api/garantias/${garantiaId}/emails`);
+        const res = await fetchAuth(`/api/garantias/${garantiaId}/emails`);
         if (!res.ok) throw new Error('Falha ao listar a conversa');
         const data = await res.json();
         setEmails(data.emails || []);
         // Só marca como lidas quando a lista realmente carregou —
         // senão zeraríamos o badge de mensagens que ninguém viu.
-        fetch(`/api/garantias/${garantiaId}/emails`, { method: 'POST' }).catch(() => {});
+        fetchAuth(`/api/garantias/${garantiaId}/emails`, { method: 'POST' }).catch(() => {});
         setBadge(0);
       } catch {
         // mantém emails como estava (null = permite nova tentativa)

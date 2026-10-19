@@ -3,6 +3,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_ANEXOS, BUCKET_GARANTIAS } from '@/lib/garantias/constants';
 import { registrarEvento } from '@/lib/garantias/server';
 import { baixarUrl, sanitizeFileName } from '@/lib/garantias/email';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // NF de venda do equipamento — localizada pelo CHASSI da garantia.
 // Caminho: chassi → portal_nt_projetos_chassis (projeto/empresa) →
@@ -21,7 +22,9 @@ interface CandidatoNF {
 }
 
 // GET /api/garantias/[id]/nf-venda — lista candidatos de NF pelo chassi
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias' }]);
+  if (guarda.resposta) return guarda.resposta;
   const { id } = await params;
 
   const { data: g } = await supabase
@@ -123,10 +126,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 // POST /api/garantias/[id]/nf-venda — baixa a NF escolhida e anexa na garantia
 // body: { link, numero?, ator }
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'analisar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const link = String(body.link || '').trim();
-  const ator = body.ator || 'Garantista';
+  const ator = autorDe(user);
   if (!link) return NextResponse.json({ error: 'Informe o link da NF.' }, { status: 400 });
 
   const { data: g } = await supabase

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 
 // Grupos (coletivos) de requisições. Uma req pode estar em vários grupos.
 // GET   → lista grupos + os req_ids de cada um
@@ -8,7 +9,16 @@ import { supabase } from "@/lib/pos/supabase";
 
 type Hist = { acao: string; req_id?: number; usuario: string; em: string; detalhe?: string };
 
-export async function GET() {
+// Grupos são usados nas Requisições, na OS (POS: nova requisição) e no Cronograma
+// (Central de Trabalho: tickets/tarefas/cronograma). Basta um desses módulos.
+const ACESSO_GRUPOS = [
+  { modulo: "requisicoes" }, { modulo: "pos" },
+  { modulo: "cronograma" }, { modulo: "tickets" }, { modulo: "tarefas" },
+];
+
+export async function GET(req: NextRequest) {
+  const guarda = await protegerRota(req, ACESSO_GRUPOS);
+  if (guarda.resposta) return guarda.resposta;
   try {
     const { data: grupos, error } = await supabase
       .from("requisicao_grupos")
@@ -37,8 +47,11 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const guarda = await protegerRota(req, ACESSO_GRUPOS);
+  if (guarda.resposta) return guarda.resposta;
   try {
-    const { nome, criado_por } = await req.json();
+    const { nome } = await req.json();
+    const criado_por = autorDe(guarda.user);
     if (!nome?.trim()) return NextResponse.json({ error: "Informe o nome do grupo" }, { status: 400 });
     const em = new Date().toISOString();
     const historico: Hist[] = [{ acao: "criou", usuario: criado_por || "?", em }];
@@ -55,8 +68,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const guarda = await protegerRota(req, ACESSO_GRUPOS);
+  if (guarda.resposta) return guarda.resposta;
   try {
-    const { id, nome, status, usuario } = await req.json();
+    const { id, nome, status } = await req.json();
+    const usuario = autorDe(guarda.user);
     if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
 
     const { data: g } = await supabase.from("requisicao_grupos").select("historico").eq("id", id).single();

@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState, useEffect } from 'react';
 import { ShieldCheck, ExternalLink, QrCode } from 'lucide-react';
 import type { GarantiaResumo } from '@/lib/garantias/types';
@@ -16,7 +17,7 @@ export default function OSGarantiaInfo({ osId, cartao }: { osId: string; /** cla
     let cancel = false;
     (async () => {
       try {
-        const res = await fetch(`/api/garantias?os=${encodeURIComponent(osId)}`);
+        const res = await fetchAuth(`/api/garantias?os=${encodeURIComponent(osId)}`);
         const data = await res.json();
         const lista: GarantiaResumo[] = data.garantias || [];
         if (!cancel) setGarantia(lista[0] || null);

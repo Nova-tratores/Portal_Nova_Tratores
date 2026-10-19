@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState, useEffect, useCallback } from 'react';
 import {
   ShieldCheck, ChevronUp, ChevronDown, Plus, X, Send, Loader2,
@@ -35,7 +36,7 @@ export default function MinhasGarantias({ tecnicoNome }: Props) {
   const carregar = useCallback(async () => {
     if (!tecnicoNome) return;
     try {
-      const res = await fetch(`/api/garantias?tecnico=${encodeURIComponent(tecnicoNome)}`);
+      const res = await fetchAuth(`/api/garantias?tecnico=${encodeURIComponent(tecnicoNome)}`);
       const data = await res.json();
       setGarantias(data.garantias || []);
     } catch {
@@ -64,11 +65,11 @@ export default function MinhasGarantias({ tecnicoNome }: Props) {
         fd.append('file', img);
         fd.append('categoria', 'pendencia_resposta');
         fd.append('enviado_por', tecnicoNome);
-        const up = await fetch(`/api/garantias/${g.id}/anexos`, { method: 'POST', body: fd });
+        const up = await fetchAuth(`/api/garantias/${g.id}/anexos`, { method: 'POST', body: fd });
         const upData = await up.json();
         if (up.ok && upData.anexo?.id) anexoIds.push(upData.anexo.id);
       }
-      const res = await fetch(`/api/garantias/${g.id}/pendencias/${pend.id}`, {
+      const res = await fetchAuth(`/api/garantias/${g.id}/pendencias/${pend.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ resposta_texto: respTexto, respondido_por: tecnicoNome, anexo_ids: anexoIds }),
@@ -454,7 +455,7 @@ function NovaGarantia({
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`/api/garantias/os-elegiveis?tecnico=${encodeURIComponent(tecnicoNome)}`);
+        const res = await fetchAuth(`/api/garantias/os-elegiveis?tecnico=${encodeURIComponent(tecnicoNome)}`);
         const data = await res.json();
         setOsList(data.ordens || []);
       } catch {
@@ -470,7 +471,7 @@ function NovaGarantia({
     setEtapa(2);
     setPecasLoading(true);
     try {
-      const res = await fetch(`/api/garantias/os-pecas?os=${encodeURIComponent(os.id_ordem)}`);
+      const res = await fetchAuth(`/api/garantias/os-pecas?os=${encodeURIComponent(os.id_ordem)}`);
       const data = await res.json();
       setPecas(data.pecas || []);
     } catch {
@@ -498,7 +499,7 @@ function NovaGarantia({
     setSalvando(true);
     try {
       const pecasSel = [...marcadas].map((i) => pecas[i]);
-      const res = await fetch('/api/garantias', {
+      const res = await fetchAuth('/api/garantias', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

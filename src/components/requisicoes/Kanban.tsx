@@ -8,6 +8,7 @@ import { normalizarNomePessoa, paraBusca } from '@/lib/texto';
 import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info, Plus, FolderOpen, FolderPlus, RotateCcw, Car, Filter, ArrowLeft, Check, Tag, ArrowLeftRight, LayoutGrid, List } from 'lucide-react';
 import CompararReqs from './CompararReqs';
 import dynamic from 'next/dynamic';
+import { fetchAuth } from '@/lib/auth/client';
 
 // CardReq completo — usado pelo modo lista pra abrir a requisição da linha clicada
 const CardReq = dynamic(() => import('./CardReq'), { ssr: false });
@@ -83,7 +84,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
 
   const recarregarGrupos = useCallback(async () => {
     try {
-      const res = await fetch('/api/pos/requisicoes/grupos');
+      const res = await fetchAuth('/api/pos/requisicoes/grupos');
       if (res.ok) setGrupos(await res.json());
     } catch { /* ignore */ }
   }, []);
@@ -98,7 +99,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
     if (!nome) return;
     setSalvandoGrupo(true);
     try {
-      const res = await fetch('/api/pos/requisicoes/grupos', {
+      const res = await fetchAuth('/api/pos/requisicoes/grupos', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ nome, criado_por: usuarioAtual }),
       });
@@ -111,7 +112,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
 
   const mudarStatusGrupo = useCallback(async (id: number, status: string) => {
     try {
-      await fetch('/api/pos/requisicoes/grupos', {
+      await fetchAuth('/api/pos/requisicoes/grupos', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, status, usuario: usuarioAtual }),
       });
@@ -123,7 +124,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
   const renomearGrupo = useCallback(async (id: number, nome: string) => {
     if (!nome.trim()) return;
     try {
-      await fetch('/api/pos/requisicoes/grupos', {
+      await fetchAuth('/api/pos/requisicoes/grupos', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id, nome: nome.trim(), usuario: usuarioAtual }),
       });

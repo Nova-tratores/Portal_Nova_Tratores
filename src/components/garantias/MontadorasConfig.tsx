@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Pencil, Trash2, Factory, Loader2, ListChecks, HelpCircle } from 'lucide-react';
 import type { Montadora } from '@/lib/garantias/types';
@@ -20,7 +21,7 @@ export default function MontadorasConfig({ criadoPor }: Props) {
   const carregar = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/garantias/montadoras');
+      const res = await fetchAuth('/api/garantias/montadoras');
       const data = await res.json();
       setMontadoras(data.montadoras || []);
     } catch {
@@ -36,7 +37,7 @@ export default function MontadorasConfig({ criadoPor }: Props) {
 
   async function excluir(m: Montadora) {
     if (!confirm(`Excluir a montadora "${m.nome}"?`)) return;
-    const res = await fetch(`/api/garantias/montadoras/${m.id}`, { method: 'DELETE' });
+    const res = await fetchAuth(`/api/garantias/montadoras/${m.id}`, { method: 'DELETE' });
     const data = await res.json();
     if (!res.ok) {
       alert(data.error || 'Falha ao excluir.');

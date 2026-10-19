@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, VALOR_HORA, VALOR_KM, STATUS_FINALIZADOS } from '@/lib/garantias/constants';
 import type { RelatorioMontadora } from '@/lib/garantias/types';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 // GET /api/garantias/relatorio?de=&ate=
 export async function GET(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias' }]);
+  if (guarda.resposta) return guarda.resposta;
   const de = req.nextUrl.searchParams.get('de');
   const ate = req.nextUrl.searchParams.get('ate');
 

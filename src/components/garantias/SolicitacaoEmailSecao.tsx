@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Send, Loader2, Sparkles, FileText, Printer, Search, CheckCircle2, XCircle,
@@ -135,7 +136,7 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
 
   const carregarPreview = useCallback(async () => {
     try {
-      const res = await fetch(`/api/garantias/${g.id}/enviar-email-solicitacao`);
+      const res = await fetchAuth(`/api/garantias/${g.id}/enviar-email-solicitacao`);
       const data = await res.json();
       if (!res.ok) return;
       setAssunto(data.assunto || '');
@@ -182,7 +183,7 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
   const gerarTextos = async (forcar: boolean) => {
     if (!podeAnalisar) { setErro(MSG_SEM_PERMISSAO); return; }
     const data = await chamar('tratorilson', () =>
-      fetch(`/api/garantias/${g.id}/formatar-textos`, {
+      fetchAuth(`/api/garantias/${g.id}/formatar-textos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ator: userName, forcar }),
@@ -204,7 +205,7 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
   // textos" E pelo envio do e-mail — o que está na TELA é o que vai no e-mail.
   const persistirTextos = async (acaoLabel: string): Promise<boolean> => {
     const data = await chamar(acaoLabel, () =>
-      fetch(`/api/garantias/${g.id}/checklist`, {
+      fetchAuth(`/api/garantias/${g.id}/checklist`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -238,7 +239,7 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
   const gerarRAT = async (modo: 'preenchido' | 'imprimir') => {
     if (!podeAnalisar) { setErro(MSG_SEM_PERMISSAO); return; }
     const data = await chamar(`rat_${modo}`, () =>
-      fetch(`/api/garantias/${g.id}/relatorio-assistencia`, {
+      fetchAuth(`/api/garantias/${g.id}/relatorio-assistencia`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -263,7 +264,7 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
   // ── NF de venda ────────────────────────────────────────────────────────────
   const buscarNF = async () => {
     if (!podeAnalisar) { setErro(MSG_SEM_PERMISSAO); return; }
-    const data = await chamar('nf_buscar', () => fetch(`/api/garantias/${g.id}/nf-venda`));
+    const data = await chamar('nf_buscar', () => fetchAuth(`/api/garantias/${g.id}/nf-venda`));
     if (data) {
       const lista = (data.candidatos as CandidatoNF[]) || [];
       setCandidatosNF(lista);
@@ -274,7 +275,7 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
   const anexarNF = async (c: CandidatoNF) => {
     if (!podeAnalisar) { setErro(MSG_SEM_PERMISSAO); return; }
     const data = await chamar('nf_anexar', () =>
-      fetch(`/api/garantias/${g.id}/nf-venda`, {
+      fetchAuth(`/api/garantias/${g.id}/nf-venda`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ link: c.link, numero: c.numero, ator: userName }),
@@ -304,7 +305,7 @@ export default function SolicitacaoEmailSecao({ g, userName, naFabrica, finaliza
       return;
     }
     const data = await chamar('enviar', () =>
-      fetch(`/api/garantias/${g.id}/enviar-email-solicitacao`, {
+      fetchAuth(`/api/garantias/${g.id}/enviar-email-solicitacao`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

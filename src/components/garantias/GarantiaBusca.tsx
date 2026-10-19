@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Search, Loader2 } from 'lucide-react';
 import type { GarantiaResumo, Montadora } from '@/lib/garantias/types';
@@ -20,7 +21,7 @@ export default function GarantiaBusca({ onAbrir }: Props) {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/garantias/montadoras');
+        const res = await fetchAuth('/api/garantias/montadoras');
         const data = await res.json();
         setMontadoras(data.montadoras || []);
       } catch {
@@ -40,7 +41,7 @@ export default function GarantiaBusca({ onAbrir }: Props) {
       const p = new URLSearchParams();
       if (termo.trim()) p.set('q', termo.trim());
       if (mont) p.set('montadora', mont);
-      const res = await fetch(`/api/garantias/busca?${p}`);
+      const res = await fetchAuth(`/api/garantias/busca?${p}`);
       const data = await res.json();
       setResultados(data.garantias || []);
       setBuscou(true);

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { fetchAuth } from '@/lib/auth/client'
 import { Bell, RefreshCw, MessageSquare, ChevronRight } from 'lucide-react'
 import { formatarMoeda } from '@/lib/financeiro/utils'
 import { useRouter, usePathname } from 'next/navigation'
@@ -14,7 +15,7 @@ export function marcarMinhaAcao(tabela, id, notifInfo) {
 
   // Se passou info de notificação, notificar outros usuários do financeiro
   if (notifInfo) {
-    fetch('/api/financeiro/notificar', {
+    fetchAuth('/api/financeiro/notificar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(notifInfo),

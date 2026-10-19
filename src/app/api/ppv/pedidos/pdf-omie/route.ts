@@ -8,6 +8,7 @@ import { supabaseFetch } from "@/lib/ppv/supabase";
 import { TBL_PEDIDOS } from "@/lib/ppv/constants";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 
 async function omieCall<T>(ep: string, call: string, param: Record<string, unknown>, key: string, secret: string, rotulo: string): Promise<T> {
@@ -18,6 +19,9 @@ async function omieCall<T>(ep: string, call: string, param: Record<string, unkno
 }
 
 export async function GET(req: NextRequest) {
+  // Leitura: aberta no PPVDrawer (módulo ppv) e no drawer da OS (módulo pos)
+  const g = await protegerRota(req, [{ modulo: "ppv" }, { modulo: "pos" }]);
+  if (g.resposta) return g.resposta;
   const id = req.nextUrl.searchParams.get("id") || "";
   if (!id) return NextResponse.json({ error: "?id=PV-XXXX" }, { status: 400 });
 

@@ -105,7 +105,7 @@ async function notificarSetor({ alvo, titulo, descricao, link, userId }) {
   try {
     await fetch('/api/financeiro/notificar', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ titulo, descricao: descricao || null, link: link || null, alvo, userId }),
     })
   } catch { /* ignore */ }

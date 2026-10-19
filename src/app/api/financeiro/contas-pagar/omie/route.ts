@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 import {
   getAccount,
   OMIE_ACCOUNTS,
@@ -109,6 +110,8 @@ async function obterListagem(
 //   opcional: &tipo=categorias|contas|projetos|vendedores|tipos_documento  (default: todas)
 // =====================================================================
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "financeiro" }]);
+  if (g.resposta) return g.resposta;
   try {
     const empresa = req.nextUrl.searchParams.get("empresa") || OMIE_ACCOUNTS[0].name;
     const tipoFiltro = req.nextUrl.searchParams.get("tipo");
@@ -160,6 +163,9 @@ export async function GET(req: NextRequest) {
 //           codigoVendedor?, codigoTipoDocumento? }
 // =====================================================================
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "financeiro" }]);
+  if (g.resposta) return g.resposta;
+  const user = g.user;
   let body: {
     finanPagarId?: number | string;
     empresa?: string;
@@ -317,7 +323,7 @@ export async function POST(req: NextRequest) {
     try {
       const r = await enviarFinanPagarParaOmie(
         row as FinanPagarRow,
-        { codFornecedor, codigoCategoria, idContaCorrente, codigoProjeto, codigoVendedor, codigoTipoDocumento, numeroDocumentoFiscal, codigoDepartamento, chaveNFe, enviadoPor: body.enviadoPor },
+        { codFornecedor, codigoCategoria, idContaCorrente, codigoProjeto, codigoVendedor, codigoTipoDocumento, numeroDocumentoFiscal, codigoDepartamento, chaveNFe, enviadoPor: autorDe(user) },
         acc,
       );
       codigos = r.codigos;

@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   X, Loader2, ExternalLink, Package, ShieldCheck, Factory, Send,
@@ -155,7 +156,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
 
   const carregar = useCallback(async () => {
     try {
-      const res = await fetch(`/api/garantias/${garantiaId}`);
+      const res = await fetchAuth(`/api/garantias/${garantiaId}`);
       const data = await res.json();
       if (!res.ok) {
         setErro(data.error || 'Falha ao carregar garantia.');
@@ -202,7 +203,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
       if (!silent && !podeAnalisar) { setErro('Você não tem permissão para sincronizar com a OS.'); return; }
       if (!silent) { setBusy('sincronizar'); setErro(''); setAviso(''); }
       try {
-        const res = await fetch(`/api/garantias/${garantiaId}/sincronizar-os`, {
+        const res = await fetchAuth(`/api/garantias/${garantiaId}/sincronizar-os`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ ator: userName }),
@@ -269,7 +270,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
     fd.append('file', file);
     fd.append('categoria', 'garantista');
     fd.append('enviado_por', userName);
-    const res = await fetch(`/api/garantias/${garantiaId}/anexos`, { method: 'POST', body: fd });
+    const res = await fetchAuth(`/api/garantias/${garantiaId}/anexos`, { method: 'POST', body: fd });
     const data = await res.json();
     return data.anexo?.url || '';
   }
@@ -286,7 +287,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
     setBusy(acao);
     setErro('');
     try {
-      const res = await fetch(url, opts);
+      const res = await fetchAuth(url, opts);
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setErro(data.error || 'Falha na operação.');
@@ -827,7 +828,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                       if (opening && emailsList === null) {
                         setEmailsLoading(true);
                         try {
-                          const res = await fetch(`/api/garantias/emails?chassis=${encodeURIComponent(g.chassis || '')}`);
+                          const res = await fetchAuth(`/api/garantias/emails?chassis=${encodeURIComponent(g.chassis || '')}`);
                           const data = await res.json();
                           setEmailsList(data.emails || []);
                         } catch { setEmailsList([]); }

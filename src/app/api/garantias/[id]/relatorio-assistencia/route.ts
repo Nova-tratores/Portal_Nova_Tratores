@@ -3,6 +3,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PECAS, TBL_GAR_ANEXOS, BUCKET_GARANTIAS } from '@/lib/garantias/constants';
 import { registrarEvento } from '@/lib/garantias/server';
 import { gerarRATPdf, type DadosRAT, type ModoRAT } from '@/lib/garantias/rat-pdf';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 export const runtime = 'nodejs';
 
@@ -14,9 +15,12 @@ export const runtime = 'nodejs';
 //  - imprimir: retorna o PDF direto (dados fixos preenchidos + áreas pautadas
 //    em branco) pro garantista imprimir, preencher à mão e anexar o escaneado.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'analisar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const ator = body.ator || 'Garantista';
+  const ator = autorDe(user);
   const modo: ModoRAT = body.modo === 'imprimir' ? 'imprimir' : 'preenchido';
 
   const { data: g } = await supabase

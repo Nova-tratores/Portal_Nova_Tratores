@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PECAS, TBL_GAR_PEND } from '@/lib/garantias/constants';
 import { registrarEvento, notificarTecnico, notificarGarantistas } from '@/lib/garantias/server';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // POST /api/garantias/[id]/retorno-pecas — 1ª etapa do fluxo em duas etapas:
 // a fábrica respondeu sobre as PEÇAS. Registra o resultado por peça + valor pago
@@ -12,6 +13,9 @@ import { registrarEvento, notificarTecnico, notificarGarantistas } from '@/lib/g
 // reaproveitada direto no cliente): pula a etapa das peças e segue pro fluxo
 // do ressarcimento das horas/km. Só vale sem nenhuma peça cadastrada.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'finalizar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
 
@@ -66,7 +70,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const aprovadasIdsList = todasPecas.filter((p) => idsAprovados.has(p.id)).map((p) => p.id);
   const rejeitadasIdsList = todasPecas.filter((p) => !idsAprovados.has(p.id)).map((p) => p.id);
   const agora = new Date().toISOString();
-  const ator = body.garantista_nome || 'Garantista';
+  const ator = autorDe(user);
 
   // ── Garantia SÓ DE SERVIÇO (sem peças): pula a etapa das peças ────────────
   if (body.sem_pecas === true) {

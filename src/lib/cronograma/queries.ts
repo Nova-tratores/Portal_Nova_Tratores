@@ -5,6 +5,7 @@
 // ════════════════════════════════════════════════════════════════════
 import { supabase } from '@/lib/supabase';
 import { FASES_OS } from './os-template';
+import { fetchAuth } from '@/lib/auth/client';
 
 const cron = () => supabase.schema('cronograma');
 
@@ -151,11 +152,11 @@ export async function gerarTarefasDaOS(projetoId: string, opts: { inicio?: strin
 
 export interface GrupoReq { id: number; nome: string; status: string; membros: (number | string)[] }
 export async function listarGruposReq(): Promise<GrupoReq[]> {
-  const r = await fetch('/api/pos/requisicoes/grupos');
+  const r = await fetchAuth('/api/pos/requisicoes/grupos');
   return r.ok ? r.json() : [];
 }
 export async function criarGrupoReq(nome: string, criadoPor: string): Promise<GrupoReq> {
-  const r = await fetch('/api/pos/requisicoes/grupos', {
+  const r = await fetchAuth('/api/pos/requisicoes/grupos', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nome, criado_por: criadoPor }),
   });

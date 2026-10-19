@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PEND, TBL_GAR_PECAS, valoresFabrica } from '@/lib/garantias/constants';
 import { registrarEvento, notificarTecnico, notificarGarantistas } from '@/lib/garantias/server';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // POST /api/garantias/[id]/finalizar
 // body: { resultado:'aprovada'|'rejeitada', motivo_recusa?, garantista_horas, garantista_km, garantista_obs?, garantista_nome? }
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'finalizar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json();
 
@@ -251,7 +255,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     tipo: recusaInterna ? 'recusada_garantista' : resultado,
     statusAnterior: g.status,
     statusNovo: resultado,
-    ator: body.garantista_nome || 'Garantista',
+    ator: autorDe(user),
     detalhe:
       resultado === 'aprovada'
         ? `Garantia aprovada — pago em garantia${devolucaoPedida ? ` · devolução das peças pendente (prazo ${prazoDevolucao.split('-').reverse().join('/')})` : ''}`

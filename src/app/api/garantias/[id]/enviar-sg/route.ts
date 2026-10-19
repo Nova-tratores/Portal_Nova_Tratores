@@ -19,6 +19,8 @@ import { registrarEvento } from '@/lib/garantias/server';
 import { tagAssuntoGarantia, registrarEmailEnviado } from '@/lib/garantias/email';
 import { formatarTextosSG } from '@/lib/garantias/sg-textos';
 import type { GarantiaDetalhe } from '@/lib/garantias/types';
+import { autorDe } from '@/lib/ajustes/permissao-server';
+import { protegerRotaOuInterna } from '@/lib/auth/chamada-interna';
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',
@@ -135,7 +137,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const apenasGerar = body.apenasGerar === true;
-  const ator = body.ator || 'Garantista';
+  // Só gerar o xlsx = analisar; mandar por e-mail à fábrica = enviar_fabrica.
+  // O enviar-fabrica chama esta rota como sistema (fetchInterno) com o ator dele.
+  const guarda = await protegerRotaOuInterna(req, [
+    apenasGerar ? { modulo: 'garantias', acao: 'analisar' } : { modulo: 'garantias', acao: 'enviar_fabrica' },
+  ]);
+  if (guarda.resposta) return guarda.resposta;
+  const ator = guarda.interno ? (body.ator || 'Garantista') : autorDe(guarda.user);
 
   // 1. Carrega garantia completa
   const { data: g, error } = await supabase

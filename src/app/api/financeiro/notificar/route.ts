@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { podeNotificar } from "@/lib/notif/prefs";
+import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 
 // Service role: lê portal_permissoes e financeiro_usu no servidor (com RLS, a
 // anon key não lê mais financeiro_usu).
@@ -10,7 +11,12 @@ const supabase = createClient(
 );
 
 export async function POST(req: NextRequest) {
-  const { titulo, descricao, link, userId, alvo, modulo } = await req.json();
+  // Logado no Financeiro, ou o próprio servidor (sync-os/sync-pecas/ler-respostas via fetchInterno).
+  const g = await protegerRotaOuInterna(req, [{ modulo: "financeiro" }]);
+  if (g.resposta) return g.resposta;
+  const { titulo, descricao, link, userId: userIdCorpo, alvo, modulo } = await req.json();
+  // "userId" no corpo = "não me notifique" — só vale para QUEM ESTÁ LOGADO (nunca outro id do corpo).
+  const userId = userIdCorpo && !g.interno ? g.user.id : null;
   // alvo: "financeiro" | "posvendas" | undefined (todos com acesso)
   // modulo: ID do módulo silenciável nas preferências (padrão "financeiro");
   //         o lembrete de NFS-e da Pasta Clientes manda "lembrete_nf" pra ter toggle próprio

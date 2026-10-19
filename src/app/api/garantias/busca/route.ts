@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS } from '@/lib/garantias/constants';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 // GET /api/garantias/busca?q=&montadora=
 // Busca garantias por chassi, número da garantia, OS ou cliente.
 export async function GET(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias' }]);
+  if (guarda.resposta) return guarda.resposta;
   const q = (req.nextUrl.searchParams.get('q') || '').trim();
   const montadora = req.nextUrl.searchParams.get('montadora');
 

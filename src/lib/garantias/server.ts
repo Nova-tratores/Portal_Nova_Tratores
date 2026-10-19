@@ -1,6 +1,30 @@
 // Helpers server-side do módulo de Garantias
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GAR_EVENTOS } from './constants';
+import { autenticar } from '@/lib/auth/server';
+import type { UsuarioRota } from '@/lib/ajustes/permissao-server';
+
+// Guarda "só login" das rotas que o /meu-painel chama (o painel do técnico é
+// aberto a todo usuário logado, sem módulo — exigir 'garantias' ali quebraria o
+// técnico). Mesmo formato do protegerRota: devolve o usuário OU a resposta 401.
+export async function guardarLoginGarantias(
+  req: Request,
+): Promise<{ user: UsuarioRota; resposta?: undefined } | { resposta: Response; user?: undefined }> {
+  const auth = await autenticar(req);
+  if (!auth) {
+    return {
+      resposta: new Response(JSON.stringify({ ok: false, erro: 'nao autenticado', error: 'nao autenticado' }), {
+        status: 401, headers: { 'Content-Type': 'application/json' },
+      }),
+    };
+  }
+  let nome: string | undefined;
+  try {
+    const { data } = await supabase.from('financeiro_usu').select('nome').eq('id', auth.userId).single();
+    nome = (data as { nome?: string } | null)?.nome || undefined;
+  } catch { /* segue sem nome */ }
+  return { user: { id: auth.userId, email: auth.email ?? undefined, nome, isAdmin: auth.isAdmin, modulos: auth.modulos } };
+}
 
 // Registra um evento na timeline da garantia
 export async function registrarEvento(

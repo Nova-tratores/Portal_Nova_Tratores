@@ -3,15 +3,19 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PECAS } from '@/lib/garantias/constants';
 import { TBL_OS, TBL_ITENS } from '@/lib/pos/constants';
 import { registrarEvento } from '@/lib/garantias/server';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // POST /api/garantias/[id]/atualizar-precos
 // Recalcula preco_unitario das peças da garantia consultando o PPV/movimentações
 // e o PecasInfo do relatório técnico. Útil para garantias antigas que foram
 // criadas com preço zerado.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'analisar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const ator = body.ator || 'Garantista';
+  const ator = autorDe(user);
 
   const { data: g } = await supabase
     .from(TBL_GARANTIAS)

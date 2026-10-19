@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_ANEXOS, BUCKET_GARANTIAS } from '@/lib/garantias/constants';
-import { registrarEvento } from '@/lib/garantias/server';
+import { registrarEvento, guardarLoginGarantias } from '@/lib/garantias/server';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 const CATEGORIAS = ['tecnico', 'garantista', 'pendencia_pedido', 'pendencia_resposta', 'retorno_fabrica', 'envio_fabrica', 'foto_garantista', 'nf_venda', 'relatorio_at', 'devolucao_pecas'];
 
@@ -15,11 +16,14 @@ function sanitize(name: string) {
 
 // POST /api/garantias/[id]/anexos — upload via FormData
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await guardarLoginGarantias(req);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const form = await req.formData();
   const file = form.get('file') as File | null;
   const categoria = String(form.get('categoria') || 'garantista');
-  const enviadoPor = String(form.get('enviado_por') || '') || null;
+  const enviadoPor = autorDe(user);
   const pendenciaId = (form.get('pendencia_id') as string) || null;
 
   if (!file) return NextResponse.json({ error: 'Arquivo é obrigatório.' }, { status: 400 });
@@ -84,6 +88,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
 // DELETE /api/garantias/[id]/anexos?anexo=<id>
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias' }]);
+  if (guarda.resposta) return guarda.resposta;
   const { id } = await params;
   const anexoId = req.nextUrl.searchParams.get('anexo');
   if (!anexoId) return NextResponse.json({ error: 'Anexo não informado.' }, { status: 400 });

@@ -4,8 +4,22 @@ import { TBL_ITENS, TBL_PRODUTOS } from "@/lib/ppv/constants";
 import { buscarPPVPorId, atualizarValorTotal, registrarLog, saldoItemPPV } from "@/lib/ppv/queries";
 import { movimentacaoSchema, editarPrecoItemSchema } from "@/lib/ppv/schemas";
 import { logAndNotify } from "@/lib/server/audit-notify";
+import { autorDe } from "@/lib/ajustes/permissao-server";
+import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
+
+// Itens do PPV são lançados pelo PPV, pelo drawer da OS (POS), pelo "Gerar OS" dos
+// Orçamentos e pelo Catálogo (dentro do PPV); o Tratorilson e o catálogo chamam
+// também pelo servidor (fetchInterno). Basta ter acesso a um desses módulos.
+const ACESSO = [{ modulo: "ppv" }, { modulo: "pos" }, { modulo: "orcamentos" }];
+
+// Autoria do login; na chamada de sistema vale o nome que o servidor repassou.
+function autor(g: { user: Parameters<typeof autorDe>[0]; interno: boolean }, doCorpo: unknown): string {
+  return g.interno ? String(doCorpo || "Sistema") : autorDe(g.user);
+}
 
 export async function POST(req: NextRequest) {
+  const g = await protegerRotaOuInterna(req, ACESSO);
+  if (g.resposta) return g.resposta;
   try {
     const raw = await req.json();
 
@@ -14,7 +28,7 @@ export async function POST(req: NextRequest) {
     if (Array.isArray(raw?.itens)) {
       const id = String(raw.id || "");
       const tecnico = String(raw.tecnico || "");
-      const userNameLog = String(raw.userName || "Sistema");
+      const userNameLog = autor(g, raw.userName);
       const rotulo = String(raw.kit || "Kit").trim();
       if (!id || raw.itens.length === 0) return NextResponse.json({ error: "id e itens são obrigatórios" }, { status: 400 });
       const kitTag = `${rotulo}§${Date.now().toString(36)}`; // distingue importações repetidas
@@ -78,7 +92,7 @@ export async function POST(req: NextRequest) {
     const logMsg = dados.tipoMovimento === "Devolução"
       ? `Devolveu item: ${dados.quantidade} un de ${dados.codigo}`
       : `Adicionou item: ${dados.quantidade} un de ${dados.codigo}`;
-    const userNameLog = dados.userName || "Sistema";
+    const userNameLog = autor(g, dados.userName);
     await registrarLog(dados.id, logMsg, userNameLog);
     await atualizarValorTotal(dados.id);
 
@@ -102,6 +116,8 @@ export async function POST(req: NextRequest) {
 // Remove um KIT inteiro do PPV: devolve (Devolução) todas as saídas marcadas com aquele
 // Kit, de uma vez. (Remover item a item continua pelo fluxo de devolução normal.)
 export async function DELETE(req: NextRequest) {
+  const g = await protegerRotaOuInterna(req, ACESSO);
+  if (g.resposta) return g.resposta;
   try {
     const { id, kit, userName } = await req.json();
     if (!id || !kit) return NextResponse.json({ error: "id e kit são obrigatórios" }, { status: 400 });
@@ -134,7 +150,7 @@ export async function DELETE(req: NextRequest) {
     }
 
     const rotulo = String(kit).split("§")[0];
-    await registrarLog(id, `Removeu o kit "${rotulo}" (${devolucoes.length} itens devolvidos)`, String(userName || "Sistema"));
+    await registrarLog(id, `Removeu o kit "${rotulo}" (${devolucoes.length} itens devolvidos)`, autor(g, userName));
     await atualizarValorTotal(id);
     return NextResponse.json(await buscarPPVPorId(id));
   } catch (e) {
@@ -145,6 +161,8 @@ export async function DELETE(req: NextRequest) {
 // Edita o preço de um item dentro de um PPV existente (atualiza todas as movimentações
 // daquele CodProduto naquele Id_PPV — saídas e devoluções — e recalcula o total)
 export async function PATCH(req: NextRequest) {
+  const g = await protegerRotaOuInterna(req, ACESSO);
+  if (g.resposta) return g.resposta;
   try {
     const raw = await req.json();
     const parsed = editarPrecoItemSchema.safeParse(raw);
@@ -172,7 +190,7 @@ export async function PATCH(req: NextRequest) {
     }
 
     await atualizarValorTotal(id);
-    await registrarLog(id, `Preço do item ${codigo} alterado para R$ ${preco.toFixed(2)} (cadastro atualizado)`, userName || "Sistema");
+    await registrarLog(id, `Preço do item ${codigo} alterado para R$ ${preco.toFixed(2)} (cadastro atualizado)`, autor(g, userName));
 
     const detalhes = await buscarPPVPorId(id);
     return NextResponse.json(detalhes);

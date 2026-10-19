@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { fetchInterno } from "@/lib/auth/chamada-interna";
 
 // POST /api/clientes/anexar-nf
 // Anexa MANUALMENTE uma nota fiscal na pasta do cliente (a NFS-e de serviço que o Omie
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
         const { data: os } = await supabase.from("portal_nt_clientes_os")
           .select("cod_os").eq("num_os", numStr).eq("empresa", empresa).maybeSingle();
         if (os?.cod_os) {
-          card = await fetch(`${origin}/api/financeiro/sync-os?codOS=${os.cod_os}`, { method: "POST" })
+          card = await fetchInterno(`${origin}/api/financeiro/sync-os?codOS=${os.cod_os}`, { method: "POST" })
             .then(r => r.json()).catch(() => null);
         }
       }
@@ -74,11 +75,11 @@ export async function POST(req: NextRequest) {
 
         if (osDaPeca?.cod_os) {
           via = "sync-os (card combinado serviço + peça)";
-          card = await fetch(`${origin}/api/financeiro/sync-os?codOS=${osDaPeca.cod_os}`, { method: "POST" })
+          card = await fetchInterno(`${origin}/api/financeiro/sync-os?codOS=${osDaPeca.cod_os}`, { method: "POST" })
             .then(r => r.json()).catch(() => null);
         } else {
           via = "sync-pecas (peça avulsa)";
-          card = await fetch(`${origin}/api/financeiro/sync-pecas?dias=30`, { method: "POST" })
+          card = await fetchInterno(`${origin}/api/financeiro/sync-pecas?dias=30`, { method: "POST" })
             .then(r => r.json()).catch(() => null);
         }
       }

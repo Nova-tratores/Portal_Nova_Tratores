@@ -1,14 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/estoque/conta';
 import { sincronizarRecebimentos, getRecebSyncEstado } from '@/lib/estoque/recebimentos';
+import { protegerRotaOuInterna } from '@/lib/auth/chamada-interna';
 
 export const dynamic = 'force-dynamic';
+
+// Mesmo gate da tela /estoque/recebimentos-omie (pode('estoque','recebimentos-omie')).
+const OPCOES = [{ modulo: 'estoque', acao: 'recebimentos-omie' }];
 export const maxDuration = 300;
 
 // Sincronização manual (botão Atualizar). NOVO no Portal: roda
 // ListarRecebimentos -> recebimentos_nfe para a conta pedida (default NOVA em
 // modo Todas). O cron faz o mesmo para todas as contas periodicamente.
 export async function POST(req: NextRequest) {
+  const g = await protegerRotaOuInterna(req, OPCOES);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta')) ?? CONTA_DEFAULT;
   try {
     const estado = await sincronizarRecebimentos(conta);
@@ -20,6 +26,8 @@ export async function POST(req: NextRequest) {
 
 // Status do sync em memória (para o front, se quiser exibir).
 export async function GET(req: NextRequest) {
+  const g = await protegerRotaOuInterna(req, OPCOES);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta')) ?? CONTA_DEFAULT;
   return NextResponse.json({ conta, estado: getRecebSyncEstado(conta) });
 }

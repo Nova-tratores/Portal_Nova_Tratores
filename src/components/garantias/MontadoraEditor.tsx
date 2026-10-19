@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState } from 'react';
 import { X, Plus, ChevronUp, ChevronDown, Trash2, Save, Loader2, Eye } from 'lucide-react';
 import { CHECKLIST_TIPOS } from '@/lib/garantias/constants';
@@ -126,7 +127,7 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
       const url = montadora
         ? `/api/garantias/montadoras/${montadora.id}`
         : '/api/garantias/montadoras';
-      const res = await fetch(url, {
+      const res = await fetchAuth(url, {
         method: montadora ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),

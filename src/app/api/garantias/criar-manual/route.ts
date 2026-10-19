@@ -11,6 +11,7 @@ import {
   notificarGarantistas,
 } from '@/lib/garantias/server';
 import { listarPecasDaOS } from '@/lib/garantias/os-pecas';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // POST /api/garantias/criar-manual
 // Garantista cria uma garantia a partir de uma OS existente — pra casos onde
@@ -25,6 +26,9 @@ import { listarPecasDaOS } from '@/lib/garantias/os-pecas';
 //   incluir_pecas_ppv?: bool; // default true — puxa peças do PPV via movimentações
 // }
 export async function POST(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'criar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const body = await req.json().catch(() => ({}));
   const idOrdem = String(body.id_ordem || '').trim();
   const garantistaNome = String(body.garantista_nome || '').trim();
@@ -136,7 +140,7 @@ export async function POST(req: NextRequest) {
   await registrarEvento(garantia.id, {
     tipo: 'criada_manual',
     statusNovo: 'em_analise',
-    ator: garantistaNome,
+    ator: autorDe(user),
     detalhe: motivo
       ? `Garantia ${garantia.numero} criada manualmente pelo garantista para a OS ${idOrdem}. Motivo: ${motivo}`
       : `Garantia ${garantia.numero} criada manualmente pelo garantista para a OS ${idOrdem}.`,
@@ -144,7 +148,7 @@ export async function POST(req: NextRequest) {
   if (qtdPecasCriadas > 0) {
     await registrarEvento(garantia.id, {
       tipo: 'pecas_importadas',
-      ator: garantistaNome,
+      ator: autorDe(user),
       detalhe: `${qtdPecasCriadas} peça(s) importadas automaticamente do PPV.`,
     });
   }
@@ -160,7 +164,7 @@ export async function POST(req: NextRequest) {
       const resp = await faturarOSGarantiaNoOmie({ idOrdem, garantiaId: String(garantia.id) });
       await registrarEvento(garantia.id, {
         tipo: resp.ok ? 'omie_faturada_garantia' : 'omie_faturamento_erro',
-        ator: garantistaNome,
+        ator: autorDe(user),
         detalhe: resp.ok
           ? `OS ${idOrdem} já estava no Omie — padrão de garantia reaplicado (categoria, conta INTERNO, sem conta a receber, recibo, depto Garantias).`
           : `OS ${idOrdem} já estava no Omie, mas falhou ao reaplicar o padrão de garantia: ${resp.motivo}. Use "Reaplicar padrão Omie" no drawer pra tentar de novo.`,

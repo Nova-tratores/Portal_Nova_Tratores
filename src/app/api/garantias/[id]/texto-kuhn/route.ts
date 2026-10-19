@@ -4,6 +4,7 @@ import { TBL_GARANTIAS, TBL_GAR_PECAS } from '@/lib/garantias/constants';
 import { registrarEvento } from '@/lib/garantias/server';
 import { formatarTextosSG } from '@/lib/garantias/sg-textos';
 import { extrairDias, montarTextoKuhn } from '@/lib/garantias/texto-kuhn';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // POST /api/garantias/[id]/texto-kuhn — monta o TEXTO ÚNICO no formato que a
 // Extranet da KUHN pede na caixa "PROVÁVEL CAUSA E DESCRIÇÃO DO PROBLEMA"
@@ -16,9 +17,12 @@ import { extrairDias, montarTextoKuhn } from '@/lib/garantias/texto-kuhn';
 // Montagem pura em lib/garantias/texto-kuhn.ts. Salva em
 // checklist_respostas.sg_kuhn_site. body: { ator? }
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'analisar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const ator = body.ator || 'Garantista';
+  const ator = autorDe(user);
 
   const { data: g } = await supabase
     .from(TBL_GARANTIAS)

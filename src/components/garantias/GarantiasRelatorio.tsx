@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, TrendingUp, TrendingDown, Scale, ClipboardCheck, Printer, Clock, DollarSign, AlertTriangle, Wallet } from 'lucide-react';
 import type { RelatorioGarantias } from '@/lib/garantias/types';
@@ -39,7 +40,7 @@ export default function GarantiasRelatorio({ refreshKey }: { refreshKey: number 
       const p = new URLSearchParams();
       if (de) p.set('de', de);
       if (ate) p.set('ate', ate);
-      const res = await fetch(`/api/garantias/relatorio${p.toString() ? `?${p}` : ''}`);
+      const res = await fetchAuth(`/api/garantias/relatorio${p.toString() ? `?${p}` : ''}`);
       const data = await res.json();
       setRel(data);
     } catch {

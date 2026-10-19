@@ -6,6 +6,7 @@ import { Building2, FolderOpen, Landmark, Tag, Send, CheckCircle, RefreshCw, Use
 import ChecklistValidacao from './ChecklistValidacao'
 import { lerChaveNFeDeUrl } from '@/lib/financeiro/leitor-anexos'
 import { supabase } from '@/lib/supabase'
+import { authHeaders } from '@/lib/auth/client'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -20,7 +21,7 @@ function useOmieOpcoes(empresa) {
   const carregar = useCallback(async (emp) => {
     setCarregando(true); setErro('')
     try {
-      const res = await fetch(`/api/financeiro/contas-pagar/omie?empresa=${encodeURIComponent(emp)}`)
+      const res = await fetch(`/api/financeiro/contas-pagar/omie?empresa=${encodeURIComponent(emp)}`, { headers: { ...(await authHeaders()) } })
       const data = await res.json()
       if (!data.ok) throw new Error(data.erro || 'Falha ao carregar opções do Omie')
       setOpcoes({
@@ -49,7 +50,7 @@ function useOmieOpcoes(empresa) {
     try {
       await fetch('/api/financeiro/contas-pagar/omie/refresh-cache', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ empresa }),
       })
       await carregar(empresa)
@@ -455,7 +456,7 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
     try {
       const res = await fetch('/api/financeiro/contas-pagar/omie', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           finanPagarId: finanPagar.id,
           empresa: campos.empresa,
@@ -550,7 +551,7 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
     try {
       const res = await fetch('/api/financeiro/contas-pagar/omie/anexos', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ finanPagarId: finanPagar.id, empresa: finanPagar.omie_empresa }),
       })
       const data = await res.json()

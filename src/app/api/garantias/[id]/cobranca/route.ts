@@ -12,6 +12,7 @@ import type {
   CobrancaItens,
   CobrancaOutro,
 } from '@/lib/garantias/types';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // Calcula o total da cobrança a partir do checklist + outros lançamentos
 // Reaproveita os dados da garantia (horas/km do garantista, peças aprovadas).
@@ -73,10 +74,13 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'finalizar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const acao = String(body.acao || 'definir');
-  const ator = body.ator || 'Garantista';
+  const ator = autorDe(user);
 
   const { data: g } = await supabase
     .from(TBL_GARANTIAS)

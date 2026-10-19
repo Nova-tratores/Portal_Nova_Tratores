@@ -5,7 +5,7 @@ import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE, PHASES } from "@/lib/pos/constants";
 import { faltaParaEnviarOmie } from "@/lib/pos/envio-omie-regras";
-import { authHeaders } from "@/lib/auth/client";
+import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import type { ClienteOption, ClienteDados, Produto, AlimentacaoItem } from "@/lib/pos/types";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 import SearchModal from "./SearchModal";
@@ -213,7 +213,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setBaixandoPdfPecas(pid);
     const win = window.open("", "_blank");
     try {
-      const r = await fetch(`/api/ppv/pedidos/pdf-omie?id=${encodeURIComponent(pid)}`);
+      const r = await fetch(`/api/ppv/pedidos/pdf-omie?id=${encodeURIComponent(pid)}`, { headers: await authHeaders() });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.url) { win?.close(); alert(d.error || "Não consegui obter o PDF do pedido no Omie."); return; }
       if (win) win.location.href = d.url; else window.open(d.url, "_blank");
@@ -408,7 +408,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   useEffect(() => {
     if (!visible || !osId) return;
     let ativo = true;
-    fetch(`/api/garantias?os=${encodeURIComponent(osId)}`)
+    fetchAuth(`/api/garantias?os=${encodeURIComponent(osId)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => { if (ativo) setGarantiaVinculada(!!(d?.garantias || []).length); })
       .catch(() => { /* sem garantia */ });
@@ -700,7 +700,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setAddingProduto(true);
     try {
       const res = await fetch("/api/ppv/movimentacoes", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           id: target, tecnico: tecnico1 || "", tipoMovimento: "Saída",
           codigo: item.codigo, descricao: item.descricao || item.codigo,
@@ -737,7 +737,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setImportandoKitOS(true);
     try {
       const res = await fetch("/api/ppv/movimentacoes", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ id: target, kit: rotulo || "Kit", tecnico: tecnico1 || "", userName, itens: produtos }),
       });
       if (!res.ok) {
@@ -854,7 +854,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     }
     setEnviandoOmie(true);
     try {
-      const res = await fetch(`/api/pos/ordens/${osId}/omie`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userName }) });
+      const res = await fetch(`/api/pos/ordens/${osId}/omie`, { method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ userName }) });
       const result = await res.json().catch(() => ({} as Record<string, never>));
       // Resposta sem os campos esperados = a conexão caiu no meio (ex.: timeout
       // do proxy do Railway enquanto o Omie processava). O envio pode TER dado certo.
@@ -992,7 +992,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           const kits = [...new Set(pecasPendentes.filter((p) => p.kit).map((p) => p.kit as string))];
           for (const p of soltas) {
             const r = await fetch("/api/ppv/movimentacoes", {
-              method: "POST", headers: { "Content-Type": "application/json" },
+              method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
               body: JSON.stringify({ id: idPpv, tecnico: tecnico1 || "", tipoMovimento: "Saída", codigo: p.codigo, descricao: p.descricao || p.codigo, quantidade: p.quantidade || 1, preco: p.preco || 0, userName }),
             }).catch(() => null);
             if (!r?.ok) falhas.push(p.codigo);
@@ -1000,7 +1000,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           for (const kit of kits) {
             const itens = pecasPendentes.filter((p) => p.kit === kit);
             const r = await fetch("/api/ppv/movimentacoes", {
-              method: "POST", headers: { "Content-Type": "application/json" },
+              method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
               body: JSON.stringify({ id: idPpv, kit, tecnico: tecnico1 || "", userName, itens }),
             }).catch(() => null);
             if (!r?.ok) falhas.push(`kit "${kit}"`);
@@ -2588,7 +2588,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                                           style={{ flex: 1, minWidth: 220, height: 34, padding: "0 10px", fontSize: 13, borderRadius: 8, border: "1px solid #fca5a5", marginBottom: 0 }} />
                                         <button type="button" disabled={!justificativaDesvinc.trim()}
                                           onClick={async () => {
-                                            await fetch("/api/pos/requisicoes/desvincular", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reqId: r.id, justificativa: justificativaDesvinc.trim(), usuario: userName || "Admin" }) });
+                                            await fetch("/api/pos/requisicoes/desvincular", { method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ reqId: r.id, justificativa: justificativaDesvinc.trim(), usuario: userName || "Admin" }) });
                                             setRequisicoes((prev) => prev.filter((x) => x.id !== r.id)); setDesvinculandoReq(null); setJustificativaDesvinc("");
                                           }}
                                           style={{ height: 34, padding: "0 14px", borderRadius: 8, border: "none", background: justificativaDesvinc.trim() ? "#dc2626" : "#fca5a5", color: "#fefefe", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Desvincular</button>

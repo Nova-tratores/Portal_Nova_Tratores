@@ -2,10 +2,11 @@ import nodemailer from 'nodemailer';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sanitizarFiltro } from '@/lib/busca-segura';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 const transporter = nodemailer.createTransport({
@@ -19,6 +20,11 @@ const transporter = nodemailer.createTransport({
 });
 
 export async function POST(request: Request) {
+  // tela /revisoes: botão de envio exige pode('revisoes', 'enviar')
+  const g = await protegerRota(request, [{ modulo: 'revisoes', acao: 'enviar' }]);
+  if (g.resposta) return g.resposta;
+  const user = g.user;
+
   const formData = await request.formData();
   const file = formData.get('file') as File | null;
   const chassis = formData.get('chassis') as string | null;
@@ -104,7 +110,6 @@ CLIENTE: ${clienteSan}</p>
     ]);
 
     // 3) Salvar registro no banco de dados
-    const nomeSender = formData.get('nome') as string | null;
     await supabase.from('revisao_emails').insert({
       chassis: chassisSan,
       chassis_final: chassisFinal,
@@ -115,7 +120,7 @@ CLIENTE: ${clienteSan}</p>
       destinatarios,
       corpo: html,
       pdf_url: uploadResult || null,
-      enviado_por: nomeSender?.replace(/[<>&"']/g, '') || null,
+      enviado_por: autorDe(user),
     }).then(({ error }) => {
       if (error) console.error('Erro ao salvar revisao_emails:', error.message);
     });

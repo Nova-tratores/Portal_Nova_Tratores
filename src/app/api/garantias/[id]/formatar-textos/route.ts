@@ -3,6 +3,8 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PECAS } from '@/lib/garantias/constants';
 import { registrarEvento } from '@/lib/garantias/server';
 import { formatarTextosSG } from '@/lib/garantias/sg-textos';
+import { autorDe } from '@/lib/ajustes/permissao-server';
+import { protegerRotaOuInterna } from '@/lib/auth/chamada-interna';
 
 // POST /api/garantias/[id]/formatar-textos — roda o Tratorilson sob demanda:
 // formata Reclamação/Diagnóstico/Ação/Observações a partir do relato cru da OS
@@ -10,9 +12,13 @@ import { formatarTextosSG } from '@/lib/garantias/sg-textos';
 // pelo e-mail de solicitação/RAT do fluxo Ipacol).
 // body: { ator?, forcar?: boolean }  — forcar=true regenera mesmo já preenchido.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRotaOuInterna(req, [{ modulo: 'garantias', acao: 'analisar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
+  const interno = guarda.interno;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const ator = body.ator || 'Garantista';
+  const ator = interno ? (body.ator || 'Garantista') : autorDe(user);
   const forcar = body.forcar === true;
 
   const { data: g } = await supabase

@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState } from 'react';
 import { Upload, Loader2, Download, X, ImagePlus } from 'lucide-react';
 import type { GarantiaAnexo } from '@/lib/garantias/types';
@@ -51,7 +52,7 @@ export default function GarantiaFotosGarantista({ garantiaId, fotos, enviadoPor,
         fd.append('file', file);
         fd.append('categoria', 'foto_garantista');
         if (enviadoPor) fd.append('enviado_por', enviadoPor);
-        const res = await fetch(`/api/garantias/${garantiaId}/anexos`, { method: 'POST', body: fd });
+        const res = await fetchAuth(`/api/garantias/${garantiaId}/anexos`, { method: 'POST', body: fd });
         if (!res.ok) {
           const d = await res.json().catch(() => ({}));
           alert(d.error || 'Falha ao enviar a foto.');
@@ -65,7 +66,7 @@ export default function GarantiaFotosGarantista({ garantiaId, fotos, enviadoPor,
 
   async function remover(f: GarantiaAnexo) {
     if (!confirm('Remover esta foto?')) return;
-    const res = await fetch(`/api/garantias/${garantiaId}/anexos?anexo=${f.id}`, { method: 'DELETE' });
+    const res = await fetchAuth(`/api/garantias/${garantiaId}/anexos?anexo=${f.id}`, { method: 'DELETE' });
     if (res.ok) onChange?.();
   }
 

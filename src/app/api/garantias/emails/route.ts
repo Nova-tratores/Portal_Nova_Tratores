@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sanitizarFiltro } from "@/lib/busca-segura";
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -8,6 +9,8 @@ const supabase = createClient(
 );
 
 export async function GET(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias' }]);
+  if (guarda.resposta) return guarda.resposta;
   const chassis = req.nextUrl.searchParams.get("chassis");
   if (!chassis) return NextResponse.json({ error: "Passe ?chassis=XXXXX" }, { status: 400 });
 

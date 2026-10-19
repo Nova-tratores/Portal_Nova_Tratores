@@ -4,9 +4,14 @@ import { TBL_GARANTIAS } from '@/lib/garantias/constants';
 import { camposObrigatoriosFaltando } from '@/lib/garantias/checklist';
 import { registrarEvento, notificarTecnico } from '@/lib/garantias/server';
 import type { ChecklistField } from '@/lib/garantias/types';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
+import { fetchInterno } from '@/lib/auth/chamada-interna';
 
 // POST /api/garantias/[id]/enviar-fabrica
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'enviar_fabrica' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
 
@@ -57,7 +62,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     tipo: 'enviada_fabrica',
     statusAnterior: 'em_analise',
     statusNovo: 'enviada',
-    ator: body.garantista_nome || 'Garantista',
+    ator: autorDe(user),
     detalhe: 'Garantia enviada para análise da fábrica',
   });
   await notificarTecnico(g.tecnico_nome, {
@@ -77,11 +82,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     try {
       const origin = req.nextUrl.origin;
       const enviarEmail = !!m.auto_enviar_email && (m.email_destinatarios || []).length > 0;
-      const sgRes = await fetch(`${origin}/api/garantias/${id}/enviar-sg`, {
+      const sgRes = await fetchInterno(`${origin}/api/garantias/${id}/enviar-sg`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ator: body.garantista_nome || 'Garantista',
+          ator: autorDe(user),
           apenasGerar: !enviarEmail,
         }),
       });

@@ -2,13 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { concluirRecebimento } from '@/lib/estoque/recebimentos';
 import { verificarAlocacaoDepoisDaEntrada } from '@/lib/pecas/alocacao-rapido';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
+
+// Mesmo gate da tela /estoque/recebimentos-omie (pode('estoque','recebimentos-omie')).
+const OPCOES = [{ modulo: 'estoque', acao: 'recebimentos-omie' }];
 export const maxDuration = 60;
 
 // Concluir: ESCREVE NO OMIE (ConcluirRecebimento cEtapa=60). A conta concreta é
 // derivada da própria linha. Portado de POST /api/recebimentos/:id/concluir (server.js:7757).
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const g = await protegerRota(req, OPCOES);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   try {
     const { id } = await params;

@@ -24,6 +24,7 @@ import { anexosDaReq, anexosNoDrive as anexosNoDriveDe, getUrlAnexo, CAMPOS_NF }
 import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
 import { buscarContaDaReq, criarContaDaRequisicao, type ContaExistente } from '@/lib/financeiro/conta-da-requisicao';
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins';
+import { fetchAuth } from '@/lib/auth/client';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIatVqhjdeBeo4PYNWr992vCsPpvEEjOxabWB7mz5JRJ7BroxnvR8CRIcXIgTfLSm/exec';
 const DEPARTAMENTOS = ["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"];
@@ -565,7 +566,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   const gruposDisponiveis = (grupos || []).filter((g: any) => g.status === 'aberto' && !gruposDaReq.some((d: any) => d.id === g.id));
   const alterarGrupoReq = async (grupoId: number, acao: 'add' | 'remove') => {
     try {
-      await fetch('/api/pos/requisicoes/grupos/membros', {
+      await fetchAuth('/api/pos/requisicoes/grupos/membros', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ grupo_id: grupoId, req_id: req.id, acao, usuario: usuarioAtual }),
       });

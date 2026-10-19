@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { fetchInterno } from "@/lib/auth/chamada-interna";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { resolverNfseDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
@@ -369,10 +370,10 @@ export async function GET(req: Request) {
     // Cada uma é tentada no máximo a cada 30 min (o sync-os confere as notas e não duplica).
     for (const cod of await osPendentesDoFinanceiro()) osFaturadasCod.add(cod);
     for (const cod of osFaturadasCod) {
-      try { await fetch(`${origin}/api/financeiro/sync-os?codOS=${cod}`, { method: "POST", signal: AbortSignal.timeout(120_000) }); cardsDisparados++; } catch {}
+      try { await fetchInterno(`${origin}/api/financeiro/sync-os?codOS=${cod}`, { method: "POST", signal: AbortSignal.timeout(120_000) }); cardsDisparados++; } catch {}
     }
     if (houvePVFaturado) {
-      try { await fetch(`${origin}/api/financeiro/sync-pecas?dias=1`, { method: "POST", signal: AbortSignal.timeout(120_000) }); } catch {}
+      try { await fetchInterno(`${origin}/api/financeiro/sync-pecas?dias=1`, { method: "POST", signal: AbortSignal.timeout(120_000) }); } catch {}
     }
 
     medir("financeiro", tFin);

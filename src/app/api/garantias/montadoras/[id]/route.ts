@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_MONTADORAS, TBL_GARANTIAS } from '@/lib/garantias/constants';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 // PATCH /api/garantias/montadoras/[id]
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'montadoras' }]);
+  if (guarda.resposta) return guarda.resposta;
   const { id } = await params;
   const body = await req.json();
 
@@ -74,7 +77,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 // DELETE /api/garantias/montadoras/[id] — bloqueado se houver garantias vinculadas
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'montadoras' }]);
+  if (guarda.resposta) return guarda.resposta;
   const { id } = await params;
 
   const { count } = await supabase

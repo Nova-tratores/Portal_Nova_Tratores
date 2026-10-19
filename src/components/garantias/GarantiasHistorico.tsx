@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Search, Loader2, Printer, CheckCircle2, XCircle } from 'lucide-react';
 import type { GarantiaResumo } from '@/lib/garantias/types';
@@ -17,7 +18,7 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
   const carregar = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/garantias?finalizadas=true');
+      const res = await fetchAuth('/api/garantias?finalizadas=true');
       const data = await res.json();
       setLista(data.garantias || []);
     } catch {

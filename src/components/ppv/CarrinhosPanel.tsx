@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { authHeaders } from "@/lib/auth/client";
 
 interface Carrinho { id: string; nome: string; cliente: string; modelo: string; modelo_slug: string; servico: string; status: string; criado_por?: string; criado_em: string; atualizado_em: string; expira_em: string; total_itens?: number; marca?: string | null }
 
@@ -189,7 +190,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
     setAddindo(true);
     try {
       const r = await fetch("/api/ppv/movimentacoes", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ id: ppvModal.id, codigo: p.codigo, descricao: p.descricao, quantidade: 1, preco: p.preco, tecnico: ppvDet?.tecnico || "", tipoMovimento: "Saída", userName: userName || "" }),
       });
       if (r.ok) { setPpvDet(await r.json()); setAddFlash(p.codigo); setTimeout(() => setAddFlash(null), 1400); }

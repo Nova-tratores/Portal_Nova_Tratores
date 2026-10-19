@@ -10,6 +10,8 @@ import {
   tagAssuntoGarantia,
   registrarEmailEnviado,
 } from '@/lib/garantias/email';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
+import { fetchInterno } from '@/lib/auth/chamada-interna';
 
 const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -19,9 +21,12 @@ const fmtBRL = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', cur
 // senão só muda a fase (garantista negocia por fora).
 // body: { garantista_nome?, garantista_horas?, garantista_km?, garantista_obs? }
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'enviar_fabrica' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const ator = body.garantista_nome || 'Garantista';
+  const ator = autorDe(user);
 
   let { data: g } = await supabase
     .from(TBL_GARANTIAS)
@@ -97,7 +102,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // O serviço acabou de ser executado — repuxa horas/km/peças da OS (best-effort)
   try {
-    await fetch(`${req.nextUrl.origin}/api/garantias/${id}/sincronizar-os`, {
+    await fetchInterno(`${req.nextUrl.origin}/api/garantias/${id}/sincronizar-os`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ator }),

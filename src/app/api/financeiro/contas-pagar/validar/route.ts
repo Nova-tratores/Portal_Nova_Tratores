@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import {
   getAccount,
   soDigitos,
@@ -24,6 +25,8 @@ const supabase = createClient(
 //   Em caso de sucesso (sem erros) atualiza status_envio='validado'.
 // =====================================================================
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "financeiro" }]);
+  if (g.resposta) return g.resposta;
   let body: {
     finanPagarId?: number | string;
     opts?: Partial<EnviarContaPagarOpts> & { empresa?: string };

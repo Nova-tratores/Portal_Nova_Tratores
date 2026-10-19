@@ -5,6 +5,7 @@
 // Resposta casada → grava no histórico do card + notifica o setor.
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { fetchInterno } from "@/lib/auth/chamada-interna";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { decrypt } from "@/lib/cripto";
@@ -113,7 +114,7 @@ export async function POST(req: NextRequest) {
   for (const r of novasRespostas) {
     try {
       const { data: card } = await supabase.from("Chamado_NF").select("nom_cliente").eq("id", r.chamado_id).maybeSingle();
-      await fetch(`${base}/api/financeiro/notificar`, {
+      await fetchInterno(`${base}/api/financeiro/notificar`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           titulo: `Cliente respondeu o e-mail — ${card?.nom_cliente || `card #${r.chamado_id}`}`,

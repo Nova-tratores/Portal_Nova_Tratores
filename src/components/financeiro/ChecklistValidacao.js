@@ -3,6 +3,7 @@
 // Faz POST debounced (400ms) em /api/financeiro/contas-pagar/validar.
 import { useEffect, useRef, useState } from 'react'
 import { CheckCircle2, AlertCircle, Info, Loader2, ExternalLink, User as UserIcon } from 'lucide-react'
+import { authHeaders } from '@/lib/auth/client'
 
 /**
  * @param {{ finanPagarId: number|string, opts: { empresa, codigoCategoria, idContaCorrente, codigoProjeto, codigoVendedor, codigoTipoDocumento }, onValidoChange?: (valido:boolean)=>void }} props
@@ -19,7 +20,7 @@ export default function ChecklistValidacao({ finanPagarId, opts, onValidoChange 
       try {
         const res = await fetch('/api/financeiro/contas-pagar/validar', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({ finanPagarId, opts }),
         })
         const data = await res.json()

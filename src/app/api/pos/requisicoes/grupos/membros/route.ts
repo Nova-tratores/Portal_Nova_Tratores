@@ -1,14 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 
 // Adiciona / remove uma requisição de um grupo, gravando no histórico do grupo
 // (usuário + id da requisição + data/hora). body: { grupo_id, req_id, acao: 'add'|'remove', usuario }
 
 type Hist = { acao: string; req_id?: number; usuario: string; em: string };
 
+// Mesmo acesso de /api/pos/requisicoes/grupos: Requisições, OS (POS) ou Central de Trabalho
+const ACESSO_GRUPOS = [
+  { modulo: "requisicoes" }, { modulo: "pos" },
+  { modulo: "cronograma" }, { modulo: "tickets" }, { modulo: "tarefas" },
+];
+
 export async function POST(req: NextRequest) {
+  const guarda = await protegerRota(req, ACESSO_GRUPOS);
+  if (guarda.resposta) return guarda.resposta;
   try {
-    const { grupo_id, req_id, acao, usuario } = await req.json();
+    const { grupo_id, req_id, acao } = await req.json();
+    const usuario = autorDe(guarda.user);
     if (!grupo_id || !req_id) return NextResponse.json({ error: "grupo_id e req_id obrigatórios" }, { status: 400 });
 
     const em = new Date().toISOString();

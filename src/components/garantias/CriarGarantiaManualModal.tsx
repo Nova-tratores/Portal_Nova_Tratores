@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useEffect, useRef, useState } from 'react';
 import { X, Search, Loader2, ShieldCheck, AlertTriangle, Check, ExternalLink } from 'lucide-react';
 
@@ -56,7 +57,7 @@ export default function CriarGarantiaManualModal({ userName, userId, onClose, on
     debounceRef.current = setTimeout(async () => {
       setCarregando(true);
       try {
-        const res = await fetch(`/api/garantias/buscar-os?q=${encodeURIComponent(busca.trim())}`);
+        const res = await fetchAuth(`/api/garantias/buscar-os?q=${encodeURIComponent(busca.trim())}`);
         const data = await res.json();
         setResultados(data.resultados || []);
       } catch {
@@ -75,7 +76,7 @@ export default function CriarGarantiaManualModal({ userName, userId, onClose, on
     setCriando(true);
     setErro('');
     try {
-      const res = await fetch('/api/garantias/criar-manual', {
+      const res = await fetchAuth('/api/garantias/criar-manual', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

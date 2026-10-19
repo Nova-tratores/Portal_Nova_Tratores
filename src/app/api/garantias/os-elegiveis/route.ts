@@ -4,10 +4,13 @@ import { TBL_OS } from '@/lib/pos/constants';
 import { sanitizarFiltro } from '@/lib/busca-segura';
 import { TBL_GARANTIAS, STATUS_FINALIZADOS } from '@/lib/garantias/constants';
 import type { OSElegivel } from '@/lib/garantias/types';
+import { guardarLoginGarantias } from '@/lib/garantias/server';
 
 // GET /api/garantias/os-elegiveis?tecnico=<nome>
 // OS do técnico que ainda podem abrir uma garantia.
 export async function GET(req: NextRequest) {
+  const guarda = await guardarLoginGarantias(req);
+  if (guarda.resposta) return guarda.resposta;
   const tecnico = (req.nextUrl.searchParams.get('tecnico') || '').trim();
   if (!tecnico) return NextResponse.json({ ordens: [] });
 

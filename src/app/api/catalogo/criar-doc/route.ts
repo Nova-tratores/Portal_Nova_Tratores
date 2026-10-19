@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { TIPOS_PEDIDO, MOTIVOS_SAIDA } from "@/lib/ppv/constants";
+import { fetchInterno } from "@/lib/auth/chamada-interna";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -108,8 +109,10 @@ export async function POST(req: NextRequest) {
         if (alvo && /conclu|cancel/i.test(String(alvo.status || ""))) {
           return NextResponse.json({ error: "Este PPV está concluído ou cancelado — não dá pra incluir peças." }, { status: 409 });
         }
-        const r = await fetch(`${req.nextUrl.origin}/api/ppv/movimentacoes`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
+        // /api/ppv/movimentacoes exige login: vai como chamada de sistema, levando o
+        // token de quem pediu (se veio) para valer mesmo sem CRON_SECRET no ambiente
+        const r = await fetchInterno(`${req.nextUrl.origin}/api/ppv/movimentacoes`, {
+          method: "POST", headers: { "Content-Type": "application/json", ...(req.headers.get("authorization") ? { authorization: req.headers.get("authorization")! } : {}) },
           body: JSON.stringify({ id: alvoId, itens: resolvidos, kit: "Catálogo", tecnico: tecnico || userName, userName }),
         });
         if (!r.ok) { const j = await r.json().catch(() => ({})); return NextResponse.json({ error: j?.error || "Erro ao incluir no PPV." }, { status: 500 }); }

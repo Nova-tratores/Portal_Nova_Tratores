@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_ANEXOS } from '@/lib/garantias/constants';
 import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // PATCH /api/garantias/[id]/devolucao — devolução das peças usadas à fábrica
 // (prova de destruição). Pendência anexa à garantia APROVADA (padrão cobrança).
@@ -11,10 +12,13 @@ import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
 //   "dispensar"  → fábrica dispensou → 'dispensada' (reversível via reabrir)
 //   "reabrir"    → 'enviada' ou 'dispensada' volta pra 'pendente'
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'finalizar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const acao = String(body.acao || '');
-  const ator = body.ator || 'Garantista';
+  const ator = autorDe(user);
 
   const { data: g, error: gErr } = await supabase
     .from(TBL_GARANTIAS)

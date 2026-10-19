@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_MONTADORAS } from '@/lib/garantias/constants';
 import type { ChecklistField } from '@/lib/garantias/types';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // GET /api/garantias/montadoras?ativo=true
 export async function GET(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias' }]);
+  if (guarda.resposta) return guarda.resposta;
   const ativo = req.nextUrl.searchParams.get('ativo');
   let query = supabase.from(TBL_MONTADORAS).select('*').order('nome', { ascending: true });
   if (ativo === 'true') query = query.eq('ativo', true);
@@ -25,6 +28,9 @@ function numOuNull(v: unknown): number | null {
 
 // POST /api/garantias/montadoras  { nome, checklist_def?, cor?, logo_url?, contato_fabrica?, criado_por? }
 export async function POST(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'montadoras' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const body = await req.json();
   const nome = String(body.nome || '').trim();
   if (!nome) {
@@ -42,7 +48,7 @@ export async function POST(req: NextRequest) {
     cor: body.cor || null,
     logo_url: body.logo_url || null,
     contato_fabrica: body.contato_fabrica || null,
-    criado_por: body.criado_por || null,
+    criado_por: autorDe(user),
     ativo: body.ativo !== false,
     email_destinatarios: Array.isArray(body.email_destinatarios) ? body.email_destinatarios : [],
     tipo_template: tipoTemplate,

@@ -3,6 +3,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS } from '@/lib/garantias/constants';
 import { registrarEvento } from '@/lib/garantias/server';
 import { faturarOSGarantiaNoOmie } from '@/lib/garantias/omie-faturamento';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // POST /api/garantias/[id]/refaturar-omie
 // Reaplica manualmente o padrão de garantia na OS que já está no Omie
@@ -12,9 +13,12 @@ import { faturarOSGarantiaNoOmie } from '@/lib/garantias/omie-faturamento';
 // ou cujo envio saiu sem o padrão.
 // body: { ator?: string }
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'analisar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const ator = String(body.ator || 'Garantista');
+  const ator = autorDe(user);
 
   const { data: garantia } = await supabase
     .from(TBL_GARANTIAS)

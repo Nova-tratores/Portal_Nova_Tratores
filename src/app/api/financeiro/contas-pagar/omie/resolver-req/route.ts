@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import {
   getAccount,
   resolverVendedorProjetoDeReq,
@@ -24,6 +25,8 @@ const supabase = createClient(
 //   }
 // =====================================================================
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "financeiro" }, { modulo: "requisicoes" }]);
+  if (g.resposta) return g.resposta;
   let body: ContextoRequisicao & { empresa?: string } = {};
   try {
     body = await req.json();

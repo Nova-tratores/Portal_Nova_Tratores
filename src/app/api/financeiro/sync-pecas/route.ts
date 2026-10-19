@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRotaOuInterna, fetchInterno } from "@/lib/auth/chamada-interna";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 
@@ -37,7 +38,7 @@ const SISTEMA_UID = "00000000-0000-0000-0000-000000000000";
 // Notifica (admins + quem tem acesso ao financeiro) que um card foi criado pelo sistema
 async function notificarCard(origin: string, setor: string, cliente: string) {
   try {
-    await fetch(`${origin}/api/financeiro/notificar`, {
+    await fetchInterno(`${origin}/api/financeiro/notificar`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         titulo: `Novo card no financeiro — ${setor}`,
@@ -178,6 +179,9 @@ async function nfDoPedido(codPedido: number, numPedido: string, empKey: string, 
 }
 
 async function handler(req: NextRequest) {
+  // Logado no Financeiro ou o próprio servidor (webhook, agendador, sync-recente, anexar-nf via fetchInterno).
+  const g = await protegerRotaOuInterna(req, [{ modulo: "financeiro" }]);
+  if (g.resposta) return g.resposta;
   const dias = parseInt(req.nextUrl.searchParams.get("dias") || "45");
   const limite = parseInt(req.nextUrl.searchParams.get("limite") || "500");
   const dryRun = req.nextUrl.searchParams.get("dryRun") === "1" || req.nextUrl.searchParams.get("dry") === "1";

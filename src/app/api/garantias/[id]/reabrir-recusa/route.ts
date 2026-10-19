@@ -2,15 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PECAS } from '@/lib/garantias/constants';
 import { registrarEvento, notificarTecnico } from '@/lib/garantias/server';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // POST /api/garantias/[id]/reabrir-recusa
 // Reverte uma recusa interna (garantista) e volta a garantia pra 'em_analise'.
 // Recusas vindas da fábrica NÃO podem ser revertidas por aqui — tem decisão
 // externa, precisa de novo retorno da fábrica.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'finalizar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const ator = body.ator || 'Garantista';
+  const ator = autorDe(user);
 
   const { data: g } = await supabase
     .from(TBL_GARANTIAS)

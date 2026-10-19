@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { getAccount, anexarDocumentosContaPagarOmie } from "@/lib/financeiro/omie-contapagar";
 
 export const dynamic = "force-dynamic";
@@ -15,6 +16,8 @@ const supabase = createClient(
 //   body: { finanPagarId, empresa? }
 // =====================================================================
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "financeiro" }]);
+  if (g.resposta) return g.resposta;
   let body: { finanPagarId?: number | string; empresa?: string } = {};
   try {
     body = await req.json();

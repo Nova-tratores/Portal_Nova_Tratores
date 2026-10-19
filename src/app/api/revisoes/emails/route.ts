@@ -1,12 +1,17 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-export async function GET() {
+export async function GET(req: Request) {
+  // tela /revisoes: temAcesso('revisoes')
+  const g = await protegerRota(req, [{ modulo: "revisoes" }]);
+  if (g.resposta) return g.resposta;
+
   try {
     const { data, error } = await supabase
       .from("revisao_emails")

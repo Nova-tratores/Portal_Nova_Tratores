@@ -3,6 +3,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, STATUS_FINALIZADOS } from '@/lib/garantias/constants';
 import { registrarEvento } from '@/lib/garantias/server';
 import type { GarantiaStatus } from '@/lib/garantias/types';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // POST /api/garantias/[id]/atualizar-trator
 // Corrige o CHASSI/MODELO da garantia — necessário quando a garantia nasceu
@@ -18,9 +19,12 @@ import type { GarantiaStatus } from '@/lib/garantias/types';
 //     3. cliente com UM único trator cadastrado
 // Bloqueado em garantia finalizada (aprovada/rejeitada).
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'analisar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const ator = String(body.ator || '').trim() || 'Garantista';
+  const ator = autorDe(user);
 
   const { data: garantia } = await supabase
     .from(TBL_GARANTIAS)

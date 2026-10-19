@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { fetchInterno } from "@/lib/auth/chamada-interna";
 
 // POST /api/clientes/vincular-pv
 // Aponta MANUALMENTE qual Pedido de Venda (peça) pertence a uma OS da pasta.
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
     // Com o pedido certo apontado, tenta JÁ buscar a nota nesse PV. Se as duas notas
     // (serviço e peça) ficarem completas, o card do financeiro nasce aqui mesmo.
     // Se ainda faltar alguma, NÃO cria nada — só devolve o que está faltando.
-    const sync: any = await fetch(`${req.nextUrl.origin}/api/financeiro/sync-os?os=${encodeURIComponent(numOS)}`, { method: "POST" })
+    const sync: any = await fetchInterno(`${req.nextUrl.origin}/api/financeiro/sync-os?os=${encodeURIComponent(numOS)}`, { method: "POST" })
       .then((r) => r.json()).catch(() => null);
 
     return NextResponse.json({

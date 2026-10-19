@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState } from 'react';
 import { Upload, Loader2, X, FileText, ExternalLink } from 'lucide-react';
 import type { GarantiaAnexo, AnexoCategoria } from '@/lib/garantias/types';
@@ -30,7 +31,7 @@ export default function GarantiaAnexos({
       fd.append('file', file);
       fd.append('categoria', uploadCategoria);
       if (enviadoPor) fd.append('enviado_por', enviadoPor);
-      const res = await fetch(`/api/garantias/${garantiaId}/anexos`, { method: 'POST', body: fd });
+      const res = await fetchAuth(`/api/garantias/${garantiaId}/anexos`, { method: 'POST', body: fd });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         alert(d.error || 'Falha ao enviar o anexo.');
@@ -44,7 +45,7 @@ export default function GarantiaAnexos({
 
   async function remover(a: GarantiaAnexo) {
     if (!confirm('Remover este anexo?')) return;
-    const res = await fetch(`/api/garantias/${garantiaId}/anexos?anexo=${a.id}`, { method: 'DELETE' });
+    const res = await fetchAuth(`/api/garantias/${garantiaId}/anexos?anexo=${a.id}`, { method: 'DELETE' });
     if (res.ok) onChange?.();
   }
 

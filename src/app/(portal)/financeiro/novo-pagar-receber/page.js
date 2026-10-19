@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { authHeaders } from '@/lib/auth/client'
 import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { useAuditLog } from '@/hooks/useAuditLog'
@@ -162,7 +163,7 @@ export default function NovoPagarReceber() {
         if (reqCompleta) {
           const res = await fetch('/api/financeiro/contas-pagar/omie/resolver-req', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
             body: JSON.stringify({
               empresa: omieCampos.empresa,
               solicitante: reqCompleta.solicitante,

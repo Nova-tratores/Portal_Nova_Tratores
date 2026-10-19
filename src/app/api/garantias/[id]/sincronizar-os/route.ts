@@ -8,6 +8,8 @@ import {
 import { registrarEvento } from '@/lib/garantias/server';
 import { listarPecasDaOS } from '@/lib/garantias/os-pecas';
 import type { GarantiaStatus } from '@/lib/garantias/types';
+import { autorDe } from '@/lib/ajustes/permissao-server';
+import { protegerRotaOuInterna } from '@/lib/auth/chamada-interna';
 
 // POST /api/garantias/[id]/sincronizar-os
 // Re-sincroniza peças + horas + km + snapshot (cliente/modelo/chassi/PPV) da
@@ -18,9 +20,13 @@ import type { GarantiaStatus } from '@/lib/garantias/types';
 //
 // body opcional: { ator?: string }
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRotaOuInterna(req, [{ modulo: 'garantias' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
+  const interno = guarda.interno;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const ator = String(body.ator || '').trim() || 'Garantista';
+  const ator = interno ? (String(body.ator || '').trim() || 'Garantista') : autorDe(user);
 
   const { data: garantia } = await supabase
     .from(TBL_GARANTIAS)

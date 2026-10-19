@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { STATUS_FINALIZADOS } from '@/lib/garantias/constants';
 import { sanitizarFiltro } from '@/lib/busca-segura';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 // GET /api/garantias/buscar-os?q=...
 // Procura OS por id_ordem, cliente ou chassi. Filtra fora as que já têm
 // garantia ativa. Pra uso no fluxo de "criar garantia manualmente".
 export async function GET(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias' }]);
+  if (guarda.resposta) return guarda.resposta;
   const q = String(req.nextUrl.searchParams.get('q') || '').trim();
   if (q.length < 2) return NextResponse.json({ resultados: [] });
 

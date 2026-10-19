@@ -181,8 +181,9 @@ export const TAREFAS: Record<string, Tarefa> = {
 
   'financeiro-scanner': async () => {
     if (process.env.SYNC_FINANCEIRO_AUTO !== 'on') return { pular: 'desligado (só com SYNC_FINANCEIRO_AUTO=on; a criação é pelo webhook)' };
+    const { fetchInterno } = await import('@/lib/auth/chamada-interna');
     for (const caminho of ['/api/financeiro/sync-os', '/api/financeiro/sync-pecas?dias=3']) {
-      const r = await fetch(`${baseInterna()}${caminho}`, { method: 'POST' });
+      const r = await fetchInterno(`${baseInterna()}${caminho}`, { method: 'POST' });
       if (!r.ok) throw new Error(`${caminho} respondeu HTTP ${r.status}`);
     }
     return { resumo: 'ok' };

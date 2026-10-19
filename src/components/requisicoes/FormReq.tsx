@@ -6,6 +6,7 @@ import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
 import { FolderOpen, ChevronDown, Check } from 'lucide-react';
 import { useRascunho } from '@/lib/rascunho/useRascunho';
 import AvisoRascunho from '@/components/rascunho/AvisoRascunho';
+import { fetchAuth } from '@/lib/auth/client';
 
 /** Chave do rascunho da nova requisição (a página apaga depois de criar). */
 export const RASCUNHO_NOVA_REQ = 'requisicao:nova';
@@ -52,7 +53,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
   const [gruposSel, setGruposSel] = useState<number[]>([]);
   const [gruposFormAberto, setGruposFormAberto] = useState(false);
   useEffect(() => {
-    fetch('/api/pos/requisicoes/grupos')
+    fetchAuth('/api/pos/requisicoes/grupos')
       .then(r => r.ok ? r.json() : [])
       .then(d => setGruposDisp((Array.isArray(d) ? d : []).filter((g: any) => g.status === 'aberto')))
       .catch(() => {});

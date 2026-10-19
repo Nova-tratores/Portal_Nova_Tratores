@@ -3,6 +3,7 @@ import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, STATUS_FINALIZADOS } from '@/lib/garantias/constants';
 import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
 import type { GarantiaStatus } from '@/lib/garantias/types';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // POST /api/garantias/[id]/cancelar-duplicada
 // body: { duplicada_de: "GAR-0070" | "0070", ator }
@@ -13,9 +14,12 @@ import type { GarantiaStatus } from '@/lib/garantias/types';
 // aba Finalizadas e não reabre pela tela.
 // Migration: sql/garantias-cancelar-duplicada.sql (status 'cancelada' no CHECK).
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'finalizar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const ator = String(body.ator || 'Garantista');
+  const ator = autorDe(user);
 
   // normaliza "0070" → "GAR-0070"
   const bruto = String(body.duplicada_de || '').trim().toUpperCase();

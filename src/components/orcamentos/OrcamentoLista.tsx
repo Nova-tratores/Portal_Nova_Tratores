@@ -6,6 +6,7 @@ import { Search, FileText, Trash2, Plus, FilterX, Package, Wrench, Send, Printer
 import { gateBtn, estiloSemPermissao, MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { linhasDoOrcamento, nomesServicos, somaHorasKm } from '@/lib/orcamentos/servicos'
+import { authHeaders } from '@/lib/auth/client'
 
 interface Orcamento {
   id: number
@@ -131,7 +132,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
             if (!item.descricao) continue
             await fetch('/api/ppv/movimentacoes', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
               body: JSON.stringify({
                 id: result.ppvGerado,
                 codigo: item.codigo || '',

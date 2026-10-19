@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRotaOuInterna, fetchInterno } from "@/lib/auth/chamada-interna";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { liberarPedidoDeCardsExcluidos, STATUS_EXCLUIDO } from "@/lib/financeiro/cards-chamado";
@@ -28,7 +29,7 @@ const SISTEMA_UID = "00000000-0000-0000-0000-000000000000";
 // Notifica (admins + quem tem acesso ao financeiro) que um card foi criado pelo sistema
 async function notificarCard(origin: string, setor: string, cliente: string, opts?: { numOS?: string; semNfsePdf?: boolean }) {
   try {
-    await fetch(`${origin}/api/financeiro/notificar`, {
+    await fetchInterno(`${origin}/api/financeiro/notificar`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         titulo: `Novo card no financeiro — ${setor}`,
@@ -38,7 +39,7 @@ async function notificarCard(origin: string, setor: string, cliente: string, opt
     });
     // NFS-e emitida mas SEM PDF (NFS-e municipal): avisa o Pós-Vendas pra anexar a nota manualmente.
     if (opts?.semNfsePdf) {
-      await fetch(`${origin}/api/financeiro/notificar`, {
+      await fetchInterno(`${origin}/api/financeiro/notificar`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           titulo: `⚠️ NFS-e sem PDF — anexe a nota de serviço${opts.numOS ? ` (OS ${opts.numOS})` : ""}`,
@@ -359,6 +360,10 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
 }
 
 async function handler(req: NextRequest) {
+  // Logado (Financeiro, ou a pasta Clientes com anexos — "criar card à mão") ou o próprio
+  // servidor (webhook, agendador, sync-recente, anexar-nf, vincular-pv via fetchInterno).
+  const g = await protegerRotaOuInterna(req, [{ modulo: "financeiro" }, { modulo: "clientes", acao: "anexos" }]);
+  if (g.resposta) return g.resposta;
   const limite = parseInt(req.nextUrl.searchParams.get("limite") || "300");
   // Janela de busca por data de CADASTRO da OS (larga, pra pegar OS antigas faturadas agora).
   // O corte de "de agora em diante" é aplicado pela data de FATURAMENTO (dDtFat) abaixo.
@@ -373,7 +378,8 @@ async function handler(req: NextRequest) {
   // criar o card na mão. É o único caminho que ignora a trava das duas notas.
   const osParam = req.nextUrl.searchParams.get("os");
   const codOSParam = req.nextUrl.searchParams.get("codOS");
-  const manual = req.nextUrl.searchParams.get("manual") === "1";
+  // manual=1 só vale para usuário logado — chamada interna nunca pula a trava das notas.
+  const manual = !g.interno && req.nextUrl.searchParams.get("manual") === "1";
   if (osParam || codOSParam) {
     const consulta = codOSParam ? { nCodOS: Number(codOSParam) } : { cNumOS: String(osParam).trim() };
     const corte = manual ? "1900-01-01" : desde;

@@ -9,7 +9,7 @@ import { diasEntre } from "@/lib/pos/utils";
 import { OPCOES_PAGAMENTO, normalizarPagamento, perguntaPagamento } from "@/lib/pos/cobranca";
 import type { KanbanCard } from "@/lib/pos/types";
 import { STATUS_COR, STATUS_LABEL } from "@/lib/garantias/constants";
-import { authHeaders } from "@/lib/auth/client";
+import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import { normName } from "@/lib/tecnico-utils";
 import type { GarantiaStatus } from "@/lib/garantias/types";
 import { CapaTitulo, CapaFaseValor, CapaBolinhas, CapaLinha, CapaData, CapaTexto, CapaReservar, CapaRodape, CapaBotao } from "@/components/comum/CapaCard";
@@ -652,7 +652,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
 
   // Carrega quais OS têm garantia (para o ícone de escudo no card)
   useEffect(() => {
-    fetch("/api/garantias")
+    fetchAuth("/api/garantias")
       .then((r) => r.json())
       .then((d) => {
         const m: Record<string, GarantiaStatus> = {};

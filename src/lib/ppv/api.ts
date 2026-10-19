@@ -97,7 +97,7 @@ export const api = {
   registrarMovimentacao: (dados: {
     id: string; codigo: string; descricao: string; quantidade: number;
     preco: number; tecnico: string; tipoMovimento: string; userName?: string;
-  }) => post<PPVDetalhes>("/api/ppv/movimentacoes", dados),
+  }) => postAuth<PPVDetalhes>("/api/ppv/movimentacoes", dados),
 
   editarPrecoItem: (id: string, codigo: string, preco: number, userName?: string) =>
     patch<PPVDetalhes>("/api/ppv/movimentacoes", { id, codigo, preco, userName }),
@@ -106,11 +106,11 @@ export const api = {
   importarKitLote: (dados: {
     id: string; kit: string; tecnico: string; userName?: string;
     itens: { codigo: string; descricao: string; quantidade: number; preco: number }[];
-  }) => post<PPVDetalhes>("/api/ppv/movimentacoes", dados),
+  }) => postAuth<PPVDetalhes>("/api/ppv/movimentacoes", dados),
 
   // Remove o kit inteiro (devolve todos os itens dele de uma vez)
-  removerKit: (id: string, kit: string, userName?: string) =>
-    request<PPVDetalhes>("/api/ppv/movimentacoes", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, kit, userName }) }),
+  removerKit: async (id: string, kit: string, userName?: string) =>
+    request<PPVDetalhes>("/api/ppv/movimentacoes", { method: "DELETE", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ id, kit, userName }) }),
 
   // --- Busca de Clientes ---
   buscarClientes: (termo: string) =>
@@ -157,7 +157,7 @@ export const api = {
 
   // --- Omie ---
   enviarParaOmie: (id: string, userName?: string) =>
-    post<{ success: boolean; numeroPedido: string }>("/api/ppv/pedidos/omie", { id, userName }),
+    postAuth<{ success: boolean; numeroPedido: string }>("/api/ppv/pedidos/omie", { id, userName }),
 
   // Cancela o pedido no Omie (CancelarPedidoVenda) + marca a PPV como Cancelada.
   cancelarPedido: (id: string, motivo: string, userName?: string) =>

@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState, useEffect, useRef } from 'react';
 import { Sparkles, Loader2, Save, Copy, Check } from 'lucide-react';
 import type { GarantiaDetalhe } from '@/lib/garantias/types';
@@ -70,7 +71,7 @@ export default function RelatoTratorilsonSecao({ g, userName, podeAnalisar, fina
     setErro('');
     setAviso('');
     try {
-      const res = await fetch(`/api/garantias/${g.id}/texto-kuhn`, {
+      const res = await fetchAuth(`/api/garantias/${g.id}/texto-kuhn`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ator: userName }),
@@ -106,7 +107,7 @@ export default function RelatoTratorilsonSecao({ g, userName, podeAnalisar, fina
     setErro('');
     setAviso('');
     try {
-      const res = await fetch(`/api/garantias/${g.id}/formatar-textos`, {
+      const res = await fetchAuth(`/api/garantias/${g.id}/formatar-textos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ator: userName, forcar }),
@@ -139,7 +140,7 @@ export default function RelatoTratorilsonSecao({ g, userName, podeAnalisar, fina
     setErro('');
     setAviso('');
     try {
-      const res = await fetch(`/api/garantias/${g.id}/checklist`, {
+      const res = await fetchAuth(`/api/garantias/${g.id}/checklist`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

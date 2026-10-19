@@ -180,7 +180,7 @@ function DashboardAgrupadoInner() {
   const fetchEmails = async () => {
     setLoadingEmails(true);
     try {
-      const res = await fetch("/api/revisoes/emails");
+      const res = await fetch("/api/revisoes/emails", { headers: await authHeaders() });
       if (!res.ok) throw new Error("Erro ao buscar emails");
       const data = await res.json();
       setEmails(data.emails || []);
@@ -194,7 +194,7 @@ function DashboardAgrupadoInner() {
 
   const fetchInspecaoEmails = async () => {
     try {
-      const res = await fetch("/api/inspecoes/emails");
+      const res = await fetch("/api/inspecoes/emails", { headers: await authHeaders() });
       if (!res.ok) throw new Error("Erro ao buscar inspeções");
       const data = await res.json();
       setInspecaoEmails(data.emails || []);
@@ -341,7 +341,7 @@ function DashboardAgrupadoInner() {
   // Lembretes
   const fetchLembretes = useCallback(async (tratorId: string) => {
     try {
-      const res = await fetch(`/api/revisoes/lembretes?trator_id=${encodeURIComponent(tratorId)}`);
+      const res = await fetch(`/api/revisoes/lembretes?trator_id=${encodeURIComponent(tratorId)}`, { headers: await authHeaders() });
       if (res.ok) {
         const data = await res.json();
         setLembretes(data.lembretes || []);
@@ -363,7 +363,7 @@ function DashboardAgrupadoInner() {
     try {
       await fetch("/api/revisoes/lembretes", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           trator_id: String(selecionado.ID),
           user_id: usuario.user_id,
@@ -384,7 +384,7 @@ function DashboardAgrupadoInner() {
   const deletarLembrete = async (id: number) => {
     if (!podeLembretes) return;
     if (!selecionado) return;
-    await fetch(`/api/revisoes/lembretes?id=${id}`, { method: "DELETE" });
+    await fetch(`/api/revisoes/lembretes?id=${id}`, { method: "DELETE", headers: await authHeaders() });
     fetchLembretes(String(selecionado.ID));
   };
 
@@ -680,6 +680,7 @@ function DashboardAgrupadoInner() {
     let pdfUrl: string | null = null;
     try {
       // Preparar todos os FormData
+      const authH = await authHeaders();
       const requests = files.map((file) => {
         const formData = new FormData();
         formData.append("file", file);
@@ -689,7 +690,7 @@ function DashboardAgrupadoInner() {
         formData.append("cliente", selecionado.Cliente?.trim() || vendaCliente.trim());
         formData.append("nome", nomeRemetente.trim());
         formData.append("destinatarios", JSON.stringify(emailsDest));
-        return fetch("/api/revisoes", { method: "POST", body: formData });
+        return fetch("/api/revisoes", { method: "POST", body: formData, headers: authH });
       });
       // Enviar todos em paralelo
       const results = await Promise.all(requests);
@@ -797,6 +798,7 @@ function DashboardAgrupadoInner() {
     let ok = false;
 
     try {
+      const authH = await authHeaders();
       const requests = Array.from(files).map((file) => {
         const formData = new FormData();
         formData.append("file", file);
@@ -806,7 +808,7 @@ function DashboardAgrupadoInner() {
         formData.append("cliente", selecionado.Cliente || "");
         formData.append("nome", nomeRemetenteInsp.trim());
         formData.append("destinatarios", JSON.stringify(emailsDest));
-        return fetch("/api/inspecoes", { method: "POST", body: formData });
+        return fetch("/api/inspecoes", { method: "POST", body: formData, headers: authH });
       });
       const results = await Promise.all(requests);
       for (const res of results) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar } from "@/lib/auth/server";
+import { fetchInterno } from "@/lib/auth/chamada-interna";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -56,9 +57,10 @@ export async function POST(req: NextRequest) {
       if (j.ppvGerado && pecas.length) {
         for (const it of pecas) {
           if (!it.descricao && !it.codigo) continue;
-          await fetch(`${origin}/api/ppv/movimentacoes`, {
+          // movimentacoes exige login: sistema (CRON_SECRET) + o token do usuário logado
+          await fetchInterno(`${origin}/api/ppv/movimentacoes`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", authorization: req.headers.get("authorization") || "" },
             body: JSON.stringify({
               id: j.ppvGerado, codigo: it.codigo || "", descricao: it.descricao,
               quantidade: it.quantidade || 1, preco: it.preco || 0,

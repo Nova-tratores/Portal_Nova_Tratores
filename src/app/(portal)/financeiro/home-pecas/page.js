@@ -86,7 +86,7 @@ function HomePosVendasContent() {
     if (sincPecas) return;
     setSincPecas(true);
     try {
-      const r = await fetch('/api/financeiro/sync-pecas', { method: 'POST' });
+      const r = await fetch('/api/financeiro/sync-pecas', { method: 'POST', headers: { ...(await authHeaders()) } });
       const out = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(out.error || 'Falha na sincronização');
       alert(`Sincronização de Peças (Omie):\n\nNovos cards criados: ${out.criados}\nJá existiam: ${out.jaExistiam}\nCandidatos encontrados: ${out.candidatos}`);

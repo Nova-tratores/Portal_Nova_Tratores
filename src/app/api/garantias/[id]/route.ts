@@ -10,9 +10,12 @@ import {
 } from '@/lib/garantias/constants';
 import { registrarEvento } from '@/lib/garantias/server';
 import { rotuloLocalizacao } from '@/lib/garantias/localizacao';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // GET /api/garantias/[id] — detalhe completo
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias' }]);
+  if (guarda.resposta) return guarda.resposta;
   const { id } = await params;
 
   const { data: garantia, error } = await supabase
@@ -55,6 +58,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 // PATCH /api/garantias/[id] — assumir a garantia (aberta -> em_analise)
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'analisar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json();
 
@@ -91,7 +97,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         tipo: 'em_analise',
         statusAnterior: 'aberta',
         statusNovo: 'em_analise',
-        ator: body.garantista_nome || 'Garantista',
+        ator: autorDe(user),
         detalhe: 'Garantia em análise',
       });
     }
@@ -122,7 +128,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     await registrarEvento(id, {
       tipo: 'localizacao',
-      ator: body.ator || 'Garantista',
+      ator: autorDe(user),
       detalhe: loc ? `Peça guardada em: ${rotuloLocalizacao(loc)}` : 'Localização da peça removida',
     });
     return NextResponse.json({ garantia: data });
@@ -132,7 +138,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 // DELETE /api/garantias/[id] — só permitido enquanto aberta
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'analisar' }]);
+  if (guarda.resposta) return guarda.resposta;
   const { id } = await params;
   const { data: garantia } = await supabase
     .from(TBL_GARANTIAS)

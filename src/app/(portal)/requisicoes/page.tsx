@@ -857,13 +857,15 @@ function RequisicoesPageInner() {
                 return;
               }
               // Vincula a nova requisição aos grupos escolhidos (best-effort)
+              // Um de cada vez: a rota relê e regrava o histórico do grupo, e chamadas
+              // em paralelo perdiam entrada do histórico
               if (ins?.id && gruposEscolhidos.length > 0) {
-                await Promise.all(gruposEscolhidos.map((gid) =>
-                  fetch('/api/pos/requisicoes/grupos/membros', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                for (const gid of gruposEscolhidos) {
+                  await fetch('/api/pos/requisicoes/grupos/membros', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
                     body: JSON.stringify({ grupo_id: gid, req_id: ins.id, acao: 'add', usuario: userName }),
-                  }).catch(() => {})
-                ));
+                  }).catch(() => {});
+                }
               }
               apagarRascunho(RASCUNHO_NOVA_REQ); // criou: o rascunho não serve mais
               auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'requisicao', entidade_label: String(nova.titulo || '') });

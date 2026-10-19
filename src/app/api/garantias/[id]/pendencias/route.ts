@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PEND, TBL_GAR_ANEXOS } from '@/lib/garantias/constants';
 import { registrarEvento, notificarTecnico } from '@/lib/garantias/server';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 // GET /api/garantias/[id]/pendencias
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias' }]);
+  if (guarda.resposta) return guarda.resposta;
   const { id } = await params;
   const { data, error } = await supabase
     .from(TBL_GAR_PEND)
@@ -17,6 +20,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
 // POST /api/garantias/[id]/pendencias — garantista abre B.O. ou pendência da fábrica
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'analisar' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json();
 
@@ -63,7 +69,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       tipo,
       descricao,
       exige_visita: !!body.exige_visita,
-      criado_por: body.criado_por || 'Garantista',
+      criado_por: autorDe(user),
       // Para onde a garantia volta quando a pendência for respondida
       // (info_fabrica aberta no ressarcimento volta pra ressarcimento_fabrica)
       status_retorno: tipo === 'bo' ? 'em_analise' : g.status,
@@ -93,7 +99,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     tipo: tipo === 'bo' ? 'bo_aberta' : 'info_pendente',
     statusAnterior: g.status,
     statusNovo: novoStatus,
-    ator: body.criado_por || 'Garantista',
+    ator: autorDe(user),
     detalhe: descricao,
   });
   await notificarTecnico(g.tecnico_nome, {

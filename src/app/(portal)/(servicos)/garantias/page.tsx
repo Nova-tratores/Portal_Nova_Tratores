@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState, useEffect, useCallback } from 'react';
 import { ShieldCheck, Loader2, LayoutGrid, CheckSquare, BarChart3, Search, Factory, PlusCircle, QrCode } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -37,7 +38,7 @@ function GarantiasPageInner() {
 
   const carregar = useCallback(async () => {
     try {
-      const res = await fetch('/api/garantias?finalizadas=false');
+      const res = await fetchAuth('/api/garantias?finalizadas=false');
       const data = await res.json();
       setGarantias(data.garantias || []);
     } catch {

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
@@ -99,7 +100,7 @@ function ConfigTab({ contaParam, setErro }: { contaParam: string; setErro: (s: s
   const carregar = useCallback(async () => {
     setErro('');
     try {
-      const r = await fetch(`/api/estoque/comissao/config?${contaParam.replace(/^&/, '')}`);
+      const r = await fetchAuth(`/api/estoque/comissao/config?${contaParam.replace(/^&/, '')}`);
       const d = await r.json();
       if (d.erro) { setErro(d.erro); return; }
       setBase(String(d.comissao_base_pct_servicos ?? 15));
@@ -109,7 +110,7 @@ function ConfigTab({ contaParam, setErro }: { contaParam: string; setErro: (s: s
   useEffect(() => { void carregar(); }, [carregar]);
 
   const salvar = async () => {
-    const r = await fetch(`/api/estoque/comissao/config?${contaParam.replace(/^&/, '')}`, {
+    const r = await fetchAuth(`/api/estoque/comissao/config?${contaParam.replace(/^&/, '')}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ comissao_base_pct_servicos: parseFloat(base) || 0 }),
     });
@@ -142,7 +143,7 @@ function PessoasTab({ contaParam, setErro }: { contaParam: string; setErro: (s: 
   const carregar = useCallback(async () => {
     setErro('');
     try {
-      const r = await fetch(`/api/estoque/comissao/pessoas?${contaParam.replace(/^&/, '')}`);
+      const r = await fetchAuth(`/api/estoque/comissao/pessoas?${contaParam.replace(/^&/, '')}`);
       const d = await r.json();
       if (d.erro) { setErro(d.erro); return; }
       setItems(d.items || []);
@@ -153,7 +154,7 @@ function PessoasTab({ contaParam, setErro }: { contaParam: string; setErro: (s: 
 
   const criar = async () => {
     if (!nome.trim()) return;
-    const r = await fetch(`/api/estoque/comissao/pessoas?${contaParam.replace(/^&/, '')}`, {
+    const r = await fetchAuth(`/api/estoque/comissao/pessoas?${contaParam.replace(/^&/, '')}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nome: nome.trim(), tipo, bonificacao_pct: parseFloat(bonus) || 0 }),
     });
@@ -162,7 +163,7 @@ function PessoasTab({ contaParam, setErro }: { contaParam: string; setErro: (s: 
     setNome(''); setBonus('0'); carregar();
   };
   const editar = async (p: Pessoa, campos: Partial<Pessoa>) => {
-    const r = await fetch(`/api/estoque/comissao/pessoas/${p.id}?${contaParam.replace(/^&/, '')}`, {
+    const r = await fetchAuth(`/api/estoque/comissao/pessoas/${p.id}?${contaParam.replace(/^&/, '')}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(campos),
     });
     const d = await r.json();
@@ -171,7 +172,7 @@ function PessoasTab({ contaParam, setErro }: { contaParam: string; setErro: (s: 
   };
   const excluir = async (p: Pessoa) => {
     if (!confirm(`Excluir ${p.nome}?`)) return;
-    await fetch(`/api/estoque/comissao/pessoas/${p.id}?${contaParam.replace(/^&/, '')}`, { method: 'DELETE' });
+    await fetchAuth(`/api/estoque/comissao/pessoas/${p.id}?${contaParam.replace(/^&/, '')}`, { method: 'DELETE' });
     carregar();
   };
 
@@ -214,7 +215,7 @@ function RegrasTab({ contaParam, setErro }: { contaParam: string; setErro: (s: s
   const carregar = useCallback(async () => {
     setErro('');
     try {
-      const r = await fetch(`/api/estoque/comissao/regras?${contaParam.replace(/^&/, '')}`);
+      const r = await fetchAuth(`/api/estoque/comissao/regras?${contaParam.replace(/^&/, '')}`);
       const d = await r.json();
       if (d.erro) { setErro(d.erro); return; }
       setItems(d.items || []);
@@ -224,7 +225,7 @@ function RegrasTab({ contaParam, setErro }: { contaParam: string; setErro: (s: s
   useEffect(() => { void carregar(); }, [carregar]);
 
   const criar = async () => {
-    const r = await fetch(`/api/estoque/comissao/regras?${contaParam.replace(/^&/, '')}`, {
+    const r = await fetchAuth(`/api/estoque/comissao/regras?${contaParam.replace(/^&/, '')}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...form, comissao_pct: parseFloat(form.comissao_pct) || 0, prioridade: parseInt(form.prioridade) || 0 }),
     });
@@ -233,7 +234,7 @@ function RegrasTab({ contaParam, setErro }: { contaParam: string; setErro: (s: s
     carregar();
   };
   const editar = async (g: Regra, campos: Partial<Regra>) => {
-    const r = await fetch(`/api/estoque/comissao/regras/${g.id}?${contaParam.replace(/^&/, '')}`, {
+    const r = await fetchAuth(`/api/estoque/comissao/regras/${g.id}?${contaParam.replace(/^&/, '')}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(campos),
     });
     const d = await r.json();
@@ -242,7 +243,7 @@ function RegrasTab({ contaParam, setErro }: { contaParam: string; setErro: (s: s
   };
   const excluir = async (g: Regra) => {
     if (!confirm('Excluir regra?')) return;
-    await fetch(`/api/estoque/comissao/regras/${g.id}?${contaParam.replace(/^&/, '')}`, { method: 'DELETE' });
+    await fetchAuth(`/api/estoque/comissao/regras/${g.id}?${contaParam.replace(/^&/, '')}`, { method: 'DELETE' });
     carregar();
   };
 
@@ -290,7 +291,7 @@ function ServicosTab({ contaParam, mes, ano, setErro }: { contaParam: string; me
   const carregar = useCallback(async () => {
     try {
       setCarregando(true);
-      const r = await fetch(`/api/estoque/comissao/servicos?mes=${mes}&ano=${ano}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/comissao/servicos?mes=${mes}&ano=${ano}${contaParam}`);
       const d = await r.json();
       if (d.erro) { setErro(d.erro); return; }
       setItems(d.items || []); setTotais(d.totais || {});
@@ -301,7 +302,7 @@ function ServicosTab({ contaParam, mes, ano, setErro }: { contaParam: string; me
 
   const sync = async () => {
     setCarregando(true);
-    const r = await fetch(`/api/estoque/comissao/servicos/sync?mes=${mes}&ano=${ano}${contaParam}`, {
+    const r = await fetchAuth(`/api/estoque/comissao/servicos/sync?mes=${mes}&ano=${ano}${contaParam}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mes, ano }),
     });
     const d = await r.json();
@@ -337,7 +338,7 @@ function ServicoRow({ s, editando, onEditar, contaParam, onSalvo, setErro }: { s
   const [f, setF] = useState({ vendedor_1: s.vendedor_1 || '', vendedor_2: s.vendedor_2 || '', divisao_fundo_pct: String(s.divisao_fundo_pct ?? 0), divisao_v1_pct: String(s.divisao_v1_pct ?? 100), divisao_v2_pct: String(s.divisao_v2_pct ?? 0), comissao_override_pct: s.comissao_override_pct != null ? String(s.comissao_override_pct) : '', justificativa: '' });
 
   const salvar = async () => {
-    const r = await fetch(`/api/estoque/comissao/servicos/ajuste?${contaParam.replace(/^&/, '')}`, {
+    const r = await fetchAuth(`/api/estoque/comissao/servicos/ajuste?${contaParam.replace(/^&/, '')}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ os_numero: s.os_numero, os_item_seq: s.os_item_seq, vendedor_1: f.vendedor_1, vendedor_2: f.vendedor_2, divisao_fundo_pct: parseFloat(f.divisao_fundo_pct) || 0, divisao_v1_pct: parseFloat(f.divisao_v1_pct) || 0, divisao_v2_pct: parseFloat(f.divisao_v2_pct) || 0, comissao_override_pct: f.comissao_override_pct, justificativa: f.justificativa }),
     });
@@ -391,7 +392,7 @@ function VendasTab({ contaParam, mes, ano, setErro }: { contaParam: string; mes:
     try {
       setCarregando(true);
       const grupoP = grupo ? `&grupo=${grupo}` : '';
-      const r = await fetch(`/api/estoque/comissao/vendas?mes=${mes}&ano=${ano}${grupoP}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/comissao/vendas?mes=${mes}&ano=${ano}${grupoP}${contaParam}`);
       const d = await r.json();
       if (d.erro) { setErro(d.erro); return; }
       setItems(d.items || []); setTotais(d.totais || {});
@@ -426,7 +427,7 @@ function VendaRow({ v, editando, onEditar, contaParam, onSalvo, setErro }: { v: 
   const [f, setF] = useState({ comissao_override_pct: v.comissao_fonte === 'override' ? String(v.comissao_pct) : '', custos_extras: '0', desconto: '0', justificativa: '' });
 
   const salvar = async () => {
-    const r = await fetch(`/api/estoque/comissao/vendas/ajuste?${contaParam.replace(/^&/, '')}`, {
+    const r = await fetchAuth(`/api/estoque/comissao/vendas/ajuste?${contaParam.replace(/^&/, '')}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ venda_id: v.venda_id, vendas_itens_id: v.vendas_itens_id, comissao_override_pct: f.comissao_override_pct, custos_extras: parseFloat(f.custos_extras) || 0, desconto: parseFloat(f.desconto) || 0, justificativa: f.justificativa }),
     });
@@ -475,7 +476,7 @@ function CustosTab({ contaParam, mes, ano, setErro }: { contaParam: string; mes:
   const carregar = useCallback(async () => {
     setErro('');
     try {
-      const r = await fetch(`/api/estoque/comissao/custos-vendedor?mes=${mes}&ano=${ano}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/comissao/custos-vendedor?mes=${mes}&ano=${ano}${contaParam}`);
       const d = await r.json();
       if (d.erro) { setErro(d.erro); return; }
       setItems(d.items || []); setTotais(d.totais || {});
@@ -485,7 +486,7 @@ function CustosTab({ contaParam, mes, ano, setErro }: { contaParam: string; mes:
   useEffect(() => { void carregar(); }, [carregar]);
 
   const salvar = async (c: Custo, campos: Partial<Custo>) => {
-    const r = await fetch(`/api/estoque/comissao/custos-vendedor?${contaParam.replace(/^&/, '')}`, {
+    const r = await fetchAuth(`/api/estoque/comissao/custos-vendedor?${contaParam.replace(/^&/, '')}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nome: c.nome, mes, ano, salario: c.salario, encargos: c.encargos, custos_extras: c.custos_extras, carro_aluguel: c.carro_aluguel, combustivel: c.combustivel, manutencao: c.manutencao, ...campos }),
     });
@@ -494,7 +495,7 @@ function CustosTab({ contaParam, mes, ano, setErro }: { contaParam: string; mes:
     carregar();
   };
   const copiar = async () => {
-    const r = await fetch(`/api/estoque/comissao/custos-vendedor/copiar-mes-anterior?mes=${mes}&ano=${ano}${contaParam}`, {
+    const r = await fetchAuth(`/api/estoque/comissao/custos-vendedor/copiar-mes-anterior?mes=${mes}&ano=${ano}${contaParam}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mes, ano }),
     });
     const d = await r.json();
@@ -544,7 +545,7 @@ function RelatorioTab({ contaParam, mes, ano, setErro }: { contaParam: string; m
   const carregar = useCallback(async () => {
     try {
       setCarregando(true);
-      const r = await fetch(`/api/estoque/comissao/relatorio?mes=${mes}&ano=${ano}&dominio=${dominio}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/comissao/relatorio?mes=${mes}&ano=${ano}&dominio=${dominio}${contaParam}`);
       const d = await r.json();
       if (d.erro) { setErro(d.erro); return; }
       setData(d);

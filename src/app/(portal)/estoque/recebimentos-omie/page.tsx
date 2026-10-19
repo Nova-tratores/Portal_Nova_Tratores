@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
@@ -109,7 +110,7 @@ export default function RecebimentosPage() {
 
   const carregarUsuarios = useCallback(async () => {
     try {
-      const r = await fetch(`/api/estoque/recebimentos/usuarios?meu=${encodeURIComponent(meu)}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/recebimentos/usuarios?meu=${encodeURIComponent(meu)}${contaParam}`);
       const d = await r.json();
       setUsuarios(d.usuarios || []);
     } catch {
@@ -119,7 +120,7 @@ export default function RecebimentosPage() {
 
   const carregarResumo = useCallback(async () => {
     try {
-      const r = await fetch(`/api/estoque/recebimentos/resumo?meu=${encodeURIComponent(meu)}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/recebimentos/resumo?meu=${encodeURIComponent(meu)}${contaParam}`);
       const d = await r.json();
       if (!d.erro) setResumo(d);
     } catch {
@@ -134,7 +135,7 @@ export default function RecebimentosPage() {
       if (tipo) url += `&tipo=${tipo}`;
       if (resp === 'me') url += '&responsavel=me';
       else if (resp === '__nenhum__') url += '&responsavel=__nenhum__';
-      const r = await fetch(url);
+      const r = await fetchAuth(url);
       const d = (await r.json()) as ListaResp;
       setData(d);
     } catch (e) {
@@ -150,7 +151,7 @@ export default function RecebimentosPage() {
 
   const alterarTipo = async (r: Recebimento, novoTipo: string) => {
     try {
-      const res = await fetch(`/api/estoque/recebimentos/${r.id}/tipo${rContaQ(r)}`, {
+      const res = await fetchAuth(`/api/estoque/recebimentos/${r.id}/tipo${rContaQ(r)}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo: novoTipo }),
       });
       const d = await res.json();
@@ -169,7 +170,7 @@ export default function RecebimentosPage() {
       if (novoResp === '__novo__') {
         const nome = prompt('Nome do novo responsável:')?.trim();
         if (!nome) { carregar(); return; }
-        const ur = await fetch(`/api/estoque/recebimentos/usuarios${rContaQ(r)}`, {
+        const ur = await fetchAuth(`/api/estoque/recebimentos/usuarios${rContaQ(r)}`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome }),
         });
         const ud = await ur.json();
@@ -177,7 +178,7 @@ export default function RecebimentosPage() {
         await carregarUsuarios();
         valor = nome;
       }
-      const res = await fetch(`/api/estoque/recebimentos/${r.id}/responsavel${rContaQ(r)}`, {
+      const res = await fetchAuth(`/api/estoque/recebimentos/${r.id}/responsavel${rContaQ(r)}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ responsavel: valor }),
       });
       const d = await res.json();
@@ -192,7 +193,7 @@ export default function RecebimentosPage() {
   const reabrir = async (r: Recebimento) => {
     if (!confirm('Reabrir este recebimento? Isso reverte a conclusão no Omie.')) return;
     try {
-      const res = await fetch(`/api/estoque/recebimentos/${r.id}/reabrir${rContaQ(r)}`, { method: 'POST' });
+      const res = await fetchAuth(`/api/estoque/recebimentos/${r.id}/reabrir${rContaQ(r)}`, { method: 'POST' });
       const d = await res.json();
       if (d.erro) return flash(d.erro, 'err');
       flash('Recebimento reaberto.');
@@ -352,7 +353,7 @@ function ConcluirModal({ receb, contaParam, onClose, onAbrirProduto, onSucesso, 
     try {
       const body: Record<string, string> = {};
       if (catSel) body.codigo_categoria = catSel;
-      const r = await fetch(`/api/estoque/recebimentos/${receb.id}/concluir?conta=${encodeURIComponent(contaUp)}`, {
+      const r = await fetchAuth(`/api/estoque/recebimentos/${receb.id}/concluir?conta=${encodeURIComponent(contaUp)}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       const d = await r.json();
@@ -412,7 +413,7 @@ function ProdutoModal({ idProd, contaUp, onClose, onMsg }: { idProd: string; con
   const [preco, setPreco] = useState('');
 
   useEffect(() => {
-    fetch(`/api/estoque/recebimentos/produto?id=${encodeURIComponent(idProd)}${contaUp ? `&conta=${encodeURIComponent(contaUp)}` : ''}`)
+    fetchAuth(`/api/estoque/recebimentos/produto?id=${encodeURIComponent(idProd)}${contaUp ? `&conta=${encodeURIComponent(contaUp)}` : ''}`)
       .then((r) => r.json())
       .then((d: ProdDetalhe & { erro?: string }) => {
         if (d.erro) { setErro(d.erro); return; }
@@ -427,7 +428,7 @@ function ProdutoModal({ idProd, contaUp, onClose, onMsg }: { idProd: string; con
     if (isNaN(val) || val < 0) return onMsg('Preço inválido', 'err');
     if (!confirm(`Atualizar o preço de venda no Omie para R$ ${val.toFixed(2).replace('.', ',')}?`)) return;
     try {
-      const r = await fetch(`/api/estoque/recebimentos/produto/preco-venda${contaUp ? `?conta=${encodeURIComponent(contaUp)}` : ''}`, {
+      const r = await fetchAuth(`/api/estoque/recebimentos/produto/preco-venda${contaUp ? `?conta=${encodeURIComponent(contaUp)}` : ''}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo_produto: det?.produto.codigo_produto || idProd, valor_venda: val }),
       });
       const d = await r.json();

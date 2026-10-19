@@ -166,7 +166,7 @@ export default function PPVDrawer({
     setBaixandoPdfOmie(true);
     const win = window.open("", "_blank"); // abre no clique (evita bloqueio de pop-up)
     try {
-      const r = await fetch(`/api/ppv/pedidos/pdf-omie?id=${encodeURIComponent(ppvId)}`);
+      const r = await fetch(`/api/ppv/pedidos/pdf-omie?id=${encodeURIComponent(ppvId)}`, { headers: await authHeaders() });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.url) { win?.close(); showToast("error", d.error || "Não consegui obter o PDF do pedido no Omie."); return; }
       if (win) win.location.href = d.url; else window.open(d.url, "_blank");

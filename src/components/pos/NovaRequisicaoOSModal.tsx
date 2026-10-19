@@ -8,6 +8,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "@/lib/supabase";
 import FormReq from "@/components/requisicoes/FormReq";
 import { apagarRascunho } from "@/lib/rascunho/useRascunho";
+import { fetchAuth } from "@/lib/auth/client";
 
 export default function NovaRequisicaoOSModal({ osId, tecnico, userName, onClose, onCriada }: {
   osId: string; tecnico: string; userName: string; onClose: () => void; onCriada: (id: number) => void;
@@ -22,7 +23,7 @@ export default function NovaRequisicaoOSModal({ osId, tecnico, userName, onClose
     const { data: ins, error } = await supabase.from("Requisicao").insert([nova]).select("id").single();
     if (error || !ins?.id) { alert("Erro ao criar requisição: " + (error?.message || "sem id")); return; }
     if (grupos.length) {
-      await Promise.all(grupos.map((gid) => fetch("/api/pos/requisicoes/grupos/membros", {
+      await Promise.all(grupos.map((gid) => fetchAuth("/api/pos/requisicoes/grupos/membros", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ grupo_id: gid, req_id: ins.id, acao: "add", usuario: userName }),
       }).catch(() => {})));

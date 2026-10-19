@@ -1,11 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { listarUsuarios, upsertUsuario } from '@/lib/estoque/recebimentos';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
+// Mesmo gate da tela /estoque/recebimentos-omie (pode('estoque','recebimentos-omie')).
+const OPCOES = [{ modulo: 'estoque', acao: 'recebimentos-omie' }];
+
 // Lista de gente p/ transferência. Portado de GET /api/recebimentos/usuarios (server.js:7697).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, OPCOES);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
   try {
@@ -18,6 +24,8 @@ export async function GET(req: NextRequest) {
 
 // Cadastra/atualiza um usuário. Portado de POST /api/recebimentos/usuarios (server.js:7709).
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, OPCOES);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   try {
     const body = (await req.json().catch(() => ({}))) as { nome?: string; email?: string; ativo?: boolean };

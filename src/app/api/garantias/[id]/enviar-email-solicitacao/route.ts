@@ -13,6 +13,8 @@ import {
   tagAssuntoGarantia,
   registrarEmailEnviado,
 } from '@/lib/garantias/email';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
+import { fetchInterno } from '@/lib/auth/chamada-interna';
 
 export const runtime = 'nodejs';
 
@@ -21,7 +23,9 @@ const LIMITE_ANEXOS_BYTES = 22 * 1024 * 1024;
 
 // GET /api/garantias/[id]/enviar-email-solicitacao — dados pro preview da
 // seção no drawer: fotos disponíveis da OS, assunto/corpo default e prontidão.
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias' }]);
+  if (guarda.resposta) return guarda.resposta;
   const { id } = await params;
 
   const { data: g } = await supabase
@@ -72,9 +76,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 // fotos da OS selecionadas + RAT + NF de venda + anexos de envio à fábrica.
 // body: { ator, fotosSelecionadas?: string[] (chaves FOTOS_OS), assuntoOverride?, corpoOverride? }
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(req, [{ modulo: 'garantias', acao: 'enviar_fabrica' }]);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
-  const ator = body.ator || 'Garantista';
+  const ator = autorDe(user);
 
   const { data: g } = await supabase
     .from(TBL_GARANTIAS)
@@ -119,7 +126,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const temTextos = String(respostas['sg_reclamacao'] || '').trim() || String(respostas['sg_diagnostico'] || '').trim();
   if (!temTextos) {
     try {
-      await fetch(`${req.nextUrl.origin}/api/garantias/${id}/formatar-textos`, {
+      await fetchInterno(`${req.nextUrl.origin}/api/garantias/${id}/formatar-textos`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ator }),

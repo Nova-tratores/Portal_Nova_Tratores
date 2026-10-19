@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import {
   getAccount,
   OMIE_ACCOUNTS,
@@ -69,6 +70,8 @@ async function recarregarTipo(empresa: string, tipo: TipoCache): Promise<number>
 //   default: tipo='all' para todas as empresas listadas
 // =====================================================================
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "financeiro" }]);
+  if (g.resposta) return g.resposta;
   let body: { empresa?: string; tipo?: string } = {};
   try {
     body = await req.json().catch(() => ({}));

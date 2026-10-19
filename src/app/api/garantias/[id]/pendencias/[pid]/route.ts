@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PEND, TBL_GAR_ANEXOS } from '@/lib/garantias/constants';
-import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
+import { registrarEvento, notificarGarantistas, guardarLoginGarantias } from '@/lib/garantias/server';
+import { autorDe } from '@/lib/ajustes/permissao-server';
 
 // PATCH /api/garantias/[id]/pendencias/[pid] — técnico responde a pendência
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; pid: string }> }
 ) {
+  const guarda = await guardarLoginGarantias(req);
+  if (guarda.resposta) return guarda.resposta;
+  const user = guarda.user;
   const { id, pid } = await params;
   const body = await req.json();
 
@@ -44,7 +48,7 @@ export async function PATCH(
     .update({
       status: 'respondida',
       resposta_texto: resposta || null,
-      respondido_por: body.respondido_por || null,
+      respondido_por: autorDe(user),
       respondido_em: new Date().toISOString(),
     })
     .eq('id', pid);
@@ -74,12 +78,12 @@ export async function PATCH(
     tipo: pend.tipo === 'bo' ? 'bo_respondida' : 'info_respondida',
     statusAnterior: pend.tipo === 'bo' ? 'bo_tecnico' : 'info_pendente',
     statusNovo: novoStatus,
-    ator: body.respondido_por || 'Técnico',
+    ator: autorDe(user),
     detalhe: resposta || 'Resposta com anexos',
   });
   await notificarGarantistas({
     titulo: `Técnico respondeu — garantia ${g.numero}`,
-    descricao: `${body.respondido_por || 'O técnico'} respondeu a pendência da OS ${g.id_ordem}.`,
+    descricao: `${autorDe(user)} respondeu a pendência da OS ${g.id_ordem}.`,
     link: `/garantias?id=${id}`,
   });
 

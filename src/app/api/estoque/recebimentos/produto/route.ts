@@ -2,13 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { consultarProdutoPorId } from '@/lib/estoque/recebimentos';
 import { consultarEstoque } from '@/lib/estoque/omie';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
+
+// Mesmo gate da tela /estoque/recebimentos-omie (pode('estoque','recebimentos-omie')).
+const OPCOES = [{ modulo: 'estoque', acao: 'recebimentos-omie' }];
 export const maxDuration = 60;
 
 // Detalhe de produto por ID interno Omie (popup de item do recebimento).
 // Os itens trazem nCodProduto (id interno), não o SKU — então buscamos por id.
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, OPCOES);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
   const id = parseInt(sp.get('id') || '', 10);

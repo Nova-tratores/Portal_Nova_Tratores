@@ -86,7 +86,7 @@ function HomePosVendasContent() {
     if (sincOS) return;
     setSincOS(true);
     try {
-      const r = await fetch('/api/financeiro/sync-os', { method: 'POST' });
+      const r = await fetch('/api/financeiro/sync-os', { method: 'POST', headers: { ...(await authHeaders()) } });
       const out = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(out.error || 'Falha na sincronização');
       const det = Object.entries(out.por_empresa || {})

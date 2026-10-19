@@ -1,4 +1,5 @@
 'use client';
+import { fetchAuth } from '@/lib/auth/client';
 import { useState, useEffect } from 'react';
 import type { Montadora } from '@/lib/garantias/types';
 
@@ -14,7 +15,7 @@ export default function MontadoraPicker({ montadoraId, onSelect, disabled }: Pro
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch('/api/garantias/montadoras?ativo=true');
+        const res = await fetchAuth('/api/garantias/montadoras?ativo=true');
         const data = await res.json();
         setMontadoras(data.montadoras || []);
       } catch {
