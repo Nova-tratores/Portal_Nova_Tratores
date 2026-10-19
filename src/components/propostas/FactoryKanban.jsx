@@ -35,6 +35,15 @@ const freteTexto = (o) => {
   return (o.frete_valor != null && o.frete_valor !== '') ? `${base} · ${fmtR$(o.frete_valor)}` : base
 }
 
+// Previsão de chegada da máquina (eta_fabrica, "YYYY-MM-DD"). dias_atraso_eta vem da view
+// (só em fase não final). Data lida como texto — new Date('YYYY-MM-DD') seria UTC.
+const fmtData = (iso) => { const [a, m, d] = String(iso || '').slice(0, 10).split('-'); return a && m && d ? `${d}/${m}/${a}` : '' }
+const chegadaTexto = (o) => {
+  if (!o.eta_fabrica) return '—'
+  const n = Number(o.dias_atraso_eta)
+  return n > 0 ? `${fmtData(o.eta_fabrica)} · atrasada ${n} d` : fmtData(o.eta_fabrica)
+}
+
 // Colunas da tabela (chave do filtro por coluna + label da tela/PDF).
 const COLS_LISTA = [
   { k: 'id', label: 'ID' },
@@ -44,6 +53,7 @@ const COLS_LISTA = [
   { k: 'custo', label: 'Custo' },
   { k: 'frete', label: 'Frete' },
   { k: 'status', label: 'Status' },
+  { k: 'chegada', label: 'Chegada prevista' },
   { k: 'dias', label: 'Parado há' },
 ]
 
@@ -57,6 +67,7 @@ function colTexto(o, k) {
     case 'custo': return fmtR$(o.custo)
     case 'frete': return freteTexto(o)
     case 'status': return o.status || ''
+    case 'chegada': return chegadaTexto(o)
     case 'dias': return agingTexto(o.dias_na_fase)
     default: return ''
   }
@@ -124,7 +135,7 @@ export default function FactoryKanban({ onCardClick }) {
         legenda: FASES.map(f => ({ label: f.nome, fill: f.pdf.fill, text: f.pdf.text })),
         estiloLinha: (i) => FASES.find(f => f.nome === filtradas[i]?.status)?.pdf || null,
         colStatus: COLS_LISTA.findIndex(c => c.k === 'status'),
-        columnStyles: { 0: { cellWidth: 26 }, 4: { halign: 'right', fontStyle: 'bold' }, 6: { cellWidth: 60 }, 7: { cellWidth: 22 } },
+        columnStyles: { 0: { cellWidth: 26 }, 4: { halign: 'right', fontStyle: 'bold' }, 6: { cellWidth: 60 }, 7: { cellWidth: 30 }, 8: { cellWidth: 22 } },
       })
       log({ sistema: 'Proposta Comercial', acao: 'relatorio', entidade: 'pedidos_fabrica_lista', detalhes: { total: filtradas.length, filtros: filtrosResumo } })
     } catch (err) {
@@ -193,6 +204,7 @@ export default function FactoryKanban({ onCardClick }) {
               <th className="text-right px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Custo</th>
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Frete</th>
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Status</th>
+              <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Chegada prevista</th>
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Parado há</th>
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest w-[220px]">Alterar Fase</th>
             </tr>
@@ -210,7 +222,7 @@ export default function FactoryKanban({ onCardClick }) {
           </thead>
           <tbody>
             {filtradas.length === 0 ? (
-              <tr><td colSpan={9} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhum pedido encontrado</td></tr>
+              <tr><td colSpan={10}className="text-center py-12 text-zinc-400 text-base font-medium">Nenhum pedido encontrado</td></tr>
             ) : (
               filtradas.map(order => (
                 <tr key={order.id} onClick={() => onCardClick(order)} className="border-b border-zinc-100 hover:bg-red-50/50 cursor-pointer transition-colors group">
@@ -240,6 +252,9 @@ export default function FactoryKanban({ onCardClick }) {
                       <span className="w-2.5 h-2.5 rounded-sm border border-zinc-300 shrink-0" title={`Pasta ${order.cor_pasta || ''}`} style={{ backgroundColor: PASTA_COR[order.cor_pasta] || '#F4F4F5' }} />
                       <span className={`text-[10px] font-bold px-2.5 py-1 rounded-md uppercase ${getStatusStyle(order.status)}`}>{order.status}</span>
                     </span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span className={`text-sm whitespace-nowrap ${Number(order.dias_atraso_eta) > 0 ? 'text-red-600 font-bold' : order.eta_fabrica ? 'text-zinc-700' : 'text-zinc-400'}`}>{chegadaTexto(order)}</span>
                   </td>
                   <td className="px-5 py-3.5">
                     <span className={`text-sm ${agingCor(order.dias_na_fase)}`}>{agingTexto(order.dias_na_fase)}</span>
