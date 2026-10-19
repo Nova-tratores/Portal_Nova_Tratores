@@ -114,7 +114,7 @@ describe('refsAbertas', () => {
       pend({ id: '4', origem: 'opa', origem_ref: 'uuid-1' }),
       pend({ id: '5', origem: 'os', origem_ref: 'OS-8', status: 'resolvida' }),
     ]);
-    expect(r).toEqual({ requisicoes: ['10', '11'], os: ['OS-9'], opas: ['uuid-1'] });
+    expect(r).toEqual({ requisicoes: ['10', '11'], os: ['OS-9'], opas: ['uuid-1'], chamadosVendas: [] });
   });
 });
 
@@ -132,5 +132,59 @@ describe('planejarPendencias — preventiva', () => {
     const antiga = pend({ id: 'old', origem: 'preventiva', origem_ref: 'pl1', status: 'resolvida', resolvida_em: '2026-01-01T00:00:00Z' });
     expect(planejarPendencias(base({ preventivas: [prev('em_breve')], pendencias: [antiga] })).inserir).toHaveLength(1);
     expect(planejarPendencias(base({ preventivas: null, pendencias: [pend({ id: 'pp', origem: 'preventiva', origem_ref: 'pl1' })] })).resolver).toHaveLength(0);
+  });
+});
+
+describe('planejarPendencias — chamado do app de vendas', () => {
+  const chamado = (over = {}) => ({
+    id: 42, placa_id: 1788907484456, placa: 'SAVEIRO - GAL7A16', tipo: 'corretiva',
+    descricao: 'Farol queimado', checklist_nome: null, respostas: null, tem_pendencia: false,
+    status: 'aberto', vendedor_nome: 'PEDRO', created_at: '2026-10-05T10:00:00Z', ...over,
+  });
+
+  it('corretiva abre pendência no carro (acha pelo placa_id) com quem abriu', () => {
+    const p = planejarPendencias(base({ chamadosVendas: [chamado()] }));
+    expect(p.inserir).toHaveLength(1);
+    expect(p.inserir[0]).toMatchObject({
+      placa: 'GAL7A16', origem: 'app_vendas', origem_ref: '42',
+      titulo: 'Corretiva: Farol queimado', aberta_por: 'PEDRO (app de vendas)', data_ocorrencia: '2026-10-05',
+    });
+  });
+
+  it('acha o carro pelo texto da placa quando o placa_id não bate', () => {
+    const p = planejarPendencias(base({ chamadosVendas: [chamado({ placa_id: 999 })] }));
+    expect(p.inserir[0]).toMatchObject({ placa: 'GAL7A16' });
+  });
+
+  it('checklist só abre com item não ok, listando os itens', () => {
+    const ok = planejarPendencias(base({ chamadosVendas: [chamado({ tipo: 'checklist', checklist_nome: 'Semanal', respostas: [{ item: 'Pneus', status: 'ok' }] })] }));
+    expect(ok.inserir).toHaveLength(0);
+    const nok = planejarPendencias(base({ chamadosVendas: [chamado({
+      tipo: 'checklist', checklist_nome: 'Semanal', tem_pendencia: true,
+      respostas: [{ item: 'Pneus', status: 'nok', obs: 'careca' }, { item: 'Óleo', status: 'ok' }],
+    })] }));
+    expect(nok.inserir[0]).toMatchObject({ titulo: 'Checklist Semanal: 1 com problema' });
+    expect(String(nok.inserir[0].descricao)).toContain('• Pneus — careca');
+  });
+
+  it('não duplica; resolvido no app fecha a aberta', () => {
+    const aberta = pend({ id: 'p9', origem: 'app_vendas', origem_ref: '42' });
+    expect(planejarPendencias(base({ pendencias: [aberta], chamadosVendas: [chamado(), chamado()] })).inserir).toHaveLength(0);
+    const p = planejarPendencias(base({ pendencias: [aberta], chamadosVendas: [chamado({ status: 'resolvido' })] }));
+    expect(p.resolver).toEqual([expect.objectContaining({ id: 'p9' })]);
+  });
+
+  it('resolvida no portal: não reabre e devolve o chamado como resolvido pro app', () => {
+    const resolvida = pend({ id: 'p9', origem: 'app_vendas', origem_ref: '42', status: 'resolvida', resolvida_em: '2026-10-08T00:00:00Z' });
+    const p = planejarPendencias(base({ pendencias: [resolvida], chamadosVendas: [chamado()] }));
+    expect(p.inserir).toHaveLength(0);
+    expect(p.chamadosVendasResolver).toEqual(['42']);
+  });
+
+  it('leitura que falhou (null) não mexe em nada', () => {
+    const p = planejarPendencias(base({ pendencias: [pend({ origem: 'app_vendas', origem_ref: '42' })], chamadosVendas: null }));
+    expect(p.inserir).toHaveLength(0);
+    expect(p.resolver).toHaveLength(0);
+    expect(p.chamadosVendasResolver).toEqual([]);
   });
 });

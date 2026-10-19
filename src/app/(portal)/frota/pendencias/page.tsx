@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle, AlertTriangle, CalendarClock, Camera, Car, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck,
-  History, LayoutGrid, Link2, List, Plus, Search, Tag, Wrench, X,
+  History, LayoutGrid, Link2, List, Plus, Search, Smartphone, Tag, Wrench, X,
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import { supabase } from '@/lib/supabase';
@@ -36,7 +36,7 @@ interface Componente {
   id: string; sistema: string; subsistema: string | null; componente: string | null;
   vida_util_meses: number | null; vida_util_km: number | null; ordem: number;
 }
-type Origem = 'manual' | 'cadastro' | 'checklist' | 'requisicao' | 'os' | 'opa' | 'preventiva';
+type Origem = 'manual' | 'cadastro' | 'checklist' | 'requisicao' | 'os' | 'opa' | 'preventiva' | 'app_vendas';
 interface Pend {
   id: string; veiculo_id: string | null; placa: string; origem: Origem; origem_ref: string | null;
   titulo: string; descricao: string | null; componente_id: string | null; data_ocorrencia: string | null;
@@ -59,6 +59,7 @@ const ORIGEM_CFG: Record<Origem, { rot: string; cor: string; bg: string; Icone: 
   os: { rot: 'OS Pós', cor: '#0369a1', bg: '#e0f2fe', Icone: Wrench },
   opa: { rot: 'Opa', cor: '#dc2626', bg: '#fee2e2', Icone: AlertCircle },
   preventiva: { rot: 'Preventiva', cor: '#0f766e', bg: '#ccfbf1', Icone: CalendarClock },
+  app_vendas: { rot: 'App vendas', cor: '#9333ea', bg: '#f3e8ff', Icone: Smartphone },
 };
 
 const fmtData = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString('pt-BR') : '—');
@@ -475,7 +476,7 @@ export default function FrotaPendenciasPage() {
   const pills = (g: Grupo) => (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
       <SeloClasses classes={classesDe(g)} />
-      {(['manual', 'requisicao', 'os', 'opa', 'preventiva', 'cadastro', 'checklist'] as Origem[]).map((o) => {
+      {(['manual', 'app_vendas', 'requisicao', 'os', 'opa', 'preventiva', 'cadastro', 'checklist'] as Origem[]).map((o) => {
         const n = contaOrigem(g, o);
         if (!n) return null;
         const c = ORIGEM_CFG[o];
