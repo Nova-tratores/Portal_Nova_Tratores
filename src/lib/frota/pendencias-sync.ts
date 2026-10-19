@@ -11,7 +11,7 @@ import { createClient } from '@supabase/supabase-js';
 import { paginar, emLotes } from '@/lib/db/paginar';
 import {
   planejarPendencias, refsAbertas, ultimoChecklistPorPlaca,
-  type PendenciaExistente, type RequisicaoSync, type OsSync, type OpaSync, type PreventivaSync,
+  type PendenciaExistente, type RequisicaoSync, type OsSync, type OpaSync, type PreventivaSync, type ChamadoVendasSync,
 } from '@/lib/frota/pendencias-plano';
 
 const supabase = createClient(
@@ -34,6 +34,7 @@ export function sincronizarPendencias(): Promise<ResultadoSync> {
 const COLS_REQ = 'id, titulo, status, veiculo, hodometro, data';
 const COLS_OS = 'Id_Ordem, Projeto, Status, Data';
 const COLS_OPA = 'id, titulo, descricao, status, created_at, vinculo_tipo, vinculo_ref, resolvido_por_nome';
+const COLS_CHAMADO = 'id, placa_id, placa, tipo, descricao, checklist_nome, respostas, tem_pendencia, status, vendedor_nome, created_at';
 
 async function executar(): Promise<ResultadoSync> {
   const agora = Date.now();
@@ -42,7 +43,7 @@ async function executar(): Promise<ResultadoSync> {
   const mesLimite = `${d12.getFullYear()}-${String(d12.getMonth() + 1).padStart(2, '0')}`;
   const d120 = new Date(agora - 120 * 86400_000).toISOString().slice(0, 10);
 
-  const [veic, multas, docs, comps, rows, checklists, reqsVm, osComProjeto, opas] = await Promise.all([
+  const [veic, multas, docs, comps, rows, checklists, reqsVm, osComProjeto, opas, chamados] = await Promise.all([
     supabase.from('frota_veiculos').select('id, placa, supa_placa_id, status, ativo, pendencia_vinculo, renavam, chassi, proprietario, exercicio_crlv, tipo_registro'),
     paginar((de, ate) => supabase.from('frota_multas').select('id, veiculo_id').not('status_interno', 'in', '("paga","descontada","arquivada")').order('id').range(de, ate)),
     paginar((de, ate) => supabase.from('frota_documentos').select('id, veiculo_id, tipo, vigencia_fim').order('id').range(de, ate)),
@@ -54,6 +55,8 @@ async function executar(): Promise<ResultadoSync> {
     // Leitura tolerante: sem a migração opa-vinculo-veiculo (colunas vinculo_*)
     // o select falha e o bloco do Opa é pulado sem quebrar o resto.
     supabase.from('portal_opas').select(COLS_OPA).eq('vinculo_tipo', 'veiculo').gte('created_at', d120),
+    // chamados do vendedor pelo app de vendas (Chamado Veicular)
+    supabase.from('chamados_veiculares').select(COLS_CHAMADO).gte('created_at', d120),
   ]);
   if (veic.error || rows.error) {
     // sem veículos ou sem as pendências existentes não dá pra decidir nada
@@ -67,13 +70,17 @@ async function executar(): Promise<ResultadoSync> {
   const idsReqRecentes = new Set((reqsVm.data || []).map((r) => String(r.id)));
   const idsOsRecentes = new Set((osComProjeto.data || []).map((o) => String(o.Id_Ordem)));
   const idsOpaRecentes = new Set((opas.data || []).map((o) => String(o.id)));
-  const [reqsAntigas, osAntigas, opasAntigos] = await Promise.all([
+  const idsChamadoRecentes = new Set((chamados.data || []).map((c) => String(c.id)));
+  const [reqsAntigas, osAntigas, opasAntigos, chamadosAntigos] = await Promise.all([
     emLotes(refs.requisicoes.filter((id) => !idsReqRecentes.has(id)), (ids) => supabase.from('Requisicao').select(COLS_REQ).in('id', ids)),
     emLotes(refs.os.filter((id) => !idsOsRecentes.has(id)), (ids) => supabase.from('Ordem_Servico').select(COLS_OS).in('Id_Ordem', ids)),
     opas.error ? Promise.resolve({ data: [], error: null }) :
       emLotes(refs.opas.filter((id) => !idsOpaRecentes.has(id)), (ids) => supabase.from('portal_opas').select(COLS_OPA).in('id', ids)),
+    chamados.error ? Promise.resolve({ data: [], error: null }) :
+      emLotes(refs.chamadosVendas.filter((id) => !idsChamadoRecentes.has(id)), (ids) => supabase.from('chamados_veiculares').select(COLS_CHAMADO).in('id', ids)),
   ]);
-  for (const r of [reqsAntigas, osAntigas, opasAntigos]) if (r.error) erros.push(`fonte antiga: ${r.error.message}`);
+  for (const r of [reqsAntigas, osAntigas, opasAntigos, chamadosAntigos]) if (r.error) erros.push(`fonte antiga: ${r.error.message}`);
+  if (chamados.error) erros.push(`chamados do app de vendas: ${chamados.error.message}`);
 
   // itens do último checklist de cada placa
   let itensChecklist: unknown[] = [];
@@ -132,6 +139,7 @@ async function executar(): Promise<ResultadoSync> {
     opas: listaOpas,
     fotoPorOpa,
     preventivas,
+    chamadosVendas: chamados.error ? null : [...(chamados.data || []), ...chamadosAntigos.data] as ChamadoVendasSync[],
   });
 
   // ── grava ──
@@ -165,6 +173,14 @@ async function executar(): Promise<ResultadoSync> {
     if (r.error) erros.push(`resolver ${plano.resolver[i].id}: ${r.error.message}`);
     else resolvidas++;
   });
+
+  // pendência do app de vendas resolvida aqui → o vendedor vê o chamado como resolvido
+  if (plano.chamadosVendasResolver.length) {
+    const r = await supabase.from('chamados_veiculares')
+      .update({ status: 'resolvido' })
+      .in('id', plano.chamadosVendasResolver.map(Number)).eq('status', 'aberto');
+    if (r.error) erros.push(`devolver chamados ao app de vendas: ${r.error.message}`);
+  }
 
   if (erros.length) console.error('[frota-pendencias-sync]', erros.join(' | '));
   return { inseridas, resolvidas, erros };
