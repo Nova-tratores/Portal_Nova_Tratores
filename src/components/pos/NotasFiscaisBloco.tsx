@@ -128,10 +128,18 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
   const chip = (txt: string, cor: string, bg: string) => (
     <span style={{ fontSize: 10.5, fontWeight: 800, padding: "1px 7px", borderRadius: 999, color: cor, background: bg, whiteSpace: "nowrap" }}>{txt}</span>
   );
+  // botão de imprimir com cara de botão: ícone + "Imprimir", fundo e borda
+  const estiloImprimir: React.CSSProperties = {
+    display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 10px", borderRadius: 8,
+    border: "1px solid #0891A8", background: "#0891A8", color: "#fefefe", fontSize: 11.5, fontWeight: 800,
+    textDecoration: "none", fontFamily: "inherit", flexShrink: 0, whiteSpace: "nowrap", boxShadow: "0 1px 2px rgba(8,145,168,.25)",
+  };
+  // nota cancelada: mesmo botão, mas discreto (só contorno)
+  const estiloImprimirSecundario: React.CSSProperties = { ...estiloImprimir, background: "transparent", color: "#0891A8", boxShadow: "none" };
   const linkPdf = (rotulo: string, onClick: () => void, carregando = false) => (
     <button type="button" onClick={onClick} disabled={carregando} title={rotulo}
-      style={{ background: "none", border: "none", padding: 0, color: "#0891A8", fontSize: 11.5, fontWeight: 800, cursor: carregando ? "wait" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
-      {carregando ? <i className="fas fa-spinner fa-spin" /> : "PDF"}
+      style={{ ...estiloImprimir, cursor: carregando ? "wait" : "pointer" }}>
+      <i className={`fas ${carregando ? "fa-spinner fa-spin" : "fa-print"}`} /> {carregando ? "Abrindo…" : "Imprimir"}
     </button>
   );
   const linha = (chave: string, titulo: string, sub: React.ReactNode, direita: React.ReactNode, primeira: boolean, rodape?: React.ReactNode) => rodape ? (
@@ -193,7 +201,7 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
             : st === "nfse_rejeitada" ? <>serviço · {chip("rejeitada", "#b91c1c", "#fee2e2")}</>
             : <>serviço · {chip("autorizada", "#047857", "#d1fae5")}</>,
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            {nfse?.nfseLink ? <a href={nfse.nfseLink} target="_blank" rel="noreferrer" style={{ color: "#0891A8", fontSize: 11.5, fontWeight: 800, textDecoration: "none" }}>PDF</a> : null}
+            {nfse?.nfseLink ? <a href={nfse.nfseLink} target="_blank" rel="noreferrer" title={`Imprimir a NFS-e ${semZeros(nfse?.nfseNumero)}`} style={estiloImprimir}><i className="fas fa-print" /> Imprimir</a> : null}
             {st !== "nfse_aguardando" && nfse?.nfseNumero ? dicaNota(nfse.nfseNumero) : null}
           </span>,
           true)}
@@ -210,7 +218,7 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
         {anteriores.map((a, i) => linha(`ant-${i}`, `NFS-e ${semZeros(a.nfse) || ""}`.trim(),
           <>serviço · {chip("cancelada", "#b91c1c", "#fee2e2")}</>,
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            {a.nfseLink ? <a href={a.nfseLink} target="_blank" rel="noreferrer" style={{ color: "#0891A8", fontSize: 11.5, fontWeight: 800, textDecoration: "none" }}>PDF</a> : null}
+            {a.nfseLink ? <a href={a.nfseLink} target="_blank" rel="noreferrer" title={`Ver a NFS-e cancelada ${semZeros(a.nfse)}`} style={estiloImprimirSecundario}><i className="fas fa-print" /> Imprimir</a> : null}
             {dicaNota(a.nfse, (
               <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f5f9", fontSize: 12.5, color: "#334155", lineHeight: 1.55 }}>
                 {a.canceladaEm && <div><b>Cancelada em</b> {new Date(a.canceladaEm).toLocaleDateString("pt-BR")}</div>}
