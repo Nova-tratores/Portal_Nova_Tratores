@@ -4,7 +4,7 @@
 // muda o sino de verdade. Opção 1 = como é hoje. Depois que ele escolher, a escolhida
 // vai para o PortalLayout e esta página sai.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Bell, Wallet, Wrench, Package, ClipboardList, MessageCircle, X, Check, BellOff, ChevronRight, Zap, Layers, PanelRight, Sparkles, LayoutList } from 'lucide-react'
+import { Bell, Wallet, Wrench, Package, ClipboardList, MessageCircle, X, Check, BellOff, ChevronRight, Zap, Layers, PanelRight, Sparkles, LayoutList, GripVertical, Settings, Sun, Moon, RotateCcw } from 'lucide-react'
 
 type Tipo = 'financeiro' | 'pos' | 'ppv' | 'requisicao' | 'novazap'
 interface Aviso { id: number; tipo: Tipo; titulo: string; texto: string; urgente: boolean; em: number }
@@ -32,6 +32,7 @@ const OPCOES = [
   { n: 3, nome: 'Gaveta lateral', icone: <PanelRight size={14} />, resumo: 'Uma aba fica presa na borda direita com o número. Quando chega aviso, ela abre a gaveta por 5 s, mostra o novo e recolhe sozinha. Separada em Urgente e Informativo.' },
   { n: 4, nome: 'Ilha no topo', icone: <Sparkles size={14} />, resumo: 'Uma pílula no meio do topo cresce e mostra o aviso, depois encolhe e fica só com o contador. Não cobre nada da tela.' },
   { n: 5, nome: 'Agrupado por módulo', icone: <LayoutList size={14} />, resumo: 'Avisos do mesmo módulo se juntam num cartão só ("3 do Financeiro"), com ações rápidas: Abrir, Marcar lido e Silenciar o módulo.' },
+  { n: 6, nome: 'Ilha ajustada', icone: <Sparkles size={14} />, resumo: 'A ilha da Opção 4 com as cores do tema (claro ou escuro), que você arrasta pela alça para qualquer lugar da tela. Dois modos: "Fica no lugar" (mostra o aviso e fica com o contador e a lista) ou "Aparece e some" (o aviso passa, some e vai para o sininho, onde você lê depois).' },
 ]
 
 const agoraTxt = (em: number) => {
@@ -94,6 +95,7 @@ export default function NotificacoesTeste() {
       {opcao === 3 && <Opcao3 avisos={avisos} tirar={tirar} />}
       {opcao === 4 && <Opcao4 avisos={avisos} tirar={tirar} />}
       {opcao === 5 && <Opcao5 avisos={avisos} tirar={tirar} tirarTipo={tirarTipo} />}
+      {opcao === 6 && <Opcao6 avisos={avisos} tirar={tirar} />}
     </div>
   )
 }
@@ -302,6 +304,169 @@ function Opcao5({ avisos, tirar, tirarTipo }: { avisos: Aviso[]; tirar: (id: num
   )
 }
 
+// ── Opção 6: ilha ajustada (tema do usuário + arrastar + modo) ────────────────
+type ModoIlha = 'fica' | 'some'
+interface PosIlha { x: number; y: number } // centro, em fração da tela (0–1)
+const POS_PRONTAS: { id: string; nome: string; pos: PosIlha }[] = [
+  { id: 'te', nome: 'Topo esq.', pos: { x: 0.16, y: 0.12 } },
+  { id: 'tc', nome: 'Topo meio', pos: { x: 0.5, y: 0.12 } },
+  { id: 'td', nome: 'Topo dir.', pos: { x: 0.84, y: 0.12 } },
+  { id: 'be', nome: 'Baixo esq.', pos: { x: 0.16, y: 0.92 } },
+  { id: 'bc', nome: 'Baixo meio', pos: { x: 0.5, y: 0.92 } },
+  { id: 'bd', nome: 'Baixo dir.', pos: { x: 0.84, y: 0.92 } },
+]
+const POS_PADRAO = POS_PRONTAS[1].pos
+const LARG = 440 // largura aberta (para não sair da tela)
+
+function lerLocal<T>(chave: string, padrao: T): T {
+  try { const v = localStorage.getItem(chave); return v ? (JSON.parse(v) as T) : padrao } catch { return padrao }
+}
+function gravarLocal(chave: string, v: unknown) { try { localStorage.setItem(chave, JSON.stringify(v)) } catch { /* sem storage */ } }
+
+function Opcao6({ avisos, tirar }: { avisos: Aviso[]; tirar: (id: number) => void }) {
+  const [modo, setModo] = useState<ModoIlha>(() => lerLocal<ModoIlha>('teste-ilha-modo', 'fica'))
+  const [pos, setPos] = useState<PosIlha>(() => lerLocal<PosIlha>('teste-ilha-pos', POS_PADRAO))
+  const [arrastando, setArrastando] = useState(false)
+  const [mostrando, setMostrando] = useState<Aviso | null>(null)
+  const [aberta, setAberta] = useState(false)
+  const [sinoAberto, setSinoAberto] = useState(false)
+  const [pulo, setPulo] = useState(0)
+  const [tela, setTela] = useState({ w: 1280, h: 800 })
+  const [tema, setTema] = useState<'light' | 'dark'>('light')
+  const temaOriginal = useRef<string | null>(null)
+
+  // tamanho da tela (para manter a ilha dentro dela)
+  useEffect(() => {
+    const medir = () => setTela({ w: window.innerWidth, h: window.innerHeight })
+    void Promise.resolve().then(medir)
+    window.addEventListener('resize', medir)
+    return () => window.removeEventListener('resize', medir)
+  }, [])
+  // prévia do tema: troca e, ao sair da opção, devolve o tema do usuário
+  useEffect(() => {
+    const raiz = document.documentElement
+    temaOriginal.current = raiz.getAttribute('data-theme')
+    void Promise.resolve().then(() => setTema(temaOriginal.current === 'dark' ? 'dark' : 'light'))
+    return () => { if (temaOriginal.current) raiz.setAttribute('data-theme', temaOriginal.current); else raiz.removeAttribute('data-theme') }
+  }, [])
+  const trocarTema = (t: 'light' | 'dark') => { document.documentElement.setAttribute('data-theme', t); setTema(t) }
+
+  // aviso novo: a ilha cresce e mostra; depois encolhe (modo "fica") ou some e o sino pula (modo "some")
+  const ult = avisos[0]
+  useEffect(() => {
+    if (!ult) return
+    let vivo = true
+    void Promise.resolve().then(() => { if (vivo) setMostrando(ult) })
+    const t = setTimeout(() => { setMostrando(null); setPulo((p) => p + 1) }, 4500)
+    return () => { vivo = false; clearTimeout(t) }
+  }, [ult?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // arrastar pela alça
+  useEffect(() => {
+    if (!arrastando) return
+    const mover = (e: PointerEvent) => setPos({ x: Math.min(1, Math.max(0, e.clientX / window.innerWidth)), y: Math.min(1, Math.max(0, e.clientY / window.innerHeight)) })
+    const soltar = () => setArrastando(false)
+    window.addEventListener('pointermove', mover)
+    window.addEventListener('pointerup', soltar)
+    return () => { window.removeEventListener('pointermove', mover); window.removeEventListener('pointerup', soltar) }
+  }, [arrastando])
+  useEffect(() => { if (!arrastando) gravarLocal('teste-ilha-pos', pos) }, [arrastando, pos])
+  const escolherModo = (m: ModoIlha) => { setModo(m); gravarLocal('teste-ilha-modo', m); setAberta(false) }
+  const escolherPos = (p: PosIlha) => { setPos(p); gravarLocal('teste-ilha-pos', p) }
+
+  // posição na tela: centro em x; embaixo da metade da tela a ilha cresce para CIMA
+  const metade = LARG / 2 + 8
+  const left = Math.min(tela.w - metade, Math.max(metade, pos.x * tela.w))
+  const embaixo = pos.y > 0.55
+  const ancora: React.CSSProperties = embaixo
+    ? { left, bottom: Math.max(8, (1 - pos.y) * tela.h - 22) }
+    : { left, top: Math.max(76, pos.y * tela.h - 22) }
+
+  const urg = avisos.filter((a) => a.urgente).length
+  const expandida = !!mostrando || aberta
+  const escondida = modo === 'some' && !mostrando && !arrastando
+  const presetAtual = POS_PRONTAS.find((p) => Math.abs(p.pos.x - pos.x) < 0.01 && Math.abs(p.pos.y - pos.y) < 0.01)?.id
+
+  return (
+    <>
+      <div className={`o6-ilha ${expandida ? 'exp' : ''} ${aberta ? 'lista' : ''} ${mostrando?.urgente ? 'urg' : ''} ${escondida ? 'escondida' : ''} ${arrastando ? 'arrastando' : ''} ${embaixo ? 'embaixo' : ''}`}
+        style={ancora}>
+        <button className="o6-alca" title="Arraste para colocar onde quiser" onPointerDown={(e) => { e.preventDefault(); setArrastando(true) }}><GripVertical size={15} /></button>
+        <div className="o6-conteudo" onClick={() => { if (!mostrando && modo === 'fica') setAberta((x) => !x) }}>
+          {!expandida && (
+            <div className="o6-mini">
+              <Bell size={14} /> {avisos.length ? `${avisos.length} nova${avisos.length > 1 ? 's' : ''}` : 'Sem avisos'}
+              {urg > 0 && <span className="o6-urg">{urg} urgente{urg > 1 ? 's' : ''}</span>}
+            </div>
+          )}
+          {mostrando && !aberta && (
+            <div className="o6-aviso" key={mostrando.id}>
+              <Icone tipo={mostrando.tipo} tam={38} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="o6-mod" style={{ color: TIPOS[mostrando.tipo].cor }}>{TIPOS[mostrando.tipo].nome}{mostrando.urgente ? ' · pede sua ação' : ''}</div>
+                <div className="o6-tit">{mostrando.titulo}</div>
+                <div className="nt-txt um">{mostrando.texto}</div>
+              </div>
+            </div>
+          )}
+          {aberta && (
+            <div className="o6-lista" onClick={(e) => e.stopPropagation()}>
+              {avisos.slice(0, 6).map((a) => (
+                <div key={a.id} className={`o6-item ${a.urgente ? 'urg' : ''}`}>
+                  <Icone tipo={a.tipo} tam={30} />
+                  <div style={{ flex: 1, minWidth: 0 }}><div className="o6-tit pq">{a.titulo}</div><div className="nt-txt um">{a.texto}</div></div>
+                  <button className="nt-x" title="Marcar como lido" onClick={() => tirar(a.id)}><Check size={13} /></button>
+                </div>
+              ))}
+              {!avisos.length && <div className="o3-vazio"><Check size={16} /> Tudo lido.</div>}
+              <button className="o6-fechar" onClick={() => setAberta(false)}>Recolher</button>
+            </div>
+          )}
+        </div>
+        {mostrando && <div className="o6-tempo" key={`t${mostrando.id}`} />}
+      </div>
+
+      {/* ajustes (no portal de verdade ficariam no sininho / Preferências) */}
+      <div className="o6-ajustes">
+        <div className="o6-aj-tit"><Settings size={14} /> Ajustes da ilha <span>(cada usuário escolhe o seu)</span></div>
+        <div className="o6-aj-rot">Como os avisos aparecem</div>
+        <div className="o6-seg">
+          <button className={modo === 'fica' ? 'on' : ''} onClick={() => escolherModo('fica')}>Fica no lugar</button>
+          <button className={modo === 'some' ? 'on' : ''} onClick={() => escolherModo('some')}>Aparece e some</button>
+        </div>
+        <div className="o6-aj-ajuda">{modo === 'fica' ? 'Mostra o aviso e fica pequena com o contador. Clique nela para ver a lista.' : 'O aviso passa e some. Para ler depois, abra o sininho.'}</div>
+        <div className="o6-aj-rot">Onde fica <span>— ou arraste pela alça <GripVertical size={11} /></span></div>
+        <div className="o6-grade">
+          {POS_PRONTAS.map((p) => <button key={p.id} className={presetAtual === p.id ? 'on' : ''} onClick={() => escolherPos(p.pos)}>{p.nome}</button>)}
+        </div>
+        <div className="o6-aj-linha">
+          <button className="o6-mini-btn" onClick={() => escolherPos(POS_PADRAO)}><RotateCcw size={12} /> Voltar ao padrão</button>
+          <div className="o6-seg pq">
+            <button className={tema === 'light' ? 'on' : ''} onClick={() => trocarTema('light')}><Sun size={12} /> Claro</button>
+            <button className={tema === 'dark' ? 'on' : ''} onClick={() => trocarTema('dark')}><Moon size={12} /> Escuro</button>
+          </div>
+        </div>
+        {modo === 'some' && (
+          <div className="o6-sino-linha">
+            <button className="o6-sino" key={pulo} onClick={() => setSinoAberto((x) => !x)} title="Sininho de exemplo">
+              <Bell size={16} />{avisos.length > 0 && <span>{avisos.length}</span>}
+            </button>
+            <span className="o6-aj-ajuda" style={{ margin: 0 }}>Sininho de exemplo: o aviso que some vem para cá.</span>
+          </div>
+        )}
+        {modo === 'some' && sinoAberto && (
+          <div className="o6-sino-lista">
+            {avisos.map((a) => (
+              <div key={a.id} className="o6-item"><Icone tipo={a.tipo} tam={26} /><div style={{ flex: 1, minWidth: 0 }}><div className="o6-tit pq">{a.titulo}</div><div className="nt-txt um">{a.texto}</div></div><button className="nt-x" onClick={() => tirar(a.id)}><Check size={12} /></button></div>
+            ))}
+            {!avisos.length && <div className="o3-vazio"><Check size={14} /> Nada no sino.</div>}
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
 const CSS = `
 .nt-pagina { min-height: calc(100vh - 90px); background: var(--portal-bg, #f6f4ef); color: var(--portal-text, #111827); }
 .nt-abas { display: flex; gap: 2px; padding: 10px 16px 0; background: var(--portal-bg-secondary, #ece7dd); overflow-x: auto; }
@@ -406,5 +571,48 @@ const CSS = `
 .o5-acoes { display: flex; gap: 6px; padding: 8px 13px 12px; border-top: 1px solid var(--portal-border, #f1f5f9); }
 .o5-acoes button { display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--portal-border, #e5e7eb); background: transparent; color: var(--portal-text-secondary, #475569); font: 700 11.5px inherit; cursor: pointer; white-space: nowrap; }
 .o5-acoes button.prim { background: var(--cor); border-color: var(--cor); color: #fefefe; }
-@media (max-width: 640px) { .o4-ilha.exp, .o4-ilha.lista { min-width: calc(100vw - 32px); } .o1-wrap, .o5-wrap { right: 12px; } }
+/* 6 — ilha ajustada: só variáveis do tema (claro/escuro) */
+.o6-ilha { position: fixed; z-index: 9999; transform: translateX(-50%); display: flex; align-items: stretch; gap: 2px; background: var(--portal-bg-card, #fff); color: var(--portal-text, #111); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 999px; padding: 6px 14px 6px 4px; min-width: 170px; max-width: calc(100vw - 16px); box-shadow: 0 12px 34px rgba(15,23,42,.18); transition: all .5s cubic-bezier(.34,1.4,.5,1); overflow: hidden; }
+.o6-ilha.exp { border-radius: 22px; padding: 10px 14px 10px 4px; width: 420px; }
+.o6-ilha.lista { border-radius: 18px; width: 440px; }
+.o6-ilha.urg { border-color: #ef4444; box-shadow: 0 0 0 2px color-mix(in srgb, #ef4444 45%, transparent), 0 12px 34px rgba(220,38,38,.25); }
+.o6-ilha.escondida { opacity: 0; transform: translateX(-50%) scale(.6); pointer-events: none; }
+.o6-ilha.arrastando { transition: none; cursor: grabbing; box-shadow: 0 18px 44px rgba(15,23,42,.3); }
+.o6-alca { flex: none; display: flex; align-items: center; border: none; background: transparent; color: var(--portal-text-muted, #94a3b8); cursor: grab; padding: 0 2px; border-radius: 8px; touch-action: none; }
+.o6-alca:hover { color: var(--portal-text, #111); background: var(--portal-bg-secondary, #f1f5f9); }
+.o6-conteudo { flex: 1; min-width: 0; cursor: pointer; }
+.o6-mini { display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 12.5px; font-weight: 700; white-space: nowrap; padding: 2px 0; }
+.o6-urg { font-size: 10.5px; padding: 1px 7px; border-radius: 999px; background: #ef4444; color: #fefefe; }
+.o6-aviso { display: flex; align-items: center; gap: 12px; animation: o4Fade .4s ease .15s both; }
+.o6-mod { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .4px; }
+.o6-tit { font-size: 14px; font-weight: 800; }
+.o6-tit.pq { font-size: 12.5px; }
+.o6-lista { display: grid; gap: 6px; animation: o4Fade .35s ease both; cursor: default; }
+.o6-item { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 11px; background: var(--portal-bg-secondary, #f8fafc); }
+.o6-item.urg { box-shadow: inset 3px 0 0 #ef4444; }
+.o6-fechar { margin-top: 2px; border: none; background: transparent; color: var(--portal-text-muted, #94a3b8); font: 700 12px inherit; cursor: pointer; }
+.o6-tempo { position: absolute; left: 0; bottom: 0; height: 3px; background: #3b82f6; animation: o1Bar 4.5s linear forwards; }
+.o6-ilha.urg .o6-tempo { background: #ef4444; }
+.o6-ajustes { position: fixed; left: 24px; bottom: 24px; z-index: 9998; width: 330px; max-width: calc(100vw - 48px); background: var(--portal-bg-card, #fff); color: var(--portal-text, #111); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 14px; padding: 14px; box-shadow: 0 10px 30px rgba(15,23,42,.12); display: grid; gap: 8px; }
+.o6-aj-tit { display: flex; align-items: center; gap: 7px; font-size: 13.5px; font-weight: 800; }
+.o6-aj-tit span, .o6-aj-rot span { font-weight: 500; color: var(--portal-text-muted, #94a3b8); font-size: 11.5px; text-transform: none; letter-spacing: 0; display: inline-flex; align-items: center; gap: 2px; }
+.o6-aj-rot { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--portal-text-secondary, #475569); margin-top: 4px; }
+.o6-aj-ajuda { font-size: 12px; color: var(--portal-text-secondary, #475569); line-height: 1.4; }
+.o6-seg { display: flex; padding: 3px; gap: 3px; border-radius: 10px; background: var(--portal-bg-secondary, #f1f5f9); }
+.o6-seg button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 7px 8px; border: none; border-radius: 8px; background: transparent; color: var(--portal-text-secondary, #475569); font: 700 12px inherit; cursor: pointer; transition: background .2s; }
+.o6-seg button.on { background: var(--portal-bg-card, #fff); color: var(--portal-text, #111); box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.o6-seg.pq button { padding: 5px 8px; font-size: 11.5px; }
+.o6-grade { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+.o6-grade button { padding: 7px 4px; border-radius: 8px; border: 1px solid var(--portal-border, #e5e7eb); background: transparent; color: var(--portal-text-secondary, #475569); font: 700 11.5px inherit; cursor: pointer; }
+.o6-grade button.on { border-color: #3b82f6; color: #3b82f6; background: color-mix(in srgb, #3b82f6 8%, transparent); }
+.o6-aj-linha { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+.o6-mini-btn { display: inline-flex; align-items: center; gap: 5px; border: none; background: transparent; color: var(--portal-text-secondary, #475569); font: 700 11.5px inherit; cursor: pointer; padding: 4px 0; }
+.o6-sino-linha { display: flex; align-items: center; gap: 10px; margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--portal-border, #e5e7eb); }
+.o6-sino { position: relative; flex: none; width: 38px; height: 38px; border-radius: 11px; border: 1px solid var(--portal-border, #e5e7eb); background: var(--portal-bg-secondary, #f8fafc); color: var(--portal-text, #111); display: flex; align-items: center; justify-content: center; cursor: pointer; animation: o6Pulo .5s cubic-bezier(.34,1.8,.5,1); }
+.o6-sino span { position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #f59e0b; color: #111; font-size: 10px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+@keyframes o6Pulo { 30% { transform: scale(1.25) rotate(-12deg) } 60% { transform: scale(.95) rotate(8deg) } }
+.o6-sino-lista { display: grid; gap: 5px; max-height: 220px; overflow-y: auto; }
+@media (max-width: 640px) {
+  .o6-ilha.exp, .o6-ilha.lista { width: calc(100vw - 16px); }
+  .o6-ajustes { left: 12px; right: 12px; bottom: 12px; width: auto; } .o4-ilha.exp, .o4-ilha.lista { min-width: calc(100vw - 32px); } .o1-wrap, .o5-wrap { right: 12px; } }
 `
