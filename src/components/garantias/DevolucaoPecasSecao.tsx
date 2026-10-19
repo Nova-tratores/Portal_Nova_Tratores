@@ -133,6 +133,7 @@ export default function DevolucaoPecasSecao({ garantia: g, userName, busy, onAca
             uploadCategoria="devolucao_pecas"
             enviadoPor={userName}
             onChange={onAnexosChange}
+            camera
             vazioTexto="Anexe o comprovante do envio (canhoto, foto da postagem, NF)."
           />
 

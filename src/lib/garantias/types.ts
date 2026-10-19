@@ -48,6 +48,11 @@ export interface CobrancaOutro {
 // anexa à garantia APROVADA (padrão da cobrança ao cliente; sem status novo).
 export type DevolucaoStatus = 'nao_aplicavel' | 'pendente' | 'enviada' | 'dispensada';
 
+// Guarda de peças antes do descarte (padrão da empresa, TODAS as montadoras):
+// peça substituída em garantia aprovada fica guardada 90 dias (prazo editável)
+// antes de poder ser descartada. Mesmo molde da devolução — sem status novo.
+export type GuardaStatus = 'nao_aplicavel' | 'pendente' | 'descartada' | 'dispensada';
+
 export type PendenciaTipo = 'bo' | 'info_fabrica';
 export type PendenciaStatus = 'aberta' | 'respondida';
 export type PecaOrigem = 'ppv' | 'pecasinfo_manual';
@@ -62,7 +67,9 @@ export type AnexoCategoria =
   | 'foto_garantista'
   | 'nf_venda'        // NF de venda do equipamento (fluxo e-mail)
   | 'relatorio_at'    // Relatório de Assistência Técnica (fluxo e-mail)
-  | 'devolucao_pecas'; // comprovante do envio das peças de volta à fábrica
+  | 'devolucao_pecas' // comprovante do envio das peças de volta à fábrica
+  | 'guarda_pecas'    // foto de ONDE a peça está guardada (prova da guarda)
+  | 'descarte_pecas'; // prova do descarte (foto/vídeo da destruição)
 
 // --- Checklist configurável por montadora -----------------------------------
 export type ChecklistFieldTipo =
@@ -257,6 +264,12 @@ export interface Garantia {
   devolucao_rastreio: string | null;
   devolucao_obs: string | null;
   devolucao_alertado_em: string | null;    // DATE — controle anti-spam do alerta
+  // Guarda de peças antes do descarte (padrão da empresa — todas as montadoras)
+  guarda_status: GuardaStatus;
+  guarda_prazo: string | null;             // DATE — a partir daqui PODE descartar
+  guarda_descartada_em: string | null;
+  guarda_obs: string | null;
+  guarda_alertado_em: string | null;       // DATE — anti-spam do "já pode descartar"
   created_at: string;
   updated_at: string;
 }
