@@ -5051,3 +5051,23 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
   padding: 2px 7px; border-radius: 999px; font-size: 11px; font-weight: 700;
   color: #fefefe; background: rgba(17, 17, 17, .72); pointer-events: none;
 }
+
+/* ======================================== */
+/* Tom dos módulos SERVIÇOS e PEÇAS (José, 19/10/2026): o fundo um pouco mais
+   escuro da Janela Mecânico em todas as telas desses módulos, e a aba ativa da
+   faixa na MESMA cor do conteúdo (sem divisão). A tela é reconhecida pela faixa
+   do módulo (.servicos-nav / .ppv-topbar) — nenhuma página precisa mudar. */
+/* ======================================== */
+:root { --tom-modulo: color-mix(in srgb, #fafafa 95%, #0f172a); }
+[data-theme="dark"] { --tom-modulo: color-mix(in srgb, #0f0f0f 95%, #0f172a); }
+main:has(.servicos-nav), main:has(.ppv-topbar) {
+  --portal-bg: var(--tom-modulo);
+  --portal-bg-secondary: var(--tom-modulo);
+  background: var(--tom-modulo) !important;
+}
+/* faixa sem a sombra que desenhava a linha entre a aba ativa e o conteúdo */
+main .servicos-nav, main .ppv-topbar { box-shadow: none !important; }
+main .ppv-topbar-nav-btn.active,
+[data-theme="dark"] main .ppv-topbar-nav-btn.active { background: var(--tom-modulo) !important; border-color: transparent !important; }
+main .ppv-topbar-nav-btn.active::before { box-shadow: 5.5px 5.5px 0 5.5px var(--tom-modulo); }
+main .ppv-topbar-nav-btn.active::after { box-shadow: -5.5px 5.5px 0 5.5px var(--tom-modulo); }
