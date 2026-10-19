@@ -672,10 +672,20 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         const u = ultimaRotaUsoRef.current
         if (u.rota !== pathname || agora - u.em > 15000) {
           ultimaRotaUsoRef.current = { rota: pathname, em: agora }
-          import('@/lib/auth/client').then(async ({ authHeaders }) => {
+          const search = window.location.search
+          Promise.all([import('@/lib/auth/client'), import('@/lib/uso/jornada')]).then(async ([{ authHeaders }, jornada]) => {
+            // Jornada por ABA (sessionStorage): de → para, tempo, mesmo caso, ida-e-volta.
+            // Os hashes do caso ficam aqui; ao servidor só vão os booleanos.
+            let trans: ReturnType<typeof jornada.proximoPasso>['transicao'] = null
+            try {
+              const passo = jornada.proximoPasso(jornada.lerEstado(sessionStorage.getItem('portal-jornada')), pathname, jornada.extrairAlvos(pathname, search), agora)
+              trans = passo.transicao
+              if (passo.estado) sessionStorage.setItem('portal-jornada', JSON.stringify(passo.estado))
+            } catch { /* sessionStorage bloqueado: segue só com a contagem */ }
             const h = await authHeaders()
             if (!h.Authorization) return
-            await fetch('/api/uso/pagina', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify({ rota: pathname }) })
+            const corpo = trans ? { rota: pathname, de: trans.de, gapS: trans.gapS, mesmoAlvo: trans.mesmoAlvo, volta: trans.volta } : { rota: pathname }
+            await fetch('/api/uso/pagina', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify(corpo) })
           }).catch(() => {})
         }
       }
