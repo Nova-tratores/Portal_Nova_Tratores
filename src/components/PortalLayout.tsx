@@ -250,6 +250,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [souNotificadoBot, setSouNotificadoBot] = useState(false)
   // Alerta CENTRAL: o Tratorilson pediu ajuda (não entendeu foto/vídeo ou o assunto)
   const [alertaHumano, setAlertaHumano] = useState<any[] | null>(null)
+  // Tratorilson desligado no NovaZap: a janela não pede para atualizar a memória
+  const [roboZapLigado, setRoboZapLigado] = useState(true)
   useEffect(() => {
     if (!temSolicitacoes && !souNotificadoBot) return
     let vivo = true
@@ -260,6 +262,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         const d = await r.json()
         if (!vivo) return
         setSolNovas(d.novas || 0)
+        if (typeof d.roboLigado === 'boolean') setRoboZapLigado(d.roboLigado)
         if (!d.alertaCentral) { setAlertaHumano(null); return }
         // solicitações tipo 'humano' ainda não vistas → alerta no meio da tela
         const lista = Array.isArray(d.solicitacoes) ? d.solicitacoes : []
@@ -877,7 +880,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   <Bot size={22} />
                   <div style={{ flex: 1 }}>
                     <div style={{ fontWeight: 800, fontSize: 16 }}>Cliente precisando de atendimento</div>
-                    <div style={{ fontSize: 12.5, opacity: 0.9 }}>Alguém do pós-vendas precisa assumir a conversa no NovaZap. Depois, atualize a memória do Tratorilson para ele saber responder da próxima vez.</div>
+                    <div style={{ fontSize: 12.5, opacity: 0.9 }}>{roboZapLigado
+                      ? 'Alguém do pós-vendas precisa assumir a conversa no NovaZap. Depois, atualize a memória do Tratorilson para ele saber responder da próxima vez.'
+                      : 'Alguém do pós-vendas precisa assumir a conversa no NovaZap.'}</div>
                   </div>
                 </div>
                 <div style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -893,7 +898,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 </div>
                 <div style={{ padding: '12px 16px', borderTop: '1px solid var(--portal-border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                   <button onClick={() => dispensarAlertaHumano(false)} style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 9, padding: '9px 16px', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: 13.5, fontWeight: 600 }}>Dispensar</button>
-                  <button onClick={() => dispensarAlertaHumano(true)} style={{ background: '#dc2626', border: 'none', borderRadius: 9, padding: '9px 18px', cursor: 'pointer', color: '#fff', fontSize: 13.5, fontWeight: 700 }}>Atender e atualizar memória</button>
+                  <button onClick={() => dispensarAlertaHumano(true)} style={{ background: '#dc2626', border: 'none', borderRadius: 9, padding: '9px 18px', cursor: 'pointer', color: '#fff', fontSize: 13.5, fontWeight: 700 }}>{roboZapLigado ? 'Atender e atualizar memória' : 'Atender'}</button>
                 </div>
               </div>
             </div>

@@ -4,6 +4,7 @@
 // (tabela tratorilson_notificados, por e-mail). Só server-side.
 import { createClient } from "@supabase/supabase-js";
 import type { Autenticado } from "@/lib/auth/server";
+import { podeNotificar } from "@/lib/notif/prefs";
 
 const sb = () =>
   createClient(
@@ -53,10 +54,33 @@ export function ehPosVendas(p: { categoria?: string | null; modulos?: string[] |
   return (p.modulos || []).includes("pos");
 }
 
-/** Recebe o alerta central em modal: está na lista do Tratorilson E é do pós-vendas. */
-export async function recebeAlertaCentral(auth: Pick<Autenticado, "isDev" | "email" | "categoria" | "modulos">): Promise<boolean> {
+// ── Chave "Receber avisos do NovaZap" (painel do ícone do zap) ───────────────
+// Pedido do José (19/10/2026): cada usuário escolhe se quer receber os avisos.
+// Mora na preferência de notificações que já existe (portal_permissoes
+// .notif_silenciado, módulo 'novazap') — também aparece em "Preferências".
+export const MODULO_NOTIF_NOVAZAP = "novazap";
+
+export async function recebeAvisosNovazap(userId: string): Promise<boolean> {
+  const { data } = await sb().from("portal_permissoes").select("categoria, notif_silenciado").eq("user_id", userId).maybeSingle();
+  return podeNotificar(MODULO_NOTIF_NOVAZAP, data?.notif_silenciado, data?.categoria);
+}
+
+export async function definirAvisosNovazap(userId: string, receber: boolean): Promise<void> {
+  const cli = sb();
+  const { data } = await cli.from("portal_permissoes").select("notif_silenciado").eq("user_id", userId).maybeSingle();
+  const atuais: string[] = Array.isArray(data?.notif_silenciado) ? data.notif_silenciado.map(String) : [];
+  const novos = receber ? atuais.filter((m) => m !== MODULO_NOTIF_NOVAZAP) : Array.from(new Set([...atuais, MODULO_NOTIF_NOVAZAP]));
+  const { error } = await cli.from("portal_permissoes")
+    .upsert({ user_id: userId, notif_silenciado: novos, updated_at: new Date().toISOString() }, { onConflict: "user_id" });
+  if (error) throw new Error(error.message);
+}
+
+/** Recebe o alerta central em modal: está na lista do Tratorilson E é do pós-vendas
+ *  E não desligou os avisos do NovaZap. */
+export async function recebeAlertaCentral(auth: Pick<Autenticado, "userId" | "isDev" | "email" | "categoria" | "modulos">): Promise<boolean> {
   if (!ehPosVendas(auth)) return false;
-  return souNotificadoTratorilson(auth);
+  if (!(await souNotificadoTratorilson(auth))) return false;
+  return recebeAvisosNovazap(auth.userId);
 }
 
 const JANELA_SINO_MS = 30 * 60_000;
@@ -78,13 +102,19 @@ export async function notificarTratorilson(a: { titulo: string; descricao?: stri
     const ids = await destinatariosTratorilson();
     if (!ids.length) return 0;
     const { data: perms } = await cli
-      .from("portal_permissoes").select("user_id, categoria, modulos_permitidos").in("user_id", ids);
+      .from("portal_permissoes").select("user_id, categoria, modulos_permitidos, notif_silenciado").in("user_id", ids);
     const posVendas = new Set(
       (perms || [])
         .filter((p) => ehPosVendas({ categoria: p.categoria, modulos: p.modulos_permitidos }))
         .map((p) => String(p.user_id)),
     );
-    const rows = ids.filter((id) => !posVendas.has(id)).map((user_id) => ({
+    // quem desligou "Receber avisos do NovaZap" não recebe no sino
+    const silenciados = new Set(
+      (perms || [])
+        .filter((p) => !podeNotificar(MODULO_NOTIF_NOVAZAP, p.notif_silenciado, p.categoria))
+        .map((p) => String(p.user_id)),
+    );
+    const rows = ids.filter((id) => !posVendas.has(id) && !silenciados.has(id)).map((user_id) => ({
       user_id,
       tipo: "novazap",
       titulo: a.titulo.slice(0, 200),

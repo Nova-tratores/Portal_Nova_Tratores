@@ -6,7 +6,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth/server";
 import { createClient } from "@supabase/supabase-js";
 import { chatwootConfigurado, urlConversa } from "@/lib/chatwoot/config";
-import { souNotificadoTratorilson, recebeAlertaCentral } from "@/lib/assistente/notificados";
+import { souNotificadoTratorilson, recebeAlertaCentral, recebeAvisosNovazap, definirAvisosNovazap } from "@/lib/assistente/notificados";
+import { roboLigado } from "@/lib/assistente/robo-status";
 
 export const dynamic = "force-dynamic";
 
@@ -32,8 +33,10 @@ export async function GET(req: NextRequest) {
       ...s,
       link: s.conversa_id && chatwootConfigurado() ? urlConversa(s.conversa_id) : null,
     }));
+    // "Receber avisos do NovaZap" desligado: sem número no ícone e sem janela no meio da tela
+    const [receber, robo] = await Promise.all([recebeAvisosNovazap(auth.userId), roboLigado()]);
     // badge do ícone: pedidos novos + clientes esperando atendimento
-    const novas = lista.filter((s) => (s.fase || (s.status === "atendida" ? "concluida" : "nova")) === "nova").length;
+    const novas = receber ? lista.filter((s) => (s.fase || (s.status === "atendida" ? "concluida" : "nova")) === "nova").length : 0;
     // "Dispensadas sem atualizar": cards de atendimento dispensados sem ensinar o Tratorilson
     // + perguntas do Tratorilson que alguém fechou sem responder.
     const { data: pergFechadas } = await sb().from("tratorilson_perguntas").select("*").eq("status", "fechada")
@@ -43,7 +46,8 @@ export async function GET(req: NextRequest) {
     // modal "precisa de atendimento" só pra quem é do pós-vendas (o resto: sino)
     const alertaCentral = await recebeAlertaCentral(auth);
     return NextResponse.json(
-      { solicitacoes: lista, novas, perguntasFechadas: pergFechadas || [], souNotificado, alertaCentral },
+      // roboLigado: null = não deu pra saber (trata como ligado)
+      { solicitacoes: lista, novas, perguntasFechadas: pergFechadas || [], souNotificado, alertaCentral, receberAvisos: receber, roboLigado: robo !== false },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch {
@@ -78,4 +82,18 @@ export async function PATCH(req: NextRequest) {
   const { error } = await sb().from("tratorilson_solicitacoes").update(mudanca).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
+}
+
+// POST { receberAvisos: boolean } — chave "Receber avisos do NovaZap" do próprio usuário
+export async function POST(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  const body = await req.json().catch(() => null);
+  if (typeof body?.receberAvisos !== "boolean") return NextResponse.json({ error: "receberAvisos obrigatório" }, { status: 400 });
+  try {
+    await definirAvisosNovazap(auth.userId, body.receberAvisos);
+    return NextResponse.json({ ok: true, receberAvisos: body.receberAvisos });
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Falha ao salvar" }, { status: 500 });
+  }
 }

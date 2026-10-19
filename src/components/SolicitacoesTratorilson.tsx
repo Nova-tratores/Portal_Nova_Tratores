@@ -5,7 +5,7 @@
 // Regras: marcar a data => "agendado"; "Adiar" => volta pra "aguardando_data";
 // em execução dá pra Concluir; coluna Concluídas fica oculta por padrão.
 import { useCallback, useEffect, useState } from 'react'
-import { X, ChevronLeft, ChevronRight, CalendarClock, CheckCircle2 } from 'lucide-react'
+import { X, ChevronLeft, ChevronRight, CalendarClock, CheckCircle2, Bell, BellOff } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { PrecisaAtendimento, DispensadasSemAtualizar, type CardAtendimento, type PerguntaFechada } from '@/components/tratorilson/AtendimentosTratorilson'
 
@@ -62,6 +62,11 @@ export default function SolicitacoesTratorilson({ open, onClose, abaInicial }: {
   useEffect(() => { if (open && abaInicial) setAba(abaInicial) }, [open, abaInicial])
   const [mostrarConcluidas, setMostrarConcluidas] = useState(false)
   const [aviso, setAviso] = useState('')
+  // chave do próprio usuário: receber (ou não) os avisos do NovaZap
+  const [receberAvisos, setReceberAvisos] = useState(true)
+  const [salvandoChave, setSalvandoChave] = useState(false)
+  // Tratorilson desligado no NovaZap → não pede para atualizar a memória
+  const [roboLigado, setRoboLigado] = useState(true)
 
   const carregar = useCallback(async () => {
     try {
@@ -69,9 +74,31 @@ export default function SolicitacoesTratorilson({ open, onClose, abaInicial }: {
       const d = await r.json()
       if (Array.isArray(d.solicitacoes)) setLista(d.solicitacoes)
       if (Array.isArray(d.perguntasFechadas)) setPergFechadas(d.perguntasFechadas)
+      if (typeof d.receberAvisos === 'boolean') setReceberAvisos(d.receberAvisos)
+      if (typeof d.roboLigado === 'boolean') setRoboLigado(d.roboLigado)
       setAviso(d.aviso || '')
     } catch { /* mantém a lista */ }
   }, [])
+
+  const alternarAvisos = async () => {
+    if (salvandoChave) return
+    const novo = !receberAvisos
+    setSalvandoChave(true)
+    setReceberAvisos(novo)
+    try {
+      const r = await fetch('/api/tratorilson/solicitacoes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ receberAvisos: novo }),
+      })
+      if (!r.ok) throw new Error()
+    } catch {
+      setReceberAvisos(!novo)
+      setAviso('Não deu para salvar a escolha dos avisos — tente de novo.')
+    } finally {
+      setSalvandoChave(false)
+    }
+  }
 
   useEffect(() => { if (open) carregar() }, [open, carregar])
   useEffect(() => {
@@ -161,14 +188,31 @@ export default function SolicitacoesTratorilson({ open, onClose, abaInicial }: {
             <input type="checkbox" checked={mostrarConcluidas} onChange={e => setMostrarConcluidas(e.target.checked)} />
             Mostrar concluídas
           </label>}
-          <button onClick={onClose} style={{ marginLeft: aba === 'solicitacoes' ? 0 : 'auto', background: 'transparent', border: 'none', color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: 6, minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {/* chave: este usuário quer ou não receber os avisos do NovaZap */}
+          <button type="button" role="switch" aria-checked={receberAvisos} onClick={alternarAvisos} disabled={salvandoChave}
+            title={receberAvisos
+              ? 'Você recebe os avisos do NovaZap (número no ícone, janela de cliente esperando e sino). Clique para parar.'
+              : 'Você NÃO recebe avisos do NovaZap. O painel continua abrindo pelo ícone. Clique para voltar a receber.'}
+            style={{
+              marginLeft: aba === 'solicitacoes' ? 0 : 'auto', display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px 6px 8px',
+              borderRadius: 999, border: `1px solid ${receberAvisos ? '#16a34a' : 'var(--portal-border)'}`,
+              background: receberAvisos ? 'rgba(22,163,74,.1)' : 'var(--portal-bg-secondary)', cursor: salvandoChave ? 'wait' : 'pointer',
+              fontSize: 12.5, fontWeight: 700, color: receberAvisos ? '#15803d' : 'var(--portal-text-secondary)', fontFamily: 'inherit',
+            }}>
+            <span aria-hidden style={{ position: 'relative', width: 34, height: 19, borderRadius: 10, background: receberAvisos ? '#16a34a' : '#94a3b8', transition: 'background .2s', flexShrink: 0 }}>
+              <span style={{ position: 'absolute', top: 2, left: receberAvisos ? 17 : 2, width: 15, height: 15, borderRadius: '50%', background: '#fefefe', boxShadow: '0 1px 2px rgba(0,0,0,.3)', transition: 'left .2s' }} />
+            </span>
+            {receberAvisos ? <Bell size={14} /> : <BellOff size={14} />}
+            {receberAvisos ? 'Recebendo avisos' : 'Avisos desligados'}
+          </button>
+          <button onClick={onClose} style={{ marginLeft: 0, background: 'transparent', border: 'none', color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: 6, minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={20} />
           </button>
         </div>
 
         {aviso && <div style={{ padding: '8px 18px', fontSize: 12, color: '#d97706' }}>{aviso}</div>}
 
-        {aba === 'atendimento' && <div style={{ flex: 1, overflowY: 'auto' }}><PrecisaAtendimento cards={pendentes} onMudou={carregar} /></div>}
+        {aba === 'atendimento' && <div style={{ flex: 1, overflowY: 'auto' }}><PrecisaAtendimento cards={pendentes} roboLigado={roboLigado} onMudou={carregar} /></div>}
         {aba === 'dispensadas' && <div style={{ flex: 1, overflowY: 'auto' }}><DispensadasSemAtualizar cards={dispensadas} perguntas={pergFechadas} onMudou={carregar} /></div>}
         {aba === 'solicitacoes' && <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 12, padding: 14, overflowX: 'auto', scrollSnapType: 'x proximity' }}>
           {colunas.map(col => {

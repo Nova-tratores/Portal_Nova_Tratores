@@ -4,11 +4,14 @@
 //        (da próxima vez ele mesmo responde) e o card é concluído
 //   POST { id, acao:'dispensar', motivo }    → concluído SEM ensinar; aparece na
 //        aba "Dispensadas sem atualizar" (dá para atualizar depois)
+//   POST { id, acao:'atendido' }             → só com o Tratorilson DESLIGADO (ou card
+//        aberto com ele desligado): concluído sem falar de memória
 // Também serve para atualizar depois um card já dispensado.
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { gravarRegra } from '@/lib/assistente/memoria'
+import { roboLigado, ORIGEM_ROBO_DESLIGADO } from '@/lib/assistente/robo-status'
 
 export const dynamic = 'force-dynamic'
 
@@ -23,7 +26,7 @@ export async function POST(req: NextRequest) {
   const quem = auth.email || auth.userId
   const agora = new Date().toISOString()
 
-  const { data: card, error } = await supabaseAdmin.from('tratorilson_solicitacoes').select('id, resumo, contato_nome, memoria').eq('id', id).maybeSingle()
+  const { data: card, error } = await supabaseAdmin.from('tratorilson_solicitacoes').select('id, resumo, contato_nome, memoria, origem').eq('id', id).maybeSingle()
   if (error) return NextResponse.json({ error: 'Rode sql/tratorilson-solicitacoes.sql (v3).' }, { status: 503 })
   if (!card) return NextResponse.json({ error: 'Card não encontrado' }, { status: 404 })
   if (card.memoria === 'atualizada') return NextResponse.json({ error: 'A memória deste card já foi atualizada.' }, { status: 409 })
@@ -48,6 +51,16 @@ export async function POST(req: NextRequest) {
     if (motivo.length < 3) return NextResponse.json({ error: 'Diga por que não vai atualizar a memória.' }, { status: 400 })
     const { error: e2 } = await supabaseAdmin.from('tratorilson_solicitacoes')
       .update({ ...fechar, memoria: 'dispensada', dispensa_motivo: motivo }).eq('id', id)
+    if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
+  // Tratorilson desligado: só marca que o cliente foi atendido — não há memória pra atualizar
+  if (acao === 'atendido') {
+    const semMemoria = card.origem === ORIGEM_ROBO_DESLIGADO || (await roboLigado()) === false
+    if (!semMemoria) return NextResponse.json({ error: 'O Tratorilson está ligado: atualize a memória ou dispense dizendo o motivo.' }, { status: 400 })
+    const { error: e2 } = await supabaseAdmin.from('tratorilson_solicitacoes')
+      .update({ fase: 'concluida', status: 'atendida', atendida_por: quem, atendida_em: agora, memoria: null }).eq('id', id)
     if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
     return NextResponse.json({ ok: true })
   }

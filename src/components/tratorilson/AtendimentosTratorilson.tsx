@@ -79,10 +79,16 @@ function lerResumo(resumo: string | null): { espera: string | null; msgs: string
 }
 const iniciais = (n: string) => n.replace(/[^\p{L}\s]/gu, ' ').trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() || '').join('') || '?'
 
-function CardPendente({ c, onMudou }: { c: CardAtendimento; onMudou: () => void }) {
+/** Card aberto pelo vigia com o Tratorilson desligado (= ORIGEM_ROBO_DESLIGADO do servidor). */
+const ORIGEM_ROBO_DESLIGADO = 'vigia_robo_desligado'
+
+function CardPendente({ c, roboLigado, onMudou }: { c: CardAtendimento; roboLigado: boolean; onMudou: () => void }) {
   const [modo, setModo] = useState<null | 'ensinar' | 'dispensar'>(null)
   const [motivo, setMotivo] = useState('')
   const [erro, setErro] = useState('')
+  const [fechando, setFechando] = useState(false)
+  // Tratorilson desligado: não há o que ensinar — só atender o cliente
+  const pedirMemoria = roboLigado && c.origem !== ORIGEM_ROBO_DESLIGADO
   const lido = lerResumo(c.resumo)
   const msgs = lido.msgs
   // tempo REAL desde a última mensagem do cliente (o texto do resumo congela na criação)
@@ -119,11 +125,21 @@ function CardPendente({ c, onMudou }: { c: CardAtendimento; onMudou: () => void 
       </div>
 
       {/* ações */}
-      {modo === null && (
+      {modo === null && pedirMemoria && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           {c.link && <a href={c.link} target="_blank" rel="noreferrer" style={btn('#16a34a', true)}><MessageCircle size={14} /> Responder no NovaZap</a>}
           <button style={btn('#2563eb', false)} onClick={() => setModo('ensinar')}><BrainCircuit size={14} /> Ensinar o Tratorilson</button>
           <button onClick={() => setModo('dispensar')} style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline' }}>Dispensar</button>
+        </div>
+      )}
+      {modo === null && !pedirMemoria && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          {c.link && <a href={c.link} target="_blank" rel="noreferrer" style={btn('#16a34a', true)}><MessageCircle size={14} /> Responder no NovaZap</a>}
+          <button style={btn('#16a34a', false)} disabled={fechando}
+            onClick={async () => { setFechando(true); setErro(''); try { await post('/api/tratorilson/solicitacoes/memoria', { id: c.id, acao: 'atendido' }); onMudou() } catch (e) { setErro((e as Error).message) } finally { setFechando(false) } }}>
+            <Check size={14} /> {fechando ? 'Salvando…' : 'Já atendi'}
+          </button>
+          {erro && <div style={{ width: '100%', color: '#dc2626', fontSize: 12 }}>{erro}</div>}
         </div>
       )}
       {modo === 'ensinar' && (
@@ -151,15 +167,17 @@ function CardPendente({ c, onMudou }: { c: CardAtendimento; onMudou: () => void 
   )
 }
 
-export function PrecisaAtendimento({ cards, onMudou }: { cards: CardAtendimento[]; onMudou: () => void }) {
+export function PrecisaAtendimento({ cards, roboLigado = true, onMudou }: { cards: CardAtendimento[]; roboLigado?: boolean; onMudou: () => void }) {
   if (!cards.length) return <div style={{ padding: 40, textAlign: 'center', fontSize: 14, color: 'var(--portal-text-secondary)' }}>Nenhum cliente esperando atendimento.</div>
   return (
     <div style={{ padding: 18 }}>
       <p style={{ margin: '0 0 14px', fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>
-        Responda o cliente no NovaZap e depois ensine o Tratorilson, para da próxima vez ele mesmo responder.
+        {roboLigado
+          ? 'Responda o cliente no NovaZap e depois ensine o Tratorilson, para da próxima vez ele mesmo responder.'
+          : 'O Tratorilson está desligado no NovaZap: é só responder o cliente e marcar "Já atendi".'}
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 430px), 1fr))', gap: 14 }}>
-        {cards.map((c) => <CardPendente key={c.id} c={c} onMudou={onMudou} />)}
+        {cards.map((c) => <CardPendente key={c.id} c={c} roboLigado={roboLigado} onMudou={onMudou} />)}
       </div>
     </div>
   )

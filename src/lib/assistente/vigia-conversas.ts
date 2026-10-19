@@ -8,6 +8,7 @@ import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { baseApiConta, chatwootConfigurado, CHATWOOT_API_TOKEN, urlConversa } from '@/lib/chatwoot/config'
 import { notificarTratorilson } from '@/lib/assistente/notificados'
 import { analisarConversa, contatoIgnorado, resumoAviso, type MsgChatwoot, type Remetente } from './vigia-conversas-regras'
+import { roboLigado, ORIGEM_ROBO_DESLIGADO } from './robo-status'
 
 interface ConversaCw {
   id: number
@@ -53,6 +54,10 @@ export async function vigiarConversas(opts: { gravar?: boolean } = {}): Promise<
   const dez = (t: string | null | undefined) => String(t || '').replace(/\D/g, '').slice(-10)
   const telPergunta = new Set((perguntas || []).map((p) => dez(p.contato_telefone)).filter(Boolean))
 
+  // Tratorilson DESLIGADO: o card só pede atendimento — não há memória pra atualizar
+  // (José, 19/10/2026). Marca pela origem; memoria fica vazia.
+  const roboDesligado = (await roboLigado()) === false
+
   const avisos: ResultadoVigia['avisos'] = []
   for (const c of candidatas) {
     const s = c.meta?.sender || {}
@@ -88,9 +93,9 @@ export async function vigiarConversas(opts: { gravar?: boolean } = {}): Promise<
         resumo,
         fase: 'nova',
         conversa_id: c.id,
-        origem: 'vigia',
+        origem: roboDesligado ? ORIGEM_ROBO_DESLIGADO : 'vigia',
         ultima_msg_em: ultimaIso,
-        memoria: 'pendente',
+        memoria: roboDesligado ? null : 'pendente',
       })
       // quem está na lista e não é do pós-vendas não vê o modal: avisa no sino
       await notificarTratorilson({
