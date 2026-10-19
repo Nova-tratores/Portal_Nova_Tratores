@@ -41,7 +41,12 @@ const agoraTxt = (em: number) => {
 }
 
 export default function NotificacoesTeste() {
+  // ?opcao=6 abre direto numa opção (link mandado ao José)
   const [opcao, setOpcao] = useState(1)
+  useEffect(() => {
+    const n = Number(new URLSearchParams(window.location.search).get('opcao'))
+    if (n >= 1 && n <= OPCOES.length) void Promise.resolve().then(() => setOpcao(n))
+  }, [])
   const [avisos, setAvisos] = useState<Aviso[]>([])
   const seq = useRef(0)
   const idx = useRef(0)
@@ -324,7 +329,7 @@ function lerLocal<T>(chave: string, padrao: T): T {
 function gravarLocal(chave: string, v: unknown) { try { localStorage.setItem(chave, JSON.stringify(v)) } catch { /* sem storage */ } }
 
 function Opcao6({ avisos, tirar }: { avisos: Aviso[]; tirar: (id: number) => void }) {
-  const [modo, setModo] = useState<ModoIlha>(() => lerLocal<ModoIlha>('teste-ilha-modo', 'fica'))
+  const [modo, setModo] = useState<ModoIlha>(() => lerLocal<ModoIlha>('teste-ilha-modo2', 'some'))
   const [pos, setPos] = useState<PosIlha>(() => lerLocal<PosIlha>('teste-ilha-pos', POS_PADRAO))
   const [arrastando, setArrastando] = useState(false)
   const [mostrando, setMostrando] = useState<Aviso | null>(null)
@@ -371,7 +376,7 @@ function Opcao6({ avisos, tirar }: { avisos: Aviso[]; tirar: (id: number) => voi
     return () => { window.removeEventListener('pointermove', mover); window.removeEventListener('pointerup', soltar) }
   }, [arrastando])
   useEffect(() => { if (!arrastando) gravarLocal('teste-ilha-pos', pos) }, [arrastando, pos])
-  const escolherModo = (m: ModoIlha) => { setModo(m); gravarLocal('teste-ilha-modo', m); setAberta(false) }
+  const escolherModo = (m: ModoIlha) => { setModo(m); gravarLocal('teste-ilha-modo2', m); setAberta(false) }
   const escolherPos = (p: PosIlha) => { setPos(p); gravarLocal('teste-ilha-pos', p) }
 
   // posição na tela: centro em x; embaixo da metade da tela a ilha cresce para CIMA
