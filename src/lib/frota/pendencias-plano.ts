@@ -20,7 +20,13 @@
 //  - PREVENTIVA: item do plano (por modelo, pelo manual) que VENCE EM BREVE ou
 //                está VENCIDO abre "Preventiva: <item>"; FECHA quando um serviço
 //                registrado deixa o item em dia. Reabre no próximo ciclo.
+//  - APP VENDAS: chamado do vendedor pelo app de vendas (chamados_veiculares):
+//                corretiva, preventiva ou checklist com item "não ok" abre
+//                pendência no carro. Resolvida aqui no portal, o chamado volta
+//                como "resolvido" pro app (chamadosVendasResolver). O carro é
+//                achado por placa_id = SupaPlacas.IdPlaca = supa_placa_id.
 import { pendenciasDetalhadas } from '@/lib/frota/pendencias';
+import { extrairPlacaDeNumPlaca } from '@/lib/frota/placa';
 
 // item do checklist -> caminho na taxonomia (sistema | subsistema | componente)
 const MAPA_CHECKLIST: Record<string, [string, string | null, string | null]> = {
@@ -107,6 +113,14 @@ export type PreventivaSync = {
   texto: string;
 };
 
+export type ChamadoVendasSync = {
+  id: number | string; placa_id: number | string | null; placa: string | null;
+  tipo: string | null; descricao: string | null; checklist_nome: string | null;
+  respostas: { item?: string; status?: string; obs?: string }[] | null;
+  tem_pendencia: boolean | null; status: string | null;
+  vendedor_nome: string | null; created_at: string | null;
+};
+
 export type DadosSync = {
   agora: number;
   veiculos: VeiculoSync[];
@@ -123,10 +137,16 @@ export type DadosSync = {
   fotoPorOpa: Map<string, string>;
   /** situação de cada item de preventiva; null = sem a migration (bloco pulado) */
   preventivas?: PreventivaSync[] | null;
+  /** chamados do app de vendas; null/ausente = leitura falhou (bloco pulado) */
+  chamadosVendas?: ChamadoVendasSync[] | null;
 };
 
 export type Resolucao = { id: string; resolucao: string; vinculo_tipo?: 'requisicao' | 'os'; vinculo_ref?: string };
-export type PlanoPendencias = { inserir: Record<string, unknown>[]; resolver: Resolucao[] };
+export type PlanoPendencias = {
+  inserir: Record<string, unknown>[]; resolver: Resolucao[];
+  /** ids de chamados_veiculares cuja pendência foi resolvida no portal → marcar 'resolvido' */
+  chamadosVendasResolver: string[];
+};
 
 /** Último checklist de cada placa (a lista vem do mais novo para o mais antigo). */
 export function ultimoChecklistPorPlaca(checklists: ChecklistSync[]): Map<string, { id: string; placa: string; mes: string }> {
@@ -410,20 +430,65 @@ export function planejarPendencias(d: DadosSync): PlanoPendencias {
     }
   }
 
-  return { inserir, resolver };
+  // ── APP DE VENDAS: chamado do vendedor abre no carro; resolvido lá ou aqui, fecha ──
+  const chamadosVendasResolver: string[] = [];
+  if (d.chamadosVendas) {
+    const veic = d.veiculos.filter((v) => v.tipo_registro === 'veiculo' && v.placa);
+    const porSupa = new Map(veic.filter((v) => v.supa_placa_id != null).map((v) => [String(v.supa_placa_id), String(v.placa).toUpperCase()]));
+    const placasValidas = new Set(veic.map((v) => String(v.placa).toUpperCase()));
+    const vistos = new Set<string>();
+    for (const c of d.chamadosVendas) {
+      const id = String(c.id);
+      if (vistos.has(id)) continue;
+      vistos.add(id);
+      const porTexto = extrairPlacaDeNumPlaca(c.placa).toUpperCase();
+      const placa = (c.placa_id != null && porSupa.get(String(c.placa_id))) || (placasValidas.has(porTexto) ? porTexto : '');
+      if (!placa) continue;
+      const nok = (c.respostas || []).filter((r) => r.status === 'nok');
+      if (!(c.tipo === 'corretiva' || c.tipo === 'preventiva' || (c.tipo === 'checklist' && (c.tem_pendencia || nok.length)))) continue;
+
+      const k = `${placa}|app_vendas|${id}`;
+      const aberta = abertaDe(k);
+      const resolvido = c.status === 'resolvido';
+      if (aberta && resolvido) {
+        fechar({ id: aberta.id, resolucao: 'Chamado marcado como resolvido no app de vendas.' });
+        continue;
+      }
+      if (aberta || resolvido) continue;
+      if (ultimaResolvida(k)) { chamadosVendasResolver.push(id); continue; }
+
+      const quem = c.vendedor_nome || 'Vendedor';
+      const desc = (c.descricao || '').trim();
+      const itens = nok.map((r) => `• ${r.item || 'item'}${r.obs ? ` — ${r.obs}` : ''}`).join('\n');
+      const titulo = c.tipo === 'checklist'
+        ? `Checklist ${c.checklist_nome || ''}: ${nok.length || 'itens'} com problema`.replace(/\s+/g, ' ')
+        : `${c.tipo === 'corretiva' ? 'Corretiva' : 'Preventiva solicitada'}: ${desc.slice(0, 80) || 'sem descrição'}`;
+      abrir(k, {
+        placa, origem: 'app_vendas', origem_ref: id,
+        titulo,
+        descricao: `${c.tipo === 'checklist' ? itens : desc}\n\nAberto por ${quem} pelo app de vendas.`.trim(),
+        componente_id: compDoTexto(c.tipo === 'checklist' ? nok.map((r) => `${r.item || ''} ${r.obs || ''}`).join(' ') : desc) || compOutros,
+        data_ocorrencia: String(c.created_at || '').slice(0, 10) || null,
+        status: 'aberta', aberta_por: `${quem} (app de vendas)`,
+      });
+    }
+  }
+
+  return { inserir, resolver, chamadosVendasResolver };
 }
 
 /** Referências das pendências ABERTAS que dependem de uma fonte externa —
  *  o motor busca essas fontes por id mesmo fora da janela de 120 dias,
  *  senão uma OS/requisição antiga concluída nunca fecharia a pendência. */
-export function refsAbertas(pendencias: PendenciaExistente[]): { requisicoes: string[]; os: string[]; opas: string[] } {
-  const req = new Set<string>(), os = new Set<string>(), opas = new Set<string>();
+export function refsAbertas(pendencias: PendenciaExistente[]): { requisicoes: string[]; os: string[]; opas: string[]; chamadosVendas: string[] } {
+  const req = new Set<string>(), os = new Set<string>(), opas = new Set<string>(), chamados = new Set<string>();
   for (const p of pendencias) {
     if (p.status !== 'aberta') continue;
     if (p.origem === 'requisicao' && p.origem_ref) req.add(p.origem_ref);
     if (p.vinculo_tipo === 'requisicao' && p.vinculo_ref) req.add(p.vinculo_ref);
     if (p.origem === 'os' && p.origem_ref) os.add(p.origem_ref);
     if (p.origem === 'opa' && p.origem_ref) opas.add(p.origem_ref);
+    if (p.origem === 'app_vendas' && p.origem_ref) chamados.add(p.origem_ref);
   }
-  return { requisicoes: [...req], os: [...os], opas: [...opas] };
+  return { requisicoes: [...req], os: [...os], opas: [...opas], chamadosVendas: [...chamados] };
 }

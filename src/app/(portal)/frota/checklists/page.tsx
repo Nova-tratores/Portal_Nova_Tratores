@@ -1,16 +1,17 @@
 'use client';
-// Frota > Checklists — pendências do checklist mensal por técnico/veículo.
+// Frota > Checklists — pendências do checklist mensal por técnico/veículo
+// (e carros de vendedor: checklist feito pelo app de vendas; "Pedir" manda recado no app).
 // Cruza os técnicos com veículo atribuído (NT Mecânico) com os checklists do mês:
 // quem não fez = pendente; score baixo = suspeito. Fonte: /api/frota/checklists-mes.
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ClipboardCheck, Loader2, AlertTriangle, ChevronRight } from 'lucide-react';
+import { ClipboardCheck, Loader2, AlertTriangle, ChevronRight, Send } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import { CabecalhoFrota } from '@/components/frota/ui';
 
 type Status = 'ok' | 'suspeito' | 'em_andamento' | 'pendente';
 interface Item {
-  origem: 'tecnico' | 'nao_vinculado'; placa_key: string;
+  origem: 'tecnico' | 'nao_vinculado' | 'vendedor'; placa_key: string; vendedor_id?: number | null;
   tecnico_nome: string; placa: string; descricao: string;
   status: Status; score: number | null; km: number | null; fim_em: string | null; checklist_id: string | null;
 }
@@ -49,6 +50,20 @@ export default function FrotaChecklistsPage() {
     setCarregando(false);
   }, []);
   useEffect(() => { carregar(mes); }, [mes, carregar]);
+
+  // "Pedir checklist" ao vendedor (recado no app de vendas). placa_key → estado
+  const [pedidos, setPedidos] = useState<Record<string, 'enviando' | 'enviado' | 'erro'>>({});
+  const pedir = async (it: Item) => {
+    setPedidos((p) => ({ ...p, [it.placa_key]: 'enviando' }));
+    try {
+      const r = await fetch('/api/frota/checklists-mes/pedir', {
+        method: 'POST',
+        headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ placa_key: it.placa_key, vendedor_id: it.vendedor_id }),
+      });
+      setPedidos((p) => ({ ...p, [it.placa_key]: r.ok ? 'enviado' : 'erro' }));
+    } catch { setPedidos((p) => ({ ...p, [it.placa_key]: 'erro' })); }
+  };
 
   const itens = (data?.itens || []).filter((i) => filtro === 'todos' || i.status === filtro);
 
@@ -114,6 +129,17 @@ export default function FrotaChecklistsPage() {
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
                     {it.tecnico_nome}
                     {it.origem === 'nao_vinculado' && <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 0, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.3 }}>sem resp.</span>}
+                    {it.origem === 'vendedor' && <span style={{ fontSize: 9.5, fontWeight: 700, padding: '1px 6px', borderRadius: 0, background: '#f3e8ff', color: '#7e22ce', textTransform: 'uppercase', letterSpacing: 0.3 }}>vendedor</span>}
+                    {it.origem === 'vendedor' && it.status === 'pendente' && it.vendedor_id != null && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); pedir(it); }}
+                        disabled={pedidos[it.placa_key] === 'enviando' || pedidos[it.placa_key] === 'enviado'}
+                        title="Manda um aviso no app de vendas com o checklist deste carro"
+                        style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 0, border: '1px solid #7e22ce', background: pedidos[it.placa_key] === 'enviado' ? '#dcfce7' : 'transparent', color: pedidos[it.placa_key] === 'enviado' ? '#15803d' : '#7e22ce', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Send size={11} />
+                        {pedidos[it.placa_key] === 'enviando' ? 'Enviando…' : pedidos[it.placa_key] === 'enviado' ? 'Pedido enviado' : pedidos[it.placa_key] === 'erro' ? 'Falhou — tentar de novo' : 'Pedir checklist'}
+                      </button>
+                    )}
                   </div>
                   {it.descricao && <div style={{ fontSize: 13, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.descricao}</div>}
                 </div>
