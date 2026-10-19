@@ -91,3 +91,15 @@ export function calcularScore(checklist: any, itens: any[]): { score: number; al
 
   return { score: Math.max(0, score), alertas };
 }
+
+/**
+ * Campos gravados num item. Sem foto nova (só trocou a resposta/observação),
+ * a foto já salva FICA — antes ia null pro banco e o item perdia a foto calado.
+ */
+export function camposAtualizacaoItem(p: {
+  resposta: string; observacao: string; fotoUrl: string | null; fotoTamanho: number | null; agora: string;
+}): Record<string, unknown> {
+  const campos: Record<string, unknown> = { resposta: p.resposta, observacao: p.observacao, respondido_em: p.agora };
+  if (p.fotoUrl) { campos.foto_url = p.fotoUrl; campos.foto_tamanho = p.fotoTamanho; }
+  return campos;
+}

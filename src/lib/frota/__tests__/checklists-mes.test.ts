@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  juntarPorPlaca, ordenarEResumir, classificarChecklist, vendedorDoResponsavel, checklistsAppPorPlaca, linkChecklistApp,
+  juntarPorPlaca, ordenarEResumir, classificarChecklist, vendedorDoResponsavel, linkChecklistApp,
   type ItemChecklistMes,
 } from '../checklists-mes';
 
@@ -43,17 +43,7 @@ describe('checklist do carro de vendedor (app de vendas)', () => {
     expect(vendedorDoResponsavel('Vazio', vendedores)).toBeNull();
   });
 
-  it('checklist do app acha a placa pelo IdPlaca ou pelo texto e fica com o mais recente', () => {
-    const m = checklistsAppPorPlaca([
-      { placa_id: 19, placa: 'VOYAGE-SEB9J47', created_at: '2026-10-02T10:00:00Z' },
-      { placa_id: 999, placa: 'VOYAGE-SEB9J47', created_at: '2026-10-09T10:00:00Z' },
-      { placa_id: null, placa: 'SAVEIRO - TKY6E68', created_at: '2026-10-05T10:00:00Z' },
-    ], new Map([['19', 'SEB9J47']]));
-    expect(m.get('SEB9J47')?.created_at).toBe('2026-10-09T10:00:00Z');
-    expect(m.has('TKY6E68')).toBe(true);
-  });
-
-  it('link abre o checklist mensal do carro no app', () => {
-    expect(linkChecklistApp('SEB9J47')).toBe('/chamado-veicular?placa=SEB9J47&tipo=checklist&checklist=mensal');
+  it('link abre o checklist completo do carro no app', () => {
+    expect(linkChecklistApp('SEB9J47')).toBe('/checklist-veiculo?placa=SEB9J47');
   });
 });
