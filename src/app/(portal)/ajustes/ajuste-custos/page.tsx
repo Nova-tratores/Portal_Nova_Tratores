@@ -8,7 +8,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
-import { authHeaders } from '@/lib/auth/client';
+import { authHeaders, fetchAuth } from '@/lib/auth/client';
 
 interface ProdutoCusto {
   codigoProduto: number;
@@ -68,7 +68,7 @@ export default function AjusteCustosPage() {
 
   const carregarFornecedores = useCallback(async () => {
     try {
-      const r = await fetch(`/api/ajustes/ajuste-custos/fornecedores?${contaParam.replace(/^&/, '')}`);
+      const r = await fetchAuth(`/api/ajustes/ajuste-custos/fornecedores?${contaParam.replace(/^&/, '')}`);
       const d = await r.json();
       setFornecedores((d?.fornecedores || []) as Fornecedor[]);
     } catch { /* dropdown opcional */ }
@@ -80,7 +80,7 @@ export default function AjusteCustosPage() {
     try {
       let qs = contaParam;
       if (force) qs += '&force=1';
-      const r = await fetch(`/api/ajustes/ajuste-custos/produtos?${qs.replace(/^&/, '')}`);
+      const r = await fetchAuth(`/api/ajustes/ajuste-custos/produtos?${qs.replace(/^&/, '')}`);
       const d = await r.json();
       if (!r.ok || d.erro) { setEstado('Erro: ' + (d.erro || 'falha ao carregar')); return; }
       setProdutos((d.produtos || []) as ProdutoCusto[]);

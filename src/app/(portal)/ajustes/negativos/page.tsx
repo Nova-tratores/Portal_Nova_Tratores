@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 
@@ -174,7 +175,7 @@ export default function EstoqueNegativoPage() {
     try {
       let qs = contaParam.replace(/^&/, '');
       if (force) qs += (qs ? '&' : '') + 'force=1';
-      const r = await fetch(`/api/ajustes/estoque-negativo?${qs}`);
+      const r = await fetchAuth(`/api/ajustes/estoque-negativo?${qs}`);
       const d = (await r.json()) as NegativosPayload;
       if (contaRef.current !== conta) return; // conta trocou no meio
       if (d.erro && !d.rodando) {
@@ -212,7 +213,7 @@ export default function EstoqueNegativoPage() {
     setStatusMsg('iniciando varredura... (pode levar ~30-50 min na 1a vez - pode fechar a aba e voltar depois)');
     try {
       const qs = (contaParam.replace(/^&/, '')) + (force ? '&force=1' : '');
-      const r = await fetch(`/api/ajustes/estoque-negativo/iniciar?${qs}`, {
+      const r = await fetchAuth(`/api/ajustes/estoque-negativo/iniciar?${qs}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ criadoPor }),
       });
       const d = await r.json();

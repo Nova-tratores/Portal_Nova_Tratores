@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 import { montarFichaDevolucao } from '@/lib/ajustes/devolucao';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -9,6 +10,8 @@ export const maxDuration = 120;
 // faturamento + NF de remessa por conta e ordem). Não escreve nada no Omie —
 // quem emite as notas é o usuário, no Omie.
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'devolucao' }]);
+  if (g.resposta) return g.resposta;
   try {
     const body = (await req.json().catch(() => ({}))) as {
       conta?: string;

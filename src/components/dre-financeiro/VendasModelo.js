@@ -54,6 +54,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { fetchAuth } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
 import AjudaTela from '@/components/dre-financeiro/AjudaTela'
 import { useAuditLog } from '@/hooks/useAuditLog'
@@ -480,7 +481,7 @@ export default function VendasModelo({ variante = 'dre' }) {
     else qs += '&meses=' + meses
     setGridPage(0) // reset paginacao da grade ao recarregar dados
     setCarregando(true)
-    fetch('/api/dre-financeiro/vendas-modelo?' + qs)
+    fetchAuth('/api/dre-financeiro/vendas-modelo?' + qs)
       .then((r) => r.json())
       .then((d) => {
         if (cancelado) return
@@ -713,7 +714,7 @@ export default function VendasModelo({ variante = 'dre' }) {
     setBackfillBusy(true)
     setBackfillStatus('sincronizando em background (~3-5 min)...')
     registrar('sincronizar', { entidade: 'omie', entidade_label: 'Sincronizar modelos do Omie (conta ' + String(conta).toUpperCase() + ')' })
-    fetch('/api/dre-financeiro/produtos/backfill-modelo?conta=' + conta + '&refazer=1', { method: 'POST' })
+    fetchAuth('/api/dre-financeiro/produtos/backfill-modelo?conta=' + conta + '&refazer=1', { method: 'POST' })
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) setBackfillStatus('Erro: ' + d.erro)
@@ -742,7 +743,7 @@ export default function VendasModelo({ variante = 'dre' }) {
     const qs = 'conta=' + encodeURIComponent(conta) +
       '&ano=' + p.ano + '&mes=' + p.mes +
       '&modelos=' + encodeURIComponent(p.membros.join(','))
-    fetch('/api/dre-financeiro/vendas-modelo/detalhe?' + qs)
+    fetchAuth('/api/dre-financeiro/vendas-modelo/detalhe?' + qs)
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) { setModalErro(d.erro); setModalCarregando(false); return }

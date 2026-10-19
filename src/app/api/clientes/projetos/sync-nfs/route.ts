@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
+import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -150,7 +151,9 @@ async function upsertLote(rows: NonNullable<ReturnType<typeof parsarNota>>[]) {
 }
 
 // ─── GET = modo cron (automático, sincroniza mês atual + anterior) ───
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const guarda = await protegerRotaOuInterna(req, [{ modulo: "clientes" }]);
+  if (guarda.resposta) return guarda.resposta;
   const agora = new Date();
   const mesAnterior = new Date(agora.getFullYear(), agora.getMonth() - 1, 1);
   const meses = gerarMeses(mesAnterior, agora);
@@ -194,6 +197,8 @@ export async function GET() {
 
 // ─── POST = modo backfill (streaming com progresso para UI) ───
 export async function POST(req: NextRequest) {
+  const guarda = await protegerRotaOuInterna(req, [{ modulo: "clientes" }]);
+  if (guarda.resposta) return guarda.resposta;
   const body = await req.json().catch(() => ({}));
   const anosAtras = Number(body.anos) || 3;
   const agora = new Date();

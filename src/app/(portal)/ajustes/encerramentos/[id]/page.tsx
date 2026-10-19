@@ -7,6 +7,7 @@ import { useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 
 interface ItemEnc {
   sku?: string | null; codigo?: string | null; descricao?: string | null; qtde?: number;
@@ -53,7 +54,7 @@ export default function EncerramentoDetalhePage() {
   const carregar = useCallback(async (encId: string) => {
     setCarregando(true);
     try {
-      const r = await fetch(`/api/ajustes/encerramentos-informais/${encodeURIComponent(encId)}`);
+      const r = await fetchAuth(`/api/ajustes/encerramentos-informais/${encodeURIComponent(encId)}`);
       const d = await r.json();
       if (d.erro) setErro(d.erro); else setE(d);
     } catch (ex) {

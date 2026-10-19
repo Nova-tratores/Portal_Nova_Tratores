@@ -41,6 +41,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { fetchAuth } from '@/lib/auth/client'
 
 // ---------------------------------------------------------------------------
 // Formatadores locais (identicos aos do <script> da fonte). Mantidos inline
@@ -156,7 +157,7 @@ export default function LucratividadePage() {
       + '&dias=' + dias
       + '&selic=' + selic
       + '&familia=' + encodeURIComponent(familia)
-    fetch('/api/dre-financeiro/lucratividade/capital-parado?' + qs)
+    fetchAuth('/api/dre-financeiro/lucratividade/capital-parado?' + qs)
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) { alert('Erro: ' + d.erro); return }
@@ -178,7 +179,7 @@ export default function LucratividadePage() {
     } else {
       qs += '&meses=' + mesesMargem
     }
-    fetch('/api/dre-financeiro/lucratividade/margem?' + qs)
+    fetchAuth('/api/dre-financeiro/lucratividade/margem?' + qs)
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) { alert('Erro: ' + d.erro); return }

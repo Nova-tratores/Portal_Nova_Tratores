@@ -5,11 +5,14 @@
 // Enriquece com o cadastro do cliente/fornecedor quando disponivel.
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
+  const g = await guardarDre(request, 'patrimonio')
+  if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   try {
     const sp = request.nextUrl.searchParams

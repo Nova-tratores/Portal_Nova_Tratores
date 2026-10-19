@@ -43,6 +43,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
 import { simlogY, yScaleSimlog } from '@/lib/dre-financeiro/escala-simlog'
+import { fetchAuth } from '@/lib/auth/client'
 
 // ---------------------------------------------------------------------------
 // Formatadores locais (identicos aos do <script> da fonte). Mantidos inline
@@ -195,7 +196,7 @@ export default function MargensPage() {
     let qs = 'conta=' + conta + '&taxa=' + taxa
     if (mesesSel === '__desde__') qs += '&desde=' + desde
     else qs += '&meses=' + mesesSel
-    fetch('/api/dre-financeiro/margens?' + qs)
+    fetchAuth('/api/dre-financeiro/margens?' + qs)
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) { alert('Erro: ' + d.erro); return }
@@ -216,7 +217,7 @@ export default function MargensPage() {
     const itens = dados.itens || []
     const mesesTodos = [...new Set(itens.map((it) => it.ano + '-' + String(it.mes).padStart(2, '0')))].sort()
     if (!mesesTodos.length) { setRateio(null); return }
-    fetch('/api/dre-financeiro/margens/rateio?conta=' + (dados.conta || conta)
+    fetchAuth('/api/dre-financeiro/margens/rateio?conta=' + (dados.conta || conta)
       + '&desde=' + mesesTodos[0] + '&ate=' + mesesTodos[mesesTodos.length - 1])
       .then((r) => r.json())
       .then((d) => { setRateio(d && !d.erro && d.porMes ? d : null) })

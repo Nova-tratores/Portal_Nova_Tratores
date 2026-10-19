@@ -5,6 +5,7 @@ import {
   listarRecursos, criarRecurso, atualizarRecurso, listarCalendarios,
   type RecursoRow, type CalendarioRow,
 } from '@/lib/cronograma/queries';
+import { fetchAuth } from '@/lib/auth/client';
 
 interface PortalUser { id: string; nome: string; avatar_url: string }
 
@@ -27,7 +28,7 @@ export default function RecursosPage() {
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { carregar(); }, [carregar]);
-  useEffect(() => { fetch('/api/tarefas/users').then((r) => r.json()).then((d) => Array.isArray(d) && setUsers(d)); }, []);
+  useEffect(() => { fetchAuth('/api/tarefas/users').then((r) => r.json()).then((d) => Array.isArray(d) && setUsers(d)); }, []);
 
   const nomeCal = (id: string | null) => cals.find((c) => c.id === id)?.nome ?? '—';
 

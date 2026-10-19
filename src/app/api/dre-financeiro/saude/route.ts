@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { calcularSaudeFinanceira, SAUDE_TTL_MS, CONTA_PADRAO } from '@/lib/dre-financeiro/calc'
 
 export const dynamic = 'force-dynamic'
@@ -14,6 +15,8 @@ function pegaConta(request: NextRequest): string {
 }
 
 export async function GET(request: NextRequest) {
+  const g = await guardarDre(request)
+  if (g.resposta) return g.resposta
   try {
     const conta = pegaConta(request)
     const force = request.nextUrl.searchParams.get('refresh') === '1'

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 
 // ---------- tipos do payload ----------
 interface Produto {
@@ -144,7 +145,7 @@ export default function InventarioPage() {
       const b = busca.trim();
       if (b) p.push('busca=' + encodeURIComponent(b));
       if (!mostrarInativos) p.push('ativo=1');
-      const r = await fetch('/api/ajustes/inventario/produtos' + (p.length ? '?' + p.join('&') : ''));
+      const r = await fetchAuth('/api/ajustes/inventario/produtos' + (p.length ? '?' + p.join('&') : ''));
       const d = (await r.json()) as ProdutosResp;
       if (d.erro) { setErroProd(d.erro); setProdutos([]); return; }
       setProdutos(d.produtos || []);
@@ -160,8 +161,8 @@ export default function InventarioPage() {
   const carregarCiclos = useCallback(async () => {
     try {
       const [rc, rt] = await Promise.all([
-        fetch('/api/ajustes/inventario/ciclos').then((r) => r.json()),
-        fetch('/api/ajustes/inventario/tarefas').then((r) => r.json()),
+        fetchAuth('/api/ajustes/inventario/ciclos').then((r) => r.json()),
+        fetchAuth('/api/ajustes/inventario/tarefas').then((r) => r.json()),
       ]);
       const cs: Ciclo[] = rc.ciclos || [];
       const ts: Tarefa[] = rt.tarefas || [];
@@ -179,7 +180,7 @@ export default function InventarioPage() {
     setCarregandoTarefas(true);
     setTarefas([]);
     try {
-      const r = await fetch('/api/ajustes/inventario/tarefas?ciclo=' + encodeURIComponent(cicloId));
+      const r = await fetchAuth('/api/ajustes/inventario/tarefas?ciclo=' + encodeURIComponent(cicloId));
       const d = await r.json();
       setTarefas(d.tarefas || []);
     } catch {
@@ -192,7 +193,7 @@ export default function InventarioPage() {
   // ---- Recalculo (worker-ready) ---------------------------------------------
   const pollStatus = useCallback(async () => {
     try {
-      const r = await fetch('/api/ajustes/inventario/recalcular/status');
+      const r = await fetchAuth('/api/ajustes/inventario/recalcular/status');
       const st = (await r.json()) as RecalcStatus;
       if (st && st.rodando) {
         setRodando(true);
@@ -223,7 +224,7 @@ export default function InventarioPage() {
     setResultado(null);
     setStatusMsg('iniciando recalculo das duas contas...');
     try {
-      const r = await fetch('/api/ajustes/inventario/recalcular', {
+      const r = await fetchAuth('/api/ajustes/inventario/recalcular', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ criadoPor }),
       });
       const d = await r.json();
@@ -242,7 +243,7 @@ export default function InventarioPage() {
     setGerando(true);
     setStatusMsg('gerando ciclo + congelando saldos...');
     try {
-      const r = await fetch('/api/ajustes/inventario/gerar-ciclo', {
+      const r = await fetchAuth('/api/ajustes/inventario/gerar-ciclo', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ capacidade: isNaN(cap) ? undefined : cap, criadoPor }),
       });
@@ -267,7 +268,7 @@ export default function InventarioPage() {
     // otimista
     setProdutos((s) => s.map((p) => (p.sku === sku ? { ...p, ativo } : p)));
     try {
-      const r = await fetch('/api/ajustes/inventario/curadoria', {
+      const r = await fetchAuth('/api/ajustes/inventario/curadoria', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sku, ativo }),
       });
       const d = await r.json();
@@ -285,7 +286,7 @@ export default function InventarioPage() {
     const dias = parseInt(v, 10);
     if (!(dias > 0)) { alert('informe um numero de dias > 0'); return; }
     try {
-      const r = await fetch('/api/ajustes/inventario/frequencia', {
+      const r = await fetchAuth('/api/ajustes/inventario/frequencia', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sku, dias }),
       });
       const resp = await r.json();
@@ -302,7 +303,7 @@ export default function InventarioPage() {
     carregarProdutos();
     carregarCiclos();
     // checa se ja existe recalculo rodando
-    fetch('/api/ajustes/inventario/recalcular/status')
+    fetchAuth('/api/ajustes/inventario/recalcular/status')
       .then((r) => r.json())
       .then((st: RecalcStatus) => { if (st && st.rodando) { setRodando(true); pollRef.current = setTimeout(pollStatus, 3000); } else if (st && st.resultado) { setResultado(st.resultado); } })
       .catch(() => {});

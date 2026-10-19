@@ -8,6 +8,8 @@
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { autorDe } from '@/lib/ajustes/permissao-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,6 +18,8 @@ const TIPOS_TITULO = new Set(['pagar', 'receber'])
 type Ctx = { params: Promise<{ tipo: string; codigo: string }> }
 
 export async function GET(request: NextRequest, context: Ctx) {
+  const g = await guardarDre(request, 'vencidos')
+  if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   const { tipo: tipoRaw, codigo: codigoRaw } = await context.params
   const tipo = String(tipoRaw || '').toLowerCase()
@@ -33,7 +37,7 @@ export async function GET(request: NextRequest, context: Ctx) {
     if (error) throw new Error(error.message)
     // Nao expoe autor_token; devolve so se o token do cliente bate (pode excluir).
     const comentarios = (data || []).map(({ autor_token, ...c }: any) => ({
-      ...c, meu: !!(token && autor_token && autor_token === token),
+      ...c, meu: !!(token && autor_token && autor_token === token) || (!!c.user_id && c.user_id === g.user.id),
     }))
     return NextResponse.json({ comentarios })
   } catch (e: any) {
@@ -43,6 +47,8 @@ export async function GET(request: NextRequest, context: Ctx) {
 }
 
 export async function POST(request: NextRequest, context: Ctx) {
+  const g = await guardarDre(request, 'vencidos')
+  if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   const { tipo: tipoRaw, codigo: codigoRaw } = await context.params
   const tipo = String(tipoRaw || '').toLowerCase()
@@ -52,7 +58,8 @@ export async function POST(request: NextRequest, context: Ctx) {
   }
   let body: any = {}
   try { body = await request.json() } catch (_) { body = {} }
-  const autor = String(body.autor_nome || '').trim().slice(0, 80)
+  // Autoria vem do login (o autor_nome do corpo é ignorado).
+  const autor = autorDe(g.user).slice(0, 80)
   const texto = String(body.comentario || '').trim().slice(0, 2000)
   const token = String(body.autor_token || '').trim().slice(0, 80) || null
   const conta = body.conta_omie ? String(body.conta_omie).slice(0, 20) : null
@@ -62,7 +69,8 @@ export async function POST(request: NextRequest, context: Ctx) {
     const { data, error } = await supabase.from('titulo_comentarios')
       .insert({
         tipo, codigo_lancamento: codigo, conta_omie: conta,
-        autor_nome: autor, autor_token: token, comentario: texto,
+        autor_nome: autor, autor_email: g.user.email || null, user_id: g.user.id,
+        autor_token: token, comentario: texto,
       })
       .select('id,autor_nome,autor_email,user_id,comentario,created_at')
       .single()

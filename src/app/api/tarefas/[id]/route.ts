@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { protegerRota } from '@/lib/ajustes/permissao-server'
 
 const TBL = 'portal_tarefas'
+
+// Central de Trabalho (lib/trabalho/modulo.ts): tarefas, tickets OU cronograma
+// — mesmo critério do temAcesso('tarefas') da tela /tarefas.
+const CENTRAL = [{ modulo: 'tarefas' }, { modulo: 'tickets' }, { modulo: 'cronograma' }]
 
 // Prazo é um DIA. Só a data ('AAAA-MM-DD') vira meio-dia de Brasília — o
 // new Date('AAAA-MM-DD') era 00:00 UTC = dia ANTERIOR em -03:00.
@@ -17,6 +22,8 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const g = await protegerRota(req, CENTRAL)
+  if (g.resposta) return g.resposta
   try {
     const { id } = await params
     const body = await req.json()

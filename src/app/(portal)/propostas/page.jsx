@@ -5,6 +5,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { supabase } from '@/lib/supabase'
+import { fetchAuth } from '@/lib/auth/client'
 import { Plus, Trash2, RefreshCw, Factory, Users, FileDown, Menu, ChevronDown, List, LayoutGrid, Check, BarChart3, Tag } from 'lucide-react'
 import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
 import dynamic from 'next/dynamic'
@@ -94,7 +95,7 @@ function PropostaComercialPageInner() {
     if (!podeSincronizar) return
     setSyncing(true)
     try {
-      const res = await fetch('/api/omie/sync', { method: 'POST' })
+      const res = await fetchAuth('/api/omie/sync', { method: 'POST' })
       const data = await res.json()
       if (data.success) {
         alert(`Sincronizacao concluida! ${data.count} clientes atualizados.`)

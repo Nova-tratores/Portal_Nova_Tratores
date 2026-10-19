@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseVE } from "@/lib/visual-estoque/supabase";
 import { buscarImagensBing } from "@/lib/visual-estoque/bing";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -10,6 +11,9 @@ export const maxDuration = 60;
 // sleep 1500ms), aqui limitamos a quantidade por chamada (`limite`, default 15)
 // para caber na janela serverless. O front pode chamar em loop até zerar.
 export async function POST(req: NextRequest) {
+  // Botão da tela Pátio: pode('consulta-estoque', 'patio').
+  const g = await protegerRota(req, [{ modulo: "consulta-estoque", acao: "patio" }]);
+  if (g.resposta) return g.resposta;
   try {
     const body = await req.json().catch(() => ({}));
     const limite = Math.max(1, Math.min(40, Number(body?.limite) || 15));

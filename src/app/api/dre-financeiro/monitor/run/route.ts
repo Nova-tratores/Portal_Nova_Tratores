@@ -4,12 +4,16 @@
 // sem esperar o termino.
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { getContasOmie } from '@/lib/dre-financeiro/omie-api'
 import { runMonitor, runTodos, MODULOS } from '@/lib/dre-financeiro/monitors'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  // Botão "Rodar" da tela Monitor (sem trava de admin lá): mesmo gate da tela.
+  const g = await guardarDre(request, 'monitor')
+  if (g.resposta) return g.resposta
   const sp = request.nextUrl.searchParams
   const modulo = sp.get('modulo') ? String(sp.get('modulo')) : null
   const conta = (sp.get('conta') || 'todas').toString().toLowerCase()

@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
+import { fetchAuth } from '@/lib/auth/client'
 import { ChevronRight, Package, MapPin, Eye, Archive, ImagePlus, Images, List, X, BookImage } from 'lucide-react'
 import { useAtalhoDuplo } from '@/lib/visual-estoque/useAtalhoDuplo'
 import MenuImagem from '@/components/visual-estoque/MenuImagem'
@@ -81,7 +82,7 @@ export default function PatioPage() {
 
   const recarregar = useCallback(() => {
     setLoading(true)
-    fetch(`/api/visual-estoque/produtos?modo=patio&conta=${conta}`)
+    fetchAuth(`/api/visual-estoque/produtos?modo=patio&conta=${conta}`)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
@@ -91,7 +92,7 @@ export default function PatioPage() {
 
   // Carrega config de zonas do mapa (1x).
   useEffect(() => {
-    fetch('/api/visual-estoque/mapa-config?id=default')
+    fetchAuth('/api/visual-estoque/mapa-config?id=default')
       .then(r => r.json())
       .then(z => { if (z && typeof z === 'object') setZonas(z) })
       .catch(() => {})
@@ -102,7 +103,7 @@ export default function PatioPage() {
 
   // Atalho secreto EE: liga/desliga edição de zonas; ao desligar, persiste.
   const salvarZonas = useCallback((z: Record<string, { x: number; y: number; w: number; h: number }>) => {
-    fetch('/api/visual-estoque/mapa-config?id=default', {
+    fetchAuth('/api/visual-estoque/mapa-config?id=default', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(z),
     }).catch(() => {})
   }, [])
@@ -152,7 +153,7 @@ export default function PatioPage() {
 
   async function arquivar() {
     if (!selecionada) return
-    await fetch('/api/visual-estoque/produtos/arquivar', {
+    await fetchAuth('/api/visual-estoque/produtos/arquivar', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ codigo_produto: selecionada.codigo_produto, arquivado: true }),
     })
@@ -166,7 +167,7 @@ export default function PatioPage() {
       let restantes = Infinity
       // Chama em loop (cada request processa um lote limitado) até zerar ou falhar.
       for (let i = 0; i < 30 && restantes > 0; i++) {
-        const r = await fetch('/api/visual-estoque/buscar-imagens-lote', {
+        const r = await fetchAuth('/api/visual-estoque/buscar-imagens-lote', {
           method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ limite: 15 }),
         })
         const d = await r.json()
@@ -181,7 +182,7 @@ export default function PatioPage() {
   async function buscarImagensCatalogo() {
     setBuscandoCatalogo(true)
     try {
-      const r = await fetch('/api/visual-estoque/imagens-catalogo', {
+      const r = await fetchAuth('/api/visual-estoque/imagens-catalogo', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conta }),
       })
       const d = await r.json()
@@ -224,7 +225,7 @@ export default function PatioPage() {
           const posX = Math.max(0, Math.min(92, ((ev.clientX - r.left) / r.width) * 100))
           const posY = Math.max(0, Math.min(88, ((ev.clientY - r.top) / r.height) * 100))
 
-          fetch('/api/visual-estoque/mover', {
+          fetchAuth('/api/visual-estoque/mover', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ codigo_produto: maq.codigo_produto, ambiente: targetAmb, pos_x: posX, pos_y: posY }),

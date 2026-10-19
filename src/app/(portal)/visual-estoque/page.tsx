@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
+import { fetchAuth } from '@/lib/auth/client'
 import { BarChart3, DollarSign, TrendingDown, Package, Layers } from 'lucide-react'
 
 const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -27,7 +28,7 @@ export default function VisualEstoqueDashboard() {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/visual-estoque/produtos?modo=dashboard&conta=${conta}`)
+    fetchAuth(`/api/visual-estoque/produtos?modo=dashboard&conta=${conta}`)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))

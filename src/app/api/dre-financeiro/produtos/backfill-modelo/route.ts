@@ -6,12 +6,16 @@
 // 202 sem esperar o termino (pode demorar ~2min). 'todas' nao e aceito.
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDreVendasModelo } from '@/lib/dre-financeiro/rota'
 import { CONTA_PADRAO } from '@/lib/dre-financeiro/calc'
 import { backfillModeloProdutos } from '@/lib/dre-financeiro/omie-api'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  // Botão "Sincronizar" da Vendas por Modelo (DRE e Comercial): mesmo gate da tela.
+  const g = await guardarDreVendasModelo(request)
+  if (g.resposta) return g.resposta
   try {
     const sp = request.nextUrl.searchParams
     const conta = (sp.get('conta') || CONTA_PADRAO).toString().toLowerCase()

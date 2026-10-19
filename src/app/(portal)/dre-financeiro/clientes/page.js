@@ -13,6 +13,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { fetchAuth } from '@/lib/auth/client'
 
 // --- helpers fieis ao <script> da view original -----------------------------
 
@@ -75,7 +76,7 @@ export default function ClientesPage() {
     setStatus('Carregando ABC e inadimplencia...')
     setCarregando(true)
     try {
-      const r = await fetch('/api/dre-financeiro/clientes/analise?conta=' + conta + '&desde=' + de + '&ate=' + at)
+      const r = await fetchAuth('/api/dre-financeiro/clientes/analise?conta=' + conta + '&desde=' + de + '&ate=' + at)
       const d = await r.json()
       setCarregando(false)
       if (d.erro) { setStatus('Erro: ' + d.erro); return }

@@ -10,6 +10,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
+import { fetchAuth } from '@/lib/auth/client';
 
 interface Item { seq: number; codigo: string | null; descricao: string | null; chassi: string | null; cfop: string | null; qtde: number; valUnit: number; valTotal: number }
 interface Nota {
@@ -69,7 +70,7 @@ export default function DevolucaoPage() {
     if (!fatNum.trim()) { setErro('Informe o número da NF de faturamento.'); return; }
     setCarregando(true); setErro(''); setFicha(null);
     try {
-      const r = await fetch('/api/ajustes/devolucao/preparar', {
+      const r = await fetchAuth('/api/ajustes/devolucao/preparar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ conta, faturamentoNumero: fatNum.trim(), faturamentoSerie: fatSerie.trim() || null, remessaNumero: remNum.trim() || null, remessaSerie: remSerie.trim() || null }),
       });

@@ -318,7 +318,7 @@ function DashboardAgrupadoInner() {
 
   const fetchObservacoesDoTrator = useCallback(async (tratorId: string) => {
     try {
-      const res = await fetch(`/api/observacoes?trator_id=${encodeURIComponent(tratorId)}`);
+      const res = await fetch(`/api/observacoes?trator_id=${encodeURIComponent(tratorId)}`, { headers: await authHeaders() });
       if (!res.ok) return;
       const data = await res.json();
       setObservacoes(data.observacoes || []);
@@ -329,7 +329,7 @@ function DashboardAgrupadoInner() {
 
   const fetchTodasObsAtivas = useCallback(async () => {
     try {
-      const res = await fetch(`/api/observacoes?status=ativa`);
+      const res = await fetch(`/api/observacoes?status=ativa`, { headers: await authHeaders() });
       if (!res.ok) return;
       const data = await res.json();
       setTodasObsAtivas(data.observacoes || []);
@@ -867,7 +867,7 @@ function DashboardAgrupadoInner() {
     try {
       const res = await fetch("/api/observacoes", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           trator_id: selecionado.ID,
           chassis: selecionado.Chassis,
@@ -900,7 +900,7 @@ function DashboardAgrupadoInner() {
     if (!podeObservacoes) return;
     const res = await fetch(`/api/observacoes/${obs.id}`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(await authHeaders()) },
       body: JSON.stringify({ status: "resolvida", userName: nomeRemetente || null }),
     });
     if (res.ok) {
@@ -920,7 +920,7 @@ function DashboardAgrupadoInner() {
   const deletarObservacao = async (obs: Observacao) => {
     if (!podeObservacoes) return;
     if (!confirm("Remover esta observação?")) return;
-    const res = await fetch(`/api/observacoes/${obs.id}`, { method: "DELETE" });
+    const res = await fetch(`/api/observacoes/${obs.id}`, { method: "DELETE", headers: await authHeaders() });
     if (res.ok) {
       setObservacoes(prev => prev.filter(o => o.id !== obs.id));
       setTodasObsAtivas(prev => prev.filter(o => o.id !== obs.id));

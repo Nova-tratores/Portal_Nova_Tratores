@@ -123,7 +123,10 @@ export const TAREFAS: Record<string, Tarefa> = {
   // prioridade na fila da Omie vem junto.
   'clientes-sync-recente': async () => {
     const { GET } = await import('@/app/api/clientes/sync-recente/route');
-    const r = await GET(new Request(`${baseInterna()}/api/clientes/sync-recente`));
+    // A rota exige login OU a senha de sistema (protegerRotaOuInterna).
+    const r = await GET(new Request(`${baseInterna()}/api/clientes/sync-recente`, {
+      headers: { 'x-cron-secret': process.env.CRON_SECRET || '' },
+    }));
     const d = (await r.json().catch(() => ({}))) as {
       error?: string;
       resultado?: Record<string, { os_novas: number; pv_novos: number; nfs: number }>;

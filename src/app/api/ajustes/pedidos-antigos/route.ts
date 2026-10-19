@@ -5,6 +5,7 @@ import { listarPedidosAntigosTodasContas } from '@/lib/ajustes/pedidos';
 import { gerarPDFPedidos } from '@/lib/ajustes/pdf-pedidos';
 import { resolveJanelaBR } from '@/lib/ajustes/cmc';
 import { fmtISO, hoje } from '@/lib/ajustes/dates';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs'; // pdfkit (fmt=pdf)
@@ -13,6 +14,8 @@ export const maxDuration = 300;
 // Pedidos abertos ha mais de X dias, consolidado NOVA + CASTRO, agrupado por
 // criador. Query: ?dias=15 (default) e ?fmt=json(default)|csv|pdf.
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'pedidos' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const diasMin = Math.max(1, parseInt(sp.get('dias') || '', 10) || 15);
   const fmt = (sp.get('fmt') || 'json').toLowerCase();

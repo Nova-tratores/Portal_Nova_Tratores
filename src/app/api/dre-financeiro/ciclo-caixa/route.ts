@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 export const dynamic = 'force-dynamic'
 
 // calc.js e CommonJS server-side (service key + segredos Omie)
@@ -9,6 +10,8 @@ import { calcularCicloCaixa } from '@/lib/dre-financeiro/calc'
 // internamente. req.query.meses => searchParams 'meses'
 // (a propria funcao faz parseInt e clamp 3..24, default 12).
 export async function GET(request: NextRequest) {
+  const g = await guardarDre(request, 'ciclo-caixa')
+  if (g.resposta) return g.resposta
   try {
     const meses = request.nextUrl.searchParams.get('meses')
     const r = await calcularCicloCaixa(meses)

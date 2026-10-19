@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -37,6 +38,8 @@ async function fetchAll<T>(table: string, select: string, filters?: (q: any) => 
 }
 
 export async function GET(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: "clientes" }]);
+  if (guarda.resposta) return guarda.resposta;
   const empresaFilter = req.nextUrl.searchParams.get("empresa");
 
   try {

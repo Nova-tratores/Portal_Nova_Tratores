@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -182,7 +183,10 @@ async function buscarPdfPV(codPedido: number, numPedido: string, empresa: string
 }
 
 // ============ ROUTE ============
+// Diagnóstico sem tela: só admin.
 export async function GET(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ admin: true }]);
+  if (guarda.resposta) return guarda.resposta;
   const codCli = req.nextUrl.searchParams.get("codCli");
   const empresa = req.nextUrl.searchParams.get("empresa");
 

@@ -8,12 +8,15 @@
 //   heuristica: 1 pra aplicar marcacao heuristica (default off)
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDreAdmin } from '@/lib/dre-financeiro/rota'
 import { getPedidosInvalidosState, detectarPedidosInvalidos } from '@/lib/dre-financeiro/calc'
 import { getContasOmie } from '@/lib/dre-financeiro/omie-api'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  const g = await guardarDreAdmin(request)
+  if (g.resposta) return g.resposta
   const sp = request.nextUrl.searchParams
   const conta = (sp.get('conta') || '').toString().toLowerCase()
   if (!conta) return NextResponse.json({ erro: 'informe ?conta=nova|castro|todas' }, { status: 400 })

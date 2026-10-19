@@ -9,7 +9,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
-import { authHeaders } from '@/lib/auth/client';
+import { authHeaders, fetchAuth } from '@/lib/auth/client';
 import { tempoRelativo } from '@/lib/ajustes/tempo-relativo';
 import { RECORTES, RECORTE_PADRAO, ehRecorte, aplicarRecorte, resumir, type Recorte } from '@/lib/ajustes/baixa-contas-recorte';
 
@@ -108,7 +108,7 @@ export default function BaixaContasPage() {
     setStatus('carregando...');
     setTitulos([]);
     try {
-      const r = await fetch(`/api/ajustes/contas/abertos?tipo=${tipo}${contaParam}`);
+      const r = await fetch(`/api/ajustes/contas/abertos?tipo=${tipo}${contaParam}`, { headers: await authHeaders() });
       const d = (await r.json()) as AbertosPayload;
       if (d.erro) { setStatus('Erro: ' + d.erro); return; }
       const ts = (d.titulos || []).map((l) => ({ ...l, contraparte: decode(l.contraparte), categoria: decode(l.categoria) }));
@@ -330,7 +330,7 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
     let vivo = true;
     (async () => {
       try {
-        const r = await fetch(`/api/ajustes/contas/consultar?tipo=${tipo}&conta=${encodeURIComponent(conta)}&codigoLancamento=${encodeURIComponent(titulo.codigoLancamento)}`);
+        const r = await fetch(`/api/ajustes/contas/consultar?tipo=${tipo}&conta=${encodeURIComponent(conta)}&codigoLancamento=${encodeURIComponent(titulo.codigoLancamento)}`, { headers: await authHeaders() });
         const d = (await r.json()) as ConsultaPayload;
         if (!vivo) return;
         if (d.erro) { setErroConsulta('Erro ao consultar: ' + d.erro); setCarregando(false); return; }
@@ -351,7 +351,7 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
   useEffect(() => {
     if (!mostrarDropdownCC || ccs.length) return;
     let vivo = true;
-    fetch('/api/ajustes/contas-correntes?conta=' + encodeURIComponent(conta))
+    fetchAuth('/api/ajustes/contas-correntes?conta=' + encodeURIComponent(conta))
       .then((r) => r.json())
       .then((d) => { if (vivo) setCcs(d.contasCorrentes || []); })
       .catch(() => { if (vivo) setCcs([]); });

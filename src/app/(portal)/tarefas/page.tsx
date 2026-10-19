@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
+import { fetchAuth } from '@/lib/auth/client'
 import {
   ClipboardCheck, Plus, Calendar, AlertTriangle, CheckCircle2,
   Clock, X, User, Flag, ChevronDown, Search, Loader2
@@ -101,8 +102,8 @@ function TarefasPageInner() {
     if (!silencioso) setLoading(true)
     try {
       const [tarefasRes, usersRes] = await Promise.all([
-        fetch(`/api/tarefas?filter=todas&userId=${userProfile.id}`),
-        fetch('/api/tarefas/users'),
+        fetchAuth(`/api/tarefas?filter=todas&userId=${userProfile.id}`),
+        fetchAuth('/api/tarefas/users'),
       ])
       const [tarefas, usersData] = await Promise.all([
         tarefasRes.json(),
@@ -168,7 +169,7 @@ function TarefasPageInner() {
     }))
 
     try {
-      const res = await fetch(`/api/tarefas/${id}`, {
+      const res = await fetchAuth(`/api/tarefas/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ done }),
@@ -197,7 +198,7 @@ function TarefasPageInner() {
     const antes = allTarefas.find(t => t.id === id)
     setAllTarefas(prev => prev.map(t => (t.id === id ? { ...t, atribuido_a: para, atribuido: users.find(u => u.id === para) || t.atribuido } : t)))
     try {
-      const res = await fetch(`/api/tarefas/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ atribuido_a: para }) })
+      const res = await fetchAuth(`/api/tarefas/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ atribuido_a: para }) })
       if (!res.ok) {
         const json = await res.json().catch(() => ({}))
         throw new Error(json.error || 'Não deu para reatribuir a tarefa.')
@@ -558,7 +559,7 @@ function CriarTarefaModal({ users, criadorId, onClose, onCreated }: {
     if (!titulo.trim()) return
     setSaving(true)
     try {
-      const res = await fetch('/api/tarefas', {
+      const res = await fetchAuth('/api/tarefas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

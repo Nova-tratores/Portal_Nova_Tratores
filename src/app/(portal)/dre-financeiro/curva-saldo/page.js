@@ -36,6 +36,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { fetchAuth } from '@/lib/auth/client'
 
 // ---------------------------------------------------------------------------
 // Formatadores locais (identicos aos do <script> da fonte). Mantidos inline para
@@ -144,7 +145,7 @@ export default function CurvaSaldoPage() {
   // =========================================================================
   useEffect(() => {
     const qs = 'conta=' + conta + '&dias=' + dias + '&inicial=' + inicial
-    fetch('/api/dre-financeiro/saldo-projetado?' + qs)
+    fetchAuth('/api/dre-financeiro/saldo-projetado?' + qs)
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) { alert('Erro: ' + d.erro); return }
@@ -270,7 +271,7 @@ export default function CurvaSaldoPage() {
     setModalAberto(true)
 
     const qs = 'conta=' + conta + '&tipo=ambos&data=' + dataISO
-    fetch('/api/dre-financeiro/titulos?' + qs).then((r) => r.json()).then((d) => {
+    fetchAuth('/api/dre-financeiro/titulos?' + qs).then((r) => r.json()).then((d) => {
       if (d.erro) { setModalCorpo({ tipo: 'erro', msg: d.erro }); return }
       let titulos = d.titulos || []
       // Filtra somente titulos com aberto > 0 (mesma logica da curva)

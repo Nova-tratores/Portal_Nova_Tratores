@@ -75,7 +75,7 @@ export default function FamiliasPage() {
   // Carrega as famílias da conta (para os <select>).
   const carregarFamilias = useCallback(async (c: Conta) => {
     try {
-      const r = await fetch(`/api/ajustes/familias?conta=${c}`);
+      const r = await fetch(`/api/ajustes/familias?conta=${c}`, { headers: await authHeaders() });
       const d = await r.json();
       if (d.erro) { setMsg('Erro ao carregar famílias: ' + d.erro, 'erro'); return; }
       setFamilias(d.familias || []);
@@ -94,7 +94,7 @@ export default function FamiliasPage() {
     if (!termo) { setMsg('Digite um SKU ou parte da descrição.', 'info'); return; }
     setCarregando(true); setModo('busca'); setMsg('buscando…', 'info'); setSelecionados(new Set()); setFiltroCli('');
     try {
-      const r = await fetch(`/api/ajustes/familias?conta=${conta}&q=${encodeURIComponent(termo)}`);
+      const r = await fetch(`/api/ajustes/familias?conta=${conta}&q=${encodeURIComponent(termo)}`, { headers: await authHeaders() });
       const d = await r.json();
       if (d.erro) { setMsg('Erro: ' + d.erro, 'erro'); return; }
       if (d.familias) setFamilias(d.familias);
@@ -115,7 +115,7 @@ export default function FamiliasPage() {
     setMsg(force ? 'atualizando (varrendo a Omie)…' : 'carregando produtos sem família (1ª vez varre a Omie, ~1–2 min)…', 'info');
     setSelecionados(new Set()); setFiltroCli(''); setQ('');
     try {
-      const r = await fetch(`/api/ajustes/familias?conta=${conta}&sem_familia=1${force ? '&atualizar=1' : ''}`);
+      const r = await fetch(`/api/ajustes/familias?conta=${conta}&sem_familia=1${force ? '&atualizar=1' : ''}`, { headers: await authHeaders() });
       const d = await r.json();
       if (d.erro) { setMsg('Erro: ' + d.erro, 'erro'); return; }
       if (d.familias) setFamilias(d.familias);

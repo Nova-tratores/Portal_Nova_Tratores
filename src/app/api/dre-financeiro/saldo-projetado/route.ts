@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import {
   CONTA_PADRAO,
   tabelaPorTipo,
@@ -25,6 +26,8 @@ function pegaConta(request: NextRequest): string {
 // API: curva de saldo projetado (fluxo de caixa acumulado dia-a-dia)
 // =============================================================================
 export async function GET(request: NextRequest) {
+  const g = await guardarDre(request, 'curva-saldo')
+  if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   const db = supabase // captura nao-null para uso no closure buscaTipo
   try {

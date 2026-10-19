@@ -6,11 +6,14 @@
 // refresh=1|true forca recalculo (ignora cache supabase).
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { calcularDREConsolidada } from '@/lib/dre-financeiro/calc'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
+  const g = await guardarDre(request, 'dre', 'analise-dre')
+  if (g.resposta) return g.resposta
   try {
     const sp = request.nextUrl.searchParams
     const desdeQ = String(sp.get('desde') || '')

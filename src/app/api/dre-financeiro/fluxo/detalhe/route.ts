@@ -6,6 +6,7 @@
 // (em memoria, por causa do fallback descricao/codigo). Acumula total no topo.
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 // @ts-ignore - modulo CommonJS sem tipos
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import {
@@ -35,6 +36,8 @@ function ehDescontoDuplicataAPIP(r: any): boolean {
 }
 
 export async function GET(request: NextRequest) {
+  const g = await guardarDre(request, 'fluxo')
+  if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   try {
     const sp = request.nextUrl.searchParams

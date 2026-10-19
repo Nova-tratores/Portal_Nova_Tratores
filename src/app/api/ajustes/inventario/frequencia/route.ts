@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { setFrequencia } from '@/lib/ajustes/inventario';
 import type { HttpError } from '@/lib/ajustes/cmc';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
 // Frequência manual de contagem de um SKU (sobrevive ao recálculo).
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'inventario' }]);
+  if (g.resposta) return g.resposta;
   try {
     const b = (await req.json().catch(() => ({}))) as { sku?: string; dias?: number | string };
     if (!b.sku) return NextResponse.json({ ok: false, erro: 'informe sku' }, { status: 400 });

@@ -7,6 +7,7 @@
 // de itens confiavel no banco hoje -> retorna vazio.
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -15,7 +16,9 @@ const TIPOS_TITULO = new Set(['pagar', 'receber'])
 
 type Ctx = { params: Promise<{ tipo: string; codigo: string }> }
 
-export async function GET(_request: NextRequest, context: Ctx) {
+export async function GET(request: NextRequest, context: Ctx) {
+  const g = await guardarDre(request, 'vencidos')
+  if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   const { tipo: tipoRaw, codigo: codigoRaw } = await context.params
   const tipo = String(tipoRaw || '').toLowerCase()

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { CONTA_PADRAO, TIPO_PADRAO, TIPOS_VALIDOS } from '@/lib/dre-financeiro/calc'
 import { buscarTitulosLista, type EixoLista } from '@/lib/dre-financeiro/lista'
 // @ts-ignore - modulo CommonJS sem tipos
@@ -43,6 +44,8 @@ function montaQuery(request: NextRequest): Record<string, string> {
 // do relatorio semanal).
 // =============================================================================
 export async function GET(request: NextRequest) {
+  const g = await guardarDre(request, 'calendario')
+  if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   try {
     const conta = pegaConta(request)

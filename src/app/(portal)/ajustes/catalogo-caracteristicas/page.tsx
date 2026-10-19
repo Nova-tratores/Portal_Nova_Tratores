@@ -9,6 +9,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 
 interface Item {
   codigo_produto: number; codigo: string; descricao: string;
@@ -51,7 +52,7 @@ export default function CatalogoCaracteristicasPage() {
     setCarregando(true);
     setMsg(force ? 'recalculando a proposta…' : 'a montar a proposta a partir do catálogo (pode levar ~1 min na 1ª vez)…', 'info');
     try {
-      const r = await fetch(`/api/ajustes/catalogo-caracteristicas${force ? '?atualizar=1' : ''}`);
+      const r = await fetchAuth(`/api/ajustes/catalogo-caracteristicas${force ? '?atualizar=1' : ''}`);
       const d = await r.json();
       if (d.erro) { setMsg('Erro: ' + d.erro, 'erro'); return; }
       const lista = (d.itens || []) as Item[];

@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { fetchAuth } from '@/lib/auth/client'
 
 export default function EquipamentoEditModal({ onClose }) {
   const [loading, setLoading] = useState(false)
@@ -43,7 +44,7 @@ export default function EquipamentoEditModal({ onClose }) {
       fd.append('ano', selectedItem.ano || '')
       fd.append('imagem', selectedItem.imagem || '')
       if (file) fd.append('file', file)
-      const res = await fetch('/api/propostas/equipamento', { method: 'PATCH', body: fd })
+      const res = await fetchAuth('/api/propostas/equipamento',{ method: 'PATCH', body: fd })
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Erro ao salvar')
       alert("EQUIPAMENTO ATUALIZADO COM SUCESSO!"); onClose()

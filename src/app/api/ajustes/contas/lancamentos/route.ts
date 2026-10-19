@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/ajustes/conta';
 import { lancamentosContas, statusInPorSituacao } from '@/lib/ajustes/contas';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 // Lançamentos de uma categoria/departamento específico — ou dim=todos (modo Lista).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'correcao-contas' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const tipo = sp.get('tipo') === 'receber' ? 'receber' : 'pagar';
   const dimRaw = sp.get('dim');

@@ -22,6 +22,7 @@ jobs:
         continue-on-error: true
         run: |
           curl -fsS --max-time 900 "$PORTAL_URL/api/clientes/sync-recente" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             -o /dev/null -w "sync-recente: HTTP %{http_code}\n"
 
       - name: Baixar/vincular TODAS as NFs faltantes (em lotes até zerar)
@@ -34,6 +35,7 @@ jobs:
             echo "── Lote $i ──"
             HTTP=$(curl -s --max-time 1500 -X POST \
               "$PORTAL_URL/api/clientes/sync-nfs?limite=1000" \
+              -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
               -o /tmp/nf.json -w "%{http_code}")
             echo "HTTP $HTTP"
             cat /tmp/nf.json | head -c 800; echo

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -22,7 +23,9 @@ async function fetchAll<T>(table: string, select: string, filters?: (q: any) => 
   return all;
 }
 
-export async function POST() {
+export async function POST(req: Request) {
+  const guarda = await protegerRota(req, [{ modulo: "clientes" }]);
+  if (guarda.resposta) return guarda.resposta;
   let clientesVinculados = 0;
   let projetosVinculados = 0;
 

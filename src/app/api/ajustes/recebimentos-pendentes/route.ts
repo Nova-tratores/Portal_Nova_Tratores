@@ -2,12 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 import { obterRecebimentosPendentes, enriquecerResponsaveis } from '@/lib/ajustes/recebimentos';
 import { fmtBR, parseAnyDate, hoje, addMeses } from '@/lib/ajustes/dates';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
 // Recebimentos de NF-e pendentes com projeção de impacto no CMC. Janela default: 6 meses.
 export async function GET(req: NextRequest) {
+  // Tela: /estoque/recebimentos (mesmo gate da página).
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'recebimentos' }, { modulo: 'ajustes', acao: 'recebimentos' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta')) ?? CONTA_DEFAULT;
   const de = sp.get('de');

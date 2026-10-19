@@ -62,6 +62,23 @@ function Secao({ titulo, itens, children }) {
 const linha = { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', overflowWrap: 'anywhere', fontSize: '13px', color: '#334155', padding: '7px 0', borderBottom: '1px dashed #f1f4f8' }
 const chip = (bg, cor) => ({ fontSize: '10.5px', fontWeight: 800, padding: '2px 9px', borderRadius: '999px', background: bg, color: cor, whiteSpace: 'nowrap' })
 
+// DANFE da NF de saída: a rota exige login, então pede o { url } com o token e
+// abre a URL da Omie (aba aberta antes do await p/ o bloqueador de pop-up).
+async function abrirDanfeNfSaida(e, ns) {
+  e.preventDefault()
+  const qs = `conta=${encodeURIComponent(ns.conta_omie || 'NOVA')}&nCodNF=${encodeURIComponent(ns.n_cod_nf)}&tipo=${encodeURIComponent(ns.tipo || 'produto')}`
+  const janela = window.open('', '_blank')
+  try {
+    const r = await fetch(`/api/ajustes/notas/danfe?${qs}`, { headers: await authHeaders() })
+    const d = await r.json().catch(() => ({}))
+    if (d.url) { if (janela) janela.location.href = d.url; else window.open(d.url, '_blank') }
+    else { if (janela) janela.close(); alert('Não foi possível obter o DANFE: ' + (d.erro || r.status)) }
+  } catch (ex) {
+    if (janela) janela.close()
+    alert('Erro ao obter o DANFE: ' + ex.message)
+  }
+}
+
 // refKeys de TODOS os docs da ficha — o diálogo de vincular não deve oferecer
 // quem já está aqui dentro
 function refsDaFicha(f) {
@@ -204,6 +221,7 @@ function FichaDocumento({ ficha, onMudou }) {
             <span>{ns.data_emissao ? formatarDataBR(ns.data_emissao) : '—'}</span>
             {ns.cancelada && <span style={chip('#fef2f2', '#dc2626')}>CANCELADA</span>}
             <a href={`/api/ajustes/notas/danfe?conta=${encodeURIComponent(ns.conta_omie || 'NOVA')}&nCodNF=${encodeURIComponent(ns.n_cod_nf)}&tipo=${encodeURIComponent(ns.tipo || 'produto')}&redirect=1`}
+              onClick={(e) => abrirDanfeNfSaida(e, ns)}
               target="_blank" rel="noreferrer"
               style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: '#2563eb', fontWeight: 700, fontSize: '12px', textDecoration: 'none' }}>
               <FileText size={12} /> DANFE

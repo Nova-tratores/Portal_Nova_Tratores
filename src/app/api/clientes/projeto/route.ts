@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { autenticar } from "@/lib/auth/server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -20,7 +21,9 @@ function extractModelo(servicos: any): string {
 }
 
 // GET /api/clientes/projeto?nome=PROJETO&empresa=Nova Tratores
+// Só login: a tela /clientes/projeto é livre (aberta pelo POS, cockpit e Pasta).
 export async function GET(req: NextRequest) {
+  if (!(await autenticar(req))) return NextResponse.json({ error: "nao autenticado" }, { status: 401 });
   const nome = req.nextUrl.searchParams.get("nome");
   const empresa = req.nextUrl.searchParams.get("empresa") || "Nova Tratores";
 

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { obterEncerramento } from '@/lib/ajustes/pedidos';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
 // JSON de 1 encerramento informal (recibo).
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'pedidos' }]);
+  if (g.resposta) return g.resposta;
   const { id } = await params;
   try {
     const data = await obterEncerramento(id);

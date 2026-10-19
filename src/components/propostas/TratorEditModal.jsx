@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { fetchAuth } from '@/lib/auth/client'
 
 export default function TratorEditModal({ onClose }) {
   const [listaTratores, setListaTratores] = useState([])
@@ -22,7 +23,7 @@ export default function TratorEditModal({ onClose }) {
 
   const fetchTratores = async () => {
     try {
-      const res = await fetch('/api/propostas/trator-lista')
+      const res = await fetchAuth('/api/propostas/trator-lista')
       const data = await res.json()
       if (Array.isArray(data)) setListaTratores(data)
     } catch (e) { console.error('Erro ao buscar tratores:', e) }
@@ -54,7 +55,7 @@ export default function TratorEditModal({ onClose }) {
         fd.append('imagem', formData.imagem)
       }
 
-      const res = await fetch('/api/propostas/trator', { method: 'PATCH', body: fd })
+      const res = await fetchAuth('/api/propostas/trator',{ method: 'PATCH', body: fd })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Erro ao atualizar')
       alert("TRATOR ATUALIZADO COM SUCESSO!")
@@ -112,7 +113,7 @@ export default function TratorEditModal({ onClose }) {
                   ) : (
                     <div className="w-[250px] h-[150px] bg-zinc-100 flex items-center justify-center rounded-xl border-2 border-dashed border-zinc-300">SEM FOTO</div>
                   )}
-                  <input type="file" id="editTratorImg" className="hidden" onChange={handleFileSelect} />
+                  <input type="file" id="editTratorImg" className="hidden" onChange={handleFileSelect} accept="image/*" />
                   <button type="button" onClick={() => document.getElementById('editTratorImg').click()} className="px-4 py-2 bg-zinc-900 text-white border-none rounded-md cursor-pointer text-[10px] font-extrabold">ALTERAR FOTO</button>
                 </div>
               </div>

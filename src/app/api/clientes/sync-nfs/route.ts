@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { resolverNfseDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
+import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -43,6 +44,9 @@ async function downloadAndStore(url: string, path: string): Promise<string | nul
 }
 
 export async function POST(req: NextRequest) {
+  // Chamada pelo cron sync-nfs.yml (Bearer CRON_SECRET); gente só com a Pasta Clientes.
+  const guarda = await protegerRotaOuInterna(req, [{ modulo: "clientes" }]);
+  if (guarda.resposta) return guarda.resposta;
   const limite = parseInt(req.nextUrl.searchParams.get("limite") || "2000");
 
   try {

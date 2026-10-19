@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { numeroNfDoLink, numeroNfse, contaOmieDaEmpresa, chaveOS } from "@/lib/clientes/numero-nf";
 import { numeroNfDoPdf } from "@/lib/clientes/numero-nf-pdf";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 // A pasta do cliente precisa SEMPRE ler dados frescos do banco — sem o cache de
 // fetch/rota do Next (que deixava o detalhe mostrando dado velho, ex. vendedor).
@@ -36,6 +37,8 @@ async function fetchAll<T>(table: string, select: string, filters?: (q: any) => 
 }
 
 export async function GET(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: "clientes" }]);
+  if (guarda.resposta) return guarda.resposta;
   const codCli = req.nextUrl.searchParams.get("codCli");
   const empresa = req.nextUrl.searchParams.get("empresa");
   const checkSync = req.nextUrl.searchParams.get("checkSync");

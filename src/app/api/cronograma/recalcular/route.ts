@@ -9,11 +9,15 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { recalcularProjeto } from '@/lib/trabalho/cronograma-server';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
+// Central de Trabalho (lib/trabalho/modulo.ts): tarefas, tickets OU cronograma.
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'tarefas' }, { modulo: 'tickets' }, { modulo: 'cronograma' }]);
+  if (g.resposta) return g.resposta;
   try {
     const { projetoId } = await req.json();
     if (!projetoId) {

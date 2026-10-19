@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 
 interface Pedido {
   numero?: string | null; contaLabel?: string; dataInclusao?: string | null; diasAberto?: number | null;
@@ -35,13 +36,38 @@ export default function PedidosAntigosPage() {
   const buscar = useCallback(async () => {
     setCarregando(true); setErro('');
     try {
-      const r = await fetch(`/api/ajustes/pedidos-antigos?dias=${encodeURIComponent(dias)}`);
+      const r = await fetchAuth(`/api/ajustes/pedidos-antigos?dias=${encodeURIComponent(dias)}`);
       const d = (await r.json()) as Payload;
       if (d.erro) { setErro(d.erro); return; }
       setDados(d);
     } catch (ex) {
       setErro('erro de rede: ' + (ex as Error).message);
     } finally { setCarregando(false); }
+  }, [dias]);
+
+  // CSV/PDF: a rota exige login, entao baixa com o token (fetch + blob) em vez de link direto.
+  const baixar = useCallback(async (fmt: 'csv' | 'pdf') => {
+    const janela = fmt === 'pdf' ? window.open('', '_blank') : null;
+    try {
+      const r = await fetchAuth(`/api/ajustes/pedidos-antigos?dias=${encodeURIComponent(dias)}&fmt=${fmt}`);
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        throw new Error((d as { erro?: string }).erro || `HTTP ${r.status}`);
+      }
+      const url = URL.createObjectURL(await r.blob());
+      if (fmt === 'pdf') {
+        if (janela) janela.location.href = url; else window.open(url, '_blank');
+      } else {
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `pedidos-antigos-${dias}d.csv`;
+        document.body.appendChild(a); a.click(); a.remove();
+      }
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (ex) {
+      janela?.close();
+      setErro('erro ao baixar: ' + (ex as Error).message);
+    }
   }, [dias]);
 
   // busca inicial (apenas no mount; recargas posteriores via botao Atualizar)
@@ -75,8 +101,8 @@ export default function PedidosAntigosPage() {
             <input type="number" min={1} value={dias} onChange={(e) => setDias(Math.max(1, parseInt(e.target.value, 10) || 1))} style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem', width: 90 }} />
           </div>
           <button onClick={buscar} disabled={carregando} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', opacity: carregando ? 0.5 : 1 }}>{carregando ? 'Carregando…' : 'Atualizar'}</button>
-          <a href={`/api/ajustes/pedidos-antigos?dias=${dias}&fmt=csv`} style={{ padding: '7px 12px', background: '#f1f5f9', color: '#334155', borderRadius: 6, fontSize: '.82rem', textDecoration: 'none' }}>CSV</a>
-          <a href={`/api/ajustes/pedidos-antigos?dias=${dias}&fmt=pdf`} target="_blank" rel="noreferrer" style={{ padding: '7px 12px', background: '#f1f5f9', color: '#334155', borderRadius: 6, fontSize: '.82rem', textDecoration: 'none' }}>PDF</a>
+          <button type="button" onClick={() => baixar('csv')} style={{ padding: '7px 12px', background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>CSV</button>
+          <button type="button" onClick={() => baixar('pdf')} style={{ padding: '7px 12px', background: '#f1f5f9', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>PDF</button>
         </div>
       </div>
 

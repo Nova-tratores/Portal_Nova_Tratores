@@ -7,6 +7,7 @@
 // pedidos invalidos) para o detalhe bater com o valor do grafico.
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import {
   CONTA_PADRAO,
@@ -27,6 +28,8 @@ function pegaConta(request: NextRequest): string {
 }
 
 export async function GET(request: NextRequest) {
+  const g = await guardarDre(request, 'dre')
+  if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   const db = supabase
   try {

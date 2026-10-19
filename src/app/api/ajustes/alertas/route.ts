@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/ajustes/conta';
 import { listarAlertas, lerStatusVerificacao } from '@/lib/ajustes/verificacao';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
 // Lista de alertas (cmc_alertas) + contagem nao lidos + estado da verificacao.
 // ?conta=NOVA|CASTRO (default Todas) &lido=0|1 &tipo=...
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'alertas' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
   const lidoRaw = sp.get('lido');

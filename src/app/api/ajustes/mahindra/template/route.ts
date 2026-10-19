@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseTemplate } from '@/lib/ajustes/mahindra';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -7,6 +8,8 @@ export const maxDuration = 60;
 
 // POST: recebe o XLSX bruto no corpo da requisicao -> headers + amostra.
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'mahindra' }]);
+  if (g.resposta) return g.resposta;
   try {
     const ab = await req.arrayBuffer();
     const buffer = Buffer.from(ab);

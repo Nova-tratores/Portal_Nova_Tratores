@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseVE } from "@/lib/visual-estoque/supabase";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
+// Arrastar máquina / tamanho da imagem na tela Pátio: pode('consulta-estoque', 'patio').
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "consulta-estoque", acao: "patio" }]);
+  if (g.resposta) return g.resposta;
   try {
     const { codigo_produto, ambiente, pos_x, pos_y, img_tamanho } = await req.json();
     if (!codigo_produto || !ambiente) {

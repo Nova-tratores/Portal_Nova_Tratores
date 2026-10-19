@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/ajustes/conta';
 import { listarEncerramentos } from '@/lib/ajustes/pedidos';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
 // Lista os encerramentos informais (Supabase). Query: conta?, de?, ate?.
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'pedidos' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
   try {

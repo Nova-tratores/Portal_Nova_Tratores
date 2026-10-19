@@ -4,6 +4,7 @@
 // Marca uma anomalia como resolvida ou ignorada (ou reabre) manualmente.
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 
 export const dynamic = 'force-dynamic'
@@ -11,6 +12,8 @@ export const dynamic = 'force-dynamic'
 type Ctx = { params: Promise<{ id: string }> }
 
 export async function POST(request: NextRequest, context: Ctx) {
+  const g = await guardarDre(request, 'monitor')
+  if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   try {
     const { id: idRaw } = await context.params

@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
+import { protegerRota } from '@/lib/ajustes/permissao-server'
+import { autenticar } from '@/lib/auth/server'
+import { temCentral } from '@/lib/trabalho/modulo'
 
 const TBL = 'portal_tarefas'
+
+// Central de Trabalho (lib/trabalho/modulo.ts): quem tem tarefas, tickets OU
+// cronograma abre tudo — mesmo critério do temAcesso('tarefas') da tela /tarefas.
+const CENTRAL = [{ modulo: 'tarefas' }, { modulo: 'tickets' }, { modulo: 'cronograma' }]
 
 // Prazo é um DIA. Só a data ('AAAA-MM-DD') vira meio-dia de Brasília — o
 // new Date('AAAA-MM-DD') era 00:00 UTC = dia ANTERIOR em -03:00.
@@ -20,10 +27,15 @@ const hojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_P
 const diaDoPrazo = (prazo: string) => prazo.slice(0, 10)
 
 export async function GET(req: NextRequest) {
+  // A dashboard (todo logado) lista "minhas tarefas": sem a Central, a pessoa
+  // só vê as atribuídas a ela; com a Central, vale o filtro pedido (tela /tarefas).
+  const auth = await autenticar(req)
+  if (!auth) return NextResponse.json({ error: 'nao autenticado' }, { status: 401 })
+  const central = auth.isAdmin || temCentral(auth.modulos)
   try {
     const { searchParams } = req.nextUrl
-    const filter = searchParams.get('filter') || 'todas'
-    const userId = searchParams.get('userId') // UUID do portal
+    const filter = central ? (searchParams.get('filter') || 'todas') : 'minhas'
+    const userId = central ? searchParams.get('userId') : auth.userId // UUID do portal
 
     const { data, error } = await supabase
       .from(TBL)
@@ -72,15 +84,16 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, CENTRAL)
+  if (g.resposta) return g.resposta
   try {
     const body = await req.json()
-    const { titulo, descricao, prazo, prioridade, criado_por, atribuido_a } = body
+    const { titulo, descricao, prazo, prioridade, atribuido_a } = body
+    // Autoria vem do login, nunca do corpo.
+    const criado_por = g.user.id
 
     if (!titulo?.trim()) {
       return NextResponse.json({ error: 'Título obrigatório' }, { status: 400 })
-    }
-    if (!criado_por) {
-      return NextResponse.json({ error: 'Usuário criador obrigatório' }, { status: 400 })
     }
 
     const insert: Record<string, unknown> = {

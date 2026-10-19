@@ -5,6 +5,7 @@
 // MESMO comportamento de /api/sync/conta (sempre pagar + receber para a conta).
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDreAdmin } from '@/lib/dre-financeiro/rota'
 import { CONTA_PADRAO } from '@/lib/dre-financeiro/calc'
 import { sincronizarTudo, fmtBR } from '@/lib/dre-financeiro/omie-api'
 import { inicioMes, fimMes } from '@/lib/dre-financeiro/dates'
@@ -12,6 +13,8 @@ import { inicioMes, fimMes } from '@/lib/dre-financeiro/dates'
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  const g = await guardarDreAdmin(request)
+  if (g.resposta) return g.resposta
   const sp = request.nextUrl.searchParams
   const conta = (sp.get('conta') || CONTA_PADRAO).toString().toLowerCase()
   if (conta === 'todas') {

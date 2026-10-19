@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 import { resolveJanelaBR } from '@/lib/ajustes/cmc';
 import { obterMovimentacaoProduto } from '@/lib/ajustes/movimentacao';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -10,6 +11,8 @@ export const maxDuration = 120;
 // cliente/fornecedor cruzado das tabelas locais. Query: conta, idProd
 // (codigo_produto Omie), de/ate (YYYY-MM-DD), force=1.
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'movimentacao-produto' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta')) ?? CONTA_DEFAULT;
   const idProd = Number(sp.get('idProd'));

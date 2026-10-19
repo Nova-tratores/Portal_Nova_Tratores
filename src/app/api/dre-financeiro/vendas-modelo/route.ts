@@ -5,6 +5,7 @@
 // calcularVendasPorModelo do calc.
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDreVendasModelo } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import { CONTA_PADRAO, calcularVendasPorModelo } from '@/lib/dre-financeiro/calc'
 
@@ -21,6 +22,8 @@ function pegaConta(request: NextRequest): string {
 }
 
 export async function GET(request: NextRequest) {
+  const g = await guardarDreVendasModelo(request)
+  if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   try {
     const conta = pegaConta(request)

@@ -4,6 +4,7 @@
 // Filtros opcionais: conta, modulo, status, severidade.
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import { labelConta, mapaUsuariosOmie } from '@/lib/dre-financeiro/omie-api'
 import { selectPaginado } from '@/lib/dre-financeiro/calc'
@@ -17,6 +18,8 @@ function norm(s: any): string {
 }
 
 export async function GET(request: NextRequest) {
+  const g = await guardarDre(request, 'monitor')
+  if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   const sb = supabase // narrowing nao-null flui p/ os closures de selectPaginado
   try {

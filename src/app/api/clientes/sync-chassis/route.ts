@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { ImapFlow } from "imapflow";
+import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -14,8 +15,11 @@ const GMAIL_PASS = process.env.GMAIL_APP_PASSWORD || "";
 const BUCKET = "clientes-docs";
 
 // POST /api/clientes/sync-chassis
+// Sem chamador hoje (nem tela nem cron): só admin ou chamada de sistema.
 export async function POST(req: NextRequest) {
-  const etapa = req.nextUrl.searchParams.get("etapa") || "tudo";
+  const guarda = await protegerRotaOuInterna(req, [{ admin: true }]);
+  if (guarda.resposta) return guarda.resposta;
+  const etapa =req.nextUrl.searchParams.get("etapa") || "tudo";
 
   try {
     const resultado: Record<string, any> = {};

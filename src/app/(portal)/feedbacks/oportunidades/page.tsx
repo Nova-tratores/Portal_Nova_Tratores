@@ -8,6 +8,7 @@ import KanbanOportunidades from "@/components/feedbacks/KanbanOportunidades";
 import ModalHistoricoCliente from "@/components/feedbacks/ModalHistoricoCliente";
 import { buscarClientePorOmieId, buscarClientesOmie, inserirRegistro, listarOportunidades } from "@/lib/feedbacks/api";
 import { origemDaOportunidade } from "@/lib/feedbacks/origem";
+import { fetchAuth } from "@/lib/auth/client";
 import type { FeedbackRegistro, Oportunidade, RegraOportunidade, StatusOportunidade, TipoFeedback } from "@/lib/feedbacks/types";
 
 // Cada regra de oportunidade pre-seleciona um tipo de feedback ao atender:
@@ -108,9 +109,8 @@ export default function OportunidadesPage() {
     setMsg(null);
     setErro(null);
     try {
-      const res = await fetch("/api/feedbacks/oportunidades/recomputar", {
+      const res = await fetchAuth("/api/feedbacks/oportunidades/recomputar", {
         method: "POST",
-        headers: { "x-sync-manual": "true" },
       });
       const json = await res.json();
       console.log("[recomputar] response completo:", json);
@@ -142,7 +142,7 @@ export default function OportunidadesPage() {
   }, [carregar]);
 
   const patch = useCallback(async (id: number, payload: Record<string, unknown>) => {
-    const res = await fetch(`/api/feedbacks/oportunidades?id=${id}`, {
+    const res = await fetchAuth(`/api/feedbacks/oportunidades?id=${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),

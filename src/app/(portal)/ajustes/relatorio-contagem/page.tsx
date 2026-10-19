@@ -10,6 +10,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
+import { fetchAuth } from '@/lib/auth/client';
 
 // ---------- tipos do payload ----------
 interface OutraEmpresa { conta?: string | null; contaLabel?: string | null; saldo?: number | null; cmc?: number | null }
@@ -70,7 +71,7 @@ export default function RelatorioContagemPage() {
       let qs = contaParam.replace(/^&/, '');
       const c = codigos.trim();
       if (c) qs += (qs ? '&' : '') + 'codigos=' + encodeURIComponent(c);
-      const r = await fetch(`/api/ajustes/relatorio-contagem?${qs}`);
+      const r = await fetchAuth(`/api/ajustes/relatorio-contagem?${qs}`);
       const d = (await r.json()) as RelatorioResp;
       if (d.erro) { setErro(d.erro); setDados(null); return; }
       setDados(d);

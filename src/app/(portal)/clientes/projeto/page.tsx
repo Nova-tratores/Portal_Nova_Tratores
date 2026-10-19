@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { ArrowLeft, Download, Printer, ChevronDown, ChevronUp } from 'lucide-react'
+import { fetchAuth } from '@/lib/auth/client'
 
 const gray = '#737373'
 const lightGray = '#a3a3a3'
@@ -31,7 +32,7 @@ export default function ProjetoPage() {
   useEffect(() => {
     if (!nome) return
     setLoading(true)
-    fetch(`/api/clientes/projeto?nome=${encodeURIComponent(nome)}&empresa=${encodeURIComponent(empresa)}`)
+    fetchAuth(`/api/clientes/projeto?nome=${encodeURIComponent(nome)}&empresa=${encodeURIComponent(empresa)}`)
       .then(r => r.json())
       .then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))

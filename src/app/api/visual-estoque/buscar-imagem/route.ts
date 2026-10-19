@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { buscarImagensBing } from "@/lib/visual-estoque/bing";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 export const runtime = "nodejs";
 
 // Busca até 5 imagens no Bing para um termo. Porta /api/buscar-imagem.
+// Só a tela Pátio (MenuImagem) chama: pode('consulta-estoque', 'patio').
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "consulta-estoque", acao: "patio" }]);
+  if (g.resposta) return g.resposta;
   const termo = req.nextUrl.searchParams.get("termo");
   if (!termo) return NextResponse.json({ ok: false, imagens: [] });
   try {

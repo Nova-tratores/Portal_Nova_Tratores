@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 import { lerStatusNegativos } from '@/lib/ajustes/negativos';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,6 +10,9 @@ export const dynamic = 'force-dynamic';
 // varridos (lê o resultado do scan worker-ready). ?codigos= filtra; retorna JSON
 // (o front monta a tabela/CSV). Portado de coletarProdutosParaContagem (server.js).
 export async function GET(req: NextRequest) {
+  // Tela: /ajustes/relatorio-contagem (gate da página = ajustes:inventario).
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'inventario' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta')) ?? CONTA_DEFAULT;
   const codigos = String(sp.get('codigos') || '').split(/[,\s]+/).map((s) => s.trim()).filter(Boolean);

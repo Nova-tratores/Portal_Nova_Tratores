@@ -5,11 +5,14 @@
 // Ferramenta de debug do CMC (custo medio de compra). Exige ?conta=&codigo=&data=.
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDreAdmin } from '@/lib/dre-financeiro/rota'
 import { omieRequest } from '@/lib/dre-financeiro/omie-api'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
+  const g = await guardarDreAdmin(request)
+  if (g.resposta) return g.resposta
   const sp = request.nextUrl.searchParams
   const conta = (sp.get('conta') || '').toString().toLowerCase()
   const codigo = sp.get('codigo')

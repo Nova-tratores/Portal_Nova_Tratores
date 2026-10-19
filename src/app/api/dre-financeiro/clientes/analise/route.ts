@@ -7,6 +7,7 @@
 // e ignora vendas intercompany (entre as empresas do proprio grupo).
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import {
   selectPaginado,
@@ -18,6 +19,8 @@ import { EMPRESAS_GRUPO_CNPJ } from '@/lib/dre-financeiro/omie-api'
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
+  const g = await guardarDre(request, 'clientes')
+  if (g.resposta) return g.resposta
   try {
     if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
     const sb = supabase // const local nao-nula: o narrowing do guard nao alcanca os callbacks de selectPaginado

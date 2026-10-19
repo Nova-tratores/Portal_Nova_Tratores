@@ -22,6 +22,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
 import { simlogY, yScaleSimlog, LIN_MIN, LIN_MAX } from '@/lib/dre-financeiro/escala-simlog'
+import { fetchAuth } from '@/lib/auth/client'
 
 // =========================================================================
 // Helpers (port fiel do <script> inline da analise-dre.ejs)
@@ -160,7 +161,7 @@ export default function AnaliseDre() {
     setStatus('Carregando ' + (regime === 'competencia' ? 'regime competência' : 'regime Omie (cache supabase)') + '...')
     setCarregando(true)
     try {
-      const r = await fetch(url + '?' + qs)
+      const r = await fetchAuth(url + '?' + qs)
       const d = await r.json()
       setCarregando(false)
       if (d.erro) { setStatus('Erro: ' + d.erro); return }
@@ -741,8 +742,8 @@ export default function AnaliseDre() {
     setPopupItens(null); setPopupRateio(null)
     var qsConta = 'conta=' + encodeURIComponent(conta)
     Promise.all([
-      fetch('/api/dre-financeiro/margens?' + qsConta + '&taxa=1&desde=' + popupMes).then(function (r) { return r.json() }),
-      fetch('/api/dre-financeiro/margens/rateio?' + qsConta + '&desde=' + popupMes + '&ate=' + popupMes).then(function (r) { return r.json() })
+      fetchAuth('/api/dre-financeiro/margens?' + qsConta + '&taxa=1&desde=' + popupMes).then(function (r) { return r.json() }),
+      fetchAuth('/api/dre-financeiro/margens/rateio?' + qsConta + '&desde=' + popupMes + '&ate=' + popupMes).then(function (r) { return r.json() })
     ]).then(function (res) {
       if (!ativo) return
       setPopupCarregando(false)

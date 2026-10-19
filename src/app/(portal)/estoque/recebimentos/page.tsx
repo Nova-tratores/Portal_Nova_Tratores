@@ -11,7 +11,7 @@ import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { supabase } from '@/lib/supabase';
-import { authHeaders } from '@/lib/auth/client';
+import { authHeaders, fetchAuth } from '@/lib/auth/client';
 
 interface Usuario { id: string; nome: string; funcao?: string | null }
 const TIPO_LABEL: Record<string, string> = { pecas: 'Peças', pecas_garantia: 'Peças (garantia)', almoxarifado: 'Almoxarifado', combustivel: 'Combustível', maquinas: 'Máquinas' };
@@ -295,7 +295,7 @@ export default function RecebimentosPage() {
       if (de) qs += (qs ? '&' : '') + 'de=' + encodeURIComponent(de);
       if (ate) qs += '&ate=' + encodeURIComponent(ate);
       if (force) qs += '&force=1';
-      const r = await fetch(`/api/ajustes/recebimentos-pendentes?${qs}`);
+      const r = await fetch(`/api/ajustes/recebimentos-pendentes?${qs}`, { headers: await authHeaders() });
       // A resposta pode NAO ser JSON: numa carga fria/force o calculo ao vivo (~1-2 min)
       // pode estourar o timeout do proxy do Railway, que devolve "upstream error" (texto).
       // O calculo continua rodando no servidor e grava o snapshot; o proximo Buscar pega do cache.
@@ -346,7 +346,7 @@ export default function RecebimentosPage() {
     });
     try {
       await fetch(`/api/ajustes/recebimentos/${r.idReceb}/responsavel?conta=${encodeURIComponent(conta)}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ userId, userNome: nome }),
       });
     } catch { /* silencioso: a UI ja atualizou; recarregar reflete o estado real */ }
@@ -575,7 +575,7 @@ function NotaFiscalAcoes({ chave, idReceb, conta }: { chave?: string | null; idR
     setCarregando(true);
     try {
       const qs = `conta=${encodeURIComponent(conta)}${chaveDig ? `&chave=${chaveDig}` : ''}`;
-      const r = await fetch(`/api/ajustes/recebimentos/${idReceb}/danfe?${qs}`);
+      const r = await fetchAuth(`/api/ajustes/recebimentos/${idReceb}/danfe?${qs}`);
       const d = await r.json();
       if (d.url) window.open(d.url, '_blank', 'noopener');
       else if (d.pendente) alert(d.msg || 'O DANFE fica disponível após concluir o recebimento.');
@@ -619,7 +619,7 @@ function EntradasView({ conta, userId }: { conta: string; userId: string | null 
     setCarregando(true); setErro('');
     let qs = `conta=${encodeURIComponent(conta)}&escopo=${escopo}`;
     if (escopo === 'minhas' && userId) qs += `&userId=${encodeURIComponent(userId)}`;
-    fetch(`/api/ajustes/recebimentos/entradas?${qs}`)
+    fetchAuth(`/api/ajustes/recebimentos/entradas?${qs}`)
       .then((r) => r.json())
       .then((d) => { if (cancel) return; if (d.erro) setErro(d.erro); else setLinhas((d.entradas || []) as EntradaLog[]); })
       .catch((e) => { if (!cancel) setErro(String(e?.message || e)); })
@@ -839,7 +839,7 @@ function BuscaProduto({ conta, termoInicial, valor, onSelecionar, disabled }: {
     const timer = setTimeout(async () => {
       setBuscando(true);
       try {
-        const r = await fetch(`/api/ajustes/movimentacao/buscar-produto?conta=${encodeURIComponent(conta)}&termo=${encodeURIComponent(t)}`);
+        const r = await fetchAuth(`/api/ajustes/movimentacao/buscar-produto?conta=${encodeURIComponent(conta)}&termo=${encodeURIComponent(t)}`);
         const d = await r.json();
         setSugestoes(d.produtos || []);
         setAberto(true);
@@ -1014,7 +1014,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
     let cancel = false;
     (async () => {
       try {
-        const d = await fetch(`/api/ajustes/recebimentos/cfop-map?conta=${encodeURIComponent(conta)}`).then((x) => x.json());
+        const d = await fetchAuth(`/api/ajustes/recebimentos/cfop-map?conta=${encodeURIComponent(conta)}`).then((x) => x.json());
         const mapa = (d?.mapa || {}) as Record<string, string>;
         if (cancel || !mapa || Object.keys(mapa).length === 0) return;
         setCfops((atual) => {
@@ -1083,9 +1083,9 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
       setFinCarregando(true);
       try {
         const [cats, ccs, fin] = await Promise.all([
-          fetch(`/api/ajustes/categorias?conta=${encodeURIComponent(conta)}&comUso=1`).then((x) => x.json()).catch(() => ({})),
-          fetch(`/api/ajustes/contas-correntes?conta=${encodeURIComponent(conta)}`).then((x) => x.json()).catch(() => ({})),
-          fetch(`/api/ajustes/recebimentos/${r.idReceb}/financeiro?conta=${encodeURIComponent(conta)}`).then((x) => x.json()).catch(() => ({})),
+          fetch(`/api/ajustes/categorias?conta=${encodeURIComponent(conta)}&comUso=1`, { headers: await authHeaders() }).then((x) => x.json()).catch(() => ({})),
+          fetch(`/api/ajustes/contas-correntes?conta=${encodeURIComponent(conta)}`, { headers: await authHeaders() }).then((x) => x.json()).catch(() => ({})),
+          fetch(`/api/ajustes/recebimentos/${r.idReceb}/financeiro?conta=${encodeURIComponent(conta)}`, { headers: await authHeaders() }).then((x) => x.json()).catch(() => ({})),
         ]);
         if (cancel) return;
         setCategorias((cats.categorias || []) as OpcaoCat[]);
@@ -1146,7 +1146,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
       setCarregandoSug(true);
       try {
         const resp = await fetch(`/api/ajustes/recebimentos/sugerir-custo?conta=${encodeURIComponent(conta)}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({ conta, itens: riscos.map((it) => ({ codigoProduto: it.idProduto, cmcAtual: it.cmcAtual })) }),
         });
         const d = await resp.json();

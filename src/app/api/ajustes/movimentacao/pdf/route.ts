@@ -3,6 +3,7 @@ import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 import { resolveJanelaBR } from '@/lib/ajustes/cmc';
 import { obterMovimentacaoProduto } from '@/lib/ajustes/movimentacao';
 import { gerarPDFMovimentacao } from '@/lib/ajustes/pdf-movimentacao';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -10,6 +11,9 @@ export const maxDuration = 120;
 // PDF (impressão) da movimentação do produto no período. Query: conta, idProd,
 // de/ate (YYYY-MM-DD), cancelados=1 p/ incluir cancelados.
 export async function GET(req: NextRequest) {
+  // A tela abre o PDF por fetch com o token (blob), nao por window.open da rota.
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'movimentacao-produto' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta')) ?? CONTA_DEFAULT;
   const idProd = Number(sp.get('idProd'));

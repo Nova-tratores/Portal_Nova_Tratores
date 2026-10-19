@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -10,7 +11,15 @@ function sanitizeFileName(name: string) {
   return name.normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, "-").replace(/[^a-zA-Z0-9.\-_]/g, "");
 }
 
+// O bucket "equipamentos" é público: só aceita imagem.
+function arquivoNaoImagem(file: File | null): boolean {
+  return !!file && file.size > 0 && !String(file.type || "").startsWith("image/");
+}
+
+// Tela /propostas: TratorModal = pode('propostas','criar'); TratorEditModal = pode('propostas','editar').
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "propostas", acao: "criar" }]);
+  if (g.resposta) return g.resposta;
   try {
     const fd = await req.formData();
 
@@ -27,7 +36,14 @@ export async function POST(req: NextRequest) {
       if (val) row[key] = val;
     }
 
+    if (!row.marca || !row.modelo) {
+      return NextResponse.json({ error: "Marca e modelo são obrigatórios" }, { status: 400 });
+    }
+
     const file = fd.get("file") as File | null;
+    if (arquivoNaoImagem(file)) {
+      return NextResponse.json({ error: "O arquivo precisa ser uma imagem" }, { status: 400 });
+    }
     if (file && file.size > 0) {
       const cleanName = sanitizeFileName(file.name);
       const filePath = `equipamentos/${Date.now()}-${cleanName}`;
@@ -38,10 +54,6 @@ export async function POST(req: NextRequest) {
       if (uploadError) throw uploadError;
       const { data: urlData } = supabase.storage.from("equipamentos").getPublicUrl(filePath);
       row.imagem = urlData.publicUrl;
-    }
-
-    if (!row.marca || !row.modelo) {
-      return NextResponse.json({ error: "Marca e modelo são obrigatórios" }, { status: 400 });
     }
 
     const { data, error } = await supabase
@@ -60,6 +72,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "propostas", acao: "editar" }]);
+  if (g.resposta) return g.resposta;
   try {
     const fd = await req.formData();
     const id = fd.get("id") as string;
@@ -79,6 +93,9 @@ export async function PATCH(req: NextRequest) {
     }
 
     const file = fd.get("file") as File | null;
+    if (arquivoNaoImagem(file)) {
+      return NextResponse.json({ error: "O arquivo precisa ser uma imagem" }, { status: 400 });
+    }
     if (file && file.size > 0) {
       const cleanName = sanitizeFileName(file.name);
       const filePath = `equipamentos/${Date.now()}-${cleanName}`;

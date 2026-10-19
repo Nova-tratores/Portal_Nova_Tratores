@@ -13,6 +13,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
 import TileSemaforo from '@/components/dre-financeiro/TileSemaforo'
+import { fetchAuth } from '@/lib/auth/client'
 
 // ----- Helpers de formatacao (port fiel do <script> inline do home.ejs) -----
 // Estes formatadores sao especificos da home (abreviam M/k sem casas no <1k)
@@ -85,7 +86,7 @@ export default function HomeDreFinanceiro() {
     setMeta(force ? 'Recalculando...' : 'Carregando KPIs (cache 5min)...')
     const url = '/api/dre-financeiro/home/kpis?conta=' + encodeURIComponent(conta) + (force ? '&refresh=1' : '')
     try {
-      const r = await fetch(url)
+      const r = await fetchAuth(url)
       const d = await r.json()
       if (d.erro) { setMeta('Erro: ' + d.erro); setDados(null); return }
       // render(): monta o texto de meta (cache/calculo + data de geracao)
@@ -105,7 +106,7 @@ export default function HomeDreFinanceiro() {
   const carregarSaude = useCallback(async (force) => {
     const url = '/api/dre-financeiro/saude?conta=' + encodeURIComponent(conta) + (force ? '&refresh=1' : '')
     try {
-      const r = await fetch(url)
+      const r = await fetchAuth(url)
       const d = await r.json()
       if (d.erro) { setSaude(null); return }
       setSaude(d)

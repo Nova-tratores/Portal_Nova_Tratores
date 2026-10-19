@@ -33,6 +33,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { fetchAuth } from '@/lib/auth/client'
 
 // ---------------------------------------------------------------------------
 // Helpers de periodo (identicos ao <script> da fonte: nomesMes, pad, etc.)
@@ -264,7 +265,7 @@ export default function FluxoPage() {
     if (!pr.de || !pr.ate) return
     setCarregandoSankey(true)
     const qs = 'conta=' + conta + '&tipo=' + tipo + '&de=' + pr.de + '&ate=' + pr.ate
-    fetch('/api/dre-financeiro/fluxo?' + qs).then((r) => r.json()).then((d) => {
+    fetchAuth('/api/dre-financeiro/fluxo?' + qs).then((r) => r.json()).then((d) => {
       setCarregandoSankey(false)
       if (d.erro) { alert('Erro: ' + d.erro); return }
       setDadosSankey(d)
@@ -422,7 +423,7 @@ export default function FluxoPage() {
     if (categoria && outros !== 'categorias') qs += '&categoria=' + encodeURIComponent(categoria)
     if (terceiro) qs += '&terceiro=' + encodeURIComponent(terceiro)
 
-    fetch('/api/dre-financeiro/fluxo/detalhe?' + qs).then((r) => r.json()).then((d) => {
+    fetchAuth('/api/dre-financeiro/fluxo/detalhe?' + qs).then((r) => r.json()).then((d) => {
       if (d.erro) { setModalCorpo({ tipo: 'erro', msg: d.erro }); return }
       setModalCorpo({ tipo: 'detalhe', dados: d, semCategoria: !categoria, tipoNode })
     }).catch((e) => setModalCorpo({ tipo: 'erro', msg: e.message }))
@@ -440,7 +441,7 @@ export default function FluxoPage() {
     // semAntecip=1: o /fluxo e' visao de CAIXA -> remove o principal da antecipacao
     // de duplicatas (APIP). A DRE › Composicao NAO passa o param e mantem a barra.
     const qs = 'conta=' + conta + '&tipo=' + tipo + '&de=' + pr.de + '&ate=' + pr.ate + '&semAntecip=1'
-    fetch('/api/dre-financeiro/composicao?' + qs).then((r) => r.json()).then((d) => {
+    fetchAuth('/api/dre-financeiro/composicao?' + qs).then((r) => r.json()).then((d) => {
       setCarregandoTreemap(false)
       if (d.erro) { alert('Erro: ' + d.erro); return }
       arvoreComposicao.current = d.arvore || {}
@@ -554,7 +555,7 @@ export default function FluxoPage() {
     const qs = 'conta=' + conta + '&tipo=' + tp + '&de=' + pr.de + '&ate=' + pr.ate
       + '&grupo=' + encodeURIComponent(grupo || '') + '&categoria=' + encodeURIComponent(categoria || '')
       + '&terceiro=' + encodeURIComponent(terceiro || '')
-    fetch('/api/dre-financeiro/composicao/produtos?' + qs)
+    fetchAuth('/api/dre-financeiro/composicao/produtos?' + qs)
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) { setDrillMaq({ terceiro, tp, loading: false, itens: [], totalTitulo: 0, totalItens: 0, semDetalhe: false, erro: d.erro }); return }
@@ -591,7 +592,7 @@ export default function FluxoPage() {
     const promises = anosComparar.map((y) => {
       // semAntecip=1: idem Treemap — visao de caixa do /fluxo, sem o principal APIP.
       const qs = 'conta=' + conta + '&tipo=' + tipo + '&de=' + y + '-01-01&ate=' + y + '-12-31&semAntecip=1'
-      return fetch('/api/dre-financeiro/composicao?' + qs).then((r) => r.json()).then((d) => ({ ano: y, dados: d }))
+      return fetchAuth('/api/dre-financeiro/composicao?' + qs).then((r) => r.json()).then((d) => ({ ano: y, dados: d }))
     })
     Promise.all(promises).then((resultados) => {
       setDadosComparar(resultados)

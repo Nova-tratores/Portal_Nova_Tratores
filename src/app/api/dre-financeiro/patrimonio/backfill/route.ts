@@ -8,6 +8,7 @@
 // Isso e uma aproximacao razoavel; ignora baixas parciais antes de X.
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import { selectPaginado, calcularEstoque, calcularFrota } from '@/lib/dre-financeiro/calc'
 import { hoje, fmtISO, addDias } from '@/lib/dre-financeiro/dates'
@@ -16,6 +17,9 @@ import { getContasOmie, labelConta } from '@/lib/dre-financeiro/omie-api'
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  // Botão da tela Patrimônio (sem trava de admin lá): mesmo gate da tela.
+  const g = await guardarDre(request, 'patrimonio')
+  if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   const db = supabase // referencia non-null para uso dentro de closures
   try {

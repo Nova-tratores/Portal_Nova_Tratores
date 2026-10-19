@@ -8,12 +8,15 @@
 //   ?tipo=pagar|receber|ambos (default: ambos)
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDreAdmin } from '@/lib/dre-financeiro/rota'
 // @ts-ignore - modulo CommonJS sem tipos
 import { backfillNomesContas } from '@/lib/dre-financeiro/omie-api'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  const g = await guardarDreAdmin(request)
+  if (g.resposta) return g.resposta
   try {
     const sp = request.nextUrl.searchParams
     const conta = (sp.get('conta') || 'todas').toString().toLowerCase()

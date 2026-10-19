@@ -5,6 +5,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { supabase } from '@/lib/supabase'
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
+import { fetchAuth } from '@/lib/auth/client'
 import {
   Plus, X, Paperclip, Send, Trash2, Eye, EyeOff,
   AlertTriangle, ChevronDown, ChevronUp, FileText,
@@ -241,7 +242,7 @@ export default function AvisosPage() {
     // 3) Publica AGORA (leque de notificações por setor no servidor). Se for
     //    agendado, o cron /api/avisos/cron/publicar faz isso na hora marcada.
     if (!agendado) {
-      await fetch('/api/avisos/publicar', {
+      await fetchAuth('/api/avisos/publicar', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ aviso_id: aviso.id }),
       }).catch(() => {})

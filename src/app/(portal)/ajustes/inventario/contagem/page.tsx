@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 
 // ---------- tipos do payload ----------
 interface Ciclo {
@@ -61,7 +62,7 @@ export default function ContagemPage() {
 
   const carregar = useCallback(async () => {
     try {
-      const r = await fetch('/api/ajustes/inventario/contagem/hoje');
+      const r = await fetchAuth('/api/ajustes/inventario/contagem/hoje');
       const d = (await r.json()) as HojeResp;
       if (d.erro) { setErro(d.erro); return; }
       setErro('');
@@ -104,7 +105,7 @@ export default function ContagemPage() {
     setEnviandoId(String(t.id));
     setMsgLinha((s) => ({ ...s, [String(t.id)]: { tipo: 'ok', texto: 'enviando...' } }));
     try {
-      const r = await fetch('/api/ajustes/inventario/contagem', {
+      const r = await fetchAuth('/api/ajustes/inventario/contagem', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ tarefaId: t.id, qtd: Number(v), contadoPor: contador || (userProfile?.nome || 'portal') }),
       });

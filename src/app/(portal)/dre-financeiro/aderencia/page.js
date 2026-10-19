@@ -37,6 +37,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { fetchAuth } from '@/lib/auth/client'
 
 // ---------------------------------------------------------------------------
 // Formatadores locais (identicos aos do <script> da fonte). Mantidos inline para
@@ -137,7 +138,7 @@ export default function AderenciaPage() {
     const deISO = d.toISOString().slice(0, 10)
     const qs = 'conta=' + conta + '&tipo=' + tipo + '&gran=' + gran + '&de=' + deISO + '&ate=' + hojeISO
 
-    fetch('/api/dre-financeiro/aderencia?' + qs)
+    fetchAuth('/api/dre-financeiro/aderencia?' + qs)
       .then((r) => r.json())
       .then((resp) => {
         if (resp.erro) { alert('Erro: ' + resp.erro); return }

@@ -5,6 +5,7 @@ import { parseConta, CONTA_DEFAULT, labelConta } from '@/lib/ajustes/conta';
 import { listarPedidosEnriquecidos } from '@/lib/ajustes/pedidos';
 import { resolveJanelaBR } from '@/lib/ajustes/cmc';
 import { fmtISO, hoje, parseAnyDate } from '@/lib/ajustes/dates';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -13,6 +14,8 @@ export const maxDuration = 300;
 // do /csv, mas com tipos nativos (data = data, valor = moeda) pra ordenar e
 // somar direto no Excel — o CSV manda tudo como texto.
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'pedidos' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta')) ?? CONTA_DEFAULT;
   const { dataDeBR, dataAteBR } = resolveJanelaBR(sp.get('de'), sp.get('ate'));

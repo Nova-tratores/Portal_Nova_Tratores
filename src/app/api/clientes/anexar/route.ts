@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { resolverNfseDaOS } from "@/lib/clientes/nfse-omie";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -119,6 +120,8 @@ async function processarPV(num: string, empresa: string, pdf_url?: string, nf_pd
 }
 
 export async function POST(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: "clientes", acao: "anexos" }]);
+  if (guarda.resposta) return guarda.resposta;
   try {
     const { tipo, numero, empresa, pdf_url, nf_pdf_url, pv_vinculado, pv_pdf_url, pv_nf_pdf_url, servico_interno } = await req.json();
     if (!empresa || !OMIE_ACCOUNTS[empresa]) return NextResponse.json({ error: "Empresa inválida." }, { status: 400 });

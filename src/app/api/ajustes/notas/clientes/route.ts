@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT, type Conta } from '@/lib/ajustes/conta';
 import { supabase } from '@/lib/ajustes/supabase';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,8 @@ const EMPRESA: Record<Conta, string> = {
 // Autocomplete de clientes (le do cadastro sincronizado no Supabase). Retorna
 // { codigo, nome, doc } pros matches do termo. Rapido (sem Omie).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'notas' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta')) ?? CONTA_DEFAULT;
   const q = (sp.get('q') || '').trim();

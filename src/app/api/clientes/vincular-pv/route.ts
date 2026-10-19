@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { fetchInterno } from "@/lib/auth/chamada-interna";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 
 // POST /api/clientes/vincular-pv
 // Aponta MANUALMENTE qual Pedido de Venda (peça) pertence a uma OS da pasta.
 // Serve quando o vínculo que veio do Omie (cNumPedCli) está errado ou vazio e, por isso,
 // o sync busca a NF de peça no pedido errado. O valor fica em portal_nt_clientes_os.pv_manual
 // e tem PRIORIDADE sobre o do Omie no sync-os. Mandar pv vazio ("") volta pro automático.
-// Body: { num_os, empresa, pv, usuario? }
+// Body: { num_os, empresa, pv } (autor = login)
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
@@ -15,8 +16,13 @@ const supabase = createClient(
 const SISTEMA_UID = "00000000-0000-0000-0000-000000000000";
 
 export async function POST(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: "clientes", acao: "anexos" }]);
+  if (guarda.resposta) return guarda.resposta;
+  // Autoria vem do login, nunca do corpo.
+  const usuario = autorDe(guarda.user);
+  const usuarioId = guarda.user.id;
   try {
-    const { num_os, empresa, pv, usuario, usuarioId } = await req.json();
+    const { num_os, empresa, pv } = await req.json();
     if (!num_os || !empresa) {
       return NextResponse.json({ error: "num_os e empresa são obrigatórios" }, { status: 400 });
     }

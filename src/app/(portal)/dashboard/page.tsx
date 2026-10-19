@@ -5,6 +5,7 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import DashboardMobile from '@/components/dashboard/DashboardMobile'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { supabase } from '@/lib/supabase'
+import { fetchAuth } from '@/lib/auth/client'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { TELAS, buscarTelas, normalizar, relevancia, type Tela } from '@/lib/dashboard/telas'
 import {
@@ -261,7 +262,7 @@ export default function DashboardPage() {
     if (!userProfile) return
     const loadTarefas = async () => {
       try {
-        const res = await fetch(`/api/tarefas?filter=minhas&userId=${userProfile.id}`)
+        const res = await fetchAuth(`/api/tarefas?filter=minhas&userId=${userProfile.id}`)
         const data = await res.json()
         const pendentes = (Array.isArray(data) ? data : [])
           .filter((t: any) => t.computed_status !== 'concluida')

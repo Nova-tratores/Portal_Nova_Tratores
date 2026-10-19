@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 
@@ -107,7 +108,7 @@ export default function RemessasPage() {
     try {
       let qs = contaParam.replace(/^&/, '');
       if (force) qs += '&force=1';
-      const r = await fetch(`/api/ajustes/remessas?${qs}`);
+      const r = await fetchAuth(`/api/ajustes/remessas?${qs}`);
       const d = (await r.json()) as RemessasPayload;
       if (d.erro) { setErro(d.erro); setStatusMsg(''); return; }
       setDados(d);
@@ -130,7 +131,7 @@ export default function RemessasPage() {
   const checarLote = useCallback(async (): Promise<boolean> => {
     if (!conta) return false;
     try {
-      const r = await fetch(`/api/ajustes/remessas/devolver-status?${contaParam.replace(/^&/, '')}`);
+      const r = await fetchAuth(`/api/ajustes/remessas/devolver-status?${contaParam.replace(/^&/, '')}`);
       const d = (await r.json()) as StatusLote;
       if (d.semDados) { setLote(null); rodandoRef.current = false; return false; }
       setLote(d);

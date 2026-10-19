@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { fetchInterno } from "@/lib/auth/chamada-interna";
+import { fetchInterno, protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { resolverNfseDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
@@ -124,6 +124,9 @@ async function osPendentesDoFinanceiro(): Promise<number[]> {
 
 // GET /api/clientes/sync-recente — busca OS e PV alterados nos ultimos 60 minutos
 export async function GET(req: Request) {
+  // Cron (sync-nfs.yml), agendador interno e a própria tela da Pasta (a cada 30 min).
+  const guarda = await protegerRotaOuInterna(req, [{ modulo: "clientes" }]);
+  if (guarda.resposta) return guarda.resposta;
   try {
     const origin = new URL(req.url).origin;
     const agora = new Date();

@@ -75,7 +75,7 @@ function ProjetosPageInner() {
     try {
       const res = await fetch('/api/clientes/projetos/sync-nfs', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ anos: 3 }),
       })
       if (!res.body) { setSyncProgress(p => ({...p, erro: 'Sem resposta do servidor'})); setSyncNfLoading(false); return }
@@ -114,7 +114,7 @@ function ProjetosPageInner() {
     // Vincular NFs a clientes e projetos automaticamente
     setSyncProgress(p => ({...p, etapaVinculo: true}))
     try {
-      const vRes = await fetch('/api/clientes/projetos/sync-nfs/vincular', { method: 'POST' })
+      const vRes = await fetch('/api/clientes/projetos/sync-nfs/vincular', { method: 'POST', headers: await authHeaders() })
       const vData = await vRes.json()
       if (vData.ok) {
         setSyncProgress(p => ({...p, etapaVinculo: false, resultado: p.resultado ? {...p.resultado, vinculo: { clientes: vData.clientes_vinculados, projetos: vData.projetos_vinculados }} : p.resultado }))
@@ -151,7 +151,7 @@ function ProjetosPageInner() {
     setLoading(true)
     try {
       const params = empresaFilter ? `?empresa=${encodeURIComponent(empresaFilter)}` : ''
-      const res = await fetch(`/api/clientes/projetos-resumo${params}`)
+      const res = await fetch(`/api/clientes/projetos-resumo${params}`, { headers: await authHeaders() })
       const d = await res.json()
       setData(d)
     } catch {}

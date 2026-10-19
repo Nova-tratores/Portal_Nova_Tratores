@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { obterArquivo } from '@/lib/ajustes/mahindra';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // GET: baixa um arquivo historico especifico (le o base64 do Supabase).
-export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+// A tela baixa por fetch com o token (blob), nao por <a href>.
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'mahindra' }]);
+  if (g.resposta) return g.resposta;
   const { id: idRaw } = await ctx.params;
   const id = Number(idRaw);
   if (!Number.isFinite(id)) {

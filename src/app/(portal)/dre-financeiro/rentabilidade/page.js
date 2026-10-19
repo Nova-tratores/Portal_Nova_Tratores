@@ -35,6 +35,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { fetchAuth } from '@/lib/auth/client'
 
 // ---------------------------------------------------------------------------
 // Formatadores locais (identicos aos <script> das fontes margens/lucratividade).
@@ -229,7 +230,7 @@ function PainelMargens({ conta, chartReady }) {
     let qs = 'conta=' + conta + '&taxa=' + taxa
     if (meses === '__desde__') qs += '&desde=' + desde
     else qs += '&meses=' + meses
-    fetch('/api/dre-financeiro/margens?' + qs).then((r) => r.json()).then((d) => {
+    fetchAuth('/api/dre-financeiro/margens?' + qs).then((r) => r.json()).then((d) => {
       if (d.erro) { alert('Erro: ' + d.erro); return }
       todos.current = d.itens || []
       const t = d.totais
@@ -737,7 +738,7 @@ function PainelCapital({ conta, chartReady }) {
       dias = Math.floor((new Date() - inicio) / 86400000)
     }
     const fam = cpFamilia
-    fetch('/api/dre-financeiro/lucratividade/capital-parado?conta=' + conta + '&dias=' + dias + '&selic=' + selic + '&familia=' + encodeURIComponent(fam))
+    fetchAuth('/api/dre-financeiro/lucratividade/capital-parado?conta=' + conta + '&dias=' + dias + '&selic=' + selic + '&familia=' + encodeURIComponent(fam))
       .then((r) => r.json()).then((d) => {
         if (d.erro) { alert('Erro: ' + d.erro); return }
         setFamiliasCp(d.familias_disponiveis || [])
@@ -811,7 +812,7 @@ function PainelCapital({ conta, chartReady }) {
     let qs = 'conta=' + conta + '&gran=' + granMargem
     if (mesesMargem === '__desde__') qs += '&desde=' + desdeMargem
     else qs += '&meses=' + mesesMargem
-    fetch('/api/dre-financeiro/lucratividade/margem?' + qs)
+    fetchAuth('/api/dre-financeiro/lucratividade/margem?' + qs)
       .then((r) => r.json()).then((d) => {
         if (d.erro) { alert('Erro: ' + d.erro); return }
         const t = d.totais

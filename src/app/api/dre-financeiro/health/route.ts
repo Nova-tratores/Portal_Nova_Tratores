@@ -6,6 +6,7 @@
 //   efeito em producao (ignora RLS).
 // =============================================================================
 import { NextResponse } from 'next/server'
+import { guardarDreAdmin } from '@/lib/dre-financeiro/rota'
 import { getContasOmie } from '@/lib/dre-financeiro/omie-api'
 import { supabase, supabaseAdmin } from '@/lib/dre-financeiro/supabase'
 
@@ -23,7 +24,9 @@ async function contaTabela(client: any) {
   }
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const g = await guardarDreAdmin(request)
+  if (g.resposta) return g.resposta
   const k = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
   const [adminRead, anonRead] = await Promise.all([
     contaTabela(supabaseAdmin),

@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { fetchAuth } from '@/lib/auth/client'
 
 export default function AutopropelidoModal({ onClose }) {
   const [loading, setLoading] = useState(false)
@@ -29,7 +30,7 @@ export default function AutopropelidoModal({ onClose }) {
       }
       if (imageFile) fd.append('file', imageFile)
 
-      const res = await fetch('/api/propostas/autopropelido', { method: 'POST', body: fd })
+      const res = await fetchAuth('/api/propostas/autopropelido',{ method: 'POST', body: fd })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Erro ao cadastrar')
       alert("AUTOPROPELIDO CADASTRADO COM SUCESSO!")

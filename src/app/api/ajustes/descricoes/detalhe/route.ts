@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 import { obterDetalhe } from '@/lib/ajustes/descricoes';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 // GET ?conta=NOVA&codigo_produto=123 -> { descricao, descr_detalhada } (lazy Omie)
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'descricoes' }]);
+  if (g.resposta) return g.resposta;
   try {
     const sp = req.nextUrl.searchParams;
     const conta = parseConta(sp.get('conta')) || CONTA_DEFAULT;

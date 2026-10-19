@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { autenticar } from "@/lib/auth/server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,9 +9,14 @@ const supabase = createClient(
 
 // Dispara uma notificação no sino pra TODO MUNDO QUE TEM ACESSO AO OPA
 // (todos os usuários do portal — Opa é acessível a todos). Exclui quem criou.
+// O Opa não tem módulo (menu sempre visível, como /sat): basta estar logado.
 export async function POST(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: "nao autenticado" }, { status: 401 });
   try {
-    const { opa_id, titulo, descricao, criado_por_id } = await req.json();
+    const { opa_id, titulo, descricao } = await req.json();
+    // Quem criou vem do login, nunca do corpo.
+    const criado_por_id = auth.userId;
     if (!titulo) return NextResponse.json({ error: "titulo obrigatório" }, { status: 400 });
 
     // Quem tem acesso ao Opa = todos os usuários do portal (uma linha por usuário em portal_permissoes)

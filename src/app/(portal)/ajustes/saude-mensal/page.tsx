@@ -8,6 +8,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
+import { fetchAuth } from '@/lib/auth/client';
 
 interface TopProduto { codigo: string; descricao: string; count: number; valorEstim: number }
 interface Kpis {
@@ -62,7 +63,7 @@ export default function SaudeMensalPage() {
     try {
       let qs = `mes=${encodeURIComponent(mes)}`;
       if (contaParam) qs += contaParam;
-      const r = await fetch(`/api/ajustes/saude-mensal?${qs}`);
+      const r = await fetchAuth(`/api/ajustes/saude-mensal?${qs}`);
       const d = (await r.json()) as Payload;
       if (d.erro && !d.kpis) { setErro(d.erro); return; }
       setDados(d);

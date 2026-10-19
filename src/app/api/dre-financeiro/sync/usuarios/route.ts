@@ -6,6 +6,7 @@
 // disparo manual pelo navegador).
 // =============================================================================
 import { NextResponse } from 'next/server'
+import { guardarDreAdmin } from '@/lib/dre-financeiro/rota'
 import { sincronizarUsuariosOmie } from '@/lib/dre-financeiro/omie-api'
 
 export const dynamic = 'force-dynamic'
@@ -23,7 +24,9 @@ async function run() {
   return porConta
 }
 
-export async function POST() {
+export async function POST(request: Request) {
+  const g = await guardarDreAdmin(request)
+  if (g.resposta) return g.resposta
   try {
     const porConta = await run()
     return NextResponse.json({ ok: true, por_conta: porConta })
@@ -31,8 +34,4 @@ export async function POST() {
     console.error('sync/usuarios:', e)
     return NextResponse.json({ erro: e.message }, { status: 500 })
   }
-}
-
-export async function GET() {
-  return POST()
 }

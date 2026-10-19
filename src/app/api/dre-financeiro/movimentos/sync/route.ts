@@ -7,6 +7,7 @@
 // GET  -> estado do sync por conta (para polling da tela).
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { CONTA_PADRAO } from '@/lib/dre-financeiro/calc'
 // @ts-ignore - modulo CommonJS sem tipos
 import { sincronizarMovimentosCC, getMovSyncState, getContasOmie } from '@/lib/dre-financeiro/omie-api'
@@ -28,6 +29,9 @@ function contasAlvo(conta: string): string[] {
 }
 
 export async function POST(request: NextRequest) {
+  // Botão "Sincronizar" da tela Movimentações (sem trava de admin lá): mesmo gate da tela.
+  const g = await guardarDre(request, 'movimentos')
+  if (g.resposta) return g.resposta
   const sp = request.nextUrl.searchParams
   const conta = (sp.get('conta') || request.cookies.get('conta')?.value || CONTA_PADRAO)
     .toString().toLowerCase()
@@ -60,7 +64,9 @@ export async function POST(request: NextRequest) {
   )
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const g = await guardarDre(request, 'movimentos')
+  if (g.resposta) return g.resposta
   const contas: Record<string, any> = {}
   let rodando = false
   for (const c of getContasOmie() as Array<{ id: string; label: string }>) {

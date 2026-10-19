@@ -5,6 +5,7 @@
 // Janela por vencimento: por padrao, mes-3 a mes+6 (do contexto da pagina).
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { CONTA_PADRAO } from '@/lib/dre-financeiro/calc'
 import { sincronizarTudo, fmtBR } from '@/lib/dre-financeiro/omie-api'
 import { inicioMes, fimMes } from '@/lib/dre-financeiro/dates'
@@ -12,6 +13,9 @@ import { inicioMes, fimMes } from '@/lib/dre-financeiro/dates'
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  // Botão "Sincronizar mês" do Calendário (sem trava de admin lá): mesmo gate da tela.
+  const g = await guardarDre(request, 'calendario')
+  if (g.resposta) return g.resposta
   const sp = request.nextUrl.searchParams
   const conta = (sp.get('conta') || CONTA_PADRAO).toString().toLowerCase()
   if (conta === 'todas') {

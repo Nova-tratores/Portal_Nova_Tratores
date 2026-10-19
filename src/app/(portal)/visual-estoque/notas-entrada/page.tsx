@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
+import { fetchAuth } from '@/lib/auth/client'
 import { Search, X } from 'lucide-react'
 
 const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -38,7 +39,7 @@ export default function NotasEntradaPage() {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/visual-estoque/notas-entrada?conta=${conta}`)
+    fetchAuth(`/api/visual-estoque/notas-entrada?conta=${conta}`)
       .then(r => r.json())
       .then(d => { setNotas(Array.isArray(d) ? d : []); setLoading(false) })
       .catch(() => setLoading(false))

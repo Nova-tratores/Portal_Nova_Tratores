@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/ajustes/conta';
 import { marcarLido } from '@/lib/ajustes/verificacao';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
 // Marca alertas como lido/nao-lido. Body: { ids?: number[], conta?, lido }.
 // Sem ids -> marca TODOS (opcionalmente filtrando por conta).
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'alertas' }]);
+  if (g.resposta) return g.resposta;
   const body = (await req.json().catch(() => ({}))) as {
     ids?: Array<number | string>;
     id?: number | string;

@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
+import { fetchAuth } from '@/lib/auth/client'
 import { AlertTriangle, XCircle, AlertCircle } from 'lucide-react'
 
 interface Produto {
@@ -23,7 +24,7 @@ export default function AlertasPage() {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/visual-estoque/produtos?modo=alertas&conta=${conta}`)
+    fetchAuth(`/api/visual-estoque/produtos?modo=alertas&conta=${conta}`)
       .then(r => r.json())
       .then(d => {
         setSemEstoque(d.semEstoque || [])

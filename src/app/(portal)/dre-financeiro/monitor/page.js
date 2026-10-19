@@ -19,6 +19,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
+import { fetchAuth } from '@/lib/auth/client'
 import { useDreConta } from '@/lib/dre-financeiro/format'
 
 // ---------------------------------------------------------------------------
@@ -200,7 +201,7 @@ export default function MonitorPage() {
   // carregarCards(): GET /monitor/anomalias?conta=&status=aberta -> resumo
   // =========================================================================
   const carregarCards = useCallback(() => {
-    fetch('/api/dre-financeiro/monitor/anomalias?conta=' + encodeURIComponent(conta) + '&status=aberta')
+    fetchAuth('/api/dre-financeiro/monitor/anomalias?conta=' + encodeURIComponent(conta) + '&status=aberta')
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) {
@@ -222,7 +223,7 @@ export default function MonitorPage() {
     setTabelaStatus('Carregando…')
     const url = '/api/dre-financeiro/monitor/anomalias?conta=' + encodeURIComponent(conta) +
       '&status=' + encodeURIComponent(fStatus) + (fModulo ? '&modulo=' + encodeURIComponent(fModulo) : '')
-    fetch(url)
+    fetchAuth(url)
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) { setTabelaStatus('Erro: ' + d.erro); setAnomalias([]); return }
@@ -237,7 +238,7 @@ export default function MonitorPage() {
 
   // Lista de usuarios do portal (mesmo endpoint do /tarefas).
   const carregarUsuarios = useCallback(() => {
-    fetch('/api/tarefas/users')
+    fetchAuth('/api/tarefas/users')
       .then((r) => r.json())
       .then((d) => setUsuarios(Array.isArray(d) ? d : (d.users || d.usuarios || [])))
       .catch(() => setUsuarios([]))
@@ -247,7 +248,7 @@ export default function MonitorPage() {
   // carregarExecucoes(): GET /monitor/status -> d.ultimos
   // =========================================================================
   const carregarExecucoes = useCallback(() => {
-    fetch('/api/dre-financeiro/monitor/status')
+    fetchAuth('/api/dre-financeiro/monitor/status')
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) { setExecStatus('Erro: ' + d.erro); setExecLista([]); return }
@@ -262,7 +263,7 @@ export default function MonitorPage() {
   // marcar(id, status): POST /monitor/anomalia/:id/status -> recarrega
   // =========================================================================
   const marcar = useCallback((id, status) => {
-    fetch('/api/dre-financeiro/monitor/anomalia/' + encodeURIComponent(id) + '/status', {
+    fetchAuth('/api/dre-financeiro/monitor/anomalia/' + encodeURIComponent(id) + '/status', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
     }).then((r) => r.json()).then(() => { carregarTabela(); carregarCards() })
   }, [carregarTabela, carregarCards])
@@ -273,7 +274,7 @@ export default function MonitorPage() {
   const rodar = useCallback((modulo) => {
     if (modulo) setRodandoModulo((s) => ({ ...s, [modulo]: true }))
     else setRodandoTudo(true)
-    fetch('/api/dre-financeiro/monitor/run?conta=' + encodeURIComponent(conta) + (modulo ? '&modulo=' + encodeURIComponent(modulo) : '&modulo=todos'), { method: 'POST' })
+    fetchAuth('/api/dre-financeiro/monitor/run?conta=' + encodeURIComponent(conta) + (modulo ? '&modulo=' + encodeURIComponent(modulo) : '&modulo=todos'), { method: 'POST' })
       .then((r) => r.json())
       .then(() => {
         setTimeout(() => {
@@ -406,7 +407,7 @@ export default function MonitorPage() {
     try {
       for (const it of modalItens) {
         const a = it.anomalia
-        const resp = await fetch('/api/dre-financeiro/monitor/anomalia/' + encodeURIComponent(a.id) + '/tarefa', {
+        const resp = await fetchAuth('/api/dre-financeiro/monitor/anomalia/' + encodeURIComponent(a.id) + '/tarefa', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             titulo: tituloTarefa(a),

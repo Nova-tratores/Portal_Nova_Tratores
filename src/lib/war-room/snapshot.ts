@@ -13,8 +13,9 @@
 //  - entradas_patio: `produtos.data_inclusao` (DD/MM/YYYY) dos 7 dias, contando
 //    famílias de MÁQUINA (classificarGrupo).
 //  - volume_antecipado: reusa a rota /api/dre-financeiro/movimentos/antecipacoes
-//    (rota SEM auth; lógica FIFO não é exportada). Se falhar, fica null (manual).
+//    (chamada de sistema via fetchInterno; lógica FIFO não é exportada). Se falhar, fica null (manual).
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
+import { fetchInterno } from '@/lib/auth/chamada-interna'
 import { classificarGrupo } from '@/lib/estoque/cruzamento-familia'
 import { carregarPedidosInvalidos, pedidoEhInvalido } from '@/lib/dre-financeiro/calc'
 import { farolMargem, farolGiro, farolCaixa } from './constantes'
@@ -137,7 +138,7 @@ export async function snapshotSemanal(
   if (origin) {
     try {
       const url = `${origin}/api/dre-financeiro/movimentos/antecipacoes?de=${deISO}&ate=${ateISO}&conta=todas`
-      const r = await fetch(url, { cache: 'no-store' })
+      const r = await fetchInterno(url, { cache: 'no-store' })
       if (r.ok) {
         const j = await r.json()
         const v = Number(j?.totais?.valorCheio)

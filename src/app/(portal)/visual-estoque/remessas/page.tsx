@@ -3,6 +3,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
+import { fetchAuth } from '@/lib/auth/client'
 import { Search, RefreshCw, GitCompareArrows, AlertOctagon } from 'lucide-react'
 
 const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -38,7 +39,7 @@ export default function RemessasPage() {
 
   const carregar = () => {
     setLoading(true)
-    fetch(`/api/visual-estoque/remessas?modo=${aba}&conta=${conta}`)
+    fetchAuth(`/api/visual-estoque/remessas?modo=${aba}&conta=${conta}`)
       .then(r => r.json())
       .then(d => { setRows(Array.isArray(d) ? d : []); setLoading(false) })
       .catch(() => setLoading(false))
@@ -49,7 +50,7 @@ export default function RemessasPage() {
     if (tipo === 'suspeitas' && !confirm('Verificar suspeitas consulta o Omie produto a produto e pode demorar vários minutos. Continuar?')) return
     setAcao(label)
     try {
-      const r = await fetch('/api/visual-estoque/remessas/acoes', {
+      const r = await fetchAuth('/api/visual-estoque/remessas/acoes', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ acao: tipo, conta }),
       })

@@ -15,6 +15,7 @@
 // (flag `incompleta`).
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDreOuInterna } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import { CONTA_PADRAO } from '@/lib/dre-financeiro/calc'
 // @ts-ignore - modulo CommonJS sem tipos
@@ -34,6 +35,9 @@ function pegaConta(request: NextRequest): string {
 }
 
 export async function GET(request: NextRequest) {
+  // Tela Movimentações OU o snapshot do War Room (lib/war-room/snapshot.ts, fetchInterno).
+  const g = await guardarDreOuInterna(request, 'movimentos')
+  if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   try {
     const sp = request.nextUrl.searchParams

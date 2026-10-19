@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getContasOmie, type Conta } from "@/lib/estoque/conta";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import {
   sincronizarRemessas,
   sincronizarMovimentacao,
@@ -18,6 +19,9 @@ export const maxDuration = 300; // operações Omie podem ser longas
 //   acao = 'suspeitas'   -> MovimentoEstoque por produto (PESADO) -> Suspeita
 // `conta` aceita 'todas' | 'nova' | 'castro'.
 export async function POST(req: NextRequest) {
+  // Botões da tela /visual-estoque/remessas: pode('consulta-estoque', 'remessas').
+  const g = await protegerRota(req, [{ modulo: "consulta-estoque", acao: "remessas" }]);
+  if (g.resposta) return g.resposta;
   try {
     const { acao, conta } = await req.json();
     const contas = getContasOmie()

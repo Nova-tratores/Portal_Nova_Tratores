@@ -140,7 +140,7 @@ export default function CorrecaoContasPage() {
       const sit = situacao === 'aberto' ? ' em aberto' : situacao === 'atrasado' ? ' atrasado(s)' : '';
       if (vista === 'lista') {
         // modo Lista: todos os lancamentos do filtro numa tabela so (cabecalho ordena A→Z / Z→A)
-        const r = await fetch(`/api/ajustes/contas/lancamentos?${qs.replace(/^&/, '').replace(/dim=\w+/, 'dim=todos')}&limite=2500`);
+        const r = await fetch(`/api/ajustes/contas/lancamentos?${qs.replace(/^&/, '').replace(/dim=\w+/, 'dim=todos')}&limite=2500`, { headers: await authHeaders() });
         const d = (await r.json()) as LancamentosPayload;
         if (d.erro) { setStatus('Erro: ' + d.erro); setLancs([]); return; }
         setRanking([]);
@@ -154,7 +154,7 @@ export default function CorrecaoContasPage() {
         setStatus('');
         return;
       }
-      const r = await fetch(`/api/ajustes/contas/ranking?${qs.replace(/^&/, '')}`);
+      const r = await fetch(`/api/ajustes/contas/ranking?${qs.replace(/^&/, '')}`, { headers: await authHeaders() });
       const d = (await r.json()) as RankingPayload;
       if (d.erro) { setStatus('Erro: ' + d.erro); setRanking([]); return; }
       setRanking(d.ranking || []);
@@ -185,7 +185,7 @@ export default function CorrecaoContasPage() {
       if (situacao !== 'todas') qs += '&situacao=' + situacao;
       if (usaData && de) qs += '&de=' + encodeURIComponent(de);
       if (usaData && ate) qs += '&ate=' + encodeURIComponent(ate);
-      const r = await fetch(`/api/ajustes/contas/lancamentos?${qs.replace(/^&/, '')}`);
+      const r = await fetch(`/api/ajustes/contas/lancamentos?${qs.replace(/^&/, '')}`, { headers: await authHeaders() });
       const d = (await r.json()) as LancamentosPayload;
       if (d.erro) { setLancSub('Erro: ' + d.erro); return; }
       setLancs(d.lancamentos || []);
@@ -197,14 +197,14 @@ export default function CorrecaoContasPage() {
 
   const carregarCats = useCallback(async (slug: string): Promise<CatDep[]> => {
     if (catCache.current[slug]) return catCache.current[slug];
-    const r = await fetch('/api/ajustes/categorias?conta=' + encodeURIComponent(slug));
+    const r = await fetch('/api/ajustes/categorias?conta=' + encodeURIComponent(slug), { headers: await authHeaders() });
     const d = await r.json();
     catCache.current[slug] = d.categorias || [];
     return catCache.current[slug];
   }, []);
   const carregarDeps = useCallback(async (slug: string): Promise<CatDep[]> => {
     if (depCache.current[slug]) return depCache.current[slug];
-    const r = await fetch('/api/ajustes/departamentos?conta=' + encodeURIComponent(slug));
+    const r = await fetch('/api/ajustes/departamentos?conta=' + encodeURIComponent(slug), { headers: await authHeaders() });
     const d = await r.json();
     depCache.current[slug] = d.departamentos || [];
     return depCache.current[slug];
@@ -219,7 +219,7 @@ export default function CorrecaoContasPage() {
   }, []);
   const carregarCCs = useCallback(async (slug: string): Promise<CatDep[]> => {
     if (ccCache.current[slug]) return ccCache.current[slug];
-    const r = await fetch('/api/ajustes/contas-correntes?conta=' + encodeURIComponent(slug));
+    const r = await fetch('/api/ajustes/contas-correntes?conta=' + encodeURIComponent(slug), { headers: await authHeaders() });
     const d = await r.json();
     ccCache.current[slug] = (d.contasCorrentes || []).map((c: { codigo: number; descricao: string; tipo?: string }) => ({ codigo: c.codigo, descricao: `${c.descricao}${c.tipo ? ` (${c.tipo})` : ''}` }));
     return ccCache.current[slug];

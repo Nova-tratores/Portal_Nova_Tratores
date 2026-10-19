@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 import { obterRemessasAbertas } from '@/lib/ajustes/remessas';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -9,6 +10,8 @@ export const maxDuration = 300;
 // criou. Cache 10min; a primeira busca pagina a Omie inteira (lenta). Query:
 // conta=NOVA|CASTRO, force=1 (ignora cache).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'remessas' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta')) ?? CONTA_DEFAULT;
   const force = sp.get('force') === '1' || sp.get('force') === 'true';

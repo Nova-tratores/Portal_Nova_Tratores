@@ -15,6 +15,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { fetchAuth } from '@/lib/auth/client'
 
 // ----- Helpers de formatacao (port fiel do <script> inline do ciclo-caixa.ejs) -----
 // Especificos desta tela (BRL sem casas, dias arredondados com sufixo " d"),
@@ -50,7 +51,7 @@ export default function CicloCaixaDreFinanceiro() {
     const url = '/api/dre-financeiro/ciclo-caixa?meses=' + encodeURIComponent(meses) +
       '&conta=' + encodeURIComponent(conta)
     try {
-      const r = await fetch(url)
+      const r = await fetchAuth(url)
       const d = await r.json()
       if (d.erro) { setStatus('Erro: ' + d.erro); return }
       setDados(d)

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 import { sugerirCustoRealProduto } from '@/lib/ajustes/analise';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -11,6 +12,8 @@ export const maxDuration = 120;
 // Body: { conta, itens: [{ codigoProduto, cmcAtual }] }
 // Resp: { sugestoes: { [codigoProduto]: { cmcSugerido, estrategia, baseadoEm, distorcido } } }
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'recebimentos' }, { modulo: 'ajustes', acao: 'recebimentos' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta')) ?? CONTA_DEFAULT;
   const body = (await req.json().catch(() => ({}))) as {
     conta?: string;

@@ -5,12 +5,15 @@
 // Janela por vencimento: mes-3 a mes+6 (do contexto da pagina).
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDreAdmin } from '@/lib/dre-financeiro/rota'
 import { getContasOmie, getSyncState, sincronizarTudo, fmtBR } from '@/lib/dre-financeiro/omie-api'
 import { inicioMes, fimMes } from '@/lib/dre-financeiro/dates'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  const g = await guardarDreAdmin(request)
+  if (g.resposta) return g.resposta
   const sp = request.nextUrl.searchParams
   const contas = getContasOmie()
   const now = new Date()

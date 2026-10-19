@@ -513,7 +513,7 @@ export default function CaracteristicasPage() {
   const carregar = useCallback(async () => {
     setMsg('carregando dados...', 'info');
     try {
-      const r = await fetch('/api/ajustes/caracteristicas');
+      const r = await fetch('/api/ajustes/caracteristicas', { headers: await authHeaders() });
       const d = (await r.json()) as CaractPayload;
       if (d.erro) { setMsg('Erro: ' + d.erro, 'erro'); return; }
       setDados(d);
@@ -529,7 +529,7 @@ export default function CaracteristicasPage() {
   const poll = useCallback(() => {
     const tick = async () => {
       try {
-        const r = await fetch('/api/ajustes/caracteristicas/status');
+        const r = await fetch('/api/ajustes/caracteristicas/status', { headers: await authHeaders() });
         const st = (await r.json()) as StatusPayload;
         if (st.rodando) {
           setRodando(true);
@@ -566,7 +566,7 @@ export default function CaracteristicasPage() {
     setMsg('iniciando sincronizacao...', 'info');
     try {
       const r = await fetch('/api/ajustes/caracteristicas/sincronizar', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ criadoPor }),
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ criadoPor }),
       });
       const d = await r.json();
       if (d.erro && !d.rodando && !d.jaRodando) { setMsg('Erro: ' + d.erro, 'erro'); setRodando(false); return; }
@@ -579,7 +579,7 @@ export default function CaracteristicasPage() {
   const ensureCatalogo = useCallback(async () => {
     if (catalogoRef.current) return catalogoRef.current;
     try {
-      const r = await fetch('/api/ajustes/caracteristicas/catalogo');
+      const r = await fetch('/api/ajustes/caracteristicas/catalogo', { headers: await authHeaders() });
       const d = (await r.json()) as CatalogoPayload;
       catalogoRef.current = { uniao: d.catalogo || {}, porEmpresa: d.porEmpresa || {} };
     } catch {
@@ -996,7 +996,7 @@ export default function CaracteristicasPage() {
   const abrirSugestoes = useCallback(async () => {
     setMsg('buscando sugestoes...', 'info');
     try {
-      const r = await fetch('/api/ajustes/caracteristicas/sugestoes-tipo');
+      const r = await fetch('/api/ajustes/caracteristicas/sugestoes-tipo', { headers: await authHeaders() });
       const d = (await r.json()) as SugestoesPayload;
       if (d.erro) { setMsg('Erro: ' + d.erro, 'erro'); return; }
       setMsg('', 'info');

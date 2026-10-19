@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect } from 'react'
+import { fetchAuth } from '@/lib/auth/client'
 
 export default function AutopropelidoEditModal({ onClose }) {
   const [lista, setLista] = useState([])
@@ -19,7 +20,7 @@ export default function AutopropelidoEditModal({ onClose }) {
 
   const fetchLista = async () => {
     try {
-      const res = await fetch('/api/propostas/autopropelido-lista')
+      const res = await fetchAuth('/api/propostas/autopropelido-lista')
       const data = await res.json()
       if (Array.isArray(data)) setLista(data)
     } catch (e) { console.error('Erro ao buscar autopropelidos:', e) }
@@ -51,7 +52,7 @@ export default function AutopropelidoEditModal({ onClose }) {
         fd.append('imagem', formData.imagem)
       }
 
-      const res = await fetch('/api/propostas/autopropelido', { method: 'PATCH', body: fd })
+      const res = await fetchAuth('/api/propostas/autopropelido',{ method: 'PATCH', body: fd })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Erro ao atualizar')
       alert("AUTOPROPELIDO ATUALIZADO COM SUCESSO!")
@@ -109,7 +110,7 @@ export default function AutopropelidoEditModal({ onClose }) {
                   ) : (
                     <div className="w-[250px] h-[150px] bg-zinc-100 flex items-center justify-center rounded-xl border-2 border-dashed border-zinc-300">SEM FOTO</div>
                   )}
-                  <input type="file" id="editAutoImg" className="hidden" onChange={handleFileSelect} />
+                  <input type="file" id="editAutoImg" className="hidden" onChange={handleFileSelect} accept="image/*" />
                   <button type="button" onClick={() => document.getElementById('editAutoImg').click()} className="px-4 py-2 bg-zinc-900 text-white border-none rounded-md cursor-pointer text-[10px] font-extrabold">ALTERAR FOTO</button>
                 </div>
               </div>

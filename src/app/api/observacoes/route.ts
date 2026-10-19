@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,7 +9,10 @@ const supabase = createClient(
 
 const TIPOS_VALIDOS = ['geral', 'em_banco', 'certificado_pendente', 'pendencia_cliente', 'outro'];
 
+// Tela: /revisoes (temAcesso('revisoes') para ler; pode('revisoes','observacoes') para escrever).
 export async function GET(request: NextRequest) {
+  const guarda = await protegerRota(request, [{ modulo: 'revisoes' }]);
+  if (guarda.resposta) return guarda.resposta;
   const { searchParams } = request.nextUrl;
   const tratorId = searchParams.get('trator_id');
   const chassis = searchParams.get('chassis');
@@ -36,8 +40,13 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const guarda = await protegerRota(request, [{ modulo: 'revisoes', acao: 'observacoes' }]);
+  if (guarda.resposta) return guarda.resposta;
   const body = await request.json();
-  const { trator_id, chassis, tipo, texto, userName, userEmail } = body;
+  const { trator_id, chassis, tipo, texto } = body;
+  // Autoria vem do login, nunca do corpo.
+  const userName = autorDe(guarda.user);
+  const userEmail = guarda.user.email;
 
   if (!trator_id || !chassis || !texto) {
     return NextResponse.json(

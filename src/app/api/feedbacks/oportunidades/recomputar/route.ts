@@ -1,9 +1,9 @@
 // Endpoint de recomputação das oportunidades (R1..R4).
 //
-// Auth segue o mesmo padrão de /api/pos/sync:
-//   - Bearer CRON_SECRET (cron Railway)
-//   - x-railway-cron: true (Railway internal)
-//   - x-sync-manual: true (botão manual no frontend)
+// Auth (tema 1 da auditoria, 19/10/2026):
+//   - Bearer CRON_SECRET / x-cron-secret (workflow feedbacks-oportunidades-recomputar.yml)
+//   - usuário logado com pode('feedbacks', 'oportunidades') (botão da tela)
+//   x-railway-cron / x-sync-manual não valem mais (qualquer um forjava).
 //
 // Query string `?regra=R2_sem_os` permite recomputar uma regra só (útil
 // quando o usuário altera parâmetros no modal de configuração).
@@ -11,8 +11,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { recomputar } from "@/lib/feedbacks/oportunidades";
 import type { RegraOportunidade } from "@/lib/feedbacks/types";
-
-const CRON_SECRET = process.env.CRON_SECRET || "";
+import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 
 const REGRAS_VALIDAS: RegraOportunidade[] = [
   "R1_revisao", "R2_sem_os", "R3_upsell", "R4_followup", "R5_pecas", "R6_fora_garantia", "R7_garantia_risco", "R8_cadastro",
@@ -25,18 +24,11 @@ function parseRegraFiltro(req: NextRequest): RegraOportunidade | undefined {
   return r as RegraOportunidade;
 }
 
-function autorizado(req: NextRequest): boolean {
-  const auth = req.headers.get("authorization") || "";
-  const isCron = CRON_SECRET && auth === `Bearer ${CRON_SECRET}`;
-  const isInternal = req.headers.get("x-railway-cron") === "true";
-  const isManual = req.headers.get("x-sync-manual") === "true";
-  return Boolean(isCron || isInternal || isManual);
-}
+const ACESSO = [{ modulo: "feedbacks", acao: "oportunidades" }];
 
 export async function POST(req: NextRequest) {
-  if (!autorizado(req)) {
-    return NextResponse.json({ erro: "Não autorizado" }, { status: 401 });
-  }
+  const g = await protegerRotaOuInterna(req, ACESSO);
+  if (g.resposta) return g.resposta;
   const t0 = Date.now();
   try {
     const resumo = await recomputar(parseRegraFiltro(req));
@@ -55,9 +47,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  if (!autorizado(req)) {
-    return NextResponse.json({ erro: "Não autorizado" }, { status: 401 });
-  }
+  const g = await protegerRotaOuInterna(req, ACESSO);
+  if (g.resposta) return g.resposta;
   const t0 = Date.now();
   try {
     const resumo = await recomputar(parseRegraFiltro(req));

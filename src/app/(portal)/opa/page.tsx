@@ -489,7 +489,7 @@ function NovoOpa({ usuarioId, usuarioNome, onFechar, onCriado }: {
 
     // sino de quem tem acesso ao Opa
     fetch('/api/opa/notificar', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ opa_id: opa.id, titulo: t, descricao: descricao.trim() || null, criado_por_id: usuarioId }),
     }).catch(() => {})
     // vínculo com veículo: a pendência nasce agora (depois dos anexos, para a foto ir junto)

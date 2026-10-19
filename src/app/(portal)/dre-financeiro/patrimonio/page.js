@@ -35,6 +35,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { fetchAuth } from '@/lib/auth/client'
 
 // ---------------------------------------------------------------------------
 // Formatadores locais (identicos ao <script> da fonte). Mantidos inline para
@@ -208,7 +209,7 @@ export default function PatrimonioPage() {
   // Port fiel da funcao carregar() da fonte.
   // =========================================================================
   const carregar = useCallback(() => {
-    fetch('/api/dre-financeiro/patrimonio?conta=' + conta).then((r) => r.json()).then((d) => {
+    fetchAuth('/api/dre-financeiro/patrimonio?conta=' + conta).then((r) => r.json()).then((d) => {
       if (d.erro) { alert('Erro: ' + d.erro); return }
       ultimoPayload.current = d
       setDados(d)
@@ -263,7 +264,7 @@ export default function PatrimonioPage() {
   // =========================================================================
   useEffect(() => {
     if (!chartReady || !window.Chart) return
-    fetch('/api/dre-financeiro/patrimonio/historico?conta=' + conta + '&dias=' + diasHist).then((r) => r.json()).then((d) => {
+    fetchAuth('/api/dre-financeiro/patrimonio/historico?conta=' + conta + '&dias=' + diasHist).then((r) => r.json()).then((d) => {
       if (d.erro) return
       const pontos = d.pontos || []
       if (pontos.length === 0) {
@@ -574,7 +575,7 @@ export default function PatrimonioPage() {
     if (item === 'balanco') { renderBalancoDetalhe(); return }
 
     setModalCorpo({ tipo: 'carregando' })
-    fetch('/api/dre-financeiro/patrimonio/detalhe?conta=' + conta + '&item=' + item).then((r) => r.json()).then((d) => {
+    fetchAuth('/api/dre-financeiro/patrimonio/detalhe?conta=' + conta + '&item=' + item).then((r) => r.json()).then((d) => {
       if (d.erro) { setModalCorpo({ tipo: 'html', html: '<div class="text-red-600 text-sm">' + d.erro + '</div>' }); return }
 
       // a_receber/a_pagar tem visualizacao especial com chart + drill por entidade
@@ -686,7 +687,7 @@ export default function PatrimonioPage() {
     setModal2Html('<div class="text-slate-500 text-sm">Carregando dados do Omie...</div>')
     setModal2Aberto(true)
 
-    fetch('/api/dre-financeiro/patrimonio/titulo?tipo=' + tipo + '&codigo=' + encodeURIComponent(codigo))
+    fetchAuth('/api/dre-financeiro/patrimonio/titulo?tipo=' + tipo + '&codigo=' + encodeURIComponent(codigo))
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) { setModal2Html('<div class="text-red-600 text-sm">' + d.erro + '</div>'); return }
@@ -784,7 +785,7 @@ export default function PatrimonioPage() {
   function salvarSnapshot() {
     setSnapBusy(true)
     setSnapStatus('salvando...')
-    fetch('/api/dre-financeiro/patrimonio/snapshot', { method: 'POST' })
+    fetchAuth('/api/dre-financeiro/patrimonio/snapshot', { method: 'POST' })
       .then((r) => r.json()).then((d) => {
         setSnapBusy(false)
         if (d.erro) setSnapStatus('Erro: ' + d.erro)
@@ -796,7 +797,7 @@ export default function PatrimonioPage() {
     if (!window.confirm('Reconstruir ' + dias + ' dias de historico? Estoque/frota usam valor atual (sem historico real); a_receber e a_pagar serao recalculados das datas de emissao/pagamento.')) return
     setBackfillBusy(true)
     setBackfillStatus('reconstruindo...')
-    fetch('/api/dre-financeiro/patrimonio/backfill?dias=' + dias, { method: 'POST' })
+    fetchAuth('/api/dre-financeiro/patrimonio/backfill?dias=' + dias, { method: 'POST' })
       .then((r) => r.json()).then((d) => {
         setBackfillBusy(false)
         if (d.erro) setBackfillStatus('Erro: ' + d.erro)

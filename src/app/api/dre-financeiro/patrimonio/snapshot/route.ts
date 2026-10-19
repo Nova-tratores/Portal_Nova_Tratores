@@ -4,6 +4,7 @@
 // para todas as contas (nova/castro/todas), persistindo em cp_patrimonio_snapshot.
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import { calcularPatrimonio } from '@/lib/dre-financeiro/calc'
 import { hoje, fmtISO } from '@/lib/dre-financeiro/dates'
@@ -11,7 +12,10 @@ import { getContasOmie, labelConta } from '@/lib/dre-financeiro/omie-api'
 
 export const dynamic = 'force-dynamic'
 
-export async function POST(_request: NextRequest) {
+export async function POST(request: NextRequest) {
+  // Botão da tela Patrimônio (sem trava de admin lá): mesmo gate da tela.
+  const g = await guardarDre(request, 'patrimonio')
+  if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
   try {
     const ref = hoje()

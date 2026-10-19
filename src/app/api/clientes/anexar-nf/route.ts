@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { fetchInterno } from "@/lib/auth/chamada-interna";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 // POST /api/clientes/anexar-nf
 // Anexa MANUALMENTE uma nota fiscal na pasta do cliente (a NFS-e de serviço que o Omie
@@ -13,6 +14,8 @@ const supabase = createClient(
 );
 
 export async function POST(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: "clientes", acao: "anexos" }]);
+  if (guarda.resposta) return guarda.resposta;
   try {
     const { tipo, num, empresa, pdf_url, num_nf, gerarCard } = await req.json();
     if (!tipo || !num || !empresa || !pdf_url) {

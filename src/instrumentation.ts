@@ -101,7 +101,10 @@ export async function register(): Promise<void> {
   // card no financeiro. É o que garante a NF aparecer sozinha na pasta do cliente.
   if (rodaRobos && !agendadorLigado) {
     const rodarSyncClientes = async () => {
-      try { await fetch(`${base}/api/clientes/sync-recente`); } catch (e) { log('sync-recente clientes falhou: ' + (e as Error).message); }
+      try {
+        const { fetchInterno } = await import('./lib/auth/chamada-interna');
+        await fetchInterno(`${base}/api/clientes/sync-recente`);
+      } catch (e) { log('sync-recente clientes falhou: ' + (e as Error).message); }
     };
     setInterval(() => { rodarSyncClientes().catch(() => {}); }, CINCO_MIN);
     setTimeout(() => { rodarSyncClientes().catch(() => {}); }, 90 * 1000); // 1ª rodada ~1min30 após o boot

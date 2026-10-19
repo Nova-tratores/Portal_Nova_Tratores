@@ -5,12 +5,15 @@
 // esperar o termino. 'todas' nao e aceito (o sync e por conta).
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDreAdmin } from '@/lib/dre-financeiro/rota'
 import { CONTA_PADRAO } from '@/lib/dre-financeiro/calc'
 import { sincronizarClientes } from '@/lib/dre-financeiro/omie-api'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
+  const g = await guardarDreAdmin(request)
+  if (g.resposta) return g.resposta
   try {
     const conta = (request.nextUrl.searchParams.get('conta') || CONTA_PADRAO).toString().toLowerCase()
     if (conta === 'todas') return NextResponse.json({ erro: 'Especifique conta=nova ou conta=castro' }, { status: 400 })

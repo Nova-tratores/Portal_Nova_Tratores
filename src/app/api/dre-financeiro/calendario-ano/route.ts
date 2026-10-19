@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import {
   CONTA_PADRAO,
   TIPO_PADRAO,
@@ -46,6 +47,8 @@ function montaQuery(request: NextRequest): Record<string, string> {
 // API: visao anual do calendario (12 meses agregados)
 // =============================================================================
 export async function GET(request: NextRequest) {
+  const g = await guardarDre(request, 'calendario')
+  if (g.resposta) return g.resposta
   try {
     const conta = pegaConta(request)
     const tipo = pegaTipo(request)

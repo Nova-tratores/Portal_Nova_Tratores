@@ -112,7 +112,7 @@ export default function AjustesHistoricoPage() {
       let qs = contaParam;
       if (produto.trim()) qs += '&produto=' + encodeURIComponent(produto.trim());
       if (origem) qs += '&origem=' + encodeURIComponent(origem);
-      const r = await fetch(`/api/ajustes/historico?${qs.replace(/^&/, '')}`);
+      const r = await fetch(`/api/ajustes/historico?${qs.replace(/^&/, '')}`, { headers: await authHeaders() });
       const d = await r.json();
       if (d.erro) { setErro(d.erro); setLinhas([]); return; }
       setLinhas((d.linhas || []) as CorrecaoLinha[]);

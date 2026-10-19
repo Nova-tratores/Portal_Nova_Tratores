@@ -65,7 +65,7 @@ export default function ProjetosBusca() {
     if (!row.projeto) return;
     setFichaCarregando(true);
     try {
-      const r = await fetch(`/api/clientes/projeto?nome=${encodeURIComponent(row.projeto)}&empresa=${encodeURIComponent(row.empresa || "Nova Tratores")}`, { cache: "no-store" });
+      const r = await fetch(`/api/clientes/projeto?nome=${encodeURIComponent(row.projeto)}&empresa=${encodeURIComponent(row.empresa || "Nova Tratores")}`, { headers: await authHeaders(), cache: "no-store" });
       const j = await r.json();
       if (r.ok && !j.error) setFicha(j);
     } catch { /* ficha resumida fica só com o que veio da busca */ }

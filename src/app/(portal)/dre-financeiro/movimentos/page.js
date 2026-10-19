@@ -18,6 +18,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { formatBRL, useDreConta } from '@/lib/dre-financeiro/format'
+import { fetchAuth } from '@/lib/auth/client'
 
 const VERDE = '#059669'
 const VERMELHO = '#dc2626'
@@ -143,7 +144,7 @@ export default function MovimentosPage() {
       const qs = new URLSearchParams({ conta, de, ate })
       if (natureza) qs.set('natureza', natureza)
       if (cc) qs.set('cc', cc)
-      const r = await fetch(`/api/dre-financeiro/movimentos?${qs.toString()}`)
+      const r = await fetchAuth(`/api/dre-financeiro/movimentos?${qs.toString()}`)
       const j = await r.json()
       if (!r.ok) throw new Error(j.erro || `HTTP ${r.status}`)
       setDados(j)
@@ -173,7 +174,7 @@ export default function MovimentosPage() {
     setAntErro(null)
     try {
       const qs = new URLSearchParams({ conta, de, ate })
-      const r = await fetch(`/api/dre-financeiro/movimentos/antecipacoes?${qs.toString()}`)
+      const r = await fetchAuth(`/api/dre-financeiro/movimentos/antecipacoes?${qs.toString()}`)
       const j = await r.json()
       if (!r.ok) throw new Error(j.erro || `HTTP ${r.status}`)
       setAnt(j)
@@ -195,7 +196,7 @@ export default function MovimentosPage() {
     pararPoll()
     pollRef.current = setInterval(async () => {
       try {
-        const r = await fetch('/api/dre-financeiro/movimentos/sync')
+        const r = await fetchAuth('/api/dre-financeiro/movimentos/sync')
         const j = await r.json()
         setSync(j)
         if (!j.rodando) {
@@ -209,7 +210,7 @@ export default function MovimentosPage() {
 
   useEffect(() => {
     // Se já houver um sync rodando (disparado antes / em outra aba), retoma o polling.
-    fetch('/api/dre-financeiro/movimentos/sync')
+    fetchAuth('/api/dre-financeiro/movimentos/sync')
       .then((r) => r.json())
       .then((j) => { setSync(j); if (j.rodando) iniciarPoll() })
       .catch(() => {})
@@ -219,7 +220,7 @@ export default function MovimentosPage() {
   async function sincronizar() {
     try {
       const qs = new URLSearchParams({ conta, de, ate })
-      const r = await fetch(`/api/dre-financeiro/movimentos/sync?${qs.toString()}`, { method: 'POST' })
+      const r = await fetchAuth(`/api/dre-financeiro/movimentos/sync?${qs.toString()}`, { method: 'POST' })
       const j = await r.json()
       if (!r.ok) throw new Error(j.erro || `HTTP ${r.status}`)
       setSync({ rodando: true, contas: {} })

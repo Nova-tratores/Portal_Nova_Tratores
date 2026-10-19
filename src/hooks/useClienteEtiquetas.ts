@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { fetchAuth } from '@/lib/auth/client'
 
 interface Etiqueta { id: number; nome: string; cor: string }
 
@@ -8,8 +9,9 @@ let _promise: Promise<Record<string, Etiqueta[]>> | null = null
 function fetchMapa(): Promise<Record<string, Etiqueta[]>> {
   if (_cache) return Promise.resolve(_cache)
   if (_promise) return _promise
-  _promise = fetch('/api/clientes/etiquetas?modo=mapa')
-    .then(res => res.json())
+  _promise = fetchAuth('/api/clientes/etiquetas?modo=mapa')
+    // sem sessão (401) não guarda o mapa vazio: a próxima montagem tenta de novo
+    .then(res => { if (!res.ok) throw new Error(`HTTP ${res.status}`); return res.json() })
     .then(data => {
       const etqs: Etiqueta[] = data.etiquetas || []
       const mapaByCnpj: Record<string, Etiqueta[]> = {}
@@ -32,7 +34,7 @@ function fetchMapa(): Promise<Record<string, Etiqueta[]>> {
       _cache = lookup
       return lookup
     })
-    .catch(() => ({}))
+    .catch(() => { _promise = null; return {} })
   return _promise
 }
 

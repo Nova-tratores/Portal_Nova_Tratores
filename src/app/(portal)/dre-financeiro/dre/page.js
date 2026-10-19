@@ -34,6 +34,7 @@ import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
 import { removerDevolucoes } from '@/lib/dre-financeiro/deducoes'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { fetchAuth } from '@/lib/auth/client'
 
 // ---------------------------------------------------------------------------
 // Constantes de layout (espelham as do <script> da fonte)
@@ -371,7 +372,7 @@ export default function DrePage() {
     // conta=todas: o DRE desta tela e SEMPRE consolidado (NOVA+CASTRO), entao a
     // receita por familia tem de cobrir as duas empresas para casar com as
     // despesas consolidadas usadas no rateio da margem liquida.
-    fetch('/api/dre-financeiro/margens-familia?conta=todas&desde=' + de + '&ate=' + ateP)
+    fetchAuth('/api/dre-financeiro/margens-familia?conta=todas&desde=' + de + '&ate=' + ateP)
       .then((r) => r.json())
       .then((d) => {
         setCarregandoFam(false)
@@ -462,7 +463,7 @@ export default function DrePage() {
         : 'Buscando DRE (cache em supabase - primeira vez por mes leva ~1s, re-consulta e instantanea)...')
       url = '/api/dre-financeiro/dre?desde=' + desde + '&ate=' + ate + '&tipo_data=' + tipoData + (forceRefresh ? '&refresh=1' : '')
     }
-    fetch(url).then((r) => r.json()).then((d) => {
+    fetchAuth(url).then((r) => r.json()).then((d) => {
       setCarregando(false)
       if (d.erro) { setStatus('Erro: ' + d.erro); return }
       scrollPosDir.current = true
@@ -1076,7 +1077,7 @@ export default function DrePage() {
     if (dreConta) qs += '&dre_conta=' + encodeURIComponent(dreConta)
     if (dreCategoria) qs += '&dre_categoria=' + encodeURIComponent(dreCategoria)
     if (dreCategoriaNe) qs += '&dre_categoria_ne=' + encodeURIComponent(dreCategoriaNe)
-    fetch(endpoint + '?' + qs).then((r) => r.json()).then((d) => {
+    fetchAuth(endpoint + '?' + qs).then((r) => r.json()).then((d) => {
       setModalCarregando(false)
       if (d.erro) { setModalErro('Erro: ' + d.erro); return }
       setModalMovimentos(d.movimentos || [])
@@ -1097,7 +1098,7 @@ export default function DrePage() {
     setFamDetCtx({ titulo: p.titulo, resumo: p.resumo })
     setFamDetVendas([]); setFamDetErro(''); setFamDetBusca(''); setFamDetCarregando(true)
     const qs = 'conta=todas&meses=' + p.meses.join(',') + '&familias=' + encodeURIComponent(p.familias.join(','))
-    fetch('/api/dre-financeiro/margens-familia/detalhe?' + qs)
+    fetchAuth('/api/dre-financeiro/margens-familia/detalhe?' + qs)
       .then((r) => r.json())
       .then((d) => {
         setFamDetCarregando(false)

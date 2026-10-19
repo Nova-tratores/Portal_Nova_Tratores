@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const CONTAS = [
   { empresa: "Nova Tratores", ...contaOmie("Nova Tratores") },
   { empresa: "Castro Peças", ...contaOmie("Castro Peças") },
 ];
 
-export async function GET() {
+// Diagnóstico sem tela: só admin.
+export async function GET(req: Request) {
+  const guarda = await protegerRota(req, [{ admin: true }]);
+  if (guarda.resposta) return guarda.resposta;
   const results: any[] = [];
 
   for (const acc of CONTAS) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 import { consultarRecebimento, obterIdNfePorChave, obterDanfeDfe } from '@/lib/ajustes/omie';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -10,6 +11,8 @@ export const dynamic = 'force-dynamic';
 // DEPOIS de concluida (etapa 60); enquanto pendente respondemos { pendente:true }.
 // GET ?conta=NOVA&chave=<44 digitos>
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'recebimentos' }, { modulo: 'ajustes', acao: 'recebimentos' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta')) ?? CONTA_DEFAULT;
   try {
     const { id } = await params;

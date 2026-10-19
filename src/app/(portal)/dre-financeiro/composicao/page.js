@@ -37,6 +37,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta, nomeMes } from '@/lib/dre-financeiro/format'
 import { NATUREZAS, DESCRICAO_NATUREZA, naturezaDoGrupo } from '@/lib/dre-financeiro/natureza'
+import { fetchAuth } from '@/lib/auth/client'
 
 // ---------------------------------------------------------------------------
 // Formatadores locais (identicos aos do <script> da fonte). Mantidos inline para
@@ -240,7 +241,7 @@ export default function ComposicaoPage() {
     arvore.current = null
     const qs = 'conta=' + conta + '&tipo=ambos&de=' + de + '&ate=' + ate
     let ativo = true
-    fetch('/api/dre-financeiro/composicao?' + qs).then((r) => r.json()).then((d) => {
+    fetchAuth('/api/dre-financeiro/composicao?' + qs).then((r) => r.json()).then((d) => {
       if (!ativo) return
       if (d.erro) { alert('Erro: ' + d.erro); return }
       arvore.current = d.arvore || {}
@@ -503,7 +504,7 @@ export default function ComposicaoPage() {
     setModeloState({ loading: true, dados: null, erro: null })
     const qs = 'conta=' + c.conta + '&de=' + c.de + '&ate=' + c.ate
       + '&grupo=' + encodeURIComponent(c.grupo) + '&categoria=' + encodeURIComponent(c.categoria)
-    fetch('/api/dre-financeiro/composicao/modelo?' + qs)
+    fetchAuth('/api/dre-financeiro/composicao/modelo?' + qs)
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) { setModeloState({ loading: false, dados: null, erro: d.erro }); return }
@@ -520,7 +521,7 @@ export default function ComposicaoPage() {
     const qs = 'conta=' + c.conta + '&tipo=' + c.tp + '&de=' + c.de + '&ate=' + c.ate
       + '&grupo=' + encodeURIComponent(c.grupo) + '&categoria=' + encodeURIComponent(c.categoria)
       + '&terceiro=' + encodeURIComponent(terceiro)
-    fetch('/api/dre-financeiro/composicao/detalhe?' + qs)
+    fetchAuth('/api/dre-financeiro/composicao/detalhe?' + qs)
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) { setDrill({ modo: 'titulos', terceiro, loading: false, lista: [], total: 0, erro: d.erro }); return }

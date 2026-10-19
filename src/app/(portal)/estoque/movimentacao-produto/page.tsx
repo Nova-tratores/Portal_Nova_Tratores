@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 
@@ -117,7 +118,7 @@ export default function MovimentacaoProdutoPage() {
     const timer = setTimeout(async () => {
       setBuscandoSug(true);
       try {
-        const r = await fetch(`/api/ajustes/movimentacao/buscar-produto?${contaParam.replace(/^&/, '')}&termo=${encodeURIComponent(t)}`);
+        const r = await fetchAuth(`/api/ajustes/movimentacao/buscar-produto?${contaParam.replace(/^&/, '')}&termo=${encodeURIComponent(t)}`);
         const d = await r.json();
         setSugestoes(d.produtos || []);
         setMostrarDrop(true);
@@ -135,7 +136,7 @@ export default function MovimentacaoProdutoPage() {
       if (de) qs += '&de=' + encodeURIComponent(de);
       if (ate) qs += '&ate=' + encodeURIComponent(ate);
       if (force) qs += '&force=1';
-      const r = await fetch(`/api/ajustes/movimentacao?${qs}`);
+      const r = await fetchAuth(`/api/ajustes/movimentacao?${qs}`);
       const d = (await r.json()) as MovPayload;
       if (d.erro) { setErro(d.erro); setStatusMsg(''); setDados(null); return; }
       setDados(d);
@@ -162,7 +163,7 @@ export default function MovimentacaoProdutoPage() {
     deepLinkFeito.current = true;
     (async () => {
       try {
-        const r = await fetch(`/api/ajustes/movimentacao/buscar-produto?${contaParam.replace(/^&/, '')}&termo=${encodeURIComponent(codigo)}`);
+        const r = await fetchAuth(`/api/ajustes/movimentacao/buscar-produto?${contaParam.replace(/^&/, '')}&termo=${encodeURIComponent(codigo)}`);
         const d = await r.json();
         const lista: ProdutoSugestao[] = d.produtos || [];
         const exato = lista.find((p) => p.codigo.toLowerCase() === codigo.toLowerCase()) || lista[0];
@@ -283,7 +284,7 @@ export default function MovimentacaoProdutoPage() {
       if (m.idDoc) qs += `&nCodNF=${m.idDoc}`;
       if (m.numDoc) qs += `&numero=${encodeURIComponent(m.numDoc)}`;
       qs += `&tipo=${tipo}`;
-      const r = await fetch(`/api/ajustes/movimentacao/danfe?${qs}`);
+      const r = await fetchAuth(`/api/ajustes/movimentacao/danfe?${qs}`);
       const d = await r.json();
       if (d.url) window.open(d.url, '_blank');
       else alert('DANFE indisponível: ' + (d.erro || 'sem URL'));
@@ -292,13 +293,29 @@ export default function MovimentacaoProdutoPage() {
     } finally { setDanfeBuscando(null); }
   }, [conta, contaParam]);
 
-  const abrirPDF = useCallback(() => {
+  const abrirPDF = useCallback(async () => {
     if (!conta || !produtoSel) return;
     let qs = contaParam.replace(/^&/, '') + `&idProd=${produtoSel.codigoProduto}`;
     if (de) qs += '&de=' + encodeURIComponent(de);
     if (ate) qs += '&ate=' + encodeURIComponent(ate);
     if (mostrarCancelados) qs += '&cancelados=1';
-    window.open(`/api/ajustes/movimentacao/pdf?${qs}`, '_blank');
+    // A rota exige login: busca com o token e abre o PDF como blob (aba aberta antes do await p/ o bloqueador de pop-up).
+    const janela = window.open('', '_blank');
+    try {
+      const r = await fetchAuth(`/api/ajustes/movimentacao/pdf?${qs}`);
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({} as { erro?: string }));
+        janela?.close();
+        alert('Erro ao gerar PDF: ' + (d.erro || r.status));
+        return;
+      }
+      const url = URL.createObjectURL(await r.blob());
+      if (janela) janela.location.href = url; else window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (ex) {
+      janela?.close();
+      alert('Erro ao gerar PDF: ' + (ex as Error).message);
+    }
   }, [conta, contaParam, produtoSel, de, ate, mostrarCancelados]);
 
   const exportarCSV = useCallback(() => {

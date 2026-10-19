@@ -7,6 +7,7 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 
@@ -100,6 +101,31 @@ function arrayBufferToBase64(ab: ArrayBuffer): string {
   return btoa(bin);
 }
 
+// Download do xlsx com o token da sessao (a rota exige login; <a href> nao manda header).
+async function baixarArquivo(e: React.MouseEvent, id: number, nomePadrao: string) {
+  e.preventDefault();
+  try {
+    const r = await fetchAuth(`/api/ajustes/mahindra/arquivos/${id}/download`);
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({} as { erro?: string }));
+      alert('Erro ao baixar: ' + (d.erro || r.status));
+      return;
+    }
+    const cd = r.headers.get('Content-Disposition') || '';
+    const nome = /filename="([^"]+)"/.exec(cd)?.[1] || nomePadrao;
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nome;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+  } catch (ex) {
+    alert('Erro de rede: ' + (ex as Error).message);
+  }
+}
+
 export default function MahindraPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
@@ -124,7 +150,7 @@ export default function MahindraPage() {
   const carregarArquivos = useCallback(async () => {
     if (!conta) { setArquivos([]); return; }
     try {
-      const r = await fetch(`/api/ajustes/mahindra/arquivos?${contaParam.replace(/^&/, '')}`);
+      const r = await fetchAuth(`/api/ajustes/mahindra/arquivos?${contaParam.replace(/^&/, '')}`);
       const d = await r.json();
       setArquivos(d.arquivos || []);
       setArquivosErro(d.erro || '');
@@ -136,7 +162,7 @@ export default function MahindraPage() {
   const poll = useCallback(async () => {
     if (!conta) return;
     try {
-      const r = await fetch(`/api/ajustes/mahindra/status?${contaParam.replace(/^&/, '')}`);
+      const r = await fetchAuth(`/api/ajustes/mahindra/status?${contaParam.replace(/^&/, '')}`);
       const d = (await r.json()) as StatusPayload;
       setStatus(d);
       if (d.rodando) {
@@ -164,7 +190,7 @@ export default function MahindraPage() {
     if (!conta) { setArquivos([]); setStatus(null); pararPoll(); return; }
     carregarArquivos();
     (async () => {
-      const r = await fetch(`/api/ajustes/mahindra/status?${contaParam.replace(/^&/, '')}`).catch(() => null);
+      const r = await fetchAuth(`/api/ajustes/mahindra/status?${contaParam.replace(/^&/, '')}`).catch(() => null);
       if (!r) return;
       const d = (await r.json()) as StatusPayload;
       setStatus(d);
@@ -184,7 +210,7 @@ export default function MahindraPage() {
     if (!file) { setPreviewErro('Selecione um arquivo .xlsx primeiro.'); return; }
     try {
       const ab = await file.arrayBuffer();
-      const r = await fetch('/api/ajustes/mahindra/template', {
+      const r = await fetchAuth('/api/ajustes/mahindra/template', {
         method: 'POST',
         headers: { 'Content-Type': 'application/octet-stream' },
         body: ab,
@@ -207,7 +233,7 @@ export default function MahindraPage() {
     try {
       // sem upload -> o servidor usa o template padrao (public/templates)
       const templateBase64 = file ? arrayBufferToBase64(await file.arrayBuffer()) : '';
-      const r = await fetch(`/api/ajustes/mahindra/gerar?${contaParam.replace(/^&/, '')}`, {
+      const r = await fetchAuth(`/api/ajustes/mahindra/gerar?${contaParam.replace(/^&/, '')}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ templateBase64, mes, criadoPor }),
@@ -394,6 +420,7 @@ export default function MahindraPage() {
               <div className="mt-4">
                 <a
                   href={`/api/ajustes/mahindra/arquivos/${status.arquivoId}/download`}
+                  onClick={(e) => baixarArquivo(e, status.arquivoId as number, status.filename || 'arquivo.xlsx')}
                   className="inline-block rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700"
                 >
                   Baixar {status.filename || 'arquivo.xlsx'}
@@ -435,7 +462,7 @@ export default function MahindraPage() {
                           <td className="py-2 pr-3 text-slate-500">{det}</td>
                           <td className="whitespace-nowrap py-2 pr-3 text-slate-400">{fmtTamanho(a.tamanho_bytes)}</td>
                           <td className="whitespace-nowrap py-2">
-                            <a href={`/api/ajustes/mahindra/arquivos/${a.id}/download`} className="text-blue-600 hover:underline">Baixar</a>
+                            <a href={`/api/ajustes/mahindra/arquivos/${a.id}/download`} onClick={(e) => baixarArquivo(e, a.id, 'arquivo-mahindra.xlsx')} className="text-blue-600 hover:underline">Baixar</a>
                           </td>
                         </tr>
                       );

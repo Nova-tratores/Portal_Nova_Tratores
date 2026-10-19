@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/server/supabase-admin";
+import { protegerRota, type OpcaoAcesso } from "@/lib/ajustes/permissao-server";
+
+// Leitura: Pasta Clientes + os cards do POS/PPV (useClienteEtiquetas mostra as etiquetas).
+const LER: OpcaoAcesso[] = [{ modulo: "clientes" }, { modulo: "pos" }, { modulo: "ppv" }];
+// Escrita: só quem tem o botão de etiquetas da Pasta (pode('clientes','etiquetas')).
+const ESCREVER: OpcaoAcesso[] = [{ modulo: "clientes", acao: "etiquetas" }];
 
 // GET — listar etiquetas disponíveis, ou etiquetas+descricao de um cliente, ou mapa completo
 export async function GET(req: NextRequest) {
+  const guarda = await protegerRota(req, LER);
+  if (guarda.resposta) return guarda.resposta;
   const { searchParams } = new URL(req.url);
   const cnpj = searchParams.get("cnpj");
   const modo = searchParams.get("modo");
@@ -46,6 +54,8 @@ export async function GET(req: NextRequest) {
 
 // POST — criar nova etiqueta
 export async function POST(req: NextRequest) {
+  const guarda = await protegerRota(req, ESCREVER);
+  if (guarda.resposta) return guarda.resposta;
   const body = await req.json();
   const { nome, cor } = body;
   if (!nome) return NextResponse.json({ error: "nome obrigatório" }, { status: 400 });
@@ -62,6 +72,8 @@ export async function POST(req: NextRequest) {
 
 // PATCH — atualizar etiqueta, vincular/desvincular cliente, ou salvar descrição
 export async function PATCH(req: NextRequest) {
+  const guarda = await protegerRota(req, ESCREVER);
+  if (guarda.resposta) return guarda.resposta;
   const body = await req.json();
 
   // Salvar descrição do cliente
@@ -116,6 +128,8 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE — excluir etiqueta (cascade remove vínculos)
 export async function DELETE(req: NextRequest) {
+  const guarda = await protegerRota(req, ESCREVER);
+  if (guarda.resposta) return guarda.resposta;
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });

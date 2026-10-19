@@ -8,7 +8,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
-import { authHeaders } from '@/lib/auth/client';
+import { authHeaders, fetchAuth } from '@/lib/auth/client';
 
 // ---------- tipos do payload ----------
 interface PorLocal { localId: number; localNome: string; saldo: number; cmc: number }
@@ -121,7 +121,7 @@ export default function AjustesDashboardPage() {
       if (de) qs += '&de=' + encodeURIComponent(de);
       if (ate) qs += '&ate=' + encodeURIComponent(ate);
       if (force) qs += '&force=1';
-      const r = await fetch(`/api/ajustes/analise?${qs.replace(/^&/, '')}`);
+      const r = await fetchAuth(`/api/ajustes/analise?${qs.replace(/^&/, '')}`);
       const d = (await r.json()) as AnalisePayload;
       if (d.erro) { setErro(d.erro); setStatusMsg(''); return; }
       // popula edição inicial
@@ -455,7 +455,7 @@ function ResumoSemana({ conta, contaParam }: { conta: string; contaParam: string
   const [erro, setErro] = useState('');
   useEffect(() => {
     let vivo = true;
-    fetch(`/api/ajustes/home-resumo?${contaParam.replace(/^&/, '')}`)
+    fetchAuth(`/api/ajustes/home-resumo?${contaParam.replace(/^&/, '')}`)
       .then((r) => r.json())
       .then((j) => {
         if (!vivo) return;

@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { fetchAuth } from '@/lib/auth/client'
 
 export default function TratorModal({ onClose }) {
   const [loading, setLoading] = useState(false)
@@ -31,7 +32,7 @@ export default function TratorModal({ onClose }) {
       }
       if (imageFile) fd.append('file', imageFile)
 
-      const res = await fetch('/api/propostas/trator', { method: 'POST', body: fd })
+      const res = await fetchAuth('/api/propostas/trator',{ method: 'POST', body: fd })
       const json = await res.json()
       if (!res.ok) throw new Error(json.error || 'Erro ao cadastrar')
       alert("TRATOR CADASTRADO COM SUCESSO!")

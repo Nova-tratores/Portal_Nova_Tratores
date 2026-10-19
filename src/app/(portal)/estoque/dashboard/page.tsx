@@ -473,9 +473,20 @@ export default function DashboardPage() {
   const [nfBusy, setNfBusy] = useState<number | null>(null);
   const [nfPicker, setNfPicker] = useState<{ idx: number; candidatos: NotaCand[] } | null>(null);
 
-  const abrirDanfe = useCallback((c: NotaCand, conta?: string | null) => {
+  const abrirDanfe = useCallback(async (c: NotaCand, conta?: string | null) => {
     const cc = conta === 'NOVA' || conta === 'CASTRO' ? conta : 'NOVA';
-    window.open(`/api/ajustes/notas/danfe?conta=${cc}&tipo=${c.tipo || 'produto'}&nCodNF=${c.nCodNF}&redirect=1`, '_blank');
+    // A rota exige login: pede o { url } com o token e abre a URL da Omie
+    // (aba aberta antes do await p/ o bloqueador de pop-up).
+    const janela = window.open('', '_blank');
+    try {
+      const r = await getDash(`/api/ajustes/notas/danfe?conta=${cc}&tipo=${c.tipo || 'produto'}&nCodNF=${c.nCodNF}`);
+      const d = await r.json().catch(() => ({} as { url?: string; erro?: string }));
+      if (d.url) { if (janela) janela.location.href = d.url; else window.open(d.url, '_blank'); }
+      else { janela?.close(); alert('Nao foi possivel obter o DANFE: ' + (d.erro || r.status)); }
+    } catch (ex) {
+      janela?.close();
+      alert('Erro ao obter o DANFE: ' + (ex as Error).message);
+    }
   }, []);
 
   const abrirNF = useCallback(async (v: VendaRow, idx: number) => {

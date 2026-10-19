@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 
@@ -75,7 +76,7 @@ export default function NotasPage() {
     const id = ++buscaIdRef.current;
     const t = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/ajustes/notas/clientes?conta=${encodeURIComponent(conta)}&q=${encodeURIComponent(termo)}`);
+        const r = await fetchAuth(`/api/ajustes/notas/clientes?conta=${encodeURIComponent(conta)}&q=${encodeURIComponent(termo)}`);
         const d = await r.json();
         if (id !== buscaIdRef.current) return; // resposta obsoleta
         setSugestoes(Array.isArray(d.clientes) ? d.clientes : []);
@@ -99,7 +100,7 @@ export default function NotasPage() {
     setDados(null);
     try {
       const qs = contaParam.replace(/^&/, '') + qsExtra;
-      const r = await fetch(`/api/ajustes/notas/buscar?${qs}`);
+      const r = await fetchAuth(`/api/ajustes/notas/buscar?${qs}`);
       const d = (await r.json()) as NotasPayload;
       if (d.erro) { setErro(d.erro); return; }
       setDados(d);
@@ -138,7 +139,7 @@ export default function NotasPage() {
     setDanfeId(key);
     try {
       const qs = contaParam.replace(/^&/, '') + '&tipo=' + (n.tipo || 'produto') + '&nCodNF=' + encodeURIComponent(String(n.nCodNF));
-      const r = await fetch(`/api/ajustes/notas/danfe?${qs}`);
+      const r = await fetchAuth(`/api/ajustes/notas/danfe?${qs}`);
       const d = await r.json();
       if (d.url) window.open(d.url, '_blank');
       else alert('Nao foi possivel obter o PDF: ' + (d.erro || 'sem URL'));

@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 
@@ -140,7 +141,7 @@ export default function PedidosPage() {
       if (de) qs += '&de=' + encodeURIComponent(de);
       if (ate) qs += '&ate=' + encodeURIComponent(ate);
       if (force) qs += '&force=1';
-      const r = await fetch(`/api/ajustes/pedidos?${qs}`);
+      const r = await fetchAuth(`/api/ajustes/pedidos?${qs}`);
       const d = (await r.json()) as PedidosPayload;
       if (d.erro) { setErro(d.erro); setStatusMsg(''); return; }
       setDados(d);
@@ -155,7 +156,10 @@ export default function PedidosPage() {
     setCarregando(true); setErro('');
     setStatusMsg('buscando encerramentos...');
     try {
-      const r = await fetch(`/api/ajustes/encerramentos-informais?${contaParam.replace(/^&/, '')}`);
+      const { data: { session: sessEnc } } = await supabase.auth.getSession();
+      const r = await fetch(`/api/ajustes/encerramentos-informais?${contaParam.replace(/^&/, '')}`, {
+        headers: { Authorization: `Bearer ${sessEnc?.access_token ?? ''}` },
+      });
       const d = await r.json();
       if (d.erro) { setErro(d.erro); setStatusMsg(''); return; }
       const linhas: Encerramento[] = d.linhas || [];
@@ -209,14 +213,40 @@ export default function PedidosPage() {
     } finally { setAplicando(false); }
   }, [pedidoSel, razao, conta, criadoPor, router, fecharModal, buscarAbertos]);
 
-  const exportar = useCallback((fmt: 'csv' | 'xlsx' | 'pdf') => {
+  const exportar = useCallback(async (fmt: 'csv' | 'xlsx' | 'pdf') => {
     if (!conta) { alert('Selecione NOVA ou CASTRO no menu.'); return; }
     let qs = contaParam.replace(/^&/, '');
     if (de) qs += '&de=' + encodeURIComponent(de);
     if (ate) qs += '&ate=' + encodeURIComponent(ate);
     const url = `/api/ajustes/pedidos/${fmt}?${qs}`;
-    if (fmt === 'pdf') window.open(url, '_blank');
-    else window.location.href = url;
+    // A rota exige login: baixa com o token (blob). PDF abre numa aba
+    // (aberta antes do await p/ o bloqueador de pop-up); CSV/XLSX baixam.
+    const janela = fmt === 'pdf' ? window.open('', '_blank') : null;
+    try {
+      const r = await fetchAuth(url);
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({} as { erro?: string }));
+        janela?.close();
+        alert('Erro ao exportar: ' + (d.erro || r.status));
+        return;
+      }
+      const blobUrl = URL.createObjectURL(await r.blob());
+      if (fmt === 'pdf') {
+        if (janela) janela.location.href = blobUrl; else window.open(blobUrl, '_blank');
+      } else {
+        const cd = r.headers.get('Content-Disposition') || '';
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = /filename="?([^";]+)"?/.exec(cd)?.[1] || `pedidos-abertos.${fmt}`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      }
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000);
+    } catch (ex) {
+      janela?.close();
+      alert('Erro ao exportar: ' + (ex as Error).message);
+    }
   }, [conta, contaParam, de, ate]);
 
   const peds = useMemo(() => dados?.pedidos || [], [dados]);

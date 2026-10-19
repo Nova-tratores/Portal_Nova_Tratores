@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { supabaseVE } from "@/lib/visual-estoque/supabase";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 // Lista produtos que já têm imagem (para copiar de outro). Porta /api/produtos-imagens.
-export async function GET() {
+// Só a tela Pátio (MenuImagem) chama: pode('consulta-estoque', 'patio').
+export async function GET(req: Request) {
+  const g = await protegerRota(req, [{ modulo: "consulta-estoque", acao: "patio" }]);
+  if (g.resposta) return g.resposta;
   try {
     const { data } = await supabaseVE
       .from("produtos")

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { montarProposta } from '@/lib/ajustes/catalogo-caracteristicas';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120; // varre catalogo_pecas (~95k linhas) + produtos
 
 // GET [?atualizar=1] -> { itens, resumo }  (proposta Sistema/Sub-sistema, conta NOVA)
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'catalogo-caract' }]);
+  if (g.resposta) return g.resposta;
   try {
     const force = req.nextUrl.searchParams.get('atualizar') === '1';
     const proposta = await montarProposta({ force });

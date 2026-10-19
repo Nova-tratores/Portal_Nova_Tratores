@@ -10,6 +10,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
+import { fetchAuth } from '@/lib/auth/client';
 
 // ---------- tipos ----------
 interface AlertaDetalhe {
@@ -203,7 +204,7 @@ export default function AlertasPage() {
     if (filtroLidoRef.current !== '') qs += (qs ? '&' : '') + 'lido=' + filtroLidoRef.current;
     if (filtroTipoRef.current) qs += (qs ? '&' : '') + 'tipo=' + encodeURIComponent(filtroTipoRef.current);
     try {
-      const r = await fetch(`/api/ajustes/alertas${qs ? '?' + qs : ''}`);
+      const r = await fetchAuth(`/api/ajustes/alertas${qs ? '?' + qs : ''}`);
       const d = (await r.json()) as AlertasResposta;
       if (d.erro) { setErro(d.erro); }
       renderVerif(d.verificacao || {});
@@ -219,7 +220,7 @@ export default function AlertasPage() {
 
   const pollVerif = useCallback(async () => {
     try {
-      const r = await fetch('/api/ajustes/verificacao/status');
+      const r = await fetchAuth('/api/ajustes/verificacao/status');
       const v = (await r.json()) as VerificacaoStatus;
       renderVerif(v || {});
       if (!v || !v.rodando) { stopVerifTimer(); carregar(); }
@@ -237,7 +238,7 @@ export default function AlertasPage() {
   const marcar = useCallback(async (ids: number[], lido: boolean) => {
     setListaStatus('atualizando...');
     try {
-      const r = await fetch('/api/ajustes/alertas/marcar-lido', {
+      const r = await fetchAuth('/api/ajustes/alertas/marcar-lido', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, lido }),
       });
       const d = await r.json();
@@ -249,7 +250,7 @@ export default function AlertasPage() {
     if (!confirm(`Marcar TODOS os alertas nao lidos${conta ? ' da conta ' + conta : ''} como lidos?`)) return;
     setListaStatus('atualizando...');
     try {
-      const r = await fetch('/api/ajustes/alertas/marcar-lido', {
+      const r = await fetchAuth('/api/ajustes/alertas/marcar-lido', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conta: conta || undefined, lido: true }),
       });
       const d = await r.json();
@@ -261,7 +262,7 @@ export default function AlertasPage() {
     if (!confirm('Rodar a verificacao agora? Ela varre as contas inteiras no Omie e demora ~1-1,5h. Voce pode fechar a aba e voltar depois.')) return;
     setVerifStatus('iniciando verificacao...');
     try {
-      const r = await fetch('/api/ajustes/verificacao/rodar-agora', {
+      const r = await fetchAuth('/api/ajustes/verificacao/rodar-agora', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ criadoPor }),
       });
       const d = await r.json();

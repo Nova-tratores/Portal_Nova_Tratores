@@ -35,6 +35,7 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { fetchAuth } from '@/lib/auth/client'
 
 // ---------------------------------------------------------------------------
 // Constantes (identicas ao <script> da fonte)
@@ -195,7 +196,7 @@ export default function CalendarioPage() {
   // =========================================================================
   const carregarCalendario = useCallback(() => {
     setErroCal('')
-    fetch('/api/dre-financeiro/calendario?' + montarQS())
+    fetchAuth('/api/dre-financeiro/calendario?' + montarQS())
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) { setErroCal(d.erro); setDias([]); return }
@@ -212,7 +213,7 @@ export default function CalendarioPage() {
     setErroAno('')
     let qs = 'conta=' + conta + '&tipo=' + tipo + '&eixo=' + eixo + '&ano=' + ano
     Object.keys(filtros).forEach((k) => { if (filtros[k]) qs += '&' + k + '=' + encodeURIComponent(filtros[k]) })
-    fetch('/api/dre-financeiro/calendario-ano?' + qs)
+    fetchAuth('/api/dre-financeiro/calendario-ano?' + qs)
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) { setErroAno(d.erro); setMeses([]); return }
@@ -226,7 +227,7 @@ export default function CalendarioPage() {
   // Carregamento das opcoes de filtro (port fiel de carregarFiltros)
   // =========================================================================
   const carregarFiltros = useCallback(() => {
-    fetch('/api/dre-financeiro/filtros?' + montarQS())
+    fetchAuth('/api/dre-financeiro/filtros?' + montarQS())
       .then((r) => r.json())
       .then((d) => {
         setOpcoes({
@@ -256,7 +257,7 @@ export default function CalendarioPage() {
     const p = periodoLista()
     setErroLista('')
     setListaCarregando(true)
-    fetch('/api/dre-financeiro/calendario-lista?' + montarQS({ de: p.de, ate: p.ate }))
+    fetchAuth('/api/dre-financeiro/calendario-lista?' + montarQS({ de: p.de, ate: p.ate }))
       .then((r) => r.json())
       .then((d) => {
         setListaCarregando(false)
@@ -324,7 +325,7 @@ export default function CalendarioPage() {
     setDrawerErro('')
     setDrawerTitulos([])
     setDrawerCarregando(true)
-    fetch('/api/dre-financeiro/titulos?' + montarQS({ data: dataISO }))
+    fetchAuth('/api/dre-financeiro/titulos?' + montarQS({ data: dataISO }))
       .then((r) => r.json())
       .then((d) => {
         setDrawerCarregando(false)
@@ -345,12 +346,12 @@ export default function CalendarioPage() {
     }
     setSyncRodando(true)
     setSyncStatus('Iniciando...')
-    fetch('/api/dre-financeiro/sync/conta?conta=' + conta + '&mes=' + mes + '&ano=' + ano, { method: 'POST' })
+    fetchAuth('/api/dre-financeiro/sync/conta?conta=' + conta + '&mes=' + mes + '&ano=' + ano, { method: 'POST' })
       .then((r) => r.json())
       .then(() => {
         if (syncTimer.current) clearInterval(syncTimer.current)
         syncTimer.current = setInterval(() => {
-          fetch('/api/dre-financeiro/sync/status?conta=' + conta)
+          fetchAuth('/api/dre-financeiro/sync/status?conta=' + conta)
             .then((r) => r.json())
             .then((s) => {
               if (s.rodando) {

@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { fetchAuth } from '@/lib/auth/client'
 
 export default function EquipamentoModal({ onClose }) {
   const [loading, setLoading] = useState(false)
@@ -24,7 +25,7 @@ export default function EquipamentoModal({ onClose }) {
       const fd = new FormData()
       Object.entries(formData).forEach(([k, v]) => fd.append(k, v))
       if (file) fd.append('file', file)
-      const res = await fetch('/api/propostas/equipamento', { method: 'POST', body: fd })
+      const res = await fetchAuth('/api/propostas/equipamento',{ method: 'POST', body: fd })
       const result = await res.json()
       if (!res.ok) throw new Error(result.error || 'Erro ao salvar')
       alert("EQUIPAMENTO CADASTRADO COM SUCESSO!"); onClose()

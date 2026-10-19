@@ -14,7 +14,7 @@ import EnviarFinanceiroModal from '@/components/clientes/EnviarFinanceiroModal'
 import EditarClienteOmie from '@/components/clientes/EditarClienteOmie'
 import NotasFiscaisCliente from '@/components/clientes/NotasFiscaisCliente'
 import { useSyncPasta, RelogioSync, textoProxima } from '@/components/clientes/SyncPasta'
-import { authHeaders } from '@/lib/auth/client'
+import { authHeaders, fetchAuth } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
 import { BellOff, Tractor, Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save, Upload, AlertTriangle, Send, Phone, Copy, Check } from 'lucide-react'
 
@@ -233,7 +233,7 @@ function ClientesPageInner() {
 
   const carregarMapaEtiquetas = useCallback(async () => {
     try {
-      const res = await fetch('/api/clientes/etiquetas?modo=mapa')
+      const res = await fetch('/api/clientes/etiquetas?modo=mapa', { headers: await authHeaders() })
       const data = await res.json()
       const etqs = data.etiquetas || []
       const mapa: Record<string, { id: number; nome: string; cor: string }[]> = {}
@@ -251,7 +251,7 @@ function ClientesPageInner() {
 
   const carregarEtiquetasCliente = useCallback(async (cnpj: string) => {
     try {
-      const res = await fetch(`/api/clientes/etiquetas?cnpj=${encodeURIComponent(cnpj)}`)
+      const res = await fetch(`/api/clientes/etiquetas?cnpj=${encodeURIComponent(cnpj)}`, { headers: await authHeaders() })
       const data = await res.json()
       setEtiquetasCliente(data.etiquetas || [])
       setDescricaoCliente(data.descricao || '')
@@ -263,7 +263,7 @@ function ClientesPageInner() {
     if (!podeEtiquetas) return
     await fetch('/api/clientes/etiquetas', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ modo: ativo ? 'desvincular' : 'vincular', cnpj_cpf: cnpj, etiqueta_id: etiquetaId })
     })
     await carregarEtiquetasCliente(cnpj)
@@ -275,7 +275,7 @@ function ClientesPageInner() {
     setSalvandoDesc(true)
     await fetch('/api/clientes/etiquetas', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ modo: 'descricao', cnpj_cpf: cnpj, descricao: descricaoLocal })
     })
     setDescricaoCliente(descricaoLocal)
@@ -287,12 +287,12 @@ function ClientesPageInner() {
     if (!novaEtiquetaNome.trim()) return
     await fetch('/api/clientes/etiquetas', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ nome: novaEtiquetaNome.trim(), cor: novaEtiquetaCor })
     })
     setNovaEtiquetaNome('')
     setNovaEtiquetaCor('#3b82f6')
-    const res = await fetch('/api/clientes/etiquetas')
+    const res = await fetch('/api/clientes/etiquetas', { headers: await authHeaders() })
     const data = await res.json()
     setTodasEtiquetas(data.etiquetas || [])
   }
@@ -300,8 +300,8 @@ function ClientesPageInner() {
   const excluirEtiqueta = async (id: number) => {
     if (!podeEtiquetas) return
     if (!confirm('Excluir esta etiqueta de todos os clientes?')) return
-    await fetch(`/api/clientes/etiquetas?id=${id}`, { method: 'DELETE' })
-    const res = await fetch('/api/clientes/etiquetas')
+    await fetch(`/api/clientes/etiquetas?id=${id}`, { method: 'DELETE', headers: await authHeaders() })
+    const res = await fetch('/api/clientes/etiquetas', { headers: await authHeaders() })
     const data = await res.json()
     setTodasEtiquetas(data.etiquetas || [])
     if (selectedCliente) await carregarEtiquetasCliente(selectedCliente.cnpj_cpf)
@@ -310,12 +310,12 @@ function ClientesPageInner() {
 
   const carregarLista = useCallback(async () => {
     setLoading(true)
-    try { const res = await fetch('/api/clientes'); const data = await res.json(); setClientes(data.clientes || []); return data.clientes?.length || 0 } catch {} setLoading(false); return 0
+    try { const res = await fetch('/api/clientes', { headers: await authHeaders() }); const data = await res.json(); setClientes(data.clientes || []); return data.clientes?.length || 0 } catch {} setLoading(false); return 0
   }, [])
   // Aba "Por Máquina": lista todos os projetos/máquinas de todos os clientes (carrega sob demanda).
   const carregarMaquinas = useCallback(async () => {
     setMaquinasLoad(true)
-    try { const res = await fetch('/api/clientes/projetos-resumo'); const data = await res.json(); setMaquinas(data.todos_projetos || []); setMaquinasCarregou(true) } catch {}
+    try { const res = await fetch('/api/clientes/projetos-resumo', { headers: await authHeaders() }); const data = await res.json(); setMaquinas(data.todos_projetos || []); setMaquinasCarregou(true) } catch {}
     setMaquinasLoad(false)
   }, [])
   const trocarAba = (nova: 'clientes' | 'maquinas') => {
@@ -324,7 +324,7 @@ function ClientesPageInner() {
   }
   const syncBackground = useCallback(async () => {
     if (syncing) return; setSyncing(true); setSyncStatus('Atualizando dados...')
-    try { const res = await fetch('/api/clientes/sync', { method: 'POST' }); const data = await res.json(); if (data.sucesso) { await carregarLista(); setSyncStatus('Atualizado'); setTimeout(() => setSyncStatus(''), 3000) } } catch {} setSyncing(false)
+    try { const res = await fetch('/api/clientes/sync', { method: 'POST', headers: await authHeaders() }); const data = await res.json(); if (data.sucesso) { await carregarLista(); setSyncStatus('Atualizado'); setTimeout(() => setSyncStatus(''), 3000) } } catch {} setSyncing(false)
   }, [syncing, carregarLista])
   // NF: o download/vínculo das notas é feito 100% pelo cron (GitHub Actions sync-nfs.yml),
   // de madrugada e em lotes até zerar o backlog. A página não baixa mais NF ao abrir
@@ -332,14 +332,14 @@ function ClientesPageInner() {
 
   useEffect(() => {
     (async () => { const count = await carregarLista(); setLoading(false); if (count === 0) { syncBackground(); return }
-      try { const res = await fetch('/api/clientes?checkSync=1'); const data = await res.json(); if (data.lastSync) { const diffH = (Date.now() - new Date(data.lastSync).getTime()) / 3600000; if (diffH > 6) syncBackground() } else syncBackground() } catch { syncBackground() }
+      try { const res = await fetch('/api/clientes?checkSync=1', { headers: await authHeaders() }); const data = await res.json(); if (data.lastSync) { const diffH = (Date.now() - new Date(data.lastSync).getTime()) / 3600000; if (diffH > 6) syncBackground() } else syncBackground() } catch { syncBackground() }
       carregarMapaEtiquetas()
     })()
 
     // Auto-sync a cada 30 minutos: busca OS/PV do dia (dados recentes)
     const interval = setInterval(async () => {
       try {
-        await fetch('/api/clientes/sync-recente')
+        await fetch('/api/clientes/sync-recente', { headers: await authHeaders() })
         await carregarLista()
       } catch {}
     }, 30 * 60 * 1000)
@@ -356,7 +356,7 @@ function ClientesPageInner() {
     setServicoModalOS(null)
     setPedidoModalNum(null)
     try {
-      const res = await fetch(`/api/clientes/projeto?nome=${encodeURIComponent(nome)}&empresa=${encodeURIComponent(empresa)}`)
+      const res = await fetch(`/api/clientes/projeto?nome=${encodeURIComponent(nome)}&empresa=${encodeURIComponent(empresa)}`, { headers: await authHeaders() })
       const data = await res.json()
       setModalProjetoData(data)
     } catch {}
@@ -379,7 +379,7 @@ function ClientesPageInner() {
     if (emailsData[chassis]) return
     setLoadingEmails(chassis)
     try {
-      const res = await fetch(`/api/clientes/emails-chassis?chassis=${encodeURIComponent(chassis)}`)
+      const res = await fetch(`/api/clientes/emails-chassis?chassis=${encodeURIComponent(chassis)}`, { headers: await authHeaders() })
       const data = await res.json()
       setEmailsData(prev => ({ ...prev, [chassis]: data.emails || [] }))
     } catch {}
@@ -424,7 +424,7 @@ function ClientesPageInner() {
     }
     await Promise.all([
       // OS + Pedidos (o grosso da pasta)
-      fetch(`/api/clientes?codCli=${cliente.cod_cli}&empresa=${encodeURIComponent(cliente.empresa)}`)
+      fetchAuth(`/api/clientes?codCli=${cliente.cod_cli}&empresa=${encodeURIComponent(cliente.empresa)}`)
         .then((res) => res.json())
         .then((data) => aplicar({
           ordens: data.ordens || [],
@@ -565,7 +565,7 @@ function ClientesPageInner() {
         }
       }
       const res = await fetch('/api/clientes/anexar', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ tipo: showAnexar, numero: anexNumero.trim(), empresa: selectedCliente.empresa, pdf_url, nf_pdf_url, pv_vinculado: showAnexar === 'os' ? anexPvVinc.trim() : undefined, pv_pdf_url, pv_nf_pdf_url, servico_interno: showAnexar === 'os' ? anexInterno : false }),
       })
       const data = await res.json()
@@ -616,7 +616,7 @@ function ClientesPageInner() {
       if (upErr) { alert('Falha ao subir o PDF da NF de serviço.'); setAnexNfOS(false); return }
       const pdf_url = supabase.storage.from('anexos').getPublicUrl(path).data.publicUrl
       const res = await fetch('/api/clientes/anexar-nf', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ tipo: 'os', num: os.num_os, empresa: os.empresa, pdf_url, gerarCard }),
       })
       const data = await res.json()
@@ -647,7 +647,7 @@ function ClientesPageInner() {
       if (upErr) { alert('Falha ao subir o PDF da NF de peça.'); setAnexNfOS(false); return }
       const pdf_url = supabase.storage.from('anexos').getPublicUrl(path).data.publicUrl
       const res = await fetch('/api/clientes/anexar-nf', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ tipo: 'pv', num: pv.num_pedido, empresa: pv.empresa, pdf_url, gerarCard }),
       })
       const data = await res.json()
@@ -674,7 +674,7 @@ function ClientesPageInner() {
     try { const { data } = await supabase.auth.getUser(); usuario = data.user?.email || ''; usuarioId = data.user?.id || '' } catch {}
     try {
       const res = await fetch('/api/clientes/vincular-pv', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ num_os: os.num_os, empresa: os.empresa, pv: pv.trim(), usuario, usuarioId }),
       })
       const d = await res.json()
@@ -704,7 +704,7 @@ function ClientesPageInner() {
     try { const { data } = await supabase.auth.getUser(); usuario = data.user?.email || ''; usuarioId = data.user?.id || '' } catch {}
     try {
       const res = await fetch('/api/clientes/substituir-nf', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ tipo: 'os', num: subNF.osNum, empresa: subNF.empresa, nf_tipo: subNF.nf_tipo, num_antigo: subNF.num_antigo.trim() || null, num_novo: subNF.num_novo.trim(), usuario, usuarioId }),
       })
       const data = await res.json()

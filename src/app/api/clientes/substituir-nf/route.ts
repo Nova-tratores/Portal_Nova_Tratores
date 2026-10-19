@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 
 // POST /api/clientes/substituir-nf
 // Registra que uma NF (de serviço ou de peça) foi SUBSTITUÍDA: guarda nº antigo -> novo
 // no histórico da OS/PV da pasta + grava no audit_log (quem/quando). Não mexe na nota
 // fiscal em si (isso é no Omie) — só registra a troca pra manter o rastro.
-// Body: { tipo:"os"|"pv", num, empresa, nf_tipo:"servico"|"peca", num_antigo?, num_novo, usuario?, usuarioId? }
+// Body: { tipo:"os"|"pv", num, empresa, nf_tipo:"servico"|"peca", num_antigo?, num_novo } (autor = login)
 export const dynamic = "force-dynamic";
 
 const supabase = createClient(
@@ -15,8 +16,13 @@ const supabase = createClient(
 const SISTEMA_UID = "00000000-0000-0000-0000-000000000000";
 
 export async function POST(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: "clientes", acao: "anexos" }]);
+  if (guarda.resposta) return guarda.resposta;
+  // Autoria vem do login, nunca do corpo.
+  const usuario = autorDe(guarda.user);
+  const usuarioId = guarda.user.id;
   try {
-    const { tipo, num, empresa, nf_tipo, num_antigo, num_novo, usuario, usuarioId } = await req.json();
+    const { tipo, num, empresa, nf_tipo, num_antigo, num_novo } = await req.json();
     if (!tipo || !num || !empresa || !nf_tipo || !num_novo) {
       return NextResponse.json({ error: "tipo, num, empresa, nf_tipo e num_novo são obrigatórios" }, { status: 400 });
     }

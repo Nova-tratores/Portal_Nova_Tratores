@@ -8,6 +8,7 @@ import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { FileText, ArrowLeft, ChevronRight, AlertTriangle, Calendar, BarChart3 } from 'lucide-react'
 import RelatorioFaturamentoSemanal from '@/components/clientes/RelatorioFaturamentoSemanal'
+import { fetchAuth } from '@/lib/auth/client'
 
 interface Semana { semana: string; gerado_em: string; total_cards: number; total_valor: number }
 
@@ -33,7 +34,7 @@ function RelatoriosConteudo() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/clientes/relatorio-semanal')
+    fetchAuth('/api/clientes/relatorio-semanal')
       .then(r => r.ok ? r.json() : [])
       .then(d => setLista(Array.isArray(d) ? d : []))
       .catch(() => setLista([]))

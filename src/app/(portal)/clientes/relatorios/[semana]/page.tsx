@@ -4,6 +4,7 @@
 // com o cabeçalho de ações). Chega por /clientes/relatorios/<YYYY-MM-DD>.
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { fetchAuth } from '@/lib/auth/client'
 
 interface Item { tipo: 'OS' | 'PV'; numero: string; empresa: string; cliente: string; valor: number; data: string }
 interface Relatorio { semana: string; gerado_em: string; total_cards: number; total_valor: number; dados: Item[] }
@@ -21,7 +22,7 @@ export default function RelatorioSemanaPage() {
 
   useEffect(() => {
     if (!semana) return
-    fetch(`/api/clientes/relatorio-semanal?semana=${encodeURIComponent(semana)}`)
+    fetchAuth(`/api/clientes/relatorio-semanal?semana=${encodeURIComponent(semana)}`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then((d) => setRel(d))
       .catch(() => setErro(true))

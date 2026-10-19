@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/ajustes/conta';
 import { saudeMensal } from '@/lib/ajustes/pedidos';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
 // Saude mensal: KPIs de correcoes + alertas + encerramentos do mes. Query: conta?, mes=YYYY-MM.
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'saude-mensal' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
   const agora = new Date();

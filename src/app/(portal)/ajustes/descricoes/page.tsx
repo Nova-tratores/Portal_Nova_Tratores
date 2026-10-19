@@ -59,7 +59,7 @@ export default function DescricoesPage() {
     setCarregando(true); setMsg('buscando…', 'info'); setFiltroCli('');
     setEditando(null); setExpandido(new Set());
     try {
-      const r = await fetch(`/api/ajustes/descricoes?conta=${conta}&q=${encodeURIComponent(termo)}`);
+      const r = await fetch(`/api/ajustes/descricoes?conta=${conta}&q=${encodeURIComponent(termo)}`, { headers: await authHeaders() });
       const d = await r.json();
       if (d.erro) { setMsg('Erro: ' + d.erro, 'erro'); return; }
       const lista = (d.produtos || []) as ProdutoDescricao[];
@@ -111,7 +111,7 @@ export default function DescricoesPage() {
     if (detalhes.has(cp) || carregandoDet.has(cp)) return; // já temos (ou está a caminho)
     setCarregandoDet((s) => new Set(s).add(cp));
     try {
-      const r = await fetch(`/api/ajustes/descricoes/detalhe?conta=${conta}&codigo_produto=${cp}`);
+      const r = await fetch(`/api/ajustes/descricoes/detalhe?conta=${conta}&codigo_produto=${cp}`, { headers: await authHeaders() });
       const d = await r.json();
       if (d.erro) { setMsg('Erro ao ler detalhada: ' + d.erro, 'erro'); return; }
       setDetalhes((prev) => new Map(prev).set(cp, { descricao: d.descricao || '', descr_detalhada: d.descr_detalhada || '' }));

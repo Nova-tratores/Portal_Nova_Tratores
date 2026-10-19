@@ -4,6 +4,7 @@ import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { resolverNfseDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
 import { comCronRun } from "@/lib/cron/observar";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
@@ -757,6 +758,10 @@ export async function POST(req: NextRequest) {
       .catch((e) => console.error("[clientes-sync] cron erro", (e as Error).message));
     return NextResponse.json({ sucesso: true, iniciado: true, timestamp: new Date().toISOString() }, { status: 202 });
   }
+
+  // Botão / auto-sync da tela da Pasta Clientes: exige login com o módulo.
+  const guarda = await protegerRota(req, [{ modulo: "clientes" }]);
+  if (guarda.resposta) return guarda.resposta;
 
   try {
     return NextResponse.json(await executarSyncCompleto(anoInicioParam));

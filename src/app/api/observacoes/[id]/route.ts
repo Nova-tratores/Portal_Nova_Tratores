@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -7,9 +8,13 @@ const supabase = createClient(
 );
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(request, [{ modulo: 'revisoes', acao: 'observacoes' }]);
+  if (guarda.resposta) return guarda.resposta;
   const { id } = await params;
   const body = await request.json();
-  const { texto, status, tipo, userName } = body;
+  const { texto, status, tipo } = body;
+  // Autoria vem do login, nunca do corpo.
+  const userName = autorDe(guarda.user);
 
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (typeof texto === 'string') update.texto = texto;
@@ -40,6 +45,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const guarda = await protegerRota(request, [{ modulo: 'revisoes', acao: 'observacoes' }]);
+  if (guarda.resposta) return guarda.resposta;
   const { id } = await params;
 
   const { error } = await supabase.from('trator_observacoes').delete().eq('id', id);

@@ -32,6 +32,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import { fetchAuth } from '@/lib/auth/client'
 
 // ---------------------------------------------------------------------------
 // Formatadores locais (identicos aos do <script> da fonte). Mantidos inline para
@@ -216,7 +217,7 @@ export default function VencidosPage() {
     setCarregando(true)
     setErro('')
     const qs = 'conta=' + encodeURIComponent(conta) + '&tipo=' + encodeURIComponent(tipo)
-    fetch('/api/dre-financeiro/vencidos?' + qs)
+    fetchAuth('/api/dre-financeiro/vencidos?' + qs)
       .then((r) => r.json())
       .then((d) => {
         if (d.erro) { setErro(d.erro); setDados(null); setCarregando(false); return }
@@ -281,7 +282,7 @@ export default function VencidosPage() {
 
   function carregarProdutos(t) {
     setProdutos({ estado: 'carregando', itens: [] })
-    fetch('/api/dre-financeiro/titulos/' + encodeURIComponent(t.tipo) + '/' + encodeURIComponent(t.codigo_lancamento) + '/produtos')
+    fetchAuth('/api/dre-financeiro/titulos/' + encodeURIComponent(t.tipo) + '/' + encodeURIComponent(t.codigo_lancamento) + '/produtos')
       .then((r) => r.json())
       .then((d) => setProdutos({ estado: 'ok', itens: (d && d.produtos) || [] }))
       .catch(() => setProdutos({ estado: 'ok', itens: [] }))
@@ -289,7 +290,7 @@ export default function VencidosPage() {
 
   function carregarComentarios(t) {
     setComent({ estado: 'carregando', lista: [] })
-    fetch('/api/dre-financeiro/titulos/' + encodeURIComponent(t.tipo) + '/' + encodeURIComponent(t.codigo_lancamento) + '/comentarios?autor_token=' + encodeURIComponent(autorToken()))
+    fetchAuth('/api/dre-financeiro/titulos/' + encodeURIComponent(t.tipo) + '/' + encodeURIComponent(t.codigo_lancamento) + '/comentarios?autor_token=' + encodeURIComponent(autorToken()))
       .then((r) => r.json())
       .then((d) => setComent({ estado: 'ok', lista: (d && d.comentarios) || [] }))
       .catch(() => setComent({ estado: 'erro', lista: [] }))
@@ -304,7 +305,7 @@ export default function VencidosPage() {
     if (!nome) { alert('Informe seu nome para comentar.'); return }
     setMeuNome(localStorage.getItem('coment_autor') || '—')
     setEnviandoComent(true)
-    fetch('/api/dre-financeiro/titulos/' + encodeURIComponent(t.tipo) + '/' + encodeURIComponent(t.codigo_lancamento) + '/comentarios', {
+    fetchAuth('/api/dre-financeiro/titulos/' + encodeURIComponent(t.tipo) + '/' + encodeURIComponent(t.codigo_lancamento) + '/comentarios', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ comentario: texto, autor_nome: nome, autor_token: autorToken(), conta_omie: t.conta_omie }),
     }).then((r) => r.json()).then((d) => {
@@ -319,7 +320,7 @@ export default function VencidosPage() {
     const t = modalTitulo
     if (!t) return
     if (!confirm('Excluir este comentario?')) return
-    fetch('/api/dre-financeiro/comentarios/' + encodeURIComponent(id) + '?autor_token=' + encodeURIComponent(autorToken()), { method: 'DELETE' })
+    fetchAuth('/api/dre-financeiro/comentarios/' + encodeURIComponent(id) + '?autor_token=' + encodeURIComponent(autorToken()), { method: 'DELETE' })
       .then((r) => r.json()).then((d) => {
         if (d.erro) { alert(d.erro); return }
         carregarComentarios(t)

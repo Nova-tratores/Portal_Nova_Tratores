@@ -4,6 +4,7 @@ import { listarPedidosEnriquecidos } from '@/lib/ajustes/pedidos';
 import { gerarPDFPedidos } from '@/lib/ajustes/pdf-pedidos';
 import { resolveJanelaBR } from '@/lib/ajustes/cmc';
 import { fmtISO, hoje } from '@/lib/ajustes/dates';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs'; // pdfkit precisa do runtime Node
@@ -11,6 +12,8 @@ export const maxDuration = 300;
 
 // Export PDF dos pedidos abertos da janela (1 conta especifica).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'pedidos' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta')) ?? CONTA_DEFAULT;
   const { dataDeBR, dataAteBR } = resolveJanelaBR(sp.get('de'), sp.get('ate'));

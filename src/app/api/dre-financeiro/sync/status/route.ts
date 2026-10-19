@@ -5,12 +5,15 @@
 // estado de todas as contas mapeado por id.
 // =============================================================================
 import { NextRequest, NextResponse } from 'next/server'
+import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { CONTA_PADRAO } from '@/lib/dre-financeiro/calc'
 import { getContasOmie, getSyncState } from '@/lib/dre-financeiro/omie-api'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
+  const g = await guardarDre(request, 'calendario')
+  if (g.resposta) return g.resposta
   const conta = (request.nextUrl.searchParams.get('conta') || CONTA_PADRAO).toString().toLowerCase()
   if (conta === 'todas' || !conta) {
     const tudo: Record<string, any> = {}

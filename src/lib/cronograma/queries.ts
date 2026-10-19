@@ -265,7 +265,7 @@ export async function removerDependencia(id: string): Promise<void> {
 
 // ── recálculo autoritativo (API Route) ───────────────────────────────
 export async function recalcular(projetoId: string): Promise<{ ok: boolean; saida?: unknown; error?: string }> {
-  const r = await fetch('/api/cronograma/recalcular', {
+  const r = await fetchAuth('/api/cronograma/recalcular', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ projetoId }),
   });
