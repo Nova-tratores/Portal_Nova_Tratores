@@ -72,6 +72,7 @@ const MODULOS = [
   { id: 'requisicoes', label: 'Requisições', color: '#ef4444' },
   { id: 'sat', label: 'SAT Digital', color: '#0ea5e9' },
   { id: 'supervisor-vendas', label: 'Supervisor Vendas', color: '#dc2626' },
+  { id: 'crm-vendas', label: 'CRM Vendas (painel do app de vendas)', color: '#dc2626' },
   { id: 'tarefas', label: 'Tarefas (já vem na Central de Trabalho)', color: '#dc2626' },
   { id: 'tickets', label: 'Central de Trabalho (Tarefas · Tickets · Cronograma)', color: '#0891b2' },
   { id: 'tratorilson', label: 'Tratorilson (Chat IA)', color: '#ef4444' },

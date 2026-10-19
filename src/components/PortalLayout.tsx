@@ -22,7 +22,7 @@ import {
   LayoutGrid, List, CircleDot, Clock, Truck, Bot, Ticket, Cctv, GraduationCap, UserPlus, Tags,
   ListPlus, CircleCheckBig, MessageSquarePlus, BadgeCheck
 } from 'lucide-react'
-import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias, CalendarClock, CalendarDays } from 'lucide-react'
+import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias, CalendarClock, CalendarDays, LineChart } from 'lucide-react'
 import BotaoAjuda from '@/components/conhecimento/BotaoAjuda'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -99,6 +99,8 @@ const navItems: NavItem[] = [
   { id: 'feedbacks', name: 'Feedbacks & CRM', href: '/feedbacks', icon: <Megaphone size={18} />, tag: 'CRM', gradient: '', group: 'comercial' },
   { id: 'clientes', name: 'Clientes', href: '/clientes', icon: <Building size={18} />, tag: 'CLIENTES', gradient: '', group: 'servicos' },
   { id: 'supervisor-vendas', name: 'Supervisor Vendas', href: '/supervisor-vendas', icon: <SlidersHorizontal size={18} />, tag: 'VENDAS', gradient: '', group: 'comercial' },
+  // Painel completo do supervisor do app de vendas (vendas-pwa) em iframe.
+  { id: 'crm-vendas', name: 'CRM Vendas', href: '/crm-vendas', icon: <LineChart size={18} />, tag: 'CRM', gradient: '', group: 'comercial' },
   // Mesma tela de /dre-financeiro/vendas-modelo; o id É o módulo (gate do menu usa item.id).
   { id: 'vendas-modelo', name: 'Vendas por Modelo', href: '/vendas-modelo', icon: <Tags size={18} />, tag: 'MODELOS', gradient: '', group: 'comercial' },
   { id: 'marketing', name: 'Marketing & Eventos', href: '/marketing', icon: <Megaphone size={18} />, tag: 'EVENTOS', gradient: '', group: 'comercial' },

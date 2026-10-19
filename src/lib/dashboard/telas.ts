@@ -98,6 +98,7 @@ export const TELAS: Tela[] = [
   ]),
   ...t('Comercial', 'clientes', 'clientes', [['Pastas Clientes', '/clientes', ['cliente', 'pasta']]]),
   ...t('Comercial', 'supervisor-vendas', 'supervisor-vendas', [['Supervisor Vendas', '/supervisor-vendas', ['visitas']]]),
+  ...t('Comercial', 'crm-vendas', 'crm-vendas', [['CRM Vendas', '/crm-vendas', ['supervisor', 'app de vendas', 'vendedores']]]),
   ...t('Gestão de Vendas', 'gestao-vendas', 'gestao-vendas', [
     ['Dashboard de Gestão de Vendas', '/gestao-vendas'],
     ['Vendas do Mês', '/gestao-vendas/vendas'],
