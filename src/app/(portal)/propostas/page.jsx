@@ -90,6 +90,19 @@ function PropostaComercialPageInner() {
     log({ sistema: 'Proposta Comercial', acao: 'visualizar', entidade: type === 'fab' ? 'proposta_fabrica' : 'proposta', entidade_id: String(p.id), entidade_label: p.Cliente || p.cliente })
   }
 
+  // Deep-link /propostas?fab=<id> (ex.: link do pedido fábrica na Solicitação de Compras).
+  useEffect(() => {
+    const fab = Number(new URLSearchParams(window.location.search).get('fab'))
+    if (!fab) return
+    supabase.from('Proposta_Fabrica').select('*').eq('id', fab).is('deleted_at', null).maybeSingle()
+      .then(({ data }) => {
+        if (!data) return
+        setView('fabrica')
+        setSelected(data)
+        setModals(m => ({ ...m, editFab: true }))
+      })
+  }, [])
+
   const handleSyncOmie = async () => {
     if (!podeSincronizar) return
     setSyncing(true)

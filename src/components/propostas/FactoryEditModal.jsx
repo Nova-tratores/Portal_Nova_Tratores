@@ -1,7 +1,9 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Search, Link2 } from 'lucide-react'
+import { Search, Link2, ShoppingCart } from 'lucide-react'
+import { authHeaders } from '@/lib/auth/client'
+import { SC_ETAPA_INFO } from '@/lib/tickets/compras'
 
 // Colunas que só existem na view v_proposta_fabrica — não podem ir num UPDATE da tabela.
 const COLS_VIEW_FAB = ['dias_na_fase', 'cor_hex', 'cor_pasta', 'fase_ordem', 'eh_final', 'dias_atraso_eta']
@@ -15,6 +17,7 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
   const [buscaProp, setBuscaProp] = useState('')
   const [showProp, setShowProp] = useState(false)
   const propRef = useRef(null)
+  const [sc, setSc] = useState(undefined)            // Solicitação de Compras ligada (undefined = carregando)
 
   useEffect(() => {
     (async () => {
@@ -23,6 +26,13 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
       // Candidatas a vincular: propostas não deletadas e ainda sem pedido de fábrica.
       const { data: livres } = await supabase.from('Formulario').select('id,Cliente,Marca,Modelo,status,id_fabrica_ref').is('deleted_at', null).order('id', { ascending: false })
       setListaProp((livres || []).filter(p => !p.id_fabrica_ref))
+    })()
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/tickets/compras/pedido-fabrica?id=${order.id}`, { headers: await authHeaders() })
+        const json = await res.json()
+        setSc(res.ok ? json.sc : null)
+      } catch { setSc(null) }
     })()
   }, [order.id])
 
@@ -153,6 +163,31 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
                         {listaProp.length === 0 && <div className="px-3 py-3 text-sm text-zinc-400">Nenhuma proposta livre para vincular.</div>}
                       </div>
                     )}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
+              <div className="px-4 py-2.5 bg-zinc-50 text-[9px] font-extrabold text-zinc-400 border-b border-zinc-200">SOLICITAÇÃO DE COMPRA</div>
+              <div className="p-4">
+                {sc === undefined ? (
+                  <div className="text-sm text-zinc-400">Carregando…</div>
+                ) : sc && sc.sc_etapa !== 'cancelada' ? (
+                  <a href={`/tickets/${sc.id}`} className="flex items-center gap-2 text-sm text-zinc-700 no-underline hover:underline">
+                    <ShoppingCart size={16} className="text-blue-700 shrink-0" />
+                    Solicitação de Compras <span className="font-bold">#{sc.numero}</span> — {SC_ETAPA_INFO[sc.sc_etapa]?.label || sc.sc_etapa}
+                  </a>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <div className="text-[12px] text-zinc-500">
+                      Com a proposta da fábrica em mãos, abra a solicitação de compra já preenchida com a máquina, o custo e o cliente deste pedido.
+                      Quando o comprador emitir o PC, este pedido passa sozinho para &quot;Pedido Feito / Aguardando Maq&quot;.
+                      {sc && <> A solicitação #{sc.numero} foi cancelada.</>}
+                    </div>
+                    <a href={`/tickets/compras?fab=${order.id}`} className="self-start inline-flex items-center gap-2 px-4 py-2.5 bg-blue-700 text-white rounded-lg text-sm font-bold no-underline hover:bg-blue-800">
+                      <ShoppingCart size={15} /> ABRIR SOLICITAÇÃO DE COMPRA
+                    </a>
                   </div>
                 )}
               </div>
