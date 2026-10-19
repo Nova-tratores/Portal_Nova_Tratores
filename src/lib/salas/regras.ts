@@ -17,6 +17,8 @@ export interface Reserva {
   /** preenchidos pela API */
   responsavel_nome?: string | null
   reuniao_numero?: number | null
+  /** cor do bloco na grade (ex.: bloqueio pessoal cinza); sem ela, reunião = roxo e reserva = azul */
+  cor?: string
 }
 
 export const PASSO_MIN = 15

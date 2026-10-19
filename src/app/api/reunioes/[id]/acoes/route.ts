@@ -12,6 +12,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { temModuloTickets, registrarEvento, carregarTicket, notificarTicket, garantirParticipante } from '@/lib/tickets/server'
+import { indisponiveis } from '@/lib/agenda/bloqueios-server'
+import { mensagemIndisponiveis } from '@/lib/agenda/bloqueios'
+import { isoDe, fimDaReuniao, localDe } from '@/lib/salas/regras'
 import type { Ticket } from '@/lib/tickets/constantes'
 import { hojeSP } from '@/lib/trabalho/cronograma-server'
 import { erroFimDeSemana, dataMinima } from '@/lib/trabalho/agenda'
@@ -79,6 +82,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const uid = String(body.usuario_id || '')
       if (!uuidValido(uid)) return erro('usuario_id inválido')
       if (r.presencas.some((p) => p.usuario_id === uid)) return erro('Essa pessoa já está na reunião.', 409)
+      if (r.ticket.reuniao_inicio) {   // agenda pessoal: horário bloqueado = não entra
+        const l = localDe(r.ticket.reuniao_inicio)
+        const dur = Number((r.ticket.payload as { duracao_min?: unknown })?.duracao_min) || r.serie?.duracao_min || 30
+        const ocup = await indisponiveis([uid], r.ticket.reuniao_inicio, isoDe(l.dia, fimDaReuniao(l.hora, dur)))
+        if (ocup.length) return erro(`${mensagemIndisponiveis(ocup)}.`, 409)
+      }
       const { data: u } = await supabaseAdmin.from('financeiro_usu').select('id, nome, ativo').eq('id', uid).maybeSingle()
       if (!u || u.ativo === false) return erro('Usuário não encontrado ou inativo.', 404)
       const { error } = await supabaseAdmin.from('reunioes_presencas').insert({ reuniao_id: id, usuario_id: uid, papel: 'participante' })

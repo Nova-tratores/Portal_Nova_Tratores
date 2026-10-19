@@ -11,6 +11,9 @@ import { STATUS_FINAIS, type Ticket, type TicketParticipante, type TicketStatus 
 import { hojeSP, moverEtapaDoTicket, sincronizarEtapaDoTicket } from '@/lib/trabalho/cronograma-server'
 import { diaSP } from '@/lib/trabalho/agenda-server'
 import { reservarParaReuniao, liberarSalaDaReuniao } from '@/lib/salas/server'
+import { indisponiveis } from '@/lib/agenda/bloqueios-server'
+import { mensagemIndisponiveis } from '@/lib/agenda/bloqueios'
+import { isoDe, fimDaReuniao } from '@/lib/salas/regras'
 import {
   ETAPA_INFO, ETAPAS_ENCERRADAS, classificarPendencias, etapaEfetiva, sugestoesProximaReuniao, secretarioDaVez,
   proximaDataDaSerie, inicioISO, textoWhatsApp, tituloReuniao, addDias,
@@ -162,6 +165,8 @@ export interface NovaReuniao {
   sala_id?: string | null
   /** true (marcação manual): sala ocupada = erro SALA_OCUPADA e nada é criado. false (série/cron): cria sem sala e avisa o condutor. */
   salaObrigatoria?: boolean
+  /** true (marcação manual): participante com horário bloqueado na agenda pessoal = erro PARTICIPANTE_INDISPONIVEL. Série/cron: cria e avisa o condutor. */
+  bloquearIndisponiveis?: boolean
 }
 
 /**
@@ -179,6 +184,12 @@ export async function criarReuniao(auth: Autenticado, n: NovaReuniao): Promise<R
   const inicio = inicioISO(n.dia, n.hora)
   const titulo = tituloReuniao(serie?.nome || null, n.dia, n.titulo)
   const payload: Record<string, unknown> = { duracao_min: n.duracao_min ?? serie?.duracao_min ?? 30 }
+
+  // Agenda pessoal (sql/agenda-bloqueios.sql): quem bloqueou o horário não pode ser posto na reunião.
+  const ocupados = await indisponiveis(participantes, inicio, isoDe(n.dia, fimDaReuniao(n.hora, Number(payload.duracao_min) || 30)))
+  if (ocupados.length && n.bloquearIndisponiveis) {
+    throw Object.assign(new Error(`${mensagemIndisponiveis(ocupados)}. Escolha outro horário ou tire a pessoa da reunião.`), { code: 'PARTICIPANTE_INDISPONIVEL' })
+  }
 
   const ticket = ok(await supabaseAdmin.from('tickets').insert({
     tipo: 'reuniao', reuniao_etapa: 'agendada', status: ETAPA_INFO.agendada.status,
@@ -213,6 +224,7 @@ export async function criarReuniao(auth: Autenticado, n: NovaReuniao): Promise<R
   if (serie) await puxarSugestoes(ticket, serie, auth.userId)
 
   await notificarTicket(ticket, participantes, auth.userId, `Reunião marcada: ${titulo}`, `${n.dia.split('-').reverse().join('/')} às ${n.hora}. Inclua os itens da pauta até o corte.`)
+  if (ocupados.length) await notificarTicket(ticket, [condutor], null, `Participante indisponível: ${titulo}`, `${mensagemIndisponiveis(ocupados)} (bloqueou na agenda pessoal). Veja se dá para mudar o horário.`)
   if (avisoSala) await notificarTicket(ticket, [condutor], null, `Sala ocupada: ${titulo}`, `${avisoSala}. A reunião foi marcada sem sala — escolha outro horário ou local.`)
   return (await carregarReuniao(ticket.id))!
 }

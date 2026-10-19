@@ -8,6 +8,7 @@ import type { Serie } from '@/lib/reunioes/regras'
 import { secretarioDaVez } from '@/lib/reunioes/regras'
 import { Modal, campo, rotulo, botao, botaoClaro, chamar, hojeISO } from './comum'
 import CampoSala from '@/components/salas/CampoSala'
+import AvisoAgenda from '@/components/agenda/AvisoAgenda'
 
 export default function FormReuniao({ series, usuarios, meuId, serieInicial, onFechar, onCriada }: {
   series: Serie[]
@@ -24,6 +25,7 @@ export default function FormReuniao({ series, usuarios, meuId, serieInicial, onF
   const [duracao, setDuracao] = useState(serie?.duracao_min || 60)
   const [sala, setSala] = useState<string | null>(serie?.sala_id ?? null)
   const [salaLivre, setSalaLivre] = useState<boolean | null>(null)
+  const [alguemBloqueado, setAlguemBloqueado] = useState(false)
   const [titulo, setTitulo] = useState('')
   const [secretario, setSecretario] = useState<string>(serie ? secretarioDaVez(serie) || '' : '')
   const [participantes, setParticipantes] = useState<string[]>([])
@@ -95,10 +97,11 @@ export default function FormReuniao({ series, usuarios, meuId, serieInicial, onF
             <option value="publico">Pública</option><option value="privado">Privada — só os envolvidos e o admin (ações nascem privadas)</option>
           </select>
         </div>
+        <AvisoAgenda usuarios={[condutor, secretario, ...participantes, ...(serie?.participantes_padrao || [])]} dia={dia} hora={hora} duracaoMin={duracao} onBloqueado={setAlguemBloqueado} />
         {erro && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600 }}>{erro}</div>}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button onClick={onFechar} style={botaoClaro()}>Cancelar</button>
-          <button onClick={salvar} disabled={salvando || !dia || !hora || (!!sala && salaLivre === false)} style={{ ...botao(), opacity: salvando || (!!sala && salaLivre === false) ? .5 : 1 }}>{salvando ? 'Marcando…' : 'Marcar reunião'}</button>
+          <button onClick={salvar} disabled={salvando || !dia || !hora || (!!sala && salaLivre === false) || alguemBloqueado} style={{ ...botao(), opacity: salvando || (!!sala && salaLivre === false) || alguemBloqueado ? .5 : 1 }}>{salvando ? 'Marcando…' : 'Marcar reunião'}</button>
         </div>
       </div>
     </Modal>

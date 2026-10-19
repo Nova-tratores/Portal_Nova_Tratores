@@ -90,7 +90,7 @@ export default function AgendaSemana({ dias, reservas, eu, agora, pxPorHora = 48
           {reservasDoDia(reservas, d).map((r) => {
             const { top, altura: h } = posicaoNaGrade(r.inicio, r.fim, pxPorHora)
             const minha = r.responsavel_id === eu || r.criado_por === eu
-            const cor = r.reuniao_id ? '#7c3aed' : '#0891b2'
+            const cor = r.cor || (r.reuniao_id ? '#7c3aed' : '#0891b2')
             return (
               <button key={r.id} data-reserva onClick={() => onAbrir(r)} title={`${localDe(r.inicio).hora}–${localDe(r.fim).hora} · ${r.titulo}${r.responsavel_nome ? ` · ${r.responsavel_nome}` : ''}`}
                 style={{ position: 'absolute', left: 3, right: 3, top, height: h, zIndex: 2, overflow: 'hidden', textAlign: 'left', cursor: 'pointer', borderRadius: 6, padding: '3px 6px',
