@@ -26,10 +26,23 @@ export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a
     { id: 'ocorrencias', rot: 'Ocorrências', sub: 'pontos, ligas e comissões' },
   ]
   const idx = abas.findIndex((a) => a.id === aba)
+  // perguntas do Tratorilson: troca de aba ou rola até a parte que responde (e acende ela um instante)
+  const irPara = (alvo: string) => {
+    if (alvo.startsWith('aba:')) { onAba(alvo.slice(4) as AbaCPV); return }
+    const rolar = () => {
+      const el = document.getElementById(alvo)
+      if (!el) return
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      el.classList.remove('cpv-acende'); void el.offsetWidth; el.classList.add('cpv-acende')
+    }
+    if (aba !== 'painel') { onAba('painel'); setTimeout(rolar, 600) } else rolar()
+  }
   return (
-    <div ref={raiz} style={{ padding: 'clamp(14px, 2vw, 24px) clamp(12px, 2vw, 28px)', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'clip', background: 'var(--portal-bg, #f8fafc)', minHeight: cheia ? '100vh' : undefined, overflowY: cheia ? 'auto' : undefined }}>
+    <div ref={raiz} style={{ padding: 'clamp(14px, 2vw, 24px) clamp(12px, 2vw, 28px)', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'clip', background: 'color-mix(in srgb, var(--cpv-amb, transparent) 7%, color-mix(in srgb, var(--portal-bg, #f8fafc) 95%, #0f172a))', transition: 'background .7s ease', minHeight: cheia ? '100vh' : undefined, overflowY: cheia ? 'auto' : undefined }}>
       <style>{`
         .cpv-topo { display: flex; align-items: center; gap: 12px; margin-bottom: 16px }
+        .cpv-acende { animation: cpvAcende 1.6s ease both; border-radius: 16px } @keyframes cpvAcende { 0%, 40% { box-shadow: 0 0 0 4px rgba(14,165,233,.45) } 100% { box-shadow: 0 0 0 0 rgba(14,165,233,0) } }
+        [id^="sec-"], #sim-alvos { scroll-margin-top: 90px }
         /* seletor de modo: dois "portais" com um pilar de luz que desliza para o escolhido */
         .cpv-modo { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 5px; border-radius: 18px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); box-shadow: 0 2px 10px rgba(15,23,42,.06); min-width: min(620px, 100%) }
         .cpv-luz { position: absolute; top: 5px; bottom: 5px; left: 5px; width: calc(50% - 7px); border-radius: 14px; transition: transform .55s cubic-bezier(.3,1.35,.45,1), background .4s; box-shadow: 0 8px 22px rgba(3,105,161,.35); overflow: hidden }
@@ -76,7 +89,7 @@ export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a
           <i className={`fas ${cheia ? 'fa-compress' : 'fa-expand'}`} />
         </button>
       </div>
-      <TratorilsonLeitura />
+      <TratorilsonLeitura onIr={irPara} />
       <div key={aba} className="cpv-conteudo">{aba === 'ocorrencias' ? <RadarOcorrencias /> : <PainelTecnicos />}</div>
     </div>
   )

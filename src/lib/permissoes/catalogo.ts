@@ -9,6 +9,7 @@
 import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas';
 import { PAGINAS_FROTA } from '@/app/(portal)/frota/paginas';
 import { PAGINAS_MARKETING } from '@/app/(portal)/marketing/paginas';
+import { PAGINAS_IV } from '@/app/(portal)/inteligencia-vendas/paginas';
 import { ACOES_EXPLICITAS } from './explicitas';
 
 export interface AcaoPermissao {
@@ -30,7 +31,7 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   financeiro: 'Financeiro', dre: 'Financeiro',
   // Comercial
   propostas: 'Comercial', feedbacks: 'Comercial', clientes: 'Comercial', 'supervisor-vendas': 'Comercial', 'crm-vendas': 'Comercial',
-  'gestao-vendas': 'Comercial', marketing: 'Comercial', lead: 'Comercial',
+  'gestao-vendas': 'Comercial', marketing: 'Comercial', lead: 'Comercial', 'inteligencia-vendas': 'Comercial',
   // Mesma tela de /dre-financeiro/vendas-modelo, liberável sem o DRE.
   'vendas-modelo': 'Comercial',
   // Estoque
@@ -284,6 +285,12 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
   // 'relatorio:enviar' é separado de propósito: é a ÚNICA ação do portal que
   // manda e-mail pra fora da empresa (o relatório de contrapartida vai pra
   // fábrica). Não deve vir de brinde na cabeça de ninguém.
+  // INTELIGÊNCIA DE VENDAS — por tela (PAGINAS_IV) + as escritas.
+  'inteligencia-vendas': [
+    ...PAGINAS_IV.map((p) => ({ id: p.key.replace('inteligencia-vendas:', ''), label: p.label })),
+    { id: 'indicacoes:editar', label: 'Indicações — registrar / editar' },
+    { id: 'concorrencia:editar', label: 'Concorrência — registrar / apagar' },
+  ],
   marketing: [
     ...PAGINAS_MARKETING.map((p) => ({ id: p.key.replace('marketing:', ''), label: p.label })),
     { id: 'acoes:criar', label: 'Ações — criar' },

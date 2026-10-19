@@ -16,6 +16,7 @@ import { Kpi, Cartao, EstilosCPV, useContador, brl } from './ui'
 import CarreiraComissoes from './CarreiraComissoes'
 import CartaLiga, { IconeLiga } from './CartaLiga'
 import { useCarreira } from './useCarreira'
+import HorasEquipe from './HorasEquipe'
 import { patente } from '@/lib/mecanicos/carreira'
 
 interface Resp {
@@ -161,6 +162,9 @@ export default function RadarOcorrencias() {
         {carregando && <span style={{ fontSize: 12.5, color: MUDO }}><i className="fas fa-spinner fa-spin" /> carregando…</span>}
         <span style={{ marginLeft: 'auto', fontSize: 12, color: MUDO, display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="cpv-pulso" style={{ width: 8, height: 8, borderRadius: '50%', background: '#16a34a' }} /> ao vivo · cada técnico começa o mês com {BASE_PONTOS} pontos</span>
       </div>
+
+      {/* horas da equipe no mês (saíram do Painel, 19/10) */}
+      <HorasEquipe mes={mes} />
 
       {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
 

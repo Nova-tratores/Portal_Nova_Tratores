@@ -23,6 +23,7 @@ import { supabase } from './supabase';
 import { omieRequest } from './omie';
 import { getContasOmie, type Conta, type ContaFiltro, CONTA_DEFAULT } from './conta';
 import { sleep } from './utils';
+import { separarMaquinas, juntarItens } from './recebimento-maquina';
 
 export const URL_RECEBIMENTO = 'https://app.omie.com.br/api/v1/produtos/recebimentonfe/';
 export const RECEB_TIPOS = ['almoxarifado', 'maquinas', 'pecas', 'pecas_garantia'] as const;
@@ -84,11 +85,13 @@ function pick<T = unknown>(obj: Json, ...keys: string[]): T | undefined {
   return undefined;
 }
 
-// Itens de um recebimento (recebimentos_nfe separa maquinas e produtos)
+// Itens de um recebimento. `maquinas` é cópia dos itens de máquina que também
+// estão em `produtos` (linhas antigas do app legado só em `maquinas`) — juntarItens
+// não repete.
 export function itensReceb(row: RecebRow): Json[] {
   const m = Array.isArray(row.maquinas) ? (row.maquinas as Json[]) : [];
   const p = Array.isArray(row.produtos) ? (row.produtos as Json[]) : [];
-  return m.concat(p);
+  return juntarItens(m, p);
 }
 
 // Classifica um recebimento em 1 dos 4 tipos. Heurística defensiva: na dúvida 'pecas'.
@@ -516,8 +519,9 @@ function recebOmieParaRow(reg: Json, contaLowStr: string): RecebRow | null {
   const itensRaw = pick<unknown>(reg, 'itensRecebimento', 'produtos', 'itens');
   const itens = Array.isArray(itensRaw) ? (itensRaw as Json[]) : [];
   const produtos = itens.map(itemRecebParaProduto);
-  // O ListarRecebimentos não separa máquinas — NF de fornecedor é peças/almoxarifado.
-  const maquinas: Json[] = [];
+  // O ListarRecebimentos não separa máquinas: separamos pelo NCM (recebimento-maquina.ts).
+  // `produtos` segue com todos os itens; `maquinas` é a cópia dos itens de máquina.
+  const { maquinas, qtd_maquinas, valor_maquinas } = separarMaquinas(produtos);
 
   return {
     id_receb: idReceb,
@@ -537,7 +541,8 @@ function recebOmieParaRow(reg: Json, contaLowStr: string): RecebRow | null {
     fornecedor_cnpj: fornecedorCnpj || null,
     total_nfe: totalNfe,
     maquinas,
-    qtd_maquinas: maquinas.length,
+    qtd_maquinas,
+    valor_maquinas,
     produtos,
     qtd_itens: produtos.length,
     // Data do recebimento como COLUNA (só existia dentro de dados_raw, em DD/MM/AAAA):

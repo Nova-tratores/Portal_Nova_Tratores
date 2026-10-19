@@ -1,5 +1,5 @@
 'use client';
-import { Package, AlertTriangle, Clock, Factory } from 'lucide-react';
+import { Package, AlertTriangle, Clock, Factory, Archive } from 'lucide-react';
 import type { GarantiaResumo } from '@/lib/garantias/types';
 import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants';
 import { tempoDecorrido, diasEntre, diasAte } from '@/lib/garantias/format';
@@ -16,6 +16,10 @@ export default function GarantiaMiniCard({ garantia: g, onClick }: Props) {
   // Devolução das peças à fábrica pendente (coluna virtual do board)
   const devolucaoPendente = g.status === 'aprovada' && g.devolucao_status === 'pendente';
   const diasDevolucao = devolucaoPendente ? diasAte(g.devolucao_prazo) : null;
+  // Guarda de peças aguardando o prazo de descarte (coluna virtual do board).
+  // Prazo vencido aqui é LIBERAÇÃO ("pode descartar"), não atraso.
+  const guardaPendente = g.status === 'aprovada' && !devolucaoPendente && g.guarda_status === 'pendente';
+  const diasGuarda = guardaPendente ? diasAte(g.guarda_prazo) : null;
 
   return (
     <div
@@ -98,6 +102,22 @@ export default function GarantiaMiniCard({ garantia: g, onClick }: Props) {
                 : diasDevolucao === 0
                   ? 'Devolver peças · vence hoje'
                   : `Devolver peças · ${diasDevolucao}d`}
+          </span>
+        )}
+        {guardaPendente && (
+          <span
+            style={{
+              display: 'flex', alignItems: 'center', gap: 3,
+              fontSize: 10, fontWeight: 700,
+              color: diasGuarda != null && diasGuarda <= 0 ? '#16a34a' : '#0e7490',
+            }}
+          >
+            <Archive size={11} />
+            {diasGuarda == null
+              ? 'Peças em guarda'
+              : diasGuarda <= 0
+                ? 'Pode descartar'
+                : `Em guarda · ${diasGuarda}d pro descarte`}
           </span>
         )}
       </div>

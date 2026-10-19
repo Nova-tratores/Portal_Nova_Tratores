@@ -128,6 +128,7 @@ export interface PayloadSC {
   cliente_destino?: string
   pv_numero?: string
   pedido_omie_numero?: string
+  pedido_fabrica_id?: number   // "Proposta_Fabrica".id de onde a SC foi aberta
   prazo_compromisso?: string // ISO date
   bloqueio?: { motivo: string; valor: number } | null
 }
@@ -182,6 +183,9 @@ export function validarNovaSC(body: Record<string, unknown>): { erro: string } |
     preco_alvo: custo,
     preco_venda_previsto: venda,
   }
+  const fab = idPedidoFabrica(body.pedido_fabrica_id)
+  if (Number.isNaN(fab)) return { erro: 'Pedido fábrica inválido' }
+  if (fab) payload.pedido_fabrica_id = fab
 
   if (destino === 'cliente') {
     const cliente = texto(body.cliente_destino)
@@ -305,4 +309,56 @@ export function podeExecutarAuth(
   solicitanteId: string,
 ): boolean {
   return podeExecutar(t, { userId: auth.userId, isAdmin: auth.isAdmin }, config, solicitanteId)
+}
+
+// ---------------------------------------------------------------------
+// Pedido fábrica (aba "Pedidos Fabrica" de /propostas) → SC.
+// Fluxo: proposta do cliente → proposta da fábrica (preço/condição) → SC aberta
+// a partir do pedido fábrica, com o custo dele → PC emitido → o pedido fábrica
+// avança sozinho para "Pedido Feito / Aguardando Maq".
+// ---------------------------------------------------------------------
+export const PEDIDO_FABRICA_STATUS_PC = 'Pedido Feito / Aguardando Maq'
+const FASES_ANTES_DO_PC = ['Proposta solicitada', 'Proposta Recebida']
+
+// Id do pedido fábrica vindo do corpo: vazio → undefined; inválido → NaN.
+export function idPedidoFabrica(v: unknown): number | undefined {
+  if (v == null || v === '') return undefined
+  const n = Number(v)
+  return Number.isInteger(n) && n > 0 ? n : NaN
+}
+
+// Fase do pedido fábrica depois de emitido o PC — só avança quem ainda está
+// antes do pedido (nunca volta um pedido que já andou à mão). null = não mexe.
+export function faseFabricaAposPC(statusAtual: string | null | undefined): string | null {
+  return FASES_ANTES_DO_PC.includes(String(statusAtual || '')) ? PEDIDO_FABRICA_STATUS_PC : null
+}
+
+export interface PedidoFabricaLinha {
+  id: number
+  cliente?: string | null
+  marca?: string | null
+  modelo?: string | null
+  qtd?: number | string | null
+  custo?: number | string | null
+}
+
+// Campos do formulário da SC pré-preenchidos com o pedido fábrica.
+// Cliente vazio ou "ESTOQUE" → compra para estoque. clienteProposta = cliente
+// da proposta comercial ligada ao pedido (prevalece quando existe).
+export function scDoPedidoFabrica(p: PedidoFabricaLinha, clienteProposta?: string | null) {
+  const cliente = String(clienteProposta || p.cliente || '').trim()
+  const estoque = !cliente || /^estoque$/i.test(cliente)
+  const marca = String(p.marca || '').trim()
+  const modelo = String(p.modelo || '').trim()
+  const custo = p.custo == null || p.custo === '' ? null : Number(p.custo)
+  const qtd = Number(p.qtd)
+  return {
+    produto: [marca, modelo].filter(Boolean).join(' '),
+    marca,
+    modelo,
+    quantidade: Number.isFinite(qtd) && qtd > 0 ? qtd : 1,
+    custo: custo != null && Number.isFinite(custo) ? custo : null,
+    destino: (estoque ? 'estoque' : 'cliente') as ScDestino,
+    cliente: estoque ? '' : cliente,
+  }
 }

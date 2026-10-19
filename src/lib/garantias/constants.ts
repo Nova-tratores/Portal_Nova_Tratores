@@ -15,6 +15,10 @@ export const BUCKET_GARANTIAS = 'garantias';
 export const VALOR_HORA = 193.0;
 export const VALOR_KM   = 2.8;
 
+// Guarda de peças antes do descarte (padrão da empresa, todas as montadoras):
+// dias que a peça substituída fica guardada depois da aprovação.
+export const GUARDA_DIAS_PADRAO = 90;
+
 // Valores que a FÁBRICA paga por hora/km — configuráveis por montadora
 // (ex.: Kuhn paga R$ 120,00/h e R$ 1,50/km). NULL/0 = padrão acima.
 // Vale só pro cálculo do que a fábrica ressarce; a cobrança AO CLIENTE

@@ -1,7 +1,11 @@
-// Garantias — alerta de prazo da DEVOLUÇÃO DE PEÇAS à fábrica (prova de
-// destruição). Chamado por GitHub Actions (garantias-devolucoes.yml, 1x/dia
-// 08:00 BRT) com x-cron-secret. Anti-spam em 3 camadas: cron diário + rearme
-// só após 3 dias (devolucao_alertado_em) + limit(100).
+// Garantias — alertas de prazo das pendências pós-aprovação:
+//   1) DEVOLUÇÃO DE PEÇAS à fábrica (prova de destruição): avisa quando o
+//      prazo está chegando/vencido (atraso é RUIM).
+//   2) GUARDA DE PEÇAS antes do descarte: avisa quando o prazo foi CUMPRIDO
+//      ("já pode descartar" — aqui vencer é LIBERAÇÃO, não atraso).
+// Chamado por GitHub Actions (garantias-devolucoes.yml, 1x/dia 08:00 BRT) com
+// x-cron-secret. Anti-spam em 3 camadas: cron diário + rearme só após alguns
+// dias (devolucao/guarda_alertado_em) + limit(100).
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS } from '@/lib/garantias/constants';
@@ -65,7 +69,46 @@ async function executar(req: NextRequest) {
     alertados++;
   }
 
-  return NextResponse.json({ ok: true, candidatos: (pendentes || []).length, alertados });
+  // ── Guarda de peças: prazo CUMPRIDO → "já pode descartar" ────────────────
+  // Rearme de 7 dias (lembrete semanal até alguém registrar o descarte).
+  // Migration da guarda ausente só pula este bloco (a devolução acima já rodou).
+  const ha6dias = ymdBRT(agora - 6 * 86400000);
+  let guardaAlertados = 0;
+  let guardaCandidatos = 0;
+  const { data: guardas, error: guardaErr } = await supabase
+    .from(TBL_GARANTIAS)
+    .select('id, numero, id_ordem, guarda_prazo, localizacao')
+    .eq('status', 'aprovada')
+    .eq('guarda_status', 'pendente')
+    .lte('guarda_prazo', hoje)
+    .or(`guarda_alertado_em.is.null,guarda_alertado_em.lt.${ha6dias}`)
+    .limit(100);
+  if (guardaErr) {
+    console.warn('[garantias/devolucoes] guarda pulada (migration pendente?):', guardaErr.message);
+  } else {
+    guardaCandidatos = (guardas || []).length;
+    for (const g of guardas || []) {
+      const dias = diasAte(g.guarda_prazo);
+      await notificarGarantistas({
+        titulo: `Peças da ${g.numero} já podem ser descartadas`,
+        descricao: `OS ${g.id_ordem} — guarda cumprida${dias != null && dias < 0 ? ` há ${Math.abs(dias)} dia(s)` : ' hoje'}${g.localizacao ? ` · estão em ${g.localizacao}` : ''}. Registre o descarte no card (com foto).`,
+        link: `/garantias?id=${g.id}`,
+      });
+      await supabase
+        .from(TBL_GARANTIAS)
+        .update({ guarda_alertado_em: hoje })
+        .eq('id', g.id);
+      guardaAlertados++;
+    }
+  }
+
+  return NextResponse.json({
+    ok: true,
+    candidatos: (pendentes || []).length,
+    alertados,
+    guarda_candidatos: guardaCandidatos,
+    guarda_alertados: guardaAlertados,
+  });
 }
 
 export async function POST(req: NextRequest) { return executar(req); }

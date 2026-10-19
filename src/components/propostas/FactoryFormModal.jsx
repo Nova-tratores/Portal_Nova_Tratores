@@ -13,7 +13,7 @@ export default function FactoryFormModal({ onClose }) {
 
   const [formData, setFormData] = useState({
     vendedor_fab: '', cliente: '', marca: '', modelo: '',
-    maq_valor: '', valor_final: '', status: 'Proposta solicitada'
+    maq_valor: '', valor_final: '', status: 'Proposta solicitada', eta_fabrica: ''
   })
 
   useEffect(() => {
@@ -39,7 +39,7 @@ export default function FactoryFormModal({ onClose }) {
 
   const handleSave = async (e) => {
     e.preventDefault(); setLoading(true)
-    const { error } = await supabase.from('Proposta_Fabrica').insert([formData])
+    const { error } = await supabase.from('Proposta_Fabrica').insert([{ ...formData, eta_fabrica: formData.eta_fabrica || null }])
     if (!error) { alert("PEDIDO FABRICA CRIADO!"); onClose(); window.location.reload() }
     else { alert("Erro: " + error.message); setLoading(false) }
   }
@@ -80,6 +80,10 @@ export default function FactoryFormModal({ onClose }) {
             <div>
               <label className="text-[10px] font-black text-zinc-500 uppercase">VENDEDOR</label>
               <input className={inputStyle} onChange={e => setFormData({ ...formData, vendedor_fab: e.target.value })} />
+            </div>
+            <div>
+              <label className="text-[10px] font-black text-zinc-500 uppercase">PREVISÃO DE CHEGADA (opcional)</label>
+              <input type="date" className={inputStyle} value={formData.eta_fabrica} onChange={e => setFormData({ ...formData, eta_fabrica: e.target.value })} />
             </div>
           </div>
           <button type="submit" disabled={loading} className="w-full mt-5 py-4 bg-red-600 text-white border-none rounded-xl font-bold cursor-pointer hover:bg-red-700 transition-colors disabled:opacity-50">{loading ? 'SALVANDO...' : 'CRIAR SOLICITACAO'}</button>

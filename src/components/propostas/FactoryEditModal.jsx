@@ -1,7 +1,9 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Search, Link2 } from 'lucide-react'
+import { Search, Link2, ShoppingCart } from 'lucide-react'
+import { authHeaders } from '@/lib/auth/client'
+import { SC_ETAPA_INFO } from '@/lib/tickets/compras'
 
 // Colunas que só existem na view v_proposta_fabrica — não podem ir num UPDATE da tabela.
 const COLS_VIEW_FAB = ['dias_na_fase', 'cor_hex', 'cor_pasta', 'fase_ordem', 'eh_final', 'dias_atraso_eta']
@@ -15,6 +17,7 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
   const [buscaProp, setBuscaProp] = useState('')
   const [showProp, setShowProp] = useState(false)
   const propRef = useRef(null)
+  const [sc, setSc] = useState(undefined)            // Solicitação de Compras ligada (undefined = carregando)
 
   useEffect(() => {
     (async () => {
@@ -23,6 +26,13 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
       // Candidatas a vincular: propostas não deletadas e ainda sem pedido de fábrica.
       const { data: livres } = await supabase.from('Formulario').select('id,Cliente,Marca,Modelo,status,id_fabrica_ref').is('deleted_at', null).order('id', { ascending: false })
       setListaProp((livres || []).filter(p => !p.id_fabrica_ref))
+    })()
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/tickets/compras/pedido-fabrica?id=${order.id}`, { headers: await authHeaders() })
+        const json = await res.json()
+        setSc(res.ok ? json.sc : null)
+      } catch { setSc(null) }
     })()
   }, [order.id])
 
@@ -45,6 +55,7 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
     payload.custo = (formData.custo === '' || formData.custo == null) ? null : Number(formData.custo)          // numeric
     payload.frete_valor = (formData.frete_valor === '' || formData.frete_valor == null) ? null : Number(formData.frete_valor)  // numeric
     payload.frete_modalidade = formData.frete_modalidade || null   // CHECK: só null/incluso/nao_incluso
+    payload.eta_fabrica = formData.eta_fabrica || null              // date; '' quebraria o UPDATE
     const { error } = await supabase.from('Proposta_Fabrica').update(payload).eq('id', order.id)
     if (!error) { alert("PEDIDO SALVO!"); window.location.reload() }
   }
@@ -76,6 +87,13 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
                 <div className="flex-1 p-4 flex flex-col gap-1">
                   <label className="text-[8px] font-bold text-zinc-400">CLIENTE INTERESSADO</label>
                   <input value={formData.cliente || ''} readOnly className={inputStyle} />
+                </div>
+              </div>
+              <div className="flex flex-wrap border-t border-zinc-100">
+                <div className="flex-1 p-4 flex flex-col gap-1">
+                  <label className="text-[8px] font-bold text-zinc-400">PREVISÃO DE CHEGADA DA MÁQUINA</label>
+                  <input type="date" value={formData.eta_fabrica ? String(formData.eta_fabrica).slice(0, 10) : ''} onChange={e => setFormData({ ...formData, eta_fabrica: e.target.value })} className={`${inputStyle} cursor-pointer`} />
+                  {Number(order.dias_atraso_eta) > 0 && <span className="text-[11px] font-bold text-red-600">Atrasada {order.dias_atraso_eta} dia{Number(order.dias_atraso_eta) !== 1 ? 's' : ''}</span>}
                 </div>
               </div>
             </section>
@@ -116,7 +134,7 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
                   <input type="number" value={formData.frete_valor ?? ''} onChange={e => setFormData({ ...formData, frete_valor: e.target.value })} className={inputStyle} />
                 </div>
               </div>
-              <div className="px-4 pb-3 text-[10px] text-zinc-400">Custo/frete podem ser editados mesmo após a conversão.</div>
+              <div className="px-4 pb-3 text-[10px] text-zinc-400">Custo, frete e previsão de chegada podem ser editados mesmo após a conversão.</div>
             </section>
 
             <section className="bg-white rounded-xl border border-zinc-200 overflow-visible">
@@ -149,20 +167,45 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
                 )}
               </div>
             </section>
+
+            <section className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
+              <div className="px-4 py-2.5 bg-zinc-50 text-[9px] font-extrabold text-zinc-400 border-b border-zinc-200">SOLICITAÇÃO DE COMPRA</div>
+              <div className="p-4">
+                {sc === undefined ? (
+                  <div className="text-sm text-zinc-400">Carregando…</div>
+                ) : sc && sc.sc_etapa !== 'cancelada' ? (
+                  <a href={`/tickets/${sc.id}`} className="flex items-center gap-2 text-sm text-zinc-700 no-underline hover:underline">
+                    <ShoppingCart size={16} className="text-blue-700 shrink-0" />
+                    Solicitação de Compras <span className="font-bold">#{sc.numero}</span> — {SC_ETAPA_INFO[sc.sc_etapa]?.label || sc.sc_etapa}
+                  </a>
+                ) : (
+                  <div className="flex flex-col gap-2">
+                    <div className="text-[12px] text-zinc-500">
+                      Com a proposta da fábrica em mãos, abra a solicitação de compra já preenchida com a máquina, o custo e o cliente deste pedido.
+                      Quando o comprador emitir o PC, este pedido passa sozinho para &quot;Pedido Feito / Aguardando Maq&quot;.
+                      {sc && <> A solicitação #{sc.numero} foi cancelada.</>}
+                    </div>
+                    <a href={`/tickets/compras?fab=${order.id}`} className="self-start inline-flex items-center gap-2 px-4 py-2.5 bg-blue-700 text-white rounded-lg text-sm font-bold no-underline hover:bg-blue-800">
+                      <ShoppingCart size={15} /> ABRIR SOLICITAÇÃO DE COMPRA
+                    </a>
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
         </div>
 
         <div className="px-4 md:px-10 py-6 bg-white border-t border-zinc-200 flex flex-col gap-3">
           {isLocked && (
             <p className="text-emerald-600 font-bold text-center w-full text-xs">
-              CARD CONVERTIDO — apenas custo/frete são editáveis (os demais campos ficam bloqueados).
+              CARD CONVERTIDO — apenas custo, frete e previsão de chegada são editáveis (os demais campos ficam bloqueados).
             </p>
           )}
           <div className="flex gap-4">
             {!isLocked && formData.status?.includes('Concluida') && (
               <button onClick={() => onConvert(formData)} className="flex-[1.5] py-4 bg-emerald-500 text-white border-none rounded-xl font-black cursor-pointer hover:bg-emerald-600 transition-colors">GERAR PROPOSTA COMERCIAL</button>
             )}
-            <button onClick={handleUpdate} className="flex-1 py-4 bg-zinc-900 text-white border-none rounded-xl font-bold cursor-pointer hover:bg-zinc-800 transition-colors">{isLocked ? 'SALVAR CUSTO / FRETE' : 'SALVAR DADOS'}</button>
+            <button onClick={handleUpdate} className="flex-1 py-4 bg-zinc-900 text-white border-none rounded-xl font-bold cursor-pointer hover:bg-zinc-800 transition-colors">{isLocked ? 'SALVAR CUSTO / FRETE / CHEGADA' : 'SALVAR DADOS'}</button>
           </div>
         </div>
       </div>

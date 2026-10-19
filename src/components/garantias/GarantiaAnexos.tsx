@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import { Upload, Loader2, X, FileText, ExternalLink } from 'lucide-react';
+import { Upload, Loader2, X, FileText, ExternalLink, Camera } from 'lucide-react';
 import type { GarantiaAnexo, AnexoCategoria } from '@/lib/garantias/types';
 
 interface Props {
@@ -10,7 +10,15 @@ interface Props {
   enviadoPor?: string;
   onChange?: () => void;
   vazioTexto?: string;
+  /** Botão "Tirar foto" (abre a câmera traseira no celular). */
+  camera?: boolean;
+  /** Imagens viram grade de miniaturas (fotos de prova no celular). */
+  galeria?: boolean;
 }
+
+const ehImagem = (a: GarantiaAnexo) =>
+  (a.content_type || '').startsWith('image/') ||
+  /\.(jpe?g|png|webp|gif|heic)$/i.test(a.nome_arquivo || a.url || '');
 
 export default function GarantiaAnexos({
   garantiaId,
@@ -19,6 +27,8 @@ export default function GarantiaAnexos({
   enviadoPor,
   onChange,
   vazioTexto = 'Nenhum anexo.',
+  camera = false,
+  galeria = false,
 }: Props) {
   const [uploading, setUploading] = useState(false);
 
@@ -48,13 +58,81 @@ export default function GarantiaAnexos({
     if (res.ok) onChange?.();
   }
 
+  const imagens = galeria ? anexos.filter(ehImagem) : [];
+  const arquivos = galeria ? anexos.filter((a) => !ehImagem(a)) : anexos;
+
+  const botaoUpload = (rotulo: string, icone: React.ReactNode, extra?: React.InputHTMLAttributes<HTMLInputElement>) => (
+    <label
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        padding: '9px 14px',
+        minHeight: 40, // alvo de toque confortável no celular
+        borderRadius: 9,
+        border: '1px dashed var(--portal-border)',
+        background: 'var(--portal-bg-input)',
+        fontSize: 12,
+        fontWeight: 600,
+        color: 'var(--portal-text-secondary)',
+        cursor: uploading ? 'default' : 'pointer',
+        flex: '1 1 auto',
+      }}
+    >
+      {uploading ? <Loader2 size={14} className="spin" /> : icone}
+      {uploading ? 'Enviando...' : rotulo}
+      <input
+        type="file"
+        style={{ display: 'none' }}
+        disabled={uploading}
+        onChange={(e) => {
+          const f = e.target.files?.[0];
+          if (f) enviar(f);
+          e.target.value = '';
+        }}
+        {...extra}
+      />
+    </label>
+  );
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {anexos.length === 0 ? (
+      {anexos.length === 0 && (
         <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>{vazioTexto}</span>
-      ) : (
+      )}
+
+      {/* Fotos em grade (modo galeria) */}
+      {imagens.length > 0 && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(92px, 1fr))', gap: 8 }}>
+          {imagens.map((a) => (
+            <div key={a.id} style={{ position: 'relative', aspectRatio: '1 / 1', borderRadius: 10, overflow: 'hidden', border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)' }}>
+              <a href={a.url} target="_blank" rel="noreferrer" style={{ display: 'block', width: '100%', height: '100%' }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={a.url} alt={a.nome_arquivo || 'Foto'} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </a>
+              {onChange && (
+                <button
+                  onClick={() => remover(a)}
+                  title="Remover"
+                  style={{
+                    position: 'absolute', top: 4, right: 4,
+                    width: 24, height: 24, borderRadius: '50%',
+                    border: 'none', background: 'rgba(0,0,0,0.55)', color: '#fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                  }}
+                >
+                  <X size={13} />
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {arquivos.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {anexos.map((a) => (
+          {arquivos.map((a) => (
             <div
               key={a.id}
               style={{
@@ -83,7 +161,7 @@ export default function GarantiaAnexos({
                 <button
                   onClick={() => remover(a)}
                   title="Remover"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', display: 'flex' }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', display: 'flex', minWidth: 30, minHeight: 30, alignItems: 'center', justifyContent: 'center' }}
                 >
                   <X size={14} />
                 </button>
@@ -94,35 +172,12 @@ export default function GarantiaAnexos({
       )}
 
       {uploadCategoria && (
-        <label
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            alignSelf: 'flex-start',
-            padding: '7px 12px',
-            borderRadius: 8,
-            border: '1px dashed var(--portal-border)',
-            background: 'var(--portal-bg-input)',
-            fontSize: 12,
-            fontWeight: 600,
-            color: 'var(--portal-text-secondary)',
-            cursor: uploading ? 'default' : 'pointer',
-          }}
-        >
-          {uploading ? <Loader2 size={14} className="spin" /> : <Upload size={14} />}
-          {uploading ? 'Enviando...' : 'Anexar arquivo'}
-          <input
-            type="file"
-            style={{ display: 'none' }}
-            disabled={uploading}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) enviar(f);
-              e.target.value = '';
-            }}
-          />
-        </label>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {/* capture="environment" abre a câmera traseira direto no celular;
+              no desktop vira um seletor de imagem comum. */}
+          {camera && botaoUpload('Tirar foto', <Camera size={14} />, { accept: 'image/*', capture: 'environment' })}
+          {botaoUpload('Anexar arquivo', <Upload size={14} />)}
+        </div>
       )}
     </div>
   );
