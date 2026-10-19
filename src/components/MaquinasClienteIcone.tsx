@@ -3,6 +3,7 @@
 // hover ou clique mostra as máquinas do CPF/CNPJ (modelo + chassis) — os
 // mesmos projetos da Pasta Clientes (faturados pro documento).
 import { useEffect, useRef, useState } from "react";
+import { fetchAuth } from "@/lib/auth/client";
 
 interface Maquina { modelo: string; chassis: string; empresa: string; ultima_revisao?: { horas: string } | null }
 
@@ -28,7 +29,7 @@ export default function MaquinasClienteIcone({ doc, className, botaoStyle }: { d
     if (cache.has(documento)) { setMaquinas(cache.get(documento)!); return; }
     setCarregando(true);
     try {
-      const r = await fetch(`/api/clientes/maquinas?doc=${encodeURIComponent(documento)}`);
+      const r = await fetchAuth(`/api/clientes/maquinas?doc=${encodeURIComponent(documento)}`);
       const j = await r.json();
       const lista: Maquina[] = Array.isArray(j.maquinas) ? j.maquinas : [];
       cache.set(documento, lista);

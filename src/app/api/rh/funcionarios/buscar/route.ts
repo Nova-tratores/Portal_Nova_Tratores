@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { listarFuncionariosRH, rhConfigurado } from "@/lib/frota/rh";
 import { corsChatwoot } from "@/lib/chatwoot/cors";
+import { guardarNovazap, comCors } from "@/lib/chatwoot/proxy";
 
 // Busca de funcionários (RH) para o seletor da integração com o Chatwoot.
 // Reaproveita listarFuncionariosRH() (que NÃO traz salário) e devolve só os
@@ -21,6 +22,9 @@ export async function OPTIONS(req: Request) {
 
 export async function GET(req: Request) {
   const CORS = corsChatwoot(req, "GET, OPTIONS");
+  // NovaZap via servidor (x-novazap-token) ou login do portal — só o NovaZap usa.
+  const acesso = await guardarNovazap(req, [{ admin: true }]);
+  if (acesso.resposta) return comCors(acesso.resposta, CORS);
   const q = (new URL(req.url).searchParams.get("q") || "").trim();
 
   if (!rhConfigurado()) {

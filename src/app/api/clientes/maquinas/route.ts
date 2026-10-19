@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { corsChatwoot } from "@/lib/chatwoot/cors";
+import { guardarNovazap, comCors } from "@/lib/chatwoot/proxy";
 
 // Máquinas/tratores do cliente para a aba do Chatwoot — mesma fonte dos
 // PROJETOS da Pasta Clientes (portal_nt_projetos_PRINCIPAL, nome =
@@ -53,6 +54,9 @@ export async function OPTIONS(req: Request) {
 
 export async function GET(req: NextRequest) {
   const CORS = corsChatwoot(req, "GET, OPTIONS");
+  // NovaZap via servidor (x-novazap-token) ou login do portal — NovaZap; no portal, o ícone de máquinas (várias telas).
+  const acesso = await guardarNovazap(req, "login");
+  if (acesso.resposta) return comCors(acesso.resposta, CORS);
   const cod = (req.nextUrl.searchParams.get("cod") || "").trim();
   // Alternativa: buscar direto pelo CPF/CNPJ (usado pelo ícone de trator
   // nos drawers do POS/PPV, que só têm o documento do cliente).

@@ -449,7 +449,7 @@ function ClientesPageInner() {
         .then(({ data: cad }) => aplicar({ tags: parseOmieTags(cad?.tags) })),
       // Lembretes do POS: pelo CNPJ OU por qualquer código do cliente (Nova/Castro) —
       // há lembrete gravado só com a chave OMIE:<cod>, sem CNPJ
-      fetch(`/api/clientes/info-pasta?cod=${encodeURIComponent(String(cliente.cod_cli))}&empresa=${encodeURIComponent(cliente.empresa)}${cliente.cnpj_cpf ? `&cnpj=${encodeURIComponent(cliente.cnpj_cpf.replace(/\D/g, ''))}` : ''}`)
+      fetchAuth(`/api/clientes/info-pasta?cod=${encodeURIComponent(String(cliente.cod_cli))}&empresa=${encodeURIComponent(cliente.empresa)}${cliente.cnpj_cpf ? `&cnpj=${encodeURIComponent(cliente.cnpj_cpf.replace(/\D/g, ''))}` : ''}`)
         .then((res) => res.json())
         .then((data) => { if (Array.isArray(data?.lembretes)) aplicar({ lembretes: data.lembretes }) })
         .catch(() => {}),

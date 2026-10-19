@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { corsChatwoot } from "@/lib/chatwoot/cors";
+import { guardarNovazap, comCors } from "@/lib/chatwoot/proxy";
 
 // Busca de clientes para o seletor da integração com o Chatwoot.
 // Busca insensível a acento e maiúscula: como o ilike do Postgres não ignora
@@ -72,6 +73,9 @@ export async function OPTIONS(req: Request) {
 
 export async function GET(req: NextRequest) {
   const CORS = corsChatwoot(req, "GET, OPTIONS");
+  // NovaZap via servidor (x-novazap-token) ou login do portal — seletor de cliente do NovaZap; no portal, a página chatwoot-app.
+  const acesso = await guardarNovazap(req, "login");
+  if (acesso.resposta) return comCors(acesso.resposta, CORS);
   const q = (req.nextUrl.searchParams.get("q") || "").trim();
   if (q.length < 2) {
     return NextResponse.json({ clientes: [] }, { headers: CORS });

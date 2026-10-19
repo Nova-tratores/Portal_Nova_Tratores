@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { fetchAuth } from "@/lib/auth/client";
 
 // Página embutida no Chatwoot como "Dashboard App" (iframe na lateral do contato).
 // Recebe o contato via postMessage, permite buscar um cliente do portal e
@@ -92,7 +93,7 @@ export default function ChatwootAppPage() {
     setLoading(true);
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/clientes/buscar?q=${encodeURIComponent(q)}`);
+        const res = await fetchAuth(`/api/clientes/buscar?q=${encodeURIComponent(q)}`);
         const data = await res.json();
         setResults(data.clientes || []);
       } catch {

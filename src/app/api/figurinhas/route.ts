@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { corsChatwoot } from "@/lib/chatwoot/cors";
+import { guardarNovazap, comCors } from "@/lib/chatwoot/proxy";
 
 // Galeria de figurinhas do NovaZap (ChatWoot) — compartilhada por todo
 // mundo. Os arquivos vivem no bucket público `anexos`, pasta figurinhas/.
@@ -23,6 +24,9 @@ export async function OPTIONS(req: Request) {
 
 export async function GET(req: Request) {
   const CORS = corsChatwoot(req, "GET, POST, DELETE, OPTIONS");
+  // NovaZap via servidor (x-novazap-token) ou login do portal — só o NovaZap usa.
+  const acesso = await guardarNovazap(req, [{ admin: true }]);
+  if (acesso.resposta) return comCors(acesso.resposta, CORS);
   try {
     const { data, error } = await supabase.storage
       .from(BUCKET)
@@ -46,6 +50,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: NextRequest) {
   const CORS = corsChatwoot(req, "GET, POST, DELETE, OPTIONS");
+  // NovaZap via servidor (x-novazap-token) ou login do portal — só o NovaZap usa.
+  const acesso = await guardarNovazap(req, [{ admin: true }]);
+  if (acesso.resposta) return comCors(acesso.resposta, CORS);
   try {
     const body = await req.json();
     const base64 = String(body.base64 || "");
@@ -86,6 +93,9 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   const CORS = corsChatwoot(req, "GET, POST, DELETE, OPTIONS");
+  // NovaZap via servidor (x-novazap-token) ou login do portal — só o NovaZap usa.
+  const acesso = await guardarNovazap(req, [{ admin: true }]);
+  if (acesso.resposta) return comCors(acesso.resposta, CORS);
   try {
     const caminho = req.nextUrl.searchParams.get("caminho") || "";
     // só deixa apagar dentro da pasta de figurinhas

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { corsChatwoot } from "@/lib/chatwoot/cors";
+import { guardarNovazap, comCors } from "@/lib/chatwoot/proxy";
 
 // Detalhe de um cliente por código Omie, para o popover do Chatwoot
 // (nome fantasia, endereço, telefone, e-mail). Cobre contatos vinculados
@@ -20,6 +21,9 @@ export async function OPTIONS(req: Request) {
 
 export async function GET(req: NextRequest) {
   const CORS = corsChatwoot(req, "GET, OPTIONS");
+  // NovaZap via servidor (x-novazap-token) ou login do portal — ficha do contato no NovaZap.
+  const acesso = await guardarNovazap(req, [{ modulo: "clientes" }]);
+  if (acesso.resposta) return comCors(acesso.resposta, CORS);
   const cod = (req.nextUrl.searchParams.get("cod") || "").trim();
   const empresa = (req.nextUrl.searchParams.get("empresa") || "").trim();
   if (!cod) {

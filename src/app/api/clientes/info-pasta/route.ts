@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { corsChatwoot } from "@/lib/chatwoot/cors";
+import { guardarNovazap, comCors } from "@/lib/chatwoot/proxy";
 import { infoPastaCliente } from "@/lib/clientes/info-pasta";
 
 // "Informações Pasta Cliente" (etiquetas, observação e lembretes do POS) de um
@@ -13,6 +14,9 @@ export async function OPTIONS(req: Request) {
 
 export async function GET(req: NextRequest) {
   const CORS = corsChatwoot(req, "GET, OPTIONS");
+  // NovaZap via servidor (x-novazap-token) ou login do portal — NovaZap; no portal, a Pasta Clientes.
+  const acesso = await guardarNovazap(req, [{ modulo: "clientes" }]);
+  if (acesso.resposta) return comCors(acesso.resposta, CORS);
   const sp = req.nextUrl.searchParams;
   const cnpj = sp.get("cnpj");
   const cod = sp.get("cod");

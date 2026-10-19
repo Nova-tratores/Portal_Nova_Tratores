@@ -5,6 +5,7 @@
 // num card já põe a máquina na OS (Projeto/Equipamento + Modelo/Chassis da
 // descrição).
 import { useEffect, useState } from "react";
+import { fetchAuth } from "@/lib/auth/client";
 
 export interface MaquinaCliente {
   projeto: string;
@@ -41,7 +42,7 @@ export default function MaquinasClienteDestaque({ doc, selecionado, onEscolher, 
   useEffect(() => {
     if (!documento || cache.has(documento)) return;
     let vivo = true;
-    fetch(`/api/clientes/maquinas?doc=${encodeURIComponent(documento)}`)
+    fetchAuth(`/api/clientes/maquinas?doc=${encodeURIComponent(documento)}`)
       .then((r) => r.json())
       .then((j) => {
         const lista: MaquinaCliente[] = Array.isArray(j.maquinas) ? j.maquinas : [];
