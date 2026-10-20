@@ -18,6 +18,7 @@ import { aplicarMudancaFase } from "@/lib/pos/fase";
 import { criarOSNoOmie } from "@/lib/pos/omie";
 import { registrarAlimentacaoOS } from "@/lib/pos/alimentacao-os";
 import { parseHoras } from "@/lib/pos/horas-tecnico";
+import { preverOS } from "@/lib/mecanicos/previsao-os-server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -178,6 +179,11 @@ export async function montarAtualizacaoOS(osId: string, userName?: string): Prom
 
   if (!qtdHoras) duvidas.push("Total de horas do relatório está zerado.");
   if (!dataInicio) duvidas.push("O relatório não tem data de início.");
+  // tempário Mahindra (José, 20/10/2026): horas muito acima ou rápidas demais viram aviso (e balão na OS)
+  try {
+    const prev = await preverOS(idReal);
+    for (const a of prev?.alertas || []) if (a.nivel !== "azul") duvidas.push(`Tempário: ${a.texto}`);
+  } catch (e) { console.error("[atualizar-relatorio] tempário", e); }
 
   const solAtual = extrairCampo(os.Serv_Solicitado, "Solicitação do cliente");
   const { solicitacaoCliente, servicoRealizado } = await gerarTextos({

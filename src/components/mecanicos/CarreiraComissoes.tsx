@@ -29,7 +29,7 @@ function Foto({ nome, url, nivel }: { nome: string; url?: string; nivel?: number
   )
 }
 
-function Cartao({ c, i, mesAtual, mesAnt, foto, nivel }: { c: ComissaoTecnico; i: number; mesAtual: string; mesAnt: string; foto?: string; nivel?: number }) {
+function Cartao({ c, i, mesAtual, mesAnt, foto, nivel, pontos, onCarta }: { c: ComissaoTecnico; i: number; mesAtual: string; mesAnt: string; foto?: string; nivel?: number; pontos?: PontosCartao; onCarta?: () => void }) {
   const [virado, setVirado] = useState(false)
   const antes = c.anterior.rh?.valor ?? c.anterior.total
   const alvo = Math.max(c.atual.projecao, c.atual.total + c.atual.aguardando)
@@ -64,6 +64,17 @@ function Cartao({ c, i, mesAtual, mesAnt, foto, nivel }: { c: ComissaoTecnico; i
             </div>
             {dif != null && <span className={`cm-dif ${dif >= 0 ? 'up' : 'down'}`}>{dif >= 0 ? '▲' : '▼'} {Math.abs(dif)}%<small>vs {mesCurto(mesAnt)}</small></span>}
           </div>
+          {pontos && (() => {
+            const cor = pontos.saldo >= 90 ? '#047857' : pontos.saldo >= 70 ? '#d97706' : '#dc2626'
+            const C = 2 * Math.PI * 17
+            return (
+              <div className="cm-pts" style={{ '--c': cor } as React.CSSProperties}>
+                <svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="17" className="f" /><circle cx="22" cy="22" r="17" className="v" style={{ strokeDasharray: `${(Math.max(0, Math.min(100, pontos.saldo)) / 100) * C} ${C}` }} /><text x="22" y="26.5" textAnchor="middle">{Math.round(pontos.saldo)}</text></svg>
+                <div><b>{Math.round(pontos.saldo)} pontos no mês</b><small>{pontos.qtd ? `${pontos.qtd} ocorrência${pontos.qtd > 1 ? 's' : ''} · −${Math.round(pontos.descontado)}` : 'sem ocorrências'}{pontos.pendentes ? <em> · {pontos.pendentes} defesa(s) para julgar</em> : null}</small></div>
+                {onCarta && <button type="button" onClick={(e) => { e.stopPropagation(); onCarta() }} title="Ver a carta do técnico"><i className="fas fa-id-badge" /> carta</button>}
+              </div>
+            )
+          })()}
           <div className="cm-valor">
             <small>Previsão de {mesCurto(mesAtual)}</small>
             <b><Numero valor={c.atual.projecao} formato={brl} /></b>
@@ -108,7 +119,10 @@ function Cartao({ c, i, mesAtual, mesAnt, foto, nivel }: { c: ComissaoTecnico; i
   )
 }
 
-export default function CarreiraComissoes() {
+/** Pontuação do mês de cada técnico (vem de Ocorrências) para aparecer no próprio cartão (José 19/10). */
+export type PontosCartao = { saldo: number; qtd: number; pendentes: number; descontado: number }
+
+export default function CarreiraComissoes({ pontos, onCarta }: { pontos?: Record<string, PontosCartao>; onCarta?: (tecnico: string) => void } = {}) {
   const { dados: d, erro } = useCarreira()
   if (erro) return <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c' }}>{erro}</div>
   if (!d) return <div className="cm-caixa" style={{ color: MUDO, textAlign: 'center' }}><style>{ESTILO}</style><i className="fas fa-circle-notch fa-spin" /> calculando as comissões…</div>
@@ -127,7 +141,7 @@ export default function CarreiraComissoes() {
         <span className="cm-dica"><i className="fas fa-hand-pointer" /> clique no cartão para ver como chega no valor</span>
       </div>
       <div className="cm-grade">
-        {d.comissoes.map((c, i) => <Cartao key={c.tecnico} c={c} i={i} mesAtual={d.mesAtual} mesAnt={mesAnt} foto={d.fotos?.[c.tecnico]} nivel={d.carreira.find((x) => x.tecnico === c.tecnico)?.nivel} />)}
+        {d.comissoes.map((c, i) => <Cartao key={c.tecnico} c={c} i={i} mesAtual={d.mesAtual} mesAnt={mesAnt} foto={d.fotos?.[c.tecnico]} nivel={d.carreira.find((x) => x.tecnico === c.tecnico)?.nivel} pontos={pontos?.[c.tecnico]} onCarta={onCarta ? () => onCarta(c.tecnico) : undefined} />)}
         {!d.comissoes.length && <small style={{ color: MUDO }}>Nenhum técnico com % de comissão cadastrado.</small>}
       </div>
     </section>
@@ -135,6 +149,10 @@ export default function CarreiraComissoes() {
 }
 
 const ESTILO = `
+.cm-pts { display: flex; gap: 10px; align-items: center; border-radius: 12px; padding: 6px 10px; margin: 2px 0 6px; background: color-mix(in srgb, var(--c) 8%, var(--portal-bg-card, #fefefe)) }
+.cm-pts svg { width: 44px; height: 44px; flex-shrink: 0 } .cm-pts circle { fill: none; stroke-width: 5 } .cm-pts .f { stroke: color-mix(in srgb, var(--c) 18%, transparent) } .cm-pts .v { stroke: var(--c); stroke-linecap: round; transform: rotate(-90deg); transform-origin: 22px 22px; animation: cmPts 1.1s cubic-bezier(.2,.8,.2,1) both } @keyframes cmPts { from { stroke-dasharray: 0 107 } }
+.cm-pts text { font-size: 13px; font-weight: 900; fill: var(--c) } .cm-pts > div { flex: 1; min-width: 0; display: grid } .cm-pts b { font-size: 13.5px; color: var(--c) } .cm-pts small { font-size: 11.5px; color: var(--portal-text-muted, #64748b) } .cm-pts em { font-style: normal; color: #b45309; font-weight: 800 }
+.cm-pts button { border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); background: var(--portal-bg-card, #fefefe); color: var(--c); border-radius: 99px; padding: 4px 10px; font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer; white-space: nowrap } .cm-pts button:hover { background: var(--c); color: #fefefe }
 .cm-caixa { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; padding: 18px 20px; box-shadow: 0 1px 3px rgba(15,23,42,.05) }
 .cm-cab { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; flex-wrap: wrap; margin-bottom: 14px }
 .cm-rot { font-size: 12.5px; font-weight: 900; text-transform: uppercase; letter-spacing: .6px; color: ${MUDO} } .cm-rot i { color: #059669; margin-right: 4px }

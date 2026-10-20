@@ -18,6 +18,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { isValorAlto, buscarAutorizacaoAtiva, criarPedidoPermissao, consumirAutorizacao, parseValorBR, LIMITE_BLOQUEIO, type Autorizacao } from '@/lib/requisicoes/autorizacao';
 import HistoricoModal from './HistoricoModal';
 import TicketsDaReq from './TicketsDaReq';
+import DescontoTecnicoReq from './DescontoTecnicoReq';
 import RecorteAnexo from './RecorteAnexo';
 import DialogoImprimirReq from './DialogoImprimirReq';
 import { anexosDaReq, anexosNoDrive as anexosNoDriveDe, getUrlAnexo, CAMPOS_NF } from '@/lib/requisicoes/anexos';
@@ -878,6 +879,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               {/* ── TICKETS que apontam pra esta requisição (tickets_vinculos) ── */}
               {/* Só leitura aqui; o vínculo é feito de dentro do ticket. */}
               {temAcesso('tickets') && <TicketsDaReq reqId={req.id} ativo={modalAberto} />}
+
+              {/* ── cobrada do técnico (desconto lançado com a comissão no Centro do Pós-Vendas) ── */}
+              <DescontoTecnicoReq reqId={req.id} ativo={modalAberto} />
 
 
               {/* ── BLOQUEIO DE VALOR ALTO ── */}

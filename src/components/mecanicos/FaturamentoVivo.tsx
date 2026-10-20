@@ -48,11 +48,17 @@ export default function FaturamentoVivo({ compacto = false }: { compacto?: boole
       }
       vistos.current = new Set(ids)
       setD(j); setErro(''); setSeg(0)
+      try { localStorage.setItem('cpv-vivo-v1', JSON.stringify(j)) } catch { /* sem espaço */ }
     } catch (e) { setErro(e instanceof Error ? e.message : 'Falha') }
   }, [])
   useEffect(() => {
     let vivo = true
-    Promise.resolve().then(() => { if (vivo) void carregar() })
+    // abre na hora com o último faturamento guardado no navegador (José 19/10: "tem que abrir instantâneo")
+    Promise.resolve().then(() => {
+      if (!vivo) return
+      try { const t0 = localStorage.getItem('cpv-vivo-v1'); if (t0) setD((x) => x || (JSON.parse(t0) as RespVivo)) } catch { /* sem armazenamento */ }
+      void carregar()
+    })
     const t = setInterval(() => { if (document.visibilityState === 'visible') void carregar() }, INTERVALO)
     const s = setInterval(() => setSeg((x) => x + 1), 1000)
     return () => { vivo = false; clearInterval(t); clearInterval(s) }

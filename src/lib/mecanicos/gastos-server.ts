@@ -46,7 +46,7 @@ async function paginar(montar: (de: number, ate: number) => PromiseLike<{ data: 
 }
 
 /** placa (limpa) → pessoa (nome padronizado). frota_donos_relatorio primeiro; tecnico_veiculos completa. */
-async function donosDosCarros(padronizar: (n: unknown) => string, tecnicos: Set<string>) {
+export async function donosDosCarros(padronizar: (n: unknown) => string, tecnicos: Set<string>) {
   const [donos, vinc] = await Promise.all([
     sb.from('frota_donos_relatorio').select('chave, dono'),
     sb.from('tecnico_veiculos').select('tecnico_nome, placa'),

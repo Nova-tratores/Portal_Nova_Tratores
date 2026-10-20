@@ -316,6 +316,11 @@ export async function register(): Promise<void> {
       try {
         const { aquecerBase } = await import('./lib/mecanicos/base-cache');
         await aquecerBase();
+        // ficha de cada mecânico (card → janela) e o pódio dos meses: já gravados no banco
+        const { aquecerFichas } = await import('./lib/mecanicos/ficha-server');
+        await aquecerFichas().catch((e) => log('pos-painel: fichas falharam: ' + (e as Error).message));
+        const { podioMeses } = await import('./lib/mecanicos/podio-server');
+        await podioMeses().catch(() => {});
         const hora = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }).format(new Date()));
         if (hora >= 6 && hora < 20) {
           const { ultimaAnalise, gerarUmaVez, estaGerando, VALIDADE_ANALISE_MS } = await import('./lib/mecanicos/analise-server');

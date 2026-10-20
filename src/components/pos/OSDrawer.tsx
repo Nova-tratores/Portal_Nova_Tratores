@@ -32,6 +32,8 @@ import AnexosModal from "@/components/ppv/AnexosModal";
 import TarefasModal from "@/components/ppv/TarefasModal";
 import ChequeRevisaoBloco from "./ChequeRevisaoBloco";
 import AssinaturaClienteBloco from "./AssinaturaClienteBloco";
+import ComissaoOSBloco from "./ComissaoOSBloco";
+import TemparioOSBloco from "./TemparioOSBloco";
 import ModalNovoCliente from "@/components/clientes/ModalNovoCliente";
 import ModalNovaMaquina from "@/components/clientes/ModalNovaMaquina";
 import MaquinasClienteDestaque from "./MaquinasClienteDestaque";
@@ -1698,6 +1700,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         </div>
                         {tipoServico === "Revisão" && osId && <ChequeRevisaoBloco osId={osId} podeEditar={podeEditar} />}
                         {osId && <AssinaturaClienteBloco osId={osId} podeEditar={podeEditar} />}
+                        {osId && <ComissaoOSBloco osId={osId} podeEditar={podeEditar} />}
                       </div>
                     );
                   })()}
@@ -2048,6 +2051,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       {diasAtraso > 0 && <div className="rt-aviso vermelho"><i className="fas fa-triangle-exclamation" /> A previsão de execução era {previsaoExecucao.split("-").reverse().join("/")} e o relatório ainda não chegou.</div>}
                       {dt?.justificativaAtraso && <div className="rt-aviso amarelo"><b>Preenchido com atraso — justificativa:</b> {dt.justificativaAtraso}</div>}
                       {dt?.cartaCorrecao && <div className="rt-aviso amarelo"><b><i className="fas fa-pen-to-square" /> Carta de correção do técnico:</b><div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{dt.cartaCorrecao}</div></div>}
+                      {enviado && osId && <TemparioOSBloco osId={osId} />}
                       {dt && (<>
                       {tiles.length > 0 && (
                         <div className="rt-tiles">
@@ -2387,6 +2391,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                     )}
                     {mode === "edit" && osId && (
                       <AssinaturaClienteBloco osId={osId} podeEditar={podeEditar} />
+                    )}
+                    {mode === "edit" && osId && (
+                      <ComissaoOSBloco osId={osId} podeEditar={podeEditar} />
                     )}
                     {/* na edição o texto e horas/km ficam na Lista de Serviços (formato Omie) */}
                     {mode === "create" && <textarea rows={10} value={servSolicitado} onChange={(e) => setServSolicitado(e.target.value)} style={S_MONO_MB0} />}

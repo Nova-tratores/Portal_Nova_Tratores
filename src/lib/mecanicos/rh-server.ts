@@ -25,6 +25,8 @@ function rh(): SupabaseClient | null {
   return cliente
 }
 export const rhDisponivel = () => !!rh()
+/** Cliente do banco do RH (null = não configurado) — leitura da ficha do técnico. */
+export const clienteRH = () => rh()
 
 export type MembroRH = MembroEquipe & { nomeRh: string }
 

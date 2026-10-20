@@ -6,7 +6,7 @@ import { authHeaders } from '@/lib/auth/client'
 import type { CarreiraTecnico } from '@/lib/mecanicos/carreira'
 import type { ComissaoTecnico } from '@/lib/mecanicos/carreira-server'
 
-export interface DadosCarreira { mesAtual: string; carreira: CarreiraTecnico[]; comissoes: ComissaoTecnico[]; inicioSistema: string; fotos?: Record<string, string> }
+export interface DadosCarreira { mesAtual: string; carreira: CarreiraTecnico[]; comissoes: ComissaoTecnico[]; inicioSistema: string; fotos?: Record<string, string>; pontosMes?: Record<string, number> }
 
 let cache: { dados: DadosCarreira; em: number } | null = null
 let pedido: Promise<DadosCarreira> | null = null

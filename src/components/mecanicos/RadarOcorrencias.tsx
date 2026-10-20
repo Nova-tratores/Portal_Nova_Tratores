@@ -8,15 +8,26 @@
 //  • Linha do tempo do mês, motivos mais comuns e os últimos 6 meses.
 // Atualiza sozinho pelo Realtime (tecnico_ocorrencias / tecnico_justificativas).
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
+import { useModalMec, abrirModalMec, contagensMec } from './BotoesMecanicos'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts'
 import { authHeaders } from '@/lib/auth/client'
 import { supabase } from '@/lib/supabase'
 import { BASE_PONTOS, faixa, type Cat, type HistoricoPessoa, type LinhaEscudo, type OcorrenciaPainel } from '@/lib/mecanicos/ocorrencias-painel'
 import { Kpi, Cartao, EstilosCPV, useContador, brl } from './ui'
-import CarreiraComissoes from './CarreiraComissoes'
+import TecnicosDoMes from './TecnicosDoMes'
 import CartaLiga, { IconeLiga } from './CartaLiga'
 import { useCarreira } from './useCarreira'
-import HorasEquipe from './HorasEquipe'
+import { HorasEquipeCartoes } from './HorasOpcoes'
+import FantasmasMec from './FantasmasMec'
+import { TrilhoAssuntos, Secao, ESTILO_ASSUNTOS, type Assunto } from './PainelTecnicos'
+
+// assuntos da aba Mecânicos, com as bolinhas iguais às do Painel (José, 20/10/2026)
+const ASSUNTOS_MEC: Assunto[] = [
+  { n: 1, cor: '#2563eb', ic: 'fa-user-gear', titulo: 'Mecânicos do mês' },
+  { n: 2, cor: '#0891b2', ic: 'fa-clock', titulo: 'Horas da equipe' },
+  { n: 3, cor: '#7c3aed', ic: 'fa-ghost', titulo: 'Horas e km fantasmas' },
+]
 import { patente } from '@/lib/mecanicos/carreira'
 
 interface Resp {
@@ -48,7 +59,7 @@ const MUDO = 'var(--portal-text-muted, #64748b)'
 const BORDA = 'var(--portal-border, #e5e7eb)'
 
 const mesSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()).slice(0, 7)
-const nomeMes = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]} de ${m.slice(0, 4)}`
+const nomeMes = (m: string) => { const n = MESES[Number(m.slice(5, 7)) - 1] || ''; return `${n.charAt(0).toUpperCase()}${n.slice(1)} de ${m.slice(0, 4)}` }
 const mesCurto = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1].slice(0, 3)}/${m.slice(2, 4)}`
 const br = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const andarMes = (m: string, n: number) => {
@@ -74,6 +85,10 @@ export default function RadarOcorrencias() {
   const [tec, setTec] = useState<string | null>(null)
   const [cat, setCat] = useState<Cat | null>(null)
   const [aberta, setAberta] = useState<OcorrenciaPainel | null>(null)
+  // Tribunal e Ocorrências escondidos atrás dos botões do topo (José, 20/10/2026)
+  const { modal: ver } = useModalMec()
+  useEffect(() => { if (d) contagensMec(d.pendentes.length, d.ocorrencias.length) }, [d])
+  useEffect(() => () => abrirModalMec(null), [])
   const [hover, setHover] = useState<{ o: OcorrenciaPainel; x: number; y: number } | null>(null)
   const [julgando, setJulgando] = useState<number | null>(null)
   const [saindo, setSaindo] = useState<Set<number>>(new Set())
@@ -148,53 +163,52 @@ export default function RadarOcorrencias() {
     <div>
       <EstilosCPV />
       <EstilosRadar />
+      <style>{ESTILO_ASSUNTOS}</style>
       {carta != null && d && d.linhas.length > 0 && (
         <CartaLiga lista={d.linhas.map((l) => ({ tecnico: l.tecnico, escudo: l, carreira: carreira?.carreira.find((c) => c.tecnico === l.tecnico) }))}
           inicio={Math.min(carta, d.linhas.length - 1)} nomesCat={NOME_CAT} coresCat={COR_CAT} onFechar={() => setCarta(null)} />
       )}
 
-      {/* mês */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-        <button type="button" className="rdr-btn rdr-seta" onClick={() => setMes(andarMes(mes, -1))} aria-label="Mês anterior"><i className="fas fa-chevron-left" /></button>
-        <div style={{ fontSize: 15, fontWeight: 800, color: TXT, minWidth: 170, textAlign: 'center', textTransform: 'capitalize' }}>{nomeMes(mes)}</div>
-        <button type="button" className="rdr-btn rdr-seta" onClick={() => setMes(andarMes(mes, 1))} disabled={ehAtual} aria-label="Próximo mês"><i className="fas fa-chevron-right" /></button>
-        {!ehAtual && <button type="button" className="rdr-btn" onClick={() => setMes(mesSP())}>Mês atual</button>}
-        {carregando && <span style={{ fontSize: 12.5, color: MUDO }}><i className="fas fa-spinner fa-spin" /> carregando…</span>}
-        <span style={{ marginLeft: 'auto', fontSize: 12, color: MUDO, display: 'inline-flex', alignItems: 'center', gap: 6 }}><span className="cpv-pulso" style={{ width: 8, height: 8, borderRadius: '50%', background: '#16a34a' }} /> ao vivo · cada técnico começa o mês com {BASE_PONTOS} pontos</span>
+      {/* barra do mês: navegador de mês + Tribunal e Ocorrências (José, 20/10/2026: "algo profissional") */}
+      <div className="rdr-topo">
+      <div className="rdr-tb">
+        <div className="rdr-mes">
+          <button type="button" onClick={() => setMes(andarMes(mes, -1))} aria-label="Mês anterior"><i className="fas fa-chevron-left" /></button>
+          <span><i className="fas fa-calendar" /> {nomeMes(mes)}</span>
+          <button type="button" onClick={() => setMes(andarMes(mes, 1))} disabled={ehAtual} aria-label="Próximo mês"><i className="fas fa-chevron-right" /></button>
+        </div>
+        {!ehAtual && <button type="button" className="rdr-hoje" onClick={() => setMes(mesSP())}><i className="fas fa-rotate-left" /> Mês atual</button>}
+        {carregando && <span className="rdr-carr"><i className="fas fa-circle-notch fa-spin" /> carregando…</span>}
+        <span className="rdr-vivo" title={`ao vivo · cada mecânico começa o mês com ${BASE_PONTOS} pontos`}><span className="cpv-pulso" /></span>
       </div>
-
-      {/* horas da equipe no mês (saíram do Painel, 19/10) */}
-      <HorasEquipe mes={mes} />
+      {d && <TrilhoAssuntos topo assuntos={ASSUNTOS_MEC} />}
+      </div>
 
       {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
 
       {d && (
-        <div style={{ display: 'grid', gap: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12 }}>
-            <Kpi titulo="Ocorrências no mês" valor={tot.qtd} formato={(v) => String(Math.round(v))} cor="#0369a1" icone="fa-crosshairs" sub={comp ? <Seta atual={tot.qtd} antes={comp.qtdAnt} rotulo={`mês anterior ${comp.qtdAnt} · média ${comp.qtdMedia.toLocaleString('pt-BR')}`} /> : `${tot.auto} automáticas`} />
-            <Kpi titulo="Pontos descontados" valor={tot.pontos} formato={(v) => `−${Math.round(v)}`} cor="#dc2626" icone="fa-arrow-trend-down" atraso={60} sub={comp ? <Seta atual={tot.pontos} antes={comp.ptsAnt} rotulo={`mês anterior −${comp.ptsAnt} · média −${comp.ptsMedia.toLocaleString('pt-BR')}${valorPonto ? ` · ${brl(tot.pontos * valorPonto)}` : ''}`} /> : `média ${d.linhas.length ? Math.round(tot.pontos / d.linhas.length) : 0} por pessoa`} />
-            <Kpi titulo="Defesas para julgar" valor={tot.pend} formato={(v) => String(Math.round(v))} cor="#d97706" icone="fa-scale-balanced" atraso={120} destaque={tot.pend > 0} sub={tot.pend ? 'aguardando decisão' : 'nada pendente'} />
-            <Kpi titulo="Pontos anulados" valor={tot.anulados} formato={(v) => String(Math.round(v))} cor="#059669" icone="fa-shield-halved" atraso={180} sub="defesas aceitas" />
-          </div>
+        <div className="pt-amb" style={{ display: 'grid', gap: 14 }}>
 
-          {/* carreira (Ferro → Diamante) e comissões */}
-          <CarreiraComissoes />
+          {/* técnicos do mês: pódio + cartões com contador vivo; clicar abre a ficha completa
+              (José, 19/10/2026: "tira o primeiro e coloca esses dois" — saiu o bloco de Comissões) */}
+          <div id="oc-carreira" />
+          <div id="oc-radar" />
+          <Secao n={1} cor="#2563eb" ic="fa-user-gear" titulo="Mecânicos do mês" sub="clique no cartão para abrir a ficha completa: comissão, OS, frota, ocorrências e RH" primeira />
+          <TecnicosDoMes />
 
-          <div className="rdr-duas">
-            <Cartao titulo="Radar do mês" atraso={120} extra={filtro}>
-              <Radar ocs={filtradas} periodo={d.periodo} atual={ehAtual} cat={cat} onCat={(c) => setCat(cat === c ? null : c)} onHover={setHover} onAbrir={setAberta} />
-              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', justifyContent: 'center', fontSize: 11.5, color: MUDO, marginTop: 6 }}>
-                <span>centro = agora · borda = início do mês</span><span>tamanho = pontos</span><span>○ vazio = anulada</span><span>clique no quadrante para filtrar</span>
-              </div>
-            </Cartao>
-            <Cartao titulo="Escudos e ligas" atraso={180} extra={<span style={{ fontSize: 11.5, color: MUDO }}>clique no técnico para ver a carta</span>}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(135px, 1fr))', gap: 10 }}>
-                {d.linhas.map((l, i) => <Escudo key={l.tecnico} l={l} i={i} nivel={carreira?.carreira.find((c) => c.tecnico === l.tecnico)?.nivel} treme={tremer === l.tecnico} ativo={tec === l.tecnico} apagado={!!tec && tec !== l.tecnico} onClick={() => { setTec(l.tecnico); setCarta(i) }} />)}
-              </div>
-            </Cartao>
-          </div>
+          {/* horas da equipe no mês, embaixo dos cartões com foto (José, 20/10/2026: "inverte") */}
+          <div id="oc-horas" />
+          <Secao n={2} cor="#0891b2" ic="fa-clock" titulo="Horas da equipe" sub="horas de cada mecânico por semana e a meta da equipe" />
+          <HorasEquipeCartoes mes={mes} semTitulo />
 
-          <div className="rdr-duas">
+          {/* horas e km fantasmas: carro × relatório × OS × tempário (José, 20/10/2026) */}
+          <Secao n={3} cor="#7c3aed" ic="fa-ghost" titulo="Horas e km fantasmas" sub="carro, relatório, OS cobrada e tempário Mahindra lado a lado" />
+          <FantasmasMec mes={mes} />
+
+          {/* Tribunal e ocorrências ficam atrás dos botões do topo (José, 20/10/2026) */}
+          <div id="oc-tribunal" />
+          {ver === 'tribunal' && (
+            <JanelaMec titulo="Tribunal de defesas" sub={`${d.pendentes.length} defesa(s) esperando julgamento · ${nomeMes(mes)}`} ic="fa-gavel" cor="#92400e">
             <Cartao titulo={<>Tribunal de defesas {d.pendentes.length > 0 && <span className="rdr-badge">{d.pendentes.length}</span>}</>} atraso={240}>
               {d.pendentes.length === 0 ? (
                 <Vazio icone="fa-circle-check" texto="Nenhuma defesa esperando julgamento." />
@@ -227,6 +241,11 @@ export default function RadarOcorrencias() {
                 </div>
               )}
             </Cartao>
+            </JanelaMec>
+          )}
+          <div id="oc-pontos" />
+          {ver === 'ocorrencias' && (
+            <JanelaMec titulo="Ocorrências" sub={`${d.ocorrencias.length} no mês · ${nomeMes(mes)}`} ic="fa-clipboard-list" cor="#be123c">
             <Cartao titulo={tec ? `Linha do tempo · ${tec}` : 'Linha do tempo do mês'} atraso={300} extra={<>{filtro}<span style={{ fontSize: 11.5, color: MUDO }}>{filtradas.length} registro(s)</span></>}>
               {filtradas.length === 0 ? <Vazio icone="fa-face-smile" texto="Nenhuma ocorrência neste filtro." /> : (
                 <div className="rdr-linha" style={{ maxHeight: 460, overflowY: 'auto', paddingRight: 4 }}>
@@ -246,10 +265,6 @@ export default function RadarOcorrencias() {
                 </div>
               )}
             </Cartao>
-          </div>
-
-          {d.historico && d.meses && <Comparacao h={d.historico} meses={d.meses} valorPonto={valorPonto} onValor={mudarValor} onFoco={(t) => setTec(tec === t ? null : t)} foco={tec} />}
-
           <div className="rdr-duas">
             <Cartao titulo="O que mais tira pontos" atraso={360}>
               {d.motivos.length === 0 ? <Vazio icone="fa-face-smile" texto="Mês limpo até agora." /> : (
@@ -286,6 +301,8 @@ export default function RadarOcorrencias() {
               </div>
             </Cartao>
           </div>
+            </JanelaMec>
+          )}
         </div>
       )}
 
@@ -534,6 +551,26 @@ function Detalhe({ o, podeJulgar, julgando, onJulgar, onFechar }: { o: Ocorrenci
 function EstilosRadar() {
   return (
     <style>{`
+      .rdr-topo { position: sticky; top: 92px; z-index: 30; display: flex; gap: 10px; align-items: stretch; margin-bottom: 14px } .rdr-topo .pt-atalhos { position: static; margin: 0; flex: 1; min-width: 0 }
+      .rdr-tb { flex: none; display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 99px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05) }
+      .rdr-mes { display: inline-flex; align-items: center; gap: 2px; background: transparent; border-radius: 99px; padding: 0 }
+      .rdr-mes button { width: 30px; height: 30px; border-radius: 50%; border: none; background: transparent; color: #334155; cursor: pointer; transition: all .2s } .rdr-mes button:hover:not(:disabled) { background: #fefefe; color: #6d28d9; box-shadow: 0 1px 4px rgba(15,23,42,.1) } .rdr-mes button:disabled { opacity: .3; cursor: default }
+      .rdr-mes span { min-width: 140px; text-align: center; font-size: 14px; font-weight: 600; color: var(--portal-text, #0f172a) } .rdr-mes span i { color: #6d28d9; font-size: 12.5px; margin-right: 4px }
+      .rdr-hoje { border: 1px solid var(--portal-border, #e2e8f0); background: #fefefe; border-radius: 99px; padding: 5px 10px; font-family: inherit; font-size: 12.5px; font-weight: 800; color: #6d28d9; cursor: pointer }
+      .rdr-div { width: 1px; height: 30px; background: var(--portal-border, #e2e8f0) }
+      .rdr-abre { display: inline-flex; gap: 8px; flex-wrap: wrap }
+      .rdr-abre button { --cc: #6d28d9; display: inline-flex; gap: 10px; align-items: center; border: 1px solid var(--portal-border, #e2e8f0); background: #fefefe; color: var(--portal-text, #0f172a); border-radius: 12px; padding: 6px 12px 6px 6px; font-family: inherit; text-align: left; cursor: pointer; transition: border-color .2s, box-shadow .2s, background .2s }
+      .rdr-abre button.trib { --cc: #b45309 }
+      .rdr-abre button:hover { border-color: color-mix(in srgb, var(--cc) 40%, transparent); box-shadow: 0 4px 12px rgba(15,23,42,.07) }
+      .rdr-abre button.on { background: color-mix(in srgb, var(--cc) 8%, #fefefe); border-color: color-mix(in srgb, var(--cc) 45%, transparent); box-shadow: inset 0 -3px 0 var(--cc) }
+      .rdr-abre-ic { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; background: color-mix(in srgb, var(--cc) 12%, transparent); color: var(--cc); font-size: 14px; transition: all .2s } .rdr-abre button.on .rdr-abre-ic { background: var(--cc); color: #fefefe }
+      .rdr-abre-t { display: grid; line-height: 1.15 } .rdr-abre-t b { font-size: 13.5px; font-weight: 900 } .rdr-abre-t small { font-size: 11.5px; font-weight: 600; color: ${MUDO} }
+      .rdr-abre-n { min-width: 22px; height: 22px; border-radius: 99px; display: grid; place-items: center; padding: 0 6px; font-size: 12px; font-weight: 900; color: #fefefe; background: #f59e0b; box-shadow: 0 0 0 3px #fef3c7 }
+      .rdr-abre-seta { font-size: 11px; color: ${MUDO}; transition: transform .3s } .rdr-abre-seta.gira { transform: rotate(180deg) }
+      .rdr-carr { font-size: 12.5px; color: ${MUDO} }
+      .rdr-vivo { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; color: ${MUDO} } .rdr-vivo .cpv-pulso { width: 8px; height: 8px; border-radius: 50%; background: #16a34a }
+      @media (max-width: 900px) { .rdr-topo { flex-wrap: wrap } .rdr-div { display: none } .rdr-vivo { margin-left: 0 } .rdr-mes span { min-width: 130px } }
+      .rdr-painel { animation: rdrAbre .35s cubic-bezier(.2,.9,.3,1) both } @keyframes rdrAbre { from { opacity: 0; transform: translateY(-8px) } }
       .rdr-duas { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 14px }
       @media (max-width: 1000px) { .rdr-duas { grid-template-columns: 1fr } }
       .rdr-btn { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #334155); border-radius: 10px; padding: 7px 12px; font-weight: 700; font-size: 12.5px; cursor: pointer; font-family: inherit; text-decoration: none; transition: border-color .15s, box-shadow .15s, transform .1s }
@@ -585,3 +622,36 @@ function EstilosRadar() {
     `}</style>
   )
 }
+
+/** Janela do Tribunal e das Ocorrências (abertas pelos botões do topo, ao lado do Pódio — José, 20/10/2026). */
+function JanelaMec({ titulo, sub, ic, cor, children }: { titulo: string; sub: string; ic: string; cor: string; children: React.ReactNode }) {
+  useEffect(() => {
+    const t = (e: KeyboardEvent) => { if (e.key === 'Escape') abrirModalMec(null) }
+    window.addEventListener('keydown', t)
+    return () => window.removeEventListener('keydown', t)
+  }, [])
+  const tela = (
+    <div className="jm-fundo" onClick={() => abrirModalMec(null)}>
+      <style>{ESTILO_JM}</style>
+      <div className="jm" role="dialog" aria-label={titulo} onClick={(e) => e.stopPropagation()} style={{ '--jc': cor } as React.CSSProperties}>
+        <header className="jm-cab">
+          <span className="jm-ic"><i className={`fas ${ic}`} /></span>
+          <div><b>{titulo}</b><small>{sub}</small></div>
+          <button type="button" onClick={() => abrirModalMec(null)} aria-label="Fechar"><i className="fas fa-xmark" /></button>
+        </header>
+        <div className="jm-corpo">{children}</div>
+      </div>
+    </div>
+  )
+  return typeof document === 'undefined' ? tela : createPortal(tela, document.body)
+}
+const ESTILO_JM = `
+@keyframes jmFade { from { opacity: 0 } } @keyframes jmSobe { from { opacity: 0; transform: translateY(24px) scale(.97) } }
+.jm-fundo { position: fixed; inset: 0; z-index: 9300; background: rgba(15,23,42,.5); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: jmFade .2s both }
+.jm { width: min(1180px, 100%); max-height: 92vh; display: flex; flex-direction: column; background: var(--portal-bg, #f8fafc); border-radius: 22px; overflow: hidden; box-shadow: 0 30px 80px rgba(15,23,42,.35); animation: jmSobe .4s cubic-bezier(.2,1.1,.3,1) both }
+.jm-cab { display: flex; gap: 14px; align-items: center; padding: 16px 20px; background: linear-gradient(120deg, color-mix(in srgb, var(--jc) 10%, #fefefe), #fefefe); border-bottom: 1px solid var(--portal-border, #e2e8f0) }
+.jm-ic { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; font-size: 19px; color: #fefefe; background: var(--jc); box-shadow: 0 6px 16px color-mix(in srgb, var(--jc) 35%, transparent) }
+.jm-cab > div { flex: 1; display: grid } .jm-cab b { font-size: 19px; font-weight: 900; color: var(--portal-text, #0f172a) } .jm-cab small { font-size: 13px; color: var(--portal-text-muted, #64748b) }
+.jm-cab button { width: 36px; height: 36px; border-radius: 50%; border: none; background: var(--portal-bg, #f1f5f9); color: #334155; font-size: 16px; cursor: pointer } .jm-cab button:hover { background: #fee2e2; color: #dc2626 }
+.jm-corpo { flex: 1; overflow: auto; padding: 18px 20px 22px; display: grid; gap: 14px; align-content: start }
+`

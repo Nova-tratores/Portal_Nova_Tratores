@@ -157,6 +157,8 @@ interface Permissao {
   user_id: string
   is_admin: boolean
   is_dev?: boolean
+  /** Diretor: autoriza o lançamento das comissões (e outras aprovações) — 20/10/2026 */
+  is_diretor?: boolean
   categoria: string
   modulos_permitidos: string[]
   mecanico_role: 'tecnico' | 'observador' | null
@@ -866,6 +868,12 @@ export default function AdminPage() {
                   </select>
                 )
               })()}
+
+              {/* Diretor: autoriza o lançamento das comissões (papel à parte do nível — 20/10/2026) */}
+              <button type="button" onClick={() => salvar(user.id, { is_diretor: !perm?.is_diretor })} title="Diretor autoriza o lançamento das comissões dos técnicos"
+                style={{ padding: '6px 12px', borderRadius: '8px', border: `1px solid ${perm?.is_diretor ? '#047857' : '#e5e5e5'}`, background: perm?.is_diretor ? '#ecfdf5' : '#fff', color: perm?.is_diretor ? '#047857' : '#737373', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
+                {perm?.is_diretor ? '✓ Diretor' : 'Diretor'}
+              </button>
 
               {/* Categoria */}
               <div>

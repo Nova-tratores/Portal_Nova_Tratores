@@ -15,7 +15,7 @@ const supabase = createClient(
 )
 
 // Campos que um admin pode alterar. is_dev é tratado à parte (só Dev pode mudar).
-const CAMPOS = ['is_admin', 'categoria', 'modulos_permitidos', 'mecanico_role', 'mecanico_tecnico_nome'] as const
+const CAMPOS = ['is_admin', 'is_diretor', 'categoria', 'modulos_permitidos', 'mecanico_role', 'mecanico_tecnico_nome'] as const
 
 export async function POST(req: NextRequest) {
   const auth = await autenticar(req)

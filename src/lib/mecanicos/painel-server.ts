@@ -20,6 +20,7 @@ import { carregarDiretorio } from '@/lib/agenda/server'
 import { normTexto } from '@/lib/agenda/regras'
 import { SEM_TECNICO, motivoInterna, ehCustoTerceiro, type DiaRegistrado, type InternaFechada, type OSFaturada, type ReqCusto } from './painel'
 import { CODIGOS_INTERNOS, CONTA_INTERNO } from '@/lib/pos/omie-espelho'
+import { casarNome } from './ocorrencias-painel'
 
 const CODIGOS = CODIGOS_INTERNOS.map((c) => c.codigo)
 const normC = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase().replace(/s+/g, ' ')
@@ -215,7 +216,18 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
       requisicoes: reqsPorOS.get(String(o.Id_Ordem)) || [],
     })
   }
-  // OS que só existe no Omie (sem OS no portal)
+  // OS que só existe no Omie (sem OS no portal): técnico e cliente vêm da Pasta Clientes
+  // ("Técnicos: José Antonio de Oliveira // Gabriel Moraes") — sem isso a OS ficava sem técnico e a
+  // comissão/faturamento dela iam para "Sem técnico" (achado na ficha do técnico, 19/10/2026)
+  // Os técnicos do OMIE de toda OS também vão em `tecnicosOmie`: a comissão sai por eles (o painel do
+  // Omie usa o "vendedor" da OS) e às vezes diferem do portal (OS 5293: Gabriel no portal, Danilo no Omie).
+  const numsPasta = [...new Set([...omiePorNum.keys(), ...faturadas.map((o) => o.numeroOmie || '')].filter(Boolean))]
+  const daPasta = new Map<string, { cliente: string; tecnicos: string[] }>()
+  for (let i = 0; i < numsPasta.length; i += 200) {
+    const { data } = await sb.from('portal_nt_clientes_os').select('num_os, cliente_nome, vendedor').eq('empresa', 'Nova Tratores').in('num_os', numsPasta.slice(i, i + 200))
+    for (const r of (data || []) as Rec[]) daPasta.set(semZeros(r.num_os), { cliente: String(r.cliente_nome || ''), tecnicos: tecnicosDoTexto(r.vendedor, padronizar, tecnicos) })
+  }
+  for (const f of faturadas) { const t = f.numeroOmie ? daPasta.get(f.numeroOmie)?.tecnicos : undefined; if (t?.length) f.tecnicosOmie = t }
   for (const [n, o] of omiePorNum) {
     if (numsDoPortal.has(n)) continue
     // toda OS faturada que não seja contrato interno ("-pgo" = montadora paga, entra) — inclusive serviço
@@ -225,9 +237,9 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
     // comissão de venda de equipamento (ex.: GTM, venda direta) não é serviço do pós-vendas (José, 17/10/2026)
     if (!(o.horas > 0 || o.km > 0) && /comiss[aã]o/i.test(o.texto)) continue
     faturadas.push({
-      os: `OMIE ${n}`, numeroOmie: n, cliente: '', data: o.data, em: null, tecnicos: [],
+      os: `OMIE ${n}`, numeroOmie: n, cliente: daPasta.get(n)?.cliente || '', data: o.data, em: null, tecnicos: daPasta.get(n)?.tecnicos || [],
       horasCobradas: o.horas, km: o.km, servico: o.vh, kmValor: o.vk, pecas: 0, outros: o.outros,
-      bruto: o.vh + o.vk + o.outros, custo: 0,
+      bruto: o.vh + o.vk + o.outros, custo: 0, tecnicosOmie: daPasta.get(n)?.tecnicos,
     })
   }
 
@@ -248,15 +260,23 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
       motivo, data, valor: Math.round((om ? om.vh + om.vk + om.outros : num(o.Valor_Total)) * 100) / 100,
       horas: om ? om.horas : num(o.Qtd_HR), tecnicos: [...new Set([o.Os_Tecnico, o.Os_Tecnico2].map(padronizar).filter(Boolean))],
       valorHoras: Math.round((om ? om.vh : num(o.Qtd_HR) * (num(o.Valor_HR) || vhPadrao)) * 100) / 100,
+      tecnicosOmie: n ? daPasta.get(n)?.tecnicos : undefined,
     })
   }
   for (const [n, o] of omiePorNum) {
     if (numsDoPortal.has(n)) continue
     if (!motivoInterna({ contratos: [o.contrato] }, CONTA_INTERNO, CODIGOS)) continue
-    internasFechadas.push({ os: `OMIE ${n}`, numeroOmie: n, cliente: '', contrato: contratoOficial(o.contrato), motivo: `contrato ${o.contrato}`, data: o.data, valor: Math.round((o.vh + o.vk + o.outros) * 100) / 100, horas: o.horas, tecnicos: [], valorHoras: o.vh })
+    internasFechadas.push({ os: `OMIE ${n}`, numeroOmie: n, cliente: daPasta.get(n)?.cliente || '', contrato: contratoOficial(o.contrato), motivo: `contrato ${o.contrato}`, data: o.data, valor: Math.round((o.vh + o.vk + o.outros) * 100) / 100, horas: o.horas, tecnicos: daPasta.get(n)?.tecnicos || [], valorHoras: o.vh })
   }
 
   return { tecnicos, faturadas, diasTodos, dias: diasTodos.filter((d) => d.data >= de && d.data <= ate), osInternas, internasFechadas }
+}
+
+/** "Técnicos: José Antonio de Oliveira // Gabriel Moraes" (vendedor da OS no Omie) → nomes do portal. */
+export function tecnicosDoTexto(texto: unknown, padronizar: (n: unknown) => string, cadastro: string[]): string[] {
+  const corpo = String(texto ?? '').replace(/^[^:]*t[ée]cnicos?\s*:/i, '')
+  const nomes = corpo.split(/\/\/|\/|&|\s+e\s+/i).map((x) => x.trim()).filter((x) => x.length > 2)
+  return [...new Set(nomes.map((x) => { const p = padronizar(x); return cadastro.includes(p) ? p : casarNome(x, cadastro) || p }).filter(Boolean))]
 }
 
 /** Dia em que a OS fechou: o carimbo do portal (faturado_omie_em) quando cai no MESMO mês do espelho

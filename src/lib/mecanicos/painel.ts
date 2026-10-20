@@ -52,6 +52,8 @@ export interface OSFaturada {
   nota?: boolean
   /** descontos dados na OS (R$): hora, km, desconto geral e peças (desconto do PPV) */
   descontos?: Descontos
+  /** técnicos como estão no OMIE ("vendedor" da OS) — a comissão sai por eles; pode diferir do portal */
+  tecnicosOmie?: string[]
 }
 
 export interface Descontos { hora: number; km: number; geral: number; pecas: number }
@@ -63,6 +65,8 @@ export interface InternaFechada {
   data: string; valor: number; horas: number; tecnicos: string[]
   /** R$ das horas (base da comissão); só na leitura ao vivo, não fica na tabela */
   valorHoras?: number
+  /** técnicos como estão no OMIE (comissão) */
+  tecnicosOmie?: string[]
 }
 
 /** Requisição que entra no custo de terceiros da OS. */
@@ -375,13 +379,14 @@ export function osAguardandoFaturar(base: BaseDados): Set<string> {
   return new Set((base.pendencias || []).filter((p) => p.tipo === 'preenchida').map((p) => p.os))
 }
 
-export function montarPainel(baseBruta: BaseDados, tipo: 'dia' | 'semana' | 'mes' | 'ano', ref: string, hoje: string) {
+/** comAguardando = false: as horas de OS preenchidas ainda não faturadas NÃO entram (caixinha da tela, José 20/10/2026). */
+export function montarPainel(baseBruta: BaseDados, tipo: 'dia' | 'semana' | 'mes' | 'ano', ref: string, hoje: string, comAguardando = true) {
   const base = agruparBase(baseBruta)
   const buckets = periodos(tipo, ref, QTD_SERIE[tipo])
   const atual = buckets[buckets.length - 1]
   const p = pesosPorOS(base.diasTodos)
   const ate = (b: Bucket) => (b.ate > hoje ? hoje : b.ate)
-  const aguardandoOS = osAguardandoFaturar(base)
+  const aguardandoOS = comAguardando ? osAguardandoFaturar(base) : new Set<string>()
   // custo do técnico: salário do mês inteiro (mês/ano) + comissão do RH ou, sem ela, a PREVISTA
   // (regra do painel Omie; no mês em andamento, projetada até o fim do mês)
   const pctTodos = base.pctComissao || {}

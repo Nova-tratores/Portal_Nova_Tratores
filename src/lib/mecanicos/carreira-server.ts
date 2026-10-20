@@ -7,14 +7,16 @@ import { carregarPendencias } from './pendencias-server'
 import { comissoesRH } from './rh-server'
 import { casarNome } from './ocorrencias-painel'
 import { carreiraDe, pesoOcorrencia, type CarreiraTecnico } from './carreira'
-import { calcularComissoes, previsaoPagamento, projetarMes, type ComissaoMes } from './comissao'
+import { previsaoPagamento, projetarMes, type ComissaoMes } from './comissao'
+import { comissaoDoTecnico } from './comissao-detalhe'
+import { ajustesDeComissao, pctsDasOS } from './comissao-server'
+import { lerRegrasComissao } from './regras-comissao-server'
 import { comCache } from './cache'
 import { carregarDiretorio } from '@/lib/agenda/server'
 
 type Rec = Record<string, unknown>
 const hojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
 const mesAntes = (m: string) => { const [a, mm] = m.split('-').map(Number); return mm === 1 ? `${a - 1}-12` : `${a}-${String(mm - 1).padStart(2, '0')}` }
-const fimDoMes = (m: string) => { const [a, mm] = m.split('-').map(Number); return `${m}-${String(new Date(Date.UTC(a, mm, 0)).getUTCDate()).padStart(2, '0')}` }
 
 export interface ComissaoTecnico {
   tecnico: string
@@ -23,8 +25,8 @@ export interface ComissaoTecnico {
   anterior: ComissaoMes & { rh: { valor: number; status: string } | null; pagamento: string }
 }
 
-export async function carreiraEComissoes(forcar = false): Promise<{ mesAtual: string; carreira: CarreiraTecnico[]; comissoes: ComissaoTecnico[]; inicioSistema: string; fotos: Record<string, string> }> {
-  const r = await comCache('carreira:v2', 10 * 60_000, gerar, forcar)
+export async function carreiraEComissoes(forcar = false): Promise<{ mesAtual: string; carreira: CarreiraTecnico[]; comissoes: ComissaoTecnico[]; inicioSistema: string; fotos: Record<string, string>; pontosMes: Record<string, number> }> {
+  const r = await comCache('carreira:v4', 10 * 60_000, gerar, forcar)
   return r.dados
 }
 
@@ -69,8 +71,16 @@ async function gerar() {
   }
   const base = await carregarBase(`${mesAnt}-01`, hoje)
   const pend = await carregarPendencias(new Set(base.faturadas.map((o) => o.os)), padronizar).catch(() => [])
-  const calcAtual = calcularComissoes(`${mesAtual}-01`, hoje, pct, base.faturadas, base.internasFechadas, pend)
-  const calcAnt = calcularComissoes(`${mesAnt}-01`, fimDoMes(mesAnt), pct, base.faturadas, base.internasFechadas)
+  // mesma conta da ficha do técnico (comissao-detalhe.ts): técnicos do Omie + ajustes manuais por OS —
+  // bateu com o RH até o centavo em 10 de 12 meses×técnico (jul–set/2026)
+  const ajustes = await ajustesDeComissao([...new Set([...base.faturadas, ...base.internasFechadas].flatMap((o) => [o.numeroOmie || o.os, o.os]).filter(Boolean))] as string[]).catch(() => new Map())
+  const regras = await lerRegrasComissao().catch(() => undefined)
+  const pctPorOS = await pctsDasOS([...new Set([...base.faturadas, ...base.internasFechadas, ...pend].map((o) => o.os))]).catch(() => new Map())
+  const calc = (mes: string) => Object.fromEntries(Object.keys(pct).map((t) => {
+    const c = comissaoDoTecnico({ tecnico: t, mes, hoje, pct: pct[t], faturadas: base.faturadas, internas: base.internasFechadas, pendencias: mes === mesAtual ? pend : [], ajustes, regras, pctPorOS })
+    return [t, { faturadas: c.faturadas, internas: c.internas, total: c.total, aguardando: c.aguardando, qtdOS: c.qtdOS } as ComissaoMes]
+  }))
+  const calcAtual = calc(mesAtual), calcAnt = calc(mesAnt)
   const rh = await comissoesRH([mesAnt, mesAtual], padronizar, tecnicos).catch(() => ({} as Awaited<ReturnType<typeof comissoesRH>>))
   const vazio: ComissaoMes = { faturadas: 0, internas: 0, total: 0, aguardando: 0, qtdOS: 0 }
   const comissoes: ComissaoTecnico[] = Object.keys(pct)
@@ -90,5 +100,8 @@ async function gerar() {
     const dir = await carregarDiretorio()
     for (const p of dir.pessoas) if (p.avatar_url && p.tecnico) fotos[tecnicos.includes(p.nome) ? p.nome : padronizar(p.nome)] = p.avatar_url
   } catch { /* sem fotos: iniciais */ }
-  return { mesAtual, carreira, comissoes, inicioSistema, fotos }
+  // pontos descontados no mês (sem peso), como os escudos de 100 pts das Ocorrências
+  const pontosMes: Record<string, number> = {}
+  for (const o of ocs) if (o.vale && o.data.startsWith(mesAtual)) pontosMes[o.tecnico] = (pontosMes[o.tecnico] || 0) + o.pontos
+  return { mesAtual, carreira, comissoes, inicioSistema, fotos, pontosMes }
 }

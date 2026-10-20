@@ -16,16 +16,18 @@ import { DinheiroSimulador, contaDe, ESTILO_DX } from './DinheiroOpcoes'
 import FaturamentoVivo from './FaturamentoVivo'
 import { useParadoVivo } from './DinheiroParado'
 import { ParadoFilaEstilo, ESTILO_PA } from './ParadoOpcoes'
+import { GarantiasNoPainel, ESTILO_GX } from './GarantiaOpcoes'
 import Comparador, { type PessoaComparada } from './Comparador'
 import CartaJogo, { type DadosCarta } from './CartaJogo'
 import { faltasCartao, montarPainel, agruparBase, andarPeriodo, grupoDe, SEM_META, SEM_TECNICO, type Escala, type PainelMontado } from '@/lib/mecanicos/painel'
 import { faixa } from '@/lib/mecanicos/ocorrencias-painel'
 import { authHeaders } from '@/lib/auth/client'
 import { useBasePosVendas } from './useBasePosVendas'
+import { EvolucaoViva, pontosDoPainel, ESTILO_EV } from './EvolucaoOpcoes'
 import type { Pendencia } from '@/lib/mecanicos/pendencias'
+import { useComAguardando, CaixaAguardando } from './useComAguardando'
 
 type Resp = PainelMontado & { geradoEm?: string }
-type Metrica = 'bruto' | 'resultado' | 'faturadas' | 'gastos'
 
 const hojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
 const br = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
@@ -33,19 +35,17 @@ interface OSInterna { os: string; cliente: string; motivo: string; horas: number
 const MUDO = 'var(--portal-text-muted, #64748b)'
 const COR_GASTO = '#ea580c'
 const COR_RESULT = '#0f766e'
-const ESTILO_SIM = `.pt-secao { display: flex; gap: 12px; align-items: center; margin: 34px 0 14px; animation: cpvEntra .45s both } .pt-secao.primeira { margin-top: 6px }
+const ESTILO_SECAO = `.pt-secao { display: flex; gap: 12px; align-items: center; margin: 34px 0 14px; animation: cpvEntra .45s both } .pt-secao.primeira { margin-top: 6px }
 .pt-secao-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; background: color-mix(in srgb, var(--c) 12%, var(--portal-bg-card, #fefefe)); color: var(--c); font-size: 15px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 22%, transparent) }
 .pt-secao > div { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; flex-shrink: 0 } .pt-secao em { font-style: normal; font-size: 11px; font-weight: 900; color: var(--c); letter-spacing: .06em } .pt-secao small { grid-column: 2 } .pt-secao b { font-size: 16px; font-weight: 900; color: var(--portal-text, #0f172a); letter-spacing: -.01em } .pt-secao small { font-size: 12.5px; color: var(--portal-text-muted, #64748b) }
-.pt-secao-linha { flex: 1; height: 2px; border-radius: 99px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, transparent), transparent 70%); align-self: center; margin-left: 6px; transform-origin: left; animation: ptLinha .8s .15s cubic-bezier(.2,.8,.2,1) both } @keyframes ptLinha { from { transform: scaleX(0) } }
-.pt-horas2 { display: flex; gap: 6px 8px; align-items: center; flex-wrap: wrap; margin: 12px 0; padding: 8px 12px; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 14px; background: var(--portal-bg-card, #fefefe) } .pt-horas2 > b { font-size: 14px; color: var(--portal-text, #0f172a); margin-right: 4px } .pt-horas2 > b i { color: #0891b2 } .pt-horas2 > span, .pt-horas2 > button { display: inline-flex; gap: 6px; align-items: center; font-family: inherit; font-size: 13px; color: var(--portal-text-muted, #64748b); background: var(--portal-bg-secondary, #f8fafc); border: 1px solid transparent; border-radius: 99px; padding: 4px 11px } .pt-horas2 > button { cursor: pointer } .pt-horas2 > button:hover { border-color: #8b5cf6 } .pt-horas2 i { width: 9px; height: 9px; border-radius: 3px; display: inline-block } .pt-horas2 span b, .pt-horas2 button b { color: var(--portal-text, #0f172a); font-size: 13.5px } .pt-horas2 em { font-style: normal; font-size: 11.5px; font-weight: 800; color: #0891b2 } .pt-horas2 > small { margin-left: auto; font-size: 12px; color: var(--portal-text-muted, #64748b) }
+.pt-secao-linha { flex: 1; height: 2px; border-radius: 99px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, transparent), transparent 70%); align-self: center; margin-left: 6px; transform-origin: left; animation: ptLinha .8s .15s cubic-bezier(.2,.8,.2,1) both } @keyframes ptLinha { from { transform: scaleX(0) } }`
+const ESTILO_SIM = `.pt-horas2 { display: flex; gap: 6px 8px; align-items: center; flex-wrap: wrap; margin: 12px 0; padding: 8px 12px; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 14px; background: var(--portal-bg-card, #fefefe) } .pt-horas2 > b { font-size: 14px; color: var(--portal-text, #0f172a); margin-right: 4px } .pt-horas2 > b i { color: #0891b2 } .pt-horas2 > span, .pt-horas2 > button { display: inline-flex; gap: 6px; align-items: center; font-family: inherit; font-size: 13px; color: var(--portal-text-muted, #64748b); background: var(--portal-bg-secondary, #f8fafc); border: 1px solid transparent; border-radius: 99px; padding: 4px 11px } .pt-horas2 > button { cursor: pointer } .pt-horas2 > button:hover { border-color: #8b5cf6 } .pt-horas2 i { width: 9px; height: 9px; border-radius: 3px; display: inline-block } .pt-horas2 span b, .pt-horas2 button b { color: var(--portal-text, #0f172a); font-size: 13.5px } .pt-horas2 em { font-style: normal; font-size: 11.5px; font-weight: 800; color: #0891b2 } .pt-horas2 > small { margin-left: auto; font-size: 12px; color: var(--portal-text-muted, #64748b) }
 .pt-sim { margin: 14px 0; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; background: var(--portal-bg-card, #fefefe); overflow: hidden } .pt-sim > summary { cursor: pointer; list-style: none; display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; padding: 14px 18px; font-size: 16px; font-weight: 900; color: var(--portal-text, #0f172a) } .pt-sim > summary::-webkit-details-marker { display: none } .pt-sim > summary i { color: #7c3aed } .pt-sim > summary small { font-size: 12.5px; font-weight: 600; color: var(--portal-text-muted, #64748b) } .pt-sim > summary::after { content: "▸"; margin-left: auto; transition: transform .25s } .pt-sim[open] > summary::after { transform: rotate(90deg) } .pt-sim > .dx-caixa { border: none; border-top: 1px dashed var(--portal-border, #e5e7eb); border-radius: 0; animation: dxEntra .35s both }`
 const ROTULO_HIST: Record<Escala, string> = { dia: 'últimos 14 dias', semana: 'últimas 8 semanas', mes: 'últimos 6 meses', ano: 'últimos 3 anos' }
-const METRICAS: [Metrica, string][] = [['bruto', 'Faturado'], ['resultado', 'Resultado'], ['faturadas', 'Horas faturadas'], ['gastos', 'Gastos']]
 
 export default function PainelTecnicos() {
   const [tipo, setTipo] = useState<Escala>('semana')
   const [ref, setRef] = useState(hojeSP)
-  const [metrica, setMetrica] = useState<Metrica>('bruto')
   const [ficha, setFicha] = useState<string | null>(null)
   const [listaOS, setListaOS] = useState<{ titulo: string; os: OSFaturada[] } | null>(null)
   const [verInternas, setVerInternas] = useState(false)
@@ -73,7 +73,8 @@ export default function PainelTecnicos() {
       return { ...o, bruto: o.bruto / n, horasCobradas: o.horasCobradas / n, servico: o.servico / n, km: o.km / n, kmValor: o.kmValor / n, pecas: o.pecas / n, outros: o.outros / n }
     })
   }, [agrupada, focoFita])
-  const d: Resp | null = useMemo(() => (base ? { ...montarPainel(base, tipo, ref, hojeSP()), geradoEm: base.geradoEm } : null), [base, tipo, ref])
+  const comAg = useComAguardando()
+  const d: Resp | null = useMemo(() => (base ? { ...montarPainel(base, tipo, ref, hojeSP(), comAg), geradoEm: base.geradoEm } : null), [base, tipo, ref, comAg])
 
   // pontos de ocorrência do mês do período (escudo de 100)
   const mesRef = ref.slice(0, 7)
@@ -179,28 +180,26 @@ export default function PainelTecnicos() {
     }
   })
 
-  const serie = (d?.serie || []).map((b, i) => {
-    const gs = d!.gastosSerie[i]
-    const v = metrica === 'bruto' ? b.total.bruto : metrica === 'faturadas' ? b.total.faturadas : metrica === 'gastos' ? gs?.total || 0 : b.total.liquido - (gs ? gs.total : 0) - (d!.equipeSerie[i] || 0)
-    return { rotulo: b.rotulo, de: b.de, valor: Math.round(v * 10) / 10, atual: ref >= b.de && ref <= b.ate }
-  })
-  const corMetrica = metrica === 'bruto' ? '#0369a1' : metrica === 'faturadas' ? COR.faturadas : metrica === 'gastos' ? COR_GASTO : COR_RESULT
 
   return (
     <div>
       <EstilosCPV />
+      <style>{ESTILO_EV}</style>
       <style>{ESTILO}</style>
       <FaturamentoVivo compacto />
       <style>{ESTILO_SO}</style>
       <style>{ESTILO_DX}</style>
       <style>{ESTILO_SIM}</style>
       <style>{ESTILO_PA}</style>
+      <style>{ESTILO_GX}</style>
       <style>{ESTILO_TRILHO}</style>
+      <style>{ESTILO_SECAO}</style>
       <div className="pt-amb">
       <TrilhoAssuntos topo />
       <div className="pt-corpo">
       {/* P3 "Cartões de período" escolhida na página de teste (19/10) no lugar da fita antiga (SeletorTempo) */}
       <Secao n={1} cor="#2563eb" ic="fa-chart-column" titulo="Faturamento por período" sub="escolha a semana, o mês ou o ano: o resto da tela segue" primeira />
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -6, marginBottom: 8 }}><CaixaAguardando /></div>
       {fatFita && <SeletorCartoes faturadas={fatFita} hoje={hojeSP()} escala={tipo} refDia={ref} onMudar={(e, r) => { setTipo(e); setRef(r) }} carregando={carregando} onAtualizar={() => void recarregar()} />}
       {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
       {!d && carregando && <div style={{ padding: 40, textAlign: 'center', color: MUDO }}><i className="fas fa-circle-notch fa-spin" /> carregando o histórico…</div>}
@@ -229,12 +228,9 @@ export default function PainelTecnicos() {
           <Secao n={3} cor="#d97706" ic="fa-hourglass-half" titulo="Dinheiro parado" sub="OS feitas e ainda não faturadas, agora" />
           {base && <ParadoNoPainel inicial={base.pendencias || []} />}
 
-          {apoio.length > 0 && <Secao n={4} cor="#7c3aed" ic="fa-users-gear" titulo="Apoio ao pós-vendas" sub="Garantia e Outros: o que custam e o que passa por eles" />}
-          {apoio.length > 0 && <Apoio linhas={apoio} salarios={d!.equipe.porPessoa} gastoDe={(n) => gastoDe(n)?.total || 0}
-            pendencias={(base?.pendencias || []).filter((p) => (p.garantia || p.tecnicos.map(grupoDe).includes('Garantia')) && p.tipo === 'preenchida')}
-            garantias={d!.os.filter((o) => o.garantia)}
-            onOS={(n) => setListaOS({ titulo: n, os: osDoTecnico(n) })}
-            onGarantias={() => setListaOS({ titulo: 'garantias faturadas', os: d!.os.filter((o) => o.garantia) })} />}
+          <Secao n={4} cor="#7c3aed" ic="fa-users-gear" titulo="Garantias" sub="garantias direto do módulo" />
+          <GarantiasNoPainel />
+          {/* bloco "Apoio ao pós-vendas" (Outros) removido a pedido do José, 19/10/2026 */}
           {semTecnico && semTecnico.bruto > 0 && (
             <button type="button" className="pt-sem" onClick={() => setListaOS({ titulo: 'sem técnico (abertas direto no Omie)', os: osDoTecnico(SEM_TECNICO) })}>
               <i className="fas fa-circle-info" /> {brl(semTecnico.bruto)} faturados em {Math.round(semTecnico.os)} OS sem técnico (abertas direto no Omie) <u>ver</u>
@@ -243,25 +239,9 @@ export default function PainelTecnicos() {
 
           <Secao n={5} cor="#0891b2" ic="fa-chart-line" titulo="Evolução" sub="faturado, resultado, horas e gastos ao longo dos períodos" />
           {/* 5. evolução */}
-          <Cartao titulo="Evolução" atraso={200}
-            extra={<div className="pt-metricas">{METRICAS.map(([k, r]) => <button key={k} type="button" className={metrica === k ? 'pt-m-on' : ''} onClick={() => setMetrica(k)}>{r}</button>)}</div>}>
-            <div style={{ height: 240 }}>
-              <ResponsiveContainer>
-                <BarChart data={serie} margin={{ left: 0, right: 8, top: 18 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148,163,184,.25)" />
-                  <XAxis dataKey="rotulo" tick={{ fontSize: 12.5 }} />
-                  <YAxis tick={{ fontSize: 11.5 }} width={48} tickFormatter={(v: number) => (metrica === 'faturadas' ? `${v}h` : v >= 1000 || v <= -1000 ? `${Math.round(v / 1000)}k` : String(v))} />
-                  <Tooltip formatter={(v: number) => (metrica === 'faturadas' ? horas(v) : brl2(v))} cursor={{ fill: 'rgba(148,163,184,.12)' }} />
-                  {metrica === 'resultado' && <ReferenceLine y={0} stroke="#94a3b8" />}
-                  <Bar dataKey="valor" name={METRICAS.find(([k]) => k === metrica)![1]} radius={[6, 6, 0, 0]} animationDuration={700} cursor="pointer"
-                    onClick={(x: { de?: string }) => x.de && setRef(x.de)}
-                    label={{ position: 'top', fontSize: 11, fill: '#64748b', formatter: (v: number) => (metrica === 'faturadas' ? `${Math.round(v)}h` : Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : '') } as never}>
-                    {serie.map((s, i) => <Cell key={i} fill={s.atual ? corMetrica : `${corMetrica}66`} />)}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-            <div style={{ fontSize: 12, color: MUDO }}>Clique numa barra para ir para aquele período. Resultado = faturado − terceiros − gastos − pessoal do período.</div>
+          <Cartao titulo="Evolução" atraso={200}>
+            {/* E1 animada (José, 19/10/2026: "pode ser esse, mas deixa animado") */}
+            {d && <EvolucaoViva pontos={pontosDoPainel(d, ref)} onIr={setRef} />}
           </Cartao>
         </div>
       )}
@@ -285,29 +265,31 @@ export default function PainelTecnicos() {
 
 const COR_AGUARDANDO = '#f59e0b'
 
+
 /** Dinheiro parado ao vivo, no estilo E1b escolhido na página de teste (19/10). */
 function ParadoNoPainel({ inicial }: { inicial: import('@/lib/mecanicos/pendencias').Pendencia[] }) {
   const pend = useParadoVivo(inicial)
   return <div style={{ marginBottom: 14 }}><ParadoFilaEstilo estilo="cheio" pendencias={pend} /></div>
 }
 
-const ASSUNTOS = [
+export interface Assunto { n: number; cor: string; ic: string; titulo: string }
+const ASSUNTOS: Assunto[] = [
   { n: 1, cor: '#2563eb', ic: 'fa-chart-column', titulo: 'Faturamento por período' },
   { n: 2, cor: '#0f766e', ic: 'fa-sack-dollar', titulo: 'Para onde foi o dinheiro' },
   { n: 3, cor: '#d97706', ic: 'fa-hourglass-half', titulo: 'Dinheiro parado' },
-  { n: 4, cor: '#7c3aed', ic: 'fa-users-gear', titulo: 'Apoio ao pós-vendas' },
+  { n: 4, cor: '#7c3aed', ic: 'fa-users-gear', titulo: 'Garantias' },
   { n: 5, cor: '#0891b2', ic: 'fa-chart-line', titulo: 'Evolução' },
 ]
 
 /** Trilho de assuntos ao lado (N3 escolhida na página de teste, 19/10): a bolinha do assunto em que você está
  *  acende, a linha vai enchendo conforme rola e clicar leva até o assunto. */
-function TrilhoAssuntos({ mostrar = true, topo = false }: { mostrar?: boolean; topo?: boolean }) {
+export function TrilhoAssuntos({ mostrar = true, topo = false, assuntos = ASSUNTOS }: { mostrar?: boolean; topo?: boolean; assuntos?: Assunto[] }) {
   const [atual, setAtual] = useState(1)
   const [prog, setProg] = useState(0)
   const [existe, setExiste] = useState<number[]>([1])
   useEffect(() => {
     const medir = () => {
-      const els = ASSUNTOS.map((a) => document.getElementById(`sec-${a.n}`)).filter((x): x is HTMLElement => !!x)
+      const els = assuntos.map((a) => document.getElementById(`sec-${a.n}`)).filter((x): x is HTMLElement => !!x)
       if (!els.length) return
       const linha = window.innerHeight * 0.35
       const tops = els.map((e) => e.getBoundingClientRect().top)
@@ -316,7 +298,7 @@ function TrilhoAssuntos({ mostrar = true, topo = false }: { mostrar?: boolean; t
       const ate = tops[i + 1] ?? tops[i] + 600
       const parcial = Math.max(0, Math.min(1, (linha - tops[i]) / Math.max(1, ate - tops[i])))
       setAtual(Number(els[i].id.slice(4)))
-      document.documentElement.style.setProperty('--cpv-amb', ASSUNTOS.find((a) => a.n === Number(els[i].id.slice(4)))?.cor || '#2563eb')
+      document.documentElement.style.setProperty('--cpv-amb', assuntos.find((a) => a.n === Number(els[i].id.slice(4)))?.cor || '#2563eb')
       els.forEach((e, k) => e.classList.toggle('pt-atual', k === i))
       setProg(els.length > 1 ? Math.min(1, (i + parcial) / (els.length - 1)) : 0)
       setExiste(els.map((e) => Number(e.id.slice(4))))
@@ -327,9 +309,9 @@ function TrilhoAssuntos({ mostrar = true, topo = false }: { mostrar?: boolean; t
     document.addEventListener('scroll', medir, { capture: true, passive: true })
     window.addEventListener('resize', medir)
     return () => { clearInterval(t); document.removeEventListener('scroll', medir, { capture: true }); window.removeEventListener('resize', medir); document.documentElement.style.removeProperty('--cpv-amb') }
-  }, [])
-  const lista = ASSUNTOS.filter((a) => existe.includes(a.n))
-  const cor = ASSUNTOS.find((a) => a.n === atual)?.cor || '#2563eb'
+  }, [assuntos])
+  const lista = assuntos.filter((a) => existe.includes(a.n))
+  const cor = assuntos.find((a) => a.n === atual)?.cor || '#2563eb'
   const ir = (n: number) => document.getElementById(`sec-${n}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   // bolinhas numeradas em cima, com os títulos (José 19/10: "pro usuário clicar e ir pro módulo")
   if (topo) return (
@@ -402,7 +384,7 @@ const ESTILO_TRILHO = `
 `
 
 /** Título de seção: deixa claro que começa "outro assunto" (José 19/10: "visível, clean, moderno e profissional"). */
-function Secao({ ic, titulo, sub, primeira, cor, n }: { ic: string; titulo: string; sub?: string; primeira?: boolean; cor: string; n: number }) {
+export function Secao({ ic, titulo, sub, primeira, cor, n }: { ic: string; titulo: string; sub?: string; primeira?: boolean; cor: string; n: number }) {
   return (
     <div id={`sec-${n}`} className={`pt-secao ${primeira ? 'primeira' : ''}`} style={{ '--c': cor } as React.CSSProperties}>
       <div><em>{String(n).padStart(2, '0')}</em><b>{titulo}</b>{sub && <small>{sub}</small>}</div>
@@ -1192,3 +1174,6 @@ function FichaTecnico({ tecnico, linha, dias, os, gasto, salario, onFechar }: { 
     </Janela>
   )
 }
+
+/** Títulos de seção + bolinhas numeradas, para outras abas do Centro usarem igual ao Painel. */
+export const ESTILO_ASSUNTOS = ESTILO_SECAO + ESTILO_TRILHO
