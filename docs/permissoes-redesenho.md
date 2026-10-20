@@ -234,3 +234,21 @@ O Chatwoot fork e o vigia de câmeras não estão nesta máquina. Pelo CLAUDE.md
 - **Divergências esperadas** (bugs da regra antiga que a v2 corrige):
   - as ações explícitas e só-Dev (`pos:faturar`…) passam na regra antiga para quem tem `pos` puro;
   - `exigirPermissao(modulo)` sem ação nega quem só tem `modulo:x`.
+
+### Leitura da sombra e espelho automático (20/10/2026)
+- **5 dias de sombra (15–20/10):** 2.000 checagens, 10 pessoas, 81 rotas; 97% iguais.
+- **As 57 divergências eram cópia velha, não erro de regra:**
+  - 55: tela `estoque:dashboard-maquinas`, criada por outra sessão depois do catálogo gravado;
+  - 2: `estoque:notas` da Larissa, dada no Admin em 19/10.
+  - 7 usuários foram editados depois do backfill e a v2 não acompanhava.
+  - `pos:faturar` não apareceu porque o faturamento pelo portal segue desligado.
+- **Espelho** (`src/lib/permissoes/espelho-server.ts`, plano puro `planejarEspelho` em `backfill.ts`, 5 testes):
+  - **Quando roda:** catálogo de telas e rotas do código + usuários 1 min depois do boot; usuários a cada 10 min; e o usuário salvo no Admin logo depois do POST `/api/admin/permissoes`.
+  - **O que toca:** só o que o backfill criou (vínculo de departamento com `criado_por` nulo e extras com `MOTIVO_BACKFILL`).
+  - **Departamento:** só entra quem tem todas as telas dele; ninguém ganha acesso.
+  - **Chave inválida:** é ignorada e logada, não derruba a rodada.
+  - **Desligar:** `PERM_ESPELHO=off`, ou `PERM_V2=off`.
+  - **Na mão:** `npx tsx --env-file=.env.local scripts/permissoes-v2-espelhar.ts`.
+- **1ª rodada (20/10):** acertou 7 de 30 usuários. Catálogo com 256 telas e 181 rotas. **Diff = 0** (30 × 256 = 7.680).
+- `is_diretor` (coluna nova, de outra sessão) só autoriza comissão dos técnicos, não libera tela: fica fora da v2.
+- **Quando o Admin novo (Fase 4) for a fonte, o espelho sai** (`PERM_ESPELHO=off`).

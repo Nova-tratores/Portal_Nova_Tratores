@@ -292,6 +292,23 @@ export async function register(): Promise<void> {
       proc.once?.('SIGTERM', () => { flush().catch(() => {}); });
     }
     log(`permissões v2: modo ${modo}`);
+
+    // Espelho portal_permissoes → v2: catálogo + usuários 1 min depois do boot,
+    // depois usuários a cada 10 min (o Admin antigo ainda é onde se edita).
+    const { espelhoLigado, espelharPermissoes, sincronizarCatalogo } = await import('./lib/permissoes/espelho-server');
+    if (espelhoLigado()) {
+      const espelhar = async (comCatalogo: boolean) => {
+        try {
+          if (comCatalogo) await sincronizarCatalogo();
+          const r = await espelharPermissoes();
+          if (r.alterados || r.ignoradas.length) log(`permissões v2: espelho acertou ${r.alterados} de ${r.usuarios} usuário(s)${r.ignoradas.length ? `; chaves ignoradas: ${r.ignoradas.join(', ')}` : ''}`);
+        } catch (e) {
+          log('permissões v2: espelho falhou: ' + (e as Error).message);
+        }
+      };
+      setTimeout(() => { void espelhar(true); }, 60 * 1000);
+      setInterval(() => { void espelhar(false); }, 10 * 60 * 1000);
+    }
   }
 
   // Cache de NOTAS FISCAIS (PDF + XML no bucket privado): indexa as fontes e

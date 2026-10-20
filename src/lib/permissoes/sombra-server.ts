@@ -29,6 +29,11 @@ export function modoAtual(): ModoV2 {
   return modoV2(process.env.PERM_V2);
 }
 
+/** Descarta a cópia em memória (o espelho chama depois de mudar a v2 do usuário). */
+export function esquecerEfetivas(userId: string): void {
+  cacheEfetivas().delete(userId);
+}
+
 async function efetivasDe(userId: string): Promise<Set<string> | null> {
   const c = cacheEfetivas().get(userId);
   if (c && Date.now() - c.em < 60_000) return c.valor;
