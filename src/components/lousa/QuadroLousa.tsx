@@ -5,8 +5,9 @@
 // Arrastar o cartão para outro dia/técnico muda a OS; arrastar para baixo da faixa deixa pendente.
 // Nesta versão de TESTE o arrastar é só SIMULADO: mostra o que aconteceria e não grava nada.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, RotateCcw, Info, MapPin, Wrench, Pin } from 'lucide-react'
+import { ChevronLeft, ChevronRight, RotateCcw, Info, MapPin, Wrench, Pin, Users, CalendarOff, Plane, UserX, Stethoscope, CircleCheck, CircleAlert, Plus } from 'lucide-react'
 import FichaOS from './FichaOS'
+import LancarAusencia, { DetalheAusencia } from './LancarAusencia'
 import { corStatusOS, faseCurta } from './status'
 import { authHeaders } from '@/lib/auth/client'
 import { addDias, localDe, diaDaSemana } from '@/lib/salas/regras'
@@ -36,6 +37,11 @@ function diasDoItem(i: ItemAgenda): string[] {
   for (let d = ini; d <= fim && out.length < 40; d = addDias(d, 1)) if (diaDaSemana(d) !== 0) out.push(d)
   return out.length ? out : [ini]
 }
+interface ExtraAus { ausencia?: boolean; tipo?: string; periodo?: string | null; horaInicio?: string | null; horaFim?: string | null; motivo?: string | null; justificada?: boolean | null; anexo?: string | null; grupo?: string | null; rhStatus?: string | null; rhErro?: string | null }
+const exAus = (it: ItemAgenda) => (it.extra || {}) as ExtraAus
+const ehAusencia = (it: ItemAgenda) => !!exAus(it).ausencia
+const ICONE_AUS: Record<string, React.ReactNode> = { reuniao: <Users size={12} />, folga: <CalendarOff size={12} />, ferias: <Plane size={12} />, falta: <UserX size={12} />, medico: <Stethoscope size={12} /> }
+
 /** horário combinado da OS naquele dia ("08:00") ou null */
 function horaDe(it: ItemAgenda, dia: string): string | null {
   const ex = it.extra as { horas?: Record<string, string>; hora?: string | null } | undefined
@@ -58,7 +64,22 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
   // mais de uma OS no mesmo dia: 'pilha' (um na frente, os outros atrás, com animação) ou 'lista' (um embaixo do outro)
   const [varios, setVarios] = useState<'pilha' | 'lista'>('pilha')
   const [abertas, setAbertas] = useState<Set<string>>(() => new Set())
+  // a pilha alterna sozinha entre as OS do dia; mouse em cima pausa; bolinha escolhe
+  const [giro, setGiro] = useState(0)
+  const [desvio, setDesvio] = useState<Record<string, number>>({})
+  const [pausa, setPausa] = useState<string | null>(null)
+  useEffect(() => {
+    if (varios !== 'pilha') return
+    const t = setInterval(() => {
+      setGiro((g) => g + 1)
+      if (pausa) setDesvio((d) => ({ ...d, [pausa]: (d[pausa] || 0) - 1 }))
+    }, 4000)
+    return () => clearInterval(t)
+  }, [varios, pausa])
   const [pedirHora, setPedirHora] = useState<{ ref: string; dia: string; cliente: string; hora: string } | null>(null)
+  // lançar fora de OS: clique no dia (reunião/folga) ou no técnico (férias/falta/médico)
+  const [lancar, setLancar] = useState<{ modo: 'dia' | 'tecnico'; dia: string; tecnico?: Pessoa } | null>(null)
+  const [detalhe, setDetalhe] = useState<ItemAgenda | null>(null)
   useEffect(() => { try { if (localStorage.getItem('lousa-varios') === 'lista') void Promise.resolve().then(() => setVarios('lista')) } catch { /* sem storage */ } }, [])
   const escolherVarios = (v: 'pilha' | 'lista') => { setVarios(v); setAbertas(new Set()); try { localStorage.setItem('lousa-varios', v) } catch { /* sem storage */ } }
 
@@ -150,7 +171,7 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
   const salvarHora = async () => {
     if (!pedirHora) return
     const p = pedirHora; setPedirHora(null)
-    await salvar({ acao: 'editar', ref: p.ref, hora: p.hora || null }, '', `Horário gravado na OS — ${p.ref} às ${p.hora}.`)
+    await salvar({ acao: 'editar', ref: p.ref, hora: p.hora || null }, '', `Horário salvo: ${p.ref} às ${p.hora}.`)
   }
 
   // ---------- arrastar (no teste só simula; com gravar muda a OS)
@@ -164,8 +185,8 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
       if (!p || alvo === 'pendente') return
       setMudancas((m) => ({ ...m, ['pend:' + d.id]: { dias: [alvo.dia], pessoa: alvo.pessoa } }))
       const txt = `${p.id} (${p.cliente || 'cliente'}): ${curtoDia(alvo.dia)} com ${nomeCurto(alvo.pessoa) || 'esse técnico'}, fora das pendentes`
-      if (gravar) void salvar({ acao: 'mover', fonte: 'os', ref: p.id, origem: null, destino: alvo.dia, de: null, para: alvo.pessoa }, 'pend:' + d.id, `Gravado na OS — ${txt}.`)
-      else avisar(`Ficaria assim — ${txt}.`)
+      if (gravar) void salvar({ acao: 'mover', fonte: 'os', ref: p.id, origem: null, destino: alvo.dia, de: null, para: alvo.pessoa }, 'pend:' + d.id, `Salvo: ${txt}.`)
+      else avisar(`Ficaria assim: ${txt}.`)
       return
     }
     const it = dados?.itens.find((x) => x.id === d.id)
@@ -176,8 +197,8 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
       if (!os) { avisar('Só OS vai para as pendentes.'); return }
       if (gravar && dados?.pendenteAtivo === false) { avisar('Para usar as pendentes, falta rodar sql/lousa-pendente.sql no Supabase.'); return }
       setMudancas((m) => ({ ...m, [it.id]: { dias: null } }))
-      if (gravar) void salvar({ acao: 'pendente', fonte: 'os', ref: it.ref }, it.id, `Gravado — ${it.ref} ficou PENDENTE (a data de execução continua na OS) e já aparece em Pendentes no POS.`)
-      else avisar(`${nome} ficaria PENDENTE — a data de execução continua na OS, e ela aparece em Pendentes no POS.`)
+      if (gravar) void salvar({ acao: 'pendente', fonte: 'os', ref: it.ref }, it.id, `${it.ref} foi para as pendentes. A data continua na OS.`)
+      else avisar(`${nome} iria para as pendentes. A data continua na OS.`)
       return
     }
     const atual = mudancas[it.id]?.dias || diasDoItem(it)
@@ -192,9 +213,9 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
     if (delta) partes.push(novos.length > 1 ? `de ${curtoDia(atual[0])}–${curtoDia(atual[atual.length - 1])} para ${curtoDia(novos[0])}–${curtoDia(novos[novos.length - 1])}` : `de ${curtoDia(atual[0])} para ${curtoDia(novos[0])}`)
     if (trocouTecnico) partes.push(`do ${nomeCurto(pessoaAntes) || 'sem técnico'} para o ${nomeCurto(alvo.pessoa) || 'sem técnico'}`)
     const ocupada = os && (celulas.get(`${alvo.pessoa}|${alvo.dia}`) || []).some((c) => c.item.fonte === 'os' && c.item.ref !== it.ref)
-    if (gravar) void salvar({ acao: 'mover', fonte: it.fonte, ref: it.ref, origem, destino: alvo.dia, de: pessoaAntes, para: alvo.pessoa }, it.id, `Gravado${os ? ' na OS' : ''} — ${nome} passou ${partes.join(' e ')}.`)
+    if (gravar) void salvar({ acao: 'mover', fonte: it.fonte, ref: it.ref, origem, destino: alvo.dia, de: pessoaAntes, para: alvo.pessoa }, it.id, `Salvo: ${nome.replace(/^A /, '')} ${partes.join(' e ')}.`)
       .then((ok) => { if (ok && ocupada) setPedirHora({ ref: it.ref, dia: alvo.dia, cliente: it.titulo.replace(/^[^·]*·\s*/, ''), hora: horaDe(it, origem) || '' }) })
-    else avisar(`${nome} passaria ${partes.join(' e ')}${os ? ' — a data também mudaria na OS.' : '.'}`)
+    else avisar(`${nome} passaria ${partes.join(' e ')}${os ? '. A OS mudaria junto.' : '.'}`)
   }
   const arrastar = (e: React.DragEvent, d: { tipo: 'item' | 'pend'; id: string; dia?: string; pessoa?: string }) => {
     e.dataTransfer.setData('text/plain', JSON.stringify(d)); e.dataTransfer.effectAllowed = 'move'
@@ -209,12 +230,34 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
   const abrir = (os: string | null) => {
     if (!os) return
     if (gravar) setFicha(os)
-    else avisar('Na Lousa de verdade, o clique abre a ficha da OS para alterar (dia, técnico, fase, observações).')
+    else avisar('Na Lousa, o clique abre a ficha da OS.')
+  }
+  const abrirDia = (d: string) => {
+    if (!gravar) { avisar('Na Lousa, clicar no dia agenda reunião ou folga.'); return }
+    if (pode) setLancar({ modo: 'dia', dia: d })
+  }
+  const abrirTecnico = (p: Pessoa, dias: string[]) => {
+    if (p.id === 'sem-tecnico') return
+    if (!gravar) { avisar('Na Lousa, clicar no técnico lança férias, falta ou médico.'); return }
+    if (pode) setLancar({ modo: 'tecnico', dia: dias.includes(hoje) ? hoje : dias[0], tecnico: p })
   }
   const tecnicosNomes = (dados?.pessoas || []).filter((p) => p.tecnico && p.id !== 'sem-tecnico').map((p) => (p.tecnicoNome || p.nome).toUpperCase())
   const cartaoItem = (c: { item: ItemAgenda; n: number; total: number }, dia: string, pessoa: string, ordem?: string | null) => {
     const it = c.item
     const os = it.fonte === 'os'
+    if (ehAusencia(it)) {
+      const x = exAus(it)
+      const hora = x.periodo === 'dia' || !x.horaInicio ? 'dia todo' : `${x.horaInicio}–${x.horaFim}`
+      return (
+        <button key={it.id + dia} className="ql-aus" style={{ ['--c' as string]: it.cor || '#64748b' }} onClick={() => setDetalhe(it)}
+          title={[it.titulo, hora, x.motivo, x.rhStatus === 'enviado' ? 'Já está no RH' : x.rhErro ? `RH: ${x.rhErro}` : ''].filter(Boolean).join('\n')}>
+          <span className="ql-aus-ic">{ICONE_AUS[x.tipo || ''] || <CalendarOff size={12} />}</span>
+          <span className="ql-aus-txt"><b>{it.titulo}{x.tipo === 'falta' ? (x.justificada ? ' justificada' : ' não justif.') : ''}</b><small>{hora}</small></span>
+          {x.rhStatus === 'enviado' && <CircleCheck size={13} className="ql-aus-rh ok" />}
+          {(x.rhStatus === 'erro' || x.rhStatus === 'sem_rh') && <CircleAlert size={13} className="ql-aus-rh erro" />}
+        </button>
+      )
+    }
     const tipo = (it.extra as { tipo?: string } | undefined)?.tipo
     if (!os && (tipo === 'feriado' || tipo === 'faltou' || tipo === 'saida')) {
       return (
@@ -233,7 +276,7 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
           <span className={`ql-num ${os ? '' : 'lousa'}`}>{os ? `OS ${semZeros(it.ref)}` : 'LOUSA'}</span>
           {os && situacao && <span className="ql-st" style={{ color: cor, background: `color-mix(in srgb, ${cor} 12%, transparent)` }}>{faseCurta(situacao)}</span>}
         </div>
-        {ordem && <div className={`ql-ordem ${/sem hor/.test(ordem) ? 'falta' : ''}`}>{ordem}</div>}
+        {ordem && <div className={`ql-ordem ${/sem hora/.test(ordem) ? 'falta' : ''}`}>{ordem}</div>}
         <div className="ql-cli">{os ? it.titulo.replace(/^[^·]*·\s*/, '') : it.titulo}</div>
         {variante !== 'parede' && it.descricao && <div className="ql-desc">{it.descricao}</div>}
         {(it.local || c.total > 1) && (
@@ -255,7 +298,7 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
         <button className="ql-nav" onClick={() => setIni(addDias(ini, 7))} title="Próxima semana"><ChevronRight size={18} /></button>
         <b className="ql-titulo">{titulo}</b>
         {!gravar && <span className="ql-teste"><Info size={13} /> Teste: arrastar mostra o que mudaria na OS, mas ainda não grava.</span>}
-        {gravar && <span className="ql-dica">Arraste o cartão para outro dia ou técnico — muda na OS. Embaixo da faixa vermelha fica pendente.</span>}
+        {gravar && <span className="ql-dica">Arraste para trocar o dia ou o técnico</span>}
         {mudou && !gravar && <button className="ql-reset" onClick={() => setMudancas({})}><RotateCcw size={13} /> Desfazer tudo</button>}
         <div className="ql-seg" title="Quando o técnico tem mais de uma OS no dia">
           <span>Vários no dia</span>
@@ -274,18 +317,22 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
             {colunas.map((dias, s) => [
               <div key={`h${s}`} className={`ql-cab ql-cab-sem ${s > 0 ? 'ql-div' : ''}`}><small>{ddmm(dias[0])} a {ddmm(dias[5])}</small></div>,
               ...dias.map((d) => (
-                <div key={`h${d}`} className={`ql-cab ${d === hoje ? 'hoje' : ''}`}><small>{ddmm(d)}</small><b>{NOMES_DIA[diaDaSemana(d)]}</b></div>
+                <div key={`h${d}`} className={`ql-cab ${d === hoje ? 'hoje' : ''} ${gravar && pode ? 'clica' : ''}`} onClick={() => abrirDia(d)} title={gravar && pode ? 'Agendar reunião ou folga neste dia' : undefined}>
+                  <small>{ddmm(d)}</small><b>{NOMES_DIA[diaDaSemana(d)]}</b>
+                  {gravar && pode && <span className="ql-cab-mais"><Plus size={11} /> agendar</span>}
+                </div>
               )),
             ])}
             {/* linhas dos técnicos */}
             {linhas.map((p, li) => colunas.map((dias, s) => [
-              <div key={`n${p.id}${s}`} className={`ql-nome ${s > 0 ? 'ql-div' : ''} ${li % 2 ? 'par' : ''}`}>
+              <div key={`n${p.id}${s}`} className={`ql-nome ${s > 0 ? 'ql-div' : ''} ${li % 2 ? 'par' : ''} ${gravar && pode && p.id !== 'sem-tecnico' ? 'clica' : ''}`}
+                onClick={() => abrirTecnico(p, dias)} title={gravar && pode && p.id !== 'sem-tecnico' ? 'Lançar férias, falta ou médico' : undefined}>
                 <span className="ql-av" style={{ background: p.id === 'sem-tecnico' ? '#94a3b8' : p.cor }}>
                   {p.avatar_url ? <img src={p.avatar_url} alt="" /> : (p.id === 'sem-tecnico' ? '?' : (p.tecnicoNome || p.nome).split(' ').map((x) => x[0]).slice(0, 2).join('').toUpperCase())}
                 </span>
                 <span className="ql-nome-txt">
                   <b>{p.id === 'sem-tecnico' ? 'SEM TÉCNICO' : (p.tecnicoNome || p.nome).split(' ')[0].toUpperCase()}</b>
-                  <small>{(() => { const n = new Set(dias.flatMap((d) => (celulas.get(`${p.id}|${d}`) || []).filter((c) => c.item.fonte === 'os').map((c) => c.item.ref))).size; return n ? `${n} OS na semana` : 'livre na semana' })()}</small>
+                  <small>{(() => { const n = new Set(dias.flatMap((d) => (celulas.get(`${p.id}|${d}`) || []).filter((c) => c.item.fonte === 'os').map((c) => c.item.ref))).size; return n ? `${n} OS` : 'sem OS' })()}</small>
                 </span>
               </div>,
               ...dias.map((d) => {
@@ -296,23 +343,32 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
                     onDragOver={(e) => { e.preventDefault(); if (sobre !== k) setSobre(k) }} onDragLeave={() => setSobre((x) => (x === k ? null : x))}
                     onDrop={(e) => soltar(e, { pessoa: p.id, dia: d })}>
                     {(() => {
-                      const lista = celulas.get(k) || []
+                      const tudo = celulas.get(k) || []
+                      const aus = tudo.filter((c) => ehAusencia(c.item))
+                      const lista = tudo.filter((c) => !ehAusencia(c.item))
+                      const selos = aus.map((c) => cartaoItem(c, d, p.id))
                       const nOS = lista.filter((c) => c.item.fonte === 'os').length
-                      const ordem = (c: { item: ItemAgenda }, i: number) => (nOS > 1 && c.item.fonte === 'os' ? `${i + 1}º · ${horaDe(c.item, d) || 'sem horário'}` : null)
+                      const ordem = (c: { item: ItemAgenda }) => (nOS > 1 && c.item.fonte === 'os' ? (horaDe(c.item, d) || 'sem hora') : null)
                       if (varios === 'pilha' && lista.length > 1 && !abertas.has(k)) {
-                        const semHora = lista.some((c) => c.item.fonte === 'os' && !horaDe(c.item, d))
+                        const n = lista.length
+                        const idx = (((giro + (desvio[k] || 0)) % n) + n) % n
+                        const atual = lista[idx]
                         return (
-                          <div className="ql-pilha" data-n={Math.min(lista.length, 3)}>
-                            {cartaoItem(lista[0], d, p.id, ordem(lista[0], 0))}
-                            <button className={`ql-pilha-mais ${semHora ? 'falta' : ''}`} onClick={() => setAbertas((s) => new Set(s).add(k))} title="Ver todas as OS deste dia">
-                              +{lista.length - 1} {lista.length - 1 === 1 ? 'outra' : 'outras'} · ver todas{semHora ? ' · falta horário' : ''}
-                            </button>
-                          </div>
+                          <>{selos}<div className="ql-pilha" data-n={Math.min(n, 3)} onMouseEnter={() => setPausa(k)} onMouseLeave={() => setPausa((x) => (x === k ? null : x))}>
+                            <div className="ql-gira" key={atual.item.id + idx}>{cartaoItem(atual, d, p.id, ordem(atual))}</div>
+                            <div className="ql-pilha-pe">
+                              <span className="ql-bolas">
+                                {lista.map((c, i) => <button key={c.item.id} className={i === idx ? 'on' : ''} title={horaDe(c.item, d) || 'sem hora'} onClick={() => setDesvio((dv) => ({ ...dv, [k]: (dv[k] || 0) + (i - idx) }))} />)}
+                              </span>
+                              <button className="ql-pilha-mais" onClick={() => setAbertas((s) => new Set(s).add(k))}>ver as {n}</button>
+                            </div>
+                          </div></>
                         )
                       }
                       return (
                         <>
-                          {lista.map((c, i) => cartaoItem(c, d, p.id, ordem(c, i)))}
+                          {selos}
+                          {lista.map((c) => cartaoItem(c, d, p.id, ordem(c)))}
                           {varios === 'pilha' && abertas.has(k) && <button className="ql-recolher" onClick={() => setAbertas((s) => { const n = new Set(s); n.delete(k); return n })}>recolher</button>}
                         </>
                       )
@@ -328,7 +384,7 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
           </div>
 
           {/* FAIXA VERMELHA + pendentes */}
-          <div className="ql-faixa"><span>PENDENTES — arraste para cá o que ainda não tem dia</span></div>
+          <div className="ql-faixa"><span>PENDENTES</span></div>
           <div className={`ql-pendentes ${sobre === 'pend' ? 'sobre' : ''}`}
             onDragOver={(e) => { e.preventDefault(); if (sobre !== 'pend') setSobre('pend') }} onDragLeave={() => setSobre((x) => (x === 'pend' ? null : x))}
             onDrop={(e) => soltar(e, 'pendente')}>
@@ -350,7 +406,7 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
                 <div className="ql-cli">{it.fonte === 'os' ? it.titulo.replace(/^[^·]*·\s*/, '') : it.titulo}</div>
               </div>
             ))}
-            {!dados.pendentes.length && !pendentesSim.length && <div className="ql-vazio">Nenhuma OS sem dia marcado. Arraste um cartão para cá para deixá-lo pendente.</div>}
+            {!dados.pendentes.length && !pendentesSim.length && <div className="ql-vazio">Nenhuma OS pendente.</div>}
           </div>
         </div>
       )}
@@ -359,7 +415,7 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
         <div className="ql-hora-fundo" onClick={() => setPedirHora(null)}>
           <div className="ql-hora" onClick={(e) => e.stopPropagation()}>
             <b>Qual o horário da {pedirHora.ref}?</b>
-            <span>{pedirHora.cliente} · {curtoDia(pedirHora.dia)}. Esse técnico já tem outra OS nesse dia — o horário diz qual vem primeiro.</span>
+            <span>{pedirHora.cliente}, {curtoDia(pedirHora.dia)}. Já tem outra OS nesse dia; com o horário dá pra saber qual vem primeiro.</span>
             <input type="time" autoFocus value={pedirHora.hora} onChange={(e) => setPedirHora({ ...pedirHora, hora: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter' && pedirHora.hora) void salvarHora() }} />
             <div className="ql-hora-bot">
               <button onClick={() => setPedirHora(null)}>Agora não</button>
@@ -368,6 +424,25 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
           </div>
         </div>
       )}
+      {lancar && (
+        <LancarAusencia modo={lancar.modo} dia={lancar.dia} tecnico={lancar.tecnico}
+          tecnicos={(dados?.pessoas || []).filter((p) => p.tecnico && p.id !== 'sem-tecnico')}
+          onFechar={() => setLancar(null)} onFeito={(msg) => { setLancar(null); avisar(msg); setRecarga((x) => x + 1) }} />
+      )}
+      {detalhe && (() => {
+        const x = exAus(detalhe)
+        const dia = localDe(detalhe.inicio).dia
+        const linhas: [string, string][] = [
+          ['Técnico', nomeCurto(detalhe.pessoas[0]) || '—'], ['Dia', curtoDia(dia)],
+          ['Horário', x.periodo === 'dia' || !x.horaInicio ? 'dia todo' : `${x.horaInicio} às ${x.horaFim}`],
+          ...(x.tipo === 'falta' ? [['Falta', x.justificada ? 'justificada' : 'não justificada'] as [string, string]] : []),
+          ...(x.motivo ? [['Motivo', x.motivo] as [string, string]] : []),
+          ...((detalhe.detalhes || []).filter(([k]) => k === 'Lançado por')),
+        ]
+        const doGrupo = (dados?.itens || []).filter((i) => exAus(i).grupo && exAus(i).grupo === x.grupo).length
+        return <DetalheAusencia id={detalhe.ref} titulo={detalhe.titulo} cor={detalhe.cor || '#64748b'} linhas={linhas} anexo={x.anexo} rhStatus={x.rhStatus} rhErro={x.rhErro}
+          emGrupo={doGrupo > 1} onFechar={() => setDetalhe(null)} onFeito={(msg) => { setDetalhe(null); avisar(msg); setRecarga((r) => r + 1) }} />
+      })()}
       {ficha && <FichaOS id={ficha} tecnicos={tecnicosNomes} onFechar={() => setFicha(null)} onMudou={() => setRecarga((x) => x + 1)} />}
 
       <div className="ql-avisos">
@@ -407,15 +482,33 @@ const CSS_QUADRO = `
 .ql-nome-txt small { font-size: 10.5px; font-weight: 600; color: var(--portal-text-muted); white-space: nowrap; }
 .ql-div { border-left: 3px solid #dc2626; }
 .ql-cel { min-height: 74px; padding: 5px; display: flex; flex-direction: column; gap: 5px; border-bottom: 2px solid color-mix(in srgb, var(--ql-azul) 22%, var(--ql-linha)); border-right: 1px solid var(--ql-linha); background: var(--ql-cel); transition: background .15s; min-width: 0; }
+.ql-aus { display: flex; align-items: center; gap: 7px; width: 100%; padding: 6px 8px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--c) 30%, var(--portal-border)); background: color-mix(in srgb, var(--c) 9%, var(--portal-bg-card)); color: var(--portal-text); font-family: inherit; text-align: left; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+.ql-aus:hover { transform: translateY(-1px); box-shadow: 0 4px 12px color-mix(in srgb, var(--c) 22%, transparent); }
+.ql-aus-ic { flex: none; width: 22px; height: 22px; border-radius: 7px; display: flex; align-items: center; justify-content: center; background: var(--c); color: #fefefe; }
+.ql-aus-txt { min-width: 0; display: grid; line-height: 1.2; }
+.ql-aus-txt b { font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ql-aus-txt small { font-size: 10px; color: var(--portal-text-muted); font-weight: 600; }
+.ql-aus-rh { flex: none; margin-left: auto; }
+.ql-aus-rh.ok { color: #16a34a; } .ql-aus-rh.erro { color: #dc2626; }
+.ql-cab.clica, .ql-nome.clica { cursor: pointer; position: relative; transition: background .15s; }
+.ql-cab.clica:hover, .ql-nome.clica:hover { background: color-mix(in srgb, #2563eb 7%, var(--ql-cel)); }
+.ql-cab-mais { display: inline-flex; align-items: center; gap: 2px; margin-top: 2px; font-size: 10px; font-weight: 800; color: #2563eb; opacity: 0; transition: opacity .15s; }
+.ql-cab.clica:hover .ql-cab-mais { opacity: 1; }
 .ql-ordem { justify-self: start; font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 6px; background: color-mix(in srgb, #0f172a 7%, transparent); color: var(--portal-text-secondary); }
 .ql-ordem.falta { background: #fef3c7; color: #b45309; }
-.ql-pilha { position: relative; isolation: isolate; padding: 0 8px 9px 0; display: grid; }
+.ql-pilha { position: relative; isolation: isolate; padding: 0 7px 0 0; display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.ql-pilha > .ql-gira { position: relative; z-index: 1; min-width: 0; display: grid; animation: qlGira .45s cubic-bezier(.16,1,.3,1); }
+@keyframes qlGira { from { opacity: 0; transform: translateX(10px) } }
+.ql-pilha-pe { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 9px; }
+.ql-bolas { display: inline-flex; gap: 4px; }
+.ql-bolas button { width: 7px; height: 7px; padding: 0; border: none; border-radius: 99px; background: color-mix(in srgb, var(--portal-text-muted) 45%, transparent); cursor: pointer; transition: width .25s, background .25s; }
+.ql-bolas button.on { width: 16px; background: #2563eb; }
 .ql-pilha::before, .ql-pilha::after { content: ''; position: absolute; border-radius: 10px; background: var(--portal-bg-card); border: 1px solid var(--portal-border); z-index: -1; box-shadow: 0 1px 2px rgba(15,23,42,.05); animation: qlEspia 3.4s ease-in-out infinite; }
-.ql-pilha::before { inset: 5px 3px 4px 5px; }
-.ql-pilha::after { inset: 10px 0 0 10px; opacity: .75; animation-delay: .12s; }
+.ql-pilha::before { top: 5px; left: 4px; right: 3px; bottom: 20px; }
+.ql-pilha::after { top: 9px; left: 8px; right: 0; bottom: 16px; opacity: .75; animation-delay: .12s; }
 .ql-pilha[data-n="2"]::after { display: none; }
 @keyframes qlEspia { 0%, 72%, 100% { transform: none } 82% { transform: translate(5px, 4px) rotate(1.6deg) } 90% { transform: translate(2px, 2px) rotate(.6deg) } }
-.ql-pilha-mais { position: relative; z-index: 2; justify-self: center; margin-top: -2px; padding: 3px 10px; border-radius: 999px; border: 1px solid color-mix(in srgb, #2563eb 35%, var(--portal-border)); background: var(--portal-bg-card); color: #2563eb; font-family: inherit; font-size: 10.5px; font-weight: 800; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 6px rgba(37,99,235,.15); transition: transform .15s; }
+.ql-pilha-mais { padding: 2px 9px; border-radius: 999px; border: 1px solid color-mix(in srgb, #2563eb 35%, var(--portal-border)); background: var(--portal-bg-card); color: #2563eb; font-family: inherit; font-size: 10.5px; font-weight: 800; cursor: pointer; white-space: nowrap; box-shadow: 0 2px 6px rgba(37,99,235,.15); transition: transform .15s; }
 .ql-pilha-mais:hover { transform: translateY(-1px); }
 .ql-pilha-mais.falta { color: #b45309; border-color: #fcd34d; }
 .ql-recolher { justify-self: center; border: none; background: transparent; color: var(--portal-text-muted); font-family: inherit; font-size: 10.5px; font-weight: 700; cursor: pointer; text-decoration: underline; }

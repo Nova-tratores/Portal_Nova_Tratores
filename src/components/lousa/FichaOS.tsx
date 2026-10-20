@@ -91,7 +91,7 @@ export default function FichaOS({ id, tecnicos, onFechar, onMudou }: {
       if (form.horas !== base.horas) extra.horas = form.horas
       if (form.km !== base.km) extra.km = form.km
     }
-    void enviar(extra, 'Gravado na OS — o POS já mostra.')
+    void enviar(extra, 'Salvo.')
   }
   const trocarFase = async (nova: string) => {
     if (!f || nova === f.status) return
@@ -134,7 +134,7 @@ export default function FichaOS({ id, tecnicos, onFechar, onMudou }: {
             <section className="fo-sec">
               <h4><FileText size={13} /> Solicitação do cliente</h4>
               <textarea className="fo-in" rows={3} value={form.pedido} disabled={!pode || travada} onChange={(e) => setForm({ ...form, pedido: e.target.value })} placeholder="O que o cliente pediu…" />
-              <small className="fo-ajuda">Muda só essa parte da OS; modelo, chassi, horímetro e o serviço realizado continuam como estão.</small>
+              <small className="fo-ajuda">Muda só o pedido do cliente. Modelo, chassi e serviço realizado ficam como estão.</small>
             </section>
 
             <section className="fo-sec">
@@ -156,17 +156,17 @@ export default function FichaOS({ id, tecnicos, onFechar, onMudou }: {
               </label>
               <label><span>Horário de início</span>
                 <input type="time" className="fo-in" value={form.hora} disabled={!pode || travada} onChange={(e) => setForm({ ...form, hora: e.target.value })} />
-                <small>Com mais de uma OS no dia, é o que diz qual vem primeiro.</small>
+                <small>Define a ordem quando tem mais de uma OS no dia.</small>
               </label>
               <label><span><User size={12} /> Técnico</span>
                 <select className="fo-in" value={form.tecnico1} disabled={!pode || travada} onChange={(e) => setForm({ ...form, tecnico1: e.target.value })}>
-                  <option value="">— sem técnico —</option>
+                  <option value="">Sem técnico</option>
                   {opcoesTec.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </label>
               <label><span><User size={12} /> 2º técnico</span>
                 <select className="fo-in" value={form.tecnico2} disabled={!pode || travada} onChange={(e) => setForm({ ...form, tecnico2: e.target.value })}>
-                  <option value="">— nenhum —</option>
+                  <option value="">Nenhum</option>
                   {opcoesTec.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </label>
@@ -183,16 +183,16 @@ export default function FichaOS({ id, tecnicos, onFechar, onMudou }: {
               <div><small>Valor da OS</small><b>{brl(f.valorTotal)}</b>{valorMudou && <span className="fo-novo">→ {brl(String(valorNovo))}</span>}</div>
             </section>
             {valorMudou && <small className="fo-ajuda">Hora R$ {(f.valorHora || 0).toFixed(2)} · km R$ {(f.valorKm || 0).toFixed(2)} desta OS. O valor muda pela diferença.</small>}
-            {f.ordemOmie && !travada && <div className="fo-aviso">Esta OS já está no Omie (nº {f.ordemOmie.replace(/^0+/, '')}). Mudando horas, km, projeto ou solicitação aqui, confira na hora de faturar: a conferência atualiza o Omie.</div>}
+            {f.ordemOmie && !travada && <div className="fo-aviso">Já está no Omie (nº {f.ordemOmie.replace(/^0+/, '')}). Se mudar horas, km, projeto ou pedido, a conferência antes de faturar atualiza lá.</div>}
 
-            {travada && <div className="fo-aviso">{f.faturada ? 'OS faturada' : `OS ${f.status}`}: só as observações mudam pela Lousa.</div>}
+            {travada && <div className="fo-aviso">{f.faturada ? 'OS faturada' : `OS ${f.status}`}: aqui só dá para mudar as observações.</div>}
           </div>
         )}
 
         <footer className="fo-rod">
           <a className="fo-btn sec" href={`/pos?id=${encodeURIComponent(id)}`} target="_blank" rel="noreferrer"><ExternalLink size={14} /> Abrir a OS completa no POS</a>
           {f && pode && !travada && f.pendente !== null && (
-            <button className="fo-btn sec" disabled={salvando} onClick={() => void enviar({ pendente: !f.pendente }, f.pendente ? 'Saiu das pendentes.' : 'Ficou pendente — a data continua na OS.')}>
+            <button className="fo-btn sec" disabled={salvando} onClick={() => void enviar({ pendente: !f.pendente }, f.pendente ? 'Saiu das pendentes.' : 'Foi para as pendentes. A data continua na OS.')}>
               {f.pendente ? <><PinOff size={14} /> Tirar das pendentes</> : <><Pin size={14} /> Deixar pendente</>}
             </button>
           )}
