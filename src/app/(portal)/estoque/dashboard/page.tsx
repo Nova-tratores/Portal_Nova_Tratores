@@ -2,7 +2,7 @@
 // Dashboard de Vendas — duas visões independentes: "Peças + Serviços" e "Máquinas".
 // Consome /api/estoque/dashboard{,/historico,/categorias-vendas,/vendas,/pedido-itens,
 // /compras,/tendencia}. Cor do VALOR é sempre neutra; verde/vermelho só p/ variação.
-import { useState, useCallback, useEffect, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ResponsiveContainer, LineChart, Line, BarChart, ComposedChart, Bar, Area, AreaChart, Cell, LabelList, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine } from 'recharts';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,6 +17,7 @@ import { chartColors } from '@/lib/estoque/chartColors';
 import { authHeaders } from '@/lib/auth/client';
 import HistoricoGrade, { type SerieGrade, type MesHistorico, type SemanaHistorico, type Medida } from '@/components/estoque/HistoricoGrade';
 import { agruparDias } from '@/lib/estoque/historico-semanas';
+import { ROTULO_CLASSE, CLASSES_NAO_COMERCIAIS, type ClasseServico } from '@/lib/estoque/servicos-classe';
 
 // As rotas do dashboard exigem login (token da sessão no header).
 const getDash = async (url: string) => fetch(url, { headers: await authHeaders() });
@@ -57,10 +58,14 @@ interface Categoria {
   valorHR?: number;
   valorKM?: number;
   valorOutros?: number;
+  /** Serviços: garantia, campanhas, seguro e promoção (fora do valor, salvo com a caixinha). */
+  naoComercial?: { atual: NaoComercial; mesAnterior: NaoComercial | null; anoAnterior: NaoComercial; incluido: boolean };
   unidades?: number;
   unidadesMesAnt?: number;
   unidadesAnoAnt?: number;
 }
+type ClasseNC = Exclude<ClasseServico, 'comercial'>;
+interface NaoComercial { valor: number; os: number; porClasse: Record<ClasseNC, { valor: number; os: number }> }
 interface DashboardResp {
   periodo: string;
   modo?: 'mes' | 'ano';
@@ -166,7 +171,12 @@ interface CompraRow {
 type InternoBalde = 'retorno' | 'puro' | null;
 // Candidata de NF-e devolvida por /api/estoque/dashboard/nf (resolver do DANFE).
 interface NotaCand { numero?: string; nCodNF: number; tipo?: string; dataEmissao?: string | null; valorNF?: number; cancelada?: boolean }
-interface OSRow { numero_os?: string; ncod_os?: number; data?: string; cliente?: string; codigo_cliente?: number | null; valor?: number; conta?: string; tem_nota?: boolean | null; nfse_num?: string | null; internoBalde?: InternoBalde }
+interface OSRow {
+  numero_os?: string; ncod_os?: number; data?: string; cliente?: string; codigo_cliente?: number | null; valor?: number; conta?: string; tem_nota?: boolean | null; nfse_num?: string | null; internoBalde?: InternoBalde;
+  /** Comercial × garantia/campanha/seguro/promoção; origem 'manual' = alguém moveu na tela. */
+  classe?: ClasseServico; classeOrigem?: 'regra' | 'manual' | null; classeMotivo?: string | null; classeRegra?: ClasseServico | null; classeAlteradoPor?: string | null;
+}
+type FiltroClasse = 'comercial' | 'fora' | 'todas';
 type TipoServico = 'HR' | 'KM' | 'OUTRO';
 interface ServicoOSRow {
   numero_os?: string; ncod_os?: number; data?: string; cliente?: string; codigo_cliente?: number | null;
@@ -226,6 +236,13 @@ export default function DashboardPage() {
   const periodoParam = ehAno ? 'mes=0&modo=ano' : 'mes=' + mes;
   // Padrão = Revenda de Peças Oficina (pedido do José); "Todas" continua no seletor.
   const [categoria, setCategoria] = useState('Revenda de Peças Oficina');
+  // Garantia, campanhas, seguro e promoção: fora do Serviços por padrão (rendimento
+  // real do serviço); a caixinha soma de volta. Não fica lembrada de propósito.
+  const [incluirNC, setIncluirNC] = useState(false);
+  const ncParam = incluirNC ? '&incluirNaoComercial=1' : '';
+  // Recarga sem fechar o histórico aberto (troca da caixinha, OS mudada de classe).
+  const manterHistRef = useRef(false);
+  const [recarga, setRecarga] = useState(0);
   const [metrica, setMetrica] = useState<Metrica>('venda');
   const [visao, setVisao] = useState<Visao>('pecas');
   // ?v=maquinas sem a permissão cai em Peças + Serviços.
@@ -282,6 +299,8 @@ export default function DashboardPage() {
   const [tipoFiltro, setTipoFiltro] = useState<TipoServico | null>(null);
   const [osPendente, setOsPendente] = useState(false);
   const [osErro, setOsErro] = useState('');
+  const [classeFiltro, setClasseFiltro] = useState<FiltroClasse>('comercial');
+  const [classeMudou, setClasseMudou] = useState(false);
 
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get('v');
@@ -297,8 +316,11 @@ export default function DashboardPage() {
   const carregar = useCallback(async () => {
     setCarregando(true);
     setErro('');
-    setHistCard(null);
-    setHist(null);
+    if (!manterHistRef.current) {
+      setHistCard(null);
+      setHist(null);
+    }
+    manterHistRef.current = false;
     setVendas(null);
     setVendasCard(null);
     setOsAberto(false);
@@ -308,7 +330,7 @@ export default function DashboardPage() {
     setComprasItens(null);
     try {
       const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
-      const r = await getDash(`/api/estoque/dashboard?${periodoParam}&ano=${ano}${catParam}${contaParam}`);
+      const r = await getDash(`/api/estoque/dashboard?${periodoParam}&ano=${ano}${catParam}${contaParam}${ncParam}`);
       const d = (await r.json()) as DashboardResp;
       if (d.erro) { setErro(d.erro); return; }
       setDados(d);
@@ -317,7 +339,9 @@ export default function DashboardPage() {
     } finally {
       setCarregando(false);
     }
-  }, [periodoParam, ano, categoria, contaParam]);
+  // recarga: OS mudada de classe no popup → números novos.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodoParam, ano, categoria, contaParam, ncParam, recarga]);
 
   useEffect(() => {
     getDash(`/api/estoque/dashboard/categorias-vendas?_=1${contaParam}`)
@@ -327,7 +351,7 @@ export default function DashboardPage() {
   }, [contaParam]);
 
   useEffect(() => {
-    getDash(`/api/estoque/dashboard/tendencia?_=1${contaParam}`)
+    getDash(`/api/estoque/dashboard/tendencia?_=1${contaParam}${ncParam}`)
       .then((r) => r.json())
       .then((d) => {
         const raw = (d.pontos || []) as Array<{ label: string; mes: number; ano: number; pecas: number; pecasBalcao?: number; pecasOficina?: number; servicos: number; maquinas: number; maquinasUn: number; psAnoAnt?: number; psAno2Ant?: number; compras?: number; custoPecasBalcao?: number; custoPecasOficina?: number; custoServicos?: number | null }>;
@@ -345,7 +369,7 @@ export default function DashboardPage() {
         setTendComparativos((d.comparativos as Comparativos) || null);
       })
       .catch(() => { setTendencia(null); setTendComparativos(null); });
-  }, [contaParam]);
+  }, [contaParam, ncParam, recarga]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -360,10 +384,10 @@ export default function DashboardPage() {
     // O bloco fica no fim da página: leva a pessoa até ele (o clique vem do card, lá em cima).
     setTimeout(() => document.getElementById('historico-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
     const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
-    const r = await getDash(`/api/estoque/dashboard/historico?catKey=${encodeURIComponent(catKey)}${catParam}${contaParam}`);
+    const r = await getDash(`/api/estoque/dashboard/historico?catKey=${encodeURIComponent(catKey)}${catParam}${contaParam}${ncParam}`);
     const d = (await r.json()) as HistResp;
     if (!d.erro) setHist(d);
-  }, [categoria, contaParam]);
+  }, [categoria, contaParam, ncParam]);
 
   // Busca as séries do Comparar. Empresas = o mesmo card em NOVA e CASTRO;
   // categorias = os 6 maiores cards de peça do período (cada um com o histórico dele).
@@ -373,7 +397,7 @@ export default function DashboardPage() {
     setHistCompErro('');
     if (modo === 'horas') {
       try {
-        const r = await getDash(`/api/estoque/dashboard/horas?_=1${contaParam}`);
+        const r = await getDash(`/api/estoque/dashboard/horas?_=1${contaParam}${ncParam}`);
         const d = (await r.json()) as HorasResp;
         if (d.erro) throw new Error(d.erro);
         setHoras(d);
@@ -385,7 +409,7 @@ export default function DashboardPage() {
     if (!histCard || modo === 'nenhum' || modo === 'metricas' || modo === 'tipos') return;
     const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
     const buscar = async (catKey: string, contaQ: string): Promise<HistResp> => {
-      const r = await getDash(`/api/estoque/dashboard/historico?catKey=${encodeURIComponent(catKey)}${catParam}${contaQ}`);
+      const r = await getDash(`/api/estoque/dashboard/historico?catKey=${encodeURIComponent(catKey)}${catParam}${contaQ}${ncParam}`);
       const d = (await r.json()) as HistResp;
       if (d.erro) throw new Error(d.erro);
       return d;
@@ -415,7 +439,32 @@ export default function DashboardPage() {
     } catch (e) {
       setHistCompErro((e as Error).message);
     }
-  }, [histCard, categoria, contaParam, metrica, dados, hist]);
+  }, [histCard, categoria, contaParam, metrica, dados, hist, ncParam]);
+
+  // Caixinha trocada (ou OS mudada de classe) com o histórico aberto: relê o
+  // histórico e o Comparar ativo sem fechar o bloco.
+  const histAbertoRef = useRef<{ card: string | null; comparar: HistComparar }>({ card: null, comparar: 'nenhum' });
+  const trocarCompararRef = useRef(trocarComparar);
+  useEffect(() => {
+    histAbertoRef.current = { card: histCard, comparar: histComparar };
+    trocarCompararRef.current = trocarComparar;
+  });
+  useEffect(() => {
+    const { card, comparar } = histAbertoRef.current;
+    if (!card) return;
+    let vivo = true;
+    (async () => {
+      const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
+      const r = await getDash(`/api/estoque/dashboard/historico?catKey=${encodeURIComponent(card)}${catParam}${contaParam}${ncParam}`);
+      const d = (await r.json()) as HistResp;
+      if (!vivo || d.erro) return;
+      setHist(d);
+      if (comparar !== 'nenhum') trocarCompararRef.current(comparar);
+    })().catch(() => { /* mantém o que está na tela */ });
+    return () => { vivo = false; };
+  // Só na troca da caixinha / reclassificação — o resto já abre o histórico de novo.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ncParam, recarga]);
 
   const abrirVendas = useCallback(async (catKey: string, nome: string) => {
     setVendas(null);
@@ -444,10 +493,13 @@ export default function DashboardPage() {
     if (!d.erro) setVendas(d.vendas || []);
   }, [periodoParam, ano, contaParam]);
 
-  const abrirOSServicos = useCallback(async () => {
+  // `fora === true`: aberto pelo quadro "Fora do serviço comercial" → já filtra essas OS.
+  const abrirOSServicos = useCallback(async (fora?: unknown) => {
     setOsServicos(null);
     setServItens(null);
     setTipoFiltro(null);
+    setClasseFiltro(fora === true ? 'fora' : incluirNC ? 'todas' : 'comercial');
+    if (fora === true) setOsView('os');
     setOsPendente(false);
     setOsErro('');
     setOsAberto(true);
@@ -460,7 +512,37 @@ export default function DashboardPage() {
       setServItens(d.servicos || []);
       setOsPendente(!!d.pendente);
     }
-  }, [periodoParam, ano, contaParam]);
+  }, [periodoParam, ano, contaParam, incluirNC]);
+
+  // Move uma OS de classe (ou devolve à regra). Os números do dashboard são
+  // relidos quando o popup fecha.
+  const mudarClasse = useCallback(async (o: OSRow, valor: string) => {
+    setOsErro('');
+    try {
+      const r = await fetch('/api/estoque/dashboard/os/classe', {
+        method: 'PATCH',
+        headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ conta: o.conta, ncod_os: o.ncod_os, numero_os: o.numero_os, classe: valor === '__regra' ? null : valor }),
+      });
+      const d = await r.json();
+      if (!r.ok || d.erro) throw new Error(d.erro === 'migracaoFaltando' ? 'Falta aplicar sql/servicos-nao-comerciais.sql' : d.erro || 'Erro ' + r.status);
+      setOsServicos((lista) => lista && lista.map((x) => (x.conta === o.conta && x.ncod_os === o.ncod_os
+        ? { ...x, classe: d.classe, classeOrigem: d.origem, classeRegra: d.classeRegra, classeMotivo: d.motivo ?? x.classeMotivo, classeAlteradoPor: d.alteradoPorNome }
+        : x)));
+      setClasseMudou(true);
+    } catch (e) {
+      setOsErro((e as Error).message);
+    }
+  }, []);
+
+  const fecharOS = useCallback(() => {
+    setOsAberto(false);
+    if (classeMudou) {
+      setClasseMudou(false);
+      manterHistRef.current = true;
+      setRecarga((n) => n + 1);
+    }
+  }, [classeMudou]);
 
   const abrirPedido = useCallback(async (numero: string) => {
     setPedidoItens({ numero, itens: [] });
@@ -648,9 +730,17 @@ export default function DashboardPage() {
     return arr;
   };
   const TIPOS_SERV: Record<string, 'num' | 'txt' | 'data'> = { numero_os: 'num', data: 'data', cliente: 'txt', descricao: 'txt', tipo: 'txt', nfse_num: 'num', categoria_desc: 'txt', conta: 'txt', qtde: 'num', valor_unit: 'num', valor_total: 'num' };
-  const TIPOS_OS: Record<string, 'num' | 'txt' | 'data'> = { numero_os: 'num', data: 'data', cliente: 'txt', nfse_num: 'num', conta: 'txt', valor: 'num' };
-  const servOrdenados = ordenarLinhas(servItens, sortServ, TIPOS_SERV);
-  const osOrdenados = ordenarLinhas(osServicos, sortOS, TIPOS_OS);
+  const TIPOS_OS: Record<string, 'num' | 'txt' | 'data'> = { numero_os: 'num', data: 'data', cliente: 'txt', nfse_num: 'num', conta: 'txt', classe: 'txt', valor: 'num' };
+  // Classe por OS (o item herda a da OS) e o filtro comercial × fora × tudo do popup.
+  const classeDaOS = new Map((osServicos || []).map((o) => [o.conta + ':' + o.ncod_os, o.classe ?? 'comercial']));
+  const passaClasse = (conta?: string, ncod?: number) => {
+    const c = classeDaOS.get(conta + ':' + ncod) ?? 'comercial';
+    return classeFiltro === 'todas' || (classeFiltro === 'comercial' ? c === 'comercial' : c !== 'comercial');
+  };
+  const servVisiveis = servItens ? servItens.filter((x) => passaClasse(x.conta, x.ncod_os)) : null;
+  const osVisiveis = osServicos ? osServicos.filter((x) => passaClasse(x.conta, x.ncod_os)) : null;
+  const servOrdenados = ordenarLinhas(servVisiveis, sortServ, TIPOS_SERV);
+  const osOrdenados = ordenarLinhas(osVisiveis, sortOS, TIPOS_OS);
   const shServ = (label: string, col: string) => (
     <th style={{ ...thStyle, cursor: 'pointer', userSelect: 'none' }} onClick={() => setSortServ((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }))}>
       {label} {sortServ.col === col ? (sortServ.dir === 'asc' ? '▲' : '▼') : <span style={{ color: '#ccc' }}>⇅</span>}
@@ -713,6 +803,11 @@ export default function DashboardPage() {
         {visaoAtual === 'pecas' && (
           <>
             <Sel label="Categoria de peças" value={categoria} onChange={setCategoria} options={[{ value: '', label: 'Todas' }, ...categoriasOpts.map((c) => ({ value: c.codigo, label: c.descricao }))]} />
+            <label title="Garantia (a fábrica paga), campanhas e comissões, seguro e ações promocionais ficam FORA do Serviços para medir o rendimento real do serviço — aparecem no quadro “Fora do serviço comercial”. Marque para somar tudo de volta (cards, gráfico, histórico e horas)."
+              style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.92rem', color: '#374151', paddingBottom: 9, cursor: 'pointer', userSelect: 'none' }}>
+              <input type="checkbox" checked={incluirNC} onChange={(e) => { manterHistRef.current = true; setIncluirNC(e.target.checked); }} />
+              Incluir garantia, seguro e campanhas
+            </label>
             <span title="Venda/Custo/Margem vale para Peças e Serviços (KPIs e cards). Custo de Serviços vem do Painel Omie (comissão, despesas, frota, RH e custo real das internas); se o painel não responder fica “—”. Comprei é sempre entradas de NF." style={{ fontSize: '1rem', color: '#9ca3af', cursor: 'help', paddingBottom: 9 }}>ⓘ</span>
             <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
               {(['venda', 'custo', 'margem'] as Metrica[]).map((m) => (
@@ -861,7 +956,7 @@ export default function DashboardPage() {
                   sparkNode={spk && <Sparkline data={spk.map((t) => t.servicos)} cor={ACCENT.servicos} parcialUltimo />}
                   acoes={[
                     { label: 'histórico', onClick: () => abrirHistorico('servico') },
-                    { label: 'vendas', onClick: abrirOSServicos },
+                    { label: 'vendas', onClick: () => abrirOSServicos() },
                     { label: 'decomposição', onClick: () => setServDecompPopup(true) },
                   ]} />
               )}
@@ -879,6 +974,10 @@ export default function DashboardPage() {
                   )} />
               )}
             </div>
+
+            {cServ?.naoComercial && (
+              <ForaComercialCard nc={cServ.naoComercial} modo={modo} parcial={parcial} onVer={() => abrirOSServicos(true)} />
+            )}
 
             {tendencia && tendencia.length > 0 && (
               <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 18px 10px', marginBottom: 18 }}>
@@ -910,7 +1009,7 @@ export default function DashboardPage() {
               <div onClick={() => setServDecompPopup(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
                 <div className="est-modal" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 560, width: '96%', maxHeight: '88vh', overflowY: 'auto' }}>
                   <div style={{ textAlign: 'right', marginBottom: 4 }}><button onClick={() => setServDecompPopup(false)} style={linkBtn}>fechar</button></div>
-                  <ServicosDecomp c={cServ} onDetalhe={abrirOSServicos} />
+                  <ServicosDecomp c={cServ} onDetalhe={() => abrirOSServicos()} />
                 </div>
               </div>
             )}
@@ -933,6 +1032,7 @@ export default function DashboardPage() {
             valorBarra={valores[barraSel.serie]}
             contaParam={contaParam}
             buscar={getDash}
+            incluirNaoComercial={incluirNC}
             onAbrirMes={() => { setMes(p.mes); setAno(p.ano); setBarraSel(null); }}
             onFechar={() => setBarraSel(null)}
           />
@@ -1137,13 +1237,13 @@ export default function DashboardPage() {
 
       {/* Popup Serviços */}
       {osAberto && (
-        <div onClick={() => setOsAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
+        <div onClick={fecharOS} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
           <div className="est-modal" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 1240, width: '94%', maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 12, flexWrap: 'wrap' }}>
               <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>
-                Serviços — {osView === 'servicos' ? `itens (${servItens?.length ?? 0})` : `Ordens de Serviço (${osServicos?.length ?? 0})`}
-                {osServicos && osServicos.length > 0 && (
-                  <span style={{ color: '#888', fontWeight: 600, marginLeft: 8 }}>· Total {fmtRS(osServicos.reduce((s, o) => s + (o.valor || 0), 0))}</span>
+                Serviços — {osView === 'servicos' ? `itens (${servVisiveis?.length ?? 0})` : `Ordens de Serviço (${osVisiveis?.length ?? 0})`}
+                {osVisiveis && osVisiveis.length > 0 && (
+                  <span style={{ color: '#888', fontWeight: 600, marginLeft: 8 }}>· Total {fmtRS(osVisiveis.reduce((s, o) => s + (o.valor || 0), 0))}</span>
                 )}
               </h2>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
@@ -1155,10 +1255,29 @@ export default function DashboardPage() {
                     </button>
                   ))}
                 </div>
-                <button onClick={() => setOsAberto(false)} style={linkBtn}>fechar</button>
+                <button onClick={fecharOS} style={linkBtn}>fechar</button>
               </div>
             </div>
             {osErro && <div style={{ color: '#dc2626', fontSize: '.88rem', marginBottom: 10 }}>{osErro}</div>}
+            {osServicos && osServicos.length > 0 && (() => {
+              const soma = (f: (o: OSRow) => boolean) => { const l = osServicos.filter(f); return { n: l.length, v: l.reduce((s, o) => s + (o.valor || 0), 0) }; };
+              const opcoes: Array<[FiltroClasse, string, { n: number; v: number }]> = [
+                ['comercial', 'Serviço comercial', soma((o) => (o.classe ?? 'comercial') === 'comercial')],
+                ['fora', 'Garantia, seguro e campanhas', soma((o) => (o.classe ?? 'comercial') !== 'comercial')],
+                ['todas', 'Tudo', soma(() => true)],
+              ];
+              return (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+                  {opcoes.map(([v, rotulo, t]) => (
+                    <button key={v} onClick={() => setClasseFiltro(v)}
+                      style={{ padding: '5px 11px', border: '1px solid', borderColor: classeFiltro === v ? '#111827' : '#e0e0e0', background: classeFiltro === v ? '#f3f4f6' : '#fff', color: '#374151', borderRadius: 8, fontSize: '.82rem', fontWeight: 600, cursor: 'pointer' }}>
+                      {rotulo} <span style={{ color: '#9ca3af', fontWeight: 500 }}>· {t.n} OS · {fmtRS(t.v)}</span>
+                    </button>
+                  ))}
+                  <span style={{ fontSize: '.8rem', color: '#9ca3af' }}>Para mudar a classe de uma OS, use “Por OS”.</span>
+                </div>
+              );
+            })()}
             {osPendente && (
               <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: '8px 12px', fontSize: '.85rem', marginBottom: 10 }}>
                 Sincronizando {ehAno ? 'os meses que faltam' : 'este mês'} com a Omie em segundo plano — feche e abra o popup novamente em ~1–2 minutos.
@@ -1166,11 +1285,11 @@ export default function DashboardPage() {
               </div>
             )}
             {osView === 'servicos' ? (
-              !servItens ? (osErro ? null : <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div>) : servItens.length === 0 ? (osPendente ? null : <div style={{ color: '#888', fontSize: '.9rem' }}>Sem serviços faturados no período.</div>) : (
+              !servItens || !servVisiveis ? (osErro ? null : <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div>) : servVisiveis.length === 0 ? (osPendente ? null : <div style={{ color: '#888', fontSize: '.9rem' }}>Sem serviços faturados no período.</div>) : (
                 <>
                   <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
                     {(['HR', 'KM', 'OUTRO'] as TipoServico[]).map((t) => {
-                      const doTipo = servItens.filter((s) => s.tipo === t);
+                      const doTipo = servVisiveis.filter((s) => s.tipo === t);
                       const soma = doTipo.reduce((s, x) => s + (x.valor_total || 0), 0);
                       const qtd = doTipo.reduce((s, x) => s + (x.qtde || 0), 0);
                       const ativo = tipoFiltro === t;
@@ -1185,7 +1304,7 @@ export default function DashboardPage() {
                     })}
                   </div>
                   {(() => {
-                    const n = servItens.filter((s) => !tipoFiltro || s.tipo === tipoFiltro).length;
+                    const n = servVisiveis.filter((s) => !tipoFiltro || s.tipo === tipoFiltro).length;
                     return n > LIMITE_LINHAS ? (
                       <div style={{ color: '#999', fontSize: '.9rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {n.toLocaleString('pt-BR')} linhas (os totais acima consideram todas).</div>
                     ) : null;
@@ -1229,10 +1348,10 @@ export default function DashboardPage() {
                 </>
               )
             ) : (
-              !osServicos ? (osErro ? null : <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div>) : osServicos.length === 0 ? (osPendente ? null : <div style={{ color: '#888', fontSize: '.9rem' }}>Sem OS faturadas no período.</div>) : (
+              !osServicos || !osVisiveis ? (osErro ? null : <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div>) : osVisiveis.length === 0 ? (osPendente ? null : <div style={{ color: '#888', fontSize: '.9rem' }}>Sem OS {classeFiltro === 'fora' ? 'de garantia, seguro ou campanha' : 'faturadas'} no período.</div>) : (
                 <>
-                {osServicos.length > LIMITE_LINHAS && (
-                  <div style={{ color: '#999', fontSize: '.9rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {osServicos.length.toLocaleString('pt-BR')} OS (o total acima considera todas).</div>
+                {osVisiveis.length > LIMITE_LINHAS && (
+                  <div style={{ color: '#999', fontSize: '.9rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {osVisiveis.length.toLocaleString('pt-BR')} OS (o total acima considera todas).</div>
                 )}
                 <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>
@@ -1242,6 +1361,7 @@ export default function DashboardPage() {
                     <th style={thStyle}>Nota</th>
                     {shOS('NFS', 'nfse_num')}
                     {contaParam === '' && shOS('Conta', 'conta')}
+                    {shOS('Classe', 'classe')}
                     {shOS('Valor', 'valor')}
                   </tr></thead>
                   <tbody>
@@ -1253,6 +1373,7 @@ export default function DashboardPage() {
                         <td style={tdStyle}><NotaBadge temNota={o.tem_nota} balde={o.internoBalde} /></td>
                         <td style={tdStyle}>{o.nfse_num ? <button onClick={() => abrirNFS(o.nfse_num, o.conta)} style={linkBtn} title="Abrir NFS-e">{o.nfse_num}</button> : '—'}</td>
                         {contaParam === '' && <td style={tdStyle}>{o.conta}</td>}
+                        <td style={tdStyle}><ClasseOS o={o} onMudar={mudarClasse} /></td>
                         <td style={tdStyle}>{fmtRS(o.valor)}</td>
                       </tr>
                     ))}
@@ -1457,6 +1578,76 @@ function MaquinaCard({ c, modo, parcial, onVendas, onHist }: { c: Categoria; mod
   );
 }
 
+const COR_FORA = '#7c3aed';
+
+/** Seletor da classe de uma OS no popup (regra automática × ajuste à mão). */
+function ClasseOS({ o, onMudar }: { o: OSRow; onMudar: (o: OSRow, valor: string) => void }) {
+  const classe = o.classe ?? 'comercial';
+  const manual = o.classeOrigem === 'manual';
+  const dica = manual
+    ? `Movida à mão${o.classeAlteradoPor ? ' por ' + o.classeAlteradoPor : ''}. O automático diria: ${ROTULO_CLASSE[o.classeRegra ?? 'comercial']}.`
+    : o.classeMotivo ? 'Automático: ' + o.classeMotivo : 'Automático';
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }} title={dica}>
+      <select value={classe} onChange={(e) => onMudar(o, e.target.value)}
+        style={{ fontSize: '.85rem', padding: '3px 6px', borderRadius: 6, border: '1px solid #e0e0e0', color: classe === 'comercial' ? '#374151' : COR_FORA, fontWeight: classe === 'comercial' ? 500 : 700, background: '#fff' }}>
+        {(['comercial', ...CLASSES_NAO_COMERCIAIS] as ClasseServico[]).map((k) => <option key={k} value={k}>{ROTULO_CLASSE[k]}</option>)}
+        {manual && <option value="__regra">↺ Voltar ao automático</option>}
+      </select>
+      {manual && <span style={{ fontSize: '.72rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 5, padding: '0 5px' }}>manual</span>}
+    </span>
+  );
+}
+
+/** Quadro "Fora do serviço comercial": garantia, campanhas, seguro e promoção do período. */
+function ForaComercialCard({ nc, modo, parcial, onVer }: { nc: NonNullable<Categoria['naoComercial']>; modo?: 'mes' | 'ano'; parcial: boolean; onVer: () => void }) {
+  const a = nc.atual;
+  if (a.valor <= 0 && nc.anoAnterior.valor <= 0 && (!nc.mesAnterior || nc.mesAnterior.valor <= 0)) return null;
+  const maxv = Math.max(1, ...CLASSES_NAO_COMERCIAIS.map((k) => a.porClasse[k as ClasseNC].valor));
+  const comp = (rotulo: string, x: NaoComercial | null) => x && (
+    <span>{rotulo}: <b style={{ color: '#374151' }}>{fmtRS(x.valor)}</b> <span style={{ color: '#9ca3af' }}>({x.os} OS)</span></span>
+  );
+  return (
+    <div style={{ background: '#fff', border: '1px solid #eee', borderLeft: '3px solid ' + COR_FORA, borderRadius: 12, padding: '14px 16px', marginBottom: 18 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
+        <div>
+          <span style={{ fontSize: '.9rem', color: '#374151', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>Fora do serviço comercial</span>
+          <span style={{ fontSize: '.85rem', color: '#9ca3af', marginLeft: 8 }}>
+            {nc.incluido ? 'somado no Serviços (caixinha marcada)' : 'não somado no Serviços — o card mostra só o rendimento real'}
+          </span>
+        </div>
+        <button onClick={onVer} style={linkBtn}>ver OS</button>
+      </div>
+      <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start', flexWrap: 'wrap', marginTop: 8 }}>
+        <div style={{ minWidth: 170 }}>
+          <div style={{ fontSize: '1.7rem', fontWeight: 800, color: COR_INK, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(a.valor)}</div>
+          <div style={{ fontSize: '.85rem', color: '#6b7280' }}>{a.os} OS com NFS-e{parcial ? ' · período em andamento' : ''}</div>
+        </div>
+        <div style={{ flex: '1 1 320px', display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: '8px 18px' }}>
+          {CLASSES_NAO_COMERCIAIS.map((k) => {
+            const p = a.porClasse[k as ClasseNC];
+            return (
+              <div key={k}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.92rem', color: p.valor > 0 ? '#374151' : '#9ca3af' }}>
+                  <span>{ROTULO_CLASSE[k]}</span>
+                  <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(p.valor)} <span style={{ fontWeight: 400, color: '#9ca3af' }}>· {p.os}</span></span>
+                </div>
+                <div style={{ height: 5, background: '#f3f4f6', borderRadius: 3, marginTop: 3, overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: (p.valor > 0 ? Math.max(2, (p.valor / maxv) * 100) : 0) + '%', background: COR_FORA, borderRadius: 3 }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: '.85rem', color: '#6b7280', marginTop: 10 }}>
+        {modo !== 'ano' && comp('Mês anterior', nc.mesAnterior)}
+        {comp(modo === 'ano' ? 'Ano anterior' : 'Mesmo mês do ano anterior', nc.anoAnterior)}
+      </div>
+    </div>
+  );
+}
+
 function ServicosDecomp({ c, onDetalhe }: { c: Categoria; onDetalhe: () => void }) {
   const linhas: Array<{ label: string; valor: number; somado: boolean }> = [];
   if (c.valorHR != null) {
@@ -1469,6 +1660,8 @@ function ServicosDecomp({ c, onDetalhe }: { c: Categoria; onDetalhe: () => void 
   if (c.valorInternoRetorno != null) linhas.push({ label: 'Interno c/ retorno', valor: c.valorInternoRetorno, somado: false });
   if (c.valorInternoPuro != null) linhas.push({ label: 'Interno puro', valor: c.valorInternoPuro, somado: false });
   else if (c.valorInterno != null) linhas.push({ label: 'Interno', valor: c.valorInterno, somado: false });
+  const nc = c.naoComercial;
+  if (nc && nc.atual.valor > 0) linhas.push({ label: 'Garantia, seguro e campanhas', valor: nc.atual.valor, somado: nc.incluido });
   const maxv = Math.max(1, ...linhas.map((l) => Math.abs(l.valor)));
   return (
     <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 15, borderLeft: '3px solid ' + ACCENT.servicos }}>

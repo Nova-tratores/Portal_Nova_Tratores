@@ -14,12 +14,13 @@ export async function GET(req: NextRequest) {
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const catKey = req.nextUrl.searchParams.get('catKey');
   const filtroCategoria = req.nextUrl.searchParams.get('categoria') || null;
+  const incluirNC = req.nextUrl.searchParams.get('incluirNaoComercial') === '1';
   if (!catKey) {
     return NextResponse.json({ erro: 'Informe catKey' });
   }
   if (ehCardMaquina(catKey) && !(await podeVerMaquinas(req))) return semPermissaoMaquinas();
   try {
-    const r = await montarHistorico(catKey, filtroCategoria, conta);
+    const r = await montarHistorico(catKey, filtroCategoria, conta, incluirNC);
     return NextResponse.json(r);
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 });

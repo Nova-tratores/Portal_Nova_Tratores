@@ -3,6 +3,8 @@
 // obterTotalOSConsolidado, agendarRefreshOS*. Threading explícito de conta;
 // "Todas" (undefined) soma todas as contas configuradas.
 
+import { classificarOSServico, classesDasOS, osNaoComerciais } from './servicos-classe-db';
+import type { ClasseServico } from './servicos-classe';
 import { supabase } from './supabase';
 import { omieRequest } from './omie';
 import { fmtD, parseDataBR, sleep, ehMesAtual } from './utils';
@@ -525,6 +527,14 @@ export interface OSListaRow {
   nfse_num?: string | null;
   /** Só quando sem nota: 'retorno' (garantia/entrega/revisão/normal) × 'puro' (cortesia/interno). */
   internoBalde?: 'retorno' | 'puro' | null;
+  /** Comercial × garantia/campanha/seguro/promoção (os_classificacao; sem linha = comercial). */
+  classe?: ClasseServico;
+  /** 'manual' = alguém moveu a OS na tela; 'regra' = automático. */
+  classeOrigem?: 'regra' | 'manual' | null;
+  classeMotivo?: string | null;
+  /** O que a regra diria (mostrado quando a OS foi movida à mão). */
+  classeRegra?: ClasseServico | null;
+  classeAlteradoPor?: string | null;
 }
 
 /** tem_nota + número da NFS-e por nCodOS, SÓ do cache os_nfse (não chama Omie — quem verifica é o refresh BG). */
@@ -737,6 +747,13 @@ export async function sincronizarServicosItens(mes: number, ano: number, conta: 
       return;
     }
   }
+  // Comercial × não comercial (garantia, campanha, seguro, promoção) das OS do mês.
+  // Erro aqui não derruba o sync dos itens.
+  try {
+    await classificarOSServico(conta, { mes, ano });
+  } catch (e) {
+    console.log('os_classificacao [' + conta + '] ' + mes + '/' + ano + ' falhou: ' + (e as Error).message);
+  }
 }
 
 /**
@@ -794,7 +811,7 @@ export interface TiposComNota {
  * contam como interno). Retorna null quando o período ainda não tem itens no
  * cache (card esconde a linha).
  */
-export async function obterTiposComNotaMes(mes: number | null, ano: number, conta: ContaFiltro): Promise<TiposComNota | null> {
+export async function obterTiposComNotaMes(mes: number | null, ano: number, conta: ContaFiltro, incluirNaoComercial = false): Promise<TiposComNota | null> {
   const contas = conta === undefined ? getContasOmie().map((c) => c.id) : [conta];
   const soma: TiposComNota = { hr: 0, km: 0, outros: 0 };
   let temItens = false;
@@ -803,8 +820,10 @@ export async function obterTiposComNotaMes(mes: number | null, ano: number, cont
     if (itens.length === 0) continue;
     temItens = true;
     const notaMap = await buscarTemNotaMap([...new Set(itens.map((r) => r.ncod_os).filter(Boolean))], c);
+    const foraComercial = incluirNaoComercial ? new Set<number>() : await osNaoComerciais(c);
     for (const it of itens) {
       if (!notaMap.get(it.ncod_os)?.tem_nota) continue; // só tem_nota=true entra; false/ausente = interno
+      if (foraComercial.has(Number(it.ncod_os))) continue; // garantia/campanha/seguro/promoção
       if (it.tipo === 'HR') soma.hr += it.valor_total;
       else if (it.tipo === 'KM') soma.km += it.valor_total;
       else soma.outros += it.valor_total;
@@ -896,6 +915,20 @@ export async function obterServicosPopup(mes: number | null, ano: number, conta:
       porOS.set(k, os);
     }
     os.valor += s.valor_total;
+  }
+  // Classe de cada OS (garantia, campanha, seguro, promoção ou comercial) — a tela filtra.
+  for (const c of contas) {
+    const lista = [...porOS.values()].filter((o) => o.conta === c);
+    if (lista.length === 0) continue;
+    const classes = await classesDasOS(c, lista.map((o) => o.ncod_os));
+    for (const o of lista) {
+      const k = classes.get(Number(o.ncod_os));
+      o.classe = k?.classe ?? 'comercial';
+      o.classeOrigem = k?.origem ?? null;
+      o.classeMotivo = k?.motivo ?? null;
+      o.classeRegra = k?.classeRegra ?? null;
+      o.classeAlteradoPor = k?.alteradoPorNome ?? null;
+    }
   }
   const os = [...porOS.values()].sort((a, b) => b.valor - a.valor);
   return { os, servicos, pendente };

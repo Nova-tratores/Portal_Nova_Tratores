@@ -5,7 +5,7 @@
 import { obterItensProdutos, buscarItensDoBanco } from './vendas-sync';
 import { obterTotaisOS, obterTotaisOSAno, obterTiposComNotaMes, type TotaisOS } from './os';
 import { agregarCardsPecas, agregarMaquinas, getFixedCats, type ItemVenda, type MaquinaFamilia, type BucketPeca, type AgregarPecasResult } from './categorias';
-import { somarComprasPecas } from './dashboard-listas';
+import { somarComprasPecas, lerNaoComercialMensal, somarNaoComercial, type NaoComercialMes } from './dashboard-listas';
 import { ehMesAtual, ehAnoAtual, sleep, MESES_CURTO } from './utils';
 import type { ContaFiltro } from './conta';
 import { custoServicosMensal, somarCusto } from './custo-servicos-painel';
@@ -142,6 +142,12 @@ export interface DashboardCategoria {
    */
   valorInternoRetorno?: number;
   valorInternoPuro?: number;
+  /**
+   * Só no card 'servico': garantia, campanhas, seguro e promoção do período (e dos
+   * comparativos). Ficam FORA do valor do card, salvo com `incluirNaoComercial`
+   * (aí `incluido` = true e já estão somados).
+   */
+  naoComercial?: { atual: NaoComercialMes; mesAnterior: NaoComercialMes | null; anoAnterior: NaoComercialMes; incluido: boolean };
   /** Só no card 'servico': composição do valor COM NOTA por tipo (os_servicos_itens × os_nfse). */
   valorHR?: number;
   valorKM?: number;
@@ -189,6 +195,7 @@ export async function montarDashboard(
   filtroCategoria: string | null,
   conta: ContaFiltro,
   modo: ModoPeriodo = 'mes',
+  incluirNaoComercial = false,
 ): Promise<DashboardResponse> {
   const ehAno = modo === 'ano';
   const mesAntDate = new Date(selAno, selMes - 2, 1);
@@ -202,6 +209,10 @@ export async function montarDashboard(
 
   // Custo de serviços (Painel Omie): UMA ida cobrindo jan do ano anterior até o fim
   // do período — em paralelo com as leituras do banco abaixo.
+  const naoComercialPromise = lerNaoComercialMensal(conta).catch((e) => {
+    console.log('[dashboard] não comercial: ' + (e as Error).message);
+    return new Map<string, NaoComercialMes>();
+  });
   const custoServPromise = custoServicosMensal(conta, { mes: 1, ano: anoAnoAnt }, { mes: ehAno ? 12 : selMes, ano: selAno });
 
   const atual = ehAno
@@ -266,15 +277,32 @@ export async function montarDashboard(
   // Valor do card = receita de serviços SÓ com NFS-e (fallback: total de OS
   // enquanto o split `valor_nota` não foi processado). Comparativos mês/ano usam
   // a mesma régua. Cards "Peças + Serviços" e "Total Geral" herdam daqui.
-  const receitaOS = (d: DadosPeriodo): number => (d.osNota != null ? d.osNota : d.totalOS);
   const custoServ = await custoServPromise;
   const mesesDe = (ano: number) => (ehAno ? Array.from({ length: 12 }, (_, i) => ({ mes: i + 1, ano })) : [{ mes: selMes, ano }]);
+  // Garantia/campanha/seguro/promoção: os totais de os_mensal já os somam. Sem a
+  // caixinha, sai do Serviços, do Peças + Serviços e do Total Geral.
+  const ncMapa = await naoComercialPromise;
+  const ncDe = (lista: Array<{ mes: number; ano: number }>) => somarNaoComercial(lista.map((m) => ncMapa.get(m.ano + '-' + m.mes)));
+  const ncAtual = ncDe(mesesDe(selAno));
+  const ncMesAnt = ehAno ? null : ncDe([{ mes: mesAnt, ano: anoMesAnt }]);
+  const ncAnoAnt = ncDe(mesesDe(anoAnoAnt));
+  const descontar = (d: DadosPeriodo, nc: NaoComercialMes | null) => {
+    if (incluirNaoComercial || !nc || nc.valor === 0) return;
+    d.totalOS -= nc.valor;
+    if (d.osNota != null) d.osNota -= nc.valor;
+    d.totalGeral -= nc.valor;
+  };
+  descontar(atual, ncAtual);
+  if (!ehAno) descontar(anterior, ncMesAnt);
+  descontar(anoAnt, ncAnoAnt);
+  const receitaOS = (d: DadosPeriodo): number => (d.osNota != null ? d.osNota : d.totalOS);
   const cServAtual = custoServ ? somarCusto(custoServ, mesesDe(selAno)) : 0;
   const cServMesAnt = custoServ && !ehAno ? somarCusto(custoServ, [{ mes: mesAnt, ano: anoMesAnt }]) : 0;
   const cServAnoAnt = custoServ ? somarCusto(custoServ, mesesDe(anoAnoAnt)) : 0;
   const servicos = montarCategoria('Servicos', receitaOS(atual), receitaOS(anterior), receitaOS(anoAnt), 'servico',
     cServAtual, cServMesAnt, cServAnoAnt);
   servicos.custoServicosOk = !!custoServ;
+  servicos.naoComercial = { atual: ncAtual, mesAnterior: ncMesAnt, anoAnterior: ncAnoAnt, incluido: incluirNaoComercial };
   if (atual.osNota != null && atual.osInterno != null) {
     servicos.valorNota = atual.osNota;
     servicos.valorInterno = atual.osInterno;
@@ -284,7 +312,7 @@ export async function montarDashboard(
       servicos.valorInternoPuro = atual.osInternoPuro;
     }
   }
-  const tipos = await obterTiposComNotaMes(ehAno ? null : selMes, selAno, conta);
+  const tipos = await obterTiposComNotaMes(ehAno ? null : selMes, selAno, conta, incluirNaoComercial);
   if (tipos) {
     servicos.valorHR = tipos.hr;
     servicos.valorKM = tipos.km;

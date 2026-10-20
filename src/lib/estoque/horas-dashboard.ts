@@ -9,6 +9,8 @@
 //     os_nfse), qtde = horas, pela data do FATURAMENTO da OS. Técnico pela OS do
 //     portal (Ordem_Omie sem zeros = numero_os): o do relatório, senão Os_Tecnico;
 //     OS que não está no portal → "Sem OS no portal".
+//   Garantia/campanha/seguro/promoção (os_classificacao) saem dos DOIS lados,
+//   salvo com a caixinha "Incluir garantia, seguro e campanhas".
 //
 // ⚠️ select=* em Ordem_Servico_Tecnicos estoura o statement timeout (fotos e
 // assinaturas na linha) — sempre colunas explícitas.
@@ -17,6 +19,7 @@ import { supabase } from './supabase';
 import { comCacheResumo } from './resumo-cache';
 import { diasDoRelatorio, normalizarTecnico, dataIso, type RelatorioTecnico } from '@/lib/pos/horas-tecnico';
 import type { ContaFiltro } from './conta';
+import { osNaoComerciais } from './servicos-classe-db';
 
 export const SEM_OS_PORTAL = 'Sem OS no portal';
 
@@ -45,8 +48,25 @@ async function paginar<T>(montar: (de: number, ate: number) => PromiseLike<{ dat
 
 const semZeros = (v: unknown) => String(v ?? '').trim().replace(/^0+/, '');
 
-async function calcularHoras(conta: ContaFiltro): Promise<HorasResult> {
+async function calcularHoras(conta: ContaFiltro, incluirNaoComercial: boolean): Promise<HorasResult> {
   const comPortal = conta == null || conta === 'NOVA';
+  const contas = conta ? [conta] : ['NOVA', 'CASTRO'];
+  // OS fora do serviço comercial, por conta; e os números (Ordem_Omie) das da NOVA,
+  // para tirar também as horas trabalhadas nelas.
+  const ncPorConta = new Map<string, Set<number>>();
+  const ncNumerosNova = new Set<string>();
+  if (!incluirNaoComercial) {
+    for (const c of contas) {
+      const set = await osNaoComerciais(c);
+      ncPorConta.set(c, set);
+      if (c !== 'NOVA' || set.size === 0) continue;
+      const ncods = [...set];
+      for (let i = 0; i < ncods.length; i += 200) {
+        const { data } = await supabase.from('os_servicos_itens').select('numero_os').eq('conta_omie', 'NOVA').in('ncod_os', ncods.slice(i, i + 200));
+        for (const r of (data || []) as Array<{ numero_os: string }>) ncNumerosNova.add(semZeros(r.numero_os));
+      }
+    }
+  }
   const [relatorios, ordens] = comPortal
     ? await Promise.all([
         paginar<RelatorioTecnico>((de, ate) => supabase.from('Ordem_Servico_Tecnicos')
@@ -67,7 +87,9 @@ async function calcularHoras(conta: ContaFiltro): Promise<HorasResult> {
   };
   const tecDaOS = new Map<string, string>(); // Id_Ordem → técnico do relatório
   let inicioRelatorios: string | null = null;
+  const ordensNC = new Set(ordens.filter((o) => ncNumerosNova.has(semZeros(o.Ordem_Omie))).map((o) => String(o.Id_Ordem)));
   for (const r of relatorios) {
+    if (ordensNC.size && ordensNC.has(String(r.Ordem_Servico ?? ''))) continue;
     for (const d of diasDoRelatorio(r)) {
       somar(d.data, d.tecnico, 'trabalhadas', d.horas);
       if (!inicioRelatorios || d.data < inicioRelatorios) inicioRelatorios = d.data;
@@ -83,7 +105,6 @@ async function calcularHoras(conta: ContaFiltro): Promise<HorasResult> {
 
   // Faturadas: HR das OS com NFS-e
   type ItemHR = { conta_omie: string; ncod_os: number; numero_os: string; data: string; qtde: number | string };
-  const contas = conta ? [conta] : ['NOVA', 'CASTRO'];
   for (const c of contas) {
     const [itens, notas] = await Promise.all([
       paginar<ItemHR>((de, ate) => supabase.from('os_servicos_itens').select('conta_omie,ncod_os,numero_os,data,qtde')
@@ -94,6 +115,7 @@ async function calcularHoras(conta: ContaFiltro): Promise<HorasResult> {
     const comNota = new Set(notas.map((n) => Number(n.ncod_os)));
     for (const it of itens) {
       if (!comNota.has(Number(it.ncod_os))) continue;
+      if (ncPorConta.get(c)?.has(Number(it.ncod_os))) continue;
       const data = dataIso(it.data);
       if (!data) continue;
       const tecnico = c === 'NOVA' ? tecPorNumOmie.get(semZeros(it.numero_os)) || SEM_OS_PORTAL : SEM_OS_PORTAL;
@@ -111,6 +133,6 @@ async function calcularHoras(conta: ContaFiltro): Promise<HorasResult> {
 }
 
 /** Horas por dia e técnico — 5 min em cache (o sync de OS limpa ao gravar vendas; serviços mudam 1×/dia). */
-export function obterHoras(conta: ContaFiltro): Promise<HorasResult> {
-  return comCacheResumo('horas|' + (conta ?? 'todas'), () => calcularHoras(conta));
+export function obterHoras(conta: ContaFiltro, incluirNaoComercial = false): Promise<HorasResult> {
+  return comCacheResumo('horas|' + (conta ?? 'todas') + (incluirNaoComercial ? '|nc' : ''), () => calcularHoras(conta, incluirNaoComercial));
 }

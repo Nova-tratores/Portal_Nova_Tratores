@@ -20,9 +20,11 @@ export async function GET(req: NextRequest) {
   const selMes = modo === 'ano' ? 0 : mesParam;
   const selAno = sp.get('ano') ? parseInt(sp.get('ano')!) : now.getFullYear();
   const filtroCategoria = sp.get('categoria') || null;
+  // Garantia, campanhas, seguro e promoção ficam fora do Serviços, salvo com a caixinha.
+  const incluirNC = sp.get('incluirNaoComercial') === '1';
 
   try {
-    const dados = await montarDashboard(selMes, selAno, filtroCategoria, conta, modo);
+    const dados = await montarDashboard(selMes, selAno, filtroCategoria, conta, modo, incluirNC);
     // Sem estoque:dashboard-maquinas os dados de máquinas nem saem do servidor.
     if (!maquinas) {
       dados.categorias = dados.categorias.filter((c) => c.cardType !== 'maquina' && c.cardType !== 'totalMaquinas');

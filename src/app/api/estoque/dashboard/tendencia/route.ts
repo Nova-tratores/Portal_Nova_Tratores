@@ -12,8 +12,9 @@ export async function GET(req: NextRequest) {
   const { negado, maquinas } = await acessoDashboard(req);
   if (negado) return negado;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
+  const incluirNC = req.nextUrl.searchParams.get('incluirNaoComercial') === '1';
   try {
-    const { pontos, comparativos } = await montarTendencia(conta);
+    const { pontos, comparativos } = await montarTendencia(conta, incluirNC);
     // Sem estoque:dashboard-maquinas o faturamento de máquinas sai zerado.
     const ps = maquinas ? pontos : pontos.map((p) => ({ ...p, maquinas: 0, maquinasUn: 0 }));
     return NextResponse.json({ pontos: ps, comparativos });
