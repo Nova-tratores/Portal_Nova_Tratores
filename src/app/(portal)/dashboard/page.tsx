@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { fetchAuth } from '@/lib/auth/client'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { TELAS, buscarTelas, normalizar, relevancia, type Tela } from '@/lib/dashboard/telas'
+import AtalhosDashboard from '@/components/dashboard/AtalhosDashboard'
 import {
   Settings, ClipboardList, ListChecks, Wrench, FileText,
   DollarSign, Activity, Clock, ChevronRight, Search,
@@ -507,6 +508,8 @@ export default function DashboardPage() {
 
   return (
     <div style={{ padding: '20px 28px', background: 'var(--portal-bg)', minHeight: '100%' }}>
+      {/* atalhos redondos do canto (Agenda + Central de Trabalho), só aqui na dashboard */}
+      <AtalhosDashboard />
       {/* Breadcrumb quando dentro de uma pasta */}
       {activeFolder !== 'todos' && !editingFolder && (
         <div style={{

@@ -8,7 +8,9 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   Check, CircleX, CalendarClock, Wrench, Play, Ticket as TicketIcon, SquareCheck, Kanban, X, Inbox, Sun, Send, Plus, ArrowUpRight, EyeOff,
 } from 'lucide-react'
+import { createPortal } from 'react-dom'
 import { authHeaders } from '@/lib/auth/client'
+import { DOCA_ID } from '@/components/dashboard/AtalhosDashboard'
 import FormTicket from '@/components/tickets/FormTicket'
 import TicketModal from '@/components/tickets/TicketModal'
 import EscolhaBloco, { carregarMeusBlocos, type EscolhaBlocoValor } from './EscolhaBloco'
@@ -58,6 +60,18 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
     window.addEventListener('focus', foco)
     return () => { clearInterval(t); window.removeEventListener('focus', foco) }
   }, [carregar])
+
+  // Na dashboard o atalho entra na doca de atalhos (lado a lado com o da Agenda, sem sobrepor)
+  const [doca, setDoca] = useState<HTMLElement | null>(null)
+  const naDash = pathname === '/dashboard' || pathname === '/'
+  useEffect(() => {
+    if (!naDash) return
+    let t: ReturnType<typeof setInterval> | null = null
+    const achar = () => { const d = document.getElementById(DOCA_ID); if (d) setDoca(d); return !!d }
+    void Promise.resolve().then(() => { if (!achar()) t = setInterval(() => { if (achar() && t) clearInterval(t) }, 300) })
+    return () => { if (t) clearInterval(t); setDoca(null) }
+  }, [naDash])
+  const naDoca = (el: React.ReactNode) => (doca && doca.isConnected ? createPortal(el, doca) : el)
 
   if (!h?.ativo) return null
   const pend = h.pendentes[0]
@@ -210,8 +224,8 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
       )}
 
       {/* 3) Atalho flutuante na dashboard */}
-      {atalho && (
-        <div style={{ position: 'fixed', right: 22, bottom: 'calc(22px + env(safe-area-inset-bottom, 0px))', zIndex: 900 }}>
+      {atalho && naDoca(
+        <div style={doca ? { position: 'relative', order: -1, pointerEvents: 'auto' } : { position: 'fixed', right: 22, bottom: 'calc(22px + env(safe-area-inset-bottom, 0px))', zIndex: 900 }}>
           {menu && (
             <div style={{ position: 'absolute', right: 0, bottom: 70, width: 290, maxWidth: 'calc(100vw - 44px)', background: 'var(--portal-bg-card,#fff)', border: '1px solid var(--portal-border,#f0f0f0)', borderRadius: 14, boxShadow: '0 16px 40px rgba(0,0,0,.18)', overflow: 'hidden' }}>
               <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--portal-border,#f0f0f0)', fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--portal-text,#111)' }}><Kanban size={16} color="#dc2626" /> Central de Trabalho</div>
