@@ -49,7 +49,7 @@ export function candidatos(texto: string, n = 60): (AtividadeTempario & { i: num
 export const fmtMin = (m: number) => { const h = Math.floor(m / 60), mm = Math.round(m % 60); return h ? `${h}h${mm ? String(mm).padStart(2, '0') : ''}` : `${mm}min` }
 
 /** Compara as horas apontadas com a previsão do tempário.
- *  muito acima (> 1,5× e +1h) · acima (> 1,25×) · ok · rápido demais (< 50% e −1h): pode ter faltado etapa → risco de retrabalho. */
+ *  muito acima (> 1,5× e +1h) · acima (> 1,25×) · ok · rápido demais (menos da metade e −1h). Normal = de 50% a 100% do tempário (José, 20/10/2026: o tempário é generoso): pode ter faltado etapa → risco de retrabalho. */
 export type SituacaoPrevisao = 'muito_acima' | 'acima' | 'ok' | 'rapido' | 'sem_previsao'
 export function compararPrevisao(horasApontadas: number, minutosPrevistos: number | null): { situacao: SituacaoPrevisao; diffHoras: number; razao: number | null } {
   if (!minutosPrevistos || minutosPrevistos <= 0) return { situacao: 'sem_previsao', diffHoras: 0, razao: null }
