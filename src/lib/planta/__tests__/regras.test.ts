@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { calcularKpis, frescor, prepararParaUsuario, filtrarConta, isoDe, CATALOGO, type Fontes, type LinhaKpi } from '../regras';
+import { calcularKpis, frescor, prepararParaUsuario, filtrarConta, isoDe, itensDoKpi, CATALOGO, type Fontes, type LinhaKpi } from '../regras';
 
 const HOJE = '2026-10-19';
 function fontes(p: Partial<Fontes> = {}): Fontes {
@@ -128,6 +128,44 @@ describe('leitura pela rota', () => {
     expect(f.find((x) => x.kpi_id === 'pagar_vencido')!.conta).toBe('NOVA');
     expect(f.find((x) => x.kpi_id === 'ppv_aberto')!.conta).toBe('TODAS');
     expect(f.filter((x) => x.kpi_id === 'pagar_vencido')).toHaveLength(1);
+  });
+});
+
+describe('detalhe = os mesmos registros do número', () => {
+  const f = fontes({
+    pagar: [
+      tit({ status_titulo: 'ATRASADO', data_vencimento: '2026-10-10', data_previsao: '2026-10-10', valor_documento: 300, nome_fornecedor: 'A' }),
+      tit({ status_titulo: 'ATRASADO', data_vencimento: '2026-09-01', data_previsao: '2026-09-01', valor_documento: 500, valor_pago: 100, nome_fornecedor: 'B' }),
+      tit({ conta_omie: 'CASTRO', status_titulo: 'ATRASADO', data_vencimento: '2026-10-01', data_previsao: '2026-10-01', valor_documento: 70, nome_fornecedor: 'C' }),
+      tit({ data_previsao: '2026-10-22', valor_documento: 90 }),
+    ],
+    receber: [tit({ data_previsao: '2026-10-25', valor_documento: 1000, nome_cliente: 'Z' })],
+    pedidos: [{ id_pedido: 'PPV-1', status: 'Orçamento', valor_total: 10, cliente: 'X' }, { id_pedido: 'PPV-2', status: 'Concluída', valor_total: 99 }],
+    os: [{ Id_Ordem: 'OS-1', Status: 'Cobrando Cliente', Valor_Total: '200', Os_Cliente: 'Y' }],
+    alocacao: [{ id: 1, conta_omie: 'NOVA', codigo: 'P1', descricao: 'Filtro' }],
+  });
+  const ls = calcularKpis(f);
+  for (const [kpi, conta] of [['pagar_vencido', 'NOVA'], ['pagar_vencido', 'TODAS'], ['pagar_7d', 'NOVA'], ['ppv_aberto', 'TODAS'], ['os_sem_faturar', 'TODAS'], ['pecas_a_alocar', 'NOVA']] as const) {
+    it(`${kpi} ${conta}: quantidade e soma da lista = o número`, () => {
+      const n = k(ls, kpi, conta);
+      const { itens, total } = itensDoKpi(kpi, conta, f);
+      expect(total).toBe(n.contagem);
+      if (n.valor != null) expect(itens.reduce((s, i) => s + (i.valor || 0), 0)).toBeCloseTo(n.valor, 2);
+    });
+  }
+  it('fluxo: a lista soma a saída líquida (pagar entra negativo)', () => {
+    const n = k(ls, 'fluxo_30d', 'NOVA');
+    const { itens } = itensDoKpi('fluxo_30d', 'NOVA', f);
+    expect(itens.reduce((s, i) => s + (i.valor || 0), 0)).toBeCloseTo(n.valor!, 2);
+  });
+  it('vencidos saem do mais antigo para o mais novo, com link da tela oficial', () => {
+    const { itens } = itensDoKpi('pagar_vencido', 'NOVA', f);
+    expect(itens.map((i) => i.titulo)).toEqual(['B', 'A']);
+    expect(itens[0].href).toBe('/dre-financeiro/vencidos');
+  });
+  it('PPV e OS levam ao registro na tela', () => {
+    expect(itensDoKpi('ppv_aberto', 'TODAS', f).itens[0].href).toBe('/ppv?id=PPV-1');
+    expect(itensDoKpi('os_sem_faturar', 'TODAS', f).itens[0].href).toBe('/pos?id=OS-1');
   });
 });
 

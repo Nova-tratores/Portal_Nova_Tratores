@@ -34,29 +34,31 @@ async function ultimaRodada(job: string): Promise<Row | null> {
 /** cp_sync_log grava sem fuso, em UTC (CLAUDE.md, baixa de contas). */
 const utc = (s: unknown) => (s ? (/[Zz]|[+-]\d\d:?\d\d$/.test(String(s)) ? String(s) : String(s) + 'Z') : null);
 
-export async function carregarFontes(): Promise<{ fontes: Fontes; dadoAte: Record<string, string | null> }> {
+/** `so` = ler só esses cômodos (drill-down de um número); sem `so`, tudo (o snapshot). */
+export async function carregarFontes(so?: Comodo[]): Promise<{ fontes: Fontes; dadoAte: Record<string, string | null> }> {
   const falhas: Fontes['falhas'] = {};
   // Uma leitura que falha (timeout/rede: 4 em 291 rodadas no 1º dia) tenta de novo 1× após 2 s.
   const tentar = async <T>(comodo: Comodo, fn: () => Promise<T>, vazio: T): Promise<T> => {
+    if (so && !so.includes(comodo)) return vazio;
     try { return await fn(); } catch {
       await new Promise((r) => setTimeout(r, 2000));
       try { return await fn(); } catch (e) { falhas[comodo] = (e as Error).message; return vazio; }
     }
   };
   const naoFechado = (q: any) => q.not('status_titulo', 'in', `(${FECHADOS.join(',')})`); // eslint-disable-line @typescript-eslint/no-explicit-any
-  const COLS = 'id,codigo_lancamento,conta_omie,data_vencimento,data_previsao,valor_documento,valor_pago,status_titulo';
+  const COLS = 'id,codigo_lancamento,conta_omie,data_vencimento,data_previsao,valor_documento,valor_pago,status_titulo,numero_documento,numero_documento_fiscal,numero_parcela';
 
   const [pagar, receber, fila, pedidosFabrica, nfMaquinas, pedidos, os, metricasAbertas, alocacao, negativos] = await Promise.all([
     tentar('financeiro', () => todas('contas_pagar', COLS + ',nome_fornecedor', 'id', naoFechado), []),
     tentar('financeiro', () => todas('contas_receber', COLS + ',nome_cliente', 'id', naoFechado), []),
-    tentar('financeiro', () => todas('finan_pagar', 'id,valor,criado_em,omie_empresa,status_envio,aguardando_omie_desde', 'id', (q) => q.eq('status', 'financeiro')), []),
-    tentar('patio', () => todas('v_proposta_fabrica', 'id,status,eta_fabrica,dias_atraso_eta,dias_na_fase', 'id'), []),
-    tentar('patio', () => todas('recebimentos_nfe', 'id_receb,conta_omie,emissao_nfe,qtd_maquinas,valor_maquinas', 'id_receb', (q) => q.eq('status', 'Faturada').gt('qtd_maquinas', 0)), []),
-    tentar('balcao', () => todas('pedidos', 'id_pedido,status,valor_total,status_desde,data', 'id_pedido'), []),
-    tentar('oficina', () => todas('Ordem_Servico', 'Id_Ordem,Status,Valor_Total', 'Id_Ordem'), []),
+    tentar('financeiro', () => todas('finan_pagar', 'id,valor,criado_em,omie_empresa,status_envio,aguardando_omie_desde,fornecedor,motivo,numero_NF,data_vencimento', 'id', (q) => q.eq('status', 'financeiro')), []),
+    tentar('patio', () => todas('v_proposta_fabrica', 'id,status,eta_fabrica,dias_atraso_eta,dias_na_fase,cliente,marca,modelo', 'id'), []),
+    tentar('patio', () => todas('recebimentos_nfe', 'id_receb,conta_omie,emissao_nfe,qtd_maquinas,valor_maquinas,numero_nfe,fornecedor', 'id_receb', (q) => q.eq('status', 'Faturada').gt('qtd_maquinas', 0)), []),
+    tentar('balcao', () => todas('pedidos', 'id_pedido,status,valor_total,status_desde,data,cliente,Tipo_Pedido', 'id_pedido'), []),
+    tentar('oficina', () => todas('Ordem_Servico', 'Id_Ordem,Status,Valor_Total,Os_Cliente,Os_Tecnico', 'Id_Ordem'), []),
     tentar('oficina', () => todas('tecnico_metricas', 'id,id_ordem,dias', 'id', (q) => q.is('data_fim', null)), []),
-    tentar('almoxarifado', () => todas('pecas_alocacao_pendencias', 'id,conta_omie', 'id', (q) => q.eq('status', 'aberta')), []),
-    tentar('almoxarifado', () => todas('produtos', 'codigo_produto,conta_omie', 'codigo_produto', (q) => q.lt('estoque', 0)), []),
+    tentar('almoxarifado', () => todas('pecas_alocacao_pendencias', 'id,conta_omie,codigo,codigo_produto,descricao,fornecedor,numero_nfe,recebido_em', 'id', (q) => q.eq('status', 'aberta')), []),
+    tentar('almoxarifado', () => todas('produtos', 'codigo_produto,conta_omie,codigo,descricao,estoque', 'codigo_produto', (q) => q.lt('estoque', 0)), []),
   ]);
 
   // Idade do dado por fonte (e o resumo da sala de máquinas).

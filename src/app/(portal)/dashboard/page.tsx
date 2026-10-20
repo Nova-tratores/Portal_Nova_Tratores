@@ -102,6 +102,7 @@ const systems: SystemCard[] = [
   { id: 'agenda', name: 'Agenda', description: 'A agenda de todos, por setor: compromissos, reuniões, sala e os técnicos', icon: <CalendarDays size={28} />, color: '#1a73e8', gradient: 'linear-gradient(135deg, #4285f4, #1a56c4)', href: '/agenda', tag: 'AGENDA', group: 'outros' },
   // Agenda da sala física — de propósito FORA de systemToModulo: todo logado reserva.
   { id: 'salas', name: 'Sala de reunião', description: 'Veja quando a sala está livre e reserve sem bater horário com ninguém', icon: <MapPin size={28} />, color: '#0891b2', gradient: 'linear-gradient(135deg, #22d3ee, #0e7490)', href: '/salas', tag: 'RESERVAR', group: 'outros' },
+  { id: 'planta', name: 'Planta Viva', description: 'A empresa vista de cima: contas, máquinas vindo, pedidos, oficina e estoque, com a idade de cada número', icon: <LayoutGrid size={28} />, color: '#0e7490', gradient: 'linear-gradient(135deg, #0891b2, #0e7490)', href: '/planta', tag: 'PLANTA', group: 'outros' },
   { id: 'dashboard-agro', name: 'Dashboard Agro', description: 'Dashboard de acompanhamento do segmento agrícola', icon: <Wheat size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #22c55e, #15803d)', href: '/dashboard-agro', tag: 'AGRO', group: 'outros' },
   { id: 'back-nova', name: 'Back Nova', description: 'Sistema backend Nova Tratores', icon: <Server size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #374151)', href: 'https://back.novatratores.com', tag: 'BACKEND', group: 'outros', external: true },
   { id: 'configuracoes', name: 'Configurações', description: 'Gestão de usuários, permissões e configurações gerais do portal', icon: <Settings size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #525252, #1a1a1a)', href: '/admin', tag: 'ADMIN', group: 'outros' },
@@ -123,6 +124,7 @@ const systemToModulo: Record<string, string> = {
   'proposta-comercial': 'propostas',
   'orcamentos': 'orcamentos',
   'tarefas': 'tarefas',
+  'planta': 'planta',
   'reunioes': 'tickets',                  // Central de Trabalho (tickets/tarefas/cronograma liberam)
   'mecanicos': 'mecanicos',
   'clientes': 'clientes',

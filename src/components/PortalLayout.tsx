@@ -122,6 +122,7 @@ const navItems: NavItem[] = [
   // Outros (cinza)
   { id: 'opa', name: 'Opa', href: '/opa', icon: <AlertCircle size={18} />, tag: 'OCORRÊNCIAS', gradient: '', group: 'outros' },
   { id: 'atividades', name: 'Atividades', href: '/atividades', icon: <Activity size={18} />, tag: 'LOGS', gradient: '', group: 'outros' },
+  { id: 'planta', name: 'Planta Viva', href: '/planta', icon: <LayoutGrid size={18} />, tag: 'PLANTA', gradient: '', group: 'outros' },
   { id: 'dashboard-agro', name: 'Dashboard Agro', href: '/dashboard-agro', icon: <Wheat size={18} />, tag: 'AGRO', gradient: '', group: 'outros' },
 ]
 

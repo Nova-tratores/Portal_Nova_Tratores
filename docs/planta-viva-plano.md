@@ -206,6 +206,26 @@ Script `scripts/planta-conferir.ts` (antes `planta-gate0.ts`) (só leitura, 18 s
   `fix/seguranca-tema1-rotas` (lote 2, "login no DRE"), ainda não mesclada. Quando entrar, a conferência
   do Gate 0 precisa chamar a rota com o `CRON_SECRET` ou importar o cálculo.
 
+## 6c. Gate 1 (24 h) e Gate 2 (20/10/2026)
+
+- **Gate 1 em produção:** 291 rodadas em 24 h (290 OK, 1 interrompida por deploy), mediana 3 s, máximo 10 s,
+  maior intervalo 5,1 min. 4 rodadas com erro intermitente de leitura no financeiro → a leitura tenta de novo 1×
+  e um cômodo com erro mantém o último número bom (48a1706f). Tabela gravada × cálculo novo: 0 divergência.
+  A comparação com a tela oficial de vencidos agora exige login; decisão do usuário: conferir no navegador,
+  pelos links da tela (não passar token).
+- **Gate 2 — tela `/planta`:** `components/planta/PlantaViva.tsx` + `planta.module.css` (cores em classe: o modo
+  escuro do portal remapeia `style=`). Seis cômodos em grade CSS; canos em SVG calculados pela posição real das
+  salas (`ResizeObserver`), correndo quando o dado está em dia e pontilhados parados quando está velho; camadas
+  Dinheiro/Máquinas/Pedidos e peças; NOVA/CASTRO/Todas. Clique num número → painel lateral com o detalhe
+  (dias de atraso, semanas, fases, idade dos PPV, robôs), a lista de registros e "Abrir a tela oficial".
+- **Detalhe = os mesmos registros do número:** `selecionar()` em `regras.ts` é a fonte única do cálculo e da lista
+  (`itensDoKpi`); conferido nos 43 números com dados reais (0 divergência) e em testes. Rota
+  `GET /api/planta/kpi/[id]` lê só o cômodo pedido, até 200 registros, 403 para número sensível sem admin,
+  registra `drill` no `audit_log`.
+- **Módulo `planta`** no catálogo de permissões, Admin, menu e dashboard (com entrada em `systemToModulo`).
+  Testado com o usuário comum "Mecânico Teste": sem o módulo → 403; com o módulo → 11 números do financeiro
+  lacrados (sem valor e sem detalhe), PPV visível, detalhe sensível 403.
+
 ## 7. Riscos
 
 | Risco | Cuidado |

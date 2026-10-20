@@ -42,6 +42,7 @@ export interface RotaDef {
 export const MODULOS_TELAS: { id: string; nome: string }[] = [
   { id: 'ajustes', nome: 'Ajustes' },
   { id: 'atividades', nome: 'Atividades (logs)' },
+  { id: 'planta', nome: 'Planta Viva' },
   { id: 'avisos', nome: 'Avisos' },
   { id: 'back-nova', nome: 'Back Nova (externo)' },
   { id: 'cameras', nome: 'Vigia das Câmeras' },
@@ -129,7 +130,7 @@ const RAIZ: Record<string, string> = {
   feedbacks: '/feedbacks', clientes: '/clientes', 'supervisor-vendas': '/supervisor-vendas',
   'vendas-modelo': '/vendas-modelo', lead: '/lead', 'consulta-estoque': '/visual-estoque', estoque: '/estoque',
   pendencias: '/pendencias', atividades: '/atividades', 'dashboard-agro': '/dashboard-agro', tickets: '/tickets',
-  tarefas: '/tarefas', 'war-room': '/war-room', 'gestao-vendas': '/gestao-vendas',
+  tarefas: '/tarefas', 'war-room': '/war-room', planta: '/planta', 'gestao-vendas': '/gestao-vendas',
 };
 const ALTERNATIVAS_RAIZ: Record<string, string[]> = {
   tickets: ['tarefas', 'cronograma'],

@@ -42,6 +42,8 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   // este módulo dá editar qualquer informação, verificar, separar e excluir.
   opa: 'Outros', 'opa-pecas': 'Outros', patrimonio: 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
   tickets: 'Outros', 'war-room': 'Financeiro',
+  // Planta Viva: a empresa vista de cima; o financeiro dentro dela é só admin (corte na rota).
+  planta: 'Outros',
   // Base de conhecimento: LER é de todo mundo logado (sem módulo); as ações aqui são de quem escreve/aprova.
   conhecimento: 'Outros',
   // POPs: ler publicado e dar ciência é de todo logado; o escopo de dono/aprovador é por ÁREA (pops_area_papeis).
