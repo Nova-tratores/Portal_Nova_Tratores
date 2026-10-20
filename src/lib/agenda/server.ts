@@ -169,13 +169,16 @@ async function fonteOS(c: Ctx): Promise<ItemAgenda[]> {
     if (!pessoas.length && c.ids.has(SEM_TECNICO)) pessoas = [SEM_TECNICO]
     if (!pessoas.length) continue
     const sol = solicitacaoDaOS(o.Serv_Solicitado)
+    // horário combinado de cada dia ("2026-10-21 08:00-12:00") — a Lousa ordena por ele
+    const horas: Record<string, string> = {}
+    for (const e of String(o.Dias_Execucao || '').split(',')) { const m = /^(d{4}-d{2}-d{2})s+(d{1,2}:d{2})/.exec(e.trim()); if (m) horas[m[1]] = m[2].padStart(5, '0') }
     for (const [ini, fim] of faixasDeDias(diasDaOS(o))) {
       if (fim < c.de || ini > c.ate) continue
       out.push({
         id: `os:${o.Id_Ordem}:${ini}`, ref: o.Id_Ordem, fonte: 'os', titulo: `${o.Id_Ordem} · ${o.Os_Cliente || 'Cliente'}`,
         inicio: isoDe(ini, '00:00'), fim: isoDe(addDias(fim, 1), '00:00'), diaInteiro: true, pessoas,
         local: o.Servico_Oficina ? 'Oficina' : o.Cidade_Cliente, descricao: sol || null, esmaecido: !osEmAberto(o.Status),
-        link: `/pos?id=${encodeURIComponent(o.Id_Ordem)}`,
+        link: `/pos?id=${encodeURIComponent(o.Id_Ordem)}`, extra: { horas, hora: /^d{1,2}:d{2}/.test(o.Hora_Inicio_Exec || '') ? String(o.Hora_Inicio_Exec).slice(0, 5).padStart(5, '0') : null },
         detalhes: [['Situação', o.Status || '—'], ...(o.Tipo_Servico ? [['Tipo', o.Tipo_Servico] as [string, string]] : []), ['Técnico', pessoas[0] === SEM_TECNICO ? (tecnicoEscrito ? `${tecnicoEscrito} (não é técnico do portal)` : 'sem técnico na OS') : pessoas.map((p) => nomeDe(c, p)).join(' + ')]],
       })
     }

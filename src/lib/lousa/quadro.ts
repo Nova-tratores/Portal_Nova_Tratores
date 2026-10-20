@@ -41,3 +41,31 @@ export function trocarTecnico(atuais: [string | null, string | null], de: string
   if (de && n(t2) === n(de)) return [t1, para]
   return [para, t2]
 }
+
+/** número de texto do POS ("1", "3.6", "1,5") — vazio/lixo = 0 */
+export const numeroOS = (v: unknown) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : 0 }
+
+/** só o que o cliente pediu (linha "Solicitação do cliente:" do Serv_Solicitado), sem o resto */
+export function lerSolicitacao(texto: string | null | undefined): string {
+  const m = /solicita[cç][aã]o do cliente:[ \t]*([\s\S]*?)(?:\n\s*servi[cç]o realizado:|$)/i.exec(texto || '')
+  return m ? m[1].trim() : ''
+}
+
+/**
+ * Troca SÓ a solicitação do cliente dentro do Serv_Solicitado
+ * ("Modelo… Chassis… Horimetro…\n\nSolicitação do cliente: X\nServiço Realizado: Y"),
+ * mantendo modelo, chassi, horímetro e o serviço realizado. Sem o marcador, acrescenta.
+ */
+export function trocarSolicitacao(texto: string | null | undefined, nova: string): string {
+  const t = String(texto || '')
+  const limpa = nova.trim()
+  const re = /(solicita[cç][aã]o do cliente:)[ \t]*([\s\S]*?)(\n\s*servi[cç]o realizado:|$)/i
+  if (re.test(t)) return t.replace(re, (_m, rot: string, _v: string, fim: string) => `${rot} ${limpa}${fim}`)
+  return t.trim() ? `${t.trimEnd()}\n\nSolicitação do cliente: ${limpa}\nServiço Realizado: ` : `Solicitação do cliente: ${limpa}\nServiço Realizado: `
+}
+
+/** novo Valor_Total quando horas/km mudam: soma a diferença × valor da hora/km da OS */
+export function novoValorTotal(total: unknown, horas: { antes: unknown; depois: unknown; valor: number }, km: { antes: unknown; depois: unknown; valor: number }): number {
+  const v = numeroOS(total) + (numeroOS(horas.depois) - numeroOS(horas.antes)) * horas.valor + (numeroOS(km.depois) - numeroOS(km.antes)) * km.valor
+  return Math.round(Math.max(0, v) * 100) / 100
+}

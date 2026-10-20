@@ -3,6 +3,8 @@
 //   -> { pessoas (técnicos + "Sem técnico"), itens (OS e lançamentos da Lousa), pendentes, podeEditar, agora }
 // PATCH /api/lousa/quadro  { acao: 'mover', fonte: 'os'|'lousa', ref, origem?, destino, de?, para? }
 //                          { acao: 'pendente', ref }
+//                          { acao: 'editar', ref, dia?, tecnico1?, tecnico2?, observacoes?, pendente? }  (ficha do cartão)
+// GET   /api/lousa/quadro?os=OS-0000  -> ficha da OS para o clique no cartão
 //   mover = muda o dia (e o técnico, se trocou de linha) NA OS; pendente = marca a OS como
 //   pendente SEM tirar a data (sql/lousa-pendente.sql). Tudo fica no histórico da OS.
 // Leitura igual à da Agenda no modo técnicos (lib/agenda/server.ts).
@@ -12,7 +14,7 @@ import { carregarAgenda, carregarDiretorio, podeLousa, SEM_TECNICO } from '@/lib
 import { addDias, localDe, DIA_RE, osCancelada, solicitacaoDaOS } from '@/lib/agenda/regras'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { TBL_OS } from '@/lib/pos/constants'
-import { moverOS, marcarPendente, moverLancamento, ErroQuadro } from '@/lib/lousa/quadro-server'
+import { moverOS, marcarPendente, moverLancamento, lerFicha, editarOS, ErroQuadro } from '@/lib/lousa/quadro-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -51,6 +53,11 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   const agora = localDe(new Date().toISOString())
   const sp = req.nextUrl.searchParams
+  const osFicha = sp.get('os')
+  if (osFicha) {
+    try { return NextResponse.json({ ficha: await lerFicha(osFicha), podeEditar: podeEditar(auth) }) }
+    catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Falha' }, { status: e instanceof ErroQuadro ? e.status : 500 }) }
+  }
   const de = DIA_RE.test(sp.get('de') || '') ? sp.get('de')! : agora.dia
   let ate = DIA_RE.test(sp.get('ate') || '') ? sp.get('ate')! : addDias(de, 13)
   if (ate < de) ate = de
@@ -74,7 +81,9 @@ export async function PATCH(req: NextRequest) {
   const auth = await autenticar(req)
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   if (!podeEditar(auth)) return NextResponse.json({ error: 'Você não tem permissão para mexer na Lousa.' }, { status: 403 })
-  const b = await req.json().catch(() => ({})) as { acao?: string; fonte?: string; ref?: string; origem?: string | null; destino?: string; de?: string | null; para?: string | null }
+  const b = await req.json().catch(() => ({})) as { acao?: string; fonte?: string; ref?: string; origem?: string | null; destino?: string; de?: string | null; para?: string | null
+    dia?: string | null; tecnico1?: string | null; tecnico2?: string | null; observacoes?: string | null; pendente?: boolean
+    projeto?: string | null; pedido?: string | null; horas?: number | string | null; km?: number | string | null; hora?: string | null }
   const ref = String(b.ref || '').trim()
   if (!ref) return NextResponse.json({ error: 'Qual cartão?' }, { status: 400 })
   const quem = auth.email || auth.userId
@@ -83,6 +92,29 @@ export async function PATCH(req: NextRequest) {
       if (b.fonte === 'lousa') return NextResponse.json({ error: 'Só OS vai para as pendentes.' }, { status: 400 })
       await marcarPendente(ref, quem)
       return NextResponse.json({ ok: true })
+    }
+    if (b.acao === 'editar') {
+      // técnico só pode ser um técnico do portal (nome como o POS grava: MAIÚSCULAS) ou vazio
+      const dir = await carregarDiretorio()
+      const validos = new Set(dir.pessoas.filter((p) => p.tecnico).map((p) => (p.tecnicoNome || p.nome).toUpperCase()))
+      const tec = (v: string | null | undefined) => (v === undefined ? undefined : !v ? null : validos.has(v.toUpperCase()) ? v.toUpperCase() : (() => { throw new ErroQuadro('Técnico inválido.') })())
+      if (b.dia && !DIA_RE.test(b.dia)) return NextResponse.json({ error: 'Dia inválido.' }, { status: 400 })
+      for (const k of ['horas', 'km'] as const) {
+        const v = b[k]; if (v === undefined || v === null || v === '') continue
+        const n = Number(String(v).replace(',', '.'))
+        if (!Number.isFinite(n) || n < 0 || n > (k === 'horas' ? 500 : 20000)) return NextResponse.json({ error: k === 'horas' ? 'Horas inválidas.' : 'Km inválido.' }, { status: 400 })
+      }
+      const ficha = await editarOS(ref, {
+        dia: b.dia, tecnico1: tec(b.tecnico1), tecnico2: tec(b.tecnico2),
+        observacoes: b.observacoes === undefined ? undefined : String(b.observacoes || '').slice(0, 4000),
+        pendente: typeof b.pendente === 'boolean' ? b.pendente : undefined,
+        hora: b.hora === undefined ? undefined : (/^d{2}:d{2}$/.test(String(b.hora || '')) ? String(b.hora) : null),
+        projeto: b.projeto === undefined ? undefined : String(b.projeto || '').slice(0, 120),
+        pedido: b.pedido === undefined ? undefined : String(b.pedido || '').slice(0, 3000),
+        horas: b.horas === undefined || b.horas === null || b.horas === '' ? undefined : Number(String(b.horas).replace(',', '.')),
+        km: b.km === undefined || b.km === null || b.km === '' ? undefined : Number(String(b.km).replace(',', '.')),
+      }, quem)
+      return NextResponse.json({ ok: true, ficha })
     }
     if (b.acao !== 'mover' || !DIA_RE.test(b.destino || '')) return NextResponse.json({ error: 'Ação inválida.' }, { status: 400 })
     // id da linha → nome do técnico (na OS o nome vai em MAIÚSCULAS, como o POS grava)

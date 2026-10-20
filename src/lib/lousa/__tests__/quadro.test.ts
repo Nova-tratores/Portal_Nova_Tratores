@@ -24,3 +24,21 @@ describe('quadro da lousa', () => {
     expect(trocarTecnico([null, null], null, 'GABRIEL MORAES')).toEqual(['GABRIEL MORAES', null])
   })
 })
+
+import { lerSolicitacao, trocarSolicitacao, novoValorTotal, numeroOS } from '../quadro'
+describe('ficha da OS na lousa', () => {
+  const txt = 'Modelo: 6060\nChassis: MBNY\nHorimetro: \n\nSolicitação do cliente: RADIADOR FURADO\nServiço Realizado: trocou o radiador'
+  it('lê e troca só a solicitação', () => {
+    expect(lerSolicitacao(txt)).toBe('RADIADOR FURADO')
+    expect(trocarSolicitacao(txt, 'Radiador furado e tração')).toBe('Modelo: 6060\nChassis: MBNY\nHorimetro: \n\nSolicitação do cliente: Radiador furado e tração\nServiço Realizado: trocou o radiador')
+  })
+  it('sem marcador, acrescenta', () => {
+    expect(trocarSolicitacao('', 'Revisão')).toBe('Solicitação do cliente: Revisão\nServiço Realizado: ')
+    expect(lerSolicitacao(trocarSolicitacao('Modelo: X', 'Revisão'))).toBe('Revisão')
+  })
+  it('valor da OS anda com horas e km', () => {
+    expect(novoValorTotal('200', { antes: '1', depois: '3', valor: 200 }, { antes: '0', depois: '40', valor: 3.6 })).toBe(744)
+    expect(novoValorTotal('200', { antes: '1', depois: '1', valor: 200 }, { antes: '0', depois: '0', valor: 3.6 })).toBe(200)
+    expect(numeroOS('1,5')).toBe(1.5)
+  })
+})
