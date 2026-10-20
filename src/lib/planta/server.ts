@@ -36,8 +36,12 @@ const utc = (s: unknown) => (s ? (/[Zz]|[+-]\d\d:?\d\d$/.test(String(s)) ? Strin
 
 export async function carregarFontes(): Promise<{ fontes: Fontes; dadoAte: Record<string, string | null> }> {
   const falhas: Fontes['falhas'] = {};
+  // Uma leitura que falha (timeout/rede: 4 em 291 rodadas no 1º dia) tenta de novo 1× após 2 s.
   const tentar = async <T>(comodo: Comodo, fn: () => Promise<T>, vazio: T): Promise<T> => {
-    try { return await fn(); } catch (e) { falhas[comodo] = (e as Error).message; return vazio; }
+    try { return await fn(); } catch {
+      await new Promise((r) => setTimeout(r, 2000));
+      try { return await fn(); } catch (e) { falhas[comodo] = (e as Error).message; return vazio; }
+    }
   };
   const naoFechado = (q: any) => q.not('status_titulo', 'in', `(${FECHADOS.join(',')})`); // eslint-disable-line @typescript-eslint/no-explicit-any
   const COLS = 'id,codigo_lancamento,conta_omie,data_vencimento,data_previsao,valor_documento,valor_pago,status_titulo';
@@ -100,12 +104,18 @@ export async function rodarSnapshot(): Promise<{ resumo?: string; pular?: string
   const { fontes, dadoAte } = await carregarFontes();
   const linhas = calcularKpis(fontes);
   const agora = new Date().toISOString();
-  const rows = linhas.map((l) => ({ ...l, dado_ate: dadoAteDe(l, dadoAte, agora), calculado_em: agora }));
-  const { error } = await sb.from('planta_kpi').upsert(rows, { onConflict: 'kpi_id,conta' });
-  if (semTabela(error)) return { pular: 'migration sql/planta-viva.sql não aplicada' };
-  if (error) throw new Error(error.message);
-  const erros = linhas.filter((l) => l.erro).map((l) => l.comodo);
-  return { resumo: `${rows.length} números em ${((Date.now() - t0) / 1000).toFixed(1)} s${erros.length ? ` · com erro: ${[...new Set(erros)].join(', ')}` : ''}` };
+  const boas = linhas.filter((l) => !l.erro).map((l) => ({ ...l, dado_ate: dadoAteDe(l, dadoAte, agora), calculado_em: agora }));
+  // Cômodo com erro NÃO apaga o último número bom: grava só a marca de erro (contagem, valor,
+  // detalhe, dado_ate e calculado_em ficam os da última rodada OK — a tela mostra a idade).
+  const comErro = linhas.filter((l) => l.erro).map(({ kpi_id, conta, comodo, sensivel, fonte, erro }) => ({ kpi_id, conta, comodo, sensivel, fonte, erro }));
+  for (const lote of [boas, comErro]) {
+    if (!lote.length) continue;
+    const { error } = await sb.from('planta_kpi').upsert(lote, { onConflict: 'kpi_id,conta' });
+    if (semTabela(error)) return { pular: 'migration sql/planta-viva.sql não aplicada' };
+    if (error) throw new Error(error.message);
+  }
+  const falhas = [...new Set(linhas.filter((l) => l.erro).map((l) => `${l.comodo}: ${String(l.erro).slice(0, 120)}`))];
+  return { resumo: `${linhas.length} números em ${((Date.now() - t0) / 1000).toFixed(1)} s${falhas.length ? ` · com erro (mantido o último valor) — ${falhas.join(' | ')}` : ''}` };
 }
 
 export async function lerSnapshot(): Promise<{ linhas: Row[]; migracaoFaltando?: boolean }> {
