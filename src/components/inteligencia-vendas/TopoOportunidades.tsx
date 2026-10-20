@@ -9,7 +9,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ClienteIV, RegraId } from '@/lib/inteligencia-vendas/tipos';
 import { PERGUNTAS, REGRAS } from '@/lib/inteligencia-vendas/regras';
 
-export type VarianteTopo = 'A' | 'B' | 'C';
+export type VarianteTopo = 'A' | 'B' | 'C' | 'D';
 export interface FiltrosTopo { regra: RegraId | ''; pergunta: string; q: string; cidade: string; vendedor: string; loja: string; soComOportunidade: boolean }
 
 const TX = 'var(--portal-text, #0f172a)', MU = 'var(--portal-text-muted, #64748b)', BD = 'var(--portal-border, #e2e8f0)';
@@ -156,6 +156,7 @@ export default function TopoOportunidades(p: {
       )}
 
       {p.variante === 'C' && <Mosaico regras={regras} porRegra={p.porRegra} ativo={p.f.regra} onEscolher={escolher} />}
+      {p.variante === 'D' && <BarraMotivos regras={regras} porRegra={p.porRegra} ativo={p.f.regra} onEscolher={escolher} />}
 
       {zerados.length > 0 && (
         <div style={{ fontSize: 13.5, color: MU, marginTop: 10 }}>
@@ -173,6 +174,71 @@ export default function TopoOportunidades(p: {
     </div>
   );
 }
+
+/**
+ * Barra de motivos (variante D, José 20/10/2026: "mostra de outra forma isso aqui" — dentro da
+ * Prospecção o mosaico grande pesava). Uma barra só, dividida pelos motivos na proporção de
+ * cada um; o pedaço escolhido filtra a lista e abre a explicação embaixo.
+ */
+function BarraMotivos({ regras, porRegra, ativo, onEscolher }: { regras: RegraId[]; porRegra: Map<RegraId, number>; ativo: string; onEscolher: (r: RegraId) => void }) {
+  const soma = regras.reduce((s, r) => s + (porRegra.get(r) || 0), 0) || 1;
+  const sel = (ativo || '') as RegraId | '';
+  return (
+    <div className="to-d">
+      <div className="to-d-barra">
+        {regras.map((r, i) => {
+          const n = porRegra.get(r) || 0, pct = (n / soma) * 100, on = !sel || sel === r;
+          return (
+            <button key={r} type="button" onClick={() => onEscolher(r)} title={`${REGRAS[r].rotulo}: ${n} — ${REGRAS[r].explicacao}`}
+              className={`to-d-seg ${sel === r ? 'on' : ''}`} style={{ flexGrow: Math.max(pct, 3.5), ['--k' as string]: REGRAS[r].cor, animationDelay: `${i * 90}ms`, opacity: on ? 1 : 0.35 }}>
+              {pct >= 7 ? <><b><Num v={n} /></b><span>{REGRAS[r].rotulo}</span></> : <b className="to-d-mini">{n}</b>}
+            </button>
+          );
+        })}
+      </div>
+      <div className="to-d-legenda">
+        {regras.map((r, i) => {
+          const n = porRegra.get(r) || 0;
+          return (
+            <button key={r} type="button" onClick={() => onEscolher(r)} className={sel === r ? 'on' : ''} style={{ ['--k' as string]: REGRAS[r].cor, animationDelay: `${300 + i * 50}ms` }}>
+              <i className={`fas ${ICONE[r]}`} /> {REGRAS[r].rotulo} <b>{n.toLocaleString('pt-BR')}</b> <small>{Math.round((n / soma) * 100)}%</small>
+            </button>
+          );
+        })}
+      </div>
+      {sel && (
+        <div key={sel} className="to-d-explica" style={{ ['--k' as string]: REGRAS[sel].cor }}>
+          <span className="to-d-ic"><i className={`fas ${ICONE[sel]}`} /></span>
+          <div><b>{REGRAS[sel].rotulo}: {(porRegra.get(sel) || 0).toLocaleString('pt-BR')} clientes</b><span>{FRASE[sel]}. {REGRAS[sel].explicacao}</span></div>
+          <button type="button" onClick={() => onEscolher(sel)}><i className="fas fa-xmark" /> tirar filtro</button>
+        </div>
+      )}
+      <style>{ESTILO_BARRA}</style>
+    </div>
+  );
+}
+
+const ESTILO_BARRA = `
+  .to-d { display: grid; gap: 12px }
+  .to-d-barra { display: flex; gap: 4px; height: 74px; border-radius: 18px; overflow: hidden }
+  .to-d-seg { position: relative; flex-basis: 0; min-width: 34px; border: 0; padding: 0 14px; cursor: pointer; font: inherit; color: #fefefe; text-align: left; display: flex; flex-direction: column; justify-content: center; overflow: hidden; background: linear-gradient(140deg, var(--k), color-mix(in srgb, var(--k) 68%, #0f172a)); transform-origin: left; animation: toDCresce .8s cubic-bezier(.2,.8,.2,1) both; transition: opacity .3s, filter .25s }
+  .to-d-seg::after { content: ''; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 35%, rgba(255,255,255,.22) 50%, transparent 65%); background-size: 250% 100%; animation: toDBrilho 6s ease-in-out infinite; pointer-events: none }
+  @keyframes toDCresce { from { transform: scaleX(0); opacity: 0 } }
+  @keyframes toDBrilho { 0%, 70% { background-position: 160% 0 } 100% { background-position: -60% 0 } }
+  .to-d-seg:hover { filter: brightness(1.1) } .to-d-seg.on { box-shadow: inset 0 -5px 0 rgba(255,255,255,.75) }
+  .to-d-seg b { font-size: 26px; font-weight: 900; line-height: 1; letter-spacing: -.02em } .to-d-seg span { font-size: 13px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; opacity: .95 }
+  .to-d-seg .to-d-mini { font-size: 15px; text-align: center }
+  .to-d-legenda { display: flex; gap: 6px; flex-wrap: wrap }
+  .to-d-legenda button { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 6px 12px; font: inherit; font-size: 13.5px; font-weight: 700; color: var(--portal-text, #0f172a); cursor: pointer; animation: toEntra .4s ease both; transition: background .2s, border-color .2s, color .2s }
+  .to-d-legenda button i, .to-d-legenda button b { color: var(--k) } .to-d-legenda button small { color: var(--portal-text-muted, #64748b); font-weight: 600 }
+  .to-d-legenda button:hover { border-color: var(--k) } .to-d-legenda button.on { background: var(--k); border-color: var(--k); color: #fefefe } .to-d-legenda button.on i, .to-d-legenda button.on b, .to-d-legenda button.on small { color: #fefefe }
+  .to-d-explica { display: flex; gap: 12px; align-items: center; border-radius: 16px; padding: 12px 14px; background: color-mix(in srgb, var(--k) 8%, var(--portal-bg-card, #fefefe)); border: 1px solid color-mix(in srgb, var(--k) 30%, transparent); animation: toEntra .35s ease both }
+  .to-d-explica b { display: block; font-size: 15px; color: var(--portal-text, #0f172a) } .to-d-explica span { font-size: 13.5px; color: var(--portal-text-muted, #475569) }
+  .to-d-explica button { margin-left: auto; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 5px 11px; font: inherit; font-size: 12.5px; font-weight: 700; color: var(--portal-text-muted, #64748b); cursor: pointer; white-space: nowrap }
+  .to-d-ic { width: 42px; height: 42px; border-radius: 13px; flex-shrink: 0; display: grid; place-items: center; background: var(--k); color: #fefefe; font-size: 17px }
+  @media (max-width: 760px) { .to-d-seg span { display: none } .to-d-barra { height: 54px } }
+  @media (prefers-reduced-motion: reduce) { .to-d-seg, .to-d-seg::after, .to-d-legenda button, .to-d-explica { animation: none !important } }
+`;
 
 /**
  * Mosaico: um bloco por motivo, área proporcional à quantidade (com piso, para o

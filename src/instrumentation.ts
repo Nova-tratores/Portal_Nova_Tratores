@@ -366,6 +366,22 @@ export async function register(): Promise<void> {
     log('inteligência de vendas: base dos clientes recalculada a cada 20 min');
   }
 
+  // INTELIGÊNCIA DE VENDAS — feed do vendedor no app de vendas (20/10/2026): a reserva de
+  // contatos de cada vendedor (iv_feed_pool) é refeita a cada 6 h. Só produção;
+  // IV_FEED=on liga no local, =off desliga.
+  if (rodaRobos && ((process.env.NODE_ENV === 'production' && process.env.IV_FEED !== 'off') || process.env.IV_FEED === 'on')) {
+    const rodarFeed = async () => {
+      try {
+        const { gerarFeeds } = await import('./lib/inteligencia-vendas/feed-server');
+        const r = await gerarFeeds();
+        log(`feed dos vendedores: ${r.vendedores} vendedores, ${r.contatos} contatos${r.semCidade.length ? ` (sem cidade: ${r.semCidade.join(', ')})` : ''}`);
+      } catch (e) { log('feed dos vendedores falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarFeed().catch(() => {}); }, 6 * 60 * 60 * 1000);
+    setTimeout(() => { rodarFeed().catch(() => {}); }, 5 * 60 * 1000);
+    log('feed dos vendedores: refeito a cada 6 h');
+  }
+
   // INTELIGÊNCIA DE VENDAS — Boletim do agro (19/10/2026): notícias, preços CONAB, Focus, dólar
   // e clima da região, editados pela IA. 1x por dia a partir das 06:30 BRT (e na subida do
   // processo se o boletim de hoje ainda não existe). Uma execução por vez (trava em memória
