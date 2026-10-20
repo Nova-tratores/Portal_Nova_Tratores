@@ -108,7 +108,7 @@ async function pontosDoDia(adesaoId: number): Promise<PontoDia[]> {
 
 // geocercas + propriedades mudam pouco: 10 min em memória
 let ctxCache: { at: number; geocercas: GeocercaCtx[] } | null = null;
-async function geocercasCtx(supabase: SupabaseClient): Promise<GeocercaCtx[]> {
+export async function geocercasCtx(supabase: SupabaseClient): Promise<GeocercaCtx[]> {
   if (ctxCache && Date.now() - ctxCache.at < 10 * 60_000) return ctxCache.geocercas;
   const [geo, props] = await Promise.all([
     supabase.from('frota_geocercas').select('id, latitude, longitude, raio_m, classe, nome, cliente_id').eq('ativo', true),
