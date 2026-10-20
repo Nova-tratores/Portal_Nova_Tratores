@@ -39,13 +39,16 @@ const FASE_ENVIAR_OMIE = "Enviar Omie";
 // cada aba mostra as mesmas fases, só com as ordens daquele tipo; o que muda
 // é a COR do card. Garantia = OS com garantia registrada (o escudo do card);
 // interna = "Ordem interna". Garantia vale mais que interna.
-type TipoOS = "cliente" | "garantia" | "interna";
+// "pendente" = arrastada para baixo da faixa vermelha na Lousa (José, 20/10/2026): aparece
+// nesta aba E na aba do tipo dela (a cor do card continua a do tipo).
+type TipoOS = "cliente" | "garantia" | "interna" | "pendente";
 const TIPOS_OS: { id: TipoOS; rotulo: string; curto: string; dica: string; cor: string; icone: string }[] = [
   { id: "cliente", rotulo: "Faturamento Cliente", curto: "Cliente", dica: "Serviços cobrados do cliente", cor: "#2563EB", icone: "fa-file-invoice-dollar" },
   { id: "garantia", rotulo: "Garantias", curto: "Garantias", dica: "OS com garantia registrada (fábrica)", cor: "#DB2777", icone: "fa-shield-halved" },
   { id: "interna", rotulo: "Internas", curto: "Internas", dica: "Ordens internas da loja", cor: "#64748B", icone: "fa-tools" },
+  { id: "pendente", rotulo: "Pendentes", curto: "Pendentes", dica: "Pendentes na Lousa (embaixo da faixa vermelha) — a data de execução continua na OS", cor: "#DC2626", icone: "fa-thumbtack" },
 ];
-const COR_TIPO: Record<TipoOS, string> = { cliente: "#2563EB", garantia: "#DB2777", interna: "#64748B" };
+const COR_TIPO: Record<TipoOS, string> = { cliente: "#2563EB", garantia: "#DB2777", interna: "#64748B", pendente: "#DC2626" };
 function tipoDaOS(o: KanbanCard, temGarantia: boolean): TipoOS {
   if (temGarantia) return "garantia";
   if (o.servicoInterno) return "interna";
@@ -643,7 +646,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
   // Aba do tipo (Faturamento Cliente / Garantias / Internas) — lembrada no navegador
   const [abaTipo, setAbaTipo] = useState<TipoOS>(() => {
     if (typeof window === "undefined") return "cliente";
-    try { const v = localStorage.getItem("pos-aba-tipo"); return v === "garantia" || v === "interna" ? v : "cliente"; } catch { return "cliente"; }
+    try { const v = localStorage.getItem("pos-aba-tipo"); return v === "garantia" || v === "interna" || v === "pendente" ? v : "cliente"; } catch { return "cliente"; }
   });
   const escolherAba = useCallback((t: TipoOS) => {
     setAbaTipo(t);
@@ -727,12 +730,12 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
   }, [orders, searchTerm, activePhase, tecnicoFiltro]);
   // Contagem por aba: só ordens em aberto (concluída/cancelada não pesam no número)
   const contaPorTipo = useMemo(() => {
-    const c: Record<TipoOS, number> = { cliente: 0, garantia: 0, interna: 0 };
-    for (const o of buscados) if (!SEM_CONTAGEM.has(o.status)) c[tipoDaOS(o, !!garantiaMap[o.id])]++;
+    const c: Record<TipoOS, number> = { cliente: 0, garantia: 0, interna: 0, pendente: 0 };
+    for (const o of buscados) if (!SEM_CONTAGEM.has(o.status)) { c[tipoDaOS(o, !!garantiaMap[o.id])]++; if (o.lousaPendente) c.pendente++; }
     return c;
   }, [buscados, garantiaMap]);
   const filtered = useMemo(
-    () => buscados.filter((o) => tipoDaOS(o, !!garantiaMap[o.id]) === abaTipo),
+    () => buscados.filter((o) => (abaTipo === "pendente" ? !!o.lousaPendente : tipoDaOS(o, !!garantiaMap[o.id]) === abaTipo)),
     [buscados, garantiaMap, abaTipo]
   );
 

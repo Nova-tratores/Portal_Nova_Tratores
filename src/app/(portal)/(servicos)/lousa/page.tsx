@@ -1,17 +1,45 @@
 'use client'
-// LOUSA VIRTUAL — agenda dos técnicos: calendário estilo Google Agenda só com os técnicos
-// (Lousa + OS do POS), o mesmo componente da Agenda coletiva. O "Quadro clássico" saiu
-// a pedido do José (16/10/2026); o componente antigo segue em components/lousa/LousaClassica.
+// LOUSA VIRTUAL — o quadro da oficina (José, 20/10/2026; opção 2 da página de teste
+// /lousa/teste): técnicos nas linhas, segunda a sábado nas colunas, cartões = OS.
+// Arrastar o cartão muda o dia e o técnico NA OS; embaixo da faixa vermelha a OS fica
+// pendente (a data continua; aparece na aba Pendentes do POS).
+// "Calendário" = a visão antiga estilo Google Agenda (lançar folga, feriado, serviço avulso).
 export const dynamic = 'force-dynamic'
 
+import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import CalendarioGoogle from '@/components/agenda/CalendarioGoogle'
+import QuadroLousa from '@/components/lousa/QuadroLousa'
+
+type Vista = 'quadro' | 'calendario'
 
 export default function LousaPage() {
   const { userProfile } = useAuth()
   const { temAcesso, loading } = usePermissoes(userProfile?.id)
+  const [vista, setVista] = useState<Vista>('quadro')
+  useEffect(() => {
+    try { if (localStorage.getItem('lousa-vista') === 'calendario') void Promise.resolve().then(() => setVista('calendario')) } catch { /* sem storage */ }
+  }, [])
+  const escolher = (v: Vista) => { setVista(v); try { localStorage.setItem('lousa-vista', v) } catch { /* sem storage */ } }
   if (!loading && userProfile && !temAcesso('lousa')) return <SemPermissao />
-  return <CalendarioGoogle modo="tecnicos" titulo="Lousa" />
+  const aba = (v: Vista, rot: string) => (
+    <button onClick={() => escolher(v)}
+      style={{ padding: '7px 14px', border: 'none', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', fontWeight: 700, fontSize: 13,
+        background: vista === v ? 'var(--portal-bg-card)' : 'transparent', color: vista === v ? 'var(--portal-text)' : 'var(--portal-text-secondary)',
+        boxShadow: vista === v ? '0 1px 3px rgba(0,0,0,.12)' : 'none' }}>{rot}</button>
+  )
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '10px 18px 0' }}>
+        <div style={{ display: 'flex', gap: 3, padding: 3, borderRadius: 10, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)' }}>
+          {aba('quadro', 'Quadro')}{aba('calendario', 'Calendário')}
+        </div>
+      </div>
+      {vista === 'quadro'
+        ? <div style={{ padding: '10px 18px 40px' }}><QuadroLousa variante="semana" gravar /></div>
+        : <CalendarioGoogle modo="tecnicos" titulo="Lousa" />}
+    </div>
+  )
 }

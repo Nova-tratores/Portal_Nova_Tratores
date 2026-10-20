@@ -266,6 +266,7 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
       relTecnico: mapaRelTecnico[osId] || "",
       pendenciaMahindra: (safeGet(row, "pendencia_mahindra") as any) || null,
       servicoInterno: !!safeGet(row, "Servico_Interno"),
+      lousaPendente: !!safeGet(row, "lousa_pendente"),
       projetoCronograma: mapaProjeto[osId] || null,
       tipoServico: (safeGet(row, "Tipo_Servico") as string) || "",
       revisao: (safeGet(row, "Revisao") as string) || "",

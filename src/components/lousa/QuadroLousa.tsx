@@ -13,7 +13,7 @@ import type { ItemAgenda, Pessoa } from '@/lib/agenda/regras'
 export type VarianteQuadro = 'parede' | 'semana' | 'lousa'
 
 interface Pendente { id: string; cliente: string | null; tecnico: string | null; status: string | null; cidade: string | null; oficina: boolean; solicitacao: string | null; criadaEm: string | null }
-interface Dados { pessoas: Pessoa[]; itens: ItemAgenda[]; pendentes: Pendente[]; avisos?: string[]; agora: { dia: string } }
+interface Dados { pessoas: Pessoa[]; itens: ItemAgenda[]; pendentes: Pendente[]; avisos?: string[]; agora: { dia: string }; podeEditar?: boolean; pendenteAtivo?: boolean }
 
 /** o que foi arrastado (simulado): dias novos (null = pendente) e técnico novo */
 interface Mudanca { dias: string[] | null; pessoa?: string }
@@ -38,7 +38,9 @@ function deslocar(dias: string[], delta: number): string[] {
   return dias.map((d) => { let n = addDias(d, delta); if (diaDaSemana(n) === 0) n = addDias(n, delta >= 0 ? 1 : -1); return n })
 }
 
-export default function QuadroLousa({ variante }: { variante: VarianteQuadro }) {
+/** gravar = Lousa de verdade (o arrastar muda a OS); sem gravar = página de teste (só simula). */
+export default function QuadroLousa({ variante, gravar = false }: { variante: VarianteQuadro; gravar?: boolean }) {
+  const [recarga, setRecarga] = useState(0)
   const [dados, setDados] = useState<Dados | null>(null)
   const [erro, setErro] = useState('')
   const [ini, setIni] = useState<string | null>(null)
@@ -59,10 +61,19 @@ export default function QuadroLousa({ variante }: { variante: VarianteQuadro }) 
         if (!vivo) return
         if (!r.ok) { setErro(j.error || 'Não deu para carregar o quadro.'); return }
         setErro(''); setDados(j)
+        if (gravar) setMudancas({}) // o que foi gravado já veio do banco
       } catch { if (vivo) setErro('Sem conexão.') }
     })()
     return () => { vivo = false }
-  }, [ini])
+  }, [ini, recarga, gravar])
+  // de volta à aba: relê (alguém pode ter mudado a OS no POS)
+  useEffect(() => {
+    if (!gravar) return
+    const f = () => setRecarga((x) => x + 1)
+    window.addEventListener('focus', f)
+    const t = setInterval(f, 2 * 60_000)
+    return () => { window.removeEventListener('focus', f); clearInterval(t) }
+  }, [gravar])
 
   const avisar = useCallback((texto: string) => {
     const id = Date.now() + Math.random()
@@ -103,16 +114,32 @@ export default function QuadroLousa({ variante }: { variante: VarianteQuadro }) 
     return ps.filter((p) => p.id !== 'sem-tecnico' || [...celulas.keys()].some((k) => k.startsWith('sem-tecnico|')))
   }, [dados, celulas])
 
-  // ---------- arrastar (simulado)
+  // ---------- gravar na OS (Lousa de verdade)
+  const salvar = async (corpo: Record<string, unknown>, chave: string, texto: string) => {
+    try {
+      const r = await fetch('/api/lousa/quadro', { method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify(corpo) })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(j.error || 'Não deu para gravar.')
+      avisar(texto); setRecarga((x) => x + 1)
+    } catch (err) {
+      avisar('Não gravou: ' + (err as Error).message)
+      setMudancas((m) => { const n = { ...m }; delete n[chave]; return n })
+    }
+  }
+
+  // ---------- arrastar (no teste só simula; com gravar muda a OS)
   const soltar = (e: React.DragEvent, alvo: { pessoa: string; dia: string } | 'pendente') => {
     e.preventDefault(); setSobre(null)
-    let d: { tipo: 'item' | 'pend'; id: string; dia?: string }
+    if (gravar && !dados?.podeEditar) { avisar('Você não tem permissão para mexer na Lousa.'); return }
+    let d: { tipo: 'item' | 'pend'; id: string; dia?: string; pessoa?: string }
     try { d = JSON.parse(e.dataTransfer.getData('text/plain')) } catch { return }
     if (d.tipo === 'pend') {
       const p = dados?.pendentes.find((x) => x.id === d.id)
       if (!p || alvo === 'pendente') return
       setMudancas((m) => ({ ...m, ['pend:' + d.id]: { dias: [alvo.dia], pessoa: alvo.pessoa } }))
-      avisar(`A ${p.id} (${p.cliente || 'cliente'}) ganharia o dia ${curtoDia(alvo.dia)} com ${nomeCurto(alvo.pessoa) || 'esse técnico'} — e sairia das pendentes.`)
+      const txt = `${p.id} (${p.cliente || 'cliente'}): ${curtoDia(alvo.dia)} com ${nomeCurto(alvo.pessoa) || 'esse técnico'}, fora das pendentes`
+      if (gravar) void salvar({ acao: 'mover', fonte: 'os', ref: p.id, origem: null, destino: alvo.dia, de: null, para: alvo.pessoa }, 'pend:' + d.id, `Gravado na OS — ${txt}.`)
+      else avisar(`Ficaria assim — ${txt}.`)
       return
     }
     const it = dados?.itens.find((x) => x.id === d.id)
@@ -120,24 +147,28 @@ export default function QuadroLousa({ variante }: { variante: VarianteQuadro }) 
     const os = it.fonte === 'os'
     const nome = os ? `A ${it.ref}` : 'O lançamento da Lousa'
     if (alvo === 'pendente') {
+      if (!os) { avisar('Só OS vai para as pendentes.'); return }
+      if (gravar && dados?.pendenteAtivo === false) { avisar('Para usar as pendentes, falta rodar sql/lousa-pendente.sql no Supabase.'); return }
       setMudancas((m) => ({ ...m, [it.id]: { dias: null } }))
-      avisar(`${nome} ficaria PENDENTE (sem dia marcado)${os ? ' — a data de execução sairia da OS' : ''}.`)
+      if (gravar) void salvar({ acao: 'pendente', fonte: 'os', ref: it.ref }, it.id, `Gravado — ${it.ref} ficou PENDENTE (a data de execução continua na OS) e já aparece em Pendentes no POS.`)
+      else avisar(`${nome} ficaria PENDENTE — a data de execução continua na OS, e ela aparece em Pendentes no POS.`)
       return
     }
     const atual = mudancas[it.id]?.dias || diasDoItem(it)
     const origem = d.dia || atual[0]
     const delta = Math.round((new Date(alvo.dia + 'T12:00:00Z').getTime() - new Date(origem + 'T12:00:00Z').getTime()) / 86_400_000)
     const novos = delta ? deslocar(atual, delta) : atual
-    const pessoaAntes = mudancas[it.id]?.pessoa || it.pessoas[0]
+    const pessoaAntes = mudancas[it.id]?.pessoa || d.pessoa || it.pessoas[0]
     const trocouTecnico = alvo.pessoa !== pessoaAntes
     if (!delta && !trocouTecnico) return
     setMudancas((m) => ({ ...m, [it.id]: { dias: novos, pessoa: alvo.pessoa } }))
     const partes: string[] = []
     if (delta) partes.push(novos.length > 1 ? `de ${curtoDia(atual[0])}–${curtoDia(atual[atual.length - 1])} para ${curtoDia(novos[0])}–${curtoDia(novos[novos.length - 1])}` : `de ${curtoDia(atual[0])} para ${curtoDia(novos[0])}`)
     if (trocouTecnico) partes.push(`do ${nomeCurto(pessoaAntes) || 'sem técnico'} para o ${nomeCurto(alvo.pessoa) || 'sem técnico'}`)
-    avisar(`${nome} passaria ${partes.join(' e ')}${os ? ' — a data também mudaria na OS.' : '.'}`)
+    if (gravar) void salvar({ acao: 'mover', fonte: it.fonte, ref: it.ref, origem, destino: alvo.dia, de: pessoaAntes, para: alvo.pessoa }, it.id, `Gravado${os ? ' na OS' : ''} — ${nome} passou ${partes.join(' e ')}.`)
+    else avisar(`${nome} passaria ${partes.join(' e ')}${os ? ' — a data também mudaria na OS.' : '.'}`)
   }
-  const arrastar = (e: React.DragEvent, d: { tipo: 'item' | 'pend'; id: string; dia?: string }) => {
+  const arrastar = (e: React.DragEvent, d: { tipo: 'item' | 'pend'; id: string; dia?: string; pessoa?: string }) => {
     e.dataTransfer.setData('text/plain', JSON.stringify(d)); e.dataTransfer.effectAllowed = 'move'
   }
 
@@ -146,13 +177,14 @@ export default function QuadroLousa({ variante }: { variante: VarianteQuadro }) 
   const fimJanela = addDias(ini, semanas * 7 - 2)
   const titulo = `${ddmm(ini)} a ${ddmm(fimJanela)}`
 
-  const cartaoItem = (c: { item: ItemAgenda; n: number; total: number }, dia: string) => {
+  const pode = !gravar || !!dados?.podeEditar
+  const cartaoItem = (c: { item: ItemAgenda; n: number; total: number }, dia: string, pessoa: string) => {
     const it = c.item
     const os = it.fonte === 'os'
     const tipo = (it.extra as { tipo?: string } | undefined)?.tipo
     if (!os && (tipo === 'feriado' || tipo === 'faltou' || tipo === 'saida')) {
       return (
-        <div key={it.id + dia} className="ql-ausente" draggable onDragStart={(e) => arrastar(e, { tipo: 'item', id: it.id, dia })} title={it.titulo}>
+        <div key={it.id + dia} className="ql-ausente" draggable={pode} onDragStart={(e) => arrastar(e, { tipo: 'item', id: it.id, dia, pessoa })} title={it.titulo}>
           <span className="ql-traco" style={{ background: it.cor || '#dc2626' }} /><small>{it.titulo}</small>
         </div>
       )
@@ -160,7 +192,7 @@ export default function QuadroLousa({ variante }: { variante: VarianteQuadro }) 
     const situacao = it.detalhes?.find((x) => x[0] === 'Situação')?.[1]
     return (
       <div key={it.id + dia} className={`ql-card ${os ? 'os' : 'lousa'} ${it.esmaecido ? 'apagado' : ''} ${mudancas[it.id] ? 'mexido' : ''}`}
-        draggable onDragStart={(e) => arrastar(e, { tipo: 'item', id: it.id, dia })}
+        draggable={pode} onDragStart={(e) => arrastar(e, { tipo: 'item', id: it.id, dia, pessoa })}
         title={[it.titulo, it.descricao, situacao].filter(Boolean).join('\n')}>
         <div className="ql-card-topo">
           <b>{os ? `OS ${semZeros(it.ref)}` : 'Lousa'}</b>
@@ -181,8 +213,9 @@ export default function QuadroLousa({ variante }: { variante: VarianteQuadro }) 
         <button className="ql-hoje" onClick={() => setIni(segundaDe(hoje || ini))}>Hoje</button>
         <button className="ql-nav" onClick={() => setIni(addDias(ini, 7))} title="Próxima semana"><ChevronRight size={18} /></button>
         <b className="ql-titulo">{titulo}</b>
-        <span className="ql-teste"><Info size={13} /> Teste: arrastar mostra o que mudaria na OS, mas ainda não grava.</span>
-        {mudou && <button className="ql-reset" onClick={() => setMudancas({})}><RotateCcw size={13} /> Desfazer tudo</button>}
+        {!gravar && <span className="ql-teste"><Info size={13} /> Teste: arrastar mostra o que mudaria na OS, mas ainda não grava.</span>}
+        {gravar && <span className="ql-dica">Arraste o cartão para outro dia ou técnico — muda na OS. Embaixo da faixa vermelha fica pendente.</span>}
+        {mudou && !gravar && <button className="ql-reset" onClick={() => setMudancas({})}><RotateCcw size={13} /> Desfazer tudo</button>}
       </div>
       {erro && <div className="ql-erro">{erro}</div>}
       {!dados && !erro && <div className="ql-carregando">Carregando o quadro…</div>}
@@ -207,7 +240,7 @@ export default function QuadroLousa({ variante }: { variante: VarianteQuadro }) 
                   <div key={k} className={`ql-cel ${d === hoje ? 'hoje' : ''} ${sobre === k ? 'sobre' : ''}`}
                     onDragOver={(e) => { e.preventDefault(); if (sobre !== k) setSobre(k) }} onDragLeave={() => setSobre((x) => (x === k ? null : x))}
                     onDrop={(e) => soltar(e, { pessoa: p.id, dia: d })}>
-                    {(celulas.get(k) || []).map((c) => cartaoItem(c, d))}
+                    {(celulas.get(k) || []).map((c) => cartaoItem(c, d, p.id))}
                     {pend.map(([key]) => {
                       const pe = dados.pendentes.find((x) => 'pend:' + x.id === key)!
                       return <div key={key} className="ql-card os mexido"><div className="ql-card-topo"><b>OS {semZeros(pe.id)}</b></div><div className="ql-cli">{pe.cliente}</div></div>
@@ -224,7 +257,7 @@ export default function QuadroLousa({ variante }: { variante: VarianteQuadro }) 
             onDragOver={(e) => { e.preventDefault(); if (sobre !== 'pend') setSobre('pend') }} onDragLeave={() => setSobre((x) => (x === 'pend' ? null : x))}
             onDrop={(e) => soltar(e, 'pendente')}>
             {dados.pendentes.filter((p) => !mudancas['pend:' + p.id]).map((p) => (
-              <div key={p.id} className="ql-card os pend" draggable onDragStart={(e) => arrastar(e, { tipo: 'pend', id: p.id })}
+              <div key={p.id} className="ql-card os pend" draggable={pode} onDragStart={(e) => arrastar(e, { tipo: 'pend', id: p.id })}
                 title={[p.cliente, p.solicitacao, p.status].filter(Boolean).join('\n')}>
                 <div className="ql-card-topo"><b>OS {semZeros(p.id)}</b>{p.tecnico && <span className="ql-dias">{p.tecnico.split(' ')[0]}</span>}</div>
                 <div className="ql-cli">{p.cliente}</div>
@@ -233,7 +266,7 @@ export default function QuadroLousa({ variante }: { variante: VarianteQuadro }) 
               </div>
             ))}
             {pendentesSim.map((it) => (
-              <div key={it.id} className="ql-card os pend mexido" draggable onDragStart={(e) => arrastar(e, { tipo: 'item', id: it.id })}>
+              <div key={it.id} className="ql-card os pend mexido" draggable={pode} onDragStart={(e) => arrastar(e, { tipo: 'item', id: it.id })}>
                 <div className="ql-card-topo"><b>{it.fonte === 'os' ? `OS ${semZeros(it.ref)}` : 'Lousa'}</b></div>
                 <div className="ql-cli">{it.fonte === 'os' ? it.titulo.replace(/^[^·]*·\s*/, '') : it.titulo}</div>
               </div>
@@ -258,6 +291,7 @@ const CSS_QUADRO = `
 .ql-titulo { font-size: 17px; margin: 0 6px; }
 .ql-teste { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #b45309; background: #fef3c7; padding: 5px 10px; border-radius: 999px; }
 .ql-reset { color: #b91c1c; }
+.ql-dica { margin-left: auto; font-size: 12px; color: var(--portal-text-muted); }
 .ql-erro { padding: 12px; border-radius: 10px; background: #fef2f2; color: #b91c1c; font-weight: 600; }
 .ql-carregando { padding: 30px; text-align: center; color: var(--portal-text-muted); }
 .ql-moldura { background: var(--ql-fundo); border: 1px solid var(--portal-border); border-radius: 14px; overflow: hidden; }
