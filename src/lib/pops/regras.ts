@@ -278,6 +278,8 @@ export interface AgendamentoRef {
   recorrencia: Recorrencia
   dia_semana: number | null
   dia_mes: number | null
+  // Só mensal: a cada N meses, contando do mês de inicio_em (ausente/1 = todo mês).
+  intervalo_meses?: number | null
   inicio_em: string
   ativo: boolean
 }
@@ -288,12 +290,32 @@ export function venceEm(ag: AgendamentoRef, dataISO: string): boolean {
   const dt = new Date(Date.UTC(y, m - 1, d))
   if (ag.recorrencia === 'diario') return true
   if (ag.recorrencia === 'semanal') return dt.getUTCDay() === ag.dia_semana
+  const n = Math.max(1, ag.intervalo_meses || 1)
+  if (n > 1) {
+    const [yi, mi] = ag.inicio_em.split('-').map(Number)
+    if (((y - yi) * 12 + (m - mi)) % n !== 0) return false
+  }
   const ultimo = new Date(Date.UTC(y, m, 0)).getUTCDate()
   return d === Math.min(ag.dia_mes ?? 1, ultimo)
 }
 
+// Próximo dia (>= dataISO) em que a rotina vence; null se não vence em 3 anos.
+export function proximaData(ag: AgendamentoRef, dataISO: string): string | null {
+  const [y, m, d] = dataISO.split('-').map(Number)
+  const dt = new Date(Date.UTC(y, m - 1, d))
+  for (let i = 0; i < 366 * 3; i++) {
+    const iso = dt.toISOString().slice(0, 10)
+    if (venceEm({ ...ag, ativo: true }, iso)) return iso
+    dt.setUTCDate(dt.getUTCDate() + 1)
+  }
+  return null
+}
+
+// Opções "a cada N meses" oferecidas na tela (o banco aceita 1..24).
+export const INTERVALOS_MESES = [1, 2, 3, 4, 6, 12] as const
+
 export function validarAgendamento(e: Record<string, unknown>):
-  { dados: { recorrencia: Recorrencia; dia_semana: number | null; dia_mes: number | null; responsavel_padrao_id: string; inicio_em?: string } } | { erro: string } {
+  { dados: { recorrencia: Recorrencia; dia_semana: number | null; dia_mes: number | null; responsavel_padrao_id: string; inicio_em?: string; intervalo_meses?: number } } | { erro: string } {
   const recorrencia = String(e.recorrencia || '') as Recorrencia
   if (!['diario', 'semanal', 'mensal'].includes(recorrencia)) return { erro: 'Escolha diária, semanal ou mensal.' }
   if (!uuidValido(e.responsavel_padrao_id)) return { erro: 'Escolha o responsável padrão.' }
@@ -308,7 +330,15 @@ export function validarAgendamento(e: Record<string, unknown>):
     if (!Number.isInteger(dia_mes) || dia_mes < 1 || dia_mes > 31) return { erro: 'Dia do mês entre 1 e 31.' }
   }
   const inicio = typeof e.inicio_em === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(e.inicio_em) ? e.inicio_em : undefined
-  return { dados: { recorrencia, dia_semana, dia_mes, responsavel_padrao_id: e.responsavel_padrao_id, ...(inicio ? { inicio_em: inicio } : {}) } }
+  // A cada N meses: a 1ª vez é obrigatória — é dela que saem o mês de partida e o dia.
+  const intervalo = e.intervalo_meses == null || e.intervalo_meses === '' ? 1 : Number(e.intervalo_meses)
+  if (!Number.isInteger(intervalo) || intervalo < 1 || intervalo > 24) return { erro: 'Intervalo entre 1 e 24 meses.' }
+  if (intervalo > 1 && recorrencia !== 'mensal') return { erro: 'Intervalo em meses só vale para rotina mensal.' }
+  if (intervalo > 1 && !inicio) return { erro: 'Informe a data da primeira vez.' }
+  return { dados: {
+    recorrencia, dia_semana, dia_mes, responsavel_padrao_id: e.responsavel_padrao_id,
+    ...(inicio ? { inicio_em: inicio } : {}), ...(intervalo > 1 ? { intervalo_meses: intervalo } : {}),
+  } }
 }
 
 // ---------------------------------------------------------------------------
@@ -348,11 +378,15 @@ export function urlExecutarPop(origem: string, popId: string): string {
 
 // Texto curto da recorrência ("Toda segunda", "Todo dia 31 (ou o último)").
 const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
-export function descreverRecorrencia(a: Pick<AgendamentoRef, 'recorrencia' | 'dia_semana' | 'dia_mes'>): string {
+const NOME_INTERVALO: Record<number, string> = { 2: 'bimestral', 3: 'trimestral', 6: 'semestral', 12: 'anual' }
+export function descreverRecorrencia(a: Pick<AgendamentoRef, 'recorrencia' | 'dia_semana' | 'dia_mes' | 'intervalo_meses'>): string {
   if (a.recorrencia === 'diario') return 'Todo dia (inclusive fim de semana e feriado)'
   if (a.recorrencia === 'semanal') {
     const d = a.dia_semana ?? 1
     return d === 0 || d === 6 ? `Todo ${DIAS[d]}` : `Toda ${DIAS[d]}-feira`
   }
-  return `Todo dia ${a.dia_mes}${(a.dia_mes ?? 1) > 28 ? ' (ou o último dia do mês)' : ''}`
+  const n = a.intervalo_meses || 1
+  const ultimo = (a.dia_mes ?? 1) > 28 ? ' (ou o último dia do mês)' : ''
+  if (n > 1) return `A cada ${n} meses${NOME_INTERVALO[n] ? ` (${NOME_INTERVALO[n]})` : ''}, no dia ${a.dia_mes}${ultimo}`
+  return `Todo dia ${a.dia_mes}${ultimo}`
 }

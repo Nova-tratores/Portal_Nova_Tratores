@@ -6,11 +6,12 @@ export const dynamic = 'force-dynamic'
 import { Suspense, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { AlertTriangle, Archive, BadgeCheck, BookOpenCheck, Copy, History, Library, Pencil, PlayCircle, Printer, Repeat, Trash2, Users } from 'lucide-react'
+import { AlertTriangle, Archive, BadgeCheck, BookOpenCheck, Copy, History, Library, ListChecks, Pencil, PlayCircle, Printer, Repeat, Trash2, Users } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import type { ConfigPasso, EstadoVersao, TipoPasso } from '@/lib/pops/regras'
 import { VersaoConteudo } from '@/components/pops/PassoPreview'
 import HistoricoVersoes, { type VersaoResumo } from '@/components/pops/HistoricoVersoes'
+import HistoricoExecucoes from '@/components/pops/HistoricoExecucoes'
 import ModalDuplicar from '@/components/pops/ModalDuplicar'
 import ModalExecutar from '@/components/pops/ModalExecutar'
 import PainelCiencia from '@/components/pops/PainelCiencia'
@@ -46,7 +47,7 @@ function Detalhe() {
   const [d, setD] = useState<Detalhe | null>(null)
   const [erro, setErro] = useState('')
   const [executar, setExecutar] = useState(false)
-  const [aba, setAba] = useState<'conteudo' | 'historico' | 'ciencia' | 'recorrencia'>('conteudo')
+  const [aba, setAba] = useState<'conteudo' | 'historico' | 'execucoes' | 'ciencia' | 'recorrencia'>('conteudo')
   const [lendo, setLendo] = useState(false)
   const [duplicar, setDuplicar] = useState(false)
   const [ocupado, setOcupado] = useState(false)
@@ -198,7 +199,10 @@ function Detalhe() {
       {/* Abas */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
         <button onClick={() => setAba('conteudo')} style={aba === 'conteudo' ? botao(COR_POPS) : botaoClaro()}>Conteúdo</button>
-        <button onClick={() => setAba('historico')} style={aba === 'historico' ? botao(COR_POPS) : botaoClaro()}><History size={14} /> Histórico ({d.versoes.length})</button>
+        <button onClick={() => setAba('historico')} style={aba === 'historico' ? botao(COR_POPS) : botaoClaro()}><History size={14} /> Versões ({d.versoes.length})</button>
+        {(papeis.editar || papeis.aprovar) && pop.template_tipo !== 'sistema' && (
+          <button onClick={() => setAba('execucoes')} style={aba === 'execucoes' ? botao(COR_POPS) : botaoClaro()}><ListChecks size={14} /> Execuções</button>
+        )}
         {papeis.editar && publicada && <button onClick={() => setAba('ciencia')} style={aba === 'ciencia' ? botao(COR_POPS) : botaoClaro()}><Users size={14} /> Ciência</button>}
         {papeis.editar && publicada && pop.template_tipo !== 'sistema' && (
           <button onClick={() => setAba('recorrencia')} style={aba === 'recorrencia' ? botao(COR_POPS) : botaoClaro()}><Repeat size={14} /> Recorrência ({d.agendamentos.length})</button>
@@ -207,6 +211,8 @@ function Detalhe() {
 
       {aba === 'ciencia' && publicada ? (
         <PainelCiencia popId={id} versaoId={publicada.id} numero={publicada.numero} />
+      ) : aba === 'execucoes' ? (
+        <HistoricoExecucoes popId={id} />
       ) : aba === 'recorrencia' ? (
         <PainelAgendamentos popId={id} agendamentos={d.agendamentos} usuarios={d.usuarios} onMudou={carregar} />
       ) : aba === 'conteudo' ? (

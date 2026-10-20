@@ -140,6 +140,45 @@ describe('recorrência', () => {
   })
 })
 
+describe('recorrência a cada N meses', () => {
+  const sem = { recorrencia: 'mensal' as const, dia_semana: null, dia_mes: 15, intervalo_meses: 6, inicio_em: '2026-11-15', ativo: true }
+  it('semestral vence no mês de início e de 6 em 6 meses', () => {
+    expect(venceEm(sem, '2026-11-15')).toBe(true)
+    expect(venceEm(sem, '2026-12-15')).toBe(false)
+    expect(venceEm(sem, '2027-04-15')).toBe(false)
+    expect(venceEm(sem, '2027-05-15')).toBe(true)
+    expect(venceEm(sem, '2027-11-15')).toBe(true)
+    expect(venceEm(sem, '2026-05-15')).toBe(false) // antes do início
+  })
+  it('anual no dia 31 cai no último dia do mês curto', () => {
+    const anual = { ...sem, intervalo_meses: 12, dia_mes: 31, inicio_em: '2026-02-28' }
+    expect(venceEm(anual, '2026-02-28')).toBe(true)
+    expect(venceEm(anual, '2027-02-28')).toBe(true)
+    expect(venceEm(anual, '2026-03-31')).toBe(false)
+  })
+  it('linha antiga (sem intervalo) continua todo mês', () => {
+    expect(venceEm({ ...sem, intervalo_meses: undefined }, '2026-12-15')).toBe(true)
+  })
+  it('proximaData acha a próxima', async () => {
+    const { proximaData } = await import('../regras')
+    expect(proximaData(sem, '2026-11-16')).toBe('2027-05-15')
+    expect(proximaData(sem, '2026-10-20')).toBe('2026-11-15')
+  })
+  it('validarAgendamento: intervalo exige mensal e a 1ª data', () => {
+    const r = '44444444-4444-4444-4444-444444444444'
+    expect('erro' in validarAgendamento({ recorrencia: 'mensal', dia_mes: 15, intervalo_meses: 6, responsavel_padrao_id: r })).toBe(true)
+    expect('erro' in validarAgendamento({ recorrencia: 'semanal', dia_semana: 1, intervalo_meses: 6, inicio_em: '2026-11-15', responsavel_padrao_id: r })).toBe(true)
+    expect('erro' in validarAgendamento({ recorrencia: 'mensal', dia_mes: 15, intervalo_meses: 30, inicio_em: '2026-11-15', responsavel_padrao_id: r })).toBe(true)
+    expect(validarAgendamento({ recorrencia: 'mensal', dia_mes: 15, intervalo_meses: 6, inicio_em: '2026-11-15', responsavel_padrao_id: r }))
+      .toEqual({ dados: { recorrencia: 'mensal', dia_semana: null, dia_mes: 15, responsavel_padrao_id: r, inicio_em: '2026-11-15', intervalo_meses: 6 } })
+  })
+  it('descreve', async () => {
+    const { descreverRecorrencia } = await import('../regras')
+    expect(descreverRecorrencia(sem)).toBe('A cada 6 meses (semestral), no dia 15')
+    expect(descreverRecorrencia({ ...sem, intervalo_meses: 4 })).toBe('A cada 4 meses, no dia 15')
+  })
+})
+
 describe('diffPassos', () => {
   const p = (chave: string, ordem: number, titulo = chave) =>
     ({ chave, ordem, tipo: 'check' as const, titulo, ajuda: '', obrigatorio: true, config: {}, midia_path: null })
