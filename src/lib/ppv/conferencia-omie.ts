@@ -10,6 +10,7 @@ import {
   compararItens, compararCampo, compararDepartamentos, compararParcelas, diferente,
   type Divergencia, type ItemComparavel, type ResultadoConferencia,
 } from "@/lib/omie/conferencia";
+import { comRobosPausados } from "@/lib/omie/porta";
 
 type Rec = Record<string, unknown>;
 const n = (v: unknown) => { const x = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(x) ? x : 0; };
@@ -106,7 +107,7 @@ export async function conferirPPV(idPPV: string, opts: { pronto?: { acc: OmieAcc
 }
 
 /** Deixa o pedido do Omie igual ao portal e confere de novo. */
-export async function alinharPPV(idPPV: string): Promise<ResultadoConferencia> {
+async function alinharPPVSemPausa(idPPV: string): Promise<ResultadoConferencia> {
   const conf = await conferirPPV(idPPV);
   if (conf.erro || conf.pulado || !conf._ctx || !conf.divergencias.length) return limpar(conf);
   const d = (await buscarPPVPorId(idPPV))!;
@@ -176,3 +177,7 @@ function limpar(r: ResultadoConferencia & { _ctx?: unknown }): ResultadoConferen
   return resto;
 }
 export const conferirPPVPublico = async (id: string) => limpar(await conferirPPV(id));
+
+// Faturar / atualizar o Omie com os robôs do Omie PARADOS (José, 21/10/2026: "se precisar, para tudo para
+// realizar o faturamento") — ver comRobosPausados em src/lib/omie/porta.ts.
+export const alinharPPV: typeof alinharPPVSemPausa = (...a) => comRobosPausados('atualizar PPV no Omie', () => alinharPPVSemPausa(...a));

@@ -13,7 +13,7 @@
 import { supabase } from './supabase';
 import { TBL_OS, TBL_PEDIDOS, TBL_LOGS_PPO } from './constants';
 import { contaOmie } from '@/lib/omie/contas';
-import { omie as omiePorta, OmieBloqueioError } from '@/lib/omie/porta';
+import { omie as omiePorta, OmieBloqueioError, comRobosPausados } from '@/lib/omie/porta';
 import { aplicarMudancaFase } from './fase';
 import { logAndNotify } from '@/lib/server/audit-notify';
 import { filtrarDestinatarios } from '@/lib/notif/prefs';
@@ -558,7 +558,7 @@ export interface ResultadoRecibo { ok: boolean; status: number; tipo: 'faturada'
   /** remessas das peças faturadas junto (NF-e de remessa) */
   remessas?: Array<{ id: string; ok: boolean; nf?: string | null; erro?: string }> }
 
-export async function faturarOSComRecibo(id: string, entrada: { totalConfirmado: number; faturarRemessas?: boolean }, auth: Autenticado): Promise<ResultadoRecibo> {
+async function faturarOSComReciboSemPausa(id: string, entrada: { totalConfirmado: number; faturarRemessas?: boolean }, auth: Autenticado): Promise<ResultadoRecibo> {
   const userName = auth.email || 'Sistema';
   const os = await lerOS(id);
   if (!os) return { ok: false, status: 404, tipo: 'erro', mensagem: 'OS não encontrada.' };
@@ -738,7 +738,7 @@ export interface ResultadoFaturarOS {
   concluida?: boolean;
 }
 
-export async function faturarOSNoOmie(
+async function faturarOSNoOmieSemPausa(
   id: string,
   entrada: {
     forma: string | null; ppvIds: string[]; totalConfirmado: number;
@@ -1128,7 +1128,7 @@ async function aplicarFormaNoPedido(pid: string, forma: string | null): Promise<
   } catch (e) { return `não gravou as parcelas (${e instanceof Error ? e.message : e})`; }
 }
 
-export async function faturarPecasPendentes(id: string, ppvIds: string[], auth: Autenticado, forma: string | null = null): Promise<{ ok: boolean; mensagem?: string; pecas?: PecaFaturada[]; concluida?: boolean }> {
+async function faturarPecasPendentesSemPausa(id: string, ppvIds: string[], auth: Autenticado, forma: string | null = null): Promise<{ ok: boolean; mensagem?: string; pecas?: PecaFaturada[]; concluida?: boolean }> {
   if (!podeFaturarPPV(auth)) return { ok: false, mensagem: 'Você não tem permissão para faturar pedidos de peças (PPV).' };
   const os = await lerOS(id);
   if (!os) return { ok: false, mensagem: 'OS não encontrada.' };
@@ -1196,3 +1196,9 @@ export async function reconciliarPorCodOS(nCodOS: number, cNumOS: string): Promi
     try { await reconciliarFaturamentoOS(String(row.Id_Ordem)); } catch { /* agendador tenta de novo */ }
   }
 }
+
+// Faturar / atualizar o Omie com os robôs do Omie PARADOS (José, 21/10/2026: "se precisar, para tudo para
+// realizar o faturamento") — ver comRobosPausados em src/lib/omie/porta.ts.
+export const faturarOSComRecibo: typeof faturarOSComReciboSemPausa = (...a) => comRobosPausados('faturar OS (recibo)', () => faturarOSComReciboSemPausa(...a));
+export const faturarOSNoOmie: typeof faturarOSNoOmieSemPausa = (...a) => comRobosPausados('faturar OS', () => faturarOSNoOmieSemPausa(...a));
+export const faturarPecasPendentes: typeof faturarPecasPendentesSemPausa = (...a) => comRobosPausados('faturar peças da OS', () => faturarPecasPendentesSemPausa(...a));

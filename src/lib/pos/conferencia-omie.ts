@@ -7,7 +7,7 @@ import { pedidoClienteDaOS } from "@/lib/pos/pedido-cliente";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS } from "@/lib/pos/constants";
 import { contaOmie } from "@/lib/omie/contas";
-import { omie as omiePorta } from "@/lib/omie/porta";
+import { omie as omiePorta, comRobosPausados } from "@/lib/omie/porta";
 import { montarServicosDetalhe, montarDadosAdic } from "@/lib/pos/omie";
 import { normalizarEspelho, espelhoPadrao, calcularParcelas, diasDoEspelho, type OmieEspelho } from "@/lib/pos/omie-espelho";
 import { estadoNoOmie } from "@/lib/pos/faturamento-regras";
@@ -192,7 +192,7 @@ export async function conferirOS(idOs: string, opts: { outraChave?: boolean } = 
 }
 
 /** Deixa a OS do Omie igual ao portal e confere de novo. */
-export async function alinharOS(idOs: string): Promise<ResultadoConferencia> {
+async function alinharOSSemPausa(idOs: string): Promise<ResultadoConferencia> {
   const conf = await conferirOS(idOs);
   if (conf.erro || conf.pulado || !conf._omie || !conf.divergencias.length) return limpar(conf);
   const os = (await lerOSDoPortal(idOs))!;
@@ -272,3 +272,7 @@ function limpar(r: ResultadoConferencia & { _omie?: unknown; _esperado?: unknown
   return resto;
 }
 export const conferirOSPublico = async (id: string) => limpar(await conferirOS(id));
+
+// Faturar / atualizar o Omie com os robôs do Omie PARADOS (José, 21/10/2026: "se precisar, para tudo para
+// realizar o faturamento") — ver comRobosPausados em src/lib/omie/porta.ts.
+export const alinharOS: typeof alinharOSSemPausa = (...a) => comRobosPausados('atualizar OS no Omie', () => alinharOSSemPausa(...a));

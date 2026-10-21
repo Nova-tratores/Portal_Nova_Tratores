@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  omie, comPrioridade, estadoPorta, bloqueioRestanteMs, LIMITES, _reiniciarPorta,
+  omie, comPrioridade, comRobosPausados, robosPausados, estadoPorta, bloqueioRestanteMs, LIMITES, _reiniciarPorta,
   OmieBloqueioError, OmieChaveRecusadaError, OmieIncertoError, OmieFaultError,
   ehGravacao, ehChaveRecusada, rotuloCanonico, segundosDoBloqueio, segundosParaAguardar, corpoAscii,
 } from '../porta';
@@ -235,3 +235,58 @@ describe('fila e prioridade', () => {
     expect(b[0]).toMatchObject({ conta: 'CASTRO', metodo: 'ListarProdutos' });
   });
 });
+
+describe('gravação uma de cada vez (orientação do suporte Omie, 21/10/2026)', () => {
+  it('duas gravações na mesma chave não ficam em voo juntas; leitura segue em paralelo', async () => {
+    Object.assign(LIMITES, { maxGravacoesChave: 1 });
+    let emVoo = 0, maxGrav = 0
+    const liberar: Array<() => void> = []
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      const call = JSON.parse(String(init.body)).call as string
+      if (call.startsWith('Alterar')) {
+        emVoo++; maxGrav = Math.max(maxGrav, emVoo)
+        await new Promise<void>((ok) => liberar.push(ok))
+        emVoo--
+      }
+      return json({ ok: true })
+    }))
+    const a = omie(NOVA, '/x/', 'AlterarOS', { n: 1 }, RAPIDO)
+    const b = omie(NOVA, '/x/', 'AlterarPedidoVenda', { n: 2 }, RAPIDO)
+    const leitura = omie(NOVA, '/x/', 'ConsultarOS', { n: 3 }, RAPIDO)
+    await leitura // a leitura não espera as gravações
+    await vi.waitFor(() => expect(liberar.length).toBe(1))
+    liberar.shift()!()
+    await vi.waitFor(() => expect(liberar.length).toBe(1))
+    liberar.shift()!()
+    await Promise.all([a, b])
+    expect(maxGrav).toBe(1)
+  })
+})
+
+describe('robôs parados durante o faturamento (José, 21/10/2026)', () => {
+  it('chamada de robô espera o faturamento terminar; a de pessoa passa', async () => {
+    const ordem: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      ordem.push(JSON.parse(String(init.body)).call as string)
+      return json({ ok: true })
+    }))
+    let soltar!: () => void
+    const faturando = comRobosPausados('teste', async () => {
+      await omie(NOVA, '/x/', 'ConsultarOS', { n: 1 }, RAPIDO)
+      await new Promise<void>((ok) => { soltar = ok })
+      await omie(NOVA, '/x/', 'FaturarOS', { n: 1 }, RAPIDO)
+    })
+    await vi.waitFor(() => expect(ordem).toContain('ConsultarOS'))
+    expect(robosPausados()).toBe(true)
+    const robo = comPrioridade('pesado', () => omie(NOVA, '/x/', 'ListarOS', { n: 2 }, RAPIDO))
+    const pessoa = omie(NOVA, '/x/', 'ListarClientes', { n: 3 }, RAPIDO)
+    await pessoa
+    await new Promise((r) => setTimeout(r, 50))
+    expect(ordem).not.toContain('ListarOS') // o robô está parado
+    soltar()
+    await faturando
+    await robo
+    expect(robosPausados()).toBe(false)
+    expect(ordem.indexOf('ListarOS')).toBeGreaterThan(ordem.indexOf('FaturarOS'))
+  })
+})

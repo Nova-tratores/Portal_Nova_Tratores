@@ -181,6 +181,27 @@ export function prioridadeAtual(): Prioridade {
   return contexto.getStore()?.prioridade ?? 'pessoa';
 }
 
+/**
+ * Prioridade de uma chamada sem contexto: requisição que chegou com a senha dos robôs
+ * (Bearer CRON_SECRET / x-cron-secret — GitHub Actions e o agendador) é robô = 'pesado',
+ * mesmo que a rota não use `comCronRun`. Antes, essas rotas (DRE, NFS-e, remessas…)
+ * entravam como 'pessoa' e disputavam a vez com quem estava faturando.
+ */
+async function prioridadeDaChamada(): Promise<Prioridade> {
+  const doContexto = contexto.getStore()?.prioridade;
+  if (doContexto) return doContexto;
+  const segredo = process.env.CRON_SECRET || '';
+  if (!segredo || process.env.VITEST) return 'pessoa';
+  try {
+    const { headers } = await import('next/headers');
+    const h = await headers();
+    const robo = (h.get('authorization') || '').trim() === `Bearer ${segredo}` || (h.get('x-cron-secret') || '').trim() === segredo;
+    return robo ? 'pesado' : 'pessoa';
+  } catch {
+    return 'pessoa'; // fora de uma requisição (setInterval, script)
+  }
+}
+
 // ── Estado global (sobrevive ao HMR do dev) ────────────────────────────────────
 
 const num = (v: string | undefined, d: number) => (v && Number.isFinite(Number(v)) ? Number(v) : d);
@@ -193,11 +214,16 @@ export const LIMITES = {
   gapGlobalMs: num(process.env.OMIE_GAP_GLOBAL_MS, 80),
   /** Chamadas em voo ao mesmo tempo por chave. */
   maxSimultaneasChave: num(process.env.OMIE_MAX_SIMULTANEAS, 4),
+  /** Gravações (Incluir/Alterar/Faturar…) em voo ao mesmo tempo por chave — o Omie pede que NÃO sejam
+   *  simultâneas (orientação do suporte, 21/10/2026): uma de cada vez, as leituras seguem em paralelo. */
+  maxGravacoesChave: num(process.env.OMIE_MAX_GRAVACOES, 1),
+  /** Espera máxima padrão quando o Omie pede "aguarde N s" (consumo redundante é liberado em ~60 s). */
+  maxEsperaPadraoMs: num(process.env.OMIE_MAX_ESPERA_MS, 65_000),
   /** Pausa da chave inteira depois de "chave inválida / aplicativo suspenso". */
   pausaChaveRecusadaMs: num(process.env.OMIE_PAUSA_CHAVE_MS, 5 * 60_000),
 };
 
-interface Espera { chave: string; metodo: string; peso: number; seq: number; liberar: () => void }
+interface Espera { chave: string; metodo: string; peso: number; seq: number; gravacao: boolean; liberar: () => void }
 interface Contador { ok: number; erro: number; bloqueio: number; incerto: number; ms: number }
 interface EstadoInterno {
   fila: Espera[];
@@ -207,10 +233,17 @@ interface EstadoInterno {
   proxChave: Map<string, number>;
   proxMetodo: Map<string, number>;
   emVoo: Map<string, number>;
+  /** gravações em voo por chave (no máximo LIMITES.maxGravacoesChave) */
+  gravando?: Map<string, number>;
   bloqueios: Map<string, { ate: number; motivo: string }>; // `${chave}|${metodo}` ou `${chave}|*`
   rotulos: Map<string, string>;
   /** minuto (epoch/60000) → `${rotulo}|${metodo}|${prioridade}` → contador; guarda 60 min. */
   minutos: Map<number, Map<string, Contador>>;
+  /** pausas dos robôs abertas NESTE processo (id → até quando) */
+  pausas?: Map<string, number>;
+  /** maior "até" das pausas no banco (abertas pelo outro processo — web × worker) */
+  pausaExternaAte?: number;
+  pausaLidaEm?: number;
 }
 
 const G = globalThis as unknown as { __omiePorta?: EstadoInterno };
@@ -257,25 +290,31 @@ function bombear() {
   if (!s.fila.length) return;
   s.fila.sort((a, b) => a.peso - b.peso || a.seq - b.seq);
   let proxima = Infinity;
+  let pausados = false;
+  const pausa = pausaAte(s);
   for (let i = 0; i < s.fila.length; i++) {
     const e = s.fila[i];
     const agora = Date.now();
+    if (e.peso > 0 && pausa > agora) { pausados = true; proxima = Math.min(proxima, agora + 2_000, pausa); continue; } // robô espera o faturamento
     if ((s.emVoo.get(e.chave) ?? 0) >= LIMITES.maxSimultaneasChave) continue; // reabre quando alguém terminar
+    if (e.gravacao && ((s.gravando ??= new Map()).get(e.chave) ?? 0) >= LIMITES.maxGravacoesChave) continue; // uma gravação por vez
     const livre = Math.max(s.proxGlobal, s.proxChave.get(e.chave) ?? 0, s.proxMetodo.get(`${e.chave}|${e.metodo}`) ?? 0);
     if (livre > agora) { proxima = Math.min(proxima, livre); continue; }
     s.proxGlobal = agora + LIMITES.gapGlobalMs;
     s.proxChave.set(e.chave, agora + LIMITES.gapChaveMs);
     s.proxMetodo.set(`${e.chave}|${e.metodo}`, agora + LIMITES.gapMetodoMs);
     s.emVoo.set(e.chave, (s.emVoo.get(e.chave) ?? 0) + 1);
+    if (e.gravacao) (s.gravando ??= new Map()).set(e.chave, (s.gravando.get(e.chave) ?? 0) + 1);
     s.fila.splice(i, 1);
     i--;
     e.liberar();
     proxima = Math.min(proxima, s.proxGlobal); // o global acabou de andar
   }
-  if (s.fila.length && Number.isFinite(proxima)) s.timer = setTimeout(bombear, Math.max(0, proxima - Date.now()));
+  if (pausados) void lerPausaExterna(); // o faturamento do outro processo pode ter acabado
+  if (s.fila.length && Number.isFinite(proxima) && !s.timer) s.timer = setTimeout(bombear, Math.max(0, proxima - Date.now()));
 }
 
-function pedirVaga(chave: string, metodo: string, prioridade: Prioridade): Promise<() => void> {
+function pedirVaga(chave: string, metodo: string, prioridade: Prioridade, gravacao = false): Promise<() => void> {
   const s = estado();
   return new Promise((resolve) => {
     let devolvida = false;
@@ -283,12 +322,84 @@ function pedirVaga(chave: string, metodo: string, prioridade: Prioridade): Promi
       if (devolvida) return;
       devolvida = true;
       s.emVoo.set(chave, Math.max(0, (s.emVoo.get(chave) ?? 1) - 1));
+      if (gravacao) (s.gravando ??= new Map()).set(chave, Math.max(0, (s.gravando.get(chave) ?? 1) - 1));
       if (!s.timer) s.timer = setTimeout(bombear, 0);
     };
-    s.fila.push({ chave, metodo, peso: PESO[prioridade], seq: s.seq++, liberar: () => resolve(devolver) });
+    s.fila.push({ chave, metodo, peso: PESO[prioridade], seq: s.seq++, gravacao, liberar: () => resolve(devolver) });
     if (s.timer) clearTimeout(s.timer);
     s.timer = setTimeout(bombear, 0);
   });
+}
+
+// ── Pausa dos robôs durante o faturamento ──────────────────────────────────────
+// José, 21/10/2026: "se precisar, para tudo para realizar o faturamento". Enquanto um
+// faturamento (ou o "atualizar o Omie igual ao portal") roda, as chamadas de robô
+// ('rapido' e 'pesado') ficam PARADAS na fila — não falham, só esperam — e o Omie fica
+// livre para o faturamento. Vale para o web E o worker (tabela omie_pausa_robos; sem a
+// tabela, só no próprio processo). Cada pausa expira sozinha em 10 min se o processo cair.
+
+const PAUSA_MS = 10 * 60_000;
+const PAUSA_MAX_MS = 30 * 60_000; // nem um faturamento travado segura os robôs mais que isso
+
+type FontePausa = { lerAte(): Promise<number>; gravar(id: string, ate: number | null, motivo: string): Promise<void> };
+async function fontePausa(): Promise<FontePausa | null> {
+  if (process.env.VITEST) return null;
+  try { return (await import('./pausa-robos')).FONTE_PAUSA; } catch { return null; }
+}
+
+function pausaAte(s: EstadoInterno = estado()): number {
+  let ate = s.pausaExternaAte ?? 0;
+  for (const v of s.pausas?.values() ?? []) ate = Math.max(ate, v);
+  return ate;
+}
+
+let lendoPausa: Promise<void> | null = null;
+/** Relê a pausa do banco (no máximo a cada 3 s). */
+function lerPausaExterna(): Promise<void> {
+  const s = estado();
+  if (lendoPausa) return lendoPausa;
+  if (Date.now() - (s.pausaLidaEm ?? 0) < 3_000) return Promise.resolve();
+  s.pausaLidaEm = Date.now();
+  lendoPausa = (async () => {
+    const fonte = await fontePausa();
+    if (!fonte) return;
+    try { s.pausaExternaAte = await fonte.lerAte(); } catch { /* sem a tabela: vale só a pausa local */ }
+  })().finally(() => {
+    lendoPausa = null;
+    if (!s.timer) s.timer = setTimeout(bombear, 0);
+  });
+  return lendoPausa;
+}
+
+/** Os robôs estão parados agora (por um faturamento neste processo ou no outro)? */
+export function robosPausados(): boolean {
+  return pausaAte() > Date.now();
+}
+
+/**
+ * Roda `fn` (faturar / atualizar o Omie) com os robôs parados. Tudo dentro de `fn` vai
+ * como 'pessoa' — mesmo se quem chamou for um robô (senão ele esperaria a própria pausa).
+ */
+export async function comRobosPausados<T>(motivo: string, fn: () => Promise<T>): Promise<T> {
+  const s = estado();
+  const id = `${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const inicio = Date.now();
+  const fonte = await fontePausa();
+  const marcar = async () => {
+    const ate = Math.min(Date.now() + PAUSA_MS, inicio + PAUSA_MAX_MS);
+    (s.pausas ??= new Map()).set(id, ate);
+    await fonte?.gravar(id, ate, motivo).catch(() => {});
+  };
+  await Promise.race([marcar(), new Promise((r) => setTimeout(r, 2_000))]); // o banco não segura o faturamento
+  const renovar = setInterval(() => { if (Date.now() - inicio < PAUSA_MAX_MS) void marcar(); }, 3 * 60_000);
+  try {
+    return await comPrioridade('pessoa', fn);
+  } finally {
+    clearInterval(renovar);
+    s.pausas?.delete(id);
+    void fonte?.gravar(id, null, motivo).catch(() => {});
+    if (!s.timer) s.timer = setTimeout(bombear, 0);
+  }
 }
 
 // ── Contadores ─────────────────────────────────────────────────────────────────
@@ -324,10 +435,11 @@ export async function omie<T = OmieResposta>(
   const chave = idChave(cred.appKey);
   const rotulo = rotuloCanonico(cred.rotulo);
   estado().rotulos.set(chave, rotulo);
-  const prioridade = opcoes.prioridade ?? prioridadeAtual();
+  const prioridade = opcoes.prioridade ?? await prioridadeDaChamada();
+  if (prioridade !== 'pessoa') await lerPausaExterna();
   const gravacao = opcoes.gravacao ?? ehGravacao(call);
   const tentativas = Math.max(0, opcoes.tentativas ?? 2);
-  const maxEspera = opcoes.maxEsperaMs ?? 30_000;
+  const maxEspera = opcoes.maxEsperaMs ?? LIMITES.maxEsperaPadraoMs;
   const timeoutMs = opcoes.timeoutMs ?? 120_000;
   const lancarFault = opcoes.lancarFault ?? true;
   const url = endpoint.startsWith('http') ? endpoint : OMIE_BASE + endpoint;
@@ -343,7 +455,7 @@ export async function omie<T = OmieResposta>(
       throw new OmieBloqueioError(`${motivo} ${onde} — aguardando ~${seg}s`, rotulo, call, seg);
     }
 
-    const devolver = await pedirVaga(chave, call, prioridade);
+    const devolver = await pedirVaga(chave, call, prioridade, gravacao);
     const t0 = Date.now();
     let data: OmieResposta;
     try {

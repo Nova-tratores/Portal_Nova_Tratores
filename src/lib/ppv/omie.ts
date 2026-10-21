@@ -12,7 +12,7 @@ import { buscarPPVPorId, registrarLog } from "./queries";
 import { contaOmie } from "@/lib/omie/contas";
 import { aplicarUnidadesDoPPV } from "@/lib/pecas/ppv-vinculo";
 
-import { omie } from "@/lib/omie/porta";
+import { omie, comRobosPausados } from "@/lib/omie/porta";
 
 /** pedido de peças faturado: o Centro do Pós-Vendas atualiza na hora (José, 21/10/2026) */
 function avisarPosVendas(idPPV: string) { import("@/lib/mecanicos/ao-vivo-server").then((m) => m.atualizarPosVendasDepois(`pedido ${idPPV} faturado`)).catch(() => {}); }
@@ -117,7 +117,7 @@ export async function alinharRemessaDaOS(idPPV: string): Promise<{ mudou: string
  * interna saem junto com o recibo, pelo portal. /produtos/remessafat/: ConferirRemessa
  * (valida) → ConcluirRemessa (uma chamada, sem repetir) → espera a NF-e no StatusRemessa.
  */
-export async function faturarRemessaPPV(idPPV: string, usuario = "Portal"): Promise<{ ok: boolean; nf?: string | null; erro?: string; jaFaturada?: boolean }> {
+async function faturarRemessaPPVSemPausa(idPPV: string, usuario = "Portal"): Promise<{ ok: boolean; nf?: string | null; erro?: string; jaFaturada?: boolean }> {
   const cab = await lerCabecalhoPPV(idPPV);
   if (!cab) return { ok: false, erro: "PPV não encontrado." };
   if (String(cab.Tipo_Pedido || "") !== "Remessa") return { ok: false, erro: "Este PPV não é remessa." };
@@ -1044,7 +1044,7 @@ function numeroNfDe(nf: Record<string, unknown> | null): string | undefined {
 
 // Fatura o Pedido de Venda no Omie: (opcional) troca a categoria e avança a
 // etapa pra "50" (emite a NF-e). Idempotente/anti-duplicidade via etapa atual.
-export async function faturarPPVNoOmie(
+async function faturarPPVNoOmieSemPausa(
   idPPV: string,
   opts: { categoria?: string } = {},
 ): Promise<ResultadoFaturamentoPPV> {
@@ -1720,3 +1720,8 @@ export async function alterarItemFiscalPPV(
     return { ok: false, erro: msg, empresa: acc.name };
   }
 }
+
+// Faturar / atualizar o Omie com os robôs do Omie PARADOS (José, 21/10/2026: "se precisar, para tudo para
+// realizar o faturamento") — ver comRobosPausados em src/lib/omie/porta.ts.
+export const faturarPPVNoOmie: typeof faturarPPVNoOmieSemPausa = (...a) => comRobosPausados('faturar PPV', () => faturarPPVNoOmieSemPausa(...a));
+export const faturarRemessaPPV: typeof faturarRemessaPPVSemPausa = (...a) => comRobosPausados('faturar remessa', () => faturarRemessaPPVSemPausa(...a));
