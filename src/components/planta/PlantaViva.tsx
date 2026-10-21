@@ -17,7 +17,15 @@ interface Kpi {
   kpi_id: string; conta: string; comodo: string; rotulo: string; tela: string
   contagem: number; valor: number | null; detalhe: Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
   sensivel: boolean; lacrado: boolean; erro: string | null
+  termometro: Termo | null
   dado_ate: string | null; idade_min: number | null; frescor: Frescor
+}
+type Situacao = 'verde' | 'amarelo' | 'vermelho'
+interface Termo {
+  atual: number; sentido: 'menor' | 'maior' | 'neutro'
+  janelas: Array<{ id: string; rotulo: string; media: number | null; dias: number; minimo: number; delta_pct: number | null; bom: boolean | null }>
+  meta: { meta: number; tolerancia_pct: number; situacao: Situacao } | null
+  meta_so_todas: boolean
 }
 interface Item { chave: string; titulo: string; sub: string; valor: number | null; data: string | null; href: string | null }
 
@@ -199,7 +207,7 @@ export default function PlantaViva() {
         <span><i className={[s.ponto, s.verde].join(' ')} /> em dia <i className={[s.ponto, s.amarelo].join(' ')} /> atrasando <i className={[s.ponto, s.vermelho].join(' ')} /> velho ou com erro</span>
       </div>
 
-      {kpiAberto && <Inspetor key={`${kpiAberto.kpi_id}-${conta}`} k={kpiAberto} conta={conta} agora={agora} onFechar={() => setAberto(null)} />}
+      {kpiAberto && <Inspetor key={`${kpiAberto.kpi_id}-${conta}`} k={kpiAberto} conta={conta} agora={agora} admin={admin} onMudou={() => carregar(conta)} onFechar={() => setAberto(null)} />}
     </div>
   )
 }
@@ -218,6 +226,7 @@ function Chip({ k, ativo, onClick }: { k: Kpi; ativo: boolean; onClick: () => vo
         ? <div className={s.lacre}><Lock size={13} /> só admin</div>
         : <div className={s.chipValor}>{principal}</div>}
       <div className={s.chipSub}>{k.lacrado ? un(k.kpi_id, k.contagem) : sub}{k.erro ? ' · em obras' : ''}</div>
+      {k.termometro && k.kpi_id !== 'robos' && <MiniTermo k={k} t={k.termometro} />}
     </button>
   )
 }
@@ -238,7 +247,7 @@ function caminho(de: Ponta, para: Ponta, cx: { w: number; h: number; salas: Reco
   return { path: `M ${a[0]} ${a[1]} L ${b[0]} ${a[1]} L ${b[0]} ${b[1]}` }
 }
 
-function Inspetor({ k, conta, agora, onFechar }: { k: Kpi; conta: Conta; agora: number; onFechar: () => void }) {
+function Inspetor({ k, conta, agora, admin, onMudou, onFechar }: { k: Kpi; conta: Conta; agora: number; admin: boolean; onMudou: () => void; onFechar: () => void }) {
   const [itens, setItens] = useState<Item[] | null>(null)
   const [total, setTotal] = useState(0)
   const [erro, setErro] = useState<string | null>(null)
@@ -284,6 +293,7 @@ function Inspetor({ k, conta, agora, onFechar }: { k: Kpi; conta: Conta; agora: 
           {k.erro && <div className={s.aviso} style={{ marginTop: 8 }}><Wrench size={13} style={{ verticalAlign: '-2px' }} /> A última leitura falhou e o número é o da rodada anterior: {k.erro}</div>}
         </div>
 
+        {k.termometro && <TermoPainel k={k} t={k.termometro} admin={admin} onMudou={onMudou} />}
         {!k.lacrado && <Detalhe k={k} agora={agora} />}
 
         {k.lacrado && <div className={s.aviso}><Lock size={13} style={{ verticalAlign: '-2px' }} /> Os valores e a lista deste número são só para administradores.</div>}
@@ -419,3 +429,106 @@ function Detalhe({ k, agora }: { k: Kpi; agora: number }) {
   return extras.length ? <div className={s.secao}><div className={s.mudo}>{extras.join(' · ')}</div></div> : null
 }
 /* eslint-enable @typescript-eslint/no-explicit-any */
+
+// ── Termômetros ───────────────────────────────────────────────────────────────
+const fmtMedida = (k: Kpi, v: number) => (k.valor != null ? compacto(v) : Math.round(v).toLocaleString('pt-BR'))
+/** Janela de comparação do cartão: a mais longa que já tem média (ano > mês > semana). */
+const janelaDoCartao = (t: Termo) => [...t.janelas].reverse().find((j) => j.media != null) || null
+const classeBom = (bom: boolean | null) => (bom == null ? s.neutro : bom ? s.bom : s.ruim)
+const seta = (d: number | null) => (d == null ? '' : d > 0 ? '▲' : d < 0 ? '▼' : '=')
+const pct = (d: number | null, casas = 0) => (d == null ? '—' : `${Math.abs(d).toLocaleString('pt-BR', { maximumFractionDigits: casas })}%`)
+const NOME_JANELA: Record<string, string> = { semana: 'semana', mes: 'mês', ano: 'ano' }
+
+/** Régua do termômetro: posição de 0 a 100% de cada valor na mesma escala. */
+function escala(t: Termo) {
+  const vals = [t.atual, ...t.janelas.map((j) => j.media).filter((v): v is number => v != null), ...(t.meta ? [t.meta.meta] : [])]
+  const min = Math.min(0, ...vals), max = Math.max(0, ...vals)
+  const amp = (max - min) * 1.1 || 1
+  return (v: number) => Math.max(0, Math.min(100, ((v - min) / amp) * 100))
+}
+
+function Regua({ t, alta }: { t: Termo; alta?: boolean }) {
+  const pos = escala(t)
+  const media = janelaDoCartao(t)
+  const marcas = alta ? t.janelas.filter((j) => j.media != null) : media ? [media] : []
+  return (
+    <div className={[s.termo, alta ? s.termoAlto : ''].join(' ')} aria-hidden="true">
+      <div className={[s.termoFill, t.meta ? s[t.meta.situacao] : ''].join(' ')} style={{ width: `${pos(t.atual)}%` }} />
+      {marcas.map((j) => <span key={j.id} className={s.termoMarca} style={{ left: `${pos(j.media as number)}%` }} title={j.rotulo} />)}
+      {t.meta && <span className={s.termoMeta} style={{ left: `${pos(t.meta.meta)}%` }} title="Meta" />}
+    </div>
+  )
+}
+
+function MiniTermo({ k, t }: { k: Kpi; t: Termo }) {
+  const j = janelaDoCartao(t)
+  const semana = t.janelas[0]
+  return (
+    <div className={s.termoBox}>
+      {(j || t.meta) && <Regua t={t} />}
+      <div className={s.termoTxt}>
+        {j
+          ? <span className={classeBom(j.bom)}>{seta(j.delta_pct)} {pct(j.delta_pct)} vs {NOME_JANELA[j.id]}</span>
+          : <span className={s.neutro}>juntando histórico ({semana.dias}/{semana.minimo} d)</span>}
+        {t.meta && <span> · meta {fmtMedida(k, t.meta.meta)} <i className={[s.ponto, s[t.meta.situacao]].join(' ')} /></span>}
+      </div>
+    </div>
+  )
+}
+
+function TermoPainel({ k, t, admin, onMudou }: { k: Kpi; t: Termo; admin: boolean; onMudou: () => void }) {
+  const [meta, setMeta] = useState(t.meta ? String(t.meta.meta) : '')
+  const [tol, setTol] = useState(t.meta ? String(t.meta.tolerancia_pct) : '10')
+  const [msg, setMsg] = useState<string | null>(null)
+  const [salvando, setSalvando] = useState(false)
+  const unidade = k.valor != null ? 'R$' : (UNIDADE[k.kpi_id] || ['título', 'títulos'])[1]
+  const sentidoTxt = t.sentido === 'menor' ? 'quanto menor, melhor' : t.sentido === 'maior' ? 'quanto maior, melhor' : 'sem lado certo: a meta é um alvo'
+  // "150.000,50" ou "150000.50" → número
+  const numero = (txt: string) => (/,/.test(txt) ? txt.replace(/\./g, '').replace(',', '.') : txt)
+  const salvar = async (tirar = false) => {
+    setSalvando(true); setMsg(null)
+    try {
+      const r = await fetch('/api/planta/metas', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ kpi_id: k.kpi_id, meta: tirar ? null : numero(meta.trim()), tolerancia_pct: numero(tol.trim()) }),
+      })
+      const j = await r.json().catch(() => ({}))
+      if (j.migracaoFaltando) setMsg('As metas ainda não existem no banco (falta aplicar sql/planta-termometros.sql).')
+      else if (!r.ok) setMsg(j.erro || `Erro ${r.status}`)
+      else { setMsg(tirar ? 'Meta removida.' : 'Meta salva.'); if (tirar) setMeta(''); onMudou() }
+    } catch { setMsg('Sem conexão agora. Tente de novo.') } finally { setSalvando(false) }
+  }
+  return (
+    <div className={s.secao}>
+      <div className={s.secaoTitulo}>Termômetro · {sentidoTxt}</div>
+      {(t.meta || t.janelas.some((x) => x.media != null)) && <Regua t={t} alta />}
+      <table className={s.tabela}>
+        <tbody>
+          {t.janelas.map((j) => (
+            <tr key={j.id}>
+              <td>{j.rotulo}</td>
+              {j.media == null
+                ? <td colSpan={2} className={s.neutro}>juntando histórico: {j.dias} de {j.minimo} dias</td>
+                : <><td>{fmtMedida(k, j.media)}</td><td className={classeBom(j.bom)}>{seta(j.delta_pct)} {pct(j.delta_pct, 1)}</td></>}
+            </tr>
+          ))}
+          <tr>
+            <td>Meta</td>
+            {t.meta
+              ? <><td>{fmtMedida(k, t.meta.meta)} <span className={s.neutro}>±{t.meta.tolerancia_pct}%</span></td><td><i className={[s.ponto, s[t.meta.situacao]].join(' ')} /> {t.meta.situacao === 'verde' ? 'dentro' : t.meta.situacao === 'amarelo' ? 'no limite' : 'fora'}</td></>
+              : <td colSpan={2} className={s.neutro}>{t.meta_so_todas ? 'a meta vale para a visão Todas' : 'sem meta'}</td>}
+          </tr>
+        </tbody>
+      </table>
+      {admin && (
+        <form className={s.metaForm} onSubmit={(e) => { e.preventDefault(); salvar() }}>
+          <label>Meta ({unidade})<input id={`meta-${k.kpi_id}`} inputMode="decimal" value={meta} onChange={(e) => setMeta(e.target.value)} placeholder="ex.: 150000" /></label>
+          <label>Tolerância (%)<input id={`tol-${k.kpi_id}`} inputMode="decimal" value={tol} onChange={(e) => setTol(e.target.value)} /></label>
+          <button type="submit" disabled={salvando || !meta.trim()}>Salvar meta</button>
+          {t.meta && <button type="button" disabled={salvando} onClick={() => salvar(true)}>Tirar meta</button>}
+          <span className={s.mudo}>Só admin. Vale para a visão Todas. Fica registrado quem mudou.{msg ? ` ${msg}` : ''}</span>
+        </form>
+      )}
+    </div>
+  )
+}

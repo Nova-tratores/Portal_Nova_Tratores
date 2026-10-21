@@ -226,6 +226,26 @@ Script `scripts/planta-conferir.ts` (antes `planta-gate0.ts`) (só leitura, 18 s
   Testado com o usuário comum "Mecânico Teste": sem o módulo → 403; com o módulo → 11 números do financeiro
   lacrados (sem valor e sem detalhe), PPV visível, detalhe sensível 403.
 
+## 6d. Termômetros por número (21/10/2026)
+
+Pedido do usuário: comparar cada número com a média da semana, do mês e do ano e com uma meta manual.
+Decisões: **só admin define meta**; **uma meta por número**, que vale para a visão "Todas" (NOVA/CASTRO
+mostram só as médias); **histórico do zero** (sem reconstruir o passado).
+
+- `sql/planta-termometros.sql`: `planta_kpi_dia` (último valor de cada dia, ~16 mil linhas/ano),
+  `planta_metas` (meta + tolerância %) e `planta_kpi.medias`. Fechadas ao navegador. Sem a migration nada
+  quebra: o worker não grava histórico e a rota de metas responde `migracaoFaltando`.
+- Worker: a cada rodada regrava a linha do dia; as médias (só dias fechados) são recalculadas uma vez por dia
+  e guardadas em `planta_kpi.medias`. Média só aparece com dias suficientes (semana 5/7, mês 21/30, ano 256/365).
+- Regras puras em `src/lib/planta/termometro.ts` (12 testes): medida principal (R$ quando há, senão contagem),
+  sentido por número (menor é melhor: vencidos, atrasadas, a alocar, negativos…; maior: saída líquida; neutro:
+  hoje/7 dias, PPV, OS), situação contra a meta (verde / amarelo dentro da tolerância / vermelho), variação % contra
+  cada média com seta boa/ruim só quando o número tem lado certo.
+- Rota: `GET /api/planta` manda `termometro` montado (número lacrado vai sem termômetro e as médias cruas nunca saem);
+  `GET/PUT /api/planta/metas` só admin, audit `meta`/`meta_removida` com de → para.
+- Tela: mini termômetro no cartão (barra só quando há média ou meta; texto "juntando histórico (N/5 d)" até lá) e o
+  termômetro completo no painel lateral, com o formulário de meta para admin.
+
 ## 7. Riscos
 
 | Risco | Cuidado |

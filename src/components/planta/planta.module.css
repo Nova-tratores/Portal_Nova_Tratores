@@ -135,3 +135,24 @@
 .oficial { display: inline-block; border: 2px solid var(--pl-parede); padding: 8px 12px; font-weight: 700; color: var(--pl-tinta); text-decoration: none; text-align: center; }
 .oficial:hover { background: var(--pl-chip); }
 .mudo { font-size: 12.5px; color: var(--pl-sutil); }
+
+/* Termômetros */
+.termoBox { margin-top: 6px; display: grid; gap: 3px; }
+.termo { position: relative; height: 6px; background: color-mix(in srgb, var(--pl-sutil) 22%, transparent); }
+.termoAlto { height: 12px; margin: 4px 0 2px; }
+.termoFill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--pl-sutil); }
+.termoFill.verde { background: var(--pl-ok); }
+.termoFill.amarelo { background: var(--pl-atencao); }
+.termoFill.vermelho { background: var(--pl-ruim); }
+.termoMarca { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--pl-tinta); }
+.termoMeta { position: absolute; top: -5px; bottom: -5px; width: 0; margin-left: -1px; border-left: 2px dashed var(--pl-tinta); }
+.termoTxt { font-size: 11px; color: var(--pl-sutil); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bom { color: var(--pl-ok); font-weight: 700; }
+.ruim { color: var(--pl-ruim); font-weight: 700; }
+.neutro { color: var(--pl-sutil); }
+.metaForm { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 4px; }
+.metaForm label { display: grid; gap: 3px; font-size: 11.5px; color: var(--pl-sutil); }
+.metaForm input { width: 130px; padding: 6px 8px; border: 1px solid var(--pl-parede); background: var(--pl-sala); color: var(--pl-tinta); font: inherit; font-size: 13px; }
+.metaForm button { border: 2px solid var(--pl-parede); background: transparent; color: var(--pl-tinta); padding: 6px 10px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.metaForm button:disabled { opacity: .45; cursor: default; }
+.metaForm .mudo { flex-basis: 100%; }

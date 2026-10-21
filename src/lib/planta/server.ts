@@ -3,6 +3,7 @@
 // planta_kpi. Só LÊ espelhos do Supabase — nenhuma chamada à Omie.
 import { supabaseAdmin as sb } from '@/lib/server/supabase-admin';
 import { calcularKpis, hojeBrasilia, CATALOGO, FECHADOS, type Fontes, type Comodo, type Fonte, type LinhaKpi } from './regras';
+import { calcularMedias, type Medias, type Meta } from './termometro';
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -116,8 +117,43 @@ export async function rodarSnapshot(): Promise<{ resumo?: string; pular?: string
     if (semTabela(error)) return { pular: 'migration sql/planta-viva.sql não aplicada' };
     if (error) throw new Error(error.message);
   }
+  const termo = await gravarHistoricoEMedias(boas, fontes.hoje);
   const falhas = [...new Set(linhas.filter((l) => l.erro).map((l) => `${l.comodo}: ${String(l.erro).slice(0, 120)}`))];
-  return { resumo: `${linhas.length} números em ${((Date.now() - t0) / 1000).toFixed(1)} s${falhas.length ? ` · com erro (mantido o último valor) — ${falhas.join(' | ')}` : ''}` };
+  return { resumo: `${linhas.length} números em ${((Date.now() - t0) / 1000).toFixed(1)} s${termo ? ` · ${termo}` : ''}${falhas.length ? ` · com erro (mantido o último valor) — ${falhas.join(' | ')}` : ''}` };
+}
+
+// ── Termômetros (sql/planta-termometros.sql) ──────────────────────────────────
+// A linha do dia é regravada a cada rodada (fica o último valor do dia). As médias só
+// usam dias FECHADOS, então mudam uma vez por dia: ficam em memória até o dia virar.
+let cacheMedias: { dia: string; porChave: Record<string, Medias> } | null = null;
+
+async function gravarHistoricoEMedias(boas: LinhaKpi[], hoje: string): Promise<string | null> {
+  const doDia = boas.filter((l) => l.kpi_id !== 'robos').map((l) => ({ kpi_id: l.kpi_id, conta: l.conta, dia: hoje, contagem: l.contagem, valor: l.valor, gravado_em: new Date().toISOString() }));
+  const { error } = await sb.from('planta_kpi_dia').upsert(doDia, { onConflict: 'kpi_id,conta,dia' });
+  if (error) return /planta_kpi_dia|PGRST205|42P01/.test(`${error.code} ${error.message}`) ? null : `histórico: ${error.message}`;
+
+  if (!cacheMedias || cacheMedias.dia !== hoje) {
+    const desde = new Date(new Date(hoje + 'T12:00:00Z').getTime() - 366 * 86400_000).toISOString().slice(0, 10);
+    const linhas = await todas('planta_kpi_dia', 'kpi_id,conta,dia,contagem,valor', 'dia', (q) => q.gte('dia', desde).lt('dia', hoje));
+    const grupos: Record<string, Row[]> = {};
+    for (const r of linhas) (grupos[`${r.kpi_id}|${r.conta}`] ||= []).push(r);
+    const porChave: Record<string, Medias> = {};
+    for (const [k, xs] of Object.entries(grupos)) porChave[k] = calcularMedias(xs as Array<{ dia: string; valor: number | null; contagem: number }>, hoje);
+    cacheMedias = { dia: hoje, porChave };
+  }
+  const comMedias = boas.filter((l) => l.kpi_id !== 'robos').map(({ kpi_id, conta, comodo, sensivel, fonte }) => ({
+    kpi_id, conta, comodo, sensivel, fonte, medias: cacheMedias!.porChave[`${kpi_id}|${conta}`] || {},
+  }));
+  const r = await sb.from('planta_kpi').upsert(comMedias, { onConflict: 'kpi_id,conta' });
+  if (r.error) return /medias/.test(r.error.message) ? null : `médias: ${r.error.message}`;
+  return null;
+}
+
+/** Metas (sql/planta-termometros.sql); tabela ausente = sem metas. */
+export async function lerMetas(): Promise<Record<string, Meta>> {
+  const { data, error } = await sb.from('planta_metas').select('kpi_id,meta,tolerancia_pct');
+  if (error) return {};
+  return Object.fromEntries((data || []).map((m: Row) => [m.kpi_id, { meta: Number(m.meta), tolerancia_pct: Number(m.tolerancia_pct) }]));
 }
 
 export async function lerSnapshot(): Promise<{ linhas: Row[]; migracaoFaltando?: boolean }> {
