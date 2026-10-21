@@ -91,6 +91,7 @@ export async function GET(req: NextRequest) {
     const docs_vencendo = docsVencendo.get(v.id) || 0;
     return {
       ...v,
+      senha_cartao_veloe: null, // só pela rota da senha, que registra quem viu
       imagem_url: v.id_placa != null ? fotoPorIdPlaca.get(Number(v.id_placa)) || null : null,
       responsavel_nome: respPorVeiculo.get(v.id) || null,
       multas_abertas,

@@ -29,7 +29,8 @@ const EDITAVEIS = new Set([
   'marca', 'modelo', 'combustivel', 'categoria', 'setor', 'status', 'ativo',
   'observacoes', 'seguradora', 'placa_exibicao', 'proprietario', 'equipamentos',
   'exercicio_crlv', 'id_projeto_omie', 'id_projeto_omie_castro',
-  'fipe_codigo', 'fipe_ano_codigo', 'senha_cartao_veloe',
+  // senha do Veloe NÃO: tem rota própria que registra quem viu/alterou (./senha-veloe)
+  'fipe_codigo', 'fipe_ano_codigo',
   // desligar o checklist mensal deste carro (motivo é opcional)
   'checklist_desativado', 'checklist_desativado_motivo',
 ]);
@@ -151,8 +152,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
     ultimos_dias: diasUso.slice(0, 7),
   };
 
+  // a senha do Veloe nunca sai aqui — só se existe (ver em ./senha-veloe, que registra quem viu)
+  const seg = await supabase.from('frota_veiculo_segredos').select('senha_cartao_veloe').eq('veiculo_id', v.id).maybeSingle();
+  const temSenhaVeloe = !!(seg.data?.senha_cartao_veloe || v.senha_cartao_veloe);
   return NextResponse.json({
-    veiculo: v,
+    veiculo: { ...v, senha_cartao_veloe: null, tem_senha_veloe: temSenhaVeloe },
     imagem_url: foto?.data?.imagem_url || null,
     // FIPE mora em Placas (o DRE lê valor_mercado de lá) — edição na Ficha via
     // /api/visual-estoque/frota/dados, identificando por id_placa.

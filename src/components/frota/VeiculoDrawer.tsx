@@ -206,8 +206,23 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
     return () => { vivo = false; };
   }, [placa]);
 
-  // Senha do cartão Veloe fica mascarada na ficha — clique pra revelar
-  const [verSenhaVeloe, setVerSenhaVeloe] = useState(false);
+  // Senha do cartão Veloe: não vem com a ficha. "mostrar" busca na rota própria,
+  // que registra quem viu; a ficha mostra as últimas visualizações.
+  const [senhaVeloe, setSenhaVeloe] = useState<string | null>(null);
+  const [vistasVeloe, setVistasVeloe] = useState<{ quem: string; quando: string; acao: string }[]>([]);
+  const [buscandoSenha, setBuscandoSenha] = useState(false);
+  useEffect(() => { setSenhaVeloe(null); setVistasVeloe([]); }, [placa]);
+  const alternarSenhaVeloe = async () => {
+    if (senhaVeloe != null) { setSenhaVeloe(null); return; }
+    setBuscandoSenha(true);
+    try {
+      const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}/senha-veloe`, { headers: await authHeaders() });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'Não foi possível ver a senha.'); return; }
+      setSenhaVeloe(d.senha || '');
+      setVistasVeloe(d.vistas || []);
+    } catch (e) { alert(String(e)); } finally { setBuscandoSenha(false); }
+  };
 
   const formBase = (): Record<string, string> => {
     const v = det!.veiculo;
@@ -218,7 +233,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       categoria: v.categoria || 'outros', status: v.status || 'ativo',
       tipo_veiculo: v.tipo_veiculo || '',
       seguradora: v.seguradora || '', numero_apolice: v.numero_apolice || '',
-      senha_cartao_veloe: v.senha_cartao_veloe || '',
+      senha_cartao_veloe: '', // vazio = manter; a senha atual não vem com a ficha
       proprietario: v.proprietario || '',
       exercicio_crlv: v.exercicio_crlv != null ? String(v.exercicio_crlv) : '',
       observacoes: v.observacoes || '',
@@ -273,7 +288,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
   const salvarEdicao = async () => {
     setBusy('editar');
     try {
-      const { valor_mercado, ...campos } = form;
+      const { valor_mercado, senha_cartao_veloe: novaSenhaVeloe, ...campos } = form;
       const payload: Record<string, unknown> = { ...campos };
       if (form.ano !== undefined) payload.ano = form.ano === '' ? null : Number(form.ano);
       // projetos Omie: número ou null (o servidor espelha na SupaPlacas)
@@ -292,6 +307,17 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       const d = await r.json();
       if (!r.ok) { alert(d.error || 'Falha ao salvar.'); return; }
       if (d.aviso) alert(d.aviso);
+
+      // senha do Veloe: rota própria (registra quem alterou); vazio = manter
+      if (novaSenhaVeloe?.trim()) {
+        const rs = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}/senha-veloe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+          body: JSON.stringify({ senha: novaSenhaVeloe.trim() }),
+        });
+        if (!rs.ok) alert((await rs.json().catch(() => ({}))).error || 'A senha do Veloe não foi salva.');
+        setSenhaVeloe(null);
+      }
 
       // FIPE mora em Placas (o DRE lê de lá) — grava à parte, só se mudou
       const fipeNovo = valor_mercado === '' ? null : Number(String(valor_mercado).replace(',', '.'));
@@ -813,17 +839,25 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       <Linha rotulo="Apólice" valor={v.numero_apolice} />
                       <Linha
                         rotulo="Senha cartão Veloe"
-                        valor={v.senha_cartao_veloe
+                        valor={v.tem_senha_veloe
                           ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                              {verSenhaVeloe ? v.senha_cartao_veloe : '••••••'}
-                              <button
-                                onClick={() => setVerSenhaVeloe((s) => !s)}
-                                title={verSenhaVeloe ? 'Ocultar a senha' : 'Mostrar a senha'}
-                                style={{ background: 'none', border: 'none', color: '#1e40af', cursor: 'pointer', fontSize: 11.5, fontWeight: 700, padding: 0 }}
-                              >
-                                {verSenhaVeloe ? 'ocultar' : 'mostrar'}
-                              </button>
+                            <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 2 }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                {senhaVeloe != null ? senhaVeloe : '••••••'}
+                                <button
+                                  onClick={alternarSenhaVeloe}
+                                  disabled={buscandoSenha}
+                                  title={senhaVeloe != null ? 'Ocultar a senha' : 'Mostrar a senha (fica registrado que você viu)'}
+                                  style={{ background: 'none', border: 'none', color: '#1e40af', cursor: 'pointer', fontSize: 11.5, fontWeight: 700, padding: 0 }}
+                                >
+                                  {buscandoSenha ? '…' : senhaVeloe != null ? 'ocultar' : 'mostrar'}
+                                </button>
+                              </span>
+                              {senhaVeloe != null && vistasVeloe.length > 0 && (
+                                <span style={{ fontSize: 11, color: 'var(--portal-text-secondary)', fontWeight: 400 }}>
+                                  {vistasVeloe.slice(0, 5).map((x) => `${x.acao === 'alterar_senha_veloe' ? 'alterada' : 'vista'} por ${x.quem} em ${new Date(x.quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`).join(' · ')}
+                                </span>
+                              )}
                             </span>
                           )
                           : '—'}
@@ -909,7 +943,12 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       ] as [string, string][]).map(([campo, rotulo]) => (
                         <label key={campo} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase' }}>
                           {rotulo}
-                          <input value={form[campo] || ''} onChange={(e) => setForm((f) => ({ ...f, [campo]: e.target.value }))} style={inputStyle} />
+                          <input
+                            value={form[campo] || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, [campo]: e.target.value }))}
+                            placeholder={campo === 'senha_cartao_veloe' && det.veiculo.tem_senha_veloe ? '•••••• (vazio = manter)' : undefined}
+                            style={inputStyle}
+                          />
                         </label>
                       ))}
                       {det.veiculo.id_placa != null && (
