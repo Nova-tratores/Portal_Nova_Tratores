@@ -16,6 +16,7 @@ import { diaBR, rotuloLocal } from '@/lib/frota/mapa-vivo';
 import { classificarParada, type GeocercaCtx } from '@/lib/frota/paradas';
 import { computarESalvarRota } from '@/lib/pos/rastreamento';
 import { resolverPlaca } from '@/lib/frota/placa';
+import { paradasNoUso } from '@/lib/frota/ignicao';
 import { carrosDosVendedores, desenhoDaRota, montarTimeline, type ParadaRota } from '@/lib/vendas-app/mapa-vendedores';
 
 export const runtime = 'nodejs';
@@ -73,8 +74,13 @@ export async function GET(req: NextRequest) {
       const r = rotuloLocal(c.classe, c.destino_nome);
       return r === 'Sem cadastro de local' ? null : r;
     };
-    const { pontos, segmentos, buracos } = desenhoDaRota(rota.pontos || []);
-    const paradas: ParadaRota[] = (rota.paradas || [])
+    // só o dia de uso (1ª vez ligado → último desligamento): a madrugada do carro
+    // estacionado não é "saiu 00:08" nem "parou 7h"
+    const janela = { inicio: rota.hora_inicio || null, fim: rota.hora_fim || null };
+    // sem janela = o carro não foi ligado no dia: nada de trajeto
+    const pontosDia = janela.inicio ? (rota.pontos || []).filter((p) => p.dt >= janela.inicio! && (!janela.fim || p.dt <= janela.fim)) : [];
+    const { pontos, segmentos, buracos } = desenhoDaRota(pontosDia);
+    const paradas: ParadaRota[] = ((rota.pontos || []).length ? paradasNoUso(rota.paradas || [], janela) : (rota.paradas || []))
       .filter((p) => p.lat && p.lng)
       .map((p) => ({ lat: p.lat, lng: p.lng, inicio: p.inicio, fim: p.fim, duracao_min: p.duracao_min, local: localDe(p.lat, p.lng, p.inicio) }));
     return json(req, {
