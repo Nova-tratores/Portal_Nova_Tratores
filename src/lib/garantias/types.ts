@@ -360,7 +360,12 @@ export interface RelatorioMontadora {
   qtd_cobrancas_vencidas: number;
 }
 
+/** Qual data o período do relatório filtra */
+export type RelatorioBase = 'fechamento' | 'abertura';
+
 export interface RelatorioGarantias {
+  /** 'fechamento' = finalizada_em (padrão) · 'abertura' = created_at */
+  base?: RelatorioBase;
   por_montadora: RelatorioMontadora[];
   totais: {
     lucro: number;

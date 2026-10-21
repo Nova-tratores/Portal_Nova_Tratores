@@ -2,7 +2,7 @@
 import { fetchAuth } from '@/lib/auth/client';
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2, TrendingUp, TrendingDown, Scale, ClipboardCheck, Printer, Clock, DollarSign, AlertTriangle, Wallet } from 'lucide-react';
-import type { RelatorioGarantias } from '@/lib/garantias/types';
+import type { RelatorioGarantias, RelatorioBase } from '@/lib/garantias/types';
 import { fmtMoeda } from '@/lib/garantias/format';
 
 function Kpi({ icone, label, valor, cor }: { icone: React.ReactNode; label: string; valor: string; cor: string }) {
@@ -33,6 +33,19 @@ export default function GarantiasRelatorio({ refreshKey }: { refreshKey: number 
   const [loading, setLoading] = useState(true);
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
+  // Qual data o período filtra. Padrão = fechamento ("o que resolvi no mês");
+  // a escolha fica lembrada no navegador.
+  const [base, setBase] = useState<RelatorioBase>('fechamento');
+  useEffect(() => {
+    try {
+      const v = localStorage.getItem('garantias-relatorio-base');
+      if (v === 'abertura' || v === 'fechamento') setBase(v);
+    } catch { /* navegador sem storage: segue no padrão */ }
+  }, []);
+  const trocarBase = (v: RelatorioBase) => {
+    setBase(v);
+    try { localStorage.setItem('garantias-relatorio-base', v); } catch { /* ignora */ }
+  };
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -40,7 +53,8 @@ export default function GarantiasRelatorio({ refreshKey }: { refreshKey: number 
       const p = new URLSearchParams();
       if (de) p.set('de', de);
       if (ate) p.set('ate', ate);
-      const res = await fetchAuth(`/api/garantias/relatorio${p.toString() ? `?${p}` : ''}`);
+      p.set('base', base);
+      const res = await fetchAuth(`/api/garantias/relatorio?${p}`);
       const data = await res.json();
       setRel(data);
     } catch {
@@ -48,7 +62,7 @@ export default function GarantiasRelatorio({ refreshKey }: { refreshKey: number 
     } finally {
       setLoading(false);
     }
-  }, [de, ate]);
+  }, [de, ate, base]);
 
   useEffect(() => {
     carregar();
@@ -72,7 +86,31 @@ export default function GarantiasRelatorio({ refreshKey }: { refreshKey: number 
   return (
     <div>
       {/* Filtros */}
-      <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+      <div style={{ display: 'flex', gap: 10, marginBottom: 6, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <label style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>Contar pela data de</label>
+          <div style={{ display: 'flex', borderRadius: 8, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
+            {([
+              { v: 'fechamento' as const, rotulo: 'Fechamento' },
+              { v: 'abertura' as const, rotulo: 'Abertura' },
+            ]).map((o) => (
+              <button
+                key={o.v}
+                onClick={() => trocarBase(o.v)}
+                title={o.v === 'fechamento'
+                  ? 'Conta a garantia no mês em que foi aprovada ou recusada'
+                  : 'Conta a garantia no mês em que foi aberta'}
+                style={{
+                  padding: '7px 14px', border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                  background: base === o.v ? '#dc2626' : 'var(--portal-bg-input)',
+                  color: base === o.v ? '#fff' : 'var(--portal-text-secondary)',
+                }}
+              >
+                {o.rotulo}
+              </button>
+            ))}
+          </div>
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
           <label style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>De</label>
           <input type="date" value={de} onChange={(e) => setDe(e.target.value)} style={dateInput} />
@@ -91,6 +129,12 @@ export default function GarantiasRelatorio({ refreshKey }: { refreshKey: number 
         >
           <Printer size={15} /> Imprimir
         </button>
+      </div>
+
+      <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginBottom: 16, lineHeight: 1.5 }}>
+        {base === 'fechamento'
+          ? 'Mostrando as garantias aprovadas ou recusadas dentro do período — mesmo que tenham sido abertas antes. As que ainda estão na fábrica não entram nesta contagem.'
+          : 'Mostrando as garantias abertas dentro do período, inclusive as que ainda estão na fábrica. O resultado em dinheiro só aparece nas que já foram finalizadas.'}
       </div>
 
       {loading || !rel ? (
@@ -149,7 +193,9 @@ export default function GarantiasRelatorio({ refreshKey }: { refreshKey: number 
                           {m.qtd_rejeitadas_garantista > 0 ? ` · ${m.qtd_rejeitadas_garantista} garantista` : ''})
                         </span>
                       )}
-                      {' '}· {m.qtd_abertas} aberta(s)
+                      {/* "abertas" só existe no filtro por abertura: no de
+                          fechamento a garantia em aberto nem entra na lista */}
+                      {base === 'abertura' && <>{' '}· {m.qtd_abertas} aberta(s)</>}
                     </span>
                   </div>
 
@@ -171,10 +217,12 @@ export default function GarantiasRelatorio({ refreshKey }: { refreshKey: number 
                       <Clock size={13} /> Resolução média:{' '}
                       <strong>{m.tempo_medio_resolucao_dias != null ? `${m.tempo_medio_resolucao_dias} dia(s)` : '—'}</strong>
                     </span>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Clock size={13} /> Em aberto na fábrica:{' '}
-                      <strong>{m.tempo_medio_aberto_dias != null ? `${m.tempo_medio_aberto_dias} dia(s)` : '—'}</strong>
-                    </span>
+                    {base === 'abertura' && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <Clock size={13} /> Em aberto na fábrica:{' '}
+                        <strong>{m.tempo_medio_aberto_dias != null ? `${m.tempo_medio_aberto_dias} dia(s)` : '—'}</strong>
+                      </span>
+                    )}
                     <span>
                       Saldo: <strong style={{ color: m.saldo >= 0 ? '#16a34a' : '#dc2626' }}>{fmtMoeda(m.saldo)}</strong>
                     </span>

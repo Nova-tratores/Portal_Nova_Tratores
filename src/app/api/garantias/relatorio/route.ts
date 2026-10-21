@@ -4,18 +4,29 @@ import { TBL_GARANTIAS, VALOR_HORA, VALOR_KM, STATUS_FINALIZADOS } from '@/lib/g
 import type { RelatorioMontadora } from '@/lib/garantias/types';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
 
-// GET /api/garantias/relatorio?de=&ate=
+// GET /api/garantias/relatorio?de=&ate=&base=fechamento|abertura
+//
+// `base` diz QUAL data o período filtra (José, 21/10/2026):
+//   fechamento (padrão) = quando a garantia foi aprovada/recusada
+//       (`finalizada_em`) — responde "quanto resolvi neste mês". Garantia
+//       ainda em aberto não tem essa data, então fica de fora.
+//   abertura = quando a garantia foi aberta (`created_at`) — responde "o que
+//       entrou neste mês"; é o único modo em que as abertas/aging aparecem.
+// Antes só existia o filtro por abertura, e o garantista via 0 aprovadas num
+// mês em que tinha finalizado dezenas (as garantias eram de meses anteriores).
 export async function GET(req: NextRequest) {
   const guarda = await protegerRota(req, [{ modulo: 'garantias' }]);
   if (guarda.resposta) return guarda.resposta;
   const de = req.nextUrl.searchParams.get('de');
   const ate = req.nextUrl.searchParams.get('ate');
+  const base = req.nextUrl.searchParams.get('base') === 'abertura' ? 'abertura' : 'fechamento';
+  const campoData = base === 'abertura' ? 'created_at' : 'finalizada_em';
 
   let query = supabase
     .from(TBL_GARANTIAS)
     .select('*, montadora:garantia_montadoras(id,nome,cor)');
-  if (de) query = query.gte('created_at', de);
-  if (ate) query = query.lte('created_at', `${ate}T23:59:59`);
+  if (de) query = query.gte(campoData, de);
+  if (ate) query = query.lte(campoData, `${ate}T23:59:59`);
 
   const { data, error } = await query;
   if (error) {
@@ -172,5 +183,5 @@ export async function GET(req: NextRequest) {
 
   porMontadora.sort((a, b) => b.saldo - a.saldo);
 
-  return NextResponse.json({ por_montadora: porMontadora, totais });
+  return NextResponse.json({ por_montadora: porMontadora, totais, base });
 }
