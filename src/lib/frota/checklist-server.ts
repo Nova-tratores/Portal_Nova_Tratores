@@ -8,6 +8,8 @@ import { supabaseAdmin as supabase } from '@/lib/server/supabase-admin';
 import { resolverPlaca, extrairPlacaDeNumPlaca } from '@/lib/frota/placa';
 import { responsavelVazio } from '@/lib/frota/responsavel';
 import { CHECKLIST_ITEMS, calcularScore, camposAtualizacaoItem } from '@/lib/frota/checklist';
+import { tipoFotoPneu, type AnalisePneu } from '@/lib/frota/pneu-regras';
+import { analisarFotoPneu } from '@/lib/frota/pneu-ia';
 
 export type Resultado = { status: number; body: Record<string, unknown> };
 const ok = (body: Record<string, unknown>): Resultado => ({ status: 200, body });
@@ -118,26 +120,42 @@ export async function salvarItemChecklist(fd: FormData): Promise<Resultado> {
 
   let fotoUrl: string | null = null;
   let fotoTamanho: number | null = null;
+  let iaAnalise: AnalisePneu | null | undefined;
   if (foto) {
     const ext = (foto.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
     const path = `checklist/${checklistId}/${itemKey}.${ext}`;
     const buffer = Buffer.from(await foto.arrayBuffer());
     fotoTamanho = buffer.length;
+    // Pneu: a IA confere se a foto mostra a banda / a lateral legível. Não
+    // comprovou → devolve para tirar de novo; quem insiste manda forcar=1 e o
+    // item fica gravado com a análise (vira alerta e desconta no score).
+    const tipoPneu = tipoFotoPneu(itemKey);
+    if (tipoPneu) {
+      iaAnalise = await analisarFotoPneu(buffer, foto.type || 'image/jpeg', tipoPneu);
+      if (iaAnalise && !iaAnalise.comprova && String(fd.get('forcar') || '') !== '1') {
+        return { status: 422, body: { error: iaAnalise.motivo || 'A foto não comprova o item.', refazer: true, analise: iaAnalise } };
+      }
+    }
     const { error: upErr } = await supabase.storage.from('requisicoes').upload(path, buffer, { upsert: true, contentType: foto.type || 'image/jpeg' });
     if (upErr) return falha(`Falha no upload da foto: ${upErr.message}`, 500);
     fotoUrl = supabase.storage.from('requisicoes').getPublicUrl(path).data.publicUrl;
   }
 
   const { data: existing } = await supabase.from('veiculo_checklist_itens').select('id').eq('checklist_id', checklistId).eq('item_key', itemKey).maybeSingle();
-  const campos = camposAtualizacaoItem({ resposta, observacao, fotoUrl, fotoTamanho, agora: new Date().toISOString() });
-  if (existing) {
-    await supabase.from('veiculo_checklist_itens').update(campos).eq('id', existing.id);
-  } else {
-    if (!fotoUrl) return falha('Tire a foto do item.');
-    await supabase.from('veiculo_checklist_itens').insert({ checklist_id: checklistId, item_key: itemKey, categoria, titulo, ...campos });
+  const campos = camposAtualizacaoItem({ resposta, observacao, fotoUrl, fotoTamanho, agora: new Date().toISOString(), iaAnalise });
+  if (!existing && !fotoUrl) return falha('Tire a foto do item.');
+  const gravar = (c: Record<string, unknown>) => existing
+    ? supabase.from('veiculo_checklist_itens').update(c).eq('id', existing.id)
+    : supabase.from('veiculo_checklist_itens').insert({ checklist_id: checklistId, item_key: itemKey, categoria, titulo, ...c });
+  const { error: errGravar } = await gravar(campos);
+  // sem a coluna ia_analise (sql/frota-checklist-pneu-ia.sql não aplicada) grava o resto
+  if (errGravar && 'ia_analise' in campos && /ia_analise/.test(errGravar.message)) {
+    const resto = { ...campos };
+    delete resto.ia_analise;
+    await gravar(resto);
   }
   await supabase.from('veiculo_checklist').update({ status: 'em_andamento' }).eq('id', checklistId).eq('status', 'pendente');
-  return ok({ ok: true, foto_url: fotoUrl });
+  return ok({ ok: true, foto_url: fotoUrl, analise: iaAnalise ?? null });
 }
 
 /** Fecha o checklist: duração, score de confiança e título. */

@@ -15,8 +15,8 @@ describe('item do checklist mensal', () => {
     expect(c).toMatchObject({ foto_url: 'https://x/y.jpg', foto_tamanho: 123456, resposta: 'ok' });
   });
 
-  it('são 20 itens com chave única', () => {
-    expect(CHECKLIST_ITEMS).toHaveLength(20);
-    expect(new Set(CHECKLIST_ITEMS.map((i) => i.key)).size).toBe(20);
+  it('são 25 itens com chave única (cada pneu com banda e lateral)', () => {
+    expect(CHECKLIST_ITEMS).toHaveLength(25);
+    expect(new Set(CHECKLIST_ITEMS.map((i) => i.key)).size).toBe(25);
   });
 });
