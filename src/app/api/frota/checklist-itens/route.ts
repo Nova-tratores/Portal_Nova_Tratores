@@ -2,6 +2,7 @@
 // Itens (com foto) de um checklist mensal de veículo. Lê a tabela do NT Mecânico
 // (mesmo Supabase). Carregado sob demanda quando o usuário expande na Ficha.
 import { NextRequest, NextResponse } from 'next/server';
+import { assinarFotos } from '@/lib/frota/checklist-fotos';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { temModuloFrota } from '@/lib/frota/server';
@@ -29,5 +30,5 @@ export async function GET(req: NextRequest) {
     .order('respondido_em', { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ itens: data || [] });
+  return NextResponse.json({ itens: await assinarFotos(data || []) });
 }

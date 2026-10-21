@@ -192,7 +192,7 @@ export default function ChecklistVeiculoPage() {
             {checklist.score_confianca != null ? <> · score {checklist.score_confianca}%</> : null}
           </div>
           {checklist.share_token && (
-            <a href={`/api/frota/checklist/print?token=${encodeURIComponent(checklist.share_token)}`} target="_blank" rel="noopener noreferrer"
+            <a href={`/frota/checklist/ver?token=${encodeURIComponent(checklist.share_token)}`} target="_blank" rel="noopener noreferrer"
               style={{ ...btnPrim, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none', marginTop: 16, background: '#1b2230' }}>
               <FileText size={16} /> Abrir checklist (PDF)
             </a>
@@ -249,7 +249,7 @@ export default function ChecklistVeiculoPage() {
           <div style={{ fontSize: 14, color: 'var(--portal-text)', marginTop: 4 }}>Score de confiança: <b style={{ color: suspeito ? '#b45309' : '#15803d' }}>{resultado.score}%</b></div>
           {suspeito && <div style={{ fontSize: 13.5, color: '#b45309', marginTop: 8 }}>Marcado como suspeito — a gestão pode revisar.</div>}
           {resultado.share_token && (
-            <a href={`/api/frota/checklist/print?token=${encodeURIComponent(resultado.share_token)}`} target="_blank" rel="noopener noreferrer" style={{ ...btnPrim, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none', marginTop: 16, background: '#1b2230', width: 'auto', padding: '12px 20px' }}>
+            <a href={`/frota/checklist/ver?token=${encodeURIComponent(resultado.share_token)}`} target="_blank" rel="noopener noreferrer" style={{ ...btnPrim, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none', marginTop: 16, background: '#1b2230', width: 'auto', padding: '12px 20px' }}>
               <FileText size={16} /> Ver documento (PDF)
             </a>
           )}

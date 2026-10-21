@@ -113,7 +113,6 @@
  "src/app/api/financeiro/cron/ler-respostas/route.ts#GET",
  "src/app/api/fornecedores/buscar/route.ts#GET",
  "src/app/api/fornecedores/requisicoes/route.ts#GET",
- "src/app/api/frota/checklist/print/route.ts#GET",
  "src/app/api/lembretes/route.ts#GET",
  "src/app/api/lembretes/route.ts#PATCH",
  "src/app/api/lembretes/route.ts#POST",

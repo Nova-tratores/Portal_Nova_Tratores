@@ -2,7 +2,7 @@
 //   /api/frota/checklist           → usuário do portal (módulo Frota), carro SEM responsável
 //   /api/frota/checklist-vendedor  → vendedor do app de vendas, o carro DELE
 // Mesmas tabelas do NT Mecânico (veiculo_checklist / veiculo_checklist_itens) e
-// o mesmo bucket público `requisicoes`. Um checklist por (placa, mês).
+// fotos na pasta PRIVADA `frota-checklist` (lib/frota/checklist-fotos). Um checklist por (placa, mês).
 import { randomUUID } from 'crypto';
 import { supabaseAdmin as supabase } from '@/lib/server/supabase-admin';
 import { resolverPlaca, extrairPlacaDeNumPlaca } from '@/lib/frota/placa';
@@ -10,6 +10,7 @@ import { responsavelVazio } from '@/lib/frota/responsavel';
 import { CHECKLIST_ITEMS, calcularScore, camposAtualizacaoItem } from '@/lib/frota/checklist';
 import { tipoFotoPneu, type AnalisePneu } from '@/lib/frota/pneu-regras';
 import { analisarFotoPneu } from '@/lib/frota/pneu-ia';
+import { assinarFoto, assinarFotos, subirFotoChecklist } from '@/lib/frota/checklist-fotos';
 
 export type Resultado = { status: number; body: Record<string, unknown> };
 const ok = (body: Record<string, unknown>): Resultado => ({ status: 200, body });
@@ -62,7 +63,7 @@ export async function estadoDoMes(placa: string): Promise<Resultado> {
   let itens: unknown[] = [];
   if (checklist) {
     const { data } = await supabase.from('veiculo_checklist_itens').select('*').eq('checklist_id', checklist.id).order('created_at');
-    itens = data || [];
+    itens = await assinarFotos(data || []);
   }
   const { data: veic } = await supabase.from('frota_veiculos').select('placa_exibicao, modelo, marca').eq('placa', placa).maybeSingle();
   return ok({ checklist: checklist || null, itens, items: CHECKLIST_ITEMS, veiculo: veic || null });
@@ -79,7 +80,7 @@ export async function iniciarChecklist(p: { placa: string; nome: string; km?: un
     if (existente.status === 'completo' || existente.status === 'suspeito') return falha('Checklist deste mês já foi concluído.');
     if (km != null) await supabase.from('veiculo_checklist').update({ km }).eq('id', existente.id);
     const { data: itens } = await supabase.from('veiculo_checklist_itens').select('*').eq('checklist_id', existente.id).order('created_at');
-    return ok({ id: existente.id, itens: itens || [], items: CHECKLIST_ITEMS });
+    return ok({ id: existente.id, itens: await assinarFotos(itens || []), items: CHECKLIST_ITEMS });
   }
 
   const insertData: Record<string, unknown> = {
@@ -136,9 +137,9 @@ export async function salvarItemChecklist(fd: FormData): Promise<Resultado> {
         return { status: 422, body: { error: iaAnalise.motivo || 'A foto não comprova o item.', refazer: true, analise: iaAnalise } };
       }
     }
-    const { error: upErr } = await supabase.storage.from('requisicoes').upload(path, buffer, { upsert: true, contentType: foto.type || 'image/jpeg' });
-    if (upErr) return falha(`Falha no upload da foto: ${upErr.message}`, 500);
-    fotoUrl = supabase.storage.from('requisicoes').getPublicUrl(path).data.publicUrl;
+    const up = await subirFotoChecklist(path, buffer, foto.type || 'image/jpeg');
+    if ('erro' in up) return falha(`Falha no upload da foto: ${up.erro}`, 500);
+    fotoUrl = up.ref;
   }
 
   const { data: existing } = await supabase.from('veiculo_checklist_itens').select('id').eq('checklist_id', checklistId).eq('item_key', itemKey).maybeSingle();
@@ -155,7 +156,7 @@ export async function salvarItemChecklist(fd: FormData): Promise<Resultado> {
     await gravar(resto);
   }
   await supabase.from('veiculo_checklist').update({ status: 'em_andamento' }).eq('id', checklistId).eq('status', 'pendente');
-  return ok({ ok: true, foto_url: fotoUrl, analise: iaAnalise ?? null });
+  return ok({ ok: true, foto_url: await assinarFoto(fotoUrl), analise: iaAnalise ?? null });
 }
 
 /** Fecha o checklist: duração, score de confiança e título. */

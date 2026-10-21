@@ -4,6 +4,7 @@
 // checklist por placa — se o problema foi resolvido no checklist seguinte,
 // ele sai da lista sozinho.
 import { NextRequest, NextResponse } from 'next/server';
+import { assinarFotos } from '@/lib/frota/checklist-fotos';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { temModuloFrota } from '@/lib/frota/server';
@@ -63,5 +64,5 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  return NextResponse.json({ problemas });
+  return NextResponse.json({ problemas: await assinarFotos(problemas) });
 }

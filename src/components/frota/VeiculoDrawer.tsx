@@ -1238,7 +1238,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {(det.checklists || []).map((c) => {
                       const st = statusChecklist(c.status, c.score_confianca);
-                      const printUrl = c.share_token ? `/api/frota/checklist/print?token=${encodeURIComponent(c.share_token)}` : undefined;
+                      const printUrl = c.share_token ? `/frota/checklist/ver?token=${encodeURIComponent(c.share_token)}` : undefined;
                       return (
                         <a key={c.id} href={printUrl} target="_blank" rel="noopener noreferrer"
                           title={printUrl ? 'Abrir checklist (imprimir / salvar em PDF)' : 'Este checklist não tem link para abrir'}
