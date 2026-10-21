@@ -12,6 +12,7 @@
 //   PATCH { id, acao:'classificar' }-> definir o componente da taxonomia
 // Migration: sql/frota-pendencias.sql (v1 + alters v2).
 import { NextRequest, NextResponse } from 'next/server';
+import { assinarFotos } from '@/lib/frota/checklist-fotos';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { temModuloPendencias } from '@/lib/frota/server';
@@ -86,7 +87,8 @@ export async function GET(req: NextRequest) {
     return q;
   });
   if (error) return NextResponse.json({ error: erroTabela(error.message) }, { status: 500 });
-  return NextResponse.json({ pendencias: data || [] });
+  // pendência de checklist herda a foto do item (pasta privada → link assinado)
+  return NextResponse.json({ pendencias: await assinarFotos((data || []) as { foto_url?: string | null }[]) });
 }
 
 export async function POST(req: NextRequest) {

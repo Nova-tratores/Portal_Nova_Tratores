@@ -36,7 +36,7 @@ export function OPTIONS(req: NextRequest) {
   return new NextResponse(null, { status: 204, headers: corsVendas(req) });
 }
 
-async function vendedorDoToken(req: NextRequest): Promise<Vendedor | null> {
+async function validarTokenVendedor(req: NextRequest): Promise<Vendedor | null> {
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
   if (!token) return null;
   const { data, error } = await supabaseAdmin.auth.getUser(token);
@@ -67,7 +67,7 @@ const placaCanon = (s: unknown) => resolverPlaca(extrairPlacaDeNumPlaca(String(s
 const NAO_E_SEU = 'Este carro não está em seu nome na Frota. Peça ao responsável da frota para conferir.';
 
 export async function GET(req: NextRequest) {
-  const vend = await vendedorDoToken(req);
+  const vend = await validarTokenVendedor(req);
   if (!vend) return json(req, { error: 'Entre no app com seu usuário de vendedor.' }, 401);
 
   const placaParam = req.nextUrl.searchParams.get('placa');
@@ -93,7 +93,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const vend = await vendedorDoToken(req);
+  const vend = await validarTokenVendedor(req);
   if (!vend) return json(req, { error: 'Entre no app com seu usuário de vendedor.' }, 401);
 
   // ── salvar_item (multipart, com foto) ──
