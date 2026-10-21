@@ -103,3 +103,30 @@ export function agregarIgnicao(pontosBrutos: PontoIgnicao[]): MetricasIgnicao {
   m.tempo_desligado_min = Math.round(desligadoMs / 60_000);
   return m;
 }
+
+// ── Janela de uso do dia ────────────────────────────────────────────────────
+// Desligado, o rastreador manda um sinal a cada ~10 min a noite inteira. Usar o
+// 1º ponto do dia como "saiu" dava "00:08 · saiu" e "parou 7h17min" em todo
+// carro. O dia de uso vai da 1ª vez ligado até o desligamento depois da última
+// vez ligado. Rastreador sem ignição informada: 1º e último ponto andando.
+
+const VEL_ANDANDO_KMH = 10;
+
+export function janelaDeUso(pontosBrutos: PontoIgnicao[]): { inicio: string | null; fim: string | null } {
+  const pontos = (pontosBrutos || []).filter((p) => p && p.dt).sort((a, b) => a.dt.localeCompare(b.dt));
+  const temIgnicao = pontos.some((p) => p.ignicao === 1);
+  const usando = (p: PontoIgnicao) => (temIgnicao ? p.ignicao === 1 : (p.vel || 0) >= VEL_ANDANDO_KMH);
+  const iIni = pontos.findIndex(usando);
+  if (iIni < 0) return { inicio: null, fim: null };
+  let iFim = iIni;
+  for (let i = pontos.length - 1; i > iIni; i--) if (usando(pontos[i])) { iFim = i; break; }
+  // o ponto seguinte à última vez ligado é o desligamento (se existir)
+  const fim = pontos[iFim + 1] && temIgnicao ? pontos[iFim + 1].dt : pontos[iFim].dt;
+  return { inicio: pontos[iIni].dt, fim };
+}
+
+/** Paradas dentro do dia de uso (sem a noite estacionada antes e depois). */
+export function paradasNoUso<T extends { inicio: string }>(paradas: T[], j: { inicio: string | null; fim: string | null }): T[] {
+  if (!j.inicio) return [];
+  return paradas.filter((p) => p.inicio >= j.inicio! && (!j.fim || p.inicio < j.fim));
+}

@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { distKm, filtrarEspetos, segmentarTrajeto } from '@/lib/frota/gps'
+import { paradasNoUso } from '@/lib/frota/ignicao'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { fetchAuth } from '@/lib/auth/client'
 import { carregarLeaflet } from '@/components/feedbacks/leaflet'
@@ -543,11 +544,20 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
         setAvisoRota('Não foi possível carregar o trajeto agora. Tente de novo em instantes.')
         return
       }
-      const rota = await res.json()
+      const rotaBruta = await res.json()
       if (!atual()) return
+      // Só o dia de USO (1ª vez ligado → último desligamento, calculado no
+      // servidor): o sinal de 10 em 10 min do carro estacionado de madrugada
+      // virava "00:08 · saiu" e "parou 7h17min" em todo carro.
+      const janela = { inicio: rotaBruta.hora_inicio as string | null, fim: rotaBruta.hora_fim as string | null }
+      // com pontos e sem janela = o carro não foi ligado no dia (cai no "sem trajeto")
+      const naJanela = (dt: string) => !!janela.inicio && dt >= janela.inicio && (!janela.fim || dt <= janela.fim)
+      const rota = (rotaBruta.pontos || []).length
+        ? { ...rotaBruta, paradas: paradasNoUso(rotaBruta.paradas || [], janela) }
+        : rotaBruta
       // espetos de GPS fora do desenho e da timeline (o resumo/km oficial
       // continua vindo do servidor, intacto)
-      const pontos = filtrarEspetos(rota.pontos || [])
+      const pontos = filtrarEspetos((rota.pontos || []).filter((p: { dt: string }) => naJanela(p.dt)))
       setRotaSel({ ...rota, pontos })
       setMotoristaDia(null)
       resolverMotorista?.(placa, dataParam).then((m) => { if (atual()) setMotoristaDia(m) }).catch(() => {})
