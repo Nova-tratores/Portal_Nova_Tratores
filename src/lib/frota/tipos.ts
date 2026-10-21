@@ -72,7 +72,9 @@ export interface FrotaVeiculo {
   id_projeto_omie_castro: number | null;
   numero_apolice: string | null;
   seguradora: string | null;
+  /** sempre null nas respostas da API — a senha sai só por /senha-veloe (registra quem viu) */
   senha_cartao_veloe: string | null;
+  tem_senha_veloe?: boolean;
   dt_aquisicao: string | null;
   tipo_negociacao: string | null;
   campos_manuais: string[];
