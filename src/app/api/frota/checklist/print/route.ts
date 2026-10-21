@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { resolverPlaca, extrairPlacaDeNumPlaca, formatarPlaca } from '@/lib/frota/placa';
+import { resumoAnalise } from '@/lib/frota/pneu-regras';
 
 export const runtime = 'nodejs';
 
@@ -16,7 +17,7 @@ const supabase = createClient(
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const fmtMes = (m: string) => { const [a, mm] = String(m || '').split('-'); return mm ? `${MESES[Number(mm) - 1] || mm} de ${a}` : (m || ''); };
-const fmtDT = (s: string | null) => s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const fmtDT = (s: string | null) => s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) : '';
 const esc = (s: unknown) => String(s ?? '').replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
 export async function GET(req: NextRequest) {
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
 
   const { data: itensRaw } = await supabase
     .from('veiculo_checklist_itens')
-    .select('item_key, categoria, titulo, resposta, observacao, foto_url, respondido_em')
+    .select('*')
     .eq('checklist_id', chk.id)
     .order('respondido_em', { ascending: true });
   const itens = itensRaw || [];
@@ -58,6 +59,7 @@ export async function GET(req: NextRequest) {
           <div class="it-tit">${esc(it.titulo || it.item_key || '')}</div>
           <div class="it-resp ${prob ? 'prob' : 'ok'}">${prob ? 'Problema' : 'OK'}</div>
           ${it.observacao ? `<div class="it-obs">${esc(it.observacao)}</div>` : ''}
+          ${it.ia_analise ? `<div class="it-obs" style="color:${it.ia_analise.comprova ? '#475569' : '#b91c1c'}">${esc(resumoAnalise(it.ia_analise))}</div>` : ''}
         </div>`;
       }).join('')}</div>`;
 
