@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { authHeaders } from '@/lib/auth/client'
 import type { CarreiraTecnico } from '@/lib/mecanicos/carreira'
 import type { ComissaoTecnico } from '@/lib/mecanicos/carreira-server'
+import { useVersaoAoVivo } from './useAoVivo'
 
 export interface DadosCarreira { mesAtual: string; carreira: CarreiraTecnico[]; comissoes: ComissaoTecnico[]; inicioSistema: string; fotos?: Record<string, string>; pontosMes?: Record<string, number> }
 
@@ -21,6 +22,14 @@ async function buscar(): Promise<DadosCarreira> {
 export function useCarreira(): { dados: DadosCarreira | null; erro: string | null } {
   const [dados, setDados] = useState<DadosCarreira | null>(() => (cache && Date.now() - cache.em < 5 * 60_000 ? cache.dados : null))
   const [erro, setErro] = useState<string | null>(null)
+  // aviso ao vivo (faturamento/ocorrência): busca de novo
+  const versao = useVersaoAoVivo()
+  useEffect(() => {
+    if (!versao) return
+    let vivo = true
+    buscar().then((d) => { cache = { dados: d, em: Date.now() }; if (vivo) setDados(d) }).catch(() => {})
+    return () => { vivo = false }
+  }, [versao])
   useEffect(() => {
     if (dados) return
     let vivo = true

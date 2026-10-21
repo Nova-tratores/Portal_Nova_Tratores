@@ -34,6 +34,8 @@ const TTL_INCREMENTAL_MS = 60_000;
 export interface Pedido {
   codigo_produto: string;
   valor_total: number;
+  /** desconto do item no pedido (sql/descontos-omie.sql) */
+  valor_desconto?: number;
   quantidade: number;
   valor_unitario: number;
   data_pedido: string;
@@ -191,6 +193,7 @@ export async function buscarPedidosPeriodo(de: string, ate: string, conta: Conta
         pedidos.push({
           codigo_produto: String(pr.codigo_produto || ''),
           valor_total: num(pr.valor_total),
+          valor_desconto: num(pr.valor_desconto),
           quantidade: num(pr.quantidade),
           valor_unitario: num(pr.valor_unitario),
           data_pedido: dataPedido,
@@ -313,6 +316,7 @@ function mapPedidoParaRow(p: Pedido, mes: number, ano: number, conta: Conta, cmc
     ano,
     codigo_produto: p.codigo_produto,
     valor_total: p.valor_total,
+    valor_desconto: p.valor_desconto || 0,
     quantidade: p.quantidade,
     valor_unitario: p.valor_unitario,
     tipo: info.tipo || null,
@@ -386,6 +390,11 @@ async function inserirLinhas(rows: Array<Record<string, unknown>>): Promise<void
     let lote = rows.slice(i, i + 500);
     if (semColuna) lote = lote.map(semDataFaturamento);
     let { error } = await supabase.from('vendas_itens').insert(lote);
+    // sem a coluna valor_desconto (sql/descontos-omie.sql): grava sem ela
+    if (error && /valor_desconto/.test(error.message)) {
+      lote = lote.map(({ valor_desconto: _d, ...r }) => { void _d; return r; });
+      ({ error } = await supabase.from('vendas_itens').insert(lote));
+    }
     if (error && !semColuna && /data_faturamento/.test(error.message)) {
       semColuna = true;
       ({ error } = await supabase.from('vendas_itens').insert(lote.map(semDataFaturamento)));

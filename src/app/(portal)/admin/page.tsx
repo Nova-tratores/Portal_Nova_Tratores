@@ -10,6 +10,10 @@ import {
   Activity, Clock, Settings, ClipboardList, DollarSign, FileText, Mail, Ban, RotateCcw
 } from 'lucide-react'
 import PermissoesModulos from '@/components/admin/PermissoesModulos'
+import PapelMenu, { type Nivel } from '@/components/admin/PapelMenu'
+import AcoesUsuarioMenu from '@/components/admin/AcoesUsuarioMenu'
+import { ModalAcessos } from '@/components/admin/DistribuirAcessos'
+import ResumoAcessos, { type FiltroPapel } from '@/components/admin/ResumoAcessos'
 import ContasSemCadastro from '@/components/admin/ContasSemCadastro'
 import TrocarEmailModal from '@/components/admin/TrocarEmailModal'
 import AvisosTratorilson from '@/components/admin/AvisosTratorilson'
@@ -83,6 +87,9 @@ const MODULOS = [
   { id: 'vendas-modelo', label: 'Vendas por Modelo', color: '#dc2626' },
   { id: 'war-room', label: 'War Room', color: '#b91c1c' },
 ]
+
+// colunas da lista de usuários (21/10/2026): usuário · papel · categoria · acessos · ⋯
+const COLS_ADMIN = 'minmax(260px,1.3fr) minmax(180px,220px) 150px minmax(240px,1.2fr) 44px'
 
 const CATEGORIAS = ['Pós Vendas', 'Peças', 'Comercial', 'Financeiro', 'T.I.']
 
@@ -178,6 +185,8 @@ export default function AdminPage() {
   const [avisoOrfas, setAvisoOrfas] = useState<{ userId: string; nome: string; count: number } | null>(null)
   // Quais usuários estão com o painel de permissões expandido
   const [expandidoUsuario, setExpandidoUsuario] = useState<Set<string>>(new Set())
+  // filtro pelos números do topo (Admins, Devs, Diretores…)
+  const [filtroPapel, setFiltroPapel] = useState<FiltroPapel>(null)
   const toggleExpandirUsuario = (id: string) => setExpandidoUsuario(prev => {
     const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n
   })
@@ -188,6 +197,10 @@ export default function AdminPage() {
   const [novoSenha, setNovoSenha] = useState('nova123')
   const [novoFuncao, setNovoFuncao] = useState('')
   const [novoModulos, setNovoModulos] = useState<string[]>([])
+  const [novoVendedor, setNovoVendedor] = useState(false)
+  // Quem tem linha em `vendedores` (entra no app NT Vendas), por user_id
+  const [vendedores, setVendedores] = useState<Record<string, { id: number; ativo: boolean }>>({})
+  const [salvandoVendedor, setSalvandoVendedor] = useState<string | null>(null)
   const [showSenha, setShowSenha] = useState(false)
   const [criando, setCriando] = useState(false)
   const [criarErro, setCriarErro] = useState('')
@@ -286,6 +299,35 @@ export default function AdminPage() {
     setPermissoes(map)
 
     setLoading(false)
+    carregarVendedores()
+  }
+
+  const carregarVendedores = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/admin/vendedor', { headers: { Authorization: `Bearer ${session?.access_token || ''}` } })
+      if (res.ok) setVendedores((await res.json()).vendedores || {})
+    } catch { /* sem a lista o botão só aparece desligado */ }
+  }
+
+  // Liga/desliga o acesso ao app NT Vendas (linha em `vendedores`; nunca apaga)
+  const salvarVendedor = async (userId: string, ativo: boolean) => {
+    setSalvandoVendedor(userId)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/admin/vendedor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
+        body: JSON.stringify({ user_id: userId, ativo }),
+      })
+      const r = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(r.error || 'Falha ao salvar')
+      setVendedores(prev => ({ ...prev, [userId]: { id: r.id, ativo } }))
+    } catch (e: any) {
+      alert('Erro ao marcar vendedor: ' + (e?.message || 'erro'))
+    } finally {
+      setSalvandoVendedor(null)
+    }
   }
 
   useEffect(() => {
@@ -456,8 +498,9 @@ export default function AdminPage() {
       })
       const result = await res.json()
       if (!res.ok) { setCriarErro(result.error || 'Erro ao criar usuário'); setCriando(false); return }
+      if (novoVendedor && result.auth_user_id) await salvarVendedor(result.auth_user_id, true)
       setShowNovoUsuario(false)
-      setNovoNome(''); setNovoEmail(''); setNovoSenha('nova123'); setNovoFuncao(''); setNovoModulos([])
+      setNovoNome(''); setNovoEmail(''); setNovoSenha('nova123'); setNovoFuncao(''); setNovoModulos([]); setNovoVendedor(false)
       setVersaoContas((v) => v + 1)
       await carregar()
     } catch (err: any) {
@@ -472,7 +515,19 @@ export default function AdminPage() {
     u.funcao?.toLowerCase().includes(search.toLowerCase()) ||
     u.email?.toLowerCase().includes(search.toLowerCase())
   // ativo === false é inativo; true/undefined = ativo (antes de rodar o SQL todos são ativos)
-  const filteredUsuarios = usuarios.filter(u => u.ativo !== false && matchBusca(u))
+  const passaPapel = (u: Usuario) => {
+    const p = permissoes[u.id]
+    switch (filtroPapel) {
+      case 'admin': return !!p?.is_admin && !p?.is_dev
+      case 'dev': return !!p?.is_dev
+      case 'diretor': return !!p?.is_diretor
+      case 'vendedor': return !!vendedores[u.id]?.ativo
+      case 'mecanicos': return !!p?.mecanico_role
+      case 'sem': return !p?.is_admin && !(p?.modulos_permitidos || []).length
+      default: return true
+    }
+  }
+  const filteredUsuarios = usuarios.filter(u => u.ativo !== false && matchBusca(u) && passaPapel(u))
   const inativosFiltrados = usuarios.filter(u => u.ativo === false && matchBusca(u))
 
   if (loadingPerm || loading) {
@@ -532,34 +587,21 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '16px', marginBottom: '32px' }}>
-        {[
-          { label: 'TOTAL USUÁRIOS', value: usuarios.length, icon: <Users size={20} /> },
-          { label: 'ADMINISTRADORES', value: Object.values(permissoes).filter(p => p.is_admin).length, icon: <Shield size={20} /> },
-          { label: 'MECÂNICOS APP', value: Object.values(permissoes).filter(p => p.mecanico_role).length, icon: <Wrench size={20} /> },
-          { label: 'SEM ACESSO', value: usuarios.filter(u => !permissoes[u.id] || (permissoes[u.id].modulos_permitidos || []).length === 0).length, icon: <Lock size={20} /> },
-        ].map((stat, i) => (
-          <div key={i} style={{
-            padding: '20px 24px', borderRadius: '16px',
-            background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-          }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div style={{
-                width: '40px', height: '40px', borderRadius: '10px',
-                background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#dc2626'
-              }}>
-                {stat.icon}
-              </div>
-              <div>
-                <p style={{ fontSize: '11px', color: '#a3a3a3', fontWeight: '600', letterSpacing: '1px', marginBottom: '2px' }}>{stat.label}</p>
-                <p style={{ fontSize: '22px', fontWeight: '800', color: 'var(--portal-text)' }}>{stat.value}</p>
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
+      {/* Números que filtram a lista + o que cada nível acessa (21/10/2026) */}
+      {(() => {
+        const ativos = usuarios.filter((u) => u.ativo !== false)
+        const nivelDe = (id: string) => (permissoes[id]?.is_dev ? 'dev' : permissoes[id]?.is_admin ? 'admin' : 'usuario') as 'usuario' | 'admin' | 'dev'
+        const conta = {
+          total: ativos.length,
+          admin: ativos.filter((u) => permissoes[u.id]?.is_admin && !permissoes[u.id]?.is_dev).length,
+          dev: ativos.filter((u) => permissoes[u.id]?.is_dev).length,
+          diretor: ativos.filter((u) => permissoes[u.id]?.is_diretor).length,
+          vendedor: ativos.filter((u) => vendedores[u.id]?.ativo).length,
+          mecanicos: ativos.filter((u) => permissoes[u.id]?.mecanico_role).length,
+          sem: ativos.filter((u) => !permissoes[u.id]?.is_admin && !(permissoes[u.id]?.modulos_permitidos || []).length).length,
+        }
+        return <ResumoAcessos usuarios={ativos} nivelDe={nivelDe} conta={conta} totalModulos={MODULOS.length} filtro={filtroPapel} onFiltro={setFiltroPapel} />
+      })()}
 
       {/* Search + Novo Usuário */}
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
@@ -699,6 +741,11 @@ export default function AdminPage() {
                   </button>
                 </div>
                 <p style={{ fontSize: '11px', color: '#a3a3a3', margin: '4px 0 0 0' }}>Padrão: nova123</p>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', fontSize: '13px', fontWeight: 600, color: 'var(--portal-text)', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={novoVendedor} onChange={e => setNovoVendedor(e.target.checked)} />
+                  É vendedor (NT Vendas)
+                  <span style={{ fontSize: '11px', fontWeight: 400, color: '#a3a3a3' }}>— entra no app de vendas com este mesmo login</span>
+                </label>
               </div>
             </div>
 
@@ -767,16 +814,15 @@ export default function AdminPage() {
         <div style={{ minWidth: 968 }}>
         {/* Table Header */}
         <div style={{
-          display: 'grid', gridTemplateColumns: 'minmax(240px,1fr) 120px 150px 200px 80px 130px',
-          padding: '16px 24px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)',
-          fontSize: '11px', fontWeight: '700', color: '#a3a3a3', letterSpacing: '1px'
+          display: 'grid', gridTemplateColumns: COLS_ADMIN,
+          padding: '14px 24px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)',
+          fontSize: '11px', fontWeight: '600', color: '#94a3b8', letterSpacing: '.8px', gap: 12
         }}>
           <span>USUÁRIO</span>
-          <span>ADMIN</span>
+          <span>PAPEL</span>
           <span>CATEGORIA</span>
-          <span>APP MECÂNICOS</span>
-          <span style={{ textAlign: 'center' }}>TODOS</span>
-          <span style={{ textAlign: 'center' }}>AÇÕES</span>
+          <span>ACESSOS</span>
+          <span />
         </div>
 
         {/* Table Rows */}
@@ -788,25 +834,25 @@ export default function AdminPage() {
 
           const expandido = expandidoUsuario.has(user.id)
           const qtdAcessos = new Set(modulos.map(m => m.split(':')[0])).size
+          const nivelAtual: Nivel = perm?.is_dev ? 'dev' : perm?.is_admin ? 'admin' : 'usuario'
+          const devLock = !isDev && nivelAtual === 'dev'
+          const ehVendedor = !!vendedores[user.id]?.ativo
 
           return (
             <div
               key={user.id}
               style={{
-                borderBottom: '1px solid #f5f5f5', transition: '0.15s',
+                borderBottom: '1px solid #f1f5f9', transition: '0.15s',
                 opacity: isSaving ? 0.6 : 1,
-                background: perm?.is_admin ? '#fffbeb' : (expandido ? 'var(--portal-bg-secondary)' : 'var(--portal-bg-card)')
+                background: 'var(--portal-bg-card)'
               }}
             >
-            <div style={{
-              display: 'grid', gridTemplateColumns: 'minmax(240px,1fr) 120px 150px 200px 80px 130px',
-              padding: '16px 24px', alignItems: 'center'
-            }}>
-              {/* User Info + expandir permissões */}
+            <div style={{ display: 'grid', gridTemplateColumns: COLS_ADMIN, padding: '14px 24px', alignItems: 'center', gap: 12 }}>
+              {/* User Info + expandir acessos */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                 <button
                   onClick={() => toggleExpandirUsuario(user.id)}
-                  title={expandido ? 'Recolher permissões' : 'Expandir permissões'}
+                  title={expandido ? 'Recolher acessos' : 'Distribuir acessos'}
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', padding: 2, display: 'flex', flexShrink: 0 }}
                 >
                   {expandido ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -817,9 +863,10 @@ export default function AdminPage() {
                   title="Ver atividades deste usuário"
                 >
                   <div style={{
-                    width: '38px', height: '38px', borderRadius: '10px', overflow: 'hidden',
+                    width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden',
                     background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                    boxShadow: nivelAtual !== 'usuario' ? `0 0 0 2px ${nivelAtual === 'dev' ? '#0f172a' : '#f59e0b'}` : 'none'
                   }}>
                     {user.avatar_url ? (
                       <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -828,53 +875,31 @@ export default function AdminPage() {
                     )}
                   </div>
                   <div style={{ minWidth: 0 }}>
-                    <p style={{ fontSize: '14px', fontWeight: '600', color: 'var(--portal-text)', marginBottom: '1px' }}>
-                      {user.nome} {isMe && <span style={{ fontSize: '10px', color: '#a3a3a3' }}>(você)</span>}
+                    <p style={{ fontSize: '14.5px', fontWeight: '500', color: 'var(--portal-text)', marginBottom: '1px' }}>
+                      {user.nome} {isMe && <span style={{ fontSize: '11px', color: '#a3a3a3' }}>(você)</span>}
                     </p>
-                    <p style={{ fontSize: '11px', color: '#a3a3a3', fontWeight: '500' }}>
-                      {user.funcao}
-                      {!perm?.is_admin && qtdAcessos > 0 && <span style={{ color: '#dc2626', fontWeight: 700 }}> · {qtdAcessos} módulo{qtdAcessos > 1 ? 's' : ''}</span>}
+                    <p style={{ fontSize: '12px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {user.funcao}{user.email ? ` · ${user.email}` : ''}
                     </p>
-                    {user.email && <p style={{ fontSize: '10px', color: '#b0b0b0', fontWeight: '400' }}>{user.email}</p>}
                   </div>
                 </div>
               </div>
 
-              {/* Nível de acesso: Usuário / Admin / Dev (dropdown) */}
-              {(() => {
-                const nivelAtual = perm?.is_dev ? 'dev' : perm?.is_admin ? 'admin' : 'usuario'
-                const devLock = !isDev && nivelAtual === 'dev'
-                const bloqueado = isMe || devLock
-                const cor = nivelAtual === 'dev'
-                  ? { bg: '#1e293b', fg: '#fff', bd: '#1e293b' }
-                  : nivelAtual === 'admin'
-                    ? { bg: '#fef3c7', fg: '#d97706', bd: '#fde68a' }
-                    : { bg: '#fff', fg: '#737373', bd: '#e5e5e5' }
-                return (
-                  <select
-                    value={nivelAtual}
-                    onChange={(e) => { if (!bloqueado) setNivel(user.id, e.target.value) }}
-                    disabled={bloqueado}
-                    title={isMe ? 'Não pode alterar o seu próprio nível' : (devLock ? 'Só um Dev pode alterar um Dev' : '')}
-                    style={{
-                      padding: '6px 12px', borderRadius: '8px', border: `1px solid ${cor.bd}`,
-                      background: cor.bg, color: cor.fg, fontSize: '12px', fontWeight: '700',
-                      cursor: bloqueado ? 'not-allowed' : 'pointer', outline: 'none',
-                      opacity: bloqueado ? 0.8 : 1
-                    }}
-                  >
-                    <option value="usuario" style={{ background: '#fff', color: '#111' }}>Usuário</option>
-                    <option value="admin" style={{ background: '#fff', color: '#111' }}>Admin</option>
-                    {(isDev || perm?.is_dev) && <option value="dev" style={{ background: '#fff', color: '#111' }}>Dev</option>}
-                  </select>
-                )
-              })()}
-
-              {/* Diretor: autoriza o lançamento das comissões (papel à parte do nível — 20/10/2026) */}
-              <button type="button" onClick={() => salvar(user.id, { is_diretor: !perm?.is_diretor })} title="Diretor autoriza o lançamento das comissões dos técnicos"
-                style={{ padding: '6px 12px', borderRadius: '8px', border: `1px solid ${perm?.is_diretor ? '#047857' : '#e5e5e5'}`, background: perm?.is_diretor ? '#ecfdf5' : '#fff', color: perm?.is_diretor ? '#047857' : '#737373', fontSize: '12px', fontWeight: 700, cursor: 'pointer' }}>
-                {perm?.is_diretor ? '✓ Diretor' : 'Diretor'}
-              </button>
+              {/* Papel: nível + Diretor + Vendedor num menu só */}
+              <div>
+                <PapelMenu
+                  nivel={nivelAtual}
+                  podeDev={isDev}
+                  bloqueado={isMe || devLock}
+                  motivoBloqueio={isMe ? 'Você não pode mudar o seu próprio nível.' : devLock ? 'Só um Dev pode mudar um Dev.' : undefined}
+                  diretor={!!perm?.is_diretor}
+                  vendedor={ehVendedor}
+                  salvandoVendedor={salvandoVendedor === user.id}
+                  onNivel={(n) => setNivel(user.id, n)}
+                  onDiretor={(v) => salvar(user.id, { is_diretor: v })}
+                  onVendedor={(v) => salvarVendedor(user.id, v)}
+                />
+              </div>
 
               {/* Categoria */}
               <div>
@@ -882,10 +907,10 @@ export default function AdminPage() {
                   value={perm?.categoria || ''}
                   onChange={(e) => setCategoria(user.id, e.target.value)}
                   style={{
-                    padding: '6px 10px', borderRadius: '8px',
-                    border: '1px solid #e5e5e5', background: '#fff',
-                    fontSize: '12px', fontWeight: '600', color: '#525252',
-                    cursor: 'pointer', outline: 'none'
+                    padding: '7px 12px', borderRadius: '999px',
+                    border: '1px solid #e2e8f0', background: '#fff',
+                    fontSize: '12.5px', fontWeight: '500', color: '#334155',
+                    cursor: 'pointer', outline: 'none', maxWidth: '100%'
                   }}
                 >
                   <option value="">Sem categoria</option>
@@ -895,116 +920,53 @@ export default function AdminPage() {
                 </select>
               </div>
 
-              {/* App Mecânicos */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <select
-                  value={perm?.mecanico_role || ''}
-                  onChange={(e) => setMecanicoRole(user.id, e.target.value)}
-                  style={{
-                    padding: '6px 10px', borderRadius: '8px',
-                    border: '1px solid #e5e5e5',
-                    background: perm?.mecanico_role === 'tecnico' ? '#dcfce7' : perm?.mecanico_role === 'observador' ? '#dbeafe' : '#fff',
-                    fontSize: '11px', fontWeight: '700',
-                    color: perm?.mecanico_role === 'tecnico' ? '#16a34a' : perm?.mecanico_role === 'observador' ? '#2563eb' : '#a3a3a3',
-                    cursor: 'pointer', outline: 'none'
-                  }}
-                >
-                  <option value="">Sem acesso</option>
-                  <option value="tecnico">Técnico</option>
-                  <option value="observador">Observador</option>
-                </select>
+              {/* Acessos: resumo clicável → abre o editor */}
+              <button type="button" onClick={() => toggleExpandirUsuario(user.id)} title="Distribuir acessos"
+                style={{ display: 'flex', flexWrap: 'wrap', gap: 6, border: 'none', background: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
+                <span style={{ fontSize: 12, borderRadius: 999, padding: '4px 10px', background: perm?.is_admin ? '#fef3c7' : qtdAcessos ? '#eff6ff' : '#f1f5f9', color: perm?.is_admin ? '#b45309' : qtdAcessos ? '#1d4ed8' : '#94a3b8' }}>
+                  Portal · {perm?.is_admin ? 'tudo' : `${qtdAcessos} módulo${qtdAcessos === 1 ? '' : 's'}`}
+                </span>
+                {perm?.mecanico_role && <span style={{ fontSize: 12, borderRadius: 999, padding: '4px 10px', background: '#dcfce7', color: '#166534' }}>Mecânicos · {perm.mecanico_role === 'tecnico' ? 'técnico' : 'observador'}</span>}
+                {ehVendedor && <span style={{ fontSize: 12, borderRadius: 999, padding: '4px 10px', background: '#fee2e2', color: '#b91c1c' }}>NT Vendas</span>}
+                <span style={{ fontSize: 12, borderRadius: 999, padding: '4px 10px', border: '1px dashed #cbd5e1', color: '#64748b' }}>ajustar</span>
+              </button>
 
-                {perm?.mecanico_role && perm?.mecanico_tecnico_nome && (
-                  <span style={{
-                    fontSize: '10px', fontWeight: '600', color: '#525252',
-                    padding: '4px 8px', background: '#f5f5f5', borderRadius: '6px',
-                  }}>
-                    {perm.mecanico_tecnico_nome}
-                  </span>
-                )}
-              </div>
-
-              {/* Toggle All */}
-              <div style={{ textAlign: 'center' }}>
-                <button
-                  onClick={() => toggleTodos(user.id)}
-                  style={{
-                    width: '36px', height: '36px', borderRadius: '10px',
-                    border: 'none', cursor: 'pointer', transition: '0.15s',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto',
-                    background: MODULOS.every(m => modulos.includes(m.id)) ? '#dcfce7' : '#f5f5f5',
-                    color: MODULOS.every(m => modulos.includes(m.id)) ? '#16a34a' : '#a3a3a3'
-                  }}
-                >
-                  {MODULOS.every(m => modulos.includes(m.id)) ? <Check size={18} /> : <X size={18} />}
-                </button>
-              </div>
-
-              {/* Ações */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', alignItems: 'center' }}>
-                <button
-                  onClick={() => {
+              {/* Ações da conta */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <AcoesUsuarioMenu
+                  podeInativar={!isMe}
+                  motivo={isMe ? 'Você não pode inativar a própria conta' : undefined}
+                  onResetar={() => {
                     if (!user.email) { alert('Usuário sem email cadastrado'); return }
-                    if (confirm(`Enviar email de redefinição de senha para ${user.email}?`)) {
-                      resetarSenha(user.email)
-                    }
+                    if (confirm(`Enviar email de redefinição de senha para ${user.email}?`)) resetarSenha(user.email)
                   }}
-                  title={user.email ? `Resetar senha de ${user.email}` : 'Sem email'}
-                  style={{
-                    padding: '6px 12px', borderRadius: '8px', width: '100%', justifyContent: 'center',
-                    border: '1px solid #e5e5e5', background: 'var(--portal-bg-secondary)',
-                    color: '#525252', fontSize: '11px', fontWeight: '600',
-                    cursor: 'pointer', transition: '0.15s',
-                    display: 'inline-flex', alignItems: 'center', gap: '4px'
-                  }}
-                >
-                  <Mail size={13} /> Resetar
-                </button>
-                <button
-                  onClick={() => setTrocarEmailDe({ id: user.id, nome: user.nome, email: user.email })}
-                  title={`Trocar o e-mail de login de ${user.nome}`}
-                  style={{
-                    padding: '6px 12px', borderRadius: '8px', width: '100%', justifyContent: 'center',
-                    border: '1px solid #bfdbfe', background: '#eff6ff',
-                    color: '#1d4ed8', fontSize: '11px', fontWeight: '600',
-                    cursor: 'pointer', transition: '0.15s',
-                    display: 'inline-flex', alignItems: 'center', gap: '4px'
-                  }}
-                >
-                  <Mail size={13} /> E-mail
-                </button>
-                <button
-                  onClick={() => { if (!isMe && confirm(`Inativar ${user.nome}? Ele não conseguirá entrar e some das listas, mas os dados ficam.`)) toggleAtivo(user.id, false) }}
-                  disabled={isMe}
-                  title={isMe ? 'Você não pode inativar a própria conta' : `Inativar ${user.nome}`}
-                  style={{
-                    padding: '6px 12px', borderRadius: '8px', width: '100%', justifyContent: 'center',
-                    border: '1px solid #fecaca', background: '#fef2f2',
-                    color: '#dc2626', fontSize: '11px', fontWeight: '600',
-                    cursor: isMe ? 'not-allowed' : 'pointer', transition: '0.15s', opacity: isMe ? 0.5 : 1,
-                    display: 'inline-flex', alignItems: 'center', gap: '4px'
-                  }}
-                >
-                  <Ban size={13} /> Inativar
-                </button>
+                  onEmail={() => setTrocarEmailDe({ id: user.id, nome: user.nome, email: user.email })}
+                  onInativar={() => { if (!isMe && confirm(`Inativar ${user.nome}? Ele não conseguirá entrar e some das listas, mas os dados ficam.`)) toggleAtivo(user.id, false) }}
+                />
               </div>
             </div>
 
             {expandido && (
-              <div style={{ padding: '2px 24px 18px 56px' }}>
-                {perm?.is_admin && (
-                  <div style={{ fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: '8px 12px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Shield size={13} /> {perm?.is_dev ? 'Dev' : 'Admin'} já tem acesso a tudo — as marcações abaixo só valem se virar Usuário.
-                  </div>
-                )}
-                <PermissoesModulos
-                  modulos={modulos}
-                  catalogo={MODULOS}
+                <ModalAcessos
+                  avatar={user.avatar_url}
+                  funcao={user.funcao}
+                  email={user.email}
+                  onFechar={() => toggleExpandirUsuario(user.id)}
+                  nome={user.nome}
+                  ehAdmin={!!perm?.is_admin}
                   souDev={isDev}
                   disabled={saving === user.id}
-                  onChange={(novo) => salvar(user.id, { modulos_permitidos: novo })}
+                  modulos={modulos}
+                  catalogo={MODULOS}
+                  onModulos={(novo) => salvar(user.id, { modulos_permitidos: novo })}
+                  mecanicoRole={perm?.mecanico_role ?? null}
+                  mecanicoNome={perm?.mecanico_tecnico_nome ?? null}
+                  onMecanico={(role) => setMecanicoRole(user.id, role)}
+                  vendedor={ehVendedor}
+                  salvandoVendedor={salvandoVendedor === user.id}
+                  onVendedor={(v) => salvarVendedor(user.id, v)}
+                  outros={usuarios.filter((u) => u.id !== user.id && u.ativo !== false).map((u) => ({ id: u.id, nome: u.nome, modulos: permissoes[u.id]?.modulos_permitidos || [] }))}
                 />
-              </div>
             )}
             </div>
           )

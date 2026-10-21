@@ -11,7 +11,11 @@ import { TBL_PEDIDOS, TBL_ITENS, TBL_CLIENTES, TBL_LOGS, TBL_PRODUTOS, TBL_OS } 
 import { buscarPPVPorId, registrarLog } from "./queries";
 import { contaOmie } from "@/lib/omie/contas";
 import { aplicarUnidadesDoPPV } from "@/lib/pecas/ppv-vinculo";
+
 import { omie } from "@/lib/omie/porta";
+
+/** pedido de peças faturado: o Centro do Pós-Vendas atualiza na hora (José, 21/10/2026) */
+function avisarPosVendas(idPPV: string) { import("@/lib/mecanicos/ao-vivo-server").then((m) => m.atualizarPosVendasDepois(`pedido ${idPPV} faturado`)).catch(() => {}); }
 
 // A OS vinculada é interna? (usado pra mandar o PPV como Remessa automaticamente)
 /** Nº da OS no OMIE (sem zeros à esquerda) — vai no "Nº do pedido do cliente" do pedido (José, 13/10/2026). */
@@ -126,6 +130,7 @@ export async function faturarRemessaPPV(idPPV: string, usuario = "Portal"): Prom
     await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}`, "PATCH", {
       faturado_omie_em: new Date().toISOString(), status: "Concluída", ...(nf ? { nf_numero: nf } : {}),
     }).catch(() => {});
+    avisarPosVendas(idPPV);
   };
   if (st0.st.faturada === "S") { const nf = nfDe(st0.st); if (!cab.faturado_omie_em) await marcar(nf); return { ok: true, nf, jaFaturada: true }; }
   const acc = st0.acc;
@@ -1064,6 +1069,7 @@ export async function faturarPPVNoOmie(
       await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}`, "PATCH", {
         faturado_omie_em: new Date().toISOString(), status: "Concluída", omie_empresa: acc.name, nf_numero: numeroNf || null,
       });
+    avisarPosVendas(idPPV);
       // faturado por fora (direto no Omie) e o portal só carimbou agora — as
       // unidades rastreadas liberadas também precisam ser aplicadas
       try { await aplicarUnidadesDoPPV(idPPV, { origem: "faturamento", pedidoOmie: String(pedido.cabecalho?.numero_pedido || cab.pedido_omie || "") }); } catch { /* best-effort */ }
@@ -1125,6 +1131,7 @@ export async function faturarPPVNoOmie(
       omie_empresa: acc.name,
       ...(numeroNf ? { nf_numero: numeroNf } : {}),
     });
+    avisarPosVendas(idPPV);
     await registrarLog(idPPV, `Faturado no Omie (FaturarPedidoVenda) — pedido nº ${numeroPedido}${numeroNf ? `, NF-e ${numeroNf}` : " (NF-e em autorização na SEFAZ)"} (${acc.name}). PPV concluída.`);
 
     // NF-e emitida (FaturarPedidoVenda aceito): aplica as unidades rastreadas
@@ -1395,6 +1402,7 @@ export async function sincronizarFaturamentoPPV(idPPV: string): Promise<{ fatura
     faturado_omie_em: new Date().toISOString(), status: "Concluída", omie_empresa: achado.acc.name,
     ...(numeroNf ? { nf_numero: numeroNf } : {}),
   });
+    avisarPosVendas(idPPV);
   await registrarLog(idPPV, `Faturamento detectado no Omie (etapa ${etapa}${numeroNf ? `, NF-e ${numeroNf}` : ""}) — marcado como Faturado.`);
   return { faturado: true, numero: numeroNf };
 }

@@ -62,6 +62,13 @@ export async function baseComCache(forcar = false): Promise<{ dados: BaseTela; g
   return { dados: r.dados, geradoEm: r.geradoEm }
 }
 
+/** Relê a base das tabelas para a memória (depois de regravar uma janela — faturamento ao vivo). */
+export async function recarregarBaseMemoria() {
+  if (semTabelas) return
+  const b = await lerBaseDasTabelas()
+  if (b) memoria = { base: b, em: Date.now() }
+}
+
 // robô: últimos 90 dias a cada rodada; os 4 anos uma vez por dia (depois das 3 h)
 let ultimaCompleta = ''
 export async function aquecerBase() {

@@ -12,6 +12,7 @@ import { porDiaDe, ritmoVivo, type Ritmo } from '@/lib/mecanicos/fita'
 import DestaquesGiram, { montarBlocos } from './DestaquesGiram'
 import { FeedLinhaTempo } from './FeedOpcoes'
 import { useBasePosVendas } from './useBasePosVendas'
+import { useVersaoAoVivo } from './useAoVivo'
 
 export interface Soma { os: number; servico: number; kmValor: number; pecas: number; outros: number; bruto: number; custo: number; liquido: number; horas: number; km: number }
 export interface RespVivo { agora: string; hoje: string; dia: Soma; semana: Soma; mes: Soma; porDia: { data: string; bruto: number; liquido: number }[]; ultimos: OSFaturada[]
@@ -35,6 +36,10 @@ export default function FaturamentoVivo({ compacto = false }: { compacto?: boole
   // aviso animado quando entra um faturamento novo enquanto a tela está aberta
   const [aviso, setAviso] = useState<OSFaturada | null>(null)
 
+  const carregarRef = useRef<(() => Promise<void>) | null>(null)
+  // aviso ao vivo do servidor (faturou agora): recarrega na hora, sem esperar a próxima volta
+  const versaoAoVivo = useVersaoAoVivo()
+  useEffect(() => { if (versaoAoVivo) void carregarRef.current?.() }, [versaoAoVivo])
   const carregar = useCallback(async () => {
     try {
       const r = await fetch('/api/mecanicos/faturamento-vivo', { headers: await authHeaders(), cache: 'no-store' })
@@ -51,6 +56,7 @@ export default function FaturamentoVivo({ compacto = false }: { compacto?: boole
       try { localStorage.setItem('cpv-vivo-v1', JSON.stringify(j)) } catch { /* sem espaço */ }
     } catch (e) { setErro(e instanceof Error ? e.message : 'Falha') }
   }, [])
+  useEffect(() => { carregarRef.current = carregar }, [carregar])
   useEffect(() => {
     let vivo = true
     // abre na hora com o último faturamento guardado no navegador (José 19/10: "tem que abrir instantâneo")

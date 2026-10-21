@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { authHeaders } from '@/lib/auth/client'
 import type { BaseDados } from '@/lib/mecanicos/painel'
+import { useVersaoAoVivo } from './useAoVivo'
 
 export type BaseTela = BaseDados & { de: string; ate: string; geradoEm: string }
 
@@ -39,6 +40,9 @@ export function useBasePosVendas() {
   const [base, setBase] = useState<BaseTela | null>(guardada?.base || null)
   const [carregando, setCarregando] = useState(!guardada)
   const [erro, setErro] = useState('')
+  // faturou agora (aviso ao vivo): busca a base nova sem apagar a tela
+  const versao = useVersaoAoVivo()
+  useEffect(() => { if (versao) buscar(false).catch(() => {}) }, [versao])
 
   useEffect(() => {
     ouvintes.add(setBase)

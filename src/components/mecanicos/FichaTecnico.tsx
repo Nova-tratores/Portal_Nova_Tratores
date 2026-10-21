@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { authHeaders } from '@/lib/auth/client'
+import { useVersaoAoVivo } from './useAoVivo'
 import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento'
 import type { FichaTecnico as Ficha } from '@/lib/mecanicos/ficha-server'
 import { IconeLiga } from './CartaLiga'
@@ -620,15 +621,19 @@ export function prefetchFicha(nome: string, mes: string) {
 }
 
 /** Carrega a ficha de `nome` no mês (cache por técnico+mês). */
+let cacheVersao = 0
 export function useFicha(nome: string | null, mes: string): { dados: Ficha | null; erro: string | null } {
   const chave = `${nome}|${mes}`
+  // aviso ao vivo: a ficha guardada ficou velha — busca de novo (a da tela fica até a nova chegar)
+  const versao = useVersaoAoVivo()
+  if (versao !== cacheVersao) { cache.clear(); cacheVersao = versao }
   const [estado, setEstado] = useState<{ chave: string; dados: Ficha | null; erro: string | null }>(() => ({ chave, dados: cache.get(chave) || null, erro: null }))
   useEffect(() => {
     if (!nome) return
     let vivo = true
     const c = cache.get(chave)
     if (c) { setEstado({ chave, dados: c, erro: null }); return }
-    setEstado({ chave, dados: null, erro: null })
+    setEstado((e) => (e.chave === chave && e.dados ? e : { chave, dados: null, erro: null }))
     ;(async () => {
       try {
         const r = await fetch(`/api/mecanicos/tecnico?nome=${encodeURIComponent(nome)}&mes=${mes}`, { headers: await authHeaders(), cache: 'no-store' })
@@ -639,7 +644,7 @@ export function useFicha(nome: string | null, mes: string): { dados: Ficha | nul
       } catch (e) { if (vivo) setEstado({ chave, dados: null, erro: e instanceof Error ? e.message : 'Falha ao carregar a ficha' }) }
     })()
     return () => { vivo = false }
-  }, [chave, nome, mes])
+  }, [chave, nome, mes, versao])
   return estado.chave === chave ? { dados: estado.dados, erro: estado.erro } : { dados: null, erro: null }
 }
 

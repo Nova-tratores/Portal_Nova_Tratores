@@ -11,10 +11,14 @@ import { useUrlMec } from './useUrlMec'
 import { LigaJanela, ComissoesJanela } from './JanelasInfo'
 import { AutorizacoesJanela } from './AutorizacoesJanela'
 import PodioMeses from './PodioMeses'
+import { useLigarAoVivo, useSeloAoVivo } from './useAoVivo'
 
 export type AbaCPV = 'painel' | 'ocorrencias' | 'podio'
 
 export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a: AbaCPV) => void }) {
+  // ao vivo: faturamento e ocorrências chegam na hora (José, 21/10/2026)
+  useLigarAoVivo()
+  const selo = useSeloAoVivo()
   // tela cheia de verdade (Fullscreen API): some o menu do portal, fica só o painel
   const raiz = useRef<HTMLDivElement>(null)
   // janela do Tribunal/Ocorrências também tem endereço (?janela=tribunal|ocorrencias) — URL ⇄ janela
@@ -87,6 +91,10 @@ export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a
         .cpv-tela:hover { color: #0369a1; border-color: #0369a1 }
         @media (max-width: 720px) { .cpv-modo { min-width: 0; flex: 1 } .cpv-op small { display: none } .cpv-op b { font-size: 13.5px } .cpv-op { padding: 8px 10px; gap: 8px } }
         @media (prefers-reduced-motion: reduce) { .cpv-luz, .cpv-luz::after, .cpv-barras i, .cpv-radar em, .cpv-conteudo { animation: none !important; transition: none !important } }
+        @keyframes cpvAoVivo { from { opacity: 0; transform: translateY(-6px) } }
+        .cpv-aovivo { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 999px; padding: 7px 14px; animation: cpvAoVivo .3s both; max-width: 360px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+        .cpv-aovivo i { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 0 0 rgba(22,163,74,.5); animation: cpvPulsoAV 1.4s infinite; flex-shrink: 0 }
+        @keyframes cpvPulsoAV { 70% { box-shadow: 0 0 0 7px rgba(22,163,74,0) } }
       `}</style>
       <div className="cpv-topo">
         {/* Painel · Mecânicos · Pódio num seletor só (José, 20/10/2026) */}
@@ -94,6 +102,7 @@ export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a
         <BotoesMecanicos onAbrir={(m) => (m === 'liga' || m === 'comissoes' || m === 'autorizacoes' ? mudar({ janela: m }) : mudar({ aba: 'mecanicos', janela: m, tecnico: null, secao: null, mes: null }))} podio={aba === 'podio'} onPodio={() => onAba('podio')} />
         {aba !== 'podio' && <TratorilsonLeitura onIr={irPara} aba={aba} />}
         <span style={{ flex: 1 }} />
+        {selo && <span className="cpv-aovivo" title={selo.motivo}><i />Atualizado agora · {selo.motivo}</span>}
         <button type="button" className="cpv-tela" onClick={alternarTela} title={cheia ? 'Sair da tela cheia (Esc)' : 'Tela cheia'}>
           <i className={`fas ${cheia ? 'fa-compress' : 'fa-expand'}`} />
         </button>

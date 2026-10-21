@@ -7,6 +7,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { authHeaders } from '@/lib/auth/client'
 import type { Fantasmas, TecnicoFantasma, OSFantasma, DiaFantasma } from '@/lib/mecanicos/fantasmas-server'
+import { useVersaoAoVivo } from './useAoVivo'
 
 const h = (v: number) => `${String(Math.round(v * 10) / 10).replace('.', ',')} h`
 const km = (v: number) => `${Math.round(v).toLocaleString('pt-BR')} km`
@@ -37,6 +38,7 @@ export default function FantasmasMec({ mes }: { mes: string }) {
   const [versao, setVersao] = useState(0)
   const [analisando, setAnalisando] = useState<{ feitas: number; faltam: number; total: number } | null>(null)
   const [erro, setErro] = useState('')
+  const aoVivo = useVersaoAoVivo()
   useEffect(() => {
     let vivo = true
     ;(async () => {
@@ -48,7 +50,7 @@ export default function FantasmasMec({ mes }: { mes: string }) {
       } catch { if (vivo) setErro('Sem conexão') }
     })()
     return () => { vivo = false }
-  }, [mes, versao])
+  }, [mes, versao, aoVivo])
 
   const analisar = async () => {
     let feitas = 0

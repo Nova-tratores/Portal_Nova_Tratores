@@ -600,6 +600,8 @@ export interface ServicoOSRow {
   qtde: number;
   valor_unit: number;
   valor_total: number;
+  /** desconto do item na OS do Omie (nValorDesconto) */
+  valor_desconto?: number;
   conta: Conta;
   ncod_os: number;
   contrato: string; // InformacoesAdicionais.cNumContrato — classifica o balde interno
@@ -687,6 +689,8 @@ function montarServicosItensOmie(
         qtde,
         valor_unit: valorUnit,
         valor_total: qtde * valorUnit - num(it.nValorDesconto) + num(it.nValorAcrescimos),
+        // desconto dado no item (José, 21/10/2026: "os descontos precisam pegar todos") — sql/descontos-omie.sql
+        valor_desconto: num(it.nValorDesconto),
       });
     });
   });
@@ -735,9 +739,14 @@ export async function sincronizarServicosItens(mes: number, ano: number, conta: 
       valor_total: r.valor_total,
       contrato: r.contrato,
       codigo_servico: r.codigo_servico ?? null,
+      valor_desconto: r.valor_desconto ?? 0,
       atualizado_em: new Date().toISOString(),
     }));
     let { error } = await supabase.from('os_servicos_itens').insert(lote);
+    // sem a coluna valor_desconto (sql/descontos-omie.sql): grava sem ela
+    if (error && /valor_desconto/.test(error.message)) {
+      ({ error } = await supabase.from('os_servicos_itens').insert(lote.map(({ valor_desconto: _d, ...r }) => { void _d; return r; })));
+    }
     // Sem a migration sql/servicos-codigo-resumo.sql: grava sem o código.
     if (error && /codigo_servico/.test(error.message)) {
       ({ error } = await supabase.from('os_servicos_itens').insert(lote.map(({ codigo_servico: _c, ...r }) => { void _c; return r; })));

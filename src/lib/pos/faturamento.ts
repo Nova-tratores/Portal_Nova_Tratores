@@ -144,6 +144,8 @@ async function gravarOS(id: string, campos: Record<string, unknown>) {
   const { error } = await supabase.from(TBL_OS).update(campos).eq('Id_Ordem', id);
   if (ehColunaFaltando(error)) throw new MigracaoFaltando();
   if (error) throw new Error(error.message);
+  // faturou (ou desfez): o Centro do Pós-Vendas atualiza na hora e avisa as telas abertas (José, 21/10/2026)
+  if ('faturado_omie_em' in campos) import('@/lib/mecanicos/ao-vivo-server').then((m) => m.atualizarPosVendasDepois(`OS ${id} ${campos.faturado_omie_em ? 'faturada' : 'desfaturada'}`)).catch(() => {});
 }
 
 async function logOS(id: string, acao: string, userName: string, status: string) {

@@ -2,8 +2,15 @@
 // Opções do bloco "Para onde foi o dinheiro" — página de teste (José, 19/10/2026: "agora nesse aqui,
 // precisamos melhorar também"; "não precisa ter o bloco de terceiros, ele entra para gastos"; "me dá
 // mais opções interativas e dinâmicas"). Mesmos números do Painel; nada aqui muda o Painel.
-import { useState } from 'react'
-import { SEM_META, type PainelMontado } from '@/lib/mecanicos/painel'
+import { useEffect, useState } from 'react'
+import { SEM_META, GRUPOS, type PainelMontado } from '@/lib/mecanicos/painel'
+
+/** Por que a pessoa entra na conta sem ser de campo (José, 21/10/2026: "por que esses estão como pessoal?") */
+const rotuloApoio = (nome: string) => {
+  const membros = Object.entries(GRUPOS).filter(([, g]) => g === nome).map(([p]) => p)
+  if (membros.length) return `grupo ${nome}: ${membros.join(', ')} · sem meta de horas`
+  return 'no RH do pós-vendas · nenhuma OS no período'
+}
 import { brl, horas, kmFmt, Numero, useContador } from './ui'
 
 const MUDO = 'var(--portal-text-muted, #64748b)'
@@ -268,9 +275,9 @@ export function DinheiroRegua({ c }: { c: Conta }) {
  *  últimos períodos); meta "quero ficar com R$ X de cada 100"; e o resultado lado a lado com o real. */
 
 /** Uma régua do simulador: % para cima ou para baixo, com o antes → depois embaixo. */
-function RegSim({ v, onSet, rot, ic, cor, min, max, antes, depois, extra }: { v: number; onSet: (n: number) => void; rot: string; ic: string; cor: string; min: number; max: number; antes: string; depois: string; extra?: string }) {
+function RegSim({ v, onSet, rot, ic, cor, min, max, antes, depois, extra, dica }: { v: number; onSet: (n: number) => void; rot: string; ic: string; cor: string; min: number; max: number; antes: string; depois: string; extra?: string; dica?: string }) {
   return (
-    <label className={`dx-sim-r ${v !== 0 ? 'mexeu' : ''}`} style={{ '--c': cor } as React.CSSProperties}>
+    <label className={`dx-sim-r ${v !== 0 ? 'mexeu' : ''}`} style={{ '--c': cor } as React.CSSProperties} data-dica={dica || undefined}>
       <span><i className={`fas ${ic}`} /> {rot} <b>{v > 0 ? '+' : ''}{v}%</b>{v !== 0 && <button type="button" className="dx-sim-x" title="voltar ao real" onClick={(e) => { e.preventDefault(); onSet(0) }}><i className="fas fa-xmark" /></button>}</span>
       <input type="range" min={min} max={max} step={5} value={v} onChange={(e) => onSet(Number(e.target.value))} style={{ '--p': `${((v - min) / (max - min)) * 100}%` } as React.CSSProperties} />
       <small>{antes} → <b>{depois}</b>{extra && <> · {extra}</>}</small>
@@ -291,6 +298,10 @@ export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolea
   const val = (k: string) => m[k] || 0
   const set = (k: string) => (n: number) => { setM((x) => ({ ...x, [k]: n })); setCen('') }
   const vh = c.horas > 0 ? c.mo / c.horas : 0
+  // valor da hora de TABELA (configuração do POS, hoje R$ 200) — José, 21/10/2026: "a hora não é 185, é 200".
+  // A média cobrada (vh) fica abaixo da tabela por causa de descontos e da garantia paga a R$ 100/h.
+  const [vhTab, setVhTab] = useState(200)
+  useEffect(() => { let vivo = true; fetch('/api/pos/configuracoes').then((r) => r.json()).then((j) => { if (vivo && Number(j.valor_hora) > 0) setVhTab(Number(j.valor_hora)) }).catch(() => {}); return () => { vivo = false } }, [])
   const vkm = c.kmRod > 0 ? c.km / c.kmRod : 0
   // pessoal: só quem está marcado na lista; técnico novo custa a média do salário dos técnicos de campo
   const dentro = c.equipe.filter((p) => !fora.includes(p.nome))
@@ -329,7 +340,8 @@ export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolea
   const taxaG = bruto ? gastos / bruto : 0
   const precisa = (r100: number) => { const den = 1 - taxaG - r100 / 100; return den > 0 ? pessoal / den : Infinity }
   const empate = precisa(0), alvo = precisa(meta)
-  const horasPara = (b: number) => (vhS > 0 && Number.isFinite(b) ? (b - bruto) / vhS : 0)
+  const vhTabS = vhTab * (1 + val('vh') / 100)
+  const horasPara = (b: number) => (vhTabS > 0 && Number.isFinite(b) ? (b - bruto) / vhTabS : 0)
   const aplicarMeta = () => {
     if (!Number.isFinite(alvo) || vh <= 0) return
     const moNovo = ent.mo + (alvo - bruto)
@@ -362,11 +374,11 @@ export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolea
       {!semFrase && <Frase c={c} />}
       <div className="dx-sim-cen">
         <small><i className="fas fa-wand-magic-sparkles" /> Cenários prontos:</small>
-        <button type="button" className={cen === 'real' ? 'on' : ''} onClick={() => aplicar('real', null)}>Real ({cap(c.rotulo)})</button>
+        <button type="button" className={cen === 'real' ? 'on' : ''} onClick={() => aplicar('real', null)} data-dica="Os números de verdade do período, sem nenhuma simulação.">Real ({cap(c.rotulo)})</button>
         {melhor && <button type="button" className={cen === 'melhor' ? 'on' : ''} onClick={() => aplicar('melhor', melhor)} title={`R$ ${Math.round(r100(melhor) * 100)} de cada 100`}>Melhor: {cap(melhor.rotulo)}</button>}
         {pior && <button type="button" className={cen === 'pior' ? 'on' : ''} onClick={() => aplicar('pior', pior)} title={`R$ ${Math.round(r100(pior) * 100)} de cada 100`}>Pior: {cap(pior.rotulo)}</button>}
         {media && <button type="button" className={cen === 'media' ? 'on' : ''} onClick={() => aplicar('media', media)}>Média dos últimos {hist.length}</button>}
-        <button type="button" className={cen === 'mais20' ? 'on' : ''} onClick={() => { aplicar('mais20', null); setM({ horas: 20 }); setCen('mais20') }}>+20% de horas</button>
+        <button type="button" data-dica="Simula cobrar 20% mais horas, no mesmo valor de hora." className={cen === 'mais20' ? 'on' : ''} onClick={() => { aplicar('mais20', null); setM({ horas: 20 }); setCen('mais20') }}>+20% de horas</button>
         {c.desc.total > 0.5 && <button type="button" className={cen === 'semdesc' ? 'on' : ''} onClick={() => { aplicar('semdesc', null); setM({ d_hora: -100, d_km: -100, d_geral: -100, d_pecas: -100 }); setCen('semdesc') }}>Sem nenhum desconto (+{brl(c.desc.total)})</button>}
         <button type="button" className={cen === 'corta' ? 'on' : ''} onClick={() => { const g: Sim = {}; c.gDet.forEach(([, v], i) => { if (v > 0) g[`g${i}`] = -20 }); setTec(0); setPrev(true); setM(g); setCen('corta') }}>Cortar 20% dos gastos</button>
       </div>
@@ -374,15 +386,15 @@ export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolea
         <div className="dx-sim-ctrl">
           <div className="dx-sim-abas">
             {([['ent', 'Entradas', 'fa-arrow-down', '#0369a1', bruto], ['des', 'Descontos', 'fa-tags', '#d97706', descS], ['gas', 'Gastos', 'fa-receipt', CS.gastos, gastos], ['pes', 'Pessoal', 'fa-users', CS.pessoal, pessoal]] as const).map(([k, r, ic, cor, v]) => (
-              <button key={k} type="button" className={aba === k ? 'on' : ''} style={{ '--c': cor } as React.CSSProperties} onClick={() => setAba(k)}><i className={`fas ${ic}`} /> {r}<b>{brl(v)}</b></button>
+              <button key={k} type="button" className={aba === k ? 'on' : ''} style={{ '--c': cor } as React.CSSProperties} onClick={() => setAba(k)} data-dica={{ ent: 'Tudo o que entrou no período: mão de obra, deslocamento, peças e outros das OS faturadas.', des: 'Descontos dados nas OS e nos pedidos de peças — no portal e no Omie. O que entrou já está DEPOIS do desconto.', gas: 'Gastos do pós-vendas no período: combustível, manutenção dos carros, alimentação e materiais.', pes: 'Salários + encargos e comissões de quem trabalha no pós-vendas.' }[k]}><i className={`fas ${ic}`} /> {r}<b>{brl(v)}</b></button>
             ))}
           </div>
           <div className="dx-sim-grupo" key={aba}>
             {aba === 'ent' && <>
-              <RegSim v={val('horas')} onSet={set('horas')} rot="Horas cobradas" ic="fa-clock" cor={CE.mo} min={-60} max={150} antes={horas(c.horas)} depois={horas(horasS)} extra={`${brl(ent.mo)} de mão de obra`} />
-              <RegSim v={val('vh')} onSet={set('vh')} rot="Valor da hora" ic="fa-tag" cor={CE.mo} min={-30} max={60} antes={`${brl(vh)}/h`} depois={`${brl(vhS)}/h`} extra="média cobrada por hora" />
-              <RegSim v={val('km')} onSet={set('km')} rot="Km rodados" ic="fa-road" cor={CE.km} min={-60} max={150} antes={kmFmt(c.kmRod)} depois={kmFmt(c.kmRod * (1 + val('km') / 100))} extra={`${brl(vkm)}/km · ${brl(ent.km)}`} />
-              <RegSim v={val('pecas')} onSet={set('pecas')} rot="Peças" ic="fa-gears" cor={CE.pecas} min={-60} max={150} antes={brl(c.pecas)} depois={brl(ent.pecas)} />
+              <RegSim v={val('horas')} onSet={set('horas')} rot="Horas cobradas" ic="fa-clock" cor={CE.mo} min={-60} max={150} antes={horas(c.horas)} depois={horas(horasS)} extra={`${brl(ent.mo)} de mão de obra`} dica="Horas de mão de obra que foram cobradas nas OS faturadas no período. Arraste para simular mais (ou menos) horas cobradas — a mão de obra muda junto, no valor médio da hora." />
+              <RegSim v={val('vh')} onSet={set('vh')} rot="Valor da hora" ic="fa-tag" cor={CE.mo} min={-30} max={60} antes={`${brl(vh)}/h`} depois={`${brl(vhS)}/h`} extra={`média cobrada · tabela ${brl(vhTabS)}/h`} dica={`A hora de tabela é ${brl(vhTab)}. A média que realmente entrou foi ${brl(vh)}/h: mão de obra ÷ horas cobradas. Fica abaixo da tabela por causa dos descontos e da garantia (a montadora paga R$ 100/h). Arraste para simular cobrar mais ou menos por hora.`} />
+              <RegSim dica="Quilômetros de deslocamento cobrados nas OS do período, ao valor do km. Arraste para simular mais ou menos km cobrado." v={val('km')} onSet={set('km')} rot="Km rodados" ic="fa-road" cor={CE.km} min={-60} max={150} antes={kmFmt(c.kmRod)} depois={kmFmt(c.kmRod * (1 + val('km') / 100))} extra={`${brl(vkm)}/km · ${brl(ent.km)}`} />
+              <RegSim dica="Peças vendidas junto com as OS (pedido de peças faturado). Arraste para simular vender mais ou menos peças." v={val('pecas')} onSet={set('pecas')} rot="Peças" ic="fa-gears" cor={CE.pecas} min={-60} max={150} antes={brl(c.pecas)} depois={brl(ent.pecas)} />
               <RegSim v={val('outros')} onSet={set('outros')} rot="Outros (requisições, extras)" ic="fa-receipt" cor={CE.outros} min={-100} max={150} antes={brl(c.outros)} depois={brl(ent.outros)} />
             </>}
             {aba === 'des' && <>
@@ -422,7 +434,7 @@ export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolea
                     return (
                       <label key={p.nome} className={`dx-sim-eq-l ${on ? '' : 'off'}`}>
                         <input type="checkbox" checked={on} onChange={() => { setFora((f) => (on ? [...f, p.nome] : f.filter((x) => x !== p.nome))); setCen('') }} />
-                        <span><b>{p.nome}</b><em className={p.campo ? 'campo' : 'apoio'}>{p.campo ? 'técnico de campo' : 'apoio / sem OS no período'}</em></span>
+                        <span><b>{p.nome}</b><em className={p.campo ? 'campo' : 'apoio'}>{p.campo ? 'técnico de campo' : rotuloApoio(p.nome)}</em></span>
                         <span>{brl(p.salario)}</span>
                         <span title={p.comissao > 0 ? 'lançada no RH' : p.prevista > 0 ? 'prevista (ainda não no RH)' : ''}>{brl(com)}{p.comissao <= 0 && p.prevista > 0 && prev && <small> prev.</small>}{p.rescisao > 0.5 && <small> + resc. {brl(p.rescisao)}</small>}</span>
                         <strong>{brl(p.salario + com + p.rescisao)}</strong>
@@ -432,13 +444,13 @@ export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolea
                   <div className="dx-sim-eq-l tot"><span /><span>{dentro.length} de {c.equipe.length} pessoas · {campo.length} técnicos de campo</span><span>{brl(salBase)}</span><span>{brl(comBase + (prev ? prevBase : 0))}</span><strong>{brl(salBase + comBase + (prev ? prevBase : 0) + rescBase)}</strong></div>
                 </div>
               )}
-              <RegSim v={val('sal')} onSet={set('sal')} rot="Salários + encargos (reajuste)" ic="fa-money-check-dollar" cor={CS.pessoal} min={-30} max={50} antes={brl(salBase)} depois={brl(salBase * (1 + val('sal') / 100))} />
+              <RegSim dica="Salário + encargos de quem está marcado na lista acima, no mês inteiro. Arraste para simular um reajuste (ou corte)." v={val('sal')} onSet={set('sal')} rot="Salários + encargos (reajuste)" ic="fa-money-check-dollar" cor={CS.pessoal} min={-30} max={50} antes={brl(salBase)} depois={brl(salBase * (1 + val('sal') / 100))} />
               <div className="dx-sim-tec" style={{ '--c': CS.pessoal } as React.CSSProperties}>
                 <span><i className="fas fa-user-plus" /> Contratar técnicos</span>
                 <div><button type="button" onClick={() => { setTec((t) => Math.max(0, t - 1)); setCen('') }}>−</button><b>+{tec}</b><button type="button" onClick={() => { setTec((t) => Math.min(10, t + 1)); setCen('') }}>+</button></div>
                 <small>cada novo custa {brl(custoTec)} no período (média do salário + encargos dos técnicos de campo){tec > 0 && <> · +{brl(tec * custoTec)}</>}</small>
               </div>
-              <RegSim v={val('com')} onSet={set('com')} rot="Comissão" ic="fa-percent" cor={CS.pessoal} min={-100} max={100} antes={brl(comBase + (prev ? prevBase : 0))} depois={brl(pItens.comissao)} />
+              <RegSim dica="Comissão dos técnicos no período: a lançada no RH e, sem ela, a prevista pela regra. Arraste para simular pagar mais ou menos comissão." v={val('com')} onSet={set('com')} rot="Comissão" ic="fa-percent" cor={CS.pessoal} min={-100} max={100} antes={brl(comBase + (prev ? prevBase : 0))} depois={brl(pItens.comissao)} />
               <label className="dx-sim-chk"><input type="checkbox" checked={prev} onChange={(e) => { setPrev(e.target.checked); setCen('') }} /> contar a comissão prevista ({brl(prevBase)})</label>
               {rescBase > 0.5 && <small className="dx-sim-nota">Rescisões e acertos: {brl(rescBase)} (fixo)</small>}
             </>}
@@ -449,7 +461,7 @@ export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolea
         <div className="dx-sim-res">
           <small>{mudou ? 'Nesse cenário ficaria' : 'Ficou de verdade'}</small>
           <b style={{ color: ficou >= 0 ? CS.ficou : CS.faltou }}><Numero valor={ficou} formato={brl} /></b>
-          <div className="dx-sim-medidor"><i style={{ width: `${Math.max(0, Math.min(100, p100))}%`, background: ficou >= 0 ? CS.ficou : CS.faltou }} /><span>{bruto > 0.5 ? `R$ ${Math.round(p100)} de cada R$ 100 (${Math.round(p100)}%)` : 'nada entrou ainda'}</span></div>
+          <div className={`dx-sim-medidor ${p100 >= 35 ? 'dentro' : ''}`} data-dica="De cada R$ 100 que entraram, quanto sobrou para a empresa depois de pagar gastos e pessoal."><i style={{ width: `${Math.max(0, Math.min(100, p100))}%`, background: ficou >= 0 ? CS.ficou : CS.faltou }} /><span>{bruto > 0.5 ? `R$ ${Math.round(p100)} de cada R$ 100 (${Math.round(p100)}%)` : 'nada entrou ainda'}</span></div>
           {mudou && <span className={`dx-dif ${dif >= 0 ? 'bom' : 'ruim'}`}>{dif >= 0 ? '▲ +' : '▼ −'}{brl(Math.abs(dif))} contra o real</span>}
 
           <div className="dx-sim-cmp">
@@ -457,7 +469,7 @@ export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolea
             {comparar.map(([r, a, b, cor, custo]) => {
               const d = b - a, bom = custo ? d < 0 : d > 0
               return (
-                <div key={r} className="dx-sim-cmp-l" style={{ '--c': cor } as React.CSSProperties}>
+                <div key={r} className="dx-sim-cmp-l" style={{ '--c': cor } as React.CSSProperties} data-dica={({ Entrou: 'O que entrou: real × no cenário que você montou.', Gastos: 'Gastos do pós-vendas: real × cenário.', Pessoal: 'Salários, encargos e comissões: real × cenário.', Ficou: 'O que sobrou para a empresa: entrou − gastos − pessoal.', Faltou: 'Faltou dinheiro: gastos + pessoal passaram do que entrou.' } as Record<string, string>)[r]}>
                   <span>{r}</span>
                   <div><i className="r" style={{ width: `${(Math.abs(a) / maxC) * 100}%` }} /><i className="c" style={{ width: `${(Math.abs(b) / maxC) * 100}%` }} /></div>
                   <b>{brl(b)}</b>
@@ -468,10 +480,10 @@ export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolea
           </div>
 
           <div className="dx-sim-kpis">
-            <div><small>Ticket médio</small><b>{brl(c.nOS ? bruto / c.nOS : 0)}</b><span>{c.nOS} OS</span></div>
-            <div><small>Faturamento por técnico</small><b>{brl(nTec ? bruto / nTec : 0)}</b><span>{nTec} técnicos</span></div>
-            <div><small>Cada hora a mais deixa</small><b>{brl(vhS * (1 - taxaG))}</b><span>já tirando os gastos</span></div>
-            <div><small>Gastos por R$ 100</small><b>R$ {Math.round(taxaG * 100)}</b><span>pessoal: R$ {bruto ? Math.round((pessoal / bruto) * 100) : 0}</span></div>
+            <div data-dica="Quanto entrou, em média, por OS faturada: o que entrou ÷ número de OS."><small>Ticket médio</small><b>{brl(c.nOS ? bruto / c.nOS : 0)}</b><span>{c.nOS} OS</span></div>
+            <div data-dica="O que entrou ÷ técnicos de campo (os que tiveram OS no período, mais os contratados no simulador)."><small>Faturamento por técnico</small><b>{brl(nTec ? bruto / nTec : 0)}</b><span>{nTec} técnicos</span></div>
+            <div data-dica={`Se cobrar 1 hora a mais na tabela (${brl(vhTabS)}), sobra isso para a empresa depois de tirar a parte dos gastos (R$ ${Math.round(taxaG * 100)} a cada R$ 100 que entram). Salário não muda com 1 hora a mais, por isso não entra aqui.`}><small>Cada hora a mais deixa</small><b>{brl(vhTabS * (1 - taxaG))}</b><span>hora de {brl(vhTabS)}, já tirando os gastos</span></div>
+            <div data-dica="De cada R$ 100 que entraram, quanto foi para gastos (combustível, carro, alimentação, materiais) e quanto para pessoal (salários + comissões)."><small>Gastos por R$ 100</small><b>R$ {Math.round(taxaG * 100)}</b><span>pessoal: R$ {bruto ? Math.round((pessoal / bruto) * 100) : 0}</span></div>
           </div>
 
           {/* empate e meta, escritos por extenso (José 19/10: "difícil de compreender, aumenta a fonte e diz o que significa em % e dados") */}
@@ -783,7 +795,11 @@ export const ESTILO_DX = `
 .dx-sim-chk { font-size: 13px; font-weight: 700; color: var(--portal-text, #334155); display: flex; gap: 8px; align-items: center; cursor: pointer }
 .dx-sim-zera { justify-self: start; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 5px 12px; font-family: inherit; font-weight: 800; font-size: 12.5px; color: ${MUDO}; cursor: pointer; animation: dxEntra .3s both }
 .dx-sim-res { display: grid; gap: 8px; align-content: start; background: var(--portal-bg-secondary, #f8fafc); border-radius: 16px; padding: 16px } .dx-sim-res > small { font-size: 12px; font-weight: 900; text-transform: uppercase; color: ${MUDO} } .dx-sim-res > b { font-size: 36px; font-variant-numeric: tabular-nums; transition: color .3s }
-.dx-sim-medidor { position: relative; height: 26px; border-radius: 99px; background: var(--portal-bg-card, #e2e8f0); overflow: hidden } .dx-sim-medidor i { display: block; height: 100%; border-radius: 99px; transition: width .4s cubic-bezier(.2,.8,.2,1), background .3s } .dx-sim-medidor span { position: absolute; inset: 0; display: grid; place-items: center; font-size: 13px; font-weight: 900; color: #0f172a }
+[data-dica] { position: relative }
+[data-dica]:hover::after { content: attr(data-dica); position: absolute; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%); z-index: 50; width: max-content; max-width: 300px; white-space: normal; text-align: left; background: #0f172a; color: #f8fafc; font-size: 12.5px; font-weight: 400; line-height: 1.45; letter-spacing: 0; text-transform: none; padding: 9px 12px; border-radius: 10px; box-shadow: 0 10px 28px rgba(15,23,42,.3); pointer-events: none; animation: dxDica .15s .25s both }
+[data-dica]:hover::before { content: ''; position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%); border: 6px solid transparent; border-top-color: #0f172a; z-index: 50; pointer-events: none; animation: dxDica .15s .25s both }
+@keyframes dxDica { from { opacity: 0; transform: translate(-50%, 4px) } }
+.dx-sim-medidor { position: relative; height: 26px; border-radius: 99px; background: var(--portal-bg-card, #e2e8f0); overflow: visible } .dx-sim-medidor i { display: block; height: 100%; border-radius: 99px; transition: width .4s cubic-bezier(.2,.8,.2,1), background .3s } .dx-sim-medidor span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 13.5px; font-weight: 600; color: #0f172a } .dx-sim-medidor.dentro span { justify-content: flex-start; padding-left: 16px; color: #fefefe; text-shadow: 0 1px 2px rgba(0,0,0,.25) }
 .dx-sim-empate { display: flex; gap: 10px; align-items: flex-start; border-top: 1px dashed var(--portal-border, #e5e7eb); padding-top: 10px } .dx-sim-empate > i { font-size: 20px; color: #0369a1; margin-top: 2px } .dx-sim-empate > div { flex: 1; display: grid; gap: 4px } .dx-sim-empate b { font-size: 14.5px } .dx-sim-empate small { font-size: 12.5px; color: ${MUDO} }
 .dx-sim-trilho { position: relative; height: 10px; border-radius: 99px; background: var(--portal-bg-card, #e2e8f0) } .dx-sim-trilho i { display: block; height: 100%; border-radius: 99px; background: #0369a1; transition: width .4s } .dx-sim-trilho em { position: absolute; top: -4px; width: 3px; height: 18px; background: #0f172a; border-radius: 2px; transition: left .4s }
 .dx-bal { display: grid; grid-template-columns: 1.4fr 1fr; gap: 20px; align-items: center } @media (max-width: 800px) { .dx-bal { grid-template-columns: 1fr } }
