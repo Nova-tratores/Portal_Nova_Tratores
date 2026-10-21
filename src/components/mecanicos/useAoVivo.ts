@@ -2,7 +2,8 @@
 // Centro do Pós-Vendas AO VIVO (José, 21/10/2026): o servidor avisa pelo canal Realtime "posvendas-ao-vivo"
 // quando entra faturamento (OS ou pedido de peças) ou muda ocorrência; cada bloco da tela escuta
 // `useVersaoAoVivo()` e se recarrega sozinho. Ocorrência/defesa nova (tabela com Realtime) também pede ao
-// servidor para renovar fichas e pontos de todo mundo.
+// servidor para renovar fichas e pontos de todo mundo. Gastos (requisição/alimentação, abastecimento, despesa
+// de rota — José, 21/10/2026: "e gastos também") pedem a atualização completa (regrava as tabelas).
 import { useEffect, useState, useSyncExternalStore } from 'react'
 import { supabase } from '@/lib/supabase'
 import { authHeaders } from '@/lib/auth/client'
@@ -16,14 +17,19 @@ export function avisarMudou(a: AvisoAoVivo) { estado = { versao: estado.versao +
 export function useVersaoAoVivo() { return useSyncExternalStore(assinar, () => estado.versao, () => 0) }
 export function useUltimoAviso() { return useSyncExternalStore(assinar, () => estado.ultimo, () => null) }
 
-let pedidoLeve: ReturnType<typeof setTimeout> | null = null
-function pedirLeve(motivo: string) {
-  if (pedidoLeve) clearTimeout(pedidoLeve)
-  pedidoLeve = setTimeout(async () => {
-    pedidoLeve = null
-    try { await fetch('/api/mecanicos/ao-vivo', { method: 'POST', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo, leve: true }) }) } catch { /* sem rede */ }
-  }, 1200)
+let pedido: ReturnType<typeof setTimeout> | null = null
+let pedidoLeve = true
+function pedirAtualizacao(motivo: string, leve: boolean) {
+  if (pedido) clearTimeout(pedido)
+  pedidoLeve = pedidoLeve && leve // o mais pesado vence
+  pedido = setTimeout(async () => {
+    const l = pedidoLeve
+    pedido = null; pedidoLeve = true
+    try { await fetch('/api/mecanicos/ao-vivo', { method: 'POST', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo, leve: l }) }) } catch { /* sem rede */ }
+  }, leve ? 1200 : 2500)
 }
+const pedirLeve = (motivo: string) => pedirAtualizacao(motivo, true)
+const pedirGasto = (motivo: string) => pedirAtualizacao(motivo, false)
 
 /** Liga o canal ao vivo (uma vez, no Centro do Pós-Vendas). */
 export function useLigarAoVivo() {
@@ -32,6 +38,9 @@ export function useLigarAoVivo() {
       .on('broadcast', { event: 'mudou' }, (m) => avisarMudou((m.payload || { motivo: 'atualizado', em: new Date().toISOString() }) as AvisoAoVivo))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tecnico_ocorrencias' }, () => pedirLeve('ocorrência nova'))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tecnico_justificativas' }, () => pedirLeve('defesa julgada'))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'Requisicao' }, () => pedirGasto('requisição / alimentação'))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'abastecimentos' }, () => pedirGasto('abastecimento'))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'despesas_relatorio' }, () => pedirGasto('despesa de rota'))
       .subscribe()
     return () => { void supabase.removeChannel(canal) }
   }, [])
