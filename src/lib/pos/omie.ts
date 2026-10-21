@@ -11,7 +11,7 @@ const OMIE_APP_SECRET = process.env.OMIE_APP_SECRET || "";
 // Base do portal, pra montar os links de acesso que vão nas observações do Omie.
 import { PORTAL_BASE } from "@/lib/portal-url";
 import { omie } from "@/lib/omie/porta";
-import { dadosAdicionaisAuto, CONTA_INTERNO, EMAIL_INTERNO } from "@/lib/pos/omie-espelho";
+import { dadosAdicionaisAuto, CONTA_INTERNO, EMAIL_INTERNO, espelhoPadrao, normalizarEspelho } from "@/lib/pos/omie-espelho";
 import { distribuirDescontoGeral } from "@/lib/pos/desconto-geral";
 
 // --- Constantes Omie ---
@@ -467,76 +467,40 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
     const nCodProj = await buscarNcodProj(String(os.Projeto || ""));
     const nCodVend = await buscarNcodVend(String(os.Os_Tecnico || ""), String(os.Os_Tecnico2 || ""));
 
-    // Modo Garantia: OS com Tipo_Servico='Garantia' vira lançamento sem conta
-    // a receber, categoria #Serv Prest Garantia, conta INTERNO. nCodProj fica
-    // pendente até o garantista escolher a montadora em /garantias (depois
-    // disso, /api/garantias/[id]/sync-omie-projeto atualiza só esse campo).
-    // Garantia: OS marcada como 'Garantia' OU que TEM uma garantia vinculada
-    // (garantias criadas manualmente ficam sobre OS de Manutenção — por isso
-    // não dá pra confiar só no Tipo_Servico). Puxa a montadora pra o contrato.
-    const { data: garRow } = await supabase
-      .from('garantias')
-      .select('montadora_id')
-      .eq('id_ordem', idOrdem)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const ehGarantia = String(os.Tipo_Servico || '').toLowerCase().trim() === 'garantia' || !!garRow;
-    let montadoraNome: string | null = null;
-    if (garRow?.montadora_id) {
-      const { data: mont } = await supabase.from('garantia_montadoras').select('nome').eq('id', garRow.montadora_id).maybeSingle();
-      montadoraNome = mont?.nome ? String(mont.nome).trim() : null;
-    }
-    let payloadGarantia: {
-      codCategGarantia: string;
-      nCodCC_Interno: number;
-      codDeptGarantia: string | null;
-      cNumContrato?: string;
-    } | null = null;
-    if (ehGarantia) {
-      try {
-        const { buscarCodigosGarantia } = await import('@/lib/garantias/omie-faturamento');
-        const codigos = await buscarCodigosGarantia(undefined, montadoraNome);
-        payloadGarantia = {
-          codCategGarantia: codigos.codCategGarantia,
-          nCodCC_Interno: codigos.nCodCC_Interno,
-          codDeptGarantia: codigos.codDeptGarantia,
-          cNumContrato: montadoraNome ? `${montadoraNome}-pgo` : undefined,
-        };
-      } catch (err) {
-        // NÃO cai pra OS padrão: já aconteceu de uma falha momentânea aqui
-        // mandar a OS de garantia como comum (categoria/conta erradas, com
-        // conta a receber) e ninguém perceber. Melhor falhar o envio — a OS
-        // fica em "Enviar Omie" e o reenvio tenta de novo.
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[Omie] ✗ ${idOrdem} é garantia mas falhou ao resolver os códigos:`, err);
-        return { sucesso: false, erro: `OS de garantia: falha ao resolver os códigos no Omie (${msg}). Nada foi enviado — tente novamente.` };
-      }
-    }
+    // A OS vai ao Omie COMO ESTÁ NA TELA (José, 21/10/2026). Categoria, conta
+    // corrente, Nº do Contrato de Venda, departamentos, dados adicionais da NF
+    // e e-mail saem da aba Omie da OS (Ordem_Servico.Omie_Espelho).
+    //
+    // Não existe mais padrão automático de garantia aqui: OS de garantia é uma
+    // OS como as outras. Quem quiser o lançamento de garantia escolhe na tela
+    // a categoria, a conta e o contrato ("Mahindra-pgo", "Kuhn-pgo"...) e o
+    // departamento "03. # Garantias" — e marca "Serviço interno" quando a OS
+    // não pode gerar conta a receber. Antes o padrão entrava sozinho e passava
+    // por cima do que fosse configurado na tela (e, quando não conseguia
+    // resolver os códigos no Omie, recusava o envio inteiro).
+    const esp = normalizarEspelho(
+      os.Omie_Espelho,
+      espelhoPadrao({ interna: !!os.Servico_Interno, email: emailCliente }),
+    );
 
-    // Serviços: em garantia cada linha recebe a categoria de garantia +
-    // "não gerar conta a receber". OBS: no nó ServicosPrestados os campos
-    // corretos são cCodCategItem e cNaoGerarFinanceiro (NÃO cCodCateg/
-    // cNaoGerarReceber — esses fazem o Omie rejeitar a OS inteira).
     // OS INTERNA (José, 15/10/2026): nada é cobrado — todos os serviços "não gerar conta a
     // receber" (é isso que faz o Omie faturar com RECIBO), conta corrente INTERNO, Nº do
     // Contrato de Venda OBRIGATÓRIO (código interno), "Enviar recibo em vez da NFS-e" ligado,
-    // sem parcelas. Departamento continua o normal. As peças vão como REMESSA (mais abaixo).
-    const interna = !!os.Servico_Interno && !payloadGarantia;
-    let contratoInterna = "";
-    if (interna) {
-      const esp = (os.Omie_Espelho && typeof os.Omie_Espelho === "object" ? os.Omie_Espelho : {}) as { info?: { contrato?: string } };
-      contratoInterna = String(esp.info?.contrato || "").trim();
-      if (!contratoInterna) {
-        return { sucesso: false, erro: 'OS interna: escolha o "Nº do Contrato de Venda" (código interno) na aba Informações adicionais antes de enviar ao Omie.' };
-      }
+    // sem parcelas. As peças vão como REMESSA (mais abaixo).
+    // OBS: no nó ServicosPrestados o campo é cNaoGerarFinanceiro (NÃO
+    // cNaoGerarReceber — esse faz o Omie rejeitar a OS inteira).
+    const interna = !!os.Servico_Interno;
+    const contrato = String(esp.info.contrato || "").trim();
+    if (interna && !contrato) {
+      return { sucesso: false, erro: 'OS interna: escolha o "Nº do Contrato de Venda" (código interno) na aba Informações adicionais antes de enviar ao Omie.' };
     }
     const servicosBase = await montarServicosComReqs(os, idOrdem);
-    const servicosFinal = payloadGarantia
-      ? servicosBase.map((s) => ({ ...s, cCodCategItem: payloadGarantia!.codCategGarantia, cNaoGerarFinanceiro: 'S' as const }))
-      : interna
-        ? servicosBase.map((s) => ({ ...s, cNaoGerarFinanceiro: 'S' as const }))
-        : servicosBase;
+    // "Não gerar conta a receber" (é o que faz o Omie faturar com RECIBO em vez
+    // de NFS-e) sai da caixinha "Serviço interno" da OS — decisão do José
+    // (21/10/2026) quando o padrão automático de garantia foi removido.
+    const servicosFinal = interna
+      ? servicosBase.map((s) => ({ ...s, cNaoGerarFinanceiro: 'S' as const }))
+      : servicosBase;
     const cObsOS = await montarObsOS(os, idOrdem);
 
     const payload = {
@@ -550,38 +514,31 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
         nQtdeParc: 1,
       },
       InformacoesAdicionais: {
-        cCodCateg: payloadGarantia ? payloadGarantia.codCategGarantia : OMIE_COD_CATEG,
-        nCodCC: payloadGarantia ? payloadGarantia.nCodCC_Interno : interna ? CONTA_INTERNO : OMIE_COD_CC,
+        // tudo da aba Omie da OS; vazio = o padrão que a própria tela mostra
+        cCodCateg: String(esp.info.categoria || "").trim() || OMIE_COD_CATEG,
+        nCodCC: Number(esp.info.conta) || (interna ? CONTA_INTERNO : OMIE_COD_CC),
         nCodProj: nCodProj || undefined,
-        cDadosAdicNF: montarDadosAdic(os) || undefined,
-        // Garantia: Nº Contrato de Venda = "{Montadora}-pgo" (ex.: Mahindra-pgo)
-        ...(payloadGarantia?.cNumContrato ? { cNumContrato: payloadGarantia.cNumContrato } : {}),
-        ...(interna ? { cNumContrato: contratoInterna.slice(0, 20) } : {}),
+        // "Dados Adicionais para a Nota Fiscal" escrito à mão vence o automático
+        cDadosAdicNF: String(esp.info.dadosNF || "").trim() || montarDadosAdic(os) || undefined,
+        ...(contrato ? { cNumContrato: contrato.slice(0, 20) } : {}),
       },
-      // Garantia: o departamento "03. # Garantias" (100%) é aplicado logo
-      // após a criação, via AlterarOS — o Omie exige o nValor da distribuição,
-      // que só é conhecido depois que a OS existe (ver mais abaixo).
+      // Os departamentos da aba Departamentos vão num AlterarOS logo após a
+      // criação — o Omie exige o nValor da distribuição, que só é conhecido
+      // depois que a OS existe (ver mais abaixo).
       Observacoes: {
         cObsOS: cObsOS || undefined,
       },
       // ⚠️ Sem nó "Produtos" — o osCadastro do Omie não aceita a tag; as
       // peças do PPV vão como Pedido de Venda logo abaixo.
       ServicosPrestados: servicosFinal,
-      Email: payloadGarantia
-        ? {
-            cEnvBoleto: 'N',
-            cEnvLink: 'N',
-            cEnvRecibo: 'S',
-            cEnviarPara: 'posvendas.novatratores@gmail.com',
-          }
-        : {
-            cEnvBoleto: 'N',
-            cEnvLink: 'N',
-            // interna: "Enviar um Recibo de Prestação de Serviço (ao invés da NFS-e)"
-            ...(interna ? { cEnvRecibo: 'S' } : {}),
-            // interna: nada para o cliente — o recibo vai para o pós-vendas
-            cEnviarPara: interna ? EMAIL_INTERNO : emailCliente,
-          },
+      Email: {
+        cEnvBoleto: 'N',
+        cEnvLink: esp.email.link ? 'S' : 'N',
+        // "Enviar um Recibo de Prestação de Serviço (ao invés da NFS-e)"
+        ...(esp.email.recibo || interna ? { cEnvRecibo: 'S' } : {}),
+        // interna: nada para o cliente — o recibo vai para o pós-vendas
+        cEnviarPara: interna ? EMAIL_INTERNO : (String(esp.email.para || "").trim() || emailCliente),
+      },
     };
 
     let resposta: OmieOSResponse;
@@ -627,11 +584,12 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
 
     console.log(`[Omie] ✓ ${idOrdem} → OS nº ${resposta.cNumOS} (ID: ${resposta.nCodOS})`);
 
-    // Garantia: aplica o departamento "03. # Garantias" (100%) via AlterarOS.
-    // Feito depois da criação porque o Omie exige o nValor da distribuição, e
-    // esse total só é conhecido com a OS já existente. Best-effort: se falhar,
-    // a OS continua criada (só sem o rateio de departamento).
-    if (payloadGarantia?.codDeptGarantia) {
+    // Departamentos da aba Departamentos da OS, via AlterarOS. Feito depois da
+    // criação porque o Omie exige o nValor da distribuição, e esse total só é
+    // conhecido com a OS já existente. Best-effort: se falhar, a OS continua
+    // criada (só sem o rateio de departamento).
+    const deptos = Object.entries(esp.deptos).filter(([, perc]) => Number(perc) > 0);
+    if (deptos.length > 0) {
       try {
         const consulta = await omieCall<{ Cabecalho?: { nValorTotal?: number } }>(
           "/servicos/os/",
@@ -645,15 +603,19 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
             "AlterarOS",
             {
               Cabecalho: { nCodOS: resposta.nCodOS },
-              Departamentos: [
-                { cCodDepto: payloadGarantia.codDeptGarantia, nPerc: 100, nValor: totalOS, nValorFixo: "N" },
-              ],
+              Departamentos: deptos.map(([cCodDepto, perc]) => ({
+                cCodDepto,
+                nPerc: Number(perc),
+                // o Omie quer o valor da fatia junto com o percentual
+                nValor: Math.round(totalOS * (Number(perc) / 100) * 100) / 100,
+                nValorFixo: "N",
+              })),
             }
           );
-          console.log(`[Omie] ✓ ${idOrdem} → departamento Garantias 100% (R$ ${totalOS})`);
+          console.log(`[Omie] ✓ ${idOrdem} → departamentos ${deptos.map(([c, p]) => `${c} ${p}%`).join(", ")} (R$ ${totalOS})`);
         }
       } catch (err) {
-        console.warn(`[Omie] Falha ao aplicar departamento de garantia na OS ${resposta.nCodOS}:`, err);
+        console.warn(`[Omie] Falha ao aplicar os departamentos na OS ${resposta.nCodOS}:`, err);
       }
     }
 

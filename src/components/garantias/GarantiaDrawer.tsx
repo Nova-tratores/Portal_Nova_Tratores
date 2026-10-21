@@ -804,25 +804,9 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                   <QrCode size={13} /> QR code da garantia
                 </button>
                 {qrAberto && g && <QRGarantiaModal garantiaId={g.id} numero={g.numero} cliente={g.cliente} localizacao={g.localizacao} onClose={() => setQrAberto(false)} />}
-                {g.status !== 'rejeitada' && (
-                  <button
-                    onClick={async () => {
-                      if (!confirm(`Reaplicar o padrão de garantia na OS ${g.id_ordem} no Omie?\n\n(categoria Serv Prest Garantia, sem conta a receber, conta INTERNO, contrato/projeto da montadora, recibo, depto Garantias)`)) return;
-                      const ok = await chamar('refaturar_omie', `/api/garantias/${garantiaId}/refaturar-omie`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ator: userName }),
-                      });
-                      if (ok) setAviso('Padrão de garantia reaplicado na OS no Omie.');
-                    }}
-                    disabled={!!busy}
-                    title="Usa quando a OS já foi enviada ao Omie sem o padrão de garantia (ex.: garantia criada depois do fechamento)."
-                    style={btn('#475569', !!busy)}
-                  >
-                    {busy === 'refaturar_omie' ? <Loader2 size={15} className="spin" /> : <RefreshCw size={15} />}
-                    Reaplicar padrão de garantia no Omie
-                  </button>
-                )}
+                {/* O botão "Reaplicar padrão de garantia no Omie" saiu em
+                    21/10/2026: a OS vai ao Omie como está na tela do POS e o
+                    portal não reescreve mais o lançamento por fora. */}
               </Secao>
 
               {/* Conversa com a fábrica (e-mails da garantia — enviados + respostas) */}
