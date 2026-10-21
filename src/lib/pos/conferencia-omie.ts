@@ -19,10 +19,19 @@ import {
 type Rec = Record<string, unknown>;
 const NCOD_SOL = 2209673817, NCOD_HORA = 1979758762, NCOD_KM = 1975974257;
 
-function omie<T>(call: string, param: Rec): Promise<T> {
+// Velocidade (José, 21/10/2026: "está demorando muito as chamadas para o Omie… às vezes dá erro"):
+// leitura repetida com o mesmo parâmetro em poucos segundos leva "Consumo redundante — aguarde N s". Então:
+// (1) espera o que a Omie pede (até 65 s, como no faturamento) em vez de tentar de novo cedo demais;
+// (2) a leitura da OS fica guardada 50 s — o "Sim, atualizar" logo depois do "conferir" não lê de novo;
+// (3) depois de gravar, relê por OUTRA chave (cNumOS no lugar do nCodOS), que o Omie não conta como repetida.
+function omie<T>(call: string, param: Rec, escrita = false): Promise<T> {
   const { key, secret } = contaOmie("Nova Tratores");
-  return omiePorta<T>({ appKey: key, appSecret: secret, rotulo: "Nova Tratores" }, "/servicos/os/", call, param, { prioridade: "pessoa" });
+  return omiePorta<T>({ appKey: key, appSecret: secret, rotulo: "Nova Tratores" }, "/servicos/os/", call, param,
+    { prioridade: "pessoa", ...(escrita ? {} : { tentativas: 4, maxEsperaMs: 65_000 }) });
 }
+const lidas = new Map<string, { dados: unknown; em: number }>();
+const codServ = new Map<string, number>();
+const LIDA_VALE_MS = 50_000;
 const n = (v: unknown) => { const x = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(x) ? x : 0; };
 
 interface ItemOmieOS { nIdItem?: number; nSeqItem?: number; nCodServico?: number; nQtde?: number; nValUnit?: number; cTpDesconto?: string; nValorDesconto?: number; nPercDesconto?: number; cDescServ?: string; cNaoGerarFinanceiro?: string }
@@ -54,13 +63,18 @@ async function esperadoDaOS(os: Rec, esp: OmieEspelho | null) {
   }));
   // serviços incluídos à mão na OS (espelho): acha o nCodServico pelo código
   for (const x of esp?.extras || []) {
-    let nCod = 0;
-    try {
-      const c = await omiePorta<{ intListar?: { nCodServ?: number } }>(
-        (() => { const { key, secret } = contaOmie("Nova Tratores"); return { appKey: key, appSecret: secret, rotulo: "Nova Tratores" }; })(),
-        "/servicos/servico/", "ConsultarCadastroServico", { cCodigo: x.codigo }, { prioridade: "pessoa" });
-      nCod = n(c.intListar?.nCodServ);
-    } catch { /* fica sem conferir */ }
+    // código → nCodServ guardado no processo (não muda); se a busca falhar, PARA a conferência — antes o item
+    // era pulado e o "atualizar" apagava o serviço no Omie como se fosse sobra
+    let nCod = codServ.get(x.codigo) || 0;
+    if (!nCod) {
+      try {
+        const c = await omiePorta<{ intListar?: { nCodServ?: number } }>(
+          (() => { const { key, secret } = contaOmie("Nova Tratores"); return { appKey: key, appSecret: secret, rotulo: "Nova Tratores" }; })(),
+          "/servicos/servico/", "ConsultarCadastroServico", { cCodigo: x.codigo }, { prioridade: "pessoa", tentativas: 4, maxEsperaMs: 65_000 });
+        nCod = n(c.intListar?.nCodServ);
+        if (nCod) codServ.set(x.codigo, nCod);
+      } catch (e) { throw new Error(`não consegui achar o serviço ${x.codigo} no Omie (${e instanceof Error ? e.message : e})`); }
+    }
     if (!nCod) continue;
     itens.push({ chave: String(nCod), nCodServico: nCod, rotulo: x.nome || x.codigo, qtde: n(x.qtde), unit: n(x.unit), desconto: x.cobrar ? 0 : n(x.qtde) * n(x.unit), descricao: x.descricao || undefined });
   }
@@ -85,9 +99,18 @@ async function lerOSDoPortal(idOs: string): Promise<Rec | null> {
   return (data?.[0] as Rec) || null;
 }
 
-async function consultarOS(os: Rec): Promise<OSOmie> {
-  if (os.omie_ncodos) return omie<OSOmie>("ConsultarOS", { nCodOS: Number(os.omie_ncodos) });
-  return omie<OSOmie>("ConsultarOS", { cNumOS: String(os.Ordem_Omie || "").replace(/^0+/, "") });
+async function consultarOS(os: Rec, opts: { outraChave?: boolean } = {}): Promise<OSOmie> {
+  const id = String(os.Id_Ordem);
+  const guardada = lidas.get(id);
+  if (!opts.outraChave && guardada && Date.now() - guardada.em < LIDA_VALE_MS) return guardada.dados as OSOmie;
+  const num = String(os.Ordem_Omie || "").replace(/^0+/, "");
+  const porCod = os.omie_ncodos ? { nCodOS: Number(os.omie_ncodos) } : null;
+  const porNum = num ? { cNumOS: num } : null;
+  // releitura depois de gravar: a outra chave (se não houver, a mesma)
+  const param = (opts.outraChave ? porNum || porCod : porCod || porNum) as Rec;
+  const dados = await omie<OSOmie>("ConsultarOS", param);
+  lidas.set(id, { dados, em: Date.now() });
+  return dados;
 }
 
 function espelhoDe(os: Rec): OmieEspelho | null {
@@ -96,20 +119,21 @@ function espelhoDe(os: Rec): OmieEspelho | null {
     : null;
 }
 
-export async function conferirOS(idOs: string): Promise<ResultadoConferencia & { _omie?: OSOmie; _esperado?: (ItemComparavel & { nCodServico: number })[] }> {
+export async function conferirOS(idOs: string, opts: { outraChave?: boolean } = {}): Promise<ResultadoConferencia & { _omie?: OSOmie; _esperado?: (ItemComparavel & { nCodServico: number })[] }> {
   const os = await lerOSDoPortal(idOs);
   const base = { doc: idOs, tipo: "OS", numeroOmie: "", divergencias: [] as Divergencia[] };
   if (!os) return { ...base, erro: "OS não encontrada no portal." };
   const num = String(os.Ordem_Omie || "").replace(/^0+/, "");
   if (!num) return { ...base, pulado: "ainda não foi enviada ao Omie" };
   let dados: OSOmie;
-  try { dados = await consultarOS(os); } catch (e) { return { ...base, numeroOmie: num, erro: `Não consegui ler a OS ${num} no Omie: ${e instanceof Error ? e.message : e}` }; }
+  try { dados = await consultarOS(os, opts); } catch (e) { return { ...base, numeroOmie: num, erro: `Não consegui ler a OS ${num} no Omie: ${e instanceof Error ? e.message : e}` }; }
   const estado = estadoNoOmie(dados.Cabecalho as never, dados.InfoCadastro as never);
   if (estado === "faturada" || estado === "faturando") return { ...base, numeroOmie: num, pulado: "já está faturada no Omie" };
   if (estado === "cancelada") return { ...base, numeroOmie: num, erro: `A OS ${num} está CANCELADA no Omie.` };
 
   const esp = espelhoDe(os);
-  const esperado = await esperadoDaOS(os, esp);
+  let esperado: Awaited<ReturnType<typeof esperadoDaOS>>;
+  try { esperado = await esperadoDaOS(os, esp); } catch (e) { return { ...base, numeroOmie: num, erro: `Não deu para conferir: ${e instanceof Error ? e.message : e}. Tente de novo.` }; }
   const omieItens: ItemComparavel[] = (dados.ServicosPrestados || []).map((s) => ({
     chave: String(n(s.nCodServico)), rotulo: nomeServ[n(s.nCodServico)] || (s.cDescServ ? `"${String(s.cDescServ).slice(0, 40)}"` : `serviço ${s.nCodServico}`),
     qtde: n(s.nQtde), unit: n(s.nValUnit), desconto: descontoOmie(s), descricao: s.cDescServ,
@@ -209,7 +233,10 @@ export async function alinharOS(idOs: string): Promise<ResultadoConferencia> {
     const parc = parcelasDaOS(esp, previsaoDaOS(os), total);
     const soma = parc.reduce((t, p) => t + p.nValor, 0) || 1;
     cab.cCodParc = "999"; cab.nQtdeParc = parc.length;
-    param.Parcelas = parc.map((p) => ({ ...p, nPercentual: Math.round((p.nValor / soma) * 10000) / 100 }));
+    // percentual: a última parcela fica com a sobra para fechar 100% (3 × 33,33 = 99,99 o Omie recusa)
+    const pcts = parc.map((p) => Math.round((p.nValor / soma) * 10000) / 100);
+    if (pcts.length) pcts[pcts.length - 1] = Math.round((100 - pcts.slice(0, -1).reduce((a, x) => a + x, 0)) * 100) / 100;
+    param.Parcelas = parc.map((p, i) => ({ ...p, nPercentual: pcts[i] }));
   }
   const pedCli = await pedidosDaOS(os);
   if (servicos.length) param.ServicosPrestados = servicos;
@@ -226,15 +253,18 @@ export async function alinharOS(idOs: string): Promise<ResultadoConferencia> {
     param.Email = interna ? { cEnviarPara: EMAIL_INTERNO, cEnvRecibo: "S", cEnvLink: "N", cEnvBoleto: "N" } : { cEnviarPara: esp.email.para || undefined, cEnvRecibo: esp.email.recibo ? "S" : "N" };
   } else if (pedCli) param.InformacoesAdicionais = { cNumPedido: pedCli };
   if (interna && !esp) param.Email = { cEnviarPara: EMAIL_INTERNO, cEnvRecibo: "S", cEnvLink: "N", cEnvBoleto: "N" };
+  lidas.delete(String(os.Id_Ordem));
   try {
-    await omie("AlterarOS", param);
-    if (textos.length) await omie("AlterarOS", { Cabecalho: { nCodOS }, ServicosPrestados: textos });
+    // textos primeiro e o pacote completo (com as parcelas) por ÚLTIMO: uma alteração só de texto depois
+    // podia fazer o Omie voltar à condição padrão (1 parcela de 30 dias)
+    if (textos.length) await omie("AlterarOS", { Cabecalho: { nCodOS }, ServicosPrestados: textos }, true);
+    await omie("AlterarOS", param, true);
   }
   catch (e) {
-    const r = await conferirOS(idOs);
+    const r = await conferirOS(idOs, { outraChave: true });
     return { ...limpar(r), erro: `O Omie recusou a atualização: ${e instanceof Error ? e.message : e}` };
   }
-  return limpar(await conferirOS(idOs));
+  return limpar(await conferirOS(idOs, { outraChave: true }));
 }
 
 function limpar(r: ResultadoConferencia & { _omie?: unknown; _esperado?: unknown }): ResultadoConferencia {

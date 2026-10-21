@@ -44,14 +44,20 @@ const descontoDet = (p: NonNullable<PedidoOmie["det"]>[number]["produto"]) => {
   return p.tipo_desconto === "P" ? r2(n(p.quantidade) * n(p.valor_unitario) * n(p.percentual_desconto) / 100) : 0;
 };
 
-export async function conferirPPV(idPPV: string): Promise<ResultadoConferencia & { _ctx?: { acc: OmieAccount; pedido: PedidoOmie } }> {
+// Velocidade (José, 21/10/2026): a leitura do pedido no Omie fica guardada 50 s (o "Sim, atualizar" logo depois
+// do "conferir" não lê de novo) e, depois de gravar, a conferência final usa a releitura que o garantirCst60 já fez
+// — a mesma consulta repetida em segundos leva "Consumo redundante" e trava tudo.
+const lidasPPV = new Map<string, { achado: { acc: OmieAccount; pedido: unknown }; em: number }>();
+export async function conferirPPV(idPPV: string, opts: { pronto?: { acc: OmieAccount; pedido: unknown } } = {}): Promise<ResultadoConferencia & { _ctx?: { acc: OmieAccount; pedido: PedidoOmie } }> {
   const base = { doc: idPPV, tipo: "Pedido de venda", numeroOmie: "", divergencias: [] as Divergencia[] };
   const d = await buscarPPVPorId(idPPV);
   if (!d) return { ...base, erro: "Pedido não encontrado no portal." };
   if (!d.pedidoOmie) return { ...base, pulado: "ainda não foi enviado ao Omie" };
   if (d.tipoPedido === "Remessa") return { ...base, numeroOmie: String(d.pedidoOmie).replace(/^0+/, ""), pulado: "é remessa (não fatura)" };
   if (d.faturadoOmieEm) return { ...base, numeroOmie: String(d.pedidoOmie).replace(/^0+/, ""), pulado: "já está faturado" };
-  const achado = await resolverContaDoPedido(idPPV, d.omieEmpresa || null).catch(() => null);
+  const guardada = lidasPPV.get(idPPV);
+  const achado = opts.pronto || (guardada && Date.now() - guardada.em < 50_000 ? guardada.achado : await resolverContaDoPedido(idPPV, d.omieEmpresa || null).catch(() => null));
+  if (achado) lidasPPV.set(idPPV, { achado, em: Date.now() });
   if (!achado) return { ...base, numeroOmie: String(d.pedidoOmie).replace(/^0+/, ""), erro: "Não achei este pedido no Omie." };
   const { acc } = achado;
   const pedido = achado.pedido as unknown as PedidoOmie;
@@ -138,8 +144,10 @@ export async function alinharPPV(idPPV: string): Promise<ResultadoConferencia> {
   if (d.previsaoFaturamento) cabecalho.data_previsao = isoParaBR(d.previsaoFaturamento);
   const param: Rec = { cabecalho, det: detNovo };
   if (Object.keys(info).length) param.informacoes_adicionais = info;
+  let planoParc: ReturnType<typeof montarParcelasOmie> | undefined
   if (d.numParcelas) {
     const parc = montarParcelasOmie(d.numParcelas, d.previsaoFaturamento || "", total);
+    planoParc = parc;
     cabecalho.codigo_parcela = parc.codigo_parcela; cabecalho.qtde_parcelas = parc.qtde_parcelas;
     if (parc.lista_parcelas) param.lista_parcelas = parc.lista_parcelas;
   }
@@ -149,15 +157,18 @@ export async function alinharPPV(idPPV: string): Promise<ResultadoConferencia> {
   }
   info.consumidor_final = "S";
   param.informacoes_adicionais = info;
+  lidasPPV.delete(idPPV);
+  let relido: unknown;
   try {
     await omieNaConta(acc, "/produtos/pedido/", "AlterarPedidoVenda", param);
-    const cst = await garantirCst60(acc, { codigo_pedido: pedido.cabecalho?.codigo_pedido });
+    const cst = await garantirCst60(acc, { codigo_pedido: pedido.cabecalho?.codigo_pedido }, planoParc);
+    relido = cst.pedido;
     if (cst.erro) throw new Error(`CST 60: ${cst.erro}`);
   }
   catch (e) {
-    return { ...limpar(await conferirPPV(idPPV)), erro: `O Omie recusou a atualização: ${e instanceof Error ? e.message : e}` };
+    return { ...limpar(await conferirPPV(idPPV, relido ? { pronto: { acc, pedido: relido } } : {})), erro: `O Omie recusou a atualização: ${e instanceof Error ? e.message : e}` };
   }
-  return limpar(await conferirPPV(idPPV));
+  return limpar(await conferirPPV(idPPV, relido ? { pronto: { acc, pedido: relido } } : {}));
 }
 
 function limpar(r: ResultadoConferencia & { _ctx?: unknown }): ResultadoConferencia {

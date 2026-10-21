@@ -330,7 +330,9 @@ export function montarParcelasOmie(numParcelas: string, previsaoISO: string, tot
   const parcela = dias.map((d, i) => {
     const ultima = i === n - 1;
     const valor = ultima ? Math.round((total - base * (n - 1)) * 100) / 100 : base;
-    const percentual = total > 0 ? Math.round((valor / total) * 10000) / 100 : Math.round((100 / n) * 100) / 100;
+    // percentual: a última parcela fica com a sobra para fechar 100% (3 × 33,33 = 99,99 o Omie recusa)
+    const basePct = total > 0 ? Math.round((base / total) * 10000) / 100 : Math.floor((100 / n) * 100) / 100;
+    const percentual = ultima ? Math.round((100 - basePct * (n - 1)) * 100) / 100 : basePct;
     return { numero_parcela: i + 1, data_vencimento: baseMaisDiasBR(previsaoISO, d), quantidade_dias: d, percentual, valor };
   });
   return { codigo_parcela: "999", qtde_parcelas: n, lista_parcelas: { parcela } };
@@ -1535,13 +1537,15 @@ export const CST_ICMS_PECAS = "60";
  * consumo final o Omie joga o ICMS para 51. Reenvia o det INTEIRO (o Omie apaga
  * o item que não vier) com o imposto cru de cada item e só o CST trocado.
  */
-export async function garantirCst60(acc: OmieAccount, chave: Record<string, unknown>): Promise<{ trocados: number; erro?: string }> {
+/** `parcelas`: o plano que tem que ficar no pedido (José, 21/10/2026: "coloco 30/60/90 e no Omie fica 30 dias") — esta
+ *  2ª alteração ia SEM parcelas e o Omie voltava à condição padrão. Sem `parcelas`, reenvia as que o pedido já tem. */
+export async function garantirCst60(acc: OmieAccount, chave: Record<string, unknown>, parcelas?: { codigo_parcela: string; qtde_parcelas: number; lista_parcelas?: unknown }): Promise<{ trocados: number; erro?: string; pedido?: OmiePedidoConsulta }> {
   const pedido = await consultarPedidoOmie(chave, acc);
   if (!pedido) return { trocados: 0, erro: "pedido não encontrado no Omie" };
   const det = pedido.det || [];
   const errados = det.filter((d) => String(d.imposto?.icms?.cod_sit_trib_icms ?? "") !== CST_ICMS_PECAS);
   const info = (pedido as { informacoes_adicionais?: { consumidor_final?: string } }).informacoes_adicionais;
-  if (!errados.length && info?.consumidor_final === "S") return { trocados: 0 };
+  if (!errados.length && info?.consumidor_final === "S") return { trocados: 0, pedido };
   const detNovo = det.map((d) => {
     const produto: Record<string, unknown> = { codigo_produto: d.produto?.codigo_produto, quantidade: d.produto?.quantidade, valor_unitario: d.produto?.valor_unitario };
     if (d.produto?.cfop) produto.cfop = d.produto.cfop;
@@ -1553,23 +1557,32 @@ export async function garantirCst60(acc: OmieAccount, chave: Record<string, unkn
       imposto: aplicarPatchNoImpostoCru(d.imposto || {}, { icms: { cst: CST_ICMS_PECAS } }),
     };
   });
+  const cabAtual = (pedido.cabecalho || {}) as Record<string, unknown>
+  const listaAtual = (pedido as { lista_parcelas?: unknown }).lista_parcelas
+  const plano = parcelas || (cabAtual.codigo_parcela ? { codigo_parcela: String(cabAtual.codigo_parcela), qtde_parcelas: Number(cabAtual.qtde_parcelas) || 1, lista_parcelas: listaAtual } : null)
   try {
     await omieCall("/produtos/pedido/", "AlterarPedidoVenda", {
-      cabecalho: pedido.cabecalho?.codigo_pedido ? { codigo_pedido: pedido.cabecalho.codigo_pedido } : chave,
+      cabecalho: {
+        ...(pedido.cabecalho?.codigo_pedido ? { codigo_pedido: pedido.cabecalho.codigo_pedido } : chave),
+        ...(plano ? { codigo_parcela: plano.codigo_parcela, qtde_parcelas: plano.qtde_parcelas } : {}),
+      },
+      ...(plano?.lista_parcelas ? { lista_parcelas: plano.lista_parcelas } : {}),
       informacoes_adicionais: { consumidor_final: "S" },
       det: detNovo,
     }, acc.key, acc.secret);
   } catch (e) { return { trocados: 0, erro: e instanceof Error ? e.message : String(e) }; }
   // confere: o Omie aceita a alteração e às vezes deixa o CST como estava
   // (PPV-0494, 16/10/2026 — ficou 51 e ninguém foi avisado)
-  const depois = await consultarPedidoOmie(chave, acc).catch(() => null);
+  // relê por OUTRA chave (nº do pedido): a mesma consulta de segundos antes leva "Consumo redundante"
+  const numPed = (pedido.cabecalho as { numero_pedido?: unknown } | undefined)?.numero_pedido
+  const depois = await consultarPedidoOmie(numPed ? { numero_pedido: numPed } : chave, acc).catch(() => null);
   if (!depois) return { trocados: 0, erro: "não deu para conferir o CST no Omie depois da troca" };
   const aindaErrados = (depois.det || []).filter((d) => String(d.imposto?.icms?.cod_sit_trib_icms ?? "") !== CST_ICMS_PECAS);
   if (aindaErrados.length) {
     const lista = aindaErrados.slice(0, 5).map((d) => `${d.produto?.codigo || "?"} (CST ${d.imposto?.icms?.cod_sit_trib_icms ?? "?"})`).join(", ");
-    return { trocados: errados.length - aindaErrados.length, erro: `o Omie não trocou o CST para ${CST_ICMS_PECAS} em ${aindaErrados.length} peça(s): ${lista}. Troque no Omie antes de faturar.` };
+    return { trocados: errados.length - aindaErrados.length, erro: `o Omie não trocou o CST para ${CST_ICMS_PECAS} em ${aindaErrados.length} peça(s): ${lista}. Troque no Omie antes de faturar.`, pedido: depois };
   }
-  return { trocados: errados.length };
+  return { trocados: errados.length, pedido: depois };
 }
 
 export interface PatchFiscalItem {
