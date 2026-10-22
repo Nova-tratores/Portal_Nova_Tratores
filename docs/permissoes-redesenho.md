@@ -252,3 +252,15 @@ O Chatwoot fork e o vigia de câmeras não estão nesta máquina. Pelo CLAUDE.md
 - **1ª rodada (20/10):** acertou 7 de 30 usuários. Catálogo com 256 telas e 181 rotas. **Diff = 0** (30 × 256 = 7.680).
 - `is_diretor` (coluna nova, de outra sessão) só autoriza comissão dos técnicos, não libera tela: fica fora da v2.
 - **Quando o Admin novo (Fase 4) for a fonte, o espelho sai** (`PERM_ESPELHO=off`).
+
+### Etapa 2 — Propostas e espelhos da Omie sem anon (22/10/2026)
+- O José confirmou (21/10) que os apps antigos Proposta-Comercial e Contas a Pagar não são mais usados.
+- `sql/permissoes-v2-06-sem-anon-propostas-estoque.sql` **APLICADA 22/10**. Ela fecha 21 tabelas e views para o anon:
+  - **Propostas:** `Formulario`, `Proposta_Fabrica`, as três views `v_*`, vendedores, configurações e cadastros;
+  - **Espelhos da Omie:** `produtos`, `vendas_itens`, `Produtos_Completos`, `notas_entrada`, `recebimentos_nfe`, `contas_receber`, `Placas`, `produto_tipo`.
+- **Conferido:** 21/21 negam o anon e o usuário logado lê.
+- **Ficaram abertos de propósito:**
+  - `tratores` (Dashboard Agro externo);
+  - o que a `/tv-painel`, o `bug-reporter.js` e o `mapa-geral` usam;
+  - as tabelas que as rotas do servidor do NT_Mecanicos leem com anon.
+- As 13 rotas do portal que citam a anon key usam `SERVICE || ANON`. Em produção a service role existe, então não são afetadas.
