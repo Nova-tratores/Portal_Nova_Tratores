@@ -165,7 +165,11 @@ export const TAREFAS: Record<string, Tarefa> = {
   'pos-faturamento-reconciliar': async () => {
     if (desligada('POS_FATURAR_RECONCILIAR')) return { pular: 'desligado (POS_FATURAR_RECONCILIAR=off)' };
     const { rodarReconciliacaoFaturamento } = await import('@/lib/pos/faturamento');
-    return { resumo: (await rodarReconciliacaoFaturamento()) || 'nada pendente' };
+    const r = await rodarReconciliacaoFaturamento();
+    // vigia dos pedidos de peças marcados como faturados sem NF-e (ele mesmo roda no máximo a cada 30 min)
+    const { vigiarPedidosFaturados } = await import('@/lib/ppv/vigia-faturados');
+    const v = await vigiarPedidosFaturados().catch((e) => `vigia PPV falhou: ${e instanceof Error ? e.message : e}`);
+    return { resumo: [r, v].filter(Boolean).join(' · ') || 'nada pendente' };
   },
 
   'pops-gatilhos-os': async () => {

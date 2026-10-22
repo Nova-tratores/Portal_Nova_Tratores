@@ -213,6 +213,9 @@ export async function register(): Promise<void> {
       try {
         const r = await rodarReconciliacaoFaturamento();
         if (r) log(`pos-faturamento: ${r}`);
+        const { vigiarPedidosFaturados } = await import('./lib/ppv/vigia-faturados');
+        const v = await vigiarPedidosFaturados();
+        if (v) log(v);
       } catch (e) { log('pos-faturamento falhou: ' + (e as Error).message); }
     };
     setInterval(() => { rodarFatOS().catch(() => {}); }, 10 * 60 * 1000);

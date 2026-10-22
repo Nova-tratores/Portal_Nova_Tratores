@@ -1820,5 +1820,22 @@ async function comTravaPPV<T extends { sucesso: boolean; erro?: string }>(idPPV:
   }
 }
 
-export const faturarPPVNoOmie: typeof faturarPPVNoOmieSemPausa = (...a) => comRobosPausados('faturar PPV', () => comTravaPPV(a[0], () => faturarPPVNoOmieSemPausa(...a)));
-export const faturarRemessaPPV: typeof faturarRemessaPPVSemPausa = (...a) => comRobosPausados('faturar remessa', () => faturarRemessaPPVSemPausa(...a));
+// Todo erro de faturamento avisa o T.I. no sino (José, 22/10/2026) — lib/faturamento/alerta-ti.ts.
+async function vigiadoPPV<T>(id: string, oque: string, rodar: () => Promise<T>, erroDe: (r: T) => string | null): Promise<T> {
+  const { avisarTI } = await import("@/lib/faturamento/alerta-ti");
+  try {
+    const r = await rodar();
+    const e = erroDe(r);
+    if (e) void avisarTI(id, oque, e, `/ppv?id=${id}`);
+    return r;
+  } catch (e) {
+    void avisarTI(id, oque, e instanceof Error ? e.message : String(e), `/ppv?id=${id}`);
+    throw e;
+  }
+}
+export const faturarPPVNoOmie: typeof faturarPPVNoOmieSemPausa = (...a) => vigiadoPPV(a[0], "o pedido de peças",
+  () => comRobosPausados('faturar PPV', () => comTravaPPV(a[0], () => faturarPPVNoOmieSemPausa(...a))),
+  (r) => (r.sucesso ? null : r.erro || "não faturado"));
+export const faturarRemessaPPV: typeof faturarRemessaPPVSemPausa = (...a) => vigiadoPPV(a[0], "a remessa",
+  () => comRobosPausados('faturar remessa', () => faturarRemessaPPVSemPausa(...a)),
+  (r) => (r.ok ? null : r.erro || "não faturada"));

@@ -11,6 +11,7 @@
 //    reconciliação confere no Omie antes de qualquer nova tentativa.
 //  - Sem as colunas da migration sql/pos-faturamento.sql → 503 (nunca fatura sem trava).
 import { supabase } from './supabase';
+import { avisarTI } from '@/lib/faturamento/alerta-ti';
 import { TBL_OS, TBL_PEDIDOS, TBL_LOGS_PPO } from './constants';
 import { contaOmie } from '@/lib/omie/contas';
 import { omie as omiePorta, OmieBloqueioError, comRobosPausados } from '@/lib/omie/porta';
@@ -1067,6 +1068,7 @@ async function atualizarNfse(id: string, nCodOS: number): Promise<StatusFaturame
     } else {
       await notificarQuemFaturou(antes.faturado_por, `NFS-e da OS ${num} REJEITADA`,
         `${sit.mensagem || 'O sistema nacional recusou a nota.'} Corrija e reenvie pelo Omie.`, `/pos?id=${id}`);
+      void avisarTI(`OS ${num}`, 'a NFS-e (rejeitada)', sit.mensagem || 'O sistema nacional recusou a nota.', `/pos?id=${id}`);
     }
   }
   return sit.status;
@@ -1271,6 +1273,23 @@ export async function reconciliarPorCodOS(nCodOS: number, cNumOS: string): Promi
 
 // Faturar / atualizar o Omie com os robôs do Omie PARADOS (José, 21/10/2026: "se precisar, para tudo para
 // realizar o faturamento") — ver comRobosPausados em src/lib/omie/porta.ts.
-export const faturarOSComRecibo: typeof faturarOSComReciboSemPausa = (...a) => comRobosPausados('faturar OS (recibo)', () => faturarOSComReciboSemPausa(...a));
-export const faturarOSNoOmie: typeof faturarOSNoOmieSemPausa = (...a) => comRobosPausados('faturar OS', () => faturarOSNoOmieSemPausa(...a));
-export const faturarPecasPendentes: typeof faturarPecasPendentesSemPausa = (...a) => comRobosPausados('faturar peças da OS', () => faturarPecasPendentesSemPausa(...a));
+// Todo erro de faturamento avisa o T.I. no sino (José, 22/10/2026) — lib/faturamento/alerta-ti.ts.
+async function vigiado<T>(doc: string, oque: string, link: string, rodar: () => Promise<T>, erroDe: (r: T) => string | null): Promise<T> {
+  try {
+    const r = await rodar();
+    const e = erroDe(r);
+    if (e) void avisarTI(doc, oque, e, link);
+    return r;
+  } catch (e) {
+    void avisarTI(doc, oque, e instanceof Error ? e.message : String(e), link);
+    throw e;
+  }
+}
+const erroOS = (r: { ok: boolean; tipo?: string; mensagem?: string }) => (!r.ok && r.tipo !== 'em_andamento' ? r.mensagem || r.tipo || 'erro' : null);
+export const faturarOSComRecibo: typeof faturarOSComReciboSemPausa = (...a) => vigiado(a[0], 'a OS (recibo)', `/pos?id=${a[0]}`,
+  () => comRobosPausados('faturar OS (recibo)', () => faturarOSComReciboSemPausa(...a)), erroOS);
+export const faturarOSNoOmie: typeof faturarOSNoOmieSemPausa = (...a) => vigiado(a[0], 'a OS (NFS-e)', `/pos?id=${a[0]}`,
+  () => comRobosPausados('faturar OS', () => faturarOSNoOmieSemPausa(...a)), erroOS);
+export const faturarPecasPendentes: typeof faturarPecasPendentesSemPausa = (...a) => vigiado(a[0], 'as peças da OS', `/pos?id=${a[0]}`,
+  () => comRobosPausados('faturar peças da OS', () => faturarPecasPendentesSemPausa(...a)),
+  (r) => (!r.ok ? r.mensagem || 'erro' : null)); // erro de cada pedido já avisa pelo faturarPPVNoOmie
