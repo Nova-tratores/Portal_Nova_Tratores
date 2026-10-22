@@ -54,6 +54,17 @@ export default function AjustesTermica({ term, setTerm, n, exemplo }: {
               Voltar ao padrão (70 × 30, intervalo 5)
             </button>
           </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-secondary)' }}>Imprimir como:</span>
+            {([['pagina', 'Página (recomendado)'], ['pdf', 'PDF']] as const).map(([f, rot]) => (
+              <button key={f} type="button" aria-pressed={term.forma === f} onClick={() => setTerm((t) => ({ ...t, forma: f }))} style={{
+                padding: '5px 10px', borderRadius: 8, fontSize: 12.5, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer',
+                border: '1.5px solid ' + (term.forma === f ? '#111827' : 'var(--portal-border)'),
+                background: term.forma === f ? '#111827' : 'var(--portal-bg-card)', color: term.forma === f ? '#fff' : 'var(--portal-text)',
+              }}>{rot}</button>
+            ))}
+            <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>Saiu cortada entre duas etiquetas? Use “Página”.</span>
+          </div>
           <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', lineHeight: 1.55, padding: '8px 10px', borderRadius: 8, background: 'var(--portal-bg-secondary)', marginBottom: 12 }}>
             {n === 1 ? 'Sai 1 etiqueta' : `Saem ${n} etiquetas, uma por etiqueta do rolo`} — cada uma ocupa {term.altura + term.intervalo} mm do rolo ({term.altura} + {term.intervalo} de intervalo).
             {' '}Na janela de impressão: impressora <b>ROGERIA</b>, margens <b>Nenhuma</b>, escala <b>100%</b> e <b>sem</b> “Cabeçalhos e rodapés”.

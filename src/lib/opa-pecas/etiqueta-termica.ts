@@ -11,8 +11,12 @@ import { urlPublica, type EtiquetaItem } from './etiqueta'
 /** rotacao: a impressora puxa o rolo num sentido — girar a etiqueta acerta a orientação. */
 /** intervalo: espaço (mm) entre uma etiqueta e a próxima no rolo — a página = altura + intervalo
  *  (a ROGERIA foi configurada no Windows com papel 70 × 35 mm: 30 + 5 de intervalo, 15/10/2026). */
-export interface AjusteTermica { largura: number; altura: number; intervalo: number; x: number; y: number; rotacao: 0 | 90 | 180 | 270 }
-export const TERMICA_PADRAO: AjusteTermica = { largura: 70, altura: 30, intervalo: 5, x: 0, y: 0, rotacao: 0 }
+/** forma: 'pagina' = a página HTML vai direto para a impressora (padrão — é a que cai certa na ROGERIA);
+ *  'pdf' = monta um PDF do tamanho do rolo (José, 22/10/2026: no PDF o Chrome centralizou a etiqueta
+ *  numa folha de 70 mm e ela saiu cortada entre duas etiquetas do rolo — ficou só como opção). */
+export type FormaImpressao = 'pagina' | 'pdf'
+export interface AjusteTermica { largura: number; altura: number; intervalo: number; x: number; y: number; rotacao: 0 | 90 | 180 | 270; forma: FormaImpressao }
+export const TERMICA_PADRAO: AjusteTermica = { largura: 70, altura: 30, intervalo: 5, x: 0, y: 0, rotacao: 0, forma: 'pagina' }
 export const LIMITES: Record<'largura' | 'altura' | 'intervalo' | 'x' | 'y', [number, number]> = {
   largura: [20, 110], altura: [10, 150], intervalo: [0, 10], x: [-10, 10], y: [-10, 10],
 }
@@ -34,6 +38,7 @@ export function lerAjusteTermica(): AjusteTermica {
       largura: n(j.largura, 70, ...L.largura), altura: n(j.altura, 30, ...L.altura), intervalo: n(j.intervalo, 5, ...L.intervalo),
       x: n(j.x, 0, ...L.x), y: n(j.y, 0, ...L.y),
       rotacao: (rot === 90 || rot === 180 || rot === 270 ? rot : 0) as AjusteTermica['rotacao'],
+      forma: j.forma === 'pdf' ? 'pdf' : 'pagina',
     }
   } catch {
     return { ...TERMICA_PADRAO }
@@ -148,11 +153,10 @@ ${paginas.join('\n')}
 export function imprimirTermica(itens: ItemTermica[], a: AjusteTermica = lerAjusteTermica()): boolean {
   try {
     const com = itens.map((i) => ({ ...i, qr: i.semQr ? '' : qrSvg(QRCode.create(i.url || urlPublica(window.location.origin, i.token || ''), { errorCorrectionLevel: 'M' }).modules) }))
-    // PDF primeiro (José, 22/10/2026: a página HTML saía com o cabeçalho/rodapé do
-    // navegador — título e o endereço https — em quem tem "Cabeçalhos e rodapés" ligado;
-    // PDF não ganha isso). Falhou o PDF → cai na impressão da página, como antes.
-    void imprimirTermicaPdf(com, a).then((ok) => { if (!ok) imprimirTermicaHtml(com, a) })
-    return true
+    // Página primeiro (é a que cai certa no rolo). PDF só se escolhido nos ajustes;
+    // falhou o PDF → cai na página.
+    if (a.forma === 'pdf') { void imprimirTermicaPdf(com, a).then((ok) => { if (!ok) imprimirTermicaHtml(com, a) }); return true }
+    return imprimirTermicaHtml(com, a)
   } catch {
     return false
   }
@@ -202,7 +206,7 @@ async function imprimirTermicaPdf(com: (ItemTermica & { qr: string })[], a: Ajus
   }
 }
 
-/** Impressão antiga (página HTML num iframe) — reserva se o PDF falhar. */
+/** Página HTML num iframe (srcdoc: o endereço do portal não vai para o cabeçalho do navegador). */
 function imprimirTermicaHtml(com: (ItemTermica & { qr: string })[], a: AjusteTermica): boolean {
   try {
     document.getElementById('pni-etiqueta-print')?.remove()
@@ -211,16 +215,16 @@ function imprimirTermicaHtml(com: (ItemTermica & { qr: string })[], a: AjusteTer
     f.setAttribute('aria-hidden', 'true')
     // fora da tela, mas com tamanho (iframe com display:none não imprime em alguns navegadores)
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;'
+    // título vazio: se o navegador ainda puser cabeçalho, ele não mostra nada
+    f.srcdoc = htmlTermica(com, a).replace('<title>Etiqueta</title>', '<title>&#8203;</title>')
+    f.onload = () => {
+      const w = f.contentWindow
+      if (!w) return
+      w.addEventListener('afterprint', () => setTimeout(() => f.remove(), 500))
+      setTimeout(() => { w.focus(); w.print() }, 250)
+    }
     document.body.appendChild(f)
-    const doc = f.contentDocument || f.contentWindow?.document
-    if (!doc || !f.contentWindow) { f.remove(); return false }
-    doc.open()
-    doc.write(htmlTermica(com, a))
-    doc.close()
-    const tirar = () => setTimeout(() => f.remove(), 500)
-    f.contentWindow.addEventListener('afterprint', tirar)
     setTimeout(() => f.remove(), 60_000)
-    setTimeout(() => { f.contentWindow?.focus(); f.contentWindow?.print() }, 250)
     return true
   } catch {
     document.getElementById('pni-etiqueta-print')?.remove()
