@@ -32,3 +32,27 @@ describe('feed do vendedor', () => {
     expect(itens[3]).toMatchObject({ tipo: 'novos', lat: -23.4, aprox: false });
   });
 });
+
+describe('mesma pessoa na carteira', () => {
+  const base = { cidades: new Set(['fartura', 'taguai']), ehDoVendedor: () => false, parados: [], propriedades: [], centro: () => null };
+  it('junta CPF/CNPJ pelo nome e filiais pela raiz do CNPJ', () => {
+    const itens = montarReserva({
+      ...base,
+      clientes: [
+        cli('NIVEA DOROTEIA', 'Fartura', 40, 'cruzada', { chave: 'a', doc: '25295547817' }),
+        cli('NIVEA DOROTEIA', 'Fartura', 60, 'cruzada', { chave: 'b', doc: '14150057000181' }),
+        cli('DANIEL DIANAS RIBEIRO', 'Fartura', 50, 'cruzada', { chave: 'c', doc: '12788302000155' }),
+        cli('DANIEL D RIBEIRO ME', 'Taguai', 30, 'cruzada', { chave: 'd', doc: '12788302000317' }),
+      ],
+    });
+    expect(itens.map((i) => i.id)).toEqual(['c:b', 'c:c']);
+    expect(itens[1].sub).toContain('também em Taguai');
+  });
+  it('nomes diferentes que encurtam igual ficam por extenso', () => {
+    const itens = montarReserva({
+      ...base,
+      clientes: [cli('JOSE VALDIR SOUZA', 'Fartura', 40, 'cruzada', { doc: '1' }), cli('JOSE VALDIR PEREIRA', 'Fartura', 30, 'cruzada', { doc: '2' })],
+    });
+    expect(itens.map((i) => i.titulo)).toEqual(['Jose Valdir Souza', 'Jose Valdir Pereira']);
+  });
+});

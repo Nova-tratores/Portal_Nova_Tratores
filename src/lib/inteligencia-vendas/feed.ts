@@ -43,8 +43,34 @@ const nomeCurto = (s: string) => {
   while (ps.length > 1 && /^(da|de|do|das|dos|e)$/i.test(ps[ps.length - 1])) ps.pop();
   return ps.map((p) => (p.length > 2 ? p[0] + p.slice(1).toLowerCase() : p.toLowerCase())).join(' ');
 };
+/** Nome curto; se dois nomes diferentes encurtam igual, esses ficam por extenso. */
+const titulosSemColisao = (nomes: string[]) => {
+  const curtos = nomes.map(nomeCurto);
+  const vezes = new Map<string, number>();
+  curtos.forEach((c) => vezes.set(c, (vezes.get(c) || 0) + 1));
+  return curtos.map((c, i) => ((vezes.get(c) || 0) > 1 ? titulo(nomes[i].trim()) : c));
+};
 const reais = (v: number) => (v >= 1e6 ? `R$ ${(v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} mi` : v >= 1e3 ? `R$ ${Math.round(v / 1e3).toLocaleString('pt-BR')} mil` : `R$ ${Math.round(v)}`);
 const fone = (t: string) => { let d = String(t || '').replace(/\D/g, ''); if (d.startsWith('55') && d.length > 11) d = d.slice(2); return d.length >= 10 ? d : ''; };
+
+/**
+ * A mesma pessoa aparece várias vezes na base (CPF e CNPJ, filiais do mesmo CNPJ,
+ * cadastro na Nova e na Castro). Junta pelo nome completo ou pela raiz do CNPJ e
+ * fica com o cadastro de nota maior; os outros viram "outras cidades" no cartão.
+ */
+export function unirMesmaPessoa(clientes: ClienteIV[]): { cliente: ClienteIV; outras: ClienteIV[] }[] {
+  const grupoDe = new Map<string, number>();
+  const grupos: ClienteIV[][] = [];
+  for (const c of [...clientes].sort((a, b) => b.score - a.score)) {
+    const doc = String(c.doc || '').replace(/\D/g, '');
+    const chaves = [`n:${textoNorm(c.nome || '')}`, doc.length === 14 ? `r:${doc.slice(0, 8)}` : ''].filter((k) => k && k !== 'n:');
+    const achado = chaves.map((k) => grupoDe.get(k)).find((g) => g != null);
+    const g = achado ?? grupos.push([]) - 1;
+    grupos[g].push(c);
+    chaves.forEach((k) => grupoDe.set(k, g));
+  }
+  return grupos.map(([cliente, ...outras]) => ({ cliente, outras }));
+}
 
 /**
  * Reserva de um vendedor. `cidades` = nomes já normalizados (chaveNome) das cidades dele;
@@ -69,17 +95,22 @@ export function montarReserva(e: {
   const out: ItemFeed[] = [];
 
   // carteira: na área dele ou atendido por ele; os de nota maior primeiro
-  const cart = e.clientes.filter((c) => c.oportunidades.some((o) => o.regra !== 'reabordar') && (naArea(c.cidade) || (c.vendedor && e.ehDoVendedor(c.vendedor))))
-    .sort((a, b) => b.score - a.score).slice(0, lim.carteira);
-  const maxS = Math.max(1, ...cart.map((c) => c.score));
-  for (const c of cart) {
+  const cart = unirMesmaPessoa(e.clientes.filter((c) => c.oportunidades.some((o) => o.regra !== 'reabordar') && (naArea(c.cidade) || (c.vendedor && e.ehDoVendedor(c.vendedor)))))
+    .sort((a, b) => b.cliente.score - a.cliente.score).slice(0, lim.carteira);
+  const maxS = Math.max(1, ...cart.map((x) => x.cliente.score));
+  const nomes = titulosSemColisao(cart.map((x) => x.cliente.nome));
+  cart.forEach(({ cliente: c, outras }, k) => {
     const o = c.oportunidades.find((x) => x.regra !== 'reabordar') || c.oportunidades[0];
+    const cidadeC = titulo(nomeCidade(c.cidade));
+    const outrasCidades = [...new Set(outras.map((x) => titulo(nomeCidade(x.cidade))).filter((x) => x && x !== cidadeC))];
     out.push({
-      id: `c:${c.chave}`, tipo: 'carteira', titulo: nomeCurto(c.nome), sub: [titulo(nomeCidade(c.cidade)), c.ultimoTrator?.modelo].filter(Boolean).join(' · '),
+      id: `c:${c.chave}`, tipo: 'carteira', titulo: nomes[k],
+      sub: [cidadeC, c.ultimoTrator?.modelo, outrasCidades.length ? `também em ${outrasCidades.join(', ')}` : ''].filter(Boolean).join(' · '),
       cidade: titulo(nomeCidade(c.cidade)), porque: `${o.titulo}. ${o.porque}`, acao: `Ofereça ${o.oferecer.replace(/^./, (x) => x.toLowerCase())}.`,
-      selo: `nota ${c.score}`, peso: c.score / maxS, ...pos(c.cidade, c.local), propriedadeId: c.propriedades?.[0], telefone: fone(c.telefone) || undefined,
+      selo: `nota ${c.score}`, peso: c.score / maxS, ...pos(c.cidade, c.local), propriedadeId: c.propriedades?.[0],
+      telefone: fone(c.telefone) || outras.map((x) => fone(x.telefone)).find(Boolean) || undefined,
     });
-  }
+  });
 
   // recuperar: propostas/negócios parados DELE + quem perdeu proposta na área
   const par = e.parados.filter((p) => e.ehDoVendedor(p.vendedor) || (!p.vendedor && naArea(p.cidade)))
@@ -92,7 +123,7 @@ export function montarReserva(e: {
       selo: p.valor ? reais(p.valor) : 'sem valor', peso: 0.5 + 0.5 * ((p.valor || 0) / maxV) * (p.gravidade / 3), ...pos(p.cidade || '', null),
     });
   }
-  const reab = e.clientes.filter((c) => c.oportunidades.some((o) => o.regra === 'reabordar') && naArea(c.cidade)).slice(0, 10);
+  const reab = unirMesmaPessoa(e.clientes.filter((c) => c.oportunidades.some((o) => o.regra === 'reabordar') && naArea(c.cidade))).slice(0, 10).map((x) => x.cliente);
   for (const c of reab) {
     const o = c.oportunidades.find((x) => x.regra === 'reabordar')!;
     out.push({
