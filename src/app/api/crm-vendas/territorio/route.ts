@@ -48,6 +48,28 @@ async function validarTokenTerritorio(req: NextRequest): Promise<Quem> {
 
 type Feature = { type: 'Feature'; geometry: unknown; properties: Record<string, unknown> };
 
+// A lista de municípios custa 6–8 s no banco (extensão de ~35 mil polígonos) e
+// às vezes estoura o tempo: fica 6 h em memória, compartilhada entre todos, e a
+// cópia velha é usada se o banco falhar.
+const TTL_MUNICIPIOS_MS = 6 * 3600_000;
+let cacheMunicipios: { at: number; dados: unknown[] } | null = null;
+let buscandoMunicipios: Promise<unknown[]> | null = null;
+async function listaMunicipios(): Promise<unknown[]> {
+  if (cacheMunicipios && Date.now() - cacheMunicipios.at < TTL_MUNICIPIOS_MS) return cacheMunicipios.dados;
+  if (!buscandoMunicipios) {
+    buscandoMunicipios = (async () => {
+      const { data, error } = await supabaseAdmin.rpc('agro_mapa_municipios');
+      if (error) {
+        if (cacheMunicipios) return cacheMunicipios.dados;
+        throw new Error(error.message);
+      }
+      cacheMunicipios = { at: Date.now(), dados: (data || []) as unknown[] };
+      return cacheMunicipios.dados;
+    })().finally(() => { buscandoMunicipios = null; });
+  }
+  return buscandoMunicipios;
+}
+
 export async function GET(req: NextRequest) {
   const quem = await validarTokenTerritorio(req);
   if (!quem) return json(req, { error: 'Entre no app para ver o território.' }, 401);
@@ -55,10 +77,10 @@ export async function GET(req: NextRequest) {
   try {
     const municipio = req.nextUrl.searchParams.get('municipio');
     if (!municipio) {
-      const { data, error } = await supabaseAdmin.rpc('agro_mapa_municipios');
-      if (error) return json(req, { error: error.message }, 500);
-      return json(req, { municipios: data || [], niveis: NIVEIS_TERRITORIO });
+      return json(req, { municipios: await listaMunicipios(), niveis: NIVEIS_TERRITORIO });
     }
+    // aquece a lista de municípios em segundo plano (a tela pede logo depois)
+    void listaMunicipios().catch(() => {});
     const ibge = Number(municipio);
     if (!Number.isInteger(ibge)) return json(req, { error: 'município inválido' }, 400);
 
