@@ -4,6 +4,7 @@
 // =============================================
 
 import { refOSNoPedido, ehCastro } from "@/lib/pos/pedido-cliente";
+import { impostoCst60 } from "./cst60";
 import { supabaseFetch } from "./supabase";
 import { diasDoNumParcelas } from "@/lib/ppv/parcelas-condicao";
 import { resolverContaCorrente, resolverDepartamentos, type ContaDestino, type DeptoDestino } from "./conta-corrente";
@@ -1554,7 +1555,7 @@ export async function garantirCst60(acc: OmieAccount, chave: Record<string, unkn
     return {
       ide: { codigo_item_integracao: str(d.ide?.codigo_item_integracao) || undefined, codigo_item: d.ide?.codigo_item },
       produto,
-      imposto: aplicarPatchNoImpostoCru(d.imposto || {}, { icms: { cst: CST_ICMS_PECAS } }),
+      imposto: impostoCst60((d.imposto || {}) as Record<string, Record<string, unknown>>, CST_ICMS_PECAS),
     };
   });
   const cabAtual = (pedido.cabecalho || {}) as Record<string, unknown>

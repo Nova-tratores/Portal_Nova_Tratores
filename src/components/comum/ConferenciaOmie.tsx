@@ -85,7 +85,9 @@ export default function ConferenciaOmie({ alvo, cor = "#0F8B8D", onOk, onCancela
     } catch { setErro("Falha de conexão ao atualizar o Omie."); setFase("erro"); }
   };
 
-  const btn: React.CSSProperties = { padding: "11px 16px", borderRadius: 8, border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+  // estilo novo (José, 22/10/2026): cantos 12, sem negrito, altura de toque 44
+  const btn: React.CSSProperties = { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 44, padding: "0 18px", borderRadius: 12, border: "none", fontSize: 14, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" };
+  const btnSec: React.CSSProperties = { ...btn, background: "var(--surface, #fefefe)", color: "#0f172a", border: "1px solid var(--border, #e2e8f0)" };
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 100020, background: "rgba(15,23,42,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -106,13 +108,13 @@ export default function ConferenciaOmie({ alvo, cor = "#0F8B8D", onOk, onCancela
               .conf-fio { position: relative; width: 92px; height: 4px; border-radius: 4px; background: color-mix(in srgb, ${cor} 18%, transparent); overflow: hidden; }
               .conf-fio::after { content: ""; position: absolute; top: 0; left: -40%; width: 40%; height: 100%; border-radius: 4px; background: ${cor}; animation: confCorre 1.1s ease-in-out infinite; }
               .conf-fio.ok { background: #22c55e; } .conf-fio.ok::after { display: none; }
-              .conf-titulo { margin-top: 18px; text-align: center; font-size: 17px; font-weight: 800; color: var(--portal-text, #1e293b); }
+              .conf-titulo { margin-top: 18px; text-align: center; font-size: 17px; font-weight: 500; color: var(--portal-text, #0f172a); }
               .conf-sub { margin-top: 4px; text-align: center; font-size: 12.5px; color: #64748b; }
               .conf-passos { padding: 18px 28px 6px; display: flex; flex-direction: column; gap: 11px; }
               .conf-passo { display: flex; align-items: center; gap: 11px; font-size: 13.5px; color: #94a3b8; transition: color .2s; }
               .conf-passo .b { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; border: 2px solid #e2e8f0; }
               .conf-passo.feito { color: var(--portal-text, #334155); } .conf-passo.feito .b { background: #22c55e; border-color: #22c55e; color: #fefefe; }
-              .conf-passo.agora { color: var(--portal-text, #1e293b); font-weight: 700; } .conf-passo.agora .b { border-color: color-mix(in srgb, ${cor} 25%, transparent); border-top-color: ${cor}; animation: confGira .8s linear infinite; }
+              .conf-passo.agora { color: var(--portal-text, #0f172a); font-weight: 500; } .conf-passo.agora .b { border-color: color-mix(in srgb, ${cor} 25%, transparent); border-top-color: ${cor}; animation: confGira .8s linear infinite; }
               .conf-barra { margin: 14px 28px 24px; height: 6px; border-radius: 6px; background: var(--portal-bg-secondary, #eef2f6); overflow: hidden; }
               .conf-barra > div { height: 100%; border-radius: 6px; background: linear-gradient(90deg, ${cor}, color-mix(in srgb, ${cor} 60%, #22c55e)); transition: width .6s ease; }
               @keyframes confCorre { 0% { left: -40% } 100% { left: 100% } }
@@ -145,96 +147,122 @@ export default function ConferenciaOmie({ alvo, cor = "#0F8B8D", onOk, onCancela
           );
         })()
       ) : fase === "erro" ? (
-        <div style={{ background: "var(--surface, #fefefe)", borderRadius: 14, padding: 24, width: 460, maxWidth: "100%", boxShadow: "0 24px 60px rgba(0,0,0,.3)" }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: "#991b1b", marginBottom: 8 }}><i className="fas fa-triangle-exclamation" /> Não consegui conferir com o Omie</div>
-          <div style={{ fontSize: 13.5, color: "#7f1d1d", lineHeight: 1.5 }}>{erro}</div>
-          <div style={{ fontSize: 12.5, color: "#64748b", marginTop: 10 }}>Sem a conferência o faturamento não segue. Tente de novo em instantes.</div>
+        <div style={{ background: "var(--surface, #fefefe)", borderRadius: 18, padding: 22, width: 460, maxWidth: "100%", boxShadow: "0 30px 70px rgba(15,23,42,.35)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
+            <span style={{ width: 42, height: 42, borderRadius: 12, flexShrink: 0, display: "grid", placeItems: "center", fontSize: 17, color: "#dc2626", background: "#fee2e2" }}><i className="fas fa-triangle-exclamation" /></span>
+            <div style={{ fontSize: 17, fontWeight: 500, color: "#0f172a" }}>Não consegui conferir com o Omie</div>
+          </div>
+          <div style={{ fontSize: 14, color: "#7f1d1d", lineHeight: 1.5, background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 12, padding: "10px 12px" }}>{erro}</div>
+          <div style={{ fontSize: 13, color: "#475569", marginTop: 10 }}>Sem a conferência o faturamento não segue. Tente de novo em instantes.</div>
           <div style={{ display: "flex", gap: 8, marginTop: 18 }}>
             <button type="button" onClick={() => { setErro(""); setFase("conferindo"); setPasso(0); setTentativa((t) => t + 1); }} style={{ ...btn, flex: 1, background: cor, color: "#fefefe" }}>Tentar de novo</button>
-            <button type="button" onClick={onCancelar} style={{ ...btn, background: "var(--portal-bg-secondary, #f1f5f9)", color: "#334155" }}>Cancelar</button>
+            <button type="button" onClick={onCancelar} style={btnSec}>Cancelar</button>
           </div>
         </div>
       ) : (
-        <div style={{ background: "var(--surface, #fefefe)", borderRadius: 14, width: 860, maxWidth: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 60px rgba(0,0,0,.3)", overflow: "hidden" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "16px 20px", borderBottom: "1px solid var(--border, #eef0f3)", background: "#fffbeb" }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: "#fef3c7", color: "#b45309", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}><i className="fas fa-code-compare" /></div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 16.5, fontWeight: 800, color: "#78350f" }}>{comErro.length && !comDiv.length ? "Não deu para conferir tudo" : "O Omie está diferente do portal"}</div>
-              <div style={{ fontSize: 12.5, color: "#92400e" }}>Antes de faturar, o Omie precisa estar igual ao que está no portal.</div>
+        <div className="cfo" style={{ background: "var(--surface, #fefefe)", borderRadius: 18, width: 860, maxWidth: "100%", maxHeight: "90vh", display: "flex", flexDirection: "column", boxShadow: "0 30px 70px rgba(15,23,42,.35)", overflow: "hidden" }}>
+          <style>{`
+            .cfo { color: #0f172a; }
+            .cfo-cab { display: flex; align-items: center; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--border, #e2e8f0); }
+            .cfo-ic { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; display: grid; place-items: center; font-size: 18px; }
+            .cfo-cab b { display: block; font-size: 18px; font-weight: 500; }
+            .cfo-cab small { display: block; font-size: 13.5px; color: #475569; margin-top: 2px; }
+            .cfo-corpo { padding: 16px 22px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #f8fafc; }
+            .cfo-aviso { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; line-height: 1.5; color: #9a3412; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 12px; padding: 10px 12px; }
+            .cfo-doc { background: var(--surface, #fefefe); border: 1px solid var(--border, #e2e8f0); border-radius: 14px; overflow: hidden; }
+            .cfo-doc-cab { display: flex; align-items: center; gap: 10px; padding: 12px 14px; }
+            .cfo-doc-ic { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: grid; place-items: center; font-size: 14px; color: #0369a1; background: #e0f2fe; }
+            .cfo-doc-cab b { font-size: 15px; font-weight: 500; }
+            .cfo-doc-cab small { font-size: 12.5px; color: #64748b; margin-left: 6px; }
+            .cfo-pilula { margin-left: auto; display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; padding: 4px 11px; border-radius: 999px; white-space: nowrap; }
+            .cfo-pilula i.p { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+            .cfo-erro { margin: 0 14px 12px; display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; line-height: 1.5; color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; border-radius: 10px; padding: 9px 11px; }
+            .cfo-dif { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 12px 14px; border-top: 1px solid #f1f5f9; align-items: start; }
+            .cfo-dif-o b { display: block; font-size: 14px; font-weight: 500; }
+            .cfo-dif-o p { margin: 4px 0 0; font-size: 12.5px; line-height: 1.45; color: #64748b; }
+            .cfo-val small { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #64748b; margin-bottom: 4px; }
+            .cfo-val small i { width: 7px; height: 7px; border-radius: 50%; }
+            .cfo-val div { font-size: 14px; line-height: 1.45; padding: 8px 10px; border-radius: 10px; word-break: break-word; }
+            .cfo-rod { display: flex; gap: 8px; padding: 14px 22px; border-top: 1px solid var(--border, #e2e8f0); align-items: center; flex-wrap: wrap; }
+            .cfo-rod > span { flex: 1; min-width: 200px; font-size: 13.5px; color: #475569; }
+            @media (max-width: 640px) { .cfo-dif { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .cfo-dif-o { grid-column: 1 / -1; } }
+          `}</style>
+          <div className="cfo-cab">
+            <span className="cfo-ic" style={{ color: comErro.length && !comDiv.length ? "#dc2626" : "#d97706", background: comErro.length && !comDiv.length ? "#fee2e2" : "#fef3c7" }}><i className="fas fa-code-compare" /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <b>{comErro.length && !comDiv.length ? "Não deu para conferir tudo" : "O Omie está diferente do portal"}</b>
+              <small>Antes de faturar, o Omie precisa estar igual ao que está no portal.</small>
             </div>
           </div>
-          <div style={{ padding: "14px 20px", overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
-            {aviso && <div style={{ fontSize: 13, color: "#9a3412", background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8, padding: "8px 12px" }}>{aviso}</div>}
-            {docs.map((d) => (
-              <div key={d.doc} style={{ border: "1px solid var(--border, #e2e8f0)", borderRadius: 10, overflow: "hidden" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: "var(--portal-bg-secondary, #f8fafc)", fontSize: 13.5, fontWeight: 800 }}>
-                  <span>{d.tipo} {d.doc}</span>
-                  {d.numeroOmie && <span style={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>· Omie nº {d.numeroOmie}</span>}
-                  <span style={{ flex: 1 }} />
-                  {d.erro ? <span style={{ fontSize: 11.5, fontWeight: 800, color: "#b91c1c" }}><i className="fas fa-circle-xmark" /> não conferido</span>
-                    : d.pulado ? <span style={{ fontSize: 11.5, fontWeight: 700, color: "#64748b" }}>{d.pulado}</span>
-                      : d.divergencias.length ? <span style={{ fontSize: 11.5, fontWeight: 800, color: "#b45309" }}>{d.divergencias.length} diferença{d.divergencias.length > 1 ? "s" : ""}</span>
-                        : <span style={{ fontSize: 11.5, fontWeight: 800, color: "#15803d" }}><i className="fas fa-check" /> igual</span>}
+          <div className="cfo-corpo">
+            {aviso && <div className="cfo-aviso"><i className="fas fa-circle-info" style={{ marginTop: 3 }} /><span>{aviso}</span></div>}
+            {docs.map((d) => {
+              const pil = d.erro ? { t: "não conferido", c: "#b91c1c", bg: "#fee2e2" }
+                : d.pulado ? { t: d.pulado, c: "#475569", bg: "#f1f5f9" }
+                  : d.divergencias.length ? { t: `${d.divergencias.length} diferença${d.divergencias.length > 1 ? "s" : ""}`, c: "#b45309", bg: "#fef3c7" }
+                    : { t: "igual", c: "#15803d", bg: "#dcfce7" };
+              return (
+                <div key={d.doc} className="cfo-doc">
+                  <div className="cfo-doc-cab">
+                    <span className="cfo-doc-ic"><i className={`fas ${/pedido/i.test(String(d.tipo)) ? "fa-boxes-stacked" : "fa-screwdriver-wrench"}`} /></span>
+                    <div style={{ minWidth: 0 }}><b>{d.tipo} {d.doc}</b>{d.numeroOmie && <small>Omie nº {d.numeroOmie}</small>}</div>
+                    <span className="cfo-pilula" style={{ color: pil.c, background: pil.bg }}><i className="p" />{pil.t}</span>
+                  </div>
+                  {d.erro && <div className="cfo-erro"><i className="fas fa-circle-xmark" style={{ marginTop: 3 }} /><span>{d.erro}</span></div>}
+                  {d.divergencias.map((x) => (
+                    <div key={x.campo} className="cfo-dif">
+                      <div className="cfo-dif-o">
+                        <b>{x.rotulo}{!x.ajustavel && <span style={{ marginLeft: 6, fontSize: 12, color: "#b91c1c" }}>(corrigir à mão)</span>}</b>
+                        {x.explicacao && <p>{x.explicacao}</p>}
+                      </div>
+                      <div className="cfo-val">
+                        <small><i style={{ background: "#16a34a" }} />No portal</small>
+                        <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#14532d" }}>{x.portal}</div>
+                      </div>
+                      <div className="cfo-val">
+                        <small><i style={{ background: "#d97706" }} />No Omie</small>
+                        <div style={{ background: "#fffbeb", border: "1px solid #fde68a", color: "#78350f" }}>{x.omie}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-                {d.erro && <div style={{ padding: "8px 12px", fontSize: 12.5, color: "#991b1b" }}>{d.erro}</div>}
-                {d.divergencias.length > 0 && (
-                  <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12.5 }}>
-                    <thead>
-                      <tr style={{ textAlign: "left", color: "#64748b", fontSize: 11, textTransform: "uppercase", letterSpacing: .4 }}>
-                        <th style={{ padding: "6px 12px", width: "34%" }}>O quê</th><th style={{ padding: "6px 12px" }}>No portal</th><th style={{ padding: "6px 12px" }}>No Omie</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {d.divergencias.map((x) => (
-                        <tr key={x.campo} style={{ borderTop: "1px solid var(--border, #f1f5f9)" }}>
-                          <td style={{ padding: "9px 12px", verticalAlign: "top" }}>
-                            <div style={{ fontWeight: 700 }}>{x.rotulo}{!x.ajustavel && <span style={{ marginLeft: 6, fontSize: 10.5, color: "#b91c1c" }}>(corrigir à mão)</span>}</div>
-                            {x.explicacao && <div style={{ fontSize: 11.5, color: "#64748b", marginTop: 3, lineHeight: 1.45 }}>{x.explicacao}</div>}
-                          </td>
-                          <td style={{ padding: "9px 12px", verticalAlign: "top" }}><div style={{ padding: "6px 9px", borderRadius: 7, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontWeight: 600, lineHeight: 1.45, wordBreak: "break-word" }}>{x.portal}</div></td>
-                          <td style={{ padding: "9px 12px", verticalAlign: "top" }}><div style={{ padding: "6px 9px", borderRadius: 7, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", lineHeight: 1.45, wordBreak: "break-word" }}>{x.omie}</div></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
-          <div style={{ display: "flex", gap: 8, padding: "14px 20px", borderTop: "1px solid var(--border, #eef0f3)", alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ flex: 1, minWidth: 200, fontSize: 12.5, color: "#64748b" }}>
+          <div className="cfo-rod">
+            <span>
               {comErro.length ? "Algum documento não pôde ser conferido — tente de novo antes de faturar." : naoAjustaveis.length ? "Há diferenças que precisam ser corrigidas à mão." : "Quer deixar o Omie igual ao portal?"}
-            </div>
-            {comErro.length > 0 && <button type="button" onClick={() => { setFase("conferindo"); setPasso(0); setAviso(""); setTentativa((t) => t + 1); }} style={{ ...btn, background: "var(--portal-bg-secondary, #f1f5f9)", color: "#334155" }}><i className="fas fa-rotate" /> Conferir de novo</button>}
+            </span>
+            {comErro.length > 0 && <button type="button" onClick={() => { setFase("conferindo"); setPasso(0); setAviso(""); setTentativa((t) => t + 1); }} style={btnSec}><i className="fas fa-rotate" style={{ color: "#0369a1" }} /> Conferir de novo</button>}
             {comDiv.length > 0 && !naoAjustaveis.length && (
-              <button type="button" onClick={atualizar} style={{ ...btn, background: cor, color: "#fefefe", boxShadow: `0 4px 12px color-mix(in srgb, ${cor} 35%, transparent)` }}>
+              <button type="button" onClick={atualizar} style={{ ...btn, background: cor, color: "#fefefe", boxShadow: `0 6px 16px -8px color-mix(in srgb, ${cor} 70%, transparent)` }}>
                 <i className="fas fa-arrows-rotate" /> Sim, atualizar o Omie igual ao portal
               </button>
             )}
             {(comDiv.length > 0 || comErro.length > 0) && (
               <button type="button" onClick={() => setConfirmarCom(true)} title="Faturar sem deixar o Omie igual ao portal"
-                style={{ ...btn, background: "transparent", color: "#b45309", border: "1px solid #fcd34d" }}>
+                style={{ ...btn, background: "var(--surface, #fefefe)", color: "#b45309", border: "1px solid #fcd34d" }}>
                 Faturar com as diferenças
               </button>
             )}
-            <button type="button" onClick={onCancelar} style={{ ...btn, background: "var(--portal-bg-secondary, #f1f5f9)", color: "#334155" }}>Cancelar</button>
+            <button type="button" onClick={onCancelar} style={btnSec}>Cancelar</button>
           </div>
           {confirmarCom && (
             <div onClick={() => setConfirmarCom(false)} style={{ position: "fixed", inset: 0, zIndex: 100030, background: "rgba(15,23,42,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-              <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--surface, #fefefe)", borderRadius: 14, width: 470, maxWidth: "100%", padding: 22, boxShadow: "0 24px 60px rgba(0,0,0,.35)" }}>
+              <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--surface, #fefefe)", borderRadius: 18, width: 470, maxWidth: "100%", padding: 22, boxShadow: "0 30px 70px rgba(15,23,42,.35)" }}>
                 <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
                   <span style={{ width: 42, height: 42, borderRadius: 11, flexShrink: 0, background: "#fef3c7", color: "#b45309", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}><i className="fas fa-triangle-exclamation" /></span>
                   <div>
-                    <div style={{ fontSize: 16, fontWeight: 800, color: "var(--portal-text, #1e293b)" }}>Faturar com as diferenças?</div>
+                    <div style={{ fontSize: 17, fontWeight: 500, color: "#0f172a" }}>Faturar com as diferenças?</div>
                     <div style={{ fontSize: 13, color: "#475569", marginTop: 6, lineHeight: 1.55 }}>
-                      A nota vai sair com o que está <b>no Omie</b>, não com o que está no portal.
+                      A nota vai sair com o que está <b style={{ fontWeight: 500, color: "#0f172a" }}>no Omie</b>, não com o que está no portal.
                       {comDiv.length > 0 && <> Ficam {comDiv.reduce((t, d) => t + d.divergencias.length, 0)} diferença(s) sem corrigir em {comDiv.map((d) => d.doc).join(", ")}.</>}
                       {comErro.length > 0 && <> {comErro.map((d) => d.doc).join(", ")} não foi conferido.</>}
                     </div>
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 20, justifyContent: "flex-end" }}>
-                  <button type="button" onClick={() => setConfirmarCom(false)} style={{ ...btn, background: "var(--portal-bg-secondary, #f1f5f9)", color: "#334155" }}>Voltar</button>
+                  <button type="button" onClick={() => setConfirmarCom(false)} style={btnSec}>Voltar</button>
                   <button type="button" onClick={() => { setConfirmarCom(false); onOk(); }} style={{ ...btn, background: "#b45309", color: "#fefefe" }}>Sim, faturar assim mesmo</button>
                 </div>
               </div>
