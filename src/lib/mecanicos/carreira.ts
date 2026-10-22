@@ -1,10 +1,11 @@
-// Carreira do mecânico (José, 17/10/2026): divisões estilo jogo, de Ferro a Diamante.
+// Carreira do mecânico: divisões estilo jogo, de Ferro a Diamante.
 //   Ferro 5 → Ferro 1 → Bronze 5 → … → Ouro 1 → Diamante  (21 degraus: nível 0 a 20)
-// Regras escolhidas pelo José:
-//   - cada MÊS LIMPO (nenhuma ocorrência valendo) sobe 1 degrau;
-//   - mês com ocorrência DESCONTA pela gravidade e pode derrubar: cai 1 degrau a cada 10 pontos
-//     descontados (arredondando para cima); RETORNO DE SERVIÇO pesa o dobro;
-//   - o mês em andamento não conta ainda: a tela mostra o que acontece se fechar assim.
+// Regra por PONTOS (José, 22/10/2026 — antes era +1 degrau por mês limpo):
+//   - cada OS fechada SEM problema (sem ocorrência valendo e sem pendência) dá 5 pontos a cada
+//     técnico da OS;
+//   - cada ocorrência que vale DESCONTA os pontos dela; RETORNO DE SERVIÇO pesa o dobro;
+//   - o saldo nunca fica abaixo de zero; cada 100 pontos de saldo = 1 degrau;
+//   - "nível" = saldo até o fim do mês passado; "se fechar assim" = contando o mês em andamento.
 // Puro (sem banco) — testado em __tests__/carreira.test.ts.
 
 export const DIVISOES = [
@@ -15,7 +16,10 @@ export const DIVISOES = [
 ] as const
 export const DIAMANTE = { nome: 'Diamante', cor: '#0891b2', fundo: 'linear-gradient(135deg, #cffafe, #22d3ee 45%, #a78bfa)' }
 export const NIVEL_MAX = DIVISOES.length * 5 // 20 = Diamante
-export const PONTOS_POR_QUEDA = 10
+/** pontos que cada OS fechada sem problema dá ao técnico (escolha do José, 22/10/2026) */
+export const PONTOS_POR_OS = 5
+/** saldo de pontos para subir 1 degrau */
+export const PONTOS_POR_DEGRAU = 100
 export const PESO_RETORNO = 2
 
 export interface Patente { nivel: number; divisao: string; sub: number | null; nome: string; cor: string; fundo: string }
@@ -35,28 +39,49 @@ export function pesoOcorrencia(o: { pontos: number; vale: boolean; subcategoria?
   return o.subcategoria === 'retorno_servico' ? o.pontos * PESO_RETORNO : o.pontos
 }
 
-/** Quanto o mês move a carreira: +1 se limpo; senão −ceil(pontos/10). */
-export function movimentoDoMes(pontos: number): number {
-  return pontos <= 0 ? 1 : -Math.ceil(pontos / PONTOS_POR_QUEDA)
+/** Degrau do saldo de pontos: 100 pontos = 1 degrau, até o Diamante. */
+export function nivelDoSaldo(saldo: number): number {
+  return Math.max(0, Math.min(NIVEL_MAX, Math.floor(Math.max(0, saldo) / PONTOS_POR_DEGRAU)))
 }
 
-export interface MesCarreira { mes: string; pontos: number; qtd: number; antes: number; depois: number; movimento: number }
+/** O que entra de cada mês: pontos já pesados das ocorrências que valem, quantas foram, e as OS limpas. */
+export interface MesEntrada { pontos: number; qtd: number; osLimpas?: number }
+
+export interface MesCarreira {
+  mes: string
+  /** pontos descontados (já pesados) */
+  pontos: number
+  qtd: number
+  /** OS fechadas sem problema no mês e os pontos que deram */
+  osLimpas: number
+  ganhos: number
+  saldoAntes: number
+  saldo: number
+  antes: number
+  depois: number
+  movimento: number
+}
+
+/** Um mês aplicado sobre o saldo (nunca abaixo de zero). */
+function aplicar(mes: string, saldo: number, x: MesEntrada): MesCarreira {
+  const osLimpas = x.osLimpas || 0, ganhos = osLimpas * PONTOS_POR_OS
+  const novo = Math.max(0, saldo + ganhos - x.pontos)
+  const antes = nivelDoSaldo(saldo), depois = nivelDoSaldo(novo)
+  return { mes, pontos: x.pontos, qtd: x.qtd, osLimpas, ganhos, saldoAntes: saldo, saldo: novo, antes, depois, movimento: depois - antes }
+}
 
 /**
- * Caminho mês a mês, a partir de `inicio` (YYYY-MM) até o mês ANTERIOR a `mesAtual`, começando em
- * Ferro 5. `porMes` = pontos (já pesados) e quantidade de ocorrências de cada mês.
+ * Caminho mês a mês, de `inicio` (YYYY-MM) até o mês ANTERIOR a `mesAtual`, começando com saldo 0 (Ferro 5).
  */
-export function caminho(inicio: string, mesAtual: string, porMes: Record<string, { pontos: number; qtd: number }>): { meses: MesCarreira[]; nivel: number } {
+export function caminho(inicio: string, mesAtual: string, porMes: Record<string, MesEntrada>): { meses: MesCarreira[]; nivel: number; saldo: number } {
   const meses: MesCarreira[] = []
-  let nivel = 0
+  let saldo = 0
   for (let m = inicio; m < mesAtual; m = proximoMes(m)) {
-    const x = porMes[m] || { pontos: 0, qtd: 0 }
-    const mov = movimentoDoMes(x.pontos)
-    const depois = Math.max(0, Math.min(NIVEL_MAX, nivel + mov))
-    meses.push({ mes: m, pontos: x.pontos, qtd: x.qtd, antes: nivel, depois, movimento: depois - nivel })
-    nivel = depois
+    const r = aplicar(m, saldo, porMes[m] || { pontos: 0, qtd: 0 })
+    meses.push(r)
+    saldo = r.saldo
   }
-  return { meses, nivel }
+  return { meses, nivel: nivelDoSaldo(saldo), saldo }
 }
 
 export function proximoMes(m: string): string {
@@ -68,22 +93,63 @@ export function proximoMes(m: string): string {
 export interface CarreiraTecnico {
   tecnico: string
   inicio: string
+  /** degrau com os meses fechados */
   nivel: number
-  /** se o mês atual fechar como está: nível que fica */
+  /** saldo de pontos até o fim do mês passado */
+  saldo: number
+  /** se o mês atual fechar como está: degrau e saldo */
   seFecharAssim: number
-  mesAtual: { pontos: number; qtd: number }
-  /** sequência de meses limpos seguidos até o mês passado */
+  saldoAgora: number
+  /** mês em andamento: descontos (já pesados), quantidade de ocorrências, OS limpas e pontos ganhos */
+  mesAtual: { pontos: number; qtd: number; osLimpas: number; ganhos: number }
+  /** OS limpas na carreira toda (com o mês atual) */
+  osLimpasTotal: number
+  /** meses seguidos sem ocorrência até o mês passado */
   sequencia: number
+  /** quanto falta de saldo para o próximo degrau (0 no Diamante) */
+  faltaProximo: number
   historico: MesCarreira[]
 }
 
-export function carreiraDe(tecnico: string, inicio: string, mesAtual: string, porMes: Record<string, { pontos: number; qtd: number }>): CarreiraTecnico {
+export function carreiraDe(tecnico: string, inicio: string, mesAtual: string, porMes: Record<string, MesEntrada>): CarreiraTecnico {
   const c = caminho(inicio, mesAtual, porMes)
-  const atual = porMes[mesAtual] || { pontos: 0, qtd: 0 }
+  const x = porMes[mesAtual] || { pontos: 0, qtd: 0 }
+  const agora = aplicar(mesAtual, c.saldo, x)
   let seq = 0
-  for (let i = c.meses.length - 1; i >= 0 && c.meses[i].pontos <= 0; i--) seq++
+  for (let i = c.meses.length - 1; i >= 0 && c.meses[i].qtd <= 0; i--) seq++
+  const nAgora = nivelDoSaldo(agora.saldo)
   return {
-    tecnico, inicio, nivel: c.nivel, mesAtual: atual, sequencia: seq, historico: c.meses,
-    seFecharAssim: Math.max(0, Math.min(NIVEL_MAX, c.nivel + movimentoDoMes(atual.pontos))),
+    tecnico, inicio, nivel: c.nivel, saldo: c.saldo, seFecharAssim: nAgora, saldoAgora: agora.saldo,
+    mesAtual: { pontos: x.pontos, qtd: x.qtd, osLimpas: agora.osLimpas, ganhos: agora.ganhos },
+    osLimpasTotal: c.meses.reduce((s2, m) => s2 + m.osLimpas, 0) + agora.osLimpas,
+    sequencia: seq, historico: c.meses,
+    faltaProximo: nAgora >= NIVEL_MAX ? 0 : (nAgora + 1) * PONTOS_POR_DEGRAU - agora.saldo,
   }
+}
+
+/** Chave da OS para casar portal × Omie × ocorrência: sem "OS-", sem "OMIE", sem zeros à esquerda. */
+export function chaveOS(v: unknown): string {
+  return String(v ?? '').trim().replace(/^OS-?/i, '').replace(/^OMIE\s*/i, '').replace(/^0+(?=\d)/, '')
+}
+
+/**
+ * OS limpas por técnico e mês (mês = data em que a OS fechou/faturou). Uma OS é "com problema" quando o nº
+ * do portal OU o do Omie está em `comProblema` (ocorrência valendo ou pendência). Cada técnico da OS conta 1.
+ */
+export function contarOSLimpas(
+  os: { os: string; numeroOmie: string | null; data: string; tecnicos: string[] }[],
+  comProblema: Set<string>,
+): Record<string, Record<string, number>> {
+  const r: Record<string, Record<string, number>> = {}
+  const vistas = new Set<string>()
+  for (const o of os) {
+    const ks = [chaveOS(o.os), chaveOS(o.numeroOmie)].filter(Boolean)
+    const id = ks[0] || ''
+    if (!id || vistas.has(id)) continue
+    vistas.add(id)
+    if (ks.some((k) => comProblema.has(k))) continue
+    const mes = o.data.slice(0, 7)
+    for (const t of new Set(o.tecnicos)) { const m = (r[t] ||= {}); m[mes] = (m[mes] || 0) + 1 }
+  }
+  return r
 }

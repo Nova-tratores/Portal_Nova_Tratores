@@ -12,6 +12,7 @@ import { STATUS_COR, STATUS_LABEL } from "@/lib/garantias/constants";
 import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import { normName } from "@/lib/tecnico-utils";
 import type { GarantiaStatus } from "@/lib/garantias/types";
+import { corConcluida, rotuloMotivo } from "@/lib/pos/resservico";
 import { CapaTitulo, CapaFaseValor, CapaLinha, CapaData, CapaTexto, CapaReservar, CapaRodape, CapaBotao } from "@/components/comum/CapaCard";
 
 interface PhaseViewProps {
@@ -523,10 +524,17 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
   );
 
   return (
-    <div className="mini-card" style={{ ["--cor-tipo" as string]: COR_TIPO[tipoDaOS(o, garantia)], position: "relative", overflow: "visible", borderTop: `3px solid ${COR_TIPO[tipoDaOS(o, garantia)]}`, display: "flex", flexDirection: "column", gap: 8, borderRadius: 12, padding: "10px 12px" }} onClick={onClick}
+    <div className={`mini-card${corConcluida(o) ? ` mc-${corConcluida(o)}` : ""}`} style={{ ["--cor-tipo" as string]: COR_TIPO[tipoDaOS(o, garantia)], position: "relative", overflow: "visible", borderTop: `3px solid ${COR_TIPO[tipoDaOS(o, garantia)]}`, display: "flex", flexDirection: "column", gap: 8, borderRadius: 12, padding: "10px 12px" }} onClick={onClick}
       onMouseEnter={(e) => onDescEnter?.(e.currentTarget.getBoundingClientRect(), o.servSolicitado || "")}
       onMouseLeave={() => onDescLeave?.()}>
       <CapaTitulo numero={numero} cliente={o.cliente} />
+      {/* resserviço: o técnico teve de voltar para refazer (José, 22/10/2026) */}
+      {o.resservico && (
+        <div className="mc-resserv" title={`${rotuloMotivo(o.resservico.motivo)}: ${o.resservico.erro}`}>
+          <i className="fas fa-rotate-left" />
+          <span><b>Resserviço</b> · {o.resservico.os}<small>{o.resservico.erro}</small></span>
+        </div>
+      )}
       {(o.servicoInterno || o.projetoCronograma) && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {o.servicoInterno && (
@@ -774,6 +782,15 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
       </div>
       <style>{`
         /* Abas em linha com sublinhado (José, 13/10/2026: as de cartão estavam feias) */
+        /* Concluída: verde = concluída normal, vermelha = teve resserviço (José, 22/10/2026) */
+        .mini-card.mc-ok { border-color: #86efac !important; background: color-mix(in srgb, #16a34a 5%, var(--surface, #fefefe)) !important; }
+        .mini-card.mc-resservico { border-color: #fca5a5 !important; background: color-mix(in srgb, #dc2626 6%, var(--surface, #fefefe)) !important; box-shadow: 0 0 0 1px #fca5a5 inset !important; }
+        body.pos-vn .mini-card.mc-ok { --cor-tipo: #16a34a; }
+        body.pos-vn .mini-card.mc-resservico { --cor-tipo: #dc2626; }
+        .mc-resserv { display: flex; align-items: flex-start; gap: 9px; padding: 7px 10px; border-radius: 10px; background: #fee2e2; color: #991b1b; font-size: 12.5px; line-height: 1.35; }
+        .mc-resserv > i { margin-top: 2px; }
+        .mc-resserv span { display: grid; min-width: 0; }
+        .mc-resserv small { font-size: 12px; color: #b91c1c; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .pos-abas-faixa { display: flex; align-items: flex-end; gap: 12px; padding: 12px 16px 0; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin: 0 16px; padding-left: 0; padding-right: 0; }
         .pos-abas-tipo { display: flex; align-items: flex-end; gap: 4px; min-width: 0; }
         .pos-abas-acoes { margin-left: auto; padding-bottom: 8px; }

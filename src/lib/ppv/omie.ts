@@ -949,6 +949,9 @@ const semZerosNum = (n: unknown) => String(n ?? "").trim().replace(/^0+(?=\d)/, 
 export async function resolverContaDoPedido(
   idPPV: string,
   empresaSalva?: string | null,
+  /** começar pelo nº do pedido: a prévia/conferência acabou de ler pelo código "PV-…" e a mesma consulta em
+   *  seguida leva "consumo redundante" (item 3 de docs/omie-otimizacao-pos-ppv.md) */
+  opts: { porNumero?: boolean } = {},
 ): Promise<{ acc: OmieAccount; pedido: OmiePedidoConsulta } | null> {
   const codInt = codIntPV(idPPV);
   const cab = await lerCabecalhoPPV(idPPV).catch(() => null);
@@ -957,6 +960,10 @@ export async function resolverContaDoPedido(
     ? [getAccount(empresaSalva), ...OMIE_ACCOUNTS.filter((a) => a.name.toLowerCase() !== String(empresaSalva).toLowerCase())]
     : OMIE_ACCOUNTS;
   for (const acc of contas) {
+    if (opts.porNumero && numero) {
+      const primeiro = await consultarPedidoOmie({ numero_pedido: numero }, acc);
+      if (primeiro) return { acc, pedido: primeiro };
+    }
     const pedido = await consultarPedidoOmie(codInt, acc);
     if (pedido && (!numero || semZerosNum(pedido.cabecalho?.numero_pedido) === numero)) return { acc, pedido };
     if (numero) {
@@ -1055,7 +1062,7 @@ async function faturarPPVNoOmieSemPausa(
   if (String(cab.Tipo_Pedido || "Pedido") === "Remessa") return { sucesso: false, erro: "Remessa não é faturada." };
   if (cab.faturado_omie_em) return { sucesso: false, jaFaturado: true, erro: "Este pedido já foi faturado." };
 
-  const achado = await resolverContaDoPedido(idPPV, cab.omie_empresa as string | null);
+  const achado = await resolverContaDoPedido(idPPV, cab.omie_empresa as string | null, { porNumero: true });
   if (!achado) return { sucesso: false, erro: "Pedido não encontrado no Omie (ConsultarPedido)." };
   const { acc, pedido } = achado;
   const codInt = String(pedido.cabecalho?.codigo_pedido_integracao || "");
@@ -1084,7 +1091,7 @@ async function faturarPPVNoOmieSemPausa(
 
   try {
     // 0) peças no CST 60 com consumo final (o Omie troca para 51 sozinho)
-    const cst = await garantirCst60(acc, chavePedido);
+    const cst = await garantirCst60(acc, chavePedido, undefined, pedido);
     if (cst.erro) return { sucesso: false, empresa: acc.name, erro: `Não consegui deixar as peças no CST 60 antes de faturar: ${cst.erro}` };
 
     // 1) Troca a categoria (regra fiscal) se veio uma diferente da atual.
@@ -1111,10 +1118,20 @@ async function faturarPPVNoOmieSemPausa(
       );
       console.log(`[Omie PPV faturar] ${idPPV}: FaturarPedidoVenda ->`, JSON.stringify(resp).slice(0, 250));
     } catch (e) {
-      // Erro do faturador (fiscal, etc.) — devolve a mensagem crua do Omie.
       const msg = e instanceof Error ? e.message : String(e);
       console.error(`[Omie PPV faturar] ${idPPV}: FaturarPedidoVenda FALHOU: ${msg}`);
-      return { sucesso: false, empresa: acc.name, erro: `O Omie recusou o faturamento: ${msg}` };
+      // SEM RESPOSTA não é recusa (item 9 do doc da otimização): a NF-e PODE ter saído. Espera, confere a etapa
+      // no Omie (por outra chave) e só diz "recusou" quando o Omie recusou de verdade.
+      if (/sem resposta|incert|AbortError|timeout/i.test(`${e instanceof Error ? e.name : ""} ${msg}`)) {
+        await new Promise((ok) => setTimeout(ok, 10_000));
+        const depois = await consultarPedidoOmie({ codigo_pedido: nCodPed }, acc).catch(() => null);
+        if (!depois || Number(depois.cabecalho?.etapa || 0) < Number(OMIE_ETAPA_FATURADO)) {
+          return { sucesso: false, pendente: true, empresa: acc.name, erro: "O Omie não respondeu ao faturar e ainda não dá para saber se a NF-e saiu. NÃO fature de novo agora: confira em alguns minutos (o portal confere sozinho e avisa)." };
+        }
+        // foi para a etapa de faturamento: segue como faturado (a NF-e vem da SEFAZ)
+      } else {
+        return { sucesso: false, empresa: acc.name, erro: `O Omie recusou o faturamento: ${msg}` };
+      }
     }
 
     // 3) FaturarPedidoVenda foi ACEITO → o Omie está emitindo. Marca "Concluída"
@@ -1540,8 +1557,9 @@ export const CST_ICMS_PECAS = "60";
  */
 /** `parcelas`: o plano que tem que ficar no pedido (José, 21/10/2026: "coloco 30/60/90 e no Omie fica 30 dias") — esta
  *  2ª alteração ia SEM parcelas e o Omie voltava à condição padrão. Sem `parcelas`, reenvia as que o pedido já tem. */
-export async function garantirCst60(acc: OmieAccount, chave: Record<string, unknown>, parcelas?: { codigo_parcela: string; qtde_parcelas: number; lista_parcelas?: unknown }): Promise<{ trocados: number; erro?: string; pedido?: OmiePedidoConsulta }> {
-  const pedido = await consultarPedidoOmie(chave, acc);
+export async function garantirCst60(acc: OmieAccount, chave: Record<string, unknown>, parcelas?: { codigo_parcela: string; qtde_parcelas: number; lista_parcelas?: unknown }, jaLido?: OmiePedidoConsulta | null): Promise<{ trocados: number; erro?: string; pedido?: OmiePedidoConsulta }> {
+  // `jaLido`: o pedido que o faturar acabou de ler — não consulta de novo (item 4 do doc da otimização)
+  const pedido = jaLido || await consultarPedidoOmie(chave, acc);
   if (!pedido) return { trocados: 0, erro: "pedido não encontrado no Omie" };
   const det = pedido.det || [];
   const errados = det.filter((d) => String(d.imposto?.icms?.cod_sit_trib_icms ?? "") !== CST_ICMS_PECAS);
@@ -1584,7 +1602,8 @@ export async function garantirCst60(acc: OmieAccount, chave: Record<string, unkn
   // (PPV-0494, 16/10/2026 — ficou 51 e ninguém foi avisado)
   // relê por OUTRA chave (nº do pedido): a mesma consulta de segundos antes leva "Consumo redundante"
   const numPed = (pedido.cabecalho as { numero_pedido?: unknown } | undefined)?.numero_pedido
-  const reler = () => consultarPedidoOmie(numPed ? { numero_pedido: numPed } : chave, acc).catch(() => null);
+  const codPed = (pedido.cabecalho as { codigo_pedido?: unknown } | undefined)?.codigo_pedido
+  const reler = () => consultarPedidoOmie(jaLido && codPed ? { codigo_pedido: codPed } : numPed ? { numero_pedido: numPed } : chave, acc).catch(() => null);
   const errados2 = (p: OmiePedidoConsulta | null) => (p?.det || []).filter((d) => String(d.imposto?.icms?.cod_sit_trib_icms ?? "") !== CST_ICMS_PECAS);
   let depois = await reler();
   if (incerto && depois && errados2(depois).length) {
@@ -1593,7 +1612,7 @@ export async function garantirCst60(acc: OmieAccount, chave: Record<string, unkn
       await new Promise((ok) => setTimeout(ok, 10_000));
     }
     // relê pela outra chave (a de cima acabou de ser usada)
-    depois = await consultarPedidoOmie(pedido.cabecalho?.codigo_pedido ? { codigo_pedido: pedido.cabecalho.codigo_pedido } : chave, acc).catch(() => null);
+    depois = await consultarPedidoOmie(jaLido && numPed ? { numero_pedido: numPed } : codPed ? { codigo_pedido: codPed } : chave, acc).catch(() => null);
   }
   if (!depois) return { trocados: 0, erro: incerto ? "o Omie demorou a responder a troca do CST e não deu para conferir — clique em \"Conferir de novo\" em 1 minuto" : "não deu para conferir o CST no Omie depois da troca" };
   const aindaErrados = errados2(depois);
@@ -1742,5 +1761,31 @@ export async function alterarItemFiscalPPV(
 
 // Faturar / atualizar o Omie com os robôs do Omie PARADOS (José, 21/10/2026: "se precisar, para tudo para
 // realizar o faturamento") — ver comRobosPausados em src/lib/omie/porta.ts.
-export const faturarPPVNoOmie: typeof faturarPPVNoOmieSemPausa = (...a) => comRobosPausados('faturar PPV', () => faturarPPVNoOmieSemPausa(...a));
+/**
+ * Trava: só um faturamento por pedido por vez (pedidos.faturando_desde, lease de 10 min — sql/ppv-faturando-desde.sql).
+ * O faturar é chamado pela rota, pelo faturamento da OS, por "refaturar peças" e pela reconciliação; sem a trava
+ * duas execuções juntas passavam (item 9 do doc da otimização). Sem a coluna, fatura sem trava, como antes.
+ */
+async function comTravaPPV<T extends { sucesso: boolean; erro?: string }>(idPPV: string, fn: () => Promise<T>): Promise<T> {
+  const limite = new Date(Date.now() - 10 * 60_000).toISOString();
+  let travou = true;
+  try {
+    const r = await supabaseFetch<unknown[]>(
+      `${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}&faturado_omie_em=is.null&or=(faturando_desde.is.null,faturando_desde.lt."${limite}")`,
+      "PATCH", { faturando_desde: new Date().toISOString() },
+    );
+    if (!Array.isArray(r) || !r.length) {
+      return { sucesso: false, erro: "Já existe um faturamento deste pedido em andamento (ou ele acabou de ser faturado). Atualize a tela." } as T;
+    }
+  } catch (e) {
+    if (!/faturando_desde/.test(e instanceof Error ? e.message : String(e))) throw e;
+    travou = false; // SQL ainda não rodado: segue sem trava
+  }
+  try { return await fn(); }
+  finally {
+    if (travou) await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}`, "PATCH", { faturando_desde: null }).catch(() => {});
+  }
+}
+
+export const faturarPPVNoOmie: typeof faturarPPVNoOmieSemPausa = (...a) => comRobosPausados('faturar PPV', () => comTravaPPV(a[0], () => faturarPPVNoOmieSemPausa(...a)));
 export const faturarRemessaPPV: typeof faturarRemessaPPVSemPausa = (...a) => comRobosPausados('faturar remessa', () => faturarRemessaPPVSemPausa(...a));

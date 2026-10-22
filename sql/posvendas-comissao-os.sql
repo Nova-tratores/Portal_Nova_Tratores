@@ -28,3 +28,10 @@ ALTER TABLE public.posvendas_comissao_os_log ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.posvendas_comissao_os FROM anon, authenticated;
 REVOKE ALL ON public.posvendas_comissao_os_log FROM anon, authenticated;
 NOTIFY pgrst, 'reload schema';
+
+-- % POR TÉCNICO na OS (José, 22/10/2026: "tem que dar para alterar a comissão dos dois técnicos").
+-- pcts = { "Nome do técnico": 25, ... }; quem não está no mapa usa `pct`. Pode rodar de novo.
+ALTER TABLE public.posvendas_comissao_os ADD COLUMN IF NOT EXISTS pcts jsonb;
+ALTER TABLE public.posvendas_comissao_os_log ADD COLUMN IF NOT EXISTS pcts_de jsonb;
+ALTER TABLE public.posvendas_comissao_os_log ADD COLUMN IF NOT EXISTS pcts_para jsonb;
+NOTIFY pgrst, 'reload schema';

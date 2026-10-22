@@ -65,6 +65,8 @@ export interface KanbanCard {
   reqInfo: ReqResumo[];
   relTecnico: string;
   pendenciaMahindra?: PendenciaMahindra | null;
+  /** teve RESSERVIÇO (técnico voltou para refazer): fica vermelha em Concluída — lib/pos/resservico.ts */
+  resservico?: { os: string; motivo: string; erro: string; tecnicoVolta?: string; em?: string } | null;
   servicoInterno: boolean;
   /** arrastada para baixo da faixa vermelha na Lousa (aba "Pendentes" do POS); a data continua na OS */
   lousaPendente?: boolean;

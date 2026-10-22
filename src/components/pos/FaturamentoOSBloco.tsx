@@ -11,6 +11,7 @@ import { authHeaders } from "@/lib/auth/client";
 import { rotuloStatus } from "@/lib/pos/faturamento-regras";
 import FaturarOSModal from "./FaturarOSModal";
 import FaturarReciboModal from "./FaturarReciboModal";
+import TravasFaturar, { type AjusteOS } from "./TravasFaturar";
 import CancelarDocOmieModal from "./CancelarDocOmieModal";
 
 interface Estado {
@@ -32,8 +33,12 @@ const COR = {
   vermelho: { bg: "#fef2f2", bd: "#fecaca", tx: "#b91c1c" },
 };
 
-export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtualizar, abrirAoCarregar = false }: {
+export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtualizar, abrirAoCarregar = false, ajustarOS, documento }: {
   osId: string;
+  /** travas antes de faturar: grava previsão/projeto pela tela da OS (sem a tela sobrescrever depois) */
+  ajustarOS?: (c: AjusteOS) => Promise<boolean>;
+  /** CPF/CNPJ do cliente (sugestões de máquina) */
+  documento?: string;
   ordemOmie: string;
   /** botão Faturar da capa do card: abre a janela sozinho (uma vez) quando der para faturar */
   abrirAoCarregar?: boolean;
@@ -43,6 +48,8 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
 }) {
   const [estado, setEstado] = useState<Estado | null>(null);
   const [aberto, setAberto] = useState(false);
+  // travas (previsão hoje, projeto, localização) conferidas depois do clique em Faturar
+  const [travasOk, setTravasOk] = useState(false);
   const [conferindo, setConferindo] = useState(false);
   const [refaturando, setRefaturando] = useState(false);
   const [cancelarNota, setCancelarNota] = useState<null | "cancelar" | "duplicar">(null);
@@ -349,15 +356,17 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
         );
       })()}
       {modalCancelarDoc}
-      {aberto && estado.interna && <FaturarReciboModal
+      {aberto && !travasOk && <TravasFaturar osId={osId} documento={documento} ajustarOS={ajustarOS}
+        onOk={() => setTravasOk(true)} onCancelar={() => { setAberto(false); void carregar(); }} />}
+      {aberto && travasOk && estado.interna && <FaturarReciboModal
         osId={osId}
-        onClose={() => { setAberto(false); void carregar(); }}
+        onClose={() => { setAberto(false); setTravasOk(false); void carregar(); }}
         onFaturado={() => { void carregar(); onFaturado(); }}
       />}
-      {aberto && !estado.interna && <FaturarOSModal
+      {aberto && travasOk && !estado.interna && <FaturarOSModal
         open
         osId={osId}
-        onClose={() => { setAberto(false); void carregar(); }}
+        onClose={() => { setAberto(false); setTravasOk(false); void carregar(); }}
         onFaturado={() => { void carregar(); onFaturado(); }}
       />}
     </>

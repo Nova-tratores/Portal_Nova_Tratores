@@ -89,14 +89,21 @@ export function comissaoDoTecnico(args: {
   /** regras editáveis (valores fixos e o que não paga); sem elas, as do painel do Omie */
   regras?: RegrasComissao
   /** % definida na OS pelo pós-vendas (chave = Id_Ordem), no lugar da % do técnico */
-  pctPorOS?: Map<string, { pct: number; motivo: string }>
+  pctPorOS?: Map<string, { pct: number; motivo: string; pcts?: Record<string, number> | null }>
 }): ComissaoDetalhada {
   const { tecnico, mes, hoje, pct, ajustes, motivos } = args
   const regras = args.regras || REGRAS_PADRAO
   const linhas: LinhaComissao[] = []
   const pctTxt = `${pct}%`
   // a OS pode ter % própria (José, 20/10/2026) — vale para todos os técnicos dela
-  const pctDa = (os: string) => { const p = args.pctPorOS?.get(os); return p ? { v: p.pct, txt: `${String(p.pct).replace(".", ",")}% (definido na OS: ${p.motivo})` } : { v: pct, txt: pctTxt } }
+  // e, desde 22/10/2026, uma % para cada técnico (pcts); quem não está no mapa usa a % única da OS
+  const pctDa = (os: string) => {
+    const p = args.pctPorOS?.get(os)
+    if (!p) return { v: pct, txt: pctTxt }
+    const k = p.pcts ? Object.keys(p.pcts).find((c) => chaveDoTecnico(c, tecnico)) : undefined
+    const v = k != null ? Number(p.pcts![k]) : p.pct
+    return { v, txt: `${String(v).replace(".", ",")}% (definido na OS: ${p.motivo})` }
+  }
 
   const aplicar = (l: Omit<LinhaComissao, 'valor' | 'ajustada' | 'motivo'>, aj: AjusteManual | undefined, n: number): LinhaComissao => {
     let valor = l.calculado, ajustada = false

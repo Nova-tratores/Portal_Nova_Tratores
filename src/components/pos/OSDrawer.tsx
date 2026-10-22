@@ -19,6 +19,7 @@ import ModalEditarItemOS from "./ModalEditarItemOS";
 import { PPVMiniProvider } from "@/lib/ppv/PPVContext";
 import OSGarantiaInfo from "@/components/garantias/OSGarantiaInfo";
 import MaquinasClienteIcone from "@/components/MaquinasClienteIcone";
+import LocalizacaoClienteModal from "./LocalizacaoClienteModal";
 import OSUnidadesInfo from "@/components/ppv/OSUnidadesInfo";
 import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import { useAuth } from "@/hooks/useAuth";
@@ -33,6 +34,7 @@ import AnexosModal from "@/components/ppv/AnexosModal";
 import TarefasModal from "@/components/ppv/TarefasModal";
 import ChequeRevisaoBloco from "./ChequeRevisaoBloco";
 import AssinaturaClienteBloco from "./AssinaturaClienteBloco";
+import ResservicoBloco from "./ResservicoBloco";
 import ComissaoOSBloco from "./ComissaoOSBloco";
 import TemparioOSBloco from "./TemparioOSBloco";
 import ModalNovoCliente from "@/components/clientes/ModalNovoCliente";
@@ -288,6 +290,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   // Incrementado após importar um orçamento → força recarregar os dados da OS
   const [reloadKey, setReloadKey] = useState(0);
   const [showProjModal, setShowProjModal] = useState(false);
+  const [verLocalizacao, setVerLocalizacao] = useState(false);
   // atalhos de cadastro (criam no Omie e já usam na OS)
   const [showNovoCliente, setShowNovoCliente] = useState(false);
   const [showNovaMaquina, setShowNovaMaquina] = useState(false);
@@ -815,6 +818,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
 
   // Equipamento escolhido (busca ou "Nova máquina"): grava o projeto e completa
   // Modelo/Chassis da descrição sem apagar o que já foi escrito.
+  const aplicarEquipamentoRef = useRef<null | ((nome: string, modelo: string, chassis: string) => void)>(null);
   const aplicarEquipamento = (nome: string, modelo: string, chassis: string) => {
     setProjeto(nome);
     if (!servSolicitado || servSolicitado.trim() === "" || servSolicitado === TEXT_TEMPLATE) {
@@ -827,6 +831,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       setServSolicitado(lines.join("\n"));
     }
   };
+  useEffect(() => { aplicarEquipamentoRef.current = aplicarEquipamento; });
 
   const syncDiscount = useCallback((type: "P" | "V", value: number) => {
     if (type === "P") {
@@ -838,7 +843,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     }
   }, [subtotalBruto]);
 
-  const salvarRef = useRef<null | (() => Promise<boolean>)>(null);
+  const salvarRef = useRef<null | ((ajuste?: unknown) => Promise<boolean>)>(null);
   // janela do envio ao Omie: confirmar → enviando (passos + estimativa) → resultado
   const [envioOmie, setEnvioOmie] = useState<FaseEnvioOmie | null>(null);
   const enviarParaOmie = useCallback(() => {
@@ -935,7 +940,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     finally { setDuplicando(false); }
   };
 
-  const salvar = useCallback(async (): Promise<boolean> => {
+  const salvar = useCallback(async (ajuste?: unknown): Promise<boolean> => {
+    const aj = (ajuste && typeof ajuste === "object" && !("nativeEvent" in ajuste) ? ajuste : {}) as { previsaoFaturamento?: string; projeto?: string };
     if (mode === "edit" && !podeEditar) { alert("Você não tem permissão para editar esta OS."); return false; }
     if (status === "Cancelada" && !podeCancelar) { alert("Você não tem permissão para cancelar OS."); return false; }
     if (mode === "create" && !clienteChave) { alert("Selecione o Cliente"); return false; }
@@ -949,7 +955,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       id: osId, nomeCliente: clienteInfo?.nome, cpfCliente: clienteInfo?.cpf,
       enderecoCliente: servicoOficina ? 'Nova Tratores - Av. São Sebastião, 1065 - Vila Campos, Piraju - SP' : clienteInfo?.endereco,
       cidadeCliente: servicoOficina ? 'Piraju' : (clienteInfo?.cidade || ''), tecnicoResponsavel: tecnico1, tecnico2,
-      tipoServico, revisao, projeto, servicoSolicitado: servSolicitado, observacoes,
+      tipoServico, revisao, projeto: typeof aj.projeto === "string" ? aj.projeto : projeto, servicoSolicitado: servSolicitado, observacoes,
       qtdHoras, qtdKm, valorHora: VH, valorKm: VK, ppv, status: mode === "create" ? "Orçamento" : status,
       ordemOmie, motivoCancelamento: motivoCancel,
       substitutoTipo: temSubstituto ? substitutoTipo : null,
@@ -959,7 +965,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       relatorioTecnico,
       diasExecucao: diasExecucao.sort().join(','),
       previsaoExecucao,
-      previsaoFaturamento: previsaoFaturamento || hojeSP(),
+      previsaoFaturamento: (typeof aj.previsaoFaturamento === "string" && aj.previsaoFaturamento) || previsaoFaturamento || hojeSP(),
       dataFimServico,
       horaInicioServico,
       servicoNumero,
@@ -1044,6 +1050,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       gerarPPV, servicoOficina, servicoInterno, alimentacoes, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved, podeEditar, podeCancelar,
       pecasPendentes, abrirReqDepois]);
   useEffect(() => { salvarRef.current = salvar; }, [salvar]);
+  // travas antes de faturar (previsão = hoje, projeto): a tela muda junto, senão o próximo Salvar desfaria
+  const ajustarParaFaturar = useCallback(async (c: { previsaoFaturamento?: string; projeto?: string }): Promise<boolean> => {
+    if (c.previsaoFaturamento) setPrevisaoFaturamento(c.previsaoFaturamento);
+    if (c.projeto) { const partes = c.projeto.trim().split(/\s+/); aplicarEquipamentoRef.current?.(c.projeto, partes[0] || "", partes.slice(1).join(" ") || ""); }
+    return (await salvarRef.current?.(c)) ?? false;
+  }, []);
 
   // ── Reset form to defaults ──
   const resetForm = useCallback(() => {
@@ -1563,6 +1575,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                               </button>
                               <button type="button" className="osh-ico" onClick={() => setVerClienteOmie(true)} title="Informações do cliente (cadastro no Omie)"><i className="fas fa-paperclip" /></button>
                               <MaquinasClienteIcone doc={clienteInfo.cpf} className="osh-ico" botaoStyle={{ width: 42, height: "100%", border: "none", borderLeft: "1px solid var(--border)", borderRadius: 0, fontSize: 13 }} />
+                              {mode === "edit" && osId && clienteInfo.cpf && <button type="button" className="osh-ico" onClick={() => setVerLocalizacao(true)} title="Localização do cliente (GPS do carro do técnico)"><i className="fas fa-location-dot" /></button>}
                               {podeEditar && <button type="button" className="osh-ico" onClick={() => setMostrarTrocaCliente((o) => !o)} title="Trocar o cliente"><i className="fas fa-magnifying-glass" /></button>}
                             </div>
                           </div>
@@ -1703,6 +1716,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         </div>
                         {tipoServico === "Revisão" && osId && <ChequeRevisaoBloco osId={osId} podeEditar={podeEditar} />}
                         {osId && <AssinaturaClienteBloco osId={osId} podeEditar={podeEditar} />}
+                        {osId && <ResservicoBloco key={osId} osId={osId} podeEditar={podeEditar} tecnicos={tecnicos} tecnicoAtual={tecnico1} />}
                         {osId && <ComissaoOSBloco osId={osId} podeEditar={podeEditar} />}
                       </div>
                     );
@@ -2396,6 +2410,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       <AssinaturaClienteBloco osId={osId} podeEditar={podeEditar} />
                     )}
                     {mode === "edit" && osId && (
+                      <ResservicoBloco key={osId} osId={osId} podeEditar={podeEditar} tecnicos={tecnicos} tecnicoAtual={tecnico1} />
+                    )}
+                    {mode === "edit" && osId && (
                       <ComissaoOSBloco osId={osId} podeEditar={podeEditar} />
                     )}
                     {/* na edição o texto e horas/km ficam na Lista de Serviços (formato Omie) */}
@@ -2783,6 +2800,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         <FaturamentoOSBloco
                           osId={osId}
                           ordemOmie={ordemOmie}
+                          ajustarOS={podeEditar ? ajustarParaFaturar : undefined}
+                          documento={clienteInfo?.cpf || ""}
                           abrirAoCarregar={abrirFaturar}
                           onAtualizar={async () => {
                             try {
@@ -3043,6 +3062,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         document.body
       )}
 
+      {verLocalizacao && osId && <LocalizacaoClienteModal osId={osId} onClose={() => setVerLocalizacao(false)} />}
       <SearchModal title="Pesquisar Equipamento / Chassis" placeholder="Digite chassis, modelo ou número..." apiUrl="/api/pos/buscas/projetos" paramName="termo" visible={showProjModal} onClose={() => setShowProjModal(false)}
         onSelect={(item) => {
           const nome = item.nome || "";

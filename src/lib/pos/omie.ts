@@ -188,6 +188,20 @@ export async function buscarNcodProj(projeto: string): Promise<number> {
   const projetoNorm = projeto.trim();
   if (cacheProjetos.has(projetoNorm)) return cacheProjetos.get(projetoNorm)!;
 
+  // 1º o espelho do portal (portal_nt_projetos_PRINCIPAL, conta Nova, nome EXATO, ativo): evita varrer até
+  // 21 páginas do ListarProjetos a cada envio (item 1 de docs/omie-otimizacao-pos-ppv.md). Só nome exato — o
+  // "contém" da busca no Omie pode trazer a máquina errada; sem achar aqui, segue a busca antiga.
+  try {
+    const { data } = await supabase.from("portal_nt_projetos_PRINCIPAL").select("codigo, nome, inativo")
+      .eq("empresa", "Nova Tratores").ilike("nome", projetoNorm.replace(/[%_]/g, "\\$&")).limit(3);
+    const exatos = ((data || []) as Array<{ codigo: number; nome: string; inativo?: string }>)
+      .filter((p) => String(p.nome || "").trim().toUpperCase() === projetoNorm.toUpperCase() && p.inativo !== "S");
+    if (exatos.length === 1 && Number(exatos[0].codigo) > 0) {
+      cacheProjetos.set(projetoNorm, Number(exatos[0].codigo));
+      return Number(exatos[0].codigo);
+    }
+  } catch { /* espelho fora: busca no Omie */ }
+
   // Busca na API Omie pelo nome do projeto
   // Busca paginada — percorre até achar match por nome
   let pagina = 1;
@@ -551,7 +565,27 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       // Se código de integração já existe no Omie (OS antiga), reenvia com código único
+      // Antes de criar outra, confere se a OS já cadastrada é ESTA mesma (envio anterior aceito pelo Omie
+      // e a resposta perdida: conexão caiu, deploy). Se for do mesmo cliente, não cancelada e ainda não
+      // faturada, ADOTA — senão um reenvio criava uma 2ª OS no Omie (item 8 de docs/omie-otimizacao-pos-ppv.md).
+      let adotada: OmieOSResponse | null = null;
       if (msg.includes("já cadastrado") || msg.includes("Client-103")) {
+        try {
+          const ja = await omieCall<{ Cabecalho?: { nCodOS?: number; cNumOS?: string; cCodIntOS?: string; nCodCli?: number; cEtapa?: string }; InfoCadastro?: { cCancelada?: string; cFaturada?: string } }>(
+            "/servicos/os/", "ConsultarOS", { cCodIntOS: payload.Cabecalho.cCodIntOS },
+          );
+          const c = ja?.Cabecalho, info = ja?.InfoCadastro;
+          const mesmoCliente = !!c?.nCodCli && Number(c.nCodCli) === Number(payload.Cabecalho.nCodCli);
+          const viva = info?.cCancelada !== "S" && info?.cFaturada !== "S" && Number(c?.cEtapa || 0) < 50;
+          if (c?.nCodOS && mesmoCliente && viva) {
+            adotada = { nCodOS: c.nCodOS, cNumOS: c.cNumOS || String(c.nCodOS), cStatus: "adotada" };
+            console.log(`[Omie] ${os.Id_Ordem} já estava no Omie (nº ${c.cNumOS}) — adotada, sem criar outra OS`);
+          }
+        } catch { /* não deu para conferir: segue o caminho antigo (código com sufixo) */ }
+      }
+      if (adotada) {
+        resposta = adotada;
+      } else if (msg.includes("já cadastrado") || msg.includes("Client-103")) {
         const novoCodigoInt = `${os.Id_Ordem}-${Date.now()}`;
         console.log(`[Omie] Código ${os.Id_Ordem} já existe, reenviando como ${novoCodigoInt}`);
         payload.Cabecalho.cCodIntOS = novoCodigoInt;

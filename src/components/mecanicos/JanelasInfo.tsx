@@ -6,7 +6,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { authHeaders } from '@/lib/auth/client'
-import { patente, NIVEL_MAX, PONTOS_POR_QUEDA, PESO_RETORNO, DIVISOES, DIAMANTE } from '@/lib/mecanicos/carreira'
+import { patente, NIVEL_MAX, PONTOS_POR_OS, PONTOS_POR_DEGRAU, PESO_RETORNO, DIVISOES, DIAMANTE } from '@/lib/mecanicos/carreira'
 import type { RegrasComissao, RegraFixa, RegraNaoPaga } from '@/lib/mecanicos/regras-comissao'
 import { IconeLiga } from './CartaLiga'
 import { useCarreira } from './useCarreira'
@@ -41,8 +41,8 @@ export function LigaJanela() {
   const { dados } = useCarreira()
   const divs = [...DIVISOES.map((d, i) => ({ ...d, de: i * 5, ate: i * 5 + 4 })), { ...DIAMANTE, de: NIVEL_MAX, ate: NIVEL_MAX }]
   return (
-    <Janela titulo="Liga dos mecânicos" sub="como a carreira funciona, mês a mês" ic="fa-ranking-star" cor="#475569">
-      <p className="ji-intro">Cada mecânico tem uma <b>liga</b> que mostra como ele vem trabalhando ao longo dos meses. Todos começam no <b>Ferro 5</b> e vão subindo até o <b>Diamante</b> fechando meses sem ocorrência. As ocorrências derrubam.</p>
+    <Janela titulo="Liga dos mecânicos" sub="como a carreira funciona: pontos por OS bem feita" ic="fa-ranking-star" cor="#475569">
+      <p className="ji-intro">Cada mecânico tem uma <b>liga</b> que mostra como ele vem trabalhando ao longo dos meses. Todos começam no <b>Ferro 5</b> e vão subindo até o <b>Diamante</b> juntando pontos: <b>cada OS fechada sem problema dá pontos</b> e as ocorrências tiram.</p>
       <div className="ji-escada">
         {divs.map((d) => (
           <div key={d.nome} className="ji-div" style={{ '--dc': d.cor } as React.CSSProperties}>
@@ -52,12 +52,12 @@ export function LigaJanela() {
         ))}
       </div>
       <div className="ji-regras">
-        <div className="bom"><b>+1 nível</b><span>a cada mês fechado <u>sem nenhuma ocorrência</u></span></div>
-        <div className="ruim"><b>−1 nível</b><span>a cada <u>{PONTOS_POR_QUEDA} pontos</u> descontados no mês (uma ocorrência de 22 pontos derruba 3 níveis)</span></div>
+        <div className="bom"><b>+{PONTOS_POR_OS} pontos</b><span>a cada <u>OS fechada sem problema</u>: sem ocorrência e sem pendência (se a OS tem 2 técnicos, os dois ganham)</span></div>
+        <div className="ruim"><b>− pontos</b><span>cada ocorrência que vale tira os pontos dela do saldo</span></div>
+        <div className="bom"><b>{PONTOS_POR_DEGRAU} pontos</b><span>de saldo = <u>1 degrau</u> (Ferro 5 → Ferro 4 …); o saldo nunca fica negativo</span></div>
         <div className="ruim"><b>× {PESO_RETORNO}</b><span><u>retorno de serviço</u> (voltar para refazer) conta em dobro na liga</span></div>
-        <div><b>100 pontos</b><span>todo mês começa com 100; cada ocorrência que vale tira pontos</span></div>
         <div className="bom"><b>Defesa</b><span>se a defesa for aceita no Tribunal, os pontos voltam e não contam na liga</span></div>
-        <div><b>Fecha no dia 1º</b><span>a mudança de liga acontece quando o mês vira; durante o mês aparece “se fechar assim”</span></div>
+        <div><b>Fecha no dia 1º</b><span>o degrau confirma quando o mês vira; durante o mês aparece “se fechar assim”, já com as OS do mês</span></div>
       </div>
       <h3 className="ji-h">Onde cada um está agora</h3>
       {!dados ? <p className="ji-mudo">carregando…</p> : (
@@ -71,9 +71,9 @@ export function LigaJanela() {
                 {foto ? <img src={foto} alt={c.tecnico} className="ji-foto" /> : <span className="ji-foto ini">{c.tecnico.split(' ').map((p) => p[0]).slice(0, 2).join('')}</span>}
                 <b>{c.tecnico}</b>
                 <span className="ji-liga"><IconeLiga nivel={c.nivel} tamanho={26} />{pt.nome}</span>
-                <span className="ji-mudo">{c.mesAtual.pontos} pts descontados no mês</span>
+                <span className="ji-mudo">{c.saldoAgora} pts · no mês +{c.mesAtual.ganhos} ({c.mesAtual.osLimpas} OS) −{c.mesAtual.pontos}</span>
                 <span className={c.seFecharAssim > c.nivel ? 'bom' : c.seFecharAssim < c.nivel ? 'ruim' : ''}>se fechar assim: <b>{vai.nome}</b></span>
-                <span className="ji-mudo">{c.sequencia} {c.sequencia === 1 ? 'mês limpo' : 'meses limpos'} seguidos</span>
+                <span className="ji-mudo">{c.faltaProximo ? `faltam ${c.faltaProximo} pts para subir` : 'no topo'}</span>
               </div>
             )
           })}

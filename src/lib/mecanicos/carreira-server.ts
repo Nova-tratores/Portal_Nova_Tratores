@@ -6,7 +6,7 @@ import { carregarBase } from './painel-server'
 import { carregarPendencias } from './pendencias-server'
 import { comissoesRH } from './rh-server'
 import { casarNome } from './ocorrencias-painel'
-import { carreiraDe, pesoOcorrencia, type CarreiraTecnico } from './carreira'
+import { carreiraDe, chaveOS, contarOSLimpas, pesoOcorrencia, type CarreiraTecnico, type MesEntrada } from './carreira'
 import { previsaoPagamento, projetarMes, type ComissaoMes } from './comissao'
 import { comissaoDoTecnico } from './comissao-detalhe'
 import { ajustesDeComissao, pctsDasOS } from './comissao-server'
@@ -26,7 +26,7 @@ export interface ComissaoTecnico {
 }
 
 export async function carreiraEComissoes(forcar = false): Promise<{ mesAtual: string; carreira: CarreiraTecnico[]; comissoes: ComissaoTecnico[]; inicioSistema: string; fotos: Record<string, string>; pontosMes: Record<string, number> }> {
-  const r = await comCache('carreira:v4', 10 * 60_000, gerar, forcar)
+  const r = await comCache('carreira:v5', 10 * 60_000, gerar, forcar)
   return r.dados
 }
 
@@ -44,12 +44,24 @@ async function gerar() {
   ])
   const ocs = ocsTodas.filter((o) => ehTec.has(o.tecnico))
   const eq = new Map(((equipe.data || []) as Rec[]).map((e) => [String(e.pessoa), { admissao: (e.admissao as string) || null, demissao: (e.demissao as string) || null }]))
-  const porPessoa = new Map<string, Record<string, { pontos: number; qtd: number }>>()
+  const porPessoa = new Map<string, Record<string, MesEntrada>>()
+  const mesDe = (t: string, mes: string) => { const m = (porPessoa.get(t) || {}); porPessoa.set(t, m); return (m[mes] ||= { pontos: 0, qtd: 0, osLimpas: 0 }) }
   for (const o of ocs) {
-    const m = (porPessoa.get(o.tecnico) || {}); porPessoa.set(o.tecnico, m)
-    const x = (m[o.data.slice(0, 7)] ||= { pontos: 0, qtd: 0 })
+    const x = mesDe(o.tecnico, o.data.slice(0, 7))
     x.pontos += pesoOcorrencia(o); if (o.vale) x.qtd++
   }
+  // OS fechadas sem problema dão pontos (José, 22/10/2026): sem ocorrência VALENDO ligada a ela (de qualquer
+  // técnico) e sem pendência da Mahindra. Fechada = faturada (inclui garantia) ou interna fechada.
+  const comProblema = new Set<string>()
+  for (const o of ocsTodas) if (o.vale && o.idOrdem) for (const id of String(o.idOrdem).split(/[,;\s]+/)) if (chaveOS(id)) comProblema.add(chaveOS(id))
+  const pm = await sb.from('Ordem_Servico').select('Id_Ordem, Ordem_Omie').not('pendencia_mahindra', 'is', null).limit(5000)
+  for (const r of (pm.data || []) as Rec[]) { if (chaveOS(r.Id_Ordem)) comProblema.add(chaveOS(r.Id_Ordem)); if (chaveOS(r.Ordem_Omie)) comProblema.add(chaveOS(r.Ordem_Omie)) }
+  // OS que gerou RESSERVIÇO também não é limpa (sql/pos-resservico.sql; sem a coluna, segue sem isso)
+  const rs = await sb.from('Ordem_Servico').select('Id_Ordem, Ordem_Omie').not('resservico', 'is', null).limit(5000)
+  for (const r of (rs.error ? [] : (rs.data || [])) as Rec[]) { if (chaveOS(r.Id_Ordem)) comProblema.add(chaveOS(r.Id_Ordem)); if (chaveOS(r.Ordem_Omie)) comProblema.add(chaveOS(r.Ordem_Omie)) }
+  const baseCarreira = await carregarBase(`${inicioSistema}-01`, hoje)
+  const limpas = contarOSLimpas([...baseCarreira.faturadas, ...(baseCarreira.internasFechadas || [])], comProblema)
+  for (const [t, meses] of Object.entries(limpas)) for (const [mes, q] of Object.entries(meses)) mesDe(t, mes).osLimpas = q
   const carreira = tecnicos
     .filter((t) => { const e = eq.get(t); return !e?.demissao || e.demissao >= mesAtual })
     .map((t) => {
@@ -57,7 +69,7 @@ async function gerar() {
       const inicio = adm && adm > inicioSistema ? adm : inicioSistema
       return carreiraDe(t, inicio, mesAtual, porPessoa.get(t) || {})
     })
-    .sort((a, b) => b.nivel - a.nivel || b.seFecharAssim - a.seFecharAssim || a.tecnico.localeCompare(b.tecnico, 'pt-BR'))
+    .sort((a, b) => b.saldoAgora - a.saldoAgora || a.tecnico.localeCompare(b.tecnico, 'pt-BR'))
 
   // ---- comissão: % de cada técnico (config do painel Omie) + OS do mês passado e deste mês
   const cfg = await sb.from('config_vendedores_relatorio').select('nome, cargo, comissao')
@@ -69,7 +81,7 @@ async function gerar() {
     const nome = tecnicos.includes(p) ? p : casarNome(String(c.nome), tecnicos)
     if (nome) pct[nome] = v
   }
-  const base = await carregarBase(`${mesAnt}-01`, hoje)
+  const base = { ...baseCarreira, faturadas: baseCarreira.faturadas.filter((o) => o.data >= `${mesAnt}-01`), internasFechadas: (baseCarreira.internasFechadas || []).filter((o) => o.data >= `${mesAnt}-01`) }
   const pend = await carregarPendencias(new Set(base.faturadas.map((o) => o.os)), padronizar).catch(() => [])
   // mesma conta da ficha do técnico (comissao-detalhe.ts): técnicos do Omie + ajustes manuais por OS —
   // bateu com o RH até o centavo em 10 de 12 meses×técnico (jul–set/2026)

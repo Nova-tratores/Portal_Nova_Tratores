@@ -137,7 +137,7 @@ async function montarFicha(nome: string, mes: string) {
     /** técnicos com % de comissão (para dividir a comissão de uma OS) */
     equipe: Object.entries(pctTodos).map(([t, p]) => ({ nome: t, pct: p })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
     foto: pessoa?.avatar_url || carreira?.fotos?.[nome] || null,
-    pontos: { saldo: Math.max(0, BASE_PONTOS - pontosMes), base: BASE_PONTOS, descontados: pontosMes, nivel: car?.nivel ?? null, seFecharAssim: car?.seFecharAssim ?? null, sequencia: car?.sequencia ?? 0, historico: (car?.historico || []).slice(-6) },
+    pontos: { saldo: Math.max(0, BASE_PONTOS - pontosMes), base: BASE_PONTOS, descontados: pontosMes, nivel: car?.nivel ?? null, seFecharAssim: car?.seFecharAssim ?? null, sequencia: car?.sequencia ?? 0, saldoLiga: car?.saldoAgora ?? 0, ganhosMes: car?.mesAtual.ganhos ?? 0, osLimpasMes: car?.mesAtual.osLimpas ?? 0, faltaProximo: car?.faltaProximo ?? 0, historico: (car?.historico || []).slice(-6) },
     rh: rh ? { ...rh, ajustesOS: undefined } : null,
     comissao: { ...comissao, oficial, pagamento: previsaoPagamento(mes), historico: rh?.comissoes || [] },
     os: {

@@ -223,7 +223,8 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
     }
   });
 
-  return (ordens || []).map((row) => {
+  // OS de resserviço (cópia para o app dos técnicos) não vira cartão: aparece dentro da original (José, 22/10/2026)
+  return (ordens || []).filter((row) => !safeGet(row, "resservico_de")).map((row) => {
     const osId = safeGet(row, "Id_Ordem") as string;
     const ultimoLog = mapaUltimoLog[osId];
     // Juntar requisições novas + legadas
@@ -265,6 +266,7 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
       reqInfo: reqsDoCard,
       relTecnico: mapaRelTecnico[osId] || "",
       pendenciaMahindra: (safeGet(row, "pendencia_mahindra") as any) || null,
+      resservico: (safeGet(row, "resservico") as KanbanCard["resservico"]) || null,
       servicoInterno: !!safeGet(row, "Servico_Interno"),
       lousaPendente: !!safeGet(row, "lousa_pendente"),
       projetoCronograma: mapaProjeto[osId] || null,

@@ -22,13 +22,15 @@ export async function ajustesDeComissao(numeros: string[]): Promise<Map<string, 
 }
 
 /** % de comissão definida na OS pelo pós-vendas (sql/posvendas-comissao-os.sql). Sem a tabela, vazio. */
-export interface PctDaOS { pct: number; motivo: string; por: string | null; em: string }
+export interface PctDaOS { pct: number; motivo: string; por: string | null; em: string; /** % por técnico (nome → %); quem não está usa `pct` */ pcts?: Record<string, number> | null }
 export async function pctsDasOS(ids: string[]): Promise<Map<string, PctDaOS>> {
   const out = new Map<string, PctDaOS>()
   for (let i = 0; i < ids.length; i += 200) {
-    const { data, error } = await sb.from('posvendas_comissao_os').select('id_ordem, pct, motivo, alterado_por, alterado_em').in('id_ordem', ids.slice(i, i + 200))
-    if (error) return out
-    for (const r of (data || []) as Rec[]) out.set(String(r.id_ordem), { pct: Number(r.pct), motivo: String(r.motivo || ''), por: (r.alterado_por as string) || null, em: String(r.alterado_em) })
+    const fatia = ids.slice(i, i + 200)
+    let r: { data: unknown[] | null; error: { message?: string } | null } = await sb.from('posvendas_comissao_os').select('id_ordem, pct, pcts, motivo, alterado_por, alterado_em').in('id_ordem', fatia)
+    if (r.error && /pcts/.test(r.error.message || '')) r = await sb.from('posvendas_comissao_os').select('id_ordem, pct, motivo, alterado_por, alterado_em').in('id_ordem', fatia)
+    if (r.error) return out
+    for (const x of (r.data || []) as Rec[]) out.set(String(x.id_ordem), { pct: Number(x.pct), motivo: String(x.motivo || ''), por: (x.alterado_por as string) || null, em: String(x.alterado_em), pcts: (x.pcts as Record<string, number>) || null })
   }
   return out
 }

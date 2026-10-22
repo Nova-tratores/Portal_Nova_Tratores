@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { FichaTecnico as Ficha } from '@/lib/mecanicos/ficha-server'
 import type { LinhaComissao } from '@/lib/mecanicos/comissao-detalhe'
-import { patente, NIVEL_MAX, PONTOS_POR_QUEDA } from '@/lib/mecanicos/carreira'
+import { patente, NIVEL_MAX, PONTOS_POR_OS, PONTOS_POR_DEGRAU } from '@/lib/mecanicos/carreira'
 import { IconeLiga } from './CartaLiga'
 import { brl, brl2 } from './ui'
 import type { CardDados } from './CardsTecnicoOpcoes'
@@ -331,12 +331,12 @@ function LigaPop({ d, children }: { d: Ficha; children: React.ReactNode }) {
           <div className="fp-lp-cab"><b>{atual.nome}</b><span>nível {nivel} de {NIVEL_MAX}</span></div>
           <div className="fp-lp-trilha">{Array.from({ length: NIVEL_MAX + 1 }, (_, i) => <i key={i} className={`${i <= nivel ? 'ok' : ''} ${i === fecha && fecha !== nivel ? 'vai' : ''}`} style={{ background: i <= nivel ? patente(i).cor : undefined }} title={patente(i).nome} />)}</div>
           <div className="fp-lp-lin"><span>Próxima fase</span><b>{prox ? prox.nome : 'já está no topo'}</b></div>
-          <div className="fp-lp-lin"><span>Como chega lá</span><b>{prox ? (p.descontados === 0 ? 'fechar este mês sem ocorrência' : 'fechar o próximo mês sem ocorrência') : '—'}</b></div>
+          <div className="fp-lp-lin"><span>Como chega lá</span><b>{prox ? (p.faltaProximo ? `mais ${p.faltaProximo} pontos (${Math.ceil(p.faltaProximo / PONTOS_POR_OS)} OS limpas)` : 'fechar o mês') : '—'}</b></div>
           <div className="fp-lp-lin"><span>Se fechar o mês assim</span><b className={fecha > nivel ? 'bom' : fecha < nivel ? 'ruim' : ''}>{patente(fecha).nome}{fecha > nivel ? ' (sobe)' : fecha < nivel ? ` (cai ${nivel - fecha})` : ' (fica)'}</b></div>
-          <div className="fp-lp-lin"><span>Pontos do mês</span><b>{p.saldo}/100 · {p.descontados} descontados</b></div>
-          <div className="fp-lp-lin"><span>Meses limpos seguidos</span><b>{p.sequencia}</b></div>
+          <div className="fp-lp-lin"><span>Saldo da liga</span><b>{p.saldoLiga ?? 0} pontos</b></div>
+          <div className="fp-lp-lin"><span>Neste mês</span><b>+{p.ganhosMes ?? 0} ({p.osLimpasMes ?? 0} OS limpas) · −{p.descontados}</b></div>
           {hist.length > 0 && <div className="fp-lp-hist">{hist.map((h) => <span key={h.mes} className={h.movimento > 0 ? 'bom' : h.movimento < 0 ? 'ruim' : ''} title={`${nomeMes(h.mes)}: ${h.pontos} pontos descontados`}><small>{nomeMes(h.mes).slice(0, 3)}</small><b>{h.movimento > 0 ? `+${h.movimento}` : h.movimento}</b></span>)}</div>}
-          <p className="fp-lp-regra">Mês sem ocorrência sobe 1 nível. Cada {PONTOS_POR_QUEDA} pontos descontados no mês derrubam 1 nível (retorno de serviço conta em dobro).</p>
+          <p className="fp-lp-regra">Cada OS fechada sem problema dá {PONTOS_POR_OS} pontos; cada ocorrência tira os pontos dela (retorno de serviço em dobro). {PONTOS_POR_DEGRAU} pontos de saldo = 1 degrau.</p>
         </div>
       )}
     </div>

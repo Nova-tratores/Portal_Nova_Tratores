@@ -96,7 +96,7 @@ function Carta({ d, dir, nomesCat, coresCat }: { d: DadosCartaLiga; dir: number;
           <div className="cl-tipo">[ MECÂNICO / LIGA {p.divisao.toUpperCase()} ]</div>
           {/* texto */}
           <div className="cl-texto">
-            {c?.sequencia ? <p><i className="fas fa-fire" style={{ color: '#ea580c' }} /> <b>{c.sequencia}</b> {c.sequencia === 1 ? 'mês limpo' : 'meses limpos'} seguidos.</p> : <p>Na carreira desde {c ? mesCurto(c.inicio) : '—'}. Mês limpo sobe 1 degrau.</p>}
+            {c ? <p><i className="fas fa-star" style={{ color: '#ca8a04' }} /> <b>{c.saldoAgora}</b> pontos · <b>+{c.mesAtual.ganhos}</b> no mês ({c.mesAtual.osLimpas} OS sem problema){c.faltaProximo ? <> · faltam <b>{c.faltaProximo}</b> para subir</> : null}.</p> : <p>Cada OS sem problema dá 5 pontos.</p>}
             {golpes.length > 0
               ? <div className="cl-golpes">{golpes.map((k, n) => <span key={k} style={{ background: coresCat[k], animationDelay: `${1100 + n * 220}ms` }}>−{e!.porCategoria[k]} {nomesCat[k]}</span>)}</div>
               : <p style={{ color: '#047857' }}><b>Nenhuma ocorrência neste mês.</b></p>}
