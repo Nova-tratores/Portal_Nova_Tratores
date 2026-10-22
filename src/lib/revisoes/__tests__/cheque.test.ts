@@ -106,17 +106,30 @@ describe('htmlCheque', () => {
 });
 
 describe('revisões anteriores (cheques atrasados)', () => {
-  it('classifica enviada / cheque / pendente na ordem do talão', () => {
+  it('classifica enviada / feita sem cheque / cheque na ordem do talão', () => {
     const r = classificarAnteriores(
       900,
       new Set([50]),
       new Map([[600, { osId: 'OS-0802', atrasado: true }]]),
       new Map([[300, { id: 'OS-0585', data: '23/07/2026', horimetro: '320,6 h' }]]),
     );
-    expect(r.map((x) => [x.horas, x.situacao])).toEqual([[50, 'enviada'], [300, 'pendente'], [600, 'cheque']]);
+    expect(r.map((x) => [x.horas, x.situacao])).toEqual([[50, 'enviada'], [300, 'feita_sem_cheque'], [600, 'cheque']]);
     expect(r[1].osRef?.id).toBe('OS-0585');
     expect(r[2].chequeOsId).toBe('OS-0802');
     expect(r[2].chequeAtrasado).toBe(true);
+  });
+
+  it('sem cheque: feita pela OS ou pela data do cadastro × não feita', () => {
+    const r = classificarAnteriores(
+      1200,
+      new Set(),
+      new Map(),
+      new Map([[300, { id: 'OS-0585', data: '', horimetro: '' }]]),
+      new Set([600]),
+    );
+    expect(r.map((x) => [x.horas, x.situacao])).toEqual([
+      [50, 'nao_feita'], [300, 'feita_sem_cheque'], [600, 'feita_sem_cheque'], [900, 'nao_feita'],
+    ]);
   });
 
   it('50h não tem anteriores; enviada vence cheque', () => {

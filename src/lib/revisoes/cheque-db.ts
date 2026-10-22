@@ -256,14 +256,34 @@ async function osDoChassiPorHoras(chassis: string, excluirOs: string): Promise<M
   return mapa;
 }
 
-/** Revisões anteriores à da OS e a situação de cada uma (enviada / com cheque / pendente). */
+/** OSs de revisão (não canceladas) de um chassi, uma por horas — a tela Revisões usa para "feita sem cheque". */
+export async function osRevisaoDoChassi(chassis: string): Promise<{ horas: number; osId: string; data: string }[]> {
+  const mapa = await osDoChassiPorHoras(chassis, '');
+  return [...mapa].map(([horas, r]) => ({ horas, osId: r.id, data: r.data })).sort((a, b) => a.horas - b.horas);
+}
+
+/** Horas das revisões com data preenchida no cadastro do trator (`tratores."<rev> Data"`); mesma busca de buscarTrator. */
+async function feitasNoCadastro(chassis: string): Promise<Set<number>> {
+  let { data } = await db.from('tratores').select('*').ilike('Chassis', chassis).limit(1);
+  if (!data?.length && chassis.length >= 7) {
+    const r = await db.from('tratores').select('*').ilike('Chassis', `%${chassis.slice(-7)}`).limit(2);
+    data = r.data?.length === 1 ? r.data : [];
+  }
+  const t = (data?.[0] || {}) as Record<string, unknown>;
+  const feitas = new Set<number>();
+  for (const h of HORAS_CHEQUE) if (String(t[`${h}h Data`] ?? '').trim()) feitas.add(h);
+  return feitas;
+}
+
+/** Revisões anteriores à da OS e a situação de cada uma (enviada / com cheque / feita sem cheque / não feita). */
 export async function revisoesAnteriores(osId: string): Promise<{ chassis: string; horasAtual: number; anteriores: RevisaoAnterior[] }> {
   const principal = await garantirCheque(osId);
   const chassis = principal.chassis;
-  const [{ data: env }, cheques, osPorHoras] = await Promise.all([
+  const [{ data: env }, cheques, osPorHoras, feitasCadastro] = await Promise.all([
     db.from('revisao_emails').select('horas').eq('chassis_final', chassis.slice(-4)),
     rodar<{ os_id: string; horas: number; atrasado?: boolean }[]>((sel) => db.from('revisao_cheques').select(sel).ilike('chassis', chassis)),
     osDoChassiPorHoras(chassis, osId),
+    feitasNoCadastro(chassis).catch(() => new Set<number>()),
   ]);
   const enviadas = new Set<number>();
   for (const r of (env || []) as { horas: string | number }[]) { const h = normalizarHorasRevisao(Number(r.horas)); if (h) enviadas.add(h); }
@@ -276,7 +296,7 @@ export async function revisoesAnteriores(osId: string): Promise<{ chassis: strin
   }
   const refs = new Map<number, OSRef>();
   for (const [h, v] of osPorHoras) refs.set(h, { id: v.id, data: v.data, horimetro: v.horimetro });
-  return { chassis, horasAtual: principal.horas, anteriores: classificarAnteriores(principal.horas, enviadas, porHoras, refs) };
+  return { chassis, horasAtual: principal.horas, anteriores: classificarAnteriores(principal.horas, enviadas, porHoras, refs, feitasCadastro) };
 }
 
 /** Dados de um cheque atrasado: da OS daquela revisão (se existe) ou da OS atual com data/horímetro em branco. */

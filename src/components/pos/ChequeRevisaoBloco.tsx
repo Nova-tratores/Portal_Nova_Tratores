@@ -190,7 +190,7 @@ export default function ChequeRevisaoBloco({ osId, podeEditar, horas: horasAlvo,
   );
 }
 
-/** Revisões anteriores à da OS: enviada ✓ / cheque existente / pendente → "Gerar cheque". */
+/** Revisões anteriores à da OS: enviada ✓ / cheque existente / feita sem cheque → "Gerar cheque" / não feita. */
 function RevisoesAnteriores({ osId, podeEditar, horasAtual }: { osId: string; podeEditar: boolean; horasAtual: number }) {
   const [lista, setLista] = useState<RevisaoAnterior[] | null>(null);
   const [erro, setErro] = useState("");
@@ -219,15 +219,17 @@ function RevisoesAnteriores({ osId, podeEditar, horasAtual }: { osId: string; po
   };
 
   if (!lista || lista.length === 0) return null;
-  const pendentes = lista.filter((a) => a.situacao === "pendente");
+  const feitasSemCheque = lista.filter((a) => a.situacao === "feita_sem_cheque");
+  const naoFeitas = lista.filter((a) => a.situacao === "nao_feita");
   const atrasadosDaqui = lista.filter((a) => a.situacao === "cheque" && a.chequeOsId === osId);
 
   return (
     <div style={{ marginTop: 12, borderTop: "1px dashed #f1b6a9", paddingTop: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <b style={{ color: "#374151", fontSize: 12.5 }}>Revisões anteriores deste trator</b>
-        {pendentes.length > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: "#b45309", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 999, padding: "1px 8px" }}>{pendentes.length} sem cheque enviado</span>}
-        {pendentes.length === 0 && <span style={{ fontSize: 11, color: "#047857" }}>todas com cheque ✓</span>}
+        {feitasSemCheque.length > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: "#991b1b", background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 999, padding: "1px 8px" }}>{feitasSemCheque.length} {feitasSemCheque.length === 1 ? "feita" : "feitas"} sem cheque</span>}
+        {naoFeitas.length > 0 && <span style={{ fontSize: 11, fontWeight: 700, color: "#4b5563", background: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: 999, padding: "1px 8px" }}>{naoFeitas.length} não {naoFeitas.length === 1 ? "feita" : "feitas"}</span>}
+        {feitasSemCheque.length === 0 && naoFeitas.length === 0 && <span style={{ fontSize: 11, color: "#047857" }}>todas com cheque ✓</span>}
       </div>
       <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6 }}>
         {lista.map((a) => (
@@ -236,9 +238,10 @@ function RevisoesAnteriores({ osId, podeEditar, horasAtual }: { osId: string; po
             {a.situacao === "enviada" && <span style={{ color: "#047857" }}>✓ cheque já enviado pra Mahindra</span>}
             {a.situacao === "cheque" && a.chequeOsId === osId && <span style={{ color: "#b45309" }}>cheque atrasado gerado nesta OS (abaixo)</span>}
             {a.situacao === "cheque" && a.chequeOsId !== osId && <span style={{ color: "#1d4ed8" }}>cheque gerado na {a.chequeOsId} — ainda não enviado</span>}
-            {a.situacao === "pendente" && (
+            {a.situacao === "nao_feita" && <span style={{ color: "#6b7280" }}>⚪ Não feita · sem cheque</span>}
+            {a.situacao === "feita_sem_cheque" && (
               <>
-                <span style={{ color: "#991b1b" }}>sem cheque{a.osRef ? ` — achei a ${a.osRef.id}${a.osRef.data ? ` de ${a.osRef.data}` : ""}${a.osRef.horimetro ? `, ${a.osRef.horimetro}` : ""}` : " — não achei OS dessa revisão (vai sair com data/horímetro pra preencher)"}</span>
+                <span style={{ color: "#991b1b", fontWeight: 600 }}>🔴 Feita · cheque não enviado{a.osRef ? ` — ${a.osRef.id}${a.osRef.data ? ` de ${a.osRef.data}` : ""}${a.osRef.horimetro ? `, ${a.osRef.horimetro}` : ""}` : " — data no cadastro do trator, sem OS (o cheque sai com data/horímetro pra preencher)"}</span>
                 {podeEditar && (
                   <button type="button" style={{ ...btn, marginLeft: "auto", padding: "4px 9px" }} disabled={gerando !== null} onClick={() => gerar(a.horas)}>
                     {gerando === a.horas ? "Gerando…" : `Gerar cheque das ${a.horas} h`}
