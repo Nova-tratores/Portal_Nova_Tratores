@@ -18,6 +18,7 @@ import { computarESalvarRota } from '@/lib/pos/rastreamento';
 import { resolverPlaca } from '@/lib/frota/placa';
 import { paradasNoUso } from '@/lib/frota/ignicao';
 import { carrosDosVendedores, desenhoDaRota, montarTimeline, type ParadaRota } from '@/lib/vendas-app/mapa-vendedores';
+import { situacaoDasParadas } from '@/lib/vendas-app/paradas-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -61,7 +62,8 @@ export async function GET(req: NextRequest) {
     const placa = resolverPlaca(placaParam);
     const data = /^\d{4}-\d{2}-\d{2}$/.test(req.nextUrl.searchParams.get('data') || '') ? req.nextUrl.searchParams.get('data')! : diaBR();
     const { carros } = await carrosAgora();
-    if (!carros.some((c) => c.placa === placa)) return json(req, { error: 'Este carro não está com nenhum vendedor.' }, 403);
+    const carroDoVendedor = carros.find((c) => c.placa === placa);
+    if (!carroDoVendedor) return json(req, { error: 'Este carro não está com nenhum vendedor.' }, 403);
 
     const [rota, geocercas, uso] = await Promise.all([
       computarESalvarRota(supabaseAdmin, placa, data),
@@ -80,9 +82,11 @@ export async function GET(req: NextRequest) {
     // sem janela = o carro não foi ligado no dia: nada de trajeto
     const pontosDia = janela.inicio ? (rota.pontos || []).filter((p) => p.dt >= janela.inicio! && (!janela.fim || p.dt <= janela.fim)) : [];
     const { pontos, segmentos, buracos } = desenhoDaRota(pontosDia);
-    const paradas: ParadaRota[] = ((rota.pontos || []).length ? paradasNoUso(rota.paradas || [], janela) : (rota.paradas || []))
+    const paradasDoDia: ParadaRota[] = ((rota.pontos || []).length ? paradasNoUso(rota.paradas || [], janela) : (rota.paradas || []))
       .filter((p) => p.lat && p.lng)
       .map((p) => ({ lat: p.lat, lng: p.lng, inicio: p.inicio, fim: p.fim, duracao_min: p.duracao_min, local: localDe(p.lat, p.lng, p.inicio) }));
+    // parada longa: explicada pelo vendedor, coberta por visita registrada perto ou a explicar
+    const paradas = await situacaoDasParadas(placa, data, carroDoVendedor.vendedor_id, paradasDoDia).catch(() => paradasDoDia);
     return json(req, {
       placa, data,
       motorista_dia: uso.data?.[0]?.pessoa_nome || null,
