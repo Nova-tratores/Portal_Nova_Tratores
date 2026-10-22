@@ -29,8 +29,19 @@ export default function OmieAgora({ painel }: { painel: Painel }) {
         <Activity size={16} style={{ color: '#dc2626' }} /> Omie agora
         <span style={{ fontWeight: 500, fontSize: '.72rem', color: '#6b7280' }}>
           · fila: {porta.fila.pessoa} de pessoas, {porta.fila.rapido} rápidos, {porta.fila.pesado} pesados
+          {porta.coordenacao?.ativa && (
+            <> · servidor {porta.coordenacao.papel}, coordenado com o {porta.coordenacao.papel === 'web' ? 'worker' : 'web'}
+              {porta.coordenacao.esperandoVaga > 0 && <> · {porta.coordenacao.esperandoVaga} gravação(ões) esperando a vez</>}
+            </>
+          )}
         </span>
       </div>
+      {porta.coordenacao?.ultimoErro && (
+        <div style={{ fontSize: '.75rem', color: '#b45309', marginBottom: 8 }}>
+          Coordenação com o outro servidor falhou ({porta.coordenacao.ultimoErro.msg}) — seguindo só com a fila deste servidor.
+          {/omie_|schema cache|does not exist/i.test(porta.coordenacao.ultimoErro.msg) && <> Falta aplicar sql/omie-coordenacao.sql.</>}
+        </div>
+      )}
 
       {contas.length === 0 && (
         <div style={{ fontSize: '.8rem', color: '#6b7280', marginBottom: 8 }}>Nenhuma chamada à Omie neste servidor na última hora.</div>

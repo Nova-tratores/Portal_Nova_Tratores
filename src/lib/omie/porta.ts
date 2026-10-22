@@ -22,7 +22,13 @@
 //  - Corpo 100% ASCII (acentos como \uXXXX): a Omie descarta não-ASCII cru.
 //  - Contadores em memória (`estadoPorta`) para o painel.
 //
-// O portal roda em UMA instância no Railway; a fila em memória basta para o freio.
+// A fila vive na memória do processo. Com os robôs num serviço separado (PAPEL=web e
+// PAPEL=worker, 16/10/2026) são DUAS filas, e três coisas passam a valer entre elas:
+//  - os limites padrão se dividem entre os dois processos (`limitePadrao`);
+//  - a vaga de gravação e o disjuntor passam pelo banco (`coordenacao.ts`,
+//    sql/omie-coordenacao.sql) — sem as tabelas, cada processo segue só com o local;
+//  - a pausa dos robôs durante o faturamento (pausa-robos.ts).
+// Com PAPEL=tudo (um processo só) nada disso consulta o banco.
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
@@ -205,15 +211,38 @@ async function prioridadeDaChamada(): Promise<Prioridade> {
 // ── Estado global (sobrevive ao HMR do dev) ────────────────────────────────────
 
 const num = (v: string | undefined, d: number) => (v && Number.isFinite(Number(v)) ? Number(v) : d);
+
+export type Papel = 'tudo' | 'web' | 'worker';
+export const PAPEL: Papel = ((): Papel => {
+  const p = (process.env.PAPEL || 'tudo').trim().toLowerCase();
+  return p === 'web' || p === 'worker' ? p : 'tudo';
+})();
+
+/**
+ * Limite padrão por papel do processo. Com web e worker separados, cada um tem a sua
+ * fila: a soma dos dois não pode passar do que a Omie aceita (4/s e 240/min por
+ * método), então cada processo fica com metade — 500 ms por método = 120/min cada.
+ */
+export function limitePadrao(papel: Papel) {
+  const dividido = papel !== 'tudo';
+  return {
+    gapMetodoMs: dividido ? 500 : 300,
+    gapChaveMs: dividido ? 300 : 200,
+    gapGlobalMs: 80,
+    maxSimultaneasChave: dividido ? 2 : 4,
+  };
+}
+const PADRAO = limitePadrao(PAPEL);
+
 export const LIMITES = {
   /** Entre duas chamadas do MESMO método na mesma chave (4/s e 240/min → 300 ms dá ~200/min). */
-  gapMetodoMs: num(process.env.OMIE_GAP_METODO_MS, 300),
+  gapMetodoMs: num(process.env.OMIE_GAP_METODO_MS, PADRAO.gapMetodoMs),
   /** Entre duas chamadas quaisquer da mesma chave. */
-  gapChaveMs: num(process.env.OMIE_GAP_CHAVE_MS, 200),
+  gapChaveMs: num(process.env.OMIE_GAP_CHAVE_MS, PADRAO.gapChaveMs),
   /** Entre duas chamadas quaisquer saindo do servidor (todas as chaves). */
-  gapGlobalMs: num(process.env.OMIE_GAP_GLOBAL_MS, 80),
+  gapGlobalMs: num(process.env.OMIE_GAP_GLOBAL_MS, PADRAO.gapGlobalMs),
   /** Chamadas em voo ao mesmo tempo por chave. */
-  maxSimultaneasChave: num(process.env.OMIE_MAX_SIMULTANEAS, 4),
+  maxSimultaneasChave: num(process.env.OMIE_MAX_SIMULTANEAS, PADRAO.maxSimultaneasChave),
   /** Gravações (Incluir/Alterar/Faturar…) em voo ao mesmo tempo por chave — o Omie pede que NÃO sejam
    *  simultâneas (orientação do suporte, 21/10/2026): uma de cada vez, as leituras seguem em paralelo. */
   maxGravacoesChave: num(process.env.OMIE_MAX_GRAVACOES, 1),
@@ -244,6 +273,13 @@ interface EstadoInterno {
   /** maior "até" das pausas no banco (abertas pelo outro processo — web × worker) */
   pausaExternaAte?: number;
   pausaLidaEm?: number;
+  /** quando cada bloqueio `${chave}|${metodo}` foi desfeito aqui (chamada voltou a dar certo) */
+  liberadoEm?: Map<string, number>;
+  bloqueiosLidosEm?: number;
+  /** falhas da coordenação pelo banco (o processo segue com a coordenação local) */
+  coordErro?: { em: number; msg: string };
+  /** gravações esperando a vaga de outro processo agora */
+  esperandoVaga?: number;
 }
 
 const G = globalThis as unknown as { __omiePorta?: EstadoInterno };
@@ -263,6 +299,7 @@ export function _reiniciarPorta(): void {
   const s = G.__omiePorta;
   if (s?.timer) clearTimeout(s.timer);
   G.__omiePorta = undefined;
+  fonteTeste = undefined;
 }
 
 const idChave = (appKey: string) => createHash('sha256').update(appKey).digest('hex').slice(0, 12);
@@ -279,7 +316,115 @@ export function bloqueioRestanteMs(appKey: string, call: string): number {
 }
 
 function armarBloqueio(chave: string, metodo: string, ms: number, motivo: string) {
-  estado().bloqueios.set(`${chave}|${metodo}`, { ate: Date.now() + ms, motivo });
+  const ate = Date.now() + ms;
+  estado().bloqueios.set(`${chave}|${metodo}`, { ate, motivo });
+  void comFonte((f) => f.gravarBloqueio(chave, metodo, ate, motivo, PAPEL));
+}
+
+/** A chamada deu certo: se havia bloqueio, ele acabou — aqui e no banco. */
+function desarmarBloqueio(chave: string, metodo: string) {
+  const s = estado();
+  const k = `${chave}|${metodo}`;
+  if (!s.bloqueios.has(k)) return;
+  s.bloqueios.delete(k);
+  (s.liberadoEm ??= new Map()).set(k, Date.now());
+  void comFonte((f) => f.liberarBloqueio(chave, metodo));
+}
+
+// ── Coordenação entre processos (web × worker) ─────────────────────────────────
+// Só quando o processo é PAPEL=web ou PAPEL=worker. Falha no banco nunca trava a
+// Omie: registra o erro (painel) e segue com a coordenação local.
+
+type Fonte = import('./coordenacao').FonteCoordenacao;
+let fonteTeste: Fonte | null | undefined;
+
+/** Só para testes: liga a coordenação com uma fonte falsa (null desliga). */
+export function _definirCoordenacao(f: Fonte | null): void {
+  fonteTeste = f;
+}
+
+async function fonteCoordenacao(): Promise<Fonte | null> {
+  if (fonteTeste !== undefined) return fonteTeste;
+  if (PAPEL === 'tudo' || process.env.VITEST) return null;
+  try { return (await import('./coordenacao')).FONTE_COORDENACAO; } catch { return null; }
+}
+
+function coordenacaoAtiva(): boolean {
+  return fonteTeste !== undefined ? fonteTeste !== null : PAPEL !== 'tudo';
+}
+
+const TIMEOUT_BANCO_MS = 3_000;
+
+/** Roda `fn` na fonte com prazo curto; erro/timeout → undefined (e anota no painel). */
+async function comFonte<T>(fn: (f: Fonte) => Promise<T>): Promise<T | undefined> {
+  const f = await fonteCoordenacao();
+  if (!f) return undefined;
+  try {
+    return await Promise.race([
+      fn(f),
+      new Promise<never>((_, nao) => setTimeout(() => nao(new Error('banco sem resposta em 3 s')), TIMEOUT_BANCO_MS)),
+    ]);
+  } catch (e) {
+    estado().coordErro = { em: Date.now(), msg: (e as { message?: string })?.message || String(e) };
+    return undefined;
+  }
+}
+
+let lendoBloqueios: Promise<void> | null = null;
+/** Traz os bloqueios armados pelo outro processo (no máximo a cada 3 s). */
+function lerBloqueiosExternos(): Promise<void> {
+  const s = estado();
+  if (!coordenacaoAtiva()) return Promise.resolve();
+  if (lendoBloqueios) return lendoBloqueios;
+  if (Date.now() - (s.bloqueiosLidosEm ?? 0) < 3_000) return Promise.resolve();
+  s.bloqueiosLidosEm = Date.now();
+  lendoBloqueios = (async () => {
+    const lista = await comFonte((f) => f.lerBloqueios());
+    for (const b of lista ?? []) {
+      const k = `${b.chave}|${b.metodo}`;
+      // bloqueio anterior a uma chamada que já deu certo aqui = velho, ignora
+      if (b.criadoEm <= (s.liberadoEm?.get(k) ?? 0)) continue;
+      const atual = s.bloqueios.get(k);
+      if (!atual || atual.ate < b.ate) s.bloqueios.set(k, { ate: b.ate, motivo: b.motivo });
+    }
+  })().finally(() => { lendoBloqueios = null; });
+  return lendoBloqueios;
+}
+
+/**
+ * Vaga de gravação entre processos: espera até a chave estar livre no banco. Devolve a
+ * função que solta a vaga. Sem coordenação (ou banco fora) devolve na hora.
+ */
+async function vagaGravacaoGlobal(chave: string, call: string, prioridade: Prioridade, timeoutMs: number): Promise<() => void> {
+  const nada = () => {};
+  if (!coordenacaoAtiva()) return nada;
+  const s = estado();
+  const dono = `${PAPEL}-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const aluguelMs = timeoutMs + 15_000;
+  const desiste = Date.now() + aluguelMs + 30_000; // o aluguel do outro vence antes disso
+  const passo = prioridade === 'pessoa' ? 250 : 1_000;
+  s.esperandoVaga = (s.esperandoVaga ?? 0) + 1;
+  try {
+    for (;;) {
+      const pegou = await comFonte((f) => f.pegarVaga(chave, dono, aluguelMs, call, PAPEL));
+      if (pegou === undefined) return nada; // banco fora / sem a tabela: segue com o local
+      if (pegou) {
+        let solta = false;
+        return () => {
+          if (solta) return;
+          solta = true;
+          void comFonte((f) => f.soltarVaga(chave, dono));
+        };
+      }
+      if (Date.now() > desiste) {
+        const rotulo = s.rotulos.get(chave) ?? '?';
+        throw new OmieBloqueioError(`Outra gravação na Omie ainda em andamento [${rotulo}/${call}] — tente de novo em instantes`, rotulo, call, 30);
+      }
+      await dormir(passo);
+    }
+  } finally {
+    s.esperandoVaga = Math.max(0, (s.esperandoVaga ?? 1) - 1);
+  }
 }
 
 // ── Fila e freio ───────────────────────────────────────────────────────────────
@@ -436,7 +581,8 @@ export async function omie<T = OmieResposta>(
   const rotulo = rotuloCanonico(cred.rotulo);
   estado().rotulos.set(chave, rotulo);
   const prioridade = opcoes.prioridade ?? await prioridadeDaChamada();
-  if (prioridade !== 'pessoa') await lerPausaExterna();
+  if (prioridade !== 'pessoa') await Promise.all([lerPausaExterna(), lerBloqueiosExternos()]);
+  else void lerBloqueiosExternos(); // quem está na tela não espera o banco; vale para a próxima
   const gravacao = opcoes.gravacao ?? ehGravacao(call);
   const tentativas = Math.max(0, opcoes.tentativas ?? 2);
   const maxEspera = opcoes.maxEsperaMs ?? LIMITES.maxEsperaPadraoMs;
@@ -455,7 +601,11 @@ export async function omie<T = OmieResposta>(
       throw new OmieBloqueioError(`${motivo} ${onde} — aguardando ~${seg}s`, rotulo, call, seg);
     }
 
-    const devolver = await pedirVaga(chave, call, prioridade, gravacao);
+    // Gravação: primeiro a vaga entre processos (banco), depois a vaga local. Nessa
+    // ordem só quem tem a vaga do banco ocupa a vaga local — ninguém espera em cruz.
+    const soltarGlobal = gravacao ? await vagaGravacaoGlobal(chave, call, prioridade, timeoutMs) : () => {};
+    const devolverLocal = await pedirVaga(chave, call, prioridade, gravacao);
+    const devolver = () => { devolverLocal(); soltarGlobal(); };
     const t0 = Date.now();
     let data: OmieResposta;
     try {
@@ -498,8 +648,7 @@ export async function omie<T = OmieResposta>(
       : data.status === 'error' ? String(data.message || 'erro Omie sem mensagem') : '';
 
     if (!fault) {
-      const s = estado();
-      s.bloqueios.delete(`${chave}|${call}`);
+      desarmarBloqueio(chave, call);
       contar(rotulo, call, prioridade, 'ok', ms);
       return data as T;
     }
@@ -554,6 +703,8 @@ export interface EstadoPorta {
   ultimoMinuto: Array<{ conta: string; metodo: string; prioridade: Prioridade } & Contador>;
   ultimaHora: Array<{ conta: string; prioridade: Prioridade } & Contador>;
   limites: typeof LIMITES;
+  /** papel deste processo e a coordenação pelo banco com o outro (web × worker); erro só dos últimos 10 min */
+  coordenacao: { papel: Papel; ativa: boolean; esperandoVaga: number; ultimoErro: { em: string; msg: string } | null };
 }
 
 export function estadoPorta(): EstadoPorta {
@@ -593,5 +744,12 @@ export function estadoPorta(): EstadoPorta {
     ultimoMinuto,
     ultimaHora: [...hora.entries()].map(([k, c]) => { const [conta, prioridade] = k.split('|') as [string, Prioridade]; return { conta, prioridade, ...c }; }),
     limites: LIMITES,
+    coordenacao: {
+      papel: PAPEL,
+      ativa: coordenacaoAtiva(),
+      esperandoVaga: s.esperandoVaga ?? 0,
+      // só o erro dos últimos 10 min (o painel mostra como aviso)
+      ultimoErro: s.coordErro && agora - s.coordErro.em < 10 * 60_000 ? { em: new Date(s.coordErro.em).toISOString(), msg: s.coordErro.msg } : null,
+    },
   };
 }
