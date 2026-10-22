@@ -12,6 +12,8 @@ import type { ConfigPasso, EstadoVersao, TipoPasso } from '@/lib/pops/regras'
 import { VersaoConteudo } from '@/components/pops/PassoPreview'
 import HistoricoVersoes, { type VersaoResumo } from '@/components/pops/HistoricoVersoes'
 import HistoricoExecucoes from '@/components/pops/HistoricoExecucoes'
+import EtiquetasPop from '@/components/pops/EtiquetasPop'
+import PainelGatilhosOS from '@/components/pops/PainelGatilhosOS'
 import ModalDuplicar from '@/components/pops/ModalDuplicar'
 import ModalExecutar from '@/components/pops/ModalExecutar'
 import PainelCiencia from '@/components/pops/PainelCiencia'
@@ -26,6 +28,7 @@ interface Detalhe {
     id: string; codigo: string; titulo: string; dono_id: string; eh_template: boolean; template_tipo: 'sistema' | 'empresa' | null
     arquivado: boolean; proxima_revisao_em: string | null; periodicidade_revisao_dias: number
     origem_template_id: string | null; origem_template_versao: number | null; origem_pop_id: string | null
+    etiquetas?: string[]   // ausente sem a migration pops-04
   }
   area: { sigla: string; nome: string } | null
   versoes: (VersaoResumo & { objetivo: string; escopo: string; materiais: string })[]
@@ -120,6 +123,9 @@ function Detalhe() {
           </span>}
           {edicao && <EstadoChip estado={edicao.estado as EstadoVersao} numero={edicao.numero} />}
         </div>
+        {pop.etiquetas && (
+          <EtiquetasPop etiquetas={pop.etiquetas} editavel={papeis.editar} onSalvar={(lista) => patch({ etiquetas: lista })} />
+        )}
         {d.modelo_atualizado && (
           <div style={{ fontSize: 13, color: '#4f46e5', fontWeight: 600 }}>
             O modelo de origem tem versão mais nova que a v{pop.origem_template_versao} usada nesta cópia.{' '}
@@ -205,7 +211,7 @@ function Detalhe() {
         )}
         {papeis.editar && publicada && <button onClick={() => setAba('ciencia')} style={aba === 'ciencia' ? botao(COR_POPS) : botaoClaro()}><Users size={14} /> Ciência</button>}
         {papeis.editar && publicada && pop.template_tipo !== 'sistema' && (
-          <button onClick={() => setAba('recorrencia')} style={aba === 'recorrencia' ? botao(COR_POPS) : botaoClaro()}><Repeat size={14} /> Recorrência ({d.agendamentos.length})</button>
+          <button onClick={() => setAba('recorrencia')} style={aba === 'recorrencia' ? botao(COR_POPS) : botaoClaro()}><Repeat size={14} /> Quando executar</button>
         )}
       </div>
 
@@ -214,7 +220,10 @@ function Detalhe() {
       ) : aba === 'execucoes' ? (
         <HistoricoExecucoes popId={id} />
       ) : aba === 'recorrencia' ? (
-        <PainelAgendamentos popId={id} agendamentos={d.agendamentos} usuarios={d.usuarios} onMudou={carregar} />
+        <div style={{ display: 'grid', gap: 12 }}>
+          <PainelAgendamentos popId={id} agendamentos={d.agendamentos} usuarios={d.usuarios} onMudou={carregar} />
+          <PainelGatilhosOS popId={id} />
+        </div>
       ) : aba === 'conteudo' ? (
         <div style={cartao}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>

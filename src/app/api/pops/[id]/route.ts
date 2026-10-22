@@ -1,7 +1,7 @@
 // POPs — detalhe e dados do cabeçalho que NÃO são versionados.
 // GET   /api/pops/:id[?versao=<uuid>]  POP + versões visíveis + passos da versão escolhida
 //       (padrão: a publicada; sem publicada, a mais recente visível) + papéis do usuário.
-// PATCH /api/pops/:id  { titulo?, dono_id?, periodicidade_revisao_dias?, arquivado? }
+// PATCH /api/pops/:id  { titulo?, dono_id?, periodicidade_revisao_dias?, arquivado?, etiquetas? }
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
@@ -10,7 +10,7 @@ import {
   urlsAssinadas, usuarioAtivo, usuariosMin, versoesDoPop,
 } from '@/lib/pops/server'
 import {
-  ehAdminPops, podeAprovar, podeEditarPop, podeExecutar, podeVerRascunho, uuidValido,
+  ehAdminPops, normalizarEtiquetas, podeAprovar, podeEditarPop, podeExecutar, podeVerRascunho, uuidValido,
 } from '@/lib/pops/regras'
 
 export const runtime = 'nodejs'
@@ -102,6 +102,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       patch.periodicidade_revisao_dias = n
     }
     if ('arquivado' in body) patch.arquivado = body.arquivado === true
+    if ('etiquetas' in body) patch.etiquetas = normalizarEtiquetas(body.etiquetas)
     if ('dono_id' in body) {
       const d = String(body.dono_id || '')
       if (!ehAdminPops(ator) && pop.dono_id !== auth.userId) return erro('Só o dono atual ou o admin passa o POP adiante.', 403)
@@ -110,6 +111,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
     if (!Object.keys(patch).length) return erro('Nada para alterar.')
     const { data, error } = await supabaseAdmin.from('pops').update(patch).eq('id', id).select('*').single()
+    if (error && 'etiquetas' in patch && ['PGRST204', '42703'].includes(String(error.code))) {
+      return erro('Etiquetas ainda não estão ligadas no banco (falta a migration sql/pops-04-gatilhos-os-etiquetas.sql).', 503, { migracaoFaltando: true })
+    }
     if (error) return erroBanco(error)
     return NextResponse.json({ pop: data })
   } catch (e) {

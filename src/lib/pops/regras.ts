@@ -390,3 +390,57 @@ export function descreverRecorrencia(a: Pick<AgendamentoRef, 'recorrencia' | 'di
   if (n > 1) return `A cada ${n} meses${NOME_INTERVALO[n] ? ` (${NOME_INTERVALO[n]})` : ''}, no dia ${a.dia_mes}${ultimo}`
   return `Todo dia ${a.dia_mes}${ultimo}`
 }
+
+// ---------------------------------------------------------------------------
+// Etiquetas livres do POP ("limpeza", "segurança"…): minúsculas, sem "#",
+// espaços colapsados, 1–30 caracteres, sem repetir, no máximo 10.
+// ---------------------------------------------------------------------------
+export const MAX_ETIQUETAS = 10
+export function normalizarEtiquetas(lista: unknown): string[] {
+  const entrada = Array.isArray(lista) ? lista : typeof lista === 'string' ? lista.split(',') : []
+  const out: string[] = []
+  for (const e of entrada) {
+    const t = String(e ?? '').replace(/#/g, '').replace(/\s+/g, ' ').trim().toLowerCase().slice(0, 30).trim()
+    if (t && !out.includes(t)) out.push(t)
+    if (out.length >= MAX_ETIQUETAS) break
+  }
+  return out
+}
+
+// ---------------------------------------------------------------------------
+// Execução disparada pela OS do POS: "OS do tipo X que entrar na fase Y".
+// Comparação sem acento/caixa (o Tipo_Servico vem do AppSheet com grafias soltas).
+// ---------------------------------------------------------------------------
+const semAcento = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+
+export interface GatilhoOSRef { tipo_servico: string; fase: string; ativo: boolean }
+export function gatilhoCasaComOS(g: GatilhoOSRef, os: { Tipo_Servico?: unknown; Status?: unknown }): boolean {
+  return g.ativo && !!semAcento(g.tipo_servico) && semAcento(g.tipo_servico) === semAcento(os.Tipo_Servico)
+    && semAcento(g.fase) === semAcento(os.Status)
+}
+
+// Chassi dentro do "Projeto" da OS ("MAHINDRA 7095 MDI09520PT0006593"): a palavra
+// mais longa com 8+ letras/números que tenha letra E número (o modelo "7095" fica fora).
+export function chassiDoProjeto(projeto: unknown): string | null {
+  const palavras = String(projeto ?? '').toUpperCase().split(/[\s|/,;]+/)
+    .map((p) => p.replace(/[^A-Z0-9-]/g, ''))
+    .filter((p) => p.length >= 8 && /[A-Z]/.test(p) && /\d/.test(p))
+  return palavras.sort((a, b) => b.length - a.length)[0] || null
+}
+
+// Referência da execução: "OS-0852 · MDI09520PT0006593" (até 80 caracteres —
+// é por ela que a aba Execuções acha o histórico da máquina).
+export function refExecucaoDaOS(idOrdem: string, projeto: unknown): string {
+  const chassi = chassiDoProjeto(projeto)
+  return `${idOrdem}${chassi ? ` · ${chassi}` : ''}`.slice(0, 80)
+}
+
+export function validarGatilhoOS(e: Record<string, unknown>):
+  { dados: { tipo_servico: string; fase: string; responsavel_padrao_id: string } } | { erro: string } {
+  const tipo = String(e.tipo_servico ?? '').trim()
+  const fase = String(e.fase ?? '').trim()
+  if (!tipo || tipo.length > 80) return { erro: 'Escolha o tipo de serviço da OS.' }
+  if (!fase || fase.length > 80) return { erro: 'Escolha a fase da OS.' }
+  if (!uuidValido(e.responsavel_padrao_id)) return { erro: 'Escolha quem executa quando o técnico da OS não usa o portal.' }
+  return { dados: { tipo_servico: tipo, fase, responsavel_padrao_id: e.responsavel_padrao_id } }
+}

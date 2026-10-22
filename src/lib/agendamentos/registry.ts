@@ -246,6 +246,16 @@ export const AGENDAMENTOS: Agendamento[] = [
     obs: 'Registra em cron_runs como frota-pendencias-sync',
   },
   {
+    nome: 'POPs disparados pela OS',
+    modulo: 'POPs',
+    fonte: 'in-process',
+    frequencia: 'A cada 10 min (e na hora em que a fase muda pelo portal)',
+    alvo: 'verificarGatilhosOS() — OS na fase configurada no POP ganha a execução para o técnico',
+    arquivo: 'src/instrumentation.ts',
+    condicional: 'Só em produção; desliga com POPS_GATILHOS_OS=off',
+    obs: 'Registra em cron_runs como pops-gatilhos-os',
+  },
+  {
     nome: 'Replanejamento dos cronogramas',
     modulo: 'Central de Trabalho',
     fonte: 'in-process',

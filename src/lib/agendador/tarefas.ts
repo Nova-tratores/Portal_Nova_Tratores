@@ -155,6 +155,15 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: (await rodarReconciliacaoFaturamento()) || 'nada pendente' };
   },
 
+  'pops-gatilhos-os': async () => {
+    if (desligada('POPS_GATILHOS_OS')) return { pular: 'desligado (POPS_GATILHOS_OS=off)' };
+    const { verificarGatilhosOS, resumoGatilhos } = await import('@/lib/pops/gatilhos-os');
+    const r = await verificarGatilhosOS();
+    if (r.pulado) return { pular: r.pulado };
+    if (r.erros.length && !r.criadas) throw new Error(r.erros.slice(0, 5).join(' | '));
+    return { resumo: resumoGatilhos(r) };
+  },
+
   'frota-pendencias-sync': async () => {
     if (desligada('FROTA_PENDENCIAS_SYNC')) return { pular: 'desligado (FROTA_PENDENCIAS_SYNC=off)' };
     const { sincronizarPendencias } = await import('@/lib/frota/pendencias-sync');

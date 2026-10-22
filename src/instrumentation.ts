@@ -237,6 +237,22 @@ export async function register(): Promise<void> {
     log('motor de pendências da frota LIGADO (a cada 15 min)');
   }
 
+  // POPs disparados pela OS (regras na ficha do POP): OS que está na fase da regra
+  // ganha a execução para o técnico. A mudança de fase pelo portal já dispara na
+  // hora; isto cobre os outros caminhos. SÓ produção. Desliga com POPS_GATILHOS_OS=off.
+  if (rodaRobos && !agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.POPS_GATILHOS_OS !== 'off')) {
+    const { verificarGatilhosOS, resumoGatilhos } = await import('./lib/pops/gatilhos-os');
+    const rodarPopsOS = async () => {
+      try {
+        const r = await verificarGatilhosOS();
+        if (!r.pulado) log(`pops-gatilhos-os: ${resumoGatilhos(r)}`);
+      } catch (e) { log('pops-gatilhos-os falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarPopsOS().catch(() => {}); }, 10 * 60 * 1000);
+    setTimeout(() => { rodarPopsOS().catch(() => {}); }, 6 * 60 * 1000);
+    log('POPs disparados pela OS LIGADO (a cada 10 min)');
+  }
+
   // Central de Trabalho: replanejamento diário dos cronogramas ligados a quadros
   // de tickets (etapa atrasada empurra as seguintes). Uma vez por dia, a partir
   // das 06:00 BRT — antes da tela "Seu dia" das 7:30. SÓ produção.

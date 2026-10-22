@@ -65,6 +65,12 @@ export async function aplicarMudancaFase(
     Dias_Na_Fase: 0, Total_Dias_Aberto: 0,
   });
 
+  // POP disparado pela OS (regras na ficha do POP): cria a execução para o técnico
+  // já agora; o agendador (10 min) cobre mudanças de fase feitas por outro caminho.
+  import("@/lib/pops/gatilhos-os")
+    .then(({ verificarGatilhosOS }) => verificarGatilhosOS({ osIds: [idOs] }))
+    .catch((e) => console.error("[pos/fase] POP pela OS:", (e as Error).message));
+
   // ── Métricas de atraso ──
   if (["Orçamento", "Aguardando Cliente"].includes(newStatus)) {
     const { data: abertas } = await supabase.from(TBL_METRICAS).select("id, data_inicio").eq("id_ordem", idOs).is("data_fim", null);
