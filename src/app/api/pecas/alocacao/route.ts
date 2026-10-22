@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { protegerRota, autorDe, type OpcaoAcesso } from '@/lib/ajustes/permissao-server';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
-import { dispensar, listarAbertas, listarEncerradas, reabrir } from '@/lib/pecas/alocacao-server';
+import { dispensar, listarAbertas, listarEncerradas, listarPosicoes, reabrir } from '@/lib/pecas/alocacao-server';
 import { verificarAlocacaoRapido } from '@/lib/pecas/alocacao-rapido';
 
 export const dynamic = 'force-dynamic';
@@ -24,11 +24,14 @@ export async function GET(req: NextRequest) {
   try {
     const lista = await listarAbertas({ userId: acesso.user.id });
     const comEncerradas = req.nextUrl.searchParams.get('encerradas') === '1';
+    // ?posicoes=1: peças já locadas (sugestão de posição e aviso de ocupado) — tela do Opa
+    const comPosicoes = req.nextUrl.searchParams.get('posicoes') === '1';
     return NextResponse.json({
       ok: true,
       ...lista,
       meuUserId: acesso.user.id,
       encerradas: comEncerradas ? await listarEncerradas(100) : undefined,
+      posicoes: comPosicoes ? await listarPosicoes() : undefined,
     });
   } catch (e) {
     return NextResponse.json({ ok: false, erro: (e as Error).message }, { status: 500 });

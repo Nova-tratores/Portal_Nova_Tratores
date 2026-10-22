@@ -62,7 +62,7 @@ function espera(iso: string | null): string {
 
 interface Alocada { grupo: GrupoAlocacao; pos: Pos; completa: boolean; naFila: boolean }
 
-export default function PainelAlocacao({ lista, carregando, erro, recarregar, produtos, focoCod, onFechar, onLocacaoGravada }: {
+export default function PainelAlocacao({ lista, carregando, erro, recarregar, produtos, focoCod, onFechar, onLocacaoGravada, modo = 'gaveta' }: {
   lista: ListaAlocacaoCliente; carregando: boolean; erro: string | null; recarregar: () => Promise<void>;
   /** matriz já carregada pela tela: dá as sugestões de posição e o aviso de posição ocupada */
   produtos: ProdutoLoc[];
@@ -70,7 +70,10 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
   onFechar: () => void;
   /** a tela reflete a nova posição na matriz sem recarregar tudo */
   onLocacaoGravada: (alvo: ProdutoLoc, pos: Pos, liberados: ProdutoLoc[]) => void;
+  /** 'gaveta' = painel lateral de /ajustes/caracteristicas; 'pagina' = tela inteira (Opa → Guardar peças, celular) */
+  modo?: 'gaveta' | 'pagina';
 }) {
+  const emPagina = modo === 'pagina';
   const [quem, setQuem] = useState<'todas' | 'minhas'>('todas');
   const [empresa, setEmpresa] = useState('');
   const [busca, setBusca] = useState(focoCod || '');
@@ -186,18 +189,20 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
   const alvoProduto = alocar ? produtoDe(alocar) : null;
 
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }} onClick={onFechar}>
+    <div style={emPagina ? undefined : { position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }} onClick={emPagina ? undefined : onFechar}>
       <div className="est-touch" onClick={(e) => e.stopPropagation()}
-        style={{ width: 'min(760px, 100vw)', height: '100%', background: '#f8fafc', display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 24px rgba(15,23,42,.18)' }}>
+        style={emPagina
+          ? { width: '100%', background: '#f8fafc', display: 'flex', flexDirection: 'column', border: '1px solid #e2e8f0', borderRadius: 12, overflow: 'hidden' }
+          : { width: 'min(760px, 100vw)', height: '100%', background: '#f8fafc', display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 24px rgba(15,23,42,.18)' }}>
         {/* cabeçalho */}
         <div style={{ padding: '14px 16px 10px', background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <PackageOpen size={18} color="#1d4ed8" />
-            <h2 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>A alocar</h2>
+            <h2 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>{emPagina ? 'Peças recebidas para guardar' : 'A alocar'}</h2>
             <span style={{ fontSize: '.74rem', color: '#64748b' }}>
               {lista.totais.pecas} peça(s) recebida(s) sem Prateleira / Andar / Caixa
             </span>
-            <button onClick={onFechar} style={{ ...btn, marginLeft: 'auto', padding: 6 }} title="Fechar"><X size={16} /></button>
+            {!emPagina && <button onClick={onFechar} style={{ ...btn, marginLeft: 'auto', padding: 6 }} title="Fechar"><X size={16} /></button>}
           </div>
           <p style={{ margin: '6px 0 10px', fontSize: '.74rem', color: '#64748b' }}>
             A demanda nasce em até 10 minutos depois que a nota é recebida (portal ou Omie) e fecha sozinha quando a peça ganha as três posições.
@@ -230,7 +235,7 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
         </div>
 
         {/* corpo */}
-        <div style={{ flex: 1, overflow: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ flex: 1, overflow: emPagina ? 'visible' : 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
           {erro && <div style={{ color: '#b91c1c', fontSize: '.8rem' }}>Erro ao carregar: {erro}</div>}
           {lista.tabelaAusente && (
             <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: 10, fontSize: '.78rem' }}>

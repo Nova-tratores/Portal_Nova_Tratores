@@ -5,7 +5,8 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, ArrowLeft, ChevronDown, GitCompare, Landmark, LayoutList, Package, Plus, Printer } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ChevronDown, GitCompare, Landmark, LayoutList, Package, PackageOpen, Plus, Printer } from 'lucide-react'
+import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -37,6 +38,31 @@ function useContagens(): Contagens | null {
     return () => { vivo = false; window.removeEventListener('opa-mudou', carregar) }
   }, [pathname])
   return c
+}
+
+/**
+ * Quantas peças recebidas esperam ser guardadas (demandas de alocação abertas) — para a
+ * guia "Guardar peças". Só pergunta quando a pessoa tem acesso (Características ou
+ * Localização física); sem acesso a guia nem aparece.
+ */
+function useParaGuardar(ativo: boolean): number | null {
+  const pathname = usePathname()
+  const [n, setN] = useState<number | null>(null)
+  useEffect(() => {
+    if (!ativo) return
+    let vivo = true
+    const carregar = async () => {
+      try {
+        const r = await fetch('/api/pecas/alocacao', { headers: { ...(await authHeaders()) } })
+        const d = await r.json().catch(() => ({}))
+        if (vivo && r.ok) setN(Number(d?.totais?.pecas) || 0)
+      } catch { /* sem contagem */ }
+    }
+    carregar()
+    window.addEventListener('opa-mudou', carregar)
+    return () => { vivo = false; window.removeEventListener('opa-mudou', carregar) }
+  }, [ativo, pathname])
+  return n
 }
 
 const CHAVE_NAV = 'opa-pecas-navegacao'
@@ -84,13 +110,18 @@ export function OpaBarra({ acao, podeGerir = false }: { acao?: React.ReactNode; 
   const { userProfile } = useAuth()
   const { pode: podePerm, loading: carregandoPerm } = usePermissoes(userProfile?.id)
   const vePatrimonio = !carregandoPerm && podePerm('patrimonio')
+  // Guardar peças: peças recebidas sem locação (mesmo painel de /ajustes/caracteristicas)
+  const emGuardar = pathname.startsWith('/opa/guardar')
+  const veGuardar = !carregandoPerm && (podePerm('ajustes', 'caracteristicas') || podePerm('ajustes', 'localizacao'))
+  const paraGuardar = useParaGuardar(veGuardar)
   const c = useContagens()
   const voltar = useVoltar(pathname)
   const temVoltar = emPecas && pathname !== '/opa/pecas'
   // celular: com número ímpar de botões, o "Novo produto" ocupa a linha inteira
   const qtdBotoes = (temVoltar ? 1 : 0) + 1 + (podeGerir ? 1 : 0) + 1 + 1
   const btn = isMobile ? BTN_FAIXA_MOVEL : BTN_FAIXA
-  const faixa = emPatrimonio ? 'linear-gradient(135deg, #818cf8 0%, #4f46e5 55%, #3730a3 100%)'
+  const faixa = emGuardar ? 'linear-gradient(135deg, #2dd4bf 0%, #0d9488 55%, #115e59 100%)'
+    : emPatrimonio ? 'linear-gradient(135deg, #818cf8 0%, #4f46e5 55%, #3730a3 100%)'
     : emPecas ? 'linear-gradient(135deg, #fb923c 0%, #ea580c 55%, #c2410c 100%)' : 'linear-gradient(135deg, #f87171 0%, #dc2626 55%, #991b1b 100%)'
 
   return (
@@ -100,10 +131,14 @@ export function OpaBarra({ acao, podeGerir = false }: { acao?: React.ReactNode; 
       background: faixa, boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
     }}>
       <div role="tablist" style={{ display: 'flex', alignItems: 'flex-end', gap: isMobile ? 3 : 4, overflowX: 'auto', flexShrink: 0, maxWidth: '100%', width: isMobile ? '100%' : undefined, WebkitOverflowScrolling: 'touch' }}>
-        <GuiaChrome href="/opa" ativo={!emPecas && !emPatrimonio} cor="#dc2626" icone={<AlertCircle size={16} />} titulo="Ocorrências"
+        <GuiaChrome href="/opa" ativo={!emPecas && !emPatrimonio && !emGuardar} cor="#dc2626" icone={<AlertCircle size={16} />} titulo="Ocorrências"
           conta={c?.opasAbertos ?? null} dica={c ? (c.opasAbertos === 1 ? '1 aberta' : `${c.opasAbertos} abertas`) : ''} mobile={isMobile} />
         <GuiaChrome href="/opa/pecas" ativo={emPecas} cor={LARANJA} icone={<Package size={16} />} titulo="Peças S/Estoque" curto="Peças"
           conta={c?.emAberto ?? null} dica={c ? `${c.emAberto} em andamento` : ''} mobile={isMobile} />
+        {(veGuardar || emGuardar) && (
+          <GuiaChrome href="/opa/guardar" ativo={emGuardar} cor="#0d9488" icone={<PackageOpen size={16} />} titulo="Guardar peças" curto="Guardar"
+            conta={paraGuardar} dica={paraGuardar != null ? `${paraGuardar} peça(s) recebida(s) sem prateleira / andar / caixa` : 'Peças recebidas para guardar'} mobile={isMobile} />
+        )}
         {(vePatrimonio || emPatrimonio) && (
           <GuiaChrome href="/opa/patrimonio" ativo={emPatrimonio} cor="#4f46e5" icone={<Landmark size={16} />} titulo="Patrimônio Loja" curto="Patrimônio"
             conta={null} dica="O que a loja tem: ferramentas, informática, móveis, equipamentos" mobile={isMobile} />
