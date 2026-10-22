@@ -5,7 +5,7 @@ import { calcularKpis, frescor, prepararParaUsuario, filtrarConta, isoDe, itensD
 
 const HOJE = '2026-10-19';
 function fontes(p: Partial<Fontes> = {}): Fontes {
-  return { hoje: HOJE, pagar: [], receber: [], fila: [], propostas: [], pedidosFabrica: [], nfMaquinas: [], pedidos: [], os: [], metricasAbertas: [], alocacao: [], negativos: [], robos: {}, falhas: {}, ...p };
+  return { hoje: HOJE, pagar: [], receber: [], fila: [], propostas: [], pedidosFabrica: [], nfMaquinas: [], pedidos: [], os: [], metricasAbertas: [], requisicoes: [], alocacao: [], negativos: [], robos: {}, falhas: {}, ...p };
 }
 const k = (ls: LinhaKpi[], id: string, conta = 'TODAS') => ls.find((l) => l.kpi_id === id && l.conta === conta)!;
 const tit = (o: Record<string, unknown>) => ({ codigo_lancamento: 1, conta_omie: 'NOVA', status_titulo: 'A VENCER', valor_documento: 100, valor_pago: 0, data_vencimento: HOJE, data_previsao: HOJE, ...o });
@@ -191,6 +191,29 @@ describe('90 dias e propostas (pedido de 22/10/2026)', () => {
     const { itens, total } = itensDoKpi('propostas_abertas', 'TODAS', f);
     expect(total).toBe(2);
     expect(itens[0]).toMatchObject({ titulo: 'A', valor: 200000, href: '/propostas' });
+  });
+});
+
+
+describe('requisições em aberto (pedido de 22/10/2026)', () => {
+  const f = fontes({ requisicoes: [
+    { id: 1, titulo: 'Filtro', tipo: 'Peças', status: 'pedido', valor_despeza: 'R$ 1.234,50', created_at: '2026-10-20T10:00:00Z' },
+    { id: 2, titulo: 'Guincho', tipo: 'Serviço de Terceiros', status: 'AGUARDANDO', valor_despeza: '800.00', created_at: '2026-08-01T10:00:00Z' },
+    { id: 3, titulo: 'Diesel', tipo: 'Veicular Abastecimento', status: 'aguardando', valor_despeza: '', created_at: '2026-10-01T10:00:00Z' },
+    { id: 4, titulo: 'Paga', tipo: 'Peças', status: 'financeiro', valor_despeza: '999', created_at: '2026-10-01T10:00:00Z' },
+    { id: 5, titulo: 'Apagada', tipo: 'Peças', status: 'lixeira', valor_despeza: '999', created_at: '2026-10-01T10:00:00Z' },
+  ] });
+  it('conta só as fases abertas do Kanban (qualquer caixa), valor BR/US com R$', () => {
+    const n = k(calcularKpis(f), 'requisicoes_abertas');
+    expect(n.contagem).toBe(3);
+    expect(n.valor).toBeNull();
+    expect(n.detalhe).toMatchObject({ valor_informado: 2034.5, com_valor: 2, paradas_30: 1, por_fase: { 'Pedido Realizado': 1, 'Aguardando Fornecedor': 2 } });
+  });
+  it('lista da mais antiga para a mais nova, com link para o card', () => {
+    const { itens, total } = itensDoKpi('requisicoes_abertas', 'TODAS', f);
+    expect(total).toBe(3);
+    expect(itens.map((i) => i.chave)).toEqual(['req-2', 'req-3', 'req-1']);
+    expect(itens[0].href).toBe('/requisicoes?req=2');
   });
 });
 

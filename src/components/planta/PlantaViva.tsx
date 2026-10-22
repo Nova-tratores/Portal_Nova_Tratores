@@ -36,7 +36,7 @@ const SALAS: Array<{ id: string; nome: string; camada: Camada | null; kpis: stri
   { id: 'patio', nome: 'Pátio e máquinas vindo', camada: 'gas', kpis: ['propostas_abertas', 'maq_pedido_fabrica', 'maq_em_transito', 'maq_recebida_sem_faturar', 'maq_receb_esquecido'] },
   { id: 'oficina', nome: 'Oficina', camada: 'luz', kpis: ['os_por_fase', 'os_atrasada', 'os_sem_faturar'] },
   { id: 'balcao', nome: 'Balcão de peças', camada: 'luz', kpis: ['ppv_aberto'] },
-  { id: 'almoxarifado', nome: 'Almoxarifado', camada: 'luz', kpis: ['pecas_a_alocar', 'estoque_negativo'] },
+  { id: 'almoxarifado', nome: 'Almoxarifado e compras', camada: 'luz', kpis: ['requisicoes_abertas', 'pecas_a_alocar', 'estoque_negativo'] },
 ]
 const CAMADA_DO_KPI: Record<string, Camada> = {}
 for (const sl of SALAS) for (const k of sl.kpis) if (sl.camada) CAMADA_DO_KPI[k] = sl.camada
@@ -56,7 +56,7 @@ const CANOS: Array<{ id: string; de: Ponta; para: Ponta; camada: Camada; kpi: st
 const UNIDADE: Record<string, [string, string]> = {
   maq_em_transito: ['máquina', 'máquinas'], maq_receb_esquecido: ['máquina', 'máquinas'], maq_pedido_fabrica: ['pedido', 'pedidos'],
   maq_recebida_sem_faturar: ['máquina', 'máquinas'], propostas_abertas: ['proposta', 'propostas'], ppv_aberto: ['pedido', 'pedidos'], os_por_fase: ['OS', 'OS'], os_atrasada: ['OS', 'OS'],
-  os_sem_faturar: ['OS', 'OS'], pecas_a_alocar: ['peça', 'peças'], estoque_negativo: ['produto', 'produtos'], fila_financeiro: ['pedido', 'pedidos'],
+  os_sem_faturar: ['OS', 'OS'], pecas_a_alocar: ['peça', 'peças'], requisicoes_abertas: ['requisição', 'requisições'], estoque_negativo: ['produto', 'produtos'], fila_financeiro: ['pedido', 'pedidos'],
 }
 const un = (id: string, n: number) => { const u = UNIDADE[id] || ['título', 'títulos']; return `${n.toLocaleString('pt-BR')} ${n === 1 ? u[0] : u[1]}` }
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -218,6 +218,7 @@ function Chip({ k, ativo, onClick }: { k: Kpi; ativo: boolean; onClick: () => vo
     : k.valor != null ? compacto(k.valor) : un(k.kpi_id, k.contagem)
   const sub = k.kpi_id === 'robos' ? 'última rodada de cada robô'
     : k.kpi_id === 'fluxo_30d' ? 'receber − pagar, por semana'
+    : k.kpi_id === 'requisicoes_abertas' ? `${Number(k.detalhe?.paradas_30) || 0} paradas há +30 dias`
     : k.valor != null ? un(k.kpi_id, k.contagem) : ''
   return (
     <button type="button" onClick={onClick} className={[s.chip, camada ? s[camada] : '', ativo ? s.ativo : ''].join(' ')}>
@@ -397,6 +398,24 @@ function Detalhe({ k, agora }: { k: Kpi; agora: number }) {
           {Object.entries(d.por_status as Record<string, number>).sort((a, b) => b[1] - a[1]).map(([f, n]) => <tr key={f}><td>{f}</td><td>{n}</td></tr>)}
         </tbody></table>
         {d.sem_previsao ? <div className={s.mudo}>{d.sem_previsao} sem previsão de fechamento.</div> : null}
+      </div>
+    )
+  }
+  if (k.kpi_id === 'requisicoes_abertas' && d.por_fase) {
+    const tabela = (titulo: string, obj: Record<string, number>) => (
+      <>
+        <div className={s.secaoTitulo}>{titulo}</div>
+        <table className={s.tabela}><tbody>
+          {Object.entries(obj).filter(([, n]) => n).sort((a, b) => b[1] - a[1]).map(([f, n]) => <tr key={f}><td>{f}</td><td>{n}</td></tr>)}
+        </tbody></table>
+      </>
+    )
+    return (
+      <div className={s.secao}>
+        {tabela('Por fase', d.por_fase)}
+        {tabela('Há quanto tempo abertas (dias)', d.por_idade)}
+        {tabela('Por tipo', d.por_tipo)}
+        <div className={s.mudo}>Valor já informado: {compacto(Number(d.valor_informado) || 0)} em {d.com_valor || 0} requisições (o resto ainda sem valor).</div>
       </div>
     )
   }

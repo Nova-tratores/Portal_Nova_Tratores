@@ -16,6 +16,7 @@ import { PHASES } from '@/lib/pos/constants';
 import { valorOS } from '@/lib/pos/relacao';
 import { STATUS_ABERTO_PPV } from '@/lib/ppv/relacao';
 import { normalizarStatus } from '@/lib/ppv/utils';
+import { parseValorMisto } from '@/lib/marketing/custos';
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -53,6 +54,7 @@ export const CATALOGO: Record<string, DefKpi> = {
   os_por_fase: { comodo: 'oficina', rotulo: 'OS pendentes', sensivel: false, fonte: 'nativo', porConta: false, tela: '/pos' },
   os_atrasada: { comodo: 'oficina', rotulo: 'OS atrasadas', sensivel: false, fonte: 'nativo', porConta: false, tela: '/pos' },
   os_sem_faturar: { comodo: 'oficina', rotulo: 'OS concluída sem faturar', sensivel: true, fonte: 'nativo', porConta: false, tela: '/pos' },
+  requisicoes_abertas: { comodo: 'almoxarifado', rotulo: 'Requisições em aberto', sensivel: true, fonte: 'nativo', porConta: false, tela: '/requisicoes' },
   pecas_a_alocar: { comodo: 'almoxarifado', rotulo: 'Peças a alocar', sensivel: false, fonte: 'nativo', porConta: true, tela: '/ajustes/caracteristicas?alocar=1' },
   estoque_negativo: { comodo: 'almoxarifado', rotulo: 'Estoque negativo', sensivel: false, fonte: 'produtos', porConta: true, tela: '/ajustes/negativos' },
   robos: { comodo: 'sala_maquinas', rotulo: 'Robôs que alimentam a planta', sensivel: false, fonte: 'nativo', porConta: false, tela: '/agendamentos' },
@@ -90,6 +92,7 @@ export interface Fontes {
   os: Row[];                  // Ordem_Servico
   metricasAbertas: Row[];     // tecnico_metricas data_fim null
   alocacao: Row[];            // pecas_alocacao_pendencias aberta
+  requisicoes: Row[];         // Requisicao nas fases abertas do Kanban (pedido, completa, aguardando)
   negativos: Row[];           // produtos estoque<0
   robos: Row;                 // resumo por job
   falhas: Partial<Record<Comodo, string>>; // leitura que falhou, por cômodo
@@ -102,6 +105,12 @@ export const JANELA_TRANSITO_DIAS = 45;
 export const FASES_FABRICA_ANTES = ['Proposta solicitada', 'Proposta Recebida', 'Pedido Feito / Aguardando Maq'];
 export const FASES_FABRICA_CHEGOU = ['Proposta Concluida/ Maquina Recebida', 'Aguardando faturamento da fábrica'];
 /** Fases em que o serviço terminou e falta faturar (Executada → Cobrando Cliente). */
+/** Fases abertas do Kanban das Requisições (o resto é financeiro, lixeira ou cancelar). */
+export const FASES_REQUISICAO_ABERTA: Record<string, string> = { pedido: 'Pedido Realizado', completa: 'Atualizada por Técnico', aguardando: 'Aguardando Fornecedor' };
+/** valor_despeza é texto BR ou US, às vezes com "R$". */
+export const valorRequisicao = (v: unknown) => parseValorMisto(String(v ?? '').replace(/[^\d,.-]/g, ''));
+const faseRequisicao = (s: unknown) => String(s || '').trim().toLowerCase();
+const idadeDias = (ts: unknown, hoje: string) => (ts ? Math.max(0, diasEntre(String(ts).slice(0, 10), hoje)) : null);
 export const FASES_SEM_FATURAR = ['Executada', 'Executada aguardando comercial', 'Relatório Concluído', 'Enviar Omie', 'Enviado Para Omie', 'Cobrando Cliente'];
 
 const r2 = (v: number) => Math.round(v * 100) / 100;
@@ -197,6 +206,7 @@ function semConta(kpi: string, f: Fontes): Row[] {
   const pend = () => f.os.filter((r) => r.Status !== 'Concluída' && r.Status !== 'Cancelada');
   switch (kpi) {
     case 'propostas_abertas': return f.propostas;
+    case 'requisicoes_abertas': return f.requisicoes.filter((r) => faseRequisicao(r.status) in FASES_REQUISICAO_ABERTA);
     case 'maq_pedido_fabrica': return f.pedidosFabrica.filter((r) => FASES_FABRICA_ANTES.includes(r.status));
     case 'maq_recebida_sem_faturar': return f.pedidosFabrica.filter((r) => FASES_FABRICA_CHEGOU.includes(r.status));
     case 'ppv_aberto': return f.pedidos.filter((r) => STATUS_ABERTO_PPV.includes(normalizarStatus(r.status)));
@@ -303,7 +313,25 @@ function oficina(f: Fontes): Parcial[] {
 }
 
 function almoxarifado(f: Fontes): Parcial[] {
-  return CONTAS.flatMap((conta) => ['pecas_a_alocar', 'estoque_negativo'].map((k) => ({ kpi_id: k, conta, contagem: porConta(k, conta, f).length, valor: null, detalhe: {} })));
+  // Requisições: o número principal é a QUANTIDADE (o valor costuma faltar antes da cotação/nota).
+  const reqs = semConta('requisicoes_abertas', f);
+  const porFase: Record<string, number> = {}, porTipo: Record<string, number> = {};
+  const porIdade: Record<string, number> = { '0-7': 0, '8-30': 0, '31+': 0, 'sem data': 0 };
+  let comValor = 0, valor = 0;
+  for (const r of reqs) {
+    const fase = FASES_REQUISICAO_ABERTA[faseRequisicao(r.status)] || r.status;
+    porFase[fase] = (porFase[fase] || 0) + 1;
+    porTipo[r.tipo || 'Sem tipo'] = (porTipo[r.tipo || 'Sem tipo'] || 0) + 1;
+    const d = idadeDias(r.created_at, f.hoje);
+    porIdade[d == null ? 'sem data' : d <= 7 ? '0-7' : d <= 30 ? '8-30' : '31+']++;
+    const v = valorRequisicao(r.valor_despeza);
+    if (v > 0) { comValor++; valor += v; }
+  }
+  return [
+    { kpi_id: 'requisicoes_abertas', conta: 'TODAS', contagem: reqs.length, valor: null,
+      detalhe: { por_fase: porFase, por_idade: porIdade, por_tipo: porTipo, paradas_30: porIdade['31+'], valor_informado: r2(valor), com_valor: comValor } },
+    ...CONTAS.flatMap((conta) => ['pecas_a_alocar', 'estoque_negativo'].map((k) => ({ kpi_id: k, conta, contagem: porConta(k, conta, f).length, valor: null, detalhe: {} }))),
+  ];
 }
 
 const BLOCOS: Array<[Comodo, (f: Fontes) => Parcial[]]> = [
@@ -373,6 +401,11 @@ function paraItem(kpi: string, r: Row, f: Fontes): ItemKpi {
     case 'oficina':
       return { chave: `os-${r.Id_Ordem}`, titulo: `${r.Id_Ordem} · ${r.Os_Cliente || 'Sem cliente'}`, sub: [r.Status, r.Os_Tecnico, r._atraso ? `${r._atraso} d no contador` : ''].filter(Boolean).join(' · '), valor: kpi === 'os_sem_faturar' ? valorOS({ valor: r.Valor_Total }) : null, data: null, href: `/pos?id=${encodeURIComponent(r.Id_Ordem)}` };
     case 'almoxarifado':
+      if (kpi === 'requisicoes_abertas') {
+        const d = idadeDias(r.created_at, f.hoje);
+        const v = valorRequisicao(r.valor_despeza);
+        return { chave: `req-${r.id}`, titulo: `#${r.id} · ${r.titulo || 'Sem título'}`, sub: [r.tipo, FASES_REQUISICAO_ABERTA[faseRequisicao(r.status)] || r.status, r.solicitante, r.fornecedor, d == null ? '' : `há ${d} d`].filter(Boolean).join(' · '), valor: v > 0 ? v : null, data: r.created_at ? String(r.created_at).slice(0, 10) : null, href: `/requisicoes?req=${r.id}` };
+      }
       if (kpi === 'pecas_a_alocar') return { chave: `al-${r.id}`, titulo: `${r.codigo || r.codigo_produto} · ${r.descricao || ''}`.trim(), sub: [r.fornecedor, r.numero_nfe ? `NF ${String(r.numero_nfe).replace(/^0+/, '')}` : '', r.recebido_em ? `recebida ${brData(r.recebido_em)}` : '', r.conta_omie].filter(Boolean).join(' · '), valor: null, data: r.recebido_em || null, href: `/ajustes/caracteristicas?alocar=1&cod=${encodeURIComponent(r.codigo || r.codigo_produto)}` };
       return { chave: `neg-${r.conta_omie}-${r.codigo_produto}`, titulo: `${r.codigo || r.codigo_produto} · ${r.descricao || ''}`.trim(), sub: `estoque ${r.estoque} · ${String(r.conta_omie).toUpperCase()}`, valor: null, data: null, href: '/ajustes/negativos' };
     default:
@@ -384,7 +417,7 @@ function paraItem(kpi: string, r: Row, f: Fontes): ItemKpi {
 export function itensDoKpi(kpi: string, conta: ContaPlanta, f: Fontes): { itens: ItemKpi[]; total: number } {
   const rows = selecionar(kpi, conta, f);
   const itens = rows.map((r) => { const it = paraItem(kpi, r, f); return { ...it, titulo: semEntidades(it.titulo), sub: semEntidades(it.sub) }; });
-  const venc = kpi.endsWith('vencido');
+  const venc = kpi.endsWith('vencido') || kpi === 'requisicoes_abertas'; // mais antigos primeiro
   itens.sort((a, b) => venc ? String(a.data).localeCompare(String(b.data)) : Math.abs(b.valor || 0) - Math.abs(a.valor || 0) || String(a.data).localeCompare(String(b.data)));
   return { itens: itens.slice(0, LIMITE_ITENS), total: itens.length };
 }
