@@ -1101,10 +1101,14 @@ export function normalizarProdutoLista(p: any): any {
 //  - exibir_caracteristicas:'S' e' o que faz a Omie embutir o array `caracteristicas`
 //    no retorno (sem essa flag a chave nem aparece - validado em runtime 08/06/2026).
 // Retorna array normalizado (normalizarProdutoLista).
+// opts.filtros: parâmetros extras do ListarProdutos — ex. só os alterados num período
+// ({ filtrar_por_data_de, filtrar_por_data_ate, filtrar_apenas_alteracao: 'S' }).
+// Conferido em 22/10/2026: editar uma característica muda a data de alteração do produto.
 export async function listarProdutos(conta: Conta, opts: Record<string, any> = {}): Promise<any[]> {
   const { itens } = await paginarOmie('/geral/produtos/', 'ListarProdutos', {
     filtrar_apenas_omiepdv: 'N',
-    exibir_caracteristicas: 'S'
+    exibir_caracteristicas: 'S',
+    ...(opts.filtros || {}),
   }, conta, {
     paginaKey: 'pagina', regKey: 'registros_por_pagina', regValue: 100,
     totalKeys: ['total_de_paginas', 'nTotPaginas', 'nTotalPaginas'],

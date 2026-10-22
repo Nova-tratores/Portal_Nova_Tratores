@@ -80,19 +80,32 @@ export const TAREFAS: Record<string, Tarefa> = {
     const feitas = await lerRetomada(ctx.chave);
     const faltam = getContasOmie().map((c) => c.label as string).filter((l) => !feitas.includes(l));
     if (!faltam.length) { await limparRetomada(ctx.chave); return { pular: `já feito hoje (${feitas.join(', ')})` }; }
+    // Completa aos domingos (limpa produto excluído da Omie) ou sem rodada certa recente;
+    // nos outros dias lê da Omie só o que foi alterado desde a última certa (1 página por
+    // conta em vez de ~60). Conferido 22/10: editar característica muda a data de alteração.
+    const { decidirModo } = await import('@/lib/ajustes/caracteristicas-diff');
+    const { supabaseAdmin } = await import('@/lib/server/supabase-admin');
+    const { data: ok } = await supabaseAdmin.from('cron_runs').select('iniciado_em')
+      .eq('job', ctx.chave).eq('status', 'ok').order('iniciado_em', { ascending: false }).limit(1);
+    const decisao = decidirModo(ok?.[0]?.iniciado_em ? new Date(ok[0].iniciado_em) : null, new Date());
     const r = await iniciarSyncCaracteristicas('agendador', {
       aguardar: true,
       contas: faltam,
       aoConcluirConta: (label: string) => marcarFeito(ctx.chave, label),
+      incrementalDesde: decisao.modo === 'incremental' ? decisao.desde : undefined,
     });
     if (r.jaRodando) return { pular: 'sync já em andamento (botão da tela)' };
     if (!r.ok) throw new Error(r.erro || 'sync falhou');
     // Terminou inteira: a próxima rodada (ex.: a das 20:00 depois de um "Rodar agora") é completa.
     await limparRetomada(ctx.chave);
-    const porConta = (r.resumo?.porConta || {}) as Record<string, number>;
-    const progresso = Object.fromEntries(Object.entries(porConta).map(([k, v]) => [k, `${v} peças`]));
+    type Det = { lidos: number; novas: number; alteradas: number; removidas: number; iguais: number };
+    const detalhe = (r.resumo?.detalhe || {}) as Record<string, Det>;
+    const progresso: Record<string, string> = Object.fromEntries(Object.entries(detalhe).map(([k, d]) =>
+      [k, `${d.lidos} lidas · ${d.novas} novas · ${d.alteradas} alteradas · ${d.removidas} removidas`]));
     for (const l of feitas) progresso[l] = 'já feito antes (retomada)';
-    return { resumo: `${r.resumo?.total ?? 0} peças gravadas (${Object.entries(porConta).map(([k, v]) => `${k} ${v}`).join(', ')})${feitas.length ? ` · retomada: ${feitas.join(', ')} já feitas` : ''}`, progresso };
+    const soma = (c: keyof Det) => Object.values(detalhe).reduce((a, d) => a + d[c], 0);
+    const modoTxt = decisao.modo === 'incremental' ? `incremental desde ${decisao.desde}` : `completa (${decisao.motivo})`;
+    return { resumo: `Leitura ${modoTxt}: ${soma('lidos')} lidas · gravadas ${soma('novas') + soma('alteradas')} (${soma('novas')} novas, ${soma('alteradas')} alteradas) · ${soma('removidas')} removidas${feitas.length ? ` · retomada: ${feitas.join(', ')} já feitas` : ''}`, progresso };
   },
 
   'pecas-alocacao-rapido': async () => {
