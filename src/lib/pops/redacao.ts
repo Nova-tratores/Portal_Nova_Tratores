@@ -35,11 +35,12 @@ const NOME_PARA_VERBO: Record<string, string> = {
   verificacao: 'Verifique', conferencia: 'Confira', checagem: 'Confira', inspecao: 'Inspecione', analise: 'Analise', avaliacao: 'Avalie',
   medicao: 'Meça', leitura: 'Leia', anotacao: 'Anote', limpeza: 'Limpe', lavagem: 'Lave', troca: 'Troque', substituicao: 'Substitua',
   remocao: 'Retire', retirada: 'Retire', instalacao: 'Instale', montagem: 'Monte', desmontagem: 'Desmonte', abertura: 'Abra',
-  fechamento: 'Feche', aperto: 'Aperte', ajuste: 'Ajuste', regulagem: 'Regule', lubrificacao: 'Lubrifique', drenagem: 'Drene',
-  abastecimento: 'Abasteça', calibragem: 'Calibre', teste: 'Teste', separacao: 'Separe', identificacao: 'Identifique',
+  fechamento: 'Feche', aperto: 'Aperte', regulagem: 'Regule', lubrificacao: 'Lubrifique', drenagem: 'Drene',
+  abastecimento: 'Abasteça', calibragem: 'Calibre', separacao: 'Separe', identificacao: 'Identifique',
   preenchimento: 'Preencha', assinatura: 'Assine', entrega: 'Entregue', envio: 'Envie', solicitacao: 'Solicite', aprovacao: 'Aprove',
   pagamento: 'Pague', cadastro: 'Cadastre', lancamento: 'Lance', emissao: 'Emita', impressao: 'Imprima', organizacao: 'Organize',
 }
+// "Teste"/"Ajuste" ficam de fora: a palavra é também o verbo no imperativo ("Teste a válvula").
 // Começos que pedem "Confira o …": a pessoa nomeou o que olhar, sem a ação.
 const GRANDEZAS = new Set(['nivel', 'pressao', 'temperatura', 'estado', 'condicao', 'situacao', 'quantidade', 'horimetro', 'hodometro', 'tensao', 'carga'])
 // Terminações de substantivo (ação virada coisa): -ção, -são, -gem, -mento, -dade, -ura.

@@ -38,6 +38,8 @@ describe('comecaSemVerbo', () => {
     expect(comecaSemVerbo('Fotografe a bomba')).toBe(false)
     expect(comecaSemVerbo('Verificar o tanque')).toBe(false)
     expect(comecaSemVerbo('Meça a pressão')).toBe(false)
+    expect(comecaSemVerbo('Teste a válvula de segurança')).toBe(false)
+    expect(comecaSemVerbo('Ajuste a correia')).toBe(false)
   })
 })
 
