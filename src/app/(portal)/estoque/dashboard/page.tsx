@@ -769,7 +769,7 @@ export default function DashboardPage() {
               categoriaLabel={categoria ? (categoriasOpts.find((c) => c.codigo === categoria)?.descricao || categoria) : 'Todas'}
               usuario={userProfile?.nome}
               podeMaquinas={podeMaq}
-              graficoPS={(o) => tendencia ? <PecasChart pontos={tendencia} metrica={o.metrica} impressao={{ largura: o.largura, view: o.view, custoPos: o.custoPos }} /> : null}
+              graficoPS={(o) => tendencia ? <PecasChart pontos={tendencia} comparativos={tendComparativos} semBalcao={categoria === CATEGORIA_SO_OFICINA} metrica={o.metrica} impressao={{ largura: o.largura, view: o.view, custoPos: o.custoPos }} /> : null}
               graficoMaq={(o) => tendencia ? <MaquinasChart pontos={tendencia} largura={o.largura} /> : null}
             />
           )}
@@ -981,7 +981,7 @@ export default function DashboardPage() {
 
             {tendencia && tendencia.length > 0 && (
               <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 18px 10px', marginBottom: 18 }}>
-                <PecasChart pontos={tendencia} comparativos={tendComparativos} metrica={metrica} onBarra={(serie, ponto) => setBarraSel({ serie, ponto })} />
+                <PecasChart pontos={tendencia} comparativos={tendComparativos} metrica={metrica} semBalcao={categoria === CATEGORIA_SO_OFICINA} onBarra={(serie, ponto) => setBarraSel({ serie, ponto })} />
               </div>
             )}
 
@@ -1710,8 +1710,8 @@ const CUSTO_BALCAO = '#fca5a5';
 const CUSTO_SERVICOS = '#dc2626';
 type CustoPos = 'sobre' | 'sob';
 
-interface PSTooltipProps { active?: boolean; label?: string; payload?: Array<{ payload: TendPonto }>; metrica?: Metrica }
-function PSTooltip({ active, payload, label, metrica = 'venda' }: PSTooltipProps) {
+interface PSTooltipProps { active?: boolean; label?: string; payload?: Array<{ payload: TendPonto }>; metrica?: Metrica; semBalcao?: boolean }
+function PSTooltip({ active, payload, label, metrica = 'venda', semBalcao = false }: PSTooltipProps) {
   if (!active || !payload || !payload.length) return null;
   const p = payload[0].payload;
   const ps = p.ps || p.pecas + p.servicos;
@@ -1734,7 +1734,7 @@ function PSTooltip({ active, payload, label, metrica = 'venda' }: PSTooltipProps
       { nome: 'Peças Oficina', v: oficina, c: p.custoPecasOficina, cor: metrica === 'custo' ? CUSTO_OFICINA : CHART_PECAS },
       { nome: 'Peças Balcão', v: balcao, c: p.custoPecasBalcao, cor: metrica === 'custo' ? '#ef4444' : '#1e6fb8' },
       { nome: 'Serviços', v: p.servicos, c: semServ ? null : p.custoServicos, cor: metrica === 'custo' ? CUSTO_SERVICOS : CHART_SERVICOS_INK },
-    ];
+    ].filter((l) => !(semBalcao && l.nome === 'Peças Balcão'));
     const tv = linhas.reduce((s, l) => s + l.v, 0);
     const tc = linhas.reduce((s, l) => s + (l.c ?? 0), 0);
     const mPct = (v: number, c: number | null) => (c == null || v <= 0 ? '—' : Math.round(((v - c) / v) * 100) + '%');
@@ -1770,7 +1770,7 @@ function PSTooltip({ active, payload, label, metrica = 'venda' }: PSTooltipProps
   return caixa(
     <>
       {row('Peças Oficina', oficina, pct(oficina), CHART_PECAS)}
-      {row('Peças Balcão', balcao, pct(balcao), CHART_PECAS_BALCAO)}
+      {!semBalcao && row('Peças Balcão', balcao, pct(balcao), CHART_PECAS_BALCAO)}
       {row('Serviços', p.servicos, pct(p.servicos), CHART_SERVICOS_INK)}
       <div style={{ borderTop: '1px solid #eee', marginTop: 5, paddingTop: 5, display: 'flex', justifyContent: 'space-between', gap: 16 }}>
         <span style={{ fontWeight: 600 }}>Total</span><span style={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(ps)}</span>
@@ -1806,13 +1806,39 @@ function Sparkline({ data, cor, parcialUltimo }: { data: number[]; cor: string; 
     </div>
   );
 }
-function PecasChart({ pontos, comparativos, metrica = 'venda', onBarra, impressao }: {
+// Categoria "Revenda de Peças Oficina": o gráfico tira o Balcão por inteiro — barra,
+// custo, totais, variação mês a mês, % Mix e as linhas/janelas do "Comparar".
+const CATEGORIA_SO_OFICINA = 'Revenda de Peças Oficina';
+function semBalcaoTend(pontos: TendPonto[], comparativos?: Comparativos | null): { pontos: TendPonto[]; comparativos: Comparativos | null } {
+  const tirar = (c: CompPonto): CompPonto => ({ ...c, pecas: c.pecasOficina, pecasBalcao: 0 });
+  const a1 = comparativos?.a1 || [];
+  const a2 = comparativos?.a2 || [];
+  let prevPs = 0;
+  const ps = pontos.map((p, i) => {
+    const psSem = p.pecasOficina + p.servicos;
+    const psDeltaPct = i === 0 || prevPs <= 0 ? null : ((psSem - prevPs) / prevPs) * 100;
+    prevPs = psSem;
+    return {
+      ...p,
+      pecas: p.pecasOficina, pecasBalcao: 0, custoPecasBalcao: 0, ps: psSem, psDeltaPct,
+      // Mesmo mês de -1/-2 anos, também sem o Balcão (as janelas vêm na mesma ordem dos 12 meses).
+      psAnoAnt: a1[i] ? a1[i].pecasOficina + a1[i].servicos : 0,
+      psAno2Ant: a2[i] ? a2[i].pecasOficina + a2[i].servicos : 0,
+    };
+  });
+  return { pontos: ps, comparativos: comparativos ? { a1: a1.map(tirar), a2: a2.map(tirar) } : null };
+}
+
+function PecasChart({ pontos: pontosIn, comparativos: comparativosIn, metrica = 'venda', onBarra, impressao, semBalcao = false }: {
   pontos: TendPonto[]; comparativos?: Comparativos | null; metrica?: Metrica;
+  /** Esconde o Peças Balcão (categoria "Revenda de Peças Oficina"). */
+  semBalcao?: boolean;
   /** Clique numa barra → popup com o que compõe o valor (a página abre o ComposicaoBarra). */
   onBarra?: (serie: SerieBarra, ponto: TendPonto) => void;
   /** Relatório impresso: largura fixa, sem botões/animação, view e posição do custo vindos de fora. */
   impressao?: { largura: number; view: PSView; custoPos: CustoPos };
 }) {
+  const { pontos, comparativos } = semBalcao ? semBalcaoTend(pontosIn, comparativosIn) : { pontos: pontosIn, comparativos: comparativosIn };
   // Padrão = Agrupado (pedido do José).
   const [viewTela, setView] = useState<PSView>('agrupado');
   const view = impressao?.view ?? viewTela;
@@ -1916,7 +1942,7 @@ function PecasChart({ pontos, comparativos, metrica = 'venda', onBarra, impressa
             <XAxis dataKey="label" tick={{ fontSize: 13 }} />
             {sobrepor && <XAxis xAxisId="custo" dataKey="label" hide />}
             <YAxis tick={{ fontSize: 13 }} width={isPct ? 42 : 56} domain={isPct ? [0, 100] : undefined} tickFormatter={isPct ? (v) => v + '%' : (v) => fmtAbs(v)} />
-            {!impressao && <Tooltip content={<PSTooltip metrica={metrica} />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />}
+            {!impressao && <Tooltip content={<PSTooltip metrica={metrica} semBalcao={semBalcao} />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />}
             <Legend verticalAlign={impressao ? 'top' : 'bottom'} wrapperStyle={{ fontSize: impressao ? 12 : 14, paddingBottom: impressao ? 10 : 0 }} />
             {sob && <ReferenceLine y={0} stroke="#374151" />}
             {isStack && !sobrepor && <ReferenceLine y={media} stroke="#9ca3af" strokeDasharray="5 4" ifOverflow="extendDomain"
@@ -1926,11 +1952,11 @@ function PecasChart({ pontos, comparativos, metrica = 'venda', onBarra, impressa
               {rotVenda && view === 'agrupado' && <LabelList dataKey="vOfi" position="top" style={{ fontSize: 11, fill: CHART_PECAS, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
               {isPct && <LabelList dataKey="oficinaPct" position="center" style={{ fontSize: 11, fill: '#fff', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
             </Bar>
-            <Bar isAnimationActive={anim} onClick={clicar(ehCusto && isPct ? 'custoPecasBalcao' : 'pecasBalcao')} cursor={cursorBarra} dataKey={kBal} stackId={stackId} name={ehCusto && isPct ? 'Custo Peças Balcão' : 'Peças Balcão'} fill={corBal} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
+            {!semBalcao && <Bar isAnimationActive={anim} onClick={clicar(ehCusto && isPct ? 'custoPecasBalcao' : 'pecasBalcao')} cursor={cursorBarra} dataKey={kBal} stackId={stackId} name={ehCusto && isPct ? 'Custo Peças Balcão' : 'Peças Balcão'} fill={corBal} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
               {data.map((p, i) => <Cell key={i} fillOpacity={(p.parcial ? 0.55 : 1) * opVenda} />)}
               {rotVenda && view === 'agrupado' && <LabelList dataKey="vBal" position="top" style={{ fontSize: 11, fill: '#1e6fb8', fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
               {isPct && <LabelList dataKey="balcaoPct" position="center" style={{ fontSize: 11, fill: ehCusto ? '#450a0a' : '#083344', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
-            </Bar>
+            </Bar>}
             <Bar isAnimationActive={anim} onClick={clicar(ehCusto && isPct ? 'custoServicos' : 'servicos')} cursor={cursorBarra} dataKey={kS} stackId={stackId} name={ehCusto && isPct ? 'Custo Serviços' : 'Serviços'} fill={corServ} radius={[3, 3, 0, 0]} maxBarSize={54}>
               {data.map((p, i) => <Cell key={i} fillOpacity={(p.parcial ? 0.55 : 1) * opVenda} />)}
               {rotVenda && isStack && <LabelList dataKey="vTot" position="top" style={{ fontSize: 12, fill: '#374151', fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
@@ -1943,7 +1969,7 @@ function PecasChart({ pontos, comparativos, metrica = 'venda', onBarra, impressa
                 {view === 'agrupado' && <LabelList dataKey="cOfi" position={posRotCusto} style={{ fontSize: 11, fill: CUSTO_OFICINA, fontWeight: 700 }} formatter={fmtRotCusto} />}
               </Bar>
             )}
-            {sobrepor && (
+            {sobrepor && !semBalcao && (
               <Bar isAnimationActive={anim} onClick={clicar('custoPecasBalcao')} cursor={cursorBarra} xAxisId="custo" dataKey="cBal" stackId={stackId ? 'custo' : undefined} name="Custo Peças Balcão" fill={CUSTO_BALCAO} radius={isStack ? [0, 0, 0, 0] : raioCusto} maxBarSize={54}>
                 {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
                 {view === 'agrupado' && <LabelList dataKey="cBal" position={posRotCusto} style={{ fontSize: 11, fill: '#dc2626', fontWeight: 700 }} formatter={fmtRotCusto} />}
@@ -1995,15 +2021,15 @@ function PecasChart({ pontos, comparativos, metrica = 'venda', onBarra, impressa
         )}
       </div>}
       {/* "Comparar": gráficos de barras (Peças Oficina/Balcão + Serviços) das janelas anteriores, abaixo. */}
-      {!impressao && metrica === 'venda' && cmp.a1 && comparativos?.a1?.length ? <ComparativoChart pontos={comparativos.a1} view={view} titulo={`−1 ano · ${winLabel(1)}`} accent="#22c55e" /> : null}
-      {!impressao && metrica === 'venda' && cmp.a2 && comparativos?.a2?.length ? <ComparativoChart pontos={comparativos.a2} view={view} titulo={`−2 anos · ${winLabel(2)}`} accent="#a78bfa" /> : null}
+      {!impressao && metrica === 'venda' && cmp.a1 && comparativos?.a1?.length ? <ComparativoChart pontos={comparativos.a1} semBalcao={semBalcao} view={view} titulo={`−1 ano · ${winLabel(1)}`} accent="#22c55e" /> : null}
+      {!impressao && metrica === 'venda' && cmp.a2 && comparativos?.a2?.length ? <ComparativoChart pontos={comparativos.a2} semBalcao={semBalcao} view={view} titulo={`−2 anos · ${winLabel(2)}`} accent="#a78bfa" /> : null}
     </div>
   );
 }
 
 // Gráfico de uma janela comparativa (-1/-2 anos), abaixo do principal. Mesmas 3
 // séries (Peças Oficina/Balcão + Serviços) e o mesmo `view`; sem média/linhas/clique.
-function ComparativoChart({ pontos, view, titulo, accent }: { pontos: CompPonto[]; view: PSView; titulo: string; accent: string }) {
+function ComparativoChart({ pontos, view, titulo, accent, semBalcao = false }: { pontos: CompPonto[]; view: PSView; titulo: string; accent: string; semBalcao?: boolean }) {
   const isPct = view === 'pct';
   const isStack = view === 'empilhado';
   const stackId = isStack || isPct ? 'ps' : undefined;
@@ -2037,10 +2063,10 @@ function ComparativoChart({ pontos, view, titulo, accent }: { pontos: CompPonto[
               {view === 'agrupado' && <LabelList dataKey="pecasOficina" position="top" style={{ fontSize: 10, fill: CHART_PECAS, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
               {isPct && <LabelList dataKey="oficinaPct" position="center" style={{ fontSize: 10, fill: '#fff', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
             </Bar>
-            <Bar dataKey={kBal} stackId={stackId} name="Peças Balcão" fill={CHART_PECAS_BALCAO} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={48}>
+            {!semBalcao && <Bar dataKey={kBal} stackId={stackId} name="Peças Balcão" fill={CHART_PECAS_BALCAO} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={48}>
               {view === 'agrupado' && <LabelList dataKey="pecasBalcao" position="top" style={{ fontSize: 10, fill: '#1e6fb8', fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
               {isPct && <LabelList dataKey="balcaoPct" position="center" style={{ fontSize: 10, fill: '#083344', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
-            </Bar>
+            </Bar>}
             <Bar dataKey={kS} stackId={stackId} name="Serviços" fill={CHART_SERVICOS} radius={[3, 3, 0, 0]} maxBarSize={48}>
               {isStack && <LabelList dataKey="ps" position="top" style={{ fontSize: 11, fill: '#374151', fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
               {view === 'agrupado' && <LabelList dataKey="servicos" position="top" style={{ fontSize: 10, fill: CHART_SERVICOS_INK, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
