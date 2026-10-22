@@ -40,8 +40,11 @@ export const CATALOGO: Record<string, DefKpi> = {
   receber_vencido: { comodo: 'financeiro', rotulo: 'A receber vencido', sensivel: true, fonte: 'contas', porConta: true, tela: '/dre-financeiro/vencidos' },
   receber_hoje: { comodo: 'financeiro', rotulo: 'A receber hoje', sensivel: true, fonte: 'contas', porConta: true, tela: '/dre-financeiro/calendario' },
   receber_7d: { comodo: 'financeiro', rotulo: 'A receber em 7 dias', sensivel: true, fonte: 'contas', porConta: true, tela: '/dre-financeiro/calendario' },
+  pagar_90d: { comodo: 'financeiro', rotulo: 'A pagar em 90 dias', sensivel: true, fonte: 'contas', porConta: true, tela: '/dre-financeiro/calendario' },
+  receber_90d: { comodo: 'financeiro', rotulo: 'A receber em 90 dias', sensivel: true, fonte: 'contas', porConta: true, tela: '/dre-financeiro/calendario' },
   fluxo_30d: { comodo: 'financeiro', rotulo: 'Saída líquida prevista (30 dias)', sensivel: true, fonte: 'contas', porConta: true, tela: '/dre-financeiro/curva-saldo' },
   fila_financeiro: { comodo: 'financeiro', rotulo: 'Pedidos esperando o financeiro', sensivel: true, fonte: 'nativo', porConta: true, tela: '/financeiro/home-financeiro' },
+  propostas_abertas: { comodo: 'patio', rotulo: 'Propostas de máquina em aberto', sensivel: true, fonte: 'nativo', porConta: false, tela: '/propostas' },
   maq_pedido_fabrica: { comodo: 'patio', rotulo: 'Pedidos à fábrica em aberto', sensivel: false, fonte: 'nativo', porConta: false, tela: '/propostas' },
   maq_recebida_sem_faturar: { comodo: 'patio', rotulo: 'Máquina recebida sem faturar', sensivel: false, fonte: 'nativo', porConta: false, tela: '/propostas' },
   maq_em_transito: { comodo: 'patio', rotulo: 'Máquinas a caminho (NF faturada)', sensivel: true, fonte: 'recebimentos', porConta: true, tela: '/estoque/recebimentos-omie' },
@@ -81,6 +84,7 @@ export interface Fontes {
   pagar: Row[]; receber: Row[];   // contas_* em aberto
   fila: Row[];                // finan_pagar status='financeiro'
   pedidosFabrica: Row[];      // v_proposta_fabrica
+  propostas: Row[];           // v_forecast (propostas em aberto) + marca/modelo/vendedor da v_formulario
   nfMaquinas: Row[];          // recebimentos_nfe Faturada com qtd_maquinas>0
   pedidos: Row[];             // pedidos (PPV)
   os: Row[];                  // Ordem_Servico
@@ -158,6 +162,7 @@ function vencidos(f: Fontes, tipo: 'pagar' | 'receber', conta: string): Row[] {
 function porConta(kpi: string, conta: string, f: Fontes): Row[] {
   const anoCorrente = `${f.hoje.slice(0, 4)}-01-01`;
   const ate7 = somaDias(f.hoje, 7);
+  const ate90 = somaDias(f.hoje, 90);
   const ate29 = somaDias(f.hoje, 29);
   const nf = () => f.nfMaquinas.filter((r) => contaDe(r.conta_omie) === conta);
   switch (kpi) {
@@ -173,6 +178,10 @@ function porConta(kpi: string, conta: string, f: Fontes): Row[] {
       const t = kpi.startsWith('pagar') ? 'pagar' : 'receber';
       return abertos(f, t, conta).filter((r) => prevDe(r) > f.hoje && prevDe(r) <= ate7).map((r) => ({ ...r, _tipo: t }));
     }
+    case 'pagar_90d': case 'receber_90d': {
+      const t = kpi.startsWith('pagar') ? 'pagar' : 'receber';
+      return abertos(f, t, conta).filter((r) => prevDe(r) > f.hoje && prevDe(r) <= ate90).map((r) => ({ ...r, _tipo: t }));
+    }
     case 'fluxo_30d':
       return (['pagar', 'receber'] as const).flatMap((t) => abertos(f, t, conta)
         .filter((r) => prevDe(r) >= f.hoje && prevDe(r) <= ate29).map((r) => ({ ...r, _tipo: t })));
@@ -187,6 +196,7 @@ function porConta(kpi: string, conta: string, f: Fontes): Row[] {
 function semConta(kpi: string, f: Fontes): Row[] {
   const pend = () => f.os.filter((r) => r.Status !== 'Concluída' && r.Status !== 'Cancelada');
   switch (kpi) {
+    case 'propostas_abertas': return f.propostas;
     case 'maq_pedido_fabrica': return f.pedidosFabrica.filter((r) => FASES_FABRICA_ANTES.includes(r.status));
     case 'maq_recebida_sem_faturar': return f.pedidosFabrica.filter((r) => FASES_FABRICA_CHEGOU.includes(r.status));
     case 'ppv_aberto': return f.pedidos.filter((r) => STATUS_ABERTO_PPV.includes(normalizarStatus(r.status)));
@@ -223,7 +233,7 @@ function financeiro(f: Fontes): Parcial[] {
       for (const r of doAno) aging[faixaAtraso(Math.max(1, diasEntre(String(r.data_vencimento).slice(0, 10), f.hoje)))] += valorAberto(r);
       out.push({ kpi_id: `${tipo}_vencido`, conta, contagem: doAno.length, valor: somaAberto(doAno),
         detalhe: { aging: Object.fromEntries(Object.entries(aging).map(([k, v]) => [k, r2(v)])), antes_do_ano: { contagem: antigos.length, valor: somaAberto(antigos) } } });
-      for (const k of [`${tipo}_hoje`, `${tipo}_7d`]) {
+      for (const k of [`${tipo}_hoje`, `${tipo}_7d`, `${tipo}_90d`]) {
         const xs = porConta(k, conta, f);
         out.push({ kpi_id: k, conta, contagem: xs.length, valor: somaAberto(xs), detalhe: {} });
       }
@@ -257,6 +267,12 @@ function patio(f: Fontes): Parcial[] {
     { kpi_id: 'maq_recebida_sem_faturar', conta: 'TODAS', contagem: chegou.length, valor: null,
       detalhe: { maior_dias_na_fase: chegou.reduce((m, r) => Math.max(m, Number(r.dias_na_fase) || 0), 0) } },
   ];
+  // Propostas em aberto (mesma base do forecast de /propostas: v_forecast).
+  const props = semConta('propostas_abertas', f);
+  const porStatus: Record<string, number> = {};
+  for (const p of props) porStatus[p.status || '?'] = (porStatus[p.status || '?'] || 0) + 1;
+  out.push({ kpi_id: 'propostas_abertas', conta: 'TODAS', contagem: props.length, valor: r2(props.reduce((s, p) => s + (Number(p.valor) || 0), 0)),
+    detalhe: { ponderado: r2(props.reduce((s, p) => s + (Number(p.valor_ponderado) || 0), 0)), por_status: porStatus, sem_previsao: props.filter((p) => !p.previsao_fechamento).length } });
   const un = (xs: Row[]) => xs.reduce((s, r) => s + (Number(r.qtd_maquinas) || 0), 0);
   const val = (xs: Row[]) => r2(xs.reduce((s, r) => s + (Number(r.valor_maquinas) || 0), 0));
   for (const conta of CONTAS) for (const k of ['maq_em_transito', 'maq_receb_esquecido']) {
@@ -348,6 +364,7 @@ function paraItem(kpi: string, r: Row, f: Fontes): ItemKpi {
     case 'patio':
       if (kpi.startsWith('maq_em') || kpi.startsWith('maq_receb'))
         return { chave: `nf-${r.conta_omie}-${r.id_receb}`, titulo: r.fornecedor || 'Fornecedor', sub: `NF ${String(r.numero_nfe || '').replace(/^0+/, '')} · ${r.qtd_maquinas} máquina(s) · emitida ${brData(isoDe(r.emissao_nfe))} · ${String(r.conta_omie).toUpperCase()}`, valor: Number(r.valor_maquinas) || 0, data: isoDe(r.emissao_nfe), href: '/estoque/recebimentos-omie' };
+      if (kpi === 'propostas_abertas') return { chave: `pr-${r.id}`, titulo: r.Cliente || 'Sem cliente', sub: [`${r.Marca || ''} ${r.Modelo || ''}`.trim(), r.status, r.vendedor_nome, r.previsao_fechamento ? `fecha ${brData(String(r.previsao_fechamento).slice(0, 10))}` : 'sem previsão', r.dias_na_fase != null ? `${r.dias_na_fase} d na fase` : ''].filter(Boolean).join(' · '), valor: Number(r.valor) || 0, data: r.previsao_fechamento || null, href: '/propostas' };
       return { chave: `pf-${r.id}`, titulo: r.cliente || 'Sem cliente', sub: [`${r.marca || ''} ${r.modelo || ''}`.trim(), r.status, r.eta_fabrica ? `chega ${brData(r.eta_fabrica)}${Number(r.dias_atraso_eta) > 0 ? ` (atrasada ${r.dias_atraso_eta} d)` : ''}` : `${r.dias_na_fase ?? 0} d na fase`].filter(Boolean).join(' · '), valor: null, data: r.eta_fabrica || null, href: '/propostas' };
     case 'balcao': {
       const n = idadePPV(r, f.hoje);

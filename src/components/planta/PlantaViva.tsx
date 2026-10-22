@@ -31,9 +31,9 @@ interface Item { chave: string; titulo: string; sub: string; valor: number | nul
 
 // ── Desenho da planta ─────────────────────────────────────────────────────────
 const SALAS: Array<{ id: string; nome: string; camada: Camada | null; kpis: string[] }> = [
-  { id: 'financeiro', nome: 'Financeiro', camada: 'agua', kpis: ['receber_vencido', 'pagar_vencido', 'receber_7d', 'pagar_7d', 'receber_hoje', 'pagar_hoje', 'fluxo_30d', 'fila_financeiro'] },
+  { id: 'financeiro', nome: 'Financeiro', camada: 'agua', kpis: ['receber_vencido', 'pagar_vencido', 'receber_7d', 'pagar_7d', 'receber_90d', 'pagar_90d', 'receber_hoje', 'pagar_hoje', 'fluxo_30d', 'fila_financeiro'] },
   { id: 'maquinas', nome: 'Sala de máquinas', camada: null, kpis: ['robos'] },
-  { id: 'patio', nome: 'Pátio e máquinas vindo', camada: 'gas', kpis: ['maq_em_transito', 'maq_pedido_fabrica', 'maq_recebida_sem_faturar', 'maq_receb_esquecido'] },
+  { id: 'patio', nome: 'Pátio e máquinas vindo', camada: 'gas', kpis: ['propostas_abertas', 'maq_pedido_fabrica', 'maq_em_transito', 'maq_recebida_sem_faturar', 'maq_receb_esquecido'] },
   { id: 'oficina', nome: 'Oficina', camada: 'luz', kpis: ['os_por_fase', 'os_atrasada', 'os_sem_faturar'] },
   { id: 'balcao', nome: 'Balcão de peças', camada: 'luz', kpis: ['ppv_aberto'] },
   { id: 'almoxarifado', nome: 'Almoxarifado', camada: 'luz', kpis: ['pecas_a_alocar', 'estoque_negativo'] },
@@ -55,7 +55,7 @@ const CANOS: Array<{ id: string; de: Ponta; para: Ponta; camada: Camada; kpi: st
 
 const UNIDADE: Record<string, [string, string]> = {
   maq_em_transito: ['máquina', 'máquinas'], maq_receb_esquecido: ['máquina', 'máquinas'], maq_pedido_fabrica: ['pedido', 'pedidos'],
-  maq_recebida_sem_faturar: ['máquina', 'máquinas'], ppv_aberto: ['pedido', 'pedidos'], os_por_fase: ['OS', 'OS'], os_atrasada: ['OS', 'OS'],
+  maq_recebida_sem_faturar: ['máquina', 'máquinas'], propostas_abertas: ['proposta', 'propostas'], ppv_aberto: ['pedido', 'pedidos'], os_por_fase: ['OS', 'OS'], os_atrasada: ['OS', 'OS'],
   os_sem_faturar: ['OS', 'OS'], pecas_a_alocar: ['peça', 'peças'], estoque_negativo: ['produto', 'produtos'], fila_financeiro: ['pedido', 'pedidos'],
 }
 const un = (id: string, n: number) => { const u = UNIDADE[id] || ['título', 'títulos']; return `${n.toLocaleString('pt-BR')} ${n === 1 ? u[0] : u[1]}` }
@@ -386,6 +386,17 @@ function Detalhe({ k, agora }: { k: Kpi; agora: number }) {
             <span>{n}</span>
           </div>
         ))}
+      </div>
+    )
+  }
+  if (k.kpi_id === 'propostas_abertas' && d.por_status) {
+    return (
+      <div className={s.secao}>
+        <div className={s.secaoTitulo}>Por fase · forecast ponderado {compacto(Number(d.ponderado) || 0)}</div>
+        <table className={s.tabela}><tbody>
+          {Object.entries(d.por_status as Record<string, number>).sort((a, b) => b[1] - a[1]).map(([f, n]) => <tr key={f}><td>{f}</td><td>{n}</td></tr>)}
+        </tbody></table>
+        {d.sem_previsao ? <div className={s.mudo}>{d.sem_previsao} sem previsão de fechamento.</div> : null}
       </div>
     )
   }

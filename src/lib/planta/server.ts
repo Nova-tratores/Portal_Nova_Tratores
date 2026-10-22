@@ -49,10 +49,22 @@ export async function carregarFontes(so?: Comodo[]): Promise<{ fontes: Fontes; d
   const naoFechado = (q: any) => q.not('status_titulo', 'in', `(${FECHADOS.join(',')})`); // eslint-disable-line @typescript-eslint/no-explicit-any
   const COLS = 'id,codigo_lancamento,conta_omie,data_vencimento,data_previsao,valor_documento,valor_pago,status_titulo,numero_documento,numero_documento_fiscal,numero_parcela';
 
-  const [pagar, receber, fila, pedidosFabrica, nfMaquinas, pedidos, os, metricasAbertas, alocacao, negativos] = await Promise.all([
+  const [pagar, receber, fila, propostas, pedidosFabrica, nfMaquinas, pedidos, os, metricasAbertas, alocacao, negativos] = await Promise.all([
     tentar('financeiro', () => todas('contas_pagar', COLS + ',nome_fornecedor', 'id', naoFechado), []),
     tentar('financeiro', () => todas('contas_receber', COLS + ',nome_cliente', 'id', naoFechado), []),
     tentar('financeiro', () => todas('finan_pagar', 'id,valor,criado_em,omie_empresa,status_envio,aguardando_omie_desde,fornecedor,motivo,numero_NF,data_vencimento', 'id', (q) => q.eq('status', 'financeiro')), []),
+    tentar('patio', async () => {
+      // Propostas em aberto = v_forecast (base do forecast de /propostas) + marca/modelo/vendedor/dias da v_formulario.
+      const fc = await todas('v_forecast', 'id,Cliente,status,valor,valor_ponderado,previsao_fechamento,probabilidade', 'id');
+      const ids = fc.map((p) => p.id);
+      const extra: Row[] = [];
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data } = await sb.from('v_formulario').select('id,Marca,Modelo,vendedor_nome,dias_na_fase').in('id', ids.slice(i, i + 200));
+        extra.push(...((data || []) as Row[]));
+      }
+      const por = new Map(extra.map((e) => [e.id, e]));
+      return fc.map((p) => ({ ...p, ...(por.get(p.id) || {}) }));
+    }, []),
     tentar('patio', () => todas('v_proposta_fabrica', 'id,status,eta_fabrica,dias_atraso_eta,dias_na_fase,cliente,marca,modelo', 'id'), []),
     tentar('patio', () => todas('recebimentos_nfe', 'id_receb,conta_omie,emissao_nfe,qtd_maquinas,valor_maquinas,numero_nfe,fornecedor', 'id_receb', (q) => q.eq('status', 'Faturada').gt('qtd_maquinas', 0)), []),
     tentar('balcao', () => todas('pedidos', 'id_pedido,status,valor_total,status_desde,data,cliente,Tipo_Pedido', 'id_pedido'), []),
@@ -84,7 +96,7 @@ export async function carregarFontes(so?: Comodo[]): Promise<{ fontes: Fontes; d
     }
   }, undefined);
 
-  return { fontes: { hoje: hojeBrasilia(), pagar, receber, fila, pedidosFabrica, nfMaquinas, pedidos, os, metricasAbertas, alocacao, negativos, robos, falhas }, dadoAte };
+  return { fontes: { hoje: hojeBrasilia(), pagar, receber, fila, propostas, pedidosFabrica, nfMaquinas, pedidos, os, metricasAbertas, alocacao, negativos, robos, falhas }, dadoAte };
 }
 
 function dadoAteDe(l: LinhaKpi, dadoAte: Record<string, string | null>, agora: string): string | null {

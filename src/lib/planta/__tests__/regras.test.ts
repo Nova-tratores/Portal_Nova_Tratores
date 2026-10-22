@@ -5,7 +5,7 @@ import { calcularKpis, frescor, prepararParaUsuario, filtrarConta, isoDe, itensD
 
 const HOJE = '2026-10-19';
 function fontes(p: Partial<Fontes> = {}): Fontes {
-  return { hoje: HOJE, pagar: [], receber: [], fila: [], pedidosFabrica: [], nfMaquinas: [], pedidos: [], os: [], metricasAbertas: [], alocacao: [], negativos: [], robos: {}, falhas: {}, ...p };
+  return { hoje: HOJE, pagar: [], receber: [], fila: [], propostas: [], pedidosFabrica: [], nfMaquinas: [], pedidos: [], os: [], metricasAbertas: [], alocacao: [], negativos: [], robos: {}, falhas: {}, ...p };
 }
 const k = (ls: LinhaKpi[], id: string, conta = 'TODAS') => ls.find((l) => l.kpi_id === id && l.conta === conta)!;
 const tit = (o: Record<string, unknown>) => ({ codigo_lancamento: 1, conta_omie: 'NOVA', status_titulo: 'A VENCER', valor_documento: 100, valor_pago: 0, data_vencimento: HOJE, data_previsao: HOJE, ...o });
@@ -166,6 +166,31 @@ describe('detalhe = os mesmos registros do número', () => {
   it('PPV e OS levam ao registro na tela', () => {
     expect(itensDoKpi('ppv_aberto', 'TODAS', f).itens[0].href).toBe('/ppv?id=PPV-1');
     expect(itensDoKpi('os_sem_faturar', 'TODAS', f).itens[0].href).toBe('/pos?id=OS-1');
+  });
+});
+
+
+describe('90 dias e propostas (pedido de 22/10/2026)', () => {
+  it('a pagar/receber em 90 dias: da previsão de amanhã até +90, sem hoje', () => {
+    const ls = calcularKpis(fontes({ pagar: [
+      tit({ data_previsao: HOJE, valor_documento: 1 }),
+      tit({ data_previsao: '2026-10-20', valor_documento: 10 }),
+      tit({ data_previsao: '2027-01-17', valor_documento: 100 }),   // +90
+      tit({ data_previsao: '2027-01-18', valor_documento: 1000 }),  // +91: fora
+    ] }));
+    expect(k(ls, 'pagar_90d', 'NOVA')).toMatchObject({ contagem: 2, valor: 110 });
+  });
+  it('propostas em aberto: quantidade, valor, ponderado e fases; lista com link', () => {
+    const f = fontes({ propostas: [
+      { id: 1, Cliente: 'A', status: 'AGUARDANDO RESPOSTA CLIENTE', valor: 200000, valor_ponderado: 60000, previsao_fechamento: null, Marca: 'MAHINDRA', Modelo: '6075' },
+      { id: 2, Cliente: 'B', status: 'AGUARDANDO RESPOSTA BANCO', valor: 100000, valor_ponderado: 60000, previsao_fechamento: '2026-11-10' },
+    ] });
+    const n = k(calcularKpis(f), 'propostas_abertas');
+    expect(n).toMatchObject({ contagem: 2, valor: 300000 });
+    expect(n.detalhe).toMatchObject({ ponderado: 120000, sem_previsao: 1, por_status: { 'AGUARDANDO RESPOSTA CLIENTE': 1, 'AGUARDANDO RESPOSTA BANCO': 1 } });
+    const { itens, total } = itensDoKpi('propostas_abertas', 'TODAS', f);
+    expect(total).toBe(2);
+    expect(itens[0]).toMatchObject({ titulo: 'A', valor: 200000, href: '/propostas' });
   });
 });
 
