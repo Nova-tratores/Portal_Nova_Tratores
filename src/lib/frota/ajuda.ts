@@ -63,11 +63,12 @@ const AJUDA: Record<string, AjudaFrota> = {
       'Os carros ATIVOS da frota com rastreador, cada um na última posição recebida, com a cor da situação e há quanto tempo ' +
       'foi o último sinal. A lista mostra o técnico (vínculo da Janela Mecânico ou quem pegou o carro hoje), o lugar ("Loja", ' +
       '"Cliente X") e a OS do Pós-Vendas em execução com o cliente. Carros muito próximos viram um grupo ("9 carros · Loja"). ' +
-      'Camadas opcionais (começam desligadas): visitas do CRM do dia, locais cadastrados e propriedades rurais (CAR).',
+      'Camadas opcionais (começam desligadas): visitas do CRM do dia, locais cadastrados, propriedades rurais (CAR) e vias fora do mapa.',
     comoUsar: [
       'Clique num carro (no mapa ou na lista) para ver o trajeto, as paradas e a linha do tempo do dia; a lista de dias fica no painel.',
       'Clique num grupo para ver os carros dele e escolher um.',
       'Propriedades (CAR): ligue e aproxime o mapa; aparecem os contornos das fazendas dos municípios na tela. Roxo = tem cliente vinculado.',
+      'Vias fora do mapa: ligue para ver por onde os carros andaram longe das estradas do mapa de fundo (fazenda, carreador). Escolha o período e o carro; clique numa linha para ver quem passou, quando, de onde vinha e para onde ia; "Baixar as rotas (GPX)" leva as linhas para o celular ou o GPS.',
       'A busca encontra um cliente ou local e leva o mapa até ele.',
       'Clique num ponto do mapa (ou num cliente, local ou propriedade) para ver quanto tempo a frota leva da loja até ali e de volta.',
     ],
@@ -76,6 +77,8 @@ const AJUDA: Record<string, AjudaFrota> = {
       { t: '↩ Loja ~14:32', d: 'O carro está andando e se aproximando da loja: hora prevista de chegada. Se ele está refazendo o caminho da ida, conta o km desse caminho e a velocidade que fez nele na ida; senão, a distância com as curvas da estrada e a velocidade dos últimos 20 min ("aproximado"). Parada no meio do caminho atrasa a chegada.' },
       { t: 'Tempo com a loja', d: 'Mediana das viagens reais (desde jan/2026) que saíram da loja e pararam a até 2 km do ponto (ou 5 km), sem as fora da curva: as que levaram mais de 2,5× o normal para a distância e as que ficam fora dos quartis. Sem viagens por perto, é estimado pela distância.' },
       { t: 'Km rodados × projetado', d: 'Rodados = mediana do que os carros andaram de verdade nessas viagens (pontos do rastreador dos últimos 90 dias). Projetado = o caminho mais curto pela estrada, calculado pelo mapa de rotas.' },
+      { t: 'Via fora do mapa', d: 'Trecho em que o carro andou a mais de 40 m de qualquer via do OpenStreetMap (o mapa de fundo), por pelo menos 200 m. Trilhas e carreadores já desenhados no OpenStreetMap não contam. Calculado uma vez por dia, de madrugada: o dia de hoje aparece amanhã.' },
+      { t: 'Passagens', d: 'Quantas vezes a mesma via foi usada: cada carro em cada dia conta uma vez (ida e volta no mesmo dia = 1). Mais grossa e mais vermelha = mais usada.' },
       { t: 'Andando', d: 'Motor ligado e acima de 5 km/h.' },
       { t: 'Parado com motor ligado', d: 'Motor ligado e parado (marcha lenta).' },
       { t: 'Desligado', d: 'Motor desligado, com sinal nas últimas 24 h.' },

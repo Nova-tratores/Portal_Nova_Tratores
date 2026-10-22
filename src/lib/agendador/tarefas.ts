@@ -211,6 +211,26 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: `${await recalcularProjetosLigados()} projeto(s) recalculado(s)` };
   },
 
+  // Vias fora do mapa (camada do /frota/mapa): trechos do GPS longe das vias do
+  // OpenStreetMap, dos últimos 14 dias. Depois do fechar-dia. Desliga com FROTA_VIAS=off.
+  'frota-vias-fora-mapa': async (p) => {
+    if (desligada('FROTA_VIAS')) return { pular: 'desligado (FROTA_VIAS=off)' };
+    const { supabaseAdmin } = await import('@/lib/server/supabase-admin');
+    const { processarViasForaMapa } = await import('@/lib/frota/vias-fora-mapa-server');
+    const r = await processarViasForaMapa(supabaseAdmin, {
+      limite: Number(p.limite) || 400,
+      maxDownloads: Number(p.max_downloads) || 40,
+      desde: typeof p.desde === 'string' ? p.desde : undefined,
+    });
+    if (r.erros.length && !r.processados) throw new Error(r.erros.slice(0, 5).join(' | '));
+    if (!r.candidatos) return { pular: 'nenhum dia novo' };
+    return {
+      resumo: `${r.ok} dia(s) ok · ${r.trechos} trecho(s), ${r.kmFora} km fora do mapa · ${r.pendentes} pendente(s)`
+        + `${r.baixados ? ` · ${r.baixados} malha(s) baixada(s)` : ''}${r.restantes ? ` · ${r.restantes} para a próxima` : ''}`
+        + `${r.erros.length ? ` · ${r.erros.length} erro(s): ${r.erros[0]}` : ''}`,
+    };
+  },
+
   'financeiro-scanner': async () => {
     if (process.env.SYNC_FINANCEIRO_AUTO !== 'on') return { pular: 'desligado (só com SYNC_FINANCEIRO_AUTO=on; a criação é pelo webhook)' };
     const { fetchInterno } = await import('@/lib/auth/chamada-interna');

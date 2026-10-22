@@ -246,6 +246,16 @@ export const AGENDAMENTOS: Agendamento[] = [
     obs: 'Registra em cron_runs como frota-pendencias-sync',
   },
   {
+    nome: 'Vias fora do mapa',
+    modulo: 'Frota',
+    fonte: 'in-process',
+    frequencia: 'Diário 05:15 (depois do fechar-dia)',
+    alvo: 'processarViasForaMapa() — trechos do GPS longe das vias do OpenStreetMap (camada do /frota/mapa)',
+    arquivo: 'src/lib/agendador/tarefas.ts',
+    condicional: 'Agendador do portal (tabela agendamentos); desliga com FROTA_VIAS=off',
+    obs: 'Registra em cron_runs como frota-vias-fora-mapa; malha do OSM no bucket frota-vias-osm',
+  },
+  {
     nome: 'POPs disparados pela OS',
     modulo: 'POPs',
     fonte: 'in-process',

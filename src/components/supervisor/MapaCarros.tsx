@@ -9,6 +9,7 @@ import { agruparPorProximidade, contarPorStatus, diaBR, haQuanto, nomeRumo, STAT
 import { fmtMin } from '@/lib/frota/tempo-loja'
 import { formatarPlaca } from '@/lib/frota/placa'
 import type { VeiculoVivo } from '@/lib/frota/mapa-vivo-server'
+import CamadaViasForaMapa from '@/components/frota/CamadaViasForaMapa'
 
 interface Carro { placa: string; descricao?: string | null; pessoa_nome?: string | null; vinculo_tipo?: string | null }
 
@@ -122,6 +123,8 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
   const carRendererRef = useRef<any>(null)
   const carCacheRef = useRef(new Map<number, any>())
   const [mostrarCar, setMostrarCar] = useState(false)
+  // camada Vias fora do mapa: trechos do GPS longe das vias do OpenStreetMap
+  const [mostrarVias, setMostrarVias] = useState(false)
   const [carMunicipios, setCarMunicipios] = useState<{ ibge: number; nome: string; centro: [number, number] }[] | null>(null)
   const [carAviso, setCarAviso] = useState<string | null>(null)
   const [carCarregando, setCarCarregando] = useState(false)
@@ -875,7 +878,38 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
               {carCarregando ? 'Propriedades…' : 'Propriedades (CAR)'}
             </button>
           )}
+          {ehFrota && (
+            <button
+              onClick={() => setMostrarVias((v) => !v)}
+              title={mostrarVias ? 'Ocultar as vias fora do mapa' : 'Mostrar os caminhos que os carros fizeram fora das vias do mapa (estradas de fazenda, carreadores)'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
+                borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                background: mostrarVias ? '#b91c1c' : 'rgba(255,255,255,0.97)',
+                color: mostrarVias ? '#fff' : '#475569',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
+              }}
+            >
+              <span style={{ width: 12, height: 4, borderRadius: 2, background: mostrarVias ? '#fecaca' : '#94a3b8' }} />
+              Vias fora do mapa
+            </button>
+          )}
         </div>
+      )}
+
+      {ehFrota && mostrarVias && (
+        <CamadaViasForaMapa
+          mapaRef={mapInstance}
+          LRef={LRef}
+          pronto={ready}
+          isMobile={isMobile}
+          timelineAberta={!!(timelineAberta && timeline.length > 0 && placaSel)}
+          onFechar={() => setMostrarVias(false)}
+          onVerDia={(placa, dia) => {
+            abrirCarro(placa, vivos.find((v) => v.placa === placa)?.nome || formatarPlaca(placa))
+            verRota(placa, dia)
+          }}
+        />
       )}
 
       {ehFrota && mostrarCar && carAviso && (
