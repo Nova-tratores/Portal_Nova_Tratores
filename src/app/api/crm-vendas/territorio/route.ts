@@ -14,6 +14,7 @@ import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { autenticar } from '@/lib/auth/server';
 import { corsVendas } from '@/lib/vendas-app/cors';
 import { NIVEIS_TERRITORIO, nivelDoImovel, resumoTerritorio, type NegocioProp, type VisitaCar } from '@/lib/vendas-app/territorio';
+import { tratoresDoMunicipio, type TratorLocalizado, type TratorVendido } from '@/lib/vendas-app/tratores-territorio';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -132,7 +133,22 @@ export async function GET(req: NextRequest) {
       };
     });
 
+    // tratores vendidos no município + os já localizados em campo (pinos)
+    const [{ data: vendidos }, loc] = await Promise.all([
+      supabaseAdmin.from('tratores').select('Chassis, Modelo, Cliente, Cidade, Entrega').limit(5000),
+      supabaseAdmin.from('trator_localizacao_atual').select('chassis, lat, lng, cod_car, confirmado_em, vendedor_nome').limit(5000),
+    ]);
+    const tratores = tratoresDoMunicipio(
+      fc.municipio || '',
+      (vendidos || []) as TratorVendido[],
+      (loc.error ? [] : loc.data || []) as TratorLocalizado[], // sem a migration: ninguém localizado ainda
+      new Set(features.map((f) => f.properties.cod_car)),
+    );
+    const carsComTrator = new Set(tratores.pinos.map((p) => p.cod_car).filter(Boolean));
+    for (const f of features) (f.properties as Record<string, unknown>).trator = carsComTrator.has(f.properties.cod_car);
+
     return json(req, {
+      tratores,
       municipio: fc.municipio || null,
       ibge,
       features,
