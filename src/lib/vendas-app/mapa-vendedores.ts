@@ -67,12 +67,16 @@ export function carrosDosVendedores(vendedores: VendedorBase[], vivos: CarroVivo
   return saida.sort((a, b) => a.vendedor_nome.localeCompare(b.vendedor_nome, 'pt-BR'));
 }
 
-export interface ParadaRota { lat: number; lng: number; inicio: string; fim: string | null; duracao_min: number; local?: string | null }
+export interface ParadaRota {
+  lat: number; lng: number; inicio: string; fim: string | null; duracao_min: number; local?: string | null;
+  // paradas longas: explicada pelo vendedor, coberta por visita ou a explicar (paradas-server)
+  situacao?: string; motivo?: string | null; observacao?: string | null;
+}
 
 export type EventoTimeline =
   | { tipo: 'inicio'; hora: string | null; local: string | null }
   | { tipo: 'trecho'; de: string; ate: string; km: number; velMax: number; min: number }
-  | { tipo: 'parada'; hora: string; fim: string | null; dur: number; local: string | null; lat: number; lng: number }
+  | { tipo: 'parada'; hora: string; fim: string | null; dur: number; local: string | null; lat: number; lng: number; situacao?: string; motivo?: string | null; observacao?: string | null }
   | { tipo: 'fim'; hora: string | null; local: string | null };
 
 /** Timeline do dia — mesma conta do MapaCarros do portal. */
@@ -103,7 +107,10 @@ export function montarTimeline(
   for (const pa of paradas) {
     const t = trecho(cursor, pa.inicio);
     if (t) evs.push({ tipo: 'trecho', de: cursor, ate: pa.inicio, ...t });
-    evs.push({ tipo: 'parada', hora: pa.inicio, fim: pa.fim, dur: pa.duracao_min, local: pa.local ?? localDe(pa.lat, pa.lng), lat: pa.lat, lng: pa.lng });
+    evs.push({
+      tipo: 'parada', hora: pa.inicio, fim: pa.fim, dur: pa.duracao_min, local: pa.local ?? localDe(pa.lat, pa.lng), lat: pa.lat, lng: pa.lng,
+      situacao: pa.situacao, motivo: pa.motivo ?? null, observacao: pa.observacao ?? null,
+    });
     cursor = pa.fim || pa.inicio;
   }
   const ultimo = pontos[pontos.length - 1];
