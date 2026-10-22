@@ -1,6 +1,6 @@
 // Território gamificado: nível de cada imóvel do CAR pela conquista do vendedor.
 import { describe, it, expect } from 'vitest';
-import { nivelDoImovel, resumoTerritorio } from '../territorio';
+import { nivelDoImovel, resumoTerritorio, geometriaLeve, bboxVazio } from '../territorio';
 
 const v = (id: number, prop: number | null = 1) => ({ id, cod_car: 'X', dia: '2026-10-20', vendedor_id: 7, propriedade_id: prop });
 
@@ -24,5 +24,14 @@ describe('resumo do território', () => {
     const r = resumoTerritorio(['bloqueado', 'visitado', 'quente', 'bloqueado'], [100, 50, 30, 20]);
     expect(r).toMatchObject({ total: 4, desbloqueados: 2, pct: 50, areaTotalHa: 200, areaDesbloqueadaHa: 80 });
     expect(r.contagem.quente).toBe(1);
+  });
+});
+
+describe('desenho leve', () => {
+  it('arredonda para ~1 m, tira ponto repetido e calcula o contorno', () => {
+    const bbox = bboxVazio();
+    const g = geometriaLeve({ type: 'Polygon', coordinates: [[[-49.1234567, -23.1], [-49.1234568, -23.1], [-49.2, -23.2], [-49.1234567, -23.1]]] }, bbox);
+    expect(g.coordinates).toEqual([[[-49.12346, -23.1], [-49.2, -23.2], [-49.12346, -23.1]]]);
+    expect(bbox).toEqual([-49.2, -23.2, -49.12346, -23.1]);
   });
 });

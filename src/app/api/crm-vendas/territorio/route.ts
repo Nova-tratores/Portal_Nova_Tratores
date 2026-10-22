@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { autenticar } from '@/lib/auth/server';
 import { corsVendas } from '@/lib/vendas-app/cors';
-import { NIVEIS_TERRITORIO, nivelDoImovel, resumoTerritorio, type NegocioProp, type VisitaCar } from '@/lib/vendas-app/territorio';
+import { NIVEIS_TERRITORIO, nivelDoImovel, resumoTerritorio, geometriaLeve, bboxVazio, type NegocioProp, type VisitaCar } from '@/lib/vendas-app/territorio';
 import { tratoresDoMunicipio, type TratorLocalizado, type TratorVendido } from '@/lib/vendas-app/tratores-territorio';
 
 export const runtime = 'nodejs';
@@ -85,8 +85,8 @@ export async function GET(req: NextRequest) {
     const ibge = Number(municipio);
     if (!Number.isInteger(ibge)) return json(req, { error: 'município inválido' }, 400);
 
-    // ~20 m de tolerância: o mapa fica leve no celular e continua legível
-    const { data, error } = await supabaseAdmin.rpc('agro_mapa_municipio', { p_ibge: ibge, p_tol: 0.0002 });
+    // ~40 m de tolerância: o mapa fica leve no celular e continua legível
+    const { data, error } = await supabaseAdmin.rpc('agro_mapa_municipio', { p_ibge: ibge, p_tol: 0.0004 });
     if (error) return json(req, { error: error.message }, 500);
     const fc = (data || {}) as { municipio?: string; features?: Feature[]; visitas?: { id: number; cod_car: string; dia: string }[] };
 
@@ -115,13 +115,14 @@ export async function GET(req: NextRequest) {
     const visitasPorCar = new Map<string, VisitaCar[]>();
     for (const v of visitas) visitasPorCar.set(v.cod_car, [...(visitasPorCar.get(v.cod_car) || []), v]);
 
+    const bbox = bboxVazio(); // contorno do município, para o mapa enquadrar
     const features = (fc.features || []).map((f) => {
       const cod = String(f.properties.cod_car);
       const vs = visitasPorCar.get(cod) || [];
       const nivel = nivelDoImovel(vs, negocios);
       return {
         type: 'Feature' as const,
-        geometry: f.geometry,
+        geometry: geometriaLeve(f.geometry as { type: string; coordinates: unknown }, bbox),
         properties: {
           cod_car: cod,
           area_ha: f.properties.area_ha,
@@ -151,6 +152,7 @@ export async function GET(req: NextRequest) {
       tratores,
       municipio: fc.municipio || null,
       ibge,
+      bbox: Number.isFinite(bbox[0]) ? bbox : null,
       features,
       resumo: resumoTerritorio(features.map((f) => f.properties.nivel), features.map((f) => Number(f.properties.area_ha) || 0)),
       niveis: NIVEIS_TERRITORIO,

@@ -57,3 +57,33 @@ export function resumoTerritorio(niveis: NivelTerritorio[], areas: number[] = []
     areaDesbloqueadaHa: Math.round(areaDesbloqueada),
   };
 }
+
+// ── Desenho leve para o celular ──────────────────────────────────────────────
+type Anel = number[][];
+type Geometria = { type: string; coordinates: unknown };
+
+/**
+ * Coordenadas com 5 casas (~1 m) e sem pontos repetidos em sequência: o
+ * arquivo encolhe e o navegador desenha menos pontos. Devolve também o
+ * contorno (bbox) do que veio, para o mapa enquadrar sem montar outra camada.
+ */
+export function geometriaLeve(g: Geometria, bbox: number[]): Geometria {
+  const anel = (r: Anel): Anel => {
+    const out: Anel = [];
+    for (const [x, y] of r) {
+      const p = [Math.round(x * 1e5) / 1e5, Math.round(y * 1e5) / 1e5];
+      const u = out[out.length - 1];
+      if (!u || u[0] !== p[0] || u[1] !== p[1]) out.push(p);
+      if (p[0] < bbox[0]) bbox[0] = p[0];
+      if (p[1] < bbox[1]) bbox[1] = p[1];
+      if (p[0] > bbox[2]) bbox[2] = p[0];
+      if (p[1] > bbox[3]) bbox[3] = p[1];
+    }
+    return out;
+  };
+  if (g?.type === 'Polygon') return { type: g.type, coordinates: (g.coordinates as Anel[]).map(anel) };
+  if (g?.type === 'MultiPolygon') return { type: g.type, coordinates: (g.coordinates as Anel[][]).map((p) => p.map(anel)) };
+  return g;
+}
+
+export const bboxVazio = () => [Infinity, Infinity, -Infinity, -Infinity];
