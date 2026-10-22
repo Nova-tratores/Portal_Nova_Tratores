@@ -95,6 +95,9 @@ export function ordenarEResumir(itens: ItemChecklistMes[]): { itens: ItemCheckli
 
 export async function listarChecklistsMes(supabase: SupabaseClient, mes: string): Promise<{ itens: ItemChecklistMes[]; resumo: ResumoChecklistMes }> {
   const lerVeics = async () => {
+    // carro SEM USO conta como checklist desligado (ainda é da loja, mas está parado)
+    const r0 = await supabase.from('frota_veiculos').select('id, placa, modelo, ativo, tipo_registro, checklist_desativado, sem_uso, supa_placa_id');
+    if (!r0.error) return (r0.data || []).map((v) => ({ ...v, checklist_desativado: !!v.checklist_desativado || !!v.sem_uso }));
     const r = await supabase.from('frota_veiculos').select('id, placa, modelo, ativo, tipo_registro, checklist_desativado, supa_placa_id');
     if (!r.error) return r.data || [];
     // sem a coluna checklist_desativado (migração antiga): todo veículo cobra

@@ -37,6 +37,9 @@ export async function checklistBloqueado(placaCanon: string): Promise<string | n
   if (row.ativo === false || status === 'vendido' || status === 'arquivado') {
     return 'Veículo inativo (vendido/arquivado) — não faz mais checklist mensal.';
   }
+  if (row.sem_uso === true) {
+    return 'Veículo marcado como SEM USO — não faz checklist mensal.';
+  }
   if (row.checklist_desativado === true) {
     const motivo = String(row.checklist_desativado_motivo || '').trim();
     return `Checklist desativado neste veículo${motivo ? ` — ${motivo}` : '.'}`;

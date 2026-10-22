@@ -47,6 +47,10 @@ export interface FrotaVeiculo {
   custo_km_ref: number | null;
   categoria: string;
   setor: string | null;
+  // carro SEM USO: ainda é da loja, mas parado (sql/frota-setor-sem-uso.sql)
+  sem_uso?: boolean | null;
+  sem_uso_motivo?: string | null;
+  sem_uso_em?: string | null;
   // proprietário LEGAL (documento/CRLV) — não confundir com o responsável do
   // dia a dia (frota_responsaveis). Campo manual: o sync nunca escreve aqui.
   proprietario: string | null;

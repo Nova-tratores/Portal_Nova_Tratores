@@ -247,6 +247,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     })),
     { id: 'veiculos:editar', label: 'Veículos — editar a ficha' },
     { id: 'veiculos:responsavel', label: 'Veículos — trocar o responsável' },
+    { id: 'veiculos:inativar', label: 'Veículos — vender, arquivar ou marcar sem uso (só Dev concede)' },
     { id: 'motoristas:editar', label: 'Motoristas — editar CNH / flag motorista' },
     { id: 'multas:editar', label: 'Multas — mudar status / desconto' },
     { id: 'avarias:editar', label: 'Avarias — registrar / mudar status' },

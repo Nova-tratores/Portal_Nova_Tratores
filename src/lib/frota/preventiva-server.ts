@@ -44,7 +44,7 @@ export async function calcularPreventivas(
   const kmP = carregarKm(supabase, { placas: opts.placas, agora });
 
   let qv = supabase.from('frota_veiculos')
-    .select('id, placa, marca, modelo, descricao, ativo, status, tipo_registro, modelo_manutencao_id')
+    .select('*') // inclui sem_uso quando a migração existir
     .eq('tipo_registro', 'veiculo');
   if (opts.placas?.length) qv = qv.in('placa', opts.placas);
   const [veics, modelos, planos] = await Promise.all([
@@ -61,8 +61,9 @@ export async function calcularPreventivas(
     throw new Error(msg);
   }
 
-  type V = { id: string; placa: string; marca: string | null; modelo: string | null; descricao: string | null; ativo: boolean | null; status: string | null; modelo_manutencao_id: string | null };
-  const veiculos = ((veics.data || []) as V[]).filter((v) => v.ativo && v.status !== 'vendido');
+  type V = { id: string; placa: string; marca: string | null; modelo: string | null; descricao: string | null; ativo: boolean | null; status: string | null; modelo_manutencao_id: string | null; sem_uso?: boolean | null };
+  // carro SEM USO não cobra preventiva enquanto estiver parado
+  const veiculos = ((veics.data || []) as V[]).filter((v) => v.ativo && v.status !== 'vendido' && !v.sem_uso);
   const ids = veiculos.map((v) => v.id);
 
   const servicos = ids.length ? await paginar((a, b) => {

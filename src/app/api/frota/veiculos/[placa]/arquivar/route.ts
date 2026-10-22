@@ -8,7 +8,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
-import { logFrota, podeFrota } from '@/lib/frota/server';
+import { logFrota, podeInativar } from '@/lib/frota/server';
+import { removerVinculoTecnico } from '@/lib/frota/higiene-responsaveis-server';
 import { resolverPlaca } from '@/lib/frota/placa';
 
 export const runtime = 'nodejs';
@@ -28,8 +29,8 @@ async function acharVeiculo(placaParam: string) {
 export async function POST(req: NextRequest, { params }: { params: Promise<{ placa: string }> }) {
   const auth = await autenticar(req);
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-  if (!podeFrota(auth, 'veiculos:editar')) {
-    return NextResponse.json({ error: 'Sem permissão para editar veículos.' }, { status: 403 });
+  if (!podeInativar(auth)) {
+    return NextResponse.json({ error: 'Só quem recebeu "Vender, arquivar ou marcar sem uso" (um Dev concede) pode tirar um carro da frota.' }, { status: 403 });
   }
 
   const { placa } = await params;
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pla
 
   // encerra o responsável em aberto (o período fica no histórico)
   await supabase.from('frota_responsaveis').update({ fim: hoje }).eq('veiculo_id', v.id).is('fim', null);
+  await removerVinculoTecnico([v.placa]).catch(() => 0);
 
   // sai do patrimônio do DRE — best-effort
   let aviso: string | undefined;
@@ -82,8 +84,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pla
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ placa: string }> }) {
   const auth = await autenticar(req);
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
-  if (!podeFrota(auth, 'veiculos:editar')) {
-    return NextResponse.json({ error: 'Sem permissão para editar veículos.' }, { status: 403 });
+  if (!podeInativar(auth)) {
+    return NextResponse.json({ error: 'Só quem recebeu "Vender, arquivar ou marcar sem uso" (um Dev concede) pode tirar um carro da frota.' }, { status: 403 });
   }
 
   const { placa } = await params;
