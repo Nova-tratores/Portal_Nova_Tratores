@@ -3,7 +3,7 @@
 // troca de responsável para recusar pessoa desligada.
 import { createClient } from '@supabase/supabase-js';
 import { listarFuncionariosRH, rhConfigurado } from './rh';
-import { motoristasDesligados, planejarHigiene, type MotoristaLocal } from './higiene-responsaveis';
+import { motoristasDesligados, planejarHigiene, vinculosDeDesligados, type MotoristaLocal } from './higiene-responsaveis';
 import { resolverPlaca } from './placa';
 
 const supabase = createClient(
@@ -30,19 +30,34 @@ export async function fecharResponsaveisSemDireito(): Promise<{ fechados: number
   ]);
   if (abertos.error) throw abertos.error;
   if (veiculos.error) throw veiculos.error;
-  const plano = planejarHigiene(abertos.data || [], veiculos.data || [], desligados);
-  if (!plano.length) return { fechados: 0, motivos: [] };
+  // técnico desligado no RH perde o vínculo com o carro (checklist/GPS/gastos)
+  const motivosTec: string[] = [];
+  if (rhConfigurado()) {
+    const [rh, { data: tv }] = await Promise.all([
+      listarFuncionariosRH(),
+      supabase.from('tecnico_veiculos').select('id, tecnico_nome, placa'),
+    ]);
+    const ids = vinculosDeDesligados(tv || [], rh);
+    if (ids.length) {
+      const { error } = await supabase.from('tecnico_veiculos').delete().in('id', ids);
+      if (error) throw error;
+      for (const t of (tv || []).filter((x) => ids.includes(x.id))) motivosTec.push(`${t.tecnico_nome} (${t.placa}): técnico desligado no RH`);
+    }
+  }
 
-  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
-  const { error } = await supabase.from('frota_responsaveis').update({ fim: hoje }).in('id', plano.map((p) => p.id));
-  if (error) throw error;
+  const plano = planejarHigiene(abertos.data || [], veiculos.data || [], desligados);
+  if (plano.length) {
+    const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+    const { error } = await supabase.from('frota_responsaveis').update({ fim: hoje }).in('id', plano.map((p) => p.id));
+    if (error) throw error;
+  }
 
   // carro que saiu da frota também perde o vínculo de técnico (checklist/GPS)
   const fora = new Set((veiculos.data || []).filter((v) => v.status === 'vendido' || v.status === 'arquivado').map((v) => resolverPlaca(v.placa)));
   if (fora.size) await removerVinculoTecnico([...fora]);
 
   const nomes = new Map((abertos.data || []).map((r) => [r.id, r.motorista_nome || '?']));
-  return { fechados: plano.length, motivos: plano.map((p) => `${nomes.get(p.id)}: ${p.motivo}`) };
+  return { fechados: plano.length + motivosTec.length, motivos: [...motivosTec, ...plano.map((p) => `${nomes.get(p.id)}: ${p.motivo}`)] };
 }
 
 /** Apaga o vínculo técnico↔carro (tecnico_veiculos) das placas informadas. */

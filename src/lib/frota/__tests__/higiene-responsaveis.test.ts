@@ -1,5 +1,25 @@
 import { describe, it, expect } from 'vitest';
-import { motoristasDesligados, planejarHigiene } from '../higiene-responsaveis';
+import { motoristasDesligados, planejarHigiene, vinculosDeDesligados } from '../higiene-responsaveis';
+
+describe('vínculo de técnico desligado', () => {
+  const rhNomes = [
+    { nome: 'PAULO JOAQUIM MOTTA', status: 'demitido' },
+    { nome: 'NICOLAS DA SILVA DARIO', status: 'demitido' },
+    { nome: 'GABRIEL VICTOR DA MOTTA', status: 'inativo' },
+    { nome: 'GABRIEL GOMES DE MORAES', status: 'ativo' },
+    { nome: 'DANILO DE SOUZA', status: 'ativo' },
+  ];
+  it('tira Paulo e Nicolas; mantém Danilo e o Gabriel ativo', () => {
+    const linhas = [
+      { id: 14, tecnico_nome: 'PAULO MOTTA' },
+      { id: 16, tecnico_nome: 'Paulo Motta' },
+      { id: 2, tecnico_nome: 'Nicolas Dario' },
+      { id: 11, tecnico_nome: 'Gabriel Moraes' },
+      { id: 8, tecnico_nome: 'Danilo de Souza' },
+    ];
+    expect(vinculosDeDesligados(linhas, rhNomes)).toEqual([14, 16, 2]);
+  });
+});
 
 const rh = [
   { id: 'rh-nicolas', cpf: '111.111.111-11', status: 'demitido' },

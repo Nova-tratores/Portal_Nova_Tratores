@@ -23,12 +23,15 @@ export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'Passe ?id=<checklist>' }, { status: 400 });
 
-  const { data, error } = await supabase
+  // ia_analise = conferência das fotos de pneu pela IA (sem a coluna, lê sem ela)
+  const ler = (cols: string) => supabase
     .from('veiculo_checklist_itens')
-    .select('id, item_key, categoria, titulo, resposta, observacao, foto_url, respondido_em')
+    .select(cols)
     .eq('checklist_id', id)
     .order('respondido_em', { ascending: true });
+  let { data, error } = await ler('id, item_key, categoria, titulo, resposta, observacao, foto_url, respondido_em, ia_analise');
+  if (error && /ia_analise/i.test(error.message)) ({ data, error } = await ler('id, item_key, categoria, titulo, resposta, observacao, foto_url, respondido_em'));
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ itens: await assinarFotos(data || []) });
+  return NextResponse.json({ itens: await assinarFotos((data || []) as unknown as { foto_url?: string | null }[]) });
 }

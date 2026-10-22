@@ -4,6 +4,7 @@
 //  - carro VENDIDO ou ARQUIVADO (saiu da frota, ninguém responde mais por ele).
 // Regras puras; o servidor (higiene-responsaveis-server.ts) lê e grava.
 import { normalizarCpf } from './motoristas';
+import { mesmaPessoa } from './responsavel';
 
 const DESLIGADO = new Set(['demitido', 'inativo']);
 
@@ -28,6 +29,22 @@ export function motoristasDesligados(locais: MotoristaLocal[], rh: FuncionarioSt
 
 export function estaDesligado(motoristaId: string | null | undefined, desligados: Set<string>): boolean {
   return !!motoristaId && desligados.has(motoristaId);
+}
+
+/**
+ * Vínculos de técnico (tecnico_veiculos, por NOME) de quem o RH diz desligado.
+ * Casa pelo nome tolerante (mesmaPessoa); se o nome também bate com alguém ATIVO
+ * no RH (homônimo), não mexe. Caso real: Paulo Motta e Nicolas no TKY6E68.
+ */
+export function vinculosDeDesligados(
+  linhas: { id: number; tecnico_nome: string }[],
+  rh: { nome: string; status: string | null }[],
+): number[] {
+  const fora = rh.filter((f) => DESLIGADO.has(String(f.status || '').toLowerCase()));
+  const ativos = rh.filter((f) => !DESLIGADO.has(String(f.status || '').toLowerCase()));
+  return linhas
+    .filter((l) => fora.some((f) => mesmaPessoa(l.tecnico_nome, f.nome)) && !ativos.some((f) => mesmaPessoa(l.tecnico_nome, f.nome)))
+    .map((l) => l.id);
 }
 
 export interface ResponsavelAberto { id: string; veiculo_id: string; motorista_id: string | null; motorista_nome: string | null }
