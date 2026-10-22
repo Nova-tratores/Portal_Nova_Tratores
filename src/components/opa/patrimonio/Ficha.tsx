@@ -5,7 +5,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowRight, Camera, History, Loader2, MapPin, Pencil, Printer, Trash2, Truck, UserRound, X } from 'lucide-react'
+import { ArrowRight, ArrowRightLeft, Camera, History, Loader2, MapPin, Pencil, Printer, Trash2, Truck, UserRound, X } from 'lucide-react'
 import { comprimir, enviarFoto, urlsAssinadas } from '@/lib/opa-pecas/fotos'
 import { BUCKET_PATRIMONIO } from '@/lib/patrimonio/fotos-regra'
 import { formDoItem, ROTULO_SITUACAO, SITUACOES, textoOnde, type ItemPat, type Movimentacao, type Situacao } from '@/lib/patrimonio/tipos'
@@ -15,10 +15,16 @@ import { Visualizador } from '../pecas/DetalheItem'
 import { api, COR_PAT, fmtData, fmtReal, SeloEstado, type BasePat } from './comum'
 import Formulario from './Formulario'
 import EtiquetasPat from './Etiquetas'
+import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
 
 export default function Ficha({ base, id }: { base: BasePat; id: string }) {
   const router = useRouter()
   const larga = useTelaLarga()
+  // transferir para as Peças S/Estoque: precisa das duas abas (José, 22/10/2026)
+  const { userProfile } = useAuth()
+  const { pode: podePerm } = usePermissoes(userProfile?.id)
+  const podeTransferir = podePerm('opa-pecas')
   const [item, setItem] = useState<ItemPat | null>(null)
   const [movs, setMovs] = useState<Movimentacao[]>([])
   const [erro, setErro] = useState<string | null>(null)
@@ -57,6 +63,13 @@ export default function Ficha({ base, id }: { base: BasePat; id: string }) {
     if (paths.length) await api(`/api/patrimonio/${item!.id}/fotos`, { method: 'POST', body: { paths } })
   })
   const tirarFoto = (fotoId: string) => { if (confirm('Tirar esta foto?')) executar(() => api(`/api/patrimonio/${item!.id}/fotos?foto=${fotoId}`, { method: 'DELETE' })) }
+  const transferir = () => {
+    if (!item || !confirm(`Transferir ${item.codigo} — ${item.descricao} para as Peças S/Estoque?\n\nEle entra na etapa de VERIFICAÇÃO com as mesmas fotos, quantidade e lugar, e aqui no Patrimônio fica "baixado".`)) return
+    executar(async () => {
+      const r = await api<{ codigo: string }>('/api/opa/transferir', { method: 'POST', body: { de: 'patrimonio', id: item.id } })
+      router.push(`/opa/pecas/${encodeURIComponent(r.codigo)}`)
+    })
+  }
   const excluir = () => {
     if (!item || !confirm(`Excluir ${item.codigo} — ${item.descricao}? Ele sai da lista (o histórico fica guardado).`)) return
     executar(async () => { await api(`/api/patrimonio/${item.id}`, { method: 'DELETE' }); router.push('/opa/patrimonio') })
@@ -90,6 +103,7 @@ export default function Ficha({ base, id }: { base: BasePat; id: string }) {
             <button type="button" onClick={() => setEtiqueta(true)} style={botao('#111827')}><Printer size={15} /> {item.etiqueta_impressa_em ? 'Reimprimir etiqueta' : 'Imprimir etiqueta'}</button>
             <button type="button" onClick={() => setMovendo(true)} style={botao(COR_PAT)}><Truck size={15} /> Mudar de lugar</button>
             <button type="button" onClick={() => setEditando(true)} style={botao('#52525B', { contorno: true })}><Pencil size={14} /> Editar</button>
+            {podeTransferir && item.situacao !== 'baixado' && <button type="button" onClick={transferir} disabled={ocupado} title="Leva este item para as Peças S/Estoque (entra na verificação)" style={botao('#EA580C', { contorno: true, desab: ocupado })}><ArrowRightLeft size={14} /> Transferir para as Peças</button>}
             <button type="button" onClick={excluir} disabled={ocupado} style={botao('#B91C1C', { contorno: true, desab: ocupado })}><Trash2 size={14} /> Excluir</button>
           </div>
         </div>

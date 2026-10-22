@@ -75,8 +75,8 @@ export function locacaoAbreviada(loc: string): string {
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
-/** Página HTML com uma etiqueta por página (puro — testável). */
-export function htmlTermica(itens: (ItemTermica & { qr: string })[], a: AjusteTermica): string {
+/** CSS + uma <div class="pg"> por etiqueta, e o tamanho da página (puro — testável). */
+export function partesTermica(itens: (ItemTermica & { qr: string })[], a: AjusteTermica): { css: string; paginas: string[]; PW: number; PH: number } {
   const L = a.largura
   const H = a.altura
   const pad = Math.max(1, Math.min(2, H * 0.05))
@@ -91,7 +91,7 @@ export function htmlTermica(itens: (ItemTermica & { qr: string })[], a: AjusteTe
   const AW = deLado ? H : L   // área da etiqueta dentro da página
   const AH = deLado ? L : H
   const altBarra = Math.max(3, Math.min(6, H * 0.18))
-  const etiquetas = itens.map((i) => {
+  const paginas = itens.map((i) => {
     const desc = (i.descricao || 'Peça sem descrição') + (i.quantidade && i.quantidade > 1 ? ` (${i.quantidade} un.)` : '')
     return `<div class="pg"><div class="area"><div class="et">
   ${i.qr ? `<div class="qr">${i.qr}</div>` : ''}
@@ -104,9 +104,8 @@ export function htmlTermica(itens: (ItemTermica & { qr: string })[], a: AjusteTe
     ${i.barra ? code128Svg(i.codigo, altBarra) : ''}
   </div>
 </div></div></div>`
-  }).join('\n')
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Etiqueta</title>
-<style>
+  })
+  const css = `
   @page { size: ${PW}mm ${PH}mm; margin: 0; }
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { width: ${PW}mm; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
@@ -128,8 +127,16 @@ export function htmlTermica(itens: (ItemTermica & { qr: string })[], a: AjusteTe
   .barra rect { fill: #000; }
   .loc { font-weight: 700; font-size: ${Math.max(6, fonteDesc - 1)}pt; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-top: 0.3mm solid #000; padding-top: 0.5mm; }
   @media screen { body { margin: 10mm; } .pg { outline: 1px dashed #999; margin-bottom: 4mm; } }
-</style></head><body>
-${etiquetas}
+`
+  return { css, paginas, PW, PH }
+}
+
+/** Página HTML com uma etiqueta por página (puro — testável). */
+export function htmlTermica(itens: (ItemTermica & { qr: string })[], a: AjusteTermica): string {
+  const { css, paginas } = partesTermica(itens, a)
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Etiqueta</title>
+<style>${css}</style></head><body>
+${paginas.join('\n')}
 </body></html>`
 }
 
@@ -141,6 +148,63 @@ ${etiquetas}
 export function imprimirTermica(itens: ItemTermica[], a: AjusteTermica = lerAjusteTermica()): boolean {
   try {
     const com = itens.map((i) => ({ ...i, qr: i.semQr ? '' : qrSvg(QRCode.create(i.url || urlPublica(window.location.origin, i.token || ''), { errorCorrectionLevel: 'M' }).modules) }))
+    // PDF primeiro (José, 22/10/2026: a página HTML saía com o cabeçalho/rodapé do
+    // navegador — título e o endereço https — em quem tem "Cabeçalhos e rodapés" ligado;
+    // PDF não ganha isso). Falhou o PDF → cai na impressão da página, como antes.
+    void imprimirTermicaPdf(com, a).then((ok) => { if (!ok) imprimirTermicaHtml(com, a) })
+    return true
+  } catch {
+    return false
+  }
+}
+
+const PX_MM = 12 // ~305 dpi: nítido na térmica (203/300 dpi)
+
+/** Desenha cada página (o MESMO HTML/CSS) num canvas via SVG foreignObject e monta um PDF do tamanho do rolo. */
+async function imprimirTermicaPdf(com: (ItemTermica & { qr: string })[], a: AjusteTermica): Promise<boolean> {
+  try {
+    const { css, paginas, PW, PH } = partesTermica(com, a)
+    const { jsPDF } = await import('jspdf')
+    const orient = PW > PH ? 'l' : 'p'
+    const pdf = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: orient })
+    const w = Math.round(PW * PX_MM)
+    const h = Math.round(PH * PX_MM)
+    for (let n = 0; n < paginas.length; n++) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
+        `<foreignObject x="0" y="0" width="${PW}mm" height="${PH}mm" transform="scale(${w / (PW * 96 / 25.4)})">` +
+        `<div xmlns="http://www.w3.org/1999/xhtml" style="font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff"><style>${css.replace(/@media screen[^\n]*/, '')} html,body{margin:0}</style>${paginas[n]}</div>` +
+        `</foreignObject></svg>`
+      const img = new Image()
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
+      await img.decode()
+      const cv = document.createElement('canvas')
+      cv.width = w; cv.height = h
+      const ctx = cv.getContext('2d')
+      if (!ctx) return false
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h)
+      ctx.drawImage(img, 0, 0, w, h)
+      if (n > 0) pdf.addPage([PW, PH], orient)
+      pdf.addImage(cv.toDataURL('image/png'), 'PNG', 0, 0, PW, PH)
+    }
+    const url = URL.createObjectURL(pdf.output('blob'))
+    document.getElementById('pni-etiqueta-print')?.remove()
+    const f = document.createElement('iframe')
+    f.id = 'pni-etiqueta-print'
+    f.setAttribute('aria-hidden', 'true')
+    f.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;'
+    f.onload = () => setTimeout(() => { try { f.contentWindow?.focus(); f.contentWindow?.print() } catch { /* o leitor de PDF abre o diálogo sozinho */ } }, 300)
+    f.src = url
+    document.body.appendChild(f)
+    setTimeout(() => { f.remove(); URL.revokeObjectURL(url) }, 120_000)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** Impressão antiga (página HTML num iframe) — reserva se o PDF falhar. */
+function imprimirTermicaHtml(com: (ItemTermica & { qr: string })[], a: AjusteTermica): boolean {
+  try {
     document.getElementById('pni-etiqueta-print')?.remove()
     const f = document.createElement('iframe')
     f.id = 'pni-etiqueta-print'

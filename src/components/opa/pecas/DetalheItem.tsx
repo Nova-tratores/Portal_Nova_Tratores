@@ -5,7 +5,7 @@
 // Quem não é do setor de peças vê tudo só para leitura.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Camera, ChevronLeft, ChevronRight, History, Loader2, MapPin, Printer, RefreshCw, RotateCcw, Save, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { ArrowRightLeft, AlertTriangle, Camera, ChevronLeft, ChevronRight, History, Loader2, MapPin, Printer, RefreshCw, RotateCcw, Save, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react'
 import QRCode from 'qrcode'
 import {
   adicionarFotos, atualizarItem, buscarItem, definirAplicacoes, excluirItem, finalizar, listarHistorico,
@@ -22,6 +22,10 @@ import { ChipsEtiquetas } from './ListaPecas'
 import { EditorEtiquetas, esquecerSugestoesEtiquetas, SecaoLocacao } from './LocacaoEtiquetas'
 import { esquecerSku } from './useProdutosSku'
 import Impressao from './Impressao'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
+import { authHeaders } from '@/lib/auth/client'
 import { CodigoPeca, Aviso, botao, INP, LARANJA, ROTULO, SECAO, SeloQualidade, SeloStatus, TITULO_SECAO, useMiniaturas, useTelaLarga, type Base } from './comum'
 
 interface Form {
@@ -104,6 +108,11 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
   const larga = useTelaLarga()
 
   const gerir = base.podeGerir
+  // transferir para o Patrimônio Loja: precisa das duas abas (José, 22/10/2026)
+  const router = useRouter()
+  const { userProfile } = useAuth()
+  const { pode: podePerm } = usePermissoes(userProfile?.id)
+  const podeTransferir = gerir && podePerm('patrimonio')
   // quem tem o módulo (setor de peças) altera QUALQUER informação, em qualquer fase (sql/pni-12);
   // as telas de etapa é que perguntam por fase. Sem o módulo: só quem cadastrou mexe nas fotos.
   const travada = item.status === 'vendido' || item.status === 'descartado'
@@ -176,6 +185,17 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
       const r = await substituirFoto(fotoId, path)
       apagarFoto(r.anterior).catch(() => null)
     }, 'Foto trocada.')
+  }
+
+  const transferir = async () => {
+    if (!confirm(`Transferir ${nomeDoItem(item.codigo)} para o Patrimônio Loja?\n\nEla sai das Peças S/Estoque e passa a existir só no Patrimônio, com as mesmas fotos, quantidade e lugar. O histórico fica guardado.`)) return
+    setOcupado('transferir'); setErro(null)
+    try {
+      const r = await fetch('/api/opa/transferir', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ de: 'pecas', id: item.id }) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok || !d.ok) throw new Error(d.erro || 'Não deu para transferir.')
+      router.push(`/opa/patrimonio/${d.id}`)
+    } catch (e) { setErro(mensagemErro(e)) } finally { setOcupado(null) }
   }
 
   const excluir = async () => {
@@ -393,6 +413,7 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid var(--portal-border)' }}>
         <button onClick={() => (historico ? setHistorico(null) : abrirHistorico())} style={botao('#52525B', { contorno: true })}><History size={15} /> Histórico</button>
         <div style={{ flex: 1 }} />
+        {podeTransferir && <button onClick={transferir} disabled={!!ocupado} title="Leva esta peça para o Patrimônio Loja (com fotos, quantidade e lugar)" style={botao('#4f46e5', { contorno: true, desab: !!ocupado })}>{ocupado === 'transferir' ? <Loader2 size={14} className="spin" /> : <ArrowRightLeft size={14} />} Transferir para o Patrimônio</button>}
         {gerir && <button onClick={excluir} disabled={!!ocupado} style={botao('#DC2626', { contorno: true, desab: !!ocupado })}><Trash2 size={14} /> Excluir</button>}
       </div>
 
