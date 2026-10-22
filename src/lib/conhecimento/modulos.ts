@@ -10,6 +10,7 @@ export const MODULOS_KB: { id: string; rotulo: string; cor: string }[] = [
   { id: "requisicoes", rotulo: "Requisições", cor: "#f97316" },
   { id: "feedbacks", rotulo: "Feedbacks & CRM", cor: "#d97706" },
   { id: "tickets", rotulo: "Tickets", cor: "#0e7490" },
+  { id: "pops", rotulo: "Procedimentos (POP)", cor: "#0f766e" },
   { id: "geral", rotulo: "Geral do portal", cor: "#475569" },
 ];
 

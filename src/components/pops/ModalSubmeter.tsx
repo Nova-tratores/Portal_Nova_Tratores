@@ -14,11 +14,12 @@ interface Props {
   usuarios: UsuarioMapa
   meuId: string
   modeloSistema: boolean
+  sugestoesRedacao?: number   // dicas de escrita ainda abertas (lib/pops/redacao) — só avisa
   onFechar: () => void
   onEnviado: () => void
 }
 
-export default function ModalSubmeter({ popId, versaoId, numero, aprovadores, usuarios, meuId, modeloSistema, onFechar, onEnviado }: Props) {
+export default function ModalSubmeter({ popId, versaoId, numero, aprovadores, usuarios, meuId, modeloSistema, sugestoesRedacao = 0, onFechar, onEnviado }: Props) {
   const opcoes = aprovadores.filter((u) => u !== meuId)
   const [changelog, setChangelog] = useState(numero === 1 ? 'Primeira versão.' : '')
   const [aprovador, setAprovador] = useState(opcoes.length === 1 ? opcoes[0] : '')
@@ -38,6 +39,12 @@ export default function ModalSubmeter({ popId, versaoId, numero, aprovadores, us
   return (
     <Modal titulo={`Enviar v${numero} para revisão`} onFechar={onFechar}>
       <div style={{ display: 'grid', gap: 14 }}>
+        {sugestoesRedacao > 0 && (
+          <div style={{ fontSize: 13, color: '#b45309', background: 'rgba(217,119,6,.10)', borderRadius: 8, padding: '8px 10px' }}>
+            Ainda há {sugestoesRedacao} sugest{sugestoesRedacao === 1 ? 'ão' : 'ões'} de escrita no editor (quadro &quot;Como escrever um bom POP&quot;).
+            Dá para enviar assim, mas o aprovador provavelmente vai devolver.
+          </div>
+        )}
         <div>
           <label style={rotulo}>O que mudou (fica no histórico)</label>
           <textarea value={changelog} onChange={(e) => setChangelog(e.target.value)} rows={4} style={{ ...campo, resize: 'vertical' }} autoFocus

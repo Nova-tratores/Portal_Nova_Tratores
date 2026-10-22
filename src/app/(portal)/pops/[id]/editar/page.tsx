@@ -12,6 +12,8 @@ import { useAlteracoesPendentes } from '@/lib/rascunho/pendencias'
 import { normalizarPassos, TIPOS_PASSO, type ConfigPasso, type EstadoVersao, type TipoPasso } from '@/lib/pops/regras'
 import EditorPasso, { type PassoEditavel } from '@/components/pops/EditorPasso'
 import ModalSubmeter from '@/components/pops/ModalSubmeter'
+import { DicasCampo, GuiaRedacao } from '@/components/pops/GuiaRedacao'
+import { conferirRedacao } from '@/lib/pops/redacao'
 import { VersaoConteudo } from '@/components/pops/PassoPreview'
 import { COR_POPS, EstadoChip, botao, botaoClaro, campo, cartao, chamar, pagina, rotulo, vazio, type UsuarioMapa } from '@/components/pops/comum'
 
@@ -68,6 +70,8 @@ function Editor() {
   })
 
   const validacao = useMemo(() => normalizarPassos(passos), [passos])
+  // Sugestões de escrita (não bloqueiam): cabeçalho e cada passo.
+  const dicas = useMemo(() => conferirRedacao({ titulo, ...cab, passos }), [titulo, cab, passos])
 
   const salvar = async (): Promise<boolean> => {
     if ('erro' in validacao) { setAviso(validacao.erro); return false }
@@ -109,19 +113,23 @@ function Editor() {
 
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.15fr) minmax(0,1fr)', gap: 16, alignItems: 'start' }}>
         <div style={{ display: 'grid', gap: 12 }}>
+          <GuiaRedacao total={dicas.length} />
           <div style={{ ...cartao, display: 'grid', gap: 12 }}>
-            <div><label style={rotulo}>Título</label><input value={titulo} maxLength={160} onChange={(e) => { setTitulo(e.target.value); setSujo(true) }} style={campo} /></div>
+            <div><label style={rotulo}>Título</label><input value={titulo} maxLength={160} onChange={(e) => { setTitulo(e.target.value); setSujo(true) }} style={campo} />
+              <DicasCampo dicas={dicas.filter((x) => x.campo === 'titulo')} /></div>
             {(['objetivo', 'escopo', 'materiais'] as const).map((k) => (
               <div key={k}>
                 <label style={rotulo}>{k === 'materiais' ? 'Materiais / EPIs' : k[0].toUpperCase() + k.slice(1)}</label>
                 <textarea rows={2} value={cab[k]} maxLength={4000} onChange={(e) => { setCab({ ...cab, [k]: e.target.value }); setSujo(true) }} style={{ ...campo, resize: 'vertical' }} />
+                <DicasCampo dicas={dicas.filter((x) => x.campo === k)} />
               </div>
             ))}
           </div>
 
           <div style={{ display: 'grid', gap: 8 }}>
             {passos.map((p, i) => (
-              <EditorPasso key={p._k} p={p} n={i + 1} total={passos.length} aberto={aberto === p._k} popId={id} versaoId={versaoId}
+              <div key={p._k}>
+              <EditorPasso p={p} n={i + 1} total={passos.length} aberto={aberto === p._k} popId={id} versaoId={versaoId}
                 onAbrir={() => setAberto(aberto === p._k ? null : p._k)}
                 onMudar={(np) => mudar((l) => l.map((x) => (x._k === p._k ? np : x)))}
                 onMover={(delta) => mover(i, i + delta)}
@@ -132,6 +140,11 @@ function Editor() {
                   onDragOver: (e) => { e.preventDefault(); const de = arrastando.current; if (de !== null && de !== i) { mover(de, i); arrastando.current = i } },
                   onDragEnd: () => { arrastando.current = null; setArrastandoK(null) },
                 }} />
+              <div style={{ padding: '0 6px' }}>
+                <DicasCampo dicas={dicas.filter((x) => x.campo === 'passo' && x.passo === i)}
+                  onAplicar={(t) => mudar((l) => l.map((x) => (x._k === p._k ? { ...x, titulo: t } : x)))} />
+              </div>
+              </div>
             ))}
             <div style={{ ...cartao, padding: 12, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{ fontSize: 13, fontWeight: 700, marginRight: 4, whiteSpace: 'nowrap' }}><Plus size={14} style={{ verticalAlign: -2 }} /> Incluir passo:</span>
@@ -152,7 +165,7 @@ function Editor() {
 
       {submeter && (
         <ModalSubmeter popId={id} versaoId={versaoId} numero={d.versao.numero} aprovadores={d.aprovadores} usuarios={d.usuarios}
-          meuId={userProfile?.id || ''} modeloSistema={d.pop.template_tipo === 'sistema'}
+          meuId={userProfile?.id || ''} modeloSistema={d.pop.template_tipo === 'sistema'} sugestoesRedacao={dicas.length}
           onFechar={() => setSubmeter(false)} onEnviado={() => { setSujo(false); router.push(`/pops/${id}`) }} />
       )}
     </div>
