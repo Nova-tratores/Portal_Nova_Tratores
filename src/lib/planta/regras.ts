@@ -17,13 +17,14 @@ import { valorOS } from '@/lib/pos/relacao';
 import { STATUS_ABERTO_PPV } from '@/lib/ppv/relacao';
 import { normalizarStatus } from '@/lib/ppv/utils';
 import { parseValorMisto } from '@/lib/marketing/custos';
+import { STATUS_FINALIZADOS, STATUS_LABEL } from '@/lib/garantias/constants';
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 export const CONTAS = ['NOVA', 'CASTRO'] as const;
 export type ContaPlanta = 'NOVA' | 'CASTRO' | 'TODAS';
 export type Fonte = 'contas' | 'recebimentos' | 'produtos' | 'nativo';
-export type Comodo = 'financeiro' | 'patio' | 'balcao' | 'oficina' | 'almoxarifado' | 'sala_maquinas';
+export type Comodo = 'financeiro' | 'posvenda' | 'patio' | 'balcao' | 'oficina' | 'almoxarifado' | 'sala_maquinas';
 
 export interface DefKpi {
   comodo: Comodo;
@@ -45,6 +46,9 @@ export const CATALOGO: Record<string, DefKpi> = {
   receber_90d: { comodo: 'financeiro', rotulo: 'A receber em 90 dias', sensivel: true, fonte: 'contas', porConta: true, tela: '/dre-financeiro/calendario' },
   fluxo_30d: { comodo: 'financeiro', rotulo: 'Saída líquida prevista (30 dias)', sensivel: true, fonte: 'contas', porConta: true, tela: '/dre-financeiro/curva-saldo' },
   fila_financeiro: { comodo: 'financeiro', rotulo: 'Pedidos esperando o financeiro', sensivel: true, fonte: 'nativo', porConta: true, tela: '/financeiro/home-financeiro' },
+  zap_sem_resposta: { comodo: 'posvenda', rotulo: 'Clientes esperando resposta no WhatsApp', sensivel: false, fonte: 'nativo', porConta: false, tela: '/tratorilson' },
+  cheques_revisao_pendentes: { comodo: 'posvenda', rotulo: 'Cheques de revisão não enviados à Mahindra', sensivel: false, fonte: 'nativo', porConta: false, tela: '/revisoes' },
+  garantias_abertas: { comodo: 'posvenda', rotulo: 'Garantias em andamento', sensivel: false, fonte: 'nativo', porConta: false, tela: '/garantias' },
   propostas_abertas: { comodo: 'patio', rotulo: 'Propostas de máquina em aberto', sensivel: true, fonte: 'nativo', porConta: false, tela: '/propostas' },
   maq_pedido_fabrica: { comodo: 'patio', rotulo: 'Pedidos à fábrica em aberto', sensivel: false, fonte: 'nativo', porConta: false, tela: '/propostas' },
   maq_recebida_sem_faturar: { comodo: 'patio', rotulo: 'Máquina recebida sem faturar', sensivel: false, fonte: 'nativo', porConta: false, tela: '/propostas' },
@@ -83,9 +87,13 @@ export interface LinhaKpi {
 
 export interface Fontes {
   hoje: string;               // YYYY-MM-DD em Brasília
+  agora: number;              // Date.now() da rodada (espera do cliente em minutos)
   pagar: Row[]; receber: Row[];   // contas_* em aberto
   fila: Row[];                // finan_pagar status='financeiro'
   pedidosFabrica: Row[];      // v_proposta_fabrica
+  zap: Row[];                 // tratorilson_solicitacoes: cliente sem resposta (vigia), status nova
+  revisoesPendentes: Row[];   // Ordem_Servico com pendencia_mahindra (cheque de revisão não enviado)
+  garantias: Row[];           // garantias não finalizadas
   propostas: Row[];           // v_forecast (propostas em aberto) + marca/modelo/vendedor da v_formulario
   nfMaquinas: Row[];          // recebimentos_nfe Faturada com qtd_maquinas>0
   pedidos: Row[];             // pedidos (PPV)
@@ -206,6 +214,9 @@ function semConta(kpi: string, f: Fontes): Row[] {
   const pend = () => f.os.filter((r) => r.Status !== 'Concluída' && r.Status !== 'Cancelada');
   switch (kpi) {
     case 'propostas_abertas': return f.propostas;
+    case 'zap_sem_resposta': return f.zap;
+    case 'cheques_revisao_pendentes': return f.revisoesPendentes;
+    case 'garantias_abertas': return f.garantias.filter((g) => !(STATUS_FINALIZADOS as string[]).includes(g.status));
     case 'requisicoes_abertas': return f.requisicoes.filter((r) => faseRequisicao(r.status) in FASES_REQUISICAO_ABERTA);
     case 'maq_pedido_fabrica': return f.pedidosFabrica.filter((r) => FASES_FABRICA_ANTES.includes(r.status));
     case 'maq_recebida_sem_faturar': return f.pedidosFabrica.filter((r) => FASES_FABRICA_CHEGOU.includes(r.status));
@@ -334,8 +345,32 @@ function almoxarifado(f: Fontes): Parcial[] {
   ];
 }
 
+/** Minutos desde a última mensagem do cliente (ou da criação do card). */
+const esperaMin = (r: Row, agora: number) => {
+  const t = Date.parse(String(r.ultima_msg_em || r.created_at || ''));
+  return Number.isFinite(t) ? Math.max(0, Math.round((agora - t) / 60000)) : null;
+};
+const ESPERANDO_FABRICA = ['enviada', 'info_pendente', 'ressarcimento_fabrica'];
+
+function posvenda(f: Fontes): Parcial[] {
+  const zap = semConta('zap_sem_resposta', f);
+  const esperas = zap.map((r) => esperaMin(r, f.agora)).filter((m): m is number => m != null);
+  const cheques = semConta('cheques_revisao_pendentes', f);
+  const gar = semConta('garantias_abertas', f);
+  const porStatus: Record<string, number> = {};
+  for (const g of gar) { const k = STATUS_LABEL[g.status as keyof typeof STATUS_LABEL] || g.status; porStatus[k] = (porStatus[k] || 0) + 1; }
+  const diasGar = gar.map((g) => idadeDias(g.enviada_fabrica_em || g.created_at, f.hoje)).filter((d): d is number => d != null);
+  return [
+    { kpi_id: 'zap_sem_resposta', conta: 'TODAS', contagem: zap.length, valor: null,
+      detalhe: { mais_antiga_min: esperas.length ? Math.max(...esperas) : null, robo_desligado: zap.filter((r) => r.origem === 'vigia_robo_desligado').length } },
+    { kpi_id: 'cheques_revisao_pendentes', conta: 'TODAS', contagem: cheques.length, valor: null, detalhe: {} },
+    { kpi_id: 'garantias_abertas', conta: 'TODAS', contagem: gar.length, valor: null,
+      detalhe: { por_status: porStatus, esperando_fabrica: gar.filter((g) => ESPERANDO_FABRICA.includes(g.status)).length, mais_antiga_dias: diasGar.length ? Math.max(...diasGar) : null } },
+  ];
+}
+
 const BLOCOS: Array<[Comodo, (f: Fontes) => Parcial[]]> = [
-  ['financeiro', financeiro], ['patio', patio], ['balcao', balcao], ['oficina', oficina], ['almoxarifado', almoxarifado],
+  ['financeiro', financeiro], ['posvenda', posvenda], ['patio', patio], ['balcao', balcao], ['oficina', oficina], ['almoxarifado', almoxarifado],
   ['sala_maquinas', (f) => [{ kpi_id: 'robos', conta: 'TODAS', contagem: Object.keys(f.robos).length, valor: null, detalhe: f.robos }]],
 ];
 
@@ -389,6 +424,19 @@ function paraItem(kpi: string, r: Row, f: Fontes): ItemKpi {
       return { chave: `${r._tipo}-${r.codigo_lancamento || r.id}`, titulo: nome || 'Sem nome', sub: [kpi === 'fluxo_30d' ? (r._tipo === 'pagar' ? 'a pagar' : 'a receber') : '', doc, quando, r.conta_omie].filter(Boolean).join(' · '),
         valor: (kpi === 'fluxo_30d' && r._tipo === 'pagar' ? -1 : 1) * valorAberto(r), data: kpi.endsWith('vencido') ? String(r.data_vencimento).slice(0, 10) : prevDe(r), href: CATALOGO[kpi].tela };
     }
+    case 'posvenda': {
+      if (kpi === 'zap_sem_resposta') {
+        const m = esperaMin(r, f.agora);
+        const espera = m == null ? '' : m < 60 ? `esperando há ${m} min` : m < 2880 ? `esperando há ${Math.round(m / 60)} h` : `esperando há ${Math.round(m / 1440)} d`;
+        return { chave: `zap-${r.id}`, titulo: r.cliente_nome || r.contato_nome || 'Contato sem nome', sub: [espera, r.resumo ? String(r.resumo).slice(0, 120) : '', r.origem === 'vigia_robo_desligado' ? 'robô desligado' : ''].filter(Boolean).join(' · '), valor: null, data: String(r.ultima_msg_em || r.created_at || '') || null, href: '/tratorilson' }; // hora exata: ordena quem espera há mais tempo
+      }
+      if (kpi === 'cheques_revisao_pendentes') {
+        const p = (r.pendencia_mahindra || {}) as Row;
+        return { chave: `rev-${r.Id_Ordem}`, titulo: `${r.Id_Ordem} · ${r.Os_Cliente || 'Sem cliente'}`, sub: [...(Array.isArray(p.detalhes) ? p.detalhes : []), p.chassis ? `chassi ${p.chassis}` : ''].filter(Boolean).join(' · '), valor: null, data: null, href: `/pos?id=${encodeURIComponent(r.Id_Ordem)}` };
+      }
+      const d = idadeDias(r.enviada_fabrica_em || r.created_at, f.hoje);
+      return { chave: `gar-${r.id}`, titulo: `${r.numero || `#${r.id}`} · ${r.cliente || 'Sem cliente'}`, sub: [STATUS_LABEL[r.status as keyof typeof STATUS_LABEL] || r.status, r.modelo, r.id_ordem, d == null ? '' : r.enviada_fabrica_em ? `na fábrica há ${d} d` : `aberta há ${d} d`].filter(Boolean).join(' · '), valor: null, data: String(r.enviada_fabrica_em || r.created_at || '').slice(0, 10) || null, href: '/garantias' };
+    }
     case 'patio':
       if (kpi.startsWith('maq_em') || kpi.startsWith('maq_receb'))
         return { chave: `nf-${r.conta_omie}-${r.id_receb}`, titulo: r.fornecedor || 'Fornecedor', sub: `NF ${String(r.numero_nfe || '').replace(/^0+/, '')} · ${r.qtd_maquinas} máquina(s) · emitida ${brData(isoDe(r.emissao_nfe))} · ${String(r.conta_omie).toUpperCase()}`, valor: Number(r.valor_maquinas) || 0, data: isoDe(r.emissao_nfe), href: '/estoque/recebimentos-omie' };
@@ -417,7 +465,7 @@ function paraItem(kpi: string, r: Row, f: Fontes): ItemKpi {
 export function itensDoKpi(kpi: string, conta: ContaPlanta, f: Fontes): { itens: ItemKpi[]; total: number } {
   const rows = selecionar(kpi, conta, f);
   const itens = rows.map((r) => { const it = paraItem(kpi, r, f); return { ...it, titulo: semEntidades(it.titulo), sub: semEntidades(it.sub) }; });
-  const venc = kpi.endsWith('vencido') || kpi === 'requisicoes_abertas'; // mais antigos primeiro
+  const venc = kpi.endsWith('vencido') || ['requisicoes_abertas', 'zap_sem_resposta', 'garantias_abertas'].includes(kpi); // mais antigos primeiro
   itens.sort((a, b) => venc ? String(a.data).localeCompare(String(b.data)) : Math.abs(b.valor || 0) - Math.abs(a.valor || 0) || String(a.data).localeCompare(String(b.data)));
   return { itens: itens.slice(0, LIMITE_ITENS), total: itens.length };
 }

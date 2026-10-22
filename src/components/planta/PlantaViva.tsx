@@ -32,6 +32,7 @@ interface Item { chave: string; titulo: string; sub: string; valor: number | nul
 // ── Desenho da planta ─────────────────────────────────────────────────────────
 const SALAS: Array<{ id: string; nome: string; camada: Camada | null; kpis: string[] }> = [
   { id: 'financeiro', nome: 'Financeiro', camada: 'agua', kpis: ['receber_vencido', 'pagar_vencido', 'receber_7d', 'pagar_7d', 'receber_90d', 'pagar_90d', 'receber_hoje', 'pagar_hoje', 'fluxo_30d', 'fila_financeiro'] },
+  { id: 'posvenda', nome: 'Pós-venda e cliente', camada: null, kpis: ['zap_sem_resposta', 'cheques_revisao_pendentes', 'garantias_abertas'] },
   { id: 'maquinas', nome: 'Sala de máquinas', camada: null, kpis: ['robos'] },
   { id: 'patio', nome: 'Pátio e máquinas vindo', camada: 'gas', kpis: ['propostas_abertas', 'maq_pedido_fabrica', 'maq_em_transito', 'maq_recebida_sem_faturar', 'maq_receb_esquecido'] },
   { id: 'oficina', nome: 'Oficina', camada: 'luz', kpis: ['os_por_fase', 'os_atrasada', 'os_sem_faturar'] },
@@ -56,7 +57,8 @@ const CANOS: Array<{ id: string; de: Ponta; para: Ponta; camada: Camada; kpi: st
 const UNIDADE: Record<string, [string, string]> = {
   maq_em_transito: ['máquina', 'máquinas'], maq_receb_esquecido: ['máquina', 'máquinas'], maq_pedido_fabrica: ['pedido', 'pedidos'],
   maq_recebida_sem_faturar: ['máquina', 'máquinas'], propostas_abertas: ['proposta', 'propostas'], ppv_aberto: ['pedido', 'pedidos'], os_por_fase: ['OS', 'OS'], os_atrasada: ['OS', 'OS'],
-  os_sem_faturar: ['OS', 'OS'], pecas_a_alocar: ['peça', 'peças'], requisicoes_abertas: ['requisição', 'requisições'], estoque_negativo: ['produto', 'produtos'], fila_financeiro: ['pedido', 'pedidos'],
+  os_sem_faturar: ['OS', 'OS'], pecas_a_alocar: ['peça', 'peças'], requisicoes_abertas: ['requisição', 'requisições'],
+  zap_sem_resposta: ['conversa', 'conversas'], cheques_revisao_pendentes: ['cheque', 'cheques'], garantias_abertas: ['garantia', 'garantias'], estoque_negativo: ['produto', 'produtos'], fila_financeiro: ['pedido', 'pedidos'],
 }
 const un = (id: string, n: number) => { const u = UNIDADE[id] || ['título', 'títulos']; return `${n.toLocaleString('pt-BR')} ${n === 1 ? u[0] : u[1]}` }
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -219,6 +221,9 @@ function Chip({ k, ativo, onClick }: { k: Kpi; ativo: boolean; onClick: () => vo
   const sub = k.kpi_id === 'robos' ? 'última rodada de cada robô'
     : k.kpi_id === 'fluxo_30d' ? 'receber − pagar, por semana'
     : k.kpi_id === 'requisicoes_abertas' ? `${Number(k.detalhe?.paradas_30) || 0} paradas há +30 dias`
+    : k.kpi_id === 'zap_sem_resposta' ? (k.detalhe?.mais_antiga_min != null ? `a mais antiga ${idadeTexto(Number(k.detalhe.mais_antiga_min))}` : 'ninguém esperando')
+    : k.kpi_id === 'garantias_abertas' ? `${Number(k.detalhe?.esperando_fabrica) || 0} esperando a fábrica`
+    : k.kpi_id === 'cheques_revisao_pendentes' ? 'OS faturada sem o cheque enviado'
     : k.valor != null ? un(k.kpi_id, k.contagem) : ''
   return (
     <button type="button" onClick={onClick} className={[s.chip, camada ? s[camada] : '', ativo ? s.ativo : ''].join(' ')}>
@@ -387,6 +392,17 @@ function Detalhe({ k, agora }: { k: Kpi; agora: number }) {
             <span>{n}</span>
           </div>
         ))}
+      </div>
+    )
+  }
+  if (k.kpi_id === 'garantias_abertas' && d.por_status) {
+    return (
+      <div className={s.secao}>
+        <div className={s.secaoTitulo}>Por situação</div>
+        <table className={s.tabela}><tbody>
+          {Object.entries(d.por_status as Record<string, number>).sort((a, b) => b[1] - a[1]).map(([f, n]) => <tr key={f}><td>{f}</td><td>{n}</td></tr>)}
+        </tbody></table>
+        {d.mais_antiga_dias != null ? <div className={s.mudo}>A mais antiga está há {d.mais_antiga_dias} dias.</div> : null}
       </div>
     )
   }

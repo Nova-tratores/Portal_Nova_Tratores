@@ -5,7 +5,7 @@ import { calcularKpis, frescor, prepararParaUsuario, filtrarConta, isoDe, itensD
 
 const HOJE = '2026-10-19';
 function fontes(p: Partial<Fontes> = {}): Fontes {
-  return { hoje: HOJE, pagar: [], receber: [], fila: [], propostas: [], pedidosFabrica: [], nfMaquinas: [], pedidos: [], os: [], metricasAbertas: [], requisicoes: [], alocacao: [], negativos: [], robos: {}, falhas: {}, ...p };
+  return { hoje: HOJE, agora: Date.parse(HOJE + 'T15:00:00Z'), pagar: [], receber: [], fila: [], propostas: [], zap: [], revisoesPendentes: [], garantias: [], pedidosFabrica: [], nfMaquinas: [], pedidos: [], os: [], metricasAbertas: [], requisicoes: [], alocacao: [], negativos: [], robos: {}, falhas: {}, ...p };
 }
 const k = (ls: LinhaKpi[], id: string, conta = 'TODAS') => ls.find((l) => l.kpi_id === id && l.conta === conta)!;
 const tit = (o: Record<string, unknown>) => ({ codigo_lancamento: 1, conta_omie: 'NOVA', status_titulo: 'A VENCER', valor_documento: 100, valor_pago: 0, data_vencimento: HOJE, data_previsao: HOJE, ...o });
@@ -214,6 +214,37 @@ describe('requisições em aberto (pedido de 22/10/2026)', () => {
     expect(total).toBe(3);
     expect(itens.map((i) => i.chave)).toEqual(['req-2', 'req-3', 'req-1']);
     expect(itens[0].href).toBe('/requisicoes?req=2');
+  });
+});
+
+
+describe('pós-venda e cliente (pedido de 22/10/2026)', () => {
+  const f = fontes({
+    zap: [
+      { id: 1, cliente_nome: 'Cliente A', resumo: 'quer orçamento', ultima_msg_em: HOJE + 'T14:20:00Z', origem: 'vigia' },
+      { id: 2, contato_nome: 'Contato B', created_at: HOJE + 'T10:00:00Z', origem: 'vigia_robo_desligado' },
+    ],
+    revisoesPendentes: [{ Id_Ordem: 'OS-0807', Os_Cliente: 'Fulano', pendencia_mahindra: { chassis: 'MDI0751', detalhes: ['Cheque de revisão 900h não enviado'] } }],
+    garantias: [
+      { id: 10, numero: 'G-10', cliente: 'X', status: 'enviada', enviada_fabrica_em: '2026-09-21T12:00:00Z' },
+      { id: 11, numero: 'G-11', cliente: 'Y', status: 'em_analise', created_at: '2026-10-15T12:00:00Z' },
+      { id: 12, numero: 'G-12', cliente: 'Z', status: 'aprovada' },
+    ],
+  });
+  const ls = calcularKpis(f);
+  it('WhatsApp: conta as conversas e mede a espera mais longa em minutos', () => {
+    expect(k(ls, 'zap_sem_resposta')).toMatchObject({ contagem: 2, detalhe: { mais_antiga_min: 300, robo_desligado: 1 } });
+    const { itens } = itensDoKpi('zap_sem_resposta', 'TODAS', f);
+    expect(itens[0].titulo).toBe('Contato B');
+    expect(itens[1].sub).toContain('esperando há 40 min');
+  });
+  it('cheques de revisão: OS marcada, com o motivo e link para a OS', () => {
+    expect(k(ls, 'cheques_revisao_pendentes').contagem).toBe(1);
+    expect(itensDoKpi('cheques_revisao_pendentes', 'TODAS', f).itens[0]).toMatchObject({ href: '/pos?id=OS-0807' });
+  });
+  it('garantias: só as não finalizadas; quantas esperam a fábrica e há quanto tempo', () => {
+    expect(k(ls, 'garantias_abertas')).toMatchObject({ contagem: 2, detalhe: { esperando_fabrica: 1, mais_antiga_dias: 28 } });
+    expect(itensDoKpi('garantias_abertas', 'TODAS', f).itens[0].sub).toContain('na fábrica há 28 d');
   });
 });
 

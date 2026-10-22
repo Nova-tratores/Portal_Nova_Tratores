@@ -54,10 +54,10 @@
 .salas {
   display: grid; gap: 46px; position: relative; z-index: 1;
   grid-template-columns: minmax(0, 1.5fr) minmax(0, .8fr) minmax(0, 1.05fr);
-  grid-template-areas: "financeiro maquinas patio" "oficina balcao almoxarifado";
+  grid-template-areas: "financeiro posvenda patio" "oficina balcao almoxarifado" "maquinas maquinas maquinas";
 }
 @media (max-width: 960px) {
-  .salas { grid-template-columns: 1fr; grid-template-areas: "financeiro" "patio" "oficina" "balcao" "almoxarifado" "maquinas"; gap: 14px; }
+  .salas { grid-template-columns: 1fr; grid-template-areas: "financeiro" "posvenda" "patio" "oficina" "balcao" "almoxarifado" "maquinas"; gap: 14px; }
   .canos { display: none; }
   .planta { padding: 10px; }
 }

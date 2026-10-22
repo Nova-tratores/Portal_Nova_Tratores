@@ -18,6 +18,7 @@ export const SENTIDO: Record<string, Sentido> = {
   pagar_vencido: 'menor', receber_vencido: 'menor', fila_financeiro: 'menor',
   pagar_hoje: 'neutro', pagar_7d: 'neutro', receber_hoje: 'neutro', receber_7d: 'neutro', pagar_90d: 'neutro', receber_90d: 'neutro',
   propostas_abertas: 'maior',
+  zap_sem_resposta: 'menor', cheques_revisao_pendentes: 'menor', garantias_abertas: 'menor',
   fluxo_30d: 'maior',
   maq_pedido_fabrica: 'neutro', maq_em_transito: 'neutro', maq_recebida_sem_faturar: 'menor', maq_receb_esquecido: 'menor',
   ppv_aberto: 'neutro', os_por_fase: 'neutro', os_atrasada: 'menor', os_sem_faturar: 'menor',
