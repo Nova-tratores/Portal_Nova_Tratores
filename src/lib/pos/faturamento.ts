@@ -20,7 +20,7 @@ import { filtrarDestinatarios } from '@/lib/notif/prefs';
 import { resolverNfseDaOS } from '@/lib/clientes/nfse-omie';
 import { hojeSaoPaulo, parcelasDoPagamento } from '@/lib/pagamento/parcelas';
 import { avaliarTravas, bloqueioTravas, type Trava } from './travas-faturar';
-import { localizacaoDoDocumento } from './localizacao-cliente-server';
+import { localizacoesDoDocumento } from './localizacao-cliente-server';
 import { normalizarPagamento, OPCOES_PAGAMENTO } from './cobranca';
 import { alertaCepGeral } from '@/lib/clientes/novo-cliente';
 import { CONTA_INTERNO, EMAIL_INTERNO } from './omie-espelho';
@@ -150,12 +150,12 @@ export async function travasDaOS(id: string): Promise<{ travas: Trava[]; semTabe
 }
 
 async function travasDe(os: LinhaOS): Promise<{ travas: Trava[]; semTabelaLocalizacao: boolean }> {
-  const { loc, semTabela } = await localizacaoDoDocumento(String(os.Cnpj_Cliente || ''));
+  const { lista, semTabela } = await localizacoesDoDocumento(String(os.Cnpj_Cliente || ''));
   const travas = avaliarTravas({
     hoje: hojeSaoPaulo(), previsaoFaturamento: os.Previsao_Faturamento, projeto: os.Projeto,
-    documentoCliente: os.Cnpj_Cliente, localizacaoConfirmada: !!loc || semTabela,
+    documentoCliente: os.Cnpj_Cliente, localizacaoConfirmada: lista.length > 0 || semTabela, localizacoes: lista.map((l) => l.nome),
   });
-  if (semTabela) { const t = travas.find((x) => x.chave === 'localizacao'); if (t) t.detalhe = 'falta rodar o SQL sql/clientes-localizacao.sql — por enquanto não trava'; }
+  if (semTabela) { const t = travas.find((x) => x.chave === 'localizacao'); if (t) t.detalhe = 'falta rodar o SQL sql/clientes-localizacoes.sql — por enquanto não trava'; }
   return { travas, semTabelaLocalizacao: semTabela };
 }
 

@@ -224,11 +224,11 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
 
   const COR = "#0369A1";
   const btn: React.CSSProperties = { padding: "12px 18px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-  const caixa = (cor: "verm" | "ambar" | "verde" | "cinza"): React.CSSProperties => ({
+  const caixa = (cor: "verm" | "ambar" | "verde" | "cinza" | "azul"): React.CSSProperties => ({
     borderRadius: 10, padding: "12px 14px", fontSize: 13, lineHeight: 1.55, marginBottom: 12,
-    background: { verm: "#fef2f2", ambar: "#fffbeb", verde: "#f0fdf4", cinza: "#f8fafc" }[cor],
-    border: `1px solid ${{ verm: "#fecaca", ambar: "#fcd34d", verde: "#bbf7d0", cinza: "#e2e8f0" }[cor]}`,
-    color: { verm: "#7f1d1d", ambar: "#92400e", verde: "#14532d", cinza: "#334155" }[cor],
+    background: { verm: "#fef2f2", ambar: "#fffbeb", verde: "#f0fdf4", cinza: "#f8fafc", azul: "#f0f9ff" }[cor],
+    border: `1px solid ${{ verm: "#fecaca", ambar: "#fcd34d", verde: "#bbf7d0", cinza: "#e2e8f0", azul: "#bae6fd" }[cor]}`,
+    color: { verm: "#7f1d1d", ambar: "#92400e", verde: "#14532d", cinza: "#334155", azul: "#0c4a6e" }[cor],
   });
   const secao = (num: number, icone: string, t: string, extra?: React.ReactNode) => (
     <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "22px 0 10px" }}>
@@ -283,11 +283,14 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
                   <div style={{ fontWeight: 700 }}>{resultado.concluida ? "A OS e os pedidos estão faturados — a OS foi para Concluída." : "A OS vai para Concluída quando a OS também for faturada."}</div>
                 </div>
               ) : resultado.tipo === "desconhecido" ? (
-                <div style={caixa("ambar")}><div style={{ fontWeight: 700, marginBottom: 4 }}><i className="fas fa-hourglass-half" /> Conferindo no Omie</div>{resultado.mensagem}</div>
+                <div style={caixa("azul")} title={resultado.mensagem}>
+                  <div style={{ marginBottom: 4, fontSize: 15 }}><i className="fas fa-spinner fa-spin" /> Faturando no Omie…</div>
+                  O Omie está gerando a nota — às vezes leva alguns minutos. Pode fechar: a OS atualiza sozinha{(resultado.pecas || []).length ? " e o pedido de peças é faturado assim que o Omie confirmar" : ""}. Não precisa faturar de novo.
+                </div>
               ) : (
                 <div style={caixa("verm")}><div style={{ fontWeight: 700, marginBottom: 4 }}><i className="fas fa-exclamation-circle" /> Não foi faturada</div>{resultado.mensagem || resultado.error}</div>
               )}
-              {(resultado.pecas || []).length > 0 && (
+              {(resultado.pecas || []).length > 0 && resultado.tipo !== "desconhecido" && (
                 <div style={caixa(resultado.pecas!.every((p) => p.ok) ? "cinza" : "ambar")}>
                   <div style={{ fontWeight: 700, marginBottom: 4 }}>Pedidos de peças</div>
                   {resultado.pecas!.map((p) => (

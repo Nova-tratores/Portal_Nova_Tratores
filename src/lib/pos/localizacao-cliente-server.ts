@@ -1,29 +1,35 @@
 // Localização do cliente (CPF/CNPJ) — banco e GPS da frota. Regras puras em ./localizacao-cliente.ts.
-// Tabela clientes_localizacao (sql/clientes-localizacao.sql). Sem ela: ler devolve { semTabela } e a trava não segura.
+// Tabela clientes_localizacoes (sql/clientes-localizacoes.sql): várias por CPF/CNPJ, cada uma com o nome da fazenda. Sem ela: ler devolve { semTabela } e a trava não segura.
 import { supabase } from './supabase';
 import { computarESalvarRota } from './rastreamento';
 import { diasDoRelatorio, type RelatorioTecnico } from './horas-tecnico';
 import { chaveNome } from '@/lib/frota/mapa-vivo';
 import { normalizarPlaca } from '@/lib/frota/placa';
-import { coordenadaValida, diasDaOS, paradasCandidatas, soDigitos, type ParadaGPS } from './localizacao-cliente';
+import { coordenadaValida, diasDaOS, distanciaM, paradasCandidatas, soDigitos, type ParadaGPS } from './localizacao-cliente';
 
 type Rec = Record<string, unknown>;
 
-export interface LocalizacaoConfirmada {
-  documento: string; lat: number; lng: number; origem: string; placa: string | null; tecnico: string | null;
+/** uma localização (fazenda, sítio, sede…) do cliente — um CPF/CNPJ pode ter várias */
+export interface LocalizacaoCliente {
+  id: string; documento: string; nome: string; lat: number; lng: number; origem: string; placa: string | null; tecnico: string | null;
   parada_inicio: string | null; parada_min: number | null; os_id: string | null; confirmado_por: string; confirmado_em: string;
 }
 
-const tabelaFaltando = (e: { code?: string; message?: string } | null) =>
-  !!e && (e.code === 'PGRST205' || e.code === '42P01' || /clientes_localizacao/.test(e.message || '') && /not find|does not exist/i.test(e.message || ''));
+const TBL = 'clientes_localizacoes';
+const SQL_FALTANDO = 'Falta rodar o SQL sql/clientes-localizacoes.sql no Supabase do portal.';
+/** outra localização a menos disso é a mesma fazenda */
+const RAIO_MESMA_M = 150;
 
-export async function localizacaoDoDocumento(documento: string): Promise<{ semTabela: boolean; loc: LocalizacaoConfirmada | null }> {
+const tabelaFaltando = (e: { code?: string; message?: string } | null) =>
+  !!e && (e.code === 'PGRST205' || e.code === '42P01' || (/clientes_localizacoes/.test(e.message || '') && /not find|does not exist/i.test(e.message || '')));
+
+export async function localizacoesDoDocumento(documento: string): Promise<{ semTabela: boolean; lista: LocalizacaoCliente[] }> {
   const doc = soDigitos(documento);
-  if (!doc) return { semTabela: false, loc: null };
-  const { data, error } = await supabase.from('clientes_localizacao').select('*').eq('documento', doc).limit(1);
-  if (tabelaFaltando(error)) return { semTabela: true, loc: null };
+  if (!doc) return { semTabela: false, lista: [] };
+  const { data, error } = await supabase.from(TBL).select('*').eq('documento', doc).order('confirmado_em', { ascending: true });
+  if (tabelaFaltando(error)) return { semTabela: true, lista: [] };
   if (error) throw new Error(error.message);
-  return { semTabela: false, loc: ((data || [])[0] as LocalizacaoConfirmada) || null };
+  return { semTabela: false, lista: (data || []) as LocalizacaoCliente[] };
 }
 
 /** Coordenada já cadastrada no cliente (mapa/feedbacks), sem confirmação — aparece como opção. */
@@ -111,31 +117,54 @@ export async function paradasDaOS(osId: string): Promise<{
   };
 }
 
-export async function confirmarLocalizacao(entrada: {
-  documento: string; cliente: string; lat: number; lng: number; origem: 'parada' | 'cadastro' | 'manual';
+const limparNome = (n: unknown) => String(n ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
+
+export async function adicionarLocalizacao(entrada: {
+  documento: string; cliente: string; nome: string; lat: number; lng: number; origem: 'parada' | 'cadastro' | 'manual';
   placa?: string | null; tecnico?: string | null; paradaInicio?: string | null; paradaMin?: number | null; osId: string; autor: string;
-}): Promise<LocalizacaoConfirmada> {
+}): Promise<LocalizacaoCliente> {
   const documento = soDigitos(entrada.documento);
   if (documento.length !== 11 && documento.length !== 14) throw new Error('O cliente da OS está sem CPF/CNPJ válido.');
   if (!coordenadaValida(entrada.lat, entrada.lng)) throw new Error('Coordenada inválida.');
-  const { loc: anterior, semTabela } = await localizacaoDoDocumento(documento);
-  if (semTabela) throw new Error('Falta rodar o SQL sql/clientes-localizacao.sql no Supabase do portal.');
-  const historico = anterior ? [{ lat: anterior.lat, lng: anterior.lng, origem: anterior.origem, por: anterior.confirmado_por, em: anterior.confirmado_em, os: anterior.os_id }] : [];
-  const linha = {
-    documento, cliente_nome: entrada.cliente || null, lat: entrada.lat, lng: entrada.lng, origem: entrada.origem,
+  const nome = limparNome(entrada.nome);
+  if (nome.length < 2) throw new Error('Escreva o nome da fazenda (ou do lugar).');
+  const { lista, semTabela } = await localizacoesDoDocumento(documento);
+  if (semTabela) throw new Error(SQL_FALTANDO);
+  const perto = lista.find((l) => distanciaM(l, entrada) < RAIO_MESMA_M);
+  if (perto) throw new Error(`Esse ponto é a "${perto.nome}", que já está cadastrada (a ${Math.round(distanciaM(perto, entrada))} m).`);
+  if (lista.some((l) => l.nome.toLowerCase() === nome.toLowerCase())) throw new Error(`Já existe uma localização chamada "${nome}" para este cliente.`);
+  const { data, error } = await supabase.from(TBL).insert({
+    documento, nome, cliente_nome: entrada.cliente || null, lat: entrada.lat, lng: entrada.lng, origem: entrada.origem,
     placa: entrada.placa || null, tecnico: entrada.tecnico || null, parada_inicio: entrada.paradaInicio || null,
     parada_min: entrada.paradaMin != null ? Math.round(entrada.paradaMin) : null, os_id: entrada.osId,
     confirmado_por: entrada.autor, confirmado_em: new Date().toISOString(),
-  };
-  const { data: velho } = await supabase.from('clientes_localizacao').select('historico').eq('documento', documento).limit(1);
-  const hist = [...historico, ...((((velho || [])[0] as Rec | undefined)?.historico as unknown[]) || [])].slice(0, 20);
-  const { data, error } = await supabase.from('clientes_localizacao').upsert({ ...linha, historico: hist }, { onConflict: 'documento' }).select('*');
+  }).select('*');
   if (error) throw new Error(error.message);
-  // espelha no cadastro do cliente (os dois pares: o classificador de paradas da Frota lê latitude/longitude)
-  void (async () => {
+  // a 1ª vira o ponto do cadastro do cliente (os dois pares: o classificador de paradas da Frota lê latitude/longitude)
+  if (!lista.length) void (async () => {
     const { data: cs } = await supabase.from('portal_nt_clientes_PRINCIPAL').select('id, cnpj_cpf').ilike('cnpj_cpf', `%${documento.slice(-6)}%`).limit(30);
     const ids = ((cs || []) as Rec[]).filter((c) => soDigitos(c.cnpj_cpf) === documento).map((c) => c.id);
     if (ids.length) await supabase.from('portal_nt_clientes_PRINCIPAL').update({ lat: entrada.lat, lng: entrada.lng, latitude: entrada.lat, longitude: entrada.lng }).in('id', ids);
   })().catch(() => {});
-  return (data || [])[0] as LocalizacaoConfirmada;
+  return (data || [])[0] as LocalizacaoCliente;
+}
+
+/** renomear ou apagar uma localização — só do mesmo cliente da OS */
+export async function alterarLocalizacao(documento: string, id: string, acao: { nome: string } | { remover: true }, autor: string): Promise<void> {
+  const doc = soDigitos(documento);
+  const { data, error } = await supabase.from(TBL).select('id, documento, nome').eq('id', id).limit(1);
+  if (tabelaFaltando(error)) throw new Error(SQL_FALTANDO);
+  if (error) throw new Error(error.message);
+  const l = (data || [])[0] as Rec | undefined;
+  if (!l || l.documento !== doc) throw new Error('Localização não é deste cliente.');
+  if ('remover' in acao) {
+    const r = await supabase.from(TBL).delete().eq('id', id);
+    if (r.error) throw new Error(r.error.message);
+    console.log(`[localizacao] ${autor} apagou "${l.nome}" (${doc})`);
+    return;
+  }
+  const nome = limparNome(acao.nome);
+  if (nome.length < 2) throw new Error('Escreva o nome da fazenda (ou do lugar).');
+  const r = await supabase.from(TBL).update({ nome, atualizado_por: autor, atualizado_em: new Date().toISOString() }).eq('id', id);
+  if (r.error) throw new Error(r.error.message);
 }

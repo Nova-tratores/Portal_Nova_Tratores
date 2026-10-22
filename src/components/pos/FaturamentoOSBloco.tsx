@@ -88,6 +88,15 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
     } catch { /* sem bloco */ }
   }, [osId]);
 
+  // faturamento sem confirmação (o Omie pode levar minutos depois do "sucesso"): confere sozinho a cada 40 s
+  // enquanto a OS estiver aberta na tela. Só no "desconhecido" — o "faturando" ainda tem o pedido em andamento.
+  const statusAtual = estado?.status;
+  useEffect(() => {
+    if (statusAtual !== "desconhecido") return;
+    const t = setInterval(() => { void carregar({ reconciliar: true, forcar: true }); }, 40_000);
+    return () => clearInterval(t);
+  }, [statusAtual, carregar]);
+
   // 1ª leitura ao abrir a OS (confere no Omie); as demais vêm de carregar()
   useEffect(() => {
     if (!osId || !ordemOmie) return;
@@ -284,12 +293,16 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
 
   // ---------- faturamento sem resposta clara ----------
   if (estado.status === "desconhecido" || estado.status === "faturando") {
+    // aviso curto: o Omie às vezes leva minutos para confirmar — a tela confere sozinha (José: o texto longo confundia)
     return (
-      <div style={{ border: `1px solid ${COR.ambar.bd}`, background: COR.ambar.bg, color: COR.ambar.tx, borderRadius: 6, padding: "9px 11px", fontSize: 12.5, margin: "4px 0" }}>
-        <div style={{ fontWeight: 800 }}><i className="fas fa-hourglass-half" /> {rot?.texto}</div>
-        {estado.erro && <div style={{ marginTop: 2 }}>{estado.erro}</div>}
-        <button className="os-rail-btn" style={{ marginTop: 6 }} onClick={conferir} disabled={conferindo}>
-          <i className={`fas ${conferindo ? "fa-spinner fa-spin" : "fa-rotate"}`} /> Conferir no Omie
+      <div title={estado.erro || undefined} style={{ border: "1px solid #bae6fd", background: "#f0f9ff", color: "#0c4a6e", borderRadius: 12, padding: "12px 14px", margin: "4px 0", display: "grid", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14.5 }}>
+          <i className="fas fa-spinner fa-spin" style={{ color: "#0369A1" }} /> Faturando no Omie…
+        </div>
+        <div style={{ fontSize: 13, color: "#475569" }}>A nota está sendo gerada. Esta tela atualiza sozinha — não precisa faturar de novo.</div>
+        <button type="button" onClick={conferir} disabled={conferindo}
+          style={{ justifySelf: "start", border: "none", background: "none", padding: 0, color: "#0369A1", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>
+          {conferindo ? "conferindo…" : "conferir agora"}
         </button>
       </div>
     );
