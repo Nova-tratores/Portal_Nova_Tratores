@@ -1,5 +1,5 @@
 'use client';
-// Tela /estoque/notas: lista unificada do cache de notas fiscais, faixa de
+// Tela /financeiro/notas: lista unificada do cache de notas fiscais, faixa de
 // cobertura, filtros, selo por nota, Ver PDF (visualizador), Baixar XML,
 // Guardar agora. Quando a Omie está fora, o que está guardado continua abrindo.
 // Busca por campo (Tudo · Nº da nota · Pedido · OS · Cliente · Máquina) com
@@ -119,7 +119,7 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
   const carregar = useCallback(async () => {
     setCarregando(true); setErro('');
     try {
-      const r = await fetch(`/api/estoque/notas?${qs}`, { headers: await authHeaders(), cache: 'no-store' });
+      const r = await fetch(`/api/financeiro/notas?${qs}`, { headers: await authHeaders(), cache: 'no-store' });
       const d = (await r.json()) as Resp;
       if (!r.ok || d.erro) { setErro(d.erro || `Erro ${r.status}`); setResp(null); return; }
       setResp(d);
@@ -131,13 +131,13 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
   const ordenar = (col: ColunaOrdem) => { setOrdem((o) => alternarOrdem(o, col)); setPagina(1); };
 
   const verPdf = (n: LinhaDoc) => {
-    setDoc({ titulo: `${ROTULO_TIPO[n.tipo]} · NF ${n.numero || n.n_cod_nf} · ${n.parte_nome || ''}`, url: `/api/estoque/notas/${n.id}/arquivo?tipo=pdf`, nome: `NF-${n.numero || n.n_cod_nf}-${n.conta_omie}` });
+    setDoc({ titulo: `${ROTULO_TIPO[n.tipo]} · NF ${n.numero || n.n_cod_nf} · ${n.parte_nome || ''}`, url: `/api/financeiro/notas/${n.id}/arquivo?tipo=pdf`, nome: `NF-${n.numero || n.n_cod_nf}-${n.conta_omie}` });
   };
 
   const baixarXml = async (n: LinhaDoc) => {
     setOcupado(n.id); setAviso('');
     try {
-      const r = await fetch(`/api/estoque/notas/${n.id}/arquivo?tipo=xml`, { headers: await authHeaders() });
+      const r = await fetch(`/api/financeiro/notas/${n.id}/arquivo?tipo=xml`, { headers: await authHeaders() });
       if (!r.ok) {
         const j = await r.json().catch(() => ({}));
         if (j.omieFora) setOmieFora(true);
@@ -155,7 +155,7 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
   const guardarAgora = async (n: LinhaDoc) => {
     setOcupado(n.id); setAviso('');
     try {
-      const r = await fetch(`/api/estoque/notas/${n.id}/guardar`, { method: 'POST', headers: await authHeaders() });
+      const r = await fetch(`/api/financeiro/notas/${n.id}/guardar`, { method: 'POST', headers: await authHeaders() });
       const j = await r.json().catch(() => ({}));
       if (j.omieFora) { setOmieFora(true); setAviso('Omie indisponível agora — a nota fica na fila e o portal tenta de novo sozinho.'); }
       else if (j.bloqueio) setAviso('A Omie bloqueou as consultas por alguns minutos. A fila continua depois.');
@@ -169,7 +169,7 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
   const indexar = async () => {
     setIndexando(true); setAviso('');
     try {
-      const r = await fetch('/api/estoque/notas/indexar?limite=30', { method: 'POST', headers: await authHeaders() });
+      const r = await fetch('/api/financeiro/notas/indexar?limite=30', { method: 'POST', headers: await authHeaders() });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) setAviso(j.erro || `Erro ${r.status}`);
       else {

@@ -396,7 +396,7 @@ function ClientesPageInner() {
     setUrlClienteTratada(true)
     const p = new URLSearchParams(window.location.search)
     // &empresa= desambigua (Nova e Castro repetem código); &os=1602 ou &pv=7198
-    // abre já na janela daquele serviço/pedido (link do cache de notas, /estoque/notas).
+    // abre já na janela daquele serviço/pedido (link do cache de notas, /financeiro/notas).
     const cod = p.get('cod'); const doc = p.get('doc'); const empresa = p.get('empresa')
     const os = p.get('os'); const pv = p.get('pv')
     if (!cod && !doc) return

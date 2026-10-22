@@ -38,7 +38,7 @@ export default function VisualizadorDocumento({ doc, onClose }: { doc: Documento
     let cancelado = false
     const alvo = srcDe(doc.url, doc.nome)
     // rota interna leva o token da sessão: cada vez mais rotas /api exigem login
-    // (ex.: /api/estoque/notas/<id>/arquivo); as que não exigem ignoram o header.
+    // (ex.: /api/financeiro/notas/<id>/arquivo); as que não exigem ignoram o header.
     ;(alvo.startsWith('/') ? authHeaders() : Promise.resolve({} as Record<string, string>))
       .then(h => fetch(alvo, { headers: h }))
       .then(async r => {

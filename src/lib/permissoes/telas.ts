@@ -3,7 +3,7 @@
 //
 // Fonte que o script scripts/permissoes-v2-sync.ts grava em perm_telas e
 // perm_tela_rotas. O id da tela é a chave que o código já usa
-// ('pos', 'pos:faturar', 'estoque:notas'): a hierarquia vem do ':'.
+// ('pos', 'pos:faturar', 'financeiro:notas'): a hierarquia vem do ':'.
 //
 // Puro (sem banco) — usado pelo sync, pelos testes e pelo painel "quem tem acesso".
 // =============================================================================
@@ -189,6 +189,7 @@ export function catalogoRotas(): RotaDef[] {
   tela('/financeiro/novo-chamado-nf', 'financeiro:criar_chamado');
   tela('/financeiro/novo-chamado-rh', 'financeiro:criar_chamado');
   tela('/financeiro/novo-pagar-receber', 'financeiro:criar_lancamento');
+  tela('/financeiro/notas', 'financeiro:notas');
 
   for (const [padrao, nota] of LIVRES) r.set(padrao, { padrao, acesso: 'livre', ...(nota ? { nota } : {}) });
   for (const padrao of SO_ADMIN) r.set(padrao, { padrao, acesso: 'admin' });

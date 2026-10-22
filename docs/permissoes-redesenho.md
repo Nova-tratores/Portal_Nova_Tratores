@@ -58,7 +58,7 @@ Inventário: 217 páginas em `(portal)` e 12 públicas.
 
 | Tela | Hoje | Proposta |
 |---|---|---|
-| /estoque/notas | `estoque:notas` + `estoque:notas-xml` | ver + baixar |
+| /financeiro/notas (era /estoque/notas até 22/10) | `financeiro:notas` + `financeiro:notas-xml` | ver + baixar |
 | /pos | `pos` + `pos:faturar` (explícita) + `pos:modelos_fiscais` (explícita, tela própria) | ver/editar + ação faturar; modelos-fiscais vira tela |
 | /ppv | `ppv:faturar` (normal) | ação faturar (tornar explícita, como no POS?) |
 | /conhecimento | `editar`, `publicar` | editar < aprovar |

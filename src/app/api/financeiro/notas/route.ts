@@ -1,5 +1,5 @@
 // Lista unificada de notas fiscais (entrada + saída) do cache + cobertura.
-// Permissão: estoque:notas (ou módulo estoque inteiro / admin).
+// Permissão: financeiro:notas (ou módulo financeiro inteiro / admin).
 // Busca: `q` + `campo` (auto | nota | pedido | os | cliente | maquina) — os
 // vínculos pedido/OS/máquina vêm de sql/notas-fiscais-vinculos.sql; sem ela a
 // consulta cai para as colunas básicas e `vinculosFaltando` avisa a tela.
@@ -18,7 +18,7 @@ const RE_SEM_VINCULOS = /parte_cod|pedido_num|pedido_cod|os_num|os_cod|maquina/i
 const RE_SEM_NUMERO_N = /numero_n/i; // sql/notas-fiscais-ordem.sql ausente
 
 export async function GET(req: NextRequest) {
-  const guarda = await protegerRota(req, [{ modulo: 'estoque', acao: 'notas' }]);
+  const guarda = await protegerRota(req, [{ modulo: 'financeiro', acao: 'notas' }]);
   if (guarda.resposta) return guarda.resposta;
   // nota de ENTRADA só para quem tem Recebimentos (o mesmo gate de /estoque/recebimentos)
   const podeEntrada = podeVerEntrada(guarda.user.isAdmin, guarda.user.modulos);

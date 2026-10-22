@@ -65,6 +65,7 @@ const systems: SystemCard[] = [
   { id: 'sistema-financeiro', name: 'Financeiro', description: 'Gestão de NF, boletos, contas a pagar e receber, chamados RH', icon: <DollarSign size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)', href: '/financeiro', tag: 'FINANÇAS', group: 'financeiro' },
   { id: 'dre', name: 'DRE Financeiro', description: 'Demonstração do Resultado do Exercício com dados integrados do Omie', icon: <TrendingUp size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #059669, #047857)', href: '/dre-financeiro', tag: 'DRE', group: 'financeiro' },
   { id: 'painel-omie', name: 'Painel Omie', description: 'Relatórios de oficina, peças, comercial e comissões dos técnicos', icon: <BarChart3 size={28} />, color: '#1f5c46', gradient: 'linear-gradient(135deg, #1f5c46, #14532d)', href: '/painel-omie', tag: 'RELATORIOS', group: 'financeiro' },
+  { id: 'financeiro-notas', name: 'Notas fiscais', description: 'Entradas e saídas guardadas no portal (PDF + XML) — abrem mesmo com a Omie fora', icon: <FileText size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)', href: '/financeiro/notas', tag: 'NOTAS', group: 'financeiro', permAcao: 'notas' },
 
   // Comercial (roxo)
   { id: 'proposta-comercial', name: 'Proposta Comercial', description: 'Geração de propostas com PDF e QR Code para clientes', icon: <FileText size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #B91C1C)', href: '/propostas', tag: 'VENDAS', group: 'comercial' },
@@ -83,7 +84,6 @@ const systems: SystemCard[] = [
   { id: 'consulta-omie', name: 'Consulta Estoque', description: 'Estoque Omie, CMC, curva ABC, dashboard de vendas e comissões', icon: <Eye size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque', tag: 'CONSULTA', group: 'estoque' },
   { id: 'estoque-notas-entrada', name: 'Notas de Entrada', description: 'Notas fiscais de entrada, DANFE, descrições e custos de compra', icon: <FileText size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/notas-entrada', tag: 'ENTRADAS', group: 'estoque', permAcao: 'notas-entrada' },
   { id: 'estoque-recebimentos', name: 'Recebimentos', description: 'Conferência de recebimentos de mercadoria e pendências', icon: <Package size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/recebimentos', tag: 'RECEBIMENTO', group: 'estoque', permAcao: 'recebimentos' },
-  { id: 'estoque-notas', name: 'Notas fiscais', description: 'Entradas e saídas guardadas no portal (PDF + XML) — abrem mesmo com a Omie fora', icon: <FileText size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/notas', tag: 'ENTRADAS', group: 'estoque', permAcao: 'notas' },
   { id: 'estoque-movimentacao', name: 'Movimentação de Produto', description: 'Entradas e saídas de estoque de um produto no período (kardex)', icon: <Activity size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/movimentacao-produto', tag: 'MOVIMENTAÇÃO', group: 'estoque', permAcao: 'movimentacao-produto' },
   { id: 'frota', name: 'Frota', description: 'Veículos, abastecimento, multas, manutenções, documentos e rastreamento', icon: <Truck size={28} />, color: '#1E40AF', gradient: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)', href: '/frota', tag: 'VEÍCULOS', group: 'frota' },
   // Atalho pra abrir pendência de veículo (módulo próprio, mobile-first com foto)
@@ -135,7 +135,7 @@ const systemToModulo: Record<string, string> = {
   'consulta-omie': 'estoque',             // card Consulta Estoque (/estoque)
   'estoque-notas-entrada': 'estoque',     // sub-tela; gate por pode('estoque','notas-entrada')
   'estoque-recebimentos': 'estoque',      // sub-tela; gate por pode('estoque','recebimentos')
-  'estoque-notas': 'estoque',             // sub-tela; gate por pode('estoque','notas')
+  'financeiro-notas': 'financeiro',       // sub-tela; gate por pode('financeiro','notas')
   'estoque-movimentacao': 'estoque',      // sub-tela; gate por pode('estoque','movimentacao-produto')
   'frota': 'frota',                       // ⚠️ card SEM entrada aqui = visível pra TODOS
   'pendencias': 'pendencias',

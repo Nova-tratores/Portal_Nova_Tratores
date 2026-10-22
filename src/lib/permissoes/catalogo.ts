@@ -179,6 +179,8 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'criar_lancamento', label: 'Criar conta a pagar/receber' },
     { id: 'criar_chamado', label: 'Abrir chamado (NF/RH)' },
     { id: 'rastreio', label: 'Rastreio de notas (busca nota/boleto/requisição)' },
+    { id: 'notas', label: 'Notas fiscais (cache PDF + XML)' },
+    { id: 'notas-xml', label: 'Notas fiscais — baixar XML' },
     { id: 'editar_cards', label: 'Editar cards do kanban a qualquer momento (nome, condição, valor, datas)' },
   ],
   // DRE Financeiro: granular POR TELA (cada ação = uma tela analítica). O id da
@@ -267,8 +269,6 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'notas-entrada', label: 'Notas de Entrada' },
     { id: 'recebimentos', label: 'Recebimentos' },
     { id: 'recebimentos-omie', label: 'Recebimentos (Omie)' },
-    { id: 'notas', label: 'Notas fiscais (cache PDF + XML)' },
-    { id: 'notas-xml', label: 'Notas fiscais — baixar XML' },
     { id: 'movimentacao-produto', label: 'Movimentação de Produto' },
     { id: 'cadastro-produto', label: 'Cadastro de Produto' },
     { id: 'curva-abc', label: 'Curva ABC' },

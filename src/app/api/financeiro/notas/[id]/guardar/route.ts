@@ -9,7 +9,7 @@ import { selo, type LinhaDoc } from '@/lib/notas/cache-regras';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const guarda = await protegerRota(req, [{ modulo: 'estoque', acao: 'notas' }]);
+  const guarda = await protegerRota(req, [{ modulo: 'financeiro', acao: 'notas' }]);
   if (guarda.resposta) return guarda.resposta;
   const { id } = await params;
   const idNum = parseInt(id, 10);

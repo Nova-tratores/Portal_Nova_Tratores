@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
   //  middleware.ts, onde a comparação é de string e respeita a caixa.)
   // Página pública da garantia Mahindra (QR code do adesivo). Arquivo estático
   // em public/garantia/ — fora do (portal), sem login.
+  // Notas fiscais mudaram do Estoque para o Financeiro (22/10/2026): links e
+  // favoritos antigos seguem valendo (a query ?campo=&q= vai junto).
+  async redirects() {
+    return [{ source: "/estoque/notas", destination: "/financeiro/notas", permanent: false }];
+  },
   async rewrites() {
     return [{ source: "/garantia", destination: "/garantia/index.html" }];
   },

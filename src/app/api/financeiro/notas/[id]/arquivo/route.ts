@@ -1,6 +1,6 @@
 // Entrega o PDF ou o XML de uma nota do cache (bucket privado, só logado).
 // Sem arquivo guardado → tenta na Omie AGORA (e guarda); Omie fora → 503 {omieFora}.
-// PDF: estoque:notas · XML: estoque:notas-xml (admin/módulo inteiro passam).
+// PDF: financeiro:notas · XML: financeiro:notas-xml (admin/módulo inteiro passam).
 import { NextRequest, NextResponse } from 'next/server';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const tipo = req.nextUrl.searchParams.get('tipo') === 'xml' ? 'xml' : 'pdf';
-  const guarda = await protegerRota(req, [{ modulo: 'estoque', acao: tipo === 'xml' ? 'notas-xml' : 'notas' }]);
+  const guarda = await protegerRota(req, [{ modulo: 'financeiro', acao: tipo === 'xml' ? 'notas-xml' : 'notas' }]);
   if (guarda.resposta) return guarda.resposta;
   const { id } = await params;
   const idNum = parseInt(id, 10);

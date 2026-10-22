@@ -68,7 +68,7 @@ export const AGENDAMENTOS: Agendamento[] = [
     alvo: 'rodarAgendado() — indexa notas_entrada + portal_nt_notas_saida em notas_fiscais_docs e guarda PDF/XML de até 120 notas no bucket privado notas-fiscais',
     arquivo: 'src/instrumentation.ts',
     condicional: 'Só em produção; NOTAS_CACHE=on liga no local, =off desliga',
-    obs: 'Registra em cron_runs como notas-cache-docs. Para sozinho em bloqueio da Omie / Omie fora. Tela: /estoque/notas',
+    obs: 'Registra em cron_runs como notas-cache-docs. Para sozinho em bloqueio da Omie / Omie fora. Tela: /financeiro/notas',
   },
   {
     nome: 'Alocação de peças recebidas (rápido)',
