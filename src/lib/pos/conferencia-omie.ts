@@ -12,7 +12,7 @@ import { montarServicosDetalhe, montarDadosAdic } from "@/lib/pos/omie";
 import { normalizarEspelho, espelhoPadrao, calcularParcelas, diasDoEspelho, type OmieEspelho } from "@/lib/pos/omie-espelho";
 import { estadoNoOmie } from "@/lib/pos/faturamento-regras";
 import {
-  compararItens, compararCampo, compararDepartamentos, compararParcelas, diferente, textoNormal,
+  compararItens, compararCampo, compararDepartamentos, compararParcelas, diferente, textoNormal, semCaracteresDoOmie,
   type Divergencia, type ItemComparavel, type ResultadoConferencia,
 } from "@/lib/omie/conferencia";
 
@@ -213,7 +213,8 @@ async function alinharOSSemPausa(idOs: string): Promise<ResultadoConferencia> {
     const cands = omieItens.filter((o) => !usados.has(o) && String(n(o.nCodServico)) === p.chave);
     const o = cands.find((x) => p.descricao !== undefined && String(x.cDescServ || "").replace(/\|/g, "\n").trim() === p.descricao.trim()) || cands[0];
     const campos: Rec = { nCodServico: p.nCodServico, nQtde: p.qtde, nValUnit: p.unit, cTpDesconto: "V", nValorDesconto: Math.round(p.desconto * 100) / 100 };
-    if (p.descricao !== undefined) campos.cDescServ = p.descricao.slice(0, 2000);
+    // sem "•", emojis etc.: o Omie descarta e o texto gravado ficaria diferente do que a conferência espera
+    if (p.descricao !== undefined) campos.cDescServ = semCaracteresDoOmie(p.descricao).slice(0, 2000);
     if (interna) campos.cNaoGerarFinanceiro = "S";
     if (o) {
       usados.add(o);

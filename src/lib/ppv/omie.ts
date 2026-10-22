@@ -1560,24 +1560,42 @@ export async function garantirCst60(acc: OmieAccount, chave: Record<string, unkn
   const cabAtual = (pedido.cabecalho || {}) as Record<string, unknown>
   const listaAtual = (pedido as { lista_parcelas?: unknown }).lista_parcelas
   const plano = parcelas || (cabAtual.codigo_parcela ? { codigo_parcela: String(cabAtual.codigo_parcela), qtde_parcelas: Number(cabAtual.qtde_parcelas) || 1, lista_parcelas: listaAtual } : null)
-  try {
-    await omieCall("/produtos/pedido/", "AlterarPedidoVenda", {
-      cabecalho: {
-        ...(pedido.cabecalho?.codigo_pedido ? { codigo_pedido: pedido.cabecalho.codigo_pedido } : chave),
-        ...(plano ? { codigo_parcela: plano.codigo_parcela, qtde_parcelas: plano.qtde_parcelas } : {}),
-      },
-      ...(plano?.lista_parcelas ? { lista_parcelas: plano.lista_parcelas } : {}),
-      informacoes_adicionais: { consumidor_final: "S" },
-      det: detNovo,
-    }, acc.key, acc.secret);
-  } catch (e) { return { trocados: 0, erro: e instanceof Error ? e.message : String(e) }; }
+  const enviar = () => omieCall("/produtos/pedido/", "AlterarPedidoVenda", {
+    cabecalho: {
+      ...(pedido.cabecalho?.codigo_pedido ? { codigo_pedido: pedido.cabecalho.codigo_pedido } : chave),
+      ...(plano ? { codigo_parcela: plano.codigo_parcela, qtde_parcelas: plano.qtde_parcelas } : {}),
+    },
+    ...(plano?.lista_parcelas ? { lista_parcelas: plano.lista_parcelas } : {}),
+    informacoes_adicionais: { consumidor_final: "S" },
+    det: detNovo,
+  }, acc.key, acc.secret);
+  // "sem resposta" do Omie NÃO é recusa: a troca pode ter sido feita (PPV-0498, 22/10/2026 — travava a
+  // conferência com "recusou" e o CST continuava 51 na tela). Espera, relê e, se ainda estiver 51, manda
+  // de novo UMA vez — trocar o CST é a mesma alteração repetida, não duplica nada.
+  const semResposta = (e: unknown) => /sem resposta|incert|AbortError|timeout/i.test(e instanceof Error ? `${e.name} ${e.message}` : String(e));
+  let incerto = false;
+  try { await enviar(); } catch (e) {
+    if (!semResposta(e)) return { trocados: 0, erro: e instanceof Error ? e.message : String(e) };
+    incerto = true;
+    await new Promise((ok) => setTimeout(ok, 10_000));
+  }
   // confere: o Omie aceita a alteração e às vezes deixa o CST como estava
   // (PPV-0494, 16/10/2026 — ficou 51 e ninguém foi avisado)
   // relê por OUTRA chave (nº do pedido): a mesma consulta de segundos antes leva "Consumo redundante"
   const numPed = (pedido.cabecalho as { numero_pedido?: unknown } | undefined)?.numero_pedido
-  const depois = await consultarPedidoOmie(numPed ? { numero_pedido: numPed } : chave, acc).catch(() => null);
-  if (!depois) return { trocados: 0, erro: "não deu para conferir o CST no Omie depois da troca" };
-  const aindaErrados = (depois.det || []).filter((d) => String(d.imposto?.icms?.cod_sit_trib_icms ?? "") !== CST_ICMS_PECAS);
+  const reler = () => consultarPedidoOmie(numPed ? { numero_pedido: numPed } : chave, acc).catch(() => null);
+  const errados2 = (p: OmiePedidoConsulta | null) => (p?.det || []).filter((d) => String(d.imposto?.icms?.cod_sit_trib_icms ?? "") !== CST_ICMS_PECAS);
+  let depois = await reler();
+  if (incerto && depois && errados2(depois).length) {
+    try { await enviar(); } catch (e) {
+      if (!semResposta(e)) return { trocados: 0, erro: e instanceof Error ? e.message : String(e), pedido: depois };
+      await new Promise((ok) => setTimeout(ok, 10_000));
+    }
+    // relê pela outra chave (a de cima acabou de ser usada)
+    depois = await consultarPedidoOmie(pedido.cabecalho?.codigo_pedido ? { codigo_pedido: pedido.cabecalho.codigo_pedido } : chave, acc).catch(() => null);
+  }
+  if (!depois) return { trocados: 0, erro: incerto ? "o Omie demorou a responder a troca do CST e não deu para conferir — clique em \"Conferir de novo\" em 1 minuto" : "não deu para conferir o CST no Omie depois da troca" };
+  const aindaErrados = errados2(depois);
   if (aindaErrados.length) {
     const lista = aindaErrados.slice(0, 5).map((d) => `${d.produto?.codigo || "?"} (CST ${d.imposto?.icms?.cod_sit_trib_icms ?? "?"})`).join(", ");
     return { trocados: errados.length - aindaErrados.length, erro: `o Omie não trocou o CST para ${CST_ICMS_PECAS} em ${aindaErrados.length} peça(s): ${lista}. Troque no Omie antes de faturar.`, pedido: depois };

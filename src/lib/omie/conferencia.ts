@@ -47,8 +47,18 @@ export const brl = (v: number) => `R$ ${num(v).toFixed(2).replace(".", ",").repl
 const qtd = (v: number) => (Math.round(num(v) * 1000) / 1000).toString().replace(".", ",");
 
 /** texto sem diferença de quebra de linha / "|" (o Omie troca \n por |) / espaços */
+/**
+ * Caracteres que o Omie joga fora ao gravar (fora do Latin-1: "•", emojis, aspas curvas…). Sem tirar
+ * também do lado do portal, a conferência via "918•8" × "9188" e acusava diferença para sempre —
+ * por mais que atualizasse (OS-0807, 22/10/2026).
+ */
+export function semCaracteresDoOmie(v: unknown): string {
+  // "918•8" é horímetro com vírgula (José, 22/10/2026: "tem que ter a vírgula") — vira "918,8" antes de limpar
+  return String(v ?? "").replace(/(\d)\s*[•·∙]\s*(\d)/g, "$1,$2").replace(/[^\u0000-ÿ]/g, "");
+}
+
 export function textoNormal(v: unknown): string {
-  return String(v ?? "").replace(/\r?\n|\|/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
+  return semCaracteresDoOmie(v).replace(/\r?\n|\|/g, " ").replace(/\s+/g, " ").trim().toLowerCase();
 }
 
 export function diferente(a: number, b: number, tol = TOL): boolean {
