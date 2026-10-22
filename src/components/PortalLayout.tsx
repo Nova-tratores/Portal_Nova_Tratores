@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react'
 import { useAuth, revalidarSessao } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useChat } from '@/hooks/useChat'
@@ -35,6 +35,7 @@ import NotifPrefsModal from './notif/NotifPrefsModal'
 import OpaLembrete from './opa/OpaLembrete'
 import SatLembrete from './sat/SatLembrete'
 import QuemAcessa from './permissoes/QuemAcessa'
+import JornadaQuery from './uso/JornadaQuery'
 
 interface NavItem {
   id: string
@@ -674,19 +675,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         if (u.rota !== pathname || agora - u.em > 15000) {
           ultimaRotaUsoRef.current = { rota: pathname, em: agora }
           const search = window.location.search
-          Promise.all([import('@/lib/auth/client'), import('@/lib/uso/jornada')]).then(async ([{ authHeaders }, jornada]) => {
+          import('@/lib/uso/caso').then(async (caso) => {
             // Jornada por ABA (sessionStorage): de → para, tempo, mesmo caso, ida-e-volta.
-            // Os hashes do caso ficam aqui; ao servidor só vão os booleanos.
-            let trans: ReturnType<typeof jornada.proximoPasso>['transicao'] = null
-            try {
-              const passo = jornada.proximoPasso(jornada.lerEstado(sessionStorage.getItem('portal-jornada')), pathname, jornada.extrairAlvos(pathname, search), agora)
-              trans = passo.transicao
-              if (passo.estado) sessionStorage.setItem('portal-jornada', JSON.stringify(passo.estado))
-            } catch { /* sessionStorage bloqueado: segue só com a contagem */ }
-            const h = await authHeaders()
+            // Os hashes do caso ficam no navegador; ao servidor só vão os booleanos.
+            try { caso.entrarNaRota(pathname, search, agora) } catch { /* segue só com a contagem */ }
+            const h = await caso.cabecalhos()
             if (!h.Authorization) return
-            const corpo = trans ? { rota: pathname, de: trans.de, gapS: trans.gapS, mesmoAlvo: trans.mesmoAlvo, volta: trans.volta } : { rota: pathname }
-            await fetch('/api/uso/pagina', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify(corpo) })
+            await fetch('/api/uso/pagina', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify({ rota: pathname }) })
           }).catch(() => {})
         }
       }
@@ -1614,6 +1609,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
       {/* Central de Trabalho: confirmar ticket recebido, "Seu dia" e atalho na dashboard */}
       {!emIframe && userProfile?.id && <PainelDoDia nome={userProfile?.nome || ''} />}
+      {!emIframe && userProfile?.id && <Suspense fallback={null}><JornadaQuery /></Suspense>}
 
       {/* Dev: quem tem acesso à página atual (permissões v2 × regra de hoje) */}
       {!emIframe && isDev && <QuemAcessa />}

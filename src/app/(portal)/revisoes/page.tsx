@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useMarcarCaso } from '@/lib/uso/caso';
 import { supabase } from "@/lib/supabase";
 import { filtrarDestinatarios } from "@/lib/notif/prefs";
 import { useAuth } from "@/hooks/useAuth";
@@ -105,6 +106,8 @@ function DashboardAgrupadoInner() {
   const [busca, setBusca] = useState("");
   const [filtroCliente, setFiltroCliente] = useState("");
   const [selecionado, setSelecionado] = useState<Trator | null>(null);
+  // Monitor de uso: avisa a jornada qual trator está aberto (só hashes ficam no navegador).
+  useMarcarCaso(selecionado?.Chassis ? { chassi: selecionado.Chassis } : null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);

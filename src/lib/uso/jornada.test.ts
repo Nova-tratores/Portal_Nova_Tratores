@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { extrairAlvos, normalizarValor, proximoPasso, lerEstado, fnv1a } from './jornada';
+import { extrairAlvos, normalizarValor, proximoPasso, lerEstado, fnv1a, alvosDoCaso, chassisDoTexto, marcarNoEstado, descarregarPendente } from './jornada';
 
 describe('normalizarValor', () => {
   it('tira zeros à esquerda e prefixos de código', () => {
@@ -74,6 +74,53 @@ describe('proximoPasso', () => {
     const r = proximoPasso(e, '/login', [], t0 + 1000);
     expect(r.transicao).toBeNull();
     expect(r.estado?.rota).toBe('/pos');
+  });
+});
+
+describe('caso marcado pela tela', () => {
+  const t0 = 1_000_000;
+  it('tipo separa OS e PPV com o mesmo número; chassi casa entre URL e tela', () => {
+    expect(alvosDoCaso({ os: 'OS-0012' })).not.toEqual(alvosDoCaso({ ppv: '12' }));
+    const url = extrairAlvos('/revisoes', '?chassi=MDI07513V50005756');
+    const tela = alvosDoCaso({ textoChassi: '6075E 4WD V50005756' });
+    expect(url.some((h) => tela.includes(h))).toBe(true);
+  });
+  it('acha chassi em texto livre e ignora palavras comuns', () => {
+    expect(chassisDoTexto('MAHINDRA 6075E MDI07513V50005756')).toEqual(['MDI07513V50005756']);
+    expect(chassisDoTexto('TRATOR ARROZEIRO')).toEqual([]);
+  });
+  it('transição sem caso em comum fica pendente e sai quando o caso casa', () => {
+    let e = proximoPasso(null, '/revisoes', [], t0).estado;
+    e = marcarNoEstado(e, '/revisoes', alvosDoCaso({ chassi: 'V50005756' })).estado;
+    const p = proximoPasso(e, '/pos', [], t0 + 30_000);
+    expect(p.enviar).toEqual([]);
+    expect(p.estado?.pendente?.para).toBe('/pos');
+    const outro = marcarNoEstado(p.estado, '/pos', alvosDoCaso({ os: '55' }));
+    expect(outro.enviar).toBeNull();
+    const casou = marcarNoEstado(outro.estado, '/pos', alvosDoCaso({ os: '55', textoChassi: '6075E V50005756' }));
+    expect(casou.enviar).toEqual({ de: '/revisoes', para: '/pos', gapS: 30, mesmoAlvo: true, volta: false });
+    expect(casou.estado?.pendente).toBeNull();
+  });
+  it('pendente sem caso sai na próxima troca de tela ou ao fechar a aba', () => {
+    let e = proximoPasso(null, '/clientes', [], t0).estado;
+    e = proximoPasso(e, '/pos', [], t0 + 10_000).estado;
+    const r = proximoPasso(e, '/ppv', [], t0 + 20_000);
+    expect(r.enviar).toEqual([{ de: '/clientes', para: '/pos', gapS: 10, mesmoAlvo: false, volta: false }]);
+    const fechou = descarregarPendente(r.estado);
+    expect(fechou.enviar?.de).toBe('/pos');
+    expect(descarregarPendente(fechou.estado).enviar).toBeNull();
+  });
+  it('caso marcado antes de a jornada registrar a tela é aproveitado na entrada', () => {
+    let e = proximoPasso(null, '/clientes', [], t0).estado;
+    e = marcarNoEstado(e, '/clientes', alvosDoCaso({ doc: '12.345.678/0001-90' })).estado;
+    e = marcarNoEstado(e, '/pos', alvosDoCaso({ doc: '12345678000190' })).estado;
+    const r = proximoPasso(e, '/pos', [], t0 + 5_000);
+    expect(r.enviar).toEqual([{ de: '/clientes', para: '/pos', gapS: 5, mesmoAlvo: true, volta: false }]);
+  });
+  it('estado salvo com pendente sobrevive ao sessionStorage', () => {
+    let e = proximoPasso(null, '/a1', [], t0).estado;
+    e = proximoPasso(e, '/b1', [], t0 + 1000).estado;
+    expect(lerEstado(JSON.stringify(e))?.pendente?.de).toBe('/a1');
   });
 });
 

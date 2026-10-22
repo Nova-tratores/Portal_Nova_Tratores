@@ -3,6 +3,8 @@
 // (instrumentation.ts → descarregarUso). Responde 204 sempre que autenticado.
 // Opcional: {de, gapS, mesmoAlvo, volta} = a transição da tela anterior para
 // esta (lib/uso/jornada.ts no navegador). Nunca vem identificador do caso.
+// soTransicao = transição que ficou pendente até o caso aparecer: não conta a
+// página de novo, só a transição.
 import { NextRequest, NextResponse } from 'next/server';
 import { autenticar } from '@/lib/auth/server';
 import { registrarTransicao, registrarUsoPagina } from '@/lib/uso/buffer-server';
@@ -19,7 +21,7 @@ export async function POST(req: NextRequest) {
     rota = String(b?.rota || '');
   } catch { /* corpo vazio */ }
   if (rota) {
-    registrarUsoPagina(auth.userId, rota);
+    if (b.soTransicao !== true) registrarUsoPagina(auth.userId, rota);
     if (typeof b.de === 'string' && b.de) {
       registrarTransicao(auth.userId, {
         de: b.de, para: rota, gapS: Number(b.gapS) || 0,

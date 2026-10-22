@@ -1,6 +1,7 @@
 "use client";
 
 import FaturarRemessaBotao from "./FaturarRemessaBotao";
+import { useMarcarCaso } from "@/lib/uso/caso";
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { useAlteracoesPendentes } from "@/lib/rascunho/pendencias";
 import MaquinasClienteIcone from "@/components/MaquinasClienteIcone";
@@ -922,6 +923,8 @@ export default function PPVDrawer({
     else showToast("error", "Este item já foi todo devolvido.");
   }
 
+  // Monitor de uso: avisa a jornada qual pedido está aberto (só hashes ficam no navegador).
+  useMarcarCaso(open && ppvId ? { ppv: ppvId, os: modalOSId, pv: pedidoOmie, doc: clienteDocumento, textoChassi: projeto } : null);
   if (!open) return null;
 
   // Helpers de estilo do cabeçalho Omie (extraídos p/ tipar CSS corretamente)

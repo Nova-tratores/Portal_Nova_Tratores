@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
+import { useMarcarCaso } from "@/lib/uso/caso";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE, PHASES } from "@/lib/pos/constants";
@@ -1172,6 +1173,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   }, [visible, mode, osId, loadPPV, resetForm, reloadKey]);
 
   // ── Early return ──
+  // Monitor de uso: avisa a jornada qual OS está aberta (só hashes ficam no navegador).
+  useMarcarCaso(visible && mode === "edit" && osId ? { os: osId, ppv: ppv.split(","), doc: clienteInfo?.cpf, textoChassi: `${projeto} ${dadosTecnico?.chassis || ""}` } : null);
   if (!visible) return null;
 
   // PPVs vinculados (o campo aceita vários separados por vírgula)

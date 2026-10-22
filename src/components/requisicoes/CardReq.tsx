@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useMarcarCaso } from '@/lib/uso/caso';
 import { useRascunho } from '@/lib/rascunho/useRascunho';
 import AvisoRascunho from '@/components/rascunho/AvisoRascunho';
 import { supabase } from '@/lib/supabase';
@@ -45,6 +46,8 @@ function parseMoeda(valorFmt: string): string {
 
 export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, aberto = false, onFechar, podeEditar = true, grupos = [], usuarioAtual = '', onGruposChange, onExpandirGrupo }: { req: any, onUpdate: any, onPrint: any, dadosCompartilhados?: any, aberto?: boolean, onFechar?: () => void, podeEditar?: boolean, grupos?: any[], usuarioAtual?: string, onGruposChange?: () => void, onExpandirGrupo?: (id: number) => void }) {
   const [modalAberto, setModalAberto] = useState(aberto);
+  // Monitor de uso: avisa a jornada qual requisição está aberta (só hashes ficam no navegador).
+  useMarcarCaso(modalAberto ? { req: req.id, os: req.ordem_servico, doc: req.cliente_cnpj, chassi: req.chassis } : null);
 
   // Sinaliza pro resto da página que um card está aberto — os botões flutuantes
   // (Nova Requisição e Painel do Dev) somem pra não ficar por cima do modal.
