@@ -69,6 +69,16 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: resumirResposta(corpo) };
   },
 
+  // Novidades do dia (José, 22/10/2026): às 07:00, o que mudou ontem em cada módulo
+  // vira aviso publicado + sino para quem tem acesso ao módulo. NOVIDADES_DIARIAS=off desliga.
+  'novidades-diarias': async () => {
+    if (desligada('NOVIDADES_DIARIAS')) return { pular: 'NOVIDADES_DIARIAS=off' };
+    const { publicarNovidadesDoDia } = await import('@/lib/conhecimento/novidades-diarias-server');
+    const r = await publicarNovidadesDoDia();
+    if (!r.versoes) return { pular: 'nenhuma versão nova desde o último aviso' };
+    return { resumo: `${r.versoes} versão(ões) · ${r.novidades.length} módulo(s): ${r.novidades.map((n) => n.modulo).join(', ') || '—'} · ${r.avisados} pessoa(s) avisada(s)` };
+  },
+
   // Características das peças (espelho produtos_caracteristicas: locação, "Tipo:"…),
   // as duas contas. Veio do GitHub (ajustes-sync-caracteristicas.yml), que disparava
   // as 03:00 da madrugada só no papel (rodava 9h–12h e morria em deploy).

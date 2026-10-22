@@ -10,6 +10,10 @@ import {
   artigosAfetados, juntarMotivo, novidadeSemIA, novidadesPorModulo, modulosDoCommit,
   type CommitLido, type MotivoRevisao,
 } from "./releases";
+import { MODULOS_AVISO } from "./novidades-diarias";
+
+/** Rascunho de novidade a cada versão (o fluxo antigo, com aprovação). Desligado: ver novidades-diarias. */
+const RASCUNHO_POR_VERSAO = false;
 
 export interface ResultadoRelease {
   sha: string;
@@ -64,11 +68,12 @@ export async function registrarRelease(p: { sha: string; sha_anterior: string | 
 
   const { porModulo } = await responsaveis();
   const conhecidos = new Set(Object.keys(porModulo)); // piloto: só módulos com responsável
-  const modulos = Array.from(new Set(p.commits.flatMap((c) => modulosDoCommit(c, conhecidos))));
+  // módulos tocados: todos os do portal (o aviso diário cobre todos, não só o piloto)
+  const modulos = Array.from(new Set(p.commits.flatMap((c) => modulosDoCommit(c, MODULOS_AVISO))));
 
   const { data: rel, error: e1 } = await sb.from("sistema_releases").insert({
     sha: p.sha, sha_anterior: p.sha_anterior,
-    commits: p.commits.map((c) => ({ sha: c.sha, titulo: c.titulo, tipo: c.tipo, escopo: c.escopo, autor: c.autor ?? null, data: c.data ?? null, arquivos: c.arquivos.slice(0, 200) })),
+    commits: p.commits.map((c) => ({ sha: c.sha, titulo: c.titulo, tipo: c.tipo, escopo: c.escopo, autor: c.autor ?? null, data: c.data ?? null, corpo: (c.corpo || "").slice(0, 3000) || null, arquivos: c.arquivos.slice(0, 200) })),
     arquivos: p.arquivos, modulos,
   }).select("id").single();
   if (e1) {
@@ -101,9 +106,10 @@ export async function registrarRelease(p: { sha: string; sha_anterior: string | 
     else conta(af.modulo, "artigos");
   }
 
-  // 2) rascunho de novidade por módulo (o responsável revisa e publica)
+  // 2) rascunho de novidade por módulo — DESLIGADO em 22/10/2026: as novidades agora
+  //    saem uma vez por dia, já publicadas, às 07:00 (novidades-diarias-server.ts).
   let novidades = 0;
-  for (const [modulo, commits] of novidadesPorModulo(p.commits, conhecidos)) {
+  for (const [modulo, commits] of RASCUNHO_POR_VERSAO ? novidadesPorModulo(p.commits, conhecidos) : []) {
     const n = await redigirNovidade(modulo, commits);
     const { error } = await sb.from("kb_novidades").insert({
       release_id: rel.id, modulo, titulo: n.titulo, texto: n.texto, origem: n.origem, status: "rascunho",
