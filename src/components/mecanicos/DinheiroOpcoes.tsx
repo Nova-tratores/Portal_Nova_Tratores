@@ -3,19 +3,21 @@
 // precisamos melhorar também"; "não precisa ter o bloco de terceiros, ele entra para gastos"; "me dá
 // mais opções interativas e dinâmicas"). Mesmos números do Painel; nada aqui muda o Painel.
 import { useEffect, useState } from 'react'
-import { SEM_META, GRUPOS, type PainelMontado } from '@/lib/mecanicos/painel'
+import { SEM_META, GRUPOS, GRUPO_GARANTIA, type PainelMontado } from '@/lib/mecanicos/painel'
 
 /** Por que a pessoa entra na conta sem ser de campo (José, 21/10/2026: "por que esses estão como pessoal?") */
-const rotuloApoio = (nome: string) => {
-  const membros = Object.entries(GRUPOS).filter(([, g]) => g === nome).map(([p]) => p)
-  if (membros.length) return `grupo ${nome}: ${membros.join(', ')} · sem meta de horas`
+const membrosDe = (nome: string) => Object.entries(GRUPOS).filter(([, g]) => g === nome).map(([p]) => p)
+export const rotuloApoio = (nome: string) => {
+  if (nome === GRUPO_GARANTIA) return 'cuida das garantias · salário do pós-vendas, sem meta de horas'
+  if (membrosDe(nome).length) return `grupo ${nome} · sem meta de horas`
   return 'no RH do pós-vendas · nenhuma OS no período'
 }
 import { brl, horas, kmFmt, Numero, useContador } from './ui'
+import { LadoDireito } from './LadoDireitoOpcoes'
 
 const MUDO = 'var(--portal-text-muted, #64748b)'
-const CE = { mo: '#0369a1', km: '#16a34a', pecas: '#ea580c', outros: '#94a3b8' }
-const CS = { gastos: '#dc2626', pessoal: '#7c3aed', ficou: '#0f766e', faltou: '#b91c1c' }
+export const CE = { mo: '#0369a1', km: '#16a34a', pecas: '#ea580c', outros: '#94a3b8' }
+export const CS = { gastos: '#dc2626', pessoal: '#7c3aed', ficou: '#0f766e', faltou: '#b91c1c' }
 
 /** A conta do período: entrou − gastos (terceiros das OS + carro, almoço, materiais) − pessoal = ficou. */
 export type Conta = {
@@ -34,7 +36,7 @@ export type Conta = {
   serie: { rotulo: string; bruto: number; gastos: number; pessoal: number; resultado: number }[]
 }
 /** Uma pessoa do Pessoal. campo = técnico de campo (tem OS no período); senão é apoio/oficina. */
-export type PessoaConta = { nome: string; salario: number; comissao: number; prevista: number; rescisao: number; campo: boolean }
+export type PessoaConta = { nome: string; salario: number; encargos: number; encComissao: number; encPrevista: number; comissao: number; prevista: number; rescisao: number; campo: boolean }
 export function contaDe(d: PainelMontado, rotulo: string): Conta {
   const t = d.total, g = d.gastos, eq = d.equipe
   const pessoal = eq.total || 0
@@ -52,7 +54,7 @@ export function contaDe(d: PainelMontado, rotulo: string): Conta {
       ['Requisições não cobradas (terceiros nas OS)', t.custo], ['Abastecimento', g.abastecimento], ['Manutenção do carro', g.manutencao], ['Alimentação', g.alimentacao], ['Materiais da oficina', g.materiais],
       ...(naOS > 0.5 ? [['Já contado nas requisições (desconta)', -naOS] as [string, number]] : []),
     ],
-    pessoal, pCat: [['Salários + encargos', eq.salario], ['Comissão lançada no RH', eq.comissao], ['Comissão prevista', eq.comissaoPrevista], ['Rescisões e acertos', eq.rescisao]],
+    pessoal, pCat: [['Salários', eq.salario - (eq.encargos || 0)], ['Comissão lançada no RH', eq.comissao - (eq.encComissao || 0)], ['Comissão prevista', eq.comissaoPrevista - (eq.encPrevista || 0)], ['Encargos (salário e comissão)', (eq.encargos || 0) + (eq.encComissao || 0) + (eq.encPrevista || 0)], ['Rescisões e acertos', eq.rescisao]],
     comissaoPrev: eq.comissaoPrevista,
     salario: eq.salario, comissaoRH: eq.comissao, rescisao: eq.rescisao,
     pessoas: Object.values(eq.detalhe || {}).filter((x) => x.salario > 0.5).length,
@@ -70,7 +72,7 @@ export function contaDe(d: PainelMontado, rotulo: string): Conta {
       return r
     })(),
     equipe: Object.entries(eq.detalhe || {}).map(([nome, x]) => ({
-      nome, salario: x.salario, comissao: x.comissao, prevista: x.comissaoPrevista, rescisao: x.rescisao,
+      nome, salario: x.salario, encargos: x.encargos || 0, encComissao: x.encComissao || 0, encPrevista: x.encPrevista || 0, comissao: x.comissao, prevista: x.comissaoPrevista, rescisao: x.rescisao,
       campo: !SEM_META.has(nome) && d.linhas.some((l) => l.tecnico === nome && (l.bruto > 0 || l.faturadas > 0 || l.trabalhadas > 0)),
     })).sort((a, b) => Number(b.campo) - Number(a.campo) || (b.salario + b.comissao + b.prevista) - (a.salario + a.comissao + a.prevista)),
     resultado, ant: serie.length >= 2 ? serie[serie.length - 2] : null, serie,
@@ -275,7 +277,14 @@ export function DinheiroRegua({ c }: { c: Conta }) {
  *  últimos períodos); meta "quero ficar com R$ X de cada 100"; e o resultado lado a lado com o real. */
 
 /** Uma régua do simulador: % para cima ou para baixo, com o antes → depois embaixo. */
-function RegSim({ v, onSet, rot, ic, cor, min, max, antes, depois, extra, dica }: { v: number; onSet: (n: number) => void; rot: string; ic: string; cor: string; min: number; max: number; antes: string; depois: string; extra?: string; dica?: string }) {
+export function RegSim({ v, onSet, rot, ic, cor, min, max, antes, depois, extra, dica, claro }: { v: number; onSet: (n: number) => void; rot: string; ic: string; cor: string; min: number; max: number; antes: string; depois: string; extra?: string; dica?: string; claro?: boolean }) {
+  if (claro) return (
+    <label className={`dx-sim-r claro ${v !== 0 ? 'mexeu' : ''}`} style={{ '--c': cor } as React.CSSProperties} data-dica={`${rot.toUpperCase()} — ${dica ? `${dica} ` : ''}Como foi no mês: ${antes}.${v !== 0 ? ` No simulado: ${depois} (${v > 0 ? '+' : ''}${v}%).` : ''} Arraste a bolinha para a direita para simular mais, para a esquerda para simular menos: o resto da conta (o que sobra, o empate, a meta) muda junto. O X volta ao que foi.`}>
+      <span><i className={`fas ${ic}`} /> {rot} <b className="dx-sim-pill">{v === 0 ? 'como foi' : `${v > 0 ? '+' : ''}${v}%`}</b>{v !== 0 && <button type="button" className="dx-sim-x" title="voltar ao real" onClick={(e) => { e.preventDefault(); onSet(0) }}><i className="fas fa-xmark" /></button>}</span>
+      <input type="range" min={min} max={max} step={5} value={v} onChange={(e) => onSet(Number(e.target.value))} style={{ '--p': `${((v - min) / (max - min)) * 100}%` } as React.CSSProperties} />
+      <small className="dx-sim-cf"><span>Como foi <b>{antes}</b></span>{v !== 0 ? <span>Simulado <b>{depois}</b></span> : <span>arraste para simular</span>}{extra && <em>{extra}</em>}</small>
+    </label>
+  )
   return (
     <label className={`dx-sim-r ${v !== 0 ? 'mexeu' : ''}`} style={{ '--c': cor } as React.CSSProperties} data-dica={dica || undefined}>
       <span><i className={`fas ${ic}`} /> {rot} <b>{v > 0 ? '+' : ''}{v}%</b>{v !== 0 && <button type="button" className="dx-sim-x" title="voltar ao real" onClick={(e) => { e.preventDefault(); onSet(0) }}><i className="fas fa-xmark" /></button>}</span>
@@ -287,13 +296,13 @@ function RegSim({ v, onSet, rot, ic, cor, min, max, antes, depois, extra, dica }
 
 type Sim = Record<string, number>
 const SIM_ZERO: Sim = {}
-export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolean }) {
+/** Toda a conta do simulador (estado + cenário), para o simulador de hoje e para a versão nova usarem a MESMA conta. */
+export function useSimulacao(c: Conta) {
   const [m, setM] = useState<Sim>(SIM_ZERO)
   const [tec, setTec] = useState(0)
   const [fora, setFora] = useState<string[]>([])
   const [prev, setPrev] = useState(true)
   const [meta, setMeta] = useState(40)
-  const [aba, setAba] = useState<'ent' | 'des' | 'gas' | 'pes'>('ent')
   const [cen, setCen] = useState('real')
   const val = (k: string) => m[k] || 0
   const set = (k: string) => (n: number) => { setM((x) => ({ ...x, [k]: n })); setCen('') }
@@ -369,33 +378,135 @@ export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolea
   const maxC = Math.max(1, ...comparar.flatMap(([, a, b]) => [Math.abs(a), Math.abs(b)]))
   const nTec = campo.length + tec
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
+  return { m, setM, tec, setTec, fora, setFora, prev, setPrev, meta, setMeta, cen, setCen, val, set, vh, vhTab, vkm, dentro, campo, custoTec, salBase, comBase, prevBase, rescBase, horasS, vhS, ent, DESC, descS, voltaDesc, bruto, gItens, gastos, pItens, pessoal, ficou, p100, dif, mudou, taxaG, empate, alvo, vhTabS, horasPara, aplicarMeta, hist, r100, media, melhor, pior, aplicar, somaG, comparar, maxC, nTec, cap }
+}
+export type Simulacao = ReturnType<typeof useSimulacao>
+
+/** `claro`: versão para entender de primeira (José, 21/10/2026: "gostei muito desse, achei completo, só achei
+ *  difícil de entender de primeira") — guia de 3 passos, a conta Entrou − Gastos − Pessoal = Sobrou nas abas,
+ *  "Como foi × Simulado" em tudo e o lado direito em blocos numerados com títulos que dizem o que é. */
+export function DinheiroSimulador({ c, semFrase, claro, forma }: { c: Conta; semFrase?: boolean; claro?: boolean; /** lado direito em outra forma (1 extrato, 2 medidor, 3 cascata) — página de teste */ forma?: 1 | 2 | 3 }) {
+  const [aba, setAba] = useState<'ent' | 'des' | 'gas' | 'pes'>('ent')
+  const { m, setM, tec, setTec, fora, setFora, prev, setPrev, meta, setMeta, cen, setCen, val, set, vh, vhTab, vkm, dentro, campo, custoTec, salBase, comBase, prevBase, rescBase, horasS, vhS, ent, DESC, descS, voltaDesc, bruto, gItens, gastos, pItens, pessoal, ficou, p100, dif, mudou, taxaG, empate, alvo, vhTabS, horasPara, aplicarMeta, hist, r100, media, melhor, pior, aplicar, somaG, comparar, maxC, nTec, cap } = useSimulacao(c)
+  // José, 21/10/2026: "divide as informações para os dois lados" — no modo claro, os indicadores (3)
+  // descem para a esquerda, embaixo dos controles; à direita ficam o resultado, a conta, o empate (4) e a meta (5).
+  // empate e meta, escritos por extenso (José 19/10: "difícil de compreender, aumenta a fonte e diz o que significa em % e dados")
+  const alvosEl = (() => {
+            const pctTxt = (v: number) => `${Math.round(v)}%`
+            const sobeTxt = (alvoV: number) => (bruto > 0.5 ? ` (+${pctTxt(((alvoV - bruto) / bruto) * 100)} sobre o que entrou)` : '')
+            const hTxt = (alvoV: number) => (vhS > 0 && alvoV > bruto ? <> ≈ <b>{horas(horasPara(alvoV))}</b> a mais de horas cobradas, a {brl(vhS)}/h</> : null)
+            const gA = Number.isFinite(alvo) ? taxaG * alvo : 0
+            return (
+              <div className="dx-alvos" id="sim-alvos">
+                {claro && <div className="dx-res-t"><b>4</b> Quanto precisa faturar para não ter prejuízo</div>}
+                <div className="dx-alvo">
+                  <small><i className="fas fa-scale-balanced" /> {claro ? 'Faturar isso paga todas as contas (sobra R$ 0)' : 'Ponto de empate: sobra R$ 0'}</small>
+                  <b className="dx-alvo-v">{Number.isFinite(empate) ? <Numero valor={empate} formato={brl} /> : '—'}</b>
+                  <p>É quanto precisa <b>faturar só para pagar os custos</b>: os gastos (hoje <b>{pctTxt(taxaG * 100)}</b> de tudo que entra) e o pessoal fixo de <b>{brl(pessoal)}</b>.</p>
+                  {Number.isFinite(empate) && (bruto >= empate
+                    ? <span className="dx-alvo-st bom"><i className="fas fa-circle-check" /> passou do empate em <b>{brl(bruto - empate)}</b></span>
+                    : <span className="dx-alvo-st ruim"><i className="fas fa-circle-exclamation" /> faltam <b>{brl(empate - bruto)}</b>{sobeTxt(empate)}{hTxt(empate)}</span>)}
+                  {!Number.isFinite(empate) && <span className="dx-alvo-st ruim">os gastos já comem tudo que entra</span>}
+                  {Number.isFinite(empate) && <div className="dx-sim-trilho"><i style={{ width: `${Math.min(100, (bruto / Math.max(empate * 1.5, bruto, 1)) * 100)}%` }} /><em style={{ left: `${(empate / Math.max(empate * 1.5, bruto, 1)) * 100}%` }} /></div>}
+                  {claro && Number.isFinite(empate) && <div className="dx-trilho-leg"><span><i className="fat" /> faturado: <b>{brl(bruto)}</b></span><span><i className="emp" /> precisa para não ter prejuízo: <b>{brl(empate)}</b></span></div>}
+                </div>
+                {claro && <div className="dx-res-t"><b>5</b> Meta: quanto quero que sobre</div>}
+                <div className="dx-alvo meta">
+                  {!claro && <small><i className="fas fa-bullseye" /> Meta</small>}
+                  <span className="dx-alvo-q">Quero ficar com <span>R$ <input type="number" min={0} max={80} value={meta} onChange={(e) => setMeta(Math.max(0, Math.min(80, Number(e.target.value) || 0)))} /></span> de cada R$ 100 <em>= {meta}% do que entra sobra para a empresa</em></span>
+                  {!Number.isFinite(alvo)
+                    ? <span className="dx-alvo-st ruim">com esses gastos não dá para chegar nessa meta: diminua a meta ou os gastos</span>
+                    : <>
+                      <b className="dx-alvo-v">{alvo <= bruto ? <>já está batendo</> : <>precisa faturar <Numero valor={alvo} formato={brl} /></>}</b>
+                      <div className="dx-alvo-conta">
+                        <span><small>Faturar</small><b>{brl(alvo)}</b></span><em>−</em>
+                        <span><small>Gastos ({pctTxt(taxaG * 100)})</small><b>{brl(gA)}</b></span><em>−</em>
+                        <span><small>Pessoal</small><b>{brl(pessoal)}</b></span><em>=</em>
+                        <span className="sobra"><small>Sobra ({meta}%)</small><b>{brl(alvo - gA - pessoal)}</b></span>
+                      </div>
+                      <p>Hoje {bruto > 0.5 ? <>ficam <b>R$ {Math.round(p100)}</b> de cada R$ 100 (<b>{pctTxt(p100)}</b>)</> : <>ainda não entrou nada</>}.{' '}
+                        {alvo > bruto ? <>Para a meta faltam <b>{brl(alvo - bruto)}</b>{sobeTxt(alvo)}{hTxt(alvo)}.</> : <>Sobram <b>{brl(bruto - alvo)}</b> acima do que a meta pede.</>}</p>
+                      {alvo > bruto && vh > 0 && <button type="button" onClick={aplicarMeta}><i className="fas fa-wand-magic-sparkles" /> aplicar nas horas cobradas</button>}
+                    </>}
+                </div>
+              </div>
+            )
+          })()
+  const indicadoresEl = (
+              <section className="dx-card">
+                <div className="dx-res-t"><b>3</b> Indicadores do mês <small>passe o mouse para ver a conta</small></div>
+                <div className="dx-ind">
+                  <div data-dica="Quanto entrou, em média, por OS faturada: o que entrou ÷ número de OS."><small className="dx-cn" style={{ '--c': '#2563eb' } as React.CSSProperties}><i className="fas fa-file-invoice-dollar dx-ic" aria-hidden />Ticket médio por OS</small><b>{brl(c.nOS ? bruto / c.nOS : 0)}</b><span>{c.nOS} OS faturadas</span></div>
+                  <div data-dica="O que entrou ÷ técnicos de campo (os que tiveram OS no período, mais os contratados no simulador)."><small className="dx-cn" style={{ '--c': '#7c3aed' } as React.CSSProperties}><i className="fas fa-user-gear dx-ic" aria-hidden />Faturamento por técnico</small><b>{brl(nTec ? bruto / nTec : 0)}</b><span>{nTec} técnicos de campo</span></div>
+                  <div data-dica={`Se cobrar 1 hora a mais na tabela (${brl(vhTabS)}), sobra isso para a empresa depois de tirar a parte dos gastos (R$ ${Math.round(taxaG * 100)} a cada R$ 100 que entram). Salário não muda com 1 hora a mais, por isso não entra aqui.`}><small className="dx-cn" style={{ '--c': '#0891b2' } as React.CSSProperties}><i className="fas fa-clock dx-ic" aria-hidden />Cada hora a mais deixa</small><b>{brl(vhTabS * (1 - taxaG))}</b><span>hora de {brl(vhTabS)}, tirando os gastos</span></div>
+                  <div data-dica="De cada R$ 100 que entraram, quanto foi para gastos (combustível, carro, alimentação, materiais) e quanto para pessoal (salários + comissões)."><small className="dx-cn" style={{ '--c': '#ea580c' } as React.CSSProperties}><i className="fas fa-chart-pie dx-ic" aria-hidden />De cada R$ 100</small><b>R$ {Math.round(taxaG * 100)} <em>gastos</em> · R$ {bruto ? Math.round((pessoal / bruto) * 100) : 0} <em>pessoal</em></b><span>o resto sobra para a empresa</span></div>
+                </div>
+              </section>
+  )
   return (
-    <div className="dx-caixa">
-      {!semFrase && <Frase c={c} />}
-      <div className="dx-sim-cen">
-        <small><i className="fas fa-wand-magic-sparkles" /> Cenários prontos:</small>
-        <button type="button" className={cen === 'real' ? 'on' : ''} onClick={() => aplicar('real', null)} data-dica="Os números de verdade do período, sem nenhuma simulação.">Real ({cap(c.rotulo)})</button>
-        {melhor && <button type="button" className={cen === 'melhor' ? 'on' : ''} onClick={() => aplicar('melhor', melhor)} title={`R$ ${Math.round(r100(melhor) * 100)} de cada 100`}>Melhor: {cap(melhor.rotulo)}</button>}
-        {pior && <button type="button" className={cen === 'pior' ? 'on' : ''} onClick={() => aplicar('pior', pior)} title={`R$ ${Math.round(r100(pior) * 100)} de cada 100`}>Pior: {cap(pior.rotulo)}</button>}
-        {media && <button type="button" className={cen === 'media' ? 'on' : ''} onClick={() => aplicar('media', media)}>Média dos últimos {hist.length}</button>}
-        <button type="button" data-dica="Simula cobrar 20% mais horas, no mesmo valor de hora." className={cen === 'mais20' ? 'on' : ''} onClick={() => { aplicar('mais20', null); setM({ horas: 20 }); setCen('mais20') }}>+20% de horas</button>
-        {c.desc.total > 0.5 && <button type="button" className={cen === 'semdesc' ? 'on' : ''} onClick={() => { aplicar('semdesc', null); setM({ d_hora: -100, d_km: -100, d_geral: -100, d_pecas: -100 }); setCen('semdesc') }}>Sem nenhum desconto (+{brl(c.desc.total)})</button>}
-        <button type="button" className={cen === 'corta' ? 'on' : ''} onClick={() => { const g: Sim = {}; c.gDet.forEach(([, v], i) => { if (v > 0) g[`g${i}`] = -20 }); setTec(0); setPrev(true); setM(g); setCen('corta') }}>Cortar 20% dos gastos</button>
-      </div>
+    <div className={`dx-caixa ${claro ? 'claro' : ''}`}>
+      {!semFrase && !claro && <Frase c={c} />}
+      {claro && (() => {
+        // uma linha curta no lugar da frase grande e do guia: o mês, quanto sobrou de cada R$ 100 e o mês anterior
+        const ant = c.ant && c.ant.bruto > 0 ? Math.round((c.ant.resultado / c.ant.bruto) * 100) : null
+        const agora = c.bruto > 0.5 ? Math.round((c.resultado / c.bruto) * 100) : null
+        const d = ant != null && agora != null ? agora - ant : null
+        return (
+          <div className="dx-resumo">
+            <span>{c.rotulo.replace(/^./, (x) => x.toUpperCase())}</span>
+            {agora != null && <span>sobraram <b style={{ color: c.resultado >= 0 ? CS.ficou : CS.faltou }}>R$ {agora}</b> de cada R$ 100</span>}
+            {d != null && <span className={`dx-resumo-d ${d >= 0 ? 'bom' : 'ruim'}`} data-dica={`No mês anterior sobraram R$ ${ant} de cada R$ 100.`}>{d >= 0 ? '▲' : '▼'} {Math.abs(d)} {Math.abs(d) === 1 ? 'ponto' : 'pontos'} vs mês anterior (R$ {ant})</span>}
+          </div>
+        )
+      })()}
+      {(() => {
+        const botoes = <>
+          <button type="button" className={cen === 'real' ? 'on' : ''} onClick={() => aplicar('real', null)} data-dica="Os números de verdade do período, sem nenhuma simulação.">Real ({cap(c.rotulo)})</button>
+          {melhor && <button type="button" className={cen === 'melhor' ? 'on' : ''} onClick={() => aplicar('melhor', melhor)} title={`R$ ${Math.round(r100(melhor) * 100)} de cada 100`}>Melhor: {cap(melhor.rotulo)}</button>}
+          {pior && <button type="button" className={cen === 'pior' ? 'on' : ''} onClick={() => aplicar('pior', pior)} title={`R$ ${Math.round(r100(pior) * 100)} de cada 100`}>Pior: {cap(pior.rotulo)}</button>}
+          {media && <button type="button" className={cen === 'media' ? 'on' : ''} onClick={() => aplicar('media', media)}>Média dos últimos {hist.length}</button>}
+          <button type="button" data-dica="Simula cobrar 20% mais horas, no mesmo valor de hora." className={cen === 'mais20' ? 'on' : ''} onClick={() => { aplicar('mais20', null); setM({ horas: 20 }); setCen('mais20') }}>+20% de horas</button>
+          {c.desc.total > 0.5 && <button type="button" className={cen === 'semdesc' ? 'on' : ''} onClick={() => { aplicar('semdesc', null); setM({ d_hora: -100, d_km: -100, d_geral: -100, d_pecas: -100 }); setCen('semdesc') }}>Sem nenhum desconto (+{brl(c.desc.total)})</button>}
+          <button type="button" className={cen === 'corta' ? 'on' : ''} onClick={() => { const g: Sim = {}; c.gDet.forEach(([, v], i) => { if (v > 0) g[`g${i}`] = -20 }); setTec(0); setPrev(true); setM(g); setCen('corta') }}>Cortar 20% dos gastos</button>
+        </>
+        // José, 21/10/2026: "deixa guardado essas infos" — no modo claro os atalhos ficam recolhidos
+        if (claro) return (
+          <details className="dx-atalhos-d">
+            <summary><i className="fas fa-wand-magic-sparkles" /> Atalhos: cenários prontos <small>melhor e pior mês, média, mais horas, sem desconto, cortar gastos</small><i className="fas fa-chevron-down" /></summary>
+            <div className="dx-sim-cen">{botoes}</div>
+          </details>
+        )
+        return <div className="dx-sim-cen"><small><i className="fas fa-wand-magic-sparkles" /> Cenários prontos:</small>{botoes}</div>
+      })()}
       <div className="dx-sim">
         <div className="dx-sim-ctrl">
+          {claro && <small className="dx-sim-conta-t">A conta do mês. Clique numa parte para mexer nela:</small>}
+          {claro ? (
+            <div className="dx-sim-conta">
+              {([['ent', 'Entrou', '#0369a1', bruto, ''], ['gas', 'Gastos', CS.gastos, gastos, '−'], ['pes', 'Pessoal', CS.pessoal, pessoal, '−']] as const).map(([k, r, cor, v, op]) => (
+                <span key={k} className="dx-sim-conta-i">
+                  {op && <em>{op}</em>}
+                  <button type="button" className={aba === k ? 'on' : ''} style={{ '--c': cor } as React.CSSProperties} onClick={() => setAba(k)} data-c={k} data-dica={({ ent: `ENTROU — tudo o que entrou no mês nas OS faturadas: mão de obra (horas × valor da hora), deslocamento (km), peças vendidas junto com a OS e outros. Já é DEPOIS dos descontos (${brl(descS)}). Clique para simular esses valores.`, gas: `GASTOS — o que o pós-vendas gastou no mês: combustível, manutenção do carro, almoço e materiais da oficina, mais requisições de terceiros que não foram cobradas do cliente. Só entra o que chegou ao financeiro. Clique para simular.`, pes: `PESSOAL — salários e encargos (conta fixa do mês inteiro, com ou sem serviço) e as comissões dos técnicos (a lançada no RH ou, sem ela, a prevista pela regra da ficha). Clique para ver quem está na conta e simular.` } as Record<string, string>)[k]}><span className="dx-cn"><i className={`fas ${({ ent: 'fa-sack-dollar', gas: 'fa-receipt', pes: 'fa-users' } as Record<string, string>)[k]} dx-ic`} aria-hidden />{r}</span><b>{brl(v)}</b></button>
+                </span>
+              ))}
+              <span className="dx-sim-conta-i"><em>=</em><span className="dx-sim-conta-r" style={{ '--c': ficou >= 0 ? CS.ficou : CS.faltou } as React.CSSProperties} data-dica={`${ficou >= 0 ? 'SOBROU' : 'FALTOU'} — o que fica para a empresa: Entrou (${brl(bruto)}) − Gastos (${brl(gastos)}) − Pessoal (${brl(pessoal)}) = ${brl(ficou)}. É R$ ${Math.round(p100)} de cada R$ 100 que entraram.`}><span className="dx-cn"><i className="fas fa-piggy-bank dx-ic" aria-hidden />{ficou >= 0 ? 'Sobrou' : 'Faltou'}</span><b>{brl(ficou)}</b></span></span>
+              <button type="button" className={`dx-sim-conta-desc ${aba === 'des' ? 'on' : ''}`} onClick={() => setAba('des')} data-dica={`DESCONTOS — o que foi dado de desconto nas OS e nos pedidos de peças do mês (${brl(descS)}). O "Entrou" já está depois deles. Clique para ver os maiores descontos e simular dar menos (aumenta o que entra) ou mais (diminui).`}><i className="fas fa-tags" /> Descontos dados: <b>{brl(descS)}</b> <small>(já tirados do que entrou)</small></button>
+            </div>
+          ) : (
           <div className="dx-sim-abas">
             {([['ent', 'Entradas', 'fa-arrow-down', '#0369a1', bruto], ['des', 'Descontos', 'fa-tags', '#d97706', descS], ['gas', 'Gastos', 'fa-receipt', CS.gastos, gastos], ['pes', 'Pessoal', 'fa-users', CS.pessoal, pessoal]] as const).map(([k, r, ic, cor, v]) => (
               <button key={k} type="button" className={aba === k ? 'on' : ''} style={{ '--c': cor } as React.CSSProperties} onClick={() => setAba(k)} data-dica={{ ent: 'Tudo o que entrou no período: mão de obra, deslocamento, peças e outros das OS faturadas.', des: 'Descontos dados nas OS e nos pedidos de peças — no portal e no Omie. O que entrou já está DEPOIS do desconto.', gas: 'Gastos do pós-vendas no período: combustível, manutenção dos carros, alimentação e materiais.', pes: 'Salários + encargos e comissões de quem trabalha no pós-vendas.' }[k]}><i className={`fas ${ic}`} /> {r}<b>{brl(v)}</b></button>
             ))}
           </div>
+          )}
+          {claro && <small className="dx-sim-sub">{({ ent: 'O que entrou nas OS faturadas do mês. Arraste para simular mais horas, hora mais cara, mais km ou mais peças.', des: 'Descontos dados nas OS e nos pedidos. O que entrou já é depois deles: dar menos desconto aumenta o que entra.', gas: 'Combustível, carro, almoço e materiais do pós-vendas. Arraste para simular cortar ou gastar mais.', pes: 'Salários, encargos e comissões de quem é do pós-vendas. Desmarque alguém, dê reajuste ou contrate técnicos.' } as Record<string, string>)[aba]}</small>}
           <div className="dx-sim-grupo" key={aba}>
             {aba === 'ent' && <>
-              <RegSim v={val('horas')} onSet={set('horas')} rot="Horas cobradas" ic="fa-clock" cor={CE.mo} min={-60} max={150} antes={horas(c.horas)} depois={horas(horasS)} extra={`${brl(ent.mo)} de mão de obra`} dica="Horas de mão de obra que foram cobradas nas OS faturadas no período. Arraste para simular mais (ou menos) horas cobradas — a mão de obra muda junto, no valor médio da hora." />
-              <RegSim v={val('vh')} onSet={set('vh')} rot="Valor da hora" ic="fa-tag" cor={CE.mo} min={-30} max={60} antes={`${brl(vh)}/h`} depois={`${brl(vhS)}/h`} extra={`média cobrada · tabela ${brl(vhTabS)}/h`} dica={`A hora de tabela é ${brl(vhTab)}. A média que realmente entrou foi ${brl(vh)}/h: mão de obra ÷ horas cobradas. Fica abaixo da tabela por causa dos descontos e da garantia (a montadora paga R$ 100/h). Arraste para simular cobrar mais ou menos por hora.`} />
-              <RegSim dica="Quilômetros de deslocamento cobrados nas OS do período, ao valor do km. Arraste para simular mais ou menos km cobrado." v={val('km')} onSet={set('km')} rot="Km rodados" ic="fa-road" cor={CE.km} min={-60} max={150} antes={kmFmt(c.kmRod)} depois={kmFmt(c.kmRod * (1 + val('km') / 100))} extra={`${brl(vkm)}/km · ${brl(ent.km)}`} />
-              <RegSim dica="Peças vendidas junto com as OS (pedido de peças faturado). Arraste para simular vender mais ou menos peças." v={val('pecas')} onSet={set('pecas')} rot="Peças" ic="fa-gears" cor={CE.pecas} min={-60} max={150} antes={brl(c.pecas)} depois={brl(ent.pecas)} />
-              <RegSim v={val('outros')} onSet={set('outros')} rot="Outros (requisições, extras)" ic="fa-receipt" cor={CE.outros} min={-100} max={150} antes={brl(c.outros)} depois={brl(ent.outros)} />
+              <RegSim claro={claro} v={val('horas')} onSet={set('horas')} rot="Horas cobradas" ic="fa-clock" cor={CE.mo} min={-60} max={150} antes={horas(c.horas)} depois={horas(horasS)} extra={`${brl(ent.mo)} de mão de obra`} dica="Horas de mão de obra que foram cobradas nas OS faturadas no período. Arraste para simular mais (ou menos) horas cobradas — a mão de obra muda junto, no valor médio da hora." />
+              <RegSim claro={claro} v={val('vh')} onSet={set('vh')} rot="Valor da hora" ic="fa-tag" cor={CE.mo} min={-30} max={60} antes={`${brl(vh)}/h`} depois={`${brl(vhS)}/h`} extra={`média cobrada · tabela ${brl(vhTabS)}/h`} dica={`A hora de tabela é ${brl(vhTab)}. A média que realmente entrou foi ${brl(vh)}/h: mão de obra ÷ horas cobradas. Fica abaixo da tabela por causa dos descontos e da garantia (a montadora paga R$ 100/h). Arraste para simular cobrar mais ou menos por hora.`} />
+              <RegSim claro={claro} dica="Quilômetros de deslocamento cobrados nas OS do período, ao valor do km. Arraste para simular mais ou menos km cobrado." v={val('km')} onSet={set('km')} rot="Km rodados" ic="fa-road" cor={CE.km} min={-60} max={150} antes={kmFmt(c.kmRod)} depois={kmFmt(c.kmRod * (1 + val('km') / 100))} extra={`${brl(vkm)}/km · ${brl(ent.km)}`} />
+              <RegSim claro={claro} dica="Peças vendidas junto com as OS (pedido de peças faturado). Arraste para simular vender mais ou menos peças." v={val('pecas')} onSet={set('pecas')} rot="Peças" ic="fa-gears" cor={CE.pecas} min={-60} max={150} antes={brl(c.pecas)} depois={brl(ent.pecas)} />
+              <RegSim claro={claro} v={val('outros')} onSet={set('outros')} rot="Outros (requisições, extras)" ic="fa-receipt" cor={CE.outros} min={-100} max={150} antes={brl(c.outros)} depois={brl(ent.outros)} />
             </>}
             {aba === 'des' && <>
               <div className="dx-sim-desc">
@@ -405,7 +516,7 @@ export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolea
               {c.desc.total <= 0.5
                 ? <small className="dx-sim-nota">Nenhum desconto dado nas OS deste período.</small>
                 : DESC.filter(([k]) => c.desc[k] > 0.5).map(([k, r, ic]) => (
-                  <RegSim key={k} v={val(`d_${k}`)} onSet={set(`d_${k}`)} rot={r} ic={ic} cor="#d97706" min={-100} max={100} antes={brl(c.desc[k])} depois={brl(c.desc[k] * (1 + val(`d_${k}`) / 100))} extra={val(`d_${k}`) !== 0 ? `${val(`d_${k}`) < 0 ? '+' : '−'}${brl(Math.abs(c.desc[k] * val(`d_${k}`) / 100))} no faturamento` : undefined} />
+                  <RegSim claro={claro} key={k} v={val(`d_${k}`)} onSet={set(`d_${k}`)} rot={r} ic={ic} cor="#d97706" min={-100} max={100} antes={brl(c.desc[k])} depois={brl(c.desc[k] * (1 + val(`d_${k}`) / 100))} extra={val(`d_${k}`) !== 0 ? `${val(`d_${k}`) < 0 ? '+' : '−'}${brl(Math.abs(c.desc[k] * val(`d_${k}`) / 100))} no faturamento` : undefined} />
                 ))}
               {c.desc.maiores.length > 0 && (
                 <div className="dx-sim-eq">
@@ -417,7 +528,7 @@ export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolea
               )}
             </>}
             {aba === 'gas' && <>
-              {somaG.map((x) => <RegSim key={x.k} v={val(x.k)} onSet={set(x.k)} rot={x.r} ic="fa-minus" cor={CS.gastos} min={-100} max={100} antes={brl(x.v)} depois={brl(x.s)} />)}
+              {somaG.map((x) => <RegSim claro={claro} key={x.k} v={val(x.k)} onSet={set(x.k)} rot={x.r} ic="fa-minus" cor={CS.gastos} min={-100} max={100} antes={brl(x.v)} depois={brl(x.s)} />)}
               {gItens.filter((x) => x.v < 0).map((x) => <small key={x.k} className="dx-sim-nota">{x.r}: {brl(x.v)} (fixo)</small>)}
             </>}
             {aba === 'pes' && <>
@@ -425,47 +536,100 @@ export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolea
                 <div className="dx-sim-eq">
                   <div className="dx-sim-eq-cab">
                     <b><i className="fas fa-users" /> Quem está sendo contado</b>
-                    <small>Vem do RH: salário + encargos do mês inteiro (não divide pelos dias), comissão lançada no RH e, sem ela, a prevista. Desmarque para simular sem a pessoa.</small>
+                    <small>Vem do RH. Salário + encargos é conta fixa: entra o mês inteiro, mesmo vendo só uma semana ou um dia. Comissão (sem encargos): a lançada no RH e, sem ela, a prevista pela mesma regra da ficha do técnico. Os encargos da comissão ficam na coluna Encargos. Desmarque para simular sem a pessoa.</small>
                   </div>
-                  <div className="dx-sim-eq-l tit"><span /><span>Pessoa</span><span>Salário + enc.</span><span>Comissão</span><span>Total</span></div>
+                  <div className="dx-sim-eq-l tit"><span /><span>Pessoa</span><span>Salário</span><span>Encargos</span><span>Comissão</span><span>Total</span></div>
                   {c.equipe.map((p) => {
                     const on = !fora.includes(p.nome)
                     const com = p.comissao + (prev ? p.prevista : 0)
+                    const comSemEnc = p.comissao - p.encComissao + (prev ? p.prevista - p.encPrevista : 0)
+                    const encTot = p.encargos + p.encComissao + (prev ? p.encPrevista : 0)
                     return (
                       <label key={p.nome} className={`dx-sim-eq-l ${on ? '' : 'off'}`}>
                         <input type="checkbox" checked={on} onChange={() => { setFora((f) => (on ? [...f, p.nome] : f.filter((x) => x !== p.nome))); setCen('') }} />
                         <span><b>{p.nome}</b><em className={p.campo ? 'campo' : 'apoio'}>{p.campo ? 'técnico de campo' : rotuloApoio(p.nome)}</em></span>
-                        <span>{brl(p.salario)}</span>
-                        <span title={p.comissao > 0 ? 'lançada no RH' : p.prevista > 0 ? 'prevista (ainda não no RH)' : ''}>{brl(com)}{p.comissao <= 0 && p.prevista > 0 && prev && <small> prev.</small>}{p.rescisao > 0.5 && <small> + resc. {brl(p.rescisao)}</small>}</span>
+                        <span>{brl(p.salario - p.encargos)}</span>
+                        <span title="encargos do salário + da comissão">{brl(encTot)}</span>
+                        <span title={p.comissao > 0 ? 'lançada no RH (sem encargos)' : p.prevista > 0 ? 'prevista pela regra da ficha do técnico (ainda não no RH, sem encargos)' : ''}>{brl(comSemEnc)}{p.comissao <= 0 && p.prevista > 0 && prev && <small> prev.</small>}{p.rescisao > 0.5 && <small> + resc. {brl(p.rescisao)}</small>}</span>
                         <strong>{brl(p.salario + com + p.rescisao)}</strong>
                       </label>
                     )
                   })}
-                  <div className="dx-sim-eq-l tot"><span /><span>{dentro.length} de {c.equipe.length} pessoas · {campo.length} técnicos de campo</span><span>{brl(salBase)}</span><span>{brl(comBase + (prev ? prevBase : 0))}</span><strong>{brl(salBase + comBase + (prev ? prevBase : 0) + rescBase)}</strong></div>
+                  <div className="dx-sim-eq-l tot"><span /><span>{dentro.length} de {c.equipe.length} pessoas · {campo.length} técnicos de campo</span><span>{brl(dentro.reduce((s, p) => s + p.salario - p.encargos, 0))}</span><span>{brl(dentro.reduce((s, p) => s + p.encargos + p.encComissao + (prev ? p.encPrevista : 0), 0))}</span><span>{brl(dentro.reduce((s, p) => s + p.comissao - p.encComissao + (prev ? p.prevista - p.encPrevista : 0), 0))}</span><strong>{brl(salBase + comBase + (prev ? prevBase : 0) + rescBase)}</strong></div>
                 </div>
               )}
-              <RegSim dica="Salário + encargos de quem está marcado na lista acima, no mês inteiro. Arraste para simular um reajuste (ou corte)." v={val('sal')} onSet={set('sal')} rot="Salários + encargos (reajuste)" ic="fa-money-check-dollar" cor={CS.pessoal} min={-30} max={50} antes={brl(salBase)} depois={brl(salBase * (1 + val('sal') / 100))} />
+              <RegSim claro={claro} dica="Salário + encargos de quem está marcado na lista acima, no mês inteiro. Arraste para simular um reajuste (ou corte)." v={val('sal')} onSet={set('sal')} rot="Salários + encargos (reajuste)" ic="fa-money-check-dollar" cor={CS.pessoal} min={-30} max={50} antes={brl(salBase)} depois={brl(salBase * (1 + val('sal') / 100))} />
               <div className="dx-sim-tec" style={{ '--c': CS.pessoal } as React.CSSProperties}>
                 <span><i className="fas fa-user-plus" /> Contratar técnicos</span>
                 <div><button type="button" onClick={() => { setTec((t) => Math.max(0, t - 1)); setCen('') }}>−</button><b>+{tec}</b><button type="button" onClick={() => { setTec((t) => Math.min(10, t + 1)); setCen('') }}>+</button></div>
                 <small>cada novo custa {brl(custoTec)} no período (média do salário + encargos dos técnicos de campo){tec > 0 && <> · +{brl(tec * custoTec)}</>}</small>
               </div>
-              <RegSim dica="Comissão dos técnicos no período: a lançada no RH e, sem ela, a prevista pela regra. Arraste para simular pagar mais ou menos comissão." v={val('com')} onSet={set('com')} rot="Comissão" ic="fa-percent" cor={CS.pessoal} min={-100} max={100} antes={brl(comBase + (prev ? prevBase : 0))} depois={brl(pItens.comissao)} />
+              <RegSim claro={claro} dica="Comissão dos técnicos no período: a lançada no RH e, sem ela, a prevista pela regra. Arraste para simular pagar mais ou menos comissão." v={val('com')} onSet={set('com')} rot="Comissão" ic="fa-percent" cor={CS.pessoal} min={-100} max={100} antes={brl(comBase + (prev ? prevBase : 0))} depois={brl(pItens.comissao)} />
               <label className="dx-sim-chk"><input type="checkbox" checked={prev} onChange={(e) => { setPrev(e.target.checked); setCen('') }} /> contar a comissão prevista ({brl(prevBase)})</label>
               {rescBase > 0.5 && <small className="dx-sim-nota">Rescisões e acertos: {brl(rescBase)} (fixo)</small>}
             </>}
           </div>
           {mudou && <button type="button" className="dx-sim-zera" onClick={() => aplicar('real', null)}><i className="fas fa-rotate-left" /> voltar tudo ao real</button>}
+          {claro && <div className="dx-esq-blocos">{indicadoresEl}</div>}
         </div>
 
-        <div className="dx-sim-res">
-          <small>{mudou ? 'Nesse cenário ficaria' : 'Ficou de verdade'}</small>
+        <div className={`dx-sim-res ${claro ? 'claro' : ''}`}>
+          {claro && forma ? <LadoDireito forma={forma} d={{ rotulo: c.rotulo, real: { entrou: c.bruto, gastos: c.gastos, pessoal: c.pessoal, sobrou: c.resultado }, sim: { entrou: bruto, gastos, pessoal, sobrou: ficou }, mudou, empate, alvo, meta, setMeta, taxaG, horasPara, valorHora: vhS, aplicarMeta }} /> : claro ? (() => {
+            // José, 21/10/2026: "melhora essa tela aqui" — blocos 1 a 3 em cartões, com a composição do que entrou
+            const partes = (e: number, g: number, p: number) => [
+              { k: 'Gastos', v: Math.max(0, g), cor: CS.gastos },
+              { k: 'Pessoal', v: Math.max(0, p), cor: CS.pessoal },
+              { k: e - g - p >= 0 ? 'Sobrou' : 'Faltou', v: Math.abs(e - g - p), cor: e - g - p >= 0 ? CS.ficou : CS.faltou },
+            ]
+            const Pilha = ({ rot, e, g, p }: { rot: string; e: number; g: number; p: number }) => (
+              <div className="dx-pilha-l"><small>{rot}</small><div className="dx-pilha">{partes(e, g, p).map((x) => <i key={x.k} style={{ flexGrow: Math.max(x.v, 0.0001), background: x.cor }} title={`${x.k}: ${brl(x.v)} (${e ? Math.round((x.v / e) * 100) : 0}%)`}>{e && x.v / e >= 0.1 ? `${Math.round((x.v / e) * 100)}%` : ''}</i>)}</div></div>
+            )
+            const linhas: [string, string, number, number, string, boolean][] = [
+              ['Entrou', '', c.bruto, bruto, '#0369a1', false],
+              ['Gastos', '−', c.gastos, gastos, CS.gastos, true],
+              ['Pessoal', '−', c.pessoal, pessoal, CS.pessoal, true],
+              [ficou >= 0 ? 'Sobrou' : 'Faltou', '=', c.resultado, ficou, ficou >= 0 ? CS.ficou : CS.faltou, false],
+            ]
+            return <>
+              <section className="dx-card">
+                <div className="dx-res-t"><b>1</b> Quanto sobrou para a empresa</div>
+                <div className="dx-card-topo">
+                  <div><small>{mudou ? 'No mês simulado sobraria' : `Em ${c.rotulo} sobrou`}</small><strong style={{ color: ficou >= 0 ? CS.ficou : CS.faltou }}><Numero valor={ficou} formato={brl} /></strong></div>
+                  <p>{bruto > 0.5 ? <>De cada <b>R$ 100</b> que entraram, {ficou >= 0 ? <>sobraram <b style={{ color: CS.ficou }}>R$ {Math.round(p100)}</b> para a empresa.</> : <>faltaram <b style={{ color: CS.faltou }}>R$ {Math.abs(Math.round(p100))}</b>.</>}</> : 'Ainda não entrou nada no mês.'}
+                    {mudou && <span className={`dx-card-dif ${dif >= 0 ? 'bom' : 'ruim'}`}>{dif >= 0 ? '+' : '−'}{brl(Math.abs(dif))} em relação ao que foi</span>}</p>
+                </div>
+                <Pilha rot={mudou ? 'Como foi' : 'Para onde foi cada R$ 100'} e={c.bruto} g={c.gastos} p={c.pessoal} />
+                {mudou && <Pilha rot="Simulado" e={bruto} g={gastos} p={pessoal} />}
+                <div className="dx-pilha-leg">{partes(bruto, gastos, pessoal).map((x) => <span key={x.k}><i style={{ background: x.cor }} />{x.k}</span>)}</div>
+              </section>
+
+              <section className="dx-card">
+                <div className="dx-res-t"><b>2</b> A conta, linha a linha</div>
+                <div className="dx-tab">
+                  <div className="dx-tab-l cab"><span /><span>Como foi</span><span>Simulado</span><span>Diferença</span></div>
+                  {linhas.map(([r, op, a, b, cor, custo]) => {
+                    const d = b - a, bom = custo ? d < 0 : d > 0, igual = Math.abs(d) < 1
+                    return (
+                      <div key={r} className={`dx-tab-l ${op === '=' ? 'tot' : ''}`}>
+                        <span><em>{op}</em><i style={{ background: cor }} />{r}</span>
+                        <span>{brl(a)}</span>
+                        <span>{igual ? <small>igual</small> : brl(b)}</span>
+                        <span className={igual ? '' : bom ? 'bom' : 'ruim'}>{igual ? '—' : `${d > 0 ? '+' : '−'}${brl(Math.abs(d))}`}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+
+            </>
+          })() : <>
+          <small>{claro ? (mudou ? 'No mês simulado sobraria' : `Em ${c.rotulo} sobrou`) : mudou ? 'Nesse cenário ficaria' : 'Ficou de verdade'}</small>
           <b style={{ color: ficou >= 0 ? CS.ficou : CS.faltou }}><Numero valor={ficou} formato={brl} /></b>
           <div className={`dx-sim-medidor ${p100 >= 35 ? 'dentro' : ''}`} data-dica="De cada R$ 100 que entraram, quanto sobrou para a empresa depois de pagar gastos e pessoal."><i style={{ width: `${Math.max(0, Math.min(100, p100))}%`, background: ficou >= 0 ? CS.ficou : CS.faltou }} /><span>{bruto > 0.5 ? `R$ ${Math.round(p100)} de cada R$ 100 (${Math.round(p100)}%)` : 'nada entrou ainda'}</span></div>
           {mudou && <span className={`dx-dif ${dif >= 0 ? 'bom' : 'ruim'}`}>{dif >= 0 ? '▲ +' : '▼ −'}{brl(Math.abs(dif))} contra o real</span>}
 
           <div className="dx-sim-cmp">
-            <div className="dx-sim-cmp-cab"><span /><span>real</span><span>cenário</span></div>
+            <div className="dx-sim-cmp-cab"><span /><span>{claro ? 'como foi' : 'real'}</span><span>{claro ? 'simulado' : 'cenário'}</span></div>
             {comparar.map(([r, a, b, cor, custo]) => {
               const d = b - a, bom = custo ? d < 0 : d > 0
               return (
@@ -486,45 +650,8 @@ export function DinheiroSimulador({ c, semFrase }: { c: Conta; semFrase?: boolea
             <div data-dica="De cada R$ 100 que entraram, quanto foi para gastos (combustível, carro, alimentação, materiais) e quanto para pessoal (salários + comissões)."><small>Gastos por R$ 100</small><b>R$ {Math.round(taxaG * 100)}</b><span>pessoal: R$ {bruto ? Math.round((pessoal / bruto) * 100) : 0}</span></div>
           </div>
 
-          {/* empate e meta, escritos por extenso (José 19/10: "difícil de compreender, aumenta a fonte e diz o que significa em % e dados") */}
-          {(() => {
-            const pctTxt = (v: number) => `${Math.round(v)}%`
-            const sobeTxt = (alvoV: number) => (bruto > 0.5 ? ` (+${pctTxt(((alvoV - bruto) / bruto) * 100)} sobre o que entrou)` : '')
-            const hTxt = (alvoV: number) => (vhS > 0 && alvoV > bruto ? <> ≈ <b>{horas(horasPara(alvoV))}</b> a mais de horas cobradas, a {brl(vhS)}/h</> : null)
-            const gA = Number.isFinite(alvo) ? taxaG * alvo : 0
-            return (
-              <div className="dx-alvos" id="sim-alvos">
-                <div className="dx-alvo">
-                  <small><i className="fas fa-scale-balanced" /> Ponto de empate: sobra R$ 0</small>
-                  <b className="dx-alvo-v">{Number.isFinite(empate) ? <Numero valor={empate} formato={brl} /> : '—'}</b>
-                  <p>É quanto precisa <b>faturar só para pagar os custos</b>: os gastos (hoje <b>{pctTxt(taxaG * 100)}</b> de tudo que entra) e o pessoal fixo de <b>{brl(pessoal)}</b>.</p>
-                  {Number.isFinite(empate) && (bruto >= empate
-                    ? <span className="dx-alvo-st bom"><i className="fas fa-circle-check" /> passou do empate em <b>{brl(bruto - empate)}</b></span>
-                    : <span className="dx-alvo-st ruim"><i className="fas fa-circle-exclamation" /> faltam <b>{brl(empate - bruto)}</b>{sobeTxt(empate)}{hTxt(empate)}</span>)}
-                  {!Number.isFinite(empate) && <span className="dx-alvo-st ruim">os gastos já comem tudo que entra</span>}
-                  {Number.isFinite(empate) && <div className="dx-sim-trilho"><i style={{ width: `${Math.min(100, (bruto / Math.max(empate * 1.5, bruto, 1)) * 100)}%` }} /><em style={{ left: `${(empate / Math.max(empate * 1.5, bruto, 1)) * 100}%` }} /></div>}
-                </div>
-                <div className="dx-alvo meta">
-                  <small><i className="fas fa-bullseye" /> Meta</small>
-                  <span className="dx-alvo-q">Quero ficar com <span>R$ <input type="number" min={0} max={80} value={meta} onChange={(e) => setMeta(Math.max(0, Math.min(80, Number(e.target.value) || 0)))} /></span> de cada R$ 100 <em>= {meta}% do que entra sobra para a empresa</em></span>
-                  {!Number.isFinite(alvo)
-                    ? <span className="dx-alvo-st ruim">com esses gastos não dá para chegar nessa meta: diminua a meta ou os gastos</span>
-                    : <>
-                      <b className="dx-alvo-v">{alvo <= bruto ? <>já está batendo</> : <>precisa faturar <Numero valor={alvo} formato={brl} /></>}</b>
-                      <div className="dx-alvo-conta">
-                        <span><small>Faturar</small><b>{brl(alvo)}</b></span><em>−</em>
-                        <span><small>Gastos ({pctTxt(taxaG * 100)})</small><b>{brl(gA)}</b></span><em>−</em>
-                        <span><small>Pessoal</small><b>{brl(pessoal)}</b></span><em>=</em>
-                        <span className="sobra"><small>Sobra ({meta}%)</small><b>{brl(alvo - gA - pessoal)}</b></span>
-                      </div>
-                      <p>Hoje {bruto > 0.5 ? <>ficam <b>R$ {Math.round(p100)}</b> de cada R$ 100 (<b>{pctTxt(p100)}</b>)</> : <>ainda não entrou nada</>}.{' '}
-                        {alvo > bruto ? <>Para a meta faltam <b>{brl(alvo - bruto)}</b>{sobeTxt(alvo)}{hTxt(alvo)}.</> : <>Sobram <b>{brl(bruto - alvo)}</b> acima do que a meta pede.</>}</p>
-                      {alvo > bruto && vh > 0 && <button type="button" onClick={aplicarMeta}><i className="fas fa-wand-magic-sparkles" /> aplicar nas horas cobradas</button>}
-                    </>}
-                </div>
-              </div>
-            )
-          })()}
+          </>}
+          {!(claro && forma) && alvosEl}
         </div>
       </div>
     </div>
@@ -753,7 +880,7 @@ export const ESTILO_DX = `
 .dx-sim-cen button { border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 5px 12px; font-family: inherit; font-size: 12.5px; font-weight: 800; color: var(--portal-text, #334155); cursor: pointer; transition: all .2s }
 .dx-sim-eq { display: grid; gap: 3px; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 14px; padding: 10px 12px; background: var(--portal-bg-card, #fefefe) }
 .dx-sim-eq-cab { display: grid; gap: 2px; margin-bottom: 6px } .dx-sim-eq-cab b { font-size: 14px } .dx-sim-eq-cab b i { color: ${CS.pessoal} } .dx-sim-eq-cab small { font-size: 12px; color: ${MUDO} }
-.dx-sim-eq-l { display: grid; grid-template-columns: 22px minmax(0, 1.6fr) 1fr 1fr 1fr; gap: 8px; align-items: center; font-size: 13px; font-variant-numeric: tabular-nums; padding: 4px 2px; border-radius: 8px; cursor: pointer; transition: opacity .2s, background .2s } .dx-sim-eq-l:hover:not(.tit):not(.tot) { background: var(--portal-bg-secondary, #f8fafc) }
+.dx-sim-eq-l { display: grid; grid-template-columns: 22px minmax(0, 1.6fr) 1fr 1fr 1fr 1fr; gap: 8px; align-items: center; font-size: 13px; font-variant-numeric: tabular-nums; padding: 4px 2px; border-radius: 8px; cursor: pointer; transition: opacity .2s, background .2s } .dx-sim-eq-l:hover:not(.tit):not(.tot) { background: var(--portal-bg-secondary, #f8fafc) }
 .dx-sim-eq-l > span:not(:nth-child(2)), .dx-sim-eq-l > strong { text-align: right } .dx-sim-eq-l.off { opacity: .4 } .dx-sim-eq-l.off b { text-decoration: line-through }
 .dx-sim-eq-l b { display: block; font-size: 13px } .dx-sim-eq-l em { font-style: normal; font-size: 10.5px; font-weight: 800; border-radius: 99px; padding: 0 6px } .dx-sim-eq-l em.campo { color: #6d28d9; background: #f5f3ff } .dx-sim-eq-l em.apoio { color: ${MUDO}; background: var(--portal-bg-secondary, #f1f5f9) }
 .dx-sim-eq-l small { font-size: 10.5px; color: ${MUDO} }
@@ -764,6 +891,25 @@ export const ESTILO_DX = `
 .dx-sim-abas button { display: grid; gap: 1px; justify-items: center; border: none; background: transparent; border-radius: 11px; padding: 7px 4px; font-family: inherit; font-size: 13px; font-weight: 800; color: ${MUDO}; cursor: pointer; transition: all .2s } .dx-sim-abas button i { color: var(--c) } .dx-sim-abas button b { font-size: 12px; color: var(--portal-text, #334155); font-variant-numeric: tabular-nums }
 .dx-sim-abas button.on { background: var(--portal-bg-card, #fefefe); color: var(--c); box-shadow: 0 1px 2px rgba(15,23,42,.08), 0 4px 12px rgba(15,23,42,.08) }
 .dx-sim-grupo { display: grid; gap: 14px; animation: dxEntra .3s both }
+.dx-guia { list-style: none; margin: 0 0 4px; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px }
+.dx-guia li { display: flex; gap: 10px; align-items: flex-start; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 12px; padding: 10px 12px; font-size: 13px; line-height: 1.4; color: var(--portal-text, #0f172a) }
+.dx-guia li > b { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #0f172a; color: #fefefe; font-size: 12px }
+.dx-guia strong { font-weight: 700 }
+.dx-sim-conta-t { font-size: 12.5px; color: ${MUDO} }
+.dx-sim-conta { display: flex; flex-wrap: wrap; align-items: stretch; gap: 6px; background: var(--portal-bg-secondary, #f1f5f9); border-radius: 14px; padding: 6px }
+.dx-sim-conta-i { display: flex; align-items: center; gap: 6px; flex: 1 1 0; min-width: 0 }
+.dx-sim-conta-i > em { font-style: normal; font-size: 18px; color: ${MUDO}; flex: none }
+.dx-sim-conta-i > button, .dx-sim-conta-r { flex: 1; display: grid; gap: 1px; justify-items: center; border: 1px solid transparent; background: transparent; border-radius: 11px; padding: 7px 6px; font-family: inherit; cursor: pointer; color: var(--portal-text, #0f172a); transition: background .2s, box-shadow .2s, border-color .2s }
+.dx-sim-conta-i > button small, .dx-sim-conta-r small { font-size: 12px; color: var(--c) } .dx-sim-conta-i > button b, .dx-sim-conta-r b { font-size: 14px; font-variant-numeric: tabular-nums }
+.dx-sim-conta-i > button:hover { background: var(--portal-bg-card, #fefefe) }
+.dx-sim-conta-i > button.on { background: var(--portal-bg-card, #fefefe); border-color: var(--c); box-shadow: 0 4px 12px rgba(15,23,42,.08) }
+.dx-sim-conta-r { cursor: default; background: var(--portal-bg-card, #fefefe) } .dx-sim-conta-r b { color: var(--c) }
+.dx-sim-conta-desc { flex-basis: 100%; border: 0; background: transparent; font-family: inherit; font-size: 12.5px; color: var(--portal-text, #0f172a); cursor: pointer; text-align: left; padding: 2px 8px; border-radius: 8px } .dx-sim-conta-desc i { color: #d97706 } .dx-sim-conta-desc small { color: ${MUDO} } .dx-sim-conta-desc.on { background: #fffbeb }
+.dx-sim-sub { font-size: 12.5px; color: ${MUDO}; line-height: 1.45 }
+.dx-sim-pill { font-size: 11.5px; font-weight: 600; border-radius: 99px; padding: 1px 8px; background: var(--portal-bg-secondary, #f1f5f9); color: ${MUDO} } .dx-sim-r.mexeu .dx-sim-pill { background: var(--c); color: #fefefe }
+.dx-sim-cf { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: ${MUDO} } .dx-sim-cf b { color: var(--portal-text, #0f172a); font-weight: 600 } .dx-sim-cf em { font-style: normal }
+.dx-res-t { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px; font-weight: 700; color: var(--portal-text, #0f172a); margin-top: 6px } .dx-res-t > b { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #0f172a; color: #fefefe; font-size: 11.5px } .dx-res-t small { font-weight: 400; font-size: 12px; color: ${MUDO} }
+@media (max-width: 800px) { .dx-guia { grid-template-columns: 1fr } }
 .dx-sim-r.mexeu > span { color: var(--c) } .dx-sim-x { border: none; background: var(--portal-bg-secondary, #f1f5f9); color: ${MUDO}; width: 20px; height: 20px; border-radius: 50%; cursor: pointer; font-size: 10px; margin-left: 4px }
 .dx-sim-r small b { color: var(--portal-text, #0f172a) }
 .dx-sim-nota { font-size: 12px; color: ${MUDO} }
@@ -775,6 +921,118 @@ export const ESTILO_DX = `
 .dx-sim-cmp-l > b { font-size: 13.5px; text-align: right; font-variant-numeric: tabular-nums } .dx-sim-cmp-l > em { font-style: normal; font-size: 12px; font-weight: 900; text-align: right; color: ${MUDO}; font-variant-numeric: tabular-nums } .dx-sim-cmp-l > em.bom { color: #047857 } .dx-sim-cmp-l > em.ruim { color: #b91c1c }
 .dx-sim-kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px } .dx-sim-kpis > div { background: var(--portal-bg-card, #fefefe); border-radius: 12px; padding: 8px 10px; display: grid } .dx-sim-kpis small { font-size: 11px; font-weight: 900; text-transform: uppercase; color: ${MUDO} } .dx-sim-kpis b { font-size: 17px; font-variant-numeric: tabular-nums } .dx-sim-kpis span { font-size: 11.5px; color: ${MUDO} }
 .dx-alvos { display: grid; gap: 0 }
+/* José, 21/10/2026: "melhora a fonte e remove os ícones" — só no modo claro */
+.dx-caixa.claro i.fas:not(.fa-chevron-down):not(.fa-xmark):not(.dx-ic) { display: none }
+.dx-resumo { display: flex; gap: 8px 18px; align-items: center; flex-wrap: wrap; font-size: 15px; color: #334155; margin-bottom: 4px }
+.dx-resumo > span:first-child { font-size: 16px; font-weight: 600; color: #0f172a } .dx-resumo b { font-weight: 600 }
+.dx-resumo-d { font-size: 13.5px; border-radius: 99px; padding: 3px 10px } .dx-resumo-d.bom { color: #166534; background: #dcfce7 } .dx-resumo-d.ruim { color: #991b1b; background: #fee2e2 }
+/* cartões no estilo dos do Faturamento por período (José, 21/10/2026): ícone no quadradinho, título ao lado, valor grande sem negrito */
+.dx-cn { display: inline-flex !important; align-items: center; gap: 10px; font-size: 15px !important; font-weight: 500 !important; color: #0f172a !important; filter: none !important }
+.dx-ic { width: 34px; height: 34px; border-radius: 10px; display: grid !important; place-items: center; font-size: 15px; color: var(--c); background: color-mix(in srgb, var(--c) 12%, #fefefe); border: 1px solid color-mix(in srgb, var(--c) 22%, #fefefe); flex: none }
+.dx-caixa.claro .dx-sim-conta { background: transparent; padding: 0; gap: 10px }
+.dx-caixa.claro .dx-sim-conta-i > button, .dx-caixa.claro .dx-sim-conta-r { justify-items: start; gap: 8px; background: #fefefe; border: 1px solid #e2e8f0; border-radius: 16px; padding: 14px 16px; transition: transform .2s, box-shadow .2s, border-color .2s }
+.dx-caixa.claro .dx-sim-conta-i > button:hover { background: #fefefe; transform: translateY(-2px); border-color: color-mix(in srgb, var(--c) 40%, #e2e8f0); box-shadow: 0 12px 26px -18px rgba(15,23,42,.5) }
+.dx-caixa.claro .dx-sim-conta-i > button.on { border-color: var(--c); box-shadow: 0 0 0 1px var(--c), 0 12px 26px -18px var(--c) }
+.dx-caixa.claro .dx-sim-conta-i > button b, .dx-caixa.claro .dx-sim-conta-r b { font-size: 24px !important; font-weight: 500 !important; color: #0f172a }
+.dx-caixa.claro .dx-sim-conta-r b { color: var(--c) }
+.dx-caixa.claro .dx-ind > div { background: #fefefe; border: 1px solid #e2e8f0; border-radius: 16px; padding: 14px 16px; gap: 8px; transition: transform .2s, box-shadow .2s }
+.dx-caixa.claro .dx-ind > div:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -18px rgba(15,23,42,.5) }
+.dx-caixa.claro .dx-ind b { font-size: 24px !important; font-weight: 500 !important } .dx-caixa.claro .dx-ind b em { font-weight: 400 }
+.dx-caixa.claro .dx-card { border-radius: 16px }
+.dx-caixa.claro .dx-res-t { font-weight: 500 !important }
+.dx-caixa.claro { font-size: 15px; color: #0f172a }
+.dx-caixa.claro .dx-guia li { font-size: 14px }
+.dx-caixa.claro .dx-atalhos-d > summary { font-size: 15px } .dx-caixa.claro .dx-atalhos-d > summary small { font-size: 13.5px }
+.dx-caixa.claro .dx-sim-cen button { font-size: 13.5px; font-weight: 500; padding: 6px 14px }
+.dx-caixa.claro .dx-sim-conta-t, .dx-caixa.claro .dx-sim-sub { font-size: 14px; color: #334155 }
+.dx-caixa.claro .dx-sim-conta-i > button small, .dx-caixa.claro .dx-sim-conta-r small { font-size: 13.5px; font-weight: 500 }
+.dx-caixa.claro .dx-sim-conta-i > button b, .dx-caixa.claro .dx-sim-conta-r b { font-size: 18px; font-weight: 700 }
+.dx-caixa.claro .dx-sim-conta-desc { font-size: 14px } .dx-caixa.claro .dx-sim-conta-desc small { font-size: 13px }
+.dx-caixa.claro .dx-sim-r > span { font-size: 15px; font-weight: 600; color: #0f172a }
+.dx-caixa.claro .dx-sim-pill { font-size: 12.5px; font-weight: 500; padding: 2px 10px }
+.dx-caixa.claro .dx-sim-cf { font-size: 13.5px; color: #475569 } .dx-caixa.claro .dx-sim-cf b { font-weight: 600; color: #0f172a }
+.dx-caixa.claro .dx-sim-nota, .dx-caixa.claro .dx-sim-chk { font-size: 14px; font-weight: 500; color: #334155 }
+.dx-caixa.claro .dx-sim-tec > span { font-size: 15px; font-weight: 600 } .dx-caixa.claro .dx-sim-tec small { font-size: 13px }
+.dx-caixa.claro .dx-sim-desc b { font-size: 15px } .dx-caixa.claro .dx-sim-desc small { font-size: 13.5px }
+.dx-caixa.claro .dx-sim-eq-cab b { font-size: 15px } .dx-caixa.claro .dx-sim-eq-cab small { font-size: 13px }
+.dx-caixa.claro .dx-sim-eq-l { font-size: 14px } .dx-caixa.claro .dx-sim-eq-l b { font-size: 14px; font-weight: 600 } .dx-caixa.claro .dx-sim-eq-l em { font-size: 11.5px; font-weight: 500 } .dx-caixa.claro .dx-sim-eq-l.tit { font-size: 12.5px; font-weight: 600; text-transform: none }
+.dx-caixa.claro .dx-sim-desc-l { font-size: 14px }
+.dx-caixa.claro .dx-res-t { font-size: 16px; font-weight: 700 } .dx-caixa.claro .dx-res-t small { font-size: 13px }
+.dx-caixa.claro .dx-card-topo small { font-size: 14px } .dx-caixa.claro .dx-card-topo strong { font-size: 38px } .dx-caixa.claro .dx-card-topo p { font-size: 16px }
+.dx-caixa.claro .dx-pilha { height: 30px } .dx-caixa.claro .dx-pilha i { font-size: 13px } .dx-caixa.claro .dx-pilha-l small, .dx-caixa.claro .dx-pilha-leg { font-size: 14px }
+.dx-caixa.claro .dx-tab-l { font-size: 15.5px; padding: 9px 4px } .dx-caixa.claro .dx-tab-l.cab { font-size: 13.5px } .dx-caixa.claro .dx-tab-l small { font-size: 13.5px }
+.dx-caixa.claro .dx-ind small { font-size: 14px } .dx-caixa.claro .dx-ind b { font-size: 22px } .dx-caixa.claro .dx-ind b em { font-size: 14px } .dx-caixa.claro .dx-ind span { font-size: 13.5px }
+.dx-caixa.claro .dx-alvo > small, .dx-caixa.claro .dx-alvo.meta > small { font-size: 14px } .dx-caixa.claro .dx-alvo-v { font-size: 28px } .dx-caixa.claro .dx-alvo p { font-size: 15px } .dx-caixa.claro .dx-alvo-st { font-size: 15px }
+.dx-caixa.claro .dx-trilho-leg { font-size: 14px } .dx-caixa.claro .dx-alvo-q { font-size: 15px } .dx-caixa.claro .dx-alvo-q em { font-size: 14px }
+.dx-caixa.claro .dx-alvo-conta small { font-size: 13.5px } .dx-caixa.claro .dx-alvo-conta b { font-size: 17px }
+/* contraste (José, 21/10/2026: "o contraste de informações também"): nenhum texto em cinza claro */
+.dx-caixa.claro { --portal-text-muted: #475569 }
+.dx-caixa.claro [data-dica]:hover::after, .ld [data-dica]:hover::after { font-size: 14px; line-height: 1.55; max-width: 380px; padding: 12px 14px; border-radius: 10px }
+.dx-caixa.claro small, .dx-caixa.claro .dx-sim-sub, .dx-caixa.claro .dx-sim-conta-t { color: #475569 }
+.dx-caixa.claro .dx-sim-conta { background: #e9eef4 }
+.dx-caixa.claro .dx-sim-conta-i > button small, .dx-caixa.claro .dx-sim-conta-r small { font-weight: 600; filter: brightness(.8) }
+.dx-caixa.claro .dx-sim-conta-i > em { color: #334155 }
+.dx-caixa.claro .dx-sim-pill { background: #e2e8f0; color: #334155 }
+.dx-caixa.claro .dx-sim-cf { color: #334155 }
+.dx-caixa.claro .dx-tab-l small, .dx-caixa.claro .dx-tab-l.cab { color: #334155 } .dx-caixa.claro .dx-tab-l > span:first-child em { color: #334155 } .dx-caixa.claro .dx-tab-l { border-top-color: #e2e8f0 }
+.dx-caixa.claro .dx-tab-l .bom { color: #166534 } .dx-caixa.claro .dx-tab-l .ruim { color: #991b1b }
+.dx-caixa.claro .dx-ind > div { background: #f8fafc; border-color: #e2e8f0 } .dx-caixa.claro .dx-ind small, .dx-caixa.claro .dx-ind span, .dx-caixa.claro .dx-ind b em { color: #334155 }
+.dx-caixa.claro .dx-card-topo small, .dx-caixa.claro .dx-pilha-l small, .dx-caixa.claro .dx-pilha-leg { color: #334155 }
+.dx-caixa.claro .dx-alvo > small, .dx-caixa.claro .dx-alvo.meta > small, .dx-caixa.claro .dx-alvo-q em, .dx-caixa.claro .dx-alvo-conta small, .dx-caixa.claro .dx-trilho-leg { color: #334155 }
+.dx-caixa.claro .dx-guia li, .dx-caixa.claro .dx-atalhos-d > summary small { color: #334155 }
+.dx-caixa.claro .dx-sim-eq-l em.apoio { color: #334155; background: #e2e8f0 } .dx-caixa.claro .dx-sim-eq-l small { color: #334155 }
+.dx-caixa.claro .dx-sim-res { background: #eef2f6 }
+
+
+.dx-atalhos-d { border: 1px solid var(--portal-border, #e2e8f0); border-radius: 12px; background: var(--portal-bg-card, #fefefe) }
+.dx-atalhos-d > summary { list-style: none; display: flex; align-items: center; gap: 8px; padding: 9px 14px; font-size: 13.5px; font-weight: 600; color: #0f172a; cursor: pointer } .dx-atalhos-d > summary::-webkit-details-marker { display: none }
+.dx-atalhos-d > summary small { font-weight: 400; color: #64748b; font-size: 12.5px } .dx-atalhos-d > summary > i:first-child { color: #7c3aed } .dx-atalhos-d > summary > i:last-child { margin-left: auto; color: #64748b; transition: transform .2s } .dx-atalhos-d[open] > summary > i:last-child { transform: rotate(180deg) }
+.dx-atalhos-d > .dx-sim-cen { padding: 0 14px 12px }
+.dx-esq-blocos { display: grid; gap: 10px; margin-top: 8px; padding-top: 14px; border-top: 1px dashed var(--portal-border, #e2e8f0) }
+.dx-esq-blocos .dx-card .dx-res-t { margin-top: 0 }
+.dx-sim-res.claro { gap: 10px }
+.dx-card { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 12px; padding: 14px 16px; display: grid; gap: 10px; color: #0f172a }
+.dx-card .dx-res-t { margin-top: 0 }
+.dx-card-topo { display: grid; gap: 8px }
+.dx-card-topo > div { display: grid } .dx-card-topo small { font-size: 13px; color: #475569 } .dx-card-topo strong { font-size: 34px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums }
+.dx-card-topo p { margin: 0; font-size: 15px; color: #1e293b; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center } .dx-card-topo p b { font-weight: 700 }
+.dx-card-dif { justify-self: start; font-size: 13px; font-weight: 600; border-radius: 99px; padding: 2px 10px } .dx-card-dif.bom { color: #14532d; background: #dcfce7 } .dx-card-dif.ruim { color: #7f1d1d; background: #fee2e2 }
+.dx-pilha-l { display: grid; gap: 4px } .dx-pilha-l small { font-size: 12.5px; color: #475569 }
+.dx-pilha { display: flex; height: 26px; border-radius: 8px; overflow: hidden; background: #f1f5f9 }
+.dx-pilha i { display: flex; align-items: center; justify-content: center; min-width: 0; font-style: normal; font-size: 12px; font-weight: 600; color: #fefefe; transition: flex-grow .5s cubic-bezier(.2,.8,.2,1) }
+.dx-pilha-leg { display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; color: #334155 } .dx-pilha-leg i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: 6px; vertical-align: -1px }
+.dx-tab { display: grid; font-variant-numeric: tabular-nums }
+.dx-tab-l { display: grid; grid-template-columns: minmax(0, 1.2fr) 1fr 1fr 1fr; gap: 10px; align-items: center; padding: 8px 4px; border-top: 1px solid #f1f5f9; font-size: 14px }
+.dx-tab-l > span:not(:first-child) { text-align: right }
+.dx-tab-l > span:first-child { display: flex; align-items: center; gap: 8px } .dx-tab-l > span:first-child em { font-style: normal; width: 10px; color: #64748b } .dx-tab-l > span:first-child i { width: 10px; height: 10px; border-radius: 3px; flex: none }
+.dx-tab-l.cab { border-top: 0; font-size: 12.5px; color: #475569; padding-top: 0 }
+.dx-tab-l.tot { border-top: 1px solid #cbd5e1; font-weight: 700 }
+.dx-tab-l small { font-size: 12.5px; color: #64748b } .dx-tab-l .bom { color: #15803d; font-weight: 600 } .dx-tab-l .ruim { color: #b91c1c; font-weight: 600 }
+.dx-ind { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px }
+.dx-ind > div { background: #f8fafc; border: 1px solid #eef2f6; border-radius: 10px; padding: 10px 12px; display: grid; gap: 2px }
+.dx-ind small { font-size: 13px; color: #475569 } .dx-ind b { font-size: 20px; font-weight: 700; color: #0f172a; font-variant-numeric: tabular-nums } .dx-ind b em { font-style: normal; font-size: 13px; font-weight: 400; color: #475569 } .dx-ind span { font-size: 12.5px; color: #475569 }
+/* paleta do modo claro (José, 21/10/2026: "muda a cor, paleta de cor, está muito difícil de ler") */
+.dx-caixa.claro .dx-alvos { gap: 4px }
+.dx-caixa.claro .dx-alvo { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 12px; padding: 14px 16px; gap: 8px; margin-top: 4px }
+.dx-caixa.claro .dx-alvo > small, .dx-caixa.claro .dx-alvo.meta > small { font-size: 13px; font-weight: 500; text-transform: none; letter-spacing: 0; color: #475569 }
+.dx-caixa.claro .dx-alvo > small i { color: #475569 }
+.dx-caixa.claro .dx-alvo-v { font-size: 26px; font-weight: 700; color: #0f172a }
+.dx-caixa.claro .dx-alvo p { font-size: 14px; color: #1e293b }
+.dx-caixa.claro .dx-alvo p b, .dx-caixa.claro .dx-alvo-st b { font-weight: 700 }
+.dx-caixa.claro .dx-alvo-st { font-size: 14px; font-weight: 500; padding: 8px 12px }
+.dx-caixa.claro .dx-alvo-st.bom { color: #14532d; background: #dcfce7 } .dx-caixa.claro .dx-alvo-st.ruim { color: #7f1d1d; background: #fee2e2 }
+.dx-caixa.claro .dx-sim-trilho { height: 12px; background: #e2e8f0; margin-top: 4px } .dx-caixa.claro .dx-sim-trilho i { background: #0f766e }
+.dx-caixa.claro .dx-sim-trilho em { top: -5px; height: 22px; width: 4px; background: #0f172a; box-shadow: 0 0 0 2px #fefefe }
+.dx-trilho-leg { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: #334155 } .dx-trilho-leg b { color: #0f172a; font-weight: 700 }
+.dx-trilho-leg i { display: inline-block; vertical-align: middle; margin-right: 4px } .dx-trilho-leg i.fat { width: 14px; height: 8px; border-radius: 99px; background: #0f766e } .dx-trilho-leg i.emp { width: 4px; height: 14px; border-radius: 2px; background: #0f172a }
+.dx-caixa.claro .dx-alvo-q { font-size: 14px; font-weight: 500; color: #0f172a }
+.dx-caixa.claro .dx-alvo-q em { font-size: 13px; font-weight: 400; color: #475569 }
+.dx-caixa.claro .dx-alvo-q input { border: 1px solid #94a3b8; color: #0f172a; font-weight: 700; height: 32px }
+.dx-caixa.claro .dx-alvo-q input:focus { outline: 2px solid #0f766e; outline-offset: 1px; border-color: #0f766e }
+.dx-caixa.claro .dx-alvo-conta { background: #f1f5f9; padding: 10px 14px; gap: 8px 14px }
+.dx-caixa.claro .dx-alvo-conta small { font-size: 12.5px; font-weight: 500; text-transform: none; color: #475569 }
+.dx-caixa.claro .dx-alvo-conta b { font-size: 16px; font-weight: 700; color: #0f172a } .dx-caixa.claro .dx-alvo-conta .sobra b { color: #0f766e }
+.dx-caixa.claro .dx-alvo-conta em { font-size: 16px; font-weight: 500; color: #475569 }
 .dx-alvo { display: grid; gap: 6px; padding: 12px 2px; border-top: 1px dashed var(--portal-border, #e5e7eb); animation: dxEntra .4s both }
 .dx-alvo > small { font-size: 11.5px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; color: #0369a1 } .dx-alvo.meta > small { color: #dc2626 }
 .dx-alvo-v { font-size: 20px; font-weight: 900; color: var(--portal-text, #0f172a); font-variant-numeric: tabular-nums; line-height: 1.1 }

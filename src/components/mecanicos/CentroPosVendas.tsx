@@ -4,9 +4,9 @@
 import { useEffect, useRef, useState } from 'react'
 import PainelTecnicos from './PainelTecnicos'
 import RadarOcorrencias from './RadarOcorrencias'
-import TratorilsonLeitura from './TratorilsonLeitura'
+import TratorilsonLeitura, { abrirTratorilson } from './TratorilsonLeitura'
 import AbasCentro from './AbasCentro'
-import BotoesMecanicos, { abrirModalMec, useModalMec } from './BotoesMecanicos'
+import { MenuRadialMec, abrirModalMec, useModalMec } from './BotoesMecanicos'
 import { useUrlMec } from './useUrlMec'
 import { LigaJanela, ComissoesJanela } from './JanelasInfo'
 import { AutorizacoesJanela } from './AutorizacoesJanela'
@@ -99,8 +99,8 @@ export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a
       <div className="cpv-topo">
         {/* Painel · Mecânicos · Pódio num seletor só (José, 20/10/2026) */}
         <AbasCentro aba={aba} onAba={onAba} />
-        <BotoesMecanicos onAbrir={(m) => (m === 'liga' || m === 'comissoes' || m === 'autorizacoes' ? mudar({ janela: m }) : mudar({ aba: 'mecanicos', janela: m, tecnico: null, secao: null, mes: null }))} podio={aba === 'podio'} onPodio={() => onAba('podio')} />
-        {aba !== 'podio' && <TratorilsonLeitura onIr={irPara} aba={aba} />}
+        <MenuRadialMec onTratorilson={abrirTratorilson} onAbrir={(m) => (m === 'liga' || m === 'comissoes' || m === 'autorizacoes' ? mudar({ janela: m }) : mudar({ aba: 'mecanicos', janela: m, tecnico: null, secao: null, mes: null }))} podio={aba === 'podio'} onPodio={() => onAba('podio')} />
+        <TratorilsonLeitura onIr={irPara} aba={aba === 'podio' ? 'painel' : aba} oculto />
         <span style={{ flex: 1 }} />
         {selo && <span className="cpv-aovivo" title={selo.motivo}><i />Atualizado agora · {selo.motivo}</span>}
         <button type="button" className="cpv-tela" onClick={alternarTela} title={cheia ? 'Sair da tela cheia (Esc)' : 'Tela cheia'}>

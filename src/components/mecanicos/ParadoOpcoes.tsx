@@ -116,7 +116,7 @@ export function ParadoFilaEstilo({ pendencias, estilo }: { pendencias: Pendencia
           {nums.map((n, i) => (
             <button key={n.rot} type="button" disabled={!n.k} className={`pc-n ${n.k && tipo === n.k ? 'on' : ''} ${tipo !== 'todos' && n.k && tipo !== n.k ? 'apaga' : ''}`} style={{ '--c': n.cor, animationDelay: `${i * 90}ms` } as React.CSSProperties} onClick={() => clicar(n.k)}>
               <i className={`fas ${n.ic} pc-marca`} />
-              <small><i className={`fas ${n.ic}`} /> {n.rot}</small>
+              <small><i className={`fas ${n.ic} pc-ic`} />{n.rot}</small>
               <b>{n.v}</b>
               <span>{n.sub}{n.k && <em>{tipo === n.k ? '✓ filtrando' : 'clique para filtrar'}</em>}</span>
             </button>
@@ -280,7 +280,7 @@ export function JanelaOSParada({ p, onFechar, faturadaEm }: { p: Pendencia; onFe
               {!det.ppvs.length && <small className="pj-nada">Nenhum pedido de peças vinculado a esta OS.</small>}
               {det.ppvs.map((x) => (
                 <div key={x.id} className="pj-ppv">
-                  <div className="pj-ppv-cab"><span>{x.id}</span>{x.status && <em>{x.status}</em>}{x.desconto > 0 && <em>desconto {x.desconto}%</em>}<b>{brl(x.total)}</b></div>
+                  <div className="pj-ppv-cab"><span>{x.id}</span>{x.status && <em>{x.status}</em>}{x.desconto > 0 && <em>desconto {x.desconto}%</em>}<b>{brl(x.total)}</b><button type="button" className="pj-ppv-pdf" onClick={() => setDoc({ titulo: `Pedido ${x.id} · ${p.cliente || ''}`, url: `/api/ppv/pdf?id=${encodeURIComponent(x.id)}`, nome: x.id })} title="ver o pedido em PDF"><i className="fas fa-file-pdf" /> PDF</button></div>
                   {x.itens.length ? (
                     <div className="pj-itens">
                       {x.itens.map((it, i) => (
@@ -531,6 +531,15 @@ button.pa-pl { cursor: pointer } button.pa-pl:hover { transform: translateY(-3px
 .pa-bol { position: relative; height: 320px } .pa-bol svg { width: 100%; height: 100% } .pa-bolha { cursor: pointer; transform-box: fill-box; transform-origin: center; animation: paPop .45s cubic-bezier(.3,1.5,.5,1) both; transition: fill-opacity .2s }
 .pa-bol-y { position: absolute; left: 4px; top: 4px; font-size: 12px; font-weight: 800; color: ${MUDO} } .pa-bol-x { position: absolute; right: 8px; bottom: 0; font-size: 12px; font-weight: 800; color: ${MUDO} }
 .pa-limpa { margin-left: 8px; border: none; background: transparent; color: #0369a1; font-family: inherit; font-weight: 800; font-size: 12.5px; cursor: pointer; text-decoration: underline }
+/* bloco 3 no estilo dos cartões do Faturamento por período (José, 21/10/2026): branco, ícone no quadradinho, sem negrito */
+.pa-cheio .pc-n { color: #0f172a !important; background: #fefefe !important; border: 1px solid #e2e8f0 !important; box-shadow: none !important; gap: 6px !important }
+.pa-cheio .pc-marca { display: none }
+.pa-cheio .pc-n small { display: inline-flex; align-items: center; gap: 10px; font-size: 16px !important; font-weight: 500 !important; text-transform: none !important; letter-spacing: 0 !important; opacity: 1 !important; color: #0f172a }
+.pa-cheio .pc-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 16px; color: var(--c); background: color-mix(in srgb, var(--c) 12%, #fefefe); border: 1px solid color-mix(in srgb, var(--c) 22%, #fefefe) }
+.pa-cheio .pc-n b { font-size: 28px !important; font-weight: 500 !important; color: #0f172a; margin-top: 4px }
+.pa-cheio .pc-n span { font-size: 13px !important; font-weight: 400 !important; opacity: 1 !important; color: #475569 } .pa-cheio .pc-n span em { color: var(--c); font-style: normal }
+.pa-cheio button.pc-n:not(:disabled):hover { transform: translateY(-2px) !important; border-color: color-mix(in srgb, var(--c) 40%, #e2e8f0) !important; box-shadow: 0 12px 26px -18px rgba(15,23,42,.5) !important }
+.pa-cheio .pc-n.on { outline: none !important; border-color: var(--c) !important; box-shadow: 0 0 0 1px var(--c), 0 12px 26px -18px var(--c) !important }
 .pc-placar { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px }
 .pc-n { position: relative; overflow: hidden; display: grid; gap: 2px; text-align: left; font-family: inherit; border: none; border-radius: 18px; padding: 14px 16px; color: #fefefe; background: linear-gradient(135deg, var(--c), color-mix(in srgb, var(--c) 70%, #0f172a)); box-shadow: 0 8px 20px color-mix(in srgb, var(--c) 30%, transparent); animation: paEntra .5s both; transition: transform .25s, box-shadow .25s, opacity .25s }
 button.pc-n:not(:disabled) { cursor: pointer } button.pc-n:not(:disabled):hover { transform: translateY(-4px) scale(1.01); box-shadow: 0 14px 30px color-mix(in srgb, var(--c) 40%, transparent) } .pc-n:disabled { cursor: default } .pc-n.on { outline: 3px solid color-mix(in srgb, var(--c) 40%, #fefefe); outline-offset: 3px } .pc-n.apaga { opacity: .45 }
@@ -586,6 +595,7 @@ button.pn-l:not(:disabled) { cursor: pointer } button.pn-l:not(:disabled):hover,
 .pj-txt { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px } .pj-txt > div { border: 1px solid var(--portal-border, #eef2f7); border-radius: 12px; padding: 8px 12px } .pj-txt small { font-size: 11px; font-weight: 900; text-transform: uppercase; color: ${MUDO} } .pj-txt p { margin: 3px 0 0; font-size: 13.5px; white-space: pre-wrap; max-height: 120px; overflow-y: auto }
 .pj-pecas { display: grid; gap: 8px } .pj-pecas > b { font-size: 15px } .pj-pecas > b i { color: #ea580c }
 .pj-ppv { border: 1px solid var(--portal-border, #e5e7eb); border-radius: 14px; overflow: hidden }
+.pj-ppv-pdf { margin-left: 6px; border: 1px solid #fdba74; background: #fefefe; color: #c2410c; border-radius: 99px; padding: 2px 10px; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer } .pj-ppv-pdf:hover { background: #ffedd5 }
 .pj-ppv-cab { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: #fff7ed } .pj-ppv-cab span { font-weight: 900; color: #c2410c } .pj-ppv-cab em { font-style: normal; font-size: 11.5px; font-weight: 800; color: #9a3412; background: #ffedd5; border-radius: 99px; padding: 1px 8px } .pj-ppv-cab b { margin-left: auto; font-variant-numeric: tabular-nums }
 .pj-itens { display: grid } .pj-it { display: grid; grid-template-columns: 140px minmax(0, 1fr) 120px 100px; gap: 10px; align-items: center; padding: 6px 12px; border-top: 1px solid var(--portal-border, #f1f5f9); font-size: 13px; animation: paEntra .3s both }
 .pj-it code { font-size: 12px; color: ${MUDO}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis } .pj-it span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis } .pj-it small { color: ${MUDO}; text-align: right } .pj-it b { text-align: right; font-variant-numeric: tabular-nums }

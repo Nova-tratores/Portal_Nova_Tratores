@@ -9,7 +9,7 @@ import { chamarIA } from '@/lib/assistente/ia'
 import { carregarAgenda } from '@/lib/agenda/server'
 import type { Autenticado } from '@/lib/auth/server'
 import { baseComCache } from './base-cache'
-import { agregar, osAguardandoFaturar, agruparBase, ativosEm, metaAtiva, custoEquipe, pesosPorOS, resumirGastos, somarDias, ultimasSemanas, ultimosMeses, type LinhaTecnico } from './painel'
+import { agregar, osAguardandoFaturar, agruparBase, ativosEm, metaAtiva, custoEquipe, daEquipe, pesosPorOS, resumirGastos, somarDias, ultimasSemanas, ultimosMeses, type LinhaTecnico } from './painel'
 import { padronizadorOcorrencias, ocorrenciasEntre } from './ocorrencias-server'
 import { escudos, motivos, historicoPorPessoa } from './ocorrencias-painel'
 import { agendaPorTecnico, diasDoIntervalo, lerAnalise, DIAS_FUTURO, MODULO_ENSINAMENTOS, type Analise, type ItemFuturo } from './analise'
@@ -89,7 +89,7 @@ export async function montarContexto(auth: Autenticado) {
   // Vinicius → Garantia, José Ortiz → Outros (grupos, sem meta de horas)
   const base = agruparBase(baseBruta)
   const gastos = base.gastos || []
-  const equipe = base.equipe || []
+  const equipe = daEquipe(base.equipe)
   const ocor = { ocs, tecnicos: tecOc }
   const pesos = pesosPorOS(base.diasTodos)
   // período em andamento conta só até hoje (senão a meta dos dias que nem chegaram vira ociosidade)

@@ -1,8 +1,7 @@
 'use client';
-import { Suspense } from 'react';
-import Oportunidades from '@/components/inteligencia-vendas/Oportunidades';
+// Inteligência de Vendas — tudo numa página só, com as bolinhas por módulo (21/10/2026).
+import CentralIV from '@/components/inteligencia-vendas/CentralIV';
 
-// Topo em mosaico (opção C da página de teste), tabela visual e ficha 360 — aprovado pelo José em 19/10/2026.
 export default function Page() {
-  return <Suspense fallback={null}><Oportunidades topo="C" /></Suspense>;
+  return <CentralIV />;
 }

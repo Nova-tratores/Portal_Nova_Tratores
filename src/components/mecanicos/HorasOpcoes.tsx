@@ -54,7 +54,8 @@ export function montarHoras(base: import('@/lib/mecanicos/painel').BaseDados, fo
     const semanas: { de: string; ate: string }[] = []
     for (let s = segundaDa(`${mes}-01`); s <= fimMes; s = somarDias(s, 7)) semanas.push({ de: s, ate: somarDias(s, 6) })
     const aguardandoOS = osAguardandoFaturar(base)
-    const tecs: TecH[] = d.linhas.filter((l) => l.tecnico !== SEM_TECNICO && !SEM_META.has(l.tecnico)).map((l) => {
+    const saiu = (t: string) => { const e = (base.equipe || []).find((x) => x.pessoa === t); return !!e?.demissao && e.demissao < mes }
+    const tecs: TecH[] = d.linhas.filter((l) => l.tecnico !== SEM_TECNICO && !SEM_META.has(l.tecnico) && !saiu(l.tecnico)).map((l) => {
       const feitas = l.faturadas + (comAg ? l.aguardando : 0)
       // valor das OS preenchidas esperando faturar (só quando a caixinha está marcada), no dia do relatório
       const pend = comAg ? (base.pendencias || []).filter((p) => p.tipo === 'preenchida' && p.tecnicos.includes(l.tecnico) && p.dataRef) : []
@@ -365,17 +366,36 @@ function Grade({ d, children }: { d: DadosHoras; children: (t: TecH, i: number) 
 }
 /** Equipe embaixo dos cartões: o mês e cada semana somando todos os mecânicos contra a meta da equipe. */
 function Equipe({ d }: { d: DadosHoras }) {
+  // José, 21/10/2026: "melhora isso aqui também" — cartão branco, cada semana com o % da básica e a situação escrita
   const n = d.tecs.length
   const p = d.basica ? (d.feitas / d.basica) * 100 : 0
-  const sem = (d.tecs[0]?.semanas || []).map((w, k) => ({ ...w, horas: d.tecs.reduce((s, t) => s + t.semanas[k].horas, 0), valor: d.tecs.reduce((s, t) => s + t.semanas[k].valor, 0) }))
+  const sem = (d.tecs[0]?.semanas || []).map((w, k) => ({ ...w, horas: d.tecs.reduce((s2, t) => s2 + t.semanas[k].horas, 0), valor: d.tecs.reduce((s2, t) => s2 + t.semanas[k].valor, 0) }))
+  const bH = META_SEM.basH * n, bV = META_SEM.basV * n, iH = META_SEM.ideH * n, iV = META_SEM.ideV * n
+  const pc = (v: number, m: number) => (m ? Math.round((v / m) * 100) : 0)
   return (
-    <div className="hc-eq">
-      <div className="hc-eq-cab">
-        <b><i className="fas fa-users" /> Meta da equipe ({n} mecânicos)</b>
-        <span>por semana: básica <b>{n * META_SEM.basH} h</b> e <b>{brl(n * META_SEM.basV)}</b> · ideal <b>{n * META_SEM.ideH} h</b> e <b>{brl(n * META_SEM.ideV)}</b></span>
-        <span className="hc-eq-mes">no mês: {horas(d.feitas)} de {horas(d.basica)} <b style={{ color: corPct(p) }}>{Math.round(p)}%</b> <Var a={d.feitas} b={d.antFeitas} /></span>
+    <div className="me">
+      <div className="me-cab">
+        <span className="me-ic"><i className="fas fa-users" /></span>
+        <div><b>Meta da equipe</b><small>{n} mecânicos · por semana: básica {bH} h e {brl(bV)} · ideal {iH} h e {brl(iV)}</small></div>
+        <div className="me-mes"><small>Horas no mês</small><b>{horas(d.feitas)} <span>de {horas(d.basica)}</span></b><em style={{ color: corPct(p) }}>{Math.round(p)}% da básica</em><Var a={d.feitas} b={d.antFeitas} /></div>
       </div>
-      <SemanasLista semanas={sem} n={n} equipe />
+      <div className="me-tab">
+        <div className="me-l cab"><span>Semana</span><span>Horas</span><span>Faturado</span><span>Situação</span></div>
+        {sem.map((w) => {
+          const okH = w.horas >= bH, okV = w.valor >= bV, ideal = w.horas >= iH && w.valor >= iV
+          const futuro = !w.fechada && !w.atual
+          const st = futuro ? ['ainda não chegou', 'fut'] : ideal ? ['bateu a ideal', 'ide'] : okH && okV ? ['bateu a básica', 'ok'] : okV ? ['faturado bateu, horas não', 'meio'] : okH ? ['horas bateram, faturado não', 'meio'] : w.atual ? ['em andamento', 'and'] : ['abaixo da básica', 'bx']
+          const barra = (v: number, bas: number, ide: number, cor: string) => <i className="me-bar"><u style={{ width: `${Math.min(100, (v / ide) * 100)}%`, background: v >= ide ? COR_IDE : v >= bas ? '#10b981' : cor }} /><s title="básica" /></i>
+          return (
+            <div key={w.de} className={`me-l ${w.atual ? 'agora' : ''} ${futuro ? 'futuro' : ''}`}>
+              <span className="me-d">{w.rot}{w.atual && <em>esta semana</em>}</span>
+              <span className="me-c"><span><b>{h1(w.horas)} h</b><small>{pc(w.horas, bH)}% da básica</small></span>{barra(w.horas, bH, iH, '#60a5fa')}</span>
+              <span className="me-c"><span><b>{brl(w.valor)}</b><small>{pc(w.valor, bV)}% da básica</small></span>{barra(w.valor, bV, iV, '#60a5fa')}</span>
+              <span><em className={`me-st ${st[1]}`}>{st[0]}</em></span>
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
 }
@@ -531,7 +551,70 @@ export function C5({ d }: { d: DadosHoras }) {
   )
 }
 
+/** C6 — sem gráfico (José, 21/10/2026: "aplica o design aqui também, remove o gráfico do card"): o % da básica
+ *  em número, as barras da básica e da ideal e cada semana numa linha com a barrinha até 20 h. */
+export function C6({ d }: { d: DadosHoras }) {
+  return (
+    <div className="c5 c6"><Grade d={d}>{(t, i) => (
+      <Casca t={t} i={i}>
+        <div className="c6-top">
+          <div><b style={{ color: corPct(t.pBas) }}>{Math.round(t.pBas)}%</b><small>da meta básica</small></div>
+          <div className="c6-metas">
+            {([['Básica', t.basica, t.pBas, '#0f766e'], ['Ideal', t.ideal, t.pIde, '#7c3aed']] as const).map(([r, m, p, cor]) => (
+              <div key={r} className="c6-m" style={{ '--c': cor } as React.CSSProperties}>
+                <span>{r} <small>{h1(m)} h</small></span>
+                <i><u style={{ width: `${Math.min(100, p)}%` }} /></i>
+                <em>{Math.round(p)}%</em>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="c6-sem">
+          {t.semanas.map((w) => {
+            const cor = w.horas >= 40 ? COR_IDE : w.horas >= 20 ? '#10b981' : w.fechada ? '#f87171' : '#60a5fa'
+            return (
+              <div key={w.de} className={`c6-s ${w.atual ? 'agora' : ''} ${!w.fechada && !w.atual ? 'futuro' : ''}`} title={`semana de ${w.rot}: ${h1(w.horas)} h no app`}>
+                <span>sem. {w.rot}</span>
+                <i><u style={{ width: `${Math.min(100, (w.horas / 20) * 100)}%`, background: cor }} /></i>
+                <b>{h1(w.horas)} h</b>
+              </div>
+            )
+          })}
+        </div>
+      </Casca>
+    )}</Grade></div>
+  )
+}
+
 export const ESTILO_HC = `
+.me { display: grid; gap: 14px; background: #fefefe; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px 20px; margin-top: 16px }
+.me-cab { display: flex; gap: 12px; align-items: center; flex-wrap: wrap }
+.me-ic { width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; font-size: 16px; color: #2563eb; background: #eff6ff; border: 1px solid #dbeafe; flex: none }
+.me-cab > div:nth-child(2) { display: grid; flex: 1; min-width: 240px } .me-cab b { font-size: 17px; font-weight: 500; color: #0f172a } .me-cab small { font-size: 13.5px; color: #475569 }
+.me-mes { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap } .me-mes small { font-size: 13.5px; color: #475569 } .me-mes b span { font-size: 14px; color: #475569; font-weight: 400 } .me-mes em { font-style: normal; font-size: 14px; font-weight: 500 }
+.me-tab { display: grid }
+.me-l { display: grid; grid-template-columns: 120px minmax(0, 1fr) minmax(0, 1fr) 210px; gap: 18px; align-items: center; padding: 10px 8px; border-top: 1px solid #f1f5f9; border-radius: 10px }
+.me-l.cab { font-size: 13px; color: #475569; border-top: 0; padding-top: 0 } .me-l.agora { background: #eff6ff } .me-l.futuro { opacity: .45 }
+.me-d { display: grid; font-size: 15px; color: #0f172a } .me-d em { font-style: normal; font-size: 12px; color: #2563eb }
+.me-c { display: grid; gap: 6px } .me-c > span { display: flex; align-items: baseline; justify-content: space-between; gap: 8px } .me-c b { font-size: 16px; font-weight: 500; color: #0f172a } .me-c small { font-size: 12.5px; color: #475569 }
+.me-bar { position: relative; display: block; height: 8px; border-radius: 99px; background: #eef2f6 } .me-bar u { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; transition: width .7s } .me-bar s { position: absolute; left: 50%; top: -3px; width: 2px; height: 14px; background: #0f172a; border-radius: 1px }
+.me-st { font-style: normal; font-size: 13px; border-radius: 99px; padding: 4px 11px; white-space: nowrap }
+.me-st.ide { color: #5b21b6; background: #ede9fe } .me-st.ok { color: #14532d; background: #dcfce7 } .me-st.meio { color: #78350f; background: #fef3c7 } .me-st.bx { color: #7f1d1d; background: #fee2e2 } .me-st.and { color: #1e3a8a; background: #dbeafe } .me-st.fut { color: #475569; background: #f1f5f9 }
+@media (max-width: 900px) { .me-l { grid-template-columns: 80px minmax(0, 1fr) minmax(0, 1fr); } .me-l > span:last-child { grid-column: 1 / -1 } }
+
+/* C6 — cartões de horas sem gráfico, no estilo dos cartões do Faturamento (21/10/2026) */
+.c6 .h2-card { background: #fefefe; border: 1px solid #e2e8f0; border-radius: 16px; transition: transform .2s, box-shadow .2s } .c6 .h2-card:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -18px rgba(15,23,42,.5) }
+.c6 .h2-cab b { font-weight: 500 !important }
+.c6-top { display: grid; gap: 10px; width: 100% } .c6-top > div:first-child { display: grid } .c6-top > div:first-child b { font-size: 36px; font-weight: 500; line-height: 1.1 } .c6-top > div:first-child small { font-size: 13.5px; color: #475569 }
+.c6-metas { display: grid; gap: 6px }
+.c6-m { display: grid; grid-template-columns: 96px minmax(0, 1fr) 42px; gap: 8px; align-items: center; font-size: 13.5px } .c6-m span { color: #0f172a } .c6-m span small { color: #475569 }
+.c6-m i { height: 8px; border-radius: 99px; background: #eef2f6; overflow: hidden } .c6-m u { display: block; height: 100%; border-radius: 99px; background: var(--c); transition: width .7s }
+.c6-m em { font-style: normal; text-align: right; font-weight: 500 }
+.c6-sem { display: grid; gap: 4px; width: 100%; padding-top: 10px; border-top: 1px solid #f1f5f9 }
+.c6-s { display: grid; grid-template-columns: 86px minmax(0, 1fr) 52px; gap: 8px; align-items: center; font-size: 13px; padding: 2px 4px; border-radius: 8px } .c6-s.agora { background: #eff6ff } .c6-s.futuro { opacity: .45 }
+.c6-s span { color: #475569 } .c6-s i { height: 6px; border-radius: 99px; background: #eef2f6; overflow: hidden } .c6-s u { display: block; height: 100% } .c6-s b { text-align: right; font-weight: 500 }
+.c6 .h2-nums b, .c6 .hc-falta { font-weight: 500 !important }
+
 .ho-dica { position: relative; cursor: help } .ho-dica:hover::after { content: attr(data-dica); position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%); width: max-content; max-width: 260px; white-space: normal; text-align: left; background: #0f172a; color: #fefefe; font-size: 12.5px; font-weight: 600; line-height: 1.35; padding: 8px 11px; border-radius: 10px; box-shadow: 0 10px 24px rgba(15,23,42,.25); z-index: 20; pointer-events: none; animation: hoEntra .15s both }
 .ho-dica:hover::before { content: ''; position: absolute; left: 50%; bottom: calc(100% + 2px); transform: translateX(-50%); border: 6px solid transparent; border-top-color: #0f172a; z-index: 20 }
 .hc-fatia { cursor: help; transition: stroke-width .2s } .hc-fatia:hover { stroke-width: 15 }
@@ -585,7 +668,7 @@ export function HorasEquipeCartoes({ mes, semTitulo }: { mes: string; semTitulo?
         {!semTitulo && <b><i className="fas fa-clock" /> Horas da equipe no mês</b>}
         <CaixaAguardando />
       </div>
-      {!d ? <div className="hec-carr"><i className="fas fa-circle-notch fa-spin" /> carregando as horas da equipe…</div> : <div key={String(comAg)}><C5 d={d} /></div>}
+      {!d ? <div className="hec-carr"><i className="fas fa-circle-notch fa-spin" /> carregando as horas da equipe…</div> : <div key={String(comAg)}><C6 d={d} /></div>}
     </section>
   )
 }

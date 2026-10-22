@@ -19,10 +19,16 @@ export const SEM_TECNICO = 'Sem técnico'
  *  - Vinicius Correa → "Garantia" (as OS dele são sempre de garantia)
  *  - José Ortiz      → "Outros"
  */
-export const GRUPO_GARANTIA = 'Garantia'
+// A linha do garantista leva o NOME dele (José, 21/10/2026: "troca o nome dele") — antes era "Garantia".
+// Continua fora do pódio e sem meta de horas (GRUPOS / SEM_META).
+export const GRUPO_GARANTIA = 'Vinicius Correa'
 export const GRUPO_OUTROS = 'Outros'
 export const GRUPOS: Record<string, string> = { 'Vinicius Correa': GRUPO_GARANTIA, 'José Ortiz': GRUPO_OUTROS }
 export const grupoDe = (nome: string) => GRUPOS[nome] || nome
+/** Pessoas do RH que NÃO são mais do pós-vendas: o salário sai da conta (as OS antigas continuam).
+ *  José Ortiz — José, 21/10/2026: "ele não é mais do pós-vendas, remove ele". */
+export const FORA_DA_EQUIPE = new Set(['José Ortiz'])
+export const daEquipe = <T extends { pessoa: string }>(eq: T[] | undefined) => (eq || []).filter((e) => !FORA_DA_EQUIPE.has(e.pessoa))
 /** linhas que não têm meta de horas (não são técnicos de campo) */
 export const SEM_META = new Set([SEM_TECNICO, GRUPO_GARANTIA, GRUPO_OUTROS])
 export const HORAS_DIA = 8
@@ -250,18 +256,28 @@ export interface ExtraEquipe { mes: string; comissao: number; rescisao: number }
 export interface CustoEquipe {
   total: number
   porPessoa: Record<string, number>
+  /** salário + encargos */
   salario: number
+  /** só os encargos do salário (parte de `salario`) — José, 21/10/2026: "separa o salário de encargo" */
+  encargos: number
+  /** encargos dentro de `comissao` e de `comissaoPrevista` */
+  encComissao: number
+  encPrevista: number
   /** comissão já lançada no RH (com encargos) */
   comissao: number
   /** comissão PREVISTA (mês ainda sem comissão no RH), com encargos */
   comissaoPrevista: number
   rescisao: number
-  detalhe: Record<string, { salario: number; comissao: number; comissaoPrevista: number; rescisao: number }>
+  detalhe: Record<string, { salario: number; encargos: number; encComissao: number; encPrevista: number; comissao: number; comissaoPrevista: number; rescisao: number }>
 }
 
 export interface OpcoesCusto {
   /** salário do MÊS INTEIRO em cada mês tocado (José: "o que ele custou não pode se dividir ao longo do mês") */
   inteiro?: boolean
+  /** só o SALÁRIO + encargos como conta fixa do mês inteiro, mesmo em semana/dia (José, 21/10/2026: "coloca o
+   *  salário deles como conta fixa… está sendo dividido, mas isso só deixa mais confuso"). Período que cruza
+   *  dois meses conta o salário do mês em que ele TERMINA (uma vez só). Comissão e acertos seguem o período. */
+  salarioFixo?: boolean
   /** comissão prevista da pessoa entre duas datas (sem encargos) — usada no mês sem comissão no RH */
   previsao?: (pessoa: string, de: string, ate: string) => number
 }
@@ -271,7 +287,7 @@ export interface OpcoesCusto {
  * dias do mês, só nos meses entre a admissão e a demissão (como o "custo fixo RH" do sistema do Omie).
  */
 export function custoEquipe(equipe: MembroEquipe[], de: string, ate: string, op: OpcoesCusto = {}): CustoEquipe {
-  const r: CustoEquipe = { total: 0, porPessoa: {}, salario: 0, comissao: 0, comissaoPrevista: 0, rescisao: 0, detalhe: {} }
+  const r: CustoEquipe = { total: 0, porPessoa: {}, salario: 0, encargos: 0, encComissao: 0, encPrevista: 0, comissao: 0, comissaoPrevista: 0, rescisao: 0, detalhe: {} }
   if (ate < de) return r
   const diasNoMes = (mes: string) => { const [a, m] = mes.split('-').map(Number); return new Date(Date.UTC(a, m, 0)).getUTCDate() }
   // meses tocados pelo período, com o trecho de cada um
@@ -288,27 +304,29 @@ export function custoEquipe(equipe: MembroEquipe[], de: string, ate: string, op:
     const mensal = (p.salario || 0) + (p.encargos || 0)
     const fatorEnc = p.salario ? 1 + (p.encargos || 0) / p.salario : 1.44
     const extras = new Map((p.extras || []).map((x) => [x.mes, x]))
-    let sal = 0, com = 0, prev = 0, res = 0
+    let sal = 0, enc = 0, com = 0, prev = 0, res = 0, encCom = 0, encPrev = 0
     for (const m of meses) {
       const ativo = !(p.admissao && m.mes < p.admissao) && !(p.demissao && m.mes > p.demissao)
-      if (ativo) sal += mensal * m.frac
+      const ultimoMes = m === meses[meses.length - 1]
+      const fracSal = op.inteiro ? 1 : op.salarioFixo ? (ultimoMes ? 1 : 0) : m.frac
+      if (ativo) { sal += mensal * fracSal; enc += (p.encargos || 0) * fracSal }
       const x = extras.get(m.mes)
       res += (x?.rescisao || 0) * m.frac
-      if (x && x.comissao > 0) com += x.comissao * m.frac
-      else if (ativo && op.previsao) prev += op.previsao(p.pessoa, m.de, m.ate) * fatorEnc
+      if (x && x.comissao > 0) { const c = x.comissao * m.frac; com += c; encCom += c - c / fatorEnc }
+      else if (ativo && op.previsao) { const v = op.previsao(p.pessoa, m.de, m.ate); prev += v * fatorEnc; encPrev += v * (fatorEnc - 1) }
     }
     const tot = sal + com + prev + res
     if (tot <= 0) continue
-    const a = r.detalhe[p.pessoa] || { salario: 0, comissao: 0, comissaoPrevista: 0, rescisao: 0 }
-    a.salario += sal; a.comissao += com; a.comissaoPrevista += prev; a.rescisao += res
+    const a = r.detalhe[p.pessoa] || { salario: 0, encargos: 0, encComissao: 0, encPrevista: 0, comissao: 0, comissaoPrevista: 0, rescisao: 0 }
+    a.salario += sal; a.encargos += enc; a.encComissao += encCom; a.encPrevista += encPrev; a.comissao += com; a.comissaoPrevista += prev; a.rescisao += res
     r.detalhe[p.pessoa] = a
     r.porPessoa[p.pessoa] = (r.porPessoa[p.pessoa] || 0) + tot
-    r.salario += sal; r.comissao += com; r.comissaoPrevista += prev; r.rescisao += res; r.total += tot
+    r.salario += sal; r.encargos += enc; r.encComissao += encCom; r.encPrevista += encPrev; r.comissao += com; r.comissaoPrevista += prev; r.rescisao += res; r.total += tot
   }
   const arred = (n: number) => Math.round(n * 100) / 100
   for (const k of Object.keys(r.porPessoa)) r.porPessoa[k] = arred(r.porPessoa[k])
-  for (const v of Object.values(r.detalhe)) { v.salario = arred(v.salario); v.comissao = arred(v.comissao); v.comissaoPrevista = arred(v.comissaoPrevista); v.rescisao = arred(v.rescisao) }
-  r.total = arred(r.total); r.salario = arred(r.salario); r.comissao = arred(r.comissao); r.comissaoPrevista = arred(r.comissaoPrevista); r.rescisao = arred(r.rescisao)
+  for (const v of Object.values(r.detalhe)) { v.salario = arred(v.salario); v.encargos = arred(v.encargos); v.encComissao = arred(v.encComissao); v.encPrevista = arred(v.encPrevista); v.comissao = arred(v.comissao); v.comissaoPrevista = arred(v.comissaoPrevista); v.rescisao = arred(v.rescisao) }
+  r.total = arred(r.total); r.salario = arred(r.salario); r.encargos = arred(r.encargos); r.encComissao = arred(r.encComissao); r.encPrevista = arred(r.encPrevista); r.comissao = arred(r.comissao); r.comissaoPrevista = arred(r.comissaoPrevista); r.rescisao = arred(r.rescisao)
   return r
 }
 
@@ -366,11 +384,11 @@ export function agruparBase(base: BaseDados): BaseDados {
   return {
     ...base,
     // o grupo aparece como cartão sempre que tem salário cadastrado (mesmo sem OS no período)
-    tecnicos: [...new Set([...base.tecnicos.filter((t) => !GRUPOS[t]), ...(base.equipe || []).map((e) => GRUPOS[e.pessoa]).filter(Boolean)])],
+    tecnicos: [...new Set([...base.tecnicos.filter((t) => !GRUPOS[t]), ...daEquipe(base.equipe).map((e) => GRUPOS[e.pessoa]).filter(Boolean)])],
     faturadas: base.faturadas.map((o) => ({ ...o, tecnicos: [...new Set(o.tecnicos.map(g))] })),
     diasTodos: base.diasTodos.map((d) => ({ ...d, tecnico: g(d.tecnico) })),
     gastos: (base.gastos || []).map((x) => ({ ...x, pessoa: g(x.pessoa) })),
-    equipe: (base.equipe || []).map((e) => ({ ...e, pessoa: g(e.pessoa) })),
+    equipe: daEquipe(base.equipe).map((e) => ({ ...e, pessoa: g(e.pessoa) })),
   }
 }
 
@@ -380,7 +398,9 @@ export function osAguardandoFaturar(base: BaseDados): Set<string> {
 }
 
 /** comAguardando = false: as horas de OS preenchidas ainda não faturadas NÃO entram (caixinha da tela, José 20/10/2026). */
-export function montarPainel(baseBruta: BaseDados, tipo: 'dia' | 'semana' | 'mes' | 'ano', ref: string, hoje: string, comAguardando = true) {
+/** `comissaoOficial`: pessoa → mês (YYYY-MM) → comissão pela regra da ficha (comissaoDoTecnico, sem encargos).
+ *  Quando vem, a previsão do mês usa ela, sem projetar (José, 21/10/2026: "a previsão de comissão não está correta"). */
+export function montarPainel(baseBruta: BaseDados, tipo: 'dia' | 'semana' | 'mes' | 'ano', ref: string, hoje: string, comAguardando = true, comissaoOficial?: Record<string, Record<string, number>>) {
   const base = agruparBase(baseBruta)
   const buckets = periodos(tipo, ref, QTD_SERIE[tipo])
   const atual = buckets[buckets.length - 1]
@@ -392,7 +412,10 @@ export function montarPainel(baseBruta: BaseDados, tipo: 'dia' | 'semana' | 'mes
   const pctTodos = base.pctComissao || {}
   const opCusto: OpcoesCusto = {
     inteiro: tipo === 'mes' || tipo === 'ano',
+    salarioFixo: true,
     previsao: (pessoa, d1, d2) => {
+      const mes = d1.slice(0, 7), oficial = comissaoOficial?.[pessoa]?.[mes]
+      if (oficial != null && d1.endsWith('-01') && d2.slice(0, 7) === mes && (d2 >= hoje || somarDias(d2, 1).slice(0, 7) !== mes)) return oficial
       if (!pctTodos[pessoa]) return 0
       const fim = d2 > hoje ? hoje : d2
       if (fim < d1) return 0

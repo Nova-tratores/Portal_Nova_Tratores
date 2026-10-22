@@ -152,7 +152,6 @@ export function CartaoTecnico({ t, ordem = 0 }: { t: TecnicoFantasma; ordem?: nu
   const maxH = Math.max(x.ligadoH, x.horasRel, x.horasCobradas, x.horasPrevistas, 1)
   const maxK = Math.max(x.kmCarro, x.kmRel, x.kmCobrado, 1)
   const alertas = t.os.filter((o) => ['muito_acima', 'acima', 'rapido'].includes(o.situacao))
-  const mes = (t.dias[0]?.data || new Date().toISOString()).slice(0, 7)
   const fantH = x.acimaTempario + x.naoCobradas
   const nivel = x.kmFantasma > 400 || fantH > 8 || alertas.some((o) => o.situacao === 'muito_acima') ? 'alto' : x.kmFantasma > 150 || fantH > 3 || alertas.length ? 'medio' : 'ok'
   const ini = t.tecnico.split(' ').filter((p) => /^[A-ZÀ-Ú]/.test(p)).map((p) => p[0]).slice(0, 2).join('')
@@ -190,12 +189,7 @@ export function CartaoTecnico({ t, ordem = 0 }: { t: TecnicoFantasma; ordem?: nu
           </div>
         </div>
       </div>
-      {t.placas.length > 0 && (
-        <div className="fan-mes-box">
-          <div className="fan-mes-leg"><span className="fan-rot">O mês, dia a dia</span><span><i className="c" />carro</span><span><i className="r" />relatório</span><span><i className="s" />rodou sem OS</span></div>
-          <LinhaMes dias={t.dias} mes={mes} />
-        </div>
-      )}
+      {/* gráfico do mês tirado do cartão (José, 21/10/2026); o dia a dia continua na aba "Dia a dia" */}
       {alertas.length > 0 && (
         <div className="fan-alertas">
           {alertas.slice(0, 4).map((o) => <div key={o.os} className={`fan-al ${SIT[o.situacao].cls}`}><span className="fan-pulso" /><b>{o.os}</b><span>{o.cliente}</span><span>{o.alertas[0]?.texto}</span></div>)}
@@ -300,4 +294,12 @@ export const ESTILO_FAN = `
 .fan-sit { font-style: normal; font-size: 12px; border-radius: 99px; padding: 2px 8px } .fan-sit.v { background: #fee2e2; color: #991b1b } .fan-sit.a { background: #fef3c7; color: #92400e } .fan-sit.ok { background: #dcfce7; color: #166534 } .fan-sit.n { background: #f1f5f9; color: #64748b }
 @media (max-width: 800px) { .fan-th { display: none } .fan-tr.d, .fan-tr.o { grid-template-columns: 1fr 1fr } .fan-tr-al { padding-left: 12px } .fan-esq { grid-template-columns: 1fr } }
 @media (prefers-reduced-motion: reduce) { .fan *, .fan *::before { animation: none !important } }
+
+/* estilo dos cartões do Faturamento por período (José, 21/10/2026): branco, sem negrito */
+.fan-c { background: #fefefe !important; border: 1px solid #e2e8f0 !important; border-radius: 16px !important; transition: transform .2s, box-shadow .2s } .fan-c:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -18px rgba(15,23,42,.5) }
+.fan-c-cab b { font-weight: 500 !important; font-size: 16.5px } .fan-c-cab small { color: #475569 }
+.fan-rot { font-weight: 500 !important; text-transform: none !important; letter-spacing: 0 !important; font-size: 14.5px !important; color: #0f172a !important }
+.fan-bar-r, .fan-bar-v { font-weight: 500 !important }
+.fan-kpi { background: #fefefe !important; border: 1px solid #e2e8f0 !important; border-radius: 16px !important } .fan-kpi b { font-weight: 500 !important } .fan-kpi small { font-weight: 500 !important; text-transform: none !important; letter-spacing: 0 !important; font-size: 14px !important; color: #0f172a !important }
+.fan-abas button { font-weight: 500 !important } .fan-nivel { font-weight: 500 !important }
 `

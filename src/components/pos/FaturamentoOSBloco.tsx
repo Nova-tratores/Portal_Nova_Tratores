@@ -123,7 +123,7 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
   const rot = rotuloStatus(estado.status);
   const pedidosFaltando = (estado.pedidos || []).filter((p) => !p.faturado);
   const pecasPendentes = estado.faturadoEm
-    ? [...estado.pecas.filter((p) => !p.ok), ...pedidosFaltando.filter((p) => !estado.pecas.some((x) => x.id === p.id)).map((p) => ({ id: p.id, pedidoOmie: p.pedidoOmie, ok: false, erro: "ainda não faturado" }))]
+    ? [...estado.pecas.filter((p) => !p.ok && !(estado.pedidos || []).some((x) => x.id === p.id && x.faturado)), ...pedidosFaltando.filter((p) => !estado.pecas.some((x) => x.id === p.id)).map((p) => ({ id: p.id, pedidoOmie: p.pedidoOmie, ok: false, erro: "ainda não faturado" }))]
     : [];
   const pedidosJaFaturados = (estado.pedidos || []).filter((p) => p.faturado);
 

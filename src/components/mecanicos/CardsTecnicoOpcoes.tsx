@@ -61,7 +61,10 @@ export function useCardsTecnicos(metas: Metas) {
       }
     }
     const acum = (l: number[]) => l.reduce<number[]>((out, v, i) => { out.push((out[i - 1] || 0) + v); return out }, [])
-    return d.linhas.filter((l) => l.tecnico !== SEM_TECNICO && !SEM_META.has(l.tecnico)).map((l): CardDados => {
+    // quem já saiu do RH antes deste mês não ganha cartão, mesmo com OS no mês (José, 21/10/2026: "tira o Nicolas,
+    // ele não é mais técnico nosso"); as OS dele continuam no total da equipe
+    const saiu = (t: string) => { const e = (base.equipe || []).find((x) => x.pessoa === t); return !!e?.demissao && e.demissao < hoje.slice(0, 7) }
+    return d.linhas.filter((l) => l.tecnico !== SEM_TECNICO && !SEM_META.has(l.tecnico) && !saiu(l.tecnico)).map((l): CardDados => {
       const c = car?.comissoes.find((x) => x.tecnico === l.tecnico)
       const h = l.faturadas + l.aguardando
       return {
@@ -591,14 +594,12 @@ function ContVivo({ c }: { c: CardDados }) {
   const x = (d: number) => ((d - 1) / Math.max(1, n - 1)) * W
   const y = (v: number) => H - (v / topo) * H
   const linha = serie.slice(0, hoje).map((v, k) => `${k ? 'L' : 'M'}${x(k + 1).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
-  const area = `${linha} L${x(hoje).toFixed(1)},${H} L0,${H} Z`
   const faltam = Math.max(0, meta - total)
   const diasRest = Math.max(0, n - hoje)
   const uteisRest = Math.max(1, Math.round(diasRest * (5 / 7)))
   const pct = Math.round((total / Math.max(1, meta)) * 100)
   const esperado = meta * (hoje / n)
   const adiantado = total >= esperado
-  const dv = dia != null ? serie[dia - 1] : null
   return (
     <div className="cv" style={{ '--c': cor } as React.CSSProperties} onMouseEnter={() => setPausa(true)} onMouseLeave={() => { setPausa(false); setDia(null) }}>
       <div className="cv-abas">
@@ -614,26 +615,14 @@ function ContVivo({ c }: { c: CardDados }) {
           ? <><i className="fas fa-trophy" style={{ color: '#d97706' }} /> Bateu a meta do mês ({f(meta)}){ideal != null ? <> · já tem {Math.round((total / ideal) * 100)}% da ideal de {f(ideal)}</> : null}</>
           : <>Para a meta do mês ({f(meta)}) faltam <b>{f(faltam)}</b> em {diasRest} dias: <b>{f(faltam / uteisRest)}</b> por dia útil. {adiantado ? <em className="ok">Está à frente do ritmo.</em> : <em className="ruim">Está {f(esperado - total)} atrás do ritmo.</em>}</>}
       </p>
-      <svg viewBox={`-4 -12 ${W + 8} ${H + 26}`} className="cv-graf" key={`g${aba}`}
-        onMouseMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); const d = Math.round(((e.clientX - r.left) / r.width) * (n - 1)) + 1; setDia(Math.max(1, Math.min(hoje, d))) }}>
-        <defs><linearGradient id={`cvg-${c.nome.replace(/\W/g, '')}-${aba}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={cor} stopOpacity=".35" /><stop offset="1" stopColor={cor} stopOpacity="0" /></linearGradient></defs>
-        <line x1="0" y1={H} x2={W} y2={H} stroke="#e2e8f0" />
-        <line x1="0" y1={H} x2={W} y2={y(meta)} stroke="#0f172a" strokeWidth="1.2" strokeDasharray="4 3" />
-        <text x={W} y={y(meta) - 4} fontSize="8" fontWeight="900" textAnchor="end" fill="#0f172a">meta do mês</text>
-        {ideal != null && <><line x1="0" y1={H} x2={W} y2={y(ideal)} stroke="#7c3aed" strokeWidth="1.2" strokeDasharray="2 3" /><text x={W} y={y(ideal) - 4} fontSize="8" fontWeight="900" textAnchor="end" fill="#7c3aed">{ehV ? 'ideal R$ 8 mil/sem' : 'ideal 40 h/sem'}</text></>}
-        <path d={area} fill={`url(#cvg-${c.nome.replace(/\W/g, '')}-${aba})`} className="cv-area" />
-        <path d={linha} fill="none" stroke={cor} strokeWidth="2.6" strokeLinejoin="round" strokeLinecap="round" className="cv-linha" pathLength={1} />
-        <circle cx={x(hoje)} cy={y(serie[hoje - 1] || 0)} r="4.5" fill={cor} stroke="#fefefe" strokeWidth="2" className="cv-hoje" />
-        {dia != null && dv != null && <g><line x1={x(dia)} y1="0" x2={x(dia)} y2={H} stroke="#94a3b8" strokeDasharray="2 2" /><circle cx={x(dia)} cy={y(dv)} r="3.5" fill="#0f172a" /></g>}
-        <text x="0" y={H + 11} fontSize="8" fill="#94a3b8">dia 1</text><text x={x(hoje)} y={H + 11} fontSize="8" fontWeight="900" textAnchor="middle" fill={cor}>hoje</text><text x={W} y={H + 11} fontSize="8" textAnchor="end" fill="#94a3b8">dia {n}</text>
-      </svg>
-      <div className="cv-dica">{dia != null && dv != null ? <>Até o dia <b>{dia}</b>: <b>{f(dv)}</b> · o ritmo pedia {f(meta * (dia / n))}</> : <><i className="fas fa-hand-pointer" /> passe o mouse no gráfico para ver cada dia</>}</div>
+      {/* gráfico do mês tirado (José, 21/10/2026: "remove esse gráfico do card") */}
     </div>
   )
 }
 
 /** S1 com outro estilo de contador. */
-export function S1Estilo({ cards, contador, onAbrir }: { cards: CardDados[]; contador: EstiloContador; onAbrir?: (c: CardDados) => void }) {
+/** `semFoto`: cabeçalho branco sem a foto (José, 21/10/2026: "melhora esse card, não precisa mostrar as fotos"). */
+export function S1Estilo({ cards, contador, onAbrir, semFoto }: { cards: CardDados[]; contador: EstiloContador; onAbrir?: (c: CardDados) => void; semFoto?: boolean }) {
   return (
     <div className="s1-grade">
       {cards.map((c, i) => {
@@ -642,9 +631,9 @@ export function S1Estilo({ cards, contador, onAbrir }: { cards: CardDados[]; con
         return (
           <article key={c.nome} className={`s1 ${onAbrir ? 'abre' : ''} ${c.horasSemana >= c.metaSemana || c.horas >= c.metaHoras ? 'meta-h' : ''}`} style={{ animationDelay: `${i * 110}ms` }} onMouseMove={inclinar} onMouseLeave={soltar}
             onClick={onAbrir ? (e) => { if (!(e.target as HTMLElement).closest('button, svg')) onAbrir(c) } : undefined}>
-            <div className="s1-foto" onClick={onAbrir ? () => onAbrir(c) : undefined}>
-              <FotoImg c={c} />
-              <div className="s1-veu" />
+            <div className={`s1-foto ${semFoto ? 'sem' : ''}`} onClick={onAbrir ? () => onAbrir(c) : undefined}>
+              {!semFoto && <FotoImg c={c} />}
+              {!semFoto && <div className="s1-veu" />}
               <div className="s1-nome"><b>{c.nome}</b><span title="Só OS faturadas e cobradas do cliente"><i className="fas fa-user-tie" /> {c.os} OS · {Math.round(c.km)} km · {horas(c.horas)}</span>{(c.internaHoras > 0 || c.internaValor > 0) && <span className="s1-int" title="OS internas (serviço da loja, cortesia, entrega técnica): não contam nas metas"><i className="fas fa-house-chimney" /> internas, não contam: {horas(c.internaHoras)}{c.internaValor > 0 ? ` · ${brl(c.internaValor)}` : ''}</span>}</div>
               {c.nivel != null && <span className="s1-liga"><IconeLiga nivel={c.nivel} tamanho={36} /></span>}
               <span className="s1-sit" style={{ color: sv.cor, background: sv.fundo }}>● {sv.txt}</span>
@@ -743,4 +732,22 @@ export const ESTILO_CT = `
 .s3-metas { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 8px }
 .s3-anel { display: flex; gap: 8px; align-items: center; background: rgba(255,255,255,.55); border-radius: 14px; padding: 6px 8px } .s3-anel svg { width: 52px; height: 52px; flex-shrink: 0 } .s3-anel b { display: block; font-size: 14px; color: #0f172a } .s3-anel small { font-size: 10.5px; color: rgba(15,23,42,.65) }
 @media (prefers-reduced-motion: reduce) { .s1, .s3 { transform: none !important } .s3-holo { animation: none } }
+
+/* estilo dos cartões do Faturamento por período (José, 21/10/2026): sem negrito */
+.cv-num b { font-weight: 500 !important } .cv-pct { font-weight: 500 !important } .cv-frase b { font-weight: 600 }
+.sh-lin small { font-weight: 500 !important; color: #475569 !important } .sh-lin b { font-weight: 500 !important; font-size: 18px !important } .sh-lin em { color: #475569 }
+.cv-abas button { font-weight: 500 !important }
+.s1-nome b { font-weight: 600 !important }
+
+/* cartão do mecânico SEM foto, no estilo dos cartões do Faturamento por período (21/10/2026) */
+.s1-foto.sem { height: auto !important; min-height: 0 !important; display: grid !important; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "sit pts" "nome liga"; gap: 10px 12px; align-items: start; padding: 16px 18px 12px !important; background: #fefefe !important; border-bottom: 1px solid #f1f5f9 }
+.s1-foto.sem .s1-sit, .s1-foto.sem .s1-pts, .s1-foto.sem .s1-liga, .s1-foto.sem .s1-nome, .s1-foto.sem .s1-ver { position: static !important; transform: none !important; inset: auto !important }
+.s1-foto.sem .s1-sit { grid-area: sit; justify-self: start } .s1-foto.sem .s1-pts { grid-area: pts; justify-self: end } .s1-foto.sem .s1-liga { grid-area: liga; align-self: center }
+.s1-foto.sem .s1-nome { grid-area: nome; color: #0f172a !important; text-shadow: none !important; display: grid; gap: 4px }
+.s1-foto.sem .s1-nome b { font-size: 21px !important; font-weight: 500 !important; color: #0f172a !important }
+.s1-foto.sem .s1-nome span { color: #475569 !important; font-size: 13.5px !important; font-weight: 400 !important; text-shadow: none !important }
+.s1-foto.sem .s1-nome span i { color: #94a3b8 }
+.s1-foto.sem .s1-ver { display: none !important }
+.s1 { background: #fefefe }
+.s1-pag b { font-weight: 500 !important } .s1-pag small { text-transform: none !important; letter-spacing: 0 !important; font-weight: 500 !important; font-size: 13px !important }
 `

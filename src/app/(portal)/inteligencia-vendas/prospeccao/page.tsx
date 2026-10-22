@@ -1,9 +1,7 @@
-'use client';
-// Prospecção (José, 20/10/2026): a Jornada com o Tratorilson como atalho e, embaixo, os módulos
-// completos do caminho escolhido (Carteira, Recuperar, Novos clientes, Território).
-import { Suspense } from 'react';
-import ProspeccaoPagina from '@/components/inteligencia-vendas/ProspeccaoPagina';
+// A Inteligência de Vendas virou uma página só (21/10/2026): este endereço antigo abre
+// a página já no módulo, mantendo o resto do link.
+import { irParaModuloIV } from '../redirecionar';
 
-export default function Page() {
-  return <Suspense fallback={null}><ProspeccaoPagina /></Suspense>;
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  return irParaModuloIV('prospeccao', await searchParams);
 }

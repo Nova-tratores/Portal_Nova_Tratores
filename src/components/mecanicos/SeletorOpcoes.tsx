@@ -459,14 +459,16 @@ export function SeletorCartoes({ faturadas, hoje, escala: escalaC, refDia, onMud
   const det = useMemo(() => detPorDia(faturadas), [faturadas])
   const M = METRICAS.find((x) => x.m === metrica) || METRICAS[0]
   const lista = useMemo(() => {
-    const n = { dia: 10, semana: 8, mes: 8, ano: 4 }[escala]
-    return periodos(escala, hoje, n).map((c) => {
+    // o período escolhido fica NO CENTRO (José, 21/10/2026: "coloca ele no centro"): metade antes, metade depois;
+    // os que ainda não chegaram aparecem apagados e sem clique
+    const n = { dia: 9, semana: 7, mes: 7, ano: 5 }[escala]
+    return periodos(escala, andarPeriodo(escala, ref, Math.floor(n / 2)), n).map((c) => {
       const s = somarDet(det, c.de, c.ate > hoje ? hoje : c.ate)
       const pb = modo === 'datas' ? { de: bDe, ate: bAte } : periodoB(escala, c.de, modo, escolhido)
       const sb = somarDet(det, pb.de, modo === 'datas' ? pb.ate : ateComparavel(c, pb, hoje))
-      return { ...c, s, sb, agora: c.ate > hoje }
+      return { ...c, s, sb, agora: c.ate > hoje && c.de <= hoje, futuro: c.de > hoje }
     })
-  }, [escala, det, hoje, modo, escolhido, bDe, bAte])
+  }, [escala, ref, det, hoje, modo, escolhido, bDe, bAte])
   const sel = periodos(escala, ref, 1)[0]
   const b = modo === 'datas' ? { de: bDe, ate: bAte } : periodoB(escala, sel.de, modo, escolhido)
   const ateB = modo === 'datas' ? b.ate : ateComparavel(sel, b, hoje)
@@ -496,7 +498,10 @@ export function SeletorCartoes({ faturadas, hoje, escala: escalaC, refDia, onMud
   const clicar = (de: string) => { if (escolhendo) { setEscolhido(de); setModo('escolhido'); setEscolhendo(false) } else mudar(escala, de) }
   const nomePedaco = (d: string) => escala === 'ano' ? MESES[Number(d.slice(5, 7)) - 1].slice(0, 3) : escala === 'semana' ? `${SEM[diaSem(d)]} ${d.slice(8)}` : d.slice(8)
   const trilhoC = useRef<HTMLDivElement>(null)
-  useEffect(() => { const el = trilhoC.current; if (el) el.scrollLeft = el.scrollWidth }, [escala, modo, escolhido, metrica, bDe, bAte])
+  // desfocar os outros cartões (José, 21/10/2026: "coloca uma opção para desborrar tudo") — fica lembrado neste navegador
+  const [foco, setFoco] = useState(() => { try { return localStorage.getItem('so-foco') !== '0' } catch { return true } })
+  const trocarFoco = () => setFoco((v) => { try { localStorage.setItem('so-foco', v ? '0' : '1') } catch { /* sem localStorage */ } return !v })
+  useEffect(() => { const el = trilhoC.current; const on = el?.querySelector<HTMLElement>('.so-card.on'); if (el && on) el.scrollLeft = on.offsetLeft - (el.clientWidth - on.offsetWidth) / 2 }, [escala, ref, modo, escolhido, metrica, bDe, bAte])
   const kk = (v: number) => (metrica === 'os' ? (v ? String(Math.round(v)) : '') : k(v))
   return (
     <div className="so-caixa so-g">
@@ -516,6 +521,7 @@ export function SeletorCartoes({ faturadas, hoje, escala: escalaC, refDia, onMud
         </div>
         <div className="so-fdir">
           <small>{escolhendo ? <b style={{ color: '#c2410c' }}>clique no cartão que vai ser o B</b> : 'clique num cartão para abrir os detalhes dele'}</small>
+          <button type="button" className={`so-foco ${foco ? 'on' : ''}`} onClick={trocarFoco} title={foco ? 'Os outros cartões estão desfocados: clique para ver todos nítidos' : 'Clique para desfocar os outros cartões e destacar o escolhido'}><span aria-hidden><i /></span>destacar o escolhido</button>
           {onAtualizar && <button type="button" className="so-atualiza" onClick={onAtualizar} disabled={carregando} title="Buscar os dados de novo"><i className={`fas fa-rotate ${carregando ? 'fa-spin' : ''}`} /> atualizar</button>}
         </div>
       </div>
@@ -561,18 +567,19 @@ export function SeletorCartoes({ faturadas, hoje, escala: escalaC, refDia, onMud
         )}
       </div>
 
-      <div className={`so-cards ${escolhendo ? 'escolhendo' : ''}`} ref={trilhoC} key={`${escala}:${modo}:${escolhido}:${metrica}`}>
+      <div className={`so-cards ${escolhendo ? 'escolhendo' : ''} ${foco ? 'foco' : ''}`} ref={trilhoC} key={`${escala}:${modo}:${escolhido}:${metrica}`}>
         {lista.map((c, i) => {
           const ehA = c.de === sel.de, ehB = comparar && c.de === b.de && !ehA
           const p = comparar ? pct(c.s[metrica], c.sb[metrica]) : null
           return (
-            <button key={c.de} type="button" className={`so-card ${ehA ? 'on' : ''} ${ehB ? 'ehb' : ''}`} style={{ animationDelay: `${i * 50}ms` }} onClick={() => clicar(c.de)}>
+            <button key={c.de} type="button" disabled={c.futuro} className={`so-card ${ehA ? 'on' : ''} ${ehB ? 'ehb' : ''} ${c.futuro ? 'futuro' : ''} ${c.agora ? 'atual' : ''}`} style={{ animationDelay: `${i * 50}ms` }} onClick={() => clicar(c.de)}>
               {ehA && <span className="so-tag">A</span>}{ehB && <span className="so-tag b">B</span>}
               <small>{rotuloPeriodo(escala, c.de, c.ate)}{c.agora && <span className="so-vivo"><i /> agora</span>}</small>
               <u style={{ color: M.cor }}><i className={`fas ${M.ic}`} /> {M.rot}</u>
-              <b><Numero valor={c.s[metrica]} formato={M.f} /></b>
-              {M.sub && <span>{M.sub(c.s)}</span>}
-              {comparar && (p != null
+              <b>{c.futuro ? '—' : <Numero valor={c.s[metrica]} formato={M.f} />}</b>
+              {M.sub && !c.futuro && <span>{M.sub(c.s)}</span>}
+              {c.futuro && <span>ainda não chegou</span>}
+              {comparar && !c.futuro && (p != null
                 ? <em className={p >= 0 ? 'up' : 'down'}>{p >= 0 ? '▲' : '▼'} {Math.abs(p)}% <i>vs {textoComp}{c.agora ? ' (mesmo trecho)' : ''}</i></em>
                 : <em className="nada"><i>sem {textoComp} para comparar</i></em>)}
               {/* de onde veio o dinheiro: faixa dividida + uma linha por item (oculto até clicar em "detalhes") */}
@@ -728,6 +735,16 @@ export function SeletorZoom({ porDia, hoje }: { porDia: PorDia; hoje: string }) 
 }
 
 export const ESTILO_SO = `
+/* o período escolhido em destaque, os outros desfocados (José, 21/10/2026: "destaca o que está mostrando borrando os outros"); passar o mouse traz de volta */
+.so-cards .so-card { transition: filter .25s, opacity .25s, transform .25s }
+.so-cards.foco:not(.escolhendo) .so-card:not(.on):not(.ehb):not(.atual):not(:hover):not(:focus-visible) { filter: blur(1.6px) grayscale(.35); opacity: .5 }
+.so-cards .so-card.on { transform: scale(1.03); z-index: 1 }
+.so-cards .so-card.futuro { opacity: .3; cursor: default; filter: none }
+/* o cartão do período ATUAL (o de hoje) sempre marcado em verde, mesmo sem estar escolhido */
+.so-cards .so-card.atual:not(.on) { border-color: #16a34a; box-shadow: 0 0 0 2px #16a34a33; filter: none; opacity: 1 }
+.so-foco { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 5px 12px 5px 6px; font-family: inherit; font-size: 13px; font-weight: 600; color: #0f172a; cursor: pointer }
+.so-foco > span { position: relative; width: 30px; height: 18px; border-radius: 99px; background: #cbd5e1; transition: background .2s } .so-foco > span i { position: absolute; top: 3px; left: 3px; width: 12px; height: 12px; border-radius: 50%; background: #fefefe; transition: transform .25s } .so-foco.on > span { background: #2563eb } .so-foco.on > span i { transform: translateX(12px) }
+
 .so-comp { display: flex; gap: 6px; flex-wrap: wrap; align-items: center }
 .so-comp-rot { font-size: 12.5px; font-weight: 900; color: ${MUDO}; margin-right: 4px }
 .so-comp button { border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: ${MUDO}; border-radius: 99px; padding: 5px 12px; font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer; transition: all .2s }

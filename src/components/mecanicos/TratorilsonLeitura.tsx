@@ -66,7 +66,11 @@ const PERGUNTAS_OC: Pergunta[] = [
   { txt: 'Quanto faturamos?', ic: 'fa-chart-column', alvo: 'sec-1' },
 ]
 
-export default function TratorilsonLeitura({ onIr, aba = 'painel' }: { onIr?: (alvo: string) => void; aba?: 'painel' | 'ocorrencias' }) {
+const ouvintesTl = new Set<() => void>()
+/** Abre as perguntas do Tratorilson (usado pelo centro do menu em círculo). */
+export function abrirTratorilson() { ouvintesTl.forEach((f) => f()) }
+
+export default function TratorilsonLeitura({ onIr, aba = 'painel', oculto }: { onIr?: (alvo: string) => void; aba?: 'painel' | 'ocorrencias'; oculto?: boolean }) {
   const [ultima, setUltima] = useState<Guardada | null>(null)
   const [ens, setEns] = useState<Ensinamento[]>([])
   const [gerando, setGerando] = useState(false)
@@ -74,6 +78,8 @@ export default function TratorilsonLeitura({ onIr, aba = 'painel' }: { onIr?: (a
   const [etapa, setEtapa] = useState(0)
   const [aberto, setAberto] = useState<{ aba: Aba; tecnico?: string } | null>(null)
   const [menu, setMenu] = useState(false)
+  // aberto pelo centro do menu em círculo (José, 21/10/2026)
+  useEffect(() => { const f = () => setMenu(true); ouvintesTl.add(f); return () => { ouvintesTl.delete(f) } }, [])
   const [erro, setErro] = useState('')
   const [agoraMs, setAgoraMs] = useState(0)
   const { base } = useBasePosVendas()
@@ -105,7 +111,7 @@ export default function TratorilsonLeitura({ onIr, aba = 'painel' }: { onIr?: (a
       <style>{ESTILO}</style>
       {/* só o rosto do Tratorilson + perguntas-chave que levam direto à resposta (José 19/10) */}
       {/* um atalho só no topo: "Perguntas frequentes" abre a lista (José, 20/10/2026) */}
-      <div className={`tlf ${menu ? 'on' : ''} ${gerando ? 'tl3-pensando' : ''}`} style={{ '--c': a ? sit.cor : '#0369a1' } as React.CSSProperties}>
+      <div className={`tlf ${menu ? 'on' : ''} ${gerando ? 'tl3-pensando' : ''} ${oculto ? 'oculto' : ''}`} style={{ '--c': a ? sit.cor : '#0369a1' } as React.CSSProperties}>
         <button type="button" className="tlf-bt" onClick={() => setMenu((m) => !m)} aria-expanded={menu}
           title={a ? `${sit.rotulo}: ${a.manchete}${quando ? ` (lida ${quando})` : ''}` : gerando ? 'Tratorilson lendo…' : rapida?.texto || 'Tratorilson'}>
           <span className="tlf-rosto"><i className="fas fa-robot" /></span>
@@ -415,6 +421,11 @@ const ESTILO = `
 .rl-mini:hover { background: rgba(100,116,139,.12) }
 @media (max-width: 900px) { .rl-plano { grid-template-columns: 1fr } .tl2 { flex-wrap: wrap } .tl2-sit { width: 100%; flex-direction: row; padding: 8px } .tl2-lado { border-left: none; width: 100%; flex-direction: row; justify-content: space-between } .rl-duas { grid-template-columns: 1fr } }
 .tlf { position: relative }
+/* aberto pelo círculo de atalhos: sem o botão, perguntas no centro da tela com o fundo desfocado */
+.tlf.oculto .tlf-bt { display: none }
+.tlf.oculto .tlf-capa { z-index: 9700; background: rgba(15,23,42,.38); backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px) }
+.tlf.oculto .tlf-menu { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 9701; width: min(400px, 92vw); padding: 10px; border-radius: 20px; box-shadow: 0 30px 80px -20px rgba(15,23,42,.6) }
+.tlf.oculto .tlf-menu::before { content: 'Perguntas frequentes'; display: block; padding: 6px 12px 10px; font-size: 15px; font-weight: 600; color: #0369a1 }
 .tlf-bt { display: inline-flex; gap: 10px; align-items: center; min-height: 56px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 999px; padding: 6px 16px 6px 7px; font-family: inherit; text-align: left; cursor: pointer; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05); transition: border-color .2s, box-shadow .2s, transform .15s }
 .tlf-bt:hover, .tlf.on .tlf-bt { transform: translateY(-1px); border-color: color-mix(in srgb, var(--c) 40%, transparent); box-shadow: 0 8px 20px rgba(15,23,42,.09) }
 .tlf-rosto { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; color: #fefefe; background: linear-gradient(135deg, #0ea5e9, #0369a1); box-shadow: 0 4px 10px rgba(3,105,161,.3) }

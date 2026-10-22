@@ -2454,13 +2454,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   {mode === "edit" && (
                     <div className="os-card" style={{ display: abaOmie === "requisicoes" ? "none" : undefined }}>
                       <div className="os-card-title"><i className="fas fa-boxes" /> Materiais &amp; Requisições</div>
-                      {/* PPVs vinculados: escolher numa janela (José, 14/10/2026) — antes era texto separado por vírgula */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: .4 }}>PPVs vinculados</span>
-                        {ppvIds.length ? ppvIds.map((pid) => <span key={pid} style={{ fontSize: 12.5, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: "color-mix(in srgb, #0369A1 10%, transparent)", color: "#0369A1" }}>{pid}</span>) : <span style={{ fontSize: 12.5, color: "var(--portal-text-muted)" }}>nenhum</span>}
+                      {/* Peças da OS refeitas (José, 21/10/2026: "melhora isso aqui"): PPVs em cima, peças em colunas com
+                          R$ no formato BR, quantidade em etiqueta, total destacado e botões no rodapé */}
+                      <style>{ESTILO_PECAS_OS}</style>
+                      <div className="pc-topo">
+                        <span className="pc-rot">PPV{ppvIds.length > 1 ? "s" : ""}</span>
+                        {ppvIds.length ? ppvIds.map((pid) => <a key={pid} className="pc-ppv" href={`/ppv?id=${encodeURIComponent(pid)}`} target="_blank" rel="noreferrer" title="Abrir o PPV em outra aba">{pid}<i className="fas fa-arrow-up-right-from-square" /></a>) : <span className="pc-rot">nenhum</span>}
                         {podeEditar && osId && (
-                          <button type="button" onClick={() => setEditarPPVs(true)} style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 14px", borderRadius: 9, border: "1px solid #0369A1", background: "transparent", color: "#0369A1", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit" }}>
-                            <i className="fas fa-pen" /> Editar PPVs vinculados
+                          <button type="button" className="pc-editar" onClick={() => setEditarPPVs(true)}>
+                            <i className="fas fa-pen" /> Trocar PPVs
                           </button>
                         )}
                       </div>
@@ -2483,24 +2485,27 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         </div>
                       )}
                       {produtos.length > 0 && (
-                        <div className="os-produtos-list">
+                        <div className="pc-lista">
+                          <div className="pc-l cab"><span>Código</span><span>Peça</span><span className="d">Qtd.</span><span className="d">Unitário</span><span className="d">Total</span><span /></div>
                           {produtos.map((p, i) => (
-                            <div key={`${p.ppvId}-${p.codigo}-${i}`} className="os-produto-item" style={{ alignItems: "center", gap: 10 }}>
-                              <span style={{ minWidth: 0 }}>
-                                {p.codigo && (
-                                  <button type="button" onClick={() => setDetalheProd(p)} title="Item de Orçamento — dados do produto + impostos"
-                                    style={{ padding: 0, marginRight: 6, border: "none", background: "transparent", cursor: "pointer", fontWeight: 600, fontSize: "inherit", fontFamily: "inherit", color: "#2563EB", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                                    {p.codigo}<i className="fas fa-circle-info" style={{ fontSize: 10, color: "#93C5FD" }} />
+                            <div key={`${p.ppvId}-${p.codigo}-${i}`} className="pc-l">
+                              <span>
+                                {p.codigo ? (
+                                  <button type="button" className="pc-cod" onClick={() => setDetalheProd(p)} title="Item de Orçamento — dados do produto + impostos">
+                                    {p.codigo}<i className="fas fa-circle-info" />
                                   </button>
-                                )}
-                                {p.descricao} <b>(x{p.qtde})</b>
-                                {ppvIds.length > 1 && p.ppvId && <span style={{ marginLeft: 6, fontSize: 11, color: "var(--portal-text-secondary)" }}>PPV {p.ppvId}</span>}
+                                ) : <span className="pc-sem">—</span>}
                               </span>
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                                <span style={S_PRODUTO_VALOR}>R$ {(p.valor * p.qtde).toFixed(2)}</span>
+                              <span className="pc-desc">
+                                {p.descricao}
+                                {ppvIds.length > 1 && p.ppvId && <small>PPV {p.ppvId}</small>}
+                              </span>
+                              <span className="d"><em className="pc-qt">{p.qtde} un</em></span>
+                              <span className="d pc-un">{brlPeca(p.valor)}</span>
+                              <span className="d pc-tot">{brlPeca(p.valor * p.qtde)}</span>
+                              <span className="d">
                                 {p.codigo && p.ppvId && (
-                                  <button type="button" onClick={() => setEditandoProd(p)} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Editar quantidade, valor ou remover"}
-                                    style={{ border: "none", background: "transparent", color: "var(--portal-text-secondary)", cursor: podeEditar ? "pointer" : "not-allowed", padding: 2, fontSize: 13 }}>
+                                  <button type="button" className="pc-lapis" onClick={() => setEditandoProd(p)} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Editar quantidade, valor ou remover"}>
                                     <i className="fas fa-pen" />
                                   </button>
                                 )}
@@ -2512,27 +2517,23 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
 
                       {/* Total de peças + adicionar peça direto no PPV vinculado */}
                       {ppvIds.length > 0 && (
-                        <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, border: "1px solid var(--portal-border)", background: "var(--portal-bg-secondary)" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                            <span style={{ fontSize: 12, color: "var(--portal-text-secondary)" }}>
-                              Total de peças {produtos.length > 0 ? `(${produtos.length})` : ""}
-                            </span>
-                            <span style={{ fontSize: 15, fontWeight: 600, color: "var(--portal-text)" }}>R$ {totalPecas.toFixed(2)}</span>
+                        <div className="pc-rodape">
+                          <div className="pc-total">
+                            <small>Total de peças{produtos.length > 0 ? ` · ${produtos.length} ite${produtos.length > 1 ? "ns" : "m"}` : ""}</small>
+                            <b>{brlPeca(totalPecas)}</b>
                           </div>
-                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                          <div className="pc-acoes">
                             {ppvIds.length > 1 && (
-                              <select value={addProdTarget} onChange={(e) => setAddProdTarget(e.target.value)} style={{ flex: "1 1 120px", marginBottom: 0, fontWeight: 500 }} title="Escolha o PPV">
-                                <option value="">PPV...</option>
+                              <select value={addProdTarget} onChange={(e) => setAddProdTarget(e.target.value)} style={{ marginBottom: 0, width: "auto" }} title="Escolha o PPV">
+                                <option value="">Em qual PPV?</option>
                                 {ppvIds.map((id) => <option key={id} value={id}>PPV {id}</option>)}
                               </select>
                             )}
-                            <button type="button" onClick={abrirAddProduto} disabled={addingProduto || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Busca com mais usados, catálogo e kit — pergunta a quantidade"}
-                              style={{ flex: "1 1 auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: "none", background: addingProduto || !podeEditar ? "var(--portal-text-faint)" : "#0d9488", color: "#fff", fontSize: 13, fontWeight: 600, cursor: addingProduto || !podeEditar ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
-                              {addingProduto ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-plus" /> Adicionar peça {ppvIds.length > 1 ? "" : `ao PPV ${ppvIds[0]}`}</>}
+                            <button type="button" className="pc-kit" onClick={abrirKitOS} disabled={importandoKitOS || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Importar kit de revisão (inteiro ou só algumas peças)"}>
+                              {importandoKitOS ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-box-open" /> Kit de revisão</>}
                             </button>
-                            <button type="button" onClick={abrirKitOS} disabled={importandoKitOS || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Importar kit de revisão (inteiro ou só algumas peças)"}
-                              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: "1.5px solid #0d9488", background: "transparent", color: "#0d9488", fontSize: 13, fontWeight: 700, cursor: importandoKitOS || !podeEditar ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
-                              {importandoKitOS ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-box-open" /> Kit</>}
+                            <button type="button" className="pc-add" onClick={abrirAddProduto} disabled={addingProduto || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Busca com mais usados, catálogo e kit — pergunta a quantidade"}>
+                              {addingProduto ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-plus" /> Adicionar peça</>}
                             </button>
                           </div>
                         </div>
@@ -3138,3 +3139,36 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     </>
   );
 }
+
+const brlPeca = (v: number) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const ESTILO_PECAS_OS = `
+.pc-topo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px }
+.pc-rot { font-size: 13px; color: var(--portal-text-secondary, #475569) }
+.pc-ppv { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; padding: 3px 11px; border-radius: 999px; background: color-mix(in srgb, #0369A1 9%, var(--surface, #fefefe)); border: 1px solid color-mix(in srgb, #0369A1 20%, transparent); color: #0369A1; text-decoration: none }
+.pc-ppv i { font-size: 10px; opacity: .7 } .pc-ppv:hover { background: color-mix(in srgb, #0369A1 14%, var(--surface, #fefefe)) }
+.pc-editar { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--border, #e2e8f0); background: var(--surface, #fefefe); color: var(--portal-text, #0f172a); font-size: 13px; font-weight: 500; font-family: inherit; cursor: pointer }
+.pc-editar i { color: #0369A1; font-size: 11.5px } .pc-editar:hover { border-color: #93c5fd }
+.pc-lista { border: 1px solid var(--border, #e2e8f0); border-radius: 14px; overflow: hidden; background: var(--surface, #fefefe) }
+.pc-l { display: grid; grid-template-columns: minmax(120px, 170px) minmax(0, 1fr) 64px 104px 112px 34px; gap: 12px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--border, #f1f5f9); font-size: 13.5px; color: var(--portal-text, #0f172a) }
+.pc-l:first-child { border-top: 0 } .pc-l:not(.cab):hover { background: color-mix(in srgb, #0369A1 4%, transparent) }
+.pc-l.cab { padding: 8px 14px; font-size: 12.5px; color: var(--portal-text-secondary, #475569); background: var(--portal-bg-secondary, #f8fafc) }
+.pc-l .d { text-align: right; justify-self: end }
+.pc-cod { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: transparent; font-family: inherit; font-size: 13px; color: #2563eb; cursor: pointer; font-variant-numeric: tabular-nums; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.pc-cod i { font-size: 10px; color: #93c5fd } .pc-cod:hover { text-decoration: underline }
+.pc-sem { color: #94a3b8 }
+.pc-desc { display: grid; min-width: 0; line-height: 1.35 } .pc-desc small { font-size: 12px; color: var(--portal-text-muted, #64748b) }
+.pc-qt { font-style: normal; font-size: 12.5px; padding: 2px 9px; border-radius: 999px; background: var(--portal-bg-secondary, #eef2f6); color: var(--portal-text, #0f172a); white-space: nowrap }
+.pc-un { color: var(--portal-text-secondary, #475569); font-variant-numeric: tabular-nums; white-space: nowrap }
+.pc-tot { font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap }
+.pc-lapis { width: 30px; height: 30px; border-radius: 9px; border: 1px solid transparent; background: transparent; color: var(--portal-text-muted, #64748b); cursor: pointer; font-size: 12px }
+.pc-lapis:hover:not(:disabled) { border-color: var(--border, #e2e8f0); color: #0369A1 } .pc-lapis:disabled { cursor: not-allowed; opacity: .5 }
+.pc-rodape { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: var(--portal-bg-secondary, #f8fafc); border: 1px solid var(--border, #eef2f7) }
+.pc-total { display: grid; line-height: 1.2 } .pc-total small { font-size: 13px; color: var(--portal-text-secondary, #475569) } .pc-total b { font-size: 24px; font-weight: 500; color: var(--portal-text, #0f172a); font-variant-numeric: tabular-nums; letter-spacing: -.01em }
+.pc-acoes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap }
+.pc-add, .pc-kit { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 18px; border-radius: 11px; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap }
+.pc-add { border: 0; background: #0d9488; color: #fefefe; box-shadow: 0 6px 14px -8px rgba(13,148,136,.7) } .pc-add:hover:not(:disabled) { filter: brightness(1.06) }
+.pc-kit { border: 1px solid var(--border, #e2e8f0); background: var(--surface, #fefefe); color: var(--portal-text, #0f172a) } .pc-kit i { color: #0d9488 } .pc-kit:hover:not(:disabled) { border-color: #5eead4 }
+.pc-add:disabled, .pc-kit:disabled { opacity: .55; cursor: not-allowed }
+@media (max-width: 760px) { .pc-l { grid-template-columns: minmax(0, 1fr) auto 30px; } .pc-l.cab { display: none } .pc-l > span:nth-child(1) { grid-column: 1 / -1 } .pc-l > span:nth-child(3), .pc-l > span:nth-child(4) { display: none } }
+`;

@@ -176,7 +176,7 @@ export function GarantiaPlacar({ lista, hoje, periodo }: { lista: Gar[]; hoje: s
       <div className="gx-tiles">
         {tiles.map((t, i) => (
           <button key={t.r} type="button" className="gx-tile" style={{ ...css(t.cor), animationDelay: `${i * 70}ms` }} onClick={() => setVer({ t: t.r, l: t.l })}>
-            <small><i className={`fas ${t.ic}`} /> {t.r}</small><b><Numero valor={t.v} formato={brl} /></b><span>{t.sub}</span>
+            <small><i className={`fas ${t.ic} gx-ic`} />{t.r}</small><b><Numero valor={t.v} formato={brl} /></b><span>{t.sub}</span>
           </button>
         ))}
       </div>
@@ -478,6 +478,14 @@ export const ESTILO_GX = `
 .gx-fim { flex: 0 0 190px; display: grid; gap: 8px }
 .gx-fim button { display: grid; grid-template-columns: auto auto 1fr; gap: 8px; align-items: center; border: none; border-radius: 14px; padding: 10px 12px; font-family: inherit; text-align: left; cursor: pointer; animation: gxEntra .45s .5s both } .gx-fim b { font-size: 22px } .gx-fim span { font-size: 12px; font-weight: 700 }
 .gx-fim-a { background: #ecfdf5; color: #047857 } .gx-fim-r { background: #fef2f2; color: #b91c1c }
+/* bloco 4 no estilo dos cartões do Faturamento por período (José, 21/10/2026): ícone no quadradinho, sem negrito */
+.gx-painel .gx-tile { gap: 6px; padding: 14px 16px; transition: transform .2s, box-shadow .2s, border-color .2s }
+.gx-painel .gx-tile:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--c) 40%, #e2e8f0); box-shadow: 0 12px 26px -18px rgba(15,23,42,.5) }
+.gx-painel .gx-tile small { display: inline-flex; align-items: center; gap: 10px; font-size: 15.5px; font-weight: 500; color: #0f172a }
+.gx-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 16px; color: var(--c); background: color-mix(in srgb, var(--c) 12%, #fefefe); border: 1px solid color-mix(in srgb, var(--c) 22%, #fefefe); flex: none }
+.gx-painel .gx-tile b { font-size: 28px; font-weight: 500; margin-top: 4px } .gx-painel .gx-tile span { font-size: 13px; color: #475569 }
+.gx-painel .gx-anel2 { border-radius: 16px; padding: 12px 16px; transition: transform .2s, box-shadow .2s } .gx-painel .gx-anel2:hover { transform: translateY(-2px); box-shadow: 0 12px 26px -18px rgba(15,23,42,.5) }
+.gx-painel .gx-anel2 > div b { font-size: 15.5px; font-weight: 500 } .gx-painel .gx-anel2 p { font-size: 13px; color: #475569 }
 .gx-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px }
 .gx-tile { display: grid; gap: 2px; text-align: left; font-family: inherit; border: 1px solid var(--portal-border, #e5e7eb); background: var(--portal-bg-card, #fefefe); border-radius: 16px; padding: 12px 14px; cursor: pointer; animation: gxEntra .45s both; transition: transform .2s, box-shadow .2s } .gx-tile:hover { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(15,23,42,.1) }
 .gx-tile small { font-size: 12px; font-weight: 900; color: var(--c) } .gx-tile b { font-size: 22px; font-variant-numeric: tabular-nums; color: var(--portal-text, #0f172a) } .gx-tile span { font-size: 12.5px; color: ${MUDO} }

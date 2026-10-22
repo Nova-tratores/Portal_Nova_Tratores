@@ -12,7 +12,7 @@ import { STATUS_COR, STATUS_LABEL } from "@/lib/garantias/constants";
 import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import { normName } from "@/lib/tecnico-utils";
 import type { GarantiaStatus } from "@/lib/garantias/types";
-import { CapaTitulo, CapaFaseValor, CapaBolinhas, CapaLinha, CapaData, CapaTexto, CapaReservar, CapaRodape, CapaBotao } from "@/components/comum/CapaCard";
+import { CapaTitulo, CapaFaseValor, CapaLinha, CapaData, CapaTexto, CapaReservar, CapaRodape, CapaBotao } from "@/components/comum/CapaCard";
 
 interface PhaseViewProps {
   orders: KanbanCard[];
@@ -119,14 +119,6 @@ function formatDateBR(dateStr: string): string {
 
 const FASE_APROVADO = "Orçamento Aprovado";
 const FASES_RESERVA = new Set(["Orçamento", "Orçamento enviado para o cliente e aguardando", FASE_APROVADO]);
-// Bolinhas da capa: o caminho da OS até o Omie
-const ETAPAS_OS: { r: string; fases: string[] }[] = [
-  { r: "Orçamento", fases: ["Orçamento", "Orçamento enviado para o cliente e aguardando"] },
-  { r: "Aprovado", fases: [FASE_APROVADO] },
-  { r: "Execução", fases: ["Execução", "Execução (Realizando Diagnóstico)", "Execução aguardando peças (em transporte)", "Aguardando ordem Técnico"] },
-  { r: "Executada", fases: ["Relatório Atualizado", "Executada", "Executada aguardando comercial", "Aguardando outros", "Relatório Concluído"] },
-  { r: "Omie", fases: ["Enviar Omie", "Enviado Para Omie", "Preenchido Garantia", "Concluída"] },
-];
 // Da fase Enviar Omie em diante: Enviar → Cobrar → Faturar
 const FASES_OMIE = new Set(["Enviar Omie", "Enviado Para Omie", "Cobrando Cliente", "Preenchido Garantia"]);
 const FASE_COBRANDO = "Cobrando Cliente";
@@ -519,20 +511,9 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
     return so || String(o.servSolicitado || "").trim();
   })();
 
-  // Status da cobrança (vem do PainelCobranca) para as bolinhas da fase Cobrando
-  const [cobranca, setCobranca] = useState<{ enviada: boolean; respondeu: boolean } | null>(null);
-  const atual = ETAPAS_OS.findIndex((e) => e.fases.includes(o.status));
   const cobrando = o.status === FASE_COBRANDO;
   const garantia = !!garantiaStatus;
   const noOmie = !!o.ordemOmie;
-  const passos = cobrando
-    ? [
-        { r: "No Omie", ok: true },
-        { r: "Cobrado", ok: !!cobranca?.enviada, atual: !cobranca?.enviada },
-        { r: "Respondeu", ok: !!cobranca?.respondeu, atual: !!cobranca?.enviada && !cobranca?.respondeu },
-        { r: "Faturada", ok: false, atual: !!cobranca?.respondeu },
-      ]
-    : ETAPAS_OS.map((e, i) => ({ r: e.r, ok: atual >= 0 && i < atual, atual: i === atual }));
   const tooltip = (titulo: string, cor: string, corpo: ReactNode) => (
     <div className="mc-tooltip">
       <div className="mc-tooltip-arrow" />
@@ -542,7 +523,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
   );
 
   return (
-    <div className="mini-card" style={{ position: "relative", overflow: "visible", borderTop: `3px solid ${COR_TIPO[tipoDaOS(o, garantia)]}`, display: "flex", flexDirection: "column", gap: 8, borderRadius: 12, padding: "10px 12px" }} onClick={onClick}
+    <div className="mini-card" style={{ ["--cor-tipo" as string]: COR_TIPO[tipoDaOS(o, garantia)], position: "relative", overflow: "visible", borderTop: `3px solid ${COR_TIPO[tipoDaOS(o, garantia)]}`, display: "flex", flexDirection: "column", gap: 8, borderRadius: 12, padding: "10px 12px" }} onClick={onClick}
       onMouseEnter={(e) => onDescEnter?.(e.currentTarget.getBoundingClientRect(), o.servSolicitado || "")}
       onMouseLeave={() => onDescLeave?.()}>
       <CapaTitulo numero={numero} cliente={o.cliente} />
@@ -564,7 +545,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
       )}
       <CapaFaseValor fase={o.status} rotulo={PHASE_SHORT[o.status] || o.status} fases={PHASES} rotuloDe={(p) => PHASE_SHORT[p] || p}
         onChange={onPhaseChange ? (f) => onPhaseChange(o.id, f) : undefined} valor={`R$ ${o.valor}`} />
-      <CapaBolinhas passos={passos} />
+      {/* as bolinhas do caminho (Orçamento → Omie) saíram — José, 21/10/2026: "pode remover" */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <CapaLinha icone="fas fa-user-cog" rotulo="Técnico">{o.tecnico || "?"}</CapaLinha>
         {o.previsaoExecucao && <CapaLinha icone="fas fa-wrench" rotulo="Execução"><CapaData>{formatDateBR(o.previsaoExecucao)}</CapaData></CapaLinha>}
@@ -577,7 +558,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
           onDesmarcar={() => onPhaseChange?.(o.id, "Orçamento enviado para o cliente e aguardando")} />
       )}
       {/* Cobrança via Tratorilson — só nos cards da fase "Cobrando Cliente" */}
-      {cobrando && <PainelCobranca osId={o.id} onPhaseChange={onPhaseChange} onStatus={setCobranca} />}
+      {cobrando && <PainelCobranca osId={o.id} onPhaseChange={onPhaseChange} />}
       {/* Ordem (José, 13/10/2026): 1º só ENVIAR ao Omie → COBRAR → FATURAR (faturar pode pular o cobrar) */}
       {FASES_OMIE.has(o.status) && (
         !noOmie ? (
@@ -796,20 +777,25 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
         .pos-abas-faixa { display: flex; align-items: flex-end; gap: 12px; padding: 12px 16px 0; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin: 0 16px; padding-left: 0; padding-right: 0; }
         .pos-abas-tipo { display: flex; align-items: flex-end; gap: 4px; min-width: 0; }
         .pos-abas-acoes { margin-left: auto; padding-bottom: 8px; }
-        .pos-aba-tipo { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 14px; border: none; background: transparent;
-          color: var(--portal-text-muted, #64748b); cursor: pointer; white-space: nowrap; flex-shrink: 0; font-family: inherit; border-radius: 9px 9px 0 0;
+        /* cada aba mostra a SUA cor mesmo sem estar escolhida (José, 21/10/2026: "indicando a cor de cada aba"):
+           ícone e contador na cor, sublinhado fino na cor; a escolhida ganha fundo clarinho e sublinhado cheio */
+        .pos-aba-tipo { position: relative; display: inline-flex; align-items: center; gap: 9px; height: 44px; padding: 0 16px; border: none; background: transparent;
+          color: var(--portal-text-secondary, #475569); cursor: pointer; white-space: nowrap; flex-shrink: 0; font-family: inherit; border-radius: 11px 11px 0 0;
           transition: color .15s, background .15s; }
-        .pos-aba-tipo::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 3px; border-radius: 3px 3px 0 0; background: transparent; transition: background .15s; }
-        .pos-aba-tipo:hover { color: var(--portal-text); background: color-mix(in srgb, var(--cor-aba) 6%, transparent); }
+        .pos-aba-tipo::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 2px; border-radius: 3px 3px 0 0;
+          background: color-mix(in srgb, var(--cor-aba) 35%, transparent); transition: background .15s, height .15s; }
+        .pos-aba-tipo:hover { color: var(--portal-text, #0f172a); background: color-mix(in srgb, var(--cor-aba) 6%, transparent); }
+        .pos-aba-tipo:hover::after { background: color-mix(in srgb, var(--cor-aba) 65%, transparent); }
         .pos-aba-tipo:focus-visible { outline: 2px solid var(--cor-aba); outline-offset: -2px; }
-        .pos-aba-icone { font-size: 13px; color: var(--cor-aba); opacity: .75; }
-        .pos-aba-rotulo { font-size: 14px; font-weight: 700; }
+        .pos-aba-icone { width: 26px; height: 26px; border-radius: 8px; display: inline-grid; place-items: center; font-size: 12.5px; color: var(--cor-aba);
+          background: color-mix(in srgb, var(--cor-aba) 11%, transparent); }
+        .pos-aba-rotulo { font-size: 14.5px; font-weight: 500; }
         .pos-aba-curto { display: none; }
-        .pos-aba-conta { min-width: 22px; height: 20px; padding: 0 7px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
-          font-size: 11.5px; font-weight: 800; background: var(--portal-bg-secondary, #eef2f6); color: var(--portal-text-muted, #64748b); font-variant-numeric: tabular-nums; }
-        .pos-aba-tipo.ativa { color: var(--cor-aba); }
-        .pos-aba-tipo.ativa::after { background: var(--cor-aba); }
-        .pos-aba-tipo.ativa .pos-aba-icone { opacity: 1; }
+        .pos-aba-conta { min-width: 24px; height: 21px; padding: 0 8px; border-radius: 11px; display: inline-flex; align-items: center; justify-content: center;
+          font-size: 12px; font-weight: 500; background: color-mix(in srgb, var(--cor-aba) 12%, transparent); color: color-mix(in srgb, var(--cor-aba) 80%, #0f172a); font-variant-numeric: tabular-nums; }
+        .pos-aba-tipo.ativa { color: color-mix(in srgb, var(--cor-aba) 85%, #0f172a); background: color-mix(in srgb, var(--cor-aba) 9%, transparent); }
+        .pos-aba-tipo.ativa::after { height: 3px; background: var(--cor-aba); }
+        .pos-aba-tipo.ativa .pos-aba-icone { background: var(--cor-aba); color: #fefefe; }
         .pos-aba-tipo.ativa .pos-aba-conta { background: var(--cor-aba); color: #fefefe; }
         @media (max-width: 640px) {
           .pos-abas-faixa { margin: 0 12px; }

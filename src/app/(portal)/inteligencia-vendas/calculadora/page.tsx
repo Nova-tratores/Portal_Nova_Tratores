@@ -1,7 +1,7 @@
-'use client';
-import { Suspense } from 'react';
-import Calculadora from '@/components/inteligencia-vendas/Calculadora';
+// A Inteligência de Vendas virou uma página só (21/10/2026): este endereço antigo abre
+// a página já no módulo, mantendo o resto do link.
+import { irParaModuloIV } from '../redirecionar';
 
-export default function Page() {
-  return <Suspense fallback={null}><Calculadora /></Suspense>;
+export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  return irParaModuloIV('calculadora', await searchParams);
 }

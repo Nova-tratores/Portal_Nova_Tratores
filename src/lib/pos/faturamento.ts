@@ -925,7 +925,9 @@ async function posFaturamento(id: string, ctx: {
         const falhaParc = await aplicarFormaNoPedido(pid, ctx.forma);
         if (falhaParc) { pecas.push({ id: pid, ok: false, erro: `forma de pagamento: ${falhaParc} — o pedido não foi faturado` }); continue; }
         const r = await faturarPPVNoOmie(pid);
-        pecas.push({ id: pid, pedidoOmie: r.numeroPedido, ok: !!r.sucesso, erro: r.sucesso ? null : (r.erro || 'falhou'), nf: r.nfNumero || null });
+        // "já faturado" = o pedido JÁ tem NF-e: é sucesso (igual ao faturarPecasPendentes). Antes contava como falha e
+        // a OS não ia para Concluída, com "Falta o pedido de peças" na tela (OS-0830/PPV-0517, 21/10/2026)
+        pecas.push({ id: pid, pedidoOmie: r.numeroPedido, ok: !!r.sucesso || !!r.jaFaturado, erro: r.sucesso || r.jaFaturado ? null : (r.erro || 'falhou'), nf: r.nfNumero || null });
       } catch (e) {
         pecas.push({ id: pid, ok: false, erro: e instanceof Error ? e.message : String(e) });
       }
