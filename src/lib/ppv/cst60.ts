@@ -21,3 +21,16 @@ export function impostoCst60(impostoCru: Record<string, Bloco>, cst = '60'): Rec
   }
   return imp
 }
+
+/**
+ * CFOP para item que veio VAZIO no pedido (José, 22/10/2026 — PPV-0505: "O CFOP do produto RA-1900039331410 não está
+ * preenchido" e o Omie não faturava): o mais usado nos outros itens do mesmo pedido; sem nenhum, 5.102.
+ */
+export function cfopPadrao(det: Array<{ produto?: { cfop?: unknown } }>, reserva = '5.102'): string {
+  const conta = new Map<string, number>()
+  for (const d of det) { const c = String(d.produto?.cfop ?? '').trim(); if (c) conta.set(c, (conta.get(c) || 0) + 1) }
+  let melhor = '', n = 0
+  for (const [c, q] of conta) if (q > n) { melhor = c; n = q }
+  return melhor || reserva
+}
+export const semCfop = (d: { produto?: { cfop?: unknown } }) => !String(d.produto?.cfop ?? '').trim()

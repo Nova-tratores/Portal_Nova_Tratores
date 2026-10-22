@@ -16,3 +16,13 @@ describe('CST 60 nas peças (PPV-0498, 845YPF)', () => {
     expect(r.ibs).toEqual({ valor_ibs: 0.6 })
   })
 })
+
+import { cfopPadrao, semCfop } from '../cst60'
+describe('CFOP vazio no pedido (PPV-0505)', () => {
+  it('usa o CFOP mais comum do pedido; sem nenhum, 5.102', () => {
+    const det = [{ produto: { cfop: '5.102' } }, { produto: { cfop: '' } }, { produto: { cfop: '5.102' } }, { produto: { cfop: '5.405' } }]
+    expect(cfopPadrao(det)).toBe('5.102')
+    expect(cfopPadrao([{ produto: { cfop: '' } }])).toBe('5.102')
+    expect(det.filter(semCfop)).toHaveLength(1)
+  })
+})

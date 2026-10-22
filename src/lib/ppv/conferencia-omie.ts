@@ -11,6 +11,7 @@ import {
   type Divergencia, type ItemComparavel, type ResultadoConferencia,
 } from "@/lib/omie/conferencia";
 import { comRobosPausados } from "@/lib/omie/porta";
+import { cfopPadrao, semCfop } from "./cst60";
 
 type Rec = Record<string, unknown>;
 const n = (v: unknown) => { const x = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(x) ? x : 0; };
@@ -79,7 +80,11 @@ export async function conferirPPV(idPPV: string, opts: { pronto?: { acc: OmieAcc
   // sempre consumo final, com as peças no CST 60 (o Omie troca para 51 ao ligar o consumo final)
   add(compararCampo(idPPV, "consumoFinal", "Nota fiscal para consumo final", "S", ia.consumidor_final || "N",
     { exibirPortal: "sim", exibirOmie: ia.consumidor_final === "S" ? "sim" : "não", vazioIgnora: false }));
+  const cfopPed = cfopPadrao(pedido.det || []);
   for (const it of pedido.det || []) {
+    // CFOP vazio: o Omie não fatura ("O CFOP do produto … não está preenchido" — PPV-0505, 22/10/2026)
+    if (semCfop(it)) div.push({ doc: idPPV, campo: `cfop:${it.produto?.codigo}`, rotulo: `Peça ${it.produto?.codigo} — CFOP`, portal: cfopPed, omie: "—", ajustavel: true,
+      explicacao: `A peça está sem CFOP no pedido e o Omie não fatura assim. Ao atualizar, recebe o ${cfopPed} (o mesmo das outras peças do pedido).` });
     const cst = String(it.imposto?.icms?.cod_sit_trib_icms ?? "");
     if (cst !== CST_ICMS_PECAS) div.push({ doc: idPPV, campo: `cst:${it.produto?.codigo}`, rotulo: `Peça ${it.produto?.codigo} — CST do ICMS`, portal: CST_ICMS_PECAS, omie: cst || "—", ajustavel: true,
       explicacao: `Peça com ICMS já cobrado por substituição tributária sai no CST 60. No Omie está ${cst || "vazio"}; ao atualizar, volta para 60.` });

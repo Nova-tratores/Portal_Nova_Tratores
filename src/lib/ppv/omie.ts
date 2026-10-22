@@ -4,7 +4,7 @@
 // =============================================
 
 import { refOSNoPedido, ehCastro } from "@/lib/pos/pedido-cliente";
-import { impostoCst60 } from "./cst60";
+import { impostoCst60, cfopPadrao, semCfop } from "./cst60";
 import { supabaseFetch } from "./supabase";
 import { diasDoNumParcelas } from "@/lib/ppv/parcelas-condicao";
 import { resolverContaCorrente, resolverDepartamentos, type ContaDestino, type DeptoDestino } from "./conta-corrente";
@@ -12,6 +12,7 @@ import { TBL_PEDIDOS, TBL_ITENS, TBL_CLIENTES, TBL_LOGS, TBL_PRODUTOS, TBL_OS } 
 import { buscarPPVPorId, registrarLog } from "./queries";
 import { contaOmie } from "@/lib/omie/contas";
 import { aplicarUnidadesDoPPV } from "@/lib/pecas/ppv-vinculo";
+import { statusOmieErro, descricaoOmie } from "./omie-status";
 
 import { omie, comRobosPausados } from "@/lib/omie/porta";
 
@@ -1111,12 +1112,25 @@ async function faturarPPVNoOmieSemPausa(
     //    mudava a fase, sem emitir). Precisa do nCodPed (código interno do pedido).
     const nCodPed = Number(pedido.cabecalho?.codigo_pedido) || 0;
     if (!nCodPed) return { sucesso: false, erro: "Não consegui o código interno do pedido no Omie (nCodPed) pra faturar.", empresa: acc.name };
+
+    // 1b) ValidarPedidoVenda: o próprio Omie diz se o pedido PODE faturar (CFOP vazio, parcela vencida…) — não
+    //     emite nada. O FaturarPedidoVenda RESPONDE "ok" mesmo quando recusa (cCodStatus "1" no corpo) e o portal
+    //     marcava faturado sem NF-e (PPV-0505 pedido 7808 e PPV-0526 pedido 7796, 20–22/10/2026).
+    try {
+      const v = await omieCall<Record<string, unknown>>("/produtos/pedidovendafat/", "ValidarPedidoVenda", { nCodPed }, acc.key, acc.secret);
+      if (statusOmieErro(v)) return { sucesso: false, empresa: acc.name, erro: `O Omie não deixa faturar este pedido: ${descricaoOmie(v)}` };
+    } catch (e) {
+      // validação sem resposta não impede: o FaturarPedidoVenda e a conferência abaixo seguram
+      console.warn(`[Omie PPV faturar] ${idPPV}: ValidarPedidoVenda falhou: ${e instanceof Error ? e.message : e}`);
+    }
+
     try {
       const resp = await omieCall<Record<string, unknown>>(
         "/produtos/pedidovendafat/", "FaturarPedidoVenda",
         { cCodIntPed: codInt, nCodPed }, acc.key, acc.secret,
       );
       console.log(`[Omie PPV faturar] ${idPPV}: FaturarPedidoVenda ->`, JSON.stringify(resp).slice(0, 250));
+      if (statusOmieErro(resp)) return { sucesso: false, empresa: acc.name, erro: `O Omie recusou o faturamento: ${descricaoOmie(resp)}` };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error(`[Omie PPV faturar] ${idPPV}: FaturarPedidoVenda FALHOU: ${msg}`);
@@ -1139,6 +1153,22 @@ async function faturarPPVNoOmieSemPausa(
     //    longo, pra fechar o modal na hora). Se a SEFAZ ainda não devolveu o nº,
     //    fica "aguardando" e o número/DANFE são preenchidos depois (aba SEFAZ /
     //    botão Atualizar).
+    // A resposta do FaturarPedidoVenda sozinha não prova nada: confere no Omie (~20 s) que o pedido foi para
+    // faturado. Sem isso NÃO marca — o pedido fica "pendente" e a próxima tentativa acha o estado real.
+    let confirmado = false;
+    // chave diferente em cada consulta: a mesma chamada repetida em segundos dá "consumo redundante"
+    const chaves: Record<string, unknown>[] = [{ codigo_pedido: nCodPed }, { numero_pedido: String(pedido.cabecalho?.numero_pedido || cab.pedido_omie || "") }, { codigo_pedido_integracao: codInt }];
+    for (const [i, ms] of [3000, 6000, 10000].entries()) {
+      await new Promise((ok) => setTimeout(ok, ms));
+      const depois = await consultarPedidoOmie(chaves[i], acc).catch(() => null);
+      const info = (depois as unknown as { infoCadastro?: { faturado?: string } } | null)?.infoCadastro;
+      if (depois && (Number(depois.cabecalho?.etapa || 0) >= Number(OMIE_ETAPA_FATURADO) || info?.faturado === "S")) { confirmado = true; break; }
+    }
+    if (!confirmado) {
+      await registrarLog(idPPV, `FaturarPedidoVenda aceito, mas o pedido nº ${String(pedido.cabecalho?.numero_pedido || cab.pedido_omie || "")} continua sem faturar no Omie — NÃO marcado como faturado.`);
+      return { sucesso: false, pendente: true, empresa: acc.name, erro: "O Omie aceitou o pedido de faturamento, mas o pedido ainda não aparece faturado lá. Não marquei como faturado: confira no Omie em alguns minutos — se continuar aberto, veja o erro no pedido e fature de novo." };
+    }
+
     const numeroPedido = String(pedido.cabecalho?.numero_pedido || cab.pedido_omie || "");
     const codigoClienteInterno = Number(pedido.cabecalho?.codigo_cliente) || undefined;
     const nf = await buscarNFdoPedido(acc, nCodPed, codigoClienteInterno); // 1 tentativa rápida
@@ -1564,10 +1594,13 @@ export async function garantirCst60(acc: OmieAccount, chave: Record<string, unkn
   const det = pedido.det || [];
   const errados = det.filter((d) => String(d.imposto?.icms?.cod_sit_trib_icms ?? "") !== CST_ICMS_PECAS);
   const info = (pedido as { informacoes_adicionais?: { consumidor_final?: string } }).informacoes_adicionais;
-  if (!errados.length && info?.consumidor_final === "S") return { trocados: 0, pedido };
+  // CFOP vazio também trava o faturamento ("O CFOP do produto … não está preenchido" — PPV-0505, 22/10/2026)
+  const vazios = det.filter(semCfop);
+  const cfop = cfopPadrao(det);
+  if (!errados.length && !vazios.length && info?.consumidor_final === "S") return { trocados: 0, pedido };
   const detNovo = det.map((d) => {
     const produto: Record<string, unknown> = { codigo_produto: d.produto?.codigo_produto, quantidade: d.produto?.quantidade, valor_unitario: d.produto?.valor_unitario };
-    if (d.produto?.cfop) produto.cfop = d.produto.cfop;
+    produto.cfop = semCfop(d) ? cfop : d.produto?.cfop;
     const p = d.produto as Record<string, unknown> | undefined;
     if (p?.tipo_desconto) { produto.tipo_desconto = p.tipo_desconto; produto.percentual_desconto = p.percentual_desconto; produto.valor_desconto = p.valor_desconto; }
     return {
@@ -1604,7 +1637,7 @@ export async function garantirCst60(acc: OmieAccount, chave: Record<string, unkn
   const numPed = (pedido.cabecalho as { numero_pedido?: unknown } | undefined)?.numero_pedido
   const codPed = (pedido.cabecalho as { codigo_pedido?: unknown } | undefined)?.codigo_pedido
   const reler = () => consultarPedidoOmie(jaLido && codPed ? { codigo_pedido: codPed } : numPed ? { numero_pedido: numPed } : chave, acc).catch(() => null);
-  const errados2 = (p: OmiePedidoConsulta | null) => (p?.det || []).filter((d) => String(d.imposto?.icms?.cod_sit_trib_icms ?? "") !== CST_ICMS_PECAS);
+  const errados2 = (p: OmiePedidoConsulta | null) => (p?.det || []).filter((d) => String(d.imposto?.icms?.cod_sit_trib_icms ?? "") !== CST_ICMS_PECAS || semCfop(d));
   let depois = await reler();
   if (incerto && depois && errados2(depois).length) {
     try { await enviar(); } catch (e) {
@@ -1617,8 +1650,8 @@ export async function garantirCst60(acc: OmieAccount, chave: Record<string, unkn
   if (!depois) return { trocados: 0, erro: incerto ? "o Omie demorou a responder a troca do CST e não deu para conferir — clique em \"Conferir de novo\" em 1 minuto" : "não deu para conferir o CST no Omie depois da troca" };
   const aindaErrados = errados2(depois);
   if (aindaErrados.length) {
-    const lista = aindaErrados.slice(0, 5).map((d) => `${d.produto?.codigo || "?"} (CST ${d.imposto?.icms?.cod_sit_trib_icms ?? "?"})`).join(", ");
-    return { trocados: errados.length - aindaErrados.length, erro: `o Omie não trocou o CST para ${CST_ICMS_PECAS} em ${aindaErrados.length} peça(s): ${lista}. Troque no Omie antes de faturar.`, pedido: depois };
+    const lista = aindaErrados.slice(0, 5).map((d) => `${d.produto?.codigo || "?"} (${semCfop(d) ? "sem CFOP" : `CST ${d.imposto?.icms?.cod_sit_trib_icms ?? "?"}`})`).join(", ");
+    return { trocados: errados.length - aindaErrados.length, erro: `o Omie não aceitou CST ${CST_ICMS_PECAS} e CFOP preenchido em ${aindaErrados.length} peça(s): ${lista}. Acerte no Omie antes de faturar.`, pedido: depois };
   }
   return { trocados: errados.length, pedido: depois };
 }
