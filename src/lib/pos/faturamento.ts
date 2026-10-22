@@ -854,6 +854,8 @@ async function faturarOSNoOmieSemPausa(
     await liberar('erro', r.mensagem);
     await auditar(id, userName, auth.userId, 'faturar_erro', { erro: r.mensagem, forma });
     await logOS(id, `Faturamento NÃO realizado: ${r.mensagem}`, userName, String(os.Status || ''));
+    // quem fechou a janela no meio fica sabendo pelo sino (José, 22/10/2026)
+    await notificarQuemFaturou(userName, `OS ${chaveNum(os.Ordem_Omie) || id}: faturamento NÃO realizado`, r.mensagem, `/pos?id=${id}`);
     return { ok: false, status: 400, tipo: 'erro', mensagem: r.mensagem };
   }
   if (r.tipo === 'pendente_omie') {
@@ -957,6 +959,31 @@ function dataOmieISO(d: string | null | undefined): string | null {
   return m ? `${m[3]}-${m[2]}-${m[1]}T12:00:00-03:00` : null;
 }
 
+/**
+ * NF-e dos pedidos de peças faturados junto com a OS, para o aviso de "notas prontas".
+ * O nº vem do resultado do faturamento; se ainda não estava lá, do pedido no portal e, por fim, do Omie.
+ */
+async function notasDosPedidos(pecas: PecaFaturada[] | null): Promise<Array<{ id: string; pedido: string; nf: string | null }>> {
+  const ok = (pecas || []).filter((p) => p.ok);
+  const out: Array<{ id: string; pedido: string; nf: string | null }> = [];
+  for (const p of ok) {
+    let nf = p.nf || null;
+    if (!nf) {
+      const { data } = await supabase.from('pedidos').select('nf_numero').eq('id_pedido', p.id).maybeSingle();
+      nf = ((data as { nf_numero?: string | null } | null)?.nf_numero) || null;
+    }
+    if (!nf) {
+      try {
+        const { obterComunicacaoSefaz } = await import('@/lib/ppv/omie');
+        const com = await obterComunicacaoSefaz(p.id, { refresh: true });
+        nf = com?.numero || null;
+      } catch { /* fica "em autorização" no aviso */ }
+    }
+    out.push({ id: p.id, pedido: chaveNum(p.pedidoOmie) || p.id, nf: nf ? String(nf).replace(/^0+(?=\d)/, '') : null });
+  }
+  return out;
+}
+
 /** Lê a NFS-e no StatusOS, grava situação/nº e o PDF (se já existir) na OS e na pasta do cliente. */
 async function atualizarNfse(id: string, nCodOS: number): Promise<StatusFaturamento> {
   const antes = await lerOS(id).catch(() => null);
@@ -992,8 +1019,19 @@ async function atualizarNfse(id: string, nCodOS: number): Promise<StatusFaturame
   if (virou && antes?.faturado_omie_em) {
     const num = chaveNum(antes.Ordem_Omie) || id;
     if (sit.status === 'nfse_autorizada') {
-      await notificarQuemFaturou(antes.faturado_por, `NFS-e da OS ${num} emitida`,
-        `A nota ${sit.numero ? `nº ${sit.numero} ` : ''}foi autorizada pelo sistema nacional. ${antes.Os_Cliente || ''}`.trim(), `/pos?id=${id}`);
+      // um aviso só: a nota da OS E a do pedido de peças vinculado (José, 22/10/2026:
+      // "a nota da ordem xxx e do pedido xxx está pronta")
+      const pedidos = await notasDosPedidos(antes.faturamento_pecas).catch(() => []);
+      const prontos = pedidos.filter((p) => p.nf);
+      const titulo = pedidos.length
+        ? `A nota da OS ${num} e do pedido ${pedidos.map((p) => p.pedido).join(', ')} ${pedidos.length > 1 ? 'estão prontas' : 'está pronta'}`
+        : `A nota da OS ${num} está pronta`;
+      const partes = [
+        `NFS-e ${sit.numero ? `nº ${sit.numero} ` : ''}(serviço)`,
+        ...pedidos.map((p) => (p.nf ? `NF-e nº ${p.nf} (peças, pedido ${p.pedido})` : `NF-e do pedido ${p.pedido} ainda em autorização`)),
+      ];
+      await notificarQuemFaturou(antes.faturado_por, prontos.length === pedidos.length ? titulo : `A nota da OS ${num} está pronta`,
+        `${partes.join(' · ')}. ${antes.Os_Cliente || ''}`.trim(), `/pos?id=${id}`);
     } else {
       await notificarQuemFaturou(antes.faturado_por, `NFS-e da OS ${num} REJEITADA`,
         `${sit.mensagem || 'O sistema nacional recusou a nota.'} Corrija e reenvie pelo Omie.`, `/pos?id=${id}`);

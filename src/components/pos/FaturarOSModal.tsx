@@ -243,7 +243,7 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
   return (
     <div onClick={() => !faturando && !aguardando && onClose()} style={{ position: "fixed", inset: 0, zIndex: 68000, background: "rgba(15,23,42,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "4vh 16px", overflowY: "auto" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fefefe", color: "#1e293b", borderRadius: 16, width: "100%", maxWidth: 680, boxShadow: "0 30px 70px rgba(0,0,0,.35)", overflow: "hidden" }}>
-        {faturando && <FaturandoTela comOS={comOS} comPecas={pecasJunto.length > 0} />}
+        {faturando && <FaturandoTela comOS={comOS} comPecas={pecasJunto.length > 0} onFechar={onClose} />}
         {/* cabeçalho */}
         <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", background: "linear-gradient(135deg, #e0f2fe, #fefefe 70%)", borderBottom: "1px solid #e2e8f0" }}>
           <span style={{ width: 44, height: 44, borderRadius: 12, background: COR, color: "#fefefe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, boxShadow: "0 6px 14px rgba(3,105,161,.3)" }}><i className="fas fa-file-invoice-dollar" /></span>
@@ -682,7 +682,8 @@ function AguardandoNotas({ osId, comOS, ppvIds, numeroOS, concluida, onFechar }:
 }
 
 /** Enquanto fatura: Omie → NFS-e/NF-e com os passos andando (José, 14/10/2026). */
-function FaturandoTela({ comOS, comPecas }: { comOS: boolean; comPecas: boolean }) {
+/** `onFechar`: fecha a janela e o faturamento segue no servidor; o resultado chega no sino (José, 22/10/2026). */
+function FaturandoTela({ comOS, comPecas, onFechar }: { comOS: boolean; comPecas: boolean; onFechar: () => void }) {
   const passos = [
     ...(comOS ? ["Aplicando os impostos dos serviços", "Gravando as parcelas", "Validando a OS no Omie", "Emitindo a NFS-e"] : []),
     ...(comPecas ? ["Gravando as parcelas do pedido de peças", "Emitindo a NF-e das peças"] : []),
@@ -712,7 +713,10 @@ function FaturandoTela({ comOS, comPecas }: { comOS: boolean; comPecas: boolean 
             <div className="fat-logo" title={comOS ? "NFS-e" : "NF-e"}>{comOS ? <img src="/marcas/nfse.png" alt="NFS-e" style={{ maxWidth: 56, maxHeight: 30 }} /> : <b style={{ fontSize: 18, color: "#e8730c" }}>NF-e</b>}</div>
           </div>
           <div style={{ marginTop: 18, textAlign: "center", fontSize: 17, fontWeight: 800, color: "#1e293b" }}>Faturando no Omie</div>
-          <div style={{ marginTop: 4, textAlign: "center", fontSize: 12.5, color: "#64748b" }}>Não feche esta janela.</div>
+          <div style={{ marginTop: 4, textAlign: "center", fontSize: 12.5, color: "#64748b", lineHeight: 1.5 }}>
+            O Omie está enviando {comOS && comPecas ? "as notas para a prefeitura e para a SEFAZ" : comOS ? "a nota para a prefeitura" : "a nota para a SEFAZ"}.<br />
+            Pode fechar: o faturamento continua e você recebe um aviso no sino quando as notas estiverem prontas.
+          </div>
         </div>
         <div style={{ padding: "18px 28px 6px", display: "flex", flexDirection: "column", gap: 11 }}>
           {passos.map((p, i) => (
@@ -730,7 +734,13 @@ function FaturandoTela({ comOS, comPecas }: { comOS: boolean; comPecas: boolean 
         <div style={{ margin: "14px 28px 24px", height: 6, borderRadius: 6, background: "#eef2f6", overflow: "hidden" }}>
           <div style={{ width: `${pct}%`, height: "100%", borderRadius: 6, background: `linear-gradient(90deg, ${COR}, #22c55e)`, transition: "width .6s ease" }} />
         </div>
-        <div style={{ margin: "-10px 28px 22px" }}><CronometroEstimado segundos={segundos} estimativa={estimativa} cor={COR} /></div>
+        <div style={{ margin: "-10px 28px 16px" }}><CronometroEstimado segundos={segundos} estimativa={estimativa} cor={COR} /></div>
+        <div style={{ padding: "0 28px 22px" }}>
+          <button type="button" onClick={onFechar}
+            style={{ width: "100%", padding: "11px 16px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fefefe", color: "#0f172a", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <i className="fas fa-bell" style={{ color: COR }} /> Fechar e avisar no sino quando ficar pronto
+          </button>
+        </div>
       </div>
     </div>
   );
