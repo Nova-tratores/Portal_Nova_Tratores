@@ -30,7 +30,7 @@ export default function OmieAgora({ painel }: { painel: Painel }) {
         <span style={{ fontWeight: 500, fontSize: '.72rem', color: '#6b7280' }}>
           · fila: {porta.fila.pessoa} de pessoas, {porta.fila.rapido} rápidos, {porta.fila.pesado} pesados
           {porta.coordenacao?.ativa && (
-            <> · servidor {porta.coordenacao.papel}, coordenado com o {porta.coordenacao.papel === 'web' ? 'worker' : 'web'}
+            <> · servidor {porta.coordenacao.papel}{porta.coordenacao.ipSaida ? ` (IP ${porta.coordenacao.ipSaida})` : ''}, coordenado com o {porta.coordenacao.papel === 'web' ? 'worker' : 'web'}
               {porta.coordenacao.esperandoVaga > 0 && <> · {porta.coordenacao.esperandoVaga} gravação(ões) esperando a vez</>}
             </>
           )}

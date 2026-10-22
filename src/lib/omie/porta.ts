@@ -280,6 +280,8 @@ interface EstadoInterno {
   coordErro?: { em: number; msg: string };
   /** gravações esperando a vaga de outro processo agora */
   esperandoVaga?: number;
+  /** IP público pelo qual este processo sai (a Omie limita por IP) */
+  ipSaida?: { ip: string | null; em: number };
 }
 
 const G = globalThis as unknown as { __omiePorta?: EstadoInterno };
@@ -547,6 +549,25 @@ export async function comRobosPausados<T>(motivo: string, fn: () => Promise<T>):
   }
 }
 
+// ── IP de saída ────────────────────────────────────────────────────────────────
+
+/** Descobre o IP público de saída deste processo e guarda para o painel. */
+export async function verificarIpSaida(): Promise<{ ip: string | null; anterior: string | null; mudou: boolean }> {
+  const s = estado();
+  const anterior = s.ipSaida?.ip ?? null;
+  let ip: string | null = null;
+  for (const url of ['https://api.ipify.org', 'https://ifconfig.me/ip']) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+      const txt = (await res.text()).trim();
+      if (res.ok && /^[\d.:a-f]+$/i.test(txt)) { ip = txt; break; }
+    } catch { /* tenta o próximo */ }
+  }
+  const primeira = !s.ipSaida;
+  s.ipSaida = { ip: ip ?? anterior, em: Date.now() };
+  return { ip, anterior, mudou: primeira || (ip !== null && ip !== anterior) };
+}
+
 // ── Contadores ─────────────────────────────────────────────────────────────────
 
 function contar(rotulo: string, metodo: string, prioridade: Prioridade, campo: 'ok' | 'erro' | 'bloqueio' | 'incerto', ms: number) {
@@ -704,7 +725,7 @@ export interface EstadoPorta {
   ultimaHora: Array<{ conta: string; prioridade: Prioridade } & Contador>;
   limites: typeof LIMITES;
   /** papel deste processo e a coordenação pelo banco com o outro (web × worker); erro só dos últimos 10 min */
-  coordenacao: { papel: Papel; ativa: boolean; esperandoVaga: number; ultimoErro: { em: string; msg: string } | null };
+  coordenacao: { papel: Papel; ativa: boolean; esperandoVaga: number; ultimoErro: { em: string; msg: string } | null; ipSaida: string | null };
 }
 
 export function estadoPorta(): EstadoPorta {
@@ -748,6 +769,7 @@ export function estadoPorta(): EstadoPorta {
       papel: PAPEL,
       ativa: coordenacaoAtiva(),
       esperandoVaga: s.esperandoVaga ?? 0,
+      ipSaida: s.ipSaida?.ip ?? null,
       // só o erro dos últimos 10 min (o painel mostra como aviso)
       ultimoErro: s.coordErro && agora - s.coordErro.em < 10 * 60_000 ? { em: new Date(s.coordErro.em).toISOString(), msg: s.coordErro.msg } : null,
     },

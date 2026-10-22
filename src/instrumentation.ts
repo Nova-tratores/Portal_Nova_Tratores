@@ -57,6 +57,19 @@ export async function register(): Promise<void> {
   const rodaRobos = PAPEL !== 'web';
   log(`papel do processo: ${PAPEL}${rodaRobos ? '' : ' (robôs ficam com o worker)'}`);
 
+  // IP de saída deste processo (22/10/2026): a Omie limita por IP + chave + método. Se
+  // web e worker saem por IPs diferentes, a divisão dos limites da porta é só cautela.
+  // Loga na subida e sempre que mudar (confere a cada hora); aparece no "Omie agora".
+  if (process.env.NODE_ENV === 'production') {
+    const { verificarIpSaida } = await import('./lib/omie/porta');
+    const conferirIp = async () => {
+      const r = await verificarIpSaida();
+      if (r.mudou) log(`ip de saída (${PAPEL}): ${r.ip ?? 'não consegui descobrir'}${r.anterior ? ` — antes ${r.anterior}` : ''}`);
+    };
+    void conferirIp();
+    setInterval(() => { void conferirIp(); }, 60 * 60 * 1000);
+  }
+
   const base = `http://127.0.0.1:${process.env.PORT || 3000}`;
   const CINCO_MIN = 5 * 60 * 1000;
 
