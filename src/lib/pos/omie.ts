@@ -374,11 +374,13 @@ export async function montarServicosDetalhe(os: Record<string, unknown>, idOrdem
       for (const r of reqs) {
         // Alimentação do técnico é despesa interna: NÃO vira serviço na OS do Omie (José, 14/10/2026)
         if (/alimenta/i.test(String(r.tipo || "")) || /^\s*alimenta/i.test(String(r.titulo || ""))) continue;
-        // A requisição entra no Omie SEMPRE, mesmo sem preço (valor simbólico — ver requisicao-valor.ts)
+        // Requisição com valor cobrado no portal vai ao Omie; sem valor cobrado, não vai (ver requisicao-valor.ts)
+        const valorReq = valorRequisicaoOmie(r.valor_cobrado_cliente);
+        if (valorReq === null) continue; // sem valor cobrado no portal: não vai para o Omie
         servicos.push({
           nCodServico: nCodDiv,
           nQtde: 1,
-          nValUnit: valorRequisicaoOmie(r.valor_cobrado_cliente, r.valor_despeza),
+          nValUnit: valorReq,
           cDescServ: r.titulo || `Requisição #${r.id}`,
         });
       }
