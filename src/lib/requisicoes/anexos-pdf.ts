@@ -33,6 +33,20 @@ async function pdfjs() {
   return lib;
 }
 
+/** Texto das 2 primeiras páginas de um PDF (no navegador). '' se for só imagem. */
+export async function textoDoPdfNoNavegador(url: string): Promise<string> {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error(`não consegui baixar (${resp.status})`);
+  const lib = await pdfjs();
+  const doc = await lib.getDocument({ data: await resp.arrayBuffer() }).promise;
+  const partes: string[] = [];
+  for (let n = 1; n <= Math.min(2, doc.numPages); n++) {
+    const tc = await (await doc.getPage(n)).getTextContent();
+    partes.push(tc.items.map((i: any) => ('str' in i ? i.str : '')).join(' '));
+  }
+  return partes.join(' ');
+}
+
 const ehPdf = (url: string, tipo: string) => tipo === 'application/pdf' || /\.pdf($|\?)/i.test(url);
 
 async function folhasDoAnexo(anexo: AnexoParaPdf): Promise<FolhaAnexo[]> {

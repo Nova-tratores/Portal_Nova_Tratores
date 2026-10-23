@@ -7,13 +7,23 @@ import { fetchAuth } from '@/lib/auth/client';
 import { parseValorMisto } from '@/lib/marketing/custos';
 
 type Dados = { chave: string | null; cnpj: string | null; nome: string | null; numero: string | null; serie: string | null; data: string | null; valor: number | null };
-type Resultado = { dados: Dados; fonte: 'omie' | 'chave' | 'ia'; notaOmieId: number | null; avisos: string[] };
+type Resultado = { dados: Dados; fonte: 'omie' | 'chave' | 'ia'; notaOmieId: number | null; avisos: string[]; escaneado?: boolean };
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtCnpj = (c: string) => (c.length === 14 ? c.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : c);
 const dataBR = (iso: string | null) => (iso ? new Date(iso + 'T12:00:00').toLocaleDateString('pt-BR') : '—');
 
-export default function LeituraNota({ reqId, campos, gatilho, valorReq, fornecedorReq, numeroReq, onAplicar }: {
+/** 1ª página de um PDF escaneado → JPEG (data URL), no próprio navegador (mesma técnica da impressão). */
+async function paginaComoImagem(url: string): Promise<string> {
+  const { folhasDosAnexos } = await import('@/lib/requisicoes/anexos-pdf');
+  const { folhas, falhas } = await folhasDosAnexos([{ label: 'nota', url }]);
+  if (!folhas.length) throw new Error(falhas[0] || 'não consegui abrir o PDF');
+  return folhas[0].dataUrl;
+}
+
+export default function LeituraNota({ reqId, campos, urlDe, gatilho, valorReq, fornecedorReq, numeroReq, onAplicar }: {
+  /** link do anexo (campo → URL), para desenhar a página do PDF escaneado */
+  urlDe: (campo: string) => string | null;
   reqId: number;
   /** campos com anexo de nota (foto_nf, foto_nf2…) — lê o primeiro, ou o do gatilho */
   campos: string[];
@@ -22,21 +32,35 @@ export default function LeituraNota({ reqId, campos, gatilho, valorReq, forneced
   valorReq: unknown; fornecedorReq: string; numeroReq: string;
   onAplicar: (campos: Record<string, string>) => void;
 }) {
-  const [lendo, setLendo] = useState(false);
+  const [lendo, setLendo] = useState<false | 'arquivo' | 'imagem'>(false);
   const [res, setRes] = useState<Resultado | null>(null);
   const [erro, setErro] = useState('');
   const [aplicado, setAplicado] = useState(false);
 
   const ler = useCallback(async (campo: string) => {
-    setLendo(true); setErro(''); setRes(null); setAplicado(false);
-    try {
-      const r = await fetchAuth('/api/requisicoes/ler-nota', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reqId, campo }) });
+    setLendo('arquivo'); setErro(''); setRes(null); setAplicado(false);
+    const pedir = async (extra: { texto?: string; imagem?: string } = {}) => {
+      const r = await fetchAuth('/api/requisicoes/ler-nota', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reqId, campo, ...extra }) });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(j.error || 'não consegui ler a nota');
+      return j as Resultado;
+    };
+    try {
+      let j = await pedir();
+      // O servidor não conseguiu ler o PDF: o navegador lê o texto; sem texto (escaneado),
+      // desenha a 1ª página e manda como imagem
+      if (j.escaneado) {
+        const url = urlDe(campo);
+        if (!url) throw new Error('PDF sem link para abrir.');
+        const { textoDoPdfNoNavegador } = await import('@/lib/requisicoes/anexos-pdf');
+        const texto = await textoDoPdfNoNavegador(url).catch(() => '');
+        if (texto.trim().length > 50) j = await pedir({ texto });
+        else { setLendo('imagem'); j = await pedir({ imagem: await paginaComoImagem(url) }); }
+      }
       setRes(j);
     } catch (e) { setErro(e instanceof Error ? e.message : 'não consegui ler a nota'); }
     finally { setLendo(false); }
-  }, [reqId]);
+  }, [reqId, urlDe]);
 
   // acabou de anexar: lê sozinho (uma vez por anexo)
   const ultimo = useRef(0);
@@ -77,7 +101,7 @@ export default function LeituraNota({ reqId, campos, gatilho, valorReq, forneced
             {campos.length > 1 ? `Ler nota ${i + 1}` : res ? 'Ler de novo' : 'Ler agora'}
           </button>
         ))}
-        {lendo && <span style={{ fontSize: 13, color: '#475569' }}><i className="fa-solid fa-spinner fa-spin" /> Lendo a nota…</span>}
+        {lendo && <span style={{ fontSize: 13, color: '#475569' }}><i className="fa-solid fa-spinner fa-spin" /> {lendo === 'imagem' ? 'PDF escaneado — lendo a imagem da nota…' : 'Lendo a nota…'}</span>}
       </div>
       {erro && <div style={{ color: '#B91C1C', fontSize: 13, marginTop: 6 }}>{erro}</div>}
       {res && d && (

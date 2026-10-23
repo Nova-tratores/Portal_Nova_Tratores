@@ -15,6 +15,8 @@ export interface ResultadoLeitura {
   fonte: FonteLeitura;
   notaOmieId: number | null;
   avisos: string[];
+  /** PDF sem texto (escaneado): a tela desenha a 1ª página e manda de novo como imagem */
+  escaneado?: boolean;
 }
 
 const LIMITE_BYTES = 12 * 1024 * 1024;
@@ -60,12 +62,35 @@ async function notaNoOmie(cnpj: string | null, numero: string | null) {
   return achadas[0] || null;
 }
 
-export async function lerNotaDaRequisicao(reqId: number, campo: string): Promise<ResultadoLeitura> {
+/**
+ * extra.texto: texto do PDF lido pelo navegador (no servidor do portal a biblioteca de PDF falha
+ *   calada e todo PDF parecia "escaneado" — 23/10/2026);
+ * extra.imagem: "data:image/jpeg;base64,…" — a 1ª página do PDF sem texto, desenhada pelo navegador.
+ */
+export async function lerNotaDaRequisicao(reqId: number, campo: string, extra: { texto?: string | null; imagem?: string | null } = {}): Promise<ResultadoLeitura> {
+  const imagem = extra.imagem;
   if (!/^foto_nf[2-5]?$|^recibo_fornecedor$|^boleto_fornecedor$/.test(campo)) throw new Error('anexo inválido');
   const { data: req, error } = await supabase.from('Requisicao').select(`id,${campo}`).eq('id', reqId).single();
   if (error || !req) throw new Error('requisição não encontrada');
   const url = urlDoAnexo(String((req as unknown as Record<string, unknown>)[campo] || ''));
   if (!url) throw new Error('Esse anexo não tem link direto (arquivo antigo do Drive).');
+
+  let dados: DadosNota = { ...NOTA_VAZIA };
+  let fonte: FonteLeitura = 'ia';
+  const avisos: string[] = [];
+  let escaneado = false;
+
+  const img = String(imagem || '').match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  if (img) {
+    // PDF escaneado já virou imagem no navegador: a IA lê como foto da nota
+    if (img[2].length > LIMITE_BYTES * 1.4) throw new Error('imagem grande demais para ler');
+    dados = await lerComIA({ imagemBase64: img[2], mime: img[1] });
+    if (dados.chave) fonte = 'chave';
+    return conferirNoOmie(dados, fonte, avisos);
+  }
+
+  const textoNavegador = String(extra.texto || '').slice(0, 60000);
+  if (textoNavegador.trim().length > 50) return lerTextoDoPdf(textoNavegador, avisos);
 
   const r = await fetch(url, { cache: 'no-store' });
   if (!r.ok) throw new Error('não consegui baixar o anexo');
@@ -74,21 +99,14 @@ export async function lerNotaDaRequisicao(reqId: number, campo: string): Promise
   const tipo = (r.headers.get('content-type') || '').toLowerCase();
   const ehPdf = tipo.includes('pdf') || (buf[0] === 0x25 && buf[1] === 0x50 && buf[2] === 0x44 && buf[3] === 0x46);
 
-  let dados: DadosNota = { ...NOTA_VAZIA };
-  let fonte: FonteLeitura = 'ia';
-  const avisos: string[] = [];
   if (ehPdf) {
     const texto = await textoDoPdf(buf).catch(() => '');
     if (texto.trim().length > 50) {
-      dados = extrairDoTextoDanfe(texto);
-      if (dados.chave) fonte = 'chave';
-      // faltou algo (nome, valor, ou não é DANFE): completa com a IA lendo o TEXTO
-      if (!dados.chave || !dados.valor || !dados.nome) {
-        const ia = await lerComIA({ texto }).catch(() => null);
-        if (ia) dados = { ...ia, ...Object.fromEntries(Object.entries(dados).filter(([, v]) => v != null)) } as DadosNota;
-      }
+      return lerTextoDoPdf(texto, avisos);
     } else {
-      avisos.push('PDF sem texto (escaneado): li como imagem não dá — mande a foto ou o PDF original da nota.');
+      // sem texto: é uma foto dentro do PDF. A tela desenha a página e manda de volta como imagem.
+      escaneado = true;
+      return { dados, fonte, notaOmieId: null, avisos, escaneado };
     }
   } else {
     if (!tipo.startsWith('image/')) throw new Error('Formato não suportado (use foto ou PDF).');
@@ -96,7 +114,22 @@ export async function lerNotaDaRequisicao(reqId: number, campo: string): Promise
     if (dados.chave) fonte = 'chave';
   }
 
-  // conferência com o Omie: se a nota está lá, valem os dados de lá
+  return conferirNoOmie(dados, fonte, avisos, escaneado);
+}
+
+/** Texto da DANFE/PDF → dados (chave + valor + data; o que faltar, a IA completa lendo o texto). */
+async function lerTextoDoPdf(texto: string, avisos: string[]): Promise<ResultadoLeitura> {
+  let dados = extrairDoTextoDanfe(texto);
+  const fonte: FonteLeitura = dados.chave ? 'chave' : 'ia';
+  if (!dados.chave || !dados.valor || !dados.nome) {
+    const ia = await lerComIA({ texto }).catch(() => null);
+    if (ia) dados = { ...ia, ...Object.fromEntries(Object.entries(dados).filter(([, v]) => v != null)) } as DadosNota;
+  }
+  return conferirNoOmie(dados, fonte, avisos);
+}
+
+/** Conferência com o Omie: se a nota está lá (CNPJ + número), valem os dados de lá. */
+async function conferirNoOmie(dados: DadosNota, fonte: FonteLeitura, avisos: string[], escaneado = false): Promise<ResultadoLeitura> {
   let notaOmieId: number | null = null;
   const omie = await notaNoOmie(dados.cnpj, dados.numero).catch(() => null);
   if (omie) {
@@ -114,5 +147,5 @@ export async function lerNotaDaRequisicao(reqId: number, campo: string): Promise
     fonte = 'omie';
   }
   if (!dados.numero && !dados.valor) avisos.push('Não consegui ler o número nem o valor desse anexo.');
-  return { dados, fonte, notaOmieId, avisos };
+  return { dados, fonte, notaOmieId, avisos, escaneado };
 }

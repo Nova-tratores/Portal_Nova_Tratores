@@ -16,7 +16,11 @@ export async function POST(req: NextRequest) {
   const campo = String(body?.campo || 'foto_nf');
   if (!reqId) return NextResponse.json({ error: 'reqId obrigatório' }, { status: 400 });
   try {
-    return NextResponse.json(await lerNotaDaRequisicao(reqId, campo));
+    // texto = o PDF lido pelo navegador; imagem = 1ª página do PDF sem texto, desenhada pelo navegador
+    return NextResponse.json(await lerNotaDaRequisicao(reqId, campo, {
+      texto: typeof body?.texto === 'string' ? body.texto : null,
+      imagem: typeof body?.imagem === 'string' ? body.imagem : null,
+    }));
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'não consegui ler a nota' }, { status: 422 });
   }

@@ -13,6 +13,9 @@ export interface DadosNota {
   valor: number | null;
 }
 
+/** CNPJs da própria empresa (Nova Tratores e Castro): aparecem como DESTINATÁRIO, nunca são o fornecedor. */
+export const CNPJS_PROPRIOS = new Set(['31463139000103', '23268241000111']);
+
 export const NOTA_VAZIA: DadosNota = { chave: null, cnpj: null, nome: null, numero: null, serie: null, data: null, valor: null };
 
 /** Dígito verificador da chave (módulo 11, pesos 2..9 da direita para a esquerda). */
@@ -71,11 +74,13 @@ export function limparLeituraIA(bruto: Record<string, unknown>): DadosNota {
   const pelaChave = chave ? dadosDaChave(chave) : null;
   if (pelaChave) Object.assign(out, pelaChave);
   const cnpj = dig(bruto.cnpj);
-  if (!out.cnpj && (cnpj.length === 14 || cnpj.length === 11)) out.cnpj = cnpj;
+  // a IA às vezes pega o destinatário (a própria Nova/Castro): descarta
+  if (!out.cnpj && (cnpj.length === 14 || cnpj.length === 11) && !CNPJS_PROPRIOS.has(cnpj)) out.cnpj = cnpj;
+  if (out.cnpj && CNPJS_PROPRIOS.has(out.cnpj)) out.cnpj = null;
   const num = dig(bruto.numero).replace(/^0+/, '');
   if (!out.numero && num && num.length <= 9) out.numero = num;
   const nome = String(bruto.nome ?? '').trim();
-  if (nome) out.nome = nome.slice(0, 120);
+  if (nome && !/nova tratores|castro m[aá]quinas/i.test(nome)) out.nome = nome.slice(0, 120);
   const d = String(bruto.data ?? '').match(/(\d{4})-(\d{2})-(\d{2})|(\d{2})\/(\d{2})\/(\d{4})/);
   if (d) out.data = d[1] ? `${d[1]}-${d[2]}-${d[3]}` : `${d[6]}-${d[5]}-${d[4]}`;
   const v = typeof bruto.valor === 'number' ? bruto.valor : numeroBR(String(bruto.valor ?? '')) ?? Number(bruto.valor);
@@ -86,6 +91,8 @@ export function limparLeituraIA(bruto: Record<string, unknown>): DadosNota {
 export const PROMPT_LER_NOTA = `Você lê documentos fiscais brasileiros (DANFE de NF-e, NFS-e, cupom fiscal, recibo).
 Responda APENAS um JSON: {"chave": "", "cnpj": "", "nome": "", "numero": "", "data": "AAAA-MM-DD", "valor": 0}
 - chave: os 44 dígitos da chave de acesso, se aparecer (sem espaços). Se não der para ler TODOS os dígitos, deixe vazio.
-- cnpj e nome: do EMITENTE (quem vendeu), nunca do destinatário (Nova Tratores / Castro).
-- numero: número da nota/cupom. data: data de emissão. valor: VALOR TOTAL da nota, em número (ex.: 1234.56).
+- cnpj e nome: do EMITENTE (quem vendeu — na DANFE fica no quadro "IDENTIFICAÇÃO DO EMITENTE", em cima à esquerda e no canhoto "RECEBEMOS DE …").
+  NUNCA o destinatário: Nova Tratores (31.463.139/0001-03) ou Castro (23.268.241/0001-11) são quem COMPROU.
+- numero: o número COMPLETO da nota, sem pontos e sem zeros à esquerda (ex.: "Nº 000.043.811" → "43811").
+- data: data de emissão. valor: VALOR TOTAL DA NOTA, em número (ex.: 1234.56).
 - Campo que não der para ler com certeza: deixe vazio ("" ou 0). Não invente.`;

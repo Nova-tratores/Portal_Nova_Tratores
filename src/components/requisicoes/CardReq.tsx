@@ -1316,6 +1316,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                   reqId={req.id}
                   campos={['foto_nf', 'foto_nf2', 'foto_nf3', 'foto_nf4', 'foto_nf5'].filter(c => !!localData[c] && !String(localData[c]).startsWith('SupaAtualizarReq_Images/'))}
                   gatilho={gatilhoNota}
+                  urlDe={(c) => getUrlAnexo(localData[c])}
                   valorReq={localData.valor_despeza}
                   fornecedorReq={localData.fornecedor || ''}
                   numeroReq={localData.numero_nota || ''}

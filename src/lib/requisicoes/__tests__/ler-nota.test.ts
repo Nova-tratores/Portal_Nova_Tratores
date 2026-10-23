@@ -40,6 +40,12 @@ describe('leitura da IA', () => {
     expect(d.valor).toBe(369);
     expect(d.data).toBe('2024-12-31');
   });
+  it('CNPJ e nome da própria empresa (destinatário) são descartados', () => {
+    const d = limparLeituraIA({ cnpj: '31.463.139/0001-03', nome: 'NOVA TRATORES MAQUINAS AGRICOLAS LTDA', numero: '000.043.811', valor: 14.9 });
+    expect(d.cnpj).toBeNull();
+    expect(d.nome).toBeNull();
+    expect(d.numero).toBe('43811');
+  });
   it('chave válida manda no CNPJ e no número', () => {
     const d = limparLeituraIA({ chave: CHAVE, cnpj: '11111111111111', numero: '9', valor: 10 });
     expect(d.cnpj).toBe('53425237000695');
