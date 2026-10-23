@@ -4,7 +4,8 @@
 //   - cada OS fechada SEM problema (sem ocorrência valendo e sem pendência) dá 5 pontos a cada
 //     técnico da OS;
 //   - cada ocorrência que vale DESCONTA os pontos dela; RETORNO DE SERVIÇO pesa o dobro;
-//   - o saldo nunca fica abaixo de zero; cada 100 pontos de saldo = 1 degrau;
+//   - o saldo nunca fica abaixo de zero; cada 50 pontos de saldo = 1 degrau (José, 23/10/2026: com 100
+//     ninguém saía do Ferro — o Gabriel, com 368, era Ferro 2);
 //   - "nível" = saldo até o fim do mês passado; "se fechar assim" = contando o mês em andamento.
 // Puro (sem banco) — testado em __tests__/carreira.test.ts.
 
@@ -19,7 +20,7 @@ export const NIVEL_MAX = DIVISOES.length * 5 // 20 = Diamante
 /** pontos que cada OS fechada sem problema dá ao técnico (escolha do José, 22/10/2026) */
 export const PONTOS_POR_OS = 5
 /** saldo de pontos para subir 1 degrau */
-export const PONTOS_POR_DEGRAU = 100
+export const PONTOS_POR_DEGRAU = 50
 export const PESO_RETORNO = 2
 
 export interface Patente { nivel: number; divisao: string; sub: number | null; nome: string; cor: string; fundo: string }
@@ -39,7 +40,7 @@ export function pesoOcorrencia(o: { pontos: number; vale: boolean; subcategoria?
   return o.subcategoria === 'retorno_servico' ? o.pontos * PESO_RETORNO : o.pontos
 }
 
-/** Degrau do saldo de pontos: 100 pontos = 1 degrau, até o Diamante. */
+/** Degrau do saldo de pontos: 50 pontos = 1 degrau, até o Diamante. */
 export function nivelDoSaldo(saldo: number): number {
   return Math.max(0, Math.min(NIVEL_MAX, Math.floor(Math.max(0, saldo) / PONTOS_POR_DEGRAU)))
 }

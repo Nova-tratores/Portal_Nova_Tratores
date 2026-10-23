@@ -11,10 +11,11 @@ describe('carreira do mecânico (pontos por OS limpa)', () => {
     expect(patente(20).nome).toBe('Diamante')
     expect(patente(99).nome).toBe('Diamante')
   })
-  it('100 pontos = 1 degrau; retorno pesa o dobro', () => {
+  it('50 pontos = 1 degrau; retorno pesa o dobro', () => {
     expect(nivelDoSaldo(0)).toBe(0)
-    expect(nivelDoSaldo(99)).toBe(0)
-    expect(nivelDoSaldo(100)).toBe(1)
+    expect(nivelDoSaldo(49)).toBe(0)
+    expect(nivelDoSaldo(50)).toBe(1)
+    expect(nivelDoSaldo(368)).toBe(7) // Gabriel em 22/10: Bronze 3
     expect(nivelDoSaldo(-50)).toBe(0)
     expect(nivelDoSaldo(99999)).toBe(20)
     expect(pesoOcorrencia({ pontos: 8, vale: true, subcategoria: 'retorno_servico' })).toBe(16)
@@ -23,16 +24,16 @@ describe('carreira do mecânico (pontos por OS limpa)', () => {
   it('cada OS limpa dá 5 pontos, ocorrência desconta, saldo nunca negativo', () => {
     const c = caminho('2026-01', '2026-04', { '2026-01': { pontos: 0, qtd: 0, osLimpas: 10 }, '2026-02': { pontos: 80, qtd: 3, osLimpas: 2 }, '2026-03': { pontos: 0, qtd: 0, osLimpas: 30 } })
     expect(c.meses.map((m) => m.saldo)).toEqual([50, 0, 150])
-    expect(c.meses.map((m) => m.depois)).toEqual([0, 0, 1])
-    expect(c.nivel).toBe(1)
+    expect(c.meses.map((m) => m.depois)).toEqual([1, 0, 3])
+    expect(c.nivel).toBe(3)
   })
   it('mês atual entra no "se fechar assim" e mostra quanto falta', () => {
     const r = carreiraDe('Ana', '2026-01', '2026-03', { '2026-01': { pontos: 0, qtd: 0, osLimpas: 18 }, '2026-02': { pontos: 6, qtd: 1, osLimpas: 6 }, '2026-03': { pontos: 0, qtd: 0, osLimpas: 4 } })
     expect(r.saldo).toBe(114)
-    expect(r.nivel).toBe(1)
+    expect(r.nivel).toBe(2)
     expect(r.saldoAgora).toBe(134)
-    expect(r.seFecharAssim).toBe(1)
-    expect(r.faltaProximo).toBe(66)
+    expect(r.seFecharAssim).toBe(2)
+    expect(r.faltaProximo).toBe(16)
     expect(r.mesAtual).toEqual({ pontos: 0, qtd: 0, osLimpas: 4, ganhos: 20 })
     expect(r.osLimpasTotal).toBe(28)
     expect(r.sequencia).toBe(0)

@@ -26,7 +26,7 @@ export interface ComissaoTecnico {
 }
 
 export async function carreiraEComissoes(forcar = false): Promise<{ mesAtual: string; carreira: CarreiraTecnico[]; comissoes: ComissaoTecnico[]; inicioSistema: string; fotos: Record<string, string>; pontosMes: Record<string, number> }> {
-  const r = await comCache('carreira:v5', 10 * 60_000, gerar, forcar)
+  const r = await comCache('carreira:v6', 10 * 60_000, gerar, forcar)
   return r.dados
 }
 
