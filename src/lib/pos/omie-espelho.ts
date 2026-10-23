@@ -61,6 +61,8 @@ export interface OmieEspelho {
   extras: ServicoExtra[];
   /** hora/km marcados "não cobrar" → o drawer mantém Desconto_Hora/Desconto_KM = valor cheio */
   naoCobrar: { hr: boolean; km: boolean };
+  /** Observações no PDF da OS (José, 23/10/2026): sai só se marcado; grifar = fundo amarelo no texto todo */
+  obsPdf?: { mostrar: boolean; grifar: boolean };
 }
 
 export function espelhoPadrao(opts: { interna?: boolean; garantia?: boolean; email?: string } = {}): OmieEspelho {
@@ -89,6 +91,7 @@ export function normalizarEspelho(v: unknown, padrao: OmieEspelho): OmieEspelho 
     email: { ...padrao.email, ...(o.email || {}) },
     extras: Array.isArray(o.extras) ? o.extras : [],
     naoCobrar: { hr: !!o.naoCobrar?.hr, km: !!o.naoCobrar?.km },
+    obsPdf: { mostrar: !!o.obsPdf?.mostrar, grifar: !!o.obsPdf?.grifar },
   };
 }
 

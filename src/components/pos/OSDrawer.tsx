@@ -42,6 +42,7 @@ import ModalNovaMaquina from "@/components/clientes/ModalNovaMaquina";
 import MaquinasClienteDestaque from "./MaquinasClienteDestaque";
 import { GradeServicosOmie, AbaDepartamentos, AbaInfoAdicionais, AbaParcelas, AbaEmail, ClienteOmieModal, SeletorCondicao, SeletorTecnicos, Chave, useListasOmie } from "./OSOmieAbas";
 import { espelhoPadrao, normalizarEspelho, aplicarInterna, totalExtras, type OmieEspelho } from "@/lib/pos/omie-espelho";
+import type { DocAnterior } from "@/lib/pos/omie-anteriores";
 
 // Previsão de faturamento vazia = hoje (José, 13/10/2026), no fuso de São Paulo, "aaaa-mm-dd".
 const hojeSP = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
@@ -425,6 +426,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [justificativaDesvinc, setJustificativaDesvinc] = useState("");
   const [clienteFilter, setClienteFilter] = useState("");
   const [gerarPPV, setGerarPPV] = useState(false);
+  const [omieAnteriores, setOmieAnteriores] = useState<DocAnterior[]>([]);
   const [servicoOficina, setServicoOficina] = useState(false);
   const [servicoInterno, setServicoInterno] = useState(false);
   const internoOriginalRef = useRef(false);
@@ -1072,7 +1074,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setPrevisaoExecucao(hojeStr)
     setPrevisaoFaturamento(""); setDataFimServico(""); setDiasExecucao([]); setServicoNumero(0); setHoraInicioExec(horaStr); setHoraChegada(""); setHoraFimExec(""); setAgendaTecnico([]);
     setEstimativa(null); setErroEstimativa(""); setLoadingEstimativa(false); setEnderecoEstimativa(""); setEnderecosDisponiveis([]);
-    setProdutos([]); setTotalPecas(0); setShowLogs(false); setRequisicoes([]); setReqsOcultasPrint(new Set());
+    setProdutos([]); setTotalPecas(0); setShowLogs(false); setRequisicoes([]); setReqsOcultasPrint(new Set()); setOmieAnteriores([]);
     setGerarPPV(false); setShowDescontos(false); setLoadingData(false);
     setLembretes([]); setEditingLembreteId(null);
     setServicoOficina(false);
@@ -1146,6 +1148,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           // Alimentações: usa o array novo; se vazio mas houver valor antigo, migra p/ 1 linha
           if (Array.isArray(d.alimentacoes) && d.alimentacoes.length > 0) {
             setAlimentacoes(d.alimentacoes.map((a: any) => ({
+          setOmieAnteriores(Array.isArray(d.omieAnteriores) ? d.omieAnteriores : []);
               data: typeof a?.data === 'string' ? a.data.slice(0, 10) : '',
               valor: parseFloat(a?.valor) || 0,
               tecnicos: Array.isArray(a?.tecnicos) ? a.tecnicos.filter(Boolean).slice(0, 2) : [],
@@ -2441,6 +2444,19 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   {mode === "edit" && status === "Cancelada" && (
                     <div className="os-card os-aba os-aba-obs" style={{ borderLeft: "3px solid #C62828" }}>
                       <div className="os-card-title"><i className="fas fa-ban" style={{ color: "#C62828" }} /> Cancelamento</div>
+                    {/* no PDF da OS só se marcar (começa desmarcado); grifar = fundo amarelo no texto todo (José, 23/10/2026) */}
+                    <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 10, fontSize: 13 }}>
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: 7, cursor: "pointer", margin: 0, textTransform: "none", letterSpacing: 0, fontWeight: 600 }}>
+                        <input type="checkbox" checked={!!esp.obsPdf?.mostrar} style={{ width: 16, height: 16, margin: 0 }}
+                          onChange={(e) => { const v = e.target.checked; setEsp((x) => ({ ...x, obsPdf: { mostrar: v, grifar: v ? !!x.obsPdf?.grifar : false } })); }} />
+                        Sair no PDF da ordem de serviço
+                      </label>
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: 7, cursor: esp.obsPdf?.mostrar ? "pointer" : "not-allowed", margin: 0, textTransform: "none", letterSpacing: 0, fontWeight: 600, opacity: esp.obsPdf?.mostrar ? 1 : .45 }}>
+                        <input type="checkbox" disabled={!esp.obsPdf?.mostrar} checked={!!esp.obsPdf?.grifar} style={{ width: 16, height: 16, margin: 0 }}
+                          onChange={(e) => { const v = e.target.checked; setEsp((x) => ({ ...x, obsPdf: { mostrar: !!x.obsPdf?.mostrar, grifar: v } })); }} />
+                        <span style={{ background: "#fde047", color: "#111111", padding: "0 5px", borderRadius: 3 }}>Grifar em amarelo</span> no PDF
+                      </label>
+                    </div>
                       <label>Motivo do Cancelamento *</label>
                       <textarea rows={2} value={motivoCancel} onChange={(e) => setMotivoCancel(e.target.value)} placeholder="Descreva o motivo do cancelamento..." style={{ marginBottom: 12 }} />
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: temSubstituto ? 10 : 0 }}>
@@ -2763,6 +2779,20 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       {/* peças que não foram ao Omie junto com a OS: reenviar */}
                       {ordemOmie && !ppvOmieCarregando && ppvIds.filter((pid) => !ppvOmieMap[pid]).map((pid) => {
                         const indo = enviandoPecas === pid;
+                          {/* cancelados ao corrigir a nota: "OS 5185 → virou 5397" (José, 23/10/2026) */}
+                          {omieAnteriores.map((a) => (
+                            <div key={`ant-${a.tipo}-${a.numero}`} title={a.canceladaEm ? `Cancelado em ${new Date(a.canceladaEm).toLocaleDateString("pt-BR")}` : "Cancelado"}
+                              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 2px", borderTop: "1px solid var(--border)", opacity: .75 }}>
+                              <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, color: "var(--portal-text-muted, #94a3b8)" }}>{a.tipo === "os" ? "Ordem de serviço" : "Pedido de venda"} anterior</span>
+                                <span style={{ fontSize: 12.5, fontWeight: 700, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <s>nº {a.numero}</s>
+                                  <span style={{ fontSize: 10.5, fontWeight: 800, padding: "1px 7px", borderRadius: 999, color: "#b91c1c", background: "#fee2e2" }}>{a.tipo === "os" ? "cancelada" : "cancelado"}</span>
+                                </span>
+                                {a.novo && <span style={{ fontSize: 11, color: "var(--portal-text-muted)", marginTop: 2 }}>virou {a.tipo === "os" ? "a OS" : "o pedido"} nº {a.novo}</span>}
+                              </span>
+                            </div>
+                          ))}
                         const enviar = async () => {
                           if (!osId) return;
                           setEnviandoPecas(pid); setMsgPecas(null);
@@ -2814,6 +2844,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           }}
                           onFaturado={async () => {
                             // bloco de notas já entra em "aguardando a nota" (José, 14/10/2026)
+                              if (Array.isArray(d?.omieAnteriores)) setOmieAnteriores(d.omieAnteriores);
                             setNotasEsperaDesde(Date.now());
                             try {
                               const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
@@ -2828,7 +2859,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   );
                 })()}
 
-                {osId && ordemOmie && <NotasFiscaisBloco osId={osId} ppvIds={ppvIds} ppvOmieMap={ppvOmieMap} esperandoDesde={notasEsperaDesde} clienteDoc={clienteInfo?.cpf || null} />}
+                {osId && ordemOmie && <NotasFiscaisBloco osId={osId} ordemOmie={ordemOmie} anteriores={omieAnteriores} ppvIds={ppvIds} ppvOmieMap={ppvOmieMap} esperandoDesde={notasEsperaDesde} clienteDoc={clienteInfo?.cpf || null} />}
 
                 {/* ── Bloco Portal (logo da Nova): imprimir a OS, relatório técnico, PPVs e requisições ── */}
                 {(() => {

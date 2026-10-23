@@ -10,6 +10,7 @@ import { normalizarAlimentacoes, agregadosAlimentacao } from "@/lib/pos/alimenta
 import { parseValorMisto } from "@/lib/marketing/custos";
 import { valorPecasDosPPVs } from "@/lib/pos/pecas-ppv";
 import { totalExtras, type OmieEspelho } from "@/lib/pos/omie-espelho";
+import { documentosAnteriores, type DocAnterior } from "@/lib/pos/omie-anteriores";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
@@ -106,7 +107,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
+  // OS e pedidos cancelados ao corrigir a nota (bloco Omie e de notas mostram "5185 → 5397")
+  let omieAnteriores: DocAnterior[] = [];
+  try {
+    const { data: pedsAnt } = await supabase.from(TBL_PEDIDOS).select("id_pedido, faturamento_anterior").eq("Id_Os", idOs);
+    omieAnteriores = documentosAnteriores(safeGet(row, "faturamento_anterior"), (pedsAnt || []) as { id_pedido: string; faturamento_anterior: unknown }[]);
+  } catch { /* sem histórico */ }
+
   return NextResponse.json({
+    omieAnteriores,
     id: safeGet(row, "Id_Ordem"), nomeCliente: safeGet(row, "Os_Cliente"),
     cpfCliente: safeGet(row, "Cnpj_Cliente"), enderecoCliente: safeGet(row, "Endereco_Cliente"), cidadeCliente: safeGet(row, "Cidade_Cliente"),
     tecnicoResponsavel: safeGet(row, "Os_Tecnico"), tecnico2: safeGet(row, "Os_Tecnico2"),

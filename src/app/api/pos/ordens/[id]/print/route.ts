@@ -50,6 +50,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const data = formatarDataBR(safeGet(row, "Data") as string);
   const servSolicitado = (safeGet(row, "Serv_Solicitado") as string) || "-";
   const servRealizado = (safeGet(row, "Serv_Realizado") as string) || "";
+  // Observações só saem se marcadas na OS (aba Observações); grifar = amarelo (José, 23/10/2026)
+  const observacoes = String(safeGet(row, "Observacoes") || "");
+  const espObs = (safeGet(row, "Omie_Espelho") as { obsPdf?: { mostrar?: boolean; grifar?: boolean } } | null)?.obsPdf;
+  const obsPdf = { mostrar: !!espObs?.mostrar, grifar: !!espObs?.grifar };
   const ordemOmie = (safeGet(row, "Ordem_Omie") as string) || "";
   const motivoCancel = (safeGet(row, "Motivo_Cancelamento") as string) || "";
   const previsaoExec = safeGet(row, "Previsao_Execucao") ? formatarDataBR(safeGet(row, "Previsao_Execucao") as string) : "";
@@ -449,6 +453,11 @@ ${viewMode || embed ? "" : "<script>window.onload = function() { window.print();
   ${servRealizado ? `<div class="section" style="margin-top:8px">
     <div class="section-title">Descrição do Serviço Realizado</div>
     <div class="obs-box">${servRealizado.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</div>
+  </div>` : ""}
+
+  ${obsPdf.mostrar && observacoes.trim() ? `<div class="section" style="margin-top:8px">
+    <div class="section-title">Observações</div>
+    <div class="obs-box">${obsPdf.grifar ? `<span style="background:#fde047;-webkit-print-color-adjust:exact;print-color-adjust:exact;-webkit-box-decoration-break:clone;box-decoration-break:clone">` : ""}${observacoes.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}${obsPdf.grifar ? "</span>" : ""}</div>
   </div>` : ""}
 
   <hr class="sep">
