@@ -210,19 +210,22 @@ export async function PATCH(req: NextRequest) {
 
     // Blindagem: pedido JÁ FATURADO (faturado_omie_em setado) não pode voltar de
     // fase — força "Concluída" se tentarem gravar outra coisa (menos Cancelada).
+    let statusAntes: string | null = null;
     try {
       const atual = await supabaseFetch<Record<string, unknown>[]>(
-        `${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(dados.id)}&select=faturado_omie_em&limit=1`,
+        `${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(dados.id)}&select=faturado_omie_em,status&limit=1`,
       );
+      statusAntes = atual?.[0] ? String(atual[0].status ?? '') : null;
       if (atual?.[0]?.faturado_omie_em && !["Concluída", "Cancelada"].includes(dados.status)) {
         dados.status = "Concluída";
       }
     } catch { /* se falhar a checagem, segue com o status enviado */ }
 
-    const payload: Record<string, unknown> = {
-      status: dados.status,
-      status_manual_override: true, // Protege contra auto-sync sobrescrever
-    };
+    const payload: Record<string, unknown> = { status: dados.status };
+    // Só quem MUDOU A FASE trava o acompanhamento da OS. Antes, qualquer salvamento
+    // (fechar a janela já salva o pedido) marcava "mudado na mão" e o PPV parava de
+    // seguir a OS para sempre (19 de 53 ligados a OS em 23/10/2026).
+    if (statusAntes !== null && statusAntes !== dados.status) payload.status_manual_override = true;
     // Só inclui campos que foram realmente enviados (evita sobrescrever com "")
     if (dados.observacao !== undefined) payload.observacao = dados.observacao;
     if (dados.tecnico) payload.tecnico = dados.tecnico;

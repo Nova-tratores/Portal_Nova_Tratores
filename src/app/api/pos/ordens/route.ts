@@ -3,124 +3,12 @@ import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS, FASES_CONTADOR_PARADO } from "@/lib/pos/constants";
 import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
-import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
-import { ultimoDiaServico } from "@/lib/pos/fase";
+import { moverOSPorData } from "@/lib/pos/fase-auto-server";
 import { motivoClienteInativo } from "@/lib/clientes/inativo";
 import { logAndNotify } from "@/lib/server/audit-notify";
 import { checarIrregularidade } from "@/lib/pos/checarIrregularidade";
 import { normalizarAlimentacoes, agregadosAlimentacao } from "@/lib/pos/alimentacao-os";
 import type { KanbanCard } from "@/lib/pos/types";
-
-/*
- * Auto-move: verifica se o último log da OS é uma ação manual que
- * REVERTEU essa mesma transição automática. Se sim, não move de novo.
- *
- * Lógica: o auto-move registra log com acao "Auto-move: ...".
- * Se depois disso o usuário mudou manualmente a fase (log sem "Auto-move"),
- * significa que ele quis reverter. Nesse caso, só movemos de novo se as
- * datas da OS mudaram desde o último auto-move (ou seja, ele atualizou
- * a previsão e quer que funcione com a nova data).
- */
-async function autoMoveJaFoiRevertido(idOrdem: string, autoMoveAcao: string): Promise<boolean> {
-  // Buscar os 2 últimos logs dessa OS (o mais recente primeiro)
-  const { data: logs } = await supabase
-    .from(TBL_LOGS_PPO)
-    .select("acao, UsuEmail")
-    .eq("Id_ppo", idOrdem)
-    .order("id", { ascending: false })
-    .limit(5);
-
-  if (!logs || logs.length === 0) return false;
-
-  // Se o último log é manual (não auto-move), verifica se houve um auto-move
-  // com a mesma ação antes. Se sim, o usuário reverteu → não mover de novo.
-  const ultimoLog = logs[0];
-  if (ultimoLog.acao.startsWith("Auto-move")) return false; // último foi auto-move, não foi revertido
-
-  // Último log é manual. Verificar se algum dos logs anteriores é o mesmo auto-move
-  for (let i = 1; i < logs.length; i++) {
-    if (logs[i].acao === autoMoveAcao) {
-      // O auto-move já rodou antes E o usuário mudou manualmente depois → revertido
-      return true;
-    }
-    // Se encontrou outro log manual antes do auto-move, para de procurar
-    if (!logs[i].acao.startsWith("Auto-move")) break;
-  }
-
-  return false;
-}
-
-/* ── Auto-move: verifica datas de previsão e move ordens automaticamente ── */
-async function autoMoveByDate() {
-  const hoje = new Date();
-  hoje.setHours(0, 0, 0, 0);
-  const hojeISO = hoje.toISOString().split("T")[0]; // YYYY-MM-DD
-  const ontemISO = new Date(hoje.getTime() - 86400000).toISOString().split("T")[0];
-
-  // 1. Buscar ordens que precisam ser movidas para Execução
-  const { data: paraExecucao } = await supabase
-    .from(TBL_OS)
-    .select("Id_Ordem, Status, Previsao_Execucao")
-    .not("Previsao_Execucao", "is", null)
-    .lte("Previsao_Execucao", hojeISO)
-    .in("Status", ["Orçamento", "Orçamento enviado para o cliente e aguardando"])
-    .is("faturado_omie_em", null); // OS faturada não muda de fase sozinha
-
-  for (const os of paraExecucao || []) {
-    if (await autoMoveJaFoiRevertido(os.Id_Ordem, "Auto-move: Previsão de execução atingida")) continue;
-    await supabase.from(TBL_OS).update({ Status: "Execução" }).eq("Id_Ordem", os.Id_Ordem);
-    await registrarLog(os.Id_Ordem, "Auto-move: Previsão de execução atingida", "Execução", os.Status);
-    await sincronizarStatusPPV(os.Id_Ordem, "Execução");
-  }
-
-  // 2. Execução → Aguardando ordem Técnico
-  //    Move 1 dia DEPOIS do último dia de serviço da OS (Dias_Execucao; sem
-  //    dias marcados, vale a própria Previsão de Execução). OS sem data
-  //    nenhuma NÃO move — o admin decide.
-  const { data: emExecucao } = await supabase
-    .from(TBL_OS)
-    .select("Id_Ordem, Status, Previsao_Execucao, Dias_Execucao, Os_Tecnico")
-    .in("Status", ["Execução"])
-    .is("faturado_omie_em", null); // OS faturada não muda de fase sozinha
-
-  const execAtrasadas = (emExecucao || []).filter((os) => {
-    const ultimo = ultimoDiaServico(os.Previsao_Execucao, os.Dias_Execucao);
-    return !!ultimo && ultimo <= ontemISO; // último dia + 1 já chegou
-  });
-
-  for (const os of execAtrasadas) {
-    if (await autoMoveJaFoiRevertido(os.Id_Ordem, "Auto-move: período de execução encerrado sem conclusão")) continue;
-    await supabase.from(TBL_OS).update({ Status: "Aguardando ordem Técnico" }).eq("Id_Ordem", os.Id_Ordem);
-    await registrarLog(os.Id_Ordem, "Auto-move: período de execução encerrado sem conclusão", "Aguardando ordem Técnico", os.Status);
-    await sincronizarStatusPPV(os.Id_Ordem, "Aguardando ordem Técnico");
-
-    await supabase.from(TBL_METRICAS).insert({
-      id_ordem: os.Id_Ordem,
-      tecnico: os.Os_Tecnico || "N/A",
-      tipo: "atraso_execucao",
-      data_inicio: new Date().toISOString(),
-    });
-  }
-
-  // 3. Buscar ordens que precisam ser movidas para Relatório Concluído
-  const { data: paraFaturamento } = await supabase
-    .from(TBL_OS)
-    .select("Id_Ordem, Status, Previsao_Faturamento")
-    .not("Previsao_Faturamento", "is", null)
-    .lte("Previsao_Faturamento", hojeISO)
-    .in("Status", ["Executada aguardando comercial"])
-    .is("faturado_omie_em", null); // OS faturada não muda de fase sozinha
-
-  for (const os of paraFaturamento || []) {
-    if (await autoMoveJaFoiRevertido(os.Id_Ordem, "Auto-move: Previsão de faturamento atingida")) continue;
-    await supabase.from(TBL_OS).update({ Status: "Relatório Concluído" }).eq("Id_Ordem", os.Id_Ordem);
-    await registrarLog(os.Id_Ordem, "Auto-move: Previsão de faturamento atingida", "Relatório Concluído", os.Status);
-    await sincronizarStatusPPV(os.Id_Ordem, "Relatório Concluído");
-  }
-
-  // 4. Atualiza dias das métricas abertas e fecha as que chegaram em fases de parada
-  await atualizarMetricasAbertas();
-}
 
 /* ── Atualiza contadores de métricas abertas ── */
 async function atualizarMetricasAbertas() {
@@ -288,7 +176,10 @@ export async function GET() {
   // Auto-move roda em background, não bloqueia a resposta
   if (agora - lastAutoMove > AUTO_MOVE_INTERVAL) {
     lastAutoMove = agora;
-    autoMoveByDate().catch((e) => console.error("Erro auto-move:", e));
+    // regra única de fase por data (lib/pos/fase-auto.ts) — a mesma do agendador diário
+    moverOSPorData()
+      .then(() => atualizarMetricasAbertas())
+      .catch((e) => console.error("Erro auto-move:", e));
   }
   const ordens = await getOrdensParaKanban();
   return NextResponse.json(ordens);

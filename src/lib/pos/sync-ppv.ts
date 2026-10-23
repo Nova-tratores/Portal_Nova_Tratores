@@ -23,12 +23,15 @@ export async function sincronizarStatusPPV(idOrdem: string, novoStatusPOS: strin
   const filtroOr = `Id_Os.eq.${idOrdem}${ppvIds.length ? `,id_pedido.in.(${ppvIds.map((x) => `"${x}"`).join(",")})` : ""}`;
   const { data: ppvs } = await supabase
     .from(TBL_PEDIDOS)
-    .select("id_pedido, status")
+    .select("id_pedido, status, faturado_omie_em, status_manual_override")
     .or(filtroOr);
 
-  // Filtra os que podem ser atualizados (não altera Concluída/Cancelada)
+  // Filtra os que podem ser atualizados — mesmas regras do sync do quadro do PPV (queries.ts
+  // sincronizarStatusComOS): não mexe em Concluída/Cancelada, em PPV já enviado ao Omie ou
+  // faturado (senão um robô mexendo na OS puxava de volta um pedido que já está no Omie) nem em
+  // PPV cuja fase alguém mudou na mão
   const aAtualizar = (ppvs || []).filter(
-    (p) => p.status && p.status !== "Concluída" && p.status !== "Cancelada" && p.status !== "Fechado" && p.status !== "Cancelado" && p.status !== novoStatusPPV
+    (p) => p.status && !p.faturado_omie_em && !p.status_manual_override && p.status !== "Enviado Omie" && p.status !== "Concluída" && p.status !== "Cancelada" && p.status !== "Fechado" && p.status !== "Cancelado" && p.status !== novoStatusPPV
   );
 
   if (aAtualizar.length === 0) return;
