@@ -13,6 +13,7 @@ import { PORTAL_BASE } from "@/lib/portal-url";
 import { omie } from "@/lib/omie/porta";
 import { dadosAdicionaisAuto, CONTA_INTERNO, EMAIL_INTERNO, espelhoPadrao, normalizarEspelho } from "@/lib/pos/omie-espelho";
 import { distribuirDescontoGeral } from "@/lib/pos/desconto-geral";
+import { valorRequisicaoOmie } from "@/lib/pos/requisicao-valor";
 
 // --- Constantes Omie ---
 const OMIE_ETAPA_EXECUTADA = "30";
@@ -388,16 +389,11 @@ export async function montarServicosDetalhe(os: Record<string, unknown>, idOrdem
       for (const r of reqs) {
         // Alimentação do técnico é despesa interna: NÃO vira serviço na OS do Omie (José, 14/10/2026)
         if (/alimenta/i.test(String(r.tipo || "")) || /^\s*alimenta/i.test(String(r.titulo || ""))) continue;
-        const valorCliente = r.valor_cobrado_cliente ? parseFloat(r.valor_cobrado_cliente) : 0;
-        const valorDespeza = r.valor_despeza ? parseFloat(r.valor_despeza) : 0;
-        const valor = valorCliente > 0 ? valorCliente : valorDespeza;
-        // A requisição entra no Omie SEMPRE, mesmo sem preço. O Omie não aceita
-        // valor 0 numa linha de serviço, então usamos 0,01 simbólico (igual ao
-        // serviço de revisão) quando ainda não há valor.
+        // A requisição entra no Omie SEMPRE, mesmo sem preço (valor simbólico — ver requisicao-valor.ts)
         servicos.push({
           nCodServico: nCodDiv,
           nQtde: 1,
-          nValUnit: valor > 0 ? valor : 0.01,
+          nValUnit: valorRequisicaoOmie(r.valor_cobrado_cliente, r.valor_despeza),
           cDescServ: r.titulo || `Requisição #${r.id}`,
         });
       }
