@@ -124,6 +124,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [clienteChave, setClienteChave] = useState("");
   const [clienteInfo, setClienteInfo] = useState<ClienteDados | null>(null);
   const [status, setStatus] = useState("Orçamento");
+  // Fase que o BANCO tinha quando a janela carregou (ou depois de uma ação do servidor).
+  // O salvar manda junto: se a pessoa não mexeu na fase, o servidor não regrava a fase velha
+  // por cima do que o robô ou o Tratorilson moveram enquanto a janela estava aberta.
+  const statusDoBanco = useRef<string | null>(null);
+  const setStatusDoServidor = (s: string) => { statusDoBanco.current = s; setStatus(s); };
   // OS faturada (NFS-e ou recibo): fase trancada — só pode ir para Concluída (o servidor também recusa)
   const [faturadaEm, setFaturadaEm] = useState<string | null>(null);
   const [tecnico1, setTecnico1] = useState("");
@@ -421,12 +426,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       .catch(() => { /* sem garantia */ });
     return () => { ativo = false; };
   }, [visible, osId]);
+  const [omieAnteriores, setOmieAnteriores] = useState<DocAnterior[]>([]);
   const [requisicoes, setRequisicoes] = useState<Array<{ id: string; atualizada: boolean; valor: number; material: string; solicitante: string }>>([]);
   const [desvinculandoReq, setDesvinculandoReq] = useState<string | null>(null);
   const [justificativaDesvinc, setJustificativaDesvinc] = useState("");
   const [clienteFilter, setClienteFilter] = useState("");
   const [gerarPPV, setGerarPPV] = useState(false);
-  const [omieAnteriores, setOmieAnteriores] = useState<DocAnterior[]>([]);
   const [servicoOficina, setServicoOficina] = useState(false);
   const [servicoInterno, setServicoInterno] = useState(false);
   const internoOriginalRef = useRef(false);
@@ -876,7 +881,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         setEnvioOmie({ fase: "ok", numeroOS: String(result.cNumOS || ""), pedidos: result.pedidoVenda || undefined, erroPecas: result.pedidoVendaErro || undefined });
         if (result.cNumOS) setOrdemOmie(String(result.cNumOS));
         // Interna conclui; externa vai COBRAR o cliente antes de concluir
-        setStatus(servicoInterno ? "Concluída" : "Cobrando Cliente");
+        setStatusDoServidor(servicoInterno ? "Concluída" : "Cobrando Cliente");
         setLogRefreshKey((k) => k + 1);
         onSaved?.();
       } else {
@@ -903,7 +908,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       });
       const result = await res.json();
       if (res.ok && result.success) {
-        setStatus("Concluída");
+        setStatusDoServidor("Concluída");
         setLogRefreshKey((k) => k + 1);
         onSaved?.();
       } else {
@@ -959,6 +964,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       cidadeCliente: servicoOficina ? 'Piraju' : (clienteInfo?.cidade || ''), tecnicoResponsavel: tecnico1, tecnico2,
       tipoServico, revisao, projeto: typeof aj.projeto === "string" ? aj.projeto : projeto, servicoSolicitado: servSolicitado, observacoes,
       qtdHoras, qtdKm, valorHora: VH, valorKm: VK, ppv, status: mode === "create" ? "Orçamento" : status,
+      statusAoAbrir: mode === "create" ? null : statusDoBanco.current,
       ordemOmie, motivoCancelamento: motivoCancel,
       substitutoTipo: temSubstituto ? substitutoTipo : null,
       substitutoId: temSubstituto ? substitutoId : null,
@@ -1107,7 +1113,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         .then((d) => {
           if (!d || ac.signal.aborted) return;
           setClienteInfo({ nome: d.nomeCliente, cpf: d.cpfCliente || "", email: "", telefone: "", endereco: d.enderecoCliente || "", cidade: d.cidadeCliente || "" });
-          setStatus(d.status || "Orçamento");
+          setStatusDoServidor(d.status || "Orçamento");
           setTecnico1(d.tecnicoResponsavel || ""); setTecnico2(d.tecnico2 || "");
           setTipoServico(d.tipoServico || "Manutenção"); setRevisao(d.revisao || "");
           setProjeto(d.projeto || "");
@@ -1142,13 +1148,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           setHoraChegada(d.horaChegada || "");
           setHoraFimExec(d.horaFimExec || "");
           setRequisicoes(d.infoRequisicoes || []);
+          setOmieAnteriores(Array.isArray(d.omieAnteriores) ? d.omieAnteriores : []);
           setServicoOficina(!!d.servicoOficina);
           setServicoInterno(!!d.servicoInterno);
           internoOriginalRef.current = !!d.servicoInterno;
           // Alimentações: usa o array novo; se vazio mas houver valor antigo, migra p/ 1 linha
           if (Array.isArray(d.alimentacoes) && d.alimentacoes.length > 0) {
             setAlimentacoes(d.alimentacoes.map((a: any) => ({
-          setOmieAnteriores(Array.isArray(d.omieAnteriores) ? d.omieAnteriores : []);
               data: typeof a?.data === 'string' ? a.data.slice(0, 10) : '',
               valor: parseFloat(a?.valor) || 0,
               tecnicos: Array.isArray(a?.tecnicos) ? a.tecnicos.filter(Boolean).slice(0, 2) : [],
@@ -2438,12 +2444,6 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   <div className="os-card os-aba os-aba-obs">
                     <div className="os-card-title"><i className="fas fa-comment-dots" /> Observações</div>
                     <textarea rows={8} value={observacoes} onChange={(e) => setObservacoes(e.target.value)} placeholder="Observações internas da OS..." style={S_MONO_MB0} />
-                  </div>
-
-                  {/* ── Cancelamento — logo abaixo das Observações ── */}
-                  {mode === "edit" && status === "Cancelada" && (
-                    <div className="os-card os-aba os-aba-obs" style={{ borderLeft: "3px solid #C62828" }}>
-                      <div className="os-card-title"><i className="fas fa-ban" style={{ color: "#C62828" }} /> Cancelamento</div>
                     {/* no PDF da OS só se marcar (começa desmarcado); grifar = fundo amarelo no texto todo (José, 23/10/2026) */}
                     <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 10, fontSize: 13 }}>
                       <label style={{ display: "inline-flex", alignItems: "center", gap: 7, cursor: "pointer", margin: 0, textTransform: "none", letterSpacing: 0, fontWeight: 600 }}>
@@ -2457,6 +2457,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         <span style={{ background: "#fde047", color: "#111111", padding: "0 5px", borderRadius: 3 }}>Grifar em amarelo</span> no PDF
                       </label>
                     </div>
+                  </div>
+
+                  {/* ── Cancelamento — logo abaixo das Observações ── */}
+                  {mode === "edit" && status === "Cancelada" && (
+                    <div className="os-card os-aba os-aba-obs" style={{ borderLeft: "3px solid #C62828" }}>
+                      <div className="os-card-title"><i className="fas fa-ban" style={{ color: "#C62828" }} /> Cancelamento</div>
                       <label>Motivo do Cancelamento *</label>
                       <textarea rows={2} value={motivoCancel} onChange={(e) => setMotivoCancel(e.target.value)} placeholder="Descreva o motivo do cancelamento..." style={{ marginBottom: 12 }} />
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: temSubstituto ? 10 : 0 }}>
@@ -2773,12 +2779,6 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         <div style={{ padding: "0 2px" }}>
                           {ordemOmie && linhaDoc(osId || "OS", `OS ${semZeros(ordemOmie)}`, abrirPdfOmie, baixandoPdfOmie, "os", true)}
                           {pedidosMapa.map(([pid, numOmie]) => linhaDoc(pid, `${servicoInterno ? "Remessa" : "Pedido"} ${semZeros(numOmie)}${/castro/i.test(ppvEmpresaMap[pid] || "") ? " · Castro" : ""}`, () => abrirPdfPecasOmie(pid), baixandoPdfPecas === pid, pid, false))}
-                          {pvSolto && linhaDoc(ppvOmieCarregando ? "peças" : "peças", ppvOmieCarregando ? "conferindo…" : `Pedido ${pvSolto}`, null, false, "pv-solto", false)}
-                        </div>
-                      )}
-                      {/* peças que não foram ao Omie junto com a OS: reenviar */}
-                      {ordemOmie && !ppvOmieCarregando && ppvIds.filter((pid) => !ppvOmieMap[pid]).map((pid) => {
-                        const indo = enviandoPecas === pid;
                           {/* cancelados ao corrigir a nota: "OS 5185 → virou 5397" (José, 23/10/2026) */}
                           {omieAnteriores.map((a) => (
                             <div key={`ant-${a.tipo}-${a.numero}`} title={a.canceladaEm ? `Cancelado em ${new Date(a.canceladaEm).toLocaleDateString("pt-BR")}` : "Cancelado"}
@@ -2793,6 +2793,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                               </span>
                             </div>
                           ))}
+                          {pvSolto && linhaDoc(ppvOmieCarregando ? "peças" : "peças", ppvOmieCarregando ? "conferindo…" : `Pedido ${pvSolto}`, null, false, "pv-solto", false)}
+                        </div>
+                      )}
+                      {/* peças que não foram ao Omie junto com a OS: reenviar */}
+                      {ordemOmie && !ppvOmieCarregando && ppvIds.filter((pid) => !ppvOmieMap[pid]).map((pid) => {
+                        const indo = enviandoPecas === pid;
                         const enviar = async () => {
                           if (!osId) return;
                           setEnviandoPecas(pid); setMsgPecas(null);
@@ -2836,19 +2842,19 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           onAtualizar={async () => {
                             try {
                               const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
-                              if (d?.status) setStatus(d.status); if (d && "faturadoOmieEm" in d) setFaturadaEm(d.faturadoOmieEm || null);
+                              if (d?.status) setStatusDoServidor(d.status); if (d && "faturadoOmieEm" in d) setFaturadaEm(d.faturadoOmieEm || null);
                               if (d?.ordemOmie !== undefined) setOrdemOmie(d.ordemOmie || "");
+                              if (Array.isArray(d?.omieAnteriores)) setOmieAnteriores(d.omieAnteriores);
                             } catch { /* a lista recarrega */ }
                             setLogRefreshKey((k) => k + 1);
                             onSaved?.();
                           }}
                           onFaturado={async () => {
                             // bloco de notas já entra em "aguardando a nota" (José, 14/10/2026)
-                              if (Array.isArray(d?.omieAnteriores)) setOmieAnteriores(d.omieAnteriores);
                             setNotasEsperaDesde(Date.now());
                             try {
                               const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
-                              if (d?.status) setStatus(d.status); if (d && "faturadoOmieEm" in d) setFaturadaEm(d.faturadoOmieEm || null);
+                              if (d?.status) setStatusDoServidor(d.status); if (d && "faturadoOmieEm" in d) setFaturadaEm(d.faturadoOmieEm || null);
                             } catch { /* a lista recarrega */ }
                             setLogRefreshKey((k) => k + 1);
                             onSaved?.();

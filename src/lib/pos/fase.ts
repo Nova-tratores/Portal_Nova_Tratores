@@ -4,6 +4,7 @@ import { safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
 export { ultimoDiaServico } from "@/lib/pos/fase-auto";
+import { hojeBrasilia } from "@/lib/pos/fase-auto";
 
 export interface MudarFaseOpts {
   notificar?: boolean;   // notifica admins + audit (default true). Auto-transições usam false p/ não spammar.
@@ -45,8 +46,8 @@ export async function aplicarMudancaFase(
   const agora = new Date();
   await supabase.from(TBL_LOGS_PPO).insert({
     Id_ppo: idOs,
-    Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora),
-    Hora_Acao: agora.toLocaleTimeString("pt-BR"),
+    Data_Acao: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora),
+    Hora_Acao: agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" }),
     UsuEmail: userName || "Sistema",
     acao: acaoLog || `Mudança rápida para ${newStatus}`,
     Status_Anterior: statusAnterior, Status_Atual: newStatus,
@@ -116,7 +117,7 @@ export async function aplicarMudancaFase(
   // Remover dia atual dos Dias_Execucao quando sai de execução ativa
   const statusParaExecucao = ["Execução (Realizando Diagnóstico)", "Execução aguardando peças (em transporte)"];
   if (statusParaExecucao.includes(newStatus)) {
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = hojeBrasilia(); // dia de Brasília (o do servidor já é amanhã depois das 21h)
     const { data: osRow } = await supabase.from(TBL_OS).select("Dias_Execucao").eq("Id_Ordem", idOs).limit(1);
     const diasAtual = (osRow?.[0]?.Dias_Execucao as string) || "";
     if (diasAtual.includes(hoje)) {

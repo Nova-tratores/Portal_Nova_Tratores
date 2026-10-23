@@ -9,6 +9,10 @@ import { TBL_OS, TBL_PEDIDOS, TBL_LOGS_PPV, POS_TO_PPV_STATUS } from "./constant
 export async function sincronizarStatusPPV(idOrdem: string, novoStatusPOS: string): Promise<void> {
   const novoStatusPPV = POS_TO_PPV_STATUS[novoStatusPOS];
   if (!novoStatusPPV) return;
+  // OS concluída NÃO conclui o pedido de peças: ele só fica "Concluída" quando a NF-e dele sai
+  // (faturamento). Antes, PPV criado depois do serviço virava Concluída sem ser faturado
+  // e as peças podiam nunca ser cobradas (PPV-0478, PPV-0513).
+  if (novoStatusPPV === "Concluída") return;
 
   // Busca os PPVs vinculados à OS
   const { data: os } = await supabase

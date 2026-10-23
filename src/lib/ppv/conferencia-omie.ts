@@ -81,7 +81,7 @@ export async function conferirPPV(idPPV: string, opts: { pronto?: { acc: OmieAcc
   if (docPortal && pedido.cabecalho?.codigo_cliente) {
     const cli = await omieNaConta<{ cnpj_cpf?: string; razao_social?: string }>(acc, "/geral/clientes/", "ConsultarCliente", { codigo_cliente_omie: pedido.cabecalho.codigo_cliente }).catch(() => null);
     if (cli && String(cli.cnpj_cpf || "").replace(/\D/g, "") !== docPortal) div.push({
-      doc: idPPV, campo: "cliente", rotulo: "Cliente (CPF/CNPJ)", portal: d.clienteDocumento, omie: `${cli.cnpj_cpf || "—"}${cli.razao_social ? ` · ${cli.razao_social}` : ""}`, ajustavel: true,
+      doc: idPPV, campo: "cliente", rotulo: "Cliente (CPF/CNPJ)", portal: d.clienteDocumento || "", omie: `${cli.cnpj_cpf || "—"}${cli.razao_social ? ` · ${cli.razao_social}` : ""}`, ajustavel: true,
       explicacao: `O pedido do Omie está no cadastro ${cli.cnpj_cpf || "sem CPF/CNPJ"}. Ao atualizar, passa para o cadastro ${d.clienteDocumento}, igual ao portal — e a NF-e sai nesse CPF/CNPJ.`,
     });
   }
@@ -156,7 +156,7 @@ async function alinharPPVSemPausa(idPPV: string): Promise<ResultadoConferencia> 
   const total = r2(portal.reduce((s, x) => s + x.qtde * x.preco - x.desconto, 0));
   const cabecalho: Rec = { codigo_pedido: pedido.cabecalho?.codigo_pedido };
   if (conf.divergencias.some((x) => x.campo === "cliente")) {
-    try { cabecalho.codigo_cliente = await buscarNcodCli(d.clienteDocumento, acc); }
+    try { cabecalho.codigo_cliente = await buscarNcodCli(d.clienteDocumento || "", acc); }
     catch (e) { return { ...limpar(conf), erro: `Não achei no Omie o cadastro do CPF/CNPJ ${d.clienteDocumento}: ${e instanceof Error ? e.message : e}` }; }
   }
   const info: Rec = {};

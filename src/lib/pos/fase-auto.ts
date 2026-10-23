@@ -11,8 +11,10 @@
 //  B) passou o último dia de serviço (Dias_Execucao; sem dias, a Previsão de Execução)
 //     → "Aguardando ordem Técnico" (das fases de execução)
 //  C) "Executada aguardando comercial" e chegou a Previsão de Faturamento → "Relatório Concluído"
-// E o principal: se uma PESSOA mudou a fase da OS no dia do gatilho ou depois, o robô
-// não mexe — ela decidiu. Só volta a valer quando a data muda para frente.
+// E o principal: se uma PESSOA tirou a OS da fase para onde o robô levaria (ex.: o robô pôs
+// em Execução e ela voltou para Orçamento) no dia do gatilho ou depois, o robô não mexe —
+// ela decidiu. Agendar (Orçamento → Orçamento Aprovado) não é desfazer o robô: no dia
+// marcado a OS vai para Execução normalmente.
 
 export const FASES_ANTES_EXECUCAO = [
   'Orçamento',
@@ -64,11 +66,11 @@ export interface DecisaoFaseAuto {
   gatilho: string;
 }
 
-/**
- * Para onde o robô deve mover a OS hoje — ou null.
- * `ultimaMudancaManual` = dia (AAAA-MM-DD, Brasília) da última troca de fase feita por uma pessoa.
- */
-export function decidirFaseAuto(os: OSParaFaseAuto, hoje: string, ultimaMudancaManual: string | null): DecisaoFaseAuto | null {
+/** Última troca de fase feita por uma pessoa: o dia (AAAA-MM-DD, Brasília) e de qual fase ela tirou a OS. */
+export interface MudancaManual { dia: string; de: string }
+
+/** Para onde o robô deve mover a OS hoje — ou null. */
+export function decidirFaseAuto(os: OSParaFaseAuto, hoje: string, ultimaMudancaManual: MudancaManual | null): DecisaoFaseAuto | null {
   const status = String(os.Status || '').trim();
   if (!status || os.faturado_omie_em || status === 'Concluída' || status === 'Cancelada') return null;
 
@@ -86,8 +88,8 @@ export function decidirFaseAuto(os: OSParaFaseAuto, hoje: string, ultimaMudancaM
     d = { destino: 'Relatório Concluído', motivo: 'previsão de faturamento atingida', gatilho: prevFat };
   }
   if (!d || d.destino === status) return null;
-  // uma pessoa mexeu na fase no dia do gatilho ou depois: ela decidiu, o robô respeita
-  if (ultimaMudancaManual && ultimaMudancaManual >= d.gatilho) return null;
+  // a pessoa tirou a OS do destino do robô no dia do gatilho ou depois: ela decidiu, o robô respeita
+  if (ultimaMudancaManual && ultimaMudancaManual.dia >= d.gatilho && ultimaMudancaManual.de === d.destino) return null;
   return d;
 }
 

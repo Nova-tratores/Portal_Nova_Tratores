@@ -18,10 +18,13 @@ describe('fase automática por data', () => {
     expect(decidirFaseAuto({ Status: 'Aguardando ordem Técnico', Previsao_Execucao: '2026-10-20', Dias_Execucao: '2026-10-22' }, HOJE, null)).toBeNull();
   });
   it('pessoa desfez a mudança: o robô não muda de novo', () => {
-    // robô levou para Aguardando em 23/10; pessoa voltou para Execução no mesmo dia
-    expect(decidirFaseAuto({ Status: 'Execução', Dias_Execucao: '2026-10-21' }, HOJE, '2026-10-23')).toBeNull();
+    // robô levou para Aguardando em 23/10; pessoa tirou de Aguardando (voltou para Execução) no mesmo dia
+    expect(decidirFaseAuto({ Status: 'Execução', Dias_Execucao: '2026-10-21' }, HOJE, { dia: '2026-10-23', de: 'Aguardando ordem Técnico' })).toBeNull();
     // a pessoa mexeu ANTES do gatilho: a regra vale
-    expect(decidirFaseAuto({ Status: 'Execução', Dias_Execucao: '2026-10-21' }, HOJE, '2026-10-20')?.destino).toBe('Aguardando ordem Técnico');
+    expect(decidirFaseAuto({ Status: 'Execução', Dias_Execucao: '2026-10-21' }, HOJE, { dia: '2026-10-20', de: 'Aguardando ordem Técnico' })?.destino).toBe('Aguardando ordem Técnico');
+  });
+  it('agendar no mesmo dia não é desfazer o robô: vai para Execução (caso OS-0829)', () => {
+    expect(decidirFaseAuto({ Status: 'Orçamento Aprovado', Previsao_Execucao: '2026-10-23' }, HOJE, { dia: '2026-10-23', de: 'Orçamento' })?.destino).toBe('Execução');
   });
   it('previsão de faturamento → Relatório Concluído', () => {
     expect(decidirFaseAuto({ Status: 'Executada aguardando comercial', Previsao_Faturamento: '2026-10-22' }, HOJE, null)?.destino).toBe('Relatório Concluído');

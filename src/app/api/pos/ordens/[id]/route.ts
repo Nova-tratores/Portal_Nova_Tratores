@@ -238,12 +238,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
+  // A pessoa NÃO mexeu na fase (a janela manda a fase que estava quando abriu): fica a fase
+  // de agora do banco. Sem isso, salvar qualquer campo com a janela aberta há um tempo
+  // desfazia o que o robô de datas ou o Tratorilson tinham movido — e contava como decisão
+  // da pessoa (23/10/2026: 47 viradas desfeitas assim, várias em segundos).
+  if (resAtual && resAtual.length > 0 && typeof dados.statusAoAbrir === "string" && dados.statusAoAbrir === dados.status) {
+    dados.status = safeGet(resAtual[0], "Status") as string;
+  }
+
   if (resAtual && resAtual.length > 0) {
     const atual = resAtual[0];
     const stAt = safeGet(atual, "Status") as string;
     const agora = new Date();
-    const dataFmt = new Intl.DateTimeFormat("pt-BR").format(agora);
-    const horaFmt = agora.toLocaleTimeString("pt-BR");
+    const dataFmt = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora);
+    const horaFmt = agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" });
     const logBase = { Id_ppo: idOs, Data_Acao: dataFmt, Hora_Acao: horaFmt, UsuEmail: dados.userName || "Sistema", Dias_Na_Fase: 0, Total_Dias_Aberto: 0 };
 
     if (stAt !== dados.status) {

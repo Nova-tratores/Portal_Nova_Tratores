@@ -4,7 +4,7 @@
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_OS, TBL_LOGS_PPO } from '@/lib/pos/constants';
 import { aplicarMudancaFase } from '@/lib/pos/fase';
-import { decidirFaseAuto, ehRobo, hojeBrasilia } from '@/lib/pos/fase-auto';
+import { decidirFaseAuto, ehRobo, hojeBrasilia, type MudancaManual } from '@/lib/pos/fase-auto';
 
 export interface MovidaAuto { id: string; de: string; para: string; motivo: string }
 
@@ -25,20 +25,24 @@ export async function moverOSPorData(): Promise<{ movidas: MovidaAuto[]; respeit
     const candidatas = (ordens || []).filter((o) => decidirFaseAuto(o, hoje, null));
     if (!candidatas.length) return { movidas: [], respeitadas: 0 };
 
-    // última troca de fase feita por uma PESSOA, por OS (dia em Brasília)
-    const manual = new Map<string, string>();
+    // última troca de fase feita por uma PESSOA, por OS (dia em Brasília + de qual fase saiu)
+    const manual = new Map<string, MudancaManual & { em: string }>();
     const ids = candidatas.map((o) => String(o.Id_Ordem));
-    for (let i = 0; i < ids.length; i += 100) {
-      const { data: logs } = await supabase.from(TBL_LOGS_PPO)
-        .select('Id_ppo, UsuEmail, Status_Anterior, Status_Atual, created_at')
-        .in('Id_ppo', ids.slice(i, i + 100))
-        .order('id', { ascending: false })
-        .limit(5000);
-      for (const l of logs || []) {
-        if (!l.Status_Anterior || l.Status_Anterior === l.Status_Atual || ehRobo(l.UsuEmail)) continue;
-        const dia = hojeBrasilia(new Date(l.created_at));
-        const k = String(l.Id_ppo);
-        if (!manual.has(k) || dia > manual.get(k)!) manual.set(k, dia);
+    for (let i = 0; i < ids.length; i += 20) {
+      // o banco devolve no máximo 1000 linhas por vez: pagina
+      for (let de = 0; ; de += 1000) {
+        const { data: logs } = await supabase.from(TBL_LOGS_PPO)
+          .select('Id_ppo, UsuEmail, Status_Anterior, Status_Atual, created_at')
+          .in('Id_ppo', ids.slice(i, i + 20))
+          .order('id', { ascending: true })
+          .range(de, de + 999);
+        for (const l of logs || []) {
+          if (!l.Status_Anterior || l.Status_Anterior === l.Status_Atual || ehRobo(l.UsuEmail)) continue;
+          const k = String(l.Id_ppo);
+          const atual = manual.get(k);
+          if (!atual || String(l.created_at) > atual.em) manual.set(k, { dia: hojeBrasilia(new Date(l.created_at)), de: String(l.Status_Anterior), em: String(l.created_at) });
+        }
+        if (!logs || logs.length < 1000) break;
       }
     }
 
