@@ -272,7 +272,8 @@ function ItemModal({ l, listas, osOmie, interna, podeEditar, linhas, abrir, fech
                 <div style={{ display: "flex", alignItems: "center" }}><Chave ligada={sim(naOS ? naOS.cRetemISS : ci.cRetISS)} desab rotulo="Retido" /></div>
                 <Campo titulo="Quantidade" cinza={!editQtd}>{editQtd ? <input type="number" step="any" min={0} style={{ ...inpOmie, textAlign: "right" }} value={l.qtde} onChange={(e) => onQtde(Number(e.target.value))} /> : <div style={{ ...inpOmie, textAlign: "right" }}>{brl(l.qtde)}</div>}</Campo>
                 <Campo titulo="Valor Unitário" cinza={!editUnit}>{editUnit ? <input type="number" step="any" min={0} style={{ ...inpOmie, textAlign: "right" }} value={l.unit} onChange={(e) => onUnit(Number(e.target.value))} /> : <div style={{ ...inpOmie, textAlign: "right" }}>{l.tipo === "sol" ? "0,000001" : brl(l.unit)}</div>}</Campo>
-                {leit("Valor do Desconto", brl(l.desconto))}{leit("Valor do ISS", brl(base * n(v(im.nAliqISS, ci.nAliqISS)) / 100))}{leit("Valor Total do Item", brl(base))}
+                {/* desconto fica fora da janela do item (José, 23/10/2026): só Hora/KM/geral, na tela da OS */}
+                {leit("Valor do ISS", brl(base * n(v(im.nAliqISS, ci.nAliqISS)) / 100))}{leit("Valor Total do Item", brl(base))}
                 <Campo titulo="Descrição Detalhada do Serviço" span={5} cinza={!editDesc}>
                   {editDesc ? <textarea rows={l.tipo === "sol" ? 8 : 4} style={{ ...inpOmie, resize: "vertical" }} value={l.descricao} onChange={(e) => onDescricao(e.target.value)}
                     placeholder={l.tipo === "sol" ? "Modelo:\nChassis:\nSolicitação do Cliente:\nServiço realizado:" : ""} />
