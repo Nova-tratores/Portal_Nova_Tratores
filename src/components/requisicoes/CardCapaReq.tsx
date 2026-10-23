@@ -10,11 +10,13 @@ import HistoricoModal from './HistoricoModal';
 import DialogoImprimirReq from './DialogoImprimirReq';
 import { anexosDaReq } from '@/lib/requisicoes/anexos';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { IconeQuadrado } from './visualReq';
+import { brl, diasAberta, FASES_ABERTAS, normalizarStatus, normalizarTipo, valorReq, visualTipo } from '@/lib/requisicoes/inteligencia';
 
 // Carrega CardReq completo só quando o modal abre
 const CardReq = dynamic(() => import('./CardReq'), { ssr: false });
 
-export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhados, onCardFechado, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true, grupos = [], usuarioAtual = '', onGruposChange, onExpandirGrupo, abrirAoMontar = false, modoComparar = false, escolhidoParaComparar = false, onEscolherComparar }: any) {
+export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhados, onCardFechado, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true, grupos = [], usuarioAtual = '', onGruposChange, onExpandirGrupo, abrirAoMontar = false, modoComparar = false, escolhidoParaComparar = false, onEscolherComparar, notaAchada = false, onVerNotaAchada }: any) {
   // abrirAoMontar: deep-link (?req=<id> na URL) — outros módulos (ex.: Frota >
   // Manutenções) linkam direto pra requisição e o card já abre expandido.
   const isMobile = useIsMobile();
@@ -27,6 +29,11 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
   const onUpdateCardReq = podeEditar ? onUpdate : () => {};
 
   const veioDoApp = req.origem === 'app_tecnico' || req.obs?.includes('[APPSHEET_ID:');
+  const tipoNome = normalizarTipo(req.tipo || req.ReqTipo);
+  const visual = visualTipo(tipoNome);
+  const aberta = (FASES_ABERTAS as string[]).includes(normalizarStatus(req.status));
+  // dias parada: calculado uma vez por render (a tela já relê sozinha)
+  const dias = diasAberta(req, new Date());
 
   // Subtítulo contextual baseado no tipo
   const subtituloContextual = useMemo(() => {
@@ -82,145 +89,82 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
 
   return (
     <>
-      {/* CAPA DO CARD NO KANBAN - LEVE */}
+      {/* CAPA DO CARD NO QUADRO — visual novo (Estilo POS NewPortal) */}
       <div
         draggable={podeMoverFase && !modoComparar}
         onDragStart={(e) => { if (podeMoverFase && !modoComparar) e.dataTransfer.setData("idRequisicao", req.id.toString()); }}
         onClick={() => (modoComparar ? onEscolherComparar?.(req) : setModalAberto(true))}
-        className={`bg-white border rounded-2xl p-4 md:p-6 hover:shadow-lg transition-all group mb-4 md:mb-5 border-l-[6px] relative overflow-hidden ${modoComparar ? 'cursor-pointer' : podeMoverFase ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${
-          escolhidoParaComparar ? 'border-amber-500 border-l-amber-500 ring-2 ring-amber-300'
-            : modoComparar ? 'border-zinc-200 border-l-zinc-400 hover:border-amber-400'
-            : veioDoApp ? 'border-orange-500 border-l-blue-600 shadow-md shadow-blue-900/10 hover:border-orange-500'
-            : 'border-zinc-200 border-l-zinc-400 hover:border-orange-500'
-        }`}
+        className={`rq-card rq-req clicavel ${modoComparar ? '' : podeMoverFase ? 'cursor-grab active:cursor-grabbing' : ''}`}
+        style={{
+          ['--c' as any]: visual.cor,
+          ...(escolhidoParaComparar ? { borderColor: '#D97706', boxShadow: '0 0 0 2px #fde68a' } : {}),
+        }}
       >
-        {escolhidoParaComparar && (
-          <div className="absolute top-0 right-0 bg-amber-500 text-white text-[10px] font-black px-2.5 py-1 rounded-bl-xl z-20 uppercase tracking-tighter">
-            Escolhida
+        <div className="rq-req-topo">
+          <IconeQuadrado icone={visual.icone} cor={visual.cor} />
+          <div style={{ minWidth: 0 }}>
+            <span className="rq-req-num"><small>REQ</small>{req.id}</span>
+            <div className="rq-req-tipo">{tipoNome}</div>
           </div>
-        )}
-        {veioDoApp && (
-          <div className="absolute top-0 left-0 bg-orange-600 text-white text-xs font-black px-3 py-1 rounded-br-xl flex items-center gap-1 uppercase tracking-tighter z-10" title="Requisição criada pelo técnico através do aplicativo">
-            <HardHat size={10} /> TÉCNICO (APP)
-          </div>
-        )}
-
-        {/* Ações sempre à mostra (antes só apareciam no hover, e ninguém achava).
-            Ficam discretas e só ganham cor ao passar o mouse. */}
-        <div className={`absolute top-4 right-4 md:top-6 md:right-6 flex gap-1.5 ${modoComparar ? 'hidden' : ''}`}>
-          <button onClick={(e) => { e.stopPropagation(); setModalAberto(true); }} className="p-2.5 rounded-xl bg-zinc-100 text-orange-600 hover:bg-orange-600 hover:text-white transition-all" title="Abrir requisição / Mapa de Cotações"><ClipboardList size={15} /></button>
-          <button onClick={(e) => { e.stopPropagation(); setHistAberto(true); }} className="p-2.5 rounded-xl bg-zinc-100 text-black hover:bg-zinc-800 hover:text-white transition-all" title="Histórico da requisição"><Clock size={15} /></button>
-          {podeImprimir && (
-            <button onClick={handlePrintClick} className="p-2.5 rounded-xl bg-zinc-100 text-black hover:bg-orange-600 hover:text-white transition-all" title="Imprimir requisição"><Printer size={15} /></button>
-          )}
-        </div>
-
-        {podeExcluir && !modoComparar && (
-          <button onClick={handleTrash} className="absolute bottom-4 right-4 md:bottom-6 md:right-6 p-2.5 rounded-xl bg-zinc-100 text-black hover:bg-orange-600 hover:text-white transition-all" title="Mover para a lixeira"><Trash2 size={15} /></button>
-        )}
-
-        <div className="flex items-start gap-4 mb-5 mt-2">
-          <div className={`min-w-[50px] h-[50px] rounded-xl flex items-center justify-center ${veioDoApp ? 'bg-orange-500/15 text-orange-600' : 'bg-zinc-50 text-zinc-500'}`}>
-            <span className="text-lg font-light tracking-tighter">{req.id}</span>
-          </div>
-          {/* pr no bloco inteiro: os botões de ação agora ficam fixos no canto,
-              e sem isso tanto a etiqueta do tipo quanto o título passavam por
-              baixo deles. */}
-          <div className={`flex flex-col gap-1 min-w-0 ${modoComparar ? '' : 'pr-[112px]'}`}>
-            <span className="text-xs font-bold text-orange-600 uppercase tracking-[0.15em] self-start">{req.tipo || req.ReqTipo}</span>
-            <h4 className="text-[15px] font-normal text-black leading-tight group-hover:text-orange-600 transition-colors line-clamp-2">
-              {req.titulo}
-              {subtituloContextual && <span className="text-zinc-400 font-light"> · {subtituloContextual}</span>}
-            </h4>
-          </div>
-        </div>
-
-        {/* Criado por */}
-        <div className="flex items-center gap-1.5 mb-4 -mt-1">
-          <BadgeCheck size={12} className="text-orange-500 flex-shrink-0" />
-          <span className="text-[11px] font-medium text-zinc-500 truncate">Criado por: <span className="font-semibold text-black">{req.criado_por || nomeExibicao}</span></span>
-        </div>
-
-        {/* Informações em GRADE (2 colunas): rótulo cinza em cima, valor preto
-            embaixo — nos cards largos lê muito melhor que a lista rótulo × valor */}
-        <div className="border-t border-zinc-200 pt-4 grid grid-cols-2 gap-x-6 gap-y-3">
-          <div className="min-w-0">
-            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
-              <Calendar size={11} className="text-zinc-400" /> Data
-            </span>
-            <div className="text-[13px] font-semibold text-black mt-0.5">{req.data ? new Date(req.data + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</div>
-          </div>
-          <div className="min-w-0">
-            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
-              <Building2 size={11} className="text-zinc-400" /> Setor
-            </span>
-            <div className="text-[13px] font-semibold text-black mt-0.5 truncate">{req.setor || req.ReqQuem || '---'}</div>
-          </div>
-          {req.fornecedor && (
-            <div className="min-w-0">
-              <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
-                <Briefcase size={11} className="text-zinc-400" /> Fornecedor
-              </span>
-              <div className="text-[13px] font-semibold text-black mt-0.5 truncate">{req.fornecedor}</div>
-            </div>
-          )}
-          {(req.tipo === 'Ferramenta' || req.ReqTipo === 'Ferramenta') && (
-            <div className="min-w-0">
-              <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
-                <Tag size={11} className="text-zinc-400" /> Destinação
-              </span>
-              <div className="text-[13px] font-semibold text-black mt-0.5 truncate">{req.quem_ferramenta || req.ferramenta_quem || '---'}</div>
-            </div>
-          )}
-          {['Veicular Abastecimento', 'Trator Abastecimento', 'Quadri Abastecimento'].includes(req.tipo) && req.litros_combustivel && (
-            <div className="min-w-0">
-              <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
-                <Tag size={11} className="text-amber-500" /> Litros
-              </span>
-              <div className="text-[13px] font-bold text-amber-600 mt-0.5">{req.litros_combustivel}L</div>
+          {!modoComparar && (
+            <div className="rq-req-acoes">
+              <button onClick={(e) => { e.stopPropagation(); setHistAberto(true); }} title="Histórico da requisição"><Clock size={14} /></button>
+              {podeImprimir && <button onClick={handlePrintClick} title="Imprimir requisição"><Printer size={14} /></button>}
+              {podeExcluir && <button onClick={handleTrash} title="Mover para a lixeira"><Trash2 size={14} /></button>}
             </div>
           )}
         </div>
 
-        {/* Tags */}
-        {req.tags && Array.isArray(req.tags) && req.tags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
-            {req.tags.map((tag: string, i: number) => (
-              <span key={i} className="text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: '#F5F3FF', color: '#7C3AED' }}>{tag}</span>
-            ))}
+        <div className="rq-req-titulo">{req.titulo || 'Sem título'}</div>
+        {subtituloContextual && <div className="rq-req-sub">{subtituloContextual}</div>}
+
+        <div className="rq-req-meta">
+          <span><i className="fa-regular fa-calendar" />{req.data ? new Date(req.data + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</span>
+          {(req.setor || req.ReqQuem) && <span><i className="fa-solid fa-building" />{req.setor || req.ReqQuem}</span>}
+          <span title="Quem pediu"><i className="fa-solid fa-user" />{nomeExibicao || req.criado_por || '—'}</span>
+          {req.fornecedor && <span title="Fornecedor"><i className="fa-solid fa-store" />{req.fornecedor}</span>}
+        </div>
+
+        {(notaAchada || veioDoApp || escolhidoParaComparar || dias != null && dias > 7 || (!req.fornecedor && aberta)) && (
+          <div className="rq-req-selos">
+            {notaAchada && (
+              <button type="button" className="rq-pilula rq-pulsa" style={{ ['--c' as any]: '#2563EB', cursor: 'pointer', border: '1px solid color-mix(in srgb, #2563EB 30%, transparent)' }}
+                title="Achei no Omie uma nota de entrada que parece ser desta requisição — clique para conferir"
+                onClick={(e) => { e.stopPropagation(); onVerNotaAchada?.(req.id); }}>
+                <i className="fa-solid fa-file-invoice" /> Nota achada no Omie
+              </button>
+            )}
+            {escolhidoParaComparar && <span className="rq-pilula" style={{ ['--c' as any]: '#D97706' }}>Escolhida</span>}
+            {veioDoApp && <span className="rq-pilula" style={{ ['--c' as any]: '#2563EB' }} title="Criada pelo técnico no aplicativo"><HardHat size={11} /> Técnico (app)</span>}
+            {dias != null && dias > 7 && (
+              <span className="rq-pilula" style={{ ['--c' as any]: dias > 30 ? '#DC2626' : '#D97706' }} title="Há quantos dias está aberta">
+                <Clock size={11} /> parada há {dias} dias
+              </span>
+            )}
+            {!req.fornecedor && aberta && <span className="rq-pilula" style={{ ['--c' as any]: '#64748B' }}>sem fornecedor</span>}
           </div>
         )}
 
-        {/* Os três anexos têm lugar FIXO e legenda escrita: apagado = falta,
-            aceso = anexado. Antes o ícone só existia quando havia o anexo, então
-            não dava pra saber, olhando o card, o que estava faltando.
-            Linha PRÓPRIA: junto do valor eles esbarravam na lixeira, que fica
-            ancorada no canto de baixo. */}
-        <div className="mt-4 flex items-center gap-1.5 flex-wrap">
+        <div className="rq-req-rodape">
+          <div className="rq-num" style={{ fontSize: 21 }}>{brl(valorReq(req))}</div>
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
             {([
-              { campo: 'foto_nf', sigla: 'NF', nome: 'Nota fiscal', Icone: Receipt, cor: 'chip-anexo-on' },
-              { campo: 'boleto_fornecedor', sigla: 'Boleto', nome: 'Boleto do fornecedor', Icone: Banknote, cor: 'chip-anexo-on' },
-              { campo: 'recibo_fornecedor', sigla: 'Recibo', nome: 'Recibo / outros', Icone: Paperclip, cor: 'chip-anexo-on' },
-            ] as const).map(({ campo, sigla, nome, Icone, cor }) => {
+              { campo: 'foto_nf', sigla: 'NF', nome: 'Nota fiscal', Icone: Receipt },
+              { campo: 'boleto_fornecedor', sigla: 'Boleto', nome: 'Boleto do fornecedor', Icone: Banknote },
+              { campo: 'recibo_fornecedor', sigla: 'Recibo', nome: 'Recibo / outros', Icone: Paperclip },
+            ] as const).map(({ campo, sigla, nome, Icone }) => {
               // NF: conta as até 5 notas (foto_nf + foto_nf2..5) num chip só
               const qtd = campo === 'foto_nf'
                 ? ['foto_nf', 'foto_nf2', 'foto_nf3', 'foto_nf4', 'foto_nf5'].filter(c => !!req[c]).length
                 : (req[campo] ? 1 : 0);
-              const tem = qtd > 0;
               return (
-                <span key={campo}
-                  title={tem ? `${nome} anexado${qtd > 1 ? ` (${qtd})` : ''}` : `Sem ${nome.toLowerCase()}`}
-                  className={`flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] leading-none ${tem ? cor : 'text-zinc-300 bg-zinc-50'}`}>
-                  <Icone size={13} /> {sigla}{qtd > 1 ? ` ×${qtd}` : ''}
+                <span key={campo} className={`rq-anexo ${qtd > 0 ? 'on' : ''}`}
+                  title={qtd > 0 ? `${nome} anexado${qtd > 1 ? ` (${qtd})` : ''}` : `Sem ${nome.toLowerCase()}`}>
+                  <Icone size={12} /> {sigla}{qtd > 1 ? ` ×${qtd}` : ''}
                 </span>
               );
             })}
-        </div>
-
-        {/* Valor por último: a lixeira ancora no canto de baixo à direita, e aqui
-            o que fica embaixo dela é só espaço vazio. */}
-        <div className="mt-2 flex items-center gap-3 pr-12">
-          <div className="text-[18px] font-bold text-black tracking-tighter"><span className="text-xs text-zinc-400 mr-1 italic font-normal">R$</span>{req.valor_despeza || '0,00'}</div>
+          </div>
         </div>
       </div>
 

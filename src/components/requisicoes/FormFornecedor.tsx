@@ -8,6 +8,11 @@ import {
 } from 'lucide-react';
 import { anexosDaReq } from '@/lib/requisicoes/anexos';
 import { useIsMobile } from '@/hooks/useIsMobile';
+import { useAuditLog } from '@/hooks/useAuditLog';
+import { parecencaNome } from '@/lib/requisicoes/casar-nota';
+
+// nome exato no ilike (sem % e _ virarem curinga)
+const ilikeExato = (s: string) => s.trim().replace(/[\\%_]/g, (c) => `\\${c}`);
 
 // Valor monetário -> number. Aceita pt-BR ("1.234,56"), americano ("800.00")
 // e número puro. Antes o ponto era SEMPRE tratado como milhar: "800.00"
@@ -53,7 +58,13 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
   const autoEditConsumidoRef = useRef(false);
 
   // Estatísticas por fornecedor (recência/contagem/total) e mapa de usuários
-  const [stats, setStats] = useState<Record<string, { count: number; last: string; total: number }>>({});
+  const [stats, setStats] = useState<Record<string, { count: number; last: string; total: number; nome: string }>>({});
+  // ordem da lista (lembrada no navegador) e lista "usados sem cadastro" aberta/fechada
+  const [ordem, setOrdem] = useState<'uso' | 'gasto' | 'recente' | 'az'>(() => { try { return (localStorage.getItem('forn-ordem') as any) || 'uso'; } catch { return 'uso'; } });
+  const [semCadAberto, setSemCadAberto] = useState(false);
+  const [repetidosAberto, setRepetidosAberto] = useState(false);
+  const [juntando, setJuntando] = useState<string | null>(null);
+  const { log: auditLog } = useAuditLog();
   const [usuarios, setUsuarios] = useState<{ id: Record<string, string>; email: Record<string, string> }>({ id: {}, email: {} });
 
   // Ficha
@@ -82,7 +93,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
 
   // Estatísticas das requisições por fornecedor (paginado; só 3 colunas).
   const carregarStats = useCallback(async () => {
-    const map: Record<string, { count: number; last: string; total: number }> = {};
+    const map: Record<string, { count: number; last: string; total: number; nome: string }> = {};
     let from = 0; const step = 1000;
     for (;;) {
       const { data } = await supabase.from('Requisicao').select('fornecedor, created_at, valor_despeza').range(from, from + step - 1);
@@ -90,7 +101,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
       for (const r of data) {
         const f = String(r.fornecedor || '').trim(); if (!f) continue;
         const k = f.toLowerCase();
-        const e = map[k] || { count: 0, last: '', total: 0 };
+        const e = map[k] || { count: 0, last: '', total: 0, nome: f };
         e.count++; if ((r.created_at || '') > e.last) e.last = r.created_at || '';
         e.total += parseBR(r.valor_despeza);
         map[k] = e;
@@ -135,7 +146,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     if (alvo) { iniciarEdicao(alvo); autoEditConsumidoRef.current = true; }
   }, [editarId, fornecedores]);
 
-  const novoFornecedor = () => { setEditando(null); setFormData(FORM_VAZIO); setCepStatus(''); setCnpjStatus(''); setCnpjAviso(''); ultimoCnpjRef.current = ''; setView('form'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  const novoFornecedor = (nome = '') => { setEditando(null); setFormData({ ...FORM_VAZIO, nome: nome.toUpperCase() }); setCepStatus(''); setCnpjStatus(''); setCnpjAviso(''); ultimoCnpjRef.current = ''; setView('form'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
   const cancelarEdicao = () => { setEditando(null); setFormData(FORM_VAZIO); setCepStatus(''); setCnpjStatus(''); setCnpjAviso(''); ultimoCnpjRef.current = ''; setView('lista'); };
 
   const formatarDoc = (v: string) => {
@@ -200,7 +211,10 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
   };
 
   const excluirFornecedor = async (id: number) => {
-    if (confirm('Tem certeza que deseja remover este fornecedor permanentemente?')) {
+    const forn = fornecedores.find((x) => x.id === id);
+    const uso = stats[String(forn?.nome || '').toLowerCase()]?.count || 0;
+    const aviso = uso ? `\n\nEle aparece em ${uso} requisição(ões) — elas continuam com o nome, só o cadastro sai.` : '';
+    if (confirm(`Excluir o cadastro de ${forn?.nome || 'este fornecedor'}? Não dá para desfazer.${aviso}`)) {
       const { error } = await supabase.from('Fornecedores').delete().eq('id', id);
       if (!error) carregarFornecedores();
     }
@@ -248,13 +262,13 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
   };
 
   // ── estilos ──
-  const card: React.CSSProperties = { background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 14, boxShadow: '0 1px 3px rgba(15,20,30,0.05)' };
-  const inp: React.CSSProperties = { width: '100%', padding: '13px 15px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', fontSize: 15.5, outline: 'none', boxSizing: 'border-box' };
-  const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--portal-text-muted)' };
-  const btnRed: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 11, border: 'none', background: '#EA580C', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' };
-  const btnGhost: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer' };
+  const card: React.CSSProperties = { background: 'var(--surface, #fefefe)', border: '1px solid var(--border, #e2e8f0)', borderRadius: 16, boxShadow: 'none' };
+  const inp: React.CSSProperties = { width: '100%', padding: '13px 15px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--surface, #fefefe)', color: 'var(--portal-text)', fontSize: 15, outline: 'none', boxSizing: 'border-box' };
+  const lbl: React.CSSProperties = { fontSize: 13, color: 'var(--portal-text-secondary, #475569)' };
+  const btnRed: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 11, border: 'none', background: '#EA580C', color: '#fff', fontSize: 13.5, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' };
+  const btnGhost: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 500, cursor: 'pointer' };
   const Avatar = ({ nome, size = 42 }: { nome: string; size?: number }) => (
-    <span style={{ width: size, height: size, borderRadius: size * 0.3, background: `linear-gradient(135deg, ${corDe(nome)}, ${corDe(nome)}cc)`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: size * 0.34, flexShrink: 0 }}>{iniciais(nome)}</span>
+    <span style={{ width: size, height: size, borderRadius: size * 0.3, background: `linear-gradient(135deg, ${corDe(nome)}, ${corDe(nome)}cc)`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 500, fontSize: size * 0.34, flexShrink: 0 }}>{iniciais(nome)}</span>
   );
 
   // ════════════ FICHA (MODAL) ════════════
@@ -267,7 +281,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
       boleto_fornecedor: { bg: '#fef6e7', cor: '#d97706', label: 'Boleto' },
     };
     const kpi: React.CSSProperties = { border: '1px solid var(--portal-border)', borderRadius: 12, padding: '14px 16px', background: 'var(--portal-bg-secondary)' };
-    const kpiLbl: React.CSSProperties = { fontSize: 12, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--portal-text-muted)' };
+    const kpiLbl: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: 'var(--portal-text-muted)' };
     // Todos os dados cadastrados, com botão de copiar em cada um
     const dadosForn: [string, string][] = [
       ['Razão social / Nome', String(fichaForn.nome || '')],
@@ -300,7 +314,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
           <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: isMobile ? 10 : 16, padding: isMobile ? '14px 14px' : '20px 22px', borderBottom: '1px solid var(--portal-border)' }}>
             <Avatar nome={fichaForn.nome} size={58} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--portal-text)', lineHeight: 1.15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fichaForn.nome}</div>
+              <div style={{ fontSize: 22, fontWeight: 500, color: 'var(--portal-text)', lineHeight: 1.15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fichaForn.nome}</div>
               <div style={{ fontSize: 14, color: 'var(--portal-text-secondary)', marginTop: 4 }}>
                 {[fichaForn['cpf/cnpj'], fichaForn.numero, fichaForn.email].filter(Boolean).join('  ·  ') || 'Sem contato cadastrado'}
               </div>
@@ -313,7 +327,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
           <div style={{ padding: isMobile ? '14px 12px' : '18px 22px', overflowY: 'auto' }}>
             {/* Dados cadastrais completos, com copiar */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 2px 10px' }}>
-              <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--portal-text-muted)' }}>Dados cadastrais</span>
+              <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--portal-text-muted)' }}>Dados cadastrais</span>
               <button onClick={copiarTudo} style={{ ...btnGhost, padding: '6px 12px', fontSize: 12.5 }}>
                 {copiado === '__tudo__' ? <><Check size={14} color="#059669" /> Copiado!</> : <><Copy size={14} /> Copiar tudo</>}
               </button>
@@ -322,8 +336,8 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
               {dadosForn.map(([rot, val]) => (
                 <div key={rot} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: '1px solid var(--portal-border)', minWidth: 0 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--portal-text-muted)' }}>{rot}</div>
-                    <div style={{ fontSize: 13.5, fontWeight: 600, color: val ? 'var(--portal-text)' : 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={val || undefined}>{val || '—'}</div>
+                    <div style={{ fontSize: 10.5, fontWeight: 500, color: 'var(--portal-text-muted)' }}>{rot}</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 500, color: val ? 'var(--portal-text)' : 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={val || undefined}>{val || '—'}</div>
                   </div>
                   {val && (
                     <button onClick={() => copiar(rot, val)} title={`Copiar ${rot.toLowerCase()}`}
@@ -336,12 +350,12 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, 1fr)', gap: 12 }}>
-              <div style={kpi}><div style={kpiLbl}>Requisições</div><div style={{ fontSize: 26, fontWeight: 700, color: '#2563eb', marginTop: 5 }}>{st?.count || 0}</div></div>
-              <div style={kpi}><div style={kpiLbl}>Valor total</div><div style={{ fontSize: 22, fontWeight: 700, color: '#059669', marginTop: 5, fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(st?.total || 0)}</div></div>
-              <div style={kpi}><div style={kpiLbl}>Última compra</div><div style={{ fontSize: 18, fontWeight: 600, color: 'var(--portal-text)', marginTop: 8 }}>{st?.last ? new Date(st.last).toLocaleDateString('pt-BR') : '—'}</div></div>
+              <div style={kpi}><div style={kpiLbl}>Requisições</div><div style={{ fontSize: 26, fontWeight: 500, color: '#2563eb', marginTop: 5 }}>{st?.count || 0}</div></div>
+              <div style={kpi}><div style={kpiLbl}>Valor total</div><div style={{ fontSize: 22, fontWeight: 500, color: '#059669', marginTop: 5, fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(st?.total || 0)}</div></div>
+              <div style={kpi}><div style={kpiLbl}>Última compra</div><div style={{ fontSize: 18, fontWeight: 500, color: 'var(--portal-text)', marginTop: 8 }}>{st?.last ? new Date(st.last).toLocaleDateString('pt-BR') : '—'}</div></div>
             </div>
 
-            <div style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--portal-text-muted)', margin: '22px 2px 12px' }}>Histórico por mês</div>
+            <div style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--portal-text-muted)', margin: '22px 2px 12px' }}>Histórico por mês</div>
 
             {fichaLoading ? (
               <div style={{ padding: 50, textAlign: 'center', color: 'var(--portal-text-muted)' }}><RefreshCw size={22} className="animate-spin" /><div style={{ marginTop: 8 }}>Carregando…</div></div>
@@ -352,9 +366,9 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
               return (
                 <div key={m.mes} style={{ ...card, overflow: 'hidden', marginBottom: 12 }}>
                   <div onClick={() => setMesAberto(aberto ? null : m.mes)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '15px 17px', cursor: 'pointer' }}>
-                    <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'capitalize' }}>{mesNome(m.mes)}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#EA580C', background: '#FFF7ED', padding: '3px 10px', borderRadius: 999 }}>{m.reqs.length} {m.reqs.length === 1 ? 'req' : 'reqs'}</span>
-                    <span style={{ marginLeft: 'auto', fontSize: 17, fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(m.total)}</span>
+                    <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--portal-text)', textTransform: 'capitalize' }}>{mesNome(m.mes)}</span>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: '#EA580C', background: '#FFF7ED', padding: '3px 10px', borderRadius: 999 }}>{m.reqs.length} {m.reqs.length === 1 ? 'req' : 'reqs'}</span>
+                    <span style={{ marginLeft: 'auto', fontSize: 17, fontWeight: 500, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(m.total)}</span>
                     {aberto ? <ChevronUp size={18} color="var(--portal-text-muted)" /> : <ChevronDown size={18} color="var(--portal-text-muted)" />}
                   </div>
                   {aberto && (
@@ -374,18 +388,18 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 title="Abrir a requisição em nova aba"
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 15, fontWeight: 600, color: '#2563eb', textDecoration: 'none', maxWidth: '100%' }}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 15, fontWeight: 500, color: '#2563eb', textDecoration: 'none', maxWidth: '100%' }}
                               >
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>#{r.id} · {r.titulo || 'Requisição'}</span>
                                 <ExternalLink size={14} style={{ flexShrink: 0 }} />
                               </a>
                               <div style={{ fontSize: 13, color: 'var(--portal-text-muted)', marginTop: 2 }}>{resolveNome(r.solicitante)} · {r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—'}{r.numero_nota ? ` · NF ${r.numero_nota}` : ''}</div>
                             </div>
-                            <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmtBRL(parseBR(r.valor_despeza))}</span>
+                            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{fmtBRL(parseBR(r.valor_despeza))}</span>
                             <div style={{ display: 'flex', gap: 6 }}>
                               {anexos.length === 0 ? <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>sem anexo</span> : anexos.map((a) => {
                                 const c = anexoCor[a.field] || { bg: 'var(--portal-bg-secondary)', cor: 'var(--portal-text-secondary)', label: a.label };
-                                return <a key={a.field} href={a.url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, padding: '4px 9px', borderRadius: 7, textDecoration: 'none', background: c.bg, color: c.cor }}><FileText size={12} /> {c.label}</a>;
+                                return <a key={a.field} href={a.url} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 500, padding: '4px 9px', borderRadius: 7, textDecoration: 'none', background: c.bg, color: c.cor }}><FileText size={12} /> {c.label}</a>;
                               })}
                             </div>
                           </div>
@@ -404,9 +418,9 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
 
   // ════════════ FORMULÁRIO ════════════
   if (view === 'form') {
-    const statusTxt = (s: string, aviso?: string) => s === 'buscando' ? <span style={{ color: '#2563eb', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}> · consultando…</span>
-      : s === 'ok' ? <span style={{ color: '#059669', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}> · preenchido{aviso ? <span style={{ color: '#d97706' }}> · {aviso}</span> : ''}</span>
-      : s === 'erro' ? <span style={{ color: '#EA580C', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}> · não encontrado, preencha à mão</span> : null;
+    const statusTxt = (s: string, aviso?: string) => s === 'buscando' ? <span style={{ color: '#2563eb', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}> · consultando…</span>
+      : s === 'ok' ? <span style={{ color: '#059669', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}> · preenchido{aviso ? <span style={{ color: '#d97706' }}> · {aviso}</span> : ''}</span>
+      : s === 'erro' ? <span style={{ color: '#EA580C', fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}> · não encontrado, preencha à mão</span> : null;
     const grid: React.CSSProperties = { display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: 14 };
     const fg = (span2 = false): React.CSSProperties => ({ display: 'flex', flexDirection: 'column', gap: 6, gridColumn: span2 && !isMobile ? 'span 2' : undefined });
     return (
@@ -415,12 +429,12 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 20, textAlign: 'center' }}>
             <div style={{ width: 46, height: 46, borderRadius: 12, background: editando ? '#FFF7ED' : 'var(--portal-bg-secondary)', color: editando ? '#EA580C' : 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{editando ? <Edit3 size={23} /> : <Store size={23} />}</div>
-            <h2 style={{ fontSize: 23, fontWeight: 700, color: 'var(--portal-text)', margin: 0 }}>{editando ? 'Editar fornecedor' : 'Novo fornecedor'}</h2>
+            <h2 style={{ fontSize: 23, fontWeight: 500, color: 'var(--portal-text)', margin: 0 }}>{editando ? 'Editar fornecedor' : 'Novo fornecedor'}</h2>
           </div>
 
           {/* Identificação */}
           <div style={{ ...card, padding: isMobile ? '16px 14px' : '20px 22px', marginBottom: 16 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: '#EA580C', marginBottom: 16 }}>Identificação</div>
+            <div style={{ fontSize: 13.5, fontWeight: 500, color: '#EA580C', marginBottom: 16 }}>Identificação</div>
             <div style={grid}>
               <div style={fg()}>
                 <span style={lbl}>CNPJ / CPF{statusTxt(cnpjStatus, cnpjAviso)}</span>
@@ -434,7 +448,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
 
           {/* Endereço */}
           <div style={{ ...card, padding: isMobile ? '16px 14px' : '20px 22px', marginBottom: 16 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: '#EA580C', marginBottom: 16 }}>Endereço <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--portal-text-muted)', fontWeight: 500 }}>— p/ Omie</span></div>
+            <div style={{ fontSize: 13.5, fontWeight: 500, color: '#EA580C', marginBottom: 16 }}>Endereço <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--portal-text-muted)', fontWeight: 500 }}>— p/ Omie</span></div>
             <div style={grid}>
               <div style={fg()}><span style={lbl}>CEP{statusTxt(cepStatus)}</span><input name="cep" maxLength={9} value={formData.cep} onChange={(e) => { const v = e.target.value; setFormData((p) => ({ ...p, cep: v })); buscarCep(v); }} style={inp} placeholder="00000-000" /></div>
               <div style={fg()}><span style={lbl}>Cidade</span><input name="cidade" value={formData.cidade} onChange={handleChange} style={inp} placeholder="Ex: Piraju" /></div>
@@ -447,7 +461,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
 
           {/* Serviço */}
           <div style={{ ...card, padding: '16px 18px', marginBottom: 16 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: '#EA580C', marginBottom: 16 }}>Serviço</div>
+            <div style={{ fontSize: 13.5, fontWeight: 500, color: '#EA580C', marginBottom: 16 }}>Serviço</div>
             <div style={fg(true)}><span style={lbl}>Descrição do que fornece</span><input name="descricao" value={formData.descricao} onChange={handleChange} style={inp} placeholder="Ex: Peças agrícolas" /></div>
           </div>
 
@@ -462,7 +476,73 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
 
   // ════════════ LISTA ════════════
   const filtroL = filtro.toLowerCase();
-  const fornecedoresFiltrados = fornecedores.filter((f) => f.nome?.toLowerCase().includes(filtroL) || String(f['cpf/cnpj'] || '').includes(filtro) || String(f.descricao || '').toLowerCase().includes(filtroL));
+  const st = (f: any) => stats[String(f.nome || '').toLowerCase()];
+  const fornecedoresFiltrados = fornecedores
+    .filter((f) => f.nome?.toLowerCase().includes(filtroL) || String(f['cpf/cnpj'] || '').includes(filtro) || String(f.descricao || '').toLowerCase().includes(filtroL))
+    .sort((a, b) => ordem === 'az' ? String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR')
+      : ordem === 'gasto' ? (st(b)?.total || 0) - (st(a)?.total || 0)
+      : ordem === 'recente' ? (st(b)?.last || '').localeCompare(st(a)?.last || '')
+      : (st(b)?.count || 0) - (st(a)?.count || 0));
+  const mudarOrdem = (o: typeof ordem) => { setOrdem(o); try { localStorage.setItem('forn-ordem', o); } catch { /* sem storage */ } };
+  // nomes usados nas requisições que não estão no cadastro (só os usados 2+ vezes — o resto é erro de digitação)
+  const cadastrados = new Set(fornecedores.map((f) => String(f.nome || '').trim().toLowerCase()));
+  const semCadastro = Object.entries(stats)
+    .filter(([k, v]) => !cadastrados.has(k) && v.count >= 2 && (!filtroL || k.includes(filtroL)))
+    .map(([, v]) => v).sort((a, b) => b.count - a.count);
+  // nome sem cadastro → cadastro parecido (o mesmo fornecedor escrito de outro jeito)
+  const parecidoCom = (nome: string) => {
+    let melhor: any = null, p = 0;
+    for (const f of fornecedores) { const x = parecencaNome(nome, f.nome); if (x > p) { p = x; melhor = f; } }
+    return p >= 0.6 ? melhor : null;
+  };
+  // cadastros repetidos: mesmo CNPJ em mais de um cadastro
+  const repetidos = (() => {
+    const m = new Map<string, any[]>();
+    for (const f of fornecedores) { const c = String(f['cpf/cnpj'] || '').replace(/\D/g, ''); if (c.length >= 11) (m.get(c) || m.set(c, []).get(c)!).push(f); }
+    return [...m.values()].filter((l) => l.length > 1);
+  })();
+  /** Troca o nome do fornecedor nas requisições (de → para) e põe o CNPJ do cadastro onde está vazio. */
+  const trocarNasRequisicoes = async (de: string, para: any) => {
+    // pega as que CONTÊM o nome e confere o nome limpo (há fornecedor gravado com espaço sobrando)
+    const alvo = de.trim().toLowerCase();
+    const { data: cand, error: e1 } = await supabase.from('Requisicao').select('id, fornecedor').ilike('fornecedor', `%${ilikeExato(de)}%`).limit(2000);
+    if (e1) throw e1;
+    const ids = (cand || []).filter((r: any) => String(r.fornecedor || '').trim().toLowerCase() === alvo).map((r: any) => r.id);
+    if (!ids.length) return 0;
+    const { data, error } = await supabase.from('Requisicao').update({ fornecedor: para.nome }).in('id', ids).select('id');
+    if (error) throw error;
+    const cnpj = String(para['cpf/cnpj'] || '').trim();
+    if (cnpj && data?.length) await supabase.from('Requisicao').update({ fornecedor_cnpj: cnpj }).in('id', data.map((r: any) => r.id)).or('fornecedor_cnpj.is.null,fornecedor_cnpj.eq.');
+    return data?.length || 0;
+  };
+  const juntarNome = async (de: string, qtd: number, para: any) => {
+    if (!confirm(`Trocar "${de}" por "${para.nome}" em ${qtd} requisição(ões)?\n\nÉ o mesmo fornecedor escrito de outro jeito. Depois disso o sistema consegue achar as notas dele no Omie.`)) return;
+    setJuntando(de);
+    try {
+      const n = await trocarNasRequisicoes(de, para);
+      auditLog({ sistema: 'requisicoes', acao: 'juntar_fornecedor', entidade: 'fornecedor', entidade_label: para.nome, detalhes: { de, para: para.nome, requisicoes: n } });
+      await carregarStats();
+    } catch (e: any) { alert('Não consegui juntar: ' + (e?.message || e)); }
+    setJuntando(null);
+  };
+  const ficarCom = async (manter: any, grupo: any[]) => {
+    const sair = grupo.filter((x) => x.id !== manter.id);
+    const usos = sair.map((x) => stats[String(x.nome || '').toLowerCase()]?.count || 0).reduce((a, b) => a + b, 0);
+    if (!confirm(`Ficar com "${manter.nome}" e apagar ${sair.map((x) => `"${x.nome}"`).join(', ')}?\n\n${usos} requisição(ões) passam a usar "${manter.nome}".`)) return;
+    setJuntando(String(manter.id));
+    try {
+      let n = 0;
+      for (const x of sair) {
+        n += await trocarNasRequisicoes(x.nome, manter);
+        const { error } = await supabase.from('Fornecedores').delete().eq('id', x.id);
+        if (error) throw error;
+      }
+      auditLog({ sistema: 'requisicoes', acao: 'juntar_fornecedor', entidade: 'fornecedor', entidade_label: manter.nome, detalhes: { apagados: sair.map((x) => x.nome), requisicoes: n } });
+      await carregarFornecedores(); await carregarStats();
+    } catch (e: any) { alert('Não consegui juntar: ' + (e?.message || e)); }
+    setJuntando(null);
+  };
+  const incompleto = (f: any) => !String(f['cpf/cnpj'] || '').replace(/\D/g, '') || !String(f.numero || '').trim();
   const recentes = !filtro ? [...fornecedores]
     .filter((f) => stats[String(f.nome || '').toLowerCase()]?.last)
     .sort((a, b) => (stats[String(b.nome || '').toLowerCase()]?.last || '').localeCompare(stats[String(a.nome || '').toLowerCase()]?.last || ''))
@@ -476,7 +556,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
           <Search size={16} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-muted)' }} />
           <input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Buscar fornecedor por nome, CNPJ ou serviço…" style={{ ...inp, paddingLeft: 38, background: 'var(--portal-bg-card)' }} />
         </div>
-        <button onClick={novoFornecedor} style={btnRed}><Plus size={16} /> Novo fornecedor</button>
+        <button onClick={() => novoFornecedor()} style={btnRed}><Plus size={16} /> Novo fornecedor</button>
       </div>
 
       {loading ? (
@@ -485,14 +565,14 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
         <>
           {recentes.length > 0 && (
             <>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 2px 11px', fontSize: 11, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--portal-text-muted)' }}><Clock size={14} /> Usados recentemente</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 2px 11px', fontSize: 11, fontWeight: 500, color: 'var(--portal-text-muted)' }}><Clock size={14} /> Usados recentemente</div>
               <div style={{ display: 'flex', gap: 11, overflowX: 'auto', paddingBottom: 4 }}>
                 {recentes.map((f) => {
                   const s = stats[String(f.nome || '').toLowerCase()];
                   return (
                     <button key={f.id} onClick={() => abrirFicha(f)} style={{ ...card, flex: '0 0 auto', width: 210, padding: '13px 14px', textAlign: 'left', cursor: 'pointer' }}>
                       <Avatar nome={f.nome} size={40} />
-                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--portal-text)', marginTop: 9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.nome}</div>
+                      <div style={{ fontSize: 13.5, fontWeight: 500, color: 'var(--portal-text)', marginTop: 9, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.nome}</div>
                       <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', marginTop: 3 }}>{s?.last ? diasAtras(s.last) : '—'} · {s?.count || 0} {s?.count === 1 ? 'req' : 'reqs'}</div>
                     </button>
                   );
@@ -501,8 +581,80 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
             </>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 2px 11px', fontSize: 11, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--portal-text-muted)' }}>
-            Todos os fornecedores <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)' }}>· {fornecedoresFiltrados.length}</span>
+          {semCadastro.length > 0 && (
+            <div style={{ ...card, marginTop: 18, overflow: 'hidden' }}>
+              <div onClick={() => setSemCadAberto((v) => !v)} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '13px 16px', cursor: 'pointer' }}>
+                <span style={{ width: 36, height: 36, borderRadius: 10, display: 'grid', placeItems: 'center', color: '#D97706', background: 'color-mix(in srgb, #D97706 9%, #fefefe)', border: '1px solid color-mix(in srgb, #D97706 18%, transparent)' }}><i className="fa-solid fa-store-slash" /></span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>{semCadastro.length} fornecedores usados nas requisições sem cadastro</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>Sem cadastro não tem CNPJ nem telefone para cobrar a nota. Cadastre os mais usados.</div>
+                </div>
+                {semCadAberto ? <ChevronUp size={18} color="var(--portal-text-muted)" /> : <ChevronDown size={18} color="var(--portal-text-muted)" />}
+              </div>
+              {semCadAberto && semCadastro.slice(0, 40).map((v) => {
+                const igual = parecidoCom(v.nome);
+                return (
+                  <div key={v.nome} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderTop: '1px solid var(--border, #e2e8f0)', flexWrap: 'wrap' }}>
+                    <Avatar nome={v.nome} size={34} />
+                    <div style={{ flex: 1, minWidth: 200 }}>
+                      <div style={{ fontSize: 14, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.nome}</div>
+                      <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>{v.count} reqs · {fmtBRL(v.total)}{v.last ? ` · última ${diasAtras(v.last)}` : ''}</div>
+                      {igual && <div style={{ fontSize: 12.5, color: '#1d4ed8', marginTop: 2 }}><i className="fa-solid fa-code-merge" /> Parece ser: <span style={{ fontWeight: 500 }}>{igual.nome}</span></div>}
+                    </div>
+                    {igual && (
+                      <button onClick={() => juntarNome(v.nome, v.count, igual)} disabled={juntando === v.nome} style={{ ...btnGhost, padding: '7px 12px', borderColor: '#93c5fd', color: '#1d4ed8' }}>
+                        <i className="fa-solid fa-code-merge" /> {juntando === v.nome ? 'Juntando…' : 'É o mesmo, juntar'}
+                      </button>
+                    )}
+                    <button onClick={() => novoFornecedor(v.nome)} style={{ ...btnGhost, padding: '7px 12px' }}><Plus size={14} /> Cadastrar</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {repetidos.length > 0 && (
+            <div style={{ ...card, marginTop: 12, overflow: 'hidden' }}>
+              <div onClick={() => setRepetidosAberto((v) => !v)} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '13px 16px', cursor: 'pointer' }}>
+                <span style={{ width: 36, height: 36, borderRadius: 10, display: 'grid', placeItems: 'center', color: '#DB2777', background: 'color-mix(in srgb, #DB2777 9%, #fefefe)', border: '1px solid color-mix(in srgb, #DB2777 18%, transparent)' }}><i className="fa-solid fa-clone" /></span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>{repetidos.length} fornecedores cadastrados mais de uma vez (mesmo CNPJ)</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>Geralmente o nome fantasia e a razão social. Escolha com qual ficar: as requisições do outro passam para ele.</div>
+                </div>
+                {repetidosAberto ? <ChevronUp size={18} color="var(--portal-text-muted)" /> : <ChevronDown size={18} color="var(--portal-text-muted)" />}
+              </div>
+              {repetidosAberto && repetidos.map((grupo) => (
+                <div key={grupo[0].id} style={{ borderTop: '1px solid var(--border, #e2e8f0)', padding: '8px 16px' }}>
+                  <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginBottom: 4 }}>CNPJ {grupo[0]['cpf/cnpj']}</div>
+                  {grupo.map((x: any) => {
+                    const sx = stats[String(x.nome || '').toLowerCase()];
+                    return (
+                      <div key={x.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 0', flexWrap: 'wrap' }}>
+                        <Avatar nome={x.nome} size={30} />
+                        <div style={{ flex: 1, minWidth: 180 }}>
+                          <div style={{ fontSize: 14, color: 'var(--portal-text)' }}>{x.nome}</div>
+                          <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>{sx?.count || 0} reqs · {fmtBRL(sx?.total || 0)}{[x.numero, x.email].filter(Boolean).length ? ` · ${[x.numero, x.email].filter(Boolean).join(' · ')}` : ''}</div>
+                        </div>
+                        <button onClick={() => abrirFicha(x)} style={{ ...btnGhost, padding: '6px 11px' }}>Ver</button>
+                        <button onClick={() => ficarCom(x, grupo)} disabled={juntando === String(x.id)} style={{ ...btnGhost, padding: '6px 11px', borderColor: '#f9a8d4', color: '#be185d' }}>
+                          {juntando === String(x.id) ? 'Juntando…' : 'Ficar com este'}
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 2px 11px', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>Todos os fornecedores</span>
+            <span style={{ fontSize: 13, color: 'var(--portal-text-muted)' }}>· {fornecedoresFiltrados.length}</span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {([['uso', 'Mais usados'], ['gasto', 'Maior gasto'], ['recente', 'Recentes'], ['az', 'A–Z']] as const).map(([k, r]) => (
+                <button key={k} onClick={() => mudarOrdem(k)} style={{ ...btnGhost, padding: '6px 11px', fontSize: 12.5, ...(ordem === k ? { borderColor: '#fdba74', background: '#fff7ed', color: '#c2410c' } : {}) }}>{r}</button>
+              ))}
+            </div>
           </div>
           <div style={{ ...card, overflow: 'hidden' }}>
             {fornecedoresFiltrados.length === 0 ? (
@@ -516,12 +668,18 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
                   onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
                   <Avatar nome={f.nome} />
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.nome}</div>
+                    <div style={{ fontSize: 14.5, fontWeight: 500, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.nome}</div>
                     <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {[f['cpf/cnpj'], f.numero, f.descricao].filter(Boolean).join(' · ') || 'Sem dados'}
                     </div>
                   </div>
-                  {s?.count ? <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 999, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-secondary)' }}>{s.count} reqs</span> : null}
+                  {incompleto(f) && <span title="Falta CNPJ ou telefone" style={{ fontSize: 11.5, padding: '2px 9px', borderRadius: 999, color: '#B45309', background: 'color-mix(in srgb, #D97706 10%, #fefefe)', whiteSpace: 'nowrap' }}>cadastro incompleto</span>}
+                  {s?.count ? (
+                    <div style={{ textAlign: 'right', minWidth: 110 }}>
+                      <div style={{ fontSize: 14, fontVariantNumeric: 'tabular-nums', color: 'var(--portal-text)' }}>{fmtBRL(s.total)}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{s.count} reqs{s.last ? ` · ${diasAtras(s.last)}` : ''}</div>
+                    </div>
+                  ) : <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>sem uso</span>}
                   <button onClick={(e) => { e.stopPropagation(); iniciarEdicao(f); }} title="Editar" style={{ background: 'none', border: 'none', color: 'var(--portal-text-muted)', cursor: 'pointer', padding: 4 }}><Edit3 size={15} /></button>
                   <button onClick={(e) => { e.stopPropagation(); excluirFornecedor(f.id); }} title="Excluir" style={{ background: 'none', border: 'none', color: '#EA580C', cursor: 'pointer', padding: 4 }}><Trash2 size={15} /></button>
                   <ChevronRight size={16} color="var(--portal-text-muted)" />

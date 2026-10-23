@@ -4,11 +4,11 @@ import { supabase } from '@/lib/supabase';
 import { aprovarPedido, recusarPedido, type Autorizacao } from '@/lib/requisicoes/autorizacao';
 import { Code2, X, ShieldCheck, ShieldX, Clock, Bell } from 'lucide-react';
 
-interface Props { devId: string; devNome: string; inline?: boolean }
+interface Props { devId: string; devNome: string; inline?: boolean; cartao?: boolean }
 
 const dataHora = (iso: string) => { try { return new Date(iso).toLocaleString('pt-BR'); } catch { return iso; } };
 
-export default function PainelDev({ devId, devNome, inline = false }: Props) {
+export default function PainelDev({ devId, devNome, inline = false, cartao = false }: Props) {
   const [aberto, setAberto] = useState(false);
   const [pendentes, setPendentes] = useState<Autorizacao[]>([]);
 
@@ -56,8 +56,18 @@ export default function PainelDev({ devId, devNome, inline = false }: Props) {
 
   return (
     <>
-      {/* Gatilho: inline (pílula na barra de filtros, ao lado do Comparar) ou flutuante (legado) */}
-      {inline ? (
+      {/* Gatilho: cartão no topo do quadro (só com pedido esperando), pílula na barra (legado) ou flutuante (legado) */}
+      {cartao ? (pendentes.length > 0 && (
+        <div role="button" tabIndex={0} onClick={() => setAberto(true)} onKeyDown={e => { if (e.key === 'Enter') setAberto(true); }}
+          className="rq-card clicavel rq-entra print:hidden" style={{ ['--c' as any]: '#0D9488', display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', marginBottom: 12 }}>
+          <span className="req-ico" style={{ width: 36, height: 36, borderRadius: 10, color: '#0D9488', background: 'color-mix(in srgb, #0D9488 9%, #fefefe)', border: '1px solid color-mix(in srgb, #0D9488 18%, transparent)' }}><i className="fa-solid fa-shield-halved" /></span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 15, fontWeight: 500 }}>{pendentes.length === 1 ? '1 pedido de liberação esperando você' : `${pendentes.length} pedidos de liberação esperando você`}</div>
+            <div className="rq-rot">Requisição acima de R$ 500: alguém pediu para alterar. Clique para aprovar ou recusar.</div>
+          </div>
+          <i className="fa-solid fa-chevron-right" style={{ color: 'var(--rq-apag)' }} />
+        </div>
+      )) : inline ? (
         <button
           onClick={() => setAberto(true)}
           title="Painel do Dev — pedidos de permissão"

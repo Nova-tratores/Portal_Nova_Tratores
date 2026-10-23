@@ -22,11 +22,40 @@ import {
 import ModalTags from '@/components/requisicoes/ModalTags';
 import PainelDev from '@/components/requisicoes/PainelDev';
 import PecasNav from '@/components/ppv/PecasNav';
+import PainelAtencao from '@/components/requisicoes/PainelAtencao';
+import PainelGastos from '@/components/requisicoes/PainelGastos';
+import LixeiraReq from '@/components/requisicoes/LixeiraReq';
+import ConfirmarNotas, { NotasEncontradasCartao } from '@/components/requisicoes/ConfirmarNotas';
+import type { SugestaoNota } from '@/lib/requisicoes/casar-nota-server';
+import { fetchAuth } from '@/lib/auth/client';
+
+// "Não é" fica guardado neste navegador (req|nota), para a sugestão não voltar
+const CHAVE_NOTAS_RECUSADAS = 'req-notas-recusadas';
+function lerRecusadas(): Set<string> { try { return new Set(JSON.parse(localStorage.getItem(CHAVE_NOTAS_RECUSADAS) || '[]')); } catch { return new Set(); } }
+import { ESTILO_REQ_VN } from '@/components/requisicoes/visualReq';
+import { normalizarStatus, normalizarTipo, ROTULO_FASE, type ItemAtencao } from '@/lib/requisicoes/inteligencia';
+
+/** Linha do banco → como a tela usa (colunas antigas do AppSheet + grafias diferentes juntadas). */
+function normalizarLinha(r: any) {
+  return {
+    ...r,
+    status: normalizarStatus(r.status),
+    tipo: normalizarTipo(r.tipo || r.ReqTipo || 'Peças'),
+    titulo: r.titulo || r.Material_Serv_Solicitado || "",
+    solicitante: r.solicitante || r.ReqSolicitante || "",
+    setor: r.setor || r.ReqQuem || "",
+    veiculo: r.veiculo || r.ReqVeiculo || "",
+    hodometro: r.hodometro || r.ReqHodometro || "",
+    valor_despeza: r.valor_despeza || "0,00",
+    obs: r.obs || r.Motivo || r.ReqMotivo || "",
+    quem_ferramenta: r.quem_ferramenta || r.ferramenta_quem || ""
+  };
+}
 
 // A aba "Veículos" morreu na Fase 5 do Frota: o cadastro de veículos agora é
 // SÓ no módulo Frota (/frota, botão "Novo veículo"), que mantém a SupaPlacas
 // como projeção — o dropdown do FormReq e o Omie continuam funcionando igual.
-const ABAS_VALIDAS = new Set(['kanban', 'usuarios', 'fornecedores', 'relatorio', 'lixeira', 'form_usuario', 'form']);
+const ABAS_VALIDAS = new Set(['kanban', 'painel', 'usuarios', 'fornecedores', 'relatorio', 'lixeira', 'form_usuario', 'form']);
 
 function RequisicoesPageInner() {
   const { userProfile } = useAuth();
@@ -59,6 +88,41 @@ function RequisicoesPageInner() {
   const [showNotifModal, setShowNotifModal] = useState(false);
   const [showTagsModal, setShowTagsModal] = useState(false);
   const [contadorNotif, setContadorNotif] = useState(0);
+  // Filtro do quadro vindo do "Precisa da sua atenção" (chave) ou de uma barra do Painel
+  const [filtroEspecial, setFiltroEspecial] = useState<{ chave?: string; ids: number[]; titulo: string } | null>(null);
+  const [comoLer, setComoLer] = useState(false);
+  // Notas de entrada do Omie que parecem ser de requisições sem nº de nota (confirmação manual)
+  const [sugestoesNota, setSugestoesNota] = useState<SugestaoNota[]>([]);
+  const [verNotas, setVerNotas] = useState(false);
+  const [focoNota, setFocoNota] = useState<number | null>(null);
+  // requisições com nota achada (selo pulsando no cartão do quadro)
+  const reqsComNota = useMemo(() => new Set(sugestoesNota.flatMap(sg => sg.reqIds)), [sugestoesNota]);
+  const carregarSugestoesNota = useCallback(async () => {
+    try {
+      const r = await fetchAuth('/api/requisicoes/notas-sugeridas');
+      if (!r.ok) return;
+      const j = await r.json();
+      const recusadas = lerRecusadas();
+      setSugestoesNota((j.sugestoes || []).filter((x: SugestaoNota) => !recusadas.has(`${x.reqIds.join(',')}|${x.nota.id}`)));
+    } catch { /* sem sugestão: a tela segue igual */ }
+  }, []);
+  useEffect(() => { carregarSugestoesNota(); }, [carregarSugestoesNota]);
+  const confirmarNota = async (sg: SugestaoNota): Promise<string | null> => {
+    try {
+      const r = await fetchAuth('/api/requisicoes/notas-sugeridas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notaId: sg.nota.id, reqIds: sg.reqIds }) });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) return j.error || 'Não consegui gravar.';
+      const porReq: Record<string, Record<string, string>> = j.porReq || {};
+      setRequisicoes(prev => prev.map(x => porReq[x.id] ? { ...x, ...porReq[x.id] } : x));
+      setSugestoesNota(prev => prev.filter(x => x.nota.id !== sg.nota.id && !x.reqIds.some(id => sg.reqIds.includes(id))));
+      return null;
+    } catch (e) { return e instanceof Error ? e.message : 'Não consegui gravar.'; }
+  };
+  const recusarNota = (sg: SugestaoNota) => {
+    const rec = lerRecusadas(); rec.add(`${sg.reqIds.join(',')}|${sg.nota.id}`);
+    try { localStorage.setItem(CHAVE_NOTAS_RECUSADAS, JSON.stringify([...rec])); } catch { /* sem storage */ }
+    setSugestoesNota(prev => prev.filter(x => x.nota.id !== sg.nota.id));
+  };
   // Deep-link: /requisicoes?req=<id> abre o card direto (usado pelo Frota >
   // Manutenções; o Kanban sobe o card pro topo da coluna e expande o modal).
   const [idDestaque, setIdDestaque] = useState<any>(() => {
@@ -152,21 +216,7 @@ function RequisicoesPageInner() {
         supabase.from('SupaPlacas').select('*').order('NumPlaca', { ascending: true })
       ]);
 
-      if (allReqs) {
-        setRequisicoes(allReqs.map(r => ({
-          ...r,
-          status: r.status || 'pedido',
-          tipo: r.tipo || r.ReqTipo || 'Peça',
-          titulo: r.titulo || r.Material_Serv_Solicitado || "",
-          solicitante: r.solicitante || r.ReqSolicitante || "",
-          setor: r.setor || r.ReqQuem || "",
-          veiculo: r.veiculo || r.ReqVeiculo || "",
-          hodometro: r.hodometro || r.ReqHodometro || "",
-          valor_despeza: r.valor_despeza || "0,00",
-          obs: r.obs || r.Motivo || r.ReqMotivo || "",
-          quem_ferramenta: r.quem_ferramenta || r.ferramenta_quem || ""
-        })));
-      }
+      if (allReqs) setRequisicoes(allReqs.map(normalizarLinha));
       if (resUser.data) setUsuarios(resUser.data);
       if (resVei.data) setVeiculos(resVei.data);
     } catch (err) { console.error(err); } finally { setLoading(false); }
@@ -175,6 +225,29 @@ function RequisicoesPageInner() {
   // Refresh ao voltar para a aba
   const refreshSilencioso = useCallback(() => carregarDados(true), [carregarDados]);
   useRefreshOnFocus(refreshSilencioso);
+
+  // cópia sempre atual da lista (o aviso ao solicitante lê sem recriar callbacks)
+  const requisicoesRef = useRef<any[]>([]);
+  useEffect(() => { requisicoesRef.current = requisicoes; }, [requisicoes]);
+  const usuariosRef = useRef<any[]>([]);
+  useEffect(() => { usuariosRef.current = usuarios; }, [usuarios]);
+
+  // Mudou de fase: quem pediu fica sabendo (antes só os admins eram avisados).
+  // Solicitante = nome (ou e-mail, nas antigas) do cadastro financeiro_usu, cujo id é o do login.
+  const avisarSolicitante = useCallback(async (id: number, fase: string) => {
+    try {
+      const req = requisicoesRef.current.find(r => r.id === id);
+      const quem = String(req?.solicitante || '').trim().toLowerCase();
+      if (!quem) return;
+      const u = usuariosRef.current.find((x: any) => String(x.nome || '').trim().toLowerCase() === quem || String(x.email || '').trim().toLowerCase() === quem);
+      if (!u?.id || u.id === userProfile?.id) return;
+      await supabase.from('portal_notificacoes').insert({
+        user_id: u.id, tipo: 'requisicao',
+        titulo: `Sua requisição #${id} foi para: ${ROTULO_FASE[fase] || fase}`,
+        descricao: req?.titulo || null, link: `/requisicoes?req=${id}`,
+      });
+    } catch { /* aviso é bônus: não trava a mudança */ }
+  }, [userProfile?.id]);
 
   // Rastreia quais cards foram editados enquanto estavam abertos
   const cardsEditadosRef = useRef<Set<number>>(new Set());
@@ -191,7 +264,8 @@ function RequisicoesPageInner() {
     }
     // Marca que esse card foi editado (notificação só ao fechar)
     cardsEditadosRef.current.add(id);
-  }, [carregarDados, auditLog])
+    if (typeof dados.status === 'string' && dados.status !== 'lixeira') avisarSolicitante(id, dados.status);
+  }, [carregarDados, auditLog, avisarSolicitante])
 
   const handleCardFechado = useCallback((id: number) => {
     // Fechou o card do deep-link: solta o destaque (senão ele reabre no rerender)
@@ -344,8 +418,21 @@ function RequisicoesPageInner() {
         carregarDados(true);
         setTimeout(() => setToasts(prev => prev.filter(t => t.id !== info.id)), 10000);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'Requisicao' }, () => {
-        carregarDados(true);
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'Requisicao' }, (payload: any) => {
+        // Só a requisição que mudou (antes relia as ~2.800 a cada edição de qualquer pessoa)
+        if (payload.eventType === 'DELETE') {
+          const id = payload.old?.id;
+          if (id != null) setRequisicoes(prev => prev.filter(r => r.id !== id));
+          return;
+        }
+        const nova = payload.new;
+        if (!nova?.id) { carregarDados(true); return; }
+        setRequisicoes(prev => {
+          const linha = normalizarLinha(nova);
+          const i = prev.findIndex(r => r.id === nova.id);
+          if (i < 0) return [linha, ...prev];
+          const copia = prev.slice(); copia[i] = { ...prev[i], ...linha }; return copia;
+        });
       })
       .subscribe((status, err) => {
         if (status === 'SUBSCRIBED') {
@@ -363,20 +450,28 @@ function RequisicoesPageInner() {
     return () => { supabase.removeChannel(channel); };
   }, [carregarDados]);
 
+  const abertasCount = useMemo(() => requisicoes.filter(r => ['pedido', 'completa', 'aguardando'].includes(r.status)).length, [requisicoes]);
   const tabs = [
-    { id: 'kanban', label: 'Kanban', icon: <LayoutDashboard size={16} /> },
-    podeFornecedor && { id: 'fornecedores', label: 'Fornecedores', icon: <Users2 size={16} /> },
-    { id: 'relatorio', label: 'Relatório', icon: <FileText size={16} /> },
-    podeExcluir && { id: 'lixeira', label: `Lixeira${lixeiraCount > 0 ? ` (${lixeiraCount})` : ''}`, icon: <Trash2 size={16} /> },
-  ].filter(Boolean) as { id: string; label: string; icon: React.ReactNode }[];
+    { id: 'kanban', label: 'Quadro', icone: 'fa-table-columns', cor: '#EA580C', conta: abertasCount },
+    { id: 'painel', label: 'Painel', icone: 'fa-chart-pie', cor: '#7C3AED' },
+    podeFornecedor && { id: 'fornecedores', label: 'Fornecedores', icone: 'fa-store', cor: '#2563EB' },
+    { id: 'relatorio', label: 'Relatório', icone: 'fa-file-lines', cor: '#0891B2' },
+    podeExcluir && { id: 'lixeira', label: 'Lixeira', icone: 'fa-trash-can', cor: '#64748B', conta: lixeiraCount || undefined },
+  ].filter(Boolean) as { id: string; label: string; icone: string; cor: string; conta?: number }[];
+  const nomeDe = useCallback((s: string) => {
+    const v = String(s || '').trim();
+    if (!v.includes('@')) return v;
+    return usuarios.find((u: any) => String(u.email || '').trim().toLowerCase() === v.toLowerCase())?.nome || v;
+  }, [usuarios]);
 
   return (
-    <div className="pecas-skin">
+    <div className="req-vn">
+    <style>{ESTILO_REQ_VN}</style>
     {/* Sistema Peças: barra padronizada do módulo */}
     <div className="print:hidden"><PecasNav /></div>
     <div className="px-3 py-3 md:px-8 md:py-6">
       {reqParaImprimir && <TemplatePDF req={reqParaImprimir} anexos={anexosParaImprimir} onUpdate={() => {}} onPrint={() => {}} />}
-      <ModalTags open={showTagsModal} onClose={() => setShowTagsModal(false)} />
+      {/* Tags: a tabela requisicao_tags não existe no banco (levantamento 23/10/2026) — botão fora até criar */}
 
       {/* Toasts */}
       <div className="fixed top-20 right-6 z-[9999] flex flex-col gap-3 max-w-[min(24rem,calc(100vw-3rem))] w-full pointer-events-none print:hidden">
@@ -554,46 +649,41 @@ function RequisicoesPageInner() {
         </>
       )}
 
-      {/* Header — sem título/subtítulo: guias (maiores) + Tags numa linha só */}
-      <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
-        {/* Tabs (rolam na horizontal no celular quando não cabem) */}
-        <div style={{ display: 'flex', gap: '4px', background: 'var(--portal-bg-secondary)', padding: '5px', borderRadius: '12px', width: 'fit-content', maxWidth: '100%', overflowX: 'auto' }}>
+      {/* Abas coloridas (Estilo POS NewPortal) + "Como ler esta tela" */}
+      <div style={{ marginBottom: 14, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', borderBottom: '1px solid var(--border, #e2e8f0)' }}>
+        <div className="rq-abas">
           {tabs.map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setAbaAtiva(tab.id)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: '7px',
-                padding: '10px 22px', borderRadius: '8px',
-                background: abaAtiva === tab.id ? 'var(--portal-bg-card)' : 'transparent',
-                border: abaAtiva === tab.id ? '1px solid var(--portal-border)' : '1px solid transparent',
-                boxShadow: abaAtiva === tab.id ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                color: abaAtiva === tab.id ? '#EA580C' : '#6b7280',
-                fontSize: '15px', fontWeight: abaAtiva === tab.id ? '700' : '500',
-                cursor: 'pointer', fontFamily: 'Inter', transition: 'all 0.2s',
-                whiteSpace: 'nowrap', flexShrink: 0
-              }}
-            >
-              {tab.icon}
+            <button key={tab.id} type="button" onClick={() => setAbaAtiva(tab.id)}
+              className={`rq-aba ${abaAtiva === tab.id ? 'on' : ''}`} style={{ ['--c' as any]: tab.cor }}>
+              <span className="rq-aba-ico"><i className={`fa-solid ${tab.icone}`} /></span>
               {tab.label}
+              {tab.conta ? <span className="rq-aba-conta">{tab.conta}</span> : null}
             </button>
           ))}
         </div>
-        <button
-          onClick={() => setShowTagsModal(true)}
-          {...gateBtn(podeTags)}
-          style={{
-            padding: '10px 18px', borderRadius: '10px',
-            background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-            color: '#525252', fontSize: '15px', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: '7px', fontFamily: 'Inter',
-            ...estiloSemPermissao(podeTags)
-          }}
-        >
-          <Tag size={17} />
-          Tags
+        <button type="button" className="rq-btn" style={{ marginBottom: 6, ['--c' as any]: '#2563EB' }} onClick={() => setComoLer(true)}>
+          <i className="fa-regular fa-circle-question" style={{ color: '#2563EB' }} /> Como ler esta tela
         </button>
       </div>
+
+      {comoLer && (
+        <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,.35)', backdropFilter: 'blur(6px)' }} onClick={() => setComoLer(false)}>
+          <div className="rq-card" style={{ maxWidth: 640, width: '100%', maxHeight: '85vh', overflowY: 'auto', padding: '22px 24px' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+              <span style={{ fontSize: 19, fontWeight: 500 }}>Como ler esta tela</span>
+              <button className="rq-btn" style={{ height: 32 }} onClick={() => setComoLer(false)}><X size={14} /></button>
+            </div>
+            <div style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--rq-sec)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <p><span style={{ fontWeight: 500, color: 'var(--rq-txt)' }}>Quadro</span> — cada coluna é uma fase: pedido → atualizada pelo técnico → aguardando fornecedor → financeiro. Arraste o cartão para mudar de fase. Em cima de cada coluna: quantas e quanto somam.</p>
+              <p><span style={{ fontWeight: 500, color: 'var(--rq-txt)' }}>Precisa da sua atenção</span> — o que está travado: abertas paradas há muito tempo, que foram ao financeiro sem nota, acima de R$ 500, sem fornecedor ou que parecem duplicadas. Clique num número para ver só aquelas no quadro; clique de novo para tirar.</p>
+              <p><span style={{ fontWeight: 500, color: 'var(--rq-txt)' }}>Cartão</span> — o ícone e a cor dizem o tipo (combustível, carro, alimentação…). Embaixo, o valor e se tem nota, boleto ou recibo (verde = anexado). &quot;Parada há N dias&quot; aparece depois de uma semana aberta.</p>
+              <p><span style={{ fontWeight: 500, color: 'var(--rq-txt)' }}>Painel</span> — quanto se gastou no período, por mês, por tipo, fornecedor, veículo e pessoa, e quanto tempo leva até o financeiro. Clique numa barra para ver aquelas requisições no quadro.</p>
+              <p><span style={{ fontWeight: 500, color: 'var(--rq-txt)' }}>Nova requisição (+)</span> — ao escolher o tipo (e o carro), o sistema sugere o fornecedor e o valor de costume e avisa se já existe uma parecida.</p>
+              <p>Quando a fase muda, quem pediu recebe um aviso no sino.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Content */}
       {loading ? (
@@ -602,8 +692,37 @@ function RequisicoesPageInner() {
         </div>
       ) : (
         <div className="print:hidden">
+          {abaAtiva === 'kanban' && isDev && userProfile && (
+            <PainelDev devId={userProfile.id} devNome={userProfile.nome} cartao />
+          )}
+          {abaAtiva === 'kanban' && podeEditar && (
+            <NotasEncontradasCartao qtd={sugestoesNota.length} onAbrir={() => { setFocoNota(null); setVerNotas(true); }} />
+          )}
+          {verNotas && (
+            <ConfirmarNotas sugestoes={sugestoesNota} requisicoes={requisicoes}
+              foco={focoNota} onConfirmar={confirmarNota} onRecusar={recusarNota} onFechar={() => setVerNotas(false)} />
+          )}
+          {abaAtiva === 'kanban' && (
+            <PainelAtencao
+              requisicoes={requisicoes}
+              filtroAtivo={filtroEspecial?.chave || null}
+              onFiltrar={(it: ItemAtencao | null) => setFiltroEspecial(it ? { chave: it.chave, ids: it.ids, titulo: it.titulo } : null)}
+            />
+          )}
+          {abaAtiva === 'painel' && (
+            <PainelGastos
+              requisicoes={requisicoes}
+              veiculos={veiculos}
+              nomeDe={nomeDe}
+              onVerNoQuadro={(ids, titulo) => { setFiltroEspecial({ ids, titulo }); setAbaAtiva('kanban'); }}
+            />
+          )}
           {abaAtiva === 'kanban' && (
             <Kanban
+              filtroEspecial={filtroEspecial}
+              onLimparEspecial={() => setFiltroEspecial(null)}
+              notasAchadas={podeEditar ? reqsComNota : null}
+              onVerNotaAchada={(id: number) => { setFocoNota(id); setVerNotas(true); }}
               requisicoes={requisicoes}
               onUpdate={handleUpdateReq}
               onPrint={dispararImpressao}
@@ -613,7 +732,6 @@ function RequisicoesPageInner() {
               podeMoverFase={podeMoverFase}
               podeImprimir={podeImprimir}
               podeExcluir={podeExcluir}
-              extraControles={isDev && userProfile ? <PainelDev devId={userProfile.id} devNome={userProfile.nome} inline /> : null}
             />
           )}
 
@@ -761,56 +879,17 @@ function RequisicoesPageInner() {
           })()}
 
           {abaAtiva === 'lixeira' && (
-            <div>
-              <div className="flex justify-between items-center mb-8">
-                <div>
-                  <p className="text-sm text-black">Requisições excluídas — restaure quando necessário</p>
-                </div>
-              </div>
-
-              {lixeiraCount === 0 ? (
-                <div className="flex flex-col items-center justify-center py-32 text-zinc-300">
-                  <Trash2 size={48} className="mb-4 opacity-30" />
-                  <p className="text-sm font-semibold text-black">Lixeira vazia</p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {requisicoes.filter(r => r.status === 'lixeira').map(r => (
-                    <div key={r.id} className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-orange-200 transition-all">
-                      <div className="flex items-start gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-xl bg-zinc-50 flex items-center justify-center text-black font-medium text-sm border border-zinc-200">
-                          {r.id}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <span className="text-[10px] font-bold text-black uppercase tracking-widest">{r.tipo || r.ReqTipo}</span>
-                          <h3 className="text-sm font-semibold text-black leading-tight mt-0.5 line-clamp-2">{r.titulo || r.Material_Serv_Solicitado || '—'}</h3>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5 text-xs text-black border-t border-zinc-100 pt-3 mb-4">
-                        <div className="flex justify-between"><span>Solicitante</span><span className="text-black font-medium truncate max-w-[150px]">{r.solicitante || '—'}</span></div>
-                        <div className="flex justify-between"><span>Setor</span><span className="text-black font-medium">{r.setor || '—'}</span></div>
-                        <div className="flex justify-between"><span>Valor</span><span className="text-black font-medium">R$ {r.valor_despeza || '0,00'}</span></div>
-                      </div>
-
-                      <div className="flex gap-2">
-                        <button
-                          onClick={async () => {
-                            await supabase.from('Requisicao').update({ status: 'pedido' }).eq('id', r.id);
-                            setRequisicoes(prev => prev.map(x => x.id === r.id ? { ...x, status: 'pedido' } : x));
-                            auditLog({ sistema: 'requisicoes', acao: 'mover_status', entidade: 'requisicao', entidade_id: String(r.id), entidade_label: r.titulo, detalhes: { de: 'lixeira', para: 'pedido' } });
-                            notificarUsuariosReq('requisicao', `${userName} restaurou requisição #${r.id}`, r.titulo || '', '/requisicoes');
-                          }}
-                          className="flex-1 bg-zinc-50 hover:bg-orange-600 border border-zinc-200 hover:border-orange-500 text-black hover:text-white py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
-                        >
-                          <Activity size={14} /> Restaurar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <LixeiraReq
+              requisicoes={requisicoes}
+              nomeDe={nomeDe}
+              podeRestaurar={podeExcluir}
+              onRestaurar={async (r: any) => {
+                await supabase.from('Requisicao').update({ status: 'pedido' }).eq('id', r.id);
+                setRequisicoes(prev => prev.map(x => x.id === r.id ? { ...x, status: 'pedido' } : x));
+                auditLog({ sistema: 'requisicoes', acao: 'mover_status', entidade: 'requisicao', entidade_id: String(r.id), entidade_label: r.titulo, detalhes: { de: 'lixeira', para: 'pedido' } });
+                notificarUsuariosReq('requisicao', `${userName} restaurou requisição #${r.id}`, r.titulo || '', '/requisicoes');
+              }}
+            />
           )}
         </div>
       )}
@@ -845,7 +924,7 @@ function RequisicoesPageInner() {
       {podeCriar && abaAtiva === 'form' && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-center justify-center p-2 md:p-4 print:hidden">
           <div className="w-full max-w-5xl bg-white rounded-2xl border border-zinc-200 overflow-y-auto max-h-[90vh] shadow-xl">
-            <FormReq osInicial={searchParams.get('os')} onSave={async (nova: Record<string, unknown>) => {
+            <FormReq osInicial={searchParams.get('os')} historico={requisicoes} onSave={async (nova: Record<string, unknown>) => {
               nova.criado_por = userName;
               // Grupos escolhidos na criação (não é coluna — remove antes do insert)
               const gruposEscolhidos: number[] = Array.isArray(nova._grupos) ? (nova._grupos as number[]) : [];
