@@ -218,6 +218,8 @@ async function alinharOSSemPausa(idOs: string): Promise<ResultadoConferencia> {
     if (interna) campos.cNaoGerarFinanceiro = "S";
     if (o) {
       usados.add(o);
+      // o Omie IGNORA desconto 0 e mantém o antigo (OS-0684, 23/10/2026): 1 centavo zera na prática (cabe na tolerância)
+      if (!campos.nValorDesconto && descontoOmie(o) > 0) campos.nValorDesconto = Math.min(0.01, p.qtde * p.unit);
       const textoMudou = p.descricao !== undefined && textoNormal(o.cDescServ) !== textoNormal(p.descricao);
       const mudou = diferente(n(o.nQtde), p.qtde, 0.0005) || diferente(n(o.nValUnit), p.unit) || diferente(descontoOmie(o), p.desconto);
       const { cDescServ, ...valores } = campos;
