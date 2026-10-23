@@ -80,7 +80,9 @@ export default function ImprimirRequisicao() {
   if (loading) return <div style={{ padding: 40, textAlign: 'center', fontFamily: 'sans-serif', color: '#999' }}>Carregando requisição...</div>;
   if (!req) return <div style={{ padding: 40, textAlign: 'center', fontFamily: 'sans-serif', color: '#999' }}>Requisição não encontrada.</div>;
 
-  const unidade = (req.tipo === 'Frota-Veiculos' || req.setor?.includes('Fartura')) ? UNIDADES.castro : UNIDADES.nova;
+  // Castro pela coluna empresa (ver TemplatePDF)
+  const unidade = (/castro/i.test(String(req.empresa || '')) || req.setor?.includes('Fartura')) ? UNIDADES.castro : UNIDADES.nova;
+  const ehFrota = req.tipo === 'Frota-Veiculos' || req.tipo === 'Frota-Veículos';
   const dataFormatada = req.data ? new Date(req.data + 'T12:00:00').toLocaleDateString('pt-BR') : '___/___/_____';
   const dataCriacao = req.created_at ? new Date(req.created_at).toLocaleString('pt-BR') : '---';
   const dataFinanceiro = req.enviado_financeiro_data ? new Date(req.enviado_financeiro_data).toLocaleDateString('pt-BR') : '---';
@@ -160,10 +162,10 @@ export default function ImprimirRequisicao() {
         </div>
 
         {/* BLOCO TÉCNICO */}
-        {(req.tipo === 'Frota-Veiculos' || ((req.setor === 'Trator-Cliente' || req.setor === 'Trator-Loja' || req.tipo === 'Ferramenta') && req.Chassis_Modelo)) && (
+        {(ehFrota || ((req.setor === 'Trator-Cliente' || req.setor === 'Trator-Loja' || req.tipo === 'Ferramenta') && req.Chassis_Modelo)) && (
           <div style={{ border: '2px solid #000', borderRadius: 16, overflow: 'hidden', marginBottom: 16 }}>
             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', textTransform: 'uppercase' }}>
-              {req.tipo === 'Frota-Veiculos' ? (
+              {ehFrota ? (
                 <>
                   <div style={{ padding: 12, borderRight: '2px solid #000' }}>
                     <label style={{ fontSize: 10, fontWeight: 900, display: 'block', marginBottom: 4 }}>Veículo (Placa)</label>

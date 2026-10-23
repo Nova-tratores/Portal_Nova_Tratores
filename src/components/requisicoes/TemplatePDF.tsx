@@ -83,7 +83,9 @@ export default function TemplatePDF({ req, anexos = [] }: { req: any, anexos?: {
 
   if (!req) return null;
 
-  const unidade = (req.tipo === 'Frota-Veiculos' || req.setor?.includes('Fartura')) ? UNIDADES.castro : UNIDADES.nova;
+  // Castro = a requisição é da Castro (coluna empresa) ou do setor de Fartura. Antes vinha da grafia
+  // "Frota-Veiculos" (sem acento), que era só das 15 da Castro — as "Frota-Veículos" da Castro saíam como Nova.
+  const unidade = (/castro/i.test(String(req.empresa || '')) || req.setor?.includes('Fartura')) ? UNIDADES.castro : UNIDADES.nova;
   const dataFormatada = req.data ? new Date(req.data).toLocaleDateString('pt-BR') : '___/___/_____';
   const dataCriacao = req.created_at ? new Date(req.created_at).toLocaleString('pt-BR') : '---';
   const dataFinanceiro = req.enviado_financeiro_data ? new Date(req.enviado_financeiro_data).toLocaleDateString('pt-BR') : '---';
@@ -152,7 +154,7 @@ export default function TemplatePDF({ req, anexos = [] }: { req: any, anexos?: {
 
         {/* BLOCO TÉCNICO CONDICIONAL */}
         {(() => {
-          const isVeicular = ['Veicular Abastecimento', 'Veicular Manutenção', 'Frota-Veiculos'].includes(req.tipo);
+          const isVeicular = ['Veicular Abastecimento', 'Veicular Manutenção', 'Frota-Veiculos', 'Frota-Veículos'].includes(req.tipo);
           const isTratorAbast = ['Trator Abastecimento', 'Quadri Abastecimento'].includes(req.tipo);
           const isTratorLoja = req.setor === 'Trator-Loja';
           const isTratorCliente = req.setor === 'Trator-Cliente';

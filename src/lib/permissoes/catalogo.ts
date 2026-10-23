@@ -84,7 +84,6 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     // 'criar_veiculo' morreu na Fase 5 do Frota: veículo agora se cadastra SÓ
     // no módulo Frota (frota:veiculos:editar). A chave antiga gravada em quem
     // a tinha é inofensiva (a aba não existe mais).
-    { id: 'tags', label: 'Gerir etiquetas' },
     { id: 'excluir', label: 'Excluir / lixeira' },
     { id: 'imprimir', label: 'Imprimir' },
   ],

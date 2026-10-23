@@ -51,8 +51,6 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
   const [cliResultados, setCliResultados] = useState<{ cnpj_cpf: string; nome_fantasia: string; razao_social: string; cidade: string }[]>([]);
   const cliRef = useRef<HTMLDivElement>(null);
 
-  const [tagsDisponiveis, setTagsDisponiveis] = useState<{ id: number; nome: string; cor: string; grupo: string | null }[]>([]);
-  const [tagsSelecionadas, setTagsSelecionadas] = useState<string[]>([]);
 
   // Grupos (coletivos) abertos — pra já jogar a nova requisição num grupo
   const [gruposDisp, setGruposDisp] = useState<any[]>([]);
@@ -77,18 +75,18 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
   // Rascunho: o que foi digitado sobrevive a recarga da página, troca de aba e
   // atualização do portal. A página apaga depois que a requisição é criada.
   const formInicial = useRef(formData);
-  const dadosRascunho = { formData, tagsSelecionadas, gruposSel, osBusca, solBusca, projBusca, cliBusca };
+  const dadosRascunho = { formData, gruposSel, osBusca, solBusca, projBusca, cliBusca };
   type DadosRascunho = typeof dadosRascunho;
   const aplicarRascunho = (d: DadosRascunho | null) => {
     setFormData(d ? { ...formInicial.current, ...d.formData } : formInicial.current);
-    setTagsSelecionadas(d?.tagsSelecionadas || []); setGruposSel(d?.gruposSel || []);
+    setGruposSel(d?.gruposSel || []);
     setOsBusca(d?.osBusca || ''); setSolBusca(d?.solBusca || ''); setProjBusca(d?.projBusca || ''); setCliBusca(d?.cliBusca || '');
   };
   const rascunho = useRascunho<DadosRascunho>(chaveRascunho, dadosRascunho, {
     vazio: (d) => {
       const ignorar = new Set(['data', 'empresa', 'endereco_empr', 'status']);
       const mudou = Object.entries(d.formData || {}).some(([k, v]) => !ignorar.has(k) && String(v ?? '') !== String((formInicial.current as Record<string, unknown>)[k] ?? ''));
-      return !mudou && !(d.tagsSelecionadas || []).length && !(d.gruposSel || []).length;
+      return !mudou && !(d.gruposSel || []).length;
     },
     restaurar: aplicarRascunho,
   });
@@ -123,8 +121,6 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
           NumPlaca: `${formatarPlaca(v.placa)}${v.modelo ? ` · ${v.modelo}` : ''}`,
         })));
       }
-      const { data: tags } = await supabase.from('requisicao_tags').select('*').order('nome');
-      if (tags) setTagsDisponiveis(tags);
       if (ordens) setOrdensAbertas(ordens);
     };
     fetchData();
@@ -241,7 +237,6 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
       }
     }
     if (valorNovo.trim()) dados.valor_despeza = valorNovo.trim();
-    if (tagsSelecionadas.length > 0) dados.tags = tagsSelecionadas;
     if (gruposSel.length > 0) dados._grupos = gruposSel; // vínculo com grupos (a página processa e remove antes do insert)
     onSave(dados);
   };
@@ -285,50 +280,6 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
               <input type="date" value={formData.data} onChange={e => setFormData({...formData, data: e.target.value})} className={inputStyle} />
             </div>
           </div>
-
-          {/* Tags agrupadas */}
-          {tagsDisponiveis.length > 0 && (() => {
-            const GRUPOS_INFO: Record<string, { label: string; icon: string }> = {
-              categoria: { label: 'Categoria de Peça', icon: '🔩' },
-              sistema: { label: 'Sistema', icon: '⚙️' },
-              geral: { label: 'Geral', icon: '📋' },
-            };
-            const grupos = ['categoria', 'sistema', 'geral'];
-            const tagsPorGrupo = grupos.map(g => ({
-              key: g,
-              ...GRUPOS_INFO[g],
-              tags: tagsDisponiveis.filter(t => (t.grupo || 'geral') === g),
-            })).filter(g => g.tags.length > 0);
-
-            return (
-              <div className="space-y-4">
-                {tagsPorGrupo.map(grupo => (
-                  <div key={grupo.key}>
-                    <label className={labelStyle}>{grupo.icon} {grupo.label}</label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {grupo.tags.map(tag => {
-                        const selected = tagsSelecionadas.includes(tag.nome);
-                        return (
-                          <button key={tag.id} type="button"
-                            onClick={() => setTagsSelecionadas(prev => selected ? prev.filter(t => t !== tag.nome) : [...prev, tag.nome])}
-                            style={{
-                              padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                              border: selected ? `2px solid ${tag.cor}` : '2px solid #E2E8F0',
-                              background: selected ? tag.cor : '#fff',
-                              color: selected ? '#fff' : '#64748B',
-                              transition: 'all .15s',
-                              boxShadow: selected ? `0 2px 8px ${tag.cor}40` : 'none',
-                            }}>
-                            {tag.nome}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>

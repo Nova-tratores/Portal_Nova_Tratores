@@ -17,9 +17,8 @@ import { apagarRascunho } from '@/lib/rascunho/useRascunho';
 import FormFornecedor from '@/components/requisicoes/FormFornecedor';
 import TemplatePDF from '@/components/requisicoes/TemplatePDF';
 import {
-  LayoutDashboard, Users2, Box, Activity, Trash2, Plus, X, Bell, Info, CheckCheck, FileText, Printer, Tag
+  Activity, Plus, X, Bell, CheckCheck, Printer
 } from 'lucide-react';
-import ModalTags from '@/components/requisicoes/ModalTags';
 import PainelDev from '@/components/requisicoes/PainelDev';
 import PecasNav from '@/components/ppv/PecasNav';
 import PainelAtencao from '@/components/requisicoes/PainelAtencao';
@@ -65,7 +64,6 @@ function RequisicoesPageInner() {
   const podeEditar = pode('requisicoes', 'editar');
   const podeMoverFase = pode('requisicoes', 'mover_fase');
   const podeFornecedor = pode('requisicoes', 'criar_fornecedor');
-  const podeTags = pode('requisicoes', 'tags');
   const podeExcluir = pode('requisicoes', 'excluir');
   const podeImprimir = pode('requisicoes', 'imprimir');
   const { log: auditLog } = useAuditLog();
@@ -86,7 +84,6 @@ function RequisicoesPageInner() {
   const [notificacoes, setNotificacoes] = useState<any[]>([]);
   const [toasts, setToasts] = useState<any[]>([]);
   const [showNotifModal, setShowNotifModal] = useState(false);
-  const [showTagsModal, setShowTagsModal] = useState(false);
   const [contadorNotif, setContadorNotif] = useState(0);
   // Filtro do quadro vindo do "Precisa da sua atenção" (chave) ou de uma barra do Painel
   const [filtroEspecial, setFiltroEspecial] = useState<{ chave?: string; ids: number[]; titulo: string } | null>(null);
@@ -370,7 +367,7 @@ function RequisicoesPageInner() {
           dispararImpressao({
             id: reqData?.id || nova.IdReq || "NOVA",
             titulo: nova.Material_Serv_Solicitado || "SOLICITAÇÃO APP",
-            tipo: nova.ReqTipo || "Peça",
+            tipo: nova.ReqTipo || "Peças",
             solicitante: nomeExibicao,
             setor: nova.ReqQuem || "Oficina",
             data: nova.ReqData || new Date().toISOString(),
@@ -471,7 +468,6 @@ function RequisicoesPageInner() {
     <div className="print:hidden"><PecasNav /></div>
     <div className="px-3 py-3 md:px-8 md:py-6">
       {reqParaImprimir && <TemplatePDF req={reqParaImprimir} anexos={anexosParaImprimir} onUpdate={() => {}} onPrint={() => {}} />}
-      {/* Tags: a tabela requisicao_tags não existe no banco (levantamento 23/10/2026) — botão fora até criar */}
 
       {/* Toasts */}
       <div className="fixed top-20 right-6 z-[9999] flex flex-col gap-3 max-w-[min(24rem,calc(100vw-3rem))] w-full pointer-events-none print:hidden">
