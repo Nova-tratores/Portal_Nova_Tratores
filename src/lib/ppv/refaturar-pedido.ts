@@ -58,18 +58,23 @@ export async function cancelarNotaPedido(idPPV: string, opts: { motivo: string; 
   if (Number(ped.cabecalho?.etapa || 0) < 60 && !d.faturadoOmieEm) return { ok: false, erro: `O pedido ${num} não está faturado — não há NF-e para cancelar.` };
   const nf = semZeros((d as unknown as { nfNumero?: string }).nfNumero || "");
 
-  try { await omieNaConta(acc, "/produtos/pedidovendafat/", "CancelarPedidoVenda", { nCodPed: cod }); }
+  // O Omie recusa NO CORPO (cCodStatus ≠ "0" + cDescStatus), sem faultstring — igual ao FaturarPedidoVenda.
+  // Antes a resposta era ignorada e o motivo da recusa se perdia (PPV-0359, 23/10/2026). Agora vai pro histórico.
+  let resp: { cCodStatus?: string; cDescStatus?: string } | null = null;
+  try { resp = await omieNaConta<{ cCodStatus?: string; cDescStatus?: string }>(acc, "/produtos/pedidovendafat/", "CancelarPedidoVenda", { nCodPed: cod }); }
   catch (e) { return { ok: false, erro: `O Omie não cancelou o pedido ${num} (e a NF-e${nf ? ` ${nf}` : ""}): ${e instanceof Error ? e.message : e}. Nada mudou.` }; }
+  await registrarLog(idPPV, `Pedido de cancelamento da NF-e${nf ? ` ${nf}` : ""} ao Omie (pedido ${num}) — resposta: ${resp?.cCodStatus ?? "?"} ${resp?.cDescStatus || ""}`.trim(), opts.usuario).catch(() => {});
+  if (resp?.cCodStatus && resp.cCodStatus !== "0") return { ok: false, erro: `O Omie recusou cancelar o pedido ${num} (e a NF-e${nf ? ` ${nf}` : ""}): ${resp.cDescStatus || `código ${resp.cCodStatus}`}. Nada mudou.` };
   const avisos: string[] = [];
   // Só registra o cancelamento quando o Omie MOSTRA o pedido cancelado (José, 23/10/2026: "não pode dar notícia
   // falsa"). PPV-0359: o Omie aceitou o pedido de cancelamento, a SEFAZ não cancelou a NF-e 8457 (deu certo depois, feito à mão pelo Omie
   // — "fora de prazo") e o portal marcou cancelada, tirou o título do financeiro e deixou duplicar.
   let cancelado = false;
-  for (const ms of [3000, 7000, 15000]) {
+  for (const ms of [3000, 7000, 15000, 30000]) {
     await espera(ms);
     try { if ((await consultar(acc, cod))?.infoCadastro?.cancelado === "S") { cancelado = true; break; } } catch { /* tenta de novo */ }
   }
-  if (!cancelado) return { ok: false, erro: `A NF-e${nf ? ` ${nf}` : ""} NÃO foi cancelada: o Omie recebeu o pedido, mas o pedido ${num} continua faturado (a SEFAZ não cancelou). Nada foi mudado no portal. Tente pelo Omie (pedido → NF-e → Cancelamento da NF-e): depois de 24 h a SEFAZ-SP ainda aceita como "fora de prazo" (NF-e 8457, 23/10/2026).` };
+  if (!cancelado) return { ok: false, erro: `A NF-e${nf ? ` ${nf}` : ""} NÃO foi cancelada: o Omie respondeu "${resp?.cDescStatus || "ok"}", mas depois de 1 minuto o pedido ${num} continua faturado. Nada foi mudado no portal. Tente pelo Omie (pedido → NF-e → Cancelamento da NF-e): depois de 24 h a SEFAZ-SP ainda aceita como "fora de prazo" (NF-e 8457, 23/10/2026).` };
 
   const anterior: Rec = {
     pedidoOmie: num, codigoPedido: cod, empresa: acc.name, nf: nf || null, faturadoEm: d.faturadoOmieEm || null,
