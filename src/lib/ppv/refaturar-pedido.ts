@@ -62,14 +62,14 @@ export async function cancelarNotaPedido(idPPV: string, opts: { motivo: string; 
   catch (e) { return { ok: false, erro: `O Omie não cancelou o pedido ${num} (e a NF-e${nf ? ` ${nf}` : ""}): ${e instanceof Error ? e.message : e}. Nada mudou.` }; }
   const avisos: string[] = [];
   // Só registra o cancelamento quando o Omie MOSTRA o pedido cancelado (José, 23/10/2026: "não pode dar notícia
-  // falsa"). PPV-0359: o Omie aceitou o pedido de cancelamento, a SEFAZ não cancelou a NF-e 8457 (passou das
-  // 24 h) e o portal marcou cancelada, tirou o título do financeiro e deixou duplicar.
+  // falsa"). PPV-0359: o Omie aceitou o pedido de cancelamento, a SEFAZ não cancelou a NF-e 8457 (deu certo depois, feito à mão pelo Omie
+  // — "fora de prazo") e o portal marcou cancelada, tirou o título do financeiro e deixou duplicar.
   let cancelado = false;
   for (const ms of [3000, 7000, 15000]) {
     await espera(ms);
     try { if ((await consultar(acc, cod))?.infoCadastro?.cancelado === "S") { cancelado = true; break; } } catch { /* tenta de novo */ }
   }
-  if (!cancelado) return { ok: false, erro: `A NF-e${nf ? ` ${nf}` : ""} NÃO foi cancelada: o Omie recebeu o pedido, mas o pedido ${num} continua faturado (a SEFAZ não cancelou). A SEFAZ só aceita cancelar NF-e até 24 h depois da emissão — passou disso, o caminho é nota de devolução. Nada foi mudado no portal. Confira no Omie em alguns minutos.` };
+  if (!cancelado) return { ok: false, erro: `A NF-e${nf ? ` ${nf}` : ""} NÃO foi cancelada: o Omie recebeu o pedido, mas o pedido ${num} continua faturado (a SEFAZ não cancelou). Nada foi mudado no portal. Tente pelo Omie (pedido → NF-e → Cancelamento da NF-e): depois de 24 h a SEFAZ-SP ainda aceita como "fora de prazo" (NF-e 8457, 23/10/2026).` };
 
   const anterior: Rec = {
     pedidoOmie: num, codigoPedido: cod, empresa: acc.name, nf: nf || null, faturadoEm: d.faturadoOmieEm || null,
