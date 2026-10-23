@@ -36,7 +36,7 @@ const campo: React.CSSProperties = {
   color: "var(--portal-text)", fontSize: 13, fontFamily: "inherit", outline: "none",
 };
 const area: React.CSSProperties = { ...campo, resize: "vertical", lineHeight: 1.5 };
-const mini: React.CSSProperties = { fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 6, border: "1px solid var(--portal-border)", background: "transparent", color: "var(--portal-text-secondary)", cursor: "pointer" };
+const mini: React.CSSProperties = { fontSize: 11, fontWeight: 500, padding: "3px 8px", borderRadius: 6, border: "1px solid var(--portal-border)", background: "transparent", color: "var(--portal-text-secondary)", cursor: "pointer" };
 const dica: React.CSSProperties = { fontSize: 11, color: "var(--portal-text-muted)", marginTop: 4 };
 
 /**
@@ -63,7 +63,7 @@ export default function EditorBlocos({ corpo, onChange, versao = 0 }: { corpo: B
       {corpo.map((b, i) => (
         <div key={`${versao}-${ger}-${i}`} style={{ border: "1px solid var(--portal-border)", borderRadius: 12, padding: 10, background: "var(--portal-bg-card)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--portal-text-muted)", flex: 1 }}>
+            <span style={{ fontSize: 11, fontWeight: 500, color: "var(--portal-text-muted)", flex: 1 }}>
               {TIPOS_BLOCO.find((t) => t.tipo === b.tipo)?.rotulo}
             </span>
             <button type="button" style={mini} onClick={() => move(i, -1)} disabled={i === 0} title="Subir">▲</button>
@@ -75,7 +75,7 @@ export default function EditorBlocos({ corpo, onChange, versao = 0 }: { corpo: B
       ))}
 
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", padding: "8px 0" }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--portal-text-muted)" }}>Adicionar:</span>
+        <span style={{ fontSize: 11, fontWeight: 500, color: "var(--portal-text-muted)" }}>Adicionar:</span>
         {TIPOS_BLOCO.map((t) => (
           <button key={t.tipo} type="button" style={mini} onClick={() => insere(t.tipo)}>+ {t.rotulo}</button>
         ))}
@@ -130,7 +130,7 @@ function CamposDoBloco({ b, onChange }: { b: Bloco; onChange: (b: Bloco) => void
             const set = (p: Partial<typeof it>) => onChange({ ...b, itens: b.itens.map((x, j) => (j === i ? { ...x, ...p } : x)) });
             return (
               <div key={i} style={{ display: "grid", gridTemplateColumns: "24px minmax(0,1fr) auto", gap: 8, alignItems: "start" }}>
-                <span style={{ fontWeight: 800, fontSize: 13, paddingTop: 8 }}>{i + 1}.</span>
+                <span style={{ fontWeight: 500, fontSize: 13, paddingTop: 8 }}>{i + 1}.</span>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <input style={campo} value={it.titulo} onChange={(e) => set({ titulo: e.target.value })} placeholder="O que fazer" />
                   <textarea style={area} rows={2} value={it.texto ?? ""} onChange={(e) => set({ texto: e.target.value })} placeholder="Detalhe (opcional)" />

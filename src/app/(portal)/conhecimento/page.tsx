@@ -2,13 +2,15 @@
 // Base de conhecimento: busca, artigos por módulo e, para quem edita, a fila de
 // aprovação e os retornos dos leitores. Qualquer usuário logado entra aqui; o que
 // cada um vê é filtrado no servidor por módulo e categoria.
+// Visual: docs/estilo-pos-newportal.md (components/conhecimento/estiloKB.tsx).
 
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { aguardaAprovacao } from "@/lib/conhecimento/artigos";
 import { ErroApi, listarArtigos, listarRetornos, resolverRetorno, type ListaResposta, type ResumoComPermissao, type Retorno } from "@/lib/conhecimento/client";
-import { corModulo, MODULOS_KB, rotuloModulo } from "@/lib/conhecimento/modulos";
+import { corModulo, iconeModulo, MODULOS_KB, rotuloModulo } from "@/lib/conhecimento/modulos";
+import { AZUL, botao, card, contador, CSS_KB, Icone, IconeModulo, pilula, Selo, T1, T2, T3, tituloPagina, tituloSecao, vazio } from "@/components/conhecimento/estiloKB";
 
 type Aba = "artigos" | "fila" | "retornos";
 
@@ -68,34 +70,42 @@ function ConhecimentoPage() {
   const podeCriar = dados?.podeCriar ?? false;
 
   return (
-    <div style={{ padding: "20px 12px 0", maxWidth: "calc(1100px + 24px)", margin: "0 auto", fontFamily: "Inter, sans-serif" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-        <div style={{ flex: 1, minWidth: "min(240px, 100%)" }}>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "var(--portal-text)" }}>📚 Base de conhecimento</h1>
-          <div style={{ fontSize: 12, color: "var(--portal-text-secondary)", marginTop: 2 }}>
-            Como usar cada tela do portal. O mesmo texto aparece no botão <strong>?</strong> do cabeçalho quando você está na tela.
+    <div style={{ padding: "20px 16px 40px", fontFamily: "Inter, system-ui, sans-serif", fontWeight: 400, color: T1 }}>
+      <style>{CSS_KB}</style>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        <div style={{ flex: 1, minWidth: "min(260px, 100%)" }}>
+          <h1 style={tituloPagina}><Icone icone="fa-book" cor={AZUL} /> Base de conhecimento</h1>
+          <div style={{ fontSize: 13.5, color: T2, marginTop: 6 }}>
+            Como usar cada tela do portal. O mesmo texto aparece no botão <i className="fa-solid fa-circle-question" style={{ color: AZUL }} /> do cabeçalho quando você está na tela.
           </div>
         </div>
-        <Link href="/conhecimento/novidades" style={{ ...pill, textDecoration: "none", color: "var(--portal-text-secondary)" }}>🆕 O que mudou</Link>
+        <Link href="/conhecimento/novidades" className="kb-btn" style={botao()}>
+          <i className="fa-solid fa-wand-magic-sparkles" style={{ color: AZUL }} /> O que mudou
+        </Link>
         {podeCriar && (
-          <button type="button" onClick={() => router.push(`/conhecimento/editar/novo${modulo ? `?modulo=${modulo}` : ""}`)} style={btnPrimario}>+ Novo artigo</button>
+          <button type="button" onClick={() => router.push(`/conhecimento/editar/novo${modulo ? `?modulo=${modulo}` : ""}`)} style={botao(AZUL, true)}>
+            <i className="fa-solid fa-plus" /> Novo artigo
+          </button>
         )}
       </div>
 
       {podeCriar && (
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
           {([
-            ["artigos", `Artigos`],
-            ["fila", `Para aprovar${fila.length ? ` (${fila.length})` : ""}`],
-            ["retornos", `Retornos dos leitores${retornos.length ? ` (${retornos.length})` : ""}`],
-          ] as [Aba, string][]).map(([k, rot]) => (
-            <button key={k} type="button" onClick={() => setAba(k)} style={{ ...pill, background: aba === k ? "#0369a1" : "transparent", color: aba === k ? "#fefefe" : "var(--portal-text-secondary)", borderColor: aba === k ? "#0369a1" : "var(--portal-border)" }}>{rot}</button>
+            ["artigos", "Artigos", "fa-book-open", AZUL, 0],
+            ["fila", "Para aprovar", "fa-hourglass-half", "#d97706", fila.length],
+            ["retornos", "Retornos dos leitores", "fa-comment-dots", "#dc2626", retornos.length],
+          ] as [Aba, string, string, string, number][]).map(([k, rot, ic, cor, n]) => (
+            <button key={k} type="button" onClick={() => setAba(k)} style={pilula(cor, aba === k)}>
+              <i className={`fa-solid ${ic}`} style={{ color: cor }} /> {rot}
+              {n > 0 && <span style={contador(cor)}>{n}</span>}
+            </button>
           ))}
         </div>
       )}
 
       {erro && (
-        <div style={{ padding: "12px 16px", borderRadius: 12, background: erro.migracao ? "#fef3c7" : "#fee2e2", color: erro.migracao ? "#92400e" : "#991b1b", fontSize: 13, marginBottom: 14 }}>
+        <div style={{ ...card, padding: "12px 16px", background: erro.migracao ? "#fef3c7" : "#fee2e2", color: erro.migracao ? "#92400e" : "#991b1b", fontSize: 13.5, marginBottom: 14 }}>
           {erro.migracao ? "A base de conhecimento ainda não foi instalada no banco. " : ""}{erro.msg}
         </div>
       )}
@@ -103,19 +113,28 @@ function ConhecimentoPage() {
       {aba === "artigos" && (
         <>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
-            <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar: fase, botão, regra, tela…" autoFocus
-              style={{ flex: 1, minWidth: "min(260px, 100%)", padding: "10px 14px", borderRadius: 999, border: "1.5px solid var(--portal-border)", background: "var(--portal-bg-card)", color: "var(--portal-text)", fontSize: 14, outline: "none" }} />
-            <button type="button" onClick={() => setModulo("")} style={{ ...pill, background: !modulo ? "#111111" : "transparent", color: !modulo ? "#fefefe" : "var(--portal-text-secondary)" }}>Todos</button>
+            <label style={{ flex: "1 1 320px", display: "flex", alignItems: "center", gap: 8, height: 40, padding: "0 12px", border: "1px solid var(--portal-border, #e2e8f0)", borderRadius: 12, background: "var(--portal-bg-card, #fefefe)" }}>
+              <i className="fa-solid fa-magnifying-glass" style={{ color: T3 }} />
+              <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar: fase, botão, regra, tela…" autoFocus
+                style={{ flex: 1, minWidth: 0, border: 0, outline: 0, background: "transparent", fontFamily: "inherit", fontSize: 14, color: T1 }} />
+            </label>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+            <button type="button" onClick={() => setModulo("")} style={pilula("#475569", !modulo)}>
+              <i className="fa-solid fa-layer-group" style={{ color: "#475569" }} /> Todos
+            </button>
             {modulosComArtigo.map((m) => (
-              <button key={m.id} type="button" onClick={() => setModulo(modulo === m.id ? "" : m.id)} style={{ ...pill, background: modulo === m.id ? m.cor : "transparent", color: modulo === m.id ? "#fefefe" : m.cor, borderColor: m.cor }}>{m.rotulo}</button>
+              <button key={m.id} type="button" onClick={() => setModulo(modulo === m.id ? "" : m.id)} style={pilula(m.cor, modulo === m.id)}>
+                <i className={`fa-solid ${iconeModulo(m.id)}`} style={{ color: m.cor }} /> {m.rotulo}
+              </button>
             ))}
           </div>
 
           {podeCriar && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 14, fontSize: 12, color: "var(--portal-text-muted)" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", marginBottom: 16, fontSize: 13, color: T2 }}>
               Mostrar:
               {([["todos", "Tudo"], ["publicados", "Só publicados"], ["rascunhos", "Só rascunhos e edições pendentes"]] as const).map(([k, rot]) => (
-                <button key={k} type="button" onClick={() => setSituacao(k)} style={{ ...pill, padding: "4px 12px", background: situacao === k ? "#475569" : "transparent", color: situacao === k ? "#fefefe" : "var(--portal-text-secondary)" }}>{rot}</button>
+                <button key={k} type="button" onClick={() => setSituacao(k)} style={{ ...pilula("#475569", situacao === k), height: 30, fontSize: 13 }}>{rot}</button>
               ))}
             </div>
           )}
@@ -125,12 +144,13 @@ function ConhecimentoPage() {
           ) : porModulo.length === 0 ? (
             <div style={vazio}>{qAplicado ? "Nada encontrado com esse termo." : podeCriar ? "Ainda não há artigos publicados. Os rascunhos ficam na aba \"Para aprovar\"." : "Ainda não há artigos publicados para as telas que você usa."}</div>
           ) : porModulo.map(([mod, lista]) => (
-            <section key={mod} style={{ marginBottom: 22 }}>
-              <h2 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: corModulo(mod), margin: "0 0 8px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
-                {rotuloModulo(mod)} <span style={{ fontWeight: 600, color: "var(--portal-text-muted)" }}>· {lista.length}</span>
-                {dados?.responsaveis[mod] && <span style={{ fontWeight: 600, color: "var(--portal-text-muted)", textTransform: "none", letterSpacing: 0 }}>· responsável: {dados.responsaveis[mod]}</span>}
+            <section key={mod} style={{ marginBottom: 24 }}>
+              <h2 style={tituloSecao}>
+                <IconeModulo modulo={mod} /> {rotuloModulo(mod)}
+                <span style={contador(corModulo(mod))}>{lista.length}</span>
+                {dados?.responsaveis[mod] && <span style={{ fontSize: 13, color: T2 }}>responsável: {dados.responsaveis[mod]}</span>}
               </h2>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(320px, 100%), 1fr))", gap: 12 }}>
                 {lista.map((a) => <CardArtigo key={a.id} a={a} />)}
               </div>
             </section>
@@ -140,30 +160,35 @@ function ConhecimentoPage() {
 
       {aba === "fila" && (
         fila.length === 0 ? <div style={vazio}>Nada esperando aprovação nos módulos que você edita.</div> : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(320px, 100%), 1fr))", gap: 12 }}>
             {fila.map((a) => <CardArtigo key={a.id} a={a} editar />)}
           </div>
         )
       )}
 
       {aba === "retornos" && (
-        retornos.length === 0 ? <div style={vazio}>Nenhum retorno pendente. 🎉</div> : (
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {retornos.map((r) => (
-              <div key={r.id} style={{ ...card, display: "flex", gap: 12, alignItems: "flex-start" }}>
-                <span style={{ fontSize: 20 }}>{r.tipo === "desatualizado" ? "⚠️" : "👎"}</span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13 }}>
-                    <strong>{r.user_nome || "Alguém"}</strong> {r.tipo === "desatualizado" ? "marcou como desatualizado" : "disse que não ajudou"}:{" "}
-                    <Link href={`/conhecimento/editar/${r.artigo_id}`} style={{ color: "#0369a1", fontWeight: 700 }}>{r.artigo.titulo}</Link>
-                    <span style={{ color: "var(--portal-text-muted)" }}> · v{r.versao} · {rotuloModulo(r.artigo.modulo)}{r.tela ? ` · em ${r.tela}` : ""}</span>
+        retornos.length === 0 ? <div style={vazio}>Nenhum retorno pendente.</div> : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {retornos.map((r) => {
+              const cor = r.tipo === "desatualizado" ? "#d97706" : "#dc2626";
+              return (
+                <div key={r.id} style={{ ...card, display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <Icone icone={r.tipo === "desatualizado" ? "fa-clock-rotate-left" : "fa-thumbs-down"} cor={cor} tam={32} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14 }}>
+                      {r.user_nome || "Alguém"} {r.tipo === "desatualizado" ? "marcou como desatualizado" : "disse que não ajudou"}:{" "}
+                      <Link href={`/conhecimento/editar/${r.artigo_id}`} style={{ color: AZUL, fontWeight: 500, textDecoration: "none" }}>{r.artigo.titulo}</Link>
+                      <span style={{ color: T3 }}> · v{r.versao} · {rotuloModulo(r.artigo.modulo)}{r.tela ? ` · em ${r.tela}` : ""}</span>
+                    </div>
+                    {r.comentario && <div style={{ fontSize: 13.5, marginTop: 6, color: T2, background: "var(--portal-bg-secondary, #f8fafc)", borderRadius: 10, padding: "8px 10px" }}>“{r.comentario}”</div>}
+                    <div style={{ fontSize: 12, color: T3, marginTop: 6 }}>{new Date(r.criado_em).toLocaleString("pt-BR")}</div>
                   </div>
-                  {r.comentario && <div style={{ fontSize: 13, marginTop: 4, fontStyle: "italic", color: "var(--portal-text-secondary)" }}>“{r.comentario}”</div>}
-                  <div style={{ fontSize: 11, color: "var(--portal-text-muted)", marginTop: 4 }}>{new Date(r.criado_em).toLocaleString("pt-BR")}</div>
+                  <button type="button" className="kb-btn" style={{ ...botao("#15803d"), height: 34 }} onClick={async () => { await resolverRetorno(r.id).catch(() => {}); void carregar(); }}>
+                    <i className="fa-solid fa-check" style={{ color: "#15803d" }} /> Resolvido
+                  </button>
                 </div>
-                <button type="button" style={btnChip} onClick={async () => { await resolverRetorno(r.id).catch(() => {}); void carregar(); }}>Resolvido</button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )
       )}
@@ -174,31 +199,27 @@ function ConhecimentoPage() {
 function CardArtigo({ a, editar = false }: { a: ResumoComPermissao; editar?: boolean }) {
   const pendente = aguardaAprovacao(a);
   const href = editar || a.status !== "publicado" ? `/conhecimento/editar/${a.id}` : `/conhecimento/${a.slug}`;
+  const cor = corModulo(a.modulo);
   return (
-    <Link href={href} style={{ ...card, textDecoration: "none", color: "inherit", display: "block", borderLeft: `4px solid ${corModulo(a.modulo)}` }}>
-      <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
-        <div style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, color: "var(--portal-text)" }}>{a.titulo}</div>
-        {a.status === "rascunho" && <Selo cor="#92400e" bg="#fef3c7">rascunho</Selo>}
-        {a.status === "publicado" && a.tem_rascunho && <Selo cor="#1e40af" bg="#dbeafe">edição pendente</Selo>}
-        {a.status === "arquivado" && <Selo cor="#475569" bg="#f1f5f9">arquivado</Selo>}
-        {a.revisao_pendente_desde && <Selo cor="#991b1b" bg="#fee2e2">pode estar desatualizado</Selo>}
+    <Link href={href} className="kb-card kb-hover" style={{ ...card, textDecoration: "none", color: "inherit", display: "flex", flexDirection: "column", gap: 8, ["--kb-cor" as string]: cor }}>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
+        <Icone icone="fa-file-lines" cor={cor} tam={32} />
+        <div style={{ flex: 1, minWidth: 0, fontSize: 15.5, fontWeight: 500, lineHeight: 1.35, color: T1, paddingTop: 5 }}>{a.titulo}</div>
       </div>
-      {a.resumo && <div style={{ fontSize: 12, color: "var(--portal-text-secondary)", marginTop: 4, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{a.resumo}</div>}
-      <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8, fontSize: 10, color: "var(--portal-text-muted)" }}>
-        {a.telas.map((t) => <span key={t} style={{ border: "1px solid var(--portal-border)", borderRadius: 6, padding: "1px 6px" }}>{t}</span>)}
+      {(a.status !== "publicado" || a.tem_rascunho || a.revisao_pendente_desde) && (
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {a.status === "rascunho" && <Selo cor="#b45309">rascunho</Selo>}
+          {a.status === "publicado" && a.tem_rascunho && <Selo cor="#2563eb">edição pendente</Selo>}
+          {a.status === "arquivado" && <Selo cor="#64748b">arquivado</Selo>}
+          {a.revisao_pendente_desde && <Selo cor="#dc2626">pode estar desatualizado</Selo>}
+        </div>
+      )}
+      {a.resumo && <div style={{ fontSize: 13.5, color: T2, lineHeight: 1.5, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{a.resumo}</div>}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center", marginTop: "auto", fontSize: 12, color: T3 }}>
+        {a.telas.map((t) => <span key={t} style={{ border: "1px solid var(--portal-border, #e2e8f0)", borderRadius: 999, padding: "1px 8px" }}>{t}</span>)}
         {pendente && a.rascunho_por && <span style={{ marginLeft: "auto" }}>por {a.rascunho_por}</span>}
         {!pendente && a.versao > 0 && <span style={{ marginLeft: "auto" }}>v{a.versao}</span>}
       </div>
     </Link>
   );
 }
-
-function Selo({ cor, bg, children }: { cor: string; bg: string; children: React.ReactNode }) {
-  return <span style={{ fontSize: 10, fontWeight: 800, padding: "2px 7px", borderRadius: 6, background: bg, color: cor, whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: 0.3 }}>{children}</span>;
-}
-
-const card: React.CSSProperties = { background: "var(--portal-bg-card)", border: "1px solid var(--portal-border)", borderRadius: 12, padding: "12px 14px" };
-const pill: React.CSSProperties = { padding: "7px 14px", borderRadius: 999, border: "1.5px solid var(--portal-border)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const btnPrimario: React.CSSProperties = { padding: "9px 18px", background: "#0369a1", color: "#fefefe", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const btnChip: React.CSSProperties = { fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 999, border: "1px solid #15803d", background: "transparent", color: "#15803d", cursor: "pointer", whiteSpace: "nowrap" };
-const vazio: React.CSSProperties = { padding: 50, textAlign: "center", color: "var(--portal-text-muted)", fontSize: 14, fontStyle: "italic" };
