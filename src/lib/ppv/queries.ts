@@ -161,6 +161,8 @@ export async function atualizarValorTotal(idPedido: string): Promise<void> {
     "PATCH",
     { valor_total: totalReal }
   );
+  // a OS ligada soma as peças deste PPV: recalcula o total dela também (capa do card do POS)
+  await import("@/lib/pos/valor-total").then((m) => m.recalcularOSDoPPV(idPedido)).catch(() => {});
 }
 
 // =============================================

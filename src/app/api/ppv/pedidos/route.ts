@@ -268,6 +268,8 @@ export async function PATCH(req: NextRequest) {
     const userName = dados.userName || "Sistema";
 
     await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${dados.id}`, "PATCH", payload);
+    // desconto do PPV muda o total da OS ligada (capa do card do POS)
+    if (dados.desconto !== undefined) { const { recalcularOSDoPPV } = await import("@/lib/pos/valor-total"); await recalcularOSDoPPV(dados.id); }
     // osId "" / "Nenhuma" = DESVINCULAR: o vincularPPVnaOS com ordem vazia
     // remove o PPV da lista ID_PPV de todas as OS (antes o `if (dados.osId)`
     // pulava a limpeza e o vínculo ficava preso na OS).

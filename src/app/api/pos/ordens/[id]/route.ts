@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS } from "@/lib/pos/constants";
 import { getConfigPOS } from "@/lib/pos/config";
@@ -16,6 +16,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const { id: idOs } = await params;
   const { data: res } = await supabase.from(TBL_OS).select("*").eq("Id_Ordem", idOs).limit(1);
   if (!res || !res.length) return NextResponse.json(null);
+  // abriu a OS: acerta o total da capa (requisição/PPV mudaram por fora) depois de responder
+  after(() => import("@/lib/pos/valor-total").then((m) => m.recalcularValorTotalOS(idOs)).catch(() => {}));
 
   const row = res[0];
 
