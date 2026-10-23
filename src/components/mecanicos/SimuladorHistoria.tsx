@@ -265,16 +265,16 @@ export function SimuladorHistoria({ c }: { c: Conta }) {
           </div>
           <div className="hx-perg larga">
             <small>Quanto preciso faturar para sobrar <span className="hx-meta">R$ <input type="number" min={0} max={80} value={S.meta} onChange={(e) => S.setMeta(Math.max(0, Math.min(80, Number(e.target.value) || 0)))} aria-label="quanto quer que sobre de cada R$ 100" /></span> de cada R$ 100?</small>
-            {!Number.isFinite(S.alvo) ? <span className="hx-st ruim">Com esses gastos não dá para chegar nessa meta: diminua a meta ou os gastos.</span> : <>
-              <b>{S.alvo <= bruto ? 'Já está batendo' : brl(S.alvo)}</b>
+            {!Number.isFinite(S.alvoPct) ? <span className="hx-st ruim">Com esses gastos não dá para chegar nessa meta: diminua a meta ou os gastos.</span> : <>
+              <b>{S.alvoPct <= bruto ? 'Já está batendo' : brl(S.alvoPct)}</b>
               <div className="hx-eqn">
-                <span><small>Faturar</small><b>{brl(S.alvo)}</b></span><em>−</em>
-                <span><small>Gastos ({Math.round(S.taxaG * 100)}%)</small><b>{brl(S.taxaG * S.alvo)}</b></span><em>−</em>
+                <span><small>Faturar</small><b>{brl(S.alvoPct)}</b></span><em>−</em>
+                <span><small>Gastos ({Math.round(S.taxaG * 100)}%)</small><b>{brl(S.taxaG * S.alvoPct)}</b></span><em>−</em>
                 <span><small>Pessoal</small><b>{brl(pessoal)}</b></span><em>=</em>
-                <span className="sobra"><small>Sobra ({S.meta}%)</small><b>{brl(S.alvo - S.taxaG * S.alvo - pessoal)}</b></span>
+                <span className="sobra"><small>Sobra ({S.meta}%)</small><b>{brl(S.alvoPct - S.taxaG * S.alvoPct - pessoal)}</b></span>
               </div>
-              <span className={`hx-st ${S.alvo <= bruto ? 'bom' : 'ruim'}`}>{S.alvo <= bruto ? <>Hoje sobram R$ {Math.round(p100)} de cada R$ 100 — <b>{brl(bruto - S.alvo)}</b> acima do que a meta pede.</> : <>Faltam <b>{brl(S.alvo - bruto)}</b>{S.vhS > 0 ? <> — cerca de <b>{horas(S.horasPara(S.alvo))}</b> a mais</> : null}.</>}</span>
-              {S.alvo > bruto && S.vh > 0 && <button type="button" className="hx-bt" onClick={S.aplicarMeta}><i className="fas fa-wand-magic-sparkles" /> Simular com essas horas</button>}
+              <span className={`hx-st ${S.alvoPct <= bruto ? 'bom' : 'ruim'}`}>{S.alvoPct <= bruto ? <>Hoje sobram R$ {Math.round(p100)} de cada R$ 100 — <b>{brl(bruto - S.alvoPct)}</b> acima do que a meta pede.</> : <>Faltam <b>{brl(S.alvoPct - bruto)}</b>{S.vhS > 0 ? <> — cerca de <b>{horas(S.horasPara(S.alvoPct))}</b> a mais</> : null}.</>}</span>
+              {S.alvoPct > bruto && S.vh > 0 && <button type="button" className="hx-bt" onClick={S.aplicarMeta}><i className="fas fa-wand-magic-sparkles" /> Simular com essas horas</button>}
             </>}
           </div>
           <div className="hx-perg" data-dica={`1 hora a mais na tabela (${brl(S.vhTabS)}) menos a parte dos gastos. Salário não muda com 1 hora a mais.`}><small>Quanto vale uma hora a mais?</small><b>{brl(S.vhTabS * (1 - S.taxaG))}</b><p>hora de {brl(S.vhTabS)}, já tirando os gastos</p></div>

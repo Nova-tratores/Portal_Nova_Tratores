@@ -65,6 +65,12 @@ export async function aplicarMudancaFase(
     Dias_Na_Fase: 0, Total_Dias_Aberto: 0,
   });
 
+  // Janela Mecânicos na hora (José, 23/10/2026: "cancelei e continua lá; tudo precisa ser instantâneo"):
+  // esquece o dinheiro parado guardado e avisa as telas abertas, que buscam de novo.
+  import("@/lib/mecanicos/ao-vivo-server")
+    .then((m) => m.atualizarPosVendasAgora(`OS ${idOs}: ${statusAnterior || "?"} → ${newStatus}`, { leve: true }))
+    .catch(() => {});
+
   // POP disparado pela OS (regras na ficha do POP): cria a execução para o técnico
   // já agora; o agendador (10 min) cobre mudanças de fase feitas por outro caminho.
   import("@/lib/pops/gatilhos-os")

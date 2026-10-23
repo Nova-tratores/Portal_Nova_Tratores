@@ -2,6 +2,7 @@
 // Lado direito do simulador ★ em 3 formas (José, 21/10/2026: "troca a forma que mostra essas informações").
 // Mostra o mesmo que os blocos 1, 2, 4 e 5: quanto sobrou, a conta como foi × simulado, quanto precisa para
 // não ter prejuízo e a meta. Novidade das três: o empate e a meta viram UMA régua ("onde você está").
+import { useState } from 'react'
 import { Numero, brl, horas } from './ui'
 
 const TXT = '#0f172a', SEG = '#334155'
@@ -13,9 +14,9 @@ export interface DadosLado {
   sim: { entrou: number; gastos: number; pessoal: number; sobrou: number }
   mudou: boolean
   empate: number          // faturamento que deixa R$ 0
-  alvo: number            // faturamento que bate a meta
-  meta: number            // R$ que quer que sobre de cada R$ 100
-  setMeta: (n: number) => void
+  alvo: number            // faturamento que bate a meta (= o que faturou o período anterior)
+  /** a META é passar o período anterior (José, 23/10/2026) */
+  anterior: { rotulo: string; entrou: number; sobrou: number } | null
   taxaG: number           // gastos ÷ faturamento
   horasPara: (alvo: number) => number
   valorHora: number
@@ -29,22 +30,51 @@ const dif = (a: number, b: number, custo = false) => {
   return <em className={(custo ? d < 0 : d > 0) ? 'bom' : 'ruim'}>{d > 0 ? '+' : '−'}{brl(Math.abs(d))}</em>
 }
 
+// ---------------------------------------------------------------- "?" que explica (José, 23/10/2026:
+// "coloca um botão em cada coisa para explicar, de forma simples")
+
+function Explica({ texto }: { texto: string }) {
+  const [aberto, setAberto] = useState(false)
+  return (
+    <span className="ld-x">
+      <button type="button" className={`ld-x-b ${aberto ? 'on' : ''}`} onClick={(e) => { e.stopPropagation(); setAberto((v) => !v) }} aria-label="o que é isso?" aria-expanded={aberto}>?</button>
+      {aberto && <span className="ld-x-t" role="note" onClick={() => setAberto(false)}>{texto}</span>}
+    </span>
+  )
+}
+
+const EXPLICA = {
+  regua: 'Esta barra mostra onde o faturamento do mês está. Vermelho: ainda não pagou as contas. Amarelo: já pagou as contas, mas ainda não passou o mês passado. Verde: passou o mês passado.',
+  prejuizo: 'É quanto precisa faturar para pagar tudo: os gastos (combustível, carro, almoço, materiais) e o pessoal (salários e comissões). Abaixo disso o mês dá prejuízo.',
+  meta: 'A meta é faturar mais do que o mês passado. Passou o mês passado, bateu a meta.',
+  faturou: 'É o que entrou de faturamento até agora, somando todas as OS faturadas do período.',
+  entrou: 'Tudo o que entrou nas OS faturadas: mão de obra, km, peças e outros, já depois dos descontos.',
+  gastos: 'O que se gasta para fazer os serviços: combustível, carro, almoço, materiais e terceiros que não foram cobrados do cliente.',
+  pessoal: 'Salários e encargos (fixos todo mês) mais as comissões dos técnicos.',
+  sobrou: 'O que fica para a empresa depois de pagar tudo: o que entrou, menos os gastos, menos o pessoal.',
+  medidor: 'De cada R$ 100 que entraram, quanto sobrou para a empresa depois de pagar gastos e pessoal.',
+}
+
 // ---------------------------------------------------------------- a régua (empate + meta juntos)
+// Prejuízo = não se paga; meta = passar o período anterior (José, 23/10/2026).
 
 function Regua({ d }: { d: DadosLado }) {
   const fat = d.sim.entrou
   const temAlvo = Number.isFinite(d.alvo), temEmp = Number.isFinite(d.empate)
   const max = Math.max(fat, temAlvo ? d.alvo : 0, temEmp ? d.empate : 0, 1) * 1.12
   const p = (v: number) => `${Math.max(0, Math.min(100, (v / max) * 100))}%`
-  const emp = temEmp ? d.empate : max, alvo = temAlvo ? Math.max(d.alvo, emp) : max
+  const emp = temEmp ? d.empate : max
+  // mês passado abaixo do "se pagar": a meta só conta depois de pagar as contas
+  const alvo = temAlvo ? Math.max(d.alvo, emp) : max
   const zona = fat < emp ? 'prejuizo' : fat < alvo ? 'abaixo' : 'acima'
+  const ant = d.anterior?.rotulo || 'o período anterior'
   return (
     <div className="ld-regua">
       <div className="ld-regua-t">
-        <b className="ld-t" style={{ '--c': '#2563eb' } as React.CSSProperties}><i className="fas fa-bullseye ld-ic" aria-hidden />Onde o mês está</b>
-        <span className="ld-meta" data-dica="META — quanto você quer que sobre de cada R$ 100 que entram. Mude o número e a régua recalcula a partir de quanto faturamento a meta é batida.">meta: sobrar R$ <input type="number" min={0} max={80} value={d.meta} onChange={(e) => d.setMeta(Math.max(0, Math.min(80, Number(e.target.value) || 0)))} aria-label="quanto quer que sobre de cada R$ 100" /> de cada R$ 100</span>
+        <b className="ld-t" style={{ '--c': '#2563eb' } as React.CSSProperties}><i className="fas fa-bullseye ld-ic" aria-hidden />Onde o mês está <Explica texto={EXPLICA.regua} /></b>
+        {temAlvo && <span className="ld-meta">meta: passar {ant} ({brl(d.alvo)}) <Explica texto={EXPLICA.meta} /></span>}
       </div>
-      <div className="ld-trilha" data-dica={`A RÉGUA mostra onde o faturamento do mês está. Vermelho: abaixo de ${brl(d.empate)} o mês dá prejuízo (não paga gastos e pessoal). Amarelo: paga tudo e sobra, mas menos que a meta. Verde: a partir de ${Number.isFinite(d.alvo) ? brl(d.alvo) : '—'} sobram pelo menos R$ ${d.meta} de cada R$ 100 (a meta). O marcador preto é o que faturou: ${brl(fat)}.`}>
+      <div className="ld-trilha">
         <i className="z1" style={{ left: 0, width: p(emp) }} />
         <i className="z2" style={{ left: p(emp), width: `calc(${p(alvo)} - ${p(emp)})` }} />
         <i className="z3" style={{ left: p(alvo), right: 0 }} />
@@ -53,17 +83,17 @@ function Regua({ d }: { d: DadosLado }) {
         {temAlvo && <span className="ld-marca" style={{ left: p(alvo) }} />}
       </div>
       <div className="ld-escala">
-        {temEmp && <span style={{ left: p(emp) }}><small>sem prejuízo a partir de</small><b>{brl(d.empate)}</b></span>}
-        {temAlvo && <span style={{ left: p(alvo) }}><small>meta ({d.meta}%) a partir de</small><b>{brl(d.alvo)}</b></span>}
+        {temEmp && <span style={{ left: p(emp) }}><small>se paga a partir de <Explica texto={EXPLICA.prejuizo} /></small><b>{brl(d.empate)}</b></span>}
+        {temAlvo && <span style={{ left: p(alvo) }}><small>meta: passar {ant} <Explica texto={EXPLICA.meta} /></small><b>{brl(d.alvo)}</b></span>}
       </div>
-      <div className="ld-zonas"><span><i className="z1" />prejuízo</span><span><i className="z2" />lucro abaixo da meta</span><span><i className="z3" />acima da meta</span></div>
+      <div className="ld-zonas"><span><i className="z1" />prejuízo</span><span><i className="z2" />pagou as contas, abaixo de {ant}</span><span><i className="z3" />passou {ant}</span><Explica texto={EXPLICA.faturou} /></div>
       <p className={`ld-frase ${zona}`}>
         {zona === 'prejuizo' && <>O mês está no <b>prejuízo</b>: faltam <b>{brl(emp - fat)}</b> para pagar todas as contas{d.valorHora > 0 ? <> — cerca de <b>{horas(d.horasPara(emp))}</b> a mais</> : null}.</>}
-        {zona === 'abaixo' && <>Pagou todas as contas e sobrou, mas está <b>abaixo da meta</b>: faltam <b>{brl(alvo - fat)}</b>{d.valorHora > 0 ? <> — cerca de <b>{horas(d.horasPara(alvo))}</b> a mais</> : null}.</>}
-        {zona === 'acima' && <>Passou da meta: faturou <b>{brl(fat - alvo)}</b> a mais do que a meta de {d.meta}% pede, e <b>{brl(fat - emp)}</b> acima do que paga as contas.</>}
+        {zona === 'abaixo' && <>Já pagou as contas, mas ainda <b>não passou {ant}</b>: faltam <b>{brl(alvo - fat)}</b>{d.valorHora > 0 ? <> — cerca de <b>{horas(d.horasPara(alvo))}</b> a mais</> : null}.</>}
+        {zona === 'acima' && <>Bateu a meta: faturou <b>{brl(fat - d.alvo)}</b> a mais que {ant}, e <b>{brl(fat - emp)}</b> acima do que paga as contas.</>}
       </p>
-      {zona !== 'acima' && temAlvo && d.valorHora > 0 && <button type="button" className="ld-bt" onClick={d.aplicarMeta}>Simular as horas que faltam para a meta</button>}
-      {!temAlvo && <p className="ld-frase prejuizo">Com esses gastos a meta de {d.meta}% não fecha: diminua a meta ou os gastos.</p>}
+      {zona !== 'acima' && temAlvo && d.valorHora > 0 && <button type="button" className="ld-bt" onClick={d.aplicarMeta}>Simular as horas que faltam para passar {ant}</button>}
+      {!temAlvo && <p className="ld-frase">Sem faturamento no período anterior para comparar.</p>}
       <small className="ld-nota">Gastos crescem junto com o faturamento (hoje R$ {Math.round(d.taxaG * 100)} de cada R$ 100); salários são fixos.</small>
     </div>
   )
@@ -85,13 +115,13 @@ function Extrato({ d }: { d: DadosLado }) {
         {d.mudou && <div className="ld-ext-l cab"><span /><span>como foi</span><span>simulado</span></div>}
         {linhas.map(([n, op, a, b, cor, custo]) => (
           <div key={n} className="ld-ext-l" data-dica={({ Entrou: `ENTROU — tudo o que entrou no mês nas OS faturadas (mão de obra, km, peças e outros), já depois dos descontos.${d.mudou ? ` Como foi: ${brl(a)}; simulado: ${brl(b)}.` : ''}`, Gastos: `GASTOS — combustível, carro, almoço, materiais e terceiros não cobrados. É R$ ${pct(b, s.entrou)} de cada R$ 100 que entraram.`, Pessoal: `PESSOAL — salários e encargos (fixos) mais as comissões. É R$ ${pct(b, s.entrou)} de cada R$ 100 que entraram.` } as Record<string, string>)[n]}>
-            <span><em>{op}</em>{n}<i style={{ background: cor }} /></span>
+            <span><em>{op}</em>{n}<i style={{ background: cor }} /><Explica texto={n === 'Entrou' ? EXPLICA.entrou : n === 'Gastos' ? EXPLICA.gastos : EXPLICA.pessoal} /></span>
             {d.mudou && <span className="ant">{brl(a)}</span>}
             <span><b>{brl(b)}</b>{d.mudou && dif(a, b, custo)}</span>
           </div>
         ))}
         <div className="ld-ext-l tot" data-dica={`${s.sobrou >= 0 ? 'SOBROU' : 'FALTOU'} — o que fica para a empresa depois de pagar tudo: Entrou − Gastos − Pessoal = ${brl(s.sobrou)}.${d.mudou ? ` Como foi: ${brl(r.sobrou)}.` : ''}`}>
-          <span><em>=</em>{s.sobrou >= 0 ? 'Sobrou' : 'Faltou'}</span>
+          <span><em>=</em>{s.sobrou >= 0 ? 'Sobrou' : 'Faltou'}<Explica texto={EXPLICA.sobrou} /></span>
           {d.mudou && <span className="ant">{brl(r.sobrou)}</span>}
           <span><b style={{ color: s.sobrou >= 0 ? COR.sobrou : COR.faltou }}><Numero valor={s.sobrou} formato={brl} /></b>{d.mudou && dif(r.sobrou, s.sobrou)}</span>
         </div>
@@ -112,23 +142,22 @@ function Medidor({ d }: { d: DadosLado }) {
     const [x0, y0] = pt(a0), [x1, y1] = pt(a1)
     return `M${x0},${y0} A${R},${R} 0 ${a1 - a0 > 180 ? 1 : 0} 1 ${x1},${y1}`
   }
-  const m = Math.max(0, Math.min(100, d.meta)) * 1.8
+  const pAnt = d.anterior && d.anterior.entrou > 0 ? Math.round((d.anterior.sobrou / d.anterior.entrou) * 100) : null
   return (
     <div className="ld-cartao">
       <div className="ld-t" style={{ '--c': '#0f766e' } as React.CSSProperties}><i className="fas fa-gauge ld-ic" aria-hidden />Quanto sobrou em {d.rotulo}</div>
       <div className="ld-med">
         <svg viewBox="0 0 220 130" aria-hidden>
-          <path d={arco(0, m)} stroke="#fde68a" strokeWidth="18" fill="none" />
-          <path d={arco(m, 180)} stroke="#bbf7d0" strokeWidth="18" fill="none" />
+          <path d={arco(0, 180)} stroke="#bbf7d0" strokeWidth="18" fill="none" />
           <line x1="110" y1="110" x2="110" y2="34" stroke={TXT} strokeWidth="4" strokeLinecap="round" style={{ transform: `rotate(${ang}deg)`, transformOrigin: '110px 110px', transition: 'transform .7s cubic-bezier(.2,.8,.2,1)' }} />
           <circle cx="110" cy="110" r="7" fill={TXT} />
           <text x="20" y="128" fontSize="11" fill={SEG}>R$ 0</text><text x="178" y="128" fontSize="11" fill={SEG}>R$ 100</text>
         </svg>
-        <div className="ld-med-v"><b style={{ color: s.sobrou >= 0 ? COR.sobrou : COR.faltou }}>R$ {Math.round(p100)}</b><span>de cada R$ 100 sobraram<br />(meta: R$ {d.meta})</span></div>
+        <div className="ld-med-v"><b style={{ color: s.sobrou >= 0 ? COR.sobrou : COR.faltou }}>R$ {Math.round(p100)}</b><span>de cada R$ 100 sobraram <Explica texto={EXPLICA.medidor} />{pAnt != null ? <><br />({d.anterior!.rotulo}: R$ {pAnt})</> : null}</span></div>
       </div>
       <div className="ld-blocos">
         {([['Entrou', r.entrou, s.entrou, COR.entrou, false], ['Gastos', r.gastos, s.gastos, COR.gastos, true], ['Pessoal', r.pessoal, s.pessoal, COR.pessoal, true], [s.sobrou >= 0 ? 'Sobrou' : 'Faltou', r.sobrou, s.sobrou, s.sobrou >= 0 ? COR.sobrou : COR.faltou, false]] as const).map(([n, a, b, cor, custo]) => (
-          <div key={n} style={{ borderTopColor: cor }}><small>{n}</small><b>{brl(b)}</b>{d.mudou ? (dif(a, b, custo) || <span>igual</span>) : <span>{pct(Math.abs(b), s.entrou)}% do que entrou</span>}</div>
+          <div key={n} style={{ borderTopColor: cor }}><small>{n} <Explica texto={n === 'Entrou' ? EXPLICA.entrou : n === 'Gastos' ? EXPLICA.gastos : n === 'Pessoal' ? EXPLICA.pessoal : EXPLICA.sobrou} /></small><b>{brl(b)}</b>{d.mudou ? (dif(a, b, custo) || <span>igual</span>) : <span>{pct(Math.abs(b), s.entrou)}% do que entrou</span>}</div>
         ))}
       </div>
     </div>
@@ -153,7 +182,7 @@ function Cascata({ d }: { d: DadosLado }) {
       <div className="ld-casc">
         {passos.map((x) => (
           <div key={x.n} className="ld-casc-l">
-            <span>{x.n}</span>
+            <span>{x.n} <Explica texto={x.n.includes('Gastos') ? EXPLICA.gastos : x.n.includes('Pessoal') ? EXPLICA.pessoal : x.n === 'Entrou' ? EXPLICA.entrou : EXPLICA.sobrou} /></span>
             <div className="ld-casc-trilho"><i style={{ left: w(Math.max(0, x.de)), width: w(x.v), background: x.cor }} /></div>
             <span><b>{brl(x.b)}</b>{d.mudou && dif(x.a, x.b, x.custo)}</span>
           </div>
@@ -174,6 +203,10 @@ export function LadoDireito({ forma, d }: { forma: 1 | 2 | 3; d: DadosLado }) {
 }
 
 export const ESTILO_LD = `
+.ld-x { position: relative; display: inline-flex; vertical-align: middle; margin-left: 4px }
+.ld-x-b { width: 18px; height: 18px; border-radius: 50%; border: 1px solid #cbd5e1; background: #fefefe; color: #475569; font: 500 11px/1 inherit; font-family: inherit; display: grid; place-items: center; cursor: pointer; padding: 0 }
+.ld-x-b:hover, .ld-x-b.on { border-color: #2563eb; color: #2563eb; background: #eff6ff }
+.ld-x-t { position: absolute; left: 50%; top: calc(100% + 8px); transform: translateX(-50%); z-index: 70; width: max-content; max-width: 280px; white-space: normal; text-align: left; background: #0f172a; color: #f8fafc; font-size: 13.5px; font-weight: 400; line-height: 1.5; padding: 9px 12px; border-radius: 10px; box-shadow: 0 10px 30px rgba(15,23,42,.3); cursor: pointer; text-transform: none; letter-spacing: 0 }
 .ld { display: grid; gap: 12px; color: ${TXT}; font-size: 15px; font-variant-numeric: tabular-nums }
 .ld b { font-weight: 700 } .ld .bom { color: #166534; font-style: normal; font-weight: 600; font-size: 13.5px } .ld .ruim { color: #991b1b; font-style: normal; font-weight: 600; font-size: 13.5px }
 .ld-cartao { background: #fefefe; border: 1px solid #e2e8f0; border-radius: 14px; padding: 18px 20px; display: grid; gap: 12px }

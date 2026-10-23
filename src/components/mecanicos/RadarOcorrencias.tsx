@@ -99,21 +99,28 @@ export default function RadarOcorrencias() {
   useEffect(() => { const t = setTimeout(() => setValorPonto(lerValor()), 0); return () => clearTimeout(t) }, [])
   const mudarValor = (v: number) => { setValorPonto(v); try { localStorage.setItem(CHAVE_VALOR, String(v)) } catch { /* sem armazenamento */ } }
 
-  const carregar = useCallback(async (m: string) => {
-    setCarregando(true)
+  // abre na hora com o último mês guardado no navegador; o servidor também responde com o resultado
+  // guardado. `forcar` = refazer a conta (entrou ocorrência/defesa nova ou julgou) — José, 22/10/2026.
+  const carregar = useCallback(async (m: string, forcar = false) => {
+    if (!forcar) setCarregando(true)
     try {
-      const r = await fetch(`/api/mecanicos/ocorrencias-painel?mes=${m}`, { headers: await authHeaders(), cache: 'no-store' })
+      const r = await fetch(`/api/mecanicos/ocorrencias-painel?mes=${m}${forcar ? '&forcar=1' : ''}`, { headers: await authHeaders(), cache: 'no-store' })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || `Erro ${r.status}`)
       setD(j); setErro('')
+      try { localStorage.setItem(`cpv-ocpainel-${m}`, JSON.stringify(j)) } catch { /* sem espaço: segue sem guardar */ }
     } catch (e) { setErro(e instanceof Error ? e.message : 'Falha') } finally { setCarregando(false) }
   }, [])
 
   useEffect(() => {
     let vivo = true
-    Promise.resolve().then(() => { if (vivo) void carregar(mes) })
+    Promise.resolve().then(() => {
+      if (!vivo) return
+      try { const t = localStorage.getItem(`cpv-ocpainel-${mes}`); if (t) setD(JSON.parse(t) as Resp) } catch { /* nada guardado */ }
+      void carregar(mes)
+    })
     let t: ReturnType<typeof setTimeout> | null = null
-    const recarregar = () => { if (t) clearTimeout(t); t = setTimeout(() => { if (vivo) void carregar(mes) }, 800) }
+    const recarregar = () => { if (t) clearTimeout(t); t = setTimeout(() => { if (vivo) void carregar(mes, true) }, 800) }
     const canal = supabase.channel(`radar-ocorrencias-${mes}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tecnico_ocorrencias' }, recarregar)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tecnico_justificativas' }, recarregar)
@@ -133,7 +140,7 @@ export default function RadarOcorrencias() {
       setEfeito({ ocId, ok: aprovada, texto: aprovada ? `+${pts} pts devolvidos` : `−${pts} pts confirmados${valorPonto ? ` · ${brl(pts * valorPonto)}` : ''}` })
       if (oc) setTremer(oc.tecnico)
       setTimeout(() => setSaindo((s) => new Set(s).add(ocId)), 1100)
-      setTimeout(() => { void carregar(mes); setSaindo(new Set()); setEfeito(null); setTremer(null) }, 1800)
+      setTimeout(() => { void carregar(mes, true); setSaindo(new Set()); setEfeito(null); setTremer(null) }, 1800)
     } catch (e) { alert(e instanceof Error ? e.message : 'Falha ao julgar') } finally { setJulgando(null) }
   }
 
@@ -178,7 +185,7 @@ export default function RadarOcorrencias() {
           <button type="button" onClick={() => setMes(andarMes(mes, 1))} disabled={ehAtual} aria-label="Próximo mês"><i className="fas fa-chevron-right" /></button>
         </div>
         {!ehAtual && <button type="button" className="rdr-hoje" onClick={() => setMes(mesSP())}><i className="fas fa-rotate-left" /> Mês atual</button>}
-        {carregando && <span className="rdr-carr"><i className="fas fa-circle-notch fa-spin" /> carregando…</span>}
+        {carregando && !d && <span className="rdr-carr"><i className="fas fa-circle-notch fa-spin" /> carregando…</span>}
         <span className="rdr-vivo" title={`ao vivo · cada mecânico começa o mês com ${BASE_PONTOS} pontos`}><span className="cpv-pulso" /></span>
       </div>
       {d && <TrilhoAssuntos topo assuntos={ASSUNTOS_MEC} />}

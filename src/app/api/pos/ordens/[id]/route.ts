@@ -574,5 +574,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     notifLink: `/pos?id=${idOs}`,
   });
 
+  // Janela Mecânicos na hora: OS editada (interna, valores, técnico…) atualiza o dinheiro parado das telas abertas
+  import("@/lib/mecanicos/ao-vivo-server")
+    .then((m) => m.atualizarPosVendasAgora(`OS ${idOs} editada`, { leve: true }))
+    .catch(() => {});
+
   return NextResponse.json({ success: true });
 }

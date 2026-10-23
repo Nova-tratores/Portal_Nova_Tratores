@@ -204,7 +204,7 @@ function NavEscada({ e, refDia: ref, hoje, itens, onE, onComparar, comparando }:
         return (
           <div key={k} role="button" tabIndex={0} className={`fp-deg d${i} ${ativo ? 'on' : ''} ${agora ? 'agora' : ''}`} style={{ '--c': COR_ESC[k] } as React.CSSProperties} onClick={() => onE(k)} onKeyDown={(ev) => { if (ev.key === 'Enter') onE(k) }} aria-pressed={ativo}
             data-dica={`${titulo(k, b.de, b.ate)}: ${brl(sv.bruto)} faturados em ${sv.n} OS. ${NOME_ANT[k][0].toUpperCase()}${NOME_ANT[k].slice(1)}${agora ? ' (até o mesmo dia)' : ''}: ${brl(sp.bruto)}. Clique para ver os detalhes ${k === 'dia' ? 'do dia' : k === 'semana' ? 'da semana' : k === 'mes' ? 'do mês' : 'do ano'} e comparar.`}>
-            <div className="fp-deg-t"><span>{agora ? NOMES[k][0] : NOMES[k][1]}{agora && <i className="fp-vivo" />}</span><span className="fp-deg-d">{ativo && <em>{comparando ? 'comparando' : 'mostrando'}</em>}<button type="button" className={`fp-deg-cmp ${ativo && comparando ? 'on' : ''}`} onClick={(ev) => { ev.stopPropagation(); onComparar(k) }} data-dica={`Comparar ${k === 'dia' ? 'este dia' : k === 'semana' ? 'esta semana' : k === 'mes' ? 'este mês' : 'este ano'} com outro: a tela se divide, o atual à direita e o comparado à esquerda.`} aria-label="comparar">⇄</button></span></div>
+            <div className="fp-deg-t"><span>{agora ? NOMES[k][0] : NOMES[k][1]}{agora && <i className="fp-vivo" />}</span><span className="fp-deg-d">{ativo && <em>{comparando ? 'comparando' : 'mostrando'}</em>}<button type="button" className={`fp-deg-cmp ${ativo && comparando ? 'on' : ''}`} onClick={(ev) => { ev.stopPropagation(); onComparar(k) }} data-dica={`Comparar ${k === 'dia' ? 'este dia' : k === 'semana' ? 'esta semana' : k === 'mes' ? 'este mês' : 'este ano'} com outro: a tela se divide, o atual à direita e o comparado à esquerda.`} aria-label="comparar"><span className="fp-deg-cmp-i">⇄</span></button></span></div>
             <small>{titulo(k, b.de, b.ate)}</small>
             <b><Numero valor={sv.bruto} formato={brl} /></b>
             <div className="fp-deg-p">
@@ -610,6 +610,8 @@ export const ESTILO_FP = `
 .fp { display: grid; gap: 14px; color: ${TXT}; font-size: 15px; font-variant-numeric: tabular-nums }
 .fp b { font-weight: 700 } .fp .bom { color: #166534; font-style: normal } .fp .ruim { color: #991b1b; font-style: normal }
 .fp [data-dica] { position: relative }
+/* balão dentro de balão: com o mouse num filho que tem o seu, o do pai não aparece junto */
+.fp [data-dica]:has([data-dica]:hover)::after { display: none }
 .fp [data-dica]:hover::after { content: attr(data-dica); position: absolute; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%); z-index: 60; width: max-content; max-width: 340px; white-space: normal; text-align: left; background: #0f172a; color: #f8fafc; font-size: 14px; font-weight: 400; line-height: 1.5; padding: 10px 12px; border-radius: 10px; box-shadow: 0 10px 30px rgba(15,23,42,.3); pointer-events: none }
 
 .fp-topo { display: flex; gap: 14px; align-items: center; flex-wrap: wrap }
@@ -763,7 +765,7 @@ export const ESTILO_FP = `
 @media (max-width: 760px) { .fp-lista-r { grid-template-columns: 50px minmax(0, 1fr) 90px 50px } .fp-lista-r > span:nth-child(2), .fp-lista-r > span:nth-child(4) { display: none } }
 .fp-deg-d { display: inline-flex; align-items: center; gap: 6px }
 .fp-deg-cmp { width: 30px; height: 30px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--c) 35%, #e2e8f0); background: #fefefe; color: var(--c); font-size: 15px; font-weight: 700; line-height: 1; cursor: pointer; transition: all .2s }
-.fp-deg-cmp:hover { background: var(--c); color: #fefefe; transform: rotate(180deg) } .fp-deg-cmp.on { background: #ea580c; border-color: #ea580c; color: #fefefe }
+.fp-deg-cmp:hover { background: var(--c); color: #fefefe } .fp-deg-cmp-i { display: inline-block; transition: transform .25s } .fp-deg-cmp:hover .fp-deg-cmp-i { transform: rotate(180deg) } .fp-deg-cmp.on { background: #ea580c; border-color: #ea580c; color: #fefefe }
 .fp-lados { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0; align-items: stretch; animation: fpEntra .35s both }
 .fp-lados-vs { display: grid; place-items: center; width: 40px } .fp-lados-vs span { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: ${TXT}; color: #fefefe; font-size: 12.5px; font-weight: 700; box-shadow: 0 6px 16px -6px rgba(15,23,42,.5) }
 .fp-pp { display: grid; gap: 12px; align-content: start; background: #fefefe; border: 1px solid #e2e8f0; border-radius: 18px; padding: 16px 18px }

@@ -370,6 +370,15 @@ export async function register(): Promise<void> {
         await aquecerFichas().catch((e) => log('pos-painel: fichas falharam: ' + (e as Error).message));
         const { podioMeses } = await import('./lib/mecanicos/podio-server');
         await podioMeses().catch(() => {});
+        // dinheiro parado e ocorrências do mês já prontos: a tela abre sem esperar (José, 22/10/2026)
+        const { aquecer } = await import('./lib/mecanicos/cache');
+        const { calcularParado } = await import('./lib/mecanicos/parado-vivo');
+        await aquecer('parado', 60_000, calcularParado).catch((e) => log('pos-painel: parado falhou: ' + (e as Error).message));
+        const { mesSP, montarOcorrenciasPainel } = await import('./lib/mecanicos/ocorrencias-painel-vivo');
+        const mesAgora = mesSP();
+        await aquecer(`ocpainel:${mesAgora}`, 2 * 60_000, () => montarOcorrenciasPainel(mesAgora)).catch((e) => log('pos-painel: ocorrências falharam: ' + (e as Error).message));
+        const { listarGarantiasPainel } = await import('./lib/mecanicos/garantias-lista');
+        await aquecer('garantias-painel', 2 * 60_000, listarGarantiasPainel).catch((e) => log('pos-painel: garantias falharam: ' + (e as Error).message));
         const hora = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }).format(new Date()));
         if (hora >= 6 && hora < 20) {
           const { ultimaAnalise, gerarUmaVez, estaGerando, VALIDADE_ANALISE_MS } = await import('./lib/mecanicos/analise-server');

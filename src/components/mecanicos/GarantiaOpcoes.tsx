@@ -10,6 +10,7 @@ import type { GarantiaStatus } from '@/lib/garantias/types'
 import { brl, Numero } from './ui'
 import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento'
 import type { GarantiaDetalhe } from '@/lib/garantias/types'
+import { agruparPorDestino, andar, dentro, destinoRejeicao, DESTINOS, diaBR, ehAtual, janela, ROTULO_COBRANCA, trocarEscala, valorNoDestino, type Escala, type Janela } from '@/lib/mecanicos/garantias-painel'
 
 const MUDO = 'var(--portal-text-muted, #64748b)'
 export type Gar = {
@@ -21,7 +22,8 @@ export type Gar = {
   cobranca: { status: string; valor: number; vencimento: string | null }; devolucao: { status: string; prazo: string | null }
   pendencias: number; pendenciaTipos: string[]
 }
-export type Periodo = 'mes' | '90' | 'ano' | 'tudo'
+/** Período do bloco (22/10/2026): Dia · Mês · Ano com setas, pela data de fechamento (lib/mecanicos/garantias-painel). */
+export type Periodo = Janela
 const FINAIS: GarantiaStatus[] = ['aprovada', 'rejeitada']
 const FASES: GarantiaStatus[] = ['aberta', 'em_analise', 'bo_tecnico', 'enviada', 'info_pendente', 'aguardando_servico', 'ressarcimento_fabrica']
 const dias = (de: string | null, hoje: string) => (de ? Math.max(0, Math.round((Date.parse(`${hoje}T12:00:00Z`) - Date.parse(de)) / 86_400_000)) : 0)
@@ -35,11 +37,14 @@ export function useGarantias() {
   useEffect(() => {
     let ativo = true
     ;(async () => {
+      // abre na hora com a última lista guardada no navegador; a nova chega por trás
+      try { const t = localStorage.getItem('cpv-garantias-v1'); if (t && ativo) setDados(JSON.parse(t)) } catch { /* nada guardado */ }
       try {
         const r = await fetch('/api/mecanicos/garantias', { headers: await authHeaders(), cache: 'no-store' })
         const j = await r.json()
         if (!ativo) return
-        if (!r.ok) setErro(j.error || `Erro ${r.status}`); else setDados(j)
+        if (!r.ok) setErro(j.error || `Erro ${r.status}`)
+        else { setDados(j); try { localStorage.setItem('cpv-garantias-v1', JSON.stringify(j)) } catch { /* sem espaço */ } }
       } catch (e) { if (ativo) setErro(e instanceof Error ? e.message : 'Falha') }
     })()
     return () => { ativo = false }
@@ -50,9 +55,9 @@ export function useGarantias() {
 /** Contas comuns: abertas, finalizadas no período, dinheiro em jogo/recebido/perdido, tempos. */
 function useConta(lista: Gar[], hoje: string, periodo: Periodo) {
   return useMemo(() => {
-    const desde = periodo === 'tudo' ? '0000' : periodo === 'mes' ? `${hoje.slice(0, 7)}-01` : (() => { const d = new Date(`${hoje}T12:00:00Z`); d.setUTCDate(d.getUTCDate() - (periodo === '90' ? 90 : 365)); return d.toISOString().slice(0, 10) })()
+    const desde = periodo.de
     const abertas = lista.filter((g) => !FINAIS.includes(g.status))
-    const fin = lista.filter((g) => FINAIS.includes(g.status) && (g.finalizadaEm || g.mexidaEm).slice(0, 10) >= desde)
+    const fin = lista.filter((g) => FINAIS.includes(g.status) && dentro(diaBR(g.finalizadaEm || g.mexidaEm), periodo))
     const aprov = fin.filter((g) => g.status === 'aprovada'), rej = fin.filter((g) => g.status === 'rejeitada')
     const soma = (l: Gar[], f: (g: Gar) => number) => l.reduce((s, g) => s + f(g), 0)
     const tempos = fin.filter((g) => g.enviadaEm && g.finalizadaEm).map((g) => (Date.parse(g.finalizadaEm!) - Date.parse(g.enviadaEm!)) / 86_400_000).filter((x) => x >= 0)
@@ -62,26 +67,38 @@ function useConta(lista: Gar[], hoje: string, periodo: Periodo) {
       taxa: aprov.length + rej.length ? aprov.length / (aprov.length + rej.length) : null,
       tempoFabrica: tempos.length ? tempos.reduce((s, x) => s + x, 0) / tempos.length : null,
       clienteReceber: soma(lista.filter((g) => g.cobranca.status === 'cobrada'), (g) => g.cobranca.valor),
-      clienteRecuperado: soma(lista.filter((g) => g.cobranca.status === 'paga' && (g.finalizadaEm || '').slice(0, 10) >= desde), (g) => g.cobranca.valor),
+      clienteRecuperado: soma(lista.filter((g) => g.cobranca.status === 'paga' && dentro(diaBR(g.finalizadaEm), periodo)), (g) => g.cobranca.valor),
     }
-  }, [lista, hoje, periodo])
+  }, [lista, periodo])
 }
 
 /** Janela com uma lista de garantias (cada linha abre a garantia no módulo). */
-function Lista({ titulo, itens, hoje, onFechar }: { titulo: string; itens: Gar[]; hoje: string; onFechar: () => void }) {
+function Lista({ titulo, itens, hoje, onFechar, valor, rotuloValor, detalhe }: {
+  titulo: string; itens: Gar[]; hoje: string; onFechar: () => void
+  /** R$ de cada linha (padrão = esperado) e o nome dele no cabeçalho; `detalhe` = texto extra na linha. */
+  valor?: (g: Gar) => number; rotuloValor?: string; detalhe?: (g: Gar) => string
+}) {
   const [aberta, setAberta] = useState<Gar | null>(null)
+  const v = valor || ((g: Gar) => g.esperado)
+  // Esc fecha a lista (a janela da garantia por cima trata o próprio Esc)
+  useEffect(() => {
+    if (aberta) return
+    const k = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar() }
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [aberta, onFechar])
   if (typeof document === 'undefined') return null
   return createPortal(
     <div className="gx-fundo" onClick={onFechar}>
       <div className="gx-jan" onClick={(e) => e.stopPropagation()}>
-        <div className="gx-jan-cab"><div><b>{titulo}</b><small>{itens.length} garantias · {brl(itens.reduce((s, g) => s + g.esperado, 0))} esperados</small></div><button type="button" onClick={onFechar}><i className="fas fa-xmark" /></button></div>
+        <div className="gx-jan-cab"><div><b>{titulo}</b><small>{itens.length} garantias · {brl(itens.reduce((s, g) => s + v(g), 0))} {rotuloValor || 'esperados'} · clique numa para ver tudo</small></div><button type="button" onClick={onFechar}><i className="fas fa-xmark" /></button></div>
         <div className="gx-jan-lista">
           {itens.map((g, i) => (
             <button type="button" key={g.id} onClick={() => setAberta(g)} className="gx-li" style={{ animationDelay: `${Math.min(i, 20) * 25}ms` }}>
               <span className="gx-st" style={{ background: corSt(g.status) }}>{STATUS_LABEL[g.status]}</span>
-              <div><b>{g.numero} · {g.os}</b><small>{g.cliente || '—'} · {g.modelo || ''} · {g.tecnico}{g.montadora ? ` · ${g.montadora.nome}` : ''}</small></div>
+              <div><b>{g.numero} · {g.os}</b><small>{g.cliente || '—'} · {g.modelo || ''} · {g.tecnico}{g.montadora ? ` · ${g.montadora.nome}` : ''}{detalhe ? ` · ${detalhe(g)}` : ''}</small></div>
               <em>{dias(g.criadaEm, hoje)} d</em>
-              <strong>{brl(g.esperado)}</strong>
+              <strong>{brl(v(g))}</strong>
             </button>
           ))}
           {!itens.length && <small style={{ color: MUDO, padding: 20, textAlign: 'center' }}>Nada aqui.</small>}
@@ -132,7 +149,8 @@ export function GarantiaFunil({ lista, hoje, periodo }: { lista: Gar[]; hoje: st
 /** G2 — Placar do dinheiro: em jogo, recebido, perdido e o que o cliente deve; taxa de aprovação e tempo na fábrica; por montadora. */
 export function GarantiaPlacar({ lista, hoje, periodo }: { lista: Gar[]; hoje: string; periodo: Periodo }) {
   const c = useConta(lista, hoje, periodo)
-  const [ver, setVer] = useState<{ t: string; l: Gar[] } | null>(null)
+  const [ver, setVer] = useState<{ t: string; l: Gar[]; valor?: (g: Gar) => number; rotuloValor?: string; detalhe?: (g: Gar) => string } | null>(null)
+  const destinos = useMemo(() => agruparPorDestino(c.rej), [c.rej])
   const porMont = useMemo(() => {
     const m = new Map<string, { nome: string; cor: string; ap: number; rj: number; ab: number; jogo: number }>()
     for (const g of [...c.abertas, ...c.fin]) {
@@ -188,6 +206,7 @@ export function GarantiaPlacar({ lista, hoje, periodo }: { lista: Gar[]; hoje: s
           </div>
         ))}
       </div>
+      <DestinoRejeitadas d={destinos} rotulo={periodo.rotulo} onVer={(t, l) => setVer({ t, l, valor: valorNoDestino, rotuloValor: 'no destino', detalhe: (g) => ROTULO_COBRANCA[g.cobranca.status] || g.cobranca.status })} />
       <div className="gx-duo gx-so-mont">
         <div className="gx-mont">
           <small>Por montadora (abertas + finalizadas no período)</small>
@@ -203,7 +222,47 @@ export function GarantiaPlacar({ lista, hoje, periodo }: { lista: Gar[]; hoje: s
           })}
         </div>
       </div>
-      {ver && <Lista titulo={ver.t} itens={ver.l} hoje={hoje} onFechar={() => setVer(null)} />}
+      {ver && <Lista titulo={ver.t} itens={ver.l} hoje={hoje} onFechar={() => setVer(null)} valor={ver.valor} rotuloValor={ver.rotuloValor} detalhe={ver.detalhe} />}
+    </div>
+  )
+}
+
+/** O que aconteceu com as rejeitadas do período (José, 22/10/2026): cobrado do cliente (pago / a receber),
+ *  ficou como despesa da loja ou sem definição — barra empilhada + legenda, cada pedaço abre as garantias. */
+function DestinoRejeitadas({ d, rotulo, onVer }: { d: ReturnType<typeof agruparPorDestino<Gar>>; rotulo: string; onVer: (t: string, l: Gar[]) => void }) {
+  const [foco, setFoco] = useState<string | null>(null)
+  const cobrado = d.fatias.filter((f) => f.k === 'pago' || f.k === 'a_receber')
+  const nCob = cobrado.reduce((s, f) => s + f.n, 0), vCob = cobrado.reduce((s, f) => s + f.valor, 0)
+  return (
+    <div className="gx-dest">
+      <div className="gx-dest-cab">
+        <span className="gx-ic" style={css('#dc2626')}><i className="fas fa-circle-xmark" /></span>
+        <div><b>O que aconteceu com as rejeitadas</b><small>{d.n ? `${d.n} rejeitada${d.n > 1 ? 's' : ''} em ${rotulo} · ${brl(d.total)}` : `nenhuma rejeitada em ${rotulo}`}</small></div>
+      </div>
+      {d.n > 0 && <>
+        <div className="gx-dest-barra" role="img" aria-label="rejeitadas por destino">
+          {d.fatias.filter((f) => f.n > 0).map((f) => (
+            <button key={f.k} type="button" title={`${f.rotulo}: ${f.n} · ${brl(f.valor)}`} className={foco && foco !== f.k ? 'apaga' : ''}
+              style={{ flexGrow: d.total > 0 ? Math.max(f.valor, d.total * 0.04) : f.n, background: f.cor }}
+              onMouseEnter={() => setFoco(f.k)} onMouseLeave={() => setFoco(null)} onClick={() => onVer(f.rotulo, f.itens)} />
+          ))}
+        </div>
+        <div className="gx-dest-leg">
+          {d.fatias.map((f) => (
+            <button key={f.k} type="button" disabled={!f.n} className={foco && foco !== f.k ? 'apaga' : ''} onMouseEnter={() => setFoco(f.k)} onMouseLeave={() => setFoco(null)} onClick={() => onVer(f.rotulo, f.itens)}>
+              <i style={{ background: f.cor }} />
+              <span><b>{f.rotulo}</b><small>{f.sub}</small></span>
+              <em>{f.n}</em>
+              <strong>{brl(f.valor)}</strong>
+            </button>
+          ))}
+        </div>
+        <p className="gx-dest-nota">
+          Voltou do cliente: {nCob} de {d.n} ({brl(vCob)}).
+          {d.naoCobrado > 0 && <> Nas cobradas, {brl(d.naoCobrado)} do que a fábrica negou ficou de fora da cobrança.</>}
+          {' '}Vem da cobrança ao cliente que o garantista marca no módulo Garantias.
+        </p>
+      </>}
     </div>
   )
 }
@@ -322,17 +381,20 @@ export function GarantiaMural({ lista, hoje, periodo }: { lista: Gar[]; hoje: st
   )
 }
 
-/** Janela de uma garantia: o pedido (peças, horas, km, relato), anexos, pendências, histórico e a OS em PDF. */
+/** Janela de uma garantia (José, 22/10/2026: "mais informações lá do módulo de garantia quando a gente clicar em
+ *  um caso, mostrando as fotos e tudo que está preenchido lá"): situação, destino da rejeição, valores, datas,
+ *  checklist, relatos, peças, pendências, fotos/anexos (tela cheia com setas e Esc), histórico e a OS em PDF.
+ *  Lê /api/mecanicos/garantias/[id] (só leitura, mesma guarda do painel). */
 function JanelaGarantia({ g, hoje, onFechar }: { g: Gar; hoje: string; onFechar: () => void }) {
   const [det, setDet] = useState<GarantiaDetalhe | null>(null)
   const [erro, setErro] = useState('')
   const [doc, setDoc] = useState<DocumentoVisualizavel | null>(null)
-  const [foto, setFoto] = useState<string | null>(null)
+  const [fotoIdx, setFotoIdx] = useState<number | null>(null)
   useEffect(() => {
     let ativo = true
     ;(async () => {
       try {
-        const r2 = await fetch(`/api/garantias/${g.id}`, { headers: await authHeaders(), cache: 'no-store' })
+        const r2 = await fetch(`/api/mecanicos/garantias/${g.id}`, { headers: await authHeaders(), cache: 'no-store' })
         const j = await r2.json()
         if (!ativo) return
         if (!r2.ok) setErro(j.error || `Erro ${r2.status}`); else setDet(j.garantia || j)
@@ -340,10 +402,40 @@ function JanelaGarantia({ g, hoje, onFechar }: { g: Gar; hoje: string; onFechar:
     })()
     return () => { ativo = false }
   }, [g.id])
-  const cor = corSt(g.status)
   const ehImg = (a: { url: string; content_type: string | null; nome_arquivo: string | null }) => /^image\//.test(a.content_type || '') || /\.(jpe?g|png|webp|gif|heic)$/i.test(a.nome_arquivo || a.url)
-  const CAT: Record<string, string> = { tecnico: 'do técnico', garantista: 'do garantista', foto_garantista: 'foto do garantista', envio_fabrica: 'enviado à fábrica', retorno_fabrica: 'retorno da fábrica', pendencia_pedido: 'pedido de pendência', pendencia_resposta: 'resposta de pendência', nf_venda: 'NF de venda', relatorio_at: 'relatório de assistência', devolucao_pecas: 'devolução de peças' }
+  const ehPdf = (a: { url: string; content_type: string | null; nome_arquivo: string | null }) => /pdf/i.test(a.content_type || '') || /\.pdf$/i.test(a.nome_arquivo || a.url)
+  const fotos = useMemo(() => (det?.anexos || []).filter(ehImg), [det])
+  // teclado: na foto, setas andam e Esc fecha a foto; sem foto, Esc fecha a janela
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if (doc) return
+      if (fotoIdx != null) {
+        if (e.key === 'Escape') setFotoIdx(null)
+        else if (e.key === 'ArrowRight') setFotoIdx((i) => (i == null ? i : (i + 1) % fotos.length))
+        else if (e.key === 'ArrowLeft') setFotoIdx((i) => (i == null ? i : (i - 1 + fotos.length) % fotos.length))
+        else return
+        e.preventDefault()
+      } else if (e.key === 'Escape') onFechar()
+    }
+    window.addEventListener('keydown', k)
+    return () => window.removeEventListener('keydown', k)
+  }, [fotoIdx, fotos.length, doc, onFechar])
+  const cor = corSt(g.status)
+  const CAT: Record<string, string> = { tecnico: 'do técnico', garantista: 'do garantista', foto_garantista: 'foto do garantista', envio_fabrica: 'enviado à fábrica', retorno_fabrica: 'retorno da fábrica', pendencia_pedido: 'pedido de pendência', pendencia_resposta: 'resposta de pendência', nf_venda: 'NF de venda', relatorio_at: 'relatório de assistência', devolucao_pecas: 'devolução de peças', guarda_pecas: 'onde a peça está guardada', descarte_pecas: 'descarte das peças' }
+  const dt = (s: string | null | undefined) => { const d = diaBR(s); return d ? `${d.slice(8, 10)}/${d.slice(5, 7)}/${d.slice(0, 4)}` : null }
+  const num = (v: unknown) => { const x = Number(v); return Number.isFinite(x) ? x : 0 }
+  const rejeitada = g.status === 'rejeitada'
+  const dest = rejeitada ? DESTINOS.find((x) => x.k === destinoRejeicao(det?.cobranca_status ?? g.cobranca.status))! : null
+  const pecasAprov = (det?.pecas || []).filter((x) => x.resultado === 'aprovada').reduce((s, x) => s + num(x.quantidade) * num(x.preco_unitario), 0)
+  const datas: [string, string | null][] = [
+    ['Aberta', dt(g.criadaEm)], ['Enviada à fábrica', dt(det?.enviada_fabrica_em ?? g.enviadaEm)], ['Peças voltaram', dt(det?.pecas_retorno_em)],
+    ['Ressarcimento pedido', dt(det?.ressarcimento_enviado_em)], ['Resposta / fechada', dt(det?.finalizada_em ?? g.finalizadaEm)],
+  ]
+  const check = (det?.checklist_snapshot || []).filter((c) => c.tipo !== 'file')
+  const resp = (det?.checklist_respostas || {}) as Record<string, unknown>
+  const textoResp = (v: unknown) => (v == null || v === '' ? '—' : typeof v === 'boolean' ? (v ? 'Sim' : 'Não') : Array.isArray(v) ? v.join(', ') : String(v))
   if (typeof document === 'undefined') return null
+  const foto = fotoIdx != null ? fotos[fotoIdx] : null
   return createPortal(
     <div className="gj-fundo" onClick={onFechar}>
       <div className="gj" style={css(cor)} onClick={(e) => e.stopPropagation()}>
@@ -351,25 +443,47 @@ function JanelaGarantia({ g, hoje, onFechar }: { g: Gar; hoje: string; onFechar:
           <span className="gx-st" style={{ background: cor }}>{STATUS_LABEL[g.status]}</span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h3>{g.numero}{g.numeroExterno ? <small> · nº fábrica {g.numeroExterno}</small> : null}</h3>
-            <span>{g.cliente || '—'} · {g.modelo || 'modelo?'}{g.chassis ? ` · chassi ${g.chassis}` : ''} · {g.montadora?.nome || 'sem montadora'} · aberta há {dias(g.criadaEm, hoje)} dias</span>
+            <span>{g.cliente || '—'} · {g.modelo || 'modelo?'}{g.chassis ? ` · chassi ${g.chassis}` : ''} · {g.montadora?.nome || 'sem montadora'} · OS {g.os} · aberta há {dias(g.criadaEm, hoje)} dias</span>
           </div>
           <strong>{brl(g.esperado)}</strong>
-          <button type="button" className="gj-x" onClick={onFechar} title="Fechar"><i className="fas fa-xmark" /></button>
+          <button type="button" className="gj-x" onClick={onFechar} title="Fechar (Esc)"><i className="fas fa-xmark" /></button>
         </div>
         <div className="gj-corpo">
+          {dest && (
+            <div className="gj-dest" style={css(dest.cor)}>
+              <span className="gx-ic"><i className={`fas ${dest.k === 'despesa' ? 'fa-store' : dest.k === 'sem_definicao' ? 'fa-circle-question' : 'fa-hand-holding-dollar'}`} /></span>
+              <div>
+                <b>{dest.rotulo}</b>
+                <small>Cobrança ao cliente: {ROTULO_COBRANCA[det?.cobranca_status ?? g.cobranca.status] || g.cobranca.status}
+                  {num(det?.cobranca_valor_total ?? g.cobranca.valor) > 0 ? ` · ${brl(num(det?.cobranca_valor_total ?? g.cobranca.valor))}` : ''}
+                  {det?.cobranca_vencimento ? ` · vence ${dt(det.cobranca_vencimento)}` : ''}
+                  {det?.cobranca_cobrada_em ? ` · cobrada em ${dt(det.cobranca_cobrada_em)}` : ''}
+                  {det?.cobranca_pago_em ? ` · paga em ${dt(det.cobranca_pago_em)}` : ''}
+                  {det?.cobranca_baixada_em ? ` · baixada em ${dt(det.cobranca_baixada_em)}` : ''}</small>
+                {det?.cobranca_obs && <p>{det.cobranca_obs}</p>}
+              </div>
+              <strong>{brl(valorNoDestino(g))}</strong>
+            </div>
+          )}
+          {g.motivo && <div className="gj-motivo"><i className="fas fa-circle-xmark" /> Motivo da recusa{g.recusadoPor ? ` (${g.recusadoPor === 'garantista' ? 'nosso garantista' : 'fábrica'})` : ''}: {g.motivo}</div>}
           <div className="gj-vals">
-            <div><small>Peças</small><b>{brl(g.valorPecas)}</b></div>
+            <div><small>Pedido à fábrica</small><b>{brl(g.esperado)}</b><span>peças + serviço</span></div>
+            <div><small>Peças</small><b>{brl(g.valorPecas)}</b>{det && <span>aprovadas {brl(pecasAprov)}</span>}</div>
             <div><small>Serviço (hora + km)</small><b>{brl(g.valorServico)}</b><span>{g.horas} h · {g.km} km</span></div>
-            <div><small>Esperado da fábrica</small><b>{brl(g.esperado)}</b></div>
-            <div><small>Pago pela fábrica</small><b style={{ color: g.pago > 0 ? '#047857' : undefined }}>{brl(g.pago)}</b></div>
+            <div><small>Pago pela fábrica</small><b style={{ color: g.pago > 0 ? '#047857' : undefined }}>{brl(g.pago)}</b>
+              {det && (det.valor_pago_pecas != null || det.valor_pago_horas != null || det.valor_pago_km != null) && <span>peças {brl(num(det.valor_pago_pecas))} · MO {brl(num(det.valor_pago_horas))} · km {brl(num(det.valor_pago_km))}</span>}</div>
+          </div>
+          <div className="gj-datas">
+            {datas.map(([r, d]) => <span key={r} className={d ? '' : 'vazio'}><small>{r}</small>{d || '—'}</span>)}
           </div>
           <div className="gj-info">
-            <span><small>OS</small>{g.os}</span><span><small>Técnico</small>{g.tecnico}</span><span><small>Garantista</small>{g.garantista || '—'}</span>
-            <span><small>Enviada à fábrica</small>{g.enviadaEm ? `${g.enviadaEm.slice(8, 10)}/${g.enviadaEm.slice(5, 7)} (há ${dias(g.enviadaEm, hoje)} d)` : 'ainda não'}</span>
-            {g.cobranca.status !== 'nao_aplicavel' && <span><small>Cobrança ao cliente</small>{g.cobranca.status}{g.cobranca.valor ? ` · ${brl(g.cobranca.valor)}` : ''}</span>}
-            {g.devolucao.status !== 'nao_aplicavel' && <span><small>Devolução de peças</small>{g.devolucao.status}{g.devolucao.prazo ? ` até ${g.devolucao.prazo.slice(8, 10)}/${g.devolucao.prazo.slice(5, 7)}` : ''}</span>}
+            <span><small>Técnico</small>{g.tecnico || '—'}{det ? ` · ${num(det.tecnico_horas)} h · ${num(det.tecnico_km)} km` : ''}</span>
+            <span><small>Garantista</small>{g.garantista || '—'}{det && (det.garantista_horas != null || det.garantista_km != null) ? ` · ${num(det.garantista_horas)} h · ${num(det.garantista_km)} km` : ''}</span>
+            {det?.localizacao && <span><small>Peça guardada em</small>{det.localizacao}</span>}
+            {g.devolucao.status !== 'nao_aplicavel' && <span><small>Devolução de peças</small>{g.devolucao.status}{g.devolucao.prazo ? ` até ${dt(g.devolucao.prazo)}` : ''}{det?.devolucao_nf ? ` · NF ${det.devolucao_nf}` : ''}</span>}
+            {det?.guarda_status && det.guarda_status !== 'nao_aplicavel' && <span><small>Guarda de peças</small>{det.guarda_status}{det.guarda_prazo ? ` · pode descartar a partir de ${dt(det.guarda_prazo)}` : ''}</span>}
+            {!rejeitada && g.cobranca.status !== 'nao_aplicavel' && <span><small>Cobrança ao cliente</small>{ROTULO_COBRANCA[g.cobranca.status] || g.cobranca.status}{g.cobranca.valor ? ` · ${brl(g.cobranca.valor)}` : ''}</span>}
           </div>
-          {g.motivo && <div className="gj-motivo"><i className="fas fa-circle-xmark" /> <b>Motivo da recusa{g.recusadoPor ? ` (${g.recusadoPor})` : ''}:</b> {g.motivo}</div>}
           {!det && !erro && <div className="gj-carr"><i className="fas fa-circle-notch fa-spin" /> carregando o pedido…</div>}
           {erro && <div className="gj-erro">{erro}</div>}
           {det && <>
@@ -377,6 +491,16 @@ function JanelaGarantia({ g, hoje, onFechar }: { g: Gar; hoje: string; onFechar:
               <div className="gj-txt">
                 {det.tecnico_obs && <div><small>Relato do técnico</small><p>{det.tecnico_obs}</p></div>}
                 {det.garantista_obs && <div><small>Observação do garantista</small><p>{det.garantista_obs}</p></div>}
+              </div>
+            )}
+            {check.length > 0 && (
+              <div className="gj-bloco">
+                <b><i className="fas fa-list-check" /> Checklist da montadora</b>
+                <div className="gj-check">
+                  {check.map((c) => c.tipo === 'secao'
+                    ? <em key={c.id}>{c.label}</em>
+                    : <span key={c.id}><small>{c.label}</small>{textoResp(resp[c.id])}</span>)}
+                </div>
               </div>
             )}
             <div className="gj-bloco">
@@ -392,31 +516,45 @@ function JanelaGarantia({ g, hoje, onFechar }: { g: Gar; hoje: string; onFechar:
               </div>
             )}
             <div className="gj-bloco">
-              <b><i className="fas fa-paperclip" /> Anexos ({det.anexos.length})</b>
+              <b><i className="fas fa-camera" /> Fotos e anexos ({det.anexos.length})</b>
               {det.anexos.length ? (
                 <div className="gj-anexos">
                   {det.anexos.map((a) => ehImg(a)
-                    ? <button key={a.id} type="button" className="gj-foto" onClick={() => setFoto(a.url)} title={a.nome_arquivo || ''}>
+                    ? <button key={a.id} type="button" className="gj-foto" onClick={() => setFotoIdx(fotos.indexOf(a))} title={a.nome_arquivo || ''}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={a.url} alt="" loading="lazy" /><small>{CAT[a.categoria] || a.categoria}</small></button>
-                    : <button key={a.id} type="button" className="gj-arq" onClick={() => setDoc({ titulo: a.nome_arquivo || 'Anexo', url: a.url, nome: a.nome_arquivo || 'anexo' })}><i className="fas fa-file-pdf" /><span>{a.nome_arquivo || 'arquivo'}</span><small>{CAT[a.categoria] || a.categoria}</small></button>)}
+                    : ehPdf(a)
+                      ? <button key={a.id} type="button" className="gj-arq" onClick={() => setDoc({ titulo: a.nome_arquivo || 'Anexo', url: a.url, nome: a.nome_arquivo || 'anexo' })}><i className="fas fa-file-pdf" /><span>{a.nome_arquivo || 'arquivo'}</span><small>{CAT[a.categoria] || a.categoria}</small></button>
+                      : <a key={a.id} className="gj-arq" href={a.url} target="_blank" rel="noreferrer"><i className="fas fa-file-arrow-down" style={{ color: '#2563eb' }} /><span>{a.nome_arquivo || 'arquivo'}</span><small>{CAT[a.categoria] || a.categoria}</small></a>)}
                 </div>
               ) : <small className="gj-nada">nenhum anexo</small>}
             </div>
             {det.eventos.length > 0 && (
               <div className="gj-bloco">
                 <b><i className="fas fa-clock-rotate-left" /> Histórico</b>
-                <div className="gj-hist">{det.eventos.slice(0, 10).map((e) => <div key={e.id}><em>{e.created_at.slice(8, 10)}/{e.created_at.slice(5, 7)}</em><span>{e.status_novo ? `→ ${STATUS_LABEL[e.status_novo as GarantiaStatus] || e.status_novo}` : e.tipo}{e.detalhe ? ` · ${e.detalhe}` : ''}</span><small>{e.ator || ''}</small></div>)}</div>
+                <div className="gj-hist">{det.eventos.slice(0, 25).map((e) => <div key={e.id}><em>{dt(e.created_at)?.slice(0, 5)}</em><span>{e.status_novo ? `→ ${STATUS_LABEL[e.status_novo as GarantiaStatus] || e.status_novo}` : e.tipo}{e.detalhe ? ` · ${e.detalhe}` : ''}</span><small>{e.ator || ''}</small></div>)}</div>
               </div>
             )}
           </>}
         </div>
         <div className="gj-rodape">
           <button type="button" onClick={() => setDoc({ titulo: `${g.os} · ${g.cliente || ''}`, url: `/api/pos/ordens/${encodeURIComponent(g.os)}/print`, nome: g.os })}><i className="fas fa-file-lines" /> Ver a OS</button>
-          <a href={`/garantias?id=${g.id}`} target="_blank" rel="noreferrer"><i className="fas fa-arrow-up-right-from-square" /> Abrir no módulo de Garantias</a>
+          {det?.retorno_fabrica_url && <a href={det.retorno_fabrica_url} target="_blank" rel="noreferrer"><i className="fas fa-industry" /> Retorno da fábrica</a>}
+          <a href={`/garantias?id=${g.id}`} target="_blank" rel="noreferrer"><i className="fas fa-arrow-up-right-from-square" /> Abrir no módulo Garantias</a>
         </div>
       </div>
-      {foto && <div className="gj-zoom" onClick={(e) => { e.stopPropagation(); setFoto(null) }}>{/* eslint-disable-next-line @next/next/no-img-element */}<img src={foto} alt="" /></div>}
+      {foto && (
+        <div className="gj-zoom" onClick={(e) => { e.stopPropagation(); setFotoIdx(null) }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={foto.url} alt="" onClick={(e) => e.stopPropagation()} />
+          <span className="gj-zoom-leg">{fotoIdx! + 1} de {fotos.length} · {CAT[foto.categoria] || foto.categoria}{foto.nome_arquivo ? ` · ${foto.nome_arquivo}` : ''}</span>
+          <button type="button" className="gj-zoom-x" onClick={(e) => { e.stopPropagation(); setFotoIdx(null) }} title="Fechar (Esc)"><i className="fas fa-xmark" /></button>
+          {fotos.length > 1 && <>
+            <button type="button" className="gj-zoom-s esq" onClick={(e) => { e.stopPropagation(); setFotoIdx((fotoIdx! - 1 + fotos.length) % fotos.length) }} title="anterior (←)"><i className="fas fa-chevron-left" /></button>
+            <button type="button" className="gj-zoom-s dir" onClick={(e) => { e.stopPropagation(); setFotoIdx((fotoIdx! + 1) % fotos.length) }} title="seguinte (→)"><i className="fas fa-chevron-right" /></button>
+          </>}
+        </div>
+      )}
       {doc && <div className="gj-doc" onClick={(e) => e.stopPropagation()}><VisualizadorDocumento key={doc.url} doc={doc} onClose={() => setDoc(null)} /></div>}
     </div>,
     document.body,
@@ -437,16 +575,28 @@ function AnelPct({ pct, cor, atraso }: { pct: number | null; cor: string; atraso
 /** Garantias no Painel (G2 escolhida na página de teste, 19/10): Placar com o período das finalizadas. */
 export function GarantiasNoPainel() {
   const { dados, erro } = useGarantias()
-  const [periodo, setPeriodo] = useState<Periodo>('90')
+  // José, 22/10/2026: "por dia, mês e ano" — padrão = mês de hoje; setas andam um dia/mês/ano
+  const [per, setPer] = useState<Janela | null>(null)
   if (erro) return <div className="gx-caixa" style={{ color: '#b91c1c' }}>{erro}</div>
   if (!dados) return <div className="gx-caixa" style={{ color: MUDO }}><span><i className="fas fa-circle-notch fa-spin" /> carregando as garantias…</span></div>
+  const periodo = per || janela('mes', dados.hoje)
+  const atual = ehAtual(periodo, dados.hoje)
   return (
     <div className="gx-painel">
       <div className="gx-per">
-        <small>Aprovadas e rejeitadas de:</small>
-        {([['mes', 'Este mês'], ['90', '90 dias'], ['ano', 'Último ano'], ['tudo', 'Tudo']] as const).map(([k, r]) => <button key={k} type="button" className={periodo === k ? 'on' : ''} onClick={() => setPeriodo(k)}>{r}</button>)}
+        <small>Aprovadas e rejeitadas fechadas em</small>
+        <span className="gx-per-esc">
+          {([['dia', 'Dia'], ['mes', 'Mês'], ['ano', 'Ano']] as [Escala, string][]).map(([k, r]) => <button key={k} type="button" className={periodo.escala === k ? 'on' : ''} onClick={() => setPer(trocarEscala(periodo, k, dados.hoje))}>{r}</button>)}
+        </span>
+        <span className="gx-per-nav">
+          <button type="button" onClick={() => setPer(andar(periodo, -1))} title="anterior" aria-label="período anterior"><i className="fas fa-chevron-left" /></button>
+          <b>{periodo.rotulo}</b>
+          <button type="button" onClick={() => setPer(andar(periodo, 1))} disabled={atual} title="seguinte" aria-label="período seguinte"><i className="fas fa-chevron-right" /></button>
+        </span>
+        {!atual && <button type="button" className="gx-per-hoje" onClick={() => setPer(janela(periodo.escala, dados.hoje))}>voltar para hoje</button>}
       </div>
-      <GarantiaPlacar key={periodo} lista={dados.garantias} hoje={dados.hoje} periodo={periodo} />
+      <GarantiaPlacar key={`${periodo.escala}|${periodo.de}`} lista={dados.garantias} hoje={dados.hoje} periodo={periodo} />
+      <p className="gx-per-nota">Aprovadas, rejeitadas, recebido e o que voltou do cliente seguem o período, pela data em que a garantia foi fechada. &quot;Esperando&quot; e &quot;cliente deve&quot; são a situação de hoje.</p>
     </div>
   )
 }
@@ -561,4 +711,33 @@ button.gx-mont-l { border: none; background: transparent; font-family: inherit; 
 .gj-rodape button, .gj-rodape a { display: inline-flex; gap: 6px; align-items: center; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 7px 14px; font-family: inherit; font-weight: 800; font-size: 13px; color: var(--portal-text, #334155); cursor: pointer; text-decoration: none } .gj-rodape button:hover, .gj-rodape a:hover { border-color: #2563eb; color: #2563eb }
 .gj-zoom { position: fixed; inset: 0; z-index: 100090; background: rgba(15,23,42,.85); display: grid; place-items: center; padding: 20px; cursor: zoom-out; animation: gxEntra .2s both } .gj-zoom img { max-width: 100%; max-height: 100%; border-radius: 12px }
 .gj-doc { position: fixed; inset: 0; z-index: 100090 }
+/* 22/10/2026: período Dia · Mês · Ano, destino das rejeitadas e janela completa do caso (estilo POS NewPortal: sem negrito, sem caixa alta) */
+.gx-per { justify-content: flex-start; gap: 10px } .gx-per small { font-weight: 400; font-size: 13px }
+.gx-per-esc { display: inline-flex; gap: 4px } .gx-per-esc button { font-weight: 500 }
+.gx-per-nav { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 2px 4px }
+.gx-per-nav b { font-weight: 500; font-size: 13.5px; min-width: 130px; text-align: center; color: var(--portal-text, #0f172a); text-transform: none }
+.gx-per .gx-per-nav button { border: none; background: transparent; width: 28px; height: 28px; padding: 0; border-radius: 50%; color: ${MUDO} } .gx-per .gx-per-nav button:hover:not(:disabled) { background: var(--portal-bg-secondary, #f1f5f9); color: var(--portal-text, #0f172a) } .gx-per .gx-per-nav button:disabled { opacity: .35; cursor: default }
+.gx-per .gx-per-hoje { border: none; background: transparent; color: #2563eb; font-weight: 400; padding: 4px 6px }
+.gx-per-nota { margin: 0; font-size: 12.5px; color: ${MUDO} }
+.gx-dest { display: grid; gap: 12px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 16px; padding: 14px 16px; animation: gxEntra .45s both }
+.gx-dest-cab { display: flex; gap: 10px; align-items: center } .gx-dest-cab > div { display: grid } .gx-dest-cab b { font-size: 15.5px; font-weight: 500; color: var(--portal-text, #0f172a) } .gx-dest-cab small { font-size: 13px; color: ${MUDO} }
+.gx-dest-barra { display: flex; gap: 3px; height: 22px; border-radius: 8px; overflow: hidden; transform-origin: left; animation: gxLado .8s cubic-bezier(.2,.8,.2,1) both }
+.gx-dest-barra button { flex-basis: 0; min-width: 8px; border: none; padding: 0; cursor: pointer; transition: opacity .2s } .gx-dest-barra button.apaga, .gx-dest-leg button.apaga { opacity: .35 }
+.gx-dest-leg { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px }
+.gx-dest-leg button { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; border: 1px solid var(--portal-border, #eef2f7); background: var(--portal-bg-card, #fefefe); border-radius: 12px; padding: 8px 12px; font-family: inherit; text-align: left; cursor: pointer; color: var(--portal-text, #0f172a); transition: opacity .2s, border-color .2s }
+.gx-dest-leg button:hover:not(:disabled) { border-color: #94a3b8 } .gx-dest-leg button:disabled { cursor: default; opacity: .5 }
+.gx-dest-leg i { width: 12px; height: 12px; border-radius: 4px } .gx-dest-leg span { display: grid; min-width: 0 } .gx-dest-leg span b { font-size: 13.5px; font-weight: 500 } .gx-dest-leg span small { font-size: 12px; color: ${MUDO} }
+.gx-dest-leg em { font-style: normal; font-size: 13px; color: ${MUDO} } .gx-dest-leg strong { font-weight: 500; font-size: 14.5px; font-variant-numeric: tabular-nums }
+.gx-dest-nota { margin: 0; font-size: 12.5px; color: ${MUDO} }
+.gj-dest { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; border-radius: 14px; padding: 10px 14px; background: color-mix(in srgb, var(--c) 7%, var(--portal-bg-card, #fefefe)); border: 1px solid color-mix(in srgb, var(--c) 22%, transparent) }
+.gj-dest > div { display: grid; gap: 2px } .gj-dest b { font-size: 15px; font-weight: 500; color: var(--c) } .gj-dest small { font-size: 12.5px; color: ${MUDO} } .gj-dest p { margin: 2px 0 0; font-size: 13px; white-space: pre-wrap } .gj-dest > strong { font-weight: 500; font-size: 18px; font-variant-numeric: tabular-nums }
+.gj-datas { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px }
+.gj-datas span { display: grid; font-size: 14px; border: 1px solid var(--portal-border, #eef2f7); border-radius: 12px; padding: 6px 10px; font-variant-numeric: tabular-nums } .gj-datas span.vazio { color: ${MUDO} } .gj-datas small, .gj-check small { font-size: 12px; color: ${MUDO}; text-transform: none; font-weight: 400 }
+.gj-check { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 14px } .gj-check span { display: grid; font-size: 13.5px } .gj-check em { grid-column: 1 / -1; font-style: normal; font-size: 13px; color: var(--c); margin-top: 4px }
+a.gj-arq { text-decoration: none; color: inherit }
+.gj-zoom { cursor: default } .gj-zoom img { max-height: calc(100vh - 90px); cursor: default }
+.gj-zoom-leg { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); color: #fefefe; font-size: 13px; background: rgba(15,23,42,.6); border-radius: 99px; padding: 4px 12px; white-space: nowrap; max-width: 90vw; overflow: hidden; text-overflow: ellipsis }
+.gj-zoom-x, .gj-zoom-s { position: absolute; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(254,254,254,.35); background: rgba(15,23,42,.55); color: #fefefe; cursor: pointer; display: grid; place-items: center; font-size: 16px }
+.gj-zoom-x { top: 14px; right: 14px } .gj-zoom-s { top: 50%; transform: translateY(-50%) } .gj-zoom-s.esq { left: 14px } .gj-zoom-s.dir { right: 14px } .gj-zoom-x:hover, .gj-zoom-s:hover { background: rgba(15,23,42,.8) }
+.gj-motivo { font-weight: 400 }
 `

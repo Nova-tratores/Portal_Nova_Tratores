@@ -2,7 +2,7 @@
 // Cards dos técnicos — 2ª leva (José, 19/10/2026: "apaga esse, estão todos ridículos e me surpreenda").
 // Metas: R$ 20 mil/mês por mecânico, 20 h/semana, comparando com a ideal de 40 h/semana.
 // Dados reais: base do pós-vendas (mês atual) + comissões e fotos (useCarreira).
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { montarPainel, SEM_META, SEM_TECNICO } from '@/lib/mecanicos/painel'
 import { useBasePosVendas } from './useBasePosVendas'
 import { useCarreira } from './useCarreira'
@@ -571,51 +571,15 @@ function SemanaHoras({ c }: { c: CardDados }) {
     </div>
   )
 }
-function NumVivo({ v, f }: { v: number; f: (n: number) => string }) { return <>{f(useContador(v, 1100))}</> }
+/** Faturado e horas do mês lado a lado, parados (José, 22/10/2026: "tira essa animação e só coloca as
+ *  informações de hora e valor faturado; tira a legenda de meta na capa do card"). A meta continua no detalhe. */
 function ContVivo({ c }: { c: CardDados }) {
-  const [aba, setAba] = useState<'valor' | 'horas'>('valor')
-  const [pausa, setPausa] = useState(false)
-  const [dia, setDia] = useState<number | null>(null)
-  useEffect(() => {
-    if (pausa) return
-    const t = setInterval(() => setAba((a) => (a === 'valor' ? 'horas' : 'valor')), 6000)
-    return () => clearInterval(t)
-  }, [pausa])
-  const ehV = aba === 'valor'
-  const serie = ehV ? c.diaValor : c.diaHoras
-  const total = ehV ? c.faturado : c.horas
-  const meta = ehV ? c.metaValor : c.metaHoras
-  const ideal = ehV ? c.idealValor : c.idealHoras
-  const f = ehV ? brl : horas
-  const cor = ehV ? '#2563eb' : '#0891b2'
-  const n = c.diasMes, hoje = c.diaHoje
-  const topo = Math.max(ideal || meta, total, ...serie) * 1.08 || 1
-  const W = 260, H = 90
-  const x = (d: number) => ((d - 1) / Math.max(1, n - 1)) * W
-  const y = (v: number) => H - (v / topo) * H
-  const linha = serie.slice(0, hoje).map((v, k) => `${k ? 'L' : 'M'}${x(k + 1).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
-  const faltam = Math.max(0, meta - total)
-  const diasRest = Math.max(0, n - hoje)
-  const uteisRest = Math.max(1, Math.round(diasRest * (5 / 7)))
-  const pct = Math.round((total / Math.max(1, meta)) * 100)
-  const esperado = meta * (hoje / n)
-  const adiantado = total >= esperado
   return (
-    <div className="cv" style={{ '--c': cor } as React.CSSProperties} onMouseEnter={() => setPausa(true)} onMouseLeave={() => { setPausa(false); setDia(null) }}>
-      <div className="cv-abas">
-        {(['valor', 'horas'] as const).map((k) => <button key={k} type="button" className={aba === k ? 'on' : ''} onClick={() => setAba(k)}><i className={`fas ${k === 'valor' ? 'fa-sack-dollar' : 'fa-clock'}`} /> {k === 'valor' ? 'Faturado' : 'Horas'}</button>)}
-        {!pausa && <span className="cv-auto" key={aba}><i /></span>}
+    <div className="cv">
+      <div className="cv-par">
+        <div><small><i className="fas fa-sack-dollar" /> Faturado no mês</small><b>{brl(c.faturado)}</b></div>
+        <div><small><i className="fas fa-clock" /> Horas no mês</small><b>{horas(c.horas)}</b></div>
       </div>
-      <div className="cv-num" key={`n${aba}`}>
-        <b><NumVivo key={aba} v={total} f={f} /></b>
-        <span className={`cv-pct ${pct >= 100 ? 'ok' : ''}`} title={`Meta do mês: ${f(meta)} = ${ehV ? 'R$ 4 mil' : '20 h'} por semana × ${(n / 7).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} semanas`}>{pct}% da meta do mês</span>
-      </div>
-      <p className="cv-frase" key={`f${aba}`}>
-        {faltam <= 0
-          ? <><i className="fas fa-trophy" style={{ color: '#d97706' }} /> Bateu a meta do mês ({f(meta)}){ideal != null ? <> · já tem {Math.round((total / ideal) * 100)}% da ideal de {f(ideal)}</> : null}</>
-          : <>Para a meta do mês ({f(meta)}) faltam <b>{f(faltam)}</b> em {diasRest} dias: <b>{f(faltam / uteisRest)}</b> por dia útil. {adiantado ? <em className="ok">Está à frente do ritmo.</em> : <em className="ruim">Está {f(esperado - total)} atrás do ritmo.</em>}</>}
-      </p>
-      {/* gráfico do mês tirado (José, 21/10/2026: "remove esse gráfico do card") */}
     </div>
   )
 }
@@ -661,6 +625,10 @@ export function S1Estilo({ cards, contador, onAbrir, semFoto }: { cards: CardDad
 export const ESTILO_CT3 = `
 @keyframes cvTraça { from { stroke-dashoffset: 1 } } @keyframes cvBarra { from { transform: scaleX(0) } to { transform: scaleX(1) } } @keyframes cvPulso { 0% { r: 4.5 } 50% { r: 7 } 100% { r: 4.5 } }
 .cv { display: grid; gap: 6px; padding: 12px 16px 4px }
+.cv-par { display: grid; grid-template-columns: 1fr 1fr; gap: 10px }
+.cv-par > div { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--portal-border, #e2e8f0); border-radius: 12px; background: var(--portal-bg-card, #fefefe) }
+.cv-par small { font-size: 12.5px; color: var(--portal-text-secondary, #475569) } .cv-par small i { color: #2563eb; margin-right: 4px } .cv-par > div:last-child small i { color: #0891b2 }
+.cv-par b { font-size: 22px; font-weight: 500; letter-spacing: -.01em; font-variant-numeric: tabular-nums; color: var(--portal-text, #0f172a) }
 .cv-abas { position: relative; display: flex; gap: 4px; background: #eef2f7; border-radius: 12px; padding: 3px }
 .cv-abas button { flex: 1; border: none; background: transparent; border-radius: 9px; padding: 6px 8px; font-family: inherit; font-size: 12.5px; font-weight: 800; color: ${MUDO}; cursor: pointer; transition: all .25s } .cv-abas button.on { background: #fefefe; color: var(--c); box-shadow: 0 2px 6px rgba(15,23,42,.1) }
 .cv-auto { position: absolute; left: 6px; right: 6px; bottom: 1px; height: 2px; border-radius: 99px; overflow: hidden } .cv-auto i { display: block; height: 100%; background: var(--c); opacity: .5; transform-origin: left; animation: cvBarra 6s linear both }

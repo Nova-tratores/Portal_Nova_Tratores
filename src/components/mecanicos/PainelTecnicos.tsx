@@ -337,14 +337,14 @@ export function TrilhoAssuntos({ mostrar = true, topo = false, soAoRolar = false
   const lista = assuntos.filter((a) => existe.includes(a.n))
   const cor = assuntos.find((a) => a.n === atual)?.cor || '#2563eb'
   const ir = (n: number) => document.getElementById(`sec-${n}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  // bolinhas numeradas em cima, com os títulos (José 19/10: "pro usuário clicar e ir pro módulo")
+  // barra fina de abas em texto (José 22/10: "um outro estilo, algo mais simples") — sem bolinhas numeradas nem linha;
+  // a seção atual fica em texto escuro com um sublinhado fino na cor dela
   if (topo) {
     const nav = (
     <nav className="pt-atalhos" aria-label="Assuntos do painel">
-      <div className="pt-atalhos-trilha"><i style={{ transform: `scaleX(${prog})`, background: `linear-gradient(90deg, #2563eb, ${cor})` }} /></div>
-      {lista.map((a, k) => (
-        <button key={a.n} type="button" className={atual === a.n ? 'on' : atual > a.n ? 'feito' : ''} style={{ '--c': a.cor, animationDelay: `${k * 80}ms` } as React.CSSProperties} onClick={() => ir(a.n)}>
-          <em>{String(a.n).padStart(2, '0')}</em><b>{a.titulo}</b>
+      {lista.map((a) => (
+        <button key={a.n} type="button" className={atual === a.n ? 'on' : ''} aria-current={atual === a.n ? 'true' : undefined} style={{ '--c': a.cor } as React.CSSProperties} onClick={() => ir(a.n)}>
+          <i className={`fas ${a.ic}`} /><span>{a.titulo}</span>
         </button>
       ))}
     </nav>
@@ -380,15 +380,14 @@ const ESTILO_TRILHO = `
 .pt-atalhos-ancora { position: sticky; top: 92px; z-index: 30; height: 0 }
 .pt-atalhos-ancora > .pt-atalhos { position: absolute; left: 0; right: 0; top: 0; margin: 0; opacity: 0; transform: translateY(-12px); pointer-events: none; transition: opacity .25s, transform .25s }
 .pt-atalhos-ancora.on > .pt-atalhos { opacity: 1; transform: none; pointer-events: auto }
-.pt-atalhos { position: sticky; top: 92px; z-index: 30; display: flex; gap: 6px; justify-content: space-between; margin: 0 0 14px; padding: 8px 10px; border-radius: 99px; background: color-mix(in srgb, var(--portal-bg-card, #fefefe) 88%, transparent); backdrop-filter: blur(10px); box-shadow: 0 1px 2px rgba(15,23,42,.06), 0 6px 18px rgba(15,23,42,.06); border: 1px solid var(--portal-border, #e5e7eb); overflow-x: auto; scrollbar-width: none }
+/* barra de cima: abas em texto, fina e quieta (22/10/2026) */
+.pt-atalhos { position: sticky; top: 92px; z-index: 30; box-sizing: border-box; display: flex; align-items: stretch; gap: 22px; min-height: 40px; margin: 0 0 14px; padding: 0 16px; background: var(--portal-bg-card, #fefefe); border-bottom: 1px solid var(--portal-border, #e2e8f0); overflow-x: auto; overflow-y: hidden; scrollbar-width: none }
 .pt-atalhos::-webkit-scrollbar { display: none }
-.pt-atalhos-trilha { position: absolute; left: 34px; right: 34px; top: 50%; height: 2px; margin-top: -1px; background: var(--portal-border, #e2e8f0); pointer-events: none } .pt-atalhos-trilha i { display: block; height: 100%; transform-origin: left; transition: transform .35s cubic-bezier(.2,.8,.2,1) }
-.pt-atalhos button { position: relative; display: inline-flex; gap: 8px; align-items: center; border: none; background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 4px 12px 4px 4px; font-family: inherit; cursor: pointer; white-space: nowrap; animation: ptTrEntra .45s cubic-bezier(.2,.8,.2,1) both; transition: background .25s }
-.pt-atalhos button em { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-size: 12.5px; font-weight: 900; color: var(--c); background: #fefefe; border: 2px solid color-mix(in srgb, var(--c) 35%, transparent); transition: all .35s cubic-bezier(.3,1.4,.5,1) }
-.pt-atalhos button b { font-size: 13px; font-weight: 700; color: var(--portal-text-muted, #64748b); transition: color .25s }
-.pt-atalhos button:hover { background: color-mix(in srgb, var(--c) 8%, var(--portal-bg-card, #fefefe)) } .pt-atalhos button:hover em { transform: scale(1.1); border-color: var(--c) }
-.pt-atalhos button.feito em { border-color: var(--c) }
-.pt-atalhos button.on { background: color-mix(in srgb, var(--c) 10%, var(--portal-bg-card, #fefefe)) } .pt-atalhos button.on em { background: var(--c); border-color: var(--c); color: #fefefe; box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 18%, transparent) } .pt-atalhos button.on b { color: var(--portal-text, #0f172a); font-weight: 900 }
+.pt-atalhos button { flex: none; display: inline-flex; align-items: center; gap: 7px; border: none; border-radius: 0; background: transparent; padding: 0 2px; font-family: inherit; font-size: 13.5px; font-weight: 400; color: var(--portal-text-muted, #64748b); cursor: pointer; white-space: nowrap; transition: color .15s, box-shadow .15s }
+.pt-atalhos button i { font-size: 12px; color: var(--c); opacity: .7; transition: opacity .15s }
+.pt-atalhos button:hover { color: var(--portal-text, #0f172a) } .pt-atalhos button:hover i { opacity: 1 }
+.pt-atalhos button.on { color: var(--portal-text, #0f172a); font-weight: 500; box-shadow: inset 0 -2px 0 var(--c) } .pt-atalhos button.on i { opacity: 1 }
+.pt-atalhos button:focus-visible { outline: 2px solid var(--c); outline-offset: -2px }
 .pt-trilho { position: sticky; top: 96px; align-self: start; padding-top: 4px }
 .pt-trilho-in > small { display: block; font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; color: var(--portal-text-muted, #64748b); margin: 0 0 8px 4px }
 .pt-trilho-lista { position: relative; display: grid; gap: 6px }

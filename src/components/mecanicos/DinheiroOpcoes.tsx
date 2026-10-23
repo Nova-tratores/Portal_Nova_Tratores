@@ -348,7 +348,11 @@ export function useSimulacao(c: Conta) {
   // ---- empate e meta: gastos crescem junto com o faturamento (proporção do cenário), pessoal é fixo
   const taxaG = bruto ? gastos / bruto : 0
   const precisa = (r100: number) => { const den = 1 - taxaG - r100 / 100; return den > 0 ? pessoal / den : Infinity }
-  const empate = precisa(0), alvo = precisa(meta)
+  // META = passar o período anterior (José, 23/10/2026: "a meta é passar o mês passado"). A meta em %
+  // ("quero que sobre R$ X de cada 100") ficou só na página de teste (alvoPct).
+  const empate = precisa(0), alvoPct = precisa(meta)
+  const anterior = c.serie.length > 1 ? c.serie[c.serie.length - 2] : null
+  const alvo = anterior && anterior.bruto > 0 ? anterior.bruto : Infinity
   const vhTabS = vhTab * (1 + val('vh') / 100)
   const horasPara = (b: number) => (vhTabS > 0 && Number.isFinite(b) ? (b - bruto) / vhTabS : 0)
   const aplicarMeta = () => {
@@ -378,7 +382,7 @@ export function useSimulacao(c: Conta) {
   const maxC = Math.max(1, ...comparar.flatMap(([, a, b]) => [Math.abs(a), Math.abs(b)]))
   const nTec = campo.length + tec
   const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
-  return { m, setM, tec, setTec, fora, setFora, prev, setPrev, meta, setMeta, cen, setCen, val, set, vh, vhTab, vkm, dentro, campo, custoTec, salBase, comBase, prevBase, rescBase, horasS, vhS, ent, DESC, descS, voltaDesc, bruto, gItens, gastos, pItens, pessoal, ficou, p100, dif, mudou, taxaG, empate, alvo, vhTabS, horasPara, aplicarMeta, hist, r100, media, melhor, pior, aplicar, somaG, comparar, maxC, nTec, cap }
+  return { m, setM, tec, setTec, fora, setFora, prev, setPrev, meta, setMeta, cen, setCen, val, set, vh, vhTab, vkm, dentro, campo, custoTec, salBase, comBase, prevBase, rescBase, horasS, vhS, ent, DESC, descS, voltaDesc, bruto, gItens, gastos, pItens, pessoal, ficou, p100, dif, mudou, taxaG, empate, alvo, alvoPct, anterior, vhTabS, horasPara, aplicarMeta, hist, r100, media, melhor, pior, aplicar, somaG, comparar, maxC, nTec, cap }
 }
 export type Simulacao = ReturnType<typeof useSimulacao>
 
@@ -387,7 +391,7 @@ export type Simulacao = ReturnType<typeof useSimulacao>
  *  "Como foi × Simulado" em tudo e o lado direito em blocos numerados com títulos que dizem o que é. */
 export function DinheiroSimulador({ c, semFrase, claro, forma }: { c: Conta; semFrase?: boolean; claro?: boolean; /** lado direito em outra forma (1 extrato, 2 medidor, 3 cascata) — página de teste */ forma?: 1 | 2 | 3 }) {
   const [aba, setAba] = useState<'ent' | 'des' | 'gas' | 'pes'>('ent')
-  const { m, setM, tec, setTec, fora, setFora, prev, setPrev, meta, setMeta, cen, setCen, val, set, vh, vhTab, vkm, dentro, campo, custoTec, salBase, comBase, prevBase, rescBase, horasS, vhS, ent, DESC, descS, voltaDesc, bruto, gItens, gastos, pItens, pessoal, ficou, p100, dif, mudou, taxaG, empate, alvo, vhTabS, horasPara, aplicarMeta, hist, r100, media, melhor, pior, aplicar, somaG, comparar, maxC, nTec, cap } = useSimulacao(c)
+  const { m, setM, tec, setTec, fora, setFora, prev, setPrev, meta, setMeta, cen, setCen, val, set, vh, vhTab, vkm, dentro, campo, custoTec, salBase, comBase, prevBase, rescBase, horasS, vhS, ent, DESC, descS, voltaDesc, bruto, gItens, gastos, pItens, pessoal, ficou, p100, dif, mudou, taxaG, empate, alvo, anterior, vhTabS, horasPara, aplicarMeta, hist, r100, media, melhor, pior, aplicar, somaG, comparar, maxC, nTec, cap } = useSimulacao(c)
   // José, 21/10/2026: "divide as informações para os dois lados" — no modo claro, os indicadores (3)
   // descem para a esquerda, embaixo dos controles; à direita ficam o resultado, a conta, o empate (4) e a meta (5).
   // empate e meta, escritos por extenso (José 19/10: "difícil de compreender, aumenta a fonte e diz o que significa em % e dados")
@@ -410,22 +414,15 @@ export function DinheiroSimulador({ c, semFrase, claro, forma }: { c: Conta; sem
                   {Number.isFinite(empate) && <div className="dx-sim-trilho"><i style={{ width: `${Math.min(100, (bruto / Math.max(empate * 1.5, bruto, 1)) * 100)}%` }} /><em style={{ left: `${(empate / Math.max(empate * 1.5, bruto, 1)) * 100}%` }} /></div>}
                   {claro && Number.isFinite(empate) && <div className="dx-trilho-leg"><span><i className="fat" /> faturado: <b>{brl(bruto)}</b></span><span><i className="emp" /> precisa para não ter prejuízo: <b>{brl(empate)}</b></span></div>}
                 </div>
-                {claro && <div className="dx-res-t"><b>5</b> Meta: quanto quero que sobre</div>}
+                {claro && <div className="dx-res-t"><b>5</b> Meta: passar {anterior ? anterior.rotulo : 'o período anterior'}</div>}
                 <div className="dx-alvo meta">
                   {!claro && <small><i className="fas fa-bullseye" /> Meta</small>}
-                  <span className="dx-alvo-q">Quero ficar com <span>R$ <input type="number" min={0} max={80} value={meta} onChange={(e) => setMeta(Math.max(0, Math.min(80, Number(e.target.value) || 0)))} /></span> de cada R$ 100 <em>= {meta}% do que entra sobra para a empresa</em></span>
                   {!Number.isFinite(alvo)
-                    ? <span className="dx-alvo-st ruim">com esses gastos não dá para chegar nessa meta: diminua a meta ou os gastos</span>
+                    ? <span className="dx-alvo-st">sem faturamento no período anterior para comparar</span>
                     : <>
-                      <b className="dx-alvo-v">{alvo <= bruto ? <>já está batendo</> : <>precisa faturar <Numero valor={alvo} formato={brl} /></>}</b>
-                      <div className="dx-alvo-conta">
-                        <span><small>Faturar</small><b>{brl(alvo)}</b></span><em>−</em>
-                        <span><small>Gastos ({pctTxt(taxaG * 100)})</small><b>{brl(gA)}</b></span><em>−</em>
-                        <span><small>Pessoal</small><b>{brl(pessoal)}</b></span><em>=</em>
-                        <span className="sobra"><small>Sobra ({meta}%)</small><b>{brl(alvo - gA - pessoal)}</b></span>
-                      </div>
-                      <p>Hoje {bruto > 0.5 ? <>ficam <b>R$ {Math.round(p100)}</b> de cada R$ 100 (<b>{pctTxt(p100)}</b>)</> : <>ainda não entrou nada</>}.{' '}
-                        {alvo > bruto ? <>Para a meta faltam <b>{brl(alvo - bruto)}</b>{sobeTxt(alvo)}{hTxt(alvo)}.</> : <>Sobram <b>{brl(bruto - alvo)}</b> acima do que a meta pede.</>}</p>
+                      <b className="dx-alvo-v">{bruto >= alvo ? <>passou {anterior?.rotulo}</> : <>precisa faturar <Numero valor={alvo} formato={brl} /></>}</b>
+                      <p>A meta é <b>faturar mais do que {anterior?.rotulo}</b>, que fechou com <b>{brl(alvo)}</b>.{' '}
+                        {bruto >= alvo ? <>Já passou em <b>{brl(bruto - alvo)}</b>.</> : <>Faltam <b>{brl(alvo - bruto)}</b>{sobeTxt(alvo)}{hTxt(alvo)}.</>}</p>
                       {alvo > bruto && vh > 0 && <button type="button" onClick={aplicarMeta}><i className="fas fa-wand-magic-sparkles" /> aplicar nas horas cobradas</button>}
                     </>}
                 </div>
@@ -574,7 +571,7 @@ export function DinheiroSimulador({ c, semFrase, claro, forma }: { c: Conta; sem
         </div>
 
         <div className={`dx-sim-res ${claro ? 'claro' : ''}`}>
-          {claro && forma ? <LadoDireito forma={forma} d={{ rotulo: c.rotulo, real: { entrou: c.bruto, gastos: c.gastos, pessoal: c.pessoal, sobrou: c.resultado }, sim: { entrou: bruto, gastos, pessoal, sobrou: ficou }, mudou, empate, alvo, meta, setMeta, taxaG, horasPara, valorHora: vhS, aplicarMeta }} /> : claro ? (() => {
+          {claro && forma ? <LadoDireito forma={forma} d={{ rotulo: c.rotulo, real: { entrou: c.bruto, gastos: c.gastos, pessoal: c.pessoal, sobrou: c.resultado }, sim: { entrou: bruto, gastos, pessoal, sobrou: ficou }, mudou, empate, alvo, anterior: anterior ? { rotulo: anterior.rotulo, entrou: anterior.bruto, sobrou: anterior.resultado } : null, taxaG, horasPara, valorHora: vhS, aplicarMeta }} /> : claro ? (() => {
             // José, 21/10/2026: "melhora essa tela aqui" — blocos 1 a 3 em cartões, com a composição do que entrou
             const partes = (e: number, g: number, p: number) => [
               { k: 'Gastos', v: Math.max(0, g), cor: CS.gastos },

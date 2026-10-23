@@ -7,64 +7,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server'
 import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
-import { padronizadorOcorrencias, ocorrenciasEntre, COLS_OCORRENCIA as COLS } from '@/lib/mecanicos/ocorrencias-server'
-import { paraOcorrencia, escudos, motivos, limitesMes, mesesAte, historicoPorPessoa, CATS, type Cat } from '@/lib/mecanicos/ocorrencias-painel'
+import { mesSP, ocorrenciasPainelComCache, esquecerOcorrenciasPainel } from '@/lib/mecanicos/ocorrencias-painel-vivo'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const mesSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()).slice(0, 7)
 
 export async function GET(req: NextRequest) {
   const guarda = await protegerRota(req, [{ modulo: 'mecanicos' }, { modulo: 'pos' }])
   if (guarda.resposta) return guarda.resposta
   const q = req.nextUrl.searchParams.get('mes') || ''
   const mes = /^\d{4}-\d{2}$/.test(q) ? q : mesSP()
-  const meses = mesesAte(mes, 6)
-  const [de] = limitesMes(meses[0])
-  const [ini, fim] = limitesMes(mes)
   try {
-    const [{ tecnicos, padronizar }, rPend] = await Promise.all([
-      padronizadorOcorrencias(),
-      sb.from('tecnico_justificativas').select('id_ocorrencia').eq('status', 'pendente').not('id_ocorrencia', 'is', null).limit(500),
-    ])
-    // só técnicos (José, 17/10/2026: "outro dia a gente faz de todos os usuários")
-    const ehTec = new Set(tecnicos)
-    const janela = (await ocorrenciasEntre(de, fim, padronizar)).filter((o) => ehTec.has(o.tecnico))
-
-    // defesas pendentes de ocorrências fora da janela de 6 meses também entram na fila
-    const idsPend = [...new Set(((rPend.data || []) as { id_ocorrencia: number }[]).map((j) => j.id_ocorrencia))]
-    const naJanela = new Set(janela.map((o) => o.id))
-    const faltam = idsPend.filter((id) => !naJanela.has(id))
-    let antigas: typeof janela = []
-    if (faltam.length) {
-      const r = await sb.from('tecnico_ocorrencias').select(COLS).in('id', faltam)
-      antigas = (r.data || []).map((o) => paraOcorrencia(o as Record<string, unknown>, padronizar)).filter((o) => ehTec.has(o.tecnico))
-    }
-
-    const doMes = janela.filter((o) => o.data >= ini && o.data <= fim)
-    const linhas = escudos(doMes, tecnicos)
-    const serie = meses.map((m) => {
-      const [a, b] = limitesMes(m)
-      const porCat = Object.fromEntries(CATS.map((c) => [c, 0])) as Record<Cat, number>
-      let qtd = 0
-      for (const o of janela) if (o.data >= a && o.data <= b && o.vale) { porCat[o.categoria] += o.pontos; qtd++ }
-      return { mes: m, qtd, ...porCat }
-    })
-    // antigas × atuais: mês a mês por pessoa + média dos meses anteriores
-    const historico = historicoPorPessoa(janela, meses, tecnicos)
-
-    const pendentes = [...janela, ...antigas]
-      .filter((o) => o.defesas.some((d) => d.status === 'pendente'))
-      .sort((a, b) => {
-        const da = a.defesas.find((d) => d.status === 'pendente')?.criadaEm || ''
-        const db = b.defesas.find((d) => d.status === 'pendente')?.criadaEm || ''
-        return da.localeCompare(db)
-      })
-
+    // responde na hora com o último resultado guardado; refaz por trás se passou de 2 min
+    const { dados } = await ocorrenciasPainelComCache(mes, req.nextUrl.searchParams.get('forcar') === '1')
     return NextResponse.json({
-      mes, periodo: { de: ini, ate: fim },
-      ocorrencias: doMes, linhas, motivos: motivos(doMes), serie, pendentes, meses, historico,
+      ...dados,
       podeJulgar: guarda.user.isAdmin || guarda.user.modulos.includes('mecanicos') || guarda.user.modulos.includes('mecanicos:atualizar_ocorrencia'),
     })
   } catch (e) {
@@ -94,6 +51,7 @@ export async function POST(req: NextRequest) {
     .eq('id', id).eq('status', 'pendente').select('id')
   if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
   if (!feito?.length) return NextResponse.json({ error: 'Essa defesa já foi julgada.' }, { status: 409 })
+  await esquecerOcorrenciasPainel().catch(() => {})
 
   // avisa o técnico (app + portal) — nunca derruba o julgamento
   try {
