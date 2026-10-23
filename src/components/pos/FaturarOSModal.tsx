@@ -598,8 +598,10 @@ function ResumoNotas({ comOS, numeroOS, totalServico, pecas, forma, totalGeral }
 }
 
 /** Depois de faturar: espera a prefeitura (NFS-e) e a SEFAZ (NF-e) gerarem as notas e traz para o portal. */
-function AguardandoNotas({ osId, comOS, ppvIds, numeroOS, concluida, onFechar }: {
+export function AguardandoNotas({ osId, comOS, ppvIds, numeroOS, concluida, onFechar, rodape }: {
   osId: string; comOS: boolean; ppvIds: string[]; numeroOS: string; concluida: boolean; onFechar: () => void;
+  /** texto do rodapé no lugar do da OS (o faturar do PPV usa esta tela também) */
+  rodape?: React.ReactNode;
 }) {
   type Situacao = { estado: "aguardando" | "ok" | "erro"; numero?: string; msg?: string };
   const [nfse, setNfse] = useState<Situacao>({ estado: comOS ? "aguardando" : "ok" });
@@ -674,7 +676,7 @@ function AguardandoNotas({ osId, comOS, ppvIds, numeroOS, concluida, onFechar }:
         {ppvIds.map((id) => linha("fa-boxes-stacked", `NF-e · peças (${id})`, "a SEFAZ", nfes[id]))}
       </div>
       <div style={{ fontSize: 12.5, color: "#475569", background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "10px 12px", marginTop: 14, lineHeight: 1.5 }}>
-        {concluida ? <><i className="fas fa-check" style={{ color: "#15803d" }} /> A OS foi para <b>Concluída</b>.</> : <><i className="fas fa-circle-info" /> A OS vai para Concluída quando todas as notas estiverem emitidas.</>}
+        {rodape ?? (concluida ? <><i className="fas fa-check" style={{ color: "#15803d" }} /> A OS foi para <b>Concluída</b>.</> : <><i className="fas fa-circle-info" /> A OS vai para Concluída quando todas as notas estiverem emitidas.</>)}
         {!tudo && " Pode fechar esta janela: você recebe um aviso no sino quando cada nota sair."}
       </div>
       <button onClick={onFechar} style={{ marginTop: 14, width: "100%", padding: "12px 18px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: tudo ? "#15803d" : "#334155", color: "#fefefe" }}>
@@ -686,7 +688,7 @@ function AguardandoNotas({ osId, comOS, ppvIds, numeroOS, concluida, onFechar }:
 
 /** Enquanto fatura: Omie → NFS-e/NF-e com os passos andando (José, 14/10/2026). */
 /** `onFechar`: fecha a janela e o faturamento segue no servidor; o resultado chega no sino (José, 22/10/2026). */
-function FaturandoTela({ comOS, comPecas, onFechar }: { comOS: boolean; comPecas: boolean; onFechar: () => void }) {
+export function FaturandoTela({ comOS, comPecas, onFechar }: { comOS: boolean; comPecas: boolean; onFechar: () => void }) {
   const passos = [
     ...(comOS ? ["Aplicando os impostos dos serviços", "Gravando as parcelas", "Validando a OS no Omie", "Emitindo a NFS-e"] : []),
     ...(comPecas ? ["Gravando as parcelas do pedido de peças", "Emitindo a NF-e das peças"] : []),

@@ -13,6 +13,7 @@ import FaturarOSModal from "./FaturarOSModal";
 import FaturarReciboModal from "./FaturarReciboModal";
 import TravasFaturar, { type AjusteOS } from "./TravasFaturar";
 import CancelarDocOmieModal from "./CancelarDocOmieModal";
+import FaturarPPVModal from "@/components/ppv/FaturarModal";
 
 interface Estado {
   habilitado: boolean; podeFaturar: boolean; podeFaturarPecas: boolean; enviadaOmie: boolean; podeCancelarNota?: boolean; valor?: number;
@@ -51,7 +52,9 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
   // travas (previsão hoje, projeto, localização) conferidas depois do clique em Faturar
   const [travasOk, setTravasOk] = useState(false);
   const [conferindo, setConferindo] = useState(false);
-  const [refaturando, setRefaturando] = useState(false);
+  const [faturarPedido, setFaturarPedido] = useState<{ id: string; num: string } | null>(null);
+  const [avisoPedido, setAvisoPedido] = useState<{ ok: boolean; texto: string } | null>(null);
+  const refaturando = !!faturarPedido;
   const [cancelarNota, setCancelarNota] = useState<null | "cancelar" | "duplicar">(null);
   // menu "⋯" abre por cima da tela (a coluna corta o que sai dela)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
@@ -122,18 +125,11 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
     onFaturado();
   };
 
-  const refaturarPecas = async (ids: string[]) => {
-    if (!confirm(`Tem certeza? Vai faturar ${ids.length === 1 ? "o pedido de peças" : "os pedidos de peças"} ${ids.join(", ")} no Omie (emite NF-e real).`)) return;
-    setRefaturando(true);
-    try {
-      const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/faturar/pecas`, {
-        method: "POST", headers: { ...(await authHeaders()), "Content-Type": "application/json" }, body: JSON.stringify({ ppvIds: ids }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) alert(j.mensagem || j.error || "Não foi possível faturar as peças.");
-    } catch { alert("Falha de conexão — confira o pedido no PPV antes de tentar de novo."); }
-    setRefaturando(false);
-    await carregar();
+  // "Faturar o pedido" abre a MESMA janela do PPV: conferência portal × Omie → o que sai → "Tem certeza?" →
+  // "Faturando no Omie" com avisar no sino (José, 23/10/2026: "tem que aparecer aquele modal de novo")
+  const refaturarPecas = (ids: string[]) => {
+    const p = pecasPendentes.find((x) => x.id === ids[0]);
+    if (p) { setAvisoPedido(null); setFaturarPedido({ id: p.id, num: String(p.pedidoOmie || "") }); }
   };
 
   const rot = rotuloStatus(estado.status);
@@ -295,6 +291,11 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
                 <i className={`fas ${refaturando ? "fa-spinner fa-spin" : "fa-file-invoice-dollar"}`} /> Faturar o pedido
               </button>
             )}
+            {avisoPedido && <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: avisoPedido.ok ? "#15803d" : "#b91c1c" }}>{avisoPedido.texto}</div>}
+            {faturarPedido && <FaturarPPVModal open ppvId={faturarPedido.id} numeroPedido={faturarPedido.num}
+              onClose={() => { setFaturarPedido(null); void carregar({ reconciliar: true, forcar: true }); }}
+              onDone={() => { void carregar({ reconciliar: true, forcar: true }); onFaturado(); }}
+              showToast={(tipo, texto) => setAvisoPedido({ ok: tipo === "success", texto })} />}
           </div>
         )}
         {modal}

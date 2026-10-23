@@ -1159,8 +1159,11 @@ async function faturarPPVNoOmieSemPausa(
     // faturado. Sem isso NÃO marca — o pedido fica "pendente" e a próxima tentativa acha o estado real.
     let confirmado = false;
     // chave diferente em cada consulta: a mesma chamada repetida em segundos dá "consumo redundante"
-    const chaves: Record<string, unknown>[] = [{ codigo_pedido: nCodPed }, { numero_pedido: String(pedido.cabecalho?.numero_pedido || cab.pedido_omie || "") }, { codigo_pedido_integracao: codInt }];
-    for (const [i, ms] of [3000, 6000, 10000].entries()) {
+    // (23/10/2026) começa pelo nº do pedido — o garantirCst60 pode ter acabado de ler pelo codigo_pedido — e
+    // espera menos (1,5 + 4 + 8 s em vez de 3 + 6 + 10 s); pedido duplicado não tem código de integração.
+    const chaves: Record<string, unknown>[] = [{ numero_pedido: String(pedido.cabecalho?.numero_pedido || cab.pedido_omie || "") }, { codigo_pedido: nCodPed },
+      codInt ? { codigo_pedido_integracao: codInt } : { numero_pedido: String(pedido.cabecalho?.numero_pedido || cab.pedido_omie || "") }];
+    for (const [i, ms] of [1500, 4000, 8000].entries()) {
       await new Promise((ok) => setTimeout(ok, ms));
       const depois = await consultarPedidoOmie(chaves[i], acc).catch(() => null);
       const info = (depois as unknown as { infoCadastro?: { faturado?: string } } | null)?.infoCadastro;
