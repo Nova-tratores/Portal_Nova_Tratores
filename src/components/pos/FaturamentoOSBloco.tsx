@@ -201,7 +201,20 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
             <i className="fas fa-clone" /> Duplicar a OS
           </button>
         )}
+        {/* a NF-e de peças continua corrigível depois de cancelar a NFS-e (José, 23/10/2026: "os 3 pontos sumiram") */}
+        {estado.podeCancelarNota && (estado.pedidos || []).filter((p) => p.faturado && !p.ncCancelada).map((p) => {
+          const num = p.pedidoOmie.replace(/^0+(?=\d)/, "");
+          const nf = p.nf ? String(p.nf).replace(/^0+(?=\d)/, "") : null;
+          return (
+            <button key={p.id} type="button" onClick={() => setPedidoAlvo({ id: p.id, num, nf, etapa: "cancelar" })}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", minHeight: 32, marginTop: 6, borderRadius: 9, border: "1px solid #fdba74", background: "#fff7ed", color: "#9a3412", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+              <i className="fas fa-file-invoice-dollar" /> Corrigir a NF-e{nf ? ` ${nf}` : ""} · pedido {num}
+            </button>
+          );
+        })}
+        {avisoPedidos.length > 0 && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>{avisoPedidos}</div>}
         {modal}
+        {modalPedido}
       </div>
     );
   }

@@ -61,11 +61,15 @@ export async function cancelarNotaPedido(idPPV: string, opts: { motivo: string; 
   try { await omieNaConta(acc, "/produtos/pedidovendafat/", "CancelarPedidoVenda", { nCodPed: cod }); }
   catch (e) { return { ok: false, erro: `O Omie não cancelou o pedido ${num} (e a NF-e${nf ? ` ${nf}` : ""}): ${e instanceof Error ? e.message : e}. Nada mudou.` }; }
   const avisos: string[] = [];
-  await espera(3000);
-  try {
-    const depois = await consultar(acc, cod);
-    if (depois?.infoCadastro?.cancelado !== "S") avisos.push(`O Omie aceitou, mas o pedido ${num} ainda não aparece cancelado — a SEFAZ pode levar alguns minutos. Confira a NF-e no bloco de notas.`);
-  } catch { /* só aviso */ }
+  // Só registra o cancelamento quando o Omie MOSTRA o pedido cancelado (José, 23/10/2026: "não pode dar notícia
+  // falsa"). PPV-0359: o Omie aceitou o pedido de cancelamento, a SEFAZ não cancelou a NF-e 8457 (passou das
+  // 24 h) e o portal marcou cancelada, tirou o título do financeiro e deixou duplicar.
+  let cancelado = false;
+  for (const ms of [3000, 7000, 15000]) {
+    await espera(ms);
+    try { if ((await consultar(acc, cod))?.infoCadastro?.cancelado === "S") { cancelado = true; break; } } catch { /* tenta de novo */ }
+  }
+  if (!cancelado) return { ok: false, erro: `A NF-e${nf ? ` ${nf}` : ""} NÃO foi cancelada: o Omie recebeu o pedido, mas o pedido ${num} continua faturado (a SEFAZ não cancelou). A SEFAZ só aceita cancelar NF-e até 24 h depois da emissão — passou disso, o caminho é nota de devolução. Nada foi mudado no portal. Confira no Omie em alguns minutos.` };
 
   const anterior: Rec = {
     pedidoOmie: num, codigoPedido: cod, empresa: acc.name, nf: nf || null, faturadoEm: d.faturadoOmieEm || null,
@@ -114,6 +118,9 @@ export async function duplicarPedidoCancelado(idPPV: string, usuario: string): P
   if (!achado) return { ok: false, erro: "Não achei o pedido antigo no Omie." };
   const { acc } = achado;
   const codCli = Number((achado.pedido as unknown as PedidoOmie).cabecalho?.codigo_cliente || 0);
+  // só duplica se o pedido antigo está MESMO cancelado no Omie (senão saem duas NF-e das mesmas peças)
+  const antigo = await consultar(acc, codAntigo).catch(() => null);
+  if (antigo?.infoCadastro?.cancelado !== "S") return { ok: false, erro: `O pedido ${ult.pedidoOmie} NÃO está cancelado no Omie — a NF-e${ult.nf ? ` ${ult.nf}` : ""} continua valendo. Não dá para duplicar: sairiam duas notas das mesmas peças.` };
 
   let copia: PedidoOmie | null = null;
   try { copia = await acharCopiaPedido(acc, codAntigo, codCli, idPPV); } catch { /* duplica */ }

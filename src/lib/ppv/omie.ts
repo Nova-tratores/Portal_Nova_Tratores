@@ -424,7 +424,7 @@ export async function contaCorrenteDoPedido(acc: OmieAccount, escolhido: string 
 // --- Lookup de cliente pelo CNPJ (por conta) ---
 const cacheClientes = new Map<string, number>();
 
-async function buscarNcodCli(cnpjOriginal: string, acc: OmieAccount): Promise<number> {
+export async function buscarNcodCli(cnpjOriginal: string, acc: OmieAccount): Promise<number> {
   const cacheKey = `${acc.name}:${normalizarCnpj(cnpjOriginal)}`;
   if (cacheClientes.has(cacheKey)) return cacheClientes.get(cacheKey)!;
 

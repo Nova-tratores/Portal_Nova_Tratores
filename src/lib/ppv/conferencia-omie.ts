@@ -4,7 +4,7 @@
 import { buscarPPVPorId } from "@/lib/ppv/queries";
 import {
   resolverContaDoPedido, omieNaConta, contaCorrenteDoPedido, departamentosDoPedido,
-  buscarCodigoProdutoOmie, montarParcelasOmie, isoParaBR, garantirCst60, CST_ICMS_PECAS, type OmieAccount, type OmieDetItem,
+  buscarCodigoProdutoOmie, buscarNcodCli, montarParcelasOmie, isoParaBR, garantirCst60, CST_ICMS_PECAS, type OmieAccount, type OmieDetItem,
 } from "@/lib/ppv/omie";
 import {
   compararItens, compararCampo, compararDepartamentos, compararParcelas, diferente,
@@ -18,7 +18,7 @@ const n = (v: unknown) => { const x = Number(String(v ?? "").replace(",", "."));
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
 interface PedidoOmie {
-  cabecalho?: { codigo_pedido?: number; numero_pedido?: string; etapa?: string; data_previsao?: string; codigo_parcela?: string; qtde_parcelas?: number };
+  cabecalho?: { codigo_pedido?: number; codigo_cliente?: number; numero_pedido?: string; etapa?: string; data_previsao?: string; codigo_parcela?: string; qtde_parcelas?: number };
   informacoes_adicionais?: { codigo_categoria?: string; codigo_conta_corrente?: number; consumidor_final?: string };
   lista_parcelas?: { parcela?: { data_vencimento?: string; valor?: number }[] };
   departamentos?: { cCodDepto?: string; nPerc?: number }[];
@@ -76,6 +76,15 @@ export async function conferirPPV(idPPV: string, opts: { pronto?: { acc: OmieAcc
   const div: Divergencia[] = compararItens(idPPV, pItens, oItens, "Peça");
   const add = (x: Divergencia | null) => { if (x) div.push(x); };
   const ia = pedido.informacoes_adicionais || {};
+  // cliente: o CPF/CNPJ do PPV tem que ser o do cadastro do pedido no Omie (PPV-0359, 23/10/2026)
+  const docPortal = String(d.clienteDocumento || "").replace(/\D/g, "");
+  if (docPortal && pedido.cabecalho?.codigo_cliente) {
+    const cli = await omieNaConta<{ cnpj_cpf?: string; razao_social?: string }>(acc, "/geral/clientes/", "ConsultarCliente", { codigo_cliente_omie: pedido.cabecalho.codigo_cliente }).catch(() => null);
+    if (cli && String(cli.cnpj_cpf || "").replace(/\D/g, "") !== docPortal) div.push({
+      doc: idPPV, campo: "cliente", rotulo: "Cliente (CPF/CNPJ)", portal: d.clienteDocumento, omie: `${cli.cnpj_cpf || "—"}${cli.razao_social ? ` · ${cli.razao_social}` : ""}`, ajustavel: true,
+      explicacao: `O pedido do Omie está no cadastro ${cli.cnpj_cpf || "sem CPF/CNPJ"}. Ao atualizar, passa para o cadastro ${d.clienteDocumento}, igual ao portal — e a NF-e sai nesse CPF/CNPJ.`,
+    });
+  }
   add(compararCampo(idPPV, "categoria", "Categoria", d.categoriaPedido, ia.codigo_categoria));
   // sempre consumo final, com as peças no CST 60 (o Omie troca para 51 ao ligar o consumo final)
   add(compararCampo(idPPV, "consumoFinal", "Nota fiscal para consumo final", "S", ia.consumidor_final || "N",
@@ -132,18 +141,24 @@ async function alinharPPVSemPausa(idPPV: string): Promise<ResultadoConferencia> 
       detNovo.push({
         ide: { codigo_item: o.ide?.codigo_item, codigo_item_integracao: o.ide?.codigo_item_integracao || undefined },
         produto,
+        // categoria do item segue a do pedido: o Omie fica com a dos itens e ignora só a do cabeçalho (PPV-0359, 23/10/2026)
+        ...(d.categoriaPedido ? { inf_adic: { codigo_categoria_item: d.categoriaPedido } } : {}),
         // imposto cru só no item que não mudou (com quantidade/valor novos o Omie recalcula pelo cenário)
         ...(igual && o.imposto ? { imposto: o.imposto } : {}),
       });
     } else {
       produto.codigo_produto = await buscarCodigoProdutoOmie(x.codigo, acc);
-      detNovo.push({ ide: { codigo_item_integracao: `${idPPV}-${++seq}` }, produto });
+      detNovo.push({ ide: { codigo_item_integracao: `${idPPV}-${++seq}` }, produto, ...(d.categoriaPedido ? { inf_adic: { codigo_categoria_item: d.categoriaPedido } } : {}) });
     }
   }
   if (!detNovo.length) return { ...limpar(conf), erro: "O pedido do portal está sem itens — não dá para deixar o Omie igual." };
 
   const total = r2(portal.reduce((s, x) => s + x.qtde * x.preco - x.desconto, 0));
   const cabecalho: Rec = { codigo_pedido: pedido.cabecalho?.codigo_pedido };
+  if (conf.divergencias.some((x) => x.campo === "cliente")) {
+    try { cabecalho.codigo_cliente = await buscarNcodCli(d.clienteDocumento, acc); }
+    catch (e) { return { ...limpar(conf), erro: `Não achei no Omie o cadastro do CPF/CNPJ ${d.clienteDocumento}: ${e instanceof Error ? e.message : e}` }; }
+  }
   const info: Rec = {};
   if (d.categoriaPedido) info.codigo_categoria = d.categoriaPedido;
   if (d.contaCorrente) { const cc = await contaCorrenteDoPedido(acc, d.contaCorrente).catch(() => ({ codigo: undefined })); if (cc.codigo) info.codigo_conta_corrente = cc.codigo; }

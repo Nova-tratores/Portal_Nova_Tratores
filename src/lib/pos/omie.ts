@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 import { pedidoClienteDaOS } from "@/lib/pos/pedido-cliente";
-import { TBL_OS, TBL_CLIENTES, TBL_PEDIDOS, TBL_LOGS_PPV, VALOR_HORA, VALOR_KM } from "./constants";
+import { TBL_OS, TBL_PEDIDOS, TBL_LOGS_PPV, VALOR_HORA, VALOR_KM } from "./constants";
 import { enviarPPVParaOmie } from "@/lib/ppv/omie";
 import { aplicarUnidadesDoPPV } from "@/lib/pecas/ppv-vinculo";
 import { normName } from "@/lib/tecnico-utils";
@@ -133,10 +133,6 @@ async function omieCall<T>(endpoint: string, call: string, param: Record<string,
 }
 
 // --- Helpers ---
-function normalizarCnpj(cnpj: string): string {
-  return cnpj.replace(/\D/g, "");
-}
-
 function formatarDataOmie(dataIso: string): string {
   // "2026-01-14" → "14/01/2026"
   const [ano, mes, dia] = dataIso.split("T")[0].split("-");
@@ -152,21 +148,10 @@ function toNum(val: unknown, fallback = 0): number {
 // --- Lookup de cliente ---
 const cacheClientes = new Map<string, number>();
 
-async function buscarNcodCli(cnpj: string): Promise<{ nCodCli: number; email: string }> {
-  const cnpjNorm = normalizarCnpj(cnpj);
-
-  // Tenta buscar na tabela Clientes do Supabase (campo id_omie + email)
-  const { data } = await supabase
-    .from(TBL_CLIENTES)
-    .select("id_omie, cnpj_cpf, email")
-    .ilike("cnpj_cpf", `%${cnpjNorm.substring(0, 8)}%`)
-    .limit(1);
-
-  if (data && data.length > 0 && data[0].id_omie) {
-    return { nCodCli: data[0].id_omie, email: data[0].email || "" };
-  }
-
-  // Fallback: busca direto na API Omie
+export async function buscarNcodCli(cnpj: string): Promise<{ nCodCli: number; email: string }> {
+  // Busca no Omie pelo CPF/CNPJ COMPLETO (23/10/2026). Antes procurava antes no espelho pelos 8 primeiros
+  // dígitos — a raiz do CNPJ é igual em todas as filiais (07.991.507/0002-84 × /0035-42) e o espelho tem
+  // o mesmo CNPJ com código da Nova e da Castro, então podia mandar a OS para o cadastro errado.
   const result = await omieCall<{ clientes_cadastro?: Array<{ codigo_cliente_omie: number; email?: string }> }>(
     "/geral/clientes/",
     "ListarClientes",

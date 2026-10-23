@@ -8,7 +8,7 @@ import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS } from "@/lib/pos/constants";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie as omiePorta, comRobosPausados } from "@/lib/omie/porta";
-import { montarServicosDetalhe, montarDadosAdic } from "@/lib/pos/omie";
+import { montarServicosDetalhe, montarDadosAdic, buscarNcodCli } from "@/lib/pos/omie";
 import { normalizarEspelho, espelhoPadrao, calcularParcelas, diasDoEspelho, type OmieEspelho } from "@/lib/pos/omie-espelho";
 import { estadoNoOmie } from "@/lib/pos/faturamento-regras";
 import {
@@ -34,9 +34,9 @@ const codServ = new Map<string, number>();
 const LIDA_VALE_MS = 50_000;
 const n = (v: unknown) => { const x = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(x) ? x : 0; };
 
-interface ItemOmieOS { nIdItem?: number; nSeqItem?: number; nCodServico?: number; nQtde?: number; nValUnit?: number; cTpDesconto?: string; nValorDesconto?: number; nPercDesconto?: number; cDescServ?: string; cNaoGerarFinanceiro?: string }
+interface ItemOmieOS { nIdItem?: number; nSeqItem?: number; nCodServico?: number; nQtde?: number; nValUnit?: number; cTpDesconto?: string; nValorDesconto?: number; nPercDesconto?: number; cDescServ?: string; cNaoGerarFinanceiro?: string; cCodCategItem?: string }
 interface OSOmie {
-  Cabecalho?: { nCodOS?: number; cNumOS?: string; cEtapa?: string; nValorTotal?: number; dDtPrevisao?: string; cCodParc?: string; nQtdeParc?: number };
+  Cabecalho?: { nCodOS?: number; nCodCli?: number; cNumOS?: string; cEtapa?: string; nValorTotal?: number; dDtPrevisao?: string; cCodParc?: string; nQtdeParc?: number };
   Parcelas?: { nParcela?: number; dDtVenc?: string; nDias?: number; nPercentual?: number; nValor?: number }[];
   InfoCadastro?: { cFaturada?: string; cCancelada?: string };
   InformacoesAdicionais?: { cCodCateg?: string; nCodCC?: number; cNumContrato?: string; cDadosAdicNF?: string; cNumPedido?: string };
@@ -93,6 +93,21 @@ function parcelasDaOS(esp: OmieEspelho, previsao: string, total: number) {
   const l = esp.parcelas.length ? esp.parcelas : calcularParcelas(diasDoEspelho(esp), previsao, total);
   return l.map((p, i) => ({ nParcela: i + 1, nDias: Math.max(0, Math.round(Number(p.dias) || 0)), dDtVenc: isoBR(String(p.venc)), nValor: Math.round(Number(p.valor) * 100) / 100 }));
 }
+
+// CPF/CNPJ do cliente da OS no Omie (ConsultarCliente; guardado 10 min — o cadastro quase nunca muda)
+const docsCli = new Map<number, { doc: string; nome: string; em: number }>();
+async function documentoDoCliente(nCodCli: number): Promise<{ doc: string; nome: string } | null> {
+  if (!nCodCli) return null;
+  const g = docsCli.get(nCodCli);
+  if (g && Date.now() - g.em < 600_000) return g;
+  const { key, secret } = contaOmie("Nova Tratores");
+  const c = await omiePorta<{ cnpj_cpf?: string; razao_social?: string }>({ appKey: key, appSecret: secret, rotulo: "Nova Tratores" }, "/geral/clientes/", "ConsultarCliente",
+    { codigo_cliente_omie: nCodCli }, { prioridade: "pessoa", tentativas: 4, maxEsperaMs: 65_000 });
+  const r = { doc: String(c.cnpj_cpf || ""), nome: String(c.razao_social || ""), em: Date.now() };
+  docsCli.set(nCodCli, r);
+  return r;
+}
+const soDigitos = (v: unknown) => String(v ?? "").replace(/\D/g, "");
 
 async function lerOSDoPortal(idOs: string): Promise<Rec | null> {
   const { data } = await supabase.from(TBL_OS).select("*").eq("Id_Ordem", idOs).limit(1);
@@ -153,6 +168,15 @@ export async function conferirOS(idOs: string, opts: { outraChave?: boolean } = 
   const ia = dados.InformacoesAdicionais || {};
   {
     const add = (d: Divergencia | null) => { if (d) div.push(d); };
+    // cliente: o CPF/CNPJ da OS no portal tem que ser o do cadastro da OS no Omie (OS-0596, 23/10/2026)
+    const docPortal = soDigitos(os.Cnpj_Cliente);
+    if (docPortal) {
+      const cli = await documentoDoCliente(n(dados.Cabecalho?.nCodCli)).catch(() => null);
+      if (cli && soDigitos(cli.doc) !== docPortal) div.push({
+        doc: idOs, campo: "cliente", rotulo: "Cliente (CPF/CNPJ)", portal: String(os.Cnpj_Cliente), omie: `${cli.doc || "—"}${cli.nome ? ` · ${cli.nome}` : ""}`, ajustavel: true,
+        explicacao: `A OS do Omie está no cadastro ${cli.doc || "sem CPF/CNPJ"}. Ao atualizar, ela passa para o cadastro ${os.Cnpj_Cliente}, igual ao portal — e a nota sai nesse CPF/CNPJ.`,
+      });
+    }
     add(compararCampo(idOs, "previsao", "Previsão de faturamento", isoBR(previsaoDaOS(os)), dados.Cabecalho?.dDtPrevisao, { vazioIgnora: false }));
     add(compararCampo(idOs, "pedidoCliente", "Nº do pedido do cliente (pedido de venda das peças)", await pedidosDaOS(os), ia.cNumPedido));
     // OS interna não tem parcelas (não é cobrada) — José, 15/10/2026
@@ -228,9 +252,25 @@ async function alinharOSSemPausa(idOs: string): Promise<ResultadoConferencia> {
     } else servicos.push({ nSeqItem: ++proxSeq, cAcaoItem: "I", ...campos });
   }
   for (const o of omieItens) if (!usados.has(o) && o.nIdItem) servicos.push({ nSeqItem: o.nSeqItem, nIdItem: o.nIdItem, cAcaoItem: "E" });
+  // categoria: o Omie segue a dos ITENS e ignora só a do cabeçalho. A cópia do DuplicarOS veio com todos
+  // os itens na categoria do KM (OS-0596 → 5397, 23/10/2026). Os itens na categoria errada do cabeçalho
+  // passam para a do portal; o KM fica com a dele (Deslocamento).
+  const catPortal = esp?.info.categoria || "", catOmie = String(dados.InformacoesAdicionais?.cCodCateg || "");
+  if (catPortal && catOmie && catPortal !== catOmie) {
+    for (const o of omieItens) {
+      if (!usados.has(o) || !o.nIdItem || n(o.nCodServico) === NCOD_KM || String(o.cCodCategItem || "") !== catOmie) continue;
+      const ja = servicos.find((s) => s.nIdItem === o.nIdItem);
+      if (ja) ja.cCodCategItem = catPortal;
+      else servicos.push({ nSeqItem: o.nSeqItem, nIdItem: o.nIdItem, cAcaoItem: "A", nCodServico: o.nCodServico, cCodCategItem: catPortal });
+    }
+  }
 
   const total = esperado.reduce((s, p) => s + Math.max(0, p.qtde * p.unit - p.desconto), 0);
   const cab: Rec = { nCodOS, dDtPrevisao: isoBR(previsaoDaOS(os)) };
+  if (conf.divergencias.some((d) => d.campo === "cliente")) {
+    try { cab.nCodCli = (await buscarNcodCli(String(os.Cnpj_Cliente || ""))).nCodCli; }
+    catch (e) { return { ...limpar(conf), erro: `Não achei no Omie o cadastro do CPF/CNPJ ${os.Cnpj_Cliente}: ${e instanceof Error ? e.message : e}` }; }
+  }
   const param: Rec = { Cabecalho: cab };
   if (esp && !interna) {
     const parc = parcelasDaOS(esp, previsaoDaOS(os), total);
