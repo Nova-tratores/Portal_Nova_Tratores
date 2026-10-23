@@ -1107,6 +1107,8 @@ async function faturarPPVNoOmieSemPausa(
       );
     }
 
+    // cCodIntPed vazio o Omie recusa ("tag [cCodIntPed] incorreto") — pedido duplicado no Omie não tem código
+    // de integração (PPV-0359, pedido 7816, 23/10/2026): só vai quando existe.
     // 2) FATURA de verdade: FaturarPedidoVenda no endpoint /produtos/pedidovendafat/.
     //    É ESTE método que roda o faturador e EMITE a NF-e (o TrocarEtapaPedido só
     //    mudava a fase, sem emitir). Precisa do nCodPed (código interno do pedido).
@@ -1127,7 +1129,7 @@ async function faturarPPVNoOmieSemPausa(
     try {
       const resp = await omieCall<Record<string, unknown>>(
         "/produtos/pedidovendafat/", "FaturarPedidoVenda",
-        { cCodIntPed: codInt, nCodPed }, acc.key, acc.secret,
+        { nCodPed, ...(codInt ? { cCodIntPed: codInt } : {}) }, acc.key, acc.secret,
       );
       console.log(`[Omie PPV faturar] ${idPPV}: FaturarPedidoVenda ->`, JSON.stringify(resp).slice(0, 250));
       if (statusOmieErro(resp)) return { sucesso: false, empresa: acc.name, erro: `O Omie recusou o faturamento: ${descricaoOmie(resp)}` };
@@ -1225,7 +1227,7 @@ export async function cancelarPedidoVendaOmie(
     try {
       const resp = await omieCall<Record<string, unknown>>(
         "/produtos/pedidovendafat/", "CancelarPedidoVenda",
-        { cCodIntPed: String(pedido.cabecalho?.codigo_pedido_integracao || ""), nCodPed }, acc.key, acc.secret,
+        { nCodPed, ...(pedido.cabecalho?.codigo_pedido_integracao ? { cCodIntPed: String(pedido.cabecalho.codigo_pedido_integracao) } : {}) }, acc.key, acc.secret,
       );
       console.log(`[Omie PPV cancelar] ${idPPV}: CancelarPedidoVenda ->`, JSON.stringify(resp).slice(0, 200));
     } catch (e) {
