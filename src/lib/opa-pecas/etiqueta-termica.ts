@@ -156,7 +156,11 @@ export function imprimirTermica(itens: ItemTermica[], a: AjusteTermica = lerAjus
     // Página primeiro (é a que cai certa no rolo). PDF só se escolhido nos ajustes;
     // falhou o PDF → cai na página.
     if (a.forma === 'pdf') { void imprimirTermicaPdf(com, a).then((ok) => { if (!ok) imprimirTermicaHtml(com, a) }); return true }
-    return imprimirTermicaHtml(com, a)
+    // Cada etiqueta vai como IMAGEM (José, 23/10/2026: em lote o driver da ROGERIA
+    // perdia o nome e o local a partir da 2ª etiqueta — texto some, imagem não).
+    // Não deu para desenhar → página com texto, como antes.
+    void paginasEmImagem(com, a).then((r) => imprimirTermicaHtml(com, a, r)).catch(() => imprimirTermicaHtml(com, a))
+    return true
   } catch {
     return false
   }
@@ -164,32 +168,42 @@ export function imprimirTermica(itens: ItemTermica[], a: AjusteTermica = lerAjus
 
 const PX_MM = 12 // ~305 dpi: nítido na térmica (203/300 dpi)
 
-/** Desenha cada página (o MESMO HTML/CSS) num canvas via SVG foreignObject e monta um PDF do tamanho do rolo. */
+/** Desenha cada página (o MESMO HTML/CSS) num canvas via SVG foreignObject → PNG (data URL). */
+async function paginasEmImagem(com: (ItemTermica & { qr: string })[], a: AjusteTermica): Promise<{ imgs: string[]; PW: number; PH: number }> {
+  const { css, paginas, PW, PH } = partesTermica(com, a)
+  const w = Math.round(PW * PX_MM)
+  const h = Math.round(PH * PX_MM)
+  const imgs: string[] = []
+  for (const pagina of paginas) {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
+      `<foreignObject x="0" y="0" width="${PW}mm" height="${PH}mm" transform="scale(${w / (PW * 96 / 25.4)})">` +
+      `<div xmlns="http://www.w3.org/1999/xhtml" style="font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff"><style>${css.replace(/@media screen[^\n]*/, '')} html,body{margin:0}</style>${pagina}</div>` +
+      `</foreignObject></svg>`
+    const img = new Image()
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
+    await img.decode()
+    const cv = document.createElement('canvas')
+    cv.width = w; cv.height = h
+    const ctx = cv.getContext('2d')
+    if (!ctx) throw new Error('sem canvas')
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h)
+    ctx.drawImage(img, 0, 0, w, h)
+    imgs.push(cv.toDataURL('image/png'))
+  }
+  return { imgs, PW, PH }
+}
+
+/** Monta um PDF do tamanho do rolo com as páginas já desenhadas em imagem. */
 async function imprimirTermicaPdf(com: (ItemTermica & { qr: string })[], a: AjusteTermica): Promise<boolean> {
   try {
-    const { css, paginas, PW, PH } = partesTermica(com, a)
+    const { imgs, PW, PH } = await paginasEmImagem(com, a)
     const { jsPDF } = await import('jspdf')
     const orient = PW > PH ? 'l' : 'p'
     const pdf = new jsPDF({ unit: 'mm', format: [PW, PH], orientation: orient })
-    const w = Math.round(PW * PX_MM)
-    const h = Math.round(PH * PX_MM)
-    for (let n = 0; n < paginas.length; n++) {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
-        `<foreignObject x="0" y="0" width="${PW}mm" height="${PH}mm" transform="scale(${w / (PW * 96 / 25.4)})">` +
-        `<div xmlns="http://www.w3.org/1999/xhtml" style="font-family: Arial, Helvetica, sans-serif; color: #000; background: #fff"><style>${css.replace(/@media screen[^\n]*/, '')} html,body{margin:0}</style>${paginas[n]}</div>` +
-        `</foreignObject></svg>`
-      const img = new Image()
-      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
-      await img.decode()
-      const cv = document.createElement('canvas')
-      cv.width = w; cv.height = h
-      const ctx = cv.getContext('2d')
-      if (!ctx) return false
-      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, w, h)
-      ctx.drawImage(img, 0, 0, w, h)
+    imgs.forEach((src, n) => {
       if (n > 0) pdf.addPage([PW, PH], orient)
-      pdf.addImage(cv.toDataURL('image/png'), 'PNG', 0, 0, PW, PH)
-    }
+      pdf.addImage(src, 'PNG', 0, 0, PW, PH)
+    })
     const url = URL.createObjectURL(pdf.output('blob'))
     document.getElementById('pni-etiqueta-print')?.remove()
     const f = document.createElement('iframe')
@@ -206,8 +220,23 @@ async function imprimirTermicaPdf(com: (ItemTermica & { qr: string })[], a: Ajus
   }
 }
 
-/** Página HTML num iframe (srcdoc: o endereço do portal não vai para o cabeçalho do navegador). */
-function imprimirTermicaHtml(com: (ItemTermica & { qr: string })[], a: AjusteTermica): boolean {
+/** Página com uma imagem por etiqueta, no mesmo tamanho de página da versão em texto (puro — testável). */
+export function htmlTermicaImagens(imgs: string[], PW: number, PH: number): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><title>&#8203;</title><style>
+  @page { size: ${PW}mm ${PH}mm; margin: 0; }
+  * { margin: 0; padding: 0; }
+  html, body { width: ${PW}mm; background: #fff; }
+  .pg { width: ${PW}mm; height: ${PH}mm; overflow: hidden; page-break-after: always; break-after: page; }
+  .pg:last-child { page-break-after: auto; break-after: auto; }
+  .pg img { display: block; width: ${PW}mm; height: ${PH}mm; }
+</style></head><body>
+${imgs.map((src) => `<div class="pg"><img src="${src}" alt=""></div>`).join('\n')}
+</body></html>`
+}
+
+/** Página HTML num iframe (srcdoc: o endereço do portal não vai para o cabeçalho do navegador).
+ *  Com `imagens`, cada etiqueta vai desenhada; sem, vai o HTML com texto. */
+function imprimirTermicaHtml(com: (ItemTermica & { qr: string })[], a: AjusteTermica, imagens?: { imgs: string[]; PW: number; PH: number }): boolean {
   try {
     document.getElementById('pni-etiqueta-print')?.remove()
     const f = document.createElement('iframe')
@@ -216,12 +245,16 @@ function imprimirTermicaHtml(com: (ItemTermica & { qr: string })[], a: AjusteTer
     // fora da tela, mas com tamanho (iframe com display:none não imprime em alguns navegadores)
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;'
     // título vazio: se o navegador ainda puser cabeçalho, ele não mostra nada
-    f.srcdoc = htmlTermica(com, a).replace('<title>Etiqueta</title>', '<title>&#8203;</title>')
+    f.srcdoc = imagens
+      ? htmlTermicaImagens(imagens.imgs, imagens.PW, imagens.PH)
+      : htmlTermica(com, a).replace('<title>Etiqueta</title>', '<title>&#8203;</title>')
     f.onload = () => {
       const w = f.contentWindow
       if (!w) return
       w.addEventListener('afterprint', () => setTimeout(() => f.remove(), 500))
-      setTimeout(() => { w.focus(); w.print() }, 250)
+      // espera as imagens decodificarem antes de abrir a impressão
+      const prontas = Array.from(w.document.images).map((im) => im.decode().catch(() => undefined))
+      void Promise.all(prontas).then(() => setTimeout(() => { w.focus(); w.print() }, 150))
     }
     document.body.appendChild(f)
     setTimeout(() => f.remove(), 60_000)
