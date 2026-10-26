@@ -21,14 +21,24 @@ const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env
   console.log(GRAVAR ? '== GRAVANDO ==' : '== SIMULAÇÃO (use --gravar para gravar) ==');
   let maxDownloads = Number(arg('max-downloads')) || 500;
   const tot = { ok: 0, pendentes: 0, trechos: 0, km: 0, baixados: 0 };
+  let quedas = 0;
   for (let rodada = 1; rodada <= 200; rodada++) {
-    const r = await processarViasForaMapa(supabase, {
+    let r;
+    try {
+      r = await processarViasForaMapa(supabase, {
       desde: arg('desde'), ate: arg('ate'),
       // simulando, o estado não é gravado: uma rodada só, com tudo
       limite: GRAVAR ? 150 : 100_000,
       maxDownloads, gravar: GRAVAR, forcar: FORCAR && rodada === 1,
       log: (m) => console.log(`  ${m}`),
-    });
+      });
+    } catch (e) {
+      // queda de rede (fetch failed): espera e tenta de novo — o estado gravado no banco faz retomar
+      if (++quedas > 30) throw e;
+      console.log(`rodada ${rodada}: ${(e as Error).message} — tentando de novo em 2 min (${quedas}/30)`);
+      await new Promise((res) => setTimeout(res, 120_000));
+      continue;
+    }
     tot.ok += r.ok; tot.pendentes += r.pendentes; tot.trechos += r.trechos; tot.km += r.kmFora; tot.baixados += r.baixados;
     maxDownloads -= r.baixados;
     console.log(`rodada ${rodada}: ${r.processados} dias (${r.ok} ok, ${r.pendentes} pendentes) · ${r.trechos} trechos · ${r.kmFora} km · ${r.baixados} malhas · faltam ${r.restantes}`);
