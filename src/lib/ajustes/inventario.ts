@@ -562,10 +562,15 @@ export async function tarefasDeHoje(): Promise<any> {
   const { data: diario } = await supabase.from('inventario_ciclos').select('id, referencia, tipo, status, capacidade, criado_em').eq('tipo', 'diario').eq('referencia', hojeStr).limit(1);
   if (diario && diario[0]) ciclo = diario[0];
   if (!ciclo) {
-    const { data: abertos } = await supabase.from('inventario_ciclos').select('id, referencia, tipo, status, capacidade, criado_em').eq('status', 'aberto').order('criado_em', { ascending: false }).limit(1);
+    const { data: abertos } = await supabase.from('inventario_ciclos').select('id, referencia, tipo, status, capacidade, criado_em').eq('status', 'aberto').not('referencia', 'like', 'localizacao-%').order('criado_em', { ascending: false }).limit(1);
     if (abertos && abertos[0]) ciclo = abertos[0];
   }
-  if (!ciclo) return { ciclo: null, tarefas: [] };
+  // + as pedidas pela conferência de prateleira (ciclos `localizacao-*`) ainda em aberto
+  const { data: ciclosLoc } = await supabase.from('inventario_ciclos').select('id, referencia, tipo, status, capacidade, criado_em')
+    .like('referencia', 'localizacao-%').eq('status', 'aberto');
+  const idsLoc = (ciclosLoc || []).map((c: any) => c.id).filter((id: any) => !ciclo || id !== ciclo.id);
+  if (!ciclo && !idsLoc.length) return { ciclo: null, tarefas: [] };
+  if (!ciclo) ciclo = (ciclosLoc || []).sort((a: any, b: any) => String(b.criado_em).localeCompare(String(a.criado_em)))[0];
   const { data: tarefas, error } = await supabase
     .from('inventario_tarefas')
     .select('id, sku, descricao_produto, classe_abc, status')
@@ -574,5 +579,89 @@ export async function tarefasDeHoje(): Promise<any> {
     .order('classe_abc', { ascending: true })
     .order('id', { ascending: true });
   if (error) throw new Error(error.message);
-  return { ciclo, tarefas: tarefas || [] };
+  let extras: any[] = [];
+  const outros = idsLoc.filter((id: any) => id !== ciclo.id);
+  if (outros.length) {
+    const { data: ex } = await supabase.from('inventario_tarefas').select('id, sku, descricao_produto, classe_abc, status')
+      .in('ciclo_id', outros).in('status', ['pendente', 'contando', 'recontagem']).order('id', { ascending: true });
+    extras = ex || [];
+  }
+  return { ciclo, tarefas: [...(tarefas || []), ...extras] };
+}
+
+// ---- Contagem pedida pela conferência de prateleira (/ajustes/localizacao) ----
+// "Quantidade diferente" na conferência = a peça está no lugar, mas o número não
+// bate → entra na contagem cega como tarefa avulsa, fora da curva ABC. As tarefas
+// ficam num ciclo 'manual' por dia (referencia `localizacao-AAAA-MM-DD`), que a
+// tela da contagem mostra junto com o ciclo do dia.
+const PREFIXO_CICLO_LOCALIZACAO = 'localizacao-';
+const STATUS_ABERTOS = ['pendente', 'contando', 'recontagem'];
+
+/** SKUs com tarefa de contagem em aberto (selo "na contagem" da conferência). */
+export async function skusEmContagem(): Promise<string[]> {
+  const { data, error } = await supabase.from('inventario_tarefas').select('sku').in('status', STATUS_ABERTOS).limit(200000);
+  if (error) throw new Error(error.message);
+  return [...new Set((data || []).map((t: any) => String(t.sku)))];
+}
+
+/** Põe um SKU na contagem cega. Idempotente: tarefa já aberta não duplica. */
+export async function incluirNaContagem(sku: string, opts: { criadoPor?: string } = {}): Promise<any> {
+  const s = String(sku || '').trim();
+  if (!s) throw httpErr(400, 'peça sem SKU');
+
+  const { data: aberta } = await supabase.from('inventario_tarefas').select('id, status').eq('sku', s).in('status', STATUS_ABERTOS).limit(1);
+  if (aberta && aberta[0]) return { ok: true, jaExistia: true, tarefaId: aberta[0].id };
+
+  // O freeze lê o saldo na Omie pelos idProds da `presenca`. Peça que entrou depois
+  // do último recálculo da curva não está em produtos_inventario → monta pelo cadastro.
+  const { data: inv } = await supabase.from('produtos_inventario').select('sku, descricao_produto, classe_abc, presenca').eq('sku', s).maybeSingle();
+  let descricao = (inv as any)?.descricao_produto || null;
+  const classe = (inv as any)?.classe_abc || 'C';
+  const presencaOk = (inv as any)?.presenca && Object.keys((inv as any).presenca).length > 0;
+  if (!presencaOk) {
+    const { data: prods, error: ep } = await supabase.from('produtos').select('codigo_produto, conta_omie, descricao').eq('codigo', s).limit(20);
+    if (ep) throw new Error(`leitura do cadastro falhou: ${ep.message}`);
+    if (!prods || !prods.length) throw httpErr(404, `peça ${s} não encontrada no cadastro`);
+    const presenca: Record<string, any> = {};
+    for (const p of prods as any[]) {
+      const label = String(p.conta_omie || '').toUpperCase();
+      if (!label || p.codigo_produto == null) continue;
+      const e = presenca[label] || { idProds: [], saldo: 0, cmc: 0, locais: [] };
+      const id = Number(p.codigo_produto);
+      if (!e.idProds.includes(id)) e.idProds.push(id);
+      presenca[label] = e;
+      if (!descricao && p.descricao) descricao = p.descricao;
+    }
+    if (!Object.keys(presenca).length) throw httpErr(404, `peça ${s} sem ID da Omie no cadastro`);
+    const agora = new Date().toISOString();
+    const linha = inv
+      ? { presenca, atualizado_em: agora }
+      : { sku: s, descricao_produto: descricao, classe_abc: classe, valor_consumo: 0, frequencia_dias: getFrequenciasABC().C, frequencia_manual: false,
+          proxima_contagem: fmtISO(addDias(hoje(), getFrequenciasABC().C)), presenca, ativo: true, incluido_manual: true, atualizado_em: agora };
+    const { error: eu } = inv
+      ? await supabase.from('produtos_inventario').update(linha).eq('sku', s)
+      : await supabase.from('produtos_inventario').insert(linha);
+    if (eu) throw new Error(`gravação em produtos_inventario falhou: ${eu.message}`);
+  }
+
+  const referencia = `${PREFIXO_CICLO_LOCALIZACAO}${hojeISO()}`;
+  let cicloId: any = null;
+  const { data: jah } = await supabase.from('inventario_ciclos').select('id').eq('referencia', referencia).eq('status', 'aberto').limit(1);
+  if (jah && jah[0]) cicloId = jah[0].id;
+  else {
+    const { data: ciclo, error: ec } = await supabase.from('inventario_ciclos')
+      .insert({ referencia, tipo: 'manual', status: 'aberto', capacidade: 0, criado_por: opts.criadoPor || 'conferencia-localizacao' })
+      .select('id').single();
+    if (ec) throw new Error(`criação do ciclo falhou: ${ec.message}`);
+    cicloId = (ciclo as any).id;
+  }
+
+  const { data: tarefa, error: et } = await supabase.from('inventario_tarefas')
+    .insert({ ciclo_id: cicloId, sku: s, descricao_produto: descricao, classe_abc: classe, status: 'pendente' })
+    .select('id').single();
+  if (et) throw new Error(`criação da tarefa falhou: ${et.message}`);
+
+  // congela o saldo (Omie ao vivo) em segundo plano — a contagem mostra "congelando" até lá
+  freezeCiclo(cicloId).catch((e: any) => console.warn('[inventario incluirNaContagem] freeze:', e.message));
+  return { ok: true, jaExistia: false, tarefaId: (tarefa as any).id, cicloId };
 }

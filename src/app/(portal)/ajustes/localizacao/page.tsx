@@ -15,7 +15,7 @@ import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
 import { norm, getCar, posDe, chaveProd, labelSeg, posInvalida, posLabel, cmpSeg, ocupantesDe, type ProdutoLoc as Produto, type Pos } from '@/lib/ajustes/posicao';
 import { ModalMover, AvisoOcupado } from '@/components/ajustes/ModalMoverPeca';
-import { ChevronRight, ChevronDown, MapPin, AlertTriangle, Search, ArrowRightLeft, X, PackageOpen, Trash2, Plus, Tag, CheckCircle, ClipboardCheck } from 'lucide-react';
+import { ChevronRight, ChevronDown, MapPin, AlertTriangle, Search, ArrowRightLeft, X, PackageOpen, Trash2, Plus, Tag, CheckCircle, ClipboardCheck, Hash } from 'lucide-react';
 
 // tipos e helpers de posição: src/lib/ajustes/posicao.ts (compartilhados com o painel "A alocar")
 
@@ -54,6 +54,8 @@ export default function LocalizacaoPage() {
   // deck do Conferir: null = fechado; array = flashcard aberto com essas posições
   // (global = todas do filtro; ou só de uma prateleira/andar escolhidos)
   const [conferirDeck, setConferirDeck] = useState<Pos[] | null>(null);
+  // SKUs com tarefa aberta na contagem cega (/ajustes/inventario/contagem)
+  const [naContagem, setNaContagem] = useState<Set<string>>(new Set());
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro(null);
@@ -81,6 +83,7 @@ export default function LocalizacaoPage() {
         for (const c of d.conferidas) m.set(`${c.empresa}|${c.codigo_produto}`, { status: c.status, nome: c.conferido_nome });
         setConferidas(m);
       }
+      if (Array.isArray(d.naContagem)) setNaContagem(new Set(d.naContagem.map(String)));
     } catch { /* silencioso — a tela funciona sem os selos */ }
   }, []);
   useEffect(() => { carregarConferidas(); }, [carregarConferidas]);
@@ -108,6 +111,28 @@ export default function LocalizacaoPage() {
       });
     } catch { carregarConferidas(); }
   }
+
+  // "Quantidade diferente": a peça está no lugar (marca conferido) mas o número não
+  // bate → vai pra contagem cega, que concilia e gera o ajuste se confirmar.
+  const emContagem = useCallback((p: Produto) => !!p.codigo && naContagem.has(String(p.codigo)), [naContagem]);
+  async function pedirContagem(p: Produto) {
+    if (!p.codigo) { aviso('Peça sem SKU — não dá pra mandar pra contagem.'); return; }
+    if (emContagem(p)) { aviso(`${p.codigo} já está na contagem.`); return; }
+    const key = chaveProd(p);
+    setConferidas((prev) => new Map(prev).set(key, { status: 'conferido', nome: userProfile?.nome }));
+    setNaContagem((prev) => new Set(prev).add(String(p.codigo)));
+    try {
+      const { prat, andar, caixa } = posDe(p);
+      const r = await fetch('/api/ajustes/localizacao/conferir', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ empresa: p.empresa, codigo_produto: p.codigo_produto, status: 'conferido', posicao: `${prat}|${andar}|${caixa}`, contar: true, sku: p.codigo }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (d?.contagem?.ok) aviso(d.contagem.jaExistia ? `${p.codigo} já estava na contagem.` : `${p.codigo} foi para a contagem.`);
+      else { aviso(`Não foi para a contagem: ${d?.contagem?.erro || d?.erro || 'erro'}`); carregarConferidas(); }
+    } catch { aviso('Não foi para a contagem (sem conexão).'); carregarConferidas(); }
+  }
+  function aviso(msg: string) { setFlash(msg); setTimeout(() => setFlash(null), 2600); }
 
   // adiciona a peça à FILA COMPARTILHADA de etiquetas (aba Etiquetas do /ppv).
   // Monta a linha no mesmo formato do EtiquetasPanel (conta/empresa/codigo/descricao/locacao).
@@ -376,8 +401,13 @@ export default function LocalizacaoPage() {
                                   {statusConf(p) && (
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 7px', borderRadius: 999, fontSize: '.66rem', fontWeight: 700,
                                       background: statusConf(p) === 'conferido' ? '#dcfce7' : '#ffedd5', color: statusConf(p) === 'conferido' ? '#16a34a' : '#c2410c' }}>
-                                      {statusConf(p) === 'conferido' ? <CheckCircle size={11} /> : <AlertTriangle size={11} />}
-                                      {statusConf(p) === 'conferido' ? 'conferido' : 'não bate'}
+                                      {statusConf(p) === 'conferido' ? <CheckCircle size={11} /> : <MapPin size={11} />}
+                                      {statusConf(p) === 'conferido' ? 'conferido' : 'em outro lugar'}
+                                    </span>
+                                  )}
+                                  {emContagem(p) && (
+                                    <span title="Tem contagem aberta em Inventário → Contagem" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 7px', borderRadius: 999, fontSize: '.66rem', fontWeight: 700, background: '#e0e7ff', color: '#4338ca' }}>
+                                      <Hash size={11} /> na contagem
                                     </span>
                                   )}
                                   <span style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: '.72rem' }}>estq {p.estoque ?? 0}</span>
@@ -424,6 +454,7 @@ export default function LocalizacaoPage() {
       )}
       {conferirDeck && (
         <ModalConferirPosicao deck={conferirDeck} daEmpresa={daEmpresa} conferidas={conferidas}
+          emContagem={emContagem} onContar={pedirContagem}
           onMarcar={marcarConferencia} onTrocar={setColocar} onEtiqueta={addEtiqueta}
           onClose={() => setConferirDeck(null)} />
       )}
@@ -520,14 +551,16 @@ const modalCard: React.CSSProperties = { ...box, width: 'min(560px, 96vw)', maxH
 
 // ---------------------------------------------------------------------------
 // Conferir por posição (flashcard touch): percorre as posições em ordem, mostra
-// a(s) peça(s) que deveriam estar ali e grava ✓ conferido / ⚠ não bate na
-// `localizacao_conferida`. Ordem CONGELADA ao abrir; ocupantes FRESCOS (refletem
+// a(s) peça(s) que deveriam estar ali e grava ✓ conferido / 📍 em outro lugar na
+// `localizacao_conferida`; "Quantidade diferente" = conferido + manda pra contagem. Ordem CONGELADA ao abrir; ocupantes FRESCOS (refletem
 // movimentações feitas na conferência). z-index 45 → o "Trocar" (ModalColocar,
 // z50) empilha por cima.
-function ModalConferirPosicao({ deck, daEmpresa, conferidas, onMarcar, onTrocar, onEtiqueta, onClose }: {
+function ModalConferirPosicao({ deck, daEmpresa, conferidas, emContagem, onContar, onMarcar, onTrocar, onEtiqueta, onClose }: {
   deck: Pos[];
   daEmpresa: Produto[];
   conferidas: Map<string, { status: 'conferido' | 'divergente'; nome?: string }>;
+  emContagem: (p: Produto) => boolean;
+  onContar: (p: Produto) => void;
   onMarcar: (p: Produto, status: 'conferido' | 'divergente') => void;
   onTrocar: (pos: Pos) => void;
   onEtiqueta: (p: Produto) => void;
@@ -589,10 +622,20 @@ function ModalConferirPosicao({ deck, daEmpresa, conferidas, onMarcar, onTrocar,
                         <button onClick={() => onMarcar(p, 'conferido')} style={{ ...bigBtn, background: st === 'conferido' ? '#16a34a' : '#dcfce7', color: st === 'conferido' ? '#fff' : '#16a34a' }}>
                           <CheckCircle size={18} /> Confere
                         </button>
-                        <button onClick={() => onMarcar(p, 'divergente')} style={{ ...bigBtn, background: st === 'divergente' ? '#ea580c' : '#ffedd5', color: st === 'divergente' ? '#fff' : '#c2410c' }}>
-                          <AlertTriangle size={18} /> Não bate
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button onClick={() => onMarcar(p, 'divergente')} title="A peça não está nesta posição"
+                          style={{ ...bigBtn, fontSize: '.88rem', background: st === 'divergente' ? '#ea580c' : '#ffedd5', color: st === 'divergente' ? '#fff' : '#c2410c' }}>
+                          <MapPin size={16} /> Em outro lugar
+                        </button>
+                        <button onClick={() => onContar(p)} disabled={emContagem(p)} title="Está aqui, mas a quantidade não bate — manda pra contagem"
+                          style={{ ...bigBtn, fontSize: '.88rem', background: emContagem(p) ? '#4338ca' : '#e0e7ff', color: emContagem(p) ? '#fff' : '#4338ca', cursor: emContagem(p) ? 'default' : 'pointer' }}>
+                          <Hash size={16} /> {emContagem(p) ? 'Na contagem' : 'Quantidade diferente'}
                         </button>
                       </div>
+                      {st === 'divergente' && (
+                        <div style={{ fontSize: '.74rem', color: '#9a3412', marginTop: 6 }}>Sabe onde ela está? Use <b>Trocar/colocar</b> (ou Mover na lista) para gravar a posição certa.</div>
+                      )}
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                         <button onClick={() => onTrocar(pos)} style={{ ...btn, flex: 1, justifyContent: 'center' }}><ArrowRightLeft size={14} /> Trocar/colocar</button>
                         <button onClick={() => onEtiqueta(p)} style={{ ...btn, flex: 1, justifyContent: 'center' }}><Tag size={14} /> Etiqueta</button>
