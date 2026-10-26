@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { acharCadastros, chaveCodigo, codigoDoItem, semEntidades, gerarCsvRelacao, indexarCadastros, locacaoDe, montarRelacao, outrasCaracteristicas, tipoDe, variantesCodigo, type ItemRelacao } from '../relacao'
+import { acharCadastros, chaveCodigo, codigoDoItem, semEntidades, gerarCsvRelacao, indexarCadastros, locacaoDe, montarRelacao, ordenarParecidos, outrasCaracteristicas, padraoParecido, tipoDe, variantesCodigo, type ItemRelacao } from '../relacao'
 
 const item = (p: Partial<ItemRelacao>): ItemRelacao => ({
   id: 'i', codigo: 'CAP-000001', codigo_fabricante: null, descricao: 'Peça', quantidade: 1, qualidade: 'nova',
@@ -90,5 +90,24 @@ describe('relação Opa × cadastro', () => {
     )
     expect(acharCadastros(cad, '0734309419').map((c) => [c.empresa, c.codigo])).toEqual([['CASTRO', 'RP-0734309419']])
     expect(acharCadastros(cad, 'nada')).toEqual([])
+  })
+})
+
+describe('código parecido (o exato não existe)', () => {
+  it('acha o digitado dentro do código, sem RP- e com separadores', () => {
+    expect(padraoParecido('348U1')).toBe('%348U1%')
+    expect(padraoParecido('rp-348u1')).toBe('%348U1%')
+    expect(padraoParecido('348-U1')).toBe('%348%U1%')
+    expect(padraoParecido('34')).toBeNull()
+    expect(padraoParecido('  ')).toBeNull()
+  })
+  it('ativos primeiro, código mais curto antes, sem repetir', () => {
+    const r = ordenarParecidos([
+      { empresa: 'CASTRO', codigo: '006034348U1MHI', descricao: null, inativo: false },
+      { empresa: 'NOVA', codigo: 'RP-006034348U1X', descricao: null, inativo: true },
+      { empresa: 'NOVA', codigo: 'RP-006034348U1', descricao: 'FILTRO', inativo: false },
+      { empresa: 'NOVA', codigo: 'rp-006034348u1', descricao: 'FILTRO', inativo: false },
+    ])
+    expect(r.map((p) => p.codigo)).toEqual(['RP-006034348U1', '006034348U1MHI', 'RP-006034348U1X'])
   })
 })

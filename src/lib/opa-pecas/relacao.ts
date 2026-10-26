@@ -101,6 +101,32 @@ export function variantesCodigo(c: string | null | undefined): string[] {
   return [...new Set(out)].filter(Boolean)
 }
 
+/** Produto do cadastro cujo código CONTÉM o que foi digitado (o exato não existe). */
+export interface Parecido { empresa: 'NOVA' | 'CASTRO'; codigo: string; descricao: string | null; inativo: boolean }
+
+/**
+ * Padrão ILIKE para achar o código digitado DENTRO do código cadastrado:
+ * "348U1" → "%348U1%" (acha RP-006034348U1 e 006034348U1MHI); tira "RP-" e
+ * trata traço/ponto/espaço como "qualquer coisa" ("348-U1" → "%348%U1%").
+ * Menos de 4 letras/números = null (pedaço curto demais acharia tudo).
+ */
+export function padraoParecido(c: string | null | undefined): string | null {
+  const pedacos = chaveCodigo(c).replace(/^RP-?/, '').split(/[^A-Z0-9]+/).filter(Boolean)
+  if (pedacos.join('').length < 4) return null
+  return `%${pedacos.join('%')}%`
+}
+
+const semRP = (c: string) => chaveCodigo(c).replace(/^RP-?/, '')
+
+/** Ordem dos parecidos: ativos primeiro, depois o código mais curto sem "RP-" (= mais perto do digitado), sem repetir. */
+export function ordenarParecidos(lista: Parecido[], max = 8): Parecido[] {
+  const vistos = new Set<string>()
+  return [...lista]
+    .sort((a, b) => Number(a.inativo) - Number(b.inativo) || semRP(a.codigo).length - semRP(b.codigo).length || (a.codigo < b.codigo ? -1 : a.codigo > b.codigo ? 1 : 0))
+    .filter((p) => { const k = p.empresa + '|' + chaveCodigo(p.codigo); if (vistos.has(k)) return false; vistos.add(k); return true })
+    .slice(0, max)
+}
+
 const EMPRESA = (conta: string): 'NOVA' | 'CASTRO' => (conta.toUpperCase() === 'CASTRO' ? 'CASTRO' : 'NOVA')
 
 /** O espelho da Omie guarda algumas descrições com entidades HTML ("2&quot;" = 2"). */

@@ -399,7 +399,7 @@ export function Miniatura({ url, tamanho = 56 }: { url?: string; tamanho?: numbe
 export function Aviso({ tipo = 'erro', children, acao }: { tipo?: 'erro' | 'ok' | 'info'; children: React.ReactNode; acao?: React.ReactNode }) {
   const cores = { erro: ['#FEF2F2', '#FECACA', '#991B1B'], ok: ['#ECFDF5', '#A7F3D0', '#065F46'], info: ['#FFF7ED', '#FED7AA', '#9A3412'] }[tipo]
   return (
-    <div role={tipo === 'erro' ? 'alert' : 'status'} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 10, background: cores[0], border: `1px solid ${cores[1]}`, color: cores[2], fontSize: 14, fontWeight: 600, marginBottom: 14 }}>
+    <div role={tipo === 'erro' ? 'alert' : 'status'} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 12, background: cores[0], border: `1px solid ${cores[1]}`, color: cores[2], fontSize: 14, fontWeight: 400, marginBottom: 14 }}>
       <div style={{ flex: 1, minWidth: 180, whiteSpace: 'pre-wrap' }}>{children}</div>
       {acao}
     </div>
@@ -407,15 +407,15 @@ export function Aviso({ tipo = 'erro', children, acao }: { tipo?: 'erro' | 'ok' 
 }
 
 export const INP: React.CSSProperties = {
-  width: '100%', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', fontSize: 16,
+  width: '100%', padding: '10px 12px', borderRadius: 10, border: '1px solid var(--portal-border)', fontSize: 16,
   boxSizing: 'border-box', background: 'var(--portal-bg-card)', outline: 'none', color: 'var(--portal-text)', fontFamily: 'inherit',
 }
 
 export function botao(cor: string, opts: { grande?: boolean; contorno?: boolean; desab?: boolean } = {}): React.CSSProperties {
   return {
     display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-    padding: opts.grande ? '14px 20px' : '9px 14px', borderRadius: 10, fontSize: opts.grande ? 16 : 13, fontWeight: 800,
-    border: opts.contorno ? `1.5px solid ${cor}` : 'none', background: opts.contorno ? 'var(--portal-bg-card)' : cor,
+    padding: opts.grande ? '14px 20px' : '9px 14px', borderRadius: 11, fontSize: opts.grande ? 16 : 13.5, fontWeight: 500,
+    border: opts.contorno ? `1px solid color-mix(in srgb, ${cor} 45%, var(--portal-border))` : 'none', background: opts.contorno ? 'var(--portal-bg-card)' : cor,
     color: opts.contorno ? cor : '#fff', cursor: opts.desab ? 'not-allowed' : 'pointer', opacity: opts.desab ? 0.5 : 1,
     fontFamily: 'inherit',
   }
@@ -423,12 +423,22 @@ export function botao(cor: string, opts: { grande?: boolean; contorno?: boolean;
 
 /** Cartão de seção dos formulários (mesmo visual no PC e no celular). */
 export const SECAO: React.CSSProperties = {
-  padding: 16, borderRadius: 12, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+  padding: '16px 18px', borderRadius: 16, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
   display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0,
 }
 
 export const TITULO_SECAO: React.CSSProperties = {
-  fontSize: 11.5, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: 'var(--portal-text-muted)', margin: 0,
+  fontSize: 16, fontWeight: 500, color: 'var(--portal-text)', margin: 0,
+}
+
+/** Título de seção no estilo POS NewPortal: ícone em quadradinho + texto 16 px sem negrito. */
+export function TituloSecao({ icone, cor = LARANJA, children }: { icone: React.ReactNode; cor?: string; children: React.ReactNode }) {
+  return (
+    <h2 className="opa-tit" style={{ ...TITULO_SECAO, ['--c' as string]: cor } as React.CSSProperties}>
+      <span className="opa-tit-ico">{icone}</span>
+      <span style={{ minWidth: 0 }}>{children}</span>
+    </h2>
+  )
 }
 
 /** Tela com espaço para duas colunas de formulário (PC). Abaixo disso, uma coluna (celular/tablet em pé). */
@@ -436,4 +446,4 @@ export function useTelaLarga(): boolean {
   return !useIsMobile(980)
 }
 
-export const ROTULO: React.CSSProperties = { fontSize: 13, fontWeight: 700, color: 'var(--portal-text-secondary)', display: 'block', marginBottom: 6 }
+export const ROTULO: React.CSSProperties = { fontSize: 13, fontWeight: 400, color: 'var(--portal-text-secondary)', display: 'block', marginBottom: 6 }

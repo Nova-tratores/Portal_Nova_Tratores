@@ -5,8 +5,8 @@
 
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import {
-  acharCadastros, indexarCadastros, variantesCodigo,
-  type Cadastro, type CaracteristicaCadastro, type ProdutoCadastro,
+  acharCadastros, indexarCadastros, ordenarParecidos, padraoParecido, variantesCodigo,
+  type Cadastro, type Parecido, type CaracteristicaCadastro, type ProdutoCadastro,
 } from './relacao'
 
 const LOTE = 150
@@ -46,6 +46,28 @@ export async function lerCadastros(grafias: string[]): Promise<{ produtos: Produ
     }),
   ])
   return { produtos, caracteristicas }
+}
+
+/**
+ * Código exato não existe: produtos cujo código CONTÉM o digitado (caso real
+ * 26/10/2026: "348U1" é RP-006034348U1 na Nova e 006034348U1MHI na Castro).
+ * A pessoa escolhe; nada é trocado sozinho.
+ */
+export async function parecidosDoCodigo(codigo: string): Promise<Parecido[]> {
+  const padrao = padraoParecido(codigo)
+  if (!padrao) return []
+  const { data, error } = await supabaseAdmin
+    .from('produtos')
+    .select('conta_omie, codigo, descricao, inativo')
+    .ilike('codigo', padrao)
+    .limit(40)
+  if (error) throw error
+  return ordenarParecidos((data || []).map((p) => ({
+    empresa: String(p.conta_omie || '').toUpperCase() === 'CASTRO' ? 'CASTRO' as const : 'NOVA' as const,
+    codigo: String(p.codigo || ''),
+    descricao: p.descricao ? String(p.descricao) : null,
+    inativo: p.inativo === true,
+  })))
 }
 
 /** Cadastros (NOVA/CASTRO) de UM código. Vazio = não cadastrado. */
