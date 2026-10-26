@@ -59,12 +59,23 @@ export async function register(): Promise<void> {
 
   // IP de saída deste processo (22/10/2026): a Omie limita por IP + chave + método. Se
   // web e worker saem por IPs diferentes, a divisão dos limites da porta é só cautela.
-  // Loga na subida e sempre que mudar (confere a cada hora); aparece no "Omie agora".
+  // Loga na subida e sempre que mudar (confere a cada hora); aparece no "Omie agora" e
+  // fica no cron_runs (job `ip-saida`, detalhe "papel: ip") para comparar web × worker.
   if (process.env.NODE_ENV === 'production') {
     const { verificarIpSaida } = await import('./lib/omie/porta');
     const conferirIp = async () => {
       const r = await verificarIpSaida();
-      if (r.mudou) log(`ip de saída (${PAPEL}): ${r.ip ?? 'não consegui descobrir'}${r.anterior ? ` — antes ${r.anterior}` : ''}`);
+      if (!r.mudou) return;
+      log(`ip de saída (${PAPEL}): ${r.ip ?? 'não consegui descobrir'}${r.anterior ? ` — antes ${r.anterior}` : ''}`);
+      if (!r.ip) return;
+      try {
+        const { supabaseAdmin } = await import('./lib/server/supabase-admin');
+        const agora = new Date().toISOString();
+        await supabaseAdmin.from('cron_runs').insert({
+          job: 'ip-saida', status: 'ok', iniciado_em: agora, finalizado_em: agora, duracao_ms: 0,
+          detalhe: `${PAPEL}: ${r.ip}${r.anterior ? ` (antes ${r.anterior})` : ''}`,
+        });
+      } catch { /* só informativo */ }
     };
     void conferirIp();
     setInterval(() => { void conferirIp(); }, 60 * 60 * 1000);
