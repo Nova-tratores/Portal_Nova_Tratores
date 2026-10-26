@@ -14,8 +14,9 @@ import {
   type EtiquetaItem,
 } from '@/lib/opa-pecas/etiqueta'
 import {
-  guardarAjusteTermica, guardarModo, imprimirTermica, lerAjusteTermica, lerModo, type AjusteTermica, type ModoEtiqueta,
+  guardarAjusteTermica, guardarModo, lerAjusteTermica, lerModo, type AjusteTermica, type ModoEtiqueta,
 } from '@/lib/opa-pecas/etiqueta-termica'
+import { imprimirOuEnviar } from '@/lib/etiquetas/estacao-client'
 import { Aviso, botao, LARANJA } from './comum'
 import AjustesTermica from './AjustesTermica'
 import { Janela } from './Moldura'
@@ -45,7 +46,7 @@ export default function Impressao({ itens, onFechar, onImpresso }: {
   const folhas = folhasNecessarias(inicio, n)
   const naPrimeira = Math.min(n, POR_FOLHA - inicio)
 
-  const imprimir = () => {
+  const imprimir = async () => {
     // sem a chave pública o QR sairia quebrado (sql/pni-10 não aplicado)
     if (itens.some((i) => !i.token)) {
       setErro('O link público das etiquetas ainda não existe no banco. Rode o sql/pni-10-link-publico.sql no Supabase e recarregue a página.')
@@ -53,10 +54,8 @@ export default function Impressao({ itens, onFechar, onImpresso }: {
     }
     if (modo === 'termica') {
       guardarAjusteTermica(term)
-      if (!imprimirTermica(itens, term)) {
-        setErro('Não consegui preparar a etiqueta para imprimir. Recarregue a página e tente de novo.')
-        return
-      }
+      const r = await imprimirOuEnviar(itens, term, 'opa')
+      if (!r.ok) { setErro(r.erro); return }
     } else {
       if (!imprimirEtiquetas(itens, inicio)) {
         setErro('O navegador bloqueou a janela de impressão. Libere pop-ups para o portal e tente de novo.')

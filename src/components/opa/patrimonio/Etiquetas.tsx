@@ -6,7 +6,8 @@
 
 import { useEffect, useState } from 'react'
 import { Printer } from 'lucide-react'
-import { guardarAjusteTermica, imprimirTermica, lerAjusteTermica, type AjusteTermica, type ItemTermica } from '@/lib/opa-pecas/etiqueta-termica'
+import { guardarAjusteTermica, lerAjusteTermica, type AjusteTermica, type ItemTermica } from '@/lib/opa-pecas/etiqueta-termica'
+import { imprimirOuEnviar } from '@/lib/etiquetas/estacao-client'
 import { textoOnde, type ItemPat } from '@/lib/patrimonio/tipos'
 import AjustesTermica from '../pecas/AjustesTermica'
 import { Aviso, botao } from '../pecas/comum'
@@ -42,9 +43,10 @@ export default function EtiquetasPat({ itens, nomeLocal, onFechar, onImpresso }:
   const n = lista.length
   const demais = n > MAX_ETIQUETAS
 
-  const imprimir = () => {
+  const imprimir = async () => {
     if (demais) { setErro(`São ${n} etiquetas — o máximo por vez é ${MAX_ETIQUETAS}. Use "só uma por item" ou filtre a lista.`); return }
-    if (!imprimirTermica(lista, term)) { setErro('Não consegui preparar a etiqueta para imprimir. Recarregue a página e tente de novo.'); return }
+    const r = await imprimirOuEnviar(lista, term, 'patrimonio')
+    if (!r.ok) { setErro(r.erro); return }
     api('/api/patrimonio/etiquetas', { method: 'POST', body: { ids: itens.map((i) => i.id) } }).then(() => onImpresso?.()).catch(() => null)
     onFechar()
   }

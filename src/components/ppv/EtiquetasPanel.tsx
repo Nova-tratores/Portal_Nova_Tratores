@@ -14,7 +14,8 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
 import { htmlFolha, qrSvg, urlDaUnidade, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
-import { guardarAjusteTermica, imprimirTermica, lerAjusteTermica, locacaoAbreviada, TERMICA_PADRAO, type AjusteTermica, type ItemTermica } from '@/lib/opa-pecas/etiqueta-termica'
+import { guardarAjusteTermica, lerAjusteTermica, locacaoAbreviada, TERMICA_PADRAO, type AjusteTermica, type ItemTermica } from '@/lib/opa-pecas/etiqueta-termica'
+import { imprimirOuEnviar } from '@/lib/etiquetas/estacao-client'
 import AjustesTermica from '@/components/opa/pecas/AjustesTermica'
 import { botao } from '@/components/opa/pecas/comum'
 import { Janela } from '@/components/opa/pecas/Moldura'
@@ -311,7 +312,8 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       const folha = json.folha as { formato: string; rastreado: boolean; usadas: number[]; itens: { linhas: LinhaEtiqueta[]; numero?: string; unidade_id?: string }[] }
       if (folha.formato === 'termica') {
         const itensT = (folha.itens || []).map(it => itemTermica(it.linhas, comBarra, folha.rastreado && it.unidade_id ? { id: it.unidade_id, numero: it.numero } : undefined))
-        if (!imprimirTermica(itensT, term)) setErro('Não consegui preparar a etiqueta para imprimir. Recarregue a página e tente de novo.')
+        const r = await imprimirOuEnviar(itensT, term, 'ppv')
+        if (!r.ok) setErro(r.erro)
         return
       }
       const w = window.open('', '_blank'); if (!w) { setErro('O navegador bloqueou a janela — libere pop-ups.'); return }
@@ -529,7 +531,8 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       }
       if (termica) {
         const itensT = itensFolha.map(it => itemTermica(it.linhas, comBarra, it.unidade_id ? { id: it.unidade_id, numero: it.numero } : undefined))
-        if (!imprimirTermica(itensT, term)) throw new Error('Não consegui preparar a etiqueta para imprimir. Recarregue a página e tente de novo.')
+        const r = await imprimirOuEnviar(itensT, term, 'ppv')
+        if (!r.ok) throw new Error(r.erro)
       } else if (w) {
         w.document.open()
         w.document.write(htmlFolha(blocos, formato === 'folha' ? usadas : new Set<number>(), {

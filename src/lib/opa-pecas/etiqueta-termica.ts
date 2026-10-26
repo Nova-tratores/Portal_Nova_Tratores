@@ -22,6 +22,7 @@ export const LIMITES: Record<'largura' | 'altura' | 'intervalo' | 'x' | 'y', [nu
 }
 const CHAVE = 'pni_etiqueta_termica_v3'
 const CHAVE_MODO = 'pni_etiqueta_modo'
+const CHAVE_DESTINO = 'pni_etiqueta_destino'
 
 export type ModoEtiqueta = 'termica' | 'folha'
 
@@ -52,6 +53,15 @@ export function lerModo(): ModoEtiqueta {
 }
 export function guardarModo(m: ModoEtiqueta) {
   try { localStorage.setItem(CHAVE_MODO, m) } catch { /* sem storage */ }
+}
+
+/** Onde a térmica imprime: na impressora deste computador ou na estação da ROGERIA (pela rede). */
+export type DestinoTermica = 'local' | 'estacao'
+export function lerDestino(): DestinoTermica {
+  try { return localStorage.getItem(CHAVE_DESTINO) === 'estacao' ? 'estacao' : 'local' } catch { return 'local' }
+}
+export function guardarDestino(d: DestinoTermica) {
+  try { localStorage.setItem(CHAVE_DESTINO, d) } catch { /* sem storage */ }
 }
 
 /** Item da etiqueta: peça do Opa (token → /e/<chave>) ou outro (url pronta, ex.: Patrimônio).
@@ -150,18 +160,22 @@ ${paginas.join('\n')}
  * na própria página recebe o HTML e abre só o diálogo de impressão. O iframe
  * some depois de imprimir (ou de 1 min). Devolve false se não deu para montar.
  */
-export function imprimirTermica(itens: ItemTermica[], a: AjusteTermica = lerAjusteTermica()): boolean {
+export function imprimirTermica(itens: ItemTermica[], a: AjusteTermica = lerAjusteTermica(), aoTerminar?: (ok: boolean) => void): boolean {
+  // aoTerminar: a estação de impressão espera uma impressão acabar antes da próxima
+  let avisou = false
+  const fim = (ok: boolean) => { if (!avisou) { avisou = true; aoTerminar?.(ok) } }
   try {
     const com = itens.map((i) => ({ ...i, qr: i.semQr ? '' : qrSvg(QRCode.create(i.url || urlPublica(window.location.origin, i.token || ''), { errorCorrectionLevel: 'M' }).modules) }))
     // Página primeiro (é a que cai certa no rolo). PDF só se escolhido nos ajustes;
     // falhou o PDF → cai na página.
-    if (a.forma === 'pdf') { void imprimirTermicaPdf(com, a).then((ok) => { if (!ok) imprimirTermicaHtml(com, a) }); return true }
+    if (a.forma === 'pdf') { void imprimirTermicaPdf(com, a, fim).then((ok) => { if (!ok) imprimirTermicaHtml(com, a, undefined, fim) }); return true }
     // Cada etiqueta vai como IMAGEM (José, 23/10/2026: em lote o driver da ROGERIA
     // perdia o nome e o local a partir da 2ª etiqueta — texto some, imagem não).
     // Não deu para desenhar → página com texto, como antes.
-    void paginasEmImagem(com, a).then((r) => imprimirTermicaHtml(com, a, r)).catch(() => imprimirTermicaHtml(com, a))
+    void paginasEmImagem(com, a).then((r) => imprimirTermicaHtml(com, a, r, fim)).catch(() => imprimirTermicaHtml(com, a, undefined, fim))
     return true
   } catch {
+    fim(false)
     return false
   }
 }
@@ -194,7 +208,7 @@ async function paginasEmImagem(com: (ItemTermica & { qr: string })[], a: AjusteT
 }
 
 /** Monta um PDF do tamanho do rolo com as páginas já desenhadas em imagem. */
-async function imprimirTermicaPdf(com: (ItemTermica & { qr: string })[], a: AjusteTermica): Promise<boolean> {
+async function imprimirTermicaPdf(com: (ItemTermica & { qr: string })[], a: AjusteTermica, fim?: (ok: boolean) => void): Promise<boolean> {
   try {
     const { imgs, PW, PH } = await paginasEmImagem(com, a)
     const { jsPDF } = await import('jspdf')
@@ -210,7 +224,10 @@ async function imprimirTermicaPdf(com: (ItemTermica & { qr: string })[], a: Ajus
     f.id = 'pni-etiqueta-print'
     f.setAttribute('aria-hidden', 'true')
     f.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;'
-    f.onload = () => setTimeout(() => { try { f.contentWindow?.focus(); f.contentWindow?.print() } catch { /* o leitor de PDF abre o diálogo sozinho */ } }, 300)
+    f.onload = () => setTimeout(() => {
+      try { f.contentWindow?.focus(); f.contentWindow?.print() } catch { /* o leitor de PDF abre o diálogo sozinho */ }
+      setTimeout(() => fim?.(true), 3000)
+    }, 300)
     f.src = url
     document.body.appendChild(f)
     setTimeout(() => { f.remove(); URL.revokeObjectURL(url) }, 120_000)
@@ -236,7 +253,7 @@ ${imgs.map((src) => `<div class="pg"><img src="${src}" alt=""></div>`).join('\n'
 
 /** Página HTML num iframe (srcdoc: o endereço do portal não vai para o cabeçalho do navegador).
  *  Com `imagens`, cada etiqueta vai desenhada; sem, vai o HTML com texto. */
-function imprimirTermicaHtml(com: (ItemTermica & { qr: string })[], a: AjusteTermica, imagens?: { imgs: string[]; PW: number; PH: number }): boolean {
+function imprimirTermicaHtml(com: (ItemTermica & { qr: string })[], a: AjusteTermica, imagens?: { imgs: string[]; PW: number; PH: number }, fim?: (ok: boolean) => void): boolean {
   try {
     document.getElementById('pni-etiqueta-print')?.remove()
     const f = document.createElement('iframe')
@@ -251,16 +268,17 @@ function imprimirTermicaHtml(com: (ItemTermica & { qr: string })[], a: AjusteTer
     f.onload = () => {
       const w = f.contentWindow
       if (!w) return
-      w.addEventListener('afterprint', () => setTimeout(() => f.remove(), 500))
+      w.addEventListener('afterprint', () => { setTimeout(() => f.remove(), 500); fim?.(true) })
       // espera as imagens decodificarem antes de abrir a impressão
       const prontas = Array.from(w.document.images).map((im) => im.decode().catch(() => undefined))
-      void Promise.all(prontas).then(() => setTimeout(() => { w.focus(); w.print() }, 150))
+      void Promise.all(prontas).then(() => setTimeout(() => { w.focus(); w.print(); fim?.(true) }, 150))
     }
     document.body.appendChild(f)
     setTimeout(() => f.remove(), 60_000)
     return true
   } catch {
     document.getElementById('pni-etiqueta-print')?.remove()
+    fim?.(false)
     return false
   }
 }
