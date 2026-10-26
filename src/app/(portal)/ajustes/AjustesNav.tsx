@@ -6,7 +6,17 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
-import { PAGINAS_AJUSTES, DEPARTAMENTOS } from './paginas';
+import { PAGINAS_AJUSTES, DEPARTAMENTOS, FUNCOES, type Departamento, type PaginaAjustes } from './paginas';
+
+// Agrupa as páginas visíveis do departamento por função (ordem de FUNCOES);
+// página sem função cai em "Outros", no fim.
+function porFuncao(dep: Departamento, itens: PaginaAjustes[]): { funcao: string; paginas: PaginaAjustes[] }[] {
+  const ordem = FUNCOES[dep] || [];
+  const grupos = ordem.map((funcao) => ({ funcao, paginas: itens.filter((p) => p.funcao === funcao) }));
+  const soltas = itens.filter((p) => !p.funcao || !ordem.includes(p.funcao));
+  if (soltas.length) grupos.push({ funcao: 'Outros', paginas: soltas });
+  return grupos.filter((g) => g.paginas.length > 0);
+}
 
 export default function AjustesNav() {
   const { userProfile } = useAuth();
@@ -29,6 +39,24 @@ export default function AjustesNav() {
     textDecoration: 'none',
     color: '#334155',
     whiteSpace: 'nowrap',
+  };
+
+  const linkPagina = (p: PaginaAjustes) => {
+    const ativo = pathname === p.href;
+    return (
+      <Link
+        key={p.key}
+        href={p.href}
+        style={{
+          ...linkBase,
+          background: ativo ? '#dc2626' : '#f1f5f9',
+          color: ativo ? '#fff' : '#334155',
+          fontWeight: ativo ? 600 : 400,
+        }}
+      >
+        {p.label}
+      </Link>
+    );
   };
 
   return (
@@ -82,23 +110,21 @@ export default function AjustesNav() {
           >
             <span aria-hidden>{dep.icon}</span> {dep.label}
           </span>
-          {itens.map((p) => {
-            const ativo = pathname === p.href;
-            return (
-              <Link
-                key={p.key}
-                href={p.href}
-                style={{
-                  ...linkBase,
-                  background: ativo ? '#dc2626' : '#f1f5f9',
-                  color: ativo ? '#fff' : '#334155',
-                  fontWeight: ativo ? 600 : 400,
-                }}
-              >
-                {p.label}
-              </Link>
-            );
-          })}
+          {FUNCOES[dep.key] ? (
+            // Departamento com funções: uma sub-linha por função, com rótulo pequeno.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: 1, minWidth: 0 }}>
+              {porFuncao(dep.key, itens).map(({ funcao, paginas }) => (
+                <div key={funcao} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                  <span style={{ fontSize: '.66rem', fontWeight: 700, color: dep.cor, textTransform: 'uppercase', letterSpacing: '.4px', minWidth: 118 }}>
+                    {funcao}
+                  </span>
+                  {paginas.map(linkPagina)}
+                </div>
+              ))}
+            </div>
+          ) : (
+            itens.map(linkPagina)
+          )}
         </div>
       ))}
     </nav>
