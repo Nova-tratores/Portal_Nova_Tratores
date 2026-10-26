@@ -30,6 +30,7 @@ export const PAGINAS_AJUSTES: PaginaAjustes[] = [
   { key: 'ajustes:dashboard', label: 'Dashboard CMC', href: '/ajustes', grupo: 'Início', departamento: 'Estoque' },
   // Edição
   { key: 'ajustes:ajuste-custos', label: 'Ajuste de custos', href: '/ajustes/ajuste-custos', grupo: 'Edição', departamento: 'Estoque' },
+  { key: 'ajustes:ajuste-estoque', label: 'Ajuste de estoque (qtd)', href: '/ajustes/ajuste-estoque', grupo: 'Edição', departamento: 'Estoque' },
   { key: 'ajustes:correcao-contas', label: 'Correção de contas', href: '/ajustes/correcao-contas', grupo: 'Edição', departamento: 'Financeiro' },
   { key: 'ajustes:devolucao', label: 'Devolução de compra', href: '/ajustes/devolucao', grupo: 'Edição', departamento: 'Estoque' },
   { key: 'ajustes:baixa-contas', label: 'Baixar contas', href: '/ajustes/baixa-contas', grupo: 'Edição', departamento: 'Financeiro' },
