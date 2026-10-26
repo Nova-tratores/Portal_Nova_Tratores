@@ -15,9 +15,14 @@ import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
 import { norm, getCar, posDe, chaveProd, labelSeg, posInvalida, posLabel, cmpSeg, ocupantesDe, type ProdutoLoc as Produto, type Pos } from '@/lib/ajustes/posicao';
 import { ModalMover, AvisoOcupado } from '@/components/ajustes/ModalMoverPeca';
-import { ChevronRight, ChevronDown, MapPin, AlertTriangle, Search, ArrowRightLeft, X, PackageOpen, Trash2, Plus, Tag, CheckCircle, ClipboardCheck, Hash } from 'lucide-react';
+import { ChevronRight, ChevronDown, MapPin, AlertTriangle, Search, ArrowRightLeft, X, PackageOpen, Trash2, Plus, Tag, CheckCircle, ClipboardCheck, Hash, History } from 'lucide-react';
 
 // tipos e helpers de posição: src/lib/ajustes/posicao.ts (compartilhados com o painel "A alocar")
+
+// última marcação da conferência por peça (localizacao_conferida)
+type InfoConf = { status: 'conferido' | 'divergente'; nome?: string; em?: string };
+// conferência "recente" = bolinha verde; mais velha que isso fica cinza
+const DIAS_CONFERENCIA_RECENTE = 30;
 
 // remove todas as chaves de localização (qualquer casing) do objeto de características
 function limparLocKeys(car: Record<string, string>): Record<string, string> {
@@ -50,12 +55,15 @@ export default function LocalizacaoPage() {
   const [salvando, setSalvando] = useState(false);
 
   // "Conferir por posição": marca própria de localização (localizacao_conferida)
-  const [conferidas, setConferidas] = useState<Map<string, { status: 'conferido' | 'divergente'; nome?: string }>>(new Map());
+  const [conferidas, setConferidas] = useState<Map<string, InfoConf>>(new Map());
   // deck do Conferir: null = fechado; array = flashcard aberto com essas posições
   // (global = todas do filtro; ou só de uma prateleira/andar escolhidos)
   const [conferirDeck, setConferirDeck] = useState<Pos[] | null>(null);
   // SKUs com tarefa aberta na contagem cega (/ajustes/inventario/contagem)
   const [naContagem, setNaContagem] = useState<Set<string>>(new Set());
+  const [agora] = useState(() => Date.now());               // referência do "recente" da bolinha
+  const [soDiverg, setSoDiverg] = useState(false);          // filtro "Só divergências"
+  const [historico, setHistorico] = useState<Produto | null>(null);
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro(null);
@@ -79,8 +87,8 @@ export default function LocalizacaoPage() {
       const r = await fetch('/api/ajustes/localizacao/conferir', { headers: { ...(await authHeaders()) } });
       const d = await r.json();
       if (Array.isArray(d.conferidas)) {
-        const m = new Map<string, { status: 'conferido' | 'divergente'; nome?: string }>();
-        for (const c of d.conferidas) m.set(`${c.empresa}|${c.codigo_produto}`, { status: c.status, nome: c.conferido_nome });
+        const m = new Map<string, InfoConf>();
+        for (const c of d.conferidas) m.set(`${c.empresa}|${c.codigo_produto}`, { status: c.status, nome: c.conferido_nome, em: c.conferido_em });
         setConferidas(m);
       }
       if (Array.isArray(d.naContagem)) setNaContagem(new Set(d.naContagem.map(String)));
@@ -100,7 +108,7 @@ export default function LocalizacaoPage() {
     const novo: 'conferido' | 'divergente' | null = atual === status ? null : status;
     setConferidas((prev) => {
       const m = new Map(prev);
-      if (novo) m.set(key, { status: novo, nome: userProfile?.nome }); else m.delete(key);
+      if (novo) m.set(key, { status: novo, nome: userProfile?.nome, em: new Date().toISOString() }); else m.delete(key);
       return m;
     });
     try {
@@ -119,7 +127,7 @@ export default function LocalizacaoPage() {
     if (!p.codigo) { aviso('Peça sem SKU — não dá pra mandar pra contagem.'); return; }
     if (emContagem(p)) { aviso(`${p.codigo} já está na contagem.`); return; }
     const key = chaveProd(p);
-    setConferidas((prev) => new Map(prev).set(key, { status: 'conferido', nome: userProfile?.nome }));
+    setConferidas((prev) => new Map(prev).set(key, { status: 'conferido', nome: userProfile?.nome, em: new Date().toISOString() }));
     setNaContagem((prev) => new Set(prev).add(String(p.codigo)));
     try {
       const { prat, andar, caixa } = posDe(p);
@@ -194,24 +202,29 @@ export default function LocalizacaoPage() {
 
   // filtro de busca (código / descrição / localização)
   const termo = norm(busca);
+  const ehDivergencia = useCallback((p: Produto) =>
+    conferidas.get(chaveProd(p))?.status === 'divergente' || (!!p.codigo && naContagem.has(String(p.codigo))), [conferidas, naContagem]);
+  const nDiverg = useMemo(() => daEmpresa.filter(ehDivergencia).length, [daEmpresa, ehDivergencia]);
+  const filtrando = !!termo || soDiverg;
   const casa = useCallback((p: Produto): boolean => {
+    if (soDiverg && !ehDivergencia(p)) return false;
     if (!termo) return true;
     const { prat, andar, caixa } = posDe(p);
     const alvo = `${p.codigo || ''} ${p.descricao || ''} ${prat} ${andar} ${caixa}`;
     return norm(alvo).includes(termo);
-  }, [termo]);
+  }, [termo, soDiverg, ehDivergencia]);
 
   // segmentos ordenados, aplicando busca (mantém posição se algum produto casa)
   const prateleiras = useMemo(() => {
     const keys = Array.from(arvore.keys());
-    if (termo) {
+    if (filtrando) {
       return keys.filter((prat) => {
         for (const mc of arvore.get(prat)!.values()) for (const arr of mc.values()) if (arr.some(casa)) return true;
         return false;
       }).sort(cmpSeg);
     }
     return keys.sort(cmpSeg);
-  }, [arvore, termo, casa]);
+  }, [arvore, filtrando, casa]);
 
   // lista ordenada de posições (folhas), na mesma ordem da árvore e respeitando a
   // busca — é o "deck" do Conferir por posição.
@@ -221,15 +234,15 @@ export default function LocalizacaoPage() {
       for (const andar of Array.from(arvore.get(prat)!.keys()).sort(cmpSeg))
         for (const caixa of Array.from(arvore.get(prat)!.get(andar)!.keys()).sort(cmpSeg)) {
           const arr = arvore.get(prat)!.get(andar)!.get(caixa)!;
-          if (termo && !arr.some(casa)) continue;
+          if (filtrando && !arr.some(casa)) continue;
           out.push({ prat, andar, caixa });
         }
     return out;
-  }, [arvore, termo, casa]);
+  }, [arvore, filtrando, casa]);
 
   function toggle(k: string) { setAbertos((s) => { const n = new Set(s); if (n.has(k)) n.delete(k); else n.add(k); return n; }); }
   // ao buscar, abre tudo que casa
-  const buscando = termo.length > 0;
+  const buscando = filtrando;
   const estaAberto = (k: string) => buscando || abertos.has(k);
 
   // ---------- escrita ----------
@@ -313,6 +326,11 @@ export default function LocalizacaoPage() {
           style={{ ...btnPrim, background: '#16a34a', border: '1px solid #16a34a', opacity: deckPosicoes.length === 0 ? .5 : 1 }}>
           <ClipboardCheck size={15} /> Conferir tudo{deckPosicoes.length ? ` (${deckPosicoes.length})` : ''}
         </button>
+        <button onClick={() => setSoDiverg((v) => !v)}
+          title="Mostrar só as peças marcadas em outro lugar ou com contagem aberta"
+          style={{ ...btn, background: soDiverg ? '#ea580c' : '#fff7ed', color: soDiverg ? '#fff' : '#c2410c', borderColor: '#fed7aa' }}>
+          <AlertTriangle size={15} /> Só divergências ({nDiverg})
+        </button>
       </div>
 
       {carregando && <div style={{ color: '#64748b', padding: 20 }}>Carregando matriz…</div>}
@@ -392,17 +410,16 @@ export default function LocalizacaoPage() {
                                 )}
                               </div>
                               {visiveis.map((p) => (
-                                <div key={chaveProd(p)} className="loc-item" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: '#fff', border: '1px solid #eef2f7', borderRadius: 8, marginBottom: 4 }}>
+                                <div key={chaveProd(p)} className="loc-item" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '6px 8px', background: '#fff', border: '1px solid #eef2f7', borderRadius: 8, marginBottom: 4 }}>
+                                  <BolinhaConferencia info={conferidas.get(chaveProd(p))} agora={agora} />
                                   <PackageOpen size={15} color="#94a3b8" />
                                   <div style={{ minWidth: 0 }}>
                                     <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '.8rem' }}>{p.codigo || p.codigo_produto}</div>
                                     <div style={{ color: '#64748b', fontSize: '.72rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 520 }}>{p.descricao || '—'}</div>
                                   </div>
-                                  {statusConf(p) && (
-                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 7px', borderRadius: 999, fontSize: '.66rem', fontWeight: 700,
-                                      background: statusConf(p) === 'conferido' ? '#dcfce7' : '#ffedd5', color: statusConf(p) === 'conferido' ? '#16a34a' : '#c2410c' }}>
-                                      {statusConf(p) === 'conferido' ? <CheckCircle size={11} /> : <MapPin size={11} />}
-                                      {statusConf(p) === 'conferido' ? 'conferido' : 'em outro lugar'}
+                                  {statusConf(p) === 'divergente' && (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 7px', borderRadius: 999, fontSize: '.66rem', fontWeight: 700, background: '#ffedd5', color: '#c2410c' }}>
+                                      <MapPin size={11} /> em outro lugar
                                     </span>
                                   )}
                                   {emContagem(p) && (
@@ -411,6 +428,9 @@ export default function LocalizacaoPage() {
                                     </span>
                                   )}
                                   <span style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: '.72rem' }}>estq {p.estoque ?? 0}</span>
+                                  <BotoesConferencia st={statusConf(p)} naContagem={emContagem(p)}
+                                    onMarcar={(s) => marcarConferencia(p, s)} onContar={() => pedirContagem(p)} />
+                                  <button title="Histórico: o que foi marcado e feito nesta peça" onClick={() => setHistorico(p)} style={{ ...btn, padding: '5px 8px' }}><History size={14} /></button>
                                   <button title="Adicionar à fila de etiquetas" onClick={() => addEtiqueta(p)} style={{ ...btn, padding: '5px 8px' }}><Tag size={14} /></button>
                                   {podeEditar && <>
                                     <button title="Mover para outra posição" onClick={() => setMover(p)} style={{ ...btn, padding: '5px 8px' }}><ArrowRightLeft size={14} /></button>
@@ -430,11 +450,11 @@ export default function LocalizacaoPage() {
           </div>
 
           {/* localização inválida (a corrigir) — placeholders XXX/000/0000 fora do fluxo */}
-          <LocalizacaoInvalida itens={invalidas} termo={termo} casa={casa} podeEditar={podeEditar}
-            onMover={(p) => setMover(p)} onRemover={remover} onEtiqueta={addEtiqueta} />
+          {!soDiverg && <LocalizacaoInvalida itens={invalidas} termo={termo} casa={casa} podeEditar={podeEditar}
+            onMover={(p) => setMover(p)} onRemover={remover} onEtiqueta={addEtiqueta} />}
 
           {/* sem localização */}
-          <SemLocalizacao itens={semLoc} termo={termo} casa={casa} podeEditar={podeEditar} onDefinir={(p) => setMover(p)} />
+          {!soDiverg && <SemLocalizacao itens={semLoc} termo={termo} casa={casa} podeEditar={podeEditar} onDefinir={(p) => setMover(p)} />}
         </>
       )}
 
@@ -452,6 +472,7 @@ export default function LocalizacaoPage() {
         <ModalColocar posicao={colocar} produtosEmpresa={daEmpresa} salvando={salvando}
           onCancelar={() => setColocar(null)} onConfirmar={definir} />
       )}
+      {historico && <ModalHistorico produto={historico} onClose={() => setHistorico(null)} />}
       {conferirDeck && (
         <ModalConferirPosicao deck={conferirDeck} daEmpresa={daEmpresa} conferidas={conferidas}
           emContagem={emContagem} onContar={pedirContagem}
@@ -462,7 +483,108 @@ export default function LocalizacaoPage() {
   );
 }
 
-const linhaBtn: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: '10px 12px', cursor: 'pointer', fontSize: '.84rem', color: '#0f172a' };
+// Bolinha antes do código: verde = conferida nos últimos DIAS_CONFERENCIA_RECENTE dias,
+// cinza = conferida há mais tempo, laranja = marcada em outro lugar. Sem marca = nada.
+function BolinhaConferencia({ info, agora }: { info?: InfoConf; agora: number }) {
+  if (!info) return <span style={{ width: 9, flexShrink: 0 }} />;
+  const quando = info.em ? new Date(info.em) : null;
+  const recente = !!quando && agora - quando.getTime() <= DIAS_CONFERENCIA_RECENTE * 86400000;
+  const cor = info.status === 'divergente' ? '#ea580c' : recente ? '#16a34a' : '#cbd5e1';
+  const rotulo = info.status === 'divergente' ? 'Marcada em outro lugar' : recente ? 'Conferida recentemente' : `Conferida há mais de ${DIAS_CONFERENCIA_RECENTE} dias`;
+  const dt = quando ? quando.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+  return (
+    <span title={`${rotulo}${info.nome ? ` por ${info.nome}` : ''}${dt ? ` em ${dt}` : ''}`}
+      style={{ width: 9, height: 9, borderRadius: 999, background: cor, flexShrink: 0, boxShadow: `0 0 0 2px ${cor}33` }} />
+  );
+}
+
+// Histórico da peça: marcações da conferência + o que foi feito (mudou/tirou da
+// posição, contagem) — GET /api/ajustes/localizacao/historico.
+type EventoHist = { em: string; quem: string | null; tipo: string; texto: string };
+const COR_EVENTO: Record<string, string> = {
+  conferido: '#16a34a', outro_lugar: '#ea580c', pediu_contagem: '#4338ca', contagem: '#4338ca',
+  moveu: '#1d4ed8', tirou: '#b91c1c', editou: '#1d4ed8', limpou: '#94a3b8',
+};
+function ModalHistorico({ produto, onClose }: { produto: Produto; onClose: () => void }) {
+  const [eventos, setEventos] = useState<EventoHist[] | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const q = new URLSearchParams({ empresa: String(produto.empresa), codigo_produto: String(produto.codigo_produto), sku: produto.codigo || '' });
+        const r = await fetch(`/api/ajustes/localizacao/historico?${q}`, { headers: { ...(await authHeaders()) } });
+        const d = await r.json();
+        if (!vivo) return;
+        if (!r.ok || d.erro) setErro(d.erro || `Falha (${r.status})`); else setEventos(d.eventos || []);
+      } catch (e) { if (vivo) setErro((e as Error).message); }
+    })();
+    return () => { vivo = false; };
+  }, [produto]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  const fmt = (s: string) => new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 55, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, width: 560, maxWidth: '96vw', maxHeight: '86vh', display: 'flex', flexDirection: 'column', boxShadow: '0 16px 50px rgba(0,0,0,.3)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderBottom: '1px solid #e2e8f0' }}>
+          <History size={18} color="#1d4ed8" />
+          <div style={{ minWidth: 0 }}>
+            <b style={{ fontSize: '.92rem', color: '#1e293b' }}>Histórico · {produto.codigo || produto.codigo_produto}</b>
+            <div style={{ fontSize: '.72rem', color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{produto.descricao || '—'}</div>
+          </div>
+          <button onClick={onClose} title="Fechar (Esc)" style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: '1.5rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ overflow: 'auto', padding: 16 }}>
+          {erro && <div style={{ color: '#b91c1c', fontSize: '.82rem' }}>{erro}</div>}
+          {!erro && !eventos && <div style={{ color: '#64748b', fontSize: '.82rem' }}>Carregando…</div>}
+          {eventos && eventos.length === 0 && <div style={{ color: '#94a3b8', fontSize: '.82rem' }}>Nada registrado ainda para esta peça.</div>}
+          {eventos && eventos.map((ev, i) => (
+            <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: i < eventos.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+              <span style={{ width: 9, height: 9, borderRadius: 999, background: COR_EVENTO[ev.tipo] || '#94a3b8', marginTop: 5, flexShrink: 0 }} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: '.84rem', color: '#0f172a' }}>{ev.texto}</div>
+                <div style={{ fontSize: '.72rem', color: '#64748b' }}>{fmt(ev.em)}{ev.quem ? ` · ${ev.quem}` : ''}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Conferência direto na linha da peça (achou pela busca → marca ali mesmo):
+// ✓ confere · em outro lugar (só localização) · quantidade diferente (→ contagem).
+// Tocar de novo no ✓ / outro lugar ativo desmarca, como no flashcard.
+function BotoesConferencia({ st, naContagem, onMarcar, onContar }: {
+  st: 'conferido' | 'divergente' | null; naContagem: boolean;
+  onMarcar: (s: 'conferido' | 'divergente') => void; onContar: () => void;
+}) {
+  const b: React.CSSProperties = { ...btn, padding: '5px 8px', fontSize: '.7rem', gap: 4 };
+  return (
+    <div style={{ display: 'inline-flex', gap: 4 }}>
+      <button title="Confere: está aqui e a quantidade bate" onClick={() => onMarcar('conferido')}
+        style={{ ...b, background: st === 'conferido' ? '#16a34a' : '#f0fdf4', color: st === 'conferido' ? '#fff' : '#16a34a', borderColor: '#bbf7d0' }}>
+        <CheckCircle size={13} />
+      </button>
+      <button title="Divergência: a peça não está nesta posição" onClick={() => onMarcar('divergente')}
+        style={{ ...b, background: st === 'divergente' ? '#ea580c' : '#fff7ed', color: st === 'divergente' ? '#fff' : '#c2410c', borderColor: '#fed7aa' }}>
+        <MapPin size={13} /> Outro lugar
+      </button>
+      <button title={naContagem ? 'Já tem contagem aberta' : 'Divergência: está aqui, mas a quantidade não bate — manda pra contagem'}
+        onClick={onContar} disabled={naContagem}
+        style={{ ...b, background: naContagem ? '#4338ca' : '#eef2ff', color: naContagem ? '#fff' : '#4338ca', borderColor: '#c7d2fe', cursor: naContagem ? 'default' : 'pointer' }}>
+        <Hash size={13} /> {naContagem ? 'Na contagem' : 'Qtd. diferente'}
+      </button>
+    </div>
+  );
+}
+
+const linhaBtn: React.CSSProperties ={ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left', border: 'none', background: 'transparent', padding: '10px 12px', cursor: 'pointer', fontSize: '.84rem', color: '#0f172a' };
 
 // ---------------------------------------------------------------------------
 // Sem localização (lista grande — capada + busca)
@@ -558,7 +680,7 @@ const modalCard: React.CSSProperties = { ...box, width: 'min(560px, 96vw)', maxH
 function ModalConferirPosicao({ deck, daEmpresa, conferidas, emContagem, onContar, onMarcar, onTrocar, onEtiqueta, onClose }: {
   deck: Pos[];
   daEmpresa: Produto[];
-  conferidas: Map<string, { status: 'conferido' | 'divergente'; nome?: string }>;
+  conferidas: Map<string, InfoConf>;
   emContagem: (p: Produto) => boolean;
   onContar: (p: Produto) => void;
   onMarcar: (p: Produto, status: 'conferido' | 'divergente') => void;
