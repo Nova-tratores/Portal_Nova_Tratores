@@ -219,17 +219,20 @@ export const PAPEL: Papel = ((): Papel => {
 })();
 
 /**
- * Limite padrão por papel do processo. Com web e worker separados, cada um tem a sua
- * fila: a soma dos dois não pode passar do que a Omie aceita (4/s e 240/min por
- * método), então cada processo fica com metade — 500 ms por método = 120/min cada.
+ * Limite padrão por papel do processo. A Omie limita por IP + chave + método (4/s e
+ * 240/min). Medido em 26/10/2026: web e worker saem por IPs DIFERENTES no Railway
+ * (152.55.181.219 × .191, job `ip-saida` no cron_runs), então os limites não somam e o
+ * web (pessoas) fica com o ritmo cheio. O worker segue na metade (500 ms por método =
+ * 120/min) como margem: se um dia os dois caírem no mesmo IP, a soma fica em 320/min
+ * no pior caso, e "too many requests" é repetido com segurança pela porta.
  */
 export function limitePadrao(papel: Papel) {
-  const dividido = papel !== 'tudo';
+  const worker = papel === 'worker';
   return {
-    gapMetodoMs: dividido ? 500 : 300,
-    gapChaveMs: dividido ? 300 : 200,
+    gapMetodoMs: worker ? 500 : 300,
+    gapChaveMs: worker ? 300 : 200,
     gapGlobalMs: 80,
-    maxSimultaneasChave: dividido ? 2 : 4,
+    maxSimultaneasChave: worker ? 2 : 4,
   };
 }
 const PADRAO = limitePadrao(PAPEL);

@@ -321,12 +321,12 @@ function bancoFalso() {
 }
 
 describe('coordenação entre web e worker pelo banco (22/10/2026)', () => {
-  it('com os dois processos, cada um fica com metade do limite', () => {
+  it('web (pessoas) com o ritmo cheio; worker na metade (IPs diferentes, 26/10/2026)', () => {
     expect(limitePadrao('tudo')).toMatchObject({ gapMetodoMs: 300, maxSimultaneasChave: 4 })
-    const metade = limitePadrao('worker')
-    expect(metade).toMatchObject({ gapMetodoMs: 500, maxSimultaneasChave: 2 })
-    expect(2 * (60_000 / metade.gapMetodoMs)).toBeLessThanOrEqual(240) // por método, somando os dois
-    expect(limitePadrao('web')).toEqual(metade)
+    expect(limitePadrao('web')).toEqual(limitePadrao('tudo'))
+    const worker = limitePadrao('worker')
+    expect(worker).toMatchObject({ gapMetodoMs: 500, maxSimultaneasChave: 2 })
+    expect(60_000 / worker.gapMetodoMs).toBeLessThanOrEqual(120) // metade dos 240/min por método
   })
 
   it('gravação espera a vaga que o outro processo segura; leitura não espera', async () => {
