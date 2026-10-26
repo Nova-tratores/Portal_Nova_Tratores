@@ -9,7 +9,7 @@ import UsoAba from '@/components/atividades/UsoAba'
 import PadroesAba from '@/components/atividades/PadroesAba'
 import {
   Activity, Search, Filter, ChevronDown, ChevronLeft, ChevronRight,
-  Clock, User, Settings, ClipboardList, Wrench, DollarSign, Shield, FileText, Tags, BarChart3, Puzzle
+  Clock, User, Settings, ClipboardList, Wrench, DollarSign, Shield, FileText, Tags, BarChart3, Puzzle, Package
 } from 'lucide-react'
 
 interface AuditEntry {
@@ -34,10 +34,12 @@ const SISTEMAS = [
   { value: 'financeiro', label: 'Financeiro' },
   { value: 'propostas', label: 'Proposta Comercial' },
   { value: 'vendas-modelo', label: 'Vendas por Modelo' },
+  { value: 'ajustes', label: 'Ajustes (estoque)' },
 ]
 
 const SISTEMA_ICONS: Record<string, React.ReactNode> = {
   'vendas-modelo': <Tags size={16} />,
+  ajustes: <Package size={16} />,
   revisoes: <Wrench size={16} />,
   requisicoes: <ClipboardList size={16} />,
   pos: <Settings size={16} />,
@@ -64,9 +66,42 @@ const ACAO_COLORS: Record<string, { bg: string; text: string }> = {
   ver_cmc: { bg: 'bg-amber-50', text: 'text-amber-700' },
   exportar_pdf: { bg: 'bg-rose-50', text: 'text-rose-700' },
   sincronizar: { bg: 'bg-indigo-50', text: 'text-indigo-700' },
+  // Ajustes (estoque)
+  'ajuste-estoque': { bg: 'bg-amber-50', text: 'text-amber-700' },
+  'corrigir-estoque-negativo': { bg: 'bg-amber-50', text: 'text-amber-700' },
 }
 
 const PAGE_SIZE = 30
+
+const fmtQtd = (v: unknown) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 4 })
+const fmtReais = (v: unknown) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+// Texto da coluna Detalhes. Ajuste de estoque vira "antes → depois" por produto;
+// o resto segue chave: valor, sem nulos e sem [object Object].
+function textoDetalhes(entry: AuditEntry): string {
+  const d = entry.detalhes || {}
+  if (entry.acao === 'ajuste-estoque' && Array.isArray(d.itens)) {
+    const itens = (d.itens as Record<string, unknown>[]).map((it) => {
+      const partes = [`${it.conta}`]
+      if (Number(it.qtdAntes) !== Number(it.qtdDepois)) partes.push(`qtd ${fmtQtd(it.qtdAntes)} → ${fmtQtd(it.qtdDepois)}`)
+      if (Math.abs(Number(it.cmcAntes) - Number(it.cmcDepois)) > 1e-6) partes.push(`custo ${fmtReais(it.cmcAntes)} → ${fmtReais(it.cmcDepois)}`)
+      return partes.join(' ')
+    })
+    const status = d.status === 'aplicado' ? '' : ` · Status: ${d.status}`
+    return `${itens.join(' | ')} · Motivo: ${d.motivo ?? '—'}${status}`
+  }
+  const partes = Object.entries(d)
+    .filter(([, v]) => v != null && v !== '' && !(Array.isArray(v) && v.length === 0))
+    .map(([k, v]) => {
+      const val = typeof v === 'object' ? JSON.stringify(v) : String(v)
+      if (k === 'campo') return `Campo: ${val}`
+      if (k === 'de') return `De: ${val}`
+      if (k === 'para') return `Para: ${val}`
+      if (k === 'status') return `Status: ${val}`
+      return `${k}: ${val}`
+    })
+  return partes.length ? partes.join(' · ') : '—'
+}
 
 function AtividadesPageInner() {
   const { userProfile } = useAuth()
@@ -175,6 +210,8 @@ function AtividadesPageInner() {
       ver_cmc: 'Viu CMC',
       exportar_pdf: 'Baixou PDF',
       sincronizar: 'Sincronizou',
+      'ajuste-estoque': 'Ajustou estoque',
+      'corrigir-estoque-negativo': 'Corrigiu estoque negativo',
     }
     return map[acao] || acao
   }
@@ -397,17 +434,7 @@ function AtividadesPageInner() {
         {/* Rows */}
         {!loading && logs.map((entry, i) => {
           const acaoStyle = ACAO_COLORS[entry.acao] || ACAO_COLORS.acesso
-          const detalhesStr = entry.detalhes && Object.keys(entry.detalhes).length > 0
-            ? Object.entries(entry.detalhes)
-                .map(([k, v]) => {
-                  if (k === 'campo') return `Campo: ${v}`
-                  if (k === 'de') return `De: ${v}`
-                  if (k === 'para') return `Para: ${v}`
-                  if (k === 'status') return `Status: ${v}`
-                  return `${k}: ${v}`
-                })
-                .join(' · ')
-            : '—'
+          const detalhesStr = textoDetalhes(entry)
 
           return (
             <div
