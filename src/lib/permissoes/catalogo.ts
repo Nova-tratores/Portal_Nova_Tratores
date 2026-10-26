@@ -225,17 +225,19 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'pedidos:encerrar', label: 'Pedidos — Encerrar informal' },
     { id: 'remessas:fechar', label: 'Remessas — Devolver/fechar em massa' },
   ],
-  // Feedbacks & CRM: granular POR TELA (id da ação = slug da rota). A Home
-  // (/feedbacks) é o landing; as abas (FeedbackTabs) e o acesso por URL seguem
-  // pode('feedbacks', slug).
+  // Feedbacks & CRM: granular POR TELA. Desde 23/10/2026 as telas são Hoje · Clientes · Painel · Robô
+  // e cada uma aceita as chaves das telas antigas que juntou (lib/feedbacks/telas.ts, fonte única do
+  // layout e da faixa): Hoje = crm|rfm|atendimento|agenda; Clientes = clientes|atendimento;
+  // Painel = relatorios; Robô = oportunidades; o cockpit do cliente segue = atendimento.
+  // Os ids NÃO mudaram (quem já tinha acesso continua tendo).
   feedbacks: [
-    { id: 'atendimento', label: 'Atendimento (cockpit de ligação)' },
-    { id: 'crm', label: 'CRM' },
-    { id: 'rfm', label: 'RFM' },
-    { id: 'clientes', label: 'Histórico de atendimentos' },
-    { id: 'relatorios', label: 'Relatórios' },
-    { id: 'agenda', label: 'Agenda' },
-    { id: 'oportunidades', label: 'Oportunidades' },
+    { id: 'atendimento', label: 'Hoje + Clientes + cockpit de ligação' },
+    { id: 'crm', label: 'Hoje (pós-serviço, antigo CRM)' },
+    { id: 'rfm', label: 'Hoje (reativação, antigo RFM)' },
+    { id: 'agenda', label: 'Hoje (retornos combinados, antiga Agenda)' },
+    { id: 'clientes', label: 'Clientes (histórico de atendimentos)' },
+    { id: 'relatorios', label: 'Painel do gerente (antigo Relatórios)' },
+    { id: 'oportunidades', label: 'Robô de oportunidades' },
   ],
   // FROTA — granular POR TELA. As telas vêm de PAGINAS_FROTA (fonte única:
   // adicionar tela lá já cria a permissão aqui). Abaixo delas, as ações que

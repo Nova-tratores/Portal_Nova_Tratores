@@ -190,7 +190,7 @@ async function carregarCar(codigos: string[]): Promise<ImovelCar[]> {
   })).sort((a, b) => Number(b.area_ha || 0) - Number(a.area_ha || 0));
 }
 
-async function carregarInfo(key: string, codigos: string[], NOME: string): Promise<ClienteInfo | null> {
+export async function carregarInfo(key: string, codigos: string[], NOME: string): Promise<ClienteInfo | null> {
   const keys = new Set<string>([key, ...codigos.map((c) => montarKey(c, "")), NOME ? montarKey(null, NOME) : ""].filter(Boolean));
   const { data, error } = await sb.from("feedback_clientes_info").select("*").in("cliente_key", [...keys]);
   if (error) throw new Error(error.message);
@@ -209,7 +209,7 @@ async function carregarInfo(key: string, codigos: string[], NOME: string): Promi
   };
 }
 
-async function carregarPrincipal(codigos: string[], nome: string | null): Promise<Record<string, unknown>[]> {
+export async function carregarPrincipal(codigos: string[], nome: string | null): Promise<Record<string, unknown>[]> {
   // `id` = propriedade_id do CRM de vendas (visitas/maquinas apontam para ele)
   const sel = "id, id_omie, nome_fantasia, razao_social, cnpj_cpf, email, telefone, endereco, numero, bairro, cidade, estado, lat, lng, latitude, longitude, culturas, area_hectares, observacoes, inativo";
   if (codigos.length > 0) {
@@ -258,7 +258,7 @@ const SEL_OS_PORTAL = "Id_Ordem, Os_Cliente, Cnpj_Cliente, Os_Tecnico, Os_Tecnic
  * POS do portal por NOME e por CPF/CNPJ (duas consultas — um `.or` com nome
  * contendo vírgula/parênteses quebra o filtro do PostgREST), sem repetir.
  */
-async function carregarOSPortal(nome: string | null, cnpj: string | null): Promise<OSPortalBruta[]> {
+export async function carregarOSPortal(nome: string | null, cnpj: string | null): Promise<OSPortalBruta[]> {
   const n = (nome || "").trim();
   const buscas: PromiseLike<{ data: unknown; error: { message: string } | null }>[] = [];
   if (n.length >= 3) buscas.push(sb.from("Ordem_Servico").select(SEL_OS_PORTAL).ilike("Os_Cliente", n).order("Data", { ascending: false }).limit(40));
@@ -278,7 +278,7 @@ async function carregarOSPortal(nome: string | null, cnpj: string | null): Promi
  * (pedido_omie zero-padded) e POS de origem (Id_Os). Só 58 de 511 têm
  * cliente_documento — por isso as quatro portas.
  */
-async function carregarPPV(nome: string | null, cnpj: string | null, pvNums: string[], osIds: string[]): Promise<PPVBruto[]> {
+export async function carregarPPV(nome: string | null, cnpj: string | null, pvNums: string[], osIds: string[]): Promise<PPVBruto[]> {
   const sel = "id_pedido, data, cliente, status, valor_total, pedido_omie, Id_Os, Projeto, tecnico, Tipo_Pedido, nf_numero, faturado_omie_em, omie_empresa";
   const n = (nome || "").trim();
   const buscas: PromiseLike<{ data: unknown; error: { message: string } | null }>[] = [];
@@ -300,7 +300,7 @@ async function carregarPPV(nome: string | null, cnpj: string | null, pvNums: str
 }
 
 /** Chassis citados nas OS (portal: Projeto/Serv_Solicitado; Omie: projeto / cabeçalho do serviço). */
-function chassisCitados(osOmie: HistOS[], osPortal: OSPortalBruta[]): ChassiCitado[] {
+export function chassisCitados(osOmie: HistOS[], osPortal: OSPortalBruta[]): ChassiCitado[] {
   const out: ChassiCitado[] = [];
   for (const o of osPortal) {
     const ch = extrairChassis({ Projeto: o.Projeto, Serv_Solicitado: o.Serv_Solicitado });
@@ -317,7 +317,7 @@ function chassisCitados(osOmie: HistOS[], osPortal: OSPortalBruta[]): ChassiCita
   return out;
 }
 
-function chassisDosPPV(ppvs: PPVBruto[]): ChassiCitado[] {
+export function chassisDosPPV(ppvs: PPVBruto[]): ChassiCitado[] {
   return ppvs.flatMap((p) => {
     const { modelo, chassi } = separarModeloChassi(p.Projeto);
     return chassi ? [{ chassi, modelo: modelo || null }] : [];
@@ -333,7 +333,7 @@ function chassisDosPPV(ppvs: PPVBruto[]): ChassiCitado[] {
  * - CRM de vendas (`maquinas` por propriedade = portal_nt_clientes_PRINCIPAL.id);
  *   tabela ausente ou erro = lista vazia.
  */
-async function carregarMaquinasFontes(codigos: string[], cnpj: string | null, nome: string | null, principalIds: number[], citados: ChassiCitado[]): Promise<{ tratores: Trator[]; projetos: ProjetoMaquina[]; crm: MaquinaCrm[] }> {
+export async function carregarMaquinasFontes(codigos: string[], cnpj: string | null, nome: string | null, principalIds: number[], citados: ChassiCitado[]): Promise<{ tratores: Trator[]; projetos: ProjetoMaquina[]; crm: MaquinaCrm[] }> {
   const n = (nome || "").trim();
 
   // projetos Omie

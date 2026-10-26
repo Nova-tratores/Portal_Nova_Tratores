@@ -50,6 +50,15 @@ export async function listarRegistros(tipo?: TipoFeedback): Promise<FeedbackRegi
   return (data || []) as FeedbackRegistro[];
 }
 
+/** Registros de CRM de UM cliente (pelo código Omie ou, sem ele, pelo nome) — RFM: feedback do último serviço. */
+export async function listarCrmDoCliente(codigoOmie: string | null, nome: string): Promise<FeedbackRegistro[]> {
+  let q = supabase.from("feedback_registros").select("*").eq("tipo", "crm").order("criado_em", { ascending: false }).limit(50);
+  q = codigoOmie ? q.eq("codigo_omie", codigoOmie) : q.ilike("nome", (nome || "").trim());
+  const { data, error } = await q;
+  if (error) throw wrapErr(error);
+  return (data || []) as FeedbackRegistro[];
+}
+
 /** Ligações do cockpit (feedback_chamada) — só os campos que o relatório usa.
  *  Paginado: o PostgREST corta em 1000 linhas por consulta. */
 export async function listarChamadasResumo(): Promise<ChamadaResumo[]> {

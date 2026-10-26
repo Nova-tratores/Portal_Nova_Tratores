@@ -75,10 +75,10 @@ export default function CadastroOmieSecao({ codigoOmie, nome, cor }: Props) {
   }
 
   return (
-    <div style={{ border: "1.5px solid var(--portal-border)", borderRadius: 10, overflow: "hidden" }}>
+    <div style={{ border: "1px solid var(--portal-border)", borderRadius: 16, overflow: "hidden" }}>
       <button type="button" onClick={expandir} style={{ ...toggleBtn, color: cor }}>
-        <span>📇 Dados cadastrais (Omie)</span>
-        <span style={{ fontSize: 12 }}>{aberto ? "▴" : "▾"}</span>
+        <span><i className="fa-solid fa-address-card" /> Dados cadastrais (Omie)</span>
+        <span style={{ fontSize: 12 }}><i className={`fa-solid ${aberto ? "fa-chevron-up" : "fa-chevron-down"}`} /></span>
       </button>
 
       {aberto && (
@@ -88,7 +88,7 @@ export default function CadastroOmieSecao({ codigoOmie, nome, cor }: Props) {
           ) : carregando ? (
             <div style={nota}>Carregando do Omie…</div>
           ) : erroLoad ? (
-            <div style={{ ...nota, color: "#991b1b" }}>⚠ {erroLoad} <button onClick={expandir} style={linkBtn}>tentar de novo</button></div>
+            <div style={{ ...nota, color: "#991b1b" }}><i className="fa-solid fa-triangle-exclamation" /> {erroLoad} <button onClick={expandir} style={linkBtn}>tentar de novo</button></div>
           ) : (
             <>
               <div style={grid3}>
@@ -113,14 +113,14 @@ export default function CadastroOmieSecao({ codigoOmie, nome, cor }: Props) {
 
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginTop: 4 }}>
                 {msg ? (
-                  <span style={{ fontSize: 11, fontWeight: 600, color: msg.tipo === "ok" ? "#065f46" : "#991b1b" }}>
-                    {msg.tipo === "ok" ? "✓ " : "⚠ "}{msg.texto}
+                  <span style={{ fontSize: 11, fontWeight: 500, color: msg.tipo === "ok" ? "#065f46" : "#991b1b" }}>
+                    <i className={`fa-solid ${msg.tipo === "ok" ? "fa-circle-check" : "fa-triangle-exclamation"}`} /> {msg.texto}
                   </span>
                 ) : <span style={{ fontSize: 11, color: "var(--portal-text-muted)" }}>Grava direto no cadastro do Omie.</span>}
                 <button
                   onClick={salvar}
                   disabled={salvando || !mudou}
-                  style={{ padding: "8px 16px", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700, color: "#fff", background: cor, whiteSpace: "nowrap", opacity: salvando || !mudou ? 0.5 : 1, cursor: salvando || !mudou ? "default" : "pointer" }}
+                  style={{ padding: "8px 16px", borderRadius: 10, border: "none", fontSize: 12, fontWeight: 500, color: "#fff", background: cor, whiteSpace: "nowrap", opacity: salvando || !mudou ? 0.5 : 1, cursor: salvando || !mudou ? "default" : "pointer" }}
                 >
                   {salvando ? "Salvando…" : "Salvar no Omie"}
                 </button>
@@ -145,16 +145,16 @@ function Campo({ label, children }: { label: string; children: React.ReactNode }
 const toggleBtn: React.CSSProperties = {
   width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center",
   padding: "10px 14px", background: "var(--portal-bg-card)", border: "none",
-  fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "Inter, sans-serif",
+  fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "Inter, sans-serif",
 };
 const grid3: React.CSSProperties = { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 };
 const grid2end: React.CSSProperties = { display: "grid", gridTemplateColumns: "2fr 1fr", gap: 10 };
 const lbl: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, color: "var(--portal-text-secondary)",
-  textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4,
+  fontSize: 12, fontWeight: 500, color: "var(--portal-text-secondary)",
+  marginBottom: 4,
 };
 const inp: React.CSSProperties = {
-  width: "100%", padding: "8px 12px", border: "1.5px solid var(--portal-border)", borderRadius: 9,
+  width: "100%", padding: "8px 12px", border: "1px solid var(--portal-border)", borderRadius: 10,
   fontSize: 13, background: "var(--portal-bg-card)", color: "var(--portal-text)", fontFamily: "Inter, sans-serif", outline: "none",
 };
 const nota: React.CSSProperties = { fontSize: 12, color: "var(--portal-text-muted)", fontStyle: "italic" };

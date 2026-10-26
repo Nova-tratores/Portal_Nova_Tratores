@@ -19,6 +19,25 @@ interface Props {
   onAbrirDocumento?: (tipo: string, id: string) => void;
 }
 
+// Ícones Font Awesome no lugar dos emojis de TIPO_EVENTO_ROTULO (lib).
+const ICONE_EVENTO: Record<TipoEvento, string> = {
+  entrega: "fa-tractor",
+  inspecao: "fa-magnifying-glass",
+  revisao: "fa-screwdriver-wrench",
+  cheque: "fa-receipt",
+  os: "fa-wrench",
+  ppv: "fa-box",
+  pv: "fa-receipt",
+  garantia: "fa-shield-halved",
+  requisicao: "fa-clipboard-list",
+  atendimento: "fa-phone",
+  observacao: "fa-note-sticky",
+  visita: "fa-location-dot",
+  crm: "fa-folder-open",
+};
+/** A classe .pill do módulo vem com fonte 700 — aqui fica 500. */
+const PILULA: React.CSSProperties = { fontWeight: 500, letterSpacing: 0 };
+
 const cache = new Map<string, HistoricoMaquina>();
 // uma requisição por chassi de cada vez (StrictMode em dev dispara o efeito 2x)
 const emVoo = new Map<string, Promise<HistoricoMaquina>>();
@@ -93,24 +112,27 @@ export default function ModalHistoricoMaquina({ maquina, acesso, onFechar, onAbr
     <div style={overlay} onClick={onFechar} role="dialog" aria-modal="true" aria-label={`Histórico da máquina ${modelo}`}>
       <div style={modal} onClick={(e) => e.stopPropagation()}>
         <header style={cabecalho}>
-          <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.85, textTransform: "uppercase", letterSpacing: 0.8 }}>🚜 Histórico da máquina</div>
-            <div style={{ fontSize: 20, fontWeight: 800, lineHeight: 1.2, marginTop: 2 }}>{modelo}</div>
-            <div style={{ fontFamily: "ui-monospace, Consolas, monospace", fontSize: 13, opacity: 0.9 }}>{chassi || "sem chassi"}</div>
+          <div style={{ minWidth: 0, display: "flex", gap: 12, alignItems: "flex-start" }}>
+            <span style={{ width: 40, height: 40, borderRadius: 11, display: "grid", placeItems: "center", fontSize: 16, flexShrink: 0, color: "#0369a1", background: "color-mix(in srgb, #0369a1 9%, var(--portal-bg-card))", border: "1px solid color-mix(in srgb, #0369a1 18%, transparent)" }}><i className="fa-solid fa-tractor" /></span>
+            <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 500, color: "var(--portal-text-secondary)" }}>Histórico da máquina</div>
+            <div style={{ fontSize: 20, fontWeight: 500, lineHeight: 1.2, marginTop: 2 }}>{modelo}</div>
+            <div style={{ fontFamily: "ui-monospace, Consolas, monospace", fontSize: 13, color: "var(--portal-text-secondary)" }}>{chassi || "sem chassi"}</div>
+            </div>
           </div>
-          <button type="button" onClick={onFechar} style={btnFechar} aria-label="Fechar">✕</button>
+          <button type="button" onClick={onFechar} style={btnFechar} aria-label="Fechar"><i className="fa-solid fa-xmark" /></button>
         </header>
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 14, padding: "10px 18px", borderBottom: "1px solid var(--portal-border)", fontSize: 12 }}>
           <Dado rotulo="Entrega" valor={entrega ? `${fmtDataBR(entrega)} (${haQuanto(entrega)})` : "—"} />
           <Dado rotulo="Última revisão" valor={ultima ? `${ultima.rotulo} · ${fmtDataBR(ultima.data)}${ultima.horimetro != null ? ` · ${ultima.horimetro} h` : ""}` : "nenhuma registrada"} />
-          <Dado rotulo="Próxima revisão" valor={proxima ? `${proxima.horas} h · ${proxima.data_estimada ? fmtDataBR(proxima.data_estimada) : "sem estimativa"}${proxima.atrasada ? " · ATRASADA" : ""}` : "—"} cor={proxima?.atrasada ? "#b91c1c" : undefined} />
+          <Dado rotulo="Próxima revisão" valor={proxima ? `${proxima.horas} h · ${proxima.data_estimada ? fmtDataBR(proxima.data_estimada) : "sem estimativa"}${proxima.atrasada ? " · atrasada" : ""}` : "—"} cor={proxima?.atrasada ? "#b91c1c" : undefined} />
           <Dado rotulo="Horímetro mais recente" valor={dados?.horimetro_recente ? `${dados.horimetro_recente.valor} h · ${fmtDataBR(dados.horimetro_recente.data)} (${dados.horimetro_recente.origem.toLowerCase()})` : "—"} />
           {(maquina.vendedor || m?.vendedor) && <Dado rotulo="Vendedor" valor={maquina.vendedor || m?.vendedor || ""} />}
           {maquina.dono_tratores && <Dado rotulo="No controle de revisões" valor={maquina.dono_tratores} cor="#92400e" />}
           {maquina.crm && <Dado rotulo="CRM" valor={[maquina.crm.tipo, maquina.crm.ano && `ano ${maquina.crm.ano}`, maquina.crm.estado && `estado ${maquina.crm.estado}`, maquina.crm.horimetro != null && `${maquina.crm.horimetro} h`].filter(Boolean).join(" · ")} />}
           <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
-            {maquina.fontes.map((f) => <span key={f} className={styles.pill} style={{ background: "#e0f2fe", color: "#075985" }}>{FONTE_ROTULO[f]}</span>)}
+            {maquina.fontes.map((f) => <span key={f} className={styles.pill} style={{ ...PILULA, background: "#e0f2fe", color: "#075985" }}>{FONTE_ROTULO[f]}</span>)}
           </div>
         </div>
 
@@ -125,14 +147,14 @@ export default function ModalHistoricoMaquina({ maquina, acesso, onFechar, onAbr
             <>
               {tiposPresentes.length > 1 && (
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginBottom: 10 }}>
-                  <button type="button" onClick={() => setFiltro(new Set())} className={styles.pill} style={{ ...chip, background: filtro.size === 0 ? "#111" : "var(--portal-bg)", color: filtro.size === 0 ? "#fff" : "inherit" }}>Tudo ({dados.eventos.length})</button>
+                  <button type="button" onClick={() => setFiltro(new Set())} className={styles.pill} style={{ ...chip, background: filtro.size === 0 ? "#111111" : "var(--portal-bg)", color: filtro.size === 0 ? "#fefefe" : "inherit" }}>Tudo ({dados.eventos.length})</button>
                   {tiposPresentes.map(([t, n]) => {
                     const r = TIPO_EVENTO_ROTULO[t];
                     const on = filtro.has(t);
                     return (
                       <button key={t} type="button" className={styles.pill} style={{ ...chip, background: on ? r.cor : "var(--portal-bg)", color: on ? "#fff" : "inherit", borderColor: r.cor }}
                         onClick={() => setFiltro((s) => { const n2 = new Set(s); if (n2.has(t)) n2.delete(t); else n2.add(t); return n2; })}>
-                        {r.emoji} {r.rotulo} ({n})
+                        <i className={`fa-solid ${ICONE_EVENTO[t] ?? "fa-circle"}`} /> {r.rotulo} ({n})
                       </button>
                     );
                   })}
@@ -195,30 +217,30 @@ function Evento({ e, acesso, onAbrir }: { e: EventoMaquina; acesso: Acesso; onAb
   return (
     <li style={{ display: "grid", gridTemplateColumns: "92px 18px 1fr", gap: 8, alignItems: "start", padding: "6px 0" }}>
       <div style={{ fontSize: 12, textAlign: "right", paddingTop: 2 }}>
-        <div style={{ fontWeight: 700 }}>{e.data ? fmtDataBR(e.data) : "—"}</div>
+        <div style={{ fontWeight: 500 }}>{e.data ? fmtDataBR(e.data) : "—"}</div>
         {e.data && <div style={{ fontSize: 10, opacity: 0.55 }}>{haQuanto(e.data)}</div>}
       </div>
       <div style={{ position: "relative", height: "100%", display: "flex", justifyContent: "center" }}>
         <span style={{ width: 12, height: 12, borderRadius: 999, background: r.cor, marginTop: 4, boxShadow: "0 0 0 3px var(--portal-bg-card)", zIndex: 1 }} />
         <span style={{ position: "absolute", top: 16, bottom: -12, width: 2, background: "var(--portal-border)" }} />
       </div>
-      <div style={{ border: "1px solid var(--portal-border)", borderLeft: `4px solid ${r.cor}`, borderRadius: 10, padding: "6px 10px", minWidth: 0 }}>
+      <div style={{ border: "1px solid var(--portal-border)", borderRadius: 10, padding: "6px 10px", minWidth: 0 }}>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "baseline" }}>
-          <span style={{ fontSize: 10, fontWeight: 800, color: r.cor, textTransform: "uppercase", letterSpacing: 0.5 }}>{r.emoji} {r.rotulo}</span>
-          <strong style={{ fontSize: 13 }}>{e.titulo}</strong>
-          {e.status && <span className={styles.pill} style={{ background: "#f1f5f9", color: "#334155" }}>{e.status}</span>}
-          {e.horimetro != null && <span className={styles.pill} style={{ background: "#ecfeff", color: "#155e75" }}>⏱ {e.horimetro} h</span>}
-          {e.valor != null && e.valor !== 0 && <span style={{ fontSize: 12, fontWeight: 700, marginLeft: "auto" }}>{fmtMoeda(e.valor)}</span>}
+          <span style={{ fontSize: 12, fontWeight: 500, color: r.cor }}><i className={`fa-solid ${ICONE_EVENTO[e.tipo] ?? "fa-circle"}`} /> {r.rotulo}</span>
+          <strong style={{ fontSize: 13, fontWeight: 500 }}>{e.titulo}</strong>
+          {e.status && <span className={styles.pill} style={{ ...PILULA, background: "#f1f5f9", color: "#334155" }}>{e.status}</span>}
+          {e.horimetro != null && <span className={styles.pill} style={{ ...PILULA, background: "#ecfeff", color: "#155e75" }}><i className="fa-solid fa-stopwatch" /> {e.horimetro} h</span>}
+          {e.valor != null && e.valor !== 0 && <span style={{ fontSize: 12, fontWeight: 500, marginLeft: "auto" }}>{fmtMoeda(e.valor)}</span>}
         </div>
         {e.detalhe && <div style={{ fontSize: 12, marginTop: 3, lineHeight: 1.45 }}>{e.detalhe}</div>}
         {(e.quem || e.ligados.length > 0 || links.length > 0) && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginTop: 4, fontSize: 11 }}>
-            {e.quem && <span style={{ opacity: 0.7 }}>👤 {e.quem}</span>}
-            {e.ligados.map((l) => <span key={l} className={styles.pill} style={{ background: "#f5f3ff", color: "#5b21b6" }}>🔗 {l}</span>)}
+            {e.quem && <span style={{ opacity: 0.7 }}><i className="fa-solid fa-user" /> {e.quem}</span>}
+            {e.ligados.map((l) => <span key={l} className={styles.pill} style={{ ...PILULA, background: "#f5f3ff", color: "#5b21b6" }}><i className="fa-solid fa-link" /> {l}</span>)}
             {links.map((l) => (
               <a key={l.href} href={l.href} target="_blank" rel="noopener noreferrer" title={l.titulo} onClick={() => onAbrir?.(e.tipo, e.id)}
-                style={{ fontWeight: 700, color: l.tipo === "nf" ? "#047857" : r.cor, textDecoration: "none", border: `1px solid ${l.tipo === "nf" ? "#047857" : r.cor}`, borderRadius: 999, padding: "1px 8px" }}>
-                {l.tipo === "nf" ? "📄 NF" : l.tipo === "pdf" ? "📄 PDF" : "Abrir"} ↗
+                style={{ fontWeight: 500, color: l.tipo === "nf" ? "#047857" : r.cor, textDecoration: "none", border: `1px solid ${l.tipo === "nf" ? "#047857" : r.cor}`, borderRadius: 999, padding: "1px 8px" }}>
+                {l.tipo === "nf" ? <><i className="fa-solid fa-file-invoice" /> NF</> : l.tipo === "pdf" ? <><i className="fa-solid fa-file-pdf" /> PDF</> : "Abrir"} ↗
               </a>
             ))}
           </div>
@@ -231,18 +253,18 @@ function Evento({ e, acesso, onAbrir }: { e: EventoMaquina; acesso: Acesso; onAb
 function Dado({ rotulo, valor, cor }: { rotulo: string; valor: string; cor?: string }) {
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 700, opacity: 0.6, textTransform: "uppercase", letterSpacing: 0.4 }}>{rotulo}</div>
-      <div style={{ fontWeight: 600, color: cor }}>{valor}</div>
+      <div style={{ fontSize: 11, fontWeight: 500, opacity: 0.6 }}>{rotulo}</div>
+      <div style={{ fontWeight: 500, color: cor }}>{valor}</div>
     </div>
   );
 }
 
 const overlay: React.CSSProperties = { position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: 16 };
 const modal: React.CSSProperties = { background: "var(--portal-bg-card)", color: "var(--portal-text)", borderRadius: 16, width: "min(960px, 100%)", maxHeight: "92vh", display: "flex", flexDirection: "column", boxShadow: "0 24px 60px -20px rgba(0,0,0,0.5)", overflow: "hidden" };
-const cabecalho: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, padding: "14px 18px", background: "#0369a1", color: "#fff" };
+const cabecalho: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, padding: "14px 18px", background: "var(--portal-bg-card)", color: "var(--portal-text)", borderBottom: "1px solid var(--portal-border)" };
 const corpo: React.CSSProperties = { padding: "12px 18px", overflowY: "auto", flex: 1 };
-const chip: React.CSSProperties = { cursor: "pointer", border: "1px solid var(--portal-border)", fontSize: 11 };
-const btnFechar: React.CSSProperties = { background: "rgba(255,255,255,0.15)", color: "#fff", border: "none", borderRadius: 999, width: 30, height: 30, cursor: "pointer", fontSize: 14, flexShrink: 0 };
+const chip: React.CSSProperties = { ...PILULA, cursor: "pointer", border: "1px solid var(--portal-border)", fontSize: 11 };
+const btnFechar: React.CSSProperties = { background: "transparent", color: "var(--portal-text-secondary)", border: "1px solid var(--portal-border)", borderRadius: 10, width: 30, height: 30, cursor: "pointer", fontSize: 14, flexShrink: 0 };
 function btn(cor: string): React.CSSProperties {
-  return { fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 999, border: `1px solid ${cor}`, background: "transparent", color: cor, cursor: "pointer", textDecoration: "none", whiteSpace: "nowrap" };
+  return { fontSize: 12, fontWeight: 500, padding: "5px 12px", borderRadius: 10, border: `1px solid ${cor}`, background: "transparent", color: cor, cursor: "pointer", textDecoration: "none", whiteSpace: "nowrap" };
 }

@@ -1,8 +1,9 @@
 "use client";
+// Cartão de um cliente no CRM/RFM — visual "Estilo POS NewPortal" (José, 23/10/2026). Estilo em
+// estiloNovo.ts (.fbn-*), carregado pela ListaRegistros. Mesmos dados e ações de antes.
 import { TAG_NAO_CONTATAR, type FeedbackRegistro, type StatusAtendimento } from "@/lib/feedbacks/types";
 import type { UltimaOS } from "@/lib/feedbacks/api";
 import { COR_CRM, COR_RFM } from "@/lib/feedbacks/cores";
-import styles from "./feedbacks.module.css";
 
 const TAG_PENDENCIA = "!!#Pendências Cadastrais#!!";
 
@@ -31,9 +32,9 @@ function horasDesde(iso: string | null): number | null {
 
 function fmtTempoDecorrido(horas: number): string {
   if (horas < 1) return "agora";
-  if (horas < 24) return `${horas}h`;
+  if (horas < 24) return `${horas} h`;
   const dias = Math.floor(horas / 24);
-  return `${dias}d`;
+  return `${dias} dia${dias > 1 ? "s" : ""}`;
 }
 
 function fmtData(iso: string | null): string {
@@ -43,28 +44,35 @@ function fmtData(iso: string | null): string {
   return iso;
 }
 
-function corStatus(status: string | null): { bg: string; fg: string } {
-  switch (status) {
-    case "Satisfeito":    return { bg: "#d1fae5", fg: "#065f46" };
-    case "Insatisfeito":  return { bg: "#fee2e2", fg: "#991b1b" };
-    case "Neutro":        return { bg: "#fef3c7", fg: "#92400e" };
-    case "Aguardando":    return { bg: "#dbeafe", fg: "#1e40af" };
-    default:              return { bg: "#f3f4f6", fg: "#525252" };
-  }
+/** Situação do cliente (CRM) ou prioridade (RFM): cor e ícone. */
+function situacao(isCrm: boolean, r: FeedbackRegistro): { txt: string; cor: string; ico: string } | null {
+  const v = isCrm ? r.status_cliente : r.prioridade;
+  if (!v) return null;
+  const mapa: Record<string, { cor: string; ico: string }> = {
+    Satisfeito: { cor: "#16a34a", ico: "fa-face-smile" },
+    Neutro: { cor: "#d97706", ico: "fa-face-meh" },
+    Insatisfeito: { cor: "#dc2626", ico: "fa-face-frown" },
+    Aguardando: { cor: "#2563eb", ico: "fa-hourglass-half" },
+    Urgente: { cor: "#dc2626", ico: "fa-bolt" },
+    Normal: { cor: "#d97706", ico: "fa-circle" },
+    Inativo: { cor: "#64748b", ico: "fa-moon" },
+  };
+  return { txt: v, ...(mapa[v] || { cor: "#64748b", ico: "fa-circle" }) };
 }
 
-function corPrioridade(p: string | null): { bg: string; fg: string } {
-  switch (p) {
-    case "Urgente":  return { bg: "#fee2e2", fg: "#991b1b" };
-    case "Normal":   return { bg: "#fef3c7", fg: "#92400e" };
-    case "Inativo":  return { bg: "#f3f4f6", fg: "#525252" };
-    default:         return { bg: "#f3f4f6", fg: "#525252" };
-  }
+/** Origem do cadastro: NOVA, CASTRO, Omie… */
+function corOrigem(origem: string): string {
+  const up = origem.toUpperCase();
+  if (up.includes("NOVA")) return "#dc2626";
+  if (up.includes("CASTRO")) return "#ea580c";
+  if (up.includes("OMIE")) return "#2563eb";
+  return "#64748b";
 }
+
+const k = (cor: string) => ({ ["--k" as string]: cor });
 
 export default function RegistroCard({ registro: r, ultimaOS, clienteTags, onEditar, onMudarAtendimento, onArquivar, onVerHistorico }: Props) {
   const isCrm = r.tipo === "crm";
-  const corStatusObj = isCrm ? corStatus(r.status_cliente) : corPrioridade(r.prioridade);
   const emAtendimento = r.status_atendimento === "aberto" || r.status_atendimento === "em_andamento";
   const horasAberto = horasDesde(r.aberto_em);
   const atrasado = emAtendimento && horasAberto !== null && horasAberto >= 24;
@@ -73,258 +81,113 @@ export default function RegistroCard({ registro: r, ultimaOS, clienteTags, onEdi
   const naoContatar = tags.includes(TAG_NAO_CONTATAR);
   // Falta info cadastral: sem e-mail e sem telefone, ou marcado com pendência cadastral.
   const faltaInfo = (!r.email && !r.telefone) || tags.includes(TAG_PENDENCIA);
-  // Cor de acento da faixa do topo: CRM vermelho, RFM laranja; atrasado força vermelho.
-  const acento = atrasado ? COR_CRM : isCrm ? COR_CRM : COR_RFM;
+  const cor = isCrm ? COR_CRM : COR_RFM;
+  const sit = situacao(isCrm, r);
+
+  // linha do atendimento: quem está cuidando e em que pé está
+  let atend: { ico: string; cor: string; txt: string } | null = null;
+  if (r.status_atendimento === "arquivado") atend = { ico: "fa-box-archive", cor: "#64748b", txt: r.atendente_nome ? "Arquivado por" : "Arquivado" };
+  else if (emAtendimento && r.atendente_nome) atend = atrasado ? { ico: "fa-triangle-exclamation", cor: "#dc2626", txt: "Em atendimento por" } : { ico: "fa-headset", cor: "#16a34a", txt: "Em atendimento por" };
+  else if (r.status_atendimento === "concluido" && r.atendente_nome) atend = { ico: "fa-circle-check", cor: "#16a34a", txt: "Concluído por" };
+  else if (r.status_atendimento === "sem_resposta") atend = { ico: "fa-phone-slash", cor: "#dc2626", txt: r.atendente_nome ? "Sem resposta — ligou" : "Sem resposta" };
+
+  const dados: [string, string][] = [];
+  if (r.trator) dados.push(["Equipamento", r.trator]);
+  if (r.tecnico) dados.push(["Técnico", r.tecnico]);
+  if (isCrm && r.servico) dados.push(["Serviço", r.servico]);
+  if (isCrm && r.data_servico) dados.push(["Data do serviço", fmtData(r.data_servico)]);
+  if (!isCrm && r.ultimo_servico) dados.push(["Último serviço", fmtData(r.ultimo_servico)]);
+  if (r.data_contato) dados.push(["Contato", fmtData(r.data_contato)]);
+  if (isCrm && r.nota !== null && r.nota !== undefined) dados.push(["Nota", `${r.nota} de 10`]);
+  if (isCrm && r.nps) dados.push(["NPS", String(r.nps)]);
+  if (isCrm && r.melhoria) dados.push(["Melhoria", r.melhoria]);
+  const texto = isCrm ? r.feedback : r.motivo;
 
   return (
     <article
       onClick={onVerHistorico ? () => onVerHistorico(r) : undefined}
-      className={`${styles.card} ${clicavel ? styles.clickable : ""}`}
+      className={`fbn-card ${clicavel ? "clica" : ""} ${atrasado ? "atrasado" : ""}`}
       title={clicavel ? "Clique para ver o histórico do cliente (OS, pedidos, requisições)" : undefined}
-      style={{
-        ...cardStyle,
-        ["--fb-accent" as string]: acento,
-        ...(atrasado ? { borderColor: "#fca5a5" } : {}),
-      }}
+      style={{ ["--c" as string]: cor }}
     >
-      {clicavel && <span className={styles.hint}>📜 ver histórico</span>}
-      {(r.atendente_nome || r.status_atendimento === "arquivado") && (() => {
-        // Banner conforme o status do atendimento.
-        let bg = "#d1fae5", fg = "#065f46", txt = "🟢 Em atendimento por";
-        if (r.status_atendimento === "arquivado") {
-          bg = "#e5e7eb"; fg = "#374151"; txt = r.atendente_nome ? "🗄️ Arquivado por" : "🗄️ Arquivado";
-        } else if (emAtendimento) {
-          if (atrasado) { bg = "#fee2e2"; fg = "#991b1b"; txt = "⚠️ Em atendimento por"; }
-        } else if (r.status_atendimento === "concluido") {
-          bg = "#f3f4f6"; fg = "#374151"; txt = "✓ Concluído por";
-        } else if (r.status_atendimento === "sem_resposta") {
-          bg = "#fee2e2"; fg = "#991b1b"; txt = "📵 Sem resposta — atendido por";
-        }
-        return (
-          <div style={{ ...atendimentoBannerBase, background: bg, color: fg, flexDirection: "column", alignItems: "flex-start" }}>
-            <span>
-              {txt}{r.atendente_nome ? <> <strong>{r.atendente_nome}</strong></> : null}
-              {emAtendimento && horasAberto !== null && ` · há ${fmtTempoDecorrido(horasAberto)}`}
-              {atrasado && <strong style={{ marginLeft: 8, color: "#991b1b" }}>· ATUALIZE COM DETALHES</strong>}
-            </span>
-            {r.status_atendimento === "arquivado" && r.arquivado_motivo && (
-              <span style={{ fontStyle: "italic", opacity: 0.85 }}>Motivo: {r.arquivado_motivo}</span>
-            )}
-          </div>
-        );
-      })()}
-      <header style={cardHeader}>
+      <div className="fbn-cab">
+        <span className="fbn-ico p" style={{ ["--c" as string]: sit?.cor || cor }}><i className={`fa-solid ${sit?.ico || "fa-user"}`} /></span>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {naoContatar && <span title="Cliente marcado como 'não contatar'" style={{ fontSize: 14 }}>💀</span>}
-            {faltaInfo && <span title="Faltam informações cadastrais (sem contato e/ou pendência cadastral)" style={{ fontSize: 13 }}>⚠️</span>}
-            <h3 style={tituloStyle}>{r.nome}</h3>
-            {r.origem_dados && <span style={origemBadgeStyle(r.origem_dados)}>{r.origem_dados}</span>}
-          </div>
-          <div style={subtituloStyle}>
-            {r.telefone ? (
-              <a href={`tel:${r.telefone}`} style={contatoLinkStyle} title="Ligar">
-                {r.telefone}
-              </a>
-            ) : null}
-            {r.email ? (
-              <>
-                {r.telefone ? " · " : null}
-                <a href={`mailto:${r.email}`} style={contatoLinkStyle} title="Enviar e-mail">
-                  {r.email}
-                </a>
-              </>
-            ) : null}
-            {r.codigo_omie && <span> · Omie #{r.codigo_omie}</span>}
+          <h3 className="fbn-nome">{r.nome}</h3>
+          <div className="fbn-contato" onClick={(e) => e.stopPropagation()}>
+            {r.telefone && <a href={`tel:${r.telefone}`} title="Ligar"><i className="fa-solid fa-phone" /> {r.telefone}</a>}
+            {r.email && <a href={`mailto:${r.email}`} title="Enviar e-mail"><i className="fa-regular fa-envelope" /> {r.email}</a>}
+            {r.codigo_omie && <span>Omie {r.codigo_omie}</span>}
           </div>
         </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
-          {(isCrm ? r.status_cliente : r.prioridade) && (
-            <span className={styles.pill} style={{ background: corStatusObj.bg, color: corStatusObj.fg, textTransform: "uppercase" }}>
-              {isCrm ? r.status_cliente : r.prioridade}
-            </span>
-          )}
-          {!isCrm && r.sem_resposta && (
-            <span className={styles.pill} style={{ background: "#fee2e2", color: "#991b1b" }}>SEM RESPOSTA</span>
-          )}
-          {r.status_atendimento === "sem_resposta" && (
-            <span className={styles.pill} style={{ background: "#fee2e2", color: "#991b1b" }}>NÃO RESPONDEU</span>
-          )}
-        </div>
-      </header>
-
-      <div style={detalhesGrid}>
-        {r.trator && <Detail label="Equipamento" val={r.trator} />}
-        {r.tecnico && <Detail label="Técnico" val={r.tecnico} />}
-        {isCrm && r.servico && <Detail label="Serviço" val={r.servico} />}
-        {isCrm && r.data_servico && <Detail label="Data serviço" val={fmtData(r.data_servico)} />}
-        {!isCrm && r.ultimo_servico && <Detail label="Último serviço" val={fmtData(r.ultimo_servico)} />}
-        {r.data_contato && <Detail label="Contato" val={fmtData(r.data_contato)} />}
-        {isCrm && r.nota !== null && r.nota !== undefined && <Detail label="Nota" val={`★ ${r.nota}/10`} />}
-        {isCrm && r.nps && <Detail label="NPS" val={r.nps} />}
-        {isCrm && r.melhoria && <Detail label="Melhoria" val={r.melhoria} />}
       </div>
 
+      <div className="fbn-selos">
+        {sit && <span className="fbn-pilula" style={k(sit.cor)}>{sit.txt}</span>}
+        {r.origem_dados && <span className="fbn-pilula" style={k(corOrigem(r.origem_dados))}>{r.origem_dados}</span>}
+        {!isCrm && r.sem_resposta && <span className="fbn-pilula" style={k("#dc2626")}>Sem resposta</span>}
+        {naoContatar && <span className="fbn-pilula" style={k("#0f172a")} title="Cliente marcado como 'não contatar'"><i className="fa-solid fa-skull" /> Não contatar</span>}
+        {faltaInfo && <span className="fbn-pilula" style={k("#d97706")} title="Faltam informações cadastrais (sem contato e/ou pendência cadastral)"><i className="fa-solid fa-triangle-exclamation" /> Falta cadastro</span>}
+      </div>
+
+      {atend && (
+        <div className="fbn-atend">
+          <i className={`fa-solid ${atend.ico}`} style={{ color: atend.cor }} />
+          <span>{atend.txt}{r.atendente_nome ? <> <b>{r.atendente_nome}</b></> : null}
+            {emAtendimento && horasAberto !== null && <> · há {fmtTempoDecorrido(horasAberto)}</>}
+            {atrasado && <span style={{ color: "#dc2626" }}> · atualize com os detalhes</span>}
+            {r.status_atendimento === "arquivado" && r.arquivado_motivo && <><br />Motivo: {r.arquivado_motivo}</>}
+          </span>
+        </div>
+      )}
+
+      {dados.length > 0 && (
+        <div className="fbn-dados">
+          {dados.map(([rot, val]) => <div key={rot}><small>{rot}</small><span>{val}</span></div>)}
+        </div>
+      )}
+
       {ultimaOS && (ultimaOS.tecnico || ultimaOS.data) && (
-        <div style={ultimaOSStyle}>
-          🔧 <strong>Último serviço:</strong>{" "}
-          {ultimaOS.tecnico || "técnico não informado"}
-          {ultimaOS.data ? ` · ${fmtData(ultimaOS.data)}` : ""}
-          {ultimaOS.tipo ? ` · ${ultimaOS.tipo}` : ""}
+        <div className="fbn-os">
+          <i className="fa-solid fa-wrench" />
+          <span>Último serviço na oficina: {ultimaOS.tecnico || "técnico não informado"}{ultimaOS.data ? ` · ${fmtData(ultimaOS.data)}` : ""}{ultimaOS.tipo ? ` · ${ultimaOS.tipo}` : ""}</span>
         </div>
       )}
 
-      {(isCrm ? r.feedback : r.motivo) && (
-        <blockquote style={citaStyle}>
-          {isCrm ? r.feedback : r.motivo}
-        </blockquote>
-      )}
+      {texto && <p className="fbn-texto">{texto}</p>}
 
-      {!isCrm && r.acao && (
-        <div style={{ fontSize: 12, color: "var(--portal-text-secondary)", marginTop: 6 }}>
-          <strong style={{ fontWeight: 700 }}>Ação:</strong> {r.acao}
-        </div>
-      )}
+      {!isCrm && r.acao && <div className="fbn-atend"><span>Ação: <b>{r.acao}</b></span></div>}
 
-      {onMudarAtendimento && (
-        <div style={acoesAtendimentoStyle} onClick={(e) => e.stopPropagation()}>
-          {r.status_atendimento === "arquivado" ? (
-            <button onClick={() => onMudarAtendimento(r, "em_andamento")} style={btnAcao("#e5e7eb", "#374151")} type="button">
-              Desarquivar
+      {(onEditar || onMudarAtendimento) && (
+        <div className="fbn-acoes" onClick={(e) => e.stopPropagation()}>
+          {onEditar && (
+            <button type="button" className="fbn-acao cheio" onClick={() => onEditar(r)}>
+              <i className="fa-solid fa-pen-to-square" /> Preencher atendimento
             </button>
+          )}
+          {onMudarAtendimento && (r.status_atendimento === "arquivado" ? (
+            <button type="button" className="fbn-acao cinza" onClick={() => onMudarAtendimento(r, "em_andamento")}><i className="fa-solid fa-box-open" /> Desarquivar</button>
           ) : (
-          <>
-          {/* Concluir / Reabrir */}
-          {r.status_atendimento === "concluido" ? (
-            <button onClick={() => onMudarAtendimento(r, "em_andamento")} style={btnAcao("#f3f4f6", "#525252")} type="button">
-              Reabrir
+            <>
+              {r.status_atendimento === "concluido"
+                ? <button type="button" className="fbn-acao cinza" onClick={() => onMudarAtendimento(r, "em_andamento")}><i className="fa-solid fa-rotate-left" /> Reabrir</button>
+                : <button type="button" className="fbn-acao verde" onClick={() => onMudarAtendimento(r, "concluido")}><i className="fa-solid fa-check" /> Concluir</button>}
+              {/* Respondeu — só para reverter quando está sem resposta (marcar "sem resposta" é dentro de "Preencher atendimento") */}
+              {r.status_atendimento === "sem_resposta" && (
+                <button type="button" className="fbn-acao verde" onClick={() => onMudarAtendimento(r, "em_andamento")}><i className="fa-solid fa-phone" /> Respondeu</button>
+              )}
+              {onArquivar && (
+                <button type="button" className="fbn-acao cinza" onClick={() => onArquivar(r)} title="Arquivar este atendimento (com justificativa)"><i className="fa-solid fa-box-archive" /> Arquivar</button>
+              )}
+            </>
+          ))}
+          {clicavel && (
+            <button type="button" className="fbn-acao cinza" style={{ marginLeft: "auto" }} onClick={() => onVerHistorico?.(r)} title="Histórico do cliente: OS, pedidos, requisições">
+              <i className="fa-solid fa-clock-rotate-left" /> Histórico
             </button>
-          ) : (
-            <button onClick={() => onMudarAtendimento(r, "concluido")} style={btnAcao("#d1fae5", "#065f46")} type="button">
-              Concluir
-            </button>
-          )}
-          {/* Respondeu — só pra reverter quando está sem resposta. Marcar
-              "sem resposta" agora é dentro de "Preencher atendimento". */}
-          {r.status_atendimento === "sem_resposta" && (
-            <button onClick={() => onMudarAtendimento(r, "em_andamento")} style={btnAcao("#d1fae5", "#065f46")} type="button">
-              Respondeu
-            </button>
-          )}
-          {onArquivar && (
-            <button onClick={() => onArquivar(r)} style={btnAcao("#e5e7eb", "#374151")} type="button" title="Arquivar este atendimento (com justificativa)">
-              Arquivar
-            </button>
-          )}
-          </>
           )}
         </div>
-      )}
-
-      {onEditar && (
-        <footer style={footerStyle} onClick={(e) => e.stopPropagation()}>
-          <button onClick={() => onEditar(r)} style={btnAcao("#fef3c7", "#92400e")} type="button">
-            Preencher atendimento
-          </button>
-        </footer>
       )}
     </article>
   );
-}
-
-function Detail({ label, val }: { label: string; val: string | number | null | undefined }) {
-  if (!val) return null;
-  return (
-    <div>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 2 }}>
-        {label}
-      </div>
-      <div style={{ fontSize: 12, color: "var(--portal-text)", fontWeight: 600 }}>{val}</div>
-    </div>
-  );
-}
-
-const cardStyle: React.CSSProperties = {
-  fontFamily: "Inter, sans-serif",
-  display: "flex", flexDirection: "column", gap: 10,
-};
-const atendimentoBannerBase: React.CSSProperties = {
-  margin: "-16px -16px 0",
-  padding: "9px 14px 8px",
-  fontSize: 11,
-  fontWeight: 600,
-  borderRadius: 0,
-  display: "flex",
-  justifyContent: "space-between",
-  alignItems: "center",
-  gap: 8,
-  flexWrap: "wrap",
-};
-const cardHeader: React.CSSProperties = {
-  display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8,
-};
-const tituloStyle: React.CSSProperties = {
-  fontSize: 15, fontWeight: 700, color: "var(--portal-text)", margin: 0,
-  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-};
-const subtituloStyle: React.CSSProperties = {
-  fontSize: 11, color: "var(--portal-text-secondary)", marginTop: 2,
-};
-const contatoLinkStyle: React.CSSProperties = {
-  color: "#b91c1c",
-  textDecoration: "none",
-  fontWeight: 600,
-};
-function origemBadgeStyle(origem: string): React.CSSProperties {
-  // Cores por origem: NOVA vermelho, CASTRO laranja, Portal cinza
-  const up = origem.toUpperCase();
-  let bg = "#f3f4f6";
-  let fg = "#525252";
-  if (up.includes("NOVA")) {
-    bg = "#fee2e2"; fg = "#991b1b";
-  } else if (up.includes("CASTRO")) {
-    bg = "#fed7aa"; fg = "#9a3412";
-  } else if (up.includes("OMIE")) {
-    bg = "#dbeafe"; fg = "#1e40af";
-  }
-  return {
-    fontSize: 9,
-    fontWeight: 700,
-    padding: "2px 7px",
-    borderRadius: 5,
-    background: bg,
-    color: fg,
-    textTransform: "uppercase",
-    letterSpacing: 0.3,
-    whiteSpace: "nowrap",
-  };
-}
-const detalhesGrid: React.CSSProperties = {
-  display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-  gap: 10, paddingTop: 4,
-};
-const citaStyle: React.CSSProperties = {
-  margin: 0, padding: "10px 14px",
-  background: "#f9fafb", borderLeft: "3px solid #d1d5db",
-  borderRadius: 6, fontSize: 13, color: "var(--portal-text)",
-  fontStyle: "italic", lineHeight: 1.55,
-};
-const footerStyle: React.CSSProperties = {
-  display: "flex", gap: 6, paddingTop: 8, borderTop: "1px solid #f5f5f5",
-};
-const ultimaOSStyle: React.CSSProperties = {
-  fontSize: 11.5, color: "var(--portal-text-secondary)",
-  background: "#f9fafb", border: "1px solid #eee",
-  borderRadius: 6, padding: "6px 10px",
-};
-const acoesAtendimentoStyle: React.CSSProperties = {
-  display: "flex", gap: 8, alignItems: "flex-start", flexWrap: "wrap",
-  paddingTop: 8, borderTop: "1px solid #f5f5f5",
-};
-function btnAcao(bg: string, fg: string): React.CSSProperties {
-  return {
-    padding: "6px 12px", background: bg, color: fg, border: "none",
-    borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer",
-    fontFamily: "Inter, sans-serif",
-  };
 }

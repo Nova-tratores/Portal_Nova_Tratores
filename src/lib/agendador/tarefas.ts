@@ -79,6 +79,18 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: `${r.versoes} versão(ões) · ${r.novidades.length} módulo(s): ${r.novidades.map((n) => n.modulo).join(', ') || '—'} · ${r.avisados} pessoa(s) avisada(s)` };
   },
 
+  // CRM automático (José, 23/10/2026): toda OS faturada há 3–15 dias vira uma ligação
+  // de satisfação no /feedbacks/crm, já preenchida. FEEDBACKS_CRM_AUTO=off desliga.
+  'feedbacks-crm-automatico': async () => {
+    if (desligada('FEEDBACKS_CRM_AUTO')) return { pular: 'FEEDBACKS_CRM_AUTO=off' };
+    const { gerarCrmDasOS } = await import('@/lib/feedbacks/crm-automatico-server');
+    const r = await gerarCrmDasOS({ gravar: true });
+    if ('pulado' in r) return { pular: r.pulado };
+    const pul = Object.entries(r.puladas).map(([m, n]) => `${m} ${n}`).join(', ');
+    if (!r.criadas) return { pular: `nenhuma OS nova para o CRM (${r.candidatas} na janela${pul ? ` · ${pul}` : ''})` };
+    return { resumo: `${r.criadas} ligação(ões) criada(s) de ${r.candidatas} OS na janela${pul ? ` · puladas: ${pul}` : ''}` };
+  },
+
   // Características das peças (espelho produtos_caracteristicas: locação, "Tipo:"…),
   // as duas contas. Veio do GitHub (ajustes-sync-caracteristicas.yml), que disparava
   // as 03:00 da madrugada só no papel (rodava 9h–12h e morria em deploy).

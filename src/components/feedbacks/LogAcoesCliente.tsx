@@ -59,28 +59,28 @@ export default function LogAcoesCliente({ codigoOmie, nome, visible, refreshKey 
 
   return (
     <div className="log-panel">
-      <div style={{ padding: "14px 20px", background: "#F5F0E8", borderBottom: "1px solid #E0D6C8", fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "space-between", color: "#3A332B" }}>
-        <span>Histórico</span>
+      <div style={{ padding: "14px 20px", background: "var(--portal-bg-secondary)", borderBottom: "1px solid var(--portal-border)", fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "space-between", color: "var(--portal-text)" }}>
+        <span><i className="fa-solid fa-clock-rotate-left" /> Histórico</span>
         <button
           onClick={fetchLogs}
           disabled={loading}
-          style={{ background: "none", border: "none", cursor: "pointer", color: "#7A6E5D", fontSize: 13, padding: "4px 8px", borderRadius: 6, display: "flex", alignItems: "center", gap: 4 }}
+          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--portal-text-secondary)", fontSize: 13, padding: "4px 8px", borderRadius: 10, display: "flex", alignItems: "center", gap: 4 }}
           title="Atualizar"
         >
-          <i className={`fas fa-sync-alt${loading ? " fa-spin" : ""}`} style={{ fontSize: 11 }} />
+          <i className={`fa-solid fa-rotate${loading ? " fa-spin" : ""}`} style={{ fontSize: 11 }} />
         </button>
       </div>
       <div style={{ flex: 1, overflowY: "auto" }}>
         {logs.length === 0 ? (
-          <div style={{ padding: 20, color: "#B8A99A", textAlign: "center" }}>
+          <div style={{ padding: 20, color: "var(--portal-text-muted)", textAlign: "center" }}>
             {loading ? "Carregando..." : "Sem histórico."}
           </div>
         ) : (
           logs.map((l) => (
-            <div key={l.id} style={{ padding: 15, borderBottom: "1px solid #F5F0E8", fontSize: 12 }}>
-              <div style={{ color: "var(--primary)", fontWeight: 600 }}>{fmtDataHora(l.created_at)}</div>
-              <div style={{ fontWeight: 600 }}>{ACAO_LABEL[l.acao] || l.acao}</div>
-              <div style={{ fontSize: 10, color: "#999" }}>{l.user_nome || ""}</div>
+            <div key={l.id} style={{ padding: 15, borderBottom: "1px solid var(--portal-border)", fontSize: 12 }}>
+              <div style={{ color: "var(--primary)", fontWeight: 500 }}>{fmtDataHora(l.created_at)}</div>
+              <div style={{ fontWeight: 500 }}>{ACAO_LABEL[l.acao] || l.acao}</div>
+              <div style={{ fontSize: 11, color: "var(--portal-text-muted)" }}>{l.user_nome || ""}</div>
             </div>
           ))
         )}

@@ -103,7 +103,8 @@ function DashboardAgrupadoInner() {
   const podeDestinatarios = pode('revisoes', 'destinatarios');
   const { log: auditLog } = useAuditLog();
   const [tratores, setTratores] = useState<Trator[]>([]);
-  const [busca, setBusca] = useState("");
+  // ?busca=<chassi> (vem de "Tratores vendidos") já abre filtrado
+  const [busca, setBusca] = useState(() => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("busca") || ""));
   const [filtroCliente, setFiltroCliente] = useState("");
   const [selecionado, setSelecionado] = useState<Trator | null>(null);
   // Monitor de uso: avisa a jornada qual trator está aberto (só hashes ficam no navegador).
@@ -961,6 +962,13 @@ function DashboardAgrupadoInner() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <a
+                href="/revisoes/vendidos"
+                title="Tratores vendidos recentemente: 30, 60 e 90 dias da venda, cliente, localização e se já estão no controle"
+                className="px-5 py-2.5 bg-white border border-zinc-300 text-zinc-700 rounded-lg font-medium hover:bg-zinc-50 transition-colors text-sm"
+              >
+                Tratores vendidos
+              </a>
               <a
                 href="/revisoes/mahindra"
                 title="Revisões de 50h e 900h realizadas — controle de cobrança da Mahindra + exportação Excel"

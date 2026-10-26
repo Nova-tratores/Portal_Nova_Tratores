@@ -172,6 +172,10 @@ export function catalogoRotas(): RotaDef[] {
   for (const a of ACOES_POR_MODULO.dre) tela(`/dre-financeiro/${a.id}`, `dre:${a.id}`, ['financeiro']);
   for (const a of ACOES_POR_MODULO['consulta-estoque']) tela(`/visual-estoque/${a.id}`, `consulta-estoque:${a.id}`);
   for (const a of ACOES_POR_MODULO.feedbacks) tela(`/feedbacks/${a.id}`, `feedbacks:${a.id}`);
+  // Telas novas do Feedbacks (23/10/2026, lib/feedbacks/telas.ts): mesmas chaves das antigas
+  tela('/feedbacks/painel', 'feedbacks:relatorios');
+  tela('/feedbacks/robo', 'feedbacks:oportunidades');
+  tela('/feedbacks/clientes', 'feedbacks:clientes', ['feedbacks:atendimento']);
 
   // Exceções conferidas página a página
   tela('/frota/veiculos', 'frota:dashboard', [], 'Hoje e Veículos dividem a chave');

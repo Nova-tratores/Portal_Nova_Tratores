@@ -8,8 +8,10 @@ import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const STATUS_VALIDOS: StatusOportunidade[] = ["aberta", "atendida", "dispensada", "expirada"];
 
-// Aba /feedbacks/oportunidades (FeedbackTabs): pode('feedbacks', 'oportunidades').
+// Lista: a aba Robô (/feedbacks/robo): pode('feedbacks', 'oportunidades').
 const ACESSO = [{ modulo: "feedbacks", acao: "oportunidades" }];
+// Marcar atendida/dispensada: o Robô e também o concluir da tela Hoje (crm|rfm|atendimento|agenda).
+const ACESSO_PATCH = [...ACESSO, { modulo: "feedbacks", acao: "crm" }, { modulo: "feedbacks", acao: "rfm" }, { modulo: "feedbacks", acao: "atendimento" }, { modulo: "feedbacks", acao: "agenda" }];
 
 export async function GET(req: NextRequest) {
   const g = await protegerRota(req, ACESSO);
@@ -38,7 +40,7 @@ interface PatchPayload {
 }
 
 export async function PATCH(req: NextRequest) {
-  const g = await protegerRota(req, ACESSO);
+  const g = await protegerRota(req, ACESSO_PATCH);
   if (g.resposta) return g.resposta;
   const id = Number(new URL(req.url).searchParams.get("id"));
   if (!id) return NextResponse.json({ erro: "id obrigatório" }, { status: 400 });

@@ -58,8 +58,7 @@ export default function TimelineRegistros({ registros, onEditar }: Props) {
               style={{
                 background: "var(--portal-bg-card)",
                 border: "1px solid var(--portal-border)",
-                borderLeft: `4px solid ${isCrm ? COR_CRM : COR_RFM}`,
-                borderRadius: 12,
+                borderRadius: 16,
                 padding: "12px 16px",
                 boxShadow: "0 1px 2px rgba(16,24,40,0.04), 0 6px 16px -10px rgba(16,24,40,0.14)",
               }}
@@ -68,15 +67,15 @@ export default function TimelineRegistros({ registros, onEditar }: Props) {
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <span
                     style={{
-                      fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 6,
+                      fontSize: 12, fontWeight: 500, padding: "1px 10px", borderRadius: 999,
                       background: isCrm ? COR_CRM_BG : COR_RFM_BG,
                       color: isCrm ? COR_CRM_FG : COR_RFM_FG,
-                      textTransform: "uppercase", letterSpacing: 0.3,
+                      border: `1px solid ${isCrm ? COR_CRM : COR_RFM}`,
                     }}
                   >
                     {isCrm ? "CRM" : "RFM"}
                   </span>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: "var(--portal-text)" }}>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: "var(--portal-text)" }}>
                     {fmtData(dataReferencia(r))}
                   </span>
                 </div>
@@ -85,10 +84,10 @@ export default function TimelineRegistros({ registros, onEditar }: Props) {
                     onClick={() => onEditar(r)}
                     style={{
                       background: "transparent", border: "none", color: "var(--portal-text-secondary)",
-                      cursor: "pointer", fontSize: 11, fontWeight: 600, padding: 4,
+                      cursor: "pointer", fontSize: 11, fontWeight: 500, padding: 4,
                     }}
                   >
-                    ✎ Editar
+                    <i className="fa-solid fa-pen" /> Editar
                   </button>
                 )}
               </div>
@@ -98,7 +97,7 @@ export default function TimelineRegistros({ registros, onEditar }: Props) {
                 <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
                   {statusAtendimentoChip(r.status_atendimento)}
                   {r.atendente_nome && (
-                    <span style={{ fontSize: 11, color: "var(--portal-text-secondary)" }}>🎧 {r.atendente_nome}</span>
+                    <span style={{ fontSize: 11, color: "var(--portal-text-secondary)" }}><i className="fa-solid fa-headset" /> {r.atendente_nome}</span>
                   )}
                   {r.status_atendimento === "arquivado" && r.arquivado_motivo && (
                     <span style={{ fontSize: 11, color: "#92400e", fontStyle: "italic" }}>— {r.arquivado_motivo}</span>
@@ -110,7 +109,7 @@ export default function TimelineRegistros({ registros, onEditar }: Props) {
                 <>
                   {r.servico && (
                     <div style={{ fontSize: 12, color: "var(--portal-text)", marginBottom: 4 }}>
-                      <strong>Serviço:</strong> {r.servico}
+                      <strong style={{ fontWeight: 500 }}>Serviço:</strong> {r.servico}
                     </div>
                   )}
                   {r.feedback && (
@@ -118,27 +117,27 @@ export default function TimelineRegistros({ registros, onEditar }: Props) {
                   )}
                   <div style={chipsStyle}>
                     {r.status_cliente && <Chip>{r.status_cliente}</Chip>}
-                    {r.nota !== null && r.nota !== undefined && <Chip>★ {r.nota}/10</Chip>}
+                    {r.nota !== null && r.nota !== undefined && <Chip><i className="fa-solid fa-star" /> {r.nota}/10</Chip>}
                     {r.nps && <Chip>NPS: {r.nps}</Chip>}
-                    {r.tecnico && <Chip>👷 {r.tecnico}</Chip>}
+                    {r.tecnico && <Chip><i className="fa-solid fa-user-gear" /> {r.tecnico}</Chip>}
                   </div>
                 </>
               ) : (
                 <>
                   {r.motivo && (
                     <div style={{ fontSize: 12, color: "var(--portal-text)", marginBottom: 4 }}>
-                      <strong>Motivo:</strong> {r.motivo}
+                      <strong style={{ fontWeight: 500 }}>Motivo:</strong> {r.motivo}
                     </div>
                   )}
                   {r.acao && (
                     <div style={{ fontSize: 12, color: "var(--portal-text-secondary)" }}>
-                      <strong>O que foi conversado:</strong> {r.acao}
+                      <strong style={{ fontWeight: 500 }}>O que foi conversado:</strong> {r.acao}
                     </div>
                   )}
                   <div style={chipsStyle}>
                     {r.prioridade && <Chip>{r.prioridade}</Chip>}
                     {r.sem_resposta && <Chip color="#fee2e2" textColor="#991b1b">Sem resposta</Chip>}
-                    {r.tecnico && <Chip>👷 {r.tecnico}</Chip>}
+                    {r.tecnico && <Chip><i className="fa-solid fa-user-gear" /> {r.tecnico}</Chip>}
                   </div>
                 </>
               )}
@@ -152,18 +151,18 @@ export default function TimelineRegistros({ registros, onEditar }: Props) {
 
 function statusAtendimentoChip(status: string | null | undefined): React.ReactNode {
   switch (status) {
-    case "concluido":    return <Chip color="#d1fae5" textColor="#065f46">✓ Concluído</Chip>;
-    case "sem_resposta": return <Chip color="#fee2e2" textColor="#991b1b">📵 Sem resposta</Chip>;
-    case "arquivado":    return <Chip color="#e5e7eb" textColor="#374151">🗄️ Arquivado</Chip>;
+    case "concluido":    return <Chip color="#d1fae5" textColor="#065f46"><i className="fa-solid fa-circle-check" /> Concluído</Chip>;
+    case "sem_resposta": return <Chip color="#fee2e2" textColor="#991b1b"><i className="fa-solid fa-phone-slash" /> Sem resposta</Chip>;
+    case "arquivado":    return <Chip color="#e5e7eb" textColor="#374151"><i className="fa-solid fa-box-archive" /> Arquivado</Chip>;
     case "aberto":
-    case "em_andamento": return <Chip color="#dbeafe" textColor="#1e40af">🟢 Em atendimento</Chip>;
+    case "em_andamento": return <Chip color="#dbeafe" textColor="#1e40af"><i className="fa-solid fa-circle" style={{ fontSize: 7, color: "#16a34a" }} /> Em atendimento</Chip>;
     default:             return null;
   }
 }
 
 function Chip({ children, color = "#f3f4f6", textColor = "var(--portal-text-secondary)" }: { children: React.ReactNode; color?: string; textColor?: string }) {
   return (
-    <span style={{ fontSize: 10, padding: "3px 10px", borderRadius: 999, background: color, color: textColor, fontWeight: 700, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5)" }}>
+    <span style={{ fontSize: 11, padding: "3px 10px", borderRadius: 999, background: color, color: textColor, fontWeight: 500, boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5)" }}>
       {children}
     </span>
   );
@@ -171,7 +170,7 @@ function Chip({ children, color = "#f3f4f6", textColor = "var(--portal-text-seco
 
 const citaStyle: React.CSSProperties = {
   margin: "4px 0", padding: "8px 12px",
-  background: "#f9fafb", borderLeft: "3px solid #d1d5db", borderRadius: 6,
+  background: "var(--portal-bg-secondary)", border: "1px solid var(--portal-border)", borderRadius: 10,
   fontSize: 12, color: "var(--portal-text)", fontStyle: "italic", lineHeight: 1.5,
 };
 const chipsStyle: React.CSSProperties = { display: "flex", gap: 4, flexWrap: "wrap", marginTop: 6 };

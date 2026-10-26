@@ -116,12 +116,12 @@ export default function ModalPerfilCliente({ aberto, nome, codigoOmie, info, onF
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
         <header style={{ ...headerStyle, gap: 8 }}>
           <div>
-            <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.85, textTransform: "uppercase", letterSpacing: 0.8 }}>
-              👤 Perfil estendido
+            <div style={{ fontSize: 12, fontWeight: 500, color: "var(--portal-text-secondary)" }}>
+              <i className="fa-solid fa-user" style={{ color: "#b91c1c" }} /> Perfil estendido
             </div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, margin: "4px 0 0" }}>{nome}</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 500, margin: "4px 0 0" }}>{nome}</h2>
           </div>
-          <button onClick={onFechar} style={btnFecharStyle}>✕</button>
+          <button onClick={onFechar} style={btnFecharStyle} aria-label="Fechar"><i className="fa-solid fa-xmark" /></button>
         </header>
 
         <div className="fbpc-corpo" style={bodyStyle}>
@@ -152,7 +152,7 @@ export default function ModalPerfilCliente({ aberto, nome, codigoOmie, info, onF
                 <input type="text" placeholder="Cargo" value={fn.cargo} onChange={(e) => updFunc(i, { cargo: e.target.value })} style={inputStyle} />
                 <input type="text" placeholder="Telefone" value={fn.telefone} onChange={(e) => updFunc(i, { telefone: e.target.value })} style={inputStyle} />
                 <input type="text" placeholder="Fazenda" value={fn.fazenda} onChange={(e) => updFunc(i, { fazenda: e.target.value })} style={inputStyle} />
-                <button type="button" onClick={() => removerFunc(i)} style={btnRemover}>✕</button>
+                <button type="button" onClick={() => removerFunc(i)} style={btnRemover} aria-label="Remover"><i className="fa-solid fa-xmark" /></button>
               </div>
             ))}
             {form.funcionarios.length === 0 && (
@@ -171,11 +171,11 @@ export default function ModalPerfilCliente({ aberto, nome, codigoOmie, info, onF
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr auto", gap: 8, marginBottom: 8 }}>
                   <input type="text" placeholder="Nome da fazenda" value={fz.nome} onChange={(e) => updFazenda(fi, { nome: e.target.value })} style={inputStyle} />
                   <input type="text" placeholder="Cidade" value={fz.cidade} onChange={(e) => updFazenda(fi, { cidade: e.target.value })} style={inputStyle} />
-                  <button type="button" onClick={() => removerFazenda(fi)} style={btnRemover}>✕</button>
+                  <button type="button" onClick={() => removerFazenda(fi)} style={btnRemover} aria-label="Remover"><i className="fa-solid fa-xmark" /></button>
                 </div>
-                <div style={{ paddingLeft: 12, borderLeft: "2px solid #e5e5e5" }}>
+                <div style={{ paddingLeft: 12, borderLeft: "1px solid var(--portal-border)" }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                    <span style={{ fontSize: 11, fontWeight: 600, color: "var(--portal-text-secondary)" }}>
+                    <span style={{ fontSize: 12, fontWeight: 500, color: "var(--portal-text-secondary)" }}>
                       Tratores ({fz.tratores.length})
                     </span>
                     <button type="button" onClick={() => adicionarTrator(fi)} style={{ ...btnAdicionar, fontSize: 11, padding: "4px 10px" }}>
@@ -185,7 +185,7 @@ export default function ModalPerfilCliente({ aberto, nome, codigoOmie, info, onF
                   {fz.tratores.map((t, ti) => (
                     <div key={ti} style={{ display: "flex", gap: 6, marginBottom: 4 }}>
                       <input type="text" placeholder="Modelo / chassi" value={t} onChange={(e) => updTrator(fi, ti, e.target.value)} style={inputStyle} />
-                      <button type="button" onClick={() => removerTrator(fi, ti)} style={btnRemover}>✕</button>
+                      <button type="button" onClick={() => removerTrator(fi, ti)} style={btnRemover} aria-label="Remover"><i className="fa-solid fa-xmark" /></button>
                     </div>
                   ))}
                 </div>
@@ -214,7 +214,7 @@ function Row({ children }: { children: React.ReactNode }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>
+      <div style={{ fontSize: 12, fontWeight: 500, color: "var(--portal-text-muted)", marginBottom: 4 }}>
         {label}
       </div>
       {children}
@@ -223,7 +223,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 function SecaoTitulo({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: 12, fontWeight: 800, color: "var(--portal-text)", textTransform: "uppercase", letterSpacing: 0.6 }}>
+    <div style={{ fontSize: 14, fontWeight: 500, color: "var(--portal-text)" }}>
       {children}
     </div>
   );
@@ -235,19 +235,19 @@ const overlayStyle: React.CSSProperties = {
   zIndex: 9999, padding: 16, fontFamily: "Inter, sans-serif",
 };
 const modalStyle: React.CSSProperties = {
-  background: "#fff", width: "100%", maxWidth: 820, maxHeight: "92vh",
-  borderRadius: 14, display: "flex", flexDirection: "column",
+  background: "var(--portal-bg-card)", color: "var(--portal-text)", width: "100%", maxWidth: 820, maxHeight: "92vh",
+  borderRadius: 16, display: "flex", flexDirection: "column",
   boxShadow: "0 25px 60px rgba(0,0,0,0.3)", overflow: "hidden",
 };
 const headerStyle: React.CSSProperties = {
   padding: "18px 24px", borderBottom: "1px solid var(--portal-border)",
   display: "flex", justifyContent: "space-between", alignItems: "center",
-  background: "linear-gradient(135deg, #991b1b, #7f1d1d)", color: "#fff",
+  background: "var(--portal-bg-card)", color: "var(--portal-text)",
 };
 const bodyStyle: React.CSSProperties = { padding: 24, overflowY: "auto", flex: 1 };
 const footerStyle: React.CSSProperties = {
   padding: "14px 24px", borderTop: "1px solid var(--portal-border)",
-  display: "flex", justifyContent: "flex-end", gap: 10, background: "#fafafa",
+  display: "flex", justifyContent: "flex-end", gap: 10, background: "var(--portal-bg-secondary)",
 };
 const secaoStyle: React.CSSProperties = { marginBottom: 24 };
 const inputStyle: React.CSSProperties = {
@@ -262,32 +262,32 @@ const linhaStyle: React.CSSProperties = {
   gap: 8, marginBottom: 6, alignItems: "center",
 };
 const fazendaCardStyle: React.CSSProperties = {
-  background: "#fafafa", border: "1px solid var(--portal-border)",
-  borderRadius: 10, padding: 12, marginBottom: 10,
+  background: "var(--portal-bg-secondary)", border: "1px solid var(--portal-border)",
+  borderRadius: 16, padding: 12, marginBottom: 10,
 };
 const btnAdicionar: React.CSSProperties = {
   background: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c",
-  padding: "5px 12px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer",
+  padding: "5px 12px", borderRadius: 10, fontSize: 12, fontWeight: 500, cursor: "pointer",
   fontFamily: "Inter, sans-serif",
 };
 const btnRemover: React.CSSProperties = {
   background: "#fee2e2", border: "none", color: "#991b1b",
-  width: 32, height: 32, borderRadius: 6, fontSize: 12, fontWeight: 700, cursor: "pointer",
+  width: 32, height: 32, borderRadius: 10, fontSize: 12, cursor: "pointer",
 };
 const btnFecharStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.18)", color: "#fff", border: "none",
-  width: 32, height: 32, borderRadius: 8, fontSize: 16, cursor: "pointer", fontWeight: 700,
+  background: "transparent", color: "var(--portal-text-secondary)", border: "1px solid var(--portal-border)",
+  width: 32, height: 32, borderRadius: 10, fontSize: 14, cursor: "pointer",
 };
 const btnGhostStyle: React.CSSProperties = {
-  padding: "10px 22px", background: "#fff",
-  border: "1.5px solid var(--portal-border)", color: "var(--portal-text-secondary)",
-  borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
+  padding: "10px 22px", background: "var(--portal-bg-card)",
+  border: "1px solid var(--portal-border)", color: "var(--portal-text-secondary)",
+  borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: "pointer",
   fontFamily: "Inter, sans-serif",
 };
 const btnPrimaryStyle: React.CSSProperties = {
   padding: "10px 26px", background: "linear-gradient(135deg, #dc2626, #b91c1c)",
   color: "#fff", border: "none", borderRadius: 10,
-  fontSize: 13, fontWeight: 700, boxShadow: "0 2px 8px rgba(185,28,28,0.25)",
+  fontSize: 13, fontWeight: 500, boxShadow: "0 2px 8px rgba(185,28,28,0.25)",
   fontFamily: "Inter, sans-serif",
 };
 const erroStyle: React.CSSProperties = {

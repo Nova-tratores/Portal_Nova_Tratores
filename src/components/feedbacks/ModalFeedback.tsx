@@ -7,7 +7,7 @@ import StarsRating from "./StarsRating";
 import PainelDadosCliente, { type PainelDadosClienteHandle } from "./PainelDadosCliente";
 import LogAcoesCliente from "./LogAcoesCliente";
 import { inserirRegistro, atualizarRegistro, buscarUltimasOSPorCliente, registrarEquipamentoCliente, type UltimaOS } from "@/lib/feedbacks/api";
-import { corTipo, gradTipo } from "@/lib/feedbacks/cores";
+import { corTipo } from "@/lib/feedbacks/cores";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import {
   clienteKey,
@@ -21,7 +21,7 @@ interface Props {
   prefill?: Partial<FeedbackRegistro>;   // preencher campos ao abrir (ex: vindo de oportunidade)
   onFechar: () => void;
   onSalvo: (r: FeedbackRegistro) => void;
-  // 💀 Caveira (não contatar) — disparada de dentro do modal. Só no modo edição.
+  // Caveira (não contatar) — disparada de dentro do modal. Só no modo edição.
   onCaveira?: (r: FeedbackRegistro) => void;
   clienteNaoContatar?: boolean;
 }
@@ -247,7 +247,6 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
 
   const titulo = `${editando ? "Editar" : "Novo"} ${tipo === "crm" ? "feedback CRM (pós-serviço)" : "contato RFM (agendamento)"}`;
   const corCabec = corTipo(tipo);
-  const headerBg = gradTipo(tipo);
 
   return (
     <div className="fbmf-fundo" style={overlayStyle} onClick={onFechar}>
@@ -264,16 +263,16 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
-            background: headerBg,
-            color: "#fff",
-            borderRadius: showLog ? "14px 0 0 0" : "14px 14px 0 0",
+            background: "var(--portal-bg-card)",
+            color: "var(--portal-text)",
+            borderRadius: showLog ? "16px 0 0 0" : "16px 16px 0 0",
           }}
         >
           <div style={{ minWidth: 0 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.85, textTransform: "uppercase", letterSpacing: 0.8 }}>
-              ● Integrado ao Omie
+            <div style={{ fontSize: 12, fontWeight: 500, color: "var(--portal-text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
+              <i className="fa-solid fa-circle" style={{ fontSize: 7, color: corCabec }} /> Integrado ao Omie
             </div>
-            <h2 style={{ fontSize: 18, fontWeight: 800, margin: "4px 0 0" }}>{titulo}</h2>
+            <h2 style={{ fontSize: 18, fontWeight: 500, margin: "4px 0 0" }}>{titulo}</h2>
           </div>
           <div style={{ display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
             {form.nome && (
@@ -281,12 +280,12 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
                 type="button"
                 onClick={() => setShowLog((v) => !v)}
                 title="Histórico de ações deste cliente"
-                style={{ background: showLog ? "rgba(255,255,255,0.32)" : "rgba(255,255,255,0.18)", color: "#fff", border: "none", borderRadius: 8, padding: "7px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
+                style={{ background: showLog ? "var(--portal-bg-secondary)" : "transparent", color: "var(--portal-text-secondary)", border: "1px solid var(--portal-border)", borderRadius: 10, padding: "7px 12px", fontSize: 13, fontWeight: 500, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}
               >
-                <i className="fas fa-history" /> Log
+                <i className="fa-solid fa-clock-rotate-left" /> Log
               </button>
             )}
-            <button onClick={onFechar} style={btnFecharStyle}>✕</button>
+            <button onClick={onFechar} style={btnFecharStyle} aria-label="Fechar"><i className="fa-solid fa-xmark" /></button>
           </div>
         </header>
 
@@ -295,7 +294,7 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
           {/* Coluna ESQUERDA — atendimento */}
           <div className="fbmf-col" style={colLeft}>
           {erro && <div style={erroStyle}>{erro}</div>}
-          <div style={colTitulo}>📝 Atendimento</div>
+          <div style={colTitulo}><i className="fa-solid fa-pen" style={{ color: corCabec }} /> Atendimento</div>
 
           {/* Identificação do cliente */}
           <section>
@@ -432,7 +431,7 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
               type="button"
               disabled={salvando}
               title={clienteNaoContatar ? "Reativar contato com este cliente" : "Marcar cliente como 'não contatar' (não vale a pena)"}
-              style={{ ...btnCaveiraStyle, background: clienteNaoContatar ? "#d1fae5" : "#1f2937", color: clienteNaoContatar ? "#065f46" : "#fff" }}
+              style={{ ...btnCaveiraStyle, background: clienteNaoContatar ? "#d1fae5" : "#1f2937", color: clienteNaoContatar ? "#065f46" : "#fefefe" }}
             >
               {clienteNaoContatar ? "Reativar contato" : "Não contatar"}
             </button>
@@ -486,7 +485,7 @@ function CampoSemResposta({
 // -------------------- helpers visuais --------------------
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ fontSize: 11, fontWeight: 700, color: "var(--portal-text-secondary)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 6 }}>
+    <div style={{ fontSize: 12, fontWeight: 500, color: "var(--portal-text-secondary)", marginBottom: 6 }}>
       {children}
     </div>
   );
@@ -518,8 +517,8 @@ const wrapperStyle: React.CSSProperties = {
   display: "flex", alignItems: "stretch", maxHeight: "92vh", maxWidth: "100%",
 };
 const modalStyle: React.CSSProperties = {
-  background: "#fff", flex: "1 1 1080px", maxWidth: 1080, minWidth: 0, maxHeight: "92vh",
-  borderRadius: 14, display: "flex", flexDirection: "column",
+  background: "var(--portal-bg-card)", flex: "1 1 1080px", maxWidth: 1080, minWidth: 0, maxHeight: "92vh",
+  borderRadius: 16, display: "flex", flexDirection: "column",
   boxShadow: "0 25px 60px rgba(0,0,0,0.3)", overflow: "hidden",
 };
 // Corpo dividido em duas colunas (atendimento | dados do cliente).
@@ -531,18 +530,18 @@ const colLeft: React.CSSProperties = {
   borderRight: "1px solid var(--portal-border)",
 };
 const colRight: React.CSSProperties = {
-  flex: "1 1 0", minWidth: 0, padding: 20, overflowY: "auto", background: "#f8fafc",
+  flex: "1 1 0", minWidth: 0, padding: 20, overflowY: "auto", background: "var(--portal-bg-secondary)",
 };
 const colTitulo: React.CSSProperties = {
-  fontSize: 13, fontWeight: 800, color: "var(--portal-text)", marginBottom: 14,
+  fontSize: 14, fontWeight: 500, color: "var(--portal-text)", marginBottom: 14,
 };
 const footerStyle: React.CSSProperties = {
   padding: "14px 24px", borderTop: "1px solid var(--portal-border)",
-  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: "#fafafa", flexWrap: "wrap",
+  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, background: "var(--portal-bg-secondary)", flexWrap: "wrap",
 };
 const btnCaveiraStyle: React.CSSProperties = {
   padding: "10px 18px", border: "none", borderRadius: 10,
-  fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "Inter, sans-serif",
+  fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "Inter, sans-serif",
 };
 const inputStyle: React.CSSProperties = {
   width: "100%", padding: "10px 14px",
@@ -551,20 +550,20 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "Inter, sans-serif", outline: "none",
 };
 const btnFecharStyle: React.CSSProperties = {
-  background: "rgba(255,255,255,0.18)", color: "#fff", border: "none",
-  width: 32, height: 32, borderRadius: 8, fontSize: 16, cursor: "pointer", fontWeight: 700,
+  background: "transparent", color: "var(--portal-text-secondary)", border: "1px solid var(--portal-border)",
+  width: 32, height: 32, borderRadius: 10, fontSize: 14, cursor: "pointer",
 };
 const btnGhostStyle: React.CSSProperties = {
-  padding: "10px 22px", background: "#fff",
-  border: "1.5px solid var(--portal-border)", color: "var(--portal-text-secondary)",
-  borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
+  padding: "10px 22px", background: "var(--portal-bg-card)",
+  border: "1px solid var(--portal-border)", color: "var(--portal-text-secondary)",
+  borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: "pointer",
   fontFamily: "Inter, sans-serif",
 };
 const btnPrimaryStyle: React.CSSProperties = {
   padding: "10px 26px",
   background: "linear-gradient(135deg, #dc2626, #b91c1c)",
   color: "#fff", border: "none", borderRadius: 10,
-  fontSize: 13, fontWeight: 700,
+  fontSize: 13, fontWeight: 500,
   boxShadow: "0 2px 8px rgba(185,28,28,0.25)",
   fontFamily: "Inter, sans-serif",
 };

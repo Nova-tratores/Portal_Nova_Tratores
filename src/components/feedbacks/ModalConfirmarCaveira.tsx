@@ -28,9 +28,9 @@ export default function ModalConfirmarCaveira({
       <div style={card} onClick={(e) => e.stopPropagation()}>
         {/* Header expressivo */}
         <div style={header}>
-          <div style={{ fontSize: 46, lineHeight: 1 }}>💀</div>
-          <h2 style={{ margin: "10px 0 2px", fontSize: 22, fontWeight: 900, letterSpacing: 0.3 }}>Tem certeza?</h2>
-          <div style={{ fontSize: 13, opacity: 0.9, fontWeight: 600 }}>
+          <div style={{ width: 48, height: 48, margin: "0 auto", borderRadius: 14, display: "grid", placeItems: "center", fontSize: 20, color: "#b91c1c", background: "#fee2e2", border: "1px solid #fecaca" }}><i className="fa-solid fa-ban" /></div>
+          <h2 style={{ margin: "10px 0 2px", fontSize: 22, fontWeight: 500 }}>Tem certeza?</h2>
+          <div style={{ fontSize: 13, color: "var(--portal-text-secondary)", fontWeight: 500 }}>
             Você está prestes a desistir de contatar este cliente.
           </div>
         </div>
@@ -38,20 +38,20 @@ export default function ModalConfirmarCaveira({
         <div style={{ padding: "18px 22px" }}>
           <div style={nomeBox}>{nome || "(sem nome)"}</div>
 
-          <div style={{ fontSize: 13, color: "#334155", lineHeight: 1.6, marginBottom: 14 }}>
+          <div style={{ fontSize: 13, color: "var(--portal-text-secondary)", lineHeight: 1.6, marginBottom: 14 }}>
             Ao confirmar, este cliente será marcado como{" "}
-            <strong style={{ color: "#991b1b" }}>&quot;Não contatar&quot;</strong> e sumirá das listas de
+            <strong style={{ color: "#991b1b", fontWeight: 500 }}>&quot;Não contatar&quot;</strong> e sumirá das listas de
             pendentes do CRM/RFM.
           </div>
 
           {codigoOmie ? (
             <div style={avisoForte}>
-              <div style={{ fontWeight: 800, marginBottom: 4 }}>⚠ Inativar no Omie é uma ação forte</div>
+              <div style={{ fontWeight: 500, marginBottom: 4 }}><i className="fa-solid fa-triangle-exclamation" /> Inativar no Omie é uma ação forte</div>
               O cadastro deixa de aparecer em novas vendas, OS e orçamentos no Omie. Dá pra reverter
               depois (reativar), mas evite fazer por engano.
               <label style={checkRow}>
                 <input type="checkbox" checked={confirmado} disabled={processando} onChange={(e) => setConfirmado(e.target.checked)} style={{ width: 16, height: 16 }} />
-                <span>Entendo e quero <strong>inativar o cadastro no Omie</strong>.</span>
+                <span>Entendo e quero <strong style={{ fontWeight: 500 }}>inativar o cadastro no Omie</strong>.</span>
               </label>
             </div>
           ) : (
@@ -90,40 +90,40 @@ const overlay: React.CSSProperties = {
   zIndex: 10000, padding: 16, fontFamily: "Inter, sans-serif",
 };
 const card: React.CSSProperties = {
-  background: "#fff", width: "100%", maxWidth: 460, borderRadius: 16,
+  background: "var(--portal-bg-card)", color: "var(--portal-text)", width: "100%", maxWidth: 460, borderRadius: 16,
   overflow: "hidden", boxShadow: "0 25px 60px rgba(0,0,0,0.4)",
 };
 const header: React.CSSProperties = {
-  background: "linear-gradient(135deg, #b91c1c, #7f1d1d)",
-  color: "#fff", textAlign: "center", padding: "22px 22px 18px",
+  background: "var(--portal-bg-card)", borderBottom: "1px solid var(--portal-border)",
+  color: "var(--portal-text)", textAlign: "center", padding: "22px 22px 18px",
 };
 const nomeBox: React.CSSProperties = {
-  fontSize: 15, fontWeight: 800, color: "#0f172a", textAlign: "center",
-  padding: "10px 12px", background: "#f8fafc", border: "1px solid #e2e8f0",
+  fontSize: 15, fontWeight: 500, color: "var(--portal-text)", textAlign: "center",
+  padding: "10px 12px", background: "var(--portal-bg-secondary)", border: "1px solid var(--portal-border)",
   borderRadius: 10, marginBottom: 14,
 };
 const avisoForte: React.CSSProperties = {
-  background: "#fef2f2", border: "1.5px solid #fecaca", borderRadius: 10,
+  background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10,
   padding: "12px 14px", fontSize: 12.5, color: "#7f1d1d", lineHeight: 1.5,
 };
 const checkRow: React.CSSProperties = {
   display: "flex", alignItems: "center", gap: 8, marginTop: 10,
-  fontSize: 13, color: "#7f1d1d", cursor: "pointer", fontWeight: 600,
+  fontSize: 13, color: "#7f1d1d", cursor: "pointer", fontWeight: 500,
 };
 const footer: React.CSSProperties = {
-  padding: "14px 22px", borderTop: "1px solid #e2e8f0",
-  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: "#fafafa",
+  padding: "14px 22px", borderTop: "1px solid var(--portal-border)",
+  display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: "var(--portal-bg-secondary)",
 };
 const btnGhost: React.CSSProperties = {
-  padding: "10px 18px", background: "#fff", border: "1.5px solid #e2e8f0",
-  color: "#475569", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
+  padding: "10px 18px", background: "var(--portal-bg-card)", border: "1px solid var(--portal-border)",
+  color: "var(--portal-text-secondary)", borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: "pointer",
 };
 const btnSecundario: React.CSSProperties = {
-  padding: "10px 14px", background: "#fff", border: "1.5px solid #fca5a5",
-  color: "#b91c1c", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer",
+  padding: "10px 14px", background: "var(--portal-bg-card)", border: "1px solid #fca5a5",
+  color: "#b91c1c", borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: "pointer",
 };
 const btnPerigo: React.CSSProperties = {
   padding: "10px 16px", background: "linear-gradient(135deg, #dc2626, #991b1b)",
-  color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 800,
+  color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 500,
   boxShadow: "0 2px 8px rgba(153,27,27,0.35)",
 };
