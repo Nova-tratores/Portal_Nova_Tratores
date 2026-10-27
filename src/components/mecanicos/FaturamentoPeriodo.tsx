@@ -391,14 +391,21 @@ function ModalLista({ met, periodo, lista, onFechar }: { met: Metrica; periodo: 
         </div>
         <input className="fp-lista-busca" placeholder="buscar por OS, cliente ou técnico" value={busca} onChange={(ev) => setBusca(ev.target.value)} />
         <div className="fp-lista-l">
-          <div className="fp-lista-r cab"><span>Data</span><span>OS</span><span>Cliente · técnicos</span><span>Tipo</span><span>{met === 'os' ? 'Faturado' : NOME_MET[met]}</span><span /></div>
+          {/* todas as colunas; a do cartão clicado fica em destaque (José, 27/10/2026: "clicou em horas, abre dando
+              destaque às horas; clicou em peças, às peças") */}
+          <div className="fp-lista-r cab fp-lista-6"><span>Data</span><span>OS</span><span>Cliente · técnicos</span><span>Tipo</span>
+            <span className={`n ${met === 'mo' ? 'dest' : ''}`}>Horas · M. obra</span><span className={`n ${met === 'km' ? 'dest' : ''}`}>Km · Desloc.</span>
+            <span className={`n ${met === 'pec' ? 'dest' : ''}`}>Peças</span><span className={`n ${met === 'fat' || met === 'os' ? 'dest' : ''}`}>Total</span><span /></div>
           {linhas.map((o) => (
-            <div key={`${o.grupo}|${o.os}`} className={`fp-lista-r ${doPortal(o) ? '' : 'omie'}`} role="button" tabIndex={0} onClick={() => doPortal(o) && setOs(o)} onKeyDown={(ev) => { if (ev.key === 'Enter' && doPortal(o)) setOs(o) }} title={doPortal(o) ? 'abrir a OS, os pedidos de venda e os PDFs' : 'OS que existe só no Omie (sem a janela do portal)'}>
+            <div key={`${o.grupo}|${o.os}`} className={`fp-lista-r fp-lista-6 ${doPortal(o) ? '' : 'omie'}`} role="button" tabIndex={0} onClick={() => doPortal(o) && setOs(o)} onKeyDown={(ev) => { if (ev.key === 'Enter' && doPortal(o)) setOs(o) }} title={doPortal(o) ? 'abrir a OS, os pedidos de venda e os PDFs' : 'OS que existe só no Omie (sem a janela do portal)'}>
               <span>{o.data.split('-').reverse().slice(0, 2).join('/')}</span>
               <span><b>{o.numero ? `OS ${o.numero}` : o.os}</b>{o.numero && <small>{o.os}</small>}</span>
               <span><b>{o.cliente || '—'}</b><small>{o.tecnicos.join(', ') || 'sem técnico'}</small></span>
               <span><em style={{ '--c': COR[o.grupo] } as React.CSSProperties}>{GRUPOS_FAT.find((x) => x.g === o.grupo)?.rot}</em></span>
-              <span className="v">{brl(val(o))}</span>
+              <span className={`v ${met === 'mo' ? 'dest' : ''}`}><b>{o.horas ? `${String(Math.round(o.horas * 10) / 10).replace('.', ',')} h` : '—'}</b><small>{o.servico ? brl(o.servico) : ''}</small></span>
+              <span className={`v ${met === 'km' ? 'dest' : ''}`}><b>{o.km ? `${Math.round(o.km).toLocaleString('pt-BR')} km` : '—'}</b><small>{o.kmValor ? brl(o.kmValor) : ''}</small></span>
+              <span className={`v ${met === 'pec' ? 'dest' : ''}`}><b>{o.pecas ? brl(o.pecas) : '—'}</b></span>
+              <span className={`v ${met === 'fat' || met === 'os' ? 'dest' : ''}`}><b>{brl(o.bruto)}</b></span>
               <span>{doPortal(o) && <button type="button" className="fp-lista-pdf" onClick={(ev) => { ev.stopPropagation(); setDoc({ titulo: `${o.os} · ${o.cliente}`, url: `/api/pos/ordens/${encodeURIComponent(o.os)}/print`, nome: o.os }) }}>PDF</button>}</span>
             </div>
           ))}
@@ -757,6 +764,11 @@ export const ESTILO_FP = `
 .fp-lista-r:not(.cab):hover { background: #f8fafc } .fp-lista-r.omie { cursor: default; opacity: .75 }
 .fp-lista-r > span { display: grid; min-width: 0 } .fp-lista-r b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap } .fp-lista-r small { font-size: 12.5px; color: ${SEG}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .fp-lista-r .v { text-align: right; font-weight: 700 }
+.fp-lista-r.fp-lista-6 { grid-template-columns: 54px 110px minmax(0, 1fr) 120px 100px 100px 96px 100px 50px; gap: 10px }
+.fp-lista-r.fp-lista-6 .v { justify-items: end } .fp-lista-r.fp-lista-6 .v b { font-weight: 500 } .fp-lista-r.cab .n { text-align: right }
+.fp-lista-r .dest { background: color-mix(in srgb, #2563eb 8%, transparent); border-radius: 8px; padding: 4px 8px; margin: -4px -8px } .fp-lista-r .dest b { font-weight: 700 !important; color: #1d4ed8 }
+.fp-lista-r.cab .dest { color: #1d4ed8; font-weight: 700; padding: 2px 8px; margin: -2px -8px }
+@media (max-width: 900px) { .fp-lista-r.fp-lista-6 { grid-template-columns: 50px minmax(0, 1fr) 90px 90px; } .fp-lista-r.fp-lista-6 > span:nth-child(3), .fp-lista-r.fp-lista-6 > span:nth-child(4), .fp-lista-r.fp-lista-6 > span:nth-child(6), .fp-lista-r.fp-lista-6 > span:nth-child(9) { display: none } }
 .fp-lista-r em { justify-self: start; font-style: normal; font-size: 12.5px; color: var(--c); background: color-mix(in srgb, var(--c) 10%, #fefefe); border-radius: 99px; padding: 2px 9px }
 .fp-lista-r.cab { position: sticky; top: 0; background: #fefefe; font-size: 13px; color: ${SEG}; border-top: 0; cursor: default; z-index: 1 } .fp-lista-r.cab span:nth-child(5) { text-align: right }
 .fp-lista-pdf { border: 1px solid #fca5a5; background: #fefefe; color: #b91c1c; border-radius: 99px; padding: 3px 10px; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer } .fp-lista-pdf:hover { background: #fee2e2 }

@@ -386,7 +386,8 @@ export function agruparBase(base: BaseDados): BaseDados {
   return {
     ...base,
     // o grupo aparece como cartão sempre que tem salário cadastrado (mesmo sem OS no período)
-    tecnicos: [...new Set([...base.tecnicos.filter((t) => !GRUPOS[t]), ...daEquipe(base.equipe).map((e) => GRUPOS[e.pessoa]).filter(Boolean)])],
+    // usuário de TESTE ("Mecânico Teste") não aparece em nenhum cartão (José, 27/10/2026: "remove ele")
+    tecnicos: [...new Set([...base.tecnicos.filter((t) => !GRUPOS[t] && !/\bteste\b/i.test(t)), ...daEquipe(base.equipe).map((e) => GRUPOS[e.pessoa]).filter(Boolean)])],
     faturadas: base.faturadas.map((o) => ({ ...o, tecnicos: [...new Set(o.tecnicos.map(g))] })),
     diasTodos: base.diasTodos.map((d) => ({ ...d, tecnico: g(d.tecnico) })),
     gastos: (base.gastos || []).map((x) => ({ ...x, pessoa: g(x.pessoa) })),

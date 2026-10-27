@@ -26,7 +26,7 @@ export const DICA = {
   basica: 'Bolinha preta: onde fica a meta básica do mês (20 h por semana)',
 }
 export const META_SEM = { basH: 20, basV: 4000, ideH: 40, ideV: 8000 }
-export interface SemanaH { de: string; ate: string; rot: string; horas: number; valor: number; fechada: boolean; atual: boolean }
+export interface SemanaH { de: string; ate: string; rot: string; horas: number; valor: number; fechada: boolean; atual: boolean; uteis?: number }
 export interface TecH {
   nome: string; foto?: string
   faturadas: number; aguardando: number; internas: number; ociosas: number; trabalhadas: number; km: number
@@ -50,9 +50,13 @@ export function montarHoras(base: import('@/lib/mecanicos/painel').BaseDados, fo
     const d = montarPainel(base, 'mes', ref, hoje, comAg)
     const ant = d.serie.length >= 2 ? d.serie[d.serie.length - 2] : null
     const fimMes = (() => { const [a, m] = mes.split('-').map(Number); return `${mes}-${String(new Date(Date.UTC(a, m, 0)).getUTCDate()).padStart(2, '0')}` })()
-    // semanas seg–dom que tocam o mês
+    // semanas seg–dom CORTADAS no mês (27/10/2026: a "semana de 28/09" somava 28–30/09 e as semanas davam
+    // mais que o mês — Danilo 47,5 h nas semanas × 36,7 h no mês)
     const semanas: { de: string; ate: string }[] = []
-    for (let s = segundaDa(`${mes}-01`); s <= fimMes; s = somarDias(s, 7)) semanas.push({ de: s, ate: somarDias(s, 6) })
+    for (let s = segundaDa(`${mes}-01`); s <= fimMes; s = somarDias(s, 7)) {
+      const ate = somarDias(s, 6)
+      semanas.push({ de: s < `${mes}-01` ? `${mes}-01` : s, ate: ate > fimMes ? fimMes : ate })
+    }
     const aguardandoOS = osAguardandoFaturar(base)
     const saiu = (t: string) => { const e = (base.equipe || []).find((x) => x.pessoa === t); return !!e?.demissao && e.demissao < mes }
     const tecs: TecH[] = d.linhas.filter((l) => l.tecnico !== SEM_TECNICO && !SEM_META.has(l.tecnico) && !saiu(l.tecnico)).map((l) => {
@@ -70,7 +74,9 @@ export function montarHoras(base: import('@/lib/mecanicos/painel').BaseDados, fo
         feitas, ideal: l.meta, basica: l.meta / 2, pBas: l.meta > 0 ? (feitas / (l.meta / 2)) * 100 : 0, pIde: l.meta > 0 ? (feitas / l.meta) * 100 : 0,
         antFeitas: a ? a.faturadas + (comAg ? a.aguardando || 0 : 0) : null,
         semanas: semanas.map((w) => ({
-          ...w, rot: `${w.de.slice(8, 10)}/${w.de.slice(5, 7)}`, fechada: w.ate < hoje, atual: w.de <= hoje && hoje <= w.ate,
+          ...w, rot: `${w.de.slice(8, 10)}/${w.de.slice(5, 7)}–${w.ate.slice(8, 10)}/${w.ate.slice(5, 7)}`, fechada: w.ate < hoje, atual: w.de <= hoje && hoje <= w.ate,
+          // dias úteis (seg–sex) da semana dentro do mês: a meta da semana cortada é proporcional
+          uteis: (() => { let n = 0; for (let x = w.de; x <= w.ate; x = somarDias(x, 1)) { const dw = new Date(`${x}T12:00:00Z`).getUTCDay(); if (dw > 0 && dw < 6) n++ } return n })(),
           horas: fat.filter((o) => o.data >= w.de && o.data <= w.ate).reduce((s, o) => s + o.horasCobradas / Math.max(1, o.tecnicos.length), 0)
             + (comAg ? agu.filter((x) => x.data >= w.de && x.data <= w.ate).reduce((s, x) => s + x.horas, 0) : 0),
           valor: fat.filter((o) => o.data >= w.de && o.data <= w.ate).reduce((s, o) => s + o.bruto / Math.max(1, o.tecnicos.length), 0)
@@ -80,8 +86,10 @@ export function montarHoras(base: import('@/lib/mecanicos/painel').BaseDados, fo
     }).sort((x, y) => y.pBas - x.pBas)
     const t = d.total
     const ideal = tecs.reduce((s, x) => s + x.ideal, 0)
+    // equipe = soma dos MECÂNICOS MOSTRADOS (o total do painel incluía quem não tem meta/saiu: 176,2 h × 155,4 nas semanas)
+    const soma = (k: 'faturadas' | 'aguardando' | 'internas') => tecs.reduce((s, x) => s + x[k], 0)
     return {
-      tecs, ideal, basica: ideal / 2, feitas: t.faturadas + (comAg ? t.aguardando : 0), faturadas: t.faturadas, aguardando: comAg ? t.aguardando : 0, comAg, internas: t.internas,
+      tecs, ideal, basica: ideal / 2, feitas: soma('faturadas') + soma('aguardando'), faturadas: soma('faturadas'), aguardando: soma('aguardando'), comAg, internas: soma('internas'),
       ociosas: t.ociosas, trabalhadas: t.trabalhadas, km: t.km, antFeitas: ant ? ant.total.faturadas + (comAg ? ant.total.aguardando || 0 : 0) : null, atual: hoje.startsWith(mes),
     }
   }
@@ -366,31 +374,47 @@ function Grade({ d, children }: { d: DadosHoras; children: (t: TecH, i: number) 
 }
 /** Equipe embaixo dos cartões: o mês e cada semana somando todos os mecânicos contra a meta da equipe. */
 function Equipe({ d }: { d: DadosHoras }) {
-  // José, 21/10/2026: "melhora isso aqui também" — cartão branco, cada semana com o % da básica e a situação escrita
+  // José, 21/10/2026: "melhora isso aqui também" — cartão branco, cada semana com o % da básica e a situação escrita.
+  // 27/10/2026: abre no MÊS; clicando mostra as semanas (cortadas no mês, meta proporcional aos dias úteis).
+  const [verSemanas, setVerSemanas] = useState(false)
   const n = d.tecs.length
   const p = d.basica ? (d.feitas / d.basica) * 100 : 0
   const sem = (d.tecs[0]?.semanas || []).map((w, k) => ({ ...w, horas: d.tecs.reduce((s2, t) => s2 + t.semanas[k].horas, 0), valor: d.tecs.reduce((s2, t) => s2 + t.semanas[k].valor, 0) }))
   const bH = META_SEM.basH * n, bV = META_SEM.basV * n, iH = META_SEM.ideH * n, iV = META_SEM.ideV * n
   const pc = (v: number, m: number) => (m ? Math.round((v / m) * 100) : 0)
+  // o mês: horas do painel; faturado = soma das semanas; metas em R$ na mesma proporção das horas (R$ 200/h)
+  const valorMes = sem.reduce((s, w) => s + w.valor, 0)
+  const mesBasV = d.basica * (META_SEM.basV / META_SEM.basH), mesIdeV = d.ideal * (META_SEM.ideV / META_SEM.ideH)
+  const barra = (v: number, bas: number, ide: number, cor: string) => <i className="me-bar"><u style={{ width: `${Math.min(100, (v / ide) * 100)}%`, background: v >= ide ? COR_IDE : v >= bas ? '#10b981' : cor }} /><s title="básica" /></i>
+  const situacao = (h: number, v: number, bh: number, bv: number, ih: number, iv: number, atual: boolean, futuro: boolean) =>
+    futuro ? ['ainda não chegou', 'fut'] : h >= ih && v >= iv ? ['bateu a ideal', 'ide'] : h >= bh && v >= bv ? ['bateu a básica', 'ok'] : v >= bv ? ['faturado bateu, horas não', 'meio'] : h >= bh ? ['horas bateram, faturado não', 'meio'] : atual ? ['em andamento', 'and'] : ['abaixo da básica', 'bx']
+  const stMes = situacao(d.feitas, valorMes, d.basica, mesBasV, d.ideal, mesIdeV, d.atual, false)
   return (
     <div className="me">
       <div className="me-cab">
         <span className="me-ic"><i className="fas fa-users" /></span>
-        <div><b>Meta da equipe</b><small>{n} mecânicos · por semana: básica {bH} h e {brl(bV)} · ideal {iH} h e {brl(iV)}</small></div>
+        <div><b>Meta da equipe no mês</b><small>{n} mecânicos · básica {horas(d.basica)} e {brl(mesBasV)} · ideal {horas(d.ideal)} e {brl(mesIdeV)}</small></div>
         <div className="me-mes"><small>Horas no mês</small><b>{horas(d.feitas)} <span>de {horas(d.basica)}</span></b><em style={{ color: corPct(p) }}>{Math.round(p)}% da básica</em><Var a={d.feitas} b={d.antFeitas} /></div>
       </div>
       <div className="me-tab">
-        <div className="me-l cab"><span>Semana</span><span>Horas</span><span>Faturado</span><span>Situação</span></div>
-        {sem.map((w) => {
-          const okH = w.horas >= bH, okV = w.valor >= bV, ideal = w.horas >= iH && w.valor >= iV
+        <div className="me-l cab"><span>Período</span><span>Horas</span><span>Faturado</span><span>Situação</span></div>
+        <button type="button" className={`me-l me-mesl ${d.atual ? 'agora' : ''}`} onClick={() => setVerSemanas((v) => !v)} title={verSemanas ? 'Esconder as semanas' : 'Ver semana a semana'}>
+          <span className="me-d">No mês<em><i className={`fas fa-chevron-${verSemanas ? 'up' : 'down'}`} /> {verSemanas ? 'esconder semanas' : 'ver semanas'}</em></span>
+          <span className="me-c"><span><b>{h1(d.feitas)} h</b><small>{pc(d.feitas, d.basica)}% da básica</small></span>{barra(d.feitas, d.basica, d.ideal, '#60a5fa')}</span>
+          <span className="me-c"><span><b>{brl(valorMes)}</b><small>{pc(valorMes, mesBasV)}% da básica</small></span>{barra(valorMes, mesBasV, mesIdeV, '#60a5fa')}</span>
+          <span><em className={`me-st ${stMes[1]}`}>{stMes[0]}</em></span>
+        </button>
+        {verSemanas && sem.map((w) => {
+          // semana cortada no mês (ex.: 01–04/10): a meta vale pelos dias úteis dela
+          const f = (w.uteis ?? 5) / 5
+          const wbH = bH * f, wbV = bV * f, wiH = iH * f, wiV = iV * f
           const futuro = !w.fechada && !w.atual
-          const st = futuro ? ['ainda não chegou', 'fut'] : ideal ? ['bateu a ideal', 'ide'] : okH && okV ? ['bateu a básica', 'ok'] : okV ? ['faturado bateu, horas não', 'meio'] : okH ? ['horas bateram, faturado não', 'meio'] : w.atual ? ['em andamento', 'and'] : ['abaixo da básica', 'bx']
-          const barra = (v: number, bas: number, ide: number, cor: string) => <i className="me-bar"><u style={{ width: `${Math.min(100, (v / ide) * 100)}%`, background: v >= ide ? COR_IDE : v >= bas ? '#10b981' : cor }} /><s title="básica" /></i>
+          const st = situacao(w.horas, w.valor, wbH, wbV, wiH, wiV, w.atual, futuro)
           return (
-            <div key={w.de} className={`me-l ${w.atual ? 'agora' : ''} ${futuro ? 'futuro' : ''}`}>
-              <span className="me-d">{w.rot}{w.atual && <em>esta semana</em>}</span>
-              <span className="me-c"><span><b>{h1(w.horas)} h</b><small>{pc(w.horas, bH)}% da básica</small></span>{barra(w.horas, bH, iH, '#60a5fa')}</span>
-              <span className="me-c"><span><b>{brl(w.valor)}</b><small>{pc(w.valor, bV)}% da básica</small></span>{barra(w.valor, bV, iV, '#60a5fa')}</span>
+            <div key={w.de} className={`me-l me-sem ${w.atual ? 'agora' : ''} ${futuro ? 'futuro' : ''}`}>
+              <span className="me-d">{w.rot}{w.atual && <em>esta semana</em>}{(w.uteis ?? 5) < 5 && <em className="me-uteis">{w.uteis} dias úteis</em>}</span>
+              <span className="me-c"><span><b>{h1(w.horas)} h</b><small>{pc(w.horas, wbH)}% da básica</small></span>{barra(w.horas, wbH, wiH, '#60a5fa')}</span>
+              <span className="me-c"><span><b>{brl(w.valor)}</b><small>{pc(w.valor, wbV)}% da básica</small></span>{barra(w.valor, wbV, wiV, '#60a5fa')}</span>
               <span><em className={`me-st ${st[1]}`}>{st[0]}</em></span>
             </div>
           )
@@ -551,6 +575,30 @@ export function C5({ d }: { d: DadosHoras }) {
   )
 }
 
+/** Semanas do cartão do mecânico: escondidas (o cartão mostra o mês); um clique abre (José, 27/10/2026).
+ *  Semana cortada no mês: a básica vale pelos dias úteis dela (20 h × dias/5). */
+function SemanasCartao({ t }: { t: TecH }) {
+  const [aberto, setAberto] = useState(false)
+  return (
+    <div className="c6-sem">
+      <button type="button" className="c6-ver" onClick={() => setAberto((v) => !v)}>
+        <i className={`fas fa-chevron-${aberto ? 'up' : 'down'}`} /> {aberto ? 'esconder as semanas' : 'ver semana a semana'}
+      </button>
+      {aberto && t.semanas.map((w) => {
+        const f = (w.uteis ?? 5) / 5, bas = 20 * f, ide = 40 * f
+        const cor = w.horas >= ide ? COR_IDE : w.horas >= bas ? '#10b981' : w.fechada ? '#f87171' : '#60a5fa'
+        return (
+          <div key={w.de} className={`c6-s ${w.atual ? 'agora' : ''} ${!w.fechada && !w.atual ? 'futuro' : ''}`} title={`${w.rot}: ${h1(w.horas)} h cobradas · básica ${h1(bas)} h (${w.uteis ?? 5} dias úteis)`}>
+            <span>{w.rot}</span>
+            <i><u style={{ width: `${bas ? Math.min(100, (w.horas / bas) * 100) : 0}%`, background: cor }} /></i>
+            <b>{h1(w.horas)} h</b>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 /** C6 — sem gráfico (José, 21/10/2026: "aplica o design aqui também, remove o gráfico do card"): o % da básica
  *  em número, as barras da básica e da ideal e cada semana numa linha com a barrinha até 20 h. */
 export function C6({ d }: { d: DadosHoras }) {
@@ -569,18 +617,7 @@ export function C6({ d }: { d: DadosHoras }) {
             ))}
           </div>
         </div>
-        <div className="c6-sem">
-          {t.semanas.map((w) => {
-            const cor = w.horas >= 40 ? COR_IDE : w.horas >= 20 ? '#10b981' : w.fechada ? '#f87171' : '#60a5fa'
-            return (
-              <div key={w.de} className={`c6-s ${w.atual ? 'agora' : ''} ${!w.fechada && !w.atual ? 'futuro' : ''}`} title={`semana de ${w.rot}: ${h1(w.horas)} h no app`}>
-                <span>sem. {w.rot}</span>
-                <i><u style={{ width: `${Math.min(100, (w.horas / 20) * 100)}%`, background: cor }} /></i>
-                <b>{h1(w.horas)} h</b>
-              </div>
-            )
-          })}
-        </div>
+        <SemanasCartao t={t} />
       </Casca>
     )}</Grade></div>
   )
@@ -595,6 +632,8 @@ export const ESTILO_HC = `
 .me-tab { display: grid }
 .me-l { display: grid; grid-template-columns: 120px minmax(0, 1fr) minmax(0, 1fr) 210px; gap: 18px; align-items: center; padding: 10px 8px; border-top: 1px solid #f1f5f9; border-radius: 10px }
 .me-l.cab { font-size: 13px; color: #475569; border-top: 0; padding-top: 0 } .me-l.agora { background: #eff6ff } .me-l.futuro { opacity: .45 }
+.me-mesl { width: 100%; border: 0; border-top: 1px solid #f1f5f9; background: transparent; text-align: left; font: inherit; cursor: pointer; transition: background .15s } .me-mesl:hover { background: #f8fafc } .me-mesl.agora:hover { background: #e0edff }
+.me-sem { margin-left: 18px; border-left: 3px solid #e2e8f0; border-radius: 0 10px 10px 0 } .me-uteis { color: #64748b !important }
 .me-d { display: grid; font-size: 15px; color: #0f172a } .me-d em { font-style: normal; font-size: 12px; color: #2563eb }
 .me-c { display: grid; gap: 6px } .me-c > span { display: flex; align-items: baseline; justify-content: space-between; gap: 8px } .me-c b { font-size: 16px; font-weight: 500; color: #0f172a } .me-c small { font-size: 12.5px; color: #475569 }
 .me-bar { position: relative; display: block; height: 8px; border-radius: 99px; background: #eef2f6 } .me-bar u { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; transition: width .7s } .me-bar s { position: absolute; left: 50%; top: -3px; width: 2px; height: 14px; background: #0f172a; border-radius: 1px }
@@ -612,6 +651,8 @@ export const ESTILO_HC = `
 .c6-m em { font-style: normal; text-align: right; font-weight: 500 }
 .c6-sem { display: grid; gap: 4px; width: 100%; padding-top: 10px; border-top: 1px solid #f1f5f9 }
 .c6-s { display: grid; grid-template-columns: 86px minmax(0, 1fr) 52px; gap: 8px; align-items: center; font-size: 13px; padding: 2px 4px; border-radius: 8px } .c6-s.agora { background: #eff6ff } .c6-s.futuro { opacity: .45 }
+.c6-ver { border: 0; background: transparent; padding: 2px 4px; font: inherit; font-size: 12.5px; color: #2563eb; cursor: pointer; text-align: left } .c6-ver:hover { text-decoration: underline }
+.c6-s { grid-template-columns: 110px minmax(0, 1fr) 52px !important }
 .c6-s span { color: #475569 } .c6-s i { height: 6px; border-radius: 99px; background: #eef2f6; overflow: hidden } .c6-s u { display: block; height: 100% } .c6-s b { text-align: right; font-weight: 500 }
 .c6 .h2-nums b, .c6 .hc-falta { font-weight: 500 !important }
 
