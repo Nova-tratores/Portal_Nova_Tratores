@@ -8,6 +8,7 @@ import { authHeaders } from '@/lib/auth/client'
 import { Painel, Tile, useTemaEscuro, type Tema } from '@/components/comum/PainelBarras'
 import type { Agregado } from '@/lib/ppv/relacao'
 import { fluxoDaTela, type Card, type ResumoPadroes, type ParTelas } from '@/lib/uso/padroes'
+import { NOME_FLUXO, type ResumoAtalho, type ResumoFluxo } from '@/lib/uso/app-vendas'
 
 const TEMA: Tema = {
   accent: '#dc2626', accentDark: '#f87171', accentText: '#fff',
@@ -19,6 +20,9 @@ type Resp = ResumoPadroes & {
   periodo: { de: string; ate: string }
   eventosLidos: number; eventosTruncados: boolean
   migracaoFaltando: boolean; monitorLigado: boolean; podeVerTodos: boolean; podeEditar: boolean
+  app: 'portal' | 'vendas' | 'todos'
+  appResumo: { atalhos: ResumoAtalho[]; fluxos: ResumoFluxo[] } | null
+  migracaoAppFaltando: boolean
   erro?: string
 }
 
@@ -108,6 +112,75 @@ function CardOportunidade({ c, podeEditar, onSalvar }: { c: Card; podeEditar: bo
   )
 }
 
+/** App de vendas: fluxos (começou × terminou) e atalhos (por onde a pessoa chegou). */
+function AppVendas({ r, migracaoFaltando }: { r: { atalhos: ResumoAtalho[]; fluxos: ResumoFluxo[] }; migracaoFaltando: boolean }) {
+  const corPct = (v: number, bom: boolean) => (bom ? (v >= 80 ? '#047857' : v >= 50 ? '#b45309' : '#dc2626') : (v >= 30 ? '#dc2626' : v >= 15 ? '#b45309' : '#047857'))
+  return (
+    <div style={{ marginBottom: '24px' }}>
+      <p style={{ ...sub, fontWeight: 700, color: '#737373', textTransform: 'uppercase', letterSpacing: '1px', fontSize: '11px' }}>App de vendas</p>
+      {migracaoFaltando && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: '12px', padding: '10px 16px', marginBottom: '12px', fontSize: '12px', color: '#92400e' }}>
+          Atalhos e fluxos do app ainda não estão no banco (aplicar <code>sql/portal-uso-app.sql</code>). As telas do app já aparecem nos caminhos acima.
+        </div>
+      )}
+      <div style={{ ...card, marginBottom: '12px' }}>
+        <div style={{ padding: '14px 18px' }}>
+          <h3 style={titulo}>Fluxos: quem começa termina?</h3>
+          <p style={{ ...sub, margin: 0 }}>Abandonou = saiu da tela sem salvar nem cancelar. Abandono alto ou tempo longo = fluxo a simplificar.</p>
+        </div>
+        {r.fluxos.length === 0
+          ? <div style={{ padding: '0 18px 14px', fontSize: '12px', color: '#a3a3a3' }}>Nenhum fluxo registrado no período.</div>
+          : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '720px' }}>
+                <thead><tr>{['Fluxo', 'Começaram', 'Concluíram', 'Cancelaram', 'Abandonaram', 'Tempo até concluir', 'Pessoas'].map((h) => <th key={h} style={{ ...th, cursor: 'default' }}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {r.fluxos.map((f) => (
+                    <tr key={f.fluxo}>
+                      <td style={{ ...td, fontWeight: 600 }}>{NOME_FLUXO[f.fluxo] || f.fluxo}</td>
+                      <td style={td}>{n(f.iniciados)}</td>
+                      <td style={{ ...td, color: corPct(f.pctConcluido, true), fontWeight: 700 }}>{n(f.concluidos)} ({f.pctConcluido}%)</td>
+                      <td style={td}>{n(f.cancelados)}</td>
+                      <td style={{ ...td, color: corPct(f.pctAbandono, false), fontWeight: 700 }}>{n(f.abandonados)} ({f.pctAbandono}%)</td>
+                      <td style={td}><Clock size={11} style={{ verticalAlign: '-1px' }} /> {f.concluidos ? tempo(f.tempoMedioConcluirS) : '—'}</td>
+                      <td style={td}><Users size={11} style={{ verticalAlign: '-1px' }} /> {f.pessoas}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+      </div>
+      <div style={card}>
+        <div style={{ padding: '14px 18px' }}>
+          <h3 style={titulo}>Atalhos: por onde as pessoas chegam</h3>
+          <p style={{ ...sub, margin: 0 }}>Botão tocado → tela de destino. Atalho pouco usado = candidato a sair; destino comum por caminho longo = candidato a atalho. “(mesma tela)” = o toque não levou a outra tela.</p>
+        </div>
+        {r.atalhos.length === 0
+          ? <div style={{ padding: '0 18px 14px', fontSize: '12px', color: '#a3a3a3' }}>Nenhum atalho registrado no período.</div>
+          : (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '640px' }}>
+                <thead><tr>{['Atalho', 'Na tela', 'Levou a', 'Toques', 'Pessoas'].map((h) => <th key={h} style={{ ...th, cursor: 'default' }}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {r.atalhos.slice(0, 80).map((a) => (
+                    <tr key={`${a.atalho}|${a.de}|${a.para}`}>
+                      <td style={{ ...td, fontFamily: 'monospace', fontSize: '12px', fontWeight: 600 }}>{a.atalho}</td>
+                      <td style={{ ...td, fontFamily: 'monospace', fontSize: '12px' }}>{a.de}</td>
+                      <td style={{ ...td, fontFamily: 'monospace', fontSize: '12px', color: a.para === '(mesma tela)' ? '#a3a3a3' : undefined }}>{a.para}</td>
+                      <td style={td}>{n(a.n)}</td>
+                      <td style={td}>{a.pessoas}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+      </div>
+    </div>
+  )
+}
+
 type ColPar = 'n' | 'pessoas' | 'pctSaida' | 'pctMesmo' | 'pctVolta' | 'gapMedioS' | 'score'
 
 export default function PadroesAba({ usuarios }: { usuarios: { id: string; nome: string }[] }) {
@@ -122,17 +195,18 @@ export default function PadroesAba({ usuarios }: { usuarios: { id: string; nome:
   const [ordem, setOrdem] = useState<{ col: ColPar; desc: boolean }>({ col: 'score', desc: true })
   const [semHub, setSemHub] = useState(true)
   const [tela, setTela] = useState('')
+  const [app, setApp] = useState<'todos' | 'portal' | 'vendas'>('todos')
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro('')
     try {
-      const qs = new URLSearchParams({ de, ate }); if (usuario) qs.set('usuario', usuario)
+      const qs = new URLSearchParams({ de, ate, app }); if (usuario) qs.set('usuario', usuario)
       const r = await fetch(`/api/uso/padroes?${qs}`, { headers: await authHeaders(), cache: 'no-store' })
       const d = (await r.json()) as Resp
       if (!r.ok || d.erro) { setErro(d.erro || `Erro ${r.status}`); setDados(null); return }
       setDados(d)
     } catch (e) { setErro((e as Error).message) } finally { setCarregando(false) }
-  }, [de, ate, usuario])
+  }, [de, ate, usuario, app])
   useEffect(() => { carregar() }, [carregar])
 
   const salvar = useCallback(async (c: Card, status: Card['status'], nota: string) => {
@@ -184,6 +258,11 @@ export default function PadroesAba({ usuarios }: { usuarios: { id: string; nome:
             {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
           </select>
         )}
+        <select value={app} onChange={(e) => { setApp(e.target.value as typeof app); setTela('') }} style={{ ...inp, cursor: 'pointer' }} title="Telas do portal, do app de vendas (rotas /vendas/...) ou as duas">
+          <option value="todos">Portal e app de vendas</option>
+          <option value="portal">Só o portal</option>
+          <option value="vendas">Só o app de vendas</option>
+        </select>
         <button onClick={carregar} disabled={carregando} style={{ ...inp, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', marginLeft: 'auto', color: '#737373' }}>
           <RefreshCw size={13} className={carregando ? 'animate-spin' : ''} /> {carregando ? 'Carregando…' : 'Atualizar'}
         </button>
@@ -298,6 +377,8 @@ export default function PadroesAba({ usuarios }: { usuarios: { id: string; nome:
               </div>
             </div>
           )}
+
+          {dados.appResumo && <AppVendas r={dados.appResumo} migracaoFaltando={dados.migracaoAppFaltando} />}
 
           {/* Sequências de ações */}
           {dados.sequencias.length > 0 && (

@@ -42,7 +42,8 @@ export interface Oportunidade {
 
 export interface UsuarioNome { id: string; nome: string }
 
-export const HUBS = ['/dashboard', '/split'];
+// App de vendas: o Início e o Menu são a mesma coisa que o /dashboard daqui.
+export const HUBS = ['/dashboard', '/split', '/vendas/dashboard', '/vendas/menu', '/vendas/supervisor'];
 /** Ações que não são trabalho da pessoa num caso (navegação ou robô). */
 export const ACOES_IGNORADAS = ['acesso', 'erro_envio', 'pendencia_detectada', 'release'];
 export const GAP_ACOES_S = 30 * 60;
