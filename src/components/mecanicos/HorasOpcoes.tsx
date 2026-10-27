@@ -26,7 +26,9 @@ export const DICA = {
   basica: 'Bolinha preta: onde fica a meta básica do mês (20 h por semana)',
 }
 export const META_SEM = { basH: 20, basV: 4000, ideH: 40, ideV: 8000 }
-export interface SemanaH { de: string; ate: string; rot: string; horas: number; valor: number; fechada: boolean; atual: boolean; uteis?: number }
+/** partes do faturado da semana (R$): mão de obra (horas), deslocamento (km), peças e outros (requisições, extras) */
+export interface PartesFat { mo: number; km: number; pec: number; out: number }
+export interface SemanaH { de: string; ate: string; rot: string; horas: number; valor: number; fechada: boolean; atual: boolean; uteis?: number; partes?: PartesFat }
 export interface TecH {
   nome: string; foto?: string
   faturadas: number; aguardando: number; internas: number; ociosas: number; trabalhadas: number; km: number
@@ -81,6 +83,13 @@ export function montarHoras(base: import('@/lib/mecanicos/painel').BaseDados, fo
             + (comAg ? agu.filter((x) => x.data >= w.de && x.data <= w.ate).reduce((s, x) => s + x.horas, 0) : 0),
           valor: fat.filter((o) => o.data >= w.de && o.data <= w.ate).reduce((s, o) => s + o.bruto / Math.max(1, o.tecnicos.length), 0)
             + pend.filter((p) => p.dataRef! >= w.de && p.dataRef! <= w.ate).reduce((s, p) => s + p.total / Math.max(1, p.tecnicos.length), 0),
+          // as partes do faturado (a meta da equipe deixa escolher o que somar — José, 27/10/2026)
+          partes: (() => {
+            const pt: PartesFat = { mo: 0, km: 0, pec: 0, out: 0 }
+            for (const o of fat) if (o.data >= w.de && o.data <= w.ate) { const n = Math.max(1, o.tecnicos.length); pt.mo += o.servico / n; pt.km += o.kmValor / n; pt.pec += o.pecas / n; pt.out += (o.outros || 0) / n }
+            for (const p of pend) if (p.dataRef! >= w.de && p.dataRef! <= w.ate) { const n = Math.max(1, p.tecnicos.length); pt.mo += p.maoDeObra / n; pt.km += p.deslocamento / n; pt.pec += p.pecas / n; pt.out += Math.max(0, p.total - p.maoDeObra - p.deslocamento - p.pecas) / n }
+            return pt
+          })(),
         })),
       }
     }).sort((x, y) => y.pBas - x.pBas)
@@ -377,9 +386,14 @@ function Equipe({ d }: { d: DadosHoras }) {
   // José, 21/10/2026: "melhora isso aqui também" — cartão branco, cada semana com o % da básica e a situação escrita.
   // 27/10/2026: abre no MÊS; clicando mostra as semanas (cortadas no mês, meta proporcional aos dias úteis).
   const [verSemanas, setVerSemanas] = useState(false)
+  // o que entra no "Faturado": começa só com a mão de obra (as horas) — José, 27/10/2026
+  const [partesOn, setPartesOn] = useState<Record<keyof PartesFat, boolean>>({ mo: true, km: false, pec: false, out: false })
+  const PARTES: [keyof PartesFat, string, string][] = [['mo', 'Mão de obra (horas)', 'fa-screwdriver-wrench'], ['km', 'Deslocamento (km)', 'fa-route'], ['pec', 'Peças', 'fa-gears'], ['out', 'Outros (requisições, extras)', 'fa-receipt']]
+  const somaPartes = (pt?: PartesFat) => (pt ? (Object.keys(partesOn) as (keyof PartesFat)[]).reduce((s, k) => s + (partesOn[k] ? pt[k] : 0), 0) : 0)
   const n = d.tecs.length
   const p = d.basica ? (d.feitas / d.basica) * 100 : 0
-  const sem = (d.tecs[0]?.semanas || []).map((w, k) => ({ ...w, horas: d.tecs.reduce((s2, t) => s2 + t.semanas[k].horas, 0), valor: d.tecs.reduce((s2, t) => s2 + t.semanas[k].valor, 0) }))
+  const sem = (d.tecs[0]?.semanas || []).map((w, k) => ({ ...w, horas: d.tecs.reduce((s2, t) => s2 + t.semanas[k].horas, 0), valor: d.tecs.reduce((s2, t) => s2 + somaPartes(t.semanas[k].partes), 0) }))
+  const escolhidas = PARTES.filter(([k]) => partesOn[k]).map(([, r]) => r.replace(/ \(.*\)$/, '').toLowerCase())
   const bH = META_SEM.basH * n, bV = META_SEM.basV * n, iH = META_SEM.ideH * n, iV = META_SEM.ideV * n
   const pc = (v: number, m: number) => (m ? Math.round((v / m) * 100) : 0)
   // o mês: horas do painel; faturado = soma das semanas; metas em R$ na mesma proporção das horas (R$ 200/h)
@@ -396,8 +410,17 @@ function Equipe({ d }: { d: DadosHoras }) {
         <div><b>Meta da equipe no mês</b><small>{n} mecânicos · básica {horas(d.basica)} e {brl(mesBasV)} · ideal {horas(d.ideal)} e {brl(mesIdeV)}</small></div>
         <div className="me-mes"><small>Horas no mês</small><b>{horas(d.feitas)} <span>de {horas(d.basica)}</span></b><em style={{ color: corPct(p) }}>{Math.round(p)}% da básica</em><Var a={d.feitas} b={d.antFeitas} /></div>
       </div>
+      <div className="me-partes">
+        <span>Faturado soma:</span>
+        {PARTES.map(([k, rot, ic]) => (
+          <button key={k} type="button" className={partesOn[k] ? 'on' : ''} onClick={() => setPartesOn((x) => { const novo = { ...x, [k]: !x[k] }; return Object.values(novo).some(Boolean) ? novo : x })}>
+            <i className={`fas ${ic}`} /> {rot}
+          </button>
+        ))}
+        <small>{escolhidas.length === 4 ? 'tudo o que entrou nas OS' : `só ${escolhidas.join(' + ')}`} · a meta em R$ é a mesma (R$ {META_SEM.basV / META_SEM.basH}/h na básica)</small>
+      </div>
       <div className="me-tab">
-        <div className="me-l cab"><span>Período</span><span>Horas</span><span>Faturado</span><span>Situação</span></div>
+        <div className="me-l cab"><span>Período</span><span>Horas</span><span>Faturado ({escolhidas.join(' + ')})</span><span>Situação</span></div>
         <button type="button" className={`me-l me-mesl ${d.atual ? 'agora' : ''}`} onClick={() => setVerSemanas((v) => !v)} title={verSemanas ? 'Esconder as semanas' : 'Ver semana a semana'}>
           <span className="me-d">No mês<em><i className={`fas fa-chevron-${verSemanas ? 'up' : 'down'}`} /> {verSemanas ? 'esconder semanas' : 'ver semanas'}</em></span>
           <span className="me-c"><span><b>{h1(d.feitas)} h</b><small>{pc(d.feitas, d.basica)}% da básica</small></span>{barra(d.feitas, d.basica, d.ideal, '#60a5fa')}</span>
@@ -632,6 +655,10 @@ export const ESTILO_HC = `
 .me-tab { display: grid }
 .me-l { display: grid; grid-template-columns: 120px minmax(0, 1fr) minmax(0, 1fr) 210px; gap: 18px; align-items: center; padding: 10px 8px; border-top: 1px solid #f1f5f9; border-radius: 10px }
 .me-l.cab { font-size: 13px; color: #475569; border-top: 0; padding-top: 0 } .me-l.agora { background: #eff6ff } .me-l.futuro { opacity: .45 }
+.me-partes { display: flex; gap: 6px 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: #475569 }
+.me-partes button { border: 1px solid #e2e8f0; background: #fefefe; border-radius: 99px; padding: 5px 11px; font: inherit; font-size: 12.5px; color: #64748b; cursor: pointer; transition: all .15s } .me-partes button i { margin-right: 3px; opacity: .7 }
+.me-partes button.on { background: #eff6ff; border-color: #93c5fd; color: #1d4ed8; font-weight: 500 } .me-partes button.on i { opacity: 1 }
+.me-partes small { flex-basis: 100%; font-size: 12px; color: #64748b }
 .me-mesl { width: 100%; border: 0; border-top: 1px solid #f1f5f9; background: transparent; text-align: left; font: inherit; cursor: pointer; transition: background .15s } .me-mesl:hover { background: #f8fafc } .me-mesl.agora:hover { background: #e0edff }
 .me-sem { margin-left: 18px; border-left: 3px solid #e2e8f0; border-radius: 0 10px 10px 0 } .me-uteis { color: #64748b !important }
 .me-d { display: grid; font-size: 15px; color: #0f172a } .me-d em { font-style: normal; font-size: 12px; color: #2563eb }
