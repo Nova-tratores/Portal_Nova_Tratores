@@ -413,9 +413,10 @@ export default function LocalizacaoPage() {
                                 <div key={chaveProd(p)} className="loc-item" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, padding: '6px 8px', background: '#fff', border: '1px solid #eef2f7', borderRadius: 8, marginBottom: 4 }}>
                                   <BolinhaConferencia info={conferidas.get(chaveProd(p))} agora={agora} />
                                   <PackageOpen size={15} color="#94a3b8" />
-                                  <div style={{ minWidth: 0 }}>
-                                    <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '.8rem' }}>{p.codigo || p.codigo_produto}</div>
-                                    <div style={{ color: '#64748b', fontSize: '.72rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 520 }}>{p.descricao || '—'}</div>
+                                  <div style={{ minWidth: 0, flex: '1 1 200px' }}>
+                                    <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '.88rem' }}>{p.codigo || p.codigo_produto}</div>
+                                    {/* até 2 linhas e fonte maior: no celular a descrição em 1 linha cortava quase tudo */}
+                                    <div style={{ color: '#475569', fontSize: '.84rem', lineHeight: 1.3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', maxWidth: 520 }}>{p.descricao || '—'}</div>
                                   </div>
                                   {statusConf(p) === 'divergente' && (
                                     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '1px 7px', borderRadius: 999, fontSize: '.66rem', fontWeight: 700, background: '#ffedd5', color: '#c2410c' }}>
