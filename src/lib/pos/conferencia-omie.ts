@@ -43,6 +43,7 @@ interface OSOmie {
   Departamentos?: { cCodDepto?: string; nPerc?: number }[];
   Email?: { cEnviarPara?: string; cEnvRecibo?: string };
   ServicosPrestados?: ItemOmieOS[];
+  produtosUtilizados?: { cAcaoProdUtilizados?: string; produtoUtilizado?: { nIdItemPU?: number; nCodProdutoPU?: number; nQtdePU?: number }[] };
 }
 
 const nomeServ: Record<number, string> = { [NCOD_SOL]: "Solicitação de Serviço", [NCOD_HORA]: "Hora Trabalhada", [NCOD_KM]: "KM Deslocamento" };
@@ -108,6 +109,11 @@ async function documentoDoCliente(nCodCli: number): Promise<{ doc: string; nome:
   return r;
 }
 const soDigitos = (v: unknown) => String(v ?? "").replace(/\D/g, "");
+
+/** produtos na "Lista de Produtos" da OS do Omie (com nIdItemPU, que é o que permite tirar) */
+function produtosDaOS(dados: OSOmie): { nIdItemPU: number }[] {
+  return (dados.produtosUtilizados?.produtoUtilizado || []).filter((p) => n(p.nIdItemPU) > 0).map((p) => ({ nIdItemPU: n(p.nIdItemPU) }));
+}
 
 async function lerOSDoPortal(idOs: string): Promise<Rec | null> {
   const { data } = await supabase.from(TBL_OS).select("*").eq("Id_Ordem", idOs).limit(1);
@@ -186,6 +192,14 @@ export async function conferirOS(idOs: string, opts: { outraChave?: boolean } = 
         (dados.Parcelas || []).map((p) => ({ venc: String(p.dDtVenc || ""), valor: n(p.nValor) }))));
     }
   }
+  // OS não leva PRODUTO: as peças saem pelo PPV. Produto na "Lista de Produtos" (remessa) trava o FaturarOS
+  // calado — o Omie diz "faturada com sucesso" e a OS fica aberta (OS-0793/5345, 27/10/2026: 8 produtos com o
+  // HYDRA19YPF inativo, vindos do cadastro antigo do serviço de revisão). Ao atualizar, o portal tira todos.
+  const prods = produtosDaOS(dados);
+  if (prods.length) div.push({
+    doc: idOs, campo: "produtosUtilizados", rotulo: "Produtos na OS (Lista de Produtos)", portal: "nenhum (peças vão pelo PPV)", omie: `${prods.length} produto(s)`, ajustavel: true,
+    explicacao: `A OS do Omie tem ${prods.length} produto(s) na Lista de Produtos. Com produto ali o Omie aceita o faturamento e não fatura. Ao atualizar, o portal tira todos (as peças saem pelo pedido de venda).`,
+  });
   if (os.Servico_Interno) {
     // OS interna: TODOS os serviços com "não gerar conta a receber" — é o que faz sair recibo
     const cobrando = (dados.ServicosPrestados || []).filter((s) => s.cNaoGerarFinanceiro !== "S").length;
@@ -301,6 +315,10 @@ async function alinharOSSemPausa(idOs: string): Promise<ResultadoConferencia> {
     // textos primeiro e o pacote completo (com as parcelas) por ÚLTIMO: uma alteração só de texto depois
     // podia fazer o Omie voltar à condição padrão (1 parcela de 30 dias)
     if (textos.length) await omie("AlterarOS", { Cabecalho: { nCodOS }, ServicosPrestados: textos }, true);
+    // produtos na OS: tira um por um (peça sai pelo PPV) — ver produtosDaOS
+    for (const p of produtosDaOS(dados)) {
+      await omie("AlterarOS", { Cabecalho: { nCodOS }, produtosUtilizados: { produtoUtilizado: [{ nIdItemPU: p.nIdItemPU, cAcaoItemPU: "E" }] } }, true);
+    }
     await omie("AlterarOS", param, true);
   }
   catch (e) {
