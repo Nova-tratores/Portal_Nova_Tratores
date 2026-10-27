@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
     const codigos = [...new Set(itens.map((i) => i.codigo))];
 
     const [cad, cus] = await Promise.all([
-      supabase.from("Produtos_Completos").select("Codigo_Produto, Preco_Venda, Empresa, conta_omie").in("Codigo_Produto", codigos),
+      supabase.from("Produtos_Completos").select("Codigo_Produto, Descricao_Produto, Preco_Venda, Empresa, conta_omie").in("Codigo_Produto", codigos),
       supabase.from("produtos").select("codigo, cmc, conta_omie").in("codigo", codigos),
     ]);
     if (cad.error) console.error(`[conferir-precos] cadastro: ${cad.error.message}`);
@@ -50,6 +50,7 @@ export async function POST(req: NextRequest) {
       codigo: String(l.Codigo_Produto),
       conta: contaDaLinha(l.conta_omie, l.Empresa),
       preco: Number(l.Preco_Venda) || 0,
+      descricao: String(l.Descricao_Produto || ""),
     }));
     const custos: CustoCadastro[] = (cus.data || []).map((l) => ({
       codigo: String(l.codigo),

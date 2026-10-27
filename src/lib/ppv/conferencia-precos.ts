@@ -21,7 +21,7 @@ export interface ItemParaConferir {
   conta?: ContaPreco | null
 }
 
-export interface PrecoCadastro { codigo: string; conta: ContaPreco; preco: number }
+export interface PrecoCadastro { codigo: string; conta: ContaPreco; preco: number; descricao?: string }
 export interface CustoCadastro { codigo: string; conta: ContaPreco; cmc: number }
 
 export interface ItemConferido {
@@ -30,6 +30,8 @@ export interface ItemConferido {
   preco: number
   quantidade: number
   precoCadastro: number | null
+  /** Descrição do produto no cadastro (null = código não cadastrado). */
+  descricaoCadastro: string | null
   custo: number | null
   avisos: AvisoPreco[]
   /** (cadastro − preço) × qtd: positivo = o item está cobrando A MENOS que o cadastro. */
@@ -104,7 +106,7 @@ export function conferirPrecos(
     if (custo === null) avisos.push('sem_custo')
 
     saida.push({
-      codigo, conta: conta ?? cad?.conta ?? null, preco, quantidade: qtd, precoCadastro, custo, avisos,
+      codigo, conta: conta ?? cad?.conta ?? null, preco, quantidade: qtd, precoCadastro, descricaoCadastro: cad ? (cad.descricao ?? "") : null, custo, avisos,
       diferencaTotal: avisos.includes('diferente_cadastro') && precoCadastro !== null ? r2((precoCadastro - preco) * qtd) : 0,
       prejuizo: avisos.includes('abaixo_custo') && custo !== null ? r2((custo - preco) * qtd) : 0,
     })
