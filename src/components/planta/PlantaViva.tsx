@@ -27,7 +27,7 @@ interface Termo {
   meta: { meta: number; tolerancia_pct: number; situacao: Situacao } | null
   meta_so_todas: boolean
 }
-interface Item { chave: string; titulo: string; sub: string; valor: number | null; data: string | null; href: string | null }
+interface Item { chave: string; titulo: string; sub: string; valor: number | null; data: string | null; href: string | null; criado_por: string | null }
 
 // ── Desenho da planta ─────────────────────────────────────────────────────────
 const SALAS: Array<{ id: string; nome: string; camada: Camada | null; kpis: string[] }> = [
@@ -36,7 +36,7 @@ const SALAS: Array<{ id: string; nome: string; camada: Camada | null; kpis: stri
   { id: 'maquinas', nome: 'Sala de máquinas', camada: null, kpis: ['robos'] },
   { id: 'patio', nome: 'Pátio e máquinas vindo', camada: 'gas', kpis: ['propostas_abertas', 'maq_pedido_fabrica', 'maq_em_transito', 'maq_recebida_sem_faturar', 'maq_receb_esquecido'] },
   { id: 'oficina', nome: 'Oficina', camada: 'luz', kpis: ['os_por_fase', 'os_atrasada', 'os_sem_faturar'] },
-  { id: 'balcao', nome: 'Balcão de peças', camada: 'luz', kpis: ['ppv_aberto'] },
+  { id: 'balcao', nome: 'Balcão de peças', camada: 'luz', kpis: ['ppv_pedido_aberto', 'ppv_remessa_aberta', 'pv_omie_aberto', 'rem_omie_aberta'] },
   { id: 'almoxarifado', nome: 'Almoxarifado e compras', camada: 'luz', kpis: ['requisicoes_abertas', 'pecas_a_alocar', 'estoque_negativo'] },
 ]
 const CAMADA_DO_KPI: Record<string, Camada> = {}
@@ -49,14 +49,15 @@ const CANOS: Array<{ id: string; de: Ponta; para: Ponta; camada: Camada; kpi: st
   { id: 'entra-receber', de: 'fora-esq', para: 'financeiro', camada: 'agua', kpi: 'receber_7d', rotulo: 'a receber' },
   { id: 'oficina-caixa', de: 'oficina', para: 'financeiro', camada: 'agua', kpi: 'os_sem_faturar', rotulo: 'OS a faturar' },
   { id: 'estrada', de: 'fora-dir', para: 'patio', camada: 'gas', kpi: 'maq_em_transito', rotulo: 'estrada' },
-  { id: 'almox-balcao', de: 'almoxarifado', para: 'balcao', camada: 'luz', kpi: 'ppv_aberto', rotulo: 'peças' },
+  { id: 'almox-balcao', de: 'almoxarifado', para: 'balcao', camada: 'luz', kpi: 'ppv_pedido_aberto', rotulo: 'peças' },
   { id: 'balcao-oficina', de: 'balcao', para: 'oficina', camada: 'luz', kpi: 'os_por_fase', rotulo: 'peças p/ OS' },
   { id: 'doca', de: 'fora-dir', para: 'almoxarifado', camada: 'luz', kpi: 'pecas_a_alocar', rotulo: 'doca' },
 ]
 
 const UNIDADE: Record<string, [string, string]> = {
   maq_em_transito: ['máquina', 'máquinas'], maq_receb_esquecido: ['máquina', 'máquinas'], maq_pedido_fabrica: ['pedido', 'pedidos'],
-  maq_recebida_sem_faturar: ['máquina', 'máquinas'], propostas_abertas: ['proposta', 'propostas'], ppv_aberto: ['pedido', 'pedidos'], os_por_fase: ['OS', 'OS'], os_atrasada: ['OS', 'OS'],
+  maq_recebida_sem_faturar: ['máquina', 'máquinas'], propostas_abertas: ['proposta', 'propostas'], ppv_pedido_aberto: ['pedido', 'pedidos'], ppv_remessa_aberta: ['remessa', 'remessas'],
+  pv_omie_aberto: ['pedido', 'pedidos'], rem_omie_aberta: ['remessa', 'remessas'], os_por_fase: ['OS', 'OS'], os_atrasada: ['OS', 'OS'],
   os_sem_faturar: ['OS', 'OS'], pecas_a_alocar: ['peça', 'peças'], requisicoes_abertas: ['requisição', 'requisições'],
   zap_sem_resposta: ['conversa', 'conversas'], cheques_revisao_pendentes: ['cheque', 'cheques'], garantias_abertas: ['garantia', 'garantias'], estoque_negativo: ['produto', 'produtos'], fila_financeiro: ['pedido', 'pedidos'],
 }
@@ -224,6 +225,7 @@ function Chip({ k, ativo, onClick }: { k: Kpi; ativo: boolean; onClick: () => vo
     : k.kpi_id === 'zap_sem_resposta' ? (k.detalhe?.mais_antiga_min != null ? `a mais antiga ${idadeTexto(Number(k.detalhe.mais_antiga_min))}` : 'ninguém esperando')
     : k.kpi_id === 'garantias_abertas' ? `${Number(k.detalhe?.esperando_fabrica) || 0} esperando a fábrica`
     : k.kpi_id === 'cheques_revisao_pendentes' ? 'OS faturada sem o cheque enviado'
+    : (k.kpi_id === 'pv_omie_aberto' || k.kpi_id === 'rem_omie_aberta') && k.detalhe?.mais_antigo_dias != null ? `${un(k.kpi_id, k.contagem)} · o mais antigo há ${k.detalhe.mais_antigo_dias} d`
     : k.valor != null ? un(k.kpi_id, k.contagem) : ''
   return (
     <button type="button" onClick={onClick} className={[s.chip, camada ? s[camada] : '', ativo ? s.ativo : ''].join(' ')}>
@@ -256,6 +258,7 @@ function caminho(de: Ponta, para: Ponta, cx: { w: number; h: number; salas: Reco
 function Inspetor({ k, conta, agora, admin, onMudou, onFechar }: { k: Kpi; conta: Conta; agora: number; admin: boolean; onMudou: () => void; onFechar: () => void }) {
   const [itens, setItens] = useState<Item[] | null>(null)
   const [total, setTotal] = useState(0)
+  const [criadores, setCriadores] = useState<Array<[string, number]> | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const semLista = k.lacrado || k.kpi_id === 'robos'
   useEffect(() => {
@@ -272,7 +275,7 @@ function Inspetor({ k, conta, agora, admin, onMudou, onFechar }: { k: Kpi; conta
         const j = await r.json()
         if (!vivo) return
         if (!r.ok) { setErro(j.erro || `Erro ${r.status}`); return }
-        setItens(j.itens || []); setTotal(j.total || 0)
+        setItens(j.itens || []); setTotal(j.total || 0); setCriadores(j.por_criador || null)
       } catch { if (vivo) setErro('Não deu para carregar os registros agora.') }
     })()
     return () => { vivo = false }
@@ -304,6 +307,16 @@ function Inspetor({ k, conta, agora, admin, onMudou, onFechar }: { k: Kpi; conta
 
         {k.lacrado && <div className={s.aviso}><Lock size={13} style={{ verticalAlign: '-2px' }} /> Os valores e a lista deste número são só para administradores.</div>}
 
+        {!semLista && criadores && criadores.length > 0 && (
+          <div className={s.secao}>
+            <div className={s.secaoTitulo}>Por quem criou</div>
+            <table className={s.tabela}><tbody>
+              {criadores.slice(0, 12).map(([nome, n]) => <tr key={nome}><td>{nome}</td><td>{n}</td></tr>)}
+              {criadores.length > 12 && <tr><td>outras {criadores.length - 12} pessoas</td><td>{criadores.slice(12).reduce((a, [, n]) => a + n, 0)}</td></tr>}
+            </tbody></table>
+          </div>
+        )}
+
         {!semLista && (
           <div className={s.secao}>
             <div className={s.secaoTitulo}>Registros {itens ? `(${total > itens.length ? `${itens.length} de ${total}` : total})` : ''}</div>
@@ -317,6 +330,7 @@ function Inspetor({ k, conta, agora, admin, onMudou, onFechar }: { k: Kpi; conta
                     <span className={s.itemTitulo}>{it.titulo}</span>
                     <span className={[s.itemValor, (it.valor || 0) < 0 ? s.neg : ''].join(' ')}>{it.valor == null ? '' : brl(it.valor)}</span>
                     <span className={s.itemSub}>{it.sub}</span>
+                    {it.criado_por && <span className={s.itemCriador}>criado por {it.criado_por}</span>}
                   </>
                 )
                 return it.href ? <Link key={it.chave} href={it.href} className={s.item}>{corpo}</Link> : <div key={it.chave} className={s.item}>{corpo}</div>
@@ -435,7 +449,18 @@ function Detalhe({ k, agora }: { k: Kpi; agora: number }) {
       </div>
     )
   }
-  if (k.kpi_id === 'ppv_aberto' && d.por_idade) {
+  if ((k.kpi_id === 'pv_omie_aberto' || k.kpi_id === 'rem_omie_aberta') && d.por_idade) {
+    return (
+      <div className={s.secao}>
+        <div className={s.secaoTitulo}>Há quanto tempo {k.kpi_id === 'pv_omie_aberto' ? 'abertos' : 'abertas'} (dias)</div>
+        <table className={s.tabela}><tbody>
+          {Object.entries(d.por_idade as Record<string, number>).map(([f, n]) => <tr key={f}><td>{f === 'sem data' ? 'sem data' : `${f} dias`}</td><td>{n}</td></tr>)}
+        </tbody></table>
+        <div className={s.mudo}>Mesma leitura de {k.kpi_id === 'pv_omie_aberto' ? 'Ajustes → Pedidos abertos' : 'Ajustes → Remessas em aberto'}, a cada 2 horas.</div>
+      </div>
+    )
+  }
+  if ((k.kpi_id === 'ppv_pedido_aberto' || k.kpi_id === 'ppv_remessa_aberta') && d.por_idade) {
     return (
       <div className={s.secao}>
         <div className={s.secaoTitulo}>Há quanto tempo na fase</div>

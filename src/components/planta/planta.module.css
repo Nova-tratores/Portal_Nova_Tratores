@@ -132,6 +132,7 @@
 .itemTitulo { font-size: 13px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .itemValor { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .itemSub { grid-column: 1 / -1; font-size: 11.5px; color: var(--pl-sutil); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.itemCriador { grid-column: 1 / -1; font-size: 11.5px; font-weight: 600; color: var(--pl-tinta); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .oficial { display: inline-block; border: 2px solid var(--pl-parede); padding: 8px 12px; font-weight: 700; color: var(--pl-tinta); text-decoration: none; text-align: center; }
 .oficial:hover { background: var(--pl-chip); }
 .mudo { font-size: 12.5px; color: var(--pl-sutil); }

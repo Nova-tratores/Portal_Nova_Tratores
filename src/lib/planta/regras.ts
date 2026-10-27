@@ -23,7 +23,7 @@ type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-exp
 
 export const CONTAS = ['NOVA', 'CASTRO'] as const;
 export type ContaPlanta = 'NOVA' | 'CASTRO' | 'TODAS';
-export type Fonte = 'contas' | 'recebimentos' | 'produtos' | 'nativo';
+export type Fonte = 'contas' | 'recebimentos' | 'produtos' | 'nativo' | 'omie';
 export type Comodo = 'financeiro' | 'posvenda' | 'patio' | 'balcao' | 'oficina' | 'almoxarifado' | 'sala_maquinas';
 
 export interface DefKpi {
@@ -54,7 +54,12 @@ export const CATALOGO: Record<string, DefKpi> = {
   maq_recebida_sem_faturar: { comodo: 'patio', rotulo: 'Máquina recebida sem faturar', sensivel: false, fonte: 'nativo', porConta: false, tela: '/propostas' },
   maq_em_transito: { comodo: 'patio', rotulo: 'Máquinas a caminho (NF faturada)', sensivel: true, fonte: 'recebimentos', porConta: true, tela: '/estoque/recebimentos-omie' },
   maq_receb_esquecido: { comodo: 'patio', rotulo: 'Recebimento de máquina esquecido', sensivel: true, fonte: 'recebimentos', porConta: true, tela: '/estoque/recebimentos-omie' },
-  ppv_aberto: { comodo: 'balcao', rotulo: 'PPV em aberto', sensivel: false, fonte: 'nativo', porConta: false, tela: '/ppv' },
+  ppv_pedido_aberto: { comodo: 'balcao', rotulo: 'PPV em aberto — pedido', sensivel: false, fonte: 'nativo', porConta: false, tela: '/ppv' },
+  ppv_remessa_aberta: { comodo: 'balcao', rotulo: 'PPV em aberto — remessa', sensivel: false, fonte: 'nativo', porConta: false, tela: '/ppv' },
+  // Os dois abaixo vêm da Omie (tarefa planta-omie-abertos, a cada 2 h) com a mesma regra de
+  // /ajustes/pedidos e /ajustes/remessas; a lista do detalhe fica gravada em detalhe.itens.
+  pv_omie_aberto: { comodo: 'balcao', rotulo: 'Pedido de venda aberto na Omie', sensivel: false, fonte: 'omie', porConta: true, tela: '/ajustes/pedidos' },
+  rem_omie_aberta: { comodo: 'balcao', rotulo: 'Remessa aberta na Omie', sensivel: false, fonte: 'omie', porConta: true, tela: '/ajustes/remessas' },
   os_por_fase: { comodo: 'oficina', rotulo: 'OS pendentes', sensivel: false, fonte: 'nativo', porConta: false, tela: '/pos' },
   os_atrasada: { comodo: 'oficina', rotulo: 'OS atrasadas', sensivel: false, fonte: 'nativo', porConta: false, tela: '/pos' },
   os_sem_faturar: { comodo: 'oficina', rotulo: 'OS concluída sem faturar', sensivel: true, fonte: 'nativo', porConta: false, tela: '/pos' },
@@ -65,7 +70,9 @@ export const CATALOGO: Record<string, DefKpi> = {
 };
 
 // Intervalo esperado de cada fonte (min): amarelo depois de 2×, vermelho depois de 4×.
-export const ESPERADO_MIN: Record<Fonte, number> = { contas: 180, recebimentos: 10, produtos: 60, nativo: 5 };
+export const ESPERADO_MIN: Record<Fonte, number> = { contas: 180, recebimentos: 10, produtos: 60, nativo: 5, omie: 120 };
+/** KPIs que não saem dos espelhos: quem grava é a tarefa da Omie, nunca o snapshot de 5 min. */
+export const doSnapshot = (kpi: string) => CATALOGO[kpi]?.fonte !== 'omie';
 export type Frescor = 'verde' | 'amarelo' | 'vermelho';
 export function frescor(idadeMin: number | null, fonte: Fonte): Frescor {
   if (idadeMin == null || !Number.isFinite(idadeMin)) return 'vermelho';
@@ -94,6 +101,7 @@ export interface Fontes {
   zap: Row[];                 // tratorilson_solicitacoes: cliente sem resposta (vigia), status nova
   revisoesPendentes: Row[];   // Ordem_Servico com pendencia_mahindra (cheque de revisão não enviado)
   garantias: Row[];           // garantias não finalizadas
+  criadoresOS: Record<string, string>; // Id_Ordem → quem criou (logs_ppo "Ordem Criada")
   propostas: Row[];           // v_forecast (propostas em aberto) + marca/modelo/vendedor da v_formulario
   nfMaquinas: Row[];          // recebimentos_nfe Faturada com qtd_maquinas>0
   pedidos: Row[];             // pedidos (PPV)
@@ -220,7 +228,8 @@ function semConta(kpi: string, f: Fontes): Row[] {
     case 'requisicoes_abertas': return f.requisicoes.filter((r) => faseRequisicao(r.status) in FASES_REQUISICAO_ABERTA);
     case 'maq_pedido_fabrica': return f.pedidosFabrica.filter((r) => FASES_FABRICA_ANTES.includes(r.status));
     case 'maq_recebida_sem_faturar': return f.pedidosFabrica.filter((r) => FASES_FABRICA_CHEGOU.includes(r.status));
-    case 'ppv_aberto': return f.pedidos.filter((r) => STATUS_ABERTO_PPV.includes(normalizarStatus(r.status)));
+    case 'ppv_pedido_aberto': return f.pedidos.filter((r) => STATUS_ABERTO_PPV.includes(normalizarStatus(r.status)) && !ehRemessa(r));
+    case 'ppv_remessa_aberta': return f.pedidos.filter((r) => STATUS_ABERTO_PPV.includes(normalizarStatus(r.status)) && ehRemessa(r));
     case 'os_por_fase': return pend();
     case 'os_atrasada': { const at = mapaAtraso(f); return pend().filter((r) => (at[r.Id_Ordem] || 0) > 0).map((r) => ({ ...r, _atraso: at[r.Id_Ordem] })); }
     case 'os_sem_faturar': return pend().filter((r) => FASES_SEM_FATURAR.includes(r.Status));
@@ -303,11 +312,14 @@ function patio(f: Fontes): Parcial[] {
   return out;
 }
 
+const ehRemessa = (r: Row) => String(r.Tipo_Pedido || '').trim().toLowerCase() === 'remessa';
 function balcao(f: Fontes): Parcial[] {
-  const ab = semConta('ppv_aberto', f);
-  const idade: Record<string, number> = { '0-2': 0, '3-7': 0, '8+': 0, 'sem data': 0 };
-  for (const r of ab) { const n = idadePPV(r, f.hoje); idade[n == null ? 'sem data' : n <= 2 ? '0-2' : n <= 7 ? '3-7' : '8+']++; }
-  return [{ kpi_id: 'ppv_aberto', conta: 'TODAS', contagem: ab.length, valor: r2(ab.reduce((s, r) => s + (Number(r.valor_total) || 0), 0)), detalhe: { por_idade: idade } }];
+  return (['ppv_pedido_aberto', 'ppv_remessa_aberta'] as const).map((kpi) => {
+    const ab = semConta(kpi, f);
+    const idade: Record<string, number> = { '0-2': 0, '3-7': 0, '8+': 0, 'sem data': 0 };
+    for (const r of ab) { const n = idadePPV(r, f.hoje); idade[n == null ? 'sem data' : n <= 2 ? '0-2' : n <= 7 ? '3-7' : '8+']++; }
+    return { kpi_id: kpi, conta: 'TODAS' as const, contagem: ab.length, valor: r2(ab.reduce((s, r) => s + (Number(r.valor_total) || 0), 0)), detalhe: { por_idade: idade } };
+  });
 }
 
 function oficina(f: Fontes): Parcial[] {
@@ -376,7 +388,7 @@ const BLOCOS: Array<[Comodo, (f: Fontes) => Parcial[]]> = [
 
 /** Linhas com erro para todos os KPIs de um cômodo (leitura ou cálculo falhou). */
 function linhasComErro(comodo: Comodo, erro: string): LinhaKpi[] {
-  return Object.entries(CATALOGO).filter(([, d]) => d.comodo === comodo).flatMap(([id, d]) =>
+  return Object.entries(CATALOGO).filter(([id, d]) => d.comodo === comodo && doSnapshot(id)).flatMap(([id, d]) =>
     (d.porConta ? [...CONTAS, 'TODAS' as const] : ['TODAS' as const]).map((conta) => ({
       kpi_id: id, conta, comodo, contagem: 0, valor: null, detalhe: {}, sensivel: d.sensivel, fonte: d.fonte, erro })));
 }
@@ -405,7 +417,7 @@ export function calcularKpis(f: Fontes): LinhaKpi[] {
 }
 
 // ---------------------------------------------------------------- itens do detalhe
-export interface ItemKpi { chave: string; titulo: string; sub: string; valor: number | null; data: string | null; href: string | null }
+export interface ItemKpi { chave: string; titulo: string; sub: string; valor: number | null; data: string | null; href: string | null; criado_por: string | null }
 export const LIMITE_ITENS = 200;
 
 /** Nomes do espelho da Omie vêm com entidades HTML ("ROSA &amp; RIBEIRO"). */
@@ -414,7 +426,37 @@ export function semEntidades(t: unknown): string {
 }
 const brData = (iso: string | null) => (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso || '');
 
-function paraItem(kpi: string, r: Row, f: Fontes): ItemKpi {
+/** Quem criou o registro (nome como está gravado); null quando a fonte não guarda. */
+export function criadorDe(kpi: string, r: Row, f: Fontes): string | null {
+  const nome = (v: unknown) => String(v ?? '').replace(/\s+/g, ' ').trim() || null;
+  switch (kpi) {
+    case 'fila_financeiro': return nome(r.usuario_nome || r.criado_por);
+    case 'ppv_pedido_aberto': case 'ppv_remessa_aberta': return nome(r.email_usuario);
+    case 'os_por_fase': case 'os_atrasada': case 'os_sem_faturar': case 'cheques_revisao_pendentes': return nome(f.criadoresOS[r.Id_Ordem]);
+    case 'requisicoes_abertas': return nome(r.criado_por || r.solicitante);
+    default: return null;
+  }
+}
+
+/** Contagem por quem criou (maiores primeiro); null quando ninguém da lista tem criador. */
+export function porCriador(itens: Array<{ criado_por: string | null }>): Array<[string, number]> | null {
+  if (!itens.some((i) => i.criado_por)) return null;
+  // "Jose Ortiz" e "José Ortiz" são a mesma pessoa: junta sem acento e sem caixa, mostra a grafia mais usada.
+  const chave = (n: string) => n.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const grupos = new Map<string, Record<string, number>>();
+  for (const i of itens) {
+    const nome = i.criado_por || 'não informado';
+    const g = grupos.get(chave(nome)) || {};
+    g[nome] = (g[nome] || 0) + 1;
+    grupos.set(chave(nome), g);
+  }
+  return [...grupos.values()].map((g): [string, number] => {
+    const [nome] = Object.entries(g).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+    return [nome, Object.values(g).reduce((s, n) => s + n, 0)];
+  }).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+function paraItem(kpi: string, r: Row, f: Fontes): Omit<ItemKpi, 'criado_por'> {
   switch (CATALOGO[kpi].comodo) {
     case 'financeiro': {
       if (kpi === 'fila_financeiro') return { chave: `fp-${r.id}`, titulo: r.fornecedor || 'Sem fornecedor', sub: [r.numero_NF ? `NF ${r.numero_NF}` : '', r.motivo || ''].filter(Boolean).join(' · ').slice(0, 140), valor: Number(r.valor) || 0, data: String(r.data_vencimento || r.criado_em || '').slice(0, 10) || null, href: '/financeiro/home-financeiro' };
@@ -462,12 +504,49 @@ function paraItem(kpi: string, r: Row, f: Fontes): ItemKpi {
 }
 
 /** Lista do detalhe: os mesmos registros de `selecionar`, mais graves/maiores primeiro, até 200. */
-export function itensDoKpi(kpi: string, conta: ContaPlanta, f: Fontes): { itens: ItemKpi[]; total: number } {
+export function itensDoKpi(kpi: string, conta: ContaPlanta, f: Fontes): { itens: ItemKpi[]; total: number; por_criador: Array<[string, number]> | null } {
   const rows = selecionar(kpi, conta, f);
-  const itens = rows.map((r) => { const it = paraItem(kpi, r, f); return { ...it, titulo: semEntidades(it.titulo), sub: semEntidades(it.sub) }; });
+  const itens: ItemKpi[] = rows.map((r) => { const it = paraItem(kpi, r, f); return { ...it, titulo: semEntidades(it.titulo), sub: semEntidades(it.sub), criado_por: criadorDe(kpi, r, f) }; });
   const venc = kpi.endsWith('vencido') || ['requisicoes_abertas', 'zap_sem_resposta', 'garantias_abertas'].includes(kpi); // mais antigos primeiro
   itens.sort((a, b) => venc ? String(a.data).localeCompare(String(b.data)) : Math.abs(b.valor || 0) - Math.abs(a.valor || 0) || String(a.data).localeCompare(String(b.data)));
-  return { itens: itens.slice(0, LIMITE_ITENS), total: itens.length };
+  return { itens: itens.slice(0, LIMITE_ITENS), total: itens.length, por_criador: porCriador(itens) };
+}
+
+// ---------------------------------------------------------------- Omie (PV e remessas abertos)
+/** Pedido de venda aberto como devolve lib/ajustes/pedidos (listarPedidosEnriquecidos). */
+export interface PedidoOmie { idPedido: number | string | null; numero: string | number | null; nomeCliente?: string | null; etapaNome?: string | null; valorTotal?: number; dataInclusao?: string | null; diasAberto?: number | null; criadoPorNome?: string | null; criadoPorLogin?: string | null }
+/** Remessa aberta como devolve lib/ajustes/remessas (obterRemessasAbertas). */
+export interface RemessaOmie { idRemessa: number; numero: string; nomeCliente: string | null; dataPrevisao: string | null; diasAberto: number | null; numeroOS: string | null; origem: 'OS' | 'Manual'; criadoPorNome: string | null; vendedorNome: string | null; valorTotal: number }
+export const LIMITE_ITENS_OMIE = 1000;
+
+export function itemPedidoOmie(p: PedidoOmie, conta: 'NOVA' | 'CASTRO'): ItemKpi {
+  return { chave: `pv-${conta}-${p.idPedido}`, titulo: semEntidades(`PV ${p.numero ?? p.idPedido} · ${p.nomeCliente || 'Sem cliente'}`),
+    sub: [p.etapaNome, p.diasAberto != null ? `aberto há ${p.diasAberto} d` : '', conta].filter(Boolean).join(' · '),
+    valor: Number(p.valorTotal) || 0, data: p.dataInclusao ? isoDe(p.dataInclusao) : null, href: `/ajustes/pedidos?conta=${conta}`,
+    criado_por: (p.criadoPorNome || p.criadoPorLogin || '').trim() || null };
+}
+export function itemRemessaOmie(r: RemessaOmie, conta: 'NOVA' | 'CASTRO'): ItemKpi {
+  return { chave: `rem-${conta}-${r.idRemessa}`, titulo: semEntidades(`REM ${r.numero || r.idRemessa} · ${r.nomeCliente || 'Sem cliente'}`),
+    sub: [r.origem === 'OS' && r.numeroOS ? `da OS ${r.numeroOS}` : 'manual', r.vendedorNome ? `vendedor ${r.vendedorNome}` : '', r.diasAberto != null ? `aberta há ${r.diasAberto} d` : '', conta].filter(Boolean).join(' · '),
+    valor: Number(r.valorTotal) || 0, data: r.dataPrevisao ? isoDe(r.dataPrevisao) : null, href: `/ajustes/remessas?conta=${conta}`,
+    criado_por: (r.criadoPorNome || '').trim() || null };
+}
+
+/** Uma linha de KPI da Omie: número, idade e a lista (mais antigos primeiro) dentro do detalhe. */
+export function linhaOmie(kpi: 'pv_omie_aberto' | 'rem_omie_aberta', conta: ContaPlanta, itens: ItemKpi[], hoje: string): LinhaKpi {
+  const ord = [...itens].sort((a, b) => String(a.data ?? '9999').localeCompare(String(b.data ?? '9999')));
+  const idade: Record<string, number> = { '0-7': 0, '8-30': 0, '31-90': 0, '90+': 0, 'sem data': 0 };
+  for (const it of ord) { const n = it.data ? Math.max(0, diasEntre(it.data, hoje)) : null; idade[n == null ? 'sem data' : n <= 7 ? '0-7' : n <= 30 ? '8-30' : n <= 90 ? '31-90' : '90+']++; }
+  const maisAntigo = ord.find((i) => i.data)?.data ?? null;
+  return linha({ kpi_id: kpi, conta, contagem: ord.length, valor: r2(ord.reduce((s, i) => s + (i.valor || 0), 0)),
+    detalhe: { por_idade: idade, mais_antigo_dias: maisAntigo ? Math.max(0, diasEntre(maisAntigo, hoje)) : null, por_criador: porCriador(ord), itens: ord.slice(0, LIMITE_ITENS_OMIE) } });
+}
+
+/** Tira a lista gravada no detalhe (vai só pelo drill-down, não pela tela inteira). */
+export function semItens<T extends { detalhe: Row }>(l: T): T {
+  if (!l.detalhe || !('itens' in l.detalhe)) return l;
+  const { itens: _i, ...resto } = l.detalhe; // eslint-disable-line @typescript-eslint/no-unused-vars
+  return { ...l, detalhe: resto };
 }
 
 // ---------------------------------------------------------------- leitura pela rota

@@ -242,6 +242,14 @@ export const TAREFAS: Record<string, Tarefa> = {
     return rodarSnapshot();
   },
 
+  // Planta Viva: PV e remessas abertos na Omie, com quem criou (Balcão de peças). Mesma
+  // leitura de /ajustes/pedidos e /ajustes/remessas; a rodada leva ~7 min (as remessas paginam as OS).
+  'planta-omie-abertos': async () => {
+    if (desligada('PLANTA')) return { pular: 'desligado (PLANTA=off)' };
+    const { rodarOmieAbertos } = await import('@/lib/planta/server');
+    return rodarOmieAbertos();
+  },
+
   'vigia-saude': async () => {
     const { checarSaudeCrons } = await import('@/lib/agendamentos/heartbeat');
     const r = await checarSaudeCrons();

@@ -21,7 +21,7 @@ export const SENTIDO: Record<string, Sentido> = {
   zap_sem_resposta: 'menor', cheques_revisao_pendentes: 'menor', garantias_abertas: 'menor',
   fluxo_30d: 'maior',
   maq_pedido_fabrica: 'neutro', maq_em_transito: 'neutro', maq_recebida_sem_faturar: 'menor', maq_receb_esquecido: 'menor',
-  ppv_aberto: 'neutro', os_por_fase: 'neutro', os_atrasada: 'menor', os_sem_faturar: 'menor',
+  ppv_pedido_aberto: 'neutro', ppv_remessa_aberta: 'menor', pv_omie_aberto: 'menor', rem_omie_aberta: 'menor', os_por_fase: 'neutro', os_atrasada: 'menor', os_sem_faturar: 'menor',
   requisicoes_abertas: 'menor', pecas_a_alocar: 'menor', estoque_negativo: 'menor',
 };
 

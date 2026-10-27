@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { calcularKpis, frescor, prepararParaUsuario, filtrarConta, isoDe, itensDoKpi, CATALOGO, type Fontes, type LinhaKpi } from '../regras';
+import { calcularKpis, frescor, prepararParaUsuario, filtrarConta, isoDe, itensDoKpi, CATALOGO, doSnapshot, linhaOmie, itemPedidoOmie, itemRemessaOmie, semItens, porCriador, type Fontes, type LinhaKpi } from '../regras';
 
 const HOJE = '2026-10-19';
 function fontes(p: Partial<Fontes> = {}): Fontes {
-  return { hoje: HOJE, agora: Date.parse(HOJE + 'T15:00:00Z'), pagar: [], receber: [], fila: [], propostas: [], zap: [], revisoesPendentes: [], garantias: [], pedidosFabrica: [], nfMaquinas: [], pedidos: [], os: [], metricasAbertas: [], requisicoes: [], alocacao: [], negativos: [], robos: {}, falhas: {}, ...p };
+  return { hoje: HOJE, agora: Date.parse(HOJE + 'T15:00:00Z'), pagar: [], receber: [], fila: [], propostas: [], zap: [], revisoesPendentes: [], garantias: [], criadoresOS: {}, pedidosFabrica: [], nfMaquinas: [], pedidos: [], os: [], metricasAbertas: [], requisicoes: [], alocacao: [], negativos: [], robos: {}, falhas: {}, ...p };
 }
 const k = (ls: LinhaKpi[], id: string, conta = 'TODAS') => ls.find((l) => l.kpi_id === id && l.conta === conta)!;
 const tit = (o: Record<string, unknown>) => ({ codigo_lancamento: 1, conta_omie: 'NOVA', status_titulo: 'A VENCER', valor_documento: 100, valor_pago: 0, data_vencimento: HOJE, data_previsao: HOJE, ...o });
@@ -75,13 +75,26 @@ describe('máquinas', () => {
 describe('balcão e oficina (mesmas fases das telas)', () => {
   it('PPV: Concluída (Faturado) e Cancelada não contam; idade pela data de mudança de fase', () => {
     const ls = calcularKpis(fontes({ pedidos: [
-      { status: 'Orçamento', valor_total: 100, status_desde: '2026-10-18T10:00:00Z' },
-      { status: 'Concluída', valor_total: 999 },
-      { status: 'Cancelada', valor_total: 999 },
+      { status: 'Orçamento', valor_total: 100, status_desde: '2026-10-18T10:00:00Z', Tipo_Pedido: 'Pedido' },
+      { status: 'Concluída', valor_total: 999, Tipo_Pedido: 'Pedido' },
+      { status: 'Cancelada', valor_total: 999, Tipo_Pedido: 'Remessa' },
       { status: 'Execução', valor_total: 50, data: '01/10/2026 10:00' },
     ] }));
-    expect(k(ls, 'ppv_aberto')).toMatchObject({ contagem: 2, valor: 150 });
-    expect(k(ls, 'ppv_aberto').detalhe.por_idade).toEqual({ '0-2': 1, '3-7': 0, '8+': 1, 'sem data': 0 });
+    expect(k(ls, 'ppv_pedido_aberto')).toMatchObject({ contagem: 2, valor: 150 });
+    expect(k(ls, 'ppv_pedido_aberto').detalhe.por_idade).toEqual({ '0-2': 1, '3-7': 0, '8+': 1, 'sem data': 0 });
+  });
+  it('PPV: pedido e remessa em quadros separados pelo tipo; quem criou = quem lançou', () => {
+    const f = fontes({ pedidos: [
+      { id_pedido: 'PPV-1', status: 'Orçamento', valor_total: 10, Tipo_Pedido: 'Pedido', email_usuario: 'Vinicius Correa ' },
+      { id_pedido: 'PPV-2', status: 'Aguardando', valor_total: 20, Tipo_Pedido: 'Remessa', email_usuario: 'Larissa Garcia' },
+      { id_pedido: 'PPV-3', status: 'Aguardando', valor_total: 30, Tipo_Pedido: ' remessa ', email_usuario: 'Larissa Garcia' },
+    ] });
+    const ls = calcularKpis(f);
+    expect(k(ls, 'ppv_pedido_aberto')).toMatchObject({ contagem: 1, valor: 10 });
+    expect(k(ls, 'ppv_remessa_aberta')).toMatchObject({ contagem: 2, valor: 50 });
+    const pedido = itensDoKpi('ppv_pedido_aberto', 'TODAS', f);
+    expect(pedido.itens[0].criado_por).toBe('Vinicius Correa');
+    expect(itensDoKpi('ppv_remessa_aberta', 'TODAS', f).por_criador).toEqual([['Larissa Garcia', 2]]);
   });
   it('OS: atrasada = métrica aberta com dias > 0; sem faturar soma o valor da OS', () => {
     const ls = calcularKpis(fontes({
@@ -101,13 +114,14 @@ describe('balcão e oficina (mesmas fases das telas)', () => {
 
 describe('falha de um cômodo não derruba os outros', () => {
   it('cômodo com falha volta com erro em todos os seus números', () => {
-    const ls = calcularKpis(fontes({ falhas: { oficina: 'Ordem_Servico: timeout' }, alocacao: [{ conta_omie: 'NOVA' }] }));
+    const ls = calcularKpis(fontes({ falhas: { oficina: 'Ordem_Servico: timeout', balcao: 'pedidos: timeout' }, alocacao: [{ conta_omie: 'NOVA' }] }));
     expect(k(ls, 'os_por_fase').erro).toBe('Ordem_Servico: timeout');
+    expect(ls.some((l) => l.kpi_id === 'pv_omie_aberto')).toBe(false); // erro do espelho não marca o número da Omie
     expect(k(ls, 'pecas_a_alocar', 'NOVA')).toMatchObject({ contagem: 1, erro: null });
   });
   it('todo número do catálogo sai em toda rodada', () => {
     const ids = new Set(calcularKpis(fontes()).map((l) => l.kpi_id));
-    expect([...ids].sort()).toEqual(Object.keys(CATALOGO).sort());
+    expect([...ids].sort()).toEqual(Object.keys(CATALOGO).filter(doSnapshot).sort());
   });
 });
 
@@ -126,7 +140,7 @@ describe('leitura pela rota', () => {
   it('filtrarConta: KPI por conta pega a conta; KPI sem conta pega TODAS', () => {
     const f = filtrarConta(ls, 'NOVA');
     expect(f.find((x) => x.kpi_id === 'pagar_vencido')!.conta).toBe('NOVA');
-    expect(f.find((x) => x.kpi_id === 'ppv_aberto')!.conta).toBe('TODAS');
+    expect(f.find((x) => x.kpi_id === 'ppv_pedido_aberto')!.conta).toBe('TODAS');
     expect(f.filter((x) => x.kpi_id === 'pagar_vencido')).toHaveLength(1);
   });
 });
@@ -145,7 +159,7 @@ describe('detalhe = os mesmos registros do número', () => {
     alocacao: [{ id: 1, conta_omie: 'NOVA', codigo: 'P1', descricao: 'Filtro' }],
   });
   const ls = calcularKpis(f);
-  for (const [kpi, conta] of [['pagar_vencido', 'NOVA'], ['pagar_vencido', 'TODAS'], ['pagar_7d', 'NOVA'], ['ppv_aberto', 'TODAS'], ['os_sem_faturar', 'TODAS'], ['pecas_a_alocar', 'NOVA']] as const) {
+  for (const [kpi, conta] of [['pagar_vencido', 'NOVA'], ['pagar_vencido', 'TODAS'], ['pagar_7d', 'NOVA'], ['ppv_pedido_aberto', 'TODAS'], ['os_sem_faturar', 'TODAS'], ['pecas_a_alocar', 'NOVA']] as const) {
     it(`${kpi} ${conta}: quantidade e soma da lista = o número`, () => {
       const n = k(ls, kpi, conta);
       const { itens, total } = itensDoKpi(kpi, conta, f);
@@ -164,7 +178,7 @@ describe('detalhe = os mesmos registros do número', () => {
     expect(itens[0].href).toBe('/dre-financeiro/vencidos');
   });
   it('PPV e OS levam ao registro na tela', () => {
-    expect(itensDoKpi('ppv_aberto', 'TODAS', f).itens[0].href).toBe('/ppv?id=PPV-1');
+    expect(itensDoKpi('ppv_pedido_aberto', 'TODAS', f).itens[0].href).toBe('/ppv?id=PPV-1');
     expect(itensDoKpi('os_sem_faturar', 'TODAS', f).itens[0].href).toBe('/pos?id=OS-1');
   });
 });
@@ -262,8 +276,55 @@ describe('frescor', () => {
   });
 });
 
-describe('a planta nunca chama a Omie', () => {
-  it('nenhum arquivo de src/lib/planta importa lib/omie', () => {
+describe('quem criou e Omie (pedido de 27/10/2026)', () => {
+  const f = fontes({
+    os: [{ Id_Ordem: 'OS-1', Status: 'Execução', Valor_Total: '100', Os_Cliente: 'Y' }, { Id_Ordem: 'OS-2', Status: 'Execução', Valor_Total: '1' }],
+    criadoresOS: { 'OS-1': 'Larissa Garcia' },
+    requisicoes: [{ id: 7, status: 'pedido', created_at: '2026-10-20T10:00:00Z', criado_por: 'Mariano Ramos Do Val', solicitante: 'Henri Irneh' }],
+  });
+  it('OS: quem criou vem do histórico; sem registro fica em branco e conta como "não informado"', () => {
+    const r = itensDoKpi('os_por_fase', 'TODAS', f);
+    expect(r.itens.find((i) => i.chave === 'os-OS-1')!.criado_por).toBe('Larissa Garcia');
+    expect(r.itens.find((i) => i.chave === 'os-OS-2')!.criado_por).toBeNull();
+    expect(r.por_criador).toEqual([['Larissa Garcia', 1], ['não informado', 1]]);
+  });
+  it('requisição: criado_por antes do solicitante', () => {
+    expect(itensDoKpi('requisicoes_abertas', 'TODAS', f).itens[0].criado_por).toBe('Mariano Ramos Do Val');
+  });
+  it('sem criador em ninguém: sem tabela por quem criou', () => {
+    expect(porCriador([{ criado_por: null }])).toBeNull();
+  });
+  it('PV e remessas da Omie: número, idade, quem criou e a lista mais antiga primeiro', () => {
+    const pv = [
+      itemPedidoOmie({ idPedido: 1, numero: '7820', nomeCliente: 'ROSA &amp; RIBEIRO', etapaNome: 'Faturar', valorTotal: 100, dataInclusao: '10/10/2026', diasAberto: 17, criadoPorNome: 'Zezo' }, 'NOVA'),
+      itemPedidoOmie({ idPedido: 2, numero: '7000', nomeCliente: 'B', valorTotal: 50, dataInclusao: '01/06/2026', criadoPorLogin: 'P000454175' }, 'NOVA'),
+    ];
+    expect(pv[0]).toMatchObject({ titulo: 'PV 7820 · ROSA & RIBEIRO', data: '2026-10-10', criado_por: 'Zezo', href: '/ajustes/pedidos?conta=NOVA' });
+    const l = linhaOmie('pv_omie_aberto', 'NOVA', pv, HOJE);
+    expect(l).toMatchObject({ kpi_id: 'pv_omie_aberto', conta: 'NOVA', contagem: 2, valor: 150, fonte: 'omie', erro: null });
+    expect(l.detalhe.itens.map((i: { chave: string }) => i.chave)).toEqual(['pv-NOVA-2', 'pv-NOVA-1']);
+    expect(l.detalhe.mais_antigo_dias).toBeGreaterThan(90);
+    expect(l.detalhe.por_criador).toEqual([['P000454175', 1], ['Zezo', 1]]);
+    const rem = itemRemessaOmie({ idRemessa: 9, numero: '55', nomeCliente: 'C', dataPrevisao: null, diasAberto: null, numeroOS: '0777', origem: 'OS', criadoPorNome: 'Larissa Garcia', vendedorNome: 'Zezo', valorTotal: 10 }, 'CASTRO');
+    expect(rem).toMatchObject({ titulo: 'REM 55 · C', sub: 'da OS 0777 · vendedor Zezo · CASTRO', criado_por: 'Larissa Garcia' });
+    expect(linhaOmie('rem_omie_aberta', 'TODAS', [rem], HOJE).detalhe.por_idade['sem data']).toBe(1);
+  });
+  it('a tela inteira não leva a lista gravada (só o drill-down)', () => {
+    const l = linhaOmie('pv_omie_aberto', 'NOVA', [], HOJE);
+    expect('itens' in l.detalhe).toBe(true);
+    expect('itens' in semItens(l).detalhe).toBe(false);
+  });
+  it('frescor da Omie (rodada a cada 2 h): amarelo depois de 4 h', () => {
+    expect(frescor(200, 'omie')).toBe('verde');
+    expect(frescor(300, 'omie')).toBe('amarelo');
+  });
+  it('mesma pessoa com e sem acento vira uma linha só', () => {
+    expect(porCriador([{ criado_por: 'Jose Ortiz' }, { criado_por: 'José Ortiz' }, { criado_por: 'José Ortiz' }])).toEqual([['José Ortiz', 3]]);
+  });
+});
+
+describe('o snapshot de 5 min nunca chama a Omie', () => {
+  it('nenhum arquivo de src/lib/planta importa lib/omie no topo (a Omie é só a tarefa planta-omie-abertos)', () => {
     const dir = join(__dirname, '..');
     for (const f of readdirSync(dir).filter((n) => /\.tsx?$/.test(n))) {
       expect(readFileSync(join(dir, f), 'utf8')).not.toMatch(/from ['"][^'"]*\/omie[/'"]/);
