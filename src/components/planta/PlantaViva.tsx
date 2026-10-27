@@ -39,6 +39,10 @@ const SALAS: Array<{ id: string; nome: string; camada: Camada | null; kpis: stri
   { id: 'balcao', nome: 'Balcão de peças', camada: 'luz', kpis: ['ppv_pedido_aberto', 'ppv_remessa_aberta', 'pv_omie_aberto', 'rem_omie_aberta'] },
   { id: 'almoxarifado', nome: 'Almoxarifado e compras', camada: 'luz', kpis: ['requisicoes_abertas', 'pecas_a_alocar', 'estoque_negativo'] },
 ]
+// Quadro que ainda não tem linha gravada (ex.: os da Omie antes da 1ª rodada da tarefa).
+const ROTULO_ESPERA: Record<string, string> = {
+  ppv_pedido_aberto: 'PPV pedido', ppv_remessa_aberta: 'PPV remessa', pv_omie_aberto: 'PV aberto na Omie', rem_omie_aberta: 'remessa aberta na Omie',
+}
 const CAMADA_DO_KPI: Record<string, Camada> = {}
 for (const sl of SALAS) for (const k of sl.kpis) if (sl.camada) CAMADA_DO_KPI[k] = sl.camada
 const CAMADAS: Array<{ id: Camada; nome: string }> = [{ id: 'agua', nome: 'Dinheiro' }, { id: 'gas', nome: 'Máquinas' }, { id: 'luz', nome: 'Pedidos e peças' }]
@@ -196,6 +200,11 @@ export default function PlantaViva() {
                   {carregando && !ks.length ? <span className={s.mudo}>Carregando…</span> : null}
                   {ks.map((k) => <Chip key={k.kpi_id} k={k} ativo={aberto === k.kpi_id} onClick={() => abrir(k.kpi_id)} />)}
                 </div>
+                {!carregando && ks.length < sala.kpis.length && (
+                  <div className={s.mudo} style={{ marginTop: 8 }}>
+                    Aguardando a 1ª leitura: {sala.kpis.filter((id) => !porId[id]).map((id) => ROTULO_ESPERA[id] || id).join(' · ')}
+                  </div>
+                )}
               </div>
             )
           })}
