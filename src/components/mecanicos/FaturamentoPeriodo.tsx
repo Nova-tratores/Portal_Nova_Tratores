@@ -6,6 +6,7 @@
 //  - Trocar de período: duas formas (linha do tempo com barras | grade que desce do ano ao dia).
 //  - Cartões: valor, comparação com o período anterior (até o mesmo dia) e mini-gráfico dos últimos períodos.
 import { useId, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { BaseDados, Escala } from '@/lib/mecanicos/painel'
 import { periodos, andarPeriodo, somarDias, diasUteis, montarPainel, SEM_META, SEM_TECNICO } from '@/lib/mecanicos/painel'
 import { brl, Numero } from './ui'
@@ -382,7 +383,10 @@ function ModalLista({ met, periodo, lista, onFechar }: { met: Metrica; periodo: 
   const linhas = lista.filter((o) => met === 'os' || val(o) > 0.5).filter((o) => !busca || `${o.os} ${o.numero || ''} ${o.cliente} ${o.tecnicos.join(' ')}`.toLowerCase().includes(busca.toLowerCase())).sort((a, b) => val(b) - val(a))
   const total = linhas.reduce((t, o) => t + val(o), 0)
   const doPortal = (o: ItemFat) => !/^OMIE /.test(o.os)
-  return (
+  // direto no <body> (27/10/2026: "clico no cartão e não abre nada"): dentro da Janela Mecânicos o bloco tem
+  // animação (transform) e corte nas bordas — a janela fixa ficava presa e cortada fora da tela
+  if (typeof document === 'undefined') return null
+  return createPortal(
     <div className="fp-modal-fundo" role="presentation" onClick={() => !os && !doc && onFechar()}>
       <div className="fp-modal fp-lista" role="dialog" aria-modal="true" aria-label={`${NOME_MET[met]} — ${periodo}`} onClick={(ev) => ev.stopPropagation()}>
         <div className="fp-modal-cab">
@@ -415,7 +419,8 @@ function ModalLista({ met, periodo, lista, onFechar }: { met: Metrica; periodo: 
       {os && <JanelaOSParada key={os.os} faturadaEm={os.grupo === 'aguardando' ? undefined : os.data} onFechar={() => setOs(null)}
         p={{ os: os.os, tipo: 'preenchida', status: os.grupo === 'aguardando' ? 'Aguardando faturar' : 'Faturada', cliente: os.cliente, tecnicos: os.tecnicos, dataRef: os.data, dias: 0, maoDeObra: os.servico, deslocamento: os.kmValor, pecas: os.pecas, total: os.bruto, garantia: os.grupo === 'garantia' }} />}
       {doc && <div className="fp-doc" onClick={(ev) => ev.stopPropagation()}><VisualizadorDocumento key={doc.url} doc={doc} onClose={() => setDoc(null)} /></div>}
-    </div>
+    </div>,
+    document.body,
   )
 }
 
