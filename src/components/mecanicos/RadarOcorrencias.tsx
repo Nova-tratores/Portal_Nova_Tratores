@@ -20,13 +20,15 @@ import CartaLiga, { IconeLiga } from './CartaLiga'
 import { useCarreira } from './useCarreira'
 import { HorasEquipeCartoes } from './HorasOpcoes'
 import FantasmasMec from './FantasmasMec'
+import CaixinhaMec from './CaixinhaMec'
 import { TrilhoAssuntos, Secao, ESTILO_ASSUNTOS, type Assunto } from './PainelTecnicos'
 
 // assuntos da aba Mecânicos, com as bolinhas iguais às do Painel (José, 20/10/2026)
 const ASSUNTOS_MEC: Assunto[] = [
-  { n: 1, cor: '#2563eb', ic: 'fa-user-gear', titulo: 'Mecânicos do mês' },
-  { n: 2, cor: '#0891b2', ic: 'fa-clock', titulo: 'Horas da equipe' },
-  { n: 3, cor: '#7c3aed', ic: 'fa-ghost', titulo: 'Horas e km fantasmas' },
+  { n: 1, cor: '#047857', ic: 'fa-piggy-bank', titulo: 'Caixinha' },
+  { n: 2, cor: '#2563eb', ic: 'fa-user-gear', titulo: 'Mecânicos do mês' },
+  { n: 3, cor: '#0891b2', ic: 'fa-clock', titulo: 'Horas da equipe' },
+  { n: 4, cor: '#7c3aed', ic: 'fa-ghost', titulo: 'Horas e km fantasmas' },
 ]
 import { patente } from '@/lib/mecanicos/carreira'
 
@@ -200,16 +202,20 @@ export default function RadarOcorrencias() {
               (José, 19/10/2026: "tira o primeiro e coloca esses dois" — saiu o bloco de Comissões) */}
           <div id="oc-carreira" />
           <div id="oc-radar" />
-          <Secao n={1} cor="#2563eb" ic="fa-user-gear" titulo="Mecânicos do mês" sub="clique no cartão para abrir a ficha completa: comissão, OS, frota, ocorrências e RH" primeira />
+          {/* caixinha dos técnicos, lida do RH (José, 27/10/2026: "antes de mecânicos do mês") */}
+          <Secao n={1} cor="#047857" ic="fa-piggy-bank" titulo="Caixinha" sub="1% de cada comissão entra; descontos de erro saem; no fim do ciclo a empresa dobra e divide igual" primeira />
+          <CaixinhaMec />
+
+          <Secao n={2} cor="#2563eb" ic="fa-user-gear" titulo="Mecânicos do mês" sub="clique no cartão para abrir a ficha completa: comissão, OS, frota, ocorrências e RH" />
           <TecnicosDoMes />
 
           {/* horas da equipe no mês, embaixo dos cartões com foto (José, 20/10/2026: "inverte") */}
           <div id="oc-horas" />
-          <Secao n={2} cor="#0891b2" ic="fa-clock" titulo="Horas da equipe" sub="horas de cada mecânico por semana e a meta da equipe" />
+          <Secao n={3} cor="#0891b2" ic="fa-clock" titulo="Horas da equipe" sub="horas de cada mecânico por semana e a meta da equipe" />
           <HorasEquipeCartoes mes={mes} semTitulo />
 
           {/* horas e km fantasmas: carro × relatório × OS × tempário (José, 20/10/2026) */}
-          <Secao n={3} cor="#7c3aed" ic="fa-ghost" titulo="Horas e km fantasmas" sub="carro, relatório, OS cobrada e tempário Mahindra lado a lado" />
+          <Secao n={4} cor="#7c3aed" ic="fa-ghost" titulo="Horas e km fantasmas" sub="carro, relatório, OS cobrada e tempário Mahindra lado a lado" />
           <FantasmasMec mes={mes} />
 
           {/* Tribunal e ocorrências ficam atrás dos botões do topo (José, 20/10/2026) */}
