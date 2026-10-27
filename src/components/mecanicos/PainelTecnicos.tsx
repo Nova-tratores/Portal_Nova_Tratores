@@ -374,19 +374,21 @@ export function TrilhoAssuntos({ mostrar = true, topo = false, soAoRolar = false
 const ESTILO_TRILHO = `
 .pt-com-trilho { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 18px; align-items: start } .pt-corpo { min-width: 0 }
 @media (max-width: 1100px) { .pt-com-trilho { grid-template-columns: minmax(0, 1fr) } .pt-trilho { display: none } }
-.pt-amb .pt-secao em { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; background: #fefefe; border: 2px solid color-mix(in srgb, var(--c) 35%, transparent); font-size: 17px; line-height: 1; font-weight: 900; color: var(--c); grid-row: span 2; align-self: center; margin-right: 6px; box-shadow: 0 2px 8px rgba(15,23,42,.08); font-variant-numeric: tabular-nums; transition: transform .4s cubic-bezier(.3,1.5,.5,1), border-color .4s, box-shadow .4s }
-.pt-amb .pt-secao.pt-atual em { border-color: var(--c); transform: scale(1.08); box-shadow: 0 0 0 5px color-mix(in srgb, var(--c) 16%, transparent), 0 4px 12px rgba(15,23,42,.1) }
+/* 27/10/2026: número da seção discreto (sem o círculo grande) */
+.pt-amb .pt-secao em { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 12%, transparent); border: 0; font-size: 12px; line-height: 1; font-weight: 700; color: var(--c); grid-row: span 2; align-self: center; margin-right: 4px; box-shadow: none; font-variant-numeric: tabular-nums; transition: background .3s }
+.pt-amb .pt-secao.pt-atual em { background: var(--c); color: #fefefe }
 .pt-amb .pt-secao:not(.pt-visto) em { transform: scale(.4); opacity: 0 } .pt-amb .pt-secao em { opacity: 1 }
 .pt-atalhos-ancora { position: sticky; top: 92px; z-index: 30; height: 0 }
 .pt-atalhos-ancora > .pt-atalhos { position: absolute; left: 0; right: 0; top: 0; margin: 0; opacity: 0; transform: translateY(-12px); pointer-events: none; transition: opacity .25s, transform .25s }
 .pt-atalhos-ancora.on > .pt-atalhos { opacity: 1; transform: none; pointer-events: auto }
 /* barra de cima: abas em texto, fina e quieta (22/10/2026) */
-.pt-atalhos { position: sticky; top: 92px; z-index: 30; box-sizing: border-box; display: flex; align-items: stretch; gap: 22px; min-height: 40px; margin: 0 0 14px; padding: 0 16px; background: var(--portal-bg-card, #fefefe); border-bottom: 1px solid var(--portal-border, #e2e8f0); overflow-x: auto; overflow-y: hidden; scrollbar-width: none }
+/* 27/10/2026 (José: "tira essa faixona branca, algo mais simples e bonito"): sem faixa — pílulas soltas sobre o fundo */
+.pt-atalhos { position: sticky; top: 92px; z-index: 30; box-sizing: border-box; display: flex; align-items: center; gap: 6px; min-height: 40px; margin: 0 0 14px; padding: 4px 0; background: transparent; overflow-x: auto; overflow-y: hidden; scrollbar-width: none }
 .pt-atalhos::-webkit-scrollbar { display: none }
-.pt-atalhos button { flex: none; display: inline-flex; align-items: center; gap: 7px; border: none; border-radius: 0; background: transparent; padding: 0 2px; font-family: inherit; font-size: 13.5px; font-weight: 400; color: var(--portal-text-muted, #64748b); cursor: pointer; white-space: nowrap; transition: color .15s, box-shadow .15s }
+.pt-atalhos button { flex: none; display: inline-flex; align-items: center; gap: 7px; border: 1px solid transparent; border-radius: 99px; background: transparent; padding: 6px 13px; font-family: inherit; font-size: 13.5px; font-weight: 400; color: var(--portal-text-muted, #64748b); cursor: pointer; white-space: nowrap; transition: color .15s, background .15s, border-color .15s }
 .pt-atalhos button i { font-size: 12px; color: var(--c); opacity: .7; transition: opacity .15s }
-.pt-atalhos button:hover { color: var(--portal-text, #0f172a) } .pt-atalhos button:hover i { opacity: 1 }
-.pt-atalhos button.on { color: var(--portal-text, #0f172a); font-weight: 500; box-shadow: inset 0 -2px 0 var(--c) } .pt-atalhos button.on i { opacity: 1 }
+.pt-atalhos button:hover { color: var(--portal-text, #0f172a); background: color-mix(in srgb, var(--c) 6%, transparent) } .pt-atalhos button:hover i { opacity: 1 }
+.pt-atalhos button.on { color: var(--portal-text, #0f172a); font-weight: 500; background: var(--portal-bg-card, #fefefe); border-color: color-mix(in srgb, var(--c) 30%, transparent); box-shadow: 0 1px 3px rgba(15,23,42,.06) } .pt-atalhos button.on i { opacity: 1 }
 .pt-atalhos button:focus-visible { outline: 2px solid var(--c); outline-offset: -2px }
 .pt-trilho { position: sticky; top: 96px; align-self: start; padding-top: 4px }
 .pt-trilho-in > small { display: block; font-size: 11px; font-weight: 900; letter-spacing: .08em; text-transform: uppercase; color: var(--portal-text-muted, #64748b); margin: 0 0 8px 4px }
