@@ -106,6 +106,7 @@ export function limparItens(bruto: unknown): { itens: ItemTermica[] } | { erro: 
     if (url) item.url = url
     const topo = texto(o.topo, 80); if (topo) item.topo = topo
     const extra = texto(o.extra, 200); if (extra) item.extra = extra
+    const info = texto(o.info, 200); if (info) item.info = info
     if (o.semQr === true) item.semQr = true
     if (o.barra === true) item.barra = true
     if (o.locGrande === true) item.locGrande = true

@@ -38,10 +38,10 @@ describe('caminhoDoLink', () => {
 
 describe('limparItens', () => {
   it('mantém só os campos do desenho e corta textos longos', () => {
-    const r = limparItens([{ codigo: ' 0734309419 ', descricao: 'x'.repeat(400), local: 'PRAT 3', semQr: true, barra: true, locGrande: true, topo: 'NOVA', extra: 'CASTRO', lixo: 'fora', quantidade: 2 }])
+    const r = limparItens([{ codigo: ' 0734309419 ', descricao: 'x'.repeat(400), local: 'PRAT 3', semQr: true, barra: true, locGrande: true, topo: 'NOVA', extra: 'CASTRO', info: 'MARCA KUHN', lixo: 'fora', quantidade: 2 }])
     expect('itens' in r).toBe(true)
     if (!('itens' in r)) return
-    expect(r.itens[0]).toEqual({ codigo: '0734309419', descricao: 'x'.repeat(300), local: 'PRAT 3', semQr: true, barra: true, locGrande: true, topo: 'NOVA', extra: 'CASTRO', quantidade: 2 })
+    expect(r.itens[0]).toEqual({ codigo: '0734309419', descricao: 'x'.repeat(300), local: 'PRAT 3', semQr: true, barra: true, locGrande: true, topo: 'NOVA', extra: 'CASTRO', info: 'MARCA KUHN', quantidade: 2 })
   })
   it('converte o link do QR em caminho', () => {
     const r = limparItens([{ codigo: 'PAT-1', descricao: null, url: 'https://portal.novatratores.com/opa/patrimonio/9' }])

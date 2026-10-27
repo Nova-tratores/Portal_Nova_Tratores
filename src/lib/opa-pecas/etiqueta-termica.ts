@@ -71,6 +71,8 @@ export type ItemTermica = Omit<EtiquetaItem, 'token'> & {
   token?: string; url?: string; topo?: string; extra?: string; semQr?: boolean; barra?: boolean
   /** locação em destaque (PPV: prateleira/andar/caixa abreviados, lidos de longe) */
   locGrande?: boolean
+  /** linha pequena sob a descrição (PPV: marca/modelo, quando marcados na janela de impressão) */
+  info?: string
 }
 
 /** "PRATELEIRA 3 · ANDAR G · CAIXA 1" → "PRAT 3 · AND G · CX 1"; o que faltar sai "-"
@@ -114,6 +116,7 @@ export function partesTermica(itens: (ItemTermica & { qr: string })[], a: Ajuste
     ${i.topo ? `<div class="topo">${esc(i.topo)}</div>` : ''}
     <div class="cod">${esc(i.codigo)}</div>
     <div class="desc">${esc(desc)}</div>
+    ${i.info ? `<div class="extra">${esc(i.info)}</div>` : ''}
     ${i.local ? `<div class="loc${i.locGrande ? ' grande' : ''}">${esc(i.local)}</div>` : ''}
     ${i.extra ? `<div class="extra">${esc(i.extra)}</div>` : ''}
     ${i.barra ? code128Svg(i.codigo, altBarra) : ''}
