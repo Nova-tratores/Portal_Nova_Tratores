@@ -14,6 +14,7 @@ import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { useRascunho } from '@/lib/rascunho/useRascunho'
 import AvisoRascunho from '@/components/rascunho/AvisoRascunho'
+import { useConferenciaPrecos, PainelConferenciaPrecos, AvisoPrecoLinha } from '@/components/ppv/ConferenciaPrecos'
 
 type TipoOrcamento = 'pecas' | 'mao-de-obra' | 'completo'
 
@@ -146,6 +147,19 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
   const totalPecas = mostrarPecas ? itens.reduce((s, i) => s + i.quantidade * i.preco, 0) : 0
   const totServ = totaisServicos(mostrarServicos ? servicos : [])
   const totalGeral = totalPecas + totServ.total
+
+  // Conferência de preço: cada peça × preço de venda atual do cadastro × custo (CMC)
+  const conferencia = useConferenciaPrecos(
+    mostrarPecas ? itens.filter(i => i.codigo.trim()).map(i => ({ codigo: i.codigo, preco: i.preco, quantidade: i.quantidade })) : [],
+    mostrarPecas,
+  )
+  function usarPrecoCadastroOrc(alvo: { codigo: string; precoCadastro: number | null }[]) {
+    const mapa = new Map(alvo.filter(a => a.precoCadastro !== null).map(a => [a.codigo.trim().toUpperCase(), a.precoCadastro as number]))
+    setItens(prev => prev.map(item => {
+      const p = mapa.get(item.codigo.trim().toUpperCase())
+      return p !== undefined ? { ...item, preco: p } : item
+    }))
+  }
 
   // Funções da planilha
   function atualizarItem(idx: number, campo: keyof LinhaItem, valor: string | number) {
@@ -705,6 +719,12 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
               </button>
             </div>
           </div>
+          {conferencia.resultado && (
+            <div style={{ padding: '12px 16px 0' }}>
+              <PainelConferenciaPrecos resultado={conferencia.resultado} onAtualizarTodos={usarPrecoCadastroOrc}
+                descricoes={Object.fromEntries(itens.map(i => [i.codigo.trim(), i.descricao]))} />
+            </div>
+          )}
           {isMobile ? (
             /* CELULAR: cada peça vira um cartão (sem rolagem horizontal) */
             <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -732,6 +752,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
                     <div>
                       <label style={{ ...labelStyle, fontSize: 10 }}>Unit. (R$)</label>
                       <input type="number" min={0} step={0.01} value={item.preco} onChange={e => atualizarItem(idx, 'preco', parseFloat(e.target.value) || 0)} style={{ ...inputStyle, fontSize: 13, padding: '9px 12px' }} />
+                      <AvisoPrecoLinha item={item.codigo.trim() ? conferencia.doItem(item.codigo) : null} onAtualizar={(p) => atualizarItem(idx, 'preco', p)} />
                     </div>
                   </div>
                 </div>
@@ -808,6 +829,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
                         onKeyDown={e => handleTabUltimaColuna(e, idx)}
                         style={{ ...cellInputStyle, textAlign: 'right' as const }}
                       />
+                      <AvisoPrecoLinha item={item.codigo.trim() ? conferencia.doItem(item.codigo) : null} onAtualizar={(p) => atualizarItem(idx, 'preco', p)} />
                     </td>
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: '#1a1a1a', fontSize: 13 }}>
                       R$ {fmt(item.quantidade * item.preco)}

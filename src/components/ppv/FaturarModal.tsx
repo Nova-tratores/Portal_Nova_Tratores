@@ -5,21 +5,26 @@
 //  3. "Faturando no Omie" com cronômetro e "Fechar e avisar no sino" (o servidor continua);
 //  4. aguardando a NF-e da SEFAZ (confere sozinho e traz para o portal).
 // Antes de confirmar, mostra (não bloqueia) as peças rastreadas escaneadas e nunca liberadas.
+// Também confere o preço dos itens (cadastro × custo): com item abaixo do custo ou diferente
+// do cadastro, o "Sim, faturar" só libera depois do "conferi os preços".
 import { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/ppv/api";
 import { authHeaders } from "@/lib/auth/client";
 import ConferenciaOmie from "@/components/comum/ConferenciaOmie";
 import { FaturandoTela, AguardandoNotas } from "@/components/pos/FaturarOSModal";
+import { temAlerta, type ItemParaConferir } from "@/lib/ppv/conferencia-precos";
+import { useConferenciaPrecos, PainelConferenciaPrecos } from "./ConferenciaPrecos";
 
 type Previa = { empresa?: string; total?: number; itens?: { descricao: string; quantidade: number; valorUnitario: number; valorTotal: number }[]; erro?: string };
 const brl = (v: number) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
 export default function FaturarModal({
-  open, ppvId, numeroPedido, userName, onClose, onDone, showToast,
+  open, ppvId, numeroPedido, itensConferir, userName, onClose, onDone, showToast,
 }: {
   open: boolean;
   ppvId: string | null;
   numeroPedido?: string;   // nº do Pedido de Venda no Omie
+  itensConferir?: ItemParaConferir[]; // itens com saldo, para a conferência de preço
   userName?: string;
   onClose: () => void;
   onDone: () => void;
@@ -32,6 +37,10 @@ export default function FaturarModal({
   const [reservadasPendentes, setReservadasPendentes] = useState(0);
   // fechou durante o "Faturando": o resultado só vai para o sino
   const fechouRef = useRef(false);
+  // o modal é montado a cada abertura (showFaturar && …): o "ciente" nasce desmarcado
+  const conferencia = useConferenciaPrecos(itensConferir || [], open);
+  const [ciente, setCiente] = useState(false);
+  const precisaCiente = !!conferencia.resultado && temAlerta(conferencia.resultado.resumo);
 
   useEffect(() => {
     if (!open || !ppvId) return;
@@ -157,6 +166,16 @@ export default function FaturarModal({
           <a href={`/ppv/liberacao/${encodeURIComponent(ppvId)}`} target="_blank" rel="noreferrer" style={{ color: "#92400e", fontWeight: 700 }}>abrir liberação</a>. Dá pra faturar mesmo assim; a pendência fica na conferência.
         </div>
       )}
+      {conferencia.carregando && !conferencia.resultado && (
+        <div style={{ marginBottom: 12, fontSize: 12.5, color: "#94a3b8" }}><i className="fas fa-spinner fa-spin" style={{ marginRight: 6 }} />Conferindo preços…</div>
+      )}
+      <PainelConferenciaPrecos resultado={conferencia.resultado} titulo="Antes de faturar" />
+      {precisaCiente && (
+        <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginBottom: 14, fontSize: 13, color: "#334155", cursor: "pointer" }}>
+          <input type="checkbox" checked={ciente} onChange={(e) => setCiente(e.target.checked)} style={{ marginTop: 2 }} />
+          <span>Conferi os preços acima e quero faturar assim mesmo.</span>
+        </label>
+      )}
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 16 }}>
         <span style={{ width: 40, height: 40, borderRadius: 12, flexShrink: 0, background: "#ffedd5", color: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 17 }}><i className="fas fa-triangle-exclamation" /></span>
         <div>
@@ -165,7 +184,8 @@ export default function FaturarModal({
         </div>
       </div>
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={faturar} disabled={!previa} style={{ ...btn, flex: 1, background: previa ? "#e8730c" : "#fdba74", color: "#fefefe", cursor: previa ? "pointer" : "wait" }}>
+        <button onClick={faturar} disabled={!previa || (precisaCiente && !ciente)} title={precisaCiente && !ciente ? "Confira os preços e marque a caixa acima" : undefined}
+          style={{ ...btn, flex: 1, background: previa ? "#e8730c" : "#fdba74", color: "#fefefe", cursor: !previa ? "wait" : precisaCiente && !ciente ? "not-allowed" : "pointer", opacity: precisaCiente && !ciente ? 0.55 : 1 }}>
           <i className="fas fa-file-invoice-dollar" /> Sim, faturar
         </button>
         <button onClick={onClose} style={{ ...btn, background: "#f1f5f9", color: "#334155" }}>Não</button>

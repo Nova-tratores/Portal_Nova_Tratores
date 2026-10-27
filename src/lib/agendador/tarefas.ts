@@ -141,6 +141,15 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: `abertas ${a.abertas} (${a.pecasNovas} peças) · fechadas ${a.fechadas}${erros.length ? ` · ${erros.join(' | ')}` : ''}` };
   },
 
+  'ppv-precos-sync': async () => {
+    if (desligada('PPV_PRECOS_SYNC')) return { pular: 'desligado (PPV_PRECOS_SYNC=off)' };
+    const { sincronizarPrecosAlterados } = await import('@/lib/ppv/precos-sync');
+    const res = await sincronizarPrecosAlterados();
+    const erros = res.filter((c) => c.erro).map((c) => `${c.conta}: ${c.erro}`);
+    if (erros.length === res.length && erros.length > 0) throw new Error(erros.join(' | '));
+    return { resumo: res.map((c) => `${c.conta} ${c.erro ? 'erro: ' + c.erro : c.alterados + ' alterados'}`).join(' · ') };
+  },
+
   'notas-cache-docs': async () => {
     if (desligada('NOTAS_CACHE')) return { pular: 'desligado (NOTAS_CACHE=off)' };
     const { indexarNotas, guardarLote, diasAtras, VINCULAR_JANELA_DIAS } = await import('@/lib/notas/cache-docs');

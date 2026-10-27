@@ -82,6 +82,17 @@ export const AGENDAMENTOS: Agendamento[] = [
     obs: 'Registra em cron_runs como pecas-alocacao-rapido. Também dispara no botão "Verificar agora" e ao concluir a entrada pelo portal',
   },
   {
+    nome: 'Preços do PPV/Orçamento (alterados na Omie)',
+    modulo: 'Peças',
+    fonte: 'in-process',
+    frequencia: 'A cada 10 min',
+    horarioBRT: 'seg–sáb 07:00–20:00 BRT',
+    alvo: 'tarefa ppv-precos-sync — ListarProdutos só dos alterados nos últimos 3 dias → upsert em Produtos_Completos',
+    arquivo: 'src/lib/agendador/tarefas.ts',
+    condicional: 'Só em produção; desliga com PPV_PRECOS_SYNC=off',
+    obs: 'Linha em agendamentos (sql/ppv-precos-sync-agendamento.sql); sem o agendador cai no setInterval do instrumentation.ts. O botão "Sincronizar produtos" do /ppv continua fazendo a carga completa',
+  },
+  {
     nome: 'Sync rápido de saldo',
     modulo: 'Estoque',
     fonte: 'github',

@@ -227,6 +227,23 @@ export async function register(): Promise<void> {
     log('alocação de peças recebidas LIGADA (a cada 10 min, seg–sáb 07h–20h BRT)');
   }
 
+  // Preço de venda das peças no PPV/Orçamento (Produtos_Completos): só os produtos
+  // ALTERADOS na Omie nos últimos 3 dias, a cada 10 min em horário comercial. Antes só
+  // o botão "Sincronizar produtos" atualizava — OS-0846 saiu com os preços antigos.
+  // Com o agendador ligado roda pela tarefa 'ppv-precos-sync'. Desliga com PPV_PRECOS_SYNC=off.
+  if (rodaRobos && !agendadorLigado && process.env.NODE_ENV === 'production' && process.env.PPV_PRECOS_SYNC !== 'off') {
+    const { rodarPrecosSyncAgendado } = await import('./lib/ppv/precos-sync');
+    const rodarPrecos = async () => {
+      try {
+        const r = await rodarPrecosSyncAgendado();
+        if (r) log(`ppv-precos-sync: ${r}`);
+      } catch (e) { log('ppv-precos-sync falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarPrecos().catch(() => {}); }, 10 * 60 * 1000);
+    setTimeout(() => { rodarPrecos().catch(() => {}); }, 3 * 60 * 1000);
+    log('sync de preços do PPV LIGADO (a cada 10 min, seg–sáb 07h–20h BRT)');
+  }
+
   // Faturamento da OS pelo portal (NFS-e): confere no Omie as OS com faturamento
   // sem resposta clara ou NFS-e ainda aguardando a prefeitura, a cada 10 min.
   // Só olha as pendentes (índice parcial) — sem pendência, nenhuma chamada ao Omie.
