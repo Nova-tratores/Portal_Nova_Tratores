@@ -229,8 +229,8 @@ async function calcularTotais(dados: { qtdHoras: number; qtdKm: number; ppv: str
 
 async function registrarLog(osId: string, acao: string, statusPara: string | null, statusDe: string | null = null, userName: string = "Sistema") {
   const agora = new Date();
-  const dataFmt = new Intl.DateTimeFormat("pt-BR").format(agora);
-  const horaFmt = agora.toLocaleTimeString("pt-BR");
+  const dataFmt = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora);
+  const horaFmt = agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" });
 
   const { data: resOs } = await supabase.from(TBL_OS).select("Data").eq("Id_Ordem", osId);
   let totalDiasAberto = 0;

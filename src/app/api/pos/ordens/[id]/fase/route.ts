@@ -26,8 +26,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const agora = new Date();
     await supabase.from(TBL_LOGS_PPO).insert({
       Id_ppo: idOs,
-      Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora),
-      Hora_Acao: agora.toLocaleTimeString("pt-BR"),
+      Data_Acao: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora),
+      Hora_Acao: agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" }),
       UsuEmail: userName || "Sistema",
       acao: `Serviço agendado para ${previsaoExecucao.split("-").reverse().join("/")} (data início atualizada)`,
       Status_Anterior: newStatus, Status_Atual: newStatus,

@@ -300,8 +300,8 @@ export async function PATCH(req: NextRequest) {
             const agora = new Date();
             await supabaseFetch("logs_ppo", "POST", {
               Id_ppo: osAlvo,
-              Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora),
-              Hora_Acao: agora.toLocaleTimeString("pt-BR"),
+              Data_Acao: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora),
+              Hora_Acao: agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" }),
               UsuEmail: userName,
               acao: `Sincronizado do ${dados.id}: ${Object.keys(patchOs).map((k) => (k === "Os_Cliente" ? "cliente" : k === "Cnpj_Cliente" ? "CPF/CNPJ" : "técnico")).join(", ")} alinhado(s)`,
               Status_Anterior: dados.status, Status_Atual: dados.status,

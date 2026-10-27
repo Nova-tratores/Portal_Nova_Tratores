@@ -52,7 +52,7 @@ async function consultarOS(chave: Record<string, unknown>): Promise<OsOmie | nul
 async function logOS(idOrdem: string, acao: string, usuario: string) {
   const agora = new Date();
   await supabase.from(TBL_LOGS_PPO).insert({
-    Id_ppo: idOrdem, Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora), Hora_Acao: agora.toLocaleTimeString("pt-BR"),
+    Id_ppo: idOrdem, Data_Acao: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora), Hora_Acao: agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" }),
     UsuEmail: usuario, acao,
   }).then(() => {}, () => {});
 }
