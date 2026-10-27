@@ -12,6 +12,7 @@ import { anexosDaReq } from '@/lib/requisicoes/anexos';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { IconeQuadrado } from './visualReq';
 import { brl, diasAberta, FASES_ABERTAS, normalizarStatus, normalizarTipo, valorReq, visualTipo } from '@/lib/requisicoes/inteligencia';
+import { SeloCobranca, temCobranca } from '@/components/pos/CobrancaRequisicao';
 
 // Carrega CardReq completo só quando o modal abre
 const CardReq = dynamic(() => import('./CardReq'), { ssr: false });
@@ -34,6 +35,7 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
   const aberta = (FASES_ABERTAS as string[]).includes(normalizarStatus(req.status));
   // dias parada: calculado uma vez por render (a tela já relê sozinha)
   const dias = diasAberta(req, new Date());
+  const cobravel = temCobranca(req);
 
   // Subtítulo contextual baseado no tipo
   const subtituloContextual = useMemo(() => {
@@ -125,8 +127,10 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
           {req.fornecedor && <span title="Fornecedor"><i className="fa-solid fa-store" />{req.fornecedor}</span>}
         </div>
 
-        {(notaAchada || veioDoApp || escolhidoParaComparar || dias != null && dias > 7 || (!req.fornecedor && aberta)) && (
+        {(cobravel || notaAchada || veioDoApp || escolhidoParaComparar || dias != null && dias > 7 || (!req.fornecedor && aberta)) && (
           <div className="rq-req-selos">
+            {/* cobrança do cliente; o motivo do "Não cobrada" aparece ao passar o mouse e no cartão aberto (José, 26/10/2026) */}
+            {cobravel && <SeloCobranca req={req} compacto />}
             {notaAchada && (
               <button type="button" className="rq-pilula rq-pulsa" style={{ ['--c' as any]: '#2563EB', cursor: 'pointer', border: '1px solid color-mix(in srgb, #2563EB 30%, transparent)' }}
                 title="Achei no Omie uma nota de entrada que parece ser desta requisição — clique para conferir"

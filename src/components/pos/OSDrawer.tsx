@@ -40,6 +40,10 @@ import TemparioOSBloco from "./TemparioOSBloco";
 import ModalNovoCliente from "@/components/clientes/ModalNovoCliente";
 import ModalNovaMaquina from "@/components/clientes/ModalNovaMaquina";
 import MaquinasClienteDestaque from "./MaquinasClienteDestaque";
+// Cobrança das requisições + lembretes ligados à OS (José, 26/10/2026)
+import { SeloCobranca, AcoesCobranca, AvisoCobrancaOS, temCobranca, statusCobranca, type ReqCobranca } from "./CobrancaRequisicao";
+import LembretesDaOS from "./LembretesDaOS";
+import { ModalValorLembrete, ModalMotivoDesconto, IconeMotivoDesconto, temValorPendente, tituloLembrete, valorDoLembrete, type LembreteValor } from "./ValoresLembreteOS";
 import { GradeServicosOmie, AbaDepartamentos, AbaInfoAdicionais, AbaParcelas, AbaEmail, ClienteOmieModal, SeletorCondicao, SeletorTecnicos, Chave, useListasOmie } from "./OSOmieAbas";
 import { espelhoPadrao, normalizarEspelho, aplicarInterna, totalExtras, type OmieEspelho } from "@/lib/pos/omie-espelho";
 import type { DocAnterior } from "@/lib/pos/omie-anteriores";
@@ -427,7 +431,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     return () => { ativo = false; };
   }, [visible, osId]);
   const [omieAnteriores, setOmieAnteriores] = useState<DocAnterior[]>([]);
-  const [requisicoes, setRequisicoes] = useState<Array<{ id: string; atualizada: boolean; valor: number; material: string; solicitante: string }>>([]);
+  const [requisicoes, setRequisicoes] = useState<Array<{ id: string; atualizada: boolean; valor: number; material: string; solicitante: string; tipo?: string | null; status?: string | null; cobranca_status?: string | null; cobranca_motivo?: string | null; cobranca_por?: string | null; cobranca_em?: string | null }>>([]);
   const [desvinculandoReq, setDesvinculandoReq] = useState<string | null>(null);
   const [justificativaDesvinc, setJustificativaDesvinc] = useState("");
   const [clienteFilter, setClienteFilter] = useState("");
@@ -472,7 +476,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [showDescontos, setShowDescontos] = useState(false);
   const [dadosTecnico, setDadosTecnico] = useState<any>(null);
   const [fotoExpandida, setFotoExpandida] = useState<string | null>(null);
-  const [lembretes, setLembretes] = useState<Array<{ id: number; lembrete: string }>>([]);
+  const [lembretes, setLembretes] = useState<Array<LembreteValor>>([]);
+  // Lembrete com valor (cobrar / crédito) ao abrir a OS + motivo do desconto (José, 27/10/2026)
+  const [lembretesAdiados, setLembretesAdiados] = useState<number[]>([]);
+  const [aplicandoLembrete, setAplicandoLembrete] = useState(false);
+  const [salvarPendente, setSalvarPendente] = useState(false);
+  const concluirAoSalvarRef = useRef<Array<{ id: number; nota: string; resto?: number }>>([]);
+  /** desconto geral que já tem motivo (o carregado da OS conta como explicado) */
+  const descExplicadoRef = useRef(0);
+  const [pedirMotivo, setPedirMotivo] = useState(false);
   const [editingLembreteId, setEditingLembreteId] = useState<number | null>(null);
   const [editingLembreteText, setEditingLembreteText] = useState("");
   const [estimativa, setEstimativa] = useState<{
@@ -778,34 +790,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     }
   }, []);
 
-  const salvarLembreteInline = useCallback(async (id: number, texto: string) => {
-    try {
-      await fetch(`/api/pos/lembretes/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lembrete: texto }),
-      });
-      setLembretes((prev) => prev.map((l) => l.id === id ? { ...l, lembrete: texto } : l));
-      setEditingLembreteId(null);
-    } catch {
-      alert("Erro ao salvar lembrete.");
-    }
-  }, []);
-
-  const concluirLembrete = useCallback(async (id: number) => {
-    if (!osId) { alert("Salve a OS antes de concluir o lembrete."); return; }
-    if (!confirm(`Concluir este lembrete e registrar que foi resolvido na OS ${osId}?`)) return;
-    try {
-      await fetch(`/api/pos/lembretes/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ concluido: true, concluido_por: userName, concluido_em_ordem: String(osId) }),
-      });
-      setLembretes((prev) => prev.filter((l) => l.id !== id));
-    } catch {
-      alert("Erro ao concluir lembrete.");
-    }
-  }, [osId, userName]);
+  // Editar/concluir lembrete agora fica no LembretesDaOS (confere a resposta do servidor) (José, 26/10/2026)
 
   const selectCliente = useCallback(async (chave: string) => {
     setClienteChave(chave);
@@ -954,6 +939,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     if (mode === "create" && !clienteChave) { alert("Selecione o Cliente"); return false; }
     if (status === "Cancelada" && !motivoCancel.trim()) { alert("Informe o motivo do cancelamento"); return false; }
     if (status === "Cancelada" && temSubstituto && !substitutoId.trim()) { alert("Informe o ID do substituto"); return false; }
+    // desconto novo ou mudado sem motivo → pede o motivo antes de salvar (José, 27/10/2026)
+    if (descValor > 0.004 && Math.abs(descValor - descExplicadoRef.current) > 0.004) { setPedirMotivo(true); return false; }
     // Aberta AGORA (ainda no clique) pra o navegador não bloquear o pop-up;
     // recebe o endereço do formulário depois que a OS existir
     const janelaReq = mode === "create" && abrirReqDepois ? window.open("about:blank", "_blank") : null;
@@ -1030,6 +1017,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         else janelaReq.close();
       }
       if (!previsaoFaturamento) setPrevisaoFaturamento(hojeSP());
+      // lembretes com valor aplicados nesta OS: concluem agora que a OS foi gravada
+      const aConcluir = concluirAoSalvarRef.current.splice(0);
+      for (const c of aConcluir) {
+        const corpo = c.resto && c.resto > 0
+          ? { valor: c.resto, conclusao_nota: c.nota }
+          : { concluido: true, concluido_por: userName || "Sistema", conclusao_nota: c.nota, concluido_em_ordem: String(result.novaOsId || osId || "") || null };
+        await fetch(`/api/pos/lembretes/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(corpo) }).catch(() => null);
+      }
+      if (aConcluir.length) setLembretes((prev) => prev.filter((x) => !aConcluir.some((c) => c.id === x.id && !(c.resto && c.resto > 0))));
       setSaving(false);
       setLogRefreshKey((k) => k + 1);
       // Avisa quando a ordem muda de externa↔interna (muda só o destino das peças)
@@ -1056,7 +1052,56 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       servSolicitado, qtdHoras, qtdKm, ppv, status, ordemOmie, motivoCancel, descValor,
       descHoraValor, descKmValor, relatorioTecnico, previsaoExecucao, previsaoFaturamento, dataFimServico, servicoNumero,
       gerarPPV, servicoOficina, servicoInterno, alimentacoes, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved, podeEditar, podeCancelar,
-      pecasPendentes, abrirReqDepois]);
+      pecasPendentes, abrirReqDepois, esp, descHoraEf, descKmEf, userName]);
+
+  // Aplicou valor de lembrete: salva a OS assim que o estado novo (espelho/desconto) estiver no salvar
+  useEffect(() => {
+    if (!salvarPendente) return;
+    setSalvarPendente(false);
+    salvar().finally(() => setAplicandoLembrete(false));
+  }, [salvarPendente, salvar]);
+
+  const lembreteComValor = useMemo(
+    () => (mode === "edit" && podeEditar && !faturadaEm && status !== "Cancelada" && status !== "Concluída")
+      ? lembretes.find((l) => temValorPendente(l) && !lembretesAdiados.includes(l.id)) || null
+      : null,
+    [mode, podeEditar, faturadaEm, status, lembretes, lembretesAdiados]);
+
+  const aplicarLembreteValor = (l: LembreteValor) => {
+    const valor = valorDoLembrete(l);
+    const titulo = tituloLembrete(l.lembrete);
+    setAplicandoLembrete(true);
+    if (l.valor_tipo === "credito") {
+      const cabe = Math.max(0, Math.min(valor, Math.round(total * 100) / 100));
+      const novo = Math.round((descValor + cabe) * 100) / 100;
+      const anterior = esp.descontoMotivo?.texto && descValor > 0 ? `${esp.descontoMotivo.texto} + ` : "";
+      syncDiscount("V", novo);
+      setShowDescontos(true);
+      setEsp((x) => ({ ...x, descontoMotivo: { texto: `${anterior}${titulo}`, valor: novo, por: userName || "Sistema", em: new Date().toISOString() } }));
+      descExplicadoRef.current = novo;
+      const resto = Math.round((valor - cabe) * 100) / 100;
+      concluirAoSalvarRef.current.push({ id: l.id, nota: `Crédito de R$ ${fmtBR(cabe)} aplicado como desconto na OS ${osId}`, resto: resto > 0 ? resto : undefined });
+    } else {
+      setEsp((x) => ({ ...x, extras: [...x.extras, { id: `lb-${l.id}`, codigo: "div.", nome: "Diversos", descricao: titulo, qtde: 1, unit: valor, cobrar: true }] }));
+      concluirAoSalvarRef.current.push({ id: l.id, nota: `Incluído na OS ${osId} como Diversos de R$ ${fmtBR(valor)}` });
+    }
+    setLembretesAdiados((p) => [...p, l.id]);
+    setSalvarPendente(true);
+  };
+
+  const salvarMotivoDesconto = (texto: string) => {
+    setEsp((x) => ({ ...x, descontoMotivo: { texto, valor: descValor, por: userName || "Sistema", em: new Date().toISOString() } }));
+    descExplicadoRef.current = descValor;
+    setPedirMotivo(false);
+  };
+  const cancelarMotivoDesconto = () => {
+    // sem motivo o desconto volta ao que já estava explicado
+    syncDiscount("V", descExplicadoRef.current);
+    setPedirMotivo(false);
+  };
+  const conferirMotivoDesconto = () => {
+    if (descValor > 0.004 && Math.abs(descValor - descExplicadoRef.current) > 0.004) setPedirMotivo(true);
+  };
   useEffect(() => { salvarRef.current = salvar; }, [salvar]);
   // travas antes de faturar (previsão = hoje, projeto): a tela muda junto, senão o próximo Salvar desfaria
   const ajustarParaFaturar = useCallback(async (c: { previsaoFaturamento?: string; projeto?: string }): Promise<boolean> => {
@@ -1071,7 +1116,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setTecnico1(""); setTecnico2(""); setTipoServico("Manutenção");
     setProjeto(""); setRevisao(""); setServSolicitado(TEXT_TEMPLATE);
     setPecasPendentes([]); setAbrirReqDepois(false);
-    setPpv(""); setQtdHoras(1); setQtdKm(0); setUnitHr(null); setUnitKm(null); setNotasEsperaDesde(null); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0); setEspRaw(espelhoPadrao());
+    setPpv(""); setQtdHoras(1); setQtdKm(0); setUnitHr(null); setUnitKm(null); setNotasEsperaDesde(null); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0); setEspRaw(espelhoPadrao()); descExplicadoRef.current = 0; concluirAoSalvarRef.current = []; setLembretesAdiados([]); setPedirMotivo(false);
     setOrdemOmie(""); setPedidoVenda(""); setOmieLog(""); setMotivoCancel(""); setTemSubstituto(false); setSubstitutoTipo("POS"); setSubstitutoId("");
     setRelatorioTecnico("");
     const agora = new Date()
@@ -1123,7 +1168,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           const dv = parseFloat(d.descontoSalvo || 0);
           const dh = parseFloat(d.descontoHora || 0);
           const dk = parseFloat(d.descontoKm || 0);
-          setDescValor(dv);
+          setDescValor(dv); descExplicadoRef.current = dv; setLembretesAdiados([]); concluirAoSalvarRef.current = [];
           setDescHoraValor(dh);
           setDescKmValor(dk);
           setEspRaw(normalizarEspelho(d.omieEspelho, espelhoPadrao({ interna: !!d.servicoInterno, garantia: /garantia/i.test(String(d.tipoServico || "")) })));
@@ -1470,53 +1515,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                 )}
               </div>
               <div className="os-header-actions">
-                {mode === "edit" && lembretes.length > 0 && (
-                  <div style={{ position: "relative" }}>
-                    <button type="button" onClick={() => setShowLembretes(o => !o)} title="Lembretes do cliente"
-                      style={{ position: "relative", width: 38, height: 38, borderRadius: 10, border: "1.5px solid #FB923C", background: "#FFF7ED", color: "#C2410C", cursor: "pointer", fontSize: 15, marginRight: 8 }}>
-                      <i className="fas fa-bell" />
-                      <span style={{ position: "absolute", top: -6, right: -6, minWidth: 17, height: 17, borderRadius: 9, background: "#EA580C", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{lembretes.length}</span>
-                    </button>
-                    {showLembretes && (
-                      <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 300, width: "min(460px, 86vw)", maxHeight: 420, overflowY: "auto", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "0 16px 40px rgba(0,0,0,.22)", padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-                  {lembretes.map((l) => (
-                    <div key={l.id} className="os-lembrete-alert">
-                      <div className="os-lembrete-alert-header">
-                        <i className="fas fa-bell" /> Lembrete
-                      </div>
-                      {editingLembreteId === l.id ? (
-                        <div>
-                          <textarea
-                            rows={3}
-                            value={editingLembreteText}
-                            onChange={(e) => setEditingLembreteText(e.target.value)}
-                            style={{ marginBottom: 8 }}
-                          />
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                            <button className="os-lembrete-edit-btn" onClick={() => setEditingLembreteId(null)}>Cancelar</button>
-                            <button className="os-lembrete-edit-btn" onClick={() => salvarLembreteInline(l.id, editingLembreteText)}>Salvar</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="os-lembrete-alert-text">{l.lembrete}</div>
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                            <button className="os-lembrete-edit-btn" onClick={() => { setEditingLembreteId(l.id); setEditingLembreteText(l.lembrete); }}>
-                              <i className="fas fa-pen" style={{ marginRight: 4 }} /> Editar
-                            </button>
-                            {osId && (
-                              <button className="os-lembrete-edit-btn" style={{ background: "#10B981", color: "#fff", borderColor: "#10B981" }} onClick={() => concluirLembrete(l.id)}>
-                                <i className="fas fa-check" style={{ marginRight: 4 }} /> Concluir
-                              </button>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                      </div>
-                    )}
-                  </div>
+                {/* Sino: lembretes do cliente + os ligados a esta OS, com cobrança em destaque (José, 26/10/2026) */}
+                {mode === "edit" && (
+                  <LembretesDaOS osId={osId} userName={userName || ""} lembretesCliente={lembretes} onLembretesCliente={setLembretes} />
                 )}
                 <button className="os-btn-close" onClick={onClose} style={{ display: "inline-flex", alignItems: "center", gap: 8, width: "auto", padding: "6px 12px" }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>Fechar</span>
@@ -1628,8 +1629,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                               <i className="fas fa-pen" />
                             </button>{" "}
                             <span style={{ fontSize: 10.5, color: "#b7b0a3" }}>({descontoModoOS === "pct" ? "%" : "R$"})</span>
+                            {descValor > 0 && esp.descontoMotivo?.texto && (
+                              <IconeMotivoDesconto motivo={esp.descontoMotivo.texto} por={esp.descontoMotivo.por} onClick={() => setPedirMotivo(true)} />
+                            )}
                           </div>
-                          <div style={{ ...B_OMIE, padding: "0 8px", gap: 4 }}>
+                          <div style={{ ...B_OMIE, padding: "0 8px", gap: 4 }} onBlur={conferirMotivoDesconto}>
                             {descontoModoOS === "pct" ? (
                               <>
                                 <input type="number" value={descPorc || ""} min={0} max={100} step={0.5} placeholder="0" disabled={!podeEditar} title="Desconto em %"
@@ -2592,6 +2596,19 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                     const thR: React.CSSProperties = { padding: "9px 12px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, color: "#64748b", textAlign: "left", background: "var(--portal-bg-secondary, #f6f8f9)", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" };
                     const tdR: React.CSSProperties = { padding: "10px 12px", fontSize: 13, borderTop: "1px solid var(--border)", verticalAlign: "middle" };
                     const icoBtn = (cor: string): React.CSSProperties => ({ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface, #fefefe)", color: cor, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12 });
+                    // Cobrança: só requisições da tabela nova (vêm com tipo); legado fica sem selo (José, 26/10/2026)
+                    const cobrDe = (r: (typeof reqs)[number]): ReqCobranca | null => r.tipo === undefined ? null : {
+                      id: r.id, tipo: r.tipo, status: r.status, ordem_servico: osId, valor_cobrado_cliente: r.valor > 0 ? r.valor : null,
+                      cobranca_status: r.cobranca_status, cobranca_motivo: r.cobranca_motivo, cobranca_por: r.cobranca_por, cobranca_em: r.cobranca_em,
+                    };
+                    const aCobrar = reqs.filter((r) => { const c = cobrDe(r); return !!c && temCobranca(c) && statusCobranca(c) === "a_cobrar"; }).length;
+                    const mudouCobr = (id: string, c: Partial<ReqCobranca>) => setRequisicoes((prev) => prev.map((x) => x.id !== id ? x : {
+                      ...x, cobranca_status: c.cobranca_status !== undefined ? c.cobranca_status : x.cobranca_status,
+                      cobranca_motivo: c.cobranca_motivo !== undefined ? c.cobranca_motivo : x.cobranca_motivo,
+                      cobranca_por: c.cobranca_por !== undefined ? c.cobranca_por : (c.cobranca_status === "nao_cobrada" ? userName : x.cobranca_por),
+                      cobranca_em: c.cobranca_em !== undefined ? c.cobranca_em : x.cobranca_em,
+                      valor: c.valor_cobrado_cliente != null ? Number(c.valor_cobrado_cliente) || x.valor : x.valor,
+                    }));
                     return (
                     <div className="os-card" style={{ display: abaOmie === "requisicoes" ? undefined : "none" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -2606,11 +2623,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           <i className="fas fa-cart-plus" style={{ fontSize: 22, opacity: .5, display: "block", marginBottom: 6 }} />
                           Nenhuma requisição nesta OS. Use <b>Nova requisição</b> — ela já sai preenchida com a OS.
                         </div>
-                      ) : (
+                      ) : (<>
+                        <AvisoCobrancaOS qtd={aCobrar} />
                         <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
                           <table style={{ width: "100%", borderCollapse: "collapse" }}>
                             <thead><tr>
-                              <th style={thR}>Nº</th><th style={thR}>Situação</th><th style={thR}>Descrição</th><th style={thR}>Solicitante</th>
+                              <th style={thR}>Nº</th><th style={thR}>Situação</th><th style={thR}>Descrição</th><th style={thR}>Solicitante</th><th style={thR}>Cobrança</th>
                               <th style={{ ...thR, textAlign: "right" }}>Valor</th><th style={{ ...thR, textAlign: "center" }} title="Desligado = fora da folha e do total impresso (só nesta impressão)">No PDF</th><th style={thR} />
                             </tr></thead>
                             <tbody>
@@ -2621,6 +2639,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                                     <td style={tdR}><span style={{ fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: r.atualizada ? "#dcfce7" : "#fef3c7", color: r.atualizada ? "#15803d" : "#92400e" }}>{r.atualizada ? "OK" : "Pendente"}</span></td>
                                     <td style={{ ...tdR, maxWidth: 360 }}><span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.material}>{r.material}</span></td>
                                     <td style={{ ...tdR, color: "var(--portal-text-muted)", whiteSpace: "nowrap" }}>{r.solicitante && r.solicitante !== "N/A" ? r.solicitante : "—"}</td>
+                                    <td style={{ ...tdR, minWidth: 170 }}>{(() => { const c = cobrDe(r); if (!c || !temCobranca(c)) return <span style={{ color: "var(--portal-text-muted)" }}>—</span>; return (
+                                      <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+                                        <SeloCobranca req={c} />
+                                        <AcoesCobranca req={c} comValor pequeno onMudou={(m) => mudouCobr(r.id, m)} />
+                                      </div>); })()}</td>
                                     <td style={{ ...tdR, textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>{r.valor > 0 ? `R$ ${fmtBR(r.valor)}` : "—"}</td>
                                     <td style={{ ...tdR, textAlign: "center" }}><Chave ligada={!reqsOcultasPrint.has(r.id)} onChange={() => toggleReqPrint(r.id)} rotulo="" /></td>
                                     <td style={{ ...tdR, whiteSpace: "nowrap", textAlign: "right" }}>
@@ -2631,7 +2654,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                                     </td>
                                   </tr>
                                   {desvinculandoReq === r.id && (
-                                    <tr><td colSpan={7} style={{ ...tdR, background: "#fff7f7" }}>
+                                    <tr><td colSpan={8} style={{ ...tdR, background: "#fff7f7" }}>
                                       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                                         <span style={{ fontSize: 12.5, fontWeight: 700, color: "#7f1d1d" }}>Desvincular a #{r.id}:</span>
                                         <input autoFocus type="text" placeholder="Justificativa (obrigatória)" value={justificativaDesvinc} onChange={(e) => setJustificativaDesvinc(e.target.value)}
@@ -2655,7 +2678,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                             <b style={{ color: "var(--portal-text)" }}>Total R$ {fmtBR(totalReqs)}</b>
                           </div>
                         </div>
-                      )}
+                      </>)}
                       {novaReqOS && osId && (
                         <NovaRequisicaoOSModal osId={osId} tecnico={tecnico1} userName={userName || ""} onClose={() => setNovaReqOS(false)}
                           onCriada={async () => {
@@ -3068,6 +3091,18 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
 
         </div>
       </div>
+
+      {/* Lembrete com valor ao abrir a OS e motivo do desconto (José, 27/10/2026) */}
+      {visible && !loadingData && lembreteComValor && !pedirMotivo && typeof document !== "undefined" && createPortal(
+        <ModalValorLembrete l={lembreteComValor} totalOS={total} ocupado={aplicandoLembrete || saving}
+          onAplicar={() => aplicarLembreteValor(lembreteComValor)}
+          onDepois={() => setLembretesAdiados((p) => [...p, lembreteComValor.id])} />,
+        document.body)}
+      {visible && pedirMotivo && typeof document !== "undefined" && createPortal(
+        <ModalMotivoDesconto valor={descValor} motivoAtual={esp.descontoMotivo?.texto || ""}
+          obrigatorio={Math.abs(descValor - descExplicadoRef.current) > 0.004}
+          onSalvar={salvarMotivoDesconto} onCancelar={cancelarMotivoDesconto} />,
+        document.body)}
 
       {/* MODAL central: cancelar exige MOTIVO (não deixa cancelar sem).
           PORTAL no body — o drawer tem transform e prenderia o fixed. */}

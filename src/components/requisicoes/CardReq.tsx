@@ -28,6 +28,7 @@ import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
 import { buscarContaDaReq, criarContaDaRequisicao, type ContaExistente } from '@/lib/financeiro/conta-da-requisicao';
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins';
 import { fetchAuth } from '@/lib/auth/client';
+import CobrancaRequisicao from '@/components/pos/CobrancaRequisicao';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIatVqhjdeBeo4PYNWr992vCsPpvEEjOxabWB7mz5JRJ7BroxnvR8CRIcXIgTfLSm/exec';
 const DEPARTAMENTOS = ["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"];
@@ -1197,6 +1198,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                   </div>
                 </div>
               )}
+
+              {/* Cobrança do cliente: selo + motivo + "Não cobrar"/"Reabrir" (José, 26/10/2026) */}
+              <CobrancaRequisicao req={{ ...req, ...localData }} />
 
               {localData.setor === "Trator-Loja" && (
                 <div className="border border-zinc-200 rounded-xl p-4">

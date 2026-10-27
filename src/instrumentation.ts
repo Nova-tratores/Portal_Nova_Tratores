@@ -280,6 +280,21 @@ export async function register(): Promise<void> {
     log('POPs disparados pela OS LIGADO (a cada 10 min)');
   }
 
+  // Cobrança de requisições: sem valor cobrado do cliente vira lembrete no POS + sino do
+  // Pós-Vendas (José, 26/10/2026). SÓ produção. Desliga com POS_COBRANCA_REQ=off.
+  if (rodaRobos && !agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.POS_COBRANCA_REQ !== 'off')) {
+    const { vigiarCobrancas } = await import('./lib/pos/cobranca-requisicoes');
+    const rodarCobranca = async () => {
+      try {
+        const r = await vigiarCobrancas();
+        log(`pos-requisicoes-cobranca: ${r.resumo || r.pular}`);
+      } catch (e) { log('pos-requisicoes-cobranca falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarCobranca().catch(() => {}); }, 30 * 60 * 1000);
+    setTimeout(() => { rodarCobranca().catch(() => {}); }, 7 * 60 * 1000);
+    log('cobrança de requisições LIGADA (a cada 30 min)');
+  }
+
   // Central de Trabalho: replanejamento diário dos cronogramas ligados a quadros
   // de tickets (etapa atrasada empurra as seguintes). Uma vez por dia, a partir
   // das 06:00 BRT — antes da tela "Seu dia" das 7:30. SÓ produção.

@@ -8,6 +8,21 @@ export async function GET(req: NextRequest) {
   const nome = req.nextUrl.searchParams.get("nome");
   const cnpj = req.nextUrl.searchParams.get("cnpj");
   const todos = req.nextUrl.searchParams.get("todos"); // inclui concluidos
+  // Lembretes ligados à OS / à requisição / por tipo ('manual' | 'cobranca_requisicao') (José, 26/10/2026)
+  const idOrdem = req.nextUrl.searchParams.get("id_ordem");
+  const tipo = req.nextUrl.searchParams.get("tipo");
+  const requisicaoId = req.nextUrl.searchParams.get("requisicao_id");
+
+  if (idOrdem || tipo || requisicaoId) {
+    let q = supabase.from(TBL_LEMBRETES).select("*").order("created_at", { ascending: false });
+    if (idOrdem) q = q.eq("id_ordem", idOrdem.trim());
+    if (tipo) q = q.eq("tipo", tipo.trim());
+    if (requisicaoId) q = q.eq("requisicao_id", Number(requisicaoId));
+    if (!todos) q = q.eq("ativo", true).eq("concluido", false);
+    const { data, error } = await q;
+    if (error) return NextResponse.json({ erro: error.message }, { status: 500 });
+    return NextResponse.json(data || []);
+  }
 
   if (cnpj) {
     const { data, error } = await supabase
@@ -82,6 +97,13 @@ export async function POST(req: NextRequest) {
       concluido: false,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+      // opcionais (sql/requisicoes-cobranca.sql); só vão quando informados (José, 26/10/2026)
+      ...(body.id_ordem ? { id_ordem: String(body.id_ordem).trim() } : {}),
+      ...(body.lembrar_em ? { lembrar_em: body.lembrar_em } : {}),
+      ...(body.responsavel ? { responsavel: String(body.responsavel).trim() } : {}),
+      // valor a cobrar / crédito do cliente: oferecido ao abrir a próxima OS (José, 27/10/2026)
+      ...(Number(body.valor) > 0 && (body.valor_tipo === "cobrar" || body.valor_tipo === "credito")
+        ? { valor: Math.round(Number(body.valor) * 100) / 100, valor_tipo: body.valor_tipo } : {}),
     })
     .select()
     .single();

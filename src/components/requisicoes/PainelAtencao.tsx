@@ -5,6 +5,7 @@
 import React, { useMemo, useState } from 'react';
 import { brl, itensAtencao, type ItemAtencao, type Req } from '@/lib/requisicoes/inteligencia';
 import { IconeQuadrado } from './visualReq';
+import { statusCobranca, temCobranca } from '@/components/pos/CobrancaRequisicao';
 
 const CHAVE_FECHADO = 'req-atencao-fechado';
 
@@ -14,7 +15,16 @@ export default function PainelAtencao({ requisicoes, filtroAtivo, onFiltrar }: {
   filtroAtivo: string | null;
   onFiltrar: (item: ItemAtencao | null) => void;
 }) {
-  const itens = useMemo(() => itensAtencao(requisicoes, new Date()), [requisicoes]);
+  const itens = useMemo(() => {
+    // Filtro rápido "A cobrar do cliente": cobráveis ainda sem valor cobrado (José, 26/10/2026)
+    const aCobrar = requisicoes.filter((r) => temCobranca(r as never) && statusCobranca(r as never) === 'a_cobrar');
+    const cobrar: ItemAtencao = {
+      chave: 'aCobrar', titulo: 'A cobrar do cliente', icone: 'fa-hand-holding-dollar', cor: '#EA580C',
+      explicacao: 'Requisições de OS, Peças ou Serviço de Terceiros sem valor cobrado do cliente. Preencha o valor ou marque Não cobrar com o motivo.',
+      ids: aCobrar.map((r) => Number(r.id)), valor: 0,
+    };
+    return [cobrar, ...itensAtencao(requisicoes, new Date())];
+  }, [requisicoes]);
   const [fechado, setFechado] = useState(() => { try { return localStorage.getItem(CHAVE_FECHADO) === '1'; } catch { return false; } });
   const alternar = () => setFechado((v) => { try { localStorage.setItem(CHAVE_FECHADO, v ? '0' : '1'); } catch { /* sem storage */ } return !v; });
   const total = itens.reduce((s, i) => s + i.ids.length, 0);

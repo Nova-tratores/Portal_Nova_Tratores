@@ -373,6 +373,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, erro: `Erro ao criar OS: ${error.message}` }, { status: 500 });
   }
 
+  // OS nova com desconto: guarda o motivo (pedido na tela) no espelho completo (José, 27/10/2026)
+  if (dados.omieEspelho?.descontoMotivo?.texto) {
+    const { normalizarEspelho, espelhoPadrao } = await import("@/lib/pos/omie-espelho");
+    const esp = normalizarEspelho(dados.omieEspelho, espelhoPadrao({ interna: !!dados.servicoInterno, garantia: /garantia/i.test(String(dados.tipoServico || "")) }));
+    const { error: eEsp } = await supabase.from(TBL_OS).update({ Omie_Espelho: esp }).eq("Id_Ordem", newId);
+    if (eEsp) console.warn(`[os-espelho] ${newId}: não gravou o motivo do desconto (${eEsp.message})`);
+  }
+
   // PPV gerado junto: já nasce com a categoria/previsão/parcelas da OS
   if (ppvGerado) {
     try {

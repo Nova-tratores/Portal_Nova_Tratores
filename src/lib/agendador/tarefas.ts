@@ -194,6 +194,13 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: [r, v].filter(Boolean).join(' · ') || 'nada pendente' };
   },
 
+  // Requisição sem valor cobrado do cliente vira lembrete no POS + sino do Pós-Vendas (José, 26/10/2026)
+  'pos-requisicoes-cobranca': async () => {
+    if (desligada('POS_COBRANCA_REQ')) return { pular: 'desligado (POS_COBRANCA_REQ=off)' };
+    const { vigiarCobrancas } = await import('@/lib/pos/cobranca-requisicoes');
+    return vigiarCobrancas();
+  },
+
   'pops-gatilhos-os': async () => {
     if (desligada('POPS_GATILHOS_OS')) return { pular: 'desligado (POPS_GATILHOS_OS=off)' };
     const { verificarGatilhosOS, resumoGatilhos } = await import('@/lib/pops/gatilhos-os');

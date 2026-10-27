@@ -1,563 +1,323 @@
 "use client";
+// Lembretes do POS refeitos (José, 26/10/2026): abas Abertos · Cobrança · Para hoje/atrasados ·
+// Concluídos, busca por cliente/OS/requisição, e cada lembrete com concluir (nota), adiar, editar,
+// responsável e apagar (só manuais). Os de cobrança de requisição vêm do robô e resolvem a cobrança
+// pela rota /api/pos/requisicoes/cobranca. Cartão comum em ./lembretes-comum.
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import type { ClienteOption } from "@/lib/pos/types";
-
-interface Lembrete {
-  id: number;
-  cliente_chaves: string[];
-  cliente_nomes: string;
-  cliente_cnpj_cpf: string;
-  lembrete: string;
-  ativo: boolean;
-  concluido: boolean;
-  concluido_em: string | null;
-  concluido_por: string | null;
-  criado_por: string;
-  created_at: string;
-}
+import { authHeaders } from "@/lib/auth/client";
+import {
+  CartaoLembrete, CamposValorLembrete, ehCobranca, hojeISO, situacaoData, useUsuariosPortal, type Lembrete,
+} from "./lembretes-comum";
+import { btnCheio, btnContorno } from "./CobrancaRequisicao";
 
 interface LembretesDrawerProps {
   visible: boolean;
   clientes: ClienteOption[];
   userName: string;
   onClose: () => void;
+  /** abre a OS no POS sem sair da tela (se não vier, o link abre /pos?id=) */
+  onAbrirOS?: (id: string) => void;
 }
 
-export default function LembretesDrawer({ visible, clientes, userName, onClose }: LembretesDrawerProps) {
+type Aba = "abertos" | "cobranca" | "hoje" | "concluidos";
+const ABAS: { k: Aba; t: string; ic: string; cor: string }[] = [
+  { k: "abertos", t: "Abertos", ic: "fa-bell", cor: "#B45309" },
+  { k: "cobranca", t: "Cobrança", ic: "fa-hand-holding-dollar", cor: "#EA580C" },
+  { k: "hoje", t: "Para hoje e atrasados", ic: "fa-calendar-day", cor: "#DC2626" },
+  { k: "concluidos", t: "Concluídos", ic: "fa-check", cor: "#16A34A" },
+];
+
+const semAcento = (t: string) => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+
+export default function LembretesDrawer({ visible, clientes, userName, onClose, onAbrirOS }: LembretesDrawerProps) {
   const [lembretes, setLembretes] = useState<Lembrete[]>([]);
   const [loading, setLoading] = useState(false);
+  const [erroLista, setErroLista] = useState("");
+  const [aba, setAba] = useState<Aba>("abertos");
+  const [busca, setBusca] = useState("");
+  const [soMeus, setSoMeus] = useState(false);
+  const [criando, setCriando] = useState(false);
+  const usuarios = useUsuariosPortal();
+
+  // formulário de novo lembrete
   const [clienteFilter, setClienteFilter] = useState("");
   const [selectedClientes, setSelectedClientes] = useState<ClienteOption[]>([]);
   const [textoLembrete, setTextoLembrete] = useState("");
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [editingText, setEditingText] = useState("");
+  const [osNova, setOsNova] = useState("");
+  const [dataNova, setDataNova] = useState("");
+  const [respNovo, setRespNovo] = useState("");
+  const [valTipoNovo, setValTipoNovo] = useState<"" | "cobrar" | "credito">("");
+  const [valNovo, setValNovo] = useState("");
   const [saving, setSaving] = useState(false);
-  const [showClienteList, setShowClienteList] = useState(false);
-  const [detalheModal, setDetalheModal] = useState<Lembrete | null>(null);
-  const [filtroView, setFiltroView] = useState<"ativos" | "concluidos">("ativos");
+  const [erroNovo, setErroNovo] = useState("");
 
   const fetchLembretes = useCallback(async () => {
-    setLoading(true);
+    setLoading(true); setErroLista("");
     try {
-      const res = await fetch("/api/pos/lembretes?todos=1");
-      const data = await res.json();
-      if (Array.isArray(data)) setLembretes(data);
+      const res = await fetch("/api/pos/lembretes?todos=1", { headers: await authHeaders() });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) setErroLista((data && (data.erro || data.error)) || "Não consegui carregar os lembretes.");
+      else if (Array.isArray(data)) setLembretes(data);
     } catch {
-      console.error("Erro ao carregar lembretes");
+      setErroLista("Sem conexão com o servidor.");
     }
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    if (visible) {
-      fetchLembretes();
-      setSelectedClientes([]);
-      setTextoLembrete("");
-      setClienteFilter("");
-      setEditingId(null);
-      setShowClienteList(false);
-      setDetalheModal(null);
-    }
+    if (!visible) return;
+    fetchLembretes();
+    setCriando(false); setBusca(""); setErroNovo("");
   }, [visible, fetchLembretes]);
 
-  const selectedKeys = useMemo(() => new Set(selectedClientes.map((c) => c.chave)), [selectedClientes]);
+  const hoje = hojeISO();
+  const abertos = useMemo(() => lembretes.filter((l) => !l.concluido && l.ativo !== false), [lembretes]);
+  const porAba = useMemo<Record<Aba, Lembrete[]>>(() => ({
+    abertos,
+    cobranca: abertos.filter(ehCobranca),
+    hoje: abertos.filter((l) => { const s = situacaoData(l, hoje); return s === "hoje" || s === "atrasado"; }),
+    concluidos: lembretes.filter((l) => l.concluido),
+  }), [abertos, lembretes, hoje]);
 
+  const lista = useMemo(() => {
+    const termos = semAcento(busca).split(/\s+/).filter(Boolean);
+    const filtrada = porAba[aba].filter((l) => {
+      if (soMeus && l.responsavel !== userName) return false;
+      if (!termos.length) return true;
+      const alvo = semAcento([l.cliente_nomes, l.cliente_cnpj_cpf, l.id_ordem, l.requisicao_id ? `req ${l.requisicao_id} #${l.requisicao_id}` : "", l.lembrete, l.responsavel, l.criado_por].filter(Boolean).join(" "));
+      return termos.every((t) => alvo.includes(t));
+    });
+    if (aba === "concluidos") return filtrada.sort((a, b) => String(b.concluido_em || "").localeCompare(String(a.concluido_em || "")));
+    // abertos: data de lembrar mais cedo primeiro, sem data depois; empate = mais novo primeiro
+    return filtrada.sort((a, b) => {
+      const da = a.lembrar_em || "9999", db = b.lembrar_em || "9999";
+      return da !== db ? da.localeCompare(db) : String(b.created_at).localeCompare(String(a.created_at));
+    });
+  }, [porAba, aba, busca, soMeus, userName]);
+
+  const alterado = (id: number, novo: Lembrete | null) =>
+    setLembretes((prev) => novo ? prev.map((l) => l.id === id ? novo : l) : prev.filter((l) => l.id !== id));
+
+  // ── novo lembrete ──
+  const selectedKeys = useMemo(() => new Set(selectedClientes.map((c) => c.chave)), [selectedClientes]);
   const filteredClientes = useMemo(() => {
     if (!clienteFilter) return [];
-    const terms = clienteFilter.toLowerCase().split(/\s+/).filter(Boolean);
-    return clientes
-      .filter((c) => {
-        const d = c.display.toLowerCase();
-        return terms.every((t) => d.includes(t));
-      })
-      .slice(0, 30);
+    const terms = semAcento(clienteFilter).split(/\s+/).filter(Boolean);
+    return clientes.filter((c) => { const d = semAcento(c.display); return terms.every((t) => d.includes(t)); }).slice(0, 30);
   }, [clienteFilter, clientes]);
-
-  const toggleCliente = (c: ClienteOption) => {
-    setSelectedClientes((prev) =>
-      prev.some((s) => s.chave === c.chave)
-        ? prev.filter((s) => s.chave !== c.chave)
-        : [...prev, c]
-    );
-  };
+  const toggleCliente = (c: ClienteOption) =>
+    setSelectedClientes((prev) => prev.some((s) => s.chave === c.chave) ? prev.filter((s) => s.chave !== c.chave) : [...prev, c]);
 
   const criarLembrete = async () => {
-    if (!selectedClientes.length || !textoLembrete.trim()) {
-      alert("Selecione ao menos um cliente e preencha o lembrete.");
-      return;
-    }
-    setSaving(true);
+    if (!selectedClientes.length || !textoLembrete.trim()) { setErroNovo("Escolha ao menos um cliente e escreva o lembrete."); return; }
+    setSaving(true); setErroNovo("");
     try {
       const cnpjs = selectedClientes
         .map((c) => { const m = c.display.match(/\[([^\]]+)\]/); return m ? m[1].replace(/\D/g, "") : ""; })
-        .filter(Boolean)
-        .join(",");
-
+        .filter(Boolean).join(",");
       const res = await fetch("/api/pos/lembretes", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           cliente_chaves: selectedClientes.map((c) => c.chave),
           cliente_nomes: selectedClientes.map((c) => c.display.split("[")[0].trim()).join(", "),
           cliente_cnpj_cpf: cnpjs,
           lembrete: textoLembrete,
           criado_por: userName || "Sistema",
+          tipo: "manual",
+          origem: "usuario",
+          id_ordem: osNova.trim() || null,
+          lembrar_em: dataNova || null,
+          responsavel: respNovo || null,
+          ...(valTipoNovo && Number(valNovo) > 0 ? { valor: Number(valNovo), valor_tipo: valTipoNovo } : {}),
         }),
       });
       if (res.ok) {
-        setSelectedClientes([]);
-        setTextoLembrete("");
+        setSelectedClientes([]); setTextoLembrete(""); setOsNova(""); setDataNova(""); setRespNovo(""); setClienteFilter(""); setValTipoNovo(""); setValNovo("");
+        setCriando(false);
         fetchLembretes();
       } else {
-        const err = await res.json();
-        alert(err.erro || "Erro ao criar lembrete.");
+        const err = await res.json().catch(() => ({}));
+        setErroNovo(err.erro || err.error || "Não consegui criar o lembrete.");
       }
     } catch {
-      alert("Erro ao criar lembrete.");
+      setErroNovo("Sem conexão com o servidor.");
     }
     setSaving(false);
   };
 
-  const salvarEdicao = async (id: number) => {
-    if (!editingText.trim()) return;
-    try {
-      await fetch(`/api/pos/lembretes/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lembrete: editingText }),
-      });
-      setEditingId(null);
-      fetchLembretes();
-    } catch {
-      alert("Erro ao salvar.");
-    }
-  };
-
-  const excluirLembrete = async (id: number) => {
-    if (!confirm("Deseja excluir este lembrete?")) return;
-    try {
-      await fetch(`/api/pos/lembretes/${id}`, { method: "DELETE" });
-      fetchLembretes();
-      if (detalheModal?.id === id) setDetalheModal(null);
-    } catch {
-      alert("Erro ao excluir.");
-    }
-  };
-
-  const concluirLembrete = async (l: Lembrete) => {
-    try {
-      await fetch(`/api/pos/lembretes/${l.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          concluido: !l.concluido,
-          concluido_por: userName || "Sistema",
-        }),
-      });
-      fetchLembretes();
-      if (detalheModal?.id === l.id) {
-        setDetalheModal({ ...l, concluido: !l.concluido, concluido_em: !l.concluido ? new Date().toISOString() : null, concluido_por: !l.concluido ? userName : null });
-      }
-    } catch {
-      alert("Erro ao atualizar.");
-    }
-  };
-
-  const lembretesFiltrados = lembretes.filter((l) =>
-    filtroView === "ativos" ? !l.concluido && l.ativo : l.concluido
-  );
-
   if (!visible) return null;
+
+  const rot: React.CSSProperties = { fontSize: 13, color: "#475569", fontWeight: 400, textTransform: "none", letterSpacing: 0 };
+  const campo: React.CSSProperties = { marginBottom: 0, borderRadius: 10, fontSize: 13.5 };
 
   return (
     <div className="drawer-overlay active">
       <div className="modal-container">
         <div className="drawer os-drawer">
-          {/* Header */}
           <div className="os-header">
             <div className="os-header-left">
-              <span className="os-header-title">
-                <i className="fas fa-bell" style={{ marginRight: 8, color: "#E65100" }} />
-                Lembretes de Clientes
+              <span className="os-header-title" style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0 }}>
+                <i className="fa-solid fa-bell" style={{ marginRight: 8, color: "#B45309" }} />
+                Lembretes de clientes
               </span>
             </div>
             <div className="os-header-actions">
-              <button className="os-btn-close" onClick={onClose}>
-                <i className="fas fa-times" />
-              </button>
+              <button className="os-btn-close" onClick={onClose} title="Fechar"><i className="fa-solid fa-xmark" /></button>
             </div>
           </div>
 
-          <div className="os-body">
-            {/* Criar novo lembrete */}
-            <div className="os-card">
-              <div className="os-card-title"><i className="fas fa-plus-circle" /> Novo Lembrete</div>
+          <div className="os-body" style={{ display: "flex", flexDirection: "column", gap: 12, color: "#0f172a", fontWeight: 400 }}>
+            {/* busca + novo */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+              <div style={{ position: "relative", flex: 1, minWidth: 220 }}>
+                <i className="fa-solid fa-magnifying-glass" style={{ position: "absolute", left: 12, top: 11, color: "#94a3b8", fontSize: 13 }} />
+                <input type="text" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por cliente, CNPJ, OS, requisição ou texto"
+                  style={{ ...campo, paddingLeft: 34, height: 36, width: "100%" }} />
+              </div>
+              <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#475569", margin: 0, cursor: "pointer" }}>
+                <input type="checkbox" checked={soMeus} onChange={(e) => setSoMeus(e.target.checked)} style={{ width: "auto", margin: 0 }} /> Só os meus
+              </label>
+              <button type="button" onClick={() => setCriando((v) => !v)} style={criando ? btnContorno : btnCheio("#B45309")}>
+                <i className={`fa-solid ${criando ? "fa-xmark" : "fa-plus"}`} /> {criando ? "Fechar" : "Novo lembrete"}
+              </button>
+            </div>
 
-              <label>Clientes</label>
-
-              {!showClienteList ? (
-                <button
-                  className="lembretes-select-btn"
-                  onClick={() => setShowClienteList(true)}
-                >
-                  <i className="fas fa-users" />
-                  {selectedKeys.size > 0
-                    ? `${selectedKeys.size} cliente${selectedKeys.size > 1 ? "s" : ""} selecionado${selectedKeys.size > 1 ? "s" : ""}`
-                    : "Selecionar Clientes"}
-                  <i className="fas fa-chevron-down" style={{ marginLeft: "auto", fontSize: 11 }} />
-                </button>
-              ) : (
-                <>
-                  <div style={{ position: "relative" }}>
-                    <i className="fas fa-search" style={{ position: "absolute", left: 14, top: 13, color: "var(--portal-text-secondary)" }} />
-                    <input
-                      type="text"
-                      placeholder="Buscar por nome, razão social ou CNPJ/CPF..."
-                      value={clienteFilter}
-                      onChange={(e) => setClienteFilter(e.target.value)}
-                      style={{ paddingLeft: 40, marginBottom: 0 }}
-                      autoFocus
-                    />
+            {/* novo lembrete */}
+            {criando && (
+              <div style={{ background: "var(--surface, #fefefe)", border: "1px solid var(--border, #e2e8f0)", borderRadius: 16, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 10 }}>
+                <div style={{ fontSize: 16, fontWeight: 500 }}>Novo lembrete</div>
+                <div>
+                  <label style={rot}>Clientes</label>
+                  <input type="text" value={clienteFilter} onChange={(e) => setClienteFilter(e.target.value)} placeholder="Buscar por nome, razão social ou CNPJ/CPF"
+                    style={{ ...campo, width: "100%", marginTop: 4 }} autoFocus />
+                  {clienteFilter && (
+                    <div style={{ marginTop: 6, maxHeight: 200, overflowY: "auto", border: "1px solid var(--border, #e2e8f0)", borderRadius: 12 }}>
+                      {filteredClientes.length === 0 ? (
+                        <div style={{ padding: 12, textAlign: "center", color: "#64748b", fontSize: 13 }}>Nenhum cliente encontrado</div>
+                      ) : filteredClientes.map((c) => {
+                        const marcado = selectedKeys.has(c.chave);
+                        return (
+                          <label key={c.chave} style={{ display: "flex", gap: 8, alignItems: "center", padding: "8px 12px", margin: 0, cursor: "pointer", borderTop: "1px solid var(--border, #e2e8f0)",
+                            background: marcado ? "color-mix(in srgb, #B45309 7%, var(--surface, #fefefe))" : undefined }}>
+                            <input type="checkbox" checked={marcado} onChange={() => toggleCliente(c)} style={{ width: "auto", margin: 0 }} />
+                            <span style={{ minWidth: 0 }}>
+                              <span style={{ display: "block", fontSize: 13.5 }}>{c.display.split("[")[0].trim()}</span>
+                              <span style={{ display: "block", fontSize: 11.5, color: "#64748b" }}>{c.display.includes("[") ? c.display.substring(c.display.indexOf("[")) : ""}</span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {selectedClientes.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 }}>
+                      {selectedClientes.map((c) => (
+                        <span key={c.chave} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 6px 3px 10px", borderRadius: 999, fontSize: 12.5,
+                          background: "color-mix(in srgb, #B45309 9%, var(--surface, #fefefe))", color: "#92400e" }}>
+                          {c.display.split("[")[0].trim()}
+                          <button type="button" onClick={() => toggleCliente(c)} title="Tirar" style={{ border: "none", background: "transparent", cursor: "pointer", color: "#92400e", padding: 2 }}>
+                            <i className="fa-solid fa-xmark" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label style={rot}>Lembrete</label>
+                  <textarea rows={3} value={textoLembrete} onChange={(e) => setTextoLembrete(e.target.value)}
+                    placeholder="Ex.: cliente pediu desconto especial, conferir contrato…" style={{ ...campo, width: "100%", marginTop: 4 }} />
+                </div>
+                <div>
+                  <label style={rot}>Valor (opcional)</label>
+                  <div style={{ marginTop: 4 }}>
+                    <CamposValorLembrete tipo={valTipoNovo} valor={valNovo} onTipo={setValTipoNovo} onValor={setValNovo} />
                   </div>
-
-                  <div className="lembretes-checkbox-list">
-                    {filteredClientes.length === 0 && clienteFilter ? (
-                      <div style={{ padding: 16, textAlign: "center", color: "var(--portal-text-secondary)", fontSize: 13 }}>
-                        Nenhum cliente encontrado
-                      </div>
-                    ) : !clienteFilter ? (
-                      <div style={{ padding: 16, textAlign: "center", color: "var(--portal-text-secondary)", fontSize: 13 }}>
-                        Digite para buscar clientes...
-                      </div>
-                    ) : filteredClientes.map((c) => {
-                      const checked = selectedKeys.has(c.chave);
-                      return (
-                        <label key={c.chave} className={`lembretes-checkbox-item ${checked ? "checked" : ""}`}>
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleCliente(c)}
-                            className="lembretes-checkbox"
-                          />
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 13, fontWeight: 600 }}>{c.display.split("[")[0].trim()}</div>
-                            <div style={{ fontSize: 11, color: "var(--portal-text-secondary)" }}>
-                              {c.display.includes("[") ? c.display.substring(c.display.indexOf("[")) : ""}
-                            </div>
-                          </div>
-                        </label>
-                      );
-                    })}
+                  {valTipoNovo && (
+                    <div style={{ fontSize: 12.5, color: "#64748b", marginTop: 6 }}>
+                      {valTipoNovo === "cobrar"
+                        ? "Na próxima OS do cliente, o Portal pergunta se inclui esse valor como serviço Diversos."
+                        : "Na próxima OS do cliente, o Portal pergunta se aplica esse crédito como desconto."}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(170px, 100%), 1fr))", gap: 10 }}>
+                  <div>
+                    <label style={rot}>OS (opcional)</label>
+                    <input type="text" value={osNova} onChange={(e) => setOsNova(e.target.value)} placeholder="Nº da OS" style={{ ...campo, width: "100%", marginTop: 4 }} />
                   </div>
-
-                  <button
-                    className="lembretes-confirm-btn"
-                    onClick={() => { setShowClienteList(false); setClienteFilter(""); }}
-                  >
-                    <i className="fas fa-check" />
-                    Confirmar Seleção {selectedKeys.size > 0 && `(${selectedKeys.size})`}
+                  <div>
+                    <label style={rot}>Lembrar em (opcional)</label>
+                    <input type="date" value={dataNova} onChange={(e) => setDataNova(e.target.value)} style={{ ...campo, width: "100%", marginTop: 4 }} />
+                  </div>
+                  <div>
+                    <label style={rot}>Responsável (opcional)</label>
+                    <select value={respNovo} onChange={(e) => setRespNovo(e.target.value)} style={{ ...campo, width: "100%", marginTop: 4 }}>
+                      <option value="">Ninguém</option>
+                      {usuarios.map((u) => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </div>
+                </div>
+                {erroNovo && <div style={{ padding: "7px 10px", borderRadius: 10, fontSize: 13, color: "#b91c1c", background: "color-mix(in srgb, #dc2626 8%, var(--surface, #fefefe))" }}>{erroNovo}</div>}
+                <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                  <button type="button" onClick={criarLembrete} disabled={saving || !selectedClientes.length || !textoLembrete.trim() || (!!valTipoNovo && !(Number(valNovo) > 0))}
+                    style={{ ...btnCheio("#B45309"), opacity: saving || !selectedClientes.length || !textoLembrete.trim() ? 0.55 : 1 }}>
+                    {saving ? "Salvando…" : "Criar lembrete"}
                   </button>
-                </>
-              )}
-
-              {selectedKeys.size > 0 && !showClienteList && (
-                <div className="lembretes-selected-clientes">
-                  {selectedClientes.map((c) => (
-                    <div key={c.chave} className="lembretes-selected-tag">
-                      <i className="fas fa-check" />
-                      <span>{c.display.split("[")[0].trim()}</span>
-                      <button onClick={() => toggleCliente(c)} title="Remover">
-                        <i className="fas fa-times" />
-                      </button>
-                    </div>
-                  ))}
                 </div>
-              )}
-
-              <div style={{ marginTop: 12 }}>
-                <label>Lembrete</label>
-                <textarea
-                  rows={3}
-                  value={textoLembrete}
-                  onChange={(e) => setTextoLembrete(e.target.value)}
-                  placeholder="Ex: Cliente pede desconto especial, verificar contrato..."
-                  style={{ marginBottom: 0 }}
-                />
               </div>
+            )}
 
-              <button
-                className="os-btn-save"
-                style={{ marginTop: 12, width: "100%" }}
-                onClick={criarLembrete}
-                disabled={saving || !selectedClientes.length || !textoLembrete.trim()}
-              >
-                {saving ? "Salvando..." : "Criar Lembrete"}
-              </button>
+            {/* abas: cada uma com a sua cor, mesmo sem estar escolhida */}
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              {ABAS.map((a) => {
+                const ativa = aba === a.k;
+                const n = porAba[a.k].length;
+                return (
+                  <button key={a.k} type="button" onClick={() => setAba(a.k)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 38, padding: "0 12px", borderRadius: 11, cursor: "pointer", fontFamily: "inherit",
+                      fontSize: 13.5, fontWeight: ativa ? 500 : 400, color: "#0f172a",
+                      border: `1px solid ${ativa ? `color-mix(in srgb, ${a.cor} 40%, transparent)` : "var(--border, #e2e8f0)"}`,
+                      background: ativa ? `color-mix(in srgb, ${a.cor} 9%, var(--surface, #fefefe))` : "var(--surface, #fefefe)" }}>
+                    <span style={{ width: 24, height: 24, borderRadius: 7, display: "grid", placeItems: "center", fontSize: 11,
+                      color: ativa ? "#fefefe" : a.cor, background: ativa ? a.cor : `color-mix(in srgb, ${a.cor} 11%, var(--surface, #fefefe))` }}>
+                      <i className={`fa-solid ${a.ic}`} />
+                    </span>
+                    {a.t}
+                    <span style={{ minWidth: 22, padding: "0 7px", borderRadius: 999, fontSize: 12, textAlign: "center",
+                      color: ativa ? "#fefefe" : a.cor, background: ativa ? a.cor : `color-mix(in srgb, ${a.cor} 12%, var(--surface, #fefefe))` }}>{n}</span>
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Filtros ativos / concluidos */}
-            <div style={{ display: "flex", gap: 8, padding: "0 0 4px" }}>
-              <button
-                onClick={() => setFiltroView("ativos")}
-                style={{
-                  flex: 1, padding: "8px 12px", borderRadius: 8, border: "2px solid",
-                  borderColor: filtroView === "ativos" ? "#E65100" : "var(--portal-border)",
-                  background: filtroView === "ativos" ? "#FFF3E0" : "transparent",
-                  color: filtroView === "ativos" ? "#E65100" : "var(--portal-text-secondary)",
-                  fontWeight: 700, fontSize: 12, cursor: "pointer",
-                }}
-              >
-                <i className="fas fa-bell" style={{ marginRight: 6 }} />
-                Ativos ({lembretes.filter((l) => !l.concluido && l.ativo).length})
-              </button>
-              <button
-                onClick={() => setFiltroView("concluidos")}
-                style={{
-                  flex: 1, padding: "8px 12px", borderRadius: 8, border: "2px solid",
-                  borderColor: filtroView === "concluidos" ? "#2E7D32" : "var(--portal-border)",
-                  background: filtroView === "concluidos" ? "#E8F5E9" : "transparent",
-                  color: filtroView === "concluidos" ? "#2E7D32" : "var(--portal-text-secondary)",
-                  fontWeight: 700, fontSize: 12, cursor: "pointer",
-                }}
-              >
-                <i className="fas fa-check-circle" style={{ marginRight: 6 }} />
-                Concluídos ({lembretes.filter((l) => l.concluido).length})
-              </button>
-            </div>
+            {erroLista && <div style={{ padding: "8px 12px", borderRadius: 12, fontSize: 13, color: "#b91c1c", background: "color-mix(in srgb, #dc2626 8%, var(--surface, #fefefe))" }}>{erroLista}</div>}
 
-            {/* Lista de lembretes */}
-            <div className="os-card">
-              <div className="os-card-title">
-                <i className={`fas fa-${filtroView === "ativos" ? "list" : "check-double"}`} />
-                {filtroView === "ativos" ? " Lembretes Ativos" : " Lembretes Concluídos"}
+            {/* lista */}
+            {loading && lembretes.length === 0 ? (
+              <div style={{ textAlign: "center", padding: 24, color: "#64748b" }}>Carregando…</div>
+            ) : lista.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "26px 12px", border: "1px dashed var(--border, #e2e8f0)", borderRadius: 14, color: "#64748b", fontSize: 13.5 }}>
+                {busca || soMeus ? "Nenhum lembrete com esse filtro."
+                  : aba === "cobranca" ? "Nenhuma cobrança de requisição pendente."
+                  : aba === "hoje" ? "Nada para hoje nem atrasado."
+                  : aba === "concluidos" ? "Nenhum lembrete concluído." : "Nenhum lembrete aberto."}
               </div>
-
-              {loading ? (
-                <div style={{ textAlign: "center", padding: 24, color: "var(--portal-text-secondary)" }}>Carregando...</div>
-              ) : lembretesFiltrados.length === 0 ? (
-                <div style={{ textAlign: "center", padding: 24, color: "var(--portal-text-secondary)", fontSize: 14 }}>
-                  {filtroView === "ativos" ? "Nenhum lembrete ativo." : "Nenhum lembrete concluído."}
-                </div>
-              ) : (
-                <div className="lembretes-lista">
-                  {lembretesFiltrados.map((l) => (
-                    <div
-                      key={l.id}
-                      className={`lembretes-item ${l.concluido ? "concluido" : ""}`}
-                      style={{ cursor: "pointer", opacity: l.concluido ? 0.7 : 1 }}
-                      onClick={() => setDetalheModal(l)}
-                    >
-                      <div className="lembretes-item-header">
-                        <div className="lembretes-item-clientes">
-                          <i className="fas fa-users" />
-                          <span>{l.cliente_nomes}</span>
-                        </div>
-                        <div className="lembretes-item-actions" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => concluirLembrete(l)}
-                            title={l.concluido ? "Reabrir" : "Concluir"}
-                            className={`lembretes-action-btn ${l.concluido ? "concluido" : "concluir"}`}
-                            style={{
-                              color: l.concluido ? "#2E7D32" : "#E65100",
-                              background: l.concluido ? "#E8F5E9" : "#FFF3E0",
-                            }}
-                          >
-                            <i className={`fas fa-${l.concluido ? "undo" : "check"}`} />
-                          </button>
-                          {!l.concluido && (
-                            <button
-                              onClick={() => { setEditingId(l.id); setEditingText(l.lembrete); }}
-                              title="Editar"
-                              className="lembretes-action-btn"
-                            >
-                              <i className="fas fa-pen" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => excluirLembrete(l.id)}
-                            title="Excluir"
-                            className="lembretes-action-btn danger"
-                          >
-                            <i className="fas fa-trash" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {editingId === l.id ? (
-                        <div className="lembretes-edit-area" onClick={(e) => e.stopPropagation()}>
-                          <textarea
-                            rows={3}
-                            value={editingText}
-                            onChange={(e) => setEditingText(e.target.value)}
-                            style={{ marginBottom: 8 }}
-                          />
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                            <button className="os-btn-cancel" style={{ padding: "6px 14px", fontSize: 12 }} onClick={() => setEditingId(null)}>
-                              Cancelar
-                            </button>
-                            <button className="os-btn-save" style={{ padding: "6px 14px", fontSize: 12 }} onClick={() => salvarEdicao(l.id)}>
-                              Salvar
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="lembretes-item-texto" style={{ textDecoration: l.concluido ? "line-through" : "none" }}>
-                          {l.lembrete}
-                        </div>
-                      )}
-
-                      <div style={{ fontSize: 10, color: "var(--portal-text-secondary)", marginTop: 4 }}>
-                        {l.criado_por ? `Por ${l.criado_por}` : ""}
-                        {l.criado_por && l.created_at ? " — " : ""}
-                        {l.created_at ? new Date(l.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) : ""}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {lista.map((l) => (
+                  <CartaoLembrete key={l.id} l={l} userName={userName} usuarios={usuarios}
+                    onAlterado={(novo) => alterado(l.id, novo)}
+                    onAbrirOS={onAbrirOS ? (id) => { onClose(); onAbrirOS(id); } : undefined} />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
-
-      {/* Modal de detalhes do lembrete */}
-      {detalheModal && (
-        <div
-          style={{
-            position: "fixed", inset: 0, zIndex: 7000,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            background: "rgba(0,0,0,0.5)", backdropFilter: "blur(4px)",
-          }}
-          onClick={() => setDetalheModal(null)}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: 480, maxWidth: "92vw", borderRadius: 16,
-              background: "var(--portal-bg-card, #fff)", padding: 0,
-              boxShadow: "0 20px 60px rgba(0,0,0,0.3)", overflow: "hidden",
-            }}
-          >
-            {/* Header modal */}
-            <div style={{
-              padding: "20px 24px", borderBottom: "1px solid var(--portal-border, #e5e5e5)",
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-              background: detalheModal.concluido ? "#E8F5E9" : "#FFF3E0",
-            }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <i className={`fas fa-${detalheModal.concluido ? "check-circle" : "bell"}`} style={{ fontSize: 20, color: detalheModal.concluido ? "#2E7D32" : "#E65100" }} />
-                <div>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: "var(--portal-text, #1a1a1a)" }}>
-                    Lembrete #{detalheModal.id}
-                  </div>
-                  <div style={{ fontSize: 11, color: detalheModal.concluido ? "#2E7D32" : "#E65100", fontWeight: 700 }}>
-                    {detalheModal.concluido ? "Concluído" : "Ativo"}
-                  </div>
-                </div>
-              </div>
-              <button onClick={() => setDetalheModal(null)} style={{ background: "none", border: "none", fontSize: 22, cursor: "pointer", color: "var(--portal-text-secondary, #888)" }}>&times;</button>
-            </div>
-
-            {/* Corpo */}
-            <div style={{ padding: "20px 24px" }}>
-              {/* Clientes */}
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: "var(--portal-text-secondary, #888)", letterSpacing: 0.5, marginBottom: 6 }}>
-                  Clientes
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--portal-text, #1a1a1a)" }}>
-                  {detalheModal.cliente_nomes}
-                </div>
-              </div>
-
-              {/* Texto */}
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: "var(--portal-text-secondary, #888)", letterSpacing: 0.5, marginBottom: 6 }}>
-                  Lembrete
-                </div>
-                <div style={{
-                  fontSize: 14, color: "var(--portal-text, #1a1a1a)", lineHeight: 1.5,
-                  padding: 14, borderRadius: 10, background: "var(--portal-bg-card-alt, #f5f5f5)",
-                  textDecoration: detalheModal.concluido ? "line-through" : "none",
-                }}>
-                  {detalheModal.lembrete}
-                </div>
-              </div>
-
-              {/* Info grid */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
-                <div style={{ padding: 12, borderRadius: 10, background: "var(--portal-bg-card-alt, #f5f5f5)" }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: "var(--portal-text-secondary, #888)", marginBottom: 4 }}>
-                    <i className="fas fa-user" style={{ marginRight: 4 }} /> Criado por
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--portal-text, #1a1a1a)" }}>
-                    {detalheModal.criado_por || "—"}
-                  </div>
-                </div>
-                <div style={{ padding: 12, borderRadius: 10, background: "var(--portal-bg-card-alt, #f5f5f5)" }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: "var(--portal-text-secondary, #888)", marginBottom: 4 }}>
-                    <i className="fas fa-calendar" style={{ marginRight: 4 }} /> Criado em
-                  </div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "var(--portal-text, #1a1a1a)" }}>
-                    {detalheModal.created_at
-                      ? new Date(detalheModal.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
-                      : "—"}
-                  </div>
-                </div>
-                {detalheModal.concluido && (
-                  <>
-                    <div style={{ padding: 12, borderRadius: 10, background: "#E8F5E9" }}>
-                      <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: "#2E7D32", marginBottom: 4 }}>
-                        <i className="fas fa-user-check" style={{ marginRight: 4 }} /> Concluído por
-                      </div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1B5E20" }}>
-                        {detalheModal.concluido_por || "—"}
-                      </div>
-                    </div>
-                    <div style={{ padding: 12, borderRadius: 10, background: "#E8F5E9" }}>
-                      <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", color: "#2E7D32", marginBottom: 4 }}>
-                        <i className="fas fa-calendar-check" style={{ marginRight: 4 }} /> Concluído em
-                      </div>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: "#1B5E20" }}>
-                        {detalheModal.concluido_em
-                          ? new Date(detalheModal.concluido_em).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })
-                          : "—"}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Ações */}
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={() => concluirLembrete(detalheModal)}
-                  style={{
-                    flex: 1, padding: "12px", borderRadius: 10, border: "none",
-                    background: detalheModal.concluido ? "#FFF3E0" : "#E8F5E9",
-                    color: detalheModal.concluido ? "#E65100" : "#2E7D32",
-                    fontWeight: 700, fontSize: 13, cursor: "pointer",
-                  }}
-                >
-                  <i className={`fas fa-${detalheModal.concluido ? "undo" : "check-circle"}`} style={{ marginRight: 6 }} />
-                  {detalheModal.concluido ? "Reabrir Lembrete" : "Concluir Lembrete"}
-                </button>
-                <button
-                  onClick={() => { excluirLembrete(detalheModal.id); }}
-                  style={{
-                    padding: "12px 16px", borderRadius: 10, border: "1px solid #FFCDD2",
-                    background: "#FFF", color: "#D32F2F",
-                    fontWeight: 700, fontSize: 13, cursor: "pointer",
-                  }}
-                >
-                  <i className="fas fa-trash" />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

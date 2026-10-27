@@ -8,7 +8,7 @@ import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS } from "@/lib/pos/constants";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie as omiePorta, comRobosPausados } from "@/lib/omie/porta";
-import { montarServicosDetalhe, montarDadosAdic, buscarNcodCli } from "@/lib/pos/omie";
+import { montarServicosDetalhe, montarDadosAdic, buscarNcodCli, montarObsOS, linhaMotivoDesconto } from "@/lib/pos/omie";
 import { normalizarEspelho, espelhoPadrao, calcularParcelas, diasDoEspelho, type OmieEspelho } from "@/lib/pos/omie-espelho";
 import { estadoNoOmie } from "@/lib/pos/faturamento-regras";
 import {
@@ -310,6 +310,11 @@ async function alinharOSSemPausa(idOs: string): Promise<ResultadoConferencia> {
     param.Email = interna ? { cEnviarPara: EMAIL_INTERNO, cEnvRecibo: "S", cEnvLink: "N", cEnvBoleto: "N" } : { cEnviarPara: esp.email.para || undefined, cEnvRecibo: esp.email.recibo ? "S" : "N" };
   } else if (pedCli) param.InformacoesAdicionais = { cNumPedido: pedCli };
   if (interna && !esp) param.Email = { cEnviarPara: EMAIL_INTERNO, cEnvRecibo: "S", cEnvLink: "N", cEnvBoleto: "N" };
+  // desconto com motivo: as Observações da OS no Omie são refeitas com a linha do motivo (José, 27/10/2026)
+  if (linhaMotivoDesconto(os)) {
+    const obs = await montarObsOS(os, String(os.Id_Ordem)).catch(() => "");
+    if (obs) param.Observacoes = { cObsOS: obs };
+  }
   lidas.delete(String(os.Id_Ordem));
   try {
     // textos primeiro e o pacote completo (com as parcelas) por ÚLTIMO: uma alteração só de texto depois

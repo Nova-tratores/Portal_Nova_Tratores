@@ -106,7 +106,7 @@ const chaveTexto = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[̀
 
 // ───────────────────────── Precisa da sua atenção ─────────────────────────
 
-export type ChaveAtencao = 'parada30' | 'parada7' | 'semDocumento' | 'valorAlto' | 'semFornecedor' | 'duplicadas';
+export type ChaveAtencao = 'parada30' | 'parada7' | 'semDocumento' | 'valorAlto' | 'semFornecedor' | 'duplicadas' | 'aCobrar'; // aCobrar: cartão do PainelAtencao (José, 26/10/2026)
 
 export interface ItemAtencao {
   chave: ChaveAtencao;

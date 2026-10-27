@@ -473,6 +473,13 @@ function PosPageInner() {
         clientes={clientes}
         userName={userProfile?.nome || ""}
         onClose={() => setLembretesVisible(false)}
+        // lembrete com OS abre a OS aqui mesmo (José, 26/10/2026)
+        onAbrirOS={(id) => {
+          setDrawerMode("edit");
+          setSelectedOsId(id);
+          setDrawerVisible(true);
+          window.history.replaceState(null, "", `/pos?id=${encodeURIComponent(id)}`);
+        }}
       />
     </div>
   );

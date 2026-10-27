@@ -401,10 +401,21 @@ export function montarDadosAdic(os: Record<string, unknown>): string {
 // Observações da OS no Omie. Antes guardava o "Plano de Revisão"; agora, no
 // lugar dele, coloca os LINKS de acesso no portal: a própria OS, o(s) PPV(s)
 // e todas as requisições vinculadas.
-async function montarObsOS(os: Record<string, unknown>, idOrdem: string): Promise<string> {
+/** "Motivo do desconto (R$ 150,00): ..." — vai nas Observações da OS no Omie (José, 27/10/2026) */
+export function linhaMotivoDesconto(os: Record<string, unknown>): string {
+  const desc = Number(os.Desconto) || 0;
+  const m = (os.Omie_Espelho as { descontoMotivo?: { texto?: string } } | null | undefined)?.descontoMotivo;
+  const texto = String(m?.texto || "").trim();
+  if (desc <= 0 || !texto) return "";
+  return `Motivo do desconto (${desc.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}): ${texto}`;
+}
+
+export async function montarObsOS(os: Record<string, unknown>, idOrdem: string): Promise<string> {
   const partes: string[] = [];
   if (os.Serv_Realizado) partes.push(String(os.Serv_Realizado).trim());
   if (os.Causa) partes.push(`Causa: ${String(os.Causa).trim()}`);
+  const motivoDesc = linhaMotivoDesconto(os);
+  if (motivoDesc) partes.push(motivoDesc);
 
   const links: string[] = [`OS ${idOrdem}: ${PORTAL_BASE}/pos?id=${encodeURIComponent(idOrdem)}`];
   const ppvIds = String(os.ID_PPV || "").split(",").map((s) => s.trim()).filter(Boolean);

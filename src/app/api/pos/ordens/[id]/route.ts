@@ -11,6 +11,7 @@ import { parseValorMisto } from "@/lib/marketing/custos";
 import { valorPecasDosPPVs } from "@/lib/pos/pecas-ppv";
 import { totalExtras, type OmieEspelho } from "@/lib/pos/omie-espelho";
 import { documentosAnteriores, type DocAnterior } from "@/lib/pos/omie-anteriores";
+import { statusCobranca, type CobrancaStatus } from "@/lib/pos/cobranca-requisicoes-regras";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
@@ -24,7 +25,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   const servicoInternoVal = !!safeGet(row, "Servico_Interno");
 
   // Buscar requisições vinculadas (legado via Id_Req + novo via Requisicao.ordem_servico)
-  const requisicoes: Array<{ id: string; atualizada: boolean; valor: number; linkNota: string; material: string; solicitante: string }> = [];
+  // tipo/cobranca_*/valor_despeza: só nas requisições novas (tabela Requisicao) — cobrança (José, 26/10/2026)
+  const requisicoes: Array<{ id: string; atualizada: boolean; valor: number; linkNota: string; material: string; solicitante: string; tipo?: string | null; cobranca_status?: CobrancaStatus | null; cobranca_motivo?: string | null; cobranca_por?: string | null; cobranca_em?: string | null; valor_despeza?: string | null }> = [];
   const idsJaAdicionados = new Set<string>();
 
   // 1. Legado: Id_Req (comma-separated, tabelas Supa-Solicitacao_Req / Supa-AtualizarReq)
@@ -46,10 +48,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // 2. Novo: Requisicao.ordem_servico = idOs (tabela principal)
-  const { data: reqsVinculadas } = await supabase
+  const colsReq = "id, titulo, tipo, solicitante, status, valor_despeza, valor_cobrado_cliente, recibo_fornecedor, fornecedor";
+  let { data: reqsVinculadas, error: errReqs } = await supabase
     .from("Requisicao")
-    .select("id, titulo, tipo, solicitante, status, valor_despeza, valor_cobrado_cliente, recibo_fornecedor, fornecedor")
+    .select(`${colsReq}, ordem_servico, created_at, cobranca_status, cobranca_motivo, cobranca_por, cobranca_em`)
     .eq("ordem_servico", idOs);
+  // sem sql/requisicoes-cobranca.sql: lê sem as colunas da cobrança
+  if (errReqs) ({ data: reqsVinculadas } = await supabase.from("Requisicao").select(colsReq).eq("ordem_servico", idOs) as unknown as { data: typeof reqsVinculadas });
   if (reqsVinculadas) {
     for (const r of reqsVinculadas) {
       const rid = String(r.id);
@@ -63,6 +68,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         linkNota: r.recibo_fornecedor || "",
         material: r.titulo || "N/A",
         solicitante: r.solicitante || "N/A",
+        tipo: r.tipo ?? null,
+        cobranca_status: statusCobranca({ ...r, ordem_servico: idOs }),
+        cobranca_motivo: r.cobranca_motivo ?? null,
+        cobranca_por: r.cobranca_por ?? null,
+        cobranca_em: r.cobranca_em ?? null,
+        valor_despeza: r.valor_despeza ?? null,
       });
     }
   }
