@@ -17,7 +17,7 @@ import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/
 const TXT = '#0f172a', SEG = '#334155', CLARO = '#64748b'
 export type Grupo = 'faturada' | 'garantia' | 'interna' | 'aguardando'
 export const GRUPOS_FAT: { g: Grupo; rot: string; cor: string; dica: string }[] = [
-  { g: 'faturada', rot: 'OS faturadas', cor: '#2563eb', dica: 'OS faturadas para o cliente (com nota ou recibo). Sempre entram.' },
+  { g: 'faturada', rot: 'OS faturadas', cor: '#2563eb', dica: 'OS faturadas para o cliente (com nota ou recibo).' },
   { g: 'garantia', rot: 'Garantia', cor: '#db2777', dica: 'OS de garantia faturadas: quem paga é a montadora (hora no teto da fábrica).' },
   { g: 'interna', rot: 'Internas', cor: '#64748b', dica: 'OS internas fechadas (serviço da loja, cortesia, entrega técnica): valor de referência, não entra dinheiro de cliente.' },
   { g: 'aguardando', rot: 'Ainda não faturadas', cor: '#f59e0b', dica: 'OS com o relatório preenchido que ainda esperam faturar (pela data do relatório).' },

@@ -179,7 +179,8 @@ export function agregar(
     }
   }
 
-  const linhas = [...m.values()].map((l) => {
+  // usuário de teste (usado nos testes de Reuniões) não entra no painel (José, 27/10/2026: "remove esse mecânico teste")
+  const linhas = [...m.values()].filter((l) => !/\bteste\b/i.test(l.tecnico)).map((l) => {
     const x = { ...l }
     x.liquido = x.bruto - x.custo
     x.ociosas = SEM_META.has(l.tecnico) ? 0 : Math.max(0, x.meta - x.faturadas - x.internas - x.aguardando)

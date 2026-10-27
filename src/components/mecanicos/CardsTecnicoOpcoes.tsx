@@ -104,7 +104,7 @@ function FotoImg({ c, className }: { c: CardDados; className?: string }) {
 function SeloPontos({ p, className }: { p?: number; className?: string }) {
   if (p == null) return null
   const cor = p >= 90 ? '#059669' : p >= 70 ? '#d97706' : '#dc2626'
-  return <span className={`sx-pts ${className || ''}`} style={{ '--pc': cor } as React.CSSProperties} title="Pontuação do mês: começa com 100 e cada ocorrência que vale desconta"><i className="fas fa-shield-halved" /> {p} pts</span>
+  return <span className={`sx-pts ${className || ''}`} style={{ '--pc': cor } as React.CSSProperties} title="Pontuação do mês: começa com 100 e cada ocorrência que vale desconta"><b>{p}</b><small>pts</small><em><i style={{ width: `${Math.max(0, Math.min(100, p))}%` }} /></em></span>
 }
 function inclinar(e: React.MouseEvent<HTMLElement>) {
   const r = e.currentTarget.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height
@@ -428,7 +428,9 @@ export const ESTILO_CT2 = `
 .s5 { background: linear-gradient(180deg, #eff6ff, var(--portal-bg-card, #fefefe)); border-radius: 22px; padding: 20px 18px 12px; box-shadow: 0 16px 36px rgba(15,23,42,.08) }
 .s5-palco { display: flex; gap: 14px; justify-content: center; align-items: flex-end; min-height: 380px }
 .s5-col.abre { cursor: pointer; transition: transform .2s } .s5-col.abre:hover { transform: translateY(-6px) } .s5-col.abre:hover .s5-degrau { filter: brightness(1.04); box-shadow: inset 0 2px 0 rgba(255,255,255,.6), 0 12px 26px rgba(15,23,42,.14) }
-.sx-pts { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 900; color: var(--pc); background: color-mix(in srgb, var(--pc) 11%, #fefefe); border: 1px solid color-mix(in srgb, var(--pc) 30%, transparent); border-radius: 99px; padding: 2px 9px; white-space: nowrap }
+.sx-pts { display: inline-grid; grid-template-columns: auto auto; align-items: baseline; column-gap: 3px; row-gap: 4px; color: var(--pc); background: #fefefe; border-radius: 12px; padding: 6px 10px 7px; white-space: nowrap; line-height: 1 }
+.sx-pts b { font-size: 24px; font-weight: 500; font-variant-numeric: tabular-nums } .sx-pts small { font-size: 11px; color: #64748b }
+.sx-pts em { grid-column: 1 / -1; display: block; width: 64px; height: 5px; border-radius: 99px; background: color-mix(in srgb, var(--pc) 15%, #e2e8f0); overflow: hidden } .sx-pts em i { display: block; height: 100%; border-radius: 99px; background: var(--pc) }
 .s5-col { position: relative; display: grid; justify-items: center; gap: 6px; width: 150px; animation: sxEntra .6s both }
 .s5-foto { position: relative; width: 66px; height: 66px; border-radius: 50%; overflow: visible } .s5-foto img, .s5-foto .sx-ini { width: 66px; height: 66px; border-radius: 50%; object-fit: cover; border: 3px solid #fefefe; box-shadow: 0 6px 16px rgba(15,23,42,.25); font-size: 20px } .s5-liga { position: absolute; right: -10px; bottom: -6px }
 .s5-col > b { font-size: 14px }
@@ -586,12 +588,26 @@ function ContVivo({ c }: { c: CardDados }) {
 
 /** S1 com outro estilo de contador. */
 /** `semFoto`: cabeçalho branco sem a foto (José, 21/10/2026: "melhora esse card, não precisa mostrar as fotos"). */
-export function S1Estilo({ cards, contador, onAbrir, semFoto }: { cards: CardDados[]; contador: EstiloContador; onAbrir?: (c: CardDados) => void; semFoto?: boolean }) {
+/** `capa`: capa limpa — nome, pontos, a comissão e "Ver comissão" (José, 27/10/2026: "tira esse monte de informação da capa, só deixa óbvio que ali é a comissão e que é pra clicar"). */
+export function S1Estilo({ cards, contador, onAbrir, semFoto, capa }: { cards: CardDados[]; contador: EstiloContador; onAbrir?: (c: CardDados) => void; semFoto?: boolean; capa?: boolean }) {
   return (
     <div className="s1-grade">
       {cards.map((c, i) => {
         const sv = situacao(c.faturado, c.metaValor, c.fracao)
         const par = (Comp: typeof ContAnel) => <div className="s1-vels"><Comp v={c.faturado} meta={c.metaValor} fracao={c.fracao} f={brl} rot="faturado" cor="#2563eb" /><Comp v={c.horas} meta={c.metaHoras} ideal={c.idealHoras} fracao={c.fracao} f={horas} rot="horas" cor="#0891b2" /></div>
+        if (capa) return (
+          <article key={c.nome} className={`s1 s1-capa ${onAbrir ? 'abre' : ''}`} style={{ animationDelay: `${i * 110}ms` }} onClick={onAbrir ? () => onAbrir(c) : undefined}
+            role={onAbrir ? 'button' : undefined} tabIndex={onAbrir ? 0 : undefined} onKeyDown={onAbrir ? (e) => { if (e.key === 'Enter') onAbrir(c) } : undefined}>
+            <div className="s1c-topo"><span className="s1-sit" style={{ color: sv.cor, background: sv.fundo }}>● {sv.txt}</span><SeloPontos p={c.pontos} /></div>
+            <div className="s1c-nome"><b>{c.nome}</b>{c.nivel != null && <IconeLiga nivel={c.nivel} tamanho={34} />}</div>
+            <div className="s1c-com">
+              <small>Comissão prevista</small>
+              {c.comissao != null ? <b><Odometro texto={brl(c.comissao)} /></b> : <b className="vazio">—</b>}
+              <span><i className="fas fa-calendar-check" /> paga em {dataBR(c.pagamento)}</span>
+            </div>
+            {onAbrir && <span className="s1c-ver">Ver comissão, OS e horas <i className="fas fa-arrow-right" /></span>}
+          </article>
+        )
         return (
           <article key={c.nome} className={`s1 ${onAbrir ? 'abre' : ''} ${c.horasSemana >= c.metaSemana || c.horas >= c.metaHoras ? 'meta-h' : ''}`} style={{ animationDelay: `${i * 110}ms` }} onMouseMove={inclinar} onMouseLeave={soltar}
             onClick={onAbrir ? (e) => { if (!(e.target as HTMLElement).closest('button, svg')) onAbrir(c) } : undefined}>
@@ -653,8 +669,7 @@ export const ESTILO_CT = `
 @keyframes sxEntra { from { opacity: 0; transform: translateY(18px) scale(.97) } } @keyframes sxLado { from { transform: scaleX(0) } } @keyframes sxCorre { from { left: 0 } } @keyframes sxHolo { to { background-position: 200% 0 } }
 .sx-ini { display: grid; place-items: center; width: 100%; height: 100%; background: linear-gradient(135deg, #1e3a8a, #0ea5e9); color: #fefefe; font-weight: 900; font-size: 28px }
 .s1-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 18px; perspective: 1200px }
-.s1.meta-h { box-shadow: 0 0 0 3px #10b981, 0 18px 40px rgba(16,185,129,.28); animation: sxEntra .6s cubic-bezier(.2,.8,.2,1) both, shBrilho 2.6s ease-in-out 1s infinite }
-@keyframes shBrilho { 50% { box-shadow: 0 0 0 4px #34d399, 0 22px 50px rgba(16,185,129,.38) } }
+.s1.meta-h { border: 2px solid #10b981 }
 .sh { margin: 12px 16px 0; padding: 10px 12px; border-radius: 14px; background: var(--portal-bg, #f8fafc); border: 1px solid var(--portal-border, #e2e8f0); display: grid; gap: 7px; transition: background .3s }
 .sh.ok { background: linear-gradient(120deg, #ecfdf5, #d1fae5); border-color: #6ee7b7 }
 .sh-selo { justify-self: start; display: inline-flex; gap: 6px; align-items: center; font-size: 12px; font-weight: 900; color: #fefefe; background: linear-gradient(135deg, #10b981, #047857); border-radius: 99px; padding: 3px 11px; box-shadow: 0 4px 12px rgba(16,185,129,.35); animation: shPula .5s cubic-bezier(.2,1.6,.4,1) both }
@@ -664,13 +679,18 @@ export const ESTILO_CT = `
 .sh-bar { position: relative; height: 9px; border-radius: 99px; background: #e2e8f0; overflow: visible } .sh-bar i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #38bdf8, #0891b2); transform-origin: left; animation: shCresce 1s cubic-bezier(.2,.9,.3,1) both }
 .sh.ok .sh-bar i { background: linear-gradient(90deg, #34d399, #059669) } @keyframes shCresce { from { transform: scaleX(0) } }
 .sh-meta, .sh-ideal { position: absolute; top: -3px; width: 3px; height: 15px; border-radius: 2px; background: #0f172a; transform: translateX(-50%) } .sh-ideal { background: #7c3aed }
-.s1 { --rx: 0deg; --ry: 0deg; background: var(--portal-bg-card, #fefefe); border-radius: 24px; overflow: hidden; box-shadow: 0 2px 4px rgba(15,23,42,.05), 0 18px 40px rgba(15,23,42,.10); transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .25s ease, box-shadow .25s; animation: sxEntra .6s cubic-bezier(.2,.8,.2,1) both } .s1:hover { box-shadow: 0 30px 60px rgba(15,23,42,.18) }
+.s1 { --rx: 0deg; --ry: 0deg; background: var(--portal-bg-card, #fefefe); border-radius: 24px; overflow: hidden; border: 1px solid #e2e8f0; transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .25s ease, border-color .25s; animation: sxEntra .6s cubic-bezier(.2,.8,.2,1) both } .s1:hover { border-color: #cbd5e1 }
 .s1-foto { position: relative; height: 210px; overflow: hidden } .s1-foto img, .s1-foto .sx-ini { width: 100%; height: 100%; object-fit: cover; object-position: center center; transition: transform .6s } .s1:hover .s1-foto img { transform: scale(1.06) }
 .s1-veu { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(15,23,42,0) 35%, rgba(15,23,42,.78)) }
 .s1-nome { position: absolute; left: 18px; bottom: 14px; right: 70px; color: #fefefe } .s1-nome b { display: block; font-size: 22px; letter-spacing: -.01em; text-shadow: 0 2px 8px rgba(0,0,0,.4) } .s1-nome span { font-size: 12.5px; opacity: .9 }
 .s1-liga { position: absolute; right: 14px; bottom: 10px; filter: drop-shadow(0 4px 10px rgba(0,0,0,.4)) }
-.s1.abre { cursor: pointer } .s1-nome .s1-int { display: block; margin-top: 2px; font-size: 12px; opacity: .85 } .s1-nome span i { font-size: 11px; margin-right: 3px; opacity: .8 } .s1-pts { position: absolute; top: 12px; right: 12px; box-shadow: 0 4px 12px rgba(0,0,0,.15) } .s1-ver { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%) scale(.9); opacity: 0; background: rgba(15,23,42,.72); color: #fefefe; font-size: 12.5px; font-weight: 800; border-radius: 99px; padding: 7px 14px; transition: opacity .25s, transform .25s; pointer-events: none; white-space: nowrap } .s1.abre:hover .s1-ver { opacity: 1; transform: translate(-50%, -50%) scale(1) }
-.s1-sit { position: absolute; top: 12px; left: 12px; font-size: 12px; font-weight: 900; border-radius: 99px; padding: 4px 10px; box-shadow: 0 4px 12px rgba(0,0,0,.15) }
+.s1.abre { cursor: pointer } .s1-nome .s1-int { display: block; margin-top: 2px; font-size: 12px; opacity: .85 } .s1-nome span i { font-size: 11px; margin-right: 3px; opacity: .8 } .s1-pts { position: absolute; top: 12px; right: 12px } .s1-ver { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%) scale(.9); opacity: 0; background: rgba(15,23,42,.72); color: #fefefe; font-size: 12.5px; font-weight: 800; border-radius: 99px; padding: 7px 14px; transition: opacity .25s, transform .25s; pointer-events: none; white-space: nowrap } .s1.abre:hover .s1-ver { opacity: 1; transform: translate(-50%, -50%) scale(1) }
+.s1-capa { display: grid; gap: 14px; padding: 16px 18px; transform: none !important }
+.s1c-topo { display: flex; justify-content: space-between; align-items: center; gap: 8px } .s1-capa .s1-sit { position: static }
+.s1c-nome { display: flex; justify-content: space-between; align-items: center; gap: 8px } .s1c-nome b { font-size: 21px; font-weight: 500; color: #0f172a }
+.s1c-com { display: grid; gap: 2px; border-radius: 16px; padding: 14px 16px; background: #ecfdf5 } .s1c-com small { font-size: 13px; color: #047857 } .s1c-com b { font-size: 30px; font-weight: 500; color: #065f46; font-variant-numeric: tabular-nums } .s1c-com b.vazio { color: #94a3b8 } .s1c-com span { font-size: 12.5px; color: #475569 } .s1c-com span i { color: #059669; margin-right: 3px }
+.s1c-ver { justify-self: stretch; display: flex; justify-content: center; align-items: center; gap: 8px; border-radius: 12px; padding: 10px; background: #0f172a; color: #fefefe; font-size: 13.5px; transition: background .2s } .s1-capa:hover .s1c-ver { background: #2563eb } .s1-capa:hover .s1c-ver i { transform: translateX(3px) } .s1c-ver i { transition: transform .2s }
+.s1-sit { position: absolute; top: 12px; left: 12px; font-size: 12px; font-weight: 900; border-radius: 99px; padding: 4px 10px }
 .s1-vels { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 10px 10px 0 } .vel svg { width: 100%; height: auto; overflow: visible }
 .s1-pag { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 4px 16px 0; padding: 12px 14px; border-radius: 16px; background: linear-gradient(120deg, #ecfdf5, #f0fdfa) }
 .s1-pag small { display: block; font-size: 11px; font-weight: 900; text-transform: uppercase; color: #047857 } .s1-pag b { font-size: 24px; color: #065f46; font-variant-numeric: tabular-nums } .s1-pag b.vazio { color: ${MUDO} }

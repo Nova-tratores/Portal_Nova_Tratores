@@ -35,7 +35,7 @@ export default function TecnicosDoMes() {
         <small>mês atual · meta por semana: básica 20 h e R$ 4 mil, ideal 40 h e R$ 8 mil · clique no técnico para abrir a ficha completa</small>
       </div>
       {!cards ? <div style={{ padding: 30, textAlign: 'center', color: MUDO }}><i className="fas fa-circle-notch fa-spin" /> carregando os técnicos…</div>
-        : <S1Estilo cards={cards} contador="vivo" onAbrir={setAberto} semFoto />}
+        : <S1Estilo cards={cards} contador="vivo" onAbrir={setAberto} semFoto capa />}
       {aberto && <FichaPro nome={aberto.nome} foto={aberto.foto} card={cards?.find((c) => c.nome === aberto.nome) || null} onFechar={() => setAberto(null)}
         secao={pegar('secao') || undefined} onSecao={(s) => mudar({ secao: s === 'comissao' ? null : s }, false)} mes={pegar('mes') || undefined} onMes={(m) => mudar({ mes: m }, false)} />}
     </div>

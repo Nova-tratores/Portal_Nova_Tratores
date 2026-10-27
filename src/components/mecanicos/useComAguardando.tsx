@@ -12,22 +12,23 @@ export function definirComAguardando(v: boolean) { valor = v; ouvintes.forEach((
 export function useComAguardando(): boolean { return useSyncExternalStore(assinar, () => valor, () => false) }
 
 /** A caixinha (igual em todo o módulo). */
-export function CaixaAguardando({ compacta }: { compacta?: boolean }) {
+// pílula simples (José, 27/10/2026: "mais simples e bonito"); a explicação fica no title
+export function CaixaAguardando(_: { compacta?: boolean }) {
   const on = useComAguardando()
   return (
     <label className={`cxa ${on ? 'on' : ''}`} title="Desmarcado: só conta horas de OS já faturadas. Marcado: soma as horas das OS preenchidas que ainda esperam faturar.">
       <style>{ESTILO_CXA}</style>
       <input type="checkbox" role="switch" aria-checked={on} checked={on} onChange={(e) => definirComAguardando(e.target.checked)} />
       <span className="cxa-sw" aria-hidden><i /></span>
-      <span className="cxa-t"><b>Incluir OS ainda não faturadas</b>{!compacta && <small>{on ? 'somando as preenchidas que esperam faturar' : 'contando só o que já foi faturado'}</small>}</span>
+      <span className="cxa-t">{on ? 'Com OS não faturadas' : 'Só OS faturadas'}</span>
     </label>
   )
 }
 const ESTILO_CXA = `
-.cxa { position: relative; display: inline-flex; gap: 10px; align-items: center; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 12px; padding: 7px 14px 7px 10px; cursor: pointer; transition: border-color .2s, background .2s, box-shadow .2s; user-select: none }
-.cxa:hover { box-shadow: 0 4px 12px rgba(15,23,42,.07) } .cxa input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none }
+.cxa { position: relative; display: inline-flex; gap: 8px; align-items: center; background: #f1f5f9; border-radius: 99px; padding: 5px 12px 5px 6px; cursor: pointer; transition: background .2s; user-select: none }
+.cxa:hover { background: #e2e8f0 } .cxa input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none }
 .cxa input:focus-visible + .cxa-sw { outline: 2px solid #f59e0b; outline-offset: 2px }
-.cxa-sw { position: relative; flex: none; width: 38px; height: 22px; border-radius: 99px; background: #cbd5e1; transition: background .25s } .cxa-sw i { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fefefe; box-shadow: 0 1px 3px rgba(15,23,42,.3); transition: transform .3s cubic-bezier(.3,1.4,.5,1) }
-.cxa.on { background: #fffbeb; border-color: #fcd34d } .cxa.on .cxa-sw { background: #f59e0b } .cxa.on .cxa-sw i { transform: translateX(16px) }
-.cxa-t { display: grid; line-height: 1.15 } .cxa-t b { font-size: 13.5px; font-weight: 800; color: var(--portal-text, #0f172a) } .cxa-t small { font-size: 11.5px; font-weight: 600; color: var(--portal-text-muted, #64748b) }
+.cxa-sw { position: relative; flex: none; width: 28px; height: 16px; border-radius: 99px; background: #cbd5e1; transition: background .25s } .cxa-sw i { position: absolute; top: 2px; left: 2px; width: 12px; height: 12px; border-radius: 50%; background: #fefefe; transition: transform .25s ease }
+.cxa.on { background: #fef3c7 } .cxa.on .cxa-sw { background: #f59e0b } .cxa.on .cxa-sw i { transform: translateX(12px) }
+.cxa-t { font-size: 13px; color: var(--portal-text, #0f172a) }
 `

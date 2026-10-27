@@ -1,7 +1,9 @@
 'use client'
 // Caixinha dos técnicos na Janela Mecânicos (José, 27/10/2026): saldo, o que entrou e saiu, o extrato e como funciona.
+// Fechada num resumo; o extrato e o "como funciona" abrem numa janela (José, 27/10/2026: "deixa a caixinha mais fechada, faz um modal").
 // Só leitura — quem lança é o RH. Dados: GET /api/mecanicos/caixinha (lib/mecanicos/caixinha-server.ts).
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { authHeaders } from '@/lib/auth/client'
 import { brl2 } from './ui'
 
@@ -28,6 +30,13 @@ export default function CaixinhaMec() {
   const [filtro, setFiltro] = useState<'tudo' | 'entrou' | 'saiu'>('tudo')
   const [verTudo, setVerTudo] = useState(false)
   const [comoFunciona, setComoFunciona] = useState(false)
+  const [aberta, setAberta] = useState(false)
+  useEffect(() => {
+    if (!aberta) return
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setAberta(false) }
+    window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  }, [aberta])
   useEffect(() => {
     let vivo = true
     ;(async () => {
@@ -40,14 +49,27 @@ export default function CaixinhaMec() {
     return () => { vivo = false }
   }, [])
 
-  if (!d) return <div className="cx"><style>{ESTILO}</style><div className="cx-carr"><i className="fas fa-circle-notch fa-spin" /> lendo a caixinha no RH…</div></div>
-  if (!d.ciclo) return <div className="cx"><style>{ESTILO}</style><div className="cx-carr">{d.erro || 'Caixinha indisponível.'}</div></div>
+  if (!d) return <div className="cx-resumo"><style>{ESTILO}</style><div className="cx-carr"><i className="fas fa-circle-notch fa-spin" /> lendo a caixinha no RH…</div></div>
+  if (!d.ciclo) return <div className="cx-resumo"><style>{ESTILO}</style><div className="cx-carr">{d.erro || 'Caixinha indisponível.'}</div></div>
 
   const extrato = d.extrato.filter((m) => filtro === 'tudo' || (filtro === 'entrou' ? TIPO[m.tipo].sinal > 0 : TIPO[m.tipo].sinal < 0))
   const mostrar = verTudo ? extrato : extrato.slice(0, 8)
+  const vencido = d.ciclo.vencido && d.ciclo.status === 'aberto'
   return (
-    <div className="cx">
+    <>
+    <style>{ESTILO}</style>
+    <button type="button" className="cx-resumo" onClick={() => setAberta(true)}>
+      <span className="cx-ic"><i className="fas fa-piggy-bank" /></span>
+      <span className="cx-r-t"><small>Saldo da caixinha</small><b>{brl2(d.saldo)}</b></span>
+      <span className="cx-r-m">ciclo {d.ciclo.inicio} a {d.ciclo.fim} · {d.contribuintes} técnicos</span>
+      {vencido && <span className="cx-r-al"><i className="fas fa-triangle-exclamation" /> ciclo vencido, falta redistribuir</span>}
+      <span className="cx-r-ver">Ver extrato e como funciona <i className="fas fa-arrow-right" /></span>
+    </button>
+    {aberta && createPortal(
+    <div className="cx-fundo" onClick={() => setAberta(false)}>
+    <div className="cx" role="dialog" aria-modal="true" aria-label="Caixinha dos técnicos" onClick={(e) => e.stopPropagation()}>
       <style>{ESTILO}</style>
+      <div className="cx-cab"><b><i className="fas fa-piggy-bank" /> Caixinha dos técnicos</b><button type="button" aria-label="Fechar" onClick={() => setAberta(false)}><i className="fas fa-xmark" /></button></div>
       <div className="cx-topo">
         <div className="cx-saldo">
           <small>Saldo da caixinha</small>
@@ -106,11 +128,21 @@ export default function CaixinhaMec() {
         </ol>
       )}
     </div>
+    </div>, document.body)}
+    </>
   )
 }
 
 const ESTILO = `
-.cx { display: grid; gap: 14px; background: #fefefe; border: 1px solid #e2e8f0; border-radius: 16px; padding: 18px 20px; color: #0f172a }
+.cx-resumo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; width: 100%; text-align: left; font: inherit; color: #0f172a; background: #fefefe; border: 1px solid #e2e8f0; border-radius: 16px; padding: 12px 16px; cursor: pointer; transition: border-color .2s }
+.cx-resumo:hover { border-color: #10b981 } .cx-resumo:hover .cx-r-ver i { transform: translateX(3px) }
+.cx-ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #ecfdf5; color: #047857; font-size: 18px }
+.cx-r-t { display: grid; line-height: 1.15 } .cx-r-t small { font-size: 12.5px; color: #475569 } .cx-r-t b { font-size: 22px; font-weight: 500 }
+.cx-r-m { font-size: 13px; color: #64748b } .cx-r-al { font-size: 12.5px; color: #92400e; background: #fef3c7; border-radius: 99px; padding: 3px 10px }
+.cx-r-ver { margin-left: auto; font-size: 13px; color: #2563eb; display: inline-flex; gap: 6px; align-items: center } .cx-r-ver i { transition: transform .2s }
+.cx-fundo { position: fixed; inset: 0; z-index: 9500; background: rgba(15,23,42,.45); display: grid; place-items: center; padding: 16px }
+.cx-cab { display: flex; justify-content: space-between; align-items: center } .cx-cab b { font-size: 17px; font-weight: 500 } .cx-cab b i { color: #047857; margin-right: 6px } .cx-cab button { border: 0; background: #f1f5f9; border-radius: 10px; width: 34px; height: 34px; cursor: pointer; color: #475569 }
+.cx { display: grid; gap: 14px; background: #fefefe; border-radius: 18px; padding: 18px 20px; color: #0f172a; width: min(760px, 100%); max-height: calc(100vh - 32px); overflow: auto }
 .cx-carr { padding: 18px; text-align: center; color: #64748b; font-size: 14px }
 .cx-topo { display: flex; gap: 18px; flex-wrap: wrap; align-items: stretch }
 .cx-saldo { flex: 1; min-width: 260px; display: grid; gap: 3px } .cx-saldo small { font-size: 13px; color: #475569 } .cx-saldo b { font-size: 34px; font-weight: 500; line-height: 1.1 } .cx-saldo > span { font-size: 13px; color: #475569 }
