@@ -162,6 +162,7 @@ export async function executarFaturamento(
   return {
     tipo: 'desconhecido',
     // o Omie às vezes leva MINUTOS para faturar depois de responder "sucesso" (OS-0805, 22/10/2026: 4 min)
-    mensagem: `O Omie aceitou o pedido de faturamento, mas a OS continua ABERTA lá por enquanto — às vezes ele leva alguns minutos. O portal está conferindo sozinho: quando a OS aparecer faturada, conclui e fatura o pedido de peças. Se em 10 minutos continuar aberta, libera para faturar de novo.`,
+    // a resposta do Omie vai junto (OS-0793, 27/10/2026: aceitou 2× e não faturou — sem a resposta não dava para saber por quê)
+    mensagem: `O Omie respondeu "${resposta}", mas a OS continua ABERTA lá por enquanto — às vezes ele leva alguns minutos. O portal está conferindo sozinho: quando a OS aparecer faturada, conclui e fatura o pedido de peças. Se em 10 minutos continuar aberta, libera para faturar de novo.`,
   };
 }
