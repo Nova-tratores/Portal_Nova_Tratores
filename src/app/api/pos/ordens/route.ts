@@ -9,6 +9,7 @@ import { logAndNotify } from "@/lib/server/audit-notify";
 import { checarIrregularidade } from "@/lib/pos/checarIrregularidade";
 import { normalizarAlimentacoes, agregadosAlimentacao } from "@/lib/pos/alimentacao-os";
 import type { KanbanCard } from "@/lib/pos/types";
+import { dataHoraBR } from "@/lib/datas/brasil";
 
 /* ── Atualiza contadores de métricas abertas ── */
 async function atualizarMetricasAbertas() {
@@ -293,13 +294,7 @@ export async function POST(req: NextRequest) {
     const novoPPV = await gerarPPVId();
 
     // Criar registro na tabela pedidos para o PPV existir de fato
-    const dataHoje = new Date();
-    const diaF = String(dataHoje.getDate()).padStart(2, "0");
-    const mesF = String(dataHoje.getMonth() + 1).padStart(2, "0");
-    const anoF = dataHoje.getFullYear();
-    const horaF = String(dataHoje.getHours()).padStart(2, "0");
-    const minF = String(dataHoje.getMinutes()).padStart(2, "0");
-    const dataFormatada = `${diaF}/${mesF}/${anoF} ${horaF}:${minF}`;
+    const dataFormatada = dataHoraBR();
 
     const { error: ppvErr } = await supabase.from(TBL_PEDIDOS).insert({
       id_pedido: novoPPV,

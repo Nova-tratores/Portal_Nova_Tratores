@@ -111,6 +111,7 @@ async function montarFicha(nome: string, mes: string) {
       horas: r2(o.horasCobradas), km: r2(o.km), servico: r2(o.servico), kmValor: r2(o.kmValor), pecas: r2(o.pecas), bruto: r2(o.bruto), parte: r2(o.bruto / n), custo: r2(o.custo),
       requisicoes: (o.requisicoes || []).map((q) => ({ id: q.id, titulo: q.titulo, valor: q.valor })),
       descontos: o.descontos ? { hora: r2(o.descontos.hora), km: r2(o.descontos.km), geral: r2(o.descontos.geral), pecas: r2(o.descontos.pecas) } : null,
+      descontoMotivo: o.descontoMotivo ?? null,
     }
   }).sort((a, b) => b.data.localeCompare(a.data))
   const internasMes = base.internasFechadas.filter((x) => x.tecnicos.includes(nome) && x.data >= deMes && x.data <= ateMes)

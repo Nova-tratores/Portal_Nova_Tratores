@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { normalizarPlaca } from '@/lib/frota/placa'
 import { supabase } from '@/lib/pos/supabase'
+import { horaBR } from "@/lib/datas/brasil";
 
 const API_URL = process.env.ROTAEXATA_API_URL || 'https://api.rotaexata.com.br'
 const EMAIL = process.env.ROTAEXATA_EMAIL || ''
@@ -153,7 +154,7 @@ const DEBOUNCE_MIN = 3
 const HORA_INICIO_JORNADA = 5
 
 function horaLocal(dt: string): number {
-  return new Date(dt).getHours()
+  return horaBR(new Date(dt))
 }
 
 function detectarViagens(posicoes: Posicao[], destinos: Destino[]): Viagem[] {

@@ -11,7 +11,7 @@ export async function exportToPDF(data, config) {
 
   doc.setFontSize(10)
   doc.setTextColor(100, 116, 139)
-  doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`, 14, 28)
+  doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} às ${new Date().toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}`, 14, 28)
 
   // Filters
   let startY = 36

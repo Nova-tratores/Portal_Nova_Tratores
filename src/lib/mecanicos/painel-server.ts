@@ -62,7 +62,7 @@ export async function padronizador() {
   return { tecnicos, padronizar, pessoas: dir.pessoas.map((p) => p.nome) }
 }
 
-const COLS_OS = 'Id_Ordem, Ordem_Omie, Os_Cliente, Os_Tecnico, Os_Tecnico2, Servico_Interno, Status, Qtd_HR, Valor_HR, Qtd_KM, Valor_KM, Desconto_Hora, Desconto_KM, Desconto, Valor_Total, ID_PPV, faturado_omie_em, esp_info:Omie_Espelho->info'
+const COLS_OS = 'Id_Ordem, Ordem_Omie, Os_Cliente, Os_Tecnico, Os_Tecnico2, Servico_Interno, Status, Qtd_HR, Valor_HR, Qtd_KM, Valor_KM, Desconto_Hora, Desconto_KM, Desconto, Valor_Total, ID_PPV, faturado_omie_em, esp_info:Omie_Espelho->info, esp_motivo:Omie_Espelho->descontoMotivo'
 const COLS_REL = 'IdOs, Ordem_Servico, TecResp1, TecResp2, DataInicio, InicioHora, FinalHora, DataInicio2, InicioHora2, FinalHora2, DataInicio3, InicioHora3, FinaHora3, TotalHora'
 
 export interface BasePainel {
@@ -226,6 +226,7 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
       horasCobradas, km, servico, kmValor, pecas: vPecas,
       outros, bruto,
       custo: Object.values(cp).reduce((s, v) => s + v, 0), custoPorTipo: cp, descontos,
+      descontoMotivo: String((o.esp_motivo as { texto?: string } | null)?.texto || "").trim() || null,
       requisicoes: reqsPorOS.get(String(o.Id_Ordem)) || [],
     })
   }

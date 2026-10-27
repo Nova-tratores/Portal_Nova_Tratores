@@ -34,6 +34,7 @@ import {
   variantesDeCodigo,
   type DestinoComPpv,
 } from './os-ppv-regras'
+import { dataHoraBR as dataHoraBRComum } from "@/lib/datas/brasil";
 
 export {
   destinoTemPpv, escolherPpvAberto, linhaMovimentacao, MOTIVO_SAIDA_POR_DESTINO,
@@ -329,9 +330,7 @@ async function criarPedido(p: {
 }
 
 function dataHoraBR(): string {
-  const d = new Date()
-  const p2 = (n: number) => String(n).padStart(2, '0')
-  return `${p2(d.getDate())}/${p2(d.getMonth() + 1)}/${d.getFullYear()} ${p2(d.getHours())}:${p2(d.getMinutes())}`
+  return dataHoraBRComum()
 }
 
 async function precoDeVenda(codigo: string): Promise<number> {

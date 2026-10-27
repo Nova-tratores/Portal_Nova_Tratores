@@ -58,6 +58,8 @@ export interface OSFaturada {
   nota?: boolean
   /** descontos dados na OS (R$): hora, km, desconto geral e peças (desconto do PPV) */
   descontos?: Descontos
+  /** motivo do desconto escrito na OS (Omie_Espelho.descontoMotivo) — a ficha mostra para decidir a comissão */
+  descontoMotivo?: string | null
   /** técnicos como estão no OMIE ("vendedor" da OS) — a comissão sai por eles; pode diferir do portal */
   tecnicosOmie?: string[]
 }

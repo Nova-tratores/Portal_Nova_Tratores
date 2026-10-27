@@ -64,7 +64,7 @@ export async function gerarPdfCatalogo(a: { itens: Item[]; nomes: Nomes; filtros
   doc.setFontSize(8.5)
   const agora = new Date()
   const unidades = a.itens.reduce((s, i) => s + i.quantidade, 0)
-  doc.text(`Gerado em ${agora.toLocaleDateString('pt-BR')} às ${agora.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`, 12, 24)
+  doc.text(`Gerado em ${agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} às ${agora.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}`, 12, 24)
   doc.text(`${a.itens.length} ite${a.itens.length === 1 ? 'm' : 'ns'} · ${unidades} unidade${unidades === 1 ? '' : 's'}`, larg - 12, 24, { align: 'right' })
   const filtrosTxt = doc.splitTextToSize(a.filtros.length ? `Filtros: ${a.filtros.join('  ·  ')}` : 'Filtros: nenhum (lista completa)', larg - 24)
   doc.text(filtrosTxt, 12, 29)

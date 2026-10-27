@@ -1,6 +1,6 @@
 export function formatarDataBR(valor?: string | Date | null): string {
   if (!valor) {
-    return new Intl.DateTimeFormat("pt-BR").format(new Date());
+    return new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(new Date());
   }
   const d = new Date(valor);
   if (isNaN(d.getTime())) return String(valor);

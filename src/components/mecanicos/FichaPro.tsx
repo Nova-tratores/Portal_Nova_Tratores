@@ -387,7 +387,8 @@ function Fatos({ d }: { d: Ficha }) {
 }
 
 // ============================================================================ OS da comissão
-type InfoOS = { total: number; pecas: number; servico: number; desconto: number; reqs: { id: number; titulo: string; valor: number }[]; interna?: string }
+// horas = horas cobradas; descBase = desconto que caiu na base da comissão (hora + geral rateado); motivo = escrito na OS
+type InfoOS = { total: number; pecas: number; servico: number; desconto: number; reqs: { id: number; titulo: string; valor: number }[]; interna?: string; horas?: number; descBase?: number; motivo?: string | null }
 
 function ListaOS({ d, e, verOS, verReq }: { d: Ficha; e: EdicaoComissao; verOS: (os: string, c?: string) => void; verReq: (r: { id: number; titulo: string }) => void }) {
   const [so, setSo] = useState<'todas' | 'mexidas' | 'alerta'>('todas')
@@ -395,7 +396,9 @@ function ListaOS({ d, e, verOS, verReq }: { d: Ficha; e: EdicaoComissao; verOS: 
     const m = new Map<string, InfoOS>()
     for (const o of d.os.faturadas) {
       const ds = (o as { descontos?: { hora: number; km: number; geral: number; pecas: number } | null }).descontos
-      m.set(o.os, { total: o.bruto, pecas: o.pecas, servico: o.servico + o.kmValor, desconto: ds ? ds.hora + ds.km + ds.geral + ds.pecas : 0, reqs: o.requisicoes })
+      const extra = o as { horas?: number; descontoMotivo?: string | null }
+      m.set(o.os, { total: o.bruto, pecas: o.pecas, servico: o.servico + o.kmValor, desconto: ds ? ds.hora + ds.km + ds.geral + ds.pecas : 0, reqs: o.requisicoes,
+        horas: extra.horas, descBase: ds ? ds.hora + ds.geral : 0, motivo: extra.descontoMotivo ?? null })
     }
     for (const o of d.os.internas) if (!m.has(o.os)) m.set(o.os, { total: o.valor, pecas: 0, servico: o.valor, desconto: 0, reqs: [], interna: o.contrato })
     return m
@@ -467,7 +470,19 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
             {x?.interna && <span className="it">{x.interna}</span>}
           </div>
         </div>
-        <span className="fp-base">{l.base ? brl(l.base) : '—'}</span>
+        {/* horas cobradas + aviso quando a base já veio com o desconto da OS (José, 27/10/2026). Por ora a decisão é
+            na mão: desconto que NÃO foi erro do técnico pede "Ajustar" para pagar sobre o valor cheio. */}
+        <span className="fp-base">
+          {l.base ? brl(l.base) : '—'}
+          {x?.horas ? <small style={{ display: 'block', fontSize: 11, color: '#64748b', fontWeight: 500 }}>{String(x.horas).replace('.', ',')} h cobradas</small> : null}
+          {x && (x.descBase || 0) > 0 && l.base > 0 && (
+            <small title={`A base já está com ${brl(x.descBase || 0)} de desconto da OS.${x.motivo ? ` Motivo na OS: ${x.motivo}.` : ' A OS não tem motivo do desconto escrito.'} Se o desconto não foi erro do técnico, use Ajustar para pagar sobre o valor cheio.`}
+              style={{ display: 'inline-block', marginTop: 3, padding: '1px 7px', borderRadius: 999, fontSize: 10.5, fontWeight: 700, background: '#fef3c7', color: '#92400e', cursor: 'help' }}>
+              <i className="fas fa-triangle-exclamation" /> com desconto −{brl(x.descBase || 0)}{x.motivo ? '' : ' · sem motivo'}
+            </small>
+          )}
+          {x?.motivo && (x.descBase || 0) > 0 && <small style={{ display: 'block', fontSize: 10.5, color: '#92400e', marginTop: 2, maxWidth: 180, marginLeft: 'auto', lineHeight: 1.3 }} title={x.motivo}>“{x.motivo.length > 60 ? `${x.motivo.slice(0, 60)}…` : x.motivo}”</small>}
+        </span>
         <div className="fp-dec">
           <button type="button" className={estado === 'pg' ? 'on pg' : ''} onClick={() => e.mudar(l, { acao: 'pagar', divisao: null })} title="Pagar como calculado"><i className="fas fa-check" /></button>
           <button type="button" className={estado === 'nao' ? 'on nao' : ''} onClick={() => e.mudar(l, { acao: 'nao', divisao: null })} title="Não pagar (escolher o motivo)"><i className="fas fa-ban" /></button>
