@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useRef } from 'react'
+import { use, useEffect, useRef } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
@@ -14,7 +14,15 @@ import { supabase } from '@/lib/supabase'
 // pelo mesmo auth.uid; sem linha lá, o iframe mostra o aviso.
 const ORIGEM_VENDAS = (process.env.NEXT_PUBLIC_CRM_VENDAS_URL || 'https://vendas-pwa-production.up.railway.app').replace(/\/$/, '')
 
-export default function CrmVendasPage() {
+// ?tela=quests abre direto numa tela do painel (/supervisor/quests). Só nome de
+// tela simples (letras, números, hífen e barra) — nada de outra origem.
+const telaDoLink = (t: string | string[] | undefined) => {
+  const v = Array.isArray(t) ? t[0] : t
+  return v && /^[a-z0-9-]+(\/[a-z0-9-]+)*$/i.test(v) ? `/${v}` : ''
+}
+
+export default function CrmVendasPage({ searchParams }: { searchParams: Promise<{ tela?: string | string[] }> }) {
+  const tela = telaDoLink(use(searchParams).tela)
   const { userProfile } = useAuth()
   const { temAcesso, loading } = usePermissoes(userProfile?.id)
   const iframeRef = useRef<HTMLIFrameElement>(null)
@@ -59,7 +67,7 @@ export default function CrmVendasPage() {
       {podeVer && (
         <iframe
           ref={iframeRef}
-          src={`${ORIGEM_VENDAS}/supervisor?embed=1`}
+          src={`${ORIGEM_VENDAS}/supervisor${tela}?embed=1`}
           title="CRM Vendas"
           // fullscreen: modo Showroom/TV do catálogo · geolocation: mapas
           allow="fullscreen; geolocation"
