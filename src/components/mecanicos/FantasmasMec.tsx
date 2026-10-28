@@ -9,6 +9,7 @@ import { authHeaders } from '@/lib/auth/client'
 import type { Fantasmas, TecnicoFantasma, OSFantasma, DiaFantasma } from '@/lib/mecanicos/fantasmas-server'
 import { useVersaoAoVivo } from './useAoVivo'
 import TemparioJanela from './TemparioJanela'
+import FuroKmJanela from './FuroKmJanela'
 
 const h = (v: number) => `${String(Math.round(v * 10) / 10).replace('.', ',')} h`
 const km = (v: number) => `${Math.round(v).toLocaleString('pt-BR')} km`
@@ -124,26 +125,32 @@ export default function FantasmasMec({ mes }: { mes: string }) {
       {erro && <p className="fan-erro">{erro}</p>}
       {d?.semTabela && <p className="fan-aviso">Para guardar a análise do tempário falta rodar o SQL <b>sql/posvendas-tempario.sql</b>.</p>}
       {!d ? <div className="fan-esq">{[0, 1].map((k) => <div key={k} className="fan-esq-c" />)}</div> : (
-        <div className="fan-lista">{d.tecnicos.map((t, k) => <CartaoTecnico key={t.tecnico} t={t} ordem={k} />)}</div>
+        <div className="fan-lista">{d.tecnicos.map((t, k) => <CartaoTecnico key={t.tecnico} t={t} ordem={k} mes={mes} />)}</div>
       )}
     </section>
   )
 }
 
 /** Barra que cresce; `fantasma` é a parte além de `base`, listrada e andando. */
-/** Uma comparação: duas fontes, uma barrinha para cada e a diferença dita em palavras. */
-function Compara({ titulo, a, b, fmt, dif, nota, atraso }: { titulo: string; a: { rot: string; v: number; cor: string }; b: { rot: string; v: number; cor: string }; fmt: (n: number) => string; dif: { t: string; tom: 'v' | 'a' | 'n' | 'ok' }; nota?: string; atraso: number }) {
+/** Uma comparação (José, 28/10/2026: "muito confuso"): a diferença em destaque, uma barra só (verde = o que bate,
+ *  listrado = a diferença) e as duas fontes embaixo; clicar abre o detalhe (mapa do furo, OS, dia a dia). */
+function Compara({ titulo, a, b, fmt, dif, nota, atraso, acao }: { titulo: string; a: { rot: string; v: number; cor: string }; b: { rot: string; v: number; cor: string }; fmt: (n: number) => string; dif: { t: string; tom: 'v' | 'a' | 'n' | 'ok' }; nota?: string; atraso: number; acao?: { t: string; ic: string; onClick: () => void } }) {
   const mx = Math.max(a.v, b.v, 0.0001)
-  return (
-    <div className="fan-cmp" style={{ animationDelay: `${atraso}ms` }}>
-      <b className="fan-cmp-t">{titulo}</b>
-      {[a, b].map((l, i) => (
-        <div key={i} className="fan-cmp-l"><small>{l.rot}</small><span><i style={{ width: `${(l.v / mx) * 100}%`, background: l.cor, animationDelay: `${atraso + 100 + i * 80}ms` }} /></span><b>{fmt(l.v)}</b></div>
-      ))}
-      <span className={`fan-cmp-d ${dif.tom}`}><i className={`fas ${dif.tom === 'ok' ? 'fa-check' : 'fa-arrow-right'}`} /> {dif.t}</span>
+  const menor = Math.min(a.v, b.v)
+  const miolo = (
+    <>
+      <small className="fan-cmp-t">{titulo}</small>
+      <b className="fan-cmp-d"><i className={`fas ${dif.tom === 'ok' ? 'fa-circle-check' : 'fa-triangle-exclamation'}`} /> {dif.t}</b>
+      <span className="fan-cmp-bar" title={`${a.rot}: ${fmt(a.v)} · ${b.rot}: ${fmt(b.v)}`}><i style={{ width: `${(menor / mx) * 100}%`, animationDelay: `${atraso + 120}ms` }} /></span>
+      <span className="fan-cmp-v"><span><i style={{ background: a.cor }} />{a.rot} <b>{fmt(a.v)}</b></span><span><i style={{ background: b.cor }} />{b.rot} <b>{fmt(b.v)}</b></span></span>
       {nota && <small className="fan-cmp-n">{nota}</small>}
-    </div>
+      {acao && <span className="fan-cmp-a"><i className={`fas ${acao.ic}`} /> {acao.t} <i className="fas fa-arrow-right" /></span>}
+    </>
   )
+  const cls = `fan-cmp ${dif.tom} ${acao ? 'clica' : ''}`
+  return acao
+    ? <button type="button" onClick={acao.onClick} className={cls} style={{ animationDelay: `${atraso}ms` }}>{miolo}</button>
+    : <div className={cls} style={{ animationDelay: `${atraso}ms` }}>{miolo}</div>
 }
 
 function Barra({ rot, v, max, cor, fmt, base, dica, atraso }: { rot: string; v: number; max: number; cor: string; fmt: (n: number) => string; base?: number; dica?: string; atraso: number }) {
@@ -184,8 +191,9 @@ function LinhaMes({ dias, mes }: { dias: DiaFantasma[]; mes: string }) {
   )
 }
 
-export function CartaoTecnico({ t, ordem = 0 }: { t: TecnicoFantasma; ordem?: number }) {
+export function CartaoTecnico({ t, ordem = 0, mes }: { t: TecnicoFantasma; ordem?: number; mes: string }) {
   const [aberto, setAberto] = useState<'os' | 'dias' | null>(null)
+  const [furo, setFuro] = useState(false)
   const [tempario, setTempario] = useState<string | null>(null)
   const x = t.totais
   const maxH = Math.max(x.ligadoH, x.horasRel, x.horasCobradas, x.horasPrevistas, 1)
@@ -209,27 +217,32 @@ export function CartaoTecnico({ t, ordem = 0 }: { t: TecnicoFantasma; ordem?: nu
           <span className="fan-rot"><i className="fas fa-clock" /> Horas</span>
           <Compara titulo="Cobrado na OS × apontado no relatório" fmt={h} atraso={b0 + 100}
             a={{ rot: 'na OS', v: x.horasCobradas, cor: '#059669' }} b={{ rot: 'no relatório', v: x.horasRel, cor: '#2563eb' }}
-            dif={x.naoCobradas > 0 ? { t: `${h(x.naoCobradas)} trabalhadas e não cobradas`, tom: 'a' } : { t: 'tudo que apontou foi cobrado', tom: 'ok' }} />
+            dif={x.naoCobradas > 0 ? { t: `${h(x.naoCobradas)} trabalhadas e não cobradas`, tom: 'a' } : { t: 'tudo que apontou foi cobrado', tom: 'ok' }}
+            acao={x.naoCobradas > 0 ? { t: 'ver as OS', ic: 'fa-file-lines', onClick: () => setAberto('os') } : undefined} />
           <Compara titulo="Apontado no relatório × tempário Mahindra" fmt={h} atraso={b0 + 180}
             a={{ rot: 'no relatório', v: x.horasRelAnalisadas, cor: '#2563eb' }} b={{ rot: 'tempário', v: x.horasPrevistas, cor: '#7c3aed' }}
             dif={x.acimaTempario > 0 ? { t: `+${h(x.acimaTempario)} acima do tempário`, tom: 'v' } : { t: 'dentro do tempário', tom: 'ok' }}
             nota={x.osSemAnalise > 0 ? `só as OS já analisadas · ${x.osSemAnalise} sem análise` : 'só as OS já analisadas'} />
           <Compara titulo="Apontado no relatório × carro ligado (GPS)" fmt={h} atraso={b0 + 260}
             a={{ rot: 'no relatório', v: x.horasRel, cor: '#2563eb' }} b={{ rot: 'carro ligado', v: x.ligadoH, cor: '#94a3b8' }}
-            dif={x.ligadoSemOS > 0 ? { t: `${h(x.ligadoSemOS)} de carro ligado em dia sem OS`, tom: 'n' } : { t: 'carro ligado só em dia de OS', tom: 'ok' }} />
+            dif={x.ligadoSemOS > 0 ? { t: `${h(x.ligadoSemOS)} de carro ligado em dia sem OS`, tom: 'n' } : { t: 'carro ligado só em dia de OS', tom: 'ok' }}
+            acao={x.ligadoSemOS > 0 ? { t: 'ver o dia a dia', ic: 'fa-calendar-days', onClick: () => setAberto('dias') } : undefined} />
         </div>
         <div className="fan-bloco">
           <span className="fan-rot"><i className="fas fa-road" /> Quilômetros</span>
           <Compara titulo="Km colocado na OS × km rodado (GPS)" fmt={km} atraso={b0 + 140}
             a={{ rot: 'na OS', v: x.kmCobrado, cor: '#059669' }} b={{ rot: 'GPS', v: x.kmCarro, cor: '#94a3b8' }}
-            dif={x.kmCarro > x.kmCobrado ? { t: `${km(x.kmCarro - x.kmCobrado)} rodados e não cobrados`, tom: 'v' } : { t: 'cobrou tudo que rodou', tom: 'ok' }} />
+            dif={x.kmCarro > x.kmCobrado ? { t: `${km(x.kmCarro - x.kmCobrado)} rodados e não cobrados`, tom: 'v' } : { t: 'cobrou tudo que rodou', tom: 'ok' }}
+            acao={x.kmCarro > x.kmCobrado ? { t: 'ver no mapa onde foi o furo', ic: 'fa-map-location-dot', onClick: () => setFuro(true) } : undefined} />
           <Compara titulo="Km no relatório × km rodado (GPS)" fmt={km} atraso={b0 + 220}
             a={{ rot: 'no relatório', v: x.kmRel, cor: '#2563eb' }} b={{ rot: 'GPS', v: x.kmCarro, cor: '#94a3b8' }}
             dif={x.kmFantasma > 0 ? { t: `${km(x.kmFantasma)} rodados fora dos relatórios`, tom: 'v' } : { t: 'tudo que rodou está no relatório', tom: 'ok' }}
+            acao={x.kmFantasma > 0 ? { t: 'ver no mapa', ic: 'fa-map-location-dot', onClick: () => setFuro(true) } : undefined}
             nota={x.kmSemOS > 0 ? `${km(x.kmSemOS)} em ${x.diasCarroSemOS} dia${x.diasCarroSemOS === 1 ? '' : 's'} sem nenhuma OS` : undefined} />
           <Compara titulo="Km colocado na OS × km no relatório" fmt={km} atraso={b0 + 300}
             a={{ rot: 'na OS', v: x.kmCobrado, cor: '#059669' }} b={{ rot: 'no relatório', v: x.kmRel, cor: '#2563eb' }}
-            dif={x.kmRel > x.kmCobrado ? { t: `${km(x.kmRel - x.kmCobrado)} do relatório não cobrados`, tom: 'a' } : { t: 'o relatório foi todo cobrado', tom: 'ok' }} />
+            dif={x.kmRel > x.kmCobrado ? { t: `${km(x.kmRel - x.kmCobrado)} do relatório não cobrados`, tom: 'a' } : { t: 'o relatório foi todo cobrado', tom: 'ok' }}
+            acao={x.kmRel > x.kmCobrado ? { t: 'ver as OS', ic: 'fa-file-lines', onClick: () => setAberto('os') } : undefined} />
         </div>
       </div>
       {/* gráfico do mês tirado do cartão (José, 21/10/2026); o dia a dia continua na aba "Dia a dia" */}
@@ -263,6 +276,7 @@ export function CartaoTecnico({ t, ordem = 0 }: { t: TecnicoFantasma; ordem?: nu
       </div>
       {aberto === 'os' && <TabelaOS os={t.os} onTempario={setTempario} />}
       {tempario && <TemparioJanela os={tempario} onFechar={() => setTempario(null)} />}
+      {furo && <FuroKmJanela tecnico={t.tecnico} mes={mes} onFechar={() => setFuro(false)} />}
       {aberto === 'dias' && (
         <div className="fan-tab">
           <div className="fan-th d"><span>Dia</span><span>OS</span><span className="n">Relatório</span><span className="n">Carro ligado</span><span>Carro</span><span className="n">Km carro</span><span className="n">Km relatório</span></div>
@@ -340,13 +354,16 @@ export const ESTILO_FAN = `
 .fan-bar-f { border-radius: 99px }
 .fan-bar-g { border-radius: 0 99px 99px 0; background: repeating-linear-gradient(-45deg, color-mix(in srgb, #dc2626 75%, transparent) 0 6px, color-mix(in srgb, #dc2626 25%, transparent) 6px 12px); background-size: 28px 100%; animation: fanCresce 1s var(--d) cubic-bezier(.2,.8,.2,1) both, fanListra 1.2s linear infinite }
 .fan-bar-v { text-align: right; font-variant-numeric: tabular-nums }
-.fan-cmp { display: grid; gap: 5px; background: #f8fafc; border-radius: 12px; padding: 10px 12px; animation: fanSobe .45s both }
-.fan-cmp-t { font-size: 13.5px; font-weight: 500; color: #0f172a; margin-bottom: 2px }
-.fan-cmp-l { display: grid; grid-template-columns: 86px minmax(0, 1fr) 78px; gap: 8px; align-items: center } .fan-cmp-l small { font-size: 12.5px; color: #475569 } .fan-cmp-l > b { font-size: 13.5px; font-weight: 500; color: #0f172a; text-align: right; font-variant-numeric: tabular-nums }
-.fan-cmp-l span { height: 8px; border-radius: 99px; background: #eef2f6; overflow: hidden } .fan-cmp-l span i { display: block; height: 100%; border-radius: 99px; transform-origin: left; animation: fanBarra .9s cubic-bezier(.2,.8,.2,1) both }
-.fan-cmp-d { justify-self: start; font-size: 12.5px; border-radius: 99px; padding: 3px 10px; margin-top: 2px } .fan-cmp-d i { font-size: 10.5px; margin-right: 2px }
-.fan-cmp-d.v { background: #fee2e2; color: #991b1b } .fan-cmp-d.a { background: #fef3c7; color: #92400e } .fan-cmp-d.n { background: #eef2f6; color: #334155 } .fan-cmp-d.ok { background: #dcfce7; color: #166534 }
+.fan-cmp { display: grid; gap: 6px; text-align: left; font-family: inherit; color: inherit; width: 100%; background: #f8fafc; border: 1px solid transparent; border-radius: 14px; padding: 12px 14px; animation: fanSobe .45s both; transition: border-color .2s, box-shadow .2s, transform .2s }
+.fan-cmp.clica { cursor: pointer } .fan-cmp.clica:hover { background: #fefefe; border-color: #cbd5e1; box-shadow: 0 10px 24px -18px rgba(15,23,42,.5); transform: translateY(-1px) }
+.fan-cmp-t { font-size: 12.5px; color: #475569 }
+.fan-cmp-d { font-size: 16px; font-weight: 500; line-height: 1.3 } .fan-cmp-d i { font-size: 13px; margin-right: 3px }
+.fan-cmp.v .fan-cmp-d { color: #b91c1c } .fan-cmp.a .fan-cmp-d { color: #b45309 } .fan-cmp.n .fan-cmp-d { color: #334155 } .fan-cmp.ok .fan-cmp-d { color: #15803d }
+.fan-cmp-bar { height: 10px; border-radius: 99px; overflow: hidden; background: repeating-linear-gradient(135deg, #fca5a5 0 6px, #fee2e2 6px 12px) } .fan-cmp.a .fan-cmp-bar { background: repeating-linear-gradient(135deg, #fcd34d 0 6px, #fef3c7 6px 12px) } .fan-cmp.n .fan-cmp-bar { background: repeating-linear-gradient(135deg, #cbd5e1 0 6px, #f1f5f9 6px 12px) } .fan-cmp.ok .fan-cmp-bar { background: #bbf7d0 }
+.fan-cmp-bar i { display: block; height: 100%; border-radius: 99px; background: #10b981; transform-origin: left; animation: fanBarra .9s cubic-bezier(.2,.8,.2,1) both }
+.fan-cmp-v { display: flex; gap: 4px 14px; flex-wrap: wrap; font-size: 12.5px; color: #475569 } .fan-cmp-v i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px } .fan-cmp-v b { font-weight: 500; color: #0f172a; font-variant-numeric: tabular-nums }
 .fan-cmp-n { font-size: 12px; color: #64748b }
+.fan-cmp-a { justify-self: start; font-size: 12.5px; color: #1d4ed8; opacity: .75; transition: opacity .2s } .fan-cmp.clica:hover .fan-cmp-a { opacity: 1 } .fan-cmp-a .fa-arrow-right { font-size: 10px; transition: transform .2s } .fan-cmp.clica:hover .fa-arrow-right { transform: translateX(3px) }
 .fan-rot i { color: #64748b; margin-right: 4px; font-size: 13px }
 .fan-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px } .fan-chips span { font-size: 12.5px; border-radius: 99px; padding: 4px 10px; animation: fanSobe .4s .6s both }
 .fan-chips .v { background: #fee2e2; color: #991b1b } .fan-chips .a { background: #fef3c7; color: #92400e } .fan-chips .n { background: #f1f5f9; color: #475569 }
