@@ -122,11 +122,21 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
       ? `${nome} apontou ${h(x.horasRel)} nos relatórios e as OS cobraram ${h(x.horasCobradas)}. Olhando OS por OS, ${h(x.naoCobradas)} trabalhadas ficaram sem cobrar (em algumas OS foi cobrado mais do que ele apontou, por isso a conta não é só a diferença dos totais). Foi nestas OS:`
       : `${nome} apontou ${h(x.horasRel)} nos relatórios e as OS cobraram ${h(x.horasCobradas)}: nenhuma hora trabalhada ficou sem cobrar.` })
 
-  // horas: carro ligado sem OS
-  if (temCarro && x.ligadoSemOS > 0.05) out.push({ titulo: 'Carro ligado sem OS', ic: 'fa-car', fontes: 'GPS × OS', erro: false, acao: 'mapa', div: 'ligado-sem-os',
-    itens: fk ? ate8(fk.dias.filter((d) => !d.os.length && d.ligadoH > 0.05).sort((a, b) => b.ligadoH - a.ligadoH).map((d) => `${ddmm(d.data)}: ligado ${h(d.ligadoH)}, rodou ${km(d.kmGps)}${d.saida ? `, das ${new Date(d.saida).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}` : ''}${d.volta ? ` às ${new Date(d.volta).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}` : ''}`)) : undefined,
-    v: h(x.ligadoSemOS), txt: 'de carro ligado em dias sem OS',
-    frase: `Nos dias em que ${nome} não tinha OS, o carro dele ficou ${h(x.ligadoSemOS)} com o motor ligado (de ${h(x.ligadoH)} ligado no mês todo). Dia a dia:` })
+  // horas sem destino (José, 28/10/2026: "e isso é a mesma coisa com horas"): carro ligado em dia sem OS dele; se nesse
+  // dia o carro esteve no cliente de um colega, o destino é a OS do colega (não é hora fantasma)
+  if (temCarro && x.ligadoSemOS > 0.05) {
+    const ds = (fk?.dias || []).filter((d) => !d.os.length && d.ligadoH > 0.05).map((d) => ({ d, colega: d.colegas.find((o) => o.noCliente) }))
+    const semDest = fk ? ds.filter((z) => !z.colega).reduce((s2, z) => s2 + z.d.ligadoH, 0) : x.ligadoSemOS
+    const comCol = ds.filter((z) => z.colega).reduce((s2, z) => s2 + z.d.ligadoH, 0)
+    const hm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) : '')
+    out.push({ titulo: 'Horas sem destino', ic: 'fa-car', fontes: 'GPS × OS', erro: semDest > 0.5, ok: semDest <= 0.05, acao: 'mapa', div: 'ligado-sem-os',
+      v: semDest > 0.05 ? h(semDest) : '0 h', txt: semDest > 0.05 ? 'de carro ligado em dias sem OS e sem colega' : 'sem destino: todo dia com o carro ligado tem OS ou colega',
+      sub: comCol > 0.05 ? `fora isso, ${h(comCol)} em dias levando colega: o destino é a OS do colega` : undefined,
+      itens: fk ? ate8([...ds].sort((p, q) => q.d.ligadoH - p.d.ligadoH).map((z) => `${ddmm(z.d.data)}: ligado ${h(z.d.ligadoH)}, rodou ${km(z.d.kmGps)}${z.d.saida ? `, das ${hm(z.d.saida)}` : ''}${z.d.volta ? ` às ${hm(z.d.volta)}` : ''} → ${z.colega ? `destino: ${z.colega.os} do ${z.colega.tecnico.split(' ')[0]} (${cli(z.colega.cliente)})` : '⚠ sem destino'}`)) : undefined,
+      frase: `Nos dias em que ${nome} não tinha OS, o carro dele ficou ${h(x.ligadoSemOS)} com o motor ligado (de ${h(x.ligadoH)} no mês todo).`
+        + (semDest > 0.05 ? ` ${h(semDest)} não têm destino: não havia OS dele nem colega no lugar onde o carro parou. Essa é a hora fantasma.` : ' Todas essas horas têm destino.')
+        + (comCol > 0.05 ? ` Outras ${h(comCol)} foram em dias em que o carro esteve no cliente de um colega.` : '') + ' Dia a dia:' })
+  }
 
   // cliente: GPS × local do cliente
   if (temCarro) {
