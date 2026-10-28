@@ -154,8 +154,9 @@ export function ParadoFilaEstilo({ pendencias, estilo }: { pendencias: Pendencia
           {fila.map(({ p }, i) => (
             <button type="button" key={p.os} onClick={() => setAberta(p)} className="pc-fl" style={{ '--c': COR_TIPO[p.tipo], '--w': `${(p.total / maxP) * 100}%`, animationDelay: `${300 + i * 60}ms` } as React.CSSProperties}>
               <span className="pc-fl-n">{i + 1}</span>
-              <div className="pc-fl-t"><b>{p.os}</b><small>{p.cliente || '—'} · {p.tecnicos.join(' + ') || 'sem técnico'} · {p.status}</small></div>
-              <span className="pc-fl-d" style={{ background: COR_IDADE[faixaDe(p.dias)] }}>{p.dias} dias</span>
+              <div className="pc-fl-t"><b>{p.os}</b><small>{p.cliente || '—'} · {p.tecnicos.join(' + ') || 'sem técnico'}</small><i className="pc-fl-bar"><u /></i></div>
+              <em className="pc-fl-s">{p.status}</em>
+              <span className="pc-fl-d" style={{ '--d': COR_IDADE[faixaDe(p.dias)] } as React.CSSProperties}><i className="fas fa-hourglass-half" /> {p.dias} dias</span>
               <strong>{brl(p.total)}</strong>
             </button>
           ))}
@@ -546,12 +547,15 @@ button.pc-n:not(:disabled) { cursor: pointer } button.pc-n:not(:disabled):hover 
 .pc-marca { position: absolute; right: -10px; bottom: -14px; font-size: 84px; opacity: .14; transform: rotate(-12deg); transition: transform .4s } .pc-n:hover .pc-marca { transform: rotate(0) scale(1.08) }
 .pc-n small { font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; opacity: .9 } .pc-n b { font-size: 28px; font-weight: 900; font-variant-numeric: tabular-nums } .pc-n span { font-size: 12.5px; font-weight: 700; opacity: .9; display: flex; justify-content: space-between; gap: 8px } .pc-n em { font-style: normal; font-size: 11px; opacity: .85 }
 .pc-fila { display: grid; gap: 6px }
-.pc-fl { position: relative; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto 110px; gap: 12px; align-items: center; border-radius: 14px; padding: 10px 14px; text-decoration: none; color: inherit; background: var(--portal-bg-secondary, #f8fafc); overflow: hidden; animation: paEntra .4s both; transition: transform .2s }
-.pc-fl::before { content: ''; position: absolute; inset: 0 auto 0 0; width: var(--w); background: color-mix(in srgb, var(--c) 12%, transparent); transform-origin: left; animation: paLado .9s cubic-bezier(.2,.8,.2,1) both } .pc-fl > * { position: relative } .pc-fl:hover { transform: translateX(4px) }
-.pc-fl-n { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--c); color: #fefefe; font-weight: 900; font-size: 13px }
-.pc-fl-t { min-width: 0 } .pc-fl-t b { font-size: 14.5px } .pc-fl-t small { display: block; font-size: 12.5px; color: ${MUDO}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
-.pc-fl-d { font-size: 12px; font-weight: 900; color: #fefefe; border-radius: 99px; padding: 3px 10px; white-space: nowrap }
-.pc-fl > strong { text-align: right; font-size: 16px; font-variant-numeric: tabular-nums }
+.pc-fl { position: relative; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto auto 110px; border: 1px solid #e8edf3 !important; background: #fefefe !important; gap: 12px; align-items: center; border-radius: 14px; padding: 10px 14px; text-decoration: none; color: inherit; background: var(--portal-bg-secondary, #f8fafc); overflow: hidden; animation: paEntra .4s both; transition: transform .2s }
+.pc-fl::before { content: ''; position: absolute; inset: 8px auto 8px 0; width: 3px; border-radius: 0 3px 3px 0; background: var(--c); opacity: .7 } .pc-fl > * { position: relative } .pc-fl:hover { transform: translateY(-1px); box-shadow: 0 10px 22px -16px rgba(15,23,42,.45); border-color: color-mix(in srgb, var(--c) 35%, #e8edf3) !important }
+.pc-fl-bar { display: block; height: 5px; border-radius: 99px; background: #f1f5f9; margin-top: 6px; overflow: hidden; max-width: 520px } .pc-fl-bar u { display: block; height: 100%; width: var(--w); border-radius: 99px; background: color-mix(in srgb, var(--c) 70%, #fefefe); transform-origin: left; animation: paLado .9s cubic-bezier(.2,.8,.2,1) both }
+.pc-fl-s { font-style: normal; font-size: 12.5px; color: #334155; background: #f1f5f9; border-radius: 99px; padding: 3px 10px; white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis }
+.pc-fl-n { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 12%, #fefefe); color: color-mix(in srgb, var(--c) 85%, #0f172a); font-weight: 600; font-size: 13px }
+.pc-fl-t { min-width: 0 } .pc-fl-t b { font-size: 14.5px; font-weight: 600 } .pc-fl-t small { display: block; font-size: 13px; color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.pc-fl-d { font-size: 12.5px; font-weight: 600; color: color-mix(in srgb, var(--d) 85%, #0f172a); background: color-mix(in srgb, var(--d) 12%, #fefefe); border-radius: 99px; padding: 3px 10px; white-space: nowrap } .pc-fl-d i { font-size: 10px; margin-right: 2px }
+.pc-fl > strong { text-align: right; font-size: 16px; font-weight: 500; font-variant-numeric: tabular-nums }
+@media (max-width: 900px) { .pc-fl { grid-template-columns: 30px minmax(0, 1fr) 100px } .pc-fl-s, .pc-fl-d { display: none } }
 .pl-faixa { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 1px solid var(--portal-border, #e5e7eb); border-bottom: 1px solid var(--portal-border, #e5e7eb) } @media (max-width: 800px) { .pl-faixa { grid-template-columns: repeat(2, minmax(0, 1fr)) } }
 .pl-n { position: relative; display: grid; gap: 2px; text-align: left; font-family: inherit; border: none; border-left: 1px solid var(--portal-border, #e5e7eb); background: transparent; padding: 14px 18px; color: inherit; animation: paEntra .45s both } .pl-n:first-child { border-left: none; padding-left: 4px }
 .pl-n::after { content: ''; position: absolute; left: 18px; right: 18px; bottom: -1px; height: 3px; background: var(--c); transform: scaleX(0); transform-origin: left; transition: transform .3s } .pl-n:first-child::after { left: 4px }
