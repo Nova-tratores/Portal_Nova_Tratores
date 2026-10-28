@@ -91,6 +91,9 @@ export default function EquipeCapa({ mes }: { mes: string }) {
   const kmPorH = d.feitas ? d.km / d.feitas : 0
   const pos = (v: number) => `${Math.min(100, (v / Math.max(1, idealMes)) * 100)}%`
   const nomeMes = MESES[Number(mes.slice(5, 7)) - 1]
+  // zoom (José, 28/10/2026): a escala vai até a meta básica do mês e a projeção — a ideal (o dobro) achatava a área
+  const topo = serie ? Math.ceil((Math.max(serie.metaMes, serie.fimProj, serie.feito) * 1.12) / 20) * 20 : undefined
+  const idealCortada = !!serie && serie.idealMes > (topo || 0)
 
   return (
     <section className="eqc cpv-entra">
@@ -149,7 +152,7 @@ export default function EquipeCapa({ mes }: { mes: string }) {
             {LEGENDA.filter((x) => vista === 'acumulado' || x.k !== 'proj').map((x) => (
               <div key={x.k} style={{ '--c': x.cor } as React.CSSProperties}>
                 <span><i className={`fas ${x.ic}`} /></span>
-                <p><b>{x.t}</b><small>{x.d}</small></p>
+                <p><b>{x.t}</b><small>{x.d}{x.k === 'ideal' && vista === 'acumulado' && idealCortada ? ' · sai pelo topo do gráfico' : ''}</small></p>
               </div>
             ))}
           </div>
@@ -158,16 +161,16 @@ export default function EquipeCapa({ mes }: { mes: string }) {
               {vista === 'acumulado' && serie ? (
                 <ComposedChart data={serie.pts} margin={{ top: 14, right: 12, left: -8, bottom: 0 }}>
                   <defs>
-                    <linearGradient id="eqcFeito" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.feito} stopOpacity={0.35} /><stop offset="100%" stopColor={C.feito} stopOpacity={0.03} /></linearGradient>
+                    <linearGradient id="eqcFeito" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.feito} stopOpacity={0.45} /><stop offset="100%" stopColor={C.feito} stopOpacity={0.03} /></linearGradient>
                   </defs>
                   <CartesianGrid vertical={false} stroke="#eef2f6" />
                   <XAxis dataKey="rot" tick={{ fontSize: 12, fill: '#475569' }} tickLine={false} axisLine={false} interval={2} />
-                  <YAxis tick={{ fontSize: 12, fill: '#475569' }} tickLine={false} axisLine={false} unit=" h" />
+                  <YAxis tick={{ fontSize: 12, fill: '#475569' }} tickLine={false} axisLine={false} unit=" h" domain={[0, topo || 'auto']} allowDataOverflow />
                   <Tooltip content={<Dica />} />
                   {d.atual && <ReferenceLine x={serie.limite.slice(8, 10)} stroke="#0f172a" strokeDasharray="3 3" label={{ value: 'hoje', position: 'top', fontSize: 12, fill: '#0f172a' }} />}
                   <Line dataKey="ideal" stroke={C.ideal} strokeDasharray="6 4" dot={false} strokeWidth={2} animationDuration={900} />
                   <Line dataKey="esperado" stroke={C.esperado} dot={false} strokeWidth={2.5} animationDuration={900} />
-                  <Area dataKey="feito" stroke={C.feito} strokeWidth={3} fill="url(#eqcFeito)" connectNulls={false} dot={false} activeDot={{ r: 5 }} animationDuration={1300} />
+                  <Area dataKey="feito" stroke={C.feito} strokeWidth={3} fill="url(#eqcFeito)" connectNulls={false} dot={{ r: 2.5, fill: C.feito, strokeWidth: 0 }} activeDot={{ r: 6 }} animationDuration={1300} />
                   <Line dataKey="proj" stroke={C.proj} strokeDasharray="4 4" dot={false} strokeWidth={2.5} connectNulls={false} animationBegin={1100} animationDuration={700} />
                 </ComposedChart>
               ) : (
