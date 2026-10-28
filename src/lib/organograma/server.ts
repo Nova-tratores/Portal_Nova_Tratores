@@ -1,0 +1,129 @@
+// Organograma — leitura das fontes (portal, RH, responsabilidades em outros módulos, uso) e
+// gravação do chefe em org_pessoas. Servidor (service role); regras em ./arvore.ts.
+import { supabaseAdmin } from '@/lib/server/supabase-admin';
+import { listarFuncionariosRH, rhConfigurado } from '@/lib/frota/rh';
+import { juntarPessoas, type PessoaOrg, type UsuarioPortal, type VinculoOrg } from './arvore';
+
+const faltando = (e: unknown) =>
+  /PGRST205|PGRST204|42P01|42703|schema cache|does not exist/i.test(`${(e as { code?: string })?.code || ''} ${(e as Error)?.message || ''}`);
+
+type Resp<T> = PromiseLike<{ data: T[] | null; error: { message: string; code?: string } | null }>;
+async function tudo<T>(montar: (de: number, ate: number) => Resp<T>, teto = 30000): Promise<T[]> {
+  const out: T[] = [];
+  for (let off = 0; off < teto; off += 1000) {
+    const { data, error } = await montar(off, off + 999);
+    if (error) throw Object.assign(new Error(error.message), { code: error.code });
+    out.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  return out;
+}
+
+/** Lê uma fonte opcional: tabela/coluna que não existe vira lista vazia. */
+async function opcional<T>(q: PromiseLike<{ data: T[] | null; error: { message: string; code?: string } | null }>): Promise<T[]> {
+  const { data, error } = await q;
+  if (error) { if (!faltando(error)) console.warn('[organograma]', error.message); return []; }
+  return data || [];
+}
+
+const ROTULO_SISTEMA: Record<string, string> = {
+  pos: 'Ordens de serviço', ppv: 'Pedidos de peças', financeiro: 'Financeiro', requisicoes: 'Requisições',
+  revisoes: 'Revisões', feedbacks: 'Atendimento/CRM', ajustes: 'Ajustes', frota: 'Frota', estoque: 'Estoque',
+  tickets: 'Tickets', garantias: 'Garantias', marketing: 'Marketing', propostas: 'Propostas', agenda: 'Agenda',
+  planta: 'Planta Viva', ideias: 'Ideias', 'vendas-modelo': 'Vendas por modelo', alocacao: 'Alocação de peças',
+  localizacao: 'Localização de peças', caracteristicas: 'Cadastro de peças', sat: 'SAT', opa: 'Opa',
+  avisos: 'Avisos', 'consulta-omie': 'Consulta Omie', 'estoque-recebimentos': 'Recebimentos', 'app-requisicoes': 'Requisições (app)',
+  dre: 'DRE', 'painel-omie': 'Painel Omie', pops: 'POPs', reunioes: 'Reuniões', clientes: 'Pasta de clientes',
+};
+
+/** Responsabilidades gravadas em outros módulos, por chave 'u:<uid>'. */
+async function papeisPorUsuario(): Promise<Map<string, string[]>> {
+  const m = new Map<string, string[]>();
+  const add = (uid: string | null | undefined, txt: string) => {
+    if (!uid) return;
+    const k = `u:${uid}`;
+    const l = m.get(k) || [];
+    if (!l.includes(txt)) l.push(txt);
+    m.set(k, l);
+  };
+  const [perm, pops, kb, sc, receb, reun] = await Promise.all([
+    opcional<{ user_id: string; is_admin: boolean | null; is_diretor?: boolean | null }>(supabaseAdmin.from('portal_permissoes').select('user_id,is_admin,is_diretor'))
+      .then(async (r) => (r.length ? r : opcional<{ user_id: string; is_admin: boolean | null }>(supabaseAdmin.from('portal_permissoes').select('user_id,is_admin')))),
+    opcional<{ user_id: string; papel: string; pops_areas: { nome: string } | null }>(supabaseAdmin.from('pops_area_papeis').select('user_id,papel,pops_areas(nome)')),
+    opcional<{ user_id: string; modulo: string }>(supabaseAdmin.from('kb_responsaveis').select('user_id,modulo')),
+    opcional<{ diretoria_id: string | null; financeiro_id: string | null; comprador_id: string | null }>(supabaseAdmin.from('tickets_compras_config').select('diretoria_id,financeiro_id,comprador_id')),
+    opcional<{ conta_omie: string; responsavel_user_id: string }>(supabaseAdmin.from('recebimento_classificacao_responsavel').select('conta_omie,responsavel_user_id')),
+    opcional<{ nome: string; condutor_id: string; ativa?: boolean }>(supabaseAdmin.from('reunioes_series').select('nome,condutor_id')),
+  ]);
+  for (const p of perm) {
+    if ((p as { is_diretor?: boolean | null }).is_diretor) add(p.user_id, 'Diretoria');
+    if (p.is_admin) add(p.user_id, 'Administrador do portal');
+  }
+  for (const p of pops) add(p.user_id, `${p.papel === 'dono' ? 'Dono' : 'Aprovador'} dos POPs: ${p.pops_areas?.nome || 'área'}`);
+  const kbPor = new Map<string, string[]>();
+  for (const k of kb) kbPor.set(k.user_id, [...(kbPor.get(k.user_id) || []), k.modulo]);
+  for (const [uid, mods] of kbPor) add(uid, `Aprova a base de conhecimento (${mods.length} módulo${mods.length > 1 ? 's' : ''})`);
+  for (const c of sc) {
+    add(c.diretoria_id, 'Compras: aprova (diretoria)');
+    add(c.financeiro_id, 'Compras: aprova (financeiro)');
+    add(c.comprador_id, 'Compras: comprador');
+  }
+  for (const r of receb) add(r.responsavel_user_id, `Alocação de peças recebidas (${String(r.conta_omie).toUpperCase()})`);
+  for (const r of reun) add(r.condutor_id, `Conduz a reunião "${r.nome}"`);
+  return m;
+}
+
+/** Sistemas com mais ações no audit_log nos últimos 90 dias, por chave 'u:<uid>'. */
+async function praticaPorUsuario(): Promise<Map<string, Array<[string, number]>>> {
+  const desde = new Date(Date.now() - 90 * 86400000).toISOString();
+  const linhas = await tudo<{ user_id: string | null; sistema: string | null }>((a, b) =>
+    supabaseAdmin.from('audit_log').select('user_id,sistema').gte('created_at', desde).order('id').range(a, b) as unknown as Resp<{ user_id: string | null; sistema: string | null }>,
+  ).catch(() => []);
+  const cont = new Map<string, Map<string, number>>();
+  for (const l of linhas) {
+    if (!l.user_id || !l.sistema) continue;
+    const k = `u:${l.user_id}`;
+    const m = cont.get(k) || new Map<string, number>();
+    const s = ROTULO_SISTEMA[l.sistema] || l.sistema;
+    m.set(s, (m.get(s) || 0) + 1);
+    cont.set(k, m);
+  }
+  const out = new Map<string, Array<[string, number]>>();
+  for (const [k, m] of cont) out.set(k, [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3));
+  return out;
+}
+
+export interface DadosOrganograma {
+  pessoas: PessoaOrg[];
+  vinculos: VinculoOrg[];
+  migracaoFaltando: boolean;
+  rhConfigurado: boolean;
+}
+
+export async function lerOrganograma(): Promise<DadosOrganograma> {
+  const [usuarios, rh, papeis, pratica] = await Promise.all([
+    opcional<UsuarioPortal>(supabaseAdmin.from('financeiro_usu').select('id,nome,email,funcao,avatar_url,ativo')),
+    listarFuncionariosRH(),
+    papeisPorUsuario(),
+    praticaPorUsuario(),
+  ]);
+  let migracaoFaltando = false;
+  const { data: vinc, error } = await supabaseAdmin.from('org_pessoas').select('pessoa_chave,gestor_chave,topo,fora,cargo,ordem');
+  if (error) { if (faltando(error)) migracaoFaltando = true; else throw new Error(error.message); }
+  const pessoas = juntarPessoas(usuarios, rh).map((p) => ({ ...p, papeis: papeis.get(p.chave) || [], pratica: pratica.get(p.chave) || [] }));
+  return { pessoas, vinculos: (vinc || []) as VinculoOrg[], migracaoFaltando, rhConfigurado: rhConfigurado() };
+}
+
+export async function lerVinculos(): Promise<VinculoOrg[]> {
+  const { data, error } = await supabaseAdmin.from('org_pessoas').select('pessoa_chave,gestor_chave,topo,fora,cargo,ordem');
+  if (error) throw Object.assign(new Error(error.message), { code: error.code, faltando: faltando(error) });
+  return (data || []) as VinculoOrg[];
+}
+
+export async function gravarVinculo(v: Omit<VinculoOrg, 'ordem'> & { ordem?: number }, userId: string): Promise<void> {
+  const { error } = await supabaseAdmin.from('org_pessoas').upsert({
+    pessoa_chave: v.pessoa_chave, gestor_chave: v.gestor_chave, topo: v.topo, fora: v.fora, cargo: v.cargo,
+    ...(v.ordem != null ? { ordem: v.ordem } : {}), atualizado_em: new Date().toISOString(), atualizado_por: userId,
+  }, { onConflict: 'pessoa_chave' });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code, faltando: faltando(error) });
+}

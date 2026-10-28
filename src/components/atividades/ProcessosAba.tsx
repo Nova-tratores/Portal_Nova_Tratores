@@ -1,12 +1,14 @@
 'use client'
-// Aba "Processos" de /atividades: fluxograma REAL das OS do Pós-venda, montado das trocas de
-// fase gravadas (logs_ppo). Fases em coluna na ordem do quadro; setas para baixo/à direita =
+// Aba "Processos" de /atividades: Fluxograma | Organograma (?vista=organograma).
+// Fluxograma = caminho REAL das OS do Pós-venda, montado das trocas de fase gravadas (logs_ppo). Fases em coluna na ordem do quadro; setas para baixo/à direita =
 // avanço, à esquerda em vermelho = volta (retrabalho). Dados de /api/processos/os.
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { RefreshCw, Workflow } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { RefreshCw, Workflow, Network } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { Tile, type Tema } from '@/components/comum/PainelBarras'
 import { faseOS } from '@/lib/pos/relacao'
+import Organograma from './Organograma'
 import type { ResumoProcesso, SetaProcesso, FaseProcesso, TipoAtor } from '@/lib/processos/mineracao'
 
 const TEMA: Tema = {
@@ -163,6 +165,33 @@ function DetalheFase({ f, setas }: { f: FaseProcesso; setas: SetaProcesso[] }) {
 }
 
 export default function ProcessosAba() {
+  const sp = useSearchParams()
+  const router = useRouter()
+  const vista = sp.get('vista') === 'organograma' ? 'organograma' : 'fluxograma'
+  const trocar = (v: 'fluxograma' | 'organograma') => {
+    const p = new URLSearchParams(sp.toString())
+    p.set('tab', 'processos')
+    if (v === 'organograma') p.set('vista', v); else p.delete('vista')
+    router.replace(`?${p}`, { scroll: false })
+  }
+  const botao = (v: 'fluxograma' | 'organograma', rotulo: string, icone: React.ReactNode) => (
+    <button key={v} onClick={() => trocar(v)} style={{
+      display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', fontFamily: 'Inter', fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none',
+      background: vista === v ? '#0369A1' : 'transparent', color: vista === v ? '#fff' : 'var(--portal-text-muted)', borderRadius: 8,
+    }}>{icone}{rotulo}</button>
+  )
+  return (
+    <div>
+      <div style={{ display: 'inline-flex', gap: 4, padding: 4, borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', marginBottom: 16 }}>
+        {botao('fluxograma', 'Fluxograma', <Workflow size={14} />)}
+        {botao('organograma', 'Organograma', <Network size={14} />)}
+      </div>
+      {vista === 'organograma' ? <Organograma /> : <FluxogramaOS />}
+    </div>
+  )
+}
+
+function FluxogramaOS() {
   const [dias, setDias] = useState(0)
   const [minN, setMinN] = useState(5)
   const [sel, setSel] = useState<string | null>(null)
