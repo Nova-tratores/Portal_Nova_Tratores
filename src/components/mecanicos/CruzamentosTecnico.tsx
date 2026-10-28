@@ -51,23 +51,35 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
   const out: Cruzamento[] = []
   const foraRel = Math.max(0, x.kmCarro - x.kmRel), relSemCob = Math.max(0, x.kmRel - x.kmCobrado)
 
-  // km: GPS × relatório
-  if (!temCarro) out.push({ titulo: 'Km rodado × relatório', ic: 'fa-road', fontes: 'GPS × relatório', v: 'sem carro', txt: 'vinculado', erro: false,
+  // Km fantasma = km SEM DESTINO (José, 28/10/2026: "se já tem destino de OS interna ou garantia não é km fantasma; o km
+  // fantasma é justamente o que não tem destino, tipo os 400 e poucos km que o Danilo não relatou"). Dia a dia: o que o GPS
+  // rodou além do relatório; se nesse dia o carro foi no cliente de um colega, o destino é a OS do colega (não é fantasma).
+  const diasFora = (fk?.dias || []).map((d) => ({ d, fora: Math.max(0, d.kmGps - d.kmRel), colega: d.colegas.find((o) => o.noCliente) })).filter((z) => z.fora > 0.5)
+  const fantasma = fk ? diasFora.filter((z) => !z.colega).reduce((s2, z) => s2 + z.fora, 0) : foraRel
+  const comColegaKm = diasFora.filter((z) => z.colega).reduce((s2, z) => s2 + z.fora, 0)
+  if (!temCarro) out.push({ titulo: 'Km fantasma', ic: 'fa-ghost', fontes: 'GPS × relatório × OS', v: 'sem carro', txt: 'vinculado', erro: false,
     frase: `${nome} não tem carro vinculado na Frota, então não dá para comparar o km do relatório com o que o GPS registrou. Se ele anda no carro de outro técnico, o km aparece no mapa desse colega.` })
-  else out.push({ titulo: 'Km rodado × relatório', ic: 'fa-road', fontes: 'GPS × relatório', erro: foraRel > 0.5, ok: foraRel <= 0.5, acao: foraRel > 0.5 ? 'mapa' : undefined, div: foraRel > 0.5 ? 'km-fora-relatorio' : undefined,
-    v: foraRel > 0.5 ? km(foraRel) : km(x.kmCarro), txt: foraRel > 0.5 ? 'rodados que não estão em relatório' : 'rodados, todos no relatório',
-    itens: foraRel > 0.5 && fk ? ate8(fk.dias.filter((d) => d.kmGps - d.kmRel > 5).sort((a, b) => (b.kmGps - b.kmRel) - (a.kmGps - a.kmRel)).map((d) => `${ddmm(d.data)}: rodou ${km(d.kmGps)}, relatório ${km(d.kmRel)}${d.os.length ? ` (${d.os.map((o) => `${o.os} ${cli(o.cliente)}`).join(', ')})` : ' · nenhuma OS dele'}`)) : undefined,
-    frase: foraRel > 0.5
-      ? `O carro de ${nome} rodou ${km(x.kmCarro)} no mês pelo GPS, e ele colocou ${km(x.kmRel)} nos relatórios das OS. Ficaram ${km(foraRel)} rodados que não aparecem em nenhum relatório. No mapa dá para ver por onde o carro andou nesses dias.`
-      : `O carro de ${nome} rodou ${km(x.kmCarro)} no mês pelo GPS, e os relatórios dele somam ${km(x.kmRel)}: todo o km rodado está nos relatórios.` })
+  else out.push({ titulo: 'Km fantasma', ic: 'fa-ghost', fontes: 'GPS × relatório × OS', erro: fantasma > 0.5, ok: fantasma <= 0.5 && foraRel <= 0.5, acao: foraRel > 0.5 ? 'mapa' : undefined, div: foraRel > 0.5 ? 'km-fora-relatorio' : undefined,
+    v: fantasma > 0.5 ? km(fantasma) : '0 km', txt: fantasma > 0.5 ? 'rodados sem destino: fora de qualquer relatório ou OS' : 'sem destino: todo km rodado tem relatório ou OS',
+    sub: comColegaKm > 0.5 ? `fora isso, ${km(comColegaKm)} em dias levando colega: o destino é a OS do colega` : undefined,
+    itens: foraRel > 0.5 && fk ? ate8(diasFora.sort((p, q) => q.fora - p.fora).map((z) => `${ddmm(z.d.data)}: rodou ${km(z.d.kmGps)}, relatório ${km(z.d.kmRel)} → ${z.colega ? `destino: ${z.colega.os} do ${z.colega.tecnico.split(' ')[0]} (${cli(z.colega.cliente)})` : `⚠ ${km(z.fora)} sem destino${z.d.os.length ? '' : ', nenhuma OS no dia'}`}`)) : undefined,
+    frase: fantasma > 0.5
+      ? `O carro de ${nome} rodou ${km(x.kmCarro)} no mês pelo GPS e os relatórios dele somam ${km(x.kmRel)}. Desses km rodados a mais, ${km(fantasma)} não têm destino: não estão em relatório nem em OS de ninguém. Esse é o km fantasma.${comColegaKm > 0.5 ? ` Outros ${km(comColegaKm)} foram em dias em que o carro esteve no cliente de um colega, então o destino é a OS do colega.` : ''} Dia a dia:`
+      : `Todo km que o carro de ${nome} rodou tem destino: está nos relatórios dele${comColegaKm > 0.5 ? ` ou foi no cliente de um colega (${km(comColegaKm)})` : ''}.` })
 
-  // km: relatório × OS
-  out.push({ titulo: 'Km do relatório × cobrado', ic: 'fa-road', fontes: 'relatório × OS', erro: relSemCob > 0.5, ok: relSemCob <= 0.5, acao: relSemCob > 0.5 ? 'mapa' : undefined, div: relSemCob > 0.5 ? 'km-nao-cobrado' : undefined,
-    v: relSemCob > 0.5 ? km(relSemCob) : km(x.kmCobrado), txt: relSemCob > 0.5 ? 'do relatório não cobrados' : 'cobrados, tudo que estava no relatório',
-    casos: relSemCob > 0.5 ? casosZeca(fk, 'km') : undefined,
-    itens: relSemCob > 0.5 && fk ? ate8((fk.osTotais || []).filter((o) => o.kmRel - o.kmCobrado > 0.5).sort((a, b) => (b.kmRel - b.kmCobrado) - (a.kmRel - a.kmCobrado)).map((o) => `${o.os} · ${cli(o.cliente)}: relatório ${km(o.kmRel)}, cobrado ${km(o.kmCobrado)}`)) : undefined,
+  // km do relatório × cobrado: com destino (OS interna, garantia, desconto, oficina, ainda aberta) não é erro;
+  // só o que o Zeca não explica ("não lançado na OS") fica como erro
+  const casosKm = casosZeca(fk, 'km') || []
+  const semMotivoKm = casosKm.filter((c) => c.motivos.some((m) => m.etiqueta === 'nao-lancado'))
+  const kmSemMotivo = (fk?.osTotais || []).filter((o) => o.zecaKm?.some((m) => m.etiqueta === 'nao-lancado')).reduce((s2, o) => s2 + (o.kmRel - o.kmCobrado), 0)
+  out.push({ titulo: 'Km do relatório × cobrado', ic: 'fa-road', fontes: 'relatório × OS', erro: fk ? semMotivoKm.length > 0 : relSemCob > 0.5, ok: relSemCob <= 0.5,
+    acao: relSemCob > 0.5 ? 'mapa' : undefined, div: relSemCob > 0.5 ? 'km-nao-cobrado' : undefined,
+    v: relSemCob <= 0.5 ? km(x.kmCobrado) : semMotivoKm.length ? km(kmSemMotivo) : km(relSemCob),
+    txt: relSemCob <= 0.5 ? 'cobrados, tudo que estava no relatório' : semMotivoKm.length ? 'do relatório sem cobrar e sem motivo' : 'do relatório sem cobrar, mas com destino (veja o motivo)',
+    casos: relSemCob > 0.5 ? casosKm : undefined,
+    itens: relSemCob > 0.5 && fk ? ate8((fk.osTotais || []).filter((o) => o.kmRel - o.kmCobrado > 0.5).sort((p, q) => (q.kmRel - q.kmCobrado) - (p.kmRel - p.kmCobrado)).map((o) => `${o.os} · ${cli(o.cliente)}: relatório ${km(o.kmRel)}, cobrado ${km(o.kmCobrado)}`)) : undefined,
     frase: relSemCob > 0.5
-      ? `Nos relatórios de ${nome} estão ${km(x.kmRel)} e nas OS foram cobrados ${km(x.kmCobrado)}. São ${km(relSemCob)} que ele rodou e relatou, mas que não foram cobrados do cliente. Foi nestas OS:`
+      ? `Nos relatórios de ${nome} estão ${km(x.kmRel)} e nas OS foram cobrados ${km(x.kmCobrado)}: ${km(relSemCob)} relatados não foram cobrados do cliente. Quando a OS é interna, garantia, teve desconto ou ainda não foi faturada, esse km tem destino e não é erro; só é erro o que fica sem motivo. Foi nestas OS:`
       : `Nos relatórios de ${nome} estão ${km(x.kmRel)} e as OS cobraram ${km(x.kmCobrado)}: tudo que ele relatou foi cobrado.` })
 
   // km: dias de carro sem OS (e os colegas)
@@ -100,9 +112,11 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
   }
 
   // horas: relatório × OS
-  out.push({ titulo: 'Horas apontadas × cobradas', ic: 'fa-clock', fontes: 'relatório × OS', erro: x.naoCobradas > 0.05, ok: x.naoCobradas <= 0.05, acao: x.naoCobradas > 0.05 ? 'mapa' : undefined, div: x.naoCobradas > 0.05 ? 'horas-nao-cobradas' : undefined,
-    v: x.naoCobradas > 0.05 ? h(x.naoCobradas) : h(x.horasCobradas), txt: x.naoCobradas > 0.05 ? 'apontadas e não cobradas' : 'cobradas, tudo que apontou',
-    casos: x.naoCobradas > 0.05 ? casosZeca(fk, 'horas') : undefined,
+  const casosH = casosZeca(fk, 'horas') || []
+  const semMotivoH = casosH.filter((c) => c.motivos.some((m) => m.etiqueta === 'nao-lancado'))
+  out.push({ titulo: 'Horas apontadas × cobradas', ic: 'fa-clock', fontes: 'relatório × OS', erro: fk ? semMotivoH.length > 0 : x.naoCobradas > 0.05, ok: x.naoCobradas <= 0.05, acao: x.naoCobradas > 0.05 ? 'mapa' : undefined, div: x.naoCobradas > 0.05 ? 'horas-nao-cobradas' : undefined,
+    v: x.naoCobradas > 0.05 ? h(x.naoCobradas) : h(x.horasCobradas), txt: x.naoCobradas <= 0.05 ? 'cobradas, tudo que apontou' : semMotivoH.length || !fk ? 'apontadas e não cobradas' : 'apontadas e não cobradas, mas com destino (veja o motivo)',
+    casos: x.naoCobradas > 0.05 ? casosH : undefined,
     itens: x.naoCobradas > 0.05 && fk ? ate8((fk.osTotais || []).filter((o) => o.horasRel - o.horasCobradas > 0.05).sort((a, b) => (b.horasRel - b.horasCobradas) - (a.horasRel - a.horasCobradas)).map((o) => `${o.os} · ${cli(o.cliente)}: apontou ${h(o.horasRel)}, cobrado ${h(o.horasCobradas)}`)) : undefined,
     frase: x.naoCobradas > 0.05
       ? `${nome} apontou ${h(x.horasRel)} nos relatórios e as OS cobraram ${h(x.horasCobradas)}. Olhando OS por OS, ${h(x.naoCobradas)} trabalhadas ficaram sem cobrar (em algumas OS foi cobrado mais do que ele apontou, por isso a conta não é só a diferença dos totais). Foi nestas OS:`
