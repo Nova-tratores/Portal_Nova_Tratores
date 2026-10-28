@@ -21,11 +21,12 @@ function filtroDia(fk: FuroKm, div: Divergencia): (x: DiaFuro) => boolean {
   if (div === 'km-fora-relatorio') return (x) => x.kmGps - x.kmRel > 5
   if (div === 'dias-sem-os') return (x) => !x.os.length && x.kmGps > 5
   if (div === 'sem-cliente') return (x) => x.os.some((o) => !o.noCliente)
+  if (div === 'ligado-sem-os') return (x) => !x.os.length && (x.ligadoH || 0) > 0.05
   if (div === 'colega-fora-os') return (x) => x.colegas.some((o) => o.noCliente && !o.naOS)
   if (div === 'km-nao-cobrado' || div === 'horas-nao-cobradas') { const ids = new Set(osDaDiv(fk, div).map((o) => o.os)); return (x) => x.os.some((o) => ids.has(o.os)) }
   return (x) => x.furo > 5
 }
-const TITULO_LISTA: Record<Divergencia, string> = { 'geral': 'Dias com furo', 'km-fora-relatorio': 'Dias com km fora do relatório', 'km-nao-cobrado': 'Dias dessas OS', 'dias-sem-os': 'Dias sem OS', 'horas-nao-cobradas': 'Dias dessas OS', 'sem-cliente': 'Dias de OS sem passar no cliente', 'colega-fora-os': 'Dias no cliente de um colega' }
+const TITULO_LISTA: Record<Divergencia, string> = { 'geral': 'Dias com furo', 'km-fora-relatorio': 'Dias com km fora do relatório', 'km-nao-cobrado': 'Dias dessas OS', 'dias-sem-os': 'Dias sem OS', 'horas-nao-cobradas': 'Dias dessas OS', 'sem-cliente': 'Dias de OS sem passar no cliente', 'colega-fora-os': 'Dias no cliente de um colega', 'ligado-sem-os': 'Dias com o carro ligado sem OS' }
 const fmtValor = (v: number, u: 'km' | 'h' | 'dias') => (u === 'h' ? `${String(v).replace('.', ',')} h` : u === 'dias' ? `${v} dia${v === 1 ? '' : 's'}` : `${Math.round(v).toLocaleString('pt-BR')} km`)
 
 const km = (v: number) => `${(Math.round(v * 10) / 10).toLocaleString('pt-BR')} km`
@@ -272,7 +273,7 @@ function LinhaDia({ x, on, foco, cor, carregando, onClick }: { x: DiaFuro; on: b
       <div className="fk-dia-m">
         <div className="fk-dia-t"><b>{fmtDia(x.data)}</b><em>{kmI(x.furo)} sem cobrar</em></div>
         <div className="fk-dia-bar" title={`cobrado ${kmI(x.kmCobrado)} de ${kmI(x.kmGps)} rodados`}><i style={{ width: `${pc}%` }} /></div>
-        <small>{kmI(x.kmGps)} rodados · {kmI(x.kmCobrado)} cobrados{x.saida ? ` · saiu ${hora(x.saida)}` : ''}{x.volta ? `, desligou ${hora(x.volta)}` : ''}</small>
+        <small>{kmI(x.kmGps)} rodados · {kmI(x.kmCobrado)} cobrados{x.ligadoH ? ` · ligado ${String(x.ligadoH).replace('.', ',')} h` : ''}{x.saida ? ` · ligou ${hora(x.saida)}` : ''}{x.volta ? `, desligou ${hora(x.volta)}` : ''}</small>
         {x.os.length ? x.os.map((o) => (
           <small key={o.os} className={`fk-os ${o.noCliente ? (o.noCliente.conf === 'provavel' ? 'prov' : 'sim') : 'nao'}`}>
             <i className={`fas ${o.noCliente ? 'fa-location-dot' : 'fa-location-crosshairs'}`} /> {o.os} {o.cliente.split(' ').slice(0, 3).join(' ')}

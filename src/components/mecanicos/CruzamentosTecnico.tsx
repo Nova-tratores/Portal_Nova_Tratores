@@ -16,10 +16,17 @@ const ddmm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const plural = (n: number, um: string, varios: string) => `${n} ${n === 1 ? um : varios}`
 /** "a", "a e b", "a, b e c" */
 const lista = (xs: string[]) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`)
+/** "JANE ANDREA BIONDO CORREIA" → "Jane Andrea Biondo Correia" */
+const cli = (n: string) => String(n || 'cliente sem nome').toLowerCase().replace(/(^|\s)(\S)/g, (_, a, b) => a + b.toUpperCase()).replace(/\b(De|Da|Do|Dos|Das|E)\b/g, (m) => m.toLowerCase())
+const dur = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h${String(Math.round(m % 60)).padStart(2, '0')}` : `${Math.round(m)} min`)
+/** até 8 itens no balão; o resto vira "+N" */
+const ate8 = (xs: string[]) => (xs.length > 8 ? [...xs.slice(0, 8), `e mais ${xs.length - 8}`] : xs)
 
 export type AcaoCruzamento = 'mapa' | 'os' | 'dias'
 export interface Cruzamento {
   titulo: string; ic: string; fontes: string; v: string; txt: string; sub?: string; frase: string
+  /** o caso a caso no balão: dia, OS, cliente, números (José, 28/10/2026: "coloca o nome do cliente; pode aumentar o balão") */
+  itens?: string[]
   erro: boolean; ok?: boolean; acao?: AcaoCruzamento
   /** divergência que o Tratorilson explica ao clicar (abre o mapa já focado nela) */
   div?: Divergencia
@@ -37,6 +44,7 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
     frase: `${nome} não tem carro vinculado na Frota, então não dá para comparar o km do relatório com o que o GPS registrou. Se ele anda no carro de outro técnico, o km aparece no mapa desse colega.` })
   else out.push({ titulo: 'Km rodado × relatório', ic: 'fa-road', fontes: 'GPS × relatório', erro: foraRel > 0.5, ok: foraRel <= 0.5, acao: foraRel > 0.5 ? 'mapa' : undefined, div: foraRel > 0.5 ? 'km-fora-relatorio' : undefined,
     v: foraRel > 0.5 ? km(foraRel) : km(x.kmCarro), txt: foraRel > 0.5 ? 'rodados que não estão em relatório' : 'rodados, todos no relatório',
+    itens: foraRel > 0.5 && fk ? ate8(fk.dias.filter((d) => d.kmGps - d.kmRel > 5).sort((a, b) => (b.kmGps - b.kmRel) - (a.kmGps - a.kmRel)).map((d) => `${ddmm(d.data)}: rodou ${km(d.kmGps)}, relatório ${km(d.kmRel)}${d.os.length ? ` (${d.os.map((o) => `${o.os} ${cli(o.cliente)}`).join(', ')})` : ' · nenhuma OS dele'}`)) : undefined,
     frase: foraRel > 0.5
       ? `O carro de ${nome} rodou ${km(x.kmCarro)} no mês pelo GPS, e ele colocou ${km(x.kmRel)} nos relatórios das OS. Ficaram ${km(foraRel)} rodados que não aparecem em nenhum relatório. No mapa dá para ver por onde o carro andou nesses dias.`
       : `O carro de ${nome} rodou ${km(x.kmCarro)} no mês pelo GPS, e os relatórios dele somam ${km(x.kmRel)}: todo o km rodado está nos relatórios.` })
@@ -44,8 +52,9 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
   // km: relatório × OS
   out.push({ titulo: 'Km do relatório × cobrado', ic: 'fa-road', fontes: 'relatório × OS', erro: relSemCob > 0.5, ok: relSemCob <= 0.5, acao: relSemCob > 0.5 ? 'mapa' : undefined, div: relSemCob > 0.5 ? 'km-nao-cobrado' : undefined,
     v: relSemCob > 0.5 ? km(relSemCob) : km(x.kmCobrado), txt: relSemCob > 0.5 ? 'do relatório não cobrados' : 'cobrados, tudo que estava no relatório',
+    itens: relSemCob > 0.5 && fk ? ate8((fk.osTotais || []).filter((o) => o.kmRel - o.kmCobrado > 0.5).sort((a, b) => (b.kmRel - b.kmCobrado) - (a.kmRel - a.kmCobrado)).map((o) => `${o.os} · ${cli(o.cliente)}: relatório ${km(o.kmRel)}, cobrado ${km(o.kmCobrado)}`)) : undefined,
     frase: relSemCob > 0.5
-      ? `Nos relatórios de ${nome} estão ${km(x.kmRel)} e nas OS foram cobrados ${km(x.kmCobrado)}. São ${km(relSemCob)} que ele rodou e relatou, mas que não foram cobrados do cliente. O Tratorilson mostra em quais OS isso aconteceu.`
+      ? `Nos relatórios de ${nome} estão ${km(x.kmRel)} e nas OS foram cobrados ${km(x.kmCobrado)}. São ${km(relSemCob)} que ele rodou e relatou, mas que não foram cobrados do cliente. Foi nestas OS:`
       : `Nos relatórios de ${nome} estão ${km(x.kmRel)} e as OS cobraram ${km(x.kmCobrado)}: tudo que ele relatou foi cobrado.` })
 
   // km: dias de carro sem OS (e os colegas)
@@ -55,10 +64,11 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
     const colegas = [...new Set(comColega.flatMap((d) => d.colegas.filter((o) => o.noCliente).map((o) => o.tecnico.split(' ')[0])))]
     out.push({ titulo: 'Dias sem OS', ic: 'fa-calendar-xmark', fontes: 'GPS × OS', erro: false, acao: 'mapa', div: 'dias-sem-os',
       v: plural(x.diasCarroSemOS, 'dia', 'dias'), txt: `rodando sem OS (${km(x.kmSemOS)})`,
+      itens: semOS.length ? ate8(semOS.map((d) => { const c = d.colegas.find((o) => o.noCliente); return `${ddmm(d.data)}: rodou ${km(d.kmGps)}${c ? ` · foi no cliente ${cli(c.cliente)} (${c.os} do ${c.tecnico.split(' ')[0]})` : ' · nenhum colega em OS onde o carro parou'}` })) : undefined,
       sub: comColega.length ? `${comColega.length} ${comColega.length === 1 ? 'dele' : 'deles'} levando ${lista(colegas)} (${lista(comColega.map((d) => ddmm(d.data)))})` : undefined,
       frase: `Em ${plural(x.diasCarroSemOS, 'dia', 'dias')} o carro de ${nome} rodou mais de 5 km sem ele ter nenhuma OS naquele dia, somando ${km(x.kmSemOS)}.`
         + (comColega.length ? ` Em ${comColega.length === 1 ? 'um deles' : `${comColega.length} deles`} (${lista(comColega.map((d) => ddmm(d.data)))}) o carro parou no cliente de ${lista(colegas)}: o km desses dias pode estar na OS do colega.` : ' Nenhum colega estava em OS no cliente onde o carro parou nesses dias.')
-        + ' No mapa aparece o caminho e as paradas de cada dia.' })
+        + ' Dia a dia:' })
   }
 
   // foi com um colega e o nome dele não está na OS do colega (José, 28/10/2026: "confirma na ordem; se não tiver o nome dele, avisa")
@@ -70,22 +80,25 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
       v: fora.length ? plural(fora.length, 'dia', 'dias') : plural(casos.length, 'dia', 'dias'),
       txt: fora.length ? 'no cliente de um colega sem o nome dele na OS' : 'no cliente de um colega, e ele consta na OS',
       sub: lista(fora.length ? fora.map((o) => `${o.os} do ${o.tecnico.split(' ')[0]} (${ddmm(o.data)})`) : casos.map((o) => `${o.os} (${ddmm(o.data)})`)),
+      itens: ate8(casos.map((o) => `${ddmm(o.data)}: ${o.os} do ${o.tecnico.split(' ')[0]}, cliente ${cli(o.cliente)} · carro ficou ${dur(o.noCliente!.min)} lá${o.noCliente!.conf === 'provavel' ? ' (provável: cliente sem local cadastrado)' : o.noCliente!.conf === 'confirmado' ? ' (local confirmado)' : ' (local do cadastro)'} · ${o.naOS ? '✓ ele está na OS' : '⚠ o nome dele não está na OS'}`)),
       frase: fora.length
-        ? `O carro de ${nome} parou no cliente da OS de um colega em ${plural(casos.length, 'dia', 'dias')}, e em ${fora.length === casos.length ? 'todos' : fora.length} o nome dele não está na OS como técnico: ${lista(fora.map((o) => `${o.os} do ${o.tecnico.split(' ')[0]} em ${ddmm(o.data)}`))}. Se ele foi junto, a OS precisa ter o nome dele, e o km e as horas dele entram nessa OS.`
+        ? `O carro de ${nome} parou no cliente da OS de um colega em ${plural(casos.length, 'dia', 'dias')}, e em ${fora.length === casos.length ? 'todos' : fora.length} o nome dele não está na OS como técnico. Se ele foi junto, a OS precisa ter o nome dele, e o km e as horas dele entram nessa OS. Caso a caso:`
         : `O carro de ${nome} parou no cliente da OS de um colega em ${plural(casos.length, 'dia', 'dias')}, e ele consta como técnico em todas essas OS.` })
   }
 
   // horas: relatório × OS
   out.push({ titulo: 'Horas apontadas × cobradas', ic: 'fa-clock', fontes: 'relatório × OS', erro: x.naoCobradas > 0.05, ok: x.naoCobradas <= 0.05, acao: x.naoCobradas > 0.05 ? 'mapa' : undefined, div: x.naoCobradas > 0.05 ? 'horas-nao-cobradas' : undefined,
     v: x.naoCobradas > 0.05 ? h(x.naoCobradas) : h(x.horasCobradas), txt: x.naoCobradas > 0.05 ? 'apontadas e não cobradas' : 'cobradas, tudo que apontou',
+    itens: x.naoCobradas > 0.05 && fk ? ate8((fk.osTotais || []).filter((o) => o.horasRel - o.horasCobradas > 0.05).sort((a, b) => (b.horasRel - b.horasCobradas) - (a.horasRel - a.horasCobradas)).map((o) => `${o.os} · ${cli(o.cliente)}: apontou ${h(o.horasRel)}, cobrado ${h(o.horasCobradas)}`)) : undefined,
     frase: x.naoCobradas > 0.05
-      ? `${nome} apontou ${h(x.horasRel)} nos relatórios e as OS cobraram ${h(x.horasCobradas)}. Olhando OS por OS, ${h(x.naoCobradas)} trabalhadas ficaram sem cobrar (em algumas OS foi cobrado mais do que ele apontou, por isso a conta não é só a diferença dos totais).`
+      ? `${nome} apontou ${h(x.horasRel)} nos relatórios e as OS cobraram ${h(x.horasCobradas)}. Olhando OS por OS, ${h(x.naoCobradas)} trabalhadas ficaram sem cobrar (em algumas OS foi cobrado mais do que ele apontou, por isso a conta não é só a diferença dos totais). Foi nestas OS:`
       : `${nome} apontou ${h(x.horasRel)} nos relatórios e as OS cobraram ${h(x.horasCobradas)}: nenhuma hora trabalhada ficou sem cobrar.` })
 
   // horas: carro ligado sem OS
-  if (temCarro && x.ligadoSemOS > 0.05) out.push({ titulo: 'Carro ligado sem OS', ic: 'fa-car', fontes: 'GPS × OS', erro: false, acao: 'dias',
+  if (temCarro && x.ligadoSemOS > 0.05) out.push({ titulo: 'Carro ligado sem OS', ic: 'fa-car', fontes: 'GPS × OS', erro: false, acao: 'mapa', div: 'ligado-sem-os',
+    itens: fk ? ate8(fk.dias.filter((d) => !d.os.length && d.ligadoH > 0.05).sort((a, b) => b.ligadoH - a.ligadoH).map((d) => `${ddmm(d.data)}: ligado ${h(d.ligadoH)}, rodou ${km(d.kmGps)}${d.saida ? `, das ${new Date(d.saida).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}` : ''}${d.volta ? ` às ${new Date(d.volta).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}` : ''}`)) : undefined,
     v: h(x.ligadoSemOS), txt: 'de carro ligado em dias sem OS',
-    frase: `Nos dias em que ${nome} não tinha OS, o carro dele ficou ${h(x.ligadoSemOS)} com o motor ligado (de ${h(x.ligadoH)} ligado no mês todo). No dia a dia aparece cada um desses dias.` })
+    frase: `Nos dias em que ${nome} não tinha OS, o carro dele ficou ${h(x.ligadoSemOS)} com o motor ligado (de ${h(x.ligadoH)} ligado no mês todo). Dia a dia:` })
 
   // cliente: GPS × local do cliente
   if (temCarro) {
@@ -95,17 +108,15 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
       const osDias = fk.dias.flatMap((d) => d.os)
       const com = osDias.filter((o) => o.noCliente), palpite = com.filter((o) => o.noCliente!.conf === 'provavel').length
       const min = com.reduce((s, o) => s + o.noCliente!.min, 0), apont = com.reduce((s, o) => s + o.horasRel, 0)
-      const sem = osDias.length - com.length
       if (osDias.length) {
         out.push({ titulo: 'Tempo no cliente', ic: 'fa-location-dot', fontes: 'GPS × local do cliente', erro: false, acao: 'mapa',
           v: `${com.length} de ${osDias.length}`, txt: 'dias de OS com o carro no cliente',
+          itens: ate8(fk.dias.flatMap((d) => d.os.filter((o) => o.noCliente).map((o) => `${ddmm(d.data)}: ${o.os} · ${cli(o.cliente)} · carro ${dur(o.noCliente!.min)} lá, apontou ${h(o.horasRel)}${o.noCliente!.conf === 'provavel' ? ' (provável)' : ''}`))),
           sub: com.length ? `${h(min / 60)} parado lá × ${h(apont)} apontadas nesses dias${palpite ? ` · ${palpite} ${palpite === 1 ? 'é palpite' : 'são palpite'} (sem local cadastrado)` : ''}` : undefined,
           frase: `${nome} teve ${plural(osDias.length, 'dia', 'dias')} de OS no mês. Em ${com.length} o carro parou no cliente${com.length ? `: ficou ${h(min / 60)} parado lá, enquanto ele apontou ${h(apont)} nesses dias` : ''}.`
             + (palpite ? ` ${palpite === 1 ? 'Um deles é palpite' : `${palpite} deles são palpite`}: o cliente não tem o local cadastrado, então foi usada a parada mais longa do carro fora da loja naquele dia.` : '')
             + ' O local do cliente vem da confirmação no faturar ou do cadastro.' })
-        if (sem) out.push({ titulo: 'Carro não foi ao cliente', ic: 'fa-location-crosshairs', fontes: 'GPS × local do cliente', erro: true, acao: 'mapa', div: 'sem-cliente',
-          v: plural(sem, 'dia', 'dias'), txt: 'de OS sem o carro passar no cliente',
-          frase: `Em ${plural(sem, 'dia', 'dias')} de OS o carro de ${nome} não parou perto do cliente. Pode ser que ele tenha ido no carro de outro técnico, que o cliente esteja sem local cadastrado, ou que o serviço não tenha sido no cliente. No mapa dá para ver onde o carro estava.` })
+        // "Carro não foi ao cliente" saiu (José, 28/10/2026: "não precisamos dessa comparação")
       }
     }
   }
@@ -159,7 +170,7 @@ export function TabelaCruzamentos({ linhas, onAcao }: { linhas: Cruzamento[]; on
                     onClick={(e) => { e.stopPropagation(); setAberta(aberta === i ? null : i) }}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setAberta(aberta === i ? null : i) } }}>
                     <i className="fas fa-circle-info" />
-                    <span className="cz-frase" role="tooltip" onClick={(e) => e.stopPropagation()}>{l.frase}</span>
+                    <span className="cz-frase" role="tooltip" onClick={(e) => e.stopPropagation()}>{l.frase}{l.itens?.length ? <ul>{l.itens.map((it, k) => <li key={k} className={it.includes('⚠') ? 'x' : ''}>{it}</li>)}</ul> : null}</span>
                   </span>
                 </span>
               </td>
@@ -189,11 +200,12 @@ const ESTILO_CZ = `
 .cz-tit > span:nth-child(2) { display: grid; line-height: 1.25 } .cz-tit b { font-size: 14px; font-weight: 500; color: #0f172a } .cz-tit small { font-size: 12px; color: #94a3b8 }
 .cz-info { position: relative; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: #94a3b8; cursor: help; outline: none }
 .cz-info:hover, .cz-info.on, .cz-info:focus-visible { color: #2563eb; background: #eff6ff }
-.cz-frase { position: absolute; z-index: 40; left: 50%; top: calc(100% + 8px); transform: translate(-50%, -4px); width: 330px; white-space: normal; background: #0f172a; color: #e2e8f0; border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.55; box-shadow: 0 16px 34px rgba(15,23,42,.3); opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; cursor: default; text-align: left }
+.cz-frase { position: absolute; z-index: 40; left: 50%; top: calc(100% + 8px); transform: translate(-50%, -4px); width: 460px; max-height: 60vh; overflow: auto; white-space: normal; background: #0f172a; color: #e2e8f0; border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.55; box-shadow: 0 16px 34px rgba(15,23,42,.3); opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; cursor: default; text-align: left }
+.cz-frase ul { margin: 8px 0 0; padding: 8px 0 0 16px; border-top: 1px solid #334155; display: grid; gap: 5px; font-size: 13px; color: #cbd5e1 } .cz-frase li.x { color: #fca5a5 }
 .cz-frase::before { content: ''; position: absolute; top: -6px; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top: 0; border-bottom-color: #0f172a }
 .cz-info:hover .cz-frase, .cz-info.on .cz-frase, .cz-info:focus-visible .cz-frase { opacity: 1; transform: translate(-50%, 0); pointer-events: auto }
 .cz td:nth-child(3) > b { font-weight: 600; color: #0f172a } .cz td small { display: block; font-size: 12.5px; color: #94a3b8 }
 .cz td.a { text-align: right; width: 1%; white-space: nowrap } .cz td.a span { font-size: 13px; color: #2563eb } .cz td.a span.tr { color: #6d28d9 } .cz td.a span.tr i { font-size: 11.5px; margin-right: 2px } .cz tr.clica:hover td.a span { text-decoration: underline }
 .cz-dev { font-size: 12.5px; color: #64748b; border: 1px dashed #cbd5e1; border-radius: 99px; padding: 2px 10px; white-space: nowrap }
-@media (max-width: 700px) { .cz td.f { white-space: normal } .cz thead { display: none } .cz-frase { width: 260px } }
+@media (max-width: 700px) { .cz td.f { white-space: normal } .cz thead { display: none } .cz-frase { width: 290px } }
 `

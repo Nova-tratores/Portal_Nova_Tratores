@@ -42,7 +42,7 @@ export interface ParadaFuro {
 }
 export interface OSDoDia { os: string; cliente: string; kmCobrado: number; horasRel: number; noCliente: { inicio: string; fim: string | null; min: number; conf: ConfCliente } | null }
 export interface DiaFuro {
-  data: string; placa: string | null; kmGps: number; kmCobrado: number; kmRel: number; furo: number
+  data: string; placa: string | null; kmGps: number; kmCobrado: number; kmRel: number; furo: number; ligadoH: number
   saida: string | null; volta: string | null; os: OSDoDia[]; paradas: ParadaFuro[]
   /** OS de OUTROS técnicos no mesmo dia (José, 28/10/2026: "ele não acompanhou nenhum técnico também?") */
   /** naOS = ele consta como técnico na OS do colega (Os_Tecnico/Os_Tecnico2) — José: "se foi com outro técnico, confirma na ordem; se não tiver o nome dele, avisa" */
@@ -97,7 +97,7 @@ export async function furoKm(tecnico: string, mes: string): Promise<FuroKm | nul
   const dias: DiaFuro[] = t.dias.filter((d) => d.kmCarro > 0 || d.os.length).map((d) => {
     const kmCobrado = r1(cobradoDia.get(d.data) || 0)
     return {
-      data: d.data, placa: t.placas[0] || null, kmGps: r1(d.kmCarro), kmCobrado, kmRel: r1(d.kmRel), furo: r1(Math.max(0, d.kmCarro - kmCobrado)),
+      data: d.data, placa: t.placas[0] || null, kmGps: r1(d.kmCarro), ligadoH: r1(d.ligadoH), kmCobrado, kmRel: r1(d.kmRel), furo: r1(Math.max(0, d.kmCarro - kmCobrado)),
       saida: d.inicio, volta: d.fim, paradas: [],
       colegas: outros.flatMap((y) => (y.dias.find((z) => z.data === d.data)?.os || []).filter((os) => !d.os.includes(os)).map((os) => {
         const o = y.os.find((z) => z.os === os)
@@ -241,7 +241,7 @@ const br = (d: string) => d.split('-').reverse().join('/')
 /** o dia contado para o Tratorilson: GPS, OS, colegas e paradas */
 function diaEmTexto(d: DiaFuro): string {
   return [
-    `DIA ${br(d.data)}: GPS ${d.kmGps} km · relatório ${d.kmRel} km · cobrado nas OS ${d.kmCobrado} km${d.saida ? ` · carro ligou ${hora(d.saida)}` : ''}${d.volta ? `, desligou ${hora(d.volta)}` : ''}`,
+    `DIA ${br(d.data)}: GPS ${d.kmGps} km · carro ligado ${d.ligadoH} h · relatório ${d.kmRel} km · cobrado nas OS ${d.kmCobrado} km${d.saida ? ` · carro ligou ${hora(d.saida)}` : ''}${d.volta ? `, desligou ${hora(d.volta)}` : ''}`,
     `  OS dele: ${d.os.length ? d.os.map((o) => `${o.os} (${o.cliente || 'cliente?'}, cobrou ${o.kmCobrado} km${o.noCliente ? `, carro no cliente ${hora(o.noCliente.inicio)}–${o.noCliente.fim ? hora(o.noCliente.fim) : '?'} ${o.noCliente.min} min${o.noCliente.conf === 'provavel' ? ' (provável)' : ''}` : ', carro não passou no cliente'})`).join('; ') : 'NENHUMA'}`,
     `  OS de colegas no mesmo dia: ${d.colegas.length ? d.colegas.map((o) => `${o.tecnico}${o.semCarro ? ' (sem carro)' : ''} ${o.os} (${o.cliente}${o.noCliente ? `, o carro dele passou no cliente ${o.noCliente.min} min${o.noCliente.conf === 'provavel' ? ' provável' : ''}` : ''}; ${o.naOS ? 'ele CONSTA como técnico nessa OS' : 'ele NÃO consta como técnico nessa OS'})`).join('; ') : 'nenhuma'}`,
     `  paradas: ${d.paradas.length ? d.paradas.filter((p) => p.min >= 5).slice(0, 14).map((p) => `${hora(p.inicio)} ${p.cliente ? `cliente ${p.cliente.nome}${p.cliente.colega ? ` (OS do ${p.cliente.colega})` : ''}` : (p.loja ? 'loja' : `${p.cidade || 'lugar sem nome'} (${Math.round(distanciaM(p, LOJA) / 1000)} km da loja${p.classe === 'outro_destino' || p.classe === 'manutencao' || p.classe === 'abastecimento' ? `, ${p.onde}` : ''})`)} ${p.min}min${p.atipica ? ' ATÍPICA' : ''}`).join(' | ') : 'sem paradas registradas'}`,
@@ -265,12 +265,14 @@ function pauta(fk: FuroKm, div: Divergencia): { dados?: string; dias?: DiaFuro[]
   const sel = div === 'km-fora-relatorio' ? dias((d) => d.kmGps - d.kmRel > 5)
     : div === 'dias-sem-os' ? dias((d) => !d.os.length && d.kmGps > 5)
     : div === 'sem-cliente' ? dias((d) => d.os.some((o) => !o.noCliente))
+    : div === 'ligado-sem-os' ? dias((d) => !d.os.length && d.ligadoH > 0.05)
     : div === 'colega-fora-os' ? dias((d) => d.colegas.some((o) => o.noCliente && !o.naOS))
     : dias((d) => d.furo > 5)
   if (!sel.length) return null
   const pergunta = {
     'km-fora-relatorio': 'Divergência: km que o carro rodou pelo GPS e não está em nenhum relatório de OS. Explique em quais dias, para onde o carro foi (cidades, paradas, loja, colegas) e o que conferir.',
     'dias-sem-os': 'Divergência: dias em que o carro rodou e o mecânico não tinha nenhuma OS. Para cada dia diga para onde o carro foi e se ele estava levando um colega (o km deveria estar na OS do colega), indo à loja/fornecedor, ou num lugar sem explicação.',
+    'ligado-sem-os': 'Divergência: dias em que o carro do mecânico ficou ligado e ele não tinha nenhuma OS. Para cada dia diga quanto tempo o carro ficou ligado, a que horas ligou e desligou, por onde andou (cidades e paradas) e se estava levando um colega, indo à loja/fornecedor ou num lugar sem explicação. Diga o que conferir.',
     'colega-fora-os': 'Divergência: o carro do mecânico esteve no cliente da OS de um colega, mas o nome dele NÃO está nessa OS como técnico. Para cada caso diga o dia, a OS, o colega, o cliente e quanto tempo o carro ficou lá, e recomende conferir com os dois e incluir o mecânico como técnico na OS (o km e as horas dele também devem ir para essa OS). Nos pontos, preencha "os" com as OS.',
     'sem-cliente': 'Divergência: dias de OS em que o carro do mecânico não parou perto do cliente da OS. Explique cada caso: se ele pode ter ido no carro de outro técnico, se o cliente está sem local cadastrado, se o serviço foi na loja, ou se o carro ficou em outro lugar.',
     'geral': '"Furo" = km rodado e não cobrado. Descubra ONDE está o furo e agrupe em poucas causas concretas, por exemplo: dias sem nenhuma OS; OS cobrando menos km do que o deslocamento até o cliente; carro que não passou no cliente da OS; dia em que ele levou ou acompanhou um colega (o km deveria estar na OS do colega); paradas fora de cliente (casa, posto, lugares sem cadastro); idas à loja/fornecedor que não são de nenhuma OS.',
@@ -280,7 +282,7 @@ function pauta(fk: FuroKm, div: Divergencia): { dados?: string; dias?: DiaFuro[]
 
 /** O Tratorilson explica uma divergência (guardado 6 h por técnico/mês/divergência; forcar refaz). */
 export async function analisarFuro(tecnico: string, mes: string, forcar = false, div: Divergencia = 'geral'): Promise<AnaliseFuro | null> {
-  const r = await comCache(`furo-km:v6:${mes}:${tecnico}:${div}`, 6 * 3600_000, async () => {
+  const r = await comCache(`furo-km:v7:${mes}:${tecnico}:${div}`, 6 * 3600_000, async () => {
     const fk = await furoKm(tecnico, mes)
     if (!fk) return null
     const p = pauta(fk, div)
