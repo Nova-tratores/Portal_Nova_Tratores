@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
-  detectarColunas, ehBloco, formatarMoedaBR, lerColagem, linhasDaColagem, margem, paraExcel, parseNumeroBR,
+  colunaDeCodigoPeloCadastro, colunasCodigoNumerico, detectarColunas, ehBloco, formatarMoedaBR, lerColagem, linhasDaColagem, margem, paraExcel, parseNumeroBR,
 } from '../planilha'
 
 const colar = (t: string) => { const g = lerColagem(t); const d = detectarColunas(g); return { d, linhas: linhasDaColagem(g, d) } }
@@ -84,5 +84,23 @@ describe('de volta para o Excel e margem', () => {
     expect(margem(100, 60)).toBeCloseTo(0.4)
     expect(margem(456.19, 559)).toBeLessThan(0)
     expect(margem(100, null)).toBeNull()
+  })
+})
+
+describe('código curto só de números', () => {
+  const grade = lerColagem('1264\tRESERVATORIO\t1\t168,00\n4410\tTAMPA DO RADIADOR\t2\t45,00')
+  it('sem o cadastro parece preço; o cadastro reconhece e a coluna vira Código', () => {
+    const det = detectarColunas(grade)
+    expect(det.mapa.includes('codigo')).toBe(false)
+    const cand = colunasCodigoNumerico(grade, det)
+    expect(cand).toContain(0)
+    const col = colunaDeCodigoPeloCadastro(grade, cand, (v) => v === '1264' || v === '4410')
+    expect(col).toBe(0)
+    const linhas = linhasDaColagem(grade, detectarColunas(grade, col!))
+    expect(linhas[0]).toEqual({ codigo: '1264', descricao: 'RESERVATORIO', quantidade: 1, preco: 168 })
+    expect(linhas[1]).toEqual({ codigo: '4410', descricao: 'TAMPA DO RADIADOR', quantidade: 2, preco: 45 })
+  })
+  it('cadastro não reconhece: fica como estava', () => {
+    expect(colunaDeCodigoPeloCadastro(grade, [0, 2], () => false)).toBeNull()
   })
 })

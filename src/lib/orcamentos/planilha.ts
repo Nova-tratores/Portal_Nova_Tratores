@@ -126,8 +126,12 @@ export interface DeteccaoColunas {
   mapa: (CampoPlanilha | null)[]
 }
 
-/** Descobre o que é cada coluna colada: pelo cabeçalho, se houver; senão pelo conteúdo. */
-export function detectarColunas(grade: string[][]): DeteccaoColunas {
+/**
+ * Descobre o que é cada coluna colada: pelo cabeçalho, se houver; senão pelo conteúdo.
+ * `colunaCodigo`: coluna já sabida como Código (o cadastro reconheceu os valores — ver
+ * colunaDeCodigoPeloCadastro); o resto é descoberto em volta dela.
+ */
+export function detectarColunas(grade: string[][], colunaCodigo?: number): DeteccaoColunas {
   const largura = Math.max(0, ...grade.map((l) => l.length))
   if (largura === 0) return { cabecalho: false, mapa: [] }
 
@@ -143,6 +147,7 @@ export function detectarColunas(grade: string[][]): DeteccaoColunas {
   const corpo = grade
   const perfis = Array.from({ length: largura }, (_, c) => perfil(corpo.map((l) => l[c] || '')))
   const mapa: (CampoPlanilha | null)[] = Array(largura).fill(null)
+  if (colunaCodigo !== undefined && colunaCodigo >= 0 && colunaCodigo < largura) mapa[colunaCodigo] = 'codigo'
   const livres = () => perfis.map((_, c) => c).filter((c) => mapa[c] === null)
 
   // números: quantidade = inteiros pequenos; unitário e total = o resto
@@ -168,12 +173,38 @@ export function detectarColunas(grade: string[][]): DeteccaoColunas {
 
   // textos: código = mais "cara de código"; descrição = o texto mais longo
   const textos = livres()
-  const cod = textos.filter((c) => perfis[c].codigo >= 0.6).sort((a, b) => perfis[b].codigo - perfis[a].codigo || perfis[a].mediaTamanho - perfis[b].mediaTamanho)[0]
+  const cod = mapa.includes('codigo') ? undefined : textos.filter((c) => perfis[c].codigo >= 0.6).sort((a, b) => perfis[b].codigo - perfis[a].codigo || perfis[a].mediaTamanho - perfis[b].mediaTamanho)[0]
   if (cod !== undefined) mapa[cod] = 'codigo'
   const desc = livres().sort((a, b) => perfis[b].texto - perfis[a].texto || perfis[b].mediaTamanho - perfis[a].mediaTamanho)[0]
   if (desc !== undefined && perfis[desc].mediaTamanho > 0) mapa[desc] = 'descricao'
 
   return { cabecalho: false, mapa }
+}
+
+/**
+ * Código só de números e curto ("1264") tem cara de preço/quantidade: sem cabeçalho, a
+ * descoberta pelo conteúdo erra. Colunas que podem ser código assim = todas as células
+ * cheias só com dígitos, quando nenhuma coluna virou Código. Quem chama pergunta ao
+ * cadastro quais valores existem e passa a resposta a colunaDeCodigoPeloCadastro.
+ */
+export function colunasCodigoNumerico(grade: string[][], det: DeteccaoColunas): number[] {
+  if (det.cabecalho || det.mapa.includes('codigo')) return []
+  return det.mapa.map((_, c) => c).filter((c) => {
+    const cheios = grade.map((l) => (l[c] || '').trim()).filter(Boolean)
+    return cheios.length > 0 && cheios.every((v) => /^\d{1,13}$/.test(v))
+  })
+}
+
+/** A coluna cujos valores o cadastro reconheceu (≥ 60% das células), ou null. */
+export function colunaDeCodigoPeloCadastro(grade: string[][], colunas: number[], existe: (codigo: string) => boolean): number | null {
+  let melhor: number | null = null, melhorTaxa = 0
+  for (const c of colunas) {
+    const cheios = grade.map((l) => (l[c] || '').trim()).filter(Boolean)
+    if (!cheios.length) continue
+    const taxa = cheios.filter(existe).length / cheios.length
+    if (taxa >= 0.6 && taxa > melhorTaxa) { melhor = c; melhorTaxa = taxa }
+  }
+  return melhor
 }
 
 function acharTrio(grade: string[][], cols: number[]): { q: number; p: number; t: number } | null {

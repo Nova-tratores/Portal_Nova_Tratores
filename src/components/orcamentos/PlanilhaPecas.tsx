@@ -10,7 +10,7 @@ import { Search, Copy, Undo2, Trash2, CopyPlus, X } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { precoDifere, type ItemConferido } from '@/lib/ppv/conferencia-precos'
 import {
-  ROTULO_CAMPO, detectarColunas, ehBloco, formatarMoedaBR, formatarQtdBR, lerColagem, linhaVazia,
+  ROTULO_CAMPO, colunaDeCodigoPeloCadastro, colunasCodigoNumerico, detectarColunas, ehBloco, formatarMoedaBR, formatarQtdBR, lerColagem, linhaVazia,
   linhasDaColagem, margem, paraExcel, parseNumeroBR, type CampoPlanilha, type DeteccaoColunas, type LinhaPlanilha,
 } from '@/lib/orcamentos/planilha'
 
@@ -69,10 +69,8 @@ export default function PlanilhaPecas({ itens, setItens, doItem, onBuscar }: {
   }
 
   // ── cadastro: código → descrição e preço ──
-  // forcarLinha: o código daquela linha foi trocado → descrição e preço passam a ser os do cadastro
-  const resolver = async (codigos: string[], forcarLinha?: number) => {
-    const lista = [...new Set(codigos.map((c) => c.trim()).filter(Boolean))]
-    if (lista.length === 0) return
+  // consulta o cadastro; null = falhou (segue com o que foi digitado)
+  const consultarCadastro = async (lista: string[]): Promise<Map<string, ItemConferido> | null> => {
     try {
       const r = await fetch('/api/ppv/conferir-precos', {
         method: 'POST',
@@ -80,21 +78,30 @@ export default function PlanilhaPecas({ itens, setItens, doItem, onBuscar }: {
         body: JSON.stringify({ itens: lista.map((codigo) => ({ codigo, preco: 0, quantidade: 1 })) }),
       })
       const j = await r.json().catch(() => null)
-      if (!r.ok || !j?.itens) return
-      const mapa = new Map<string, ItemConferido>((j.itens as ItemConferido[]).map((i) => [i.codigo.trim().toUpperCase(), i]))
-      const faltando = lista.filter((c) => mapa.get(c.toUpperCase())?.descricaoCadastro == null)
-      if (faltando.length) setAviso(`${faltando.length === 1 ? 'Código não cadastrado' : `${faltando.length} códigos não cadastrados`}: ${faltando.slice(0, 6).join(', ')}${faltando.length > 6 ? '…' : ''} — a linha fica, confira com Peças.`)
-      setItens((prev) => prev.map((it, i) => {
-        const cad = mapa.get(it.codigo.trim().toUpperCase())
-        if (!cad || cad.descricaoCadastro == null) return it
-        if (i === forcarLinha) return { ...it, descricao: cad.descricaoCadastro || it.descricao, preco: cad.precoCadastro ?? it.preco }
-        return {
-          ...it,
-          descricao: it.descricao.trim() ? it.descricao : cad.descricaoCadastro,
-          preco: it.preco > 0 || cad.precoCadastro === null ? it.preco : cad.precoCadastro,
-        }
-      }))
-    } catch { /* sem cadastro: segue com o que foi digitado */ }
+      if (!r.ok || !j?.itens) return null
+      return new Map<string, ItemConferido>((j.itens as ItemConferido[]).map((i) => [i.codigo.trim().toUpperCase(), i]))
+    } catch { return null }
+  }
+  // forcarLinha: o código daquela linha foi trocado → descrição e preço passam a ser os do cadastro
+  const resolver = async (codigos: string[], forcarLinha?: number) => {
+    const lista = [...new Set(codigos.map((c) => c.trim()).filter(Boolean))]
+    if (lista.length === 0) return
+    const mapa = await consultarCadastro(lista)
+    if (!mapa) return
+    const faltando = lista.filter((c) => mapa.get(c.toUpperCase())?.descricaoCadastro == null)
+    if (faltando.length) setAviso(`${faltando.length === 1 ? 'Código não cadastrado' : `${faltando.length} códigos não cadastrados`}: ${faltando.slice(0, 6).join(', ')}${faltando.length > 6 ? '…' : ''} — a linha fica, confira com Peças.`)
+    setItens((prev) => prev.map((it, i) => {
+      const cad = mapa.get(it.codigo.trim().toUpperCase())
+      if (!cad || cad.descricaoCadastro == null) return it
+      // colado do Excel sem os zeros da frente: passa a ser o código do cadastro
+      if (cad.codigoCadastro) it = { ...it, codigo: cad.codigoCadastro }
+      if (i === forcarLinha) return { ...it, descricao: cad.descricaoCadastro || it.descricao, preco: cad.precoCadastro ?? it.preco }
+      return {
+        ...it,
+        descricao: it.descricao.trim() ? it.descricao : cad.descricaoCadastro,
+        preco: it.preco > 0 || cad.precoCadastro === null ? it.preco : cad.precoCadastro,
+      }
+    }))
   }
 
   // ── edição ──
@@ -200,7 +207,21 @@ export default function PlanilhaPecas({ itens, setItens, doItem, onBuscar }: {
     setItens(proximo)
     setColagem({ grade, det, inicio: r, antes: itens, tirouVazia })
     setAviso('')
-    resolver(novas.map((n) => n.codigo))
+    const candidatas = colunasCodigoNumerico(grade, det)
+    if (candidatas.length === 0) { resolver(novas.map((n) => n.codigo)); return }
+    // nenhuma coluna com cara de código, mas há colunas só de números: o cadastro decide
+    // se uma delas é o código (código curto "1264" parece preço)
+    ;(async () => {
+      const valores = [...new Set(candidatas.flatMap((c) => grade.map((l) => (l[c] || '').trim())).filter(Boolean))].slice(0, 200)
+      const mapa = await consultarCadastro(valores)
+      const col = mapa ? colunaDeCodigoPeloCadastro(grade, candidatas, (v) => mapa.get(v.toUpperCase())?.descricaoCadastro != null) : null
+      if (col === null) { resolver(novas.map((n) => n.codigo)); return }
+      const det2 = detectarColunas(grade, col)
+      const refeito = aplicarColagem(itens, grade, det2, r)
+      setItens(refeito.proximo)
+      setColagem({ grade, det: det2, inicio: r, antes: itens, tirouVazia: refeito.tirouVazia })
+      resolver(refeito.novas.map((n) => n.codigo))
+    })()
   }
   const remapear = (coluna: number, campo: CampoPlanilha | null) => {
     if (!colagem) return

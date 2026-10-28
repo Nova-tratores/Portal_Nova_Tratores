@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { conferirPrecos, contaDoItemPPV, contaDaLinha, precoDifere, temAlerta, type PrecoCadastro, type CustoCadastro } from "../conferencia-precos";
+import { conferirPrecos, variantesCodigo, contaDoItemPPV, contaDaLinha, precoDifere, temAlerta, type PrecoCadastro, type CustoCadastro } from "../conferencia-precos";
 
 // Caso real: PPV-0542 / OS-0846 (22/10/2026). Preços no PPV = os antigos; cadastro = Omie das 13h.
 const cadastro: PrecoCadastro[] = [
@@ -73,5 +73,24 @@ describe("conta", () => {
     expect(contaDoItemPPV("Nova Tratores")).toBe("NOVA");
     expect(contaDaLinha("NOVA", "")).toBe("NOVA");
     expect(contaDaLinha(null, "Castro Peças")).toBe("CASTRO");
+  });
+});
+
+describe("código colado do Excel sem os zeros da frente", () => {
+  const cad: PrecoCadastro[] = [{ codigo: "0734309419", conta: "NOVA", preco: 250, descricao: "ROLAMENTO" }, { codigo: "123", conta: "NOVA", preco: 10 }, { codigo: "0123", conta: "NOVA", preco: 99 }];
+  it("acha pela grafia com zeros e devolve o código do cadastro", () => {
+    const r = conferirPrecos([{ codigo: "734309419", preco: 250, quantidade: 1 }], cad, []);
+    expect(r.itens[0].descricaoCadastro).toBe("ROLAMENTO");
+    expect(r.itens[0].codigoCadastro).toBe("0734309419");
+    expect(r.itens[0].avisos).not.toContain("sem_cadastro");
+  });
+  it("a grafia exata vence a sem zeros", () => {
+    const r = conferirPrecos([{ codigo: "123", preco: 10, quantidade: 1 }], cad, []);
+    expect(r.itens[0].precoCadastro).toBe(10);
+    expect(r.itens[0].codigoCadastro).toBeNull();
+  });
+  it("variantes só para código de dígitos", () => {
+    expect(variantesCodigo("734309419")).toEqual(["734309419", "0734309419", "00734309419", "000734309419", "0000734309419"]);
+    expect(variantesCodigo("RP-01")).toEqual(["RP-01"]);
   });
 });

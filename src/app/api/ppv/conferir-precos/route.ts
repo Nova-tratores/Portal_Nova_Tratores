@@ -7,7 +7,7 @@ import { supabase } from "@/lib/estoque/supabase";
 import { autenticar } from "@/lib/auth/server";
 import { temModuloPPV } from "@/lib/ppv/server";
 import {
-  conferirPrecos, contaDaLinha,
+  conferirPrecos, contaDaLinha, variantesCodigo,
   type ContaPreco, type CustoCadastro, type ItemParaConferir, type PrecoCadastro,
 } from "@/lib/ppv/conferencia-precos";
 
@@ -37,14 +37,22 @@ export async function POST(req: NextRequest) {
     }).filter((i) => i.codigo);
     if (itens.length === 0) return NextResponse.json(conferirPrecos([], [], []));
 
-    const codigos = [...new Set(itens.map((i) => i.codigo))];
+    // com as grafias sem/com zeros na frente (código colado do Excel perde os zeros)
+    const codigos = [...new Set(itens.flatMap((i) => variantesCodigo(i.codigo)))];
 
-    const [cad, cus] = await Promise.all([
-      supabase.from("Produtos_Completos").select("Codigo_Produto, Descricao_Produto, Preco_Venda, Empresa, conta_omie").in("Codigo_Produto", codigos),
-      supabase.from("produtos").select("codigo, cmc, conta_omie").in("codigo", codigos),
-    ]);
-    if (cad.error) console.error(`[conferir-precos] cadastro: ${cad.error.message}`);
-    if (cus.error) console.error(`[conferir-precos] custo: ${cus.error.message}`);
+    // em lotes: com as variantes a lista pode passar de mil códigos (URL longa demais)
+    const lotes: string[][] = [];
+    for (let i = 0; i < codigos.length; i += 150) lotes.push(codigos.slice(i, i + 150));
+    const respostas = await Promise.all(lotes.map((lote) => Promise.all([
+      supabase.from("Produtos_Completos").select("Codigo_Produto, Descricao_Produto, Preco_Venda, Empresa, conta_omie").in("Codigo_Produto", lote),
+      supabase.from("produtos").select("codigo, cmc, conta_omie").in("codigo", lote),
+    ])));
+    const cad = { data: respostas.flatMap(([c]) => c.data || []) };
+    const cus = { data: respostas.flatMap(([, c]) => c.data || []) };
+    for (const [c, u] of respostas) {
+      if (c.error) console.error(`[conferir-precos] cadastro: ${c.error.message}`);
+      if (u.error) console.error(`[conferir-precos] custo: ${u.error.message}`);
+    }
 
     const cadastro: PrecoCadastro[] = (cad.data || []).map((l) => ({
       codigo: String(l.Codigo_Produto),

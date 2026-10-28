@@ -30,6 +30,9 @@ export interface ItemConferido {
   preco: number
   quantidade: number
   precoCadastro: number | null
+  /** Código como está no cadastro, quando difere do pedido só pelos zeros da frente
+   *  (o Excel corta: 0734309419 → 734309419); null nos outros casos. */
+  codigoCadastro: string | null
   /** Descrição do produto no cadastro (null = código não cadastrado). */
   descricaoCadastro: string | null
   custo: number | null
@@ -70,9 +73,28 @@ export function contaDaLinha(contaOmie: unknown, empresa: unknown): ContaPreco {
   return String(empresa || '').toLowerCase().includes('castro') ? 'CASTRO' : 'NOVA'
 }
 
-/** Escolhe a linha do código: a da conta pedida (sem conta, a NOVA); senão a que houver. */
+/** Código só de dígitos sem os zeros da frente; outros códigos ficam como estão. */
+export function semZerosEsquerda(codigo: string): string {
+  const s = chave(codigo)
+  return /^\d+$/.test(s) ? (s.replace(/^0+/, '') || '0') : s
+}
+
+/** Grafias a procurar no cadastro: a digitada e, se for só dígitos, com 0 a 4 zeros na frente
+ *  (colado do Excel, a célula numérica perde os zeros). */
+export function variantesCodigo(codigo: string): string[] {
+  const s = String(codigo || '').trim()
+  if (!/^\d+$/.test(s)) return s ? [s] : []
+  const base = s.replace(/^0+/, '') || '0'
+  return [...new Set([s, base, ...[1, 2, 3, 4].map((z) => '0'.repeat(z) + base)])]
+}
+
+/** Escolhe a linha do código: a da conta pedida (sem conta, a NOVA); senão a que houver.
+ *  Sem a grafia exata, aceita a que só difere nos zeros da frente. */
 function escolher<T extends { codigo: string; conta: ContaPreco }>(linhas: T[], codigo: string, conta?: ContaPreco | null): T | null {
-  const doCodigo = linhas.filter((l) => chave(l.codigo) === chave(codigo))
+  let doCodigo = linhas.filter((l) => chave(l.codigo) === chave(codigo))
+  if (doCodigo.length === 0 && /^\d+$/.test(chave(codigo))) {
+    doCodigo = linhas.filter((l) => semZerosEsquerda(l.codigo) === semZerosEsquerda(codigo))
+  }
   if (doCodigo.length === 0) return null
   return doCodigo.find((l) => l.conta === (conta || 'NOVA')) ?? doCodigo[0]
 }
@@ -106,7 +128,9 @@ export function conferirPrecos(
     if (custo === null) avisos.push('sem_custo')
 
     saida.push({
-      codigo, conta: conta ?? cad?.conta ?? null, preco, quantidade: qtd, precoCadastro, descricaoCadastro: cad ? (cad.descricao ?? "") : null, custo, avisos,
+      codigo, conta: conta ?? cad?.conta ?? null, preco, quantidade: qtd, precoCadastro,
+      codigoCadastro: cad && chave(cad.codigo) !== chave(codigo) ? cad.codigo : null,
+      descricaoCadastro: cad ? (cad.descricao ?? "") : null, custo, avisos,
       diferencaTotal: avisos.includes('diferente_cadastro') && precoCadastro !== null ? r2((precoCadastro - preco) * qtd) : 0,
       prejuizo: avisos.includes('abaixo_custo') && custo !== null ? r2((custo - preco) * qtd) : 0,
     })
