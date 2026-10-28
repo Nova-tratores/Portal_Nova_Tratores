@@ -38,7 +38,7 @@ interface OSInterna { os: string; cliente: string; motivo: string; horas: number
 const MUDO = 'var(--portal-text-muted, #64748b)'
 const COR_GASTO = '#ea580c'
 const COR_RESULT = '#0f766e'
-const ESTILO_SECAO = `.pt-secao { display: flex; gap: 12px; align-items: center; margin: 34px 0 14px; animation: cpvEntra .45s both } .pt-secao.primeira { margin-top: 6px }
+const ESTILO_SECAO = `.pt-secao { display: flex; gap: 12px; align-items: center; margin: 34px 0 14px; scroll-margin-top: 150px; animation: cpvEntra .45s both } .pt-secao.primeira { margin-top: 6px }
 .pt-secao-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; background: color-mix(in srgb, var(--c) 12%, var(--portal-bg-card, #fefefe)); color: var(--c); font-size: 15px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 22%, transparent) }
 .pt-secao > div { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; flex-shrink: 0 } .pt-secao em { font-style: normal; font-size: 11px; font-weight: 900; color: var(--c); letter-spacing: .06em } .pt-secao small { grid-column: 2 } .pt-secao b { font-size: 20px; font-weight: 400; color: var(--portal-text, #0f172a); letter-spacing: -.01em } .pt-secao small { font-size: 14.5px; color: #334155 }
 .pt-secao-linha { flex: 1; height: 2px; border-radius: 99px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, transparent), transparent 70%); align-self: center; margin-left: 6px; transform-origin: left; animation: ptLinha .8s .15s cubic-bezier(.2,.8,.2,1) both } @keyframes ptLinha { from { transform: scaleX(0) } }`
@@ -377,7 +377,7 @@ const ESTILO_TRILHO = `
 .pt-atalhos-ancora.on > .pt-atalhos { opacity: 1; transform: none; pointer-events: auto }
 /* barra de cima: abas em texto, fina e quieta (22/10/2026) */
 /* 27/10/2026 (José: "tira essa faixona branca, algo mais simples e bonito"): sem faixa — pílulas soltas sobre o fundo */
-.pt-atalhos { position: sticky; top: 92px; z-index: 30; box-sizing: border-box; display: flex; align-items: center; gap: 6px; min-height: 40px; margin: 0 0 14px; padding: 4px 0; background: transparent; overflow-x: auto; overflow-y: hidden; scrollbar-width: none }
+.pt-atalhos { position: sticky; top: 92px; z-index: 30; box-sizing: border-box; display: flex; align-items: center; gap: 6px; min-height: 40px; margin: 0 0 14px; padding: 6px 8px; border-radius: 99px; background: color-mix(in srgb, var(--portal-bg, #eef0ec) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); overflow-x: auto; overflow-y: hidden; scrollbar-width: none }
 .pt-atalhos::-webkit-scrollbar { display: none }
 .pt-atalhos button { flex: none; display: inline-flex; align-items: center; gap: 7px; border: 1px solid transparent; border-radius: 99px; background: transparent; padding: 6px 13px; font-family: inherit; font-size: 14px; font-weight: 500; color: #334155; cursor: pointer; white-space: nowrap; transition: color .15s, background .15s, border-color .15s }
 .pt-atalhos button i { font-size: 13px; color: var(--c); opacity: 1; transition: opacity .15s }
