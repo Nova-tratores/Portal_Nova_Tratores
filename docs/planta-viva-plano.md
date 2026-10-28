@@ -61,7 +61,7 @@ O pátio (máquinas em estoque e idade) fica para a F2: falta uma data de entrad
 | kpi_id | Fonte |
 |---|---|
 | `ppv_pedido_aberto` / `ppv_remessa_aberta` | `pedidos` (PPV) fora das fases finais, separados por `Tipo_Pedido` (Pedido × Remessa), por idade de `status_desde` (0–2 / 3–7 / > 7 d); fases do `lib/ppv/relacao.ts`; quem criou = `email_usuario` (27/10: era um quadro só, `ppv_aberto`) |
-| `pv_omie_aberto` / `rem_omie_aberta` | Omie, pela tarefa `planta-omie-abertos` (a cada 2 h, 06–20 h, prioridade pesada, ~7 min): mesma leitura de /ajustes/pedidos (`listarPedidosEnriquecidos`, janela padrão) e /ajustes/remessas (`obterRemessasAbertas`); por conta; a lista do detalhe fica em `planta_kpi.detalhe.itens` (até 1.000) e não vai na tela inteira; quem criou = usuário da Omie (`uInc`; na remessa, o da OS de origem). Cadastro: `sql/planta-omie-abertos.sql` |
+| `pv_omie_aberto` / `rem_omie_aberta` | Omie, pela tarefa `planta-omie-abertos` (a cada 2 h, 06–20 h, prioridade pesada, ~7 min): mesma leitura de /ajustes/pedidos (`listarPedidosEnriquecidos`; desde 28/10 TODOS os abertos, lidos por etapa 00–50 sem janela de data — a janela de 12 meses escondia 232 pedidos) e /ajustes/remessas (`obterRemessasAbertas`); por conta; a lista do detalhe fica em `planta_kpi.detalhe.itens` (até 1.000) e não vai na tela inteira; quem criou = usuário da Omie (`uInc`; na remessa, o da OS de origem). Cadastro: `sql/planta-omie-abertos.sql` |
 
 ### Oficina
 

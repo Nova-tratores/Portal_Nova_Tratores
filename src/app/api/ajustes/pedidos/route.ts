@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
-import { obterPedidos } from '@/lib/ajustes/pedidos';
-import { resolveJanelaBR } from '@/lib/ajustes/cmc';
+import { obterPedidos, janelaPedidosBR } from '@/lib/ajustes/pedidos';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +13,7 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta')) ?? CONTA_DEFAULT;
   const force = sp.get('force') === '1' || sp.get('force') === 'true';
-  const { dataDeBR, dataAteBR } = resolveJanelaBR(sp.get('de'), sp.get('ate'));
+  const { dataDeBR, dataAteBR } = janelaPedidosBR(sp.get('de'), sp.get('ate'));
   try {
     const out = await obterPedidos(conta, dataDeBR, dataAteBR, force);
     return NextResponse.json(out);

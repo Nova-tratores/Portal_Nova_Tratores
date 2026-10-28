@@ -15,9 +15,9 @@ import { labelConta } from './conta';
 import { supabase } from './supabase';
 import * as cache from './cache';
 import { fmtBR, hoje } from './dates';
-import { httpErr } from './cmc';
+import { httpErr, resolveJanelaBR } from './cmc';
 import {
-  listarPedidos,
+  paginarOmie,
   consultarPedido,
   alterarObservacaoPedido,
   cancelarPedido,
@@ -64,6 +64,46 @@ function filtrarJanelaInclusao(pedidos: any[], dataDeBR: string, dataAteBR: stri
     if (kAte != null && k > kAte) return false;
     return true;
   });
+}
+
+// ---- Pedidos abertos na Omie (por etapa, sem janela de data) ----
+
+// Etapas em que um pedido ainda esta aberto (00 = orcamento na NOVA; 60 = faturado,
+// 70 = entregue). Antes a lista vinha do ListarPedidos com janela de 12 meses por data de
+// REGISTRO: lia todos os faturados do periodo (57 paginas nas duas contas) e escondia o
+// pedido aberto ha mais de 12 meses sem alteracao — 232 pedidos (R$ 3,3 mi) em 27/10/2026.
+// Por etapa sao ~33 paginas e nada fica de fora (comparado: tudo o que a janela achava, a
+// leitura por etapa tambem acha). Etapa sem pedido responde "Nao existem registros" (paginarOmie ignora).
+export const ETAPAS_PEDIDO_ABERTO = ['00', '10', '20', '30', '40', '50'];
+
+/** Pedidos de venda abertos (nao cancelados, nao faturados) de uma conta, normalizados. Cache 5 min. */
+export async function listarPedidosAbertosOmie(conta: Conta, force = false): Promise<any[]> {
+  const chave = `pedidos_abertos_etapa:${conta}`;
+  if (!force) {
+    const hit = cache.get<any[]>(chave);
+    if (hit) return hit.valor.map((p) => ({ ...p }));
+  }
+  const brutos: any[] = [];
+  for (const etapa of ETAPAS_PEDIDO_ABERTO) {
+    const { itens } = await paginarOmie('/produtos/pedido/', 'ListarPedidos', { apenas_importado_api: 'N', etapa }, conta, {
+      listaKeys: ['pedido_venda_produto'], totalKeys: ['total_de_paginas', 'nTotPaginas', 'nTotalPaginas'], debugTag: `ListarPedidos etapa ${etapa}`,
+    });
+    brutos.push(...itens);
+  }
+  const abertos = brutos.map(normalizarPedido).filter((p: any) => p && !p.cancelada && !p.faturada);
+  cache.set(chave, abertos, 300);
+  return abertos.map((p) => ({ ...p }));
+}
+
+/**
+ * Janela de INCLUSAO pedida pela tela/exports. Sem datas = todos os abertos (padrao desde
+ * 27/10/2026); so uma das datas = filtra so daquele lado. Volta '' quando nao ha limite.
+ */
+export function janelaPedidosBR(de?: string | null, ate?: string | null): { dataDeBR: string; dataAteBR: string } {
+  if (!de && !ate) return { dataDeBR: '', dataAteBR: '' };
+  if (de && ate) return resolveJanelaBR(de, ate);
+  const um = (v: string) => resolveJanelaBR(v, v).dataDeBR;
+  return { dataDeBR: de ? um(de) : '', dataAteBR: ate ? um(ate) : '' };
 }
 
 // ---- Mapas (clientes / etapas / usuarios) com cache ----
@@ -162,24 +202,21 @@ export async function obterPedidos(conta: Conta, dataDeBR: string, dataAteBR: st
     if (hit) return { ...hit.valor, fonte: 'cache', cachedEm: hit.gravadoEm };
   }
   const t0 = Date.now();
-  // Omie nao tem status "ATIVO" no filtro; listamos tudo e filtramos em memoria
-  // os nao-cancelados/nao-faturados.
+  // Abertos por etapa (sem janela de data na Omie) + corte por data de inclusao, se pedido.
   const [lista, mapaClientes, mapaEtapas, mapaUsuarios] = await Promise.all([
-    listarPedidos(conta, dataDeBR, dataAteBR, {}),
+    listarPedidosAbertosOmie(conta, force),
     obterMapaClientes(conta),
     obterMapaEtapasPedido(conta),
     obterMapaUsuarios(conta),
   ]);
-  const pedidos = filtrarJanelaInclusao(
-    (lista || []).map(normalizarPedido).filter((p: any) => p && !p.cancelada && !p.faturada),
-    dataDeBR, dataAteBR,
-  );
+  const pedidos = filtrarJanelaInclusao(lista, dataDeBR, dataAteBR);
   for (const p of pedidos) {
     const cli = p.codigoCliente != null ? mapaClientes[String(p.codigoCliente)] : null;
     p.nomeCliente = cli ? cli.nome : null;
     p.etapaNome = p.etapa ? (mapaEtapas[String(p.etapa)] || null) : null;
     if (p.criadoPorLogin) p.criadoPorNome = mapaUsuarios[String(p.criadoPorLogin).toUpperCase()] || p.criadoPorLogin;
     if (p.alteradoPorLogin) p.alteradoPorNome = mapaUsuarios[String(p.alteradoPorLogin).toUpperCase()] || p.alteradoPorLogin;
+    p.diasAberto = diasDesdeBR(p.dataInclusao || p.dataPrevisao);
     p.diasParadoEtapa = diasDesdeBR(p.dataAlteracao || p.dataInclusao);
   }
   const payload: PedidosPayload = {
@@ -190,19 +227,16 @@ export async function obterPedidos(conta: Conta, dataDeBR: string, dataAteBR: st
   return { ...payload, fonte: 'live' };
 }
 
-// Lista enriquecida de pedidos abertos p/ 1 conta, sem o cache da rota (usado
-// pelos exports CSV/PDF e pelo consolidado de pedidos antigos).
+// Lista enriquecida de pedidos abertos p/ 1 conta, sem o cache da rota (usado pelos
+// exports CSV/PDF, pelo consolidado de pedidos antigos e pela Planta Viva). Datas vazias = todos.
 export async function listarPedidosEnriquecidos(conta: Conta, dataDeBR: string, dataAteBR: string): Promise<any[]> {
   const [lista, mapaClientes, mapaEtapas, mapaUsuarios] = await Promise.all([
-    listarPedidos(conta, dataDeBR, dataAteBR, {}),
+    listarPedidosAbertosOmie(conta),
     obterMapaClientes(conta),
     obterMapaEtapasPedido(conta),
     obterMapaUsuarios(conta),
   ]);
-  const pedidos = filtrarJanelaInclusao(
-    (lista || []).map(normalizarPedido).filter((p: any) => p && !p.cancelada && !p.faturada),
-    dataDeBR, dataAteBR,
-  );
+  const pedidos = filtrarJanelaInclusao(lista, dataDeBR, dataAteBR);
   const contaLabel = labelConta(conta);
   for (const p of pedidos) {
     const cli = p.codigoCliente != null ? mapaClientes[String(p.codigoCliente)] : null;

@@ -204,7 +204,7 @@ export async function lerItensGravados(kpi: string, conta: ContaPlanta): Promise
 
 /**
  * PV e remessas abertos na Omie, com quem criou — a MESMA leitura de /ajustes/pedidos
- * (listarPedidosEnriquecidos, janela padrão da tela) e /ajustes/remessas (obterRemessasAbertas).
+ * (listarPedidosEnriquecidos, todos os abertos por etapa) e /ajustes/remessas (obterRemessasAbertas).
  * Conta que falha mantém o último número bom e ganha a marca de erro; a linha TODAS só é
  * regravada quando as duas contas leram.
  */
@@ -213,9 +213,7 @@ export async function rodarOmieAbertos(): Promise<{ resumo?: string; pular?: str
   const { getContasOmie } = await import('@/lib/ajustes/conta');
   const { listarPedidosEnriquecidos } = await import('@/lib/ajustes/pedidos');
   const { obterRemessasAbertas } = await import('@/lib/ajustes/remessas');
-  const { resolveJanelaBR } = await import('@/lib/ajustes/cmc');
   const hoje = hojeBrasilia();
-  const { dataDeBR, dataAteBR } = resolveJanelaBR(null, null);
   const contas = getContasOmie().map((c) => c.id).filter((c): c is 'NOVA' | 'CASTRO' => c === 'NOVA' || c === 'CASTRO');
   if (!contas.length) return { pular: 'nenhuma conta da Omie configurada' };
 
@@ -223,7 +221,7 @@ export async function rodarOmieAbertos(): Promise<{ resumo?: string; pular?: str
   const lidos: Record<Kpi, Partial<Record<'NOVA' | 'CASTRO', ItemKpi[]>>> = { pv_omie_aberto: {}, rem_omie_aberta: {} };
   const erros: Record<Kpi, Partial<Record<'NOVA' | 'CASTRO', string>>> = { pv_omie_aberto: {}, rem_omie_aberta: {} };
   for (const conta of contas) { // uma conta por vez: a Omie limita as chamadas por chave
-    try { lidos.pv_omie_aberto[conta] = ((await listarPedidosEnriquecidos(conta, dataDeBR, dataAteBR)) as PedidoOmie[]).map((p) => itemPedidoOmie(p, conta)); }
+    try { lidos.pv_omie_aberto[conta] = ((await listarPedidosEnriquecidos(conta, '', '')) as PedidoOmie[]).map((p) => itemPedidoOmie(p, conta)); }
     catch (e) { erros.pv_omie_aberto[conta] = String((e as { faultstring?: string }).faultstring || (e as Error).message).slice(0, 200); }
     try { lidos.rem_omie_aberta[conta] = ((await obterRemessasAbertas(conta, true)).remessas as RemessaOmie[]).map((r) => itemRemessaOmie(r, conta)); }
     catch (e) { erros.rem_omie_aberta[conta] = String((e as { faultstring?: string }).faultstring || (e as Error).message).slice(0, 200); }
