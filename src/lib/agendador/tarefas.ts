@@ -373,6 +373,16 @@ export const TAREFAS: Record<string, Tarefa> = {
     };
   },
 
+  // Quests do vendedor (app de vendas): sugere tarefas por regra para o supervisor aprovar.
+  'vendas-quests-sugerir': async (p) => {
+    if (desligada('VENDAS_QUESTS')) return { pular: 'desligado (VENDAS_QUESTS=off)' };
+    const { sugerirQuests } = await import('@/lib/vendas-app/quests-server');
+    const r = await sugerirQuests({ limite: Number(p.limite) || 10 });
+    if (r.pulado) return { pular: r.pulado };
+    const c = r.candidatas;
+    return { resumo: `${r.criadas} sugestão(ões) nova(s) · candidatas: revisão ${c.revisao_chegando}, aniversário ${c.aniversario_entrega}, sumido ${c.cliente_sumido}, sem notícia ${c.trator_sem_noticia}` };
+  },
+
   'financeiro-scanner': async () => {
     if (process.env.SYNC_FINANCEIRO_AUTO !== 'on') return { pular: 'desligado (só com SYNC_FINANCEIRO_AUTO=on; a criação é pelo webhook)' };
     const { fetchInterno } = await import('@/lib/auth/chamada-interna');

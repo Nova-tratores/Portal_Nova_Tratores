@@ -270,6 +270,16 @@ export const AGENDAMENTOS: Agendamento[] = [
     obs: 'Registra em cron_runs como frota-vias-fora-mapa; malha do OSM no bucket frota-vias-osm',
   },
   {
+    nome: 'Quests sugeridas aos vendedores',
+    modulo: 'CRM Vendas',
+    fonte: 'in-process',
+    frequencia: 'Diário 06:30',
+    alvo: 'sugerirQuests() — trator sem notícia, revisão chegando, aniversário de entrega, cliente sumido; até 10 novas por dia, o supervisor aprova no app',
+    arquivo: 'src/lib/agendador/tarefas.ts',
+    condicional: 'Agendador do portal (tabela agendamentos); desliga com VENDAS_QUESTS=off',
+    obs: 'Registra em cron_runs como vendas-quests-sugerir; tabelas em vendas-pwa/supabase-quests.sql',
+  },
+  {
     nome: 'POPs disparados pela OS',
     modulo: 'POPs',
     fonte: 'in-process',
