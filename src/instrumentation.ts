@@ -476,16 +476,28 @@ export async function register(): Promise<void> {
   // contatos de cada vendedor (iv_feed_pool) é refeita a cada 6 h. Só produção;
   // IV_FEED=on liga no local, =off desliga.
   if (rodaRobos && ((process.env.NODE_ENV === 'production' && process.env.IV_FEED !== 'off') || process.env.IV_FEED === 'on')) {
+    // Confere a cada 30 min a idade da reserva no banco e refaz quando passou de 6 h.
+    // (28/10/2026: com setInterval de 6 h, cada reinício do worker zerava o relógio e a
+    // reserva ficou parada de 22/10 a 28/10 sem deixar rastro; agora cada rodada fica
+    // no cron_runs como `iv-feed`.)
+    const { comCronRun } = await import('./lib/cron/observar');
     const rodarFeed = async () => {
       try {
+        const { supabaseAdmin } = await import('./lib/server/supabase-admin');
+        const { data } = await supabaseAdmin.from('iv_feed_pool').select('gerado_em').order('gerado_em', { ascending: false }).limit(1);
+        const ultima = data?.[0]?.gerado_em ? Date.parse(data[0].gerado_em) : 0;
+        if (Date.now() - ultima < 6 * 60 * 60 * 1000) return;
         const { gerarFeeds } = await import('./lib/inteligencia-vendas/feed-server');
-        const r = await gerarFeeds();
-        log(`feed dos vendedores: ${r.vendedores} vendedores, ${r.contatos} contatos${r.semCidade.length ? ` (sem cidade: ${r.semCidade.join(', ')})` : ''}`);
+        await comCronRun('iv-feed', () => gerarFeeds(), {
+          lockMinutos: 20,
+          disparadoPor: 'agendador',
+          fechamento: (r) => ({ detalhe: `${r.vendedores} vendedores, ${r.contatos} contatos${r.semCidade.length ? ` · sem cidade: ${r.semCidade.join(', ')}` : ''}${r.erros?.length ? ` · erros: ${r.erros.length}` : ''}` }),
+        });
       } catch (e) { log('feed dos vendedores falhou: ' + (e as Error).message); }
     };
-    setInterval(() => { rodarFeed().catch(() => {}); }, 6 * 60 * 60 * 1000);
-    setTimeout(() => { rodarFeed().catch(() => {}); }, 5 * 60 * 1000);
-    log('feed dos vendedores: refeito a cada 6 h');
+    setInterval(() => { rodarFeed().catch(() => {}); }, 30 * 60 * 1000);
+    setTimeout(() => { rodarFeed().catch(() => {}); }, 3 * 60 * 1000);
+    log('feed dos vendedores: refeito quando passa de 6 h (confere a cada 30 min)');
   }
 
   // INTELIGÊNCIA DE VENDAS — Boletim do agro (19/10/2026): notícias, preços CONAB, Focus, dólar
