@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { authHeaders } from '@/lib/auth/client'
 import { carregarLeaflet, CENTRO_PADRAO } from '@/components/feedbacks/leaflet'
 import { filtrarEspetos, segmentarTrajeto } from '@/lib/frota/gps'
+import { distanciaM } from '@/lib/pos/localizacao-cliente'
 import type { FuroKm, DiaFuro, AnaliseFuro, DiaDetalhado, ParadaFuro, ConfCliente } from '@/lib/mecanicos/furo-km-server'
 import { Janela } from './JanelasInfo'
 import { DIVERGENCIAS, type Divergencia } from '@/lib/mecanicos/divergencias'
@@ -20,10 +21,11 @@ function filtroDia(fk: FuroKm, div: Divergencia): (x: DiaFuro) => boolean {
   if (div === 'km-fora-relatorio') return (x) => x.kmGps - x.kmRel > 5
   if (div === 'dias-sem-os') return (x) => !x.os.length && x.kmGps > 5
   if (div === 'sem-cliente') return (x) => x.os.some((o) => !o.noCliente)
+  if (div === 'colega-fora-os') return (x) => x.colegas.some((o) => o.noCliente && !o.naOS)
   if (div === 'km-nao-cobrado' || div === 'horas-nao-cobradas') { const ids = new Set(osDaDiv(fk, div).map((o) => o.os)); return (x) => x.os.some((o) => ids.has(o.os)) }
   return (x) => x.furo > 5
 }
-const TITULO_LISTA: Record<Divergencia, string> = { 'geral': 'Dias com furo', 'km-fora-relatorio': 'Dias com km fora do relatório', 'km-nao-cobrado': 'Dias dessas OS', 'dias-sem-os': 'Dias sem OS', 'horas-nao-cobradas': 'Dias dessas OS', 'sem-cliente': 'Dias de OS sem passar no cliente' }
+const TITULO_LISTA: Record<Divergencia, string> = { 'geral': 'Dias com furo', 'km-fora-relatorio': 'Dias com km fora do relatório', 'km-nao-cobrado': 'Dias dessas OS', 'dias-sem-os': 'Dias sem OS', 'horas-nao-cobradas': 'Dias dessas OS', 'sem-cliente': 'Dias de OS sem passar no cliente', 'colega-fora-os': 'Dias no cliente de um colega' }
 const fmtValor = (v: number, u: 'km' | 'h' | 'dias') => (u === 'h' ? `${String(v).replace('.', ',')} h` : u === 'dias' ? `${v} dia${v === 1 ? '' : 's'}` : `${Math.round(v).toLocaleString('pt-BR')} km`)
 
 const km = (v: number) => `${(Math.round(v * 10) / 10).toLocaleString('pt-BR')} km`
@@ -49,6 +51,9 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
   const mapa = useRef<any>(null)
   const camada = useRef<any>(null)
   const pedidos = useRef(new Set<string>())
+  // animação do dia em foco (José, 28/10/2026: "dentro do mapa coloca a animação para ficar fácil de entender")
+  const [anim, setAnim] = useState<{ t: number; km: number; fim?: boolean } | null>(null)
+  const animRef = useRef<{ raf: number; marca: any; rastro: any } | null>(null)
 
   const pedirIA = async (forcar = false) => {
     setPensando(true)
@@ -132,6 +137,41 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
     if (b.length > 1) mapa.current.fitBounds(b, { padding: [30, 30] })
   }, [sel, det, cor, foco, okMapa])
 
+  const parar = () => {
+    const a = animRef.current
+    if (a) { cancelAnimationFrame(a.raf); a.marca?.remove(); a.rastro?.remove() }
+    animRef.current = null
+    setAnim(null)
+  }
+  const tocar = () => {
+    const dd = foco ? det[foco] : null
+    if (!dd || dd.pontos.length < 2 || !mapa.current) return
+    parar()
+    const L = (window as any).L
+    // só os pontos em que o carro andou (parado não precisa de quadro)
+    const pts = dd.pontos.filter((p, i, a) => i === 0 || distanciaM(a[i - 1], p) > 15)
+    const acum: number[] = [0]
+    for (let i = 1; i < pts.length; i++) acum.push(acum[i - 1] + distanciaM(pts[i - 1], pts[i]) / 1000)
+    const marca = L.marker([pts[0].lat, pts[0].lng], { icon: L.divIcon({ className: '', html: '<div class="fk-carro"><i class="fas fa-car-side"></i></div>', iconSize: [34, 34], iconAnchor: [17, 17] }), zIndexOffset: 1000 }).addTo(mapa.current)
+    const rastro = L.polyline([], { color: '#0f172a', weight: 6, opacity: 0.8 }).addTo(mapa.current)
+    const DUR = Math.min(32000, Math.max(12000, pts.length * 45))
+    const t0 = performance.now()
+    let ultimo = 0
+    const passo = (agora: number) => {
+      const fr = Math.min(1, (agora - t0) / DUR), k = fr * (pts.length - 1), i = Math.floor(k), q = k - i
+      const a = pts[i], b = pts[Math.min(i + 1, pts.length - 1)]
+      const pos = [a.lat + (b.lat - a.lat) * q, a.lng + (b.lng - a.lng) * q]
+      marca.setLatLng(pos)
+      rastro.setLatLngs([...pts.slice(0, i + 1).map((p) => [p.lat, p.lng]), pos])
+      if (agora - ultimo > 120 || fr >= 1) { ultimo = agora; setAnim({ t: Date.parse(a.dt), km: acum[i], fim: fr >= 1 }) }
+      if (fr < 1 && animRef.current) animRef.current.raf = requestAnimationFrame(passo)
+    }
+    animRef.current = { raf: requestAnimationFrame(passo), marca, rastro }
+  }
+  // trocou de dia ou fechou: para a animação
+  useEffect(() => () => { const a = animRef.current; if (a) { cancelAnimationFrame(a.raf); a.marca?.remove(); a.rastro?.remove() } animRef.current = null }, [foco])
+  useEffect(() => { setAnim(null) }, [foco])
+
   const alternar = (dia: string) => {
     if (sel.includes(dia) && foco !== dia) { setFoco(dia); return }
     setSel((s) => (s.includes(dia) ? s.filter((x) => x !== dia) : [...s, dia]))
@@ -208,9 +248,17 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
                 <div ref={caixa} className="fk-mapa" />
                 {sel.some((x) => !(x in det)) && <span className="fk-mapa-carr"><i className="fas fa-circle-notch fa-spin" /> buscando rota e cidades…</span>}
                 {!sel.length && <span className="fk-mapa-carr">Clique num dia ao lado para ver o caminho</span>}
+                {foco && df && df.pontos.length > 1 && (
+                  <div className="fk-play">
+                    <button type="button" onClick={() => (anim && !anim.fim ? parar() : tocar())} title={anim && !anim.fim ? 'parar' : 'ver o carro andando'}>
+                      <i className={`fas ${anim && !anim.fim ? 'fa-stop' : anim?.fim ? 'fa-rotate-right' : 'fa-play'}`} />
+                    </button>
+                    {anim ? <span><b>{hora(new Date(anim.t).toISOString())}</b> · {km(anim.km)} rodados{anim.fim ? ' · fim do dia' : ''}</span> : <span>ver o carro andando em {fmtDia(foco)}</span>}
+                  </div>
+                )}
                 <div className="fk-leg"><span><i className="bola" style={{ background: '#059669' }} /> cliente da OS</span><span><i className="bola" style={{ background: '#0f172a' }} /> loja</span><span><i className="bola" style={{ background: '#2563eb' }} /> outra parada</span><span><i className="bola" style={{ background: '#dc2626' }} /> atípica</span></div>
               </div>
-              {foco && <LinhaDoTempo dia={foco} dd={df} cor={cor[foco]} />}
+              {foco && <LinhaDoTempo dia={foco} dd={df} cor={cor[foco]} agora={anim?.t ?? null} />}
             </div>
           </div>
         </>
@@ -239,6 +287,7 @@ function LinhaDia({ x, on, foco, cor, carregando, onClick }: { x: DiaFuro; on: b
           <small key={o.os} className={`fk-os ${o.noCliente ? (o.noCliente.conf === 'provavel' ? 'prov' : 'sim') : 'col'}`}>
             <i className="fas fa-user-group" /> {o.tecnico.split(' ')[0]}{o.semCarro ? ' (sem carro)' : ''} na {o.os} {o.cliente.split(' ').slice(0, 3).join(' ')}
             {o.noCliente ? <> · este carro foi lá {hora(o.noCliente.inicio)}–{hora(o.noCliente.fim)} ({dur(o.noCliente.min)}){o.noCliente.conf === 'provavel' ? ' provável' : ''}: o km pode estar na OS do colega</> : <> · este carro não passou lá</>}
+            {o.noCliente && <b className={`fk-naos ${o.naOS ? 'sim' : 'nao'}`}>{o.naOS ? <><i className="fas fa-check" /> {x.os.length ? '' : 'e '}ele consta na OS</> : <><i className="fas fa-triangle-exclamation" /> o nome dele não está na OS</>}</b>}
           </small>
         ))}
       </div>
@@ -247,7 +296,7 @@ function LinhaDia({ x, on, foco, cor, carregando, onClick }: { x: DiaFuro; on: b
 }
 
 /** O dia contado em ordem: ligou, cada trecho (km) e cada parada (hora, quanto tempo, onde, cidade), desligou. */
-function LinhaDoTempo({ dia, dd, cor }: { dia: string; dd: DiaDetalhado | null | undefined; cor?: string }) {
+function LinhaDoTempo({ dia, dd, cor, agora }: { dia: string; dd: DiaDetalhado | null | undefined; cor?: string; agora: number | null }) {
   if (dd === undefined) return <div className="fk-lt"><p className="fk-carr"><i className="fas fa-circle-notch fa-spin" /> montando o dia {fmtDia(dia)}…</p></div>
   if (!dd) return <div className="fk-lt"><p className="fk-vazio">Sem GPS para {fmtDia(dia)}.</p></div>
   const ps = dd.paradas.filter((p) => p.min >= 5)
@@ -267,12 +316,13 @@ function LinhaDoTempo({ dia, dd, cor }: { dia: string; dd: DiaDetalhado | null |
         {ps.map((p, i) => (
           <li key={i} className="grupo">
             {p.kmAntes != null && p.kmAntes > 0.2 && <div className="tr"><span className="h" /><i className="fio" /><small><i className="fas fa-car-side" /> rodou {km(p.kmAntes)}</small></div>}
-            <div className={`ev ${p.cliente ? 'cli' : p.loja ? 'loja' : p.atipica ? 'atip' : ''}`}>
+            <div className={`ev ${p.cliente ? 'cli' : p.loja ? 'loja' : p.atipica ? 'atip' : ''} ${agora == null ? '' : Date.parse(p.inicio) > agora ? 'depois' : Date.parse(p.fim || p.inicio) >= agora ? 'agora' : ''}`}>
               <span className="h">{hora(p.inicio)}<small>{hora(p.fim)}</small></span>
               <i className="pt" />
               <div>
                 <b>{p.cliente ? (p.cliente.colega ? <>No cliente do {p.cliente.colega.split(' ')[0]}: {p.cliente.nome}</> : <>No cliente: {p.cliente.nome}</>) : p.loja ? 'Na loja' : p.onde}</b>
                 <small>parado {dur(p.min)}{p.cidade ? ` · ${p.cidade}` : ''}{p.cliente ? ` · ${p.cliente.os} · ${CONF[p.cliente.conf]}` : ''}{p.atipica ? ' · parada atípica' : ''}</small>
+                {p.cliente?.colega && (() => { const c = dd.colegas.find((o) => o.os === p.cliente!.os); return c ? <small className={`fk-naos ${c.naOS ? 'sim' : 'nao'}`}>{c.naOS ? <><i className="fas fa-check" /> ele consta como técnico na {c.os}</> : <><i className="fas fa-triangle-exclamation" /> o nome dele não está na {c.os}: incluir como técnico?</>}</small> : null })()}
               </div>
             </div>
           </li>
@@ -332,5 +382,10 @@ const ESTILO_FK = `
 .fk-lt-l .ev > div { display: grid; gap: 1px; padding-bottom: 8px } .fk-lt-l .ev b { font-size: 14px; font-weight: 500 } .fk-lt-l .ev.cli b { color: #047857 } .fk-lt-l .ev.atip b { color: #b91c1c } .fk-lt-l .ev small { font-size: 12.5px; color: #475569 }
 .fk-lt-l .fio { justify-self: center; width: 3px; height: 26px; background: repeating-linear-gradient(var(--c) 0 4px, transparent 4px 7px); border-radius: 2px }
 .fk-lt-l .tr small { align-self: center; font-size: 12.5px; color: #475569 } .fk-lt-l .tr small i { color: #94a3b8; margin-right: 3px }
+.fk-play { position: absolute; z-index: 600; top: 10px; left: 10px; display: flex; gap: 10px; align-items: center; background: rgba(254,254,254,.96); border-radius: 99px; padding: 5px 14px 5px 5px; box-shadow: 0 6px 18px -8px rgba(15,23,42,.4); font-size: 13px; color: #334155 }
+.fk-play button { width: 34px; height: 34px; border-radius: 50%; border: 0; background: #0f172a; color: #fefefe; cursor: pointer; font-size: 12px } .fk-play b { font-weight: 600; color: #0f172a; font-variant-numeric: tabular-nums }
+.fk-carro { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #0f172a; color: #fefefe; font-size: 14px; border: 3px solid #fefefe; box-shadow: 0 4px 12px rgba(15,23,42,.45) }
+.fk-lt-l .ev.depois { opacity: .35 } .fk-lt-l .ev.agora { background: #eff6ff; border-radius: 10px } .fk-lt-l .ev.agora .pt { transform: scale(1.35); box-shadow: 0 0 0 4px #bfdbfe } .fk-lt-l .ev { transition: opacity .3s, background .3s }
+.fk-naos { display: block; margin-top: 3px; font-size: 12.5px; font-weight: 500 } .fk-naos.sim { color: #047857 } .fk-naos.nao { color: #b91c1c } .fk-naos i { font-size: 11px; margin-right: 3px }
 @keyframes fkSobe { from { opacity: 0; transform: translateY(6px) } }
 `

@@ -61,6 +61,20 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
         + ' No mapa aparece o caminho e as paradas de cada dia.' })
   }
 
+  // foi com um colega e o nome dele não está na OS do colega (José, 28/10/2026: "confirma na ordem; se não tiver o nome dele, avisa")
+  if (temCarro && fk) {
+    const casos = fk.dias.flatMap((d) => d.colegas.filter((o) => o.noCliente).map((o) => ({ ...o, data: d.data })))
+    const fora = casos.filter((o) => !o.naOS)
+    if (casos.length) out.push({ titulo: 'Foi com colega', ic: 'fa-user-group', fontes: 'GPS × OS do colega', erro: fora.length > 0, ok: !fora.length,
+      acao: 'mapa', div: fora.length ? 'colega-fora-os' : undefined,
+      v: fora.length ? plural(fora.length, 'dia', 'dias') : plural(casos.length, 'dia', 'dias'),
+      txt: fora.length ? 'no cliente de um colega sem o nome dele na OS' : 'no cliente de um colega, e ele consta na OS',
+      sub: lista(fora.length ? fora.map((o) => `${o.os} do ${o.tecnico.split(' ')[0]} (${ddmm(o.data)})`) : casos.map((o) => `${o.os} (${ddmm(o.data)})`)),
+      frase: fora.length
+        ? `O carro de ${nome} parou no cliente da OS de um colega em ${plural(casos.length, 'dia', 'dias')}, e em ${fora.length === casos.length ? 'todos' : fora.length} o nome dele não está na OS como técnico: ${lista(fora.map((o) => `${o.os} do ${o.tecnico.split(' ')[0]} em ${ddmm(o.data)}`))}. Se ele foi junto, a OS precisa ter o nome dele, e o km e as horas dele entram nessa OS.`
+        : `O carro de ${nome} parou no cliente da OS de um colega em ${plural(casos.length, 'dia', 'dias')}, e ele consta como técnico em todas essas OS.` })
+  }
+
   // horas: relatório × OS
   out.push({ titulo: 'Horas apontadas × cobradas', ic: 'fa-clock', fontes: 'relatório × OS', erro: x.naoCobradas > 0.05, ok: x.naoCobradas <= 0.05, acao: x.naoCobradas > 0.05 ? 'mapa' : undefined, div: x.naoCobradas > 0.05 ? 'horas-nao-cobradas' : undefined,
     v: x.naoCobradas > 0.05 ? h(x.naoCobradas) : h(x.horasCobradas), txt: x.naoCobradas > 0.05 ? 'apontadas e não cobradas' : 'cobradas, tudo que apontou',
