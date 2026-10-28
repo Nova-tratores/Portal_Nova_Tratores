@@ -15,6 +15,7 @@ import { omieRequest, consultarEstoque as omieConsultarEstoque, type OmieRequest
 import { type Conta } from './conta';
 import { supabase } from './supabase';
 import { sleep } from './utils';
+import { agregarPosicoes, planejarSaldos, zeramentoSuspeito, type LinhaBancoSaldo } from './saldos-diff';
 
 const FAMILIAS_OCULTAS = ['.Inativo', '####Requisição####', 'Sem família'];
 const API_DELAY = 1200; // ms entre chamadas Omie (rate limit)
@@ -39,7 +40,7 @@ interface OmieFamilia {
   descricao?: string;
 }
 
-interface OmieProdutoCadastro {
+export interface OmieProdutoCadastro {
   codigo_produto: number;
   codigo?: string;
   descricao?: string;
@@ -67,7 +68,7 @@ interface OmiePosEstoqueItem {
   nCMC?: number;
 }
 
-interface ProdutoRow {
+export interface ProdutoRow {
   codigo_produto: number;
   codigo: string;
   descricao: string;
@@ -265,6 +266,53 @@ async function consultarEstoqueProduto(idProduto: number, conta: Conta): Promise
   }
 }
 
+/**
+ * Linha do CADASTRO (sem estoque/cmc) de um produto da Omie — usada pelo sync completo
+ * e pelo incremental (lib/ppv/precos-sync.ts). Imagem só quando a Omie tem uma
+ * (preserva as manuais).
+ */
+export function linhaCadastroProduto(produto: OmieProdutoCadastro, conta: Conta, mapaFamilias: Record<number, string>): ProdutoRow {
+  const tipoCaract = (produto.caracteristicas || []).find(
+    (c) => (c.cNomeCaract || '').toLowerCase() === 'tipo',
+  );
+  const row: ProdutoRow = {
+    codigo_produto: produto.codigo_produto,
+    codigo: produto.codigo || '',
+    descricao: produto.descricao || '',
+    codigo_familia: produto.codigo_familia || null,
+    familia_nome: resolverFamilia(produto, mapaFamilias),
+    marca: produto.marca || '',
+    data_inclusao: produto.info?.dInc || '',
+    tipo: tipoCaract?.cConteudo || '',
+    inativo: false,
+    conta_omie: contaLow(conta),
+    valor_unitario: Number(produto.valor_unitario) || 0,
+  };
+  const imgOmie = produto.imagens?.[0]?.url_imagem;
+  if (imgOmie) row.imagem_url = imgOmie;
+  return row;
+}
+
+/** O sync completo só grava produto ativo e fora das famílias ocultas — o incremental segue a mesma regra. */
+export function produtoEntraNoCadastro(produto: OmieProdutoCadastro, mapaFamilias: Record<number, string>): boolean {
+  if (produto.inativo === 'S') return false;
+  return !FAMILIAS_OCULTAS.includes(resolverFamilia(produto, mapaFamilias));
+}
+
+/** Mapa codigo_familia -> nome a partir da tabela `familias` (gravada pelo sync completo). */
+export async function mapaFamiliasDoBanco(conta: Conta): Promise<Record<number, string>> {
+  const mapa: Record<number, string> = {};
+  const { data, error } = await supabase.from('familias').select('codigo_familia, nome').eq('conta_omie', contaLow(conta)).limit(5000);
+  if (error) throw new Error(`familias: ${error.message}`);
+  for (const f of data || []) if (f.codigo_familia) mapa[Number(f.codigo_familia)] = String(f.nome || '');
+  return mapa;
+}
+
+/** Upsert parcial do cadastro (não mexe em estoque/cmc/imagem manual). */
+export async function gravarCadastroProdutos(rows: ProdutoRow[]): Promise<void> {
+  for (let i = 0; i < rows.length; i += 200) await salvarLoteSupabase(rows.slice(i, i + 200));
+}
+
 // ============================================================
 // SYNC COMPLETO: famílias + produtos + estoque -> upsert produtos
 // ============================================================
@@ -282,11 +330,7 @@ export async function sincronizarProdutos(conta: Conta): Promise<{ ok: boolean; 
     await sleep(API_DELAY);
 
     // 3. Filtrar inativos / famílias ocultas
-    const produtosFiltrados = todosProdutos.filter((p) => {
-      if (p.inativo === 'S') return false;
-      const familia = resolverFamilia(p, mapaFamilias);
-      return !FAMILIAS_OCULTAS.includes(familia);
-    });
+    const produtosFiltrados = todosProdutos.filter((p) => produtoEntraNoCadastro(p, mapaFamilias));
     console.log(`SYNC [${conta}]: ${produtosFiltrados.length} produtos após filtro (de ${todosProdutos.length})`);
 
     // 3.5 Posição de estoque em bulk (todos os locais)
@@ -322,23 +366,7 @@ export async function sincronizarProdutos(conta: Conta): Promise<{ ok: boolean; 
         // bulkOk=true mas produto não veio: preserva estoque atual (ok=false).
       }
 
-      const tipoCaract = (produto.caracteristicas || []).find(
-        (c) => (c.cNomeCaract || '').toLowerCase() === 'tipo',
-      );
-
-      const row: ProdutoRow = {
-        codigo_produto: produto.codigo_produto,
-        codigo: produto.codigo || '',
-        descricao: produto.descricao || '',
-        codigo_familia: produto.codigo_familia || null,
-        familia_nome: resolverFamilia(produto, mapaFamilias),
-        marca: produto.marca || '',
-        data_inclusao: produto.info?.dInc || '',
-        tipo: tipoCaract?.cConteudo || '',
-        inativo: false,
-        conta_omie: contaLow(conta),
-        valor_unitario: Number(produto.valor_unitario) || 0,
-      };
+      const row = linhaCadastroProduto(produto, conta, mapaFamilias);
 
       // Só atualiza estoque se a consulta foi bem-sucedida (não zera por erro de API).
       if (estoque.ok) {
@@ -348,10 +376,6 @@ export async function sincronizarProdutos(conta: Conta): Promise<{ ok: boolean; 
       } else {
         errosEstoque++;
       }
-      // Só sobrescreve imagem se a Omie tiver uma (preserva imagens manuais).
-      const imgOmie = produto.imagens?.[0]?.url_imagem;
-      if (imgOmie) row.imagem_url = imgOmie;
-
       buffer.push(row);
 
       if (buffer.length >= BATCH_SAVE || i === produtosFiltrados.length - 1) {
@@ -413,4 +437,60 @@ export async function sincronizarApenasEstoque(conta: Conta): Promise<{ ok: bool
   } finally {
     syncEmAndamento = false;
   }
+}
+
+// ============================================================
+// SYNC RÁPIDO DE SALDO (27/10/2026): só as peças COM saldo, grava só o que mudou
+// ============================================================
+// ~6 s por conta (19 páginas) contra 7,4 min do sincronizarApenasEstoque — que pede
+// todas as peças (cExibeTodos 'S', 100 páginas por local), espera 1,2 s entre páginas
+// e grava ~10 mil linhas por rodada. Regras e medição em ./saldos-diff.ts.
+// Sem pausa fixa: a porta da Omie (lib/omie/porta.ts) já controla o ritmo.
+export async function sincronizarSaldosRapido(conta: Conta, opts: { gravar?: boolean } = {}): Promise<{ lidos: number; atualizados: number; zerados: number; semLinha: number; amostra?: string[] }> {
+  const locais = await buscarLocaisEstoque(conta);
+  if (locais.length === 0) throw new Error('Nenhum local de estoque ativo encontrado');
+  const dataPos = dataHojeBR();
+  const itens: OmiePosEstoqueItem[] = [];
+  for (const local of locais) {
+    for (let pagina = 1, total = 1; pagina <= total; pagina++) {
+      const data = await omieRequest<{ produtos?: OmiePosEstoqueItem[]; nTotPaginas?: number }>(
+        '/estoque/consulta/', 'ListarPosEstoque',
+        { nPagina: pagina, nRegPorPagina: 500, dDataPosicao: dataPos, cExibeTodos: 'N', codigo_local_estoque: local.id },
+        { conta, retries: 2, maxWaitMs: 30_000 },
+      );
+      total = Number(data.nTotPaginas) || 1;
+      itens.push(...(data.produtos || []));
+    }
+  }
+  const lista = agregarPosicoes(itens);
+
+  const banco: LinhaBancoSaldo[] = [];
+  for (let i = 0; ; i += 1000) {
+    const { data, error } = await supabase.from('produtos').select('codigo_produto, estoque, cmc')
+      .eq('conta_omie', contaLow(conta)).order('codigo_produto').range(i, i + 999);
+    if (error) throw new Error(`produtos: ${error.message}`);
+    banco.push(...((data || []) as LinhaBancoSaldo[]));
+    if (!data || data.length < 1000) break;
+  }
+
+  const plano = planejarSaldos(lista, banco);
+  const suspeito = zeramentoSuspeito(plano, banco);
+  if (suspeito) throw new Error(suspeito);
+  if (opts.gravar === false) {
+    const antes = new Map(banco.map((r) => [Number(r.codigo_produto), r]));
+    const amostra = plano.atualizar.slice(0, 5).map((u) => `${u.codigo_produto}: ${antes.get(u.codigo_produto)?.estoque} → ${u.estoque} (CMC ${u.cmc.toFixed(2)})`);
+    return { lidos: lista.size, atualizados: plano.atualizar.length, zerados: plano.zerados, semLinha: plano.semLinha, amostra };
+  }
+
+  let erros = 0;
+  for (let i = 0; i < plano.atualizar.length; i += 25) {
+    await Promise.all(plano.atualizar.slice(i, i + 25).map(async (u) => {
+      const { error } = await supabase.from('produtos')
+        .update({ estoque: u.estoque, cmc: u.cmc, valor_estoque: u.valor_estoque })
+        .eq('codigo_produto', u.codigo_produto).eq('conta_omie', contaLow(conta));
+      if (error) { erros++; console.error(`SALDO RÁPIDO update ${u.codigo_produto} [${conta}]:`, error.message); }
+    }));
+  }
+  if (erros) throw new Error(`${erros} de ${plano.atualizar.length} linhas não gravaram`);
+  return { lidos: lista.size, atualizados: plano.atualizar.length, zerados: plano.zerados, semLinha: plano.semLinha };
 }

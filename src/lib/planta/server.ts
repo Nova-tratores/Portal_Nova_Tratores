@@ -22,7 +22,7 @@ async function todas(tabela: string, colunas: string, ordem: string, filtro?: (q
   return out;
 }
 
-export const JOBS_ROBOS = ['estoque-sync-recebimentos', 'pecas-alocacao-rapido', 'estoque-sync-estoque', 'estoque-sync-incremental', 'estoque-sync-produtos'];
+export const JOBS_ROBOS = ['estoque-sync-recebimentos', 'pecas-alocacao-rapido', 'estoque-sync-estoque', 'estoque-sync-incremental', 'estoque-sync-produtos', 'estoque-saldos-rapido', 'ppv-precos-sync'];
 
 /** Última rodada de um job (qualquer status) + fim da última rodada OK (cron_runs). */
 async function ultimaRodada(job: string): Promise<Row | null> {
@@ -99,7 +99,7 @@ export async function carregarFontes(so?: Comodo[]): Promise<{ fontes: Fontes; d
     JOBS_ROBOS.forEach((job, i) => { const r = runs[i]; robos[job] = r ? { status: r.status, fim: r.finalizado_em, ultimo_ok: r.ultimo_ok, bloqueio: !!r.bloqueio } : null; });
     const fins = (jobs: string[]) => jobs.map((j) => robos[j]?.ultimo_ok || null).filter(Boolean).sort().pop() || null;
     dadoAte['recebimentos'] = fins(['pecas-alocacao-rapido', 'estoque-sync-recebimentos']);
-    dadoAte['produtos'] = fins(['estoque-sync-estoque', 'estoque-sync-incremental', 'estoque-sync-produtos']);
+    dadoAte['produtos'] = fins(['estoque-sync-estoque', 'estoque-sync-incremental', 'estoque-sync-produtos', 'estoque-saldos-rapido']);
     for (const conta of ['NOVA', 'CASTRO']) {
       const fins: Array<string | null> = [];
       for (const tipo of ['contas_pagar', 'contas_receber']) {

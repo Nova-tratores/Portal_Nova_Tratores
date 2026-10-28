@@ -1,7 +1,9 @@
-// Sync INCREMENTAL da tabela de preços do PPV/Orçamento (Produtos_Completos): pede à
-// Omie só os produtos ALTERADOS nos últimos dias (ListarProdutos com
-// filtrar_apenas_alteracao) e faz upsert do preço/descrição. Leve: dezenas de produtos
-// por dia (22/10/2026: 40 na NOVA, 1 página).
+// Sync INCREMENTAL do cadastro de produtos: pede à Omie só os produtos ALTERADOS nos
+// últimos dias (ListarProdutos com filtrar_apenas_alteracao) e, com a MESMA resposta,
+// atualiza as duas tabelas — Produtos_Completos (preço do PPV/Orçamento) e `produtos`
+// (cadastro do Estoque: descrição, família, marca, preço; estoque/CMC ficam com o sync
+// de saldo). Leve: dezenas de produtos por dia (22/10/2026: 40 na NOVA, 1 página).
+// `produtos` entrou em 27/10/2026 — antes só o sync completo diário (GitHub) a atualizava.
 //
 // Por quê: a tabela só era atualizada pelo botão "Sincronizar produtos". Em 22/10 Peças
 // reajustou 7 peças às 13h, o PPV-0542 lançou às 16h28 com os preços antigos e a OS-0846
@@ -15,20 +17,19 @@ import { getContasOmie, type Conta } from '@/lib/estoque/conta';
 import { supabase } from '@/lib/estoque/supabase';
 import { comCronRun } from '@/lib/cron/observar';
 import { dentroDoHorarioComercial } from '@/lib/pecas/alocacao';
+import {
+  gravarCadastroProdutos, linhaCadastroProduto, mapaFamiliasDoBanco, produtoEntraNoCadastro, type OmieProdutoCadastro,
+} from '@/lib/estoque/produtos-sync';
 
 const EMPRESA: Record<Conta, string> = { NOVA: 'Nova Tratores', CASTRO: 'Castro Peças' };
 const DIAS_JANELA = 3;
 const POR_PAGINA = 500;
 
-interface OmieProduto {
-  codigo_produto: number;
+interface OmieProduto extends OmieProdutoCadastro {
   codigo_produto_integracao?: string;
-  codigo?: string;
-  descricao?: string;
-  valor_unitario?: number;
 }
 
-export interface PrecosSyncConta { conta: Conta; alterados: number; erro?: string }
+export interface PrecosSyncConta { conta: Conta; alterados: number; cadastro?: number; erro?: string }
 
 /** dd/mm/aaaa no fuso de São Paulo. */
 function dataBR(d: Date): string {
@@ -50,10 +51,12 @@ export function linhaPrecoCompleto(p: OmieProduto, conta: Conta) {
   };
 }
 
-async function sincronizarConta(conta: Conta, de: string, ate: string): Promise<number> {
+async function sincronizarConta(conta: Conta, de: string, ate: string): Promise<{ alterados: number; cadastro: number }> {
   let pagina = 1;
   let totalPaginas = 1;
   let total = 0;
+  let cadastro = 0;
+  let familias: Record<number, string> | null = null;
   while (pagina <= totalPaginas) {
     const r = await omieRequest<{ total_de_paginas?: number; produto_servico_cadastro?: OmieProduto[] }>(
       '/geral/produtos/', 'ListarProdutos',
@@ -69,10 +72,18 @@ async function sincronizarConta(conta: Conta, de: string, ate: string): Promise<
       const { error } = await supabase.from('Produtos_Completos').upsert(linhas, { onConflict: 'id_omie' });
       if (error) throw new Error(`upsert Produtos_Completos: ${error.message}`);
       total += linhas.length;
+      // cadastro do Estoque (mesma regra do sync completo: só ativo e fora das famílias ocultas)
+      familias = familias ?? await mapaFamiliasDoBanco(conta);
+      const fam = familias;
+      const cad = (r.produto_servico_cadastro || [])
+        .filter((p) => p.codigo_produto && produtoEntraNoCadastro(p, fam))
+        .map((p) => linhaCadastroProduto(p, conta, fam));
+      await gravarCadastroProdutos(cad);
+      cadastro += cad.length;
     }
     pagina++;
   }
-  return total;
+  return { alterados: total, cadastro };
 }
 
 /** Busca na Omie os produtos alterados nos últimos `dias` e atualiza a tabela de preços. */
@@ -82,7 +93,7 @@ export async function sincronizarPrecosAlterados(agora: Date = new Date(), dias 
   const saida: PrecosSyncConta[] = [];
   for (const { id } of getContasOmie()) {
     try {
-      saida.push({ conta: id, alterados: await sincronizarConta(id, de, ate) });
+      saida.push({ conta: id, ...(await sincronizarConta(id, de, ate)) });
     } catch (e) {
       const msg = (e as Error).message;
       // "não existem registros" = nenhum produto alterado na janela, não é erro

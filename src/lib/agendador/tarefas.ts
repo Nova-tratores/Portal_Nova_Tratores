@@ -147,7 +147,48 @@ export const TAREFAS: Record<string, Tarefa> = {
     const res = await sincronizarPrecosAlterados();
     const erros = res.filter((c) => c.erro).map((c) => `${c.conta}: ${c.erro}`);
     if (erros.length === res.length && erros.length > 0) throw new Error(erros.join(' | '));
-    return { resumo: res.map((c) => `${c.conta} ${c.erro ? 'erro: ' + c.erro : c.alterados + ' alterados'}`).join(' · ') };
+    return { resumo: res.map((c) => `${c.conta} ${c.erro ? 'erro: ' + c.erro : `${c.alterados} preços · ${c.cadastro ?? 0} no cadastro`}`).join(' · ') };
+  },
+
+  // Saldo e custo (CMC) da tabela `produtos` — só as peças com saldo, grava só o que mudou
+  // (~6 s por conta; antes 13 min a cada 3 h pelo GitHub). Ver lib/estoque/saldos-diff.ts.
+  'estoque-saldos-rapido': async () => {
+    if (desligada('ESTOQUE_SALDOS_RAPIDO')) return { pular: 'desligado (ESTOQUE_SALDOS_RAPIDO=off)' };
+    const { sincronizarSaldosRapido } = await import('@/lib/estoque/produtos-sync');
+    const { getContasOmie } = await import('@/lib/estoque/conta');
+    const { capturarSnapshotMensal, capturarSnapshotTipoMensal } = await import('@/lib/estoque/cruzamento-familia');
+    const partes: string[] = [];
+    const erros: string[] = [];
+    const progresso: Record<string, string> = {};
+    for (const { id } of getContasOmie()) {
+      try {
+        const r = await sincronizarSaldosRapido(id);
+        // o retrato do mês (por família e por Tipo) só lê o banco: refaz quando algo mudou
+        if (r.atualizados > 0) {
+          await capturarSnapshotMensal(id).catch(() => null);
+          await capturarSnapshotTipoMensal(id).catch(() => null);
+        }
+        progresso[id] = `${r.lidos} com saldo · ${r.atualizados} gravadas`;
+        partes.push(`${id} ${r.atualizados} mudaram${r.zerados ? ` (${r.zerados} zeradas)` : ''}${r.semLinha ? ` · ${r.semLinha} sem cadastro` : ''}`);
+      } catch (e) {
+        erros.push(`${id}: ${(e as Error).message}`);
+      }
+    }
+    if (erros.length && !partes.length) throw new Error(erros.join(' | '));
+    return { resumo: [...partes, ...erros.map((x) => 'erro ' + x)].join(' · '), progresso };
+  },
+
+  // Sync COMPLETO da tabela `produtos` (famílias + todos os produtos + estoque) e o retrato
+  // do mês. Veio do GitHub (estoque-sync-produtos.yml: 03:00 no papel, 06h20–07h50 de fato).
+  // À noite vira só conferência: no dia o incremental (ppv-precos-sync) e o saldo rápido cuidam.
+  'estoque-sync-produtos': async () => {
+    if (desligada('ESTOQUE_SYNC_PRODUTOS')) return { pular: 'desligado (ESTOQUE_SYNC_PRODUTOS=off)' };
+    const { cronSyncProdutos } = await import('@/lib/estoque/cron');
+    const r = await cronSyncProdutos() as Record<string, { ok?: boolean; totalProdutos?: number; errosEstoque?: number; mensagem?: string; erro?: string }>;
+    const contas = Object.entries(r);
+    const falhas = contas.filter(([, v]) => v.ok === false);
+    if (falhas.length === contas.length && falhas.length > 0) throw new Error(falhas.map(([k, v]) => `${k}: ${v.mensagem || v.erro}`).join(' | '));
+    return { resumo: contas.map(([k, v]) => (v.ok === false ? `${k} erro: ${v.mensagem || v.erro}` : `${k} ${v.totalProdutos} produtos${v.errosEstoque ? ` (${v.errosEstoque} sem estoque)` : ''}`)).join(' · ') };
   },
 
   'notas-cache-docs': async () => {
