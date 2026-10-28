@@ -198,7 +198,8 @@ function GuiaChrome({ href, ativo, cor, icone, titulo, curto, conta, dica, mobil
 }) {
   return (
     <Link href={href} role="tab" aria-selected={ativo} aria-current={ativo ? 'page' : undefined} title={dica} style={{
-      display: 'flex', alignItems: 'center', gap: mobile ? 5 : 7, padding: mobile ? '9px 9px' : '10px 14px', flexShrink: mobile ? 1 : 0, minWidth: 0,
+      display: 'flex', alignItems: 'center', gap: mobile ? 5 : 7, padding: mobile ? '9px 10px' : '10px 14px', flexShrink: 0, // não encolhe: no celular a faixa rola de lado (encolhendo, os textos ficavam um por cima do outro)
+      minWidth: 0,
       borderRadius: '11px 11px 0 0', textDecoration: 'none', whiteSpace: 'nowrap', transition: '0.15s',
       fontSize: mobile ? 12.5 : 13.5, fontWeight: ativo ? 700 : 500, color: '#111111', // preta sempre (o escuro remapeia #111827)
       background: ativo ? '#fefefe' : 'rgba(255,255,255,0.30)',

@@ -406,7 +406,23 @@ function HomePosVendasContent() {
               </div>
               <div style={{ fontSize: '12px', color: '#991b1b' }}>
                 Verifique se existe um boleto pra enviar pro financeiro sobre {vencidos.length === 1 ? 'esse fornecedor' : 'esses fornecedores'}:{' '}
-                <strong>{vencidos.map(v => v.fornecedor?.trim() || `Pagar #${v.id}`).join(', ')}</strong>.
+                {(() => {
+                  // repetidos viram "NOME (3)"; no celular a lista inteira ocupava a tela — mostra 5 e o resto em "ver todos"
+                  const cont = new Map()
+                  vencidos.forEach(v => { const n = v.fornecedor?.trim() || `Pagar #${v.id}`; cont.set(n, (cont.get(n) || 0) + 1) })
+                  const nomes = [...cont.entries()].sort((x, y) => y[1] - x[1]).map(([n, q]) => q > 1 ? `${n} (${q})` : n)
+                  const primeiros = nomes.slice(0, 5)
+                  return nomes.length <= 5
+                    ? <strong>{nomes.join(', ')}</strong>
+                    : (
+                      <details style={{ display: 'inline' }}>
+                        <summary style={{ display: 'inline', cursor: 'pointer', listStyle: 'none' }}>
+                          <strong>{primeiros.join(', ')}</strong> <span style={{ textDecoration: 'underline', whiteSpace: 'nowrap' }}>e mais {nomes.length - 5} — ver todos</span>
+                        </summary>
+                        <strong>, {nomes.slice(5).join(', ')}</strong>
+                      </details>
+                    )
+                })()}
               </div>
             </div>
           </div>
