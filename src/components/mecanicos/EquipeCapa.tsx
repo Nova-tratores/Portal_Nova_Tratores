@@ -4,7 +4,7 @@
 // caixinha (que virou ícone nos atalhos). Mesma conta das horas do resto da aba (useHorasEquipe).
 // Gráfico (28/10/2026, "mais dinâmico, com ícone explicando o que cada coisa representa"): acumulado do mês dia a
 // dia — área = o que a equipe fez, linhas = onde deveria estar (básica) e a ideal, marca de hoje e a projeção.
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { somarDias, osAguardandoFaturar } from '@/lib/mecanicos/painel'
 import { useHorasEquipe, C6, META_SEM, ESTILO_HO, ESTILO_HC } from './HorasOpcoes'
 import { useBasePosVendas } from './useBasePosVendas'
@@ -24,6 +24,15 @@ export default function EquipeCapa({ mes }: { mes: string }) {
   const d = useHorasEquipe(mes, comAg)
   const { base } = useBasePosVendas()
   const [abrir, setAbrir] = useState(false)
+  const [visao, setVisao] = useState<'mes' | 'semana'>('mes')
+  const [auto, setAuto] = useState(true)
+  const [parado, setParado] = useState(false)
+  useEffect(() => {
+    if (!auto || parado) return
+    const t = setInterval(() => setVisao((v) => (v === 'mes' ? 'semana' : 'mes')), 9000)
+    return () => clearInterval(t)
+  }, [auto, parado, visao])
+  const escolher = (v: 'mes' | 'semana') => { setAuto(false); setVisao(v) }
   const hoje = hojeSP()
 
   // série do mês dia a dia, só com os mecânicos da capa (OS com 2 técnicos: cada um fica com a sua metade)
@@ -129,8 +138,42 @@ export default function EquipeCapa({ mes }: { mes: string }) {
         </div>
 
         <div className="eqc-sem">
-          <div className="eqc-sem-cab"><b>Semana a semana</b><span><i className="ok" /> bateu o esperado <i className="quase" /> perto <i className="baixo" /> abaixo</span></div>
-          {semanas.map((w, i) => {
+          <div className="eqc-sem-cab">
+            <div className="eqc-vis" role="tablist">
+              {([['mes', 'Mês', 'fa-calendar'], ['semana', 'Semanas', 'fa-calendar-week']] as const).map(([k, r, ic]) => (
+                <button key={k} type="button" role="tab" aria-selected={visao === k} className={visao === k ? 'on' : ''} onClick={() => escolher(k)}>
+                  <i className={`fas ${ic}`} /> {r}
+                  {visao === k && auto && !parado && <span className="eqc-vis-t" key={visao} />}
+                </button>
+              ))}
+            </div>
+            <span><i className="ok" /> bateu o esperado <i className="quase" /> perto <i className="baixo" /> abaixo</span>
+          </div>
+          <div className="eqc-palco" onMouseEnter={() => setParado(true)} onMouseLeave={() => setParado(false)}>
+          <div key={visao} className={`eqc-slide ${visao}`}>
+          {visao === 'mes' ? (() => {
+            // o mês: a equipe toda e cada mecânico contra a meta do mês inteiro; a marca preta é onde deveria estar hoje
+            const linhas = [
+              { k: 'equipe', t: 'Equipe toda', sub: `${n} mecânicos`, feito: d.feitas, meta: metaMes, hoje: esperadoHoje, forte: true },
+              ...d.tecs.map((tc) => ({ k: tc.nome, t: tc.nome.split(' ').slice(0, 2).join(' '), sub: 'mecânico', feito: tc.feitas, meta: metaMes / Math.max(1, n), hoje: esperadoHoje / Math.max(1, n), forte: false })),
+            ]
+            return linhas.map((l, i) => {
+              const ritmoL = l.hoje ? (l.feito / l.hoje) * 100 : 0
+              const tom = ritmoL >= 100 ? 'ok' : ritmoL >= 70 ? 'quase' : 'baixo'
+              const larg = Math.max(l.meta, l.feito, 1)
+              return (
+                <div key={l.k} className={`eqc-w ${tom} ${l.forte ? 'forte' : ''}`} style={{ animationDelay: `${i * 70}ms` }}>
+                  <div className="eqc-w-t"><b>{l.t}</b><small>{l.sub}</small></div>
+                  <div className="eqc-w-bar" title={`Feito ${h1(l.feito)} h · meta do mês ${h1(l.meta)} h · hoje deveria estar em ${h1(l.hoje)} h`}>
+                    <i className="esp" style={{ width: `${(l.meta / larg) * 100}%` }} />
+                    <u style={{ width: `${(l.feito / larg) * 100}%`, animationDelay: `${120 + i * 70}ms` }} />
+                    {d.atual && <s style={{ left: `${(l.hoje / larg) * 100}%` }} />}
+                  </div>
+                  <div className="eqc-w-v"><b>{h1(l.feito)} h</b><small>de {h1(l.meta)} h · {Math.round(l.meta ? (l.feito / l.meta) * 100 : 0)}%</small></div>
+                </div>
+              )
+            })
+          })() : semanas.map((w, i) => {
             const p = w.esperado ? (w.feito / w.esperado) * 100 : 0
             const tom = w.futuro ? 'fut' : p >= 100 ? 'ok' : p >= 70 ? 'quase' : 'baixo'
             const larg = Math.max(w.esperado, w.feito, 1)
@@ -145,7 +188,11 @@ export default function EquipeCapa({ mes }: { mes: string }) {
               </div>
             )
           })}
-          <p className="eqc-exp"><i className="fas fa-circle-info" /> A barra colorida é o que <b>todos os mecânicos juntos</b> fizeram na semana; o trilho cinza é o esperado (<b>4 h por dia útil de cada um</b>). Encheu o trilho, bateu a meta básica. {comAg ? 'Inclui as OS preenchidas que ainda esperam faturar.' : 'Conta só as OS já faturadas.'}</p>
+          </div>
+          </div>
+          <p className="eqc-exp"><i className="fas fa-circle-info" /> {visao === 'mes'
+            ? <>A barra colorida é o que foi feito no mês; o trilho cinza é a meta básica do mês inteiro (<b>4 h por dia útil de cada mecânico</b>) e a <b>marca preta</b> é onde deveria estar hoje. A cor diz se está no ritmo.</>
+            : <>A barra colorida é o que <b>todos os mecânicos juntos</b> fizeram na semana; o trilho cinza é o esperado (<b>4 h por dia útil de cada um</b>). Encheu o trilho, bateu a meta básica.</>} {comAg ? 'Inclui as OS preenchidas que ainda esperam faturar.' : 'Conta só as OS já faturadas.'}</p>
         </div>
       </div>
       <button type="button" className={`eqc-abrir ${abrir ? 'on' : ''}`} onClick={() => setAbrir((v) => !v)}>
@@ -182,6 +229,16 @@ const ESTILO_EQC = `
 .eqc-sem { display: grid; gap: 8px; min-width: 0; align-content: start }
 .eqc-sem-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap } .eqc-sem-cab b { font-size: 15px; font-weight: 500; color: #0f172a }
 .eqc-sem-cab span { display: inline-flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: #475569 } .eqc-sem-cab i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: -6px } .eqc-sem-cab i.ok { background: #10b981 } .eqc-sem-cab i.quase { background: #f59e0b } .eqc-sem-cab i.baixo { background: #ef4444 }
+.eqc-vis { display: inline-flex; gap: 2px; background: #f1f5f9; border-radius: 99px; padding: 3px }
+.eqc-vis button { position: relative; overflow: hidden; border: 0; background: transparent; border-radius: 99px; padding: 6px 14px; font-family: inherit; font-size: 13.5px; color: #334155; cursor: pointer; transition: background .25s, color .25s }
+.eqc-vis button i { font-size: 12px; margin-right: 3px; color: #2563eb } .eqc-vis button.on { background: #fefefe; color: #0f172a; box-shadow: 0 1px 3px rgba(15,23,42,.12) }
+.eqc-vis-t { position: absolute; left: 12px; right: 12px; bottom: 2px; height: 2px; border-radius: 2px; background: #2563eb; transform-origin: left; animation: eqcTempo 9s linear both; opacity: .6 }
+@keyframes eqcTempo { from { transform: scaleX(0) } }
+.eqc-palco { position: relative; overflow: hidden }
+.eqc-slide { display: grid; gap: 8px; animation: eqcSlide .55s cubic-bezier(.2,.8,.2,1) both } .eqc-slide.semana { animation-name: eqcSlideV }
+@keyframes eqcSlide { from { opacity: 0; transform: translateX(-28px) } } @keyframes eqcSlideV { from { opacity: 0; transform: translateX(28px) } }
+.eqc-w.forte { background: #fefefe; box-shadow: inset 0 0 0 1px #e2e8f0 } .eqc-w.forte .eqc-w-t b { font-weight: 600 } .eqc-w.forte .eqc-w-bar { height: 20px }
+.eqc-w-bar s { position: absolute; top: -4px; bottom: -4px; width: 3px; border-radius: 2px; background: #0f172a; transform: translateX(-50%) }
 .eqc-w { display: grid; grid-template-columns: 150px minmax(0, 1fr) 150px; gap: 14px; align-items: center; padding: 10px 12px; border-radius: 12px; background: #f8fafc; animation: eqcEntra .45s both }
 .eqc-w.agora { background: #eff6ff; box-shadow: inset 0 0 0 1px #bfdbfe } .eqc-w.fut { opacity: .55 }
 @keyframes eqcEntra { from { opacity: 0; transform: translateY(6px) } }
