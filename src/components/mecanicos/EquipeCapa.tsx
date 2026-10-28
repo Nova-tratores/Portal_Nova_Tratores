@@ -153,33 +153,28 @@ export default function EquipeCapa({ mes }: { mes: string }) {
           <div className="eqc-palco" onMouseEnter={() => setParado(true)} onMouseLeave={() => setParado(false)}>
           <div key={visao} className={`eqc-slide ${visao}`}>
           {visao === 'mes' ? (() => {
-            // o mês (José, 28/10/2026: "só o mês, troca essa barra" — os mecânicos já aparecem embaixo): uma coluna por
-            // dia útil com as horas que a equipe fez no dia; a linha tracejada é o esperado do dia (4 h × mecânicos)
-            if (!serie) return null
-            const dias = serie.pts.map((p, k) => ({ ...p, h: p.feito == null ? null : Math.round((p.feito - (k ? serie.pts[k - 1].feito ?? 0 : 0)) * 10) / 10 }))
-              .filter((p) => util(p.dia) || (p.h || 0) > 0)
-            const topo = Math.max(diaBas * 1.6, ...dias.map((p) => p.h || 0), 1)
+            // o mês (José, 28/10/2026: as colunas por dia "tá horrível, coloca outra"): um velocímetro do mês inteiro
+            // e, ao lado, três frases: quanto fez, onde deveria estar hoje e quanto falta por dia útil
+            const f = Math.min(1, metaMes ? d.feitas / metaMes : 0)
+            const fh = Math.min(1, metaMes ? esperadoHoje / metaMes : 0)
+            const tom = ritmo >= 100 ? '#10b981' : ritmo >= 70 ? '#f59e0b' : '#ef4444'
+            const ponto = (x: number, r: number) => { const t = Math.PI * (1 - x); return [110 + r * Math.cos(t), 110 - r * Math.sin(t)] }
+            const [mx1, my1] = ponto(fh, 74), [mx2, my2] = ponto(fh, 106)
+            const restam = serie ? Math.max(0, serie.uteisMes - serie.uteisAteHoje) : 0
+            const falta = Math.max(0, metaMes - d.feitas)
             return (
-              <div className="eqc-dias">
-                <div className="eqc-dias-g" style={{ '--esp': diaBas / topo } as React.CSSProperties}>
-                  <span className="eqc-dias-l"><em>esperado {h1(diaBas)} h/dia</em></span>
-                  {dias.map((p, i) => {
-                    const fut = p.h == null
-                    const pc = p.h != null && diaBas ? (p.h / diaBas) * 100 : 0
-                    const tom = fut ? 'fut' : !util(p.dia) ? 'fds' : pc >= 100 ? 'ok' : pc >= 70 ? 'quase' : 'baixo'
-                    return (
-                      <div key={p.dia} className={`eqc-dia ${tom} ${p.dia === serie.limite && d.atual ? 'hj' : ''}`} title={fut ? `${p.rot}: ainda não chegou` : `dia ${p.rot}: ${h1(p.h || 0)} h feitas · esperado ${h1(diaBas)} h`}>
-                        <div className="eqc-dia-c">{!fut && <u style={{ height: `${((p.h || 0) / topo) * 100}%`, animationDelay: `${i * 30}ms` }}>{(p.h || 0) > 0 && <small>{h1(p.h || 0)}</small>}</u>}</div>
-                        <span>{p.rot}</span>
-                      </div>
-                    )
-                  })}
-                </div>
-                <div className="eqc-dias-tot">
-                  <div><small>feito no mês</small><b>{h1(d.feitas)} h</b></div>
-                  <div><small>esperado até hoje</small><b>{h1(esperadoHoje)} h</b></div>
-                  <div><small>meta do mês</small><b>{h1(metaMes)} h</b></div>
-                  <div style={{ color: corPct(pMes) }}><small>da meta</small><b>{Math.round(pMes)}%</b></div>
+              <div className="eqc-vel">
+                <svg viewBox="0 0 220 128" className="eqc-vel-g" role="img" aria-label={`${Math.round(pMes)}% da meta do mês`}>
+                  <path d="M 20 110 A 90 90 0 0 1 200 110" pathLength={100} className="tr" />
+                  <path d="M 20 110 A 90 90 0 0 1 200 110" pathLength={100} className="ch" style={{ stroke: tom, strokeDasharray: `${f * 100} 100` }} />
+                  {d.atual && <line x1={mx1} y1={my1} x2={mx2} y2={my2} className="hj" />}
+                  <text x="110" y="92" textAnchor="middle" className="pc" style={{ fill: tom }}>{Math.round(pMes)}%</text>
+                  <text x="110" y="112" textAnchor="middle" className="sb">da meta do mês</text>
+                </svg>
+                <div className="eqc-vel-l">
+                  <div><span style={{ '--c': '#2563eb' } as React.CSSProperties}><i className="fas fa-screwdriver-wrench" /></span><p>A equipe fez <b>{h1(d.feitas)} h</b> de <b>{h1(metaMes)} h</b> da meta do mês</p></div>
+                  {d.atual && <div><span style={{ '--c': '#0f172a' } as React.CSSProperties}><i className="fas fa-location-dot" /></span><p>Até hoje deveria ter <b>{h1(esperadoHoje)} h</b> (a marca preta): {d.feitas >= esperadoHoje ? <b style={{ color: '#047857' }}>{h1(d.feitas - esperadoHoje)} h à frente</b> : <b style={{ color: '#b91c1c' }}>{h1(esperadoHoje - d.feitas)} h atrás</b>}</p></div>}
+                  <div><span style={{ '--c': tom } as React.CSSProperties}><i className="fas fa-flag-checkered" /></span><p>{falta <= 0 ? <>Meta do mês <b style={{ color: '#047857' }}>batida</b></> : d.atual && restam ? <>Faltam <b>{h1(falta)} h</b> em {restam} dia{restam === 1 ? '' : 's'} útil{restam === 1 ? '' : 'eis'}: <b>{h1(falta / restam)} h por dia</b> (o normal é {h1(diaBas)} h)</> : <>Faltaram <b>{h1(falta)} h</b> para a meta</>}</p></div>
                 </div>
               </div>
             )
@@ -201,7 +196,7 @@ export default function EquipeCapa({ mes }: { mes: string }) {
           </div>
           </div>
           <p className="eqc-exp"><i className="fas fa-circle-info" /> {visao === 'mes'
-            ? <>Cada coluna é um dia útil com as horas que <b>a equipe toda</b> fez nele; a linha tracejada é o esperado do dia (<b>4 h × {n} mecânicos</b>). Verde bateu, amarelo perto, vermelho abaixo. Os mecânicos um a um estão logo abaixo.</>
+            ? <>O ponteiro enche conforme as horas que <b>a equipe toda</b> fez; a meta é <b>4 h por dia útil de cada mecânico</b>. Verde no ritmo, amarelo perto, vermelho abaixo. Os mecânicos um a um estão logo abaixo.</>
             : <>A barra colorida é o que <b>todos os mecânicos juntos</b> fizeram na semana; o trilho cinza é o esperado (<b>4 h por dia útil de cada um</b>). Encheu o trilho, bateu a meta básica.</>} {comAg ? 'Inclui as OS preenchidas que ainda esperam faturar.' : 'Conta só as OS já faturadas.'}</p>
         </div>
       </div>
@@ -280,17 +275,13 @@ const ESTILO_EQC = `
 @media (max-width: 700px) { .eqc-w { grid-template-columns: 1fr; gap: 6px } .eqc-w-v { justify-items: start } }
 .eqc-exp { margin: 0; font-size: 13px; color: #334155; line-height: 1.5; background: #f8fafc; border-radius: 10px; padding: 9px 12px } .eqc-exp > i { color: #2563eb; margin-right: 4px }
 .eqc-abrir { justify-self: start; display: inline-flex; gap: 8px; align-items: center; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; border-radius: 99px; padding: 8px 16px; font-family: inherit; font-size: 14px; cursor: pointer } .eqc-abrir:hover, .eqc-abrir.on { background: #dbeafe }
-.eqc-dias { display: grid; gap: 12px }
-.eqc-dias-g { position: relative; display: flex; gap: 4px; align-items: stretch; height: 190px; padding: 18px 4px 0; box-sizing: border-box; border-bottom: 1px solid #e2e8f0 }
-.eqc-dias-l { position: absolute; left: 0; right: 0; bottom: calc(22px + 150px * var(--esp)); border-top: 2px dashed #94a3b8; pointer-events: none; z-index: 1 } .eqc-dias-l em { position: absolute; right: 0; top: -20px; font-style: normal; font-size: 11.5px; color: #475569; background: #fefefe; padding: 0 4px }
-.eqc-dia { flex: 1; min-width: 0; display: grid; grid-template-rows: 1fr 22px }
-.eqc-dia-c { position: relative; display: flex; align-items: flex-end; height: 150px }
-.eqc-dia-c u { position: relative; display: block; width: 100%; max-width: 34px; margin: 0 auto; border-radius: 6px 6px 2px 2px; transform-origin: bottom; animation: eqcSobe .7s cubic-bezier(.2,.8,.2,1) both; height: 0 }
-.eqc-dia-c u small { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); font-size: 10.5px; color: #334155; white-space: nowrap; padding-bottom: 1px }
-@keyframes eqcSobe { from { transform: scaleY(0) } }
-.eqc-dia.ok u { background: linear-gradient(180deg, #6ee7b7, #10b981) } .eqc-dia.quase u { background: linear-gradient(180deg, #fcd34d, #f59e0b) } .eqc-dia.baixo u { background: linear-gradient(180deg, #fca5a5, #ef4444) } .eqc-dia.fds u { background: #cbd5e1 }
-.eqc-dia.fut .eqc-dia-c::after { content: ''; position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 70%; max-width: 34px; height: 6px; border-radius: 3px; background: #eef2f6 }
-.eqc-dia > span { text-align: center; font-size: 11px; color: #64748b; line-height: 22px; font-variant-numeric: tabular-nums } .eqc-dia.hj > span { color: #fefefe; background: #0f172a; border-radius: 6px; font-weight: 600 }
-.eqc-dias-tot { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px } .eqc-dias-tot > div { display: grid; gap: 1px; background: #f8fafc; border-radius: 12px; padding: 8px 12px } .eqc-dias-tot small { font-size: 12px; color: #475569 } .eqc-dias-tot b { font-size: 18px; font-weight: 500; font-variant-numeric: tabular-nums }
+.eqc-vel { display: grid; grid-template-columns: minmax(220px, 320px) minmax(0, 1fr); gap: 24px; align-items: center; padding: 6px 4px }
+.eqc-vel-g { width: 100%; height: auto } .eqc-vel-g path { fill: none; stroke-width: 18; stroke-linecap: round } .eqc-vel-g .tr { stroke: #eef2f6 }
+.eqc-vel-g .ch { animation: eqcPonteiro 1.3s cubic-bezier(.2,.8,.2,1) both } @keyframes eqcPonteiro { from { stroke-dasharray: 0 100 } }
+.eqc-vel-g .hj { stroke: #0f172a; stroke-width: 3.5; stroke-linecap: round } .eqc-vel-g .pc { font-size: 34px; font-weight: 500; font-family: inherit } .eqc-vel-g .sb { font-size: 11.5px; fill: #475569; font-family: inherit }
+.eqc-vel-l { display: grid; gap: 10px } .eqc-vel-l > div { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: center; background: #f8fafc; border-radius: 12px; padding: 10px 14px; animation: eqcEntra .45s both } .eqc-vel-l > div:nth-child(2) { animation-delay: 90ms } .eqc-vel-l > div:nth-child(3) { animation-delay: 180ms }
+.eqc-vel-l span { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 12%, #fefefe); color: var(--c); font-size: 14px }
+.eqc-vel-l p { margin: 0; font-size: 15px; color: #334155; line-height: 1.45 } .eqc-vel-l b { font-weight: 600; color: #0f172a }
+@media (max-width: 760px) { .eqc-vel { grid-template-columns: 1fr } }
 @media (max-width: 1000px) { .eqc-corpo { grid-template-columns: 1fr } }
 `
