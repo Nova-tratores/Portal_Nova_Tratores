@@ -19,7 +19,9 @@ export interface PlanoSaldos {
   semLinha: number
 }
 
-const TOL_SALDO = 1e-6
+// `produtos.estoque` guarda 4 casas e a Omie manda 6 (1,032111 → 1,0321): comparar mais fino
+// que isso regravava as mesmas peças de saldo fracionado a cada rodada (visto 28/10).
+const TOL_SALDO = 1e-4
 const TOL_CMC = 0.005
 
 /** Soma o saldo das peças por local e faz o CMC médio ponderado pelo saldo (igual ao sync completo). */

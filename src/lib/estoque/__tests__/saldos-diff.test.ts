@@ -36,6 +36,11 @@ describe('planejarSaldos', () => {
     expect(p.zerados).toBe(1)
     expect(p.semLinha).toBe(1)
   })
+  it('ignora diferença abaixo das 4 casas que o banco guarda', () => {
+    const p = planejarSaldos(new Map([[7, { saldo: 1.032111, cmc: 313.704 }], [8, { saldo: 12.000015, cmc: 95.2314 }]]),
+      [{ codigo_produto: 7, estoque: 1.0321, cmc: 313.704 }, { codigo_produto: 8, estoque: 12, cmc: 95.2314 }])
+    expect(p.atualizar).toEqual([])
+  })
   it('recusa zerar peças demais de uma vez', () => {
     const grande = Array.from({ length: 400 }, (_, i) => ({ codigo_produto: i + 1, estoque: 1, cmc: 1 }))
     const p = planejarSaldos(new Map(), grande)
