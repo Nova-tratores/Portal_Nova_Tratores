@@ -6,7 +6,6 @@ import { useEffect } from 'react'
 import { useCardsTecnicos, S1Estilo, ESTILO_CT, ESTILO_CT2, ESTILO_CT3, METAS_PADRAO, type CardDados } from './CardsTecnicoOpcoes'
 import { FichaPro } from './FichaPro'
 import { useUrlMec } from './useUrlMec'
-import { CaixaAguardando } from './useComAguardando'
 import { prefetchFicha } from './FichaTecnico'
 
 const MUDO = 'var(--portal-text-muted, #64748b)'
@@ -30,10 +29,7 @@ export default function TecnicosDoMes() {
       <style>{ESTILO_CT2}</style>
       <style>{ESTILO_CT3}</style>
       <style>{ESTILO_TDM}</style>
-      <div className="tdm-topo">
-        <CaixaAguardando compacta />
-        <small>mês atual · meta por semana: básica 20 h e R$ 4 mil, ideal 40 h e R$ 8 mil · clique no técnico para abrir a ficha completa</small>
-      </div>
+      {/* a linha "Só OS faturadas · meta por semana…" saiu (José, 28/10/2026: "remove isso, é inútil"); a caixinha continua na capa da equipe */}
       {!cards ? <div style={{ padding: 30, textAlign: 'center', color: MUDO }}><i className="fas fa-circle-notch fa-spin" /> carregando os técnicos…</div>
         : <S1Estilo cards={cards} contador="vivo" onAbrir={setAberto} semFoto capa />}
       {aberto && <FichaPro nome={aberto.nome} foto={aberto.foto} card={cards?.find((c) => c.nome === aberto.nome) || null} onFechar={() => setAberto(null)}

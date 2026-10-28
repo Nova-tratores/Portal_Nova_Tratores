@@ -73,7 +73,8 @@ export default function FantasmasMec({ mes }: { mes: string }) {
   const eq = d ? d.tecnicos.reduce((s, t) => ({
     horas: s.horas + t.totais.acimaTempario + t.totais.naoCobradas, km: s.km + t.totais.kmFantasma,
     dias: s.dias + t.totais.diasCarroSemOS, alertas: s.alertas + t.totais.osComAlerta, kmCarro: s.kmCarro + t.totais.kmCarro,
-  }), { horas: 0, km: 0, dias: 0, alertas: 0, kmCarro: 0 }) : null
+    acima: s.acima + t.totais.acimaTempario, naoCob: s.naoCob + t.totais.naoCobradas, os: s.os + t.os.length, kmSemOS: s.kmSemOS + t.totais.kmSemOS,
+  }), { horas: 0, km: 0, dias: 0, alertas: 0, kmCarro: 0, acima: 0, naoCob: 0, os: 0, kmSemOS: 0 }) : null
 
   return (
     <section className="fan">
@@ -92,10 +93,31 @@ export default function FantasmasMec({ mes }: { mes: string }) {
             )}
           </div>
           <div className="fan-kpis">
-            <div className="fan-kpi" style={{ '--k': '#dc2626', '--d': '0ms' } as React.CSSProperties}><small>Horas fantasmas</small><b><Conta v={eq.horas} fmt={h} /></b><em>acima do tempário + apontadas e não cobradas</em></div>
-            <div className="fan-kpi" style={{ '--k': '#7c3aed', '--d': '90ms' } as React.CSSProperties}><small>Km fantasma</small><b><Conta v={eq.km} fmt={km} /></b><em>{eq.kmCarro ? `${Math.round((eq.km / eq.kmCarro) * 100)}% do km dos carros` : 'carro × relatórios'}</em></div>
-            <div className="fan-kpi" style={{ '--k': '#d97706', '--d': '180ms' } as React.CSSProperties}><small>Dias de carro sem OS</small><b><Conta v={eq.dias} fmt={(n) => String(Math.round(n))} /></b><em>carro rodou mais de 5 km e nenhuma OS</em></div>
-            <div className="fan-kpi" style={{ '--k': '#0f172a', '--d': '270ms' } as React.CSSProperties}><small>OS com alerta</small><b><Conta v={eq.alertas} fmt={(n) => String(Math.round(n))} /></b><em>fora do tempo do tempário</em></div>
+            {/* 28/10/2026 (José: "melhora esses cards"): ícone, o número e de onde ele vem numa barrinha */}
+            <div className="fan-kpi" style={{ '--k': '#dc2626', '--d': '0ms' } as React.CSSProperties}>
+              <span className="fan-kpi-ic"><i className="fas fa-ghost" /></span><small>Horas fantasmas</small>
+              <b><Conta v={eq.horas} fmt={h} /></b>
+              <div className="fan-kpi-bar">{eq.horas > 0 && <><i style={{ width: `${(eq.acima / eq.horas) * 100}%` }} /><i className="b" style={{ width: `${(eq.naoCob / eq.horas) * 100}%` }} /></>}</div>
+              <em><span className="pt" /> {h(eq.acima)} acima do tempário <span className="pt b" /> {h(eq.naoCob)} apontadas e não cobradas</em>
+            </div>
+            <div className="fan-kpi" style={{ '--k': '#7c3aed', '--d': '90ms' } as React.CSSProperties}>
+              <span className="fan-kpi-ic"><i className="fas fa-route" /></span><small>Km fantasma</small>
+              <b><Conta v={eq.km} fmt={km} /></b>
+              <div className="fan-kpi-bar"><i style={{ width: `${eq.kmCarro ? Math.min(100, (eq.km / eq.kmCarro) * 100) : 0}%` }} /></div>
+              <em>{eq.kmCarro ? <><b>{Math.round((eq.km / eq.kmCarro) * 100)}%</b> dos {km(eq.kmCarro)} que os carros rodaram não estão em relatório</> : 'carro × relatórios'}</em>
+            </div>
+            <div className="fan-kpi" style={{ '--k': '#d97706', '--d': '180ms' } as React.CSSProperties}>
+              <span className="fan-kpi-ic"><i className="fas fa-car-side" /></span><small>Dias de carro sem OS</small>
+              <b><Conta v={eq.dias} fmt={(n) => `${Math.round(n)} dia${Math.round(n) === 1 ? '' : 's'}`} /></b>
+              <div className="fan-kpi-bar vazia" />
+              <em>o carro rodou mais de 5 km e não teve OS{eq.kmSemOS > 0 ? <> · <b>{km(eq.kmSemOS)}</b> nesses dias</> : ''}</em>
+            </div>
+            <div className="fan-kpi" style={{ '--k': '#0f766e', '--d': '270ms' } as React.CSSProperties}>
+              <span className="fan-kpi-ic"><i className="fas fa-stopwatch" /></span><small>OS com alerta</small>
+              <b><Conta v={eq.alertas} fmt={(n) => `${Math.round(n)} de ${eq.os}`} /></b>
+              <div className="fan-kpi-bar"><i style={{ width: `${eq.os ? (eq.alertas / eq.os) * 100 : 0}%` }} /></div>
+              <em>OS fora do tempo do tempário (demorou mais ou rápido demais)</em>
+            </div>
           </div>
         </div>
       )}
@@ -194,7 +216,26 @@ export function CartaoTecnico({ t, ordem = 0 }: { t: TecnicoFantasma; ordem?: nu
       {/* gráfico do mês tirado do cartão (José, 21/10/2026); o dia a dia continua na aba "Dia a dia" */}
       {alertas.length > 0 && (
         <div className="fan-alertas">
-          {alertas.slice(0, 4).map((o) => <div key={o.os} className={`fan-al ${SIT[o.situacao].cls}`}><span className="fan-pulso" /><b>{o.os}</b><span>{o.cliente}</span><span>{o.alertas[0]?.texto}</span><button type="button" className="fan-tp" onClick={() => setTempario(o.os)} title="ver o que o técnico escreveu no tempário e ajustar"><i className="fas fa-stopwatch" /> ver no tempário</button></div>)}
+          {/* 28/10/2026 (José: "ainda tá confuso pra identificar"): etiqueta do que é, e o levou × tempário em barrinhas */}
+          <div className="fan-al-cab"><b>OS fora do tempo do tempário</b><span><i className="v" /> demorou mais que o tempário <i className="a" /> rápido demais (pode ter faltado etapa)</span></div>
+          {alertas.slice(0, 4).map((o) => {
+            const prev = (o.previstoMin || 0) / 60
+            const lento = o.situacao !== 'rapido'
+            const dif = o.horasRel - prev
+            const mx = Math.max(o.horasRel, prev, 0.1)
+            return (
+              <div key={o.os} className={`fan-al2 ${lento ? 'v' : 'a'}`}>
+                <span className="fan-al2-tag"><i className={`fas ${lento ? 'fa-hourglass-end' : 'fa-forward-fast'}`} /> {lento ? 'Demorou mais' : 'Rápido demais'}</span>
+                <div className="fan-al2-os"><b>{o.os}</b><small>{o.cliente}</small></div>
+                <div className="fan-al2-cmp">
+                  <div><small>levou</small><i style={{ width: `${(o.horasRel / mx) * 100}%` }} className="lv" /><b>{h(o.horasRel)}</b></div>
+                  <div><small>tempário</small><i style={{ width: `${(prev / mx) * 100}%` }} className="tp" /><b>{h(prev)}</b></div>
+                </div>
+                <em className="fan-al2-dif">{dif >= 0 ? '+' : '−'}{h(Math.abs(dif))}</em>
+                <button type="button" className="fan-tp" onClick={() => setTempario(o.os)} title={o.alertas[0]?.texto || 'ver o que o técnico escreveu no tempário e ajustar'}><i className="fas fa-stopwatch" /> ver no tempário</button>
+              </div>
+            )
+          })}
         </div>
       )}
       <div className="fan-abas">
@@ -256,8 +297,13 @@ export const ESTILO_FAN = `
 .fan-prog i { position: absolute; left: 0; top: 0; bottom: 0; background: linear-gradient(90deg, #c7d2fe, #a5b4fc, #c7d2fe); background-size: 200% 100%; animation: fanBrilho 1.4s linear infinite; transition: width .5s }
 .fan-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px } @media (max-width: 900px) { .fan-kpis { grid-template-columns: 1fr 1fr } }
 .fan-kpi { position: relative; display: grid; gap: 4px; padding: 14px 16px; border-radius: 14px; background: rgba(255,255,255,.7); border: 1px solid var(--portal-border, #eef2f7); animation: fanSobe .5s var(--d) both; overflow: hidden }
-.fan-kpi::before { content: ''; position: absolute; left: 0; top: 0; height: 3px; width: 100%; background: var(--k); transform-origin: left; animation: fanCresce .9s var(--d) cubic-bezier(.2,.8,.2,1) both }
-.fan-kpi small { font-size: 12.5px; color: #64748b } .fan-kpi b { font-size: 28px; font-weight: 500; color: var(--k); font-variant-numeric: tabular-nums; letter-spacing: -.5px } .fan-kpi em { font-style: normal; font-size: 12px; color: #94a3b8 }
+.fan-kpi { grid-template-columns: 40px minmax(0, 1fr); column-gap: 12px; align-content: start } .fan-kpi > b, .fan-kpi > em, .fan-kpi-bar { grid-column: 1 / -1 }
+.fan-kpi-ic { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--k) 12%, #fefefe); color: var(--k); font-size: 16px; grid-row: 1 }
+.fan-kpi > small { align-self: center; grid-row: 1 }
+.fan-kpi-bar { display: flex; height: 6px; border-radius: 99px; background: #f1f5f9; overflow: hidden; margin: 2px 0 } .fan-kpi-bar.vazia { visibility: hidden }
+.fan-kpi-bar i { display: block; height: 100%; background: var(--k); transform-origin: left; animation: fanCresce .9s var(--d) cubic-bezier(.2,.8,.2,1) both } .fan-kpi-bar i.b { background: color-mix(in srgb, var(--k) 40%, #fefefe) }
+.fan-kpi em .pt { display: inline-block; width: 8px; height: 8px; border-radius: 2px; background: var(--k); margin: 0 1px 0 0 } .fan-kpi em .pt.b { background: color-mix(in srgb, var(--k) 40%, #fefefe); margin-left: 6px } .fan-kpi em b { font-size: inherit !important; color: #0f172a !important; font-weight: 600 !important; letter-spacing: 0 }
+.fan-kpi small { font-size: 12.5px; color: #64748b } .fan-kpi b { font-size: 28px; font-weight: 500; color: var(--k); font-variant-numeric: tabular-nums; letter-spacing: -.5px } .fan-kpi em { font-style: normal; font-size: 12.5px; color: #475569; line-height: 1.45 }
 .fan-erro { margin: 0; font-size: 13.5px; color: #991b1b; background: #fef2f2; border-radius: 10px; padding: 8px 12px } .fan-aviso { margin: 0; font-size: 13.5px; color: #5b21b6; background: #f5f3ff; border-radius: 10px; padding: 8px 12px }
 .fan-esq { display: grid; grid-template-columns: 1fr 1fr; gap: 14px } .fan-esq-c { height: 300px; border-radius: 18px; background: linear-gradient(90deg, #f1f5f9, #f8fafc, #f1f5f9); background-size: 200% 100%; animation: fanBrilho 1.4s linear infinite }
 .fan-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(560px, 100%), 1fr)); gap: 14px }
@@ -285,6 +331,16 @@ export const ESTILO_FAN = `
 .fan-mes-c, .fan-mes-r { position: absolute; bottom: 0; border-radius: 3px 3px 0 0; transform-origin: bottom; animation: fanColuna .7s var(--d) cubic-bezier(.2,.8,.2,1) both }
 .fan-mes-c { left: 0; right: 0; background: #cbd5e1 } .fan-mes-r { left: 25%; right: 25%; background: #2563eb }
 .fan-alertas { display: grid; gap: 6px }
+.fan-al-cab { display: flex; justify-content: space-between; align-items: center; gap: 6px 12px; flex-wrap: wrap; margin-top: 4px } .fan-al-cab b { font-size: 14px; font-weight: 500; color: #0f172a } .fan-al-cab span { display: inline-flex; gap: 5px 10px; align-items: center; flex-wrap: wrap; font-size: 12px; color: #475569 } .fan-al-cab i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: -5px } .fan-al-cab i.v { background: #ef4444 } .fan-al-cab i.a { background: #f59e0b }
+.fan-al2 { display: grid; grid-template-columns: 128px minmax(0, 150px) minmax(140px, 1fr) 62px auto; gap: 12px; align-items: center; border-radius: 12px; padding: 8px 12px; background: #f8fafc; border-left: 0; animation: fanSobe .4s both }
+.fan-al2-tag { display: inline-flex; gap: 6px; align-items: center; justify-self: start; font-size: 12px; font-weight: 500; border-radius: 99px; padding: 3px 10px; white-space: nowrap }
+.fan-al2.v .fan-al2-tag { background: #fee2e2; color: #991b1b } .fan-al2.a .fan-al2-tag { background: #fef3c7; color: #92400e }
+.fan-al2-os { display: grid; min-width: 0 } .fan-al2-os b { font-size: 13.5px; font-weight: 500; color: #0f172a } .fan-al2-os small { font-size: 12px; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.fan-al2-cmp { display: grid; gap: 4px; min-width: 0 } .fan-al2-cmp > div { display: grid; grid-template-columns: 58px minmax(0, 1fr) 50px; gap: 6px; align-items: center } .fan-al2-cmp small { font-size: 11.5px; color: #475569 } .fan-al2-cmp b { font-size: 12.5px; font-weight: 500; color: #0f172a; text-align: right; font-variant-numeric: tabular-nums }
+.fan-al2-cmp i { display: block; height: 8px; border-radius: 99px; min-width: 3px; transform-origin: left; animation: fanBarra .9s cubic-bezier(.2,.8,.2,1) both } .fan-al2-cmp i.lv { background: #2563eb } .fan-al2-cmp i.tp { background: #7c3aed }
+@keyframes fanBarra { from { transform: scaleX(0) } }
+.fan-al2-dif { font-style: normal; font-size: 14px; font-weight: 600; text-align: right; font-variant-numeric: tabular-nums } .fan-al2.v .fan-al2-dif { color: #b91c1c } .fan-al2.a .fan-al2-dif { color: #b45309 }
+@media (max-width: 760px) { .fan-al2 { grid-template-columns: 1fr auto } .fan-al2-cmp { grid-column: 1 / -1 } }
 .fan-tp { border: 1px solid #99f6e4; background: #f0fdfa; color: #0f766e; border-radius: 99px; padding: 3px 10px; font-family: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap; align-self: center } .fan-tp:hover { background: #ccfbf1 } .fan-tp i { font-size: 11px; margin-right: 2px }
 .fan-al { display: grid; grid-template-columns: 10px 64px minmax(0, 150px) 1fr auto; gap: 10px; font-size: 13px; border-radius: 12px; padding: 8px 12px; align-items: baseline; animation: fanSobe .4s both } .fan-al b { font-weight: 500 } .fan-al span:nth-child(3) { color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .fan-al.v { background: #fef2f2; color: #7f1d1d } .fan-al.a { background: #fffbeb; color: #78350f }

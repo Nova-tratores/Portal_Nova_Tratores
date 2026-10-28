@@ -153,27 +153,36 @@ export default function EquipeCapa({ mes }: { mes: string }) {
           <div className="eqc-palco" onMouseEnter={() => setParado(true)} onMouseLeave={() => setParado(false)}>
           <div key={visao} className={`eqc-slide ${visao}`}>
           {visao === 'mes' ? (() => {
-            // o mês: a equipe toda e cada mecânico contra a meta do mês inteiro; a marca preta é onde deveria estar hoje
-            const linhas = [
-              { k: 'equipe', t: 'Equipe toda', sub: `${n} mecânicos`, feito: d.feitas, meta: metaMes, hoje: esperadoHoje, forte: true },
-              ...d.tecs.map((tc) => ({ k: tc.nome, t: tc.nome.split(' ').slice(0, 2).join(' '), sub: 'mecânico', feito: tc.feitas, meta: metaMes / Math.max(1, n), hoje: esperadoHoje / Math.max(1, n), forte: false })),
-            ]
-            return linhas.map((l, i) => {
-              const ritmoL = l.hoje ? (l.feito / l.hoje) * 100 : 0
-              const tom = ritmoL >= 100 ? 'ok' : ritmoL >= 70 ? 'quase' : 'baixo'
-              const larg = Math.max(l.meta, l.feito, 1)
-              return (
-                <div key={l.k} className={`eqc-w ${tom} ${l.forte ? 'forte' : ''}`} style={{ animationDelay: `${i * 70}ms` }}>
-                  <div className="eqc-w-t"><b>{l.t}</b><small>{l.sub}</small></div>
-                  <div className="eqc-w-bar" title={`Feito ${h1(l.feito)} h · meta do mês ${h1(l.meta)} h · hoje deveria estar em ${h1(l.hoje)} h`}>
-                    <i className="esp" style={{ width: `${(l.meta / larg) * 100}%` }} />
-                    <u style={{ width: `${(l.feito / larg) * 100}%`, animationDelay: `${120 + i * 70}ms` }} />
-                    {d.atual && <s style={{ left: `${(l.hoje / larg) * 100}%` }} />}
-                  </div>
-                  <div className="eqc-w-v"><b>{h1(l.feito)} h</b><small>de {h1(l.meta)} h · {Math.round(l.meta ? (l.feito / l.meta) * 100 : 0)}%</small></div>
+            // o mês (José, 28/10/2026: "só o mês, troca essa barra" — os mecânicos já aparecem embaixo): uma coluna por
+            // dia útil com as horas que a equipe fez no dia; a linha tracejada é o esperado do dia (4 h × mecânicos)
+            if (!serie) return null
+            const dias = serie.pts.map((p, k) => ({ ...p, h: p.feito == null ? null : Math.round((p.feito - (k ? serie.pts[k - 1].feito ?? 0 : 0)) * 10) / 10 }))
+              .filter((p) => util(p.dia) || (p.h || 0) > 0)
+            const topo = Math.max(diaBas * 1.6, ...dias.map((p) => p.h || 0), 1)
+            return (
+              <div className="eqc-dias">
+                <div className="eqc-dias-g" style={{ '--esp': diaBas / topo } as React.CSSProperties}>
+                  <span className="eqc-dias-l"><em>esperado {h1(diaBas)} h/dia</em></span>
+                  {dias.map((p, i) => {
+                    const fut = p.h == null
+                    const pc = p.h != null && diaBas ? (p.h / diaBas) * 100 : 0
+                    const tom = fut ? 'fut' : !util(p.dia) ? 'fds' : pc >= 100 ? 'ok' : pc >= 70 ? 'quase' : 'baixo'
+                    return (
+                      <div key={p.dia} className={`eqc-dia ${tom} ${p.dia === serie.limite && d.atual ? 'hj' : ''}`} title={fut ? `${p.rot}: ainda não chegou` : `dia ${p.rot}: ${h1(p.h || 0)} h feitas · esperado ${h1(diaBas)} h`}>
+                        <div className="eqc-dia-c">{!fut && <u style={{ height: `${((p.h || 0) / topo) * 100}%`, animationDelay: `${i * 30}ms` }}>{(p.h || 0) > 0 && <small>{h1(p.h || 0)}</small>}</u>}</div>
+                        <span>{p.rot}</span>
+                      </div>
+                    )
+                  })}
                 </div>
-              )
-            })
+                <div className="eqc-dias-tot">
+                  <div><small>feito no mês</small><b>{h1(d.feitas)} h</b></div>
+                  <div><small>esperado até hoje</small><b>{h1(esperadoHoje)} h</b></div>
+                  <div><small>meta do mês</small><b>{h1(metaMes)} h</b></div>
+                  <div style={{ color: corPct(pMes) }}><small>da meta</small><b>{Math.round(pMes)}%</b></div>
+                </div>
+              </div>
+            )
           })() : semanas.map((w, i) => {
             const p = w.esperado ? (w.feito / w.esperado) * 100 : 0
             const tom = w.futuro ? 'fut' : p >= 100 ? 'ok' : p >= 70 ? 'quase' : 'baixo'
@@ -192,7 +201,7 @@ export default function EquipeCapa({ mes }: { mes: string }) {
           </div>
           </div>
           <p className="eqc-exp"><i className="fas fa-circle-info" /> {visao === 'mes'
-            ? <>A barra colorida é o que foi feito no mês; o trilho cinza é a meta básica do mês inteiro (<b>4 h por dia útil de cada mecânico</b>) e a <b>marca preta</b> é onde deveria estar hoje. A cor diz se está no ritmo.</>
+            ? <>Cada coluna é um dia útil com as horas que <b>a equipe toda</b> fez nele; a linha tracejada é o esperado do dia (<b>4 h × {n} mecânicos</b>). Verde bateu, amarelo perto, vermelho abaixo. Os mecânicos um a um estão logo abaixo.</>
             : <>A barra colorida é o que <b>todos os mecânicos juntos</b> fizeram na semana; o trilho cinza é o esperado (<b>4 h por dia útil de cada um</b>). Encheu o trilho, bateu a meta básica.</>} {comAg ? 'Inclui as OS preenchidas que ainda esperam faturar.' : 'Conta só as OS já faturadas.'}</p>
         </div>
       </div>
@@ -271,5 +280,17 @@ const ESTILO_EQC = `
 @media (max-width: 700px) { .eqc-w { grid-template-columns: 1fr; gap: 6px } .eqc-w-v { justify-items: start } }
 .eqc-exp { margin: 0; font-size: 13px; color: #334155; line-height: 1.5; background: #f8fafc; border-radius: 10px; padding: 9px 12px } .eqc-exp > i { color: #2563eb; margin-right: 4px }
 .eqc-abrir { justify-self: start; display: inline-flex; gap: 8px; align-items: center; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; border-radius: 99px; padding: 8px 16px; font-family: inherit; font-size: 14px; cursor: pointer } .eqc-abrir:hover, .eqc-abrir.on { background: #dbeafe }
+.eqc-dias { display: grid; gap: 12px }
+.eqc-dias-g { position: relative; display: flex; gap: 4px; align-items: stretch; height: 190px; padding: 18px 4px 0; box-sizing: border-box; border-bottom: 1px solid #e2e8f0 }
+.eqc-dias-l { position: absolute; left: 0; right: 0; bottom: calc(22px + 150px * var(--esp)); border-top: 2px dashed #94a3b8; pointer-events: none; z-index: 1 } .eqc-dias-l em { position: absolute; right: 0; top: -20px; font-style: normal; font-size: 11.5px; color: #475569; background: #fefefe; padding: 0 4px }
+.eqc-dia { flex: 1; min-width: 0; display: grid; grid-template-rows: 1fr 22px }
+.eqc-dia-c { position: relative; display: flex; align-items: flex-end; height: 150px }
+.eqc-dia-c u { position: relative; display: block; width: 100%; max-width: 34px; margin: 0 auto; border-radius: 6px 6px 2px 2px; transform-origin: bottom; animation: eqcSobe .7s cubic-bezier(.2,.8,.2,1) both; height: 0 }
+.eqc-dia-c u small { position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); font-size: 10.5px; color: #334155; white-space: nowrap; padding-bottom: 1px }
+@keyframes eqcSobe { from { transform: scaleY(0) } }
+.eqc-dia.ok u { background: linear-gradient(180deg, #6ee7b7, #10b981) } .eqc-dia.quase u { background: linear-gradient(180deg, #fcd34d, #f59e0b) } .eqc-dia.baixo u { background: linear-gradient(180deg, #fca5a5, #ef4444) } .eqc-dia.fds u { background: #cbd5e1 }
+.eqc-dia.fut .eqc-dia-c::after { content: ''; position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 70%; max-width: 34px; height: 6px; border-radius: 3px; background: #eef2f6 }
+.eqc-dia > span { text-align: center; font-size: 11px; color: #64748b; line-height: 22px; font-variant-numeric: tabular-nums } .eqc-dia.hj > span { color: #fefefe; background: #0f172a; border-radius: 6px; font-weight: 600 }
+.eqc-dias-tot { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px } .eqc-dias-tot > div { display: grid; gap: 1px; background: #f8fafc; border-radius: 12px; padding: 8px 12px } .eqc-dias-tot small { font-size: 12px; color: #475569 } .eqc-dias-tot b { font-size: 18px; font-weight: 500; font-variant-numeric: tabular-nums }
 @media (max-width: 1000px) { .eqc-corpo { grid-template-columns: 1fr } }
 `

@@ -20,7 +20,7 @@ import CartaLiga, { IconeLiga } from './CartaLiga'
 import { useCarreira } from './useCarreira'
 import FantasmasMec from './FantasmasMec'
 import EquipeCapa from './EquipeCapa'
-import { Secao, ESTILO_ASSUNTOS } from './PainelTecnicos'
+import { ESTILO_ASSUNTOS } from './PainelTecnicos'
 
 // assuntos da aba Mecânicos, com as bolinhas iguais às do Painel (José, 20/10/2026)
 import { patente } from '@/lib/mecanicos/carreira'
@@ -193,19 +193,14 @@ export default function RadarOcorrencias() {
 
           {/* técnicos do mês: pódio + cartões com contador vivo; clicar abre a ficha completa
               (José, 19/10/2026: "tira o primeiro e coloca esses dois" — saiu o bloco de Comissões) */}
-          <div id="oc-carreira" />
-          <div id="oc-radar" />
           {/* caixinha dos técnicos, lida do RH (José, 27/10/2026: "antes de mecânicos do mês") */}
           {/* 28/10/2026: no lugar da caixinha (que virou ícone nos atalhos), a capa das horas e km da equipe toda */}
-          <div id="oc-horas" />
-          <Secao n={1} cor="#0891b2" ic="fa-clock" titulo="Horas da equipe" sub="horas e km de todos os mecânicos juntos contra o esperado; abra para ver por mecânico" primeira />
-          <EquipeCapa mes={mes} />
-
-          <Secao n={2} cor="#2563eb" ic="fa-user-gear" titulo="Mecânicos do mês" sub="clique no cartão para abrir a ficha completa: comissão, OS, frota, ocorrências e RH" />
-          <TecnicosDoMes />
+          {/* 28/10/2026 (José: "espaço em branco, remove"): sem a barra de assuntos os títulos das seções ficavam
+              invisíveis (só ela marcava .pt-visto) — a capa e os cartões já se explicam, então os títulos saíram */}
+          <div id="oc-horas"><EquipeCapa mes={mes} /></div>
+          <div id="oc-carreira"><span id="oc-radar" /><TecnicosDoMes /></div>
 
           {/* horas e km fantasmas: carro × relatório × OS × tempário (José, 20/10/2026) */}
-          <Secao n={3} cor="#7c3aed" ic="fa-ghost" titulo="Horas e km fantasmas" sub="carro, relatório, OS cobrada e tempário Mahindra lado a lado" />
           <FantasmasMec mes={mes} />
 
           {/* Tribunal e ocorrências ficam atrás dos botões do topo (José, 20/10/2026) */}
