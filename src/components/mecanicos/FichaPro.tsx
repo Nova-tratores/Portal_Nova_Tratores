@@ -451,6 +451,11 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
   const f = e.final(l)
   const estado = ed.acao === 'nao' ? 'nao' : ed.divisao ? 'div' : ed.acao === 'ajustar' ? 'aj' : 'pg'
   const reqTotal = x?.reqs.reduce((s, r) => s + r.valor, 0) || 0
+  // desconto da OS que não foi erro do técnico: paga a comissão como se a OS não tivesse desconto (José, 28/10/2026)
+  const descBase = x?.descBase || 0
+  const cheio = descBase > 0 && l.base > 0 ? Math.round((l.valor * (l.base + descBase) / l.base) * 100) / 100 : 0
+  const MOT_CHEIO = 'Desconto da OS não foi erro do técnico'
+  const emCheio = ed.acao === 'ajustar' && !ed.divisao && ed.motivo.startsWith(MOT_CHEIO)
   const com = (l.tecnicos?.length || 0) > 1 ? l.tecnicos!.filter((t) => t !== d.nome).map((t) => t.split(' ')[0]).join(', ') : ''
   return (
     <div className={`fp-lin ${estado}`}>
@@ -489,8 +494,14 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
         <div className="fp-dec">
           <button type="button" className={estado === 'pg' ? 'on pg' : ''} onClick={() => e.mudar(l, { acao: 'pagar', divisao: null })} title="Pagar como calculado"><i className="fas fa-check" /></button>
           <button type="button" className={estado === 'nao' ? 'on nao' : ''} onClick={() => e.mudar(l, { acao: 'nao', divisao: null })} title="Não pagar (escolher o motivo)"><i className="fas fa-ban" /></button>
-          <button type="button" className={estado === 'aj' ? 'on aj' : ''} onClick={() => e.mudar(l, { acao: 'ajustar', divisao: null, valor: ed.valor ?? l.valor })} title="Ajustar o valor"><i className="fas fa-pen" /></button>
+          <button type="button" className={estado === 'aj' && !emCheio ? 'on aj' : ''} onClick={() => e.mudar(l, { acao: 'ajustar', divisao: null, valor: ed.valor ?? l.valor })} title="Ajustar o valor"><i className="fas fa-pen" /></button>
           <button type="button" className={estado === 'div' ? 'on div' : ''} onClick={() => setDividindo((v) => !v)} title="Dividir com outro técnico"><i className="fas fa-people-arrows" /></button>
+          {cheio > 0 && (
+            <button type="button" className={`cheio ${emCheio ? 'on' : ''}`} title={`Pagar sem o desconto da OS: comissão sobre o valor cheio (${brl(l.base + descBase)}) = ${brl2(cheio)}`}
+              onClick={() => e.mudar(l, emCheio ? { acao: 'pagar', divisao: null, motivo: '' } : { acao: 'ajustar', divisao: null, valor: cheio, motivo: `${MOT_CHEIO}: comissão sobre o valor cheio (desconto de ${brl(descBase)} não entra)` })}>
+              <i className="fas fa-tag" /> sem desconto
+            </button>
+          )}
         </div>
         <div className="fp-com">{f !== l.valor && <s>{brl2(l.valor)}</s>}<b>{brl2(f)}</b></div>
       </div>
@@ -625,7 +636,7 @@ const ESTILO_FP = `
 .fp-g-ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--g); color: #fefefe; font-size: 13px }
 .fp-g-cab > b { font-size: 15px } .fp-g-cab > small { flex: 1; font-size: 12px; color: ${MUDO} } .fp-g-tot { display: inline-flex; gap: 10px; align-items: baseline } .fp-g-tot em { font-style: normal; font-size: 12px; color: ${MUDO} } .fp-g-tot b { font-size: 17px; color: var(--g); font-variant-numeric: tabular-nums }
 .fp-tab { display: grid }
-.fp-th, .fp-row { display: grid; grid-template-columns: 76px minmax(200px, 1.5fr) minmax(220px, 1.4fr) 136px 150px 118px; gap: 14px; align-items: center; padding: 0 16px }
+.fp-th, .fp-row { display: grid; grid-template-columns: 76px minmax(200px, 1.5fr) minmax(220px, 1.4fr) 136px 250px 118px; gap: 14px; align-items: center; padding: 0 16px }
 .fp-th { padding-top: 9px; padding-bottom: 9px; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: ${MUDO}; border-bottom: 1px solid var(--portal-border, #eef2f7) } .fp-th .n { text-align: right }
 .fp-lin { border-bottom: 1px solid var(--portal-border, #f1f5f9); border-left: 3px solid transparent; transition: background .15s, border-color .2s; animation: fpEntra .3s both } .fp-lin:last-child { border-bottom: none } .fp-lin:hover { background: #fafbfd }
 .fp-lin.nao { border-left-color: #ef4444; background: #fffafa } .fp-lin.aj { border-left-color: #f59e0b } .fp-lin.div { border-left-color: #8b5cf6 }
@@ -638,6 +649,7 @@ const ESTILO_FP = `
 .fp-base { text-align: right; font-size: 13px; color: ${MUDO}; font-variant-numeric: tabular-nums }
 .fp-dec { display: inline-flex; gap: 2px; background: #f4f6f9; border-radius: 999px; padding: 3px; justify-self: center }
 .fp-dec button { width: 32px; height: 28px; border-radius: 999px; border: none; background: transparent; color: #94a3b8; cursor: pointer; font-size: 12.5px; transition: all .15s } .fp-dec button:hover { color: #0f172a; background: #fefefe }
+.fp-dec button.cheio { width: auto; padding: 0 10px; font-size: 12px; color: #b45309; white-space: nowrap } .fp-dec button.cheio i { margin-right: 3px } .fp-dec button.cheio.on { background: #2563eb; color: #fefefe }
 .fp-dec button.on { color: #fefefe } .fp-dec button.on.pg { background: #10b981 } .fp-dec button.on.nao { background: #ef4444 } .fp-dec button.on.aj { background: #f59e0b } .fp-dec button.on.div { background: #8b5cf6 }
 .fp-com { display: grid; justify-items: end } .fp-com s { font-size: 11px; color: ${MUDO} } .fp-com b { font-size: 15.5px; font-weight: 900; font-variant-numeric: tabular-nums; color: #047857 } .fp-lin.nao .fp-com b { color: #dc2626 } .fp-lin.aj .fp-com b { color: #b45309 } .fp-lin.div .fp-com b { color: #6d28d9 }
 .fp-extra { display: grid; gap: 6px; margin: 0 16px 12px 106px; padding: 10px 12px; border-radius: 12px; background: #fef2f2; animation: fpEntra .2s both } .fp-extra > small { font-size: 14px; font-weight: 500; color: #b91c1c }
