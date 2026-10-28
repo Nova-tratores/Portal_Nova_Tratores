@@ -23,16 +23,6 @@ export function marcarMinhaAcao(tabela, id, notifInfo) {
   }
 }
 
-// ─── CONVERTE VAPID BASE64 → Uint8Array ──────────────────────────────────────
-function urlBase64ToUint8Array(base64String) {
-  const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
-  const rawData = atob(base64)
-  const output = new Uint8Array(rawData.length)
-  for (let i = 0; i < rawData.length; ++i) output[i] = rawData.charCodeAt(i)
-  return output
-}
-
 export default function NotificationSystem({ userProfile }) {
   const [notificacoes, setNotificacoes] = useState([])
   const [toasts, setToasts]             = useState([])
@@ -56,44 +46,7 @@ export default function NotificationSystem({ userProfile }) {
     return () => document.removeEventListener('visibilitychange', handleVisible)
   }, [])
 
-  // ─── REGISTRO DO SERVICE WORKER + PUSH SUBSCRIPTION ──────────────────────
-  useEffect(() => {
-    if (!userProfile?.id || typeof window === 'undefined') return
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) return
-
-    const VAPID_PUBLIC = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
-    if (!VAPID_PUBLIC) return // push desabilitado se chave não configurada
-
-    const registrarPush = async () => {
-      try {
-        const reg = await navigator.serviceWorker.register('/sw.js')
-        await navigator.serviceWorker.ready
-
-        let sub = await reg.pushManager.getSubscription()
-
-        if (!sub) {
-          const perm = await Notification.requestPermission()
-          if (perm !== 'granted') return
-
-          sub = await reg.pushManager.subscribe({
-            userVisibleOnly: true,
-            applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC),
-          })
-        }
-
-        // Salva subscription no servidor
-        await fetch('/api/push/subscribe', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ subscription: sub.toJSON(), userId: userProfile.id }),
-        })
-      } catch (e) {
-        console.warn('[Push] Falha ao registrar:', e)
-      }
-    }
-
-    registrarPush()
-  }, [userProfile?.id])
+  // Push (aviso com o portal fechado) agora é do portal inteiro: hooks/useNotificacoes + sino (28/10/2026)
 
   // ─── AUDIO UNLOCK ─────────────────────────────────────────────────────────
   useEffect(() => {

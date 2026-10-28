@@ -26,6 +26,7 @@ import {
 import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias, CalendarClock, CalendarDays, LineChart, Radar } from 'lucide-react'
 import BotaoAjuda from '@/components/conhecimento/BotaoAjuda'
 import IlhaNotificacao, { AjustesIlha, type AvisoIlha } from '@/components/notif/IlhaNotificacao'
+import { AvisosAparelho } from '@/components/notif/AvisosAparelho'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import ChatPanel from './chat/ChatPanel'
@@ -1149,6 +1150,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
                 {/* aviso na tela (ilha): modo e posição — cada usuário escolhe */}
                 <AjustesIlha />
+                {/* push: aviso chega com o portal fechado (celular) */}
+                <AvisosAparelho />
 
                 {/* Lista */}
                 <div style={{ flex: 1, overflowY: 'auto' }}>

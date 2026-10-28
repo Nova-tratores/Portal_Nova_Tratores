@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
+import { mostrarAvisoLocal, pushAtivo, renovarPushSilencioso } from '@/lib/push/portal-client'
 
 export interface Notificacao {
   id: string
@@ -22,24 +23,13 @@ function pedirPermissaoNotificacao() {
   }
 }
 
-function enviarNotificacaoNativa(titulo: string, corpo?: string, link?: string) {
+function enviarNotificacaoNativa(titulo: string, corpo?: string, link?: string, id?: string) {
   if (typeof window === 'undefined' || !('Notification' in window)) return
   if (Notification.permission !== 'granted') return
   if (document.visibilityState === 'visible') return // só notifica se aba em background
-
-  const n = new Notification(titulo, {
-    body: corpo || undefined,
-    icon: '/favicon.ico',
-    tag: 'portal-notif-' + Date.now(),
-  })
-
-  if (link) {
-    n.onclick = () => {
-      window.focus()
-      window.location.href = link
-      n.close()
-    }
-  }
+  // Push ligado neste aparelho: o service worker já mostra (mesma tag, não duplica)
+  if (pushAtivo()) return
+  mostrarAvisoLocal(titulo, corpo, link, id ? 'notif-' + id : undefined)
 }
 
 // ── Título piscante ──
@@ -77,6 +67,9 @@ export function useNotificacoes(userId: string | undefined) {
 
   // Pedir permissão na primeira vez
   useEffect(() => { pedirPermissaoNotificacao() }, [])
+
+  // Push (aviso com o portal fechado): quem já permitiu fica inscrito com o usuário deste login
+  useEffect(() => { if (userId) renovarPushSilencioso() }, [userId])
 
   // Parar título piscante quando a aba voltar ao foco
   useEffect(() => {
@@ -130,7 +123,7 @@ export function useNotificacoes(userId: string | undefined) {
             const naoLidasCount = updated.filter(n => !n.lida).length
 
             // Notificação nativa + título piscante se aba em background
-            enviarNotificacaoNativa(nova.titulo, nova.descricao || undefined, nova.link || undefined)
+            enviarNotificacaoNativa(nova.titulo, nova.descricao || undefined, nova.link || undefined, nova.id)
             if (document.visibilityState === 'hidden' && naoLidasCount > 0) {
               iniciarTituloPiscante(naoLidasCount)
             }
@@ -175,7 +168,7 @@ export function useNotificacoes(userId: string | undefined) {
               if (novas.length > 0) {
                 // Dispara notificação nativa para cada nova
                 for (const nova of novas) {
-                  enviarNotificacaoNativa(nova.titulo, nova.descricao || undefined, nova.link || undefined)
+                  enviarNotificacaoNativa(nova.titulo, nova.descricao || undefined, nova.link || undefined, nova.id)
                 }
                 iniciarTituloPiscante(data.length)
                 return [...novas, ...prev].slice(0, 50)

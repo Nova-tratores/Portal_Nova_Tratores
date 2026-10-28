@@ -212,8 +212,6 @@
  "src/app/api/produtos/caracteristicas/route.ts#GET",
  "src/app/api/produtos/observacao/route.ts#GET",
  "src/app/api/produtos/observacao/route.ts#POST",
- "src/app/api/push/subscribe/route.js#DELETE",
- "src/app/api/push/subscribe/route.js#POST",
  "src/app/api/rh/funcionarios/buscar/route.ts#GET",
  "src/app/api/sat/clientes/route.ts#GET",
  "src/app/api/supervisor-vendas/carros/route.ts#DELETE",
