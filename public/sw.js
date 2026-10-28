@@ -2,8 +2,22 @@
 // NÃO guarda páginas nem arquivos em cache (sem 'fetch'), para nunca segurar versão velha depois de um deploy.
 // Quem manda o push: src/lib/push/portal-server.ts (cada aviso novo do sino → gatilho no banco → /api/push/notificacao).
 
-self.addEventListener('install', () => self.skipWaiting());
-self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim()));
+// Já havia um service worker ativo = isto é uma ATUALIZAÇÃO (na 1ª instalação não recarrega nada).
+let ehAtualizacao = false;
+self.addEventListener('install', () => { ehAtualizacao = !!self.registration.active; self.skipWaiting(); });
+// Versão nova do service worker assumiu = saiu atualização. Janela do portal em segundo plano é recarregada
+// na hora (vale até para quem está com a versão velha da página); a que está na frente recebe o aviso e o
+// AutoAtualiza decide (não recarrega por cima de formulário não salvo).
+self.addEventListener('activate', (event) => event.waitUntil((async () => {
+  await self.clients.claim();
+  if (!ehAtualizacao) return;
+  const janelas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+  await Promise.all(janelas.map(async (c) => {
+    if (!c.url.startsWith(self.location.origin)) return;
+    if (c.visibilityState === 'hidden') { try { await c.navigate(c.url); return; } catch { /* segue p/ aviso */ } }
+    c.postMessage({ tipo: 'portal-atualizar' });
+  }));
+})()));
 
 const IOS = /iPhone|iPad|iPod/i.test(self.navigator.userAgent || '');
 
