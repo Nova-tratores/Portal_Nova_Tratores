@@ -403,3 +403,34 @@ export async function reabrir(alvo: { conta: string; codigoProduto: number | str
     status: 'aberta', resolvida_em: null, resolvida_por: null, resolvida_user_id: null, resolucao: null, locacao: null,
   });
 }
+
+/**
+ * Peças que JÁ têm alguma posição (#PRATELEIRA/#ANDAR/#CAIXA), no formato da matriz,
+ * com só essas três características. É o que a janela de alocar precisa para sugerir
+ * posições e avisar quando o lugar está ocupado — ~1.600 linhas em vez das 10 mil da
+ * matriz inteira (usado pela tela de guardar peças do Opa, que abre no celular).
+ */
+export async function listarPosicoes(): Promise<Array<{ empresa: string; codigo_produto: number | string; codigo?: string; descricao?: string; caracteristicas: Record<string, string> }>> {
+  const CHAVES = new Set(['PRATELEIRA', 'ANDAR', 'CAIXA']);
+  const nome = (k: string) => k.replace(/[#:\s]/g, '').toUpperCase();
+  const out: Array<{ empresa: string; codigo_produto: number | string; codigo?: string; descricao?: string; caracteristicas: Record<string, string> }> = [];
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase.from('produtos_caracteristicas')
+      .select('conta_omie, codigo_produto, codigo, descricao, caracteristicas')
+      .order('conta_omie', { ascending: true }).order('codigo_produto', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(error.message);
+    for (const r of data || []) {
+      const car: Record<string, string> = {};
+      for (const [k, v] of Object.entries((r.caracteristicas || {}) as Record<string, unknown>)) {
+        if (CHAVES.has(nome(k)) && String(v ?? '').trim()) car[k] = String(v);
+      }
+      if (Object.keys(car).length) {
+        out.push({ empresa: r.conta_omie, codigo_produto: r.codigo_produto, codigo: r.codigo ?? undefined, descricao: r.descricao ?? undefined, caracteristicas: car });
+      }
+    }
+    if (!data || data.length < PAGE) break;
+  }
+  return out;
+}

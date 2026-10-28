@@ -1,4 +1,4 @@
-// GET /api/permissoes/quem-acessa?rota=/estoque/notas — só Dev.
+// GET /api/permissoes/quem-acessa?rota=/financeiro/notas — só Dev.
 // Quem abre a página: resolve rota → tela (perm_tela_rotas; sem a migration,
 // o catálogo do código) e devolve cada usuário com o resultado de HOJE
 // (portal_permissoes) e o da v2 (view permissoes_efetivas), com nível e origem.

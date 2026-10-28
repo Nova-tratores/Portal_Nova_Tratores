@@ -1,8 +1,10 @@
 // Checklist mensal dos veículos: quem fez, quem não fez, quem fez suspeito.
 // Cruza os técnicos com veículo (tecnico_veiculos, NT Mecânico), os veículos
 // da frota sem responsável e os carros de VENDEDOR (responsável da Frota que é
-// vendedor do app de vendas) com os checklists do mês (veiculo_checklist e o
-// Chamado Veicular do app de vendas, chamados_veiculares tipo checklist).
+// vendedor do app de vendas) com os checklists do mês (veiculo_checklist). O
+// vendedor faz o checklist COMPLETO (20 itens com foto) pelo app de vendas, que
+// grava em veiculo_checklist via /api/frota/checklist-vendedor (19/10/2026);
+// o checklist simples do Chamado Veicular deixou de contar.
 // Usado por GET /api/frota/checklists-mes e pela aba Hoje.
 //
 // Correções de 10/10/2026 (o "16 não fizeram" não era confiável):
@@ -53,24 +55,9 @@ export function vendedorDoResponsavel(nome: string | null | undefined, vendedore
   return vendedores.find((v) => mesmaPessoa(v.nome, nome)) || null;
 }
 
-export type ChamadoChecklist = { placa_id: number | string | null; placa: string | null; created_at: string };
-/** Último checklist do mês feito pelo app de vendas, por placa canônica. */
-export function checklistsAppPorPlaca(
-  chamados: ChamadoChecklist[], placaDoSupaId: Map<string, string>,
-): Map<string, ChamadoChecklist> {
-  const out = new Map<string, ChamadoChecklist>();
-  for (const c of chamados) {
-    const p = (c.placa_id != null && placaDoSupaId.get(String(c.placa_id))) || resolverPlaca(extrairPlacaDeNumPlaca(c.placa));
-    if (!p) continue;
-    const atual = out.get(p);
-    if (!atual || c.created_at > atual.created_at) out.set(p, c);
-  }
-  return out;
-}
-
-/** Link do app de vendas que abre o checklist do carro já selecionado. */
+/** Link do app de vendas que abre o checklist completo do carro. */
 export function linkChecklistApp(placaKey: string): string {
-  return `/chamado-veicular?placa=${encodeURIComponent(placaKey)}&tipo=checklist&checklist=mensal`;
+  return `/checklist-veiculo?placa=${encodeURIComponent(placaKey)}`;
 }
 
 const ORDEM: Record<StatusChecklist, number> = { pendente: 0, suspeito: 1, em_andamento: 2, ok: 3 };
@@ -108,23 +95,22 @@ export function ordenarEResumir(itens: ItemChecklistMes[]): { itens: ItemCheckli
 
 export async function listarChecklistsMes(supabase: SupabaseClient, mes: string): Promise<{ itens: ItemChecklistMes[]; resumo: ResumoChecklistMes }> {
   const lerVeics = async () => {
+    // carro SEM USO conta como checklist desligado (ainda é da loja, mas está parado)
+    const r0 = await supabase.from('frota_veiculos').select('id, placa, modelo, ativo, tipo_registro, checklist_desativado, sem_uso, supa_placa_id');
+    if (!r0.error) return (r0.data || []).map((v) => ({ ...v, checklist_desativado: !!v.checklist_desativado || !!v.sem_uso }));
     const r = await supabase.from('frota_veiculos').select('id, placa, modelo, ativo, tipo_registro, checklist_desativado, supa_placa_id');
     if (!r.error) return r.data || [];
     // sem a coluna checklist_desativado (migração antiga): todo veículo cobra
     const r2 = await supabase.from('frota_veiculos').select('id, placa, modelo, ativo, tipo_registro');
     return (r2.data || []) as { id: string; placa: string; modelo: string | null; ativo: boolean; tipo_registro: string; checklist_desativado?: boolean; supa_placa_id?: number | string | null }[];
   };
-  const [ano, mm] = mes.split('-').map(Number);
-  const fimMes = new Date(Date.UTC(ano, mm, 1)).toISOString().slice(0, 10);
-  const [atrib, chks, veics, resp, vends, chamados] = await Promise.all([
+  const [atrib, chks, veics, resp, vends] = await Promise.all([
     supabase.from('tecnico_veiculos').select('tecnico_nome, placa, descricao'),
     supabase.from('veiculo_checklist').select('id, tecnico_nome, placa, status, score_confianca, km, fim_em').eq('mes_referencia', mes),
     lerVeics(),
     supabase.from('frota_responsaveis').select('veiculo_id, motorista_nome').is('fim', null),
     // app de vendas: leitura tolerante — falhou, o bloco de vendedor some
     supabase.from('vendedores').select('id, nome').eq('ativo', true),
-    supabase.from('chamados_veiculares').select('placa_id, placa, created_at')
-      .eq('tipo', 'checklist').gte('created_at', `${mes}-01`).lt('created_at', fimMes),
   ]);
 
   // checklist por técnico (normalizado) e por placa canônica — dois caminhos de match
@@ -145,8 +131,6 @@ export async function listarChecklistsMes(supabase: SupabaseClient, mes: string)
   const placasTecnico = new Set((atrib.data || []).map((tv) => resolverPlaca(extrairPlacaDeNumPlaca(tv.placa))).filter(Boolean));
 
   const vendedores = (vends.error ? [] : vends.data || []) as VendedorApp[];
-  const placaDoSupaId = new Map(veics.filter((v) => v.supa_placa_id != null).map((v) => [String(v.supa_placa_id), v.placa]));
-  const chkApp = checklistsAppPorPlaca((chamados.error ? [] : chamados.data || []) as ChamadoChecklist[], placaDoSupaId);
   const respPorVeiculo = new Map((resp.data || []).map((r) => [r.veiculo_id, r.motorista_nome as string | null]));
 
   const itens: ItemChecklistMes[] = [];
@@ -193,14 +177,13 @@ export async function listarChecklistsMes(supabase: SupabaseClient, mes: string)
   }
 
   // 3) Carros com responsável que é VENDEDOR do app de vendas: vale o checklist
-  //    feito pelo app (Chamado Veicular) ou pelo portal. Responsável que não
-  //    casa com vendedor segue fora da cobrança, como antes.
+  //    completo (veiculo_checklist), feito pelo app de vendas. Responsável que
+  //    não casa com vendedor segue fora da cobrança, como antes.
   for (const v of veics) {
     if (!v.ativo || v.tipo_registro !== 'veiculo' || v.checklist_desativado) continue;
     if (!idsComResp.has(v.id) || placasTecnico.has(v.placa)) continue;
     const vend = vendedorDoResponsavel(respPorVeiculo.get(v.id), vendedores);
     if (!vend) continue;
-    const app = chkApp.get(v.placa);
     const chk = porPlaca.get(v.placa) || null;
     itens.push({
       origem: 'vendedor',
@@ -208,11 +191,11 @@ export async function listarChecklistsMes(supabase: SupabaseClient, mes: string)
       placa: formatarPlaca(v.placa),
       placa_key: v.placa || '',
       descricao: v.modelo || '',
-      status: app ? 'ok' : chk ? classificarChecklist(chk.status, chk.score_confianca) : 'pendente',
-      score: app ? null : chk?.score_confianca ?? null,
-      km: app ? null : chk?.km ?? null,
-      fim_em: app ? app.created_at : chk?.fim_em ?? null,
-      checklist_id: app ? null : chk?.id ?? null,
+      status: chk ? classificarChecklist(chk.status, chk.score_confianca) : 'pendente',
+      score: chk?.score_confianca ?? null,
+      km: chk?.km ?? null,
+      fim_em: chk?.fim_em ?? null,
+      checklist_id: chk?.id ?? null,
       vendedor_id: vend.id,
     });
   }

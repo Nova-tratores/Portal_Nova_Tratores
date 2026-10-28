@@ -15,7 +15,17 @@ import { temPendencias, digitouHaPouco } from '@/lib/rascunho/pendencias';
 const INTERVALO_MS = 3 * 60 * 1000;
 const DIGITACAO_RECENTE_MS = 20 * 60 * 1000;
 
+const DIGITACAO_APP_MS = 2 * 60 * 1000;
+
 const podeRecarregarSozinho = () => !temPendencias() && !digitouHaPouco(DIGITACAO_RECENTE_MS);
+
+// App instalado (Tela de Início): atualização FORÇADA (28/10/2026, pedido do José). Recarrega até com a
+// tela na frente — só segura se houver formulário não salvo ou digitação nos últimos 2 min.
+const instalado = () => {
+  const nav = navigator as Navigator & { standalone?: boolean };
+  return window.matchMedia?.('(display-mode: standalone)').matches || nav.standalone === true;
+};
+const podeForcarNoApp = () => instalado() && !temPendencias() && !digitouHaPouco(DIGITACAO_APP_MS);
 
 export default function AutoAtualiza() {
   const [faixa, setFaixa] = useState(false);
@@ -30,7 +40,8 @@ export default function AutoAtualiza() {
     // só recarrega sozinho com a aba ESCONDIDA e sem nada digitado/pendente
     const tentar = () => {
       if (!pendente) return;
-      if (document.hidden && podeRecarregarSozinho()) recarregar();
+      if (podeForcarNoApp()) recarregar();
+      else if (document.hidden && podeRecarregarSozinho()) recarregar();
       else setFaixa(true);
     };
 
@@ -44,18 +55,34 @@ export default function AutoAtualiza() {
       } catch { /* rede oscilou — tenta na próxima */ }
     };
 
-    const aoMudarVisibilidade = () => { if (document.hidden) tentar(); };
+    // App instalado no celular: ele fica "dormindo" em segundo plano e o timer congela, então podia passar
+    // dias na versão velha. Ao REABRIR, confere a versão (e o service worker) e recarrega na hora.
+    const aoReabrir = async () => {
+      try { (await navigator.serviceWorker?.getRegistration())?.update(); } catch { /* sem sw */ }
+      await checar();
+      tentar();
+    };
+    // Service worker novo assumiu (sw.js manda 'portal-atualizar'): trata como deploy novo.
+    const aoMensagemSw = (e: MessageEvent) => {
+      if (e.data?.tipo !== 'portal-atualizar') return;
+      pendente = true;
+      tentar();
+    };
+
+    const aoMudarVisibilidade = () => { if (document.hidden) tentar(); else aoReabrir(); };
     const aoFocar = () => { if (pendente) setFaixa(true); else checar(); };
 
     checar();
     const timer = setInterval(checar, INTERVALO_MS);
     document.addEventListener('visibilitychange', aoMudarVisibilidade);
     window.addEventListener('focus', aoFocar);
+    navigator.serviceWorker?.addEventListener('message', aoMensagemSw);
     return () => {
       vivo = false;
       clearInterval(timer);
       document.removeEventListener('visibilitychange', aoMudarVisibilidade);
       window.removeEventListener('focus', aoFocar);
+      navigator.serviceWorker?.removeEventListener('message', aoMensagemSw);
     };
   }, []);
 

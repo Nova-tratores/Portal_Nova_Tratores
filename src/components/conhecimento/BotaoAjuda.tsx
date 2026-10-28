@@ -85,9 +85,9 @@ export default function BotaoAjuda({ estilo }: { estilo?: React.CSSProperties })
           <aside onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ajuda desta tela"
             style={{ width: "min(520px, 100%)", height: "100%", background: "var(--portal-bg-card)", borderLeft: "1px solid var(--portal-border)", display: "flex", flexDirection: "column", boxShadow: "-18px 0 40px -18px rgba(0,0,0,0.35)" }}>
             <header style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid var(--portal-border)" }}>
-              <HelpCircle size={20} color="#0369a1" />
+              <HelpCircle size={20} color="#2563eb" />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 800, color: "var(--portal-text)" }}>Ajuda desta tela</div>
+                <div style={{ fontSize: 15, fontWeight: 500, color: "var(--portal-text)" }}>Ajuda desta tela</div>
                 <div style={{ fontSize: 11, color: "var(--portal-text-muted)" }}>{artigos.length} artigo{artigos.length > 1 ? "s" : ""} · {rotuloModulo(artigos[0].modulo)}</div>
               </div>
               <button type="button" onClick={fechar} aria-label="Fechar" style={{ background: "none", border: "none", cursor: "pointer", color: "var(--portal-text-muted)", display: "flex" }}><X size={20} /></button>
@@ -102,7 +102,7 @@ export default function BotaoAjuda({ estilo }: { estilo?: React.CSSProperties })
                       style={{ width: "100%", textAlign: "left", background: on ? "var(--portal-bg-subtle, #f8fafc)" : "transparent", border: "none", cursor: "pointer", padding: "12px 18px", display: "flex", alignItems: "center", gap: 10, color: "var(--portal-text)" }}>
                       <span style={{ fontSize: 12, width: 14 }}>{on ? "▾" : "▸"}</span>
                       <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ fontSize: 14, fontWeight: 700, display: "block" }}>{a.titulo}</span>
+                        <span style={{ fontSize: 14, fontWeight: 500, display: "block" }}>{a.titulo}</span>
                         {a.resumo && !on && <span style={{ fontSize: 12, color: "var(--portal-text-secondary)", display: "block", marginTop: 2 }}>{a.resumo}</span>}
                       </span>
                     </button>
@@ -110,7 +110,7 @@ export default function BotaoAjuda({ estilo }: { estilo?: React.CSSProperties })
                       <div style={{ padding: "4px 18px 16px clamp(18px, 6vw, 42px)" }}>
                         {a.revisao_pendente_desde && (
                           <div style={{ fontSize: 11, color: "#92400e", background: "#fef3c7", borderRadius: 8, padding: "4px 8px", marginBottom: 10, display: "inline-block" }}>
-                            ⚠️ A tela mudou em {a.revisao_pendente_desde.slice(0, 10).split("-").reverse().join("/")}. Este texto pode estar desatualizado.
+                            <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 6 }} />A tela mudou em {a.revisao_pendente_desde.slice(0, 10).split("-").reverse().join("/")}. Este texto pode estar desatualizado.
                           </div>
                         )}
                         <ArtigoView corpo={a.corpo} compacto />
@@ -130,8 +130,8 @@ export default function BotaoAjuda({ estilo }: { estilo?: React.CSSProperties })
                           ) : (
                             <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                               <span>Isso ajudou?</span>
-                              <button type="button" onClick={() => responder(a, "ajudou")} style={chip("#15803d")}>👍 Sim</button>
-                              <button type="button" onClick={() => setComentando(a.id)} style={chip("#991b1b")}>👎 Não / está desatualizado</button>
+                              <button type="button" onClick={() => responder(a, "ajudou")} style={chip("#15803d")}><i className="fa-solid fa-thumbs-up" style={{ marginRight: 5 }} />Sim</button>
+                              <button type="button" onClick={() => setComentando(a.id)} style={chip("#991b1b")}><i className="fa-solid fa-thumbs-down" style={{ marginRight: 5 }} />Não / está desatualizado</button>
                               <span style={{ marginLeft: "auto", fontSize: 10, color: "var(--portal-text-muted)" }}>
                                 v{a.versao}{a.publicado_em ? ` · ${a.publicado_em.slice(0, 10).split("-").reverse().join("/")}` : ""}
                               </span>
@@ -146,9 +146,9 @@ export default function BotaoAjuda({ estilo }: { estilo?: React.CSSProperties })
             </div>
 
             <footer style={{ padding: "10px 18px", borderTop: "1px solid var(--portal-border)", display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12 }}>
-              <Link href="/conhecimento" onClick={fechar} style={{ color: "#0369a1", fontWeight: 700, textDecoration: "none" }}>Buscar na base de conhecimento</Link>
+              <Link href="/conhecimento" onClick={fechar} style={{ color: "#2563eb", fontWeight: 500, textDecoration: "none" }}>Buscar na base de conhecimento</Link>
               {podeEditar && idExpandido && (
-                <Link href={`/conhecimento/editar/${idExpandido}`} onClick={fechar} style={{ color: "#475569", fontWeight: 700, textDecoration: "none", marginLeft: "auto" }}>✎ Editar este artigo</Link>
+                <Link href={`/conhecimento/editar/${idExpandido}`} onClick={fechar} style={{ color: "#475569", fontWeight: 500, textDecoration: "none", marginLeft: "auto" }}><i className="fa-solid fa-pen" style={{ marginRight: 6 }} />Editar este artigo</Link>
               )}
             </footer>
           </aside>
@@ -159,7 +159,7 @@ export default function BotaoAjuda({ estilo }: { estilo?: React.CSSProperties })
 }
 
 function chip(cor: string): React.CSSProperties {
-  return { fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 999, border: `1px solid ${cor}`, background: "transparent", color: cor, cursor: "pointer" };
+  return { fontSize: 11, fontWeight: 500, padding: "4px 10px", borderRadius: 999, border: `1px solid ${cor}`, background: "transparent", color: cor, cursor: "pointer" };
 }
 
 /** Depois de publicar/editar um artigo, a próxima abertura do "?" relê a tela. */

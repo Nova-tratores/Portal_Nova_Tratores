@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { indexarProdutos, mesclarFallbackBusca, produtoParaItem, type ItemEtiqueta, type ProdutoEspelho } from "@/lib/ppv/etiquetas-fallback";
+import { chaveMM, valorUtil, type MarcaModelo } from "@/lib/ppv/etiquetas-marca-modelo";
+import { autenticar } from "@/lib/auth/server";
 
 // Busca de produtos pra ETIQUETAS de identificação (PPV): procura por código
 // ou descrição em produtos_caracteristicas (sync de Ajustes — uma linha por
@@ -218,5 +220,34 @@ export async function GET(req: NextRequest) {
       { itens: [], error: e instanceof Error ? e.message : "erro" },
       { status: 500 },
     );
+  }
+}
+
+// POST { itens: [{ conta, codigo }] } → { marcaModelo: { "CONTA|codigo": { marca, modelo } } }
+// Marca e modelo da peça (espelho `produtos`) para a linha opcional da etiqueta
+// térmica — lidos na hora de imprimir, então valem também para o que já está na
+// fila e para as reimpressões do histórico.
+export async function POST(req: NextRequest) {
+  if (!(await autenticar(req))) return NextResponse.json({ erro: "Faça login." }, { status: 401 });
+  try {
+    const body = await req.json().catch(() => ({}));
+    const itens: { conta?: string; codigo?: string }[] = Array.isArray(body?.itens) ? body.itens.slice(0, 500) : [];
+    const codigos = [...new Set(itens.map((i) => String(i?.codigo ?? "").trim()).filter(Boolean))];
+    const marcaModelo: Record<string, MarcaModelo> = {};
+    for (let i = 0; i < codigos.length; i += 200) {
+      const { data, error } = await supabase
+        .from("produtos")
+        .select("conta_omie, codigo, marca, modelo")
+        .in("codigo", codigos.slice(i, i + 200));
+      if (error) throw error;
+      for (const p of data || []) {
+        const marca = valorUtil(p.marca);
+        const modelo = valorUtil(p.modelo);
+        if (marca || modelo) marcaModelo[chaveMM(p.conta_omie, p.codigo)] = { marca, modelo };
+      }
+    }
+    return NextResponse.json({ marcaModelo });
+  } catch (e) {
+    return NextResponse.json({ erro: e instanceof Error ? e.message : "erro" }, { status: 500 });
   }
 }

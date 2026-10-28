@@ -39,7 +39,7 @@ export async function gerarPdfLista({ titulo, colunas, linhas, filtrosResumo = [
   doc.setFontSize(9)
   doc.setFont('helvetica', 'normal')
   const agora = new Date()
-  doc.text(`Gerado em: ${agora.toLocaleDateString('pt-BR')} as ${agora.toLocaleTimeString('pt-BR')}`, 14, 25)
+  doc.text(`Gerado em: ${agora.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} as ${agora.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`, 14, 25)
   doc.text(`Total: ${linhas.length} registro${linhas.length !== 1 ? 's' : ''}`, pageWidth - 14, 25, { align: 'right' })
   doc.setFontSize(8)
   const filtrosTxt = filtrosResumo.length ? `Filtros da tela: ${filtrosResumo.join('  ·  ')}` : 'Filtros da tela: nenhum (relação completa)'

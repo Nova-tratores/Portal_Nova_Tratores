@@ -30,8 +30,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (result.sucesso) {
     try {
     const agora = new Date();
-    const dataFmt = new Intl.DateTimeFormat("pt-BR").format(agora);
-    const horaFmt = agora.toLocaleTimeString("pt-BR");
+    const dataFmt = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora);
+    const horaFmt = agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" });
     const acaoParts = [
       result.interna
         ? `Ordem interna concluída${result.cNumOS ? ` (remessa de peças nº ${result.cNumOS})` : " (sem peças)"}`

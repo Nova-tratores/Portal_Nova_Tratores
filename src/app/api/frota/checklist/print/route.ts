@@ -1,10 +1,16 @@
 // GET /api/frota/checklist/print?token=<share_token>
 // Documento imprimível (HTML → window.print → salvar como PDF) de um checklist
-// mensal de veículo. Aberto por link (nova aba); acesso pelo share_token do
-// checklist (mesmo segredo do "ver" do NT Mecânico). Lê do mesmo Supabase.
+// mensal de veículo. Desde 21/10/2026 exige login com a Frota (antes bastava o
+// share_token no link e as fotos, inclusive o CRLV, abriam para qualquer um):
+// quem abre é a página /frota/checklist/ver?token=, que busca este HTML com o
+// login e mostra; as fotos vêm da pasta privada com link assinado de 1 hora.
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { resolverPlaca, extrairPlacaDeNumPlaca, formatarPlaca } from '@/lib/frota/placa';
+import { resumoAnalise } from '@/lib/frota/pneu-regras';
+import { autenticar } from '@/lib/auth/server';
+import { temModuloPendencias } from '@/lib/frota/server';
+import { assinarFotos } from '@/lib/frota/checklist-fotos';
 
 export const runtime = 'nodejs';
 
@@ -16,10 +22,14 @@ const supabase = createClient(
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const fmtMes = (m: string) => { const [a, mm] = String(m || '').split('-'); return mm ? `${MESES[Number(mm) - 1] || mm} de ${a}` : (m || ''); };
-const fmtDT = (s: string | null) => s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+const fmtDT = (s: string | null) => s ? new Date(s).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) : '';
 const esc = (s: unknown) => String(s ?? '').replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c] as string));
 
 export async function GET(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (!auth) return new NextResponse('<h1>Entre no portal para ver o checklist</h1>', { headers: { 'Content-Type': 'text/html; charset=utf-8' }, status: 401 });
+  // Frota inteira ou o módulo Pendências (Frota), que também vê os checklists
+  if (!temModuloPendencias(auth)) return new NextResponse('<h1>Sem permissão</h1>', { headers: { 'Content-Type': 'text/html; charset=utf-8' }, status: 403 });
   const token = req.nextUrl.searchParams.get('token');
   const auto = req.nextUrl.searchParams.get('auto') === '1';
   if (!token) return new NextResponse('<h1>Token não informado</h1>', { headers: { 'Content-Type': 'text/html; charset=utf-8' }, status: 400 });
@@ -29,10 +39,10 @@ export async function GET(req: NextRequest) {
 
   const { data: itensRaw } = await supabase
     .from('veiculo_checklist_itens')
-    .select('item_key, categoria, titulo, resposta, observacao, foto_url, respondido_em')
+    .select('*')
     .eq('checklist_id', chk.id)
     .order('respondido_em', { ascending: true });
-  const itens = itensRaw || [];
+  const itens = await assinarFotos(itensRaw || []);
 
   const placaCanon = resolverPlaca(extrairPlacaDeNumPlaca(chk.placa));
   const { data: v } = placaCanon
@@ -58,6 +68,7 @@ export async function GET(req: NextRequest) {
           <div class="it-tit">${esc(it.titulo || it.item_key || '')}</div>
           <div class="it-resp ${prob ? 'prob' : 'ok'}">${prob ? 'Problema' : 'OK'}</div>
           ${it.observacao ? `<div class="it-obs">${esc(it.observacao)}</div>` : ''}
+          ${it.ia_analise ? `<div class="it-obs" style="color:${it.ia_analise.comprova ? '#475569' : '#b91c1c'}">${esc(resumoAnalise(it.ia_analise))}</div>` : ''}
         </div>`;
       }).join('')}</div>`;
 

@@ -7,6 +7,7 @@
 //   - Custo Serviços → /custo-servicos (Painel Omie): componentes + despesas + OS internas.
 //     Custo fixo (RH) e comissão saem só como total — o detalhe exporia salário.
 import { Fragment, useEffect, useMemo, useState } from 'react';
+import { ROTULO_CLASSE, type ClasseServico } from '@/lib/estoque/servicos-classe';
 
 export type SerieBarra =
   | 'pecasOficina' | 'pecasBalcao' | 'servicos'
@@ -30,7 +31,7 @@ interface ItemVenda {
   quantidade?: number | string | null; valor_unitario?: number | string | null; valor_total?: number | string | null;
   codigo_categoria?: string | null; cmc_unitario?: number | string | null; nome_cliente?: string | null; familia?: string | null;
 }
-interface OSLinha { numero_os?: string; data?: string; cliente?: string; valor?: number; tem_nota?: boolean | null; nfse_num?: string | null; conta?: string }
+interface OSLinha { numero_os?: string; data?: string; cliente?: string; valor?: number; tem_nota?: boolean | null; nfse_num?: string | null; conta?: string; classe?: string }
 interface ServLinha { numero_os?: string; descricao?: string; tipo?: string; qtde?: number; valor_total?: number }
 interface DetalheCusto {
   componentes: { comissao: number; despesaGeral: number; despesaVeic: number; custoFixo: number; custoRealInterno: number; total: number };
@@ -54,7 +55,7 @@ const th: React.CSSProperties = { textAlign: 'left', padding: '7px 9px', fontSiz
 const td: React.CSSProperties = { padding: '6px 9px', borderBottom: '1px solid #f3f4f6', fontSize: '.88rem', color: '#374151', verticalAlign: 'top' };
 const tdN: React.CSSProperties = { ...td, textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' };
 
-export default function ComposicaoBarra({ serie, mes, ano, rotuloMes, valorBarra, contaParam, buscar, onAbrirMes, onFechar }: {
+export default function ComposicaoBarra({ serie, mes, ano, rotuloMes, valorBarra, contaParam, buscar, onAbrirMes, onFechar, incluirNaoComercial = false }: {
   serie: SerieBarra; mes: number; ano: number; rotuloMes: string;
   /** Valor que a barra mostra — comparado com a soma da lista. null = desconhecido. */
   valorBarra: number | null;
@@ -62,6 +63,8 @@ export default function ComposicaoBarra({ serie, mes, ano, rotuloMes, valorBarra
   buscar: (url: string) => Promise<Response>;
   onAbrirMes?: () => void;
   onFechar: () => void;
+  /** Garantia, seguro e campanhas somados na barra de Serviços (caixinha da tela). */
+  incluirNaoComercial?: boolean;
 }) {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -124,7 +127,9 @@ export default function ComposicaoBarra({ serie, mes, ano, rotuloMes, valorBarra
     return [...m.values()].sort((a, b) => (ehCusto ? b.custo - a.custo : b.venda - a.venda));
   }, [itens, ehPecas, balcao, ehCusto]);
 
-  const osNota = useMemo(() => (os || []).filter((o) => o.tem_nota === true).sort((a, b) => num(b.valor) - num(a.valor)), [os]);
+  // Garantia/seguro/campanha ficam fora da barra, salvo com a caixinha da tela.
+  const osNota = useMemo(() => (os || []).filter((o) => o.tem_nota === true && (incluirNaoComercial || !o.classe || o.classe === 'comercial')).sort((a, b) => num(b.valor) - num(a.valor)), [os, incluirNaoComercial]);
+  const osForaComercial = useMemo(() => (os || []).filter((o) => o.tem_nota === true && !incluirNaoComercial && !!o.classe && o.classe !== 'comercial'), [os, incluirNaoComercial]);
   const osInternas = useMemo(() => (os || []).filter((o) => o.tem_nota !== true), [os]);
 
   const somaLista = pedidos
@@ -262,6 +267,18 @@ export default function ComposicaoBarra({ serie, mes, ano, rotuloMes, valorBarra
                   })}
                 </tbody>
               </table>
+              {osForaComercial.length > 0 && (
+                <details style={{ marginTop: 14 }}>
+                  <summary style={{ cursor: 'pointer', color: '#6b7280', fontSize: '.88rem' }}>
+                    {osForaComercial.length} OS de garantia, seguro ou campanha · {rs(osForaComercial.reduce((s, o) => s + num(o.valor), 0))} — fora do serviço comercial, não entram na barra
+                  </summary>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: 6 }}>
+                    <tbody>{osForaComercial.map((o, k) => (
+                      <tr key={k}><td style={td}>{o.numero_os}</td><td style={td}>{dataBR(o.data)}</td><td style={td}>{o.cliente || '—'}</td><td style={td}>{ROTULO_CLASSE[o.classe as ClasseServico] ?? o.classe}</td><td style={tdN}>{rs(num(o.valor))}</td></tr>
+                    ))}</tbody>
+                  </table>
+                </details>
+              )}
               {osInternas.length > 0 && (
                 <details style={{ marginTop: 14 }}>
                   <summary style={{ cursor: 'pointer', color: '#6b7280', fontSize: '.88rem' }}>

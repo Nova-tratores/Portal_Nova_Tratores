@@ -3,19 +3,8 @@ import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, FASES_CONTADOR_PARADO } from "@/lib
 import { safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
-
-// Último dia de serviço agendado da OS: o maior dia de Dias_Execucao
-// ("YYYY-MM-DD,YYYY-MM-DD,..."), ou a Previsão de Execução quando não há dias.
-// É a referência das transições automáticas: 1 dia depois dele, a OS sai de
-// Execução para "Aguardando ordem Técnico".
-export function ultimoDiaServico(previsaoExecucao: unknown, diasExecucao: unknown): string {
-  const dias = String(diasExecucao || "")
-    .split(",").map((d) => d.trim().slice(0, 10))
-    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
-  if (dias.length) return dias.sort().pop() as string;
-  const prev = String(previsaoExecucao || "").trim().slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(prev) ? prev : "";
-}
+export { ultimoDiaServico } from "@/lib/pos/fase-auto";
+import { hojeBrasilia } from "@/lib/pos/fase-auto";
 
 export interface MudarFaseOpts {
   notificar?: boolean;   // notifica admins + audit (default true). Auto-transições usam false p/ não spammar.
@@ -57,13 +46,25 @@ export async function aplicarMudancaFase(
   const agora = new Date();
   await supabase.from(TBL_LOGS_PPO).insert({
     Id_ppo: idOs,
-    Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora),
-    Hora_Acao: agora.toLocaleTimeString("pt-BR"),
+    Data_Acao: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora),
+    Hora_Acao: agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" }),
     UsuEmail: userName || "Sistema",
     acao: acaoLog || `Mudança rápida para ${newStatus}`,
     Status_Anterior: statusAnterior, Status_Atual: newStatus,
     Dias_Na_Fase: 0, Total_Dias_Aberto: 0,
   });
+
+  // Janela Mecânicos na hora (José, 23/10/2026: "cancelei e continua lá; tudo precisa ser instantâneo"):
+  // esquece o dinheiro parado guardado e avisa as telas abertas, que buscam de novo.
+  import("@/lib/mecanicos/ao-vivo-server")
+    .then((m) => m.atualizarPosVendasAgora(`OS ${idOs}: ${statusAnterior || "?"} → ${newStatus}`, { leve: true }))
+    .catch(() => {});
+
+  // POP disparado pela OS (regras na ficha do POP): cria a execução para o técnico
+  // já agora; o agendador (10 min) cobre mudanças de fase feitas por outro caminho.
+  import("@/lib/pops/gatilhos-os")
+    .then(({ verificarGatilhosOS }) => verificarGatilhosOS({ osIds: [idOs] }))
+    .catch((e) => console.error("[pos/fase] POP pela OS:", (e as Error).message));
 
   // ── Métricas de atraso ──
   if (["Orçamento", "Aguardando Cliente"].includes(newStatus)) {
@@ -116,7 +117,7 @@ export async function aplicarMudancaFase(
   // Remover dia atual dos Dias_Execucao quando sai de execução ativa
   const statusParaExecucao = ["Execução (Realizando Diagnóstico)", "Execução aguardando peças (em transporte)"];
   if (statusParaExecucao.includes(newStatus)) {
-    const hoje = new Date().toISOString().slice(0, 10);
+    const hoje = hojeBrasilia(); // dia de Brasília (o do servidor já é amanhã depois das 21h)
     const { data: osRow } = await supabase.from(TBL_OS).select("Dias_Execucao").eq("Id_Ordem", idOs).limit(1);
     const diasAtual = (osRow?.[0]?.Dias_Execucao as string) || "";
     if (diasAtual.includes(hoje)) {

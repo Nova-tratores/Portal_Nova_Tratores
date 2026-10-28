@@ -69,6 +69,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   const agora = new Date();
   const mudou = [...vincular.map((v) => `+${v}`), ...desvincular.map((d) => `-${d.id}${d.cancelar ? " (cancelado)" : ""}`)].join(" ");
-  if (mudou) await supabase.from(TBL_LOGS_PPO).insert({ Id_ppo: idOs, Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora), Hora_Acao: agora.toLocaleTimeString("pt-BR"), UsuEmail: usuario, acao: `PPVs vinculados alterados: ${mudou}` }).then(() => {}, () => {});
+  if (mudou) await supabase.from(TBL_LOGS_PPO).insert({ Id_ppo: idOs, Data_Acao: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora), Hora_Acao: agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" }), UsuEmail: usuario, acao: `PPVs vinculados alterados: ${mudou}` }).then(() => {}, () => {});
   return NextResponse.json({ ok: true, ppv: novo, avisos });
 }

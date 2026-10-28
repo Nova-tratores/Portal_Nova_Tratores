@@ -44,7 +44,10 @@ async function executar(): Promise<ResultadoSync> {
   const d120 = new Date(agora - 120 * 86400_000).toISOString().slice(0, 10);
 
   const [veic, multas, docs, comps, rows, checklists, reqsVm, osComProjeto, opas, chamados] = await Promise.all([
-    supabase.from('frota_veiculos').select('id, placa, supa_placa_id, status, ativo, pendencia_vinculo, renavam, chassi, proprietario, exercicio_crlv, tipo_registro'),
+    // select('*') tolera a migração do sem_uso; carro SEM USO conta como inativo
+    // aqui (não abre pendência de cadastro — e as abertas fecham sozinhas)
+    supabase.from('frota_veiculos').select('*')
+      .then((r) => ({ ...r, data: (r.data || []).map((v) => (v.sem_uso ? { ...v, ativo: false } : v)) })),
     paginar((de, ate) => supabase.from('frota_multas').select('id, veiculo_id').not('status_interno', 'in', '("paga","descontada","arquivada")').order('id').range(de, ate)),
     paginar((de, ate) => supabase.from('frota_documentos').select('id, veiculo_id, tipo, vigencia_fim').order('id').range(de, ate)),
     supabase.from('frota_componentes').select('id, sistema, subsistema, componente'),
@@ -190,6 +193,14 @@ async function executar(): Promise<ResultadoSync> {
  *  (job `frota-pendencias-sync`); a trava evita sobreposição entre réplicas. */
 export async function rodarPendenciasAgendado(): Promise<string | null> {
   const { comCronRun } = await import('@/lib/cron/observar');
+  // antes das pendências: desligado ou carro fora da frota não fica como responsável
+  try {
+    const { fecharResponsaveisSemDireito } = await import('./higiene-responsaveis-server');
+    const h = await fecharResponsaveisSemDireito();
+    if (h.fechados) console.log(`[frota] responsáveis fechados: ${h.motivos.join('; ')}`);
+  } catch (e) {
+    console.warn('[frota] higiene dos responsáveis falhou:', e instanceof Error ? e.message : e);
+  }
   const r = await comCronRun('frota-pendencias-sync', async () => {
     const res = await sincronizarPendencias();
     if (res.erros.length && !res.inseridas && !res.resolvidas) throw new Error(res.erros.join(' | '));

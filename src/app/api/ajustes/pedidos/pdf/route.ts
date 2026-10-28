@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT, labelConta } from '@/lib/ajustes/conta';
-import { listarPedidosEnriquecidos } from '@/lib/ajustes/pedidos';
+import { listarPedidosEnriquecidos, janelaPedidosBR } from '@/lib/ajustes/pedidos';
 import { gerarPDFPedidos } from '@/lib/ajustes/pdf-pedidos';
-import { resolveJanelaBR } from '@/lib/ajustes/cmc';
 import { fmtISO, hoje } from '@/lib/ajustes/dates';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
 
@@ -16,7 +15,7 @@ export async function GET(req: NextRequest) {
   if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta')) ?? CONTA_DEFAULT;
-  const { dataDeBR, dataAteBR } = resolveJanelaBR(sp.get('de'), sp.get('ate'));
+  const { dataDeBR, dataAteBR } = janelaPedidosBR(sp.get('de'), sp.get('ate'));
   try {
     const peds = await listarPedidosEnriquecidos(conta, dataDeBR, dataAteBR);
     const buf = await gerarPDFPedidos({

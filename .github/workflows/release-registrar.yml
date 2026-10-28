@@ -45,9 +45,11 @@ jobs:
             TITULO="$(git log -1 --format=%s "$SHA")"
             AUTOR="$(git log -1 --format=%an "$SHA")"
             DATA="$(git log -1 --format=%aI "$SHA")"
+            # descrição do commit (o "porquê" e o "como ficou"): o aviso diário de novidades usa
+            CORPO="$(git log -1 --format=%b "$SHA" | head -c 3000)"
             git diff-tree --no-commit-id --name-only -r "$SHA" | jq -R -s 'split("\n") | map(select(length > 0)) | .[0:300]' > arquivos.json
-            jq --arg sha "$SHA" --arg titulo "$TITULO" --arg autor "$AUTOR" --arg data "$DATA" --slurpfile arq arquivos.json \
-              '. + [{sha: $sha, titulo: $titulo, autor: $autor, data: $data, arquivos: $arq[0]}]' commits.json > tmp.json && mv tmp.json commits.json
+            jq --arg sha "$SHA" --arg titulo "$TITULO" --arg autor "$AUTOR" --arg data "$DATA" --arg corpo "$CORPO" --slurpfile arq arquivos.json \
+              '. + [{sha: $sha, titulo: $titulo, autor: $autor, data: $data, corpo: $corpo, arquivos: $arq[0]}]' commits.json > tmp.json && mv tmp.json commits.json
           done
           jq -n --arg sha "$(git rev-parse HEAD)" --arg antes "$ANTES" --slurpfile commits commits.json \
             '{sha: $sha, sha_anterior: $antes, commits: $commits[0]}' > payload.json

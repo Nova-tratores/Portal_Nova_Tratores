@@ -40,7 +40,10 @@ export async function GET(req: NextRequest) {
       .select(cols).eq('status', 'aberta').order('id').range(a, b));
 
     const [veiculos, responsaveis, pendRes, comps, documentos, paradas, checklists, abast, prev, suspeitas] = await Promise.all([
-      supabase.from('frota_veiculos').select('id, placa, modelo, marca, descricao, status, ativo, tipo_registro, pendencia_vinculo'),
+      // select('*'): tolera a migração do sem_uso pendente. Carro SEM USO sai da
+      // aba Hoje inteira (sem alerta de parado, km, cadastro) — ainda é da loja.
+      supabase.from('frota_veiculos').select('*')
+        .then((r) => ({ ...r, data: (r.data || []).map((v) => (v.sem_uso ? { ...v, ativo: false } : v)) })),
       supabase.from('frota_responsaveis').select('veiculo_id, motorista_nome').is('fim', null),
       // tolerante: sem a coluna gravidade (migração antiga) lê sem ela
       lerPend('id, placa, titulo, origem, gravidade, componente_id, aberta_em, responsavel')

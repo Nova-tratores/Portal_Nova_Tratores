@@ -100,7 +100,7 @@ export async function exigirAcessoModulo(req: Request, modulo: string): Promise<
 // ---------------------------------------------------------------------------
 export type OpcaoAcesso = { modulo: string; acao?: string } | { admin: true };
 /** `modulos` = modulos_permitidos crus, para a rota decidir permissões secundárias
- *  (ex.: /estoque/notas só mostra entrada a quem tem recebimentos) sem reler o banco. */
+ *  (ex.: /financeiro/notas só mostra entrada a quem tem recebimentos) sem reler o banco. */
 export type UsuarioRota = { id: string; email?: string; nome?: string; isAdmin: boolean; modulos: string[] };
 
 export async function protegerRota(

@@ -131,7 +131,7 @@ export async function GET(req: Request) {
     const origin = new URL(req.url).origin;
     const agora = new Date();
     const umHoraAtras = new Date(agora.getTime() - 60 * 60 * 1000);
-    const dataHoje = agora.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const dataHoje = agora.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric" });
     const anoAtual = String(agora.getFullYear());
 
     const resultado: Record<string, { os_novas: number; pv_novos: number; nfs: number }> = {};

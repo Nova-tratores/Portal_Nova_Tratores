@@ -162,14 +162,14 @@ export default function MiniMapaCliente({ codigoOmie, nome, cor }: Props) {
   return (
     <div>
       {!temBase && !carregando && (
-        <div style={{ fontSize: 11, color: "#92400e", marginBottom: 6, fontWeight: 600 }}>
-          ⚠ Sem localização cadastrada. Clique no mapa ou informe lat/long abaixo.
+        <div style={{ fontSize: 11, color: "#92400e", marginBottom: 6, fontWeight: 500 }}>
+          <i className="fa-solid fa-triangle-exclamation" /> Sem localização cadastrada. Clique no mapa ou informe lat/long abaixo.
         </div>
       )}
-      <div style={{ position: "relative", width: "100%", height: 200, borderRadius: 10, overflow: "hidden", border: "1.5px solid var(--portal-border)" }}>
+      <div style={{ position: "relative", width: "100%", height: 200, borderRadius: 10, overflow: "hidden", border: "1px solid var(--portal-border)" }}>
         <div ref={mapDivRef} style={{ width: "100%", height: "100%" }} />
         {(carregando || !ready) && (
-          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.7)", fontSize: 12, color: "var(--portal-text-secondary)", fontWeight: 600 }}>
+          <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(255,255,255,0.7)", fontSize: 12, color: "var(--portal-text-secondary)", fontWeight: 500 }}>
             Carregando mapa…
           </div>
         )}
@@ -188,7 +188,7 @@ export default function MiniMapaCliente({ codigoOmie, nome, cor }: Props) {
           onClick={handleSalvar}
           disabled={salvando || !dirty || rowId == null}
           style={{
-            padding: "9px 16px", borderRadius: 9, border: "none", fontSize: 12, fontWeight: 700,
+            padding: "9px 16px", borderRadius: 10, border: "none", fontSize: 12, fontWeight: 500,
             color: "#fff", background: cor, whiteSpace: "nowrap",
             opacity: salvando || !dirty || rowId == null ? 0.5 : 1,
             cursor: salvando || !dirty || rowId == null ? "default" : "pointer",
@@ -200,11 +200,11 @@ export default function MiniMapaCliente({ codigoOmie, nome, cor }: Props) {
 
       <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6, minHeight: 16 }}>
         <span style={{ fontSize: 11, color: "var(--portal-text-muted)" }}>
-          {cidade ? `📍 ${cidade}` : ""}
+          {cidade ? <><i className="fa-solid fa-location-dot" /> {cidade}</> : ""}
         </span>
         {msg && (
-          <span style={{ fontSize: 11, fontWeight: 600, color: msg.tipo === "ok" ? "#065f46" : "#991b1b" }}>
-            {msg.tipo === "ok" ? "✓ " : "⚠ "}{msg.texto}
+          <span style={{ fontSize: 11, fontWeight: 500, color: msg.tipo === "ok" ? "#065f46" : "#991b1b" }}>
+            <i className={`fa-solid ${msg.tipo === "ok" ? "fa-circle-check" : "fa-triangle-exclamation"}`} /> {msg.texto}
           </span>
         )}
       </div>
@@ -213,12 +213,12 @@ export default function MiniMapaCliente({ codigoOmie, nome, cor }: Props) {
 }
 
 const miniLabel: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, color: "var(--portal-text-secondary)",
-  textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4,
+  fontSize: 12, fontWeight: 500, color: "var(--portal-text-secondary)",
+  marginBottom: 4,
 };
 const miniInput: React.CSSProperties = {
   width: "100%", padding: "8px 12px",
-  border: "1.5px solid var(--portal-border)", borderRadius: 9,
+  border: "1px solid var(--portal-border)", borderRadius: 10,
   fontSize: 13, background: "var(--portal-bg-card)", color: "var(--portal-text)",
   fontFamily: "Inter, sans-serif", outline: "none",
 };

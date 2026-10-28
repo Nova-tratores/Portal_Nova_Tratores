@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sincronizarIncremental } from '@/lib/estoque/movimentos-sync';
 import { comCronRun } from '@/lib/cron/observar';
+import { agendadorJaRodou } from '@/lib/agendador/reserva';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 800;
@@ -39,8 +40,12 @@ async function handle(req: NextRequest) {
     const r = await comCronRun('estoque-sync-movimentos', job, { lockMinutos: 30 });
     return NextResponse.json({ sucesso: !r.erro, pulado: r.pulado, resultados: r.resultado, timestamp: new Date().toISOString() });
   }
+  // RESERVA (28/10/2026): o agendador do portal roda este sync às 21:00 (tarefa
+  // estoque-sync-movimentos, no worker). O GitHub só roda se o portal não tiver rodado bem.
+  const feito = await agendadorJaRodou('estoque-sync-movimentos');
+  if (feito) return NextResponse.json({ sucesso: true, pulado: `o agendador do portal já rodou (${feito})` });
   // fire-and-forget: dispara e responde na hora.
-  comCronRun('estoque-sync-movimentos', job, { lockMinutos: 30 })
+  comCronRun('estoque-sync-movimentos', job, { lockMinutos: 30, disparadoPor: 'github' })
     .then((r) => { if (r.pulado) console.log('[mov-cron] pulado (já rodando)'); })
     .catch((e) => console.error('[mov-cron]', (e as Error).message));
   return NextResponse.json({ sucesso: true, disparado: true, contas, grupo, janelaDias, timestamp: new Date().toISOString() });

@@ -3,7 +3,7 @@
 // Botão "Buscar trator" do header do POS: UM campo só (modelo, cliente, CNPJ ou
 // final do chassis, em qualquer ordem) e, sem texto, os projetos usados
 // recentemente nas OS. Clicando num resultado, a ficha resumida do projeto.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { authHeaders } from "@/lib/auth/client";
 import { BTN_BARRA } from "./botoes-barra";
@@ -26,7 +26,11 @@ const dataBR = (d: string | null | undefined) => {
   return s.includes("-") ? `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}` : (s || "—");
 };
 
-export default function ProjetosBusca() {
+/** Abre a busca de outro lugar (o menu circular do POS). */
+export const abrirBuscaTrator = () => window.dispatchEvent(new Event("pos-buscar-trator"));
+
+/** `semBotao`: só a janela — quem abre é o menu circular do cabeçalho (José, 21/10/2026). */
+export default function ProjetosBusca({ semBotao = false }: { semBotao?: boolean } = {}) {
   const [aberto, setAberto] = useState(false);
   const [texto, setTexto] = useState("");
   const [resultados, setResultados] = useState<ProjetoRow[] | null>(null);
@@ -59,6 +63,13 @@ export default function ProjetosBusca() {
   };
   // Abriu: já mostra os usados recentemente nas OS
   const abrir = () => { setAberto(true); setTexto(""); void buscar(""); };
+  const abrirRef = useRef(abrir);
+  useEffect(() => { abrirRef.current = abrir; });
+  useEffect(() => {
+    const f = () => abrirRef.current();
+    window.addEventListener("pos-buscar-trator", f);
+    return () => window.removeEventListener("pos-buscar-trator", f);
+  }, []);
 
   const abrirFicha = async (row: ProjetoRow) => {
     setSel(row); setFicha(null);
@@ -79,10 +90,12 @@ export default function ProjetosBusca() {
 
   return (
     <div style={{ marginRight: "auto" }}>
-      <button onClick={abrir} title="Buscar trator por modelo, cliente, CNPJ ou final do chassis"
-        style={BTN_BARRA}>
-        <i className="fas fa-tractor" style={{ color: "#0369A1" }} /> Buscar trator
-      </button>
+      {!semBotao && (
+        <button onClick={abrir} title="Buscar trator por modelo, cliente, CNPJ ou final do chassis"
+          style={BTN_BARRA}>
+          <i className="fas fa-tractor" style={{ color: "#0369A1" }} /> Buscar trator
+        </button>
+      )}
 
       {aberto && typeof document !== "undefined" && createPortal(
         <div style={{ position: "fixed", inset: 0, zIndex: 100003, background: "rgba(15,23,42,0.6)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}

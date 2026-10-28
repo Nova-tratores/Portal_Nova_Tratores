@@ -60,7 +60,8 @@ O pátio (máquinas em estoque e idade) fica para a F2: falta uma data de entrad
 
 | kpi_id | Fonte |
 |---|---|
-| `ppv_aberto` | `pedidos` (PPV) fora das fases finais, por idade de `status_desde` (0–2 / 3–7 / > 7 d); fases do `lib/ppv/relacao.ts` |
+| `ppv_pedido_aberto` / `ppv_remessa_aberta` | `pedidos` (PPV) fora das fases finais, separados por `Tipo_Pedido` (Pedido × Remessa), por idade de `status_desde` (0–2 / 3–7 / > 7 d); fases do `lib/ppv/relacao.ts`; quem criou = `email_usuario` (27/10: era um quadro só, `ppv_aberto`) |
+| `pv_omie_aberto` / `rem_omie_aberta` | Omie, pela tarefa `planta-omie-abertos` (a cada 2 h, 06–20 h, prioridade pesada, ~7 min): mesma leitura de /ajustes/pedidos (`listarPedidosEnriquecidos`; desde 28/10 TODOS os abertos, lidos por etapa 00–50 sem janela de data — a janela de 12 meses escondia 232 pedidos) e /ajustes/remessas (`obterRemessasAbertas`); por conta; a lista do detalhe fica em `planta_kpi.detalhe.itens` (até 1.000) e não vai na tela inteira; quem criou = usuário da Omie (`uInc`; na remessa, o da OS de origem). Cadastro: `sql/planta-omie-abertos.sql` |
 
 ### Oficina
 
@@ -206,6 +207,46 @@ Script `scripts/planta-conferir.ts` (antes `planta-gate0.ts`) (só leitura, 18 s
   `fix/seguranca-tema1-rotas` (lote 2, "login no DRE"), ainda não mesclada. Quando entrar, a conferência
   do Gate 0 precisa chamar a rota com o `CRON_SECRET` ou importar o cálculo.
 
+## 6c. Gate 1 (24 h) e Gate 2 (20/10/2026)
+
+- **Gate 1 em produção:** 291 rodadas em 24 h (290 OK, 1 interrompida por deploy), mediana 3 s, máximo 10 s,
+  maior intervalo 5,1 min. 4 rodadas com erro intermitente de leitura no financeiro → a leitura tenta de novo 1×
+  e um cômodo com erro mantém o último número bom (48a1706f). Tabela gravada × cálculo novo: 0 divergência.
+  A comparação com a tela oficial de vencidos agora exige login; decisão do usuário: conferir no navegador,
+  pelos links da tela (não passar token).
+- **Gate 2 — tela `/planta`:** `components/planta/PlantaViva.tsx` + `planta.module.css` (cores em classe: o modo
+  escuro do portal remapeia `style=`). Seis cômodos em grade CSS; canos em SVG calculados pela posição real das
+  salas (`ResizeObserver`), correndo quando o dado está em dia e pontilhados parados quando está velho; camadas
+  Dinheiro/Máquinas/Pedidos e peças; NOVA/CASTRO/Todas. Clique num número → painel lateral com o detalhe
+  (dias de atraso, semanas, fases, idade dos PPV, robôs), a lista de registros e "Abrir a tela oficial".
+- **Detalhe = os mesmos registros do número:** `selecionar()` em `regras.ts` é a fonte única do cálculo e da lista
+  (`itensDoKpi`); conferido nos 43 números com dados reais (0 divergência) e em testes. Rota
+  `GET /api/planta/kpi/[id]` lê só o cômodo pedido, até 200 registros, 403 para número sensível sem admin,
+  registra `drill` no `audit_log`.
+- **Módulo `planta`** no catálogo de permissões, Admin, menu e dashboard (com entrada em `systemToModulo`).
+  Testado com o usuário comum "Mecânico Teste": sem o módulo → 403; com o módulo → 11 números do financeiro
+  lacrados (sem valor e sem detalhe), PPV visível, detalhe sensível 403.
+
+## 6d. Termômetros por número (21/10/2026)
+
+Pedido do usuário: comparar cada número com a média da semana, do mês e do ano e com uma meta manual.
+Decisões: **só admin define meta**; **uma meta por número**, que vale para a visão "Todas" (NOVA/CASTRO
+mostram só as médias); **histórico do zero** (sem reconstruir o passado).
+
+- `sql/planta-termometros.sql`: `planta_kpi_dia` (último valor de cada dia, ~16 mil linhas/ano),
+  `planta_metas` (meta + tolerância %) e `planta_kpi.medias`. Fechadas ao navegador. Sem a migration nada
+  quebra: o worker não grava histórico e a rota de metas responde `migracaoFaltando`.
+- Worker: a cada rodada regrava a linha do dia; as médias (só dias fechados) são recalculadas uma vez por dia
+  e guardadas em `planta_kpi.medias`. Média só aparece com dias suficientes (semana 5/7, mês 21/30, ano 256/365).
+- Regras puras em `src/lib/planta/termometro.ts` (12 testes): medida principal (R$ quando há, senão contagem),
+  sentido por número (menor é melhor: vencidos, atrasadas, a alocar, negativos…; maior: saída líquida; neutro:
+  hoje/7 dias, PPV, OS), situação contra a meta (verde / amarelo dentro da tolerância / vermelho), variação % contra
+  cada média com seta boa/ruim só quando o número tem lado certo.
+- Rota: `GET /api/planta` manda `termometro` montado (número lacrado vai sem termômetro e as médias cruas nunca saem);
+  `GET/PUT /api/planta/metas` só admin, audit `meta`/`meta_removida` com de → para.
+- Tela: mini termômetro no cartão (barra só quando há média ou meta; texto "juntando histórico (N/5 d)" até lá) e o
+  termômetro completo no painel lateral, com o formulário de meta para admin.
+
 ## 7. Riscos
 
 | Risco | Cuidado |
@@ -216,3 +257,6 @@ Script `scripts/planta-conferir.ts` (antes `planta-gate0.ts`) (só leitura, 18 s
 | Pesar no banco | 1 RPC a cada 2 min com agregação no Postgres; tela lê ≈ 25 linhas |
 | Duas sessões mexendo no mesmo arquivo | Registro no portal (catálogo, navItems, dashboard) em commit separado e pequeno |
 | Virar enfeite | Critério de uso no Gate 3; se não bater, vira um card no dashboard |
+
+## 6e. Quem criou (27/10/2026)
+Toda lista do detalhe mostra "criado por" quando a fonte guarda, e o painel ganha a tabela "Por quem criou" (todos os registros do número, não só os 200 da lista; mesma pessoa com e sem acento vira uma linha). Fontes: PPV `email_usuario`; OS e cheques = registro "Ordem Criada" de `logs_ppo` (OS antigas sem registro = "não informado"); requisição `criado_por` (senão `solicitante`); fila do financeiro `usuario_nome`; PV/REM da Omie `uInc`. Garantias, propostas, títulos, zap, peças a alocar e negativos não têm criador na fonte.

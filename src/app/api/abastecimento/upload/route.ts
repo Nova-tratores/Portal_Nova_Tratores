@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { logFrota, podeFrota } from '@/lib/frota/server';
+import { atualizarPosVendasDepois } from '@/lib/mecanicos/ao-vivo-server';
 import { decodificarCsv, parseCsvAbastecimento } from '@/lib/abastecimento/parse';
 import { autorizacoesDe, chaveAbastecimento, diferencasEntre, separarPorAutorizacao } from '@/lib/abastecimento/dedup';
 import type { DuplicadaImport } from '@/lib/abastecimento/tipos';
@@ -226,6 +227,7 @@ export async function POST(request: Request) {
       detalhes: { totalLinhas, novos, duplicados, duplicadosAutorizacao: puladasAutorizacao, erros: erros.length },
     });
 
+    atualizarPosVendasDepois('abastecimento importado'); // gastos da Janela Mecânicos ao vivo
     return NextResponse.json(resultado);
   } catch (e) {
     // rollback manual: apaga o lote (cascade remove o que já entrou)

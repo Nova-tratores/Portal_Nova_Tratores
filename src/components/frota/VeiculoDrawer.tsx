@@ -24,10 +24,13 @@ import type { Motorista, VeiculoDetalhe } from '@/lib/frota/tipos';
 import type { ResultadoKm } from '@/lib/frota/km';
 import RegistrarKm from '@/components/frota/RegistrarKm';
 import { ESTADO_COR, type EstadoPreventiva } from '@/lib/frota/preventiva';
+import { SETORES_FROTA, rotuloSetor, corSetor } from '@/lib/frota/setores';
 
 interface Props {
   placa: string;
   podeEditar: boolean;
+  /** vender, arquivar, marcar sem uso (ação só de Dev — frota:veiculos:inativar) */
+  podeInativar?: boolean;
   podeResponsavel: boolean;
   podeDocumentos: boolean;
   onClose: () => void;
@@ -81,7 +84,7 @@ const STATUS_MULTA: Record<string, { label: string; cor: string; bg: string }> =
   arquivada: { label: 'Arquivada', cor: '#64748b', bg: '#f1f5f9' },
 };
 
-export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, podeDocumentos, onClose, onMudou }: Props) {
+export default function VeiculoDrawer({ placa, podeEditar, podeInativar = false, podeResponsavel, podeDocumentos, onClose, onMudou }: Props) {
   const isMobile = useIsMobile();
   const [det, setDet] = useState<VeiculoDetalhe | null>(null);
   const [erro, setErro] = useState('');
@@ -206,8 +209,23 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
     return () => { vivo = false; };
   }, [placa]);
 
-  // Senha do cartão Veloe fica mascarada na ficha — clique pra revelar
-  const [verSenhaVeloe, setVerSenhaVeloe] = useState(false);
+  // Senha do cartão Veloe: não vem com a ficha. "mostrar" busca na rota própria,
+  // que registra quem viu; a ficha mostra as últimas visualizações.
+  const [senhaVeloe, setSenhaVeloe] = useState<string | null>(null);
+  const [vistasVeloe, setVistasVeloe] = useState<{ quem: string; quando: string; acao: string }[]>([]);
+  const [buscandoSenha, setBuscandoSenha] = useState(false);
+  useEffect(() => { setSenhaVeloe(null); setVistasVeloe([]); }, [placa]);
+  const alternarSenhaVeloe = async () => {
+    if (senhaVeloe != null) { setSenhaVeloe(null); return; }
+    setBuscandoSenha(true);
+    try {
+      const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}/senha-veloe`, { headers: await authHeaders() });
+      const d = await r.json();
+      if (!r.ok) { alert(d.error || 'Não foi possível ver a senha.'); return; }
+      setSenhaVeloe(d.senha || '');
+      setVistasVeloe(d.vistas || []);
+    } catch (e) { alert(String(e)); } finally { setBuscandoSenha(false); }
+  };
 
   const formBase = (): Record<string, string> => {
     const v = det!.veiculo;
@@ -215,10 +233,10 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       marca: v.marca || '', modelo: v.modelo || '', descricao: v.descricao || '',
       ano: v.ano != null ? String(v.ano) : '', cor: v.cor || '',
       chassi: v.chassi || '', renavam: v.renavam || '', combustivel: v.combustivel || '',
-      categoria: v.categoria || 'outros', status: v.status || 'ativo',
+      setor: v.setor || '', status: v.status || 'ativo',
       tipo_veiculo: v.tipo_veiculo || '',
       seguradora: v.seguradora || '', numero_apolice: v.numero_apolice || '',
-      senha_cartao_veloe: v.senha_cartao_veloe || '',
+      senha_cartao_veloe: '', // vazio = manter; a senha atual não vem com a ficha
       proprietario: v.proprietario || '',
       exercicio_crlv: v.exercicio_crlv != null ? String(v.exercicio_crlv) : '',
       observacoes: v.observacoes || '',
@@ -273,7 +291,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
   const salvarEdicao = async () => {
     setBusy('editar');
     try {
-      const { valor_mercado, ...campos } = form;
+      const { valor_mercado, senha_cartao_veloe: novaSenhaVeloe, ...campos } = form;
       const payload: Record<string, unknown> = { ...campos };
       if (form.ano !== undefined) payload.ano = form.ano === '' ? null : Number(form.ano);
       // projetos Omie: número ou null (o servidor espelha na SupaPlacas)
@@ -292,6 +310,17 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
       const d = await r.json();
       if (!r.ok) { alert(d.error || 'Falha ao salvar.'); return; }
       if (d.aviso) alert(d.aviso);
+
+      // senha do Veloe: rota própria (registra quem alterou); vazio = manter
+      if (novaSenhaVeloe?.trim()) {
+        const rs = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}/senha-veloe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+          body: JSON.stringify({ senha: novaSenhaVeloe.trim() }),
+        });
+        if (!rs.ok) alert((await rs.json().catch(() => ({}))).error || 'A senha do Veloe não foi salva.');
+        setSenhaVeloe(null);
+      }
 
       // FIPE mora em Placas (o DRE lê de lá) — grava à parte, só se mudou
       const fipeNovo = valor_mercado === '' ? null : Number(String(valor_mercado).replace(',', '.'));
@@ -450,6 +479,31 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
 
   // Liga/desliga o checklist mensal deste carro. Pedir motivo ao DESLIGAR: seis
   // meses depois, "por que este carro não faz checklist?" precisa de resposta.
+  // SEM USO: ainda é da loja, mas parado — não cobra checklist, km nem alertas
+  const alternarSemUso = async () => {
+    const v = det?.veiculo;
+    if (!v) return;
+    const parando = v.sem_uso !== true;
+    let motivo = '';
+    if (parando) {
+      const resp = prompt('Marcar este carro como SEM USO (continua sendo da loja, mas parado).\nNão cobra checklist, km nem alertas. Por quê? (opcional)');
+      if (resp === null) return;
+      motivo = resp.trim();
+    } else if (!confirm('Este carro voltou a ser usado? Ele volta a cobrar checklist e km.')) return;
+    setBusy('sem_uso');
+    try {
+      const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ sem_uso: parando, sem_uso_motivo: parando ? motivo : '' }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { alert(d.error || 'Falha ao marcar sem uso.'); return; }
+      await carregar();
+      onMudou?.();
+    } finally { setBusy(''); }
+  };
+
   const alternarChecklist = async () => {
     const v = det?.veiculo;
     if (!v) return;
@@ -719,9 +773,25 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                   <span style={{ fontSize: 11, color: '#7c3aed' }}>
                     Fora da frota ativa e do patrimônio do DRE — a ficha fica só como registro histórico.
                   </span>
-                  {podeEditar && (
+                  {podeInativar && (
                     <button onClick={desfazerVenda} disabled={busy === 'venda'} style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 0, border: '1px solid #c4b5fd', background: 'transparent', color: '#6d28d9', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       {busy === 'venda' ? <Loader2 size={11} className="spin" /> : <Undo2 size={11} />} desfazer venda
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {/* Sem uso — ainda é da loja, mas parado */}
+              {v.sem_uso && v.status !== 'vendido' && v.status !== 'arquivado' && (
+                <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 0, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                    Sem uso{v.sem_uso_em ? ` desde ${fmtData(String(v.sem_uso_em).slice(0, 10))}` : ''}
+                  </div>
+                  {v.sem_uso_motivo && <span style={{ fontSize: 13.5, color: '#78350f' }}>💬 {v.sem_uso_motivo}</span>}
+                  <span style={{ fontSize: 11, color: '#92400e' }}>Ainda é da loja, mas está parado: não cobra checklist, km nem alertas.</span>
+                  {podeInativar && (
+                    <button onClick={alternarSemUso} disabled={busy === 'sem_uso'} style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 0, border: '1px solid #fcd34d', background: 'transparent', color: '#92400e', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
+                      {busy === 'sem_uso' ? <Loader2 size={11} className="spin" /> : <Undo2 size={11} />} voltar a usar
                     </button>
                   )}
                 </div>
@@ -737,7 +807,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                   <span style={{ fontSize: 11, color: '#64748b' }}>
                     Fora da frota ativa e do patrimônio do DRE — a ficha fica só como registro histórico.
                   </span>
-                  {podeEditar && (
+                  {podeInativar && (
                     <button onClick={desarquivar} disabled={busy === 'arquivar'} style={{ alignSelf: 'flex-start', display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 0, border: '1px solid #cbd5e1', background: 'transparent', color: '#475569', fontSize: 11, fontWeight: 700, cursor: 'pointer' }}>
                       {busy === 'arquivar' ? <Loader2 size={11} className="spin" /> : <Undo2 size={11} />} desarquivar
                     </button>
@@ -757,7 +827,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       <Linha rotulo="Chassi" valor={v.chassi} />
                       <Linha rotulo="RENAVAM" valor={v.renavam} />
                       <Linha rotulo="Tipo" valor={labelSubtipo(v.tipo_veiculo)} />
-                      <Linha rotulo="Categoria" valor={v.categoria} />
+                      <Linha rotulo="Setor" valor={<span style={{ color: corSetor(v.setor), fontWeight: 700 }}>{rotuloSetor(v.setor)}</span>} />
                       <Linha rotulo="Status" valor={v.status} />
                       <Linha rotulo="Proprietário" valor={v.proprietario} />
                       <Linha
@@ -813,17 +883,25 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       <Linha rotulo="Apólice" valor={v.numero_apolice} />
                       <Linha
                         rotulo="Senha cartão Veloe"
-                        valor={v.senha_cartao_veloe
+                        valor={v.tem_senha_veloe
                           ? (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                              {verSenhaVeloe ? v.senha_cartao_veloe : '••••••'}
-                              <button
-                                onClick={() => setVerSenhaVeloe((s) => !s)}
-                                title={verSenhaVeloe ? 'Ocultar a senha' : 'Mostrar a senha'}
-                                style={{ background: 'none', border: 'none', color: '#1e40af', cursor: 'pointer', fontSize: 11.5, fontWeight: 700, padding: 0 }}
-                              >
-                                {verSenhaVeloe ? 'ocultar' : 'mostrar'}
-                              </button>
+                            <span style={{ display: 'inline-flex', flexDirection: 'column', gap: 2 }}>
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                                {senhaVeloe != null ? senhaVeloe : '••••••'}
+                                <button
+                                  onClick={alternarSenhaVeloe}
+                                  disabled={buscandoSenha}
+                                  title={senhaVeloe != null ? 'Ocultar a senha' : 'Mostrar a senha (fica registrado que você viu)'}
+                                  style={{ background: 'none', border: 'none', color: '#1e40af', cursor: 'pointer', fontSize: 11.5, fontWeight: 700, padding: 0 }}
+                                >
+                                  {buscandoSenha ? '…' : senhaVeloe != null ? 'ocultar' : 'mostrar'}
+                                </button>
+                              </span>
+                              {senhaVeloe != null && vistasVeloe.length > 0 && (
+                                <span style={{ fontSize: 11, color: 'var(--portal-text-secondary)', fontWeight: 400 }}>
+                                  {vistasVeloe.slice(0, 5).map((x) => `${x.acao === 'alterar_senha_veloe' ? 'alterada' : 'vista'} por ${x.quem} em ${new Date(x.quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`).join(' · ')}
+                                </span>
+                              )}
                             </span>
                           )
                           : '—'}
@@ -909,7 +987,12 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       ] as [string, string][]).map(([campo, rotulo]) => (
                         <label key={campo} style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase' }}>
                           {rotulo}
-                          <input value={form[campo] || ''} onChange={(e) => setForm((f) => ({ ...f, [campo]: e.target.value }))} style={inputStyle} />
+                          <input
+                            value={form[campo] || ''}
+                            onChange={(e) => setForm((f) => ({ ...f, [campo]: e.target.value }))}
+                            placeholder={campo === 'senha_cartao_veloe' && det.veiculo.tem_senha_veloe ? '•••••• (vazio = manter)' : undefined}
+                            style={inputStyle}
+                          />
                         </label>
                       ))}
                       {det.veiculo.id_placa != null && (
@@ -938,15 +1021,17 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                         <input value={form.id_projeto_omie_castro || ''} onChange={(e) => setForm((f) => ({ ...f, id_projeto_omie_castro: e.target.value }))} placeholder="código numérico" style={inputStyle} />
                       </label>
                       <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase' }}>
-                        Categoria
-                        <select value={form.categoria} onChange={(e) => setForm((f) => ({ ...f, categoria: e.target.value }))} style={inputStyle}>
-                          {['comercial', 'oficina', 'diretoria', 'apoio', 'outros'].map((c) => <option key={c} value={c}>{c}</option>)}
+                        Setor
+                        <select value={form.setor || ''} onChange={(e) => setForm((f) => ({ ...f, setor: e.target.value }))} style={inputStyle}>
+                          <option value="">— escolher —</option>
+                          {SETORES_FROTA.map((s) => <option key={s.id} value={s.id}>{s.rotulo}</option>)}
                         </select>
                       </label>
                       <label style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase' }}>
                         Status
                         <select value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))} style={inputStyle}>
-                          {['ativo', 'manutencao', 'parado', 'vendido', 'locado'].map((s) => <option key={s} value={s}>{s}</option>)}
+                          {/* vendido/arquivado só pela "Saída da frota" (permissão de Dev) */}
+                          {['ativo', 'manutencao', 'parado', 'locado', ...(['vendido', 'arquivado'].includes(form.status) ? [form.status] : [])].map((s) => <option key={s} value={s}>{s}</option>)}
                         </select>
                       </label>
                       <label title="Carretinha/reboque tem placa e documentos como qualquer veículo — só não tem motor" style={{ display: 'flex', flexDirection: 'column', gap: 2, fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase' }}>
@@ -1199,7 +1284,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {(det.checklists || []).map((c) => {
                       const st = statusChecklist(c.status, c.score_confianca);
-                      const printUrl = c.share_token ? `/api/frota/checklist/print?token=${encodeURIComponent(c.share_token)}` : undefined;
+                      const printUrl = c.share_token ? `/frota/checklist/ver?token=${encodeURIComponent(c.share_token)}` : undefined;
                       return (
                         <a key={c.id} href={printUrl} target="_blank" rel="noopener noreferrer"
                           title={printUrl ? 'Abrir checklist (imprimir / salvar em PDF)' : 'Este checklist não tem link para abrir'}
@@ -1350,7 +1435,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
               </Secao>
 
               {/* Saída da frota — venda ou arquivamento; a ficha fica de histórico */}
-              {podeEditar && v.status !== 'vendido' && v.status !== 'arquivado' && (
+              {podeInativar && v.status !== 'vendido' && v.status !== 'arquivado' && (
                 <Secao titulo="Saída da frota" icone={<HandCoins size={14} />}>
                   {!vendaAberta ? (
                     <>
@@ -1363,6 +1448,9 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                         <button onClick={() => setVendaAberta(true)} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 0, border: '1px solid #fca5a5', background: '#fef2f2', color: '#b91c1c', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                           <HandCoins size={13} /> Marcar como vendido
+                        </button>
+                        <button onClick={alternarSemUso} disabled={busy === 'sem_uso'} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 0, border: '1px solid #fcd34d', background: '#fffbeb', color: '#92400e', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                          {busy === 'sem_uso' ? <Loader2 size={13} className="spin" /> : <Undo2 size={13} />} {v.sem_uso ? 'Voltar a usar' : 'Marcar sem uso'}
                         </button>
                         <button onClick={arquivar} disabled={busy === 'arquivar'} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 0, border: '1px solid #cbd5e1', background: 'var(--portal-bg-input)', color: '#475569', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                           {busy === 'arquivar' ? <Loader2 size={13} className="spin" /> : <FileText size={13} />} Arquivar veículo

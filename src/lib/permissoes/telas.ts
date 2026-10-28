@@ -3,7 +3,7 @@
 //
 // Fonte que o script scripts/permissoes-v2-sync.ts grava em perm_telas e
 // perm_tela_rotas. O id da tela é a chave que o código já usa
-// ('pos', 'pos:faturar', 'estoque:notas'): a hierarquia vem do ':'.
+// ('pos', 'pos:faturar', 'financeiro:notas'): a hierarquia vem do ':'.
 //
 // Puro (sem banco) — usado pelo sync, pelos testes e pelo painel "quem tem acesso".
 // =============================================================================
@@ -42,6 +42,7 @@ export interface RotaDef {
 export const MODULOS_TELAS: { id: string; nome: string }[] = [
   { id: 'ajustes', nome: 'Ajustes' },
   { id: 'atividades', nome: 'Atividades (logs)' },
+  { id: 'planta', nome: 'Planta Viva' },
   { id: 'avisos', nome: 'Avisos' },
   { id: 'back-nova', nome: 'Back Nova (externo)' },
   { id: 'cameras', nome: 'Vigia das Câmeras' },
@@ -129,7 +130,7 @@ const RAIZ: Record<string, string> = {
   feedbacks: '/feedbacks', clientes: '/clientes', 'supervisor-vendas': '/supervisor-vendas',
   'vendas-modelo': '/vendas-modelo', lead: '/lead', 'consulta-estoque': '/visual-estoque', estoque: '/estoque',
   pendencias: '/pendencias', atividades: '/atividades', 'dashboard-agro': '/dashboard-agro', tickets: '/tickets',
-  tarefas: '/tarefas', 'war-room': '/war-room', 'gestao-vendas': '/gestao-vendas',
+  tarefas: '/tarefas', 'war-room': '/war-room', planta: '/planta', 'gestao-vendas': '/gestao-vendas',
 };
 const ALTERNATIVAS_RAIZ: Record<string, string[]> = {
   tickets: ['tarefas', 'cronograma'],
@@ -171,6 +172,10 @@ export function catalogoRotas(): RotaDef[] {
   for (const a of ACOES_POR_MODULO.dre) tela(`/dre-financeiro/${a.id}`, `dre:${a.id}`, ['financeiro']);
   for (const a of ACOES_POR_MODULO['consulta-estoque']) tela(`/visual-estoque/${a.id}`, `consulta-estoque:${a.id}`);
   for (const a of ACOES_POR_MODULO.feedbacks) tela(`/feedbacks/${a.id}`, `feedbacks:${a.id}`);
+  // Telas novas do Feedbacks (23/10/2026, lib/feedbacks/telas.ts): mesmas chaves das antigas
+  tela('/feedbacks/painel', 'feedbacks:relatorios');
+  tela('/feedbacks/robo', 'feedbacks:oportunidades');
+  tela('/feedbacks/clientes', 'feedbacks:clientes', ['feedbacks:atendimento']);
 
   // Exceções conferidas página a página
   tela('/frota/veiculos', 'frota:dashboard', [], 'Hoje e Veículos dividem a chave');
@@ -188,6 +193,7 @@ export function catalogoRotas(): RotaDef[] {
   tela('/financeiro/novo-chamado-nf', 'financeiro:criar_chamado');
   tela('/financeiro/novo-chamado-rh', 'financeiro:criar_chamado');
   tela('/financeiro/novo-pagar-receber', 'financeiro:criar_lancamento');
+  tela('/financeiro/notas', 'financeiro:notas');
 
   for (const [padrao, nota] of LIVRES) r.set(padrao, { padrao, acesso: 'livre', ...(nota ? { nota } : {}) });
   for (const padrao of SO_ADMIN) r.set(padrao, { padrao, acesso: 'admin' });

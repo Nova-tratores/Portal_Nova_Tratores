@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, ClipboardList, Library, PlayCircle, Stamp, Users } from 'lucide-react'
+import { BarChart3, ClipboardList, Library, Network, PlayCircle, Stamp, Users } from 'lucide-react'
 import { chamar, COR_POPS } from './comum'
 
 export default function PopsNav() {
@@ -27,6 +27,7 @@ export default function PopsNav() {
 
   const guias = [
     { href: '/pops', label: 'POPs', icone: <ClipboardList size={15} />, ativa: path === '/pops' || (/^\/pops\/[0-9a-f-]{36}/.test(path)) },
+    { href: '/pops/processos', label: 'Mapa de processos', icone: <Network size={15} />, ativa: path.startsWith('/pops/processos') },
     { href: '/pops/minhas', label: 'Minhas execuções', icone: <PlayCircle size={15} />, ativa: path.startsWith('/pops/minhas') },
     { href: '/pops/modelos', label: 'Modelos', icone: <Library size={15} />, ativa: path.startsWith('/pops/modelos') },
     { href: '/pops/aprovar', label: 'Para aprovar', icone: <Stamp size={15} />, ativa: path.startsWith('/pops/aprovar'), n: pendentes },

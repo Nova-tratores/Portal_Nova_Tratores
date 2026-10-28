@@ -116,7 +116,15 @@ export default function FrotaChecklistsPage() {
         </div>
       ) : (
         <div style={{ border: '1px solid var(--portal-border)', borderRadius: 0, overflowX: 'auto', background: 'var(--portal-bg-card)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 110px 70px 70px 110px 20px', gap: 12, minWidth: 720, padding: '12px 18px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)', fontSize: 12, color: 'var(--portal-text)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.4 }}>
+          {/* celular: cada técnico vira cartão (a grade de 7 colunas cortava nome e situação) */}
+          <style>{`@media (max-width: 640px) {
+            .ck-cab { display: none !important; }
+            .ck-lin { min-width: 0 !important; grid-template-columns: minmax(0,1fr) auto !important; grid-template-areas: 't s' 'p k' 'c sc' 'x x'; gap: 4px 10px !important; padding: 12px 14px !important; }
+            .ck-lin > :nth-child(1) { grid-area: t; } .ck-lin > :nth-child(2) { grid-area: p; } .ck-lin > :nth-child(3) { grid-area: s; text-align: right !important; }
+            .ck-lin > :nth-child(4) { grid-area: sc; } .ck-lin > :nth-child(5) { grid-area: k; } .ck-lin > :nth-child(6) { grid-area: c; text-align: left !important; } .ck-lin > :nth-child(7) { display: none; }
+            .ck-lin [data-r]::before { content: attr(data-r) " "; font-size: 10.5px; font-weight: 600; color: var(--portal-text-muted); text-transform: uppercase; }
+          }`}</style>
+          <div className="ck-cab" style={{ display: 'grid', gridTemplateColumns: '1fr 120px 110px 70px 70px 110px 20px', gap: 12, minWidth: 720, padding: '12px 18px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)', fontSize: 12, color: 'var(--portal-text)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.4 }}>
             <span>Técnico / Veículo</span><span>Placa</span><span style={{ textAlign: 'center' }}>Situação</span><span style={{ textAlign: 'center' }}>Score</span><span style={{ textAlign: 'right' }}>KM</span><span style={{ textAlign: 'right' }}>Concluído</span><span></span>
           </div>
           {itens.map((it, i) => {
@@ -124,6 +132,7 @@ export default function FrotaChecklistsPage() {
             return (
               <div key={i}
                 onClick={it.origem === 'nao_vinculado' && it.placa_key ? () => router.push(`/frota/checklist/${encodeURIComponent(it.placa_key)}`) : undefined}
+                className="ck-lin"
                 style={{ display: 'grid', gridTemplateColumns: '1fr 120px 110px 70px 70px 110px 20px', gap: 12, minWidth: 720, padding: '12px 18px', borderBottom: '1px solid var(--portal-border)', alignItems: 'center', cursor: it.origem === 'nao_vinculado' && it.placa_key ? 'pointer' : 'default' }}>
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -147,9 +156,9 @@ export default function FrotaChecklistsPage() {
                 <span style={{ textAlign: 'center' }}>
                   <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: st.bg, color: st.cor }}>{st.label}</span>
                 </span>
-                <span style={{ textAlign: 'center', fontSize: 13, fontWeight: 700, color: it.score != null && it.score < 50 ? '#b91c1c' : 'var(--portal-text-secondary)' }}>{it.score != null ? `${it.score}%` : '—'}</span>
-                <span style={{ textAlign: 'right', fontSize: 13, color: 'var(--portal-text)' }}>{it.km != null ? it.km.toLocaleString('pt-BR') : '—'}</span>
-                <span style={{ textAlign: 'right', fontSize: 13, color: 'var(--portal-text)' }}>{fmtDataHora(it.fim_em)}</span>
+                <span data-r="score" style={{ textAlign: 'center', fontSize: 13, fontWeight: 700, color: it.score != null && it.score < 50 ? '#b91c1c' : 'var(--portal-text-secondary)' }}>{it.score != null ? `${it.score}%` : '—'}</span>
+                <span data-r="km" style={{ textAlign: 'right', fontSize: 13, color: 'var(--portal-text)' }}>{it.km != null ? it.km.toLocaleString('pt-BR') : '—'}</span>
+                <span data-r="concluído" style={{ textAlign: 'right', fontSize: 13, color: 'var(--portal-text)' }}>{fmtDataHora(it.fim_em)}</span>
                 <span style={{ textAlign: 'center' }}>{it.origem === 'nao_vinculado' && it.placa_key ? <ChevronRight size={15} color="var(--portal-text-muted)" /> : null}</span>
               </div>
             );

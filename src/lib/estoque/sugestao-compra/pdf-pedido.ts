@@ -28,7 +28,7 @@ export function gerarPDFPedidoCompra(p: PedidoPDF): Promise<Buffer> {
       // Cabeçalho
       doc.fontSize(16).font('Helvetica-Bold').fillColor('#0f766e').text(`Pedido de Compra #${p.numero}`, { align: 'left' });
       doc.fillColor('#000').fontSize(9).font('Helvetica');
-      doc.text(`Fornecedor: ${p.fornecedor || '—'}    Conta: ${String(p.conta).toUpperCase()}    Data: ${p.data || new Date().toLocaleDateString('pt-BR')}`);
+      doc.text(`Fornecedor: ${p.fornecedor || '—'}    Conta: ${String(p.conta).toUpperCase()}    Data: ${p.data || new Date().toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`);
       if (p.criadoPor) doc.fontSize(8).fillColor('#666').text(`Criado por: ${p.criadoPor}`);
       if (p.observacao) doc.fontSize(8).fillColor('#666').text(`Obs: ${p.observacao}`);
       doc.moveDown(0.4).fillColor('#000');
@@ -80,7 +80,7 @@ export function gerarPDFPedidoCompra(p: PedidoPDF): Promise<Buffer> {
       doc.fontSize(9).font('Helvetica-Bold').fillColor('#000')
         .text(`${linhas.length} itens · ${totalQtd} unidades · Total estimado ${fmtBRL(totalGeral)}`);
       doc.fontSize(7).font('Helvetica').fillColor('#999')
-        .text(`Gerado em ${new Date().toLocaleString('pt-BR')} · Portal Nova Tratores · Sugestão de Compra`);
+        .text(`Gerado em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })} · Portal Nova Tratores · Sugestão de Compra`);
 
       doc.end();
     } catch (e) { reject(e); }

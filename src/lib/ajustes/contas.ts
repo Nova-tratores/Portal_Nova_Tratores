@@ -108,7 +108,7 @@ export async function lancamentosContas(
   const nomeCol = colNomeContraparte(tipo);
   const filtros: FiltrosContas = { conta, de: de || null, ate: ate || null, statusIn: statusIn || undefined };
   if (dim !== 'todos') (filtros as any)[dim === 'departamento' ? 'codigoDepartamento' : 'codigoCategoria'] = codigo;
-  const cols = `conta_omie, codigo_lancamento, valor_documento, data_emissao, data_vencimento, data_previsao, numero_documento, numero_documento_fiscal, observacao, status_titulo, ${nomeCol}, codigo_categoria, descricao_categoria, codigo_departamento, descricao_departamento, codigo_projeto:raw->>codigo_projeto, id_conta_corrente:raw->>id_conta_corrente`;
+  const cols = `conta_omie, codigo_lancamento, valor_documento, valor_pago, data_emissao, data_vencimento, data_previsao, numero_documento, numero_documento_fiscal, numero_parcela, observacao, status_titulo, ${nomeCol}, codigo_cliente_fornecedor, codigo_categoria, descricao_categoria, codigo_departamento, descricao_departamento, codigo_projeto:raw->>codigo_projeto, id_conta_corrente:raw->>id_conta_corrente, id_origem:raw->>id_origem`;
   const rows = await lerContas(tipo, filtros, cols);
   rows.sort((a, b) => (Number(b.valor_documento) || 0) - (Number(a.valor_documento) || 0));
   const teto = Math.max(1, Math.min(5000, Number(limite) || 1000));
@@ -120,6 +120,12 @@ export async function lancamentosContas(
     vencimento: r.data_vencimento,
     dataPrevisao: r.data_previsao || null,
     numeroDoc: r.numero_documento || r.numero_documento_fiscal || null,
+    numeroDocFiscal: r.numero_documento_fiscal || null,
+    parcela: r.numero_parcela || null,
+    valorPago: Number(r.valor_pago) || 0,
+    // origem do título na Omie: COMP = gerado pela NF (duplicata), RPTP = digitado à mão
+    idOrigem: r.id_origem || null,
+    codigoFornecedor: r.codigo_cliente_fornecedor != null ? Number(r.codigo_cliente_fornecedor) : null,
     observacao: r.observacao || null,
     codigoProjeto: r.codigo_projeto && Number(r.codigo_projeto) > 0 ? Number(r.codigo_projeto) : null,
     idContaCorrente: r.id_conta_corrente && Number(r.id_conta_corrente) > 0 ? Number(r.id_conta_corrente) : null,
@@ -473,7 +479,7 @@ export async function ultimaSincronizacao(tipo: string, conta: Conta): Promise<s
 /** Títulos EM ABERTO de uma empresa+tipo (lidos do espelho, não da Omie ao vivo). */
 export async function titulosAbertos(tipo: string, conta: Conta): Promise<any> {
   const nomeCol = colNomeContraparte(tipo);
-  const cols = `conta_omie, codigo_lancamento, valor_documento, valor_pago, data_emissao, data_vencimento, data_previsao, numero_documento, numero_documento_fiscal, numero_parcela, status_titulo, ${nomeCol}, descricao_categoria`;
+  const cols = `conta_omie, codigo_lancamento, valor_documento, valor_pago, data_emissao, data_vencimento, data_previsao, numero_documento, numero_documento_fiscal, numero_parcela, status_titulo, ${nomeCol}, codigo_cliente_fornecedor, descricao_categoria, observacao, id_origem:raw->>id_origem`;
   const [rows, sincronizadoEm] = await Promise.all([
     lerContas(tipo, { conta, statusIn: STATUS_ABERTO }, cols),
     ultimaSincronizacao(tipo, conta),
@@ -498,7 +504,10 @@ export async function titulosAbertos(tipo: string, conta: Conta): Promise<any> {
       parcela: r.numero_parcela || null,
       status: r.status_titulo,
       contraparte: r[nomeCol] || null,
+      codigoFornecedor: r.codigo_cliente_fornecedor != null ? Number(r.codigo_cliente_fornecedor) : null,
       categoria: r.descricao_categoria || null,
+      observacao: r.observacao || null,
+      idOrigem: r.id_origem || null, // COMP = duplicata da NF; RPTP = manual
     };
   });
   return { tipo, conta, total: titulos.length, titulos, sincronizadoEm };

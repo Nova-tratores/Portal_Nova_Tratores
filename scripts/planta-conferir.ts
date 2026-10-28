@@ -4,7 +4,8 @@
 //   (2) com o que está gravado em planta_kpi (se a migration já foi aplicada).
 //
 //   npx tsx --env-file=.env.local scripts/planta-conferir.ts
-// Sai com código 1 se alguma divergência passar de 0,5%.
+// Sai com 1 se alguma divergência passar de 0,5%; com 2 se não deu para conferir com a tela oficial.
+// A rota oficial exige login: passe o token da sua sessão em PLANTA_TOKEN.
 import { carregarFontes } from '../src/lib/planta/server';
 import { calcularKpis, type LinhaKpi } from '../src/lib/planta/regras';
 import { createClient } from '@supabase/supabase-js';
@@ -26,12 +27,18 @@ const pct = (a: number, b: number) => (b ? Math.abs(a - b) / Math.abs(b) * 100 :
   }
 
   let pior = 0;
+  let conferidos = 0;
+  // A rota oficial exige login com o módulo financeiro (desde 19/10/2026). Para conferir,
+  // passe o token da SUA sessão do portal: PLANTA_TOKEN=<access_token> npx tsx ...
   console.log('\n(1) vencidos × /api/dre-financeiro/vencidos (produção)');
-  for (const conta of ['NOVA', 'CASTRO']) for (const tipo of ['pagar', 'receber']) {
+  const token = process.env.PLANTA_TOKEN;
+  if (!token) console.log('  sem PLANTA_TOKEN: a tela oficial pede login — conferência (1) NÃO feita');
+  for (const conta of token ? ['NOVA', 'CASTRO'] : []) for (const tipo of ['pagar', 'receber']) {
     const nosso = ls.find((l) => l.kpi_id === `${tipo}_vencido` && l.conta === conta)!;
     const r = await fetch(`https://portal.novatratores.com/api/dre-financeiro/vencidos?conta=${conta.toLowerCase()}&tipo=${tipo}`,
-      process.env.CRON_SECRET ? { headers: { authorization: `Bearer ${process.env.CRON_SECRET}` } } : {}).catch(() => null);
+      { headers: { authorization: `Bearer ${token}` } }).catch(() => null);
     if (!r || !r.ok) { console.log(`  ${tipo} ${conta}: tela oficial respondeu ${r ? r.status : 'erro de rede'} — sem conferência`); continue; }
+    conferidos++;
     const j = await r.json();
     const ofi = tipo === 'pagar' ? j.kpis.totalPagar : j.kpis.totalReceber;
     const d = pct(nosso.valor || 0, ofi);
@@ -55,6 +62,8 @@ const pct = (a: number, b: number) => (b ? Math.abs(a - b) / Math.abs(b) * 100 :
       if (d > LIMITE_PCT) console.log(`  ${l.kpi_id} ${l.conta}: gravado n=${g.contagem} ${R$(g.valor == null ? null : Number(g.valor))} · agora n=${l.contagem} ${R$(l.valor)} (${d.toFixed(2)}% — pode ser só a diferença de horário)`);
     }
   }
-  console.log(`\nmaior divergência contra a tela oficial: ${pior.toFixed(3)}% (limite ${LIMITE_PCT}%)`);
-  process.exit(pior > LIMITE_PCT ? 1 : 0);
+  console.log(conferidos
+    ? `\nmaior divergência contra a tela oficial: ${pior.toFixed(3)}% em ${conferidos} números (limite ${LIMITE_PCT}%)`
+    : '\nconferência contra a tela oficial NÃO feita (sem token ou rota indisponível)');
+  process.exit(pior > LIMITE_PCT ? 1 : conferidos ? 0 : 2);
 })();

@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getContasOmie } from '@/lib/ajustes/conta';
 import { listarPedidosAntigosTodasContas } from '@/lib/ajustes/pedidos';
 import { gerarPDFPedidos } from '@/lib/ajustes/pdf-pedidos';
-import { resolveJanelaBR } from '@/lib/ajustes/cmc';
 import { fmtISO, hoje } from '@/lib/ajustes/dates';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
 
@@ -20,7 +19,8 @@ export async function GET(req: NextRequest) {
   const diasMin = Math.max(1, parseInt(sp.get('dias') || '', 10) || 15);
   const fmt = (sp.get('fmt') || 'json').toLowerCase();
   const contas = getContasOmie().map((c) => c.id);
-  const { dataDeBR, dataAteBR } = resolveJanelaBR(null, null);
+  // Todos os abertos (sem janela de data): o pedido esquecido há mais de 12 meses também entra.
+  const dataDeBR = '', dataAteBR = '';
   try {
     const peds = await listarPedidosAntigosTodasContas(contas, dataDeBR, dataAteBR, diasMin);
 

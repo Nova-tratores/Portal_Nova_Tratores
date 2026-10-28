@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useMarcarCaso } from '@/lib/uso/caso';
 import { useRascunho } from '@/lib/rascunho/useRascunho';
 import AvisoRascunho from '@/components/rascunho/AvisoRascunho';
 import { supabase } from '@/lib/supabase';
@@ -18,13 +19,16 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { isValorAlto, buscarAutorizacaoAtiva, criarPedidoPermissao, consumirAutorizacao, parseValorBR, LIMITE_BLOQUEIO, type Autorizacao } from '@/lib/requisicoes/autorizacao';
 import HistoricoModal from './HistoricoModal';
 import TicketsDaReq from './TicketsDaReq';
+import DescontoTecnicoReq from './DescontoTecnicoReq';
 import RecorteAnexo from './RecorteAnexo';
 import DialogoImprimirReq from './DialogoImprimirReq';
+import LeituraNota from './LeituraNota';
 import { anexosDaReq, anexosNoDrive as anexosNoDriveDe, getUrlAnexo, CAMPOS_NF } from '@/lib/requisicoes/anexos';
 import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
 import { buscarContaDaReq, criarContaDaRequisicao, type ContaExistente } from '@/lib/financeiro/conta-da-requisicao';
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins';
 import { fetchAuth } from '@/lib/auth/client';
+import CobrancaRequisicao from '@/components/pos/CobrancaRequisicao';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIatVqhjdeBeo4PYNWr992vCsPpvEEjOxabWB7mz5JRJ7BroxnvR8CRIcXIgTfLSm/exec';
 const DEPARTAMENTOS = ["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"];
@@ -44,6 +48,8 @@ function parseMoeda(valorFmt: string): string {
 
 export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, aberto = false, onFechar, podeEditar = true, grupos = [], usuarioAtual = '', onGruposChange, onExpandirGrupo }: { req: any, onUpdate: any, onPrint: any, dadosCompartilhados?: any, aberto?: boolean, onFechar?: () => void, podeEditar?: boolean, grupos?: any[], usuarioAtual?: string, onGruposChange?: () => void, onExpandirGrupo?: (id: number) => void }) {
   const [modalAberto, setModalAberto] = useState(aberto);
+  // Monitor de uso: avisa a jornada qual requisição está aberta (só hashes ficam no navegador).
+  useMarcarCaso(modalAberto ? { req: req.id, os: req.ordem_servico, doc: req.cliente_cnpj, chassi: req.chassis } : null);
 
   // Sinaliza pro resto da página que um card está aberto — os botões flutuantes
   // (Nova Requisição e Painel do Dev) somem pra não ficar por cima do modal.
@@ -82,6 +88,8 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   const [userEmail, setUserEmail] = useState('');
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadOk, setUploadOk] = useState<string | null>(null);
+  // acabou de anexar uma nota: o bloco "Ler a nota" lê sozinho
+  const [gatilhoNota, setGatilhoNota] = useState<{ campo: string; em: number } | null>(null);
   const [ordensAbertas, setOrdensAbertas] = useState<any[]>([]);
   const [osBusca, setOsBusca] = useState('');
   const [osDropdownOpen, setOsDropdownOpen] = useState(false);
@@ -105,13 +113,13 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   const [valorDespesaFmt, setValorDespesaFmt] = useState(() => {
     const v = req.valor_despeza;
     if (!v) return '';
-    const n = parseFloat(String(v).replace(',', '.'));
+    const n = parseValorBR(v); // "1.550,00" e "1550.00" (antes o 1.550,00 virava 1,55)
     return isNaN(n) ? '' : n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   });
   const [valorCobradoFmt, setValorCobradoFmt] = useState(() => {
     const v = req.valor_cobrado_cliente;
     if (!v) return '';
-    const n = parseFloat(String(v).replace(',', '.'));
+    const n = parseValorBR(v);
     return isNaN(n) ? '' : n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   });
 
@@ -503,6 +511,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       const { error: uploadError } = await supabase.storage.from('requisicoes').upload(filePath, file);
       if (uploadError) throw uploadError;
       persist(fieldName, filePath);
+      if (fieldName.startsWith('foto_nf')) setGatilhoNota({ campo: fieldName, em: Date.now() });
       // Alimentação com NF anexada pula direto pra "Enviado Financeiro"
       // (nos outros tipos a nota não muda o status)
       const tipoReq = String(localData.tipo || localData.ReqTipo || '').toLowerCase();
@@ -879,6 +888,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               {/* Só leitura aqui; o vínculo é feito de dentro do ticket. */}
               {temAcesso('tickets') && <TicketsDaReq reqId={req.id} ativo={modalAberto} />}
 
+              {/* ── cobrada do técnico (desconto lançado com a comissão no Centro do Pós-Vendas) ── */}
+              <DescontoTecnicoReq reqId={req.id} ativo={modalAberto} />
+
 
               {/* ── BLOQUEIO DE VALOR ALTO ── */}
               {valorAlto && (
@@ -1187,6 +1199,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 </div>
               )}
 
+              {/* Cobrança do cliente: selo + motivo + "Não cobrar"/"Reabrir" (José, 26/10/2026) */}
+              <CobrancaRequisicao req={{ ...req, ...localData }} />
+
               {localData.setor === "Trator-Loja" && (
                 <div className="border border-zinc-200 rounded-xl p-4">
                   <span className={`${sectionTitle} text-black`}><Cpu size={12}/> Trator (Loja)</span>
@@ -1299,6 +1314,22 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                     <input value={localData.numero_nota || ''} onChange={e => setField('numero_nota', e.target.value)} onBlur={e => persist('numero_nota', e.target.value)} className={inputBase} placeholder="Nº do documento" />
                   </div>
                 </div>
+
+                {/* Ler a nota anexada (chave da DANFE → IA → Omie); grava só com "Usar estes dados" */}
+                <LeituraNota
+                  reqId={req.id}
+                  campos={['foto_nf', 'foto_nf2', 'foto_nf3', 'foto_nf4', 'foto_nf5'].filter(c => !!localData[c] && !String(localData[c]).startsWith('SupaAtualizarReq_Images/'))}
+                  gatilho={gatilhoNota}
+                  urlDe={(c) => getUrlAnexo(localData[c])}
+                  valorReq={localData.valor_despeza}
+                  fornecedorReq={localData.fornecedor || ''}
+                  numeroReq={localData.numero_nota || ''}
+                  onAplicar={(campos) => {
+                    for (const [k, v] of Object.entries(campos)) { setField(k, v); persist(k, v); }
+                    if (campos.valor_despeza) setValorDespesaFmt(campos.valor_despeza);
+                    if (campos.fornecedor) setFornBusca(campos.fornecedor);
+                  }}
+                />
 
                 {/* Valor da despesa */}
                 <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-3">

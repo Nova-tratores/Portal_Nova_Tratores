@@ -7,6 +7,7 @@ import Link from 'next/link'
 import { AlertTriangle, Plus, Search } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import ModalNovoPop from '@/components/pops/ModalNovoPop'
+import { ChipEtiqueta } from '@/components/pops/EtiquetasPop'
 import {
   COR_POPS, EstadoChip, areasQuePossoCriar, botao, br, campo, cartao, chamar, chip, pagina, primeiroNome, vazio,
   type AreasResp, type PopLista, type UsuarioMapa,
@@ -30,6 +31,7 @@ export default function PopsLista() {
   const [dono, setDono] = useState('')
   const [vencida, setVencida] = useState(false)
   const [arquivados, setArquivados] = useState(false)
+  const [etiqueta, setEtiqueta] = useState('')
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro('')
@@ -50,6 +52,7 @@ export default function PopsLista() {
       if (area && p.area_id !== area) return false
       if (dono && p.dono_id !== dono) return false
       if (vencida && !p.revisao_vencida) return false
+      if (etiqueta && !(p.etiquetas || []).includes(etiqueta)) return false
       if (q && !`${p.codigo} ${p.titulo}`.toLowerCase().includes(q)) return false
       if (estado === 'publicado' && !p.publicada) return false
       if (estado === 'edicao' && p.edicao?.estado !== 'rascunho') return false
@@ -57,7 +60,9 @@ export default function PopsLista() {
       if (estado === 'sem_publicacao' && p.publicada) return false
       return true
     })
-  }, [pops, area, dono, vencida, busca, estado])
+  }, [pops, area, dono, vencida, busca, estado, etiqueta])
+
+  const etiquetas = useMemo(() => [...new Set(pops.flatMap((p) => p.etiquetas || []))].sort((a, b) => a.localeCompare(b, 'pt-BR')), [pops])
 
   const porArea = useMemo(() => {
     const grupos = new Map<string, PopLista[]>()
@@ -92,6 +97,12 @@ export default function PopsLista() {
           <option value="">Qualquer dono</option>
           {donos.map((d) => <option key={d.id} value={d.id}>{d.nome}</option>)}
         </select>
+        {etiquetas.length > 0 && (
+          <select value={etiqueta} onChange={(e) => setEtiqueta(e.target.value)} style={{ ...campo, width: 'auto' }}>
+            <option value="">Qualquer etiqueta</option>
+            {etiquetas.map((t) => <option key={t} value={t}>{t}</option>)}
+          </select>
+        )}
         <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-secondary,#555)' }}>
           <input type="checkbox" checked={vencida} onChange={(e) => setVencida(e.target.checked)} /> Revisão vencida {vencidos ? `(${vencidos})` : ''}
         </label>
@@ -143,6 +154,10 @@ export default function PopsLista() {
                     </span>
                   </span>
                   <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    {(p.etiquetas || []).map((t) => (
+                      <ChipEtiqueta key={t} texto={t} ativa={etiqueta === t}
+                        onClick={() => setEtiqueta(etiqueta === t ? '' : t)} />
+                    ))}
                     {p.revisao_vencida && <span style={chip('#b45309', 'rgba(217,119,6,.14)')}><AlertTriangle size={12} /> revisão vencida</span>}
                     {p.publicada && <EstadoChip estado="publicado" numero={p.publicada.numero} />}
                     {p.edicao && <EstadoChip estado={p.edicao.estado} numero={p.edicao.numero} />}

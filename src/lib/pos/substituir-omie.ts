@@ -52,7 +52,7 @@ async function consultarOS(chave: Record<string, unknown>): Promise<OsOmie | nul
 async function logOS(idOrdem: string, acao: string, usuario: string) {
   const agora = new Date();
   await supabase.from(TBL_LOGS_PPO).insert({
-    Id_ppo: idOrdem, Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora), Hora_Acao: agora.toLocaleTimeString("pt-BR"),
+    Id_ppo: idOrdem, Data_Acao: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora), Hora_Acao: agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" }),
     UsuEmail: usuario, acao,
   }).then(() => {}, () => {});
 }
@@ -196,7 +196,7 @@ export async function substituirPedido(idOrdem: string, idPPV: string, opts: { m
   let duplicadoPorNos = false;
   if (opts.modo === "duplicar") {
     try {
-      const r = await omieNaConta<{ nCodPed?: number }>(acc, "/produtos/pedidovendafat/", "DuplicarPedidoVenda", { nCodPed: nAntigo, cCodIntPed: String(antigo.cabecalho?.codigo_pedido_integracao || "") });
+      const r = await omieNaConta<{ nCodPed?: number }>(acc, "/produtos/pedidovendafat/", "DuplicarPedidoVenda", { nCodPed: nAntigo, ...(antigo.cabecalho?.codigo_pedido_integracao ? { cCodIntPed: String(antigo.cabecalho.codigo_pedido_integracao) } : {}) });
       if (!r?.nCodPed || r.nCodPed === nAntigo) return { ok: false, erro: "O Omie não devolveu o pedido duplicado." };
       novo = await consultarPedidoOmie({ codigo_pedido: r.nCodPed }, acc);
       duplicadoPorNos = true;
@@ -218,11 +218,11 @@ export async function substituirPedido(idOrdem: string, idPPV: string, opts: { m
 
   // 2) cancela o ANTIGO
   try {
-    await omieNaConta(acc, "/produtos/pedidovendafat/", "CancelarPedidoVenda", { nCodPed: nAntigo, cCodIntPed: String(antigo.cabecalho?.codigo_pedido_integracao || "") });
+    await omieNaConta(acc, "/produtos/pedidovendafat/", "CancelarPedidoVenda", { nCodPed: nAntigo, ...(antigo.cabecalho?.codigo_pedido_integracao ? { cCodIntPed: String(antigo.cabecalho.codigo_pedido_integracao) } : {}) });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     if (duplicadoPorNos) {
-      try { await omieNaConta(acc, "/produtos/pedidovendafat/", "CancelarPedidoVenda", { nCodPed: nNovo, cCodIntPed: String(novo.cabecalho?.codigo_pedido_integracao || "") }); }
+      try { await omieNaConta(acc, "/produtos/pedidovendafat/", "CancelarPedidoVenda", { nCodPed: nNovo, ...(novo.cabecalho?.codigo_pedido_integracao ? { cCodIntPed: String(novo.cabecalho.codigo_pedido_integracao) } : {}) }); }
       catch { return { ok: false, erro: `O Omie recusou cancelar o pedido ${numAntigo} (${msg}) e a cópia ${numNovo} NÃO pôde ser cancelada — cancele o ${numNovo} no Omie.` }; }
     }
     return { ok: false, erro: `O Omie recusou cancelar o pedido ${numAntigo}: ${msg}. Nada foi trocado.` };

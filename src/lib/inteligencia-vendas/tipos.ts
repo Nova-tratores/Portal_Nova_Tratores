@@ -144,6 +144,8 @@ export interface ClienteIV {
   valorPropostasAbertas: number;
 
   areaHa: number | null;
+  /** propriedades do app de vendas (portal_nt_clientes_PRINCIPAL.id) ligadas a este cliente */
+  propriedades?: number[];
   /** posição da propriedade (GPS do CRM), quando houver */
   local: [number, number] | null;
   culturas: string[];

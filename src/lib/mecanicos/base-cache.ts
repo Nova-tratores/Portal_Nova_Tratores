@@ -19,6 +19,7 @@ const hojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_P
 // cópia em memória da leitura das tabelas (várias telas abertas não releem o banco a cada clique)
 let memoria: { base: BaseTela; em: number } | null = null
 let semTabelas = false
+let renovando: Promise<void> | null = null
 
 /** Sem as tabelas: calcula direto nas fontes (como antes). */
 async function montarNasFontes(): Promise<BaseTela> {
@@ -37,7 +38,13 @@ async function montarNasFontes(): Promise<BaseTela> {
 
 export async function baseComCache(forcar = false): Promise<{ dados: BaseTela; geradoEm: string }> {
   if (!semTabelas) {
-    if (!forcar && memoria && Date.now() - memoria.em < 60_000) return { dados: memoria.base, geradoEm: memoria.base.geradoEm }
+    // responde na hora com a cópia em memória (até 10 min) e renova por trás depois de 1 min
+    if (!forcar && memoria && Date.now() - memoria.em < VALIDADE_BASE_MS) {
+      if (Date.now() - memoria.em > 60_000 && !renovando) {
+        renovando = lerBaseDasTabelas().then((b) => { if (b) memoria = { base: b, em: Date.now() } }).catch(() => {}).finally(() => { renovando = null })
+      }
+      return { dados: memoria.base, geradoEm: memoria.base.geradoEm }
+    }
     try {
       if (forcar) await sincronizarPosVendas(somarDias(hojeSP(), -90), hojeSP())
       const b = await lerBaseDasTabelas()
@@ -53,6 +60,13 @@ export async function baseComCache(forcar = false): Promise<{ dados: BaseTela; g
   }
   const r = await comCache(CHAVE_BASE, VALIDADE_BASE_MS, montarNasFontes, forcar)
   return { dados: r.dados, geradoEm: r.geradoEm }
+}
+
+/** Relê a base das tabelas para a memória (depois de regravar uma janela — faturamento ao vivo). */
+export async function recarregarBaseMemoria() {
+  if (semTabelas) return
+  const b = await lerBaseDasTabelas()
+  if (b) memoria = { base: b, em: Date.now() }
 }
 
 // robô: últimos 90 dias a cada rodada; os 4 anos uma vez por dia (depois das 3 h)

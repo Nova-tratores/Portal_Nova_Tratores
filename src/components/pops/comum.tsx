@@ -25,6 +25,7 @@ export interface PopLista {
   publicada: { id: string; numero: number } | null
   edicao: { id: string; numero: number; estado: EstadoVersao } | null
   revisao_vencida: boolean
+  etiquetas?: string[]   // ausente sem a migration pops-04
 }
 
 export interface Area { id: string; sigla: string; nome: string; ativo: boolean }

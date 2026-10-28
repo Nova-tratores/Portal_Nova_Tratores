@@ -5,7 +5,7 @@
 //      antiga é cancelada lá (o título sai junto) e esta OS do portal passa a
 //      apontar para a nova, voltando para "Cobrando Cliente".
 // O pedido de peças (PPV) e a NF-e dele não mudam.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { authHeaders } from "@/lib/auth/client";
 import CronometroEstimado, { useSegundos } from "@/components/comum/CronometroEstimado";
 
@@ -49,13 +49,25 @@ export default function CancelarNotaModal({ osId, numeroOS, nfse, valor = 0, eta
       return { ok: false, erro: "O Omie está demorando e o servidor continua trabalhando. Feche esta janela e confira o bloco de faturamento em 1 minuto — NÃO repita agora." };
     } finally { clearTimeout(t); }
   };
+  // trava contra clique duplo: o 2º "cancelar" chegava ao sistema nacional junto com o 1º e voltava "já cancelada" (OS-0596)
+  const ocupado = useRef(false);
   const cancelar = async () => {
+    if (ocupado.current) return;
+    ocupado.current = true;
+    try { await cancelarAgora(); } finally { ocupado.current = false; }
+  };
+  const duplicar = async () => {
+    if (ocupado.current) return;
+    ocupado.current = true;
+    try { await duplicarAgora(); } finally { ocupado.current = false; }
+  };
+  const cancelarAgora = async () => {
     setEnviando("cancelar");
     const j = await chamar({ acao: "cancelar", motivo, texto });
     setEnviando(null); setRes(j);
     if (j.ok) { setCancelada(true); setEtapa("duplicar"); onFeito(); } else setEtapa("fim");
   };
-  const duplicar = async () => {
+  const duplicarAgora = async () => {
     setEnviando("duplicar");
     const j = await chamar({ acao: T.acaoDup });
     setEnviando(null); setRes(j); setEtapa("fim");

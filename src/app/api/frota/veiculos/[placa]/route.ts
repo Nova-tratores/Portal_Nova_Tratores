@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
-import { logFrota, podeFrota, temModuloFrota } from '@/lib/frota/server';
+import { logFrota, podeFrota, podeInativar, temModuloFrota } from '@/lib/frota/server';
 import { espelharProjetosOmie } from '@/lib/frota/supaplacas';
 import { resolverPlaca, extrairPlacaDeNumPlaca } from '@/lib/frota/placa';
 import { responsavelVazio, mesmaPessoa } from '@/lib/frota/responsavel';
@@ -29,10 +29,17 @@ const EDITAVEIS = new Set([
   'marca', 'modelo', 'combustivel', 'categoria', 'setor', 'status', 'ativo',
   'observacoes', 'seguradora', 'placa_exibicao', 'proprietario', 'equipamentos',
   'exercicio_crlv', 'id_projeto_omie', 'id_projeto_omie_castro',
-  'fipe_codigo', 'fipe_ano_codigo', 'senha_cartao_veloe',
+  // senha do Veloe NÃO: tem rota própria que registra quem viu/alterou (./senha-veloe)
+  'fipe_codigo', 'fipe_ano_codigo',
   // desligar o checklist mensal deste carro (motivo é opcional)
   'checklist_desativado', 'checklist_desativado_motivo',
+  // carro SEM USO: ainda é da loja, mas parado — não cobra checklist nem km (22/10/2026)
+  'sem_uso', 'sem_uso_motivo',
 ]);
+
+/** Setores da frota (José, 22/10/2026). */
+const SETORES = new Set(['comercial', 'pecas', 'pos_vendas', 'pessoal']);
+const FORA_DA_FROTA = new Set(['vendido', 'arquivado']);
 
 async function acharVeiculo(placaParam: string) {
   const placa = resolverPlaca(decodeURIComponent(placaParam));
@@ -151,8 +158,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ plac
     ultimos_dias: diasUso.slice(0, 7),
   };
 
+  // a senha do Veloe nunca sai aqui — só se existe (ver em ./senha-veloe, que registra quem viu)
+  const seg = await supabase.from('frota_veiculo_segredos').select('senha_cartao_veloe').eq('veiculo_id', v.id).maybeSingle();
+  const temSenhaVeloe = !!(seg.data?.senha_cartao_veloe || v.senha_cartao_veloe);
   return NextResponse.json({
-    veiculo: v,
+    veiculo: { ...v, senha_cartao_veloe: null, tem_senha_veloe: temSenhaVeloe },
     imagem_url: foto?.data?.imagem_url || null,
     // FIPE mora em Placas (o DRE lê valor_mercado de lá) — edição na Ficha via
     // /api/visual-estoque/frota/dados, identificando por id_placa.
@@ -194,6 +204,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ pl
   if (Object.keys(upd).length === 0) {
     return NextResponse.json({ error: 'Nada para atualizar.' }, { status: 400 });
   }
+  if ('setor' in upd && upd.setor != null && !SETORES.has(String(upd.setor))) {
+    return NextResponse.json({ error: 'Setor inválido.' }, { status: 400 });
+  }
+  // tirar/devolver o carro da frota é ação só de Dev — inclusive pelo status/ativo da ficha
+  const mexeNaFrota =
+    ('ativo' in upd && upd.ativo !== v.ativo) ||
+    ('status' in upd && upd.status !== v.status && (FORA_DA_FROTA.has(String(upd.status)) || FORA_DA_FROTA.has(String(v.status)))) ||
+    ('sem_uso' in upd && !!upd.sem_uso !== !!v.sem_uso);
+  if (mexeNaFrota && !podeInativar(auth)) {
+    return NextResponse.json({ error: 'Só quem recebeu "Vender, arquivar ou marcar sem uso" (um Dev concede) pode tirar ou devolver um carro da frota.' }, { status: 403 });
+  }
+  if ('sem_uso' in upd) {
+    const parando = upd.sem_uso === true;
+    upd.sem_uso = parando;
+    upd.sem_uso_em = parando ? new Date().toISOString() : null;
+    upd.sem_uso_por = parando ? (auth.email || auth.userId || 'portal') : null;
+    if (!parando) upd.sem_uso_motivo = null;
+  }
   if (travar.length > 0) {
     upd.campos_manuais = [...new Set([...(v.campos_manuais || []), ...travar])];
   }
@@ -212,6 +240,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ pl
   if (error) {
     // migração pendente: aqui NÃO dá pra seguir em silêncio como nas leituras —
     // a pessoa clicou num botão e ficaria achando que desligou o checklist
+    if (/sem_uso|setor/i.test(error.message)) {
+      return NextResponse.json({ error: 'Falta aplicar a migração sql/frota-setor-sem-uso.sql no Supabase.' }, { status: 409 });
+    }
     if (/checklist_desativado/i.test(error.message)) {
       return NextResponse.json(
         { error: 'Falta aplicar a migração sql/frota-gravidade-e-checklist.sql no Supabase para desligar o checklist por veículo.' },

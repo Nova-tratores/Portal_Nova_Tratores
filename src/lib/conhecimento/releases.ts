@@ -11,6 +11,8 @@ export interface CommitBruto {
   autor?: string | null;
   data?: string | null;
   arquivos?: string[];
+  /** descrição completa do commit (o que vem depois do título) — usada no aviso diário */
+  corpo?: string | null;
 }
 
 export interface CommitLido extends CommitBruto {
@@ -42,6 +44,10 @@ const ALIAS_ESCOPO: Record<string, string> = {
   garantia: "garantias", revisao: "revisoes", "revisão": "revisoes",
   feedback: "feedbacks", crm: "feedbacks",
   requisicao: "requisicoes", ticket: "tickets",
+  // aviso diário (22/10/2026): escopos e pastas que não têm o mesmo nome do módulo
+  "dre-financeiro": "dre", "visual-estoque": "consulta-estoque", iv: "inteligencia-vendas",
+  mecanico: "mecanicos", pasta: "clientes", trabalho: "tickets", central: "tickets",
+  agenda: "geral", salas: "geral", reunioes: "geral", dashboard: "geral", notificacoes: "geral",
 };
 const alias = (s: string) => ALIAS_ESCOPO[s] ?? s;
 
@@ -55,8 +61,16 @@ const RE_MODULO_NO_CAMINHO = /^src\/(?:app\/\(portal\)\/(?:\([^)]+\)\/)?|app\/ap
 
 /** `src/lib/pos/x.ts` → "pos"; `src/app/(portal)/(servicos)/pos/page.tsx` → "pos". */
 export function moduloDoArquivo(arquivo: string): string | null {
-  const m = (arquivo || "").replace(/\\/g, "/").match(RE_MODULO_NO_CAMINHO);
-  return m ? alias(m[1].toLowerCase()) : null;
+  const a = (arquivo || "").replace(/\\/g, "/");
+  const m = a.match(RE_MODULO_NO_CAMINHO);
+  if (!m) return null;
+  // Opa: as abas Peças S/Estoque e Patrimônio são módulos próprios
+  if (m[1] === "opa") {
+    const sub = a.slice(m[0].length).split("/")[0];
+    if (sub === "pecas") return "opa-pecas";
+    if (sub === "patrimonio") return "patrimonio";
+  }
+  return alias(m[1].toLowerCase());
 }
 
 /** Arquivo que pode mudar o que o usuário vê: fora testes, documentação, SQL, scripts e CI. */

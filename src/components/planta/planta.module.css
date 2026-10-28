@@ -1,0 +1,159 @@
+/* Planta Viva — cores em CLASSES (não em style=): o modo escuro do portal remapeia cores
+   inline por atributo e trocaria o azul/âmbar/laranja dos canos. */
+.raiz {
+  --pl-tinta: #12303f;
+  --pl-papel: #f4f8fa;
+  --pl-grade: #dde8ee;
+  --pl-parede: #12303f;
+  --pl-sala: #ffffff;
+  --pl-sutil: #5b7584;
+  --pl-agua: #1d7fc4;
+  --pl-gas: #c98a00;
+  --pl-luz: #e0631f;
+  --pl-ok: #1f8a4c;
+  --pl-atencao: #b77700;
+  --pl-ruim: #c23a2b;
+  --pl-chip: #eef4f7;
+  color: var(--pl-tinta);
+  padding: 16px clamp(8px, 2.5vw, 24px) 48px;
+  min-height: calc(100vh - 64px);
+  background-color: var(--pl-papel);
+  background-image: linear-gradient(var(--pl-grade) 1px, transparent 1px), linear-gradient(90deg, var(--pl-grade) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+:global([data-theme="dark"]) .raiz {
+  --pl-tinta: #dbeaf2;
+  --pl-papel: #0b1d2a;
+  --pl-grade: #14324599;
+  --pl-parede: #8fb7cc;
+  --pl-sala: #0f2534;
+  --pl-sutil: #8fb0c1;
+  --pl-agua: #4aa8ff;
+  --pl-gas: #f2b52b;
+  --pl-luz: #ff8a4d;
+  --pl-ok: #3fcf7d;
+  --pl-atencao: #f0b43c;
+  --pl-ruim: #ff6b5b;
+  --pl-chip: #163246;
+}
+
+.topo { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
+.titulo { font-size: 24px; font-weight: 800; letter-spacing: .01em; margin: 0; }
+.subtitulo { font-size: 13px; color: var(--pl-sutil); margin-top: 2px; }
+.controles { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.grupo { display: inline-flex; border: 1px solid var(--pl-parede); background: var(--pl-sala); }
+.grupo button { border: 0; background: transparent; color: var(--pl-tinta); padding: 6px 10px; font-size: 12.5px; font-weight: 600; cursor: pointer; }
+.grupo button + button { border-left: 1px solid var(--pl-grade); }
+.grupo button[aria-pressed="true"] { background: var(--pl-parede); color: var(--pl-sala); }
+.grupo button:focus-visible, .chip:focus-visible, .fechar:focus-visible { outline: 2px solid var(--pl-agua); outline-offset: 1px; }
+.atualizado { font-size: 12px; color: var(--pl-sutil); font-variant-numeric: tabular-nums; }
+
+.aviso { border: 1px dashed var(--pl-parede); background: var(--pl-sala); padding: 8px 12px; font-size: 13px; margin-bottom: 12px; }
+
+.planta { position: relative; border: 3px solid var(--pl-parede); background: color-mix(in srgb, var(--pl-sala) 55%, transparent); padding: 34px; }
+.salas {
+  display: grid; gap: 46px; position: relative; z-index: 1;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, .8fr) minmax(0, 1.05fr);
+  grid-template-areas: "financeiro posvenda patio" "oficina balcao almoxarifado" "maquinas maquinas maquinas";
+}
+@media (max-width: 960px) {
+  .salas { grid-template-columns: 1fr; grid-template-areas: "financeiro" "posvenda" "patio" "oficina" "balcao" "almoxarifado" "maquinas"; gap: 14px; }
+  .canos { display: none; }
+  .planta { padding: 10px; }
+}
+
+.sala { background: var(--pl-sala); border: 2px solid var(--pl-parede); padding: 12px; min-width: 0; transition: opacity .2s; }
+.sala.apagada { opacity: .35; }
+.sala.obras { background-image: repeating-linear-gradient(135deg, transparent 0 10px, color-mix(in srgb, var(--pl-atencao) 14%, transparent) 10px 20px); }
+.salaTopo { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+.salaNome { font-size: 12px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+.salaIdade { font-size: 11px; color: var(--pl-sutil); display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.chips { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+
+.chip { text-align: left; border: 1px solid var(--pl-grade); border-left: 4px solid var(--pl-sutil); background: var(--pl-chip); color: var(--pl-tinta); padding: 8px 10px; cursor: pointer; min-width: 0; font: inherit; }
+.chip:hover { border-color: var(--pl-parede); }
+.chip.agua { border-left-color: var(--pl-agua); }
+.chip.gas { border-left-color: var(--pl-gas); }
+.chip.luz { border-left-color: var(--pl-luz); }
+.chip.ativo { outline: 2px solid var(--pl-parede); }
+.chipRotulo { font-size: 11.5px; color: var(--pl-sutil); line-height: 1.25; }
+.chipValor { font-size: 19px; font-weight: 800; font-variant-numeric: tabular-nums; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chipSub { font-size: 11.5px; color: var(--pl-sutil); margin-top: 1px; font-variant-numeric: tabular-nums; }
+.lacre { font-size: 13px; font-weight: 700; color: var(--pl-sutil); display: inline-flex; gap: 5px; align-items: center; }
+
+.ponto { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.verde { background: var(--pl-ok); }
+.amarelo { background: var(--pl-atencao); }
+.vermelho { background: var(--pl-ruim); }
+
+/* Canos (SVG por cima da grade, atrás das salas) */
+.canos { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; overflow: visible; }
+.cano { fill: none; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 8 9; transition: opacity .2s; }
+.cano.agua { stroke: var(--pl-agua); }
+.cano.gas { stroke: var(--pl-gas); }
+.cano.luz { stroke: var(--pl-luz); }
+.cano.parado { stroke-dasharray: 2 6; opacity: .55; }
+.cano.apagado { opacity: .12; }
+@media (prefers-reduced-motion: no-preference) {
+  .cano.correndo { animation: correr 1.3s linear infinite; }
+}
+@keyframes correr { to { stroke-dashoffset: -17; } }
+
+.legenda { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 10px; font-size: 12px; color: var(--pl-sutil); }
+.legenda span { display: inline-flex; align-items: center; gap: 6px; }
+.traco { width: 22px; height: 0; border-top: 3px dashed; display: inline-block; }
+.traco.agua { border-color: var(--pl-agua); }
+.traco.gas { border-color: var(--pl-gas); }
+.traco.luz { border-color: var(--pl-luz); }
+
+/* Inspetor */
+.fundo { position: fixed; inset: 0; background: rgba(0, 0, 0, .25); z-index: 60; }
+.inspetor {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100vw); z-index: 61; overflow-y: auto;
+  background: var(--pl-sala); color: var(--pl-tinta); border-left: 3px solid var(--pl-parede);
+  padding: 18px 18px calc(24px + env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; gap: 14px;
+}
+.inspTopo { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.fechar { border: 1px solid var(--pl-parede); background: transparent; color: var(--pl-tinta); padding: 4px 10px; cursor: pointer; font: inherit; font-size: 13px; }
+.inspNumero { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.secao { border-top: 1px dashed var(--pl-grade); padding-top: 10px; display: grid; gap: 6px; }
+.secaoTitulo { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--pl-sutil); }
+.barraLinha { display: grid; grid-template-columns: 64px 1fr auto; gap: 8px; align-items: center; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.barra { height: 8px; background: var(--pl-agua); }
+.barra.ruim { background: var(--pl-ruim); }
+.tabela { width: 100%; border-collapse: collapse; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.tabela th, .tabela td { padding: 4px 6px; border-bottom: 1px solid var(--pl-grade); text-align: right; }
+.tabela th:first-child, .tabela td:first-child { text-align: left; }
+.neg { color: var(--pl-ruim); }
+.itens { display: grid; gap: 6px; }
+.item { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px 10px; border: 1px solid var(--pl-grade); color: var(--pl-tinta); text-decoration: none; }
+.item:hover { border-color: var(--pl-parede); }
+.itemTitulo { font-size: 13px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.itemValor { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.itemSub { grid-column: 1 / -1; font-size: 11.5px; color: var(--pl-sutil); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.itemCriador { grid-column: 1 / -1; font-size: 11.5px; font-weight: 600; color: var(--pl-tinta); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.oficial { display: inline-block; border: 2px solid var(--pl-parede); padding: 8px 12px; font-weight: 700; color: var(--pl-tinta); text-decoration: none; text-align: center; }
+.oficial:hover { background: var(--pl-chip); }
+.mudo { font-size: 12.5px; color: var(--pl-sutil); }
+
+/* Termômetros */
+.termoBox { margin-top: 6px; display: grid; gap: 3px; }
+.termo { position: relative; height: 6px; background: color-mix(in srgb, var(--pl-sutil) 22%, transparent); }
+.termoAlto { height: 12px; margin: 4px 0 2px; }
+.termoFill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--pl-sutil); }
+.termoFill.verde { background: var(--pl-ok); }
+.termoFill.amarelo { background: var(--pl-atencao); }
+.termoFill.vermelho { background: var(--pl-ruim); }
+.termoMarca { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--pl-tinta); }
+.termoMeta { position: absolute; top: -5px; bottom: -5px; width: 0; margin-left: -1px; border-left: 2px dashed var(--pl-tinta); }
+.termoTxt { font-size: 11px; color: var(--pl-sutil); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bom { color: var(--pl-ok); font-weight: 700; }
+.ruim { color: var(--pl-ruim); font-weight: 700; }
+.neutro { color: var(--pl-sutil); }
+.metaForm { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; margin-top: 4px; }
+.metaForm label { display: grid; gap: 3px; font-size: 11.5px; color: var(--pl-sutil); }
+.metaForm input { width: 130px; padding: 6px 8px; border: 1px solid var(--pl-parede); background: var(--pl-sala); color: var(--pl-tinta); font: inherit; font-size: 13px; }
+.metaForm button { border: 2px solid var(--pl-parede); background: transparent; color: var(--pl-tinta); padding: 6px 10px; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.metaForm button:disabled { opacity: .45; cursor: default; }
+.metaForm .mudo { flex-basis: 100%; }

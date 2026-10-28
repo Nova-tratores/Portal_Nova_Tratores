@@ -8,13 +8,13 @@
 
 import Link from 'next/link'
 import { useRef, useState } from 'react'
-import { Camera, Check, FlaskConical, ImagePlus, Loader2, MapPin, Printer, RotateCcw, Save, X } from 'lucide-react'
+import { Camera, Check, FlaskConical, ImagePlus, Loader2, MapPin, Printer, RotateCcw, Save, X, Package } from 'lucide-react'
 import { buscarItem, criarItem } from '@/lib/opa-pecas/db'
 import { comprimir, enviarFoto, mensagemErro } from '@/lib/opa-pecas/fotos'
 import { nomeDoItem, textoLocal } from '@/lib/opa-pecas/regras'
 import type { Qualidade } from '@/lib/opa-pecas/tipos'
 import { SeletorLocal, SeletorQualidade, SeletorQuantidade } from './Campos'
-import { Aviso, botao, INP, LARANJA, ROTULO, SECAO, TITULO_SECAO, useTelaLarga, type Base } from './comum'
+import { Aviso, botao, INP, LARANJA, ROTULO, SECAO, TituloSecao, useTelaLarga, type Base } from './comum'
 import ProdutoCadastro from './ProdutoCadastro'
 import Impressao, { type ItemParaEtiqueta } from './Impressao'
 
@@ -205,7 +205,7 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
       {inputsArquivo}
       <div style={coluna}>
       <section style={SECAO}>
-        <h2 style={TITULO_SECAO}>Fotos <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>— {prontas.length} de no mínimo {MIN_FOTOS}, ângulos diferentes</span></h2>
+        <TituloSecao icone={<Camera size={16} />}>Fotos <span style={{ fontSize: 13.5, color: 'var(--portal-text-secondary)' }}>— {prontas.length} de no mínimo {MIN_FOTOS}, ângulos diferentes</span></TituloSecao>
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${larga ? 110 : 92}px, 1fr))`, gap: 8 }}>
           {fotos.map((f, i) => (
             <div key={f.id} style={{ position: 'relative', aspectRatio: '1', borderRadius: 10, overflow: 'hidden', background: '#000', border: `2px solid ${f.estado === 'erro' ? '#DC2626' : f.estado === 'ok' ? '#10B981' : 'var(--portal-border)'}` }}>
@@ -246,7 +246,7 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
       </section>
 
       <section style={SECAO}>
-        <h2 style={TITULO_SECAO}>Onde achou a peça? <span style={{ color: '#DC2626' }}>*</span></h2>
+        <TituloSecao icone={<MapPin size={16} />}>Onde achou a peça? <span style={{ color: '#DC2626' }}>*</span></TituloSecao>
         <SeletorLocal locais={base.locais} local={form.local} tecnico={form.tecnico} onChange={(l, t) => setForm((f) => ({ ...f, local: l, tecnico: t }))} onLocalCriado={base.recarregarLookups} />
       </section>
 
@@ -254,7 +254,7 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
 
       <div style={coluna}>
       <section style={SECAO}>
-        <h2 style={TITULO_SECAO}>A peça</h2>
+        <TituloSecao icone={<Package size={16} />}>A peça</TituloSecao>
         <div>
           <label style={ROTULO}>Quantidade</label>
           <SeletorQuantidade valor={form.quantidade} onChange={(n) => muda('quantidade', n)} />
@@ -272,7 +272,7 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
           <label style={ROTULO}>Código existente da peça <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)' }}>(se tiver)</span></label>
           <input value={form.codigoFab} onChange={(e) => muda('codigoFab', e.target.value.slice(0, 80))} placeholder="Part number gravado ou etiqueta antiga" style={INP} />
           {/* já mostra se o código é um produto cadastrado e as características dele */}
-          <div style={{ marginTop: 6 }}><ProdutoCadastro codigo={form.codigoFab} /></div>
+          <div style={{ marginTop: 6 }}><ProdutoCadastro codigo={form.codigoFab} onUsar={(c) => muda('codigoFab', c)} /></div>
         </div>
       </section>
 

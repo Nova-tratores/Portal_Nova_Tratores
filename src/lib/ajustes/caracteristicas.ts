@@ -17,6 +17,7 @@ import { criarJob, atualizarJob, concluirJob, falharJob, lerJobAtivo, jobRodando
 import { registrarAuditLog } from '@/lib/server/audit-notify';
 import { fecharSeAlocada } from '@/lib/pecas/alocacao-server';
 import { norm as normCaract } from './posicao';
+import { planejarEspelho, dataOmie, type LinhaEspelho } from './caracteristicas-diff';
 
 // Identidade (do token, resolvida na rota) para auditar quem editou a característica.
 export interface AutorEdicao { userId?: string; userName: string }
@@ -58,6 +59,8 @@ export async function iniciarSyncCaracteristicas(
     contas?: string[];
     /** Chamado depois que cada conta foi gravada (retomada por conta). */
     aoConcluirConta?: (label: string, pecas: number) => Promise<void> | void;
+    /** Só os produtos alterados desde esta data (DD/MM/AAAA). Sem isso, leitura completa. */
+    incrementalDesde?: string;
   } = {},
 ): Promise<any> {
   if (await jobRodando('caracteristicas-sync', null)) {
@@ -68,6 +71,8 @@ export async function iniciarSyncCaracteristicas(
 
   const execucao = (async () => {
     const porConta: Record<string, number> = {};
+    const detalhe: Record<string, { modo: string; lidos: number; novas: number; alteradas: number; removidas: number; iguais: number; remocaoSuspensa?: number }> = {};
+    const modo: 'completo' | 'incremental' = opts.incrementalDesde ? 'incremental' : 'completo';
     try {
       const contas = getContasOmie().filter((c) => !opts.contas || opts.contas.includes(c.label));
       for (const c of contas) {
@@ -75,14 +80,18 @@ export async function iniciarSyncCaracteristicas(
         atualizarJob(jobId, { etapa: `${label}: listando produtos...` });
         const produtos = await listarProdutos(c.id, {
           onProgress: (m: string) => atualizarJob(jobId, { etapa: `${label}: ${m}` }),
+          filtros: modo === 'incremental'
+            ? { filtrar_por_data_de: opts.incrementalDesde, filtrar_por_data_ate: dataOmie(new Date()), filtrar_apenas_alteracao: 'S' }
+            : undefined,
         });
         const agora = new Date().toISOString();
+        const elegivel = (p: any) => !p.inativo && familiaCaractPermitida(p.familia);
         // Inclui TODAS as peças ativas — inclusive as com 0 características — para o
         // "Sugerir Tipo:" alcançá-las pela descrição. Antes só entravam produtos que
         // já tinham ≥1 característica, deixando ~metade do faturamento de peças
         // (óleos, embreagens, filtros sem característica) permanentemente fora da matriz.
         const rows = produtos
-          .filter((p: any) => !p.inativo && familiaCaractPermitida(p.familia))
+          .filter(elegivel)
           .map((p: any) => ({
             conta_omie: label,
             codigo_produto: Number(p.codigoProduto) || p.codigoProduto,
@@ -95,18 +104,42 @@ export async function iniciarSyncCaracteristicas(
             ),
             atualizado_em: agora,
           }));
-        atualizarJob(jobId, { etapa: `${label}: gravando ${rows.length} peças...` });
-        const { error: delErr } = await supabase.from('produtos_caracteristicas').delete().eq('conta_omie', label);
-        if (delErr) throw new Error(`delete ${label}: ${delErr.message}`);
-        for (let i = 0; i < rows.length; i += 500) {
-          const { error: insErr } = await supabase.from('produtos_caracteristicas').insert(rows.slice(i, i + 500));
-          if (insErr) throw new Error(`insert ${label}: ${insErr.message}`);
+        // Só vai ao banco o que é novo, mudou ou saiu (antes: apagava e reinseria ~5 mil
+        // linhas por conta toda noite). Regras em caracteristicas-diff.ts.
+        const removerIds = modo === 'incremental'
+          ? produtos.filter((p: any) => !elegivel(p)).map((p: any) => String(Number(p.codigoProduto) || p.codigoProduto))
+          : [];
+        atualizarJob(jobId, { etapa: `${label}: comparando ${rows.length} peças com o espelho...` });
+        const existentes = await lerEspelhoConta(label, modo === 'incremental'
+          ? [...rows.map((r: any) => String(r.codigo_produto)), ...removerIds]
+          : null);
+        const plano = planejarEspelho(rows as (LinhaEspelho & { atualizado_em: string })[], existentes, modo, removerIds);
+        // Trava: se a Omie devolver uma lista incompleta (erro no meio da paginação), a
+        // comparação acharia que milhares de peças "sumiram". Acima de 5% do espelho (mín.
+        // 50) as remoções ficam suspensas — o completo da semana seguinte tenta de novo.
+        let remocaoSuspensa = 0;
+        if (modo === 'completo' && plano.apagar.length > Math.max(50, existentes.length * 0.05)) {
+          remocaoSuspensa = plano.apagar.length;
+          console.warn(`[caract ${label}] ${plano.apagar.length} remoções suspensas (${existentes.length} no espelho, ${rows.length} vieram da Omie)`);
+          plano.apagar = [];
+        }
+        atualizarJob(jobId, { etapa: `${label}: gravando ${plano.gravar.length} e removendo ${plano.apagar.length}...` });
+        for (let i = 0; i < plano.gravar.length; i += 500) {
+          const { error } = await supabase.from('produtos_caracteristicas')
+            .upsert(plano.gravar.slice(i, i + 500), { onConflict: 'conta_omie,codigo_produto' });
+          if (error) throw new Error(`gravar ${label}: ${error.message}`);
+        }
+        for (let i = 0; i < plano.apagar.length; i += 200) {
+          const { error } = await supabase.from('produtos_caracteristicas')
+            .delete().eq('conta_omie', label).in('codigo_produto', plano.apagar.slice(i, i + 200));
+          if (error) throw new Error(`remover ${label}: ${error.message}`);
         }
         porConta[label] = rows.length;
+        detalhe[label] = { modo, lidos: produtos.length, novas: plano.novas, alteradas: plano.alteradas, removidas: plano.apagar.length, iguais: plano.iguais, ...(remocaoSuspensa ? { remocaoSuspensa } : {}) };
         await opts.aoConcluirConta?.(label, rows.length);
-        console.log(`[caract ${label}] ${rows.length} peças gravadas (com e sem característica)`);
+        console.log(`[caract ${label}] ${modo}: ${produtos.length} lidos · ${plano.novas} novas · ${plano.alteradas} alteradas · ${plano.apagar.length} removidas · ${plano.iguais} iguais`);
       }
-      const resumo = { porConta, total: Object.values(porConta).reduce((a, b) => a + b, 0), geradoEm: new Date().toISOString() };
+      const resumo = { modo, desde: opts.incrementalDesde ?? null, porConta, detalhe, total: Object.values(porConta).reduce((a, b) => a + b, 0), geradoEm: new Date().toISOString() };
       await concluirJob(jobId, resumo);
       return { ok: true, jobId, resumo };
     } catch (e: any) {
@@ -119,6 +152,38 @@ export async function iniciarSyncCaracteristicas(
 
   if (opts.aguardar) return execucao;
   return { ok: true, rodando: true, jobId };
+}
+
+/** Linhas atuais do espelho de uma conta (todas, ou só estes codigo_produto). */
+async function lerEspelhoConta(label: string, ids: string[] | null): Promise<LinhaEspelho[]> {
+  const out: LinhaEspelho[] = [];
+  const cols = 'conta_omie, codigo_produto, codigo, descricao, caracteristicas';
+  if (ids) {
+    for (let i = 0; i < ids.length; i += 200) {
+      const { data, error } = await supabase.from('produtos_caracteristicas').select(cols)
+        .eq('conta_omie', label).in('codigo_produto', ids.slice(i, i + 200));
+      if (error) throw new Error(`ler espelho ${label}: ${error.message}`);
+      out.push(...((data || []) as LinhaEspelho[]));
+    }
+    return out;
+  }
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase.from('produtos_caracteristicas').select(cols)
+      .eq('conta_omie', label).order('codigo_produto', { ascending: true }).range(from, from + PAGE - 1);
+    if (error) throw new Error(`ler espelho ${label}: ${error.message}`);
+    out.push(...((data || []) as LinhaEspelho[]));
+    if (!data || data.length < PAGE) break;
+  }
+  return out;
+}
+
+/** Quando o último sync terminou bem (a data das linhas não serve: só as alteradas são regravadas). */
+async function ultimaSyncConcluida(): Promise<string | null> {
+  const { data } = await supabase.from('ajustes_jobs').select('atualizado_em')
+    .eq('tipo', 'caracteristicas-sync').eq('status', 'concluido')
+    .order('atualizado_em', { ascending: false }).limit(1);
+  return (data?.[0]?.atualizado_em as string | undefined) ?? null;
 }
 
 export async function lerStatusSync(): Promise<any> {
@@ -219,7 +284,10 @@ export async function lerMatrizCaracteristicas(): Promise<any> {
   });
   const colunas = Array.from(colunasSet).sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const st = await lerStatusSync();
-  return { produtos, colunas, total: produtos.length, ultimaSync, sync: { rodando: st.rodando, etapa: st.etapa, erro: st.erro } };
+  const concluida = await ultimaSyncConcluida().catch(() => null);
+  const daLinha = ultimaSync as string | null; // atribuída dentro do map: o TS não enxerga
+  const ultima = concluida && (!daLinha || concluida > daLinha) ? concluida : daLinha;
+  return { produtos, colunas, total: produtos.length, ultimaSync: ultima, sync: { rodando: st.rodando, etapa: st.etapa, erro: st.erro } };
 }
 
 // Atualiza o espelho e devolve o estado ANTES da alteração (valor antigo da

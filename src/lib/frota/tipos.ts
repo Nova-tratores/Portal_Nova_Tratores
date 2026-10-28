@@ -47,6 +47,10 @@ export interface FrotaVeiculo {
   custo_km_ref: number | null;
   categoria: string;
   setor: string | null;
+  // carro SEM USO: ainda é da loja, mas parado (sql/frota-setor-sem-uso.sql)
+  sem_uso?: boolean | null;
+  sem_uso_motivo?: string | null;
+  sem_uso_em?: string | null;
   // proprietário LEGAL (documento/CRLV) — não confundir com o responsável do
   // dia a dia (frota_responsaveis). Campo manual: o sync nunca escreve aqui.
   proprietario: string | null;
@@ -72,7 +76,9 @@ export interface FrotaVeiculo {
   id_projeto_omie_castro: number | null;
   numero_apolice: string | null;
   seguradora: string | null;
+  /** sempre null nas respostas da API — a senha sai só por /senha-veloe (registra quem viu) */
   senha_cartao_veloe: string | null;
+  tem_senha_veloe?: boolean;
   dt_aquisicao: string | null;
   tipo_negociacao: string | null;
   campos_manuais: string[];

@@ -205,7 +205,7 @@ export async function GET(request: NextRequest) {
 <script>window.onload = function() { window.print(); }</script>
 </head><body>
 <h1>Nova Tratores - Ordens em Aberto</h1>
-<div class="info">Gerado em: ${new Date().toLocaleDateString("pt-BR")} &nbsp;|&nbsp; ${rows.length} ordens${totalEmGarantia > 0 ? ` &nbsp;|&nbsp; ${ESCUDO_SVG} ${totalEmGarantia} em garantia` : ""}${subtituloTexto}</div>
+<div class="info">Gerado em: ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} &nbsp;|&nbsp; ${rows.length} ordens${totalEmGarantia > 0 ? ` &nbsp;|&nbsp; ${ESCUDO_SVG} ${totalEmGarantia} em garantia` : ""}${subtituloTexto}</div>
 <div class="summary">
   ${Object.entries(agrupado).map(([fase, items]) => {
     const cor = CORES_FASE[fase] || "#64748B";

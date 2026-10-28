@@ -10,10 +10,12 @@ import {
 import ModalBuscaProdutoOrc from './ModalBuscaProduto'
 import ModalBuscaClienteOrc from './ModalBuscaCliente'
 import ModalImportarKit from './ModalImportarKit'
+import PlanilhaPecas from './PlanilhaPecas'
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { useRascunho } from '@/lib/rascunho/useRascunho'
 import AvisoRascunho from '@/components/rascunho/AvisoRascunho'
+import { useConferenciaPrecos, PainelConferenciaPrecos, AvisoPrecoLinha } from '@/components/ppv/ConferenciaPrecos'
 
 type TipoOrcamento = 'pecas' | 'mao-de-obra' | 'completo'
 
@@ -147,6 +149,19 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
   const totServ = totaisServicos(mostrarServicos ? servicos : [])
   const totalGeral = totalPecas + totServ.total
 
+  // Conferência de preço: cada peça × preço de venda atual do cadastro × custo (CMC)
+  const conferencia = useConferenciaPrecos(
+    mostrarPecas ? itens.filter(i => i.codigo.trim()).map(i => ({ codigo: i.codigo, preco: i.preco, quantidade: i.quantidade })) : [],
+    mostrarPecas,
+  )
+  function usarPrecoCadastroOrc(alvo: { codigo: string; precoCadastro: number | null }[]) {
+    const mapa = new Map(alvo.filter(a => a.precoCadastro !== null).map(a => [a.codigo.trim().toUpperCase(), a.precoCadastro as number]))
+    setItens(prev => prev.map(item => {
+      const p = mapa.get(item.codigo.trim().toUpperCase())
+      return p !== undefined ? { ...item, preco: p } : item
+    }))
+  }
+
   // Funções da planilha
   function atualizarItem(idx: number, campo: keyof LinhaItem, valor: string | number) {
     setItens(prev => prev.map((item, i) => i === idx ? { ...item, [campo]: valor } : item))
@@ -200,17 +215,6 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
 
   function removerServico(idx: number) {
     setServicos(prev => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)))
-  }
-
-  function handleTabUltimaColuna(e: React.KeyboardEvent, idx: number) {
-    if (e.key === 'Tab' && !e.shiftKey && idx === itens.length - 1) {
-      e.preventDefault()
-      adicionarLinha()
-      setTimeout(() => {
-        const input = document.querySelector(`[data-row="${idx + 1}"][data-col="codigo"]`) as HTMLInputElement
-        input?.focus()
-      }, 50)
-    }
   }
 
   // Montar payload para salvar: `servicos` (formato novo) + agregados legados
@@ -705,6 +709,12 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
               </button>
             </div>
           </div>
+          {conferencia.resultado && (
+            <div style={{ padding: '12px 16px 0' }}>
+              <PainelConferenciaPrecos resultado={conferencia.resultado} onAtualizarTodos={usarPrecoCadastroOrc}
+                descricoes={Object.fromEntries(itens.map(i => [i.codigo.trim(), i.descricao]))} />
+            </div>
+          )}
           {isMobile ? (
             /* CELULAR: cada peça vira um cartão (sem rolagem horizontal) */
             <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -732,107 +742,16 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
                     <div>
                       <label style={{ ...labelStyle, fontSize: 10 }}>Unit. (R$)</label>
                       <input type="number" min={0} step={0.01} value={item.preco} onChange={e => atualizarItem(idx, 'preco', parseFloat(e.target.value) || 0)} style={{ ...inputStyle, fontSize: 13, padding: '9px 12px' }} />
+                      <AvisoPrecoLinha item={item.codigo.trim() ? conferencia.doItem(item.codigo) : null} onAtualizar={(p) => atualizarItem(idx, 'preco', p)} />
                     </div>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#fafafa' }}>
-                  <th style={thStyle}>#</th>
-                  <th style={{ ...thStyle, width: '15%' }}>CÓDIGO</th>
-                  <th style={{ ...thStyle, width: '40%' }}>DESCRIÇÃO</th>
-                  <th style={{ ...thStyle, width: '12%', textAlign: 'center' }}>QTD</th>
-                  <th style={{ ...thStyle, width: '15%', textAlign: 'right' }}>UNIT. (R$)</th>
-                  <th style={{ ...thStyle, width: '13%', textAlign: 'right' }}>SUBTOTAL</th>
-                  <th style={{ ...thStyle, width: 40, textAlign: 'center' }}></th>
-                </tr>
-              </thead>
-              <tbody>
-                {itens.map((item, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #f5f5f5' }}>
-                    <td style={{ ...tdStyle, color: '#a3a3a3', fontSize: 12, fontWeight: 700, textAlign: 'center' }}>
-                      {idx + 1}
-                    </td>
-                    <td style={tdStyle}>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <input
-                          data-row={idx}
-                          data-col="codigo"
-                          value={item.codigo}
-                          onChange={e => atualizarItem(idx, 'codigo', e.target.value)}
-                          placeholder="Código"
-                          style={cellInputStyle}
-                        />
-                        <button
-                          onClick={() => abrirBusca(idx)}
-                          style={{
-                            padding: '4px 8px', borderRadius: 6, border: '1px solid #e5e5e5',
-                            background: '#fafafa', cursor: 'pointer', display: 'flex',
-                            alignItems: 'center', flexShrink: 0,
-                          }}
-                          title="Buscar produto cadastrado"
-                        >
-                          <Search size={13} color="#737373" />
-                        </button>
-                      </div>
-                    </td>
-                    <td style={tdStyle}>
-                      <input
-                        value={item.descricao}
-                        onChange={e => atualizarItem(idx, 'descricao', e.target.value)}
-                        placeholder="Descrição do item..."
-                        style={cellInputStyle}
-                      />
-                    </td>
-                    <td style={tdStyle}>
-                      <input
-                        type="number"
-                        min={0.5}
-                        step={0.5}
-                        value={item.quantidade}
-                        onChange={e => atualizarItem(idx, 'quantidade', parseFloat(e.target.value) || 0)}
-                        style={{ ...cellInputStyle, textAlign: 'center' as const }}
-                      />
-                    </td>
-                    <td style={tdStyle}>
-                      <input
-                        type="number"
-                        min={0}
-                        step={0.01}
-                        value={item.preco}
-                        onChange={e => atualizarItem(idx, 'preco', parseFloat(e.target.value) || 0)}
-                        onKeyDown={e => handleTabUltimaColuna(e, idx)}
-                        style={{ ...cellInputStyle, textAlign: 'right' as const }}
-                      />
-                    </td>
-                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: '#1a1a1a', fontSize: 13 }}>
-                      R$ {fmt(item.quantidade * item.preco)}
-                    </td>
-                    <td style={{ ...tdStyle, textAlign: 'center' }}>
-                      {itens.length > 1 && (
-                        <button
-                          onClick={() => removerLinha(idx)}
-                          style={{
-                            background: 'none', border: 'none', cursor: 'pointer',
-                            color: '#d4d4d4', padding: 4,
-                          }}
-                          title="Remover linha"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <PlanilhaPecas itens={itens} setItens={setItens} doItem={(c) => conferencia.doItem(c)} onBuscar={abrirBusca} />
           )}
-          {itens.some(i => i.descricao.trim()) && (
+          {isMobile && itens.some(i => i.descricao.trim()) && (
             <div style={{
               padding: '12px 28px', borderTop: '1px solid #f0f0f0',
               textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#1a1a1a',
@@ -1087,19 +1006,3 @@ const inputStyle: React.CSSProperties = {
   fontFamily: "'Poppins', sans-serif",
 }
 
-const thStyle: React.CSSProperties = {
-  padding: '10px 16px', fontSize: 10, fontWeight: 800,
-  color: '#a3a3a3', textTransform: 'uppercase', letterSpacing: 1,
-  borderBottom: '2px solid #f0f0f0', textAlign: 'left',
-}
-
-const tdStyle: React.CSSProperties = {
-  padding: '6px 16px', fontSize: 13,
-}
-
-const cellInputStyle: React.CSSProperties = {
-  width: '100%', padding: '8px 10px', borderRadius: 6,
-  border: '1px solid transparent', fontSize: 13,
-  outline: 'none', fontFamily: "'Poppins', sans-serif",
-  background: 'transparent', transition: 'border-color 0.15s',
-}

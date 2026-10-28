@@ -133,7 +133,7 @@ function EditorPage() {
       {/* Celular/tablet: as colunas do editor (formulário × prévia e as linhas de campos) empilham */}
       <style>{`@media (max-width: 900px) { .kbe-grid { grid-template-columns: minmax(0, 1fr) !important; } }`}</style>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12, fontSize: 12 }}>
-        <Link href="/conhecimento" style={{ color: "#0369a1", fontWeight: 700, textDecoration: "none" }}>← Base de conhecimento</Link>
+        <Link href="/conhecimento" style={{ color: "#2563eb", fontWeight: 500, textDecoration: "none" }}><i className="fa-solid fa-arrow-left" style={{ marginRight: 6 }} />Base de conhecimento</Link>
         {a && a.status === "publicado" && <Link href={`/conhecimento/${a.slug}`} style={{ color: "var(--portal-text-secondary)", textDecoration: "none" }}>ver como leitor</Link>}
         <span style={{ marginLeft: "auto", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
           {estado === "novo" && <Selo cor="#475569" bg="#f1f5f9">novo artigo</Selo>}
@@ -211,7 +211,7 @@ function EditorPage() {
 
           <section style={caixa}>
             <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
-              <h2 style={{ margin: 0, fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--portal-text-secondary)", flex: 1 }}>Conteúdo</h2>
+              <h2 style={{ margin: 0, fontSize: 13, fontWeight: 500, color: "var(--portal-text-secondary)", flex: 1 }}>Conteúdo</h2>
               <label style={{ fontSize: 12, display: "flex", gap: 6, alignItems: "center" }}><input type="checkbox" checked={previa} onChange={(e) => setPrevia(e.target.checked)} /> prévia ao lado</label>
             </div>
             <EditorBlocos corpo={corpo} versao={versaoCorpo} onChange={(c) => { setCorpo(c); setSujo(true); }} />
@@ -246,12 +246,12 @@ function EditorPage() {
 
           {dados && dados.versoes.length > 0 && (
             <section style={caixa}>
-              <h2 style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--portal-text-secondary)" }}>Histórico</h2>
+              <h2 style={{ margin: "0 0 8px", fontSize: 13, fontWeight: 500, color: "var(--portal-text-secondary)" }}>Histórico</h2>
               <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, display: "flex", flexDirection: "column", gap: 4 }}>
                 {dados.versoes.map((v) => (
                   <li key={v.versao}>
                     <strong>v{v.versao}</strong> · {new Date(v.publicado_em).toLocaleString("pt-BR")} · {v.publicado_por_nome || "—"}
-                    {v.resumo_mudanca && <> — {v.resumo_mudanca}</>}{v.relevante && <span style={{ color: "#991b1b", fontWeight: 700 }}> · relevante</span>}
+                    {v.resumo_mudanca && <> — {v.resumo_mudanca}</>}{v.relevante && <span style={{ color: "#991b1b", fontWeight: 500 }}> · relevante</span>}
                   </li>
                 ))}
               </ul>
@@ -262,8 +262,8 @@ function EditorPage() {
         {/* ---------- prévia ---------- */}
         {previa && (
           <div style={{ ...caixa, position: "sticky", top: 96, maxHeight: "calc(100vh - 120px)", overflowY: "auto" }}>
-            <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--portal-text-muted)", marginBottom: 10 }}>Prévia · como o leitor vê</div>
-            <h1 style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 800, color: "var(--portal-text)" }}>{titulo || <span style={{ opacity: 0.4 }}>Sem título</span>}</h1>
+            <div style={{ fontSize: 11, fontWeight: 500, color: "var(--portal-text-muted)", marginBottom: 10 }}>Prévia · como o leitor vê</div>
+            <h1 style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 500, color: "var(--portal-text)" }}>{titulo || <span style={{ opacity: 0.4 }}>Sem título</span>}</h1>
             {resumo && <p style={{ margin: "0 0 14px", fontSize: 13, color: "var(--portal-text-secondary)" }}>{resumo}</p>}
             {corpo.length ? <ArtigoView corpo={corpo} /> : <div style={{ fontSize: 13, color: "var(--portal-text-muted)", fontStyle: "italic" }}>Adicione blocos ou rascunhe com a IA.</div>}
           </div>
@@ -278,7 +278,7 @@ function RevisaoPendente({ desde, motivo, podePublicar, ocupado, aoConfirmar }: 
   const m = (motivo && typeof motivo === "object" ? motivo : {}) as { commits?: { sha: string; titulo: string }[]; arquivos?: string[] };
   return (
     <div style={{ border: "1.5px solid #fca5a5", background: "#fef2f2", color: "#7f1d1d", borderRadius: 12, padding: "12px 14px", marginBottom: 12, fontSize: 13 }}>
-      <div style={{ fontWeight: 800 }}>⚠️ O sistema mudou em {new Date(desde).toLocaleDateString("pt-BR")} e este artigo pode ter ficado desatualizado.</div>
+      <div style={{ fontWeight: 500 }}><i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 6 }} />O sistema mudou em {new Date(desde).toLocaleDateString("pt-BR")} e este artigo pode ter ficado desatualizado.</div>
       {m.commits && m.commits.length > 0 && (
         <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 12 }}>
           {m.commits.map((c) => <li key={c.sha}>{c.titulo}</li>)}
@@ -290,7 +290,7 @@ function RevisaoPendente({ desde, motivo, podePublicar, ocupado, aoConfirmar }: 
       <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         {podePublicar ? (
           <>
-            <button type="button" disabled={ocupado} onClick={aoConfirmar} style={{ padding: "7px 14px", borderRadius: 10, border: "1.5px solid #15803d", background: "#fefefe", color: "#15803d", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✓ Conferi, o texto continua valendo</button>
+            <button type="button" disabled={ocupado} onClick={aoConfirmar} style={{ padding: "7px 14px", borderRadius: 10, border: "1.5px solid #15803d", background: "#fefefe", color: "#15803d", fontWeight: 500, fontSize: 12, cursor: "pointer" }}>✓ Conferi, o texto continua valendo</button>
             <span style={{ fontSize: 12 }}>ou edite abaixo e publique uma versão nova.</span>
           </>
         ) : <span style={{ fontSize: 12 }}>O responsável do módulo confirma ou publica a correção.</span>}
@@ -302,16 +302,16 @@ function RevisaoPendente({ desde, motivo, podePublicar, ocupado, aoConfirmar }: 
 function Campo({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: "var(--portal-text-muted)", marginBottom: 4 }}>{rotulo}</div>
+      <div style={{ fontSize: 13, color: "var(--portal-text-secondary)", marginBottom: 4 }}>{rotulo}</div>
       {children}
     </div>
   );
 }
 function Selo({ cor, bg, children }: { cor: string; bg: string; children: React.ReactNode }) {
-  return <span style={{ fontSize: 10, fontWeight: 800, padding: "3px 8px", borderRadius: 6, background: bg, color: cor, whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: 0.3 }}>{children}</span>;
+  return <span style={{ fontSize: 12, fontWeight: 400, padding: "2px 9px", borderRadius: 999, background: bg, color: cor, whiteSpace: "nowrap" }}>{children}</span>;
 }
 
 const caixa: React.CSSProperties = { background: "var(--portal-bg-card)", border: "1px solid var(--portal-border)", borderRadius: 14, padding: 14 };
 const campo: React.CSSProperties = { width: "100%", padding: "8px 10px", borderRadius: 8, border: "1px solid var(--portal-border)", background: "var(--portal-bg-card)", color: "var(--portal-text)", fontSize: 13, fontFamily: "inherit", outline: "none" };
-const btnPrimario: React.CSSProperties = { padding: "9px 18px", background: "#0369a1", color: "#fefefe", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
-const btnSec: React.CSSProperties = { padding: "8px 14px", background: "transparent", color: "var(--portal-text)", border: "1.5px solid var(--portal-border)", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+const btnPrimario: React.CSSProperties = { padding: "9px 18px", background: "#2563eb", color: "#fefefe", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" };
+const btnSec: React.CSSProperties = { padding: "8px 14px", background: "transparent", color: "var(--portal-text)", border: "1.5px solid var(--portal-border)", borderRadius: 10, fontSize: 13, fontWeight: 500, cursor: "pointer", fontFamily: "inherit" };

@@ -42,6 +42,8 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   // este módulo dá editar qualquer informação, verificar, separar e excluir.
   opa: 'Outros', 'opa-pecas': 'Outros', patrimonio: 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
   tickets: 'Outros', 'war-room': 'Financeiro',
+  // Planta Viva: a empresa vista de cima; o financeiro dentro dela é só admin (corte na rota).
+  planta: 'Outros',
   // Base de conhecimento: LER é de todo mundo logado (sem módulo); as ações aqui são de quem escreve/aprova.
   conhecimento: 'Outros',
   // POPs: ler publicado e dar ciência é de todo logado; o escopo de dono/aprovador é por ÁREA (pops_area_papeis).
@@ -82,7 +84,6 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     // 'criar_veiculo' morreu na Fase 5 do Frota: veículo agora se cadastra SÓ
     // no módulo Frota (frota:veiculos:editar). A chave antiga gravada em quem
     // a tinha é inofensiva (a aba não existe mais).
-    { id: 'tags', label: 'Gerir etiquetas' },
     { id: 'excluir', label: 'Excluir / lixeira' },
     { id: 'imprimir', label: 'Imprimir' },
   ],
@@ -177,6 +178,8 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'criar_lancamento', label: 'Criar conta a pagar/receber' },
     { id: 'criar_chamado', label: 'Abrir chamado (NF/RH)' },
     { id: 'rastreio', label: 'Rastreio de notas (busca nota/boleto/requisição)' },
+    { id: 'notas', label: 'Notas fiscais (cache PDF + XML)' },
+    { id: 'notas-xml', label: 'Notas fiscais — baixar XML' },
     { id: 'editar_cards', label: 'Editar cards do kanban a qualquer momento (nome, condição, valor, datas)' },
   ],
   // DRE Financeiro: granular POR TELA (cada ação = uma tela analítica). O id da
@@ -222,17 +225,19 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'pedidos:encerrar', label: 'Pedidos — Encerrar informal' },
     { id: 'remessas:fechar', label: 'Remessas — Devolver/fechar em massa' },
   ],
-  // Feedbacks & CRM: granular POR TELA (id da ação = slug da rota). A Home
-  // (/feedbacks) é o landing; as abas (FeedbackTabs) e o acesso por URL seguem
-  // pode('feedbacks', slug).
+  // Feedbacks & CRM: granular POR TELA. Desde 23/10/2026 as telas são Hoje · Clientes · Painel · Robô
+  // e cada uma aceita as chaves das telas antigas que juntou (lib/feedbacks/telas.ts, fonte única do
+  // layout e da faixa): Hoje = crm|rfm|atendimento|agenda; Clientes = clientes|atendimento;
+  // Painel = relatorios; Robô = oportunidades; o cockpit do cliente segue = atendimento.
+  // Os ids NÃO mudaram (quem já tinha acesso continua tendo).
   feedbacks: [
-    { id: 'atendimento', label: 'Atendimento (cockpit de ligação)' },
-    { id: 'crm', label: 'CRM' },
-    { id: 'rfm', label: 'RFM' },
-    { id: 'clientes', label: 'Histórico de atendimentos' },
-    { id: 'relatorios', label: 'Relatórios' },
-    { id: 'agenda', label: 'Agenda' },
-    { id: 'oportunidades', label: 'Oportunidades' },
+    { id: 'atendimento', label: 'Hoje + Clientes + cockpit de ligação' },
+    { id: 'crm', label: 'Hoje (pós-serviço, antigo CRM)' },
+    { id: 'rfm', label: 'Hoje (reativação, antigo RFM)' },
+    { id: 'agenda', label: 'Hoje (retornos combinados, antiga Agenda)' },
+    { id: 'clientes', label: 'Clientes (histórico de atendimentos)' },
+    { id: 'relatorios', label: 'Painel do gerente (antigo Relatórios)' },
+    { id: 'oportunidades', label: 'Robô de oportunidades' },
   ],
   // FROTA — granular POR TELA. As telas vêm de PAGINAS_FROTA (fonte única:
   // adicionar tela lá já cria a permissão aqui). Abaixo delas, as ações que
@@ -245,6 +250,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     })),
     { id: 'veiculos:editar', label: 'Veículos — editar a ficha' },
     { id: 'veiculos:responsavel', label: 'Veículos — trocar o responsável' },
+    { id: 'veiculos:inativar', label: 'Veículos — vender, arquivar ou marcar sem uso (só Dev concede)' },
     { id: 'motoristas:editar', label: 'Motoristas — editar CNH / flag motorista' },
     { id: 'multas:editar', label: 'Multas — mudar status / desconto' },
     { id: 'avarias:editar', label: 'Avarias — registrar / mudar status' },
@@ -264,8 +270,6 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'notas-entrada', label: 'Notas de Entrada' },
     { id: 'recebimentos', label: 'Recebimentos' },
     { id: 'recebimentos-omie', label: 'Recebimentos (Omie)' },
-    { id: 'notas', label: 'Notas fiscais (cache PDF + XML)' },
-    { id: 'notas-xml', label: 'Notas fiscais — baixar XML' },
     { id: 'movimentacao-produto', label: 'Movimentação de Produto' },
     { id: 'cadastro-produto', label: 'Cadastro de Produto' },
     { id: 'curva-abc', label: 'Curva ABC' },

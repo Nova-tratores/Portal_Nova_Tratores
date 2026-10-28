@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { autenticar } from '@/lib/auth/server'
 import { ACOES_SO_DEV } from '@/lib/permissoes/explicitas'
+import { espelhoLigado, espelharPermissoes } from '@/lib/permissoes/espelho-server'
 
 // Escrita de permissões (portal_permissoes) — SÓ pelo servidor, com checagem de
 // admin. Antes o painel gravava direto do navegador com a anon key: como não
@@ -15,7 +16,7 @@ const supabase = createClient(
 )
 
 // Campos que um admin pode alterar. is_dev é tratado à parte (só Dev pode mudar).
-const CAMPOS = ['is_admin', 'categoria', 'modulos_permitidos', 'mecanico_role', 'mecanico_tecnico_nome'] as const
+const CAMPOS = ['is_admin', 'is_diretor', 'categoria', 'modulos_permitidos', 'mecanico_role', 'mecanico_tecnico_nome'] as const
 
 export async function POST(req: NextRequest) {
   const auth = await autenticar(req)
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
     const antes = new Set<string>((atual?.modulos_permitidos as string[] | null) || [])
     const depois = new Set<string>(patch.modulos_permitidos as string[])
     const mexeu = [...ACOES_SO_DEV].some((a) => antes.has(a) !== depois.has(a))
-    if (mexeu) return NextResponse.json({ error: 'Só um Dev pode dar ou tirar "Faturar OS", "Cancelar faturamento" e "Substituir no Omie".' }, { status: 403 })
+    if (mexeu) return NextResponse.json({ error: 'Só um Dev pode dar ou tirar "Faturar OS", "Cancelar faturamento", "Substituir no Omie" e "Vender/arquivar veículo".' }, { status: 403 })
   }
 
   if (Object.keys(patch).length === 0) {
@@ -72,6 +73,9 @@ export async function POST(req: NextRequest) {
   if ('categoria' in patch && patch.categoria) {
     await supabase.from('financeiro_usu').update({ funcao: patch.categoria }).eq('id', userId)
   }
+
+  // Permissões v2 (modo sombra): a cópia nova acompanha na hora, em segundo plano.
+  if (espelhoLigado()) void espelharPermissoes([userId]).catch(() => {})
 
   return NextResponse.json({ ok: true })
 }

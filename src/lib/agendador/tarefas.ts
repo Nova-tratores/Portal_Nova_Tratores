@@ -69,6 +69,28 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: resumirResposta(corpo) };
   },
 
+  // Novidades do dia (José, 22/10/2026): às 07:00, o que mudou ontem em cada módulo
+  // vira aviso publicado + sino para quem tem acesso ao módulo. NOVIDADES_DIARIAS=off desliga.
+  'novidades-diarias': async () => {
+    if (desligada('NOVIDADES_DIARIAS')) return { pular: 'NOVIDADES_DIARIAS=off' };
+    const { publicarNovidadesDoDia } = await import('@/lib/conhecimento/novidades-diarias-server');
+    const r = await publicarNovidadesDoDia();
+    if (!r.versoes) return { pular: 'nenhuma versão nova desde o último aviso' };
+    return { resumo: `${r.versoes} versão(ões) · ${r.novidades.length} módulo(s): ${r.novidades.map((n) => n.modulo).join(', ') || '—'} · ${r.avisados} pessoa(s) avisada(s)` };
+  },
+
+  // CRM automático (José, 23/10/2026): toda OS faturada há 3–15 dias vira uma ligação
+  // de satisfação no /feedbacks/crm, já preenchida. FEEDBACKS_CRM_AUTO=off desliga.
+  'feedbacks-crm-automatico': async () => {
+    if (desligada('FEEDBACKS_CRM_AUTO')) return { pular: 'FEEDBACKS_CRM_AUTO=off' };
+    const { gerarCrmDasOS } = await import('@/lib/feedbacks/crm-automatico-server');
+    const r = await gerarCrmDasOS({ gravar: true });
+    if ('pulado' in r) return { pular: r.pulado };
+    const pul = Object.entries(r.puladas).map(([m, n]) => `${m} ${n}`).join(', ');
+    if (!r.criadas) return { pular: `nenhuma OS nova para o CRM (${r.candidatas} na janela${pul ? ` · ${pul}` : ''})` };
+    return { resumo: `${r.criadas} ligação(ões) criada(s) de ${r.candidatas} OS na janela${pul ? ` · puladas: ${pul}` : ''}` };
+  },
+
   // Características das peças (espelho produtos_caracteristicas: locação, "Tipo:"…),
   // as duas contas. Veio do GitHub (ajustes-sync-caracteristicas.yml), que disparava
   // as 03:00 da madrugada só no papel (rodava 9h–12h e morria em deploy).
@@ -80,19 +102,32 @@ export const TAREFAS: Record<string, Tarefa> = {
     const feitas = await lerRetomada(ctx.chave);
     const faltam = getContasOmie().map((c) => c.label as string).filter((l) => !feitas.includes(l));
     if (!faltam.length) { await limparRetomada(ctx.chave); return { pular: `já feito hoje (${feitas.join(', ')})` }; }
+    // Completa aos domingos (limpa produto excluído da Omie) ou sem rodada certa recente;
+    // nos outros dias lê da Omie só o que foi alterado desde a última certa (1 página por
+    // conta em vez de ~60). Conferido 22/10: editar característica muda a data de alteração.
+    const { decidirModo } = await import('@/lib/ajustes/caracteristicas-diff');
+    const { supabaseAdmin } = await import('@/lib/server/supabase-admin');
+    const { data: ok } = await supabaseAdmin.from('cron_runs').select('iniciado_em')
+      .eq('job', ctx.chave).eq('status', 'ok').order('iniciado_em', { ascending: false }).limit(1);
+    const decisao = decidirModo(ok?.[0]?.iniciado_em ? new Date(ok[0].iniciado_em) : null, new Date());
     const r = await iniciarSyncCaracteristicas('agendador', {
       aguardar: true,
       contas: faltam,
       aoConcluirConta: (label: string) => marcarFeito(ctx.chave, label),
+      incrementalDesde: decisao.modo === 'incremental' ? decisao.desde : undefined,
     });
     if (r.jaRodando) return { pular: 'sync já em andamento (botão da tela)' };
     if (!r.ok) throw new Error(r.erro || 'sync falhou');
     // Terminou inteira: a próxima rodada (ex.: a das 20:00 depois de um "Rodar agora") é completa.
     await limparRetomada(ctx.chave);
-    const porConta = (r.resumo?.porConta || {}) as Record<string, number>;
-    const progresso = Object.fromEntries(Object.entries(porConta).map(([k, v]) => [k, `${v} peças`]));
+    type Det = { lidos: number; novas: number; alteradas: number; removidas: number; iguais: number };
+    const detalhe = (r.resumo?.detalhe || {}) as Record<string, Det>;
+    const progresso: Record<string, string> = Object.fromEntries(Object.entries(detalhe).map(([k, d]) =>
+      [k, `${d.lidos} lidas · ${d.novas} novas · ${d.alteradas} alteradas · ${d.removidas} removidas`]));
     for (const l of feitas) progresso[l] = 'já feito antes (retomada)';
-    return { resumo: `${r.resumo?.total ?? 0} peças gravadas (${Object.entries(porConta).map(([k, v]) => `${k} ${v}`).join(', ')})${feitas.length ? ` · retomada: ${feitas.join(', ')} já feitas` : ''}`, progresso };
+    const soma = (c: keyof Det) => Object.values(detalhe).reduce((a, d) => a + d[c], 0);
+    const modoTxt = decisao.modo === 'incremental' ? `incremental desde ${decisao.desde}` : `completa (${decisao.motivo})`;
+    return { resumo: `Leitura ${modoTxt}: ${soma('lidos')} lidas · gravadas ${soma('novas') + soma('alteradas')} (${soma('novas')} novas, ${soma('alteradas')} alteradas) · ${soma('removidas')} removidas${feitas.length ? ` · retomada: ${feitas.join(', ')} já feitas` : ''}`, progresso };
   },
 
   'pecas-alocacao-rapido': async () => {
@@ -104,6 +139,115 @@ export const TAREFAS: Record<string, Tarefa> = {
     const a = res.alocacao;
     if (a.pulado) return { resumo: a.pulado };
     return { resumo: `abertas ${a.abertas} (${a.pecasNovas} peças) · fechadas ${a.fechadas}${erros.length ? ` · ${erros.join(' | ')}` : ''}` };
+  },
+
+  'ppv-precos-sync': async () => {
+    if (desligada('PPV_PRECOS_SYNC')) return { pular: 'desligado (PPV_PRECOS_SYNC=off)' };
+    const { sincronizarPrecosAlterados } = await import('@/lib/ppv/precos-sync');
+    const res = await sincronizarPrecosAlterados();
+    const erros = res.filter((c) => c.erro).map((c) => `${c.conta}: ${c.erro}`);
+    if (erros.length === res.length && erros.length > 0) throw new Error(erros.join(' | '));
+    return { resumo: res.map((c) => `${c.conta} ${c.erro ? 'erro: ' + c.erro : `${c.alterados} preços · ${c.cadastro ?? 0} no cadastro`}`).join(' · ') };
+  },
+
+  // Saldo e custo (CMC) da tabela `produtos` — só as peças com saldo, grava só o que mudou
+  // (~6 s por conta; antes 13 min a cada 3 h pelo GitHub). Ver lib/estoque/saldos-diff.ts.
+  'estoque-saldos-rapido': async () => {
+    if (desligada('ESTOQUE_SALDOS_RAPIDO')) return { pular: 'desligado (ESTOQUE_SALDOS_RAPIDO=off)' };
+    const { sincronizarSaldosRapido } = await import('@/lib/estoque/produtos-sync');
+    const { getContasOmie } = await import('@/lib/estoque/conta');
+    const { capturarSnapshotMensal, capturarSnapshotTipoMensal } = await import('@/lib/estoque/cruzamento-familia');
+    const partes: string[] = [];
+    const erros: string[] = [];
+    const progresso: Record<string, string> = {};
+    for (const { id } of getContasOmie()) {
+      try {
+        const r = await sincronizarSaldosRapido(id);
+        // o retrato do mês (por família e por Tipo) só lê o banco: refaz quando algo mudou
+        if (r.atualizados > 0) {
+          await capturarSnapshotMensal(id).catch(() => null);
+          await capturarSnapshotTipoMensal(id).catch(() => null);
+        }
+        progresso[id] = `${r.lidos} com saldo · ${r.atualizados} gravadas`;
+        partes.push(`${id} ${r.atualizados} mudaram${r.zerados ? ` (${r.zerados} zeradas)` : ''}${r.semLinha ? ` · ${r.semLinha} sem cadastro` : ''}`);
+      } catch (e) {
+        erros.push(`${id}: ${(e as Error).message}`);
+      }
+    }
+    if (erros.length && !partes.length) throw new Error(erros.join(' | '));
+    return { resumo: [...partes, ...erros.map((x) => 'erro ' + x)].join(' · '), progresso };
+  },
+
+  // Sync COMPLETO da tabela `produtos` (famílias + todos os produtos + estoque) e o retrato
+  // do mês. Veio do GitHub (estoque-sync-produtos.yml: 03:00 no papel, 06h20–07h50 de fato).
+  // À noite vira só conferência: no dia o incremental (ppv-precos-sync) e o saldo rápido cuidam.
+  'estoque-sync-produtos': async () => {
+    if (desligada('ESTOQUE_SYNC_PRODUTOS')) return { pular: 'desligado (ESTOQUE_SYNC_PRODUTOS=off)' };
+    const { cronSyncProdutos } = await import('@/lib/estoque/cron');
+    const r = await cronSyncProdutos() as Record<string, { ok?: boolean; totalProdutos?: number; errosEstoque?: number; mensagem?: string; erro?: string }>;
+    const contas = Object.entries(r);
+    const falhas = contas.filter(([, v]) => v.ok === false);
+    if (falhas.length === contas.length && falhas.length > 0) throw new Error(falhas.map(([k, v]) => `${k}: ${v.mensagem || v.erro}`).join(' | '));
+    return { resumo: contas.map(([k, v]) => (v.ok === false ? `${k} erro: ${v.mensagem || v.erro}` : `${k} ${v.totalProdutos} produtos${v.errosEstoque ? ` (${v.errosEstoque} sem estoque)` : ''}`)).join(' · ') };
+  },
+
+  // Livro-razão de estoque (estoque_movimentos): janela recente das peças que se moveram
+  // no mês, as duas contas (~11 min). Veio do GitHub (estoque-sync-movimentos.yml: 02:20
+  // no papel, 07h–08h de fato, e morria no deploy do site). Retomada por conta.
+  // parametros: { dias (60), max_min (13) }.
+  'estoque-sync-movimentos': async (p, ctx) => {
+    if (desligada('ESTOQUE_SYNC_MOVIMENTOS')) return { pular: 'desligado (ESTOQUE_SYNC_MOVIMENTOS=off)' };
+    const { sincronizarIncremental } = await import('@/lib/estoque/movimentos-sync');
+    const { getContasOmie } = await import('@/lib/estoque/conta');
+    const { lerRetomada, marcarFeito, limparRetomada } = await import('./retomada');
+    const feitas = await lerRetomada(ctx.chave);
+    const faltam = getContasOmie().map((c) => c.id).filter((c) => !feitas.includes(c));
+    if (!faltam.length) { await limparRetomada(ctx.chave); return { pular: `já feito hoje (${feitas.join(', ')})` }; }
+    const janelaDias = Math.min(180, Math.max(15, Number(p.dias) || 60));
+    const maxMs = Math.min(20, Math.max(1, Number(p.max_min) || 13)) * 60_000;
+    const partes: string[] = [];
+    const erros: string[] = [];
+    const progresso: Record<string, string> = {};
+    for (const c of faltam) {
+      try {
+        const r = await sincronizarIncremental(c, { grupo: 'peca', janelaDias, maxMs });
+        progresso[c] = `${r.feitos}/${r.candidatos} peças · ${r.movimentos} movimentos · ${r.segundos} s`;
+        partes.push(`${c} ${r.feitos}/${r.candidatos} peças, ${r.movimentos} movimentos${r.restantes ? ` (${r.restantes} ficaram pra amanhã)` : ''}`);
+        await marcarFeito(ctx.chave, c);
+      } catch (e) {
+        erros.push(`${c}: ${(e as Error).message}`);
+      }
+    }
+    for (const c of feitas) progresso[c] = 'já feito antes (retomada)';
+    if (erros.length && !partes.length) throw new Error(erros.join(' | '));
+    if (!erros.length) await limparRetomada(ctx.chave);
+    return { resumo: [...partes, ...erros.map((x) => 'erro ' + x)].join(' · '), progresso };
+  },
+
+  // Custo (CMC) das vendas_itens que ainda não têm, em lotes até esgotar (~45 min).
+  // Veio do GitHub (estoque-backfill-cmc.yml: 02:45 no papel, 07h–08h de fato, e morria
+  // no deploy do site). Retomada por conta; o que já foi enriquecido não volta pra fila.
+  'estoque-backfill-cmc': async (_p, ctx) => {
+    if (desligada('ESTOQUE_BACKFILL_CMC')) return { pular: 'desligado (ESTOQUE_BACKFILL_CMC=off)' };
+    const { cronBackfillCmc } = await import('@/lib/estoque/cron');
+    const { getContasOmie } = await import('@/lib/estoque/conta');
+    const { lerRetomada, marcarFeito, limparRetomada } = await import('./retomada');
+    const feitas = await lerRetomada(ctx.chave);
+    const faltam = getContasOmie().map((c) => c.id).filter((c) => !feitas.includes(c));
+    if (!faltam.length) { await limparRetomada(ctx.chave); return { pular: `já feito hoje (${feitas.join(', ')})` }; }
+    const r = await cronBackfillCmc({ contas: faltam, aoConcluirConta: (c) => marcarFeito(ctx.chave, c) });
+    const bloqueio = Object.values(r).find((v) => v.paradoPor?.startsWith('bloqueio'));
+    if (!bloqueio) await limparRetomada(ctx.chave);
+    const progresso: Record<string, string> = Object.fromEntries(Object.entries(r).map(([k, v]) => [k,
+      `${v.tentados}/${v.pares} tentados · ${v.enriquecidos} com custo · ${v.semCusto} sem custo (tenta de novo) · ${v.desistidos} desistidos`
+      + ` · ${v.adiados} esperando · ${v.erros} erros · ${v.chamadasOmie} chamadas`
+      + (v.restantes ? ` · ${v.restantes} ficaram pra amanhã` : '')]));
+    for (const c of feitas) progresso[c] = 'já feito antes (retomada)';
+    const resumo = Object.entries(r).map(([k, v]) => `${k} ${v.enriquecidos} com custo de ${v.tentados} tentados (${v.chamadasOmie} chamadas)`).join(' · ')
+      + (feitas.length ? ` · retomada: ${feitas.join(', ')} já feitas` : '')
+      + (Object.values(r).some((v) => v.semTabelaTentativas) ? ' · sem controle de tentativas: aplicar sql/vendas-cmc-tentativas.sql' : '');
+    if (bloqueio) throw new Error(`${resumo} — parou: ${bloqueio.paradoPor}`);
+    return { resumo, progresso };
   },
 
   'notas-cache-docs': async () => {
@@ -152,7 +296,27 @@ export const TAREFAS: Record<string, Tarefa> = {
   'pos-faturamento-reconciliar': async () => {
     if (desligada('POS_FATURAR_RECONCILIAR')) return { pular: 'desligado (POS_FATURAR_RECONCILIAR=off)' };
     const { rodarReconciliacaoFaturamento } = await import('@/lib/pos/faturamento');
-    return { resumo: (await rodarReconciliacaoFaturamento()) || 'nada pendente' };
+    const r = await rodarReconciliacaoFaturamento();
+    // vigia dos pedidos de peças marcados como faturados sem NF-e (ele mesmo roda no máximo a cada 30 min)
+    const { vigiarPedidosFaturados } = await import('@/lib/ppv/vigia-faturados');
+    const v = await vigiarPedidosFaturados().catch((e) => `vigia PPV falhou: ${e instanceof Error ? e.message : e}`);
+    return { resumo: [r, v].filter(Boolean).join(' · ') || 'nada pendente' };
+  },
+
+  // Requisição sem valor cobrado do cliente vira lembrete no POS + sino do Pós-Vendas (José, 26/10/2026)
+  'pos-requisicoes-cobranca': async () => {
+    if (desligada('POS_COBRANCA_REQ')) return { pular: 'desligado (POS_COBRANCA_REQ=off)' };
+    const { vigiarCobrancas } = await import('@/lib/pos/cobranca-requisicoes');
+    return vigiarCobrancas();
+  },
+
+  'pops-gatilhos-os': async () => {
+    if (desligada('POPS_GATILHOS_OS')) return { pular: 'desligado (POPS_GATILHOS_OS=off)' };
+    const { verificarGatilhosOS, resumoGatilhos } = await import('@/lib/pops/gatilhos-os');
+    const r = await verificarGatilhosOS();
+    if (r.pulado) return { pular: r.pulado };
+    if (r.erros.length && !r.criadas) throw new Error(r.erros.slice(0, 5).join(' | '));
+    return { resumo: resumoGatilhos(r) };
   },
 
   'frota-pendencias-sync': async () => {
@@ -178,6 +342,14 @@ export const TAREFAS: Record<string, Tarefa> = {
     return rodarSnapshot();
   },
 
+  // Planta Viva: PV e remessas abertos na Omie, com quem criou (Balcão de peças). Mesma
+  // leitura de /ajustes/pedidos e /ajustes/remessas; a rodada leva ~7 min (as remessas paginam as OS).
+  'planta-omie-abertos': async () => {
+    if (desligada('PLANTA')) return { pular: 'desligado (PLANTA=off)' };
+    const { rodarOmieAbertos } = await import('@/lib/planta/server');
+    return rodarOmieAbertos();
+  },
+
   'vigia-saude': async () => {
     const { checarSaudeCrons } = await import('@/lib/agendamentos/heartbeat');
     const r = await checarSaudeCrons();
@@ -187,6 +359,36 @@ export const TAREFAS: Record<string, Tarefa> = {
   'cronograma-replanejar': async () => {
     const { recalcularProjetosLigados } = await import('@/lib/trabalho/cronograma-server');
     return { resumo: `${await recalcularProjetosLigados()} projeto(s) recalculado(s)` };
+  },
+
+  // Vias fora do mapa (camada do /frota/mapa): trechos do GPS longe das vias do
+  // OpenStreetMap, dos últimos 14 dias. Depois do fechar-dia. Desliga com FROTA_VIAS=off.
+  'frota-vias-fora-mapa': async (p) => {
+    if (desligada('FROTA_VIAS')) return { pular: 'desligado (FROTA_VIAS=off)' };
+    const { supabaseAdmin } = await import('@/lib/server/supabase-admin');
+    const { processarViasForaMapa } = await import('@/lib/frota/vias-fora-mapa-server');
+    const r = await processarViasForaMapa(supabaseAdmin, {
+      limite: Number(p.limite) || 400,
+      maxDownloads: Number(p.max_downloads) || 40,
+      desde: typeof p.desde === 'string' ? p.desde : undefined,
+    });
+    if (r.erros.length && !r.processados) throw new Error(r.erros.slice(0, 5).join(' | '));
+    if (!r.candidatos) return { pular: 'nenhum dia novo' };
+    return {
+      resumo: `${r.ok} dia(s) ok · ${r.trechos} trecho(s), ${r.kmFora} km fora do mapa · ${r.pendentes} pendente(s)`
+        + `${r.baixados ? ` · ${r.baixados} malha(s) baixada(s)` : ''}${r.restantes ? ` · ${r.restantes} para a próxima` : ''}`
+        + `${r.erros.length ? ` · ${r.erros.length} erro(s): ${r.erros[0]}` : ''}`,
+    };
+  },
+
+  // Quests do vendedor (app de vendas): sugere tarefas por regra para o supervisor aprovar.
+  'vendas-quests-sugerir': async (p) => {
+    if (desligada('VENDAS_QUESTS')) return { pular: 'desligado (VENDAS_QUESTS=off)' };
+    const { sugerirQuests } = await import('@/lib/vendas-app/quests-server');
+    const r = await sugerirQuests({ limite: Number(p.limite) || 10 });
+    if (r.pulado) return { pular: r.pulado };
+    const c = r.candidatas;
+    return { resumo: `${r.criadas} sugestão(ões) nova(s) · candidatas: revisão ${c.revisao_chegando}, aniversário ${c.aniversario_entrega}, sumido ${c.cliente_sumido}, sem notícia ${c.trator_sem_noticia}` };
   },
 
   'financeiro-scanner': async () => {

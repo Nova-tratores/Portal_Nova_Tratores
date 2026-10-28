@@ -157,7 +157,8 @@ export async function cancelarNfseNacional(opts: {
   const codigos = erros.map((e) => String(e.Codigo || e.codigo || "")).filter(Boolean);
   const msg = erros.map((e) => `${e.Codigo || e.codigo || ""} ${e.Descricao || e.descricao || ""}${e.Complemento || e.complemento ? ` (${e.Complemento || e.complemento})` : ""}`.trim()).join(" · ")
     || String(j.message || j.mensagem || r.texto || `HTTP ${r.status}`).slice(0, 500);
-  return { ok: false, jaCancelada: codigos.includes("E1102"), erro: msg, codigos, status: r.status };
+  // E0840 = "o evento de Cancelamento já está vinculado à NFS-e" (OS-0596, 23/10/2026): também é nota já cancelada
+  return { ok: false, jaCancelada: codigos.includes("E1102") || codigos.includes("E0840"), erro: msg, codigos, status: r.status };
 }
 
 export type SituacaoNacional = "autorizada" | "cancelada" | "substituida" | "nao_encontrada" | "erro";

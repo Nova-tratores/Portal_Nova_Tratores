@@ -5,7 +5,7 @@
 // Quem não é do setor de peças vê tudo só para leitura.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Camera, ChevronLeft, ChevronRight, History, Loader2, MapPin, Printer, RefreshCw, RotateCcw, Save, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { ArrowRightLeft, AlertTriangle, Camera, ChevronLeft, ChevronRight, History, Loader2, MapPin, Printer, RefreshCw, RotateCcw, Save, Trash2, X, ZoomIn, ZoomOut, BadgeDollarSign, Warehouse, FileText } from 'lucide-react'
 import QRCode from 'qrcode'
 import {
   adicionarFotos, atualizarItem, buscarItem, definirAplicacoes, excluirItem, finalizar, listarHistorico,
@@ -16,13 +16,17 @@ import { apagarFoto, comprimir, enviarFoto, mensagemErro, urlsAssinadas } from '
 import { codigoDefinitivo, nomeDoItem, camposFaltando, fmtDataHora, fmtPreco, lerPreco, locacaoDoItem, mesmaLocacao, skuDaPeca, precoParaCampo, textoLocal, type Locacao } from '@/lib/opa-pecas/regras'
 import { ROTULO_QUALIDADE, ROTULO_STATUS, type Aplicacao, type Historico, type Item, type Qualidade, type Status } from '@/lib/opa-pecas/tipos'
 import { CampoPreco, EditorAplicacoes, SeletorLocal, SeletorQualidade, SeletorQuantidade } from './Campos'
-import ProdutoCadastro from './ProdutoCadastro'
+import ProdutoCadastro, { useCadastro } from './ProdutoCadastro'
 import FasesPeca from './FasesPeca'
 import { ChipsEtiquetas } from './ListaPecas'
 import { EditorEtiquetas, esquecerSugestoesEtiquetas, SecaoLocacao } from './LocacaoEtiquetas'
 import { esquecerSku } from './useProdutosSku'
 import Impressao from './Impressao'
-import { CodigoPeca, Aviso, botao, INP, LARANJA, ROTULO, SECAO, SeloQualidade, SeloStatus, TITULO_SECAO, useMiniaturas, useTelaLarga, type Base } from './comum'
+import { useRouter } from 'next/navigation'
+import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
+import { authHeaders } from '@/lib/auth/client'
+import { CodigoPeca, Aviso, botao, INP, LARANJA, ROTULO, SECAO, SeloQualidade, SeloStatus, TITULO_SECAO, TituloSecao, useMiniaturas, useTelaLarga, type Base } from './comum'
 
 interface Form {
   descricao: string
@@ -104,6 +108,11 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
   const larga = useTelaLarga()
 
   const gerir = base.podeGerir
+  // transferir para o Patrimônio Loja: precisa das duas abas (José, 22/10/2026)
+  const router = useRouter()
+  const { userProfile } = useAuth()
+  const { pode: podePerm } = usePermissoes(userProfile?.id)
+  const podeTransferir = gerir && podePerm('patrimonio')
   // quem tem o módulo (setor de peças) altera QUALQUER informação, em qualquer fase (sql/pni-12);
   // as telas de etapa é que perguntam por fase. Sem o módulo: só quem cadastrou mexe nas fotos.
   const travada = item.status === 'vendido' || item.status === 'descartado'
@@ -178,6 +187,17 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
     }, 'Foto trocada.')
   }
 
+  const transferir = async () => {
+    if (!confirm(`Transferir ${nomeDoItem(item.codigo)} para o Patrimônio Loja?\n\nEla sai das Peças S/Estoque e passa a existir só no Patrimônio, com as mesmas fotos, quantidade e lugar. O histórico fica guardado.`)) return
+    setOcupado('transferir'); setErro(null)
+    try {
+      const r = await fetch('/api/opa/transferir', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ de: 'pecas', id: item.id }) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok || !d.ok) throw new Error(d.erro || 'Não deu para transferir.')
+      router.push(`/opa/patrimonio/${d.id}`)
+    } catch (e) { setErro(mensagemErro(e)) } finally { setOcupado(null) }
+  }
+
   const excluir = async () => {
     if (!confirm(`Excluir ${nomeDoItem(item.codigo)}? Ele sai das listas (o histórico fica guardado).`)) return
     setOcupado('excluir'); setErro(null)
@@ -228,9 +248,7 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)' }}>
               <QrDaPeca token={item.token_publico} tamanho={92} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: 'var(--portal-text-muted)' }}>Código e QR</span>
-                <span style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 800, color: 'var(--portal-text)' }}>{item.codigo}</span>
-                {!codigoDefinitivo(item.codigo) && <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', maxWidth: 230 }}>Código provisório: muda quando a peça for concluída (o QR continua valendo).</span>}
+                <CodigoDoQuadro item={item} />
                 <button type="button" onClick={() => setImprimindo(true)} style={{ ...botao('#111827'), padding: '7px 12px', fontSize: 12.5 }}>
                   <Printer size={14} /> {item.etiqueta_impressa_em ? 'Reimprimir etiqueta' : 'Imprimir etiqueta'}
                 </button>
@@ -249,7 +267,7 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
       {/* À venda: quando vender, marca aqui */}
       {gerir && item.status === 'a_venda' && (
         <section style={SECAO}>
-          <h2 style={TITULO_SECAO}>Peça à venda</h2>
+          <TituloSecao icone={<BadgeDollarSign size={16} />} cor="#047857">Peça à venda</TituloSecao>
           <input value={venda} onChange={(e) => setVenda(e.target.value.slice(0, 500))} placeholder="Para quem foi vendida e por quanto (opcional)" style={INP} />
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button type="button" disabled={!!ocupado}
@@ -270,7 +288,7 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
       <div style={larga ? { display: 'grid', gridTemplateColumns: 'minmax(0, 5fr) minmax(0, 7fr)', gap: 14, alignItems: 'start' } : COLUNA}>
       <div style={COLUNA}>
       <section style={SECAO}>
-      <h2 style={TITULO_SECAO}>Fotos ({item.fotos.length})</h2>
+      <TituloSecao icone={<Camera size={16} />}>Fotos ({item.fotos.length})</TituloSecao>
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${larga ? 96 : 84}px, 1fr))`, gap: 8 }}>
         {item.fotos.map((f, i) => (
           <div key={f.id} style={{ position: 'relative', aspectRatio: '1', width: '100%' }}>
@@ -300,13 +318,13 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
       </section>
 
       <section style={SECAO}>
-        <h2 style={TITULO_SECAO}>Onde a peça está</h2>
+        <TituloSecao icone={<MapPin size={16} />}>Onde a peça está</TituloSecao>
         <SeletorLocal compacto locais={base.locais} local={form.local} tecnico={form.tecnico} disabled={!gerir} onLocalCriado={base.recarregarLookups}
           onChange={(l, t) => setForm((f) => ({ ...f, local: l, tecnico: t }))} />
       </section>
 
       <section style={SECAO}>
-        <h2 style={TITULO_SECAO}>Locação no estoque</h2>
+        <TituloSecao icone={<Warehouse size={16} />} cor="#0d9488">Locação no estoque</TituloSecao>
         <SecaoLocacao sku={skuDaPeca(item)} valor={form.locacao} disabled={!gerir}
           onChange={(l) => setForm((f) => ({ ...f, locacao: l }))} />
       </section>
@@ -314,7 +332,7 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
 
       <div style={COLUNA}>
       <section style={SECAO}>
-      <h2 style={TITULO_SECAO}>Dados da peça</h2>
+      <TituloSecao icone={<FileText size={16} />} cor="#2563EB">Dados da peça</TituloSecao>
       {!travada && faltando.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#B45309', fontWeight: 600 }}><AlertTriangle size={13} /> Falta preencher: {faltando.join(', ')}.</div>
       )}
@@ -334,7 +352,8 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
           <input value={form.codigo_correto} onChange={campo('codigo_correto')} disabled={!editavel} placeholder="Vazio = embalagem certa" style={INP} />
         </div>}
         {(form.codigo_correto.trim() || form.codigo_fabricante.trim()) && (
-          <div style={{ gridColumn: '1 / -1' }}><ProdutoCadastro codigo={form.codigo_correto.trim() || form.codigo_fabricante} /></div>
+          <div style={{ gridColumn: '1 / -1' }}><ProdutoCadastro codigo={form.codigo_correto.trim() || form.codigo_fabricante}
+            onUsar={editavel ? (c) => setForm((f) => (f.codigo_correto.trim() ? { ...f, codigo_correto: c } : { ...f, codigo_fabricante: c })) : undefined} /></div>
         )}
         <div>
           <label style={ROTULO}>Quantidade</label>
@@ -393,6 +412,7 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid var(--portal-border)' }}>
         <button onClick={() => (historico ? setHistorico(null) : abrirHistorico())} style={botao('#52525B', { contorno: true })}><History size={15} /> Histórico</button>
         <div style={{ flex: 1 }} />
+        {podeTransferir && <button onClick={transferir} disabled={!!ocupado} title="Leva esta peça para o Patrimônio Loja (com fotos, quantidade e lugar)" style={botao('#4f46e5', { contorno: true, desab: !!ocupado })}>{ocupado === 'transferir' ? <Loader2 size={14} className="spin" /> : <ArrowRightLeft size={14} />} Transferir para o Patrimônio</button>}
         {gerir && <button onClick={excluir} disabled={!!ocupado} style={botao('#DC2626', { contorno: true, desab: !!ocupado })}><Trash2 size={14} /> Excluir</button>}
       </div>
 
@@ -419,6 +439,34 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
 }
 
 /** QR da peça na tela (mesmo link público da etiqueta). */
+/**
+ * Código do quadro "Código e QR". A peça já é um produto cadastrado (código
+ * existente/correto achado no cadastro)? Mostra o código DO PRODUTO no lugar
+ * do nº do Opa (CAP-/PNI-), que fica embaixo, pequeno (José, 26/10/2026).
+ */
+function CodigoDoQuadro({ item }: { item: Item }) {
+  const { cadastros } = useCadastro(skuDaPeca(item))
+  const produto = cadastros?.find((c) => !c.inativo) || cadastros?.[0] || null
+  if (produto) {
+    return (
+      <>
+        <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>Código do produto</span>
+        <span style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 500, color: 'var(--portal-text)' }}>{produto.codigo}</span>
+        <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', maxWidth: 240 }}>
+          No Opa: {item.codigo}{!codigoDefinitivo(item.codigo) && ' (provisório)'} · o QR continua o mesmo.
+        </span>
+      </>
+    )
+  }
+  return (
+    <>
+      <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>Código e QR</span>
+      <span style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 500, color: 'var(--portal-text)' }}>{item.codigo}</span>
+      {!codigoDefinitivo(item.codigo) && <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', maxWidth: 240 }}>Código provisório: muda quando a peça for concluída (o QR continua valendo).</span>}
+    </>
+  )
+}
+
 function QrDaPeca({ token, tamanho = 132 }: { token: string; tamanho?: number }) {
   const [src, setSrc] = useState('')
   useEffect(() => {

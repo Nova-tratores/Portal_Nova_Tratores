@@ -65,9 +65,11 @@ export async function POST(req: NextRequest) {
       visibilidade: body.visibilidade === 'privado' ? 'privado' : body.visibilidade === 'publico' ? 'publico' : undefined,
       duracao_min: body.duracao_min ? Math.round(Number(body.duracao_min)) : null,
       ...(body.sala_id !== undefined ? { sala_id: uuidValido(body.sala_id) ? body.sala_id : null, salaObrigatoria: true } : {}),
+      bloquearIndisponiveis: true,
     })
     return NextResponse.json({ reuniao: r.ticket, aviso: avisoMesmaPessoa(condutor, sec) })
   } catch (e) {
+    if ((e as { code?: string }).code === 'PARTICIPANTE_INDISPONIVEL') return NextResponse.json({ error: (e as Error).message }, { status: 409 })
     if ((e as { code?: string }).code === 'SALA_OCUPADA') return NextResponse.json({ error: (e as Error).message }, { status: 409 })
     if (migrationFaltou(e)) return NextResponse.json({ error: MSG_MIGRATION_REUNIOES }, { status: 503 })
     console.error('[reunioes] POST', e)

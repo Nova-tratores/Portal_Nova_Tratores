@@ -1,6 +1,7 @@
 // POPs — execuções recorrentes do POP (o cron /api/pops/cron/recorrencias gera os tickets).
 // GET    /api/pops/:id/agendamentos
-// POST   /api/pops/:id/agendamentos { recorrencia, dia_semana?, dia_mes?, responsavel_padrao_id, inicio_em? }
+// POST   /api/pops/:id/agendamentos { recorrencia, dia_semana?, dia_mes?, intervalo_meses?, responsavel_padrao_id, inicio_em? }
+//        intervalo_meses > 1 (só mensal) exige inicio_em = a 1ª vez.
 // PATCH  /api/pops/:id/agendamentos { agendamento_id, ativo?, responsavel_padrao_id? }
 // DELETE /api/pops/:id/agendamentos?agendamento_id=<uuid>  (execuções já geradas ficam)
 // Quem pode: quem edita o POP. Modelo do sistema não se agenda.
@@ -47,6 +48,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!(await usuarioAtivo(v.dados.responsavel_padrao_id))) return erro('Responsável inativo.')
     const { data, error } = await supabaseAdmin.from('pops_agendamentos')
       .insert({ ...v.dados, pop_id: id, criado_por: g.userId }).select('*').single()
+    if (error && v.dados.intervalo_meses && ['PGRST204', '42703'].includes(String(error.code))) {
+      return erro('Repetir a cada N meses ainda não está ligado no banco (falta a migration sql/pops-03-recorrencia-meses.sql). "Todo mês" funciona.', 503, { migracaoFaltando: true })
+    }
     if (error) return erroBanco(error)
     return NextResponse.json({ agendamento: data }, { status: 201 })
   } catch (e) { return erroBanco(e) }

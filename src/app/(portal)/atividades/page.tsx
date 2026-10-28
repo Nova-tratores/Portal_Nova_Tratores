@@ -6,9 +6,11 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { supabase } from '@/lib/supabase'
 import UsoAba from '@/components/atividades/UsoAba'
+import PadroesAba from '@/components/atividades/PadroesAba'
+import ProcessosAba from '@/components/atividades/ProcessosAba'
 import {
   Activity, Search, Filter, ChevronDown, ChevronLeft, ChevronRight,
-  Clock, User, Settings, ClipboardList, Wrench, DollarSign, Shield, FileText, Tags, BarChart3
+  Clock, User, Settings, ClipboardList, Wrench, DollarSign, Shield, FileText, Tags, BarChart3, Puzzle, Package, Workflow
 } from 'lucide-react'
 
 interface AuditEntry {
@@ -33,10 +35,12 @@ const SISTEMAS = [
   { value: 'financeiro', label: 'Financeiro' },
   { value: 'propostas', label: 'Proposta Comercial' },
   { value: 'vendas-modelo', label: 'Vendas por Modelo' },
+  { value: 'ajustes', label: 'Ajustes (estoque)' },
 ]
 
 const SISTEMA_ICONS: Record<string, React.ReactNode> = {
   'vendas-modelo': <Tags size={16} />,
+  ajustes: <Package size={16} />,
   revisoes: <Wrench size={16} />,
   requisicoes: <ClipboardList size={16} />,
   pos: <Settings size={16} />,
@@ -63,15 +67,50 @@ const ACAO_COLORS: Record<string, { bg: string; text: string }> = {
   ver_cmc: { bg: 'bg-amber-50', text: 'text-amber-700' },
   exportar_pdf: { bg: 'bg-rose-50', text: 'text-rose-700' },
   sincronizar: { bg: 'bg-indigo-50', text: 'text-indigo-700' },
+  // Ajustes (estoque)
+  'ajuste-estoque': { bg: 'bg-amber-50', text: 'text-amber-700' },
+  'corrigir-estoque-negativo': { bg: 'bg-amber-50', text: 'text-amber-700' },
 }
 
 const PAGE_SIZE = 30
 
+const fmtQtd = (v: unknown) => Number(v || 0).toLocaleString('pt-BR', { maximumFractionDigits: 4 })
+const fmtReais = (v: unknown) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+
+// Texto da coluna Detalhes. Ajuste de estoque vira "antes → depois" por produto;
+// o resto segue chave: valor, sem nulos e sem [object Object].
+function textoDetalhes(entry: AuditEntry): string {
+  const d = entry.detalhes || {}
+  if (entry.acao === 'ajuste-estoque' && Array.isArray(d.itens)) {
+    const itens = (d.itens as Record<string, unknown>[]).map((it) => {
+      const partes = [`${it.conta}`]
+      if (Number(it.qtdAntes) !== Number(it.qtdDepois)) partes.push(`qtd ${fmtQtd(it.qtdAntes)} → ${fmtQtd(it.qtdDepois)}`)
+      if (Math.abs(Number(it.cmcAntes) - Number(it.cmcDepois)) > 1e-6) partes.push(`custo ${fmtReais(it.cmcAntes)} → ${fmtReais(it.cmcDepois)}`)
+      return partes.join(' ')
+    })
+    const status = d.status === 'aplicado' ? '' : ` · Status: ${d.status}`
+    return `${itens.join(' | ')} · Motivo: ${d.motivo ?? '—'}${status}`
+  }
+  const partes = Object.entries(d)
+    .filter(([, v]) => v != null && v !== '' && !(Array.isArray(v) && v.length === 0))
+    .map(([k, v]) => {
+      const val = typeof v === 'object' ? JSON.stringify(v) : String(v)
+      if (k === 'campo') return `Campo: ${val}`
+      if (k === 'de') return `De: ${val}`
+      if (k === 'para') return `Para: ${val}`
+      if (k === 'status') return `Status: ${val}`
+      return `${k}: ${val}`
+    })
+  return partes.length ? partes.join(' · ') : '—'
+}
+
 function AtividadesPageInner() {
   const { userProfile } = useAuth()
   const searchParams = useSearchParams()
-  // Aba: 'atividades' (audit_log) | 'uso' (monitor de uso por usuário/página). Deep-link ?tab=uso
-  const [aba, setAba] = useState<'atividades' | 'uso'>(searchParams.get('tab') === 'uso' ? 'uso' : 'atividades')
+  // Aba: 'atividades' (audit_log) | 'uso' (monitor de uso) | 'padroes' (onde o usuário monta quebra-cabeça)
+  // | 'processos' (fluxograma real das OS). Deep-link ?tab=uso|padroes|processos
+  const tabInicial = searchParams.get('tab')
+  const [aba, setAba] = useState<'atividades' | 'uso' | 'padroes' | 'processos'>(tabInicial === 'uso' || tabInicial === 'padroes' || tabInicial === 'processos' ? tabInicial : 'atividades')
   const [logs, setLogs] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
@@ -173,6 +212,8 @@ function AtividadesPageInner() {
       ver_cmc: 'Viu CMC',
       exportar_pdf: 'Baixou PDF',
       sincronizar: 'Sincronizou',
+      'ajuste-estoque': 'Ajustou estoque',
+      'corrigir-estoque-negativo': 'Corrigiu estoque negativo',
     }
     return map[acao] || acao
   }
@@ -187,6 +228,13 @@ function AtividadesPageInner() {
         @media (max-width: 768px) {
           .ativ-root { padding: 16px 12px !important; }
           .ativ-root h2 { font-size: 22px !important; }
+          /* cada registro vira cartão: quem/quando · sistema/ação · entidade · detalhes (sem rolar de lado) */
+          .ativ-largura { min-width: 0 !important; }
+          .ativ-cab { display: none !important; }
+          .ativ-linha { grid-template-columns: minmax(0,1fr) auto !important; grid-template-areas: 'u q' 's a' 'e e' 'd d'; gap: 6px 10px; padding: 12px 14px !important; }
+          .ativ-linha > * { min-width: 0; }
+          .ativ-linha > :nth-child(1) { grid-area: u; } .ativ-linha > :nth-child(2) { grid-area: s; } .ativ-linha > :nth-child(3) { grid-area: a; justify-self: end; }
+          .ativ-linha > :nth-child(4) { grid-area: e; } .ativ-linha > :nth-child(5) { grid-area: d; } .ativ-linha > :nth-child(6) { grid-area: q; }
         }
       `}</style>
       {/* Header */}
@@ -214,7 +262,7 @@ function AtividadesPageInner() {
 
       {/* Abas */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '20px' }}>
-        {([['atividades', 'Atividades', <Activity key="a" size={14} />], ['uso', 'Uso do portal', <BarChart3 key="u" size={14} />]] as const).map(([k, label, icon]) => (
+        {([['atividades', 'Atividades', <Activity key="a" size={14} />], ['uso', 'Uso do portal', <BarChart3 key="u" size={14} />], ['padroes', 'Padrões', <Puzzle key="p" size={14} />], ['processos', 'Processos', <Workflow key="f" size={14} />]] as const).map(([k, label, icon]) => (
           <button key={k} onClick={() => setAba(k)} style={{
             display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', fontFamily: 'Inter', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
             background: aba === k ? '#dc2626' : '#ffffff', color: aba === k ? '#fff' : '#737373', border: aba === k ? '1px solid #dc2626' : '1px solid #e5e5e5',
@@ -223,6 +271,8 @@ function AtividadesPageInner() {
       </div>
 
       {aba === 'uso' && <UsoAba usuarios={usuarios} />}
+      {aba === 'padroes' && <PadroesAba usuarios={usuarios} />}
+      {aba === 'processos' && <ProcessosAba />}
 
       {aba === 'atividades' && (<>
       {/* Filtros */}
@@ -352,9 +402,9 @@ function AtividadesPageInner() {
         boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflowX: 'auto', WebkitOverflowScrolling: 'touch'
       }}>
         {/* Largura mínima: no celular/tablet a tabela rola na horizontal DENTRO da caixa */}
-        <div style={{ minWidth: 860 }}>
+        <div className="ativ-largura" style={{ minWidth: 860 }}>
         {/* Header da tabela */}
-        <div style={{
+        <div className="ativ-cab" style={{
           display: 'grid',
           gridTemplateColumns: '1fr 140px 100px 1.2fr 200px 120px',
           padding: '12px 24px',
@@ -394,21 +444,12 @@ function AtividadesPageInner() {
         {/* Rows */}
         {!loading && logs.map((entry, i) => {
           const acaoStyle = ACAO_COLORS[entry.acao] || ACAO_COLORS.acesso
-          const detalhesStr = entry.detalhes && Object.keys(entry.detalhes).length > 0
-            ? Object.entries(entry.detalhes)
-                .map(([k, v]) => {
-                  if (k === 'campo') return `Campo: ${v}`
-                  if (k === 'de') return `De: ${v}`
-                  if (k === 'para') return `Para: ${v}`
-                  if (k === 'status') return `Status: ${v}`
-                  return `${k}: ${v}`
-                })
-                .join(' · ')
-            : '—'
+          const detalhesStr = textoDetalhes(entry)
 
           return (
             <div
               key={entry.id}
+              className="ativ-linha"
               style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 140px 100px 1.2fr 200px 120px',

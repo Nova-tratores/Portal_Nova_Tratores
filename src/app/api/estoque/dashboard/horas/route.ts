@@ -12,8 +12,9 @@ export async function GET(req: NextRequest) {
   const negado = await negarSemDashboard(req);
   if (negado) return negado;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
+  const incluirNC = req.nextUrl.searchParams.get('incluirNaoComercial') === '1';
   try {
-    return NextResponse.json(await obterHoras(conta));
+    return NextResponse.json(await obterHoras(conta, incluirNC));
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 });
   }

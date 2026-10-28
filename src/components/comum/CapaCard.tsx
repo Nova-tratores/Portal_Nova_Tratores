@@ -8,7 +8,7 @@ export const CAPA_MUTED = "var(--portal-text-muted, #64748b)";
 
 export function CapaTitulo({ numero, cliente, corNumero }: { numero: string; cliente: string; corNumero?: string }) {
   return (
-    <div style={{ fontSize: 13, lineHeight: 1.3 }}>
+    <div className="capa-titulo" style={{ fontSize: 13, lineHeight: 1.3 }}>
       <b style={{ fontSize: 14, color: corNumero }}>{numero}</b>
       <span style={{ color: CAPA_MUTED }}> · </span>
       <span style={{ fontWeight: 600 }}>{cliente || "Sem Cliente"}</span>
@@ -22,7 +22,7 @@ export function CapaFaseValor({ fase, rotulo, fases, rotuloDe, onChange, valor }
   onChange?: (f: string) => void; valor: string;
 }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+    <div className="capa-fase" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
       <span onClick={(e) => e.stopPropagation()} style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: "color-mix(in srgb, #0369A1 11%, transparent)", color: "#0369A1", whiteSpace: "nowrap", maxWidth: 170, minWidth: 0 }}>
         <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{rotulo}</span>
         {onChange && <i className="fas fa-chevron-down" style={{ fontSize: 8 }} />}
@@ -41,7 +41,7 @@ export function CapaFaseValor({ fase, rotulo, fases, rotuloDe, onChange, valor }
 export interface PassoCapa { r: string; ok: boolean; atual?: boolean }
 export function CapaBolinhas({ passos }: { passos: PassoCapa[] }) {
   return (
-    <div style={{ display: "flex", alignItems: "flex-start" }}>
+    <div className="capa-bol" style={{ display: "flex", alignItems: "flex-start" }}>
       {passos.map((p, i) => {
         const aceso = p.ok || p.atual;
         return (
@@ -58,7 +58,7 @@ export function CapaBolinhas({ passos }: { passos: PassoCapa[] }) {
 
 export function CapaLinha({ icone, rotulo, children }: { icone: string; rotulo: string; children: ReactNode }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 12 }}>
+    <div className="capa-linha" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 12 }}>
       <span style={{ color: CAPA_MUTED, whiteSpace: "nowrap" }}><i className={icone} style={{ width: 14 }} /> {rotulo}</span>
       <span style={{ fontWeight: 600, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{children}</span>
     </div>
@@ -71,7 +71,7 @@ export function CapaData({ children }: { children: ReactNode }) {
 
 export function CapaTexto({ children }: { children: ReactNode }) {
   return (
-    <div style={{ fontSize: 11.5, color: "var(--portal-text-secondary, #475569)", background: "var(--bg-soft, #f8fafc)", border: "1px solid var(--border, #eef2f7)", borderRadius: 7, padding: "5px 8px", lineHeight: 1.35, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", wordBreak: "break-word" }}>
+    <div className="capa-texto" style={{ fontSize: 11.5, color: "var(--portal-text-secondary, #475569)", background: "var(--bg-soft, #f8fafc)", border: "1px solid var(--border, #eef2f7)", borderRadius: 7, padding: "5px 8px", lineHeight: 1.35, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden", wordBreak: "break-word" }}>
       <i className="fas fa-comment" style={{ color: CAPA_MUTED, marginRight: 5, fontSize: 10 }} />{children}
     </div>
   );
@@ -103,7 +103,7 @@ export interface IconeCapa { icone: string; rotulo: string; on: boolean; titulo:
 /** Rodapé: texto à esquerda e ícones com o nome embaixo (aceso = tem). */
 export function CapaRodape({ esquerda, icones }: { esquerda: ReactNode; icones: IconeCapa[] }) {
   return (
-    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 8, borderTop: "1px solid var(--border, #eef2f7)", paddingTop: 7 }}>
+    <div className="capa-rodape" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 8, borderTop: "1px solid var(--border, #eef2f7)", paddingTop: 7 }}>
       <span style={{ fontSize: 10.5, color: CAPA_MUTED, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{esquerda}</span>
       <span style={{ display: "flex", gap: 9, flexShrink: 0 }}>
         {icones.map((x) => (

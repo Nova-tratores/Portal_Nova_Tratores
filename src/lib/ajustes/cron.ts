@@ -76,8 +76,7 @@ export async function cronInventarioDiario(): Promise<any> {
 export async function cronRelatorioPedidos(): Promise<any> {
   const diasMin = parseInt(process.env.RELATORIO_PEDIDOS_DIAS_MIN || '', 10) || 15;
   const contas = getContasOmie().map((c) => c.id);
-  const { dataDeBR, dataAteBR } = resolveJanelaBR(null, null);
-  const pedidos = await listarPedidosAntigosTodasContas(contas, dataDeBR, dataAteBR, diasMin);
+  const pedidos = await listarPedidosAntigosTodasContas(contas, '', '', diasMin); // todos os abertos, sem janela
   if (!pedidos.length) return { pedidos: 0, motivo: 'nenhum pedido aberto acima do limite' };
 
   const pdf = await gerarPDFPedidos({

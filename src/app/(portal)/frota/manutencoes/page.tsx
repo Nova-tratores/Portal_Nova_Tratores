@@ -139,7 +139,17 @@ export default function FrotaManutencoesPage() {
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
 
       <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, overflowX: 'auto' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 120px 110px 190px 120px', gap: 0, minWidth: 820, padding: '10px 16px', background: 'var(--portal-bg-secondary)', fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+        {/* celular: veículo e cada manutenção viram cartão (a grade cortava colunas) */}
+        <style>{`@media (max-width: 640px) {
+          .mn-cab { display: none !important; }
+          .mn-lin { min-width: 0 !important; grid-template-columns: minmax(0,1fr) auto !important; grid-template-areas: 'p t' 'v v' 'q u' 'o o'; gap: 4px 10px !important; padding: 12px 14px !important; }
+          .mn-lin > :nth-child(1) { grid-area: p; } .mn-lin > :nth-child(2) { grid-area: v; } .mn-lin > :nth-child(3) { grid-area: q; text-align: left !important; }
+          .mn-lin > :nth-child(4) { grid-area: u; } .mn-lin > :nth-child(5) { grid-area: o; justify-content: flex-start !important; } .mn-lin > :nth-child(6) { grid-area: t; }
+          .mn-it { min-width: 0 !important; grid-template-columns: minmax(0,1fr) auto !important; grid-template-areas: 'd v' 's s' 'f o'; gap: 3px 10px !important; padding: 10px 14px !important; }
+          .mn-it > :nth-child(1) { grid-area: d; } .mn-it > :nth-child(2) { grid-area: s; white-space: normal !important; } .mn-it > :nth-child(3) { grid-area: f; } .mn-it > :nth-child(4) { grid-area: o; } .mn-it > :nth-child(5) { grid-area: v; }
+          .mn-lin [data-r]::before { content: attr(data-r) ' '; font-size: 10.5px; font-weight: 600; color: var(--portal-text-muted); text-transform: uppercase; }
+        }`}</style>
+        <div className="mn-cab" style={{ display: 'grid', gridTemplateColumns: '110px 1fr 120px 110px 190px 120px', gap: 0, minWidth: 820, padding: '10px 16px', background: 'var(--portal-bg-secondary)', fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
           <span>Placa</span><span>Veículo</span><span style={{ textAlign: 'right' }}>Manutenções</span><span style={{ textAlign: 'right' }}>Última</span><span style={{ textAlign: 'center' }}>Origens</span><span style={{ textAlign: 'right' }}>Total</span>
         </div>
         {visiveis.map((g) => (
@@ -147,6 +157,7 @@ export default function FrotaManutencoesPage() {
             key={g.placa}
             onClick={() => setModalPlaca(g.placa)}
             title="Clique pra ver o histórico completo deste veículo"
+            className="mn-lin"
             style={{ display: 'grid', gridTemplateColumns: '110px 1fr 120px 110px 190px 120px', minWidth: 820, padding: '10px 16px', borderTop: '1px solid var(--portal-border)', fontSize: 13.5, color: 'var(--portal-text)', alignItems: 'center', cursor: 'pointer', opacity: g.ativo ? 1 : 0.6 }}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
@@ -156,8 +167,8 @@ export default function FrotaManutencoesPage() {
               {g.modelo || '—'}
               <BadgeStatus status={g.status} />
             </span>
-            <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{g.itens.length}</span>
-            <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtData(g.ultima)}</span>
+            <span data-r="manut." style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{g.itens.length}</span>
+            <span data-r="última" style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtData(g.ultima)}</span>
             <span style={{ display: 'flex', gap: 4, justifyContent: 'center', flexWrap: 'wrap' }}>
               {Object.entries(g.origens).map(([k, n]) => {
                 const o = ORIGEM[k] || ORIGEM.manual;
@@ -220,13 +231,13 @@ function ModalManutencoes({ grupo, onClose }: { grupo: GrupoVeiculo; onClose: ()
         </div>
 
         <div style={{ overflowY: 'auto', padding: '4px 0 8px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '92px 1fr 170px 105px 105px', gap: 0, minWidth: 640, padding: '8px 20px', fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+          <div className="mn-cab" style={{ display: 'grid', gridTemplateColumns: '92px 1fr 170px 105px 105px', gap: 0, minWidth: 640, padding: '8px 20px', fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
             <span>Data</span><span>Descrição</span><span>Fornecedor</span><span>Origem</span><span style={{ textAlign: 'right' }}>Valor</span>
           </div>
           {grupo.itens.map((m) => {
             const o = ORIGEM[m.origem] || ORIGEM.manual;
             return (
-              <div key={`${m.origem}-${m.id}`} style={{ display: 'grid', gridTemplateColumns: '92px 1fr 170px 105px 105px', minWidth: 640, padding: '8px 20px', borderTop: '1px solid var(--portal-border)', fontSize: 13.5, color: 'var(--portal-text)', alignItems: 'center' }}>
+              <div key={`${m.origem}-${m.id}`} className="mn-it" style={{ display: 'grid', gridTemplateColumns: '92px 1fr 170px 105px 105px', minWidth: 640, padding: '8px 20px', borderTop: '1px solid var(--portal-border)', fontSize: 13.5, color: 'var(--portal-text)', alignItems: 'center' }}>
                 <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtData(m.data)}</span>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }} title={m.descricao || ''}>
                   {m.origem === 'requisicao' ? (

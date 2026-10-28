@@ -6,6 +6,7 @@ import { usePermissoes } from "@/hooks/usePermissoes";
 import SemPermissao from "@/components/SemPermissao";
 import Header from "@/components/pos/Header";
 import PhaseAccordion from "@/components/pos/PhaseAccordion";
+import { registrarRecenteOS } from "@/components/pos/BuscaPOS";
 import PosMobile from "@/components/pos/PosMobile";
 import OSDrawer from "@/components/pos/OSDrawer";
 import { useIsMobile } from "@/hooks/useIsMobile";
@@ -235,6 +236,8 @@ function PosPageInner() {
   };
 
   const handleCardClick = (order: KanbanCard) => {
+    // aberta com a busca preenchida → entra no histórico da busca (José, 21/10/2026)
+    if (searchTerm.trim()) registrarRecenteOS(order.id);
     setDrawerMode("edit");
     setSelectedOsId(order.id);
     setDrawerVisible(true);
@@ -414,6 +417,8 @@ function PosPageInner() {
             abertasPorTecnico={abertasPorTecnico}
             tecnicoFiltro={tecnicoFiltro}
             onTecnicoFiltro={setTecnicoFiltro}
+            ordens={orders}
+            onAbrirOS={handleCardClick}
           />
           {/* Alternar Cards ⇄ Relação ⇄ Dashboard — no modo Cards vai na MESMA
               linha das abas (Faturamento/Garantias/Internas), à direita */}
@@ -468,6 +473,13 @@ function PosPageInner() {
         clientes={clientes}
         userName={userProfile?.nome || ""}
         onClose={() => setLembretesVisible(false)}
+        // lembrete com OS abre a OS aqui mesmo (José, 26/10/2026)
+        onAbrirOS={(id) => {
+          setDrawerMode("edit");
+          setSelectedOsId(id);
+          setDrawerVisible(true);
+          window.history.replaceState(null, "", `/pos?id=${encodeURIComponent(id)}`);
+        }}
       />
     </div>
   );

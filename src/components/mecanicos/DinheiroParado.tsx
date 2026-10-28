@@ -5,6 +5,7 @@
 // posvendas_pendencias, regravada pelo robô). Regras em lib/mecanicos/pendencias.ts.
 import { useEffect, useMemo, useState } from 'react'
 import { authHeaders } from '@/lib/auth/client'
+import { useVersaoAoVivo } from './useAoVivo'
 import { createPortal } from 'react-dom'
 import { resumoPendencias, FAIXAS_IDADE, type Pendencia, type TipoPendencia } from '@/lib/mecanicos/pendencias'
 import { grupoDe } from '@/lib/mecanicos/painel'
@@ -21,6 +22,7 @@ const COR_IDADE = ['#16a34a', '#eab308', '#f97316', '#dc2626']
  *  marcada como interna ou cancelada sai na hora). Até a 1ª resposta usa o que veio na base. */
 export function useParadoVivo(inicial: Pendencia[]): Pendencia[] {
   const [vivo, setVivo] = useState<Pendencia[] | null>(null)
+  const versao = useVersaoAoVivo()
   useEffect(() => {
     let ativo = true
     const buscar = async () => {
@@ -36,7 +38,7 @@ export function useParadoVivo(inicial: Pendencia[]): Pendencia[] {
     const aoVoltar = () => { if (document.visibilityState === 'visible') void buscar() }
     document.addEventListener('visibilitychange', aoVoltar)
     return () => { ativo = false; clearInterval(t); document.removeEventListener('visibilitychange', aoVoltar) }
-  }, [])
+  }, [versao])
   return vivo || inicial
 }
 

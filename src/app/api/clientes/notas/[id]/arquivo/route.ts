@@ -1,6 +1,6 @@
 // PDF/XML de uma nota do cache para a Pasta Clientes (módulo clientes). Nota de entrada
 // continua exigindo a permissão de Recebimentos (valor de compra). Sem arquivo guardado,
-// busca no Omie na hora e guarda (mesma regra do /api/estoque/notas/[id]/arquivo).
+// busca no Omie na hora e guarda (mesma regra do /api/financeiro/notas/[id]/arquivo).
 import { NextRequest, NextResponse } from "next/server";
 import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { supabaseAdmin } from "@/lib/server/supabase-admin";

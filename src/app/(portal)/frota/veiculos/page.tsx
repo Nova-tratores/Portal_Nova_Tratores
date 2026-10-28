@@ -499,6 +499,7 @@ export default function FrotaHome() {
         <VeiculoDrawer
           placa={placaAberta}
           podeEditar={pode('frota', 'veiculos:editar')}
+          podeInativar={pode('frota', 'veiculos:inativar')}
           podeResponsavel={pode('frota', 'veiculos:responsavel')}
           podeDocumentos={pode('frota', 'documentos:editar')}
           onClose={() => setPlacaAberta(null)}

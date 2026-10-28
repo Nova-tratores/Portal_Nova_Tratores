@@ -2,6 +2,7 @@
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -19,6 +20,7 @@ const ICONS = {
   rh: Users,
   vencidos: AlertTriangle,
   rastreio: Search,
+  notas: FileText,
 }
 
 const LINKS_FINANCEIRO = [
@@ -44,6 +46,8 @@ const LINKS_PECAS = [
   { label: 'Vencidos', href: '/financeiro/vencidos', icon: 'vencidos' },
 ]
 
+const LINK_NOTAS = { label: 'Notas fiscais', href: '/financeiro/notas', icon: 'notas' }
+
 // `children` é um slot opcional à direita das guias. O default explícito é o
 // que permite chamar <FinanceiroNav /> de uma tela .tsx sem o TS exigir a prop
 // (este arquivo é .js, então o tipo é inferido da assinatura).
@@ -53,10 +57,14 @@ export default function FinanceiroNav({ children = null }) {
   const [vencidosCount, setVencidosCount] = useState(0)
   const isMobile = useIsMobile()
 
+  const { pode } = usePermissoes(userProfile?.id)
+
   const funcao = userProfile?.funcao
-  const links = funcao === 'Financeiro' ? LINKS_FINANCEIRO
+  const linksFuncao = funcao === 'Financeiro' ? LINKS_FINANCEIRO
     : funcao === 'Peças' ? LINKS_PECAS
     : LINKS_POSVENDAS
+  // Notas fiscais (cache PDF + XML) vale pela PERMISSÃO, não pela função
+  const links = pode('financeiro', 'notas') ? [...linksFuncao, LINK_NOTAS] : linksFuncao
 
   // Contar vencidos para badge
   useEffect(() => {

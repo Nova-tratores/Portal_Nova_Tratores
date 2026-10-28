@@ -13,6 +13,8 @@ import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { logFrota, podeFrota } from '@/lib/frota/server';
 import { resolverPlaca } from '@/lib/frota/placa';
+import { planejarVinculo } from '@/lib/frota/vinculo-tecnico';
+import { carregarDesligados } from '@/lib/frota/higiene-responsaveis-server';
 
 export const runtime = 'nodejs';
 
@@ -44,6 +46,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pla
   const inicio: string = /^\d{4}-\d{2}-\d{2}$/.test(String(body.inicio || ''))
     ? body.inicio
     : new Date().toISOString().slice(0, 10);
+
+  // pessoa desligada no RH não pode assumir carro (José, 22/10/2026)
+  if (nome && motoristaId && (await carregarDesligados()).has(motoristaId)) {
+    return NextResponse.json({ error: `${nome} está desligado(a) no RH — escolha outra pessoa.` }, { status: 409 });
+  }
 
   // (para o audit log: quem era o responsável até agora)
   const { data: anterior } = await supabase
@@ -118,6 +125,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pla
     writeThrough = 'falhou';
   }
 
+  // 4) vínculo do TÉCNICO (tecnico_veiculos: checklist do mês, GPS, gastos).
+  //    Melhor esforço, como o espelho acima.
+  let vinculoTecnico = 'nenhum';
+  try {
+    vinculoTecnico = await moverVinculoTecnico(v, anterior?.motorista_nome || null, nome || null);
+  } catch (e) {
+    console.warn('[frota] vínculo do técnico falhou:', e);
+    vinculoTecnico = 'falhou';
+  }
+
   await logFrota(auth, {
     acao: 'editar',
     entidade: 'responsavel',
@@ -128,8 +145,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pla
       para: nome || null,
       inicio,
       write_through: writeThrough,
+      vinculo_tecnico: vinculoTecnico,
     },
   });
 
-  return NextResponse.json({ ok: true, write_through: writeThrough });
+  return NextResponse.json({ ok: true, write_through: writeThrough, vinculo_tecnico: vinculoTecnico });
+}
+
+type VeiculoVinculo = { placa: string; placa_exibicao: string | null; descricao: string | null; modelo: string | null; adesao_id: number | null };
+
+async function moverVinculoTecnico(v: VeiculoVinculo, anterior: string | null, novo: string | null): Promise<string> {
+  const [{ data: linhas }, { data: perms }] = await Promise.all([
+    supabase.from('tecnico_veiculos').select('id, tecnico_nome, placa'),
+    supabase.from('portal_permissoes').select('user_id, mecanico_tecnico_nome').eq('mecanico_role', 'tecnico'),
+  ]);
+  const ids = (perms || []).map((p) => p.user_id);
+  const { data: usuarios } = ids.length
+    ? await supabase.from('financeiro_usu').select('id, nome').eq('ativo', true).in('id', ids)
+    : { data: [] as { id: string; nome: string }[] };
+  const tecnicos = (perms || [])
+    .filter((p) => (usuarios || []).some((u) => u.id === p.user_id))
+    .map((p) => p.mecanico_tecnico_nome || (usuarios || []).find((u) => u.id === p.user_id)?.nome || '')
+    .filter(Boolean);
+
+  const plano = planejarVinculo({ linhas: linhas || [], tecnicos, placa: v.placa, anterior, novo });
+  if (plano.apagar.length) {
+    const { error } = await supabase.from('tecnico_veiculos').delete().in('id', plano.apagar);
+    if (error) throw error;
+  }
+  if (plano.gravar) {
+    const dados = { placa: v.placa_exibicao || v.placa, descricao: v.descricao || v.modelo || '', adesao_id: v.adesao_id };
+    const { error } = plano.gravar.id
+      ? await supabase.from('tecnico_veiculos').update(dados).eq('id', plano.gravar.id)
+      : await supabase.from('tecnico_veiculos').insert({ tecnico_nome: plano.gravar.tecnico_nome, ...dados });
+    if (error) throw error;
+  }
+  return plano.gravar ? `movido: ${plano.gravar.tecnico_nome}` : plano.apagar.length ? 'removido' : 'nenhum';
 }

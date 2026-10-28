@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { carreiraDe, caminho, movimentoDoMes, patente, pesoOcorrencia } from '../carreira'
+import { carreiraDe, caminho, contarOSLimpas, nivelDoSaldo, patente, pesoOcorrencia } from '../carreira'
 import { calcularComissoes, comissaoFixa, previsaoPagamento, projetarMes } from '../comissao'
 
-describe('carreira do mecânico', () => {
+describe('carreira do mecânico (pontos por OS limpa)', () => {
   it('nomes das patentes', () => {
     expect(patente(0).nome).toBe('Ferro 5')
     expect(patente(4).nome).toBe('Ferro 1')
@@ -11,23 +11,41 @@ describe('carreira do mecânico', () => {
     expect(patente(20).nome).toBe('Diamante')
     expect(patente(99).nome).toBe('Diamante')
   })
-  it('mês limpo sobe 1; ocorrência derruba 1 a cada 10 pontos; retorno pesa o dobro', () => {
-    expect(movimentoDoMes(0)).toBe(1)
-    expect(movimentoDoMes(3)).toBe(-1)
-    expect(movimentoDoMes(16)).toBe(-2)
+  it('50 pontos = 1 degrau; retorno pesa o dobro', () => {
+    expect(nivelDoSaldo(0)).toBe(0)
+    expect(nivelDoSaldo(49)).toBe(0)
+    expect(nivelDoSaldo(50)).toBe(1)
+    expect(nivelDoSaldo(368)).toBe(7) // Gabriel em 22/10: Bronze 3
+    expect(nivelDoSaldo(-50)).toBe(0)
+    expect(nivelDoSaldo(99999)).toBe(20)
     expect(pesoOcorrencia({ pontos: 8, vale: true, subcategoria: 'retorno_servico' })).toBe(16)
     expect(pesoOcorrencia({ pontos: 8, vale: false, subcategoria: 'retorno_servico' })).toBe(0)
   })
-  it('caminho não passa de Diamante nem cai abaixo de Ferro 5', () => {
-    const c = caminho('2026-01', '2026-05', { '2026-02': { pontos: 30, qtd: 2 } })
-    expect(c.meses.map((m) => m.depois)).toEqual([1, 0, 1, 2])
-    expect(c.nivel).toBe(2)
+  it('cada OS limpa dá 5 pontos, ocorrência desconta, saldo nunca negativo', () => {
+    const c = caminho('2026-01', '2026-04', { '2026-01': { pontos: 0, qtd: 0, osLimpas: 10 }, '2026-02': { pontos: 80, qtd: 3, osLimpas: 2 }, '2026-03': { pontos: 0, qtd: 0, osLimpas: 30 } })
+    expect(c.meses.map((m) => m.saldo)).toEqual([50, 0, 150])
+    expect(c.meses.map((m) => m.depois)).toEqual([1, 0, 3])
+    expect(c.nivel).toBe(3)
   })
-  it('mês atual mostra o que acontece se fechar assim, e a sequência limpa', () => {
-    const r = carreiraDe('Ana', '2026-01', '2026-04', { '2026-04': { pontos: 4, qtd: 1 } })
-    expect(r.nivel).toBe(3)
+  it('mês atual entra no "se fechar assim" e mostra quanto falta', () => {
+    const r = carreiraDe('Ana', '2026-01', '2026-03', { '2026-01': { pontos: 0, qtd: 0, osLimpas: 18 }, '2026-02': { pontos: 6, qtd: 1, osLimpas: 6 }, '2026-03': { pontos: 0, qtd: 0, osLimpas: 4 } })
+    expect(r.saldo).toBe(114)
+    expect(r.nivel).toBe(2)
+    expect(r.saldoAgora).toBe(134)
     expect(r.seFecharAssim).toBe(2)
-    expect(r.sequencia).toBe(3)
+    expect(r.faltaProximo).toBe(16)
+    expect(r.mesAtual).toEqual({ pontos: 0, qtd: 0, osLimpas: 4, ganhos: 20 })
+    expect(r.osLimpasTotal).toBe(28)
+    expect(r.sequencia).toBe(0)
+  })
+  it('OS com ocorrência ou pendência não conta; portal e Omie casam; OS repetida conta 1', () => {
+    const r = contarOSLimpas([
+      { os: 'OS-0793', numeroOmie: '5345', data: '2026-10-02', tecnicos: ['Ana', 'Bia'] },
+      { os: 'OS-0800', numeroOmie: '005350', data: '2026-10-03', tecnicos: ['Ana'] },
+      { os: 'OS-0801', numeroOmie: null, data: '2026-09-30', tecnicos: ['Ana'] },
+      { os: 'OS-0793', numeroOmie: '5345', data: '2026-10-02', tecnicos: ['Ana'] },
+    ], new Set(['5350']))
+    expect(r).toEqual({ Ana: { '2026-10': 1, '2026-09': 1 }, Bia: { '2026-10': 1 } })
   })
 })
 

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS } from "@/lib/pos/constants";
 import { getConfigPOS } from "@/lib/pos/config";
@@ -10,18 +10,23 @@ import { normalizarAlimentacoes, agregadosAlimentacao } from "@/lib/pos/alimenta
 import { parseValorMisto } from "@/lib/marketing/custos";
 import { valorPecasDosPPVs } from "@/lib/pos/pecas-ppv";
 import { totalExtras, type OmieEspelho } from "@/lib/pos/omie-espelho";
+import { documentosAnteriores, type DocAnterior } from "@/lib/pos/omie-anteriores";
+import { statusCobranca, type CobrancaStatus } from "@/lib/pos/cobranca-requisicoes-regras";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
   const { data: res } = await supabase.from(TBL_OS).select("*").eq("Id_Ordem", idOs).limit(1);
   if (!res || !res.length) return NextResponse.json(null);
+  // abriu a OS: acerta o total da capa (requisição/PPV mudaram por fora) depois de responder
+  after(() => import("@/lib/pos/valor-total").then((m) => m.recalcularValorTotalOS(idOs)).catch(() => {}));
 
   const row = res[0];
 
   const servicoInternoVal = !!safeGet(row, "Servico_Interno");
 
   // Buscar requisições vinculadas (legado via Id_Req + novo via Requisicao.ordem_servico)
-  const requisicoes: Array<{ id: string; atualizada: boolean; valor: number; linkNota: string; material: string; solicitante: string }> = [];
+  // tipo/cobranca_*/valor_despeza: só nas requisições novas (tabela Requisicao) — cobrança (José, 26/10/2026)
+  const requisicoes: Array<{ id: string; atualizada: boolean; valor: number; linkNota: string; material: string; solicitante: string; tipo?: string | null; cobranca_status?: CobrancaStatus | null; cobranca_motivo?: string | null; cobranca_por?: string | null; cobranca_em?: string | null; valor_despeza?: string | null }> = [];
   const idsJaAdicionados = new Set<string>();
 
   // 1. Legado: Id_Req (comma-separated, tabelas Supa-Solicitacao_Req / Supa-AtualizarReq)
@@ -43,10 +48,13 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // 2. Novo: Requisicao.ordem_servico = idOs (tabela principal)
-  const { data: reqsVinculadas } = await supabase
+  const colsReq = "id, titulo, tipo, setor, solicitante, status, valor_despeza, valor_cobrado_cliente, recibo_fornecedor, fornecedor";
+  let { data: reqsVinculadas, error: errReqs } = await supabase
     .from("Requisicao")
-    .select("id, titulo, tipo, solicitante, status, valor_despeza, valor_cobrado_cliente, recibo_fornecedor, fornecedor")
+    .select(`${colsReq}, ordem_servico, created_at, cobranca_status, cobranca_motivo, cobranca_por, cobranca_em`)
     .eq("ordem_servico", idOs);
+  // sem sql/requisicoes-cobranca.sql: lê sem as colunas da cobrança
+  if (errReqs) ({ data: reqsVinculadas } = await supabase.from("Requisicao").select(colsReq).eq("ordem_servico", idOs) as unknown as { data: typeof reqsVinculadas });
   if (reqsVinculadas) {
     for (const r of reqsVinculadas) {
       const rid = String(r.id);
@@ -60,6 +68,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
         linkNota: r.recibo_fornecedor || "",
         material: r.titulo || "N/A",
         solicitante: r.solicitante || "N/A",
+        tipo: r.tipo ?? null,
+        cobranca_status: statusCobranca({ ...r, ordem_servico: idOs }),
+        cobranca_motivo: r.cobranca_motivo ?? null,
+        cobranca_por: r.cobranca_por ?? null,
+        cobranca_em: r.cobranca_em ?? null,
+        valor_despeza: r.valor_despeza ?? null,
       });
     }
   }
@@ -106,7 +120,15 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
 
+  // OS e pedidos cancelados ao corrigir a nota (bloco Omie e de notas mostram "5185 → 5397")
+  let omieAnteriores: DocAnterior[] = [];
+  try {
+    const { data: pedsAnt } = await supabase.from(TBL_PEDIDOS).select("id_pedido, faturamento_anterior").eq("Id_Os", idOs);
+    omieAnteriores = documentosAnteriores(safeGet(row, "faturamento_anterior"), (pedsAnt || []) as { id_pedido: string; faturamento_anterior: unknown }[]);
+  } catch { /* sem histórico */ }
+
   return NextResponse.json({
+    omieAnteriores,
     id: safeGet(row, "Id_Ordem"), nomeCliente: safeGet(row, "Os_Cliente"),
     cpfCliente: safeGet(row, "Cnpj_Cliente"), enderecoCliente: safeGet(row, "Endereco_Cliente"), cidadeCliente: safeGet(row, "Cidade_Cliente"),
     tecnicoResponsavel: safeGet(row, "Os_Tecnico"), tecnico2: safeGet(row, "Os_Tecnico2"),
@@ -229,12 +251,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
+  // A pessoa NÃO mexeu na fase (a janela manda a fase que estava quando abriu): fica a fase
+  // de agora do banco. Sem isso, salvar qualquer campo com a janela aberta há um tempo
+  // desfazia o que o robô de datas ou o Tratorilson tinham movido — e contava como decisão
+  // da pessoa (23/10/2026: 47 viradas desfeitas assim, várias em segundos).
+  if (resAtual && resAtual.length > 0 && typeof dados.statusAoAbrir === "string" && dados.statusAoAbrir === dados.status) {
+    dados.status = safeGet(resAtual[0], "Status") as string;
+  }
+
   if (resAtual && resAtual.length > 0) {
     const atual = resAtual[0];
     const stAt = safeGet(atual, "Status") as string;
     const agora = new Date();
-    const dataFmt = new Intl.DateTimeFormat("pt-BR").format(agora);
-    const horaFmt = agora.toLocaleTimeString("pt-BR");
+    const dataFmt = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora);
+    const horaFmt = agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" });
     const logBase = { Id_ppo: idOs, Data_Acao: dataFmt, Hora_Acao: horaFmt, UsuEmail: dados.userName || "Sistema", Dias_Na_Fase: 0, Total_Dias_Aberto: 0 };
 
     if (stAt !== dados.status) {
@@ -573,6 +603,11 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     notifDescricao: `${userNameLog} editou a OS ${idOs}`,
     notifLink: `/pos?id=${idOs}`,
   });
+
+  // Janela Mecânicos na hora: OS editada (interna, valores, técnico…) atualiza o dinheiro parado das telas abertas
+  import("@/lib/mecanicos/ao-vivo-server")
+    .then((m) => m.atualizarPosVendasAgora(`OS ${idOs} editada`, { leve: true }))
+    .catch(() => {});
 
   return NextResponse.json({ success: true });
 }

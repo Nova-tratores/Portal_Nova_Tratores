@@ -52,6 +52,33 @@ export type ResultadoFluxo =
 
 const msg = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
+/**
+ * Leitura da OS para o faturamento SEM repetir a mesma consulta (22/10/2026): o Omie recusa a mesma chamada com os
+ * mesmos parâmetros em poucos segundos ("consumo redundante — aguarde N s") e a fila ficava parada esperando.
+ *  - a 1ª leitura reaproveita a que acabou de achar a OS (`primeira`);
+ *  - as seguintes alternam a chave (nCodOS → cCodIntOS → cNumOS…), começando DEPOIS da chave já usada;
+ *  - toda resposta tem que ser a MESMA OS (nCodOS igual), senão é erro — nada é emitido com dado de outra OS.
+ */
+export function leitorDaOS(
+  nCodOS: number,
+  chaves: Array<Record<string, unknown>>,
+  ler: (param: Record<string, unknown>) => Promise<OSNoOmie>,
+  primeira?: OSNoOmie | null,
+  chaveJaUsada = 0,
+): () => Promise<OSNoOmie> {
+  let pronta: OSNoOmie | null = primeira || null;
+  let k = chaveJaUsada + 1;
+  return async () => {
+    if (pronta) { const d = pronta; pronta = null; return d; }
+    const param = chaves[k % chaves.length];
+    k++;
+    const d = await ler(param);
+    const veio = Number(d?.Cabecalho?.nCodOS || 0);
+    if (veio && veio !== nCodOS) throw new ErroOmie(`O Omie devolveu outra OS (código ${veio}) ao conferir — nada foi emitido.`);
+    return d;
+  };
+}
+
 export async function executarFaturamento(
   deps: DepsFaturamento,
   entrada: { forma: string | null; aplicarParcelas: boolean; hojeISO: string; totalConfirmado: number; impostos?: CamposFiscais | null },
@@ -134,6 +161,8 @@ export async function executarFaturamento(
   if (!conferiu) return { tipo: 'desconhecido', mensagem: `O Omie respondeu "${resposta}" e não deu para conferir a OS.` };
   return {
     tipo: 'desconhecido',
-    mensagem: `O Omie respondeu "${resposta}", mas a OS continua ABERTA lá (não foi faturada e não tem nota). O portal confere de novo em alguns minutos; se continuar aberta, libera para faturar outra vez — confira no Omie o motivo.`,
+    // o Omie às vezes leva MINUTOS para faturar depois de responder "sucesso" (OS-0805, 22/10/2026: 4 min)
+    // a resposta do Omie vai junto (OS-0793, 27/10/2026: aceitou 2× e não faturou — sem a resposta não dava para saber por quê)
+    mensagem: `O Omie respondeu "${resposta}", mas a OS continua ABERTA lá por enquanto — às vezes ele leva alguns minutos. O portal está conferindo sozinho: quando a OS aparecer faturada, conclui e fatura o pedido de peças. Se em 10 minutos continuar aberta, libera para faturar de novo.`,
   };
 }

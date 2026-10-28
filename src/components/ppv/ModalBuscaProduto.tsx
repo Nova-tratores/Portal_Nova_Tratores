@@ -351,8 +351,9 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
                             </>
                           ) : (
                             <>
-                              <span>R$ {p.preco.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
-                              <button
+                              <span title={p.origem === "manuais" ? undefined : "Preço de venda da Omie (atualiza sozinho a cada 10 min). Para mudar, altere o cadastro na Omie."}>R$ {p.preco.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                              {/* Só produto manual edita o preço aqui; o da Omie é de Peças, no cadastro da Omie */}
+                              {p.origem === "manuais" && <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditandoPreco({ idx, valor: p.preco.toFixed(2).replace(".", ",") });
@@ -361,7 +362,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
                                 title="Editar preço"
                               >
                                 <i className="fas fa-pencil-alt text-[10px]" />
-                              </button>
+                              </button>}
                             </>
                           )}
                         </div>

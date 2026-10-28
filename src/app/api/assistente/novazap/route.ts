@@ -15,6 +15,7 @@ import { chamarIA, getIA } from "@/lib/assistente/ia";
 import { logTratorilson } from "@/lib/assistente/log";
 import { notificarTratorilson } from "@/lib/assistente/notificados";
 import { geocodificar, rotaDaOficina } from "@/lib/pos/ors";
+import { transcreverAudio } from "@/lib/assistente/transcrever-audio";
 
 export const dynamic = "force-dynamic";
 
@@ -42,38 +43,6 @@ interface MsgEntrada {
   texto?: string;
   imagens?: string[]; // fotos do cliente (horímetro, chassi...) — URLs do zap
   audios?: string[]; // áudios do cliente — transcritos aqui (Whisper) e viram texto
-}
-
-// Baixa o áudio do zap e transcreve na OpenAI (gpt-4o-mini-transcribe, com
-// fallback whisper-1). Devolve "" em qualquer falha — o fluxo segue sem o áudio.
-async function transcreverAudio(url: string): Promise<string> {
-  try {
-    const key = process.env.OPENAI_API_KEY || "";
-    if (!key || !url) return "";
-    const a = await fetch(url);
-    if (!a.ok) return "";
-    const buf = await a.arrayBuffer();
-    if (!buf.byteLength || buf.byteLength > 24 * 1024 * 1024) return "";
-    const nomeCru = (url.split("?")[0].split("/").pop() || "audio.ogg").slice(-40);
-    const nome = /\.[a-z0-9]{2,4}$/i.test(nomeCru) ? nomeCru : "audio.ogg";
-    const pedir = async (modelo: string) => {
-      const fd = new FormData();
-      fd.append("file", new Blob([buf]), nome);
-      fd.append("model", modelo);
-      fd.append("language", "pt");
-      const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}` },
-        body: fd,
-      });
-      if (!r.ok) return "";
-      const j = await r.json().catch(() => ({}));
-      return String(j.text || "").trim();
-    };
-    return (await pedir("gpt-4o-mini-transcribe")) || (await pedir("whisper-1"));
-  } catch {
-    return "";
-  }
 }
 
 // ---------- ferramentas ----------

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useMarcarCaso } from '@/lib/uso/caso';
 import { supabase } from "@/lib/supabase";
 import { filtrarDestinatarios } from "@/lib/notif/prefs";
 import { useAuth } from "@/hooks/useAuth";
@@ -102,9 +103,12 @@ function DashboardAgrupadoInner() {
   const podeDestinatarios = pode('revisoes', 'destinatarios');
   const { log: auditLog } = useAuditLog();
   const [tratores, setTratores] = useState<Trator[]>([]);
-  const [busca, setBusca] = useState("");
+  // ?busca=<chassi> (vem de "Tratores vendidos") já abre filtrado
+  const [busca, setBusca] = useState(() => (typeof window === "undefined" ? "" : new URLSearchParams(window.location.search).get("busca") || ""));
   const [filtroCliente, setFiltroCliente] = useState("");
   const [selecionado, setSelecionado] = useState<Trator | null>(null);
+  // Monitor de uso: avisa a jornada qual trator está aberto (só hashes ficam no navegador).
+  useMarcarCaso(selecionado?.Chassis ? { chassi: selecionado.Chassis } : null);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState("");
   const [enviando, setEnviando] = useState(false);
@@ -156,6 +160,8 @@ function DashboardAgrupadoInner() {
   type ChequeOnline = { osId: string; horas: number; pagina: number | null; dataRevisao: string; horimetro: string; tecnico: string; assinado: boolean; assinadoEm: string | null; assinadoNome: string | null; assinadoGeo: { lat: number; lng: number; precisao_m?: number | null } | null; assinadoDispositivo: { modelo?: string | null; plataforma?: string | null; versao?: string | null } | null; linkCheque: string; linkAssinar: string; pdfUrl: string };
   const [chequesOnline, setChequesOnline] = useState<ChequeOnline[]>([]);
   const [usarChequeOnline, setUsarChequeOnline] = useState(false);
+  // OS de revisão do trator no POS (uma por horas): revisão feita mesmo sem data no cadastro
+  const [osRevisoes, setOsRevisoes] = useState<{ horas: number; osId: string; data: string }[]>([]);
   const [editandoMotor, setEditandoMotor] = useState(false);
   const [motorTemp, setMotorTemp] = useState("");
   const [editandoCliente, setEditandoCliente] = useState(false);
@@ -617,14 +623,14 @@ function DashboardAgrupadoInner() {
   };
 
   useEffect(() => {
-    setChequesOnline([]); setUsarChequeOnline(false);
+    setChequesOnline([]); setUsarChequeOnline(false); setOsRevisoes([]);
     if (!selecionado?.Chassis) return;
     let vivo = true;
     (async () => {
       try {
         const r = await fetch(`/api/revisoes/cheques?chassis=${encodeURIComponent(selecionado.Chassis)}`, { headers: await authHeaders() });
         const j = await r.json();
-        if (vivo && r.ok) setChequesOnline(j.itens || []);
+        if (vivo && r.ok) { setChequesOnline(j.itens || []); setOsRevisoes(j.osRevisoes || []); }
       } catch { /* sem cheque online */ }
     })();
     return () => { vivo = false; };
@@ -956,6 +962,13 @@ function DashboardAgrupadoInner() {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 shrink-0">
+              <a
+                href="/revisoes/vendidos"
+                title="Tratores vendidos recentemente: 30, 60 e 90 dias da venda, cliente, localização e se já estão no controle"
+                className="px-5 py-2.5 bg-white border border-zinc-300 text-zinc-700 rounded-lg font-medium hover:bg-zinc-50 transition-colors text-sm"
+              >
+                Tratores vendidos
+              </a>
               <a
                 href="/revisoes/mahindra"
                 title="Revisões de 50h e 900h realizadas — controle de cobrança da Mahindra + exportação Excel"
@@ -1446,8 +1459,15 @@ function DashboardAgrupadoInner() {
                           const horas = selecionado[`${rev} Horimetro`];
                           const pdfSalvo = selecionado[`${rev} PDF`] as string | undefined;
                           const email = emailsCarregados ? emailDaRevisao(selecionado.Chassis, rev) : null;
+                          // feita = data no cadastro OU OS de revisão daquelas horas no POS
+                          const osDe = (r: string) => osRevisoes.find((o) => `${o.horas}h` === r) || null;
+                          const feitaEm = (r: string) => !!selecionado[`${r} Data`] || !!osDe(r);
+                          const osRev = osDe(rev);
                           const isFeita = !!data;
-                          const isProxima = !isFeita && (idx === 0 || selecionado[`${REVISOES_LISTA[idx - 1]} Data`]);
+                          const feitaPorOS = !isFeita && !!osRev;
+                          const isProxima = !isFeita && !feitaPorOS && (idx === 0 || feitaEm(REVISOES_LISTA[idx - 1]));
+                          // não feita mas já passou (há revisão feita depois dela): não feita · sem cheque
+                          const pulada = !isFeita && !feitaPorOS && REVISOES_LISTA.slice(idx + 1).some(feitaEm);
                           const isExpanded = emailExpandido === `tl-${rev}`;
 
                           return (
@@ -1455,7 +1475,7 @@ function DashboardAgrupadoInner() {
                               <button
                                 onClick={() => setEmailExpandido(isExpanded ? null : `tl-${rev}`)}
                                 className={`w-full flex items-center gap-4 p-3 rounded-xl transition-all text-left group ${
-                                  isFeita
+                                  isFeita || feitaPorOS
                                     ? "hover:bg-emerald-50"
                                     : isProxima
                                       ? "hover:bg-amber-50"
@@ -1463,13 +1483,13 @@ function DashboardAgrupadoInner() {
                                 }`}
                               >
                                 <div className={`relative z-10 w-[30px] h-[30px] rounded-full flex items-center justify-center shrink-0 border-2 transition-all ${
-                                  isFeita
+                                  isFeita || feitaPorOS
                                     ? "bg-emerald-100 border-emerald-500"
                                     : isProxima
                                       ? "bg-amber-100 border-amber-500 animate-pulse"
                                       : "bg-zinc-100 border-zinc-300"
                                 }`}>
-                                  {isFeita ? (
+                                  {isFeita || feitaPorOS ? (
                                     <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M2.5 6L5 8.5L9.5 3.5" stroke="#10b981" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                                   ) : isProxima ? (
                                     <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
@@ -1480,7 +1500,7 @@ function DashboardAgrupadoInner() {
 
                                 <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2">
-                                    <span className={`font-semibold text-base ${isFeita ? "text-zinc-900" : isProxima ? "text-amber-600" : "text-zinc-500"}`}>
+                                    <span className={`font-semibold text-base ${isFeita || feitaPorOS ? "text-zinc-900" : isProxima ? "text-amber-600" : "text-zinc-500"}`}>
                                       {rev}
                                     </span>
                                     {isProxima && (
@@ -1491,6 +1511,11 @@ function DashboardAgrupadoInner() {
                                     <div className="flex items-center gap-3 mt-0.5">
                                       <span className="text-sm text-zinc-400">{formatarData(data)}</span>
                                       {horas && <span className="text-sm text-emerald-400 font-medium">{horas}h</span>}
+                                    </div>
+                                  )}
+                                  {feitaPorOS && osRev && (
+                                    <div className="flex items-center gap-3 mt-0.5">
+                                      <span className="text-sm text-zinc-400">{osRev.osId}{osRev.data ? ` · ${osRev.data}` : ""}</span>
                                     </div>
                                   )}
                                 </div>
@@ -1508,9 +1533,15 @@ function DashboardAgrupadoInner() {
                                           Notificado
                                         </span>
                                       )
-                                    ) : isFeita ? (
-                                      <span className="inline-flex items-center gap-1.5 text-sm text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">
-                                        Sem email
+                                    ) : isFeita || feitaPorOS ? (
+                                      <span title="A revisão foi feita e o cheque ainda não foi enviado à Mahindra"
+                                        className="inline-flex items-center gap-1.5 text-sm font-medium text-red-700 bg-red-50 px-2 py-1 rounded-md border border-red-200">
+                                        Feita · cheque não enviado
+                                      </span>
+                                    ) : pulada ? (
+                                      <span title="Não há OS nem data desta revisão — ela não foi feita"
+                                        className="inline-flex items-center gap-1.5 text-sm text-zinc-500 bg-zinc-100 px-2 py-1 rounded-md border border-zinc-200">
+                                        Não feita · sem cheque
                                       </span>
                                     ) : null}
                                   </div>
@@ -1556,7 +1587,7 @@ function DashboardAgrupadoInner() {
                                             )
                                           ) : (
                                             <>
-                                              <p className="text-base text-amber-600">Não enviado</p>
+                                              <p className="text-base text-red-700 font-medium">Feita · cheque não enviado</p>
                                               {podeEnviar && (
                                                 <button
                                                   onClick={(e) => { e.stopPropagation(); marcarEnviadaManual("revisao", rev); }}
@@ -1586,6 +1617,31 @@ function DashboardAgrupadoInner() {
                                           </div>
                                         );
                                       })()}
+                                    </div>
+                                  ) : feitaPorOS && osRev ? (
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                      <div className="flex-1 min-w-[180px]">
+                                        <p className="text-base text-red-700 font-medium">Revisão feita · cheque não enviado</p>
+                                        <p className="text-sm text-zinc-500 mt-1">
+                                          Feita na <a href={`/pos?id=${encodeURIComponent(osRev.osId)}`} className="text-sky-700 underline">{osRev.osId}</a>
+                                          {osRev.data ? ` em ${osRev.data}` : ""}. A data ainda não está no cadastro do trator — ela entra quando o cheque for enviado.
+                                        </p>
+                                      </div>
+                                      {podeEnviar && (
+                                        <button
+                                          onClick={() => marcarEnviadaManual("revisao", rev)}
+                                          disabled={!!marcandoManual}
+                                          className="text-sm bg-white text-sky-700 border border-sky-300 px-3 py-2 rounded-lg font-medium hover:bg-sky-50 transition-colors shrink-0 disabled:opacity-50"
+                                        >
+                                          {marcandoManual === `revisao-${rev}` ? "Registrando…" : "Marcar como enviada"}
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() => { setTabModal("enviar"); setRevisaoEnvio(rev); }}
+                                        className="text-sm bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors shrink-0"
+                                      >
+                                        Enviar cheque
+                                      </button>
                                     </div>
                                   ) : isProxima ? (
                                     <div className="flex items-center gap-3 flex-wrap">
@@ -1618,7 +1674,7 @@ function DashboardAgrupadoInner() {
                                     // travada até a anterior ter data preenchida
                                     <div className="flex items-center gap-3 flex-wrap">
                                       <div className="flex-1 min-w-[180px]">
-                                        <p className="text-sm text-zinc-400">Revisão ainda não realizada.</p>
+                                        <p className="text-sm text-zinc-400">{pulada ? "Não feita · sem cheque (não há OS nem data desta revisão)." : "Revisão ainda não realizada."}</p>
                                         {email && (
                                           <p className="text-xs text-sky-700 mt-1">
                                             Já existe {email.registroManual ? "registro manual" : "e-mail enviado"} desta revisão para este chassi.

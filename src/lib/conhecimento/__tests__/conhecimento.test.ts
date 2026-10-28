@@ -97,6 +97,7 @@ describe("permissões", () => {
     expect(temModulo(quem({ modulos: ["pos:mover_fase"] }), "pos")).toBe(true);
     expect(temModulo(quem({ modulos: ["postos"] }), "pos")).toBe(false);
     expect(temModulo(quem(), "geral")).toBe(true);
+    expect(temModulo(quem(), "pops")).toBe(true); // ler POP é de todo logado
     expect(temModulo(quem({ isAdmin: true }), "qualquer")).toBe(true);
   });
 

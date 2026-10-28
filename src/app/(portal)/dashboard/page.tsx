@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { fetchAuth } from '@/lib/auth/client'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { TELAS, buscarTelas, normalizar, relevancia, type Tela } from '@/lib/dashboard/telas'
+import AtalhosDashboard from '@/components/dashboard/AtalhosDashboard'
 import {
   Settings, ClipboardList, ListChecks, Wrench, FileText,
   DollarSign, Activity, Clock, ChevronRight, Search,
@@ -64,6 +65,7 @@ const systems: SystemCard[] = [
   { id: 'sistema-financeiro', name: 'Financeiro', description: 'Gestão de NF, boletos, contas a pagar e receber, chamados RH', icon: <DollarSign size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)', href: '/financeiro', tag: 'FINANÇAS', group: 'financeiro' },
   { id: 'dre', name: 'DRE Financeiro', description: 'Demonstração do Resultado do Exercício com dados integrados do Omie', icon: <TrendingUp size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #059669, #047857)', href: '/dre-financeiro', tag: 'DRE', group: 'financeiro' },
   { id: 'painel-omie', name: 'Painel Omie', description: 'Relatórios de oficina, peças, comercial e comissões dos técnicos', icon: <BarChart3 size={28} />, color: '#1f5c46', gradient: 'linear-gradient(135deg, #1f5c46, #14532d)', href: '/painel-omie', tag: 'RELATORIOS', group: 'financeiro' },
+  { id: 'financeiro-notas', name: 'Notas fiscais', description: 'Entradas e saídas guardadas no portal (PDF + XML) — abrem mesmo com a Omie fora', icon: <FileText size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)', href: '/financeiro/notas', tag: 'NOTAS', group: 'financeiro', permAcao: 'notas' },
 
   // Comercial (roxo)
   { id: 'proposta-comercial', name: 'Proposta Comercial', description: 'Geração de propostas com PDF e QR Code para clientes', icon: <FileText size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #B91C1C)', href: '/propostas', tag: 'VENDAS', group: 'comercial' },
@@ -82,7 +84,6 @@ const systems: SystemCard[] = [
   { id: 'consulta-omie', name: 'Consulta Estoque', description: 'Estoque Omie, CMC, curva ABC, dashboard de vendas e comissões', icon: <Eye size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque', tag: 'CONSULTA', group: 'estoque' },
   { id: 'estoque-notas-entrada', name: 'Notas de Entrada', description: 'Notas fiscais de entrada, DANFE, descrições e custos de compra', icon: <FileText size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/notas-entrada', tag: 'ENTRADAS', group: 'estoque', permAcao: 'notas-entrada' },
   { id: 'estoque-recebimentos', name: 'Recebimentos', description: 'Conferência de recebimentos de mercadoria e pendências', icon: <Package size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/recebimentos', tag: 'RECEBIMENTO', group: 'estoque', permAcao: 'recebimentos' },
-  { id: 'estoque-notas', name: 'Notas fiscais', description: 'Entradas e saídas guardadas no portal (PDF + XML) — abrem mesmo com a Omie fora', icon: <FileText size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/notas', tag: 'ENTRADAS', group: 'estoque', permAcao: 'notas' },
   { id: 'estoque-movimentacao', name: 'Movimentação de Produto', description: 'Entradas e saídas de estoque de um produto no período (kardex)', icon: <Activity size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/movimentacao-produto', tag: 'MOVIMENTAÇÃO', group: 'estoque', permAcao: 'movimentacao-produto' },
   { id: 'frota', name: 'Frota', description: 'Veículos, abastecimento, multas, manutenções, documentos e rastreamento', icon: <Truck size={28} />, color: '#1E40AF', gradient: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)', href: '/frota', tag: 'VEÍCULOS', group: 'frota' },
   // Atalho pra abrir pendência de veículo (módulo próprio, mobile-first com foto)
@@ -101,6 +102,7 @@ const systems: SystemCard[] = [
   { id: 'agenda', name: 'Agenda', description: 'A agenda de todos, por setor: compromissos, reuniões, sala e os técnicos', icon: <CalendarDays size={28} />, color: '#1a73e8', gradient: 'linear-gradient(135deg, #4285f4, #1a56c4)', href: '/agenda', tag: 'AGENDA', group: 'outros' },
   // Agenda da sala física — de propósito FORA de systemToModulo: todo logado reserva.
   { id: 'salas', name: 'Sala de reunião', description: 'Veja quando a sala está livre e reserve sem bater horário com ninguém', icon: <MapPin size={28} />, color: '#0891b2', gradient: 'linear-gradient(135deg, #22d3ee, #0e7490)', href: '/salas', tag: 'RESERVAR', group: 'outros' },
+  { id: 'planta', name: 'Planta Viva', description: 'A empresa vista de cima: contas, máquinas vindo, pedidos, oficina e estoque, com a idade de cada número', icon: <LayoutGrid size={28} />, color: '#0e7490', gradient: 'linear-gradient(135deg, #0891b2, #0e7490)', href: '/planta', tag: 'PLANTA', group: 'outros' },
   { id: 'dashboard-agro', name: 'Dashboard Agro', description: 'Dashboard de acompanhamento do segmento agrícola', icon: <Wheat size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #22c55e, #15803d)', href: '/dashboard-agro', tag: 'AGRO', group: 'outros' },
   { id: 'back-nova', name: 'Back Nova', description: 'Sistema backend Nova Tratores', icon: <Server size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #374151)', href: 'https://back.novatratores.com', tag: 'BACKEND', group: 'outros', external: true },
   { id: 'configuracoes', name: 'Configurações', description: 'Gestão de usuários, permissões e configurações gerais do portal', icon: <Settings size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #525252, #1a1a1a)', href: '/admin', tag: 'ADMIN', group: 'outros' },
@@ -122,6 +124,7 @@ const systemToModulo: Record<string, string> = {
   'proposta-comercial': 'propostas',
   'orcamentos': 'orcamentos',
   'tarefas': 'tarefas',
+  'planta': 'planta',
   'reunioes': 'tickets',                  // Central de Trabalho (tickets/tarefas/cronograma liberam)
   'mecanicos': 'mecanicos',
   'clientes': 'clientes',
@@ -132,7 +135,7 @@ const systemToModulo: Record<string, string> = {
   'consulta-omie': 'estoque',             // card Consulta Estoque (/estoque)
   'estoque-notas-entrada': 'estoque',     // sub-tela; gate por pode('estoque','notas-entrada')
   'estoque-recebimentos': 'estoque',      // sub-tela; gate por pode('estoque','recebimentos')
-  'estoque-notas': 'estoque',             // sub-tela; gate por pode('estoque','notas')
+  'financeiro-notas': 'financeiro',       // sub-tela; gate por pode('financeiro','notas')
   'estoque-movimentacao': 'estoque',      // sub-tela; gate por pode('estoque','movimentacao-produto')
   'frota': 'frota',                       // ⚠️ card SEM entrada aqui = visível pra TODOS
   'pendencias': 'pendencias',
@@ -507,6 +510,8 @@ export default function DashboardPage() {
 
   return (
     <div style={{ padding: '20px 28px', background: 'var(--portal-bg)', minHeight: '100%' }}>
+      {/* atalhos redondos do canto (Agenda + Central de Trabalho), só aqui na dashboard */}
+      <AtalhosDashboard />
       {/* Breadcrumb quando dentro de uma pasta */}
       {activeFolder !== 'todos' && !editingFolder && (
         <div style={{

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planejarBackfill, type LinhaPermissao } from '../backfill';
+import { planejarBackfill, planejarEspelho, planoVazio, type LinhaPermissao } from '../backfill';
 import { antigoTem, efetivas, nivelDaChaveAntiga, type Concessao } from '../resolver';
 import { SLUGS_FROTA } from '../frota';
 import { SLUGS_MARKETING } from '../marketing';
@@ -56,7 +56,7 @@ describe('resolvedor v2 = regra de hoje', () => {
   it('tela de um nível só não desce; Frota sobe pelo prefixo', () => {
     expect(tem(['ajustes:pedidos'], 'ajustes:pedidos:encerrar')).toBe(false);
     expect(tem(['frota:abastecimento:upload'], 'frota:abastecimento')).toBe(true);
-    expect(tem(['estoque:notas'], 'estoque:notas-xml')).toBe(false);
+    expect(tem(['financeiro:notas'], 'financeiro:notas-xml')).toBe(false);
   });
 
   it('dev tem tudo; admin comum não tem as fiscais só-Dev; vazio não tem nada', () => {
@@ -81,7 +81,7 @@ describe('resolvedor v2 = regra de hoje', () => {
   it('bloqueio vence a concessão e desce para as telas de dentro', () => {
     const ef = efetivas(TELAS, NINGUEM, conc(['estoque']), [{ tela: 'estoque:dashboard', nivel: 'ver' }]);
     expect(ef.has('estoque:dashboard')).toBe(false);
-    expect(ef.has('estoque:notas')).toBe(true);
+    expect(ef.has('estoque:curva-abc')).toBe(true);
     const capado = efetivas(TELAS, NINGUEM, conc(['pos']), [{ tela: 'pos', nivel: 'editar' }]);
     expect(capado.get('pos:criar')?.nivel).toBe('ver');
   });
@@ -137,7 +137,7 @@ describe('rotas', () => {
     expect(r('/frota/checklist/ABC1234')?.tela_id).toBe('frota:checklists');
     expect(r('/frota/abastecimento/flex')?.tela_id).toBe('frota:abastecimento:flex');
     expect(r('/marketing/2f1c0a1e-1111-4444-8888-000000000000')?.tela_id).toBe('marketing:dashboard');
-    expect(r('/estoque/notas')?.tela_id).toBe('estoque:notas');
+    expect(r('/financeiro/notas')?.tela_id).toBe('financeiro:notas');
     expect(r('/estoque')?.tela_id).toBe('estoque');
     expect(r('/pos/modelos-fiscais')?.tela_id).toBe('pos:modelos_fiscais');
     expect(r('/dre-financeiro/fluxo')).toMatchObject({ tela_id: 'dre:fluxo', alternativas: ['financeiro'] });
@@ -148,5 +148,43 @@ describe('rotas', () => {
     expect(r('/admin')?.acesso).toBe('admin');
     expect(r('/ideias')?.acesso).toBe('dev');
     expect(r('/feedbacks/atendimento/123')?.tela_id).toBe('feedbacks:atendimento');
+  });
+});
+
+describe('espelho portal_permissoes → v2', () => {
+  const dep = { id: 'd-pecas', nome: 'Peças', telas: [{ tela: 'ppv', nivel: 'gerir' as const }, { tela: 'orcamentos', nivel: 'gerir' as const }] };
+  const linha = (mods: string[], categoria = 'Peças'): LinhaPermissao =>
+    ({ user_id: 'u', is_admin: false, is_dev: false, categoria, modulos_permitidos: mods });
+
+  it('já igual = nada a fazer', () => {
+    const p = planejarEspelho(linha(['ppv', 'orcamentos', 'estoque:notas']), [dep],
+      { conjuntos: ['d-pecas'], extras: [{ tela: 'estoque:notas', nivel: 'ver' }] });
+    expect(planoVazio(p)).toBe(true);
+  });
+
+  it('chave nova vira extra; chave tirada sai', () => {
+    const p = planejarEspelho(linha(['ppv', 'orcamentos', 'estoque:dashboard-maquinas']), [dep],
+      { conjuntos: ['d-pecas'], extras: [{ tela: 'estoque:notas', nivel: 'ver' }] });
+    expect(p.incluirExtras).toEqual([{ tela: 'estoque:dashboard-maquinas', nivel: 'ver' }]);
+    expect(p.removerExtras).toEqual(['estoque:notas']);
+  });
+
+  it('perdeu uma tela do departamento: sai dele e o resto vira extra (ninguém ganha acesso)', () => {
+    const p = planejarEspelho(linha(['ppv']), [dep], { conjuntos: ['d-pecas'], extras: [] });
+    expect(p.sair).toEqual(['d-pecas']);
+    expect(p.incluirExtras).toEqual([{ tela: 'ppv', nivel: 'gerir' }]);
+  });
+
+  it('mudou de categoria e tem tudo do novo departamento: entra; extras cobertos saem', () => {
+    const p = planejarEspelho(linha(['ppv', 'orcamentos']), [dep],
+      { conjuntos: [], extras: [{ tela: 'ppv', nivel: 'gerir' }, { tela: 'orcamentos', nivel: 'gerir' }] });
+    expect(p.entrar).toEqual(['d-pecas']);
+    expect(p.removerExtras.sort()).toEqual(['orcamentos', 'ppv']);
+  });
+
+  it('chave com formato inválido é ignorada sem derrubar', () => {
+    const p = planejarEspelho(linha(['ppv', 'Tela Errada'], ''), [dep], { conjuntos: [], extras: [] });
+    expect(p.ignoradas).toEqual(['Tela Errada']);
+    expect(p.incluirExtras).toEqual([{ tela: 'ppv', nivel: 'gerir' }]);
   });
 });

@@ -63,3 +63,14 @@ export async function aquecer<T>(chave: string, validadeMs: number, gerar: () =>
   const p = emAndamento.get(chave)
   if (p) await p
 }
+
+/** Esquece (memória + tabela) as chaves que começam com algum dos prefixos — a próxima leitura recalcula.
+ *  Usado quando entra faturamento/ocorrência e a tela precisa do dado novo na hora (ao-vivo-server.ts). */
+export async function esquecer(prefixos: string[]) {
+  for (const k of [...memoria.keys()]) if (prefixos.some((p) => k.startsWith(p))) memoria.delete(k)
+  if (semTabela) return
+  for (const p of prefixos) {
+    const { error } = await sb.from(TABELA).delete().like('chave', `${p}%`)
+    if (tabelaFalta(error)) { semTabela = true; return }
+  }
+}

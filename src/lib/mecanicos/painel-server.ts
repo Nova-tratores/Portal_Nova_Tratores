@@ -20,6 +20,7 @@ import { carregarDiretorio } from '@/lib/agenda/server'
 import { normTexto } from '@/lib/agenda/regras'
 import { SEM_TECNICO, motivoInterna, ehCustoTerceiro, type DiaRegistrado, type InternaFechada, type OSFaturada, type ReqCusto } from './painel'
 import { CODIGOS_INTERNOS, CONTA_INTERNO } from '@/lib/pos/omie-espelho'
+import { casarNome } from './ocorrencias-painel'
 
 const CODIGOS = CODIGOS_INTERNOS.map((c) => c.codigo)
 const normC = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase().replace(/s+/g, ' ')
@@ -31,6 +32,9 @@ const num = (v: unknown) => { const n = parseFloat(String(v ?? '').replace(',', 
 const diaSP = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso))
 
 type Rec = Record<string, unknown>
+
+// colunas de desconto do Omie (sql/descontos-omie.sql) — sem elas lê como antes
+let semDescOmie = false, semDescVendas = false
 
 async function paginar(montar: (de: number, ate: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>): Promise<Rec[]> {
   const out: Rec[] = []
@@ -58,7 +62,7 @@ export async function padronizador() {
   return { tecnicos, padronizar, pessoas: dir.pessoas.map((p) => p.nome) }
 }
 
-const COLS_OS = 'Id_Ordem, Ordem_Omie, Os_Cliente, Os_Tecnico, Os_Tecnico2, Servico_Interno, Status, Qtd_HR, Valor_HR, Qtd_KM, Valor_KM, Desconto_Hora, Desconto_KM, Desconto, Valor_Total, ID_PPV, faturado_omie_em, esp_info:Omie_Espelho->info'
+const COLS_OS = 'Id_Ordem, Ordem_Omie, Os_Cliente, Os_Tecnico, Os_Tecnico2, Servico_Interno, Status, Qtd_HR, Valor_HR, Qtd_KM, Valor_KM, Desconto_Hora, Desconto_KM, Desconto, Valor_Total, ID_PPV, faturado_omie_em, esp_info:Omie_Espelho->info, esp_motivo:Omie_Espelho->descontoMotivo'
 const COLS_REL = 'IdOs, Ordem_Servico, TecResp1, TecResp2, DataInicio, InicioHora, FinalHora, DataInicio2, InicioHora2, FinalHora2, DataInicio3, InicioHora3, FinaHora3, TotalHora'
 
 export interface BasePainel {
@@ -84,19 +88,22 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
   for (let a = Number(de.slice(0, 4)), m = Number(de.slice(5, 7)); a * 100 + m <= Number(ate.slice(0, 4)) * 100 + Number(ate.slice(5, 7)); m === 12 ? (a++, m = 1) : m++) meses.push({ mes: m, ano: a })
   const itens: Rec[] = []
   for (const { mes, ano } of meses) {
-    itens.push(...await paginar((x, y) => sb.from('os_servicos_itens').select('numero_os, data, mes, ano, tipo, qtde, valor_total, descricao, contrato').eq('conta_omie', 'NOVA').eq('mes', mes).eq('ano', ano).range(x, y)))
+    // valor_desconto (sql/descontos-omie.sql); sem a coluna, lê sem ela
+    const cols = 'numero_os, data, mes, ano, tipo, qtde, valor_total, descricao, contrato'
+    try { itens.push(...await paginar((x, y) => sb.from('os_servicos_itens').select(semDescOmie ? cols : cols + ', valor_desconto').eq('conta_omie', 'NOVA').eq('mes', mes).eq('ano', ano).range(x, y))) }
+    catch (e) { if (semDescOmie || !/valor_desconto/.test((e as Error).message)) throw e; semDescOmie = true; itens.push(...await paginar((x, y) => sb.from('os_servicos_itens').select(cols).eq('conta_omie', 'NOVA').eq('mes', mes).eq('ano', ano).range(x, y))) }
   }
-  const omiePorNum = new Map<string, { data: string; horas: number; km: number; vh: number; vk: number; outros: number; contrato: string; texto: string }>()
+  const omiePorNum = new Map<string, { data: string; horas: number; km: number; vh: number; vk: number; outros: number; contrato: string; texto: string; dh: number; dk: number; dg: number }>()
   for (const i of itens) {
     const d = dataFaturamento(dataIso(i.data), Number(i.mes), Number(i.ano))
     if (!d || d < de || d > ate) continue
     const n = semZeros(i.numero_os)
-    const o = omiePorNum.get(n) || { data: d, horas: 0, km: 0, vh: 0, vk: 0, outros: 0, contrato: '', texto: '' }
+    const o = omiePorNum.get(n) || { data: d, horas: 0, km: 0, vh: 0, vk: 0, outros: 0, contrato: '', texto: '', dh: 0, dk: 0, dg: 0 }
     if (i.contrato) o.contrato = String(i.contrato)
     if (i.descricao) o.texto += ` ${i.descricao}`
-    if (i.tipo === 'HR') { o.horas += num(i.qtde); o.vh += num(i.valor_total) }
-    else if (i.tipo === 'KM') { o.km += num(i.qtde); o.vk += num(i.valor_total) }
-    else o.outros += num(i.valor_total)
+    if (i.tipo === 'HR') { o.horas += num(i.qtde); o.vh += num(i.valor_total); o.dh += num(i.valor_desconto) }
+    else if (i.tipo === 'KM') { o.km += num(i.qtde); o.vk += num(i.valor_total); o.dk += num(i.valor_desconto) }
+    else { o.outros += num(i.valor_total); o.dg += num(i.valor_desconto) }
     omiePorNum.set(n, o)
   }
 
@@ -150,7 +157,7 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
     return !!d && d >= de && d <= ate
   })
   const ppvs = osFat.flatMap((o) => String(o.ID_PPV || '').split(',').map((s) => s.trim()).filter(Boolean))
-  const [pecasDet, pecasFat] = await Promise.all([pecasPorPPVComDesconto(ppvs), pecasFaturadasPorPPV(ppvs)])
+  const [pecasDet, { valor: pecasFat, desconto: pecasFatDesc }] = await Promise.all([pecasPorPPVComDesconto(ppvs), pecasFaturadasPorPPV(ppvs)])
   const pecas = new Map([...pecasDet].map(([k, v]) => [k, v.total]))
   // CUSTO DE TERCEIROS (regra do José, 16/10/2026): requisição que o técnico pediu como
   // "Trator-Cliente" na OS e que NÃO foi cobrada do cliente (valor_cobrado_cliente vazio/0).
@@ -200,10 +207,19 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
       outros = Math.max(0, num(o.Valor_Total) - servico - kmValor - vPecas)
       horasCobradas = num(o.Qtd_HR); km = num(o.Qtd_KM)
     }
-    const bruto = servico + kmValor + vPecas + outros
+    // faturado da oficina = mão de obra + deslocamento + outros; as PEÇAS ficam à parte (José, 28/10/2026: "pode tirar
+    // as peças") — continuam em `pecas` e no PDF da OS
+    const bruto = servico + kmValor + outros
     const cp = custos.get(String(o.Id_Ordem)) || {}
     const r2 = (v: number) => Math.round(v * 100) / 100
-    const descontos = { hora: r2(num(o.Desconto_Hora)), km: r2(num(o.Desconto_KM)), geral: r2(num(o.Desconto)), pecas: r2(ppvsDaOS.reduce((a, p) => a + (pecasDet.get(p)?.desconto || 0), 0)) }
+    // descontos (José, 21/10/2026: "precisa pegar todos"): o que o Omie faturou manda (desconto de cada item da OS
+    // e do pedido de peças); o lançado no portal vale quando o Omie não tem (ou ainda não faturou)
+    const dPecasPortal = ppvsDaOS.reduce((a, p) => a + (pecasDet.get(p)?.desconto || 0), 0)
+    const dPecasOmie = ppvsDaOS.reduce((a, p) => a + (pecasFatDesc.get(p) || 0), 0)
+    const descontos = {
+      hora: r2(Math.max(num(o.Desconto_Hora), om?.dh || 0)), km: r2(Math.max(num(o.Desconto_KM), om?.dk || 0)),
+      geral: r2(Math.max(num(o.Desconto), om?.dg || 0)), pecas: r2(Math.max(dPecasPortal, dPecasOmie)),
+    }
     faturadas.push({
       os: String(o.Id_Ordem), numeroOmie: n || null, cliente: String(o.Os_Cliente || ''),
       data: diaDoFechamento(om?.data, o.faturado_omie_em) as string,
@@ -212,10 +228,22 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
       horasCobradas, km, servico, kmValor, pecas: vPecas,
       outros, bruto,
       custo: Object.values(cp).reduce((s, v) => s + v, 0), custoPorTipo: cp, descontos,
+      descontoMotivo: String((o.esp_motivo as { texto?: string } | null)?.texto || "").trim() || null,
       requisicoes: reqsPorOS.get(String(o.Id_Ordem)) || [],
     })
   }
-  // OS que só existe no Omie (sem OS no portal)
+  // OS que só existe no Omie (sem OS no portal): técnico e cliente vêm da Pasta Clientes
+  // ("Técnicos: José Antonio de Oliveira // Gabriel Moraes") — sem isso a OS ficava sem técnico e a
+  // comissão/faturamento dela iam para "Sem técnico" (achado na ficha do técnico, 19/10/2026)
+  // Os técnicos do OMIE de toda OS também vão em `tecnicosOmie`: a comissão sai por eles (o painel do
+  // Omie usa o "vendedor" da OS) e às vezes diferem do portal (OS 5293: Gabriel no portal, Danilo no Omie).
+  const numsPasta = [...new Set([...omiePorNum.keys(), ...faturadas.map((o) => o.numeroOmie || '')].filter(Boolean))]
+  const daPasta = new Map<string, { cliente: string; tecnicos: string[] }>()
+  for (let i = 0; i < numsPasta.length; i += 200) {
+    const { data } = await sb.from('portal_nt_clientes_os').select('num_os, cliente_nome, vendedor').eq('empresa', 'Nova Tratores').in('num_os', numsPasta.slice(i, i + 200))
+    for (const r of (data || []) as Rec[]) daPasta.set(semZeros(r.num_os), { cliente: String(r.cliente_nome || ''), tecnicos: tecnicosDoTexto(r.vendedor, padronizar, tecnicos) })
+  }
+  for (const f of faturadas) { const t = f.numeroOmie ? daPasta.get(f.numeroOmie)?.tecnicos : undefined; if (t?.length) f.tecnicosOmie = t }
   for (const [n, o] of omiePorNum) {
     if (numsDoPortal.has(n)) continue
     // toda OS faturada que não seja contrato interno ("-pgo" = montadora paga, entra) — inclusive serviço
@@ -225,9 +253,10 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
     // comissão de venda de equipamento (ex.: GTM, venda direta) não é serviço do pós-vendas (José, 17/10/2026)
     if (!(o.horas > 0 || o.km > 0) && /comiss[aã]o/i.test(o.texto)) continue
     faturadas.push({
-      os: `OMIE ${n}`, numeroOmie: n, cliente: '', data: o.data, em: null, tecnicos: [],
+      os: `OMIE ${n}`, numeroOmie: n, cliente: daPasta.get(n)?.cliente || '', data: o.data, em: null, tecnicos: daPasta.get(n)?.tecnicos || [],
       horasCobradas: o.horas, km: o.km, servico: o.vh, kmValor: o.vk, pecas: 0, outros: o.outros,
-      bruto: o.vh + o.vk + o.outros, custo: 0,
+      bruto: o.vh + o.vk + o.outros, custo: 0, tecnicosOmie: daPasta.get(n)?.tecnicos,
+      descontos: o.dh + o.dk + o.dg > 0 ? { hora: Math.round(o.dh * 100) / 100, km: Math.round(o.dk * 100) / 100, geral: Math.round(o.dg * 100) / 100, pecas: 0 } : undefined,
     })
   }
 
@@ -248,15 +277,23 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
       motivo, data, valor: Math.round((om ? om.vh + om.vk + om.outros : num(o.Valor_Total)) * 100) / 100,
       horas: om ? om.horas : num(o.Qtd_HR), tecnicos: [...new Set([o.Os_Tecnico, o.Os_Tecnico2].map(padronizar).filter(Boolean))],
       valorHoras: Math.round((om ? om.vh : num(o.Qtd_HR) * (num(o.Valor_HR) || vhPadrao)) * 100) / 100,
+      tecnicosOmie: n ? daPasta.get(n)?.tecnicos : undefined,
     })
   }
   for (const [n, o] of omiePorNum) {
     if (numsDoPortal.has(n)) continue
     if (!motivoInterna({ contratos: [o.contrato] }, CONTA_INTERNO, CODIGOS)) continue
-    internasFechadas.push({ os: `OMIE ${n}`, numeroOmie: n, cliente: '', contrato: contratoOficial(o.contrato), motivo: `contrato ${o.contrato}`, data: o.data, valor: Math.round((o.vh + o.vk + o.outros) * 100) / 100, horas: o.horas, tecnicos: [], valorHoras: o.vh })
+    internasFechadas.push({ os: `OMIE ${n}`, numeroOmie: n, cliente: daPasta.get(n)?.cliente || '', contrato: contratoOficial(o.contrato), motivo: `contrato ${o.contrato}`, data: o.data, valor: Math.round((o.vh + o.vk + o.outros) * 100) / 100, horas: o.horas, tecnicos: daPasta.get(n)?.tecnicos || [], valorHoras: o.vh })
   }
 
   return { tecnicos, faturadas, diasTodos, dias: diasTodos.filter((d) => d.data >= de && d.data <= ate), osInternas, internasFechadas }
+}
+
+/** "Técnicos: José Antonio de Oliveira // Gabriel Moraes" (vendedor da OS no Omie) → nomes do portal. */
+export function tecnicosDoTexto(texto: unknown, padronizar: (n: unknown) => string, cadastro: string[]): string[] {
+  const corpo = String(texto ?? '').replace(/^[^:]*t[ée]cnicos?\s*:/i, '')
+  const nomes = corpo.split(/\/\/|\/|&|\s+e\s+/i).map((x) => x.trim()).filter((x) => x.length > 2)
+  return [...new Set(nomes.map((x) => { const p = padronizar(x); return cadastro.includes(p) ? p : casarNome(x, cadastro) || p }).filter(Boolean))]
 }
 
 /** Dia em que a OS fechou: o carimbo do portal (faturado_omie_em) quando cai no MESMO mês do espelho
@@ -279,8 +316,8 @@ export function dataFaturamento(data: string | null, mes: number, ano: number): 
 }
 
 /** PPV → valor FATURADO do pedido de venda (vendas_itens, conta NOVA). Só os que já têm nota. */
-async function pecasFaturadasPorPPV(ppvs: string[]): Promise<Map<string, number>> {
-  const out = new Map<string, number>()
+async function pecasFaturadasPorPPV(ppvs: string[]): Promise<{ valor: Map<string, number>; desconto: Map<string, number> }> {
+  const out = new Map<string, number>(), desc = new Map<string, number>()
   const lista = [...new Set(ppvs)]
   const pedidoDe = new Map<string, string>()
   for (let i = 0; i < lista.length; i += 200) {
@@ -288,13 +325,17 @@ async function pecasFaturadasPorPPV(ppvs: string[]): Promise<Map<string, number>
     for (const p of (data || []) as Rec[]) { const n = semZeros(p.pedido_omie); if (n) pedidoDe.set(String(p.id_pedido), n) }
   }
   const nums = [...new Set(pedidoDe.values())]
-  const porPedido = new Map<string, number>()
+  const porPedido = new Map<string, number>(), descPedido = new Map<string, number>()
   for (let i = 0; i < nums.length; i += 200) {
-    const l = await paginar((x, y) => sb.from('vendas_itens').select('numero_pedido, valor_total').eq('conta_omie', 'NOVA').eq('familia', 'Peças').in('numero_pedido', nums.slice(i, i + 200)).range(x, y))
-    for (const it of l) { const n = semZeros(it.numero_pedido); porPedido.set(n, (porPedido.get(n) || 0) + num(it.valor_total)) }
+    const fatia = nums.slice(i, i + 200)
+    const ler = (cols: string) => paginar((x, y) => sb.from('vendas_itens').select(cols).eq('conta_omie', 'NOVA').eq('familia', 'Peças').in('numero_pedido', fatia).range(x, y))
+    let l: Rec[]
+    try { l = await ler(semDescVendas ? 'numero_pedido, valor_total' : 'numero_pedido, valor_total, valor_desconto') }
+    catch (e) { if (semDescVendas || !/valor_desconto/.test((e as Error).message)) throw e; semDescVendas = true; l = await ler('numero_pedido, valor_total') }
+    for (const it of l) { const n = semZeros(it.numero_pedido); porPedido.set(n, (porPedido.get(n) || 0) + num(it.valor_total)); descPedido.set(n, (descPedido.get(n) || 0) + num(it.valor_desconto)) }
   }
-  for (const [ppv, n] of pedidoDe) if (porPedido.has(n)) out.set(ppv, Math.round(porPedido.get(n)! * 100) / 100)
-  return out
+  for (const [ppv, n] of pedidoDe) if (porPedido.has(n)) { out.set(ppv, Math.round(porPedido.get(n)! * 100) / 100); desc.set(ppv, Math.round((descPedido.get(n) || 0) * 100) / 100) }
+  return { valor: out, desconto: desc }
 }
 
 function somar(dia: string, n: number) { const d = new Date(`${dia}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }

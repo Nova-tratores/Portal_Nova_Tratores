@@ -33,7 +33,7 @@ export function gerarPDFPedidos({ titulo, subtitulo, pedidos, agrupado, diasMin 
       // Cabecalho
       doc.fontSize(16).font('Helvetica-Bold').text(titulo || 'Pedidos abertos', { align: 'left' });
       if (subtitulo) doc.fontSize(9).font('Helvetica').fillColor('#666').text(subtitulo);
-      doc.fontSize(8).fillColor('#999').text('Gerado em ' + new Date().toLocaleString('pt-BR'));
+      doc.fontSize(8).fillColor('#999').text('Gerado em ' + new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }));
       doc.moveDown(0.5);
       doc.fillColor('#000');
 

@@ -57,7 +57,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const os = querOS ? await alinharOS(id) : null;
     if (os && !os.erro) {
       const agora = new Date();
-      await supabase.from(TBL_LOGS_PPO).insert({ Id_ppo: id, Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora), Hora_Acao: agora.toLocaleTimeString("pt-BR"), UsuEmail: quem, acao: "OS do Omie atualizada igual ao portal (conferência antes de faturar)", Status_Anterior: "", Status_Atual: "", Dias_Na_Fase: 0, Total_Dias_Aberto: 0 }).then(() => {}, () => {});
+      await supabase.from(TBL_LOGS_PPO).insert({ Id_ppo: id, Data_Acao: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora), Hora_Acao: agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" }), UsuEmail: quem, acao: "OS do Omie atualizada igual ao portal (conferência antes de faturar)", Status_Anterior: "", Status_Atual: "", Dias_Na_Fase: 0, Total_Dias_Aberto: 0 }).then(() => {}, () => {});
     }
     const ppvs = [];
     for (const p of ppvIds) {

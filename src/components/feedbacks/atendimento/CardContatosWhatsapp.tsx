@@ -6,6 +6,8 @@ import styles from "../feedbacks.module.css";
 import type { ContatoWhatsapp, SecaoWhatsapp } from "@/lib/chatwoot/parsers";
 
 const COR_WA = "#25d366";
+/** A classe .pill do módulo vem com fonte 700 — aqui fica 500. */
+const PILULA: React.CSSProperties = { fontWeight: 500, letterSpacing: 0 };
 
 interface Props {
   secao?: SecaoWhatsapp | null;
@@ -48,11 +50,11 @@ function relativo(iso: string | null): string {
 export default function CardContatosWhatsapp({ secao, carregando, onRecarregar }: Props) {
   const total = secao?.estado === "ok" ? secao.total : 0;
   return (
-    <section className={styles.card} style={{ ["--fb-accent" as string]: COR_WA }}>
+    <section style={{ background: "var(--portal-bg-card)", border: "1px solid var(--portal-border)", borderRadius: 16, padding: 16 }}>
       <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
-        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, display: "flex", alignItems: "center", gap: 6 }}>
-          📱 Contatos do WhatsApp
-          {total > 0 && <span className={styles.pill} style={{ background: "#d1fae5", color: "#065f46" }}>{total}</span>}
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 6 }}>
+          <i className="fa-brands fa-whatsapp" style={{ color: COR_WA }} /> Contatos do WhatsApp
+          {total > 0 && <span className={styles.pill} style={{ ...PILULA, background: "#d1fae5", color: "#065f46" }}>{total}</span>}
         </h3>
         {secao?.estado === "ok" && (
           <span style={{ fontSize: 10, opacity: 0.6 }} title="Lido do NovaZap">
@@ -107,7 +109,7 @@ function ItemContato({ c }: { c: ContatoWhatsapp }) {
   const st = conv ? COR_STATUS[conv.status] ?? COR_STATUS.resolved : null;
   return (
     <li style={{ display: "grid", gridTemplateColumns: "36px 1fr", gap: 10, padding: 10, borderRadius: 12, border: `1px solid ${destaque ? "#fcd34d" : "var(--portal-border)"}`, background: destaque ? "#fffbeb" : "transparent" }}>
-      <div style={{ width: 36, height: 36, borderRadius: "50%", overflow: "hidden", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 14, color: "#334155" }}>
+      <div style={{ width: 36, height: 36, borderRadius: "50%", overflow: "hidden", background: "#e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 500, fontSize: 14, color: "#334155" }}>
         {c.thumbnail ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={c.thumbnail} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
@@ -117,10 +119,10 @@ function ItemContato({ c }: { c: ContatoWhatsapp }) {
       </div>
       <div style={{ minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-          <strong style={{ fontSize: 13 }}>{c.nome}</strong>
+          <strong style={{ fontSize: 13, fontWeight: 500 }}>{c.nome}</strong>
           {c.cargo && (
-            <span className={styles.pill} style={{ background: cargo?.bg ?? "#f1f5f9", color: cargo?.fg ?? "#334155" }}>
-              {destaque ? "👑 " : ""}{c.cargo}
+            <span className={styles.pill} style={{ ...PILULA, background: cargo?.bg ?? "#f1f5f9", color: cargo?.fg ?? "#334155" }}>
+              {destaque && <i className="fa-solid fa-crown" />}{c.cargo}
             </span>
           )}
         </div>
@@ -146,11 +148,11 @@ function ItemContato({ c }: { c: ContatoWhatsapp }) {
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
             {c.localizacoes.map((l, i) =>
               l.link ? (
-                <a key={i} href={/^https?:\/\//i.test(l.link) ? l.link : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.link)}`} target="_blank" rel="noopener noreferrer" className={styles.pill} style={{ background: "#ecfdf5", color: "#065f46", textDecoration: "none" }} title={l.link}>
-                  📍 {l.nome}
+                <a key={i} href={/^https?:\/\//i.test(l.link) ? l.link : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(l.link)}`} target="_blank" rel="noopener noreferrer" className={styles.pill} style={{ ...PILULA, background: "#ecfdf5", color: "#065f46", textDecoration: "none" }} title={l.link}>
+                  <i className="fa-solid fa-location-dot" /> {l.nome}
                 </a>
               ) : (
-                <span key={i} className={styles.pill} style={{ background: "#f1f5f9", color: "#334155" }}>📍 {l.nome}</span>
+                <span key={i} className={styles.pill} style={{ ...PILULA, background: "#f1f5f9", color: "#334155" }}><i className="fa-solid fa-location-dot" /> {l.nome}</span>
               )
             )}
           </div>
@@ -159,12 +161,12 @@ function ItemContato({ c }: { c: ContatoWhatsapp }) {
         <div style={{ marginTop: 6, fontSize: 11, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           {conv && st ? (
             <>
-              <span className={styles.pill} style={{ background: st.bg, color: st.fg }}>{conv.status_label}</span>
-              {conv.nao_lidas > 0 && <span className={styles.pill} style={{ background: "#fee2e2", color: "#991b1b" }}>{conv.nao_lidas} não lida{conv.nao_lidas > 1 ? "s" : ""}</span>}
+              <span className={styles.pill} style={{ ...PILULA, background: st.bg, color: st.fg }}>{conv.status_label}</span>
+              {conv.nao_lidas > 0 && <span className={styles.pill} style={{ ...PILULA, background: "#fee2e2", color: "#991b1b" }}>{conv.nao_lidas} não lida{conv.nao_lidas > 1 ? "s" : ""}</span>}
               <span style={{ opacity: 0.75 }}>
                 {conv.atendente ? `${conv.atendente} · ` : ""}{relativo(conv.ultima_atividade)}{conv.inbox ? ` · ${conv.inbox}` : ""}
               </span>
-              <a href={conv.url} target="_blank" rel="noopener noreferrer" style={{ color: "#0369a1", fontWeight: 700, textDecoration: "none" }}>
+              <a href={conv.url} target="_blank" rel="noopener noreferrer" style={{ color: "#0369a1", fontWeight: 500, textDecoration: "none" }}>
                 Abrir no NovaZap ↗
               </a>
             </>
@@ -190,9 +192,9 @@ function Esqueleto() {
 function btnPequeno(cor: string, preenchido = false): React.CSSProperties {
   return {
     fontSize: 11,
-    fontWeight: 700,
+    fontWeight: 500,
     padding: "3px 10px",
-    borderRadius: 999,
+    borderRadius: 10,
     border: `1px solid ${cor}`,
     background: preenchido ? cor : "transparent",
     color: preenchido ? "#fff" : cor,

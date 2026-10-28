@@ -57,6 +57,30 @@ export async function register(): Promise<void> {
   const rodaRobos = PAPEL !== 'web';
   log(`papel do processo: ${PAPEL}${rodaRobos ? '' : ' (robôs ficam com o worker)'}`);
 
+  // IP de saída deste processo (22/10/2026): a Omie limita por IP + chave + método. Se
+  // web e worker saem por IPs diferentes, a divisão dos limites da porta é só cautela.
+  // Loga na subida e sempre que mudar (confere a cada hora); aparece no "Omie agora" e
+  // fica no cron_runs (job `ip-saida`, detalhe "papel: ip") para comparar web × worker.
+  if (process.env.NODE_ENV === 'production') {
+    const { verificarIpSaida } = await import('./lib/omie/porta');
+    const conferirIp = async () => {
+      const r = await verificarIpSaida();
+      if (!r.mudou) return;
+      log(`ip de saída (${PAPEL}): ${r.ip ?? 'não consegui descobrir'}${r.anterior ? ` — antes ${r.anterior}` : ''}`);
+      if (!r.ip) return;
+      try {
+        const { supabaseAdmin } = await import('./lib/server/supabase-admin');
+        const agora = new Date().toISOString();
+        await supabaseAdmin.from('cron_runs').insert({
+          job: 'ip-saida', status: 'ok', iniciado_em: agora, finalizado_em: agora, duracao_ms: 0,
+          detalhe: `${PAPEL}: ${r.ip}${r.anterior ? ` (antes ${r.anterior})` : ''}`,
+        });
+      } catch { /* só informativo */ }
+    };
+    void conferirIp();
+    setInterval(() => { void conferirIp(); }, 60 * 60 * 1000);
+  }
+
   const base = `http://127.0.0.1:${process.env.PORT || 3000}`;
   const CINCO_MIN = 5 * 60 * 1000;
 
@@ -203,6 +227,23 @@ export async function register(): Promise<void> {
     log('alocação de peças recebidas LIGADA (a cada 10 min, seg–sáb 07h–20h BRT)');
   }
 
+  // Preço de venda das peças no PPV/Orçamento (Produtos_Completos): só os produtos
+  // ALTERADOS na Omie nos últimos 3 dias, a cada 10 min em horário comercial. Antes só
+  // o botão "Sincronizar produtos" atualizava — OS-0846 saiu com os preços antigos.
+  // Com o agendador ligado roda pela tarefa 'ppv-precos-sync'. Desliga com PPV_PRECOS_SYNC=off.
+  if (rodaRobos && !agendadorLigado && process.env.NODE_ENV === 'production' && process.env.PPV_PRECOS_SYNC !== 'off') {
+    const { rodarPrecosSyncAgendado } = await import('./lib/ppv/precos-sync');
+    const rodarPrecos = async () => {
+      try {
+        const r = await rodarPrecosSyncAgendado();
+        if (r) log(`ppv-precos-sync: ${r}`);
+      } catch (e) { log('ppv-precos-sync falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarPrecos().catch(() => {}); }, 10 * 60 * 1000);
+    setTimeout(() => { rodarPrecos().catch(() => {}); }, 3 * 60 * 1000);
+    log('sync de preços do PPV LIGADO (a cada 10 min, seg–sáb 07h–20h BRT)');
+  }
+
   // Faturamento da OS pelo portal (NFS-e): confere no Omie as OS com faturamento
   // sem resposta clara ou NFS-e ainda aguardando a prefeitura, a cada 10 min.
   // Só olha as pendentes (índice parcial) — sem pendência, nenhuma chamada ao Omie.
@@ -213,6 +254,9 @@ export async function register(): Promise<void> {
       try {
         const r = await rodarReconciliacaoFaturamento();
         if (r) log(`pos-faturamento: ${r}`);
+        const { vigiarPedidosFaturados } = await import('./lib/ppv/vigia-faturados');
+        const v = await vigiarPedidosFaturados();
+        if (v) log(v);
       } catch (e) { log('pos-faturamento falhou: ' + (e as Error).message); }
     };
     setInterval(() => { rodarFatOS().catch(() => {}); }, 10 * 60 * 1000);
@@ -235,6 +279,37 @@ export async function register(): Promise<void> {
     setInterval(() => { rodarPendFrota().catch(() => {}); }, 15 * 60 * 1000);
     setTimeout(() => { rodarPendFrota().catch(() => {}); }, 4 * 60 * 1000); // 1ª rodada ~4min após o boot
     log('motor de pendências da frota LIGADO (a cada 15 min)');
+  }
+
+  // POPs disparados pela OS (regras na ficha do POP): OS que está na fase da regra
+  // ganha a execução para o técnico. A mudança de fase pelo portal já dispara na
+  // hora; isto cobre os outros caminhos. SÓ produção. Desliga com POPS_GATILHOS_OS=off.
+  if (rodaRobos && !agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.POPS_GATILHOS_OS !== 'off')) {
+    const { verificarGatilhosOS, resumoGatilhos } = await import('./lib/pops/gatilhos-os');
+    const rodarPopsOS = async () => {
+      try {
+        const r = await verificarGatilhosOS();
+        if (!r.pulado) log(`pops-gatilhos-os: ${resumoGatilhos(r)}`);
+      } catch (e) { log('pops-gatilhos-os falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarPopsOS().catch(() => {}); }, 10 * 60 * 1000);
+    setTimeout(() => { rodarPopsOS().catch(() => {}); }, 6 * 60 * 1000);
+    log('POPs disparados pela OS LIGADO (a cada 10 min)');
+  }
+
+  // Cobrança de requisições: sem valor cobrado do cliente vira lembrete no POS + sino do
+  // Pós-Vendas (José, 26/10/2026). SÓ produção. Desliga com POS_COBRANCA_REQ=off.
+  if (rodaRobos && !agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.POS_COBRANCA_REQ !== 'off')) {
+    const { vigiarCobrancas } = await import('./lib/pos/cobranca-requisicoes');
+    const rodarCobranca = async () => {
+      try {
+        const r = await vigiarCobrancas();
+        log(`pos-requisicoes-cobranca: ${r.resumo || r.pular}`);
+      } catch (e) { log('pos-requisicoes-cobranca falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarCobranca().catch(() => {}); }, 30 * 60 * 1000);
+    setTimeout(() => { rodarCobranca().catch(() => {}); }, 7 * 60 * 1000);
+    log('cobrança de requisições LIGADA (a cada 30 min)');
   }
 
   // Central de Trabalho: replanejamento diário dos cronogramas ligados a quadros
@@ -292,6 +367,23 @@ export async function register(): Promise<void> {
       proc.once?.('SIGTERM', () => { flush().catch(() => {}); });
     }
     log(`permissões v2: modo ${modo}`);
+
+    // Espelho portal_permissoes → v2: catálogo + usuários 1 min depois do boot,
+    // depois usuários a cada 10 min (o Admin antigo ainda é onde se edita).
+    const { espelhoLigado, espelharPermissoes, sincronizarCatalogo } = await import('./lib/permissoes/espelho-server');
+    if (espelhoLigado()) {
+      const espelhar = async (comCatalogo: boolean) => {
+        try {
+          if (comCatalogo) await sincronizarCatalogo();
+          const r = await espelharPermissoes();
+          if (r.alterados || r.ignoradas.length) log(`permissões v2: espelho acertou ${r.alterados} de ${r.usuarios} usuário(s)${r.ignoradas.length ? `; chaves ignoradas: ${r.ignoradas.join(', ')}` : ''}`);
+        } catch (e) {
+          log('permissões v2: espelho falhou: ' + (e as Error).message);
+        }
+      };
+      setTimeout(() => { void espelhar(true); }, 60 * 1000);
+      setInterval(() => { void espelhar(false); }, 10 * 60 * 1000);
+    }
   }
 
   // Cache de NOTAS FISCAIS (PDF + XML no bucket privado): indexa as fontes e
@@ -316,6 +408,20 @@ export async function register(): Promise<void> {
       try {
         const { aquecerBase } = await import('./lib/mecanicos/base-cache');
         await aquecerBase();
+        // ficha de cada mecânico (card → janela) e o pódio dos meses: já gravados no banco
+        const { aquecerFichas } = await import('./lib/mecanicos/ficha-server');
+        await aquecerFichas().catch((e) => log('pos-painel: fichas falharam: ' + (e as Error).message));
+        const { podioMeses } = await import('./lib/mecanicos/podio-server');
+        await podioMeses().catch(() => {});
+        // dinheiro parado e ocorrências do mês já prontos: a tela abre sem esperar (José, 22/10/2026)
+        const { aquecer } = await import('./lib/mecanicos/cache');
+        const { calcularParado } = await import('./lib/mecanicos/parado-vivo');
+        await aquecer('parado', 60_000, calcularParado).catch((e) => log('pos-painel: parado falhou: ' + (e as Error).message));
+        const { mesSP, montarOcorrenciasPainel } = await import('./lib/mecanicos/ocorrencias-painel-vivo');
+        const mesAgora = mesSP();
+        await aquecer(`ocpainel:${mesAgora}`, 2 * 60_000, () => montarOcorrenciasPainel(mesAgora)).catch((e) => log('pos-painel: ocorrências falharam: ' + (e as Error).message));
+        const { listarGarantiasPainel } = await import('./lib/mecanicos/garantias-lista');
+        await aquecer('garantias-painel', 2 * 60_000, listarGarantiasPainel).catch((e) => log('pos-painel: garantias falharam: ' + (e as Error).message));
         const hora = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }).format(new Date()));
         if (hora >= 6 && hora < 20) {
           const { ultimaAnalise, gerarUmaVez, estaGerando, VALIDADE_ANALISE_MS } = await import('./lib/mecanicos/analise-server');
@@ -364,6 +470,34 @@ export async function register(): Promise<void> {
     setInterval(() => { recalcularBase().catch(() => {}); }, 20 * 60 * 1000);
     setTimeout(() => { recalcularBase().catch(() => {}); }, 2 * 60 * 1000);
     log('inteligência de vendas: base dos clientes recalculada a cada 20 min');
+  }
+
+  // INTELIGÊNCIA DE VENDAS — feed do vendedor no app de vendas (20/10/2026): a reserva de
+  // contatos de cada vendedor (iv_feed_pool) é refeita a cada 6 h. Só produção;
+  // IV_FEED=on liga no local, =off desliga.
+  if (rodaRobos && ((process.env.NODE_ENV === 'production' && process.env.IV_FEED !== 'off') || process.env.IV_FEED === 'on')) {
+    // Confere a cada 30 min a idade da reserva no banco e refaz quando passou de 6 h.
+    // (28/10/2026: com setInterval de 6 h, cada reinício do worker zerava o relógio e a
+    // reserva ficou parada de 22/10 a 28/10 sem deixar rastro; agora cada rodada fica
+    // no cron_runs como `iv-feed`.)
+    const { comCronRun } = await import('./lib/cron/observar');
+    const rodarFeed = async () => {
+      try {
+        const { supabaseAdmin } = await import('./lib/server/supabase-admin');
+        const { data } = await supabaseAdmin.from('iv_feed_pool').select('gerado_em').order('gerado_em', { ascending: false }).limit(1);
+        const ultima = data?.[0]?.gerado_em ? Date.parse(data[0].gerado_em) : 0;
+        if (Date.now() - ultima < 6 * 60 * 60 * 1000) return;
+        const { gerarFeeds } = await import('./lib/inteligencia-vendas/feed-server');
+        await comCronRun('iv-feed', () => gerarFeeds(), {
+          lockMinutos: 20,
+          disparadoPor: 'agendador',
+          fechamento: (r) => ({ detalhe: `${r.vendedores} vendedores, ${r.contatos} contatos${r.semCidade.length ? ` · sem cidade: ${r.semCidade.join(', ')}` : ''}${r.erros?.length ? ` · erros: ${r.erros.length}` : ''}` }),
+        });
+      } catch (e) { log('feed dos vendedores falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarFeed().catch(() => {}); }, 30 * 60 * 1000);
+    setTimeout(() => { rodarFeed().catch(() => {}); }, 3 * 60 * 1000);
+    log('feed dos vendedores: refeito quando passa de 6 h (confere a cada 30 min)');
   }
 
   // INTELIGÊNCIA DE VENDAS — Boletim do agro (19/10/2026): notícias, preços CONAB, Focus, dólar

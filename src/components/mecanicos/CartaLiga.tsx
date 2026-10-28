@@ -8,6 +8,7 @@ import { createPortal } from 'react-dom'
 import { DIVISOES, DIAMANTE, NIVEL_MAX, patente, type CarreiraTecnico } from '@/lib/mecanicos/carreira'
 import type { Cat, LinhaEscudo } from '@/lib/mecanicos/ocorrencias-painel'
 import { useContador } from './ui'
+import { Medalha3 } from './MedalhaOpcoes'
 
 const NOME_MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 const mesCurto = (m: string) => `${NOME_MES[Number(m.slice(5, 7)) - 1]}/${m.slice(2, 4)}`
@@ -16,13 +17,12 @@ const iniciais = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((
 export interface DadosCartaLiga { tecnico: string; carreira?: CarreiraTecnico; escudo?: LinhaEscudo }
 
 /** Ícone pequeno da liga (escudo da divisão + subdivisão). */
+/** Ícone da liga = medalha realista com trator (M9 "Selo realista", escolhida na página de teste em 19/10). */
+const ORDEM_LIGA = ['Ferro', 'Bronze', 'Prata', 'Ouro', 'Diamante']
 export function IconeLiga({ nivel, tamanho = 26 }: { nivel: number; tamanho?: number }) {
   const p = patente(nivel)
-  return (
-    <span title={p.nome} style={{ width: tamanho, height: tamanho * 1.12, background: p.fundo, fontSize: tamanho * 0.36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', clipPath: 'polygon(50% 0, 100% 18%, 100% 62%, 50% 100%, 0 62%, 0 18%)', color: '#fefefe', textShadow: '0 1px 2px rgba(0,0,0,.45)', fontWeight: 900, flexShrink: 0 }}>
-      {p.sub == null ? <i className="fas fa-gem" /> : <b>{['', 'I', 'II', 'III', 'IV', 'V'][p.sub]}</b>}
-    </span>
-  )
+  const liga = Math.max(0, ORDEM_LIGA.indexOf(p.divisao))
+  return <span title={p.nome} style={{ display: 'inline-flex', flexShrink: 0, lineHeight: 0 }}><Medalha3 liga={liga} sub={p.sub} estilo="real-selo" tamanho={tamanho * 1.25} /></span>
 }
 
 export default function CartaLiga({ lista, inicio, nomesCat, coresCat, onFechar }: {
@@ -96,7 +96,7 @@ function Carta({ d, dir, nomesCat, coresCat }: { d: DadosCartaLiga; dir: number;
           <div className="cl-tipo">[ MECÂNICO / LIGA {p.divisao.toUpperCase()} ]</div>
           {/* texto */}
           <div className="cl-texto">
-            {c?.sequencia ? <p><i className="fas fa-fire" style={{ color: '#ea580c' }} /> <b>{c.sequencia}</b> {c.sequencia === 1 ? 'mês limpo' : 'meses limpos'} seguidos.</p> : <p>Na carreira desde {c ? mesCurto(c.inicio) : '—'}. Mês limpo sobe 1 degrau.</p>}
+            {c ? <p><i className="fas fa-star" style={{ color: '#ca8a04' }} /> <b>{c.saldoAgora}</b> pontos · <b>+{c.mesAtual.ganhos}</b> no mês ({c.mesAtual.osLimpas} OS sem problema){c.faltaProximo ? <> · faltam <b>{c.faltaProximo}</b> para subir</> : null}.</p> : <p>Cada OS sem problema dá 5 pontos.</p>}
             {golpes.length > 0
               ? <div className="cl-golpes">{golpes.map((k, n) => <span key={k} style={{ background: coresCat[k], animationDelay: `${1100 + n * 220}ms` }}>−{e!.porCategoria[k]} {nomesCat[k]}</span>)}</div>
               : <p style={{ color: '#047857' }}><b>Nenhuma ocorrência neste mês.</b></p>}

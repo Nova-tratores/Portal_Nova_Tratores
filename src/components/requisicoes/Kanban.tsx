@@ -9,13 +9,17 @@ import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHori
 import CompararReqs from './CompararReqs';
 import dynamic from 'next/dynamic';
 import { fetchAuth } from '@/lib/auth/client';
+import { brl, COR_FASE, diasAberta, normalizarTipo, valorReq, visualTipo } from '@/lib/requisicoes/inteligencia';
+import { IconeQuadrado } from './visualReq';
 
 // CardReq completo — usado pelo modo lista pra abrir a requisição da linha clicada
 const CardReq = dynamic(() => import('./CardReq'), { ssr: false });
 
 const LISTA_FORNECEDORES_CADASTRADOS = ["Rodrigo Torneiro (Panda)"];
 
-export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, idDestaque = null, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true, extraControles = null }: any) {
+export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, idDestaque = null, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true, extraControles = null, filtroEspecial = null, onLimparEspecial, notasAchadas = null, onVerNotaAchada }: any) {
+  // filtroEspecial: { ids, titulo } vindo do "Precisa da sua atenção" ou do Painel
+  const idsEspecial = useMemo(() => (filtroEspecial ? new Set((filtroEspecial.ids || []).map((x: any) => Number(x))) : null), [filtroEspecial]);
   const isMobile = useIsMobile();
   // No celular mostramos UMA fase por vez, escolhida por botão (o kanban de colunas não cabe).
   const [faseMobile, setFaseMobile] = useState('pedido');
@@ -137,10 +141,10 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
   const CARDS_POR_VEZ = 20;
 
   const colunas = [
-    { id: 'pedido', titulo: 'Pedido Realizado', cor: 'bg-orange-600' },
-    { id: 'completa', titulo: 'Atualizada por Técnico', cor: 'bg-cyan-500' },
-    { id: 'aguardando', titulo: 'Aguardando Fornecedor', cor: 'bg-orange-400' },
-    { id: 'financeiro', titulo: 'Enviado Financeiro', cor: 'bg-indigo-600' },
+    { id: 'pedido', titulo: 'Pedido realizado', cor: 'bg-orange-600', icone: 'fa-inbox' },
+    { id: 'completa', titulo: 'Atualizada pelo técnico', cor: 'bg-cyan-500', icone: 'fa-user-check' },
+    { id: 'aguardando', titulo: 'Aguardando fornecedor', cor: 'bg-orange-400', icone: 'fa-hourglass-half' },
+    { id: 'financeiro', titulo: 'Enviado ao financeiro', cor: 'bg-indigo-600', icone: 'fa-building-columns' },
   ];
 
   const handleDragOver = (e: React.DragEvent, idColuna: string) => {
@@ -269,6 +273,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
     for (const f of filtros) { (porCampo[f.campo] ||= new Set()).add(f.valor); }
     const campos = Object.keys(porCampo);
     return requisicoes.filter((r: any) => {
+      if (idsEspecial && !idsEspecial.has(Number(r.id))) return false;
       if (idsGrupo && !idsGrupo.has(Number(r.id))) return false;
       // Filtro faceteado
       for (const campo of campos) {
@@ -287,7 +292,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
       ].join(' ');
       return matchData && paraBusca(alvo).includes(q);
     });
-  }, [requisicoes, filtroBusca, filtroData, nomeSolicitante, grupoAtivo, filtros, valorCampo]);
+  }, [requisicoes, filtroBusca, filtroData, nomeSolicitante, grupoAtivo, filtros, valorCampo, idsEspecial]);
 
   const temFiltroAtivo = filtroBusca || filtroData || filtros.length > 0;
   const limparFiltros = () => { setFiltroBusca(''); setFiltroData(''); setFiltros([]); };
@@ -418,14 +423,15 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
 
   const sairDaComparacao = () => { setModoComparar(false); setEscolhidas([]); setComparando(null); };
 
-  const pillBase = "px-4 py-2.5 rounded-full text-[14px] font-semibold border transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap";
-  const pillActive = "bg-orange-600 text-white border-orange-600";
-  const pillInactive = "bg-white text-black border-zinc-200 hover:border-orange-300 hover:text-orange-600";
-  const inputInline = "bg-white text-black text-[14.5px] rounded-full px-4 py-2.5 outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 transition-all placeholder:text-black/50 border border-zinc-200";
+  // Visual novo: cantos 11, altura 38, sem negrito; escolhido = fundo laranja clarinho com texto laranja
+  const pillBase = "h-[38px] px-3.5 rounded-[11px] text-[14px] font-normal border transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap";
+  const pillActive = "bg-orange-50 text-orange-700 border-orange-300";
+  const pillInactive = "bg-white text-zinc-800 border-zinc-200 hover:border-orange-300";
+  const inputInline = "h-[38px] bg-white text-black text-[14px] rounded-[11px] px-4 outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 transition-all placeholder:text-zinc-400 border border-zinc-200";
   const selectInline = `${inputInline} appearance-none cursor-pointer pr-7`;
 
   return (
-    <div className="w-full bg-zinc-50 min-h-screen transition-all duration-700 pb-20">
+    <div className="w-full transition-all duration-700 pb-20">
 
       {/* BARRA DE FILTROS — inline compacta */}
       <div className="w-full px-3 md:px-6 pt-3 md:pt-4 pb-2">
@@ -470,9 +476,6 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
               um painel (fundo/borda só no mobile) que só aparece com "Filtros" aberto. */}
           <div className={`w-full md:w-auto ${mobileFiltros ? 'flex' : 'hidden'} md:contents flex-wrap items-center gap-2 mt-1 md:mt-0 p-3 md:p-0 bg-white md:bg-transparent rounded-2xl border border-zinc-200 md:border-0`}>
 
-          {/* Separador */}
-          <div className="w-px h-5 bg-zinc-200 hidden md:block" />
-
           {/* Data exata */}
           <div className="relative shrink-0" title="Pesquisar por data exata">
             <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-black pointer-events-none z-10"/>
@@ -485,9 +488,6 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             {filtroData && <button onClick={() => setFiltroData('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-black hover:text-orange-500 bg-white"><X size={12}/></button>}
           </div>
 
-          {/* Separador */}
-          <div className="w-px h-5 bg-zinc-200 hidden md:block" />
-
           {/* FILTRO ÚNICO (faceteado): Solicitante · Tipo · Veículo · Fornecedor · Fase */}
           <div className="relative shrink-0" ref={filtroMenuRef}>
             <button
@@ -497,7 +497,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             >
               <Filter size={13} /> Filtro
               {filtros.length > 0 && (
-                <span className={`ml-0.5 text-[10px] font-bold px-1.5 rounded-full ${filtros.length > 0 ? 'bg-white/25' : 'bg-zinc-100 text-black'}`}>{filtros.length}</span>
+                <span className="ml-0.5 text-[11px] px-1.5 rounded-full bg-orange-600 text-white">{filtros.length}</span>
               )}
             </button>
 
@@ -566,9 +566,6 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             );
           })}
 
-          {/* Separador */}
-          <div className="w-px h-5 bg-zinc-200 hidden md:block" />
-
           {/* GRUPOS (coletivos de requisições) */}
           {/* Grupos num dropdown só — antes eram N pílulas soltas poluindo a barra */}
           <div className="relative shrink-0" ref={grupoMenuRef}>
@@ -624,17 +621,16 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             <ArrowLeftRight size={14} /> Comparar
           </button>
 
-          {/* Painel do Dev (aprovações) — inline na barra, ao lado do Comparar */}
-          {extraControles}
+          {/* Painel do Dev saiu da barra (José, 23/10/2026): os pedidos aparecem como cartão no topo, só quando existem */}
 
           {/* Visão: colunas × lista */}
-          <div className="flex items-center shrink-0 border border-zinc-200 rounded-full overflow-hidden bg-white">
+          <div className="flex items-center shrink-0 border border-zinc-200 rounded-[11px] overflow-hidden bg-white h-[38px]">
             <button onClick={() => setVisao('kanban')} title="Ver em colunas (kanban)"
-              className={`px-3.5 py-2.5 text-[14px] font-semibold flex items-center gap-1.5 transition-all ${visao === 'kanban' ? 'bg-orange-600 text-white' : 'text-black hover:text-orange-600'}`}>
-              <LayoutGrid size={14} /> Kanban
+              className={`h-full px-3.5 text-[14px] flex items-center gap-1.5 transition-all ${visao === 'kanban' ? 'bg-orange-50 text-orange-700' : 'text-zinc-700 hover:text-orange-600'}`}>
+              <LayoutGrid size={14} /> Quadro
             </button>
             <button onClick={() => setVisao('lista')} title="Ver em lista (todas as fases)"
-              className={`px-3.5 py-2.5 text-[14px] font-semibold flex items-center gap-1.5 transition-all ${visao === 'lista' ? 'bg-orange-600 text-white' : 'text-black hover:text-orange-600'}`}>
+              className={`h-full px-3.5 text-[14px] flex items-center gap-1.5 transition-all border-l border-zinc-200 ${visao === 'lista' ? 'bg-orange-50 text-orange-700' : 'text-zinc-700 hover:text-orange-600'}`}>
               <List size={14} /> Lista
             </button>
           </div>
@@ -669,6 +665,16 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
               )}
               <button onClick={sairDaComparacao} className="text-black hover:text-orange-500"><X size={14} /></button>
             </div>
+          </div>
+        )}
+
+        {/* Banner do filtro vindo da atenção/painel */}
+        {filtroEspecial && (
+          <div className="mt-2 flex items-center gap-3 flex-wrap rq-card" style={{ padding: '10px 14px', ['--c' as any]: '#EA580C' }}>
+            <i className="fa-solid fa-filter" style={{ color: '#EA580C' }} />
+            <span style={{ fontSize: 14, fontWeight: 500 }}>{filtroEspecial.titulo}</span>
+            <span className="rq-rot">{resultCount} requisição(ões) · {brl(filtradas.filter((r: any) => r.status !== 'lixeira').reduce((s: number, r: any) => s + valorReq(r), 0))}</span>
+            <button onClick={() => onLimparEspecial?.()} className="rq-btn" style={{ marginLeft: 'auto', height: 32 }}><X size={13} /> Tirar filtro</button>
           </div>
         )}
 
@@ -808,12 +814,11 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
               const ativo = faseMobile === col.id;
               return (
                 <button key={col.id} onClick={() => setFaseMobile(col.id)}
-                  className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold border transition-all ${
-                    ativo ? 'bg-orange-600 border-orange-600 text-white shadow-sm' : 'bg-white border-zinc-200 text-black'
-                  }`}>
-                  <span className={`w-2 h-2 rounded-full ${col.cor}`}></span>
+                  className="shrink-0 flex items-center gap-2 h-[38px] px-3.5 rounded-[11px] text-sm border transition-all"
+                  style={ativo ? { borderColor: COR_FASE[col.id], background: `color-mix(in srgb, ${COR_FASE[col.id]} 9%, #fefefe)`, color: '#0f172a' } : { borderColor: '#e2e8f0', background: '#fefefe', color: '#0f172a' }}>
+                  <span className="w-2 h-2 rounded-full" style={{ background: COR_FASE[col.id] }}></span>
                   {col.titulo}
-                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${ativo ? 'bg-white/25 text-white' : 'bg-zinc-100 text-black'}`}>{n}</span>
+                  <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: ativo ? COR_FASE[col.id] : '#f1f5f9', color: ativo ? '#fefefe' : '#475569' }}>{n}</span>
                 </button>
               );
             })}
@@ -850,15 +855,13 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                   isOver ? 'bg-orange-50/50 border-orange-200' : 'bg-transparent border-transparent'
                 }`}
               >
-                {/* TÍTULOS DAS FASES */}
-                <div className="py-4 px-6 bg-white/95 backdrop-blur-sm rounded-t-2xl border-b border-zinc-200">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-xs font-bold text-black uppercase tracking-[0.2em]">
-                      {col.titulo}
-                    </h3>
-                    <div className="flex items-center gap-2.5">
-                      <span className="text-xs font-medium text-zinc-500">{items.length}</span>
-                      <div className={`w-2 h-2 rounded-full ${col.cor}`}></div>
+                {/* TÍTULO DA FASE: ícone na cor da fase, quantidade e valor */}
+                <div className="rq-col-cab" style={{ ['--c' as any]: COR_FASE[col.id], flexDirection: 'column', alignItems: 'stretch' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <IconeQuadrado icone={col.icone} cor={COR_FASE[col.id]} tamanho={34} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div className="rq-col-nome">{col.titulo}</div>
+                      <div className="rq-col-sub">{items.length} · {brl(items.reduce((s2: number, r: any) => s2 + valorReq(r), 0))}</div>
                     </div>
                   </div>
                   {col.id === 'aguardando' && items.length > 0 && (() => {
@@ -869,7 +872,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                       <div className="mt-3">
                         <button
                           onClick={() => gerarPdfCobranca(alvo)}
-                          className="w-full flex items-center justify-center gap-1.5 text-[11px] font-semibold text-orange-600 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-full py-1.5 px-3 transition-all cursor-pointer"
+                          className="w-full flex items-center justify-center gap-1.5 text-[12.5px] text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-[10px] h-[32px] px-3 transition-all cursor-pointer"
                           title={alvo ? `Gerar cobrança para ${alvo}` : 'Gerar cobrança (usa o filtro de fornecedor, se houver)'}
                         >
                           <FileDown size={12} />
@@ -882,7 +885,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
 
                 {/* ÁREA DOS CARDS — no celular SEM scroll próprio (rola a página inteira);
                     no PC cada coluna tem seu scroll de até 72vh. */}
-                <div className="p-4 space-y-4 flex-1 md:max-h-[72vh] md:overflow-y-auto scrollbar-hide">
+                <div className="px-1 pb-4 flex-1 md:max-h-[72vh] md:overflow-y-auto scrollbar-hide">
                   {items.length > 0 ? (
                     <>
                       {priorizarDestaque(items).slice(0, limitesPorColuna[col.id] || CARDS_POR_VEZ).map((req: any) => (
@@ -905,21 +908,23 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                           modoComparar={modoComparar}
                           escolhidoParaComparar={escolhidas.some((r: any) => String(r.id) === String(req.id))}
                           onEscolherComparar={escolherParaComparar}
+                          notaAchada={!!notasAchadas?.has(Number(req.id))}
+                          onVerNotaAchada={onVerNotaAchada}
                         />
                       ))}
                       {items.length > (limitesPorColuna[col.id] || CARDS_POR_VEZ) && (
                         <button
                           onClick={() => setLimitesPorColuna(prev => ({ ...prev, [col.id]: (prev[col.id] || CARDS_POR_VEZ) + CARDS_POR_VEZ }))}
-                          className="w-full py-4 rounded-xl border border-dashed border-zinc-200 text-xs font-bold text-black uppercase tracking-widest hover:bg-zinc-50 hover:text-black transition-all"
+                          className="w-full h-[40px] rounded-[11px] border border-dashed border-zinc-300 text-[13px] text-zinc-600 hover:bg-white transition-all"
                         >
                           Carregar mais ({items.length - (limitesPorColuna[col.id] || CARDS_POR_VEZ)} restantes)
                         </button>
                       )}
                     </>
                   ) : (
-                    <div className="py-12 border border-dashed border-zinc-200 rounded-2xl flex flex-col items-center justify-center gap-2 opacity-10">
-                      <Layout size={18} className="text-black" />
-                      <span className="text-xs font-bold uppercase tracking-[0.4em] text-black">Livre</span>
+                    <div className="py-10 border border-dashed border-zinc-300 rounded-2xl flex flex-col items-center justify-center gap-1.5 text-zinc-400">
+                      <i className="fa-regular fa-circle-check" style={{ fontSize: 18 }} />
+                      <span className="text-[13px]">Nada nesta fase</span>
                     </div>
                   )}
                 </div>
@@ -931,19 +936,18 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
       ) : (
       /* MODO LISTA — todas as fases numa tabela só, respeitando os filtros */
       <div className="px-3 md:px-6 mt-2 pb-10">
-        <div className="bg-white border border-zinc-200 overflow-x-auto">
-          <table className="w-full min-w-[860px] text-[13.5px] text-black">
+        <div className="rq-card" style={{ padding: 0, overflowX: 'auto' }}>
+          <table className="w-full min-w-[920px] text-[13.5px]" style={{ color: 'var(--rq-txt)' }}>
             <thead>
-              <tr className="bg-orange-600 text-white text-left">
-                <th className="px-3 py-3 font-bold">#</th>
-                <th className="px-3 py-3 font-bold">Tipo</th>
-                <th className="px-3 py-3 font-bold">Título</th>
-                <th className="px-3 py-3 font-bold">Criado por</th>
-                <th className="px-3 py-3 font-bold">Setor</th>
-                <th className="px-3 py-3 font-bold">Fornecedor</th>
-                <th className="px-3 py-3 font-bold">Data</th>
-                <th className="px-3 py-3 font-bold text-right">Valor (R$)</th>
-                <th className="px-3 py-3 font-bold">Fase</th>
+              <tr className="text-left" style={{ background: 'var(--portal-bg-secondary, #f8fafc)', color: 'var(--rq-sec)', fontSize: 12.5 }}>
+                <th className="px-3 py-2.5 font-normal">Nº</th>
+                <th className="px-3 py-2.5 font-normal">Tipo</th>
+                <th className="px-3 py-2.5 font-normal">Título</th>
+                <th className="px-3 py-2.5 font-normal">Quem pediu</th>
+                <th className="px-3 py-2.5 font-normal">Fornecedor</th>
+                <th className="px-3 py-2.5 font-normal">Data</th>
+                <th className="px-3 py-2.5 font-normal text-right">Valor</th>
+                <th className="px-3 py-2.5 font-normal">Fase</th>
               </tr>
             </thead>
             <tbody>
@@ -951,25 +955,27 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                 const idsFase = colunas.map(c => c.id);
                 const linhas = filtradas.filter((r: any) => idsFase.includes(r.status)).sort((a: any, b: any) => Number(b.id) - Number(a.id));
                 if (linhas.length === 0) return (
-                  <tr><td colSpan={9} className="px-3 py-12 text-center text-black/50">Nenhuma requisição no filtro.</td></tr>
+                  <tr><td colSpan={8} className="px-3 py-12 text-center" style={{ color: 'var(--rq-apag)' }}>Nenhuma requisição no filtro.</td></tr>
                 );
+                const hoje = new Date();
                 return linhas.map((r: any) => {
                   const col = colunas.find(c => c.id === r.status);
+                  const v = visualTipo(r.tipo);
+                  const dias = diasAberta(r, hoje);
                   return (
-                    <tr key={r.id} onClick={() => setReqAbertaLista(r)} className="border-t border-zinc-200 hover:bg-orange-50 cursor-pointer transition-colors">
-                      <td className="px-3 py-2.5 font-bold text-orange-600">{r.id}</td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">{r.tipo || r.ReqTipo || '—'}</td>
+                    <tr key={r.id} onClick={() => setReqAbertaLista(r)} className="cursor-pointer transition-colors hover:bg-orange-50/50" style={{ borderTop: '1px solid var(--rq-borda)' }}>
+                      <td className="px-3 py-2.5" style={{ fontVariantNumeric: 'tabular-nums', color: v.cor }}>{r.id}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap"><i className={`fa-solid ${v.icone}`} style={{ color: v.cor, marginRight: 7, fontSize: 12 }} />{normalizarTipo(r.tipo)}</td>
                       <td className="px-3 py-2.5 max-w-[360px] truncate">{r.titulo}</td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">{r.criado_por || nomeSolicitante(r.solicitante) || '—'}</td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">{r.setor || '—'}</td>
-                      <td className="px-3 py-2.5 max-w-[200px] truncate">{r.fornecedor || '—'}</td>
-                      <td className="px-3 py-2.5 whitespace-nowrap">{r.data ? new Date(r.data + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</td>
-                      <td className="px-3 py-2.5 text-right font-bold whitespace-nowrap">{r.valor_despeza || '0,00'}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">{nomeSolicitante(r.solicitante) || r.criado_por || '—'}</td>
+                      <td className="px-3 py-2.5 max-w-[200px] truncate">{r.fornecedor || <span style={{ color: 'var(--rq-apag)' }}>—</span>}</td>
                       <td className="px-3 py-2.5 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 font-semibold">
-                          <span className={`w-2 h-2 rounded-full ${col?.cor || 'bg-zinc-300'}`} />
-                          {col?.titulo || r.status}
-                        </span>
+                        {r.data ? new Date(r.data + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}
+                        {dias != null && dias > 7 && <span style={{ marginLeft: 6, fontSize: 11.5, color: dias > 30 ? '#DC2626' : '#D97706' }}>· {dias} dias</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-right whitespace-nowrap" style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{brl(valorReq(r))}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className="rq-pilula" style={{ ['--c' as any]: COR_FASE[r.status] || '#64748B' }}>{col?.titulo || r.status}</span>
                       </td>
                     </tr>
                   );

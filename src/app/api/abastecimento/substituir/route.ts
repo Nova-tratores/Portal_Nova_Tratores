@@ -15,6 +15,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { logFrota, podeFrota } from '@/lib/frota/server';
+import { atualizarPosVendasDepois } from '@/lib/mecanicos/ao-vivo-server';
 import type { LinhaAbastecimento } from '@/lib/abastecimento/tipos';
 
 export const runtime = 'nodejs';
@@ -95,5 +96,6 @@ export async function POST(request: Request) {
     detalhes: { total: itens.length, ok: okCount, erros: resultados.filter((r) => !r.ok).length },
   });
 
+  atualizarPosVendasDepois('abastecimento importado'); // gastos da Janela Mecânicos ao vivo
   return NextResponse.json({ resultados, ok: okCount });
 }

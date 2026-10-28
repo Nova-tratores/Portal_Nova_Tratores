@@ -2,6 +2,7 @@
 // Submenu interno do módulo Estoque (aparece em todas as páginas /estoque via layout).
 // Agrupado por GRUPO (Consulta / Entradas / Análise / Admin), com divisor gráfico.
 // Mostra só as páginas que o usuário pode acessar (pode('estoque', key); admin/total veem todas).
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
@@ -12,6 +13,10 @@ export default function EstoqueNav() {
   const { userProfile } = useAuth();
   const { pode, loading } = usePermissoes(userProfile?.id);
   const pathname = usePathname();
+  // celular: o menu inteiro (6 linhas) ocupava a 1ª tela — fica fechado num botão com a página atual
+  // guarda em qual página foi aberto: trocou de página, fecha sozinho
+  const [abertoEm, setAbertoEm] = useState<string | null>(null);
+  const aberto = abertoEm === pathname;
 
   if (loading) return null;
   const visiveis = PAGINAS_ESTOQUE.filter((p) => pode('estoque', p.key));
@@ -31,9 +36,11 @@ export default function EstoqueNav() {
     whiteSpace: 'nowrap',
   };
 
+  const atual = pathname === '/estoque' ? 'Consulta de Produto' : (visiveis.find((p) => pathname === p.href || pathname?.startsWith(p.href + '/'))?.label || 'Páginas');
+
   return (
     <nav
-      className="est-nav"
+      className={`est-nav${aberto ? ' aberto' : ''}`}
       style={{
         background: '#fff',
         borderBottom: '1px solid #e2e8f0',
@@ -47,6 +54,21 @@ export default function EstoqueNav() {
         zIndex: 20,
       }}
     >
+      <style>{`
+        .est-nav-toggle { display: none; }
+        @media (max-width: 768px) {
+          .est-nav-toggle { display: flex; align-items: center; gap: 8px; width: 100%; height: 42px; padding: 0 12px; border-radius: 10px;
+            border: 1px solid #e2e8f0; background: #f8fafc; color: #0f172a; font-family: inherit; font-size: 14px; cursor: pointer; }
+          .est-nav-toggle b { flex: 1; min-width: 0; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .est-nav:not(.aberto) .est-nav-row { display: none !important; }
+        }
+      `}</style>
+      <button type="button" className="est-nav-toggle" onClick={() => setAbertoEm(aberto ? null : pathname)} aria-expanded={aberto}>
+        <span aria-hidden>🏭</span>
+        <span style={{ color: '#64748b', fontSize: 12.5 }}>Estoque ·</span>
+        <b>{atual}</b>
+        <span aria-hidden style={{ color: '#64748b' }}>{aberto ? '▴' : '▾'}</span>
+      </button>
       {/* Landing do módulo (busca de produto) */}
       <div className="est-nav-row" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: '6px 0' }}>
         <span

@@ -1,8 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { fetchInterno } from "@/lib/auth/chamada-interna";
 import { contaOmie } from "@/lib/omie/contas";
-import { omie } from "@/lib/omie/porta";
+import { omie, comPrioridade } from "@/lib/omie/porta";
 import { resolverNfseDaOS } from "@/lib/clientes/nfse-omie";
 
 const supabase = createClient(
@@ -298,10 +298,27 @@ function registrarWebhook(info: WebhookLog) {
 }
 
 // ====================== ROUTE ======================
+/**
+ * Responde ao Omie NA HORA e processa depois, como ROBÔ (prioridade 'rapido'), item 6 de
+ * docs/omie-otimizacao-pos-ppv.md: antes o aviso rodava dentro da requisição como "pessoa" e, durante o faturamento,
+ * disparava ConsultarOS/ListarNFSEs junto com o clique (cada AlterarOS/FaturarOS do portal gera eventos) — consumo
+ * redundante e espera. Como robô ele não é chamado enquanto alguém fatura (comRobosPausados) e roda logo depois.
+ */
 export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
+  let body: Record<string, unknown>;
+  try { body = await req.json(); } catch { return NextResponse.json({ error: "corpo inválido" }, { status: 400 }); }
+  if (body.ping === "omie") {
+    registrarWebhook({ recebido_em: new Date().toISOString(), topic: "ping", appKey: String(body.appKey || body.app_key || ""), ping: true });
+    return NextResponse.json({ pong: "omie" });
+  }
+  const origem = req.nextUrl.origin;
+  after(() => comPrioridade("rapido", () => tratarWebhook(origem, body)).catch((e) => console.error("[webhook] Erro:", e instanceof Error ? e.message : e)));
+  return NextResponse.json({ ok: true, recebido: true });
+}
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function tratarWebhook(origem: string, body: any): Promise<NextResponse> {
+  try {
     registrarWebhook({ recebido_em: new Date().toISOString(), topic: String(body.topic || (body.ping ? "ping" : "")), appKey: String(body.appKey || body.app_key || ""), ping: body.ping === "omie" });
 
     // Ping de validacao do Omie
@@ -347,8 +364,8 @@ export async function POST(req: NextRequest) {
         const result = await processarPV(codPedido, acc);
         // Webhook = criação em TEMPO REAL (só a nota que faturou). A pasta do cliente
         // (processarPV acima) também é atualizada. O scanner de 5 min segue desligado.
-        await fetchInterno(`${req.nextUrl.origin}/api/financeiro/sync-os`, { method: "POST" }).catch(() => {});
-        await fetchInterno(`${req.nextUrl.origin}/api/financeiro/sync-pecas?dias=1`, { method: "POST" }).catch(() => {});
+        await fetchInterno(`${origem}/api/financeiro/sync-os`, { method: "POST" }).catch(() => {});
+        await fetchInterno(`${origem}/api/financeiro/sync-pecas?dias=1`, { method: "POST" }).catch(() => {});
         return NextResponse.json({ ok: true, tipo: "nfe", ...result });
       }
     }
@@ -360,7 +377,7 @@ export async function POST(req: NextRequest) {
         const result = await processarOS(codOS, acc);
         // Webhook = criação em TEMPO REAL desta OS específica. A pasta do cliente
         // (processarOS acima) também é atualizada. O scanner de 5 min segue desligado.
-        await fetchInterno(`${req.nextUrl.origin}/api/financeiro/sync-os?codOS=${codOS}`, { method: "POST" }).catch(() => {});
+        await fetchInterno(`${origem}/api/financeiro/sync-os?codOS=${codOS}`, { method: "POST" }).catch(() => {});
         return NextResponse.json({ ok: true, tipo: "nfse", ...result });
       }
     }

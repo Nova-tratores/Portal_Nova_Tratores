@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
-  omie, comPrioridade, estadoPorta, bloqueioRestanteMs, LIMITES, _reiniciarPorta,
+  omie, comPrioridade, comRobosPausados, robosPausados, estadoPorta, bloqueioRestanteMs, LIMITES, _reiniciarPorta,
   OmieBloqueioError, OmieChaveRecusadaError, OmieIncertoError, OmieFaultError,
   ehGravacao, ehChaveRecusada, rotuloCanonico, segundosDoBloqueio, segundosParaAguardar, corpoAscii,
+  _definirCoordenacao, limitePadrao,
 } from '../porta';
+import type { FonteCoordenacao, BloqueioExterno } from '../coordenacao';
 
 const NOVA = { appKey: 'chave-nova', appSecret: 's', rotulo: 'NOVA' };
 const CASTRO = { appKey: 'chave-castro', appSecret: 's', rotulo: 'CASTRO' };
@@ -235,3 +237,158 @@ describe('fila e prioridade', () => {
     expect(b[0]).toMatchObject({ conta: 'CASTRO', metodo: 'ListarProdutos' });
   });
 });
+
+describe('gravação uma de cada vez (orientação do suporte Omie, 21/10/2026)', () => {
+  it('duas gravações na mesma chave não ficam em voo juntas; leitura segue em paralelo', async () => {
+    Object.assign(LIMITES, { maxGravacoesChave: 1 });
+    let emVoo = 0, maxGrav = 0
+    const liberar: Array<() => void> = []
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      const call = JSON.parse(String(init.body)).call as string
+      if (call.startsWith('Alterar')) {
+        emVoo++; maxGrav = Math.max(maxGrav, emVoo)
+        await new Promise<void>((ok) => liberar.push(ok))
+        emVoo--
+      }
+      return json({ ok: true })
+    }))
+    const a = omie(NOVA, '/x/', 'AlterarOS', { n: 1 }, RAPIDO)
+    const b = omie(NOVA, '/x/', 'AlterarPedidoVenda', { n: 2 }, RAPIDO)
+    const leitura = omie(NOVA, '/x/', 'ConsultarOS', { n: 3 }, RAPIDO)
+    await leitura // a leitura não espera as gravações
+    await vi.waitFor(() => expect(liberar.length).toBe(1))
+    liberar.shift()!()
+    await vi.waitFor(() => expect(liberar.length).toBe(1))
+    liberar.shift()!()
+    await Promise.all([a, b])
+    expect(maxGrav).toBe(1)
+  })
+})
+
+describe('robôs parados durante o faturamento (José, 21/10/2026)', () => {
+  it('chamada de robô espera o faturamento terminar; a de pessoa passa', async () => {
+    const ordem: string[] = []
+    vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+      ordem.push(JSON.parse(String(init.body)).call as string)
+      return json({ ok: true })
+    }))
+    let soltar!: () => void
+    const faturando = comRobosPausados('teste', async () => {
+      await omie(NOVA, '/x/', 'ConsultarOS', { n: 1 }, RAPIDO)
+      await new Promise<void>((ok) => { soltar = ok })
+      await omie(NOVA, '/x/', 'FaturarOS', { n: 1 }, RAPIDO)
+    })
+    await vi.waitFor(() => expect(ordem).toContain('ConsultarOS'))
+    expect(robosPausados()).toBe(true)
+    const robo = comPrioridade('pesado', () => omie(NOVA, '/x/', 'ListarOS', { n: 2 }, RAPIDO))
+    const pessoa = omie(NOVA, '/x/', 'ListarClientes', { n: 3 }, RAPIDO)
+    await pessoa
+    await new Promise((r) => setTimeout(r, 50))
+    expect(ordem).not.toContain('ListarOS') // o robô está parado
+    soltar()
+    await faturando
+    await robo
+    expect(robosPausados()).toBe(false)
+    expect(ordem.indexOf('ListarOS')).toBeGreaterThan(ordem.indexOf('FaturarOS'))
+  })
+})
+
+// "Banco" falso compartilhado pelos dois processos (web × worker, 22/10/2026).
+function bancoFalso() {
+  const vagas = new Map<string, { dono: string; ate: number }>()
+  const bloqueios = new Map<string, BloqueioExterno>()
+  const fonte: FonteCoordenacao = {
+    async pegarVaga(chave, dono, ms) {
+      const v = vagas.get(chave)
+      if (v && v.ate > Date.now() && v.dono !== dono) return false
+      vagas.set(chave, { dono, ate: Date.now() + ms })
+      return true
+    },
+    async soltarVaga(chave, dono) {
+      if (vagas.get(chave)?.dono === dono) vagas.delete(chave)
+    },
+    async lerBloqueios() {
+      return [...bloqueios.values()].filter((b) => b.ate > Date.now())
+    },
+    async gravarBloqueio(chave, metodo, ate, motivo) {
+      bloqueios.set(`${chave}|${metodo}`, { chave, metodo, ate, motivo, criadoEm: Date.now() })
+    },
+    async liberarBloqueio(chave, metodo) {
+      bloqueios.delete(`${chave}|${metodo}`)
+    },
+  }
+  return { fonte, vagas, bloqueios }
+}
+
+describe('coordenação entre web e worker pelo banco (22/10/2026)', () => {
+  it('web (pessoas) com o ritmo cheio; worker na metade (IPs diferentes, 26/10/2026)', () => {
+    expect(limitePadrao('tudo')).toMatchObject({ gapMetodoMs: 300, maxSimultaneasChave: 4 })
+    expect(limitePadrao('web')).toEqual(limitePadrao('tudo'))
+    const worker = limitePadrao('worker')
+    expect(worker).toMatchObject({ gapMetodoMs: 500, maxSimultaneasChave: 2 })
+    expect(60_000 / worker.gapMetodoMs).toBeLessThanOrEqual(120) // metade dos 240/min por método
+  })
+
+  it('gravação espera a vaga que o outro processo segura; leitura não espera', async () => {
+    const banco = bancoFalso()
+    _definirCoordenacao(banco.fonte)
+    // o "worker" está gravando: a vaga da chave NOVA está ocupada por outro dono
+    const { createHash } = await import('node:crypto')
+    const id = createHash('sha256').update('chave-nova').digest('hex').slice(0, 12)
+    banco.vagas.set(id, { dono: 'worker-outro', ate: Date.now() + 60_000 })
+
+    chamadas = []
+    const gravar = omie(NOVA, '/x/', 'AlterarCliente', { a: 1 }, RAPIDO)
+    await omie(NOVA, '/x/', 'ConsultarCliente', { a: 1 }, RAPIDO)
+    await new Promise((r) => setTimeout(r, 300))
+    expect(chamadas.map((c) => c.call)).toEqual(['ConsultarCliente']) // a gravação espera
+    expect(estadoPorta().coordenacao.esperandoVaga).toBe(1)
+
+    banco.vagas.delete(id) // o worker terminou
+    await gravar
+    expect(chamadas.map((c) => c.call)).toEqual(['ConsultarCliente', 'AlterarCliente'])
+    expect(banco.vagas.size).toBe(0) // soltou a vaga depois de gravar
+  })
+
+  it('banco fora não trava a Omie: grava com a vaga local e mostra o erro no painel', async () => {
+    const banco = bancoFalso()
+    _definirCoordenacao({ ...banco.fonte, pegarVaga: async () => { throw new Error('banco caiu') } })
+    await omie(NOVA, '/x/', 'IncluirCliente', { a: 1 }, RAPIDO)
+    expect(chamadas.map((c) => c.call)).toEqual(['IncluirCliente'])
+    expect(estadoPorta().coordenacao.ultimoErro?.msg).toMatch(/banco caiu/)
+  })
+
+  it('bloqueio visto por um processo vale para o outro', async () => {
+    const banco = bancoFalso()
+    _definirCoordenacao(banco.fonte)
+    respostas = [{ faultstring: 'API bloqueada por consumo indevido. Tente novamente em 600 segundos.' }]
+    await expect(omie(NOVA, '/x/', 'ListarPedidos', {}, RAPIDO)).rejects.toBeInstanceOf(OmieBloqueioError)
+    await vi.waitFor(() => expect(banco.bloqueios.size).toBe(1)) // foi para o banco
+
+    // "o outro processo": porta zerada, mesmo banco
+    _reiniciarPorta()
+    Object.assign(LIMITES, { gapMetodoMs: 0, gapChaveMs: 0, gapGlobalMs: 0 })
+    _definirCoordenacao(banco.fonte)
+    chamadas = []
+    // o robô espera a leitura do banco antes de chamar: falha sem tocar a Omie
+    await expect(comPrioridade('pesado', () => omie(NOVA, '/x/', 'ListarPedidos', {}, RAPIDO))).rejects.toBeInstanceOf(OmieBloqueioError)
+    expect(chamadas).toHaveLength(0)
+    expect(bloqueioRestanteMs('chave-nova', 'ListarPedidos')).toBeGreaterThan(500_000)
+  })
+
+  it('chamada que volta a dar certo desfaz o bloqueio no banco', async () => {
+    const banco = bancoFalso()
+    _definirCoordenacao(banco.fonte)
+    respostas = [{ faultstring: 'API bloqueada por consumo indevido. Tente novamente em 60 segundos.' }]
+    await expect(omie(NOVA, '/x/', 'ListarPedidos', {}, RAPIDO)).rejects.toBeInstanceOf(OmieBloqueioError)
+    await vi.waitFor(() => expect(banco.bloqueios.size).toBe(1))
+    const real = Date.now
+    const relogio = vi.spyOn(Date, 'now').mockImplementation(() => real() + 120_000) // 2 min depois
+    try {
+      await omie(NOVA, '/x/', 'ListarPedidos', {}, RAPIDO) // o bloqueio venceu e a Omie respondeu
+      await vi.waitFor(() => expect(banco.bloqueios.size).toBe(0))
+    } finally {
+      relogio.mockRestore()
+    }
+  })
+})

@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { authHeaders } from "@/lib/auth/client";
 import NfseRejeitada from "./NfseRejeitada";
+import type { DocAnterior } from "@/lib/pos/omie-anteriores";
 
 interface EstadoNfse {
   habilitado: boolean; faturadoEm: string | null; status: string | null; erro: string | null;
@@ -25,8 +26,12 @@ interface NfPedido { faturado: boolean; numero?: string; emitidaEm?: string; can
 
 const semZeros = (n: string | null | undefined) => String(n || "").replace(/^0+(?=\d)/, "");
 
-export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoDesde = null, clienteDoc = null }: {
+export default function NotasFiscaisBloco({ osId, ordemOmie = "", anteriores: docsAnteriores = [], ppvIds, ppvOmieMap, esperandoDesde = null, clienteDoc = null }: {
   osId: string;
+  /** nº da OS no Omie hoje (a nota de serviço sai dela) */
+  ordemOmie?: string;
+  /** OS e pedidos cancelados ao corrigir a nota — a NF-e cancelada do pedido antigo vem daqui */
+  anteriores?: DocAnterior[];
   /** CNPJ/CPF do cliente — para corrigir o cadastro quando a NFS-e volta rejeitada */
   clienteDoc?: string | null;
   ppvIds: string[];
@@ -100,6 +105,13 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
 
   // nota ainda vindo: confere a cada 30 s (até 20 min com a OS aberta)
   const aguardandoNfse = !!nfse?.faturadoEm && nfse.status === "nfse_aguardando";
+  // o bloco do Omie está faturando: este bloco ESPERA junto (não diz "ainda não emitida" — José, 27/10/2026)
+  const faturandoAgora = nfse?.status === "faturando" || nfse?.status === "desconhecido";
+  useEffect(() => {
+    if (!faturandoAgora) return;
+    const t = setInterval(() => { void carregarNfse(); void carregarNfs(true); }, 15_000);
+    return () => clearInterval(t);
+  }, [faturandoAgora, carregarNfse, carregarNfs]);
   useEffect(() => {
     if (!aguardandoNfse) return;
     const inicio = Date.now();
@@ -123,7 +135,8 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
   };
 
   const temOS = !!nfse?.faturadoEm || (esperando && !!nfse?.habilitado);
-  if (!temOS && !pedidos.length && !(nfse?.anteriores || []).length) return null;
+  const pedidosCancelados = docsAnteriores.filter((d) => d.tipo === "pedido" && d.nota);
+  if (!temOS && !pedidos.length && !(nfse?.anteriores || []).length && !pedidosCancelados.length) return null;
 
   const chip = (txt: string, cor: string, bg: string) => (
     <span style={{ fontSize: 10.5, fontWeight: 800, padding: "1px 7px", borderRadius: 999, color: cor, background: bg, whiteSpace: "nowrap" }}>{txt}</span>
@@ -203,7 +216,7 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
           st === "nfse_aguardando" ? "NFS-e" : `NFS-e ${semZeros(nfse?.nfseNumero) || ""}`.trim(),
           st === "nfse_aguardando" ? <>serviço · {chip("aguardando o sistema nacional", "#075985", "#e0f2fe")}</>
             : st === "nfse_rejeitada" ? <>serviço · {chip("rejeitada", "#b91c1c", "#fee2e2")}</>
-            : <>serviço · {chip("autorizada", "#047857", "#d1fae5")}</>,
+            : <>serviço{ordemOmie ? ` · OS ${semZeros(ordemOmie)}` : ""} · {chip("autorizada", "#047857", "#d1fae5")}</>,
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
             {nfse?.nfseLink ? <a href={nfse.nfseLink} target="_blank" rel="noreferrer" title={`Imprimir a NFS-e ${semZeros(nfse?.nfseNumero)}`} style={estiloImprimir}><i className="fas fa-print" /> Imprimir</a> : null}
             {st !== "nfse_aguardando" && nfse?.nfseNumero ? dicaNota(nfse.nfseNumero) : null}
@@ -219,19 +232,9 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
           </div>
         )}
         {temOS && st === "nfse_rejeitada" && <NfseRejeitada osId={osId} erro={nfse?.erro || "O sistema nacional recusou a nota."} cnpj={clienteDoc} onReenviada={() => { void carregarNfse(); }} />}
-        {anteriores.map((a, i) => linha(`ant-${i}`, `NFS-e ${semZeros(a.nfse) || ""}`.trim(),
-          <>serviço · {chip("cancelada", "#b91c1c", "#fee2e2")}</>,
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-            {a.nfseLink ? <a href={a.nfseLink} target="_blank" rel="noreferrer" title={`Ver a NFS-e cancelada ${semZeros(a.nfse)}`} style={estiloImprimirSecundario}><i className="fas fa-print" /> Imprimir</a> : null}
-            {dicaNota(a.nfse, (
-              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f5f9", fontSize: 12.5, color: "#334155", lineHeight: 1.55 }}>
-                {a.canceladaEm && <div><b>Cancelada em</b> {new Date(a.canceladaEm).toLocaleDateString("pt-BR")}</div>}
-                {a.motivo && <div style={{ marginTop: 4 }}><b>Motivo:</b> {a.motivo.replace(/^\d\s*-\s*/, "")}</div>}
-                {a.novaOmie && <div style={{ marginTop: 4 }}><b>Refeita na OS</b> nº {semZeros(a.novaOmie)}</div>}
-              </div>
-            ))}
-          </span>,
-          !temOS && i === 0))}
+        {/* OS ainda sem nota: diz de qual OS a NFS-e vai sair (José, 23/10/2026: "bloco de NF confuso") */}
+        {!temOS && ordemOmie && linha("nfse-pendente", "NFS-e",
+          <>serviço · OS {semZeros(ordemOmie)} · {faturandoAgora ? chip("sendo gerada…", "#075985", "#e0f2fe") : chip("ainda não emitida", "#b45309", "#fef3c7")}</>, null, true)}
         {pedidos.map((pid, i) => {
           const nf = nfs[pid];
           const ok = !!nf?.faturado && !nf.canceladaEm;
@@ -239,9 +242,9 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
           const rem = !!nf?.remessa;
           return linha(pid,
             ok && nf?.numero ? `NF-e ${rem ? "de remessa " : ""}${semZeros(nf.numero)}` : rem ? "NF-e de remessa" : "NF-e",
-            <>{rem ? <>peças · remessa {semZeros(nf?.numeroRemessa || ppvOmieMap[pid])}</> : <>peças · pedido {semZeros(ppvOmieMap[pid])}</>} · {pedidoAguardando(pid) ? chip("aguardando a SEFAZ", "#075985", "#e0f2fe") : nf === undefined ? "conferindo…" : ok ? (nf.emitidaEm ? `emitida ${String(nf.emitidaEm).slice(0, 10)}` : chip("emitida", "#047857", "#d1fae5")) : nf?.canceladaEm ? chip("cancelada", "#b91c1c", "#fee2e2") : rem ? chip("remessa ainda não faturada", "#6d28d9", "#ede9fe") : chip("não faturada", "#b45309", "#fef3c7")}</>,
+            <>{rem ? <>peças · remessa {semZeros(nf?.numeroRemessa || ppvOmieMap[pid])}</> : <>peças · pedido {semZeros(ppvOmieMap[pid])}</>} · {pedidoAguardando(pid) ? chip("aguardando a SEFAZ", "#075985", "#e0f2fe") : nf === undefined ? "conferindo…" : ok ? (nf.emitidaEm ? `emitida ${String(nf.emitidaEm).slice(0, 10)}` : chip("emitida", "#047857", "#d1fae5")) : nf?.canceladaEm ? chip("cancelada", "#b91c1c", "#fee2e2") : faturandoAgora ? chip("aguardando o faturamento da OS", "#075985", "#e0f2fe") : rem ? chip("remessa ainda não faturada", "#6d28d9", "#ede9fe") : chip("ainda não emitida", "#b45309", "#fef3c7")}</>,
             ok ? linkPdf(`Imprimir a NF-e ${rem ? "da remessa" : "do pedido"} ${semZeros(nf?.numeroRemessa || ppvOmieMap[pid])}`, () => abrirDanfe(pid), abrindo === pid) : null,
-            !temOS && i === 0,
+            !temOS && !ordemOmie && i === 0,
             // remessa ainda não faturada: botão de largura inteira embaixo
             !ok && rem && nf && !nf.canceladaEm
               ? <div style={{ padding: "0 2px 9px" }}><FaturarRemessaBotao ppvId={pid} numero={semZeros(nf.numeroRemessa || ppvOmieMap[pid])} onFeito={() => { void carregarNfs(true); }} /></div>
@@ -257,6 +260,32 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
           </div>
         )}
       </div>
+      {(anteriores.length > 0 || pedidosCancelados.length > 0) && (
+        <>
+          <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: .4, color: "var(--portal-text-muted)", padding: "4px 2px 0" }}>Canceladas</div>
+          <div style={{ padding: "2px 10px", borderRadius: 9, background: "var(--surface)", border: "1px dashed var(--border)", opacity: .85 }}>
+            {anteriores.map((a, i) => {
+              const osAntiga = docsAnteriores.find((d) => d.tipo === "os" && d.nota === semZeros(a.nfse))?.numero;
+              return linha(`ant-${i}`, `NFS-e ${semZeros(a.nfse) || ""}`.trim(),
+                <>serviço{osAntiga ? ` · OS ${osAntiga}` : ""} · {chip("cancelada", "#b91c1c", "#fee2e2")}{a.novaOmie ? <> · refeita na OS {semZeros(a.novaOmie)}</> : null}</>,
+                <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                  {a.nfseLink ? <a href={a.nfseLink} target="_blank" rel="noreferrer" title={`Ver a NFS-e cancelada ${semZeros(a.nfse)}`} style={estiloImprimirSecundario}><i className="fas fa-print" /> Imprimir</a> : null}
+                  {dicaNota(a.nfse, (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f5f9", fontSize: 12.5, color: "#334155", lineHeight: 1.55 }}>
+                      {a.canceladaEm && <div><b>Cancelada em</b> {new Date(a.canceladaEm).toLocaleDateString("pt-BR")}</div>}
+                      {a.motivo && <div style={{ marginTop: 4 }}><b>Motivo:</b> {a.motivo.replace(/^\d\s*-\s*/, "")}</div>}
+                      {a.novaOmie && <div style={{ marginTop: 4 }}><b>Refeita na OS</b> nº {semZeros(a.novaOmie)}</div>}
+                    </div>
+                  ))}
+                </span>,
+                i === 0);
+            })}
+            {pedidosCancelados.map((d, i) => linha(`ped-ant-${d.numero}`, `NF-e ${d.nota}`,
+              <>peças · pedido {d.numero} · {chip("cancelada", "#b91c1c", "#fee2e2")}{d.novo ? <> · refeito no pedido {d.novo}</> : null}</>,
+              null, anteriores.length === 0 && i === 0))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

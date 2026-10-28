@@ -22,7 +22,13 @@
 //  - Corpo 100% ASCII (acentos como \uXXXX): a Omie descarta não-ASCII cru.
 //  - Contadores em memória (`estadoPorta`) para o painel.
 //
-// O portal roda em UMA instância no Railway; a fila em memória basta para o freio.
+// A fila vive na memória do processo. Com os robôs num serviço separado (PAPEL=web e
+// PAPEL=worker, 16/10/2026) são DUAS filas, e três coisas passam a valer entre elas:
+//  - os limites padrão se dividem entre os dois processos (`limitePadrao`);
+//  - a vaga de gravação e o disjuntor passam pelo banco (`coordenacao.ts`,
+//    sql/omie-coordenacao.sql) — sem as tabelas, cada processo segue só com o local;
+//  - a pausa dos robôs durante o faturamento (pausa-robos.ts).
+// Com PAPEL=tudo (um processo só) nada disso consulta o banco.
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { createHash } from 'node:crypto';
@@ -181,23 +187,75 @@ export function prioridadeAtual(): Prioridade {
   return contexto.getStore()?.prioridade ?? 'pessoa';
 }
 
+/**
+ * Prioridade de uma chamada sem contexto: requisição que chegou com a senha dos robôs
+ * (Bearer CRON_SECRET / x-cron-secret — GitHub Actions e o agendador) é robô = 'pesado',
+ * mesmo que a rota não use `comCronRun`. Antes, essas rotas (DRE, NFS-e, remessas…)
+ * entravam como 'pessoa' e disputavam a vez com quem estava faturando.
+ */
+async function prioridadeDaChamada(): Promise<Prioridade> {
+  const doContexto = contexto.getStore()?.prioridade;
+  if (doContexto) return doContexto;
+  const segredo = process.env.CRON_SECRET || '';
+  if (!segredo || process.env.VITEST) return 'pessoa';
+  try {
+    const { headers } = await import('next/headers');
+    const h = await headers();
+    const robo = (h.get('authorization') || '').trim() === `Bearer ${segredo}` || (h.get('x-cron-secret') || '').trim() === segredo;
+    return robo ? 'pesado' : 'pessoa';
+  } catch {
+    return 'pessoa'; // fora de uma requisição (setInterval, script)
+  }
+}
+
 // ── Estado global (sobrevive ao HMR do dev) ────────────────────────────────────
 
 const num = (v: string | undefined, d: number) => (v && Number.isFinite(Number(v)) ? Number(v) : d);
+
+export type Papel = 'tudo' | 'web' | 'worker';
+export const PAPEL: Papel = ((): Papel => {
+  const p = (process.env.PAPEL || 'tudo').trim().toLowerCase();
+  return p === 'web' || p === 'worker' ? p : 'tudo';
+})();
+
+/**
+ * Limite padrão por papel do processo. A Omie limita por IP + chave + método (4/s e
+ * 240/min). Medido em 26/10/2026: web e worker saem por IPs DIFERENTES no Railway
+ * (152.55.181.219 × .191, job `ip-saida` no cron_runs), então os limites não somam e o
+ * web (pessoas) fica com o ritmo cheio. O worker segue na metade (500 ms por método =
+ * 120/min) como margem: se um dia os dois caírem no mesmo IP, a soma fica em 320/min
+ * no pior caso, e "too many requests" é repetido com segurança pela porta.
+ */
+export function limitePadrao(papel: Papel) {
+  const worker = papel === 'worker';
+  return {
+    gapMetodoMs: worker ? 500 : 300,
+    gapChaveMs: worker ? 300 : 200,
+    gapGlobalMs: 80,
+    maxSimultaneasChave: worker ? 2 : 4,
+  };
+}
+const PADRAO = limitePadrao(PAPEL);
+
 export const LIMITES = {
   /** Entre duas chamadas do MESMO método na mesma chave (4/s e 240/min → 300 ms dá ~200/min). */
-  gapMetodoMs: num(process.env.OMIE_GAP_METODO_MS, 300),
+  gapMetodoMs: num(process.env.OMIE_GAP_METODO_MS, PADRAO.gapMetodoMs),
   /** Entre duas chamadas quaisquer da mesma chave. */
-  gapChaveMs: num(process.env.OMIE_GAP_CHAVE_MS, 200),
+  gapChaveMs: num(process.env.OMIE_GAP_CHAVE_MS, PADRAO.gapChaveMs),
   /** Entre duas chamadas quaisquer saindo do servidor (todas as chaves). */
-  gapGlobalMs: num(process.env.OMIE_GAP_GLOBAL_MS, 80),
+  gapGlobalMs: num(process.env.OMIE_GAP_GLOBAL_MS, PADRAO.gapGlobalMs),
   /** Chamadas em voo ao mesmo tempo por chave. */
-  maxSimultaneasChave: num(process.env.OMIE_MAX_SIMULTANEAS, 4),
+  maxSimultaneasChave: num(process.env.OMIE_MAX_SIMULTANEAS, PADRAO.maxSimultaneasChave),
+  /** Gravações (Incluir/Alterar/Faturar…) em voo ao mesmo tempo por chave — o Omie pede que NÃO sejam
+   *  simultâneas (orientação do suporte, 21/10/2026): uma de cada vez, as leituras seguem em paralelo. */
+  maxGravacoesChave: num(process.env.OMIE_MAX_GRAVACOES, 1),
+  /** Espera máxima padrão quando o Omie pede "aguarde N s" (consumo redundante é liberado em ~60 s). */
+  maxEsperaPadraoMs: num(process.env.OMIE_MAX_ESPERA_MS, 65_000),
   /** Pausa da chave inteira depois de "chave inválida / aplicativo suspenso". */
   pausaChaveRecusadaMs: num(process.env.OMIE_PAUSA_CHAVE_MS, 5 * 60_000),
 };
 
-interface Espera { chave: string; metodo: string; peso: number; seq: number; liberar: () => void }
+interface Espera { chave: string; metodo: string; peso: number; seq: number; gravacao: boolean; liberar: () => void }
 interface Contador { ok: number; erro: number; bloqueio: number; incerto: number; ms: number }
 interface EstadoInterno {
   fila: Espera[];
@@ -207,10 +265,26 @@ interface EstadoInterno {
   proxChave: Map<string, number>;
   proxMetodo: Map<string, number>;
   emVoo: Map<string, number>;
+  /** gravações em voo por chave (no máximo LIMITES.maxGravacoesChave) */
+  gravando?: Map<string, number>;
   bloqueios: Map<string, { ate: number; motivo: string }>; // `${chave}|${metodo}` ou `${chave}|*`
   rotulos: Map<string, string>;
   /** minuto (epoch/60000) → `${rotulo}|${metodo}|${prioridade}` → contador; guarda 60 min. */
   minutos: Map<number, Map<string, Contador>>;
+  /** pausas dos robôs abertas NESTE processo (id → até quando) */
+  pausas?: Map<string, number>;
+  /** maior "até" das pausas no banco (abertas pelo outro processo — web × worker) */
+  pausaExternaAte?: number;
+  pausaLidaEm?: number;
+  /** quando cada bloqueio `${chave}|${metodo}` foi desfeito aqui (chamada voltou a dar certo) */
+  liberadoEm?: Map<string, number>;
+  bloqueiosLidosEm?: number;
+  /** falhas da coordenação pelo banco (o processo segue com a coordenação local) */
+  coordErro?: { em: number; msg: string };
+  /** gravações esperando a vaga de outro processo agora */
+  esperandoVaga?: number;
+  /** IP público pelo qual este processo sai (a Omie limita por IP) */
+  ipSaida?: { ip: string | null; em: number };
 }
 
 const G = globalThis as unknown as { __omiePorta?: EstadoInterno };
@@ -230,6 +304,7 @@ export function _reiniciarPorta(): void {
   const s = G.__omiePorta;
   if (s?.timer) clearTimeout(s.timer);
   G.__omiePorta = undefined;
+  fonteTeste = undefined;
 }
 
 const idChave = (appKey: string) => createHash('sha256').update(appKey).digest('hex').slice(0, 12);
@@ -246,7 +321,115 @@ export function bloqueioRestanteMs(appKey: string, call: string): number {
 }
 
 function armarBloqueio(chave: string, metodo: string, ms: number, motivo: string) {
-  estado().bloqueios.set(`${chave}|${metodo}`, { ate: Date.now() + ms, motivo });
+  const ate = Date.now() + ms;
+  estado().bloqueios.set(`${chave}|${metodo}`, { ate, motivo });
+  void comFonte((f) => f.gravarBloqueio(chave, metodo, ate, motivo, PAPEL));
+}
+
+/** A chamada deu certo: se havia bloqueio, ele acabou — aqui e no banco. */
+function desarmarBloqueio(chave: string, metodo: string) {
+  const s = estado();
+  const k = `${chave}|${metodo}`;
+  if (!s.bloqueios.has(k)) return;
+  s.bloqueios.delete(k);
+  (s.liberadoEm ??= new Map()).set(k, Date.now());
+  void comFonte((f) => f.liberarBloqueio(chave, metodo));
+}
+
+// ── Coordenação entre processos (web × worker) ─────────────────────────────────
+// Só quando o processo é PAPEL=web ou PAPEL=worker. Falha no banco nunca trava a
+// Omie: registra o erro (painel) e segue com a coordenação local.
+
+type Fonte = import('./coordenacao').FonteCoordenacao;
+let fonteTeste: Fonte | null | undefined;
+
+/** Só para testes: liga a coordenação com uma fonte falsa (null desliga). */
+export function _definirCoordenacao(f: Fonte | null): void {
+  fonteTeste = f;
+}
+
+async function fonteCoordenacao(): Promise<Fonte | null> {
+  if (fonteTeste !== undefined) return fonteTeste;
+  if (PAPEL === 'tudo' || process.env.VITEST) return null;
+  try { return (await import('./coordenacao')).FONTE_COORDENACAO; } catch { return null; }
+}
+
+function coordenacaoAtiva(): boolean {
+  return fonteTeste !== undefined ? fonteTeste !== null : PAPEL !== 'tudo';
+}
+
+const TIMEOUT_BANCO_MS = 3_000;
+
+/** Roda `fn` na fonte com prazo curto; erro/timeout → undefined (e anota no painel). */
+async function comFonte<T>(fn: (f: Fonte) => Promise<T>): Promise<T | undefined> {
+  const f = await fonteCoordenacao();
+  if (!f) return undefined;
+  try {
+    return await Promise.race([
+      fn(f),
+      new Promise<never>((_, nao) => setTimeout(() => nao(new Error('banco sem resposta em 3 s')), TIMEOUT_BANCO_MS)),
+    ]);
+  } catch (e) {
+    estado().coordErro = { em: Date.now(), msg: (e as { message?: string })?.message || String(e) };
+    return undefined;
+  }
+}
+
+let lendoBloqueios: Promise<void> | null = null;
+/** Traz os bloqueios armados pelo outro processo (no máximo a cada 3 s). */
+function lerBloqueiosExternos(): Promise<void> {
+  const s = estado();
+  if (!coordenacaoAtiva()) return Promise.resolve();
+  if (lendoBloqueios) return lendoBloqueios;
+  if (Date.now() - (s.bloqueiosLidosEm ?? 0) < 3_000) return Promise.resolve();
+  s.bloqueiosLidosEm = Date.now();
+  lendoBloqueios = (async () => {
+    const lista = await comFonte((f) => f.lerBloqueios());
+    for (const b of lista ?? []) {
+      const k = `${b.chave}|${b.metodo}`;
+      // bloqueio anterior a uma chamada que já deu certo aqui = velho, ignora
+      if (b.criadoEm <= (s.liberadoEm?.get(k) ?? 0)) continue;
+      const atual = s.bloqueios.get(k);
+      if (!atual || atual.ate < b.ate) s.bloqueios.set(k, { ate: b.ate, motivo: b.motivo });
+    }
+  })().finally(() => { lendoBloqueios = null; });
+  return lendoBloqueios;
+}
+
+/**
+ * Vaga de gravação entre processos: espera até a chave estar livre no banco. Devolve a
+ * função que solta a vaga. Sem coordenação (ou banco fora) devolve na hora.
+ */
+async function vagaGravacaoGlobal(chave: string, call: string, prioridade: Prioridade, timeoutMs: number): Promise<() => void> {
+  const nada = () => {};
+  if (!coordenacaoAtiva()) return nada;
+  const s = estado();
+  const dono = `${PAPEL}-${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const aluguelMs = timeoutMs + 15_000;
+  const desiste = Date.now() + aluguelMs + 30_000; // o aluguel do outro vence antes disso
+  const passo = prioridade === 'pessoa' ? 250 : 1_000;
+  s.esperandoVaga = (s.esperandoVaga ?? 0) + 1;
+  try {
+    for (;;) {
+      const pegou = await comFonte((f) => f.pegarVaga(chave, dono, aluguelMs, call, PAPEL));
+      if (pegou === undefined) return nada; // banco fora / sem a tabela: segue com o local
+      if (pegou) {
+        let solta = false;
+        return () => {
+          if (solta) return;
+          solta = true;
+          void comFonte((f) => f.soltarVaga(chave, dono));
+        };
+      }
+      if (Date.now() > desiste) {
+        const rotulo = s.rotulos.get(chave) ?? '?';
+        throw new OmieBloqueioError(`Outra gravação na Omie ainda em andamento [${rotulo}/${call}] — tente de novo em instantes`, rotulo, call, 30);
+      }
+      await dormir(passo);
+    }
+  } finally {
+    s.esperandoVaga = Math.max(0, (s.esperandoVaga ?? 1) - 1);
+  }
 }
 
 // ── Fila e freio ───────────────────────────────────────────────────────────────
@@ -257,25 +440,31 @@ function bombear() {
   if (!s.fila.length) return;
   s.fila.sort((a, b) => a.peso - b.peso || a.seq - b.seq);
   let proxima = Infinity;
+  let pausados = false;
+  const pausa = pausaAte(s);
   for (let i = 0; i < s.fila.length; i++) {
     const e = s.fila[i];
     const agora = Date.now();
+    if (e.peso > 0 && pausa > agora) { pausados = true; proxima = Math.min(proxima, agora + 2_000, pausa); continue; } // robô espera o faturamento
     if ((s.emVoo.get(e.chave) ?? 0) >= LIMITES.maxSimultaneasChave) continue; // reabre quando alguém terminar
+    if (e.gravacao && ((s.gravando ??= new Map()).get(e.chave) ?? 0) >= LIMITES.maxGravacoesChave) continue; // uma gravação por vez
     const livre = Math.max(s.proxGlobal, s.proxChave.get(e.chave) ?? 0, s.proxMetodo.get(`${e.chave}|${e.metodo}`) ?? 0);
     if (livre > agora) { proxima = Math.min(proxima, livre); continue; }
     s.proxGlobal = agora + LIMITES.gapGlobalMs;
     s.proxChave.set(e.chave, agora + LIMITES.gapChaveMs);
     s.proxMetodo.set(`${e.chave}|${e.metodo}`, agora + LIMITES.gapMetodoMs);
     s.emVoo.set(e.chave, (s.emVoo.get(e.chave) ?? 0) + 1);
+    if (e.gravacao) (s.gravando ??= new Map()).set(e.chave, (s.gravando.get(e.chave) ?? 0) + 1);
     s.fila.splice(i, 1);
     i--;
     e.liberar();
     proxima = Math.min(proxima, s.proxGlobal); // o global acabou de andar
   }
-  if (s.fila.length && Number.isFinite(proxima)) s.timer = setTimeout(bombear, Math.max(0, proxima - Date.now()));
+  if (pausados) void lerPausaExterna(); // o faturamento do outro processo pode ter acabado
+  if (s.fila.length && Number.isFinite(proxima) && !s.timer) s.timer = setTimeout(bombear, Math.max(0, proxima - Date.now()));
 }
 
-function pedirVaga(chave: string, metodo: string, prioridade: Prioridade): Promise<() => void> {
+function pedirVaga(chave: string, metodo: string, prioridade: Prioridade, gravacao = false): Promise<() => void> {
   const s = estado();
   return new Promise((resolve) => {
     let devolvida = false;
@@ -283,12 +472,103 @@ function pedirVaga(chave: string, metodo: string, prioridade: Prioridade): Promi
       if (devolvida) return;
       devolvida = true;
       s.emVoo.set(chave, Math.max(0, (s.emVoo.get(chave) ?? 1) - 1));
+      if (gravacao) (s.gravando ??= new Map()).set(chave, Math.max(0, (s.gravando.get(chave) ?? 1) - 1));
       if (!s.timer) s.timer = setTimeout(bombear, 0);
     };
-    s.fila.push({ chave, metodo, peso: PESO[prioridade], seq: s.seq++, liberar: () => resolve(devolver) });
+    s.fila.push({ chave, metodo, peso: PESO[prioridade], seq: s.seq++, gravacao, liberar: () => resolve(devolver) });
     if (s.timer) clearTimeout(s.timer);
     s.timer = setTimeout(bombear, 0);
   });
+}
+
+// ── Pausa dos robôs durante o faturamento ──────────────────────────────────────
+// José, 21/10/2026: "se precisar, para tudo para realizar o faturamento". Enquanto um
+// faturamento (ou o "atualizar o Omie igual ao portal") roda, as chamadas de robô
+// ('rapido' e 'pesado') ficam PARADAS na fila — não falham, só esperam — e o Omie fica
+// livre para o faturamento. Vale para o web E o worker (tabela omie_pausa_robos; sem a
+// tabela, só no próprio processo). Cada pausa expira sozinha em 10 min se o processo cair.
+
+const PAUSA_MS = 10 * 60_000;
+const PAUSA_MAX_MS = 30 * 60_000; // nem um faturamento travado segura os robôs mais que isso
+
+type FontePausa = { lerAte(): Promise<number>; gravar(id: string, ate: number | null, motivo: string): Promise<void> };
+async function fontePausa(): Promise<FontePausa | null> {
+  if (process.env.VITEST) return null;
+  try { return (await import('./pausa-robos')).FONTE_PAUSA; } catch { return null; }
+}
+
+function pausaAte(s: EstadoInterno = estado()): number {
+  let ate = s.pausaExternaAte ?? 0;
+  for (const v of s.pausas?.values() ?? []) ate = Math.max(ate, v);
+  return ate;
+}
+
+let lendoPausa: Promise<void> | null = null;
+/** Relê a pausa do banco (no máximo a cada 3 s). */
+function lerPausaExterna(): Promise<void> {
+  const s = estado();
+  if (lendoPausa) return lendoPausa;
+  if (Date.now() - (s.pausaLidaEm ?? 0) < 3_000) return Promise.resolve();
+  s.pausaLidaEm = Date.now();
+  lendoPausa = (async () => {
+    const fonte = await fontePausa();
+    if (!fonte) return;
+    try { s.pausaExternaAte = await fonte.lerAte(); } catch { /* sem a tabela: vale só a pausa local */ }
+  })().finally(() => {
+    lendoPausa = null;
+    if (!s.timer) s.timer = setTimeout(bombear, 0);
+  });
+  return lendoPausa;
+}
+
+/** Os robôs estão parados agora (por um faturamento neste processo ou no outro)? */
+export function robosPausados(): boolean {
+  return pausaAte() > Date.now();
+}
+
+/**
+ * Roda `fn` (faturar / atualizar o Omie) com os robôs parados. Tudo dentro de `fn` vai
+ * como 'pessoa' — mesmo se quem chamou for um robô (senão ele esperaria a própria pausa).
+ */
+export async function comRobosPausados<T>(motivo: string, fn: () => Promise<T>): Promise<T> {
+  const s = estado();
+  const id = `${process.pid}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const inicio = Date.now();
+  const fonte = await fontePausa();
+  const marcar = async () => {
+    const ate = Math.min(Date.now() + PAUSA_MS, inicio + PAUSA_MAX_MS);
+    (s.pausas ??= new Map()).set(id, ate);
+    await fonte?.gravar(id, ate, motivo).catch(() => {});
+  };
+  await Promise.race([marcar(), new Promise((r) => setTimeout(r, 2_000))]); // o banco não segura o faturamento
+  const renovar = setInterval(() => { if (Date.now() - inicio < PAUSA_MAX_MS) void marcar(); }, 3 * 60_000);
+  try {
+    return await comPrioridade('pessoa', fn);
+  } finally {
+    clearInterval(renovar);
+    s.pausas?.delete(id);
+    void fonte?.gravar(id, null, motivo).catch(() => {});
+    if (!s.timer) s.timer = setTimeout(bombear, 0);
+  }
+}
+
+// ── IP de saída ────────────────────────────────────────────────────────────────
+
+/** Descobre o IP público de saída deste processo e guarda para o painel. */
+export async function verificarIpSaida(): Promise<{ ip: string | null; anterior: string | null; mudou: boolean }> {
+  const s = estado();
+  const anterior = s.ipSaida?.ip ?? null;
+  let ip: string | null = null;
+  for (const url of ['https://api.ipify.org', 'https://ifconfig.me/ip']) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(5_000) });
+      const txt = (await res.text()).trim();
+      if (res.ok && /^[\d.:a-f]+$/i.test(txt)) { ip = txt; break; }
+    } catch { /* tenta o próximo */ }
+  }
+  const primeira = !s.ipSaida;
+  s.ipSaida = { ip: ip ?? anterior, em: Date.now() };
+  return { ip, anterior, mudou: primeira || (ip !== null && ip !== anterior) };
 }
 
 // ── Contadores ─────────────────────────────────────────────────────────────────
@@ -324,10 +604,12 @@ export async function omie<T = OmieResposta>(
   const chave = idChave(cred.appKey);
   const rotulo = rotuloCanonico(cred.rotulo);
   estado().rotulos.set(chave, rotulo);
-  const prioridade = opcoes.prioridade ?? prioridadeAtual();
+  const prioridade = opcoes.prioridade ?? await prioridadeDaChamada();
+  if (prioridade !== 'pessoa') await Promise.all([lerPausaExterna(), lerBloqueiosExternos()]);
+  else void lerBloqueiosExternos(); // quem está na tela não espera o banco; vale para a próxima
   const gravacao = opcoes.gravacao ?? ehGravacao(call);
   const tentativas = Math.max(0, opcoes.tentativas ?? 2);
-  const maxEspera = opcoes.maxEsperaMs ?? 30_000;
+  const maxEspera = opcoes.maxEsperaMs ?? LIMITES.maxEsperaPadraoMs;
   const timeoutMs = opcoes.timeoutMs ?? 120_000;
   const lancarFault = opcoes.lancarFault ?? true;
   const url = endpoint.startsWith('http') ? endpoint : OMIE_BASE + endpoint;
@@ -343,7 +625,11 @@ export async function omie<T = OmieResposta>(
       throw new OmieBloqueioError(`${motivo} ${onde} — aguardando ~${seg}s`, rotulo, call, seg);
     }
 
-    const devolver = await pedirVaga(chave, call, prioridade);
+    // Gravação: primeiro a vaga entre processos (banco), depois a vaga local. Nessa
+    // ordem só quem tem a vaga do banco ocupa a vaga local — ninguém espera em cruz.
+    const soltarGlobal = gravacao ? await vagaGravacaoGlobal(chave, call, prioridade, timeoutMs) : () => {};
+    const devolverLocal = await pedirVaga(chave, call, prioridade, gravacao);
+    const devolver = () => { devolverLocal(); soltarGlobal(); };
     const t0 = Date.now();
     let data: OmieResposta;
     try {
@@ -386,8 +672,7 @@ export async function omie<T = OmieResposta>(
       : data.status === 'error' ? String(data.message || 'erro Omie sem mensagem') : '';
 
     if (!fault) {
-      const s = estado();
-      s.bloqueios.delete(`${chave}|${call}`);
+      desarmarBloqueio(chave, call);
       contar(rotulo, call, prioridade, 'ok', ms);
       return data as T;
     }
@@ -442,6 +727,8 @@ export interface EstadoPorta {
   ultimoMinuto: Array<{ conta: string; metodo: string; prioridade: Prioridade } & Contador>;
   ultimaHora: Array<{ conta: string; prioridade: Prioridade } & Contador>;
   limites: typeof LIMITES;
+  /** papel deste processo e a coordenação pelo banco com o outro (web × worker); erro só dos últimos 10 min */
+  coordenacao: { papel: Papel; ativa: boolean; esperandoVaga: number; ultimoErro: { em: string; msg: string } | null; ipSaida: string | null };
 }
 
 export function estadoPorta(): EstadoPorta {
@@ -481,5 +768,13 @@ export function estadoPorta(): EstadoPorta {
     ultimoMinuto,
     ultimaHora: [...hora.entries()].map(([k, c]) => { const [conta, prioridade] = k.split('|') as [string, Prioridade]; return { conta, prioridade, ...c }; }),
     limites: LIMITES,
+    coordenacao: {
+      papel: PAPEL,
+      ativa: coordenacaoAtiva(),
+      esperandoVaga: s.esperandoVaga ?? 0,
+      ipSaida: s.ipSaida?.ip ?? null,
+      // só o erro dos últimos 10 min (o painel mostra como aviso)
+      ultimoErro: s.coordErro && agora - s.coordErro.em < 10 * 60_000 ? { em: new Date(s.coordErro.em).toISOString(), msg: s.coordErro.msg } : null,
+    },
   };
 }

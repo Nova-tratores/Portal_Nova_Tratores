@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { exigirAcessoModulo } from '@/lib/ajustes/permissao-server';
-import { linkCheque, listarChequesOS } from '@/lib/revisoes/cheque-db';
+import { linkCheque, listarChequesOS, osRevisaoDoChassi } from '@/lib/revisoes/cheque-db';
 import { garantirAssinatura, linkAssinatura } from '@/lib/pos/assinatura-cliente-db';
 import { normalizarDados } from '@/lib/revisoes/cheque';
 
@@ -38,5 +38,7 @@ export async function GET(req: NextRequest) {
       pdfUrl: `/api/revisoes/cheque-pdf?os=${encodeURIComponent(c.os_id)}&h=${c.horas}`,
     };
   }));
-  return NextResponse.json({ itens });
+  // OS de revisão do chassi: a tela marca "feita · cheque não enviado" mesmo sem data no cadastro
+  const osRevisoes = await osRevisaoDoChassi(chassis).catch(() => []);
+  return NextResponse.json({ itens, osRevisoes });
 }

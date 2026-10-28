@@ -51,11 +51,6 @@ function diasDesdeBR(dataBR?: string | null): number | null {
   const d = new Date(+m[3], +m[2] - 1, +m[1]);
   return Math.floor((Date.now() - d.getTime()) / 86400000);
 }
-function isoOffset(dias: number): string {
-  const d = new Date(Date.now() - dias * 86400000);
-  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-}
-
 // "Criado por"/"Alterado por": a API devolve o codigo interno do usuario Omie
 // (ex. "P000454031") e o servidor troca pelo nome. Quando o nome volta IGUAL ao
 // codigo e' porque o usuario nao esta mais no cadastro (inativo/removido) — a
@@ -104,8 +99,9 @@ export default function PedidosPage() {
   const router = useRouter();
 
   const [modo, setModo] = useState<'abertos' | 'encerrados'>('abertos');
-  const [de, setDe] = useState(isoOffset(60));
-  const [ate, setAte] = useState(isoOffset(0));
+  // Sem datas = todos os pedidos abertos (a Omie é lida por etapa, sem janela).
+  const [de, setDe] = useState('');
+  const [ate, setAte] = useState('');
   const [dados, setDados] = useState<PedidosPayload | null>(null);
   const [encerramentos, setEncerramentos] = useState<Encerramento[]>([]);
   const [carregando, setCarregando] = useState(false);
@@ -290,7 +286,7 @@ export default function PedidosPage() {
           {modo === 'abertos' && (
             <>
               <div>
-                <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Inclusao de</label>
+                <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }} title="Em branco = todos os pedidos abertos">Inclusao de (vazio = todos)</label>
                 <input type="date" value={de} onChange={(e) => setDe(e.target.value)} style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem' }} />
               </div>
               <div>

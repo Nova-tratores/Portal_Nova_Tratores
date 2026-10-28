@@ -14,6 +14,7 @@ import {
 } from './regras'
 
 import { acharConflitos, textoConflito } from './conflitos'
+import { ROTULO as ROTULO_AUSENCIA, type TipoAusencia } from '@/lib/lousa/ausencias'
 
 export { migrationFaltou }
 export const MSG_MIGRATION_AGENDA = 'Os compromissos da agenda ainda não foram ativados no banco. Rode sql/agenda-coletiva.sql no SQL Editor do Supabase. O resto da agenda (reuniões, sala, tickets, OS, Lousa) já aparece.'
@@ -169,13 +170,16 @@ async function fonteOS(c: Ctx): Promise<ItemAgenda[]> {
     if (!pessoas.length && c.ids.has(SEM_TECNICO)) pessoas = [SEM_TECNICO]
     if (!pessoas.length) continue
     const sol = solicitacaoDaOS(o.Serv_Solicitado)
+    // horário combinado de cada dia ("2026-10-21 08:00-12:00") — a Lousa ordena por ele
+    const horas: Record<string, string> = {}
+    for (const e of String(o.Dias_Execucao || '').split(',')) { const m = /^(d{4}-d{2}-d{2})s+(d{1,2}:d{2})/.exec(e.trim()); if (m) horas[m[1]] = m[2].padStart(5, '0') }
     for (const [ini, fim] of faixasDeDias(diasDaOS(o))) {
       if (fim < c.de || ini > c.ate) continue
       out.push({
         id: `os:${o.Id_Ordem}:${ini}`, ref: o.Id_Ordem, fonte: 'os', titulo: `${o.Id_Ordem} · ${o.Os_Cliente || 'Cliente'}`,
         inicio: isoDe(ini, '00:00'), fim: isoDe(addDias(fim, 1), '00:00'), diaInteiro: true, pessoas,
         local: o.Servico_Oficina ? 'Oficina' : o.Cidade_Cliente, descricao: sol || null, esmaecido: !osEmAberto(o.Status),
-        link: `/pos?id=${encodeURIComponent(o.Id_Ordem)}`,
+        link: `/pos?id=${encodeURIComponent(o.Id_Ordem)}`, extra: { horas, hora: /^d{1,2}:d{2}/.test(o.Hora_Inicio_Exec || '') ? String(o.Hora_Inicio_Exec).slice(0, 5).padStart(5, '0') : null },
         detalhes: [['Situação', o.Status || '—'], ...(o.Tipo_Servico ? [['Tipo', o.Tipo_Servico] as [string, string]] : []), ['Técnico', pessoas[0] === SEM_TECNICO ? (tecnicoEscrito ? `${tecnicoEscrito} (não é técnico do portal)` : 'sem técnico na OS') : pessoas.map((p) => nomeDe(c, p)).join(' + ')]],
       })
     }
@@ -187,9 +191,27 @@ async function fonteLousa(c: Ctx, tecnicos: Pessoa[], comSemTecnico: boolean): P
   const ls = ok(await supabaseAdmin.from(TBL_LOUSA).select('*').gte('data', c.de).lte('data', c.ate).limit(2000)) as {
     id: string; data: string; tipo: string | null; cliente_nome: string | null; cliente_cnpj: string | null; descricao: string | null
     tecnico_nome: string | null; tecnico_acompanhante: string | null; periodo: string | null; criado_por_nome: string | null
+    // lançamentos fora de OS (sql/lousa-ausencias.sql): reunião, folga, férias, falta, médico
+    titulo?: string | null; hora_inicio?: string | null; hora_fim?: string | null; motivo?: string | null; justificada?: boolean | null
+    anexo_path?: string | null; grupo_id?: string | null; rh_status?: string | null; rh_erro?: string | null; cor?: string | null
   }[]
   const editar = podeLousa(c.auth)
-  return ls.flatMap((e) => {
+  return ls.flatMap((e): ItemAgenda[] => {
+    // reunião, folga, férias, falta, médico (lançados pelo quadro da Lousa)
+    if (e.tipo && e.tipo in ROTULO_AUSENCIA) {
+      const ta = e.tipo as TipoAusencia
+      const pessoasA = [e.tecnico_nome].map((n) => (n ? c.dir.porNome.get(normTexto(n)) : undefined)).filter((x): x is string => !!x && c.ids.has(x))
+      if (!pessoasA.length) return []
+      const perA = periodoLousa(e.periodo)
+      const ini = e.hora_inicio || PERIODOS[perA].ini, fim = e.hora_fim || PERIODOS[perA].fim
+      return [{
+        id: `lousa:${e.id}`, ref: e.id, fonte: 'lousa' as Fonte, titulo: e.titulo || ROTULO_AUSENCIA[ta],
+        inicio: isoDe(e.data, ini), fim: isoDe(e.data, fim), diaInteiro: false, pessoas: pessoasA, cor: e.cor || '#64748b',
+        descricao: e.motivo || null, podeEditar: editar, link: '/lousa',
+        detalhes: [['Lousa', `${ROTULO_AUSENCIA[ta]} · ${e.periodo === 'dia' ? 'dia todo' : `${ini}–${fim}`}`], ...(e.criado_por_nome ? [['Lançado por', e.criado_por_nome.trim()] as [string, string]] : [])],
+        extra: { tipo: ta, ausencia: true, periodo: e.periodo, horaInicio: e.hora_inicio, horaFim: e.hora_fim, motivo: e.motivo, justificada: e.justificada, anexo: e.anexo_path, grupo: e.grupo_id, rhStatus: e.rh_status, rhErro: e.rh_erro, data: e.data },
+      }]
+    }
     const tipo = tipoLousa(e.tipo)
     const per = periodoLousa(e.periodo)
     let pessoas = [e.tecnico_nome, e.tecnico_acompanhante].map((n) => (n ? c.dir.porNome.get(normTexto(n)) : undefined)).filter((x): x is string => !!x && c.ids.has(x))

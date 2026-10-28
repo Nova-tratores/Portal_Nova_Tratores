@@ -2,9 +2,13 @@
 
 import { useState, useRef, useEffect } from "react";
 import { gateBtn, estiloSemPermissao } from "@/lib/permissoes/ui";
-import ProjetosBusca from "./ProjetosBusca";
+import ProjetosBusca, { abrirBuscaTrator } from "./ProjetosBusca";
+import MenuRadial, { BotaoRedondo } from "@/components/comum/MenuRadial";
+import { ESTILO_POS_VN, definirVisualNovo, usePosVisualNovo } from "./VisualNovoPOS";
 import { normName } from "@/lib/tecnico-utils";
 import { BTN_BARRA } from "./botoes-barra";
+import BuscaPOS from "./BuscaPOS";
+import type { KanbanCard } from "@/lib/pos/types";
 
 export interface PerfilTecnico { nome: string; avatar: string; inativo?: boolean }
 
@@ -28,9 +32,13 @@ interface HeaderProps {
   onTecnicoFiltro?: (nome: string) => void;
   /** OS em aberto por técnico (chave = normName do nome) */
   abertasPorTecnico?: Record<string, number>;
+  /** OS da lista (para as sugestões e o histórico da busca, com a fase de agora) */
+  ordens?: KanbanCard[];
+  onAbrirOS?: (o: KanbanCard) => void;
 }
 
-export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved, podeCriar = true, tecnicosPerfil = [], tecnicoFiltro = "", onTecnicoFiltro, abertasPorTecnico = {} }: HeaderProps) {
+export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved, podeCriar = true, tecnicosPerfil = [], tecnicoFiltro = "", onTecnicoFiltro, abertasPorTecnico = {}, ordens = [], onAbrirOS }: HeaderProps) {
+  const visualNovo = usePosVisualNovo();
   const [showFiltroRelatorio, setShowFiltroRelatorio] = useState(false);
   const [filtroTecnico, setFiltroTecnico] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todas");
@@ -38,16 +46,6 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
   const [cfgHora, setCfgHora] = useState(valorHora);
   const [cfgKm, setCfgKm] = useState(valorKm);
   const [salvando, setSalvando] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!menuOpen) return;
-    function onDoc(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
-    }
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [menuOpen]);
   // Dropdown do filtro de técnicos (escondido por padrão)
   const [tecOpen, setTecOpen] = useState(false);
   const [tecBusca, setTecBusca] = useState("");
@@ -99,10 +97,7 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
       <header style={{ flexWrap: "wrap", rowGap: 10 }}>
         {/* Busca na ESQUERDA + perfis dos técnicos (filtro por foto) na direita
             dela + botões na cor da faixa azul (sem o logo — pedido de 21/08) */}
-        <div className="search-box" style={{ position: "relative" }}>
-          <i className="fas fa-search" style={{ position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)", color: "#7A6E5D" }} />
-          <input type="text" className="search-input" placeholder="Pesquisar cliente, OS ou nº no Omie..." value={searchTerm} onChange={(e) => onSearch(e.target.value)} />
-        </div>
+        <BuscaPOS searchTerm={searchTerm} onSearch={onSearch} ordens={ordens} onAbrirOS={onAbrirOS} />
 
         {tecnicosPerfil.length > 0 && (() => {
           const sel = tecnicosPerfil.find((t) => t.nome === tecnicoFiltro) || null;
@@ -122,7 +117,7 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
           const q = normName(tecBusca);
           const casa = (t: PerfilTecnico) => !q || normName(t.nome).includes(q);
           const ordenar = (l: PerfilTecnico[]) => [...l].sort((a, b) => (abertasPorTecnico[normName(b.nome)] || 0) - (abertasPorTecnico[normName(a.nome)] || 0) || a.nome.localeCompare(b.nome, "pt-BR"));
-          const ativos = ordenar(tecnicosPerfil.filter((t) => !t.inativo && casa(t)));
+          const ativos = ordenar(tecnicosPerfil.filter((t) => !t.inativo && casa(t)));
           const linha = (t: PerfilTecnico) => {
             const marcado = tecnicoFiltro === t.nome;
             const n = abertasPorTecnico[normName(t.nome)] || 0;
@@ -141,28 +136,30 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
             );
           };
           return (
-            <div style={{ position: "relative" }} ref={tecRef}>
-              <button type="button" onClick={() => setTecOpen((o) => !o)} title="Filtrar por técnico"
-                style={{ ...BTN_BARRA, ...(tecnicoFiltro ? { borderColor: "#0369A1", background: "color-mix(in srgb, #0369A1 8%, var(--surface, #fefefe))" } : {}) }}>
-                {sel ? bolinha(sel, 24) : (
-                  <span style={{ display: "flex" }}>
-                    {tecnicosPerfil.filter((t) => !t.inativo).slice(0, 3).map((t, i) => (
-                      <span key={t.nome} style={{ marginLeft: i ? -8 : 0, borderRadius: "50%", boxShadow: "0 0 0 2px var(--surface, #fefefe)" }}>{bolinha(t, 22)}</span>
-                    ))}
-                  </span>
-                )}
-                {sel ? nomeBonito(sel.nome).split(" ")[0] : "Técnicos"}
-                {sel ? (
+            <>
+              {/* O filtro abre pelo menu circular (José, 21/10/2026: "coloca isso no atalho"); na barra fica só o
+                  aviso de quem está filtrado, pra não esquecer o filtro ligado */}
+              {sel && (
+                <button type="button" onClick={() => setTecOpen(true)} title="Trocar o técnico"
+                  style={{ ...BTN_BARRA, borderColor: "#0369A1", background: "color-mix(in srgb, #0369A1 8%, var(--surface, #fefefe))" }}>
+                  {bolinha(sel, 24)}
+                  {nomeBonito(sel.nome).split(" ")[0]}
                   <span role="button" title="Limpar filtro" onClick={(e) => { e.stopPropagation(); onTecnicoFiltro?.(""); }}
                     style={{ marginLeft: 2, width: 18, height: 18, borderRadius: 9, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#0369A1", color: "#fefefe", fontSize: 10 }}>
                     <i className="fas fa-times" />
                   </span>
-                ) : <i className="fas fa-chevron-down" style={{ fontSize: 10, opacity: .6, transform: tecOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />}
-              </button>
+                </button>
+              )}
 
               {tecOpen && (
-                <div style={{ position: "absolute", left: 0, top: "calc(100% + 8px)", zIndex: 1000, width: 300, maxWidth: "88vw",
-                  background: "var(--surface, #fefefe)", borderRadius: 14, border: "1px solid var(--border, #E4D9C8)", boxShadow: "0 16px 40px rgba(15,23,42,0.18)", overflow: "hidden" }}>
+                <div style={{ position: "fixed", inset: 0, zIndex: 9800, display: "grid", placeItems: "center", background: "rgba(15,23,42,.38)", backdropFilter: "blur(9px)", WebkitBackdropFilter: "blur(9px)" }}>
+                <div ref={tecRef} style={{ width: 360, maxWidth: "92vw",
+                  background: "var(--surface, #fefefe)", borderRadius: 16, border: "1px solid var(--border, #E4D9C8)", boxShadow: "0 24px 60px rgba(15,23,42,0.35)", overflow: "hidden" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px 4px" }}>
+                    <span style={{ width: 34, height: 34, borderRadius: 10, display: "grid", placeItems: "center", color: "#0369A1", background: "color-mix(in srgb, #0369A1 10%, var(--surface, #fefefe))" }}><i className="fas fa-user-gear" /></span>
+                    <span style={{ flex: 1, fontSize: 15.5, fontWeight: 500, color: "var(--portal-text, #0f172a)" }}>Filtrar por técnico</span>
+                    <button type="button" onClick={() => setTecOpen(false)} aria-label="fechar" style={{ border: "none", background: "transparent", color: "#94a3b8", fontSize: 20, cursor: "pointer" }}>×</button>
+                  </div>
                   <div style={{ padding: 8, borderBottom: "1px solid var(--border, #eef2f7)" }}>
                     <div style={{ position: "relative" }}>
                       <i className="fas fa-search" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "var(--portal-text-muted, #94a3b8)" }} />
@@ -187,51 +184,29 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
                   </div>
                   <style>{`.pos-tec-linha:not([data-marcado]):hover { background: var(--portal-bg-secondary, #f1f5f9) !important; }`}</style>
                 </div>
+                </div>
               )}
-            </div>
+            </>
           );
         })()}
 
         {/* Busca de PROJETOS (tratores): modelo + cliente + final do chassis */}
-        <ProjetosBusca />
+        <ProjetosBusca semBotao />
 
-        <div className="header-actions">
-          <button className="btn-top btn-new" onClick={onNewOS} {...gateBtn(podeCriar)}
-            style={{ ...BTN_BARRA, background: "#0369A1", borderColor: "#0369A1", color: "#fefefe", boxShadow: "0 2px 8px rgba(3,105,161,.3)", ...estiloSemPermissao(podeCriar) }}>
-            <i className="fas fa-plus" /> Nova ordem
-          </button>
-
-          <div style={{ position: "relative" }} ref={menuRef}>
-            <button type="button" onClick={() => setMenuOpen((o) => !o)} title="Lembretes, relatório e configurações"
-              style={{ ...BTN_BARRA, ...(menuOpen ? { borderColor: "#0369A1" } : {}) }}>
-              <i className="fas fa-ellipsis" style={{ color: "#0369A1" }} /> Mais
-            </button>
-
-            {menuOpen && (() => {
-              const item = (icon: string, label: string, sub: string, onClick: () => void) => (
-                <button type="button" onClick={() => { onClick(); setMenuOpen(false); }} className="pos-tec-linha"
-                  style={{ display: "flex", alignItems: "center", gap: 11, padding: "8px 10px", width: "100%", border: "none", borderRadius: 9, cursor: "pointer", background: "transparent", textAlign: "left", fontFamily: "inherit" }}>
-                  <span style={{ width: 30, height: 30, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "color-mix(in srgb, #0369A1 10%, transparent)", color: "#0369A1", flexShrink: 0 }}>
-                    <i className={`fas ${icon}`} style={{ fontSize: 13 }} />
-                  </span>
-                  <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--portal-text, #111827)" }}>{label}</span>
-                    <span style={{ fontSize: 11, color: "var(--portal-text-muted, #94a3b8)" }}>{sub}</span>
-                  </span>
-                </button>
-              );
-              return (
-                <div style={{ position: "absolute", right: 0, top: "calc(100% + 8px)", zIndex: 1000, minWidth: 250, background: "var(--surface, #fefefe)", borderRadius: 14,
-                  border: "1px solid var(--border, #E4D9C8)", boxShadow: "0 16px 40px rgba(15,23,42,0.18)", padding: 6, display: "flex", flexDirection: "column", gap: 2 }}>
-                  {item("fa-bell", "Lembretes", "Avisos por cliente e máquina", () => onLembretes?.())}
-                  {item("fa-file-invoice", "Gerar relatório", "PDF das OS por técnico e tipo", () => setShowFiltroRelatorio(true))}
-                  <div style={{ height: 1, background: "var(--border, #EFE7DA)", margin: "4px 8px" }} />
-                  {item("fa-cog", "Configurações", "Valor da hora e do km", handleOpenConfig)}
-                  <style>{`.pos-tec-linha:hover { background: var(--portal-bg-secondary, #f1f5f9) !important; }`}</style>
-                </div>
-              );
-            })()}
-          </div>
+        {/* Atalhos num círculo + "+" da Nova ordem, os dois redondos (José, 21/10/2026) */}
+        <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <style>{ESTILO_POS_VN}</style>
+          <MenuRadial titulo="Atalhos: técnicos, buscar trator, lembretes, relatório, configurações e visual" corGatilho="linear-gradient(135deg, #38bdf8, #0369a1)"
+            centro={{ t: "Buscar trator", sub: "modelo, cliente ou chassi", ic: "fa-tractor", ir: abrirBuscaTrator }}
+            itens={[
+              ...(tecnicosPerfil.length > 0 ? [{ k: "tecnicos", t: "Técnicos", sub: tecnicoFiltro ? `filtrando: ${nomeBonito(tecnicoFiltro).split(" ")[0]}` : "ver as OS de um técnico", ic: "fa-user-gear", cor: "#0369a1", on: !!tecnicoFiltro, ir: () => { setTecBusca(""); setTecOpen(true); } }] : []),
+              { k: "lembretes", t: "Lembretes", sub: "por cliente e máquina", ic: "fa-bell", cor: "#b45309", ir: () => onLembretes?.() },
+              { k: "relatorio", t: "Gerar relatório", sub: "PDF por técnico e tipo", ic: "fa-file-invoice", cor: "#047857", ir: () => setShowFiltroRelatorio(true) },
+              { k: "config", t: "Configurações", sub: "valor da hora e do km", ic: "fa-gear", cor: "#475569", ir: handleOpenConfig },
+              { k: "visual", t: visualNovo ? "Visual novo" : "Visual antigo", sub: visualNovo ? "ligado · clique p/ voltar" : "clique p/ ver o novo", ic: "fa-wand-magic-sparkles", cor: "#7c3aed", on: visualNovo, ir: () => definirVisualNovo(!visualNovo) },
+            ]} />
+          <BotaoRedondo icone="fa-plus" titulo={podeCriar ? "Nova ordem de serviço" : "Sem permissão para criar OS"} onClick={onNewOS}
+            {...gateBtn(podeCriar)} style={estiloSemPermissao(podeCriar)} />
         </div>
       </header>
 

@@ -12,6 +12,7 @@ export interface PaginaIV {
 }
 
 export const PAGINAS_IV: PaginaIV[] = [
+  { key: 'inteligencia-vendas:prospeccao', label: 'Prospecção', href: '/inteligencia-vendas/prospeccao' },
   { key: 'inteligencia-vendas:oportunidades', label: 'Oportunidades', href: '/inteligencia-vendas' },
   { key: 'inteligencia-vendas:noticias', label: 'Notícias', href: '/inteligencia-vendas/noticias' },
   { key: 'inteligencia-vendas:retorno', label: 'Sem retorno', href: '/inteligencia-vendas/retorno' },

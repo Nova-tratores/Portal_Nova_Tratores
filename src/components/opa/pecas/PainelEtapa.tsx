@@ -8,7 +8,7 @@
 // e depois chama a RPC da etapa.
 
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Check, CircleHelp, Loader2, MapPin, Pencil, Plus, UserRound } from 'lucide-react'
+import { ArrowLeft, Check, CircleHelp, Loader2, MapPin, Pencil, Plus, UserRound, ListChecks, ClipboardCheck, UserCheck, Signpost } from 'lucide-react'
 import {
   atualizarItem, criarDestino, definirAplicacoes, mudarStatus, nomesAtivos, nomesUsuarios, separar, verificar,
   type CamposEditaveis,
@@ -20,7 +20,7 @@ import {
   type Aplicacao, type Decisao, type Item, type Qualidade,
 } from '@/lib/opa-pecas/tipos'
 import { CampoPreco, EditorAplicacoes, SeletorLocal } from './Campos'
-import { CodigoPeca, Aviso, avisarMudanca, botao, INP, ROTULO, SECAO, TITULO_SECAO, useMiniaturas, useTelaLarga, type Base } from './comum'
+import { CodigoPeca, Aviso, avisarMudanca, botao, INP, ROTULO, SECAO, TituloSecao, useMiniaturas, useTelaLarga, type Base } from './comum'
 import DetalheItem, { Visualizador } from './DetalheItem'
 import { Janela } from './Moldura'
 import FasesPeca, { ChipDecisao, ICONE_DECISAO } from './FasesPeca'
@@ -206,7 +206,7 @@ export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualiza
       {/* Separação: o que as fases anteriores registraram */}
       {etapa === 'separacao' && (
         <section style={SECAO}>
-          <h2 style={TITULO_SECAO}>O que já foi feito</h2>
+          <TituloSecao icone={<ListChecks size={16} />}>O que já foi feito</TituloSecao>
           <FasesPeca item={item} base={base} usuarios={usuarios} ate="separacao" />
           {codigoProduto && <ProdutoCadastro codigo={codigoProduto} compacto />}
         </section>
@@ -215,7 +215,7 @@ export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualiza
       {/* Verificação: valor e aplicação */}
       {etapa === 'verificacao' && (
         <section style={SECAO}>
-          <h2 style={TITULO_SECAO}>Confira com o setor responsável</h2>
+          <TituloSecao icone={<ClipboardCheck size={16} />} cor="#2563EB">Confira com o setor responsável</TituloSecao>
           <div style={{ display: 'grid', gridTemplateColumns: larga ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 14 }}>
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={ROTULO}>Descrição</label>
@@ -230,7 +230,7 @@ export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualiza
               <input value={form.codigo_fabricante} onChange={(e) => muda('codigo_fabricante', e.target.value.slice(0, 80))} placeholder="Part number" style={INP} />
             </div>
             {form.codigo_fabricante.trim() && (
-              <div style={{ gridColumn: '1 / -1' }}><ProdutoCadastro codigo={form.codigo_fabricante} /></div>
+              <div style={{ gridColumn: '1 / -1' }}><ProdutoCadastro codigo={form.codigo_fabricante} onUsar={(c) => muda('codigo_fabricante', c)} /></div>
             )}
             {/* embalagem com o código errado → apontar o código certo */}
             {temPni13 && <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 10,
@@ -245,7 +245,7 @@ export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualiza
                     <label style={ROTULO}>Código correto da peça<span style={{ color: '#DC2626' }}> *</span></label>
                     <input value={form.codigo_correto} onChange={(e) => muda('codigo_correto', e.target.value.slice(0, 80))} placeholder="O código que a peça é de verdade" style={INP} />
                   </div>
-                  <ProdutoCadastro codigo={form.codigo_correto} />
+                  <ProdutoCadastro codigo={form.codigo_correto} onUsar={(c) => muda('codigo_correto', c)} />
                 </>
               )}
             </div>}
@@ -259,7 +259,7 @@ export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualiza
 
       {etapa === 'verificacao' && (
         <section style={SECAO}>
-          <h2 style={TITULO_SECAO}>Verificado com</h2>
+          <TituloSecao icone={<UserCheck size={16} />} cor="#2563EB">Verificado com</TituloSecao>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {SETORES_VERIFICACAO.map((s) => (
               <button key={s} type="button" aria-pressed={setor === s} onClick={() => setSetor(s)} style={{
@@ -287,7 +287,7 @@ export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualiza
       {/* Separação: pra onde a peça vai (conclui) */}
       {etapa === 'separacao' && (
         <section style={SECAO}>
-          <h2 style={TITULO_SECAO}>Pra onde a peça vai?</h2>
+          <TituloSecao icone={<Signpost size={16} />} cor="#7C3AED">Pra onde a peça vai?</TituloSecao>
           <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${larga ? 170 : 150}px, 1fr))`, gap: 8 }}>
             {DECISOES_PRONTAS.map((d) => (
               <CartaoDecisao key={d} decisao={d} ativo={decisao === d} onClick={() => escolherPronta(d)} />

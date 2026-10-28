@@ -9,6 +9,8 @@ import { marcarNaoContatar, reativarContato } from "@/lib/feedbacks/caveira";
 import { clienteKey, TAG_NAO_CONTATAR, type ClienteInfo, type FeedbackRegistro, type StatusAtendimento, type TipoFeedback } from "@/lib/feedbacks/types";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import { useRouter } from "next/navigation";
+import { ESTILO_FBN } from "./estiloNovo";
+import { corTipo } from "@/lib/feedbacks/cores";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
 
@@ -147,7 +149,8 @@ export default function ListaRegistros({ tipo }: Props) {
     return Array.from(set).sort();
   }, [rows]);
 
-  const titulo = tipo === "crm" ? "🔴 CRM — Clientes Recentes" : "🟣 RFM — Clientes Inativos";
+  const titulo = tipo === "crm" ? "CRM · clientes atendidos há pouco" : "RFM · clientes que sumiram";
+  const corDoTipo = corTipo(tipo);
 
   function abrirNovo() {
     setRegistroEdit(null);
@@ -257,71 +260,107 @@ export default function ListaRegistros({ tipo }: Props) {
     }
   }
 
+  // atalhos de situação com a contagem (respeitam a busca e os outros filtros)
+  // José, 23/10/2026: os atalhos antigos se sobrepunham ("Para atender 19", "Em atendimento 19",
+  // "Atrasados 19") e confundiam. Agora cada cliente cai em UM só: a soma dos três "a fazer" dá o
+  // total "A fazer", e "Já resolvidos" soma concluídos + arquivados.
+  const A_FAZER: { k: Filtros["statusAtendimento"]; rot: string; ico: string; cor: string; dica: string }[] = [
+    { k: "aberto", rot: "Ninguém ligou ainda", ico: "fa-inbox", cor: corDoTipo, dica: "Entrou na lista e ainda não teve nenhuma ligação." },
+    { k: "em_andamento", rot: "Já começou", ico: "fa-headset", cor: "#2563eb", dica: "Alguém já ligou ou está cuidando, mas ainda não terminou." },
+    { k: "sem_resposta", rot: "Não atende", ico: "fa-phone-slash", cor: "#d97706", dica: "Tentaram 3 vezes e o cliente não atendeu — vale tentar pelo WhatsApp." },
+  ];
+  const FEITOS: { k: Filtros["statusAtendimento"]; rot: string; ico: string; cor: string; dica: string }[] = [
+    { k: "concluido", rot: "Concluídos", ico: "fa-circle-check", cor: "#16a34a", dica: "Conversou com o cliente e registrou o que ele disse." },
+    { k: "arquivado", rot: "Arquivados", ico: "fa-box-archive", cor: "#64748b", dica: "Tirado da lista sem conversar (telefone errado, cliente pediu, etc.), com o motivo." },
+  ];
+  const contar = (k: Filtros["statusAtendimento"]) => aplicarFiltros(rows, { ...filtros, statusAtendimento: k }, tipo).length;
+
   return (
-    <div style={{ paddingTop: 20, fontFamily: "Inter, sans-serif" }}>
-      {/* Topo */}
-      <div style={topoStyle}>
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: "var(--portal-text)", margin: 0, flex: 1 }}>
+    <div className="fbn" style={{ ["--c" as string]: corDoTipo }}>
+      <style>{ESTILO_FBN}</style>
+      {/* Topo: título, busca e ações */}
+      <div className="fbn-topo">
+        <h1 className="fbn-titulo">
+          <span className="fbn-ico"><i className={`fa-solid ${tipo === "crm" ? "fa-comments" : "fa-user-clock"}`} /></span>
           {titulo}
+          <span className="fbn-conta">{filtradas.length} de {rows.length}</span>
         </h1>
-        <span style={badgeStyle}>{filtradas.length} de {rows.length}</span>
-        <button onClick={() => setFiltrosVisivel((v) => !v)} style={btnSecundario}>
-          {filtrosVisivel ? "▴ Esconder filtros" : "▾ Filtros avançados"}
+        <label className="fbn-busca">
+          <i className="fa-solid fa-magnifying-glass" />
+          <input
+            type="text"
+            value={filtros.busca}
+            onChange={(e) => setFiltros((f) => ({ ...f, busca: e.target.value }))}
+            placeholder="Buscar cliente, equipamento, técnico, código Omie ou o que o cliente disse"
+          />
+          {filtros.busca && <button type="button" className="fbn-acao cinza" style={{ height: 26, padding: "0 8px", border: 0 }} onClick={() => setFiltros((f) => ({ ...f, busca: "" }))} aria-label="Limpar a busca"><i className="fa-solid fa-xmark" /></button>}
+        </label>
+        <button type="button" onClick={() => setFiltrosVisivel((v) => !v)} className={`fbn-btn ${filtrosVisivel ? "on" : ""}`}>
+          <i className="fa-solid fa-sliders" /> Filtros
         </button>
-        <button onClick={abrirNovo} style={btnPrimario}>
-          Novo {tipo === "crm" ? "feedback" : "registro"}
+        <button type="button" onClick={abrirNovo} className="fbn-btn cheio">
+          <i className="fa-solid fa-plus" /> Novo {tipo === "crm" ? "feedback" : "registro"}
         </button>
       </div>
 
-      {/* Busca rápida */}
-      <input
-        type="text"
-        value={filtros.busca}
-        onChange={(e) => setFiltros((f) => ({ ...f, busca: e.target.value }))}
-        placeholder="🔍 Buscar por cliente, equipamento, técnico, código Omie, feedback…"
-        style={{
-          width: "100%", padding: "12px 16px", marginTop: 12,
-          border: "1.5px solid var(--portal-border)", borderRadius: 10,
-          fontSize: 13, background: "var(--portal-bg-card)", color: "var(--portal-text)",
-          fontFamily: "Inter, sans-serif", outline: "none",
-        }}
-      />
+      {/* O que é esta lista (José: "tem que deixar mais claro o que é CRM, RFM e tudo mais") */}
+      <div className="fbn-explica">
+        <span className="fbn-ico p"><i className={`fa-solid ${tipo === "crm" ? "fa-comments" : "fa-user-clock"}`} /></span>
+        {tipo === "crm" ? (
+          <div><b>CRM = pesquisa depois do serviço.</b> Ligar para quem fez serviço com a gente há poucos dias (o melhor é de 3 a 7 dias) e perguntar se ficou bom: nota de 0 a 10, se indicaria e o que melhorar. Nota baixa avisa o gerente.</div>
+        ) : (
+          <div><b>RFM = cliente que sumiu.</b> Clientes que já fizeram serviço ou compraram e não aparecem há muito tempo. Ligar para saber por que pararam de vir e trazer de volta (revisão, peças, manutenção).</div>
+        )}
+      </div>
+
+      {/* Atalhos por situação do atendimento */}
+      <div className="fbn-chips">
+        <span className="fbn-grupo">A fazer</span>
+        <button type="button" className={`fbn-chip ${filtros.statusAtendimento === "pendentes" ? "on" : ""}`} style={{ ["--k" as string]: corDoTipo }}
+          title="Todos que ainda precisam de contato (a soma dos três ao lado)" onClick={() => setFiltros((f) => ({ ...f, statusAtendimento: "pendentes" }))}>
+          <i className="fa-solid fa-list-check" /> Todos a fazer <span className="n">{contar("pendentes")}</span>
+        </button>
+        {A_FAZER.map((a) => (
+          <button key={a.k} type="button" title={a.dica} className={`fbn-chip ${filtros.statusAtendimento === a.k ? "on" : ""}`} style={{ ["--k" as string]: a.cor }}
+            onClick={() => setFiltros((f) => ({ ...f, statusAtendimento: a.k }))}>
+            <i className={`fa-solid ${a.ico}`} /> {a.rot} <span className="n">{contar(a.k)}</span>
+          </button>
+        ))}
+        <span className="fbn-sep" />
+        <span className="fbn-grupo">Já resolvidos</span>
+        {FEITOS.map((a) => (
+          <button key={a.k} type="button" title={a.dica} className={`fbn-chip ${filtros.statusAtendimento === a.k ? "on" : ""}`} style={{ ["--k" as string]: a.cor }}
+            onClick={() => setFiltros((f) => ({ ...f, statusAtendimento: a.k }))}>
+            <i className={`fa-solid ${a.ico}`} /> {a.rot} <span className="n">{contar(a.k)}</span>
+          </button>
+        ))}
+        <span className="fbn-sep" />
+        <button type="button" className={`fbn-chip ${filtros.statusAtendimento === "todos" ? "on" : ""}`} style={{ ["--k" as string]: "#475569" }}
+          onClick={() => setFiltros((f) => ({ ...f, statusAtendimento: "todos" }))}>
+          <i className="fa-solid fa-list" /> Tudo <span className="n">{contar("todos")}</span>
+        </button>
+      </div>
 
       {/* Filtros avançados */}
       {filtrosVisivel && (
-        <div style={painelFiltrosStyle}>
+        <div className="fbn-filtros">
           <FiltroCampo label="Técnico">
-            <select value={filtros.tecnico} onChange={(e) => setFiltros((f) => ({ ...f, tecnico: e.target.value }))} style={filtroInput}>
+            <select value={filtros.tecnico} onChange={(e) => setFiltros((f) => ({ ...f, tecnico: e.target.value }))} className="fbn-campo">
               <option value="">Todos</option>
               {tecnicosUnicos.map((t) => <option key={t} value={t}>{t}</option>)}
             </select>
           </FiltroCampo>
-          <FiltroCampo label="Atendimento">
-            <select
-              value={filtros.statusAtendimento}
-              onChange={(e) => setFiltros((f) => ({ ...f, statusAtendimento: e.target.value as Filtros["statusAtendimento"] }))}
-              style={filtroInput}
-            >
-              <option value="pendentes">⏳ Pendentes (não concluídos)</option>
-              <option value="todos">Todos</option>
-              <option value="aberto">🟢 Em atendimento</option>
-              <option value="atrasados">⚠️ Atrasados (+24h)</option>
-              <option value="concluido">✓ Concluídos</option>
-              <option value="sem_resposta">🔴 Sem resposta</option>
-              <option value="arquivado">🗄️ Arquivados</option>
-            </select>
-          </FiltroCampo>
           <FiltroCampo label="Data de">
-            <input type="date" value={filtros.dataDe} onChange={(e) => setFiltros((f) => ({ ...f, dataDe: e.target.value }))} style={filtroInput} />
+            <input type="date" value={filtros.dataDe} onChange={(e) => setFiltros((f) => ({ ...f, dataDe: e.target.value }))} className="fbn-campo" />
           </FiltroCampo>
           <FiltroCampo label="Data até">
-            <input type="date" value={filtros.dataAte} onChange={(e) => setFiltros((f) => ({ ...f, dataAte: e.target.value }))} style={filtroInput} />
+            <input type="date" value={filtros.dataAte} onChange={(e) => setFiltros((f) => ({ ...f, dataAte: e.target.value }))} className="fbn-campo" />
           </FiltroCampo>
 
           {tipo === "crm" ? (
             <>
-              <FiltroCampo label="Status">
-                <select value={filtros.statusCrm} onChange={(e) => setFiltros((f) => ({ ...f, statusCrm: e.target.value }))} style={filtroInput}>
+              <FiltroCampo label="Como o cliente está">
+                <select value={filtros.statusCrm} onChange={(e) => setFiltros((f) => ({ ...f, statusCrm: e.target.value }))} className="fbn-campo">
                   <option value="">Todos</option>
                   <option value="Satisfeito">Satisfeito</option>
                   <option value="Neutro">Neutro</option>
@@ -329,17 +368,17 @@ export default function ListaRegistros({ tipo }: Props) {
                   <option value="Aguardando">Aguardando</option>
                 </select>
               </FiltroCampo>
-              <FiltroCampo label={`Nota mínima: ${filtros.notaMin || "—"}`}>
+              <FiltroCampo label={`Nota mínima: ${filtros.notaMin || "qualquer"}`}>
                 <input type="range" min={0} max={10} value={filtros.notaMin}
                   onChange={(e) => setFiltros((f) => ({ ...f, notaMin: Number(e.target.value) }))}
-                  style={{ width: "100%" }}
+                  style={{ width: "100%", accentColor: corDoTipo }}
                 />
               </FiltroCampo>
             </>
           ) : (
             <>
               <FiltroCampo label="Prioridade">
-                <select value={filtros.prioridade} onChange={(e) => setFiltros((f) => ({ ...f, prioridade: e.target.value }))} style={filtroInput}>
+                <select value={filtros.prioridade} onChange={(e) => setFiltros((f) => ({ ...f, prioridade: e.target.value }))} className="fbn-campo">
                   <option value="">Todas</option>
                   <option value="Urgente">Urgente</option>
                   <option value="Normal">Normal</option>
@@ -347,34 +386,34 @@ export default function ListaRegistros({ tipo }: Props) {
                 </select>
               </FiltroCampo>
               <FiltroCampo label="Sem resposta">
-                <select value={filtros.semResposta} onChange={(e) => setFiltros((f) => ({ ...f, semResposta: e.target.value as "todos" | "sim" | "nao" }))} style={filtroInput}>
+                <select value={filtros.semResposta} onChange={(e) => setFiltros((f) => ({ ...f, semResposta: e.target.value as "todos" | "sim" | "nao" }))} className="fbn-campo">
                   <option value="todos">Todos</option>
-                  <option value="sim">Apenas sem resposta</option>
-                  <option value="nao">Apenas com resposta</option>
+                  <option value="sim">Só sem resposta</option>
+                  <option value="nao">Só com resposta</option>
                 </select>
               </FiltroCampo>
             </>
           )}
 
-          <button onClick={() => setFiltros(FILTROS_VAZIO)} style={{ ...btnSecundario, alignSelf: "end" }}>
-            Limpar
+          <button type="button" onClick={() => setFiltros(FILTROS_VAZIO)} className="fbn-btn" style={{ alignSelf: "end" }}>
+            <i className="fa-solid fa-eraser" /> Limpar filtros
           </button>
         </div>
       )}
 
-      {erro && <div style={erroStyle}>Erro: {erro}</div>}
+      {erro && <div className="fbn-erro">Erro: {erro}</div>}
 
       {/* Lista */}
       {loading ? (
-        <div style={vazioStyle}>Carregando…</div>
+        <div className="fbn-vazio"><i className="fa-solid fa-circle-notch fa-spin" /> Carregando…</div>
       ) : filtradas.length === 0 ? (
-        <div style={vazioStyle}>
+        <div className="fbn-vazio">
           {rows.length === 0
-            ? `Nenhum registro ${tipo.toUpperCase()} cadastrado ainda.`
-            : "Nenhum registro corresponde aos filtros."}
+            ? `Nenhum registro de ${tipo.toUpperCase()} cadastrado ainda.`
+            : "Nenhum cliente nesta situação com esses filtros."}
         </div>
       ) : (
-        <div style={gridStyle}>
+        <div className="fbn-grade">
           {filtradas.map((r) => (
             <RegistroCard
               key={r.id}
@@ -424,60 +463,8 @@ export default function ListaRegistros({ tipo }: Props) {
 function FiltroCampo({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: 0.4, marginBottom: 4 }}>
-        {label}
-      </div>
+      <div className="fbn-rot">{label}</div>
       {children}
     </div>
   );
 }
-
-const topoStyle: React.CSSProperties = {
-  display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap",
-};
-const badgeStyle: React.CSSProperties = {
-  fontSize: 12, fontWeight: 700, padding: "5px 13px", borderRadius: 999,
-  background: "#fef2f2", color: "#b91c1c",
-  boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5)",
-};
-const btnPrimario: React.CSSProperties = {
-  padding: "9px 18px",
-  background: "linear-gradient(135deg, #dc2626, #b91c1c)",
-  color: "#fff", border: "none", borderRadius: 10,
-  fontSize: 13, fontWeight: 700, cursor: "pointer",
-  boxShadow: "0 2px 8px rgba(185,28,28,0.25)",
-  fontFamily: "Inter, sans-serif",
-};
-const btnSecundario: React.CSSProperties = {
-  padding: "9px 16px", background: "#fff",
-  border: "1.5px solid var(--portal-border)", color: "var(--portal-text-secondary)",
-  borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: "pointer",
-  fontFamily: "Inter, sans-serif",
-};
-const painelFiltrosStyle: React.CSSProperties = {
-  marginTop: 12, padding: 16, background: "var(--portal-bg-card)",
-  border: "1px solid var(--portal-border)", borderRadius: 12,
-  display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-  gap: 12, alignItems: "end",
-};
-const filtroInput: React.CSSProperties = {
-  width: "100%", padding: "8px 12px",
-  border: "1px solid var(--portal-border)", borderRadius: 8,
-  fontSize: 12, background: "var(--portal-bg-card)", color: "var(--portal-text)",
-  fontFamily: "Inter, sans-serif", outline: "none",
-};
-const gridStyle: React.CSSProperties = {
-  marginTop: 16,
-  display: "grid",
-  gridTemplateColumns: "repeat(auto-fill, minmax(min(320px, 100%), 1fr))",
-  gap: 12,
-};
-const vazioStyle: React.CSSProperties = {
-  marginTop: 20, padding: 60, textAlign: "center",
-  color: "var(--portal-text-muted)", fontSize: 14, fontStyle: "italic",
-};
-const erroStyle: React.CSSProperties = {
-  marginTop: 12, padding: "10px 14px",
-  background: "#fee2e2", color: "#991b1b",
-  borderRadius: 10, fontSize: 13,
-};

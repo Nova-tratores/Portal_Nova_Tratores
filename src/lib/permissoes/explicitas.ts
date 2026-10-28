@@ -12,6 +12,8 @@ export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
   // editar os cards dos kanbans do Financeiro (nome, condição, valor, datas) em
   // qualquer fase — antes só admin; o "acesso total" ao Financeiro NÃO dá (13/10/2026)
   'financeiro:editar_cards',
+  // tirar o carro da frota (vender, arquivar, marcar sem uso) — só Dev concede (22/10/2026)
+  'frota:veiculos:inativar',
 ]);
 
 // Ações FISCAIS de Dev (José, 13/10/2026): no começo só os Devs fazem; admin comum
@@ -20,6 +22,7 @@ export const ACOES_SO_DEV: ReadonlySet<string> = new Set([
   'pos:faturar',
   'pos:cancelar_faturamento',
   'pos:substituir_omie',
+  'frota:veiculos:inativar',
 ]);
 
 export function acaoSoDev(modulo: string, acao?: string): boolean {

@@ -40,6 +40,8 @@ export default function ChecklistVeiculoPage() {
   const [fotoPrev, setFotoPrev] = useState('');
   const [resposta, setResposta] = useState<'ok' | 'problema' | ''>('');
   const [obs, setObs] = useState('');
+  // foto de pneu recusada pela IA: mostra o motivo e deixa enviar assim mesmo
+  const [iaRecusa, setIaRecusa] = useState('');
   const [busy, setBusy] = useState(false);
   const [resultado, setResultado] = useState<any>(null);
 
@@ -70,6 +72,7 @@ export default function ChecklistVeiculoPage() {
 
   const escolherFoto = (f: File | null) => {
     setFoto(f);
+    setIaRecusa('');
     setFotoPrev(f ? URL.createObjectURL(f) : '');
   };
 
@@ -99,11 +102,12 @@ export default function ChecklistVeiculoPage() {
     setResposta(salvo?.resposta || '');
     setObs(salvo?.observacao || '');
     setFoto(null);
+    setIaRecusa('');
     setFotoPrev(salvo?.foto_url || '');
     setIdx(i);
   };
 
-  const salvarItem = async () => {
+  const salvarItem = async (forcar = false) => {
     const it = CHECKLIST_ITEMS[idx];
     const jaTemFoto = foto || itensSalvos[it.key]?.foto_url;
     if (!jaTemFoto || !resposta) { setErro('Tire a foto e marque OK ou Problema.'); return; }
@@ -118,9 +122,12 @@ export default function ChecklistVeiculoPage() {
       fd.append('resposta', resposta);
       fd.append('observacao', obs);
       if (foto) fd.append('foto', foto);
+      if (forcar) fd.append('forcar', '1');
       const r = await fetch('/api/frota/checklist', { method: 'POST', headers: { ...(await authHeaders()) }, body: fd });
       const d = await r.json();
+      if (r.status === 422 && d.refazer) { setIaRecusa(d.error); setBusy(false); return; }
       if (!r.ok) { setErro(d.error || 'Falha ao salvar.'); setBusy(false); return; }
+      setIaRecusa('');
       setItensSalvos((m) => ({ ...m, [it.key]: { ...m[it.key], item_key: it.key, resposta, observacao: obs, foto_url: d.foto_url || m[it.key]?.foto_url } }));
       if (idx < CHECKLIST_ITEMS.length - 1) carregarItemNaTela(idx + 1);
       else setFase('resumo');
@@ -185,7 +192,7 @@ export default function ChecklistVeiculoPage() {
             {checklist.score_confianca != null ? <> · score {checklist.score_confianca}%</> : null}
           </div>
           {checklist.share_token && (
-            <a href={`/api/frota/checklist/print?token=${encodeURIComponent(checklist.share_token)}`} target="_blank" rel="noopener noreferrer"
+            <a href={`/frota/checklist/ver?token=${encodeURIComponent(checklist.share_token)}`} target="_blank" rel="noopener noreferrer"
               style={{ ...btnPrim, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none', marginTop: 16, background: '#1b2230' }}>
               <FileText size={16} /> Abrir checklist (PDF)
             </a>
@@ -242,7 +249,7 @@ export default function ChecklistVeiculoPage() {
           <div style={{ fontSize: 14, color: 'var(--portal-text)', marginTop: 4 }}>Score de confiança: <b style={{ color: suspeito ? '#b45309' : '#15803d' }}>{resultado.score}%</b></div>
           {suspeito && <div style={{ fontSize: 13.5, color: '#b45309', marginTop: 8 }}>Marcado como suspeito — a gestão pode revisar.</div>}
           {resultado.share_token && (
-            <a href={`/api/frota/checklist/print?token=${encodeURIComponent(resultado.share_token)}`} target="_blank" rel="noopener noreferrer" style={{ ...btnPrim, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none', marginTop: 16, background: '#1b2230', width: 'auto', padding: '12px 20px' }}>
+            <a href={`/frota/checklist/ver?token=${encodeURIComponent(resultado.share_token)}`} target="_blank" rel="noopener noreferrer" style={{ ...btnPrim, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, textDecoration: 'none', marginTop: 16, background: '#1b2230', width: 'auto', padding: '12px 20px' }}>
               <FileText size={16} /> Ver documento (PDF)
             </a>
           )}
@@ -310,9 +317,16 @@ export default function ChecklistVeiculoPage() {
           <textarea value={obs} onChange={(e) => setObs(e.target.value)} placeholder={resposta === 'problema' ? 'Descreva o problema' : 'Observação (opcional)'}
             style={{ width: '100%', minHeight: 60, padding: 12, borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 14, resize: 'vertical', boxSizing: 'border-box', marginBottom: 14 }} />
 
+          {iaRecusa && (
+            <div style={{ border: '1px solid #f59e0b', background: '#fffbeb', color: '#92400e', padding: '10px 12px', fontSize: 13, marginBottom: 12 }}>
+              <b>A conferência automática não aceitou esta foto:</b> {iaRecusa}
+              <div style={{ marginTop: 6 }}>Tire outra foto. Se a foto está certa, <button onClick={() => salvarItem(true)} disabled={busy} style={{ border: 'none', background: 'none', padding: 0, color: '#92400e', fontWeight: 700, textDecoration: 'underline', cursor: 'pointer', fontSize: 13 }}>envie assim mesmo</button> (fica marcado para o gestor conferir).</div>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 10 }}>
             {idx > 0 && <button onClick={() => carregarItemNaTela(idx - 1)} disabled={busy} style={{ padding: '12px 18px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontWeight: 600, cursor: 'pointer' }}>Voltar</button>}
-            <button onClick={salvarItem} disabled={busy} style={{ ...btnPrim, flex: 1, opacity: busy ? 0.6 : 1 }}>
+            <button onClick={() => salvarItem()} disabled={busy} style={{ ...btnPrim, flex: 1, opacity: busy ? 0.6 : 1 }}>
               {busy ? 'Salvando…' : (idx < CHECKLIST_ITEMS.length - 1 ? 'Salvar e próximo' : 'Salvar e revisar')}
             </button>
           </div>

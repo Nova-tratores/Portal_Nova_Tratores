@@ -12,6 +12,8 @@ import ContaSelector from '@/components/estoque/ContaSelector';
 import { authHeaders, fetchAuth } from '@/lib/auth/client';
 import { tempoRelativo } from '@/lib/ajustes/tempo-relativo';
 import { RECORTES, RECORTE_PADRAO, ehRecorte, aplicarRecorte, resumir, type Recorte } from '@/lib/ajustes/baixa-contas-recorte';
+import { baixaAntecipadaSuspeita } from '@/lib/ajustes/boletos-fornecedor';
+import PainelBoletosBaixa from '@/components/ajustes/PainelBoletosBaixa';
 
 const LS_RECORTE = 'baixa-contas-recorte';
 function lerRecorteSalvo(): Recorte {
@@ -25,6 +27,7 @@ interface Titulo {
   conta: string; codigoLancamento: number | string; valorDocumento: number; valorPago: number;
   valorAberto: number; dataEmissao?: string; vencimento?: string; previsao?: string | null; numeroDoc?: string;
   parcela?: string; status?: string; contraparte?: string; categoria?: string;
+  codigoFornecedor?: number | null; observacao?: string | null; idOrigem?: string | null; // COMP = duplicata da NF
 }
 interface AbertosPayload { titulos?: Titulo[]; total?: number; erro?: string; sincronizadoEm?: string | null }
 interface ContaCorrente { codigo: string | number; descricao: string; tipo?: string; banco?: string }
@@ -101,6 +104,7 @@ export default function BaixaContasPage() {
   const [sort, setSort] = useState<{ key: string; dir: number }>({ key: 'previsao', dir: 1 });
   const [filtros, setFiltros] = useState<Record<string, string>>({});
   const [modalTitulo, setModalTitulo] = useState<Titulo | null>(null);
+  const [versaoBoletos, setVersaoBoletos] = useState(0);
 
   const buscar = useCallback(async () => {
     if (!conta) { setTitulos([]); return; }
@@ -223,6 +227,8 @@ export default function BaixaContasPage() {
             </div>
           </div>
 
+          {tipo === 'pagar' && <PainelBoletosBaixa conta={conta.toUpperCase()} versao={versaoBoletos} onPago={buscar} />}
+
           <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
             <div style={{ overflow: 'auto', maxHeight: '70vh' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -277,7 +283,7 @@ export default function BaixaContasPage() {
 
       {modalTitulo && (
         <ModalBaixa titulo={modalTitulo} tipo={tipo} conta={conta}
-          onClose={() => setModalTitulo(null)} onBaixado={() => { setModalTitulo(null); buscar(); }} />
+          onClose={() => setModalTitulo(null)} onBaixado={() => { setModalTitulo(null); buscar(); setVersaoBoletos((v) => v + 1); }} />
       )}
     </div>
   );
@@ -362,12 +368,15 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
   const ccAtualFalta = ccSel && !ccs.some((c) => String(c.codigo) === String(ccSel));
   const bloqueada = !!consulta?.baixaBloqueada;
   const verbo = tipo === 'receber' ? 'Recebido em' : 'Pago em';
+  // duplicata de NF baixada bem antes do vencimento: era assim que o "boleto agrupado" virava baixa fictícia
+  const antecipada = tipo === 'pagar' && baixaAntecipadaSuspeita(data, titulo.vencimento, titulo.idOrigem || null);
 
   const aplicar = useCallback(async () => {
     if (!ccSel) { setModalStatus('escolha a conta corrente'); return; }
     const v = Number(valor);
     if (!(v > 0)) { setModalStatus('informe um valor maior que zero'); return; }
     if (!data) { setModalStatus('informe a data'); return; }
+    if (antecipada && obs.trim().length < 5) { setModalStatus('baixa antecipada de duplicata de NF: informe o motivo na observacao'); return; }
     if (!confirm(`Baixar no Omie o titulo ${titulo.codigoLancamento} (${titulo.contraparte || ''}) de ${fmtBRL(v)}?`)) return;
     setAplicando(true);
     setModalStatus('baixando no Omie...');
@@ -377,7 +386,7 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
         body: JSON.stringify({
           conta, tipo, codigoLancamento: titulo.codigoLancamento, codigoContaCorrente: ccSel,
           valor: v, data, juros: Number(juros) || 0, multa: Number(multa) || 0, desconto: Number(desconto) || 0,
-          observacao: obs, conciliar,
+          observacao: obs, conciliar, vencimento: titulo.vencimento || null, idOrigem: titulo.idOrigem || null,
         }),
       });
       const d = await r.json();
@@ -387,7 +396,7 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
     } catch (ex) {
       setModalStatus('rede: ' + (ex as Error).message); setAplicando(false);
     }
-  }, [ccSel, valor, data, juros, multa, desconto, obs, conciliar, conta, tipo, titulo, onBaixado]);
+  }, [ccSel, valor, data, juros, multa, desconto, obs, conciliar, conta, tipo, titulo, onBaixado, antecipada]);
 
   return (
     <div className="est-overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -405,6 +414,11 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
               </div>
             ) : (
               <>
+                {antecipada && (
+                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 6, padding: '8px 10px', fontSize: '.74rem', marginBottom: 10 }}>
+                    Esta duplicata de NF vence em <b>{fmtData(titulo.vencimento)}</b> e voce esta baixando em <b>{fmtData(data)}</b>. Se o fornecedor mandou um <b>boleto agrupando varias NFs</b>, nao baixe: registre o boleto em <b>Correcao de contas → Lista</b> (ele reprograma as duplicatas) e pague a parcela aqui no painel <b>Boletos de fornecedor</b>. Se a baixa antecipada e real (desconto, pagamento adiantado), informe o motivo na observacao.
+                  </div>
+                )}
                 <div style={{ marginBottom: 12, fontSize: '.72rem', color: '#64748b' }}>{titulo.conta} · {titulo.contraparte || ''} · doc {titulo.numeroDoc || '-'} · venc {fmtData(titulo.vencimento) || '-'}{titulo.previsao && titulo.previsao !== titulo.vencimento ? ` · prev ${fmtData(titulo.previsao)}` : ''} · lanc <span style={{ fontFamily: 'monospace' }}>{titulo.codigoLancamento}</span></div>
 
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 12, marginBottom: 12 }}>

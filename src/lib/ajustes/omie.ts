@@ -1101,10 +1101,14 @@ export function normalizarProdutoLista(p: any): any {
 //  - exibir_caracteristicas:'S' e' o que faz a Omie embutir o array `caracteristicas`
 //    no retorno (sem essa flag a chave nem aparece - validado em runtime 08/06/2026).
 // Retorna array normalizado (normalizarProdutoLista).
+// opts.filtros: parâmetros extras do ListarProdutos — ex. só os alterados num período
+// ({ filtrar_por_data_de, filtrar_por_data_ate, filtrar_apenas_alteracao: 'S' }).
+// Conferido em 22/10/2026: editar uma característica muda a data de alteração do produto.
 export async function listarProdutos(conta: Conta, opts: Record<string, any> = {}): Promise<any[]> {
   const { itens } = await paginarOmie('/geral/produtos/', 'ListarProdutos', {
     filtrar_apenas_omiepdv: 'N',
-    exibir_caracteristicas: 'S'
+    exibir_caracteristicas: 'S',
+    ...(opts.filtros || {}),
   }, conta, {
     paginaKey: 'pagina', regKey: 'registros_por_pagina', regValue: 100,
     totalKeys: ['total_de_paginas', 'nTotPaginas', 'nTotalPaginas'],
@@ -1525,6 +1529,25 @@ export async function alterarContaCategoriaDepto(conta: Conta, args: Record<stri
   Object.assign(params, paramsOmieCampos(mudou));
   const rawResponse = await omieRequest(endpoint, alterar, params, conta);
   return { rawRequest: params, rawResponse, anterior, mudou, camposAnteriores };
+}
+
+// Estorna uma baixa (CancelarPagamento / CancelarRecebimento) pelo codigo_baixa
+// (= nCodBaixa em movimentos_cc.raw.detalhes). Usado pelo saneamento dos
+// boletos agrupados (scripts/boletos-inventario.ts), nunca pela tela.
+export async function cancelarBaixaConta(conta: Conta, tipo: any, codigoBaixa: number | string): Promise<any> {
+  if (codigoBaixa == null) throw new Error('informe o codigo da baixa');
+  const endpoint = String(tipo) === 'receber' ? '/financas/contareceber/' : '/financas/contapagar/';
+  const call = String(tipo) === 'receber' ? 'CancelarRecebimento' : 'CancelarPagamento';
+  return omieRequest(endpoint, call, { codigo_baixa: Number(codigoBaixa) || codigoBaixa }, conta);
+}
+
+// Exclui um título (ExcluirContaPagar / ExcluirContaReceber). Só para títulos
+// manuais (RPTP) do saneamento; título gerado por NF a Omie recusa.
+export async function excluirConta(conta: Conta, tipo: any, codigoLancamento: number | string): Promise<any> {
+  if (codigoLancamento == null) throw new Error('informe o codigo do lancamento');
+  const { endpoint } = endpointCallConta(tipo);
+  const call = String(tipo) === 'receber' ? 'ExcluirContaReceber' : 'ExcluirContaPagar';
+  return omieRequest(endpoint, call, { codigo_lancamento_omie: Number(codigoLancamento) || codigoLancamento }, conta);
 }
 
 // Lista as contas correntes (bancos/caixas) de uma empresa. Usado pela tela

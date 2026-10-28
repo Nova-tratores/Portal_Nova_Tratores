@@ -2,7 +2,7 @@
 
 > Descrição funcional de 7 telas do Portal Nova Tratores, levantada a partir do código
 > (`src/app/(portal)/...`, `src/app/api/...`, `src/lib/...`, `sql/`).
-> Última atualização: 10/09/2026.
+> Última atualização: 23/10/2026 (seção 10: Feedbacks novo — Hoje · Clientes · Painel · Robô; as seções 4–9 descrevem as telas antigas).
 >
 > | Tela | Rota | Módulo (permissão) |
 > |---|---|---|
@@ -517,3 +517,34 @@ Pedido do usuário: abrir cada **PPV, PV, POS e OS** a partir da ficha, enxergar
 **Auditoria.** `abrir_maquina` e `abrir_documento` (sistema `feedbacks`) via `useAuditLog`.
 
 **Validado** (07/10/2026): 73 testes vitest (`puro`, `links`, `maquina`), tsc/eslint, e no navegador com `omie_1943158314` (PEDRO ALCANTARA: OS-0817 ↔ PPV-0503, projeto 6075E CAB …6206, cheques 50/300/600/900h, GAR-0031) e `omie_5579463785` (JAIR GABRIEL: só PV 1517 da Castro → impressão da Omie).
+
+## 10. Feedbacks novo — 23/10/2026
+
+Pedido do José (print da aba Atendimento com 820 clientes, chips com emoji, faixa vermelha e "URGENTE"): "muda tudo a forma de disponibilizar os dados para facilitar a experiência do usuário". Escolha dele: **Caminho B** — quatro abas, cada cliente aparece uma vez, cota do dia, concluir num lugar só; CRM, RFM, Agenda e Revisões viram **filtros** da Hoje. As páginas de teste (`/feedbacks/crm/teste`, `/feedbacks/crm/teste/hoje`) continuam, com "Dados de exemplo" e "Gravar de verdade"; as telas de verdade gravam direto.
+
+### 10.1 Abas (faixa Chrome vermelha, `components/feedbacks/FeedbackTabs.tsx`)
+Fonte única: `src/lib/feedbacks/telas.ts` (`ABAS_FEEDBACKS`, `ACOES_DO_SEGMENTO`, `podeSegmento`, `abaDaRota`, `gruposDaUrl`, `destinoAntigo`; 9 testes em `__tests__/telas.test.ts`). O layout (`feedbacks/layout.tsx`) confere o 1º segmento da URL com `podeSegmento`.
+
+| Aba | Rota | Quem vê (qualquer uma) | O que tem |
+|---|---|---|---|
+| **Hoje** | `/feedbacks` | `feedbacks:crm` · `rfm` · `atendimento` · `agenda` (ou o módulo) | Fila única por cliente (Opção 1: lista + painel ao lado; gaveta no celular). Números do topo, chips Pós-serviço (antigo CRM) · Reativação (antigo RFM) · Revisões · Peças · Cadastro · Retornos combinados (antiga Agenda) · Minha área · Só urgentes, busca, técnico, cota do dia. Concluir grava de verdade (regras do `useHoje` com `gravarSempre`). `?motivo=pos\|rfm\|revisao\|pecas\|cadastro\|retorno` (vírgula = vários), `?cliente=<chave>` abre o cliente, `?id=<registro>` abre o cliente daquele atendimento, `?ok=` mostra o recado do cockpit. Sem a permissão da Hoje, `/feedbacks` manda para a 1ª aba que a pessoa vê. |
+| **Clientes** | `/feedbacks/clientes` | `clientes` · `atendimento` | Busca no cadastro Omie → histórico completo (`ModalHistoricoCliente`); lista dos clientes atendidos com a ficha ao lado (contato, tags, equipamentos, funcionários/fazendas, linha do tempo — clique edita no `ModalFeedback`, Editar perfil, Ver na fila de hoje, Abrir no cockpit); **Contatos do WhatsApp** por cargo (`?ver=contatos`, só com `atendimento`). `?registro=` / `?cliente=` como antes. |
+| **Painel** | `/feedbacks/painel` | `relatorios` | **Ao vivo** (em ligação agora, feitos hoje por pessoa, notas baixas, coisas paradas, fila por motivo — clique filtra a Hoje —, conversão da semana; relê a cada 60 s) e **Desempenho por período** (`?ver=desempenho`: presets, fonte Tudo/Pós-serviço/Reativação, números, ranking dos atendentes — clique lista os atendimentos —, satisfação por técnico, viraram serviço, dia a dia, CSV dos atendimentos e dos atendentes; `lib/feedbacks/relatorio-csv.ts`). |
+| **Robô** | `/feedbacks/robo` | `oportunidades` | Triagem das oportunidades (busca, regra, Abertas/Atendidas/Dispensadas/Expiradas/Todas, só urgentes; Ver na fila de hoje · Abrir no cockpit ou Atender (sem cockpit, o fluxo rápido antigo) · Dispensar com motivo · Histórico) e, ao lado, as regras R1–R8 em frase simples, quantas abertas, peso na fila e "pode ser urgente" (clique filtra). "Recalcular agora" = `POST /api/feedbacks/oportunidades/recomputar`. `?regra=R5_pecas`. |
+
+O cockpit `/feedbacks/atendimento/[clienteKey]` continua (gate `atendimento`); voltar e encerrar a ligação levam para a Hoje (`/feedbacks?ok=…`).
+
+### 10.2 Rotas antigas (redirecionam no servidor, `destinoAntigo`)
+`/feedbacks/crm` → `/feedbacks?motivo=pos` (leva `?id=`) · `/feedbacks/rfm` → `?motivo=rfm` · `/feedbacks/agenda` → `?motivo=retorno` · `/feedbacks/atendimento` → `/feedbacks` (leva `?cliente=`, `?ok=`) · `/feedbacks/relatorios` → `/feedbacks/painel` · `/feedbacks/oportunidades` → `/feedbacks/robo` (leva `?regra=`) · `/feedbacks/atendimento/contatos` → `/feedbacks/clientes?ver=contatos`. O aviso de nota baixa do sino passou a apontar para `/feedbacks?motivo=pos&id=N`.
+
+### 10.3 Permissões e APIs
+Chaves do catálogo **não mudaram** (só os rótulos no Admin). `GET /api/feedbacks/crm/hoje` e `GET /api/feedbacks/crm/revisoes`: crm · rfm · atendimento · agenda · relatorios (o Painel lê). `POST /api/feedbacks/crm/revisoes`: só as da fila. `PATCH /api/feedbacks/oportunidades` (concluir na Hoje marca a oportunidade): oportunidades + as da fila; o `GET` continua só `oportunidades`. `lib/permissoes/telas.ts` ganhou `/feedbacks/painel` → `feedbacks:relatorios`, `/feedbacks/robo` → `feedbacks:oportunidades`, `/feedbacks/clientes` (alternativa `feedbacks:atendimento`). Busca de telas da dashboard atualizada (`lib/dashboard/telas.ts`).
+
+### 10.4 Janela da máquina (`components/feedbacks/ModalMaquina.tsx`)
+Pedido do José no mesmo dia ("faz um modal, e explica de qual projeto você tá falando, deixa os últimos serviços ali e as últimas revisões"). Cada motivo da Hoje que é de uma máquina (revisão, pós-serviço com trator, robô) mostra na própria linha **modelo · final do chassi · projeto Omie (Nova/Castro)**; motivo do robô sem chassi pega a máquina do mesmo modelo do cliente. Clicar no motivo (ou em "Ver a máquina") abre a janela: cabeçalho (modelo, chassi completo, projeto(s) Omie com link para a ficha do projeto, dono, entrega anotada e a corrigida, vendedor, cidade, último horímetro lido), **Previsão** (média h/dia, horímetro hoje, próxima revisão e data, confiança, gráfico horas × tempo da `FichaTrator`), **Últimas revisões** (feitas pelo controle/cheque/envio, as que **faltaram** na sequência 50·300·600… e a próxima) e **Últimos serviços desta máquina** (OS do POS/Omie que citam o chassi: nº com link, data, o que pediu/fez, técnico, valor, horímetro, NF, peças do PPV/PV dentro, pós-serviço do CRM até 45 dias depois). Também abre do cartão da máquina na aba "Máquinas e revisões" do `ModalHistoricoCliente`. Esc fecha só ela; no celular ocupa a tela. Lógica pura em `lib/feedbacks/maquina-modal.ts` (10 testes); rota `GET /api/feedbacks/maquina?chassi=&projeto=&empresa=` (guarda: módulo `feedbacks`, irmã da do cockpit; previsão via `carregarRevisoes()` com teto de 15 s). O trator das revisões (`TratorRevisao`) ganhou `projeto` (casado pelo final do chassi em `portal_nt_projetos_PRINCIPAL`). Exemplo: `hoje/exemplosMaquina.ts`.
+
+### 10.5 Visual
+Estilo POS NewPortal em tudo que ficou: emojis → Font Awesome 6, peso máx. 500, sem caixa alta ("URGENTE" → pílula "urgente", "NÃO CONTATAR" → "Não contatar"), sem faixa colorida lateral/topo nos cartões, tela cheia (cockpit sem `maxWidth`). Cada aba tem "Como ler esta tela". Casca comum `components/feedbacks/hoje/Casca.tsx`.
+
+### 10.6 Ficou de fora
+Arquivos que ninguém mais usa e ficaram no código (apagar depois de conferir): `ListaRegistros`, `RegistroCard`, `KanbanOportunidades`, a fila antiga do Atendimento (rota `/api/feedbacks/atendimento/fila` segue) e `feedbacks.module.css` (ainda usado por componentes do cockpit). Mudar os pesos da fila e ligar/desligar regras do robô pela tela não foram feitos.

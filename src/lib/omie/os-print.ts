@@ -168,7 +168,7 @@ function clienteBlock(cli: any) {
 
 function footer(usuario: string) {
   const dt = new Date();
-  return `<div class="ft">Gerado em ${dt.toLocaleDateString("pt-BR")} às ${dt.toLocaleTimeString("pt-BR")} por ${e(usuario)} &mdash; Página 1 de 1</div>`;
+  return `<div class="ft">Gerado em ${dt.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })} às ${dt.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" })} por ${e(usuario)} &mdash; Página 1 de 1</div>`;
 }
 
 function wrap(title: string, cssExtra: string, body: string) {

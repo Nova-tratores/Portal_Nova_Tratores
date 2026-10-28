@@ -83,15 +83,22 @@ export async function GET(req: NextRequest) {
     // cliente do Omie: pela OS (nCodCli) ou pelo CPF/CNPJ do portal
     const nCodCli = os && !("erro" in os) ? Number((os as { Cabecalho?: { nCodCli?: number } }).Cabecalho?.nCodCli || 0) : 0;
     const doc = String(req.nextUrl.searchParams.get("cnpj") || "").replace(/\D/g, "");
+    // Erro de leitura (Omie ocupado, consumo redundante) NÃO é "cliente não existe" (OS-0824, 23/10/2026): pela OS
+    // falhou → tenta pelo CPF/CNPJ; falhou também → devolve o erro para a tela dizer a verdade e oferecer tentar de novo.
     let cliente: Record<string, unknown> | null = null;
-    try {
-      if (nCodCli) cliente = await omie("/geral/clientes/", "ConsultarCliente", { codigo_cliente_omie: nCodCli });
-      else if (doc) {
+    let clienteErro: string | null = null;
+    if (nCodCli) {
+      try { cliente = await omie("/geral/clientes/", "ConsultarCliente", { codigo_cliente_omie: nCodCli }); }
+      catch (e) { clienteErro = e instanceof Error ? e.message : String(e); }
+    }
+    if (!cliente && doc) {
+      try {
         const l = await omie<{ clientes_cadastro?: Record<string, unknown>[] }>("/geral/clientes/", "ListarClientes", { pagina: 1, registros_por_pagina: 5, clientesFiltro: { cnpj_cpf: doc } });
         cliente = l.clientes_cadastro?.[0] || null;
-      }
-    } catch { /* sem cliente */ }
-    return NextResponse.json({ listas, os, cliente });
+        if (cliente) clienteErro = null;
+      } catch (e) { const m = e instanceof Error ? e.message : String(e); clienteErro = /não existem registros/i.test(m) ? null : m; }
+    }
+    return NextResponse.json({ listas, os, cliente, clienteErro });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro ao ler o Omie." }, { status: 502 });
   }

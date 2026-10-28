@@ -4,19 +4,21 @@
 import { buscarPPVPorId } from "@/lib/ppv/queries";
 import {
   resolverContaDoPedido, omieNaConta, contaCorrenteDoPedido, departamentosDoPedido,
-  buscarCodigoProdutoOmie, montarParcelasOmie, isoParaBR, garantirCst60, CST_ICMS_PECAS, type OmieAccount, type OmieDetItem,
+  buscarCodigoProdutoOmie, buscarNcodCli, montarParcelasOmie, isoParaBR, garantirCst60, CST_ICMS_PECAS, type OmieAccount, type OmieDetItem,
 } from "@/lib/ppv/omie";
 import {
   compararItens, compararCampo, compararDepartamentos, compararParcelas, diferente,
   type Divergencia, type ItemComparavel, type ResultadoConferencia,
 } from "@/lib/omie/conferencia";
+import { comRobosPausados } from "@/lib/omie/porta";
+import { cfopPadrao, semCfop } from "./cst60";
 
 type Rec = Record<string, unknown>;
 const n = (v: unknown) => { const x = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(x) ? x : 0; };
 const r2 = (v: number) => Math.round(v * 100) / 100;
 
 interface PedidoOmie {
-  cabecalho?: { codigo_pedido?: number; numero_pedido?: string; etapa?: string; data_previsao?: string; codigo_parcela?: string; qtde_parcelas?: number };
+  cabecalho?: { codigo_pedido?: number; codigo_cliente?: number; numero_pedido?: string; etapa?: string; data_previsao?: string; codigo_parcela?: string; qtde_parcelas?: number };
   informacoes_adicionais?: { codigo_categoria?: string; codigo_conta_corrente?: number; consumidor_final?: string };
   lista_parcelas?: { parcela?: { data_vencimento?: string; valor?: number }[] };
   departamentos?: { cCodDepto?: string; nPerc?: number }[];
@@ -44,14 +46,20 @@ const descontoDet = (p: NonNullable<PedidoOmie["det"]>[number]["produto"]) => {
   return p.tipo_desconto === "P" ? r2(n(p.quantidade) * n(p.valor_unitario) * n(p.percentual_desconto) / 100) : 0;
 };
 
-export async function conferirPPV(idPPV: string): Promise<ResultadoConferencia & { _ctx?: { acc: OmieAccount; pedido: PedidoOmie } }> {
+// Velocidade (José, 21/10/2026): a leitura do pedido no Omie fica guardada 50 s (o "Sim, atualizar" logo depois
+// do "conferir" não lê de novo) e, depois de gravar, a conferência final usa a releitura que o garantirCst60 já fez
+// — a mesma consulta repetida em segundos leva "Consumo redundante" e trava tudo.
+const lidasPPV = new Map<string, { achado: { acc: OmieAccount; pedido: unknown }; em: number }>();
+export async function conferirPPV(idPPV: string, opts: { pronto?: { acc: OmieAccount; pedido: unknown } } = {}): Promise<ResultadoConferencia & { _ctx?: { acc: OmieAccount; pedido: PedidoOmie } }> {
   const base = { doc: idPPV, tipo: "Pedido de venda", numeroOmie: "", divergencias: [] as Divergencia[] };
   const d = await buscarPPVPorId(idPPV);
   if (!d) return { ...base, erro: "Pedido não encontrado no portal." };
   if (!d.pedidoOmie) return { ...base, pulado: "ainda não foi enviado ao Omie" };
   if (d.tipoPedido === "Remessa") return { ...base, numeroOmie: String(d.pedidoOmie).replace(/^0+/, ""), pulado: "é remessa (não fatura)" };
   if (d.faturadoOmieEm) return { ...base, numeroOmie: String(d.pedidoOmie).replace(/^0+/, ""), pulado: "já está faturado" };
-  const achado = await resolverContaDoPedido(idPPV, d.omieEmpresa || null).catch(() => null);
+  const guardada = lidasPPV.get(idPPV);
+  const achado = opts.pronto || (guardada && Date.now() - guardada.em < 50_000 ? guardada.achado : await resolverContaDoPedido(idPPV, d.omieEmpresa || null).catch(() => null));
+  if (achado) lidasPPV.set(idPPV, { achado, em: Date.now() });
   if (!achado) return { ...base, numeroOmie: String(d.pedidoOmie).replace(/^0+/, ""), erro: "Não achei este pedido no Omie." };
   const { acc } = achado;
   const pedido = achado.pedido as unknown as PedidoOmie;
@@ -68,11 +76,24 @@ export async function conferirPPV(idPPV: string): Promise<ResultadoConferencia &
   const div: Divergencia[] = compararItens(idPPV, pItens, oItens, "Peça");
   const add = (x: Divergencia | null) => { if (x) div.push(x); };
   const ia = pedido.informacoes_adicionais || {};
+  // cliente: o CPF/CNPJ do PPV tem que ser o do cadastro do pedido no Omie (PPV-0359, 23/10/2026)
+  const docPortal = String(d.clienteDocumento || "").replace(/\D/g, "");
+  if (docPortal && pedido.cabecalho?.codigo_cliente) {
+    const cli = await omieNaConta<{ cnpj_cpf?: string; razao_social?: string }>(acc, "/geral/clientes/", "ConsultarCliente", { codigo_cliente_omie: pedido.cabecalho.codigo_cliente }).catch(() => null);
+    if (cli && String(cli.cnpj_cpf || "").replace(/\D/g, "") !== docPortal) div.push({
+      doc: idPPV, campo: "cliente", rotulo: "Cliente (CPF/CNPJ)", portal: d.clienteDocumento || "", omie: `${cli.cnpj_cpf || "—"}${cli.razao_social ? ` · ${cli.razao_social}` : ""}`, ajustavel: true,
+      explicacao: `O pedido do Omie está no cadastro ${cli.cnpj_cpf || "sem CPF/CNPJ"}. Ao atualizar, passa para o cadastro ${d.clienteDocumento}, igual ao portal — e a NF-e sai nesse CPF/CNPJ.`,
+    });
+  }
   add(compararCampo(idPPV, "categoria", "Categoria", d.categoriaPedido, ia.codigo_categoria));
   // sempre consumo final, com as peças no CST 60 (o Omie troca para 51 ao ligar o consumo final)
   add(compararCampo(idPPV, "consumoFinal", "Nota fiscal para consumo final", "S", ia.consumidor_final || "N",
     { exibirPortal: "sim", exibirOmie: ia.consumidor_final === "S" ? "sim" : "não", vazioIgnora: false }));
+  const cfopPed = cfopPadrao(pedido.det || []);
   for (const it of pedido.det || []) {
+    // CFOP vazio: o Omie não fatura ("O CFOP do produto … não está preenchido" — PPV-0505, 22/10/2026)
+    if (semCfop(it)) div.push({ doc: idPPV, campo: `cfop:${it.produto?.codigo}`, rotulo: `Peça ${it.produto?.codigo} — CFOP`, portal: cfopPed, omie: "—", ajustavel: true,
+      explicacao: `A peça está sem CFOP no pedido e o Omie não fatura assim. Ao atualizar, recebe o ${cfopPed} (o mesmo das outras peças do pedido).` });
     const cst = String(it.imposto?.icms?.cod_sit_trib_icms ?? "");
     if (cst !== CST_ICMS_PECAS) div.push({ doc: idPPV, campo: `cst:${it.produto?.codigo}`, rotulo: `Peça ${it.produto?.codigo} — CST do ICMS`, portal: CST_ICMS_PECAS, omie: cst || "—", ajustavel: true,
       explicacao: `Peça com ICMS já cobrado por substituição tributária sai no CST 60. No Omie está ${cst || "vazio"}; ao atualizar, volta para 60.` });
@@ -100,7 +121,7 @@ export async function conferirPPV(idPPV: string): Promise<ResultadoConferencia &
 }
 
 /** Deixa o pedido do Omie igual ao portal e confere de novo. */
-export async function alinharPPV(idPPV: string): Promise<ResultadoConferencia> {
+async function alinharPPVSemPausa(idPPV: string): Promise<ResultadoConferencia> {
   const conf = await conferirPPV(idPPV);
   if (conf.erro || conf.pulado || !conf._ctx || !conf.divergencias.length) return limpar(conf);
   const d = (await buscarPPVPorId(idPPV))!;
@@ -120,26 +141,44 @@ export async function alinharPPV(idPPV: string): Promise<ResultadoConferencia> {
       detNovo.push({
         ide: { codigo_item: o.ide?.codigo_item, codigo_item_integracao: o.ide?.codigo_item_integracao || undefined },
         produto,
+        // categoria do item segue a do pedido: o Omie fica com a dos itens e ignora só a do cabeçalho (PPV-0359, 23/10/2026)
+        ...(d.categoriaPedido ? { inf_adic: { codigo_categoria_item: d.categoriaPedido } } : {}),
         // imposto cru só no item que não mudou (com quantidade/valor novos o Omie recalcula pelo cenário)
         ...(igual && o.imposto ? { imposto: o.imposto } : {}),
       });
     } else {
       produto.codigo_produto = await buscarCodigoProdutoOmie(x.codigo, acc);
-      detNovo.push({ ide: { codigo_item_integracao: `${idPPV}-${++seq}` }, produto });
+      detNovo.push({ ide: { codigo_item_integracao: `${idPPV}-${++seq}` }, produto, ...(d.categoriaPedido ? { inf_adic: { codigo_categoria_item: d.categoriaPedido } } : {}) });
     }
   }
   if (!detNovo.length) return { ...limpar(conf), erro: "O pedido do portal está sem itens — não dá para deixar o Omie igual." };
+  // peça que está no Omie e não no portal: o AlterarPedidoVenda MANTÉM item que não vai no det —
+  // tem que mandar com acao_item "E" (PPV-0529, 28/10/2026: RP-000016115P04 ficava e a parcela não fechava)
+  const codPortal = new Set(portal.map((x) => x.codigo.trim().toUpperCase()));
+  for (const o of det) {
+    if (codPortal.has(String(o.produto?.codigo || "").trim().toUpperCase()) || !o.ide?.codigo_item) continue;
+    detNovo.push({
+      ide: { codigo_item: o.ide.codigo_item, codigo_item_integracao: o.ide.codigo_item_integracao || undefined, acao_item: "E" },
+      produto: { codigo_produto: o.produto?.codigo_produto, quantidade: n(o.produto?.quantidade), valor_unitario: n(o.produto?.valor_unitario) },
+    });
+  }
 
   const total = r2(portal.reduce((s, x) => s + x.qtde * x.preco - x.desconto, 0));
   const cabecalho: Rec = { codigo_pedido: pedido.cabecalho?.codigo_pedido };
+  if (conf.divergencias.some((x) => x.campo === "cliente")) {
+    try { cabecalho.codigo_cliente = await buscarNcodCli(d.clienteDocumento || "", acc); }
+    catch (e) { return { ...limpar(conf), erro: `Não achei no Omie o cadastro do CPF/CNPJ ${d.clienteDocumento}: ${e instanceof Error ? e.message : e}` }; }
+  }
   const info: Rec = {};
   if (d.categoriaPedido) info.codigo_categoria = d.categoriaPedido;
   if (d.contaCorrente) { const cc = await contaCorrenteDoPedido(acc, d.contaCorrente).catch(() => ({ codigo: undefined })); if (cc.codigo) info.codigo_conta_corrente = cc.codigo; }
   if (d.previsaoFaturamento) cabecalho.data_previsao = isoParaBR(d.previsaoFaturamento);
   const param: Rec = { cabecalho, det: detNovo };
   if (Object.keys(info).length) param.informacoes_adicionais = info;
+  let planoParc: ReturnType<typeof montarParcelasOmie> | undefined
   if (d.numParcelas) {
     const parc = montarParcelasOmie(d.numParcelas, d.previsaoFaturamento || "", total);
+    planoParc = parc;
     cabecalho.codigo_parcela = parc.codigo_parcela; cabecalho.qtde_parcelas = parc.qtde_parcelas;
     if (parc.lista_parcelas) param.lista_parcelas = parc.lista_parcelas;
   }
@@ -149,15 +188,18 @@ export async function alinharPPV(idPPV: string): Promise<ResultadoConferencia> {
   }
   info.consumidor_final = "S";
   param.informacoes_adicionais = info;
+  lidasPPV.delete(idPPV);
+  let relido: unknown;
   try {
     await omieNaConta(acc, "/produtos/pedido/", "AlterarPedidoVenda", param);
-    const cst = await garantirCst60(acc, { codigo_pedido: pedido.cabecalho?.codigo_pedido });
+    const cst = await garantirCst60(acc, { codigo_pedido: pedido.cabecalho?.codigo_pedido }, planoParc);
+    relido = cst.pedido;
     if (cst.erro) throw new Error(`CST 60: ${cst.erro}`);
   }
   catch (e) {
-    return { ...limpar(await conferirPPV(idPPV)), erro: `O Omie recusou a atualização: ${e instanceof Error ? e.message : e}` };
+    return { ...limpar(await conferirPPV(idPPV, relido ? { pronto: { acc, pedido: relido } } : {})), erro: `O Omie recusou a atualização: ${e instanceof Error ? e.message : e}` };
   }
-  return limpar(await conferirPPV(idPPV));
+  return limpar(await conferirPPV(idPPV, relido ? { pronto: { acc, pedido: relido } } : {}));
 }
 
 function limpar(r: ResultadoConferencia & { _ctx?: unknown }): ResultadoConferencia {
@@ -165,3 +207,7 @@ function limpar(r: ResultadoConferencia & { _ctx?: unknown }): ResultadoConferen
   return resto;
 }
 export const conferirPPVPublico = async (id: string) => limpar(await conferirPPV(id));
+
+// Faturar / atualizar o Omie com os robôs do Omie PARADOS (José, 21/10/2026: "se precisar, para tudo para
+// realizar o faturamento") — ver comRobosPausados em src/lib/omie/porta.ts.
+export const alinharPPV: typeof alinharPPVSemPausa = (...a) => comRobosPausados('atualizar PPV no Omie', () => alinharPPVSemPausa(...a));

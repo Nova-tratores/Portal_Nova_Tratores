@@ -115,8 +115,8 @@ export default function CockpitAtendimentoPage() {
       } catch { /* silencioso */ }
     }
     const d = DESFECHO_POR_VALOR[payload.desfecho];
-    const msg = `${d.emoji} ${nome}: ${d.rotulo.toLowerCase()}${r.proximo_contato_em ? ` · ligar de novo em ${r.proximo_contato_em.split("-").reverse().join("/")}` : ""}`;
-    router.push(`/feedbacks/atendimento?ok=${encodeURIComponent(msg)}`);
+    const msg = `${nome}: ${d.rotulo.toLowerCase()}${r.proximo_contato_em ? ` · ligar de novo em ${r.proximo_contato_em.split("-").reverse().join("/")}` : ""}`;
+    router.push(`/feedbacks?ok=${encodeURIComponent(msg)}`);
   }, [lig, id, ctx, router, clienteKey]);
 
   const cancelar = useCallback(async () => {
@@ -143,7 +143,7 @@ export default function CockpitAtendimentoPage() {
     ? { nome: id?.nome || ctx.nome || "", telefone: telefones[0]?.numero ?? null, email: id?.email ?? null, codigo_omie: ctx.codigo_omie, trator: ctx.maquinas?.[0] ? [ctx.maquinas[0].modelo, ctx.maquinas[0].chassi].filter(Boolean).join(" — ") : null }
     : undefined;
 
-  // 💀 Não contatar / reativar — mesma lib do CRM e da fila
+  // Não contatar / reativar — mesma lib do CRM e da fila
   const pedirCaveira = useCallback(() => {
     if (!ctx) return;
     const nomeCli = ctx.identidade?.nome || ctx.nome || "";
@@ -179,13 +179,13 @@ export default function CockpitAtendimentoPage() {
     : [];
 
   return (
-    <div style={{ maxWidth: 1400, margin: "0 auto", padding: "12px 0" }}>
+    <div style={{ padding: "12px 0" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, fontSize: 12 }}>
-        <Link href="/feedbacks/atendimento" style={{ color: COR_ATENDIMENTO, fontWeight: 700, textDecoration: "none" }}>← Fila de atendimento</Link>
+        <Link href="/feedbacks" style={{ color: COR_ATENDIMENTO, fontWeight: 500, textDecoration: "none" }}><i className="fa-solid fa-arrow-left" /> Voltar para Hoje</Link>
         {ctx && <span style={{ opacity: 0.5 }}>ficha montada {new Date(ctx.gerado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span>}
-        {emLigacao && <span style={{ color: "#16a34a", fontWeight: 700 }}>● em ligação</span>}
-        <button type="button" onClick={carregar} disabled={carregando} style={{ marginLeft: "auto", fontSize: 12, fontWeight: 700, padding: "4px 10px", borderRadius: 999, border: `1px solid ${COR_ATENDIMENTO}`, background: "transparent", color: COR_ATENDIMENTO, cursor: "pointer" }}>
-          {carregando ? "Atualizando…" : "↻ Atualizar"}
+        {emLigacao && <span style={{ color: "#16a34a", fontWeight: 500 }}><i className="fa-solid fa-circle" style={{ fontSize: 8 }} /> em ligação</span>}
+        <button type="button" onClick={carregar} disabled={carregando} style={{ marginLeft: "auto", fontSize: 12, fontWeight: 500, padding: "4px 10px", borderRadius: 10, border: `1px solid ${COR_ATENDIMENTO}`, background: "transparent", color: COR_ATENDIMENTO, cursor: "pointer" }}>
+          {carregando ? "Atualizando…" : <><i className="fa-solid fa-rotate" /> Atualizar</>}
         </button>
       </div>
 

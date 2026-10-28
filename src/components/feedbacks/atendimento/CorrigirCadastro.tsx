@@ -51,8 +51,8 @@ export default function CorrigirCadastro({ codigoOmie, nome, telefoneAtual, emai
   return (
     <div onClick={onFechar} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.45)", zIndex: 900, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--portal-bg-card)", color: "inherit", borderRadius: 16, width: "min(440px, 100%)", padding: 20, boxShadow: "0 20px 60px -20px rgba(0,0,0,.6)" }}>
-        <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.6, textTransform: "uppercase", letterSpacing: 0.8 }}>Corrigir cadastro no Omie</div>
-        <h3 style={{ margin: "2px 0 12px", fontSize: 16, fontWeight: 800 }}>{nome} <span style={{ opacity: 0.5, fontWeight: 500 }}>#{codigoOmie}</span></h3>
+        <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>Corrigir cadastro no Omie</div>
+        <h3 style={{ margin: "2px 0 12px", fontSize: 16, fontWeight: 500 }}>{nome} <span style={{ opacity: 0.5, fontWeight: 500 }}>#{codigoOmie}</span></h3>
 
         <label style={rotulo}>Telefone</label>
         <input value={telefone} onChange={(e) => setTelefone(e.target.value)} placeholder="(14) 9 9999-9999" style={input} />
@@ -80,5 +80,5 @@ const rotulo: React.CSSProperties = { display: "block", fontSize: 11, opacity: 0
 const input: React.CSSProperties = { width: "100%", boxSizing: "border-box", padding: "8px 10px", borderRadius: 10, border: "1px solid var(--portal-border)", fontSize: 14, background: "var(--portal-bg-card)", color: "inherit" };
 const erroTxt: React.CSSProperties = { fontSize: 11, color: "#991b1b", marginTop: 4 };
 function btn(cor: string, preenchido: boolean): React.CSSProperties {
-  return { fontSize: 13, fontWeight: 700, padding: "8px 14px", borderRadius: 999, border: `1px solid ${cor}`, background: preenchido ? cor : "transparent", color: preenchido ? "#fff" : cor, cursor: "pointer" };
+  return { fontSize: 13, fontWeight: 500, padding: "8px 14px", borderRadius: 10, border: `1px solid ${cor}`, background: preenchido ? cor : "transparent", color: preenchido ? "#fff" : cor, cursor: "pointer" };
 }

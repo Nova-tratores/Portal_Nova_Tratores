@@ -3,6 +3,7 @@
 // nega (ou pior: o contrário).
 import { createClient } from '@supabase/supabase-js';
 import type { Autenticado } from '@/lib/auth/server';
+import { permite } from '@/lib/permissoes/explicitas';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
 
 /** Tem acesso ao módulo (o módulo puro OU qualquer permissão granular dele). */
@@ -39,6 +40,11 @@ export function podeFrota(auth: Autenticado, acao: string): boolean {
     auth.modulos.includes(`frota:${acao}`) ||
     auth.modulos.some((m) => m.startsWith(`frota:${acao}:`))
   );
+}
+
+/** Tirar carro da frota (vender, arquivar, sem uso): ação só de Dev, concedida no Admin. */
+export function podeInativar(auth: Autenticado): boolean {
+  return permite(auth.modulos, auth.isAdmin, 'frota', 'veiculos:inativar', auth.isDev);
 }
 
 // ── Audit log ────────────────────────────────────────────────────────────────

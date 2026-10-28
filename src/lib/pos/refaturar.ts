@@ -44,7 +44,7 @@ const espera = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function logOS(id: string, acao: string, usuario: string) {
   const agora = new Date();
   await supabase.from(TBL_LOGS_PPO).insert({
-    Id_ppo: id, Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora), Hora_Acao: agora.toLocaleTimeString("pt-BR"),
+    Id_ppo: id, Data_Acao: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora), Hora_Acao: agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" }),
     UsuEmail: usuario, acao, Status_Anterior: "", Status_Atual: "", Dias_Na_Fase: 0, Total_Dias_Aberto: 0,
   }).then(() => {}, () => {});
 }
@@ -190,8 +190,12 @@ export async function refazerOSNoOmie(idOrdem: string, usuario: string): Promise
   if (!copia) {
     try { await escrever("/servicos/osp/", "DuplicarOS", { nCodOS: nAntiga }); }
     catch (e) { return { ok: false, erro: `O Omie recusou duplicar a OS ${numAntiga}: ${e instanceof Error ? e.message : e}` }; }
-    await espera(2500);
-    try { copia = await acharCopia(nAntiga, nCodCli, idOrdem); } catch { /* abaixo */ }
+    // o Omie leva alguns segundos para a cópia aparecer na lista (OS-0596: na 1ª tentativa não achou)
+    for (const ms of [2500, 5000, 8000]) {
+      await espera(ms);
+      try { copia = await acharCopia(nAntiga, nCodCli, idOrdem); } catch { /* tenta de novo */ }
+      if (copia) break;
+    }
     if (!copia) return { ok: false, erro: `Pedi ao Omie para duplicar a OS ${numAntiga}, mas não achei a cópia. Confira no Omie e tente de novo (o portal reaproveita a cópia se ela existir).` };
   }
   const nNova = Number(copia.Cabecalho?.nCodOS);

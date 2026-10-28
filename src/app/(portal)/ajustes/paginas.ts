@@ -14,6 +14,7 @@ export interface PaginaAjustes {
   href: string;
   grupo: GrupoAjustes;         // mantido (ordenação/histórico); o nav agrupa por `departamento`
   departamento: Departamento;
+  funcao?: string;             // sub-linha dentro do departamento (ordem em FUNCOES)
 }
 
 export const GRUPOS_AJUSTES: GrupoAjustes[] = ['Início', 'Edição', 'Visualização', 'Informação'];
@@ -26,32 +27,39 @@ export const DEPARTAMENTOS: DepartamentoInfo[] = [
   { key: 'Venda', label: 'Venda', icon: '🛒', cor: '#b45309', corBg: '#fffbeb' },
 ];
 
+// Sub-linhas por função dentro de um departamento (o nav agrupa nesta ordem).
+export const FUNCOES: Partial<Record<Departamento, string[]>> = {
+  Estoque: ['Custo (CMC)', 'Quantidade', 'Cadastro', 'Notas e relatórios'],
+};
+
 export const PAGINAS_AJUSTES: PaginaAjustes[] = [
-  { key: 'ajustes:dashboard', label: 'Dashboard CMC', href: '/ajustes', grupo: 'Início', departamento: 'Estoque' },
+  { key: 'ajustes:dashboard', label: 'Dashboard CMC', href: '/ajustes', grupo: 'Início', departamento: 'Estoque', funcao: 'Custo (CMC)' },
   // Edição
-  { key: 'ajustes:ajuste-custos', label: 'Ajuste de custos', href: '/ajustes/ajuste-custos', grupo: 'Edição', departamento: 'Estoque' },
+  { key: 'ajustes:ajuste-custos', label: 'Ajuste de custos', href: '/ajustes/ajuste-custos', grupo: 'Edição', departamento: 'Estoque', funcao: 'Custo (CMC)' },
+  { key: 'ajustes:ajuste-estoque', label: 'Ajuste de estoque (qtd)', href: '/ajustes/ajuste-estoque', grupo: 'Edição', departamento: 'Estoque', funcao: 'Quantidade' },
   { key: 'ajustes:correcao-contas', label: 'Correção de contas', href: '/ajustes/correcao-contas', grupo: 'Edição', departamento: 'Financeiro' },
-  { key: 'ajustes:devolucao', label: 'Devolução de compra', href: '/ajustes/devolucao', grupo: 'Edição', departamento: 'Estoque' },
+  { key: 'ajustes:devolucao', label: 'Devolução de compra', href: '/ajustes/devolucao', grupo: 'Edição', departamento: 'Estoque', funcao: 'Notas e relatórios' },
   { key: 'ajustes:baixa-contas', label: 'Baixar contas', href: '/ajustes/baixa-contas', grupo: 'Edição', departamento: 'Financeiro' },
-  { key: 'ajustes:inventario', label: 'Inventário rotativo', href: '/ajustes/inventario', grupo: 'Edição', departamento: 'Estoque' },
-  { key: 'ajustes:inventario-contagem', label: 'Contagem', href: '/ajustes/inventario/contagem', grupo: 'Edição', departamento: 'Estoque' },
-  { key: 'ajustes:caracteristicas', label: 'Características', href: '/ajustes/caracteristicas', grupo: 'Edição', departamento: 'Estoque' },
-  { key: 'ajustes:localizacao', label: 'Localização física', href: '/ajustes/localizacao', grupo: 'Edição', departamento: 'Estoque' },
-  { key: 'ajustes:familias', label: 'Famílias', href: '/ajustes/familias', grupo: 'Edição', departamento: 'Estoque' },
-  { key: 'ajustes:descricoes', label: 'Descrições', href: '/ajustes/descricoes', grupo: 'Edição', departamento: 'Estoque' },
-  { key: 'ajustes:catalogo-caract', label: 'Sistema/Sub-sistema', href: '/ajustes/catalogo-caracteristicas', grupo: 'Edição', departamento: 'Estoque' },
-  { key: 'ajustes:omie-massa', label: 'Omie em massa', href: '/ajustes/omie-massa', grupo: 'Edição', departamento: 'Estoque' },
+  { key: 'ajustes:boletos-fornecedor', label: 'Boletos de fornecedor', href: '/ajustes/boletos-fornecedor', grupo: 'Edição', departamento: 'Financeiro' },
+  { key: 'ajustes:inventario', label: 'Inventário rotativo', href: '/ajustes/inventario', grupo: 'Edição', departamento: 'Estoque', funcao: 'Quantidade' },
+  { key: 'ajustes:inventario-contagem', label: 'Contagem', href: '/ajustes/inventario/contagem', grupo: 'Edição', departamento: 'Estoque', funcao: 'Quantidade' },
+  { key: 'ajustes:caracteristicas', label: 'Características', href: '/ajustes/caracteristicas', grupo: 'Edição', departamento: 'Estoque', funcao: 'Cadastro' },
+  { key: 'ajustes:localizacao', label: 'Localização física', href: '/ajustes/localizacao', grupo: 'Edição', departamento: 'Estoque', funcao: 'Quantidade' },
+  { key: 'ajustes:familias', label: 'Famílias', href: '/ajustes/familias', grupo: 'Edição', departamento: 'Estoque', funcao: 'Cadastro' },
+  { key: 'ajustes:descricoes', label: 'Descrições', href: '/ajustes/descricoes', grupo: 'Edição', departamento: 'Estoque', funcao: 'Cadastro' },
+  { key: 'ajustes:catalogo-caract', label: 'Sistema/Sub-sistema', href: '/ajustes/catalogo-caracteristicas', grupo: 'Edição', departamento: 'Estoque', funcao: 'Cadastro' },
+  { key: 'ajustes:omie-massa', label: 'Omie em massa', href: '/ajustes/omie-massa', grupo: 'Edição', departamento: 'Estoque', funcao: 'Cadastro' },
   // Visualização
-  { key: 'ajustes:negativos', label: 'Estoque negativo', href: '/ajustes/negativos', grupo: 'Visualização', departamento: 'Estoque' },
+  { key: 'ajustes:negativos', label: 'Estoque negativo', href: '/ajustes/negativos', grupo: 'Visualização', departamento: 'Estoque', funcao: 'Quantidade' },
   // 'recebimentos' migrou para o módulo Estoque (rota /estoque/recebimentos, chave 'estoque:recebimentos').
   { key: 'ajustes:pedidos', label: 'Pedidos abertos', href: '/ajustes/pedidos', grupo: 'Visualização', departamento: 'Venda' },
-  { key: 'ajustes:remessas', label: 'Remessas em aberto', href: '/ajustes/remessas', grupo: 'Visualização', departamento: 'Estoque' },
+  { key: 'ajustes:remessas', label: 'Remessas em aberto', href: '/ajustes/remessas', grupo: 'Visualização', departamento: 'Estoque', funcao: 'Notas e relatórios' },
   // 'movimentacao-produto' migrou para o módulo Estoque (chave 'estoque:movimentacao-produto').
   { key: 'ajustes:antecipacoes', label: 'Antecipações', href: '/ajustes/antecipacoes', grupo: 'Visualização', departamento: 'Financeiro' },
   { key: 'ajustes:notas', label: 'Notas fiscais', href: '/ajustes/notas', grupo: 'Visualização', departamento: 'Venda' },
-  { key: 'ajustes:mahindra', label: 'Arquivo Mahindra', href: '/ajustes/mahindra', grupo: 'Visualização', departamento: 'Estoque' },
+  { key: 'ajustes:mahindra', label: 'Arquivo Mahindra', href: '/ajustes/mahindra', grupo: 'Visualização', departamento: 'Estoque', funcao: 'Notas e relatórios' },
   // Informação
-  { key: 'ajustes:alertas', label: 'Alertas', href: '/ajustes/alertas', grupo: 'Informação', departamento: 'Estoque' },
+  { key: 'ajustes:alertas', label: 'Alertas', href: '/ajustes/alertas', grupo: 'Informação', departamento: 'Estoque', funcao: 'Custo (CMC)' },
   { key: 'ajustes:saude-mensal', label: 'Saúde mensal', href: '/ajustes/saude-mensal', grupo: 'Informação', departamento: 'Financeiro' },
-  { key: 'ajustes:historico', label: 'Histórico', href: '/ajustes/historico', grupo: 'Informação', departamento: 'Estoque' },
+  { key: 'ajustes:historico', label: 'Histórico', href: '/ajustes/historico', grupo: 'Informação', departamento: 'Estoque', funcao: 'Custo (CMC)' },
 ];

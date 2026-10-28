@@ -237,7 +237,15 @@ function PropostaComercialPageInner() {
   ]
 
   return (
-    <div className="w-full bg-zinc-50 min-h-screen pb-20">
+    <div className="prop-pagina w-full bg-zinc-50 min-h-screen pb-20">
+      {/* celular: nas janelas (proposta, trator, implemento…) os campos ficam lado a lado
+          com flex-1 e cortavam nome, CPF/CNPJ e I.E. — a linha quebra e cada campo tem largura mínima */}
+      <style>{`
+        @media (max-width: 640px) {
+          .prop-pagina .flex:has(> .flex-1.p-3) { flex-wrap: wrap; }
+          .prop-pagina .flex:has(> .flex-1.p-3) > .p-3 { min-width: 140px; }
+        }
+      `}</style>
       <style jsx>{`
         .chrome-tabs { display: flex; align-items: flex-end; gap: 4px; padding: 0 10px; }
         .chrome-tab {

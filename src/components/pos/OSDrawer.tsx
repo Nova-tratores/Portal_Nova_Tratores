@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
+import { useMarcarCaso } from "@/lib/uso/caso";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE, PHASES } from "@/lib/pos/constants";
@@ -18,6 +19,7 @@ import ModalEditarItemOS from "./ModalEditarItemOS";
 import { PPVMiniProvider } from "@/lib/ppv/PPVContext";
 import OSGarantiaInfo from "@/components/garantias/OSGarantiaInfo";
 import MaquinasClienteIcone from "@/components/MaquinasClienteIcone";
+import LocalizacaoClienteModal from "./LocalizacaoClienteModal";
 import OSUnidadesInfo from "@/components/ppv/OSUnidadesInfo";
 import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import { useAuth } from "@/hooks/useAuth";
@@ -32,11 +34,19 @@ import AnexosModal from "@/components/ppv/AnexosModal";
 import TarefasModal from "@/components/ppv/TarefasModal";
 import ChequeRevisaoBloco from "./ChequeRevisaoBloco";
 import AssinaturaClienteBloco from "./AssinaturaClienteBloco";
+import ResservicoBloco from "./ResservicoBloco";
+import ComissaoOSBloco from "./ComissaoOSBloco";
+import TemparioOSBloco from "./TemparioOSBloco";
 import ModalNovoCliente from "@/components/clientes/ModalNovoCliente";
 import ModalNovaMaquina from "@/components/clientes/ModalNovaMaquina";
 import MaquinasClienteDestaque from "./MaquinasClienteDestaque";
+// Cobrança das requisições + lembretes ligados à OS (José, 26/10/2026)
+import { SeloCobranca, AcoesCobranca, AvisoCobrancaOS, temCobranca, statusCobranca, type ReqCobranca } from "./CobrancaRequisicao";
+import LembretesDaOS from "./LembretesDaOS";
+import { ModalValorLembrete, ModalMotivoDesconto, IconeMotivoDesconto, temValorPendente, tituloLembrete, valorDoLembrete, type LembreteValor } from "./ValoresLembreteOS";
 import { GradeServicosOmie, AbaDepartamentos, AbaInfoAdicionais, AbaParcelas, AbaEmail, ClienteOmieModal, SeletorCondicao, SeletorTecnicos, Chave, useListasOmie } from "./OSOmieAbas";
 import { espelhoPadrao, normalizarEspelho, aplicarInterna, totalExtras, type OmieEspelho } from "@/lib/pos/omie-espelho";
+import type { DocAnterior } from "@/lib/pos/omie-anteriores";
 
 // Previsão de faturamento vazia = hoje (José, 13/10/2026), no fuso de São Paulo, "aaaa-mm-dd".
 const hojeSP = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
@@ -118,6 +128,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [clienteChave, setClienteChave] = useState("");
   const [clienteInfo, setClienteInfo] = useState<ClienteDados | null>(null);
   const [status, setStatus] = useState("Orçamento");
+  // Fase que o BANCO tinha quando a janela carregou (ou depois de uma ação do servidor).
+  // O salvar manda junto: se a pessoa não mexeu na fase, o servidor não regrava a fase velha
+  // por cima do que o robô ou o Tratorilson moveram enquanto a janela estava aberta.
+  const statusDoBanco = useRef<string | null>(null);
+  const setStatusDoServidor = (s: string) => { statusDoBanco.current = s; setStatus(s); };
   // OS faturada (NFS-e ou recibo): fase trancada — só pode ir para Concluída (o servidor também recusa)
   const [faturadaEm, setFaturadaEm] = useState<string | null>(null);
   const [tecnico1, setTecnico1] = useState("");
@@ -285,11 +300,14 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   // Incrementado após importar um orçamento → força recarregar os dados da OS
   const [reloadKey, setReloadKey] = useState(0);
   const [showProjModal, setShowProjModal] = useState(false);
+  const [verLocalizacao, setVerLocalizacao] = useState(false);
   // atalhos de cadastro (criam no Omie e já usam na OS)
   const [showNovoCliente, setShowNovoCliente] = useState(false);
   const [showNovaMaquina, setShowNovaMaquina] = useState(false);
   const [showRevModal, setShowRevModal] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+  // celular/tablet: a coluna de ações vira gaveta que sobe de baixo (fechada = só Salvar + "Ações")
+  const [acoesAbertas, setAcoesAbertas] = useState(false);
   const [printMenu, setPrintMenu] = useState(false);
   // O rail tem overflow-y:auto e cortava o menu; abrimos ele em position:fixed.
   const printBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -414,7 +432,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       .catch(() => { /* sem garantia */ });
     return () => { ativo = false; };
   }, [visible, osId]);
-  const [requisicoes, setRequisicoes] = useState<Array<{ id: string; atualizada: boolean; valor: number; material: string; solicitante: string }>>([]);
+  const [omieAnteriores, setOmieAnteriores] = useState<DocAnterior[]>([]);
+  const [requisicoes, setRequisicoes] = useState<Array<{ id: string; atualizada: boolean; valor: number; material: string; solicitante: string; tipo?: string | null; status?: string | null; cobranca_status?: string | null; cobranca_motivo?: string | null; cobranca_por?: string | null; cobranca_em?: string | null }>>([]);
   const [desvinculandoReq, setDesvinculandoReq] = useState<string | null>(null);
   const [justificativaDesvinc, setJustificativaDesvinc] = useState("");
   const [clienteFilter, setClienteFilter] = useState("");
@@ -459,7 +478,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [showDescontos, setShowDescontos] = useState(false);
   const [dadosTecnico, setDadosTecnico] = useState<any>(null);
   const [fotoExpandida, setFotoExpandida] = useState<string | null>(null);
-  const [lembretes, setLembretes] = useState<Array<{ id: number; lembrete: string }>>([]);
+  const [lembretes, setLembretes] = useState<Array<LembreteValor>>([]);
+  // Lembrete com valor (cobrar / crédito) ao abrir a OS + motivo do desconto (José, 27/10/2026)
+  const [lembretesAdiados, setLembretesAdiados] = useState<number[]>([]);
+  const [aplicandoLembrete, setAplicandoLembrete] = useState(false);
+  const [salvarPendente, setSalvarPendente] = useState(false);
+  const concluirAoSalvarRef = useRef<Array<{ id: number; nota: string; resto?: number }>>([]);
+  /** desconto geral que já tem motivo (o carregado da OS conta como explicado) */
+  const descExplicadoRef = useRef(0);
+  const [pedirMotivo, setPedirMotivo] = useState(false);
   const [editingLembreteId, setEditingLembreteId] = useState<number | null>(null);
   const [editingLembreteText, setEditingLembreteText] = useState("");
   const [estimativa, setEstimativa] = useState<{
@@ -765,34 +792,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     }
   }, []);
 
-  const salvarLembreteInline = useCallback(async (id: number, texto: string) => {
-    try {
-      await fetch(`/api/pos/lembretes/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lembrete: texto }),
-      });
-      setLembretes((prev) => prev.map((l) => l.id === id ? { ...l, lembrete: texto } : l));
-      setEditingLembreteId(null);
-    } catch {
-      alert("Erro ao salvar lembrete.");
-    }
-  }, []);
-
-  const concluirLembrete = useCallback(async (id: number) => {
-    if (!osId) { alert("Salve a OS antes de concluir o lembrete."); return; }
-    if (!confirm(`Concluir este lembrete e registrar que foi resolvido na OS ${osId}?`)) return;
-    try {
-      await fetch(`/api/pos/lembretes/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ concluido: true, concluido_por: userName, concluido_em_ordem: String(osId) }),
-      });
-      setLembretes((prev) => prev.filter((l) => l.id !== id));
-    } catch {
-      alert("Erro ao concluir lembrete.");
-    }
-  }, [osId, userName]);
+  // Editar/concluir lembrete agora fica no LembretesDaOS (confere a resposta do servidor) (José, 26/10/2026)
 
   const selectCliente = useCallback(async (chave: string) => {
     setClienteChave(chave);
@@ -812,6 +812,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
 
   // Equipamento escolhido (busca ou "Nova máquina"): grava o projeto e completa
   // Modelo/Chassis da descrição sem apagar o que já foi escrito.
+  const aplicarEquipamentoRef = useRef<null | ((nome: string, modelo: string, chassis: string) => void)>(null);
   const aplicarEquipamento = (nome: string, modelo: string, chassis: string) => {
     setProjeto(nome);
     if (!servSolicitado || servSolicitado.trim() === "" || servSolicitado === TEXT_TEMPLATE) {
@@ -824,6 +825,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       setServSolicitado(lines.join("\n"));
     }
   };
+  useEffect(() => { aplicarEquipamentoRef.current = aplicarEquipamento; });
 
   const syncDiscount = useCallback((type: "P" | "V", value: number) => {
     if (type === "P") {
@@ -835,7 +837,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     }
   }, [subtotalBruto]);
 
-  const salvarRef = useRef<null | (() => Promise<boolean>)>(null);
+  const salvarRef = useRef<null | ((ajuste?: unknown) => Promise<boolean>)>(null);
   // janela do envio ao Omie: confirmar → enviando (passos + estimativa) → resultado
   const [envioOmie, setEnvioOmie] = useState<FaseEnvioOmie | null>(null);
   const enviarParaOmie = useCallback(() => {
@@ -866,7 +868,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         setEnvioOmie({ fase: "ok", numeroOS: String(result.cNumOS || ""), pedidos: result.pedidoVenda || undefined, erroPecas: result.pedidoVendaErro || undefined });
         if (result.cNumOS) setOrdemOmie(String(result.cNumOS));
         // Interna conclui; externa vai COBRAR o cliente antes de concluir
-        setStatus(servicoInterno ? "Concluída" : "Cobrando Cliente");
+        setStatusDoServidor(servicoInterno ? "Concluída" : "Cobrando Cliente");
         setLogRefreshKey((k) => k + 1);
         onSaved?.();
       } else {
@@ -893,7 +895,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       });
       const result = await res.json();
       if (res.ok && result.success) {
-        setStatus("Concluída");
+        setStatusDoServidor("Concluída");
         setLogRefreshKey((k) => k + 1);
         onSaved?.();
       } else {
@@ -932,12 +934,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     finally { setDuplicando(false); }
   };
 
-  const salvar = useCallback(async (): Promise<boolean> => {
+  const salvar = useCallback(async (ajuste?: unknown): Promise<boolean> => {
+    const aj = (ajuste && typeof ajuste === "object" && !("nativeEvent" in ajuste) ? ajuste : {}) as { previsaoFaturamento?: string; projeto?: string };
     if (mode === "edit" && !podeEditar) { alert("Você não tem permissão para editar esta OS."); return false; }
     if (status === "Cancelada" && !podeCancelar) { alert("Você não tem permissão para cancelar OS."); return false; }
     if (mode === "create" && !clienteChave) { alert("Selecione o Cliente"); return false; }
     if (status === "Cancelada" && !motivoCancel.trim()) { alert("Informe o motivo do cancelamento"); return false; }
     if (status === "Cancelada" && temSubstituto && !substitutoId.trim()) { alert("Informe o ID do substituto"); return false; }
+    // desconto novo ou mudado sem motivo → pede o motivo antes de salvar (José, 27/10/2026)
+    if (descValor > 0.004 && Math.abs(descValor - descExplicadoRef.current) > 0.004) { setPedirMotivo(true); return false; }
     // Aberta AGORA (ainda no clique) pra o navegador não bloquear o pop-up;
     // recebe o endereço do formulário depois que a OS existir
     const janelaReq = mode === "create" && abrirReqDepois ? window.open("about:blank", "_blank") : null;
@@ -946,8 +951,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       id: osId, nomeCliente: clienteInfo?.nome, cpfCliente: clienteInfo?.cpf,
       enderecoCliente: servicoOficina ? 'Nova Tratores - Av. São Sebastião, 1065 - Vila Campos, Piraju - SP' : clienteInfo?.endereco,
       cidadeCliente: servicoOficina ? 'Piraju' : (clienteInfo?.cidade || ''), tecnicoResponsavel: tecnico1, tecnico2,
-      tipoServico, revisao, projeto, servicoSolicitado: servSolicitado, observacoes,
+      tipoServico, revisao, projeto: typeof aj.projeto === "string" ? aj.projeto : projeto, servicoSolicitado: servSolicitado, observacoes,
       qtdHoras, qtdKm, valorHora: VH, valorKm: VK, ppv, status: mode === "create" ? "Orçamento" : status,
+      statusAoAbrir: mode === "create" ? null : statusDoBanco.current,
       ordemOmie, motivoCancelamento: motivoCancel,
       substitutoTipo: temSubstituto ? substitutoTipo : null,
       substitutoId: temSubstituto ? substitutoId : null,
@@ -956,7 +962,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       relatorioTecnico,
       diasExecucao: diasExecucao.sort().join(','),
       previsaoExecucao,
-      previsaoFaturamento: previsaoFaturamento || hojeSP(),
+      previsaoFaturamento: (typeof aj.previsaoFaturamento === "string" && aj.previsaoFaturamento) || previsaoFaturamento || hojeSP(),
       dataFimServico,
       horaInicioServico,
       servicoNumero,
@@ -1013,6 +1019,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         else janelaReq.close();
       }
       if (!previsaoFaturamento) setPrevisaoFaturamento(hojeSP());
+      // lembretes com valor aplicados nesta OS: concluem agora que a OS foi gravada
+      const aConcluir = concluirAoSalvarRef.current.splice(0);
+      for (const c of aConcluir) {
+        const corpo = c.resto && c.resto > 0
+          ? { valor: c.resto, conclusao_nota: c.nota }
+          : { concluido: true, concluido_por: userName || "Sistema", conclusao_nota: c.nota, concluido_em_ordem: String(result.novaOsId || osId || "") || null };
+        await fetch(`/api/pos/lembretes/${c.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify(corpo) }).catch(() => null);
+      }
+      if (aConcluir.length) setLembretes((prev) => prev.filter((x) => !aConcluir.some((c) => c.id === x.id && !(c.resto && c.resto > 0))));
       setSaving(false);
       setLogRefreshKey((k) => k + 1);
       // Avisa quando a ordem muda de externa↔interna (muda só o destino das peças)
@@ -1039,8 +1054,63 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       servSolicitado, qtdHoras, qtdKm, ppv, status, ordemOmie, motivoCancel, descValor,
       descHoraValor, descKmValor, relatorioTecnico, previsaoExecucao, previsaoFaturamento, dataFimServico, servicoNumero,
       gerarPPV, servicoOficina, servicoInterno, alimentacoes, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved, podeEditar, podeCancelar,
-      pecasPendentes, abrirReqDepois]);
+      pecasPendentes, abrirReqDepois, esp, descHoraEf, descKmEf, userName]);
+
+  // Aplicou valor de lembrete: salva a OS assim que o estado novo (espelho/desconto) estiver no salvar
+  useEffect(() => {
+    if (!salvarPendente) return;
+    setSalvarPendente(false);
+    salvar().finally(() => setAplicandoLembrete(false));
+  }, [salvarPendente, salvar]);
+
+  const lembreteComValor = useMemo(
+    () => (mode === "edit" && podeEditar && !faturadaEm && status !== "Cancelada" && status !== "Concluída")
+      ? lembretes.find((l) => temValorPendente(l) && !lembretesAdiados.includes(l.id)) || null
+      : null,
+    [mode, podeEditar, faturadaEm, status, lembretes, lembretesAdiados]);
+
+  const aplicarLembreteValor = (l: LembreteValor) => {
+    const valor = valorDoLembrete(l);
+    const titulo = tituloLembrete(l.lembrete);
+    setAplicandoLembrete(true);
+    if (l.valor_tipo === "credito") {
+      const cabe = Math.max(0, Math.min(valor, Math.round(total * 100) / 100));
+      const novo = Math.round((descValor + cabe) * 100) / 100;
+      const anterior = esp.descontoMotivo?.texto && descValor > 0 ? `${esp.descontoMotivo.texto} + ` : "";
+      syncDiscount("V", novo);
+      setShowDescontos(true);
+      setEsp((x) => ({ ...x, descontoMotivo: { texto: `${anterior}${titulo}`, valor: novo, por: userName || "Sistema", em: new Date().toISOString() } }));
+      descExplicadoRef.current = novo;
+      const resto = Math.round((valor - cabe) * 100) / 100;
+      concluirAoSalvarRef.current.push({ id: l.id, nota: `Crédito de R$ ${fmtBR(cabe)} aplicado como desconto na OS ${osId}`, resto: resto > 0 ? resto : undefined });
+    } else {
+      setEsp((x) => ({ ...x, extras: [...x.extras, { id: `lb-${l.id}`, codigo: "div.", nome: "Diversos", descricao: titulo, qtde: 1, unit: valor, cobrar: true }] }));
+      concluirAoSalvarRef.current.push({ id: l.id, nota: `Incluído na OS ${osId} como Diversos de R$ ${fmtBR(valor)}` });
+    }
+    setLembretesAdiados((p) => [...p, l.id]);
+    setSalvarPendente(true);
+  };
+
+  const salvarMotivoDesconto = (texto: string) => {
+    setEsp((x) => ({ ...x, descontoMotivo: { texto, valor: descValor, por: userName || "Sistema", em: new Date().toISOString() } }));
+    descExplicadoRef.current = descValor;
+    setPedirMotivo(false);
+  };
+  const cancelarMotivoDesconto = () => {
+    // sem motivo o desconto volta ao que já estava explicado
+    syncDiscount("V", descExplicadoRef.current);
+    setPedirMotivo(false);
+  };
+  const conferirMotivoDesconto = () => {
+    if (descValor > 0.004 && Math.abs(descValor - descExplicadoRef.current) > 0.004) setPedirMotivo(true);
+  };
   useEffect(() => { salvarRef.current = salvar; }, [salvar]);
+  // travas antes de faturar (previsão = hoje, projeto): a tela muda junto, senão o próximo Salvar desfaria
+  const ajustarParaFaturar = useCallback(async (c: { previsaoFaturamento?: string; projeto?: string }): Promise<boolean> => {
+    if (c.previsaoFaturamento) setPrevisaoFaturamento(c.previsaoFaturamento);
+    if (c.projeto) { const partes = c.projeto.trim().split(/\s+/); aplicarEquipamentoRef.current?.(c.projeto, partes[0] || "", partes.slice(1).join(" ") || ""); }
+    return (await salvarRef.current?.(c)) ?? false;
+  }, []);
 
   // ── Reset form to defaults ──
   const resetForm = useCallback(() => {
@@ -1048,7 +1118,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setTecnico1(""); setTecnico2(""); setTipoServico("Manutenção");
     setProjeto(""); setRevisao(""); setServSolicitado(TEXT_TEMPLATE);
     setPecasPendentes([]); setAbrirReqDepois(false);
-    setPpv(""); setQtdHoras(1); setQtdKm(0); setUnitHr(null); setUnitKm(null); setNotasEsperaDesde(null); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0); setEspRaw(espelhoPadrao());
+    setPpv(""); setQtdHoras(1); setQtdKm(0); setUnitHr(null); setUnitKm(null); setNotasEsperaDesde(null); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0); setEspRaw(espelhoPadrao()); descExplicadoRef.current = 0; concluirAoSalvarRef.current = []; setLembretesAdiados([]); setPedirMotivo(false);
     setOrdemOmie(""); setPedidoVenda(""); setOmieLog(""); setMotivoCancel(""); setTemSubstituto(false); setSubstitutoTipo("POS"); setSubstitutoId("");
     setRelatorioTecnico("");
     const agora = new Date()
@@ -1057,7 +1127,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setPrevisaoExecucao(hojeStr)
     setPrevisaoFaturamento(""); setDataFimServico(""); setDiasExecucao([]); setServicoNumero(0); setHoraInicioExec(horaStr); setHoraChegada(""); setHoraFimExec(""); setAgendaTecnico([]);
     setEstimativa(null); setErroEstimativa(""); setLoadingEstimativa(false); setEnderecoEstimativa(""); setEnderecosDisponiveis([]);
-    setProdutos([]); setTotalPecas(0); setShowLogs(false); setRequisicoes([]); setReqsOcultasPrint(new Set());
+    setProdutos([]); setTotalPecas(0); setShowLogs(false); setRequisicoes([]); setReqsOcultasPrint(new Set()); setOmieAnteriores([]);
     setGerarPPV(false); setShowDescontos(false); setLoadingData(false);
     setLembretes([]); setEditingLembreteId(null);
     setServicoOficina(false);
@@ -1090,7 +1160,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         .then((d) => {
           if (!d || ac.signal.aborted) return;
           setClienteInfo({ nome: d.nomeCliente, cpf: d.cpfCliente || "", email: "", telefone: "", endereco: d.enderecoCliente || "", cidade: d.cidadeCliente || "" });
-          setStatus(d.status || "Orçamento");
+          setStatusDoServidor(d.status || "Orçamento");
           setTecnico1(d.tecnicoResponsavel || ""); setTecnico2(d.tecnico2 || "");
           setTipoServico(d.tipoServico || "Manutenção"); setRevisao(d.revisao || "");
           setProjeto(d.projeto || "");
@@ -1100,7 +1170,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           const dv = parseFloat(d.descontoSalvo || 0);
           const dh = parseFloat(d.descontoHora || 0);
           const dk = parseFloat(d.descontoKm || 0);
-          setDescValor(dv);
+          setDescValor(dv); descExplicadoRef.current = dv; setLembretesAdiados([]); concluirAoSalvarRef.current = [];
           setDescHoraValor(dh);
           setDescKmValor(dk);
           setEspRaw(normalizarEspelho(d.omieEspelho, espelhoPadrao({ interna: !!d.servicoInterno, garantia: /garantia/i.test(String(d.tipoServico || "")) })));
@@ -1125,6 +1195,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           setHoraChegada(d.horaChegada || "");
           setHoraFimExec(d.horaFimExec || "");
           setRequisicoes(d.infoRequisicoes || []);
+          setOmieAnteriores(Array.isArray(d.omieAnteriores) ? d.omieAnteriores : []);
           setServicoOficina(!!d.servicoOficina);
           setServicoInterno(!!d.servicoInterno);
           internoOriginalRef.current = !!d.servicoInterno;
@@ -1170,6 +1241,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   }, [visible, mode, osId, loadPPV, resetForm, reloadKey]);
 
   // ── Early return ──
+  // Monitor de uso: avisa a jornada qual OS está aberta (só hashes ficam no navegador).
+  useMarcarCaso(visible && mode === "edit" && osId ? { os: osId, ppv: ppv.split(","), doc: clienteInfo?.cpf, textoChassi: `${projeto} ${dadosTecnico?.chassis || ""}` } : null);
   if (!visible) return null;
 
   // PPVs vinculados (o campo aceita vários separados por vírgula)
@@ -1402,20 +1475,42 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           @media (max-width: 900px) {
             .pos-osd .os-header { flex-wrap: wrap; gap: 8px; }
             .pos-osd .os-header-left { flex-wrap: wrap; min-width: 0; }
+            /* Celular/tablet (28/10/2026): a coluna de ações cobria a OS inteira. Agora a OS ocupa a tela e
+               embaixo fica uma barra fixa só com Salvar + "Ações"; "Ações" sobe a coluna como gaveta. */
             .pos-osd .modal-container { flex-direction: column; }
-            .pos-osd .os-action-rail { width: 100%; align-self: auto; border-left: none; border-top: 1px solid var(--border); border-radius: 0; max-height: none; flex-direction: row; flex-wrap: wrap; gap: 8px; padding: 10px 12px; position: sticky; bottom: 0; box-shadow: 0 -6px 18px rgba(0,0,0,0.08); }
-            .pos-osd .os-rail-btn { width: auto; flex: 1 1 30%; justify-content: center; padding: 10px 12px; min-height: 40px; }
-            .pos-osd .os-action-rail > div { flex: 1 1 30%; }
-            .pos-osd .os-action-rail > div > .os-rail-btn { width: 100%; }
-            .pos-osd .os-rail-btn.primary { order: -1; flex: 1 1 100%; margin-bottom: 0; }
-            .pos-osd .os-rail-sep, .pos-osd .os-rail-hint { flex: 1 1 100%; }
+            .pos-osd .os-drawer { flex: 1 1 auto; min-height: 0; max-height: none !important; }
+            .pos-osd .os-body { padding-bottom: 84px !important; }
+            .pos-osd .os-action-rail.os-rail-nova { position: fixed !important; left: 0; right: 0; bottom: 0; z-index: 60; width: auto !important; max-height: none !important;
+              flex-direction: row !important; flex-wrap: nowrap; align-items: center; gap: 8px !important; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)) !important;
+              border: none; border-top: 1px solid var(--border); border-radius: 0; overflow: visible; box-shadow: 0 -6px 18px rgba(0,0,0,0.10); }
+            .pos-osd .os-action-rail.os-rail-nova > * { display: none !important; }
+            .pos-osd .os-action-rail.os-rail-nova > style,
+            .pos-osd .os-action-rail.os-rail-nova > .os-rail-btn.primary,
+            .pos-osd .os-action-rail.os-rail-nova > .os-rail-gaveta-btn { display: flex !important; }
+            .pos-osd .os-action-rail.os-rail-nova > style { display: none !important; }
+            .pos-osd .os-action-rail.os-rail-nova > .os-rail-btn.primary { flex: 1 1 auto; justify-content: center; margin: 0 !important; }
+            .pos-osd .os-rail-gaveta-btn { flex: 0 0 auto; align-items: center; gap: 8px; height: 46px; padding: 0 16px; border-radius: 12px; border: 1.5px solid var(--border);
+              background: var(--surface, #fefefe); color: var(--portal-text); font-size: 14.5px; font-weight: 700; cursor: pointer; }
+            .pos-osd .os-rail-gaveta-fundo { position: fixed; inset: 0; z-index: 59; background: rgba(15,23,42,.45); }
+            /* botão "Quem acessa" (Dev) sobe para não ficar em cima do Salvar */
+            body:has(.pos-osd) .quem-acessa-btn { bottom: 84px !important; }
+            /* gaveta aberta: a coluna inteira, um bloco embaixo do outro */
+            .pos-osd .os-action-rail.os-rail-nova.aberta { top: 12vh; flex-direction: column !important; flex-wrap: nowrap; align-items: stretch; overflow-y: auto;
+              border-radius: 18px 18px 0 0; padding-top: 8px !important; }
+            .pos-osd .os-action-rail.os-rail-nova.aberta > * { display: flex !important; flex: 0 0 auto !important; width: 100% !important; max-width: none !important; }
+            .pos-osd .os-action-rail.os-rail-nova.aberta > div { flex-direction: column; }
+            .pos-osd .os-action-rail.os-rail-nova.aberta > style { display: none !important; }
+            .pos-osd .os-action-rail.os-rail-nova.aberta > .os-rail-gaveta-btn { order: -2; justify-content: center; border: none; background: transparent; height: 36px; color: var(--portal-text-secondary); }
+            .pos-osd .os-action-rail.os-rail-nova.aberta > .os-rail-btn.primary { order: -1; }
+            .pos-osd .os-action-rail.os-rail-nova.aberta .os-rail-btn:not(.primary) { justify-content: flex-start; width: 100%; }
           }
+          @media (min-width: 901px) { .pos-osd .os-rail-gaveta-btn, .pos-osd .os-rail-gaveta-fundo { display: none !important; } }
           @media (max-width: 640px) {
-            .pos-osd .pos-osd-grid2 { grid-template-columns: 1fr !important; gap: 10px !important; }
+            /* minmax(0,1fr): com 1fr puro o nome comprido do cliente esticava a coluna para fora da tela */
+            .pos-osd .pos-osd-grid2 { grid-template-columns: minmax(0, 1fr) !important; gap: 10px !important; }
+            .pos-osd .pos-osd-grid2 > * { min-width: 0; }
             .pos-osd .os-summary { padding: 10px !important; }
             .pos-osd .os-tab { padding: 10px 14px; font-size: 14px; }
-            .pos-osd .os-rail-btn, .pos-osd .os-action-rail > div { flex-basis: 45%; }
-            .pos-osd .os-rail-btn.primary { flex-basis: 100%; }
           }
         `}</style>
         <div className="modal-container">
@@ -1444,53 +1539,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                 )}
               </div>
               <div className="os-header-actions">
-                {mode === "edit" && lembretes.length > 0 && (
-                  <div style={{ position: "relative" }}>
-                    <button type="button" onClick={() => setShowLembretes(o => !o)} title="Lembretes do cliente"
-                      style={{ position: "relative", width: 38, height: 38, borderRadius: 10, border: "1.5px solid #FB923C", background: "#FFF7ED", color: "#C2410C", cursor: "pointer", fontSize: 15, marginRight: 8 }}>
-                      <i className="fas fa-bell" />
-                      <span style={{ position: "absolute", top: -6, right: -6, minWidth: 17, height: 17, borderRadius: 9, background: "#EA580C", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{lembretes.length}</span>
-                    </button>
-                    {showLembretes && (
-                      <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 300, width: "min(460px, 86vw)", maxHeight: 420, overflowY: "auto", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "0 16px 40px rgba(0,0,0,.22)", padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
-                  {lembretes.map((l) => (
-                    <div key={l.id} className="os-lembrete-alert">
-                      <div className="os-lembrete-alert-header">
-                        <i className="fas fa-bell" /> Lembrete
-                      </div>
-                      {editingLembreteId === l.id ? (
-                        <div>
-                          <textarea
-                            rows={3}
-                            value={editingLembreteText}
-                            onChange={(e) => setEditingLembreteText(e.target.value)}
-                            style={{ marginBottom: 8 }}
-                          />
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                            <button className="os-lembrete-edit-btn" onClick={() => setEditingLembreteId(null)}>Cancelar</button>
-                            <button className="os-lembrete-edit-btn" onClick={() => salvarLembreteInline(l.id, editingLembreteText)}>Salvar</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="os-lembrete-alert-text">{l.lembrete}</div>
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                            <button className="os-lembrete-edit-btn" onClick={() => { setEditingLembreteId(l.id); setEditingLembreteText(l.lembrete); }}>
-                              <i className="fas fa-pen" style={{ marginRight: 4 }} /> Editar
-                            </button>
-                            {osId && (
-                              <button className="os-lembrete-edit-btn" style={{ background: "#10B981", color: "#fff", borderColor: "#10B981" }} onClick={() => concluirLembrete(l.id)}>
-                                <i className="fas fa-check" style={{ marginRight: 4 }} /> Concluir
-                              </button>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))}
-                      </div>
-                    )}
-                  </div>
+                {/* Sino: lembretes do cliente + os ligados a esta OS, com cobrança em destaque (José, 26/10/2026) */}
+                {mode === "edit" && (
+                  <LembretesDaOS osId={osId} userName={userName || ""} lembretesCliente={lembretes} onLembretesCliente={setLembretes} />
                 )}
                 <button className="os-btn-close" onClick={onClose} style={{ display: "inline-flex", alignItems: "center", gap: 8, width: "auto", padding: "6px 12px" }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>Fechar</span>
@@ -1558,6 +1609,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                               </button>
                               <button type="button" className="osh-ico" onClick={() => setVerClienteOmie(true)} title="Informações do cliente (cadastro no Omie)"><i className="fas fa-paperclip" /></button>
                               <MaquinasClienteIcone doc={clienteInfo.cpf} className="osh-ico" botaoStyle={{ width: 42, height: "100%", border: "none", borderLeft: "1px solid var(--border)", borderRadius: 0, fontSize: 13 }} />
+                              {mode === "edit" && osId && clienteInfo.cpf && <button type="button" className="osh-ico" onClick={() => setVerLocalizacao(true)} title="Localização do cliente (GPS do carro do técnico)"><i className="fas fa-location-dot" /></button>}
                               {podeEditar && <button type="button" className="osh-ico" onClick={() => setMostrarTrocaCliente((o) => !o)} title="Trocar o cliente"><i className="fas fa-magnifying-glass" /></button>}
                             </div>
                           </div>
@@ -1575,6 +1627,17 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                             .osh-doc { font-size: 11px; color: #64748b; font-variant-numeric: tabular-nums; }
                             .osh-ico { width: 42px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: none; border-left: 1px solid var(--border); background: transparent; color: #475569; cursor: pointer; font-size: 13px; transition: background .15s, color .15s; }
                             .osh-ico:hover { background: color-mix(in srgb, #0F8B8D 10%, transparent) !important; color: #0B6E70 !important; }
+                            /* celular: nome inteiro numa linha e os botões numa faixa embaixo (antes o nome sumia atrás dos ícones) */
+                            @media (max-width: 640px) {
+                              .osh-selo { display: none; }
+                              .osh-caixa { flex-wrap: wrap; height: auto; overflow: hidden; }
+                              .osh-caixa > *, .osh-caixa > :first-child, .osh-caixa > :last-child, .osh-caixa > :last-child > button { border-radius: 0 !important; }
+                              .osh-nome { flex: 1 1 100%; padding: 8px 12px; }
+                              .osh-nome-txt { white-space: normal; line-height: 1.25; }
+                              .osh-caixa > :not(.osh-nome) { flex: 1 1 0; height: 38px; border-top: 1px solid var(--border); }
+                              .osh-caixa > :not(.osh-nome) button, .osh-caixa > button.osh-ico { width: 100% !important; }
+                              .osh-caixa > .osh-ico:nth-child(2), .osh-caixa > :nth-child(2) > button { border-left: none !important; }
+                            }
                           `}</style>
                         </div>
                         <div>
@@ -1601,8 +1664,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                               <i className="fas fa-pen" />
                             </button>{" "}
                             <span style={{ fontSize: 10.5, color: "#b7b0a3" }}>({descontoModoOS === "pct" ? "%" : "R$"})</span>
+                            {descValor > 0 && esp.descontoMotivo?.texto && (
+                              <IconeMotivoDesconto motivo={esp.descontoMotivo.texto} por={esp.descontoMotivo.por} onClick={() => setPedirMotivo(true)} />
+                            )}
                           </div>
-                          <div style={{ ...B_OMIE, padding: "0 8px", gap: 4 }}>
+                          <div style={{ ...B_OMIE, padding: "0 8px", gap: 4 }} onBlur={conferirMotivoDesconto}>
                             {descontoModoOS === "pct" ? (
                               <>
                                 <input type="number" value={descPorc || ""} min={0} max={100} step={0.5} placeholder="0" disabled={!podeEditar} title="Desconto em %"
@@ -1698,6 +1764,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         </div>
                         {tipoServico === "Revisão" && osId && <ChequeRevisaoBloco osId={osId} podeEditar={podeEditar} />}
                         {osId && <AssinaturaClienteBloco osId={osId} podeEditar={podeEditar} />}
+                        {osId && <ResservicoBloco key={osId} osId={osId} podeEditar={podeEditar} tecnicos={tecnicos} tecnicoAtual={tecnico1} />}
+                        {osId && <ComissaoOSBloco osId={osId} podeEditar={podeEditar} />}
                       </div>
                     );
                   })()}
@@ -1713,7 +1781,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   )}
                   {mode === "edit" && abaOmie === "deptos" && <div className="os-card" style={{ order: -4.6 }}><AbaDepartamentos esp={esp} setEsp={setEsp} listas={listasOmie.listas} total={total} podeEditar={podeEditar} /></div>}
                   {mode === "edit" && abaOmie === "info" && <div className="os-card" style={{ order: -4.6 }}><AbaInfoAdicionais esp={esp} setEsp={setEsp} listas={listasOmie.listas} interna={servicoInterno} projeto={projeto} onTrocarProjeto={podeEditar ? () => setShowProjModal(true) : undefined} onNovaMaquina={podeEditar ? () => setShowNovaMaquina(true) : undefined} numOmie={ordemOmie} ppv={ppv} oficina={servicoOficina} cnpj={clienteInfo?.cpf || ""} pedidoCliente={String(pedidoVenda || "").split(",").map((x) => x.split(":").pop()?.trim().replace(/^0+(?=\d)/, "")).filter(Boolean).join(", ")} podeEditar={podeEditar} /></div>}
-                  {mode === "edit" && abaOmie === "parcelas" && <div className="os-card" style={{ order: -4.6 }}><AbaParcelas esp={esp} setEsp={setEsp} previsao={previsaoFaturamento} total={total} interna={servicoInterno} faturada={!!listasOmie.os && (listasOmie.os.InfoCadastro as { cFaturada?: string } | undefined)?.cFaturada === "S"} podeEditar={podeEditar} /></div>}
+                  {mode === "edit" && abaOmie === "parcelas" && <div className="os-card" style={{ order: -4.6 }}><AbaParcelas esp={esp} setEsp={setEsp} previsao={previsaoFaturamento} total={Math.max(0, total - totalPecas)} interna={servicoInterno} faturada={!!listasOmie.os && (listasOmie.os.InfoCadastro as { cFaturada?: string } | undefined)?.cFaturada === "S"} podeEditar={podeEditar} /></div>}
                   {mode === "edit" && abaOmie === "email" && <div className="os-card" style={{ order: -4.6 }}><AbaEmail esp={esp} setEsp={setEsp} interna={servicoInterno} podeEditar={podeEditar} emailCliente={String(listasOmie.cliente?.email || "")} /></div>}
                   {verClienteOmie && <ClienteOmieModal cliente={listasOmie.cliente} cnpj={clienteInfo?.cpf || ""} fechar={() => setVerClienteOmie(false)} />}
 
@@ -2048,6 +2116,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       {diasAtraso > 0 && <div className="rt-aviso vermelho"><i className="fas fa-triangle-exclamation" /> A previsão de execução era {previsaoExecucao.split("-").reverse().join("/")} e o relatório ainda não chegou.</div>}
                       {dt?.justificativaAtraso && <div className="rt-aviso amarelo"><b>Preenchido com atraso — justificativa:</b> {dt.justificativaAtraso}</div>}
                       {dt?.cartaCorrecao && <div className="rt-aviso amarelo"><b><i className="fas fa-pen-to-square" /> Carta de correção do técnico:</b><div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{dt.cartaCorrecao}</div></div>}
+                      {enviado && osId && <TemparioOSBloco osId={osId} />}
                       {dt && (<>
                       {tiles.length > 0 && (
                         <div className="rt-tiles">
@@ -2388,6 +2457,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                     {mode === "edit" && osId && (
                       <AssinaturaClienteBloco osId={osId} podeEditar={podeEditar} />
                     )}
+                    {mode === "edit" && osId && (
+                      <ResservicoBloco key={osId} osId={osId} podeEditar={podeEditar} tecnicos={tecnicos} tecnicoAtual={tecnico1} />
+                    )}
+                    {mode === "edit" && osId && (
+                      <ComissaoOSBloco osId={osId} podeEditar={podeEditar} />
+                    )}
                     {/* na edição o texto e horas/km ficam na Lista de Serviços (formato Omie) */}
                     {mode === "create" && <textarea rows={10} value={servSolicitado} onChange={(e) => setServSolicitado(e.target.value)} style={S_MONO_MB0} />}
                     {mode === "create" && <div style={{ display: "flex", gap: 16, marginTop: 12, flexWrap: "wrap" }}>
@@ -2408,6 +2483,19 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   <div className="os-card os-aba os-aba-obs">
                     <div className="os-card-title"><i className="fas fa-comment-dots" /> Observações</div>
                     <textarea rows={8} value={observacoes} onChange={(e) => setObservacoes(e.target.value)} placeholder="Observações internas da OS..." style={S_MONO_MB0} />
+                    {/* no PDF da OS só se marcar (começa desmarcado); grifar = fundo amarelo no texto todo (José, 23/10/2026) */}
+                    <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginTop: 10, fontSize: 13 }}>
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: 7, cursor: "pointer", margin: 0, textTransform: "none", letterSpacing: 0, fontWeight: 600 }}>
+                        <input type="checkbox" checked={!!esp.obsPdf?.mostrar} style={{ width: 16, height: 16, margin: 0 }}
+                          onChange={(e) => { const v = e.target.checked; setEsp((x) => ({ ...x, obsPdf: { mostrar: v, grifar: v ? !!x.obsPdf?.grifar : false } })); }} />
+                        Sair no PDF da ordem de serviço
+                      </label>
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: 7, cursor: esp.obsPdf?.mostrar ? "pointer" : "not-allowed", margin: 0, textTransform: "none", letterSpacing: 0, fontWeight: 600, opacity: esp.obsPdf?.mostrar ? 1 : .45 }}>
+                        <input type="checkbox" disabled={!esp.obsPdf?.mostrar} checked={!!esp.obsPdf?.grifar} style={{ width: 16, height: 16, margin: 0 }}
+                          onChange={(e) => { const v = e.target.checked; setEsp((x) => ({ ...x, obsPdf: { mostrar: !!x.obsPdf?.mostrar, grifar: v } })); }} />
+                        <span style={{ background: "#fde047", color: "#111111", padding: "0 5px", borderRadius: 3 }}>Grifar em amarelo</span> no PDF
+                      </label>
+                    </div>
                   </div>
 
                   {/* ── Cancelamento — logo abaixo das Observações ── */}
@@ -2447,13 +2535,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   {mode === "edit" && (
                     <div className="os-card" style={{ display: abaOmie === "requisicoes" ? "none" : undefined }}>
                       <div className="os-card-title"><i className="fas fa-boxes" /> Materiais &amp; Requisições</div>
-                      {/* PPVs vinculados: escolher numa janela (José, 14/10/2026) — antes era texto separado por vírgula */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: .4 }}>PPVs vinculados</span>
-                        {ppvIds.length ? ppvIds.map((pid) => <span key={pid} style={{ fontSize: 12.5, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: "color-mix(in srgb, #0369A1 10%, transparent)", color: "#0369A1" }}>{pid}</span>) : <span style={{ fontSize: 12.5, color: "var(--portal-text-muted)" }}>nenhum</span>}
+                      {/* Peças da OS refeitas (José, 21/10/2026: "melhora isso aqui"): PPVs em cima, peças em colunas com
+                          R$ no formato BR, quantidade em etiqueta, total destacado e botões no rodapé */}
+                      <style>{ESTILO_PECAS_OS}</style>
+                      <div className="pc-topo">
+                        <span className="pc-rot">PPV{ppvIds.length > 1 ? "s" : ""}</span>
+                        {ppvIds.length ? ppvIds.map((pid) => <a key={pid} className="pc-ppv" href={`/ppv?id=${encodeURIComponent(pid)}`} target="_blank" rel="noreferrer" title="Abrir o PPV em outra aba">{pid}<i className="fas fa-arrow-up-right-from-square" /></a>) : <span className="pc-rot">nenhum</span>}
                         {podeEditar && osId && (
-                          <button type="button" onClick={() => setEditarPPVs(true)} style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 14px", borderRadius: 9, border: "1px solid #0369A1", background: "transparent", color: "#0369A1", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit" }}>
-                            <i className="fas fa-pen" /> Editar PPVs vinculados
+                          <button type="button" className="pc-editar" onClick={() => setEditarPPVs(true)}>
+                            <i className="fas fa-pen" /> Trocar PPVs
                           </button>
                         )}
                       </div>
@@ -2476,24 +2566,27 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         </div>
                       )}
                       {produtos.length > 0 && (
-                        <div className="os-produtos-list">
+                        <div className="pc-lista">
+                          <div className="pc-l cab"><span>Código</span><span>Peça</span><span className="d">Qtd.</span><span className="d">Unitário</span><span className="d">Total</span><span /></div>
                           {produtos.map((p, i) => (
-                            <div key={`${p.ppvId}-${p.codigo}-${i}`} className="os-produto-item" style={{ alignItems: "center", gap: 10 }}>
-                              <span style={{ minWidth: 0 }}>
-                                {p.codigo && (
-                                  <button type="button" onClick={() => setDetalheProd(p)} title="Item de Orçamento — dados do produto + impostos"
-                                    style={{ padding: 0, marginRight: 6, border: "none", background: "transparent", cursor: "pointer", fontWeight: 600, fontSize: "inherit", fontFamily: "inherit", color: "#2563EB", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                                    {p.codigo}<i className="fas fa-circle-info" style={{ fontSize: 10, color: "#93C5FD" }} />
+                            <div key={`${p.ppvId}-${p.codigo}-${i}`} className="pc-l">
+                              <span>
+                                {p.codigo ? (
+                                  <button type="button" className="pc-cod" onClick={() => setDetalheProd(p)} title="Item de Orçamento — dados do produto + impostos">
+                                    {p.codigo}<i className="fas fa-circle-info" />
                                   </button>
-                                )}
-                                {p.descricao} <b>(x{p.qtde})</b>
-                                {ppvIds.length > 1 && p.ppvId && <span style={{ marginLeft: 6, fontSize: 11, color: "var(--portal-text-secondary)" }}>PPV {p.ppvId}</span>}
+                                ) : <span className="pc-sem">—</span>}
                               </span>
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-                                <span style={S_PRODUTO_VALOR}>R$ {(p.valor * p.qtde).toFixed(2)}</span>
+                              <span className="pc-desc">
+                                {p.descricao}
+                                {ppvIds.length > 1 && p.ppvId && <small>PPV {p.ppvId}</small>}
+                              </span>
+                              <span className="d"><em className="pc-qt">{p.qtde} un</em></span>
+                              <span className="d pc-un">{brlPeca(p.valor)}</span>
+                              <span className="d pc-tot">{brlPeca(p.valor * p.qtde)}</span>
+                              <span className="d">
                                 {p.codigo && p.ppvId && (
-                                  <button type="button" onClick={() => setEditandoProd(p)} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Editar quantidade, valor ou remover"}
-                                    style={{ border: "none", background: "transparent", color: "var(--portal-text-secondary)", cursor: podeEditar ? "pointer" : "not-allowed", padding: 2, fontSize: 13 }}>
+                                  <button type="button" className="pc-lapis" onClick={() => setEditandoProd(p)} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Editar quantidade, valor ou remover"}>
                                     <i className="fas fa-pen" />
                                   </button>
                                 )}
@@ -2505,27 +2598,23 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
 
                       {/* Total de peças + adicionar peça direto no PPV vinculado */}
                       {ppvIds.length > 0 && (
-                        <div style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, border: "1px solid var(--portal-border)", background: "var(--portal-bg-secondary)" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                            <span style={{ fontSize: 12, color: "var(--portal-text-secondary)" }}>
-                              Total de peças {produtos.length > 0 ? `(${produtos.length})` : ""}
-                            </span>
-                            <span style={{ fontSize: 15, fontWeight: 600, color: "var(--portal-text)" }}>R$ {totalPecas.toFixed(2)}</span>
+                        <div className="pc-rodape">
+                          <div className="pc-total">
+                            <small>Total de peças{produtos.length > 0 ? ` · ${produtos.length} ite${produtos.length > 1 ? "ns" : "m"}` : ""}</small>
+                            <b>{brlPeca(totalPecas)}</b>
                           </div>
-                          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                          <div className="pc-acoes">
                             {ppvIds.length > 1 && (
-                              <select value={addProdTarget} onChange={(e) => setAddProdTarget(e.target.value)} style={{ flex: "1 1 120px", marginBottom: 0, fontWeight: 500 }} title="Escolha o PPV">
-                                <option value="">PPV...</option>
+                              <select value={addProdTarget} onChange={(e) => setAddProdTarget(e.target.value)} style={{ marginBottom: 0, width: "auto" }} title="Escolha o PPV">
+                                <option value="">Em qual PPV?</option>
                                 {ppvIds.map((id) => <option key={id} value={id}>PPV {id}</option>)}
                               </select>
                             )}
-                            <button type="button" onClick={abrirAddProduto} disabled={addingProduto || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Busca com mais usados, catálogo e kit — pergunta a quantidade"}
-                              style={{ flex: "1 1 auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: "none", background: addingProduto || !podeEditar ? "var(--portal-text-faint)" : "#0d9488", color: "#fff", fontSize: 13, fontWeight: 600, cursor: addingProduto || !podeEditar ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
-                              {addingProduto ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-plus" /> Adicionar peça {ppvIds.length > 1 ? "" : `ao PPV ${ppvIds[0]}`}</>}
+                            <button type="button" className="pc-kit" onClick={abrirKitOS} disabled={importandoKitOS || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Importar kit de revisão (inteiro ou só algumas peças)"}>
+                              {importandoKitOS ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-box-open" /> Kit de revisão</>}
                             </button>
-                            <button type="button" onClick={abrirKitOS} disabled={importandoKitOS || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Importar kit de revisão (inteiro ou só algumas peças)"}
-                              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: "1.5px solid #0d9488", background: "transparent", color: "#0d9488", fontSize: 13, fontWeight: 700, cursor: importandoKitOS || !podeEditar ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
-                              {importandoKitOS ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-box-open" /> Kit</>}
+                            <button type="button" className="pc-add" onClick={abrirAddProduto} disabled={addingProduto || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Busca com mais usados, catálogo e kit — pergunta a quantidade"}>
+                              {addingProduto ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-plus" /> Adicionar peça</>}
                             </button>
                           </div>
                         </div>
@@ -2542,6 +2631,19 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                     const thR: React.CSSProperties = { padding: "9px 12px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, color: "#64748b", textAlign: "left", background: "var(--portal-bg-secondary, #f6f8f9)", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" };
                     const tdR: React.CSSProperties = { padding: "10px 12px", fontSize: 13, borderTop: "1px solid var(--border)", verticalAlign: "middle" };
                     const icoBtn = (cor: string): React.CSSProperties => ({ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface, #fefefe)", color: cor, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12 });
+                    // Cobrança: só requisições da tabela nova (vêm com tipo); legado fica sem selo (José, 26/10/2026)
+                    const cobrDe = (r: (typeof reqs)[number]): ReqCobranca | null => r.tipo === undefined ? null : {
+                      id: r.id, tipo: r.tipo, status: r.status, ordem_servico: osId, valor_cobrado_cliente: r.valor > 0 ? r.valor : null,
+                      cobranca_status: r.cobranca_status, cobranca_motivo: r.cobranca_motivo, cobranca_por: r.cobranca_por, cobranca_em: r.cobranca_em,
+                    };
+                    const aCobrar = reqs.filter((r) => { const c = cobrDe(r); return !!c && temCobranca(c) && statusCobranca(c) === "a_cobrar"; }).length;
+                    const mudouCobr = (id: string, c: Partial<ReqCobranca>) => setRequisicoes((prev) => prev.map((x) => x.id !== id ? x : {
+                      ...x, cobranca_status: c.cobranca_status !== undefined ? c.cobranca_status : x.cobranca_status,
+                      cobranca_motivo: c.cobranca_motivo !== undefined ? c.cobranca_motivo : x.cobranca_motivo,
+                      cobranca_por: c.cobranca_por !== undefined ? c.cobranca_por : (c.cobranca_status === "nao_cobrada" ? userName : x.cobranca_por),
+                      cobranca_em: c.cobranca_em !== undefined ? c.cobranca_em : x.cobranca_em,
+                      valor: c.valor_cobrado_cliente != null ? Number(c.valor_cobrado_cliente) || x.valor : x.valor,
+                    }));
                     return (
                     <div className="os-card" style={{ display: abaOmie === "requisicoes" ? undefined : "none" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -2556,11 +2658,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           <i className="fas fa-cart-plus" style={{ fontSize: 22, opacity: .5, display: "block", marginBottom: 6 }} />
                           Nenhuma requisição nesta OS. Use <b>Nova requisição</b> — ela já sai preenchida com a OS.
                         </div>
-                      ) : (
+                      ) : (<>
+                        <AvisoCobrancaOS qtd={aCobrar} />
                         <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
                           <table style={{ width: "100%", borderCollapse: "collapse" }}>
                             <thead><tr>
-                              <th style={thR}>Nº</th><th style={thR}>Situação</th><th style={thR}>Descrição</th><th style={thR}>Solicitante</th>
+                              <th style={thR}>Nº</th><th style={thR}>Situação</th><th style={thR}>Descrição</th><th style={thR}>Solicitante</th><th style={thR}>Cobrança</th>
                               <th style={{ ...thR, textAlign: "right" }}>Valor</th><th style={{ ...thR, textAlign: "center" }} title="Desligado = fora da folha e do total impresso (só nesta impressão)">No PDF</th><th style={thR} />
                             </tr></thead>
                             <tbody>
@@ -2571,6 +2674,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                                     <td style={tdR}><span style={{ fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: r.atualizada ? "#dcfce7" : "#fef3c7", color: r.atualizada ? "#15803d" : "#92400e" }}>{r.atualizada ? "OK" : "Pendente"}</span></td>
                                     <td style={{ ...tdR, maxWidth: 360 }}><span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.material}>{r.material}</span></td>
                                     <td style={{ ...tdR, color: "var(--portal-text-muted)", whiteSpace: "nowrap" }}>{r.solicitante && r.solicitante !== "N/A" ? r.solicitante : "—"}</td>
+                                    <td style={{ ...tdR, minWidth: 170 }}>{(() => { const c = cobrDe(r); if (!c || !temCobranca(c)) return <span style={{ color: "var(--portal-text-muted)" }}>—</span>; return (
+                                      <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+                                        <SeloCobranca req={c} />
+                                        <AcoesCobranca req={c} comValor pequeno onMudou={(m) => mudouCobr(r.id, m)} />
+                                      </div>); })()}</td>
                                     <td style={{ ...tdR, textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>{r.valor > 0 ? `R$ ${fmtBR(r.valor)}` : "—"}</td>
                                     <td style={{ ...tdR, textAlign: "center" }}><Chave ligada={!reqsOcultasPrint.has(r.id)} onChange={() => toggleReqPrint(r.id)} rotulo="" /></td>
                                     <td style={{ ...tdR, whiteSpace: "nowrap", textAlign: "right" }}>
@@ -2581,7 +2689,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                                     </td>
                                   </tr>
                                   {desvinculandoReq === r.id && (
-                                    <tr><td colSpan={7} style={{ ...tdR, background: "#fff7f7" }}>
+                                    <tr><td colSpan={8} style={{ ...tdR, background: "#fff7f7" }}>
                                       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                                         <span style={{ fontSize: 12.5, fontWeight: 700, color: "#7f1d1d" }}>Desvincular a #{r.id}:</span>
                                         <input autoFocus type="text" placeholder="Justificativa (obrigatória)" value={justificativaDesvinc} onChange={(e) => setJustificativaDesvinc(e.target.value)}
@@ -2605,7 +2713,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                             <b style={{ color: "var(--portal-text)" }}>Total R$ {fmtBR(totalReqs)}</b>
                           </div>
                         </div>
-                      )}
+                      </>)}
                       {novaReqOS && osId && (
                         <NovaRequisicaoOSModal osId={osId} tecnico={tecnico1} userName={userName || ""} onClose={() => setNovaReqOS(false)}
                           onCriada={async () => {
@@ -2635,7 +2743,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           </div>
 
           {/* ── Coluna de ações à direita (estilo Omie) ── */}
-          <div className="os-action-rail os-rail-nova">
+          {acoesAbertas && <div className="os-rail-gaveta-fundo" onClick={() => setAcoesAbertas(false)} />}
+          {/* a gaveta NÃO fecha ao tocar numa ação: Anexos, Tarefas, QR e Imprimir são desenhados aqui dentro
+              e sumiriam junto com ela */}
+          <div className={`os-action-rail os-rail-nova${acoesAbertas ? " aberta" : ""}`}>
             {/* visual da coluna (José, 14/10/2026) — aqui dentro p/ não depender do CSS global */}
             <style>{`
               .os-rail-nova { gap: 10px !important; padding: 14px 12px !important; background: var(--portal-bg-secondary, #f6f8f9) !important; }
@@ -2663,6 +2774,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
               <i className="fas fa-floppy-disk" />
               {saving ? "Salvando..." : (mode === "edit" && loadingData) ? "Carregando..." : mode === "create" ? "Criar Ordem" : (mode === "edit" && !podeEditar) ? "Somente leitura" : "Salvar"}
             </button>
+            {mode === "edit" && (
+              <button type="button" className="os-rail-gaveta-btn" onClick={() => setAcoesAbertas((v) => !v)} aria-expanded={acoesAbertas}>
+                {acoesAbertas ? <><i className="fas fa-chevron-down" /> Fechar</> : <><i className="fas fa-chevron-up" /> Ações</>}
+              </button>
+            )}
 
             {mode === "edit" && (
               <>
@@ -2729,6 +2845,20 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         <div style={{ padding: "0 2px" }}>
                           {ordemOmie && linhaDoc(osId || "OS", `OS ${semZeros(ordemOmie)}`, abrirPdfOmie, baixandoPdfOmie, "os", true)}
                           {pedidosMapa.map(([pid, numOmie]) => linhaDoc(pid, `${servicoInterno ? "Remessa" : "Pedido"} ${semZeros(numOmie)}${/castro/i.test(ppvEmpresaMap[pid] || "") ? " · Castro" : ""}`, () => abrirPdfPecasOmie(pid), baixandoPdfPecas === pid, pid, false))}
+                          {/* cancelados ao corrigir a nota: "OS 5185 → virou 5397" (José, 23/10/2026) */}
+                          {omieAnteriores.map((a) => (
+                            <div key={`ant-${a.tipo}-${a.numero}`} title={a.canceladaEm ? `Cancelado em ${new Date(a.canceladaEm).toLocaleDateString("pt-BR")}` : "Cancelado"}
+                              style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 2px", borderTop: "1px solid var(--border)", opacity: .75 }}>
+                              <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", lineHeight: 1.25 }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, color: "var(--portal-text-muted, #94a3b8)" }}>{a.tipo === "os" ? "Ordem de serviço" : "Pedido de venda"} anterior</span>
+                                <span style={{ fontSize: 12.5, fontWeight: 700, fontVariantNumeric: "tabular-nums", display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                  <s>nº {a.numero}</s>
+                                  <span style={{ fontSize: 10.5, fontWeight: 800, padding: "1px 7px", borderRadius: 999, color: "#b91c1c", background: "#fee2e2" }}>{a.tipo === "os" ? "cancelada" : "cancelado"}</span>
+                                </span>
+                                {a.novo && <span style={{ fontSize: 11, color: "var(--portal-text-muted)", marginTop: 2 }}>virou {a.tipo === "os" ? "a OS" : "o pedido"} nº {a.novo}</span>}
+                              </span>
+                            </div>
+                          ))}
                           {pvSolto && linhaDoc(ppvOmieCarregando ? "peças" : "peças", ppvOmieCarregando ? "conferindo…" : `Pedido ${pvSolto}`, null, false, "pv-solto", false)}
                         </div>
                       )}
@@ -2772,12 +2902,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         <FaturamentoOSBloco
                           osId={osId}
                           ordemOmie={ordemOmie}
+                          ajustarOS={podeEditar ? ajustarParaFaturar : undefined}
+                          documento={clienteInfo?.cpf || ""}
                           abrirAoCarregar={abrirFaturar}
                           onAtualizar={async () => {
                             try {
                               const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
-                              if (d?.status) setStatus(d.status); if (d && "faturadoOmieEm" in d) setFaturadaEm(d.faturadoOmieEm || null);
+                              if (d?.status) setStatusDoServidor(d.status); if (d && "faturadoOmieEm" in d) setFaturadaEm(d.faturadoOmieEm || null);
                               if (d?.ordemOmie !== undefined) setOrdemOmie(d.ordemOmie || "");
+                              if (Array.isArray(d?.omieAnteriores)) setOmieAnteriores(d.omieAnteriores);
                             } catch { /* a lista recarrega */ }
                             setLogRefreshKey((k) => k + 1);
                             onSaved?.();
@@ -2787,7 +2920,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                             setNotasEsperaDesde(Date.now());
                             try {
                               const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
-                              if (d?.status) setStatus(d.status); if (d && "faturadoOmieEm" in d) setFaturadaEm(d.faturadoOmieEm || null);
+                              if (d?.status) setStatusDoServidor(d.status); if (d && "faturadoOmieEm" in d) setFaturadaEm(d.faturadoOmieEm || null);
                             } catch { /* a lista recarrega */ }
                             setLogRefreshKey((k) => k + 1);
                             onSaved?.();
@@ -2798,7 +2931,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   );
                 })()}
 
-                {osId && ordemOmie && <NotasFiscaisBloco osId={osId} ppvIds={ppvIds} ppvOmieMap={ppvOmieMap} esperandoDesde={notasEsperaDesde} clienteDoc={clienteInfo?.cpf || null} />}
+                {osId && ordemOmie && <NotasFiscaisBloco osId={osId} ordemOmie={ordemOmie} anteriores={omieAnteriores} ppvIds={ppvIds} ppvOmieMap={ppvOmieMap} esperandoDesde={notasEsperaDesde} clienteDoc={clienteInfo?.cpf || null} />}
 
                 {/* ── Bloco Portal (logo da Nova): imprimir a OS, relatório técnico, PPVs e requisições ── */}
                 {(() => {
@@ -3002,6 +3135,18 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         </div>
       </div>
 
+      {/* Lembrete com valor ao abrir a OS e motivo do desconto (José, 27/10/2026) */}
+      {visible && !loadingData && lembreteComValor && !pedirMotivo && typeof document !== "undefined" && createPortal(
+        <ModalValorLembrete l={lembreteComValor} totalOS={total} ocupado={aplicandoLembrete || saving}
+          onAplicar={() => aplicarLembreteValor(lembreteComValor)}
+          onDepois={() => setLembretesAdiados((p) => [...p, lembreteComValor.id])} />,
+        document.body)}
+      {visible && pedirMotivo && typeof document !== "undefined" && createPortal(
+        <ModalMotivoDesconto valor={descValor} motivoAtual={esp.descontoMotivo?.texto || ""}
+          obrigatorio={Math.abs(descValor - descExplicadoRef.current) > 0.004}
+          onSalvar={salvarMotivoDesconto} onCancelar={cancelarMotivoDesconto} />,
+        document.body)}
+
       {/* MODAL central: cancelar exige MOTIVO (não deixa cancelar sem).
           PORTAL no body — o drawer tem transform e prenderia o fixed. */}
       {cancelModal && typeof document !== "undefined" && createPortal(
@@ -3032,6 +3177,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         document.body
       )}
 
+      {verLocalizacao && osId && <LocalizacaoClienteModal osId={osId} onClose={() => setVerLocalizacao(false)} />}
       <SearchModal title="Pesquisar Equipamento / Chassis" placeholder="Digite chassis, modelo ou número..." apiUrl="/api/pos/buscas/projetos" paramName="termo" visible={showProjModal} onClose={() => setShowProjModal(false)}
         onSelect={(item) => {
           const nome = item.nome || "";
@@ -3131,3 +3277,36 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     </>
   );
 }
+
+const brlPeca = (v: number) => (Number(v) || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+const ESTILO_PECAS_OS = `
+.pc-topo { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px }
+.pc-rot { font-size: 13px; color: var(--portal-text-secondary, #475569) }
+.pc-ppv { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; padding: 3px 11px; border-radius: 999px; background: color-mix(in srgb, #0369A1 9%, var(--surface, #fefefe)); border: 1px solid color-mix(in srgb, #0369A1 20%, transparent); color: #0369A1; text-decoration: none }
+.pc-ppv i { font-size: 10px; opacity: .7 } .pc-ppv:hover { background: color-mix(in srgb, #0369A1 14%, var(--surface, #fefefe)) }
+.pc-editar { margin-left: auto; display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--border, #e2e8f0); background: var(--surface, #fefefe); color: var(--portal-text, #0f172a); font-size: 13px; font-weight: 500; font-family: inherit; cursor: pointer }
+.pc-editar i { color: #0369A1; font-size: 11.5px } .pc-editar:hover { border-color: #93c5fd }
+.pc-lista { border: 1px solid var(--border, #e2e8f0); border-radius: 14px; overflow: hidden; background: var(--surface, #fefefe) }
+.pc-l { display: grid; grid-template-columns: minmax(120px, 170px) minmax(0, 1fr) 64px 104px 112px 34px; gap: 12px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--border, #f1f5f9); font-size: 13.5px; color: var(--portal-text, #0f172a) }
+.pc-l:first-child { border-top: 0 } .pc-l:not(.cab):hover { background: color-mix(in srgb, #0369A1 4%, transparent) }
+.pc-l.cab { padding: 8px 14px; font-size: 12.5px; color: var(--portal-text-secondary, #475569); background: var(--portal-bg-secondary, #f8fafc) }
+.pc-l .d { text-align: right; justify-self: end }
+.pc-cod { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: transparent; font-family: inherit; font-size: 13px; color: #2563eb; cursor: pointer; font-variant-numeric: tabular-nums; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.pc-cod i { font-size: 10px; color: #93c5fd } .pc-cod:hover { text-decoration: underline }
+.pc-sem { color: #94a3b8 }
+.pc-desc { display: grid; min-width: 0; line-height: 1.35 } .pc-desc small { font-size: 12px; color: var(--portal-text-muted, #64748b) }
+.pc-qt { font-style: normal; font-size: 12.5px; padding: 2px 9px; border-radius: 999px; background: var(--portal-bg-secondary, #eef2f6); color: var(--portal-text, #0f172a); white-space: nowrap }
+.pc-un { color: var(--portal-text-secondary, #475569); font-variant-numeric: tabular-nums; white-space: nowrap }
+.pc-tot { font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap }
+.pc-lapis { width: 30px; height: 30px; border-radius: 9px; border: 1px solid transparent; background: transparent; color: var(--portal-text-muted, #64748b); cursor: pointer; font-size: 12px }
+.pc-lapis:hover:not(:disabled) { border-color: var(--border, #e2e8f0); color: #0369A1 } .pc-lapis:disabled { cursor: not-allowed; opacity: .5 }
+.pc-rodape { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; margin-top: 12px; padding: 12px 14px; border-radius: 14px; background: var(--portal-bg-secondary, #f8fafc); border: 1px solid var(--border, #eef2f7) }
+.pc-total { display: grid; line-height: 1.2 } .pc-total small { font-size: 13px; color: var(--portal-text-secondary, #475569) } .pc-total b { font-size: 24px; font-weight: 500; color: var(--portal-text, #0f172a); font-variant-numeric: tabular-nums; letter-spacing: -.01em }
+.pc-acoes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap }
+.pc-add, .pc-kit { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 18px; border-radius: 11px; font-family: inherit; font-size: 14px; font-weight: 500; cursor: pointer; white-space: nowrap }
+.pc-add { border: 0; background: #0d9488; color: #fefefe; box-shadow: 0 6px 14px -8px rgba(13,148,136,.7) } .pc-add:hover:not(:disabled) { filter: brightness(1.06) }
+.pc-kit { border: 1px solid var(--border, #e2e8f0); background: var(--surface, #fefefe); color: var(--portal-text, #0f172a) } .pc-kit i { color: #0d9488 } .pc-kit:hover:not(:disabled) { border-color: #5eead4 }
+.pc-add:disabled, .pc-kit:disabled { opacity: .55; cursor: not-allowed }
+@media (max-width: 760px) { .pc-l { grid-template-columns: minmax(0, 1fr) auto 30px; } .pc-l.cab { display: none } .pc-l > span:nth-child(1) { grid-column: 1 / -1 } .pc-l > span:nth-child(3), .pc-l > span:nth-child(4) { display: none } }
+`;

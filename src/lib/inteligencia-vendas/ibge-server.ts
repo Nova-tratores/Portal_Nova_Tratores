@@ -16,6 +16,9 @@ import { paginar } from '@/lib/db/paginar';
 import { emCache } from './server';
 import { textoNorm } from './normalizar';
 import type { DadosAgro, DadosPublicos } from './municipios';
+// cópia local da lista do IBGE (SP e PR) para quando a API não responde — 28/10/2026 o
+// worker de produção ficou sem acesso a servicodados.ibge.gov.br e a carteira do app parou
+import MUNICIPIOS_LOCAL from './ibge-municipios-sp-pr.json';
 
 const DIA = 24 * 3_600_000;
 
@@ -35,8 +38,13 @@ async function buscarJSON(url: string, tentativas = 2): Promise<any> {
 export async function municipiosIBGE(ufs: string[]): Promise<Map<string, { ibge: number; nome: string; uf: string }>> {
   const mapa = new Map<string, { ibge: number; nome: string; uf: string }>();
   for (const uf of [...new Set(ufs.filter((u) => /^[A-Z]{2}$/.test(u)))]) {
+    const copia = (MUNICIPIOS_LOCAL as unknown as Record<string, [number, string][]>)[uf];
     const lista = await emCache(`ibge-uf-${uf}`, 7 * DIA, () =>
-      buscarJSON(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?view=nivelado`));
+      buscarJSON(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?view=nivelado`)
+        .catch((e) => {
+          if (!copia) throw e;
+          return copia.map(([id, nome]) => ({ 'municipio-id': id, 'municipio-nome': nome }));
+        }));
     for (const m of lista as any[]) {
       mapa.set(`${textoNorm(m['municipio-nome'])}|${uf}`, { ibge: Number(m['municipio-id']), nome: String(m['municipio-nome']), uf });
     }

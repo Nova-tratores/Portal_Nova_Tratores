@@ -153,26 +153,10 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  // 8) OS já estava no Omie (foi fechada como OS comum ANTES da garantia
-  //    existir)? Retro-aplica o padrão de garantia lá — categoria, conta
-  //    INTERNO, não gerar financeiro, recibo, departamento Garantias.
-  //    Contrato/projeto {Montadora}-pgo entram quando a montadora for
-  //    escolhida no checklist. Best-effort: erro vira evento na timeline.
-  if (os.Ordem_Omie || os.id_omie) {
-    try {
-      const { faturarOSGarantiaNoOmie } = await import('@/lib/garantias/omie-faturamento');
-      const resp = await faturarOSGarantiaNoOmie({ idOrdem, garantiaId: String(garantia.id) });
-      await registrarEvento(garantia.id, {
-        tipo: resp.ok ? 'omie_faturada_garantia' : 'omie_faturamento_erro',
-        ator: autorDe(user),
-        detalhe: resp.ok
-          ? `OS ${idOrdem} já estava no Omie — padrão de garantia reaplicado (categoria, conta INTERNO, sem conta a receber, recibo, depto Garantias).`
-          : `OS ${idOrdem} já estava no Omie, mas falhou ao reaplicar o padrão de garantia: ${resp.motivo}. Use "Reaplicar padrão Omie" no drawer pra tentar de novo.`,
-      });
-    } catch (err) {
-      console.warn('[criar-manual] retro-faturamento Omie falhou:', err);
-    }
-  }
+  // 8) Abrir a garantia NÃO mexe mais na OS no Omie (José, 21/10/2026). Antes,
+  //    se a OS já estivesse lá, o portal a reescrevia com o padrão de garantia.
+  //    Agora o que vale é o que foi configurado na tela da OS no envio; se essa
+  //    OS precisar do lançamento de garantia no Omie, ajuste direto no Omie.
 
   // 9) Notificações
   await notificarTecnico(tecnicoNome, {

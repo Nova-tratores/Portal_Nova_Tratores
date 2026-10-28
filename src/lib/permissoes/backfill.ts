@@ -75,3 +75,55 @@ export function planejarBackfill(linhas: LinhaPermissao[], catalogo: TelaDef[]):
 
   return { telasNovas: [...telasNovas.values()], departamentos, extras };
 }
+
+// =============================================================================
+// ESPELHO (Fase 3a, modo sombra): enquanto o Admin antigo é onde se edita,
+// as tabelas v2 acompanham portal_permissoes. Mexe SÓ no que o backfill criou:
+// vínculo de departamento sem `criado_por` e overrides 'extra' com
+// MOTIVO_BACKFILL. Ajustes feitos à mão na v2 nunca são tocados.
+// =============================================================================
+
+export interface DepartamentoV2 { id: string; nome: string; telas: { tela: string; nivel: Nivel }[] }
+export interface EstadoEspelho {
+  /** ids de departamentos em que o usuário está por backfill (criado_por nulo) */
+  conjuntos: string[];
+  /** extras de backfill que o usuário já tem */
+  extras: { tela: string; nivel: Nivel }[];
+}
+export interface PlanoEspelho {
+  entrar: string[];
+  sair: string[];
+  incluirExtras: { tela: string; nivel: Nivel }[];
+  removerExtras: string[];
+  /** chaves com formato inválido, ignoradas (não derrubam a rodada) */
+  ignoradas: string[];
+}
+
+export function planejarEspelho(linha: LinhaPermissao, departamentos: DepartamentoV2[], estado: EstadoEspelho): PlanoEspelho {
+  const todas = [...new Set((linha.modulos_permitidos || []).map((k) => k.trim()).filter(Boolean))];
+  const ignoradas = todas.filter((k) => !ID_OK.test(k));
+  const chaves = new Set(todas.filter((k) => ID_OK.test(k)));
+
+  // Só entra no departamento da categoria quem já tem TODAS as telas dele —
+  // senão o vínculo daria acesso que a pessoa não tem hoje.
+  const dep = departamentos.find((d) => d.nome === (linha.categoria || '').trim());
+  const membro = !!dep && dep.telas.every((t) => chaves.has(t.tela));
+  const desejados = membro ? [dep!.id] : [];
+  const cobertas = new Set(membro ? dep!.telas.map((t) => t.tela) : []);
+
+  const extrasDesejados = [...chaves].filter((k) => !cobertas.has(k)).sort()
+    .map((tela) => ({ tela, nivel: nivelDaChaveAntiga(tela) }));
+  const atual = new Map(estado.extras.map((e) => [e.tela, e.nivel]));
+  const desejado = new Map(extrasDesejados.map((e) => [e.tela, e.nivel]));
+
+  return {
+    entrar: desejados.filter((id) => !estado.conjuntos.includes(id)),
+    sair: estado.conjuntos.filter((id) => !desejados.includes(id)),
+    incluirExtras: extrasDesejados.filter((e) => atual.get(e.tela) !== e.nivel),
+    removerExtras: estado.extras.filter((e) => !desejado.has(e.tela)).map((e) => e.tela),
+    ignoradas,
+  };
+}
+
+export const planoVazio = (p: PlanoEspelho) =>
+  !p.entrar.length && !p.sair.length && !p.incluirExtras.length && !p.removerExtras.length;

@@ -172,7 +172,7 @@ export function statusPendente(st: string | null | undefined): boolean {
 export function rotuloStatus(st: string | null | undefined): { texto: string; cor: 'cinza' | 'verde' | 'vermelho' | 'ambar' } | null {
   switch (st) {
     case 'faturando': return { texto: 'Faturando…', cor: 'ambar' };
-    case 'desconhecido': return { texto: 'Faturamento sem resposta do Omie', cor: 'ambar' };
+    case 'desconhecido': return { texto: 'Aguardando o Omie confirmar', cor: 'ambar' };
     case 'erro': return { texto: 'Erro no último faturamento', cor: 'vermelho' };
     case 'nfse_aguardando': return { texto: 'NFS-e aguardando a prefeitura', cor: 'cinza' };
     case 'nfse_autorizada': return { texto: 'NFS-e emitida', cor: 'verde' };

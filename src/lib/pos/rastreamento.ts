@@ -3,8 +3,9 @@
 // Usada por: /api/pos/rastreamento e /api/pos/cron/gravar-gps
 // =============================================
 import { normalizarPlaca, resolverPlaca } from '@/lib/frota/placa'
-import { agregarIgnicao, type MetricasIgnicao } from '@/lib/frota/ignicao'
+import { agregarIgnicao, janelaDeUso, type MetricasIgnicao } from '@/lib/frota/ignicao'
 import { diaBR } from '@/lib/frota/mapa-vivo'
+import { horaBR } from "@/lib/datas/brasil";
 
 const API_URL = process.env.ROTAEXATA_API_URL || 'https://api.rotaexata.com.br'
 const EMAIL = process.env.ROTAEXATA_EMAIL || ''
@@ -165,7 +166,7 @@ const DEBOUNCE_MIN = 3
 const HORA_INICIO_JORNADA = 5
 
 function horaLocal(dt: string): number {
-  return new Date(dt).getHours()
+  return horaBR(new Date(dt))
 }
 
 export function detectarViagens(posicoes: Posicao[], destinos: Destino[]): Viagem[] {
@@ -334,12 +335,16 @@ export async function computarESalvarRota(
     // pontos crus já estão no JSONB, então recalcula daqui mesmo, sem gastar
     // a API da Rota Exata, e persiste. (Só quando ainda HÁ pontos — linha
     // podada pela retenção já tem os agregados gravados.)
+    // Dia gravado antes de 21/10/2026 tem hora_inicio = 1º sinal da madrugada:
+    // com os pontos ainda guardados, recalcula a janela de uso na leitura.
+    const janela = rotaSalva.pontos.length > 0 ? janelaDeUso(rotaSalva.pontos) : null
+    const comJanela = janela ? { hora_inicio: janela.inicio, hora_fim: janela.fim } : {}
     if (rotaSalva.tempo_ligado_min == null && rotaSalva.pontos.length > 0) {
       const ign = agregarIgnicao(rotaSalva.pontos)
       await supabase.from('rotas_vendedor').update(ign).eq('placa', rotaSalva.placa).eq('data', data)
-      return { ...rotaSalva, ...ign } as RotaDia
+      return { ...rotaSalva, ...ign, ...comJanela } as RotaDia
     }
-    return rotaSalva as RotaDia
+    return { ...rotaSalva, ...comJanela } as RotaDia
   }
 
   // 2) Achar o veículo na Rota Exata pela placa
@@ -439,8 +444,10 @@ export async function computarESalvarRota(
 
   const rota: RotaDia = {
     placa, data, pontos, paradas, km_total: Math.round(kmTotal),
-    hora_inicio: pontos.length > 0 ? pontos[0].dt : null,
-    hora_fim: pontos.length > 0 ? pontos[pontos.length - 1].dt : null,
+    // 1ª vez ligado → desligamento depois da última vez ligado (não o sinal da
+    // madrugada do carro estacionado — lib/frota/ignicao janelaDeUso)
+    hora_inicio: janelaDeUso(pontos).inicio,
+    hora_fim: janelaDeUso(pontos).fim,
     tempo_dirigindo_min, tempo_parado_min, visitas,
     // Ignição (partidas, tempo LIGADO — inclui marcha lenta — etc.). Vai junto
     // no upsert: o cron do comercial e o do Frota compartilham este cálculo.

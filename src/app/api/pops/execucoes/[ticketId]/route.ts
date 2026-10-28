@@ -4,7 +4,7 @@
 //   upload_url { passo_id, content_type }   URL assinada para a foto subir direto no bucket privado
 //   responder  { passo_id, valor, fotos }   salva UM passo na hora (pode refazer)
 //   encerrar                                estágio 1 (resolvido) — só com os obrigatórios completos
-// Ver: quem vê o ticket. Responder: responsável, participante ativo ou admin.
+// Ver: quem vê o ticket ou cuida do POP. Responder: responsável, participante ativo ou admin.
 // Encerrar: responsável ou admin. Fechar (estágio 2) segue o motor de tickets.
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar, type Autenticado } from '@/lib/auth/server'
@@ -18,7 +18,9 @@ import {
   BUCKET_EXECUCAO, BUCKET_MIDIA, carregarExecucao, carregarPop, erro, erroBanco, passosDaVersao,
   respostasDaExecucao, rpc, urlDeUpload, urlsAssinadas, usuariosMin, atorDe,
 } from '@/lib/pops/server'
-import { ehAdminPops, normalizarResposta, pendentes, uuidValido, type Passo, type Resposta } from '@/lib/pops/regras'
+import {
+  ehAdminPops, normalizarResposta, pendentes, podeAprovar, podeEditarPop, uuidValido, type Passo, type Resposta,
+} from '@/lib/pops/regras'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,8 +29,20 @@ async function carregar(ticketId: string, auth: Autenticado): Promise<TicketCarr
   if (!uuidValido(ticketId)) return erro('Execução não encontrada', 404)
   const c = await carregarTicket(ticketId)
   if (!c || c.ticket.tipo !== 'pop') return erro('Execução não encontrada', 404)
-  if (!(await podeVerTicket(c.ticket, c.participantes, auth))) return erro('Execução não encontrada', 404)
+  if (!(await podeVerTicket(c.ticket, c.participantes, auth)) && !(await cuidaDoPop(ticketId, auth))) {
+    return erro('Execução não encontrada', 404)
+  }
   return c
+}
+
+// Quem cuida do POP (dono/aprovador da área, admin do módulo) VÊ as execuções dele
+// pelo histórico da ficha — só leitura: responder/encerrar seguem as regras abaixo.
+async function cuidaDoPop(ticketId: string, auth: Autenticado): Promise<boolean> {
+  const ex = await carregarExecucao(ticketId)
+  const pop = ex && await carregarPop(ex.pop_id)
+  if (!pop) return false
+  const ator = await atorDe(auth)
+  return podeEditarPop(ator, pop) || podeAprovar(ator, pop)
 }
 
 const podeResponder = (c: TicketCarregado, auth: Autenticado, admin: boolean) =>

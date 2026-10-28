@@ -224,3 +224,19 @@ describe('fluxo do faturamento (Omie simulado)', () => {
     expect(plano.parcelas.map((x: { nValor: number }) => x.nValor)).toEqual([142.5, 142.5]);
   });
 });
+
+import { leitorDaOS } from '@/lib/pos/faturamento-fluxo';
+describe('leitura da OS sem repetir a consulta (consumo redundante)', () => {
+  it('reaproveita a 1ª leitura e alterna a chave nas seguintes, começando depois da já usada', async () => {
+    const chamadas: string[] = [];
+    const ler = async (p: Record<string, unknown>) => { chamadas.push(JSON.stringify(p)); return { Cabecalho: { nCodOS: 10 } }; };
+    const consultar = leitorDaOS(10, [{ nCodOS: 10 }, { cCodIntOS: 'OS-0001' }, { cNumOS: '5' }], ler, { Cabecalho: { nCodOS: 10, cNumOS: '5' } }, 0);
+    expect((await consultar()).Cabecalho?.cNumOS).toBe('5'); // a pronta, sem chamar o Omie
+    await consultar(); await consultar(); await consultar();
+    expect(chamadas).toEqual(['{"cCodIntOS":"OS-0001"}', '{"cNumOS":"5"}', '{"nCodOS":10}']);
+  });
+  it('recusa resposta de outra OS', async () => {
+    const consultar = leitorDaOS(10, [{ nCodOS: 10 }, { cNumOS: '5' }], async () => ({ Cabecalho: { nCodOS: 99 } }));
+    await expect(consultar()).rejects.toThrow(/outra OS/);
+  });
+});

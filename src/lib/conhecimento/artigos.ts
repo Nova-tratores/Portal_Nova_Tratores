@@ -64,6 +64,8 @@ export interface Quem {
 
 export const MODULO_GERAL = "geral";
 export const MODULO_KMS = "conhecimento";
+/** Módulos que todo logado lê sem ter o módulo no Admin (ler POP publicado é de todos). */
+export const MODULOS_ABERTOS = new Set([MODULO_GERAL, "pops"]);
 
 // -----------------------------------------------------------------------------
 // Tela ↔ artigo
@@ -106,7 +108,7 @@ export function artigosDaTela<T extends { telas: string[]; ordem: number; titulo
 // -----------------------------------------------------------------------------
 /** Espelho do temAcesso do portal: módulo puro, qualquer ação dele, ou admin. */
 export function temModulo(q: Quem, modulo: string): boolean {
-  if (q.isAdmin || modulo === MODULO_GERAL) return true;
+  if (q.isAdmin || MODULOS_ABERTOS.has(modulo)) return true;
   return q.modulos.some((m) => m === modulo || m.startsWith(modulo + ":"));
 }
 

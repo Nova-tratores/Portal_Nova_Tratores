@@ -9,7 +9,7 @@ import { chamarIA } from '@/lib/assistente/ia'
 import { carregarAgenda } from '@/lib/agenda/server'
 import type { Autenticado } from '@/lib/auth/server'
 import { baseComCache } from './base-cache'
-import { agregar, osAguardandoFaturar, agruparBase, ativosEm, metaAtiva, custoEquipe, pesosPorOS, resumirGastos, somarDias, ultimasSemanas, ultimosMeses, type LinhaTecnico } from './painel'
+import { agregar, osAguardandoFaturar, agruparBase, ativosEm, metaAtiva, custoEquipe, daEquipe, pesosPorOS, resumirGastos, somarDias, ultimasSemanas, ultimosMeses, type LinhaTecnico } from './painel'
 import { padronizadorOcorrencias, ocorrenciasEntre } from './ocorrencias-server'
 import { escudos, motivos, historicoPorPessoa } from './ocorrencias-painel'
 import { agendaPorTecnico, diasDoIntervalo, lerAnalise, DIAS_FUTURO, MODULO_ENSINAMENTOS, type Analise, type ItemFuturo } from './analise'
@@ -89,7 +89,7 @@ export async function montarContexto(auth: Autenticado) {
   // Vinicius → Garantia, José Ortiz → Outros (grupos, sem meta de horas)
   const base = agruparBase(baseBruta)
   const gastos = base.gastos || []
-  const equipe = base.equipe || []
+  const equipe = daEquipe(base.equipe)
   const ocor = { ocs, tecnicos: tecOc }
   const pesos = pesosPorOS(base.diasTodos)
   // período em andamento conta só até hoje (senão a meta dos dias que nem chegaram vira ociosidade)
@@ -190,7 +190,7 @@ COMO LER OS NÚMEROS
 - faturadas_h: horas COBRADAS em OS JÁ FATURADAS no período. A OS fatura dias ou semanas depois do serviço, então semana/mês em andamento SEMPRE tem poucas faturadas. Não chame isso de queda sem olhar as trabalhadas.
 - internas_h: horas em OS INTERNA = não cobrada do cliente (tipo de serviço interno no portal, conta corrente interna ou contrato interno no Omie: entrega técnica, revisão pré-entrega, cortesia oficina/comercial, garantia assumida pela Nova). É custo da empresa; algumas são investimento (entrega técnica de máquina vendida).
 - ociosas_h = meta − faturadas − internas.
-- Valor: bruto (total faturado) = mão de obra (servico) + deslocamento (km_valor) + peças da oficina (pecas). custo_terceiros = requisições que o técnico pediu como "Trator-Cliente" e que NÃO foram cobradas do cliente (serviço de terceiros, peças compradas fora…) — é dinheiro que saiu e não voltou. líquido = bruto − custo. OS com 2 técnicos: valor e km divididos.
+- Valor: bruto (total faturado) = mão de obra (servico) + deslocamento (km_valor) + outros. As peças (pecas) ficam À PARTE: não entram no faturado. custo_terceiros = requisições que o técnico pediu como "Trator-Cliente" e que NÃO foram cobradas do cliente (serviço de terceiros, peças compradas fora…) — é dinheiro que saiu e não voltou. líquido = bruto − custo. OS com 2 técnicos: valor e km divididos.
 - km: deslocamento cobrado. Muito km com pouco serviço = viagem cara.
 - GASTOS do pós-vendas: abastecimento (cartão-frota + requisições de abastecimento) e manutenção do carro, atribuídos ao DONO do carro (vínculo técnico ↔ placa da Frota), e alimentação (requisições). Não estão no custo de terceiros. O cartão-frota é importado por arquivo — mês atual pode estar incompleto.
 - SALÁRIOS: salário + encargos de cada técnico (cadastro do RH), proporcional aos dias do período.

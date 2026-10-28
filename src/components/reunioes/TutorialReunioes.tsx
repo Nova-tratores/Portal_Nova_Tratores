@@ -71,6 +71,7 @@ export const PASSOS_TUTORIAL: Passo[] = [
     texto: [
       'Próximas: as reuniões que vão acontecer. Histórico: as que já aconteceram, com a ata. Séries: as reuniões que se repetem.',
       'O "?" ao lado de cada aba (e no topo de cada reunião) explica aquele momento.',
+      'Vai estar fora (visita, médico, férias)? Em "Sala de reunião" → "Minha agenda", bloqueie o horário: ninguém consegue te pôr numa reunião nele, e os outros veem só "indisponível".',
       'Quer ver este passo a passo de novo? Clique em "Tutorial", no topo da tela.',
     ],
   },

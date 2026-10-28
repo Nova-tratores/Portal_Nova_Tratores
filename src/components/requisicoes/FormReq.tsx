@@ -7,6 +7,8 @@ import { FolderOpen, ChevronDown, Check } from 'lucide-react';
 import { useRascunho } from '@/lib/rascunho/useRascunho';
 import AvisoRascunho from '@/components/rascunho/AvisoRascunho';
 import { fetchAuth } from '@/lib/auth/client';
+import SugestaoHistorico from './SugestaoHistorico';
+import { parecidas } from '@/lib/requisicoes/inteligencia';
 
 /** Chave do rascunho da nova requisição (a página apaga depois de criar). */
 export const RASCUNHO_NOVA_REQ = 'requisicao:nova';
@@ -16,14 +18,18 @@ const EMPRESAS = {
   CASTRO: { nome: "CASTRO MÁQUINAS E PEÇAS AGRÍCOLAS LTDA", endereco: "RUA DOUTOR FARTURA, 140 | FARTURA - SP" }
 };
 
-export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRascunho = RASCUNHO_NOVA_REQ }: {
+export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRascunho = RASCUNHO_NOVA_REQ, historico = [] }: {
   onSave: (data: any) => void; osInicial?: string | null;
+  /** requisições já carregadas na tela: dão a sugestão de fornecedor/valor e o aviso de parecida */
+  historico?: any[];
   /** POS: já vem o técnico principal da OS como solicitante (casado pelo nome com o usuário do portal) */
   solicitanteInicial?: string;
   /** POS usa um rascunho por OS, pra não misturar com a tela de Requisições */
   chaveRascunho?: string;
 }) {
   const [usuarios, setUsuarios] = useState<any[]>([]);
+  // valor na criação (a coluna é texto BR: "200,00")
+  const [valorNovo, setValorNovo] = useState('');
   const [veiculos, setVeiculos] = useState<any[]>([]);
 
   const [ordensAbertas, setOrdensAbertas] = useState<any[]>([]);
@@ -45,8 +51,6 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
   const [cliResultados, setCliResultados] = useState<{ cnpj_cpf: string; nome_fantasia: string; razao_social: string; cidade: string }[]>([]);
   const cliRef = useRef<HTMLDivElement>(null);
 
-  const [tagsDisponiveis, setTagsDisponiveis] = useState<{ id: number; nome: string; cor: string; grupo: string | null }[]>([]);
-  const [tagsSelecionadas, setTagsSelecionadas] = useState<string[]>([]);
 
   // Grupos (coletivos) abertos — pra já jogar a nova requisição num grupo
   const [gruposDisp, setGruposDisp] = useState<any[]>([]);
@@ -71,18 +75,18 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
   // Rascunho: o que foi digitado sobrevive a recarga da página, troca de aba e
   // atualização do portal. A página apaga depois que a requisição é criada.
   const formInicial = useRef(formData);
-  const dadosRascunho = { formData, tagsSelecionadas, gruposSel, osBusca, solBusca, projBusca, cliBusca };
+  const dadosRascunho = { formData, gruposSel, osBusca, solBusca, projBusca, cliBusca };
   type DadosRascunho = typeof dadosRascunho;
   const aplicarRascunho = (d: DadosRascunho | null) => {
     setFormData(d ? { ...formInicial.current, ...d.formData } : formInicial.current);
-    setTagsSelecionadas(d?.tagsSelecionadas || []); setGruposSel(d?.gruposSel || []);
+    setGruposSel(d?.gruposSel || []);
     setOsBusca(d?.osBusca || ''); setSolBusca(d?.solBusca || ''); setProjBusca(d?.projBusca || ''); setCliBusca(d?.cliBusca || '');
   };
   const rascunho = useRascunho<DadosRascunho>(chaveRascunho, dadosRascunho, {
     vazio: (d) => {
       const ignorar = new Set(['data', 'empresa', 'endereco_empr', 'status']);
       const mudou = Object.entries(d.formData || {}).some(([k, v]) => !ignorar.has(k) && String(v ?? '') !== String((formInicial.current as Record<string, unknown>)[k] ?? ''));
-      return !mudou && !(d.tagsSelecionadas || []).length && !(d.gruposSel || []).length;
+      return !mudou && !(d.gruposSel || []).length;
     },
     restaurar: aplicarRascunho,
   });
@@ -117,8 +121,6 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
           NumPlaca: `${formatarPlaca(v.placa)}${v.modelo ? ` · ${v.modelo}` : ''}`,
         })));
       }
-      const { data: tags } = await supabase.from('requisicao_tags').select('*').order('nome');
-      if (tags) setTagsDisponiveis(tags);
       if (ordens) setOrdensAbertas(ordens);
     };
     fetchData();
@@ -224,6 +226,9 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
         return;
       }
     }
+    // Parecida aberta nos últimos 15 dias: confirma antes de criar outra
+    const iguais = parecidas(historico, { tipo: formData.tipo, veiculo: formData.veiculo, titulo: formData.titulo }, new Date());
+    if (iguais.length && !confirm(`Já existe requisição parecida (#${iguais.map(r => r.id).join(', #')}). Criar mesmo assim?`)) return;
     // Remove campos vazios para evitar erro se coluna não existir no banco
     const dados: Record<string, unknown> = {};
     for (const [key, val] of Object.entries(formData)) {
@@ -231,80 +236,50 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
         dados[key] = val;
       }
     }
-    if (tagsSelecionadas.length > 0) dados.tags = tagsSelecionadas;
+    if (valorNovo.trim()) dados.valor_despeza = valorNovo.trim();
     if (gruposSel.length > 0) dados._grupos = gruposSel; // vínculo com grupos (a página processa e remove antes do insert)
     onSave(dados);
   };
 
-  // Estilos atualizados: letras maiores e brancas
-  const inputStyle = "w-full px-5 py-4 rounded-xl border border-zinc-200 bg-zinc-50 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/20 outline-none transition-all text-lg font-medium text-black placeholder:text-zinc-400";
-  const labelStyle = "text-sm font-bold text-zinc-500 uppercase tracking-[0.2em] mb-2 block ml-1";
+  // Visual novo (docs/estilo-pos-newportal.md): campos claros cantos 10, rótulo 13px sem caixa alta, sem negrito
+  const inputStyle = "w-full px-4 py-3 rounded-[10px] border border-zinc-200 bg-white focus:border-orange-500 focus:ring-4 focus:ring-orange-500/15 outline-none transition-all text-[15px] text-black placeholder:text-zinc-400";
+  const labelStyle = "text-[13px] text-zinc-600 mb-1.5 block";
+  const secao = "p-5 rounded-2xl border border-zinc-200 bg-white";
+  const secaoTitulo = (icone: string, cor: string, texto: string) => (
+    <p className="text-[15px] text-black mb-4 flex items-center gap-2.5" style={{ fontWeight: 500 }}>
+      <span style={{ width: 32, height: 32, borderRadius: 9, display: 'inline-grid', placeItems: 'center', fontSize: 13, color: cor, background: `color-mix(in srgb, ${cor} 9%, #fefefe)`, border: `1px solid color-mix(in srgb, ${cor} 18%, transparent)` }}>
+        <i className={`fa-solid ${icone}`} />
+      </span>
+      {texto}
+    </p>
+  );
 
   return (
     <div className="max-w-4xl mx-auto">
       {/* Fundo alterado para escuro para suportar as letras brancas pedidas */}
-      <div className="bg-white rounded-2xl border border-zinc-200 shadow-lg p-8 md:p-12 text-black">
+      <div className="bg-white rounded-2xl p-6 md:p-9 text-black">
         <AvisoRascunho em={rascunho.recuperadoEm} onFechar={rascunho.esconderAviso} onDescartar={() => { rascunho.limpar(); aplicarRascunho(null); }} />
-        <div className="mb-10">
-          <h2 className="text-3xl font-black uppercase tracking-tighter text-black">Nova Requisição</h2>
-          <p className="text-base text-black mt-2">Preencha os dados técnicos abaixo para iniciar o processo.</p>
+        <div className="mb-7 flex items-center gap-3">
+          <span style={{ width: 44, height: 44, borderRadius: 12, display: 'grid', placeItems: 'center', fontSize: 17, color: '#EA580C', background: 'color-mix(in srgb, #EA580C 9%, #fefefe)', border: '1px solid color-mix(in srgb, #EA580C 18%, transparent)' }}>
+            <i className="fa-solid fa-file-circle-plus" />
+          </span>
+          <div>
+            <h2 className="text-[22px] text-black" style={{ fontWeight: 500, letterSpacing: '-.01em' }}>Nova requisição</h2>
+            <p className="text-[13.5px] text-zinc-500 mt-0.5">O que precisa, para quê e para quem. Fornecedor e valor podem ficar para depois.</p>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-8">
+        <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2">
-              <label className={labelStyle}>Título do Pedido</label>
-              <input required placeholder="EX: COMPRA DE PEÇAS PARA TRATOR" spellCheck lang="pt-BR" onChange={e => setFormData({...formData, titulo: e.target.value.toUpperCase()})} className={inputStyle} />
+              <label className={labelStyle}>Título do pedido</label>
+              <input required placeholder="Ex.: compra de peças para trator" spellCheck lang="pt-BR" onChange={e => setFormData({...formData, titulo: e.target.value.toUpperCase()})} className={inputStyle} />
             </div>
             <div>
               <label className={labelStyle}>Data</label>
               <input type="date" value={formData.data} onChange={e => setFormData({...formData, data: e.target.value})} className={inputStyle} />
             </div>
           </div>
-
-          {/* Tags agrupadas */}
-          {tagsDisponiveis.length > 0 && (() => {
-            const GRUPOS_INFO: Record<string, { label: string; icon: string }> = {
-              categoria: { label: 'Categoria de Peça', icon: '🔩' },
-              sistema: { label: 'Sistema', icon: '⚙️' },
-              geral: { label: 'Geral', icon: '📋' },
-            };
-            const grupos = ['categoria', 'sistema', 'geral'];
-            const tagsPorGrupo = grupos.map(g => ({
-              key: g,
-              ...GRUPOS_INFO[g],
-              tags: tagsDisponiveis.filter(t => (t.grupo || 'geral') === g),
-            })).filter(g => g.tags.length > 0);
-
-            return (
-              <div className="space-y-4">
-                {tagsPorGrupo.map(grupo => (
-                  <div key={grupo.key}>
-                    <label className={labelStyle}>{grupo.icon} {grupo.label}</label>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                      {grupo.tags.map(tag => {
-                        const selected = tagsSelecionadas.includes(tag.nome);
-                        return (
-                          <button key={tag.id} type="button"
-                            onClick={() => setTagsSelecionadas(prev => selected ? prev.filter(t => t !== tag.nome) : [...prev, tag.nome])}
-                            style={{
-                              padding: '8px 16px', borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                              border: selected ? `2px solid ${tag.cor}` : '2px solid #E2E8F0',
-                              background: selected ? tag.cor : '#fff',
-                              color: selected ? '#fff' : '#64748B',
-                              transition: 'all .15s',
-                              boxShadow: selected ? `0 2px 8px ${tag.cor}40` : 'none',
-                            }}>
-                            {tag.nome}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            );
-          })()}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div>
@@ -379,7 +354,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
               )}
             </div>
             <div>
-              <label className={labelStyle}>Setor Destino</label>
+              <label className={labelStyle}>Setor destino</label>
               <select required onChange={e => setFormData({...formData, setor: e.target.value})} className={inputStyle}>
                 <option value="" className="bg-white">Selecione...</option>
                 {["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"].map(s => <option key={s} value={s} className="bg-white">{s}</option>)}
@@ -387,15 +362,28 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
             </div>
           </div>
 
+          {/* Histórico: fornecedor/valor de costume e aviso de parecida */}
+          <SugestaoHistorico
+            historico={historico}
+            tipo={formData.tipo}
+            veiculo={formData.veiculo}
+            titulo={formData.titulo}
+            fornecedor={formData.fornecedor}
+            valor={valorNovo}
+            onFornecedor={(v) => setFormData(p => ({ ...p, fornecedor: v }))}
+            onValor={setValorNovo}
+          />
+
           {/* NOVO CAMPO: QUEM FERRAMENTA (Aparece apenas se tipo for Ferramenta) */}
           {formData.tipo === 'Ferramenta' && (
-            <div className="p-8 bg-orange-50 rounded-2xl border border-orange-200">
-              <label className={labelStyle}>Destinação da Ferramenta</label>
+            <div className={secao}>
+              {secaoTitulo('fa-screwdriver-wrench', '#0891B2', 'Ferramenta')}
+              <label className={labelStyle}>Para quem é</label>
               <select 
                 required 
                 value={formData.quem_ferramenta}
                 onChange={e => setFormData({...formData, quem_ferramenta: e.target.value})} 
-                className={`${inputStyle} !border-orange-300`}
+                className={`${inputStyle}`}
               >
                 <option value="" className="bg-white">Selecione o uso...</option>
                 <option value="Uso Pessoal" className="bg-white">Uso Pessoal (Individual)</option>
@@ -406,19 +394,19 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
 
           {/* VEICULAR: placa + km */}
           {['Veicular Abastecimento', 'Veicular Manutenção'].includes(formData.tipo) && (
-            <div className="p-6 bg-orange-50 rounded-2xl border border-orange-200">
-              <p className="text-xs font-black text-orange-600 uppercase tracking-widest mb-4">Informacoes do Veiculo</p>
+            <div className={secao}>
+              {secaoTitulo('fa-car', '#2563EB', 'Veículo')}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className={labelStyle}>Veiculo / Placa</label>
-                  <select required value={formData.veiculo} onChange={e => setFormData({...formData, veiculo: e.target.value})} className={`${inputStyle} !border-orange-300`}>
-                    <option value="" className="bg-white">Selecione o veiculo...</option>
+                  <label className={labelStyle}>Placa</label>
+                  <select required value={formData.veiculo} onChange={e => setFormData({...formData, veiculo: e.target.value})} className={`${inputStyle}`}>
+                    <option value="" className="bg-white">Selecione o veículo...</option>
                     {veiculos.map(v => <option key={v.IdPlaca} value={v.IdPlaca} className="bg-white">{v.NumPlaca}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className={labelStyle}>Hodometro / Horimetro</label>
-                  <input placeholder="Ex: 12.500 km" inputMode="numeric" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} onBlur={e => setFormData({...formData, hodometro: formatarHodometro(e.target.value)})} className={`${inputStyle} !border-orange-300`} />
+                  <label className={labelStyle}>Hodômetro / horímetro</label>
+                  <input placeholder="Ex: 12.500 km" inputMode="numeric" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} onBlur={e => setFormData({...formData, hodometro: formatarHodometro(e.target.value)})} className={`${inputStyle}`} />
                 </div>
               </div>
             </div>
@@ -426,19 +414,19 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
 
           {/* ABASTECIMENTO: litros de combustível */}
           {['Veicular Abastecimento', 'Trator Abastecimento', 'Quadri Abastecimento'].includes(formData.tipo) && (
-            <div className="p-6 bg-amber-50 rounded-2xl border border-amber-200">
-              <p className="text-xs font-black text-amber-600 uppercase tracking-widest mb-4">Abastecimento</p>
+            <div className={secao}>
+              {secaoTitulo('fa-gas-pump', '#D97706', 'Abastecimento')}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {!['Trator Abastecimento', 'Quadri Abastecimento'].includes(formData.tipo) ? null : (
                   <>
                     <div ref={!['Trator-Loja', 'Trator-Cliente'].includes(formData.setor) ? projRef : undefined} className="relative">
-                      <label className={labelStyle}>Projeto / Chassis</label>
+                      <label className={labelStyle}>Trator (projeto ou chassis)</label>
                       <div
-                        className={`${inputStyle} !border-amber-300 cursor-pointer flex items-center justify-between`}
+                        className={`${inputStyle} cursor-pointer flex items-center justify-between`}
                         onClick={() => setProjDropdownOpen(!projDropdownOpen)}
                       >
                         <span className={formData.projeto_nome ? 'text-black' : 'text-black'}>
-                          {formData.projeto_nome || 'Buscar projeto ou chassis...'}
+                          {formData.projeto_nome || formData.Chassis_Modelo || 'Buscar projeto ou digitar o chassis...'}
                         </span>
                         <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                       </div>
@@ -453,7 +441,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
                               className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-amber-400"
                             />
                           </div>
-                          {formData.projeto_codigo && (
+                          {(formData.projeto_codigo || formData.Chassis_Modelo) && (
                             <button type="button"
                               onClick={() => { setFormData(p => ({...p, projeto_codigo: '', projeto_nome: '', Chassis_Modelo: ''})); setProjDropdownOpen(false); setProjBusca(''); }}
                               className="w-full px-4 py-2 text-left text-sm text-orange-500 hover:bg-orange-50 border-b border-zinc-100">
@@ -477,22 +465,25 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
                           {projBusca.trim().length < 2 && (
                             <p className="px-4 py-3 text-sm text-black text-center">Digite pelo menos 2 caracteres</p>
                           )}
+                          {projBusca.trim().length >= 2 && (
+                            <button type="button"
+                              onClick={() => { setFormData(prev => ({...prev, projeto_codigo: '', projeto_nome: '', Chassis_Modelo: projBusca.trim().toUpperCase()})); setProjDropdownOpen(false); setProjBusca(''); }}
+                              className="w-full px-4 py-3 text-left text-sm text-black hover:bg-zinc-50 border-t border-zinc-100">
+                              Usar “{projBusca.trim().toUpperCase()}” como chassis / modelo
+                            </button>
+                          )}
                         </div>
                       )}
-                    </div>
-                    <div>
-                      <label className={labelStyle}>Chassis / Modelo</label>
-                      <input placeholder={formData.projeto_nome ? 'Preenchido pelo projeto' : 'Ex: VALTRA BM110 - CHASSIS 123456'} value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={`${inputStyle} !border-amber-300`} />
                     </div>
                   </>
                 )}
                 <div>
-                  <label className={labelStyle}>Litros de Combustível</label>
-                  <input required placeholder="Ex: 150,00" inputMode="decimal" value={formData.litros_combustivel} onChange={e => setFormData({...formData, litros_combustivel: e.target.value})} onBlur={e => setFormData({...formData, litros_combustivel: formatarLitros(e.target.value)})} className={`${inputStyle} !border-amber-300`} />
+                  <label className={labelStyle}>Litros</label>
+                  <input required placeholder="Ex: 150,00" inputMode="decimal" value={formData.litros_combustivel} onChange={e => setFormData({...formData, litros_combustivel: e.target.value})} onBlur={e => setFormData({...formData, litros_combustivel: formatarLitros(e.target.value)})} className={`${inputStyle}`} />
                 </div>
                 <div>
-                  <label className={labelStyle}>Tipo de Combustível</label>
-                  <select required value={formData.combustivel} onChange={e => setFormData({...formData, combustivel: e.target.value})} className={`${inputStyle} !border-amber-300`}>
+                  <label className={labelStyle}>Combustível</label>
+                  <select required value={formData.combustivel} onChange={e => setFormData({...formData, combustivel: e.target.value})} className={`${inputStyle}`}>
                     <option value="" className="bg-white">Selecione...</option>
                     {['Gasolina Comum', 'Gasolina Aditivada', 'Etanol', 'Diesel', 'Diesel S10', 'Arla 32'].map(c => <option key={c} value={c} className="bg-white">{c}</option>)}
                   </select>
@@ -503,11 +494,11 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
 
           {/* TRATOR-LOJA (por setor) */}
           {formData.setor === 'Trator-Loja' && (
-            <div className="p-6 bg-zinc-100/30 rounded-2xl border border-zinc-300/50">
-              <p className="text-xs font-black text-black uppercase tracking-widest mb-4">Informacoes do Trator (Loja)</p>
+            <div className={secao}>
+              {secaoTitulo('fa-tractor', '#EA580C', 'Trator da loja')}
               {/* O.S. PRIMEIRO: escolher a ordem já puxa o chassis/modelo e o horímetro registrados nela */}
               <div ref={osRef} className="relative">
-                <label className={labelStyle}>Ordem de Serviço</label>
+                <label className={labelStyle}>Ordem de serviço</label>
                 <div
                   className={`${inputStyle} cursor-pointer flex items-center justify-between`}
                   onClick={() => setOsDropdownOpen(!osDropdownOpen)}
@@ -575,13 +566,13 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
                 )}
               </div>
               <div ref={projRef} className="relative mt-3">
-                <label className={labelStyle}>Projeto / Chassis</label>
+                <label className={labelStyle}>Trator (projeto ou chassis)</label>
                 <div
                   className={`${inputStyle} cursor-pointer flex items-center justify-between`}
                   onClick={() => setProjDropdownOpen(!projDropdownOpen)}
                 >
                   <span className={formData.projeto_nome ? 'text-black' : 'text-black'}>
-                    {formData.projeto_nome || 'Buscar projeto ou chassis...'}
+                    {formData.projeto_nome || formData.Chassis_Modelo || 'Buscar projeto ou digitar o chassis...'}
                   </span>
                   <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                 </div>
@@ -596,7 +587,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
                         className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-orange-400"
                       />
                     </div>
-                    {formData.projeto_codigo && (
+                    {(formData.projeto_codigo || formData.Chassis_Modelo) && (
                       <button type="button"
                         onClick={() => { setFormData(p => ({...p, projeto_codigo: '', projeto_nome: '', Chassis_Modelo: ''})); setProjDropdownOpen(false); setProjBusca(''); }}
                         className="w-full px-4 py-2 text-left text-sm text-orange-500 hover:bg-orange-50 border-b border-zinc-100">
@@ -620,17 +611,18 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
                     {projBusca.trim().length < 2 && (
                       <p className="px-4 py-3 text-sm text-black text-center">Digite pelo menos 2 caracteres</p>
                     )}
+                    {projBusca.trim().length >= 2 && (
+                      <button type="button"
+                        onClick={() => { setFormData(prev => ({...prev, projeto_codigo: '', projeto_nome: '', Chassis_Modelo: projBusca.trim().toUpperCase()})); setProjDropdownOpen(false); setProjBusca(''); }}
+                        className="w-full px-4 py-3 text-left text-sm text-black hover:bg-zinc-50 border-t border-zinc-100">
+                        Usar “{projBusca.trim().toUpperCase()}” como chassis / modelo
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
-              {/* Um campo SÓ de chassis (antes eram dois e confundia): preenchido
-                  pela O.S. ou pelo projeto, e dá pra ajustar na mão */}
               <div className="mt-3">
-                <label className={labelStyle}>Chassis / Modelo do Trator</label>
-                <input placeholder="Puxado da O.S. ou do projeto — ajuste se precisar" value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={inputStyle} />
-              </div>
-              <div className="mt-3">
-                <label className={labelStyle}>Hodometro / Horimetro</label>
+                <label className={labelStyle}>Hodômetro / horímetro</label>
                 <input placeholder="Ex: 12.500 km / 3.400 h" inputMode="numeric" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} onBlur={e => setFormData({...formData, hodometro: formatarHodometro(e.target.value)})} className={inputStyle} />
               </div>
             </div>
@@ -638,13 +630,13 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
 
           {/* TRATOR-CLIENTE (por setor) */}
           {formData.setor === 'Trator-Cliente' && (
-            <div className="p-6 bg-amber-500/10 rounded-2xl border border-orange-500/20">
-              <p className="text-xs font-black text-orange-400 uppercase tracking-widest mb-4">Informacoes do Cliente</p>
+            <div className={secao}>
+              {secaoTitulo('fa-user-tie', '#7C3AED', 'Trator do cliente')}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div ref={cliRef} className="relative">
-                  <label className="text-xs font-bold text-orange-400 uppercase">Cliente</label>
+                  <label className={labelStyle}>Cliente</label>
                   <div
-                    className={`${inputStyle} !text-base border-orange-500/20 cursor-pointer flex items-center justify-between`}
+                    className={`${inputStyle} cursor-pointer flex items-center justify-between`}
                     onClick={() => setCliDropdownOpen(!cliDropdownOpen)}
                   >
                     <span className={formData.cliente ? 'text-black' : 'text-black'}>
@@ -694,9 +686,9 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
                   )}
                 </div>
                 <div ref={osRef} className="relative">
-                  <label className="text-xs font-bold text-orange-400 uppercase">O.S.</label>
+                  <label className={labelStyle}>O.S.</label>
                   <div
-                    className={`${inputStyle} !text-base border-orange-500/20 cursor-pointer flex items-center justify-between`}
+                    className={`${inputStyle} cursor-pointer flex items-center justify-between`}
                     onClick={() => setOsDropdownOpen(!osDropdownOpen)}
                   >
                     <span className={formData.ordem_servico ? 'text-black' : 'text-black'}>
@@ -762,13 +754,13 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
                   )}
                 </div>
                 <div ref={!['Trator-Loja'].includes(formData.setor) ? projRef : undefined} className="relative">
-                  <label className="text-xs font-bold text-orange-400 uppercase">Projeto / Chassis</label>
+                  <label className={labelStyle}>Trator (projeto ou chassis)</label>
                   <div
-                    className={`${inputStyle} !text-base border-orange-500/20 cursor-pointer flex items-center justify-between`}
+                    className={`${inputStyle} cursor-pointer flex items-center justify-between`}
                     onClick={() => setProjDropdownOpen(!projDropdownOpen)}
                   >
                     <span className={formData.projeto_nome ? 'text-black' : 'text-black'}>
-                      {formData.projeto_nome || 'Buscar projeto ou chassis...'}
+                      {formData.projeto_nome || formData.Chassis_Modelo || 'Buscar projeto ou digitar o chassis...'}
                     </span>
                     <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                   </div>
@@ -783,7 +775,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
                           className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-orange-400"
                         />
                       </div>
-                      {formData.projeto_codigo && (
+                      {(formData.projeto_codigo || formData.Chassis_Modelo) && (
                         <button type="button"
                           onClick={() => { setFormData(p => ({...p, projeto_codigo: '', projeto_nome: '', Chassis_Modelo: ''})); setProjDropdownOpen(false); setProjBusca(''); }}
                           className="w-full px-4 py-2 text-left text-sm text-orange-500 hover:bg-orange-50 border-b border-zinc-100">
@@ -807,30 +799,33 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
                       {projBusca.trim().length < 2 && (
                         <p className="px-4 py-3 text-sm text-black text-center">Digite pelo menos 2 caracteres</p>
                       )}
+                      {projBusca.trim().length >= 2 && (
+                        <button type="button"
+                          onClick={() => { setFormData(prev => ({...prev, projeto_codigo: '', projeto_nome: '', Chassis_Modelo: projBusca.trim().toUpperCase()})); setProjDropdownOpen(false); setProjBusca(''); }}
+                          className="w-full px-4 py-3 text-left text-sm text-black hover:bg-zinc-50 border-t border-zinc-100">
+                          Usar “{projBusca.trim().toUpperCase()}” como chassis / modelo
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-orange-400 uppercase">Chassis / Modelo</label>
-                  <input placeholder="Puxado da O.S. — ajuste se precisar" value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={`${inputStyle} !text-base border-orange-500/20`} />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-orange-400 uppercase">Valor Cobrado do Cliente</label>
-                  <input placeholder="0,00" onChange={e => setFormData({...formData, valor_cobrado_cliente: e.target.value})} className={`${inputStyle} !text-base border-orange-500/40 font-bold text-orange-400`} />
+                  <label className={labelStyle}>Valor cobrado do cliente</label>
+                  <input placeholder="0,00" onChange={e => setFormData({...formData, valor_cobrado_cliente: e.target.value})} className={inputStyle} />
                 </div>
               </div>
             </div>
           )}
 
           <div>
-            <label className={labelStyle}>Observações Técnicas</label>
-            <textarea rows={4} spellCheck lang="pt-BR" onChange={e => setFormData({...formData, obs: e.target.value})} className={`${inputStyle} resize-none italic`} placeholder="Descreva os itens ou serviços necessários..." />
+            <label className={labelStyle}>Observações</label>
+            <textarea rows={4} spellCheck lang="pt-BR" onChange={e => setFormData({...formData, obs: e.target.value})} className={`${inputStyle} resize-none`} placeholder="Descreva os itens ou serviços necessários..." />
           </div>
 
           {/* Grupos (coletivos) — opcional, em dropdown pra não poluir o form */}
           {gruposDisp.length > 0 && (
             <div>
-              <label className={labelStyle}>Adicionar a grupo(s) <span className="text-black normal-case tracking-normal font-medium">(opcional)</span></label>
+              <label className={labelStyle}>Adicionar a grupo(s) <span className="text-zinc-400">(opcional)</span></label>
               <div className="relative">
                 <button type="button" onClick={() => setGruposFormAberto(o => !o)}
                   className={`${inputStyle} flex items-center gap-2 text-left`}>
@@ -843,7 +838,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
                   <ChevronDown size={20} className={`text-black transition-transform ${gruposFormAberto ? 'rotate-180' : ''}`} />
                 </button>
                 {gruposFormAberto && (
-                  <div className="absolute z-20 mt-2 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-y-auto p-1.5">
+                  <div className="mt-2 w-full bg-white border border-zinc-200 rounded-xl max-h-64 overflow-y-auto p-1.5">
                     {gruposDisp.map((g: any) => {
                       const sel = gruposSel.includes(g.id);
                       return (
@@ -863,8 +858,8 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
             </div>
           )}
 
-          <button type="submit" className="w-full bg-white text-black font-black py-6 rounded-xl shadow-lg hover:bg-orange-500 hover:text-white transition-all uppercase text-sm tracking-[0.4em]">
-            Confirmar e Enviar Pedido
+          <button type="submit" className="w-full bg-orange-600 text-white py-4 rounded-xl hover:bg-orange-700 transition-all text-[15px] flex items-center justify-center gap-2" style={{ fontWeight: 500 }}>
+            <i className="fa-solid fa-paper-plane" /> Criar requisição
           </button>
         </form>
       </div>

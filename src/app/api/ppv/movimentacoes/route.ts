@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseFetch, formatarDataBR } from "@/lib/ppv/supabase";
-import { TBL_ITENS, TBL_PRODUTOS } from "@/lib/ppv/constants";
+import { TBL_ITENS } from "@/lib/ppv/constants";
 import { buscarPPVPorId, atualizarValorTotal, registrarLog, saldoItemPPV } from "@/lib/ppv/queries";
 import { movimentacaoSchema, editarPrecoItemSchema } from "@/lib/ppv/schemas";
 import { logAndNotify } from "@/lib/server/audit-notify";
@@ -178,19 +178,11 @@ export async function PATCH(req: NextRequest) {
       { Preco: preco }
     );
 
-    // 2. Atualiza também o cadastro (Produtos_Completos) — será sobrescrito no próximo sync com o Omie
-    try {
-      await supabaseFetch(
-        `${TBL_PRODUTOS}?Codigo_Produto=eq.${encodeURIComponent(codigo)}`,
-        "PATCH",
-        { Preco_Venda: preco }
-      );
-    } catch (e) {
-      console.error("Erro ao atualizar preço no cadastro:", e);
-    }
-
+    // O cadastro (Produtos_Completos) NÃO é tocado: o preço de venda da peça é de Peças,
+    // na Omie, e chega pelo sync. Antes este PATCH gravava o preço do pedido no cadastro,
+    // e um valor negociado (ou errado) virava o preço dos próximos pedidos.
     await atualizarValorTotal(id);
-    await registrarLog(id, `Preço do item ${codigo} alterado para R$ ${preco.toFixed(2)} (cadastro atualizado)`, autor(g, userName));
+    await registrarLog(id, `Preço do item ${codigo} alterado para R$ ${preco.toFixed(2)}`, autor(g, userName));
 
     const detalhes = await buscarPPVPorId(id);
     return NextResponse.json(detalhes);

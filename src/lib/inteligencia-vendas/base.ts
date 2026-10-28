@@ -251,6 +251,7 @@ export function montarBase(f: Fontes, hoje: string): ClienteIV[] {
     const cli = (doc && porDoc.get(doc)) || (p.id_omie != null ? porCodigo.get(`NOVA:${p.id_omie}`) : undefined);
     if (!cli) continue;
     propCli.set(p.id, cli);
+    (cli.propriedades ||= []).push(p.id);
     const la = Number(p.latitude ?? p.lat), lo = Number(p.longitude ?? p.lng);
     if (!cli.local && la && lo && Math.abs(la) <= 90 && Math.abs(lo) <= 180) cli.local = [la, lo];
     if (p.area_hectares != null && Number(p.area_hectares) > 0) cli.areaHa = (cli.areaHa || 0) + Number(p.area_hectares);

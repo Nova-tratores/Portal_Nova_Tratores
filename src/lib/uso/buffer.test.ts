@@ -30,3 +30,20 @@ describe('buffer de uso', () => {
     expect(drenar(b).itens[0].n).toBe(3);
   });
 });
+
+describe('transições', () => {
+  it('acumula, ignora de === para e devolve sem perder', async () => {
+    const { acumularTransicao, drenarTransicoes, devolverTransicoes } = await import('./buffer');
+    const m = new Map();
+    const base = { user_id: 'u', de: '/a', para: '/b', dia: '2026-10-17' };
+    acumularTransicao(m, { ...base, gapS: 30, mesmoAlvo: true, volta: false });
+    acumularTransicao(m, { ...base, gapS: 120, mesmoAlvo: false, volta: true });
+    acumularTransicao(m, { ...base, para: '/a', gapS: 1, mesmoAlvo: true, volta: true });
+    const lote = drenarTransicoes(m);
+    expect(lote).toEqual([{ ...base, n: 2, n_mesmo_alvo: 1, n_volta: 1, n_rapida: 1, soma_gap_s: 150 }]);
+    expect(m.size).toBe(0);
+    devolverTransicoes(m, lote);
+    devolverTransicoes(m, lote);
+    expect(drenarTransicoes(m)[0].n).toBe(4);
+  });
+});

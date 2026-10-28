@@ -11,6 +11,7 @@ import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { authHeaders } from '@/lib/auth/client';
+import ModalRegistrarBoleto from '@/components/ajustes/ModalRegistrarBoleto';
 
 // ---------- tipos ----------
 type Tipo = 'pagar' | 'receber';
@@ -30,7 +31,10 @@ interface Lancamento {
   dataPrevisao?: string | null; observacao?: string | null;
   codigoProjeto?: number | null; idContaCorrente?: number | null;
   projetoNome?: string | null; // preenchido na tela (espelho de projetos)
+  // boleto agrupado de fornecedor: duplicata da NF (COMP) × manual (RPTP), parcela, fornecedor
+  numeroDocFiscal?: string | null; parcela?: string | null; valorPago?: number | null; idOrigem?: string | null; codigoFornecedor?: number | null;
 }
+interface BoletoAtivo { boletoId: string; numero: string; status: string }
 type Situacao = 'todas' | 'aberto' | 'atrasado';
 type Vista = 'ranking' | 'lista';
 interface CamposForm { dataVencimento: string; dataPrevisao: string; codigoProjeto: string; idContaCorrente: string; numeroDocumento: string; observacao: string }
@@ -112,6 +116,10 @@ export default function CorrecaoContasPage() {
   const [lancSub, setLancSub] = useState('');
   const [sort, setSort] = useState<{ key: string | null; dir: number }>({ key: null, dir: 1 });
   const [filtros, setFiltros] = useState<Record<string, string>>({});
+  // boleto agrupado de fornecedor (vista Lista, a pagar): seleção de duplicatas + quais já estão em boleto
+  const [selBoleto, setSelBoleto] = useState<Set<string>>(new Set());
+  const [emBoleto, setEmBoleto] = useState<Record<string, BoletoAtivo>>({});
+  const [modalBoleto, setModalBoleto] = useState<Lancamento[] | null>(null);
 
   // caches de cat/dep por conta (slug)
   const catCache = useRef<Record<string, CatDep[]>>({});
@@ -125,6 +133,20 @@ export default function CorrecaoContasPage() {
   const [modalLanc, setModalLanc] = useState<Lancamento | null>(null);
   // modal de massa
   const [massaRows, setMassaRows] = useState<Lancamento[] | null>(null);
+
+  // duplicatas que já estão num boleto agrupado ativo (chip na linha + bloqueio da seleção)
+  const carregarEmBoleto = useCallback(async (ls: Lancamento[]) => {
+    const contas = Array.from(new Set(ls.map((l) => String(l.conta).toUpperCase()))).filter((c) => c === 'NOVA' || c === 'CASTRO');
+    const mapa: Record<string, BoletoAtivo> = {};
+    for (const c of contas) {
+      try {
+        const r = await fetch(`/api/ajustes/boletos-fornecedor?conta=${c}&status=ativos`, { headers: await authHeaders() });
+        const d = await r.json();
+        for (const [cod, info] of Object.entries((d.titulosAtivos || {}) as Record<string, BoletoAtivo>)) mapa[`${c}:${cod}`] = info;
+      } catch { /* sem o painel de boletos (migration ausente) a tela segue igual */ }
+    }
+    setEmBoleto(mapa);
+  }, []);
 
   const buscar = useCallback(async () => {
     setCarregando(true);
@@ -147,6 +169,8 @@ export default function CorrecaoContasPage() {
         setLancs(d.lancamentos || []);
         setSort({ key: 'vencimento', dir: 1 });
         setFiltros({});
+        setSelBoleto(new Set());
+        if (tipo === 'pagar') carregarEmBoleto(d.lancamentos || []);
         setGrupoSel({ codigo: '*', descricao: 'Todos os lancamentos', total: 0, n: d.total || 0 });
         const corte = (d.total || 0) > (d.mostrando || 0) ? ` · mostrando os ${d.mostrando} maiores — refine o periodo ou a situacao` : '';
         setLancSub(`${d.total || 0} lancamento(s)${sit}${corte} · clique no cabecalho para ordenar, filtre por coluna, Corrigir para editar`);
@@ -165,7 +189,7 @@ export default function CorrecaoContasPage() {
     } finally {
       setCarregando(false);
     }
-  }, [tipo, dim, situacao, usaData, contaParam, de, ate, vista]);
+  }, [tipo, dim, situacao, usaData, contaParam, de, ate, vista, carregarEmBoleto]);
 
   // recarrega ao trocar conta/tipo/dim/situacao/vista
   useEffect(() => {
@@ -259,6 +283,25 @@ export default function CorrecaoContasPage() {
     setSort((s) => s.key === key ? { key, dir: -s.dir } : { key, dir: 1 });
   }, []);
 
+  // seleção para boleto agrupado: só vista Lista + a pagar; válida com 1 empresa, 1 fornecedor, só duplicatas de NF em aberto
+  const modoBoleto = vista === 'lista' && tipo === 'pagar';
+  const chaveSel = (l: Lancamento) => `${String(l.conta).toUpperCase()}:${l.codigoLancamento}`;
+  const podeSelecionar = (l: Lancamento) => modoBoleto && ['A VENCER', 'ATRASADO', 'VENCE HOJE'].includes(String(l.status || '')) && (l.idOrigem || 'COMP') === 'COMP' && !emBoleto[chaveSel(l)];
+  const selecionados = useMemo(() => linhasVisiveis.filter((l) => selBoleto.has(chaveSel(l))), [linhasVisiveis, selBoleto]);
+  const boletoInfo = useMemo(() => {
+    if (!selecionados.length) return { ok: false, motivo: '' };
+    const contas = new Set(selecionados.map((l) => String(l.conta).toUpperCase()));
+    if (contas.size > 1) return { ok: false, motivo: 'uma empresa por boleto' };
+    const forns = new Set(selecionados.map((l) => l.codigoFornecedor ?? decode(l.contraparte)));
+    if (forns.size > 1) return { ok: false, motivo: 'um fornecedor por boleto' };
+    return { ok: true, motivo: '' };
+  }, [selecionados]);
+  const toggleSel = (l: Lancamento) => setSelBoleto((s) => { const n = new Set(s); const k = chaveSel(l); if (n.has(k)) n.delete(k); else n.add(k); return n; });
+  const toggleTodos = () => {
+    const elegiveis = linhasVisiveis.filter(podeSelecionar);
+    setSelBoleto((s) => elegiveis.every((l) => s.has(chaveSel(l))) ? new Set() : new Set(elegiveis.map(chaveSel)));
+  };
+
   if (!permLoading && userProfile && !pode('ajustes', 'correcao-contas')) return <SemPermissao />;
 
   const TOP = 30;
@@ -271,7 +314,7 @@ export default function CorrecaoContasPage() {
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Correcao de contas</h1>
           <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 820 }}>
-            Ranking de gastos por <b>categoria</b> ou <b>departamento</b> (a pagar e a receber) pra achar valores que distorcem o DRE. Use <b>Situacao</b> pra ver so as contas <b>em aberto</b> ou <b>atrasadas</b>. Clique numa barra pra ver os lancamentos e <b>corrigir</b> direto no Omie: categoria, departamento, vencimento, previsao, projeto, conta corrente, nº do documento e observacao. Na vista <b>Lista</b> todos os lancamentos do filtro aparecem numa tabela so, com o cabecalho ordenando A→Z / Z→A. Conta <b>{conta ? conta.toUpperCase() : 'Todas'}</b>.
+            Ranking de gastos por <b>categoria</b> ou <b>departamento</b> (a pagar e a receber) pra achar valores que distorcem o DRE. Use <b>Situacao</b> pra ver so as contas <b>em aberto</b> ou <b>atrasadas</b>. Clique numa barra pra ver os lancamentos e <b>corrigir</b> direto no Omie: categoria, departamento, vencimento, previsao, projeto, conta corrente, nº do documento e observacao. Na vista <b>Lista</b> todos os lancamentos do filtro aparecem numa tabela so, com o cabecalho ordenando A→Z / Z→A — e, a pagar, da pra marcar as duplicatas de NF de um fornecedor e <b>registrar o boleto agrupado</b> (o boleto reprograma as duplicatas; nada de titulo manual nem baixa antes de pagar). Conta <b>{conta ? conta.toUpperCase() : 'Todas'}</b>.
           </p>
         </div>
         <div style={{ marginLeft: 'auto' }}><ContaSelector /></div>
@@ -334,6 +377,13 @@ export default function CorrecaoContasPage() {
             <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.9rem', margin: 0 }}>{grupoSel.codigo === '*' ? 'Todos os lancamentos' : `${dim === 'categoria' ? 'Categoria: ' : 'Departamento: '}${grupoSel.descricao || '(sem)'}`}</h2>
             <span style={{ fontSize: '.72rem', color: '#64748b' }}>{lancSub}</span>
             <div style={{ flex: 1 }} />
+            {modoBoleto && selecionados.length > 0 && (
+              <button onClick={() => boletoInfo.ok && setModalBoleto(selecionados)} disabled={!boletoInfo.ok}
+                title={boletoInfo.ok ? 'O boleto do fornecedor reprograma estas duplicatas (previsão/vencimento = parcela) — sem título manual, sem baixa' : boletoInfo.motivo}
+                style={{ padding: '4px 12px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.72rem', cursor: boletoInfo.ok ? 'pointer' : 'not-allowed', opacity: boletoInfo.ok ? 1 : 0.5 }}>
+                Registrar boleto agrupado ({selecionados.length}){boletoInfo.ok ? '' : ` — ${boletoInfo.motivo}`}
+              </button>
+            )}
             {massaInfo && (
               <button onClick={() => setMassaRows(massaInfo.rows)} style={{ padding: '4px 12px', background: '#d97706', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.72rem', cursor: 'pointer' }} title="So aparece quando o filtro deixa um unico cliente/fornecedor">Alterar em massa ({massaInfo.rows.length})</button>
             )}
@@ -343,6 +393,7 @@ export default function CorrecaoContasPage() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                 <tr>
+                  {modoBoleto && <th style={{ ...thStyle, width: 28 }} title="selecionar duplicatas de NF em aberto para registrar um boleto agrupado"><input type="checkbox" onChange={toggleTodos} checked={linhasVisiveis.some(podeSelecionar) && linhasVisiveis.filter(podeSelecionar).every((l) => selBoleto.has(chaveSel(l)))} /></th>}
                   {COLS.map((c) => (
                     <th key={c.key} onClick={() => ordenarPor(c.key)} title={sort.key === c.key ? (sort.dir > 0 ? 'A→Z — clique para inverter' : 'Z→A — clique para inverter') : 'Clique para ordenar A→Z / Z→A'} aria-sort={sort.key === c.key ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'} style={{ ...thStyle, textAlign: c.align === 'right' ? 'right' : 'left', color: sort.key === c.key ? '#2563eb' : thStyle.color }}>
                       {c.label}{sort.key === c.key ? (sort.dir > 0 ? ' ▲' : ' ▼') : <span style={{ opacity: 0.35 }}> ⇅</span>}
@@ -351,6 +402,7 @@ export default function CorrecaoContasPage() {
                   <th style={thStyle} />
                 </tr>
                 <tr>
+                  {modoBoleto && <th style={{ ...thStyle, cursor: 'auto' }} />}
                   {COLS.map((c) => (
                     <th key={c.key} style={{ ...thStyle, cursor: 'auto', padding: '2px 6px' }}>
                       <input value={filtros[c.key] || ''} onChange={(e) => setFiltros((s) => ({ ...s, [c.key]: e.target.value }))} placeholder="filtrar" style={{ width: '100%', minWidth: 80, border: '1px solid #e2e8f0', borderRadius: 4, padding: '2px 6px', fontSize: '.72rem', fontWeight: 400, textTransform: 'none' }} />
@@ -361,9 +413,16 @@ export default function CorrecaoContasPage() {
               </thead>
               <tbody>
                 {linhasVisiveis.length === 0 ? (
-                  <tr><td colSpan={COLS.length + 1} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8' }}>Nenhum lancamento bate com os filtros.</td></tr>
+                  <tr><td colSpan={COLS.length + (modoBoleto ? 2 : 1)} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8' }}>Nenhum lancamento bate com os filtros.</td></tr>
                 ) : linhasVisiveis.map((l) => (
-                  <tr key={`${l.conta}:${l.codigoLancamento}`} style={{ borderTop: '1px solid #f1f5f9' }}>
+                  <tr key={`${l.conta}:${l.codigoLancamento}`} style={{ borderTop: '1px solid #f1f5f9', background: selBoleto.has(chaveSel(l)) ? '#faf5ff' : undefined }}>
+                    {modoBoleto && (
+                      <td style={{ ...tdStyle, textAlign: 'center' }} title={emBoleto[chaveSel(l)] ? `já está no boleto ${emBoleto[chaveSel(l)].numero}` : (l.idOrigem || 'COMP') !== 'COMP' ? 'título manual (não é duplicata de NF)' : ''}>
+                        {podeSelecionar(l) ? <input type="checkbox" checked={selBoleto.has(chaveSel(l))} onChange={() => toggleSel(l)} />
+                          : emBoleto[chaveSel(l)] ? <span style={{ fontSize: '.6rem', padding: '1px 5px', borderRadius: 4, background: '#ede9fe', color: '#6d28d9', whiteSpace: 'nowrap' }}>boleto {emBoleto[chaveSel(l)].numero}</span>
+                          : (l.idOrigem || 'COMP') !== 'COMP' && ['A VENCER', 'ATRASADO', 'VENCE HOJE'].includes(String(l.status || '')) ? <span style={{ fontSize: '.6rem', color: '#b45309' }} title="título digitado à mão na Omie (não veio de NF)">manual</span> : null}
+                      </td>
+                    )}
                     <td style={tdStyle}><Badge conta={l.conta} /></td>
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(l.valor)}</td>
                     <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: '#64748b' }}>{fmtData(l.dataEmissao) || '-'}</td>
@@ -389,6 +448,9 @@ export default function CorrecaoContasPage() {
       {modalLanc && (
         <ModalCorrecao lanc={modalLanc} tipo={tipo} carregarCats={carregarCats} carregarDeps={carregarDeps} carregarProjetos={carregarProjetos} carregarCCs={carregarCCs}
           onClose={() => setModalLanc(null)} onAplicado={() => { setModalLanc(null); buscar(); }} />
+      )}
+      {modalBoleto && (
+        <ModalRegistrarBoleto titulos={modalBoleto} onClose={() => setModalBoleto(null)} onRegistrado={() => { setModalBoleto(null); buscar(); }} />
       )}
       {massaRows && (
         <ModalMassa rows={massaRows} tipo={tipo} criadoPor={criadoPor} carregarCats={carregarCats} carregarDeps={carregarDeps}

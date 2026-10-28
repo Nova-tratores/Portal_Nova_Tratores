@@ -242,6 +242,12 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
     setErroForm('')
     setForm({ titulo: '', descricao: '', local: '', diaInteiro: false, diaIni: d, horaIni: ini, diaFim: d, horaFim: fim, participantes: [], freq: '', ate: '', cor: null })
   }
+  // atalho da dashboard: /agenda?criar=1 já abre o "novo compromisso"
+  useEffect(() => {
+    if (modoTecnicos || new URLSearchParams(window.location.search).get('criar') !== '1') return
+    window.history.replaceState(null, '', window.location.pathname)
+    void Promise.resolve().then(botaoCriar)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const rascunhoDaCriacao = (c: Criacao, titulo: string): RascunhoEvento => ({
     titulo, descricao: '', local: '', diaInteiro: c.diaInteiro, diaIni: c.dia, horaIni: c.diaInteiro ? '09:00' : c.ini,
     diaFim: c.dia, horaFim: c.diaInteiro ? '10:00' : c.fim,

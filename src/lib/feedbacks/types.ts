@@ -58,6 +58,11 @@ export interface FeedbackRegistro {
   // Cockpit de atendimento (sql/create-feedback-chamada.sql)
   proximo_contato_em?: string | null; // YYYY-MM-DD — a Agenda usa quando existir
   chamadas_count?: number;            // ligações encerradas (trigger)
+  // CRM automático das OS faturadas (sql/feedbacks-crm-automatico.sql)
+  os_ref?: string | null;             // 'NOVA:5395' | 'CASTRO:123'
+  os_valor?: number | null;           // valor_total da OS no Omie
+  faturado_em?: string | null;        // YYYY-MM-DD (data_faturamento da OS)
+  origem_auto?: string | null;        // 'os_faturada' quando criado pelo robô
 
   criado_em: string;
   atualizado_em: string;

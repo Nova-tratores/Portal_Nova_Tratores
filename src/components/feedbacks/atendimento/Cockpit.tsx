@@ -19,6 +19,27 @@ const COR_SERVICOS = "#7c3aed";
 const COR_COMPRAS = "#0f766e";
 const COR_MAQUINAS = "#0369a1";
 
+// Ícones Font Awesome no lugar dos emojis que vêm das libs (REGRA_ROTULO, ETAPAS do roteiro).
+const ICONE_REGRA: Record<string, string> = {
+  R1_revisao: "fa-wrench",
+  R7_garantia_risco: "fa-hourglass-half",
+  R2_sem_os: "fa-clock-rotate-left",
+  R6_fora_garantia: "fa-shield-halved",
+  R5_pecas: "fa-gears",
+  R3_upsell: "fa-chart-line",
+  R4_followup: "fa-phone",
+  R8_cadastro: "fa-address-card",
+};
+const ICONE_ETAPA: Record<string, string> = {
+  apresentacao: "fa-hand",
+  argumentacao: "fa-comments",
+  objecao: "fa-shield-halved",
+};
+/** Cartão neutro (sem faixa colorida no topo). */
+const CARTAO: React.CSSProperties = { background: "var(--portal-bg-card)", border: "1px solid var(--portal-border)", borderRadius: 16, padding: 16 };
+/** A classe .pill do módulo vem com fonte 700 — aqui fica 500. */
+const PILULA: React.CSSProperties = { fontWeight: 500, letterSpacing: 0 };
+
 interface Props {
   ctx: ContextoAtendimento | null;
   carregando: boolean;
@@ -34,11 +55,11 @@ interface Props {
   roteiro?: RoteiroMontado[];
   /** abre o modal "Corrigir cadastro" (telefone/e-mail no Omie) */
   onCorrigirCadastro?: () => void;
-  /** 💀 marcar "Não contatar" / reativar (mesma regra do CRM) */
+  /** marcar "Não contatar" / reativar (mesma regra do CRM) */
   onNaoContatar?: () => void;
   /** módulos do usuário: decide se OS/PPV abrem a tela ou o PDF (links.ts) */
   acesso?: Acesso;
-  /** clique numa máquina (ou no chip 🚜 de uma OS) → modal de histórico */
+  /** clique numa máquina (ou no chip do trator de uma OS) → modal de histórico */
   onAbrirMaquina?: (m: Maquina) => void;
   /** auditoria: usuário abriu um documento a partir da ficha */
   onAbrirDocumento?: (tipo: string, id: string) => void;
@@ -74,18 +95,18 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
     <div className={styles.cockpitGrid} style={{ display: "grid", gridTemplateColumns: "300px minmax(0, 1fr) 380px", gap: 14, alignItems: "start" }}>
       {/* ───────── ESQUERDA: quem é ───────── */}
       <div className={styles.cockpitEsq} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
-        {bloqueado && <FaixaBloqueio texto="NÃO CONTATAR" />}
-        <section className={styles.card} style={{ ["--fb-accent" as string]: bloqueado ? VERMELHO : COR_ATENDIMENTO }}>
+        {bloqueado && <FaixaBloqueio texto="Não contatar" />}
+        <section style={CARTAO}>
           {carregando && !ctx ? (
             <Esqueleto linhas={5} />
           ) : (
             <>
-              <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.6, textTransform: "uppercase", letterSpacing: 0.8 }}>Cliente</div>
-              <h1 style={{ margin: "2px 0 6px", fontSize: 20, fontWeight: 800, lineHeight: 1.2 }}>
-                {bloqueado && <span title="Cliente marcado como NÃO CONTATAR">🚫 </span>}
+              <div style={{ fontSize: 12, fontWeight: 500, opacity: 0.6 }}>Cliente</div>
+              <h1 style={{ margin: "2px 0 6px", fontSize: 20, fontWeight: 500, lineHeight: 1.2 }}>
+                {bloqueado && <span title="Cliente marcado como Não contatar" style={{ color: VERMELHO, marginRight: 6 }}><i className="fa-solid fa-ban" /></span>}
                 {id?.nome || ctx?.nome || ctx?.cliente_key}
               </h1>
-              {bloqueado && <div style={{ color: VERMELHO_ESCURO, fontWeight: 900, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CONTATO BLOQUEADO · NÃO CONTATAR</div>}
+              {bloqueado && <div style={{ marginBottom: 6 }}><span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: VERMELHO_ESCURO, background: "#fee2e2", border: `1px solid ${VERMELHO}`, borderRadius: 999, padding: "2px 10px", fontWeight: 500, fontSize: 12 }}>Contato bloqueado · Não contatar</span></div>}
               <div style={cinza}>
               {id?.razao_social && id.razao_social !== id.nome && <Linha rotulo="Razão social" valor={id.razao_social} />}
               <Linha rotulo="Código Omie" valor={ctx?.codigo_omie ? `#${ctx.codigo_omie}${ctx.codigos_omie.length > 1 ? ` (+${ctx.codigos_omie.length - 1} cadastro${ctx.codigos_omie.length > 2 ? "s" : ""})` : ""}` : "sem cadastro"} />
@@ -93,34 +114,34 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
               {id?.empresa && <Linha rotulo="Empresa" valor={id.empresa} />}
               <Linha rotulo="Cidade" valor={[id?.cidade, id?.estado].filter(Boolean).join("/") || "—"} />
               {id?.endereco && <Linha rotulo="Endereço" valor={id.endereco} />}
-              {id?.email && <Linha rotulo="E-mail" valor={<span><a href={`mailto:${id.email}`} style={{ color: id.email_interno ? "#92400e" : "#0369a1" }}>{id.email}</a>{id.email_interno && <span title="É um e-mail da loja usado como preenchimento, não do cliente" style={{ fontSize: 10, marginLeft: 6, color: "#92400e", fontWeight: 700 }}>e-mail da loja</span>}</span>} />}
+              {id?.email && <Linha rotulo="E-mail" valor={<span><a href={`mailto:${id.email}`} style={{ color: id.email_interno ? "#92400e" : "#0369a1" }}>{id.email}</a>{id.email_interno && <span title="É um e-mail da loja usado como preenchimento, não do cliente" style={{ fontSize: 10, marginLeft: 6, color: "#92400e", fontWeight: 500 }}>e-mail da loja</span>}</span>} />}
               {(id?.culturas || id?.area_hectares) && (
                 <Linha rotulo="Propriedade" valor={[id?.culturas, id?.area_hectares ? `${id.area_hectares} ha` : null].filter(Boolean).join(" · ")} />
               )}
               {id?.lat != null && id?.lng != null && (
-                <a href={`https://www.google.com/maps/search/?api=1&query=${id.lat},${id.lng}`} target="_blank" rel="noopener noreferrer" className={styles.pill} style={{ background: "#ecfdf5", color: "#065f46", textDecoration: "none", marginTop: 6 }}>
-                  📍 Ver no mapa
+                <a href={`https://www.google.com/maps/search/?api=1&query=${id.lat},${id.lng}`} target="_blank" rel="noopener noreferrer" className={styles.pill} style={{ ...PILULA, background: "#ecfdf5", color: "#065f46", textDecoration: "none", marginTop: 6 }}>
+                  <i className="fa-solid fa-location-dot" /> Ver no mapa
                 </a>
               )}
               {(id?.tags.length ?? 0) > 0 && (
                 <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 10 }}>
                   {id!.tags.map((t) => (
-                    <span key={t} className={styles.pill} style={tagStyle(t)}>{rotuloTag(t)}</span>
+                    <span key={t} className={styles.pill} style={{ ...PILULA, ...tagStyle(t) }}>{rotuloTag(t)}</span>
                   ))}
                 </div>
               )}
-              {id?.inativo && <Aviso cor="#991b1b" bg="#fee2e2">Cadastro INATIVO no Omie.</Aviso>}
+              {id?.inativo && <Aviso cor="#991b1b" bg="#fee2e2">Cadastro inativo no Omie.</Aviso>}
               {id?.pendencia_cadastral && <Aviso cor="#92400e" bg="#fef3c7">Cadastro com pendência — confirme os dados na ligação.</Aviso>}
               {(id?.email_interno || (id && id.telefones.length === 0)) && <Aviso cor="#92400e" bg="#fef3c7">{id?.telefones.length === 0 ? "Sem telefone no cadastro." : "E-mail do cadastro é da loja."} Confirme com o cliente e use “Corrigir cadastro”.</Aviso>}
               {id?.observacoes && <p style={{ margin: "10px 0 0", fontSize: 12, fontStyle: "italic", opacity: 0.8 }}>“{id.observacoes}”</p>}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
-                {ctx?.codigo_omie && onCorrigirCadastro && <button type="button" onClick={onCorrigirCadastro} style={{ ...btn(COR_ATENDIMENTO, false), flex: 1 }} title="Telefone e e-mail — grava no Omie">✎ Corrigir cadastro</button>}
-                <button type="button" onClick={onEditarPerfil} style={{ ...btn("#475569", false), flex: 1 }}>✎ Funcionários e fazendas</button>
+                {ctx?.codigo_omie && onCorrigirCadastro && <button type="button" onClick={onCorrigirCadastro} style={{ ...btn(COR_ATENDIMENTO, false), flex: 1 }} title="Telefone e e-mail — grava no Omie"><i className="fa-solid fa-pen" /> Corrigir cadastro</button>}
+                <button type="button" onClick={onEditarPerfil} style={{ ...btn("#475569", false), flex: 1 }}><i className="fa-solid fa-pen" /> Funcionários e fazendas</button>
               </div>
               {onNaoContatar && (
-                <button type="button" onClick={onNaoContatar} style={{ ...btn(id?.nao_contatar ? "#16a34a" : "#111", false), marginTop: 6, width: "100%" }} title={id?.nao_contatar ? "Tira a marca Não contatar (e reativa no Omie, se tinha código)" : "Marca o cliente como Não contatar (caveira)"}>
-                  {id?.nao_contatar ? "✅ Reativar contato" : "💀 Não contatar"}
+                <button type="button" onClick={onNaoContatar} style={{ ...btn(id?.nao_contatar ? "#16a34a" : "#111111", false), marginTop: 6, width: "100%" }} title={id?.nao_contatar ? "Tira a marca Não contatar (e reativa no Omie, se tinha código)" : "Marca o cliente como Não contatar (caveira)"}>
+                  {id?.nao_contatar ? <><i className="fa-solid fa-circle-check" /> Reativar contato</> : <><i className="fa-solid fa-ban" /> Não contatar</>}
                 </button>
               )}
             </>
@@ -134,11 +155,11 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
       <div className={styles.cockpitMeio} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
         {bloqueado && <FaixaBloqueio />}
         {!ocultar && roteiro && roteiro.length > 0 && (
-          <Card cinza={cinza} titulo="Roteiro" emoji="🗣️" cor="#d97706" contagem={null} carregando={carregando && !ctx}>
+          <Card cinza={cinza} titulo="Roteiro" icone="fa-comment-dots" cor="#d97706" contagem={null} carregando={carregando && !ctx}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {roteiro.map((e, i) => (
                 <details key={e.etapa} open={i === 0} style={{ border: "1px solid var(--portal-border)", borderRadius: 10, padding: "6px 10px" }}>
-                  <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 800 }}>{e.emoji} {e.rotulo} <span style={{ opacity: 0.5, fontWeight: 500 }}>({e.itens.length})</span></summary>
+                  <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 500 }}><i className={`fa-solid ${ICONE_ETAPA[e.etapa] ?? "fa-comment"}`} style={{ opacity: 0.7, marginRight: 4 }} /> {e.rotulo} <span style={{ opacity: 0.5, fontWeight: 500 }}>({e.itens.length})</span></summary>
                   <ul style={{ ...lista, marginTop: 6 }}>
                     {e.itens.map((it) => (
                       <li key={it.id} style={{ ...itemCompacto, background: "var(--portal-bg)" }}>
@@ -152,7 +173,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
             </div>
           </Card>
         )}
-        <Card cinza={cinza} titulo="Por que ligar" emoji="🎯" cor="#dc2626" contagem={oportunidades.length + abertos.length} carregando={carregando && !ctx} erro={ctx?.erros.motivos}>
+        <Card cinza={cinza} titulo="Por que ligar" icone="fa-bullseye" cor="#dc2626" contagem={oportunidades.length + abertos.length} carregando={carregando && !ctx} erro={ctx?.erros.motivos}>
           {oportunidades.length === 0 && abertos.length === 0 ? (
             <Vazio>Nenhum motivo automático em aberto. Ligação por iniciativa própria — registre ao final.</Vazio>
           ) : (
@@ -161,30 +182,30 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
                 const r = REGRA_ROTULO[op.regra];
                 const ui = renderizarUltimaInteracao(op);
                 return (
-                  <li key={`op${op.id}`} style={{ ...item, borderLeft: `4px solid ${r?.cor ?? "#999"}` }}>
+                  <li key={`op${op.id}`} style={item}>
                     <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                      <strong style={{ fontSize: 13 }}>{r?.emoji} {r?.titulo ?? op.regra}</strong>
-                      <span className={styles.pill} style={prioStyle(op.prioridade)}>{op.prioridade}</span>
-                      {op.trator && <span style={{ fontSize: 12, opacity: 0.75 }}>🚜 {op.trator}</span>}
+                      <strong style={{ fontSize: 13, fontWeight: 500 }}><i className={`fa-solid ${ICONE_REGRA[op.regra] ?? "fa-bullseye"}`} style={{ color: r?.cor ?? "#999", marginRight: 4 }} /> {r?.titulo ?? op.regra}</strong>
+                      <span className={styles.pill} style={{ ...PILULA, ...prioStyle(op.prioridade) }}>{op.prioridade}</span>
+                      {op.trator && <span style={{ fontSize: 12, opacity: 0.75 }}><i className="fa-solid fa-tractor" /> {op.trator}</span>}
                     </div>
                     <div style={{ fontSize: 12, marginTop: 4, lineHeight: 1.5 }}>{renderizarDetalhes(op)}</div>
                     {ui && <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7 }}>Última interação: {ui}</div>}
-                    {r?.oQueFazer && <div style={{ fontSize: 12, marginTop: 6, fontWeight: 700, color: r.cor }}>👉 {r.oQueFazer}</div>}
+                    {r?.oQueFazer && <div style={{ fontSize: 12, marginTop: 6, fontWeight: 500, color: r.cor }}><i className="fa-solid fa-hand-point-right" /> {r.oQueFazer}</div>}
                     {emLigacao && (
-                      <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 12, fontWeight: 700, cursor: "pointer", color: assuntoId === op.id ? "#16a34a" : "inherit" }}>
+                      <label style={{ display: "inline-flex", alignItems: "center", gap: 6, marginTop: 8, fontSize: 12, fontWeight: 500, cursor: "pointer", color: assuntoId === op.id ? "#16a34a" : "inherit" }}>
                         <input type="radio" name="assunto" checked={assuntoId === op.id} onChange={() => onEscolherAssunto?.(op.id)} />
-                        {assuntoId === op.id ? "✓ Este é o assunto da ligação" : "Este é o assunto da ligação"}
+                        {assuntoId === op.id ? <><i className="fa-solid fa-check" /> Este é o assunto da ligação</> : "Este é o assunto da ligação"}
                       </label>
                     )}
                   </li>
                 );
               })}
               {abertos.map((a) => (
-                <li key={`reg${a.id}`} style={{ ...item, borderLeft: `4px solid ${a.tipo === "crm" ? "#dc2626" : "#6366f1"}` }}>
+                <li key={`reg${a.id}`} style={item}>
                   <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                    <strong style={{ fontSize: 13 }}>📋 Atendimento {a.tipo.toUpperCase()} em aberto</strong>
-                    <span className={styles.pill} style={{ background: "#f1f5f9", color: "#334155" }}>{STATUS_ATENDIMENTO_ROTULO[a.status_atendimento] ?? a.status_atendimento}</span>
-                    {a.atendente && <span style={{ fontSize: 12, opacity: 0.75 }}>🎧 {a.atendente}</span>}
+                    <strong style={{ fontSize: 13, fontWeight: 500 }}><i className="fa-solid fa-clipboard-list" style={{ color: a.tipo === "crm" ? "#dc2626" : "#6366f1", marginRight: 4 }} /> Atendimento {a.tipo.toUpperCase()} em aberto</strong>
+                    <span className={styles.pill} style={{ ...PILULA, background: "#f1f5f9", color: "#334155" }}>{STATUS_ATENDIMENTO_ROTULO[a.status_atendimento] ?? a.status_atendimento}</span>
+                    {a.atendente && <span style={{ fontSize: 12, opacity: 0.75 }}><i className="fa-solid fa-headset" /> {a.atendente}</span>}
                   </div>
                   {a.resumo && <div style={{ fontSize: 12, marginTop: 4 }}>{a.resumo}</div>}
                   <button type="button" onClick={() => onRegistrar(a.tipo, a.id)} style={{ ...btn(COR_ATENDIMENTO, true), marginTop: 8 }}>Preencher este atendimento</button>
@@ -195,7 +216,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
         </Card>
 
         {!ocultar && (<>
-        <Card cinza={cinza} titulo="Máquinas" emoji="🚜" cor={COR_MAQUINAS} contagem={ctx?.maquinas?.length} carregando={carregando && !ctx} erro={ctx?.erros.maquinas}>
+        <Card cinza={cinza} titulo="Máquinas" icone="fa-tractor" cor={COR_MAQUINAS} contagem={ctx?.maquinas?.length} carregando={carregando && !ctx} erro={ctx?.erros.maquinas}>
           {!ctx?.maquinas?.length ? (
             <Vazio>Nenhuma máquina encontrada (controle de revisões, projetos Omie, OS/PPV, CRM ou pasta).</Vazio>
           ) : (
@@ -216,7 +237,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
         </Card>
 
         <div className={styles.cockpitDuo} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Card cinza={cinza} titulo="Últimos serviços" emoji="🔧" cor={COR_SERVICOS} contagem={ctx?.servicos?.length} carregando={carregando && !ctx} erro={ctx?.erros.historico ?? ctx?.erros.os_portal}>
+          <Card cinza={cinza} titulo="Últimos serviços" icone="fa-wrench" cor={COR_SERVICOS} contagem={ctx?.servicos?.length} carregando={carregando && !ctx} erro={ctx?.erros.historico ?? ctx?.erros.os_portal}>
             {!ctx?.servicos?.length ? (
               <Vazio>Nenhuma ordem de serviço encontrada.</Vazio>
             ) : (
@@ -232,28 +253,28 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
                     <li key={`${s.origem}-${s.numero}-${i}`} style={{ ...itemCompacto, ...(aceso(ids) ? { outline: `2px solid ${COR_SERVICOS}`, outlineOffset: -1, background: "#f5f3ff" } : {}) }}
                       onMouseEnter={() => ids.length && setFoco(ids)} onMouseLeave={() => setFoco(null)}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "baseline", flexWrap: "wrap" }}>
-                        <strong style={{ fontSize: 12 }}>
+                        <strong style={{ fontSize: 12, fontWeight: 500 }}>
                           {fmtDataBR(s.data)} · <LinkDocumento doc={doc} cor={COR_SERVICOS} onAbrir={() => onAbrirDocumento?.("os", s.id_ordem || `omie:${s.numero}`)}>{rotulo}</LinkDocumento>
                         </strong>
                         <span style={{ fontSize: 11, opacity: 0.7 }}>{s.origem === "omie" ? (s.empresa || "Omie") : "Oficina (POS)"}</span>
                       </div>
                       <div style={clamp3} title={s.descricao ?? undefined}>{s.descricao ?? "—"}</div>
                       <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>
-                        {[s.tecnico && `👤 ${s.tecnico}`, s.status, s.valor != null && fmtMoeda(s.valor)].filter(Boolean).join(" · ")}
+                        {s.tecnico && <><i className="fa-solid fa-user" /> </>}{[s.tecnico, s.status, s.valor != null && fmtMoeda(s.valor)].filter(Boolean).join(" · ")}
                       </div>
                       {(ppvsLigados.length > 0 || nf || s.chassi || s.pv_numero) && (
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
                           {ppvsLigados.map((p) => (
-                            <ChipLink key={p} doc={linkPPV(p, acesso)} cor={COR_COMPRAS} titulo={`PPV ligado a esta OS — ${linkPPV(p, acesso)?.titulo ?? p}`} onAbrir={() => onAbrirDocumento?.("ppv", p)}>🧾 {p}</ChipLink>
+                            <ChipLink key={p} doc={linkPPV(p, acesso)} cor={COR_COMPRAS} titulo={`PPV ligado a esta OS — ${linkPPV(p, acesso)?.titulo ?? p}`} onAbrir={() => onAbrirDocumento?.("ppv", p)}><i className="fa-solid fa-receipt" /> {p}</ChipLink>
                           ))}
-                          {s.pv_numero && <span className={styles.pill} style={{ background: "#ccfbf1", color: "#115e59" }} title="Pedido de venda citado nesta OS da Omie">PV {s.pv_numero}</span>}
+                          {s.pv_numero && <span className={styles.pill} style={{ ...PILULA, background: "#ccfbf1", color: "#115e59" }} title="Pedido de venda citado nesta OS da Omie">PV {s.pv_numero}</span>}
                           {s.chassi && (
-                            <button type="button" className={styles.pill} style={{ background: "#e0f2fe", color: "#075985", border: "none", cursor: maq && onAbrirMaquina ? "pointer" : "default" }}
+                            <button type="button" className={styles.pill} style={{ ...PILULA, background: "#e0f2fe", color: "#075985", border: "none", cursor: maq && onAbrirMaquina ? "pointer" : "default" }}
                               title={maq ? "Abrir o histórico desta máquina" : "Chassi citado na OS"} onClick={() => maq && onAbrirMaquina?.(maq)}>
-                              🚜 {maq?.modelo ? `${maq.modelo} · ` : ""}…{s.chassi.slice(-6)}
+                              <i className="fa-solid fa-tractor" /> {maq?.modelo ? `${maq.modelo} · ` : ""}…{s.chassi.slice(-6)}
                             </button>
                           )}
-                          {nf && <ChipLink doc={nf} cor="#047857" titulo={nf.titulo} onAbrir={() => onAbrirDocumento?.("nf", s.numero || "")}>📄 NF</ChipLink>}
+                          {nf && <ChipLink doc={nf} cor="#047857" titulo={nf.titulo} onAbrir={() => onAbrirDocumento?.("nf", s.numero || "")}><i className="fa-solid fa-file-invoice" /> NF</ChipLink>}
                         </div>
                       )}
                     </li>
@@ -263,7 +284,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
             )}
           </Card>
 
-          <Card cinza={cinza} titulo="Últimas compras (PV · PPV)" emoji="🧾" cor={COR_COMPRAS} contagem={ctx?.compras?.length} carregando={carregando && !ctx} erro={ctx?.erros.historico ?? ctx?.erros.ppv}>
+          <Card cinza={cinza} titulo="Últimas compras (PV · PPV)" icone="fa-receipt" cor={COR_COMPRAS} contagem={ctx?.compras?.length} carregando={carregando && !ctx} erro={ctx?.erros.historico ?? ctx?.erros.ppv}>
             {!ctx?.compras?.length ? (
               <Vazio>Nenhum pedido de venda nem pré-pedido encontrado.</Vazio>
             ) : (
@@ -280,25 +301,25 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
                     <li key={`${c.id_ppv || ""}-${c.numero_pv || ""}-${i}`} style={{ ...itemCompacto, ...(aceso(ids) ? { outline: `2px solid ${COR_COMPRAS}`, outlineOffset: -1, background: "#f0fdfa" } : {}) }}
                       onMouseEnter={() => ids.length && setFoco(ids)} onMouseLeave={() => setFoco(null)}>
                       <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "baseline", flexWrap: "wrap" }}>
-                        <strong style={{ fontSize: 12 }}>
+                        <strong style={{ fontSize: 12, fontWeight: 500 }}>
                           {fmtDataBR(c.data)} ·{" "}
                           {c.id_ppv && <LinkDocumento doc={docPpv} cor={COR_COMPRAS} onAbrir={() => onAbrirDocumento?.("ppv", c.id_ppv!)}>{c.id_ppv}</LinkDocumento>}
                           {c.id_ppv && c.numero_pv && <span style={{ opacity: 0.5 }}> → </span>}
                           {c.numero_pv && <LinkDocumento doc={c.origem === "ppv" ? docPpv : docPv} cor={COR_COMPRAS} onAbrir={() => onAbrirDocumento?.("pv", c.numero_pv!)}>PV {c.numero_pv}</LinkDocumento>}
                           {!c.id_ppv && !c.numero_pv && "PV —"}
                         </strong>
-                        <span style={{ fontSize: 12, fontWeight: 700 }}>{fmtMoeda(c.valor)}</span>
+                        <span style={{ fontSize: 12, fontWeight: 500 }}>{fmtMoeda(c.valor)}</span>
                       </div>
                       <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>
-                        {[c.empresa, c.faturado ? `Faturado${c.nf ? ` · NF ${c.nf}` : ""}` : c.status && (c.origem === "ppv" ? `PPV: ${c.status}` : `Etapa ${c.status}`), c.tipo && c.tipo !== "Pedido" && c.tipo, c.tecnico && `👤 ${c.tecnico}`].filter(Boolean).join(" · ")}
+                        {[c.empresa, c.faturado ? `Faturado${c.nf ? ` · NF ${c.nf}` : ""}` : c.status && (c.origem === "ppv" ? `PPV: ${c.status}` : `Etapa ${c.status}`), c.tipo && c.tipo !== "Pedido" && c.tipo, c.tecnico && `técnico: ${c.tecnico}`].filter(Boolean).join(" · ")}
                       </div>
                       {(osLigada || nf || c.projeto) && (
                         <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
-                          {osLigada && <ChipLink doc={docOs} cor={COR_SERVICOS} titulo={`PPV nascido desta ordem de serviço — ${docOs?.titulo ?? osLigada}`} onAbrir={() => onAbrirDocumento?.("os", osLigada)}>🔧 {osLigada}</ChipLink>}
+                          {osLigada && <ChipLink doc={docOs} cor={COR_SERVICOS} titulo={`PPV nascido desta ordem de serviço — ${docOs?.titulo ?? osLigada}`} onAbrir={() => onAbrirDocumento?.("os", osLigada)}><i className="fa-solid fa-wrench" /> {osLigada}</ChipLink>}
                           {c.projeto && (() => { const maq = maquinaDoChassi(c.projeto.split(/\s+/).pop() || null); return (
-                            <button type="button" className={styles.pill} style={{ background: "#e0f2fe", color: "#075985", border: "none", cursor: maq && onAbrirMaquina ? "pointer" : "default" }} title={maq ? "Abrir o histórico desta máquina" : c.projeto} onClick={() => maq && onAbrirMaquina?.(maq)}>🚜 {maq?.modelo || c.projeto}</button>
+                            <button type="button" className={styles.pill} style={{ ...PILULA, background: "#e0f2fe", color: "#075985", border: "none", cursor: maq && onAbrirMaquina ? "pointer" : "default" }} title={maq ? "Abrir o histórico desta máquina" : c.projeto} onClick={() => maq && onAbrirMaquina?.(maq)}><i className="fa-solid fa-tractor" /> {maq?.modelo || c.projeto}</button>
                           ); })()}
-                          {nf && <ChipLink doc={nf} cor="#047857" titulo={nf.titulo} onAbrir={() => onAbrirDocumento?.("nf", c.numero_pv || "")}>📄 NF</ChipLink>}
+                          {nf && <ChipLink doc={nf} cor="#047857" titulo={nf.titulo} onAbrir={() => onAbrirDocumento?.("nf", c.numero_pv || "")}><i className="fa-solid fa-file-invoice" /> NF</ChipLink>}
                         </div>
                       )}
                     </li>
@@ -309,26 +330,26 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
           </Card>
         </div>
 
-        <Card cinza={cinza} titulo="Funcionários e fazendas" emoji="🌾" cor="#65a30d" contagem={(ctx?.pasta?.funcionarios.length ?? 0) + (ctx?.pasta?.fazendas.length ?? 0)} carregando={carregando && !ctx} erro={ctx?.erros.pasta}>
+        <Card cinza={cinza} titulo="Funcionários e fazendas" icone="fa-wheat-awn" cor="#65a30d" contagem={(ctx?.pasta?.funcionarios.length ?? 0) + (ctx?.pasta?.fazendas.length ?? 0)} carregando={carregando && !ctx} erro={ctx?.erros.pasta}>
           {!ctx?.pasta?.funcionarios.length && !ctx?.pasta?.fazendas.length ? (
             <Vazio>Nada anotado ainda. Use “Funcionários e fazendas” à esquerda para registrar quem é quem.</Vazio>
           ) : (
             <div className={styles.cockpitDuo} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
-                <div style={subtitulo}>👥 Funcionários</div>
+                <div style={subtitulo}><i className="fa-solid fa-users" /> Funcionários</div>
                 {ctx.pasta.funcionarios.length === 0 ? <Vazio>—</Vazio> : ctx.pasta.funcionarios.map((f, i) => (
                   <div key={i} style={{ fontSize: 12, marginBottom: 4 }}>
-                    <strong>{f.nome}</strong>{f.cargo && ` · ${f.cargo}`}{f.fazenda && ` · ${f.fazenda}`}
+                    <strong style={{ fontWeight: 500 }}>{f.nome}</strong>{f.cargo && ` · ${f.cargo}`}{f.fazenda && ` · ${f.fazenda}`}
                     {f.telefone && <> · <a href={`tel:${f.telefone.replace(/\D/g, "")}`} style={{ color: "#0369a1" }}>{f.telefone}</a></>}
                   </div>
                 ))}
               </div>
               <div>
-                <div style={subtitulo}>🌾 Fazendas</div>
+                <div style={subtitulo}><i className="fa-solid fa-wheat-awn" /> Fazendas</div>
                 {ctx.pasta.fazendas.length === 0 ? <Vazio>—</Vazio> : ctx.pasta.fazendas.map((f, i) => (
                   <div key={i} style={{ fontSize: 12, marginBottom: 4 }}>
-                    <strong>{f.nome}</strong>{f.cidade && ` · ${f.cidade}`}
-                    {f.tratores?.length > 0 && <div style={{ fontSize: 11, opacity: 0.75 }}>🚜 {f.tratores.join(", ")}</div>}
+                    <strong style={{ fontWeight: 500 }}>{f.nome}</strong>{f.cidade && ` · ${f.cidade}`}
+                    {f.tratores?.length > 0 && <div style={{ fontSize: 11, opacity: 0.75 }}><i className="fa-solid fa-tractor" /> {f.tratores.join(", ")}</div>}
                   </div>
                 ))}
               </div>
@@ -336,7 +357,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
           )}
         </Card>
 
-        <Card cinza={cinza} titulo="Imóvel rural (CAR)" emoji="🗺️" cor="#16a34a" contagem={ctx?.car?.length} carregando={carregando && !ctx} erro={ctx?.erros.car}>
+        <Card cinza={cinza} titulo="Imóvel rural (CAR)" icone="fa-map-location-dot" cor="#16a34a" contagem={ctx?.car?.length} carregando={carregando && !ctx} erro={ctx?.erros.car}>
           {!ctx?.car?.length ? (
             <Vazio>Nenhum imóvel rural vinculado a este cliente. O vínculo é feito em Dashboard Agro → Prospecção ou Vínculos.</Vazio>
           ) : (
@@ -344,18 +365,18 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
               {ctx.car.map((c) => (
                 <li key={c.cod_car} style={itemCompacto}>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "baseline" }}>
-                    <strong style={{ fontSize: 13 }}>{c.cultura_nome || "Diversificado"}</strong>
-                    {c.confianca && <span className={styles.pill} style={{ background: c.confianca === "alta" ? "#16a34a" : c.confianca === "media" ? "#d97706" : "#6b7280", color: "#fff" }}>confiança {c.confianca === "media" ? "média" : c.confianca}</span>}
+                    <strong style={{ fontSize: 13, fontWeight: 500 }}>{c.cultura_nome || "Diversificado"}</strong>
+                    {c.confianca && <span className={styles.pill} style={{ ...PILULA, background: c.confianca === "alta" ? "#16a34a" : c.confianca === "media" ? "#d97706" : "#6b7280", color: "#fff" }}>confiança {c.confianca === "media" ? "média" : c.confianca}</span>}
                     <span style={{ fontSize: 12, opacity: 0.7 }}>{c.municipio} · {c.area_ha != null ? Number(c.area_ha).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " ha" : "—"}{c.area_cultura_ha != null ? ` (${Number(c.area_cultura_ha).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ha da cultura)` : ""}</span>
                   </div>
                   <div style={{ fontSize: 12, marginTop: 2 }}>
-                    Crédito rural 36 m: <strong>{Number(c.credito_36m) > 0 ? Number(c.credito_36m).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) : "sem registro"}</strong>
-                    {Number(c.credito_invest_36m) > 0 && <> · <strong style={{ color: "#15803d" }}>investimento {Number(c.credito_invest_36m).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}</strong></>}
+                    Crédito rural 36 m: <strong style={{ fontWeight: 500 }}>{Number(c.credito_36m) > 0 ? Number(c.credito_36m).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) : "sem registro"}</strong>
+                    {Number(c.credito_invest_36m) > 0 && <> · <strong style={{ color: "#15803d", fontWeight: 500 }}>investimento {Number(c.credito_invest_36m).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}</strong></>}
                     {c.ultima_finalidade && <span style={{ opacity: 0.7 }}> · último: {c.ultima_finalidade}</span>}
                   </div>
                   {c.motivo_confianca && <div style={{ fontSize: 11, opacity: 0.65, marginTop: 2 }}>{c.motivo_confianca}</div>}
                   <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2, fontFamily: "ui-monospace,Consolas,monospace" }}>{c.cod_car}</div>
-                  <a href="/dashboard-agro?tab=prospeccao" style={{ fontSize: 11, color: "#15803d", fontWeight: 700 }}>Abrir no Dashboard Agro →</a>
+                  <a href="/dashboard-agro?tab=prospeccao" style={{ fontSize: 11, color: "#15803d", fontWeight: 500 }}>Abrir no Dashboard Agro →</a>
                 </li>
               ))}
             </ul>
@@ -363,7 +384,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
         </Card>
 
         </>)}
-        <Card cinza={cinza} titulo="Atendimentos anteriores" emoji="📞" cor="#475569" contagem={ctx?.atendimentos?.length} carregando={carregando && !ctx} erro={ctx?.erros.atendimentos}>
+        <Card cinza={cinza} titulo="Atendimentos anteriores" icone="fa-phone" cor="#475569" contagem={ctx?.atendimentos?.length} carregando={carregando && !ctx} erro={ctx?.erros.atendimentos}>
           {!ctx?.atendimentos?.length ? (
             <Vazio>Primeira ligação registrada para este cliente.</Vazio>
           ) : (
@@ -407,9 +428,9 @@ function LinhaMaquina({ m, onAbrir }: { m: Maquina; onAbrir?: (m: Maquina) => vo
     <tr onClick={abrir} style={{ cursor: clicavel ? "pointer" : "default" }} title={clicavel ? "Abrir o histórico desta máquina" : m.chassi ? undefined : "Sem chassi — não dá para montar o histórico"}
       onKeyDown={(e) => { if (clicavel && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); abrir(); } }} tabIndex={clicavel ? 0 : -1}>
       <td style={{ verticalAlign: "top", padding: "5px 4px 5px 0" }}>
-        <strong style={{ color: clicavel ? COR_MAQUINAS : "inherit" }}>{m.modelo ?? "—"}</strong>
+        <strong style={{ color: clicavel ? COR_MAQUINAS : "inherit", fontWeight: 500 }}>{m.modelo ?? "—"}</strong>
         <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 2 }}>
-          {m.fontes.map((f) => <span key={f} className={styles.pill} style={{ background: FONTE_PILULA[f].bg, color: FONTE_PILULA[f].fg, fontSize: 9, padding: "1px 7px" }} title={FONTE_PILULA[f].titulo}>{FONTE_PILULA[f].rotulo}</span>)}
+          {m.fontes.map((f) => <span key={f} className={styles.pill} style={{ ...PILULA, background: FONTE_PILULA[f].bg, color: FONTE_PILULA[f].fg, fontSize: 9, padding: "1px 7px" }} title={FONTE_PILULA[f].titulo}>{FONTE_PILULA[f].rotulo}</span>)}
         </div>
         {m.dono_tratores && <div style={{ fontSize: 10, color: "#92400e", marginTop: 2 }} title="Nome que consta no controle de revisões (vendido em nome de outra pessoa ou grafia diferente)">no controle de revisões: {m.dono_tratores}</div>}
         {m.crm && <div style={{ fontSize: 10, color: "#166534", marginTop: 2 }}>CRM: {[m.crm.tipo, m.crm.ano && `ano ${m.crm.ano}`, m.crm.estado && `estado ${m.crm.estado}`, m.crm.horimetro != null && `${m.crm.horimetro} h`].filter(Boolean).join(" · ")}</div>}
@@ -419,8 +440,8 @@ function LinhaMaquina({ m, onAbrir }: { m: Maquina; onAbrir?: (m: Maquina) => vo
       <td style={{ verticalAlign: "top", padding: "5px 4px" }}>{m.ultima_revisao ? `${m.ultima_revisao.rotulo} · ${fmtDataBR(m.ultima_revisao.data)}${m.ultima_revisao.horimetro != null ? ` · ${m.ultima_revisao.horimetro} h` : ""}` : m.fontes.includes("tratores") ? "nenhuma registrada" : "—"}</td>
       <td style={{ verticalAlign: "top", padding: "5px 4px" }}>
         {p ? (
-          <span style={{ color: p.atrasada ? "#b91c1c" : "inherit", fontWeight: p.atrasada ? 800 : 500 }}>
-            {p.horas} h · {p.data_estimada ? `${fmtDataBR(p.data_estimada)}${p.atrasada ? " · ATRASADA" : ` (${haQuanto(p.data_estimada)})`}` : "sem estimativa"}
+          <span style={{ color: p.atrasada ? "#b91c1c" : "inherit", fontWeight: 500 }}>
+            {p.horas} h · {p.data_estimada ? `${fmtDataBR(p.data_estimada)}${p.atrasada ? " · atrasada" : ` (${haQuanto(p.data_estimada)})`}` : "sem estimativa"}
           </span>
         ) : "—"}
       </td>
@@ -443,7 +464,7 @@ function LinkDocumento({ doc, cor, onAbrir, children }: { doc: LinkDoc | null; c
 }
 
 function ChipLink({ doc, cor, titulo, onAbrir, children }: { doc: LinkDoc | null; cor: string; titulo: string; onAbrir?: () => void; children: React.ReactNode }) {
-  const estilo: React.CSSProperties = { background: "transparent", color: cor, border: `1px solid ${cor}`, textDecoration: "none", cursor: doc ? "pointer" : "default" };
+  const estilo: React.CSSProperties = { ...PILULA, background: "transparent", color: cor, border: `1px solid ${cor}`, textDecoration: "none", cursor: doc ? "pointer" : "default" };
   if (!doc) return <span className={styles.pill} style={estilo} title={titulo}>{children}</span>;
   return <a className={styles.pill} href={doc.href} target="_blank" rel="noopener noreferrer" style={estilo} title={`${titulo} ↗`} onClick={onAbrir}>{children} ↗</a>;
 }
@@ -451,30 +472,33 @@ function ChipLink({ doc, cor, titulo, onAbrir, children }: { doc: LinkDoc | null
 function LinhaAtendimento({ a, onEditar }: { a: AtendimentoResumo; onEditar: () => void }) {
   const cor = a.tipo === "crm" ? "#dc2626" : "#6366f1";
   return (
-    <li style={{ ...item, borderLeft: `4px solid ${cor}` }}>
+    <li style={item}>
       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-        <strong style={{ fontSize: 12 }}>{fmtDataBR(a.data)}</strong>
+        <strong style={{ fontSize: 12, fontWeight: 500 }}>{fmtDataBR(a.data)}</strong>
         <span style={{ fontSize: 11, opacity: 0.65 }}>{haQuanto(a.data)}</span>
-        <span className={styles.pill} style={{ background: cor, color: "#fff" }}>{a.tipo.toUpperCase()}</span>
-        <span className={styles.pill} style={{ background: "#f1f5f9", color: "#334155" }}>{STATUS_ATENDIMENTO_ROTULO[a.status_atendimento] ?? a.status_atendimento}</span>
-        {a.nota != null && <span className={styles.pill} style={{ background: a.nota >= 8 ? "#d1fae5" : a.nota >= 5 ? "#fef3c7" : "#fee2e2", color: "#111" }}>nota {a.nota}/10</span>}
+        <span className={styles.pill} style={{ ...PILULA, background: `color-mix(in srgb, ${cor} 10%, var(--portal-bg-card))`, color: cor, border: `1px solid ${cor}` }}>{a.tipo.toUpperCase()}</span>
+        <span className={styles.pill} style={{ ...PILULA, background: "#f1f5f9", color: "#334155" }}>{STATUS_ATENDIMENTO_ROTULO[a.status_atendimento] ?? a.status_atendimento}</span>
+        {a.nota != null && <span className={styles.pill} style={{ ...PILULA, background: a.nota >= 8 ? "#d1fae5" : a.nota >= 5 ? "#fef3c7" : "#fee2e2", color: "#111111" }}>nota {a.nota}/10</span>}
         {a.nps && <span style={{ fontSize: 11, opacity: 0.75 }}>indicaria: {a.nps}</span>}
-        {a.atendente && <span style={{ fontSize: 11, opacity: 0.75 }}>🎧 {a.atendente}</span>}
+        {a.atendente && <span style={{ fontSize: 11, opacity: 0.75 }}><i className="fa-solid fa-headset" /> {a.atendente}</span>}
         <button type="button" onClick={onEditar} style={{ ...btn("#475569", false), marginLeft: "auto" }}>ver / editar</button>
       </div>
       {a.resumo && <div style={{ fontSize: 12, marginTop: 4 }}>{a.resumo}</div>}
       {a.arquivado_motivo && <div style={{ fontSize: 11, marginTop: 2, opacity: 0.7 }}>Arquivado: {a.arquivado_motivo}</div>}
-      {(a.tecnico || a.trator) && <div style={{ fontSize: 11, marginTop: 2, opacity: 0.7 }}>{[a.trator && `🚜 ${a.trator}`, a.tecnico && `👤 ${a.tecnico}`].filter(Boolean).join(" · ")}</div>}
+      {(a.tecnico || a.trator) && <div style={{ fontSize: 11, marginTop: 2, opacity: 0.7 }}>{a.trator && <><i className="fa-solid fa-tractor" /> {a.trator}</>}{a.trator && a.tecnico && " · "}{a.tecnico && <><i className="fa-solid fa-user" /> {a.tecnico}</>}</div>}
     </li>
   );
 }
 
-function Card({ titulo, emoji, cor, contagem, carregando, erro, children, cinza }: { titulo: string; emoji: string; cor: string; contagem?: number | null; carregando: boolean; erro?: string; children: React.ReactNode; cinza?: React.CSSProperties }) {
+function Card({ titulo, icone, cor, contagem, carregando, erro, children, cinza }: { titulo: string; icone: string; cor: string; contagem?: number | null; carregando: boolean; erro?: string; children: React.ReactNode; cinza?: React.CSSProperties }) {
   return (
-    <section className={styles.card} style={{ ["--fb-accent" as string]: cor, ...(cinza || {}) }}>
+    <section style={{ ...CARTAO, ...(cinza || {}) }}>
       <header style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
-        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800 }}>{emoji} {titulo}</h3>
-        {contagem != null && contagem > 0 && <span className={styles.pill} style={{ background: cor, color: "#fff" }}>{contagem}</span>}
+        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 500, display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ width: 28, height: 28, borderRadius: 9, display: "grid", placeItems: "center", fontSize: 13, color: cor, background: `color-mix(in srgb, ${cor} 9%, var(--portal-bg-card))`, border: `1px solid color-mix(in srgb, ${cor} 18%, transparent)` }}><i className={`fa-solid ${icone}`} /></span>
+          {titulo}
+        </h3>
+        {contagem != null && contagem > 0 && <span className={styles.pill} style={{ ...PILULA, background: `color-mix(in srgb, ${cor} 12%, var(--portal-bg-card))`, color: cor }}>{contagem}</span>}
       </header>
       {carregando ? <Esqueleto linhas={3} /> : erro ? <Aviso cor="#92400e" bg="#fef3c7">Não carregou: {erro}</Aviso> : children}
     </section>
@@ -485,7 +509,7 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "88px 1fr", gap: 6, fontSize: 12, padding: "3px 0", borderBottom: "1px dashed var(--portal-border)" }}>
       <span style={{ opacity: 0.6 }}>{rotulo}</span>
-      <span style={{ fontWeight: 600, wordBreak: "break-word" }}>{valor}</span>
+      <span style={{ fontWeight: 500, wordBreak: "break-word" }}>{valor}</span>
     </div>
   );
 }
@@ -514,23 +538,23 @@ function rotuloTag(t: string): string {
 }
 function tagStyle(t: string): React.CSSProperties {
   const k = t.toLowerCase();
-  if (k.includes("não contatar")) return { background: "#111", color: "#fff" };
+  if (k.includes("não contatar")) return { background: "#fee2e2", color: "#991b1b", border: "1px solid #dc2626" };
   if (k.includes("pend")) return { background: "#fee2e2", color: "#991b1b" };
   if (k === "ouro") return { background: "#fef3c7", color: "#92400e" };
   if (["cliente", "fornecedor", "funcionário"].includes(k)) return { background: "#f1f5f9", color: "#64748b" };
   return { background: "#e0e7ff", color: "#3730a3" };
 }
 function prioStyle(p: string): React.CSSProperties {
-  if (p === "Urgente") return { background: "#fee2e2", color: "#b91c1c", textTransform: "uppercase" };
-  if (p === "Baixa") return { background: "#f0fdf4", color: "#15803d", textTransform: "uppercase" };
-  return { background: "#fef3c7", color: "#92400e", textTransform: "uppercase" };
+  if (p === "Urgente") return { background: "#fee2e2", color: "#b91c1c", border: "1px solid #fca5a5", fontSize: 12 };
+  if (p === "Baixa") return { background: "#f0fdf4", color: "#15803d", border: "1px solid #86efac", fontSize: 12 };
+  return { background: "#fef3c7", color: "#92400e", border: "1px solid #fcd34d", fontSize: 12 };
 }
 function btn(cor: string, preenchido: boolean): React.CSSProperties {
-  return { fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 999, border: `1px solid ${cor}`, background: preenchido ? cor : "transparent", color: preenchido ? "#fff" : cor, cursor: "pointer", textDecoration: "none", whiteSpace: "nowrap" };
+  return { fontSize: 12, fontWeight: 500, padding: "6px 12px", borderRadius: 10, border: `1px solid ${cor}`, background: preenchido ? cor : "transparent", color: preenchido ? "#fff" : cor, cursor: "pointer", textDecoration: "none", whiteSpace: "nowrap" };
 }
 const lista: React.CSSProperties = { listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 };
 const item: React.CSSProperties = { padding: "8px 10px", borderRadius: 10, background: "var(--portal-bg)", border: "1px solid var(--portal-border)" };
 const itemCompacto: React.CSSProperties = { padding: "6px 8px", borderRadius: 8, border: "1px solid var(--portal-border)" };
 const clamp3: React.CSSProperties = { fontSize: 12, marginTop: 2, display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden" };
 const tabela: React.CSSProperties = { width: "100%", borderCollapse: "collapse", fontSize: 12 };
-const subtitulo: React.CSSProperties = { fontSize: 11, fontWeight: 700, opacity: 0.6, textTransform: "uppercase", marginBottom: 4 };
+const subtitulo: React.CSSProperties = { fontSize: 12, fontWeight: 500, opacity: 0.6, marginBottom: 4 };

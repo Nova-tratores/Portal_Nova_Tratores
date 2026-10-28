@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_PEDIDOS, POS_TO_PPV_STATUS } from "@/lib/pos/constants";
+import { dataHoraBR } from "@/lib/datas/brasil";
 
 // POST /api/pos/ordens/[id]/criar-ppv
 // Cria um PPV de peças JÁ VINCULADO a uma OS existente — em QUALQUER etapa.
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const novoPPV = `PPV-${String(maxNum + 1).padStart(4, "0")}`;
 
   const agora = new Date();
-  const dataFormatada = `${String(agora.getDate()).padStart(2, "0")}/${String(agora.getMonth() + 1).padStart(2, "0")}/${agora.getFullYear()} ${String(agora.getHours()).padStart(2, "0")}:${String(agora.getMinutes()).padStart(2, "0")}`;
+  const dataFormatada = dataHoraBR(agora);
 
   // Fase do PPV acompanha a da OS; em fase final (concluída/fechada) o PPV
   // nasce "Aguardando Para Faturar" — as peças adicionadas agora AINDA vão

@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useMarcarCaso } from '@/lib/uso/caso'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -142,6 +143,8 @@ function ClientesPageInner() {
   const [maquinasCarregou, setMaquinasCarregou] = useState(false)
   const [buscaMaq, setBuscaMaq] = useState('')
   const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null)
+  // Monitor de uso: avisa a jornada qual cliente está aberto (só hashes ficam no navegador).
+  useMarcarCaso(selectedCliente ? { cliente: selectedCliente.cod_cli, doc: selectedCliente.cnpj_cpf, textoChassi: (selectedCliente.projetos || []).join(' ') } : null)
   const [ordens, setOrdens] = useState<OrdemServico[]>([])
   const [pedidos, setPedidos] = useState<PedidoVenda[]>([])
   const [loadingDetalhe, setLoadingDetalhe] = useState(false)
@@ -393,7 +396,7 @@ function ClientesPageInner() {
     setUrlClienteTratada(true)
     const p = new URLSearchParams(window.location.search)
     // &empresa= desambigua (Nova e Castro repetem código); &os=1602 ou &pv=7198
-    // abre já na janela daquele serviço/pedido (link do cache de notas, /estoque/notas).
+    // abre já na janela daquele serviço/pedido (link do cache de notas, /financeiro/notas).
     const cod = p.get('cod'); const doc = p.get('doc'); const empresa = p.get('empresa')
     const os = p.get('os'); const pv = p.get('pv')
     if (!cod && !doc) return

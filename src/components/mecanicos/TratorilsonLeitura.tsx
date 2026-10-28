@@ -28,7 +28,6 @@ const EXEMPLOS = [
   'Técnico com dia livre na agenda deve receber revisão de cliente com revisão vencendo.',
   'Excesso de velocidade 2 vezes no mês: sugerir conversa individual.',
 ]
-const iniciais = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase()
 
 async function api(body?: object) {
   const r = await fetch('/api/mecanicos/analise', body
@@ -44,23 +43,43 @@ const chaveFeito = (g: string) => `tratorilson-feito:${g}`
 const lerFeitos = (g: string): number[] => { try { return JSON.parse(localStorage.getItem(chaveFeito(g)) || '[]') } catch { return [] } }
 
 /** Perguntas-chave: as do Tratorilson abrem o relatório; as outras levam até a parte da tela que responde. */
-const PERGUNTAS: { txt: string; ic: string; relatorio?: Aba; alvo?: string }[] = [
+type Pergunta = { txt: string; ic: string; relatorio?: Aba; alvo?: string }
+const PERGUNTAS: Pergunta[] = [
   { txt: 'O que fazer agora?', ic: 'fa-list-check', relatorio: 'plano' },
   { txt: 'Quem precisa de atenção?', ic: 'fa-user-clock', relatorio: 'tecnicos' },
   { txt: 'Quanto faturamos?', ic: 'fa-chart-column', alvo: 'sec-1' },
   { txt: 'Para onde foi o dinheiro?', ic: 'fa-sack-dollar', alvo: 'sec-2' },
   { txt: 'Quanto falta para empatar?', ic: 'fa-scale-balanced', alvo: 'sim-alvos' },
   { txt: 'Quanto está parado sem faturar?', ic: 'fa-hourglass-half', alvo: 'sec-3' },
-  { txt: 'Como estão as horas da equipe?', ic: 'fa-clock', alvo: 'aba:ocorrencias' },
+  { txt: 'Como estão as horas da equipe?', ic: 'fa-clock', alvo: 'oc-horas' },
 ]
 
-export default function TratorilsonLeitura({ onIr }: { onIr?: (alvo: string) => void }) {
+/** Em Ocorrências as perguntas são sobre pontos, ligas, defesas e comissões (José 19/10). */
+const PERGUNTAS_OC: Pergunta[] = [
+  { txt: 'Quem precisa de atenção?', ic: 'fa-user-clock', relatorio: 'tecnicos' },
+  { txt: 'Quem está melhor no mês?', ic: 'fa-trophy', alvo: 'oc-radar' },
+  { txt: 'Em que liga está cada um?', ic: 'fa-shield-halved', alvo: 'oc-radar' },
+  { txt: 'Quanto cada um vai ganhar de comissão?', ic: 'fa-sack-dollar', alvo: 'oc-carreira' },
+  { txt: 'Tem defesa para julgar?', ic: 'fa-gavel', alvo: 'oc-tribunal' },
+  { txt: 'O que mais tira pontos?', ic: 'fa-arrow-trend-down', alvo: 'oc-pontos' },
+  { txt: 'Como estão as horas da equipe?', ic: 'fa-clock', alvo: 'oc-horas' },
+  { txt: 'Quanto faturamos?', ic: 'fa-chart-column', alvo: 'sec-1' },
+]
+
+const ouvintesTl = new Set<() => void>()
+/** Abre as perguntas do Tratorilson (usado pelo centro do menu em círculo). */
+export function abrirTratorilson() { ouvintesTl.forEach((f) => f()) }
+
+export default function TratorilsonLeitura({ onIr, aba = 'painel', oculto }: { onIr?: (alvo: string) => void; aba?: 'painel' | 'ocorrencias'; oculto?: boolean }) {
   const [ultima, setUltima] = useState<Guardada | null>(null)
   const [ens, setEns] = useState<Ensinamento[]>([])
   const [gerando, setGerando] = useState(false)
   const [carregou, setCarregou] = useState(false)
   const [etapa, setEtapa] = useState(0)
   const [aberto, setAberto] = useState<{ aba: Aba; tecnico?: string } | null>(null)
+  const [menu, setMenu] = useState(false)
+  // aberto pelo centro do menu em círculo (José, 21/10/2026)
+  useEffect(() => { const f = () => setMenu(true); ouvintesTl.add(f); return () => { ouvintesTl.delete(f) } }, [])
   const [erro, setErro] = useState('')
   const [agoraMs, setAgoraMs] = useState(0)
   const { base } = useBasePosVendas()
@@ -91,23 +110,26 @@ export default function TratorilsonLeitura({ onIr }: { onIr?: (alvo: string) => 
     <>
       <style>{ESTILO}</style>
       {/* só o rosto do Tratorilson + perguntas-chave que levam direto à resposta (José 19/10) */}
-      <div className={`tl3 cpv-entra ${gerando ? 'tl3-pensando' : ''}`} style={{ '--c': a ? sit.cor : '#0369a1' } as React.CSSProperties}>
-        <button type="button" className="tl3-bot" onClick={() => setAberto({ aba: 'plano' })}
+      {/* um atalho só no topo: "Perguntas frequentes" abre a lista (José, 20/10/2026) */}
+      <div className={`tlf ${menu ? 'on' : ''} ${gerando ? 'tl3-pensando' : ''} ${oculto ? 'oculto' : ''}`} style={{ '--c': a ? sit.cor : '#0369a1' } as React.CSSProperties}>
+        <button type="button" className="tlf-bt" onClick={() => setMenu((m) => !m)} aria-expanded={menu}
           title={a ? `${sit.rotulo}: ${a.manchete}${quando ? ` (lida ${quando})` : ''}` : gerando ? 'Tratorilson lendo…' : rapida?.texto || 'Tratorilson'}>
-          <span className="tl3-rosto"><i className="fas fa-robot" /></span>
-          <i className="tl3-st"><i className={`fas ${a ? sit.icone : 'fa-circle'}`} /></i>
+          <span className="tlf-rosto"><i className="fas fa-robot" /></span>
+          <span className="tlf-t"><b>Perguntas frequentes</b><small>{gerando ? 'Tratorilson está lendo…' : 'pergunte ao Tratorilson'}</small></span>
+          {urgentes.length > 0 && <span className="tlf-n">{urgentes.length}</span>}
+          <i className="fas fa-chevron-down tlf-seta" />
         </button>
-        <div className="tl3-perg">
-          <small>{gerando ? 'Tratorilson está lendo…' : 'Pergunte ao Tratorilson'}</small>
-          <div>
-            {PERGUNTAS.map((q, i) => (
-              <button key={q.txt} type="button" className="tl3-q" style={{ animationDelay: `${150 + i * 60}ms` }}
-                onClick={() => (q.relatorio ? setAberto({ aba: q.relatorio }) : onIr?.(q.alvo!))}>
-                <i className={`fas ${q.ic}`} />{q.txt}{q.relatorio === 'plano' && urgentes.length > 0 && <em>{urgentes.length}</em>}
+        {menu && <>
+          <div className="tlf-capa" onClick={() => setMenu(false)} />
+          <div className="tlf-menu" role="menu">
+            {(aba === 'ocorrencias' ? PERGUNTAS_OC : PERGUNTAS).map((q, i) => (
+              <button key={`${aba}-${q.txt}`} type="button" role="menuitem" style={{ animationDelay: `${i * 30}ms` }}
+                onClick={() => { setMenu(false); if (q.relatorio) setAberto({ aba: q.relatorio }); else onIr?.(q.alvo!) }}>
+                <span>{q.txt}</span>{q.relatorio === 'plano' && urgentes.length > 0 ? <em>{urgentes.length}</em> : <i className="fas fa-arrow-right" />}
               </button>
             ))}
           </div>
-        </div>
+        </>}
       </div>
 
       {aberto && <Relatorio ultima={ultima} ens={ens} setEns={setEns} gerando={gerando} etapa={etapa} quando={quando} onRefazer={refazer} erro={erro}
@@ -116,41 +138,51 @@ export default function TratorilsonLeitura({ onIr }: { onIr?: (alvo: string) => 
   )
 }
 
-function Relatorio({ ultima, ens, setEns, gerando, etapa, quando, onRefazer, erro, abaInicial, tecnicoInicial, onFechar }: {
+// Relatório do Tratorilson = SÓ DICAS (José, 19/10/2026: "já troca essa tela, só deixa umas dicas
+// dele de acordo com os dados"). As dicas vêm da mesma leitura: o que fazer (ações) e a dica
+// principal de cada técnico. "Ensinar o Tratorilson" ficou num botão discreto no rodapé.
+interface Dica { texto: string; porque: string; quem: string; tag: string; cor: string; fundo: string; icone: string; acao?: number }
+
+function montarDicas(a: Analise): Dica[] {
+  const ordem = { alta: 0, media: 1, baixa: 2 } as const
+  const doTime: Dica[] = a.acoes.map((x, i) => ({ x, i })).sort((p, q) => ordem[p.x.prioridade] - ordem[q.x.prioridade]).map(({ x, i }) => ({
+    texto: x.oque, porque: x.porque, quem: x.quem, tag: PRIO[x.prioridade].rotulo, cor: PRIO[x.prioridade].cor, fundo: PRIO[x.prioridade].fundo,
+    icone: x.prioridade === 'alta' ? 'fa-bolt' : x.prioridade === 'media' ? 'fa-calendar-check' : 'fa-lightbulb', acao: i,
+  }))
+  const porTecnico: Dica[] = a.porTecnico.filter((t) => t.dicas.length).map((t) => ({
+    texto: t.dicas[0], porque: t.atencao[0] || t.leitura, quem: t.tecnico, tag: SIT[t.situacao].rotulo, cor: SIT[t.situacao].cor, fundo: SIT[t.situacao].fundo, icone: 'fa-user-gear',
+  }))
+  return [...doTime, ...porTecnico].slice(0, 12)
+}
+
+function Relatorio({ ultima, ens, setEns, gerando, etapa, quando, onRefazer, erro, onFechar }: {
   ultima: Guardada | null; ens: Ensinamento[]; setEns: (e: Ensinamento[]) => void; gerando: boolean; etapa: number; quando: string
   onRefazer: () => void; erro: string; abaInicial: Aba; tecnicoInicial?: string; onFechar: () => void
 }) {
-  const [aba, setAba] = useState<Aba>(abaInicial)
   const [feitos, setFeitos] = useState<number[]>([])
-  const [copiado, setCopiado] = useState<string | null>(null)
+  const [ensinando, setEnsinando] = useState(false)
   const a = ultima?.analise
   useEffect(() => {
     const f = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar() }
     window.addEventListener('keydown', f); return () => window.removeEventListener('keydown', f)
   }, [onFechar])
   useEffect(() => { if (!ultima) return; const t = setTimeout(() => setFeitos(lerFeitos(ultima.geradaEm)), 0); return () => clearTimeout(t) }, [ultima])
-  useEffect(() => {
-    if (aba !== 'tecnicos' || !tecnicoInicial) return
-    const t = setTimeout(() => document.getElementById(`tl-tec-${tecnicoInicial}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250)
-    return () => clearTimeout(t)
-  }, [aba, tecnicoInicial])
   const marcar = (i: number) => {
     if (!ultima) return
     const n = feitos.includes(i) ? feitos.filter((x) => x !== i) : [...feitos, i]
     setFeitos(n); try { localStorage.setItem(chaveFeito(ultima.geradaEm), JSON.stringify(n)) } catch { /* sem armazenamento */ }
   }
-  const copiar = async (t: string, k: string) => { try { await navigator.clipboard.writeText(t); setCopiado(k); setTimeout(() => setCopiado(null), 1500) } catch { /* sem clipboard */ } }
   const sit = SIT[a?.situacao || 'atencao']
+  const dicas = a ? montarDicas(a) : []
   if (typeof document === 'undefined') return null
   return createPortal(
     <div className="rl-fundo" onClick={onFechar}>
-      <div className="rl-caixa" onClick={(e) => e.stopPropagation()}>
+      <div className="rl-caixa rd-caixa" onClick={(e) => e.stopPropagation()}>
         <style>{ESTILO}</style>
         <header className="rl-cab" style={{ background: `linear-gradient(120deg, ${sit.fundo}, var(--portal-bg-card, #fefefe) 60%)` }}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="rl-sit" style={{ color: sit.cor }}><i className={`fas ${sit.icone}`} /> {sit.rotulo} · Tratorilson {quando && <small>· lida {quando}{ultima?.por ? ` por ${ultima.por}` : ''}</small>}</div>
+            <div className="rl-sit" style={{ color: sit.cor }}><i className={`fas ${sit.icone}`} /> {sit.rotulo} · Dicas do Tratorilson {quando && <small>· lidas {quando}</small>}</div>
             <h2>{a?.manchete || (gerando ? ETAPAS[etapa] : 'Sem leitura ainda')}</h2>
-            {a?.resumo && <p>{a.resumo}</p>}
           </div>
           <div className="rl-cab-acoes">
             <button type="button" className="rl-btn" onClick={onRefazer} disabled={gerando}><i className={`fas ${gerando ? 'fa-circle-notch fa-spin' : 'fa-rotate'}`} /> {gerando ? 'Lendo…' : 'Ler de novo'}</button>
@@ -158,100 +190,36 @@ function Relatorio({ ultima, ens, setEns, gerando, etapa, quando, onRefazer, err
           </div>
         </header>
 
-        <nav className="rl-abas">
-          {([['plano', 'Plano de ação', 'fa-list-check', a?.acoes.length], ['tecnicos', 'Técnico por técnico', 'fa-user-gear', a?.porTecnico.length], ['ligacoes', 'Ligando os pontos', 'fa-diagram-project', a?.conexoes.length], ['ensinar', 'Ensinar o Tratorilson', 'fa-graduation-cap', ens.length]] as [Aba, string, string, number | undefined][]).map(([k, r, ic, n]) => (
-            <button key={k} type="button" className={aba === k ? 'on' : ''} onClick={() => setAba(k)}><i className={`fas ${ic}`} /> {r}{n ? <em>{n}</em> : null}</button>
-          ))}
-        </nav>
-
         <div className="rl-corpo">
           {erro && <div className="rl-erro">{erro}</div>}
-
-          {aba === 'plano' && a && (
-            <div className="rl-plano">
-              {(['alta', 'media', 'baixa'] as const).map((p) => {
-                const itens = a.acoes.map((x, i) => ({ x, i })).filter(({ x }) => x.prioridade === p)
+          {a && dicas.length > 0 && (
+            <div className="rd-lista">
+              {dicas.map((d, k) => {
+                const ok = d.acao != null && feitos.includes(d.acao)
                 return (
-                  <div key={p} className="rl-col">
-                    <div className="rl-col-cab" style={{ color: PRIO[p].cor }}><i style={{ background: PRIO[p].cor }} /> {PRIO[p].rotulo} <em>{itens.length}</em></div>
-                    {itens.length === 0 && <div className="rl-vazio">nada aqui</div>}
-                    {itens.map(({ x, i }, k) => {
-                      const ok = feitos.includes(i)
-                      return (
-                        <label key={i} className={`rl-acao ${ok ? 'rl-feito' : ''}`} style={{ animationDelay: `${k * 70}ms`, borderLeftColor: PRIO[p].cor }}>
-                          <input type="checkbox" checked={ok} onChange={() => marcar(i)} />
-                          <div>
-                            <b>{x.oque}</b>
-                            {x.porque && <span>{x.porque}</span>}
-                            <div className="rl-meta">{x.quem && <span><i className="fas fa-user" /> {x.quem}</span>}{x.quando && <span><i className="fas fa-clock" /> {x.quando}</span>}</div>
-                          </div>
-                        </label>
-                      )
-                    })}
+                  <div key={k} className={`rd-dica ${ok ? 'rd-feita' : ''}`} style={{ ['--k' as string]: d.cor, ['--f' as string]: d.fundo, animationDelay: `${k * 60}ms` }}>
+                    <span className="rd-n"><i className={`fas ${d.icone}`} /></span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div className="rd-topo"><span className="rd-tag">{d.tag}</span>{d.quem && <span className="rd-quem"><i className="fas fa-user" /> {d.quem}</span>}</div>
+                      <b className="rd-txt">{d.texto}</b>
+                      {d.porque && <p className="rd-pq">{d.porque}</p>}
+                    </div>
+                    {d.acao != null && (
+                      <button type="button" className="rd-ok" onClick={() => marcar(d.acao!)} title={ok ? 'Desmarcar' : 'Marcar como feita'}>
+                        <i className={`fas ${ok ? 'fa-circle-check' : 'fa-circle'}`} /> {ok ? 'feita' : 'feito?'}
+                      </button>
+                    )}
                   </div>
                 )
               })}
             </div>
           )}
-
-          {aba === 'tecnicos' && a && (
-            <div className="rl-tecs">
-              {a.porTecnico.map((t, i) => {
-                const s = SIT[t.situacao]
-                return (
-                  <article key={t.tecnico} id={`tl-tec-${t.tecnico}`} className={`rl-tec ${tecnicoInicial === t.tecnico ? 'rl-tec-foco' : ''}`} style={{ animationDelay: `${i * 70}ms`, borderTopColor: s.cor }}>
-                    <div className="rl-tec-cab">
-                      <span className="rl-av" style={{ background: s.cor }}>{iniciais(t.tecnico)}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}><b>{t.tecnico}</b><small style={{ color: s.cor }}><i className={`fas ${s.icone}`} /> {s.rotulo}</small></div>
-                    </div>
-                    {t.leitura && <p className="rl-leitura">{t.leitura}</p>}
-                    <div className="rl-duas">
-                      {t.pontosFortes.length > 0 && <div><h4 style={{ color: '#047857' }}><i className="fas fa-thumbs-up" /> Pontos fortes</h4><ul>{t.pontosFortes.map((x, k) => <li key={k}>{x}</li>)}</ul></div>}
-                      {t.atencao.length > 0 && <div><h4 style={{ color: '#b45309' }}><i className="fas fa-triangle-exclamation" /> Atenção</h4><ul>{t.atencao.map((x, k) => <li key={k}>{x}</li>)}</ul></div>}
-                    </div>
-                    {t.dicas.length > 0 && (
-                      <div className="rl-dicas">
-                        <h4><i className="fas fa-lightbulb" /> O que fazer com ele</h4>
-                        <ol>{t.dicas.map((x, k) => <li key={k}><span>{k + 1}</span>{x}</li>)}</ol>
-                      </div>
-                    )}
-                    {t.conversa && (
-                      <div className="rl-conversa">
-                        <i className="fas fa-comment-dots" />
-                        <p>“{t.conversa}”</p>
-                        <button type="button" onClick={() => copiar(t.conversa, t.tecnico)} title="Copiar a frase">{copiado === t.tecnico ? <><i className="fas fa-check" /> copiada</> : <><i className="fas fa-copy" /> copiar</>}</button>
-                      </div>
-                    )}
-                  </article>
-                )
-              })}
-            </div>
-          )}
-
-          {aba === 'ligacoes' && a && (
-            <div style={{ display: 'grid', gap: 12 }}>
-              {a.conexoes.map((c, i) => {
-                const nos = (c.titulo || '').split(/\s*(?:→|->|>)\s*/).filter(Boolean)
-                return (
-                  <div key={i} className="rl-lig" style={{ animationDelay: `${i * 90}ms` }}>
-                    {nos.length > 1 ? <div className="rl-cadeia">{nos.map((n, k) => <span key={k}>{k > 0 && <i className="fas fa-arrow-right-long" />}<b>{n}</b></span>)}</div> : c.titulo && <b className="rl-lig-tit">{c.titulo}</b>}
-                    <p>{c.texto}</p>
-                  </div>
-                )
-              })}
-              {a.destaques.length > 0 && (
-                <div className="rl-dest">
-                  {a.destaques.map((d, i) => <div key={i} style={{ borderLeftColor: SIT[d.tipo].cor, background: SIT[d.tipo].fundo }}><b>{d.titulo}</b><span>{d.texto}</span></div>)}
-                </div>
-              )}
-              {(a.proximosDias.leitura || a.proximosDias.alertas.length > 0) && (
-                <div className="rl-lig"><b className="rl-lig-tit"><i className="fas fa-calendar-days" /> Próximos 14 dias</b><p>{a.proximosDias.leitura}</p>{a.proximosDias.alertas.length > 0 && <ul>{a.proximosDias.alertas.map((x, k) => <li key={k}>{x}</li>)}</ul>}</div>
-              )}
-            </div>
-          )}
-
-          {aba === 'ensinar' && <Ensinar ens={ens} setEns={setEns} />}
-          {!a && aba !== 'ensinar' && <div className="rl-vazio" style={{ padding: 40 }}>{gerando ? ETAPAS[etapa] : 'Clique em "Ler de novo" para o Tratorilson fazer a primeira leitura.'}</div>}
+          {a && dicas.length === 0 && <div className="rl-vazio" style={{ padding: 40 }}>Nenhuma dica nesta leitura. Clique em &quot;Ler de novo&quot;.</div>}
+          {!a && <div className="rl-vazio" style={{ padding: 40 }}>{gerando ? ETAPAS[etapa] : 'Clique em "Ler de novo" para o Tratorilson fazer a primeira leitura.'}</div>}
+          <div className="rd-rodape">
+            <button type="button" onClick={() => setEnsinando((v) => !v)}><i className="fas fa-graduation-cap" /> Ensinar o Tratorilson{ens.length ? ` (${ens.length})` : ''} <i className={`fas fa-chevron-${ensinando ? 'up' : 'down'}`} /></button>
+          </div>
+          {ensinando && <Ensinar ens={ens} setEns={setEns} />}
         </div>
       </div>
     </div>,
@@ -314,6 +282,25 @@ function Digitando({ texto }: { texto: string }) {
 }
 
 const ESTILO = `
+.rd-caixa { width: min(880px, 100%) }
+.rd-lista { display: grid; gap: 10px }
+.rd-dica { display: flex; gap: 14px; align-items: flex-start; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-left: 4px solid var(--k); border-radius: 14px; padding: 14px 16px; animation: rdEntra .4s cubic-bezier(.2,.8,.2,1) both; transition: transform .2s, box-shadow .2s }
+.rd-dica:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(15,23,42,.08) }
+@keyframes rdEntra { from { opacity: 0; transform: translateY(10px) } }
+.rd-n { width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0; display: grid; place-items: center; background: var(--f); color: var(--k); font-size: 16px }
+.rd-topo { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 4px }
+.rd-tag { font-size: 11.5px; font-weight: 900; text-transform: uppercase; letter-spacing: .04em; color: var(--k) }
+.rd-quem { font-size: 12.5px; color: var(--portal-text-muted, #64748b); font-weight: 700 }
+.rd-txt { display: block; font-size: 15.5px; line-height: 1.4; color: var(--portal-text, #0f172a) }
+.rd-pq { margin: 4px 0 0; font-size: 13.5px; line-height: 1.5; color: var(--portal-text-muted, #64748b) }
+.rd-ok { border: 1px solid var(--portal-border, #e5e7eb); background: var(--portal-bg-card, #fefefe); color: var(--portal-text-muted, #64748b); border-radius: 99px; padding: 5px 11px; font-family: inherit; font-size: 12.5px; font-weight: 800; cursor: pointer; white-space: nowrap; flex-shrink: 0 }
+.rd-ok:hover { border-color: #16a34a; color: #15803d }
+.rd-feita { opacity: .55 } .rd-feita .rd-txt { text-decoration: line-through } .rd-feita .rd-ok { color: #15803d; border-color: #86efac; background: #f0fdf4 }
+.rd-rodape { display: flex; justify-content: center; margin-top: 16px }
+.rd-rodape button { border: none; background: transparent; color: var(--portal-text-muted, #64748b); font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; display: inline-flex; gap: 7px; align-items: center }
+.rd-rodape button:hover { color: #0369a1 }
+@media (prefers-reduced-motion: reduce) { .rd-dica { animation: none } }
+
 .tl3 { display: flex; gap: 14px; align-items: center; margin-bottom: 16px }
 .tl3-bot { position: relative; width: 52px; height: 52px; flex-shrink: 0; border: none; background: transparent; padding: 0; cursor: pointer }
 .tl3-rosto { width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center; font-size: 24px; color: #fefefe; background: linear-gradient(140deg, #0ea5e9, #0369a1); box-shadow: 0 8px 20px rgba(3,105,161,.3); transition: transform .25s }
@@ -322,8 +309,8 @@ const ESTILO = `
 .tl3-st { position: absolute; right: -5px; bottom: -5px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: var(--c); color: #fefefe; font-size: 11px; border: 3px solid var(--portal-bg, #f8fafc); font-style: normal }
 .tl3-perg { flex: 1; min-width: 0; display: grid; gap: 5px } .tl3-perg > small { font-size: 11.5px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; color: var(--portal-text-muted, #64748b) }
 .tl3-perg > div { display: flex; gap: 6px; flex-wrap: wrap }
-.tl3-q { position: relative; display: inline-flex; gap: 7px; align-items: center; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 99px; padding: 6px 13px; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--portal-text, #334155); cursor: pointer; animation: tlEntra .4s both; transition: border-color .2s, color .2s, transform .2s, box-shadow .2s }
-.tl3-q i { color: #0369a1; font-size: 12px } .tl3-q:hover { border-color: #7dd3fc; color: #0369a1; transform: translateY(-2px); box-shadow: 0 6px 14px rgba(3,105,161,.12) }
+.tl3-q { position: relative; display: inline-flex; gap: 7px; align-items: center; border: 1px solid color-mix(in srgb, var(--portal-border, #e2e8f0) 70%, transparent); background: color-mix(in srgb, var(--portal-bg-card, #fefefe) 55%, transparent); backdrop-filter: blur(6px); border-radius: 99px; padding: 6px 14px; font-family: inherit; font-size: 13px; font-weight: 700; color: color-mix(in srgb, var(--portal-text, #334155) 80%, transparent); cursor: pointer; animation: tlEntra .4s both; transition: border-color .2s, color .2s, transform .2s, box-shadow .2s }
+.tl3-q:hover { background: var(--portal-bg-card, #fefefe); border-color: #7dd3fc; color: #0369a1; transform: translateY(-2px); box-shadow: 0 6px 14px rgba(3,105,161,.12) }
 .tl3-q em { font-style: normal; min-width: 17px; height: 17px; border-radius: 99px; background: #dc2626; color: #fefefe; font-size: 10.5px; font-weight: 900; display: grid; place-items: center; padding: 0 4px }
 .tl2 { display: flex; align-items: stretch; gap: 0; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; margin-bottom: 16px; overflow: hidden; box-shadow: 0 1px 3px rgba(15,23,42,.05); transition: box-shadow .2s }
 .tl2:hover { box-shadow: 0 12px 28px rgba(15,23,42,.08) }
@@ -433,4 +420,23 @@ const ESTILO = `
 .rl-mini { border: none; background: transparent; cursor: pointer; color: var(--portal-text-muted, #64748b); padding: 3px 6px; border-radius: 6px }
 .rl-mini:hover { background: rgba(100,116,139,.12) }
 @media (max-width: 900px) { .rl-plano { grid-template-columns: 1fr } .tl2 { flex-wrap: wrap } .tl2-sit { width: 100%; flex-direction: row; padding: 8px } .tl2-lado { border-left: none; width: 100%; flex-direction: row; justify-content: space-between } .rl-duas { grid-template-columns: 1fr } }
+.tlf { position: relative }
+/* aberto pelo círculo de atalhos: sem o botão, perguntas no centro da tela com o fundo desfocado */
+.tlf.oculto .tlf-bt { display: none }
+.tlf.oculto .tlf-capa { z-index: 9700; background: rgba(15,23,42,.38); backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px) }
+.tlf.oculto .tlf-menu { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 9701; width: min(400px, 92vw); padding: 10px; border-radius: 20px; box-shadow: 0 30px 80px -20px rgba(15,23,42,.6) }
+.tlf.oculto .tlf-menu::before { content: 'Perguntas frequentes'; display: block; padding: 6px 12px 10px; font-size: 15px; font-weight: 600; color: #0369a1 }
+.tlf-bt { display: inline-flex; gap: 10px; align-items: center; min-height: 56px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 999px; padding: 6px 16px 6px 7px; font-family: inherit; text-align: left; cursor: pointer; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05); transition: border-color .2s, box-shadow .2s, transform .15s }
+.tlf-bt:hover, .tlf.on .tlf-bt { transform: translateY(-1px); border-color: color-mix(in srgb, var(--c) 40%, transparent); box-shadow: 0 8px 20px rgba(15,23,42,.09) }
+.tlf-rosto { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-size: 16px; color: #fefefe; background: linear-gradient(135deg, #0ea5e9, #0369a1); box-shadow: 0 4px 10px rgba(3,105,161,.3) }
+.tl3-pensando .tlf-rosto { animation: tlfPulsa 1.2s ease-in-out infinite } @keyframes tlfPulsa { 50% { box-shadow: 0 0 0 6px rgba(14,165,233,.25) } }
+.tlf-t { display: grid; line-height: 1.15 } .tlf-t b { font-size: 14.5px; font-weight: 900; color: var(--portal-text, #0f172a) } .tlf-t small { font-size: 11.5px; font-weight: 600; color: var(--portal-text-muted, #64748b); white-space: nowrap }
+.tlf-n { min-width: 20px; height: 20px; border-radius: 99px; display: grid; place-items: center; padding: 0 6px; font-size: 11.5px; font-weight: 900; color: #fefefe; background: #dc2626 }
+.tlf-seta { font-size: 11px; color: var(--portal-text-muted, #64748b); transition: transform .25s } .tlf.on .tlf-seta { transform: rotate(180deg) }
+.tlf-capa { position: fixed; inset: 0; z-index: 40 }
+.tlf-menu { position: absolute; top: calc(100% + 8px); left: 0; z-index: 41; width: 320px; display: grid; gap: 2px; padding: 6px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 18px; box-shadow: 0 20px 50px rgba(15,23,42,.18); animation: tlEntra .2s both }
+.tlf-menu button { display: flex; gap: 10px; align-items: center; justify-content: space-between; border: none; background: transparent; border-radius: 12px; padding: 10px 12px; font-family: inherit; font-size: 13.5px; font-weight: 700; color: var(--portal-text, #334155); text-align: left; cursor: pointer; animation: tlEntra .25s both }
+.tlf-menu button:hover { background: #f0f9ff; color: #0369a1 } .tlf-menu button i { font-size: 11px; opacity: 0; transition: opacity .15s, transform .15s } .tlf-menu button:hover i { opacity: 1; transform: translateX(2px) }
+.tlf-menu em { font-style: normal; min-width: 18px; height: 18px; border-radius: 99px; background: #dc2626; color: #fefefe; font-size: 11px; font-weight: 900; display: grid; place-items: center; padding: 0 5px }
+@media (max-width: 900px) { .tlf-t small { display: none } .tlf-menu { width: min(320px, 90vw) } }
 `

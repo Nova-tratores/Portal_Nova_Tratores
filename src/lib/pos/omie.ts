@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 import { pedidoClienteDaOS } from "@/lib/pos/pedido-cliente";
-import { TBL_OS, TBL_CLIENTES, TBL_PEDIDOS, TBL_LOGS_PPV, VALOR_HORA, VALOR_KM } from "./constants";
+import { TBL_OS, TBL_PEDIDOS, TBL_LOGS_PPV, VALOR_HORA, VALOR_KM } from "./constants";
 import { enviarPPVParaOmie } from "@/lib/ppv/omie";
 import { aplicarUnidadesDoPPV } from "@/lib/pecas/ppv-vinculo";
 import { normName } from "@/lib/tecnico-utils";
@@ -11,8 +11,9 @@ const OMIE_APP_SECRET = process.env.OMIE_APP_SECRET || "";
 // Base do portal, pra montar os links de acesso que vão nas observações do Omie.
 import { PORTAL_BASE } from "@/lib/portal-url";
 import { omie } from "@/lib/omie/porta";
-import { dadosAdicionaisAuto, CONTA_INTERNO, EMAIL_INTERNO } from "@/lib/pos/omie-espelho";
+import { dadosAdicionaisAuto, CONTA_INTERNO, EMAIL_INTERNO, espelhoPadrao, normalizarEspelho } from "@/lib/pos/omie-espelho";
 import { distribuirDescontoGeral } from "@/lib/pos/desconto-geral";
+import { valorRequisicaoOmie } from "@/lib/pos/requisicao-valor";
 
 // --- Constantes Omie ---
 const OMIE_ETAPA_EXECUTADA = "30";
@@ -132,10 +133,6 @@ async function omieCall<T>(endpoint: string, call: string, param: Record<string,
 }
 
 // --- Helpers ---
-function normalizarCnpj(cnpj: string): string {
-  return cnpj.replace(/\D/g, "");
-}
-
 function formatarDataOmie(dataIso: string): string {
   // "2026-01-14" → "14/01/2026"
   const [ano, mes, dia] = dataIso.split("T")[0].split("-");
@@ -151,21 +148,10 @@ function toNum(val: unknown, fallback = 0): number {
 // --- Lookup de cliente ---
 const cacheClientes = new Map<string, number>();
 
-async function buscarNcodCli(cnpj: string): Promise<{ nCodCli: number; email: string }> {
-  const cnpjNorm = normalizarCnpj(cnpj);
-
-  // Tenta buscar na tabela Clientes do Supabase (campo id_omie + email)
-  const { data } = await supabase
-    .from(TBL_CLIENTES)
-    .select("id_omie, cnpj_cpf, email")
-    .ilike("cnpj_cpf", `%${cnpjNorm.substring(0, 8)}%`)
-    .limit(1);
-
-  if (data && data.length > 0 && data[0].id_omie) {
-    return { nCodCli: data[0].id_omie, email: data[0].email || "" };
-  }
-
-  // Fallback: busca direto na API Omie
+export async function buscarNcodCli(cnpj: string): Promise<{ nCodCli: number; email: string }> {
+  // Busca no Omie pelo CPF/CNPJ COMPLETO (23/10/2026). Antes procurava antes no espelho pelos 8 primeiros
+  // dígitos — a raiz do CNPJ é igual em todas as filiais (07.991.507/0002-84 × /0035-42) e o espelho tem
+  // o mesmo CNPJ com código da Nova e da Castro, então podia mandar a OS para o cadastro errado.
   const result = await omieCall<{ clientes_cadastro?: Array<{ codigo_cliente_omie: number; email?: string }> }>(
     "/geral/clientes/",
     "ListarClientes",
@@ -187,6 +173,20 @@ export async function buscarNcodProj(projeto: string): Promise<number> {
   if (!projeto) return 0;
   const projetoNorm = projeto.trim();
   if (cacheProjetos.has(projetoNorm)) return cacheProjetos.get(projetoNorm)!;
+
+  // 1º o espelho do portal (portal_nt_projetos_PRINCIPAL, conta Nova, nome EXATO, ativo): evita varrer até
+  // 21 páginas do ListarProjetos a cada envio (item 1 de docs/omie-otimizacao-pos-ppv.md). Só nome exato — o
+  // "contém" da busca no Omie pode trazer a máquina errada; sem achar aqui, segue a busca antiga.
+  try {
+    const { data } = await supabase.from("portal_nt_projetos_PRINCIPAL").select("codigo, nome, inativo")
+      .eq("empresa", "Nova Tratores").ilike("nome", projetoNorm.replace(/[%_]/g, "\\$&")).limit(3);
+    const exatos = ((data || []) as Array<{ codigo: number; nome: string; inativo?: string }>)
+      .filter((p) => String(p.nome || "").trim().toUpperCase() === projetoNorm.toUpperCase() && p.inativo !== "S");
+    if (exatos.length === 1 && Number(exatos[0].codigo) > 0) {
+      cacheProjetos.set(projetoNorm, Number(exatos[0].codigo));
+      return Number(exatos[0].codigo);
+    }
+  } catch { /* espelho fora: busca no Omie */ }
 
   // Busca na API Omie pelo nome do projeto
   // Busca paginada — percorre até achar match por nome
@@ -374,16 +374,13 @@ export async function montarServicosDetalhe(os: Record<string, unknown>, idOrdem
       for (const r of reqs) {
         // Alimentação do técnico é despesa interna: NÃO vira serviço na OS do Omie (José, 14/10/2026)
         if (/alimenta/i.test(String(r.tipo || "")) || /^\s*alimenta/i.test(String(r.titulo || ""))) continue;
-        const valorCliente = r.valor_cobrado_cliente ? parseFloat(r.valor_cobrado_cliente) : 0;
-        const valorDespeza = r.valor_despeza ? parseFloat(r.valor_despeza) : 0;
-        const valor = valorCliente > 0 ? valorCliente : valorDespeza;
-        // A requisição entra no Omie SEMPRE, mesmo sem preço. O Omie não aceita
-        // valor 0 numa linha de serviço, então usamos 0,01 simbólico (igual ao
-        // serviço de revisão) quando ainda não há valor.
+        // Requisição com valor cobrado no portal vai ao Omie; sem valor cobrado, não vai (ver requisicao-valor.ts)
+        const valorReq = valorRequisicaoOmie(r.valor_cobrado_cliente);
+        if (valorReq === null) continue; // sem valor cobrado no portal: não vai para o Omie
         servicos.push({
           nCodServico: nCodDiv,
           nQtde: 1,
-          nValUnit: valor > 0 ? valor : 0.01,
+          nValUnit: valorReq,
           cDescServ: r.titulo || `Requisição #${r.id}`,
         });
       }
@@ -404,10 +401,21 @@ export function montarDadosAdic(os: Record<string, unknown>): string {
 // Observações da OS no Omie. Antes guardava o "Plano de Revisão"; agora, no
 // lugar dele, coloca os LINKS de acesso no portal: a própria OS, o(s) PPV(s)
 // e todas as requisições vinculadas.
-async function montarObsOS(os: Record<string, unknown>, idOrdem: string): Promise<string> {
+/** "Motivo do desconto (R$ 150,00): ..." — vai nas Observações da OS no Omie (José, 27/10/2026) */
+export function linhaMotivoDesconto(os: Record<string, unknown>): string {
+  const desc = Number(os.Desconto) || 0;
+  const m = (os.Omie_Espelho as { descontoMotivo?: { texto?: string } } | null | undefined)?.descontoMotivo;
+  const texto = String(m?.texto || "").trim();
+  if (desc <= 0 || !texto) return "";
+  return `Motivo do desconto (${desc.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}): ${texto}`;
+}
+
+export async function montarObsOS(os: Record<string, unknown>, idOrdem: string): Promise<string> {
   const partes: string[] = [];
   if (os.Serv_Realizado) partes.push(String(os.Serv_Realizado).trim());
   if (os.Causa) partes.push(`Causa: ${String(os.Causa).trim()}`);
+  const motivoDesc = linhaMotivoDesconto(os);
+  if (motivoDesc) partes.push(motivoDesc);
 
   const links: string[] = [`OS ${idOrdem}: ${PORTAL_BASE}/pos?id=${encodeURIComponent(idOrdem)}`];
   const ppvIds = String(os.ID_PPV || "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -467,76 +475,40 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
     const nCodProj = await buscarNcodProj(String(os.Projeto || ""));
     const nCodVend = await buscarNcodVend(String(os.Os_Tecnico || ""), String(os.Os_Tecnico2 || ""));
 
-    // Modo Garantia: OS com Tipo_Servico='Garantia' vira lançamento sem conta
-    // a receber, categoria #Serv Prest Garantia, conta INTERNO. nCodProj fica
-    // pendente até o garantista escolher a montadora em /garantias (depois
-    // disso, /api/garantias/[id]/sync-omie-projeto atualiza só esse campo).
-    // Garantia: OS marcada como 'Garantia' OU que TEM uma garantia vinculada
-    // (garantias criadas manualmente ficam sobre OS de Manutenção — por isso
-    // não dá pra confiar só no Tipo_Servico). Puxa a montadora pra o contrato.
-    const { data: garRow } = await supabase
-      .from('garantias')
-      .select('montadora_id')
-      .eq('id_ordem', idOrdem)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const ehGarantia = String(os.Tipo_Servico || '').toLowerCase().trim() === 'garantia' || !!garRow;
-    let montadoraNome: string | null = null;
-    if (garRow?.montadora_id) {
-      const { data: mont } = await supabase.from('garantia_montadoras').select('nome').eq('id', garRow.montadora_id).maybeSingle();
-      montadoraNome = mont?.nome ? String(mont.nome).trim() : null;
-    }
-    let payloadGarantia: {
-      codCategGarantia: string;
-      nCodCC_Interno: number;
-      codDeptGarantia: string | null;
-      cNumContrato?: string;
-    } | null = null;
-    if (ehGarantia) {
-      try {
-        const { buscarCodigosGarantia } = await import('@/lib/garantias/omie-faturamento');
-        const codigos = await buscarCodigosGarantia(undefined, montadoraNome);
-        payloadGarantia = {
-          codCategGarantia: codigos.codCategGarantia,
-          nCodCC_Interno: codigos.nCodCC_Interno,
-          codDeptGarantia: codigos.codDeptGarantia,
-          cNumContrato: montadoraNome ? `${montadoraNome}-pgo` : undefined,
-        };
-      } catch (err) {
-        // NÃO cai pra OS padrão: já aconteceu de uma falha momentânea aqui
-        // mandar a OS de garantia como comum (categoria/conta erradas, com
-        // conta a receber) e ninguém perceber. Melhor falhar o envio — a OS
-        // fica em "Enviar Omie" e o reenvio tenta de novo.
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[Omie] ✗ ${idOrdem} é garantia mas falhou ao resolver os códigos:`, err);
-        return { sucesso: false, erro: `OS de garantia: falha ao resolver os códigos no Omie (${msg}). Nada foi enviado — tente novamente.` };
-      }
-    }
+    // A OS vai ao Omie COMO ESTÁ NA TELA (José, 21/10/2026). Categoria, conta
+    // corrente, Nº do Contrato de Venda, departamentos, dados adicionais da NF
+    // e e-mail saem da aba Omie da OS (Ordem_Servico.Omie_Espelho).
+    //
+    // Não existe mais padrão automático de garantia aqui: OS de garantia é uma
+    // OS como as outras. Quem quiser o lançamento de garantia escolhe na tela
+    // a categoria, a conta e o contrato ("Mahindra-pgo", "Kuhn-pgo"...) e o
+    // departamento "03. # Garantias" — e marca "Serviço interno" quando a OS
+    // não pode gerar conta a receber. Antes o padrão entrava sozinho e passava
+    // por cima do que fosse configurado na tela (e, quando não conseguia
+    // resolver os códigos no Omie, recusava o envio inteiro).
+    const esp = normalizarEspelho(
+      os.Omie_Espelho,
+      espelhoPadrao({ interna: !!os.Servico_Interno, email: emailCliente }),
+    );
 
-    // Serviços: em garantia cada linha recebe a categoria de garantia +
-    // "não gerar conta a receber". OBS: no nó ServicosPrestados os campos
-    // corretos são cCodCategItem e cNaoGerarFinanceiro (NÃO cCodCateg/
-    // cNaoGerarReceber — esses fazem o Omie rejeitar a OS inteira).
     // OS INTERNA (José, 15/10/2026): nada é cobrado — todos os serviços "não gerar conta a
     // receber" (é isso que faz o Omie faturar com RECIBO), conta corrente INTERNO, Nº do
     // Contrato de Venda OBRIGATÓRIO (código interno), "Enviar recibo em vez da NFS-e" ligado,
-    // sem parcelas. Departamento continua o normal. As peças vão como REMESSA (mais abaixo).
-    const interna = !!os.Servico_Interno && !payloadGarantia;
-    let contratoInterna = "";
-    if (interna) {
-      const esp = (os.Omie_Espelho && typeof os.Omie_Espelho === "object" ? os.Omie_Espelho : {}) as { info?: { contrato?: string } };
-      contratoInterna = String(esp.info?.contrato || "").trim();
-      if (!contratoInterna) {
-        return { sucesso: false, erro: 'OS interna: escolha o "Nº do Contrato de Venda" (código interno) na aba Informações adicionais antes de enviar ao Omie.' };
-      }
+    // sem parcelas. As peças vão como REMESSA (mais abaixo).
+    // OBS: no nó ServicosPrestados o campo é cNaoGerarFinanceiro (NÃO
+    // cNaoGerarReceber — esse faz o Omie rejeitar a OS inteira).
+    const interna = !!os.Servico_Interno;
+    const contrato = String(esp.info.contrato || "").trim();
+    if (interna && !contrato) {
+      return { sucesso: false, erro: 'OS interna: escolha o "Nº do Contrato de Venda" (código interno) na aba Informações adicionais antes de enviar ao Omie.' };
     }
     const servicosBase = await montarServicosComReqs(os, idOrdem);
-    const servicosFinal = payloadGarantia
-      ? servicosBase.map((s) => ({ ...s, cCodCategItem: payloadGarantia!.codCategGarantia, cNaoGerarFinanceiro: 'S' as const }))
-      : interna
-        ? servicosBase.map((s) => ({ ...s, cNaoGerarFinanceiro: 'S' as const }))
-        : servicosBase;
+    // "Não gerar conta a receber" (é o que faz o Omie faturar com RECIBO em vez
+    // de NFS-e) sai da caixinha "Serviço interno" da OS — decisão do José
+    // (21/10/2026) quando o padrão automático de garantia foi removido.
+    const servicosFinal = interna
+      ? servicosBase.map((s) => ({ ...s, cNaoGerarFinanceiro: 'S' as const }))
+      : servicosBase;
     const cObsOS = await montarObsOS(os, idOrdem);
 
     const payload = {
@@ -550,38 +522,31 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
         nQtdeParc: 1,
       },
       InformacoesAdicionais: {
-        cCodCateg: payloadGarantia ? payloadGarantia.codCategGarantia : OMIE_COD_CATEG,
-        nCodCC: payloadGarantia ? payloadGarantia.nCodCC_Interno : interna ? CONTA_INTERNO : OMIE_COD_CC,
+        // tudo da aba Omie da OS; vazio = o padrão que a própria tela mostra
+        cCodCateg: String(esp.info.categoria || "").trim() || OMIE_COD_CATEG,
+        nCodCC: Number(esp.info.conta) || (interna ? CONTA_INTERNO : OMIE_COD_CC),
         nCodProj: nCodProj || undefined,
-        cDadosAdicNF: montarDadosAdic(os) || undefined,
-        // Garantia: Nº Contrato de Venda = "{Montadora}-pgo" (ex.: Mahindra-pgo)
-        ...(payloadGarantia?.cNumContrato ? { cNumContrato: payloadGarantia.cNumContrato } : {}),
-        ...(interna ? { cNumContrato: contratoInterna.slice(0, 20) } : {}),
+        // "Dados Adicionais para a Nota Fiscal" escrito à mão vence o automático
+        cDadosAdicNF: String(esp.info.dadosNF || "").trim() || montarDadosAdic(os) || undefined,
+        ...(contrato ? { cNumContrato: contrato.slice(0, 20) } : {}),
       },
-      // Garantia: o departamento "03. # Garantias" (100%) é aplicado logo
-      // após a criação, via AlterarOS — o Omie exige o nValor da distribuição,
-      // que só é conhecido depois que a OS existe (ver mais abaixo).
+      // Os departamentos da aba Departamentos vão num AlterarOS logo após a
+      // criação — o Omie exige o nValor da distribuição, que só é conhecido
+      // depois que a OS existe (ver mais abaixo).
       Observacoes: {
         cObsOS: cObsOS || undefined,
       },
       // ⚠️ Sem nó "Produtos" — o osCadastro do Omie não aceita a tag; as
       // peças do PPV vão como Pedido de Venda logo abaixo.
       ServicosPrestados: servicosFinal,
-      Email: payloadGarantia
-        ? {
-            cEnvBoleto: 'N',
-            cEnvLink: 'N',
-            cEnvRecibo: 'S',
-            cEnviarPara: 'posvendas.novatratores@gmail.com',
-          }
-        : {
-            cEnvBoleto: 'N',
-            cEnvLink: 'N',
-            // interna: "Enviar um Recibo de Prestação de Serviço (ao invés da NFS-e)"
-            ...(interna ? { cEnvRecibo: 'S' } : {}),
-            // interna: nada para o cliente — o recibo vai para o pós-vendas
-            cEnviarPara: interna ? EMAIL_INTERNO : emailCliente,
-          },
+      Email: {
+        cEnvBoleto: 'N',
+        cEnvLink: esp.email.link ? 'S' : 'N',
+        // "Enviar um Recibo de Prestação de Serviço (ao invés da NFS-e)"
+        ...(esp.email.recibo || interna ? { cEnvRecibo: 'S' } : {}),
+        // interna: nada para o cliente — o recibo vai para o pós-vendas
+        cEnviarPara: interna ? EMAIL_INTERNO : (String(esp.email.para || "").trim() || emailCliente),
+      },
     };
 
     let resposta: OmieOSResponse;
@@ -594,7 +559,27 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       // Se código de integração já existe no Omie (OS antiga), reenvia com código único
+      // Antes de criar outra, confere se a OS já cadastrada é ESTA mesma (envio anterior aceito pelo Omie
+      // e a resposta perdida: conexão caiu, deploy). Se for do mesmo cliente, não cancelada e ainda não
+      // faturada, ADOTA — senão um reenvio criava uma 2ª OS no Omie (item 8 de docs/omie-otimizacao-pos-ppv.md).
+      let adotada: OmieOSResponse | null = null;
       if (msg.includes("já cadastrado") || msg.includes("Client-103")) {
+        try {
+          const ja = await omieCall<{ Cabecalho?: { nCodOS?: number; cNumOS?: string; cCodIntOS?: string; nCodCli?: number; cEtapa?: string }; InfoCadastro?: { cCancelada?: string; cFaturada?: string } }>(
+            "/servicos/os/", "ConsultarOS", { cCodIntOS: payload.Cabecalho.cCodIntOS },
+          );
+          const c = ja?.Cabecalho, info = ja?.InfoCadastro;
+          const mesmoCliente = !!c?.nCodCli && Number(c.nCodCli) === Number(payload.Cabecalho.nCodCli);
+          const viva = info?.cCancelada !== "S" && info?.cFaturada !== "S" && Number(c?.cEtapa || 0) < 50;
+          if (c?.nCodOS && mesmoCliente && viva) {
+            adotada = { nCodOS: c.nCodOS, cNumOS: c.cNumOS || String(c.nCodOS), cStatus: "adotada" };
+            console.log(`[Omie] ${os.Id_Ordem} já estava no Omie (nº ${c.cNumOS}) — adotada, sem criar outra OS`);
+          }
+        } catch { /* não deu para conferir: segue o caminho antigo (código com sufixo) */ }
+      }
+      if (adotada) {
+        resposta = adotada;
+      } else if (msg.includes("já cadastrado") || msg.includes("Client-103")) {
         const novoCodigoInt = `${os.Id_Ordem}-${Date.now()}`;
         console.log(`[Omie] Código ${os.Id_Ordem} já existe, reenviando como ${novoCodigoInt}`);
         payload.Cabecalho.cCodIntOS = novoCodigoInt;
@@ -627,11 +612,12 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
 
     console.log(`[Omie] ✓ ${idOrdem} → OS nº ${resposta.cNumOS} (ID: ${resposta.nCodOS})`);
 
-    // Garantia: aplica o departamento "03. # Garantias" (100%) via AlterarOS.
-    // Feito depois da criação porque o Omie exige o nValor da distribuição, e
-    // esse total só é conhecido com a OS já existente. Best-effort: se falhar,
-    // a OS continua criada (só sem o rateio de departamento).
-    if (payloadGarantia?.codDeptGarantia) {
+    // Departamentos da aba Departamentos da OS, via AlterarOS. Feito depois da
+    // criação porque o Omie exige o nValor da distribuição, e esse total só é
+    // conhecido com a OS já existente. Best-effort: se falhar, a OS continua
+    // criada (só sem o rateio de departamento).
+    const deptos = Object.entries(esp.deptos).filter(([, perc]) => Number(perc) > 0);
+    if (deptos.length > 0) {
       try {
         const consulta = await omieCall<{ Cabecalho?: { nValorTotal?: number } }>(
           "/servicos/os/",
@@ -645,15 +631,19 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
             "AlterarOS",
             {
               Cabecalho: { nCodOS: resposta.nCodOS },
-              Departamentos: [
-                { cCodDepto: payloadGarantia.codDeptGarantia, nPerc: 100, nValor: totalOS, nValorFixo: "N" },
-              ],
+              Departamentos: deptos.map(([cCodDepto, perc]) => ({
+                cCodDepto,
+                nPerc: Number(perc),
+                // o Omie quer o valor da fatia junto com o percentual
+                nValor: Math.round(totalOS * (Number(perc) / 100) * 100) / 100,
+                nValorFixo: "N",
+              })),
             }
           );
-          console.log(`[Omie] ✓ ${idOrdem} → departamento Garantias 100% (R$ ${totalOS})`);
+          console.log(`[Omie] ✓ ${idOrdem} → departamentos ${deptos.map(([c, p]) => `${c} ${p}%`).join(", ")} (R$ ${totalOS})`);
         }
       } catch (err) {
-        console.warn(`[Omie] Falha ao aplicar departamento de garantia na OS ${resposta.nCodOS}:`, err);
+        console.warn(`[Omie] Falha ao aplicar os departamentos na OS ${resposta.nCodOS}:`, err);
       }
     }
 

@@ -114,7 +114,7 @@ export async function gerarPdfRequisicao(r: ReqParaConta): Promise<string | null
 
   // Rodapé
   doc.setFontSize(7); doc.setTextColor(150);
-  doc.text(`Nova Tratores • Requisicao #${r.id} • Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 285);
+  doc.text(`Nova Tratores • Requisicao #${r.id} • Gerado em ${new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`, 14, 285);
   doc.text(`Cod: ${String(r.id).padStart(8, '0')}`, W - 14, 285, { align: 'right' });
 
   // Upload

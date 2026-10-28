@@ -221,7 +221,8 @@ const OS_ATIVAS = /^(execu|aguardando ordem|orcamento|orçamento|aberta|agendad)
 
 /** Dias de execução da OS: "Dias_Execucao" (lista) ou a previsão de execução. */
 export function diasDaOS(o: { Dias_Execucao?: string | null; Previsao_Execucao?: string | null; Data?: string | null }): string[] {
-  const lista = String(o.Dias_Execucao || '').split(',').map((s) => s.trim()).filter((s) => DIA_RE.test(s))
+  // cada entrada pode vir com o horário junto ("2026-04-24 15:30-18:00"): vale o dia do começo
+  const lista = String(o.Dias_Execucao || '').split(',').map((s) => s.trim().slice(0, 10)).filter((s) => DIA_RE.test(s))
   if (lista.length) return [...new Set(lista)].sort()
   const d = DIA_RE.test(o.Previsao_Execucao || '') ? o.Previsao_Execucao! : DIA_RE.test(o.Data || '') ? o.Data! : null
   return d ? [d] : []

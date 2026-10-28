@@ -154,8 +154,8 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
     return (
       <label key={tag} title={tag} style={{
         display: "inline-flex", alignItems: "center", gap: 7, cursor: "pointer",
-        fontSize: 13, fontWeight: 700, padding: "8px 14px", borderRadius: 999,
-        border: `2px solid ${marcada ? corTag : "var(--portal-border)"}`,
+        fontSize: 13, fontWeight: 500, padding: "8px 14px", borderRadius: 999,
+        border: `1px solid ${marcada ? corTag : "var(--portal-border)"}`,
         background: marcada ? `${corTag}1f` : "var(--portal-bg-card)",
         color: marcada ? corTag : "var(--portal-text-secondary)",
         boxShadow: marcada ? `0 2px 8px -2px ${corTag}66` : "none", transition: "all .15s",
@@ -167,9 +167,9 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
             role="button"
             title="Excluir esta tag"
             onClick={(e) => { e.preventDefault(); e.stopPropagation(); onRemover(); }}
-            style={{ marginLeft: 2, fontSize: 15, lineHeight: 1, fontWeight: 800, color: "#991b1b", opacity: 0.65, cursor: "pointer" }}
+            style={{ marginLeft: 2, fontSize: 13, lineHeight: 1, color: "#991b1b", opacity: 0.65, cursor: "pointer" }}
           >
-            ×
+            <i className="fa-solid fa-xmark" />
           </span>
         )}
       </label>
@@ -248,7 +248,7 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--portal-text)" }}>📇 Dados do cliente</div>
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--portal-text)" }}><i className="fa-solid fa-address-card" style={{ color: cor }} /> Dados do cliente</div>
         <div style={{ display: "flex", gap: 6 }}>
           {codigoOmie && <span style={chipOmie}>Omie #{codigoOmie}</span>}
           {empresa && <span style={chipOmie}>{empresa}</span>}
@@ -256,7 +256,7 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
       </div>
 
       {carregando ? (
-        <div style={{ padding: 30, textAlign: "center", color: "var(--portal-text-secondary)", fontWeight: 600 }}>Carregando dados…</div>
+        <div style={{ padding: 30, textAlign: "center", color: "var(--portal-text-secondary)", fontWeight: 500 }}>Carregando dados…</div>
       ) : (
         <>
           {erroLoad && <div style={erroBox}>Não consegui ler o cadastro do Omie: {erroLoad}</div>}
@@ -264,18 +264,18 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
 
           {codigoOmie && (
             <div style={{ ...checklistWrap, borderColor: faltam ? "#fed7aa" : "#bbf7d0", background: faltam ? "#fff7ed" : "#f0fdf4" }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: faltam ? "#9a3412" : "#065f46", marginBottom: 8 }}>
-                {faltam ? `⚠ Faltam ${faltam} ${faltam === 1 ? "dado" : "dados"} pra completar o cadastro` : "✓ Cadastro completo"}
+              <div style={{ fontSize: 12, fontWeight: 500, color: faltam ? "#9a3412" : "#065f46", marginBottom: 8 }}>
+                <i className={`fa-solid ${faltam ? "fa-triangle-exclamation" : "fa-circle-check"}`} /> {faltam ? `Faltam ${faltam} ${faltam === 1 ? "dado" : "dados"} pra completar o cadastro` : "Cadastro completo"}
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {checklist.map((c) => (
                   <span key={c.label} style={{
-                    display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700,
+                    display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 500,
                     padding: "4px 10px", borderRadius: 999,
                     background: c.ok ? "#dcfce7" : "#ffedd5", color: c.ok ? "#166534" : "#9a3412",
                     boxShadow: "inset 0 1px 0 rgba(255,255,255,0.5)",
                   }}>
-                    {c.ok ? "✓" : "⚠"} {c.label}
+                    <i className={`fa-solid ${c.ok ? "fa-check" : "fa-triangle-exclamation"}`} /> {c.label}
                   </span>
                 ))}
               </div>
@@ -284,7 +284,7 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
 
           {codigoOmie && (
             <>
-              <SecaoCard titulo="📍 Onde fica a propriedade" badge="grava no Omie" cor={cor}>
+              <SecaoCard icone="fa-location-dot" titulo="Onde fica a propriedade" badge="grava no Omie" cor={cor}>
                 <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 10 }}>
                   <Campo label="Endereço" alerta={vazio(cad.endereco)}><input value={cad.endereco} onChange={(e) => updCad("endereco", e.target.value)} style={vazio(cad.endereco) ? inpAlerta : inp} placeholder="Fazenda / logradouro" /></Campo>
                   <Campo label="Número"><input value={cad.numero} onChange={(e) => updCad("numero", e.target.value)} style={inp} placeholder="S/N" /></Campo>
@@ -300,9 +300,9 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
                 </div>
 
                 {temLocal ? (
-                  <div style={mapaOkPill}>✓ Localização marcada — arraste o pino ou ajuste lat/long se precisar.</div>
+                  <div style={mapaOkPill}><i className="fa-solid fa-circle-check" /> Localização marcada — arraste o pino ou ajuste lat/long se precisar.</div>
                 ) : (
-                  <div style={mapaCta}>📍 Marque onde fica a propriedade: <strong>clique no mapa</strong> ou preencha lat/long abaixo.</div>
+                  <div style={mapaCta}><i className="fa-solid fa-location-dot" /> Marque onde fica a propriedade: <strong style={{ fontWeight: 500 }}>clique no mapa</strong> ou preencha lat/long abaixo.</div>
                 )}
                 <div style={{ marginTop: 8 }}>
                   <MapaPropriedade lat={lat} lng={lng} onChange={setCoords} cor={cor} height={220} />
@@ -318,7 +318,7 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
                 )}
               </SecaoCard>
 
-              <SecaoCard titulo="📞 Contatos" badge="grava no Omie" cor={cor}>
+              <SecaoCard icone="fa-phone" titulo="Contatos" badge="grava no Omie" cor={cor}>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
                   <Campo label="Telefone 1" alerta={!temTelefone}><input value={cad.telefone1} onChange={(e) => updCad("telefone1", e.target.value)} style={!temTelefone ? inpAlerta : inp} placeholder="(14) 99999-9999" /></Campo>
                   <Campo label="Telefone 2"><input value={cad.telefone2} onChange={(e) => updCad("telefone2", e.target.value)} style={inp} /></Campo>
@@ -331,7 +331,7 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
             </>
           )}
 
-          <SecaoCard titulo="🏷️ Tags do cliente" badge={codigoOmie ? "Omie + Portal" : "Portal"} cor={cor}>
+          <SecaoCard icone="fa-tags" titulo="Tags do cliente" badge={codigoOmie ? "Omie + Portal" : "Portal"} cor={cor}>
             <div style={{ fontSize: 12, color: "var(--portal-text-secondary)", marginBottom: 10 }}>Marque o perfil/segmento, crie uma tag nova, ou clique no × pra excluir uma tag criada.</div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
               {TAGS_CLIENTE.map((t) => renderTagPill(t.tag, t.label, t.cor))}
@@ -341,14 +341,14 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
             {/* Tags estruturais do Omie (Cliente/Fornecedor/Funcionário) — só-leitura */}
             {estruturais.length > 0 && (
               <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 11, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 700, marginBottom: 6 }}>
+                <div style={{ fontSize: 12, color: "var(--portal-text-muted)", fontWeight: 500, marginBottom: 6 }}>
                   Do Omie (automáticas)
                 </div>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                   {estruturais.map((t) => (
                     <span key={t} title="Tag estrutural do Omie — gerenciada automaticamente, não editável aqui"
-                      style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, padding: "5px 12px", borderRadius: 999, border: "1.5px solid var(--portal-border)", background: "var(--portal-bg-subtle, #f1f5f9)", color: "var(--portal-text-secondary)" }}>
-                      🔒 {t}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 500, padding: "5px 12px", borderRadius: 999, border: "1px solid var(--portal-border)", background: "var(--portal-bg-subtle, #f1f5f9)", color: "var(--portal-text-secondary)" }}>
+                      <i className="fa-solid fa-lock" /> {t}
                     </span>
                   ))}
                 </div>
@@ -371,14 +371,14 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
             </div>
 
             {tags.includes(TAG_NAO_CONTATAR) && (
-              <div style={{ fontSize: 12, color: "#991b1b", marginTop: 10, fontWeight: 700 }}>💀 Cliente marcado como “não contatar”.</div>
+              <div style={{ fontSize: 12, color: "#991b1b", marginTop: 10, fontWeight: 500 }}><i className="fa-solid fa-ban" /> Cliente marcado como “não contatar”.</div>
             )}
           </SecaoCard>
 
           {/* Status / ação de salvar os dados do cliente */}
           <div style={salvarBar}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: msg ? (msg.tipo === "ok" ? "#065f46" : "#991b1b") : "var(--portal-text-muted)" }}>
-              {msg ? `${msg.tipo === "ok" ? "✓" : "⚠"} ${msg.texto}` : (algoMudou ? "Alterações não salvas." : "Tudo salvo.")}
+            <span style={{ fontSize: 12, fontWeight: 500, color: msg ? (msg.tipo === "ok" ? "#065f46" : "#991b1b") : "var(--portal-text-muted)" }}>
+              {msg ? <><i className={`fa-solid ${msg.tipo === "ok" ? "fa-circle-check" : "fa-triangle-exclamation"}`} /> {msg.texto}</> : (algoMudou ? "Alterações não salvas." : "Tudo salvo.")}
             </span>
             {mostrarBotaoSalvar && (
               <button onClick={() => void salvar()} disabled={salvando || !algoMudou}
@@ -395,12 +395,15 @@ const PainelDadosCliente = forwardRef<PainelDadosClienteHandle, Props>(function 
 
 export default PainelDadosCliente;
 
-function SecaoCard({ titulo, badge, cor, children }: { titulo: string; badge?: string; cor: string; children: React.ReactNode }) {
+function SecaoCard({ titulo, icone, badge, cor, children }: { titulo: string; icone?: string; badge?: string; cor: string; children: React.ReactNode }) {
   return (
-    <section style={{ ...secaoCard, borderLeft: `4px solid ${cor}` }}>
+    <section style={secaoCard}>
       <div style={secaoHeader}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: "var(--portal-text)" }}>{titulo}</div>
-        {badge && <span style={{ ...badgeOmie, background: `${cor}1a`, color: cor }}>● {badge}</span>}
+        <div style={{ fontSize: 13, fontWeight: 500, color: "var(--portal-text)", display: "flex", alignItems: "center", gap: 8 }}>
+          {icone && <span style={{ width: 28, height: 28, borderRadius: 9, display: "grid", placeItems: "center", fontSize: 13, color: cor, background: `color-mix(in srgb, ${cor} 9%, var(--portal-bg-card))`, border: `1px solid color-mix(in srgb, ${cor} 18%, transparent)` }}><i className={`fa-solid ${icone}`} /></span>}
+          {titulo}
+        </div>
+        {badge && <span style={{ ...badgeOmie, background: `${cor}1a`, color: cor, border: `1px solid ${cor}55` }}>{badge}</span>}
       </div>
       {children}
     </section>
@@ -410,32 +413,32 @@ function Campo({ label, alerta, children }: { label: string; alerta?: boolean; c
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: alerta ? "#9a3412" : "var(--portal-text-secondary)", textTransform: "uppercase", letterSpacing: 0.4 }}>{label}</div>
-        {alerta && <span style={{ fontSize: 9, fontWeight: 800, color: "#c2410c" }}>⚠ preencher</span>}
+        <div style={{ fontSize: 12, fontWeight: 500, color: alerta ? "#9a3412" : "var(--portal-text-secondary)" }}>{label}</div>
+        {alerta && <span style={{ fontSize: 11, fontWeight: 500, color: "#c2410c" }}><i className="fa-solid fa-triangle-exclamation" /> preencher</span>}
       </div>
       {children}
     </div>
   );
 }
 
-const chipOmie: React.CSSProperties = { fontSize: 10, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: "var(--portal-bg-secondary)", color: "var(--portal-text-secondary)" };
+const chipOmie: React.CSSProperties = { fontSize: 11, fontWeight: 500, padding: "2px 9px", borderRadius: 999, background: "var(--portal-bg-secondary)", color: "var(--portal-text-secondary)" };
 const secaoCard: React.CSSProperties = {
-  background: "#fff", border: "1px solid var(--portal-border)", borderRadius: 14,
+  background: "var(--portal-bg-card)", border: "1px solid var(--portal-border)", borderRadius: 16,
   padding: "14px 16px", marginBottom: 14,
   boxShadow: "0 1px 2px rgba(16,24,40,0.04), 0 6px 16px -10px rgba(16,24,40,0.12)",
 };
 const secaoHeader: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 12 };
-const badgeOmie: React.CSSProperties = { fontSize: 10, fontWeight: 800, padding: "3px 10px", borderRadius: 999, letterSpacing: 0.3, whiteSpace: "nowrap" };
-const checklistWrap: React.CSSProperties = { border: "1.5px solid", borderRadius: 12, padding: "12px 14px", marginBottom: 14 };
+const badgeOmie: React.CSSProperties = { fontSize: 12, fontWeight: 500, padding: "2px 10px", borderRadius: 999, whiteSpace: "nowrap" };
+const checklistWrap: React.CSSProperties = { border: "1px solid", borderRadius: 16, padding: "12px 14px", marginBottom: 14 };
 const inp: React.CSSProperties = {
   width: "100%", padding: "9px 12px", border: "1.5px solid var(--portal-border)", borderRadius: 10,
   fontSize: 13, background: "var(--portal-bg-card)", color: "var(--portal-text)", fontFamily: "Inter, sans-serif", outline: "none",
 };
 const inpAlerta: React.CSSProperties = { ...inp, border: "1.5px solid #fb923c", background: "#fff7ed" };
-const mapaCta: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: "#9a3412", background: "#fff7ed", border: "1.5px dashed #fb923c", borderRadius: 10, padding: "10px 12px", marginTop: 6 };
-const mapaOkPill: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: "#065f46", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "8px 12px", marginTop: 6 };
+const mapaCta: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: "#9a3412", background: "#fff7ed", border: "1.5px dashed #fb923c", borderRadius: 10, padding: "10px 12px", marginTop: 6 };
+const mapaOkPill: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: "#065f46", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: "8px 12px", marginTop: 6 };
 const salvarBar: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "12px 0 4px", flexWrap: "wrap" };
-const btnSalvar: React.CSSProperties = { padding: "10px 20px", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", fontFamily: "Inter, sans-serif" };
-const btnAddTag: React.CSSProperties = { padding: "9px 16px", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", fontFamily: "Inter, sans-serif" };
+const btnSalvar: React.CSSProperties = { padding: "10px 20px", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 500, boxShadow: "0 2px 8px rgba(0,0,0,0.15)", fontFamily: "Inter, sans-serif" };
+const btnAddTag: React.CSSProperties = { padding: "9px 16px", color: "#fff", border: "none", borderRadius: 10, fontSize: 13, fontWeight: 500, whiteSpace: "nowrap", fontFamily: "Inter, sans-serif" };
 const erroBox: React.CSSProperties = { background: "#fee2e2", color: "#991b1b", padding: "10px 14px", borderRadius: 10, fontSize: 13, marginBottom: 14 };
 const avisoBox: React.CSSProperties = { background: "#fef3c7", color: "#92400e", padding: "10px 14px", borderRadius: 10, fontSize: 13, marginBottom: 14 };

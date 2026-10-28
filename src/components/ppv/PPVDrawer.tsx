@@ -1,6 +1,7 @@
 "use client";
 
 import FaturarRemessaBotao from "./FaturarRemessaBotao";
+import { useMarcarCaso } from "@/lib/uso/caso";
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { useAlteracoesPendentes } from "@/lib/rascunho/pendencias";
 import MaquinasClienteIcone from "@/components/MaquinasClienteIcone";
@@ -19,6 +20,10 @@ import { usePermissoes } from "@/hooks/usePermissoes";
 import ModalDevolucao from "./ModalDevolucao";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
 import FaturarModal from "./FaturarModal";
+import ModalImportarOrcamento, { type ItemImportado } from "./ModalImportarOrcamento";
+import { useConferenciaPrecos, PainelConferenciaPrecos, AvisoPrecoLinha } from "./ConferenciaPrecos";
+import { contaDoItemPPV } from "@/lib/ppv/conferencia-precos";
+import { supabase as supabaseBrowser } from "@/lib/supabase";
 import ItemOrcamentoModal from "./ItemOrcamentoModal";
 import AnexosModal from "./AnexosModal";
 import TarefasModal from "./TarefasModal";
@@ -595,6 +600,13 @@ export default function PPVDrawer({
   const valorDesconto = totalSemDesconto * (desconto / 100);
   const totalFinal = totalSemDesconto - valorDesconto;
 
+  // Conferência de preço: item × preço de venda atual do cadastro × custo (CMC).
+  // Pedido já faturado não confere (o preço da nota já foi).
+  const itensConferir = produtosComSaldo
+    .filter((p) => p.saldo > 0)
+    .map((p) => ({ codigo: p.codigo, conta: contaDoItemPPV(p.empresa), preco: p.preco, quantidade: p.saldo }));
+  const conferencia = useConferenciaPrecos(itensConferir, open && !faturadoEm);
+
   // Regenera as parcelas quando muda a condição, a previsão ou o total (reseta
   // edições manuais nesses casos, igual ao Omie). Datas/valores por parcela são
   // editáveis abaixo (na aba Parcelas).
@@ -768,6 +780,45 @@ export default function PPVDrawer({
     setImportandoKit(false);
   }
 
+  // Conferência: troca o preço dos itens pelo preço de venda atual do cadastro.
+  async function usarPrecoCadastro(itens: { codigo: string; precoCadastro: number | null }[]) {
+    if (!podeItem) { showToast("error", "Sem permissão para alterar itens."); return; }
+    if (!ppvId) return;
+    const alvo = itens.filter((i) => i.precoCadastro !== null);
+    if (alvo.length === 0) return;
+    setSalvandoPreco(true);
+    try {
+      let d: PPVDetalhes | null = null;
+      for (const i of alvo) d = await api.editarPrecoItem(ppvId, i.codigo, i.precoCadastro as number, userProfile?.nome || "");
+      if (d) setDetails(d);
+      showToast("success", alvo.length === 1 ? "Preço atualizado pelo cadastro" : `${alvo.length} preços atualizados pelo cadastro`);
+      onDirty?.();
+    } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro ao atualizar preço"); }
+    setSalvandoPreco(false);
+  }
+
+  // Importar orçamento de Peças: entra como um grupo "Orçamento <nº>" com o preço do
+  // orçamento; o orçamento fica marcado como aprovado e ligado à OS do PPV (se houver).
+  const [importarOrcOpen, setImportarOrcOpen] = useState(false);
+  async function importarOrcamento(itens: ItemImportado[], rotulo: string, orcamentoId: number): Promise<boolean> {
+    if (!podeItem) { showToast("error", "Sem permissão para alterar itens."); return false; }
+    if (!ppvId || itens.length === 0) return false;
+    try {
+      const d = await api.importarKitLote({ id: ppvId, kit: rotulo, tecnico: details?.tecnico || "", userName: userProfile?.nome || "", itens });
+      if (d) setDetails(d);
+      const vinculo: Record<string, unknown> = { status: "aprovado", updated_at: new Date().toISOString() };
+      if (modalOSId) vinculo.ordem_servico = modalOSId;
+      const { error } = await supabaseBrowser.from("orcamentos").update(vinculo).eq("id", orcamentoId);
+      if (error) console.error("[PPV importar orçamento] vincular:", error.message);
+      showToast("success", `${rotulo} importado: ${itens.length} ${itens.length === 1 ? "peça" : "peças"}`);
+      onDirty?.();
+      return true;
+    } catch (e) {
+      showToast("error", e instanceof Error ? e.message : "Erro ao importar orçamento");
+      return false;
+    }
+  }
+
   const [removendoKit, setRemovendoKit] = useState<string | null>(null);
   async function removerKitInteiro(tag: string, rotulo: string) {
     if (!podeItem) { showToast("error", "Sem permissão para alterar itens."); return; }
@@ -922,6 +973,8 @@ export default function PPVDrawer({
     else showToast("error", "Este item já foi todo devolvido.");
   }
 
+  // Monitor de uso: avisa a jornada qual pedido está aberto (só hashes ficam no navegador).
+  useMarcarCaso(open && ppvId ? { ppv: ppvId, os: modalOSId, pv: pedidoOmie, doc: clienteDocumento, textoChassi: projeto } : null);
   if (!open) return null;
 
   // Helpers de estilo do cabeçalho Omie (extraídos p/ tipar CSS corretamente)
@@ -1443,6 +1496,10 @@ export default function PPVDrawer({
                         style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "none", background: "#f0a22e", color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: !ppvId || !podeItem ? 0.55 : 1 }}>
                         <i className="fas fa-plus" /> Novo Item
                       </button>
+                      <button type="button" onClick={() => setImportarOrcOpen(true)} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : "Puxar as peças de um orçamento feito por Peças, com o preço do orçamento"}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #f5c99a", background: "#fff", color: "#c2570a", fontSize: 13.5, fontWeight: 600, cursor: !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: !ppvId || !podeItem ? 0.55 : 1 }}>
+                        <i className="fas fa-file-import" /> Importar orçamento
+                      </button>
                       <button type="button" onClick={verDescricaoProduto} disabled={!itemSelecionado} title={itemSelecionado ? "Ver informações do produto selecionado" : "Selecione um produto (clique na descrição)"}
                         style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: itemSelecionado ? "#334155" : "#94a3b8", fontSize: 13.5, fontWeight: 600, cursor: itemSelecionado ? "pointer" : "not-allowed" }}>
                         <i className="fas fa-circle-info" /> Descrição Produto
@@ -1478,6 +1535,16 @@ export default function PPVDrawer({
                           </div>
                         ))}
                       </div>
+                    )}
+
+                    {/* Conferência de preço × cadastro × custo */}
+                    {!faturadoEm && (
+                      <PainelConferenciaPrecos
+                        resultado={conferencia.resultado}
+                        onAtualizarTodos={podeItem ? (itens) => usarPrecoCadastro(itens) : undefined}
+                        desabilitado={salvandoPreco}
+                        descricoes={Object.fromEntries(produtosComSaldo.map((p) => [p.codigo, p.descricao]))}
+                      />
                     )}
 
                     {/* Lista de produtos — tabela estilo Omie */}
@@ -1538,6 +1605,10 @@ export default function PPVDrawer({
                                     <span style={{ whiteSpace: "nowrap", color: "#475569" }}>{formatarMoeda(p.preco)}</span>
                                     <button type="button" onClick={() => { setEditandoPrecoCod(p.codigo); setEditandoPrecoVal(p.preco.toFixed(2)); }} title="Editar preço unitário" style={{ background: "transparent", border: "none", color: "#94A3B8", cursor: "pointer", padding: 2, fontSize: 12 }}><i className="fas fa-pen" /></button>
                                   </span>
+                                )}
+                                {!editando && !isDevolvido && !faturadoEm && (
+                                  <AvisoPrecoLinha item={conferencia.doItem(p.codigo, contaDoItemPPV(p.empresa))} desabilitado={salvandoPreco || !podeItem}
+                                    onAtualizar={podeItem ? (preco) => usarPrecoCadastro([{ codigo: p.codigo, precoCadastro: preco }]) : undefined} />
                                 )}
                               </div>
                               {/* Total */}
@@ -1897,10 +1968,12 @@ export default function PPVDrawer({
         onIrPara={(item) => setDetalheProd(item)}
       />
       <ModalImportarKit open={kitModalOpen} onClose={() => setKitModalOpen(false)} onImportar={(produtos) => importarKitItens(produtos)} />
+      <ModalImportarOrcamento key={importarOrcOpen ? "aberto" : "fechado"} open={importarOrcOpen} onClose={() => setImportarOrcOpen(false)} clienteSugerido={cliente} osId={modalOSId} onImportar={importarOrcamento} />
       {showFaturar && <FaturarModal
         open={showFaturar}
         ppvId={ppvId}
         numeroPedido={pedidoOmie}
+        itensConferir={itensConferir}
         userName={userProfile?.nome || ""}
         onClose={() => setShowFaturar(false)}
         onDone={() => {

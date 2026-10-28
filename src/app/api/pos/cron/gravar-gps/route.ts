@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/pos/supabase'
 import { fetchRotaExata, getDestinos, detectarViagens, type Posicao, type Viagem, type Evento } from '@/lib/pos/rastreamento'
+import { partesBR } from "@/lib/datas/brasil";
 
 const CRON_SECRET = process.env.CRON_SECRET || ''
 
@@ -37,8 +38,8 @@ function calcularMetricas(viagem: Viagem) {
 }
 
 function fHora(iso: string): string {
-  const d = new Date(iso)
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  const p = partesBR(new Date(iso))
+  return `${p.hora}:${p.min}`
 }
 
 function fm(min: number): string {

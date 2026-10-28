@@ -272,7 +272,8 @@ function ItemModal({ l, listas, osOmie, interna, podeEditar, linhas, abrir, fech
                 <div style={{ display: "flex", alignItems: "center" }}><Chave ligada={sim(naOS ? naOS.cRetemISS : ci.cRetISS)} desab rotulo="Retido" /></div>
                 <Campo titulo="Quantidade" cinza={!editQtd}>{editQtd ? <input type="number" step="any" min={0} style={{ ...inpOmie, textAlign: "right" }} value={l.qtde} onChange={(e) => onQtde(Number(e.target.value))} /> : <div style={{ ...inpOmie, textAlign: "right" }}>{brl(l.qtde)}</div>}</Campo>
                 <Campo titulo="Valor Unitário" cinza={!editUnit}>{editUnit ? <input type="number" step="any" min={0} style={{ ...inpOmie, textAlign: "right" }} value={l.unit} onChange={(e) => onUnit(Number(e.target.value))} /> : <div style={{ ...inpOmie, textAlign: "right" }}>{l.tipo === "sol" ? "0,000001" : brl(l.unit)}</div>}</Campo>
-                {leit("Valor do Desconto", brl(l.desconto))}{leit("Valor do ISS", brl(base * n(v(im.nAliqISS, ci.nAliqISS)) / 100))}{leit("Valor Total do Item", brl(base))}
+                {/* desconto fica fora da janela do item (José, 23/10/2026): só Hora/KM/geral, na tela da OS */}
+                {leit("Valor do ISS", brl(base * n(v(im.nAliqISS, ci.nAliqISS)) / 100))}{leit("Valor Total do Item", brl(base))}
                 <Campo titulo="Descrição Detalhada do Serviço" span={5} cinza={!editDesc}>
                   {editDesc ? <textarea rows={l.tipo === "sol" ? 8 : 4} style={{ ...inpOmie, resize: "vertical" }} value={l.descricao} onChange={(e) => onDescricao(e.target.value)}
                     placeholder={l.tipo === "sol" ? "Modelo:\nChassis:\nSolicitação do Cliente:\nServiço realizado:" : ""} />
@@ -609,7 +610,29 @@ export function AbaEmail({ esp, setEsp, interna, podeEditar, emailCliente = "" }
 export function ClienteOmieModal({ cliente: cliOmie, cnpj, fechar }: { cliente: Rec | null; cnpj: string; fechar: () => void }) {
   // depois de editar, mostra o que foi salvo (o Omie é a fonte; a OS relê na próxima abertura)
   const [salvo, setSalvo] = useState<Rec | null>(null);
-  const cliente = cliOmie ? { ...cliOmie, ...(salvo || {}) } : null;
+  // veio sem cliente (a leitura junto com as listas pode ter falhado): busca de novo pelo CPF/CNPJ.
+  // Erro de leitura NÃO vira "não achei" (OS-0824, 23/10/2026: o cliente existia no Omie).
+  const [buscado, setBuscado] = useState<{ cliente: Rec | null; erro: string | null } | null>(null);
+  const [buscando, setBuscando] = useState(false);
+  const buscar = async () => {
+    if (!cnpj) return;
+    setBuscando(true);
+    try {
+      const r = await fetch(`/api/pos/omie-listas?so=cliente&cnpj=${encodeURIComponent(cnpj)}`, { headers: await authHeaders() });
+      const j = await r.json().catch(() => ({}));
+      setBuscado(r.ok ? { cliente: j.cliente || null, erro: j.clienteErro || null } : { cliente: null, erro: j.error || `Erro ${r.status}` });
+    } catch { setBuscado({ cliente: null, erro: "Sem conexão com o portal." }); }
+    setBuscando(false);
+  };
+  useEffect(() => {
+    if (cliOmie || !cnpj) return;
+    let vivo = true;
+    Promise.resolve().then(() => { if (vivo) void buscar(); });
+    return () => { vivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cliOmie, cnpj]);
+  const base = cliOmie || buscado?.cliente || null;
+  const cliente = base ? { ...base, ...(salvo || {}) } : null;
   const v = (k: string) => String(cliente?.[k] ?? "");
   const alertaCep = cliente ? alertaCepGeral(v("cep")) : null;
   const tags = Array.isArray(cliente?.tags) ? (cliente!.tags as { tag?: string }[]).map((t) => t.tag).filter(Boolean).join(", ") : "";
@@ -634,7 +657,16 @@ export function ClienteOmieModal({ cliente: cliOmie, cnpj, fechar }: { cliente: 
           <button type="button" onClick={fechar} style={{ border: "none", background: "transparent", color: TEAL_ESC, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>Fechar ✕</button>
         </div>
         <div style={{ padding: "22px 20px", display: "grid", gridTemplateColumns: "repeat(6, minmax(0,1fr))", gap: "20px 14px" }}>
-          {!cliente ? <div style={{ gridColumn: "span 6", color: CINZA }}>Não achei este cliente no Omie (CPF/CNPJ {cnpj || "vazio"}).</div> : [
+          {!cliente ? (
+            <div style={{ gridColumn: "span 6", color: CINZA }}>
+              {buscando || (!buscado && cnpj) ? <><i className="fas fa-spinner fa-spin" /> Buscando o cliente no Omie (CPF/CNPJ {cnpj})…</>
+                : buscado?.erro ? <>
+                  <div style={{ color: "#b91c1c" }}>Não consegui ler o cadastro no Omie agora: {buscado.erro}</div>
+                  <button type="button" onClick={() => void buscar()} style={{ marginTop: 10, padding: "8px 14px", borderRadius: 8, border: "none", background: TEAL, color: "#fefefe", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Tentar de novo</button>
+                </>
+                : <>Não achei este cliente no Omie (CPF/CNPJ {cnpj || "vazio"}).</>}
+            </div>
+          ) : [
             f("Razão Social / Nome", v("razao_social"), 3), f("Nome Fantasia", v("nome_fantasia"), 3), f("CPF / CNPJ", v("cnpj_cpf"), 2),
             f("Inscrição Estadual", v("inscricao_estadual") || (v("contribuinte") === "N" ? "ISENTO" : ""), 2), f("Código no Omie", v("codigo_cliente_omie"), 2),
             f("Endereço", v("endereco"), 3), f("Número", v("endereco_numero"), 1), f("Complemento", v("complemento"), 2), f("Bairro", v("bairro"), 2), f("Cidade", v("cidade"), 2),

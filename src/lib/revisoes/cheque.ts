@@ -290,7 +290,10 @@ export function mensagemWhatsApp(d: DadosCheque, horas: number, link: string): s
 // Uma OS de revisão pode gerar também os cheques das revisões anteriores que
 // nunca foram enviados (caso real: 6075E final 5756 chegou na 600h sem cheque
 // das 50h nem das 300h). Puro: quem lê o banco é cheque-db.ts.
-export type SituacaoAnterior = 'enviada' | 'cheque' | 'pendente';
+// Sem cheque enviado, separa (José, 22/10/2026): revisão FEITA (tem OS de
+// revisão daquelas horas no POS ou data no cadastro do trator) × NÃO FEITA.
+// Só a feita cobra o cheque.
+export type SituacaoAnterior = 'enviada' | 'cheque' | 'feita_sem_cheque' | 'nao_feita';
 export interface OSRef { id: string; data: string; horimetro: string }
 export interface RevisaoAnterior {
   horas: number;
@@ -302,16 +305,19 @@ export interface RevisaoAnterior {
   osRef: OSRef | null;
 }
 
-/** Classifica as revisões anteriores à atual: enviada (revisao_emails), com cheque, ou pendente. */
+/** Classifica as revisões anteriores à atual: enviada (revisao_emails), com cheque, feita sem cheque ou não feita. */
 export function classificarAnteriores(
   horasAtual: number,
   enviadas: Set<number>,
   cheques: Map<number, { osId: string; atrasado: boolean }>,
   osPorHoras: Map<number, OSRef>,
+  /** horas com data da revisão preenchida no cadastro do trator */
+  feitasCadastro: Set<number> = new Set(),
 ): RevisaoAnterior[] {
   return HORAS_CHEQUE.filter((h) => h < horasAtual).map((h) => {
     const c = cheques.get(h) || null;
-    const situacao: SituacaoAnterior = enviadas.has(h) ? 'enviada' : c ? 'cheque' : 'pendente';
+    const feita = osPorHoras.has(h) || feitasCadastro.has(h);
+    const situacao: SituacaoAnterior = enviadas.has(h) ? 'enviada' : c ? 'cheque' : feita ? 'feita_sem_cheque' : 'nao_feita';
     return { horas: h, situacao, chequeOsId: c?.osId ?? null, chequeAtrasado: !!c?.atrasado, osRef: osPorHoras.get(h) ?? null };
   });
 }

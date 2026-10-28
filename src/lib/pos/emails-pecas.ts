@@ -48,8 +48,8 @@ async function logNaOS(idOs: string, acao: string) {
     const agora = new Date();
     await supabase.from("logs_ppo").insert({
       Id_ppo: idOs,
-      Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora),
-      Hora_Acao: agora.toLocaleTimeString("pt-BR"),
+      Data_Acao: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora),
+      Hora_Acao: agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" }),
       UsuEmail: "Sistema",
       acao,
       Status_Anterior: "", Status_Atual: "",

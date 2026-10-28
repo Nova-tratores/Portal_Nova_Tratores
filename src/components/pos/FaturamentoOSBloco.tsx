@@ -11,7 +11,9 @@ import { authHeaders } from "@/lib/auth/client";
 import { rotuloStatus } from "@/lib/pos/faturamento-regras";
 import FaturarOSModal from "./FaturarOSModal";
 import FaturarReciboModal from "./FaturarReciboModal";
+import TravasFaturar, { type AjusteOS } from "./TravasFaturar";
 import CancelarDocOmieModal from "./CancelarDocOmieModal";
+import FaturarPPVModal from "@/components/ppv/FaturarModal";
 
 interface Estado {
   habilitado: boolean; podeFaturar: boolean; podeFaturarPecas: boolean; enviadaOmie: boolean; podeCancelarNota?: boolean; valor?: number;
@@ -32,8 +34,12 @@ const COR = {
   vermelho: { bg: "#fef2f2", bd: "#fecaca", tx: "#b91c1c" },
 };
 
-export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtualizar, abrirAoCarregar = false }: {
+export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtualizar, abrirAoCarregar = false, ajustarOS, documento }: {
   osId: string;
+  /** travas antes de faturar: grava previsão/projeto pela tela da OS (sem a tela sobrescrever depois) */
+  ajustarOS?: (c: AjusteOS) => Promise<boolean>;
+  /** CPF/CNPJ do cliente (sugestões de máquina) */
+  documento?: string;
   ordemOmie: string;
   /** botão Faturar da capa do card: abre a janela sozinho (uma vez) quando der para faturar */
   abrirAoCarregar?: boolean;
@@ -43,8 +49,12 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
 }) {
   const [estado, setEstado] = useState<Estado | null>(null);
   const [aberto, setAberto] = useState(false);
+  // travas (previsão hoje, projeto, localização) conferidas depois do clique em Faturar
+  const [travasOk, setTravasOk] = useState(false);
   const [conferindo, setConferindo] = useState(false);
-  const [refaturando, setRefaturando] = useState(false);
+  const [faturarPedido, setFaturarPedido] = useState<{ id: string; num: string } | null>(null);
+  const [avisoPedido, setAvisoPedido] = useState<{ ok: boolean; texto: string } | null>(null);
+  const refaturando = !!faturarPedido;
   const [cancelarNota, setCancelarNota] = useState<null | "cancelar" | "duplicar">(null);
   // menu "⋯" abre por cima da tela (a coluna corta o que sai dela)
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
@@ -81,6 +91,15 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
     } catch { /* sem bloco */ }
   }, [osId]);
 
+  // faturamento sem confirmação (o Omie pode levar minutos depois do "sucesso"): confere sozinho a cada 40 s
+  // enquanto a OS estiver aberta na tela. Só no "desconhecido" — o "faturando" ainda tem o pedido em andamento.
+  const statusAtual = estado?.status;
+  useEffect(() => {
+    if (statusAtual !== "desconhecido") return;
+    const t = setInterval(() => { void carregar({ reconciliar: true, forcar: true }); }, 40_000);
+    return () => clearInterval(t);
+  }, [statusAtual, carregar]);
+
   // 1ª leitura ao abrir a OS (confere no Omie); as demais vêm de carregar()
   useEffect(() => {
     if (!osId || !ordemOmie) return;
@@ -106,24 +125,17 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
     onFaturado();
   };
 
-  const refaturarPecas = async (ids: string[]) => {
-    if (!confirm(`Tem certeza? Vai faturar ${ids.length === 1 ? "o pedido de peças" : "os pedidos de peças"} ${ids.join(", ")} no Omie (emite NF-e real).`)) return;
-    setRefaturando(true);
-    try {
-      const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/faturar/pecas`, {
-        method: "POST", headers: { ...(await authHeaders()), "Content-Type": "application/json" }, body: JSON.stringify({ ppvIds: ids }),
-      });
-      const j = await r.json().catch(() => ({}));
-      if (!r.ok) alert(j.mensagem || j.error || "Não foi possível faturar as peças.");
-    } catch { alert("Falha de conexão — confira o pedido no PPV antes de tentar de novo."); }
-    setRefaturando(false);
-    await carregar();
+  // "Faturar o pedido" abre a MESMA janela do PPV: conferência portal × Omie → o que sai → "Tem certeza?" →
+  // "Faturando no Omie" com avisar no sino (José, 23/10/2026: "tem que aparecer aquele modal de novo")
+  const refaturarPecas = (ids: string[]) => {
+    const p = pecasPendentes.find((x) => x.id === ids[0]);
+    if (p) { setAvisoPedido(null); setFaturarPedido({ id: p.id, num: String(p.pedidoOmie || "") }); }
   };
 
   const rot = rotuloStatus(estado.status);
   const pedidosFaltando = (estado.pedidos || []).filter((p) => !p.faturado);
   const pecasPendentes = estado.faturadoEm
-    ? [...estado.pecas.filter((p) => !p.ok), ...pedidosFaltando.filter((p) => !estado.pecas.some((x) => x.id === p.id)).map((p) => ({ id: p.id, pedidoOmie: p.pedidoOmie, ok: false, erro: "ainda não faturado" }))]
+    ? [...estado.pecas.filter((p) => !p.ok && !(estado.pedidos || []).some((x) => x.id === p.id && x.faturado)), ...pedidosFaltando.filter((p) => !estado.pecas.some((x) => x.id === p.id)).map((p) => ({ id: p.id, pedidoOmie: p.pedidoOmie, ok: false, erro: "ainda não faturado" }))]
     : [];
   const pedidosJaFaturados = (estado.pedidos || []).filter((p) => p.faturado);
 
@@ -185,7 +197,20 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
             <i className="fas fa-clone" /> Duplicar a OS
           </button>
         )}
+        {/* a NF-e de peças continua corrigível depois de cancelar a NFS-e (José, 23/10/2026: "os 3 pontos sumiram") */}
+        {estado.podeCancelarNota && (estado.pedidos || []).filter((p) => p.faturado && !p.ncCancelada).map((p) => {
+          const num = p.pedidoOmie.replace(/^0+(?=\d)/, "");
+          const nf = p.nf ? String(p.nf).replace(/^0+(?=\d)/, "") : null;
+          return (
+            <button key={p.id} type="button" onClick={() => setPedidoAlvo({ id: p.id, num, nf, etapa: "cancelar" })}
+              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", minHeight: 32, marginTop: 6, borderRadius: 9, border: "1px solid #fdba74", background: "#fff7ed", color: "#9a3412", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+              <i className="fas fa-file-invoice-dollar" /> Corrigir a NF-e{nf ? ` ${nf}` : ""} · pedido {num}
+            </button>
+          );
+        })}
+        {avisoPedidos.length > 0 && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>{avisoPedidos}</div>}
         {modal}
+        {modalPedido}
       </div>
     );
   }
@@ -266,6 +291,11 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
                 <i className={`fas ${refaturando ? "fa-spinner fa-spin" : "fa-file-invoice-dollar"}`} /> Faturar o pedido
               </button>
             )}
+            {avisoPedido && <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: avisoPedido.ok ? "#15803d" : "#b91c1c" }}>{avisoPedido.texto}</div>}
+            {faturarPedido && <FaturarPPVModal open ppvId={faturarPedido.id} numeroPedido={faturarPedido.num}
+              onClose={() => { setFaturarPedido(null); void carregar({ reconciliar: true, forcar: true }); }}
+              onDone={() => { void carregar({ reconciliar: true, forcar: true }); onFaturado(); }}
+              showToast={(tipo, texto) => setAvisoPedido({ ok: tipo === "success", texto })} />}
           </div>
         )}
         {modal}
@@ -277,12 +307,16 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
 
   // ---------- faturamento sem resposta clara ----------
   if (estado.status === "desconhecido" || estado.status === "faturando") {
+    // aviso curto: o Omie às vezes leva minutos para confirmar — a tela confere sozinha (José: o texto longo confundia)
     return (
-      <div style={{ border: `1px solid ${COR.ambar.bd}`, background: COR.ambar.bg, color: COR.ambar.tx, borderRadius: 6, padding: "9px 11px", fontSize: 12.5, margin: "4px 0" }}>
-        <div style={{ fontWeight: 800 }}><i className="fas fa-hourglass-half" /> {rot?.texto}</div>
-        {estado.erro && <div style={{ marginTop: 2 }}>{estado.erro}</div>}
-        <button className="os-rail-btn" style={{ marginTop: 6 }} onClick={conferir} disabled={conferindo}>
-          <i className={`fas ${conferindo ? "fa-spinner fa-spin" : "fa-rotate"}`} /> Conferir no Omie
+      <div title={estado.erro || undefined} style={{ border: "1px solid #bae6fd", background: "#f0f9ff", color: "#0c4a6e", borderRadius: 12, padding: "12px 14px", margin: "4px 0", display: "grid", gap: 6 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14.5 }}>
+          <i className="fas fa-spinner fa-spin" style={{ color: "#0369A1" }} /> Faturando no Omie…
+        </div>
+        <div style={{ fontSize: 13, color: "#475569" }}>A nota está sendo gerada. Esta tela atualiza sozinha — não precisa faturar de novo.</div>
+        <button type="button" onClick={conferir} disabled={conferindo}
+          style={{ justifySelf: "start", border: "none", background: "none", padding: 0, color: "#0369A1", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>
+          {conferindo ? "conferindo…" : "conferir agora"}
         </button>
       </div>
     );
@@ -349,15 +383,17 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
         );
       })()}
       {modalCancelarDoc}
-      {aberto && estado.interna && <FaturarReciboModal
+      {aberto && !travasOk && <TravasFaturar osId={osId} documento={documento} ajustarOS={ajustarOS}
+        onOk={() => setTravasOk(true)} onCancelar={() => { setAberto(false); void carregar(); }} />}
+      {aberto && travasOk && estado.interna && <FaturarReciboModal
         osId={osId}
-        onClose={() => { setAberto(false); void carregar(); }}
+        onClose={() => { setAberto(false); setTravasOk(false); void carregar(); }}
         onFaturado={() => { void carregar(); onFaturado(); }}
       />}
-      {aberto && !estado.interna && <FaturarOSModal
+      {aberto && travasOk && !estado.interna && <FaturarOSModal
         open
         osId={osId}
-        onClose={() => { setAberto(false); void carregar(); }}
+        onClose={() => { setAberto(false); setTravasOk(false); void carregar(); }}
         onFaturado={() => { void carregar(); onFaturado(); }}
       />}
     </>

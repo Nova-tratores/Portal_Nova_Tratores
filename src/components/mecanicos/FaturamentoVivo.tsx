@@ -10,8 +10,8 @@ import type { OSFaturada } from '@/lib/mecanicos/painel'
 import { brl, brl2, horas, kmFmt, COR, Kpi, Cartao, EstilosCPV, Numero, Odometro } from './ui'
 import { porDiaDe, ritmoVivo, type Ritmo } from '@/lib/mecanicos/fita'
 import DestaquesGiram, { montarBlocos } from './DestaquesGiram'
-import { FeedLinhaTempo } from './FeedOpcoes'
 import { useBasePosVendas } from './useBasePosVendas'
+import { useVersaoAoVivo } from './useAoVivo'
 
 export interface Soma { os: number; servico: number; kmValor: number; pecas: number; outros: number; bruto: number; custo: number; liquido: number; horas: number; km: number }
 export interface RespVivo { agora: string; hoje: string; dia: Soma; semana: Soma; mes: Soma; porDia: { data: string; bruto: number; liquido: number }[]; ultimos: OSFaturada[]
@@ -35,6 +35,10 @@ export default function FaturamentoVivo({ compacto = false }: { compacto?: boole
   // aviso animado quando entra um faturamento novo enquanto a tela está aberta
   const [aviso, setAviso] = useState<OSFaturada | null>(null)
 
+  const carregarRef = useRef<(() => Promise<void>) | null>(null)
+  // aviso ao vivo do servidor (faturou agora): recarrega na hora, sem esperar a próxima volta
+  const versaoAoVivo = useVersaoAoVivo()
+  useEffect(() => { if (versaoAoVivo) void carregarRef.current?.() }, [versaoAoVivo])
   const carregar = useCallback(async () => {
     try {
       const r = await fetch('/api/mecanicos/faturamento-vivo', { headers: await authHeaders(), cache: 'no-store' })
@@ -48,11 +52,18 @@ export default function FaturamentoVivo({ compacto = false }: { compacto?: boole
       }
       vistos.current = new Set(ids)
       setD(j); setErro(''); setSeg(0)
+      try { localStorage.setItem('cpv-vivo-v1', JSON.stringify(j)) } catch { /* sem espaço */ }
     } catch (e) { setErro(e instanceof Error ? e.message : 'Falha') }
   }, [])
+  useEffect(() => { carregarRef.current = carregar }, [carregar])
   useEffect(() => {
     let vivo = true
-    Promise.resolve().then(() => { if (vivo) void carregar() })
+    // abre na hora com o último faturamento guardado no navegador (José 19/10: "tem que abrir instantâneo")
+    Promise.resolve().then(() => {
+      if (!vivo) return
+      try { const t0 = localStorage.getItem('cpv-vivo-v1'); if (t0) setD((x) => x || (JSON.parse(t0) as RespVivo)) } catch { /* sem armazenamento */ }
+      void carregar()
+    })
     const t = setInterval(() => { if (document.visibilityState === 'visible') void carregar() }, INTERVALO)
     const s = setInterval(() => setSeg((x) => x + 1), 1000)
     return () => { vivo = false; clearInterval(t); clearInterval(s) }
@@ -70,13 +81,13 @@ export default function FaturamentoVivo({ compacto = false }: { compacto?: boole
         <span style={{ fontWeight: 800, color: destaque ? '#bbf7d0' : COR.liquido }}>= {brl(s.liquido)} líquido</span>
       </div>
       <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 10, background: destaque ? 'rgba(255,255,255,.2)' : 'var(--portal-bg-secondary, #f1f5f9)' }}>
-        {[['servico', COR.servico], ['kmValor', COR.km], ['pecas', COR.pecas], ['outros', COR.outros]].map(([k, c]) => {
+        {[['servico', COR.servico], ['kmValor', COR.km], ['outros', COR.outros]].map(([k, c]) => {
           const v = Math.max(0, s[k as keyof Soma] as number)
           return <div key={k} title={k} style={{ width: `${s.bruto ? (v / s.bruto) * 100 : 0}%`, background: destaque ? (k === 'servico' ? '#e0f2fe' : k === 'kmValor' ? '#bbf7d0' : k === 'pecas' ? '#fed7aa' : '#e2e8f0') : c, transition: 'width .9s cubic-bezier(.2,.8,.2,1)' }} />
         })}
       </div>
       <div style={{ display: 'flex', gap: 10, fontSize: 11.5, marginTop: 6, opacity: .85, flexWrap: 'wrap' }}>
-        <span>serviço {brl(s.servico)}</span><span>km {brl(s.kmValor)}</span><span>peças {brl(s.pecas)}</span>
+        <span>serviço {brl(s.servico)}</span><span>km {brl(s.kmValor)}</span><span>peças à parte {brl(s.pecas)}</span>
       </div>
     </div>
   )
@@ -196,7 +207,7 @@ function AvisoFaturou({ o, onFim }: { o: OSFaturada; onFim: () => void }) {
 
 // ---------------------------------------------------------------- versão compacta (dentro do Painel)
 
-const SEGS: [keyof Soma, string, string][] = [['servico', 'Mão de obra', COR.servico], ['kmValor', 'Deslocamento', COR.km], ['pecas', 'Peças', COR.pecas], ['outros', 'Outros', COR.outros]]
+const SEGS: [keyof Soma, string, string][] = [['servico', 'Mão de obra', COR.servico], ['kmValor', 'Deslocamento', COR.km], ['outros', 'Outros', COR.outros]]
 const iniciais = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase()
 const CORES_TEC = ['#0369a1', '#7c3aed', '#059669', '#ea580c', '#db2777', '#0891b2']
 const corTec = (n: string) => CORES_TEC[[...n].reduce((s, ch) => s + ch.charCodeAt(0), 0) % CORES_TEC.length]
@@ -248,7 +259,7 @@ export function BlocoVivo({ titulo, s, ritmo, destaque = false, atraso }: { titu
       </div>
       <div className="bv-segtxt">
         {seg ? <b>{SEGS.find(([k]) => k === seg)![1]}: {brl(Math.max(0, s[seg as keyof Soma] as number))} ({s.bruto ? Math.round((Math.max(0, s[seg as keyof Soma] as number) / s.bruto) * 100) : 0}%)</b>
-          : <>MO {brl(s.servico)} · km {brl(s.kmValor)} · peças {brl(s.pecas)}</>}
+          : <>MO {brl(s.servico)} · km {brl(s.kmValor)} · peças à parte {brl(s.pecas)}</>}
       </div>
     </div>
   )
@@ -296,10 +307,9 @@ function VivoCompacto({ d, erro, seg, novos, aviso, onFimAviso }: { d: RespVivo 
       {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
       {/* abertura escolhida pelo José na página de teste (17/10/2026): destaques que giram + feed */}
       {d && base && porDia && ritmo && (
-        <div className="bv-abertura">
+        <div className="bv-abertura so">
           <DestaquesGiram blocos={montarBlocos(d, porDia, ritmo)} faturadas={base.faturadas} porDia={porDia} hoje={d.hoje} />
-          {/* últimos faturamentos em linha do tempo (José escolheu na página de teste, 18/10/2026) */}
-          <div className="bv-feed-tl"><FeedLinhaTempo ultimos={d.ultimos} agora={d.agora} extras={d.extras} fotos={d.fotos} /></div>
+          {/* 28/10/2026: o bloco "Últimos faturamentos" saiu (José: "pode remover esse bloco") */}
         </div>
       )}
       {d && (!base || !porDia || !ritmo) && (
@@ -319,6 +329,7 @@ export const ESTILO_VIVO = `
 @media (max-width: 1100px) { .bv-feed-tl { height: 480px } }
 .bv-abertura { display: grid; grid-template-columns: minmax(0, 2.6fr) minmax(260px, 1fr); gap: 12px; align-items: stretch }
 @media (max-width: 1100px) { .bv-abertura { grid-template-columns: 1fr } }
+.bv-abertura.so { grid-template-columns: minmax(0, 1fr) }
 .bv-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; align-items: stretch }
 .bv { border-radius: 18px; padding: 14px 16px; background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #0f172a); border: 1px solid var(--portal-border, #e5e7eb); box-shadow: 0 1px 3px rgba(15,23,42,.05); display: flex; flex-direction: column; gap: 6px; min-width: 0; transition: transform .2s, box-shadow .2s }
 .bv:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(15,23,42,.10) }

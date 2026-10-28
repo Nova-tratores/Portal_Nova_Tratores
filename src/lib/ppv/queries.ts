@@ -161,6 +161,8 @@ export async function atualizarValorTotal(idPedido: string): Promise<void> {
     "PATCH",
     { valor_total: totalReal }
   );
+  // a OS ligada soma as peças deste PPV: recalcula o total dela também (capa do card do POS)
+  await import("@/lib/pos/valor-total").then((m) => m.recalcularOSDoPPV(idPedido)).catch(() => {});
 }
 
 // =============================================
@@ -355,7 +357,8 @@ function mapearStatusOS(statusOS: string): string | null {
     "Orçamento", "Orçamento enviado para o cliente e aguardando",
     "Execução", "Execução (Realizando Diagnóstico)", "Execução aguardando peças (em transporte)",
     "Executada aguardando comercial", "Aguardando outros", "Aguardando ordem Técnico",
-    "Relatório Concluído", "Concluída", "Cancelada",
+    "Relatório Concluído", "Cancelada",
+    // "Concluída" fica de fora de propósito: OS concluída não conclui o PPV (só o faturamento conclui)
   ];
   return fasesValidas.find(f => f.toLowerCase() === s.toLowerCase()) || null;
 }

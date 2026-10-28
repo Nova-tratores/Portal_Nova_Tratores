@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
 import SemPermissao from "@/components/SemPermissao";
 import FeedbackTabs from "@/components/feedbacks/FeedbackTabs";
+import { podeSegmento, segmentoDaRota } from "@/lib/feedbacks/telas";
 
 export default function FeedbacksLayout({ children }: { children: React.ReactNode }) {
   const { userProfile } = useAuth();
@@ -14,13 +15,13 @@ export default function FeedbacksLayout({ children }: { children: React.ReactNod
   // Durante loading, renderiza o layout normal — evita mudar a árvore de
   // filhos entre renders, o que confunde o Router do Next.
   if (!loading && userProfile) {
-    // Acesso ao módulo (Home é o landing): precisa de 'feedbacks' OU de alguma tela.
+    // Acesso ao módulo: precisa de 'feedbacks' OU de alguma tela.
     if (!temAcesso("feedbacks")) return <SemPermissao />;
-    // Acesso à SUB-TELA: precisa da permissão específica (granular por tela).
-    if (pathname.startsWith("/feedbacks/")) {
-      const slug = pathname.slice("/feedbacks/".length).split("/")[0];
-      if (!pode("feedbacks", slug)) return <SemPermissao />;
-    }
+    // Acesso à TELA pelo 1º segmento (lib/feedbacks/telas): Hoje (/feedbacks) = crm|rfm|atendimento|agenda,
+    // Clientes = clientes|atendimento, Painel = relatorios, Robô = oportunidades, cockpit = atendimento.
+    // A raiz sem a permissão da Hoje não bloqueia aqui: a página manda para a 1ª aba que a pessoa vê.
+    const seg = segmentoDaRota(pathname);
+    if (seg !== "" && !podeSegmento(pode, seg)) return <SemPermissao />;
   }
 
   return (

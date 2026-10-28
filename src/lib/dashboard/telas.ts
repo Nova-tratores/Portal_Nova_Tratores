@@ -88,13 +88,11 @@ export const TELAS: Tela[] = [
   // ── Comercial
   ...t('Comercial', 'proposta-comercial', 'propostas', [['Proposta Comercial', '/propostas', ['proposta']]]),
   ...t('Feedbacks & CRM', 'feedbacks', 'feedbacks', [
-    ['Atendimento (fila de ligações)', '/feedbacks/atendimento', ['ligar', 'cockpit', 'ligação']],
-    ['Oportunidades', '/feedbacks/oportunidades'],
-    ['Agenda de retornos', '/feedbacks/agenda'],
-    ['Clientes (feedbacks)', '/feedbacks/clientes'],
-    ['CRM (feedbacks)', '/feedbacks/crm'],
-    ['RFM', '/feedbacks/rfm'],
-    ['Relatórios de atendimento', '/feedbacks/relatorios', ['performance dos atendentes']],
+    ['Hoje — quem ligar (atendimento)', '/feedbacks', ['ligar', 'fila', 'atendimento', 'crm', 'rfm', 'pós-serviço', 'reativação']],
+    ['Retornos combinados', '/feedbacks?motivo=retorno', ['agenda de retornos']],
+    ['Clientes (feedbacks)', '/feedbacks/clientes', ['histórico de atendimentos', 'contatos whatsapp']],
+    ['Painel do atendimento', '/feedbacks/painel', ['relatórios', 'performance dos atendentes'], 'relatorios'],
+    ['Robô de oportunidades', '/feedbacks/robo', ['oportunidades'], 'oportunidades'],
   ]),
   ...t('Comercial', 'clientes', 'clientes', [['Pastas Clientes', '/clientes', ['cliente', 'pasta']]]),
   ...t('Comercial', 'supervisor-vendas', 'supervisor-vendas', [['Supervisor Vendas', '/supervisor-vendas', ['visitas']]]),

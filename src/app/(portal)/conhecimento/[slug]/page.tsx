@@ -42,10 +42,10 @@ export default function ArtigoPage() {
   return (
     <div style={{ padding: "20px 12px 0", maxWidth: "calc(860px + 24px)", margin: "0 auto", fontFamily: "Inter, sans-serif" }}>
       <div style={{ fontSize: 12, marginBottom: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-        <Link href="/conhecimento" style={{ color: "#0369a1", fontWeight: 700, textDecoration: "none" }}>← Base de conhecimento</Link>
-        <span style={{ color: corModulo(a.modulo), fontWeight: 700 }}>· {rotuloModulo(a.modulo)}</span>
+        <Link href="/conhecimento" style={{ color: "#2563eb", fontWeight: 500, textDecoration: "none" }}><i className="fa-solid fa-arrow-left" style={{ marginRight: 6 }} />Base de conhecimento</Link>
+        <span style={{ color: corModulo(a.modulo), fontWeight: 500 }}>· {rotuloModulo(a.modulo)}</span>
         {a.telas.map((t) => <Link key={t} href={t} style={{ border: "1px solid var(--portal-border)", borderRadius: 6, padding: "1px 6px", color: "var(--portal-text-secondary)", textDecoration: "none" }}>abrir {t}</Link>)}
-        {dados.podeEditar && <Link href={`/conhecimento/editar/${a.id}`} style={{ marginLeft: "auto", color: "#475569", fontWeight: 700, textDecoration: "none" }}>✎ Editar</Link>}
+        {dados.podeEditar && <Link href={`/conhecimento/editar/${a.id}`} style={{ marginLeft: "auto", color: "#475569", fontWeight: 500, textDecoration: "none" }}><i className="fa-solid fa-pen" style={{ marginRight: 6 }} />Editar</Link>}
       </div>
 
       <article style={{ background: "var(--portal-bg-card)", border: "1px solid var(--portal-border)", borderRadius: 16, padding: "clamp(16px, 4vw, 22px) clamp(14px, 4vw, 26px)" }}>
@@ -56,10 +56,10 @@ export default function ArtigoPage() {
         )}
         {a.revisao_pendente_desde && (
           <div style={{ fontSize: 12, color: "#991b1b", background: "#fee2e2", borderRadius: 8, padding: "6px 10px", marginBottom: 12 }}>
-            ⚠️ A tela mudou em {a.revisao_pendente_desde.slice(0, 10).split("-").reverse().join("/")}. Este texto pode estar desatualizado.
+            <i className="fa-solid fa-triangle-exclamation" style={{ marginRight: 6 }} />A tela mudou em {a.revisao_pendente_desde.slice(0, 10).split("-").reverse().join("/")}. Este texto pode estar desatualizado.
           </div>
         )}
-        <h1 style={{ margin: "0 0 6px", fontSize: 24, fontWeight: 800, color: "var(--portal-text)" }}>{a.titulo}</h1>
+        <h1 style={{ margin: "0 0 6px", fontSize: 26, fontWeight: 500, letterSpacing: "-.01em", color: "var(--portal-text)" }}>{a.titulo}</h1>
         {a.resumo && <p style={{ margin: "0 0 18px", fontSize: 14, color: "var(--portal-text-secondary)" }}>{a.resumo}</p>}
         <ArtigoView corpo={a.corpo} />
 
@@ -77,8 +77,8 @@ export default function ArtigoPage() {
           ) : (
             <>
               <span>Isso ajudou?</span>
-              <button type="button" onClick={() => responder("ajudou")} style={chip("#15803d")}>👍 Sim</button>
-              <button type="button" onClick={() => setComentando(true)} style={chip("#991b1b")}>👎 Não / está desatualizado</button>
+              <button type="button" onClick={() => responder("ajudou")} style={chip("#15803d")}><i className="fa-solid fa-thumbs-up" style={{ marginRight: 5 }} />Sim</button>
+              <button type="button" onClick={() => setComentando(true)} style={chip("#991b1b")}><i className="fa-solid fa-thumbs-down" style={{ marginRight: 5 }} />Não / está desatualizado</button>
             </>
           )}
           <span style={{ marginLeft: "auto", fontSize: 11, color: "var(--portal-text-muted)" }}>
@@ -91,5 +91,5 @@ export default function ArtigoPage() {
 }
 
 function chip(cor: string): React.CSSProperties {
-  return { fontSize: 11, fontWeight: 700, padding: "4px 10px", borderRadius: 999, border: `1px solid ${cor}`, background: "transparent", color: cor, cursor: "pointer" };
+  return { fontSize: 11, fontWeight: 500, padding: "4px 10px", borderRadius: 999, border: `1px solid ${cor}`, background: "transparent", color: cor, cursor: "pointer" };
 }

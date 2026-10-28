@@ -18,6 +18,7 @@ import { aplicarMudancaFase } from "@/lib/pos/fase";
 import { criarOSNoOmie } from "@/lib/pos/omie";
 import { registrarAlimentacaoOS } from "@/lib/pos/alimentacao-os";
 import { parseHoras } from "@/lib/pos/horas-tecnico";
+import { preverOS } from "@/lib/mecanicos/previsao-os-server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -178,6 +179,11 @@ export async function montarAtualizacaoOS(osId: string, userName?: string): Prom
 
   if (!qtdHoras) duvidas.push("Total de horas do relatório está zerado.");
   if (!dataInicio) duvidas.push("O relatório não tem data de início.");
+  // tempário Mahindra (José, 20/10/2026): horas muito acima ou rápidas demais viram aviso (e balão na OS)
+  try {
+    const prev = await preverOS(idReal);
+    for (const a of prev?.alertas || []) if (a.nivel !== "azul") duvidas.push(`Tempário: ${a.texto}`);
+  } catch (e) { console.error("[atualizar-relatorio] tempário", e); }
 
   const solAtual = extrairCampo(os.Serv_Solicitado, "Solicitação do cliente");
   const { solicitacaoCliente, servicoRealizado } = await gerarTextos({
@@ -282,8 +288,8 @@ export async function aplicarNaOS(p: PropostaAtualizacao, userName?: string): Pr
       const agora = new Date();
       await supabase.from(TBL_LOGS_PPO).insert({
         Id_ppo: p.osId,
-        Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora),
-        Hora_Acao: agora.toLocaleTimeString("pt-BR"),
+        Data_Acao: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora),
+        Hora_Acao: agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" }),
         UsuEmail: quem,
         acao: `Tratorilson: devoluções no PPV ${p.ppvId} — ${resumo}`,
         Status_Anterior: "", Status_Atual: "", Dias_Na_Fase: 0, Total_Dias_Aberto: 0,
@@ -396,7 +402,7 @@ export async function enviarOSaoOmie(id: string, userName: string): Promise<Resu
       partes.push(`ERRO ao enviar a OS: ${r.erro}`);
     }
     const agora = new Date();
-    const log = `[${new Intl.DateTimeFormat("pt-BR").format(agora)} ${agora.toLocaleTimeString("pt-BR")}] ${partes.join(" | ")}`;
+    const log = `[${new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora)} ${agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" })}] ${partes.join(" | ")}`;
 
     // Só grava Pedido_Venda quando houve envio novo (não apaga o que já existe).
     const upd: Record<string, unknown> = { Omie_Envio_Log: log };
@@ -419,7 +425,7 @@ export async function enviarOSaoOmie(id: string, userName: string): Promise<Resu
     return { os: id, ok: okFinal, cNumOS: cNum, pedidoVenda: r.pedidoVenda, erro: okFinal ? undefined : r.erro, ppvErro: r.pedidoVendaErro };
   } catch (e) {
     const agora = new Date();
-    const log = `[${new Intl.DateTimeFormat("pt-BR").format(agora)} ${agora.toLocaleTimeString("pt-BR")}] ERRO: ${e instanceof Error ? e.message : String(e)}`;
+    const log = `[${new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora)} ${agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" })}] ERRO: ${e instanceof Error ? e.message : String(e)}`;
     try { await supabase.from(TBL_OS).update({ Omie_Envio_Log: log }).eq("Id_Ordem", id); } catch { /* best-effort */ }
     return { os: id, ok: false, erro: e instanceof Error ? e.message : String(e) };
   }
@@ -505,7 +511,7 @@ export async function corrigirCampoOS(osNum: string, campo: CampoOS, valor: stri
 
   const agora = new Date();
   await supabase.from(TBL_LOGS_PPO).insert({
-    Id_ppo: idReal, Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora), Hora_Acao: agora.toLocaleTimeString("pt-BR"),
+    Id_ppo: idReal, Data_Acao: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora), Hora_Acao: agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" }),
     UsuEmail: userName || "Tratorilson (correção)", acao: `Tratorilson: correção via chat — ${campo}`,
     Status_Anterior: "", Status_Atual: "", Dias_Na_Fase: 0, Total_Dias_Aberto: 0,
   });

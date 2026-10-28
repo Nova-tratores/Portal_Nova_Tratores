@@ -24,7 +24,8 @@ export const POS_TO_PPV_STATUS: Record<string, string> = {
   "Execução": "Execução",
   "Execução (Realizando Diagnóstico)": "Execução (Realizando Diagnóstico)",
   "Execução aguardando peças (em transporte)": "Execução aguardando peças (em transporte)",
-  "Relatório Atualizado": "Relatório Atualizado",
+  // o quadro do PPV não tem "Relatório Atualizado" (o cartão caía em Orçamento): é o mesmo momento de "Executada"
+  "Relatório Atualizado": "Executada aguardando comercial",
   "Executada aguardando comercial": "Executada aguardando comercial",
   "Aguardando outros": "Aguardando outros",
   "Aguardando ordem Técnico": "Aguardando ordem Técnico",

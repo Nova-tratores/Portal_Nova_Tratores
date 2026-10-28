@@ -23,6 +23,7 @@ import { localSP, feriadosNacionais, feriadosExtras } from '@/lib/assistente/hor
 import { MESES_CURTO } from './utils';
 import { CONTA_DEFAULT, type ContaFiltro } from './conta';
 import { custoServicosMensal, chaveMes } from './custo-servicos-painel';
+import { CLASSES_NAO_COMERCIAIS, ehNaoComercial, type ClasseServico } from './servicos-classe';
 
 const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
 
@@ -41,6 +42,8 @@ interface HistoricoMesPonto {
   qtdeUnidades?: number | null;
   /** Só no card Serviços: COM NFS-e a partir dos ITENS das OS, por tipo de serviço. null = sem a RPC. */
   servItens?: ServicosMes | null;
+  /** Só no card Serviços: garantia/campanha/seguro/promoção do mês (fora do valor, salvo com a caixinha). */
+  naoComercial?: NaoComercialMes | null;
   /** Só no card Serviços: split OS com NFS-e × internas (null quando os_mensal ainda não tem o split). */
   valorNota?: number | null;
   valorInterno?: number | null;
@@ -167,13 +170,18 @@ async function lerItensCrus(anos: number[], conta: ContaFiltro): Promise<HistIte
  * das OS (RPC servicos_resumo_mensal_json, sql/servicos-codigo-resumo.sql).
  * OS contadas sem repetir (uma OS com HR e KM é 1 OS no total). null = sem a RPC.
  */
-type LinhaServico = { conta_omie: string; ano?: number; mes?: number; semana?: string; tipo: TipoServicoGrade; valor: number | string; itens: number; os: number[] | null };
+type LinhaServico = { conta_omie: string; ano?: number; mes?: number; semana?: string; tipo: TipoServicoGrade; classe?: ClasseServico; valor: number | string; itens: number; os: number[] | null };
 
-/** Soma as linhas da RPC de serviços por período (chave), contando OS sem repetir. */
-function agregarServicos(linhas: LinhaServico[], chave: (l: LinhaServico) => string): Map<string, ServicosMes> {
+/**
+ * Soma as linhas da RPC de serviços por período (chave), contando OS sem repetir.
+ * Sem `incluirNaoComercial`, garantia/campanha/seguro/promoção ficam de fora
+ * (linha sem `classe` = RPC antiga = comercial).
+ */
+function agregarServicos(linhas: LinhaServico[], chave: (l: LinhaServico) => string, incluirNaoComercial = false): Map<string, ServicosMes> {
   const vazio = (): ServicosParte => ({ valor: 0, os: 0, itens: 0 });
   const porPeriodo = new Map<string, ServicosMes & { _os: Set<string> }>();
   for (const l of linhas) {
+    if (!incluirNaoComercial && ehNaoComercial(l.classe)) continue;
     const k = chave(l);
     let m = porPeriodo.get(k);
     if (!m) {
@@ -206,19 +214,82 @@ async function rpcResumo<T>(fn: string, params: Record<string, unknown>): Promis
  * das OS (RPC servicos_resumo_mensal_json, sql/servicos-codigo-resumo.sql).
  * OS contadas sem repetir (uma OS com HR e KM é 1 OS no total). null = sem a RPC.
  */
-async function lerServicosPorTipo(conta: ContaFiltro): Promise<Map<string, ServicosMes> | null> {
-  const linhas = await comCacheResumo('serv|' + (conta ?? 'todas'), () =>
+function lerLinhasServicosMensal(conta: ContaFiltro): Promise<LinhaServico[] | null> {
+  return comCacheResumo('serv|' + (conta ?? 'todas'), () =>
     rpcResumo<LinhaServico>('servicos_resumo_mensal_json', { p_desde_ano: HIST_DESDE_ANO, p_conta: conta ?? null }));
-  return linhas ? agregarServicos(linhas, (l) => l.ano + '-' + l.mes) : null;
+}
+
+async function lerServicosPorTipo(conta: ContaFiltro, incluirNaoComercial = false): Promise<Map<string, ServicosMes> | null> {
+  const linhas = await lerLinhasServicosMensal(conta);
+  return linhas ? agregarServicos(linhas, (l) => l.ano + '-' + l.mes, incluirNaoComercial) : null;
 }
 
 // Semanas: desde 2024 (a de 2025/2026 tem base do ano anterior).
 const SEMANAS_DESDE = '2024-01-01';
 
-async function lerServicosSemanal(conta: ContaFiltro): Promise<Map<string, ServicosMes> | null> {
+async function lerServicosSemanal(conta: ContaFiltro, incluirNaoComercial = false): Promise<Map<string, ServicosMes> | null> {
   const linhas = await comCacheResumo('serv-sem|' + (conta ?? 'todas'), () =>
     rpcResumo<LinhaServico>('servicos_resumo_semanal_json', { p_desde: SEMANAS_DESDE, p_conta: conta ?? null }));
-  return linhas ? agregarServicos(linhas, (l) => String(l.semana)) : null;
+  return linhas ? agregarServicos(linhas, (l) => String(l.semana), incluirNaoComercial) : null;
+}
+
+/** Parte NÃO comercial de um mês (garantia, campanha, seguro, promoção), dos itens com NFS-e. */
+export interface NaoComercialMes {
+  valor: number;
+  os: number;
+  porClasse: Record<Exclude<ClasseServico, 'comercial'>, { valor: number; os: number }>;
+}
+
+export const naoComercialVazio = (): NaoComercialMes => ({
+  valor: 0,
+  os: 0,
+  porClasse: { garantia: { valor: 0, os: 0 }, campanha: { valor: 0, os: 0 }, seguro: { valor: 0, os: 0 }, promocao: { valor: 0, os: 0 } },
+});
+
+/** Soma várias partes (ano inteiro, "Todas" as contas). */
+export function somarNaoComercial(partes: Array<NaoComercialMes | undefined>): NaoComercialMes {
+  const out = naoComercialVazio();
+  for (const p of partes) {
+    if (!p) continue;
+    out.valor += p.valor; out.os += p.os;
+    for (const c of CLASSES_NAO_COMERCIAIS) {
+      const k = c as keyof NaoComercialMes['porClasse'];
+      out.porClasse[k].valor += p.porClasse[k].valor;
+      out.porClasse[k].os += p.porClasse[k].os;
+    }
+  }
+  return out;
+}
+
+/**
+ * Parte não comercial por mês ('ano-mes'), OS contadas sem repetir. Mapa vazio
+ * enquanto a RPC não tem a coluna `classe` (sql/servicos-nao-comerciais.sql) —
+ * aí nada é descontado e o dashboard fica como antes.
+ */
+export async function lerNaoComercialMensal(conta: ContaFiltro): Promise<Map<string, NaoComercialMes>> {
+  const linhas = (await lerLinhasServicosMensal(conta)) || [];
+  const acc = new Map<string, NaoComercialMes & { _os: Set<string>; _osClasse: Record<string, Set<string>> }>();
+  for (const l of linhas) {
+    if (!ehNaoComercial(l.classe)) continue;
+    const k = l.ano + '-' + l.mes;
+    let m = acc.get(k);
+    if (!m) { m = { ...naoComercialVazio(), _os: new Set(), _osClasse: {} }; acc.set(k, m); }
+    const c = l.classe as keyof NaoComercialMes['porClasse'];
+    m.valor += num(l.valor);
+    m.porClasse[c].valor += num(l.valor);
+    const set = (m._osClasse[c] ||= new Set());
+    for (const n of l.os || []) { m._os.add(l.conta_omie + ':' + n); set.add(l.conta_omie + ':' + n); }
+  }
+  const out = new Map<string, NaoComercialMes>();
+  for (const [k, m] of acc) {
+    const porClasse = m.porClasse;
+    for (const c of CLASSES_NAO_COMERCIAIS) {
+      const kc = c as keyof NaoComercialMes['porClasse'];
+      porClasse[kc].os = m._osClasse[kc]?.size ?? 0;
+    }
+    out.set(k, { valor: m.valor, os: m._os.size, porClasse });
+  }
+  return out;
 }
 
 /** Vendas por semana × família × tipo × categoria (RPC vendas_resumo_semanal_json), no formato de HistItem. */
@@ -290,12 +361,12 @@ function somarCard(itens: HistItem[], catKey: string, filtroCategoria: string | 
  * serviços do Total Geral) pelos ITENS das OS com NFS-e — os_mensal não tem dia.
  * null quando falta alguma RPC semanal.
  */
-async function montarSemanasHistorico(catKey: string, filtroCategoria: string | null, conta: ContaFiltro, fixed: FixedCats): Promise<HistoricoSemanaPonto[] | null> {
+async function montarSemanasHistorico(catKey: string, filtroCategoria: string | null, conta: ContaFiltro, fixed: FixedCats, incluirNaoComercial = false): Promise<HistoricoSemanaPonto[] | null> {
   const querPecas = catKey !== 'servico';
   const querServ = catKey === 'servico' || catKey === 'totalGeral';
   const [pecas, serv] = await Promise.all([
     querPecas ? lerResumoSemanal(conta) : Promise.resolve(null),
-    querServ ? lerServicosSemanal(conta) : Promise.resolve(null),
+    querServ ? lerServicosSemanal(conta, incluirNaoComercial) : Promise.resolve(null),
   ]);
   if ((querPecas && !pecas) || (querServ && !serv)) return null;
   const porSemana = new Map<string, HistItem[]>();
@@ -325,6 +396,7 @@ export async function montarHistorico(
   catKey: string,
   filtroCategoria: string | null,
   conta: ContaFiltro,
+  incluirNaoComercial = false,
 ): Promise<HistoricoResult> {
   const fixed = await getFixedCats();
 
@@ -338,7 +410,7 @@ export async function montarHistorico(
 
   const anos = [...new Set(meses.map((m) => m.ano))];
   // Semanas em paralelo (RPCs próprias, também no cache); erro nelas não derruba os meses.
-  const semanasP = montarSemanasHistorico(catKey, filtroCategoria, conta, fixed).catch((e) => {
+  const semanasP = montarSemanasHistorico(catKey, filtroCategoria, conta, fixed, incluirNaoComercial).catch((e) => {
     console.log('[historico] semanas: ' + (e as Error).message);
     return null;
   });
@@ -374,7 +446,10 @@ export async function montarHistorico(
   // Rótulo do card (para tipo dinâmico, sobre todo o período carregado).
   const aggAll = agregarCardsPecas(todosItens, filtroCategoria, fixed);
 
-  const servPorTipo = catKey === 'servico' ? await lerServicosPorTipo(conta) : null;
+  const servPorTipo = catKey === 'servico' ? await lerServicosPorTipo(conta, incluirNaoComercial) : null;
+  // Garantia/campanha/seguro/promoção: os totais de os_mensal já os somam — desconta
+  // mês a mês (a parte vem dos itens, já separada por classe), salvo com a caixinha.
+  const naoComercial = (catKey === 'servico' || catKey === 'totalGeral') ? await lerNaoComercialMensal(conta) : new Map<string, NaoComercialMes>();
   const SERV_VAZIO = (): ServicosMes => ({ valor: 0, os: 0, itens: 0, porTipo: { HR: { valor: 0, os: 0, itens: 0 }, KM: { valor: 0, os: 0, itens: 0 }, SEM_CODIGO: { valor: 0, os: 0, itens: 0 }, OUTRO: { valor: 0, os: 0, itens: 0 } } });
   const resultados: HistoricoMesPonto[] = meses.map((m) => {
     const itensMes = todosItens.filter((it) => it.mes === m.mes && it.ano === m.ano);
@@ -382,19 +457,22 @@ export async function montarHistorico(
     // DESTE card (no app antigo era o mês inteiro, com máquinas).
     const p = somarCard(itensMes, catKey, filtroCategoria, fixed);
     const osMes = todosOS.find((o) => o.mes === m.mes && o.ano === m.ano);
-    const totalOS = osMes ? num(osMes.valor_total) : 0;
+    const nc = naoComercial.get(m.ano + '-' + m.mes);
+    const desconto = incluirNaoComercial || !nc ? { valor: 0, os: 0 } : nc;
+    const totalOS = osMes ? num(osMes.valor_total) - desconto.valor : 0;
     // Serviços: só COM NFS-e (fallback total de OS enquanto o split não veio) — mesma régua do card.
-    const servNota = osMes && osMes.valor_nota != null ? num(osMes.valor_nota) : totalOS;
+    const servNota = osMes && osMes.valor_nota != null ? num(osMes.valor_nota) - desconto.valor : totalOS;
     const valor = catKey === 'servico' ? servNota : catKey === 'totalGeral' ? p.valor + servNota : p.valor;
     const custo = catKey === 'servico' ? 0 : p.custo;
     const ponto: HistoricoMesPonto = { label: m.label, mes: m.mes, ano: m.ano, valor, custo, qtdePedidos: p.pedidos, qtdeItens: p.itens };
     if (ehCardMaquina(catKey)) ponto.qtdeUnidades = p.unidades ?? null;
     if (catKey === 'servico') {
       ponto.servItens = servPorTipo ? (servPorTipo.get(m.ano + '-' + m.mes) ?? SERV_VAZIO()) : null;
-      ponto.valorNota = osMes ? (osMes.valor_nota == null ? null : num(osMes.valor_nota)) : null;
+      ponto.valorNota = osMes ? (osMes.valor_nota == null ? null : num(osMes.valor_nota) - desconto.valor) : null;
       ponto.valorInterno = osMes ? (osMes.valor_interno == null ? null : num(osMes.valor_interno)) : null;
-      ponto.qtdeOS = osMes ? (osMes.qtde_os == null ? null : num(osMes.qtde_os)) : null;
-      ponto.qtdeNota = osMes ? (osMes.qtde_os_nota == null ? null : num(osMes.qtde_os_nota)) : null;
+      ponto.qtdeOS = osMes ? (osMes.qtde_os == null ? null : num(osMes.qtde_os) - desconto.os) : null;
+      ponto.qtdeNota = osMes ? (osMes.qtde_os_nota == null ? null : num(osMes.qtde_os_nota) - desconto.os) : null;
+      ponto.naoComercial = nc ?? null;
       ponto.qtdeInterno = osMes ? (osMes.qtde_os_interno == null ? null : num(osMes.qtde_os_interno)) : null;
     }
     return ponto;
@@ -753,7 +831,7 @@ interface TendItem extends ItemVenda {
  * `agregarCardsPecas`/`agregarMaquinas` (mesma régua dos cards). Respeita a conta;
  * "Todas" soma NOVA+CASTRO (os_mensal agregado por mês).
  */
-export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaResult> {
+export async function montarTendencia(conta: ContaFiltro, incluirNaoComercial = false): Promise<TendenciaResult> {
   const fixed = await getFixedCats();
   // Códigos contábeis de peça "Balcão" (o resto das peças é "Oficina").
   const CAT_BALCAO = new Set(CATEGORIAS_AGRUPADAS['Revenda de Pecas Balcao'] || []);
@@ -800,6 +878,14 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaResu
       const k = o.mes + '/' + o.ano;
       osPorMes[k] = (osPorMes[k] || 0) + (o.valor_nota != null ? num(o.valor_nota) : num(o.valor_total));
     });
+  }
+  // Fora do serviço comercial (garantia, campanha, seguro, promoção), salvo com a caixinha.
+  if (!incluirNaoComercial) {
+    for (const [k, nc] of await lerNaoComercialMensal(conta)) {
+      const [ano, mes] = k.split('-');
+      const kk = Number(mes) + '/' + Number(ano);
+      if (osPorMes[kk] != null) osPorMes[kk] -= nc.valor;
+    }
   }
 
   // Calcula peças/serviços/máquinas de TODOS os 36 meses (para o YoY / Comparar).

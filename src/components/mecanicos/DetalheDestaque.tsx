@@ -169,11 +169,11 @@ export default function DetalheDestaque({ chave, blocos, faturadas, porDia, hoje
             { titulo: 'O que é cada parte', icone: 'fa-circle-question', corpo: <ul>
               <li><b>Mão de obra</b> ({brl(mes.s.servico)}) — horas de serviço cobradas nas OS ({horas(mes.s.horas)} no mês).</li>
               <li><b>Deslocamento</b> ({brl(mes.s.kmValor)}) — km cobrados para ir até o cliente ({Math.round(mes.s.km).toLocaleString('pt-BR')} km).</li>
-              <li><b>Peças</b> ({brl(mes.s.pecas)}) — peças vendidas junto da OS (pedido de peças / PPV).</li>
+              <li><b>Peças</b> ({brl(mes.s.pecas)}) — peças vendidas junto da OS (pedido de peças / PPV). Ficam <b>à parte</b>: não entram no faturado da oficina; estão no PDF de cada OS.</li>
               <li><b>Outros</b> ({brl(Math.max(0, mes.s.outros))}) — demais linhas da OS: requisições cobradas do cliente, serviços extras.</li>
               <li><b>Terceiros</b> (−{brl(mes.s.custo)}) — requisições que o técnico pediu como Trator-Cliente e que <b>não foram cobradas</b> do cliente: a empresa pagou. Clique no número da requisição na tabela para ver.</li>
             </ul> },
-            { titulo: 'Como foi calculado', icone: 'fa-calculator', corpo: conta([['Mão de obra', brl(mes.s.servico)], ['+ Deslocamento', brl(mes.s.kmValor)], ['+ Peças', brl(mes.s.pecas)], ['+ Outros', brl(Math.max(0, mes.s.outros))], ['= Faturado', brl(mes.s.bruto)], ['− Terceiros não cobrados', brl(mes.s.custo)], ['= Sobra depois dos terceiros', brl(mes.s.liquido)]]) },
+            { titulo: 'Como foi calculado', icone: 'fa-calculator', corpo: conta([['Mão de obra', brl(mes.s.servico)], ['+ Deslocamento', brl(mes.s.kmValor)], ['+ Outros', brl(Math.max(0, mes.s.outros))], ['= Faturado', brl(mes.s.bruto)], ['− Terceiros não cobrados', brl(mes.s.custo)], ['= Sobra depois dos terceiros', brl(mes.s.liquido)]]) },
             fonte,
           ],
           tabelas: [{ titulo: `OS de ${nomeMes} com cada parte separada`, os: doMes }] }

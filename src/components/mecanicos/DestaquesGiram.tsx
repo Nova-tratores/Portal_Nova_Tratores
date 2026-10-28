@@ -186,7 +186,7 @@ export default function DestaquesGiram({ blocos, faturadas, porDia, hoje }: { bl
 
     // 8. de onde veio
     const tot = Math.max(1, mes.s.bruto)
-    const partes: [string, number, string][] = [['Mão de obra', mes.s.servico, '#2563eb'], ['Deslocamento', mes.s.kmValor, '#10b981'], ['Peças', mes.s.pecas, '#f59e0b'], ['Outros', Math.max(0, mes.s.outros), '#94a3b8']]
+    const partes: [string, number, string][] = [['Mão de obra', mes.s.servico, '#2563eb'], ['Deslocamento', mes.s.kmValor, '#10b981'], ['Outros', Math.max(0, mes.s.outros), '#94a3b8']]
     out.push({
       chave: 'fonte', icone: 'fa-chart-pie', cor: '#06b6d4', titulo: 'De onde veio o dinheiro do mês', explica: 'O faturado do mês dividido pelo que foi cobrado em cada OS.',
       valor: `${Math.round((mes.s.servico / tot) * 100)}% mão de obra`, legenda: `${horas(mes.s.horas)} cobradas · ${Math.round(mes.s.km).toLocaleString('pt-BR')} km`,
@@ -195,6 +195,7 @@ export default function DestaquesGiram({ blocos, faturadas, porDia, hoje }: { bl
           <span className="dg-fbarra">{partes.map(([r, v, c], i) => v > 0 ? <i key={r} style={{ width: `${(v / tot) * 100}%`, background: c, animationDelay: `${200 + i * 120}ms` }} /> : null)}</span>
           <div className="dg-linhas">
             {partes.map(([r, v, c]) => <div key={r}><span><i style={{ background: c }} />{r}</span><b>{brl(v)} <small>{Math.round((v / tot) * 100)}%</small></b></div>)}
+            {mes.s.pecas > 0 && <div><span><i style={{ background: '#f59e0b' }} />Peças (à parte, fora do faturado)</span><b>{brl(mes.s.pecas)}</b></div>}
             <div className="dg-sep"><span>Terceiros (requisições não cobradas)</span><b style={{ color: '#b91c1c' }}>−{brl(mes.s.custo)}</b></div>
             <div><span>Sobra depois dos terceiros</span><b style={{ color: '#047857' }}>{brl(mes.s.liquido)}</b></div>
           </div>
@@ -242,7 +243,7 @@ export default function DestaquesGiram({ blocos, faturadas, porDia, hoje }: { bl
           const cls = pos === 0 ? 'atual' : pos === 1 ? 'prox' : pos === cartoes.length - 1 ? 'ant' : 'fora'
           return (
             <div key={c.chave} className={`dg-c ${cls}`} style={{ ['--c' as string]: c.cor }} onClick={() => (pos === 0 ? setAberto(c.chave) : setI(k))} title={pos === 0 ? 'Clique para ver o detalhe completo' : undefined}>
-              {pos === 0 && <><span className="dg-luz" /><span className="dg-brilho" /></>}
+              
               <div className="dg-c-cab">
                 <span className="dg-ic"><i className={`fas ${c.icone}`} /></span>
                 <div><b className="dg-tit">{c.titulo}</b><small className="dg-exp">{c.explica}</small></div>
@@ -283,29 +284,21 @@ export default function DestaquesGiram({ blocos, faturadas, porDia, hoje }: { bl
 const ESTILO_DG = `
 .dg { position: relative; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; padding: 16px; overflow: hidden }
 .dg-palco { position: relative; height: 330px; perspective: 1200px }
-.dg-c { --c: #2563eb; position: absolute; top: 0; left: 50%; width: min(620px, 86%); height: 320px; margin-left: calc(min(620px, 86%) / -2); border-radius: 20px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; background: linear-gradient(150deg, color-mix(in srgb, var(--c) 12%, var(--portal-bg-card, #fefefe)), var(--portal-bg-card, #fefefe) 65%); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent); box-shadow: 0 16px 36px rgba(15,23,42,.12); transition: transform .8s cubic-bezier(.2,.8,.2,1), opacity .8s, filter .8s; cursor: pointer; overflow: hidden }
+.dg-c { --c: #2563eb; position: absolute; top: 0; left: 50%; width: min(620px, 86%); height: 320px; margin-left: calc(min(620px, 86%) / -2); border-radius: 20px; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); box-shadow: 0 12px 28px -18px rgba(15,23,42,.35); transition: transform .8s cubic-bezier(.2,.8,.2,1), opacity .8s, filter .8s; cursor: pointer; overflow: hidden }
 .dg-c.atual { transform: none; opacity: 1; z-index: 3; cursor: default }
-.dg-c.prox { transform: translateX(64%) scale(.78) rotateY(-22deg); opacity: .5; z-index: 2; filter: blur(.5px) }
-.dg-c.ant { transform: translateX(-64%) scale(.78) rotateY(22deg); opacity: .5; z-index: 2; filter: blur(.5px) }
+.dg-c.prox { transform: translateX(64%) scale(.78) rotateY(-22deg); opacity: .5; z-index: 2 }
+.dg-c.ant { transform: translateX(-64%) scale(.78) rotateY(22deg); opacity: .5; z-index: 2 }
 .dg-c.fora { transform: scale(.55); opacity: 0; z-index: 1; pointer-events: none }
 .dg-c-cab { position: relative; z-index: 1; display: flex; gap: 12px; align-items: flex-start }
 .dg-c-meio, .dg-rodape { position: relative; z-index: 1 }
-/* borda de luz girando em volta do cartão da vez */
-.dg-luz { position: absolute; inset: -2px; border-radius: 22px; padding: 2px; background: conic-gradient(from var(--ang, 0deg), transparent 0 70%, var(--c) 82%, #fefefe 88%, transparent 96%); -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude; animation: dgGiraLuz 4s linear infinite; pointer-events: none; z-index: 2 }
-@property --ang { syntax: '<angle>'; inherits: false; initial-value: 0deg }
-@keyframes dgGiraLuz { to { --ang: 360deg } }
-/* brilho que atravessa o cartão de tempos em tempos */
-.dg-brilho { position: absolute; inset: 0; pointer-events: none; z-index: 2; background: linear-gradient(110deg, transparent 35%, rgba(255,255,255,.55) 48%, transparent 60%); background-size: 260% 100%; animation: dgBrilho 4.5s 1s ease-in-out infinite }
-@keyframes dgBrilho { 0% { background-position: 160% 0 } 40%, 100% { background-position: -100% 0 } }
 .dg-c.atual .dg-ic { animation: dgPula .6s .2s cubic-bezier(.2,1.6,.4,1) both, dgIcone 3s 1s ease-in-out infinite }
 @keyframes dgIcone { 50% { transform: translateY(-4px) rotate(-6deg) } }
 .dg-c.atual .dg-principal > * { animation: dgSobeTxt .55s cubic-bezier(.2,.8,.2,1) both }
 .dg-c.atual .dg-principal > *:nth-child(2) { animation-delay: .12s } .dg-c.atual .dg-principal > *:nth-child(3) { animation-delay: .24s }
 @keyframes dgSobeTxt { from { opacity: 0; transform: translateY(12px) } }
-.dg-c.atual .dg-valor { text-shadow: 0 0 0 transparent; animation: dgSobeTxt .55s both, dgValor 3s 1.2s ease-in-out infinite }
-@keyframes dgValor { 50% { text-shadow: 0 0 18px color-mix(in srgb, var(--c) 45%, transparent) } }
+.dg-c.atual .dg-valor { animation: dgSobeTxt .55s both }
 .dg-c.atual:hover { transform: translateY(-3px) }
-.dg-ic { width: 42px; height: 42px; border-radius: 13px; background: var(--c); color: #fefefe; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; box-shadow: 0 6px 16px color-mix(in srgb, var(--c) 45%, transparent) }
+.dg-ic { width: 42px; height: 42px; border-radius: 13px; background: var(--c); color: #fefefe; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0 }
 .dg-c.atual .dg-ic { animation: dgPula .6s .2s cubic-bezier(.2,1.6,.4,1) both } @keyframes dgPula { from { transform: scale(.4) rotate(-20deg) } }
 .dg-tit { display: block; font-size: 17px; font-weight: 900; color: var(--portal-text, #0f172a) }
 .dg-exp { display: block; font-size: 12.5px; color: ${MUDO}; margin-top: 2px }
@@ -357,5 +350,5 @@ const ESTILO_DG = `
 .dg-detalhe { color: var(--c); font-weight: 800 } .dg-c.atual { cursor: pointer }
 .dg-pausa { position: absolute; top: 10px; right: 14px; font-size: 11.5px; color: ${MUDO}; font-weight: 700 }
 @media (max-width: 720px) { .dg-c-meio { grid-template-columns: 1fr } .dg-palco { height: 470px } .dg-c { height: 460px; width: 92%; margin-left: -46% } .dg-c.prox, .dg-c.ant { opacity: 0 } }
-@media (prefers-reduced-motion: reduce) { .dg-c, .dg-bpar i, .dg-rbar i, .dg-enche, .dg-nome, .dg-luz, .dg-brilho, .dg-ic, .dg-valor { transition: none !important; animation: none !important } }
+@media (prefers-reduced-motion: reduce) { .dg-c, .dg-bpar i, .dg-rbar i, .dg-enche, .dg-nome, .dg-ic, .dg-valor { transition: none !important; animation: none !important } }
 `

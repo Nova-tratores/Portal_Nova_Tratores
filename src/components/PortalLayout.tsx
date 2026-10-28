@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react'
 import { useAuth, revalidarSessao } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useChat } from '@/hooks/useChat'
@@ -9,6 +9,7 @@ import AcessoBloqueado from '@/components/AcessoBloqueado'
 import { usePathname, useRouter } from 'next/navigation'
 import TratorinoChat from '@/components/TratorinoChat'
 import PainelDoDia from '@/components/trabalho/PainelDoDia'
+import AvisoComissoesDiretor from '@/components/mecanicos/AvisoComissoesDiretor'
 import CaixaEmail from '@/components/CaixaEmail'
 import VigiaCameras from '@/components/VigiaCameras'
 import SolicitacoesTratorilson from '@/components/SolicitacoesTratorilson'
@@ -25,6 +26,7 @@ import {
 import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias, CalendarClock, CalendarDays, LineChart, Radar } from 'lucide-react'
 import BotaoAjuda from '@/components/conhecimento/BotaoAjuda'
 import IlhaNotificacao, { AjustesIlha, type AvisoIlha } from '@/components/notif/IlhaNotificacao'
+import { AvisosAparelho } from '@/components/notif/AvisosAparelho'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import ChatPanel from './chat/ChatPanel'
@@ -35,6 +37,7 @@ import NotifPrefsModal from './notif/NotifPrefsModal'
 import OpaLembrete from './opa/OpaLembrete'
 import SatLembrete from './sat/SatLembrete'
 import QuemAcessa from './permissoes/QuemAcessa'
+import JornadaQuery from './uso/JornadaQuery'
 
 interface NavItem {
   id: string
@@ -122,6 +125,7 @@ const navItems: NavItem[] = [
   // Outros (cinza)
   { id: 'opa', name: 'Opa', href: '/opa', icon: <AlertCircle size={18} />, tag: 'OCORRÊNCIAS', gradient: '', group: 'outros' },
   { id: 'atividades', name: 'Atividades', href: '/atividades', icon: <Activity size={18} />, tag: 'LOGS', gradient: '', group: 'outros' },
+  { id: 'planta', name: 'Planta Viva', href: '/planta', icon: <LayoutGrid size={18} />, tag: 'PLANTA', gradient: '', group: 'outros' },
   { id: 'dashboard-agro', name: 'Dashboard Agro', href: '/dashboard-agro', icon: <Wheat size={18} />, tag: 'AGRO', gradient: '', group: 'outros' },
 ]
 
@@ -672,8 +676,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         const u = ultimaRotaUsoRef.current
         if (u.rota !== pathname || agora - u.em > 15000) {
           ultimaRotaUsoRef.current = { rota: pathname, em: agora }
-          import('@/lib/auth/client').then(async ({ authHeaders }) => {
-            const h = await authHeaders()
+          const search = window.location.search
+          import('@/lib/uso/caso').then(async (caso) => {
+            // Jornada por ABA (sessionStorage): de → para, tempo, mesmo caso, ida-e-volta.
+            // Os hashes do caso ficam no navegador; ao servidor só vão os booleanos.
+            try { caso.entrarNaRota(pathname, search, agora) } catch { /* segue só com a contagem */ }
+            const h = await caso.cabecalhos()
             if (!h.Authorization) return
             await fetch('/api/uso/pagina', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify({ rota: pathname }) })
           }).catch(() => {})
@@ -1142,6 +1150,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
                 {/* aviso na tela (ilha): modo e posição — cada usuário escolhe */}
                 <AjustesIlha />
+                {/* push: aviso chega com o portal fechado (celular) */}
+                <AvisosAparelho />
 
                 {/* Lista */}
                 <div style={{ flex: 1, overflowY: 'auto' }}>
@@ -1603,6 +1613,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
       {/* Central de Trabalho: confirmar ticket recebido, "Seu dia" e atalho na dashboard */}
       {!emIframe && userProfile?.id && <PainelDoDia nome={userProfile?.nome || ''} />}
+      {/* Diretor: comissões esperando autorização caem na cara dele (e atalho na dashboard) */}
+      {!emIframe && userProfile?.id && <AvisoComissoesDiretor />}
+      {!emIframe && userProfile?.id && <Suspense fallback={null}><JornadaQuery /></Suspense>}
 
       {/* Dev: quem tem acesso à página atual (permissões v2 × regra de hoje) */}
       {!emIframe && isDev && <QuemAcessa />}

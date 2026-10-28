@@ -199,7 +199,7 @@ function ProjetosPageInner() {
             {data ? `${data.total_projetos} projetos de ${data.total_clientes} clientes` : 'Carregando...'}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <button onClick={syncNfs} disabled={syncNfLoading}
             style={{ padding: '10px 18px', borderRadius: 8, border: '1px solid #E5E7EB', background: syncNfLoading ? '#F9FAFB' : '#fff', color: syncNfLoading ? '#9CA3AF' : '#374151', fontSize: 13, fontWeight: 600, cursor: syncNfLoading ? 'default' : 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}>
             <RefreshCw size={15} style={syncNfLoading ? { animation: 'spin 1s linear infinite' } : {}} /> Sync NFs
@@ -264,7 +264,17 @@ function ProjetosPageInner() {
       ) : viewMode === 'projeto' ? (
         /* ========== VISAO POR PROJETO ========== */
         <div className="cli-xs" style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
-          <div className="cli-mw900" style={{ display: 'grid', gridTemplateColumns: '1fr 200px 60px 70px 60px 70px 70px 110px 28px', padding: '12px 20px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5 }}>
+          {/* celular: cada projeto vira cartão (a grade de 9 colunas cortava o nome do cliente) */}
+          <style>{`@media (max-width: 640px) {
+            .cli-proj-cab { display: none !important; }
+            .cli-proj { min-width: 0 !important; grid-template-columns: repeat(5, minmax(0,1fr)) auto !important; grid-template-areas: 'p p p v v v' 'c c c c c c' 'n1 n2 n3 n4 n5 x'; gap: 6px 4px; padding: 12px 14px !important; }
+            .cli-proj > * { min-width: 0; }
+            .cli-proj > :nth-child(1) { grid-area: p; } .cli-proj > :nth-child(2) { grid-area: c; } .cli-proj > :nth-child(8) { grid-area: v; }
+            .cli-proj > :nth-child(3) { grid-area: n1; } .cli-proj > :nth-child(4) { grid-area: n2; } .cli-proj > :nth-child(5) { grid-area: n3; } .cli-proj > :nth-child(6) { grid-area: n4; } .cli-proj > :nth-child(7) { grid-area: n5; } .cli-proj > :nth-child(9) { grid-area: x; align-self: center; }
+            .cli-proj-det { padding: 14px 12px !important; }
+            .cli-proj > [data-r]::before { content: attr(data-r); display: block; font-size: 10px; font-weight: 600; color: #9CA3AF; text-transform: uppercase; }
+          }`}</style>
+          <div className="cli-mw900 cli-proj-cab" style={{ display: 'grid', gridTemplateColumns: '1fr 200px 60px 70px 60px 70px 70px 110px 28px', padding: '12px 20px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5 }}>
             <span>Projeto</span><span>Cliente</span><span style={{ textAlign: 'center' }}>OS</span><span style={{ textAlign: 'center' }}>NF Serv.</span><span style={{ textAlign: 'center' }}>PV</span><span style={{ textAlign: 'center' }}>NF Peca</span><span style={{ textAlign: 'center' }}>Pend.</span><span style={{ textAlign: 'right' }}>Valor Total</span><span></span>
           </div>
 
@@ -278,7 +288,7 @@ function ProjetosPageInner() {
             return (
               <div key={key}>
                 <div onClick={() => toggleProjeto(key)}
-                  className="cli-mw900" style={{
+                  className="cli-mw900 cli-proj" style={{
                     display: 'grid', gridTemplateColumns: '1fr 200px 60px 70px 60px 70px 70px 110px 28px',
                     padding: '14px 20px', borderBottom: '1px solid #F3F4F6', cursor: 'pointer',
                     background: isExp ? '#F0F4FF' : temPendente ? '#FFFBEB' : 'transparent',
@@ -296,8 +306,8 @@ function ProjetosPageInner() {
                     <div style={{ fontSize: 13, color: '#374151', fontWeight: 500 }}>{p.cliente.nome || '-'}</div>
                     {p.cliente.cidade && <div style={{ fontSize: 12, color: '#9CA3AF' }}>{p.cliente.cidade}/{p.cliente.estado}</div>}
                   </div>
-                  <span style={{ textAlign: 'center', fontWeight: 600, fontSize: 14 }}>{p.os_total}</span>
-                  <span style={{ textAlign: 'center' }}>
+                  <span data-r="OS" style={{ textAlign: 'center', fontWeight: 600, fontSize: 14 }}>{p.os_total}</span>
+                  <span data-r="NF serv." style={{ textAlign: 'center' }}>
                     {p.nf_servico > 0 ? (
                       <span style={{ color: '#059669', fontWeight: 700, fontSize: 14 }}>{p.nf_servico}</span>
                     ) : p.os_faturadas > 0 ? (
@@ -306,8 +316,8 @@ function ProjetosPageInner() {
                       <span style={{ color: '#D1D5DB', fontSize: 14 }}>-</span>
                     )}
                   </span>
-                  <span style={{ textAlign: 'center', fontWeight: 600, fontSize: 14 }}>{p.pv_total || <span style={{ color: '#D1D5DB' }}>-</span>}</span>
-                  <span style={{ textAlign: 'center' }}>
+                  <span data-r="PV" style={{ textAlign: 'center', fontWeight: 600, fontSize: 14 }}>{p.pv_total || <span style={{ color: '#D1D5DB' }}>-</span>}</span>
+                  <span data-r="NF peça" style={{ textAlign: 'center' }}>
                     {p.nf_peca > 0 ? (
                       <span style={{ color: '#059669', fontWeight: 700, fontSize: 14 }}>{p.nf_peca}</span>
                     ) : p.pv_faturados > 0 ? (
@@ -316,7 +326,7 @@ function ProjetosPageInner() {
                       <span style={{ color: '#D1D5DB', fontSize: 14 }}>-</span>
                     )}
                   </span>
-                  <span style={{ textAlign: 'center' }}>
+                  <span data-r="Pend." style={{ textAlign: 'center' }}>
                     {temPendente ? (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: '#D97706', fontWeight: 700, fontSize: 13 }}>
                         <AlertTriangle size={13} /> {p.nf_servico_pendente + p.nf_peca_pendente}
@@ -330,7 +340,7 @@ function ProjetosPageInner() {
                 </div>
 
                 {isExp && (
-                  <div style={{ borderBottom: '2px solid #E5E7EB', background: '#F8FAFC', padding: '20px 24px 20px 48px' }}>
+                  <div className="cli-proj-det" style={{ borderBottom: '2px solid #E5E7EB', background: '#F8FAFC', padding: '20px 24px 20px 48px' }}>
                     {/* Resumo */}
                     <div style={{ display: 'flex', gap: 10, marginBottom: 20, flexWrap: 'wrap' }}>
                       {[

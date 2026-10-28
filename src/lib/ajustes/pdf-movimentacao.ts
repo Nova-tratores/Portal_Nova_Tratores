@@ -77,7 +77,7 @@ export function gerarPDFMovimentacao(payload: MovimentacaoPayload, incluirCancel
       y += 13;
       doc.fontSize(9).fillColor('#666').text(`Conta ${payload.conta} · período ${payload.dataDeBR} a ${payload.dataAteBR}`, xStart, y, cell);
       y += 12;
-      doc.fontSize(8).fillColor('#999').text('Gerado em ' + new Date().toLocaleString('pt-BR'), xStart, y, cell);
+      doc.fontSize(8).fillColor('#999').text('Gerado em ' + new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }), xStart, y, cell);
       y += 16;
 
       function cabecTabela() {

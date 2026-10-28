@@ -122,27 +122,28 @@ export async function sincronizarPosVendas(de: string, ate: string) {
 /** A base da tela lida das tabelas (null = tabelas vazias). */
 export async function lerBaseDasTabelas(): Promise<(BaseDados & { de: string; ate: string; geradoEm: string }) | null> {
   const de = anoInicialBase()
-  const [os, horas, gastos, equipe, { tecnicos }] = await Promise.all([
+  // tudo em paralelo (José 19/10: "tá muito demorado") — antes eram 4 rodadas em sequência
+  const [os, horas, gastos, equipe, { tecnicos }, pendLidas, internas, { padronizar: padr }, garantias, comNota] = await Promise.all([
     paginar((x, y) => sb.from('posvendas_os').select('*').gte('data', de).order('data').range(x, y)),
     paginar((x, y) => sb.from('posvendas_horas').select('os, data, tecnico, horas, interna, motivo_interna, cliente, atualizado_em').gte('data', de).order('chave').range(x, y)),
     paginar((x, y) => sb.from('posvendas_gastos').select('*').gte('data', de).order('chave').range(x, y)),
     paginar((x, y) => sb.from('posvendas_equipe').select('*').range(x, y)),
     padronizador(),
+    paginar((x, y) => sb.from('posvendas_pendencias').select('*').order('dias', { ascending: false }).range(x, y)).catch((): Rec[] => []), // tabela pode não existir
+    paginar((x, y) => sb.from('posvendas_internas').select('*').gte('data', de).order('os').range(x, y)).catch((): Rec[] => []), // sql/posvendas-despesas.sql
+    padronizadorOcorrencias(),
+    idsGarantia().catch(() => new Set<string>()),
+    numsComNota().catch(() => new Set<string>()),
   ])
   if (!os.length && !horas.length) return null
-  let pend: Rec[] = []
+  const pend: Rec[] = pendLidas
   let pendCalc: Pendencia[] | null = null
-  try { pend = await paginar((x, y) => sb.from('posvendas_pendencias').select('*').order('dias', { ascending: false }).range(x, y)) }
-  catch { /* tabela ainda não criada (sql/posvendas-pendencias.sql) */ }
-  if (!pend.length) {
-    // sem tabela, ou o robô ainda não gravou: calcula na hora
-    const { padronizar } = await padronizadorOcorrencias()
-    pendCalc = await carregarPendencias(new Set(os.map((o) => String(o.os))), padronizar).catch(() => [])
-  }
-  let internas: Rec[] = []
-  try { internas = await paginar((x, y) => sb.from('posvendas_internas').select('*').gte('data', de).order('os').range(x, y)) } catch { /* sql/posvendas-despesas.sql ainda não rodado */ }
-  const { padronizar: padr } = await padronizadorOcorrencias()
-  const [garantias, comNota, pctComissao] = await Promise.all([idsGarantia().catch(() => new Set<string>()), numsComNota().catch(() => new Set<string>()), carregarPctComissao(padr, new Set(equipe.map((e) => String(e.pessoa)))).catch(() => ({}))])
+  // sem tabela, ou o robô ainda não gravou: calcula na hora (junto com o % de comissão)
+  const [pc, pctComissao] = await Promise.all([
+    pend.length ? Promise.resolve(null) : carregarPendencias(new Set(os.map((o) => String(o.os))), padr).catch(() => []),
+    carregarPctComissao(padr, new Set(equipe.map((e) => String(e.pessoa)))).catch(() => ({})),
+  ])
+  pendCalc = pc
   const num = (v: unknown) => Number(v) || 0
   const osInternas: BaseDados['osInternas'] = {}
   for (const h of horas) if (h.interna) osInternas[String(h.os)] = { cliente: String(h.cliente || ''), motivo: String(h.motivo_interna || 'interna') }
@@ -153,7 +154,7 @@ export async function lerBaseDasTabelas(): Promise<(BaseDados & { de: string; at
     faturadas: os.map((o) => ({
       os: String(o.os), numeroOmie: (o.numero_omie as string) || null, cliente: String(o.cliente || ''), data: String(o.data), em: (o.faturado_em as string) || null,
       tecnicos: (o.tecnicos as string[]) || [], horasCobradas: num(o.horas_cobradas), km: num(o.km), servico: num(o.mao_de_obra), kmValor: num(o.deslocamento),
-      pecas: num(o.pecas), outros: num(o.outros), bruto: num(o.bruto), custo: num(o.custo_terceiros),
+      pecas: num(o.pecas), outros: num(o.outros), bruto: num(o.mao_de_obra) + num(o.deslocamento) + num(o.outros), custo: num(o.custo_terceiros),
       custoPorTipo: (o.custo_por_tipo as Record<string, number>) || {}, requisicoes: (o.requisicoes as ReqCusto[]) || [],
       garantia: garantias.has(String(o.os)),
       nota: !!o.numero_omie && comNota.has(String(o.numero_omie)),

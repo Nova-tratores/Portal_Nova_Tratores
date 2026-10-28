@@ -2,6 +2,8 @@
 // tabelas veiculo_checklist / veiculo_checklist_itens). Usado no portal para os
 // veículos SEM responsável, que qualquer usuário do Frota pode preencher (mobile).
 
+import { avaliarPneus } from './pneu-regras';
+
 export interface ChecklistItemDef { key: string; cat: string; titulo: string; desc: string; }
 
 export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
@@ -10,11 +12,16 @@ export const CHECKLIST_ITEMS: ChecklistItemDef[] = [
   { key: 'lataria_traseira', cat: 'Exterior', titulo: 'Traseira do veículo', desc: 'Fotografe a traseira mostrando lanternas e para-choque' },
   { key: 'lataria_esquerda', cat: 'Exterior', titulo: 'Lateral esquerda', desc: 'Fotografe toda a lateral esquerda' },
   { key: 'lataria_direita', cat: 'Exterior', titulo: 'Lateral direita', desc: 'Fotografe toda a lateral direita' },
-  { key: 'pneu_de', cat: 'Pneus', titulo: 'Pneu dianteiro esquerdo', desc: 'Fotografe mostrando a banda de rodagem' },
-  { key: 'pneu_dd', cat: 'Pneus', titulo: 'Pneu dianteiro direito', desc: 'Fotografe mostrando a banda de rodagem' },
-  { key: 'pneu_te', cat: 'Pneus', titulo: 'Pneu traseiro esquerdo', desc: 'Fotografe mostrando a banda de rodagem' },
-  { key: 'pneu_td', cat: 'Pneus', titulo: 'Pneu traseiro direito', desc: 'Fotografe mostrando a banda de rodagem' },
-  { key: 'estepe', cat: 'Pneus', titulo: 'Estepe', desc: 'Fotografe o estepe e verifique estado e calibragem' },
+  { key: 'pneu_de', cat: 'Pneus', titulo: 'Pneu dianteiro esquerdo — banda de rodagem', desc: 'Foto de frente para o pneu, de perto, mostrando os sulcos da banda de rodagem (não a calota). Vire o volante para expor a banda.' },
+  { key: 'pneu_de_lateral', cat: 'Pneus', titulo: 'Pneu dianteiro esquerdo — lateral', desc: 'Foto da lateral do pneu mostrando a marca, o modelo, a medida (ex.: 175/70 R14) e o DOT legíveis' },
+  { key: 'pneu_dd', cat: 'Pneus', titulo: 'Pneu dianteiro direito — banda de rodagem', desc: 'Foto de frente para o pneu, de perto, mostrando os sulcos da banda de rodagem (não a calota). Vire o volante para expor a banda.' },
+  { key: 'pneu_dd_lateral', cat: 'Pneus', titulo: 'Pneu dianteiro direito — lateral', desc: 'Foto da lateral do pneu mostrando a marca, o modelo, a medida (ex.: 175/70 R14) e o DOT legíveis' },
+  { key: 'pneu_te', cat: 'Pneus', titulo: 'Pneu traseiro esquerdo — banda de rodagem', desc: 'Foto de frente para o pneu, de perto, mostrando os sulcos da banda de rodagem (não a calota).' },
+  { key: 'pneu_te_lateral', cat: 'Pneus', titulo: 'Pneu traseiro esquerdo — lateral', desc: 'Foto da lateral do pneu mostrando a marca, o modelo, a medida (ex.: 175/70 R14) e o DOT legíveis' },
+  { key: 'pneu_td', cat: 'Pneus', titulo: 'Pneu traseiro direito — banda de rodagem', desc: 'Foto de frente para o pneu, de perto, mostrando os sulcos da banda de rodagem (não a calota).' },
+  { key: 'pneu_td_lateral', cat: 'Pneus', titulo: 'Pneu traseiro direito — lateral', desc: 'Foto da lateral do pneu mostrando a marca, o modelo, a medida (ex.: 175/70 R14) e o DOT legíveis' },
+  { key: 'estepe', cat: 'Pneus', titulo: 'Estepe — banda de rodagem', desc: 'Foto de frente para o pneu, de perto, mostrando os sulcos da banda de rodagem (não a calota).' },
+  { key: 'estepe_lateral', cat: 'Pneus', titulo: 'Estepe — lateral', desc: 'Foto da lateral do pneu mostrando a marca, o modelo, a medida (ex.: 175/70 R14) e o DOT legíveis' },
   { key: 'parabrisa', cat: 'Exterior', titulo: 'Para-brisa e limpador', desc: 'Fotografe de dentro para fora mostrando trincas se houver' },
   { key: 'oleo_motor', cat: 'Motor', titulo: 'Nível de óleo', desc: 'Com motor frio, verifique a vareta e fotografe' },
   { key: 'arrefecimento', cat: 'Motor', titulo: 'Fluido de arrefecimento', desc: 'Fotografe o reservatório mostrando o nível' },
@@ -84,10 +91,31 @@ export function calcularScore(checklist: any, itens: any[]): { score: number; al
     }
   }
 
+  // fotos de pneu conferidas pela IA (lib/frota/pneu-regras)
+  const pneus = avaliarPneus(itens);
+  score -= pneus.penalidade;
+  alertas.push(...pneus.alertas);
+
   if (checklist.inicio_em) {
-    const hora = new Date(checklist.inicio_em).getHours();
+    // hora de Brasília (getHours() no servidor é UTC: 19h30 virava 22h30)
+    const hora = Number(new Date(checklist.inicio_em).toLocaleString('en-US', { hour: 'numeric', hourCycle: 'h23', timeZone: 'America/Sao_Paulo' }));
     if (hora < 6 || hora >= 22) { score -= 5; alertas.push('Checklist realizado fora do horário comercial'); }
   }
 
   return { score: Math.max(0, score), alertas };
+}
+
+/**
+ * Campos gravados num item. Sem foto nova (só trocou a resposta/observação),
+ * a foto já salva FICA — antes ia null pro banco e o item perdia a foto calado.
+ */
+export function camposAtualizacaoItem(p: {
+  resposta: string; observacao: string; fotoUrl: string | null; fotoTamanho: number | null; agora: string;
+  /** análise da IA da foto nova (só pneus); foto nova sem análise limpa a antiga */
+  iaAnalise?: unknown;
+}): Record<string, unknown> {
+  const campos: Record<string, unknown> = { resposta: p.resposta, observacao: p.observacao, respondido_em: p.agora };
+  if (p.fotoUrl) { campos.foto_url = p.fotoUrl; campos.foto_tamanho = p.fotoTamanho; }
+  if (p.fotoUrl && p.iaAnalise !== undefined) campos.ia_analise = p.iaAnalise;
+  return campos;
 }

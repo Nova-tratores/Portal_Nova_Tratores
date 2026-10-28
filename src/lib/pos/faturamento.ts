@@ -11,14 +11,17 @@
 //    reconciliação confere no Omie antes de qualquer nova tentativa.
 //  - Sem as colunas da migration sql/pos-faturamento.sql → 503 (nunca fatura sem trava).
 import { supabase } from './supabase';
+import { avisarTI } from '@/lib/faturamento/alerta-ti';
 import { TBL_OS, TBL_PEDIDOS, TBL_LOGS_PPO } from './constants';
 import { contaOmie } from '@/lib/omie/contas';
-import { omie as omiePorta, OmieBloqueioError } from '@/lib/omie/porta';
+import { omie as omiePorta, OmieBloqueioError, comRobosPausados } from '@/lib/omie/porta';
 import { aplicarMudancaFase } from './fase';
 import { logAndNotify } from '@/lib/server/audit-notify';
 import { filtrarDestinatarios } from '@/lib/notif/prefs';
 import { resolverNfseDaOS } from '@/lib/clientes/nfse-omie';
 import { hojeSaoPaulo, parcelasDoPagamento } from '@/lib/pagamento/parcelas';
+import { avaliarTravas, bloqueioTravas, type Trava } from './travas-faturar';
+import { localizacoesDoDocumento } from './localizacao-cliente-server';
 import { normalizarPagamento, OPCOES_PAGAMENTO } from './cobranca';
 import { alertaCepGeral } from '@/lib/clientes/novo-cliente';
 import { CONTA_INTERNO, EMAIL_INTERNO } from './omie-espelho';
@@ -27,7 +30,7 @@ import {
   chaveNum, motivoPPVFora, valorMudou, valorLiquido, TRAVA_MINUTOS,
   type OSParaFaturar, type PPVDaOS, type RpsNfse, type StatusFaturamento,
 } from './faturamento-regras';
-import { executarFaturamento, ErroOmie, type OSNoOmie } from './faturamento-fluxo';
+import { executarFaturamento, leitorDaOS, ErroOmie, type OSNoOmie } from './faturamento-fluxo';
 import type { Autenticado } from '@/lib/auth/server';
 import { permite } from '@/lib/permissoes/explicitas';
 import {
@@ -117,7 +120,7 @@ async function omie<T>(endpoint: string, call: string, param: Param, opts: { esc
 // ---------------------------------------------------------------- banco
 const COLS = 'Id_Ordem, Os_Cliente, Cnpj_Cliente, Status, Ordem_Omie, Servico_Interno, Tipo_Servico, ID_PPV, Valor_Total, '
   + 'forma_pagamento, omie_ncodos, omie_ccodint, faturando_desde, faturamento_status, faturamento_erro, faturamento_pecas, '
-  + 'faturado_omie_em, faturado_por, nfse_numero, nfse_link';
+  + 'faturado_omie_em, faturado_por, nfse_numero, nfse_link, Previsao_Faturamento, Projeto';
 
 export interface PecaFaturada { id: string; pedidoOmie?: string; ok: boolean; erro?: string | null; nf?: string | null }
 
@@ -127,6 +130,7 @@ interface LinhaOS {
   forma_pagamento: string | null; omie_ncodos: number | null; omie_ccodint: string | null; faturando_desde: string | null;
   faturamento_status: StatusFaturamento | null; faturamento_erro: string | null; faturamento_pecas: PecaFaturada[] | null;
   faturado_omie_em: string | null; faturado_por: string | null; nfse_numero: string | null; nfse_link: string | null;
+  Previsao_Faturamento: string | null; Projeto: string | null;
 }
 
 function ehColunaFaltando(err: { code?: string; message?: string } | null): boolean {
@@ -140,10 +144,28 @@ async function lerOS(id: string): Promise<LinhaOS | null> {
   return (data?.[0] as unknown as LinhaOS) || null;
 }
 
+/** Travas antes de faturar (previsão = hoje, projeto, localização do cliente confirmada) — lib/pos/travas-faturar.ts */
+export async function travasDaOS(id: string): Promise<{ travas: Trava[]; semTabelaLocalizacao: boolean } | null> {
+  const os = await lerOS(id);
+  return os ? travasDe(os) : null;
+}
+
+async function travasDe(os: LinhaOS): Promise<{ travas: Trava[]; semTabelaLocalizacao: boolean }> {
+  const { lista, semTabela } = await localizacoesDoDocumento(String(os.Cnpj_Cliente || ''));
+  const travas = avaliarTravas({
+    hoje: hojeSaoPaulo(), previsaoFaturamento: os.Previsao_Faturamento, projeto: os.Projeto,
+    documentoCliente: os.Cnpj_Cliente, localizacaoConfirmada: lista.length > 0 || semTabela, localizacoes: lista.map((l) => l.nome),
+  });
+  if (semTabela) { const t = travas.find((x) => x.chave === 'localizacao'); if (t) t.detalhe = 'falta rodar o SQL sql/clientes-localizacoes.sql — por enquanto não trava'; }
+  return { travas, semTabelaLocalizacao: semTabela };
+}
+
 async function gravarOS(id: string, campos: Record<string, unknown>) {
   const { error } = await supabase.from(TBL_OS).update(campos).eq('Id_Ordem', id);
   if (ehColunaFaltando(error)) throw new MigracaoFaltando();
   if (error) throw new Error(error.message);
+  // faturou (ou desfez): o Centro do Pós-Vendas atualiza na hora e avisa as telas abertas (José, 21/10/2026)
+  if ('faturado_omie_em' in campos) import('@/lib/mecanicos/ao-vivo-server').then((m) => m.atualizarPosVendasDepois(`OS ${id} ${campos.faturado_omie_em ? 'faturada' : 'desfaturada'}`)).catch(() => {});
 }
 
 async function logOS(id: string, acao: string, userName: string, status: string) {
@@ -181,7 +203,7 @@ interface OSConsultada extends OSNoOmie {
 }
 
 /** Acha a OS no Omie e confere que é ESTA. Grava omie_ncodos/omie_ccodint se faltarem. */
-async function resolverOSNoOmie(os: LinhaOS): Promise<{ nCodOS: number; dados: OSConsultada }> {
+async function resolverOSNoOmie(os: LinhaOS): Promise<{ nCodOS: number; dados: OSConsultada; chave: Param }> {
   const tentativas: Param[] = [];
   if (os.omie_ncodos) tentativas.push({ nCodOS: Number(os.omie_ncodos) });
   if (os.omie_ccodint) tentativas.push({ cCodIntOS: os.omie_ccodint });
@@ -198,7 +220,7 @@ async function resolverOSNoOmie(os: LinhaOS): Promise<{ nCodOS: number; dados: O
     if (!os.omie_ncodos || !os.omie_ccodint) {
       await gravarOS(os.Id_Ordem, { omie_ncodos: nCodOS, omie_ccodint: os.omie_ccodint || dados.Cabecalho?.cCodIntOS || null }).catch(() => {});
     }
-    return { nCodOS, dados };
+    return { nCodOS, dados, chave: p };
   }
   throw new ErroOmie(ultimoErro);
 }
@@ -556,7 +578,7 @@ export interface ResultadoRecibo { ok: boolean; status: number; tipo: 'faturada'
   /** remessas das peças faturadas junto (NF-e de remessa) */
   remessas?: Array<{ id: string; ok: boolean; nf?: string | null; erro?: string }> }
 
-export async function faturarOSComRecibo(id: string, entrada: { totalConfirmado: number; faturarRemessas?: boolean }, auth: Autenticado): Promise<ResultadoRecibo> {
+async function faturarOSComReciboSemPausa(id: string, entrada: { totalConfirmado: number; faturarRemessas?: boolean }, auth: Autenticado): Promise<ResultadoRecibo> {
   const userName = auth.email || 'Sistema';
   const os = await lerOS(id);
   if (!os) return { ok: false, status: 404, tipo: 'erro', mensagem: 'OS não encontrada.' };
@@ -566,6 +588,8 @@ export async function faturarOSComRecibo(id: string, entrada: { totalConfirmado:
   const garantia = await ehGarantia(os);
   const bloq = bloqueioFaturar(paraRegras(os, garantia));
   if (bloq) return { ok: false, status: 409, tipo: 'erro', mensagem: bloq };
+  const travasRecibo = bloqueioTravas((await travasDe(os)).travas);
+  if (travasRecibo) return { ok: false, status: 409, tipo: 'erro', mensagem: travasRecibo };
 
   // TRAVA (mesma do faturamento com nota)
   const limite = new Date(Date.now() - TRAVA_MINUTOS * 60_000).toISOString();
@@ -736,7 +760,7 @@ export interface ResultadoFaturarOS {
   concluida?: boolean;
 }
 
-export async function faturarOSNoOmie(
+async function faturarOSNoOmieSemPausa(
   id: string,
   entrada: {
     forma: string | null; ppvIds: string[]; totalConfirmado: number;
@@ -751,6 +775,8 @@ export async function faturarOSNoOmie(
   const bloq = bloqueioFaturar(paraRegras(os, garantia));
   if (bloq) return { ok: false, status: 409, tipo: 'erro', mensagem: bloq };
   if (os.Servico_Interno) return { ok: false, status: 400, tipo: 'erro', mensagem: 'OS interna fatura com recibo — use "Faturar com recibo".' };
+  const travasNfse = bloqueioTravas((await travasDe(os)).travas);
+  if (travasNfse) return { ok: false, status: 409, tipo: 'erro', mensagem: travasNfse };
 
   const forma = normalizarPagamento(entrada.forma);
   if (!forma) return { ok: false, status: 400, tipo: 'erro', mensagem: 'Escolha a forma de pagamento.' };
@@ -812,7 +838,8 @@ export async function faturarOSNoOmie(
   };
 
   let nCodOS: number;
-  try { nCodOS = (await resolverOSNoOmie(os)).nCodOS; }
+  let achada: Awaited<ReturnType<typeof resolverOSNoOmie>>;
+  try { achada = await resolverOSNoOmie(os); nCodOS = achada.nCodOS; }
   catch (e) {
     const m = e instanceof Error ? e.message : String(e);
     await liberar('erro', m);
@@ -821,8 +848,16 @@ export async function faturarOSNoOmie(
   }
 
   let respostaCrua = '';
+  // leitura sem repetir a mesma consulta (o Omie responde "consumo redundante" e a fila esperava até 1 min):
+  // reaproveita a que achou a OS e alterna a chave nas seguintes (item 2 de docs/omie-otimizacao-pos-ppv.md)
+  const chaves: Param[] = [{ nCodOS }];
+  const ccod = os.omie_ccodint || achada.dados.Cabecalho?.cCodIntOS;
+  if (ccod) chaves.push({ cCodIntOS: ccod });
+  if (chaveNum(os.Ordem_Omie)) chaves.push({ cNumOS: chaveNum(os.Ordem_Omie) });
+  const usada = Math.max(0, chaves.findIndex((c) => JSON.stringify(c) === JSON.stringify(achada.chave)));
+  const consultar = leitorDaOS(nCodOS, chaves, (p) => omie<OSNoOmie>('/servicos/os/', 'ConsultarOS', p), achada.dados as unknown as OSNoOmie, usada);
   const r = await executarFaturamento({
-    consultar: () => omie<OSNoOmie>('/servicos/os/', 'ConsultarOS', { nCodOS }),
+    consultar,
     alterarImpostos: async (itens, campos) => {
       const servicos = itens.map((i) => montarItemAlteracao(i, campos)).filter(Boolean);
       if (!servicos.length) throw new ErroOmie('A OS não tem itens de serviço para aplicar os impostos.');
@@ -852,6 +887,8 @@ export async function faturarOSNoOmie(
     await liberar('erro', r.mensagem);
     await auditar(id, userName, auth.userId, 'faturar_erro', { erro: r.mensagem, forma });
     await logOS(id, `Faturamento NÃO realizado: ${r.mensagem}`, userName, String(os.Status || ''));
+    // quem fechou a janela no meio fica sabendo pelo sino (José, 22/10/2026)
+    await notificarQuemFaturou(userName, `OS ${chaveNum(os.Ordem_Omie) || id}: faturamento NÃO realizado`, r.mensagem, `/pos?id=${id}`);
     return { ok: false, status: 400, tipo: 'erro', mensagem: r.mensagem };
   }
   if (r.tipo === 'pendente_omie') {
@@ -875,7 +912,7 @@ export async function faturarOSNoOmie(
     ppvIds: r.tipo === 'faturada' ? pedidos : [],
     respostaCrua, porFora: r.tipo === 'ja_faturada',
     dataFaturamentoOmie: r.tipo === 'ja_faturada'
-      ? await omie<OSNoOmie>('/servicos/os/', 'ConsultarOS', { nCodOS }).then((x) => x.InfoCadastro?.dDtFat || null, () => null)
+      ? await consultar().then((x) => x.InfoCadastro?.dDtFat || null, () => null)
       : null,
   });
   const atual = await lerOS(id).catch(() => null);
@@ -887,8 +924,14 @@ async function auditar(id: string, userName: string, userId: string, acao: strin
     await logAndNotify({
       userName, sistema: 'pos', acao, entidade: 'ordem_servico', entidadeId: id, entidadeLabel: `OS ${id}`,
       detalhes: { ...detalhes, userId },
-      notifTitulo: acao === 'faturar' ? `OS ${id} faturada (NFS-e)` : `OS ${id}: problema no faturamento`,
-      notifDescricao: acao === 'faturar' ? `${userName} faturou a OS ${id} pelo portal.` : String(detalhes.erro || ''),
+      // "desconhecido" quase sempre é o Omie demorando uns minutos depois do "sucesso" (OS-0833, 28/10/2026):
+      // aviso calmo; se não faturar mesmo, a conferência avisa "o Omie NÃO faturou"
+      notifTitulo: acao === 'faturar' ? `OS ${id} faturada (NFS-e)`
+        : acao === 'faturar_desconhecido' ? `OS ${id}: Omie processando o faturamento`
+        : `OS ${id}: problema no faturamento`,
+      notifDescricao: acao === 'faturar' ? `${userName} faturou a OS ${id} pelo portal.`
+        : acao === 'faturar_desconhecido' ? 'O Omie aceitou e está terminando a nota. O portal confere sozinho e avisa quando estiver pronta — não precisa fazer nada.'
+        : String(detalhes.erro || ''),
       notifLink: `/pos?id=${id}`,
     });
   } catch { /* auditoria não derruba o faturamento */ }
@@ -923,7 +966,9 @@ async function posFaturamento(id: string, ctx: {
         const falhaParc = await aplicarFormaNoPedido(pid, ctx.forma);
         if (falhaParc) { pecas.push({ id: pid, ok: false, erro: `forma de pagamento: ${falhaParc} — o pedido não foi faturado` }); continue; }
         const r = await faturarPPVNoOmie(pid);
-        pecas.push({ id: pid, pedidoOmie: r.numeroPedido, ok: !!r.sucesso, erro: r.sucesso ? null : (r.erro || 'falhou'), nf: r.nfNumero || null });
+        // "já faturado" = o pedido JÁ tem NF-e: é sucesso (igual ao faturarPecasPendentes). Antes contava como falha e
+        // a OS não ia para Concluída, com "Falta o pedido de peças" na tela (OS-0830/PPV-0517, 21/10/2026)
+        pecas.push({ id: pid, pedidoOmie: r.numeroPedido, ok: !!r.sucesso || !!r.jaFaturado, erro: r.sucesso || r.jaFaturado ? null : (r.erro || 'falhou'), nf: r.nfNumero || null });
       } catch (e) {
         pecas.push({ id: pid, ok: false, erro: e instanceof Error ? e.message : String(e) });
       }
@@ -951,6 +996,31 @@ async function posFaturamento(id: string, ctx: {
 function dataOmieISO(d: string | null | undefined): string | null {
   const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(d || '').trim());
   return m ? `${m[3]}-${m[2]}-${m[1]}T12:00:00-03:00` : null;
+}
+
+/**
+ * NF-e dos pedidos de peças faturados junto com a OS, para o aviso de "notas prontas".
+ * O nº vem do resultado do faturamento; se ainda não estava lá, do pedido no portal e, por fim, do Omie.
+ */
+async function notasDosPedidos(pecas: PecaFaturada[] | null): Promise<Array<{ id: string; pedido: string; nf: string | null }>> {
+  const ok = (pecas || []).filter((p) => p.ok);
+  const out: Array<{ id: string; pedido: string; nf: string | null }> = [];
+  for (const p of ok) {
+    let nf = p.nf || null;
+    if (!nf) {
+      const { data } = await supabase.from('pedidos').select('nf_numero').eq('id_pedido', p.id).maybeSingle();
+      nf = ((data as { nf_numero?: string | null } | null)?.nf_numero) || null;
+    }
+    if (!nf) {
+      try {
+        const { obterComunicacaoSefaz } = await import('@/lib/ppv/omie');
+        const com = await obterComunicacaoSefaz(p.id, { refresh: true });
+        nf = com?.numero || null;
+      } catch { /* fica "em autorização" no aviso */ }
+    }
+    out.push({ id: p.id, pedido: chaveNum(p.pedidoOmie) || p.id, nf: nf ? String(nf).replace(/^0+(?=\d)/, '') : null });
+  }
+  return out;
 }
 
 /** Lê a NFS-e no StatusOS, grava situação/nº e o PDF (se já existir) na OS e na pasta do cliente. */
@@ -988,11 +1058,23 @@ async function atualizarNfse(id: string, nCodOS: number): Promise<StatusFaturame
   if (virou && antes?.faturado_omie_em) {
     const num = chaveNum(antes.Ordem_Omie) || id;
     if (sit.status === 'nfse_autorizada') {
-      await notificarQuemFaturou(antes.faturado_por, `NFS-e da OS ${num} emitida`,
-        `A nota ${sit.numero ? `nº ${sit.numero} ` : ''}foi autorizada pelo sistema nacional. ${antes.Os_Cliente || ''}`.trim(), `/pos?id=${id}`);
+      // um aviso só: a nota da OS E a do pedido de peças vinculado (José, 22/10/2026:
+      // "a nota da ordem xxx e do pedido xxx está pronta")
+      const pedidos = await notasDosPedidos(antes.faturamento_pecas).catch(() => []);
+      const prontos = pedidos.filter((p) => p.nf);
+      const titulo = pedidos.length
+        ? `A nota da OS ${num} e do pedido ${pedidos.map((p) => p.pedido).join(', ')} ${pedidos.length > 1 ? 'estão prontas' : 'está pronta'}`
+        : `A nota da OS ${num} está pronta`;
+      const partes = [
+        `NFS-e ${sit.numero ? `nº ${sit.numero} ` : ''}(serviço)`,
+        ...pedidos.map((p) => (p.nf ? `NF-e nº ${p.nf} (peças, pedido ${p.pedido})` : `NF-e do pedido ${p.pedido} ainda em autorização`)),
+      ];
+      await notificarQuemFaturou(antes.faturado_por, prontos.length === pedidos.length ? titulo : `A nota da OS ${num} está pronta`,
+        `${partes.join(' · ')}. ${antes.Os_Cliente || ''}`.trim(), `/pos?id=${id}`);
     } else {
       await notificarQuemFaturou(antes.faturado_por, `NFS-e da OS ${num} REJEITADA`,
         `${sit.mensagem || 'O sistema nacional recusou a nota.'} Corrija e reenvie pelo Omie.`, `/pos?id=${id}`);
+      void avisarTI(`OS ${num}`, 'a NFS-e (rejeitada)', sit.mensagem || 'O sistema nacional recusou a nota.', `/pos?id=${id}`);
     }
   }
   return sit.status;
@@ -1126,7 +1208,7 @@ async function aplicarFormaNoPedido(pid: string, forma: string | null): Promise<
   } catch (e) { return `não gravou as parcelas (${e instanceof Error ? e.message : e})`; }
 }
 
-export async function faturarPecasPendentes(id: string, ppvIds: string[], auth: Autenticado, forma: string | null = null): Promise<{ ok: boolean; mensagem?: string; pecas?: PecaFaturada[]; concluida?: boolean }> {
+async function faturarPecasPendentesSemPausa(id: string, ppvIds: string[], auth: Autenticado, forma: string | null = null): Promise<{ ok: boolean; mensagem?: string; pecas?: PecaFaturada[]; concluida?: boolean }> {
   if (!podeFaturarPPV(auth)) return { ok: false, mensagem: 'Você não tem permissão para faturar pedidos de peças (PPV).' };
   const os = await lerOS(id);
   if (!os) return { ok: false, mensagem: 'OS não encontrada.' };
@@ -1194,3 +1276,26 @@ export async function reconciliarPorCodOS(nCodOS: number, cNumOS: string): Promi
     try { await reconciliarFaturamentoOS(String(row.Id_Ordem)); } catch { /* agendador tenta de novo */ }
   }
 }
+
+// Faturar / atualizar o Omie com os robôs do Omie PARADOS (José, 21/10/2026: "se precisar, para tudo para
+// realizar o faturamento") — ver comRobosPausados em src/lib/omie/porta.ts.
+// Todo erro de faturamento avisa o T.I. no sino (José, 22/10/2026) — lib/faturamento/alerta-ti.ts.
+async function vigiado<T>(doc: string, oque: string, link: string, rodar: () => Promise<T>, erroDe: (r: T) => string | null): Promise<T> {
+  try {
+    const r = await rodar();
+    const e = erroDe(r);
+    if (e) void avisarTI(doc, oque, e, link);
+    return r;
+  } catch (e) {
+    void avisarTI(doc, oque, e instanceof Error ? e.message : String(e), link);
+    throw e;
+  }
+}
+const erroOS = (r: { ok: boolean; tipo?: string; mensagem?: string }) => (!r.ok && r.tipo !== 'em_andamento' ? r.mensagem || r.tipo || 'erro' : null);
+export const faturarOSComRecibo: typeof faturarOSComReciboSemPausa = (...a) => vigiado(a[0], 'a OS (recibo)', `/pos?id=${a[0]}`,
+  () => comRobosPausados('faturar OS (recibo)', () => faturarOSComReciboSemPausa(...a)), erroOS);
+export const faturarOSNoOmie: typeof faturarOSNoOmieSemPausa = (...a) => vigiado(a[0], 'a OS (NFS-e)', `/pos?id=${a[0]}`,
+  () => comRobosPausados('faturar OS', () => faturarOSNoOmieSemPausa(...a)), erroOS);
+export const faturarPecasPendentes: typeof faturarPecasPendentesSemPausa = (...a) => vigiado(a[0], 'as peças da OS', `/pos?id=${a[0]}`,
+  () => comRobosPausados('faturar peças da OS', () => faturarPecasPendentesSemPausa(...a)),
+  (r) => (!r.ok ? r.mensagem || 'erro' : null)); // erro de cada pedido já avisa pelo faturarPPVNoOmie

@@ -4,9 +4,8 @@
 //  2) durante → cronômetro, telefone usado, notas com autosave
 //  3) ao encerrar → desfecho em botões grandes + campos que o desfecho pede
 import { useEffect, useMemo, useState } from "react";
-import styles from "../feedbacks.module.css";
 import { DESFECHOS, DESFECHO_POR_VALOR, ehDesfecho, efeitosDoDesfecho, validarEncerramento, type Desfecho, type PayloadEncerrar } from "@/lib/feedbacks/atendimento/chamada";
-import { CONFIG_RETORNO_PADRAO, HUMORES, QUALIDADES, TAG_CLIENTE_SENSIVEL, emojiHumor, sugerirCaveira, sugerirRetorno, type ConfigRetorno } from "@/lib/feedbacks/atendimento/retorno";
+import { CONFIG_RETORNO_PADRAO, HUMORES, QUALIDADES, TAG_CLIENTE_SENSIVEL, sugerirCaveira, sugerirRetorno, type ConfigRetorno } from "@/lib/feedbacks/atendimento/retorno";
 import type { EstadoChamada } from "@/lib/feedbacks/atendimento/use-chamada";
 import { formatarDuracao, horaCurta } from "@/lib/feedbacks/atendimento/tempo";
 import { fmtDataBR } from "@/lib/feedbacks/atendimento/rotulos";
@@ -14,6 +13,19 @@ import { linkWhatsapp } from "@/lib/feedbacks/telefone";
 import type { TipoFeedback } from "@/lib/feedbacks/types";
 
 export const COR_ATENDIMENTO = "#d97706";
+
+// Ícones Font Awesome no lugar dos emojis que vêm das libs (DESFECHOS, HUMORES).
+const ICONE_DESFECHO: Record<string, string> = {
+  servico_agendado: "fa-circle-check",
+  vendeu: "fa-sack-dollar",
+  retornar: "fa-rotate",
+  recusou: "fa-circle-xmark",
+  sem_resposta: "fa-phone-slash",
+  numero_errado: "fa-phone-slash",
+};
+const ICONE_HUMOR: Record<number, string> = { 1: "fa-face-angry", 2: "fa-face-frown", 3: "fa-face-meh", 4: "fa-face-smile", 5: "fa-face-laugh-beam" };
+/** Cartão neutro (sem faixa colorida no topo). */
+const CARTAO: React.CSSProperties = { background: "var(--portal-bg-card)", border: "1px solid var(--portal-border)", borderRadius: 16, padding: 16 };
 
 export interface TelefoneOpcao { numero: string; wa: string | null; origem: string }
 
@@ -88,13 +100,13 @@ export default function PainelLigacao(p: Props) {
   if (estado.situacao !== "minha") {
     return (
       <>
-        <section className={styles.card} style={{ ["--fb-accent" as string]: COR_ATENDIMENTO }}>
-          <h3 style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 800 }}>☎️ Ligar para</h3>
-          {p.naoContatar && <Aviso cor="#991b1b" bg="#fee2e2">🚫 CONTATO BLOQUEADO · NÃO CONTATAR. Marcação feita a pedido do cliente ou por decisão da loja — não ligue sem autorização de quem marcou.</Aviso>}
+        <section style={CARTAO}>
+          <h3 style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 500 }}><i className="fa-solid fa-phone" style={{ color: COR_ATENDIMENTO }} /> Ligar para</h3>
+          {p.naoContatar && <Aviso cor="#991b1b" bg="#fee2e2"><i className="fa-solid fa-ban" /> Contato bloqueado · Não contatar. Marcação feita a pedido do cliente ou por decisão da loja — não ligue sem autorização de quem marcou.</Aviso>}
           {estado.situacao === "carregando" && <p style={{ margin: 0, fontSize: 12, opacity: 0.6 }}>Verificando se há ligação em andamento…</p>}
           {estado.situacao === "erro" && <Aviso cor="#92400e" bg="#fef3c7">Não consegui consultar a ligação: {estado.erro}</Aviso>}
           {estado.situacao === "de_outro" && ch && (
-            <Aviso cor="#3730a3" bg="#e0e7ff">🎧 <strong>{ch.atendente_nome}</strong> está em ligação com este cliente desde {horaCurta(ch.iniciada_em)}. Espere terminar ou combine com a pessoa.</Aviso>
+            <Aviso cor="#3730a3" bg="#e0e7ff"><i className="fa-solid fa-headset" /> <strong style={{ fontWeight: 500 }}>{ch.atendente_nome}</strong> está em ligação com este cliente desde {horaCurta(ch.iniciada_em)}. Espere terminar ou combine com a pessoa.</Aviso>
           )}
           {p.telefones.length === 0 ? (
             <p style={{ margin: "8px 0 0", fontSize: 12, opacity: 0.7 }}>Nenhum telefone cadastrado. Confira o cadastro no Omie.</p>
@@ -105,7 +117,7 @@ export default function PainelLigacao(p: Props) {
                   <input type="radio" name="tel" checked={telSel === t.numero} onChange={() => setTelSel(t.numero)} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 11, opacity: 0.65 }}>{t.origem}</div>
-                    <div style={{ fontSize: 17, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{t.numero}</div>
+                    <div style={{ fontSize: 17, fontWeight: 500, fontVariantNumeric: "tabular-nums" }}>{t.numero}</div>
                   </div>
                   {t.wa && <a href={linkWhatsapp(t.wa) ?? "#"} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} style={btn("#25d366", true)}>WhatsApp</a>}
                 </label>
@@ -118,7 +130,7 @@ export default function PainelLigacao(p: Props) {
             onClick={() => { setErroLocal(null); p.onIniciar(telSel || null).catch((e) => setErroLocal((e as Error).message)); }}
             style={{ ...btnGrande(COR_ATENDIMENTO, true), marginTop: 12, width: "100%", alignItems: "center", justifyContent: "center" }}
           >
-            {estado.ocupado ? "Iniciando…" : "▶ Iniciar ligação"}
+            {estado.ocupado ? "Iniciando…" : <span><i className="fa-solid fa-phone" /> Iniciar ligação</span>}
           </button>
           {telefoneAtual && (
             <a href={`tel:${telefoneAtual.wa ? `+${telefoneAtual.wa}` : telefoneAtual.numero.replace(/\D/g, "")}`} style={{ display: "block", textAlign: "center", marginTop: 6, fontSize: 12, color: "#0369a1" }}>
@@ -128,12 +140,12 @@ export default function PainelLigacao(p: Props) {
           {(erroLocal || estado.erro) && estado.situacao !== "erro" && <Aviso cor="#991b1b" bg="#fee2e2">{erroLocal || estado.erro}</Aviso>}
         </section>
 
-        <section className={styles.card} style={{ ["--fb-accent" as string]: COR_ATENDIMENTO }}>
-          <h3 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 800 }}>📝 Registrar sem ligar</h3>
+        <section style={CARTAO}>
+          <h3 style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 500 }}><i className="fa-solid fa-pen" style={{ color: COR_ATENDIMENTO }} /> Registrar sem ligar</h3>
           <p style={{ margin: "0 0 10px", fontSize: 12, opacity: 0.75 }}>Conversou por outro canal ou visita? Anote direto:</p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            <button type="button" onClick={() => p.onRegistrarSemLigar("rfm")} style={btnGrande("#6366f1", false)}><span>🟣 Reativação / oferta</span><small>Cliente parado, revisão, peças, garantia</small></button>
-            <button type="button" onClick={() => p.onRegistrarSemLigar("crm")} style={btnGrande("#dc2626", false)}><span>🔴 Pós-serviço (satisfação)</span><small>Nota, NPS e o que melhorar</small></button>
+            <button type="button" onClick={() => p.onRegistrarSemLigar("rfm")} style={btnGrande("#6366f1", false)}><span><i className="fa-solid fa-circle" style={{ fontSize: 9 }} /> Reativação / oferta</span><small>Cliente parado, revisão, peças, garantia</small></button>
+            <button type="button" onClick={() => p.onRegistrarSemLigar("crm")} style={btnGrande("#dc2626", false)}><span><i className="fa-solid fa-circle" style={{ fontSize: 9 }} /> Pós-serviço (satisfação)</span><small>Nota, NPS e o que melhorar</small></button>
           </div>
         </section>
       </>
@@ -147,10 +159,10 @@ export default function PainelLigacao(p: Props) {
 
   return (
     <>
-      <section className={styles.card} style={{ ["--fb-accent" as string]: "#16a34a" }}>
+      <section style={CARTAO}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800 }}>🟢 Em ligação</h3>
-          <span style={{ fontSize: 22, fontWeight: 800, fontVariantNumeric: "tabular-nums", color: "#16a34a" }}>{formatarDuracao(estado.segundos)}</span>
+          <h3 style={{ margin: 0, fontSize: 14, fontWeight: 500 }}><i className="fa-solid fa-circle" style={{ color: "#16a34a", fontSize: 10 }} /> Em ligação</h3>
+          <span style={{ fontSize: 22, fontWeight: 500, fontVariantNumeric: "tabular-nums", color: "#16a34a" }}>{formatarDuracao(estado.segundos)}</span>
         </div>
         <label style={{ display: "block", fontSize: 11, opacity: 0.65, marginTop: 10 }}>Telefone usado</label>
         <div style={{ display: "flex", gap: 6 }}>
@@ -180,13 +192,13 @@ export default function PainelLigacao(p: Props) {
         </div>
       </section>
 
-      <section className={styles.card} style={{ ["--fb-accent" as string]: COR_ATENDIMENTO }}>
-        <h3 style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 800 }}>🏁 Como terminou?</h3>
+      <section style={CARTAO}>
+        <h3 style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 500 }}><i className="fa-solid fa-flag-checkered" style={{ color: COR_ATENDIMENTO }} /> Como terminou?</h3>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
           {DESFECHOS.map((x) => (
             <button key={x.valor} type="button" onClick={() => setDesfecho(x.valor)} title={x.ajuda}
               style={{ ...btnGrande(COR_ATENDIMENTO, desfecho === x.valor), padding: "10px 10px", fontSize: 13 }}>
-              <span>{x.emoji} {x.rotulo}</span>
+              <span><i className={`fa-solid ${ICONE_DESFECHO[x.valor] ?? "fa-circle"}`} /> {x.rotulo}</span>
             </button>
           ))}
         </div>
@@ -199,7 +211,7 @@ export default function PainelLigacao(p: Props) {
               {HUMORES.map((h) => (
                 <button key={h.valor} type="button" onClick={() => setHumor(h.valor)} title={h.rotulo}
                   style={{ ...btnNota(humor === h.valor, h.valor <= cfg.humor_baixo_max ? "#b45309" : "#16a34a"), fontSize: 20 }}>
-                  {h.emoji}<small style={{ fontSize: 9, display: "block" }}>{h.rotulo}</small>
+                  <i className={`fa-solid ${ICONE_HUMOR[h.valor] ?? "fa-face-smile"}`} /><small style={{ fontSize: 9, display: "block" }}>{h.rotulo}</small>
                 </button>
               ))}
             </div>
@@ -208,18 +220,18 @@ export default function PainelLigacao(p: Props) {
               {QUALIDADES.map((q) => (
                 <button key={q.valor} type="button" onClick={() => setQualidade(q.valor)} title={q.rotulo}
                   style={{ ...btnNota(qualidade === q.valor, "#0369a1"), fontSize: 15 }}>
-                  {q.emoji}<small style={{ fontSize: 9, display: "block" }}>{q.rotulo}</small>
+                  <span>{q.valor} <i className="fa-solid fa-star" style={{ fontSize: 11, opacity: 0.7 }} /></span><small style={{ fontSize: 9, display: "block" }}>{q.rotulo}</small>
                 </button>
               ))}
             </div>
             {sugestao?.humor_baixo && (
               <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, fontSize: 12, background: "#fef3c7", color: "#92400e", borderRadius: 10, padding: "8px 10px", cursor: "pointer" }}>
                 <input type="checkbox" checked={marcarSensivel} onChange={(e) => setMarcarSensivel(e.target.checked)} />
-                <span>Cliente {emojiHumor(humor)} chateado: marcar como <strong>{TAG_CLIENTE_SENSIVEL}</strong> na pasta (avisa quem ligar depois)</span>
+                <span>Cliente chateado: marcar como <strong style={{ fontWeight: 500 }}>{TAG_CLIENTE_SENSIVEL}</strong> na pasta (avisa quem ligar depois)</span>
               </label>
             )}
             {sugerirNaoContatar && (
-              <Aviso cor="#111" bg="#e5e7eb">💀 Duas ligações seguidas com o cliente irritado. Considere marcar <strong>Não contatar</strong> pelo CRM — isso nunca é automático.</Aviso>
+              <Aviso cor="#111111" bg="#e5e7eb"><i className="fa-solid fa-ban" /> Duas ligações seguidas com o cliente irritado. Considere marcar <strong style={{ fontWeight: 500 }}>Não contatar</strong> pelo CRM — isso nunca é automático.</Aviso>
             )}
           </>
         )}
@@ -256,8 +268,8 @@ export default function PainelLigacao(p: Props) {
 
         {previsao && (
           <div style={{ fontSize: 11, marginTop: 8, padding: "6px 10px", borderRadius: 8, background: "var(--portal-bg)", border: "1px solid var(--portal-border)", opacity: 0.85 }}>
-            Ao encerrar: atendimento fica <strong>{rotuloStatus(previsao.status_atendimento)}</strong>
-            {previsao.proximo_contato_em && <> · retorno em <strong>{fmtDataBR(previsao.proximo_contato_em)}</strong></>}
+            Ao encerrar: atendimento fica <strong style={{ fontWeight: 500 }}>{rotuloStatus(previsao.status_atendimento)}</strong>
+            {previsao.proximo_contato_em && <> · retorno em <strong style={{ fontWeight: 500 }}>{fmtDataBR(previsao.proximo_contato_em)}</strong></>}
             {previsao.oportunidade === "atendida" && <> · motivo da fila marcado como atendido</>}
             {previsao.marca_pendencia_cadastral && <> · cadastro marcado com pendência</>}
             {previsao.regra_24h_aplicada && <> · (aberto há menos de 24 h: fica em aberto, não &ldquo;não respondeu&rdquo;)</>}
@@ -273,7 +285,7 @@ export default function PainelLigacao(p: Props) {
           onClick={() => { setErroLocal(null); p.onEncerrar(payload as PayloadEncerrar, { marcarSensivel: !!sugestao?.humor_baixo && marcarSensivel }).catch((e) => setErroLocal((e as Error).message)); }}
           style={{ ...btnGrande("#16a34a", true), marginTop: 10, width: "100%", alignItems: "center", justifyContent: "center", opacity: podeEncerrar ? 1 : 0.5 }}
         >
-          {estado.ocupado ? "Gravando…" : "■ Encerrar ligação"}
+          {estado.ocupado ? "Gravando…" : <span><i className="fa-solid fa-phone-slash" /> Encerrar ligação</span>}
         </button>
         <button
           type="button"
@@ -297,10 +309,10 @@ function Aviso({ cor, bg, children }: { cor: string; bg: string; children: React
   return <div style={{ background: bg, color: cor, borderRadius: 10, padding: "8px 12px", fontSize: 12, marginTop: 8, lineHeight: 1.45 }}>{children}</div>;
 }
 function btn(cor: string, preenchido: boolean): React.CSSProperties {
-  return { fontSize: 12, fontWeight: 700, padding: "6px 12px", borderRadius: 999, border: `1px solid ${cor}`, background: preenchido ? cor : "transparent", color: preenchido ? "#fff" : cor, cursor: "pointer", textDecoration: "none", whiteSpace: "nowrap" };
+  return { fontSize: 12, fontWeight: 500, padding: "6px 12px", borderRadius: 10, border: `1px solid ${cor}`, background: preenchido ? cor : "transparent", color: preenchido ? "#fff" : cor, cursor: "pointer", textDecoration: "none", whiteSpace: "nowrap" };
 }
 function btnGrande(cor: string, preenchido: boolean): React.CSSProperties {
-  return { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, padding: "12px 14px", borderRadius: 12, border: `2px solid ${cor}`, background: preenchido ? cor : "transparent", color: preenchido ? "#fff" : cor, cursor: "pointer", fontSize: 14, fontWeight: 800, textAlign: "left" };
+  return { display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 2, padding: "12px 14px", borderRadius: 11, border: `1px solid ${cor}`, background: preenchido ? cor : "transparent", color: preenchido ? "#fff" : cor, cursor: "pointer", fontSize: 14, fontWeight: 500, textAlign: "left" };
 }
 function btnNota(ativo: boolean, cor: string): React.CSSProperties {
   return { padding: "6px 2px", borderRadius: 10, border: `2px solid ${ativo ? cor : "var(--portal-border)"}`, background: ativo ? `${cor}22` : "transparent", color: "inherit", cursor: "pointer", lineHeight: 1.1 };

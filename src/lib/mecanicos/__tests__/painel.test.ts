@@ -135,10 +135,18 @@ describe('custo da equipe', () => {
     expect(semana.porPessoa.Bia).toBeCloseTo(3000 * 7 / 31, 1)
     expect(semana.porPessoa.Caio).toBeUndefined()
   })
+
+  it('salário fixo: semana conta o mês inteiro, uma vez só (José, 21/10/2026)', async () => {
+    const { custoEquipe } = await import('../painel')
+    const eq = [{ pessoa: 'Ana', salario: 3000, encargos: 1000, admissao: '2026-01', demissao: null }]
+    expect(custoEquipe(eq, '2026-10-12', '2026-10-18', { salarioFixo: true }).porPessoa.Ana).toBe(4000)
+    // semana que cruza o mês: só o salário do mês em que termina
+    expect(custoEquipe(eq, '2026-09-28', '2026-10-04', { salarioFixo: true }).porPessoa.Ana).toBe(4000)
+  })
 })
 
 describe('grupos Garantia e Outros', () => {
-  it('Vinicius vira Garantia, José Ortiz vira Outros, sem meta de horas', async () => {
+  it('Vinicius fica com o próprio nome (linha da garantia), José Ortiz vira Outros, sem meta de horas', async () => {
     const { montarPainel } = await import('../painel')
     const base = {
       tecnicos: ['Ana', 'Vinicius Correa'],
@@ -150,12 +158,12 @@ describe('grupos Garantia e Outros', () => {
     }
     const p = montarPainel(base, 'semana', '2026-10-16', '2026-10-16')
     const nomes = p.linhas.map((l) => l.tecnico)
-    expect(nomes).toContain('Garantia'); expect(nomes).toContain('Outros'); expect(nomes).not.toContain('Vinicius Correa')
-    const gar = p.linhas.find((l) => l.tecnico === 'Garantia')!
+    expect(nomes).toContain('Vinicius Correa'); expect(nomes).toContain('Outros'); expect(nomes).not.toContain('Garantia')
+    const gar = p.linhas.find((l) => l.tecnico === 'Vinicius Correa')!
     expect(gar).toMatchObject({ meta: 0, ociosas: 0, bruto: 1660 })
     expect(p.total.meta).toBe(40) // só a Ana tem meta (seg a sex)
-    expect(p.gastos.porPessoa[0].pessoa).toBe('Garantia')
-    expect(p.equipe.porPessoa.Garantia).toBeGreaterThan(0)
+    expect(p.gastos.porPessoa[0].pessoa).toBe('Vinicius Correa')
+    expect(p.equipe.porPessoa['Vinicius Correa']).toBeGreaterThan(0)
   })
 })
 

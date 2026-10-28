@@ -308,6 +308,30 @@ async function buscarClientesFornecedores(conta) {
   return { mapa, completo };
 }
 
+// Modo LEVE (José, 21/10/2026 — orientação do Omie: sync leve em horário comercial): o mapa de
+// clientes/fornecedores (ListarClientesResumido inteiro) é o mesmo a cada rodada; no modo leve vem
+// do cache (12 h, preenchido por qualquer leitura COMPLETA) e só é relido se aparecer um código que
+// não está nele — o guard de "mapa completo" continua valendo.
+const contrapartesCache = new Map(); // conta -> { mapa, em }
+const CONTRAPARTES_CACHE_MS = 12 * 60 * 60 * 1000;
+async function contrapartesParaSync(conta, usarCache) {
+  const c = contrapartesCache.get(conta);
+  if (usarCache && c && Date.now() - c.em < CONTRAPARTES_CACHE_MS) return { mapa: { ...c.mapa }, completo: true, doCache: true };
+  const r = await buscarClientesFornecedores(conta);
+  if (r.completo && Object.keys(r.mapa).length) contrapartesCache.set(conta, { mapa: r.mapa, em: Date.now() });
+  return { ...r, doCache: false };
+}
+/** Mapa veio do cache e a página tem código que ele não conhece → relê o cadastro (uma vez). */
+async function completarContrapartes(conta, contrapartes, mapaContra, codigos) {
+  if (!contrapartes.doCache) return;
+  if (!codigos.some(c => c && !(c in mapaContra))) return;
+  const fresco = await buscarClientesFornecedores(conta);
+  if (!fresco.completo || !Object.keys(fresco.mapa).length) throw new Error('mapa de contrapartes incompleto ao completar o cache - sync abortado para nao apagar nomes');
+  contrapartesCache.set(conta, { mapa: fresco.mapa, em: Date.now() });
+  Object.assign(mapaContra, fresco.mapa);
+  contrapartes.doCache = false;
+}
+
 async function buscarDepartamentos(conta) {
   const mapa = {};
   let pag = 1;
@@ -654,7 +678,7 @@ async function reconciliarAbertos(conta) {
   const [cat, dep, contrapartes] = await Promise.all([
     buscarCategorias(conta).catch(e => { console.log(`categorias: ${e.message}`); return {}; }),
     buscarDepartamentos(conta).catch(e => { console.log(`departamentos: ${e.message}`); return {}; }),
-    buscarClientesFornecedores(conta).catch(e => { console.log(`contrapartes: ${e.message}`); return { mapa: {}, completo: false }; })
+    contrapartesParaSync(conta, false).catch(e => { console.log(`contrapartes: ${e.message}`); return { mapa: {}, completo: false }; })
   ]);
   const contra = contrapartes.mapa || {};
   if (!contrapartes.completo || Object.keys(contra).length === 0) {
@@ -769,7 +793,7 @@ function mapearMovimento(m, mapaCat, mapaDep, mapaContra, mapaCC, contaLabel) {
 
 // Sincroniza movimentos por janela de DATA DE PAGAMENTO (DD/MM/YYYY).
 // Upsert por (conta_omie, natureza, codigo_movimento, codigo_titulo).
-async function sincronizarMovimentosCC(conta, dePagBR, atePagBR) {
+async function sincronizarMovimentosCC(conta, dePagBR, atePagBR, opts = {}) {
   const s = getMovSyncState(conta);
   if (s.rodando) {
     return { ok: false, mensagem: 'Sync de movimentos ja em andamento para esta conta' };
@@ -805,7 +829,7 @@ async function sincronizarMovimentosCC(conta, dePagBR, atePagBR) {
     const [mapaCat, mapaDep, contrapartes, mapaCC] = await Promise.all([
       buscarCategorias(conta).catch(e => { console.log(`categorias: ${e.message}`); return {}; }),
       buscarDepartamentos(conta).catch(e => { console.log(`departamentos: ${e.message}`); return {}; }),
-      buscarClientesFornecedores(conta).catch(e => { console.log(`contrapartes: ${e.message}`); return { mapa: {}, completo: false }; }),
+      contrapartesParaSync(conta, !!opts.leve).catch(e => { console.log(`contrapartes: ${e.message}`); return { mapa: {}, completo: false }; }),
       buscarContasCorrentes(conta).catch(e => { console.log(`contas-correntes: ${e.message}`); return {}; })
     ]);
     const mapaContra = contrapartes.mapa || {};
@@ -864,6 +888,7 @@ async function sincronizarMovimentosCC(conta, dePagBR, atePagBR) {
         throw new Error(`pagina ${pag}/${s.totalPaginas} vazia apos retries - paginacao interrompida`);
       }
       tentativasPag = 0;
+      await completarContrapartes(conta, contrapartes, mapaContra, lista.map(m => Number((m.detalhes || {}).nCodCliente) || null));
 
       // Dedup dentro do lote pela chave do upsert (o Postgres rejeita ON CONFLICT
       // que afeta a mesma linha duas vezes no mesmo statement). Fica o ultimo.
@@ -993,7 +1018,8 @@ function mapearTitulo(t, mapaCategorias, mapaDepartamentos, mapaContrapartes, co
 // =============================================================================
 // Sync generico (parametrizado por config pagar/receber)
 // =============================================================================
-async function sincronizarTitulos(conta, deStr, ateStr, tipo) {
+async function sincronizarTitulos(conta, deStr, ateStr, tipo, opts = {}) {
+  const leve = !!opts.alteradoDe;
   const cfg = CONFIG[tipo];
   if (!cfg) throw new Error(`Tipo invalido: ${tipo}`);
   const s = getSyncStateUnico(conta, tipo);
@@ -1022,7 +1048,7 @@ async function sincronizarTitulos(conta, deStr, ateStr, tipo) {
         conta_omie: contaLabel,
         tipo: cfg.tipoLog,
         status: 'em_andamento',
-        parametros: { de: deStr, ate: ateStr }
+        parametros: leve ? { modo: 'leve', alterados_desde: opts.alteradoDe } : { de: deStr, ate: ateStr }
       })
       .select('id').single();
     logId = log?.id;
@@ -1031,7 +1057,7 @@ async function sincronizarTitulos(conta, deStr, ateStr, tipo) {
     const [mapaCat, mapaDep, contrapartes] = await Promise.all([
       buscarCategorias(conta).catch(e => { console.log(`categorias: ${e.message}`); return {}; }),
       buscarDepartamentos(conta).catch(e => { console.log(`departamentos: ${e.message}`); return {}; }),
-      buscarClientesFornecedores(conta).catch(e => { console.log(`contrapartes: ${e.message}`); return { mapa: {}, completo: false }; })
+      contrapartesParaSync(conta, leve).catch(e => { console.log(`contrapartes: ${e.message}`); return { mapa: {}, completo: false }; })
     ]);
     const mapaContra = contrapartes.mapa || {};
     console.log(`[sync ${tipo} ${conta}] categorias: ${Object.keys(mapaCat).length}, departamentos: ${Object.keys(mapaDep).length}, contrapartes: ${Object.keys(mapaContra).length} (completo=${contrapartes.completo})`);
@@ -1047,8 +1073,12 @@ async function sincronizarTitulos(conta, deStr, ateStr, tipo) {
     // Alarga a janela: usuario pediu janela de vencimento, mas a API so filtra
     // por emissao. Pegamos emissoes 24 meses antes do inicio do vencimento ate
     // 3 meses depois do fim, garantindo cobertura para parcelas longas.
-    const { deEm, ateEm } = janelaEmissaoCobrindoVencimento(deStr, ateStr);
-    console.log(`[sync ${tipo} ${conta}] janela vencimento ${deStr}-${ateStr}, janela emissao ${deEm}-${ateEm}`);
+    // Modo leve: só os títulos INCLUÍDOS/ALTERADOS desde `alteradoDe` (filtrar_por_data_de da Omie).
+    const amanha = new Date(); amanha.setDate(amanha.getDate() + 1); // o servidor roda em UTC
+    const filtroJanela = leve
+      ? { filtrar_por_data_de: opts.alteradoDe, filtrar_por_data_ate: fmtBR(amanha) }
+      : (() => { const { deEm, ateEm } = janelaEmissaoCobrindoVencimento(deStr, ateStr); return { filtrar_por_emissao_de: deEm, filtrar_por_emissao_ate: ateEm }; })();
+    console.log(`[sync ${tipo} ${conta}] ${leve ? 'LEVE: alterados desde ' + opts.alteradoDe : `janela vencimento ${deStr}-${ateStr}`}, filtro ${JSON.stringify(filtroJanela)}`);
 
     s.etapa = `paginando ${cfg.tabela}`;
     let pag = 1;
@@ -1058,8 +1088,7 @@ async function sincronizarTitulos(conta, deStr, ateStr, tipo) {
         r = await omieRequest(cfg.endpoint, cfg.call, {
           pagina: pag,
           registros_por_pagina: PAGE_SIZE,
-          filtrar_por_emissao_de: deEm,
-          filtrar_por_emissao_ate: ateEm,
+          ...filtroJanela,
           filtrar_apenas_titulos_em_aberto: 'N'
         }, conta);
       } catch (e) {
@@ -1076,6 +1105,7 @@ async function sincronizarTitulos(conta, deStr, ateStr, tipo) {
       console.log(`[sync ${tipo} ${conta}] pag ${pag}/${s.totalPaginas || '?'}: ${lista.length} titulos`);
       if (lista.length === 0) break;
 
+      await completarContrapartes(conta, contrapartes, mapaContra, lista.map(t => t.codigo_cliente_fornecedor));
       const rows = lista
         .map(t => mapearTitulo(t, mapaCat, mapaDep, mapaContra, contaLabel, cfg))
         .filter(r => r.codigo_lancamento);
@@ -1570,6 +1600,29 @@ async function sincronizarTudo(conta, deStr, ateStr) {
   }
 }
 
+// Sync LEVE do horário comercial (José, 21/10/2026): só os títulos incluídos/alterados desde
+// `alteradoDe` + baixas pagas nos últimos 15 dias. A passada completa (janela de emissão,
+// baixas de 24 meses e reconciliação dos excluídos) fica para as rodadas da noite.
+async function sincronizarTudoLeve(conta, alteradoDe) {
+  tudoEmAndamento.add(conta);
+  try {
+    const r1 = await sincronizarTitulos(conta, null, null, 'pagar', { alteradoDe });
+    const r2 = await sincronizarTitulos(conta, null, null, 'receber', { alteradoDe });
+    let r3 = { ok: true, atualizados: 0 };
+    try {
+      const dePag = new Date(); dePag.setDate(dePag.getDate() - 15);
+      const atePag = new Date(); atePag.setMonth(atePag.getMonth() + 1);
+      r3 = await aplicarBaixas(conta, fmtBR(dePag), fmtBR(atePag));
+    } catch (e) {
+      console.error(`[sync leve ${conta}] aplicarBaixas erro: ${e.message}`);
+      r3 = { ok: false, mensagem: e.message };
+    }
+    return { ok: r1.ok && r2.ok && r3.ok, modo: 'leve', pagar: r1, receber: r2, baixas: r3, registros: (r1.registros || 0) + (r2.registros || 0) };
+  } finally {
+    tudoEmAndamento.delete(conta);
+  }
+}
+
 // =============================================================================
 // Usuarios Omie: traduz o codigo (cNome, ex "P000454175") em nome real
 // (cNomeCompl). ListarUsuarios usa nPagina/nRegPorPagina e devolve listaUsuarios.
@@ -1627,6 +1680,7 @@ module.exports = {
   sincronizarContasPagar,
   sincronizarContasReceber,
   sincronizarTudo,
+  sincronizarTudoLeve,
   buscarMovimentos,
   aplicarBaixas,
   reconciliarAbertos,
