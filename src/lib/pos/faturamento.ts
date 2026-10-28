@@ -924,8 +924,14 @@ async function auditar(id: string, userName: string, userId: string, acao: strin
     await logAndNotify({
       userName, sistema: 'pos', acao, entidade: 'ordem_servico', entidadeId: id, entidadeLabel: `OS ${id}`,
       detalhes: { ...detalhes, userId },
-      notifTitulo: acao === 'faturar' ? `OS ${id} faturada (NFS-e)` : `OS ${id}: problema no faturamento`,
-      notifDescricao: acao === 'faturar' ? `${userName} faturou a OS ${id} pelo portal.` : String(detalhes.erro || ''),
+      // "desconhecido" quase sempre é o Omie demorando uns minutos depois do "sucesso" (OS-0833, 28/10/2026):
+      // aviso calmo; se não faturar mesmo, a conferência avisa "o Omie NÃO faturou"
+      notifTitulo: acao === 'faturar' ? `OS ${id} faturada (NFS-e)`
+        : acao === 'faturar_desconhecido' ? `OS ${id}: Omie processando o faturamento`
+        : `OS ${id}: problema no faturamento`,
+      notifDescricao: acao === 'faturar' ? `${userName} faturou a OS ${id} pelo portal.`
+        : acao === 'faturar_desconhecido' ? 'O Omie aceitou e está terminando a nota. O portal confere sozinho e avisa quando estiver pronta — não precisa fazer nada.'
+        : String(detalhes.erro || ''),
       notifLink: `/pos?id=${id}`,
     });
   } catch { /* auditoria não derruba o faturamento */ }

@@ -152,6 +152,16 @@ async function alinharPPVSemPausa(idPPV: string): Promise<ResultadoConferencia> 
     }
   }
   if (!detNovo.length) return { ...limpar(conf), erro: "O pedido do portal está sem itens — não dá para deixar o Omie igual." };
+  // peça que está no Omie e não no portal: o AlterarPedidoVenda MANTÉM item que não vai no det —
+  // tem que mandar com acao_item "E" (PPV-0529, 28/10/2026: RP-000016115P04 ficava e a parcela não fechava)
+  const codPortal = new Set(portal.map((x) => x.codigo.trim().toUpperCase()));
+  for (const o of det) {
+    if (codPortal.has(String(o.produto?.codigo || "").trim().toUpperCase()) || !o.ide?.codigo_item) continue;
+    detNovo.push({
+      ide: { codigo_item: o.ide.codigo_item, codigo_item_integracao: o.ide.codigo_item_integracao || undefined, acao_item: "E" },
+      produto: { codigo_produto: o.produto?.codigo_produto, quantidade: n(o.produto?.quantidade), valor_unitario: n(o.produto?.valor_unitario) },
+    });
+  }
 
   const total = r2(portal.reduce((s, x) => s + x.qtde * x.preco - x.desconto, 0));
   const cabecalho: Rec = { codigo_pedido: pedido.cabecalho?.codigo_pedido };

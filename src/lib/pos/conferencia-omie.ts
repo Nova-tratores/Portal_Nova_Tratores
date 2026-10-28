@@ -92,7 +92,12 @@ const pedidosDaOS = (os: Rec) => pedidoClienteDaOS(String(os.ID_PPV || "").split
 /** parcelas esperadas: as editadas à mão na OS ou as da condição, a partir da previsão */
 function parcelasDaOS(esp: OmieEspelho, previsao: string, total: number) {
   const l = esp.parcelas.length ? esp.parcelas : calcularParcelas(diasDoEspelho(esp), previsao, total);
-  return l.map((p, i) => ({ nParcela: i + 1, nDias: Math.max(0, Math.round(Number(p.dias) || 0)), dDtVenc: isoBR(String(p.venc)), nValor: Math.round(Number(p.valor) * 100) / 100 }));
+  // editadas à mão valem pelas datas e pela proporção: o Omie refaz o valor pelo total dos serviços da OS.
+  // A aba Parcelas somava as peças do PPV (OS-0842, 28/10/2026: portal 2.746,20 × Omie 886,20 sem fim)
+  const soma = l.reduce((t, p) => t + (Number(p.valor) || 0), 0);
+  const vals = l.map((p) => soma > 0 ? Math.round((Number(p.valor) || 0) / soma * total * 100) / 100 : Math.round(total / l.length * 100) / 100);
+  if (vals.length) vals[vals.length - 1] = Math.round((total - vals.slice(0, -1).reduce((a, x) => a + x, 0)) * 100) / 100;
+  return l.map((p, i) => ({ nParcela: i + 1, nDias: Math.max(0, Math.round(Number(p.dias) || 0)), dDtVenc: isoBR(String(p.venc)), nValor: vals[i] }));
 }
 
 // CPF/CNPJ do cliente da OS no Omie (ConsultarCliente; guardado 10 min — o cadastro quase nunca muda)
