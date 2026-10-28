@@ -7,9 +7,10 @@ import SemPermissao from '@/components/SemPermissao'
 import { supabase } from '@/lib/supabase'
 import UsoAba from '@/components/atividades/UsoAba'
 import PadroesAba from '@/components/atividades/PadroesAba'
+import ProcessosAba from '@/components/atividades/ProcessosAba'
 import {
   Activity, Search, Filter, ChevronDown, ChevronLeft, ChevronRight,
-  Clock, User, Settings, ClipboardList, Wrench, DollarSign, Shield, FileText, Tags, BarChart3, Puzzle, Package
+  Clock, User, Settings, ClipboardList, Wrench, DollarSign, Shield, FileText, Tags, BarChart3, Puzzle, Package, Workflow
 } from 'lucide-react'
 
 interface AuditEntry {
@@ -106,9 +107,10 @@ function textoDetalhes(entry: AuditEntry): string {
 function AtividadesPageInner() {
   const { userProfile } = useAuth()
   const searchParams = useSearchParams()
-  // Aba: 'atividades' (audit_log) | 'uso' (monitor de uso) | 'padroes' (onde o usuário monta quebra-cabeça). Deep-link ?tab=uso|padroes
+  // Aba: 'atividades' (audit_log) | 'uso' (monitor de uso) | 'padroes' (onde o usuário monta quebra-cabeça)
+  // | 'processos' (fluxograma real das OS). Deep-link ?tab=uso|padroes|processos
   const tabInicial = searchParams.get('tab')
-  const [aba, setAba] = useState<'atividades' | 'uso' | 'padroes'>(tabInicial === 'uso' || tabInicial === 'padroes' ? tabInicial : 'atividades')
+  const [aba, setAba] = useState<'atividades' | 'uso' | 'padroes' | 'processos'>(tabInicial === 'uso' || tabInicial === 'padroes' || tabInicial === 'processos' ? tabInicial : 'atividades')
   const [logs, setLogs] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
@@ -260,7 +262,7 @@ function AtividadesPageInner() {
 
       {/* Abas */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '20px' }}>
-        {([['atividades', 'Atividades', <Activity key="a" size={14} />], ['uso', 'Uso do portal', <BarChart3 key="u" size={14} />], ['padroes', 'Padrões', <Puzzle key="p" size={14} />]] as const).map(([k, label, icon]) => (
+        {([['atividades', 'Atividades', <Activity key="a" size={14} />], ['uso', 'Uso do portal', <BarChart3 key="u" size={14} />], ['padroes', 'Padrões', <Puzzle key="p" size={14} />], ['processos', 'Processos', <Workflow key="f" size={14} />]] as const).map(([k, label, icon]) => (
           <button key={k} onClick={() => setAba(k)} style={{
             display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', fontFamily: 'Inter', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
             background: aba === k ? '#dc2626' : '#ffffff', color: aba === k ? '#fff' : '#737373', border: aba === k ? '1px solid #dc2626' : '1px solid #e5e5e5',
@@ -270,6 +272,7 @@ function AtividadesPageInner() {
 
       {aba === 'uso' && <UsoAba usuarios={usuarios} />}
       {aba === 'padroes' && <PadroesAba usuarios={usuarios} />}
+      {aba === 'processos' && <ProcessosAba />}
 
       {aba === 'atividades' && (<>
       {/* Filtros */}
