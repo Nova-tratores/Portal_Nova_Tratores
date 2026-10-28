@@ -1,7 +1,7 @@
 // Documento final da comissão (A4, com as OS e as duas assinaturas) — José, 20/10/2026.
 // GET ?id=<pedido> → HTML pronto para imprimir/salvar em PDF. Antes de autorizado sai com a marca "aguardando".
 import { NextRequest, NextResponse } from 'next/server'
-import { protegerRota } from '@/lib/ajustes/permissao-server'
+import { guardarComissao } from '@/lib/mecanicos/lancamento-comissao-rota'
 import { pedidoCompleto, codigoPedido, SemTabela } from '@/lib/mecanicos/lancamento-comissao-server'
 import { htmlAutorizacaoComissao } from '@/lib/mecanicos/autorizacao-comissao-doc'
 
@@ -9,7 +9,7 @@ export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const g = await protegerRota(req, [{ modulo: 'mecanicos' }, { modulo: 'pos' }])
+  const g = await guardarComissao(req)
   if (g.resposta) return g.resposta
   try {
     const p = await pedidoCompleto(String(req.nextUrl.searchParams.get('id') || ''))

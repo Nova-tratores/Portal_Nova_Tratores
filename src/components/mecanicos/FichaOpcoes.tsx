@@ -12,7 +12,7 @@ import { IconeLiga } from './CartaLiga'
 import { brl, brl2, horas } from './ui'
 import { authHeaders } from '@/lib/auth/client'
 import type { PedidoComissao } from '@/lib/mecanicos/lancamento-comissao-server'
-import { parcelasDoDesconto, resumoParcelas, mesCurto, type DescontoPedido } from '@/lib/mecanicos/descontos-tecnico'
+import { parcelasDoDesconto, resumoParcelas, mesCurto, contaDoPagamento, PCT_CAIXINHA, type DescontoPedido } from '@/lib/mecanicos/descontos-tecnico'
 import CanvasAssinatura, { type CanvasAssinaturaRef } from '@/components/assinatura/CanvasAssinatura'
 import { abrirDocumento } from './AutorizacoesJanela'
 import {
@@ -320,6 +320,42 @@ async function buscarPedidos(nome: string, mes: string): Promise<{ pedidos: Pedi
   } catch { return { pedidos: [] } }
 }
 
+/** Todas as comissões já autorizadas pelo diretor deste técnico, mês a mês, cada uma com o seu documento assinado
+ *  (José, 28/10/2026: "gerar o pdf com as assinaturas lá nas fichas dos técnicos junto com as dos meses anteriores"). */
+function DocumentosAssinados({ nome, mesAtual }: { nome: string; mesAtual: string }) {
+  const [docs, setDocs] = useState<PedidoComissao[] | null>(null)
+  useEffect(() => {
+    let vivo = true
+    const ler = async () => {
+      try {
+        const r = await fetch(`/api/mecanicos/lancamento-comissao?tecnico=${encodeURIComponent(nome)}`, { headers: await authHeaders(), cache: 'no-store' })
+        const j = await r.json()
+        const lista = (Array.isArray(j.pedidos) ? j.pedidos : []) as PedidoComissao[]
+        // um por mês: o autorizado mais recente (os substituídos ficam no Histórico)
+        const porMes = new Map<string, PedidoComissao>()
+        for (const p of lista) if (['espelhada', 'erro_rh'].includes(p.status) && !porMes.has(p.mes)) porMes.set(p.mes, p)
+        if (vivo) setDocs([...porMes.values()].sort((a, b) => b.mes.localeCompare(a.mes)))
+      } catch { if (vivo) setDocs([]) }
+    }
+    void ler()
+    window.addEventListener('comissao-decidida', ler)
+    return () => { vivo = false; window.removeEventListener('comissao-decidida', ler) }
+  }, [nome])
+  if (!docs?.length) return null
+  return (
+    <section className="fo-docs">
+      <small className="fl-rot">Comissões assinadas</small>
+      {docs.map((p) => (
+        <button key={p.id} type="button" className={p.mes === mesAtual ? 'on' : ''} onClick={() => { void abrirDocumento(p.id) }} title="Abrir o documento com as assinaturas (imprimir ou salvar em PDF)">
+          <i className="fas fa-file-signature" />
+          <span><b>{nomeMes(p.mes)}</b><small>autorizada por {p.decidido_por || 'diretor'}{p.decidido_em ? ` em ${new Date(p.decidido_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}` : ''}{p.status === 'erro_rh' ? ' · RH não aceitou' : ''}</small></span>
+          <em>{brl2(p.valor)}</em>
+        </button>
+      ))}
+    </section>
+  )
+}
+
 /** Comissão do mês: o valor, de onde vem e o caminho até o pagamento. Lançar = pedir autorização ao diretor;
  *  autorizado, o portal espelha no RH (José, 20/10/2026: "não quero mais lançar no RH, quero que lance por aqui"). */
 export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao; vertical?: boolean }) {
@@ -420,6 +456,7 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
         </p>
       )}
       {atual && <button type="button" className="fo-lan-doc" onClick={() => { void abrirDocumento(atual.id) }}>{['espelhada', 'erro_rh'].includes(atual.status) ? 'Documento assinado (PDF)' : 'Ver documento do pedido'}</button>}
+      <DocumentosAssinados nome={d.nome} mesAtual={d.mes} />
       {of && !atual && <p className="fo-lan-of">Já existe comissão no RH para {nomeMes(d.mes).toLowerCase()}: <b>{brl2(of.valor)}</b> ({of.status.replace('_', ' ')}).{!noOmie && ' Um pedido autorizado atualiza esse valor.'}</p>}
       {noOmie && <p className="fo-lan-of">A comissão de {nomeMes(d.mes).toLowerCase()} já está {pago ? 'paga' : 'lançada no Omie'} — mudanças agora só pelo RH.</p>}
       {e.pendentes > 0 && <p className="fo-lan-falta">Falta o motivo em {e.pendentes} OS — o diretor e o RH precisam saber por quê.</p>}
@@ -435,6 +472,8 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
             <div><dt>Competência</dt><dd>{nomeMes(d.mes)}</dd></div>
             <div><dt>Pela regra</dt><dd>{brl2(t.calc)}</dd></div>
             <div className="tot"><dt>Comissão a pagar</dt><dd>{brl2(t.total)}</dd></div>
+            <div><dt>Caixinha {PCT_CAIXINHA}%</dt><dd>− {brl2(contaDoPagamento(t.total, e.descontos).caixinha)}</dd></div>
+            <div><dt>Líquido (após descontos e caixinha)</dt><dd>{brl2(contaDoPagamento(t.total, e.descontos).liquido)}</dd></div>
           </dl>
           {mexidas.length > 0 && (
             <div className="flc-mex">
@@ -909,6 +948,9 @@ export const ESTILO_FO = `
 .fo-lan-apt { display: grid; gap: 3px; margin-top: 8px } .fo-lan-apt > span { font-size: 13.5px } .fo-lan-apt b { font-weight: 600 }
 .fo-lan-ass { display: grid; gap: 6px; background: #fefefe; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px } .fo-lan-ass > span { font-size: 12.5px; color: var(--portal-text-muted, #64748b) } .fo-lan-ass canvas { border: 1px dashed #cbd5e1; border-radius: 8px; background: #fefefe } .fo-lan-ass > button { justify-self: start }
 .fo-lan-doc { grid-column: 1 / -1; justify-self: start; margin: 0 22px 16px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: #0f172a; border-radius: 999px; padding: 8px 16px; font-family: inherit; font-size: 13.5px; cursor: pointer } .fo-lan-doc:hover { border-color: #0f172a }
+.fo-docs { grid-column: 1 / -1; display: grid; gap: 6px; margin: 0 22px 18px } .fo-docs > button { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; text-align: left; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 12px; padding: 9px 14px; font-family: inherit; color: #0f172a; cursor: pointer }
+.fo-docs > button:hover { border-color: #1d4ed8 } .fo-docs > button.on { border-color: #93c5fd; background: #eff6ff } .fo-docs > button > i { color: #1d4ed8; font-size: 16px }
+.fo-docs span { display: grid; gap: 1px; min-width: 0 } .fo-docs b { font-weight: 500; font-size: 14px } .fo-docs span small { font-size: 12px; color: #64748b } .fo-docs em { font-style: normal; font-variant-numeric: tabular-nums; font-size: 14px }
 .flc { display: grid; gap: 0; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 16px; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 12px 32px rgba(15,23,42,.08); overflow: hidden; animation: ftEntra .25s both }
 .flc-cab { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 18px 22px 14px } .flc-cab > div { display: grid; gap: 3px } .flc-tit { font-size: 18px; color: #0f172a } .flc-sub { font-size: 13.5px; color: #64748b }
 .flc-x { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--portal-border, #e2e8f0); background: #fefefe; color: #64748b; cursor: pointer }

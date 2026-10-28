@@ -8,6 +8,7 @@ import type { PedidoComissao, LinhaPedido, Apontamento, EventoComissao, TipoEven
 import CanvasAssinatura, { type CanvasAssinaturaRef } from '@/components/assinatura/CanvasAssinatura'
 import { Janela } from './JanelasInfo'
 import { brl2 } from './ui'
+import { contaDoPagamento, PCT_CAIXINHA } from '@/lib/mecanicos/descontos-tecnico'
 
 // ---------------------------------------------------------------- loja: pedidos + se quem vê é diretor
 let estado: { pedidos: PedidoComissao[] | null; diretor: boolean; semTabela: boolean } = { pedidos: null, diretor: false, semTabela: false }
@@ -54,17 +55,17 @@ const mexida = (l: LinhaPedido) => l.acao !== 'pagar' || !!l.divisao || Math.abs
 const decisao = (l: LinhaPedido) => l.acao === 'nao' ? 'não paga' : l.divisao ? `dividida (${Object.entries(l.divisao).map(([k, v]) => `${k.split(' ')[0]} ${brl2(v)}`).join(', ')})` : mexida(l) ? 'ajustada' : ''
 const ROT_EV: Record<TipoEvento, string> = { pedido: 'Pediu autorização', devolvida: 'Devolveu para ajuste', autorizada: 'Autorizou', espelhada: 'Lançada no RH', erro_rh: 'Erro ao lançar no RH', substituida: 'Substituída' }
 
-export function AutorizacoesJanela() {
+export function AutorizacoesJanela({ onFechar }: { onFechar?: () => void } = {}) {
   const a = useAutorizacoes()
-  return <AutorizacoesVista pedidos={a.pedidos} diretor={a.diretor} semTabela={a.semTabela} />
+  return <AutorizacoesVista pedidos={a.pedidos} diretor={a.diretor} semTabela={a.semTabela} onFechar={onFechar} />
 }
 
 /** O conteúdo da janela (separado da leitura para dar para ver com dados de exemplo). */
-export function AutorizacoesVista({ pedidos, diretor, semTabela, eventosIniciais, abaInicial }: { pedidos: PedidoComissao[] | null; diretor: boolean; semTabela: boolean; eventosIniciais?: EventoComissao[]; abaInicial?: 'pedidos' | 'historico' }) {
+export function AutorizacoesVista({ pedidos, diretor, semTabela, eventosIniciais, abaInicial, onFechar }: { pedidos: PedidoComissao[] | null; diretor: boolean; semTabela: boolean; eventosIniciais?: EventoComissao[]; abaInicial?: 'pedidos' | 'historico'; onFechar?: () => void }) {
   const [aba, setAba] = useState<'pedidos' | 'historico'>(abaInicial || 'pedidos')
   const abertos = (pedidos || []).filter((p) => p.status === 'aguardando')
   return (
-    <Janela titulo="Autorizações de comissão" sub={diretor ? 'você é o diretor: autorize ou devolva para ajuste' : 'pedidos esperando o diretor'} ic="fa-signature" cor="#1d4ed8">
+    <Janela titulo="Autorizações de comissão" sub={diretor ? 'você é o diretor: autorize ou devolva para ajuste' : 'pedidos esperando o diretor'} ic="fa-signature" cor="#1d4ed8" onFechar={onFechar}>
       <style>{ESTILO_AU}</style>
       <div className="au-abas">
         <button type="button" className={aba === 'pedidos' ? 'on' : ''} onClick={() => setAba('pedidos')}>Para autorizar{abertos.length > 0 && <span className="au-n">{abertos.length}</span>}</button>
@@ -114,6 +115,7 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
         <div><b>{p.tecnico}</b><small>comissão de {mesBR(p.mes)} · pedido e assinado por {p.pedido_por || '—'} em {quando(p.pedido_em)}</small></div>
         <div className="au-p-v"><b>{brl2(p.valor)}</b>{p.calculado != null && <small>{Math.abs(dif) > 0.01 ? <>pela regra {brl2(p.calculado)} · <em className={dif > 0 ? 'mais' : 'menos'}>{dif > 0 ? '+' : '−'}{brl2(Math.abs(dif))}</em></> : 'igual ao calculado pela regra'}</small>}</div>
       </div>
+      <ContaPagamento p={p} />
       <div className="au-sub">
         <span>{p.linhas.length} OS · {nMex ? `${nMex} com decisão do pós-vendas` : 'todas pela regra'}</span>
         {modo !== 'devolver' && p.linhas.length > nMex && <button type="button" onClick={() => setVerTodas((v) => !v)}>{verTodas ? 'só as com decisão' : 'ver todas as OS'}</button>}
@@ -160,13 +162,26 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
       {diretor && modo === 'assinar' && (
         <div className="au-box">
           <b>Autorizar {brl2(p.valor)} para {p.tecnico}</b>
-          <small>Assinando, a comissão vai para o RH como aprovada e o documento sai com a sua assinatura e a de {p.pedido_por || 'quem pediu'}.</small>
+          <small>Assinando, a comissão vai para o RH como aprovada, {PCT_CAIXINHA}% ({brl2(contaDoPagamento(p.valor, p.descontos).caixinha)}) vai para a caixinha dos técnicos e o documento sai com a sua assinatura e a de {p.pedido_por || 'quem pediu'}.</small>
           <div className="au-ass"><CanvasAssinatura ref={assRef} temTraco={assinou} onTraco={setAssinou} altura={140} />{assinou && <button type="button" className="au-volta" onClick={() => assRef.current?.limpar()}>limpar</button>}</div>
           <input placeholder="observação (opcional)" value={obs} onChange={(e) => setObs(e.target.value)} />
           <div className="au-dec"><button type="button" className="au-volta" onClick={() => setModo('ver')}>voltar</button><button type="button" className="au-pri" disabled={indo || !assinou} onClick={() => void enviar('autorizar')}>{indo ? 'Gravando no RH…' : 'Assinar e autorizar'}<span className="seta"><i className="fas fa-check" /></span></button></div>
         </div>
       )}
       {erro && <p className="au-erro">{erro}</p>}
+    </div>
+  )
+}
+
+/** O que o técnico recebe: comissão − descontos em folha (1ª parcela) − caixinha = líquido (igual ao documento). */
+function ContaPagamento({ p }: { p: PedidoComissao }) {
+  const c = contaDoPagamento(p.valor, p.descontos)
+  return (
+    <div className="au-conta">
+      <span><small>Comissão</small><b>{brl2(c.comissao)}</b></span>
+      {c.descontos > 0 && <span className="neg"><small>Descontos em folha</small><b>− {brl2(c.descontos)}</b></span>}
+      <span className="cx"><small><i className="fas fa-piggy-bank" /> Caixinha {PCT_CAIXINHA}%</small><b>− {brl2(c.caixinha)}</b></span>
+      <span className="liq"><small>Líquido para o técnico</small><b>{brl2(c.liquido)}</b></span>
     </div>
   )
 }
@@ -240,6 +255,9 @@ const ESTILO_AU = `
 .au-p-cab { display: flex; gap: 14px; justify-content: space-between; align-items: flex-start; flex-wrap: wrap }
 .au-p-cab > div:first-child { display: grid; gap: 2px } .au-p-cab b { font-size: 17px; font-weight: 600; color: #0f172a } .au-p-cab small { font-size: 13px; color: var(--portal-text-muted, #64748b) }
 .au-p-v { display: grid; justify-items: end; gap: 2px } .au-p-v b { font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums } .au-p-v em { font-style: normal } .au-p-v em.mais { color: #047857 } .au-p-v em.menos { color: #b91c1c }
+.au-conta { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: flex-end; background: #f8fafc; border-radius: 12px; padding: 10px 14px }
+.au-conta span { display: grid; gap: 1px } .au-conta small { font-size: 12px; color: #64748b } .au-conta b { font-size: 15.5px; font-weight: 500; font-variant-numeric: tabular-nums; color: #0f172a }
+.au-conta .neg b { color: #b91c1c } .au-conta .cx small { color: #047857 } .au-conta .cx b { color: #047857 } .au-conta .liq { margin-left: auto; text-align: right } .au-conta .liq b { font-size: 18px; font-weight: 600 }
 .au-sub { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 13px; color: #475569 } .au-sub button { border: none; background: none; padding: 0; font-family: inherit; font-size: 13px; color: #1d4ed8; cursor: pointer; text-decoration: underline; text-underline-offset: 3px }
 .au-lin { display: grid; font-size: 13.5px; color: #0f172a; border: 1px solid var(--portal-border, #eef2f7); border-radius: 10px; overflow: hidden }
 .au-th, .au-tr { display: grid; grid-template-columns: 64px minmax(130px, 1.3fr) 90px 90px minmax(160px, 1.6fr); gap: 10px; padding: 7px 12px; align-items: center }

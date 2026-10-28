@@ -4,6 +4,7 @@
 // PATCH {id, acao:'autorizar'|'devolver', observacao, apontamentos, assinatura} = diretor decide.
 import { NextRequest, NextResponse } from 'next/server'
 import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server'
+import { guardarComissao } from '@/lib/mecanicos/lancamento-comissao-rota'
 import { listarPedidos, listarEventos, pedirLancamento, decidirPedido, ehDiretor, SemTabela } from '@/lib/mecanicos/lancamento-comissao-server'
 
 export const runtime = 'nodejs'
@@ -18,7 +19,7 @@ const erro = (e: unknown) => {
 const metaDe = (req: NextRequest) => ({ ip: req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null, ua: req.headers.get('user-agent')?.slice(0, 300) || null })
 
 export async function GET(req: NextRequest) {
-  const g = await protegerRota(req, [{ modulo: 'mecanicos' }, { modulo: 'pos' }])
+  const g = await guardarComissao(req)
   if (g.resposta) return g.resposta
   const p = req.nextUrl.searchParams
   try {
@@ -44,11 +45,11 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PATCH(req: NextRequest) {
-  const g = await protegerRota(req, [{ modulo: 'mecanicos' }, { modulo: 'pos' }])
+  const g = await guardarComissao(req)
   if (g.resposta) return g.resposta
   try {
     const b = await req.json()
     const acao = b.acao === 'devolver' ? 'devolver' : 'autorizar'
-    return NextResponse.json(await decidirPedido(String(b.id || ''), { acao, observacao: b.observacao, apontamentos: b.apontamentos, assinatura: b.assinatura }, { id: g.user!.id, nome: autorDe(g.user!) }, metaDe(req)))
+    return NextResponse.json(await decidirPedido(String(b.id || ''), { acao, observacao: b.observacao, apontamentos: b.apontamentos, assinatura: b.assinatura }, { id: g.user!.id, nome: g.user!.nome }, metaDe(req)))
   } catch (e) { return erro(e) }
 }

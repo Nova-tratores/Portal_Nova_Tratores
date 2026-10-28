@@ -48,3 +48,14 @@ export function resumoParcelas(x: DescontoPedido, mesPadrao: string): string {
   const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
   return ps.length === 1 ? `1x de ${brl(ps[0].valor)} · ${mesCurto(ps[0].mes)}` : `${ps.length}x de ${brl(ps[0].valor)} · ${mesCurto(ps[0].mes)} a ${mesCurto(ps[ps.length - 1].mes)}`
 }
+
+/** % da comissão do técnico que vai para a caixinha (RH: lib/caixinha.ts PCT_CAIXINHA). */
+export const PCT_CAIXINHA = 1
+export const caixinhaDe = (valor: number) => (valor > 0 ? Math.round(valor * PCT_CAIXINHA) / 100 : 0)
+/** A conta do pagamento, igual ao documento assinado: comissão − 1ª parcela de cada desconto − caixinha = líquido. */
+export function contaDoPagamento(valor: number, descontos: DescontoPedido[] | null | undefined) {
+  const primeira = (x: DescontoPedido) => Math.round((x.valor / qtdParcelas(x)) * 100) / 100
+  const desc = Math.round((descontos || []).reduce((a, x) => a + primeira(x), 0) * 100) / 100
+  const caixinha = caixinhaDe(valor)
+  return { comissao: valor, descontos: desc, caixinha, liquido: Math.round((valor - desc - caixinha) * 100) / 100 }
+}

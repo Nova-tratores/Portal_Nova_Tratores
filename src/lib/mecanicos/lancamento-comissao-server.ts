@@ -9,7 +9,7 @@ import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
 import { clienteRH } from './rh-server'
 import { chaveDoTecnico } from './comissao-detalhe'
 import { casarNome } from './ocorrencias-painel'
-import { parcelasDoDesconto, qtdParcelas, type DescontoPedido } from './descontos-tecnico'
+import { parcelasDoDesconto, qtdParcelas, caixinhaDe, type DescontoPedido } from './descontos-tecnico'
 export type { DescontoPedido } from './descontos-tecnico'
 
 type Rec = Record<string, unknown>
@@ -130,7 +130,7 @@ export async function pedirLancamento(
   const mexidas = p.linhas.filter(linhaMexida)
   await registrar(ped, 'pedido', autor, r2(p.valor), { calculado: r2(p.calculado), os: p.linhas.length, mexidas: mexidas.map((l) => ({ numero: l.numero, acao: l.divisao ? 'dividir' : l.acao, valor: l.valor, calculado: l.calculado, motivo: l.motivo })), descontos })
   const ds = await diretores()
-  await avisar(ds, `Comissão para autorizar: ${p.tecnico}`, `${p.mes.slice(5)}/${p.mes.slice(0, 4)} · ${brl(p.valor)}${mexidas.length ? ` · ${mexidas.length} OS com decisão` : ''} — pedido de ${autor.nome}`, '/mecanicos?aba=mecanicos&janela=autorizacoes')
+  await avisar(ds, `Comissão para autorizar: ${p.tecnico}`, `${p.mes.slice(5)}/${p.mes.slice(0, 4)} · ${brl(p.valor)}${mexidas.length ? ` · ${mexidas.length} OS com decisão` : ''} — pedido de ${autor.nome}`, '/dashboard?comissoes=1')
   return { pedido: ped, semDiretor: ds.length === 0 }
 }
 
@@ -181,6 +181,30 @@ export async function decidirPedido(
   }
 }
 
+/** O 1% da caixinha, igual ao RH faz ao aprovar (contribuirComissao): sem isso a comissão autorizada aqui não
+ *  punha nada na caixinha e o Omie lançava 100% (José, 28/10/2026). Refaz se o valor mudou; zerada = tira. */
+async function caixinhaDaComissao(c: NonNullable<ReturnType<typeof clienteRH>>, k: { id: string; funcionarioId: string; valor: number; mes: number; ano: number }) {
+  if (!k.id) return
+  const novo = caixinhaDe(k.valor)
+  const { data: ja } = await c.from('rh_caixinha_mov').select('id, valor').eq('tipo', 'contribuicao').eq('referencia_id', k.id).maybeSingle()
+  if (ja && Math.abs(Number((ja as Rec).valor) - novo) < 0.005) return
+  if (ja) {
+    const { error } = await c.from('rh_caixinha_mov').delete().eq('id', (ja as Rec).id)
+    if (error) throw new Error(`RH (caixinha): ${error.message}`)
+  }
+  if (novo <= 0) { await c.from('rh_comissoes').update({ caixinha_contribuicao: null }).eq('id', k.id); return }
+  const { data: ciclo, error: ec } = await c.from('rh_caixinha_ciclo').select('id').eq('status', 'aberto')
+    .order('inicio_ano', { ascending: false }).order('inicio_mes', { ascending: false }).limit(1).maybeSingle()
+  if (ec || !ciclo) return // sem ciclo aberto o RH também não contribui
+  const { error } = await c.from('rh_caixinha_mov').insert({
+    ciclo_id: (ciclo as Rec).id, funcionario_id: k.funcionarioId, tipo: 'contribuicao', valor: novo,
+    competencia_mes: k.mes, competencia_ano: k.ano, referencia_id: k.id, descricao: `1% da comissão ${k.mes}/${k.ano}`, usuario_nome: 'Portal',
+  })
+  if (error && !/duplicate|unique/i.test(error.message)) throw new Error(`RH (caixinha): ${error.message}`)
+  const { error: eu } = await c.from('rh_comissoes').update({ caixinha_contribuicao: novo }).eq('id', k.id)
+  if (eu) throw new Error(`RH (caixinha): ${eu.message}`)
+}
+
 /** Espelha no RH: comissão do mês + ajustes por OS (com motivo). Devolve o id da comissão no RH. */
 async function espelharNoRH(p: PedidoComissao, autor: string): Promise<string> {
   const c = clienteRH()
@@ -221,6 +245,7 @@ async function espelharNoRH(p: PedidoComissao, autor: string): Promise<string> {
     if (error) throw new Error(`RH: ${error.message}`)
     rhId = String((nova as Rec).id)
   }
+  await caixinhaDaComissao(c, { id: rhId, funcionarioId: String(f.id), valor: p.valor, mes, ano })
   // descontos do técnico: viram desconto no RH (folha), como o RH faz pela tela de comissão
   if (p.descontos?.length) {
     const { data: tipo } = await c.from('rh_desconto_tipos').select('id').eq('codigo', 'outro').maybeSingle()

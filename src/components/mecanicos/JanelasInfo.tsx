@@ -15,19 +15,21 @@ import { brl2 } from './ui'
 
 const MUDO = 'var(--portal-text-muted, #64748b)'
 
-export function Janela({ titulo, sub, ic, cor, children }: { titulo: string; sub: string; ic: string; cor: string; children: React.ReactNode }) {
+export function Janela({ titulo, sub, ic, cor, children, onFechar }: { titulo: string; sub: string; ic: string; cor: string; children: React.ReactNode; onFechar?: () => void }) {
+  // fora da Janela Mecânicos (ex.: o aviso do diretor) quem abriu fecha
+  const fechar = onFechar || (() => abrirModalMec(null))
   useEffect(() => {
-    const t = (e: KeyboardEvent) => { if (e.key === 'Escape') abrirModalMec(null) }
+    const t = (e: KeyboardEvent) => { if (e.key !== 'Escape') return; if (onFechar) onFechar(); else abrirModalMec(null) }
     window.addEventListener('keydown', t); return () => window.removeEventListener('keydown', t)
-  }, [])
+  }, [onFechar])
   const tela = (
-    <div className="ji-fundo" onClick={() => abrirModalMec(null)}>
+    <div className="ji-fundo" onClick={fechar}>
       <style>{ESTILO_JI}</style>
       <div className="ji" role="dialog" aria-label={titulo} onClick={(e) => e.stopPropagation()} style={{ '--jc': cor } as React.CSSProperties}>
         <header className="ji-cab">
           <span className="ji-ic"><i className={`fas ${ic}`} /></span>
           <div><b>{titulo}</b><small>{sub}</small></div>
-          <button type="button" onClick={() => abrirModalMec(null)} aria-label="Fechar"><i className="fas fa-xmark" /></button>
+          <button type="button" onClick={fechar} aria-label="Fechar"><i className="fas fa-xmark" /></button>
         </header>
         <div className="ji-corpo">{children}</div>
       </div>
