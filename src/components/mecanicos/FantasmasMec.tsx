@@ -131,6 +131,21 @@ export default function FantasmasMec({ mes }: { mes: string }) {
 }
 
 /** Barra que cresce; `fantasma` é a parte além de `base`, listrada e andando. */
+/** Uma comparação: duas fontes, uma barrinha para cada e a diferença dita em palavras. */
+function Compara({ titulo, a, b, fmt, dif, nota, atraso }: { titulo: string; a: { rot: string; v: number; cor: string }; b: { rot: string; v: number; cor: string }; fmt: (n: number) => string; dif: { t: string; tom: 'v' | 'a' | 'n' | 'ok' }; nota?: string; atraso: number }) {
+  const mx = Math.max(a.v, b.v, 0.0001)
+  return (
+    <div className="fan-cmp" style={{ animationDelay: `${atraso}ms` }}>
+      <b className="fan-cmp-t">{titulo}</b>
+      {[a, b].map((l, i) => (
+        <div key={i} className="fan-cmp-l"><small>{l.rot}</small><span><i style={{ width: `${(l.v / mx) * 100}%`, background: l.cor, animationDelay: `${atraso + 100 + i * 80}ms` }} /></span><b>{fmt(l.v)}</b></div>
+      ))}
+      <span className={`fan-cmp-d ${dif.tom}`}><i className={`fas ${dif.tom === 'ok' ? 'fa-check' : 'fa-arrow-right'}`} /> {dif.t}</span>
+      {nota && <small className="fan-cmp-n">{nota}</small>}
+    </div>
+  )
+}
+
 function Barra({ rot, v, max, cor, fmt, base, dica, atraso }: { rot: string; v: number; max: number; cor: string; fmt: (n: number) => string; base?: number; dica?: string; atraso: number }) {
   const w = max > 0 ? Math.min(100, (v / max) * 100) : 0
   const b = base != null && base < v ? Math.max(0, (base / max) * 100) : null
@@ -187,30 +202,34 @@ export function CartaoTecnico({ t, ordem = 0 }: { t: TecnicoFantasma; ordem?: nu
         <div><b>{t.tecnico}</b><small>{t.os.length} OS no mês{t.placas.length ? ` · carro ${t.placas.join(', ')}` : ' · sem carro identificado'}</small></div>
         <span className={`fan-nivel ${nivel}`}>{nivel === 'alto' ? 'atenção' : nivel === 'medio' ? 'olhar' : 'em dia'}</span>
       </header>
+      {/* 28/10/2026 (José: "colocar as informações assim: km colocado na ordem × km rodado GPS, e assim segue"):
+          cada linha compara duas fontes lado a lado e diz a diferença */}
       <div className="fan-blocos">
         <div className="fan-bloco">
-          <span className="fan-rot">Horas</span>
-          <Barra rot="Carro ligado" v={x.ligadoH} max={maxH} cor="#94a3b8" fmt={h} atraso={b0 + 100} dica="tempo com o motor do carro ligado no mês (rastreador)" />
-          <Barra rot="Relatório" v={x.horasRel} max={maxH} cor="#2563eb" fmt={h} atraso={b0 + 180} base={x.horasCobradas} dica="a parte listrada foi apontada e não cobrada" />
-          <Barra rot="Cobrado na OS" v={x.horasCobradas} max={maxH} cor="#059669" fmt={h} atraso={b0 + 260} />
-          <Barra rot="Tempário" v={x.horasPrevistas} max={maxH} cor="#7c3aed" fmt={h} atraso={b0 + 340} dica={`previsão das OS já analisadas (${h(x.horasRelAnalisadas)} apontadas nelas)`} />
-          <div className="fan-chips">
-            {x.acimaTempario > 0 && <span className="v">+{h(x.acimaTempario)} acima do tempário</span>}
-            {x.naoCobradas > 0 && <span className="a">{h(x.naoCobradas)} não cobradas</span>}
-            {x.ligadoSemOS > 0 && <span className="n">{h(x.ligadoSemOS)} ligado sem OS</span>}
-            {x.osSemAnalise > 0 && <span className="n">{x.osSemAnalise} OS sem análise</span>}
-          </div>
+          <span className="fan-rot"><i className="fas fa-clock" /> Horas</span>
+          <Compara titulo="Cobrado na OS × apontado no relatório" fmt={h} atraso={b0 + 100}
+            a={{ rot: 'na OS', v: x.horasCobradas, cor: '#059669' }} b={{ rot: 'no relatório', v: x.horasRel, cor: '#2563eb' }}
+            dif={x.naoCobradas > 0 ? { t: `${h(x.naoCobradas)} trabalhadas e não cobradas`, tom: 'a' } : { t: 'tudo que apontou foi cobrado', tom: 'ok' }} />
+          <Compara titulo="Apontado no relatório × tempário Mahindra" fmt={h} atraso={b0 + 180}
+            a={{ rot: 'no relatório', v: x.horasRelAnalisadas, cor: '#2563eb' }} b={{ rot: 'tempário', v: x.horasPrevistas, cor: '#7c3aed' }}
+            dif={x.acimaTempario > 0 ? { t: `+${h(x.acimaTempario)} acima do tempário`, tom: 'v' } : { t: 'dentro do tempário', tom: 'ok' }}
+            nota={x.osSemAnalise > 0 ? `só as OS já analisadas · ${x.osSemAnalise} sem análise` : 'só as OS já analisadas'} />
+          <Compara titulo="Apontado no relatório × carro ligado (GPS)" fmt={h} atraso={b0 + 260}
+            a={{ rot: 'no relatório', v: x.horasRel, cor: '#2563eb' }} b={{ rot: 'carro ligado', v: x.ligadoH, cor: '#94a3b8' }}
+            dif={x.ligadoSemOS > 0 ? { t: `${h(x.ligadoSemOS)} de carro ligado em dia sem OS`, tom: 'n' } : { t: 'carro ligado só em dia de OS', tom: 'ok' }} />
         </div>
         <div className="fan-bloco">
-          <span className="fan-rot">Quilômetros</span>
-          <Barra rot="Carro" v={x.kmCarro} max={maxK} cor="#94a3b8" fmt={km} atraso={b0 + 140} base={x.kmRel} dica="a parte listrada o carro rodou e não está em nenhum relatório" />
-          <Barra rot="Relatório" v={x.kmRel} max={maxK} cor="#2563eb" fmt={km} atraso={b0 + 220} base={x.kmCobrado} dica="a parte listrada está no relatório e não foi cobrada" />
-          <Barra rot="Cobrado na OS" v={x.kmCobrado} max={maxK} cor="#059669" fmt={km} atraso={b0 + 300} />
-          <div className="fan-chips">
-            {x.kmFantasma > 0 && <span className="v">{km(x.kmFantasma)} fora dos relatórios</span>}
-            {x.kmSemOS > 0 && <span className="a">{km(x.kmSemOS)} em {x.diasCarroSemOS} dia{x.diasCarroSemOS === 1 ? '' : 's'} sem OS</span>}
-            {x.kmRel > x.kmCobrado && <span className="n">{km(x.kmRel - x.kmCobrado)} não cobrados</span>}
-          </div>
+          <span className="fan-rot"><i className="fas fa-road" /> Quilômetros</span>
+          <Compara titulo="Km colocado na OS × km rodado (GPS)" fmt={km} atraso={b0 + 140}
+            a={{ rot: 'na OS', v: x.kmCobrado, cor: '#059669' }} b={{ rot: 'GPS', v: x.kmCarro, cor: '#94a3b8' }}
+            dif={x.kmCarro > x.kmCobrado ? { t: `${km(x.kmCarro - x.kmCobrado)} rodados e não cobrados`, tom: 'v' } : { t: 'cobrou tudo que rodou', tom: 'ok' }} />
+          <Compara titulo="Km no relatório × km rodado (GPS)" fmt={km} atraso={b0 + 220}
+            a={{ rot: 'no relatório', v: x.kmRel, cor: '#2563eb' }} b={{ rot: 'GPS', v: x.kmCarro, cor: '#94a3b8' }}
+            dif={x.kmFantasma > 0 ? { t: `${km(x.kmFantasma)} rodados fora dos relatórios`, tom: 'v' } : { t: 'tudo que rodou está no relatório', tom: 'ok' }}
+            nota={x.kmSemOS > 0 ? `${km(x.kmSemOS)} em ${x.diasCarroSemOS} dia${x.diasCarroSemOS === 1 ? '' : 's'} sem nenhuma OS` : undefined} />
+          <Compara titulo="Km colocado na OS × km no relatório" fmt={km} atraso={b0 + 300}
+            a={{ rot: 'na OS', v: x.kmCobrado, cor: '#059669' }} b={{ rot: 'no relatório', v: x.kmRel, cor: '#2563eb' }}
+            dif={x.kmRel > x.kmCobrado ? { t: `${km(x.kmRel - x.kmCobrado)} do relatório não cobrados`, tom: 'a' } : { t: 'o relatório foi todo cobrado', tom: 'ok' }} />
         </div>
       </div>
       {/* gráfico do mês tirado do cartão (José, 21/10/2026); o dia a dia continua na aba "Dia a dia" */}
@@ -321,6 +340,14 @@ export const ESTILO_FAN = `
 .fan-bar-f { border-radius: 99px }
 .fan-bar-g { border-radius: 0 99px 99px 0; background: repeating-linear-gradient(-45deg, color-mix(in srgb, #dc2626 75%, transparent) 0 6px, color-mix(in srgb, #dc2626 25%, transparent) 6px 12px); background-size: 28px 100%; animation: fanCresce 1s var(--d) cubic-bezier(.2,.8,.2,1) both, fanListra 1.2s linear infinite }
 .fan-bar-v { text-align: right; font-variant-numeric: tabular-nums }
+.fan-cmp { display: grid; gap: 5px; background: #f8fafc; border-radius: 12px; padding: 10px 12px; animation: fanSobe .45s both }
+.fan-cmp-t { font-size: 13.5px; font-weight: 500; color: #0f172a; margin-bottom: 2px }
+.fan-cmp-l { display: grid; grid-template-columns: 86px minmax(0, 1fr) 78px; gap: 8px; align-items: center } .fan-cmp-l small { font-size: 12.5px; color: #475569 } .fan-cmp-l > b { font-size: 13.5px; font-weight: 500; color: #0f172a; text-align: right; font-variant-numeric: tabular-nums }
+.fan-cmp-l span { height: 8px; border-radius: 99px; background: #eef2f6; overflow: hidden } .fan-cmp-l span i { display: block; height: 100%; border-radius: 99px; transform-origin: left; animation: fanBarra .9s cubic-bezier(.2,.8,.2,1) both }
+.fan-cmp-d { justify-self: start; font-size: 12.5px; border-radius: 99px; padding: 3px 10px; margin-top: 2px } .fan-cmp-d i { font-size: 10.5px; margin-right: 2px }
+.fan-cmp-d.v { background: #fee2e2; color: #991b1b } .fan-cmp-d.a { background: #fef3c7; color: #92400e } .fan-cmp-d.n { background: #eef2f6; color: #334155 } .fan-cmp-d.ok { background: #dcfce7; color: #166534 }
+.fan-cmp-n { font-size: 12px; color: #64748b }
+.fan-rot i { color: #64748b; margin-right: 4px; font-size: 13px }
 .fan-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 2px } .fan-chips span { font-size: 12.5px; border-radius: 99px; padding: 4px 10px; animation: fanSobe .4s .6s both }
 .fan-chips .v { background: #fee2e2; color: #991b1b } .fan-chips .a { background: #fef3c7; color: #92400e } .fan-chips .n { background: #f1f5f9; color: #475569 }
 .fan-mes-box { display: grid; gap: 8px; padding: 12px 14px; border-radius: 14px; background: #f8fafc }
