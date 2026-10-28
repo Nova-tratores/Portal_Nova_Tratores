@@ -257,12 +257,7 @@ export default function PainelTecnicos() {
             </button>
           )}
 
-          <Secao n={5} cor="#0891b2" ic="fa-chart-line" titulo="Evolução" sub="faturado, resultado, horas e gastos ao longo dos períodos" />
-          {/* 5. evolução */}
-          <Cartao titulo="Evolução" atraso={200}>
-            {/* E1 animada (José, 19/10/2026: "pode ser esse, mas deixa animado") */}
-            {d && <EvolucaoViva pontos={pontosDoPainel(d, ref)} onIr={setRef} />}
-          </Cartao>
+          {/* 28/10/2026: o bloco Evolução saiu (José: "pode remover esse bloco inútil") */}
         </div>
       )}
       </div>
@@ -298,7 +293,6 @@ const ASSUNTOS: Assunto[] = [
   { n: 2, cor: '#0f766e', ic: 'fa-sack-dollar', titulo: 'Para onde foi o dinheiro' },
   { n: 3, cor: '#d97706', ic: 'fa-hourglass-half', titulo: 'Dinheiro parado' },
   { n: 4, cor: '#7c3aed', ic: 'fa-users-gear', titulo: 'Garantias' },
-  { n: 5, cor: '#0891b2', ic: 'fa-chart-line', titulo: 'Evolução' },
 ]
 
 /** Trilho de assuntos ao lado (N3 escolhida na página de teste, 19/10): a bolinha do assunto em que você está

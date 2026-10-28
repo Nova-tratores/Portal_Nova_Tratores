@@ -656,11 +656,11 @@ export const ESTILO_FP = `
 .fp-escada { display: grid; grid-template-columns: 1fr 1.2fr 1.45fr 1.75fr; gap: 12px; align-items: stretch }
 .fp-deg { display: grid; gap: 4px; align-content: start; text-align: left; background: #fefefe; border: 1px solid #e2e8f0; border-radius: 16px; padding: 14px 16px; font-family: inherit; color: ${TXT}; cursor: pointer; transition: transform .25s, box-shadow .25s, border-color .25s, filter .25s, opacity .25s }
 .fp-deg:hover { transform: translateY(-2px); box-shadow: 0 10px 24px -12px rgba(15,23,42,.35) }
-.fp-deg { --c: #2563eb; background: linear-gradient(180deg, color-mix(in srgb, var(--c) 7%, #fefefe), #fefefe 55%) }
+.fp-deg { --c: #2563eb; background: #fefefe }
 .fp-deg-t span { color: var(--c) }
 .fp-deg:hover { border-color: color-mix(in srgb, var(--c) 45%, #e2e8f0) }
-.fp-deg.on { border-color: var(--c); box-shadow: 0 0 0 2px var(--c), 0 14px 30px -14px color-mix(in srgb, var(--c) 70%, transparent); background: linear-gradient(180deg, color-mix(in srgb, var(--c) 12%, #fefefe), #fefefe 60%) }
-.fp-deg-t { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: ${SEG} } .fp-deg-t span { display: inline-flex; align-items: center; gap: 6px } .fp-deg-t em { font-style: normal; font-size: 12px; color: #fefefe; background: var(--c); border-radius: 99px; padding: 2px 9px }
+.fp-deg.on { border-color: color-mix(in srgb, var(--c) 45%, #e2e8f0); box-shadow: 0 0 0 1px color-mix(in srgb, var(--c) 30%, transparent), 0 10px 24px -16px color-mix(in srgb, var(--c) 50%, transparent); background: color-mix(in srgb, var(--c) 4%, #fefefe) }
+.fp-deg-t { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: ${SEG} } .fp-deg-t > span:first-child { display: inline-flex; align-items: center; gap: 7px; font-size: 15.5px; font-weight: 600; letter-spacing: .01em; color: color-mix(in srgb, var(--c) 85%, #0f172a); background: color-mix(in srgb, var(--c) 10%, #fefefe); border-radius: 99px; padding: 4px 12px } .fp-deg-t span { display: inline-flex; align-items: center; gap: 6px } .fp-deg-t em { font-style: normal; font-size: 12px; color: color-mix(in srgb, var(--c) 85%, #0f172a); background: color-mix(in srgb, var(--c) 12%, #fefefe); border-radius: 99px; padding: 2px 9px }
 .fp-vivo { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; box-shadow: 0 0 0 3px #16a34a33 }
 .fp-deg > small { font-size: 13px; color: ${SEG} }
 .fp-deg > b { line-height: 1.15; margin-top: 4px } .fp-deg.d0 > b { font-size: 22px } .fp-deg.d1 > b { font-size: 26px } .fp-deg.d2 > b { font-size: 30px } .fp-deg.d3 > b { font-size: 34px }
@@ -686,16 +686,17 @@ export const ESTILO_FP = `
 .fp-b { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: ${TXT}; background: #fff7ed; border: 1px solid #fed7aa; border-radius: 99px; padding: 4px 12px 4px 4px; animation: fpEntra .3s both }
 .fp-b em { font-style: normal; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: #ea580c; color: #fefefe; font-size: 12px; font-weight: 700 }
 .fp-mix { display: flex; height: 10px; border-radius: 99px; overflow: hidden; gap: 2px }
-.fp-mix i { background: var(--c); transition: flex-grow .5s, opacity .3s, filter .3s } .fp-mix i.fora { opacity: .18; filter: grayscale(1) }
+.fp-mix i { background: color-mix(in srgb, var(--c) 55%, #fefefe); transition: flex-grow .5s, opacity .3s, filter .3s } .fp-mix i.fora { opacity: .18; filter: grayscale(1) }
 .fp-chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px }
 .fp-chip { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; border: 1.5px dashed #cbd5e1; background: #fefefe; border-radius: 14px; padding: 10px 14px; font-family: inherit; color: ${SEG}; cursor: pointer; text-align: left; transition: background .3s, border-color .3s, color .3s, box-shadow .3s, transform .2s }
 .fp-chip:hover:not(.fixo) { transform: translateY(-2px); border-color: var(--c); color: ${TXT}; box-shadow: 0 10px 22px -14px var(--c) }
 .fp-chip-ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 15px; font-weight: 700; background: #f1f5f9; color: ${SEG}; transition: all .3s }
 .fp-chip-n { display: grid; font-size: 14.5px; font-weight: 600; line-height: 1.25 } .fp-chip-n small { font-size: 12.5px; font-weight: 400; opacity: .85 }
 .fp-chip-v { font-size: 16px; font-weight: 700; text-align: right; white-space: nowrap }
-.fp-chip.on { border: 1.5px solid transparent; background: linear-gradient(135deg, var(--c), color-mix(in srgb, var(--c) 70%, #0f172a)); color: #fefefe; box-shadow: 0 10px 24px -14px var(--c) }
-.fp-chip.on .fp-chip-ic { background: rgba(255,255,255,.22); color: #fefefe }
-.fp-chip.on:hover { box-shadow: 0 14px 28px -12px var(--c) }
+.fp-chip.on { border: 1.5px solid color-mix(in srgb, var(--c) 35%, #e2e8f0); background: color-mix(in srgb, var(--c) 7%, #fefefe); color: ${TXT} }
+.fp-chip.on .fp-chip-ic { background: color-mix(in srgb, var(--c) 18%, #fefefe); color: color-mix(in srgb, var(--c) 85%, #0f172a) }
+.fp-chip.on .fp-chip-v { color: color-mix(in srgb, var(--c) 85%, #0f172a) }
+.fp-chip.on:hover { box-shadow: 0 10px 22px -16px var(--c) }
 .fp-chip.fixo { cursor: default }
 .fp-nav > .fp-metas, .fp-metas { display: flex; flex-wrap: nowrap; gap: 8px; min-width: 0; text-align: left; align-items: center }
 .fp-meta { position: relative }
