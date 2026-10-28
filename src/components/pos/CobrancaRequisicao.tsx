@@ -23,6 +23,7 @@ export interface ReqCobranca {
   cobranca_motivo?: string | null;
   cobranca_por?: string | null;
   cobranca_em?: string | null;
+  setor?: string | null;
 }
 
 // Regra única nas regras puras do servidor (src/lib/pos/cobranca-requisicoes-regras.ts) (José, 26/10/2026)

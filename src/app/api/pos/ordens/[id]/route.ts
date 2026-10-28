@@ -48,7 +48,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // 2. Novo: Requisicao.ordem_servico = idOs (tabela principal)
-  const colsReq = "id, titulo, tipo, solicitante, status, valor_despeza, valor_cobrado_cliente, recibo_fornecedor, fornecedor";
+  const colsReq = "id, titulo, tipo, setor, solicitante, status, valor_despeza, valor_cobrado_cliente, recibo_fornecedor, fornecedor";
   let { data: reqsVinculadas, error: errReqs } = await supabase
     .from("Requisicao")
     .select(`${colsReq}, ordem_servico, created_at, cobranca_status, cobranca_motivo, cobranca_por, cobranca_em`)

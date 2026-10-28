@@ -9,7 +9,7 @@ import { paginar, emLotes } from "@/lib/db/paginar";
 import { codigosDoDocumento } from "@/lib/clientes/info-pasta";
 import { usuariosPosVendas, notificarUsuarios } from "@/lib/faturamento/alerta-ti";
 import {
-  INICIO_CONTROLE_COBRANCA, ROBO_COBRANCA, MOTIVO_MIN, deveSerCobrada, ehCobravel, ehOsTeste, reqCancelada,
+  INICIO_CONTROLE_COBRANCA, ROBO_COBRANCA, MOTIVO_MIN, deveSerCobrada, ehCobravel, ehOsTeste, reqCancelada, reqCustoDaLoja,
   temValorCobrado, textoLembreteCobranca, valorCobradoTexto, type ReqCobranca,
 } from "./cobranca-requisicoes-regras";
 
@@ -17,7 +17,7 @@ export * from "./cobranca-requisicoes-regras";
 
 const TBL_LEMBRETES = "lembretes_clientes";
 const TIPO_LEMBRETE = "cobranca_requisicao";
-const COLS_REQ = "id, titulo, tipo, status, valor_despeza, valor_cobrado_cliente, ordem_servico, cliente, cliente_cnpj, created_at, cobranca_status, cobranca_motivo";
+const COLS_REQ = "id, titulo, tipo, setor, status, valor_despeza, valor_cobrado_cliente, ordem_servico, cliente, cliente_cnpj, created_at, cobranca_status, cobranca_motivo";
 
 type Req = ReqCobranca & { id: number; cliente?: string | null; cliente_cnpj?: string | null; cobranca_motivo?: string | null };
 type OS = { Id_Ordem: string; Os_Cliente: string | null; Cnpj_Cliente: string | null };
@@ -124,6 +124,15 @@ export async function vigiarCobrancas(): Promise<{ resumo?: string; pular?: stri
         }
         continue;
       }
+      if (reqCustoDaLoja(r)) {
+        // abastecimento/manutenção de veículo e trator da loja: custo da loja, sai da vigia
+        if (r.cobranca_status === "a_cobrar") {
+          await concluirLembretesDaRequisicao(r.id, "Custo da loja (não se cobra do cliente)", ROBO_COBRANCA, idOs);
+          await sb.from("Requisicao").update({ cobranca_status: null, cobranca_por: ROBO_COBRANCA, cobranca_em: agora() }).eq("id", r.id);
+          canceladas++;
+        }
+        continue;
+      }
       if (temValorCobrado(r)) {
         if (r.cobranca_status === "a_cobrar" || ehCobravel(r)) {
           await sb.from("Requisicao").update({ cobranca_status: "cobrada", cobranca_motivo: null, cobranca_por: ROBO_COBRANCA, cobranca_em: agora() }).eq("id", r.id);
@@ -162,7 +171,7 @@ export async function vigiarCobrancas(): Promise<{ resumo?: string; pular?: stri
 
   if (erros.length && !novos && !cobradas && !canceladas) throw new Error(erros.slice(0, 5).join(" | "));
   const partes = [`${reqs.length} na vigia`, `${novos} nova(s) a cobrar`, `${cobradas} cobrada(s)`];
-  if (canceladas) partes.push(`${canceladas} cancelada(s)`);
+  if (canceladas) partes.push(`${canceladas} fechada(s) (cancelada ou custo da loja)`);
   if (recriados) partes.push(`${recriados} lembrete(s) reaberto(s)`);
   if (erros.length) partes.push(`${erros.length} erro(s): ${erros.slice(0, 3).join(" | ")}`);
   return { resumo: partes.join(" · ") };

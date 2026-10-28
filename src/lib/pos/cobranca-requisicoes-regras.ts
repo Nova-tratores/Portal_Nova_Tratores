@@ -14,6 +14,7 @@ export type ReqCobranca = {
   ordem_servico?: string | null;
   created_at?: string | null;
   cobranca_status?: string | null;
+  setor?: string | null;
 };
 
 /** Início do controle: 26/10/2026 00:00 de Brasília. Antes disso a carga do SQL marcou como "não cobrada". */
@@ -27,13 +28,18 @@ const vazio = (v: unknown) => v === null || v === undefined || String(v).trim() 
 
 export const reqCancelada = (r: ReqCobranca) => ["lixeira", "cancelar", "cancelada"].includes(String(r.status || "").trim().toLowerCase());
 export const reqAlimentacao = (r: ReqCobranca) => /alimenta/i.test(String(r.tipo || ""));
+/** Custo da própria loja, nunca cobrado do cliente mesmo com OS (José, 28/10/2026) */
+export const TIPOS_CUSTO_LOJA = ["Veicular Abastecimento", "Veicular Manutenção"];
+export const SETORES_CUSTO_LOJA = ["Trator-Loja"];
+export const reqCustoDaLoja = (r: ReqCobranca) =>
+  TIPOS_CUSTO_LOJA.includes(String(r.tipo || "").trim()) || SETORES_CUSTO_LOJA.includes(String(r.setor || "").trim());
 /** OS de teste (Id_Ordem terminando em -T1/-T2/-T3): o robô nunca mexe */
 export const ehOsTeste = (id: unknown) => /-T[123]$/i.test(String(id || "").trim());
 export const temValorCobrado = (r: ReqCobranca) => !vazio(r.valor_cobrado_cliente);
 
 /** Requisição que, pela natureza, tem de ser cobrada do cliente (independe de já ter valor). */
 export function ehCobravel(r: ReqCobranca): boolean {
-  if (reqCancelada(r) || reqAlimentacao(r)) return false;
+  if (reqCancelada(r) || reqAlimentacao(r) || reqCustoDaLoja(r)) return false;
   return !vazio(r.ordem_servico) || TIPOS_COBRAVEIS_SEM_OS.includes(String(r.tipo || "").trim());
 }
 
