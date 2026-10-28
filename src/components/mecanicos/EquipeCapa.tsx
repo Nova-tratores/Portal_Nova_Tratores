@@ -97,45 +97,33 @@ export default function EquipeCapa({ mes }: { mes: string }) {
         <span className="eqc-t"><i className="fas fa-people-group" /> A equipe toda em {nomeMes} · {n} mecânicos somados</span>
         <CaixaAguardando />
       </div>
-      <div className="eqc-faixa">
-        <div className="eqc-regua" aria-label="Onde a equipe está no mês">
-          <div className="eqc-regua-trilho">
-            <u style={{ width: pos(d.feitas) }} />
-            {d.atual && <s className="hoje" style={{ left: pos(esperadoHoje) }} />}
-            <s className="bas" style={{ left: pos(metaMes) }} />
-            <s className="ide" style={{ left: '100%' }} />
-            <span className="eqc-eu" style={{ left: pos(d.feitas) }}><b>{h1(d.feitas)} h</b><small>a equipe hoje</small></span>
-          </div>
-          <div className="eqc-marcas">
-            {d.atual && <span className="hoje" style={{ left: pos(esperadoHoje) }}><i className="fas fa-location-dot" /> hoje deveria: {h1(esperadoHoje)} h</span>}
-            <span className="bas" style={{ left: pos(metaMes) }}><i className="fas fa-flag-checkered" /> básica: {h1(metaMes)} h</span>
-            <span className="ide" style={{ left: '100%' }}><i className="fas fa-crown" /> ideal: {h1(idealMes)} h</span>
-          </div>
-        </div>
-        <div className="eqc-cartoes-meta">
-          <div className="bas">
-            <span><i className="fas fa-flag-checkered" /></span>
-            <p><b>Meta básica</b><small><b>4 h</b> por dia útil × <b>{n}</b> mecânicos × <b>{serie?.uteisMes ?? '—'}</b> dias úteis = <b>{h1(metaMes)} h</b> no mês</small></p>
-            <em style={{ color: corPct(pMes) }}>{Math.round(pMes)}%</em>
-          </div>
-          <div className="ide">
-            <span><i className="fas fa-crown" /></span>
-            <p><b>Meta ideal</b><small>o dobro: <b>8 h</b> por dia útil de cada um = <b>{h1(idealMes)} h</b></small></p>
-            <em>{Math.round(idealMes ? (d.feitas / idealMes) * 100 : 0)}%</em>
-          </div>
-          {d.atual && (
-            <div className="rit" style={{ '--c': corPct(ritmo) } as React.CSSProperties}>
-              <span><i className="fas fa-gauge-high" /></span>
-              <p><b>Ritmo de hoje</b><small>{serie ? <><b>{serie.uteisAteHoje}</b> dias úteis passados → deveria estar em <b>{h1(esperadoHoje)} h</b>; está {d.feitas >= esperadoHoje ? <><b>{h1(d.feitas - esperadoHoje)} h à frente</b></> : <><b>{h1(esperadoHoje - d.feitas)} h atrás</b></>} · termina o mês com ~<b>{h1(serie.fimProj)} h</b></> : '—'}</small></p>
-              <em>{Math.round(ritmo)}%</em>
-            </div>
-          )}
-        </div>
-        <div className="eqc-chips">
-          <span><i className="fas fa-road" /> <b>{Math.round(d.km).toLocaleString('pt-BR')} km</b> rodados{kmPorH ? ` · ${h1(kmPorH)} km por hora feita` : ''}</span>
-          <span><i className="fas fa-medal" /> <b>{bateram} de {n}</b> mecânicos no ritmo da básica</span>
-          {varH != null && <span><i className={`fas fa-arrow-${varH >= 0 ? 'up' : 'down'}`} style={{ color: varH >= 0 ? '#047857' : '#b91c1c' }} /> horas <b style={{ color: varH >= 0 ? '#047857' : '#b91c1c' }}>{varH >= 0 ? '+' : ''}{varH}%</b> contra o mês passado</span>}
-        </div>
+      {/* 28/10/2026 (José: "tira esse gráfico; nesse local só deixa claro as metas e por quê, sem poluir: as
+          informações dentro de ícones, bem explicado"): uma fila de ícones; passar o mouse ou clicar abre a explicação */}
+      <div className="eqc-metas">
+        <Meta ic="fa-flag-checkered" cor={corPct(pMes)} rot="Meta básica" v={`${h1(metaMes)} h`} pct={pMes}
+          oque={<>A equipe fez <b>{h1(d.feitas)} h</b> das <b>{h1(metaMes)} h</b> da meta básica do mês.</>}
+          conta={<><b>4 h</b> por dia útil × <b>{n}</b> mecânicos × <b>{serie?.uteisMes ?? '—'}</b> dias úteis = <b>{h1(metaMes)} h</b></>}
+          porque="É o mínimo de horas cobradas que cada mecânico precisa entregar por dia: metade de um dia de 8 h." />
+        <Meta ic="fa-crown" cor="#7c3aed" rot="Meta ideal" v={`${h1(idealMes)} h`} pct={idealMes ? (d.feitas / idealMes) * 100 : 0}
+          oque={<>A equipe fez <b>{h1(d.feitas)} h</b> das <b>{h1(idealMes)} h</b> da meta ideal.</>}
+          conta={<><b>8 h</b> por dia útil × <b>{n}</b> mecânicos × <b>{serie?.uteisMes ?? '—'}</b> dias úteis = <b>{h1(idealMes)} h</b></>}
+          porque="É o dia inteiro de cada mecânico virando hora cobrada na OS: o máximo possível." />
+        {d.atual && <Meta ic="fa-location-dot" cor={corPct(ritmo)} rot="Ritmo de hoje" v={d.feitas >= esperadoHoje ? `+${h1(d.feitas - esperadoHoje)} h` : `−${h1(esperadoHoje - d.feitas)} h`} pct={ritmo}
+          oque={<>Com <b>{serie?.uteisAteHoje ?? '—'}</b> dias úteis passados, a equipe já deveria ter <b>{h1(esperadoHoje)} h</b>; tem <b>{h1(d.feitas)} h</b>.</>}
+          conta={<>4 h × {n} mecânicos × dias úteis até hoje = <b>{h1(esperadoHoje)} h</b>{serie ? <> · nesse ritmo termina o mês com ~<b>{h1(serie.fimProj)} h</b></> : null}</>}
+          porque="Mostra se a equipe está no caminho da meta básica antes do mês acabar." />}
+        <Meta ic="fa-medal" cor={bateram === n ? '#047857' : '#b45309'} rot="No ritmo" v={`${bateram} de ${n}`}
+          oque={<><b>{bateram}</b> de <b>{n}</b> mecânicos estão no ritmo da meta básica.</>}
+          conta={<>{d.tecs.map((t) => `${t.nome.split(' ')[0]} ${Math.round(t.pBas)}%`).join(' · ')}</>}
+          porque="A meta é de cada um: a equipe só bate se cada mecânico fizer a parte dele." />
+        <Meta ic="fa-road" cor="#0891b2" rot="Km rodados" v={`${Math.round(d.km).toLocaleString('pt-BR')} km`}
+          oque={<>Os carros da equipe rodaram <b>{Math.round(d.km).toLocaleString('pt-BR')} km</b> no mês.</>}
+          conta={kmPorH ? <><b>{h1(kmPorH)} km</b> para cada hora cobrada</> : <>sem horas no mês</>}
+          porque="Muito km para pouca hora cobrada quer dizer deslocamento que não virou serviço." />
+        {varH != null && <Meta ic={`fa-arrow-${varH >= 0 ? 'up' : 'down'}`} cor={varH >= 0 ? '#047857' : '#b91c1c'} rot="Mês passado" v={`${varH >= 0 ? '+' : ''}${varH}%`}
+          oque={<>Horas cobradas <b>{varH >= 0 ? 'acima' : 'abaixo'}</b> do mês passado ({h1(d.antFeitas ?? 0)} h).</>}
+          conta={<>{h1(d.feitas)} h agora contra {h1(d.antFeitas ?? 0)} h no mês passado</>}
+          porque={d.atual ? 'O mês ainda não acabou: compare de novo no fim.' : 'Comparação do mês inteiro.'} />}
       </div>
       <div className="eqc-corpo">
         <div className="eqc-sem">
@@ -205,6 +193,21 @@ export default function EquipeCapa({ mes }: { mes: string }) {
       </button>
       {abrir && <div className="eqc-cartoes" key={String(comAg)}><style>{ESTILO_HO}</style><style>{ESTILO_HC}</style><C6 d={d} /></div>}
     </section>
+  )
+}
+
+/** Ícone de meta: valor à vista; o "o que é", a conta e o porquê aparecem ao passar o mouse ou clicar. */
+function Meta({ ic, cor, rot, v, pct, oque, conta, porque }: { ic: string; cor: string; rot: string; v: string; pct?: number; oque: React.ReactNode; conta: React.ReactNode; porque: string }) {
+  return (
+    <button type="button" className="eqc-m" style={{ '--c': cor } as React.CSSProperties}>
+      <span className="eqc-m-ic"><i className={`fas ${ic}`} />{pct != null && <svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="20" pathLength={100} style={{ strokeDasharray: `${Math.min(100, pct)} 100` }} /></svg>}</span>
+      <span className="eqc-m-t"><small>{rot}</small><b>{v}</b>{pct != null && <em>{Math.round(pct)}%</em>}</span>
+      <span className="eqc-m-dica" role="tooltip">
+        <span>{oque}</span>
+        <span className="c"><i className="fas fa-calculator" /> {conta}</span>
+        <span className="p"><i className="fas fa-lightbulb" /> {porque}</span>
+      </span>
+    </button>
   )
 }
 
@@ -283,5 +286,16 @@ const ESTILO_EQC = `
 .eqc-vel-l span { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 12%, #fefefe); color: var(--c); font-size: 14px }
 .eqc-vel-l p { margin: 0; font-size: 15px; color: #334155; line-height: 1.45 } .eqc-vel-l b { font-weight: 600; color: #0f172a }
 @media (max-width: 760px) { .eqc-vel { grid-template-columns: 1fr } }
+.eqc-metas { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px }
+.eqc-m { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 10px; align-items: center; text-align: left; border: 1px solid #eef2f6; background: #fefefe; border-radius: 14px; padding: 10px 12px; font-family: inherit; cursor: help; animation: eqcEntra .45s both; transition: border-color .2s, box-shadow .2s }
+.eqc-m:hover, .eqc-m:focus { border-color: color-mix(in srgb, var(--c) 40%, #e2e8f0); box-shadow: 0 8px 20px -14px rgba(15,23,42,.4); outline: none; z-index: 20 }
+.eqc-m-ic { position: relative; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 10%, #fefefe); color: var(--c); font-size: 15px }
+.eqc-m-ic svg { position: absolute; inset: 0; transform: rotate(-90deg) } .eqc-m-ic circle { fill: none; stroke: var(--c); stroke-width: 3; stroke-linecap: round; animation: eqcPonteiro 1.2s cubic-bezier(.2,.8,.2,1) both }
+@keyframes eqcPonteiro { from { stroke-dasharray: 0 100 } }
+.eqc-m-t { display: grid; min-width: 0 } .eqc-m-t small { font-size: 12.5px; color: #475569 } .eqc-m-t b { font-size: 18px; font-weight: 500; color: #0f172a; font-variant-numeric: tabular-nums; white-space: nowrap } .eqc-m-t em { font-style: normal; font-size: 12px; color: var(--c); font-weight: 600 }
+.eqc-m-dica { position: absolute; left: 0; top: calc(100% + 8px); width: max(100%, 290px); display: grid; gap: 7px; background: #0f172a; color: #e2e8f0; border-radius: 12px; padding: 12px 14px; font-size: 13px; line-height: 1.45; box-shadow: 0 16px 34px rgba(15,23,42,.3); opacity: 0; transform: translateY(-4px); pointer-events: none; transition: opacity .18s, transform .18s; cursor: default }
+.eqc-m:hover .eqc-m-dica, .eqc-m:focus .eqc-m-dica { opacity: 1; transform: none }
+.eqc-m-dica b { color: #fefefe; font-weight: 600 } .eqc-m-dica .c { color: #cbd5e1; font-size: 12.5px } .eqc-m-dica .p { color: #fde68a; font-size: 12.5px } .eqc-m-dica i { margin-right: 4px; font-size: 11px }
+.eqc-metas > .eqc-m:nth-child(n+4) .eqc-m-dica { left: auto; right: 0 }
 @media (max-width: 1000px) { .eqc-corpo { grid-template-columns: 1fr } }
 `
