@@ -107,7 +107,7 @@ export default function FuroKmJanela({ tecnico, mes, onFechar }: { tecnico: stri
       if (forte) for (const p of dd.pontos) b.push([p.lat, p.lng])
       dd.paradas.forEach((pa) => {
         if (pa.min < 5) return
-        const nome = pa.cliente ? `<b style="color:#059669">${pa.cliente.nome}</b> · ${pa.cliente.os}<br><small>${CONF[pa.cliente.conf]}</small>` : `<b>${pa.onde}</b>`
+        const nome = pa.cliente ? `<b style="color:#059669">${pa.cliente.nome}</b> · ${pa.cliente.os}${pa.cliente.colega ? ` (OS do ${pa.cliente.colega.split(' ')[0]})` : ''}<br><small>${CONF[pa.cliente.conf]}</small>` : `<b>${pa.onde}</b>`
         L.circleMarker([pa.lat, pa.lng], { radius: pa.min >= 60 ? 9 : 6, weight: 2, color: '#fff', fillColor: corParada(pa, c), fillOpacity: forte ? 1 : 0.6 })
           .bindPopup(`<div style="font-size:12.5px;line-height:1.45"><b>${fmtDia(dia)} · ${hora(pa.inicio)} → ${hora(pa.fim)}</b> (${dur(pa.min)})<br>${nome}${pa.cidade ? `<br>📍 ${pa.cidade}` : ''}${pa.kmAntes ? `<br>🚗 ${km(pa.kmAntes)} até aqui` : ''}${pa.atipica ? '<br><b style="color:#dc2626">parada atípica</b>' : ''}</div>`)
           .addTo(camada.current)
@@ -201,7 +201,14 @@ function LinhaDia({ x, on, foco, cor, carregando, onClick }: { x: DiaFuro; on: b
             <i className={`fas ${o.noCliente ? 'fa-location-dot' : 'fa-location-crosshairs'}`} /> {o.os} {o.cliente.split(' ').slice(0, 3).join(' ')}
             {o.noCliente ? <> · no cliente {hora(o.noCliente.inicio)}–{hora(o.noCliente.fim)} ({dur(o.noCliente.min)}){o.noCliente.conf === 'provavel' ? ' provável' : ''}</> : <> · carro não passou no cliente</>}
           </small>
-        )) : <small className="fk-os nao"><i className="fas fa-ban" /> nenhuma OS neste dia</small>}
+        )) : <small className="fk-os nao"><i className="fas fa-ban" /> nenhuma OS dele neste dia</small>}
+        {/* colegas em OS no mesmo dia: sem OS dele, todos; com OS, só quando o carro passou no cliente do colega */}
+        {(x.colegas || []).filter((o) => !x.os.length || o.noCliente).map((o) => (
+          <small key={o.os} className={`fk-os ${o.noCliente ? (o.noCliente.conf === 'provavel' ? 'prov' : 'sim') : 'col'}`}>
+            <i className="fas fa-user-group" /> {o.tecnico.split(' ')[0]}{o.semCarro ? ' (sem carro)' : ''} na {o.os} {o.cliente.split(' ').slice(0, 3).join(' ')}
+            {o.noCliente ? <> · este carro foi lá {hora(o.noCliente.inicio)}–{hora(o.noCliente.fim)} ({dur(o.noCliente.min)}){o.noCliente.conf === 'provavel' ? ' provável' : ''}: o km pode estar na OS do colega</> : <> · este carro não passou lá</>}
+          </small>
+        ))}
       </div>
     </button>
   )
@@ -232,7 +239,7 @@ function LinhaDoTempo({ dia, dd, cor }: { dia: string; dd: DiaDetalhado | null |
               <span className="h">{hora(p.inicio)}<small>{hora(p.fim)}</small></span>
               <i className="pt" />
               <div>
-                <b>{p.cliente ? <>No cliente: {p.cliente.nome}</> : p.loja ? 'Na loja' : p.onde}</b>
+                <b>{p.cliente ? (p.cliente.colega ? <>No cliente do {p.cliente.colega.split(' ')[0]}: {p.cliente.nome}</> : <>No cliente: {p.cliente.nome}</>) : p.loja ? 'Na loja' : p.onde}</b>
                 <small>parado {dur(p.min)}{p.cidade ? ` · ${p.cidade}` : ''}{p.cliente ? ` · ${p.cliente.os} · ${CONF[p.cliente.conf]}` : ''}{p.atipica ? ' · parada atípica' : ''}</small>
               </div>
             </div>
@@ -273,7 +280,7 @@ const ESTILO_FK = `
 .fk-dia-m { display: grid; gap: 4px; min-width: 0 } .fk-dia-t { display: flex; justify-content: space-between; gap: 8px } .fk-dia-t b { font-size: 14px; font-weight: 500; color: #0f172a } .fk-dia-t em { font-style: normal; font-size: 13px; font-weight: 600; color: #b91c1c; white-space: nowrap }
 .fk-dia-bar { height: 6px; border-radius: 99px; background: repeating-linear-gradient(135deg, #fecaca 0 5px, #fee2e2 5px 10px); overflow: hidden } .fk-dia-bar i { display: block; height: 100%; background: #10b981; border-radius: 99px }
 .fk-dia small { font-size: 12.5px; color: #475569; line-height: 1.4 }
-.fk-os { display: block; border-radius: 8px; padding: 3px 8px } .fk-os i { font-size: 11px; margin-right: 2px } .fk-os.sim { background: #ecfdf5; color: #065f46 !important } .fk-os.prov { background: #fffbeb; color: #92400e !important } .fk-os.nao { background: #fef2f2; color: #991b1b !important }
+.fk-os { display: block; border-radius: 8px; padding: 3px 8px } .fk-os i { font-size: 11px; margin-right: 2px } .fk-os.sim { background: #ecfdf5; color: #065f46 !important } .fk-os.prov { background: #fffbeb; color: #92400e !important } .fk-os.nao { background: #fef2f2; color: #991b1b !important } .fk-os.col { background: #eff6ff; color: #1e40af !important }
 .fk-dir { display: grid; gap: 12px; min-width: 0 }
 .fk-mapa-c { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; height: 440px }
 .fk-mapa { position: absolute; inset: 0 }

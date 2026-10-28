@@ -29,12 +29,14 @@ export const CLASSE_PARADA: Record<string, string> = {
 export type ConfCliente = 'confirmado' | 'cadastro' | 'provavel'
 export interface ParadaFuro {
   inicio: string; fim: string | null; min: number; lat: number; lng: number; onde: string; classe: string; atipica: boolean
-  loja: boolean; cliente: { os: string; nome: string; conf: ConfCliente } | null; cidade?: string | null; kmAntes?: number
+  loja: boolean; cliente: { os: string; nome: string; conf: ConfCliente; colega?: string } | null; cidade?: string | null; kmAntes?: number
 }
 export interface OSDoDia { os: string; cliente: string; kmCobrado: number; horasRel: number; noCliente: { inicio: string; fim: string | null; min: number; conf: ConfCliente } | null }
 export interface DiaFuro {
   data: string; placa: string | null; kmGps: number; kmCobrado: number; kmRel: number; furo: number
   saida: string | null; volta: string | null; os: OSDoDia[]; paradas: ParadaFuro[]
+  /** OS de OUTROS técnicos no mesmo dia (José, 28/10/2026: "ele não acompanhou nenhum técnico também?") */
+  colegas: (OSDoDia & { tecnico: string; semCarro: boolean })[]
 }
 export interface FuroKm { tecnico: string; mes: string; placas: string[]; dias: DiaFuro[]; kmGps: number; kmCobrado: number; furo: number }
 
@@ -72,7 +74,8 @@ export async function furoKm(tecnico: string, mes: string): Promise<FuroKm | nul
   const osPorId = new Map(t.os.map((o) => [o.os, o]))
   // documento do cliente de cada OS → onde ele fica
   const docDe = new Map<string, string>()
-  const ids = t.os.map((o) => o.os)
+  const outros = f.tecnicos.filter((y) => y.tecnico !== tecnico)
+  const ids = [...new Set([...t.os.map((o) => o.os), ...outros.flatMap((y) => y.os.map((o) => o.os))])]
   for (let i = 0; i < ids.length; i += 200) {
     const { data } = await sb.from('Ordem_Servico').select('Id_Ordem, Cnpj_Cliente').in('Id_Ordem', ids.slice(i, i + 200))
     for (const o of (data || []) as Rec[]) docDe.set(String(o.Id_Ordem), soDigitos(o.Cnpj_Cliente))
@@ -84,6 +87,10 @@ export async function furoKm(tecnico: string, mes: string): Promise<FuroKm | nul
     return {
       data: d.data, placa: t.placas[0] || null, kmGps: r1(d.kmCarro), kmCobrado, kmRel: r1(d.kmRel), furo: r1(Math.max(0, d.kmCarro - kmCobrado)),
       saida: d.inicio, volta: d.fim, paradas: [],
+      colegas: outros.flatMap((y) => (y.dias.find((z) => z.data === d.data)?.os || []).filter((os) => !d.os.includes(os)).map((os) => {
+        const o = y.os.find((z) => z.os === os)
+        return { tecnico: y.tecnico, semCarro: !y.placas.length, os, cliente: o?.cliente || '', kmCobrado: r1((o?.kmCobrado || 0) / Math.max(1, o?.dias.length || 1)), horasRel: r1((o?.horasRel || 0) / Math.max(1, o?.dias.length || 1)), noCliente: null }
+      })),
       os: d.os.map((os) => { const o = osPorId.get(os); return { os, cliente: o?.cliente || '', kmCobrado: r1((o?.kmCobrado || 0) / Math.max(1, o?.dias.length || 1)), horasRel: r1((o?.horasRel || 0) / Math.max(1, o?.dias.length || 1)), noCliente: null } }),
     }
   })
@@ -121,7 +128,25 @@ export async function furoKm(tecnico: string, mes: string): Promise<FuroKm | nul
       const cand = d.paradas.filter((p) => !p.loja && !p.cliente && minutosNoExpediente(p.inicio, p.fim, p.min) >= 30).sort((a, b) => b.min - a.min)[0]
       if (cand) cand.cliente = { os: semLugar[0].os, nome: semLugar[0].cliente, conf: 'provavel' }
     }
-    for (const o of d.os) {
+    // OS dos colegas no mesmo dia: o carro dele passou no cliente do colega? (levou alguém, ou foi junto)
+    for (const o of d.colegas) {
+      const locs = locais.get(docDe.get(o.os) || '') || []
+      for (const p of d.paradas) {
+        if (p.loja || p.cliente) continue
+        const l = locs.find((x) => distanciaM(p, x) <= RAIO_CLIENTE_M)
+        if (l) p.cliente = { os: o.os, nome: o.cliente, conf: l.conf, colega: o.tecnico }
+      }
+    }
+    // dia sem OS dele e um só colega em OS (ex.: Fernando, que não tem carro): a parada mais longa vira o provável cliente do colega
+    if (!d.os.length) {
+      const sem = d.colegas.filter((o) => !d.paradas.some((p) => p.cliente?.os === o.os))
+      const unico = sem.length === 1 ? sem[0] : sem.filter((o) => o.semCarro).length === 1 ? sem.find((o) => o.semCarro)! : null
+      if (unico) {
+        const cand = d.paradas.filter((p) => !p.loja && !p.cliente && minutosNoExpediente(p.inicio, p.fim, p.min) >= 30).sort((a, b) => b.min - a.min)[0]
+        if (cand) cand.cliente = { os: unico.os, nome: unico.cliente, conf: 'provavel', colega: unico.tecnico }
+      }
+    }
+    for (const o of [...d.os, ...d.colegas]) {
       const ps = d.paradas.filter((p) => p.cliente?.os === o.os)
       if (!ps.length) continue
       const conf = ps.some((p) => p.cliente!.conf === 'confirmado') ? 'confirmado' : ps.some((p) => p.cliente!.conf === 'cadastro') ? 'cadastro' : 'provavel'
@@ -195,7 +220,7 @@ const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: 
 
 /** O Tratorilson lê os dias com furo e resume onde ele está (guardado 6 h por técnico/mês; forcar refaz). */
 export async function analisarFuro(tecnico: string, mes: string, forcar = false): Promise<AnaliseFuro | null> {
-  const r = await comCache(`furo-km:v2:${mes}:${tecnico}`, 6 * 3600_000, async () => {
+  const r = await comCache(`furo-km:v3:${mes}:${tecnico}`, 6 * 3600_000, async () => {
     const fk = await furoKm(tecnico, mes)
     if (!fk) return null
     const dias = fk.dias.filter((d) => d.furo > 5).slice(0, 25)
@@ -203,12 +228,13 @@ export async function analisarFuro(tecnico: string, mes: string, forcar = false)
     const txt = dias.map((d) => [
       `DIA ${d.data.split('-').reverse().join('/')}: GPS ${d.kmGps} km · cobrado nas OS ${d.kmCobrado} km · relatório ${d.kmRel} km · FURO ${d.furo} km${d.saida ? ` · carro ligou ${hora(d.saida)}` : ''}${d.volta ? `, desligou ${hora(d.volta)}` : ''}`,
       `  OS do dia: ${d.os.length ? d.os.map((o) => `${o.os} (${o.cliente || 'cliente?'}, cobrou ${o.kmCobrado} km${o.noCliente ? `, carro no cliente ${hora(o.noCliente.inicio)}–${o.noCliente.fim ? hora(o.noCliente.fim) : '?'} ${o.noCliente.min} min${o.noCliente.conf === 'provavel' ? ' (provável)' : ''}` : ', carro não passou no cliente'})`).join('; ') : 'NENHUMA'}`,
+      `  OS de colegas no mesmo dia: ${d.colegas.length ? d.colegas.map((o) => `${o.tecnico}${o.semCarro ? ' (sem carro)' : ''} ${o.os} (${o.cliente}${o.noCliente ? `, o carro dele passou no cliente ${o.noCliente.min} min${o.noCliente.conf === 'provavel' ? ' provável' : ''}` : ''})`).join('; ') : 'nenhuma'}`,
       `  paradas: ${d.paradas.length ? d.paradas.filter((p) => p.min >= 5).slice(0, 14).map((p) => `${hora(p.inicio)} ${p.cliente ? `cliente ${p.cliente.nome}` : p.onde} ${p.min}min${p.atipica ? ' ATÍPICA' : ''}`).join(' | ') : 'sem paradas registradas'}`,
     ].join('\n')).join('\n')
     const ia = await chamarIA({
       temperature: 0.2, response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: 'Você é o Tratorilson, auditor da oficina de tratores Nova Tratores. Recebe, dia a dia, os km que o carro do mecânico rodou pelo GPS, os km cobrados nas ordens de serviço (OS) daquele dia, se o carro passou no cliente da OS (e quanto tempo ficou) e as paradas do carro. "Furo" = km rodado e não cobrado. Descubra ONDE está o furo e agrupe em poucas causas concretas, por exemplo: dias sem nenhuma OS; OS cobrando menos km do que o deslocamento até o cliente; carro que não passou no cliente da OS; paradas fora de cliente (casa, posto, lugares sem cadastro); idas à loja/fornecedor que não são de nenhuma OS. Cite dias e lugares. Não acuse: diga o que conferir. Português do Brasil, frases curtas, sem jargão. Responda só JSON: {"resumo":"2 ou 3 frases dizendo basicamente onde foi o furo","pontos":[{"titulo":"causa curta","km":número aproximado de km dessa causa,"dias":["AAAA-MM-DD"],"explicacao":"1 ou 2 frases com o que conferir"}]} com no máximo 5 pontos, do maior para o menor.' },
+        { role: 'system', content: 'Você é o Tratorilson, auditor da oficina de tratores Nova Tratores. Recebe, dia a dia, os km que o carro do mecânico rodou pelo GPS, os km cobrados nas ordens de serviço (OS) daquele dia, se o carro passou no cliente da OS (e quanto tempo ficou) e as paradas do carro. "Furo" = km rodado e não cobrado. Descubra ONDE está o furo e agrupe em poucas causas concretas, por exemplo: dias sem nenhuma OS; OS cobrando menos km do que o deslocamento até o cliente; carro que não passou no cliente da OS; dia em que ele levou ou acompanhou um colega (o km deveria estar na OS do colega); paradas fora de cliente (casa, posto, lugares sem cadastro); idas à loja/fornecedor que não são de nenhuma OS. Cite dias e lugares. Não acuse: diga o que conferir. Português do Brasil, frases curtas, sem jargão. Responda só JSON: {"resumo":"2 ou 3 frases dizendo basicamente onde foi o furo","pontos":[{"titulo":"causa curta","km":número aproximado de km dessa causa,"dias":["AAAA-MM-DD"],"explicacao":"1 ou 2 frases com o que conferir"}]} com no máximo 5 pontos, do maior para o menor.' },
         { role: 'user', content: `Mecânico: ${tecnico}\nMês: ${mes}\nTotal: GPS ${fk.kmGps} km · cobrado ${fk.kmCobrado} km · furo ${fk.furo} km\n\n${txt}` },
       ],
     })
