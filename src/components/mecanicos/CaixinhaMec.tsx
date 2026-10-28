@@ -17,10 +17,10 @@ interface Dados {
 }
 
 const TIPO: Record<Mov['tipo'], { rot: string; cor: string; sinal: 1 | -1 }> = {
-  contribuicao: { rot: 'Entrou · 1% da comissão', cor: '#047857', sinal: 1 },
-  aporte: { rot: 'Entrou · a empresa dobrou', cor: '#1d4ed8', sinal: 1 },
-  desconto: { rot: 'Saiu · desconto pago', cor: '#b91c1c', sinal: -1 },
-  redistribuicao: { rot: 'Saiu · dividido na equipe', cor: '#7c3aed', sinal: -1 },
+  contribuicao: { rot: '1% da comissão', cor: '#047857', sinal: 1 },
+  aporte: { rot: 'a empresa dobrou', cor: '#1d4ed8', sinal: 1 },
+  desconto: { rot: 'desconto pago pela caixinha', cor: '#b91c1c', sinal: -1 },
+  redistribuicao: { rot: 'dividido na equipe', cor: '#7c3aed', sinal: -1 },
 }
 const nomeCurto = (n: string | null) => (n ? n.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()).split(' ').slice(0, 2).join(' ') : '—')
 const dia = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: '2-digit' })
@@ -52,6 +52,12 @@ export default function CaixinhaMec() {
   if (!d) return <div className="cx-resumo"><style>{ESTILO}</style><div className="cx-carr"><i className="fas fa-circle-notch fa-spin" /> lendo a caixinha no RH…</div></div>
   if (!d.ciclo) return <div className="cx-resumo"><style>{ESTILO}</style><div className="cx-carr">{d.erro || 'Caixinha indisponível.'}</div></div>
 
+  // saldo da caixinha depois de cada movimentação (o extrato vem do mais novo para o mais velho)
+  const saldoDepois = new Map<Mov, number>()
+  d.extrato.slice().reverse().reduce((s, m) => { const n = s + TIPO[m.tipo].sinal * m.valor; saldoDepois.set(m, n); return n }, 0)
+  const totEntrou = d.entrou + d.aporte, totSaiu = d.saiu + d.redistribuido
+  const maxFluxo = Math.max(totEntrou, totSaiu, 0.01)
+  const maxTec = Math.max(...d.porTecnico.map((t) => Math.max(t.entrou, t.saiu)), 0.01)
   const extrato = d.extrato.filter((m) => filtro === 'tudo' || (filtro === 'entrou' ? TIPO[m.tipo].sinal > 0 : TIPO[m.tipo].sinal < 0))
   const mostrar = verTudo ? extrato : extrato.slice(0, 8)
   const vencido = d.ciclo.vencido && d.ciclo.status === 'aberto'
@@ -78,19 +84,22 @@ export default function CaixinhaMec() {
           {d.ciclo.vencido && d.ciclo.status === 'aberto' && <em className="cx-alerta"><i className="fas fa-triangle-exclamation" /> o ciclo terminou em {d.ciclo.fim} e ainda não foi redistribuído — o RH redistribui em Caixinha</em>}
           {!d.ciclo.vencido && <em className="cx-info">no fim do ciclo a empresa dobra: {d.contribuintes ? `${brl2(d.saldo * 2)} ÷ ${d.contribuintes} = ${brl2((d.saldo * 2) / d.contribuintes)} para cada um hoje` : '—'}</em>}
         </div>
-        <div className="cx-nums">
-          <div className="e"><small>Entrou</small><b>{brl2(d.entrou + d.aporte)}</b><span>1% das comissões{d.aporte ? ` + ${brl2(d.aporte)} da empresa` : ''}</span></div>
-          <div className="s"><small>Saiu</small><b>{brl2(d.saiu + d.redistribuido)}</b><span>descontos pagos{d.redistribuido ? ` + ${brl2(d.redistribuido)} dividido` : ''}</span></div>
+        {/* a conta do ciclo em barras: entrou − saiu = sobrou */}
+        <div className="cx-fluxo">
+          <div className="e"><span><i className="fas fa-arrow-down" /> Entrou</span><em><i style={{ width: `${(totEntrou / maxFluxo) * 100}%` }} /></em><b>+{brl2(totEntrou)}</b><small>1% das comissões{d.aporte ? ` + ${brl2(d.aporte)} da empresa` : ''}</small></div>
+          <div className="s"><span><i className="fas fa-arrow-up" /> Saiu</span><em><i style={{ width: `${(totSaiu / maxFluxo) * 100}%` }} /></em><b>−{brl2(totSaiu)}</b><small>descontos pagos{d.redistribuido ? ` + ${brl2(d.redistribuido)} dividido` : ''}</small></div>
+          <div className="r"><span>= Sobrou</span><em><i style={{ width: `${(Math.max(d.saldo, 0) / maxFluxo) * 100}%` }} /></em><b>{brl2(d.saldo)}</b><small>é o saldo de hoje</small></div>
         </div>
       </div>
 
       {d.porTecnico.length > 0 && (
-        <div className="cx-tecs">
+        <div className="cx-tab">
+          <div className="cx-tab-cab"><span>Técnico</span><span>Pôs na caixinha</span><span>A caixinha pagou por ele</span></div>
           {d.porTecnico.map((t) => (
-            <div key={t.nome} title={`${nomeCurto(t.nome)}: pôs ${brl2(t.entrou)} · a caixinha pagou ${brl2(t.saiu)} de desconto dele`}>
+            <div key={t.nome} className="cx-tab-l">
               <b>{nomeCurto(t.nome)}</b>
-              <span className="e">+{brl2(t.entrou)}</span>
-              {t.saiu > 0 && <span className="s">−{brl2(t.saiu)}</span>}
+              <span className="e"><em><i style={{ width: `${(t.entrou / maxTec) * 100}%` }} /></em>+{brl2(t.entrou)}</span>
+              <span className="s">{t.saiu > 0 ? <><em><i style={{ width: `${(t.saiu / maxTec) * 100}%` }} /></em>−{brl2(t.saiu)}</> : <small>nada</small>}</span>
             </div>
           ))}
         </div>
@@ -106,10 +115,10 @@ export default function CaixinhaMec() {
         {mostrar.map((m, i) => {
           const t = TIPO[m.tipo]
           return (
-            <div key={i} className="cx-l">
-              <span className="cx-d">{dia(m.em)}</span>
-              <span className="cx-t"><em style={{ color: t.cor, background: `color-mix(in srgb, ${t.cor} 10%, transparent)` }}>{t.rot}</em><small>{nomeCurto(m.funcionario)}{m.descricao ? ` · ${m.descricao.replace(/^Desconto pago pela caixinha:\s*/i, '')}` : ''}</small></span>
-              <b style={{ color: t.cor }}>{t.sinal > 0 ? '+' : '−'}{brl2(m.valor)}</b>
+            <div key={i} className={`cx-l ${t.sinal > 0 ? 'e' : 's'}`}>
+              <span className="cx-seta" style={{ color: t.cor, background: `color-mix(in srgb, ${t.cor} 12%, transparent)` }}><i className={`fas fa-arrow-${t.sinal > 0 ? 'down' : 'up'}`} /></span>
+              <span className="cx-t"><b>{nomeCurto(m.funcionario)}</b><small>{dia(m.em)} · {m.tipo === 'contribuicao' ? (m.descricao || t.rot) : m.descricao ? `${t.rot}: ${m.descricao.replace(/^Desconto pago pela caixinha:\s*/i, '')}` : t.rot}</small></span>
+              <span className="cx-v"><b style={{ color: t.cor }}>{t.sinal > 0 ? '+' : '−'}{brl2(m.valor)}</b><small>saldo {brl2(saldoDepois.get(m) ?? 0)}</small></span>
             </div>
           )
         })}
@@ -147,16 +156,27 @@ const ESTILO = `
 .cx-topo { display: flex; gap: 18px; flex-wrap: wrap; align-items: stretch }
 .cx-saldo { flex: 1; min-width: 260px; display: grid; gap: 3px } .cx-saldo small { font-size: 13px; color: #475569 } .cx-saldo b { font-size: 34px; font-weight: 500; line-height: 1.1 } .cx-saldo > span { font-size: 13px; color: #475569 }
 .cx-alerta, .cx-info { font-style: normal; font-size: 12.5px; border-radius: 10px; padding: 6px 10px; margin-top: 4px; justify-self: start } .cx-alerta { color: #92400e; background: #fef3c7 } .cx-info { color: #1e3a8a; background: #eff6ff }
-.cx-nums { display: flex; gap: 10px; flex-wrap: wrap } .cx-nums > div { display: grid; gap: 2px; min-width: 170px; border-radius: 12px; padding: 10px 14px; border: 1px solid #e2e8f0 }
-.cx-nums small { font-size: 12.5px; color: #475569 } .cx-nums b { font-size: 20px; font-weight: 500 } .cx-nums span { font-size: 12px; color: #64748b }
-.cx-nums .e b { color: #047857 } .cx-nums .s b { color: #b91c1c }
-.cx-tecs { display: flex; gap: 8px; flex-wrap: wrap } .cx-tecs > div { display: inline-flex; gap: 8px; align-items: baseline; border-radius: 99px; background: #f8fafc; border: 1px solid #eef2f6; padding: 5px 12px; font-size: 13px }
-.cx-tecs b { font-weight: 500 } .cx-tecs .e { color: #047857 } .cx-tecs .s { color: #b91c1c }
+.cx-fluxo { flex: 1.2; min-width: 300px; display: grid; gap: 8px; border: 1px solid #e2e8f0; border-radius: 14px; padding: 12px 14px }
+.cx-fluxo > div { display: grid; grid-template-columns: 82px minmax(0, 1fr) auto; column-gap: 10px; align-items: center }
+.cx-fluxo span { font-size: 13px; color: #334155 } .cx-fluxo span i { font-size: 11px; margin-right: 3px }
+.cx-fluxo em { height: 10px; border-radius: 99px; background: #f1f5f9; overflow: hidden } .cx-fluxo em i { display: block; height: 100%; border-radius: 99px; transition: width .5s ease }
+.cx-fluxo b { font-size: 16px; font-weight: 500; text-align: right; font-variant-numeric: tabular-nums } .cx-fluxo small { grid-column: 2 / -1; font-size: 11.5px; color: #64748b; margin-top: -2px }
+.cx-fluxo .e span, .cx-fluxo .e b { color: #047857 } .cx-fluxo .e em i { background: #10b981 }
+.cx-fluxo .s span, .cx-fluxo .s b { color: #b91c1c } .cx-fluxo .s em i { background: #ef4444 }
+.cx-fluxo .r { border-top: 1px dashed #cbd5e1; padding-top: 8px } .cx-fluxo .r span, .cx-fluxo .r b { color: #0f172a; font-weight: 600 } .cx-fluxo .r em i { background: #334155 }
+.cx-tab { display: grid; border: 1px solid #eef2f6; border-radius: 12px; overflow: hidden }
+.cx-tab-cab, .cx-tab-l { display: grid; grid-template-columns: minmax(130px, 1fr) minmax(0, 1.2fr) minmax(0, 1.2fr); gap: 12px; align-items: center; padding: 7px 12px }
+.cx-tab-cab { background: #f8fafc; font-size: 12px; color: #64748b } .cx-tab-l { border-top: 1px solid #f1f5f9; font-size: 13.5px } .cx-tab-l > b { font-weight: 500 }
+.cx-tab-l > span { display: grid; grid-template-columns: minmax(0, 1fr) 82px; gap: 8px; align-items: center; text-align: right; font-variant-numeric: tabular-nums }
+.cx-tab-l em { height: 8px; border-radius: 99px; background: #f1f5f9; overflow: hidden } .cx-tab-l em i { display: block; height: 100%; border-radius: 99px }
+.cx-tab-l .e { color: #047857 } .cx-tab-l .e em i { background: #10b981 } .cx-tab-l .s { color: #b91c1c } .cx-tab-l .s em i { background: #ef4444 }
+.cx-tab-l .s small { grid-column: 1 / -1; color: #94a3b8; font-size: 12.5px }
 .cx-ext { display: grid; gap: 2px } .cx-ext-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 4px } .cx-ext-cab b { font-size: 15px; font-weight: 500 }
 .cx-fil { display: inline-flex; gap: 2px; background: #eef2f6; border-radius: 10px; padding: 3px } .cx-fil button { border: 0; background: transparent; border-radius: 8px; padding: 4px 11px; font: inherit; font-size: 12.5px; color: #475569; cursor: pointer } .cx-fil button.on { background: #fefefe; color: #0f172a; box-shadow: 0 1px 2px rgba(15,23,42,.1) }
-.cx-l { display: grid; grid-template-columns: 70px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 4px; border-top: 1px solid #f1f5f9; font-size: 13.5px }
-.cx-d { color: #64748b; font-size: 12.5px } .cx-t { display: grid; gap: 2px; min-width: 0 } .cx-t em { justify-self: start; font-style: normal; font-size: 12px; border-radius: 99px; padding: 1px 9px } .cx-t small { font-size: 12.5px; color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
-.cx-l > b { font-weight: 500; font-variant-numeric: tabular-nums }
+.cx-l { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px 4px; border-top: 1px solid #f1f5f9; font-size: 13.5px }
+.cx-seta { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; font-size: 13px }
+.cx-t { display: grid; gap: 1px; min-width: 0 } .cx-t b { font-weight: 500 } .cx-t small { font-size: 12.5px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.cx-v { display: grid; justify-items: end; gap: 1px; font-variant-numeric: tabular-nums } .cx-v b { font-weight: 600; font-size: 14.5px } .cx-v small { font-size: 11.5px; color: #94a3b8 }
 .cx-vazio { color: #64748b; font-size: 13px; padding: 8px 4px } .cx-mais, .cx-como-t { justify-self: start; border: 0; background: transparent; color: #2563eb; font: inherit; font-size: 13px; cursor: pointer; padding: 4px } .cx-mais:hover, .cx-como-t:hover { text-decoration: underline }
 .cx-como { margin: 0; padding: 12px 16px 12px 34px; border-radius: 12px; background: #f8fafc; display: grid; gap: 8px; font-size: 13.5px; color: #334155; line-height: 1.5 } .cx-como b { font-weight: 600 }
 `

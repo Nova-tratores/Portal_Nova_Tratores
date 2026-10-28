@@ -477,9 +477,12 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
           {x?.horas ? <small style={{ display: 'block', fontSize: 11, color: '#64748b', fontWeight: 500 }}>{String(x.horas).replace('.', ',')} h cobradas</small> : null}
           {x && (x.descBase || 0) > 0 && l.base > 0 && (
             <small title={`A base já está com ${brl(x.descBase || 0)} de desconto da OS.${x.motivo ? ` Motivo na OS: ${x.motivo}.` : ' A OS não tem motivo do desconto escrito.'} Se o desconto não foi erro do técnico, use Ajustar para pagar sobre o valor cheio.`}
-              style={{ display: 'inline-block', marginTop: 3, padding: '1px 7px', borderRadius: 999, fontSize: 10.5, fontWeight: 700, background: '#fef3c7', color: '#92400e', cursor: 'help' }}>
-              <i className="fas fa-triangle-exclamation" /> com desconto −{brl(x.descBase || 0)}{x.motivo ? '' : ' · sem motivo'}
+              style={{ display: 'inline-block', marginTop: 3, padding: '1px 8px', borderRadius: 999, fontSize: 11, fontWeight: 600, background: '#fef3c7', color: '#92400e', cursor: 'help', whiteSpace: 'nowrap' }}>
+              <i className="fas fa-triangle-exclamation" /> desconto −{brl(x.descBase || 0)}
             </small>
+          )}
+          {x && (x.descBase || 0) > 0 && l.base > 0 && !x.motivo && (
+            <small style={{ display: 'block', fontSize: 11, color: '#92400e', marginTop: 2, whiteSpace: 'nowrap' }}>sem motivo na OS</small>
           )}
           {x?.motivo && (x.descBase || 0) > 0 && <small style={{ display: 'block', fontSize: 10.5, color: '#92400e', marginTop: 2, maxWidth: 180, marginLeft: 'auto', lineHeight: 1.3 }} title={x.motivo}>“{x.motivo.length > 60 ? `${x.motivo.slice(0, 60)}…` : x.motivo}”</small>}
         </span>
@@ -622,7 +625,7 @@ const ESTILO_FP = `
 .fp-g-ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--g); color: #fefefe; font-size: 13px }
 .fp-g-cab > b { font-size: 15px } .fp-g-cab > small { flex: 1; font-size: 12px; color: ${MUDO} } .fp-g-tot { display: inline-flex; gap: 10px; align-items: baseline } .fp-g-tot em { font-style: normal; font-size: 12px; color: ${MUDO} } .fp-g-tot b { font-size: 17px; color: var(--g); font-variant-numeric: tabular-nums }
 .fp-tab { display: grid }
-.fp-th, .fp-row { display: grid; grid-template-columns: 76px minmax(200px, 1.5fr) minmax(220px, 1.4fr) 104px 150px 118px; gap: 14px; align-items: center; padding: 0 16px }
+.fp-th, .fp-row { display: grid; grid-template-columns: 76px minmax(200px, 1.5fr) minmax(220px, 1.4fr) 136px 150px 118px; gap: 14px; align-items: center; padding: 0 16px }
 .fp-th { padding-top: 9px; padding-bottom: 9px; font-size: 10.5px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: ${MUDO}; border-bottom: 1px solid var(--portal-border, #eef2f7) } .fp-th .n { text-align: right }
 .fp-lin { border-bottom: 1px solid var(--portal-border, #f1f5f9); border-left: 3px solid transparent; transition: background .15s, border-color .2s; animation: fpEntra .3s both } .fp-lin:last-child { border-bottom: none } .fp-lin:hover { background: #fafbfd }
 .fp-lin.nao { border-left-color: #ef4444; background: #fffafa } .fp-lin.aj { border-left-color: #f59e0b } .fp-lin.div { border-left-color: #8b5cf6 }
