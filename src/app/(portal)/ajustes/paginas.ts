@@ -40,6 +40,7 @@ export const PAGINAS_AJUSTES: PaginaAjustes[] = [
   { key: 'ajustes:correcao-contas', label: 'Correção de contas', href: '/ajustes/correcao-contas', grupo: 'Edição', departamento: 'Financeiro' },
   { key: 'ajustes:devolucao', label: 'Devolução de compra', href: '/ajustes/devolucao', grupo: 'Edição', departamento: 'Estoque', funcao: 'Notas e relatórios' },
   { key: 'ajustes:baixa-contas', label: 'Baixar contas', href: '/ajustes/baixa-contas', grupo: 'Edição', departamento: 'Financeiro' },
+  { key: 'ajustes:boletos-fornecedor', label: 'Boletos de fornecedor', href: '/ajustes/boletos-fornecedor', grupo: 'Edição', departamento: 'Financeiro' },
   { key: 'ajustes:inventario', label: 'Inventário rotativo', href: '/ajustes/inventario', grupo: 'Edição', departamento: 'Estoque', funcao: 'Quantidade' },
   { key: 'ajustes:inventario-contagem', label: 'Contagem', href: '/ajustes/inventario/contagem', grupo: 'Edição', departamento: 'Estoque', funcao: 'Quantidade' },
   { key: 'ajustes:caracteristicas', label: 'Características', href: '/ajustes/caracteristicas', grupo: 'Edição', departamento: 'Estoque', funcao: 'Cadastro' },

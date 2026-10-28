@@ -1531,6 +1531,25 @@ export async function alterarContaCategoriaDepto(conta: Conta, args: Record<stri
   return { rawRequest: params, rawResponse, anterior, mudou, camposAnteriores };
 }
 
+// Estorna uma baixa (CancelarPagamento / CancelarRecebimento) pelo codigo_baixa
+// (= nCodBaixa em movimentos_cc.raw.detalhes). Usado pelo saneamento dos
+// boletos agrupados (scripts/boletos-inventario.ts), nunca pela tela.
+export async function cancelarBaixaConta(conta: Conta, tipo: any, codigoBaixa: number | string): Promise<any> {
+  if (codigoBaixa == null) throw new Error('informe o codigo da baixa');
+  const endpoint = String(tipo) === 'receber' ? '/financas/contareceber/' : '/financas/contapagar/';
+  const call = String(tipo) === 'receber' ? 'CancelarRecebimento' : 'CancelarPagamento';
+  return omieRequest(endpoint, call, { codigo_baixa: Number(codigoBaixa) || codigoBaixa }, conta);
+}
+
+// Exclui um título (ExcluirContaPagar / ExcluirContaReceber). Só para títulos
+// manuais (RPTP) do saneamento; título gerado por NF a Omie recusa.
+export async function excluirConta(conta: Conta, tipo: any, codigoLancamento: number | string): Promise<any> {
+  if (codigoLancamento == null) throw new Error('informe o codigo do lancamento');
+  const { endpoint } = endpointCallConta(tipo);
+  const call = String(tipo) === 'receber' ? 'ExcluirContaReceber' : 'ExcluirContaPagar';
+  return omieRequest(endpoint, call, { codigo_lancamento_omie: Number(codigoLancamento) || codigoLancamento }, conta);
+}
+
 // Lista as contas correntes (bancos/caixas) de uma empresa. Usado pela tela
 // "Baixar contas" no dropdown de "alterar conta corrente". Filtra inativas.
 // Retorna [{ codigo, descricao, tipo, banco }].
