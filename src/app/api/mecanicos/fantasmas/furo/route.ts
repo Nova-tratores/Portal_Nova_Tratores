@@ -1,8 +1,8 @@
 // Furo de km de um mecânico (José, 28/10/2026). GET ?tecnico=&mes= → dias com GPS × cobrado e paradas ·
-// GET ?tecnico=&mes=&rota=AAAA-MM-DD → o dia aberto (rota, paradas com cidade, trechos, tempo no cliente) · POST {tecnico, mes, forcar?} → o Tratorilson resume onde foi o furo.
+// GET ?tecnico=&mes=&rota=AAAA-MM-DD → o dia aberto (rota, paradas com cidade, trechos, tempo no cliente) · POST {tecnico, mes, forcar?, divergencia?} → o Tratorilson explica a divergência (ou onde foi o furo).
 import { NextRequest, NextResponse } from 'next/server'
 import { protegerRota } from '@/lib/ajustes/permissao-server'
-import { furoKm, analisarFuro, diaDetalhado } from '@/lib/mecanicos/furo-km-server'
+import { furoKm, analisarFuro, diaDetalhado, ehDivergencia } from '@/lib/mecanicos/furo-km-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   const b = await req.json().catch(() => ({}))
   if (!b.tecnico) return NextResponse.json({ error: 'tecnico obrigatório' }, { status: 400 })
   try {
-    const a = await analisarFuro(String(b.tecnico), mesOk(b.mes), !!b.forcar)
+    const a = await analisarFuro(String(b.tecnico), mesOk(b.mes), !!b.forcar, ehDivergencia(b.divergencia) ? b.divergencia : 'geral')
     if (!a) return NextResponse.json({ error: 'Técnico sem dados no mês' }, { status: 404 })
     return NextResponse.json(a)
   } catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Falha' }, { status: 500 }) }

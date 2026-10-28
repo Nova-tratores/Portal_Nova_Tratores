@@ -10,6 +10,7 @@ import type { Fantasmas, TecnicoFantasma, OSFantasma, DiaFantasma } from '@/lib/
 import { useVersaoAoVivo } from './useAoVivo'
 import TemparioJanela from './TemparioJanela'
 import FuroKmJanela from './FuroKmJanela'
+import type { Divergencia } from '@/lib/mecanicos/divergencias'
 import { TabelaCruzamentos, montarCruzamentos, useFuroKm } from './CruzamentosTecnico'
 
 // Tempário fora do cartão por enquanto (José, 28/10/2026: "do tempário, deixa vazio algo como Em Desenvolvimento").
@@ -188,7 +189,7 @@ function LinhaMes({ dias, mes }: { dias: DiaFantasma[]; mes: string }) {
 
 export function CartaoTecnico({ t, ordem = 0, mes }: { t: TecnicoFantasma; ordem?: number; mes: string }) {
   const [aberto, setAberto] = useState<'os' | 'dias' | null>(null)
-  const [furo, setFuro] = useState(false)
+  const [furo, setFuro] = useState<Divergencia | null>(null)
   const fk = useFuroKm(t.tecnico, mes)
   const [tempario, setTempario] = useState<string | null>(null)
   const x = t.totais
@@ -206,7 +207,7 @@ export function CartaoTecnico({ t, ordem = 0, mes }: { t: TecnicoFantasma; ordem
       </header>
       {/* 28/10/2026 (José escolheu a opção 5 da página teste: "isso aqui eu achei muito bom, vamos trabalhar nele"):
           uma linha por cruzamento; clicar abre o mapa do furo, as OS ou o dia a dia */}
-      <TabelaCruzamentos linhas={montarCruzamentos(t, fk)} onAcao={(a) => (a === 'mapa' ? setFuro(true) : setAberto(a))} />
+      <TabelaCruzamentos linhas={montarCruzamentos(t, fk)} onAcao={(a, div) => (a === 'mapa' ? setFuro(div || 'geral') : setAberto(a))} />
       {/* gráfico do mês tirado do cartão (José, 21/10/2026); o dia a dia continua na aba "Dia a dia" */}
       {alertas.length > 0 && (
         <div className="fan-alertas">
@@ -238,7 +239,7 @@ export function CartaoTecnico({ t, ordem = 0, mes }: { t: TecnicoFantasma; ordem
       </div>
       {aberto === 'os' && <TabelaOS os={t.os} onTempario={setTempario} />}
       {tempario && <TemparioJanela os={tempario} onFechar={() => setTempario(null)} />}
-      {furo && <FuroKmJanela tecnico={t.tecnico} mes={mes} onFechar={() => setFuro(false)} />}
+      {furo && <FuroKmJanela tecnico={t.tecnico} mes={mes} divergencia={furo} onFechar={() => setFuro(null)} />}
       {aberto === 'dias' && (
         <div className="fan-tab">
           <div className="fan-th d"><span>Dia</span><span>OS</span><span className="n">Relatório</span><span className="n">Carro ligado</span><span>Carro</span><span className="n">Km carro</span><span className="n">Km relatório</span></div>

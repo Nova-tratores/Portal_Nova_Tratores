@@ -10,6 +10,21 @@ import { carregarLeaflet, CENTRO_PADRAO } from '@/components/feedbacks/leaflet'
 import { filtrarEspetos, segmentarTrajeto } from '@/lib/frota/gps'
 import type { FuroKm, DiaFuro, AnaliseFuro, DiaDetalhado, ParadaFuro, ConfCliente } from '@/lib/mecanicos/furo-km-server'
 import { Janela } from './JanelasInfo'
+import { DIVERGENCIAS, type Divergencia } from '@/lib/mecanicos/divergencias'
+
+/** OS envolvidas numa divergência de OS (km ou horas do relatório que não foram cobrados) */
+const osDaDiv = (fk: FuroKm, div: Divergencia) => (fk.osTotais || []).filter((o) =>
+  div === 'km-nao-cobrado' ? o.kmRel - o.kmCobrado > 0.5 : div === 'horas-nao-cobradas' ? o.horasRel - o.horasCobradas > 0.05 : false)
+/** os dias que entram na lista para cada divergência */
+function filtroDia(fk: FuroKm, div: Divergencia): (x: DiaFuro) => boolean {
+  if (div === 'km-fora-relatorio') return (x) => x.kmGps - x.kmRel > 5
+  if (div === 'dias-sem-os') return (x) => !x.os.length && x.kmGps > 5
+  if (div === 'sem-cliente') return (x) => x.os.some((o) => !o.noCliente)
+  if (div === 'km-nao-cobrado' || div === 'horas-nao-cobradas') { const ids = new Set(osDaDiv(fk, div).map((o) => o.os)); return (x) => x.os.some((o) => ids.has(o.os)) }
+  return (x) => x.furo > 5
+}
+const TITULO_LISTA: Record<Divergencia, string> = { 'geral': 'Dias com furo', 'km-fora-relatorio': 'Dias com km fora do relatório', 'km-nao-cobrado': 'Dias dessas OS', 'dias-sem-os': 'Dias sem OS', 'horas-nao-cobradas': 'Dias dessas OS', 'sem-cliente': 'Dias de OS sem passar no cliente' }
+const fmtValor = (v: number, u: 'km' | 'h' | 'dias') => (u === 'h' ? `${String(v).replace('.', ',')} h` : u === 'dias' ? `${v} dia${v === 1 ? '' : 's'}` : `${Math.round(v).toLocaleString('pt-BR')} km`)
 
 const km = (v: number) => `${(Math.round(v * 10) / 10).toLocaleString('pt-BR')} km`
 const kmI = (v: number) => `${Math.round(v).toLocaleString('pt-BR')} km`
@@ -21,7 +36,7 @@ const CORES = ['#2563eb', '#ef4444', '#f59e0b', '#7c3aed', '#0891b2', '#db2777',
 const CONF: Record<ConfCliente, string> = { confirmado: 'local confirmado no faturar', cadastro: 'local do cadastro do cliente', provavel: 'provável: parada mais longa do dia' }
 const corParada = (p: ParadaFuro, c: string) => (p.cliente ? '#059669' : p.loja ? '#0f172a' : p.atipica ? '#dc2626' : c)
 
-export default function FuroKmJanela({ tecnico, mes, onFechar }: { tecnico: string; mes: string; onFechar: () => void }) {
+export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'geral' }: { tecnico: string; mes: string; onFechar: () => void; divergencia?: Divergencia }) {
   const [d, setD] = useState<FuroKm | null>(null)
   const [erro, setErro] = useState('')
   const [sel, setSel] = useState<string[]>([])
@@ -38,7 +53,7 @@ export default function FuroKmJanela({ tecnico, mes, onFechar }: { tecnico: stri
   const pedirIA = async (forcar = false) => {
     setPensando(true)
     try {
-      const r = await fetch('/api/mecanicos/fantasmas/furo', { method: 'POST', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ tecnico, mes, forcar }) })
+      const r = await fetch('/api/mecanicos/fantasmas/furo', { method: 'POST', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ tecnico, mes, forcar, divergencia }) })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || 'Falha')
       setIa(j)
@@ -56,14 +71,14 @@ export default function FuroKmJanela({ tecnico, mes, onFechar }: { tecnico: stri
         if (!vivo) return
         setD(j)
         // começa com o dia de maior furo aberto e já pede o resumo
-        const primeiro = (j as FuroKm).dias.find((x) => x.furo > 5)?.data
+        const primeiro = (j as FuroKm).dias.find(filtroDia(j as FuroKm, divergencia))?.data
         if (primeiro) { setSel([primeiro]); setFoco(primeiro) }
         void pedirIA()
       } catch (e) { if (vivo) setErro(e instanceof Error ? e.message : 'Falha') }
     })()
     return () => { vivo = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tecnico, mes])
+  }, [tecnico, mes, divergencia])
 
   useEffect(() => { carregarLeaflet(() => setOkMapa(true)) }, [])
   useEffect(() => {
@@ -122,12 +137,15 @@ export default function FuroKmJanela({ tecnico, mes, onFechar }: { tecnico: stri
     setSel((s) => (s.includes(dia) ? s.filter((x) => x !== dia) : [...s, dia]))
     setFoco((f) => (sel.includes(dia) ? (f === dia ? sel.filter((x) => x !== dia).slice(-1)[0] || null : f) : dia))
   }
-  const comFuro = d?.dias.filter((x) => x.furo > 5) || []
-  const semOS = comFuro.filter((x) => !x.os.length)
+  const comFuro = d ? d.dias.filter(filtroDia(d, divergencia)) : []
+  const semOS = d ? d.dias.filter((x) => !x.os.length && x.kmGps > 5) : []
+  const osDiv = d ? osDaDiv(d, divergencia) : []
+  const un = DIVERGENCIAS[divergencia].unidade
+  const diasDasOS = (ids: string[]) => (d?.dias || []).filter((x) => x.os.some((o) => ids.includes(o.os))).map((x) => x.data)
   const df = foco ? det[foco] : null
 
   return (
-    <Janela titulo={`Onde foi o furo de km · ${tecnico.split(' ').slice(0, 2).join(' ')}`} sub="km rodados pelo GPS do carro que não viraram km cobrado na OS" ic="fa-route" cor="#dc2626" onFechar={onFechar}>
+    <Janela titulo={`${divergencia === 'geral' ? 'Onde foi o furo de km' : DIVERGENCIAS[divergencia].titulo.replace(/^./, (c) => c.toUpperCase())} · ${tecnico.split(' ').slice(0, 2).join(' ')}`} sub="o Tratorilson explica a divergência; o mapa mostra o caminho do carro em cada dia" ic="fa-route" cor="#dc2626" onFechar={onFechar}>
       <style>{ESTILO_FK}</style>
       {erro && <div className="fk-erro">{erro}</div>}
       {!d && !erro && <div className="fk-carr"><i className="fas fa-circle-notch fa-spin" /> juntando GPS, OS e paradas…</div>}
@@ -145,7 +163,7 @@ export default function FuroKmJanela({ tecnico, mes, onFechar }: { tecnico: stri
           <section className="fk-ia">
             <header>
               <span className="fk-robo"><i className="fas fa-robot" /></span>
-              <b>Tratorilson: onde foi o furo</b>
+              <b>Tratorilson: {DIVERGENCIAS[divergencia].titulo}</b>
               <button type="button" onClick={() => void pedirIA(true)} disabled={pensando} title="analisar de novo"><i className={`fas fa-rotate${pensando ? ' fa-spin' : ''}`} /></button>
             </header>
             {pensando && !ia ? <p className="fk-pensa"><i className="fas fa-circle-notch fa-spin" /> lendo os dias, as OS e as paradas do carro…</p> : ia && (
@@ -154,9 +172,9 @@ export default function FuroKmJanela({ tecnico, mes, onFechar }: { tecnico: stri
                 {ia.pontos.length > 0 && (
                   <div className="fk-pontos">
                     {ia.pontos.map((p, i) => (
-                      <button key={i} type="button" className="fk-ponto" onClick={() => { const ds = p.dias.filter((x) => d.dias.some((y) => y.data === x)); if (ds.length) { setSel(ds); setFoco(ds[0]) } }} title={p.dias.length ? 'ver esses dias no mapa' : ''}>
+                      <button key={i} type="button" className="fk-ponto" onClick={() => { const ds = [...new Set([...p.dias, ...diasDasOS(p.os || [])])].filter((x) => d.dias.some((y) => y.data === x)); if (ds.length) { setSel(ds); setFoco(ds[0]) } }} title="ver no mapa">
                         <span>{i + 1}</span>
-                        <div><b>{p.titulo}{p.km ? <em> · ~{kmI(p.km)}</em> : null}</b><small>{p.explicacao}</small>{p.dias.length > 0 && <u><i className="fas fa-map-location-dot" /> {p.dias.length === 1 ? fmtDia(p.dias[0]) : `${p.dias.length} dias`} no mapa</u>}</div>
+                        <div><b>{p.titulo}{p.valor ? <em> · ~{fmtValor(p.valor, un)}</em> : null}</b><small>{p.explicacao}</small>{(p.os || []).length > 0 && <u className="os"><i className="fas fa-file-lines" /> {p.os.join(', ')}</u>}{p.dias.length > 0 && <u><i className="fas fa-map-location-dot" /> {p.dias.length === 1 ? fmtDia(p.dias[0]) : `${p.dias.length} dias`} no mapa</u>}</div>
                       </button>
                     ))}
                   </div>
@@ -167,8 +185,22 @@ export default function FuroKmJanela({ tecnico, mes, onFechar }: { tecnico: stri
 
           <div className="fk-corpo">
             <div className="fk-dias">
-              <div className="fk-dias-cab"><b>Dias com furo</b><small>clique para abrir no mapa</small></div>
-              {comFuro.length === 0 && <p className="fk-vazio">Nenhum dia com km rodado sem cobrança.</p>}
+              {osDiv.length > 0 && (
+                <div className="fk-osdiv">
+                  <div className="fk-dias-cab"><b>OS com a divergência</b><small>relatório × cobrado</small></div>
+                  {osDiv.map((o) => {
+                    const rel = divergencia === 'km-nao-cobrado' ? o.kmRel : o.horasRel, cob = divergencia === 'km-nao-cobrado' ? o.kmCobrado : o.horasCobradas
+                    return (
+                      <button key={o.os} type="button" className="fk-osl" onClick={() => { const ds = diasDasOS([o.os]); if (ds.length) { setSel(ds); setFoco(ds[0]) } }}>
+                        <b>{o.os}</b><span>{o.cliente}</span>
+                        <small>relatório {fmtValor(rel, un)} · cobrado {fmtValor(cob, un)}</small><em>−{fmtValor(Math.round((rel - cob) * 10) / 10, un)}</em>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              <div className="fk-dias-cab"><b>{TITULO_LISTA[divergencia]}</b><small>clique para abrir no mapa</small></div>
+              {comFuro.length === 0 && <p className="fk-vazio">Nenhum dia com essa divergência.</p>}
               {comFuro.map((x) => <LinhaDia key={x.data} x={x} on={sel.includes(x.data)} foco={foco === x.data} cor={cor[x.data]} carregando={sel.includes(x.data) && !(x.data in det)} onClick={() => alternar(x.data)} />)}
             </div>
             <div className="fk-dir">
@@ -268,7 +300,10 @@ const ESTILO_FK = `
 .fk-pontos { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 8px }
 .fk-ponto { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; text-align: left; border: 1px solid #e9e5ff; background: #fefefe; border-radius: 12px; padding: 10px 12px; font-family: inherit; cursor: pointer; transition: border-color .2s, transform .2s } .fk-ponto:hover { border-color: #a78bfa; transform: translateY(-1px) }
 .fk-ponto > span { width: 26px; height: 26px; border-radius: 50%; background: #ede9fe; color: #6d28d9; display: grid; place-items: center; font-size: 13px; font-weight: 600 }
-.fk-ponto div { display: grid; gap: 3px } .fk-ponto b { font-size: 14px; font-weight: 500; color: #0f172a } .fk-ponto b em { font-style: normal; color: #b91c1c } .fk-ponto small { font-size: 13px; color: #475569; line-height: 1.45 } .fk-ponto u { text-decoration: none; font-size: 12.5px; color: #6d28d9 }
+.fk-ponto div { display: grid; gap: 3px } .fk-ponto b { font-size: 14px; font-weight: 500; color: #0f172a } .fk-ponto b em { font-style: normal; color: #b91c1c } .fk-ponto small { font-size: 13px; color: #475569; line-height: 1.45 } .fk-ponto u { text-decoration: none; font-size: 12.5px; color: #6d28d9 } .fk-ponto u.os { color: #334155 }
+.fk-osdiv { display: grid; gap: 6px; margin-bottom: 10px }
+.fk-osl { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 8px; align-items: baseline; text-align: left; border: 1px solid #fde68a; background: #fffbeb; border-radius: 12px; padding: 8px 11px; font-family: inherit; cursor: pointer }
+.fk-osl b { font-size: 13.5px; font-weight: 600; color: #0f172a } .fk-osl span { font-size: 13px; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap } .fk-osl small { grid-column: 1 / 3; font-size: 12.5px; color: #475569 } .fk-osl em { grid-row: 1 / 3; grid-column: 3; align-self: center; font-style: normal; font-weight: 600; color: #b91c1c; font-size: 14px }
 .fk-corpo { display: grid; grid-template-columns: minmax(290px, 390px) minmax(0, 1fr); gap: 14px; align-items: start }
 @media (max-width: 900px) { .fk-corpo { grid-template-columns: 1fr } }
 .fk-dias { display: grid; gap: 6px; align-content: start; max-height: 860px; overflow: auto; padding-right: 4px }

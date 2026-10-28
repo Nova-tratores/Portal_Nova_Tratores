@@ -13,6 +13,8 @@ import { computarESalvarRota } from '@/lib/pos/rastreamento'
 import { distanciaM, minutosNoExpediente, soDigitos, LOJA, RAIO_LOJA_M } from '@/lib/pos/localizacao-cliente'
 import { fantasmasDoMes } from './fantasmas-server'
 import { comCache } from './cache'
+import { DIVERGENCIAS, type Divergencia } from './divergencias'
+export { ehDivergencia, type Divergencia } from './divergencias'
 
 type Rec = Record<string, unknown>
 const r1 = (n: number) => Math.round(n * 10) / 10
@@ -38,7 +40,8 @@ export interface DiaFuro {
   /** OS de OUTROS técnicos no mesmo dia (José, 28/10/2026: "ele não acompanhou nenhum técnico também?") */
   colegas: (OSDoDia & { tecnico: string; semCarro: boolean })[]
 }
-export interface FuroKm { tecnico: string; mes: string; placas: string[]; dias: DiaFuro[]; kmGps: number; kmCobrado: number; furo: number }
+export interface OSTotal { os: string; cliente: string; dias: string[]; kmRel: number; kmCobrado: number; horasRel: number; horasCobradas: number }
+export interface FuroKm { tecnico: string; mes: string; placas: string[]; dias: DiaFuro[]; kmGps: number; kmCobrado: number; furo: number; osTotais: OSTotal[] }
 
 type Loc = { lat: number; lng: number; nome: string; conf: 'confirmado' | 'cadastro' }
 
@@ -154,7 +157,8 @@ export async function furoKm(tecnico: string, mes: string): Promise<FuroKm | nul
     }
   }
   dias.sort((a, b) => b.furo - a.furo || b.data.localeCompare(a.data))
-  return { tecnico, mes, placas: t.placas, dias, kmGps: Math.round(t.totais.kmCarro), kmCobrado: Math.round(t.totais.kmCobrado), furo: Math.max(0, Math.round(t.totais.kmCarro - t.totais.kmCobrado)) }
+  const osTotais = t.os.map((o) => ({ os: o.os, cliente: o.cliente, dias: o.dias, kmRel: o.kmRel, kmCobrado: o.kmCobrado, horasRel: o.horasRel, horasCobradas: o.horasCobradas }))
+  return { tecnico, mes, placas: t.placas, dias, osTotais, kmGps: Math.round(t.totais.kmCarro), kmCobrado: Math.round(t.totais.kmCobrado), furo: Math.max(0, Math.round(t.totais.kmCarro - t.totais.kmCobrado)) }
 }
 
 // cidade de um ponto (ORS reverse), guardada por ponto arredondado (~100 m)
@@ -166,7 +170,8 @@ async function cidadeDe(lat: number, lng: number): Promise<string | null> {
   if (!key) return null
   try {
     const r = await fetch(`https://api.openrouteservice.org/geocode/reverse?api_key=${key}&point.lat=${lat}&point.lon=${lng}&size=1&layers=locality,localadmin,county`, { signal: AbortSignal.timeout(6000) })
-    const j = r.ok ? await r.json() : null
+    if (!r.ok) return null // limite da ORS: não guarda, tenta de novo depois
+    const j = await r.json()
     const pr = j?.features?.[0]?.properties || {}
     const nome = (pr.locality || pr.localadmin || pr.county || null) as string | null
     const uf = (pr.region_a || '') as string
@@ -174,6 +179,11 @@ async function cidadeDe(lat: number, lng: number): Promise<string | null> {
     CIDADES.set(k, c)
     return c
   } catch { return null }
+}
+
+/** cidade de várias paradas, de 4 em 4 (a ORS recusa rajada) */
+async function cidadesDe(ps: ParadaFuro[]) {
+  for (let i = 0; i < ps.length; i += 4) await Promise.all(ps.slice(i, i + 4).map(async (p) => { p.cidade = await cidadeDe(p.lat, p.lng) }))
 }
 
 /** km percorridos entre dois horários, somando os pontos do GPS */
@@ -210,39 +220,82 @@ export async function diaDetalhado(tecnico: string, mes: string, dia: string): P
   const kmFinal = pontos.length ? kmEntre(pontos, ant, Date.parse(pontos[pontos.length - 1].dt)) : 0
   // cidade das paradas de 5 min ou mais (até 25 por dia)
   const alvo = ps.filter((p) => p.min >= 5).slice(0, 25)
-  await Promise.all(alvo.map(async (p) => { p.cidade = await cidadeDe(p.lat, p.lng) }))
+  await cidadesDe(alvo)
   return { ...d, paradas: ps, pontos, kmFinal }
 }
 
-export interface AnaliseFuro { resumo: string; pontos: { titulo: string; km: number; dias: string[]; explicacao: string }[]; geradoEm: string }
+export interface AnaliseFuro { resumo: string; pontos: { titulo: string; valor: number; dias: string[]; os: string[]; explicacao: string }[]; geradoEm: string }
 
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })
+const br = (d: string) => d.split('-').reverse().join('/')
 
-/** O Tratorilson lê os dias com furo e resume onde ele está (guardado 6 h por técnico/mês; forcar refaz). */
-export async function analisarFuro(tecnico: string, mes: string, forcar = false): Promise<AnaliseFuro | null> {
-  const r = await comCache(`furo-km:v3:${mes}:${tecnico}`, 6 * 3600_000, async () => {
+/** o dia contado para o Tratorilson: GPS, OS, colegas e paradas */
+function diaEmTexto(d: DiaFuro): string {
+  return [
+    `DIA ${br(d.data)}: GPS ${d.kmGps} km · relatório ${d.kmRel} km · cobrado nas OS ${d.kmCobrado} km${d.saida ? ` · carro ligou ${hora(d.saida)}` : ''}${d.volta ? `, desligou ${hora(d.volta)}` : ''}`,
+    `  OS dele: ${d.os.length ? d.os.map((o) => `${o.os} (${o.cliente || 'cliente?'}, cobrou ${o.kmCobrado} km${o.noCliente ? `, carro no cliente ${hora(o.noCliente.inicio)}–${o.noCliente.fim ? hora(o.noCliente.fim) : '?'} ${o.noCliente.min} min${o.noCliente.conf === 'provavel' ? ' (provável)' : ''}` : ', carro não passou no cliente'})`).join('; ') : 'NENHUMA'}`,
+    `  OS de colegas no mesmo dia: ${d.colegas.length ? d.colegas.map((o) => `${o.tecnico}${o.semCarro ? ' (sem carro)' : ''} ${o.os} (${o.cliente}${o.noCliente ? `, o carro dele passou no cliente ${o.noCliente.min} min${o.noCliente.conf === 'provavel' ? ' provável' : ''}` : ''})`).join('; ') : 'nenhuma'}`,
+    `  paradas: ${d.paradas.length ? d.paradas.filter((p) => p.min >= 5).slice(0, 14).map((p) => `${hora(p.inicio)} ${p.cliente ? `cliente ${p.cliente.nome}${p.cliente.colega ? ` (OS do ${p.cliente.colega})` : ''}` : (p.loja ? 'loja' : `${p.cidade || 'lugar sem nome'} (${Math.round(distanciaM(p, LOJA) / 1000)} km da loja${p.classe === 'outro_destino' || p.classe === 'manutencao' || p.classe === 'abastecimento' ? `, ${p.onde}` : ''})`)} ${p.min}min${p.atipica ? ' ATÍPICA' : ''}`).join(' | ') : 'sem paradas registradas'}`,
+  ].join('\n')
+}
+
+/** os dados e a pergunta de cada divergência */
+function pauta(fk: FuroKm, div: Divergencia): { dados?: string; dias?: DiaFuro[]; pergunta: string } | null {
+  const dias = (fn: (d: DiaFuro) => boolean) => fk.dias.filter(fn).slice(0, 25)
+  if (div === 'km-nao-cobrado' || div === 'horas-nao-cobradas') {
+    const km = div === 'km-nao-cobrado'
+    const os = fk.osTotais.filter((o) => (km ? o.kmRel - o.kmCobrado : o.horasRel - o.horasCobradas) > (km ? 0.5 : 0.05))
+    if (!os.length) return null
+    return {
+      dados: os.map((o) => `${o.os} (${o.cliente}) dias ${o.dias.map(br).join(', ')}: relatório ${km ? `${o.kmRel} km` : `${o.horasRel} h`} · cobrado ${km ? `${o.kmCobrado} km` : `${o.horasCobradas} h`}`).join('\n'),
+      pergunta: km
+        ? 'Divergência: km que o mecânico pôs no relatório da OS e não foi cobrado na OS. Explique em quais OS isso aconteceu, o tamanho de cada uma, e o que pode ter causado (km esquecido na OS, km de deslocamento não cobrado, OS de garantia ou interna, km duplicado entre OS do mesmo dia). Nos pontos, preencha "os" com as OS.'
+        : 'Divergência: horas que o mecânico apontou no relatório da OS e não foram cobradas na OS. Explique em quais OS isso aconteceu, o tamanho de cada uma, e o que pode ter causado (hora esquecida na OS, desconto, garantia, serviço que demorou mais do que foi orçado). Nos pontos, preencha "os" com as OS.',
+    }
+  }
+  const sel = div === 'km-fora-relatorio' ? dias((d) => d.kmGps - d.kmRel > 5)
+    : div === 'dias-sem-os' ? dias((d) => !d.os.length && d.kmGps > 5)
+    : div === 'sem-cliente' ? dias((d) => d.os.some((o) => !o.noCliente))
+    : dias((d) => d.furo > 5)
+  if (!sel.length) return null
+  const pergunta = {
+    'km-fora-relatorio': 'Divergência: km que o carro rodou pelo GPS e não está em nenhum relatório de OS. Explique em quais dias, para onde o carro foi (cidades, paradas, loja, colegas) e o que conferir.',
+    'dias-sem-os': 'Divergência: dias em que o carro rodou e o mecânico não tinha nenhuma OS. Para cada dia diga para onde o carro foi e se ele estava levando um colega (o km deveria estar na OS do colega), indo à loja/fornecedor, ou num lugar sem explicação.',
+    'sem-cliente': 'Divergência: dias de OS em que o carro do mecânico não parou perto do cliente da OS. Explique cada caso: se ele pode ter ido no carro de outro técnico, se o cliente está sem local cadastrado, se o serviço foi na loja, ou se o carro ficou em outro lugar.',
+    'geral': '"Furo" = km rodado e não cobrado. Descubra ONDE está o furo e agrupe em poucas causas concretas, por exemplo: dias sem nenhuma OS; OS cobrando menos km do que o deslocamento até o cliente; carro que não passou no cliente da OS; dia em que ele levou ou acompanhou um colega (o km deveria estar na OS do colega); paradas fora de cliente (casa, posto, lugares sem cadastro); idas à loja/fornecedor que não são de nenhuma OS.',
+  }[div]
+  return { dias: sel, pergunta }
+}
+
+/** O Tratorilson explica uma divergência (guardado 6 h por técnico/mês/divergência; forcar refaz). */
+export async function analisarFuro(tecnico: string, mes: string, forcar = false, div: Divergencia = 'geral'): Promise<AnaliseFuro | null> {
+  const r = await comCache(`furo-km:v5:${mes}:${tecnico}:${div}`, 6 * 3600_000, async () => {
     const fk = await furoKm(tecnico, mes)
     if (!fk) return null
-    const dias = fk.dias.filter((d) => d.furo > 5).slice(0, 25)
-    if (!dias.length) return { resumo: 'Não há km rodado sem cobrança neste mês.', pontos: [], geradoEm: new Date().toISOString() }
-    const txt = dias.map((d) => [
-      `DIA ${d.data.split('-').reverse().join('/')}: GPS ${d.kmGps} km · cobrado nas OS ${d.kmCobrado} km · relatório ${d.kmRel} km · FURO ${d.furo} km${d.saida ? ` · carro ligou ${hora(d.saida)}` : ''}${d.volta ? `, desligou ${hora(d.volta)}` : ''}`,
-      `  OS do dia: ${d.os.length ? d.os.map((o) => `${o.os} (${o.cliente || 'cliente?'}, cobrou ${o.kmCobrado} km${o.noCliente ? `, carro no cliente ${hora(o.noCliente.inicio)}–${o.noCliente.fim ? hora(o.noCliente.fim) : '?'} ${o.noCliente.min} min${o.noCliente.conf === 'provavel' ? ' (provável)' : ''}` : ', carro não passou no cliente'})`).join('; ') : 'NENHUMA'}`,
-      `  OS de colegas no mesmo dia: ${d.colegas.length ? d.colegas.map((o) => `${o.tecnico}${o.semCarro ? ' (sem carro)' : ''} ${o.os} (${o.cliente}${o.noCliente ? `, o carro dele passou no cliente ${o.noCliente.min} min${o.noCliente.conf === 'provavel' ? ' provável' : ''}` : ''})`).join('; ') : 'nenhuma'}`,
-      `  paradas: ${d.paradas.length ? d.paradas.filter((p) => p.min >= 5).slice(0, 14).map((p) => `${hora(p.inicio)} ${p.cliente ? `cliente ${p.cliente.nome}` : p.onde} ${p.min}min${p.atipica ? ' ATÍPICA' : ''}`).join(' | ') : 'sem paradas registradas'}`,
-    ].join('\n')).join('\n')
+    const p = pauta(fk, div)
+    if (!p) return { resumo: 'Não encontrei essa divergência neste mês.', pontos: [], geradoEm: new Date().toISOString() }
+    if (p.dias) {
+      // cidade das paradas de 15 min ou mais fora da loja (até 40), para ele dizer onde o carro estava
+      const alvo = p.dias.flatMap((d) => d.paradas.filter((x) => !x.loja && x.min >= 15)).slice(0, 40)
+      await cidadesDe(alvo)
+      p.dados = p.dias.map(diaEmTexto).join('\n')
+    }
+    const unidade = DIVERGENCIAS[div].unidade
     const ia = await chamarIA({
       temperature: 0.2, response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: 'Você é o Tratorilson, auditor da oficina de tratores Nova Tratores. Recebe, dia a dia, os km que o carro do mecânico rodou pelo GPS, os km cobrados nas ordens de serviço (OS) daquele dia, se o carro passou no cliente da OS (e quanto tempo ficou) e as paradas do carro. "Furo" = km rodado e não cobrado. Descubra ONDE está o furo e agrupe em poucas causas concretas, por exemplo: dias sem nenhuma OS; OS cobrando menos km do que o deslocamento até o cliente; carro que não passou no cliente da OS; dia em que ele levou ou acompanhou um colega (o km deveria estar na OS do colega); paradas fora de cliente (casa, posto, lugares sem cadastro); idas à loja/fornecedor que não são de nenhuma OS. Cite dias e lugares. Não acuse: diga o que conferir. Português do Brasil, frases curtas, sem jargão. Responda só JSON: {"resumo":"2 ou 3 frases dizendo basicamente onde foi o furo","pontos":[{"titulo":"causa curta","km":número aproximado de km dessa causa,"dias":["AAAA-MM-DD"],"explicacao":"1 ou 2 frases com o que conferir"}]} com no máximo 5 pontos, do maior para o menor.' },
-        { role: 'user', content: `Mecânico: ${tecnico}\nMês: ${mes}\nTotal: GPS ${fk.kmGps} km · cobrado ${fk.kmCobrado} km · furo ${fk.furo} km\n\n${txt}` },
+        { role: 'system', content: `Você é o Tratorilson, auditor da oficina de tratores Nova Tratores. Cruza o GPS do carro do mecânico, os relatórios que ele escreve nas ordens de serviço (OS), o que foi cobrado nas OS, o local do cliente e as OS dos colegas. ${p.pergunta} Cite dias, OS, cidades e quanto tempo o carro ficou parado. Nunca use a palavra "geocerca". Não acuse: diga o que conferir. Português do Brasil, frases curtas, sem jargão. Responda só JSON: {"resumo":"2 ou 3 frases explicando basicamente essa divergência","pontos":[{"titulo":"causa curta (não comece pela data)","valor":número aproximado em ${unidade === 'h' ? 'horas' : unidade === 'dias' ? 'dias' : 'km'},"dias":["AAAA-MM-DD"],"os":["OS-0000"],"explicacao":"1 ou 2 frases com o que conferir"}]} com no máximo 5 pontos, do maior para o menor.` },
+        { role: 'user', content: `Mecânico: ${tecnico}\nMês: ${mes}\nTotal do mês: GPS ${fk.kmGps} km · cobrado ${fk.kmCobrado} km\n\n${p.dados}` },
       ],
     })
-    let j: { resumo?: string; pontos?: { titulo?: string; km?: number; dias?: string[]; explicacao?: string }[] } = {}
+    let j: { resumo?: string; pontos?: { titulo?: string; valor?: number; km?: number; dias?: string[]; os?: string[]; explicacao?: string }[] } = {}
     try { j = JSON.parse(ia.choices?.[0]?.message?.content || '{}') } catch { j = {} }
     return {
       resumo: String(j.resumo || 'Não consegui resumir.'),
-      pontos: (j.pontos || []).slice(0, 5).map((p) => ({ titulo: String(p.titulo || ''), km: Math.round(Number(p.km) || 0), dias: (p.dias || []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)), explicacao: String(p.explicacao || '') })),
+      pontos: (j.pontos || []).slice(0, 5).map((x) => ({
+        titulo: String(x.titulo || ''), valor: Math.round((Number(x.valor ?? x.km) || 0) * 10) / 10,
+        dias: (x.dias || []).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)), os: (x.os || []).filter((o) => /^OS-\d+/.test(o)), explicacao: String(x.explicacao || ''),
+      })),
       geradoEm: new Date().toISOString(),
     }
   }, forcar)
