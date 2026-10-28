@@ -10,7 +10,6 @@ import type { OSFaturada } from '@/lib/mecanicos/painel'
 import { brl, brl2, horas, kmFmt, COR, Kpi, Cartao, EstilosCPV, Numero, Odometro } from './ui'
 import { porDiaDe, ritmoVivo, type Ritmo } from '@/lib/mecanicos/fita'
 import DestaquesGiram, { montarBlocos } from './DestaquesGiram'
-import { FeedLinhaTempo } from './FeedOpcoes'
 import { useBasePosVendas } from './useBasePosVendas'
 import { useVersaoAoVivo } from './useAoVivo'
 
@@ -308,10 +307,9 @@ function VivoCompacto({ d, erro, seg, novos, aviso, onFimAviso }: { d: RespVivo 
       {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
       {/* abertura escolhida pelo José na página de teste (17/10/2026): destaques que giram + feed */}
       {d && base && porDia && ritmo && (
-        <div className="bv-abertura">
+        <div className="bv-abertura so">
           <DestaquesGiram blocos={montarBlocos(d, porDia, ritmo)} faturadas={base.faturadas} porDia={porDia} hoje={d.hoje} />
-          {/* últimos faturamentos em linha do tempo (José escolheu na página de teste, 18/10/2026) */}
-          <div className="bv-feed-tl"><FeedLinhaTempo ultimos={d.ultimos} agora={d.agora} extras={d.extras} fotos={d.fotos} /></div>
+          {/* 28/10/2026: o bloco "Últimos faturamentos" saiu (José: "pode remover esse bloco") */}
         </div>
       )}
       {d && (!base || !porDia || !ritmo) && (
@@ -331,6 +329,7 @@ export const ESTILO_VIVO = `
 @media (max-width: 1100px) { .bv-feed-tl { height: 480px } }
 .bv-abertura { display: grid; grid-template-columns: minmax(0, 2.6fr) minmax(260px, 1fr); gap: 12px; align-items: stretch }
 @media (max-width: 1100px) { .bv-abertura { grid-template-columns: 1fr } }
+.bv-abertura.so { grid-template-columns: minmax(0, 1fr) }
 .bv-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); gap: 12px; align-items: stretch }
 .bv { border-radius: 18px; padding: 14px 16px; background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #0f172a); border: 1px solid var(--portal-border, #e5e7eb); box-shadow: 0 1px 3px rgba(15,23,42,.05); display: flex; flex-direction: column; gap: 6px; min-width: 0; transition: transform .2s, box-shadow .2s }
 .bv:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(15,23,42,.10) }
