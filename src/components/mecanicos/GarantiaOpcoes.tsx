@@ -179,14 +179,17 @@ export function GarantiaPlacar({ lista, hoje, periodo }: { lista: Gar[]; hoje: s
   const voltouCliente = c.rej.reduce((s2, g) => s2 + (['paga', 'cobrada'].includes(g.cobranca.status) ? g.cobranca.valor : 0), 0)
   const pecasJogo = c.abertas.reduce((s2, g) => s2 + g.valorPecas, 0)
   const pT = taxa, pV = pc(c.recebido, pedidoFin), pR = pc(rapidas.length, respondidas.length), pA = pc(atrasadas.length, naFabrica.length), pC = pc(voltouCliente, c.perdido), pN = pc(rejNossa, c.rej.length), pP = pc(pecasJogo, c.emJogo)
-  const aneis: { rot: string; pct: number | null; cor: string; txt: string }[] = [
-    { rot: 'Aprovadas', pct: pT, cor: '#047857', txt: `De cada 10 garantias que a fábrica respondeu, ${Math.round((pT ?? 0) / 10)} foram aprovadas${c.tempoFabrica != null ? `; ela leva em média ${Math.round(c.tempoFabrica)} dias` : ''}.` },
-    { rot: 'Do valor pedido, recebemos', pct: pV, cor: '#2563eb', txt: `De cada R$ 100 pedidos nas garantias finalizadas, a fábrica pagou R$ ${pV ?? 0} (${brl(c.recebido)} de ${brl(pedidoFin)}).` },
-    { rot: 'Respondidas em até 30 dias', pct: pR, cor: '#0891b2', txt: `${rapidas.length} de ${respondidas.length} garantias tiveram resposta da fábrica em até 30 dias depois de enviadas.` },
-    { rot: 'Na fábrica há mais de 30 dias', pct: pA, cor: '#dc2626', txt: `${atrasadas.length} das ${naFabrica.length} garantias que estão na fábrica passaram de 30 dias sem resposta: cobrar a montadora.` },
-    { rot: 'Rejeitadas que voltaram do cliente', pct: pC, cor: '#d97706', txt: `Do que a fábrica negou (${brl(c.perdido)}), ${brl(voltouCliente)} foi cobrado do cliente (pago ou a receber).` },
-    { rot: 'Rejeitadas por erro nosso', pct: pN, cor: '#7c3aed', txt: `${rejNossa} das ${c.rej.length} rejeitadas foram barradas pelo nosso garantista, antes de ir para a fábrica; as outras a fábrica negou.` },
-    { rot: 'Em jogo que é peça', pct: pP, cor: '#ea580c', txt: `Das garantias abertas (${brl(c.emJogo)}), ${brl(pecasJogo)} são peças; o resto é hora e km do serviço.` },
+  // clicar no anel abre as garantias por trás dele (José, 28/10/2026)
+  const diasResp = (g: Gar) => Math.round((Date.parse(g.finalizadaEm!) - Date.parse(g.enviadaEm!)) / 86_400_000)
+  type Ver = { t: string; l: Gar[]; valor?: (g: Gar) => number; rotuloValor?: string; detalhe?: (g: Gar) => string }
+  const aneis: { rot: string; pct: number | null; cor: string; txt: string; ver: Ver }[] = [
+    { rot: 'Aprovadas', pct: pT, cor: '#047857', txt: `De cada 10 garantias que a fábrica respondeu, ${Math.round((pT ?? 0) / 10)} foram aprovadas${c.tempoFabrica != null ? `; ela leva em média ${Math.round(c.tempoFabrica)} dias` : ''}.`, ver: { t: 'Respondidas pela fábrica no período', l: [...c.aprov, ...c.rej], detalhe: (g) => STATUS_LABEL[g.status] } },
+    { rot: 'Do valor pedido, recebemos', pct: pV, cor: '#2563eb', txt: `De cada R$ 100 pedidos nas garantias finalizadas, a fábrica pagou R$ ${pV ?? 0} (${brl(c.recebido)} de ${brl(pedidoFin)}).`, ver: { t: 'Finalizadas: quanto a fábrica pagou', l: c.fin, valor: (g) => g.pago, rotuloValor: 'recebidos', detalhe: (g) => `pedido ${brl(g.esperado)}` } },
+    { rot: 'Respondidas em até 30 dias', pct: pR, cor: '#0891b2', txt: `${rapidas.length} de ${respondidas.length} garantias tiveram resposta da fábrica em até 30 dias depois de enviadas.`, ver: { t: 'Tempo de resposta da fábrica', l: [...respondidas].sort((a, b) => diasResp(b) - diasResp(a)), detalhe: (g) => `respondida em ${diasResp(g)} dias` } },
+    { rot: 'Na fábrica há mais de 30 dias', pct: pA, cor: '#dc2626', txt: `${atrasadas.length} das ${naFabrica.length} garantias que estão na fábrica passaram de 30 dias sem resposta: cobrar a montadora.`, ver: { t: 'Na fábrica há mais de 30 dias: cobrar a montadora', l: [...atrasadas].sort((a, b) => dias(b.enviadaEm, hoje) - dias(a.enviadaEm, hoje)), detalhe: (g) => `na fábrica há ${dias(g.enviadaEm, hoje)} dias` } },
+    { rot: 'Rejeitadas que voltaram do cliente', pct: pC, cor: '#d97706', txt: `Do que a fábrica negou (${brl(c.perdido)}), ${brl(voltouCliente)} foi cobrado do cliente (pago ou a receber).`, ver: { t: 'Rejeitadas: o que foi cobrado do cliente', l: c.rej, valor: (g) => (['paga', 'cobrada'].includes(g.cobranca.status) ? g.cobranca.valor : 0), rotuloValor: 'cobrados do cliente', detalhe: (g) => ROTULO_COBRANCA[g.cobranca.status] || g.cobranca.status } },
+    { rot: 'Rejeitadas por erro nosso', pct: pN, cor: '#7c3aed', txt: `${rejNossa} das ${c.rej.length} rejeitadas foram barradas pelo nosso garantista, antes de ir para a fábrica; as outras a fábrica negou.`, ver: { t: 'Rejeitadas: quem barrou', l: [...c.rej].sort((a, b) => Number(b.recusadoPor === 'garantista') - Number(a.recusadoPor === 'garantista')), detalhe: (g) => (g.recusadoPor === 'garantista' ? 'barrada pelo nosso garantista' : 'negada pela fábrica') } },
+    { rot: 'Em jogo que é peça', pct: pP, cor: '#ea580c', txt: `Das garantias abertas (${brl(c.emJogo)}), ${brl(pecasJogo)} são peças; o resto é hora e km do serviço.`, ver: { t: 'Abertas: quanto é peça', l: [...c.abertas].sort((a, b) => b.valorPecas - a.valorPecas), valor: (g) => g.valorPecas, rotuloValor: 'em peças', detalhe: (g) => `total ${brl(g.esperado)}` } },
   ]
   return (
     <div className="gx-caixa">
@@ -200,10 +203,10 @@ export function GarantiaPlacar({ lista, hoje, periodo }: { lista: Gar[]; hoje: s
       </div>
       <div className="gx-aneis">
         {aneis.map((x, i) => (
-          <div key={x.rot} className="gx-anel2" style={{ ...css(x.cor), animationDelay: `${i * 90}ms` }} title={x.txt}>
+          <button type="button" key={x.rot} className="gx-anel2 abre" style={{ ...css(x.cor), animationDelay: `${i * 90}ms` }} title={`${x.txt} Clique para ver as garantias.`} onClick={() => setVer(x.ver)}>
             <AnelPct pct={x.pct} cor={x.cor} atraso={i * 90} />
-            <div><b>{x.rot}</b><p>{x.pct == null ? 'sem dados no período' : x.txt}</p></div>
-          </div>
+            <div><b>{x.rot}</b><p>{x.pct == null ? 'sem dados no período' : x.txt}</p><u className="gx-anel-ver">ver as {x.ver.l.length} garantias <i className="fas fa-arrow-right" /></u></div>
+          </button>
         ))}
       </div>
       <DestinoRejeitadas d={destinos} rotulo={periodo.rotulo} onVer={(t, l) => setVer({ t, l, valor: valorNoDestino, rotuloValor: 'no destino', detalhe: (g) => ROTULO_COBRANCA[g.cobranca.status] || g.cobranca.status })} />
@@ -640,6 +643,8 @@ export const ESTILO_GX = `
 .gx-tile { display: grid; gap: 2px; text-align: left; font-family: inherit; border: 1px solid var(--portal-border, #e5e7eb); background: var(--portal-bg-card, #fefefe); border-radius: 16px; padding: 12px 14px; cursor: pointer; animation: gxEntra .45s both; transition: transform .2s, box-shadow .2s } .gx-tile:hover { transform: translateY(-3px); box-shadow: 0 10px 22px rgba(15,23,42,.1) }
 .gx-tile small { font-size: 12px; font-weight: 900; color: var(--c) } .gx-tile b { font-size: 22px; font-variant-numeric: tabular-nums; color: var(--portal-text, #0f172a) } .gx-tile span { font-size: 12.5px; color: ${MUDO} }
 .gx-aneis { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px }
+button.gx-anel2 { font-family: inherit; text-align: left; cursor: pointer; color: inherit; width: 100% } .gx-anel2.abre:hover { border-color: color-mix(in srgb, var(--c) 45%, #e5e7eb) }
+.gx-anel-ver { display: inline-flex; gap: 5px; align-items: center; margin-top: 4px; font-size: 12.5px; text-decoration: none; color: color-mix(in srgb, var(--c) 85%, #0f172a) } .gx-anel-ver i { font-size: 10px; transition: transform .2s } .gx-anel2.abre:hover .gx-anel-ver i { transform: translateX(3px) }
 .gx-anel2 { display: flex; gap: 12px; align-items: center; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 16px; padding: 10px 14px; background: var(--portal-bg-card, #fefefe); animation: gxEntra .45s both; transition: transform .2s, box-shadow .2s } .gx-anel2:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(15,23,42,.08) }
 .gx-ap { position: relative; width: 78px; height: 78px; flex-shrink: 0 } .gx-ap svg { width: 78px; height: 78px; transform: rotate(-90deg) } .gx-ap circle { fill: none; stroke-width: 11 } .gx-ap .v { stroke-linecap: round; animation: gxRoda2 1.2s cubic-bezier(.2,.8,.2,1) both } @keyframes gxRoda2 { from { stroke-dasharray: 0 314.16 } }
 .gx-ap > b { position: absolute; inset: 0; display: grid; place-items: center; font-size: 18px; font-weight: 900 }
