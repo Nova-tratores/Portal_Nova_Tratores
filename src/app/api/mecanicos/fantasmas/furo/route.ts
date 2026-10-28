@@ -1,10 +1,8 @@
 // Furo de km de um mecânico (José, 28/10/2026). GET ?tecnico=&mes= → dias com GPS × cobrado e paradas ·
-// GET ?tecnico=&mes=&rota=AAAA-MM-DD → pontos da rota daquele dia · POST {tecnico, mes, forcar?} → o Tratorilson resume onde foi o furo.
+// GET ?tecnico=&mes=&rota=AAAA-MM-DD → o dia aberto (rota, paradas com cidade, trechos, tempo no cliente) · POST {tecnico, mes, forcar?} → o Tratorilson resume onde foi o furo.
 import { NextRequest, NextResponse } from 'next/server'
 import { protegerRota } from '@/lib/ajustes/permissao-server'
-import { supabaseAdmin } from '@/lib/server/supabase-admin'
-import { furoKm, analisarFuro } from '@/lib/mecanicos/furo-km-server'
-import { computarESalvarRota } from '@/lib/pos/rastreamento'
+import { furoKm, analisarFuro, diaDetalhado } from '@/lib/mecanicos/furo-km-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,16 +18,15 @@ export async function GET(req: NextRequest) {
   const tecnico = sp.get('tecnico') || ''
   if (!tecnico) return NextResponse.json({ error: 'tecnico obrigatório' }, { status: 400 })
   try {
-    const fk = await furoKm(tecnico, mesOk(sp.get('mes')))
-    if (!fk) return NextResponse.json({ error: 'Técnico sem dados no mês' }, { status: 404 })
+    const mes = mesOk(sp.get('mes'))
     const dia = sp.get('rota')
     if (dia) {
-      // só a placa que o técnico usou naquele dia (não abre rota de carro de outra pessoa)
-      const d = fk.dias.find((x) => x.data === dia)
-      if (!d?.placa) return NextResponse.json({ pontos: [] })
-      const r = await computarESalvarRota(supabaseAdmin, d.placa, dia)
-      return NextResponse.json({ pontos: (r.pontos || []).map((p) => ({ lat: p.lat, lng: p.lng, dt: p.dt })) })
+      // um dia aberto: rota, paradas com cidade, trechos e o cliente de cada OS (só a placa que o técnico usou naquele dia)
+      const dd = await diaDetalhado(tecnico, mes, dia)
+      return NextResponse.json(dd || { pontos: [], paradas: [] })
     }
+    const fk = await furoKm(tecnico, mes)
+    if (!fk) return NextResponse.json({ error: 'Técnico sem dados no mês' }, { status: 404 })
     return NextResponse.json(fk)
   } catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : 'Falha' }, { status: 500 }) }
 }

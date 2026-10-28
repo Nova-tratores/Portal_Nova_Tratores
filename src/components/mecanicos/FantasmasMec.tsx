@@ -11,6 +11,10 @@ import { useVersaoAoVivo } from './useAoVivo'
 import TemparioJanela from './TemparioJanela'
 import FuroKmJanela from './FuroKmJanela'
 
+// Tempário fora do cartão por enquanto (José, 28/10/2026: "do tempário, deixa vazio algo como Em Desenvolvimento").
+// O código continua aqui; é só virar para true quando a comparação estiver pronta.
+const TEMPARIO_ATIVO = false
+
 const h = (v: number) => `${String(Math.round(v * 10) / 10).replace('.', ',')} h`
 const km = (v: number) => `${Math.round(v).toLocaleString('pt-BR')} km`
 const dia = (s: string) => `${s.slice(8, 10)}/${s.slice(5, 7)}`
@@ -86,9 +90,9 @@ export default function FantasmasMec({ mes }: { mes: string }) {
             <span className="fan-fant" aria-hidden><i className="fas fa-ghost" /></span>
             <div>
               <b>O que não aparece na OS</b>
-              <small>carro (rastreador) × relatório do técnico × OS cobrada × tempário Mahindra</small>
+              <small>carro (rastreador) × relatório do técnico × OS cobrada{TEMPARIO_ATIVO ? ' × tempário Mahindra' : ''}</small>
             </div>
-            {d && d.osSemAnalise.length > 0 && !analisando && <button type="button" className="fan-bt" onClick={() => void analisar()}><i className="fas fa-wand-magic-sparkles" />Analisar {d.osSemAnalise.length} OS no tempário</button>}
+            {TEMPARIO_ATIVO && d && d.osSemAnalise.length > 0 && !analisando && <button type="button" className="fan-bt" onClick={() => void analisar()}><i className="fas fa-wand-magic-sparkles" />Analisar {d.osSemAnalise.length} OS no tempário</button>}
             {analisando && (
               <div className="fan-prog"><span>Tratorilson analisando… {analisando.feitas} de {analisando.total}</span><i style={{ width: `${analisando.total ? (analisando.feitas / analisando.total) * 100 : 0}%` }} /></div>
             )}
@@ -97,9 +101,15 @@ export default function FantasmasMec({ mes }: { mes: string }) {
             {/* 28/10/2026 (José: "melhora esses cards"): ícone, o número e de onde ele vem numa barrinha */}
             <div className="fan-kpi" style={{ '--k': '#dc2626', '--d': '0ms' } as React.CSSProperties}>
               <span className="fan-kpi-ic"><i className="fas fa-ghost" /></span><small>Horas fantasmas</small>
-              <b><Conta v={eq.horas} fmt={h} /></b>
-              <div className="fan-kpi-bar">{eq.horas > 0 && <><i style={{ width: `${(eq.acima / eq.horas) * 100}%` }} /><i className="b" style={{ width: `${(eq.naoCob / eq.horas) * 100}%` }} /></>}</div>
-              <em><span className="pt" /> {h(eq.acima)} acima do tempário <span className="pt b" /> {h(eq.naoCob)} apontadas e não cobradas</em>
+              {TEMPARIO_ATIVO ? <>
+                <b><Conta v={eq.horas} fmt={h} /></b>
+                <div className="fan-kpi-bar">{eq.horas > 0 && <><i style={{ width: `${(eq.acima / eq.horas) * 100}%` }} /><i className="b" style={{ width: `${(eq.naoCob / eq.horas) * 100}%` }} /></>}</div>
+                <em><span className="pt" /> {h(eq.acima)} acima do tempário <span className="pt b" /> {h(eq.naoCob)} apontadas e não cobradas</em>
+              </> : <>
+                <b><Conta v={eq.naoCob} fmt={h} /></b>
+                <div className="fan-kpi-bar vazia" />
+                <em>apontadas no relatório e não cobradas na OS</em>
+              </>}
             </div>
             <div className="fan-kpi" style={{ '--k': '#7c3aed', '--d': '90ms' } as React.CSSProperties}>
               <span className="fan-kpi-ic"><i className="fas fa-route" /></span><small>Km fantasma</small>
@@ -115,9 +125,14 @@ export default function FantasmasMec({ mes }: { mes: string }) {
             </div>
             <div className="fan-kpi" style={{ '--k': '#0f766e', '--d': '270ms' } as React.CSSProperties}>
               <span className="fan-kpi-ic"><i className="fas fa-stopwatch" /></span><small>OS com alerta</small>
-              <b><Conta v={eq.alertas} fmt={(n) => `${Math.round(n)} de ${eq.os}`} /></b>
-              <div className="fan-kpi-bar"><i style={{ width: `${eq.os ? (eq.alertas / eq.os) * 100 : 0}%` }} /></div>
-              <em>OS fora do tempo do tempário (demorou mais ou rápido demais)</em>
+              {TEMPARIO_ATIVO ? <>
+                <b><Conta v={eq.alertas} fmt={(n) => `${Math.round(n)} de ${eq.os}`} /></b>
+                <div className="fan-kpi-bar"><i style={{ width: `${eq.os ? (eq.alertas / eq.os) * 100 : 0}%` }} /></div>
+                <em>OS fora do tempo do tempário (demorou mais ou rápido demais)</em>
+              </> : <>
+                <span className="fan-dev"><i className="fas fa-person-digging" /> Em desenvolvimento</span>
+                <em>a comparação com o tempário Mahindra volta quando estiver pronta</em>
+              </>}
             </div>
           </div>
         </div>
@@ -198,8 +213,8 @@ export function CartaoTecnico({ t, ordem = 0, mes }: { t: TecnicoFantasma; ordem
   const x = t.totais
   const maxH = Math.max(x.ligadoH, x.horasRel, x.horasCobradas, x.horasPrevistas, 1)
   const maxK = Math.max(x.kmCarro, x.kmRel, x.kmCobrado, 1)
-  const alertas = t.os.filter((o) => ['muito_acima', 'acima', 'rapido'].includes(o.situacao))
-  const fantH = x.acimaTempario + x.naoCobradas
+  const alertas = TEMPARIO_ATIVO ? t.os.filter((o) => ['muito_acima', 'acima', 'rapido'].includes(o.situacao)) : []
+  const fantH = (TEMPARIO_ATIVO ? x.acimaTempario : 0) + x.naoCobradas
   const nivel = x.kmFantasma > 400 || fantH > 8 || alertas.some((o) => o.situacao === 'muito_acima') ? 'alto' : x.kmFantasma > 150 || fantH > 3 || alertas.length ? 'medio' : 'ok'
   const ini = t.tecnico.split(' ').filter((p) => /^[A-ZÀ-Ú]/.test(p)).map((p) => p[0]).slice(0, 2).join('')
   const b0 = ordem * 120
@@ -219,10 +234,14 @@ export function CartaoTecnico({ t, ordem = 0, mes }: { t: TecnicoFantasma; ordem
             a={{ rot: 'na OS', v: x.horasCobradas, cor: '#059669' }} b={{ rot: 'no relatório', v: x.horasRel, cor: '#2563eb' }}
             dif={x.naoCobradas > 0 ? { t: `${h(x.naoCobradas)} trabalhadas e não cobradas`, tom: 'a' } : { t: 'tudo que apontou foi cobrado', tom: 'ok' }}
             acao={x.naoCobradas > 0 ? { t: 'ver as OS', ic: 'fa-file-lines', onClick: () => setAberto('os') } : undefined} />
-          <Compara titulo="Apontado no relatório × tempário Mahindra" fmt={h} atraso={b0 + 180}
-            a={{ rot: 'no relatório', v: x.horasRelAnalisadas, cor: '#2563eb' }} b={{ rot: 'tempário', v: x.horasPrevistas, cor: '#7c3aed' }}
-            dif={x.acimaTempario > 0 ? { t: `+${h(x.acimaTempario)} acima do tempário`, tom: 'v' } : { t: 'dentro do tempário', tom: 'ok' }}
-            nota={x.osSemAnalise > 0 ? `só as OS já analisadas · ${x.osSemAnalise} sem análise` : 'só as OS já analisadas'} />
+          {TEMPARIO_ATIVO ? (
+            <Compara titulo="Apontado no relatório × tempário Mahindra" fmt={h} atraso={b0 + 180}
+              a={{ rot: 'no relatório', v: x.horasRelAnalisadas, cor: '#2563eb' }} b={{ rot: 'tempário', v: x.horasPrevistas, cor: '#7c3aed' }}
+              dif={x.acimaTempario > 0 ? { t: `+${h(x.acimaTempario)} acima do tempário`, tom: 'v' } : { t: 'dentro do tempário', tom: 'ok' }}
+              nota={x.osSemAnalise > 0 ? `só as OS já analisadas · ${x.osSemAnalise} sem análise` : 'só as OS já analisadas'} />
+          ) : (
+            <div className="fan-cmp fan-cmp-dev"><small className="fan-cmp-t">Apontado no relatório × tempário Mahindra</small><span className="fan-dev"><i className="fas fa-person-digging" /> Em desenvolvimento</span></div>
+          )}
           <Compara titulo="Apontado no relatório × carro ligado (GPS)" fmt={h} atraso={b0 + 260}
             a={{ rot: 'no relatório', v: x.horasRel, cor: '#2563eb' }} b={{ rot: 'carro ligado', v: x.ligadoH, cor: '#94a3b8' }}
             dif={x.ligadoSemOS > 0 ? { t: `${h(x.ligadoSemOS)} de carro ligado em dia sem OS`, tom: 'n' } : { t: 'carro ligado só em dia de OS', tom: 'ok' }}
@@ -375,6 +394,7 @@ export const ESTILO_FAN = `
 .fan-mes-c, .fan-mes-r { position: absolute; bottom: 0; border-radius: 3px 3px 0 0; transform-origin: bottom; animation: fanColuna .7s var(--d) cubic-bezier(.2,.8,.2,1) both }
 .fan-mes-c { left: 0; right: 0; background: #cbd5e1 } .fan-mes-r { left: 25%; right: 25%; background: #2563eb }
 .fan-alertas { display: grid; gap: 6px }
+.fan-dev { justify-self: start; display: inline-flex; gap: 6px; align-items: center; font-size: 13.5px; color: #475569; background: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 99px; padding: 5px 12px; margin: 4px 0 } .fan-dev i { color: #94a3b8 } .fan-cmp-dev { background: #fbfcfd }
 .fan-al-cab { display: flex; justify-content: space-between; align-items: center; gap: 6px 12px; flex-wrap: wrap; margin-top: 4px } .fan-al-cab b { font-size: 14px; font-weight: 500; color: #0f172a } .fan-al-cab span { display: inline-flex; gap: 5px 10px; align-items: center; flex-wrap: wrap; font-size: 12px; color: #475569 } .fan-al-cab i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: -5px } .fan-al-cab i.v { background: #ef4444 } .fan-al-cab i.a { background: #f59e0b }
 .fan-al2 { display: grid; grid-template-columns: 128px minmax(0, 150px) minmax(140px, 1fr) 62px auto; gap: 12px; align-items: center; border-radius: 12px; padding: 8px 12px; background: #f8fafc; border-left: 0; animation: fanSobe .4s both }
 .fan-al2-tag { display: inline-flex; gap: 6px; align-items: center; justify-self: start; font-size: 12px; font-weight: 500; border-radius: 99px; padding: 3px 10px; white-space: nowrap }
