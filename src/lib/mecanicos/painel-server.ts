@@ -207,7 +207,9 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
       outros = Math.max(0, num(o.Valor_Total) - servico - kmValor - vPecas)
       horasCobradas = num(o.Qtd_HR); km = num(o.Qtd_KM)
     }
-    const bruto = servico + kmValor + vPecas + outros
+    // faturado da oficina = mão de obra + deslocamento + outros; as PEÇAS ficam à parte (José, 28/10/2026: "pode tirar
+    // as peças") — continuam em `pecas` e no PDF da OS
+    const bruto = servico + kmValor + outros
     const cp = custos.get(String(o.Id_Ordem)) || {}
     const r2 = (v: number) => Math.round(v * 100) / 100
     // descontos (José, 21/10/2026: "precisa pegar todos"): o que o Omie faturou manda (desconto de cada item da OS

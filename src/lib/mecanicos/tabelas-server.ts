@@ -154,7 +154,7 @@ export async function lerBaseDasTabelas(): Promise<(BaseDados & { de: string; at
     faturadas: os.map((o) => ({
       os: String(o.os), numeroOmie: (o.numero_omie as string) || null, cliente: String(o.cliente || ''), data: String(o.data), em: (o.faturado_em as string) || null,
       tecnicos: (o.tecnicos as string[]) || [], horasCobradas: num(o.horas_cobradas), km: num(o.km), servico: num(o.mao_de_obra), kmValor: num(o.deslocamento),
-      pecas: num(o.pecas), outros: num(o.outros), bruto: num(o.bruto), custo: num(o.custo_terceiros),
+      pecas: num(o.pecas), outros: num(o.outros), bruto: num(o.mao_de_obra) + num(o.deslocamento) + num(o.outros), custo: num(o.custo_terceiros),
       custoPorTipo: (o.custo_por_tipo as Record<string, number>) || {}, requisicoes: (o.requisicoes as ReqCusto[]) || [],
       garantia: garantias.has(String(o.os)),
       nota: !!o.numero_omie && comNota.has(String(o.numero_omie)),

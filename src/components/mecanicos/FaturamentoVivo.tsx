@@ -82,13 +82,13 @@ export default function FaturamentoVivo({ compacto = false }: { compacto?: boole
         <span style={{ fontWeight: 800, color: destaque ? '#bbf7d0' : COR.liquido }}>= {brl(s.liquido)} líquido</span>
       </div>
       <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginTop: 10, background: destaque ? 'rgba(255,255,255,.2)' : 'var(--portal-bg-secondary, #f1f5f9)' }}>
-        {[['servico', COR.servico], ['kmValor', COR.km], ['pecas', COR.pecas], ['outros', COR.outros]].map(([k, c]) => {
+        {[['servico', COR.servico], ['kmValor', COR.km], ['outros', COR.outros]].map(([k, c]) => {
           const v = Math.max(0, s[k as keyof Soma] as number)
           return <div key={k} title={k} style={{ width: `${s.bruto ? (v / s.bruto) * 100 : 0}%`, background: destaque ? (k === 'servico' ? '#e0f2fe' : k === 'kmValor' ? '#bbf7d0' : k === 'pecas' ? '#fed7aa' : '#e2e8f0') : c, transition: 'width .9s cubic-bezier(.2,.8,.2,1)' }} />
         })}
       </div>
       <div style={{ display: 'flex', gap: 10, fontSize: 11.5, marginTop: 6, opacity: .85, flexWrap: 'wrap' }}>
-        <span>serviço {brl(s.servico)}</span><span>km {brl(s.kmValor)}</span><span>peças {brl(s.pecas)}</span>
+        <span>serviço {brl(s.servico)}</span><span>km {brl(s.kmValor)}</span><span>peças à parte {brl(s.pecas)}</span>
       </div>
     </div>
   )
@@ -208,7 +208,7 @@ function AvisoFaturou({ o, onFim }: { o: OSFaturada; onFim: () => void }) {
 
 // ---------------------------------------------------------------- versão compacta (dentro do Painel)
 
-const SEGS: [keyof Soma, string, string][] = [['servico', 'Mão de obra', COR.servico], ['kmValor', 'Deslocamento', COR.km], ['pecas', 'Peças', COR.pecas], ['outros', 'Outros', COR.outros]]
+const SEGS: [keyof Soma, string, string][] = [['servico', 'Mão de obra', COR.servico], ['kmValor', 'Deslocamento', COR.km], ['outros', 'Outros', COR.outros]]
 const iniciais = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase()
 const CORES_TEC = ['#0369a1', '#7c3aed', '#059669', '#ea580c', '#db2777', '#0891b2']
 const corTec = (n: string) => CORES_TEC[[...n].reduce((s, ch) => s + ch.charCodeAt(0), 0) % CORES_TEC.length]
@@ -260,7 +260,7 @@ export function BlocoVivo({ titulo, s, ritmo, destaque = false, atraso }: { titu
       </div>
       <div className="bv-segtxt">
         {seg ? <b>{SEGS.find(([k]) => k === seg)![1]}: {brl(Math.max(0, s[seg as keyof Soma] as number))} ({s.bruto ? Math.round((Math.max(0, s[seg as keyof Soma] as number) / s.bruto) * 100) : 0}%)</b>
-          : <>MO {brl(s.servico)} · km {brl(s.kmValor)} · peças {brl(s.pecas)}</>}
+          : <>MO {brl(s.servico)} · km {brl(s.kmValor)} · peças à parte {brl(s.pecas)}</>}
       </div>
     </div>
   )

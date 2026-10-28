@@ -37,7 +37,7 @@ export function itensDaBase(base: BaseDados): ItemFat[] {
   }
   for (const p of base.pendencias || []) {
     if (p.tipo !== 'preenchida' || !p.dataRef || faturadasIds.has(p.os)) continue
-    out.push({ os: p.os, numero: null, cliente: p.cliente, tecnicos: p.tecnicos, data: p.dataRef.slice(0, 10), grupo: 'aguardando', bruto: p.total, servico: p.maoDeObra, horas: 0, kmValor: p.deslocamento, km: 0, pecas: p.pecas, outros: 0 })
+    out.push({ os: p.os, numero: null, cliente: p.cliente, tecnicos: p.tecnicos, data: p.dataRef.slice(0, 10), grupo: 'aguardando', bruto: Math.max(0, p.total - p.pecas), servico: p.maoDeObra, horas: 0, kmValor: p.deslocamento, km: 0, pecas: p.pecas, outros: 0 })
   }
   return out
 }
@@ -250,7 +250,7 @@ function Cartoes({ s, ant, serie, nomeA, nomeB, onAbrir }: { s: Soma; ant: Soma 
     { k: 'fat', t: 'Faturado', n: s.bruto, a: ant ? ant.bruto : 0, sub: `${s.n} OS no período`, cor: '#2563eb', dica: 'Tudo o que entrou nas OS que estão na conta (veja "O que entra na conta"): mão de obra + km + peças + outros.', serie: serie.map((x) => x.bruto), fmt: brl },
     { k: 'mo', t: 'Mão de obra', n: s.servico, a: ant ? ant.servico : 0, sub: s.horas > 0 ? `${(Math.round(s.horas * 10) / 10).toLocaleString('pt-BR')} h cobradas · ${brl(vh)}/h` : 'sem horas registradas', cor: '#7c3aed', dica: 'R$ das horas cobradas nas OS. O valor médio por hora fica abaixo da tabela por causa dos descontos e da garantia (R$ 100/h).', serie: serie.map((x) => x.servico), fmt: brl },
     { k: 'km', t: 'Deslocamento', n: s.kmValor, a: ant ? ant.kmValor : 0, sub: s.km > 0 ? `${Math.round(s.km).toLocaleString('pt-BR')} km cobrados` : 'sem km cobrado', cor: '#0891b2', dica: 'R$ dos quilômetros cobrados nas OS.', serie: serie.map((x) => x.kmValor), fmt: brl },
-    { k: 'pec', t: 'Peças', n: s.pecas, a: ant ? ant.pecas : 0, sub: s.bruto ? `${Math.round((s.pecas / s.bruto) * 100)}% do faturado` : '—', cor: '#ea580c', dica: 'Peças vendidas junto com as OS (pedido de peças faturado), pelo valor de venda.', serie: serie.map((x) => x.pecas), fmt: brl },
+    { k: 'pec', t: 'Peças', n: s.pecas, a: ant ? ant.pecas : 0, sub: 'à parte · não entra no faturado', cor: '#ea580c', dica: 'Peças vendidas junto com as OS (pedido de peças faturado), pelo valor de venda. Ficam à parte: o faturado da oficina é mão de obra + deslocamento + outros. As peças de cada OS estão no PDF dela.', serie: serie.map((x) => x.pecas), fmt: brl },
     { k: 'os', t: 'Ordens de serviço', n: s.n, a: ant ? ant.n : 0, sub: `ticket médio ${brl(ticket)}${ticketA ? ` · antes ${brl(ticketA)}` : ''}`, cor: '#0f172a', dica: 'Quantas OS entraram na conta e quanto cada uma trouxe, em média (ticket médio).', serie: serie.map((x) => x.n), fmt: qtd },
   ]
   return (
@@ -336,7 +336,7 @@ function PainelPeriodo({ lado, titulo: tit, sub, s, outro, onLista, topo }: { la
     { k: 'fat', t: 'Faturado', v: s.bruto, o: outro?.bruto, f: brl, sub: `${s.n} OS`, cor: '#2563eb' },
     { k: 'mo', t: 'Mão de obra', v: s.servico, o: outro?.servico, f: brl, sub: s.horas ? `${hh(s.horas)} · ${brl(vh)}/h` : '—', cor: '#7c3aed' },
     { k: 'km', t: 'Deslocamento', v: s.kmValor, o: outro?.kmValor, f: brl, sub: s.km ? `${Math.round(s.km).toLocaleString('pt-BR')} km` : '—', cor: '#0891b2' },
-    { k: 'pec', t: 'Peças', v: s.pecas, o: outro?.pecas, f: brl, sub: s.bruto ? `${Math.round((s.pecas / s.bruto) * 100)}% do faturado` : '—', cor: '#ea580c' },
+    { k: 'pec', t: 'Peças', v: s.pecas, o: outro?.pecas, f: brl, sub: 'à parte · não entra no faturado', cor: '#ea580c' },
     { k: 'os', t: 'Ordens de serviço', v: s.n, o: outro?.n, f: qtd, sub: 'clique para ver a lista', cor: '#0f172a' },
     { k: 't', t: 'Ticket médio', v: s.n ? s.bruto / s.n : 0, o: outro ? (outro.n ? outro.bruto / outro.n : 0) : undefined, f: brl, sub: 'faturado ÷ OS', cor: '#475569' },
   ]
@@ -399,7 +399,7 @@ function ModalLista({ met, periodo, lista, onFechar }: { met: Metrica; periodo: 
               destaque às horas; clicou em peças, às peças") */}
           <div className="fp-lista-r cab fp-lista-6"><span>Data</span><span>OS</span><span>Cliente · técnicos</span><span>Tipo</span>
             <span className={`n ${met === 'mo' ? 'dest' : ''}`}>Horas · M. obra</span><span className={`n ${met === 'km' ? 'dest' : ''}`}>Km · Desloc.</span>
-            <span className={`n ${met === 'pec' ? 'dest' : ''}`}>Peças</span><span className={`n ${met === 'fat' || met === 'os' ? 'dest' : ''}`}>Total</span><span /></div>
+            <span className={`n ${met === 'pec' ? 'dest' : ''}`}>Peças</span><span className={`n ${met === 'fat' || met === 'os' ? 'dest' : ''}`}>Faturado <small>sem peças</small></span><span /></div>
           {linhas.map((o) => (
             <div key={`${o.grupo}|${o.os}`} className={`fp-lista-r fp-lista-6 ${doPortal(o) ? '' : 'omie'}`} role="button" tabIndex={0} onClick={() => doPortal(o) && setOs(o)} onKeyDown={(ev) => { if (ev.key === 'Enter' && doPortal(o)) setOs(o) }} title={doPortal(o) ? 'abrir a OS, os pedidos de venda e os PDFs' : 'OS que existe só no Omie (sem a janela do portal)'}>
               <span>{o.data.split('-').reverse().slice(0, 2).join('/')}</span>
@@ -408,7 +408,7 @@ function ModalLista({ met, periodo, lista, onFechar }: { met: Metrica; periodo: 
               <span><em style={{ '--c': COR[o.grupo] } as React.CSSProperties}>{GRUPOS_FAT.find((x) => x.g === o.grupo)?.rot}</em></span>
               <span className={`v ${met === 'mo' ? 'dest' : ''}`}><b>{o.horas ? `${String(Math.round(o.horas * 10) / 10).replace('.', ',')} h` : '—'}</b><small>{o.servico ? brl(o.servico) : ''}</small></span>
               <span className={`v ${met === 'km' ? 'dest' : ''}`}><b>{o.km ? `${Math.round(o.km).toLocaleString('pt-BR')} km` : '—'}</b><small>{o.kmValor ? brl(o.kmValor) : ''}</small></span>
-              <span className={`v ${met === 'pec' ? 'dest' : ''}`}><b>{o.pecas ? brl(o.pecas) : '—'}</b></span>
+              <span className={`v ${met === 'pec' ? 'dest' : ''}`}>{o.pecas && doPortal(o) ? <button type="button" className="fp-lista-pec" title="ver as peças no PDF da OS" onClick={(ev) => { ev.stopPropagation(); setDoc({ titulo: `${o.os} · ${o.cliente}`, url: `/api/pos/ordens/${encodeURIComponent(o.os)}/print`, nome: o.os }) }}><b>{brl(o.pecas)}</b><small>ver no PDF</small></button> : <b>{o.pecas ? brl(o.pecas) : '—'}</b>}</span>
               <span className={`v ${met === 'fat' || met === 'os' ? 'dest' : ''}`}><b>{brl(o.bruto)}</b></span>
               <span>{doPortal(o) && <button type="button" className="fp-lista-pdf" onClick={(ev) => { ev.stopPropagation(); setDoc({ titulo: `${o.os} · ${o.cliente}`, url: `/api/pos/ordens/${encodeURIComponent(o.os)}/print`, nome: o.os }) }}>PDF</button>}</span>
             </div>
@@ -777,6 +777,7 @@ export const ESTILO_FP = `
 .fp-lista-r em { justify-self: start; font-style: normal; font-size: 12.5px; color: var(--c); background: color-mix(in srgb, var(--c) 10%, #fefefe); border-radius: 99px; padding: 2px 9px }
 .fp-lista-r.cab { position: sticky; top: 0; background: #fefefe; font-size: 13px; color: ${SEG}; border-top: 0; cursor: default; z-index: 1 } .fp-lista-r.cab span:nth-child(5) { text-align: right }
 .fp-lista-pdf { border: 1px solid #fca5a5; background: #fefefe; color: #b91c1c; border-radius: 99px; padding: 3px 10px; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer } .fp-lista-pdf:hover { background: #fee2e2 }
+.fp-lista-pec { display: grid; justify-items: end; gap: 1px; border: none; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer } .fp-lista-pec small { font-size: 11px; color: #b91c1c } .fp-lista-pec:hover b { text-decoration: underline }
 .fp-lista-vazio { margin: 12px 0; color: ${SEG} }
 .fp-doc { position: fixed; inset: 0; z-index: 9700 }
 @media (max-width: 760px) { .fp-lista-r { grid-template-columns: 50px minmax(0, 1fr) 90px 50px } .fp-lista-r > span:nth-child(2), .fp-lista-r > span:nth-child(4) { display: none } }

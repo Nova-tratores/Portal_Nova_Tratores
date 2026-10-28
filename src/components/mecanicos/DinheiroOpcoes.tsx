@@ -88,7 +88,7 @@ function Dif({ a, b, inverso }: { a: number; b: number | undefined; inverso?: bo
   const bom = inverso ? p < 0 : p > 0
   return <span className={`dx-dif ${bom ? 'bom' : 'ruim'}`} title={`período anterior: ${brl(b)}`}>{p > 0 ? '▲' : '▼'} {Math.abs(p)}% <i>vs anterior</i></span>
 }
-const entradas = (c: Conta) => ([['Mão de obra', c.mo, CE.mo, `${horas(c.horas)} cobradas`], ['Deslocamento', c.km, CE.km, kmFmt(c.kmRod)], ['Peças', c.pecas, CE.pecas, ''], ['Outros', c.outros, CE.outros, 'requisições, extras']] as [string, number, string, string][]).filter(([, v]) => v > 0.5)
+const entradas = (c: Conta) => ([['Mão de obra', c.mo, CE.mo, `${horas(c.horas)} cobradas`], ['Deslocamento', c.km, CE.km, kmFmt(c.kmRod)], ['Outros', c.outros, CE.outros, 'requisições, extras']] as [string, number, string, string][]).filter(([, v]) => v > 0.5)
 const saidas = (c: Conta) => ([['Gastos', c.gastos, CS.gastos, 'terceiros, carro, almoço, materiais'], ['Pessoal', c.pessoal, CS.pessoal, 'salário + comissão']] as [string, number, string, string][])
 const por100 = (c: Conta) => (c.bruto ? (c.resultado / c.bruto) * 100 : 0)
 const nomeFim = (c: Conta) => (c.resultado >= 0 ? 'Ficou' : 'Faltou')
@@ -329,10 +329,11 @@ export function useSimulacao(c: Conta) {
     km: c.km * (1 + val('km') / 100), pecas: c.pecas * (1 + val('pecas') / 100), outros: c.outros * (1 + val('outros') / 100),
   }
   // descontos: o que entrou já vem descontado; dar menos desconto devolve a diferença para o faturamento
-  const DESC: [keyof Conta['desc'] & ('hora' | 'km' | 'geral' | 'pecas'), string, string][] = [['hora', 'Desconto na hora', 'fa-clock'], ['km', 'Desconto no km', 'fa-road'], ['geral', 'Desconto geral da OS', 'fa-tags'], ['pecas', 'Desconto nas peças', 'fa-gears']]
+  const DESC: [keyof Conta['desc'] & ('hora' | 'km' | 'geral' | 'pecas'), string, string][] = [['hora', 'Desconto na hora', 'fa-clock'], ['km', 'Desconto no km', 'fa-road'], ['geral', 'Desconto geral da OS', 'fa-tags']]
   const descS = DESC.reduce((s, [k]) => s + c.desc[k] * (1 + val(`d_${k}`) / 100), 0)
-  const voltaDesc = c.desc.total - descS
-  const bruto = ent.mo + ent.km + ent.pecas + ent.outros + voltaDesc
+  // peças ficam fora do faturado (José, 28/10/2026): nem elas nem o desconto nelas entram na conta
+  const voltaDesc = DESC.reduce((s, [k]) => s + c.desc[k], 0) - descS
+  const bruto = ent.mo + ent.km + ent.outros + voltaDesc
   const gItens = c.gDet.map(([r, v], i) => ({ r, v, k: `g${i}`, s: v > 0 ? v * (1 + val(`g${i}`) / 100) : v }))
   const gastos = gItens.reduce((s, x) => s + x.s, 0)
   const pItens = {
@@ -463,7 +464,7 @@ export function DinheiroSimulador({ c, semFrase, claro, forma }: { c: Conta; sem
           {pior && <button type="button" className={cen === 'pior' ? 'on' : ''} onClick={() => aplicar('pior', pior)} title={`R$ ${Math.round(r100(pior) * 100)} de cada 100`}>Pior: {cap(pior.rotulo)}</button>}
           {media && <button type="button" className={cen === 'media' ? 'on' : ''} onClick={() => aplicar('media', media)}>Média dos últimos {hist.length}</button>}
           <button type="button" data-dica="Simula cobrar 20% mais horas, no mesmo valor de hora." className={cen === 'mais20' ? 'on' : ''} onClick={() => { aplicar('mais20', null); setM({ horas: 20 }); setCen('mais20') }}>+20% de horas</button>
-          {c.desc.total > 0.5 && <button type="button" className={cen === 'semdesc' ? 'on' : ''} onClick={() => { aplicar('semdesc', null); setM({ d_hora: -100, d_km: -100, d_geral: -100, d_pecas: -100 }); setCen('semdesc') }}>Sem nenhum desconto (+{brl(c.desc.total)})</button>}
+          {c.desc.total > 0.5 && <button type="button" className={cen === 'semdesc' ? 'on' : ''} onClick={() => { aplicar('semdesc', null); setM({ d_hora: -100, d_km: -100, d_geral: -100, d_pecas: -100 }); setCen('semdesc') }}>Sem nenhum desconto (+{brl(c.desc.total - c.desc.pecas)})</button>}
           <button type="button" className={cen === 'corta' ? 'on' : ''} onClick={() => { const g: Sim = {}; c.gDet.forEach(([, v], i) => { if (v > 0) g[`g${i}`] = -20 }); setTec(0); setPrev(true); setM(g); setCen('corta') }}>Cortar 20% dos gastos</button>
         </>
         // José, 21/10/2026: "deixa guardado essas infos" — no modo claro os atalhos ficam recolhidos
@@ -502,7 +503,6 @@ export function DinheiroSimulador({ c, semFrase, claro, forma }: { c: Conta; sem
               <RegSim claro={claro} v={val('horas')} onSet={set('horas')} rot="Horas cobradas" ic="fa-clock" cor={CE.mo} min={-60} max={150} antes={horas(c.horas)} depois={horas(horasS)} extra={`${brl(ent.mo)} de mão de obra`} dica="Horas de mão de obra que foram cobradas nas OS faturadas no período. Arraste para simular mais (ou menos) horas cobradas — a mão de obra muda junto, no valor médio da hora." />
               <RegSim claro={claro} v={val('vh')} onSet={set('vh')} rot="Valor da hora" ic="fa-tag" cor={CE.mo} min={-30} max={60} antes={`${brl(vh)}/h`} depois={`${brl(vhS)}/h`} extra={`média cobrada · tabela ${brl(vhTabS)}/h`} dica={`A hora de tabela é ${brl(vhTab)}. A média que realmente entrou foi ${brl(vh)}/h: mão de obra ÷ horas cobradas. Fica abaixo da tabela por causa dos descontos e da garantia (a montadora paga R$ 100/h). Arraste para simular cobrar mais ou menos por hora.`} />
               <RegSim claro={claro} dica="Quilômetros de deslocamento cobrados nas OS do período, ao valor do km. Arraste para simular mais ou menos km cobrado." v={val('km')} onSet={set('km')} rot="Km rodados" ic="fa-road" cor={CE.km} min={-60} max={150} antes={kmFmt(c.kmRod)} depois={kmFmt(c.kmRod * (1 + val('km') / 100))} extra={`${brl(vkm)}/km · ${brl(ent.km)}`} />
-              <RegSim claro={claro} dica="Peças vendidas junto com as OS (pedido de peças faturado). Arraste para simular vender mais ou menos peças." v={val('pecas')} onSet={set('pecas')} rot="Peças" ic="fa-gears" cor={CE.pecas} min={-60} max={150} antes={brl(c.pecas)} depois={brl(ent.pecas)} />
               <RegSim claro={claro} v={val('outros')} onSet={set('outros')} rot="Outros (requisições, extras)" ic="fa-receipt" cor={CE.outros} min={-100} max={150} antes={brl(c.outros)} depois={brl(ent.outros)} />
             </>}
             {aba === 'des' && <>

@@ -186,7 +186,7 @@ export default function DestaquesGiram({ blocos, faturadas, porDia, hoje }: { bl
 
     // 8. de onde veio
     const tot = Math.max(1, mes.s.bruto)
-    const partes: [string, number, string][] = [['Mão de obra', mes.s.servico, '#2563eb'], ['Deslocamento', mes.s.kmValor, '#10b981'], ['Peças', mes.s.pecas, '#f59e0b'], ['Outros', Math.max(0, mes.s.outros), '#94a3b8']]
+    const partes: [string, number, string][] = [['Mão de obra', mes.s.servico, '#2563eb'], ['Deslocamento', mes.s.kmValor, '#10b981'], ['Outros', Math.max(0, mes.s.outros), '#94a3b8']]
     out.push({
       chave: 'fonte', icone: 'fa-chart-pie', cor: '#06b6d4', titulo: 'De onde veio o dinheiro do mês', explica: 'O faturado do mês dividido pelo que foi cobrado em cada OS.',
       valor: `${Math.round((mes.s.servico / tot) * 100)}% mão de obra`, legenda: `${horas(mes.s.horas)} cobradas · ${Math.round(mes.s.km).toLocaleString('pt-BR')} km`,
@@ -195,6 +195,7 @@ export default function DestaquesGiram({ blocos, faturadas, porDia, hoje }: { bl
           <span className="dg-fbarra">{partes.map(([r, v, c], i) => v > 0 ? <i key={r} style={{ width: `${(v / tot) * 100}%`, background: c, animationDelay: `${200 + i * 120}ms` }} /> : null)}</span>
           <div className="dg-linhas">
             {partes.map(([r, v, c]) => <div key={r}><span><i style={{ background: c }} />{r}</span><b>{brl(v)} <small>{Math.round((v / tot) * 100)}%</small></b></div>)}
+            {mes.s.pecas > 0 && <div><span><i style={{ background: '#f59e0b' }} />Peças (à parte, fora do faturado)</span><b>{brl(mes.s.pecas)}</b></div>}
             <div className="dg-sep"><span>Terceiros (requisições não cobradas)</span><b style={{ color: '#b91c1c' }}>−{brl(mes.s.custo)}</b></div>
             <div><span>Sobra depois dos terceiros</span><b style={{ color: '#047857' }}>{brl(mes.s.liquido)}</b></div>
           </div>
