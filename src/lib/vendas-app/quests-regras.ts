@@ -161,7 +161,9 @@ export function candidatasDoTrator(t: TratorRevisoes, ctx: Contexto): Candidata[
   const prox = proximaRevisao(revs);
   if (estimado != null && prox != null && estimado >= prox - 50 && estimado <= prox + 300) {
     out.push(nova('revisao_chegando', String(prox), `Revisão de ${prox} h — ${rotuloTrator(t)}`,
-      `${quem}: pela média de uso desde a entrega, o trator deve estar com ~${estimado} h; a próxima revisão é a de ${prox} h. Conferir o horímetro e oferecer a revisão.`));
+      estimado >= prox
+        ? `${quem}: pela média de uso desde a entrega, o trator deve estar com ~${estimado} h e a revisão de ${prox} h não foi anotada — provavelmente já passou. Conferir o horímetro e oferecer a revisão.`
+        : `${quem}: pela média de uso desde a entrega, o trator deve estar com ~${estimado} h; a próxima revisão é a de ${prox} h. Conferir o horímetro e oferecer a revisão.`));
   }
 
   // o aniversário que passou há pouco ou o que vem (idade/365 erra por dia bissexto)
