@@ -177,7 +177,9 @@ const ESTILO_CZ = `
 .cz { width: 100%; border-collapse: collapse; font-size: 14.5px }
 .cz th { text-align: left; font-size: 12px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; color: #94a3b8; padding: 0 10px 8px; border-bottom: 1px solid #e2e8f0 }
 .cz td { padding: 10px; border-bottom: 1px solid #f1f5f9; color: #475569; vertical-align: middle }
-.cz tr { animation: czEntra .35s both } @keyframes czEntra { from { opacity: 0; transform: translateY(4px) } }
+/* só aparece (sem deslocar e sem ficar com a animação presa): transform/fill criariam uma camada por linha e o balão do ⓘ ficava por baixo das linhas seguintes */
+.cz tr { animation: czEntra .35s backwards } @keyframes czEntra { from { opacity: 0 } }
+.cz-info:hover, .cz-info.on, .cz-info:focus-visible { z-index: 50 }
 .cz tr.clica { cursor: pointer } .cz tr.clica:hover td { background: #f8fafc }
 .cz td.s { width: 18px; color: #94a3b8; font-weight: 600 } .cz tr.x td.s, .cz tr.x td:nth-child(3) > b { color: #dc2626 } .cz tr.ok td.s { color: #16a34a }
 .cz td.f { width: 1%; white-space: nowrap; padding-right: 26px }
