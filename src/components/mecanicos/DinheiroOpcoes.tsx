@@ -484,11 +484,12 @@ export function DinheiroSimulador({ c, semFrase, claro, forma }: { c: Conta; sem
               {([['ent', 'Entrou', '#0369a1', bruto, ''], ['gas', 'Gastos', CS.gastos, gastos, '−'], ['pes', 'Pessoal', CS.pessoal, pessoal, '−']] as const).map(([k, r, cor, v, op]) => (
                 <span key={k} className="dx-sim-conta-i">
                   {op && <em>{op}</em>}
-                  <button type="button" className={aba === k ? 'on' : ''} style={{ '--c': cor } as React.CSSProperties} onClick={() => setAba(k)} data-c={k} data-dica={({ ent: `ENTROU — tudo o que entrou no mês nas OS faturadas: mão de obra (horas × valor da hora), deslocamento (km), peças vendidas junto com a OS e outros. Já é DEPOIS dos descontos (${brl(descS)}). Clique para simular esses valores.`, gas: `GASTOS — o que o pós-vendas gastou no mês: combustível, manutenção do carro, almoço e materiais da oficina, mais requisições de terceiros que não foram cobradas do cliente. Só entra o que chegou ao financeiro. Clique para simular.`, pes: `PESSOAL — salários e encargos (conta fixa do mês inteiro, com ou sem serviço) e as comissões dos técnicos (a lançada no RH ou, sem ela, a prevista pela regra da ficha). Clique para ver quem está na conta e simular.` } as Record<string, string>)[k]}><span className="dx-cn"><i className={`fas ${({ ent: 'fa-sack-dollar', gas: 'fa-receipt', pes: 'fa-users' } as Record<string, string>)[k]} dx-ic`} aria-hidden />{r}</span><b>{brl(v)}</b></button>
+                  <button type="button" className={aba === k ? 'on' : ''} style={{ '--c': cor } as React.CSSProperties} onClick={() => setAba(k)} data-c={k} data-dica={({ ent: `ENTROU — tudo o que entrou no mês nas OS faturadas: mão de obra (horas × valor da hora), deslocamento (km), peças vendidas junto com a OS e outros. Já é DEPOIS dos descontos (${brl(descS)}). Clique para simular esses valores.`, gas: `GASTOS — o que o pós-vendas gastou no mês: combustível, manutenção do carro, almoço e materiais da oficina, mais requisições de terceiros que não foram cobradas do cliente. Só entra o que chegou ao financeiro. Clique para simular.`, pes: `PESSOAL — salários e encargos (conta fixa do mês inteiro, com ou sem serviço) e as comissões dos técnicos (a lançada no RH ou, sem ela, a prevista pela regra da ficha). Clique para ver quem está na conta e simular.` } as Record<string, string>)[k]}><span className="dx-cn"><i className={`fas ${({ ent: 'fa-sack-dollar', gas: 'fa-receipt', pes: 'fa-users' } as Record<string, string>)[k]} dx-ic`} aria-hidden />{r}</span><b><Contar v={v} /></b><Parte v={v} total={bruto} base={k === 'ent'} /></button>
                 </span>
               ))}
-              <span className="dx-sim-conta-i"><em>=</em><span className="dx-sim-conta-r" style={{ '--c': ficou >= 0 ? CS.ficou : CS.faltou } as React.CSSProperties} data-dica={`${ficou >= 0 ? 'SOBROU' : 'FALTOU'} — o que fica para a empresa: Entrou (${brl(bruto)}) − Gastos (${brl(gastos)}) − Pessoal (${brl(pessoal)}) = ${brl(ficou)}. É R$ ${Math.round(p100)} de cada R$ 100 que entraram.`}><span className="dx-cn"><i className="fas fa-piggy-bank dx-ic" aria-hidden />{ficou >= 0 ? 'Sobrou' : 'Faltou'}</span><b>{brl(ficou)}</b></span></span>
+              <span className="dx-sim-conta-i"><em>=</em><span className="dx-sim-conta-r" style={{ '--c': ficou >= 0 ? CS.ficou : CS.faltou } as React.CSSProperties} data-dica={`${ficou >= 0 ? 'SOBROU' : 'FALTOU'} — o que fica para a empresa: Entrou (${brl(bruto)}) − Gastos (${brl(gastos)}) − Pessoal (${brl(pessoal)}) = ${brl(ficou)}. É R$ ${Math.round(p100)} de cada R$ 100 que entraram.`}><span className="dx-cn"><i className="fas fa-piggy-bank dx-ic" aria-hidden />{ficou >= 0 ? 'Sobrou' : 'Faltou'}</span><b><Contar v={ficou} /></b><Parte v={ficou} total={bruto} /></span></span>
               <button type="button" className={`dx-sim-conta-desc ${aba === 'des' ? 'on' : ''}`} onClick={() => setAba('des')} data-dica={`DESCONTOS — o que foi dado de desconto nas OS e nos pedidos de peças do mês (${brl(descS)}). O "Entrou" já está depois deles. Clique para ver os maiores descontos e simular dar menos (aumenta o que entra) ou mais (diminui).`}><i className="fas fa-tags" /> Descontos dados: <b>{brl(descS)}</b> <small>(já tirados do que entrou)</small></button>
+              <Fluxo bruto={bruto} gastos={gastos} pessoal={pessoal} ficou={ficou} />
             </div>
           ) : (
           <div className="dx-sim-abas">
@@ -829,6 +830,36 @@ function Detalhe({ titulo, itens, cor, onFechar }: { titulo: string; itens: [str
   )
 }
 
+/** Número que corre até o valor quando muda (mexer nas réguas anima a conta) — José, 28/10/2026: "mais dinâmica". */
+function Contar({ v }: { v: number }) { const n = useContador(v, 650); return <>{brl(n)}</> }
+/** Quanto cada parte é do que entrou, numa barrinha dentro do cartão. */
+function Parte({ v, total, base }: { v: number; total: number; base?: boolean }) {
+  const p = total > 0 ? (v / total) * 100 : 0
+  return (
+    <span className="dx-parte">
+      <i><u style={{ width: `${Math.max(0, Math.min(100, Math.abs(p)))}%` }} /></i>
+      <small>{base ? 'base da conta (100%)' : `${Math.round(p)}% do que entrou`}</small>
+    </span>
+  )
+}
+/** A conta inteira numa barra só: o que entrou dividido em gastos, pessoal e o que sobrou (ou o que faltou). */
+function Fluxo({ bruto, gastos, pessoal, ficou }: { bruto: number; gastos: number; pessoal: number; ficou: number }) {
+  const tot = Math.max(1, bruto, gastos + pessoal)
+  const partes: [string, number, string, string][] = [['Gastos', gastos, CS.gastos, 'fa-receipt'], ['Pessoal', pessoal, CS.pessoal, 'fa-users'], [ficou >= 0 ? 'Sobrou' : 'Faltou', Math.abs(ficou), ficou >= 0 ? CS.ficou : CS.faltou, 'fa-piggy-bank']]
+  return (
+    <div className="dx-fluxo" aria-label="De cada real que entrou">
+      <div className="dx-fluxo-t"><b>Para onde foi cada R$ 100 que entrou</b>{ficou < 0 && <small>gastos + pessoal passaram do que entrou</small>}</div>
+      <div className="dx-fluxo-bar">
+        {partes.map(([r, v, cor, ic]) => v > 0.5 && (
+          <span key={r} style={{ width: `${(v / tot) * 100}%`, '--c': cor } as React.CSSProperties} className={r === 'Faltou' ? 'falta' : ''} data-dica={`${r}: ${brl(v)} (${Math.round((v / Math.max(1, bruto)) * 100)}% do que entrou)`}>
+            <i className={`fas ${ic}`} /><b>R$ {Math.round((v / Math.max(1, bruto)) * 100)}</b><small>{r}</small>
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export const ESTILO_DX = `
 .dx-caixa { display: grid; gap: 14px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; padding: 16px 18px; min-width: 0 }
 .dx-frase { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap }
@@ -901,6 +932,14 @@ export const ESTILO_DX = `
 .dx-sim-conta-i > button:hover { background: var(--portal-bg-card, #fefefe) }
 .dx-sim-conta-i > button.on { background: var(--portal-bg-card, #fefefe); border-color: var(--c); box-shadow: 0 4px 12px rgba(15,23,42,.08) }
 .dx-sim-conta-r { cursor: default; background: var(--portal-bg-card, #fefefe) } .dx-sim-conta-r b { color: var(--c) }
+.dx-parte { display: grid; gap: 4px; width: 100%; margin-top: 2px } .dx-parte i { display: block; height: 6px; border-radius: 99px; background: color-mix(in srgb, var(--c) 12%, #eef2f6); overflow: hidden } .dx-parte u { display: block; height: 100%; border-radius: 99px; background: var(--c); transition: width .6s cubic-bezier(.2,.8,.2,1) } .dx-parte small { font-size: 12px !important; font-weight: 400 !important; color: #475569 !important; filter: none !important }
+.dx-fluxo { flex-basis: 100%; display: grid; gap: 8px; background: #fefefe; border: 1px solid #e2e8f0; border-radius: 16px; padding: 12px 14px; margin-top: 4px }
+.dx-fluxo-t { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap } .dx-fluxo-t b { font-size: 14px; font-weight: 500; color: #0f172a } .dx-fluxo-t small { font-size: 12.5px; color: #b91c1c }
+.dx-fluxo-bar { display: flex; gap: 4px; height: 52px }
+.dx-fluxo-bar > span { position: relative; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; align-content: center; min-width: 0; overflow: hidden; border-radius: 12px; padding: 0 12px; color: color-mix(in srgb, var(--c) 85%, #0f172a); background: color-mix(in srgb, var(--c) 14%, #fefefe); transition: width .7s cubic-bezier(.2,.8,.2,1); animation: dxCresce .8s cubic-bezier(.2,.8,.2,1) both; transform-origin: left }
+.dx-fluxo-bar > span.falta { background: repeating-linear-gradient(135deg, #fee2e2 0 8px, #fecaca 8px 16px) }
+.dx-fluxo-bar > span i { grid-row: span 2; font-size: 15px } .dx-fluxo-bar > span b { font-size: 15px; font-weight: 600; white-space: nowrap } .dx-fluxo-bar > span small { font-size: 12px; white-space: nowrap }
+@keyframes dxCresce { from { transform: scaleX(0); opacity: 0 } }
 .dx-sim-conta-desc { flex-basis: 100%; border: 0; background: transparent; font-family: inherit; font-size: 12.5px; color: var(--portal-text, #0f172a); cursor: pointer; text-align: left; padding: 2px 8px; border-radius: 8px } .dx-sim-conta-desc i { color: #d97706 } .dx-sim-conta-desc small { color: ${MUDO} } .dx-sim-conta-desc.on { background: #fffbeb }
 .dx-sim-sub { font-size: 12.5px; color: ${MUDO}; line-height: 1.45 }
 .dx-sim-pill { font-size: 11.5px; font-weight: 600; border-radius: 99px; padding: 1px 8px; background: var(--portal-bg-secondary, #f1f5f9); color: ${MUDO} } .dx-sim-r.mexeu .dx-sim-pill { background: var(--c); color: #fefefe }

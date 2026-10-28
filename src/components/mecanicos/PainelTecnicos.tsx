@@ -372,12 +372,13 @@ const ESTILO_TRILHO = `
 .pt-amb .pt-secao em { width: 40px; height: 40px; border-radius: 12px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 22%, transparent) !important; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 14%, var(--portal-bg-card, #fefefe)); border: 0; font-size: 15px; line-height: 1; font-weight: 700; color: var(--c); grid-row: span 2; align-self: center; margin-right: 6px; box-shadow: none; font-variant-numeric: tabular-nums; transition: background .3s }
 /* 28/10/2026: ícones todos iguais (José: "deixa os ícones padronizados") — a seção atual não muda de cor */
 .pt-amb .pt-secao:not(.pt-visto) em { transform: scale(.4); opacity: 0 } .pt-amb .pt-secao em { opacity: 1 }
-.pt-atalhos-ancora { position: sticky; top: 92px; z-index: 30; height: 0 }
+/* 28/10/2026 (José: "não precisa ficar aparecendo essa linha"): a barra não acompanha mais a rolagem */
+.pt-atalhos-ancora { display: none }
 .pt-atalhos-ancora > .pt-atalhos { position: absolute; left: 0; right: 0; top: 0; margin: 0; opacity: 0; transform: translateY(-12px); pointer-events: none; transition: opacity .25s, transform .25s }
 .pt-atalhos-ancora.on > .pt-atalhos { opacity: 1; transform: none; pointer-events: auto }
 /* barra de cima: abas em texto, fina e quieta (22/10/2026) */
 /* 27/10/2026 (José: "tira essa faixona branca, algo mais simples e bonito"): sem faixa — pílulas soltas sobre o fundo */
-.pt-atalhos { position: sticky; top: 92px; z-index: 30; box-sizing: border-box; display: flex; align-items: center; gap: 6px; min-height: 40px; margin: 0 0 14px; padding: 6px 8px; border-radius: 99px; background: color-mix(in srgb, var(--portal-bg, #eef0ec) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); overflow-x: auto; overflow-y: hidden; scrollbar-width: none }
+.pt-atalhos { position: relative; z-index: 30; box-sizing: border-box; display: flex; align-items: center; gap: 6px; min-height: 40px; margin: 0 0 14px; padding: 6px 8px; border-radius: 99px; background: color-mix(in srgb, var(--portal-bg, #eef0ec) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); overflow-x: auto; overflow-y: hidden; scrollbar-width: none }
 .pt-atalhos::-webkit-scrollbar { display: none }
 .pt-atalhos button { flex: none; display: inline-flex; align-items: center; gap: 7px; border: 1px solid transparent; border-radius: 99px; background: transparent; padding: 6px 13px; font-family: inherit; font-size: 14px; font-weight: 500; color: #334155; cursor: pointer; white-space: nowrap; transition: color .15s, background .15s, border-color .15s }
 .pt-atalhos button i { font-size: 13px; color: var(--c); opacity: 1; transition: opacity .15s }

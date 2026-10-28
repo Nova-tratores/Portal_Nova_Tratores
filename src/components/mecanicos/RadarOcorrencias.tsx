@@ -559,7 +559,7 @@ function Detalhe({ o, podeJulgar, julgando, onJulgar, onFechar }: { o: Ocorrenci
 function EstilosRadar() {
   return (
     <style>{`
-      .rdr-topo { position: sticky; top: 92px; z-index: 30; display: flex; gap: 10px; align-items: stretch; margin-bottom: 14px } .rdr-topo .pt-atalhos { position: static; margin: 0; flex: 1; min-width: 0 }
+      .rdr-topo { position: relative; z-index: 30; display: flex; gap: 10px; align-items: stretch; margin-bottom: 14px } .rdr-topo .pt-atalhos { position: static; margin: 0; flex: 1; min-width: 0 }
       .rdr-tb { flex: none; display: flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 99px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05) }
       .rdr-mes { display: inline-flex; align-items: center; gap: 2px; background: transparent; border-radius: 99px; padding: 0 }
       .rdr-mes button { width: 30px; height: 30px; border-radius: 50%; border: none; background: transparent; color: #334155; cursor: pointer; transition: all .2s } .rdr-mes button:hover:not(:disabled) { background: #fefefe; color: #6d28d9; box-shadow: 0 1px 4px rgba(15,23,42,.1) } .rdr-mes button:disabled { opacity: .3; cursor: default }
