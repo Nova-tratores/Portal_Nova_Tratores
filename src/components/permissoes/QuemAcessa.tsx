@@ -63,8 +63,10 @@ export default function QuemAcessa() {
           fontSize: 12, fontWeight: 600, fontFamily: 'Inter', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,.12)',
         }}
       >
-        <KeyRound size={14} /> Quem acessa
-        <span style={{ fontSize: 9, fontWeight: 800, background: '#111111', color: '#fefefe', padding: '1px 6px', borderRadius: 999 }}>DEV</span>
+        <KeyRound size={14} /> <span className="qa-txt">Quem acessa</span>
+        <span className="qa-txt" style={{ fontSize: 9, fontWeight: 800, background: '#111111', color: '#fefefe', padding: '1px 6px', borderRadius: 999 }}>DEV</span>
+        {/* celular: só a chave — o selo inteiro tapava o conteúdo no canto */}
+        <style>{`@media (max-width: 640px) { .quem-acessa-btn { padding: 8px !important; } .quem-acessa-btn .qa-txt { display: none; } }`}</style>
       </button>
 
       {aberto && (

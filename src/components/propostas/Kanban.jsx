@@ -377,7 +377,51 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
         </div>
       ) : (
         /* VISÃO LISTA */
-        <div className="bg-white border border-zinc-200 rounded-xl overflow-x-auto">
+        <>
+        {/* celular: cartões (a tabela de 12 colunas espremia o nome do cliente em 5 linhas) */}
+        <div className="md:hidden flex flex-col gap-2">
+          {ordenadas.length === 0 && <div className="text-center py-10 text-zinc-400 text-base font-medium bg-white border border-zinc-200 rounded-xl">Nenhuma proposta encontrada</div>}
+          {ordenadas.map(card => {
+            const isFromFactory = card.fabrica_pedido_id != null
+            return (
+              <div key={card.id} onClick={() => onCardClick(card)} className="bg-white border border-zinc-200 rounded-xl p-3 active:bg-red-50/50 cursor-pointer">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+                      <span className="font-bold text-zinc-700">#{card.id}</span>
+                      {isFromFactory && <span className="text-[10px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">FAB</span>}
+                      <span>· {fmtData(card.criado_em)}</span>
+                    </div>
+                    <div className="text-base font-semibold text-zinc-800 leading-snug break-words">{card.Cliente || 'Sem nome'}</div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-base font-bold text-red-600 whitespace-nowrap">R$ {formatBRL(card.Valor_Total)}</div>
+                    {isFromFactory && card.fabrica_custo != null && <div className="text-[11px] text-zinc-400 whitespace-nowrap">custo fáb: R$ {formatBRL(card.fabrica_custo)}</div>}
+                  </div>
+                </div>
+                <div className="text-sm text-zinc-600 mt-1">{[`${card.Marca || ''} ${card.Modelo || ''}`.trim(), card.Cidade].filter(Boolean).join(' · ') || '—'}</div>
+                <div className="text-xs text-zinc-500 mt-0.5">{card.vendedor_nome || 'sem vendedor'}</div>
+                <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-md ${getStatusStyle(card.status)}`}>{statusLabel(card.status)}</span>
+                  <span className={`text-xs ${agingCor(card.dias_na_fase)}`}>{agingTexto(card.dias_na_fase)}</span>
+                  {card.tag_nome && <span style={{ background: (card.tag_cor || '#64748b') + '22', color: card.tag_cor || '#64748b', padding: '1px 8px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{card.tag_nome}</span>}
+                </div>
+                <div className="mt-2"><TermoBar v={termoValor(card)} /></div>
+                <div className="mt-2" onClick={e => e.stopPropagation()}>
+                  <select
+                    className="w-full bg-zinc-50 border border-zinc-200 text-zinc-600 text-sm font-semibold p-2.5 rounded-md outline-none cursor-pointer focus:ring-2 focus:ring-red-500/40"
+                    value={card.status}
+                    aria-label="Alterar fase"
+                    onChange={(e) => updateStatus(card.id, e.target.value, e)}
+                  >
+                    {COLUNAS.map(f => <option key={f.nome} value={f.nome}>{f.label}</option>)}
+                  </select>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <div className="hidden md:block bg-white border border-zinc-200 rounded-xl overflow-x-auto">
           <table className="w-full min-w-[1200px] border-collapse">
             <thead>
               <tr className="border-b-2 border-zinc-200">
@@ -465,6 +509,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <div className="mt-3 text-right text-sm text-zinc-400 font-medium">{filtradas.length} proposta{filtradas.length !== 1 ? 's' : ''}</div>

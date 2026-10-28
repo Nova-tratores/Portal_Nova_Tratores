@@ -226,6 +226,13 @@ function AtividadesPageInner() {
         @media (max-width: 768px) {
           .ativ-root { padding: 16px 12px !important; }
           .ativ-root h2 { font-size: 22px !important; }
+          /* cada registro vira cartão: quem/quando · sistema/ação · entidade · detalhes (sem rolar de lado) */
+          .ativ-largura { min-width: 0 !important; }
+          .ativ-cab { display: none !important; }
+          .ativ-linha { grid-template-columns: minmax(0,1fr) auto !important; grid-template-areas: 'u q' 's a' 'e e' 'd d'; gap: 6px 10px; padding: 12px 14px !important; }
+          .ativ-linha > * { min-width: 0; }
+          .ativ-linha > :nth-child(1) { grid-area: u; } .ativ-linha > :nth-child(2) { grid-area: s; } .ativ-linha > :nth-child(3) { grid-area: a; justify-self: end; }
+          .ativ-linha > :nth-child(4) { grid-area: e; } .ativ-linha > :nth-child(5) { grid-area: d; } .ativ-linha > :nth-child(6) { grid-area: q; }
         }
       `}</style>
       {/* Header */}
@@ -392,9 +399,9 @@ function AtividadesPageInner() {
         boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflowX: 'auto', WebkitOverflowScrolling: 'touch'
       }}>
         {/* Largura mínima: no celular/tablet a tabela rola na horizontal DENTRO da caixa */}
-        <div style={{ minWidth: 860 }}>
+        <div className="ativ-largura" style={{ minWidth: 860 }}>
         {/* Header da tabela */}
-        <div style={{
+        <div className="ativ-cab" style={{
           display: 'grid',
           gridTemplateColumns: '1fr 140px 100px 1.2fr 200px 120px',
           padding: '12px 24px',
@@ -439,6 +446,7 @@ function AtividadesPageInner() {
           return (
             <div
               key={entry.id}
+              className="ativ-linha"
               style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 140px 100px 1.2fr 200px 120px',
