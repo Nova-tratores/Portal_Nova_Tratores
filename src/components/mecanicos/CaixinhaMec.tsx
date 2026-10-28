@@ -25,7 +25,8 @@ const TIPO: Record<Mov['tipo'], { rot: string; cor: string; sinal: 1 | -1 }> = {
 const nomeCurto = (n: string | null) => (n ? n.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase()).split(' ').slice(0, 2).join(' ') : '—')
 const dia = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: '2-digit' })
 
-export default function CaixinhaMec() {
+/** `icone`: só o ícone nos atalhos do Centro, ao lado do Tribunal (José, 28/10/2026: "a caixinha vira um ícone lá"). */
+export default function CaixinhaMec({ icone }: { icone?: boolean } = {}) {
   const [d, setD] = useState<Dados | null>(null)
   const [filtro, setFiltro] = useState<'tudo' | 'entrou' | 'saiu'>('tudo')
   const [verTudo, setVerTudo] = useState(false)
@@ -49,6 +50,12 @@ export default function CaixinhaMec() {
     return () => { vivo = false }
   }, [])
 
+  if (icone && (!d || !d.ciclo)) return (
+    <button type="button" className="mi-b" style={{ '--c': '#047857' } as React.CSSProperties} aria-label="Caixinha" disabled={!d}>
+      <i className="fas fa-piggy-bank" />
+      <span className="mi-dica" role="tooltip"><b>Caixinha</b><small>{!d ? 'lendo no RH…' : d.erro || 'indisponível'}</small></span>
+    </button>
+  )
   if (!d) return <div className="cx-resumo"><style>{ESTILO}</style><div className="cx-carr"><i className="fas fa-circle-notch fa-spin" /> lendo a caixinha no RH…</div></div>
   if (!d.ciclo) return <div className="cx-resumo"><style>{ESTILO}</style><div className="cx-carr">{d.erro || 'Caixinha indisponível.'}</div></div>
 
@@ -64,6 +71,13 @@ export default function CaixinhaMec() {
   return (
     <>
     <style>{ESTILO}</style>
+    {icone ? (
+    <button type="button" className={`mi-b ${aberta ? 'on' : ''}`} style={{ '--c': '#047857' } as React.CSSProperties} onClick={() => setAberta(true)} aria-label={`Caixinha: saldo ${brl2(d.saldo)}`}>
+      <i className="fas fa-piggy-bank" />
+      {vencido && <em>!</em>}
+      <span className="mi-dica" role="tooltip"><b>Caixinha · {brl2(d.saldo)}</b><small>{vencido ? 'ciclo vencido, falta redistribuir' : `ciclo ${d.ciclo.inicio} a ${d.ciclo.fim}`}</small></span>
+    </button>
+    ) : (
     <button type="button" className="cx-resumo" onClick={() => setAberta(true)}>
       <span className="cx-ic"><i className="fas fa-piggy-bank" /></span>
       <span className="cx-r-t"><small>Saldo da caixinha</small><b>{brl2(d.saldo)}</b></span>
@@ -71,6 +85,7 @@ export default function CaixinhaMec() {
       {vencido && <span className="cx-r-al"><i className="fas fa-triangle-exclamation" /> ciclo vencido, falta redistribuir</span>}
       <span className="cx-r-ver">Ver extrato e como funciona <i className="fas fa-arrow-right" /></span>
     </button>
+    )}
     {aberta && createPortal(
     <div className="cx-fundo" onClick={() => setAberta(false)}>
     <div className="cx" role="dialog" aria-modal="true" aria-label="Caixinha dos técnicos" onClick={(e) => e.stopPropagation()}>

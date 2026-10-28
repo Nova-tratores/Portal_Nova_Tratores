@@ -379,10 +379,11 @@ function Casca({ t, i, children, pe }: { t: TecH; i: number; children: React.Rea
   )
 }
 function Grade({ d, children }: { d: DadosHoras; children: (t: TecH, i: number) => React.ReactNode }) {
-  return <div className="ho">{LEGENDA}<div className="h2-grade">{d.tecs.map((t, i) => <div key={t.nome} style={{ display: 'contents' }}>{children(t, i)}</div>)}</div><Equipe d={d} /></div>
+  return <div className="ho">{LEGENDA}<div className="h2-grade">{d.tecs.map((t, i) => <div key={t.nome} style={{ display: 'contents' }}>{children(t, i)}</div>)}</div></div>
 }
-/** Equipe embaixo dos cartões: o mês e cada semana somando todos os mecânicos contra a meta da equipe. */
-function Equipe({ d }: { d: DadosHoras }) {
+/** Equipe embaixo dos cartões: o mês e cada semana somando todos os mecânicos contra a meta da equipe.
+ *  Saiu da tela em 28/10/2026 (a capa da equipe, EquipeCapa, ficou no lugar). */
+export function Equipe({ d }: { d: DadosHoras }) {
   // José, 21/10/2026: "melhora isso aqui também" — cartão branco, cada semana com o % da básica e a situação escrita.
   // 27/10/2026: abre no MÊS; clicando mostra as semanas (cortadas no mês, meta proporcional aos dias úteis).
   const [verSemanas, setVerSemanas] = useState(false)

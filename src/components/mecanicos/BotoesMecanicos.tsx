@@ -4,6 +4,7 @@
 // os números dos botões vêm de lá também (ficam guardados aqui depois da 1ª leitura).
 import { useSyncExternalStore } from 'react'
 import { useAutorizacoes } from './AutorizacoesJanela'
+import CaixinhaMec from './CaixinhaMec'
 
 export type ModalMec = 'tribunal' | 'ocorrencias' | 'liga' | 'comissoes' | 'autorizacoes' | null
 let estado: { modal: ModalMec; pendentes: number | null; ocorrencias: number | null } = { modal: null, pendentes: null, ocorrencias: null }
@@ -76,11 +77,15 @@ export function MenuRadialMec({ onAbrir, podio, onPodio, onTratorilson }: { onAb
     <nav className="mi" aria-label="Atalhos">
       <style>{ESTILO_MR}</style>
       {itens.map((x) => (
-        <button key={x.k} type="button" className={`mi-b ${x.on ? 'on' : ''}`} style={{ '--c': x.cor } as React.CSSProperties} onClick={x.ir} aria-label={`${x.t}: ${x.sub}`}>
+        <span key={x.k} style={{ display: 'contents' }}>
+        <button type="button" className={`mi-b ${x.on ? 'on' : ''}`} style={{ '--c': x.cor } as React.CSSProperties} onClick={x.ir} aria-label={`${x.t}: ${x.sub}`}>
           <i className={`fas ${x.ic}`} />
           {!!x.n && <em>{x.n}</em>}
           <span className="mi-dica" role="tooltip"><b>{x.t}</b><small>{x.sub}</small></span>
         </button>
+        {/* a caixinha dos técnicos logo depois do Tribunal (José, 28/10/2026) */}
+        {x.k === 'tribunal' && <CaixinhaMec icone />}
+        </span>
       ))}
     </nav>
   )
