@@ -10,6 +10,7 @@ import type { Fantasmas, TecnicoFantasma, OSFantasma, DiaFantasma } from '@/lib/
 import { useVersaoAoVivo } from './useAoVivo'
 import TemparioJanela from './TemparioJanela'
 import FuroKmJanela from './FuroKmJanela'
+import { TabelaCruzamentos, montarCruzamentos, useFuroKm } from './CruzamentosTecnico'
 
 // Tempário fora do cartão por enquanto (José, 28/10/2026: "do tempário, deixa vazio algo como Em Desenvolvimento").
 // O código continua aqui; é só virar para true quando a comparação estiver pronta.
@@ -147,27 +148,6 @@ export default function FantasmasMec({ mes }: { mes: string }) {
 }
 
 /** Barra que cresce; `fantasma` é a parte além de `base`, listrada e andando. */
-/** Uma comparação (José, 28/10/2026: "muito confuso"): a diferença em destaque, uma barra só (verde = o que bate,
- *  listrado = a diferença) e as duas fontes embaixo; clicar abre o detalhe (mapa do furo, OS, dia a dia). */
-function Compara({ titulo, a, b, fmt, dif, nota, atraso, acao }: { titulo: string; a: { rot: string; v: number; cor: string }; b: { rot: string; v: number; cor: string }; fmt: (n: number) => string; dif: { t: string; tom: 'v' | 'a' | 'n' | 'ok' }; nota?: string; atraso: number; acao?: { t: string; ic: string; onClick: () => void } }) {
-  const mx = Math.max(a.v, b.v, 0.0001)
-  const menor = Math.min(a.v, b.v)
-  const miolo = (
-    <>
-      <small className="fan-cmp-t">{titulo}</small>
-      <b className="fan-cmp-d"><i className={`fas ${dif.tom === 'ok' ? 'fa-circle-check' : 'fa-triangle-exclamation'}`} /> {dif.t}</b>
-      <span className="fan-cmp-bar" title={`${a.rot}: ${fmt(a.v)} · ${b.rot}: ${fmt(b.v)}`}><i style={{ width: `${(menor / mx) * 100}%`, animationDelay: `${atraso + 120}ms` }} /></span>
-      <span className="fan-cmp-v"><span><i style={{ background: a.cor }} />{a.rot} <b>{fmt(a.v)}</b></span><span><i style={{ background: b.cor }} />{b.rot} <b>{fmt(b.v)}</b></span></span>
-      {nota && <small className="fan-cmp-n">{nota}</small>}
-      {acao && <span className="fan-cmp-a"><i className={`fas ${acao.ic}`} /> {acao.t} <i className="fas fa-arrow-right" /></span>}
-    </>
-  )
-  const cls = `fan-cmp ${dif.tom} ${acao ? 'clica' : ''}`
-  return acao
-    ? <button type="button" onClick={acao.onClick} className={cls} style={{ animationDelay: `${atraso}ms` }}>{miolo}</button>
-    : <div className={cls} style={{ animationDelay: `${atraso}ms` }}>{miolo}</div>
-}
-
 function Barra({ rot, v, max, cor, fmt, base, dica, atraso }: { rot: string; v: number; max: number; cor: string; fmt: (n: number) => string; base?: number; dica?: string; atraso: number }) {
   const w = max > 0 ? Math.min(100, (v / max) * 100) : 0
   const b = base != null && base < v ? Math.max(0, (base / max) * 100) : null
@@ -209,10 +189,9 @@ function LinhaMes({ dias, mes }: { dias: DiaFantasma[]; mes: string }) {
 export function CartaoTecnico({ t, ordem = 0, mes }: { t: TecnicoFantasma; ordem?: number; mes: string }) {
   const [aberto, setAberto] = useState<'os' | 'dias' | null>(null)
   const [furo, setFuro] = useState(false)
+  const fk = useFuroKm(t.tecnico, mes)
   const [tempario, setTempario] = useState<string | null>(null)
   const x = t.totais
-  const maxH = Math.max(x.ligadoH, x.horasRel, x.horasCobradas, x.horasPrevistas, 1)
-  const maxK = Math.max(x.kmCarro, x.kmRel, x.kmCobrado, 1)
   const alertas = TEMPARIO_ATIVO ? t.os.filter((o) => ['muito_acima', 'acima', 'rapido'].includes(o.situacao)) : []
   const fantH = (TEMPARIO_ATIVO ? x.acimaTempario : 0) + x.naoCobradas
   const nivel = x.kmFantasma > 400 || fantH > 8 || alertas.some((o) => o.situacao === 'muito_acima') ? 'alto' : x.kmFantasma > 150 || fantH > 3 || alertas.length ? 'medio' : 'ok'
@@ -225,45 +204,9 @@ export function CartaoTecnico({ t, ordem = 0, mes }: { t: TecnicoFantasma; ordem
         <div><b>{t.tecnico}</b><small>{t.os.length} OS no mês{t.placas.length ? ` · carro ${t.placas.join(', ')}` : ' · sem carro identificado'}</small></div>
         <span className={`fan-nivel ${nivel}`}>{nivel === 'alto' ? 'atenção' : nivel === 'medio' ? 'olhar' : 'em dia'}</span>
       </header>
-      {/* 28/10/2026 (José: "colocar as informações assim: km colocado na ordem × km rodado GPS, e assim segue"):
-          cada linha compara duas fontes lado a lado e diz a diferença */}
-      <div className="fan-blocos">
-        <div className="fan-bloco">
-          <span className="fan-rot"><i className="fas fa-clock" /> Horas</span>
-          <Compara titulo="Cobrado na OS × apontado no relatório" fmt={h} atraso={b0 + 100}
-            a={{ rot: 'na OS', v: x.horasCobradas, cor: '#059669' }} b={{ rot: 'no relatório', v: x.horasRel, cor: '#2563eb' }}
-            dif={x.naoCobradas > 0 ? { t: `${h(x.naoCobradas)} trabalhadas e não cobradas`, tom: 'a' } : { t: 'tudo que apontou foi cobrado', tom: 'ok' }}
-            acao={x.naoCobradas > 0 ? { t: 'ver as OS', ic: 'fa-file-lines', onClick: () => setAberto('os') } : undefined} />
-          {TEMPARIO_ATIVO ? (
-            <Compara titulo="Apontado no relatório × tempário Mahindra" fmt={h} atraso={b0 + 180}
-              a={{ rot: 'no relatório', v: x.horasRelAnalisadas, cor: '#2563eb' }} b={{ rot: 'tempário', v: x.horasPrevistas, cor: '#7c3aed' }}
-              dif={x.acimaTempario > 0 ? { t: `+${h(x.acimaTempario)} acima do tempário`, tom: 'v' } : { t: 'dentro do tempário', tom: 'ok' }}
-              nota={x.osSemAnalise > 0 ? `só as OS já analisadas · ${x.osSemAnalise} sem análise` : 'só as OS já analisadas'} />
-          ) : (
-            <div className="fan-cmp fan-cmp-dev"><small className="fan-cmp-t">Apontado no relatório × tempário Mahindra</small><span className="fan-dev"><i className="fas fa-person-digging" /> Em desenvolvimento</span></div>
-          )}
-          <Compara titulo="Apontado no relatório × carro ligado (GPS)" fmt={h} atraso={b0 + 260}
-            a={{ rot: 'no relatório', v: x.horasRel, cor: '#2563eb' }} b={{ rot: 'carro ligado', v: x.ligadoH, cor: '#94a3b8' }}
-            dif={x.ligadoSemOS > 0 ? { t: `${h(x.ligadoSemOS)} de carro ligado em dia sem OS`, tom: 'n' } : { t: 'carro ligado só em dia de OS', tom: 'ok' }}
-            acao={x.ligadoSemOS > 0 ? { t: 'ver o dia a dia', ic: 'fa-calendar-days', onClick: () => setAberto('dias') } : undefined} />
-        </div>
-        <div className="fan-bloco">
-          <span className="fan-rot"><i className="fas fa-road" /> Quilômetros</span>
-          <Compara titulo="Km colocado na OS × km rodado (GPS)" fmt={km} atraso={b0 + 140}
-            a={{ rot: 'na OS', v: x.kmCobrado, cor: '#059669' }} b={{ rot: 'GPS', v: x.kmCarro, cor: '#94a3b8' }}
-            dif={x.kmCarro > x.kmCobrado ? { t: `${km(x.kmCarro - x.kmCobrado)} rodados e não cobrados`, tom: 'v' } : { t: 'cobrou tudo que rodou', tom: 'ok' }}
-            acao={x.kmCarro > x.kmCobrado ? { t: 'ver no mapa onde foi o furo', ic: 'fa-map-location-dot', onClick: () => setFuro(true) } : undefined} />
-          <Compara titulo="Km no relatório × km rodado (GPS)" fmt={km} atraso={b0 + 220}
-            a={{ rot: 'no relatório', v: x.kmRel, cor: '#2563eb' }} b={{ rot: 'GPS', v: x.kmCarro, cor: '#94a3b8' }}
-            dif={x.kmFantasma > 0 ? { t: `${km(x.kmFantasma)} rodados fora dos relatórios`, tom: 'v' } : { t: 'tudo que rodou está no relatório', tom: 'ok' }}
-            acao={x.kmFantasma > 0 ? { t: 'ver no mapa', ic: 'fa-map-location-dot', onClick: () => setFuro(true) } : undefined}
-            nota={x.kmSemOS > 0 ? `${km(x.kmSemOS)} em ${x.diasCarroSemOS} dia${x.diasCarroSemOS === 1 ? '' : 's'} sem nenhuma OS` : undefined} />
-          <Compara titulo="Km colocado na OS × km no relatório" fmt={km} atraso={b0 + 300}
-            a={{ rot: 'na OS', v: x.kmCobrado, cor: '#059669' }} b={{ rot: 'no relatório', v: x.kmRel, cor: '#2563eb' }}
-            dif={x.kmRel > x.kmCobrado ? { t: `${km(x.kmRel - x.kmCobrado)} do relatório não cobrados`, tom: 'a' } : { t: 'o relatório foi todo cobrado', tom: 'ok' }}
-            acao={x.kmRel > x.kmCobrado ? { t: 'ver as OS', ic: 'fa-file-lines', onClick: () => setAberto('os') } : undefined} />
-        </div>
-      </div>
+      {/* 28/10/2026 (José escolheu a opção 5 da página teste: "isso aqui eu achei muito bom, vamos trabalhar nele"):
+          uma linha por cruzamento; clicar abre o mapa do furo, as OS ou o dia a dia */}
+      <TabelaCruzamentos linhas={montarCruzamentos(t, fk)} onAcao={(a) => (a === 'mapa' ? setFuro(true) : setAberto(a))} />
       {/* gráfico do mês tirado do cartão (José, 21/10/2026); o dia a dia continua na aba "Dia a dia" */}
       {alertas.length > 0 && (
         <div className="fan-alertas">
