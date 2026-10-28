@@ -8,34 +8,160 @@
 import { supabase } from './supabase';
 import { omieRequest } from './omie';
 import { sleep } from './utils';
+import { OmieBloqueioError } from '@/lib/omie/porta';
+import { chavePar, paresParaTentar, proximaTentativa, type Par, type Tentativa } from './cmc-tentativas';
 import type { Conta } from './conta';
 
 const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
 
 // === CMC numa data exata via API Omie (PosicaoEstoque com param data) ===
-const cmcCache: Record<string, number | null> = {}; // 'conta:codigo:DD/MM/YYYY' => cmc|null
+// Só guarda custo encontrado: o "sem custo" e o erro não ficam no cache (antes ficavam e
+// a nova tentativa dias depois respondia do cache, sem perguntar de novo à Omie).
+const cmcCache: Record<string, number> = {}; // 'conta:codigo:DD/MM/YYYY' => cmc
 
-async function buscarCMCNaData(codigoProduto: string, dataStr: string, conta: Conta): Promise<number | null> {
-  if (!codigoProduto || !dataStr) return null;
+async function consultarCMCNaData(codigoProduto: string, dataStr: string, conta: Conta): Promise<{ cmc: number | null; chamou: boolean }> {
   const cacheKey = conta + ':' + codigoProduto + ':' + dataStr;
-  if (cmcCache[cacheKey] !== undefined) return cmcCache[cacheKey];
-  try {
-    const r = await omieRequest<{ cmc?: number }>(
-      '/estoque/consulta/', 'PosicaoEstoque',
-      { id_prod: parseInt(codigoProduto, 10), codigo_local_estoque: 0, data: dataStr },
-      { conta },
-    );
-    const cmc = num(r.cmc);
-    cmcCache[cacheKey] = cmc > 0 ? cmc : null;
-  } catch {
-    cmcCache[cacheKey] = null;
-  }
-  return cmcCache[cacheKey];
+  if (cmcCache[cacheKey] !== undefined) return { cmc: cmcCache[cacheKey], chamou: false };
+  const r = await omieRequest<{ cmc?: number; faultstring?: string }>(
+    '/estoque/consulta/', 'PosicaoEstoque',
+    { id_prod: parseInt(codigoProduto, 10), codigo_local_estoque: 0, data: dataStr },
+    { conta },
+  );
+  // fault de negócio (produto não existe na data etc.) é resposta: conta como sem custo
+  const cmc = num(r.cmc);
+  if (cmc <= 0) return { cmc: null, chamou: true };
+  cmcCache[cacheKey] = cmc;
+  return { cmc, chamou: true };
 }
 
 // ============================================================================
-// enriquecer-cmc: backfill de cmc_unitario num lote (foreground, paginado pela UI).
+// Backfill de cmc_unitario: cada par produto+data é tentado UMA vez por rodada.
+// Custo 0 na Omie → espera 1/7/30 dias em vendas_cmc_tentativas; na 4ª desiste.
 // ============================================================================
+export interface EnriquecerContaResult {
+  conta: Conta;
+  pares: number;
+  tentados: number;
+  enriquecidos: number;
+  semCusto: number;
+  desistidos: number;
+  adiados: number;
+  jaDesistidos: number;
+  erros: number;
+  chamadasOmie: number;
+  restantes: number;
+  paradoPor?: string;
+  semTabelaTentativas?: boolean;
+}
+
+const tabelaFaltando = (e: { code?: string; message?: string } | null) =>
+  !!e && (e.code === '42P01' || e.code === 'PGRST205' || /vendas_cmc_tentativas/.test(e.message || ''));
+
+async function lerItensSemCusto(conta: Conta): Promise<Par[]> {
+  const out: Par[] = [];
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await supabase
+      .from('vendas_itens')
+      .select('codigo_produto,data_pedido')
+      .eq('conta_omie', conta)
+      .is('cmc_unitario', null)
+      .not('codigo_produto', 'is', null)
+      .not('data_pedido', 'is', null)
+      .order('id')
+      .range(de, de + 999);
+    if (error) throw new Error('vendas_itens: ' + error.message);
+    out.push(...((data || []) as Par[]));
+    if (!data || data.length < 1000) return out;
+  }
+}
+
+async function lerTentativas(conta: Conta): Promise<Map<string, Tentativa> | null> {
+  const mapa = new Map<string, Tentativa>();
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await supabase
+      .from('vendas_cmc_tentativas')
+      .select('codigo_produto,data_pedido,tentativas,proxima_em,ultimo_resultado')
+      .eq('conta_omie', conta)
+      .order('codigo_produto').order('data_pedido')
+      .range(de, de + 999);
+    if (error) {
+      if (tabelaFaltando(error)) return null;
+      throw new Error('vendas_cmc_tentativas: ' + error.message);
+    }
+    for (const t of (data || []) as Array<Par & Tentativa>) mapa.set(chavePar(t), t);
+    if (!data || data.length < 1000) return mapa;
+  }
+}
+
+export async function enriquecerCMCConta(
+  conta: Conta,
+  opts: { maxMs?: number; limitePares?: number; aoProgresso?: (r: EnriquecerContaResult) => void } = {},
+): Promise<EnriquecerContaResult> {
+  const inicio = Date.now();
+  const agora = new Date();
+  const linhas = await lerItensSemCusto(conta);
+  const tentativas = await lerTentativas(conta);
+  const { pares, adiados, desistidos: jaDesistidos } = paresParaTentar(linhas, tentativas ?? new Map(), agora);
+  const fila = opts.limitePares ? pares.slice(0, opts.limitePares) : pares;
+  const r: EnriquecerContaResult = {
+    conta, pares: pares.length, tentados: 0, enriquecidos: 0, semCusto: 0, desistidos: 0,
+    adiados, jaDesistidos, erros: 0, chamadasOmie: 0, restantes: 0,
+    ...(tentativas ? {} : { semTabelaTentativas: true }),
+  };
+
+  const gravarTentativa = async (p: Par, t: Tentativa) => {
+    if (!tentativas) return;
+    const { error } = await supabase.from('vendas_cmc_tentativas').upsert({
+      conta_omie: conta, codigo_produto: p.codigo_produto, data_pedido: p.data_pedido,
+      ...t, atualizado_em: new Date().toISOString(),
+    }, { onConflict: 'conta_omie,codigo_produto,data_pedido' });
+    if (error) console.log('[cmc-backfill] tentativa não gravada: ' + error.message);
+  };
+
+  for (let i = 0; i < fila.length; i++) {
+    if (opts.maxMs && Date.now() - inicio > opts.maxMs) {
+      r.restantes = fila.length - i;
+      r.paradoPor = 'tempo';
+      break;
+    }
+    const p = fila[i];
+    const k = chavePar(p);
+    r.tentados++;
+    try {
+      const { cmc, chamou } = await consultarCMCNaData(p.codigo_produto, p.data_pedido, conta);
+      if (chamou) r.chamadasOmie++;
+      if (cmc !== null && cmc > 0) {
+        const { error } = await supabase
+          .from('vendas_itens')
+          .update({ cmc_unitario: cmc })
+          .eq('codigo_produto', p.codigo_produto)
+          .eq('data_pedido', p.data_pedido)
+          .eq('conta_omie', conta);
+        if (error) throw new Error(error.message);
+        r.enriquecidos++;
+        if (tentativas?.has(k)) await supabase.from('vendas_cmc_tentativas').delete()
+          .eq('conta_omie', conta).eq('codigo_produto', p.codigo_produto).eq('data_pedido', p.data_pedido);
+      } else {
+        const t = proximaTentativa(tentativas?.get(k), 'sem_custo', agora);
+        if (!t.proxima_em) r.desistidos++; else r.semCusto++;
+        await gravarTentativa(p, t);
+      }
+    } catch (e) {
+      if (e instanceof OmieBloqueioError) {
+        r.tentados--;
+        r.restantes = fila.length - i;
+        r.paradoPor = 'bloqueio da Omie: ' + e.message;
+        break;
+      }
+      r.erros++;
+      await gravarTentativa(p, proximaTentativa(tentativas?.get(k), 'erro', agora));
+    }
+    if (r.tentados % 25 === 0) opts.aoProgresso?.(r);
+  }
+  return r;
+}
+
+// Lote avulso (rota /api/estoque/admin/enriquecer-cmc): os `limite` pares mais recentes.
 export interface EnriquecerLoteResult {
   ok?: boolean;
   erro?: string;
@@ -48,48 +174,17 @@ export interface EnriquecerLoteResult {
 }
 
 export async function enriquecerCMCLote(conta: Conta, limite: number): Promise<EnriquecerLoteResult> {
-  const { data: itens } = await supabase
-    .from('vendas_itens')
-    .select('codigo_produto,data_pedido')
-    .eq('conta_omie', conta)
-    .is('cmc_unitario', null)
-    .not('codigo_produto', 'is', null)
-    .not('data_pedido', 'is', null)
-    .limit(limite * 10);
-  if (!itens || itens.length === 0) return { ok: true, conta, enriquecidos: 0, mensagem: 'Nenhum item sem CMC' };
-
-  const vistos = new Set<string>();
-  const unicos: Array<{ codigo_produto: string; data_pedido: string }> = [];
-  (itens as Array<{ codigo_produto: string; data_pedido: string }>).forEach((it) => {
-    const k = it.codigo_produto + ':' + it.data_pedido;
-    if (!vistos.has(k)) { vistos.add(k); unicos.push(it); }
-  });
-  const aProcessar = unicos.slice(0, limite);
-  let enriquecidos = 0;
-  let erros = 0;
-  for (let i = 0; i < aProcessar.length; i++) {
-    const it = aProcessar[i];
-    try {
-      const cmc = await buscarCMCNaData(it.codigo_produto, it.data_pedido, conta);
-      if (cmc !== null && cmc > 0) {
-        await supabase
-          .from('vendas_itens')
-          .update({ cmc_unitario: cmc })
-          .eq('codigo_produto', it.codigo_produto)
-          .eq('data_pedido', it.data_pedido)
-          .eq('conta_omie', conta);
-        enriquecidos++;
-      }
-    } catch {
-      erros++;
-    }
-    if (i > 0 && i % 3 === 0) await sleep(1000);
-  }
-  return { ok: true, conta, processados: aProcessar.length, enriquecidos, erros, pendentesRestantes: unicos.length - aProcessar.length };
+  const r = await enriquecerCMCConta(conta, { limitePares: limite });
+  if (!r.pares) return { ok: true, conta, enriquecidos: 0, mensagem: 'Nenhum item sem CMC para tentar agora' };
+  return {
+    ok: true, conta, processados: r.tentados, enriquecidos: r.enriquecidos, erros: r.erros,
+    pendentesRestantes: Math.max(0, r.pares - r.tentados),
+    ...(r.paradoPor ? { mensagem: 'Parou: ' + r.paradoPor } : {}),
+  };
 }
 
 // ============================================================================
-// enriquecer-cmc-loop: backfill em loop até esgotar (background) + status.
+// enriquecer-cmc-loop: a mesma passada em segundo plano + status.
 // ============================================================================
 export interface EnriquecerLoopState {
   rodando: boolean;
@@ -119,56 +214,17 @@ export function iniciarEnriquecimentoCMC(conta: Conta): { ok?: boolean; conta?: 
   };
   enriquecimentoLoopState[conta] = state;
 
+  const copiar = (r: EnriquecerContaResult) => {
+    state.processados = r.tentados;
+    state.enriquecidos = r.enriquecidos;
+    state.semCMC = r.semCusto + r.desistidos;
+    state.erros = r.erros;
+    state.ultimoLog = 'proc=' + r.tentados + ' enr=' + r.enriquecidos + ' semCMC=' + state.semCMC + ' err=' + r.erros
+      + (r.paradoPor ? ' parou: ' + r.paradoPor : '');
+  };
   (async () => {
     try {
-      const tentados = new Set<string>();
-      while (true) {
-        const { data: itens } = await supabase
-          .from('vendas_itens')
-          .select('codigo_produto,data_pedido')
-          .eq('conta_omie', conta)
-          .is('cmc_unitario', null)
-          .not('codigo_produto', 'is', null)
-          .not('data_pedido', 'is', null)
-          .order('codigo_produto', { ascending: true })
-          .order('data_pedido', { ascending: true })
-          .limit(1000);
-        if (!itens || itens.length === 0) break;
-        const novos: Array<{ codigo_produto: string; data_pedido: string }> = [];
-        const vistos = new Set<string>();
-        for (const it of itens as Array<{ codigo_produto: string; data_pedido: string }>) {
-          const k = it.codigo_produto + ':' + it.data_pedido;
-          if (vistos.has(k) || tentados.has(k)) continue;
-          vistos.add(k);
-          novos.push(it);
-        }
-        if (novos.length === 0) break;
-        for (const it of novos) {
-          const k = it.codigo_produto + ':' + it.data_pedido;
-          tentados.add(k);
-          try {
-            const cmc = await buscarCMCNaData(it.codigo_produto, it.data_pedido, conta);
-            if (cmc !== null && cmc > 0) {
-              await supabase
-                .from('vendas_itens')
-                .update({ cmc_unitario: cmc })
-                .eq('codigo_produto', it.codigo_produto)
-                .eq('data_pedido', it.data_pedido)
-                .eq('conta_omie', conta);
-              state.enriquecidos++;
-            } else {
-              state.semCMC++;
-            }
-          } catch {
-            state.erros++;
-          }
-          state.processados++;
-          if (state.processados % 3 === 0) await sleep(1000);
-          if (state.processados % 50 === 0) {
-            state.ultimoLog = 'proc=' + state.processados + ' enr=' + state.enriquecidos + ' semCMC=' + state.semCMC + ' err=' + state.erros;
-          }
-        }
-      }
+      copiar(await enriquecerCMCConta(conta, { aoProgresso: copiar }));
     } catch (e) {
       console.log('Enriquecer-loop [' + conta + '] ERRO: ' + (e as Error).message);
       state.erros++;

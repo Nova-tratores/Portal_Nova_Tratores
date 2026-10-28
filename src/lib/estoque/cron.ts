@@ -4,7 +4,7 @@
 // protegidas por Bearer CRON_SECRET (mesmo padrão de pos/cron/sync-omie).
 
 import { getContasOmie, type Conta } from './conta';
-import { enriquecerCMCLote } from './cmc-admin';
+import { enriquecerCMCConta, type EnriquecerContaResult } from './cmc-admin';
 import { buscarESalvarItensOmie } from './vendas-sync';
 import { obterTotalOS } from './os';
 import { sincronizarProdutos, sincronizarApenasEstoque } from './produtos-sync';
@@ -14,27 +14,20 @@ import { enriquecerNotasMes } from './notas-entrada';
 import { sincronizarRemessas, sincronizarMovimentacao, sincronizarOutrasEntradas, cruzarDevolucoes, detectarDevolucoesDemonstracao } from '../visual-estoque/remessas-sync';
 
 /**
- * Backfill diário de CMC: para cada conta, enriquece vendas_itens sem
- * cmc_unitario em lotes até esgotar (ou bater o teto de iterações pra caber na
- * janela de execução). Espelha agendarBackfillCMCDiario do monolito.
+ * Backfill diário de CMC: para cada conta, tenta UMA vez cada par produto+data de
+ * vendas_itens sem cmc_unitario (mais recentes primeiro). Custo 0 na Omie espera
+ * 1/7/30 dias (vendas_cmc_tentativas) e desiste na 4ª. Teto de 10 min por conta;
+ * o que sobra fica pra próxima noite. Bloqueio da Omie para a rodada.
  * `contas`/`aoConcluirConta`: usados pelo agendador para retomar por conta.
  */
 export async function cronBackfillCmc(
-  opts: { contas?: Conta[]; aoConcluirConta?: (conta: Conta) => Promise<void> } = {},
-): Promise<Record<string, unknown>> {
-  const resultado: Record<string, unknown> = {};
+  opts: { contas?: Conta[]; aoConcluirConta?: (conta: Conta) => Promise<void>; maxMsPorConta?: number } = {},
+): Promise<Record<string, EnriquecerContaResult>> {
+  const resultado: Record<string, EnriquecerContaResult> = {};
   for (const c of getContasOmie().filter((x) => !opts.contas || opts.contas.includes(x.id))) {
-    let enriquecidosTotal = 0;
-    let iteracoes = 0;
-    const MAX_ITER = 40; // teto de segurança (lote de 100 → até ~4000 itens/conta)
-    while (iteracoes < MAX_ITER) {
-      const r = await enriquecerCMCLote(c.id, 100);
-      iteracoes++;
-      enriquecidosTotal += r.enriquecidos || 0;
-      // Para quando não há mais pendentes ou o lote não processou nada.
-      if (!r.pendentesRestantes || (r.processados ?? 0) === 0) break;
-    }
-    resultado[c.id] = { enriquecidos: enriquecidosTotal, iteracoes };
+    const r = await enriquecerCMCConta(c.id, { maxMs: opts.maxMsPorConta ?? 10 * 60_000 });
+    resultado[c.id] = r;
+    if (r.paradoPor?.startsWith('bloqueio')) break; // não insiste na outra conta; a retomada pega depois
     await opts.aoConcluirConta?.(c.id);
   }
   return resultado;

@@ -235,11 +235,19 @@ export const TAREFAS: Record<string, Tarefa> = {
     const feitas = await lerRetomada(ctx.chave);
     const faltam = getContasOmie().map((c) => c.id).filter((c) => !feitas.includes(c));
     if (!faltam.length) { await limparRetomada(ctx.chave); return { pular: `já feito hoje (${feitas.join(', ')})` }; }
-    const r = await cronBackfillCmc({ contas: faltam, aoConcluirConta: (c) => marcarFeito(ctx.chave, c) }) as Record<string, { enriquecidos: number; iteracoes: number }>;
-    await limparRetomada(ctx.chave);
-    const progresso: Record<string, string> = Object.fromEntries(Object.entries(r).map(([k, v]) => [k, `${v.enriquecidos} itens com custo · ${v.iteracoes} lotes`]));
+    const r = await cronBackfillCmc({ contas: faltam, aoConcluirConta: (c) => marcarFeito(ctx.chave, c) });
+    const bloqueio = Object.values(r).find((v) => v.paradoPor?.startsWith('bloqueio'));
+    if (!bloqueio) await limparRetomada(ctx.chave);
+    const progresso: Record<string, string> = Object.fromEntries(Object.entries(r).map(([k, v]) => [k,
+      `${v.tentados}/${v.pares} tentados · ${v.enriquecidos} com custo · ${v.semCusto} sem custo (tenta de novo) · ${v.desistidos} desistidos`
+      + ` · ${v.adiados} esperando · ${v.erros} erros · ${v.chamadasOmie} chamadas`
+      + (v.restantes ? ` · ${v.restantes} ficaram pra amanhã` : '')]));
     for (const c of feitas) progresso[c] = 'já feito antes (retomada)';
-    return { resumo: Object.entries(r).map(([k, v]) => `${k} ${v.enriquecidos} itens com custo`).join(' · ') + (feitas.length ? ` · retomada: ${feitas.join(', ')} já feitas` : ''), progresso };
+    const resumo = Object.entries(r).map(([k, v]) => `${k} ${v.enriquecidos} com custo de ${v.tentados} tentados (${v.chamadasOmie} chamadas)`).join(' · ')
+      + (feitas.length ? ` · retomada: ${feitas.join(', ')} já feitas` : '')
+      + (Object.values(r).some((v) => v.semTabelaTentativas) ? ' · sem controle de tentativas: aplicar sql/vendas-cmc-tentativas.sql' : '');
+    if (bloqueio) throw new Error(`${resumo} — parou: ${bloqueio.paradoPor}`);
+    return { resumo, progresso };
   },
 
   'notas-cache-docs': async () => {
