@@ -118,7 +118,7 @@ function Selo({ t }: { t: TecH }) {
 function Var({ a, b }: { a: number; b: number | null }) {
   if (b == null || b <= 0) return null
   const p = Math.round(((a - b) / b) * 100)
-  return <span className={`ho-var ${p >= 0 ? 'bom' : 'ruim'}`} title={`mês anterior: ${horas(b)}`}><i className={`fas fa-arrow-${p >= 0 ? 'up' : 'down'}`} /> {Math.abs(p)}%</span>
+  return <span className={`ho-var ${p >= 0 ? 'bom' : 'ruim'}`} title={`mês anterior: ${horas(b)}`}><i className={`fas fa-arrow-${p >= 0 ? 'up' : 'down'}`} /> {Math.abs(p)}% <small className="ho-var-rot">vs mês passado</small></span>
 }
 const corPct = (p: number) => (p >= 100 ? '#059669' : p >= 70 ? '#d97706' : '#dc2626')
 function Pct({ v, cor }: { v: number; cor?: string }) { const n = useContador(v, 1000); return <b style={{ color: cor || corPct(v) }}>{Math.round(n)}%</b> }
@@ -316,7 +316,7 @@ export const ESTILO_HO = `
 .ho-foto { border-radius: 50%; object-fit: cover; flex: none; border: 2px solid #fefefe; box-shadow: 0 2px 8px rgba(15,23,42,.15) } .ho-foto.ini { display: grid; place-items: center; background: linear-gradient(135deg, #2563eb, #7c3aed); color: #fefefe; font-weight: 900 }
 .ho-selo { display: inline-flex; gap: 5px; align-items: center; font-size: 11.5px; font-weight: 900; color: #fefefe; background: linear-gradient(135deg, #10b981, #047857); border-radius: 99px; padding: 3px 10px; white-space: nowrap; box-shadow: 0 4px 10px rgba(16,185,129,.3); animation: hoPula .5s cubic-bezier(.2,1.6,.4,1) both }
 .ho-selo.ideal { background: linear-gradient(135deg, #8b5cf6, #6d28d9); box-shadow: 0 4px 10px rgba(124,58,237,.3) }
-.ho-var { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; font-weight: 800; border-radius: 99px; padding: 2px 8px } .ho-var.bom { color: #047857; background: #ecfdf5 } .ho-var.ruim { color: #b91c1c; background: #fef2f2 }
+.ho-var { display: inline-flex; gap: 4px; align-items: center; font-size: 12px; font-weight: 800; border-radius: 99px; padding: 2px 8px } .ho-var.bom { color: #047857; background: #ecfdf5 } .ho-var.ruim { color: #b91c1c; background: #fef2f2 } .ho-var-rot { font-size: 11px; font-weight: 500; opacity: .8 }
 .ho-leg { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: ${MUDO} } .ho-leg span { display: inline-flex; gap: 6px; align-items: center } .ho-leg i { width: 10px; height: 10px; border-radius: 3px } .ho-leg u { width: 3px; height: 12px; border-radius: 2px }
 .ho-nota { margin: 0; font-size: 12px; color: ${MUDO} }
 /* H1 */
@@ -371,10 +371,10 @@ export const ESTILO_HO = `
 function Casca({ t, i, children, pe }: { t: TecH; i: number; children: React.ReactNode; pe?: React.ReactNode }) {
   return (
     <div className={`h2-card hc ${t.pBas >= 100 ? 'ok' : ''} ${t.pIde >= 100 ? 'ideal' : ''}`} style={{ animationDelay: `${i * 90}ms` }}>
-      <div className="h2-cab"><Foto t={t} tam={40} /><div><b>{t.nome}</b><small>{h1(t.feitas)} h feitas · {kmFmt(t.km)}</small></div><Var a={t.feitas} b={t.antFeitas} /></div>
+      <div className="h2-cab"><Foto t={t} tam={40} /><div><b>{t.nome}</b><small>{h1(t.feitas)} h feitas no mês · {kmFmt(t.km)}</small></div><Var a={t.feitas} b={t.antFeitas} /></div>
       {children}
       {pe ?? <Chips t={t} />}
-      <div className="hc-selo">{t.pIde >= 100 || t.pBas >= 100 ? <Selo t={t} /> : <span className="hc-falta">faltam {h1(Math.max(0, t.basica - t.feitas))} h para a básica</span>}</div>
+      <div className="hc-selo">{t.pIde >= 100 || t.pBas >= 100 ? <Selo t={t} /> : <span className="hc-falta">faltam {h1(Math.max(0, t.basica - t.feitas))} h para a básica do mês</span>}</div>
     </div>
   )
 }
@@ -629,11 +629,11 @@ export function C6({ d }: { d: DadosHoras }) {
     <div className="c5 c6"><Grade d={d}>{(t, i) => (
       <Casca t={t} i={i}>
         <div className="c6-top">
-          <div><b style={{ color: corPct(t.pBas) }}>{Math.round(t.pBas)}%</b><small>da meta básica</small></div>
+          <div><b style={{ color: corPct(t.pBas) }}>{Math.round(t.pBas)}%</b><small>da meta básica do mês</small></div>
           <div className="c6-metas">
             {([['Básica', t.basica, t.pBas, '#0f766e'], ['Ideal', t.ideal, t.pIde, '#7c3aed']] as const).map(([r, m, p, cor]) => (
               <div key={r} className="c6-m" style={{ '--c': cor } as React.CSSProperties}>
-                <span>{r} <small>{h1(m)} h</small></span>
+                <span>{r} <small>{h1(m)} h/mês</small></span>
                 <i><u style={{ width: `${Math.min(100, p)}%` }} /></i>
                 <em>{Math.round(p)}%</em>
               </div>
