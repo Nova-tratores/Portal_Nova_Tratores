@@ -2,9 +2,10 @@
 // Tribunal de defesas e Ocorrências: dois botões no topo do Centro, ao lado do Pódio, que abrem em JANELA
 // (José, 20/10/2026). A janela é desenhada pela aba Mecânicos (RadarOcorrencias), que tem os dados;
 // os números dos botões vêm de lá também (ficam guardados aqui depois da 1ª leitura).
-import { useSyncExternalStore } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 import { useAutorizacoes } from './AutorizacoesJanela'
 import CaixinhaMec from './CaixinhaMec'
+import TemparioJanela from './TemparioJanela'
 
 export type ModalMec = 'tribunal' | 'ocorrencias' | 'liga' | 'comissoes' | 'autorizacoes' | null
 let estado: { modal: ModalMec; pendentes: number | null; ocorrencias: number | null } = { modal: null, pendentes: null, ocorrencias: null }
@@ -64,6 +65,7 @@ export default function BotoesMecanicos({ onAbrir, podio, onPodio }: { onAbrir: 
 export function MenuRadialMec({ onAbrir, podio, onPodio, onTratorilson }: { onAbrir: (m: Exclude<ModalMec, null>) => void; podio: boolean; onPodio: () => void; onTratorilson: () => void }) {
   const { modal, pendentes, ocorrencias } = useModalMec()
   const au = useAutorizacoes()
+  const [tempario, setTempario] = useState(false)
   const itens: { k: string; t: string; sub: string; ic: string; cor: string; n?: number; on: boolean; ir: () => void }[] = [
     { k: 'podio', t: 'Pódio', sub: 'vencedor de cada mês', ic: 'fa-trophy', cor: '#b45309', on: podio, ir: onPodio },
     { k: 'tribunal', t: 'Tribunal', sub: pendentes ? `${pendentes} defesas para julgar` : 'defesas dos mecânicos', ic: 'fa-gavel', cor: '#92400e', n: pendentes || 0, on: modal === 'tribunal', ir: () => onAbrir('tribunal') },
@@ -71,6 +73,7 @@ export function MenuRadialMec({ onAbrir, podio, onPodio, onTratorilson }: { onAb
     { k: 'liga', t: 'Liga', sub: 'como funciona', ic: 'fa-ranking-star', cor: '#475569', on: modal === 'liga', ir: () => onAbrir('liga') },
     { k: 'comissoes', t: 'Comissões', sub: 'regras e valores fixos', ic: 'fa-sack-dollar', cor: '#047857', on: modal === 'comissoes', ir: () => onAbrir('comissoes') },
     ...(au.diretor || au.abertos.length > 0 ? [{ k: 'autorizacoes', t: 'Autorizações', sub: au.abertos.length ? `${au.abertos.length} para autorizar` : 'nada esperando', ic: 'fa-signature', cor: '#1d4ed8', n: au.abertos.length, on: modal === 'autorizacoes', ir: () => onAbrir('autorizacoes') }] : []),
+    { k: 'tempario', t: 'Tempário Mahindra', sub: 'quanto tempo cada serviço deve levar', ic: 'fa-stopwatch', cor: '#0f766e', on: tempario, ir: () => setTempario(true) },
     { k: 'tratorilson', t: 'Tratorilson', sub: 'perguntas frequentes', ic: 'fa-robot', cor: '#0369a1', on: false, ir: onTratorilson },
   ]
   return (
@@ -87,6 +90,7 @@ export function MenuRadialMec({ onAbrir, podio, onPodio, onTratorilson }: { onAb
         {x.k === 'tribunal' && <CaixinhaMec icone />}
         </span>
       ))}
+      {tempario && <TemparioJanela onFechar={() => setTempario(false)} />}
     </nav>
   )
 }
