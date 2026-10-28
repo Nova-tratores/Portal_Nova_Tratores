@@ -44,7 +44,20 @@ export default function AutoAtualiza() {
       } catch { /* rede oscilou — tenta na próxima */ }
     };
 
-    const aoMudarVisibilidade = () => { if (document.hidden) tentar(); };
+    // App instalado no celular (28/10/2026): ele fica "dormindo" em segundo plano e o timer congela,
+    // então podia passar dias na versão velha. Ao REABRIR, confere a versão e, se saiu deploy e não
+    // há nada pela metade, recarrega na hora — como app que atualiza ao abrir.
+    const instalado = () => {
+      const nav = navigator as Navigator & { standalone?: boolean };
+      return window.matchMedia?.('(display-mode: standalone)').matches || nav.standalone === true;
+    };
+    const aoReabrir = async () => {
+      try { (await navigator.serviceWorker?.getRegistration())?.update(); } catch { /* sem sw */ }
+      await checar();
+      if (pendente && instalado() && podeRecarregarSozinho()) recarregar();
+    };
+
+    const aoMudarVisibilidade = () => { if (document.hidden) tentar(); else aoReabrir(); };
     const aoFocar = () => { if (pendente) setFaixa(true); else checar(); };
 
     checar();
