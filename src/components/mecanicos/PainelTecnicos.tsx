@@ -40,7 +40,7 @@ const COR_GASTO = '#ea580c'
 const COR_RESULT = '#0f766e'
 const ESTILO_SECAO = `.pt-secao { display: flex; gap: 12px; align-items: center; margin: 34px 0 14px; animation: cpvEntra .45s both } .pt-secao.primeira { margin-top: 6px }
 .pt-secao-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; flex-shrink: 0; background: color-mix(in srgb, var(--c) 12%, var(--portal-bg-card, #fefefe)); color: var(--c); font-size: 15px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 22%, transparent) }
-.pt-secao > div { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; flex-shrink: 0 } .pt-secao em { font-style: normal; font-size: 11px; font-weight: 900; color: var(--c); letter-spacing: .06em } .pt-secao small { grid-column: 2 } .pt-secao b { font-size: 16px; font-weight: 900; color: var(--portal-text, #0f172a); letter-spacing: -.01em } .pt-secao small { font-size: 12.5px; color: var(--portal-text-muted, #64748b) }
+.pt-secao > div { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: baseline; flex-shrink: 0 } .pt-secao em { font-style: normal; font-size: 11px; font-weight: 900; color: var(--c); letter-spacing: .06em } .pt-secao small { grid-column: 2 } .pt-secao b { font-size: 16px; font-weight: 900; color: var(--portal-text, #0f172a); letter-spacing: -.01em } .pt-secao small { font-size: 13.5px; color: #334155 }
 .pt-secao-linha { flex: 1; height: 2px; border-radius: 99px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 55%, transparent), transparent 70%); align-self: center; margin-left: 6px; transform-origin: left; animation: ptLinha .8s .15s cubic-bezier(.2,.8,.2,1) both } @keyframes ptLinha { from { transform: scaleX(0) } }`
 const ESTILO_SIM = `.pt-horas2 { display: flex; gap: 6px 8px; align-items: center; flex-wrap: wrap; margin: 12px 0; padding: 8px 12px; border: 1px solid var(--portal-border, #e5e7eb); border-radius: 14px; background: var(--portal-bg-card, #fefefe) } .pt-horas2 > b { font-size: 14px; color: var(--portal-text, #0f172a); margin-right: 4px } .pt-horas2 > b i { color: #0891b2 } .pt-horas2 > span, .pt-horas2 > button { display: inline-flex; gap: 6px; align-items: center; font-family: inherit; font-size: 13px; color: var(--portal-text-muted, #64748b); background: var(--portal-bg-secondary, #f8fafc); border: 1px solid transparent; border-radius: 99px; padding: 4px 11px } .pt-horas2 > button { cursor: pointer } .pt-horas2 > button:hover { border-color: #8b5cf6 } .pt-horas2 i { width: 9px; height: 9px; border-radius: 3px; display: inline-block } .pt-horas2 span b, .pt-horas2 button b { color: var(--portal-text, #0f172a); font-size: 13.5px } .pt-horas2 em { font-style: normal; font-size: 11.5px; font-weight: 800; color: #0891b2 } .pt-horas2 > small { margin-left: auto; font-size: 12px; color: var(--portal-text-muted, #64748b) }
 .pt-sim-claro { margin: 10px 0 18px }
@@ -375,7 +375,7 @@ const ESTILO_TRILHO = `
 .pt-com-trilho { display: grid; grid-template-columns: 200px minmax(0, 1fr); gap: 18px; align-items: start } .pt-corpo { min-width: 0 }
 @media (max-width: 1100px) { .pt-com-trilho { grid-template-columns: minmax(0, 1fr) } .pt-trilho { display: none } }
 /* 27/10/2026: número da seção discreto (sem o círculo grande) */
-.pt-amb .pt-secao em { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 12%, transparent); border: 0; font-size: 12px; line-height: 1; font-weight: 700; color: var(--c); grid-row: span 2; align-self: center; margin-right: 4px; box-shadow: none; font-variant-numeric: tabular-nums; transition: background .3s }
+.pt-amb .pt-secao em { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 14%, var(--portal-bg-card, #fefefe)); border: 0; font-size: 15px; line-height: 1; font-weight: 700; color: var(--c); grid-row: span 2; align-self: center; margin-right: 6px; box-shadow: none; font-variant-numeric: tabular-nums; transition: background .3s }
 .pt-amb .pt-secao.pt-atual em { background: var(--c); color: #fefefe }
 .pt-amb .pt-secao:not(.pt-visto) em { transform: scale(.4); opacity: 0 } .pt-amb .pt-secao em { opacity: 1 }
 .pt-atalhos-ancora { position: sticky; top: 92px; z-index: 30; height: 0 }
@@ -385,8 +385,8 @@ const ESTILO_TRILHO = `
 /* 27/10/2026 (José: "tira essa faixona branca, algo mais simples e bonito"): sem faixa — pílulas soltas sobre o fundo */
 .pt-atalhos { position: sticky; top: 92px; z-index: 30; box-sizing: border-box; display: flex; align-items: center; gap: 6px; min-height: 40px; margin: 0 0 14px; padding: 4px 0; background: transparent; overflow-x: auto; overflow-y: hidden; scrollbar-width: none }
 .pt-atalhos::-webkit-scrollbar { display: none }
-.pt-atalhos button { flex: none; display: inline-flex; align-items: center; gap: 7px; border: 1px solid transparent; border-radius: 99px; background: transparent; padding: 6px 13px; font-family: inherit; font-size: 13.5px; font-weight: 400; color: var(--portal-text-muted, #64748b); cursor: pointer; white-space: nowrap; transition: color .15s, background .15s, border-color .15s }
-.pt-atalhos button i { font-size: 12px; color: var(--c); opacity: .7; transition: opacity .15s }
+.pt-atalhos button { flex: none; display: inline-flex; align-items: center; gap: 7px; border: 1px solid transparent; border-radius: 99px; background: transparent; padding: 6px 13px; font-family: inherit; font-size: 14px; font-weight: 500; color: #334155; cursor: pointer; white-space: nowrap; transition: color .15s, background .15s, border-color .15s }
+.pt-atalhos button i { font-size: 13px; color: var(--c); opacity: 1; transition: opacity .15s }
 .pt-atalhos button:hover { color: var(--portal-text, #0f172a); background: color-mix(in srgb, var(--c) 6%, transparent) } .pt-atalhos button:hover i { opacity: 1 }
 .pt-atalhos button.on { color: var(--portal-text, #0f172a); font-weight: 500; background: var(--portal-bg-card, #fefefe); border-color: color-mix(in srgb, var(--c) 30%, transparent); box-shadow: 0 1px 3px rgba(15,23,42,.06) } .pt-atalhos button.on i { opacity: 1 }
 .pt-atalhos button:focus-visible { outline: 2px solid var(--c); outline-offset: -2px }
@@ -418,8 +418,7 @@ const ESTILO_TRILHO = `
 export function Secao({ ic, titulo, sub, primeira, cor, n }: { ic: string; titulo: string; sub?: string; primeira?: boolean; cor: string; n: number }) {
   return (
     <div id={`sec-${n}`} className={`pt-secao ${primeira ? 'primeira' : ''}`} style={{ '--c': cor } as React.CSSProperties}>
-      <div><em>{String(n).padStart(2, '0')}</em><b>{titulo}</b>{sub && <small>{sub}</small>}</div>
-      <i className="pt-secao-linha" />
+      <div><em aria-hidden><i className={`fas ${ic}`} /></em><b>{titulo}</b>{sub && <small>{sub}</small>}</div>
     </div>
   )
 }

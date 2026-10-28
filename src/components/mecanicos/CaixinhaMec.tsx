@@ -143,12 +143,12 @@ export default function CaixinhaMec() {
 }
 
 const ESTILO = `
-.cx-resumo { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; width: 100%; text-align: left; font: inherit; color: #0f172a; background: #fefefe; border: 1px solid #e2e8f0; border-radius: 16px; padding: 12px 16px; cursor: pointer; transition: border-color .2s }
+.cx-resumo { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 18px; justify-self: start; width: auto; max-width: 100%; text-align: left; font: inherit; color: #0f172a; background: #fefefe; border: 1px solid #e2e8f0; border-radius: 16px; padding: 12px 16px; cursor: pointer; transition: border-color .2s }
 .cx-resumo:hover { border-color: #10b981 } .cx-resumo:hover .cx-r-ver i { transform: translateX(3px) }
 .cx-ic { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: #ecfdf5; color: #047857; font-size: 18px }
-.cx-r-t { display: grid; line-height: 1.15 } .cx-r-t small { font-size: 12.5px; color: #475569 } .cx-r-t b { font-size: 22px; font-weight: 500 }
-.cx-r-m { font-size: 13px; color: #64748b } .cx-r-al { font-size: 12.5px; color: #92400e; background: #fef3c7; border-radius: 99px; padding: 3px 10px }
-.cx-r-ver { margin-left: auto; font-size: 13px; color: #2563eb; display: inline-flex; gap: 6px; align-items: center } .cx-r-ver i { transition: transform .2s }
+.cx-r-t { display: grid; line-height: 1.15 } .cx-r-t small { font-size: 13px; color: #334155 } .cx-r-t b { font-size: 22px; font-weight: 500 }
+.cx-r-m { font-size: 13.5px; color: #334155 } .cx-r-al { font-size: 12.5px; color: #92400e; background: #fef3c7; border-radius: 99px; padding: 3px 10px }
+.cx-r-ver { font-size: 13.5px; font-weight: 500; color: #1d4ed8; display: inline-flex; gap: 6px; align-items: center } .cx-r-ver i { transition: transform .2s }
 .cx-fundo { position: fixed; inset: 0; z-index: 9500; background: rgba(15,23,42,.45); display: grid; place-items: center; padding: 16px }
 .cx-cab { display: flex; justify-content: space-between; align-items: center } .cx-cab b { font-size: 17px; font-weight: 500 } .cx-cab b i { color: #047857; margin-right: 6px } .cx-cab button { border: 0; background: #f1f5f9; border-radius: 10px; width: 34px; height: 34px; cursor: pointer; color: #475569 }
 .cx { display: grid; gap: 14px; background: #fefefe; border-radius: 18px; padding: 18px 20px; color: #0f172a; width: min(760px, 100%); max-height: calc(100vh - 32px); overflow: auto }

@@ -45,5 +45,5 @@ export default function TecnicosDoMes() {
 const ESTILO_TDM = `
 .tdm { display: grid; gap: 14px }
 .tdm-topo { display: flex; gap: 6px 12px; align-items: center; flex-wrap: wrap }
-.tdm-topo small { font-size: 12px; color: ${MUDO} }
+.tdm-topo small { font-size: 13px; color: #334155 }
 `
