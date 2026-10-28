@@ -88,9 +88,12 @@ describe('escolherSugestoes', () => {
     .find((x) => x.regra === 'revisao_chegando')!
   const ex = (e: Partial<QuestExistente>): QuestExistente => ({ chave: null, status: 'aberta', chassis: null, cliente_nome: null, regra: null, alvo_tipo: 'trator', updated_at: '2026-10-01', concluida_em: null, ...e })
 
-  it('respeita o limite e a prioridade (revisão primeiro)', () => {
-    const r = escolherSugestoes([c1, c2, rev], [], 2, HOJE)
-    expect(r.map((x) => x.regra)).toEqual(['revisao_chegando', 'trator_sem_noticia'])
+  it('respeita o limite e mistura as regras (uma de cada por volta, revisão primeiro)', () => {
+    const rev2 = { ...rev, chave: 'revisao_chegando:X4:600', chassis: 'X4', cliente_nome: 'ANA' }
+    expect(escolherSugestoes([c1, c2, rev, rev2], [], 2, HOJE).map((x) => x.regra)).toEqual(['revisao_chegando', 'trator_sem_noticia'])
+    expect(escolherSugestoes([c1, c2, rev, rev2], [], 3, HOJE).map((x) => x.regra)).toEqual(['revisao_chegando', 'trator_sem_noticia', 'revisao_chegando'])
+    // regra que acabou não trava as outras
+    expect(escolherSugestoes([rev, rev2], [], 5, HOJE)).toHaveLength(2)
   })
   it('não repete chave nem trator com quest ativa', () => {
     expect(escolherSugestoes([c1], [ex({ chave: c1.chave, status: 'descartada' })], 10, HOJE)).toEqual([])

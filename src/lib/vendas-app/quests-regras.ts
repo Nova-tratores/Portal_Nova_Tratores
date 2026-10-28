@@ -215,19 +215,39 @@ export function escolherSugestoes(candidatas: Candidata[], existentes: QuestExis
     return dias > 0 && !!quando && diasEntre(quando, hoje) < dias;
   });
 
-  const ordenadas = [...candidatas].sort((a, b) => a.prioridade - b.prioridade || a.chave.localeCompare(b.chave));
+  // RODÍZIO entre as regras (decisão 28/10): cada dia vem misturado — uma de
+  // cada regra por volta, na ordem de prioridade — em vez de uma regra com
+  // muitas candidatas (revisão) ocupar o limite inteiro por vários dias.
+  const filas = new Map<Regra, Candidata[]>();
+  for (const c of [...candidatas].sort((a, b) => a.prioridade - b.prioridade || a.chave.localeCompare(b.chave))) {
+    const f = filas.get(c.regra);
+    if (f) f.push(c); else filas.set(c.regra, [c]);
+  }
   const out: Candidata[] = [];
   const usadosChassi = new Set<string>(), usadosCliente = new Set<string>();
-  for (const c of ordenadas) {
-    if (out.length >= limite) break;
-    if (chaves.has(c.chave) || descansando(c)) continue;
+  const cabe = (c: Candidata) => {
+    if (chaves.has(c.chave) || descansando(c)) return false;
     const cli = chaveCliente(c.cliente_nome);
     // uma quest por trator e uma por cliente (o cliente sumido cobre todos os tratores dele)
-    if (c.chassis && (chassisOcupado.has(c.chassis) || usadosChassi.has(c.chassis))) continue;
-    if (c.alvo_tipo === 'cliente' && cli && (clienteOcupado.has(cli) || usadosCliente.has(cli))) continue;
-    out.push(c);
-    if (c.chassis) usadosChassi.add(c.chassis);
-    if (c.alvo_tipo === 'cliente' && cli) usadosCliente.add(cli);
+    if (c.chassis && (chassisOcupado.has(c.chassis) || usadosChassi.has(c.chassis))) return false;
+    if (c.alvo_tipo === 'cliente' && cli && (clienteOcupado.has(cli) || usadosCliente.has(cli))) return false;
+    return true;
+  };
+  let andou = true;
+  while (out.length < limite && andou) {
+    andou = false;
+    for (const fila of filas.values()) {
+      if (out.length >= limite) break;
+      while (fila.length) {
+        const c = fila.shift() as Candidata;
+        if (!cabe(c)) continue;
+        out.push(c);
+        if (c.chassis) usadosChassi.add(c.chassis);
+        if (c.alvo_tipo === 'cliente') usadosCliente.add(chaveCliente(c.cliente_nome));
+        andou = true;
+        break;
+      }
+    }
   }
   return out;
 }
