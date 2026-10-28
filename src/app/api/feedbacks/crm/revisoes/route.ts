@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { supabaseAdmin } from "@/lib/server/supabase-admin";
-import { carregarRevisoes, TABELA_CONTATO, tabelaFaltando, validarContato } from "@/lib/feedbacks/previsao-revisao-server";
+import { carregarRevisoes, TABELA_CONTATO, TABELA_LEITURAS, tabelaFaltando, validarContato } from "@/lib/feedbacks/previsao-revisao-server";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -36,6 +36,21 @@ export async function POST(req: NextRequest) {
   const v = validarContato(body);
   if (!v.ok) return NextResponse.json({ erro: v.erro }, { status: 400 });
   const autor = g.user.nome || g.user.email || g.user.id;
+  // { leitura: { horas } } = o cliente falou o horímetro: guarda a leitura (histórico) e a previsão
+  // passa a contar com ela no próximo cálculo (GET ?forcar=1).
+  const leitura = body.leitura as { horas?: unknown } | undefined;
+  if (leitura) {
+    const horas = Number(String(leitura.horas ?? "").replace(",", "."));
+    if (String(leitura.horas ?? "").trim() === "" || !Number.isFinite(horas) || horas < 0 || horas > 50000) return NextResponse.json({ erro: "Informe o horímetro (em horas)." }, { status: 400 });
+    const { error: el } = await supabaseAdmin.from(TABELA_LEITURAS).insert({
+      trator_id: v.linha.trator_id, horas: Math.round(horas * 10) / 10, data: new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10),
+      motivo_codigo: v.linha.motivo_codigo ?? null, nota: v.linha.motivo, user_id: g.user.id, user_nome: autor,
+    });
+    if (el) {
+      if (tabelaFaltando(el)) return NextResponse.json({ erro: "A tabela dos horímetros informados ainda não foi criada (sql/feedbacks-rfm-revisoes.sql).", migracaoFaltando: true }, { status: 503 });
+      return NextResponse.json({ erro: el.message }, { status: 500 });
+    }
+  }
   const { data, error } = await supabaseAdmin.from(TABELA_CONTATO)
     .upsert({ ...v.linha, atualizado_por: autor, atualizado_em: new Date().toISOString() }, { onConflict: "trator_id" })
     .select("*").single();

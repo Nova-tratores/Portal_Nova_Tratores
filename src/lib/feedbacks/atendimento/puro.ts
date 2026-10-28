@@ -294,9 +294,16 @@ export interface Compra {
   ts: number;
 }
 
+// "3.286,90" (BR) e "3286.9" (banco) — ponto sozinho é decimal; vários pontos sem vírgula, milhar
+function valorTexto(t: string): number {
+  const s = t.trim().replace(/[^\d.,-]/g, "");
+  if (s.includes(",")) return Number(s.replace(/\./g, "").replace(",", "."));
+  return Number((s.match(/\./g) || []).length > 1 ? s.replace(/\./g, "") : s);
+}
+
 function numValor(v: unknown): number | null {
   if (v == null || v === "") return null;
-  const n = typeof v === "number" ? v : Number(String(v).replace(/\./g, "").replace(",", "."));
+  const n = typeof v === "number" ? v : valorTexto(String(v));
   return Number.isFinite(n) ? n : null;
 }
 

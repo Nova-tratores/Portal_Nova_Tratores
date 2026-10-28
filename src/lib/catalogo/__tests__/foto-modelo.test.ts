@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { slugCatalogoDoModelo } from '../foto-modelo';
+import { fotoForaDoCatalogo, slugCatalogoDoModelo } from '../foto-modelo';
 
 describe('modelo → foto do catálogo', () => {
   it('jeitos reais de escrever o modelo', () => {
@@ -18,5 +18,11 @@ describe('modelo → foto do catálogo', () => {
   it('modelo que o catálogo não tem', () => {
     expect(slugCatalogoDoModelo('Mahindra 7095')).toBeNull();
     expect(slugCatalogoDoModelo('')).toBeNull();
+  });
+  it('7095 tem foto fora do catálogo', () => {
+    expect(fotoForaDoCatalogo('Mahindra 7095')).toBe('modelo/7095.png');
+    expect(fotoForaDoCatalogo('6075E CAB')).toBeNull();
+    expect(fotoForaDoCatalogo('Mahindra OJA 3140')).toBe('modelo/oja-3140.png');
+    expect(fotoForaDoCatalogo('YTO ESK304')).toBe('modelo/yto-esk304.jpg');
   });
 });

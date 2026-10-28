@@ -47,23 +47,39 @@ export const ESTILO_HOJE = `
 .fbh-depois .fbh-sec { padding-bottom: 10px }
 .fbh-mais { justify-self: center; margin: 4px 0 }
 
-.fbh-cli { display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 10px; align-items: start; width: 100%; padding: 11px 12px; border-radius: 14px; border: 1px solid var(--b);
-  background: var(--s); font: inherit; color: var(--t); text-align: left; cursor: pointer; transition: transform .2s, box-shadow .2s, border-color .2s; animation: fbhEntra .35s both }
-.fbh-cli:hover { transform: translateY(-1px); box-shadow: 0 12px 24px -20px rgba(15,23,42,.55); border-color: color-mix(in srgb, var(--c) 30%, var(--b)) }
-.fbh-cli.sel { border-color: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 12%, transparent) }
-.fbh-cli .pos { width: 28px; height: 28px; border-radius: 9px; display: grid; place-items: center; font-size: 12.5px; background: var(--soft); color: var(--t2); font-variant-numeric: tabular-nums }
-.fbh-cli .pos.urg { background: color-mix(in srgb, #dc2626 12%, var(--s)); color: #b91c1c }
-.fbh-cli .nm { display: block; font-size: 15px; font-weight: 500; line-height: 1.25; overflow-wrap: anywhere }
-.fbh-cli .sub { font-size: 12.5px; color: var(--t2); display: flex; gap: 4px 10px; flex-wrap: wrap; margin-top: 2px }
-.fbh-cli .faz { font-size: 13px; color: var(--t2); margin-top: 6px; display: flex; gap: 6px; align-items: baseline }
-.fbh-cli .faz i { color: var(--k, var(--c)); font-size: 12px }
-.fbh-selos { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 7px }
-.fbh-selo { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 9px; border-radius: 999px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
-  color: color-mix(in srgb, var(--k) 78%, #0f172a); background: color-mix(in srgb, var(--k) 10%, var(--s)); border: 1px solid color-mix(in srgb, var(--k) 22%, transparent) }
-.fbh-selo i { font-size: 10.5px }
+.fbh-cli { position: relative; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; gap: 12px; align-items: start; width: 100%; padding: 13px 14px; border-radius: 16px; border: 1px solid var(--b);
+  background: linear-gradient(120deg, color-mix(in srgb, var(--cc) 5%, var(--s)) 0%, var(--s) 45%); font: inherit; color: var(--t); text-align: left; cursor: pointer;
+  transition: transform .22s cubic-bezier(.2,.8,.2,1), box-shadow .22s, border-color .22s; animation: fbhEntra .35s both }
+.fbh-cli:hover { transform: translateY(-2px); box-shadow: 0 16px 30px -22px color-mix(in srgb, var(--cc) 70%, #0f172a); border-color: color-mix(in srgb, var(--cc) 35%, var(--b)) }
+.fbh-cli.sel { border-color: var(--cc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc) 14%, transparent), 0 16px 30px -24px color-mix(in srgb, var(--cc) 70%, #0f172a) }
+.fbh-cli .ava { position: relative; width: 42px; height: 42px; border-radius: 13px; display: grid; place-items: center; font-size: 14.5px; letter-spacing: .02em; color: #fefefe;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--cc) 75%, #fefefe), var(--cc)); box-shadow: 0 6px 14px -8px var(--cc); transition: transform .25s }
+.fbh-cli:hover .ava { transform: rotate(-4deg) scale(1.05) }
+.fbh-cli .pos { position: absolute; right: -6px; bottom: -6px; min-width: 19px; height: 19px; padding: 0 5px; border-radius: 99px; display: grid; place-items: center; font-size: 10.5px;
+  background: var(--s); color: var(--t2); border: 1px solid var(--b); font-variant-numeric: tabular-nums }
+.fbh-cli .pos.urg { background: #dc2626; border-color: #dc2626; color: #fefefe }
+.fbh-cli .nm { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 15.5px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere }
+.fbh-classe { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 400; padding: 1px 8px 1px 7px; border-radius: 99px; color: color-mix(in srgb, var(--k) 80%, #0f172a); background: color-mix(in srgb, var(--k) 9%, var(--s)) }
+.fbh-classe::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--k); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k) 18%, transparent) }
+.fbh-cli .sub { font-size: 12.5px; color: var(--t2); display: flex; gap: 4px 14px; flex-wrap: wrap; margin-top: 3px }
+.fbh-cli .sub i { color: var(--t3, var(--t2)); margin-right: 2px }
+.fbh-cli .faz { display: inline-flex; gap: 7px; align-items: center; max-width: 100%; margin-top: 9px; padding: 5px 12px 5px 10px; border-radius: 10px; font-size: 13px;
+  color: color-mix(in srgb, var(--k) 85%, #0f172a); background: color-mix(in srgb, var(--k) 8%, var(--s)); transition: background .2s }
+.fbh-cli .faz .tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0 }
+.fbh-cli .faz i { color: var(--k); font-size: 12px }
+.fbh-cli .faz .seta { font-size: 11px; opacity: 0; transform: translateX(-6px); transition: opacity .2s, transform .2s }
+.fbh-cli:hover .faz { background: color-mix(in srgb, var(--k) 14%, var(--s)) }
+.fbh-cli:hover .faz .seta, .fbh-cli.sel .faz .seta { opacity: 1; transform: none }
+.fbh-selos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px }
+.fbh-selo { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 10px; border-radius: 8px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+  color: color-mix(in srgb, var(--k) 78%, #0f172a); background: color-mix(in srgb, var(--k) 8%, var(--s)); border: 1px solid color-mix(in srgb, var(--k) 14%, transparent) }
+.fbh-selo i { font-size: 10.5px; color: var(--k) }
 .fbh-selo.fraco { opacity: .72 }
-.fbh-pts { font-size: 13px; padding: 3px 10px; border-radius: 999px; font-variant-numeric: tabular-nums; white-space: nowrap; border: 1px solid var(--b); background: var(--soft); color: var(--t) }
-.fbh-pts.alto { background: color-mix(in srgb, var(--c) 10%, var(--s)); border-color: color-mix(in srgb, var(--c) 30%, transparent) }
+.fbh-pts { font-size: 12.5px; padding: 4px 11px; border-radius: 999px; font-variant-numeric: tabular-nums; white-space: nowrap; border: 1px solid var(--b); background: var(--soft); color: var(--t2) }
+.fbh-pts.alto { color: color-mix(in srgb, var(--cc) 80%, #0f172a); background: color-mix(in srgb, var(--cc) 10%, var(--s)); border-color: color-mix(in srgb, var(--cc) 28%, transparent) }
+.fbh-cabeca { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-start }
+.fbh-cabeca > .fbf-como { padding-top: 10px }
+.fbh-cabeca .fbf-topo { margin: 0 }
 
 /* opção 1: lista + painel */
 .fbh-o1 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(380px, 500px); gap: 14px; align-items: start }
@@ -174,7 +190,7 @@ export const ESTILO_HOJE = `
   .fbh-guia { padding: 10px 14px; font-size: 14px }
   .fbh-cont { padding: 10px 12px } .fbh-cont .fbn-ico { width: 34px; height: 34px }
   .fbh-filtros select.fbn-campo { flex: 1 1 100% }
-  .fbh-cli { grid-template-columns: 26px minmax(0, 1fr); } .fbh-cli > .fbh-pts { grid-column: 2; justify-self: start }
+  .fbh-cli { grid-template-columns: 38px minmax(0, 1fr); } .fbh-cli .ava { width: 36px; height: 36px; font-size: 13px } .fbh-cli > .fbh-pts { grid-column: 2; justify-self: start }
   .fbh-barra { grid-template-columns: minmax(90px, 40%) minmax(0, 1fr) auto }
   .fbh-regra { grid-template-columns: 40px minmax(0, 1fr) } .fbh-regra .num { grid-column: 2; text-align: left }
 }
@@ -186,11 +202,14 @@ export const ESTILO_HOJE = `
 }
 
 /* Janela do cliente (26/10) */
-.fbh-jan-fundo { position: fixed; inset: 0; z-index: 9000; background: rgba(15,23,42,.45); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: fbhEntra .2s both }
-.fbh-jan { width: min(1180px, 100%); max-height: 94vh; display: flex; flex-direction: column; background: var(--soft); border-radius: 20px; overflow: hidden; box-shadow: 0 30px 80px -30px rgba(15,23,42,.6) }
+.fbh-jan-fundo { position: fixed; inset: 0; z-index: 9000; background: rgba(15,23,42,.45); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; gap: 14px; padding: 16px; animation: fbhEntra .2s both }
+.fbh-jan { width: min(1500px, calc(100% - 132px)); height: 92vh; max-height: 92vh; display: flex; flex-direction: column; background: var(--soft); border-radius: 20px; overflow: hidden; box-shadow: 0 30px 80px -30px rgba(15,23,42,.6) }
 .fbh-jan-cab { display: flex; gap: 8px; align-items: center; padding: 10px 14px; background: var(--s); border-bottom: 1px solid var(--b) }
 .fbh-jan-cab .t { flex: 1; font-size: 13.5px; color: var(--t2) }
-.fbh-jan-corpo { overflow-y: auto; padding: 14px }
+.fbh-jan-corpo { flex: 1; overflow-y: auto; padding: 16px 18px }
+.fbh-jan-lado { flex: none; width: 52px; height: 52px; border-radius: 50%; border: 0; background: var(--s); color: var(--t); font-size: 18px; cursor: pointer; display: grid; place-items: center; box-shadow: 0 10px 28px -12px rgba(15,23,42,.6); transition: transform .15s, background .15s, color .15s }
+.fbh-jan-lado:hover:not(:disabled) { transform: scale(1.08); background: #dc2626; color: #fff }
+.fbh-jan-lado:disabled { opacity: .3; cursor: default }
 .fbh-painel.modal { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); align-items: start; animation: none }
 .fbh-painel.modal > .fbh-cab, .fbh-painel.modal > .fbh-porque, .fbh-painel.modal > .fbh-fechar, .fbh-painel.modal > .fbh-col-baixo { grid-column: 1 / -1 }
 .fbh-col-esq, .fbh-col-dir, .fbh-col-baixo { display: grid; gap: 10px; align-content: start; min-width: 0 }
@@ -210,7 +229,8 @@ export const ESTILO_HOJE = `
 .fbh-maq-cab .alvo .dica { font-size: 12px; color: #0f766e }
 @media (max-width: 860px) {
   .fbh-jan-fundo { padding: 0; align-items: stretch }
-  .fbh-jan { max-height: 100vh; border-radius: 0 }
+  .fbh-jan { width: 100%; height: 100vh; max-height: 100vh; border-radius: 0 }
+  .fbh-jan-lado { position: fixed; bottom: 14px; z-index: 2; width: 44px; height: 44px } .fbh-jan-lado:first-child { left: 14px } .fbh-jan-lado:last-child { right: 14px }
   .fbh-painel.modal { grid-template-columns: minmax(0, 1fr) }
 }
 
@@ -259,4 +279,137 @@ export const ESTILO_HOJE = `
 .fbh-outros-lista { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px }
 .fbh-outros-lista .fbn-chip { font-size: 12.5px; padding: 4px 10px }
 @media (max-width: 640px) { .fbh-rev { flex-wrap: wrap } .fbh-rev .acao { width: 100%; text-align: right } }
+
+/* Painel → Ao vivo (28/10/2026) */
+.fbp { display: grid; gap: 14px }
+.fbp-zero b { color: var(--t3, #94a3b8) !important } .fbp-zero .fbn-ico { filter: grayscale(1); opacity: .55 }
+.fbp-grade { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(320px, 1fr); gap: 14px; align-items: start }
+.fbp-col { display: grid; gap: 14px; min-width: 0 }
+.fbp-vazio { display: flex; gap: 10px; align-items: center; padding: 18px; border-radius: 12px; background: var(--soft); color: var(--t2); font-size: 13.5px }
+.fbp-vazio i { font-size: 18px; color: var(--t3, #94a3b8) } .fbp-vazio.ok i { color: #16a34a }
+.fbp-equipe { display: grid }
+.fbp-eq-cab, .fbp-eq { display: grid; grid-template-columns: minmax(150px, 1.2fr) minmax(0, 1.3fr) minmax(120px, 1fr) minmax(110px, .9fr); gap: 12px; align-items: center }
+.fbp-eq-cab { font-size: 12px; color: var(--t2); padding: 0 8px 6px }
+.fbp-eq { padding: 9px 8px; border-top: 1px solid var(--b); border-radius: 10px; animation: fbhEntra .35s both; transition: background .2s }
+.fbp-eq:hover { background: var(--soft) }
+.fbp-eq.ao-vivo { background: color-mix(in srgb, #d97706 6%, var(--s)) }
+.fbp-eq .quem { display: flex; gap: 10px; align-items: center; min-width: 0 }
+.fbp-eq .av { flex: none; width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; font-size: 12.5px; color: #fefefe; background: linear-gradient(140deg, #60a5fa, #2563eb) }
+.fbp-eq.ao-vivo .av { background: linear-gradient(140deg, #fbbf24, #d97706); animation: fbpLig 1.8s infinite }
+.fbp-eq .nm { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.fbp-lig { display: inline-flex; gap: 6px; align-items: center; max-width: 100%; font-size: 12.5px; padding: 3px 10px; border-radius: 99px; color: #92400e; background: color-mix(in srgb, #d97706 12%, var(--s)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.fbp-lig.esq { color: #b91c1c; background: color-mix(in srgb, #dc2626 10%, var(--s)) }
+.fbp-eq .livre { font-size: 12.5px; color: var(--t3, #94a3b8) }
+.fbp-eq .feitos { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center }
+.fbp-eq .feitos .trilho, .fbp-mot .trilho { display: block; height: 8px; border-radius: 99px; background: var(--soft); overflow: hidden }
+.fbp-eq .feitos .enche { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #4ade80, #16a34a); animation: fbhCresce .8s cubic-bezier(.2,.8,.2,1) both }
+.fbp-eq .feitos .n { font-size: 14px; font-variant-numeric: tabular-nums; min-width: 22px; text-align: right }
+.fbp-eq .semana { font-size: 12.5px; color: var(--t2); white-space: nowrap } .fbp-eq .conv { color: #0f766e }
+.fbp-desf { display: grid; gap: 6px; font-size: 12.5px; color: var(--t2); padding-top: 8px; border-top: 1px dashed var(--b) }
+.fbp-lista { display: grid; gap: 2px }
+.fbp-li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 8px; border-radius: 12px; background: transparent; border: 0; font: inherit; color: var(--t); text-align: left; width: 100% }
+button.fbp-li { cursor: pointer } .fbp-li:hover { background: var(--soft) }
+.fbp-li .av { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 13.5px; background: var(--soft); color: var(--t2) }
+.fbp-li .av.ruim { background: color-mix(in srgb, #dc2626 12%, var(--s)); color: #b91c1c }
+.fbp-li .tx { display: grid; min-width: 0 } .fbp-li .t { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.fbp-li .d { font-size: 12.5px; color: var(--t2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.fbp-li .q { font-size: 12.5px; color: var(--t2); font-variant-numeric: tabular-nums; white-space: nowrap }
+.fbp-li .q.dias { padding: 2px 9px; border-radius: 99px; background: var(--soft) } .fbp-li .q.velho { color: #b91c1c; background: color-mix(in srgb, #dc2626 9%, var(--s)) }
+.fbp-mais { justify-self: center; margin-top: 6px }
+.fbp-fila { position: sticky; top: 12px }
+.fbp-fila-n { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px }
+.fbp-fila-n > span { display: grid; gap: 2px; padding: 10px 12px; border-radius: 12px; background: var(--soft) }
+.fbp-fila-n b { font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.1 } .fbp-fila-n b.urg { color: #b91c1c }
+.fbp-fila-n small { font-size: 12px; color: var(--t2) }
+.fbp-motivos { display: grid; gap: 2px }
+.fbp-mot { display: grid; grid-template-columns: 28px minmax(100px, 40%) minmax(0, 1fr) 44px 14px; gap: 10px; align-items: center; padding: 7px 6px; border: 0; border-radius: 10px; background: transparent; font: inherit; font-size: 13.5px; color: var(--t); text-align: left; cursor: pointer; transition: background .2s }
+.fbp-mot[disabled] { cursor: default } .fbp-mot:not([disabled]):hover { background: color-mix(in srgb, var(--k) 7%, var(--s)) }
+.fbp-mot .ic { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-size: 12px; color: var(--k); background: color-mix(in srgb, var(--k) 12%, var(--s)) }
+.fbp-mot .r { overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.fbp-mot .enche { display: block; height: 100%; border-radius: 99px; background: var(--k); animation: fbhCresce .8s cubic-bezier(.2,.8,.2,1) both }
+.fbp-mot .v { font-variant-numeric: tabular-nums; text-align: right }
+.fbp-mot .seta { font-size: 11px; color: var(--k); opacity: 0; transform: translateX(-4px); transition: opacity .2s, transform .2s }
+.fbp-mot:not([disabled]):hover .seta { opacity: 1; transform: none }
+.fbp-pontos { display: grid; gap: 8px; padding-top: 10px; border-top: 1px dashed var(--b) }
+.fbp-pontos .tit { font-size: 13.5px } .fbp-pontos .tit small { font-size: 12px; color: var(--t2); margin-left: 6px }
+.fbp-pilha { display: flex; height: 14px; border-radius: 99px; overflow: hidden; gap: 2px; background: var(--soft) }
+.fbp-pilha > span { min-width: 4px; transition: flex-grow .6s }
+.fbp-leg { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--t2) }
+.fbp-leg > span { display: inline-flex; gap: 6px; align-items: center } .fbp-leg i { width: 9px; height: 9px; border-radius: 3px }
+.fbp-leg b { font-weight: 500; color: var(--t) } .fbp-leg small { font-size: 11.5px }
+@keyframes fbpLig { 0%, 100% { box-shadow: 0 0 0 0 rgba(217,119,6,.45) } 60% { box-shadow: 0 0 0 7px rgba(217,119,6,0) } }
+@media (max-width: 1100px) { .fbp-grade { grid-template-columns: 1fr } .fbp-fila { position: static } }
+@media (max-width: 700px) {
+  .fbp-eq-cab { display: none }
+  .fbp-eq { grid-template-columns: minmax(0, 1fr) auto; } .fbp-eq .agora { grid-column: 1 / -1; order: 3 } .fbp-eq .semana { grid-column: 1 / -1; order: 4 }
+  .fbp-mot { grid-template-columns: 28px minmax(0, 1fr) 70px 40px 0 }
+}
+@media (prefers-reduced-motion: reduce) { .fbp-eq, .fbp-eq .feitos .enche, .fbp-mot .enche, .fbp-eq.ao-vivo .av { animation: none } }
+
+/* Linha do cliente: "Por que ligar" em lista (28/10/2026) */
+.fbh-urg { display: inline-flex; gap: 4px; align-items: center; font-size: 11.5px; font-weight: 400; padding: 1px 8px; border-radius: 99px; color: #b91c1c; background: color-mix(in srgb, #dc2626 10%, var(--s)) }
+.fbh-pq { display: grid; gap: 3px; margin-top: 9px }
+.fbh-pq .cab { font-size: 11.5px; color: var(--t3, #94a3b8); letter-spacing: .01em }
+.fbh-mt { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 13px; padding: 3px 0 }
+.fbh-mt .tp { display: inline-flex; gap: 6px; align-items: center; justify-self: start; max-width: 100%; font-size: 12px; padding: 2px 9px; border-radius: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  color: color-mix(in srgb, var(--k) 82%, #0f172a); background: color-mix(in srgb, var(--k) 11%, var(--s)) }
+.fbh-mt .tp i { font-size: 10.5px; color: var(--k) }
+.fbh-mt .dt { color: var(--t2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.fbh-mt.principal .dt { color: var(--t) }
+.fbh-mt.fraco { opacity: .72 }
+.fbh-mt-mais { font-size: 12px; color: var(--t2); padding-left: 200px }
+.fbh-dir { display: grid; gap: 6px; justify-items: end; align-content: start }
+.fbh-acao { display: inline-flex; gap: 7px; align-items: center; padding: 6px 12px; border-radius: 10px; font-size: 13.5px; white-space: nowrap;
+  color: color-mix(in srgb, var(--k) 88%, #0f172a); background: color-mix(in srgb, var(--k) 10%, var(--s)); transition: background .2s }
+.fbh-acao i { color: var(--k); font-size: 12px }
+.fbh-acao .seta { font-size: 11px; opacity: 0; width: 0; transform: translateX(-6px); transition: opacity .2s, transform .2s, width .2s }
+.fbh-cli:hover .fbh-acao { background: color-mix(in srgb, var(--k) 16%, var(--s)) }
+.fbh-cli:hover .fbh-acao .seta, .fbh-cli.sel .fbh-acao .seta { opacity: 1; width: 11px; transform: none }
+.fbh-acao-tx { font-size: 12px; color: var(--t2); max-width: 200px; text-align: right }
+@media (max-width: 640px) {
+  .fbh-cli > .fbh-dir { grid-column: 2; justify-items: start; grid-auto-flow: column; justify-content: start; align-items: center }
+  .fbh-mt { grid-template-columns: 1fr; gap: 2px } .fbh-mt-mais { padding-left: 0 }
+}
+
+/* Listas do dia: CRM × RFM × Outros × Tudo (28/10/2026) */
+.fbh-listas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 8px }
+.fbh-listas > button { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 16px; border: 1px solid var(--b); background: var(--s); font: inherit; color: var(--t); text-align: left; cursor: pointer;
+  transition: transform .2s, box-shadow .2s, border-color .2s, background .2s }
+.fbh-listas > button:hover { transform: translateY(-2px); box-shadow: 0 14px 26px -22px var(--k); border-color: color-mix(in srgb, var(--k) 35%, var(--b)) }
+.fbh-listas > button.on { border-color: var(--k); background: color-mix(in srgb, var(--k) 7%, var(--s)); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k) 12%, transparent) }
+.fbh-listas .ic { flex: none; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 15px; color: var(--k); background: color-mix(in srgb, var(--k) 12%, var(--s)); transition: background .2s, color .2s }
+.fbh-listas > button.on .ic { color: #fefefe; background: var(--k) }
+.fbh-listas .tx { display: grid; min-width: 0 }
+.fbh-listas .r { font-size: 15px; font-weight: 500 }
+.fbh-listas .r .n { font-size: 12.5px; font-weight: 400; padding: 1px 8px; margin-left: 4px; border-radius: 99px; background: var(--soft); color: var(--t2); font-variant-numeric: tabular-nums }
+.fbh-listas > button.on .r .n { background: color-mix(in srgb, var(--k) 14%, var(--s)); color: color-mix(in srgb, var(--k) 85%, #0f172a) }
+.fbh-listas small { font-size: 12px; color: var(--t2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+
+/* Histórico de atendimento do cliente, separado do bloco de atendimento (28/10/2026) */
+.fbh-hist { padding: 12px; border-radius: 16px; background: var(--soft); border: 1px solid var(--b) }
+.fbh-hist-cab { display: flex; gap: 10px; align-items: center }
+.fbh-hist-cab b { display: block; font-size: 14.5px; font-weight: 500; color: var(--t) }
+.fbh-hist-cab small { font-size: 12px; color: var(--t2) }
+.fbh-hist-it > summary { list-style: none; gap: 10px }
+.fbh-hist-it > summary::-webkit-details-marker { display: none }
+.fbh-hist-it > summary .ic { flex: none; width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; font-size: 13px; color: var(--k); background: color-mix(in srgb, var(--k) 12%, var(--s)) }
+.fbh-hist-it > summary .tx { display: grid; min-width: 0; flex: 1 }
+.fbh-hist-it > summary .tx b { font-weight: 500; font-size: 13.5px }
+.fbh-hist-it > summary .tx small { font-size: 12px; color: var(--t2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.fbh-hist-it > summary .seta { font-size: 11px; color: var(--t2); transition: transform .2s }
+.fbh-hist-it[open] > summary .seta { transform: rotate(180deg) }
+.fbh-hist-it:hover { border-color: color-mix(in srgb, var(--t2) 30%, var(--b)) }
+
+/* Iniciar atendimento antes do "Como foi?" (28/10/2026) */
+.fbh-at-ini { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 14px 16px; border-radius: 16px; border: 1px solid color-mix(in srgb, #2563eb 30%, var(--b)); background: linear-gradient(135deg, color-mix(in srgb, #2563eb 7%, var(--s)), var(--s) 65%) }
+.fbh-at-ini .ic { width: 42px; height: 42px; flex: none; border-radius: 12px; display: grid; place-items: center; font-size: 17px; color: #fefefe; background: linear-gradient(140deg, #60a5fa, #2563eb) }
+.fbh-at-ini .tx { flex: 1 1 220px; display: grid; gap: 2px; min-width: 0 }
+.fbh-at-ini .tx b { font-weight: 500; font-size: 15px } .fbh-at-ini .tx small { font-size: 12.5px; color: var(--t2) }
+.fbh-at-ini .fbn-acao.cheio { background: #16a34a; border-color: #16a34a; height: 42px; padding: 0 18px; font-size: 14.5px }
+.fbh-at-and { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; padding: 10px 14px; border-radius: 14px; border: 1px solid color-mix(in srgb, #16a34a 40%, var(--b)); background: color-mix(in srgb, #16a34a 6%, var(--s)) }
+.fbh-at-and b { font-weight: 500; color: #15803d } .fbh-at-and small { font-size: 12.5px; color: var(--t2) }
+.fbh-at-and .pulso { width: 10px; height: 10px; border-radius: 50%; background: #16a34a; animation: fbhPulsoA 1.6s ease-in-out infinite }
+@keyframes fbhPulsoA { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, #16a34a 25%, transparent) } }
+.fbh-at-cancelar { margin-left: auto; background: none; border: 0; font: inherit; font-size: 12.5px; color: var(--t2); cursor: pointer; text-decoration: underline; text-underline-offset: 3px }
+.fbh-at-cancelar:hover { color: #b91c1c }
 `;

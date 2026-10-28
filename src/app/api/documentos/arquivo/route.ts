@@ -17,6 +17,8 @@ function hostsPermitidos(): string[] {
     "cdn.omie.com.br", "app.omie.com.br", "connect.omie.com.br",
     // o link da NFS-e (connect.omie) redireciona pro PDF neste bucket da Omie
     "prod-blue-bill-stalker.s3.amazonaws.com",
+    // certificados de garantia e notas anexados no portal de concessionárias da Mahindra
+    "dealerportal.mahindrabrasil.com.br",
   ];
   try {
     const sb = process.env.NEXT_PUBLIC_SUPABASE_URL;

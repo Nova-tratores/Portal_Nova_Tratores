@@ -4,14 +4,20 @@
 // está no controle de revisões e, ao clicar, tudo do cliente: contato, onde fica
 // (mapa), a nota e as revisões. Visual: estilo POS NewPortal (docs/estilo-pos-newportal.md).
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { fetchAuth } from '@/lib/auth/client';
 import FotoMaquina from '@/components/comum/FotoMaquina';
 import MapaLocais from '@/components/comum/MapaLocais';
+import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento';
+import { pdfDoCertificado } from '@/lib/mahindra/certificados';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { ROTULO_FASE, type Fase } from '@/lib/revisoes/vendidos';
 import type { TratorVendido } from '@/lib/revisoes/vendidos-server';
+import type { AtendimentoRadar } from '@/lib/revisoes/contatos-radar';
+import type { CtxAtendimento } from '@/components/feedbacks/tratores/RoteiroLigacao';
+import RegistroAtendimento from '@/components/feedbacks/tratores/RegistroAtendimento';
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const dataBR = (iso: string | null | undefined) => {
@@ -83,7 +89,7 @@ export default function TratoresVendidos() {
 
   return (
     <div className="tv-vn">
-      <style>{ESTILO}</style>
+      <style>{ESTILO_TV}</style>
       <div className="tv-topo">
         <Link href="/revisoes" className="tv-btn"><i className="fa-solid fa-arrow-left" /> Controle Revisões</Link>
         <div className="tv-seg" role="group" aria-label="Período">
@@ -190,6 +196,7 @@ function Cartao({ t, onAbrir }: { t: TratorVendido; onAbrir: () => void }) {
         <span><i className="fa-solid fa-location-dot" /> {t.cliente?.cidade || '—'}</span>
         <span><i className="fa-solid fa-barcode" /> …{finalChassi(t.chassi)}</span>
         <span><i className="fa-regular fa-calendar" /> {dataBR(t.dataVenda)}</span>
+        {t.chegada && <span title="Da chegada da fábrica até a venda"><i className="fa-solid fa-warehouse" /> {t.chegada.diasEstoque} d no pátio</span>}
       </div>
       <Regua t={t} />
       <div className="tv-selos">
@@ -200,16 +207,21 @@ function Cartao({ t, onAbrir }: { t: TratorVendido; onAbrir: () => void }) {
   );
 }
 
-function Ficha({ t, podeControle, meses, seminovos, onFechar, onMudou }: {
+/** Ficha do trator vendido (também usada no Radar de tratores dos Feedbacks, dentro de um .tv-vn com ESTILO_TV). */
+export function Ficha({ t, podeControle, meses, seminovos, onFechar, atendimento, onMudou }: {
   t: TratorVendido; podeControle: boolean; meses: number; seminovos: boolean; onFechar: () => void; onMudou: () => Promise<void> | void;
+  /** vindo do Radar: o atendimento é feito aqui dentro (Iniciar → atendeu? → como foi) */
+  atendimento?: CtxAtendimento;
 }) {
   const [salvando, setSalvando] = useState(false);
   const [msg, setMsg] = useState('');
+  const [doc, setDoc] = useState<DocumentoVisualizavel | null>(null);
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar(); };
+    // com o PDF aberto, o Esc fecha só o PDF (o visualizador cuida dele)
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape' && !doc) onFechar(); };
     window.addEventListener('keydown', esc);
     return () => window.removeEventListener('keydown', esc);
-  }, [onFechar]);
+  }, [onFechar, doc]);
 
   const c = t.cliente;
   const faltaNoControle = t.controle && (!t.controle.entrega || !t.controle.cliente);
@@ -232,20 +244,41 @@ function Ficha({ t, podeControle, meses, seminovos, onFechar, onMudou }: {
           <FotoMaquina modelo={t.modelo} chassi={t.chassi} largura={92} altura={68} cor={COR_FASE[t.fase]} />
           <span style={{ flex: 1, minWidth: 0 }}>
             <span className="tv-modelo" style={{ fontSize: 18 }}>{t.modelo}</span>
-            <span className="tv-sub" style={{ marginTop: 2 }}>{c?.nome || 'Cliente não achado'} · vendido em {dataBR(t.dataVenda)} · {t.dias} dias</span>
+            <span className="tv-sub" style={{ marginTop: 2 }}>{c?.nome || 'Cliente não achado'}</span>
+            <span className="tv-datas">
+              <span><i className="fa-solid fa-file-invoice-dollar" /> Vendido {dataBR(t.dataVenda)} <small>há {t.dias} dias</small></span>
+              {t.entrega.origem === 'mahindra'
+                ? <span className="ok"><i className="fa-solid fa-handshake-simple" /> Entrega técnica {dataBR(t.entrega.data)} <small>há {t.entrega.dias} dias</small></span>
+                : <span className="falta"><i className="fa-solid fa-circle-exclamation" /> Sem entrega técnica na Mahindra</span>}
+            </span>
           </span>
           <button type="button" className="tv-x" onClick={onFechar} aria-label="Fechar"><i className="fa-solid fa-xmark" /></button>
         </div>
 
         <div className="tv-janela-corpo">
+          {/* Começar o atendimento (José, 28/10/2026: "mais dinâmico e fácil de entender para começar") */}
+          <Comecar t={t} atendimento={atendimento} />
+
+          {/* Situação: o que está atrasado e há quantos dias (José, 28/10/2026) */}
+          <Situacao t={t} />
+
+          {/* Onde fica: primeiro o mapa, depois o botão do Google Maps */}
+          <section className="tv-card tv-sec">
+            <Titulo icone="fa-map-location-dot" cor={COR.verde}>Onde fica</Titulo>
+            <MapaLocais altura={300} locais={t.locais} endereco={[c?.endereco, c?.bairro, c?.cidade].filter(Boolean).join(', ') || null} />
+          </section>
+
           {/* 30 / 60 / 90 dias */}
           <section className="tv-card tv-sec">
-            <Titulo icone="fa-calendar-check" cor={COR.roxo}>30, 60 e 90 dias da venda</Titulo>
+            <Titulo icone="fa-calendar-check" cor={COR.roxo}>30, 60 e 90 dias {t.entrega.origem === 'mahindra' ? 'da entrega técnica' : 'da venda'}</Titulo>
             <div className="tv-marcos">
               {t.marcos.map((m) => (
                 <div key={m.dias} className={`tv-marco-box ${m.passou ? 'ok' : ''} ${t.marcoSemana === m.dias ? 'agora' : ''}`}>
-                  <span className="tv-num" style={{ fontSize: 20 }}>{m.dias} dias</span>
-                  <span className="tv-rot">{m.passou ? `Fez em ${dataBR(m.data)}` : `Faz em ${dataBR(m.data)} · daqui a ${m.diasFalta} dia${m.diasFalta === 1 ? '' : 's'}`}</span>
+                  <span className="tv-marco-ico"><i className={`fa-solid ${m.passou ? 'fa-check' : t.marcoSemana === m.dias ? 'fa-phone-volume' : 'fa-hourglass-half'}`} /></span>
+                  <span>
+                    <span className="tv-num" style={{ fontSize: 20 }}>{m.dias} dias</span>
+                    <span className="tv-rot">{m.passou ? `Bateu em ${dataBR(m.data)}` : `Bate em ${dataBR(m.data)} · faltam ${m.diasFalta} dia${m.diasFalta === 1 ? '' : 's'}`}</span>
+                  </span>
                 </div>
               ))}
             </div>
@@ -253,7 +286,7 @@ function Ficha({ t, podeControle, meses, seminovos, onFechar, onMudou }: {
 
           <div className="tv-duas">
             {/* Cliente */}
-            <section className="tv-card tv-sec">
+            <section className="tv-card tv-sec" style={{ gridColumn: '1 / -1' }}>
               <Titulo icone="fa-user" cor={COR.azul}>Cliente</Titulo>
               {c ? (
                 <>
@@ -272,18 +305,38 @@ function Ficha({ t, podeControle, meses, seminovos, onFechar, onMudou }: {
                 </>
               ) : <div className="tv-rot">O código do cliente da nota não está no cadastro do portal.</div>}
             </section>
-
-            {/* Onde fica */}
-            <section className="tv-card tv-sec">
-              <Titulo icone="fa-map-location-dot" cor={COR.verde}>Onde fica</Titulo>
-              <MapaLocais locais={t.locais} endereco={[c?.endereco, c?.bairro, c?.cidade].filter(Boolean).join(', ') || null} />
-            </section>
           </div>
 
           <div className="tv-duas">
             {/* Venda */}
             <section className="tv-card tv-sec">
               <Titulo icone="fa-file-invoice" cor={COR.azul}>Venda</Titulo>
+              {t.certificado ? (
+                <>
+                  <div className="tv-linha"><span>Entrega técnica</span><b>{t.certificado.dataEntrega ? dataBR(t.certificado.dataEntrega) : "sem data"}{t.certificado.entregaTecnica === false ? " · NÃO realizada" : ""}{t.certificado.responsavel ? ` · ${t.certificado.responsavel}` : ""}{t.certificado.horasEntrega != null ? ` · ${t.certificado.horasEntrega} h` : ""}</b></div>
+                  {(t.certificado.motor || t.certificado.bombaInjetora) && <div className="tv-linha"><span>Motor · bomba</span><b className="mono">{t.certificado.motor || "—"} · {t.certificado.bombaInjetora || "—"}</b></div>}
+                  {t.certificado.banco && <div className="tv-linha"><span>Pagamento</span><b>{t.certificado.banco}{t.certificado.linhaCredito && t.certificado.linhaCredito !== "N/A" ? ` · ${t.certificado.linhaCredito}` : ""}</b></div>}
+                  <div className="tv-linha"><span>Certificado Mahindra</span><b>
+                    <a href={t.certificado.link} target="_blank" rel="noreferrer">nº {t.certificado.itemId} ({t.certificado.status || "—"})</a>
+                  </b></div>
+                  {t.certificado.documentos.length > 0 && (
+                    <div className="tv-docs">
+                      {t.certificado.documentos.map((d) => {
+                        const nome = rotuloDoc(d.tipo);
+                        return (
+                          <button key={d.url} type="button" className={`tv-doc ${d === pdfDoCertificado(t.certificado?.documentos) ? 'principal' : ''}`}
+                            onClick={() => setDoc({ titulo: `${nome.titulo} · ${t.modelo} ${t.chassi?.slice(-6) || ''}`, url: d.url, nome: `${nome.titulo} ${t.chassi?.slice(-6) || ''}` })}>
+                            <span className="tv-doc-ico"><i className={`fa-solid ${nome.ico}`} /></span>
+                            <span className="tv-doc-tx"><b>{nome.titulo}</b><small>{nome.sub} · PDF</small></span>
+                            <i className="fa-solid fa-eye tv-doc-ver" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              ) : <div className="tv-linha"><span>Entrega técnica</span><b style={{ color: COR.ambar }}>sem certificado no portal da Mahindra</b></div>}
+              {t.chegada && <div className="tv-linha"><span>Chegou da fábrica</span><b>{dataBR(t.chegada.data)} · NF {t.chegada.nf}{t.chegada.fornecedor ? ` · ${t.chegada.fornecedor}` : ""} · {t.chegada.diasEstoque} dia{t.chegada.diasEstoque === 1 ? "" : "s"} no pátio</b></div>}
               <div className="tv-linha"><span>Nota fiscal</span><b>{t.nota ? `${t.nota.numero} · ${dataBR(t.nota.emissao)}` : 'não achei a nota'}</b></div>
               <div className="tv-linha"><span>Pedido</span><b>{t.pedido} · {t.empresa === 'NOVA' ? 'Nova Tratores' : 'Castro'}</b></div>
               <div className="tv-linha"><span>Valor</span><b>{brl(t.valor)}</b></div>
@@ -336,7 +389,156 @@ function Ficha({ t, podeControle, meses, seminovos, onFechar, onMudou }: {
           </div>
         </div>
       </div>
+      {doc && createPortal(<div style={{ position: 'relative', zIndex: 90000 }} onClick={(e) => e.stopPropagation()}><VisualizadorDocumento key={doc.url} doc={doc} onClose={() => setDoc(null)} /></div>, document.body)}
     </div>
+  );
+}
+
+/** Nome amigável dos anexos do certificado da Mahindra. */
+function rotuloDoc(tipo: string): { titulo: string; sub: string; ico: string } {
+  if (/certificado/i.test(tipo)) return { titulo: 'Certificado de garantia', sub: 'Mahindra', ico: 'fa-award' };
+  if (/mahindra/i.test(tipo)) return { titulo: 'Nota da Mahindra', sub: 'fábrica → loja', ico: 'fa-industry' };
+  if (/concession/i.test(tipo)) return { titulo: 'Nota da venda', sub: 'loja → cliente', ico: 'fa-file-invoice-dollar' };
+  return { titulo: tipo, sub: 'anexo do certificado', ico: 'fa-file-pdf' };
+}
+
+const diasEntre = (de: string | null | undefined, ate: string | null | undefined) => {
+  if (!de || !ate) return null;
+  const a = Date.parse(de.slice(0, 10)), b = Date.parse(ate.slice(0, 10));
+  return Number.isFinite(a) && Number.isFinite(b) ? Math.round((b - a) / 86_400_000) : null;
+};
+
+/** O que está pegando neste trator, em frases curtas (vermelho = atrasado, laranja = atenção, verde = em dia). */
+/** Atendimento do cliente dentro da ficha (José, 28/10/2026: "quando a gente clicar aqui tem que formalizar
+ *  o atendimento dentro do modal" e "coloca iniciar atendimento, pra gente conseguir fazer uma aba de
+ *  atendimentos em andamento"): quem ligar e os botões → Iniciar atendimento (grava em andamento, a equipe vê
+ *  em "Em atendimento agora") → atendeu? → como foi → registrado, tudo aqui. Fora do Radar só mostra o contato. */
+function Comecar({ t, atendimento }: { t: TratorVendido; atendimento?: CtxAtendimento }) {
+  const c = t.cliente;
+  const p = (c?.nome || '').trim().split(/\s+/)[0] || '';
+  const nome = p ? p[0] + p.slice(1).toLowerCase() : '';
+  const tel = (c?.telefone || '').replace(/\D/g, '');
+  const [atend, setAtend] = useState<AtendimentoRadar | null>(atendimento?.aberto ?? null);
+  const [semTabela, setSemTabela] = useState(false);
+  const [iniciando, setIniciando] = useState(false);
+  const [erro, setErro] = useState('');
+  const [feito, setFeito] = useState<string | null>(null);
+
+  const iniciar = useCallback(async () => {
+    if (!atendimento) return;
+    setIniciando(true); setErro('');
+    try {
+      const r = await fetchAuth('/api/revisoes/vendidos/atendimentos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'iniciar', chave: t.chave, marco: atendimento.s.marco }) });
+      const j = await r.json().catch(() => ({}));
+      if (j.semTabela) { // sem o SQL: atende do mesmo jeito, só não aparece em "Em atendimento agora"
+        setSemTabela(true);
+        setAtend({ id: '', chave: t.chave, marco: atendimento.s.marco, user_id: null, user_nome: null, iniciado_em: new Date().toISOString() });
+        return;
+      }
+      if (!r.ok || !j.ok) throw new Error(j.erro || 'Não consegui iniciar.');
+      setAtend(j.atendimento);
+      atendimento.onMudou();
+    } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
+    finally { setIniciando(false); }
+  }, [atendimento, t.chave]);
+  // "Iniciar atendimento" no cartão do Radar abre a ficha já iniciando
+  useEffect(() => {
+    if (!atendimento?.iniciar || atendimento.aberto) return;
+    const id = setTimeout(() => { void iniciar(); }, 0);
+    return () => clearTimeout(id);
+  }, [atendimento, iniciar]);
+
+  const cancelar = async () => {
+    if (atend?.id) await fetchAuth('/api/revisoes/vendidos/atendimentos', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'cancelar', id: atend.id }) }).catch(() => null);
+    setAtend(null);
+    atendimento?.onMudou();
+  };
+  const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  return (
+    <section className={`tv-card tv-comecar ${atend && !feito ? 'andando' : ''}`}>
+      <div className="tv-cm-topo">
+        <span className="tv-cm-ico"><i className="fa-solid fa-headset" /></span>
+        <span className="tv-cm-quem">
+          <b>Ligar para {nome || 'o cliente'}</b>
+          {c?.telefone ? <small>{c.telefone}{c.cidade ? ` · ${c.cidade}` : ''}</small> : <small className="falta">sem telefone no cadastro — veja na pasta do cliente</small>}
+        </span>
+        <span className="tv-acoes">
+          {c?.whats && <a className="tv-btn cheio" style={{ ['--c' as string]: COR.verde } as React.CSSProperties} href={`https://wa.me/${c.whats}`} target="_blank" rel="noreferrer"><i className="fa-brands fa-whatsapp" /> WhatsApp</a>}
+          {tel && <a className="tv-btn cheio" style={{ ['--c' as string]: COR.azul } as React.CSSProperties} href={`tel:${tel}`}><i className="fa-solid fa-phone" /> Ligar</a>}
+          {c?.pasta && <a className="tv-btn" href={c.pasta} target="_blank" rel="noreferrer"><i className="fa-solid fa-folder-open" /> Pasta</a>}
+        </span>
+      </div>
+
+      {atendimento && (feito ? (
+        <div className="tv-cm-feito"><i className="fa-solid fa-circle-check" /> <span><b>Atendimento registrado</b>{feito}</span></div>
+      ) : !atend ? (
+        <div className="tv-cm-iniciar">
+          <button type="button" className="tv-btn cheio grande" style={{ ['--c' as string]: COR.verde } as React.CSSProperties} disabled={iniciando} onClick={() => void iniciar()}>
+            {iniciando ? <i className="fa-solid fa-circle-notch fa-spin" /> : <i className="fa-solid fa-headset" />} Iniciar atendimento
+          </button>
+          <small>A equipe vê que você está falando com {nome || 'o cliente'}. Depois é só dizer como foi.</small>
+          {erro && <span className="tv-cm-erro">{erro}</span>}
+        </div>
+      ) : (
+        <div className="tv-cm-and">
+          <div className="tv-cm-and-cab">
+            <span className="pulso" />
+            <b>Atendimento em andamento</b>
+            <small>{semTabela ? 'sem registro de andamento (falta o SQL radar-tratores-atendimentos)' : `desde ${hora(atend.iniciado_em)}${atend.user_nome ? ` · ${atend.user_nome}` : ''}`}</small>
+            <button type="button" className="tv-cm-link" onClick={() => void cancelar()}>Cancelar o atendimento</button>
+          </div>
+          <RegistroAtendimento t={t} s={atendimento.s} atendimentoId={atend.id || null} rotuloSalvar="Salvar o atendimento"
+            onGravado={(ct, txt) => { setFeito(txt.replace(/^[^:]*:\s*/, ' · ')); atendimento.onGravado(ct, txt); }} />
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function Situacao({ t }: { t: TratorVendido }) {
+  const itens: { cor: string; ico: string; tx: string; sub?: string }[] = [];
+  const r50 = t.revisao50;
+  if (r50?.feita) {
+    const d = diasEntre(t.entrega.data, r50.dataFeita);
+    itens.push({ cor: COR.verde, ico: 'fa-circle-check', tx: `Revisão de 50 h feita em ${dataBR(r50.dataFeita)}`, sub: d != null ? `${d} dias depois da entrega${r50.os ? ` · ${r50.os}` : ''}` : r50.os || undefined });
+  } else if (r50) {
+    itens.push({ cor: COR.azul, ico: 'fa-screwdriver-wrench', tx: `OS da revisão de 50 h aberta${r50.os ? ` (${r50.os})` : ''}`, sub: r50.status || undefined });
+  } else if (t.entrega.dias > 90) {
+    itens.push({ cor: COR.vermelho, ico: 'fa-circle-exclamation', tx: `Sem orçamento da revisão de 50 h há ${t.entrega.dias} dias`, sub: `passou ${t.entrega.dias - 90} dias dos 90 — ligar e abrir a OS` });
+  } else if (t.entrega.dias >= 30) {
+    itens.push({ cor: COR.ambar, ico: 'fa-hourglass-half', tx: 'Revisão de 50 h ainda sem orçamento', sub: `${t.entrega.dias} dias com o cliente` });
+  }
+  if (t.previsao300) {
+    const f = t.previsao300.diasFaltam;
+    itens.push({ cor: f < 0 ? COR.vermelho : f <= 30 ? COR.ambar : COR.verde, ico: 'fa-calendar-day',
+      tx: f < 0 ? `Revisão de 300 h atrasada ${-f} dias` : `Revisão de 300 h em ${dataBR(t.previsao300.data300)}`,
+      sub: `${f >= 0 ? `daqui a ${f} dias · ` : ''}≈ ${String(t.previsao300.horasDia).replace('.', ',')} h por dia (levou ${t.previsao300.diasAte50} dias até a 50 h)` });
+  } else if (t.controle?.previsao && /atrasad/i.test(t.controle.previsao.situacao)) {
+    itens.push({ cor: COR.vermelho, ico: 'fa-circle-exclamation', tx: `Revisão de ${t.controle.previsao.revisao} h atrasada`, sub: t.controle.previsao.explicacao });
+  }
+  if (t.entrega.origem !== 'mahindra') itens.push({ cor: COR.ambar, ico: 'fa-handshake-slash', tx: 'Entrega técnica não está no portal da Mahindra', sub: 'os prazos contam da nota de venda' });
+  else {
+    const d = diasEntre(t.dataVenda, t.entrega.data);
+    if (d != null && d > 15) itens.push({ cor: COR.ambar, ico: 'fa-truck-ramp-box', tx: `Entrega técnica ${d} dias depois da venda`, sub: `vendido ${dataBR(t.dataVenda)} · entregue ${dataBR(t.entrega.data)}` });
+  }
+  if (t.chegada && t.chegada.diasEstoque > 180) itens.push({ cor: COR.ambar, ico: 'fa-warehouse', tx: `Ficou ${t.chegada.diasEstoque} dias no pátio antes de vender`, sub: `chegou da fábrica em ${dataBR(t.chegada.data)}` });
+  if (!t.controle) itens.push({ cor: COR.vermelho, ico: 'fa-table-list', tx: 'Fora do controle de revisões', sub: 'colocar para a 50 h e as próximas aparecerem' });
+  if (!itens.length) return null;
+  const peso = (c: string) => (c === COR.vermelho ? 0 : c === COR.ambar ? 1 : c === COR.azul ? 2 : 3);
+  itens.sort((a, b) => peso(a.cor) - peso(b.cor));
+  return (
+    <section className="tv-card tv-sec">
+      <Titulo icone="fa-stethoscope" cor={itens.some((x) => x.cor === COR.vermelho) ? COR.vermelho : COR.verde}>Situação do trator</Titulo>
+      <div className="tv-situ">
+        {itens.map((x, i) => (
+          <div key={i} className="tv-situ-l" style={{ ['--c' as string]: x.cor, animationDelay: `${i * 60}ms` } as React.CSSProperties}>
+            <span className="tv-situ-ico"><i className={`fa-solid ${x.ico}`} /></span>
+            <span><b>{x.tx}</b>{x.sub && <small>{x.sub}</small>}</span>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -348,7 +550,7 @@ function Titulo({ icone, cor, children }: { icone: string; cor: string; children
   );
 }
 
-const ESTILO = `
+export const ESTILO_TV = `
 .tv-vn { padding: 18px 22px 40px; color: var(--portal-text, #0f172a); --tv-borda: var(--border, #e2e8f0); --tv-sec: var(--portal-text-secondary, #475569) }
 .tv-vn i[class*="fa-"] { font-weight: 900 }
 .tv-vn i.fa-regular { font-weight: 400 }
@@ -427,7 +629,50 @@ const ESTILO = `
 .tv-vn .tv-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px }
 .tv-vn .tv-desc { font-size: 12.5px; color: var(--tv-sec); padding: 9px 11px; border-radius: 10px; background: var(--portal-bg-secondary, #f1f5f9) }
 .tv-vn .tv-marcos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px }
-.tv-vn .tv-marco-box { padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--tv-borda) }
+.tv-vn .tv-marco-box { display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 12px; border: 1px dashed var(--tv-borda) }
+.tv-vn .tv-marco-ico { width: 34px; height: 34px; flex: none; border-radius: 50%; display: grid; place-items: center; font-size: 14px; color: var(--tv-sec); background: var(--portal-bg-secondary, #f1f5f9) }
+.tv-vn .tv-marco-box.ok .tv-marco-ico { color: #fefefe; background: #16a34a }
+.tv-vn .tv-marco-box.agora .tv-marco-ico { color: #fefefe; background: #7C3AED }
+.tv-vn .tv-datas { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px }
+.tv-vn .tv-datas > span { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; padding: 3px 10px; border-radius: 99px; color: #1d4ed8; background: color-mix(in srgb, #2563eb 8%, var(--surface, #fefefe)) }
+.tv-vn .tv-datas > span.ok { color: #0e7490; background: color-mix(in srgb, #0e7490 9%, var(--surface, #fefefe)) }
+.tv-vn .tv-datas > span.falta { color: #b45309; background: color-mix(in srgb, #d97706 10%, var(--surface, #fefefe)) }
+.tv-vn .tv-datas small { font-size: 12px; opacity: .8 }
+.tv-vn .tv-comecar { display: grid; gap: 14px; padding: 16px 18px; border-color: color-mix(in srgb, #2563eb 30%, var(--tv-borda)); background: linear-gradient(135deg, color-mix(in srgb, #2563eb 6%, var(--surface, #fefefe)), var(--surface, #fefefe) 60%) }
+.tv-vn .tv-cm-topo { display: flex; flex-wrap: wrap; gap: 12px; align-items: center }
+.tv-vn .tv-cm-ico { width: 44px; height: 44px; flex: none; border-radius: 13px; display: grid; place-items: center; font-size: 18px; color: #fefefe; background: linear-gradient(140deg, #60a5fa, #2563eb); box-shadow: 0 8px 18px -10px #2563eb }
+.tv-vn .tv-cm-quem { flex: 1 1 200px; display: grid; min-width: 0 }
+.tv-vn .tv-cm-quem b { font-weight: 500; font-size: 17px }
+.tv-vn .tv-cm-quem small { font-size: 13px; color: var(--tv-sec) } .tv-vn .tv-cm-quem small.falta { color: #b91c1c }
+  transition: background .2s, border-color .2s, color .2s; animation: tvEntra .4s cubic-bezier(.16,1,.3,1) both }
+.tv-vn .tv-cm-iniciar { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding-top: 12px; border-top: 1px dashed var(--tv-borda) }
+.tv-vn .tv-cm-iniciar small { font-size: 13px; color: var(--tv-sec) }
+.tv-vn .tv-btn.grande { padding: 12px 22px; font-size: 15.5px; border-radius: 14px }
+.tv-vn .tv-cm-erro { color: #b91c1c; font-size: 13px }
+.tv-vn .tv-comecar.andando { border-color: color-mix(in srgb, #16a34a 45%, var(--tv-borda)); background: linear-gradient(135deg, color-mix(in srgb, #16a34a 6%, var(--surface, #fefefe)), var(--surface, #fefefe) 60%) }
+.tv-vn .tv-cm-and { display: grid; gap: 12px; padding-top: 12px; border-top: 1px dashed var(--tv-borda) }
+.tv-vn .tv-cm-and-cab { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center }
+.tv-vn .tv-cm-and-cab b { font-weight: 500; color: #15803d } .tv-vn .tv-cm-and-cab small { font-size: 12.5px; color: var(--tv-sec) }
+.tv-vn .tv-cm-and-cab .tv-cm-link { background: none; border: 0; font: inherit; font-size: 13px; cursor: pointer; padding: 0 }
+.tv-vn .tv-cm-and .pulso { width: 10px; height: 10px; border-radius: 50%; background: #16a34a; animation: tvPulsoA 1.6s ease-in-out infinite }
+@keyframes tvPulsoA { 50% { box-shadow: 0 0 0 6px color-mix(in srgb, #16a34a 25%, transparent) } }
+.tv-vn .tv-cm-feito { display: flex; gap: 10px; align-items: center; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, #16a34a 9%, var(--surface, #fefefe)); color: #166534; font-size: 14px }
+.tv-vn .tv-cm-feito i { font-size: 18px } .tv-vn .tv-cm-feito b { font-weight: 500 }
+.tv-vn .tv-cm-link { margin-left: auto; font-size: 13.5px; color: var(--tv-sec); text-decoration: none } .tv-vn .tv-cm-link:hover { color: #2563eb; text-decoration: underline }
+.tv-vn .tv-situ { display: grid; gap: 8px }
+.tv-vn .tv-situ-l { display: flex; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--c) 6%, var(--surface, #fefefe)); border: 1px solid color-mix(in srgb, var(--c) 22%, var(--tv-borda)); animation: tvEntra .4s cubic-bezier(.16,1,.3,1) both }
+.tv-vn .tv-situ-ico { width: 34px; height: 34px; flex: none; border-radius: 10px; display: grid; place-items: center; color: #fefefe; background: var(--c) }
+.tv-vn .tv-situ-l b { display: block; font-weight: 500; font-size: 14.5px; color: var(--c) }
+.tv-vn .tv-situ-l small { display: block; font-size: 12.5px; color: var(--tv-sec) }
+@keyframes tvEntra { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
+.tv-vn .tv-docs { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 8px; margin: 4px 0 }
+.tv-vn .tv-doc { display: flex; gap: 10px; align-items: center; padding: 10px 12px; border-radius: 12px; border: 1px solid var(--tv-borda); background: var(--surface, #fefefe); font: inherit; color: var(--portal-text, #0f172a); text-align: left; cursor: pointer; transition: border-color .2s, transform .2s }
+.tv-vn .tv-doc:hover { border-color: #2563eb; transform: translateY(-1px) }
+.tv-vn .tv-doc-ico { width: 36px; height: 36px; flex: none; border-radius: 10px; display: grid; place-items: center; color: #dc2626; background: color-mix(in srgb, #dc2626 8%, var(--surface, #fefefe)) }
+.tv-vn .tv-doc.principal .tv-doc-ico { color: #fefefe; background: #2563eb }
+.tv-vn .tv-doc-tx { flex: 1; min-width: 0 } .tv-vn .tv-doc-tx b { display: block; font-weight: 500; font-size: 14px } .tv-vn .tv-doc-tx small { display: block; font-size: 12px; color: var(--tv-sec) }
+.tv-vn .tv-doc-ver { color: var(--portal-text-muted, #94a3b8); font-size: 13px }
+@media (prefers-reduced-motion: reduce) { .tv-vn .tv-situ-l { animation: none } }
 .tv-vn .tv-marco-box.ok { border-style: solid; border-color: color-mix(in srgb, #16a34a 30%, var(--tv-borda)); background: color-mix(in srgb, #16a34a 5%, var(--surface, #fefefe)) }
 .tv-vn .tv-marco-box.agora { border-color: #7C3AED; background: color-mix(in srgb, #7C3AED 7%, var(--surface, #fefefe)) }
 .tv-vn .tv-revs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px }

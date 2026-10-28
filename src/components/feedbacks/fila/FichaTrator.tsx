@@ -1,12 +1,12 @@
 "use client";
 // Ficha do TRATOR na aba "Revisões" do RFM (página de teste do CRM): quem é o dono, como falar, a
-// previsão da próxima revisão (média h/dia, horímetro hoje, data, confiança), o gráfico das horas
-// pelo tempo, a linha do tempo das leituras (e as que saíram da conta, com o motivo) e o último
+// previsão da próxima revisão (média h/dia, horímetro hoje, data, confiança), a régua das horas até
+// a revisão, a linha do tempo das leituras (e as que saíram da conta, com o motivo) e o último
 // serviço do cliente.
 import { useMemo } from "react";
 import type { ItemFila } from "@/lib/feedbacks/fila";
 import {
-  fmtDataBR, fmtH, ROTULO_CONFIANCA, ROTULO_FONTE, ROTULO_SITUACAO,
+  fmtDataBR, fmtH, revisaoSeguinte, ROTULO_CONFIANCA, ROTULO_FONTE, ROTULO_SITUACAO,
   type ItemRevisao, type Previsao, type Situacao,
 } from "@/lib/feedbacks/previsao-revisao";
 import { COR_ACAO, ICO_ACAO, fmtDataHora, fmtTel } from "./FichaCliente";
@@ -109,68 +109,65 @@ export default function FichaTrator({ it, fi, grande = false, onHistorico }: { i
   );
 }
 
-/** Horas × tempo: entrega (0 h), leituras, reta da média, projeção até a próxima revisão. */
+/** Régua das horas: as revisões da sequência como paradas e até onde o trator já chegou. */
+// José, 28/10/2026: "troca esse gráfico" — a linha de horas pelo tempo não dizia nada para quem liga.
+// A régua mostra direto: qual revisão é, se já passou ou quanto falta, e as horas lidas × estimadas.
 export function Grafico({ p }: { p: Previsao }) {
-  const g = useMemo(() => {
-    if (!p.entrega) return null;
-    const t0 = Date.parse(`${p.entrega}T12:00:00`);
-    // "hoje" sai da própria previsão (data prevista − dias), sem relógio no render
-    const hoje = p.dataPrevista && p.dias != null ? Date.parse(`${p.dataPrevista}T12:00:00`) - p.dias * 86_400_000 : Date.parse(`${(p.ultimaLeitura?.data ?? p.entrega)}T12:00:00`);
-    const fim = Math.max(hoje, p.dataPrevista ? Date.parse(`${p.dataPrevista}T12:00:00`) : hoje);
-    const pts = p.validos.map((x) => ({ t: Date.parse(`${x.data}T12:00:00`), h: x.horas, x }));
-    const fora = p.descartados.filter((x) => !x.motivo.startsWith("repetida")).map((x) => ({ t: Date.parse(`${x.data}T12:00:00`), h: x.horas, x }));
-    const hMax = Math.max(p.revisaoOferta, p.horimetroHoje, ...pts.map((q) => q.h)) * 1.08 || 100;
-    const tMin = Math.min(t0, ...fora.map((q) => q.t)), tMax = fim + (fim - tMin) * 0.03;
-    const W = 640, H = 220, L = 46, R = 12, T = 12, B = 26;
-    const X = (t: number) => L + ((t - tMin) / (tMax - tMin || 1)) * (W - L - R);
-    const Y = (h: number) => T + (1 - Math.min(h, hMax) / hMax) * (H - T - B);
-    const passo = hMax > 2000 ? 1000 : hMax > 800 ? 300 : hMax > 300 ? 100 : 50;
-    const ticksY: number[] = []; for (let h = 0; h <= hMax; h += passo) ticksY.push(h);
-    const anos: number[] = []; for (let a = new Date(tMin).getFullYear() + 1; a <= new Date(tMax).getFullYear(); a++) anos.push(Date.parse(`${a}-01-01T00:00:00`));
-    const ult = p.ultimaLeitura ? { t: Date.parse(`${p.ultimaLeitura.data}T12:00:00`), h: p.ultimaLeitura.horas } : { t: t0, h: 0 };
-    return { W, H, L, R, T, B, X, Y, ticksY, anos, pts, fora, t0, hoje, fim, ult, hMax };
+  const r = useMemo(() => {
+    const hoje = Math.max(0, Math.round(p.horimetroHoje));
+    const ini = p.revisaoOferta > 1200 ? p.revisaoOferta - 1200 : 0;
+    const ate = Math.max(revisaoSeguinte(p.revisaoOferta), revisaoSeguinte(hoje));
+    const paradas: number[] = [];
+    for (let h = revisaoSeguinte(ini); h <= ate; h = revisaoSeguinte(h)) paradas.push(h);
+    const pct = (h: number) => Math.max(0, Math.min(100, ((h - ini) / (ate - ini || 1)) * 100));
+    return { hoje, ini, paradas, pct };
   }, [p]);
-  if (!g) return null;
-  const { W, H, L, R, B, X, Y } = g;
-  const prev = p.dataPrevista ? Date.parse(`${p.dataPrevista}T12:00:00`) : null;
+  const lida = p.ultimaLeitura?.horas ?? 0;
+  const atrasada = p.dias != null && p.dias < 0;
+  const falta = Math.max(0, p.revisaoOferta - r.hoje);
+  const estado = (h: number) =>
+    h === p.revisaoOferta ? (atrasada ? "alvo atrasada" : "alvo")
+      : p.ultimaRevisaoFeita != null && h <= p.ultimaRevisaoFeita ? (h === p.ultimaRevisaoFeita ? "feita" : "antes")
+      : h < p.revisaoOferta ? "pulou" : "depois";
+  const legenda = (h: number) =>
+    h === p.revisaoOferta ? (atrasada ? "atrasada" : "a próxima")
+      : h === p.ultimaRevisaoFeita ? "última feita"
+      : h < p.revisaoOferta && (p.ultimaRevisaoFeita == null || h > p.ultimaRevisaoFeita) ? "não feita" : "";
+  const esq = (h: number) => `${Math.max(6, Math.min(94, r.pct(h)))}%`;
   return (
-    <figure className="fbr-graf" aria-label={`Horas do trator pelo tempo: média ${fmtMedia(p.mediaHDia)}, próxima revisão de ${p.revisaoOferta} h em ${fmtDataBR(p.dataPrevista)}`}>
-      <svg viewBox={`0 0 ${W} ${H}`} role="img">
-        {g.ticksY.map((h) => (
-          <g key={h}>
-            <line x1={L} x2={W - R} y1={Y(h)} y2={Y(h)} className="grade" />
-            <text x={L - 6} y={Y(h) + 4} textAnchor="end" className="eixo">{h.toLocaleString("pt-BR")}</text>
-          </g>
-        ))}
-        {g.anos.map((a) => <text key={a} x={X(a)} y={H - 8} textAnchor="middle" className="eixo">{new Date(a).getFullYear()}</text>)}
-        {/* revisão a oferecer */}
-        <line x1={L} x2={W - R} y1={Y(p.revisaoOferta)} y2={Y(p.revisaoOferta)} className="alvo" />
-        <text x={L + 4} y={Y(p.revisaoOferta) - 5} className="rot">revisão de {p.revisaoOferta.toLocaleString("pt-BR")} h</text>
-        {/* hoje */}
-        <line x1={X(g.hoje)} x2={X(g.hoje)} y1={g.T} y2={H - B} className="hoje" />
-        <text x={X(g.hoje) - 4} y={H - B - 6} textAnchor="end" className="rot">hoje</text>
-        {/* leituras ligadas + projeção */}
-        <polyline className="linha" points={[[g.t0, 0], ...g.pts.map((q) => [q.t, q.h])].map(([t, h]) => `${X(t)},${Y(h)}`).join(" ")} />
-        <line className="proj" x1={X(g.ult.t)} y1={Y(g.ult.h)} x2={X(g.hoje)} y2={Y(p.horimetroHoje)} />
-        {prev && <line className="proj" x1={X(g.hoje)} y1={Y(p.horimetroHoje)} x2={X(prev)} y2={Y(p.revisaoOferta)} />}
-        <circle cx={X(g.t0)} cy={Y(0)} r={4.5} className="ponto entrega"><title>{`Entrega · ${fmtDataBR(p.entrega)} · 0 h`}</title></circle>
-        {g.pts.map((q, i) => (
-          <g key={i}>
-            <circle cx={X(q.t)} cy={Y(q.h)} r={9} fill="transparent"><title>{`${fmtDataBR(q.x.data)} · ${fmtH(q.h)} · ${q.x.rotulo}`}</title></circle>
-            <circle cx={X(q.t)} cy={Y(q.h)} r={4.5} className={`ponto ${q.x.aprox ? "aprox" : ""}`} pointerEvents="none" />
-          </g>
-        ))}
-        {g.fora.map((q, i) => (
-          <g key={`f${i}`} className="fora">
-            <path d={`M${X(q.t) - 4},${Y(q.h) - 4}l8,8m0,-8l-8,8`} />
-            <circle cx={X(q.t)} cy={Y(q.h)} r={9} fill="transparent"><title>{`Fora da conta: ${fmtDataBR(q.x.data)} · ${fmtH(q.h)} · ${q.x.motivo}`}</title></circle>
-          </g>
-        ))}
-        <circle cx={X(g.hoje)} cy={Y(p.horimetroHoje)} r={4.5} className="ponto hojep"><title>{`Hoje (estimado) · ${fmtH(p.horimetroHoje)}`}</title></circle>
-        {prev && <circle cx={X(prev)} cy={Y(p.revisaoOferta)} r={5.5} className="ponto prev"><title>{`Previsão · ${fmtDataBR(p.dataPrevista)} · ${p.revisaoOferta} h`}</title></circle>}
-      </svg>
+    <figure className={`fbr-regua ${atrasada ? "atrasada" : ""}`} aria-label={`Revisão de ${p.revisaoOferta} h: horímetro hoje cerca de ${r.hoje} h`}>
+      <div className="fbr-rg-frase">
+        <i className={`fa-solid ${atrasada ? "fa-triangle-exclamation" : "fa-gauge-high"}`} />
+        <div>
+          {!p.dataPrevista ? <b>Sem data de entrega: não dá para prever a revisão de {p.revisaoOferta.toLocaleString("pt-BR")} h</b>
+            : atrasada ? <b>Passou da revisão de {p.revisaoOferta.toLocaleString("pt-BR")} h há {Math.abs(p.dias ?? 0)} dias</b>
+            : <b>Faltam ≈ {fmtH(falta)} para a revisão de {p.revisaoOferta.toLocaleString("pt-BR")} h</b>}
+          <span>
+            {p.dataPrevista && (atrasada ? `chegou nas horas em ${fmtDataBR(p.dataPrevista)}` : `por volta de ${fmtDataBR(p.dataPrevista)}${p.dias != null ? ` (${p.dias} dias)` : ""}`)}
+            {p.dataPrevista ? " · " : ""}usa em média {fmtMedia(p.mediaHDia)}
+          </span>
+        </div>
+      </div>
+      <div className="fbr-rg-pista">
+        <div className="fbr-rg-hoje" style={{ left: esq(r.hoje) }}><small>hoje</small><b>≈ {fmtH(r.hoje)}</b></div>
+        <div className="fbr-rg-barra">
+          <span className="est" style={{ width: `${r.pct(r.hoje)}%` }} />
+          <span className="lido" style={{ width: `${r.pct(lida)}%` }} />
+          {p.ultimaLeitura && <span className="tick" style={{ left: `${r.pct(lida)}%` }} title={`Última leitura: ${fmtH(lida)} em ${fmtDataBR(p.ultimaLeitura.data)} · ${p.ultimaLeitura.rotulo}`} />}
+          {r.paradas.map((h) => <span key={h} className={`pino ${estado(h)}`} style={{ left: `${r.pct(h)}%` }} />)}
+        </div>
+        <div className="fbr-rg-paradas">
+          {r.ini > 0 && <span className="ini" style={{ left: 0 }}>{fmtH(r.ini)}</span>}
+          {r.paradas.map((h) => (
+            <span key={h} className={estado(h)} style={{ left: `${r.pct(h)}%` }}>
+              <b>{h.toLocaleString("pt-BR")} h</b>{legenda(h) && <small>{legenda(h)}</small>}
+            </span>
+          ))}
+        </div>
+      </div>
       <figcaption>
-        <span><i className="dot" /> leitura</span><span><i className="dot aprox" /> aproximada</span><span><i className="x">×</i> fora da conta</span><span><i className="tr" /> projeção pela média</span>
+        <span><i className="lido" /> lido no horímetro{p.ultimaLeitura ? `: ${fmtH(lida)} em ${fmtDataBR(p.ultimaLeitura.data)}` : ": nenhuma leitura"}</span>
+        <span><i className="est" /> estimado pela média até hoje</span>
       </figcaption>
     </figure>
   );

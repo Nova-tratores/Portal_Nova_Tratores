@@ -44,7 +44,8 @@ function TelaHoje() {
   const router = useRouter();
   const sp = useSearchParams();
   const gerente = isAdmin || pode("feedbacks", "relatorios");
-  const hoje = useHoje(false, userProfile?.funcao, { gravarSempre: true, tela: "hoje", podeCockpit: pode("feedbacks", "atendimento") });
+  // revisões saíram daqui em 28/10 (José): ficam no Radar Tratores → Controle de Revisões
+  const hoje = useHoje(false, userProfile?.funcao, { gravarSempre: true, tela: "hoje", podeCockpit: pode("feedbacks", "atendimento"), comRevisoes: false });
   const [selKey, setSelKey] = useState<string | null>(null);
   const { setGrupos, clientes } = hoje;
   const carregando = hoje.carregando || hoje.carregandoRev;

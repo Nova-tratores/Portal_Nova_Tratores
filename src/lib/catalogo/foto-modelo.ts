@@ -19,3 +19,17 @@ export function slugCatalogoDoModelo(texto: unknown): string | null {
   if (/\b5050/.test(t)) return '5050';
   return null;
 }
+
+/** Fotos de modelo que o catálogo de peças ainda não tem, guardadas no mesmo storage
+ *  (bucket `catalogo/modelo/`). 7095: foto oficial da Mahindra Brasil (27/10/2026). */
+const FORA_DO_CATALOGO: [RegExp, string][] = [
+  [/\b7095\b/, 'modelo/7095.png'],
+  // 28/10/2026: OJA 3140 (foto oficial mahindratractor.com) e YTO ESK304 (foto de revenda no Brasil)
+  [/\bOJA\b|\b3140\b/, 'modelo/oja-3140.png'],
+  [/\bYTO\b|\bE?SK-?304\b/, 'modelo/yto-esk304.jpg'],
+];
+/** Caminho no bucket `catalogo` da foto de um modelo fora do catálogo; null = não tem. */
+export function fotoForaDoCatalogo(texto: unknown): string | null {
+  const t = String(texto ?? '').toUpperCase();
+  return FORA_DO_CATALOGO.find(([re]) => re.test(t))?.[1] ?? null;
+}

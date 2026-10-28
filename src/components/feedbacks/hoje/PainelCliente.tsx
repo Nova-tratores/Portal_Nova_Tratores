@@ -3,7 +3,7 @@
 // motivos e o CONCLUIR NUM LUGAR SÓ — um desfecho fecha todos os motivos que fizerem sentido, e a
 // lista do que vai acontecer aparece antes de confirmar. Embaixo, as fichas que já existem
 // (FichaCliente, FichaTrator, UltimoServico) para quem quiser os detalhes.
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { avaliar, precisaAlerta } from "@/lib/feedbacks/fila";
 import { DESFECHOS_FALOU, planoDesfecho, fmtDia, type ClienteHoje, type DesfechoHoje, type ItemPlano } from "@/lib/feedbacks/hoje";
@@ -21,6 +21,7 @@ import { finalChassi } from "@/lib/feedbacks/previsao-revisao";
 import FotoMaquina from "@/components/comum/FotoMaquina";
 import MapaLocais, { type PontoMapa } from "@/components/comum/MapaLocais";
 import { fetchAuth } from "@/lib/auth/client";
+import type { AtendimentoRadar } from "@/lib/revisoes/contatos-radar";
 
 const STATUS: { v: StatusCliente; rot: string; ico: string; cor: string }[] = [
   { v: "Satisfeito", rot: "Satisfeito", ico: "fa-face-smile", cor: "#16a34a" },
@@ -163,34 +164,52 @@ export default function PainelCliente({ c, hoje, onFeito, onFechar, inicial, mod
       <Concluir key={c.key} c={c} hoje={hoje} onFeito={onFeito} inicial={inicial} />
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button type="button" className="fbn-acao cinza" onClick={() => hoje.abrirHistorico(c)}><i className="fa-solid fa-clock-rotate-left" /> Histórico do cliente</button>
         {(() => { const mq = maquinas.find((x) => x?.chassi) ?? maquinas.find(Boolean); return mq ? <button type="button" className="fbn-acao cinza" onClick={() => setMaq(mq)}><i className="fa-solid fa-tractor" /> Ver a máquina</button> : null; })()}
         {!hoje.exemplo && hoje.podeCockpit && <Link className="fbn-acao cinza" href={`/feedbacks/atendimento/${encodeURIComponent(c.key)}`} target="_blank"><i className="fa-solid fa-headset" /> Abrir no cockpit</Link>}
       </div>
 
       </div>
 
-      <div className="fbh-col-baixo">
-      {registros.map((r) => (
-        <details key={`r${r.id}`} className="fbh-det">
-          <summary><i className="fa-solid fa-comments" style={{ color: "var(--c)" }} /> Atendimento {r.tipo.toUpperCase()} {r.id < 0 ? "de exemplo" : `#${r.id}`}{r.servico ? ` · ${r.servico}` : ""}</summary>
-          <FichaCliente item={avaliar(r)} tags={c.tags} onHistorico={() => hoje.abrirHistorico(c)} />
-        </details>
-      ))}
-      {revisoes.map((it) => (
-        <details key={`t${it.trator.id}`} className="fbh-det">
-          <summary><i className="fa-solid fa-tractor" style={{ color: "#0f766e" }} /> Trator {it.trator.modelo} · {it.trator.chassi.slice(-7)} · previsão da revisão</summary>
-          <FichaTrator it={it} fi={comoItemFila(it)} onHistorico={() => hoje.abrirHistorico(c)} />
-        </details>
-      ))}
-      </div>
+      {/* José, 28/10/2026: "no lado direito fica o bloco de atendimento; isso aqui faz parte do histórico
+          de atendimento desse cliente — separa e organiza". */}
+      <section className="fbh-col-baixo fbh-hist">
+        <div className="fbh-hist-cab">
+          <span className="fbn-ico p" style={{ ["--c" as string]: "#64748b" }}><i className="fa-solid fa-clock-rotate-left" /></span>
+          <div style={{ minWidth: 0, flex: 1 }}><b>Histórico de atendimento deste cliente</b><small>o que já foi feito antes · abra o que precisar</small></div>
+          <button type="button" className="fbn-acao cinza" onClick={() => hoje.abrirHistorico(c)}><i className="fa-solid fa-list" /> Ver tudo</button>
+        </div>
+        {registros.map((r) => (
+          <details key={`r${r.id}`} className="fbh-det fbh-hist-it">
+            <summary>
+              <span className="ic" style={{ ["--k" as string]: r.tipo === "crm" ? "#2563eb" : "#7c3aed" }}><i className="fa-solid fa-comments" /></span>
+              <span className="tx"><b>{r.tipo === "crm" ? "Pós-serviço" : "Reativação"} {r.id < 0 ? "de exemplo" : `#${r.id}`}</b><small>{[r.servico, r.data_servico ? `serviço em ${fmtDia(r.data_servico)}` : "", r.data_contato ? `último contato ${fmtDia(r.data_contato)}` : "ainda sem contato"].filter(Boolean).join(" · ")}</small></span>
+              <i className="fa-solid fa-chevron-down seta" />
+            </summary>
+            <FichaCliente item={avaliar(r)} tags={c.tags} onHistorico={() => hoje.abrirHistorico(c)} />
+          </details>
+        ))}
+        {revisoes.map((it) => (
+          <details key={`t${it.trator.id}`} className="fbh-det fbh-hist-it">
+            <summary>
+              <span className="ic" style={{ ["--k" as string]: "#0f766e" }}><i className="fa-solid fa-tractor" /></span>
+              <span className="tx"><b>Revisões do {it.trator.modelo} · …{it.trator.chassi.slice(-7)}</b><small>leituras do horímetro e previsão da próxima revisão</small></span>
+              <i className="fa-solid fa-chevron-down seta" />
+            </summary>
+            <FichaTrator it={it} fi={comoItemFila(it)} onHistorico={() => hoje.abrirHistorico(c)} />
+          </details>
+        ))}
+        {!temUltimoServicoNaFicha && (
+          <details className="fbh-det fbh-hist-it">
+            <summary>
+              <span className="ic" style={{ ["--k" as string]: "#2563eb" }}><i className="fa-solid fa-file-invoice" /></span>
+              <span className="tx"><b>Último serviço do cliente</b><small>a última OS e as peças</small></span>
+              <i className="fa-solid fa-chevron-down seta" />
+            </summary>
+            <UltimoServico r={pseudo} onHistorico={() => hoje.abrirHistorico(c)} />
+          </details>
+        )}
+      </section>
       <ModalMaquina alvo={maq} exemplo={hoje.exemplo} onFechar={() => setMaq(null)} />
-      {!temUltimoServicoNaFicha && (
-        <details className="fbh-det">
-          <summary><i className="fa-solid fa-file-invoice" style={{ color: "#2563eb" }} /> Último serviço do cliente</summary>
-          <UltimoServico r={pseudo} onHistorico={() => hoje.abrirHistorico(c)} />
-        </details>
-      )}
     </div>
   );
 }
@@ -228,6 +247,43 @@ function Concluir({ c, hoje, onFeito, inicial }: { c: ClienteHoje; hoje: Hoje; o
   const ocupado = hoje.ocupado === c.key;
   const temPesquisa = pesq.nota != null || !!pesq.status_cliente;
 
+  // José, 28/10/2026: "aqui também, inicia o atendimento" — antes do "Como foi?" vem o Iniciar atendimento;
+  // fica em andamento (radar_tratores_atendimentos, chave cli:<cliente>) até confirmar ou cancelar
+  const chaveAt = `cli:${c.key}`;
+  const [atend, setAtend] = useState<AtendimentoRadar | null>(null);
+  const [iniciando, setIniciando] = useState(false);
+  const [semTabAt, setSemTabAt] = useState(false);
+  const [erroAt, setErroAt] = useState("");
+  const apiAt = useCallback((corpo?: object) => fetchAuth("/api/revisoes/vendidos/atendimentos", corpo ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(corpo) } : undefined), []);
+  useEffect(() => {
+    if (hoje.exemplo) return;
+    let vivo = true;
+    const id = setTimeout(async () => {
+      try {
+        const j = await (await apiAt()).json().catch(() => ({}));
+        if (vivo && j.ok) setAtend((j.atendimentos || []).find((a: AtendimentoRadar) => a.chave === chaveAt) ?? null);
+      } catch { /* sem rede */ }
+    }, 0);
+    return () => { vivo = false; clearTimeout(id); };
+  }, [apiAt, chaveAt, hoje.exemplo]);
+  const local = (): AtendimentoRadar => ({ id: "", chave: chaveAt, marco: null, user_id: null, user_nome: null, iniciado_em: new Date().toISOString() });
+  const iniciarAt = async () => {
+    if (hoje.exemplo) { setAtend(local()); return; }
+    setIniciando(true); setErroAt("");
+    try {
+      const r = await apiAt({ acao: "iniciar", chave: chaveAt });
+      const j = await r.json().catch(() => ({}));
+      if (j.semTabela) { setSemTabAt(true); setAtend(local()); return; }
+      if (!r.ok || !j.ok) throw new Error(j.erro || "Não consegui iniciar.");
+      setAtend(j.atendimento);
+    } catch (e) { setErroAt(e instanceof Error ? e.message : String(e)); }
+    finally { setIniciando(false); }
+  };
+  const fecharAt = async (acao: "encerrar" | "cancelar") => {
+    if (atend?.id) await apiAt({ acao, id: atend.id }).catch(() => null);
+    setAtend(null);
+  };
+
   const efetivo: DesfechoHoje | null = passo === "falou" ? desfecho : passo;
   const plano = useMemo(() => (efetivo ? planoDesfecho(c, efetivo, temPesquisa) : []), [c, efetivo, temPesquisa]);
   const marcado = (it: ItemPlano) => (it.efeito === "fecha" ? it.padrao !== trocas.has(it.motivo.id) : it.efeito !== "mantem");
@@ -249,11 +305,25 @@ function Concluir({ c, hoje, onFeito, inicial }: { c: ClienteHoje; hoje: Hoje; o
     if (!efetivo || falta) return;
     const marcados = new Set(plano.filter((it) => it.efeito === "fecha" && marcado(it)).map((it) => it.motivo.id));
     const ok = await hoje.executar(c, { desfecho: efetivo, marcados, pesquisa: temPos ? pesq : null, retorno: efetivo === "retornar" ? retorno : null, servicoEm: servicoEm || null, motivoRecusa, obs });
-    if (ok) onFeito?.();
+    if (ok) { await fecharAt("encerrar"); onFeito?.(); }
   };
 
   return (
     <div style={{ display: "grid", gap: 10 }}>
+      {!atend ? (
+        <div className="fbh-at-ini">
+          <span className="ic"><i className="fa-solid fa-headset" /></span>
+          <span className="tx"><b>{c.emLigacaoCom ? `Em ligação com ${c.emLigacaoCom} no cockpit` : "Pronto para falar com o cliente?"}</b><small>Inicie o atendimento: a equipe vê que você está com {c.nome.split(" ")[0]}. Depois é só dizer como foi.</small></span>
+          <button type="button" className="fbn-acao cheio" disabled={iniciando} onClick={() => void iniciarAt()}>{iniciando ? <i className="fa-solid fa-circle-notch fa-spin" /> : <i className="fa-solid fa-headset" />} Iniciar atendimento</button>
+          {erroAt && <span className="fbf-alerta">{erroAt}</span>}
+        </div>
+      ) : (
+      <>
+      <div className="fbh-at-and">
+        <span className="pulso" /><b>Atendimento em andamento</b>
+        <small>{semTabAt ? "sem registro de andamento (falta o SQL radar-tratores-atendimentos)" : hoje.exemplo ? "exemplo" : `desde ${new Date(atend.iniciado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}${atend.user_nome ? ` · ${atend.user_nome}` : ""}`}</small>
+        <button type="button" className="fbh-at-cancelar" onClick={() => { escolherPasso(null); void fecharAt("cancelar"); }}>Cancelar o atendimento</button>
+      </div>
       <p className="fbf-sub" style={{ margin: 0 }}>Como foi?</p>
       <div className="fbh-passos">
         {PASSOS.map((p) => (
@@ -367,6 +437,8 @@ function Concluir({ c, hoje, onFeito, inicial }: { c: ClienteHoje; hoje: Hoje; o
           {falta ? <span className="fbf-alerta" style={{ color: "var(--t2)" }}>{falta}</span>
             : <span className={`fbh-sim ${hoje.simulando ? "" : "real"}`}><i className={`fa-solid ${hoje.simulando ? "fa-flask" : "fa-database"}`} /> {hoje.simulando ? "simulação: nada é gravado" : "grava de verdade"}</span>}
         </div>
+      )}
+      </>
       )}
     </div>
   );

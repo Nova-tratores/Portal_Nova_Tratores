@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { atualizarRegistro } from "@/lib/feedbacks/api";
 import { authHeaders } from "@/lib/auth/client";
+import { nomesBatem } from "@/lib/tecnico-utils";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import {
   contadores, cotaDoDia, feitosHoje, montarClientes, planoDesfecho, hojeSP, COTA_PADRAO,
@@ -63,7 +64,7 @@ export interface OpcoesHoje {
   gravarSempre?: boolean;
   /** Vai no audit_log (detalhes.tela). */
   tela?: string;
-  /** Lê as revisões Mahindra (pesado). Padrão: sim. */
+  /** Lê as revisões Mahindra (pesado). Padrão: sim. Sem elas a oportunidade R1_revisao do robô também sai (a tela Hoje, desde 28/10: as revisões ficam no Radar Tratores). */
   comRevisoes?: boolean;
   /** Mostra "Abrir no cockpit" (quem não tem feedbacks:atendimento não abre o cockpit). Padrão: sim. */
   podeCockpit?: boolean;
@@ -126,7 +127,9 @@ export function useHoje(exemplo: boolean, funcaoUsuario: string | null | undefin
       const j = await r.json();
       if (!r.ok) throw new Error(j.erro || `erro ${r.status}`);
       setBase({
-        registros: j.registros || [], oportunidades: [...(j.oportunidades || []), ...(j.atendidasRecentes || [])], cadastro: j.cadastro || {},
+        registros: j.registros || [],
+        // sem as revisões (tela Hoje desde 28/10) a oportunidade de revisão do robô também fica de fora
+        oportunidades: [...(j.oportunidades || []), ...(j.atendidasRecentes || [])].filter((o: Oportunidade) => comRevisoes || o.regra !== "R1_revisao"), cadastro: j.cadastro || {},
         tags: j.tags || {}, chamadas: j.chamadas || [], nomes: j.nomes || {}, areas: j.areas ?? null,
       });
       const avRev = await rev;
@@ -155,7 +158,21 @@ export function useHoje(exemplo: boolean, funcaoUsuario: string | null | undefin
   }, geradoEm), [base, revisoes, emLigacao, tentLocais, geradoEm]);
 
   const area = useMemo(() => regrasDaFuncao(funcaoUsuario, lerAreas(base.areas)), [funcaoUsuario, base.areas]);
-  const tecnicos = useMemo(() => [...new Set(clientes.flatMap((c) => c.tecnicos))].sort((a, b) => a.localeCompare(b, "pt-BR")), [clientes]);
+  // José, 28/10/2026: o filtro só mostra técnico ATIVO no portal (financeiro_usu.ativo + papel técnico)
+  const [ativos, setAtivos] = useState<string[] | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      const r = await fetch("/api/mecanicos", { headers: await authHeaders() }).catch(() => null);
+      const j = r?.ok ? await r.json().catch(() => null) : null;
+      const lista = Array.isArray(j) ? j : Array.isArray(j?.mecanicos) ? j.mecanicos : null;
+      if (vivo && lista) setAtivos(lista.flatMap((m: { nome?: string | null; tecnico_nome?: string | null }) => [m.tecnico_nome, m.nome].filter((x): x is string => !!x)));
+    })();
+    return () => { vivo = false; };
+  }, []);
+  const tecnicos = useMemo(() => [...new Set(clientes.flatMap((c) => c.tecnicos))]
+    .filter((t) => !ativos || ativos.some((a) => nomesBatem(a, t)))
+    .sort((a, b) => a.localeCompare(b, "pt-BR")), [clientes, ativos]);
 
   /** Busca + técnico (antes dos chips, para os chips contarem). */
   const basicos = useMemo(() => {

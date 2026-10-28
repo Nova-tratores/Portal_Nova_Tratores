@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  chassiDaNota, dataISO, faseDaVenda, finalDoChassi, linkMapa, marcoDaSemana, marcosDaVenda, modeloDaNota, motorDaNota, umaPorChassi, whatsDe,
+  chassiDaNota, chegadaDoTrator, dataISO, faixaEstoque, faseDaVenda, tipoEntrada, finalDoChassi, linkMapa, marcoDaSemana, marcosDaVenda, modeloDaNota, motorDaNota, umaPorChassi, whatsDe,
 } from '../vendidos';
 
 // descrições reais das notas (vendas_itens, 2025–2026)
@@ -43,6 +43,8 @@ describe('motor e modelo', () => {
     expect(modeloDaNota(D.nro)).toBe('Mahindra Jivo');
     expect(modeloDaNota(D.nde)).toBe('Mahindra 5050');
     expect(modeloDaNota(D.usado)).toBe('Las Tractor R60C');
+    expect(modeloDaNota('VEICULO NOVO MAHINDRA 3140 OJA TRATOR AGRICOLA 2025 MOTOR: ZSASUDV0950|CILIND. CHAS:MBNMKNFTNSZA00016')).toBe('Mahindra OJA 3140');
+    expect(modeloDaNota('YTO-ESK304 ROPS ESTREITO TRATOR AGRICOLA NOVO - MARCA YTO Chassi 00000000042550459 Numero do Motor Y251002265')).toBe('YTO ESK304');
   });
 });
 
@@ -96,5 +98,31 @@ describe('mapa e WhatsApp', () => {
     expect(whatsDe('(14) 3351-2778')).toBe('551433512778');
     expect(whatsDe('14 99762-7413')).toBe('5514997627413');
     expect(whatsDe('123')).toBeNull();
+  });
+});
+
+describe('chegada do trator (nota de entrada)', () => {
+  const mah = { emitente: 'MAHINDRA DO BRASIL INDUSTRIAL LTDA', categoria: 'Compras de Tratores para Revenda' };
+  const nova = { emitente: 'NOVA TRATORES MAQUINAS AGRICOLAS LTDA', categoria: null };
+  it('compra × retorno', () => {
+    expect(tipoEntrada(mah)).toBe('compra');
+    expect(tipoEntrada(nova)).toBe('retorno');
+    expect(tipoEntrada({ emitente: 'CASTRO PEÇAS E MAQUINAS', categoria: '' })).toBe('retorno');
+    expect(tipoEntrada({ emitente: 'BRUTUS TRATORES', categoria: 'Compras de Tratores para Revenda' })).toBe('compra');
+    expect(tipoEntrada({ emitente: null, categoria: null })).toBe('outra');
+  });
+  it('a chegada é a 1ª compra antes da venda (o Jivo que foi e voltou de demonstração)', () => {
+    const ent = [
+      { data: '2026-08-31', nf: '8224', ...nova },
+      { data: '2026-07-23', nf: '56232', ...mah },
+      { data: '2026-09-28', nf: '8344', ...nova },
+    ];
+    expect(chegadaDoTrator(ent)?.nf).toBe('56232');
+    expect(chegadaDoTrator(ent, '2026-07-01')).toBeNull();
+  });
+  it('faixa no pátio', () => {
+    expect(faixaEstoque(10)).toBe('novo');
+    expect(faixaEstoque(90)).toBe('atencao');
+    expect(faixaEstoque(200)).toBe('parado');
   });
 });

@@ -16,9 +16,12 @@ export const ESTILO_FILA = `
   background: color-mix(in srgb, #dc2626 7%, var(--s)); border: 1px solid color-mix(in srgb, #dc2626 30%, transparent) }
 .fbf-explica { font-size: 13.5px; color: var(--t2); line-height: 1.5; margin: 0 }
 .fbf-explica b { color: var(--t) }
-.fbf-como { font-size: 13.5px; color: var(--t2); background: var(--s); border: 1px solid var(--b); border-radius: 14px; padding: 10px 14px }
-.fbf-como summary { cursor: pointer; color: var(--t); display: flex; align-items: center; gap: 8px }
-.fbf-como ul { margin: 8px 0 2px; padding-left: 18px; line-height: 1.6 }
+/* só o ícone e o texto (José, 28/10/2026); a explicação abre num quadro embaixo */
+.fbf-como { font-size: 13.5px; color: var(--t2); padding: 8px 2px }
+.fbf-como summary { cursor: pointer; color: var(--t); display: inline-flex; align-items: center; gap: 8px; list-style: none }
+.fbf-como summary::-webkit-details-marker { display: none }
+.fbf-como summary:hover { text-decoration: underline; text-underline-offset: 3px }
+.fbf-como ul { margin: 8px 0 2px; padding: 10px 14px 10px 32px; line-height: 1.6; background: var(--s); border: 1px solid var(--b); border-radius: 14px }
 
 /* barra de filtros comum */
 .fbf-filtros { display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
@@ -142,25 +145,6 @@ export const ESTILO_FILA = `
 .fbr-prev b { font-weight: 500; font-size: 18px; font-variant-numeric: tabular-nums }
 .fbr-prev span { font-size: 12.5px; color: var(--t2) }
 .fbr-expl { margin: -4px 0 0; font-size: 13px; color: var(--t2); line-height: 1.45 }
-.fbr-graf { min-width: 0; margin: 0; border: 1px solid var(--b); border-radius: 14px; padding: 8px 8px 6px; background: var(--s) }
-.fbr-graf svg { width: 100%; max-width: 100%; height: auto; display: block }
-.fbr-graf .grade { stroke: var(--b); stroke-width: 1 }
-.fbr-graf .eixo, .fbr-graf .rot { font-size: 11px; fill: var(--t2) }
-.fbr-graf .alvo { stroke: var(--t3); stroke-width: 1; stroke-dasharray: 2 4 }
-.fbr-graf .hoje { stroke: var(--t3); stroke-width: 1 }
-.fbr-graf .linha { fill: none; stroke: var(--c); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round }
-.fbr-graf .proj { stroke: var(--c); stroke-width: 2; stroke-dasharray: 5 5; opacity: .7 }
-.fbr-graf .ponto { fill: var(--c); stroke: var(--s); stroke-width: 2 }
-.fbr-graf .ponto.aprox, .fbr-graf .ponto.hojep { fill: var(--s); stroke: var(--c) }
-.fbr-graf .ponto.entrega { fill: var(--t2) }
-.fbr-graf .ponto.prev { fill: #d97706 }
-.fbr-graf .fora path { stroke: #dc2626; stroke-width: 2; stroke-linecap: round }
-.fbr-graf figcaption { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--t2); padding: 4px 6px 0 }
-.fbr-graf figcaption span { display: inline-flex; gap: 6px; align-items: center }
-.fbr-graf figcaption .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c); display: inline-block }
-.fbr-graf figcaption .dot.aprox { background: transparent; border: 2px solid var(--c); box-sizing: border-box }
-.fbr-graf figcaption .x { color: #dc2626; font-style: normal }
-.fbr-graf figcaption .tr { width: 16px; border-top: 2px dashed var(--c); display: inline-block }
 .fbr-linha { display: grid; gap: 4px; font-size: 13px }
 .fbr-linha > div { display: grid; grid-template-columns: 14px 84px 70px minmax(0, 1fr); gap: 8px; align-items: baseline }
 .fbr-linha i { font-size: 9px; color: var(--c) } .fbr-linha .fora i { color: #dc2626; font-size: 11px }
@@ -195,4 +179,45 @@ export const ESTILO_FILA = `
   .fbf-gaveta, .fbf-gaveta-fundo, .fbf-toast, .fbf-lado { animation: none }
   .fbf-cartao, .fbf-mini { transition: none }
 }
+
+/* Régua das horas até a revisão (28/10/2026) */
+.fbr-regua { --rg: var(--c, #0f766e); --al: #d97706; min-width: 0; margin: 0; border: 1px solid var(--b); border-radius: 14px; padding: 14px 16px 10px; background: var(--s); display: grid; gap: 14px }
+.fbr-regua.atrasada { --al: #dc2626 }
+.fbr-rg-frase { display: flex; gap: 12px; align-items: center }
+.fbr-rg-frase > i { flex: none; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 16px; color: var(--al); background: color-mix(in srgb, var(--al) 12%, var(--s)) }
+.fbr-rg-frase > div { display: grid; gap: 2px; min-width: 0 }
+.fbr-rg-frase b { font-size: 15.5px; font-weight: 500; color: var(--t) }
+.fbr-regua.atrasada .fbr-rg-frase b { color: #b91c1c }
+.fbr-rg-frase span { font-size: 12.5px; color: var(--t2) }
+.fbr-rg-pista { position: relative; padding: 38px 4px 0 }
+.fbr-rg-hoje { position: absolute; top: 0; transform: translateX(-50%); display: grid; justify-items: center; line-height: 1.1; white-space: nowrap; animation: rlEntra .4s both }
+.fbr-rg-hoje small { font-size: 11px; color: var(--t2) }
+.fbr-rg-hoje b { font-size: 13.5px; font-weight: 500; color: var(--t); font-variant-numeric: tabular-nums }
+.fbr-rg-hoje::after { content: ""; width: 0; height: 0; border: 5px solid transparent; border-top-color: var(--t2); margin-top: 1px }
+.fbr-rg-barra { position: relative; height: 12px; border-radius: 99px; background: var(--soft) }
+.fbr-rg-barra .est, .fbr-rg-barra .lido { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; transition: width .6s ease }
+.fbr-rg-barra .est { background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--rg) 45%, var(--s)) 0 5px, color-mix(in srgb, var(--rg) 22%, var(--s)) 5px 10px) }
+.fbr-rg-barra .lido { background: var(--rg) }
+.fbr-rg-barra .tick { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--t); cursor: help }
+.fbr-rg-barra .pino { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: var(--s); border: 2px solid var(--b) }
+.fbr-rg-barra .pino.feita, .fbr-rg-barra .pino.antes { border-color: #16a34a; background: #16a34a }
+.fbr-rg-barra .pino.antes { opacity: .45 }
+.fbr-rg-barra .pino.pulou { border-color: #94a3b8; background: #e2e8f0 }
+.fbr-rg-barra .pino.alvo { width: 20px; height: 20px; margin: -10px 0 0 -10px; border: 3px solid var(--al); box-shadow: 0 0 0 4px color-mix(in srgb, var(--al) 18%, transparent) }
+.fbr-rg-barra .pino.alvo.atrasada { background: var(--al) }
+.fbr-rg-paradas { position: relative; height: 36px; margin-top: 8px }
+.fbr-rg-paradas > span { position: absolute; top: 0; transform: translateX(-50%); display: grid; justify-items: center; line-height: 1.15; white-space: nowrap }
+.fbr-rg-paradas > span.ini { transform: none; font-size: 11.5px; color: var(--t2) }
+.fbr-rg-paradas b { font-size: 12.5px; font-weight: 400; color: var(--t2); font-variant-numeric: tabular-nums }
+.fbr-rg-paradas small { font-size: 11px; color: var(--t2) }
+.fbr-rg-paradas .alvo b { font-size: 14px; font-weight: 500; color: var(--al) }
+.fbr-rg-paradas .alvo small { color: var(--al) }
+.fbr-rg-paradas .feita small { color: #15803d }
+.fbr-rg-paradas .pulou small { color: #64748b }
+.fbr-rg-paradas > span:last-child:not(.alvo) { transform: translateX(-100%); justify-items: end }
+.fbr-regua figcaption { display: flex; gap: 6px 16px; flex-wrap: wrap; font-size: 12px; color: var(--t2); border-top: 1px dashed var(--b); padding-top: 8px }
+.fbr-regua figcaption span { display: inline-flex; gap: 6px; align-items: center }
+.fbr-regua figcaption i { width: 18px; height: 8px; border-radius: 99px; display: inline-block }
+.fbr-regua figcaption i.lido { background: var(--rg) }
+.fbr-regua figcaption i.est { background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--rg) 45%, var(--s)) 0 3px, color-mix(in srgb, var(--rg) 22%, var(--s)) 3px 6px) }
 `;

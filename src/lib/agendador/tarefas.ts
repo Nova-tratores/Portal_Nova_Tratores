@@ -361,6 +361,17 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: `${await recalcularProjetosLigados()} projeto(s) recalculado(s)` };
   },
 
+  // Certificados de garantia do portal de concessionárias da Mahindra (entrega técnica do Radar
+  // Tratores). Só leitura no site da Mahindra; sem MAHINDRA_DEALER_* no serviço, pula.
+  'mahindra-certificados': async () => {
+    if (!process.env.MAHINDRA_DEALER_USUARIO || !process.env.MAHINDRA_DEALER_SENHA) return { pular: 'sem MAHINDRA_DEALER_USUARIO/SENHA' };
+    const { sincronizarCertificados } = await import('@/lib/mahindra/portal-dealer-server');
+    const r = await sincronizarCertificados();
+    if (r.gravados) (await import('@/lib/revisoes/vendidos-server')).limparCacheVendidos();
+    if (!r.ok && !r.gravados && r.erros.length) throw new Error(r.erros.slice(0, 5).join(' | '));
+    return { resumo: `${r.naLista} na lista · ${r.abertos} aberto(s) · ${r.gravados} gravado(s)${r.erros.length ? ` · ${r.erros.length} erro(s)` : ''}` };
+  },
+
   // Vias fora do mapa (camada do /frota/mapa): trechos do GPS longe das vias do
   // OpenStreetMap, dos últimos 14 dias. Depois do fechar-dia. Desliga com FROTA_VIAS=off.
   'frota-vias-fora-mapa': async (p) => {

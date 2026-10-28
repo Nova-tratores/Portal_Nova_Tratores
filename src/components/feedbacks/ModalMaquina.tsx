@@ -1,4 +1,5 @@
 "use client";
+import type React from "react";
 // Janela da MÁQUINA (José, 23/10/2026: "faz um modal, e explica de qual projeto você tá falando, deixa
 // os últimos serviços ali e as últimas revisões"). Abre do motivo na tela Hoje (revisão, pós-serviço,
 // robô) e do cartão da máquina no Histórico do cliente. Mesmo visual do ModalHistoricoCliente.
@@ -72,7 +73,7 @@ export function useDadosMaquina(alvo: MaquinaRef | null, exemplo = false) {
   return { dados, erro, carregando };
 }
 
-export default function ModalMaquina({ alvo, exemplo = false, onFechar }: { alvo: MaquinaRef | null; exemplo?: boolean; onFechar: () => void }) {
+export default function ModalMaquina({ alvo, exemplo = false, onFechar, topo }: { alvo: MaquinaRef | null; exemplo?: boolean; onFechar: () => void; /** bloco no topo (ex.: atendimento da revisão) */ topo?: React.ReactNode }) {
   const { userProfile } = useAuth();
   const { temAcesso } = usePermissoes(userProfile?.id);
   const acesso: Acesso = { pos: temAcesso("pos"), ppv: temAcesso("ppv") };
@@ -91,6 +92,9 @@ export default function ModalMaquina({ alvo, exemplo = false, onFechar }: { alvo
   const p = trator?.previsao ?? null;
   const eventos = useMemo(() => dados?.historico.eventos ?? [], [dados]);
   const revisoes = useMemo(() => revisoesDaMaquina(eventos, p), [eventos, p]);
+  // José, 28/10/2026: o passado das revisões fica escondido; à vista só a da vez
+  const [verRevisoes, setVerRevisoes] = useState(false);
+  const daVez = revisoes.filter((r) => r.estado === "atrasada" || r.estado === "proxima");
   const servicos = useMemo(() => servicosDaMaquina(eventos), [eventos]);
   if (!alvo || typeof document === "undefined") return null;
 
@@ -116,6 +120,7 @@ export default function ModalMaquina({ alvo, exemplo = false, onFechar }: { alvo
         </header>
 
         <div className="hcx-corpo">
+          {topo}
           <div className="hcx-linha">
             <div className="hcx-linha-d">
               {projetos.length === 0 ? <span><i className="fa-solid fa-diagram-project" /> sem projeto no Omie com este chassi</span>
@@ -156,7 +161,10 @@ export default function ModalMaquina({ alvo, exemplo = false, onFechar }: { alvo
             <h3 className="mqx-t"><i className="fa-solid fa-list-check" /> Últimas revisões</h3>
             {carregando && !dados ? <div className="hcx-rot"><i className="fa-solid fa-circle-notch fa-spin" /> Lendo…</div>
               : revisoes.length === 0 ? <div className="hcx-rot">Nenhuma revisão registrada para esta máquina.</div>
-              : <ol className="hcx-tempo">{revisoes.slice(0, 12).map((r) => <PassoRevisao key={`${r.estado}-${r.rev}`} r={r} />)}</ol>}
+              : <>
+                <ol className="hcx-tempo">{(verRevisoes ? revisoes.slice(0, 12) : daVez).map((r) => <PassoRevisao key={`${r.estado}-${r.rev}`} r={r} />)}</ol>
+                {revisoes.length > daVez.length && <button type="button" className="fbh-rm-mais" style={{ marginTop: 6 }} onClick={() => setVerRevisoes((v) => !v)} aria-expanded={verRevisoes}><i className={`fa-solid fa-chevron-${verRevisoes ? "up" : "down"}`} /> {verRevisoes ? "Esconder o histórico" : `Ver o histórico (${revisoes.length - daVez.length})`}</button>}
+              </>}
           </section>
 
           <section className="mqx-sec">
@@ -230,6 +238,9 @@ function Doc({ doc, children }: { doc: LinkDoc | null; children: React.ReactNode
 }
 
 const ESTILO_MQX = `
+.fbh-rm-mais { display: inline-flex; gap: 6px; align-items: center; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--b); background: var(--s); font: inherit; font-size: 12.5px; color: var(--t2); cursor: pointer }
+.fbh-rm-mais:hover { color: #2563eb }
+.fbh-rm-mais i { font-size: 10px }
 .mqx-fundo { z-index: 10020 }
 .mqx { max-width: 900px; --t3: var(--portal-text-muted, #94a3b8); --c: #0f766e }
 .mqx-sec { display: grid; gap: 10px; min-width: 0 }

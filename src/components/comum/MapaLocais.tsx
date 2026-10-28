@@ -27,15 +27,19 @@ export default function MapaLocais({ locais, endereco, altura = 230 }: { locais:
   const [i, setI] = useState(0);
   const l = locais[i] || locais[0] || null;
   if (!l) {
+    // Sem GPS: o mapa mostra o endereço do cadastro (busca do Google, sem chave).
     return (
       <div style={{ display: 'grid', gap: 8 }}>
-        <div style={{ fontSize: 13, color: 'var(--portal-text-secondary, #475569)', lineHeight: 1.45 }}>
-          Ainda não tem ponto de GPS confirmado (visita do vendedor, carro do técnico ou CRM).
-          {endereco ? <> Endereço do cadastro: <span style={{ color: 'var(--portal-text, #0f172a)' }}>{endereco}</span></> : ' O cadastro também não tem endereço.'}
-        </div>
+        {endereco && (
+          <iframe title="Mapa" loading="lazy" style={{ width: '100%', height: altura, border: '1px solid var(--border, #e2e8f0)', borderRadius: 12 }}
+            src={`https://maps.google.com/maps?q=${encodeURIComponent(endereco)}&z=13&output=embed`} />
+        )}
+        <small style={{ fontSize: 12, color: 'var(--portal-text-secondary, #475569)', lineHeight: 1.45 }}>
+          {endereco ? <>Pelo endereço do cadastro: {endereco} · ainda sem ponto de GPS confirmado</> : 'Sem ponto de GPS e o cadastro não tem endereço.'}
+        </small>
         {endereco && (
           <div><a style={BTN} href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(endereco)}`} target="_blank" rel="noreferrer">
-            <i className="fa-solid fa-map" style={{ fontWeight: 900 }} /> Procurar no Google Maps
+            <i className="fa-solid fa-map" style={{ fontWeight: 900 }} /> Mostrar no Google Maps
           </a></div>
         )}
       </div>
@@ -61,7 +65,7 @@ export default function MapaLocais({ locais, endereco, altura = 230 }: { locais:
       )}
       {locais.length === 1 && <small style={{ fontSize: 12, color: 'var(--portal-text-secondary, #475569)' }}>{l.nome} · {ORIGEM[l.origem]}{l.quem ? ` · ${l.quem}` : ''}{l.quando ? ` · ${dataBR(l.quando)}` : ''}</small>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <a style={BTN} href={`https://www.google.com/maps/search/?api=1&query=${l.lat},${l.lng}`} target="_blank" rel="noreferrer"><i className="fa-solid fa-map" style={{ fontWeight: 900 }} /> Abrir no Google Maps</a>
+        <a style={BTN} href={`https://www.google.com/maps/search/?api=1&query=${l.lat},${l.lng}`} target="_blank" rel="noreferrer"><i className="fa-solid fa-map" style={{ fontWeight: 900 }} /> Mostrar no Google Maps</a>
         <a style={BTN} href={`https://www.google.com/maps/dir/?api=1&destination=${l.lat},${l.lng}`} target="_blank" rel="noreferrer"><i className="fa-solid fa-route" style={{ fontWeight: 900 }} /> Rota até lá</a>
       </div>
     </div>

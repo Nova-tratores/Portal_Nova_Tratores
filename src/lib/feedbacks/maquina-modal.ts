@@ -136,7 +136,7 @@ export function revisoesDaMaquina(eventos: EventoMaquina[], p: Previsao | null):
     if (forte && l.origem) atual.origem = l.origem;
   };
   for (const e of eventos) {
-    if (e.tipo === "revisao") anota(horasDoRotulo(e.titulo), { data: e.data, horimetro: e.horimetro, origem: "controle de revisões", link: null }, true);
+    if (e.tipo === "revisao") anota(horasDoRotulo(e.titulo), { data: e.data, horimetro: e.horimetro, origem: "controle de revisões", link: e.ref.tipo === "url" ? { href: e.ref.href, rotulo: e.ref.rotulo } : null }, true);
     else if (e.tipo === "cheque" && e.status !== "pendente") {
       const link = e.ref.tipo === "url" ? { href: e.ref.href, rotulo: e.ref.rotulo } : null;
       anota(horasDoRotulo(e.titulo), { data: e.data, horimetro: e.horimetro, origem: e.status === "assinado" ? "cheque assinado" : "cheque enviado à Mahindra", link }, false);

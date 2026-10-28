@@ -88,9 +88,9 @@ export const TELAS: Tela[] = [
   // ── Comercial
   ...t('Comercial', 'proposta-comercial', 'propostas', [['Proposta Comercial', '/propostas', ['proposta']]]),
   ...t('Feedbacks & CRM', 'feedbacks', 'feedbacks', [
-    ['Hoje — quem ligar (atendimento)', '/feedbacks', ['ligar', 'fila', 'atendimento', 'crm', 'rfm', 'pós-serviço', 'reativação']],
+    ['Ligações do dia (feedbacks)', '/feedbacks', ['ligar', 'fila', 'atendimento', 'crm', 'rfm', 'pós-serviço', 'reativação']],
     ['Retornos combinados', '/feedbacks?motivo=retorno', ['agenda de retornos']],
-    ['Clientes (feedbacks)', '/feedbacks/clientes', ['histórico de atendimentos', 'contatos whatsapp']],
+    ['Radar Tratores (vendidos e controle de revisões)', '/feedbacks/tratores', ['trator novo', 'tratores vendidos', 'controle de revisões', 'previsão de revisão', 'entrega técnica']],
     ['Painel do atendimento', '/feedbacks/painel', ['relatórios', 'performance dos atendentes'], 'relatorios'],
     ['Robô de oportunidades', '/feedbacks/robo', ['oportunidades'], 'oportunidades'],
   ]),

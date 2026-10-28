@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { authHeaders } from "@/lib/auth/client";
 import { CAMPOS_CHEQUE, HORAS_CHEQUE, type DadosCheque, type RevisaoAnterior } from "@/lib/revisoes/cheque";
+import RadarTratorOS from "./RadarTratorOS";
 
 interface Cheque {
   id: string; os_id: string; chassis: string; horas: number; pagina: number | null; dados: DadosCheque; token: string;
@@ -186,6 +187,7 @@ export default function ChequeRevisaoBloco({ osId, podeEditar, horas: horasAlvo,
       {erro && <div style={{ color: "#991b1b", fontSize: 12, marginTop: 6 }}>{erro}</div>}
 
       {!atrasado && <RevisoesAnteriores osId={osId} podeEditar={podeEditar} horasAtual={c.horas} />}
+      {!atrasado && <RadarTratorOS osId={osId} />}
     </div>
   );
 }

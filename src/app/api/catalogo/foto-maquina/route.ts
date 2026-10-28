@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { autenticar } from '@/lib/auth/server';
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
-import { slugCatalogoDoModelo } from '@/lib/catalogo/foto-modelo';
+import { fotoForaDoCatalogo, slugCatalogoDoModelo } from '@/lib/catalogo/foto-modelo';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +27,11 @@ export async function GET(req: NextRequest) {
     const slug = slugCatalogoDoModelo(modelo);
     const doCatalogo = slug ? (await fotosCatalogo()).get(slug) : undefined;
     if (doCatalogo) return NextResponse.json({ ok: true, url: doCatalogo.url, fonte: 'catalogo', nome: doCatalogo.nome }, { headers: { 'Cache-Control': 'private, max-age=3600' } });
+    const fora = fotoForaDoCatalogo(modelo);
+    if (fora) {
+      const url = supabaseAdmin.storage.from('catalogo').getPublicUrl(fora).data.publicUrl;
+      return NextResponse.json({ ok: true, url, fonte: 'catalogo', nome: null }, { headers: { 'Cache-Control': 'private, max-age=3600' } });
+    }
     if (chassi.length >= 7) {
       const { data } = await supabaseAdmin.from('produtos').select('imagem_url, descricao')
         .ilike('codigo', `%${chassi.slice(-7)}`).ilike('familia_nome', 'Trator%').not('imagem_url', 'is', null).limit(1);

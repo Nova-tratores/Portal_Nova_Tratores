@@ -34,6 +34,8 @@ export async function montarHistoricoMaquina(chassiIn: string, projetoIn?: strin
   const chassi = norm(chassiIn);
   const final7 = chassi.slice(-7);
   const final6 = chassi.slice(-6);
+  // envio do cheque antigo gravou só o final do chassi ("0944"): também casa pelos 4 últimos
+  const final4 = chassi.slice(-4);
   const erros: Record<string, string> = {};
   const guarda = <T,>(chave: string, p: PromiseLike<{ data: unknown; error: { message: string } | null }>, vazio: T): Promise<T> =>
     Promise.resolve(p).then(({ data, error }) => { if (error) { erros[chave] = error.message; return vazio; } return (data as T) ?? vazio; }, (e) => { erros[chave] = (e as Error)?.message || String(e); return vazio; });
@@ -81,7 +83,7 @@ export async function montarHistoricoMaquina(chassiIn: string, projetoIn?: strin
   const [osOmieListas, ppvListas, chequesEmail, cheques, garantias, requisicoes, registros, observacoes, crmRows] = await Promise.all([
     Promise.all(osOmieBuscas),
     Promise.all(ppvBuscas),
-    guarda<ChequeEmailBruto[]>("revisao_emails", sb.from("revisao_emails").select("id, chassis, horas, enviado_em, registro_manual, pdf_url, cliente").ilike("chassis", `%${final7}`).limit(50), []),
+    guarda<ChequeEmailBruto[]>("revisao_emails", sb.from("revisao_emails").select("id, chassis, horas, enviado_em, registro_manual, pdf_url, cliente").or(`chassis.ilike.%${final7},chassis.eq.${final4},chassis_final.eq.${final4}`).limit(50), []),
     guarda<ChequeBruto[]>("revisao_cheques", sb.from("revisao_cheques").select("id, os_id, horas, assinado_em, assinado_nome, created_at, atrasado, token").ilike("chassis", `%${final7}`).limit(50), []),
     guarda<GarantiaBruta[]>("garantias", sb.from("garantias").select("id, numero, id_ordem, status, resultado, created_at, finalizada_em, tecnico_nome, valor_pago_total").ilike("chassis", `%${final7}`).limit(50), []),
     guarda<RequisicaoBruta[]>("requisicoes", sb.from("Requisicao").select("id, titulo, tipo, status, valor_despeza, created_at, data, solicitante, fornecedor, Chassis_Modelo").or(`Chassis_Modelo.ilike.%${final6}%,obs.ilike.%${final6}%,titulo.ilike.%${final6}%`).order("id", { ascending: false }).limit(50), []),

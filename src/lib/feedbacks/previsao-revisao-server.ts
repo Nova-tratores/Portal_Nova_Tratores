@@ -9,11 +9,13 @@ import { supabaseAdmin } from "@/lib/server/supabase-admin";
 import { paginar } from "@/lib/db/paginar";
 import { separarModeloChassi } from "./atendimento/puro";
 import {
-  chassiDoTexto, contatoVazio, dataISO, finalChassi, horimetroDoTexto, normNome, numeroHorimetro, pontosDaTabela, preverRevisao,
-  type ContatoRevisao, type PontoHorimetro, type StatusContatoRevisao, type TratorBruto, type TratorRevisao,
+  chassiDoTexto, contatoVazio, dataISO, finalChassi, horimetroDoTexto, MOTIVOS_SEM_REVISAO, normNome, numeroHorimetro, pontosDaTabela, preverRevisao,
+  type ContatoRevisao, type MotivoSemRevisao, type PontoHorimetro, type StatusContatoRevisao, type TratorBruto, type TratorRevisao,
 } from "./previsao-revisao";
 
 export const TABELA_CONTATO = "feedback_revisoes_contato";
+/** Horímetros informados pelo cliente (um por ligação; histórico). sql/feedbacks-rfm-revisoes.sql */
+export const TABELA_LEITURAS = "revisoes_leituras";
 
 export interface DadosRevisoes {
   tratores: TratorRevisao[];
@@ -33,14 +35,25 @@ type Cadastro = { cod_cli: number | string | null; empresa: string | null; razao
 export const tabelaFaltando = (e: { code?: string; message?: string } | null | undefined) =>
   !!e && (e.code === "PGRST205" || e.code === "42P01" || /could not find the table|does not exist/i.test(e.message || ""));
 
-const cache = globalThis as unknown as { __revisoesRfm?: { em: number; dados: DadosRevisoes } };
+const cache = globalThis as unknown as { __revisoesRfm?: { em: number; dados: DadosRevisoes }; __revisoesRfmCalc?: Promise<DadosRevisoes> | null };
 
+/** Monta uma vez por vez (pedidos juntos esperam o mesmo cálculo) e guarda. */
+function recalcular(): Promise<DadosRevisoes> {
+  cache.__revisoesRfmCalc ??= montar()
+    .then((dados) => { cache.__revisoesRfm = { em: Date.now(), dados }; return dados; })
+    .finally(() => { cache.__revisoesRfmCalc = null; });
+  return cache.__revisoesRfmCalc;
+}
+
+// Passados 5 min devolve o guardado na hora e recalcula por trás (Radar Tratores → Controle de
+// Revisões, 28/10/2026: a tela não pode ficar carregando). "Atualizar" (forcar) espera o novo.
 export async function carregarRevisoes(forcar = false): Promise<DadosRevisoes> {
   const c = cache.__revisoesRfm;
-  if (!forcar && c && Date.now() - c.em < 5 * 60_000) return c.dados;
-  const dados = await montar();
-  cache.__revisoesRfm = { em: Date.now(), dados };
-  return dados;
+  if (!forcar && c) {
+    if (Date.now() - c.em >= 5 * 60_000) void recalcular().catch((e) => console.error("[revisoes] recálculo", e));
+    return c.dados;
+  }
+  return recalcular();
 }
 export function limparCacheRevisoes() { cache.__revisoesRfm = undefined; }
 
@@ -134,10 +147,21 @@ async function montar(): Promise<DadosRevisoes> {
     return l?.length ? (l.find((p) => p.empresa === "Nova Tratores") ?? l[0]) : null;
   };
 
+  // horímetro que o cliente falou na ligação (Radar Tratores → Controle de Revisões); sem a tabela, segue sem
+  const leituras = new Map<string, PontoHorimetro[]>();
+  const lt = await paginar<{ trator_id: string; horas: number; data: string; user_nome: string | null }>((de, ate) => sb.from(TABELA_LEITURAS).select("trator_id,horas,data,user_nome").order("id").range(de, ate));
+  if (lt.error && !tabelaFaltando(lt.error)) avisos.push(`Não deu para ler os horímetros informados: ${lt.error.message}`);
+  for (const l of lt.data) {
+    const h = Number(l.horas), d = dataISO(l.data);
+    if (!Number.isFinite(h) || !d) continue;
+    leituras.set(l.trator_id, [...(leituras.get(l.trator_id) || []), { data: d, horas: h, fonte: "cliente", rotulo: `Cliente informou${l.user_nome ? ` a ${l.user_nome}` : ""}` }]);
+  }
+
   const agora = Date.now();
   const tratores: TratorRevisao[] = tr.data.map((t) => {
     const tab = pontosDaTabela(t);
-    const ex = extras.get(t) || { pontos: [], feitas: [] };
+    const ex0 = extras.get(t) || { pontos: [], feitas: [] };
+    const ex = { ...ex0, pontos: [...ex0.pontos, ...(leituras.get(String(t.ID ?? t.Chassis ?? "")) || [])] };
     const cli = acharCliente(String(t.Cliente || ""));
     return {
       id: String(t.ID ?? t.Chassis ?? ""),
@@ -186,6 +210,8 @@ export function validarContato(b: Record<string, unknown>): { ok: true; linha: O
   if (revisao != null && (!Number.isInteger(revisao) || revisao < 0 || revisao > 30000)) return { ok: false, erro: "revisão inválida" };
   const motivo = b.motivo == null ? null : String(b.motivo).slice(0, 300);
   if (status === "nao_quer" && !motivo?.trim()) return { ok: false, erro: "diga o motivo de não querer a revisão" };
+  const codigo = b.motivo_codigo == null || b.motivo_codigo === "" ? null : String(b.motivo_codigo) as MotivoSemRevisao;
+  if (codigo && !MOTIVOS_SEM_REVISAO.some((m) => m.id === codigo)) return { ok: false, erro: "motivo inválido" };
   return {
     ok: true,
     linha: {
@@ -193,6 +219,7 @@ export function validarContato(b: Record<string, unknown>): { ok: true; linha: O
       proximo_contato_em: (b.proximo_contato_em as string | null) ?? null,
       data_agendada: (b.data_agendada as string | null) ?? null,
       motivo,
+      ...(codigo ? { motivo_codigo: codigo } : {}),
       concluido_em: status === "aberto" ? null : (typeof b.concluido_em === "string" ? b.concluido_em : new Date().toISOString()),
     },
   };

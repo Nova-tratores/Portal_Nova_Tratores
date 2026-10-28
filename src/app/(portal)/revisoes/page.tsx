@@ -15,6 +15,7 @@ import { Observacao, TipoObservacao, TIPOS_LABEL, TIPOS_LISTA } from "@/lib/obse
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 import { authHeaders } from "@/lib/auth/client";
 import ChequesAtrasados from "@/components/revisoes/ChequesAtrasados";
+import FotoMaquina from "@/components/comum/FotoMaquina";
 
 interface EmailAttachment {
   filename: string;
@@ -1049,6 +1050,9 @@ function DashboardAgrupadoInner() {
                       }}
                       className="bg-white p-5 rounded-xl border border-zinc-200 hover:border-red-200 transition-all cursor-pointer group"
                     >
+                      <div className="flex justify-center mb-3">
+                        <FotoMaquina modelo={t.Modelo} chassi={t.Chassis} largura={220} altura={130} cor="#dc2626" />
+                      </div>
                       <div className="flex justify-between items-start mb-3">
                         <div className="flex items-center gap-2">
                           <span className="text-base text-zinc-500 font-medium">{t.Modelo}</span>

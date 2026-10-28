@@ -89,9 +89,16 @@ export interface LinhaDoTempo {
   eventos: EventoMaquina[];
 }
 
+// "3.286,90" (BR) e "3286.9" (banco) — ponto sozinho é decimal; vários pontos sem vírgula, milhar
+function valorTexto(t: string): number {
+  const s = t.trim().replace(/[^\d.,-]/g, "");
+  if (s.includes(",")) return Number(s.replace(/\./g, "").replace(",", "."));
+  return Number((s.match(/\./g) || []).length > 1 ? s.replace(/\./g, "") : s);
+}
+
 const num = (v: unknown): number | null => {
   if (v == null || v === "") return null;
-  const n = typeof v === "number" ? v : Number(String(v).replace(/\./g, "").replace(",", "."));
+  const n = typeof v === "number" ? v : valorTexto(String(v));
   return Number.isFinite(n) ? n : null;
 };
 const horim = (v: unknown): number | null => {
@@ -122,7 +129,8 @@ export function montarLinhaDoTempo(f: FontesLinhaDoTempo): LinhaDoTempo {
     for (const rev of REVISOES_LISTA) {
       const d = isoData(t[`${rev} Data`]);
       if (!d) continue;
-      push({ id: `rev-${rev}`, tipo: "revisao", data: d, titulo: `Revisão de ${rev} registrada`, detalhe: null, horimetro: horim(t[`${rev} Horimetro`]), status: null, valor: null, quem: null, ref: { tipo: "nenhum" }, ligados: [] });
+      const pdf = t[`${rev} PDF`] ? String(t[`${rev} PDF`]) : "";
+      push({ id: `rev-${rev}`, tipo: "revisao", data: d, titulo: `Revisão de ${rev} registrada`, detalhe: null, horimetro: horim(t[`${rev} Horimetro`]), status: null, valor: null, quem: null, ref: /^https?:\/\//.test(pdf) ? { tipo: "url", href: pdf, rotulo: "PDF da revisão" } : { tipo: "nenhum" }, ligados: [] });
     }
   }
 

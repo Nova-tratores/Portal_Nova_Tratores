@@ -42,8 +42,8 @@ describe("telas do Feedbacks", () => {
   });
 
   it("abas visíveis", () => {
-    expect(abasVisiveis(quem(["feedbacks"])).map((a) => a.id)).toEqual(["hoje", "clientes", "painel", "robo"]);
-    expect(abasVisiveis(quem(["feedbacks:crm", "feedbacks:oportunidades"])).map((a) => a.id)).toEqual(["hoje", "robo"]);
+    expect(abasVisiveis(quem(["feedbacks"])).map((a) => a.id)).toEqual(["hoje", "tratores", "painel", "robo"]);
+    expect(abasVisiveis(quem(["feedbacks:crm", "feedbacks:oportunidades"])).map((a) => a.id)).toEqual(["hoje", "tratores", "robo"]);
   });
 
   it("aba ativa pela URL", () => {
@@ -52,6 +52,7 @@ describe("telas do Feedbacks", () => {
     expect(abaDaRota("/feedbacks/relatorios")).toBe("painel");
     expect(abaDaRota("/feedbacks/robo")).toBe("robo");
     expect(abaDaRota("/feedbacks/clientes")).toBe("clientes");
+    expect(abaDaRota("/feedbacks/tratores")).toBe("tratores");
   });
 
   it("motivo pela URL", () => {

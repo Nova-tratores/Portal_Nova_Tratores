@@ -49,8 +49,11 @@ export function motorDaNota(descricao: unknown): string | null {
 export function modeloDaNota(descricao: unknown): string {
   const s = String(descricao ?? '').toUpperCase();
   if (/\bJIVO\b/.test(s)) return 'Mahindra Jivo';
+  // "MAHINDRA 3140 OJA TRATOR…" → Mahindra OJA 3140; "YTO-ESK304 ROPS ESTREITO … MARCA YTO Chassi …" → YTO ESK304
+  if (/\bOJA\b/.test(s)) return `Mahindra OJA ${s.match(/\b(\d{4})\s+OJA\b|\bOJA\s+(\d{4})\b/)?.slice(1).find(Boolean) ?? ''}`.trim();
+  if (/\bYTO\b/.test(s)) { const m = s.match(/\b(E?SK)-?(\d{3,4})\b/); return m ? `YTO ${m[1]}${m[2]}` : 'YTO'; }
   const rotulo = s.match(/\bMODELO\s+([A-Z0-9][A-Z0-9-]*)/);
-  const marca = s.match(/\bMARCA\s+([A-Z]+(?:\s+(?!MODELO)[A-Z]+)?)/);
+  const marca = s.match(/\bMARCA\s+([A-Z]+(?:\s+(?!MODELO|CHASSI|CHAS|SERIE|NUMERO)[A-Z]+)?)/);
   const tokens = s.split(/[\s|,;:]+/);
   const tok = tokens.find((t) => /^\d{3,4}[A-Z]{0,2}(?:-[A-Z0-9]+)*$/.test(t) && !/^(19|20)\d\d$/.test(t));
   const nomeMarca = (marca?.[1] || (s.includes('MAHINDRA') ? 'MAHINDRA' : '')).trim();
@@ -141,4 +144,36 @@ export function whatsDe(tel: unknown): string | null {
   if (d.length === 10 || d.length === 11) return '55' + d;
   if ((d.length === 12 || d.length === 13) && d.startsWith('55')) return d;
   return null;
+}
+
+// ─── chegada (nota de entrada) — José, 26/10/2026: "consegue identificar trator novo e vendido?" ──
+
+export interface EntradaTrator { data: string; nf: string; emitente: string | null; categoria: string | null }
+export type TipoEntrada = 'compra' | 'retorno' | 'outra';
+
+/**
+ * Nota de entrada de um trator: COMPRA = veio do fornecedor (Mahindra, "Compras de Tratores
+ * para Revenda"); RETORNO = nota emitida pela própria Nova/Castro (volta de demonstração,
+ * devolução de venda, transferência) — não é chegada.
+ */
+export function tipoEntrada(e: Pick<EntradaTrator, 'emitente' | 'categoria'>): TipoEntrada {
+  const emit = String(e.emitente ?? '').toUpperCase();
+  const cat = String(e.categoria ?? '').toUpperCase();
+  if (/NOVA TRATORES|CASTRO PE[CÇ]AS/.test(emit)) return 'retorno';
+  if (/COMPRAS? DE (TRATORES|M[AÁ]QUINAS)/.test(cat) || /MAHINDRA/.test(emit)) return 'compra';
+  if (/DEMONSTRA/.test(cat)) return 'retorno';
+  return emit ? 'compra' : 'outra';
+}
+
+/** A chegada do trator na loja: a 1ª compra (antes da venda, quando houver venda). */
+export function chegadaDoTrator(entradas: EntradaTrator[], vendaISO?: string | null): (EntradaTrator & { tipo: 'compra' }) | null {
+  const compras = entradas
+    .filter((e) => tipoEntrada(e) === 'compra' && (!vendaISO || e.data <= vendaISO))
+    .sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0));
+  return compras.length ? { ...compras[0], tipo: 'compra' } : null;
+}
+
+/** Faixa de tempo no pátio (estoque): até 60 dias tranquilo, até 120 atenção, mais que isso parado. */
+export function faixaEstoque(dias: number): 'novo' | 'atencao' | 'parado' {
+  return dias > 120 ? 'parado' : dias > 60 ? 'atencao' : 'novo';
 }

@@ -124,11 +124,23 @@ export function horasDoRotulo(s: unknown): number | null {
 
 // ─── pontos ──────────────────────────────────────────────────────────────────
 
-export type FontePonto = "revisao" | "cheque" | "os" | "envio" | "revisao_sem_horimetro";
+// "cliente" = horímetro que o cliente falou na ligação (revisoes_leituras, 28/10/2026)
+export type FontePonto = "revisao" | "cheque" | "os" | "envio" | "revisao_sem_horimetro" | "cliente";
 export const ROTULO_FONTE: Record<FontePonto, string> = {
   revisao: "Revisão anotada", cheque: "Cheque de revisão", os: "OS do Omie", envio: "Envio do cheque à Mahindra (aprox.)", revisao_sem_horimetro: "Revisão sem horímetro (aprox.)",
+  cliente: "Horímetro informado pelo cliente",
 };
-const PRIORIDADE: Record<FontePonto, number> = { cheque: 5, revisao: 4, os: 3, envio: 2, revisao_sem_horimetro: 1 };
+const PRIORIDADE: Record<FontePonto, number> = { cheque: 5, revisao: 4, os: 3, cliente: 3, envio: 2, revisao_sem_horimetro: 1 };
+
+/** Por que o trator não vai fazer a revisão agora (campo pronto, para rastrear depois). */
+export type MotivoSemRevisao = "sem_horas" | "outro_lugar" | "nao_quer" | "parado" | "outro";
+export const MOTIVOS_SEM_REVISAO: { id: MotivoSemRevisao; rotulo: string; ico: string }[] = [
+  { id: "sem_horas", rotulo: "Ainda não deu as horas", ico: "fa-gauge" },
+  { id: "outro_lugar", rotulo: "Fez em outro lugar", ico: "fa-store" },
+  { id: "nao_quer", rotulo: "Não quer fazer", ico: "fa-ban" },
+  { id: "parado", rotulo: "Trator parado / vendido", ico: "fa-pause" },
+  { id: "outro", rotulo: "Outro motivo", ico: "fa-pen" },
+];
 
 export interface PontoHorimetro {
   data: string; // ISO YYYY-MM-DD
@@ -418,6 +430,8 @@ export interface ContatoRevisao {
   tentativas: Tentativa[];
   proximo_contato_em: string | null;
   motivo: string | null;
+  /** motivo pronto (MOTIVOS_SEM_REVISAO) quando não vai fazer agora */
+  motivo_codigo?: MotivoSemRevisao | null;
   data_agendada: string | null;
   concluido_em: string | null;
   atualizado_em?: string | null;

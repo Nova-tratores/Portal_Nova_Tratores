@@ -1,12 +1,13 @@
 // Telas do módulo Feedbacks depois do redesenho "Caminho B" (José, 23/10/2026):
-//   Hoje (/feedbacks) · Clientes (/feedbacks/clientes) · Painel (/feedbacks/painel) · Robô (/feedbacks/robo).
+//   Hoje (/feedbacks) · Radar Tratores (/feedbacks/tratores) · Painel (/feedbacks/painel) · Robô (/feedbacks/robo).
+// Tratores (26/10/2026) = radar dos tratores novos: chegada da fábrica, pátio, venda, 30/60/90 dias e revisões.
 // As permissões continuam as de sempre (catálogo: feedbacks:atendimento, crm, rfm, clientes, relatorios,
 // agenda, oportunidades) — cada tela nova aceita as chaves das telas antigas que ela juntou, para
 // ninguém perder acesso. Fonte única para a faixa de abas (FeedbackTabs), o layout e as rotas antigas.
 // Puro (sem React), testado em __tests__/telas.test.ts.
 import type { Grupo } from "./hoje";
 
-export type AbaFeedbacks = "hoje" | "clientes" | "painel" | "robo";
+export type AbaFeedbacks = "hoje" | "tratores" | "clientes" | "painel" | "robo";
 
 export interface DefAba {
   id: AbaFeedbacks;
@@ -21,8 +22,9 @@ export interface DefAba {
 export const ACOES_HOJE = ["crm", "rfm", "atendimento", "agenda"];
 
 export const ABAS_FEEDBACKS: DefAba[] = [
-  { id: "hoje", href: "/feedbacks", rotulo: "Hoje", ico: "fa-sun", acoes: ACOES_HOJE },
-  { id: "clientes", href: "/feedbacks/clientes", rotulo: "Clientes", ico: "fa-address-book", acoes: ["clientes", "atendimento"] },
+  { id: "hoje", href: "/feedbacks", rotulo: "Ligações do dia", ico: "fa-headset", acoes: ACOES_HOJE },
+  { id: "tratores", href: "/feedbacks/tratores", rotulo: "Radar Tratores", ico: "fa-tractor", acoes: ACOES_HOJE },
+  // Clientes saiu da faixa em 28/10/2026 (José: "remove essa aba"); a página continua para os links do Painel
   { id: "painel", href: "/feedbacks/painel", rotulo: "Painel", ico: "fa-chart-simple", acoes: ["relatorios"] },
   { id: "robo", href: "/feedbacks/robo", rotulo: "Robô", ico: "fa-robot", acoes: ["oportunidades"] },
 ];
@@ -34,6 +36,7 @@ export const ABAS_FEEDBACKS: DefAba[] = [
  */
 export const ACOES_DO_SEGMENTO: Record<string, string[]> = {
   "": ACOES_HOJE,
+  tratores: ACOES_HOJE,
   clientes: ["clientes", "atendimento"],
   painel: ["relatorios"],
   robo: ["oportunidades"],
@@ -76,6 +79,7 @@ export function abasVisiveis(pode: Pode): DefAba[] {
 export function abaDaRota(pathname: string): AbaFeedbacks | null {
   const s = segmentoDaRota(pathname);
   if (s === "" || s === "crm" || s === "rfm" || s === "agenda" || s === "atendimento") return "hoje";
+  if (s === "tratores") return "tratores";
   if (s === "clientes") return "clientes";
   if (s === "painel" || s === "relatorios") return "painel";
   if (s === "robo" || s === "oportunidades") return "robo";

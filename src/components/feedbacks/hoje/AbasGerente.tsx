@@ -1,6 +1,6 @@
 "use client";
 // Abas do gerente na tela "Hoje": Painel (ao vivo) e Robô de oportunidades (só leitura nesta entrega).
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { BONUS_RETORNO, BONUS_RFM_ABERTO, COTA_PADRAO, DIAS_URGENTE_REVISAO, FRACAO_EXTRA, GRUPOS, GRUPO_DA_REGRA, PENALIDADE_SEM_TELEFONE, PESO_REGRA, TETO_BONUS, distribuicao, type Grupo } from "@/lib/feedbacks/hoje";
 import { DESFECHO_POR_VALOR, type Desfecho } from "@/lib/feedbacks/atendimento/chamada";
 import { TODAS_REGRAS } from "@/lib/feedbacks/atendimento/areas";
@@ -12,22 +12,14 @@ import { Contador, GRUPO } from "./kit";
 const EM_BRANCO: Oportunidade[] = [];
 const hora = (t: number) => new Date(t).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-function Barras({ itens, cor, onClick }: { itens: { rot: string; v: number; extra?: string; k?: string }[]; cor: string; onClick?: (k: string) => void }) {
-  const max = Math.max(1, ...itens.map((i) => i.v));
-  if (!itens.length) return <div style={{ fontSize: 13.5, color: "var(--t2)" }}>Nada por aqui.</div>;
-  return (
-    <div className="fbh-barras">
-      {itens.map((i, n) => (
-        <button key={i.k || i.rot} type="button" className="fbh-barra" style={{ ["--k" as string]: cor }} disabled={!onClick} onClick={() => i.k && onClick?.(i.k)} title={i.extra || undefined}>
-          <span className="r">{i.rot}</span>
-          <span className="trilho"><span className="enche" style={{ width: `${Math.max(2, (i.v / max) * 100)}%`, animationDelay: `${n * 50}ms` }} /></span>
-          <span className="v">{i.v.toLocaleString("pt-BR")}</span>
-        </button>
-      ))}
-    </div>
-  );
-}
+const chaveNome = (n: string) => n.normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
+const iniciaisDe = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
+const minutosTxt = (m: number) => (m >= 120 ? `${Math.floor(m / 60)} h` : `${m} min`);
+const CORES_FAIXA = ["#4c1d95", "#6d28d9", "#8b5cf6", "#a78bfa", "#c4b5fd", "#cbd5e1"];
 
+/** Painel → Ao vivo (José, 28/10/2026: "melhora essa tela confusa"): a equipe numa tabela só
+ *  (em ligação + feitos hoje + semana), o que o gerente precisa tratar num cartão com abas e a fila
+ *  do lado. Antes eram 7 cartões soltos, a maioria vazia. */
 export function AbaPainel({ hoje, filtrarGrupo }: { hoje: Hoje; filtrarGrupo?: (g: Grupo) => void }) {
   const p = hoje.painel;
   const nomePorKey = useMemo(() => {
@@ -37,97 +29,171 @@ export function AbaPainel({ hoje, filtrarGrupo }: { hoje: Hoje; filtrarGrupo?: (
   }, [hoje.clientes]);
   const dist = useMemo(() => distribuicao(hoje.clientes), [hoje.clientes]);
   const s = p.semana.total;
+  const [tratar, setTratar] = useState<"notas" | "parados">("notas");
+  const [tudo, setTudo] = useState(false);
+
+  // uma linha por pessoa juntando as três fontes
+  const equipe = useMemo(() => {
+    const m = new Map<string, { nome: string; ligacao?: (typeof p.emLigacao)[number]; feitos?: (typeof p.feitosHoje)[number]; semana?: (typeof p.semana.porPessoa)[number] }>();
+    const pega = (nome: string) => {
+      const k = chaveNome(nome);
+      if (!m.has(k)) m.set(k, { nome: nome.trim() });
+      return m.get(k)!;
+    };
+    for (const l of p.emLigacao) pega(l.atendente).ligacao = l;
+    for (const x of p.feitosHoje) pega(x.pessoa).feitos = x;
+    for (const x of p.semana.porPessoa) pega(x.pessoa).semana = x;
+    return [...m.values()].sort((a, b) => Number(!!b.ligacao) - Number(!!a.ligacao) || (b.feitos?.total ?? 0) - (a.feitos?.total ?? 0) || (b.semana?.ligacoes ?? 0) - (a.semana?.ligacoes ?? 0) || a.nome.localeCompare(b.nome));
+  }, [p]);
+  const maxFeitos = Math.max(1, ...equipe.map((e) => e.feitos?.total ?? 0));
+
+  const grupos = GRUPOS.map((g) => (g.k === "revisoes" && !hoje.exemplo ? { ...g, rot: "Garantia (cheques)" } : g));
+  const maxGrupo = Math.max(1, ...grupos.map((g) => dist.porGrupo[g.k]));
+  const faixas = Object.entries(dist.faixas);
+  const totFaixas = Math.max(1, faixas.reduce((a, [, v]) => a + v, 0));
+
+  const listaTratar = tratar === "notas" ? p.notasBaixas : p.parados;
+  const mostrar = tudo ? listaTratar : listaTratar.slice(0, 6);
+
+  const cont = [
+    { rot: "em ligação agora", v: p.emLigacao.length, ico: "fa-headset", cor: "#d97706" },
+    { rot: "feitos hoje pela equipe", v: p.feitosHoje.reduce((a, x) => a + x.total, 0), ico: "fa-circle-check", cor: "#16a34a" },
+    { rot: "notas baixas em 30 dias", v: p.notasBaixas.length, ico: "fa-face-frown", cor: "#b91c1c", ir: "notas" as const },
+    { rot: "coisas paradas", v: p.parados.length, ico: "fa-hourglass-end", cor: "#64748b", ir: "parados" as const },
+    { rot: `viraram serviço na semana${s.taxa != null ? ` · ${s.taxa}%` : ""}`, v: s.conversoes, ico: "fa-chart-line", cor: "#0f766e" },
+  ];
 
   return (
-    <div style={{ display: "grid", gap: 14 }}>
-      <div className="fbh-linha-topo">
-        <span className="fbh-vivo"><span className="pt" /> Ao vivo · atualizado às {hora(hoje.geradoEm)} · recarrega a cada 60 s e quando você volta para esta aba</span>
+    <div className="fbp">
+      <div className="fbh-cabeca">
+        <details className="fbf-como" style={{ flex: "1 1 320px", minWidth: 0 }}>
+          <summary><i className="fa-regular fa-circle-question" style={{ color: "var(--c)" }} /> Como ler esta tela</summary>
+          <ul>
+            <li><b>Equipe</b>: cada pessoa numa linha. Mostra se está em ligação agora (mais de 2 horas aberta é quase sempre esquecimento), quantos atendimentos fez hoje (ligações encerradas + concluídos + oportunidades) e como foi a semana (ligações e quantas viraram serviço ou venda).</li>
+            <li><b>Para tratar</b>: <b>notas baixas</b> (pós-serviço com nota de 0 a 6 ou cliente insatisfeito nos últimos 30 dias; clique para abrir o histórico) e <b>coisas paradas</b> (atendimento aberto sem movimento há mais de 15 dias, fora quem espera um retorno combinado, e ligação aberta há mais de 2 horas).</li>
+            <li><b>A fila agora</b>: quantos clientes têm cada tipo de motivo; clique numa linha para ver esses clientes nas Ligações do dia. Embaixo, a fila dividida por pontos: quanto mais pontos, mais na frente.</li>
+          </ul>
+        </details>
+        <span className="fbh-vivo" style={{ marginLeft: "auto", paddingTop: 10 }}><span className="pt" /> Ao vivo · atualizado às {hora(hoje.geradoEm)}</span>
       </div>
-      {hoje.exemplo && <p className="fbf-explica">Números <b>inventados</b> e coerentes com os clientes de exemplo da aba Hoje. Troque para <b>Dados reais</b> lá em cima para ver a equipe de verdade.</p>}
-      <details className="fbf-como">
-        <summary><i className="fa-regular fa-circle-question" style={{ color: "var(--c)" }} /> Como ler esta tela</summary>
-        <ul>
-          <li><b>Em ligação agora</b>: quem abriu uma ligação no cockpit e ainda não encerrou. Mais de 2 horas aberta é quase sempre esquecimento.</li>
-          <li><b>Feitos hoje</b>: por pessoa, ligações encerradas + atendimentos concluídos + oportunidades atendidas hoje.</li>
-          <li><b>Notas baixas</b>: pós-serviço com nota de 0 a 6 ou cliente insatisfeito nos últimos 30 dias — o gerente precisa tratar.</li>
-          <li><b>Coisas paradas</b>: atendimento aberto sem nenhum movimento há mais de 15 dias (fora quem está esperando um retorno combinado) e ligação aberta há mais de 2 horas.</li>
-          <li><b>Fila por motivo</b>: quantos clientes têm cada tipo de motivo. Clique numa barra para ver esses clientes na aba Hoje.</li>
-          <li><b>Conversão da semana</b>: das ligações dos últimos 7 dias em que o cliente atendeu, quantas viraram serviço agendado ou venda.</li>
-        </ul>
-      </details>
+      {hoje.exemplo && <p className="fbf-explica">Números <b>inventados</b> e coerentes com os clientes de exemplo. Troque para <b>Dados reais</b> lá em cima para ver a equipe de verdade.</p>}
 
       <div className="fbh-conts">
-        {[
-          { rot: "em ligação agora", v: p.emLigacao.length, ico: "fa-headset", cor: "#d97706" },
-          { rot: "feitos hoje (equipe)", v: p.feitosHoje.reduce((a, x) => a + x.total, 0), ico: "fa-circle-check", cor: "#16a34a" },
-          { rot: "notas baixas (30 dias)", v: p.notasBaixas.length, ico: "fa-face-frown", cor: "#b91c1c" },
-          { rot: "coisas paradas", v: p.parados.length, ico: "fa-hourglass-end", cor: "#64748b" },
-          { rot: `conversão da semana${s.taxa != null ? ` · ${s.taxa}%` : ""}`, v: s.conversoes, ico: "fa-chart-line", cor: "#0f766e" },
-        ].map((t, i) => (
-          <div key={t.rot} className="fbh-cont" style={{ ["--k" as string]: t.cor, animationDelay: `${i * 60}ms`, cursor: "default" }}>
-            <span className="fbn-ico"><i className={`fa-solid ${t.ico}`} /></span>
-            <span><b>{hoje.carregando ? "…" : <Contador valor={t.v} />}</b><small>{t.rot}</small></span>
-          </div>
-        ))}
+        {cont.map((t, i) => {
+          const zero = !hoje.carregando && t.v === 0;
+          const Tag = t.ir ? "button" : "div";
+          return (
+            <Tag key={t.rot} {...(t.ir ? { type: "button" as const, onClick: () => { setTratar(t.ir!); setTudo(false); document.getElementById("fbp-tratar")?.scrollIntoView({ behavior: "smooth", block: "start" }); } } : {})}
+              className={`fbh-cont ${zero ? "fbp-zero" : ""}`} style={{ ["--k" as string]: t.cor, animationDelay: `${i * 60}ms`, cursor: t.ir ? "pointer" : "default" }}>
+              <span className="fbn-ico"><i className={`fa-solid ${t.ico}`} /></span>
+              <span><b>{hoje.carregando ? "…" : <Contador valor={t.v} />}</b><small>{t.rot}</small></span>
+            </Tag>
+          );
+        })}
       </div>
 
-      <div className="fbh-pg">
-        <section className="fbh-cartao" style={{ ["--k" as string]: "#d97706" }}>
-          <h3><span className="fbn-ico"><i className="fa-solid fa-headset" /></span> Em ligação agora <small>{p.emLigacao.length}</small></h3>
-          {p.emLigacao.length === 0 ? <div style={{ fontSize: 13.5, color: "var(--t2)" }}>Ninguém em ligação neste momento.</div> : p.emLigacao.map((l) => (
-            <div key={l.id} className="fbh-item">
-              <span>{l.atendente}<div className="d">{(l.cliente_key && nomePorKey.get(l.cliente_key)) || "cliente"} · desde {hora(Date.parse(l.desde))}</div></span>
-              <span className="v" style={{ color: l.esquecida ? "#b91c1c" : "var(--t)" }}>{l.esquecida && <i className="fa-solid fa-triangle-exclamation" />} {l.minutos >= 120 ? `${Math.floor(l.minutos / 60)} h` : `${l.minutos} min`}</span>
+      <div className="fbp-grade">
+        <div className="fbp-col">
+          <section className="fbh-cartao" style={{ ["--k" as string]: "#2563eb" }}>
+            <h3><span className="fbn-ico"><i className="fa-solid fa-people-group" /></span> Equipe <small>{p.emLigacao.length ? `${p.emLigacao.length} em ligação agora` : "ninguém em ligação agora"}</small></h3>
+            {equipe.length === 0 ? (
+              <div className="fbp-vazio"><i className="fa-solid fa-mug-hot" /> Ninguém trabalhou na fila hoje nem nesta semana ainda.</div>
+            ) : (
+              <div className="fbp-equipe">
+                <div className="fbp-eq-cab"><span>Pessoa</span><span>Agora</span><span>Feitos hoje</span><span>Semana</span></div>
+                {equipe.map((e, i) => (
+                  <div key={e.nome} className={`fbp-eq ${e.ligacao ? "ao-vivo" : ""}`} style={{ animationDelay: `${i * 40}ms` }}>
+                    <span className="quem"><span className="av">{iniciaisDe(e.nome)}</span><span className="nm">{e.nome}</span></span>
+                    <span className="agora">
+                      {e.ligacao ? (
+                        <span className={`fbp-lig ${e.ligacao.esquecida ? "esq" : ""}`} title={`desde ${hora(Date.parse(e.ligacao.desde))}`}>
+                          <i className={`fa-solid ${e.ligacao.esquecida ? "fa-triangle-exclamation" : "fa-headset"}`} />
+                          {(e.ligacao.cliente_key && nomePorKey.get(e.ligacao.cliente_key)) || "em ligação"} · {minutosTxt(e.ligacao.minutos)}
+                        </span>
+                      ) : <span className="livre">livre</span>}
+                    </span>
+                    <span className="feitos" title={e.feitos ? `${e.feitos.ligacoes} ligação(ões) · ${e.feitos.concluidos} concluído(s) · ${e.feitos.oportunidades} oportunidade(s)` : "nada hoje"}>
+                      <span className="trilho"><span className="enche" style={{ width: `${((e.feitos?.total ?? 0) / maxFeitos) * 100}%` }} /></span>
+                      <span className="n">{e.feitos?.total ?? 0}</span>
+                    </span>
+                    <span className="semana">{e.semana ? <>{e.semana.ligacoes} lig. · <span className="conv">{e.semana.conversoes} viraram</span></> : "—"}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {Object.keys(p.semana.porDesfecho).length > 0 && (
+              <div className="fbp-desf">
+                <span>Como terminaram as {s.ligacoes} ligações da semana ({s.contato} atenderam):</span>
+                <div className="fbn-selos">
+                  {Object.entries(p.semana.porDesfecho).sort((a, b) => b[1] - a[1]).map(([d, n]) => (
+                    <span key={d} className="fbn-pilula">{DESFECHO_POR_VALOR[d as Desfecho]?.rotulo || d} · {n}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          <section id="fbp-tratar" className="fbh-cartao" style={{ ["--k" as string]: tratar === "notas" ? "#b91c1c" : "#64748b" }}>
+            <h3><span className="fbn-ico"><i className="fa-solid fa-clipboard-list" /></span> Para tratar</h3>
+            <div className="fbr-seg" role="tablist" aria-label="O que tratar">
+              <button type="button" role="tab" aria-selected={tratar === "notas"} className={tratar === "notas" ? "on" : ""} onClick={() => { setTratar("notas"); setTudo(false); }}><i className="fa-solid fa-face-frown" /> Notas baixas · {p.notasBaixas.length}</button>
+              <button type="button" role="tab" aria-selected={tratar === "parados"} className={tratar === "parados" ? "on" : ""} onClick={() => { setTratar("parados"); setTudo(false); }}><i className="fa-solid fa-hourglass-end" /> Coisas paradas · {p.parados.length}</button>
             </div>
-          ))}
-        </section>
+            {listaTratar.length === 0 ? (
+              <div className="fbp-vazio ok"><i className="fa-solid fa-circle-check" /> {tratar === "notas" ? "Nenhuma nota baixa no último mês." : "Nada parado. Tudo andando."}</div>
+            ) : (
+              <div className="fbp-lista">
+                {tratar === "notas" ? p.notasBaixas.slice(0, mostrar.length).map((n) => (
+                  <button key={n.id} type="button" className="fbp-li" onClick={() => hoje.abrirHistorico({ nome: n.nome, codigo_omie: n.codigo_omie })}>
+                    <span className="av ruim">{n.nota != null ? n.nota : <i className="fa-solid fa-face-frown" />}</span>
+                    <span className="tx"><span className="t">{n.nome}</span><span className="d">{n.feedback ? `“${n.feedback.slice(0, 110)}${n.feedback.length > 110 ? "…" : ""}”` : n.status || ""}{n.atendente ? ` · ${n.atendente.trim()}` : ""}</span></span>
+                    <span className="q">{n.quando.split("-").reverse().slice(0, 2).join("/")}</span>
+                  </button>
+                )) : p.parados.slice(0, mostrar.length).map((x) => (
+                  <div key={x.id} className="fbp-li">
+                    <span className={`av ${x.tipo === "ligacao" ? "ruim" : ""}`}>{x.tipo === "registro" ? <i className="fa-solid fa-hourglass-end" /> : <i className="fa-solid fa-phone" />}</span>
+                    <span className="tx"><span className="t">{x.titulo}</span><span className="d">{x.detalhe}</span></span>
+                    {x.tipo === "registro" && <span className={`q dias ${x.dias > 60 ? "velho" : ""}`}>{x.dias} dias</span>}
+                  </div>
+                ))}
+                {listaTratar.length > 6 && <button type="button" className="rl-link fbp-mais" onClick={() => setTudo(!tudo)}>{tudo ? "Mostrar menos" : `Ver todos (${listaTratar.length})`}</button>}
+              </div>
+            )}
+          </section>
+        </div>
 
-        <section className="fbh-cartao" style={{ ["--k" as string]: "#16a34a" }}>
-          <h3><span className="fbn-ico"><i className="fa-solid fa-user-check" /></span> Feitos hoje por pessoa</h3>
-          <Barras cor="#16a34a" itens={p.feitosHoje.map((x) => ({ rot: x.pessoa, v: x.total, extra: `${x.ligacoes} ligação(ões) · ${x.concluidos} concluído(s) · ${x.oportunidades} oportunidade(s)` }))} />
-          {p.feitosHoje.length > 0 && <div style={{ fontSize: 12.5, color: "var(--t2)" }}>Passe o mouse na barra: ligações · concluídos · oportunidades.</div>}
-        </section>
-
-        <section className="fbh-cartao" style={{ ["--k" as string]: "#b91c1c" }}>
-          <h3><span className="fbn-ico"><i className="fa-solid fa-face-frown" /></span> Notas baixas para tratar <small>últimos 30 dias</small></h3>
-          {p.notasBaixas.length === 0 ? <div style={{ fontSize: 13.5, color: "var(--t2)" }}>Nenhuma nota baixa no último mês.</div> : p.notasBaixas.slice(0, 12).map((n) => (
-            <button key={n.id} type="button" className="fbh-item" style={{ background: "transparent", border: 0, borderTop: "1px solid var(--b)", font: "inherit", color: "inherit", textAlign: "left", cursor: "pointer", width: "100%" }}
-              onClick={() => hoje.abrirHistorico({ nome: n.nome, codigo_omie: n.codigo_omie })}>
-              <span>{n.nome}<div className="d">{n.feedback ? `“${n.feedback.slice(0, 90)}${n.feedback.length > 90 ? "…" : ""}”` : n.status || ""}{n.atendente ? ` · ${n.atendente.trim()}` : ""}</div></span>
-              <span className="v" style={{ color: "#b91c1c" }}>{n.nota != null ? `nota ${n.nota}` : "insatisfeito"} · {n.quando.split("-").reverse().slice(0, 2).join("/")}</span>
-            </button>
-          ))}
-        </section>
-
-        <section className="fbh-cartao" style={{ ["--k" as string]: "#64748b" }}>
-          <h3><span className="fbn-ico"><i className="fa-solid fa-hourglass-end" /></span> Coisas paradas <small>{p.parados.length}</small></h3>
-          {p.parados.length === 0 ? <div style={{ fontSize: 13.5, color: "var(--t2)" }}>Nada parado. Tudo andando.</div> : p.parados.slice(0, 12).map((x) => (
-            <div key={x.id} className="fbh-item">
-              <span>{x.titulo}<div className="d">{x.detalhe}</div></span>
-              <span className="v">{x.tipo === "registro" ? `${x.dias} dias` : <i className="fa-solid fa-phone" style={{ color: "#b91c1c" }} />}</span>
-            </div>
-          ))}
-        </section>
-
-        <section className="fbh-cartao" style={{ ["--k" as string]: "#dc2626" }}>
-          <h3><span className="fbn-ico"><i className="fa-solid fa-filter" /></span> Fila por motivo <small>{filtrarGrupo ? "clique para filtrar a aba Hoje" : "clientes com cada motivo"}</small></h3>
-          <Barras cor="#dc2626" onClick={filtrarGrupo ? (k) => filtrarGrupo(k as Grupo) : undefined} itens={GRUPOS.map((g) => ({ rot: g.rot, v: dist.porGrupo[g.k], k: g.k, extra: g.ajuda }))} />
-          <div style={{ fontSize: 12.5, color: "var(--t2)" }}>{hoje.clientes.length.toLocaleString("pt-BR")} clientes na fila · {dist.varios.toLocaleString("pt-BR")} com mais de um motivo · {dist.urgentes} urgentes</div>
-        </section>
-
-        <section className="fbh-cartao" style={{ ["--k" as string]: "#0f766e" }}>
-          <h3><span className="fbn-ico"><i className="fa-solid fa-chart-line" /></span> Conversão da semana <small>{s.ligacoes} ligações · {s.contato} atenderam</small></h3>
-          <Barras cor="#0f766e" itens={p.semana.porPessoa.map((x) => ({ rot: x.pessoa, v: x.conversoes, extra: `${x.ligacoes} ligações · ${x.contato} atenderam · ${x.taxa ?? 0}% viraram serviço ou venda` }))} />
-          <div className="fbn-selos">
-            {Object.entries(p.semana.porDesfecho).sort((a, b) => b[1] - a[1]).map(([d, n]) => (
-              <span key={d} className="fbn-pilula">{DESFECHO_POR_VALOR[d as Desfecho]?.rotulo || d} · {n}</span>
-            ))}
+        <section className="fbh-cartao fbp-fila" style={{ ["--k" as string]: "#dc2626" }}>
+          <h3><span className="fbn-ico"><i className="fa-solid fa-list-ol" /></span> A fila agora</h3>
+          <div className="fbp-fila-n">
+            <span><b><Contador valor={hoje.clientes.length} /></b><small>clientes na fila</small></span>
+            <span><b className="urg"><Contador valor={dist.urgentes} /></b><small>urgentes</small></span>
+            <span><b><Contador valor={dist.varios} /></b><small>com mais de um motivo</small></span>
           </div>
-        </section>
-
-        <section className="fbh-cartao" style={{ ["--k" as string]: "#7c3aed" }}>
-          <h3><span className="fbn-ico"><i className="fa-solid fa-ranking-star" /></span> Como está a fila <small>clientes por pontos</small></h3>
-          <Barras cor="#7c3aed" itens={Object.entries(dist.faixas).map(([rot, v]) => ({ rot: rot === "esperando" ? "esperando" : `${rot} pontos`, v }))} />
+          <div className="fbp-motivos">
+            {grupos.map((g, i) => {
+              const v = dist.porGrupo[g.k];
+              return (
+                <button key={g.k} type="button" className="fbp-mot" style={{ ["--k" as string]: g.cor, animationDelay: `${i * 50}ms` }} disabled={!filtrarGrupo} onClick={() => filtrarGrupo?.(g.k)} title={g.ajuda}>
+                  <span className="ic"><i className={`fa-solid ${g.ico}`} /></span>
+                  <span className="r">{g.rot}</span>
+                  <span className="trilho"><span className="enche" style={{ width: `${Math.max(v ? 3 : 0, (v / maxGrupo) * 100)}%` }} /></span>
+                  <span className="v">{v.toLocaleString("pt-BR")}</span>
+                  {filtrarGrupo && <i className="fa-solid fa-arrow-right seta" />}
+                </button>
+              );
+            })}
+          </div>
+          <div className="fbp-pontos">
+            <span className="tit">A fila por pontos <small>quanto mais pontos, mais na frente</small></span>
+            <div className="fbp-pilha">
+              {faixas.map(([rot, v], i) => v > 0 && <span key={rot} style={{ flexGrow: v, background: CORES_FAIXA[Math.min(i, CORES_FAIXA.length - 1)] }} title={`${rot === "esperando" ? "esperando" : `${rot} pontos`}: ${v}`} />)}
+            </div>
+            <div className="fbp-leg">
+              {faixas.map(([rot, v], i) => (
+                <span key={rot}><i style={{ background: CORES_FAIXA[Math.min(i, CORES_FAIXA.length - 1)] }} />{rot === "esperando" ? "esperando" : `${rot} pts`} <b>{v.toLocaleString("pt-BR")}</b> <small>{Math.round((v / totFaixas) * 100)}%</small></span>
+              ))}
+            </div>
+          </div>
         </section>
       </div>
     </div>

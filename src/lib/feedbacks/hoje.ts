@@ -183,8 +183,11 @@ export function motivoDaOportunidade(op: Oportunidade, agora: number = Date.now(
       const lim = typeof d.data_limite === "string" ? d.data_limite.slice(0, 10) : null;
       const dias = lim ? diasAte(lim, agora) : null;
       const cheque = String(d.cheque_rotulo || d.cheque_alvo || "").trim();
-      selo = `Garantia: cheque ${cheque || "de revisão"}${lim ? ` até ${fmtDia(lim)}` : ""}`;
-      porque = lim ? `sem o cheque perde a garantia; ${dias != null && dias >= 0 ? `vence em ${dias} dia(s)` : "prazo passou"}` : "garantia em risco";
+      // José, 28/10/2026: só "Garantia: cheque…" confundia — o título diz o que o cliente tem que fazer
+      selo = `Fazer a revisão ${cheque ? `de ${cheque.replace(/^revis[ãa]o\s*(de\s*)?/i, "")} ` : ""}${lim ? `até ${fmtDia(lim)} ` : ""}para não perder a garantia`;
+      porque = lim
+        ? `${dias != null && dias >= 0 ? (dias === 0 ? "o prazo acaba hoje" : `faltam ${dias} dia(s)`) : "o prazo já passou"}: sem essa revisão (cheque) a Mahindra corta a garantia do trator`
+        : "sem essa revisão (cheque) a Mahindra corta a garantia do trator";
       if (dias != null && dias <= 30) { pontos = 130; urgente = true; }
       break;
     }
@@ -295,6 +298,14 @@ export function pontuar(motivos: Motivo[], semTelefone: boolean): { pontos: numb
 }
 
 /** Une as fontes num cliente só (código Omie; sem código, o nome normalizado casa com quem tem). */
+/** "FERNANDO LEONEL // X" → "Fernando Leonel"; sem letra de nome (anotação, "###") → null. */
+export function nomeTecnico(bruto: string | null | undefined): string | null {
+  const t = (bruto || "").split(/\s*(?:\/\/|,)\s*/)[0].trim();
+  if (!t || /[#*!?]/.test(t) || !/^[\p{L} .'-]+$/u.test(t)) return null;
+  const minus = new Set(["da", "de", "do", "das", "dos", "e"]);
+  return t.toLowerCase().split(/\s+/).map((p, i) => (i > 0 && minus.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1))).join(" ");
+}
+
 export function montarClientes(e: EntradaHoje, agora: number = Date.now()): ClienteHoje[] {
   const hoje = hojeSP(agora);
   const lista = brutos(e, agora);
@@ -330,7 +341,9 @@ export function montarClientes(e: EntradaHoje, agora: number = Date.now()): Clie
     if (c.motivos.some((m) => m.retorno)) grupos.add("retornos");
     c.grupos = [...grupos];
     c.regras = [...new Set(c.motivos.map((m) => m.regra).filter((r): r is RegraOportunidade => !!r))];
-    c.tecnicos = [...new Set(c.motivos.map((m) => (m.tecnico || "").split(/\s*(\/\/|,)\s*/)[0]).filter(Boolean))];
+    // técnico que fez o último serviço (filtro "Todos os técnicos"): "FERNANDO LEONEL" e "Fernando Leonel"
+    // viram um só e anotação da OS ("# # # FINALIZEI SEM ATENÇÃO # # #") não é técnico
+    c.tecnicos = [...new Set(c.motivos.map((m) => nomeTecnico(m.tecnico)).filter((t): t is string => !!t))];
     c.tentativas = [...c.motivos.flatMap((m) => m.tentativas), ...(e.tentativasLocais?.[c.key] || [])].sort((a, b) => b.data.localeCompare(a.data));
     const { pontos, explicacao } = pontuar(c.motivos, !c.telefone);
     c.pontos = pontos; c.explicacao = explicacao;

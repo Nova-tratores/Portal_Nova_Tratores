@@ -174,6 +174,7 @@ export function catalogoRotas(): RotaDef[] {
   for (const a of ACOES_POR_MODULO.feedbacks) tela(`/feedbacks/${a.id}`, `feedbacks:${a.id}`);
   // Telas novas do Feedbacks (23/10/2026, lib/feedbacks/telas.ts): mesmas chaves das antigas
   tela('/feedbacks/painel', 'feedbacks:relatorios');
+  tela('/feedbacks/tratores', 'feedbacks:atendimento', ['feedbacks:crm', 'feedbacks:rfm', 'feedbacks:agenda']);
   tela('/feedbacks/robo', 'feedbacks:oportunidades');
   tela('/feedbacks/clientes', 'feedbacks:clientes', ['feedbacks:atendimento']);
 
