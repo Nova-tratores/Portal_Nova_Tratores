@@ -191,6 +191,57 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: contas.map(([k, v]) => (v.ok === false ? `${k} erro: ${v.mensagem || v.erro}` : `${k} ${v.totalProdutos} produtos${v.errosEstoque ? ` (${v.errosEstoque} sem estoque)` : ''}`)).join(' · ') };
   },
 
+  // Livro-razão de estoque (estoque_movimentos): janela recente das peças que se moveram
+  // no mês, as duas contas (~11 min). Veio do GitHub (estoque-sync-movimentos.yml: 02:20
+  // no papel, 07h–08h de fato, e morria no deploy do site). Retomada por conta.
+  // parametros: { dias (60), max_min (13) }.
+  'estoque-sync-movimentos': async (p, ctx) => {
+    if (desligada('ESTOQUE_SYNC_MOVIMENTOS')) return { pular: 'desligado (ESTOQUE_SYNC_MOVIMENTOS=off)' };
+    const { sincronizarIncremental } = await import('@/lib/estoque/movimentos-sync');
+    const { getContasOmie } = await import('@/lib/estoque/conta');
+    const { lerRetomada, marcarFeito, limparRetomada } = await import('./retomada');
+    const feitas = await lerRetomada(ctx.chave);
+    const faltam = getContasOmie().map((c) => c.id).filter((c) => !feitas.includes(c));
+    if (!faltam.length) { await limparRetomada(ctx.chave); return { pular: `já feito hoje (${feitas.join(', ')})` }; }
+    const janelaDias = Math.min(180, Math.max(15, Number(p.dias) || 60));
+    const maxMs = Math.min(20, Math.max(1, Number(p.max_min) || 13)) * 60_000;
+    const partes: string[] = [];
+    const erros: string[] = [];
+    const progresso: Record<string, string> = {};
+    for (const c of faltam) {
+      try {
+        const r = await sincronizarIncremental(c, { grupo: 'peca', janelaDias, maxMs });
+        progresso[c] = `${r.feitos}/${r.candidatos} peças · ${r.movimentos} movimentos · ${r.segundos} s`;
+        partes.push(`${c} ${r.feitos}/${r.candidatos} peças, ${r.movimentos} movimentos${r.restantes ? ` (${r.restantes} ficaram pra amanhã)` : ''}`);
+        await marcarFeito(ctx.chave, c);
+      } catch (e) {
+        erros.push(`${c}: ${(e as Error).message}`);
+      }
+    }
+    for (const c of feitas) progresso[c] = 'já feito antes (retomada)';
+    if (erros.length && !partes.length) throw new Error(erros.join(' | '));
+    if (!erros.length) await limparRetomada(ctx.chave);
+    return { resumo: [...partes, ...erros.map((x) => 'erro ' + x)].join(' · '), progresso };
+  },
+
+  // Custo (CMC) das vendas_itens que ainda não têm, em lotes até esgotar (~45 min).
+  // Veio do GitHub (estoque-backfill-cmc.yml: 02:45 no papel, 07h–08h de fato, e morria
+  // no deploy do site). Retomada por conta; o que já foi enriquecido não volta pra fila.
+  'estoque-backfill-cmc': async (_p, ctx) => {
+    if (desligada('ESTOQUE_BACKFILL_CMC')) return { pular: 'desligado (ESTOQUE_BACKFILL_CMC=off)' };
+    const { cronBackfillCmc } = await import('@/lib/estoque/cron');
+    const { getContasOmie } = await import('@/lib/estoque/conta');
+    const { lerRetomada, marcarFeito, limparRetomada } = await import('./retomada');
+    const feitas = await lerRetomada(ctx.chave);
+    const faltam = getContasOmie().map((c) => c.id).filter((c) => !feitas.includes(c));
+    if (!faltam.length) { await limparRetomada(ctx.chave); return { pular: `já feito hoje (${feitas.join(', ')})` }; }
+    const r = await cronBackfillCmc({ contas: faltam, aoConcluirConta: (c) => marcarFeito(ctx.chave, c) }) as Record<string, { enriquecidos: number; iteracoes: number }>;
+    await limparRetomada(ctx.chave);
+    const progresso: Record<string, string> = Object.fromEntries(Object.entries(r).map(([k, v]) => [k, `${v.enriquecidos} itens com custo · ${v.iteracoes} lotes`]));
+    for (const c of feitas) progresso[c] = 'já feito antes (retomada)';
+    return { resumo: Object.entries(r).map(([k, v]) => `${k} ${v.enriquecidos} itens com custo`).join(' · ') + (feitas.length ? ` · retomada: ${feitas.join(', ')} já feitas` : ''), progresso };
+  },
+
   'notas-cache-docs': async () => {
     if (desligada('NOTAS_CACHE')) return { pular: 'desligado (NOTAS_CACHE=off)' };
     const { indexarNotas, guardarLote, diasAtras, VINCULAR_JANELA_DIAS } = await import('@/lib/notas/cache-docs');

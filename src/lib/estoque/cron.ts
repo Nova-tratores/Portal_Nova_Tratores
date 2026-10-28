@@ -17,10 +17,13 @@ import { sincronizarRemessas, sincronizarMovimentacao, sincronizarOutrasEntradas
  * Backfill diário de CMC: para cada conta, enriquece vendas_itens sem
  * cmc_unitario em lotes até esgotar (ou bater o teto de iterações pra caber na
  * janela de execução). Espelha agendarBackfillCMCDiario do monolito.
+ * `contas`/`aoConcluirConta`: usados pelo agendador para retomar por conta.
  */
-export async function cronBackfillCmc(): Promise<Record<string, unknown>> {
+export async function cronBackfillCmc(
+  opts: { contas?: Conta[]; aoConcluirConta?: (conta: Conta) => Promise<void> } = {},
+): Promise<Record<string, unknown>> {
   const resultado: Record<string, unknown> = {};
-  for (const c of getContasOmie()) {
+  for (const c of getContasOmie().filter((x) => !opts.contas || opts.contas.includes(x.id))) {
     let enriquecidosTotal = 0;
     let iteracoes = 0;
     const MAX_ITER = 40; // teto de segurança (lote de 100 → até ~4000 itens/conta)
@@ -32,6 +35,7 @@ export async function cronBackfillCmc(): Promise<Record<string, unknown>> {
       if (!r.pendentesRestantes || (r.processados ?? 0) === 0) break;
     }
     resultado[c.id] = { enriquecidos: enriquecidosTotal, iteracoes };
+    await opts.aoConcluirConta?.(c.id);
   }
   return resultado;
 }
