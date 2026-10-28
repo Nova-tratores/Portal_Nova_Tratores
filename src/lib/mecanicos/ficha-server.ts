@@ -257,13 +257,17 @@ async function dadosFrota(nome: string, padronizar: (n: unknown) => string, tecn
   const vivos = ordem.filter(([, x]) => dias(recente, x.ultimo) <= 20)
   const emUso = vivos.filter(([, x], i) => i === 0 || (x.vezes >= 2 && x.vezes >= vivos[0][1].vezes / 2)).map(([p]) => p)
   const placas = emUso.length ? emUso : cadastro
-  const vinculo = { emUso, cadastro, soCadastro: !emUso.length && cadastro.length > 0, divergente: emUso.length > 0 && (cadastro.some((c) => !emUso.includes(c)) || emUso.some((c) => !cadastro.includes(c))) }
-  const [veic, diasF, pend, gastos] = await Promise.all([
+  const vinculo = { emUso, cadastro, soCadastro: !emUso.length && cadastro.length > 0, divergente: emUso.length > 0 && cadastro.some((c) => !emUso.includes(c)) }
+  // checklist do carro (veiculo_checklist, um por mês) — José, 28/10/2026: "coloca o checklist do mês ali também"
+  const variantes = placas.flatMap((p) => [p, p.replace(/^([A-Z]{3})/, '$1-')])
+  const [veic, diasF, pend, gastos, chks] = await Promise.all([
     placas.length ? sb.from('frota_veiculos').select('id, placa, marca, modelo, descricao, ano, tipo_veiculo, status') : Promise.resolve({ data: [] as Rec[] }),
     placas.length ? sb.from('frota_dias').select('placa, data, km_total, km_odometro, tempo_ligado_min, tempo_movimento_min, vel_max, paradas_cliente, paradas_atipicas, litros').gte('data', de).lte('data', ate).limit(5000) : Promise.resolve({ data: [] as Rec[] }),
     placas.length ? sb.from('frota_pendencias').select('placa, titulo, descricao, status, aberta_em, gravidade, origem').eq('status', 'aberta').limit(500) : Promise.resolve({ data: [] as Rec[] }),
     carregarGastos(de, ate, padronizar, tecnicos).catch(() => []),
+    placas.length ? sb.from('veiculo_checklist').select('id, placa, tecnico_nome, mes_referencia, status, score_confianca, km, fim_em').in('placa', variantes).order('mes_referencia', { ascending: false }).limit(60) : Promise.resolve({ data: [] as Rec[] }),
   ])
+  const mesRef = de.slice(0, 7)
   const ps = new Set(placas)
   const meus = gastos.filter((g) => g.pessoa === nome)
   const carros = placas.map((p) => {
@@ -278,6 +282,10 @@ async function dadosFrota(nome: string, padronizar: (n: unknown) => string, tecn
       ligadoH: r2(dd.reduce((s, d) => s + num(d.tempo_ligado_min), 0) / 60), movimentoH: r2(dd.reduce((s, d) => s + num(d.tempo_movimento_min), 0) / 60),
       velMax: Math.max(0, ...dd.map((d) => num(d.vel_max))), paradasAtipicas: dd.reduce((s, d) => s + num(d.paradas_atipicas), 0),
       odometro: Math.max(0, ...dd.map((d) => num(d.km_odometro))) || null,
+      checklists: ((chks.data || []) as Rec[]).filter((x) => placaLimpa(x.placa) === p && String(x.mes_referencia || '') <= mesRef).slice(0, 4).map((x) => ({
+        id: String(x.id), mes: String(x.mes_referencia || ''), tecnico: (x.tecnico_nome as string) || null, status: String(x.status || ''), score: x.score_confianca == null ? null : num(x.score_confianca), km: x.km == null ? null : num(x.km), em: (x.fim_em as string) || null,
+      })),
+      mesRef,
       pendencias: ((pend.data || []) as Rec[]).filter((x) => placaLimpa(x.placa) === p).map((x) => ({ titulo: String(x.titulo || ''), descricao: String(x.descricao || ''), desde: String(x.aberta_em || '').slice(0, 10), gravidade: (x.gravidade as string) || null })),
     }
   })

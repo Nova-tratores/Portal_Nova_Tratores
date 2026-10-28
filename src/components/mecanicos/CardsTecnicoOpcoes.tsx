@@ -605,7 +605,14 @@ export function S1Estilo({ cards, contador, onAbrir, semFoto, capa }: { cards: C
               {c.comissao != null ? <b><Odometro texto={brl(c.comissao)} /></b> : <b className="vazio">—</b>}
               <span><i className="fas fa-calendar-check" /> paga em {dataBR(c.pagamento)}</span>
             </div>
-            {onAbrir && <span className="s1c-ver">Ver comissão, OS e horas <i className="fas fa-arrow-right" /></span>}
+            {/* o mês em 3 números com a barra até a meta básica (José, 28/10/2026: "coloca algumas informações a mais") */}
+            <div className="s1c-nums">
+              {([['Faturado', brl(c.faturado), c.metaValor ? c.faturado / c.metaValor : 0, '#2563eb'], ['Horas', horas(c.horas), c.metaHoras ? c.horas / c.metaHoras : 0, '#0891b2']] as const).map(([r, v, p, cor]) => (
+                <div key={r} title={`${Math.round(p * 100)}% da meta básica do mês`}><small>{r}</small><b>{v}</b><i><u style={{ width: `${Math.min(100, p * 100)}%`, background: cor }} /></i></div>
+              ))}
+              <div><small>OS</small><b>{c.os}</b><em>{Math.round(c.km).toLocaleString('pt-BR')} km</em></div>
+            </div>
+            {onAbrir && <span className="s1c-ver">Abrir ficha <i className="fas fa-arrow-right" /></span>}
           </article>
         )
         return (
@@ -688,8 +695,12 @@ export const ESTILO_CT = `
 .s1-capa { display: grid; gap: 14px; padding: 16px 18px; transform: none !important }
 .s1c-topo { display: flex; justify-content: space-between; align-items: center; gap: 8px } .s1-capa .s1-sit { position: static }
 .s1c-nome { display: flex; justify-content: space-between; align-items: center; gap: 8px } .s1c-nome b { font-size: 21px; font-weight: 500; color: #0f172a }
-.s1c-com { display: grid; gap: 2px; border-radius: 16px; padding: 14px 16px; background: #ecfdf5 } .s1c-com small { font-size: 13px; color: #047857 } .s1c-com b { font-size: 30px; font-weight: 500; color: #065f46; font-variant-numeric: tabular-nums } .s1c-com b.vazio { color: #94a3b8 } .s1c-com span { font-size: 12.5px; color: #475569 } .s1c-com span i { color: #059669; margin-right: 3px }
-.s1c-ver { justify-self: stretch; display: flex; justify-content: center; align-items: center; gap: 8px; border-radius: 12px; padding: 10px; background: #0f172a; color: #fefefe; font-size: 13.5px; transition: background .2s } .s1-capa:hover .s1c-ver { background: #2563eb } .s1-capa:hover .s1c-ver i { transform: translateX(3px) } .s1c-ver i { transition: transform .2s }
+.s1c-com { display: grid; gap: 2px; border-radius: 16px; padding: 14px 16px; background: #ecfdf5 } .s1c-com small { font-size: 13px; color: #047857 } .s1c-com b { font-size: 26px; font-weight: 500; color: #065f46; font-variant-numeric: tabular-nums } .s1c-com b .odo, .s1c-com b .odo span { font-size: 26px; color: #065f46 } .s1c-com b.vazio { color: #94a3b8 } .s1c-com span { font-size: 12.5px; color: #475569 } .s1c-com span i { color: #059669; margin-right: 3px }
+.s1c-nums { display: grid; grid-template-columns: 1fr 1fr auto; gap: 14px; align-items: end }
+.s1c-nums > div { display: grid; gap: 3px; min-width: 0 } .s1c-nums small { font-size: 12.5px; color: #475569 } .s1c-nums b { font-size: 15.5px; font-weight: 500; color: #0f172a; font-variant-numeric: tabular-nums; white-space: nowrap }
+.s1c-nums i { display: block; height: 5px; border-radius: 99px; background: #eef2f6; overflow: hidden } .s1c-nums u { display: block; height: 100%; border-radius: 99px; transition: width .8s ease }
+.s1c-nums em { font-style: normal; font-size: 12px; color: #64748b; white-space: nowrap; line-height: 5px }
+.s1c-ver { justify-self: end; display: inline-flex; align-items: center; gap: 6px; padding: 2px 0; color: #1d4ed8; font-size: 13.5px; font-weight: 500; border-top: 0 } .s1-capa:hover .s1c-ver { color: #1e40af } .s1-capa:hover .s1c-ver i { transform: translateX(3px) } .s1c-ver i { transition: transform .2s }
 .s1-sit { position: absolute; top: 12px; left: 12px; font-size: 12px; font-weight: 900; border-radius: 99px; padding: 4px 10px }
 .s1-vels { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 10px 10px 0 } .vel svg { width: 100%; height: auto; overflow: visible }
 .s1-pag { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 4px 16px 0; padding: 12px 14px; border-radius: 16px; background: linear-gradient(120deg, #ecfdf5, #f0fdfa) }

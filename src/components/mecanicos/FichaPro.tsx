@@ -126,7 +126,9 @@ function FrotaPro({ d, verReq }: { d: Ficha; verReq: (r: { id: number; titulo: s
       {vin?.divergente && <div className="fr-aviso"><b>Cadastro da frota desatualizado.</b> Pelo uso (cartão-frota e requisições), hoje ele está com <b>{vin.emUso.join(', ')}</b>; no cadastro ainda aparece <b>{vin.cadastro.join(', ') || 'nenhum carro'}</b>.</div>}
       {vin?.soCadastro && <div className="fr-aviso cinza">Sem abastecimento nem requisição dele nos últimos 45 dias — mostrando o carro do cadastro.</div>}
       {f.carros.length === 0 ? <div className="fp-vazio">Nenhum carro em uso nem vinculado a ele.</div> : f.carros.map((c) => {
-        const u = c as typeof c & { ultimoUso?: string | null; usoFontes?: string[] }
+        const u = c as typeof c & { ultimoUso?: string | null; usoFontes?: string[]; mesRef?: string; checklists?: { id: string; mes: string; tecnico: string | null; status: string; score: number | null; km: number | null; em: string | null }[] }
+        const chks = u.checklists || []
+        const doMes = chks.find((x) => x.mes === u.mesRef)
         return (
           <section key={c.placa} className="fr-carro">
             <div className="fr-id">
@@ -139,6 +141,19 @@ function FrotaPro({ d, verReq }: { d: Ficha; verReq: (r: { id: number; titulo: s
               <div><small>Ligado</small><b>{Math.round(c.ligadoH)} h</b><em>{Math.round(c.movimentoH)} h andando</em></div>
               <div className={c.velMax > 120 ? 'ruim' : ''}><small>Velocidade máx.</small><b>{Math.round(c.velMax)} km/h</b></div>
               <div><small>Paradas fora</small><b>{c.paradasAtipicas}</b><em>de lugar conhecido</em></div>
+            </div>
+            <div className="fr-chk">
+              <div className={`fr-chk-mes ${doMes ? (doMes.status === 'completo' && (doMes.score ?? 100) >= 50 ? 'ok' : 'meio') : 'falta'}`}>
+                <i className={`fas ${doMes ? 'fa-clipboard-check' : 'fa-clipboard'}`} />
+                <span>
+                  <b>Checklist de {u.mesRef ? nomeMes(u.mesRef).toLowerCase() : 'do mês'}</b>
+                  <small>{doMes ? [doMes.status === 'completo' ? 'feito' : doMes.status === 'suspeito' ? 'suspeito' : 'em andamento', doMes.tecnico && `por ${doMes.tecnico}`, doMes.em && `em ${dataBR(doMes.em.slice(0, 10))}`, doMes.score != null && `confiança ${Math.round(doMes.score)}%`, doMes.km != null && `${Math.round(doMes.km).toLocaleString('pt-BR')} km`].filter(Boolean).join(' · ') : 'ainda não feito este mês'}</small>
+                </span>
+                <a href={`/frota/checklist/${encodeURIComponent(c.placa)}`} target="_blank" rel="noopener noreferrer">ver checklist <i className="fas fa-arrow-up-right-from-square" /></a>
+              </div>
+              {chks.filter((x) => x.mes !== u.mesRef).length > 0 && (
+                <div className="fr-chk-ant"><small>meses anteriores</small>{chks.filter((x) => x.mes !== u.mesRef).map((x) => <span key={x.id} className={x.status === 'completo' && (x.score ?? 100) >= 50 ? 'ok' : 'meio'} title={[x.tecnico, x.score != null && `confiança ${Math.round(x.score)}%`].filter(Boolean).join(' · ')}><i className="fas fa-check" /> {nomeMes(x.mes).slice(0, 3).toLowerCase()}/{x.mes.slice(2, 4)}</span>)}</div>
+              )}
             </div>
             {c.pendencias.length > 0 && (
               <div className="fr-pend">
@@ -572,6 +587,16 @@ const ESTILO_FP = `
 .fr-placa { font-family: ui-monospace, 'SF Mono', monospace; font-size: 14px; font-weight: 700; letter-spacing: .06em; color: #0f172a; border: 1.5px solid #0f172a; border-top: 5px solid #1e40af; border-radius: 6px; padding: 3px 10px; background: #fefefe }
 .fr-stats { display: grid; grid-template-columns: repeat(5, 1fr) } .fr-stats > div { display: grid; gap: 2px; padding: 12px 18px; border-right: 1px solid #f1f5f9 } .fr-stats > div:last-child { border-right: none }
 .fr-stats small { font-size: 12px; color: #64748b } .fr-stats b { font-size: 18px; font-weight: 700; color: #0f172a; font-variant-numeric: tabular-nums } .fr-stats em { font-style: normal; font-size: 11.5px; color: #94a3b8 } .fr-stats .ruim b { color: #dc2626 }
+.fr-chk { border-top: 1px solid #f1f5f9; padding: 12px 18px; display: grid; gap: 8px }
+.fr-chk-mes { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: center; border-radius: 12px; padding: 9px 12px; background: #f8fafc }
+.fr-chk-mes > i { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 15px }
+.fr-chk-mes span { display: grid; gap: 1px; min-width: 0 } .fr-chk-mes b { font-size: 14px; font-weight: 500; color: #0f172a } .fr-chk-mes small { font-size: 13px; color: #334155 }
+.fr-chk-mes.ok { background: #ecfdf5 } .fr-chk-mes.ok > i { background: #d1fae5; color: #047857 }
+.fr-chk-mes.meio { background: #fffbeb } .fr-chk-mes.meio > i { background: #fef3c7; color: #b45309 }
+.fr-chk-mes.falta { background: #fef2f2 } .fr-chk-mes.falta > i { background: #fee2e2; color: #b91c1c } .fr-chk-mes.falta small { color: #b91c1c }
+.fr-chk-mes a { font-size: 13px; font-weight: 500; color: #1d4ed8; text-decoration: none; white-space: nowrap } .fr-chk-mes a:hover { text-decoration: underline } .fr-chk-mes a i { font-size: 11px; margin-left: 3px }
+.fr-chk-ant { display: flex; gap: 6px; align-items: center; flex-wrap: wrap } .fr-chk-ant small { font-size: 12.5px; color: #475569; margin-right: 4px }
+.fr-chk-ant span { font-size: 12.5px; border-radius: 99px; padding: 2px 9px; background: #ecfdf5; color: #047857 } .fr-chk-ant span.meio { background: #fffbeb; color: #b45309 } .fr-chk-ant span i { font-size: 10px }
 .fr-pend { border-top: 1px solid #f1f5f9; padding: 12px 18px; display: grid; gap: 2px } .fr-pend h5 { margin: 0 0 4px; font-size: 12.5px; font-weight: 600; color: #b45309 }
 .fr-pend-lin { display: flex; justify-content: space-between; gap: 14px; padding: 6px 0; border-top: 1px solid #f8fafc; font-size: 13.5px; color: #0f172a } .fr-pend-lin small { color: #64748b; font-size: 12.5px } .fr-pend-lin time { flex: none; font-size: 12px; color: #94a3b8 }
 .fr-gastos { display: grid; grid-template-columns: repeat(4, 1fr); background: #fefefe; border: 1px solid var(--portal-border, #e2e8f0); border-radius: 16px } .fr-gastos > div { display: grid; gap: 2px; padding: 14px 18px; border-right: 1px solid #f1f5f9 } .fr-gastos > div:last-child { border-right: none }
