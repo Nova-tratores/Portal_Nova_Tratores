@@ -172,11 +172,8 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
   useEffect(() => () => { const a = animRef.current; if (a) { cancelAnimationFrame(a.raf); a.marca?.remove(); a.rastro?.remove() } animRef.current = null }, [foco])
   useEffect(() => { setAnim(null) }, [foco])
 
-  const alternar = (dia: string) => {
-    if (sel.includes(dia) && foco !== dia) { setFoco(dia); return }
-    setSel((s) => (s.includes(dia) ? s.filter((x) => x !== dia) : [...s, dia]))
-    setFoco((f) => (sel.includes(dia) ? (f === dia ? sel.filter((x) => x !== dia).slice(-1)[0] || null : f) : dia))
-  }
+  // um dia por vez no mapa (José, 28/10/2026: marcar vários caminhos juntos "é ruim, tira isso")
+  const abrirDia = (dia: string) => { setSel([dia]); setFoco(dia) }
   const comFuro = d ? d.dias.filter(filtroDia(d, divergencia)) : []
   const semOS = d ? d.dias.filter((x) => !x.os.length && x.kmGps > 5) : []
   const osDiv = d ? osDaDiv(d, divergencia) : []
@@ -212,9 +209,9 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
                 {ia.pontos.length > 0 && (
                   <div className="fk-pontos">
                     {ia.pontos.map((p, i) => (
-                      <button key={i} type="button" className="fk-ponto" onClick={() => { const ds = [...new Set([...p.dias, ...diasDasOS(p.os || [])])].filter((x) => d.dias.some((y) => y.data === x)); if (ds.length) { setSel(ds); setFoco(ds[0]) } }} title="ver no mapa">
+                      <button key={i} type="button" className="fk-ponto" onClick={() => { const ds = [...new Set([...p.dias, ...diasDasOS(p.os || [])])].filter((x) => d.dias.some((y) => y.data === x)); if (ds.length) abrirDia(ds[0]) }} title="ver no mapa">
                         <span>{i + 1}</span>
-                        <div><b>{p.titulo}{p.valor ? <em> · ~{fmtValor(p.valor, un)}</em> : null}</b><small>{p.explicacao}</small>{(p.os || []).length > 0 && <u className="os"><i className="fas fa-file-lines" /> {p.os.join(', ')}</u>}{p.dias.length > 0 && <u><i className="fas fa-map-location-dot" /> {p.dias.length === 1 ? fmtDia(p.dias[0]) : `${p.dias.length} dias`} no mapa</u>}</div>
+                        <div><b>{p.titulo}{p.valor ? <em> · ~{fmtValor(p.valor, un)}</em> : null}</b><small>{p.explicacao}</small>{(p.os || []).length > 0 && <u className="os"><i className="fas fa-file-lines" /> {p.os.join(', ')}</u>}{p.dias.length > 0 && <span className="fk-ponto-dias">{p.dias.filter((x) => d.dias.some((y) => y.data === x)).map((x) => <u key={x} role="link" className={foco === x ? 'on' : ''} onClick={(e) => { e.stopPropagation(); abrirDia(x) }}><i className="fas fa-map-location-dot" /> {fmtDia(x)}</u>)}</span>}</div>
                       </button>
                     ))}
                   </div>
@@ -231,7 +228,7 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
                   {osDiv.map((o) => {
                     const rel = divergencia === 'km-nao-cobrado' ? o.kmRel : o.horasRel, cob = divergencia === 'km-nao-cobrado' ? o.kmCobrado : o.horasCobradas
                     return (
-                      <button key={o.os} type="button" className="fk-osl" onClick={() => { const ds = diasDasOS([o.os]); if (ds.length) { setSel(ds); setFoco(ds[0]) } }}>
+                      <button key={o.os} type="button" className="fk-osl" onClick={() => { const ds = diasDasOS([o.os]); if (ds.length) abrirDia(ds[0]) }}>
                         <b>{o.os}</b><span>{o.cliente}</span>
                         <small>relatório {fmtValor(rel, un)} · cobrado {fmtValor(cob, un)}</small><em>−{fmtValor(Math.round((rel - cob) * 10) / 10, un)}</em>
                       </button>
@@ -239,9 +236,9 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
                   })}
                 </div>
               )}
-              <div className="fk-dias-cab"><b>{TITULO_LISTA[divergencia]}</b><small>clique para abrir no mapa</small></div>
+              <div className="fk-dias-cab"><b>{TITULO_LISTA[divergencia]}</b><small>clique num dia para ver no mapa</small></div>
               {comFuro.length === 0 && <p className="fk-vazio">Nenhum dia com essa divergência.</p>}
-              {comFuro.map((x) => <LinhaDia key={x.data} x={x} on={sel.includes(x.data)} foco={foco === x.data} cor={cor[x.data]} carregando={sel.includes(x.data) && !(x.data in det)} onClick={() => alternar(x.data)} />)}
+              {comFuro.map((x) => <LinhaDia key={x.data} x={x} on={sel.includes(x.data)} foco={foco === x.data} cor={cor[x.data]} carregando={sel.includes(x.data) && !(x.data in det)} onClick={() => abrirDia(x.data)} />)}
             </div>
             <div className="fk-dir">
               <div className="fk-mapa-c">
@@ -271,7 +268,7 @@ function LinhaDia({ x, on, foco, cor, carregando, onClick }: { x: DiaFuro; on: b
   const pc = x.kmGps ? Math.min(100, (x.kmCobrado / x.kmGps) * 100) : 0
   return (
     <button type="button" className={`fk-dia ${on ? 'on' : ''} ${foco ? 'foco' : ''}`} style={{ '--c': cor || '#cbd5e1' } as React.CSSProperties} onClick={onClick}>
-      <span className="fk-chk">{carregando ? <i className="fas fa-circle-notch fa-spin" /> : on ? <i className="fas fa-check" /> : null}</span>
+      <span className="fk-chk">{carregando ? <i className="fas fa-circle-notch fa-spin" /> : on ? <i className="fas fa-eye" /> : null}</span>
       <div className="fk-dia-m">
         <div className="fk-dia-t"><b>{fmtDia(x.data)}</b><em>{kmI(x.furo)} sem cobrar</em></div>
         <div className="fk-dia-bar" title={`cobrado ${kmI(x.kmCobrado)} de ${kmI(x.kmGps)} rodados`}><i style={{ width: `${pc}%` }} /></div>
@@ -351,6 +348,7 @@ const ESTILO_FK = `
 .fk-ponto { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 10px; text-align: left; border: 1px solid #e9e5ff; background: #fefefe; border-radius: 12px; padding: 10px 12px; font-family: inherit; cursor: pointer; transition: border-color .2s, transform .2s } .fk-ponto:hover { border-color: #a78bfa; transform: translateY(-1px) }
 .fk-ponto > span { width: 26px; height: 26px; border-radius: 50%; background: #ede9fe; color: #6d28d9; display: grid; place-items: center; font-size: 13px; font-weight: 600 }
 .fk-ponto div { display: grid; gap: 3px } .fk-ponto b { font-size: 14px; font-weight: 500; color: #0f172a } .fk-ponto b em { font-style: normal; color: #b91c1c } .fk-ponto small { font-size: 13px; color: #475569; line-height: 1.45 } .fk-ponto u { text-decoration: none; font-size: 12.5px; color: #6d28d9 } .fk-ponto u.os { color: #334155 }
+.fk-ponto-dias { display: flex; gap: 4px 8px; flex-wrap: wrap } .fk-ponto-dias u { cursor: pointer; border-radius: 99px; padding: 1px 8px; background: #f5f3ff } .fk-ponto-dias u:hover, .fk-ponto-dias u.on { background: #7c3aed; color: #fefefe }
 .fk-osdiv { display: grid; gap: 6px; margin-bottom: 10px }
 .fk-osl { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 8px; align-items: baseline; text-align: left; border: 1px solid #fde68a; background: #fffbeb; border-radius: 12px; padding: 8px 11px; font-family: inherit; cursor: pointer }
 .fk-osl b { font-size: 13.5px; font-weight: 600; color: #0f172a } .fk-osl span { font-size: 13px; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap } .fk-osl small { grid-column: 1 / 3; font-size: 12.5px; color: #475569 } .fk-osl em { grid-row: 1 / 3; grid-column: 3; align-self: center; font-style: normal; font-weight: 600; color: #b91c1c; font-size: 14px }
@@ -361,7 +359,7 @@ const ESTILO_FK = `
 .fk-vazio { color: #475569; font-size: 14px; margin: 0; padding: 14px }
 .fk-dia { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: start; text-align: left; border: 1px solid #e8edf3; background: #fefefe; border-radius: 12px; padding: 9px 11px; font-family: inherit; cursor: pointer; transition: border-color .2s, box-shadow .2s; animation: fkSobe .35s both }
 .fk-dia:hover { border-color: #cbd5e1 } .fk-dia.on { border-color: var(--c) } .fk-dia.foco { box-shadow: inset 0 0 0 2px var(--c); background: color-mix(in srgb, var(--c) 4%, #fefefe) }
-.fk-chk { width: 20px; height: 20px; border-radius: 6px; border: 2px solid #cbd5e1; display: grid; place-items: center; font-size: 10px; color: #fefefe; margin-top: 1px } .fk-dia.on .fk-chk { background: var(--c); border-color: var(--c) }
+.fk-chk { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #cbd5e1; display: grid; place-items: center; font-size: 10px; color: #fefefe; margin-top: 1px } .fk-dia.on .fk-chk { background: var(--c); border-color: var(--c) }
 .fk-dia-m { display: grid; gap: 4px; min-width: 0 } .fk-dia-t { display: flex; justify-content: space-between; gap: 8px } .fk-dia-t b { font-size: 14px; font-weight: 500; color: #0f172a } .fk-dia-t em { font-style: normal; font-size: 13px; font-weight: 600; color: #b91c1c; white-space: nowrap }
 .fk-dia-bar { height: 6px; border-radius: 99px; background: repeating-linear-gradient(135deg, #fecaca 0 5px, #fee2e2 5px 10px); overflow: hidden } .fk-dia-bar i { display: block; height: 100%; background: #10b981; border-radius: 99px }
 .fk-dia small { font-size: 12.5px; color: #475569; line-height: 1.4 }
