@@ -20,14 +20,9 @@ import CartaLiga, { IconeLiga } from './CartaLiga'
 import { useCarreira } from './useCarreira'
 import FantasmasMec from './FantasmasMec'
 import EquipeCapa from './EquipeCapa'
-import { TrilhoAssuntos, Secao, ESTILO_ASSUNTOS, type Assunto } from './PainelTecnicos'
+import { Secao, ESTILO_ASSUNTOS } from './PainelTecnicos'
 
 // assuntos da aba Mecânicos, com as bolinhas iguais às do Painel (José, 20/10/2026)
-const ASSUNTOS_MEC: Assunto[] = [
-  { n: 1, cor: '#0891b2', ic: 'fa-clock', titulo: 'Horas da equipe' },
-  { n: 2, cor: '#2563eb', ic: 'fa-user-gear', titulo: 'Mecânicos do mês' },
-  { n: 3, cor: '#7c3aed', ic: 'fa-ghost', titulo: 'Horas e km fantasmas' },
-]
 import { patente } from '@/lib/mecanicos/carreira'
 
 interface Resp {
@@ -188,7 +183,7 @@ export default function RadarOcorrencias() {
         {carregando && !d && <span className="rdr-carr"><i className="fas fa-circle-notch fa-spin" /> carregando…</span>}
         <span className="rdr-vivo" title={`ao vivo · cada mecânico começa o mês com ${BASE_PONTOS} pontos`}><span className="cpv-pulso" /></span>
       </div>
-      {d && <TrilhoAssuntos topo assuntos={ASSUNTOS_MEC} />}
+      {/* 28/10/2026: a barra de assuntos saiu (José: "pode remover esse") */}
       </div>
 
       {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
