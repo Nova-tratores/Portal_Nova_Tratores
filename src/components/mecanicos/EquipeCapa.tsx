@@ -5,7 +5,6 @@
 // Gráfico (28/10/2026, "mais dinâmico, com ícone explicando o que cada coisa representa"): acumulado do mês dia a
 // dia — área = o que a equipe fez, linhas = onde deveria estar (básica) e a ideal, marca de hoje e a projeção.
 import { useMemo, useState } from 'react'
-import { ResponsiveContainer, ComposedChart, Area, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from 'recharts'
 import { somarDias, osAguardandoFaturar } from '@/lib/mecanicos/painel'
 import { useHorasEquipe, C6, META_SEM, ESTILO_HO, ESTILO_HC } from './HorasOpcoes'
 import { useBasePosVendas } from './useBasePosVendas'
@@ -18,14 +17,6 @@ const corPct = (p: number) => (p >= 100 ? '#047857' : p >= 70 ? '#b45309' : '#b9
 const util = (x: string) => { const w = new Date(`${x}T12:00:00Z`).getUTCDay(); return w > 0 && w < 6 }
 const C = { feito: '#2563eb', esperado: '#94a3b8', ideal: '#7c3aed', proj: '#f59e0b' }
 
-/** O que cada coisa do gráfico quer dizer (ícone + texto curto). */
-const LEGENDA: { k: string; ic: string; cor: string; t: string; d: string }[] = [
-  { k: 'feito', ic: 'fa-screwdriver-wrench', cor: C.feito, t: 'Feito pela equipe', d: 'horas cobradas de todos os mecânicos juntos' },
-  { k: 'esperado', ic: 'fa-flag-checkered', cor: C.esperado, t: 'Meta básica', d: '4 h por dia útil de cada mecânico' },
-  { k: 'ideal', ic: 'fa-crown', cor: C.ideal, t: 'Meta ideal', d: '8 h por dia útil de cada mecânico' },
-  { k: 'proj', ic: 'fa-arrow-trend-up', cor: C.proj, t: 'Projeção', d: 'onde termina o mês se seguir no ritmo de hoje' },
-]
-
 type Ponto = { dia: string; rot: string; feito: number | null; esperado: number; ideal: number; proj: number | null }
 
 export default function EquipeCapa({ mes }: { mes: string }) {
@@ -33,7 +24,6 @@ export default function EquipeCapa({ mes }: { mes: string }) {
   const d = useHorasEquipe(mes, comAg)
   const { base } = useBasePosVendas()
   const [abrir, setAbrir] = useState(false)
-  const [vista, setVista] = useState<'acumulado' | 'semana'>('acumulado')
   const hoje = hojeSP()
 
   // série do mês dia a dia, só com os mecânicos da capa (OS com 2 técnicos: cada um fica com a sua metade)
@@ -80,7 +70,7 @@ export default function EquipeCapa({ mes }: { mes: string }) {
   if (!d) return <section className="eqc"><style>{ESTILO_EQC}</style><div className="eqc-carr"><i className="fas fa-circle-notch fa-spin" /> carregando as horas da equipe…</div></section>
   const n = d.tecs.length
   const diaBas = (META_SEM.basH / 5) * n, diaIde = (META_SEM.ideH / 5) * n
-  const semanas = (d.tecs[0]?.semanas || []).map((w, k) => ({ rot: w.rot, feito: Math.round(d.tecs.reduce((s, t) => s + t.semanas[k].horas, 0) * 10) / 10, esperado: (w.uteis ?? 5) * diaBas, ideal: (w.uteis ?? 5) * diaIde }))
+  const semanas = (d.tecs[0]?.semanas || []).map((w, k) => ({ rot: w.rot, de: w.de, uteis: w.uteis ?? 5, atual: w.atual, futuro: !w.fechada && !w.atual, feito: Math.round(d.tecs.reduce((s, t) => s + t.semanas[k].horas, 0) * 10) / 10, esperado: (w.uteis ?? 5) * diaBas, ideal: (w.uteis ?? 5) * diaIde }))
   const metaMes = serie?.metaMes ?? d.basica
   const idealMes = serie?.idealMes ?? d.ideal
   const esperadoHoje = serie?.esperadoHoje ?? d.basica
@@ -91,9 +81,6 @@ export default function EquipeCapa({ mes }: { mes: string }) {
   const kmPorH = d.feitas ? d.km / d.feitas : 0
   const pos = (v: number) => `${Math.min(100, (v / Math.max(1, idealMes)) * 100)}%`
   const nomeMes = MESES[Number(mes.slice(5, 7)) - 1]
-  // zoom (José, 28/10/2026): a escala vai até a meta básica do mês e a projeção — a ideal (o dobro) achatava a área
-  const topo = serie ? Math.ceil((Math.max(serie.metaMes, serie.fimProj, serie.feito) * 1.12) / 20) * 20 : undefined
-  const idealCortada = !!serie && serie.idealMes > (topo || 0)
 
   return (
     <section className="eqc cpv-entra">
@@ -141,55 +128,24 @@ export default function EquipeCapa({ mes }: { mes: string }) {
           </div>
         </div>
 
-        <div className="eqc-graf">
-          <div className="eqc-graf-topo">
-            <div className="eqc-vista">
-              <button type="button" className={vista === 'acumulado' ? 'on' : ''} onClick={() => setVista('acumulado')}><i className="fas fa-chart-area" /> Acumulado no mês</button>
-              <button type="button" className={vista === 'semana' ? 'on' : ''} onClick={() => setVista('semana')}><i className="fas fa-chart-column" /> Por semana</button>
-            </div>
-          </div>
-          <div className="eqc-leg">
-            {LEGENDA.filter((x) => vista === 'acumulado' || x.k !== 'proj').map((x) => (
-              <div key={x.k} style={{ '--c': x.cor } as React.CSSProperties}>
-                <span><i className={`fas ${x.ic}`} /></span>
-                <p><b>{x.t}</b><small>{x.d}{x.k === 'ideal' && vista === 'acumulado' && idealCortada ? ' · sai pelo topo do gráfico' : ''}</small></p>
+        <div className="eqc-sem">
+          <div className="eqc-sem-cab"><b>Semana a semana</b><span><i className="ok" /> bateu o esperado <i className="quase" /> perto <i className="baixo" /> abaixo</span></div>
+          {semanas.map((w, i) => {
+            const p = w.esperado ? (w.feito / w.esperado) * 100 : 0
+            const tom = w.futuro ? 'fut' : p >= 100 ? 'ok' : p >= 70 ? 'quase' : 'baixo'
+            const larg = Math.max(w.esperado, w.feito, 1)
+            return (
+              <div key={w.de} className={`eqc-w ${tom} ${w.atual ? 'agora' : ''}`} style={{ animationDelay: `${i * 80}ms` }}>
+                <div className="eqc-w-t"><b>Semana {i + 1}</b><small>{w.rot}{w.uteis < 5 ? ` · ${w.uteis} dias úteis` : ''}</small>{w.atual && <em>esta semana</em>}</div>
+                <div className="eqc-w-bar" title={`Feito ${h1(w.feito)} h · esperado ${h1(w.esperado)} h`}>
+                  <i className="esp" style={{ width: `${(w.esperado / larg) * 100}%` }} />
+                  <u style={{ width: `${(w.feito / larg) * 100}%`, animationDelay: `${150 + i * 80}ms` }} />
+                </div>
+                <div className="eqc-w-v">{w.futuro ? <small>ainda não chegou</small> : <><b>{h1(w.feito)} h</b><small>de {h1(w.esperado)} h · {Math.round(p)}%</small></>}</div>
               </div>
-            ))}
-          </div>
-          <div style={{ width: '100%', height: 250 }}>
-            <ResponsiveContainer>
-              {vista === 'acumulado' && serie ? (
-                <ComposedChart data={serie.pts} margin={{ top: 14, right: 12, left: -8, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="eqcFeito" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={C.feito} stopOpacity={0.45} /><stop offset="100%" stopColor={C.feito} stopOpacity={0.03} /></linearGradient>
-                  </defs>
-                  <CartesianGrid vertical={false} stroke="#eef2f6" />
-                  <XAxis dataKey="rot" tick={{ fontSize: 12, fill: '#475569' }} tickLine={false} axisLine={false} interval={2} />
-                  <YAxis tick={{ fontSize: 12, fill: '#475569' }} tickLine={false} axisLine={false} unit=" h" domain={[0, topo || 'auto']} allowDataOverflow />
-                  <Tooltip content={<Dica />} />
-                  {d.atual && <ReferenceLine x={serie.limite.slice(8, 10)} stroke="#0f172a" strokeDasharray="3 3" label={{ value: 'hoje', position: 'top', fontSize: 12, fill: '#0f172a' }} />}
-                  <Line dataKey="ideal" stroke={C.ideal} strokeDasharray="6 4" dot={false} strokeWidth={2} animationDuration={900} />
-                  <Line dataKey="esperado" stroke={C.esperado} dot={false} strokeWidth={2.5} animationDuration={900} />
-                  <Area dataKey="feito" stroke={C.feito} strokeWidth={3} fill="url(#eqcFeito)" connectNulls={false} dot={{ r: 2.5, fill: C.feito, strokeWidth: 0 }} activeDot={{ r: 6 }} animationDuration={1300} />
-                  <Line dataKey="proj" stroke={C.proj} strokeDasharray="4 4" dot={false} strokeWidth={2.5} connectNulls={false} animationBegin={1100} animationDuration={700} />
-                </ComposedChart>
-              ) : (
-                <ComposedChart data={semanas} margin={{ top: 14, right: 12, left: -8, bottom: 0 }} barGap={3}>
-                  <CartesianGrid vertical={false} stroke="#eef2f6" />
-                  <XAxis dataKey="rot" tick={{ fontSize: 12, fill: '#475569' }} tickLine={false} axisLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: '#475569' }} tickLine={false} axisLine={false} unit=" h" />
-                  <Tooltip content={<Dica semana />} />
-                  <Bar dataKey="esperado" fill="#cbd5e1" radius={[6, 6, 0, 0]} maxBarSize={34} animationDuration={700} />
-                  <Bar dataKey="feito" fill={C.feito} radius={[6, 6, 0, 0]} maxBarSize={34} animationDuration={1000} />
-                  <Line dataKey="ideal" stroke={C.ideal} strokeDasharray="6 4" dot={false} strokeWidth={2} />
-                </ComposedChart>
-              )}
-            </ResponsiveContainer>
-          </div>
-          <p className="eqc-exp"><i className="fas fa-circle-info" /> {vista === 'acumulado'
-            ? <>A área azul sobe a cada dia com as horas cobradas pela equipe. Se ela estiver <b>acima da linha cinza</b>, a equipe está no ritmo da meta básica; abaixo, está atrasada. A linha laranja mostra onde o mês termina se continuar no ritmo de hoje.</>
-            : <>Cada semana: barra azul = horas da equipe, barra cinza = o esperado pelos dias úteis dela (semana cortada no começo ou no fim do mês vale menos).</>}
-            {' '}{comAg ? 'Inclui as OS preenchidas que ainda esperam faturar.' : 'Conta só as OS já faturadas.'}</p>
+            )
+          })}
+          <p className="eqc-exp"><i className="fas fa-circle-info" /> A barra colorida é o que <b>todos os mecânicos juntos</b> fizeram na semana; o trilho cinza é o esperado (<b>4 h por dia útil de cada um</b>). Encheu o trilho, bateu a meta básica. {comAg ? 'Inclui as OS preenchidas que ainda esperam faturar.' : 'Conta só as OS já faturadas.'}</p>
         </div>
       </div>
       <button type="button" className={`eqc-abrir ${abrir ? 'on' : ''}`} onClick={() => setAbrir((v) => !v)}>
@@ -197,20 +153,6 @@ export default function EquipeCapa({ mes }: { mes: string }) {
       </button>
       {abrir && <div className="eqc-cartoes" key={String(comAg)}><style>{ESTILO_HO}</style><style>{ESTILO_HC}</style><C6 d={d} /></div>}
     </section>
-  )
-}
-
-/** Caixa do mouse no gráfico, com os ícones da legenda. */
-function Dica({ active, payload, label, semana }: { active?: boolean; payload?: { dataKey?: string | number; value?: number | null }[]; label?: string | number; semana?: boolean }) {
-  if (!active || !payload?.length) return null
-  const v = (k: string) => payload.find((p) => p.dataKey === k)?.value
-  const feito = v('feito'), esp = v('esperado')
-  return (
-    <div className="eqc-dica">
-      <b>{semana ? `Semana ${label}` : `Até o dia ${label}`}</b>
-      {LEGENDA.map((x) => { const val = v(x.k); return val == null ? null : <div key={x.k}><i className={`fas ${x.ic}`} style={{ color: x.cor }} /><span>{x.t}</span><em>{h1(Number(val))} h</em></div> })}
-      {feito != null && esp != null && esp > 0 && <small style={{ color: feito >= esp ? '#047857' : '#b91c1c' }}>{feito >= esp ? `${h1(feito - esp)} h acima da básica` : `${h1(esp - feito)} h abaixo da básica`}</small>}
-    </div>
   )
 }
 
@@ -237,6 +179,20 @@ const ESTILO_EQC = `
 .eqc-dica { background: #0f172a; color: #fefefe; border-radius: 12px; padding: 10px 12px; display: grid; gap: 5px; min-width: 210px; box-shadow: 0 10px 30px rgba(15,23,42,.25) }
 .eqc-dica > b { font-size: 13px; font-weight: 500 } .eqc-dica > div { display: grid; grid-template-columns: 16px 1fr auto; gap: 8px; align-items: center; font-size: 12.5px } .eqc-dica span { color: #cbd5e1 } .eqc-dica em { font-style: normal; font-variant-numeric: tabular-nums }
 .eqc-dica > small { font-size: 12px; font-weight: 600; filter: brightness(1.6) }
+.eqc-sem { display: grid; gap: 8px; min-width: 0; align-content: start }
+.eqc-sem-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap } .eqc-sem-cab b { font-size: 15px; font-weight: 500; color: #0f172a }
+.eqc-sem-cab span { display: inline-flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: #475569 } .eqc-sem-cab i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: -6px } .eqc-sem-cab i.ok { background: #10b981 } .eqc-sem-cab i.quase { background: #f59e0b } .eqc-sem-cab i.baixo { background: #ef4444 }
+.eqc-w { display: grid; grid-template-columns: 150px minmax(0, 1fr) 150px; gap: 14px; align-items: center; padding: 10px 12px; border-radius: 12px; background: #f8fafc; animation: eqcEntra .45s both }
+.eqc-w.agora { background: #eff6ff; box-shadow: inset 0 0 0 1px #bfdbfe } .eqc-w.fut { opacity: .55 }
+@keyframes eqcEntra { from { opacity: 0; transform: translateY(6px) } }
+.eqc-w-t { display: grid; gap: 1px } .eqc-w-t b { font-size: 14px; font-weight: 500; color: #0f172a } .eqc-w-t small { font-size: 12.5px; color: #475569 } .eqc-w-t em { justify-self: start; font-style: normal; font-size: 11.5px; color: #1d4ed8; background: #dbeafe; border-radius: 99px; padding: 1px 8px; margin-top: 2px }
+.eqc-w-bar { position: relative; height: 16px; border-radius: 99px; background: #eef2f6 }
+.eqc-w-bar .esp { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: #dde3ea }
+.eqc-w-bar u { position: absolute; inset: 0 auto 0 0; border-radius: 99px; transform-origin: left; animation: eqcEnche 1s cubic-bezier(.2,.8,.2,1) both }
+.eqc-w.ok .eqc-w-bar u { background: linear-gradient(90deg, #34d399, #10b981) } .eqc-w.quase .eqc-w-bar u { background: linear-gradient(90deg, #fbbf24, #f59e0b) } .eqc-w.baixo .eqc-w-bar u { background: linear-gradient(90deg, #f87171, #ef4444) } .eqc-w.fut .eqc-w-bar u { background: #cbd5e1 }
+.eqc-w-v { display: grid; justify-items: end; gap: 1px; font-variant-numeric: tabular-nums } .eqc-w-v b { font-size: 16px; font-weight: 500; color: #0f172a } .eqc-w-v small { font-size: 12.5px; color: #475569 }
+.eqc-w.ok .eqc-w-v small { color: #047857 } .eqc-w.baixo .eqc-w-v small { color: #b91c1c } .eqc-w.quase .eqc-w-v small { color: #b45309 }
+@media (max-width: 700px) { .eqc-w { grid-template-columns: 1fr; gap: 6px } .eqc-w-v { justify-items: start } }
 .eqc-exp { margin: 0; font-size: 13px; color: #334155; line-height: 1.5; background: #f8fafc; border-radius: 10px; padding: 9px 12px } .eqc-exp > i { color: #2563eb; margin-right: 4px }
 .eqc-abrir { justify-self: start; display: inline-flex; gap: 8px; align-items: center; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; border-radius: 99px; padding: 8px 16px; font-family: inherit; font-size: 14px; cursor: pointer } .eqc-abrir:hover, .eqc-abrir.on { background: #dbeafe }
 @media (max-width: 1000px) { .eqc-corpo { grid-template-columns: 1fr } }
