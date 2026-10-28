@@ -53,6 +53,7 @@ export default function QuemAcessa() {
   return (
     <>
       <button
+        className="quem-acessa-btn"
         onClick={() => setAberto((a) => !a)}
         title="Quem acessa esta página? (só Dev)"
         style={{

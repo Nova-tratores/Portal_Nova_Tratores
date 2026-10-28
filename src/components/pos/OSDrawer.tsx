@@ -306,6 +306,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [showNovaMaquina, setShowNovaMaquina] = useState(false);
   const [showRevModal, setShowRevModal] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
+  // celular/tablet: a coluna de ações vira gaveta que sobe de baixo (fechada = só Salvar + "Ações")
+  const [acoesAbertas, setAcoesAbertas] = useState(false);
   const [printMenu, setPrintMenu] = useState(false);
   // O rail tem overflow-y:auto e cortava o menu; abrimos ele em position:fixed.
   const printBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -1473,20 +1475,42 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           @media (max-width: 900px) {
             .pos-osd .os-header { flex-wrap: wrap; gap: 8px; }
             .pos-osd .os-header-left { flex-wrap: wrap; min-width: 0; }
+            /* Celular/tablet (28/10/2026): a coluna de ações cobria a OS inteira. Agora a OS ocupa a tela e
+               embaixo fica uma barra fixa só com Salvar + "Ações"; "Ações" sobe a coluna como gaveta. */
             .pos-osd .modal-container { flex-direction: column; }
-            .pos-osd .os-action-rail { width: 100%; align-self: auto; border-left: none; border-top: 1px solid var(--border); border-radius: 0; max-height: none; flex-direction: row; flex-wrap: wrap; gap: 8px; padding: 10px 12px; position: sticky; bottom: 0; box-shadow: 0 -6px 18px rgba(0,0,0,0.08); }
-            .pos-osd .os-rail-btn { width: auto; flex: 1 1 30%; justify-content: center; padding: 10px 12px; min-height: 40px; }
-            .pos-osd .os-action-rail > div { flex: 1 1 30%; }
-            .pos-osd .os-action-rail > div > .os-rail-btn { width: 100%; }
-            .pos-osd .os-rail-btn.primary { order: -1; flex: 1 1 100%; margin-bottom: 0; }
-            .pos-osd .os-rail-sep, .pos-osd .os-rail-hint { flex: 1 1 100%; }
+            .pos-osd .os-drawer { flex: 1 1 auto; min-height: 0; max-height: none !important; }
+            .pos-osd .os-body { padding-bottom: 84px !important; }
+            .pos-osd .os-action-rail.os-rail-nova { position: fixed !important; left: 0; right: 0; bottom: 0; z-index: 60; width: auto !important; max-height: none !important;
+              flex-direction: row !important; flex-wrap: nowrap; align-items: center; gap: 8px !important; padding: 10px 12px calc(10px + env(safe-area-inset-bottom)) !important;
+              border: none; border-top: 1px solid var(--border); border-radius: 0; overflow: visible; box-shadow: 0 -6px 18px rgba(0,0,0,0.10); }
+            .pos-osd .os-action-rail.os-rail-nova > * { display: none !important; }
+            .pos-osd .os-action-rail.os-rail-nova > style,
+            .pos-osd .os-action-rail.os-rail-nova > .os-rail-btn.primary,
+            .pos-osd .os-action-rail.os-rail-nova > .os-rail-gaveta-btn { display: flex !important; }
+            .pos-osd .os-action-rail.os-rail-nova > style { display: none !important; }
+            .pos-osd .os-action-rail.os-rail-nova > .os-rail-btn.primary { flex: 1 1 auto; justify-content: center; margin: 0 !important; }
+            .pos-osd .os-rail-gaveta-btn { flex: 0 0 auto; align-items: center; gap: 8px; height: 46px; padding: 0 16px; border-radius: 12px; border: 1.5px solid var(--border);
+              background: var(--surface, #fefefe); color: var(--portal-text); font-size: 14.5px; font-weight: 700; cursor: pointer; }
+            .pos-osd .os-rail-gaveta-fundo { position: fixed; inset: 0; z-index: 59; background: rgba(15,23,42,.45); }
+            /* botão "Quem acessa" (Dev) sobe para não ficar em cima do Salvar */
+            body:has(.pos-osd) .quem-acessa-btn { bottom: 84px !important; }
+            /* gaveta aberta: a coluna inteira, um bloco embaixo do outro */
+            .pos-osd .os-action-rail.os-rail-nova.aberta { top: 12vh; flex-direction: column !important; flex-wrap: nowrap; align-items: stretch; overflow-y: auto;
+              border-radius: 18px 18px 0 0; padding-top: 8px !important; }
+            .pos-osd .os-action-rail.os-rail-nova.aberta > * { display: flex !important; flex: 0 0 auto !important; width: 100% !important; max-width: none !important; }
+            .pos-osd .os-action-rail.os-rail-nova.aberta > div { flex-direction: column; }
+            .pos-osd .os-action-rail.os-rail-nova.aberta > style { display: none !important; }
+            .pos-osd .os-action-rail.os-rail-nova.aberta > .os-rail-gaveta-btn { order: -2; justify-content: center; border: none; background: transparent; height: 36px; color: var(--portal-text-secondary); }
+            .pos-osd .os-action-rail.os-rail-nova.aberta > .os-rail-btn.primary { order: -1; }
+            .pos-osd .os-action-rail.os-rail-nova.aberta .os-rail-btn:not(.primary) { justify-content: flex-start; width: 100%; }
           }
+          @media (min-width: 901px) { .pos-osd .os-rail-gaveta-btn, .pos-osd .os-rail-gaveta-fundo { display: none !important; } }
           @media (max-width: 640px) {
-            .pos-osd .pos-osd-grid2 { grid-template-columns: 1fr !important; gap: 10px !important; }
+            /* minmax(0,1fr): com 1fr puro o nome comprido do cliente esticava a coluna para fora da tela */
+            .pos-osd .pos-osd-grid2 { grid-template-columns: minmax(0, 1fr) !important; gap: 10px !important; }
+            .pos-osd .pos-osd-grid2 > * { min-width: 0; }
             .pos-osd .os-summary { padding: 10px !important; }
             .pos-osd .os-tab { padding: 10px 14px; font-size: 14px; }
-            .pos-osd .os-rail-btn, .pos-osd .os-action-rail > div { flex-basis: 45%; }
-            .pos-osd .os-rail-btn.primary { flex-basis: 100%; }
           }
         `}</style>
         <div className="modal-container">
@@ -1603,6 +1627,17 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                             .osh-doc { font-size: 11px; color: #64748b; font-variant-numeric: tabular-nums; }
                             .osh-ico { width: 42px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: none; border-left: 1px solid var(--border); background: transparent; color: #475569; cursor: pointer; font-size: 13px; transition: background .15s, color .15s; }
                             .osh-ico:hover { background: color-mix(in srgb, #0F8B8D 10%, transparent) !important; color: #0B6E70 !important; }
+                            /* celular: nome inteiro numa linha e os botões numa faixa embaixo (antes o nome sumia atrás dos ícones) */
+                            @media (max-width: 640px) {
+                              .osh-selo { display: none; }
+                              .osh-caixa { flex-wrap: wrap; height: auto; overflow: hidden; }
+                              .osh-caixa > *, .osh-caixa > :first-child, .osh-caixa > :last-child, .osh-caixa > :last-child > button { border-radius: 0 !important; }
+                              .osh-nome { flex: 1 1 100%; padding: 8px 12px; }
+                              .osh-nome-txt { white-space: normal; line-height: 1.25; }
+                              .osh-caixa > :not(.osh-nome) { flex: 1 1 0; height: 38px; border-top: 1px solid var(--border); }
+                              .osh-caixa > :not(.osh-nome) button, .osh-caixa > button.osh-ico { width: 100% !important; }
+                              .osh-caixa > .osh-ico:nth-child(2), .osh-caixa > :nth-child(2) > button { border-left: none !important; }
+                            }
                           `}</style>
                         </div>
                         <div>
@@ -2708,7 +2743,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           </div>
 
           {/* ── Coluna de ações à direita (estilo Omie) ── */}
-          <div className="os-action-rail os-rail-nova">
+          {acoesAbertas && <div className="os-rail-gaveta-fundo" onClick={() => setAcoesAbertas(false)} />}
+          {/* a gaveta NÃO fecha ao tocar numa ação: Anexos, Tarefas, QR e Imprimir são desenhados aqui dentro
+              e sumiriam junto com ela */}
+          <div className={`os-action-rail os-rail-nova${acoesAbertas ? " aberta" : ""}`}>
             {/* visual da coluna (José, 14/10/2026) — aqui dentro p/ não depender do CSS global */}
             <style>{`
               .os-rail-nova { gap: 10px !important; padding: 14px 12px !important; background: var(--portal-bg-secondary, #f6f8f9) !important; }
@@ -2736,6 +2774,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
               <i className="fas fa-floppy-disk" />
               {saving ? "Salvando..." : (mode === "edit" && loadingData) ? "Carregando..." : mode === "create" ? "Criar Ordem" : (mode === "edit" && !podeEditar) ? "Somente leitura" : "Salvar"}
             </button>
+            {mode === "edit" && (
+              <button type="button" className="os-rail-gaveta-btn" onClick={() => setAcoesAbertas((v) => !v)} aria-expanded={acoesAbertas}>
+                {acoesAbertas ? <><i className="fas fa-chevron-down" /> Fechar</> : <><i className="fas fa-chevron-up" /> Ações</>}
+              </button>
+            )}
 
             {mode === "edit" && (
               <>
