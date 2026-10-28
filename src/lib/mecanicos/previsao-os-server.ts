@@ -8,7 +8,8 @@ import { createHash } from 'crypto'
 import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
 import { chamarIA } from '@/lib/assistente/ia'
 import { parseHoras } from '@/lib/pos/horas-tecnico'
-import { candidatos, compararPrevisao, fmtMin, TEMPARIO, type SituacaoPrevisao } from './tempario'
+import { candidatos, compararPrevisao, fmtMin, type AtividadeTempario, type SituacaoPrevisao } from './tempario'
+import { temparioVigente } from './tempario-server'
 
 type Rec = Record<string, unknown>
 export interface AtividadePrevista { i: number; codigo: string | null; atividade: string; minutos: number; qtd: number; porque: string }
@@ -39,8 +40,9 @@ export function alertasDe(p: { situacao: SituacaoPrevisao; horasRelatorio: numbe
   return []
 }
 
-async function escolherNoTempario(texto: string, modelo: string): Promise<{ atividades: AtividadePrevista[]; observacao: string | null }> {
-  const cands = candidatos(texto, 60)
+async function escolherNoTempario(texto: string, modelo: string, tempario: (AtividadeTempario & { i: number })[]): Promise<{ atividades: AtividadePrevista[]; observacao: string | null }> {
+  // o tempário vigente: o base com os ajustes da equipe (José, 28/10/2026)
+  const cands = candidatos(texto, 60, tempario)
   if (!cands.length) return { atividades: [], observacao: null }
   const lista = cands.map((c, k) => `${k + 1}. ${c.atividade}${c.sistema ? ` [${c.sistema}${c.subsistema ? ' / ' + c.subsistema : ''}]` : ''} — ${c.minutos} min`).join('\n')
   const r = await chamarIA({
@@ -71,7 +73,9 @@ export async function preverOS(idOrdem: string, opts: { forcar?: boolean } = {})
   if (!rel) return null
   const texto = [rel.Motivo && `Diagnóstico: ${rel.Motivo}`, rel.ServicoRealizado && `Serviço realizado: ${rel.ServicoRealizado}`].filter(Boolean).join('\n')
   const horas = parseHoras(rel.TotalHora), km = num(rel.TotalKm)
-  const hash = createHash('sha1').update(`${texto}|${horas}|${TEMPARIO.length}`).digest('hex')
+  const vig = await temparioVigente()
+  // a versão do tempário entra no hash: ajustou o tempário, a OS é reavaliada
+  const hash = createHash('sha1').update(`${texto}|${horas}|${vig.lista.length}|${vig.versao}`).digest('hex')
   let semTabela = false
   if (!opts.forcar) {
     const { data, error } = await sb.from('posvendas_os_previsao').select('*').eq('id_ordem', idOrdem).maybeSingle()
@@ -85,7 +89,7 @@ export async function preverOS(idOrdem: string, opts: { forcar?: boolean } = {})
   }
   // revisão, entrega técnica e montagem têm tempo próprio (plano de revisão / valor fixo) — fora do tempário
   const revisao = /revis|entrega|montag|pr[eé].?entrega/i.test(`${rel.TipoServico || ''} ${String(rel.ServicoRealizado || '').slice(0, 80)}`)
-  const esc = !texto || revisao ? { atividades: [], observacao: null } : await escolherNoTempario(texto, String(rel.Modelo || ''))
+  const esc = !texto || revisao ? { atividades: [], observacao: null } : await escolherNoTempario(texto, String(rel.Modelo || ''), vig.lista)
   const minutos = esc.atividades.length ? esc.atividades.reduce((s, a) => s + a.minutos * a.qtd, 0) : null
   const cmp = compararPrevisao(horas, minutos)
   const situacao: SituacaoPrevisao = revisao ? 'sem_previsao' : cmp.situacao

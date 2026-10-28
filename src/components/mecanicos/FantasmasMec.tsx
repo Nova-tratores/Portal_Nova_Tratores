@@ -8,6 +8,7 @@ import { Fragment, useEffect, useRef, useState } from 'react'
 import { authHeaders } from '@/lib/auth/client'
 import type { Fantasmas, TecnicoFantasma, OSFantasma, DiaFantasma } from '@/lib/mecanicos/fantasmas-server'
 import { useVersaoAoVivo } from './useAoVivo'
+import TemparioJanela from './TemparioJanela'
 
 const h = (v: number) => `${String(Math.round(v * 10) / 10).replace('.', ',')} h`
 const km = (v: number) => `${Math.round(v).toLocaleString('pt-BR')} km`
@@ -148,6 +149,7 @@ function LinhaMes({ dias, mes }: { dias: DiaFantasma[]; mes: string }) {
 
 export function CartaoTecnico({ t, ordem = 0 }: { t: TecnicoFantasma; ordem?: number }) {
   const [aberto, setAberto] = useState<'os' | 'dias' | null>(null)
+  const [tempario, setTempario] = useState<string | null>(null)
   const x = t.totais
   const maxH = Math.max(x.ligadoH, x.horasRel, x.horasCobradas, x.horasPrevistas, 1)
   const maxK = Math.max(x.kmCarro, x.kmRel, x.kmCobrado, 1)
@@ -192,14 +194,15 @@ export function CartaoTecnico({ t, ordem = 0 }: { t: TecnicoFantasma; ordem?: nu
       {/* gráfico do mês tirado do cartão (José, 21/10/2026); o dia a dia continua na aba "Dia a dia" */}
       {alertas.length > 0 && (
         <div className="fan-alertas">
-          {alertas.slice(0, 4).map((o) => <div key={o.os} className={`fan-al ${SIT[o.situacao].cls}`}><span className="fan-pulso" /><b>{o.os}</b><span>{o.cliente}</span><span>{o.alertas[0]?.texto}</span></div>)}
+          {alertas.slice(0, 4).map((o) => <div key={o.os} className={`fan-al ${SIT[o.situacao].cls}`}><span className="fan-pulso" /><b>{o.os}</b><span>{o.cliente}</span><span>{o.alertas[0]?.texto}</span><button type="button" className="fan-tp" onClick={() => setTempario(o.os)} title="ver o que o técnico escreveu no tempário e ajustar"><i className="fas fa-stopwatch" /> ver no tempário</button></div>)}
         </div>
       )}
       <div className="fan-abas">
         <button type="button" className={aberto === 'os' ? 'on' : ''} onClick={() => setAberto(aberto === 'os' ? null : 'os')}>Ordens de serviço ({t.os.length})</button>
         <button type="button" className={aberto === 'dias' ? 'on' : ''} onClick={() => setAberto(aberto === 'dias' ? null : 'dias')}>Dia a dia</button>
       </div>
-      {aberto === 'os' && <TabelaOS os={t.os} />}
+      {aberto === 'os' && <TabelaOS os={t.os} onTempario={setTempario} />}
+      {tempario && <TemparioJanela os={tempario} onFechar={() => setTempario(null)} />}
       {aberto === 'dias' && (
         <div className="fan-tab">
           <div className="fan-th d"><span>Dia</span><span>OS</span><span className="n">Relatório</span><span className="n">Carro ligado</span><span>Carro</span><span className="n">Km carro</span><span className="n">Km relatório</span></div>
@@ -217,7 +220,7 @@ export function CartaoTecnico({ t, ordem = 0 }: { t: TecnicoFantasma; ordem?: nu
   )
 }
 
-function TabelaOS({ os }: { os: OSFantasma[] }) {
+function TabelaOS({ os, onTempario }: { os: OSFantasma[]; onTempario: (os: string) => void }) {
   return (
     <div className="fan-tab">
       <div className="fan-th o"><span>OS</span><span>Cliente</span><span className="n">Relatório</span><span className="n">Cobrado</span><span className="n">Tempário</span><span>Situação</span><span className="n">Km rel. / cobr. / carro</span></div>
@@ -229,7 +232,7 @@ function TabelaOS({ os }: { os: OSFantasma[] }) {
             <span><em className={`fan-sit ${SIT[o.situacao]?.cls || 'n'}`}>{SIT[o.situacao]?.rot || o.situacao}</em></span>
             <span className="n">{Math.round(o.kmRel)} / {Math.round(o.kmCobrado)} / {Math.round(o.kmCarro)}</span>
           </div>
-          {o.alertas.filter((a) => a.nivel !== 'azul').map((a, i) => <div key={i} className={`fan-tr-al ${a.nivel}`}>{a.texto}</div>)}
+          {o.alertas.filter((a) => a.nivel !== 'azul').map((a, i) => <div key={i} className={`fan-tr-al ${a.nivel}`}>{a.texto} <button type="button" className="fan-tp" onClick={() => onTempario(o.os)}><i className="fas fa-stopwatch" /> ver no tempário</button></div>)}
         </Fragment>
       ))}
     </div>
@@ -282,7 +285,8 @@ export const ESTILO_FAN = `
 .fan-mes-c, .fan-mes-r { position: absolute; bottom: 0; border-radius: 3px 3px 0 0; transform-origin: bottom; animation: fanColuna .7s var(--d) cubic-bezier(.2,.8,.2,1) both }
 .fan-mes-c { left: 0; right: 0; background: #cbd5e1 } .fan-mes-r { left: 25%; right: 25%; background: #2563eb }
 .fan-alertas { display: grid; gap: 6px }
-.fan-al { display: grid; grid-template-columns: 10px 64px minmax(0, 150px) 1fr; gap: 10px; font-size: 13px; border-radius: 12px; padding: 8px 12px; align-items: baseline; animation: fanSobe .4s both } .fan-al b { font-weight: 500 } .fan-al span:nth-child(3) { color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.fan-tp { border: 1px solid #99f6e4; background: #f0fdfa; color: #0f766e; border-radius: 99px; padding: 3px 10px; font-family: inherit; font-size: 12.5px; cursor: pointer; white-space: nowrap; align-self: center } .fan-tp:hover { background: #ccfbf1 } .fan-tp i { font-size: 11px; margin-right: 2px }
+.fan-al { display: grid; grid-template-columns: 10px 64px minmax(0, 150px) 1fr auto; gap: 10px; font-size: 13px; border-radius: 12px; padding: 8px 12px; align-items: baseline; animation: fanSobe .4s both } .fan-al b { font-weight: 500 } .fan-al span:nth-child(3) { color: #475569; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .fan-al.v { background: #fef2f2; color: #7f1d1d } .fan-al.a { background: #fffbeb; color: #78350f }
 .fan-pulso { width: 8px; height: 8px; border-radius: 50%; background: currentColor; align-self: center; animation: fanPulso 1.8s infinite }
 .fan-abas { display: flex; gap: 6px } .fan-abas button { border: 1px solid var(--portal-border, #e2e8f0); background: #fefefe; color: #334155; border-radius: 99px; padding: 7px 15px; font-family: inherit; font-size: 13px; cursor: pointer; transition: all .2s } .fan-abas button:hover { border-color: #0f172a } .fan-abas button.on { background: #0f172a; border-color: #0f172a; color: #fefefe }

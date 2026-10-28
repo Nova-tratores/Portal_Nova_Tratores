@@ -28,22 +28,53 @@ export function normalizar(t: string): string {
 }
 const tokens = (t: string) => normalizar(t).split(' ').filter((w) => w.length >= 3 && !VAZIAS.has(w))
 
-// índice: tokens de cada atividade + raridade (palavra rara vale mais)
-const TOK = TEMPARIO.map((a) => new Set(tokens(`${a.atividade} ${a.sistema || ''} ${a.subsistema || ''}`)))
-const DF = new Map<string, number>()
-for (const s of TOK) for (const w of s) DF.set(w, (DF.get(w) || 0) + 1)
-const idf = (w: string) => Math.log(1 + TEMPARIO.length / (1 + (DF.get(w) || 0)))
+// índice: tokens de cada atividade + raridade (palavra rara vale mais) — um por lista (base ou base + ajustes)
+type Indice = { tok: Set<string>[]; df: Map<string, number> }
+const INDICES = new WeakMap<object, Indice>()
+function indice(lista: AtividadeTempario[]): Indice {
+  let x = INDICES.get(lista)
+  if (!x) {
+    const tok = lista.map((a) => new Set(tokens(`${a.atividade} ${a.sistema || ''} ${a.subsistema || ''}`)))
+    const df = new Map<string, number>()
+    for (const s of tok) for (const w of s) df.set(w, (df.get(w) || 0) + 1)
+    x = { tok, df }
+    INDICES.set(lista, x)
+  }
+  return x
+}
 
-/** As atividades do tempário mais parecidas com o texto (para a IA escolher entre poucas). Só as que têm tempo. */
-export function candidatos(texto: string, n = 60): (AtividadeTempario & { i: number; nota: number })[] {
+/** As atividades do tempário mais parecidas com o texto (para a IA escolher entre poucas). Só as que têm tempo.
+ *  `lista` = o tempário vigente (com os ajustes da equipe); sem ela, o base. */
+export function candidatos(texto: string, n = 60, lista: (AtividadeTempario & { i: number })[] = TEMPARIO): (AtividadeTempario & { i: number; nota: number })[] {
   const q = [...new Set(tokens(texto))]
   if (!q.length) return []
-  return TEMPARIO.map((a, k) => {
+  const { tok, df } = indice(lista)
+  const idf = (w: string) => Math.log(1 + lista.length / (1 + (df.get(w) || 0)))
+  return lista.map((a, k) => {
     if (!a.minutos) return null
     let nota = 0
-    for (const w of q) if (TOK[k].has(w)) nota += idf(w)
+    for (const w of q) if (tok[k].has(w)) nota += idf(w)
     return nota > 0 ? { ...a, nota } : null
   }).filter((x): x is AtividadeTempario & { i: number; nota: number } => !!x).sort((a, b) => b.nota - a.nota).slice(0, n)
+}
+
+/** Ajuste feito pela equipe (tabela mecanicos_tempario_ajustes). base_i = muda uma do base; nulo = atividade nova. */
+export interface AjusteTempario {
+  id: number; base_i: number | null; baseado_em: number | null; codigo: string | null; sistema: string | null; subsistema: string | null
+  atividade: string; minutos: number | null; motivo: string; os_origem: string | null; criado_por: string; criado_em: string
+}
+/** Índice das atividades novas (não colide com o base: 100000 + id). */
+export const iDoAjuste = (id: number) => 100000 + id
+/** O tempário vigente: o base com o ajuste mais novo de cada atividade + as atividades novas. PURO (tela e servidor). */
+export function aplicarAjustes(base: (AtividadeTempario & { i: number })[], ajustes: AjusteTempario[]): (AtividadeTempario & { i: number; ajuste?: AjusteTempario; nova?: boolean })[] {
+  const ultimo = new Map<number, AjusteTempario>()
+  for (const a of [...ajustes].sort((x, y) => x.criado_em.localeCompare(y.criado_em))) if (a.base_i != null) ultimo.set(a.base_i, a)
+  const out: (AtividadeTempario & { i: number; ajuste?: AjusteTempario; nova?: boolean })[] = base.map((b) => {
+    const a = ultimo.get(b.i)
+    return a ? { ...b, atividade: a.atividade || b.atividade, minutos: a.minutos, sistema: a.sistema ?? b.sistema, subsistema: a.subsistema ?? b.subsistema, ajuste: a } : b
+  })
+  for (const a of ajustes) if (a.base_i == null) out.push({ i: iDoAjuste(a.id), codigo: a.codigo, acao: null, sistema: a.sistema, subsistema: a.subsistema, atividade: a.atividade, minutos: a.minutos, ajuste: a, nova: true })
+  return out
 }
 
 export const fmtMin = (m: number) => { const h = Math.floor(m / 60), mm = Math.round(m % 60); return h ? `${h}h${mm ? String(mm).padStart(2, '0') : ''}` : `${mm}min` }
