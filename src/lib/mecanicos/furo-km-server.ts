@@ -13,6 +13,7 @@ import { computarESalvarRota } from '@/lib/pos/rastreamento'
 import { distanciaM, minutosNoExpediente, soDigitos, LOJA, RAIO_LOJA_M } from '@/lib/pos/localizacao-cliente'
 import { fantasmasDoMes } from './fantasmas-server'
 import { comCache } from './cache'
+import { motivosZeca, type MotivoZeca, type OSZeca } from './robo-zeca'
 import { DIVERGENCIAS, type Divergencia } from './divergencias'
 export { ehDivergencia, type Divergencia } from './divergencias'
 
@@ -48,7 +49,11 @@ export interface DiaFuro {
   /** naOS = ele consta como técnico na OS do colega (Os_Tecnico/Os_Tecnico2) — José: "se foi com outro técnico, confirma na ordem; se não tiver o nome dele, avisa" */
   colegas: (OSDoDia & { tecnico: string; semCarro: boolean; naOS: boolean })[]
 }
-export interface OSTotal { os: string; cliente: string; dias: string[]; kmRel: number; kmCobrado: number; horasRel: number; horasCobradas: number }
+export interface OSTotal {
+  os: string; cliente: string; cidade: string; dias: string[]; kmRel: number; kmCobrado: number; horasRel: number; horasCobradas: number
+  /** Zeca da Frota: por que o relatório não virou cobrança (só quando diverge) e o que o GPS mostra */
+  zecaKm?: MotivoZeca[]; zecaHoras?: MotivoZeca[]; gps?: string
+}
 export interface FuroKm { tecnico: string; mes: string; placas: string[]; dias: DiaFuro[]; kmGps: number; kmCobrado: number; furo: number; osTotais: OSTotal[] }
 
 type Loc = { lat: number; lng: number; nome: string; conf: 'confirmado' | 'cadastro' }
@@ -86,11 +91,12 @@ export async function furoKm(tecnico: string, mes: string): Promise<FuroKm | nul
   // documento do cliente de cada OS → onde ele fica
   const docDe = new Map<string, string>()
   const tecsDe = new Map<string, string[]>()
+  const infoOS = new Map<string, Rec>()
   const outros = f.tecnicos.filter((y) => y.tecnico !== tecnico)
   const ids = [...new Set([...t.os.map((o) => o.os), ...outros.flatMap((y) => y.os.map((o) => o.os))])]
   for (let i = 0; i < ids.length; i += 200) {
-    const { data } = await sb.from('Ordem_Servico').select('Id_Ordem, Cnpj_Cliente, Os_Tecnico, Os_Tecnico2').in('Id_Ordem', ids.slice(i, i + 200))
-    for (const o of (data || []) as Rec[]) { docDe.set(String(o.Id_Ordem), soDigitos(o.Cnpj_Cliente)); tecsDe.set(String(o.Id_Ordem), [o.Os_Tecnico, o.Os_Tecnico2].map((x) => String(x || ''))) }
+    const { data } = await sb.from('Ordem_Servico').select('Id_Ordem, Cnpj_Cliente, Os_Tecnico, Os_Tecnico2, Cidade_Cliente, Status, faturamento_status, Servico_Interno, Servico_Oficina, Tipo_Servico, Desconto_KM, Desconto_Hora, Qtd_KM, Qtd_HR, recibo_numero, faturado_por, faturado_omie_em').in('Id_Ordem', ids.slice(i, i + 200))
+    for (const o of (data || []) as Rec[]) { docDe.set(String(o.Id_Ordem), soDigitos(o.Cnpj_Cliente)); tecsDe.set(String(o.Id_Ordem), [o.Os_Tecnico, o.Os_Tecnico2].map((x) => String(x || ''))); infoOS.set(String(o.Id_Ordem), o) }
   }
   const locais = await locaisDosClientes([...new Set([...docDe.values()].filter(Boolean))]).catch(() => new Map<string, Loc[]>())
 
@@ -166,32 +172,113 @@ export async function furoKm(tecnico: string, mes: string): Promise<FuroKm | nul
     }
   }
   dias.sort((a, b) => b.furo - a.furo || b.data.localeCompare(a.data))
-  const osTotais = t.os.map((o) => ({ os: o.os, cliente: o.cliente, dias: o.dias, kmRel: o.kmRel, kmCobrado: o.kmCobrado, horasRel: o.horasRel, horasCobradas: o.horasCobradas }))
+  const osTotais: OSTotal[] = []
+  for (const o of t.os) {
+    const inf = (infoOS.get(o.os) || {}) as Rec
+    const cidade = String(inf.Cidade_Cliente || '')
+    const difKm = o.kmRel - o.kmCobrado > 0.5, difH = o.horasRel - o.horasCobradas > 0.05
+    const tot: OSTotal = { os: o.os, cliente: o.cliente, cidade, dias: o.dias, kmRel: o.kmRel, kmCobrado: o.kmCobrado, horasRel: o.horasRel, horasCobradas: o.horasCobradas }
+    if (difKm) tot.zecaKm = motivosZeca(inf as OSZeca, 'km', o.kmRel, o.kmCobrado)
+    if (difH) tot.zecaHoras = motivosZeca(inf as OSZeca, 'horas', o.horasRel, o.horasCobradas)
+    if (difKm || difH) tot.gps = await provaGps(o.os, o.dias, cidade, dias, t.tecnico.split(' ')[0]).catch(() => undefined)
+    osTotais.push(tot)
+  }
   return { tecnico, mes, placas: t.placas, dias, osTotais, kmGps: Math.round(t.totais.kmCarro), kmCobrado: Math.round(t.totais.kmCobrado), furo: Math.max(0, Math.round(t.totais.kmCarro - t.totais.kmCobrado)) }
 }
 
-// cidade de um ponto (ORS reverse), guardada por ponto arredondado (~100 m)
-const CIDADES = new Map<string, string | null>()
-async function cidadeDe(lat: number, lng: number): Promise<string | null> {
-  const k = `${lat.toFixed(3)},${lng.toFixed(3)}`
-  if (CIDADES.has(k)) return CIDADES.get(k)!
+// ── Cidades (José, 28/10/2026). A ORS tem cota diária e estourou nos testes: agora cada ponto/cidade é procurado UMA
+// vez e fica guardado no banco (posvendas_painel_cache, chaves geo-cidade:/geo-centro:); sem cota na ORS, usa o
+// Nominatim (OpenStreetMap, 1 pedido por segundo).
+const GEO_TABELA = 'posvendas_painel_cache'
+const GEO = new Map<string, unknown>()
+let orsParadaAte = 0
+let filaOsm: Promise<unknown> = Promise.resolve()
+/** Nominatim: um pedido por vez, 1,1 s entre eles (regra do OpenStreetMap) */
+function osm<T>(url: string): Promise<T | null> {
+  const p = filaOsm.then(async () => {
+    try {
+      const r = await fetch(url, { headers: { 'User-Agent': 'PortalNovaTratores/1.0', 'Accept-Language': 'pt-BR' }, signal: AbortSignal.timeout(8000) })
+      return r.ok ? ((await r.json()) as T) : null
+    } catch { return null } finally { await new Promise((ok) => setTimeout(ok, 1100)) }
+  })
+  filaOsm = p.catch(() => null)
+  return p
+}
+async function ors<T>(caminho: string): Promise<T | null> {
   const key = process.env.ORS_API_KEY || process.env.NEXT_PUBLIC_ORS_API_KEY || ''
-  if (!key) return null
+  if (!key || Date.now() < orsParadaAte) return null
   try {
-    const r = await fetch(`https://api.openrouteservice.org/geocode/reverse?api_key=${key}&point.lat=${lat}&point.lon=${lng}&size=1&layers=locality,localadmin,county`, { signal: AbortSignal.timeout(6000) })
-    if (!r.ok) return null // limite da ORS: não guarda, tenta de novo depois
-    const j = await r.json()
-    const pr = j?.features?.[0]?.properties || {}
-    const nome = (pr.locality || pr.localadmin || pr.county || null) as string | null
-    const uf = (pr.region_a || '') as string
-    const c = nome ? `${nome}${uf ? ` - ${uf}` : ''}` : null
-    CIDADES.set(k, c)
-    return c
+    const r = await fetch(`https://api.openrouteservice.org${caminho}&api_key=${key}`, { signal: AbortSignal.timeout(6000) })
+    if (r.status === 403 || r.status === 429) { orsParadaAte = Date.now() + 3600_000; return null } // sem cota: 1 h só no OpenStreetMap
+    return r.ok ? ((await r.json()) as T) : null
   } catch { return null }
 }
+/** lê do banco as chaves que ainda não estão na memória */
+async function geoGuardados(chaves: string[]) {
+  const faltam = chaves.filter((k) => !GEO.has(k))
+  for (let i = 0; i < faltam.length; i += 200) {
+    const { data } = await sb.from(GEO_TABELA).select('chave, dados').in('chave', faltam.slice(i, i + 200))
+    for (const r of (data || []) as Rec[]) GEO.set(String(r.chave), (r.dados as { v: unknown }).v)
+  }
+}
+async function geoGuardar(chave: string, v: unknown) {
+  GEO.set(chave, v)
+  await sb.from(GEO_TABELA).upsert({ chave, dados: { v }, gerado_em: new Date().toISOString() }).then(() => {}, () => {})
+}
+const UF: Record<string, string> = { 'São Paulo': 'SP', 'Paraná': 'PR', 'Minas Gerais': 'MG', 'Mato Grosso do Sul': 'MS', 'Santa Catarina': 'SC', 'Goiás': 'GO', 'Rio de Janeiro': 'RJ' }
 
-/** cidade de várias paradas, de 4 em 4 (a ORS recusa rajada) */
+// centro de cada cidade de cliente (para saber se o carro foi à cidade da OS)
+async function centroDa(cidade: string): Promise<{ lat: number; lng: number } | null> {
+  const k = cidade.toUpperCase().trim()
+  if (!k) return null
+  const chave = `geo-centro:${k}`
+  await geoGuardados([chave])
+  if (GEO.has(chave)) return GEO.get(chave) as { lat: number; lng: number } | null
+  const nome = k.replace(/\s*\((\w{2})\)\s*$/, ''), uf = /\((\w{2})\)\s*$/.exec(k)?.[1] || ''
+  const o = await ors<{ features?: { geometry?: { coordinates?: number[] } }[] }>(`/geocode/search?text=${encodeURIComponent(`${nome}, ${uf}`)}&boundary.country=BR&size=1&layers=locality,localadmin`)
+  let c = o?.features?.[0]?.geometry?.coordinates ? { lat: o.features[0].geometry!.coordinates![1], lng: o.features[0].geometry!.coordinates![0] } : null
+  if (!c) {
+    const n = await osm<{ lat: string; lon: string }[]>(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&city=${encodeURIComponent(nome)}${uf ? `&state=${encodeURIComponent(Object.keys(UF).find((x) => UF[x] === uf) || uf)}` : ''}`)
+    c = n?.[0] ? { lat: Number(n[0].lat), lng: Number(n[0].lon) } : null
+  }
+  if (c) await geoGuardar(chave, c)
+  return c
+}
+/** O que o GPS diz dessa OS: o carro esteve no cliente? foi à cidade do cliente nos dias da OS? */
+async function provaGps(os: string, diasOS: string[], cidade: string, dias: DiaFuro[], nome: string): Promise<string | undefined> {
+  const ds = dias.filter((d) => diasOS.includes(d.data) && d.kmGps > 0)
+  if (!ds.length) return `Sem GPS do carro de ${nome} nos dias da OS.`
+  for (const d of ds) {
+    const o = d.os.find((x) => x.os === os)
+    if (o?.noCliente) return `O carro de ${nome} esteve no cliente em ${d.data.slice(8, 10)}/${d.data.slice(5, 7)} (${o.noCliente.min} min).`
+  }
+  const c = await centroDa(cidade)
+  if (!c) return undefined
+  const nomeCid = cidade.replace(/\s*\(\w{2}\)\s*$/, '').toLowerCase().replace(/(^|\s)(\S)/g, (_, a, b) => a + b.toUpperCase())
+  for (const d of ds) if (d.paradas.some((p) => !p.loja && distanciaM(p, c) <= 20000)) return `O carro de ${nome} esteve em ${nomeCid} em ${d.data.slice(8, 10)}/${d.data.slice(5, 7)}.`
+  return `O carro de ${nome} não passou por ${nomeCid} nos dias da OS.`
+}
+
+// cidade de um ponto (parada), guardada por ponto arredondado (~100 m)
+async function cidadeDe(lat: number, lng: number): Promise<string | null> {
+  const chave = `geo-cidade:${lat.toFixed(3)},${lng.toFixed(3)}`
+  if (GEO.has(chave)) return GEO.get(chave) as string | null
+  const o = await ors<{ features?: { properties?: Record<string, string> }[] }>(`/geocode/reverse?point.lat=${lat}&point.lon=${lng}&size=1&layers=locality,localadmin,county`)
+  const pr = o?.features?.[0]?.properties
+  let cid = pr && (pr.locality || pr.localadmin || pr.county) ? `${pr.locality || pr.localadmin || pr.county}${pr.region_a ? ` - ${pr.region_a}` : ''}` : null
+  if (!cid) {
+    const n = await osm<{ address?: Record<string, string> }>(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=10&lat=${lat}&lon=${lng}`)
+    const ad = n?.address
+    const nome = ad && (ad.city || ad.town || ad.village || ad.municipality)
+    cid = nome ? `${nome}${ad?.state && UF[ad.state] ? ` - ${UF[ad.state]}` : ''}` : null
+  }
+  if (cid) await geoGuardar(chave, cid)
+  return cid
+}
+
+/** cidade de várias paradas: primeiro o que já está guardado, depois de 4 em 4 */
 async function cidadesDe(ps: ParadaFuro[]) {
+  await geoGuardados([...new Set(ps.map((p) => `geo-cidade:${p.lat.toFixed(3)},${p.lng.toFixed(3)}`))])
   for (let i = 0; i < ps.length; i += 4) await Promise.all(ps.slice(i, i + 4).map(async (p) => { p.cidade = await cidadeDe(p.lat, p.lng) }))
 }
 
@@ -228,7 +315,7 @@ export async function diaDetalhado(tecnico: string, mes: string, dia: string): P
   }
   const kmFinal = pontos.length ? kmEntre(pontos, ant, Date.parse(pontos[pontos.length - 1].dt)) : 0
   // cidade das paradas de 5 min ou mais (até 25 por dia)
-  const alvo = ps.filter((p) => p.min >= 5).slice(0, 25)
+  const alvo = ps.filter((p) => !p.loja && p.min >= 15).slice(0, 20)
   await cidadesDe(alvo)
   return { ...d, paradas: ps, pontos, kmFinal }
 }
@@ -256,10 +343,10 @@ function pauta(fk: FuroKm, div: Divergencia): { dados?: string; dias?: DiaFuro[]
     const os = fk.osTotais.filter((o) => (km ? o.kmRel - o.kmCobrado : o.horasRel - o.horasCobradas) > (km ? 0.5 : 0.05))
     if (!os.length) return null
     return {
-      dados: os.map((o) => `${o.os} (${o.cliente}) dias ${o.dias.map(br).join(', ')}: relatório ${km ? `${o.kmRel} km` : `${o.horasRel} h`} · cobrado ${km ? `${o.kmCobrado} km` : `${o.horasCobradas} h`}`).join('\n'),
+      dados: os.map((o) => `${o.os} (${o.cliente}, ${o.cidade}) dias ${o.dias.map(br).join(', ')}: relatório ${km ? `${o.kmRel} km` : `${o.horasRel} h`} · cobrado ${km ? `${o.kmCobrado} km` : `${o.horasCobradas} h`}\n  FATOS DO ZECA (robô, certos): ${((km ? o.zecaKm : o.zecaHoras) || []).map((m) => m.texto).join(' ')}${o.gps ? ` GPS: ${o.gps}` : ''}`).join('\n'),
       pergunta: km
-        ? 'Divergência: km que o mecânico pôs no relatório da OS e não foi cobrado na OS. Explique em quais OS isso aconteceu, o tamanho de cada uma, e o que pode ter causado (km esquecido na OS, km de deslocamento não cobrado, OS de garantia ou interna, km duplicado entre OS do mesmo dia). Nos pontos, preencha "os" com as OS.'
-        : 'Divergência: horas que o mecânico apontou no relatório da OS e não foram cobradas na OS. Explique em quais OS isso aconteceu, o tamanho de cada uma, e o que pode ter causado (hora esquecida na OS, desconto, garantia, serviço que demorou mais do que foi orçado). Nos pontos, preencha "os" com as OS.',
+        ? 'Divergência: km que o mecânico pôs no relatório da OS e não foi cobrado na OS. Explique em quais OS isso aconteceu e o tamanho de cada uma. Os FATOS DO ZECA são certos (vêm dos campos da OS): use-os como a causa e não invente outra; diga só o que conferir a partir deles (ex.: se a OS devia mesmo ser interna). Nos pontos, preencha "os" com as OS.'
+        : 'Divergência: horas que o mecânico apontou no relatório da OS e não foram cobradas na OS. Explique em quais OS isso aconteceu e o tamanho de cada uma. Os FATOS DO ZECA são certos (vêm dos campos da OS): use-os como a causa e não invente outra; diga só o que conferir a partir deles. Nos pontos, preencha "os" com as OS.',
     }
   }
   const sel = div === 'km-fora-relatorio' ? dias((d) => d.kmGps - d.kmRel > 5)
@@ -282,14 +369,14 @@ function pauta(fk: FuroKm, div: Divergencia): { dados?: string; dias?: DiaFuro[]
 
 /** O Tratorilson explica uma divergência (guardado 6 h por técnico/mês/divergência; forcar refaz). */
 export async function analisarFuro(tecnico: string, mes: string, forcar = false, div: Divergencia = 'geral'): Promise<AnaliseFuro | null> {
-  const r = await comCache(`furo-km:v7:${mes}:${tecnico}:${div}`, 6 * 3600_000, async () => {
+  const r = await comCache(`furo-km:v8:${mes}:${tecnico}:${div}`, 6 * 3600_000, async () => {
     const fk = await furoKm(tecnico, mes)
     if (!fk) return null
     const p = pauta(fk, div)
     if (!p) return { resumo: 'Não encontrei essa divergência neste mês.', pontos: [], geradoEm: new Date().toISOString() }
     if (p.dias) {
       // cidade das paradas de 15 min ou mais fora da loja (até 40), para ele dizer onde o carro estava
-      const alvo = p.dias.flatMap((d) => d.paradas.filter((x) => !x.loja && x.min >= 15)).slice(0, 40)
+      const alvo = p.dias.flatMap((d) => d.paradas.filter((x) => !x.loja && x.min >= 15)).slice(0, 25)
       await cidadesDe(alvo)
       p.dados = p.dias.map(diaEmTexto).join('\n')
     }

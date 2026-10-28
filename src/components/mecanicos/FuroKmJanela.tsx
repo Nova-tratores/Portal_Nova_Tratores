@@ -232,6 +232,7 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
                       <button key={o.os} type="button" className="fk-osl" onClick={() => { const ds = diasDasOS([o.os]); if (ds.length) abrirDia(ds[0]) }}>
                         <b>{o.os}</b><span>{o.cliente}</span>
                         <small>relatório {fmtValor(rel, un)} · cobrado {fmtValor(cob, un)}</small><em>−{fmtValor(Math.round((rel - cob) * 10) / 10, un)}</em>
+                        {((divergencia === 'km-nao-cobrado' ? o.zecaKm : o.zecaHoras) || []).length > 0 && <span className="fk-zeca"><i className="fas fa-robot" /> {(divergencia === 'km-nao-cobrado' ? o.zecaKm : o.zecaHoras)!.map((m) => m.texto).join(' ')}{o.gps ? ` ${o.gps}` : ''}</span>}
                       </button>
                     )
                   })}
@@ -351,6 +352,7 @@ const ESTILO_FK = `
 .fk-ponto div { display: grid; gap: 3px } .fk-ponto b { font-size: 14px; font-weight: 500; color: #0f172a } .fk-ponto b em { font-style: normal; color: #b91c1c } .fk-ponto small { font-size: 13px; color: #475569; line-height: 1.45 } .fk-ponto u { text-decoration: none; font-size: 12.5px; color: #6d28d9 } .fk-ponto u.os { color: #334155 }
 .fk-ponto-dias { display: flex; gap: 4px 8px; flex-wrap: wrap } .fk-ponto-dias u { cursor: pointer; border-radius: 99px; padding: 1px 8px; background: #f5f3ff } .fk-ponto-dias u:hover, .fk-ponto-dias u.on { background: #7c3aed; color: #fefefe }
 .fk-osdiv { display: grid; gap: 6px; margin-bottom: 10px }
+.fk-zeca { grid-column: 1 / -1; margin-top: 4px; font-size: 12.5px; color: #115e59; background: #f0fdfa; border-radius: 8px; padding: 5px 8px; line-height: 1.4 } .fk-zeca i { font-size: 11px; margin-right: 2px }
 .fk-osl { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 8px; align-items: baseline; text-align: left; border: 1px solid #fde68a; background: #fffbeb; border-radius: 12px; padding: 8px 11px; font-family: inherit; cursor: pointer }
 .fk-osl b { font-size: 13.5px; font-weight: 600; color: #0f172a } .fk-osl span { font-size: 13px; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap } .fk-osl small { grid-column: 1 / 3; font-size: 12.5px; color: #475569 } .fk-osl em { grid-row: 1 / 3; grid-column: 3; align-self: center; font-style: normal; font-weight: 600; color: #b91c1c; font-size: 14px }
 .fk-corpo { display: grid; grid-template-columns: minmax(290px, 390px) minmax(0, 1fr); gap: 14px; align-items: start }
