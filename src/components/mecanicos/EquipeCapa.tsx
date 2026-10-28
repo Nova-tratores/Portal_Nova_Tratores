@@ -15,7 +15,6 @@ const hojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_P
 const h1 = (v: number) => `${(Math.round(v * 10) / 10).toLocaleString('pt-BR')}`
 const corPct = (p: number) => (p >= 100 ? '#047857' : p >= 70 ? '#b45309' : '#b91c1c')
 const util = (x: string) => { const w = new Date(`${x}T12:00:00Z`).getUTCDay(); return w > 0 && w < 6 }
-const C = { feito: '#2563eb', esperado: '#94a3b8', ideal: '#7c3aed', proj: '#f59e0b' }
 
 type Ponto = { dia: string; rot: string; feito: number | null; esperado: number; ideal: number; proj: number | null }
 
@@ -73,7 +72,7 @@ export default function EquipeCapa({ mes }: { mes: string }) {
       }
     }
     const fimProj = hoje.startsWith(mes) ? acum + porUtil * (uteisMes - uteisAteHoje) : acum
-    return { pts, metaMes: esp, idealMes: ide, esperadoHoje: pts.find((p) => p.dia === limite)?.esperado ?? esp, feito: acum, fimProj, limite }
+    return { uteisMes, uteisAteHoje, pts, metaMes: esp, idealMes: ide, esperadoHoje: pts.find((p) => p.dia === limite)?.esperado ?? esp, feito: acum, fimProj, limite }
   }, [d, base, mes, comAg, hoje])
 
   if (!d) return <section className="eqc"><style>{ESTILO_EQC}</style><div className="eqc-carr"><i className="fas fa-circle-notch fa-spin" /> carregando as horas da equipe…</div></section>
@@ -98,45 +97,47 @@ export default function EquipeCapa({ mes }: { mes: string }) {
         <span className="eqc-t"><i className="fas fa-people-group" /> A equipe toda em {nomeMes} · {n} mecânicos somados</span>
         <CaixaAguardando />
       </div>
-      <div className="eqc-corpo">
-        <div className="eqc-nums">
-          <div className="eqc-n">
-            <span className="eqc-ic" style={{ '--c': C.feito } as React.CSSProperties}><i className="fas fa-clock" /></span>
-            <div>
-              <small>Horas feitas no mês</small>
-              <b>{h1(d.feitas)} h <span className="de">de {h1(metaMes)} h</span></b>
-              <i className="eqc-bar"><u style={{ width: pos(d.feitas) }} /><s style={{ left: pos(metaMes) }} title={`meta básica do mês: ${h1(metaMes)} h`} />{d.atual && <s className="hoje" style={{ left: pos(esperadoHoje) }} title={`onde deveria estar hoje: ${h1(esperadoHoje)} h`} />}</i>
-              <span><em style={{ color: corPct(pMes) }}>{Math.round(pMes)}%</em> da meta básica do mês · a ideal é {h1(idealMes)} h</span>
-            </div>
+      <div className="eqc-faixa">
+        <div className="eqc-regua" aria-label="Onde a equipe está no mês">
+          <div className="eqc-regua-trilho">
+            <u style={{ width: pos(d.feitas) }} />
+            {d.atual && <s className="hoje" style={{ left: pos(esperadoHoje) }} />}
+            <s className="bas" style={{ left: pos(metaMes) }} />
+            <s className="ide" style={{ left: '100%' }} />
+            <span className="eqc-eu" style={{ left: pos(d.feitas) }}><b>{h1(d.feitas)} h</b><small>a equipe hoje</small></span>
           </div>
-          {d.atual && (
-            <div className="eqc-n">
-              <span className="eqc-ic" style={{ '--c': corPct(ritmo) } as React.CSSProperties}><i className="fas fa-gauge-high" /></span>
-              <div>
-                <small>Ritmo até hoje</small>
-                <b style={{ color: corPct(ritmo) }}>{Math.round(ritmo)}%</b>
-                <span>hoje a equipe deveria estar em <b>{h1(esperadoHoje)} h</b> · está {d.feitas >= esperadoHoje ? `${h1(d.feitas - esperadoHoje)} h à frente` : `${h1(esperadoHoje - d.feitas)} h atrás`}{serie && <> · nesse ritmo termina o mês com <b>{h1(serie.fimProj)} h</b></>}</span>
-              </div>
-            </div>
-          )}
-          <div className="eqc-n">
-            <span className="eqc-ic" style={{ '--c': '#0d9488' } as React.CSSProperties}><i className="fas fa-road" /></span>
-            <div>
-              <small>Km rodados</small>
-              <b>{Math.round(d.km).toLocaleString('pt-BR')} km</b>
-              <span>{kmPorH ? `${h1(kmPorH)} km para cada hora feita` : 'nenhuma hora feita ainda'}</span>
-            </div>
-          </div>
-          <div className="eqc-n">
-            <span className="eqc-ic" style={{ '--c': '#7c3aed' } as React.CSSProperties}><i className="fas fa-medal" /></span>
-            <div>
-              <small>Mecânicos na meta</small>
-              <b>{bateram} <span className="de">de {n}</span></b>
-              <span>bateram a básica até hoje{varH != null && <> · horas <em style={{ color: varH >= 0 ? '#047857' : '#b91c1c' }}>{varH >= 0 ? '+' : ''}{varH}%</em> contra o mês passado</>}</span>
-            </div>
+          <div className="eqc-marcas">
+            {d.atual && <span className="hoje" style={{ left: pos(esperadoHoje) }}><i className="fas fa-location-dot" /> hoje deveria: {h1(esperadoHoje)} h</span>}
+            <span className="bas" style={{ left: pos(metaMes) }}><i className="fas fa-flag-checkered" /> básica: {h1(metaMes)} h</span>
+            <span className="ide" style={{ left: '100%' }}><i className="fas fa-crown" /> ideal: {h1(idealMes)} h</span>
           </div>
         </div>
-
+        <div className="eqc-cartoes-meta">
+          <div className="bas">
+            <span><i className="fas fa-flag-checkered" /></span>
+            <p><b>Meta básica</b><small><b>4 h</b> por dia útil × <b>{n}</b> mecânicos × <b>{serie?.uteisMes ?? '—'}</b> dias úteis = <b>{h1(metaMes)} h</b> no mês</small></p>
+            <em style={{ color: corPct(pMes) }}>{Math.round(pMes)}%</em>
+          </div>
+          <div className="ide">
+            <span><i className="fas fa-crown" /></span>
+            <p><b>Meta ideal</b><small>o dobro: <b>8 h</b> por dia útil de cada um = <b>{h1(idealMes)} h</b></small></p>
+            <em>{Math.round(idealMes ? (d.feitas / idealMes) * 100 : 0)}%</em>
+          </div>
+          {d.atual && (
+            <div className="rit" style={{ '--c': corPct(ritmo) } as React.CSSProperties}>
+              <span><i className="fas fa-gauge-high" /></span>
+              <p><b>Ritmo de hoje</b><small>{serie ? <><b>{serie.uteisAteHoje}</b> dias úteis passados → deveria estar em <b>{h1(esperadoHoje)} h</b>; está {d.feitas >= esperadoHoje ? <><b>{h1(d.feitas - esperadoHoje)} h à frente</b></> : <><b>{h1(esperadoHoje - d.feitas)} h atrás</b></>} · termina o mês com ~<b>{h1(serie.fimProj)} h</b></> : '—'}</small></p>
+              <em>{Math.round(ritmo)}%</em>
+            </div>
+          )}
+        </div>
+        <div className="eqc-chips">
+          <span><i className="fas fa-road" /> <b>{Math.round(d.km).toLocaleString('pt-BR')} km</b> rodados{kmPorH ? ` · ${h1(kmPorH)} km por hora feita` : ''}</span>
+          <span><i className="fas fa-medal" /> <b>{bateram} de {n}</b> mecânicos no ritmo da básica</span>
+          {varH != null && <span><i className={`fas fa-arrow-${varH >= 0 ? 'up' : 'down'}`} style={{ color: varH >= 0 ? '#047857' : '#b91c1c' }} /> horas <b style={{ color: varH >= 0 ? '#047857' : '#b91c1c' }}>{varH >= 0 ? '+' : ''}{varH}%</b> contra o mês passado</span>}
+        </div>
+      </div>
+      <div className="eqc-corpo">
         <div className="eqc-sem">
           <div className="eqc-sem-cab">
             <div className="eqc-vis" role="tablist">
@@ -207,7 +208,7 @@ const ESTILO_EQC = `
 .eqc { display: grid; gap: 14px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 18px; padding: 18px 20px }
 .eqc-carr { padding: 30px; text-align: center; color: #475569 }
 .eqc-topo { display: flex; gap: 10px 16px; align-items: center; justify-content: space-between; flex-wrap: wrap } .eqc-t { font-size: 15px; color: #334155 } .eqc-t i { color: #0891b2; margin-right: 4px }
-.eqc-corpo { display: grid; grid-template-columns: minmax(290px, 1fr) minmax(0, 1.7fr); gap: 26px; align-items: start }
+.eqc-corpo { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px }
 .eqc-nums { display: grid; gap: 12px }
 .eqc-n { display: grid; grid-template-columns: 38px minmax(0, 1fr); gap: 12px; align-items: start } .eqc-n + .eqc-n { border-top: 1px solid #f1f5f9; padding-top: 12px }
 .eqc-ic { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 15px; color: var(--c); background: color-mix(in srgb, var(--c) 12%, #fefefe) }
@@ -226,6 +227,24 @@ const ESTILO_EQC = `
 .eqc-dica { background: #0f172a; color: #fefefe; border-radius: 12px; padding: 10px 12px; display: grid; gap: 5px; min-width: 210px; box-shadow: 0 10px 30px rgba(15,23,42,.25) }
 .eqc-dica > b { font-size: 13px; font-weight: 500 } .eqc-dica > div { display: grid; grid-template-columns: 16px 1fr auto; gap: 8px; align-items: center; font-size: 12.5px } .eqc-dica span { color: #cbd5e1 } .eqc-dica em { font-style: normal; font-variant-numeric: tabular-nums }
 .eqc-dica > small { font-size: 12px; font-weight: 600; filter: brightness(1.6) }
+.eqc-faixa { display: grid; gap: 14px; background: linear-gradient(180deg, #f8fafc, #fefefe); border: 1px solid #eef2f6; border-radius: 16px; padding: 16px 18px }
+.eqc-regua { position: relative; padding: 34px 70px 30px 10px }
+.eqc-regua-trilho { position: relative; height: 14px; border-radius: 99px; background: linear-gradient(90deg, #e2e8f0, #eef2f6) }
+.eqc-regua-trilho > u { position: absolute; inset: 0 auto 0 0; border-radius: 99px; background: linear-gradient(90deg, #60a5fa, #2563eb); transform-origin: left; animation: eqcEnche 1.4s cubic-bezier(.2,.8,.2,1) both }
+.eqc-regua-trilho > s { position: absolute; top: -6px; bottom: -6px; width: 3px; border-radius: 2px; transform: translateX(-50%) } .eqc-regua-trilho > s.hoje { background: #0f172a } .eqc-regua-trilho > s.bas { background: #64748b } .eqc-regua-trilho > s.ide { background: #7c3aed }
+.eqc-eu { position: absolute; bottom: calc(100% + 8px); transform: translateX(-50%); display: grid; justify-items: center; white-space: nowrap; animation: eqcEu 1.4s cubic-bezier(.2,.8,.2,1) both }
+.eqc-eu b { font-size: 14px; font-weight: 600; color: #fefefe; background: #2563eb; border-radius: 8px; padding: 2px 8px } .eqc-eu small { font-size: 11.5px; color: #1d4ed8 }
+.eqc-eu::after { content: ''; position: absolute; bottom: -6px; border: 5px solid transparent; border-top-color: #2563eb; border-bottom: 0 }
+@keyframes eqcEu { from { left: 0; opacity: 0 } }
+.eqc-marcas { position: relative; height: 38px; margin-top: 10px } .eqc-marcas > span.hoje { top: 20px } .eqc-marcas > span { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; font-size: 12.5px; color: #334155 } .eqc-marcas i { font-size: 11px }
+.eqc-marcas .hoje i { color: #0f172a } .eqc-marcas .bas i { color: #64748b } .eqc-marcas .ide { transform: translateX(-90%) } .eqc-marcas .ide i { color: #7c3aed }
+.eqc-cartoes-meta { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px }
+.eqc-cartoes-meta > div { --c: #64748b; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; background: #fefefe; border: 1px solid #e8edf3; border-radius: 14px; padding: 10px 12px; animation: eqcEntra .5s both }
+.eqc-cartoes-meta > .ide { --c: #7c3aed; animation-delay: 80ms } .eqc-cartoes-meta > .rit { animation-delay: 160ms }
+.eqc-cartoes-meta span { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 14%, #fefefe); color: var(--c); font-size: 14px }
+.eqc-cartoes-meta p { margin: 0; display: grid; gap: 1px } .eqc-cartoes-meta p > b { font-size: 14px; font-weight: 500; color: #0f172a } .eqc-cartoes-meta small { font-size: 12.5px; color: #475569; line-height: 1.4 } .eqc-cartoes-meta small b { font-weight: 600; color: #0f172a }
+.eqc-cartoes-meta em { font-style: normal; font-size: 20px; font-weight: 500; color: var(--c); font-variant-numeric: tabular-nums }
+.eqc-chips { display: flex; gap: 8px; flex-wrap: wrap } .eqc-chips span { font-size: 13px; color: #334155; background: #f1f5f9; border-radius: 99px; padding: 5px 12px } .eqc-chips i { color: #64748b; margin-right: 3px } .eqc-chips b { font-weight: 600 }
 .eqc-sem { display: grid; gap: 8px; min-width: 0; align-content: start }
 .eqc-sem-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap } .eqc-sem-cab b { font-size: 15px; font-weight: 500; color: #0f172a }
 .eqc-sem-cab span { display: inline-flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: #475569 } .eqc-sem-cab i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: -6px } .eqc-sem-cab i.ok { background: #10b981 } .eqc-sem-cab i.quase { background: #f59e0b } .eqc-sem-cab i.baixo { background: #ef4444 }
