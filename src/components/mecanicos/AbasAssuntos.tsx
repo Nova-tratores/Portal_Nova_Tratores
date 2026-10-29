@@ -51,21 +51,27 @@ export function AbasAssuntos({ abas, atual, onTroca }: { abas: AbaAssunto[]; atu
   )
 }
 
-// círculo com o ícone e a frase do lado (José, 29/10/2026), sem caixa em volta
+// círculo com o ícone e a frase do lado (José, 29/10/2026); para ficar claro que são abas ("destaca mais"): trilho
+// com fundo próprio, a escolhida sai do trilho como cartão branco com faixa colorida embaixo e uma setinha apontando
+// para o conteúdo; as outras ficam apagadas até passar o mouse
 const ESTILO_AA = `
-.aa-abas { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 28px; margin-bottom: 18px; padding: 6px 0; scroll-margin-top: 90px }
-.aa-aba { display: flex; align-items: center; gap: 12px; padding: 6px 16px 6px 6px; border-radius: 99px; border: 0; background: transparent;
-  color: var(--portal-text, #0f172a); font: inherit; text-align: left; cursor: pointer; transition: background .2s, transform .15s }
-.aa-aba:hover { background: color-mix(in srgb, var(--c) 8%, transparent) }
-.aa-aba em { flex-shrink: 0; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-style: normal;
-  background: color-mix(in srgb, var(--c) 13%, transparent); color: var(--c); font-size: 18px; transition: background .25s, color .25s, transform .25s, box-shadow .25s }
+.aa-abas { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 22px; padding: 6px; border-radius: 20px; scroll-margin-top: 90px;
+  background: color-mix(in srgb, var(--portal-text, #0f172a) 6%, transparent); border: 1px solid var(--portal-border, #e5e7eb) }
+.aa-aba { position: relative; flex: 1 1 200px; display: flex; align-items: center; gap: 12px; padding: 8px 14px 8px 8px; border-radius: 15px;
+  border: 1.5px solid transparent; background: transparent; color: var(--portal-text, #0f172a); font: inherit; text-align: left; cursor: pointer;
+  opacity: .72; transition: background .2s, opacity .2s, border-color .2s, box-shadow .2s }
+.aa-aba:hover { opacity: 1; background: color-mix(in srgb, var(--portal-bg-card, #fefefe) 70%, transparent) }
+.aa-aba em { flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-style: normal;
+  background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c); font-size: 17px; transition: background .25s, color .25s, transform .25s, box-shadow .25s }
 .aa-aba span { display: grid; gap: 1px; min-width: 0 }
 .aa-aba b { font-size: 15px; font-weight: 500 }
 .aa-aba small { font-size: 12px; color: var(--portal-text-muted, #64748b); line-height: 1.3 }
-.aa-aba.on { background: color-mix(in srgb, var(--c) 10%, transparent) }
+.aa-aba.on { opacity: 1; background: var(--portal-bg-card, #fefefe); border-color: color-mix(in srgb, var(--c) 55%, transparent);
+  box-shadow: 0 8px 20px -12px var(--c), inset 0 -3px 0 var(--c) }
 .aa-aba.on b { font-weight: 700; color: var(--c) }
-.aa-aba.on em { background: var(--c); color: #fefefe; transform: scale(1.06); box-shadow: 0 6px 16px -6px var(--c) }
+.aa-aba.on em { background: var(--c); color: #fefefe; transform: scale(1.05); box-shadow: 0 6px 14px -6px var(--c) }
+.aa-aba.on::after { content: ''; position: absolute; left: 50%; bottom: -13px; transform: translateX(-50%); border: 7px solid transparent; border-top-color: var(--c) }
 .aa-conteudo { animation: aaEntra .3s ease both }
 @keyframes aaEntra { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
-@media (max-width: 640px) { .aa-abas { gap: 6px; justify-content: flex-start } .aa-aba small { display: none } .aa-aba em { width: 38px; height: 38px; font-size: 15px } }
+@media (max-width: 640px) { .aa-aba { flex-basis: 45% } .aa-aba small { display: none } .aa-aba em { width: 36px; height: 36px; font-size: 14px } .aa-aba.on::after { display: none } }
 `
