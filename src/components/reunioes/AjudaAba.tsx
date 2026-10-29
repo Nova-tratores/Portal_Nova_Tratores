@@ -71,13 +71,13 @@ export default function AjudaAba({ chave }: { chave: ChaveAjudaReunioes }) {
   return (
     <span ref={ref} style={{ position: 'relative', display: 'inline-flex' }}>
       <button type="button" onClick={() => setAberto((v) => !v)} title={`Como usar: ${titulo}`} aria-label={`Como usar: ${titulo}`} aria-expanded={aberto}
-        style={{ width: 20, height: 20, borderRadius: '50%', border: '1px solid var(--portal-border,#d1d5db)', background: aberto ? '#dc2626' : 'var(--portal-surface,#fff)', color: aberto ? '#fff' : 'var(--portal-text-muted,#888)', fontSize: 11, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, lineHeight: 1 }}>
+        style={{ width: 20, height: 20, borderRadius: '50%', border: '1px solid var(--portal-border,#d1d5db)', background: aberto ? '#dc2626' : 'var(--portal-surface,#fff)', color: aberto ? '#fff' : 'var(--portal-text-muted,#888)', fontSize: 11, fontWeight: 500, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, lineHeight: 1 }}>
         ?
       </button>
       {aberto && (
         <div role="dialog" aria-label={titulo}
           style={{ position: 'absolute', top: 'calc(100% + 6px)', left: -8, zIndex: 60, width: 300, maxWidth: 'calc(100vw - 32px)', padding: '12px 14px', borderRadius: 10, background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#e5e7eb)', boxShadow: '0 10px 30px rgba(0,0,0,.15)', textAlign: 'left', cursor: 'default' }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: '#dc2626', marginBottom: 6 }}>{titulo}</div>
+          <div style={{ fontSize: 13, fontWeight: 500, color: '#dc2626', marginBottom: 6 }}>{titulo}</div>
           {texto.map((p, i) => (
             <p key={i} style={{ margin: i ? '6px 0 0' : 0, fontSize: 12.5, lineHeight: 1.45, fontWeight: 500, color: 'var(--portal-text-secondary,#444)', whiteSpace: 'normal' }}>{p}</p>
           ))}

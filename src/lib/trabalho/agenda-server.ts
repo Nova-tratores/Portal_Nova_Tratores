@@ -72,11 +72,11 @@ export async function pendentesDeAceite(userId: string) {
   } catch { return [] }
 }
 
-export interface ItemDia { tipo: 'andamento' | 'comeca' | 'ticket' | 'tarefa'; texto: string; detalhe?: string; ticketId?: string | null; atrasado?: boolean }
+export interface ItemDia { tipo: 'andamento' | 'comeca' | 'ticket' | 'tarefa' | 'reuniao'; texto: string; detalhe?: string; ticketId?: string | null; atrasado?: boolean; link?: string; hora?: string }
 
 export async function itensDoDia(userId: string): Promise<ItemDia[]> {
   const hoje = hojeSP()
-  const itens: ItemDia[] = []
+  const itens: ItemDia[] = await reunioesDoDia(userId, hoje)
   const ticketsNaEtapa = new Set<string>()
   try {
     const db = cronogramaAdmin().schema('cronograma')
@@ -94,7 +94,7 @@ export async function itensDoDia(userId: string): Promise<ItemDia[]> {
   // Mesma regra do Cronograma/Fila: resolvido já foi feito (só espera quem
   // pediu confirmar) e Solicitação de Compras segue o trilho dela — não entram.
   const { data: tks } = await supabaseAdmin.from('tickets').select('id, numero, titulo, status, prazo')
-    .eq('responsavel_id', userId).neq('tipo', 'compras').not('status', 'in', `(${[...STATUS_FINAIS, 'resolvido'].join(',')})`)
+    .eq('responsavel_id', userId).not('tipo', 'in', '(compras,reuniao)').not('status', 'in', `(${[...STATUS_FINAIS, 'resolvido'].join(',')})`)
   const abertos = new Map((tks || []).map((t) => [t.id as string, t]))
   const noDia = new Map<string, ItemDia>()
   for (const t of tks || []) {
@@ -130,6 +130,29 @@ export async function itensDoDia(userId: string): Promise<ItemDia[]> {
   return itens
 }
 const br = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7)
+
+// Reuniões de hoje em que a pessoa está (condutor, secretário ou participante), em ordem de horário.
+// Vêm primeiro no Seu dia. Falhou (tabelas das reuniões ausentes) = lista vazia, o resto segue.
+async function reunioesDoDia(userId: string, hoje: string): Promise<ItemDia[]> {
+  try {
+    const { data: pres } = await supabaseAdmin.from('reunioes_presencas').select('reuniao_id, papel').eq('usuario_id', userId)
+    const papel = new Map((pres || []).map((p: { reuniao_id: string; papel: string }) => [p.reuniao_id, p.papel]))
+    if (!papel.size) return []
+    const { data: ts } = await supabaseAdmin.from('tickets').select('id, titulo, reuniao_inicio, reuniao_etapa, payload')
+      .eq('tipo', 'reuniao').in('id', [...papel.keys()]).not('reuniao_etapa', 'in', '(cancelada,ata_publicada)')
+      .gte('reuniao_inicio', hoje + 'T00:00:00-03:00').lte('reuniao_inicio', hoje + 'T23:59:59-03:00').order('reuniao_inicio')
+    const hm = (iso: string) => new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso))
+    return (ts || []).map((t: { id: string; titulo: string; reuniao_inicio: string; reuniao_etapa: string; payload: { duracao_min?: number } | null }) => {
+      const dur = Math.max(5, Number(t.payload?.duracao_min) || 30)
+      const fim = new Date(new Date(t.reuniao_inicio).getTime() + dur * 60_000).toISOString()
+      const p = papel.get(t.id)
+      return {
+        tipo: 'reuniao' as const, texto: t.titulo, hora: hm(t.reuniao_inicio), link: `/reunioes/${t.id}`,
+        detalhe: `${hm(t.reuniao_inicio)}–${hm(fim)}${p === 'condutor' ? ' · você conduz' : p === 'secretario' ? ' · você é o secretário' : ''}${t.reuniao_etapa === 'em_andamento' ? ' · acontecendo agora' : ''}`,
+      }
+    })
+  } catch { return [] }
+}
 
 export async function diaConfirmado(userId: string): Promise<boolean> {
   try {

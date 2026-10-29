@@ -40,11 +40,11 @@ export default function BlocoPendencias({ pend, usuarios, modoConducao, onTratar
   const linha = (p: Pendencia, atrasada: boolean) => {
     const tratando = aberto?.id === p.id
     return (
-      <div key={p.id} style={{ ...cartao, padding: 12, borderLeft: `4px solid ${atrasada ? '#dc2626' : '#d97706'}`, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      <div key={p.id} style={{ ...cartao, padding: 12, borderColor: atrasada ? 'color-mix(in srgb, #dc2626 35%, var(--portal-border,#e2e8f0))' : 'color-mix(in srgb, #d97706 35%, var(--portal-border,#e2e8f0))', display: 'flex', flexDirection: 'column', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
           <button onClick={() => onAbrirTicket(p.id)} style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', textAlign: 'left', flex: 1, minWidth: 180 }}>
-            <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)' }}>#{p.numero}</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text,#111)' }}>{p.titulo}</div>
+            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--portal-text-muted,#999)' }}>#{p.numero}</div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text,#111)' }}>{p.titulo}</div>
           </button>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, fontSize: 12 }}>
             <span style={chip(atrasada ? '#dc2626' : '#d97706', atrasada ? 'rgba(220,38,38,.1)' : 'rgba(217,119,6,.12)')}>
@@ -69,12 +69,12 @@ export default function BlocoPendencias({ pend, usuarios, modoConducao, onTratar
             {aberto.saida === 'reatribuir' && <UserSelect value={valor} onChange={setValor} excluir={[p.responsavel_id]} placeholder="Novo responsável…" />}
             {aberto.saida === 'escalar' && (
               <>
-                <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)' }}>Sem pessoa indicada, vira item de pauta na <b>próxima reunião da série</b>. Com pessoa, ela entra na ação.</div>
+                <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)' }}>Sem pessoa indicada, vira item de pauta na <b style={{ fontWeight: 500 }}>próxima reunião da série</b>. Com pessoa, ela entra na ação.</div>
                 <UserSelect value={valor} onChange={setValor} placeholder="(opcional) escalar para…" autoFocus={false} />
               </>
             )}
             <input value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder={aberto.saida === 'cancelar' ? 'Motivo do cancelamento' : 'Observação (opcional)'} style={campo} maxLength={500} />
-            {erro && <div style={{ color: '#dc2626', fontSize: 12.5, fontWeight: 600 }}>{erro}</div>}
+            {erro && <div style={{ color: '#dc2626', fontSize: 12.5, fontWeight: 500 }}>{erro}</div>}
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
               <button onClick={() => { setAberto(null); setErro('') }} style={botaoClaro()}>Voltar</button>
               <button onClick={confirmar} disabled={ocupado || (aberto.saida === 'novo_prazo' && !valor) || (aberto.saida === 'reatribuir' && !valor)} style={{ ...botao(), opacity: ocupado ? .5 : 1 }}><CheckCircle2 size={14} /> Confirmar</button>
@@ -89,7 +89,7 @@ export default function BlocoPendencias({ pend, usuarios, modoConducao, onTratar
     <section style={{ ...cartao, borderColor: total ? 'rgba(220,38,38,.35)' : undefined }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: total ? 10 : 0 }}>
         <AlertTriangle size={16} color={total ? '#dc2626' : '#9ca3af'} />
-        <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text,#111)' }}>Pendências primeiro</span>
+        <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text,#111)' }}>Pendências primeiro</span>
         <span style={chip(total ? '#dc2626' : '#6b7280', total ? 'rgba(220,38,38,.1)' : 'rgba(107,114,128,.12)')}>{pend.atrasadas.length} atrasada{pend.atrasadas.length === 1 ? '' : 's'} · {pend.vencendo.length} vencendo até {brCurto(pend.limite)}</span>
         {pend.concluidas.n > 0 && <span title={pend.concluidas.titulos.join('\n')} style={chip('#059669', 'rgba(5,150,105,.1)')}>✓ {pend.concluidas.n} concluída{pend.concluidas.n === 1 ? '' : 's'} desde a última</span>}
         <span style={{ flex: 1 }} />

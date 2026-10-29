@@ -4,6 +4,7 @@
 // linha vermelha do agora, eventos sobrepostos lado a lado. Clique/arraste no vazio = criar;
 // arrastar evento = mover (inclusive para outra coluna); puxar a borda de baixo = duração.
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { TipoIcone } from './TipoIcone'
 import {
   localDe, minutos, hhmm, tocaDia, noTopo, organizarColunas, empilharTopo, horaCurta, textoSobre, DIAS_CURTOS, diaDaSemana,
   type ItemAgenda, type Pessoa,
@@ -14,6 +15,14 @@ export const HORA_PX = 48
 const PASSO = 15
 const LINHA_TOPO = 22
 const MAX_LINHAS_TOPO = 3
+// Expediente da loja (José, 29/10/2026: "tem que começar às 7 e finalizar às 18").
+// O que cai fora encosta na borda, com a hora de verdade escrita no cartão.
+export const HORA_INI = 7
+export const HORA_FIM = 18
+const BASE = HORA_INI * 60
+const TETO = HORA_FIM * 60
+const N_HORAS = HORA_FIM - HORA_INI
+const preso = (m: number) => Math.max(BASE, Math.min(TETO, m))
 
 interface Props {
   colunas: Coluna[]
@@ -50,18 +59,27 @@ export default function GradeHoras(p: Props) {
   const arrRef = useRef<Arraste | null>(null)
   const [topoAberto, setTopoAberto] = useState(false)
   const set = (a: Arraste | null) => { arrRef.current = a; setArr(a) }
+  // A hora estica para o expediente (7h–18h) caber na tela sem rolar; mínimo de 48 px.
+  const [hpx, setHpx] = useState(HORA_PX)
+  const ALTURA = N_HORAS * hpx
+  const yDe = (m: number) => ((preso(m) - BASE) / 60) * hpx
 
   // Largura da barra de rolagem: o cabeçalho reserva o mesmo espaço e as colunas alinham.
   const [barra, setBarra] = useState(0)
   useLayoutEffect(() => {
-    const medir = () => { const r = rolagem.current; if (r) setBarra(r.offsetWidth - r.clientWidth) }
+    const medir = () => {
+      const r = rolagem.current
+      if (!r) return
+      setBarra(r.offsetWidth - r.clientWidth)
+      setHpx(Math.max(HORA_PX, Math.floor((r.clientHeight - 4) / N_HORAS)))
+    }
     medir()
+    // a faixa "dia inteiro" muda de altura conforme os itens: observa a própria área de rolagem
+    const ro = typeof ResizeObserver !== 'undefined' && rolagem.current ? new ResizeObserver(medir) : null
+    if (ro && rolagem.current) ro.observe(rolagem.current)
     window.addEventListener('resize', medir)
-    return () => window.removeEventListener('resize', medir)
+    return () => { ro?.disconnect(); window.removeEventListener('resize', medir) }
   }, [colunas.length])
-
-  // Abre já na manhã (07:00), como o Google.
-  useEffect(() => { if (rolagem.current) rolagem.current.scrollTop = 7 * HORA_PX - 8 }, [])
 
   // ---------- faixa "dia inteiro": barras contínuas por sequência de colunas
   const topo = useMemo(() => {
@@ -99,7 +117,7 @@ export default function GradeHoras(p: Props) {
   const posicao = (e: { clientX: number; clientY: number }) => {
     const r = corpo.current!.getBoundingClientRect()
     const col = Math.max(0, Math.min(colunas.length - 1, Math.floor(((e.clientX - r.left) / r.width) * colunas.length)))
-    const min = Math.max(0, Math.min(24 * 60 - PASSO, Math.floor((((e.clientY - r.top) / HORA_PX) * 60) / PASSO) * PASSO))
+    const min = Math.max(BASE, Math.min(TETO - PASSO, BASE + Math.floor((((e.clientY - r.top) / hpx) * 60) / PASSO) * PASSO))
     return { col, min }
   }
 
@@ -110,11 +128,11 @@ export default function GradeHoras(p: Props) {
       if (!a) return
       const { col, min } = posicao(e)
       if (a.tipo === 'criar') set({ ...a, col: a.col, b: min })
-      else if (a.tipo === 'esticar') set({ ...a, fim: Math.max(a.ini + PASSO, Math.min(24 * 60, min + PASSO)) })
+      else if (a.tipo === 'esticar') set({ ...a, fim: Math.max(a.ini + PASSO, Math.min(TETO, min + PASSO)) })
       else {
         if (!p.podeArrastar(a.it)) return // só clique (abre o detalhe)
         const mexeu = a.mexeu || Math.abs(e.clientX - a.x0) + Math.abs(e.clientY - a.y0) > 5
-        const ini = Math.max(0, Math.min(24 * 60 - a.dur, Math.round((min - a.offset) / PASSO) * PASSO))
+        const ini = Math.max(BASE, Math.min(Math.max(BASE, TETO - a.dur), Math.round((min - a.offset) / PASSO) * PASSO))
         set({ ...a, col, ini, mexeu })
       }
     }
@@ -126,7 +144,7 @@ export default function GradeHoras(p: Props) {
         const ini = Math.min(a.a, a.b), fim = Math.max(a.a, a.b) + PASSO
         const r = new DOMRect(e.clientX, e.clientY, 1, 1)
         // clique simples = 1 h (Google: 30 min; aqui 1 h, como a Sala)
-        p.onCriar(colunas[a.col], ini, a.a === a.b ? Math.min(ini + 60, 24 * 60) : fim, r)
+        p.onCriar(colunas[a.col], ini, a.a === a.b ? Math.min(ini + 60, TETO) : fim, r)
       } else if (a.tipo === 'esticar') {
         if (a.fim !== minDoItem(a.it, colunas[a.col].dia).fim) p.onMover(a.it, colunas[a.col], a.ini, a.fim)
       } else if (!a.mexeu) {
@@ -210,9 +228,9 @@ export default function GradeHoras(p: Props) {
       <div className="gc-rolagem" ref={rolagem}>
         <div className="gc-corpo" style={{ gridTemplateColumns: `64px ${largCols}` }}>
           <div className="gc-horas">
-            {Array.from({ length: 24 }, (_, h) => <div key={h} className="gc-hora" style={{ height: HORA_PX }}>{h ? `${h}h` : ''}</div>)}
+            {Array.from({ length: N_HORAS }, (_, h) => <div key={h} className="gc-hora" style={{ height: hpx }}>{`${h + HORA_INI}h`}</div>)}
           </div>
-          <div ref={corpo} className="gc-cols" style={{ gridColumn: `2 / span ${colunas.length}`, gridTemplateColumns: largCols, height: 24 * HORA_PX }}>
+          <div ref={corpo} className="gc-cols" style={{ gridColumn: `2 / span ${colunas.length}`, gridTemplateColumns: largCols, height: ALTURA }}>
             {colunas.map((c, ci) => {
               const ghost = arr?.tipo === 'criar' && arr.col === ci ? { ini: Math.min(arr.a, arr.b), fim: Math.max(arr.a, arr.b) + PASSO }
                 : p.rascunho && p.rascunho.colKey === c.key ? { ini: p.rascunho.ini, fim: p.rascunho.fim } : null
@@ -224,12 +242,12 @@ export default function GradeHoras(p: Props) {
                     const { min } = posicao(e)
                     set({ tipo: 'criar', col: ci, a: min, b: min })
                   }}>
-                  {Array.from({ length: 24 }, (_, h) => <div key={h} className="gc-linha" style={{ top: h * HORA_PX }} />)}
-                  {c.dia === hoje && (
-                    <div className="gc-agora" style={{ top: (agoraMin / 60) * HORA_PX }}><span /></div>
+                  {Array.from({ length: N_HORAS }, (_, h) => <div key={h} className="gc-linha" style={{ top: h * hpx }} />)}
+                  {c.dia === hoje && agoraMin >= BASE && agoraMin <= TETO && (
+                    <div className="gc-agora" style={{ top: yDe(agoraMin) }}><span /></div>
                   )}
                   {ghost && (
-                    <div className="gc-ghost" style={{ top: (ghost.ini / 60) * HORA_PX, height: Math.max(((ghost.fim - ghost.ini) / 60) * HORA_PX - 2, 14) }}>
+                    <div className="gc-ghost" style={{ top: yDe(ghost.ini), height: Math.max(yDe(ghost.fim) - yDe(ghost.ini) - 2, 14) }}>
                       <b>(Sem título)</b><span>{hhmm(ghost.ini)} – {hhmm(Math.min(ghost.fim, 1439))}</span>
                     </div>
                   )}
@@ -238,7 +256,8 @@ export default function GradeHoras(p: Props) {
                     if (movendo && arr.tipo === 'mover' && arr.col !== ci) return null
                     const top = movendo && arr.tipo === 'mover' ? arr.ini : ini
                     const bottom = movendo ? (arr.tipo === 'mover' ? arr.ini + arr.dur : arr.fim) : fim
-                    const alt = Math.max(((bottom - top) / 60) * HORA_PX - 2, 18)
+                    const alt = Math.max(yDe(bottom) - yDe(top) - 2, 18)
+                    const y = Math.min(yDe(top), ALTURA - alt)
                     const cor = corDe(it, c)
                     const arrastavel = p.podeArrastar(it)
                     const larg = 100 / total
@@ -247,7 +266,7 @@ export default function GradeHoras(p: Props) {
                       <div key={it.id} data-item={it.id} role="button" tabIndex={0}
                         className={`gc-ev${it.esmaecido ? ' gc-esmaecido' : ''}${movendo ? ' gc-ev-movendo' : ''}`}
                         style={{
-                          top: (top / 60) * HORA_PX, height: alt, background: cor, color: textoSobre(cor),
+                          top: y, height: alt, background: cor, color: textoSobre(cor),
                           left: `calc(${col * larg}% + 1px)`, width: movendo ? 'calc(100% - 8px)' : `calc(${total > 1 && col < total - 1 ? larg * 1.6 : larg}% - ${total > 1 ? 3 : 8}px)`,
                           zIndex: movendo ? 30 : 2 + col, cursor: arrastavel ? 'grab' : 'pointer',
                         }}
@@ -260,9 +279,9 @@ export default function GradeHoras(p: Props) {
                           set({ tipo: 'mover', it, col0: ci, col: ci, ini, dur: Math.max(PASSO, fim - ini), offset: min - ini, mexeu: false, x0: e.clientX, y0: e.clientY })
                         }}>
                         {curto
-                          ? <span className="gc-ev-linha"><b>{it.titulo}</b>, {hhmm(top)}</span>
+                          ? <span className="gc-ev-linha">{it.tipo && <TipoIcone tipo={it.tipo} size={11} />} <b>{it.titulo}</b>, {hhmm(top)}</span>
                           : <>
-                            <b className="gc-ev-tit">{it.titulo}</b>
+                            <b className="gc-ev-tit">{it.tipo && <TipoIcone tipo={it.tipo} size={12} />} {it.titulo}</b>
                             <span className="gc-ev-hora">{hhmm(top)} – {hhmm(Math.min(bottom, 1439))}</span>
                             {it.local && alt > 60 && <span className="gc-ev-hora">{it.local}</span>}
                           </>}
@@ -276,7 +295,7 @@ export default function GradeHoras(p: Props) {
                   {arr?.tipo === 'mover' && arr.mexeu && arr.col === ci && arr.col0 !== ci && (() => {
                     const cor = corDe(arr.it, c)
                     return (
-                      <div className="gc-ev gc-ev-movendo" style={{ top: (arr.ini / 60) * HORA_PX, height: Math.max((arr.dur / 60) * HORA_PX - 2, 18), left: 1, width: 'calc(100% - 8px)', background: cor, color: textoSobre(cor), zIndex: 30 }}>
+                      <div className="gc-ev gc-ev-movendo" style={{ top: yDe(arr.ini), height: Math.max(yDe(arr.ini + arr.dur) - yDe(arr.ini) - 2, 18), left: 1, width: 'calc(100% - 8px)', background: cor, color: textoSobre(cor), zIndex: 30 }}>
                         <b className="gc-ev-tit">{arr.it.titulo}</b><span className="gc-ev-hora">{hhmm(arr.ini)} – {hhmm(arr.ini + arr.dur)}</span>
                       </div>
                     )

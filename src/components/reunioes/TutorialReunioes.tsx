@@ -112,8 +112,8 @@ export default function TutorialReunioes({ onFechar }: { onFechar: () => void })
 
         <div style={{ padding: '28px 24px 8px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 12 }}>
           <div style={{ width: 64, height: 64, borderRadius: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', background: p.cor + '1a', color: p.cor }}>{p.icone}</div>
-          <div style={{ fontSize: 11.5, fontWeight: 800, letterSpacing: '.06em', color: 'var(--portal-text-muted,#999)' }}>PASSO {i + 1} DE {PASSOS_TUTORIAL.length}</div>
-          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--portal-text,#111)' }}>{p.titulo}</h2>
+          <div style={{ fontSize: 11.5, fontWeight: 500, letterSpacing: '.06em', color: 'var(--portal-text-muted,#999)' }}>PASSO {i + 1} DE {PASSOS_TUTORIAL.length}</div>
+          <h2 style={{ margin: 0, fontSize: 20, fontWeight: 500, color: 'var(--portal-text,#111)' }}>{p.titulo}</h2>
         </div>
 
         <div style={{ padding: '6px 26px 4px', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -121,8 +121,8 @@ export default function TutorialReunioes({ onFechar }: { onFechar: () => void })
             <p key={k} style={{ margin: 0, fontSize: 14, lineHeight: 1.55, color: 'var(--portal-text-secondary,#444)' }}>{t}</p>
           ))}
           {p.dica && (
-            <div style={{ marginTop: 4, padding: '10px 12px', borderRadius: 10, background: p.cor + '12', borderLeft: `3px solid ${p.cor}`, fontSize: 13, lineHeight: 1.5, color: 'var(--portal-text,#222)' }}>
-              <b>Dica:</b> {p.dica}
+            <div style={{ marginTop: 4, padding: '10px 12px', borderRadius: 10, background: p.cor + '12', fontSize: 13, lineHeight: 1.5, color: 'var(--portal-text,#222)' }}>
+              <b style={{ fontWeight: 500 }}>Dica:</b> {p.dica}
             </div>
           )}
         </div>
@@ -136,14 +136,14 @@ export default function TutorialReunioes({ onFechar }: { onFechar: () => void })
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 20px 20px' }}>
           {!ultimo
-            ? <button onClick={onFechar} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-muted,#888)', padding: '8px 4px' }}>Pular</button>
+            ? <button onClick={onFechar} style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: 'var(--portal-text-muted,#888)', padding: '8px 4px' }}>Pular</button>
             : <span />}
           <span style={{ flex: 1 }} />
           {i > 0 && (
-            <button onClick={() => setI(i - 1)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '9px 14px', borderRadius: 9, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text-secondary,#555)', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}><ChevronLeft size={15} /> Voltar</button>
+            <button onClick={() => setI(i - 1)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '9px 14px', borderRadius: 9, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text-secondary,#555)', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}><ChevronLeft size={15} /> Voltar</button>
           )}
           <button onClick={() => (ultimo ? onFechar() : setI(i + 1))} autoFocus
-            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '9px 16px', borderRadius: 9, border: 'none', background: p.cor, color: '#fff', fontSize: 13.5, fontWeight: 800, cursor: 'pointer' }}>
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '9px 16px', borderRadius: 9, border: 'none', background: p.cor, color: '#fff', fontSize: 13.5, fontWeight: 500, cursor: 'pointer' }}>
             {ultimo ? 'Começar' : <>Próximo <ChevronRight size={15} /></>}
           </button>
         </div>

@@ -1,10 +1,11 @@
 // REUNIÕES — lista e criação.
-// GET  /api/reunioes?visao=proximas|historico|minhas[&serie=uuid] -> { reunioes, presencas, itens, usuarios, series }
+// GET  /api/reunioes?visao=proximas|historico|minhas[&serie=uuid] -> { reunioes, presencas, itens, usuarios, series, salas }
 // POST /api/reunioes { serie_id?, dia:'YYYY-MM-DD', hora:'HH:MM', titulo?, descricao?, secretario_id?, participantes?: uuid[], visibilidade?, duracao_min?, sala_id? }
 //   sala_id: reserva a sala (sql/salas-reserva.sql); ocupada → 409 e nada é criado.
 //   Avulsa: quem cria é o condutor. Da série: só condutor da série ou admin.
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
+import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { temModuloTickets } from '@/lib/tickets/server'
 import { avisoMesmaPessoa, secretarioDaVez } from '@/lib/reunioes/regras'
 import { hojeSP } from '@/lib/trabalho/cronograma-server'
@@ -29,7 +30,14 @@ export async function GET(req: NextRequest) {
     ])
     const ids = [...new Set([...Object.values(lista.presencas).flat().map((p) => p.usuario_id), ...lista.reunioes.map((r) => r.solicitante_id)])]
     const usuarios = await usuariosMin(ids)
-    return NextResponse.json({ ...lista, usuarios, series })
+    // sala reservada de cada reunião (sql/salas-reserva.sql); sem a tabela a lista segue sem o local
+    const salas: Record<string, string> = {}
+    if (lista.reunioes.length) {
+      const { data } = await supabaseAdmin.from('salas_reservas').select('reuniao_id, salas(nome)')
+        .in('reuniao_id', lista.reunioes.map((r) => r.id)).eq('status', 'ativa')
+      for (const s of (data || []) as unknown as { reuniao_id: string; salas: { nome: string } | null }[]) if (s.salas?.nome) salas[s.reuniao_id] = s.salas.nome
+    }
+    return NextResponse.json({ ...lista, usuarios, series, salas })
   } catch (e) {
     if (migrationFaltou(e)) return NextResponse.json({ reunioes: [], presencas: {}, itens: {}, usuarios: {}, series: [], migracaoFaltando: true, error: MSG_MIGRATION_REUNIOES })
     console.error('[reunioes] GET', e)

@@ -98,7 +98,7 @@ export default function FormSerie({ inicial, usuarios, meuId, onFechar, onSalvo 
           <small style={{ display: 'block', marginTop: 6, fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>Cada reunião que a série criar já reserva a sala. Se o horário estiver ocupado, a reunião é marcada sem sala e o condutor recebe um aviso.</small>
         </div>
         {inicial && <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><input type="checkbox" checked={ativa} onChange={(e) => setAtiva(e.target.checked)} /> Série ativa (gera instâncias)</label>}
-        {erro && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600 }}>{erro}</div>}
+        {erro && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 500 }}>{erro}</div>}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button onClick={onFechar} style={botaoClaro()}>Cancelar</button>
           <button onClick={salvar} disabled={salvando || !nome.trim()} style={{ ...botao(), opacity: salvando || !nome.trim() ? .5 : 1 }}>{salvando ? 'Salvando…' : inicial ? 'Salvar' : 'Criar série'}</button>

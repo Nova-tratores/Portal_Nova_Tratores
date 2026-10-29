@@ -34,6 +34,8 @@ export interface ItemAgenda {
   diaInteiro: boolean
   pessoas: string[]
   cor?: string | null
+  /** tipo do compromisso (só fonte 'evento') */
+  tipo?: TipoCompromisso | null
   local?: string | null
   descricao?: string | null
   link?: string | null
@@ -271,6 +273,30 @@ export const TIPOS_LOUSA: Record<TipoLousa, { rotulo: string; cor: string }> = {
 }
 export const tipoLousa = (t: unknown): TipoLousa => (typeof t === 'string' && t in TIPOS_LOUSA ? (t as TipoLousa) : 'servico')
 
+// ------------------------------------------------------------------ tipo do compromisso
+// José, 29/10/2026: "dentro de cada compromisso a gente tem que conseguir definir o tipo:
+// se é uma reunião, trabalho fora, coisas do tipo". O ícone de cada um fica em components/agenda/TipoIcone.
+export type TipoCompromisso =
+  | 'reuniao' | 'visita_cliente' | 'trabalho_fora' | 'viagem' | 'entrega' | 'treinamento' | 'ligacao'
+  | 'evento' | 'foco' | 'pessoal' | 'folga' | 'outro'
+export const TIPOS_COMPROMISSO: { id: TipoCompromisso; rotulo: string; cor: string; dica: string }[] = [
+  { id: 'reuniao', rotulo: 'Reunião', cor: '#7c3aed', dica: 'conversa marcada com a equipe ou com alguém de fora' },
+  { id: 'visita_cliente', rotulo: 'Visita a cliente', cor: '#0b8043', dica: 'ir até a fazenda ou empresa do cliente' },
+  { id: 'trabalho_fora', rotulo: 'Trabalho externo', cor: '#f4511e', dica: 'fora da loja: banco, cartório, fornecedor, campo' },
+  { id: 'viagem', rotulo: 'Viagem', cor: '#3f51b5', dica: 'fora da cidade, um ou mais dias' },
+  { id: 'entrega', rotulo: 'Entrega de máquina', cor: '#e67c73', dica: 'entrega técnica ou de trator vendido' },
+  { id: 'treinamento', rotulo: 'Treinamento', cor: '#039be5', dica: 'curso, capacitação, treinamento da fábrica' },
+  { id: 'ligacao', rotulo: 'Ligação / vídeo', cor: '#33b679', dica: 'chamada por telefone, WhatsApp ou vídeo' },
+  { id: 'evento', rotulo: 'Feira / evento', cor: '#f6bf26', dica: 'feira, dia de campo, evento da Mahindra' },
+  { id: 'foco', rotulo: 'Trabalho focado', cor: '#616161', dica: 'tempo reservado para tocar uma tarefa' },
+  { id: 'pessoal', rotulo: 'Pessoal / médico', cor: '#8e24aa', dica: 'consulta, compromisso pessoal' },
+  { id: 'folga', rotulo: 'Folga / férias', cor: '#9e9e9e', dica: 'fora do trabalho' },
+  { id: 'outro', rotulo: 'Outro', cor: '#5f6368', dica: 'qualquer outro compromisso' },
+]
+export const tipoCompromisso = (t: unknown): TipoCompromisso | null =>
+  typeof t === 'string' && TIPOS_COMPROMISSO.some((x) => x.id === t) ? (t as TipoCompromisso) : null
+export const infoTipo = (t: unknown) => TIPOS_COMPROMISSO.find((x) => x.id === t) || null
+
 // ------------------------------------------------------------------ validação
 export interface NovoEvento {
   titulo: string
@@ -282,6 +308,7 @@ export interface NovoEvento {
   participantes: string[]
   recorrencia: { freq: Freq; ate: string | null } | null
   cor: string | null
+  tipo: TipoCompromisso | null
 }
 
 const uuid = (v: unknown): v is string => typeof v === 'string' && /^[0-9a-f-]{36}$/i.test(v)
@@ -323,7 +350,7 @@ export function validarEvento(b: Record<string, unknown>): { ok: true; campos: N
     recorrencia = { freq: r.freq as Freq, ate }
   }
   const cor = typeof b.cor === 'string' && /^#[0-9a-f]{6}$/i.test(b.cor) ? b.cor : null
-  return { ok: true, campos: { titulo, descricao, local, diaInteiro, inicio, fim, participantes, recorrencia, cor } }
+  return { ok: true, campos: { titulo, descricao, local, diaInteiro, inicio, fim, participantes, recorrencia, cor, tipo: tipoCompromisso(b.tipo) } }
 }
 
 // ------------------------------------------------------------------ busca

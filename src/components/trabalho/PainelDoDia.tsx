@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  Check, CircleX, CalendarClock, Wrench, Play, Ticket as TicketIcon, SquareCheck, Kanban, X, Inbox, Sun, Send, Plus, ArrowUpRight, EyeOff,
+  Check, CircleX, CalendarClock, Users, Wrench, Play, Ticket as TicketIcon, SquareCheck, Kanban, X, Inbox, Sun, Send, Plus, ArrowUpRight, EyeOff,
 } from 'lucide-react'
 import { createPortal } from 'react-dom'
 import { authHeaders } from '@/lib/auth/client'
@@ -17,14 +17,14 @@ import EscolhaBloco, { carregarMeusBlocos, type EscolhaBlocoValor } from './Esco
 import SeletorDataAgenda from './SeletorDataAgenda'
 
 interface Pendente { id: string; numero: number; titulo: string; prazo: string | null; solicitante_nome: string; quadro_id?: string | null; quadro_nome: string | null; visibilidade?: 'privado' | 'publico' }
-interface Item { tipo: 'andamento' | 'comeca' | 'ticket' | 'tarefa'; texto: string; detalhe?: string; ticketId?: string | null; atrasado?: boolean }
+interface Item { tipo: 'andamento' | 'comeca' | 'ticket' | 'tarefa' | 'reuniao'; texto: string; detalhe?: string; ticketId?: string | null; atrasado?: boolean; link?: string }
 interface Hoje { ativo: boolean; hora: string; pendentes: Pendente[]; itens: Item[]; confirmado: boolean; pedidos: number; preferencias: { atalho_flutuante: boolean } }
 
 const VERMELHO = 'linear-gradient(135deg,#dc2626,#7f1d1d)'
 const br = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7)
 const hojeIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 const ICONE: Record<Item['tipo'], React.ReactNode> = {
-  andamento: <Wrench size={16} />, comeca: <Play size={16} />, ticket: <TicketIcon size={16} />, tarefa: <SquareCheck size={16} />,
+  andamento: <Wrench size={16} />, comeca: <Play size={16} />, ticket: <TicketIcon size={16} />, tarefa: <SquareCheck size={16} />, reuniao: <Users size={16} />,
 }
 
 export default function PainelDoDia({ nome }: { nome?: string }) {
@@ -207,9 +207,10 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
             <ul style={{ listStyle: 'none', margin: 0, padding: '6px 20px', maxHeight: '55vh', overflowY: 'auto' }}>
               {h.itens.map((i, k) => (
                 <li key={k} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid var(--portal-border,#f0f0f0)', fontSize: 14, color: 'var(--portal-text,#111)' }}>
-                  <span style={{ flex: 'none', width: 30, height: 30, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--portal-bg,#fafafa)', color: '#dc2626' }}>{ICONE[i.tipo]}</span>
+                  <span style={{ flex: 'none', width: 30, height: 30, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: i.tipo === 'reuniao' ? 'rgba(79,70,229,.1)' : 'var(--portal-bg,#fafafa)', color: i.tipo === 'reuniao' ? '#4f46e5' : '#dc2626' }}>{ICONE[i.tipo]}</span>
                   <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
                     <strong>{i.texto}</strong>{i.detalhe && <> — <span style={{ color: i.atrasado ? '#dc2626' : 'var(--portal-text-secondary,#555)', fontWeight: i.atrasado ? 700 : 400 }}>{i.detalhe}</span></>}
+                    {i.link && <> · <button onClick={() => { void confirmarDia(); router.push(i.link!) }} style={{ border: 'none', background: 'transparent', padding: 0, color: '#4f46e5', fontWeight: 700, cursor: 'pointer' }}>abrir reunião</button></>}
                     {i.ticketId && <> · <button onClick={() => setTicketAberto(i.ticketId!)} style={{ border: 'none', background: 'transparent', padding: 0, color: '#dc2626', fontWeight: 700, cursor: 'pointer' }}>abrir</button></>}
                   </span>
                 </li>

@@ -22,23 +22,22 @@ export async function chamar<T = Record<string, unknown>>(url: string, init?: { 
 }
 
 export const cartao: React.CSSProperties = {
-  background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#e5e7eb)', borderRadius: 14, padding: 16,
-  boxShadow: '0 2px 8px rgba(0,0,0,.04)',
+  background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#e2e8f0)', borderRadius: 16, padding: '16px 18px 14px',
 }
 export const campo: React.CSSProperties = {
-  width: '100%', padding: '9px 12px', borderRadius: 8, fontSize: 14, boxSizing: 'border-box',
+  width: '100%', padding: '9px 12px', borderRadius: 10, fontSize: 14, boxSizing: 'border-box',
   border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)', outline: 'none',
 }
-export const rotulo: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: 'var(--portal-text-secondary,#555)', textTransform: 'uppercase', letterSpacing: .3 }
+export const rotulo: React.CSSProperties = { display: 'block', fontSize: 13, fontWeight: 400, marginBottom: 6, color: 'var(--portal-text-secondary,#475569)' }
 export const botao = (cor = '#dc2626', grande = false): React.CSSProperties => ({
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: grande ? '12px 16px' : '8px 14px', borderRadius: 10, border: 'none',
-  background: cor, color: '#fff', fontSize: grande ? 15 : 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', minHeight: grande ? 46 : 36,
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: grande ? '12px 16px' : '8px 14px', borderRadius: 11, border: 'none',
+  background: cor, color: '#fefefe', fontSize: grande ? 15 : 13.5, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', minHeight: grande ? 46 : 36,
 })
 export const botaoClaro = (grande = false): React.CSSProperties => ({
   ...botao('var(--portal-surface,#fff)', grande), color: 'var(--portal-text,#111)', border: '1px solid var(--portal-border,#e5e7eb)',
 })
 export const chip = (cor: string, fundo: string): React.CSSProperties => ({
-  display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999, fontSize: 12, fontWeight: 700, color: cor, background: fundo, whiteSpace: 'nowrap',
+  display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999, fontSize: 12, fontWeight: 500, color: cor, background: fundo, whiteSpace: 'nowrap',
 })
 
 export const br = (iso: string | null | undefined) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '—')
@@ -57,10 +56,10 @@ export function EtapaChip({ etapa }: { etapa: ReuniaoEtapa }) {
 export function Modal({ titulo, onFechar, children, largura = 560 }: { titulo: string; onFechar: () => void; children: React.ReactNode; largura?: number }) {
   return (
     <div onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 1400, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: largura, maxHeight: '92vh', overflowY: 'auto', background: 'var(--portal-surface,#fff)', borderRadius: 14, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--portal-text,#111)' }}>{titulo}</h2>
-          <button onClick={onFechar} aria-label="Fechar" style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 20, color: 'var(--portal-text-muted,#888)', lineHeight: 1 }}>×</button>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: largura, maxHeight: '92vh', overflowY: 'auto', background: 'var(--portal-surface,#fefefe)', borderRadius: 18, padding: '18px 22px 20px', boxShadow: '0 24px 60px -20px rgba(15,23,42,.45)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--portal-border,#e2e8f0)' }}>
+          <h2 style={{ margin: 0, fontSize: 18, fontWeight: 500, letterSpacing: '-.01em', color: 'var(--portal-text,#0f172a)' }}>{titulo}</h2>
+          <button onClick={onFechar} aria-label="Fechar" style={{ border: '1px solid var(--portal-border,#e2e8f0)', background: 'transparent', cursor: 'pointer', fontSize: 18, color: 'var(--portal-text-muted,#64748b)', lineHeight: 1, width: 34, height: 34, borderRadius: 10 }}>×</button>
         </div>
         {children}
       </div>
@@ -82,8 +81,8 @@ function TimerInner({ limiteMin, ativo }: { limiteMin: number; ativo: boolean })
   const passou = seg > limiteMin * 60
   const mm = String(Math.floor(seg / 60)).padStart(2, '0'); const ss = String(seg % 60).padStart(2, '0')
   return (
-    <span title={`Sugerido: ${limiteMin} min`} style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 800, fontSize: 14, padding: '3px 10px', borderRadius: 999, color: passou ? '#dc2626' : 'var(--portal-text-secondary,#555)', background: passou ? 'rgba(220,38,38,.1)' : 'var(--portal-bg,#f3f4f6)' }}>
-      ⏱ {mm}:{ss} <span style={{ fontWeight: 500, opacity: .7 }}>/ {limiteMin} min</span>
+    <span title={`Sugerido: ${limiteMin} min`} style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, fontSize: 14, padding: '3px 10px', borderRadius: 999, color: passou ? '#dc2626' : 'var(--portal-text-secondary,#555)', background: passou ? 'rgba(220,38,38,.1)' : 'var(--portal-bg,#f3f4f6)' }}>
+      ⏱ {mm}:{ss} <span style={{ fontWeight: 400, opacity: .7 }}>/ {limiteMin} min</span>
     </span>
   )
 }

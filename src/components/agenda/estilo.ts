@@ -54,6 +54,34 @@ export const CSS_AGENDA = `
 .gc-agenda-linha:hover{background:var(--gc-hover)}
 .gc-agenda-linha .gc-so{display:none;margin-left:auto;font-size:11px;padding:2px 8px;border-radius:10px;border:1px solid var(--gc-linha);background:var(--gc-bg);cursor:pointer;color:var(--gc-muted)}
 .gc-agenda-linha:hover .gc-so{display:inline-block}
+@media (hover:none){.gc-agenda-linha .gc-so{display:inline-block}}
+.gc-agenda-linha:focus-visible{outline:2px solid var(--gc-azul);outline-offset:-2px}
+.gc-caixa-traco{width:10px;height:2px;border-radius:1px}
+.gc-sel-rapida{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px;margin:6px 4px 2px 12px;font-size:12px}
+.gc-sel-botoes{display:flex;gap:4px}
+.gc-chip-p{padding:3px 10px;font-size:12px}
+.gc-tipo-rotulo{font-size:12px;color:var(--gc-muted);margin:12px 0 6px}
+.gc-tipo-drop{position:relative;max-width:360px}
+.gc-tipo-botao{display:flex;align-items:center;gap:8px;width:100%;height:40px;padding:0 12px;border:1px solid var(--gc-linha);border-radius:8px;background:var(--gc-bg);color:var(--gc-txt);font-size:14px;cursor:pointer;text-align:left}
+.gc-tipo-botao:hover{background:var(--gc-hover)}
+.gc-tipo-menu{position:absolute;left:0;right:0;top:44px;z-index:20;background:var(--gc-bg);border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,.2);max-height:320px;overflow-y:auto;padding:6px 0;min-width:300px}
+.gc-tipo-op{display:flex;align-items:center;gap:10px;width:100%;border:none;background:transparent;padding:7px 12px;cursor:pointer;color:var(--gc-txt);text-align:left}
+.gc-tipo-op:hover,.gc-tipo-op-on{background:var(--gc-hover)}
+.gc-tipo-ic{width:28px;height:28px;border-radius:8px;display:grid;place-items:center;flex:none}
+.gc-tipo-txt{flex:1;min-width:0;display:flex;flex-direction:column}
+.gc-tipo-txt span{font-size:14px}.gc-tipo-txt small{font-size:11.5px;color:var(--gc-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gc-tipo-limpar{justify-content:center;font-size:13px;color:var(--gc-muted);border-top:1px solid var(--gc-linha);margin-top:4px}
+.gc-tipo-nota{margin-top:8px;font-size:12.5px;line-height:1.45;padding:8px 10px;border-radius:8px;background:color-mix(in srgb,#7c3aed 9%,transparent);color:var(--gc-txt)}
+.gc-tipo-nota b{font-weight:500}
+.gc-convidado .gc-avatar{flex:none;flex-direction:row}
+.gc-tipos{display:flex;flex-wrap:wrap;gap:6px}
+.gc-tipo{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--gc-linha);background:transparent;border-radius:16px;padding:5px 11px;font-size:13px;cursor:pointer;color:var(--gc-txt)}
+.gc-tipo:hover{background:var(--gc-hover)}
+.gc-tipo-on{font-weight:500}
+.gc-tipos-compacto{gap:4px;max-height:96px;overflow-y:auto}
+.gc-tipos-compacto .gc-tipo{padding:3px 9px;font-size:12px;gap:4px}
+.gc-tipo-selo{display:inline-flex;align-items:center;gap:5px;margin-top:6px;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:500}
+.gc-ev-tit svg,.gc-ev-linha svg{vertical-align:-1px}
 .gc-agenda-nome{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:14px}
 .gc-caixa{width:18px;height:18px;border-radius:3px;border:2px solid;display:inline-flex;align-items:center;justify-content:center;flex:none}
 .gc-sep{height:1px;background:var(--gc-linha);margin:12px 8px}
@@ -195,7 +223,8 @@ export const CSS_AGENDA = `
 .gc-busca-convidado input{flex:1;border:none;outline:none;background:transparent;color:var(--gc-txt);font-size:14px;height:100%}
 .gc-sugestoes{position:absolute;left:0;right:0;top:44px;background:var(--gc-bg);color:var(--gc-txt);border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,.2);z-index:10;max-height:300px;overflow-y:auto;padding:6px 0}
 .gc-sug{display:flex;align-items:center;gap:10px;width:100%;border:none;background:transparent;padding:6px 14px;text-align:left;cursor:pointer;color:var(--gc-txt)}
-.gc-sug:hover{background:var(--gc-hover)}
+.gc-sug:hover,.gc-sug-on{background:var(--gc-hover)}
+.gc-sug-vazio{padding:10px 14px;font-size:13px;color:var(--gc-muted)}
 .gc-sug small{margin-left:auto;color:var(--gc-muted);font-size:12px}
 .gc-sug-setores{display:flex;flex-wrap:wrap;gap:6px;padding:6px 12px 8px;border-bottom:1px solid var(--gc-linha);margin-bottom:4px}
 .gc-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--gc-linha);background:transparent;border-radius:16px;padding:5px 12px;font-size:13px;cursor:pointer;color:var(--gc-txt)}

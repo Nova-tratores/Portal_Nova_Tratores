@@ -48,7 +48,7 @@ export default function FormAcaoReuniao({ tituloInicial, descricaoInicial, categ
             <datalist id="cat-reuniao">{CATEGORIAS_SUGERIDAS.map((c) => <option key={c} value={c} />)}</datalist>
           </div>
         </div>
-        {erro && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600 }}>{erro}</div>}
+        {erro && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 500 }}>{erro}</div>}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button onClick={onFechar} style={botaoClaro()}>Cancelar</button>
           <button onClick={salvar} disabled={!pronto || salvando} style={{ ...botao(), opacity: !pronto || salvando ? .5 : 1 }}>{salvando ? 'Criando…' : 'Criar ação'}</button>

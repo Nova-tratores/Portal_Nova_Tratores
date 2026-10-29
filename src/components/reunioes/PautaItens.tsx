@@ -84,7 +84,7 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
   return (
     <section style={cartao}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text,#111)' }}>Pauta</span>
+        <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text,#111)' }}>Pauta</span>
         <span style={chip('#6b7280', 'rgba(107,114,128,.12)')}>{lista.length} {lista.length === 1 ? 'item' : 'itens'}</span>
         <span title="Soma do tempo previsto × duração da reunião" style={chip(estourou ? '#dc2626' : '#059669', estourou ? 'rgba(220,38,38,.1)' : 'rgba(5,150,105,.1)')}><Clock size={12} /> {total} / {duracaoMin} min{estourou ? ' — estoura' : ''}</span>
         {corteFechado && modo === 'pauta' && <span style={chip('#d97706', 'rgba(217,119,6,.12)')}>pauta fechada — só o condutor inclui (urgente)</span>}
@@ -102,11 +102,11 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
               {modo === 'pauta' && podeEditar && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--portal-text-muted,#999)' }}>
                   <button onClick={() => mover(item.id, -1)} disabled={idx === 0} style={{ border: 'none', background: 'transparent', cursor: idx === 0 ? 'default' : 'pointer', padding: 2, color: 'inherit', opacity: idx === 0 ? .25 : .8 }}><ChevronUp size={14} /></button>
-                  <span style={{ fontSize: 11, fontWeight: 800 }}>{idx + 1}</span>
+                  <span style={{ fontSize: 11, fontWeight: 500 }}>{idx + 1}</span>
                   <button onClick={() => mover(item.id, 1)} disabled={idx === lista.length - 1} style={{ border: 'none', background: 'transparent', cursor: idx === lista.length - 1 ? 'default' : 'pointer', padding: 2, color: 'inherit', opacity: idx === lista.length - 1 ? .25 : .8 }}><ChevronDown size={14} /></button>
                 </div>
               )}
-              {modo !== 'pauta' && <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)', marginTop: 2 }}>{idx + 1}.</span>}
+              {modo !== 'pauta' && <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--portal-text-muted,#999)', marginTop: 2 }}>{idx + 1}.</span>}
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <span style={chip(t.cor, t.fundo)}>{t.label}</span>
@@ -125,16 +125,16 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
                   )}
                   {ativo === item.id && !r && <Timer chave={item.id} limiteMin={item.tempo_min} ativo />}
                 </div>
-                <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--portal-text,#111)', lineHeight: 1.35 }}>{item.pergunta}</div>
+                <div style={{ fontSize: 14.5, fontWeight: 500, color: 'var(--portal-text,#111)', lineHeight: 1.35 }}>{item.pergunta}</div>
                 {(() => {
                   const re = textoReagendamento(item.resultado, { destino: destinos?.[item.id], proxima, temSerie: !!temSerie })
                   if (!re) return null
                   const cor = r?.cor || '#6b7280'
                   return (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: cor }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 500, color: cor }}>
                       <CornerDownRight size={14} />
                       {re.reuniao_id && onAbrirReuniao
-                        ? <button onClick={() => onAbrirReuniao(re.reuniao_id!)} style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', color: cor, fontWeight: 600, fontSize: 12.5, textDecoration: 'underline', textAlign: 'left' }}>{re.texto}</button>
+                        ? <button onClick={() => onAbrirReuniao(re.reuniao_id!)} style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', color: cor, fontWeight: 500, fontSize: 12.5, textDecoration: 'underline', textAlign: 'left' }}>{re.texto}</button>
                         : <span>{re.texto}</span>}
                     </div>
                   )
@@ -142,7 +142,7 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
                 {item.ticket_referencia_id && onAbrirTicket && <button onClick={() => onAbrirTicket(item.ticket_referencia_id!)} style={{ alignSelf: 'flex-start', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', fontSize: 12.5, color: '#2563eb', textDecoration: 'underline' }}>abrir a ação referida</button>}
                 {item.decisao_texto && (
                   <div style={{ fontSize: 13, padding: '8px 10px', borderRadius: 8, background: 'rgba(5,150,105,.08)', color: 'var(--portal-text,#111)' }}>
-                    <b>Decisão:</b> {item.decisao_texto}<br /><b>Motivo:</b> {item.decisao_motivo}
+                    <b style={{ fontWeight: 500 }}>Decisão:</b> {item.decisao_texto}<br /><b style={{ fontWeight: 500 }}>Motivo:</b> {item.decisao_motivo}
                   </div>
                 )}
                 {modo === 'conducao' && podeConduzir && !r && !emDecisao && (
@@ -188,7 +188,7 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
           </div>
         </div>
       )}
-      {erro && <div style={{ marginTop: 8, color: '#dc2626', fontSize: 13, fontWeight: 600 }}>{erro}</div>}
+      {erro && <div style={{ marginTop: 8, color: '#dc2626', fontSize: 13, fontWeight: 500 }}>{erro}</div>}
     </section>
   )
 }

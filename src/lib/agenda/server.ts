@@ -9,7 +9,7 @@ import type { Autenticado } from '@/lib/auth/server'
 import { TBL_LOUSA, TBL_OS } from '@/lib/pos/constants'
 import {
   addDias, isoDe, localDe, diasEntre, ocorrencias, setorDe, coresPorPessoa, normTexto, diasDaOS, faixasDeDias,
-  osCancelada, osEmAberto, solicitacaoDaOS, PERIODOS, periodoLousa, tipoLousa, TIPOS_LOUSA, ordemSetor,
+  osCancelada, osEmAberto, solicitacaoDaOS, PERIODOS, periodoLousa, tipoLousa, TIPOS_LOUSA, ordemSetor, tipoCompromisso,
   type Fonte, type ItemAgenda, type Pessoa, type NovoEvento, type Resposta, type Freq,
 } from './regras'
 
@@ -83,7 +83,7 @@ async function fonteEventos(c: Ctx): Promise<ItemAgenda[]> {
     const respostas: Record<string, Resposta> = Object.fromEntries(ps.map((p) => [p.user_id, p.resposta]))
     const pessoas = [...new Set([e.criado_por, ...ps.filter((p) => p.resposta !== 'nao').map((p) => p.user_id)])].filter((id) => c.ids.has(id))
     const base: Omit<ItemAgenda, 'id' | 'inicio' | 'fim' | 'ocorrencia'> = {
-      ref: e.id, fonte: 'evento', titulo: e.titulo, diaInteiro: e.dia_inteiro, pessoas, cor: e.cor, local: e.local, descricao: e.descricao,
+      ref: e.id, fonte: 'evento', titulo: e.titulo, diaInteiro: e.dia_inteiro, pessoas, cor: e.cor, tipo: tipoCompromisso(e.tipo), local: e.local, descricao: e.descricao,
       podeEditar: c.auth.isAdmin || e.criado_por === c.auth.userId, criadoPor: e.criado_por, respostas,
       serie: e.recorrencia ? { freq: e.recorrencia.freq, ate: e.recorrencia.ate ?? null } : null,
       detalhes: [['Organizador', nomeDe(c, e.criado_por)]],
@@ -262,6 +262,16 @@ export interface EventoDb {
   id: string; titulo: string; descricao: string | null; local: string | null; inicio: string; fim: string; dia_inteiro: boolean
   cor: string | null; recorrencia: { freq: Freq; ate?: string | null } | null; excecoes: string[] | null; criado_por: string
   cancelado_em: string | null
+  /** sql/agenda-tipo-compromisso.sql; sem a coluna fica undefined */
+  tipo?: string | null
+}
+
+// Sem a coluna "tipo" (SQL ainda não rodado) grava sem ela, em vez de falhar o compromisso inteiro.
+const semColunaTipo = (e: { message?: string; code?: string } | null) => !!e && (e.code === '42703' || e.code === 'PGRST204') && /tipo/.test(e.message || '')
+async function gravarComTipo<T>(fazer: (comTipo: boolean) => PromiseLike<{ data: T | null; error: { message: string; code?: string } | null }>): Promise<T> {
+  const r = await fazer(true)
+  if (semColunaTipo(r.error)) return ok(await fazer(false))
+  return ok(r)
 }
 
 export async function carregarEvento(id: string): Promise<EventoDb | null> {
@@ -296,9 +306,9 @@ export class ConflitoAgenda extends Error {
 export async function criarEvento(auth: Autenticado, n: NovoEvento): Promise<EventoDb> {
   const conf = await conferirConflitos(auth, n, { organizador: auth.userId })
   if (conf.length) throw new ConflitoAgenda(conf)
-  const e = ok(await supabaseAdmin.from('agenda_eventos').insert({
+  const e = await gravarComTipo((comTipo) => supabaseAdmin.from('agenda_eventos').insert({
     titulo: n.titulo, descricao: n.descricao, local: n.local, inicio: n.inicio, fim: n.fim, dia_inteiro: n.diaInteiro,
-    cor: n.cor, recorrencia: n.recorrencia, criado_por: auth.userId,
+    cor: n.cor, recorrencia: n.recorrencia, criado_por: auth.userId, ...(comTipo ? { tipo: n.tipo } : {}),
   }).select('*').single()) as EventoDb
   const convidados = n.participantes.filter((p) => p !== auth.userId)
   if (convidados.length) {
@@ -319,9 +329,9 @@ export async function editarEvento(auth: Autenticado, atual: EventoDb, n: NovoEv
     const conf = await conferirConflitos(auth, n, { organizador: atual.criado_por, ignorarId: atual.id })
     if (conf.length) throw new ConflitoAgenda(conf)
   }
-  const e = ok(await supabaseAdmin.from('agenda_eventos').update({
+  const e = await gravarComTipo((comTipo) => supabaseAdmin.from('agenda_eventos').update({
     titulo: n.titulo, descricao: n.descricao, local: n.local, inicio: n.inicio, fim: n.fim, dia_inteiro: n.diaInteiro,
-    cor: n.cor, recorrencia: n.recorrencia, updated_at: new Date().toISOString(),
+    cor: n.cor, recorrencia: n.recorrencia, updated_at: new Date().toISOString(), ...(comTipo ? { tipo: n.tipo } : {}),
   }).eq('id', atual.id).select('*').single()) as EventoDb
   const antes = (ok(await supabaseAdmin.from('agenda_participantes').select('user_id').eq('evento_id', atual.id)) as { user_id: string }[]).map((p) => p.user_id)
   const depois = n.participantes.filter((p) => p !== atual.criado_por)
@@ -342,7 +352,7 @@ export async function moverEvento(auth: Autenticado, atual: EventoDb, inicio: st
   const parts = (ok(await supabaseAdmin.from('agenda_participantes').select('user_id').eq('evento_id', atual.id)) as { user_id: string }[]).map((p) => p.user_id)
   return editarEvento(auth, atual, {
     titulo: atual.titulo, descricao: atual.descricao, local: atual.local, diaInteiro: atual.dia_inteiro, inicio, fim, participantes: parts,
-    recorrencia: atual.recorrencia ? { freq: atual.recorrencia.freq, ate: atual.recorrencia.ate ?? null } : null, cor: atual.cor,
+    recorrencia: atual.recorrencia ? { freq: atual.recorrencia.freq, ate: atual.recorrencia.ate ?? null } : null, cor: atual.cor, tipo: tipoCompromisso(atual.tipo),
   })
 }
 

@@ -7,9 +7,10 @@ import {
   X, Pencil, Trash2, MapPin, Users, AlignLeft, Clock, Repeat, ExternalLink, Check, Search, Wrench, Calendar as CalIcon,
 } from 'lucide-react'
 import {
-  rotuloHorario, textoSobre, normTexto, FREQ_ROTULO, PALETA, TIPOS_LOUSA, PERIODOS, localDe, ultimoDia, ordemSetor,
-  type ItemAgenda, type Pessoa, type Freq, type Resposta, type TipoLousa, type PeriodoLousa,
+  rotuloHorario, textoSobre, normTexto, FREQ_ROTULO, PALETA, TIPOS_LOUSA, PERIODOS, localDe, ultimoDia, ordemSetor, infoTipo,
+  type ItemAgenda, type Pessoa, type Freq, type Resposta, type TipoLousa, type PeriodoLousa, type TipoCompromisso,
 } from '@/lib/agenda/regras'
+import { SeletorTipo, TipoIcone } from './TipoIcone'
 
 const FONTE_ROTULO: Record<ItemAgenda['fonte'], string> = {
   evento: 'Compromisso', reuniao: 'Reunião', sala: 'Reserva da sala', ticket: 'Prazo de ticket', os: 'OS do POS', lousa: 'Lousa',
@@ -93,6 +94,11 @@ export function PopoverItem({ it, ancora, cor, pessoas, eu, onFechar, onEditar, 
           <div>
             <div className={`gc-pop-tit${it.esmaecido ? ' gc-riscado' : ''}`}>{it.titulo}</div>
             <div className="gc-pop-sub">{rotuloHorario(it)}</div>
+            {(() => { const t = infoTipo(it.tipo); return t && (
+              <span className="gc-tipo-selo" style={{ color: t.cor, background: `color-mix(in srgb, ${t.cor} 12%, transparent)` }}>
+                <TipoIcone tipo={t.id} size={13} cor={t.cor} /> {t.rotulo}
+              </span>
+            ) })()}
             {it.serie && <div className="gc-pop-sub"><Repeat size={12} style={{ verticalAlign: -1 }} /> {FREQ_ROTULO[it.serie.freq]}{it.serie.ate ? `, até ${it.serie.ate.slice(8, 10)}/${it.serie.ate.slice(5, 7)}` : ''}</div>}
           </div>
         </div>
@@ -151,12 +157,13 @@ export function PopoverItem({ it, ancora, cor, pessoas, eu, onFechar, onEditar, 
 }
 
 // ------------------------------------------------------------------ criação rápida
-export function CriarRapido({ ancora, quando, convidado, onSalvar, onMais, onFechar, salvando, erro }: {
-  ancora: DOMRect; quando: string; convidado?: Pessoa | null; salvando: boolean; erro: string
-  onSalvar: (titulo: string) => void; onMais: (titulo: string) => void; onFechar: () => void
+export function CriarRapido({ ancora, quando, convidado, onSalvar, onMais, onFechar, salvando, erro, usoTipos }: {
+  ancora: DOMRect; quando: string; convidado?: Pessoa | null; salvando: boolean; erro: string; usoTipos?: Partial<Record<TipoCompromisso, number>>
+  onSalvar: (titulo: string, tipo: TipoCompromisso | null) => void; onMais: (titulo: string, tipo: TipoCompromisso | null) => void; onFechar: () => void
 }) {
-  const { ref, estilo } = usePosicao(ancora, 420)
+  const { ref, estilo } = usePosicao(ancora, 520)
   const [titulo, setTitulo] = useState('')
+  const [tipo, setTipo] = useState<TipoCompromisso | null>(null)
   useEsc(onFechar)
   return (
     <div className="gc-fundo-leve" onMouseDown={onFechar}>
@@ -164,15 +171,17 @@ export function CriarRapido({ ancora, quando, convidado, onSalvar, onMais, onFec
         <div className="gc-pop-acoes"><button className="gc-icone" aria-label="Fechar" onClick={onFechar}><X size={20} /></button></div>
         <div style={{ padding: '0 20px 0 56px' }}>
           <input className="gc-titulo-input" autoFocus placeholder="Adicionar título" value={titulo} maxLength={200}
-            onChange={(e) => setTitulo(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && titulo.trim()) onSalvar(titulo) }} />
-          <div className="gc-aba-tipo"><span className="gc-aba-on">Compromisso</span></div>
+            onChange={(e) => setTitulo(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && titulo.trim()) onSalvar(titulo, tipo) }} />
+          <div className="gc-tipo-rotulo">Tipo do compromisso</div>
+          <SeletorTipo valor={tipo} onChange={setTipo} uso={usoTipos} />
+          {tipo === 'reuniao' && <div className="gc-tipo-nota">Vai ser criada em <b>Reuniões</b>, com pauta e ata: você conduz e os convidados viram participantes.</div>}
         </div>
         <div className="gc-pop-linha"><span className="gc-pop-ic"><Clock size={18} /></span><div className="gc-pop-txt">{quando}</div></div>
         {convidado && <div className="gc-pop-linha"><span className="gc-pop-ic"><Users size={18} /></span><div className="gc-pop-txt">Com {convidado.nome}</div></div>}
         {erro && <div className="gc-erro" style={{ margin: '4px 20px 0 56px' }}>{erro}</div>}
         <div className="gc-pop-botoes">
-          <button className="gc-btn-txt" onClick={() => onMais(titulo)}>Mais opções</button>
-          <button className="gc-btn-azul" disabled={salvando || !titulo.trim()} onClick={() => onSalvar(titulo)}>{salvando ? 'Salvando…' : 'Salvar'}</button>
+          <button className="gc-btn-txt" onClick={() => onMais(titulo, tipo)}>Mais opções</button>
+          <button className="gc-btn-azul" disabled={salvando || !titulo.trim()} onClick={() => onSalvar(titulo, tipo)}>{salvando ? 'Salvando…' : 'Salvar'}</button>
         </div>
       </div>
     </div>
@@ -188,27 +197,46 @@ function SeletorPessoas({ pessoas, escolhidos, onChange, eu }: { pessoas: Pessoa
     const t = normTexto(q)
     return pessoas.filter((p) => p.id !== eu && !escolhidos.includes(p.id) && (!t || normTexto(`${p.nome} ${p.setor}`).includes(t))).slice(0, 40)
   }, [q, pessoas, escolhidos, eu])
-  const setores = useMemo(() => [...new Set(pessoas.map((p) => p.setor))].sort(ordemSetor), [pessoas])
+  // setores que ainda têm gente a convidar; com busca, só os que casam com o texto
+  const setores = useMemo(() => {
+    const t = normTexto(q)
+    return [...new Set(pessoas.map((p) => p.setor))].sort(ordemSetor)
+      .filter((s) => (!t || normTexto(s).includes(t)) && pessoas.some((p) => p.setor === s && p.id !== eu && !escolhidos.includes(p.id)))
+  }, [pessoas, q, eu, escolhidos])
+  const [marcado, setMarcado] = useState(0)
+  const adicionar = (ids: string[]) => { onChange([...new Set([...escolhidos, ...ids])]); setQ(''); setMarcado(0) }
   return (
     <div>
-      <div className="gc-busca-convidado">
+      {/* O menu fica aberto enquanto o foco estiver no campo OU no próprio menu: antes, clicar na barra de
+          rolagem da lista tirava o foco e fechava tudo (José, 29/10/2026: "seleção de usuários bugando"). */}
+      <div className="gc-busca-convidado"
+        onBlur={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setAberto(false) }}>
         <Search size={16} />
-        <input placeholder="Adicionar convidados (nome ou setor)" value={q} onChange={(e) => { setQ(e.target.value); setAberto(true) }}
-          onFocus={() => setAberto(true)} onBlur={() => setTimeout(() => setAberto(false), 150)} />
-        {aberto && (resultados.length > 0 || !q) && (
-          <div className="gc-sugestoes">
-            {!q && <div className="gc-sug-setores">
+        <input placeholder="Adicionar convidados (nome ou setor)" value={q} onChange={(e) => { setQ(e.target.value); setAberto(true); setMarcado(0) }}
+          onFocus={() => setAberto(true)}
+          onKeyDown={(e) => {
+            if (e.key === 'ArrowDown') { e.preventDefault(); setMarcado((m) => Math.min(m + 1, resultados.length - 1)) }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); setMarcado((m) => Math.max(m - 1, 0)) }
+            else if (e.key === 'Enter') { e.preventDefault(); if (resultados[marcado]) adicionar([resultados[marcado].id]) }
+            else if (e.key === 'Escape') { e.stopPropagation(); setAberto(false) }
+          }} />
+        {aberto && (
+          <div className="gc-sugestoes" tabIndex={-1} onMouseDown={(e) => e.preventDefault()}>
+            {setores.length > 0 && <div className="gc-sug-setores">
               {setores.map((s) => (
-                <button key={s} className="gc-chip" onMouseDown={(e) => { e.preventDefault(); onChange([...new Set([...escolhidos, ...pessoas.filter((p) => p.setor === s && p.id !== eu).map((p) => p.id)])]) }}>
+                <button key={s} type="button" className="gc-chip" onClick={() => adicionar(pessoas.filter((p) => p.setor === s && p.id !== eu).map((p) => p.id))}>
                   + {s} inteiro
                 </button>
               ))}
             </div>}
-            {resultados.map((p) => (
-              <button key={p.id} className="gc-sug" onMouseDown={(e) => { e.preventDefault(); onChange([...escolhidos, p.id]); setQ('') }}>
+            {resultados.map((p, i) => (
+              <button key={p.id} type="button" className={`gc-sug${i === marcado ? ' gc-sug-on' : ''}`} onMouseEnter={() => setMarcado(i)} onClick={() => adicionar([p.id])}>
                 <Avatar p={p} tam={24} /> <span>{p.nome}</span> <small>{p.setor}</small>
               </button>
             ))}
+            {resultados.length === 0 && setores.length === 0 && (
+              <div className="gc-sug-vazio">{q ? `Ninguém encontrado com “${q}”.` : 'Todo mundo já foi convidado.'}</div>
+            )}
           </div>
         )}
       </div>
@@ -234,7 +262,7 @@ function SeletorPessoas({ pessoas, escolhidos, onChange, eu }: { pessoas: Pessoa
 export interface RascunhoEvento {
   id?: string; titulo: string; descricao: string; local: string; diaInteiro: boolean
   diaIni: string; horaIni: string; diaFim: string; horaFim: string; participantes: string[]
-  freq: Freq | ''; ate: string; cor: string | null
+  freq: Freq | ''; ate: string; cor: string | null; tipo: TipoCompromisso | null
 }
 
 export function rascunhoDeItem(it: ItemAgenda): RascunhoEvento {
@@ -244,12 +272,12 @@ export function rascunhoDeItem(it: ItemAgenda): RascunhoEvento {
   return {
     id: it.ref, titulo: it.titulo, descricao: it.descricao || '', local: it.local || '', diaInteiro: it.diaInteiro,
     diaIni: a.dia, horaIni: it.diaInteiro ? '09:00' : a.hora, diaFim: it.diaInteiro ? ultimoDia(it) : z.dia, horaFim: it.diaInteiro ? '10:00' : z.hora,
-    participantes: parts, freq: it.serie?.freq || '', ate: it.serie?.ate || '', cor: it.cor || null,
+    participantes: parts, freq: it.serie?.freq || '', ate: it.serie?.ate || '', cor: it.cor || null, tipo: it.tipo || null,
   }
 }
 
-export function FormEvento({ inicial, pessoas, eu, corPadrao, salvando, erro, onSalvar, onFechar, avisoSerie }: {
-  inicial: RascunhoEvento; pessoas: Pessoa[]; eu: string; corPadrao: string; salvando: boolean; erro: string
+export function FormEvento({ inicial, pessoas, eu, corPadrao, salvando, erro, onSalvar, onFechar, avisoSerie, usoTipos }: {
+  inicial: RascunhoEvento; pessoas: Pessoa[]; eu: string; corPadrao: string; salvando: boolean; erro: string; usoTipos?: Partial<Record<TipoCompromisso, number>>
   onSalvar: (r: RascunhoEvento) => void; onFechar: () => void; avisoSerie?: boolean
 }) {
   const [r, setR] = useState(inicial)
@@ -265,6 +293,9 @@ export function FormEvento({ inicial, pessoas, eu, corPadrao, salvando, erro, on
         </div>
         <div className="gc-modal-corpo">
           {avisoSerie && <div className="gc-aviso">Este é um evento que se repete: a mudança vale para todos os dias da série.</div>}
+          <div className="gc-tipo-rotulo">Tipo do compromisso</div>
+          <SeletorTipo valor={r.tipo} onChange={(t) => up({ tipo: t })} uso={usoTipos} />
+          {!r.id && r.tipo === 'reuniao' && <div className="gc-tipo-nota">Vai ser criada em <b>Reuniões</b>, com pauta e ata: você conduz e os convidados viram participantes. Para repetir toda semana, use <b>Séries</b> em Reuniões.</div>}
           <div className="gc-datas">
             <input type="date" value={r.diaIni} onChange={(e) => { const d = e.target.value; up({ diaIni: d, diaFim: r.diaFim < d ? d : r.diaFim }) }} aria-label="Data inicial" />
             {!r.diaInteiro && <input type="time" step={900} value={r.horaIni} onChange={(e) => up({ horaIni: e.target.value })} aria-label="Hora inicial" />}

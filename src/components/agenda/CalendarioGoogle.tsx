@@ -13,16 +13,17 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import TicketModal from '@/components/tickets/TicketModal'
 import {
   addDias, localDe, isoDe, hhmm, domingoDe, gradeDoMes, somarMeses, primeiroDoMes, diaDaSemana, casaItem, ordemSetor,
-  periodoDoHorario, rotuloHorario, textoSobre, FONTES, MESES, DIAS_LONGOS,
+  periodoDoHorario, rotuloHorario, textoSobre, normTexto, FONTES, MESES, DIAS_LONGOS,
   type ItemAgenda, type Pessoa, type Fonte, type Resposta,
 } from '@/lib/agenda/regras'
-import GradeHoras, { type Coluna } from './GradeHoras'
+import GradeHoras, { HORA_INI, HORA_FIM, type Coluna } from './GradeHoras'
 import { GradeMes, ListaProgramacao, MiniCalendario } from './Vistas'
 import {
   PopoverItem, CriarRapido, FormEvento, FormLousa, rascunhoDeItem, rascunhoLousaDeItem,
   type RascunhoEvento, type RascunhoLousa,
 } from './Janelas'
 import { CSS_AGENDA } from './estilo'
+import { salvarCompromisso } from './salvarCompromisso'
 
 type Vista = 'dia' | 'semana' | 'mes' | 'programacao' | 'pessoas'
 const VISTAS: { id: Vista; rotulo: string; tecla: string }[] = [
@@ -104,6 +105,16 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
      
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modo])
+  const [naDashboard, setNaDashboard] = useState(true)
+  useEffect(() => {
+    try { setTimeout(() => setNaDashboard(localStorage.getItem('agenda-na-dashboard') !== 'nao'), 0) } catch { /* sem storage */ }
+  }, [])
+  const trocarNaDashboard = (v: boolean) => {
+    setNaDashboard(v)
+    try { localStorage.setItem('agenda-na-dashboard', v ? 'sim' : 'nao') } catch { /* sem storage */ }
+    window.dispatchEvent(new Event('agenda-na-dashboard'))
+    setToast(v ? 'Sua semana volta a aparecer na dashboard' : 'Sua semana saiu da dashboard')
+  }
   const setVista = (v: Vista) => { setVistaS(v); gravar(chave('vista'), v) }
   const trocarOcultos = (s: Set<string>) => { setOcultos(s); gravar(chave('ocultos'), [...s]) }
   const trocarFontes = (s: Set<Fonte>) => { setFontesOff(s); gravar(chave('fontes-off'), [...s]) }
@@ -179,11 +190,20 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
     return porId.get(dono)?.cor || '#039be5'
   }, [porId, visivel])
   const grupos = useMemo(() => {
-    const t = buscaPessoa.trim().toLowerCase()
-    const lista = pessoas.filter((p) => p.id !== eu && (!t || p.nome.toLowerCase().includes(t) || p.setor.toLowerCase().includes(t)))
+    const t = normTexto(buscaPessoa.trim())
+    const lista = pessoas.filter((p) => p.id !== eu && (!t || normTexto(`${p.nome} ${p.setor}`).includes(t)))
     const setores = [...new Set(lista.map((p) => p.setor))].sort(ordemSetor)
     return setores.map((s) => ({ setor: s, pessoas: lista.filter((p) => p.setor === s) }))
   }, [pessoas, buscaPessoa, eu])
+  const usoTipos = useMemo(() => {
+    const u: Partial<Record<NonNullable<ItemAgenda['tipo']>, number>> = {}
+    const vistos = new Set<string>()
+    for (const it of dados?.itens || []) {
+      if (it.fonte !== 'evento' || !it.tipo || it.criadoPor !== eu || vistos.has(it.ref)) continue
+      vistos.add(it.ref); u[it.tipo] = (u[it.tipo] || 0) + 1
+    }
+    return u
+  }, [dados, eu])
   const pessoasVisiveis = useMemo(() => pessoas.filter((p) => visivel(p.id)), [pessoas, visivel])
 
   // ---------- colunas das vistas de horas
@@ -232,7 +252,7 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
   }
   const novoPadrao = () => {
     const agora = localDe(new Date().toISOString())
-    const h = Math.min(22, Number(agora.hora.slice(0, 2)) + 1)
+    const h = Math.max(HORA_INI, Math.min(HORA_FIM - 1, Number(agora.hora.slice(0, 2)) + 1))
     const d = dia === hoje ? hoje : dia
     return { ini: `${String(h).padStart(2, '0')}:00`, fim: `${String(h + 1).padStart(2, '0')}:00`, d }
   }
@@ -240,7 +260,7 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
     const { ini, fim, d } = novoPadrao()
     if (modoTecnicos) { abrirCriacao({ ancora: new DOMRect(0, 0, 1, 1), dia: d, ini, fim, diaInteiro: false }); return }
     setErroForm('')
-    setForm({ titulo: '', descricao: '', local: '', diaInteiro: false, diaIni: d, horaIni: ini, diaFim: d, horaFim: fim, participantes: [], freq: '', ate: '', cor: null })
+    setForm({ titulo: '', descricao: '', local: '', diaInteiro: false, diaIni: d, horaIni: ini, diaFim: d, horaFim: fim, participantes: [], freq: '', ate: '', cor: null, tipo: null })
   }
   // atalho da dashboard: /agenda?criar=1 já abre o "novo compromisso"
   useEffect(() => {
@@ -248,22 +268,16 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
     window.history.replaceState(null, '', window.location.pathname)
     void Promise.resolve().then(botaoCriar)
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
-  const rascunhoDaCriacao = (c: Criacao, titulo: string): RascunhoEvento => ({
+  const rascunhoDaCriacao = (c: Criacao, titulo: string, tipo: RascunhoEvento['tipo'] = null): RascunhoEvento => ({
     titulo, descricao: '', local: '', diaInteiro: c.diaInteiro, diaIni: c.dia, horaIni: c.diaInteiro ? '09:00' : c.ini,
     diaFim: c.dia, horaFim: c.diaInteiro ? '10:00' : c.fim,
-    participantes: c.pessoa && c.pessoa.id !== eu ? [c.pessoa.id] : [], freq: '', ate: '', cor: null,
-  })
-  const corpoEvento = (r: RascunhoEvento) => ({
-    titulo: r.titulo, descricao: r.descricao, local: r.local, diaInteiro: r.diaInteiro, diaIni: r.diaIni, horaIni: r.horaIni,
-    diaFim: r.diaFim, horaFim: r.horaFim, participantes: r.participantes, cor: r.cor,
-    recorrencia: r.freq ? { freq: r.freq, ate: r.ate || null } : null,
+    participantes: c.pessoa && c.pessoa.id !== eu ? [c.pessoa.id] : [], freq: '', ate: '', cor: null, tipo,
   })
   const salvarEvento = async (r: RascunhoEvento) => {
     setSalvando(true); setErroForm('')
     try {
-      if (r.id) await chamar(`/api/agenda/eventos/${r.id}`, 'PATCH', { acao: 'editar', ...corpoEvento(r) })
-      else await chamar('/api/agenda/eventos', 'POST', corpoEvento(r))
-      setForm(null); setCriando(null); setToast(r.id ? 'Compromisso atualizado' : r.participantes.length ? 'Compromisso salvo e convites enviados' : 'Compromisso salvo')
+      const aviso = await salvarCompromisso(r, eu)
+      setForm(null); setCriando(null); setToast(aviso)
       carregar(true)
     } catch (e) { setErroForm(e instanceof Error ? e.message : 'Falha ao salvar') } finally { setSalvando(false) }
   }
@@ -364,17 +378,23 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
 
   // ---------- lateral
   const minhaPessoa = porId.get(eu)
-  const caixa = (on: boolean, cor: string) => (
-    <span className="gc-caixa" style={{ borderColor: cor, background: on ? cor : 'transparent' }}>{on && <Check size={13} color={textoSobre(cor)} strokeWidth={3} />}</span>
+  // caixa de 3 estados: marcada · parcial (traço, setor com parte das pessoas) · vazia
+  const caixa = (estado: boolean | 'parcial', cor: string) => (
+    <span className="gc-caixa" style={{ borderColor: cor, background: estado ? cor : 'transparent' }}>
+      {estado === 'parcial' ? <span className="gc-caixa-traco" style={{ background: textoSobre(cor) }} /> : estado && <Check size={13} color={textoSobre(cor)} strokeWidth={3} />}
+    </span>
   )
+  const alternar = (id: string) => { const s = new Set(ocultos); if (s.has(id)) s.delete(id); else s.add(id); trocarOcultos(s) }
+  const soEsta = (id: string) => trocarOcultos(new Set(pessoas.filter((x) => x.id !== id).map((x) => x.id)))
   const linhaAgenda = (p: Pessoa) => (
-    <div key={p.id} className="gc-agenda-linha" title={`${p.nome} · ${p.setor}`}
-      onClick={() => { const s = new Set(ocultos); if (s.has(p.id)) s.delete(p.id); else s.add(p.id); trocarOcultos(s) }}>
+    <div key={p.id} role="checkbox" aria-checked={visivel(p.id)} tabIndex={0} className="gc-agenda-linha" title={`${p.nome} · ${p.setor}`}
+      onClick={() => alternar(p.id)} onKeyDown={(e) => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); alternar(p.id) } }}>
       {caixa(visivel(p.id), p.cor)}
       <span className="gc-agenda-nome">{p.nome}</span>
-      <button className="gc-so" title="Mostrar só esta agenda" onClick={(e) => { e.stopPropagation(); trocarOcultos(new Set(pessoas.filter((x) => x.id !== p.id).map((x) => x.id))) }}>só</button>
+      {p.id !== eu && <button className="gc-so" title="Ver só a agenda desta pessoa" onClick={(e) => { e.stopPropagation(); soEsta(p.id) }}>só</button>}
     </div>
   )
+  const marcadas = pessoasVisiveis.length
   const fontesDoModo = modoTecnicos ? FONTES.filter((f) => ['lousa', 'os', 'evento'].includes(f.id)) : FONTES
 
   const lateralEl = lateral && (
@@ -386,7 +406,21 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
         </button>
         <MiniCalendario mes={mesMini} onMes={setMesMini} selecionado={dia} hoje={hoje}
           destaque={vista === 'semana' ? colunas.map((c) => c.dia) : []} onEscolher={(d) => { setDia(d); if (isMobile) setLateral(false) }} />
-        <div className="gc-busca-pessoas"><Search size={16} className="gc-muted" /><input placeholder={modoTecnicos ? 'Buscar técnico' : 'Buscar pessoas ou setor'} value={buscaPessoa} onChange={(e) => setBuscaPessoa(e.target.value)} /></div>
+        <div className="gc-busca-pessoas">
+          <Search size={16} className="gc-muted" />
+          <input placeholder={modoTecnicos ? 'Buscar técnico' : 'Buscar pessoas ou setor'} value={buscaPessoa} onChange={(e) => setBuscaPessoa(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Escape') setBuscaPessoa('') }} />
+          {buscaPessoa && <button className="gc-icone gc-icone-p" style={{ width: 24, height: 24 }} aria-label="Limpar busca" onClick={() => setBuscaPessoa('')}><X size={14} /></button>}
+        </div>
+        <div className="gc-sel-rapida">
+          <span className="gc-muted">{marcadas} de {pessoas.length} na tela</span>
+          <span className="gc-sel-botoes">
+            <button className={`gc-chip gc-chip-p${marcadas === pessoas.length ? ' gc-chip-on' : ''}`} onClick={() => trocarOcultos(new Set())}>Todos</button>
+            {minhaPessoa && <button className={`gc-chip gc-chip-p${marcadas === 1 && visivel(eu) ? ' gc-chip-on' : ''}`} onClick={() => soEsta(eu)}>Só eu</button>}
+            <button className={`gc-chip gc-chip-p${marcadas === 0 ? ' gc-chip-on' : ''}`} onClick={() => trocarOcultos(new Set(pessoas.map((p) => p.id)))}>Nenhum</button>
+          </span>
+        </div>
+        {buscaPessoa && grupos.length === 0 && <div className="gc-muted" style={{ padding: '8px 12px', fontSize: 13 }}>Ninguém encontrado com “{buscaPessoa}”.</div>}
         {minhaPessoa && !buscaPessoa && (
           <div className="gc-grupo">
             <div className="gc-grupo-cab" style={{ cursor: 'default' }}><b>Minha agenda</b></div>
@@ -405,7 +439,7 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
                   if (ligados === g.pessoas.length) g.pessoas.forEach((p) => s.add(p.id)); else g.pessoas.forEach((p) => s.delete(p.id))
                   trocarOcultos(s)
                 }} title={ligados === g.pessoas.length ? 'Esconder o setor' : 'Mostrar o setor inteiro'} style={{ display: 'flex', padding: 4 }}>
-                  {caixa(ligados > 0, ligados === g.pessoas.length ? '#5f6368' : '#9aa0a6')}
+                  {caixa(ligados === g.pessoas.length ? true : ligados > 0 ? 'parcial' : false, '#5f6368')}
                 </span>
                 <b>{modoTecnicos && g.setor === 'Técnicos' ? 'Técnicos' : g.setor}</b>
                 <small>{ligados}/{g.pessoas.length}</small>
@@ -429,11 +463,11 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
         </div>
         <div className="gc-sep" />
         <label className="gc-check gc-rodape-lat"><input type="checkbox" checked={mostrarFds} onChange={(e) => { setMostrarFds(e.target.checked); gravar('agenda-fds', e.target.checked) }} /> Mostrar fins de semana</label>
-        <div className="gc-rodape-lat gc-muted" style={{ fontSize: 12 }}>
-          <button className="gc-btn-txt" style={{ padding: '4px 0' }} onClick={() => trocarOcultos(new Set())}>Mostrar todas</button>
-          {' · '}
-          <button className="gc-btn-txt" style={{ padding: '4px 0' }} onClick={() => trocarOcultos(new Set(pessoas.filter((p) => p.id !== eu).map((p) => p.id)))}>Só a minha</button>
-        </div>
+        {!modoTecnicos && (
+          // José, 29/10/2026: "em agenda tem que ficar a opção de ficar em dashboard ou tirar".
+          // O quadro "Minha semana" da dashboard (components/dashboard/AgendaDashboard) lê esta chave.
+          <label className="gc-check gc-rodape-lat"><input type="checkbox" checked={naDashboard} onChange={(e) => trocarNaDashboard(e.target.checked)} /> Mostrar minha semana na dashboard</label>
+        )}
       </aside>
     </>
   )
@@ -508,13 +542,13 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
       )}
       {criando && (
         <CriarRapido ancora={criando.ancora} quando={quandoCriacao(criando)} convidado={criando.pessoa && criando.pessoa.id !== eu ? criando.pessoa : null}
-          salvando={salvando} erro={erroForm} onFechar={() => setCriando(null)}
-          onSalvar={(t) => salvarEvento(rascunhoDaCriacao(criando, t))}
-          onMais={(t) => { const r = rascunhoDaCriacao(criando, t); setCriando(null); setForm(r) }} />
+          salvando={salvando} erro={erroForm} usoTipos={usoTipos} onFechar={() => setCriando(null)}
+          onSalvar={(t, tipo) => salvarEvento(rascunhoDaCriacao(criando, t, tipo))}
+          onMais={(t, tipo) => { const r = rascunhoDaCriacao(criando, t, tipo); setCriando(null); setForm(r) }} />
       )}
       {form && (
         <FormEvento inicial={form} pessoas={pessoas} eu={eu} corPadrao={minhaPessoa?.cor || '#039be5'} salvando={salvando} erro={erroForm}
-          avisoSerie={!!form.id && !!form.freq} onSalvar={salvarEvento} onFechar={() => setForm(null)} />
+          avisoSerie={!!form.id && !!form.freq} usoTipos={usoTipos} onSalvar={salvarEvento} onFechar={() => setForm(null)} />
       )}
       {formLousa && (
         <FormLousa inicial={formLousa} tecnicos={pessoas.filter((p) => p.tecnico)} salvando={salvando} erro={erroForm}

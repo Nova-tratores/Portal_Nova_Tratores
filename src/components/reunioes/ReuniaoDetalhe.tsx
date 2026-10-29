@@ -17,7 +17,7 @@ import PautaItens from './PautaItens'
 import FormAcaoReuniao from './FormAcaoReuniao'
 import AjudaAba from './AjudaAba'
 import UserSelect from '@/components/tickets/UserSelect'
-import { cartao, botao, botaoClaro, campo, chip, chamar, EtapaChip, diaDe, horaDe, brCurto, primeiroNome } from './comum'
+import { cartao, botao, botaoClaro, campo, chip, chamar, EtapaChip, horaDe, brCurto, primeiroNome } from './comum'
 
 const ROTULO_ACEITE: Record<string, { label: string; cor: string }> = { ok: { label: 'confirmada', cor: '#059669' }, pendente: { label: 'aguardando confirmação', cor: '#d97706' }, recusado: { label: 'recusada', cor: '#dc2626' } }
 
@@ -73,7 +73,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
   }, [d])
   const adendos = useMemo(() => eventos.filter((e) => e.tipo === 'ata_adendo'), [eventos])
 
-  if (erro && !d) return <div style={{ padding: 30, color: '#dc2626', fontWeight: 600 }}>{erro}</div>
+  if (erro && !d) return <div style={{ padding: 30, color: '#dc2626', fontWeight: 500 }}>{erro}</div>
   if (!d) return <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted,#888)' }}>Carregando reunião…</div>
 
   const r = d.reuniao
@@ -89,7 +89,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
   const cabecalho = (
     <div style={{ ...cartao, display: 'flex', flexDirection: 'column', gap: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)' }}>Reunião #{r.numero}</span>
+        <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--portal-text-muted,#999)' }}>Reunião #{r.numero}</span>
         <EtapaChip etapa={etapa} />
         {!cancelada && <AjudaAba chave={modo} />}
         {d.serie && <span style={chip('#4f46e5', 'rgba(79,70,229,.1)')}><Repeat size={11} /> {d.serie.nome}</span>}
@@ -106,11 +106,29 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
           <button onClick={() => acao({ acao: 'etapa', para: 'ata_rascunho' }).catch(() => {})} disabled={ocupado} style={botao('#7c3aed')}><Square size={14} /> Encerrar e fechar ata</button>
         )}
       </div>
-      <h1 style={{ margin: 0, fontSize: isMobile ? 19 : 22, fontWeight: 800, color: 'var(--portal-text,#111)', lineHeight: 1.25 }}>{r.titulo}</h1>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 13, color: 'var(--portal-text-secondary,#555)' }}>
-        <span><b>{diaDe(r.reuniao_inicio)}</b> às <b>{horaDe(r.reuniao_inicio)}</b> · {d.duracao_min} min</span>
-        <span>Conduz: <b>{nome(d.condutor_id)}</b></span>
-        <span>Secretário: <b>{d.secretario_id ? nome(d.secretario_id) : '—'}</b></span>
+      {/* data em destaque à esquerda, como na Agenda (José, 29/10/2026) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        {r.reuniao_inicio && (() => {
+          const dt = new Date(r.reuniao_inicio)
+          const p = (o: Intl.DateTimeFormatOptions) => dt.toLocaleDateString('pt-BR', { ...o, timeZone: 'America/Sao_Paulo' }).replace('.', '')
+          return (
+            <span style={{ flex: 'none', width: 62, padding: '6px 0', borderRadius: 14, textAlign: 'center', border: '1px solid color-mix(in srgb, #2563eb 22%, var(--portal-border,#e2e8f0))', background: 'color-mix(in srgb, #2563eb 7%, var(--portal-surface,#fefefe))', color: '#2563eb', display: 'flex', flexDirection: 'column', lineHeight: 1.1 }}>
+              <span style={{ fontSize: 11.5 }}>{p({ weekday: 'short' })}</span>
+              <span style={{ fontSize: 24, fontWeight: 500, color: 'var(--portal-text,#0f172a)', fontVariantNumeric: 'tabular-nums' }}>{p({ day: 'numeric' })}</span>
+              <span style={{ fontSize: 11.5 }}>{p({ month: 'short' })}</span>
+            </span>
+          )
+        })()}
+        <span style={{ display: 'flex', flexDirection: 'column', gap: 4, minWidth: 0 }}>
+          <h1 style={{ margin: 0, fontSize: isMobile ? 19 : 22, fontWeight: 500, letterSpacing: '-.01em', color: 'var(--portal-text,#0f172a)', lineHeight: 1.25 }}>{r.titulo}</h1>
+          <span style={{ fontSize: 14, color: 'var(--portal-text-secondary,#475569)', fontVariantNumeric: 'tabular-nums' }}>
+            {horaDe(r.reuniao_inicio)}{r.reuniao_inicio ? `–${horaDe(new Date(new Date(r.reuniao_inicio).getTime() + d.duracao_min * 60_000).toISOString())}` : ''} · {d.duracao_min} min
+          </span>
+        </span>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', fontSize: 13, color: 'var(--portal-text-secondary,#475569)', paddingTop: 10, borderTop: '1px solid var(--portal-border,#e2e8f0)' }}>
+        <span>Conduz: <b style={{ fontWeight: 500 }}>{nome(d.condutor_id)}</b></span>
+        <span>Secretário: <b style={{ fontWeight: 500 }}>{d.secretario_id ? nome(d.secretario_id) : '—'}</b></span>
         <span title={d.presencas.map((p) => nome(p.usuario_id)).join(', ')}><Users size={13} style={{ verticalAlign: -2 }} /> {d.presencas.length} pessoas</span>
         {modo === 'pauta' && !cancelada && (horasAteCorte != null) && (
           corteFechado
@@ -125,7 +143,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
 
   const presencas = (modoConducao: boolean) => (
     <section style={cartao}>
-      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text,#111)', marginBottom: 8 }}><UserCheck size={15} style={{ verticalAlign: -3 }} /> Presenças</div>
+      <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text,#111)', marginBottom: 8 }}><UserCheck size={15} style={{ verticalAlign: -3 }} /> Presenças</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         {d.presencas.map((p) => {
           const pode = modoConducao && !publicada && (conduz || p.usuario_id === userProfile?.id)
@@ -149,13 +167,13 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
 
   const acoesDaReuniao = (
     <section style={cartao}>
-      <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text,#111)', marginBottom: 8 }}>Ações nascidas aqui <span style={chip('#6b7280', 'rgba(107,114,128,.12)')}>{d.acoes.length}</span></div>
+      <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text,#111)', marginBottom: 8 }}>Ações nascidas aqui <span style={chip('#6b7280', 'rgba(107,114,128,.12)')}>{d.acoes.length}</span></div>
       {d.acoes.length === 0 && <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Nenhuma ação ainda.</div>}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {d.acoes.map((a) => (
           <button key={a.id} onClick={() => setTicketAberto(a.id)} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', textAlign: 'left', padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer' }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)' }}>#{a.numero}</span>
-            <span style={{ flex: 1, minWidth: 140, fontSize: 13.5, fontWeight: 700, color: 'var(--portal-text,#111)' }}>{a.titulo}</span>
+            <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--portal-text-muted,#999)' }}>#{a.numero}</span>
+            <span style={{ flex: 1, minWidth: 140, fontSize: 13.5, fontWeight: 500, color: 'var(--portal-text,#111)' }}>{a.titulo}</span>
             <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>{primeiroNome(nome(a.responsavel_id))} · até {brCurto(a.prazo)}</span>
             {a.aceite && ROTULO_ACEITE[a.aceite] && a.status !== 'cancelado' && <span style={chip(ROTULO_ACEITE[a.aceite].cor, ROTULO_ACEITE[a.aceite].cor + '1f')}>{ROTULO_ACEITE[a.aceite].label}</span>}
             <StatusBadge status={a.status as TicketStatus} />
@@ -166,7 +184,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
   )
 
   const erroBox = (erro || erroLista.length > 0) && (
-    <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(220,38,38,.08)', color: '#dc2626', fontSize: 13, fontWeight: 600 }}>
+    <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(220,38,38,.08)', color: '#dc2626', fontSize: 13, fontWeight: 500 }}>
       {erro}{erroLista.length > 0 && <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontWeight: 500 }}>{erroLista.map((e, i) => <li key={i}>{e}</li>)}</ul>}
     </div>
   )
@@ -182,7 +200,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
 
   return (
     <div style={{ padding: isMobile ? '12px 10px 90px' : '18px 20px 40px', maxWidth: 1100, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <button onClick={() => router.push('/reunioes')} style={{ display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-muted,#888)', padding: 0, alignSelf: 'flex-start' }}><ArrowLeft size={15} /> Reuniões</button>
+      <button onClick={() => router.push('/reunioes')} style={{ display: 'flex', alignItems: 'center', gap: 6, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 500, color: 'var(--portal-text-muted,#888)', padding: 0, alignSelf: 'flex-start' }}><ArrowLeft size={15} /> Reuniões</button>
       {cabecalho}
       {erroBox}
 
@@ -224,7 +242,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
             <section style={{ ...cartao, borderColor: 'rgba(124,58,237,.4)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <FileCheck2 size={16} color="#7c3aed" />
-                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text,#111)' }}>Rascunho da ata</span>
+                <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text,#111)' }}>Rascunho da ata</span>
                 <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)', flex: 1 }}>Revise decisões, ações e presenças. Depois de publicada a ata não muda — só adendo.</span>
                 {conduz && <button onClick={() => acao({ acao: 'publicar_ata' }).catch(() => {})} disabled={ocupado} style={botao('#059669')}><FileCheck2 size={14} /> Publicar ata</button>}
               </div>
@@ -234,7 +252,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
             <section style={{ ...cartao, borderColor: 'rgba(5,150,105,.4)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
                 <FileCheck2 size={16} color="#059669" />
-                <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text,#111)' }}>Ata publicada</span>
+                <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text,#111)' }}>Ata publicada</span>
                 <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)' }}>por {nome(d.ata.publicada_por)} em {new Date(d.ata.publicada_em).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}</span>
                 <span style={{ flex: 1 }} />
                 <button onClick={async () => { try { await navigator.clipboard.writeText(d.ata!.texto_whatsapp); setCopiado(true); setTimeout(() => setCopiado(false), 2000) } catch { /* sem clipboard */ } }} style={botao('#25D366')}><Copy size={14} /> {copiado ? 'Copiado!' : 'Copiar texto WhatsApp'}</button>
@@ -247,16 +265,16 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
           {acoesDaReuniao}
           {presencas(!publicada)}
           <section style={cartao}>
-            <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text,#111)', marginBottom: 8 }}>Pendências tratadas nesta reunião</div>
+            <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text,#111)', marginBottom: 8 }}>Pendências tratadas nesta reunião</div>
             {eventos.filter((e) => e.tipo === 'pendencia_tratada').length === 0
               ? <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Nenhuma.</div>
               : <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--portal-text,#111)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {eventos.filter((e) => e.tipo === 'pendencia_tratada').map((e) => <li key={e.id}>#{String(e.payload.numero)} {String(e.payload.titulo || '')} — <b>{String(e.payload.saida).replace('_', ' ')}</b>{e.payload.para && e.payload.saida === 'novo_prazo' ? ` para ${brCurto(String(e.payload.para))}` : ''}</li>)}
+                  {eventos.filter((e) => e.tipo === 'pendencia_tratada').map((e) => <li key={e.id}>#{String(e.payload.numero)} {String(e.payload.titulo || '')} — <b style={{ fontWeight: 500 }}>{String(e.payload.saida).replace('_', ' ')}</b>{e.payload.para && e.payload.saida === 'novo_prazo' ? ` para ${brCurto(String(e.payload.para))}` : ''}</li>)}
                 </ul>}
           </section>
           {publicada && (
             <section style={cartao}>
-              <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text,#111)', marginBottom: 8 }}><MessageSquarePlus size={15} style={{ verticalAlign: -3 }} /> Adendos</div>
+              <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text,#111)', marginBottom: 8 }}><MessageSquarePlus size={15} style={{ verticalAlign: -3 }} /> Adendos</div>
               {adendos.length === 0 && <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)', marginBottom: 8 }}>Nenhum adendo. Correção depois da publicação entra aqui, nunca editando a ata.</div>}
               {adendos.map((e) => (
                 <div key={e.id} style={{ padding: '8px 10px', borderRadius: 8, background: 'var(--portal-bg,#f9fafb)', marginBottom: 6, fontSize: 13 }}>
