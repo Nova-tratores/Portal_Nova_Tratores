@@ -3,6 +3,7 @@
 // comissão OS por OS (a mesma conta do painel do Omie/RH), OS, requisições, frota, ocorrências e RH.
 // Dados: /api/mecanicos/tecnico (lib/mecanicos/ficha-server.ts). OS e requisição abrem em janela.
 import { useEffect, useMemo, useState } from 'react'
+import OSRelatorioJanela from './OSRelatorioJanela'
 import { createPortal } from 'react-dom'
 import { authHeaders } from '@/lib/auth/client'
 import { useVersaoAoVivo } from './useAoVivo'
@@ -45,6 +46,8 @@ export default function FichaTecnico({ nome, foto, aba: abaInicial = 'resumo', o
   const [erro, setErro] = useState<string | null>(null)
   const [doc, setDoc] = useState<DocumentoVisualizavel | null>(null)
   const [req, setReq] = useState<{ id: number; titulo: string } | null>(null)
+  // OS do portal abre junto com o relatório do técnico (José, 29/10/2026)
+  const [osRel, setOsRel] = useState<{ os: string; cliente?: string } | null>(null)
 
   useEffect(() => {
     let vivo = true
@@ -64,16 +67,17 @@ export default function FichaTecnico({ nome, foto, aba: abaInicial = 'resumo', o
   }, [chave, nome, mes])
 
   useEffect(() => {
-    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape' && !doc && !req) onFechar() }
+    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape' && !doc && !req && !osRel) onFechar() }
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
-  }, [onFechar, doc, req])
+  }, [onFechar, doc, req, osRel])
 
   const verOS = (os: string, cliente?: string) => {
     if (os.startsWith('OMIE ')) {
       const cod = dados?.codOmie?.[os.slice(5)]
       if (cod) setDoc({ titulo: `OS ${os.slice(5)} (Omie) · ${cliente || ''}`, url: `/api/clientes/print?tipo=os&cod=${cod}&empresa=${encodeURIComponent('Nova Tratores')}`, nome: `OS-${os.slice(5)}` })
     }
+    else if (/^OS-\d+$/i.test(os)) setOsRel({ os, cliente })
     else setDoc({ titulo: `${os} · ${cliente || ''}`, url: `/api/pos/ordens/${encodeURIComponent(os)}/print`, nome: os })
   }
   const atual = mes >= hojeSP().slice(0, 7)
@@ -118,6 +122,7 @@ export default function FichaTecnico({ nome, foto, aba: abaInicial = 'resumo', o
         </div>
       </div>
       {doc && <div className="ft-doc" onClick={(e) => e.stopPropagation()}><VisualizadorDocumento key={doc.url} doc={doc} onClose={() => setDoc(null)} /></div>}
+      {osRel && <OSRelatorioJanela os={osRel.os} cliente={osRel.cliente} onFechar={() => setOsRel(null)} />}
       {req && (
         <div className="ft-req-fundo" onClick={(e) => { e.stopPropagation(); setReq(null) }}>
           <div className="ft-req-jan" onClick={(e) => e.stopPropagation()}>
@@ -652,15 +657,19 @@ export function useFicha(nome: string | null, mes: string): { dados: Ficha | nul
 export function useVisores(d: Ficha | null) {
   const [doc, setDoc] = useState<DocumentoVisualizavel | null>(null)
   const [req, setReq] = useState<{ id: number; titulo: string } | null>(null)
+  // OS do portal abre junto com o relatório do técnico (José, 29/10/2026)
+  const [osRel, setOsRel] = useState<{ os: string; cliente?: string } | null>(null)
   const verOS = (os: string, cliente?: string) => {
     if (os.startsWith('OMIE ')) {
       const cod = d?.codOmie?.[os.slice(5)]
       if (cod) setDoc({ titulo: `OS ${os.slice(5)} (Omie) · ${cliente || ''}`, url: `/api/clientes/print?tipo=os&cod=${cod}&empresa=${encodeURIComponent('Nova Tratores')}`, nome: `OS-${os.slice(5)}` })
-    } else setDoc({ titulo: `${os} · ${cliente || ''}`, url: `/api/pos/ordens/${encodeURIComponent(os)}/print`, nome: os })
+    } else if (/^OS-\d+$/i.test(os)) setOsRel({ os, cliente })
+    else setDoc({ titulo: `${os} · ${cliente || ''}`, url: `/api/pos/ordens/${encodeURIComponent(os)}/print`, nome: os })
   }
   const camadas = (
     <>
       {doc && <div className="ft-doc" onClick={(e) => e.stopPropagation()}><VisualizadorDocumento key={doc.url} doc={doc} onClose={() => setDoc(null)} /></div>}
+      {osRel && <OSRelatorioJanela os={osRel.os} cliente={osRel.cliente} onFechar={() => setOsRel(null)} />}
       {req && (
         <div className="ft-req-fundo" onClick={(e) => { e.stopPropagation(); setReq(null) }}>
           <div className="ft-req-jan" onClick={(e) => e.stopPropagation()}>

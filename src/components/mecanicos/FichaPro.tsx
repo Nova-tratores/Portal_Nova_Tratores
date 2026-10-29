@@ -34,7 +34,7 @@ export function FichaPro({ nome, foto, card, onFechar, secao, onSecao, mes: mesF
   const setSec = (s: string) => { setSecLocal(s); onSecao?.(s) }
   const { dados: d, erro } = useFicha(nome, mes)
   useEffect(() => {
-    const t = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && !document.querySelector('.ft-doc, .ft-req-fundo')) onFechar() }
+    const t = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && !document.querySelector('.ft-doc, .ft-req-fundo, .orj-fundo')) onFechar() }
     window.addEventListener('keydown', t); return () => window.removeEventListener('keydown', t)
   }, [onFechar])
   useEffect(() => { const o = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = o } }, [])
@@ -474,8 +474,10 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
   const com = (l.tecnicos?.length || 0) > 1 ? l.tecnicos!.filter((t) => t !== d.nome).map((t) => t.split(' ')[0]).join(', ') : ''
   return (
     <div className={`fp-lin ${estado}`}>
-      <div className="fp-row">
-        <button type="button" className="fp-num" onClick={() => verOS(l.os, l.cliente)} title="Abrir a OS">{l.numeroOmie || l.os}</button>
+      {/* clicar em qualquer lugar da linha abre a OS e o relatório do técnico (José, 29/10/2026) */}
+      <div className="fp-row abre" title="Clique para abrir a OS e o relatório do técnico"
+        onClick={(ev) => { if (!(ev.target as HTMLElement).closest('button, input, select, textarea, a, label')) verOS(l.os, l.cliente) }}>
+        <button type="button" className="fp-num" onClick={() => verOS(l.os, l.cliente)} title="Abrir a OS e o relatório do técnico">{l.numeroOmie || l.os}<i className="fas fa-file-lines fp-num-ic" /></button>
         <div className="fp-cli">
           <b title={l.cliente}>{l.cliente || '—'}</b>
           <small>{diaBR(l.data)}{com && <> · com {com}</>} · {l.regra.replace(/\s*÷ \d+.*$/, '')}</small>
@@ -666,6 +668,9 @@ const ESTILO_FP = `
 .fp-lin { border-bottom: 1px solid var(--portal-border, #f1f5f9); border-left: 3px solid transparent; transition: background .15s, border-color .2s; animation: fpEntra .3s both } .fp-lin:last-child { border-bottom: none } .fp-lin:hover { background: #fafbfd }
 .fp-lin.nao { border-left-color: #ef4444; background: #fffafa } .fp-lin.aj { border-left-color: #f59e0b } .fp-lin.div { border-left-color: #8b5cf6 }
 .fp-row { padding-top: 10px; padding-bottom: 10px }
+.fp-row.abre { cursor: pointer; border-radius: 12px; transition: background .2s, box-shadow .2s } .fp-row.abre:hover { background: color-mix(in srgb, var(--g, #2563eb) 5%, #fefefe); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--g, #2563eb) 22%, transparent) }
+.fp-row.abre button, .fp-row.abre input, .fp-row.abre select { cursor: pointer } .fp-row.abre input { cursor: text }
+.fp-num { display: inline-flex; gap: 6px; align-items: center } .fp-num-ic { font-size: 10.5px; opacity: .55 } .fp-row.abre:hover .fp-num-ic { opacity: 1 }
 .fp-num { justify-self: start; border: none; background: color-mix(in srgb, var(--g) 10%, transparent); color: var(--g); border-radius: 8px; padding: 4px 9px; font-family: inherit; font-size: 13px; font-weight: 900; cursor: pointer; font-variant-numeric: tabular-nums } .fp-num:hover { background: var(--g); color: #fefefe }
 .fp-cli { display: grid; min-width: 0 } .fp-cli b { font-size: 13.5px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis } .fp-cli small { font-size: 12px; color: ${MUDO}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis } .fp-cli .fp-rh { color: #b45309 }
 .fp-valor { display: grid; gap: 4px; min-width: 0 } .fp-valor > b { font-size: 14px; font-weight: 900; font-variant-numeric: tabular-nums }
