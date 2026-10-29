@@ -8,7 +8,7 @@ export const DIVERGENCIAS: Record<Divergencia, { titulo: string; unidade: 'km' |
   'dias-sem-os': { titulo: 'dias com o carro rodando sem OS', unidade: 'km' },
   'horas-nao-cobradas': { titulo: 'horas apontadas e não cobradas', unidade: 'h' },
   'sem-cliente': { titulo: 'dias de OS sem o carro passar no cliente', unidade: 'dias' },
-  'colega-fora-os': { titulo: 'foi com um colega sem estar na OS', unidade: 'dias' },
+  'colega-fora-os': { titulo: 'atendimento em OS de outro técnico sem o nome dele', unidade: 'dias' },
   'ligado-sem-os': { titulo: 'carro ligado em dias sem OS', unidade: 'h' },
 }
 export const ehDivergencia = (v: unknown): v is Divergencia => typeof v === 'string' && v in DIVERGENCIAS

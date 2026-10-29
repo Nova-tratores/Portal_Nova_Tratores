@@ -26,7 +26,7 @@ function filtroDia(fk: FuroKm, div: Divergencia): (x: DiaFuro) => boolean {
   if (div === 'km-nao-cobrado' || div === 'horas-nao-cobradas') { const ids = new Set(osDaDiv(fk, div).map((o) => o.os)); return (x) => x.os.some((o) => ids.has(o.os)) }
   return (x) => x.furo > 5
 }
-const TITULO_LISTA: Record<Divergencia, string> = { 'geral': 'Dias com furo', 'km-fora-relatorio': 'Dias com km fora do relatório', 'km-nao-cobrado': 'Dias dessas OS', 'dias-sem-os': 'Dias sem OS', 'horas-nao-cobradas': 'Dias dessas OS', 'sem-cliente': 'Dias de OS sem passar no cliente', 'colega-fora-os': 'Dias no cliente de um colega', 'ligado-sem-os': 'Dias com o carro ligado sem OS' }
+const TITULO_LISTA: Record<Divergencia, string> = { 'geral': 'Dias com furo', 'km-fora-relatorio': 'Dias com km fora do relatório', 'km-nao-cobrado': 'Dias dessas OS', 'dias-sem-os': 'Dias sem OS', 'horas-nao-cobradas': 'Dias dessas OS', 'sem-cliente': 'Dias de OS sem passar no cliente', 'colega-fora-os': 'Dias em atendimento de OS de outro técnico', 'ligado-sem-os': 'Dias com o carro ligado sem OS' }
 const fmtValor = (v: number, u: 'km' | 'h' | 'dias') => (u === 'h' ? `${String(v).replace('.', ',')} h` : u === 'dias' ? `${v} dia${v === 1 ? '' : 's'}` : `${Math.round(v).toLocaleString('pt-BR')} km`)
 
 const km = (v: number) => `${(Math.round(v * 10) / 10).toLocaleString('pt-BR')} km`
@@ -274,8 +274,8 @@ function LinhaDia({ x, on, foco, cor, carregando, onClick, notas = [], pensando,
   const conclusao = x.os.length
     ? (x.furo > 0 ? `As OS dele cobraram ${kmI(x.kmCobrado)} de ${kmI(x.kmGps)} rodados: faltam ${kmI(x.furo)}.` : `As OS dele cobraram o que o carro rodou.`)
     : colegas.length
-      ? `Não tinha OS dele, mas o carro foi ao cliente de um colega: o km deveria estar na OS do colega.`
-      : `Não tinha OS dele e o carro não foi a nenhum cliente com OS: os ${kmI(x.kmGps)} não têm destino.`
+      ? `Não tinha OS dele, mas o carro foi a um atendimento de OS em nome de outro técnico: o km deveria estar nessa OS.`
+      : `Não tinha OS dele e o carro não foi a nenhum atendimento com OS: os ${kmI(x.kmGps)} não têm destino.`
   return (
     <button type="button" className={`fk-dia ${on ? 'on' : ''} ${foco ? 'foco' : ''}`} style={{ '--c': cor || '#cbd5e1' } as React.CSSProperties} onClick={onClick}>
       <span className="fk-chk">{carregando ? <i className="fas fa-circle-notch fa-spin" /> : on ? <i className="fas fa-eye" /> : null}</span>
@@ -307,7 +307,7 @@ function LinhaDia({ x, on, foco, cor, carregando, onClick, notas = [], pensando,
         ))}
         {colegas.map((o) => (
           <small key={o.os} className={`fk-os ${o.naOS ? 'sim' : 'nao'}`}>
-            <i className="fas fa-user-group" /> foi ao cliente da {o.os} do {o.tecnico.split(' ')[0]} ({o.cliente.split(' ').slice(0, 3).join(' ')}), {hora(o.noCliente!.inicio)}–{hora(o.noCliente!.fim)}
+            <i className="fas fa-user-group" /> foi ao atendimento da {o.os}, em nome do {o.tecnico.split(' ')[0]} ({o.cliente.split(' ').slice(0, 3).join(' ')}), {hora(o.noCliente!.inicio)}–{hora(o.noCliente!.fim)}
             <b className={`fk-naos ${o.naOS ? 'sim' : 'nao'}`}>{o.naOS ? <><i className="fas fa-check" /> o nome dele está na OS</> : <><i className="fas fa-triangle-exclamation" /> o nome dele não está na OS</>}</b>
           </small>
         ))}

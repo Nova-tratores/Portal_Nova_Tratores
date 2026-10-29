@@ -61,11 +61,11 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
     frase: `${nome} não tem carro vinculado na Frota, então não dá para comparar o km do relatório com o que o GPS registrou. Se ele anda no carro de outro técnico, o km aparece no mapa desse colega.` })
   else out.push({ titulo: 'Km fantasma', ic: 'fa-ghost', fontes: 'GPS × relatório × OS', erro: fantasma > 0.5, ok: fantasma <= 0.5 && foraRel <= 0.5, acao: foraRel > 0.5 ? 'mapa' : undefined, div: foraRel > 0.5 ? 'km-fora-relatorio' : undefined,
     v: fantasma > 0.5 ? km(fantasma) : '0 km', txt: fantasma > 0.5 ? 'rodados sem destino: fora de qualquer relatório ou OS' : 'sem destino: todo km rodado tem relatório ou OS',
-    sub: comColegaKm > 0.5 ? `fora isso, ${km(comColegaKm)} em dias levando colega: o destino é a OS do colega` : undefined,
+    sub: comColegaKm > 0.5 ? `fora isso, ${km(comColegaKm)} em dias em que o carro foi a atendimento de OS de outro técnico: o destino é essa OS` : undefined,
     itens: foraRel > 0.5 && fk ? ate8(diasFora.sort((p, q) => q.fora - p.fora).map((z) => `${ddmm(z.d.data)}: rodou ${km(z.d.kmGps)}, relatório ${km(z.d.kmRel)} → ${z.colega ? `destino: ${z.colega.os} do ${z.colega.tecnico.split(' ')[0]} (${cli(z.colega.cliente)})` : `⚠ ${km(z.fora)} sem destino${z.d.os.length ? '' : ', nenhuma OS no dia'}`}`)) : undefined,
     frase: fantasma > 0.5
       ? `O carro de ${nome} rodou ${km(x.kmCarro)} no mês pelo GPS e os relatórios dele somam ${km(x.kmRel)}. Desses km rodados a mais, ${km(fantasma)} não têm destino: não estão em relatório nem em OS de ninguém. Esse é o km fantasma.${comColegaKm > 0.5 ? ` Outros ${km(comColegaKm)} foram em dias em que o carro esteve no cliente de um colega, então o destino é a OS do colega.` : ''} Dia a dia:`
-      : `Todo km que o carro de ${nome} rodou tem destino: está nos relatórios dele${comColegaKm > 0.5 ? ` ou foi no cliente de um colega (${km(comColegaKm)})` : ''}.` })
+      : `Todo km que o carro de ${nome} rodou tem destino: está nos relatórios dele${comColegaKm > 0.5 ? ` ou foi a atendimento de OS de outro técnico (${km(comColegaKm)})` : ''}.` })
 
   // km do relatório × cobrado (José, 29/10/2026: "com destino não deve aparecer aqui"): OS interna, garantia, desconto,
   // oficina ou ainda aberta têm destino e saem desta linha; fica só o que o Chico não explica ("não lançado na OS")
@@ -90,11 +90,11 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
     const nSem = fk ? semDest.length : x.diasCarroSemOS
     const kmCol = comColega.reduce((s2, d) => s2 + d.kmGps, 0)
     if (nSem || comColega.length) out.push({ titulo: 'Dias sem OS', ic: 'fa-calendar-xmark', fontes: 'GPS × OS', erro: nSem > 0, ok: !nSem, acao: 'mapa', div: 'dias-sem-os',
-      v: plural(nSem, 'dia', 'dias'), txt: nSem ? `rodando sem OS e sem destino (${km(kmSem)})` : 'sem destino: todo dia rodando sem OS foi levando colega',
-      sub: comColega.length ? `fora isso, ${plural(comColega.length, 'dia', 'dias')} levando colega (${km(kmCol)}): veja em "Foi com colega"` : undefined,
-      itens: semDest.length ? ate8(semDest.map((d) => `${ddmm(d.data)}: rodou ${km(d.kmGps)} · nenhuma OS dele e nenhum colega onde o carro parou`)) : undefined,
-      frase: `Em ${plural(nSem, 'dia', 'dias')} o carro de ${nome} rodou mais de 5 km sem ele ter OS e sem ter ido ao cliente de um colega (${km(kmSem)}): esses dias não têm destino.`
-        + (comColega.length ? ` Outros ${plural(comColega.length, 'dia', 'dias')} sem OS dele foram levando colega (${lista(comColega.map((d) => ddmm(d.data)))}).` : '')
+      v: plural(nSem, 'dia', 'dias'), txt: nSem ? `rodando sem OS e sem destino (${km(kmSem)})` : 'sem destino: todo dia rodando sem OS foi a atendimento de OS de outro técnico',
+      sub: comColega.length ? `fora isso, ${plural(comColega.length, 'dia', 'dias')} em atendimento de OS de outro técnico (${km(kmCol)}): veja o cartão "Atendimento em OS de outro técnico"` : undefined,
+      itens: semDest.length ? ate8(semDest.map((d) => `${ddmm(d.data)}: rodou ${km(d.kmGps)} · nenhuma OS dele nem de outro técnico onde o carro parou`)) : undefined,
+      frase: `Em ${plural(nSem, 'dia', 'dias')} o carro de ${nome} rodou mais de 5 km sem ele ter OS e sem ter ido a atendimento de OS de outro técnico (${km(kmSem)}): esses dias não têm destino.`
+        + (comColega.length ? ` Outros ${plural(comColega.length, 'dia', 'dias')} sem OS dele foram em atendimento de OS de outro técnico (${lista(comColega.map((d) => ddmm(d.data)))}).` : '')
         + (semDest.length ? ' Dia a dia:' : '') })
   }
 
@@ -104,15 +104,17 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
     // a OS do colega cobrou o km que este carro rodou? (José: "ou não foi cobrado nem no Gabriel?")
     const faltaKm = (o: (typeof casos)[number]) => Math.max(0, o.kmCarro - o.kmCobrado)
     const fora = casos.filter((o) => !o.naOS)
-    if (casos.length) out.push({ titulo: 'Foi com colega', ic: 'fa-user-group', fontes: 'GPS × OS do colega', erro: fora.length > 0, ok: !fora.length,
+    if (casos.length) out.push({ titulo: 'Atendimento em OS de outro técnico', ic: 'fa-user-group', fontes: 'GPS × OS', erro: fora.length > 0, ok: !fora.length,
       acao: 'mapa', div: fora.length ? 'colega-fora-os' : undefined,
       v: fora.length ? plural(fora.length, 'dia', 'dias') : plural(casos.length, 'dia', 'dias'),
-      txt: fora.length ? 'no cliente de um colega sem o nome dele na OS' : 'no cliente de um colega, e ele consta na OS',
-      sub: lista((fora.length ? fora : casos).map((o) => `${o.os} do ${o.tecnico.split(' ')[0]} (${ddmm(o.data)}${faltaKm(o) > 5 ? `, faltam ~${km(faltaKm(o))}` : ''})`)),
-      itens: ate8(casos.map((o) => `${ddmm(o.data)}: ${o.os} do ${o.tecnico.split(' ')[0]}, cliente ${cli(o.cliente)} · carro ficou ${dur(o.noCliente!.min)} lá${o.noCliente!.conf === 'provavel' ? ' (provável: cliente sem local cadastrado)' : o.noCliente!.conf === 'confirmado' ? ' (local confirmado)' : ' (local do cadastro)'} · ${o.naOS ? '✓ ele está na OS' : '⚠ o nome dele não está na OS'} · a OS cobrou ${km(o.kmCobrado)} de ${km(o.kmCarro)} rodados${faltaKm(o) > 5 ? ` ⚠ faltam ~${km(faltaKm(o))}` : ' ✓'}`)),
+      // técnico não tem cliente fixo (José, 29/10/2026): é o carro dele no local do atendimento de uma OS que está em nome de
+      // outro técnico; não quer dizer que os dois carros estavam lá juntos
+      txt: fora.length ? 'o carro dele foi a um atendimento de OS em nome de outro técnico, e o nome dele não está na OS' : 'o carro dele foi a um atendimento de OS em nome de outro técnico, e ele consta na OS',
+      sub: lista((fora.length ? fora : casos).map((o) => `${o.os}, em nome do ${o.tecnico.split(' ')[0]} (${ddmm(o.data)}${faltaKm(o) > 5 ? `, faltam ~${km(faltaKm(o))}` : ''})`)),
+      itens: ate8(casos.map((o) => `${ddmm(o.data)}: ${o.os} (em nome do ${o.tecnico.split(' ')[0]}), cliente ${cli(o.cliente)} · o carro dele ficou ${dur(o.noCliente!.min)} lá${o.noCliente!.conf === 'provavel' ? ' (provável: cliente sem local cadastrado)' : o.noCliente!.conf === 'confirmado' ? ' (local confirmado)' : ' (local do cadastro)'} · ${o.naOS ? '✓ ele está na OS' : '⚠ o nome dele não está na OS'} · a OS cobrou ${km(o.kmCobrado)} de ${km(o.kmCarro)} rodados${faltaKm(o) > 5 ? ` ⚠ faltam ~${km(faltaKm(o))}` : ' ✓'}`)),
       frase: fora.length
-        ? `O carro de ${nome} parou no cliente da OS de um colega em ${plural(casos.length, 'dia', 'dias')}, e em ${fora.length === casos.length ? 'todos' : fora.length} o nome dele não está na OS como técnico. Se ele foi junto, a OS precisa ter o nome dele, e o km e as horas dele entram nessa OS. Também dá para ver se a OS do colega cobrou o km que este carro rodou. Caso a caso:`
-        : `O carro de ${nome} parou no cliente da OS de um colega em ${plural(casos.length, 'dia', 'dias')}, e ele consta como técnico em todas essas OS.` })
+        ? `Em ${plural(casos.length, 'dia', 'dias')} o GPS mostra o carro de ${nome} parado no local de um atendimento cuja OS está em nome de outro técnico, e em ${fora.length === casos.length ? 'todos' : fora.length} o nome de ${nome} não está nessa OS. Isso não quer dizer que os dois carros estavam lá juntos: só que o carro de ${nome} foi a esse atendimento. Se ele trabalhou nele, a OS precisa ter o nome dele, e o km e as horas dele entram nela. Também mostra se a OS cobrou o km que o carro dele rodou. Caso a caso:`
+        : `Em ${plural(casos.length, 'dia', 'dias')} o carro de ${nome} foi a um atendimento de OS em nome de outro técnico, e ${nome} consta como técnico em todas essas OS.` })
   }
 
   // "Horas apontadas × cobradas" saiu (José, 29/10/2026: "essa informação também não é relevante"); a hora fantasma é a sem destino, abaixo
@@ -125,12 +127,12 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
     const comCol = ds.filter((z) => z.colega).reduce((s2, z) => s2 + z.d.ligadoH, 0)
     const hm = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) : '')
     out.push({ titulo: 'Horas sem destino', ic: 'fa-car', fontes: 'GPS × OS', erro: semDest > 0.5, ok: semDest <= 0.05, acao: 'mapa', div: 'ligado-sem-os',
-      v: semDest > 0.05 ? h(semDest) : '0 h', txt: semDest > 0.05 ? 'de carro ligado em dias sem OS e sem colega' : 'sem destino: todo dia com o carro ligado tem OS ou colega',
-      sub: comCol > 0.05 ? `fora isso, ${h(comCol)} em dias levando colega: o destino é a OS do colega` : undefined,
+      v: semDest > 0.05 ? h(semDest) : '0 h', txt: semDest > 0.05 ? 'de carro ligado em dias sem OS dele nem de outro técnico onde parou' : 'sem destino: todo dia com o carro ligado tem OS dele ou de outro técnico',
+      sub: comCol > 0.05 ? `fora isso, ${h(comCol)} em dias em que o carro foi a atendimento de OS de outro técnico: o destino é essa OS` : undefined,
       itens: fk ? ate8([...ds].sort((p, q) => q.d.ligadoH - p.d.ligadoH).map((z) => `${ddmm(z.d.data)}: ligado ${h(z.d.ligadoH)}, rodou ${km(z.d.kmGps)}${z.d.saida ? `, das ${hm(z.d.saida)}` : ''}${z.d.volta ? ` às ${hm(z.d.volta)}` : ''} → ${z.colega ? `destino: ${z.colega.os} do ${z.colega.tecnico.split(' ')[0]} (${cli(z.colega.cliente)})` : '⚠ sem destino'}`)) : undefined,
       frase: `Nos dias em que ${nome} não tinha OS, o carro dele ficou ${h(x.ligadoSemOS)} com o motor ligado (de ${h(x.ligadoH)} no mês todo).`
-        + (semDest > 0.05 ? ` ${h(semDest)} não têm destino: não havia OS dele nem colega no lugar onde o carro parou. Essa é a hora fantasma.` : ' Todas essas horas têm destino.')
-        + (comCol > 0.05 ? ` Outras ${h(comCol)} foram em dias em que o carro esteve no cliente de um colega.` : '') + ' Dia a dia:' })
+        + (semDest > 0.05 ? ` ${h(semDest)} não têm destino: não havia OS dele nem de outro técnico no lugar onde o carro parou. Essa é a hora fantasma.` : ' Todas essas horas têm destino.')
+        + (comCol > 0.05 ? ` Outras ${h(comCol)} foram em dias em que o carro foi a atendimento de OS de outro técnico.` : '') + ' Dia a dia:' })
   }
 
   // cliente: GPS × local do cliente
