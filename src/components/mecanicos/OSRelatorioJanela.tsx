@@ -85,7 +85,7 @@ export default function OSRelatorioJanela({ os, cliente, onFechar }: { os: strin
 }
 
 const ESTILO = `
-.orj-fundo { position: fixed; inset: 0; z-index: 9400; background: rgba(15,23,42,.5); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: orjFade .2s both }
+.orj-fundo { position: fixed; inset: 0; z-index: 100090; background: rgba(15,23,42,.5); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: orjFade .2s both }
 @keyframes orjFade { from { opacity: 0 } } @keyframes orjSobe { from { opacity: 0; transform: translateY(10px) scale(.99) } }
 .orj { width: min(1400px, 100%); height: 92vh; display: flex; flex-direction: column; background: var(--surface, #fefefe); border-radius: 18px; overflow: hidden; box-shadow: 0 30px 80px rgba(15,23,42,.35); animation: orjSobe .3s cubic-bezier(.2,1.1,.3,1) both; color: #0f172a }
 .orj-cab { display: flex; gap: 12px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border, #e2e8f0) }
