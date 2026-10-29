@@ -37,7 +37,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       await alterarLocalizacao(p.documento, String(b.id || ""), b.acao === "remover" ? { remover: true } : { nome: String(b.nome || "") }, autor);
       return NextResponse.json({ ok: true });
     }
-    const origem = ["parada", "cadastro", "manual"].includes(b?.origem) ? b.origem : "manual";
+    const origem = ["parada", "cadastro", "manual", "link"].includes(b?.origem) ? b.origem : "manual";
     const loc = await adicionarLocalizacao({
       documento: p.documento, cliente: p.cliente, nome: String(b?.nome || ""), lat: Number(b?.lat), lng: Number(b?.lng), origem,
       placa: b?.placa ?? null, tecnico: b?.tecnico ?? null, paradaInicio: b?.paradaInicio ?? null,

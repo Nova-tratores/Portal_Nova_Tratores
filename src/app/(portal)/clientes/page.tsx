@@ -9,6 +9,7 @@ import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { supabase } from '@/lib/supabase'
 import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento'
 import ContatosChatwoot from '@/components/clientes/ContatosChatwoot'
+import LocalizacoesCliente from '@/components/clientes/LocalizacoesCliente'
 import ModalNovoCliente from '@/components/clientes/ModalNovoCliente'
 import ModalPedidoVenda from '@/components/clientes/ModalPedidoVenda'
 import EnviarFinanceiroModal from '@/components/clientes/EnviarFinanceiroModal'
@@ -873,6 +874,9 @@ function ClientesPageInner() {
 
             {/* Contatos do WhatsApp (NovaZap) vinculados ao CNPJ */}
             <ContatosChatwoot key={`${cli.cod_cli}-${cli.empresa}`} cod={cli.cod_cli} cnpj={cli.cnpj_cpf || ''} empresa={cli.empresa} nomeCliente={cli.nome_fantasia || cli.razao_social} />
+
+            {/* Localizações (fazendas) do cliente: as do faturar da OS + as cadastradas aqui, com mapinha (José, 29/10/2026) */}
+            {cli.cnpj_cpf && <LocalizacoesCliente key={cli.cnpj_cpf} doc={cli.cnpj_cpf} cliente={cli.nome_fantasia || cli.razao_social} />}
 
             {/* Etiquetas (compacto) */}
             <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, border: '1px solid #E5E7EB', padding: '14px 16px', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>

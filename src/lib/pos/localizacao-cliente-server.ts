@@ -120,8 +120,8 @@ export async function paradasDaOS(osId: string): Promise<{
 const limparNome = (n: unknown) => String(n ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
 
 export async function adicionarLocalizacao(entrada: {
-  documento: string; cliente: string; nome: string; lat: number; lng: number; origem: 'parada' | 'cadastro' | 'manual';
-  placa?: string | null; tecnico?: string | null; paradaInicio?: string | null; paradaMin?: number | null; osId: string; autor: string;
+  documento: string; cliente: string; nome: string; lat: number; lng: number; origem: 'parada' | 'cadastro' | 'manual' | 'link';
+  placa?: string | null; tecnico?: string | null; paradaInicio?: string | null; paradaMin?: number | null; osId?: string | null; autor: string;
 }): Promise<LocalizacaoCliente> {
   const documento = soDigitos(entrada.documento);
   if (documento.length !== 11 && documento.length !== 14) throw new Error('O cliente da OS está sem CPF/CNPJ válido.');
@@ -136,7 +136,7 @@ export async function adicionarLocalizacao(entrada: {
   const { data, error } = await supabase.from(TBL).insert({
     documento, nome, cliente_nome: entrada.cliente || null, lat: entrada.lat, lng: entrada.lng, origem: entrada.origem,
     placa: entrada.placa || null, tecnico: entrada.tecnico || null, parada_inicio: entrada.paradaInicio || null,
-    parada_min: entrada.paradaMin != null ? Math.round(entrada.paradaMin) : null, os_id: entrada.osId,
+    parada_min: entrada.paradaMin != null ? Math.round(entrada.paradaMin) : null, os_id: entrada.osId || null,
     confirmado_por: entrada.autor, confirmado_em: new Date().toISOString(),
   }).select('*');
   if (error) throw new Error(error.message);
@@ -149,8 +149,8 @@ export async function adicionarLocalizacao(entrada: {
   return (data || [])[0] as LocalizacaoCliente;
 }
 
-/** renomear ou apagar uma localização — só do mesmo cliente da OS */
-export async function alterarLocalizacao(documento: string, id: string, acao: { nome: string } | { remover: true }, autor: string): Promise<void> {
+/** renomear, mover ou apagar uma localização — só do mesmo cliente (da OS ou da Pasta Clientes) */
+export async function alterarLocalizacao(documento: string, id: string, acao: { nome: string } | { remover: true } | { lat: number; lng: number }, autor: string): Promise<void> {
   const doc = soDigitos(documento);
   const { data, error } = await supabase.from(TBL).select('id, documento, nome').eq('id', id).limit(1);
   if (tabelaFaltando(error)) throw new Error(SQL_FALTANDO);
@@ -161,6 +161,13 @@ export async function alterarLocalizacao(documento: string, id: string, acao: { 
     const r = await supabase.from(TBL).delete().eq('id', id);
     if (r.error) throw new Error(r.error.message);
     console.log(`[localizacao] ${autor} apagou "${l.nome}" (${doc})`);
+    return;
+  }
+  // mover o pino (Pasta Clientes, José 29/10/2026: "conseguir alterar também")
+  if ('lat' in acao) {
+    if (!coordenadaValida(acao.lat, acao.lng)) throw new Error('Coordenada inválida.');
+    const r = await supabase.from(TBL).update({ lat: acao.lat, lng: acao.lng, atualizado_por: autor, atualizado_em: new Date().toISOString() }).eq('id', id);
+    if (r.error) throw new Error(r.error.message);
     return;
   }
   const nome = limparNome(acao.nome);

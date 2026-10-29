@@ -8,6 +8,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { authHeaders } from "@/lib/auth/client";
 import { carregarLeaflet, pinIcon, round6, CENTRO_PADRAO } from "@/components/feedbacks/leaflet";
+import CampoLinkMaps from "@/components/comum/CampoLinkMaps";
 import { distanciaM, duracaoTexto } from "@/lib/pos/localizacao-cliente";
 
 interface Parada { placa: string; tecnico: string; data: string; inicio: string; fim: string | null; duracaoMin: number; lat: number; lng: number; classe?: string | null; local?: string | null; acompanhado?: boolean }
@@ -17,7 +18,7 @@ interface Dados {
   paradas: Parada[]; cadastro: { lat: number; lng: number } | null; avisos: string[];
   localizacoes: Localizacao[]; semTabela?: boolean; error?: string;
 }
-type Escolha = { tipo: "parada"; i: number } | { tipo: "cadastro" } | { tipo: "manual" };
+type Escolha = { tipo: "parada"; i: number } | { tipo: "cadastro" } | { tipo: "manual" } | { tipo: "link" };
 
 const COR = "#0369A1";
 const VERDE = "#15803d";
@@ -141,7 +142,7 @@ export default function LocalizacaoClienteModal({ osId, onClose, onConfirmada }:
   const adicionar = async () => {
     if (!pino || !d) return;
     const p = escolha?.tipo === "parada" ? d.paradas[escolha.i] : null;
-    const ok = await enviar({ nome, lat: pino.lat, lng: pino.lng, origem: p ? "parada" : escolha?.tipo === "cadastro" ? "cadastro" : "manual", placa: p?.placa, tecnico: p?.tecnico, paradaInicio: p?.inicio, paradaMin: p?.duracaoMin });
+    const ok = await enviar({ nome, lat: pino.lat, lng: pino.lng, origem: p ? "parada" : escolha?.tipo === "cadastro" ? "cadastro" : escolha?.tipo === "link" ? "link" : "manual", placa: p?.placa, tecnico: p?.tecnico, paradaInicio: p?.inicio, paradaMin: p?.duracaoMin });
     if (!ok) return;
     onConfirmada?.();
     setAdicionando(false); setNome(""); setEscolha(null); setPino(null); setVersao((v) => v + 1);
@@ -248,6 +249,9 @@ export default function LocalizacaoClienteModal({ osId, onClose, onConfirmada }:
                             <span style={{ minWidth: 0, flex: 1 }}><span className="lcm-p1">Ponto do cadastro do cliente</span><span className="lcm-p2">já estava no mapa, sem confirmação</span></span>
                           </button>
                         )}
+                        {/* link do Google Maps (José, 29/10/2026: "não deve só escolher uma localização do carro, tem que conseguir colocar um link do Maps") */}
+                        <CampoLinkMaps onCoordenada={(c) => { setEscolha({ tipo: "link" }); setPino(c); focar(c.lat, c.lng); }} />
+                        {escolha?.tipo === "link" && pino && <div className="lcm-vazio"><i className="fas fa-link" /> Ponto do link do Google Maps: {pino.lat.toFixed(5)}, {pino.lng.toFixed(5)} (arraste o pino para acertar)</div>}
                         {escolha?.tipo === "manual" && pino && <div className="lcm-vazio"><i className="fas fa-hand-pointer" /> Ponto escolhido no mapa: {pino.lat.toFixed(5)}, {pino.lng.toFixed(5)}</div>}
                       </div>
                       <label className="lcm-rot">Nome da fazenda
