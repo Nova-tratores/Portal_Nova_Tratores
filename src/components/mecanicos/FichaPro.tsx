@@ -516,7 +516,7 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
           {cheio > 0 && (
             <button type="button" className={`cheio ${emCheio ? 'on' : ''}`} title={`Pagar sem o desconto da OS: comissão sobre o valor cheio (${brl(l.base + descBase)}) = ${brl2(cheio)}`}
               onClick={() => e.mudar(l, emCheio ? { acao: 'pagar', divisao: null, motivo: '' } : { acao: 'ajustar', divisao: null, valor: cheio, motivo: `${MOT_CHEIO}: comissão sobre o valor cheio (desconto de ${brl(descBase)} não entra)` })}>
-              <i className="fas fa-tag" /> sem desconto
+              <i className="fas fa-tag" />
             </button>
           )}
         </div>
@@ -679,7 +679,7 @@ const ESTILO_FP = `
 .fp-base { text-align: right; font-size: 13px; color: ${MUDO}; font-variant-numeric: tabular-nums }
 .fp-dec { display: inline-flex; gap: 2px; background: #f4f6f9; border-radius: 999px; padding: 3px; justify-self: center }
 .fp-dec button { width: 32px; height: 28px; border-radius: 999px; border: none; background: transparent; color: #94a3b8; cursor: pointer; font-size: 12.5px; transition: all .15s } .fp-dec button:hover { color: #0f172a; background: #fefefe }
-.fp-dec button.cheio { width: auto; padding: 0 10px; font-size: 12px; color: #b45309; white-space: nowrap } .fp-dec button.cheio i { margin-right: 3px } .fp-dec button.cheio.on { background: #2563eb; color: #fefefe }
+.fp-dec button.cheio { color: #b45309 } /* só o ícone, igual aos outros (José, 29/10/2026); o texto fica na dica */ .fp-dec button.cheio.on { background: #2563eb; color: #fefefe }
 .fp-dec button.on { color: #fefefe } .fp-dec button.on.pg { background: #10b981 } .fp-dec button.on.nao { background: #ef4444 } .fp-dec button.on.aj { background: #f59e0b } .fp-dec button.on.div { background: #8b5cf6 }
 .fp-com { display: grid; justify-items: end } .fp-com s { font-size: 11px; color: ${MUDO} } .fp-com b { font-size: 15.5px; font-weight: 900; font-variant-numeric: tabular-nums; color: #047857 } .fp-lin.nao .fp-com b { color: #dc2626 } .fp-lin.aj .fp-com b { color: #b45309 } .fp-lin.div .fp-com b { color: #6d28d9 }
 .fp-extra { display: grid; gap: 6px; margin: 0 16px 12px 106px; padding: 10px 12px; border-radius: 12px; background: #fef2f2; animation: fpEntra .2s both } .fp-extra > small { font-size: 14px; font-weight: 500; color: #b91c1c }
