@@ -214,6 +214,7 @@ export function TabelaCruzamentos({ linhas, onAcao }: { linhas: Cruzamento[]; on
                 <span role="button" tabIndex={0} className={`cz-mapa ${l.div ? 'tr' : ''}`} title={l.div ? 'ver no mapa, com o Tratorilson explicando cada dia' : `ver ${ROTULO[l.acao]}`}
                   onClick={(e) => { e.stopPropagation(); onAcao(l.acao!, l.div) }} onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onAcao(l.acao!, l.div) } }}>
                   <i className={`fas ${l.acao === 'mapa' ? 'fa-map-location-dot' : l.acao === 'os' ? 'fa-file-lines' : 'fa-calendar-days'}`} />
+                  <span>ver {ROTULO[l.acao]}</span>
                 </span>
               )}
               {!dev && <i className="fas fa-chevron-down cz-seta" />}
@@ -279,8 +280,10 @@ const ESTILO_CZ = `
 .cz-caso em.interna { background: #ede9fe; color: #5b21b6 } .cz-caso em.garantia { background: #dbeafe; color: #1e40af } .cz-caso em.aberta { background: #fef3c7; color: #92400e } .cz-caso em.nao-lancado { background: #fee2e2; color: #991b1b }
 .cz-dd summary { list-style: none; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: #2563eb; padding: 2px 0 } .cz-dd summary::-webkit-details-marker { display: none } .cz-dd summary i { font-size: 10px; transition: transform .2s } .cz-dd[open] summary i { transform: rotate(90deg) } .cz-dd[open] .cz-itens { margin-top: 6px }
 .cz-itens { margin: 0; padding: 0 0 0 18px; display: grid; gap: 4px; font-size: 13px; color: #475569; line-height: 1.45 } .cz-itens li.x { color: #b91c1c }
-.cz-mapa { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: #2563eb; background: color-mix(in srgb, #2563eb 8%, #fefefe); border: 1px solid color-mix(in srgb, #2563eb 18%, transparent); cursor: pointer; transition: background .2s, color .2s } .cz-mapa:hover { background: #2563eb; color: #fefefe }
-.cz-mapa.tr { color: #6d28d9; background: color-mix(in srgb, #6d28d9 8%, #fefefe); border-color: color-mix(in srgb, #6d28d9 20%, transparent) } .cz-mapa.tr:hover { background: #6d28d9; color: #fefefe }
+.cz-mapa { height: 32px; padding: 0 12px 0 10px; border-radius: 99px; display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: #1d4ed8; background: #eff6ff; border: 1px solid #bfdbfe; cursor: pointer; white-space: nowrap; transition: background .2s, color .2s, border-color .2s, transform .2s }
+.cz-mapa i { font-size: 13px } .cz-mapa:hover { background: #2563eb; border-color: #2563eb; color: #fefefe; transform: translateY(-1px) }
+.cz-mapa.tr { color: #6d28d9; background: #f5f3ff; border-color: #ddd6fe } .cz-mapa.tr:hover { background: #6d28d9; border-color: #6d28d9; color: #fefefe }
+@media (max-width: 640px) { .cz-mapa span { display: none } .cz-mapa { padding: 0 10px } }
 .cz-dev { font-size: 12.5px; color: #64748b; border: 1px dashed #cbd5e1; border-radius: 99px; padding: 2px 10px; white-space: nowrap }
 @media (max-width: 700px) { .cz-dentro { padding-left: 14px } .cz-val b { font-size: 17px } }
 `
