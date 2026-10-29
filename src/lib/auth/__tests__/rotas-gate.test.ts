@@ -18,6 +18,7 @@ import pendentesJson from './rotas-pendentes.json'
 export const PUBLICAS: Record<string, string> = {
   'src/app/api/q/': 'questionário por link único: token na URL validado no servidor',
   'src/app/api/assinar/': 'assinatura do cliente por link único: token na URL',
+  'src/app/api/assinatura-link/': 'a pessoa da equipe grava a própria assinatura por link único (token, 7 dias, uso único)',
   'src/app/api/garantia-cliente/evento/': 'página pública do QR da garantia (só registra evento)',
   'src/app/api/garantia-cliente/duvida/': 'página pública do QR da garantia (formulário de dúvida)',
   'src/app/api/publico/': 'páginas públicas do portal',

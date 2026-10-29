@@ -10,6 +10,7 @@ import { clienteRH } from './rh-server'
 import { chaveDoTecnico } from './comissao-detalhe'
 import { casarNome } from './ocorrencias-painel'
 import { esquecer } from './cache'
+import { lerAssinatura } from '@/lib/assinaturas/server'
 import { parcelasDoDesconto, qtdParcelas, caixinhaDe, type DescontoPedido } from './descontos-tecnico'
 export type { DescontoPedido } from './descontos-tecnico'
 
@@ -109,7 +110,8 @@ export async function pedirLancamento(
   if (!(p.valor >= 0)) throw new Error('Valor inválido')
   const semMotivo = p.linhas.filter((l) => linhaMexida(l) && !String(l.motivo || '').trim())
   if (semMotivo.length) throw new Error(`Falta o motivo em ${semMotivo.length} OS`)
-  const assinatura = validarAssinatura(p.assinatura)
+  // 'salva' = a assinatura cadastrada na Administração (José, 29/10/2026)
+  const assinatura = validarAssinatura(p.assinatura === 'salva' ? (await lerAssinatura(autor.id))?.imagem : p.assinatura)
   const descontos: DescontoPedido[] = (Array.isArray(p.descontos) ? p.descontos : []).map((x: Rec) => ({
     tipo: x.tipo === 'requisicao' ? 'requisicao' as const : 'outro' as const, ref: x.ref != null ? String(x.ref) : null,
     descricao: String(x.descricao || '').trim().slice(0, 200), valor: r2(Number(x.valor)),
@@ -166,7 +168,7 @@ export async function decidirPedido(
     return { status: 'devolvida' as const }
   }
 
-  const assinatura = validarAssinatura(d.assinatura)
+  const assinatura = validarAssinatura(d.assinatura === 'salva' ? (await lerAssinatura(autor.id))?.imagem : d.assinatura)
   await sb.from('posvendas_comissoes').update({ decidido_por: autor.nome, decidido_em: agora, observacao, assinatura_diretor: assinatura, assinatura_diretor_meta: { ...meta, em: agora } }).eq('id', id)
   await registrar(p, 'autorizada', autor, p.valor, { observacao })
   try {

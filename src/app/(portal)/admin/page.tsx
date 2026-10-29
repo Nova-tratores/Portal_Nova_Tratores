@@ -10,6 +10,7 @@ import {
   Activity, Clock, Settings, ClipboardList, DollarSign, FileText, Mail, Ban, RotateCcw
 } from 'lucide-react'
 import PermissoesModulos from '@/components/admin/PermissoesModulos'
+import AssinaturaUsuarioModal from '@/components/admin/AssinaturaUsuarioModal'
 import { FUNCOES_POSVENDAS, funcaoPosVendas, trocarFuncaoPosVendas } from '@/lib/permissoes/funcoes-posvendas'
 import PapelMenu, { type Nivel } from '@/components/admin/PapelMenu'
 import AcoesUsuarioMenu from '@/components/admin/AcoesUsuarioMenu'
@@ -198,6 +199,8 @@ export default function AdminPage() {
   const [novoEmail, setNovoEmail] = useState('')
   const [novoSenha, setNovoSenha] = useState('nova123')
   const [novoFuncao, setNovoFuncao] = useState('')
+  // assinatura salva (diretor e gerentes não assinam toda vez) — José, 29/10/2026
+  const [assinaturaDe, setAssinaturaDe] = useState<{ id: string; nome: string } | null>(null)
   const [novoModulos, setNovoModulos] = useState<string[]>([])
   const [novoVendedor, setNovoVendedor] = useState(false)
   // Quem tem linha em `vendedores` (entra no app NT Vendas), por user_id
@@ -955,6 +958,7 @@ export default function AdminPage() {
                     if (confirm(`Enviar email de redefinição de senha para ${user.email}?`)) resetarSenha(user.email)
                   }}
                   onEmail={() => setTrocarEmailDe({ id: user.id, nome: user.nome, email: user.email })}
+                  onAssinatura={() => setAssinaturaDe({ id: user.id, nome: user.nome })}
                   onInativar={() => { if (!isMe && confirm(`Inativar ${user.nome}? Ele não conseguirá entrar e some das listas, mas os dados ficam.`)) toggleAtivo(user.id, false) }}
                 />
               </div>
@@ -1043,6 +1047,7 @@ export default function AdminPage() {
 
       {/* ===== Notificações: quem recebe o quê + o que cada app aciona (José, 29/10/2026) ===== */}
       <NotificacoesAdmin />
+      {assinaturaDe && <AssinaturaUsuarioModal userId={assinaturaDe.id} nome={assinaturaDe.nome} onFechar={() => setAssinaturaDe(null)} />}
 
       {/* ===== Logins sem cadastro (Auth sem financeiro_usu) ===== */}
       <ContasSemCadastro versao={versaoContas} onCadastrar={(email) => { setNovoEmail(email); setCriarErro(''); setShowNovoUsuario(true) }} onTrocarEmail={(c) => setTrocarEmailDe({ id: c.id, email: c.email })} />

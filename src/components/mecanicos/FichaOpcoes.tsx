@@ -14,6 +14,7 @@ import { authHeaders } from '@/lib/auth/client'
 import type { PedidoComissao } from '@/lib/mecanicos/lancamento-comissao-server'
 import { parcelasDoDesconto, resumoParcelas, mesCurto, contaDoPagamento, PCT_CAIXINHA, type DescontoPedido } from '@/lib/mecanicos/descontos-tecnico'
 import CanvasAssinatura, { type CanvasAssinaturaRef } from '@/components/assinatura/CanvasAssinatura'
+import { useMinhaAssinatura, AssinaturaSalva } from '@/components/assinatura/MinhaAssinatura'
 import { abrirDocumento } from './AutorizacoesJanela'
 import {
   Resumo, Comissao, OSAba, Requisicoes, Frota, Ocorrencias, RH, Num,
@@ -507,12 +508,15 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
   const linhasPedido = e.linhas.map((l) => { const x = e.de(l); return { os: l.os, numero: l.numeroOmie || l.os, cliente: l.cliente || '', data: l.data || null, grupo: grupoDa(l), regra: l.regra, calculado: l.valor, valor: e.final(l), acao: x.acao, motivo: x.motivo, divisao: x.divisao || null, horasDiv: x.horasDiv || null, descontoCliente: d.os.faturadas.find((o) => o.os === l.os)?.descontos || null } })
   const assRef = useRef<CanvasAssinaturaRef>(null)
   const [assinou, setAssinou] = useState(false)
+  const salva = useMinhaAssinatura()
+  const [desenhar, setDesenhar] = useState(false)
+  const usaSalva = !!salva && !desenhar
   const aguardando = atual?.status === 'aguardando'
   const podePedir = !noOmie && e.pendentes === 0 && t.total >= 0 && aviso?.tipo !== 'sql'
   const pedir = async () => {
     setEnviando(true); setAviso(null)
     try {
-      const r = await fetch('/api/mecanicos/lancamento-comissao', { method: 'POST', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ tecnico: d.nome, mes: d.mes, valor: Math.round(t.total * 100) / 100, calculado: Math.round(t.calc * 100) / 100, linhas: linhasPedido, descontos: e.descontos, assinatura: assRef.current?.png(), info: { nomeRh: d.rh?.nomeRh || null, cargo: d.rh?.cargo || null, pct: d.comissao.pct ?? null, pagamento: d.comissao.pagamento || null, semCaixinha: !!d.escritorio } }) })
+      const r = await fetch('/api/mecanicos/lancamento-comissao', { method: 'POST', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ tecnico: d.nome, mes: d.mes, valor: Math.round(t.total * 100) / 100, calculado: Math.round(t.calc * 100) / 100, linhas: linhasPedido, descontos: e.descontos, assinatura: usaSalva ? 'salva' : assRef.current?.png(), info: { nomeRh: d.rh?.nomeRh || null, cargo: d.rh?.cargo || null, pct: d.comissao.pct ?? null, pagamento: d.comissao.pagamento || null, semCaixinha: !!d.escritorio } }) })
       const j = await r.json()
       if (j.semTabela) setAviso({ tipo: 'sql', txt: j.error })
       else if (!r.ok) setAviso({ tipo: 'erro', txt: j.error || 'Não foi possível pedir a autorização' })
@@ -607,12 +611,13 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
           )}
           <div className="flc-ass">
             <div className="flc-ass-cab"><span className="flc-rot">Sua assinatura</span>{assinou && <button type="button" onClick={() => assRef.current?.limpar()}>limpar</button>}</div>
-            <div className="flc-ass-pad"><CanvasAssinatura ref={assRef} temTraco={assinou} onTraco={setAssinou} altura={150} />{!assinou && <span className="flc-ass-dica">assine aqui com o mouse ou o dedo</span>}</div>
+            {usaSalva ? <AssinaturaSalva imagem={salva!} onDesenhar={() => setDesenhar(true)} />
+              : <div className="flc-ass-pad"><CanvasAssinatura ref={assRef} temTraco={assinou} onTraco={setAssinou} altura={150} />{!assinou && <span className="flc-ass-dica">assine aqui com o mouse ou o dedo</span>}</div>}
           </div>
           <footer className="flc-pe">
             <span>Autorizado, o portal lança no RH e gera o documento com as duas assinaturas.</span>
             <button type="button" className="flc-volta" onClick={() => setConfirmar(false)}>Cancelar</button>
-            <button type="button" className="fo-lan-bt" disabled={enviando || !assinou} onClick={() => { void pedir() }}>{enviando ? 'Enviando…' : 'Assinar e enviar'}<span className="seta"><i className="fas fa-arrow-right" /></span></button>
+            <button type="button" className="fo-lan-bt" disabled={enviando || !(assinou || usaSalva)} onClick={() => { void pedir() }}>{enviando ? 'Enviando…' : 'Assinar e enviar'}<span className="seta"><i className="fas fa-arrow-right" /></span></button>
           </footer>
         </div>
       )}

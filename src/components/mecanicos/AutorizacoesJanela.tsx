@@ -6,6 +6,7 @@ import { useEffect, useRef, useSyncExternalStore, useState } from 'react'
 import { authHeaders } from '@/lib/auth/client'
 import type { PedidoComissao, LinhaPedido, Apontamento, EventoComissao, TipoEvento } from '@/lib/mecanicos/lancamento-comissao-server'
 import CanvasAssinatura, { type CanvasAssinaturaRef } from '@/components/assinatura/CanvasAssinatura'
+import { useMinhaAssinatura, AssinaturaSalva } from '@/components/assinatura/MinhaAssinatura'
 import { Janela } from './JanelasInfo'
 import { brl2 } from './ui'
 import { contaDoPagamento, PCT_CAIXINHA } from '@/lib/mecanicos/descontos-tecnico'
@@ -90,6 +91,9 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
   const [indo, setIndo] = useState(false)
   const [erro, setErro] = useState('')
   const [assinou, setAssinou] = useState(false)
+  const salva = useMinhaAssinatura()
+  const [desenhar, setDesenhar] = useState(false)
+  const usaSalva = !!salva && !desenhar
   const assRef = useRef<CanvasAssinaturaRef>(null)
   // o diretor vê todas as OS do pedido, não só as mexidas (José, 29/10/2026)
   const [verTodas, setVerTodas] = useState(true)
@@ -103,7 +107,7 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
     if (acao === 'devolver' && !apontamentos.length && !obs.trim()) { setErro('Marque o que mudar numa OS ou escreva na observação.'); return }
     setIndo(true)
     try {
-      const r = await fetch('/api/mecanicos/lancamento-comissao', { method: 'PATCH', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, acao, observacao: obs.trim(), apontamentos, assinatura: acao === 'autorizar' ? assRef.current?.png() : undefined }) })
+      const r = await fetch('/api/mecanicos/lancamento-comissao', { method: 'PATCH', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ id: p.id, acao, observacao: obs.trim(), apontamentos, assinatura: acao === 'autorizar' ? (usaSalva ? 'salva' : assRef.current?.png()) : undefined }) })
       const j = await r.json()
       if (!r.ok) setErro(j.error || 'Não foi possível gravar')
       else { if (j.status === 'erro_rh') setErro(`Autorizada, mas o RH não aceitou: ${j.erro}`); window.dispatchEvent(new Event('comissao-decidida')) }
@@ -164,9 +168,10 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
         <div className="au-box">
           <b>Autorizar {brl2(p.valor)} para {p.tecnico}</b>
           <small>Assinando, a comissão vai para o RH como aprovada, {p.info?.semCaixinha ? 'sem caixinha (garantista)' : `${PCT_CAIXINHA}% (${brl2(contaDoPagamento(p.valor, p.descontos).caixinha)}) vai para a caixinha dos técnicos`} e o documento sai com a sua assinatura e a de {p.pedido_por || 'quem pediu'}.</small>
-          <div className="au-ass"><CanvasAssinatura ref={assRef} temTraco={assinou} onTraco={setAssinou} altura={140} />{assinou && <button type="button" className="au-volta" onClick={() => assRef.current?.limpar()}>limpar</button>}</div>
+          {usaSalva ? <AssinaturaSalva imagem={salva!} onDesenhar={() => setDesenhar(true)} />
+            : <div className="au-ass"><CanvasAssinatura ref={assRef} temTraco={assinou} onTraco={setAssinou} altura={140} />{assinou && <button type="button" className="au-volta" onClick={() => assRef.current?.limpar()}>limpar</button>}</div>}
           <input placeholder="observação (opcional)" value={obs} onChange={(e) => setObs(e.target.value)} />
-          <div className="au-dec"><button type="button" className="au-volta" onClick={() => setModo('ver')}>voltar</button><button type="button" className="au-pri" disabled={indo || !assinou} onClick={() => void enviar('autorizar')}>{indo ? 'Gravando no RH…' : 'Assinar e autorizar'}<span className="seta"><i className="fas fa-check" /></span></button></div>
+          <div className="au-dec"><button type="button" className="au-volta" onClick={() => setModo('ver')}>voltar</button><button type="button" className="au-pri" disabled={indo || !(assinou || usaSalva)} onClick={() => void enviar('autorizar')}>{indo ? 'Gravando no RH…' : 'Assinar e autorizar'}<span className="seta"><i className="fas fa-check" /></span></button></div>
         </div>
       )}
       {erro && <p className="au-erro">{erro}</p>}
