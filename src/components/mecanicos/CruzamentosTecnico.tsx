@@ -9,7 +9,7 @@ import { authHeaders } from '@/lib/auth/client'
 import type { TecnicoFantasma } from '@/lib/mecanicos/fantasmas-server'
 import type { FuroKm } from '@/lib/mecanicos/furo-km-server'
 import type { Divergencia } from '@/lib/mecanicos/divergencias'
-import { ROTULO_ZECA, type MotivoZeca } from '@/lib/mecanicos/robo-zeca'
+import { ROTULO_CHICO, type MotivoChico } from '@/lib/mecanicos/robo-chico'
 
 const h = (v: number) => `${String(Math.round(v * 10) / 10).replace('.', ',')} h`
 const km = (v: number) => `${Math.round(v).toLocaleString('pt-BR')} km`
@@ -28,20 +28,20 @@ export interface Cruzamento {
   titulo: string; ic: string; fontes: string; v: string; txt: string; sub?: string; frase: string
   /** o caso a caso no balão: dia, OS, cliente, números (José, 28/10/2026: "coloca o nome do cliente; pode aumentar o balão") */
   itens?: string[]
-  /** caso a caso que aparece NA LINHA, com o motivo do Zeca da Frota (José, 28/10/2026: "isso que nós temos que evidenciar ali") */
-  casos?: CasoZeca[]
+  /** caso a caso que aparece NA LINHA, com o motivo do Chico Chave (José, 28/10/2026: "isso que nós temos que evidenciar ali") */
+  casos?: CasoChico[]
   erro: boolean; ok?: boolean; acao?: AcaoCruzamento
   /** divergência que o Tratorilson explica ao clicar (abre o mapa já focado nela) */
   div?: Divergencia
 }
 
-export interface CasoZeca { os: string; cliente: string; cidade: string; nums: string; motivos: MotivoZeca[]; gps?: string }
+export interface CasoChico { os: string; cliente: string; cidade: string; nums: string; motivos: MotivoChico[]; gps?: string; gpsCurto?: string }
 const cidadeBonita = (c: string) => c.replace(/\s*\(\w{2}\)\s*$/, '').toLowerCase().replace(/(^|\s)(\S)/g, (_, a, b) => a + b.toUpperCase())
-function casosZeca(fk: FuroKm | null, oQue: 'km' | 'horas'): CasoZeca[] | undefined {
+function casosChico(fk: FuroKm | null, oQue: 'km' | 'horas'): CasoChico[] | undefined {
   if (!fk) return undefined
-  const os = (fk.osTotais || []).filter((o) => (oQue === 'km' ? o.zecaKm : o.zecaHoras)?.length)
-  return os.length ? os.map((o) => ({ os: o.os, cliente: cli(o.cliente), cidade: cidadeBonita(o.cidade || ''), gps: o.gps, motivos: (oQue === 'km' ? o.zecaKm : o.zecaHoras)!,
-    nums: oQue === 'km' ? `${km(o.kmRel)} no relatório × ${km(o.kmCobrado)} cobrado` : `${h(o.horasRel)} apontadas × ${h(o.horasCobradas)} cobradas` })) : undefined
+  const os = (fk.osTotais || []).filter((o) => (oQue === 'km' ? o.chicoKm : o.chicoHoras)?.length)
+  return os.length ? os.map((o) => ({ os: o.os, cliente: cli(o.cliente), cidade: cidadeBonita(o.cidade || ''), gps: o.gps, gpsCurto: o.gpsCurto, motivos: (oQue === 'km' ? o.chicoKm : o.chicoHoras)!,
+    nums: oQue === 'km' ? `${Math.round(o.kmRel)} → ${Math.round(o.kmCobrado)} km` : `${h(o.horasRel)} → ${h(o.horasCobradas)}` })) : undefined
 }
 
 export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzamento[] {
@@ -68,10 +68,10 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
       : `Todo km que o carro de ${nome} rodou tem destino: está nos relatórios dele${comColegaKm > 0.5 ? ` ou foi no cliente de um colega (${km(comColegaKm)})` : ''}.` })
 
   // km do relatório × cobrado: com destino (OS interna, garantia, desconto, oficina, ainda aberta) não é erro;
-  // só o que o Zeca não explica ("não lançado na OS") fica como erro
-  const casosKm = casosZeca(fk, 'km') || []
+  // só o que o Chico não explica ("não lançado na OS") fica como erro
+  const casosKm = casosChico(fk, 'km') || []
   const semMotivoKm = casosKm.filter((c) => c.motivos.some((m) => m.etiqueta === 'nao-lancado'))
-  const kmSemMotivo = (fk?.osTotais || []).filter((o) => o.zecaKm?.some((m) => m.etiqueta === 'nao-lancado')).reduce((s2, o) => s2 + (o.kmRel - o.kmCobrado), 0)
+  const kmSemMotivo = (fk?.osTotais || []).filter((o) => o.chicoKm?.some((m) => m.etiqueta === 'nao-lancado')).reduce((s2, o) => s2 + (o.kmRel - o.kmCobrado), 0)
   out.push({ titulo: 'Km do relatório × cobrado', ic: 'fa-road', fontes: 'relatório × OS', erro: fk ? semMotivoKm.length > 0 : relSemCob > 0.5, ok: relSemCob <= 0.5,
     acao: relSemCob > 0.5 ? 'mapa' : undefined, div: relSemCob > 0.5 ? 'km-nao-cobrado' : undefined,
     v: relSemCob <= 0.5 ? km(x.kmCobrado) : semMotivoKm.length ? km(kmSemMotivo) : km(relSemCob),
@@ -112,7 +112,7 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
   }
 
   // horas: relatório × OS
-  const casosH = casosZeca(fk, 'horas') || []
+  const casosH = casosChico(fk, 'horas') || []
   const semMotivoH = casosH.filter((c) => c.motivos.some((m) => m.etiqueta === 'nao-lancado'))
   out.push({ titulo: 'Horas apontadas × cobradas', ic: 'fa-clock', fontes: 'relatório × OS', erro: fk ? semMotivoH.length > 0 : x.naoCobradas > 0.05, ok: x.naoCobradas <= 0.05, acao: x.naoCobradas > 0.05 ? 'mapa' : undefined, div: x.naoCobradas > 0.05 ? 'horas-nao-cobradas' : undefined,
     v: x.naoCobradas > 0.05 ? h(x.naoCobradas) : h(x.horasCobradas), txt: x.naoCobradas <= 0.05 ? 'cobradas, tudo que apontou' : semMotivoH.length || !fk ? 'apontadas e não cobradas' : 'apontadas e não cobradas, mas com destino (veja o motivo)',
@@ -216,13 +216,9 @@ export function TabelaCruzamentos({ linhas, onAcao }: { linhas: Cruzamento[]; on
                 {l.casos?.length ? (
                   <div className="cz-casos">
                     {l.casos.map((c) => (
-                      <div key={c.os} className="cz-caso">
-                        <span className="cz-zeca" title="Zeca da Frota: o robô que lê os campos da OS"><i className="fas fa-robot" /> Zeca</span>
-                        <div>
-                          <b>{c.os}</b> · {c.cliente}{c.cidade ? ` (${c.cidade})` : ''} · <span className="n">{c.nums}</span>
-                          <span className="et">{c.motivos.map((m) => <em key={m.etiqueta} className={m.etiqueta}>{ROTULO_ZECA[m.etiqueta]}</em>)}</span>
-                          <small>{c.motivos.map((m) => m.texto).join(' ')}{c.gps ? <> <i className="fas fa-satellite-dish" /> {c.gps}</> : null}</small>
-                        </div>
+                      <div key={c.os} className="cz-caso" title={[...c.motivos.map((m) => m.texto), c.gps].filter(Boolean).join(' ')}>
+                        <span className="l1"><i className="fas fa-wrench" /><b>{c.os}</b><span className="cl">{c.cliente.split(' ').slice(0, 2).join(' ')}</span><span className="n">{c.nums}</span>{c.motivos.map((m) => <em key={m.etiqueta} className={m.etiqueta}>{ROTULO_CHICO[m.etiqueta]}</em>)}</span>
+                        <span className="l2">{[...c.motivos.map((m) => m.curto), c.gpsCurto].filter(Boolean).join(' · ')}</span>
                       </div>
                     ))}
                   </div>
@@ -259,11 +255,12 @@ const ESTILO_CZ = `
 .cz td:nth-child(3) > b { font-weight: 600; color: #0f172a } .cz td small { display: block; font-size: 12.5px; color: #94a3b8 }
 .cz td.a { text-align: right; width: 1%; white-space: nowrap } .cz td.a span { font-size: 13px; color: #2563eb } .cz td.a span.tr { color: #6d28d9 } .cz td.a span.tr i { font-size: 11.5px; margin-right: 2px } .cz tr.clica:hover td.a span { text-decoration: underline }
 .cz-casos { display: grid; gap: 6px; margin-top: 8px }
-.cz-caso { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; background: #f8fafc; border: 1px solid #eef2f6; border-radius: 10px; padding: 8px 10px; font-size: 13.5px; color: #334155; cursor: default }
-.cz-caso b { font-weight: 600; color: #0f172a } .cz-caso .n { color: #475569 } .cz-caso small { display: block; margin-top: 3px; font-size: 13px; color: #475569; line-height: 1.45 } .cz-caso small i { color: #94a3b8; font-size: 11px; margin: 0 2px 0 4px }
-.cz-zeca { display: inline-flex; gap: 4px; align-items: center; font-size: 11.5px; font-weight: 600; color: #0f766e; background: #ccfbf1; border-radius: 99px; padding: 2px 8px; white-space: nowrap }
-.cz-caso .et { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: 1px } .cz-caso .et em { font-style: normal; font-size: 11.5px; font-weight: 500; border-radius: 99px; padding: 1px 8px; background: #e2e8f0; color: #334155 }
-.cz-caso .et em.interna { background: #ede9fe; color: #5b21b6 } .cz-caso .et em.garantia { background: #dbeafe; color: #1e40af } .cz-caso .et em.aberta { background: #fef3c7; color: #92400e } .cz-caso .et em.nao-lancado { background: #fee2e2; color: #991b1b }
+.cz-caso { display: grid; gap: 1px; padding: 5px 0 5px 10px; border-left: 2px solid #99f6e4; font-size: 13px; color: #334155; cursor: help; min-width: 0 }
+.cz-caso .l1 { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; min-width: 0 } .cz-caso .l1 > i { font-size: 10.5px; color: #0f766e }
+.cz-caso b { font-weight: 600; color: #0f172a } .cz-caso .cl { color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px } .cz-caso .n { color: #0f172a; font-variant-numeric: tabular-nums; white-space: nowrap }
+.cz-caso .l2 { font-size: 12.5px; color: #64748b; line-height: 1.35 }
+.cz-caso em { font-style: normal; font-size: 11px; font-weight: 500; border-radius: 99px; padding: 0 7px; background: #e2e8f0; color: #334155; white-space: nowrap }
+.cz-caso em.interna { background: #ede9fe; color: #5b21b6 } .cz-caso em.garantia { background: #dbeafe; color: #1e40af } .cz-caso em.aberta { background: #fef3c7; color: #92400e } .cz-caso em.nao-lancado { background: #fee2e2; color: #991b1b }
 .cz-dev { font-size: 12.5px; color: #64748b; border: 1px dashed #cbd5e1; border-radius: 99px; padding: 2px 10px; white-space: nowrap }
 @media (max-width: 700px) { .cz td.f { white-space: normal } .cz thead { display: none } .cz-frase { width: 290px } }
 `

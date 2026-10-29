@@ -13,7 +13,7 @@ import { computarESalvarRota } from '@/lib/pos/rastreamento'
 import { distanciaM, minutosNoExpediente, soDigitos, LOJA, RAIO_LOJA_M } from '@/lib/pos/localizacao-cliente'
 import { fantasmasDoMes } from './fantasmas-server'
 import { comCache } from './cache'
-import { motivosZeca, type MotivoZeca, type OSZeca } from './robo-zeca'
+import { motivosChico, type MotivoChico, type OSChico } from './robo-chico'
 import { DIVERGENCIAS, type Divergencia } from './divergencias'
 export { ehDivergencia, type Divergencia } from './divergencias'
 
@@ -51,8 +51,8 @@ export interface DiaFuro {
 }
 export interface OSTotal {
   os: string; cliente: string; cidade: string; dias: string[]; kmRel: number; kmCobrado: number; horasRel: number; horasCobradas: number
-  /** Zeca da Frota: por que o relatório não virou cobrança (só quando diverge) e o que o GPS mostra */
-  zecaKm?: MotivoZeca[]; zecaHoras?: MotivoZeca[]; gps?: string
+  /** Chico Chave: por que o relatório não virou cobrança (só quando diverge) e o que o GPS mostra */
+  chicoKm?: MotivoChico[]; chicoHoras?: MotivoChico[]; gps?: string; gpsCurto?: string
 }
 export interface FuroKm { tecnico: string; mes: string; placas: string[]; dias: DiaFuro[]; kmGps: number; kmCobrado: number; furo: number; osTotais: OSTotal[] }
 
@@ -178,9 +178,13 @@ export async function furoKm(tecnico: string, mes: string): Promise<FuroKm | nul
     const cidade = String(inf.Cidade_Cliente || '')
     const difKm = o.kmRel - o.kmCobrado > 0.5, difH = o.horasRel - o.horasCobradas > 0.05
     const tot: OSTotal = { os: o.os, cliente: o.cliente, cidade, dias: o.dias, kmRel: o.kmRel, kmCobrado: o.kmCobrado, horasRel: o.horasRel, horasCobradas: o.horasCobradas }
-    if (difKm) tot.zecaKm = motivosZeca(inf as OSZeca, 'km', o.kmRel, o.kmCobrado)
-    if (difH) tot.zecaHoras = motivosZeca(inf as OSZeca, 'horas', o.horasRel, o.horasCobradas)
-    if (difKm || difH) tot.gps = await provaGps(o.os, o.dias, cidade, dias, t.tecnico.split(' ')[0]).catch(() => undefined)
+    if (difKm) tot.chicoKm = motivosChico(inf as OSChico, 'km', o.kmRel, o.kmCobrado)
+    if (difH) tot.chicoHoras = motivosChico(inf as OSChico, 'horas', o.horasRel, o.horasCobradas)
+    if (difKm || difH) {
+      tot.gps = await provaGps(o.os, o.dias, cidade, dias, t.tecnico.split(' ')[0]).catch(() => undefined)
+      // resumo para a linha da tabela: "carro em Paranapanema 09/10"
+      tot.gpsCurto = tot.gps?.replace(/^O carro de \S+ esteve no cliente em (\S+) \((\d+) min\)\./, 'carro no cliente $1 ($2 min)').replace(/^O carro de \S+ esteve em (.+) em (\S+)\.$/, 'carro em $1 $2').replace(/^O carro de \S+ não passou por (.+) nos dias da OS\.$/, 'carro não foi a $1').replace(/^Sem GPS do carro de \S+ nos dias da OS\.$/, 'sem GPS nos dias da OS')
+    }
     osTotais.push(tot)
   }
   return { tecnico, mes, placas: t.placas, dias, osTotais, kmGps: Math.round(t.totais.kmCarro), kmCobrado: Math.round(t.totais.kmCobrado), furo: Math.max(0, Math.round(t.totais.kmCarro - t.totais.kmCobrado)) }
@@ -343,10 +347,10 @@ function pauta(fk: FuroKm, div: Divergencia): { dados?: string; dias?: DiaFuro[]
     const os = fk.osTotais.filter((o) => (km ? o.kmRel - o.kmCobrado : o.horasRel - o.horasCobradas) > (km ? 0.5 : 0.05))
     if (!os.length) return null
     return {
-      dados: os.map((o) => `${o.os} (${o.cliente}, ${o.cidade}) dias ${o.dias.map(br).join(', ')}: relatório ${km ? `${o.kmRel} km` : `${o.horasRel} h`} · cobrado ${km ? `${o.kmCobrado} km` : `${o.horasCobradas} h`}\n  FATOS DO ZECA (robô, certos): ${((km ? o.zecaKm : o.zecaHoras) || []).map((m) => m.texto).join(' ')}${o.gps ? ` GPS: ${o.gps}` : ''}`).join('\n'),
+      dados: os.map((o) => `${o.os} (${o.cliente}, ${o.cidade}) dias ${o.dias.map(br).join(', ')}: relatório ${km ? `${o.kmRel} km` : `${o.horasRel} h`} · cobrado ${km ? `${o.kmCobrado} km` : `${o.horasCobradas} h`}\n  FATOS DO CHICO (robô, certos): ${((km ? o.chicoKm : o.chicoHoras) || []).map((m) => m.texto).join(' ')}${o.gps ? ` GPS: ${o.gps}` : ''}`).join('\n'),
       pergunta: km
-        ? 'Divergência: km que o mecânico pôs no relatório da OS e não foi cobrado na OS. Explique em quais OS isso aconteceu e o tamanho de cada uma. Os FATOS DO ZECA são certos (vêm dos campos da OS): use-os como a causa e não invente outra; diga só o que conferir a partir deles (ex.: se a OS devia mesmo ser interna). Nos pontos, preencha "os" com as OS.'
-        : 'Divergência: horas que o mecânico apontou no relatório da OS e não foram cobradas na OS. Explique em quais OS isso aconteceu e o tamanho de cada uma. Os FATOS DO ZECA são certos (vêm dos campos da OS): use-os como a causa e não invente outra; diga só o que conferir a partir deles. Nos pontos, preencha "os" com as OS.',
+        ? 'Divergência: km que o mecânico pôs no relatório da OS e não foi cobrado na OS. Explique em quais OS isso aconteceu e o tamanho de cada uma. Os FATOS DO CHICO são certos (vêm dos campos da OS): use-os como a causa e não invente outra; diga só o que conferir a partir deles (ex.: se a OS devia mesmo ser interna). Nos pontos, preencha "os" com as OS.'
+        : 'Divergência: horas que o mecânico apontou no relatório da OS e não foram cobradas na OS. Explique em quais OS isso aconteceu e o tamanho de cada uma. Os FATOS DO CHICO são certos (vêm dos campos da OS): use-os como a causa e não invente outra; diga só o que conferir a partir deles. Nos pontos, preencha "os" com as OS.',
     }
   }
   const sel = div === 'km-fora-relatorio' ? dias((d) => d.kmGps - d.kmRel > 5)
@@ -369,7 +373,7 @@ function pauta(fk: FuroKm, div: Divergencia): { dados?: string; dias?: DiaFuro[]
 
 /** O Tratorilson explica uma divergência (guardado 6 h por técnico/mês/divergência; forcar refaz). */
 export async function analisarFuro(tecnico: string, mes: string, forcar = false, div: Divergencia = 'geral'): Promise<AnaliseFuro | null> {
-  const r = await comCache(`furo-km:v8:${mes}:${tecnico}:${div}`, 6 * 3600_000, async () => {
+  const r = await comCache(`furo-km:v9:${mes}:${tecnico}:${div}`, 6 * 3600_000, async () => {
     const fk = await furoKm(tecnico, mes)
     if (!fk) return null
     const p = pauta(fk, div)
