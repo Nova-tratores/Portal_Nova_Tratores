@@ -5,7 +5,7 @@
 // - Respostas a e-mails que enviamos vêm DESTACADAS com atalho pro card
 // - Clicar numa mensagem abre um MODAL com o corpo renderizado, os ANEXOS
 //   pra baixar e um campo pra RESPONDER dali mesmo (mesma conversa).
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useSyncExternalStore } from 'react'
 import { useRouter } from 'next/navigation'
 import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
@@ -30,6 +30,11 @@ const fmtTamanho = (b) => {
   return `${(b / 1048576).toFixed(1)} MB`
 }
 
+// Celular: a lista não cabe como quadro preso ao botão (vazava pela esquerda)
+// e a mensagem vira tela cheia.
+const assinarLargura = (cb) => { window.addEventListener('resize', cb); return () => window.removeEventListener('resize', cb) }
+const larguraCelular = () => window.innerWidth <= 640
+
 export default function CaixaEmail() {
   const { userProfile } = useAuth()
   const [temConfig, setTemConfig] = useState(false)
@@ -43,6 +48,8 @@ export default function CaixaEmail() {
   const [erro, setErro] = useState('')
   const [badge, setBadge] = useState(0)
   const boxRef = useRef(null)
+  const celular = useSyncExternalStore(assinarLargura, larguraCelular, () => false)
+  const [topoLista, setTopoLista] = useState(64)
   const ultimaMsgRef = useRef(null) // rola a conversa direto pra mensagem mais recente
   const router = useRouter()
 
@@ -126,6 +133,7 @@ export default function CaixaEmail() {
     // Sem e-mail conectado ainda → abre direto a tela de conectar o dele
     if (!temConfig) { setConfigOpen(true); return }
     const novo = !open
+    if (novo && boxRef.current) setTopoLista(Math.round(boxRef.current.getBoundingClientRect().bottom + 8))
     setOpen(novo)
     if (novo) carregarCaixa(false, pasta) // cache de 30s no servidor: resposta imediata
   }
@@ -277,7 +285,10 @@ export default function CaixaEmail() {
 
       {/* ── LISTA (dropdown) ── */}
       {open && (
-        <div style={{ position: 'absolute', top: 52, right: 0, width: 640, maxWidth: '96vw', maxHeight: '80vh', overflowY: 'auto', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.35)', padding: 14, zIndex: 3000, fontFamily: '"Segoe UI", system-ui, sans-serif' }}>
+        <div style={{ ...(celular
+            ? { position: 'fixed', top: topoLista, left: 8, right: 8, maxHeight: `calc(100dvh - ${topoLista + 8}px)` }
+            : { position: 'absolute', top: 52, right: 0, width: 640, maxWidth: '96vw', maxHeight: '80vh' }),
+          overflowY: 'auto', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.35)', padding: 14, zIndex: 3000, fontFamily: '"Segoe UI", system-ui, sans-serif' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px 10px' }}>
             <Mail size={16} style={{ color: '#16a34a', flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
@@ -445,19 +456,21 @@ export default function CaixaEmail() {
       {msgAberta && (
         <div
           onClick={(e) => { if (e.target === e.currentTarget) setMsgAberta(null) }}
-          style={{ position: 'fixed', inset: 0, zIndex: 4000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          style={{ position: 'fixed', inset: 0, zIndex: 4000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: celular ? 0 : 16 }}
         >
-          <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 16, width: 820, maxWidth: '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 80px rgba(0,0,0,0.5)', fontFamily: '"Segoe UI", system-ui, sans-serif' }}>
+          <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', ...(celular
+              ? { borderRadius: 0, width: '100%', height: '100dvh', maxHeight: '100dvh' }
+              : { borderRadius: 16, width: 820, maxWidth: '96vw', maxHeight: '90vh' }), display: 'flex', flexDirection: 'column', boxShadow: '0 30px 80px rgba(0,0,0,0.5)', fontFamily: '"Segoe UI", system-ui, sans-serif' }}>
             {/* Cabeçalho */}
-            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--portal-border)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-              <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ padding: celular ? '12px 12px' : '14px 18px', borderBottom: '1px solid var(--portal-border)', display: 'flex', gap: 10, alignItems: 'flex-start', flexWrap: celular ? 'wrap' : 'nowrap' }}>
+              <div style={{ minWidth: 0, flex: 1, flexBasis: celular ? 'calc(100% - 50px)' : 'auto' }}>
                 {msgAberta.ehResposta && (
                   <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, fontWeight: 800, color: '#fff', background: '#16a34a', borderRadius: 6, padding: '2px 9px', marginBottom: 6 }}>
                     <Reply size={11} /> RESPOSTA A UM ENVIO NOSSO{msgAberta.cliente ? ` — ${msgAberta.cliente}` : ''}
                   </span>
                 )}
                 <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)', lineHeight: 1.3, wordBreak: 'break-word' }}>{msgAberta.assunto}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', marginTop: 4 }}>
+                <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', marginTop: 4, overflowWrap: 'anywhere' }}>
                   De: <b style={{ color: 'var(--portal-text)' }}>{msgAberta.deNome ? `${msgAberta.deNome} <${msgAberta.de}>` : msgAberta.de}</b> · {fmtData(msgAberta.data, true)}
                 </div>
               </div>
@@ -473,7 +486,7 @@ export default function CaixaEmail() {
             </div>
 
             {/* Corpo */}
-            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: 16 }}>
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: celular ? 10 : 16 }}>
               {carregandoMsg ? (
                 <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-secondary)', fontSize: 13 }}>Carregando a mensagem…</div>
               ) : !detalhe ? (
@@ -584,9 +597,9 @@ export default function CaixaEmail() {
 
             {/* Responder (só faz sentido na caixa de entrada) */}
             {pasta === 'inbox' && (
-            <div style={{ borderTop: '1px solid var(--portal-border)', padding: '12px 16px' }}>
+            <div style={{ borderTop: '1px solid var(--portal-border)', padding: celular ? '10px 10px calc(10px + env(safe-area-inset-bottom))' : '12px 16px' }}>
               {respOk && <div style={{ fontSize: 12.5, fontWeight: 700, color: '#16a34a', marginBottom: 8 }}>✓ {respOk}</div>}
-              <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: celular ? 'stretch' : 'flex-end', flexDirection: celular ? 'column' : 'row' }}>
                 <textarea
                   value={resposta}
                   onChange={(e) => setResposta(e.target.value)}
