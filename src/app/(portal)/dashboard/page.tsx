@@ -9,6 +9,7 @@ import { fetchAuth } from '@/lib/auth/client'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { TELAS, buscarTelas, normalizar, relevancia, type Tela } from '@/lib/dashboard/telas'
 import AtalhosDashboard from '@/components/dashboard/AtalhosDashboard'
+import NoticiasPortal from '@/components/conhecimento/NoticiasPortal'
 import {
   Settings, ClipboardList, ListChecks, Wrench, FileText,
   DollarSign, Activity, Clock, ChevronRight, Search,
@@ -494,6 +495,8 @@ export default function DashboardPage() {
   if (isMobile) {
     // ===== CELULAR: lançador de apps próprio (o desktop abaixo não é usado) =====
     return (
+      <>
+      <div style={{ padding: '12px 12px 0' }}><NoticiasPortal /></div>
       <DashboardMobile
         systems={allowedSystems}
         favoritos={favoritos}
@@ -505,6 +508,7 @@ export default function DashboardPage() {
         onAbrirTela={abrirTela}
         userNome={userProfile?.nome}
       />
+      </>
     )
   }
 
@@ -615,6 +619,9 @@ export default function DashboardPage() {
           </button>
         </div>
       )}
+
+      {/* Notícias do portal: o "O que mudou" agora mora só aqui, como notícia de jornal (José, 29/10/2026) */}
+      {activeFolder === 'todos' && !editingFolder && <NoticiasPortal />}
 
       {/* Filtros + View modes + Busca */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>

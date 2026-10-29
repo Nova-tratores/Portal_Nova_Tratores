@@ -2,17 +2,16 @@
 // NOVIDADES DO DIA — servidor (José, 22/10/2026). Roda às 07:00 (agendamento
 // 'novidades-diarias'): junta as versões publicadas ATÉ ontem que ainda não viraram
 // aviso, escreve UMA novidade por módulo (IA; sem IA, a lista dos commits), publica
-// direto em kb_novidades e avisa no sino quem tem acesso ao módulo. O aviso
-// "O que mudou" (components/conhecimento/Novidades.tsx) mostra o texto ao entrar.
+// direto em kb_novidades. Desde 29/10/2026 não vai mais para o sino: aparece nas
+// Notícias do portal, no dashboard (components/conhecimento/NoticiasPortal.tsx).
 // Regras puras em ./novidades-diarias.ts.
 import { supabaseAdmin as sb } from "@/lib/server/supabase-admin";
 import { chamarIA } from "@/lib/assistente/ia";
-import { filtrarDestinatarios } from "@/lib/notif/prefs";
 import { rotuloModulo } from "./modulos";
 import { lerCommit, type CommitBruto, type CommitLido } from "./releases";
 import {
   NOVIDADES_DIARIAS_DESDE, SISTEMA_NOVIDADE_DIA, agruparPorModulo, entradaIA, inicioDoDiaBR,
-  temAcessoModulo, textoDaIA, textoSemIA, type UsuarioAcesso,
+  textoDaIA, textoSemIA,
 } from "./novidades-diarias";
 
 async function redigir(modulo: string, commits: CommitLido[]): Promise<{ titulo: string; texto: string; origem: "ia" | "manual" }> {
@@ -32,19 +31,6 @@ async function redigir(modulo: string, commits: CommitLido[]): Promise<{ titulo:
     console.warn("[novidades-diarias] IA falhou em", modulo, e instanceof Error ? e.message : e);
   }
   return { ...textoSemIA(rotulo, commits), origem: "manual" };
-}
-
-async function usuariosComAcesso(): Promise<(UsuarioAcesso & { categoria: string | null; notif_silenciado: unknown })[]> {
-  const [perms, ativos] = await Promise.all([
-    sb.from("portal_permissoes").select("user_id, is_admin, is_dev, modulos_permitidos, categoria, notif_silenciado"),
-    sb.from("financeiro_usu").select("id").eq("ativo", true),
-  ]);
-  if (perms.error) throw perms.error;
-  const ok = new Set((ativos.data || []).map((u: any) => u.id));
-  return (perms.data || []).filter((p: any) => ok.has(p.user_id)).map((p: any) => ({
-    user_id: p.user_id, is_admin: p.is_admin, is_dev: p.is_dev, modulos: (p.modulos_permitidos || []) as string[],
-    categoria: p.categoria ?? null, notif_silenciado: p.notif_silenciado,
-  }));
 }
 
 export interface ResultadoDia { versoes: number; novidades: { modulo: string; titulo: string }[]; avisados: number }
@@ -81,28 +67,9 @@ export async function publicarNovidadesDoDia(agora: Date = new Date(), op: Opcoe
     publicadas.push({ modulo, titulo: n.titulo, id: (data as any).id });
   }
 
-  // um aviso no sino por pessoa, com os módulos dela que mudaram
-  let avisados = 0;
-  if (publicadas.length) {
-    const usuarios = await usuariosComAcesso();
-    const podeAviso = new Set(filtrarDestinatarios("conhecimento", usuarios as any));
-    const linhas: any[] = [];
-    for (const u of usuarios) {
-      if (!podeAviso.has(u.user_id)) continue;
-      const dela = publicadas.filter((p) => temAcessoModulo(u, p.modulo));
-      if (!dela.length) continue;
-      linhas.push({
-        user_id: u.user_id, tipo: "sistema",
-        titulo: dela.length === 1 ? `O que mudou em ${rotuloModulo(dela[0].modulo)}` : `O que mudou ontem no portal (${dela.length} módulos)`,
-        descricao: dela.map((p) => (dela.length === 1 ? p.titulo : `${rotuloModulo(p.modulo)}: ${p.titulo}`)).join(" · ").slice(0, 500),
-        link: "/conhecimento/novidades",
-      });
-    }
-    for (let i = 0; i < linhas.length; i += 200) {
-      const { error: en } = await sb.from("portal_notificacoes").insert(linhas.slice(i, i + 200));
-      if (en) console.error("[novidades-diarias] sino:", en.message); else avisados += linhas.slice(i, i + 200).length;
-    }
-  }
+  // sem aviso no sino (José, 29/10/2026: "tira lá da notificação e só deixa no dashboard, como notícia de jornal");
+  // a novidade publicada aparece nas Notícias do portal (components/conhecimento/NoticiasPortal.tsx)
+  const avisados = 0;
 
   // marca as versões como avisadas (não repete amanhã)
   const dia = agora.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
