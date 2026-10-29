@@ -9,6 +9,9 @@ import { carregarBase } from './painel-server'
 import { comCache } from './cache'
 import { clienteRH } from './rh-server'
 import { casarNome } from './ocorrencias-painel'
+import { ajustesDeComissao } from './comissao-server'
+import { chaveDoTecnico, type ComissaoDetalhada, type LinhaComissao } from './comissao-detalhe'
+import { projetarMes } from './comissao'
 
 // função do Pós-Vendas marcada na Administração → usuário → aba Pós-Vendas (lib/permissoes/funcoes-posvendas.ts)
 export { FUNCAO_GARANTISTA as ACAO_GARANTISTA, FUNCAO_GERENTE as ACAO_GERENTE } from '@/lib/permissoes/funcoes-posvendas'
@@ -86,7 +89,8 @@ export async function basesDoMes(mes: string): Promise<{ garantias: OSBase[]; re
 export async function comissaoEscritorio(mes: string) {
   const [config, gente, bases] = await Promise.all([lerConfigEscritorio(), pessoas(), basesDoMes(mes)])
   const totG = r2(bases.garantias.reduce((a, o) => a + o.total, 0)), totR = r2(bases.revisoes.reduce((a, o) => a + o.total, 0))
-  const conta = { garantias: totG, revisoes: totR, comGarantia: r2(totG * config.pctGarantia / 100), comRevisao: r2(totR * config.pctRevisao / 100) }
+  // arredonda por OS, igual às linhas da ficha (o cartão e a ficha dão o mesmo valor)
+  const conta = { garantias: totG, revisoes: totR, comGarantia: r2(bases.garantias.reduce((a, o) => a + r2(o.total * config.pctGarantia / 100), 0)), comRevisao: r2(bases.revisoes.reduce((a, o) => a + r2(o.total * config.pctRevisao / 100), 0)) }
   // histórico no RH
   const c = clienteRH()
   const fun = c ? (((await c.from('rh_funcionarios').select('id, nome, cargo, departamento, status')).data || []) as { id: string; nome: string; cargo: string | null; departamento: string | null; status: string }[]).filter((f) => f.status !== 'desligado') : []
@@ -102,4 +106,36 @@ export async function comissaoEscritorio(mes: string) {
     return { ...p, rh: f ? { nome: f.nome, cargo: f.cargo, departamento: f.departamento } : null, comissoes }
   }))
   return { mes, config, conta, total: r2(conta.comGarantia + conta.comRevisao), bases, pessoas: lista }
+}
+
+/** A pessoa (id do portal) tem a função Garantista? */
+export async function ehGarantista(userId: string): Promise<boolean> {
+  const { data } = await sb.from('portal_permissoes').select('modulos_permitidos').eq('user_id', userId).maybeSingle()
+  return (((data as { modulos_permitidos?: string[] } | null)?.modulos_permitidos) || []).includes(ACAO_GARANTISTA)
+}
+
+/** Comissão do garantista com as mesmas linhas da ficha dos técnicos (José, 29/10/2026: "tudo tem que ser igual
+ *  ao dos técnicos"): cada OS de garantia e de revisão faturada no mês vira uma linha (base = OS + peças), então
+ *  pagar/não pagar/ajustar, pedir autorização ao diretor e o RH funcionam igual. Ajuste já autorizado vem do
+ *  comissoes_os_relatorio (por_tecnico com o nome dele). */
+export async function comissaoDoGarantista(nome: string, mes: string, hoje: string): Promise<ComissaoDetalhada> {
+  const [config, bases] = await Promise.all([lerConfigEscritorio(), basesDoMes(mes)])
+  const todas = [...bases.garantias.map((o) => ({ o, pct: config.pctGarantia, rot: 'da garantia', garantia: true })), ...bases.revisoes.map((o) => ({ o, pct: config.pctRevisao, rot: 'da revisão', garantia: false }))]
+  const ajustes = await ajustesDeComissao([...new Set(todas.flatMap(({ o }) => [o.numero || o.os, o.os]))]).catch(() => new Map())
+  const linhas: LinhaComissao[] = todas.map(({ o, pct, rot, garantia }) => {
+    const calculado = r2(o.total * pct / 100)
+    const aj = ajustes.get(o.numero || o.os) || ajustes.get(o.os)
+    const k = aj?.porTecnico ? Object.keys(aj.porTecnico).find((c) => chaveDoTecnico(c, nome)) : undefined
+    const valor = k != null ? r2(Number(aj!.porTecnico![k])) : calculado
+    return {
+      os: o.os, numeroOmie: o.numero, cliente: o.cliente, data: o.data, tipo: 'faturada' as const, garantia, tecnicos: [],
+      regra: `${String(pct).replace('.', ',')}% ${rot} (OS + peças · ${o.tipo || (garantia ? 'Garantia' : 'Revisão')})`,
+      base: o.total, divisao: 1, calculado, valor, ajustada: Math.abs(valor - calculado) > 0.004,
+    }
+  }).sort((a, b) => b.data.localeCompare(a.data))
+  const total = r2(linhas.reduce((a, l) => a + l.valor, 0))
+  return {
+    tecnico: nome, mes, pct: config.pctGarantia, linhas, faturadas: total, internas: 0, ajustes: r2(total - linhas.reduce((a, l) => a + l.calculado, 0)), total,
+    aguardando: 0, projecao: hoje.startsWith(mes) ? projetarMes(total, mes, hoje) : total, qtdOS: linhas.length,
+  }
 }

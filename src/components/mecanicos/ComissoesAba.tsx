@@ -11,6 +11,7 @@ import CaixinhaMec from './CaixinhaMec'
 import { ComissoesJanela, JanelaEmbutida } from './JanelasInfo'
 import { brl2, Odometro } from './ui'
 import { ESTILO_CT, ESTILO_CT2, ESTILO_CT3 } from './CardsTecnicoOpcoes'
+import { FichaPro } from './FichaPro'
 
 type PessoaEsc = { nome: string; foto: string | null; funcao: 'garantista' | 'sem_regra'; rh: { nome: string; cargo: string | null; departamento: string | null } | null; comissoes: { mes: string; valor: number; status: string; origem: string }[] }
 type OSB = { os: string; numero: string | null; cliente: string; data: string; total: number; tipo: string }
@@ -20,9 +21,6 @@ const nomeMes = (m: string) => `${NOMES_MES[Number(m.slice(5, 7)) - 1]} de ${m.s
 const andar = (m: string, k: number) => { const a = Number(m.slice(0, 4)), x = Number(m.slice(5, 7)) - 1 + k; return `${a + Math.floor(x / 12)}-${String(((x % 12) + 12) % 12 + 1).padStart(2, '0')}` }
 const hojeMes = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 7)
 const pctTxt = (v: number) => `${String(v).replace('.', ',')}%`
-const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
-const mesCurto = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]}/${m.slice(2, 4)}`
-const ST: Record<string, string> = { rascunho: 'rascunho', pendente_aprovacao: 'esperando aprovação', aprovada: 'aprovada', paga: 'paga', lancada: 'lançada no Omie' }
 
 export default function ComissoesAba({ tecnicosDoMes }: { tecnicosDoMes: React.ReactNode }) {
   const [quem, setQuem] = useState<'tec' | 'esc'>('tec')
@@ -74,8 +72,8 @@ function Escritorio() {
       {d && (
         <div className="s1-grade">
           {d.pessoas.map((p, i) => p.funcao === 'garantista' ? (
-            <article key={p.nome} className={`s1 s1-capa abre ${aberto === p.nome ? 'ca-on' : ''}`} style={{ animationDelay: `${i * 110}ms` }} role="button" tabIndex={0}
-              onClick={() => setAberto(aberto === p.nome ? null : p.nome)} onKeyDown={(e) => { if (e.key === 'Enter') setAberto(aberto === p.nome ? null : p.nome) }}>
+            <article key={p.nome} className="s1 s1-capa abre" style={{ animationDelay: `${i * 110}ms` }} role="button" tabIndex={0}
+              onClick={() => setAberto(p.nome)} onKeyDown={(e) => { if (e.key === 'Enter') setAberto(p.nome) }}>
               <div className="s1c-topo"><span className="s1-sit" style={{ color: '#047857', background: '#ecfdf5' }}>● Garantista</span></div>
               <div className="s1c-nome"><b>{p.nome}</b></div>
               <div className="s1c-com">
@@ -88,7 +86,7 @@ function Escritorio() {
                 <div title="OS de revisão faturadas no mês: serviço + peças"><small>Revisões</small><b>{brl2(d.conta.revisoes)}</b><em>{d.bases.revisoes.length} OS · {brl2(d.conta.comRevisao)}</em></div>
                 <div title="Última comissão lançada no RH"><small>No RH</small><b>{p.comissoes[0] ? brl2(p.comissoes[0].valor) : '—'}</b><em>{p.comissoes[0] ? `${p.comissoes[0].mes.slice(5)}/${p.comissoes[0].mes.slice(2, 4)} · ${p.comissoes[0].status}` : 'sem lançamento'}</em></div>
               </div>
-              <span className="s1c-ver">{aberto === p.nome ? 'Fechar' : 'Ver as OS'} <i className={`fas ${aberto === p.nome ? 'fa-chevron-up' : 'fa-arrow-right'}`} /></span>
+              <span className="s1c-ver">Abrir ficha <i className="fas fa-arrow-right" /></span>
             </article>
           ) : (
             <article key={p.nome} className="s1 s1-capa" style={{ animationDelay: `${i * 110}ms` }}>
@@ -100,14 +98,15 @@ function Escritorio() {
           {!d.pessoas.some((p) => p.funcao === 'garantista') && <p className="ca-mudo">Ninguém com a função Garantista. Marque em Administração → usuário → Gestão Pós Vendas → Garantista.</p>}
         </div>
       )}
-      {d && pessoaAberta && <DetalheEscritorio d={d} p={pessoaAberta} onMudou={() => void ler(mes)} />}
+      {d && d.pessoas.some((p) => p.funcao === 'garantista') && <RegraEscritorio key={d.config.pctRevisao} d={d} onMudou={() => void ler(mes)} />}
+      {/* abre a MESMA ficha dos técnicos (José, 29/10/2026: "tudo tem que ser igual ao dos técnicos") */}
+      {pessoaAberta && <FichaPro nome={pessoaAberta.nome} foto={pessoaAberta.foto || undefined} onFechar={() => { setAberto(null); void ler(mes) }} mes={mes} onMes={setMes} />}
     </div>
   )
 }
 
-/** Detalhe do garantista: a conta, as OS de garantia e de revisão do mês e o histórico do RH. */
-function DetalheEscritorio({ d, p, onMudou }: { d: DadosEsc; p: PessoaEsc; onMudou: () => void }) {
-  const [aba, setAba] = useState<'gar' | 'rev' | 'rh'>('gar')
+/** A regra do garantista embaixo dos cartões; a % das revisões só o Gerente do Pós-Vendas muda (29/10/2026). */
+function RegraEscritorio({ d, onMudou }: { d: DadosEsc; onMudou: () => void }) {
   const [pct, setPct] = useState(String(d.config.pctRevisao).replace('.', ','))
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState('')
@@ -120,13 +119,12 @@ function DetalheEscritorio({ d, p, onMudou }: { d: DadosEsc; p: PessoaEsc; onMud
       setMsg('Salvo.'); onMudou()
     } catch (e) { setMsg(e instanceof Error ? e.message : 'Não salvou') } finally { setSalvando(false) }
   }
-  const lista = aba === 'gar' ? d.bases.garantias : d.bases.revisoes
   return (
     <section className="ca-det">
       <div className="ca-conta">
-        <div><small>Garantias faturadas</small><b>{brl2(d.conta.garantias)}</b><span>× {pctTxt(d.config.pctGarantia)} = <b>{brl2(d.conta.comGarantia)}</b></span></div>
+        <div><small>Garantias faturadas no mês</small><b>{brl2(d.conta.garantias)}</b><span>× {pctTxt(d.config.pctGarantia)} = <b>{brl2(d.conta.comGarantia)}</b></span></div>
         <i>+</i>
-        <div><small>Revisões faturadas</small><b>{brl2(d.conta.revisoes)}</b>
+        <div><small>Revisões faturadas no mês</small><b>{brl2(d.conta.revisoes)}</b>
           <span>× {d.podeEditar
             ? <><input value={pct} onChange={(e) => setPct(e.target.value)} inputMode="decimal" aria-label="% das revisões" />% <button type="button" disabled={salvando || Number(pct.replace(',', '.')) === d.config.pctRevisao} onClick={() => void salvar()}>{salvando ? 'salvando…' : 'salvar'}</button></>
             : pctTxt(d.config.pctRevisao)} = <b>{brl2(d.conta.comRevisao)}</b></span>
@@ -134,26 +132,8 @@ function DetalheEscritorio({ d, p, onMudou }: { d: DadosEsc; p: PessoaEsc; onMud
           {msg && <em>{msg}</em>}
         </div>
         <i>=</i>
-        <div className="res"><small>Comissão de {p.nome.split(' ')[0]}</small><b>{brl2(d.total)}</b></div>
+        <div className="res"><small>Comissão do garantista</small><b>{brl2(d.total)}</b></div>
       </div>
-      <div className="ca-abas">
-        <button type="button" className={aba === 'gar' ? 'on' : ''} onClick={() => setAba('gar')}>Garantias ({d.bases.garantias.length})</button>
-        <button type="button" className={aba === 'rev' ? 'on' : ''} onClick={() => setAba('rev')}>Revisões ({d.bases.revisoes.length})</button>
-        <button type="button" className={aba === 'rh' ? 'on' : ''} onClick={() => setAba('rh')}>Histórico no RH ({p.comissoes.length})</button>
-      </div>
-      {aba !== 'rh' ? (
-        lista.length === 0 ? <p className="ca-mudo">Nenhuma OS {aba === 'gar' ? 'de garantia' : 'de revisão'} faturada neste mês.</p> : (
-          <div className="ca-lista">
-            {lista.map((o) => <div key={o.os} className="ca-l ca-os"><span>{o.data.slice(8, 10)}/{o.data.slice(5, 7)}</span><span><b>{o.numero ? `OS ${o.numero}` : o.os}</b> · {o.cliente}<small>{o.tipo}</small></span><b>{brl2(o.total)}</b></div>)}
-          </div>
-        )
-      ) : (
-        p.comissoes.length === 0 ? <p className="ca-mudo">Nenhuma comissão lançada no RH.</p> : (
-          <div className="ca-lista">
-            {p.comissoes.map((c) => <div key={c.mes} className="ca-l" title={c.origem}><span>{c.mes.slice(5)}/{c.mes.slice(2, 4)}</span><b>{brl2(c.valor)}</b><em className={c.status}>{ST[c.status] || c.status.replace('_', ' ')}</em></div>)}
-          </div>
-        )
-      )}
     </section>
   )
 }
@@ -169,7 +149,7 @@ const ESTILO_CA = `
 .ca-erro { margin: 0; color: #b91c1c; font-size: 13px } .ca-mudo { margin: 0; color: var(--portal-text-muted, #64748b); font-size: 13px }
 .ca-mes { display: flex; gap: 8px; align-items: center } .ca-mes button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--portal-border, #e5e7eb); background: var(--portal-bg-card, #fefefe); cursor: pointer } .ca-mes button:disabled { opacity: .4 } .ca-mes span { font-weight: 600; padding: 0 6px } .ca-mes small { color: #64748b }
 .s1.ca-on { outline: 2px solid #047857; outline-offset: 2px }
-.ca-det { display: grid; gap: 14px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 18px; padding: 16px 18px; animation: aaEntra .3s ease both }
+.ca-det { display: grid; gap: 14px }
 .ca-conta { display: flex; gap: 14px; align-items: center; flex-wrap: wrap } .ca-conta > i { font-style: normal; font-size: 22px; color: #94a3b8 }
 .ca-conta > div { display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; background: #f8fafc; min-width: 200px } .ca-conta small { font-size: 12px; color: #64748b } .ca-conta > div > b { font-size: 22px }
 .ca-conta span { font-size: 13px; color: #334155; display: flex; gap: 6px; align-items: center; flex-wrap: wrap } .ca-conta em { font-style: normal; font-size: 11.5px; color: #64748b }

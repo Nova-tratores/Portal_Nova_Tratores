@@ -56,8 +56,9 @@ export function Corpo({ d, foto, card, mes, setMes, sec, setSec }: { d: Ficha; f
       <Cabecalho d={d} foto={foto} mes={mes} setMes={setMes} />
       <h2 className="fp-h2">Dados do RH</h2>
       <Fatos d={d} />
-      <h2 className="fp-h2">Metas do mês<small>básica 20 h e R$ 4 mil · ideal 40 h e R$ 8 mil por semana</small></h2>
-      <MetasPro d={d} card={card} />
+      {/* garantista não tem meta de técnico (29/10/2026) */}
+      {!d.garantista && <><h2 className="fp-h2">Metas do mês<small>básica 20 h e R$ 4 mil · ideal 40 h e R$ 8 mil por semana</small></h2>
+      <MetasPro d={d} card={card} /></>}
       <nav className="fp-secoes">
         {SECOES.map((s) => <button key={s.k} type="button" className={sec === s.k ? 'on' : ''} onClick={() => setSec(s.k)}>{s.rot}</button>)}
       </nav>
