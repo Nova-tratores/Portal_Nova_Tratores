@@ -3,7 +3,7 @@
 //  - Liga: como funciona a carreira (Ferro → Diamante), como sobe e cai, e onde cada mecânico está.
 //  - Comissões: como é calculada, as metas (a básica já desconta deslocamento e hora ociosa), o que paga e o
 //    que não paga, e os VALORES FIXOS — editáveis (admin) e dá para acrescentar.
-import { useEffect, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { authHeaders } from '@/lib/auth/client'
 import { patente, NIVEL_MAX, PONTOS_POR_OS, PONTOS_POR_DEGRAU, PESO_RETORNO, DIVISOES, DIAMANTE } from '@/lib/mecanicos/carreira'
@@ -15,13 +15,29 @@ import { brl2 } from './ui'
 
 const MUDO = 'var(--portal-text-muted, #64748b)'
 
+/** Dentro de uma aba da Equipe a janela vira o próprio conteúdo da aba (José, 29/10/2026: "aqui eu quero que vire abas também"). */
+const Embutida = createContext(false)
+export function JanelaEmbutida({ children }: { children: React.ReactNode }) { return <Embutida.Provider value>{children}</Embutida.Provider> }
+
 export function Janela({ titulo, sub, ic, cor, children, onFechar }: { titulo: string; sub: string; ic: string; cor: string; children: React.ReactNode; onFechar?: () => void }) {
   // fora da Janela Mecânicos (ex.: o aviso do diretor) quem abriu fecha
   const fechar = onFechar || (() => abrirModalMec(null))
+  const embutida = useContext(Embutida)
   useEffect(() => {
+    if (embutida) return
     const t = (e: KeyboardEvent) => { if (e.key !== 'Escape') return; if (onFechar) onFechar(); else abrirModalMec(null) }
     window.addEventListener('keydown', t); return () => window.removeEventListener('keydown', t)
-  }, [onFechar])
+  }, [onFechar, embutida])
+  if (embutida) return (
+    <div className="ji ji-emb" style={{ '--jc': cor } as React.CSSProperties}>
+      <style>{ESTILO_JI}</style>
+      <header className="ji-cab">
+        <span className="ji-ic"><i className={`fas ${ic}`} /></span>
+        <div><b>{titulo}</b><small>{sub}</small></div>
+      </header>
+      <div className="ji-corpo">{children}</div>
+    </div>
+  )
   const tela = (
     <div className="ji-fundo" onClick={fechar}>
       <style>{ESTILO_JI}</style>
@@ -237,6 +253,7 @@ const ESTILO_JI = `
 @keyframes jiFade { from { opacity: 0 } } @keyframes jiSobe { from { opacity: 0; transform: translateY(20px) scale(.98) } }
 .ji-fundo { position: fixed; inset: 0; z-index: 9300; background: rgba(15,23,42,.5); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: jiFade .2s both }
 .ji { width: min(1180px, 100%); max-height: 94vh; display: flex; flex-direction: column; background: var(--portal-bg, #f8fafc); border-radius: 22px; overflow: hidden; box-shadow: 0 30px 80px rgba(15,23,42,.35); animation: jiSobe .35s cubic-bezier(.2,1.1,.3,1) both; color: var(--portal-text, #0f172a) }
+.ji.ji-emb { width: 100%; max-height: none; box-shadow: none; border: 1px solid var(--portal-border, #e2e8f0); animation: none } .ji-emb .ji-corpo { overflow: visible }
 .ji-cab { display: flex; gap: 14px; align-items: center; padding: 16px 22px; background: #fefefe; border-bottom: 1px solid var(--portal-border, #e2e8f0) }
 .ji-ic { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; color: #fefefe; background: var(--jc) }
 .ji-cab > div { flex: 1; display: grid } .ji-cab b { font-size: 19px; font-weight: 800 } .ji-cab small { font-size: 13px; color: ${MUDO} }

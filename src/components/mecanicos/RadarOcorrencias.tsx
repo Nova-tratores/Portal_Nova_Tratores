@@ -8,7 +8,6 @@
 //  • Linha do tempo do mês, motivos mais comuns e os últimos 6 meses.
 // Atualiza sozinho pelo Realtime (tecnico_ocorrencias / tecnico_justificativas).
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { createPortal } from 'react-dom'
 import { useModalMec, abrirModalMec, contagensMec } from './BotoesMecanicos'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts'
 import { authHeaders } from '@/lib/auth/client'
@@ -22,12 +21,24 @@ import FantasmasMec from './FantasmasMec'
 import EquipeCapa from './EquipeCapa'
 import { ESTILO_ASSUNTOS } from './PainelTecnicos'
 import { AbasAssuntos, useAbaAssunto, type AbaAssunto } from './AbasAssuntos'
+import ComissoesAba from './ComissoesAba'
+import PodioMeses from './PodioMeses'
+import TemparioJanela from './TemparioJanela'
+import { LigaJanela, JanelaEmbutida } from './JanelasInfo'
+import { AutorizacoesJanela, useAutorizacoes } from './AutorizacoesJanela'
 
-const ABAS_EQUIPE: AbaAssunto[] = [
-  { id: 'horas', cor: '#0369a1', ic: 'fa-clock', titulo: 'Horas e km da equipe', sub: 'o mês da equipe toda', alvos: ['oc-horas'] },
-  { id: 'tecnicos', cor: '#7c3aed', ic: 'fa-users', titulo: 'Técnicos do mês', sub: 'pódio, pontos e ligas', alvos: ['oc-carreira', 'oc-radar'] },
-  { id: 'fantasmas', cor: '#be123c', ic: 'fa-ghost', titulo: 'Horas e km fantasmas', sub: 'carro × relatório × OS', alvos: ['oc-fantasmas'] },
+// as janelas do topo viraram abas da Equipe (José, 29/10/2026); os técnicos do mês e a caixinha foram para Comissões
+const ABAS_EQUIPE_BASE: AbaAssunto[] = [
+  { id: 'horas', cor: '#0369a1', ic: 'fa-clock', titulo: 'Horas e km', sub: 'o mês da equipe toda', alvos: ['oc-horas'] },
+  { id: 'fantasmas', cor: '#be123c', ic: 'fa-ghost', titulo: 'Fantasmas', sub: 'carro × relatório × OS', alvos: ['oc-fantasmas'] },
+  { id: 'comissoes', cor: '#047857', ic: 'fa-sack-dollar', titulo: 'Comissões', sub: 'técnicos, escritório e caixinha', alvos: ['oc-carreira', 'oc-radar'] },
+  { id: 'podio', cor: '#b45309', ic: 'fa-trophy', titulo: 'Pódio', sub: 'vencedor de cada mês' },
+  { id: 'tribunal', cor: '#92400e', ic: 'fa-gavel', titulo: 'Tribunal', sub: 'defesas dos mecânicos', alvos: ['oc-tribunal'] },
+  { id: 'ocorrencias', cor: '#9f1239', ic: 'fa-clipboard-list', titulo: 'Ocorrências', sub: 'linha do tempo e motivos', alvos: ['oc-pontos'] },
+  { id: 'liga', cor: '#475569', ic: 'fa-ranking-star', titulo: 'Liga', sub: 'como funciona' },
+  { id: 'tempario', cor: '#0f766e', ic: 'fa-stopwatch', titulo: 'Tempário', sub: 'tempo de cada serviço' },
 ]
+const ABAS_EQUIPE_DIRETOR: AbaAssunto[] = [...ABAS_EQUIPE_BASE.slice(0, 7), { id: 'autorizacoes', cor: '#1d4ed8', ic: 'fa-signature', titulo: 'Autorizações', sub: 'comissões para autorizar' }, ...ABAS_EQUIPE_BASE.slice(7)]
 
 // assuntos da aba Mecânicos, com as bolinhas iguais às do Painel (José, 20/10/2026)
 import { patente } from '@/lib/mecanicos/carreira'
@@ -167,7 +178,13 @@ export default function RadarOcorrencias() {
     const media = (k: 'qtd' | 'pontos') => Math.round((Array.from({ length: n - 1 }, (_, i) => soma(k, i)).reduce((a, b) => a + b, 0) / (n - 1)) * 10) / 10
     return { qtdAnt: soma('qtd', n - 2), ptsAnt: soma('pontos', n - 2), qtdMedia: media('qtd'), ptsMedia: media('pontos') }
   }, [d])
-  const [assunto, setAssunto] = useAbaAssunto('equipe', ABAS_EQUIPE)
+  const au = useAutorizacoes()
+  const abasEquipe = au.diretor || au.abertos.length > 0 ? ABAS_EQUIPE_DIRETOR : ABAS_EQUIPE_BASE
+  const [assunto, setAssunto] = useAbaAssunto('equipe', abasEquipe)
+  // número em cima da aba: defesas para julgar e comissões para autorizar
+  const abasVis = abasEquipe.map((x) => (x.id === 'tribunal' ? { ...x, n: d?.pendentes.length || 0 } : x.id === 'autorizacoes' ? { ...x, n: au.abertos.length } : x))
+  // pedido de abrir o Tribunal/Ocorrências (endereço ?janela= ou o Tratorilson) abre a aba
+  useEffect(() => { if (ver === 'tribunal' || ver === 'ocorrencias') setAssunto(ver) }, [ver]) // eslint-disable-line react-hooks/exhaustive-deps
   const filtro = (tec || cat) && <button type="button" className="rdr-chip" onClick={() => { setCat(null); setTec(null) }}>limpar filtro ✕</button>
   return (
     <div>
@@ -206,16 +223,20 @@ export default function RadarOcorrencias() {
           {/* 28/10/2026 (José: "espaço em branco, remove"): sem a barra de assuntos os títulos das seções ficavam
               invisíveis (só ela marcava .pt-visto) — a capa e os cartões já se explicam, então os títulos saíram */}
           {/* assuntos em abas fechadas (José, 29/10/2026: "em ambos os lados") */}
-          <AbasAssuntos abas={ABAS_EQUIPE} atual={assunto} onTroca={setAssunto} />
+          <AbasAssuntos abas={abasVis} atual={assunto} onTroca={setAssunto} />
           {assunto === 'horas' && <div id="oc-horas" className="aa-conteudo"><EquipeCapa mes={mes} /></div>}
-          {assunto === 'tecnicos' && <div id="oc-carreira" className="aa-conteudo"><span id="oc-radar" /><TecnicosDoMes /></div>}
+          {assunto === 'comissoes' && <div className="aa-conteudo"><ComissoesAba tecnicosDoMes={<div id="oc-carreira"><span id="oc-radar" /><TecnicosDoMes /></div>} /></div>}
+          {assunto === 'podio' && <div className="aa-conteudo"><PodioMeses /></div>}
+          {assunto === 'liga' && <div className="aa-conteudo"><JanelaEmbutida><LigaJanela /></JanelaEmbutida></div>}
+          {assunto === 'autorizacoes' && <div className="aa-conteudo"><JanelaEmbutida><AutorizacoesJanela /></JanelaEmbutida></div>}
+          {assunto === 'tempario' && <div className="aa-conteudo"><JanelaEmbutida><TemparioJanela onFechar={() => setAssunto('horas')} /></JanelaEmbutida></div>}
 
           {/* horas e km fantasmas: carro × relatório × OS × tempário (José, 20/10/2026) */}
           {assunto === 'fantasmas' && <div id="oc-fantasmas" className="aa-conteudo"><FantasmasMec mes={mes} /></div>}
 
           {/* Tribunal e ocorrências ficam atrás dos botões do topo (José, 20/10/2026) */}
           <div id="oc-tribunal" />
-          {ver === 'tribunal' && (
+          {assunto === 'tribunal' && (
             <JanelaMec titulo="Tribunal de defesas" sub={`${d.pendentes.length} defesa(s) esperando julgamento · ${nomeMes(mes)}`} ic="fa-gavel" cor="#92400e">
             <Cartao titulo={<>Tribunal de defesas {d.pendentes.length > 0 && <span className="rdr-badge">{d.pendentes.length}</span>}</>} atraso={240}>
               {d.pendentes.length === 0 ? (
@@ -252,7 +273,7 @@ export default function RadarOcorrencias() {
             </JanelaMec>
           )}
           <div id="oc-pontos" />
-          {ver === 'ocorrencias' && (
+          {assunto === 'ocorrencias' && (
             <JanelaMec titulo="Ocorrências" sub={`${d.ocorrencias.length} no mês · ${nomeMes(mes)}`} ic="fa-clipboard-list" cor="#be123c">
             <Cartao titulo={tec ? `Linha do tempo · ${tec}` : 'Linha do tempo do mês'} atraso={300} extra={<>{filtro}<span style={{ fontSize: 11.5, color: MUDO }}>{filtradas.length} registro(s)</span></>}>
               {filtradas.length === 0 ? <Vazio icone="fa-face-smile" texto="Nenhuma ocorrência neste filtro." /> : (
@@ -633,30 +654,23 @@ function EstilosRadar() {
 
 /** Janela do Tribunal e das Ocorrências (abertas pelos botões do topo, ao lado do Pódio — José, 20/10/2026). */
 function JanelaMec({ titulo, sub, ic, cor, children }: { titulo: string; sub: string; ic: string; cor: string; children: React.ReactNode }) {
-  useEffect(() => {
-    const t = (e: KeyboardEvent) => { if (e.key === 'Escape') abrirModalMec(null) }
-    window.addEventListener('keydown', t)
-    return () => window.removeEventListener('keydown', t)
-  }, [])
-  const tela = (
-    <div className="jm-fundo" onClick={() => abrirModalMec(null)}>
+  // virou o conteúdo da aba (Tribunal e Ocorrências) — José, 29/10/2026
+  return (
+    <div className="jm jm-emb aa-conteudo" style={{ '--jc': cor } as React.CSSProperties}>
       <style>{ESTILO_JM}</style>
-      <div className="jm" role="dialog" aria-label={titulo} onClick={(e) => e.stopPropagation()} style={{ '--jc': cor } as React.CSSProperties}>
-        <header className="jm-cab">
-          <span className="jm-ic"><i className={`fas ${ic}`} /></span>
-          <div><b>{titulo}</b><small>{sub}</small></div>
-          <button type="button" onClick={() => abrirModalMec(null)} aria-label="Fechar"><i className="fas fa-xmark" /></button>
-        </header>
-        <div className="jm-corpo">{children}</div>
-      </div>
+      <header className="jm-cab">
+        <span className="jm-ic"><i className={`fas ${ic}`} /></span>
+        <div><b>{titulo}</b><small>{sub}</small></div>
+      </header>
+      <div className="jm-corpo">{children}</div>
     </div>
   )
-  return typeof document === 'undefined' ? tela : createPortal(tela, document.body)
 }
 const ESTILO_JM = `
 @keyframes jmFade { from { opacity: 0 } } @keyframes jmSobe { from { opacity: 0; transform: translateY(24px) scale(.97) } }
 .jm-fundo { position: fixed; inset: 0; z-index: 9300; background: rgba(15,23,42,.5); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: jmFade .2s both }
 .jm { width: min(1180px, 100%); max-height: 92vh; display: flex; flex-direction: column; background: var(--portal-bg, #f8fafc); border-radius: 22px; overflow: hidden; box-shadow: 0 30px 80px rgba(15,23,42,.35); animation: jmSobe .4s cubic-bezier(.2,1.1,.3,1) both }
+.jm.jm-emb { width: 100%; max-height: none; box-shadow: none; border: 1px solid var(--portal-border, #e2e8f0); animation: none } .jm-emb .jm-corpo { overflow: visible }
 .jm-cab { display: flex; gap: 14px; align-items: center; padding: 16px 20px; background: linear-gradient(120deg, color-mix(in srgb, var(--jc) 10%, #fefefe), #fefefe); border-bottom: 1px solid var(--portal-border, #e2e8f0) }
 .jm-ic { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; font-size: 19px; color: #fefefe; background: var(--jc); box-shadow: 0 6px 16px color-mix(in srgb, var(--jc) 35%, transparent) }
 .jm-cab > div { flex: 1; display: grid } .jm-cab b { font-size: 19px; font-weight: 900; color: var(--portal-text, #0f172a) } .jm-cab small { font-size: 13px; color: var(--portal-text-muted, #64748b) }

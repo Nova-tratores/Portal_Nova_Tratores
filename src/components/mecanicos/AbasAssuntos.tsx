@@ -5,7 +5,7 @@
 // O Tratorilson manda "ir até" uma parte (evento `cpv-ir` com o id): a aba que tem esse id abre sozinha.
 import { useEffect, useRef, useState } from 'react'
 
-export interface AbaAssunto { id: string; cor: string; ic: string; titulo: string; sub?: string; alvos?: string[] }
+export interface AbaAssunto { id: string; cor: string; ic: string; titulo: string; sub?: string; alvos?: string[]; n?: number }
 
 export function useAbaAssunto(chave: string, abas: AbaAssunto[]) {
   const [atual, setAtual] = useState<string>(abas[0].id)
@@ -43,7 +43,7 @@ export function AbasAssuntos({ abas, atual, onTroca }: { abas: AbaAssunto[]; atu
       {abas.map((a) => (
         <button key={a.id} type="button" role="tab" aria-selected={atual === a.id} className={`aa-aba ${atual === a.id ? 'on' : ''}`}
           style={{ '--c': a.cor } as React.CSSProperties} onClick={() => clicar(a.id)}>
-          <em aria-hidden><i className={`fas ${a.ic}`} /></em>
+          <em aria-hidden><i className={`fas ${a.ic}`} />{!!a.n && <u>{a.n}</u>}</em>
           <span><b>{a.titulo}</b>{a.sub && <small>{a.sub}</small>}</span>
         </button>
       ))}
@@ -63,6 +63,7 @@ const ESTILO_AA = `
 .aa-aba:hover { opacity: 1; background: color-mix(in srgb, var(--portal-bg-card, #fefefe) 70%, transparent) }
 .aa-aba em { flex-shrink: 0; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-style: normal;
   background: color-mix(in srgb, var(--c) 14%, transparent); color: var(--c); font-size: 17px; transition: background .25s, color .25s, transform .25s, box-shadow .25s }
+.aa-aba em { position: relative } .aa-aba em u { position: absolute; top: -4px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px; display: grid; place-items: center; text-decoration: none; font-size: 11px; font-weight: 700; color: #fefefe; background: #f59e0b; box-shadow: 0 0 0 2px var(--portal-bg-card, #fefefe) }
 .aa-aba span { display: grid; gap: 1px; min-width: 0 }
 .aa-aba b { font-size: 15px; font-weight: 500 }
 .aa-aba small { font-size: 12px; color: var(--portal-text-muted, #64748b); line-height: 1.3 }

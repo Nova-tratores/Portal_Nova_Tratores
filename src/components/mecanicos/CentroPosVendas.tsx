@@ -6,7 +6,7 @@ import PainelTecnicos from './PainelTecnicos'
 import RadarOcorrencias from './RadarOcorrencias'
 import TratorilsonLeitura, { abrirTratorilson } from './TratorilsonLeitura'
 import AbasCentro from './AbasCentro'
-import { MenuRadialMec, abrirModalMec, useModalMec } from './BotoesMecanicos'
+import { abrirModalMec, useModalMec } from './BotoesMecanicos'
 import { useUrlMec } from './useUrlMec'
 import { LigaJanela, ComissoesJanela } from './JanelasInfo'
 import { AutorizacoesJanela } from './AutorizacoesJanela'
@@ -92,6 +92,7 @@ export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a
         .cpv-conteudo { animation: cpvTroca .5s cubic-bezier(.2,.8,.2,1) both } @keyframes cpvTroca { from { opacity: 0; transform: translateY(16px) scale(.99); filter: blur(3px) } to { opacity: 1; transform: none; filter: none } }
         .cpv-podio { display: inline-flex; gap: 8px; align-items: center; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: #92400e; border-radius: 14px; padding: 10px 16px; font-family: inherit; font-size: 14.5px; font-weight: 900; cursor: pointer; transition: all .25s }
         .cpv-podio i { color: #d4a017 } .cpv-podio:hover { transform: translateY(-1px); border-color: #fcd34d } .cpv-podio.on { background: linear-gradient(135deg, #fde68a, #f59e0b); border-color: #f59e0b; color: #451a03; box-shadow: 0 8px 20px rgba(245,158,11,.35) } .cpv-podio.on i { color: #78350f }
+        .cpv-robo { display: inline-flex; gap: 8px; align-items: center; height: 40px; padding: 0 16px; border-radius: 99px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: #0369a1; font: inherit; font-size: 14px; cursor: pointer } .cpv-robo:hover { border-color: #0369a1; background: #f0f9ff }
         .cpv-tela { margin-left: auto; width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: var(--portal-text-muted, #64748b); cursor: pointer }
         .cpv-tela:hover { color: #0369a1; border-color: #0369a1 }
         @media (max-width: 720px) { .cpv-modo { min-width: 0; flex: 1 } .cpv-op small { display: none } .cpv-op b { font-size: 13.5px } .cpv-op { padding: 8px 10px; gap: 8px } }
@@ -104,7 +105,8 @@ export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a
       <div className="cpv-topo">
         {/* Painel · Mecânicos · Pódio num seletor só (José, 20/10/2026) */}
         <AbasCentro aba={aba} onAba={onAba} />
-        <MenuRadialMec onTratorilson={abrirTratorilson} onAbrir={(m) => (m === 'liga' || m === 'comissoes' || m === 'autorizacoes' ? mudar({ janela: m }) : mudar({ aba: 'mecanicos', janela: m, tecnico: null, secao: null, mes: null }))} podio={aba === 'podio'} onPodio={() => onAba('podio')} />
+        {/* os atalhos viraram abas da Equipe (José, 29/10/2026); o Tratorilson fica aqui em cima */}
+        <button type="button" className="cpv-robo" onClick={abrirTratorilson} title="Tratorilson: perguntas frequentes"><i className="fas fa-robot" /> Tratorilson</button>
         <TratorilsonLeitura onIr={irPara} aba={aba === 'podio' ? 'painel' : aba} oculto />
         <span style={{ flex: 1 }} />
         {selo && <span className="cpv-aovivo" title={selo.motivo}><i />Atualizado agora · {selo.motivo}</span>}
