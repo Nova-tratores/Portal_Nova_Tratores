@@ -58,6 +58,11 @@ export function grupoDoModulo(id: string): string {
 // Ações granulares por módulo. Módulo sem entrada aqui = só liga/desliga (acesso total).
 // (Fase 1: só Requisições. Os demais entram aqui conforme forem enforçados.)
 export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
+  // Planta Viva: os números sensíveis (financeiro, R$, propostas, requisições…) ficam lacrados
+  // para quem não é admin; esta ação libera ver o valor e o detalhe (29/10/2026, Larissa).
+  planta: [
+    { id: 'sensivel', label: 'Ver os números sensíveis (financeiro, valores em R$) e o detalhe deles' },
+  ],
   pops: [
     { id: 'admin', label: 'Administrar POPs (áreas, papéis, modelos, aprovar qualquer área)' },
     { id: 'executar', label: 'Executar POPs' },

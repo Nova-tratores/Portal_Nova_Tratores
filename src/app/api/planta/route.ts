@@ -1,8 +1,9 @@
 // GET /api/planta?conta=NOVA|CASTRO|TODAS — números da Planta Viva (docs/planta-viva-plano.md).
-// Lê só a tabela planta_kpi (gravada pelo agendador a cada 5 min). Quem não é admin recebe
-// os números do financeiro e os valores em R$ LACRADOS (sem valor e sem detalhe).
+// Lê só a tabela planta_kpi (gravada pelo agendador a cada 5 min). Quem não é admin nem tem a
+// ação planta:sensivel recebe os números do financeiro e os valores em R$ LACRADOS (sem valor e sem detalhe).
 import { NextRequest, NextResponse } from 'next/server';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
+import { permite } from '@/lib/permissoes/explicitas';
 import { lerSnapshot, lerMetas } from '@/lib/planta/server';
 import { montarTermometro, type Medias } from '@/lib/planta/termometro';
 import { filtrarConta, prepararParaUsuario, type ContaPlanta, type LinhaKpi } from '@/lib/planta/regras';
@@ -21,12 +22,13 @@ export async function GET(req: NextRequest) {
     const metas = await lerMetas();
     // Termômetro (médias + meta): número lacrado não leva — as médias em R$ vazariam o valor.
     // As médias cruas nunca vão na resposta; só o termômetro montado.
-    const kpis = prepararParaUsuario(filtrarConta(linhas as LinhaKpi[], conta), g.user.isAdmin).map((k) => {
+    const veSensivel = permite(g.user.modulos, g.user.isAdmin, 'planta', 'sensivel');
+    const kpis = prepararParaUsuario(filtrarConta(linhas as LinhaKpi[], conta), veSensivel).map((k) => {
       const { medias, ...resto } = k as typeof k & { medias?: Medias };
       return { ...resto, termometro: k.lacrado ? null : montarTermometro({ ...k, medias }, metas[k.kpi_id] || null) };
     });
     const calculadoEm = linhas.map((l) => l.calculado_em).filter(Boolean).sort().pop() || null;
-    return NextResponse.json({ conta, calculadoEm, admin: g.user.isAdmin, kpis }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ conta, calculadoEm, admin: g.user.isAdmin, veSensivel, kpis }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 });
   }

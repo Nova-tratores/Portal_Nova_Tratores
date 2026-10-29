@@ -14,6 +14,8 @@ export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
   'financeiro:editar_cards',
   // tirar o carro da frota (vender, arquivar, marcar sem uso) — só Dev concede (22/10/2026)
   'frota:veiculos:inativar',
+  // ver os números sensíveis da Planta Viva (financeiro, R$) — o módulo Planta não dá (29/10/2026)
+  'planta:sensivel',
 ]);
 
 // Ações FISCAIS de Dev (José, 13/10/2026): no começo só os Devs fazem; admin comum

@@ -86,6 +86,7 @@ export default function PlantaViva() {
   const [conta, setConta] = useState<Conta>('TODAS')
   const [kpis, setKpis] = useState<Kpi[]>([])
   const [admin, setAdmin] = useState(false)
+  const [veSensivel, setVeSensivel] = useState(false)
   const [calculadoEm, setCalculadoEm] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [carregando, setCarregando] = useState(true)
@@ -100,7 +101,7 @@ export default function PlantaViva() {
       const j = await r.json()
       if (j.migracaoFaltando) { setErro('A tabela da planta ainda não existe no banco.'); return }
       if (!r.ok) { setErro(j.erro || `Erro ${r.status}`); return }
-      setKpis(j.kpis || []); setAdmin(!!j.admin); setCalculadoEm(j.calculadoEm || null); setErro(null); setAgora(Date.now())
+      setKpis(j.kpis || []); setAdmin(!!j.admin); setVeSensivel(!!(j.veSensivel ?? j.admin)); setCalculadoEm(j.calculadoEm || null); setErro(null); setAgora(Date.now())
     } catch { setErro('Sem conexão com o portal agora. Tentando de novo em 1 min.') }
     finally { setCarregando(false) }
   }, [])
@@ -161,7 +162,7 @@ export default function PlantaViva() {
       </div>
 
       {erro && <div className={s.aviso} role="status">{erro}</div>}
-      {!admin && !carregando && !erro && (
+      {!veSensivel && !carregando && !erro && (
         <div className={s.aviso}><Lock size={13} style={{ verticalAlign: '-2px' }} /> Os valores do financeiro e os R$ ficam lacrados: só administradores veem.</div>
       )}
 

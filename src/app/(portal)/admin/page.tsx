@@ -26,7 +26,7 @@ const MODULOS = [
   // Atividades e Back Nova existiam como telas/cards mas NUNCA estiveram nesta
   // lista — a permissão era impossível de conceder pela tela (29/07/2026).
   { id: 'atividades', label: 'Atividades (logs)', color: '#6b7280' },
-  { id: 'planta', label: 'Planta Viva (financeiro dentro dela: só admin)', color: '#0e7490' },
+  { id: 'planta', label: 'Planta Viva (financeiro dentro dela: admin ou a ação “números sensíveis”)', color: '#0e7490' },
   { id: 'avisos', label: 'Avisos', color: '#dc2626' },
   // Base de conhecimento: ler é livre; o módulo dá o direito de escrever/aprovar em QUALQUER módulo
   // (o responsável de cada módulo, em kb_responsaveis, aprova o seu sem precisar disto).
