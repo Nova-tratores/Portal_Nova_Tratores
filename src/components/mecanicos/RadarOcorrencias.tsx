@@ -21,6 +21,13 @@ import { useCarreira } from './useCarreira'
 import FantasmasMec from './FantasmasMec'
 import EquipeCapa from './EquipeCapa'
 import { ESTILO_ASSUNTOS } from './PainelTecnicos'
+import { AbasAssuntos, useAbaAssunto, type AbaAssunto } from './AbasAssuntos'
+
+const ABAS_EQUIPE: AbaAssunto[] = [
+  { id: 'horas', cor: '#0369a1', ic: 'fa-clock', titulo: 'Horas e km da equipe', sub: 'o mês da equipe toda', alvos: ['oc-horas'] },
+  { id: 'tecnicos', cor: '#7c3aed', ic: 'fa-users', titulo: 'Técnicos do mês', sub: 'pódio, pontos e ligas', alvos: ['oc-carreira', 'oc-radar'] },
+  { id: 'fantasmas', cor: '#be123c', ic: 'fa-ghost', titulo: 'Horas e km fantasmas', sub: 'carro × relatório × OS', alvos: ['oc-fantasmas'] },
+]
 
 // assuntos da aba Mecânicos, com as bolinhas iguais às do Painel (José, 20/10/2026)
 import { patente } from '@/lib/mecanicos/carreira'
@@ -160,6 +167,7 @@ export default function RadarOcorrencias() {
     const media = (k: 'qtd' | 'pontos') => Math.round((Array.from({ length: n - 1 }, (_, i) => soma(k, i)).reduce((a, b) => a + b, 0) / (n - 1)) * 10) / 10
     return { qtdAnt: soma('qtd', n - 2), ptsAnt: soma('pontos', n - 2), qtdMedia: media('qtd'), ptsMedia: media('pontos') }
   }, [d])
+  const [assunto, setAssunto] = useAbaAssunto('equipe', ABAS_EQUIPE)
   const filtro = (tec || cat) && <button type="button" className="rdr-chip" onClick={() => { setCat(null); setTec(null) }}>limpar filtro ✕</button>
   return (
     <div>
@@ -197,11 +205,13 @@ export default function RadarOcorrencias() {
           {/* 28/10/2026: no lugar da caixinha (que virou ícone nos atalhos), a capa das horas e km da equipe toda */}
           {/* 28/10/2026 (José: "espaço em branco, remove"): sem a barra de assuntos os títulos das seções ficavam
               invisíveis (só ela marcava .pt-visto) — a capa e os cartões já se explicam, então os títulos saíram */}
-          <div id="oc-horas"><EquipeCapa mes={mes} /></div>
-          <div id="oc-carreira"><span id="oc-radar" /><TecnicosDoMes /></div>
+          {/* assuntos em abas fechadas (José, 29/10/2026: "em ambos os lados") */}
+          <AbasAssuntos abas={ABAS_EQUIPE} atual={assunto} onTroca={setAssunto} />
+          {assunto === 'horas' && <div id="oc-horas" className="aa-conteudo"><EquipeCapa mes={mes} /></div>}
+          {assunto === 'tecnicos' && <div id="oc-carreira" className="aa-conteudo"><span id="oc-radar" /><TecnicosDoMes /></div>}
 
           {/* horas e km fantasmas: carro × relatório × OS × tempário (José, 20/10/2026) */}
-          <FantasmasMec mes={mes} />
+          {assunto === 'fantasmas' && <div id="oc-fantasmas" className="aa-conteudo"><FantasmasMec mes={mes} /></div>}
 
           {/* Tribunal e ocorrências ficam atrás dos botões do topo (José, 20/10/2026) */}
           <div id="oc-tribunal" />

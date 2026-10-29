@@ -4,8 +4,8 @@
 import type { AbaCPV } from './CentroPosVendas'
 
 const ABAS: { id: AbaCPV; rot: string; sub: string; ic: string; cor: string }[] = [
-  { id: 'painel', rot: 'Painel', sub: 'dinheiro, horas e gastos', ic: 'fa-chart-column', cor: '#0369a1' },
-  { id: 'ocorrencias', rot: 'Mecânicos', sub: 'horas, pontos e defesas', ic: 'fa-user-gear', cor: '#6d28d9' },
+  { id: 'painel', rot: 'Resultados', sub: 'dinheiro, horas e gastos', ic: 'fa-chart-column', cor: '#0369a1' },
+  { id: 'ocorrencias', rot: 'Equipe', sub: 'horas, pontos e defesas', ic: 'fa-user-gear', cor: '#6d28d9' },
 ]
 
 export default function AbasCentro({ aba, onAba }: { aba: AbaCPV; onAba: (a: AbaCPV) => void }) {

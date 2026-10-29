@@ -6,6 +6,7 @@
 //  4. Um CARTÃO por técnico: horas × meta, faturado, gastos, km, pontos de ocorrência e resultado
 //  5. Evolução com UM gráfico (escolhe o que ver; clicar na barra vai para aquele período)
 // Dados: base inteira de GET /api/mecanicos/base (gravada no banco), calculada na tela por montarPainel.
+import { AbasAssuntos, useAbaAssunto, type AbaAssunto } from './AbasAssuntos'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLine, Cell, CartesianGrid } from 'recharts'
@@ -196,6 +197,7 @@ export default function PainelTecnicos() {
     }
   })
 
+  const [assunto, setAssunto] = useAbaAssunto('resultados', ABAS_RESULTADOS)
 
   return (
     <div>
@@ -213,19 +215,19 @@ export default function PainelTecnicos() {
       <style>{ESTILO_TRILHO}</style>
       <style>{ESTILO_SECAO}</style>
       <div className="pt-amb">
-      <TrilhoAssuntos topo soAoRolar />
+      {/* assuntos em abas fechadas (José, 29/10/2026); o trilho que acompanhava a rolagem saiu */}
       <div className="pt-corpo">
+      <AbasAssuntos abas={ABAS_RESULTADOS} atual={assunto} onTroca={setAssunto} />
       {/* P3 "Cartões de período" escolhida na página de teste (19/10) no lugar da fita antiga (SeletorTempo) */}
-      <Secao n={1} cor="#2563eb" ic="fa-chart-column" titulo="Faturamento por período" sub="escolha a semana, o mês ou o ano: o resto da tela segue" primeira />
       {/* José, 21/10/2026: "já pode colocar no portal, no lugar desse" — os 4 cartões (dia, semana, mês, ano), metas,
           "o que entra na conta" e a comparação lado a lado; a antiga (SeletorCartoes) ficou no código */}
-      {base && <div style={{ marginBottom: 14 }}><FaturamentoPeriodo base={base} hoje={hojeSP()} forma="escada" escala={tipo} refDia={ref} onMudar={(e, r) => { setTipo(e); setRef(r) }} /></div>}
+      {assunto === 'fat' && base && <div id="sec-1" className="aa-conteudo" style={{ marginBottom: 14 }}><FaturamentoPeriodo base={base} hoje={hojeSP()} forma="escada" escala={tipo} refDia={ref} onMudar={(e, r) => { setTipo(e); setRef(r) }} /></div>}
       {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
       {!d && carregando && <div style={{ padding: 40, textAlign: 'center', color: MUDO }}><i className="fas fa-circle-notch fa-spin" /> carregando o histórico…</div>}
 
       {t && g && (
         <div key={`${tipo}|${ref}`} className="pt-troca">
-          {cartao && (cartao.depoisDe || cartao.mesesSem.length > 0) && (
+          {assunto === 'din' && cartao && (cartao.depoisDe || cartao.mesesSem.length > 0) && (
             <div className="pt-aviso-cartao">
               <i className="fas fa-gas-pump" />
               <span>
@@ -236,22 +238,19 @@ export default function PainelTecnicos() {
               </span>
             </div>
           )}
-          <Secao n={2} cor="#0f766e" ic="fa-sack-dollar" titulo="Para onde foi o dinheiro" sub={`o mês inteiro${dMes ? ` (${dMes.periodo.rotulo})` : ''} · mexa nos números para simular`} />
           {/* simulador "e se…" (D5 da página de teste, 19/10): mexe nas entradas, gastos e pessoal e vê o que ficaria */}
           {/* José, 21/10/2026: "melhora essas informações, remove o que não for necessário" — sem a barra do simulador
               (fica sempre aberto), sem a frase grande e sem o guia de 3 passos */}
-          <div className="pt-sim-claro cpv-entra">
+          {assunto === 'din' && <div id="sec-2" className="pt-sim-claro cpv-entra aa-conteudo">
             {dMes && <DinheiroSimulador key={`mes|${dMes.periodo.de}|${comissaoOficial ? 1 : 0}`} c={contaDe(dMes, dMes.periodo.rotulo)} claro forma={1} />}
-          </div>
+          </div>}
 
           {/* dinheiro parado: OS feitas e não faturadas / passou da data sem preencher (foto de agora) */}
-          <Secao n={3} cor="#d97706" ic="fa-hourglass-half" titulo="Dinheiro parado" sub="OS feitas e ainda não faturadas, agora" />
-          {base && <ParadoNoPainel inicial={base.pendencias || []} />}
+          {assunto === 'parado' && base && <div id="sec-3" className="aa-conteudo"><ParadoNoPainel inicial={base.pendencias || []} /></div>}
 
-          <Secao n={4} cor="#7c3aed" ic="fa-users-gear" titulo="Garantias" sub="garantias direto do módulo" />
-          <GarantiasNoPainel />
+          {assunto === 'gar' && <div id="sec-4" className="aa-conteudo"><GarantiasNoPainel /></div>}
           {/* bloco "Apoio ao pós-vendas" (Outros) removido a pedido do José, 19/10/2026 */}
-          {semTecnico && semTecnico.bruto > 0 && (
+          {assunto === 'fat' && semTecnico && semTecnico.bruto > 0 && (
             <button type="button" className="pt-sem" onClick={() => setListaOS({ titulo: 'sem técnico (abertas direto no Omie)', os: osDoTecnico(SEM_TECNICO) })}>
               <i className="fas fa-circle-info" /> {brl(semTecnico.bruto)} faturados em {Math.round(semTecnico.os)} OS sem técnico (abertas direto no Omie) <u>ver</u>
             </button>
@@ -286,6 +285,13 @@ function ParadoNoPainel({ inicial }: { inicial: import('@/lib/mecanicos/pendenci
   const pend = useParadoVivo(inicial)
   return <div style={{ marginBottom: 14 }}><ParadoFilaEstilo estilo="cheio" pendencias={pend} /></div>
 }
+
+const ABAS_RESULTADOS: AbaAssunto[] = [
+  { id: 'fat', cor: '#2563eb', ic: 'fa-chart-column', titulo: 'Faturamento por período', sub: 'semana, mês ou ano', alvos: ['sec-1'] },
+  { id: 'din', cor: '#0f766e', ic: 'fa-sack-dollar', titulo: 'Para onde foi o dinheiro', sub: 'o mês inteiro · simule os números', alvos: ['sec-2', 'sim-alvos'] },
+  { id: 'parado', cor: '#d97706', ic: 'fa-hourglass-half', titulo: 'Dinheiro parado', sub: 'OS feitas e ainda não faturadas', alvos: ['sec-3'] },
+  { id: 'gar', cor: '#7c3aed', ic: 'fa-users-gear', titulo: 'Garantias', sub: 'direto do módulo', alvos: ['sec-4'] },
+]
 
 export interface Assunto { n: number; cor: string; ic: string; titulo: string }
 const ASSUNTOS: Assunto[] = [

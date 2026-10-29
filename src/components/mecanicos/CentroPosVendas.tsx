@@ -38,14 +38,19 @@ export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a
     else void raiz.current?.requestFullscreen?.()
   }
   const abas: { id: AbaCPV; rot: string; sub: string }[] = [
-    { id: 'painel', rot: 'Painel do pós-vendas', sub: 'dinheiro, horas e gastos' },
-    { id: 'ocorrencias', rot: 'Mecânicos', sub: 'pontos, ligas e comissões' },
+    { id: 'painel', rot: 'Resultados', sub: 'dinheiro, horas e gastos' },
+    { id: 'ocorrencias', rot: 'Equipe', sub: 'pontos, ligas e comissões' },
     { id: 'podio', rot: 'Pódio', sub: 'vencedor de cada mês' },
   ]
   // perguntas do Tratorilson: troca de aba ou rola até a parte que responde (e acende ela um instante)
   const irPara = (alvo: string) => {
     if (alvo.startsWith('aba:')) { onAba(alvo.slice(4) as AbaCPV); return }
     const rolar = () => {
+      // os assuntos são abas fechadas: abre a que tem esse pedaço e rola depois que ele aparece
+      window.dispatchEvent(new CustomEvent('cpv-ir', { detail: alvo }))
+      setTimeout(() => rolarJa(), 150)
+    }
+    const rolarJa = () => {
       const el = document.getElementById(alvo)
       if (!el) return
       el.scrollIntoView({ behavior: 'smooth', block: 'start' })
