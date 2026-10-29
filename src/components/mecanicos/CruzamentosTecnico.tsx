@@ -115,17 +115,7 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
         : `O carro de ${nome} parou no cliente da OS de um colega em ${plural(casos.length, 'dia', 'dias')}, e ele consta como técnico em todas essas OS.` })
   }
 
-  // horas: relatório × OS — mesmo critério do km: com destino não aparece aqui, só o que ficou sem motivo
-  const semMotivoH = (casosChico(fk, 'horas') || []).filter((c) => c.motivos.some((m) => m.etiqueta === 'nao-lancado'))
-  const hSemMotivo = (fk?.osTotais || []).filter((o) => o.chicoHoras?.some((m) => m.etiqueta === 'nao-lancado')).reduce((s2, o) => s2 + (o.horasRel - o.horasCobradas), 0)
-  const errH = fk ? semMotivoH.length > 0 : x.naoCobradas > 0.05
-  out.push({ titulo: 'Horas apontadas × cobradas', ic: 'fa-clock', fontes: 'relatório × OS', erro: errH, ok: !errH,
-    acao: errH ? 'mapa' : undefined, div: errH ? 'horas-nao-cobradas' : undefined,
-    v: errH ? h(fk ? hSemMotivo : x.naoCobradas) : h(x.horasCobradas), txt: errH ? 'apontadas, sem cobrar e sem motivo' : 'cobradas, tudo que apontou tem destino',
-    casos: errH ? semMotivoH : undefined,
-    frase: errH
-      ? `${nome} apontou ${h(x.horasRel)} nos relatórios e as OS cobraram ${h(x.horasCobradas)}. Nestas OS as horas ficaram sem cobrar e sem motivo (não são internas, garantia, desconto nem estão abertas):`
-      : `${nome} apontou ${h(x.horasRel)} nos relatórios e as OS cobraram ${h(x.horasCobradas)}. O que não foi cobrado tem destino (OS interna, garantia, desconto ou ainda aberta), então não é erro.` })
+  // "Horas apontadas × cobradas" saiu (José, 29/10/2026: "essa informação também não é relevante"); a hora fantasma é a sem destino, abaixo
 
   // horas sem destino (José, 28/10/2026: "e isso é a mesma coisa com horas"): carro ligado em dia sem OS dele; se nesse
   // dia o carro esteve no cliente de um colega, o destino é a OS do colega (não é hora fantasma)
