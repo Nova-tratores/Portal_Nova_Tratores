@@ -30,12 +30,30 @@ export function useAbaAssunto(chave: string, abas: AbaAssunto[]) {
   return [atual, trocar] as const
 }
 
+/** Leva a faixa das abas para logo abaixo do cabeçalho fixo do portal (José, 29/10/2026: "não centraliza direito,
+ *  fica muito pra baixo"): mede o que está grudado no topo e rola o contêiner certo (o portal rola por dentro). */
+function levarAoTopo(el: HTMLElement) {
+  let topoFixo = 0
+  for (const y of [2, 30, 60]) {
+    for (const x of document.elementsFromPoint(window.innerWidth / 2, y)) {
+      const p = getComputedStyle(x).position
+      if ((p === 'fixed' || p === 'sticky') && !el.contains(x)) topoFixo = Math.max(topoFixo, x.getBoundingClientRect().bottom)
+    }
+  }
+  topoFixo = Math.min(topoFixo, window.innerHeight / 3)
+  let pai: HTMLElement | null = el.parentElement
+  while (pai && !(/(auto|scroll)/.test(getComputedStyle(pai).overflowY) && pai.scrollHeight > pai.clientHeight)) pai = pai.parentElement
+  const dif = el.getBoundingClientRect().top - Math.max(topoFixo, pai ? pai.getBoundingClientRect().top : 0) - 10
+  if (pai) pai.scrollBy({ top: dif, behavior: 'smooth' })
+  else window.scrollBy({ top: dif, behavior: 'smooth' })
+}
+
 /** Clicar abre o assunto e já leva a tela até ele (José, 29/10/2026: "quando a gente clicar já centralizar nas informações"). */
 export function AbasAssuntos({ abas, atual, onTroca }: { abas: AbaAssunto[]; atual: string; onTroca: (id: string) => void }) {
   const raiz = useRef<HTMLDivElement>(null)
   const clicar = (id: string) => {
     onTroca(id)
-    setTimeout(() => raiz.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
+    setTimeout(() => { if (raiz.current) levarAoTopo(raiz.current) }, 60)
   }
   return (
     <div ref={raiz} className="aa-abas" role="tablist">
