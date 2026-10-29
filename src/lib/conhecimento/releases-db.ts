@@ -4,7 +4,7 @@
 
 import { supabaseAdmin as sb } from "@/lib/server/supabase-admin";
 import { chamarIA } from "@/lib/assistente/ia";
-import { notificar, responsaveis, type Autor } from "./db";
+import { responsaveis, type Autor } from "./db";
 import { rotuloModulo } from "./modulos";
 import {
   artigosAfetados, juntarMotivo, novidadeSemIA, novidadesPorModulo, modulosDoCommit,
@@ -86,13 +86,6 @@ export async function registrarRelease(p: { sha: string; sha_anterior: string | 
   if (e2) throw e2;
   const afetados = artigosAfetados((arts || []) as any[], p.arquivos);
   const agora = new Date().toISOString();
-  const porResp = new Map<string, { artigos: number; novidades: number }>();
-  const conta = (modulo: string, campo: "artigos" | "novidades") => {
-    const uid = porModulo[modulo];
-    if (!uid) return;
-    const c = porResp.get(uid) ?? { artigos: 0, novidades: 0 };
-    c[campo]++; porResp.set(uid, c);
-  };
   for (const af of afetados) {
     const atual = (arts || []).find((a: any) => a.id === af.id) as any;
     const commitsDoModulo = p.commits.filter((c) => modulosDoCommit(c, conhecidos).includes(af.modulo));
@@ -103,7 +96,6 @@ export async function registrarRelease(p: { sha: string; sha_anterior: string | 
     });
     const { error } = await sb.from("kb_artigos").update({ revisao_pendente_desde: atual?.revisao_pendente_desde ?? agora, revisao_motivo: motivo, atualizado_em: agora }).eq("id", af.id);
     if (error) console.error("[conhecimento] marcar revisão:", error.message);
-    else conta(af.modulo, "artigos");
   }
 
   // 2) rascunho de novidade por módulo — DESLIGADO em 22/10/2026: as novidades agora
@@ -116,14 +108,11 @@ export async function registrarRelease(p: { sha: string; sha_anterior: string | 
       commits: commits.map((c) => ({ sha: c.sha.slice(0, 8), titulo: c.titulo })),
     });
     if (error) console.error("[conhecimento] novidade:", error.message);
-    else { novidades++; conta(modulo, "novidades"); }
+    else novidades++;
   }
 
-  // 3) um aviso por responsável
-  for (const [uid, c] of porResp) {
-    const partes = [c.artigos ? `${c.artigos} artigo${c.artigos > 1 ? "s" : ""} para conferir` : "", c.novidades ? `${c.novidades} novidade${c.novidades > 1 ? "s" : ""} para aprovar` : ""].filter(Boolean);
-    await notificar(uid, { titulo: "O portal mudou: revise a base de conhecimento", descricao: partes.join(" · "), link: c.novidades ? "/conhecimento/novidades" : "/conhecimento?aba=fila" });
-  }
+  // 3) sem aviso a ninguém (José, 29/10/2026: "não é pra chegar para nenhum usuário, só fica no módulo"):
+  //    o selo nos artigos e as novidades ficam em /conhecimento e /conhecimento/novidades.
 
   await sb.from("sistema_releases").update({ artigos_afetados: afetados.length, novidades, resumo: { afetados: afetados.map((a) => ({ id: a.id, modulo: a.modulo })) } }).eq("id", rel.id);
   return { sha: p.sha, jaRegistrada: false, modulos, artigosAfetados: afetados.length, novidades };

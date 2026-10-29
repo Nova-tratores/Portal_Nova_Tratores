@@ -3,7 +3,7 @@
 // 'novidades-diarias'): junta as versões publicadas ATÉ ontem que ainda não viraram
 // aviso, escreve UMA novidade por módulo (IA; sem IA, a lista dos commits), publica
 // direto em kb_novidades. Desde 29/10/2026 não vai mais para o sino: aparece nas
-// Notícias do portal, no dashboard (components/conhecimento/NoticiasPortal.tsx).
+// módulo Conhecimento → Novidades (/conhecimento/novidades); saiu do dashboard em 29/10/2026.
 // Regras puras em ./novidades-diarias.ts.
 import { supabaseAdmin as sb } from "@/lib/server/supabase-admin";
 import { chamarIA } from "@/lib/assistente/ia";
@@ -68,7 +68,7 @@ export async function publicarNovidadesDoDia(agora: Date = new Date(), op: Opcoe
   }
 
   // sem aviso no sino (José, 29/10/2026: "tira lá da notificação e só deixa no dashboard, como notícia de jornal");
-  // a novidade publicada aparece nas Notícias do portal (components/conhecimento/NoticiasPortal.tsx)
+  // a novidade publicada fica só no módulo: /conhecimento/novidades (José, 29/10/2026: "tira do dashboard")
   const avisados = 0;
 
   // marca as versões como avisadas (não repete amanhã)

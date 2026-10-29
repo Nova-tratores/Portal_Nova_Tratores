@@ -9,7 +9,6 @@ import { fetchAuth } from '@/lib/auth/client'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { TELAS, buscarTelas, normalizar, relevancia, type Tela } from '@/lib/dashboard/telas'
 import AtalhosDashboard from '@/components/dashboard/AtalhosDashboard'
-import NoticiasPortal from '@/components/conhecimento/NoticiasPortal'
 import AgendaDashboard from '@/components/dashboard/AgendaDashboard'
 import {
   Settings, ClipboardList, ListChecks, Wrench, FileText,
@@ -509,8 +508,6 @@ export default function DashboardPage() {
         onAbrirTela={abrirTela}
         userNome={userProfile?.nome}
       />
-      {/* notícias do "O que mudou" lá embaixo (José, 29/10/2026) */}
-      <div style={{ padding: '0 12px 12px' }}><NoticiasPortal /></div>
       </>
     )
   }
@@ -1226,9 +1223,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-
-      {/* Notícias do portal ("O que mudou") lá embaixo, antes do rodapé — José, 29/10/2026: "é pra ficar lá embaixo" */}
-      {activeFolder === 'todos' && !editingFolder && <div style={{ marginTop: 28 }}><NoticiasPortal /></div>}
 
       {/* Footer */}
       <div style={{
