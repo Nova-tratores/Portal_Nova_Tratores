@@ -17,6 +17,7 @@ import ResumoAcessos, { type FiltroPapel } from '@/components/admin/ResumoAcesso
 import ContasSemCadastro from '@/components/admin/ContasSemCadastro'
 import TrocarEmailModal from '@/components/admin/TrocarEmailModal'
 import AvisosTratorilson from '@/components/admin/AvisosTratorilson'
+import NotificacoesAdmin from '@/components/admin/NotificacoesAdmin'
 
 const MODULOS = [
   // Ajustes: módulo único que expande nas páginas (ações vêm de
@@ -1026,6 +1027,9 @@ export default function AdminPage() {
 
       {/* ===== Avisos do Tratorilson (Devs sempre + escolhidos aqui) ===== */}
       <AvisosTratorilson />
+
+      {/* ===== Notificações: quem recebe o quê + o que cada app aciona (José, 29/10/2026) ===== */}
+      <NotificacoesAdmin />
 
       {/* ===== Logins sem cadastro (Auth sem financeiro_usu) ===== */}
       <ContasSemCadastro versao={versaoContas} onCadastrar={(email) => { setNovoEmail(email); setCriarErro(''); setShowNovoUsuario(true) }} onTrocarEmail={(c) => setTrocarEmailDe({ id: c.id, email: c.email })} />

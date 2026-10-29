@@ -7,6 +7,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { destinatariosTratorilson } from "@/lib/assistente/notificados";
 import { urlConversa } from "@/lib/chatwoot/config";
+import { filtrarDestinatarios } from "@/lib/notif/prefs";
+import { MODULO_NOTIF_NOVAZAP } from "@/lib/assistente/notificados";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +48,11 @@ export async function POST(req: NextRequest) {
     .limit(1);
   if (recente?.length) return NextResponse.json({ ok: true, enviadas: 0, motivo: "já avisado nos últimos 30 min" });
 
-  const ids = await destinatariosTratorilson();
+  // respeita a chave "Receber avisos do NovaZap" de cada um (José, 29/10/2026: quem desligou continuava recebendo)
+  const todos = await destinatariosTratorilson();
+  const { data: prefs } = todos.length ? await cli.from("portal_permissoes").select("user_id, categoria, notif_silenciado").in("user_id", todos) : { data: [] };
+  const comPref = new Set((prefs || []).map((p) => String(p.user_id)));
+  const ids = [...filtrarDestinatarios(MODULO_NOTIF_NOVAZAP, prefs || []), ...todos.filter((id) => !comPref.has(id))];
   if (!ids.length) return NextResponse.json({ ok: true, enviadas: 0 });
 
   const quem = nome || telefone || "Cliente";
