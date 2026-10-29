@@ -51,6 +51,9 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
   const caixa = useRef<HTMLDivElement>(null)
   const mapa = useRef<any>(null)
   const camada = useRef<any>(null)
+  // limites das cidades (José, 29/10/2026: "consegue destacar os limites da cidade?")
+  const cidadesCam = useRef<any>(null)
+  const [limites, setLimites] = useState(true)
   const pedidos = useRef(new Set<string>())
   // animação do dia em foco (José, 28/10/2026: "dentro do mapa coloca a animação para ficar fácil de entender")
   // José, 29/10/2026: velocidade, hora e km em cima do carro, destacar quando passa de novo no mesmo lugar, zoom no carro
@@ -96,6 +99,7 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
     const L = (window as any).L
     mapa.current = L.map(caixa.current).setView(CENTRO_PADRAO, 9)
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap' }).addTo(mapa.current)
+    cidadesCam.current = L.layerGroup().addTo(mapa.current)
     camada.current = L.layerGroup().addTo(mapa.current)
     return () => { mapa.current?.remove(); mapa.current = null }
   }, [okMapa, d])
@@ -141,6 +145,34 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
     }
     if (b.length > 1) mapa.current.fitBounds(b, { padding: [30, 30] })
   }, [sel, det, cor, foco, okMapa])
+
+  // limites das cidades em volta do caminho do dia em foco; as cidades por onde o carro passou ficam pintadas e com o nome
+  useEffect(() => {
+    const g = cidadesCam.current, dd = foco ? det[foco] : null
+    g?.clearLayers()
+    if (!g || !limites || !dd || dd.pontos.length < 2) return
+    let vivo = true
+    const lats = dd.pontos.map((p) => p.lat), lngs = dd.pontos.map((p) => p.lng)
+    const bbox = [Math.min(...lngs) - 0.12, Math.min(...lats) - 0.12, Math.max(...lngs) + 0.12, Math.max(...lats) + 0.12].map((v) => v.toFixed(4)).join(',')
+    void (async () => {
+      try {
+        const r = await fetch(`/api/mecanicos/fantasmas/municipios?bbox=${bbox}`, { headers: await authHeaders() })
+        if (!r.ok || !vivo) return
+        const gj = await r.json()
+        const L = (window as any).L
+        const amostra = dd.pontos.filter((_, i) => i % 8 === 0)
+        for (const ft of gj.features || []) {
+          const passou = amostra.some((p) => dentroDe(ft.geometry, p.lng, p.lat))
+          const lay = L.geoJSON(ft, { interactive: false, style: passou
+            ? { color: '#7c3aed', weight: 2.5, dashArray: '7 5', fillColor: '#7c3aed', fillOpacity: 0.06 }
+            : { color: '#64748b', weight: 1.4, dashArray: '4 5', fill: false, opacity: 0.7 } })
+          if (passou) lay.bindTooltip(ft.properties.nome, { permanent: true, direction: 'center', className: 'fk-cid' })
+          lay.addTo(g)
+        }
+      } catch { /* sem os limites o mapa segue igual */ }
+    })()
+    return () => { vivo = false }
+  }, [foco, det, limites, okMapa])
 
   const limparAnim = () => {
     const a = animRef.current
@@ -287,7 +319,7 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
                   </div>
                 )}
                 {anim?.repete && !anim.fim && <span className="fk-repete"><i className="fas fa-repeat" /> passando de novo por onde já tinha passado às {hora(anim.repete)}</span>}
-                <div className="fk-leg"><span><i className="bola" style={{ background: '#059669' }} /> cliente da OS</span><span><i className="bola" style={{ background: '#0f172a' }} /> loja</span><span><i className="bola" style={{ background: '#2563eb' }} /> outra parada</span><span><i className="bola" style={{ background: '#dc2626' }} /> atípica</span></div>
+                <div className="fk-leg"><button type="button" className={`fk-lim ${limites ? 'on' : ''}`} onClick={() => setLimites((v) => !v)} title="mostrar ou esconder os limites das cidades"><i className="fas fa-draw-polygon" /> limites das cidades</button><span><i className="bola" style={{ background: '#059669' }} /> cliente da OS</span><span><i className="bola" style={{ background: '#0f172a' }} /> loja</span><span><i className="bola" style={{ background: '#2563eb' }} /> outra parada</span><span><i className="bola" style={{ background: '#dc2626' }} /> atípica</span></div>
               </div>
               {foco && <LinhaDoTempo dia={foco} dd={df} cor={cor[foco]} agora={anim?.t ?? null} />}
             </div>
@@ -392,6 +424,20 @@ function LinhaDoTempo({ dia, dd, cor, agora }: { dia: string; dd: DiaDetalhado |
 
 /** para cada ponto, o índice do 1º ponto em que o carro já tinha passado ali NO MESMO SENTIDO (−1 se não): ida e volta
  *  pela mesma estrada não conta, só refazer o caminho. Grade de ~90 m para não comparar tudo com tudo. */
+/** o ponto (lng, lat) está dentro do Polygon/MultiPolygon do GeoJSON? (raio cruzando o anel externo; buracos ignorados) */
+function dentroDe(geo: { type: string; coordinates: any }, x: number, y: number): boolean {
+  const anel = (r: number[][]) => {
+    let d = false
+    for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+      const [xi, yi] = r[i], [xj, yj] = r[j]
+      if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) d = !d
+    }
+    return d
+  }
+  const polis: number[][][][] = geo.type === 'Polygon' ? [geo.coordinates] : geo.type === 'MultiPolygon' ? geo.coordinates : []
+  return polis.some((p) => anel(p[0]))
+}
+
 function repeticoes(pts: { lat: number; lng: number; dt: string }[], acum: number[]): number[] {
   const CEL = 0.0008, RAIO = 60
   const grade = new Map<string, number[]>()
@@ -480,6 +526,8 @@ const ESTILO_FK = `
 .fk-play { flex-wrap: wrap; max-width: calc(100% - 70px) } .fk-play .fk-stop { width: 28px; height: 28px; background: #e2e8f0; color: #334155; font-size: 10px }
 .fk-vel { display: inline-flex; gap: 2px; background: #f1f5f9; border-radius: 99px; padding: 2px } .fk-play .fk-vel button { width: auto; height: 26px; padding: 0 9px; border-radius: 99px; background: transparent; color: #475569; font-size: 12px; font-family: inherit } .fk-play .fk-vel button.on { background: #0f172a; color: #fefefe }
 .fk-repete { position: absolute; z-index: 600; top: 64px; left: 56px; background: #f97316; color: #fefefe; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; box-shadow: 0 6px 18px -8px rgba(249,115,22,.7); animation: fkSobe .3s both } .fk-repete i { margin-right: 4px }
+.fk-lim { border: 1px solid #ddd6fe; background: #fefefe; color: #6d28d9; border-radius: 99px; padding: 2px 9px; font: inherit; font-size: 12px; cursor: pointer } .fk-lim.on { background: #7c3aed; border-color: #7c3aed; color: #fefefe } .fk-lim i { font-size: 10px; margin-right: 3px }
+.fk-cid { background: rgba(124,58,237,.9); color: #fefefe; border: 0; border-radius: 6px; padding: 2px 8px; font-size: 12px; box-shadow: none } .fk-cid::before { display: none }
 .fk-carro-w { position: relative; width: 34px; height: 34px }
 .fk-carro-et { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: #0f172a; color: #fefefe; border-radius: 8px; padding: 3px 8px; font-size: 12px; font-variant-numeric: tabular-nums; box-shadow: 0 4px 12px rgba(15,23,42,.35); pointer-events: none } .fk-carro-et:empty { display: none }
 .fk-carro-et::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #0f172a }
