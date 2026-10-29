@@ -40,13 +40,13 @@ export default function OSRelatorioJanela({ os, cliente, onFechar }: { os: strin
         <header className="orj-cab">
           <span className="orj-ic"><i className="fas fa-file-invoice" /></span>
           <div><b>{os}</b><small>{cliente || ''}</small></div>
-          <a className="orj-bt" href={`/api/pos/ordens/${encodeURIComponent(os)}/print`} target="_blank" rel="noreferrer"><i className="fas fa-up-right-from-square" /> abrir a OS em outra aba</a>
+          <a className="orj-bt" href={`/api/pos/ordens/${encodeURIComponent(os)}/print?embed=1`} target="_blank" rel="noreferrer"><i className="fas fa-up-right-from-square" /> abrir a OS em outra aba</a>
           <button type="button" className="orj-x" onClick={onFechar} aria-label="Fechar"><i className="fas fa-xmark" /></button>
         </header>
         <div className="orj-corpo">
           <section className="orj-os">
             <span className="orj-rot"><i className="fas fa-file-invoice" /> Ordem de serviço</span>
-            <iframe src={`/api/pos/ordens/${encodeURIComponent(os)}/print`} title={os} />
+            <iframe src={`/api/pos/ordens/${encodeURIComponent(os)}/print?embed=1`} title={os} />
           </section>
           <section className="orj-rel">
             <div className="orj-rel-cab">

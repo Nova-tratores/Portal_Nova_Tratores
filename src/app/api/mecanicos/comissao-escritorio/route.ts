@@ -1,41 +1,37 @@
-// Comissão do escritório do pós-vendas (José, 29/10/2026: "dentro de comissão vai dividir entre Funcionários:
-// Técnicos / Escritório (Vinicius Correa e Larissa Garcia)"). A regra própria do escritório ainda vai ser
-// definida; por enquanto mostra a comissão que já está no RH (a do Vinicius vem do Omie, base garantias/diversos).
+// Comissão do escritório do pós-vendas (José, 29/10/2026). Regra em lib/mecanicos/comissao-escritorio-server.ts.
+// GET ?mes=YYYY-MM → garantistas, bases do mês (garantias e revisões faturadas, OS + peças) e o cálculo.
+// PUT { pctRevisao } → muda a % das revisões: só o Gerente do Pós-Vendas (função na Administração).
 import { NextRequest, NextResponse } from 'next/server'
 import { protegerRota } from '@/lib/ajustes/permissao-server'
-import { clienteRH } from '@/lib/mecanicos/rh-server'
-import { casarNome } from '@/lib/mecanicos/ocorrencias-painel'
+import { comissaoEscritorio, gravarConfigEscritorio, ACAO_GERENTE } from '@/lib/mecanicos/comissao-escritorio-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const ESCRITORIO = ['Vinicius Correa', 'Larissa Garcia']
-
-type Rec = Record<string, unknown>
+const mesSP = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 7)
 
 export async function GET(req: NextRequest) {
   const g = await protegerRota(req, [{ modulo: 'mecanicos' }])
   if (g.resposta) return g.resposta
-  const c = clienteRH()
-  if (!c) return NextResponse.json({ pessoas: ESCRITORIO.map((nome) => ({ nome, rh: null, comissoes: [] })), erro: 'O portal não tem acesso ao banco do RH.' })
-  const { data: fun, error } = await c.from('rh_funcionarios').select('id, nome, cargo, departamento, status')
-  if (error) return NextResponse.json({ error: error.message }, { status: 502 })
-  const lista = ((fun || []) as Rec[]).filter((f) => f.status !== 'desligado')
-  const pessoas = await Promise.all(ESCRITORIO.map(async (nome) => {
-    const achado = casarNome(nome, lista.map((f) => String(f.nome)))
-    const f = achado ? lista.find((x) => x.nome === achado) : null
-    if (!f) return { nome, rh: null, comissoes: [] }
-    const { data: com } = await c.from('rh_comissoes').select('competencia_mes, competencia_ano, valor, status, origem_descricao')
-      .eq('funcionario_id', f.id).not('status', 'in', '(cancelada,rejeitada)')
-      .order('competencia_ano', { ascending: false }).order('competencia_mes', { ascending: false }).limit(12)
-    return {
-      nome,
-      rh: { nome: String(f.nome), cargo: (f.cargo as string) || null, departamento: (f.departamento as string) || null },
-      comissoes: ((com || []) as Rec[]).map((x) => ({
-        mes: `${x.competencia_ano}-${String(x.competencia_mes).padStart(2, '0')}`,
-        valor: Number(x.valor) || 0, status: String(x.status), origem: String(x.origem_descricao || ''),
-      })),
-    }
-  }))
-  return NextResponse.json({ pessoas })
+  const q = req.nextUrl.searchParams.get('mes') || ''
+  const mes = /^\d{4}-\d{2}$/.test(q) ? q : mesSP()
+  try {
+    const r = await comissaoEscritorio(mes)
+    return NextResponse.json({ ...r, podeEditar: g.user.modulos.includes(ACAO_GERENTE) })
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'mecanicos' }])
+  if (g.resposta) return g.resposta
+  if (!g.user.modulos.includes(ACAO_GERENTE)) return NextResponse.json({ error: 'Só o Gerente do Pós-Vendas muda a % das revisões.' }, { status: 403 })
+  const b = await req.json().catch(() => ({}))
+  try {
+    const config = await gravarConfigEscritorio(b.pctRevisao, g.user.email || g.user.id)
+    return NextResponse.json({ config })
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 })
+  }
 }
