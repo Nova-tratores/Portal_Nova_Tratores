@@ -12,6 +12,7 @@ import { padronizadorOcorrencias } from './ocorrencias-server'
 import { carregarGastos, carregarEquipe, carregarPctComissao } from './gastos-server'
 import type { BaseDados, Descontos, DiaRegistrado, ExtraEquipe, Gasto, InternaFechada, OSFaturada, ReqCusto } from './painel'
 import { carregarPendencias, idsGarantia, numsComNota } from './pendencias-server'
+import { ehMontadora } from './pendencias'
 import type { Pendencia } from './pendencias'
 
 type Rec = Record<string, unknown>
@@ -156,7 +157,7 @@ export async function lerBaseDasTabelas(): Promise<(BaseDados & { de: string; at
       tecnicos: (o.tecnicos as string[]) || [], horasCobradas: num(o.horas_cobradas), km: num(o.km), servico: num(o.mao_de_obra), kmValor: num(o.deslocamento),
       pecas: num(o.pecas), outros: num(o.outros), bruto: num(o.mao_de_obra) + num(o.deslocamento) + num(o.outros), custo: num(o.custo_terceiros),
       custoPorTipo: (o.custo_por_tipo as Record<string, number>) || {}, requisicoes: (o.requisicoes as ReqCusto[]) || [],
-      garantia: garantias.has(String(o.os)),
+      garantia: garantias.has(String(o.os)) || ehMontadora(o.cliente),
       nota: !!o.numero_omie && comNota.has(String(o.numero_omie)),
       descontos: (o.descontos as Descontos) || undefined,
     })),

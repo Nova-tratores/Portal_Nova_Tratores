@@ -9,6 +9,7 @@ import { carregarGastos, carregarEquipe, carregarPctComissao } from './gastos-se
 import { carregarPendencias, idsGarantia, numsComNota } from './pendencias-server'
 import { padronizadorOcorrencias } from './ocorrencias-server'
 import { lerBaseDasTabelas, sincronizarPosVendas, anoInicialBase, TabelasFaltando } from './tabelas-server'
+import { ehMontadora } from './pendencias'
 import { somarDias, type BaseDados } from './painel'
 
 type BaseTela = BaseDados & { de: string; ate: string; geradoEm: string }
@@ -33,7 +34,7 @@ async function montarNasFontes(): Promise<BaseTela> {
     idsGarantia().catch(() => new Set<string>()),
     numsComNota().catch(() => new Set<string>()),
   ])
-  return { de, ate, geradoEm: new Date().toISOString(), tecnicos: b.tecnicos, faturadas: b.faturadas.map((o) => ({ ...o, garantia: garantias.has(o.os), nota: !!o.numeroOmie && comNota.has(o.numeroOmie) })), diasTodos: b.diasTodos.filter((d) => d.data >= de), osInternas: b.osInternas, internasFechadas: b.internasFechadas, gastos, equipe, pendencias, pctComissao: await carregarPctComissao(padronizar, tecnicos).catch(() => ({})) }
+  return { de, ate, geradoEm: new Date().toISOString(), tecnicos: b.tecnicos, faturadas: b.faturadas.map((o) => ({ ...o, garantia: garantias.has(o.os) || ehMontadora(o.cliente), nota: !!o.numeroOmie && comNota.has(o.numeroOmie) })), diasTodos: b.diasTodos.filter((d) => d.data >= de), osInternas: b.osInternas, internasFechadas: b.internasFechadas, gastos, equipe, pendencias, pctComissao: await carregarPctComissao(padronizar, tecnicos).catch(() => ({})) }
 }
 
 export async function baseComCache(forcar = false): Promise<{ dados: BaseTela; geradoEm: string }> {

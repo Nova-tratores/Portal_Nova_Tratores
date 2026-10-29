@@ -75,3 +75,7 @@ export function resumoPendencias(lista: Pendencia[]) {
     porTecnico: Object.fromEntries([...porTecnico.entries()].map(([k, v]) => [k, { qtd: v.qtd, total: Math.round(v.total * 100) / 100 }])),
   }
 }
+
+/** OS faturada para a própria montadora (Mahindra do Brasil, Kuhn…) é garantia, mesmo quando só existe no Omie e não tem
+ *  o tipo de serviço do portal (José, 29/10/2026: "pq aqui tá pegando essa ordem da Mahindra ou da Kuhn, sendo que é garantia"). */
+export const ehMontadora = (cliente: unknown) => /MAHINDRA\s+(DO\s+)?BRASIL|\bKUHN\b/i.test(String(cliente || ''))
