@@ -26,18 +26,19 @@ const COR: Record<Grupo, string> = Object.fromEntries(GRUPOS_FAT.map((x) => [x.g
 
 export interface ItemFat { os: string; numero: string | null; cliente: string; tecnicos: string[]; data: string; grupo: Grupo; bruto: number; servico: number; horas: number; kmValor: number; km: number; pecas: number; outros: number }
 
-/** Junta faturadas, internas fechadas e as OS preenchidas esperando faturar numa lista só. */
+/** Junta faturadas, internas fechadas e as OS preenchidas esperando faturar numa lista só.
+ *  Aqui o faturado SOMA as peças (José, 29/10/2026: "pode somar"); as metas da equipe seguem sem peças. */
 export function itensDaBase(base: BaseDados): ItemFat[] {
   const out: ItemFat[] = []
   const faturadasIds = new Set(base.faturadas.map((o) => o.os))
-  for (const o of base.faturadas) out.push({ os: o.os, numero: o.numeroOmie, cliente: o.cliente, tecnicos: o.tecnicos, data: o.data, grupo: o.garantia ? 'garantia' : 'faturada', bruto: o.bruto, servico: o.servico, horas: o.horasCobradas, kmValor: o.kmValor, km: o.km, pecas: o.pecas, outros: o.outros })
+  for (const o of base.faturadas) out.push({ os: o.os, numero: o.numeroOmie, cliente: o.cliente, tecnicos: o.tecnicos, data: o.data, grupo: o.garantia ? 'garantia' : 'faturada', bruto: o.bruto + o.pecas, servico: o.servico, horas: o.horasCobradas, kmValor: o.kmValor, km: o.km, pecas: o.pecas, outros: o.outros })
   for (const x of base.internasFechadas || []) {
     if (faturadasIds.has(x.os)) continue
     out.push({ os: x.os, numero: x.numeroOmie, cliente: x.cliente, tecnicos: x.tecnicos, data: x.data, grupo: 'interna', bruto: x.valor, servico: x.valorHoras ?? x.valor, horas: x.horas, kmValor: 0, km: 0, pecas: 0, outros: 0 })
   }
   for (const p of base.pendencias || []) {
     if (p.tipo !== 'preenchida' || !p.dataRef || faturadasIds.has(p.os)) continue
-    out.push({ os: p.os, numero: null, cliente: p.cliente, tecnicos: p.tecnicos, data: p.dataRef.slice(0, 10), grupo: 'aguardando', bruto: Math.max(0, p.total - p.pecas), servico: p.maoDeObra, horas: 0, kmValor: p.deslocamento, km: 0, pecas: p.pecas, outros: 0 })
+    out.push({ os: p.os, numero: null, cliente: p.cliente, tecnicos: p.tecnicos, data: p.dataRef.slice(0, 10), grupo: 'aguardando', bruto: Math.max(0, p.total), servico: p.maoDeObra, horas: 0, kmValor: p.deslocamento, km: 0, pecas: p.pecas, outros: 0 })
   }
   return out
 }
@@ -247,10 +248,10 @@ function Cartoes({ s, ant, serie, nomeA, nomeB, onAbrir }: { s: Soma; ant: Soma 
   const qtd = (v: number) => String(Math.round(v))
   const ICONE: Record<string, string> = { fat: 'fa-sack-dollar', mo: 'fa-screwdriver-wrench', km: 'fa-route', pec: 'fa-gears', os: 'fa-file-lines' }
   const C: { k: string; t: string; n: number; a: number; sub: string; cor: string; dica: string; serie: number[]; fmt: (v: number) => string }[] = [
-    { k: 'fat', t: 'Faturado', n: s.bruto, a: ant ? ant.bruto : 0, sub: `${s.n} OS no período`, cor: '#2563eb', dica: 'Tudo o que entrou nas OS que estão na conta (veja "O que entra na conta"): mão de obra + deslocamento (km) + outros. As peças NÃO entram: ficam no cartão Peças, à parte.', serie: serie.map((x) => x.bruto), fmt: brl },
+    { k: 'fat', t: 'Faturado', n: s.bruto, a: ant ? ant.bruto : 0, sub: `${s.n} OS no período`, cor: '#2563eb', dica: 'Tudo o que entrou nas OS que estão na conta (veja "O que entra na conta"): mão de obra + deslocamento (km) + peças + outros.', serie: serie.map((x) => x.bruto), fmt: brl },
     { k: 'mo', t: 'Mão de obra', n: s.servico, a: ant ? ant.servico : 0, sub: s.horas > 0 ? `${(Math.round(s.horas * 10) / 10).toLocaleString('pt-BR')} h cobradas · ${brl(vh)}/h` : 'sem horas registradas', cor: '#7c3aed', dica: 'R$ das horas cobradas nas OS. O valor médio por hora fica abaixo da tabela por causa dos descontos e da garantia (R$ 100/h).', serie: serie.map((x) => x.servico), fmt: brl },
     { k: 'km', t: 'Deslocamento', n: s.kmValor, a: ant ? ant.kmValor : 0, sub: s.km > 0 ? `${Math.round(s.km).toLocaleString('pt-BR')} km cobrados` : 'sem km cobrado', cor: '#0891b2', dica: 'R$ dos quilômetros cobrados nas OS.', serie: serie.map((x) => x.kmValor), fmt: brl },
-    { k: 'pec', t: 'Peças', n: s.pecas, a: ant ? ant.pecas : 0, sub: 'à parte · não entra no faturado', cor: '#ea580c', dica: 'Peças vendidas junto com as OS (pedido de peças faturado), pelo valor de venda. Ficam à parte: o faturado da oficina é mão de obra + deslocamento + outros. As peças de cada OS estão no PDF dela.', serie: serie.map((x) => x.pecas), fmt: brl },
+    { k: 'pec', t: 'Peças', n: s.pecas, a: ant ? ant.pecas : 0, sub: 'já somado no faturado', cor: '#ea580c', dica: 'Peças vendidas junto com as OS (pedido de peças faturado), pelo valor de venda. Estão somadas no Faturado. As peças de cada OS estão no PDF dela.', serie: serie.map((x) => x.pecas), fmt: brl },
     { k: 'os', t: 'Ordens de serviço', n: s.n, a: ant ? ant.n : 0, sub: `ticket médio ${brl(ticket)}${ticketA ? ` · antes ${brl(ticketA)}` : ''}`, cor: '#0f172a', dica: 'Quantas OS entraram na conta e quanto cada uma trouxe, em média (ticket médio).', serie: serie.map((x) => x.n), fmt: qtd },
   ]
   return (
@@ -298,7 +299,7 @@ function Metas({ base, e, refDia, hoje, s }: { base: BaseDados; e: Escala; refDi
   return (
     <div className="fp-metas">
       {metas.map((x) => {
-        const ph = x.h ? (s.horas / x.h) * 100 : 0, pr = x.r ? (s.bruto / x.r) * 100 : 0
+        const ph = x.h ? (s.horas / x.h) * 100 : 0, pr = x.r ? ((s.bruto - s.pecas) / x.r) * 100 : 0
         const aberto = abre === x.k
         return (
           <div key={x.k} className={`fp-meta ${aberto ? 'aberto' : ''}`} style={{ '--c': x.cor } as React.CSSProperties}>
@@ -308,7 +309,7 @@ function Metas({ base, e, refDia, hoje, s }: { base: BaseDados; e: Escala; refDi
             {aberto && (
               <div className="fp-meta-pop" role="dialog" aria-label={x.t}>
                 <div className="fp-meta-t"><b>{x.t}</b><small>{x.k === 'basica' ? '20 h e R$ 4 mil' : '40 h e R$ 8 mil'} por semana × {tecs} mecânicos × {semTxt} semanas</small></div>
-                {([['Horas', hh(s.horas), hh(x.h), ph], ['Valor', brl(s.bruto), brl(x.r), pr]] as const).map(([r, feito, meta, p]) => (
+                {([['Horas', hh(s.horas), hh(x.h), ph], ['Valor', brl(s.bruto - s.pecas), brl(x.r), pr]] as const).map(([r, feito, meta, p]) => (
                   <div key={r} className="fp-meta-l">
                     <span>{r}</span>
                     <div><small><b>{feito}</b> de {meta}</small><i><u style={{ width: `${Math.min(100, p)}%` }} /></i></div>
@@ -336,7 +337,7 @@ function PainelPeriodo({ lado, titulo: tit, sub, s, outro, onLista, topo }: { la
     { k: 'fat', t: 'Faturado', v: s.bruto, o: outro?.bruto, f: brl, sub: `${s.n} OS`, cor: '#2563eb' },
     { k: 'mo', t: 'Mão de obra', v: s.servico, o: outro?.servico, f: brl, sub: s.horas ? `${hh(s.horas)} · ${brl(vh)}/h` : '—', cor: '#7c3aed' },
     { k: 'km', t: 'Deslocamento', v: s.kmValor, o: outro?.kmValor, f: brl, sub: s.km ? `${Math.round(s.km).toLocaleString('pt-BR')} km` : '—', cor: '#0891b2' },
-    { k: 'pec', t: 'Peças', v: s.pecas, o: outro?.pecas, f: brl, sub: 'à parte · não entra no faturado', cor: '#ea580c' },
+    { k: 'pec', t: 'Peças', v: s.pecas, o: outro?.pecas, f: brl, sub: 'já somado no faturado', cor: '#ea580c' },
     { k: 'os', t: 'Ordens de serviço', v: s.n, o: outro?.n, f: qtd, sub: 'clique para ver a lista', cor: '#0f172a' },
     { k: 't', t: 'Ticket médio', v: s.n ? s.bruto / s.n : 0, o: outro ? (outro.n ? outro.bruto / outro.n : 0) : undefined, f: brl, sub: 'faturado ÷ OS', cor: '#475569' },
   ]
@@ -399,7 +400,7 @@ function ModalLista({ met, periodo, lista, onFechar }: { met: Metrica; periodo: 
               destaque às horas; clicou em peças, às peças") */}
           <div className="fp-lista-r cab fp-lista-6"><span>Data</span><span>OS</span><span>Cliente · técnicos</span><span>Tipo</span>
             <span className={`n ${met === 'mo' ? 'dest' : ''}`}>Horas · M. obra</span><span className={`n ${met === 'km' ? 'dest' : ''}`}>Km · Desloc.</span>
-            <span className={`n ${met === 'pec' ? 'dest' : ''}`}>Peças</span><span className={`n ${met === 'fat' || met === 'os' ? 'dest' : ''}`}>Faturado <small>sem peças</small></span><span /></div>
+            <span className={`n ${met === 'pec' ? 'dest' : ''}`}>Peças</span><span className={`n ${met === 'fat' || met === 'os' ? 'dest' : ''}`}>Faturado <small>com peças</small></span><span /></div>
           {linhas.map((o) => (
             <div key={`${o.grupo}|${o.os}`} className={`fp-lista-r fp-lista-6 ${doPortal(o) ? '' : 'omie'}`} role="button" tabIndex={0} onClick={() => doPortal(o) && setOs(o)} onKeyDown={(ev) => { if (ev.key === 'Enter' && doPortal(o)) setOs(o) }} title={doPortal(o) ? 'abrir a OS, os pedidos de venda e os PDFs' : 'OS que existe só no Omie (sem a janela do portal)'}>
               <span>{o.data.split('-').reverse().slice(0, 2).join('/')}</span>
