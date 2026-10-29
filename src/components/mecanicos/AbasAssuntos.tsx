@@ -3,7 +3,7 @@
 // fechado e não do jeito que está, como se fosse abas" — nos dois lados, Resultados e Equipe). Os cartões ficam
 // no topo e só o assunto clicado abre embaixo; a escolha fica guardada no navegador.
 // O Tratorilson manda "ir até" uma parte (evento `cpv-ir` com o id): a aba que tem esse id abre sozinha.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export interface AbaAssunto { id: string; cor: string; ic: string; titulo: string; sub?: string; alvos?: string[] }
 
@@ -30,13 +30,19 @@ export function useAbaAssunto(chave: string, abas: AbaAssunto[]) {
   return [atual, trocar] as const
 }
 
+/** Clicar abre o assunto e já leva a tela até ele (José, 29/10/2026: "quando a gente clicar já centralizar nas informações"). */
 export function AbasAssuntos({ abas, atual, onTroca }: { abas: AbaAssunto[]; atual: string; onTroca: (id: string) => void }) {
+  const raiz = useRef<HTMLDivElement>(null)
+  const clicar = (id: string) => {
+    onTroca(id)
+    setTimeout(() => raiz.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
+  }
   return (
-    <div className="aa-abas" role="tablist">
+    <div ref={raiz} className="aa-abas" role="tablist">
       <style>{ESTILO_AA}</style>
       {abas.map((a) => (
         <button key={a.id} type="button" role="tab" aria-selected={atual === a.id} className={`aa-aba ${atual === a.id ? 'on' : ''}`}
-          style={{ '--c': a.cor } as React.CSSProperties} onClick={() => onTroca(a.id)}>
+          style={{ '--c': a.cor } as React.CSSProperties} onClick={() => clicar(a.id)}>
           <em aria-hidden><i className={`fas ${a.ic}`} /></em>
           <span><b>{a.titulo}</b>{a.sub && <small>{a.sub}</small>}</span>
         </button>
@@ -45,20 +51,21 @@ export function AbasAssuntos({ abas, atual, onTroca }: { abas: AbaAssunto[]; atu
   )
 }
 
+// círculo com o ícone e a frase do lado (José, 29/10/2026), sem caixa em volta
 const ESTILO_AA = `
-.aa-abas { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-bottom: 16px }
-.aa-aba { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px; border: 1.5px solid var(--portal-border, #e5e7eb);
-  background: var(--portal-bg-card, #fefefe); color: var(--portal-text, #0f172a); font: inherit; text-align: left; cursor: pointer;
-  transition: border-color .2s, background .2s, transform .15s, box-shadow .2s }
-.aa-aba:hover { border-color: color-mix(in srgb, var(--c) 45%, transparent); transform: translateY(-1px) }
-.aa-aba em { flex-shrink: 0; width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-style: normal;
-  background: color-mix(in srgb, var(--c) 12%, transparent); color: var(--c); font-size: 16px; transition: background .2s, color .2s }
-.aa-aba span { display: grid; gap: 2px; min-width: 0 }
-.aa-aba b { font-size: 15px; font-weight: 600 }
+.aa-abas { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 28px; margin-bottom: 18px; padding: 6px 0; scroll-margin-top: 90px }
+.aa-aba { display: flex; align-items: center; gap: 12px; padding: 6px 16px 6px 6px; border-radius: 99px; border: 0; background: transparent;
+  color: var(--portal-text, #0f172a); font: inherit; text-align: left; cursor: pointer; transition: background .2s, transform .15s }
+.aa-aba:hover { background: color-mix(in srgb, var(--c) 8%, transparent) }
+.aa-aba em { flex-shrink: 0; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-style: normal;
+  background: color-mix(in srgb, var(--c) 13%, transparent); color: var(--c); font-size: 18px; transition: background .25s, color .25s, transform .25s, box-shadow .25s }
+.aa-aba span { display: grid; gap: 1px; min-width: 0 }
+.aa-aba b { font-size: 15px; font-weight: 500 }
 .aa-aba small { font-size: 12px; color: var(--portal-text-muted, #64748b); line-height: 1.3 }
-.aa-aba.on { border-color: var(--c); background: color-mix(in srgb, var(--c) 7%, var(--portal-bg-card, #fefefe)); box-shadow: 0 6px 18px -10px var(--c) }
-.aa-aba.on em { background: var(--c); color: #fefefe }
+.aa-aba.on { background: color-mix(in srgb, var(--c) 10%, transparent) }
+.aa-aba.on b { font-weight: 700; color: var(--c) }
+.aa-aba.on em { background: var(--c); color: #fefefe; transform: scale(1.06); box-shadow: 0 6px 16px -6px var(--c) }
 .aa-conteudo { animation: aaEntra .3s ease both }
 @keyframes aaEntra { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: none } }
-@media (max-width: 640px) { .aa-abas { grid-template-columns: 1fr 1fr } .aa-aba small { display: none } .aa-aba { padding: 10px } }
+@media (max-width: 640px) { .aa-abas { gap: 6px; justify-content: flex-start } .aa-aba small { display: none } .aa-aba em { width: 38px; height: 38px; font-size: 15px } }
 `
