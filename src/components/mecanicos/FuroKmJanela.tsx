@@ -267,28 +267,36 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
 }
 
 function LinhaDia({ x, on, foco, cor, carregando, onClick }: { x: DiaFuro; on: boolean; foco: boolean; cor?: string; carregando: boolean; onClick: () => void }) {
-  const pc = x.kmGps ? Math.min(100, (x.kmCobrado / x.kmGps) * 100) : 0
+  // o dia em frases (José, 29/10/2026: "não dá para entender o que está acontecendo aqui"): o que o carro fez, o que
+  // foi cobrado e a conclusão. Colega só aparece quando o carro passou no cliente dele (senão não explica nada)
+  const colegas = (x.colegas || []).filter((o) => o.noCliente)
+  const h1 = (v: number) => `${String(Math.round(v * 10) / 10).replace('.', ',')} h`
+  const conclusao = x.os.length
+    ? (x.furo > 0 ? `As OS dele cobraram ${kmI(x.kmCobrado)} de ${kmI(x.kmGps)} rodados: faltam ${kmI(x.furo)}.` : `As OS dele cobraram o que o carro rodou.`)
+    : colegas.length
+      ? `Não tinha OS dele, mas o carro foi ao cliente de um colega: o km deveria estar na OS do colega.`
+      : `Não tinha OS dele e o carro não foi a nenhum cliente com OS: os ${kmI(x.kmGps)} não têm destino.`
   return (
     <button type="button" className={`fk-dia ${on ? 'on' : ''} ${foco ? 'foco' : ''}`} style={{ '--c': cor || '#cbd5e1' } as React.CSSProperties} onClick={onClick}>
       <span className="fk-chk">{carregando ? <i className="fas fa-circle-notch fa-spin" /> : on ? <i className="fas fa-eye" /> : null}</span>
       <div className="fk-dia-m">
         <div className="fk-dia-t"><b>{fmtDia(x.data)}</b><em>{kmI(x.furo)} sem cobrar</em></div>
-        <div className="fk-dia-bar" title={`cobrado ${kmI(x.kmCobrado)} de ${kmI(x.kmGps)} rodados`}><i style={{ width: `${pc}%` }} /></div>
-        <small>{kmI(x.kmGps)} rodados · {kmI(x.kmCobrado)} cobrados{x.ligadoH ? ` · ligado ${String(x.ligadoH).replace('.', ',')} h` : ''}{x.saida ? ` · ligou ${hora(x.saida)}` : ''}{x.volta ? `, desligou ${hora(x.volta)}` : ''}</small>
-        {x.os.length ? x.os.map((o) => (
+        <small className="fk-dia-fez">
+          <i className="fas fa-car-side" /> {x.saida ? <>saiu {hora(x.saida)}</> : 'saiu'}{x.volta ? <>, voltou {hora(x.volta)}</> : ''} · rodou {kmI(x.kmGps)}{x.ligadoH ? <> · motor ligado {h1(x.ligadoH)}</> : ''}
+        </small>
+        {x.os.map((o) => (
           <small key={o.os} className={`fk-os ${o.noCliente ? (o.noCliente.conf === 'provavel' ? 'prov' : 'sim') : 'nao'}`}>
-            <i className={`fas ${o.noCliente ? 'fa-location-dot' : 'fa-location-crosshairs'}`} /> {o.os} {o.cliente.split(' ').slice(0, 3).join(' ')}
-            {o.noCliente ? <> · no cliente {hora(o.noCliente.inicio)}–{hora(o.noCliente.fim)} ({dur(o.noCliente.min)}){o.noCliente.conf === 'provavel' ? ' provável' : ''}</> : <> · carro não passou no cliente</>}
-          </small>
-        )) : <small className="fk-os nao"><i className="fas fa-ban" /> nenhuma OS dele neste dia</small>}
-        {/* colegas em OS no mesmo dia: sem OS dele, todos; com OS, só quando o carro passou no cliente do colega */}
-        {(x.colegas || []).filter((o) => !x.os.length || o.noCliente).map((o) => (
-          <small key={o.os} className={`fk-os ${o.noCliente ? (o.noCliente.conf === 'provavel' ? 'prov' : 'sim') : 'col'}`}>
-            <i className="fas fa-user-group" /> {o.tecnico.split(' ')[0]}{o.semCarro ? ' (sem carro)' : ''} na {o.os} {o.cliente.split(' ').slice(0, 3).join(' ')}
-            {o.noCliente ? <> · este carro foi lá {hora(o.noCliente.inicio)}–{hora(o.noCliente.fim)} ({dur(o.noCliente.min)}){o.noCliente.conf === 'provavel' ? ' provável' : ''}: o km pode estar na OS do colega</> : <> · este carro não passou lá</>}
-            {o.noCliente && <b className={`fk-naos ${o.naOS ? 'sim' : 'nao'}`}>{o.naOS ? <><i className="fas fa-check" /> {x.os.length ? '' : 'e '}ele consta na OS</> : <><i className="fas fa-triangle-exclamation" /> o nome dele não está na OS</>}</b>}
+            <i className="fas fa-file-invoice" /> {o.os} · {o.cliente.split(' ').slice(0, 3).join(' ')}
+            {o.noCliente ? <> · carro no cliente {hora(o.noCliente.inicio)}–{hora(o.noCliente.fim)}{o.noCliente.conf === 'provavel' ? ' (provável)' : ''}</> : <> · o carro não passou nesse cliente</>}
           </small>
         ))}
+        {colegas.map((o) => (
+          <small key={o.os} className={`fk-os ${o.naOS ? 'sim' : 'nao'}`}>
+            <i className="fas fa-user-group" /> foi ao cliente da {o.os} do {o.tecnico.split(' ')[0]} ({o.cliente.split(' ').slice(0, 3).join(' ')}), {hora(o.noCliente!.inicio)}–{hora(o.noCliente!.fim)}
+            <b className={`fk-naos ${o.naOS ? 'sim' : 'nao'}`}>{o.naOS ? <><i className="fas fa-check" /> o nome dele está na OS</> : <><i className="fas fa-triangle-exclamation" /> o nome dele não está na OS</>}</b>
+          </small>
+        ))}
+        <small className={`fk-dia-conc ${x.furo > 0 ? 'ruim' : 'bom'}`}>{conclusao}</small>
       </div>
     </button>
   )
@@ -355,7 +363,7 @@ const ESTILO_FK = `
 .fk-chico { grid-column: 1 / -1; margin-top: 4px; font-size: 12.5px; color: #115e59; background: #f0fdfa; border-radius: 8px; padding: 5px 8px; line-height: 1.4 } .fk-chico i { font-size: 11px; margin-right: 2px }
 .fk-osl { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; column-gap: 8px; align-items: baseline; text-align: left; border: 1px solid #fde68a; background: #fffbeb; border-radius: 12px; padding: 8px 11px; font-family: inherit; cursor: pointer }
 .fk-osl b { font-size: 13.5px; font-weight: 600; color: #0f172a } .fk-osl span { font-size: 13px; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap } .fk-osl small { grid-column: 1 / 3; font-size: 12.5px; color: #475569 } .fk-osl em { grid-row: 1 / 3; grid-column: 3; align-self: center; font-style: normal; font-weight: 600; color: #b91c1c; font-size: 14px }
-.fk-corpo { display: grid; grid-template-columns: minmax(290px, 390px) minmax(0, 1fr); gap: 14px; align-items: start }
+.fk-corpo { display: grid; grid-template-columns: minmax(300px, 400px) minmax(0, 1fr); gap: 14px; align-items: start }
 @media (max-width: 900px) { .fk-corpo { grid-template-columns: 1fr } }
 .fk-dias { display: grid; gap: 6px; align-content: start; max-height: 860px; overflow: auto; padding-right: 4px }
 .fk-dias-cab { display: flex; justify-content: space-between; align-items: baseline; padding: 0 2px 4px } .fk-dias-cab b { font-size: 14.5px; font-weight: 500 } .fk-dias-cab small { font-size: 12.5px; color: #64748b }
@@ -365,10 +373,12 @@ const ESTILO_FK = `
 .fk-chk { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #cbd5e1; display: grid; place-items: center; font-size: 10px; color: #fefefe; margin-top: 1px } .fk-dia.on .fk-chk { background: var(--c); border-color: var(--c) }
 .fk-dia-m { display: grid; gap: 4px; min-width: 0 } .fk-dia-t { display: flex; justify-content: space-between; gap: 8px } .fk-dia-t b { font-size: 14px; font-weight: 500; color: #0f172a } .fk-dia-t em { font-style: normal; font-size: 13px; font-weight: 600; color: #b91c1c; white-space: nowrap }
 .fk-dia-bar { height: 6px; border-radius: 99px; background: repeating-linear-gradient(135deg, #fecaca 0 5px, #fee2e2 5px 10px); overflow: hidden } .fk-dia-bar i { display: block; height: 100%; background: #10b981; border-radius: 99px }
-.fk-dia small { font-size: 12.5px; color: #475569; line-height: 1.4 }
+.fk-dia small { font-size: 12.5px; color: #475569; line-height: 1.4 } .fk-dia-fez i { font-size: 11px; color: #64748b; margin-right: 3px } .fk-dia-conc { display: block; font-size: 13px !important; color: #0f172a !important; padding-top: 2px } .fk-dia-conc.ruim { color: #991b1b !important }
+/* janela do mapa maior (José, 29/10/2026) */
+.ji:has(.fk-corpo) { width: min(1680px, 100%); max-height: 96vh }
 .fk-os { display: block; border-radius: 8px; padding: 3px 8px } .fk-os i { font-size: 11px; margin-right: 2px } .fk-os.sim { background: #ecfdf5; color: #065f46 !important } .fk-os.prov { background: #fffbeb; color: #92400e !important } .fk-os.nao { background: #fef2f2; color: #991b1b !important } .fk-os.col { background: #eff6ff; color: #1e40af !important }
 .fk-dir { display: grid; gap: 12px; min-width: 0 }
-.fk-mapa-c { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; height: 440px }
+.fk-mapa-c { position: relative; border-radius: 16px; overflow: hidden; border: 1px solid #e2e8f0; height: max(520px, calc(96vh - 330px)) }
 .fk-mapa { position: absolute; inset: 0 }
 .fk-mapa-carr { position: absolute; z-index: 500; top: 10px; left: 50%; transform: translateX(-50%); background: #0f172a; color: #fefefe; border-radius: 99px; padding: 6px 14px; font-size: 13px; white-space: nowrap }
 .fk-leg { position: absolute; z-index: 500; left: 10px; bottom: 10px; display: flex; gap: 10px; flex-wrap: wrap; background: rgba(254,254,254,.94); border-radius: 10px; padding: 6px 10px; font-size: 12px; color: #334155 }
