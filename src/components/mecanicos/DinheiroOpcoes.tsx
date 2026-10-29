@@ -40,14 +40,15 @@ export type PessoaConta = { nome: string; salario: number; encargos: number; enc
 export function contaDe(d: PainelMontado, rotulo: string): Conta {
   const t = d.total, g = d.gastos, eq = d.equipe
   const pessoal = eq.total || 0
-  const resultado = t.liquido - g.foraDasOS - pessoal
+  // peças entram na conta (José, 29/10/2026: "aqui também precisa atualizar o valor com as peças")
+  const resultado = t.liquido + t.pecas - g.foraDasOS - pessoal
   const serie = d.serie.map((b, i) => {
     const tt = b.total, ga = d.gastosSerie[i]?.total || 0, pe = d.equipeSerie[i] || 0
-    return { rotulo: b.rotulo, bruto: tt.bruto, gastos: tt.custo + ga, pessoal: pe, resultado: tt.liquido - ga - pe }
+    return { rotulo: b.rotulo, bruto: tt.bruto + tt.pecas, gastos: tt.custo + ga, pessoal: pe, resultado: tt.liquido + tt.pecas - ga - pe }
   })
   const naOS = Math.max(0, g.total - g.foraDasOS)
   return {
-    rotulo, bruto: t.bruto, mo: t.servico, km: t.kmValor, pecas: t.pecas, outros: Math.max(0, t.outros), horas: t.faturadas, kmRod: t.km, nOS: Math.round(t.os),
+    rotulo, bruto: t.bruto + t.pecas, mo: t.servico, km: t.kmValor, pecas: t.pecas, outros: Math.max(0, t.outros), horas: t.faturadas, kmRod: t.km, nOS: Math.round(t.os),
     comNota: d.notas.comNota, recibo: d.notas.recibo,
     gastos: t.custo + g.foraDasOS,
     gDet: [
@@ -88,7 +89,7 @@ function Dif({ a, b, inverso }: { a: number; b: number | undefined; inverso?: bo
   const bom = inverso ? p < 0 : p > 0
   return <span className={`dx-dif ${bom ? 'bom' : 'ruim'}`} title={`período anterior: ${brl(b)}`}>{p > 0 ? '▲' : '▼'} {Math.abs(p)}% <i>vs anterior</i></span>
 }
-const entradas = (c: Conta) => ([['Mão de obra', c.mo, CE.mo, `${horas(c.horas)} cobradas`], ['Deslocamento', c.km, CE.km, kmFmt(c.kmRod)], ['Outros', c.outros, CE.outros, 'requisições, extras']] as [string, number, string, string][]).filter(([, v]) => v > 0.5)
+const entradas = (c: Conta) => ([['Mão de obra', c.mo, CE.mo, `${horas(c.horas)} cobradas`], ['Deslocamento', c.km, CE.km, kmFmt(c.kmRod)], ['Peças', c.pecas, CE.pecas, 'vendidas com as OS'], ['Outros', c.outros, CE.outros, 'requisições, extras']] as [string, number, string, string][]).filter(([, v]) => v > 0.5)
 const saidas = (c: Conta) => ([['Gastos', c.gastos, CS.gastos, 'terceiros, carro, almoço, materiais'], ['Pessoal', c.pessoal, CS.pessoal, 'salário + comissão']] as [string, number, string, string][])
 const por100 = (c: Conta) => (c.bruto ? (c.resultado / c.bruto) * 100 : 0)
 const nomeFim = (c: Conta) => (c.resultado >= 0 ? 'Ficou' : 'Faltou')
@@ -331,9 +332,9 @@ export function useSimulacao(c: Conta) {
   // descontos: o que entrou já vem descontado; dar menos desconto devolve a diferença para o faturamento
   const DESC: [keyof Conta['desc'] & ('hora' | 'km' | 'geral' | 'pecas'), string, string][] = [['hora', 'Desconto na hora', 'fa-clock'], ['km', 'Desconto no km', 'fa-road'], ['geral', 'Desconto geral da OS', 'fa-tags']]
   const descS = DESC.reduce((s, [k]) => s + c.desc[k] * (1 + val(`d_${k}`) / 100), 0)
-  // peças ficam fora do faturado (José, 28/10/2026): nem elas nem o desconto nelas entram na conta
+  // as peças entram no que entrou (29/10/2026); o desconto nelas segue fora da simulação
   const voltaDesc = DESC.reduce((s, [k]) => s + c.desc[k], 0) - descS
-  const bruto = ent.mo + ent.km + ent.outros + voltaDesc
+  const bruto = ent.mo + ent.km + ent.pecas + ent.outros + voltaDesc
   const gItens = c.gDet.map(([r, v], i) => ({ r, v, k: `g${i}`, s: v > 0 ? v * (1 + val(`g${i}`) / 100) : v }))
   const gastos = gItens.reduce((s, x) => s + x.s, 0)
   const pItens = {
@@ -504,6 +505,7 @@ export function DinheiroSimulador({ c, semFrase, claro, forma }: { c: Conta; sem
               <RegSim claro={claro} v={val('horas')} onSet={set('horas')} rot="Horas cobradas" ic="fa-clock" cor={CE.mo} min={-60} max={150} antes={horas(c.horas)} depois={horas(horasS)} extra={`${brl(ent.mo)} de mão de obra`} dica="Horas de mão de obra que foram cobradas nas OS faturadas no período. Arraste para simular mais (ou menos) horas cobradas — a mão de obra muda junto, no valor médio da hora." />
               <RegSim claro={claro} v={val('vh')} onSet={set('vh')} rot="Valor da hora" ic="fa-tag" cor={CE.mo} min={-30} max={60} antes={`${brl(vh)}/h`} depois={`${brl(vhS)}/h`} extra={`média cobrada · tabela ${brl(vhTabS)}/h`} dica={`A hora de tabela é ${brl(vhTab)}. A média que realmente entrou foi ${brl(vh)}/h: mão de obra ÷ horas cobradas. Fica abaixo da tabela por causa dos descontos e da garantia (a montadora paga R$ 100/h). Arraste para simular cobrar mais ou menos por hora.`} />
               <RegSim claro={claro} dica="Quilômetros de deslocamento cobrados nas OS do período, ao valor do km. Arraste para simular mais ou menos km cobrado." v={val('km')} onSet={set('km')} rot="Km rodados" ic="fa-road" cor={CE.km} min={-60} max={150} antes={kmFmt(c.kmRod)} depois={kmFmt(c.kmRod * (1 + val('km') / 100))} extra={`${brl(vkm)}/km · ${brl(ent.km)}`} />
+              <RegSim claro={claro} dica="Peças vendidas junto com as OS do período (pedido de peças faturado), pelo valor de venda. Arraste para simular vender mais ou menos peças." v={val('pecas')} onSet={set('pecas')} rot="Peças" ic="fa-gears" cor={CE.pecas} min={-60} max={150} antes={brl(c.pecas)} depois={brl(ent.pecas)} />
               <RegSim claro={claro} v={val('outros')} onSet={set('outros')} rot="Outros (requisições, extras)" ic="fa-receipt" cor={CE.outros} min={-100} max={150} antes={brl(c.outros)} depois={brl(ent.outros)} />
             </>}
             {aba === 'des' && <>
