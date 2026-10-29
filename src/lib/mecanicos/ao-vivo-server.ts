@@ -10,7 +10,7 @@ import { recarregarBaseMemoria } from './base-cache'
 import { esquecer } from './cache'
 
 const CANAL = 'posvendas-ao-vivo'
-const PREFIXOS = ['vivo2:', 'ficha12:', 'ficha-base4:', 'carreira:', 'fantasmas:', 'parado']
+const PREFIXOS = ['vivo2:', 'ficha13:', 'ficha-base4:', 'carreira:', 'fantasmas:', 'parado']
 const hojeSP = () => new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' })
 const somarDias = (d: string, n: number) => new Date(Date.parse(`${d}T12:00:00Z`) + n * 86400_000).toISOString().slice(0, 10)
 

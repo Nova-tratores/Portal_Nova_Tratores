@@ -134,7 +134,7 @@ export async function pedirLancamento(
   const mexidas = p.linhas.filter(linhaMexida)
   // quem recebeu parte de uma OS dividida vê na ficha na hora (a ficha fica em cache)
   const outros = [...new Set(p.linhas.flatMap((l) => Object.keys(l.divisao || {})).filter((n) => n !== p.tecnico))]
-  if (outros.length) await esquecer(outros.map((n) => `ficha12:${n}:`)).catch(() => {})
+  if (outros.length) await esquecer(outros.map((n) => `ficha13:${n}:`)).catch(() => {})
   await registrar(ped, 'pedido', autor, r2(p.valor), { calculado: r2(p.calculado), os: p.linhas.length, mexidas: mexidas.map((l) => ({ numero: l.numero, acao: l.divisao ? 'dividir' : l.acao, valor: l.valor, calculado: l.calculado, motivo: l.motivo })), descontos })
   const ds = await diretores()
   await avisar(ds, `Comissão para autorizar: ${p.tecnico}`, `${p.mes.slice(5)}/${p.mes.slice(0, 4)} · ${brl(p.valor)}${mexidas.length ? ` · ${mexidas.length} OS com decisão` : ''} — pedido de ${autor.nome}`, '/dashboard?comissoes=1')

@@ -34,7 +34,7 @@ const r2 = (n: number) => Math.round(n * 100) / 100
 
 export type FichaTecnico = Awaited<ReturnType<typeof montarFicha>>
 
-const chaveFicha = (nome: string, mes: string) => `ficha12:${nome}:${mes}`
+const chaveFicha = (nome: string, mes: string) => `ficha13:${nome}:${mes}`
 const VALIDADE_FICHA = 15 * 60_000
 
 /** A ficha sai SEMPRE do que está gravado no banco (posvendas_painel_cache); o robô do servidor regrava

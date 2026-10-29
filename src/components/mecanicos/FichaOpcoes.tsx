@@ -108,7 +108,8 @@ function LinhaEditavel({ d, l, e, verOS, compacta }: { d: Ficha; l: LinhaComissa
  *  Valor de cada um = horas dele × valor da hora da OS × % dele. OS de valor fixo (sem horas) segue dividindo em R$. */
 export function Divisao({ d, l, e, fechar }: { d: Ficha; l: LinhaComissao; e: EdicaoComissao; fechar: () => void }) {
   const x = e.de(l)
-  const horasOS = Math.round((l.horas || 0) * 100) / 100
+  // horas da OS: da linha da comissão; se faltar (ficha antiga no cache), das OS do mês da ficha
+  const horasOS = Math.round((l.horas || d.os.faturadas.find((o) => o.os === l.os)?.horas || d.os.internas?.find((o) => o.os === l.os)?.horas || 0) * 100) / 100
   const porHoras = l.base > 0 && horasOS > 0
   const vh = porHoras ? l.base / horasOS : 0
   const pctDe = (n: string) => d.equipe.find((t) => t.nome === n)?.pct ?? (n === d.nome ? d.comissao.pct : 0)
@@ -972,10 +973,11 @@ export const ESTILO_FO = `
 .fo-div { background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; animation: ftEntra .25s both }
 .fo-div-cab { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap } .fo-div-cab b { color: #6d28d9; font-size: 13px } .fo-div-cab small { color: ${MUDO}; font-size: 12px; flex: 1 }
 .fo-div-cab button { border: 1px solid #d8b4fe; background: #fefefe; color: #6d28d9; border-radius: 99px; padding: 3px 10px; font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer }
-/* divisão por horas */ .fo-div-pct { color: #64748b; font-size: 12px } .fo-div-v { margin-left: auto; color: #6d28d9; font-variant-numeric: tabular-nums }
-.fo-div-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px }
+/* divisão por horas (29/10/2026): uma linha por técnico, nome inteiro, horas e quanto ele recebe */
+.fo-div-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 6px }
 .fo-div-lista label { display: flex; gap: 6px; align-items: center; background: #fefefe; border: 1px solid #ede9fe; border-radius: 10px; padding: 6px 8px; font-size: 13px; cursor: pointer } .fo-div-lista label.on { border-color: #c4b5fd }
 .fo-div-lista span { flex: 1 } .fo-div-lista em { font-style: normal; color: ${MUDO}; font-size: 11.5px } .fo-div-lista i { font-style: normal; color: ${MUDO}; font-size: 12px } .fo-div-lista input[type=number] { width: 86px; border: 1px solid #ddd6fe; border-radius: 7px; padding: 3px 6px; font-family: inherit; font-weight: 800 } .fo-div-lista small { width: 34px; text-align: right; color: #7c3aed; font-weight: 800; font-size: 12px }
+.fo-div-lista label > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis } .fo-div-lista .fo-div-pct { width: auto; text-align: left; color: #64748b; font-weight: 500 } .fo-div-lista input[type=number] { width: 70px } .fo-div-lista .fo-div-v { min-width: 84px; text-align: right; color: #6d28d9; font-variant-numeric: tabular-nums }
 .fo-div-pe { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px } .fo-div-pe em { font-style: normal; color: #b45309 } .fo-div-pe .fo-mot-txt { flex: 1 }
 .fo-cam { margin: 4px 0 0; font-size: 12.5px; color: #b45309 }
 /* lançar */
