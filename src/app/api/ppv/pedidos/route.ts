@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
 
   // `status_desde` vem da migration sql/ppv-status-hist.sql; se ela ainda não foi aplicada,
   // o PostgREST devolve 400 — cai pro select sem a coluna em vez de derrubar o kanban.
-  const SEL_BASE = "id_pedido,cliente,tecnico,Tipo_Pedido,status,valor_total,desconto_percentual,data,observacao,email_usuario,pedido_omie,Id_Os,nf_numero,Projeto,previsao_faturamento";
+  const SEL_BASE = "id_pedido,cliente,tecnico,Tipo_Pedido,status,valor_total,desconto_percentual,data,observacao,email_usuario,pedido_omie,Id_Os,nf_numero,Projeto,previsao_faturamento,faturado_omie_em";
   const buscarPedidos = () =>
     supabaseFetch<Record<string, unknown>[]>(`${TBL_PEDIDOS}?select=${SEL_BASE},status_desde&order=data.desc`)
       .catch(() => supabaseFetch<Record<string, unknown>[]>(`${TBL_PEDIDOS}?select=${SEL_BASE}&order=data.desc`));
@@ -56,6 +56,23 @@ export async function GET(req: NextRequest) {
       `${TBL_LOGS}?select=id_ppv,acao,usuario_email,data_hora&order=id.desc`
     ),
   ]);
+  // fase ATUAL da OS de cada PPV: o PPV aparece na coluna da OS (lib/fases/fases.ts, José 29/10/2026).
+  // Só as OS que interessam (abertas + as citadas pelos PPVs): a tabela inteira passa de 1000 linhas.
+  const SEL_OS = "Id_Ordem,Status,ID_PPV";
+  const idsOS = [...new Set((dados || []).map((r) => String(getValorInsensivel(r, "Id_Os") || "")).filter(Boolean))];
+  const lotes: string[][] = [];
+  for (let i = 0; i < idsOS.length; i += 80) lotes.push(idsOS.slice(i, i + 80));
+  const ordens = (await Promise.all([
+    supabaseFetch<Record<string, unknown>[]>(`${TBL_OS}?select=${SEL_OS}&Status=not.in.(Concluída,Cancelada)`).catch(() => []),
+    ...lotes.map((l) => supabaseFetch<Record<string, unknown>[]>(`${TBL_OS}?select=${SEL_OS}&Id_Ordem=in.(${l.map((x) => `"${x}"`).join(",")})`).catch(() => [])),
+  ])).flat();
+  const faseDaOS = new Map<string, string>();
+  const osDoPPV = new Map<string, string>(); // vínculo pelo lado da OS (lista ID_PPV)
+  for (const o of ordens || []) {
+    const idOs = String(o.Id_Ordem || "");
+    faseDaOS.set(idOs, String(o.Status || ""));
+    for (const p of String(o.ID_PPV || "").split(",").map((x) => x.trim()).filter(Boolean)) if (!osDoPPV.has(p)) osDoPPV.set(p, idOs);
+  }
 
   // Mapa: id_ppv → último log (primeiro encontrado pois ordenado desc)
   const mapaUltimoLog: Record<string, { acao: string; usuario: string; data: string }> = {};
@@ -85,7 +102,9 @@ export async function GET(req: NextRequest) {
       observacao: getValorInsensivel(r, "observacao"),
       criadoPor: getValorInsensivel(r, "email_usuario") || "",
       pedidoOmie: String(getValorInsensivel(r, "pedido_omie") || ""),
-      osId: String(getValorInsensivel(r, "Id_Os") || ""),
+      osId: String(getValorInsensivel(r, "Id_Os") || "") || osDoPPV.get(id) || "",
+      faseOS: faseDaOS.get(String(getValorInsensivel(r, "Id_Os") || "") || osDoPPV.get(id) || "") || "",
+      faturadoEm: String(getValorInsensivel(r, "faturado_omie_em") || ""),
       nfNumero: String(getValorInsensivel(r, "nf_numero") || ""),
       projeto: String(getValorInsensivel(r, "Projeto") || ""),
       previsaoFaturamento: String(getValorInsensivel(r, "previsao_faturamento") || "").slice(0, 10),

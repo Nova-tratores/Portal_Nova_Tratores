@@ -8,8 +8,9 @@ import { useEffect, useSyncExternalStore } from "react";
 const CHAVE = "pos-visual-novo";
 const EVENTO = "pos-visual-novo-mudou";
 
+// visual novo fixo: o botão de voltar ao antigo saiu (José, 29/10/2026); quem tinha "0" salvo também passa ao novo
 function ler(): boolean {
-  try { return localStorage.getItem(CHAVE) !== "0"; } catch { return true; }
+  return true;
 }
 function assinar(f: () => void) {
   window.addEventListener(EVENTO, f);

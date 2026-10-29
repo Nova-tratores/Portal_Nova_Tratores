@@ -5,16 +5,15 @@
 // 23/10/2026 "as ordens mudam de fase sozinhas" (27 vezes em 2 meses a pessoa
 // desfez e o robô mudou de novo; 35 Aguardando→Execução × 72 Execução→Aguardando).
 //
-// Regras (as mesmas de antes, num lugar só):
-//  A) chegou a Previsão de Execução e o serviço ainda está no prazo → "Execução"
-//     (só de Orçamento / Orçamento enviado / Orçamento Aprovado / Aguardando ordem Técnico)
+// Regras:
+//  A) (REMOVIDA em 29/10/2026, José: "tira esse") chegar a Previsão de Execução levava para "Execução";
+//     agora quem põe em Execução é a pessoa.
 //  B) passou o último dia de serviço (Dias_Execucao; sem dias, a Previsão de Execução)
 //     → "Aguardando ordem Técnico" (das fases de execução)
 //  C) "Executada aguardando comercial" e chegou a Previsão de Faturamento → "Relatório Concluído"
 // E o principal: se uma PESSOA tirou a OS da fase para onde o robô levaria (ex.: o robô pôs
 // em Execução e ela voltou para Orçamento) no dia do gatilho ou depois, o robô não mexe —
-// ela decidiu. Agendar (Orçamento → Orçamento Aprovado) não é desfazer o robô: no dia
-// marcado a OS vai para Execução normalmente.
+// ela decidiu.
 
 export const FASES_ANTES_EXECUCAO = [
   'Orçamento',
@@ -76,14 +75,11 @@ export function decidirFaseAuto(os: OSParaFaseAuto, hoje: string, ultimaMudancaM
 
   const ultimo = ultimoDiaServico(os.Previsao_Execucao, os.Dias_Execucao);
   const passouServico = !!ultimo && maisUmDia(ultimo) <= hoje;
-  const prevExec = String(os.Previsao_Execucao || '').slice(0, 10);
   const prevFat = String(os.Previsao_Faturamento || '').slice(0, 10);
 
   let d: DecisaoFaseAuto | null = null;
   if (passouServico && FASES_EXECUCAO.includes(status)) {
     d = { destino: 'Aguardando ordem Técnico', motivo: 'período de execução encerrado sem conclusão', gatilho: maisUmDia(ultimo) };
-  } else if (FASES_ANTES_EXECUCAO.includes(status) && ISO.test(prevExec) && prevExec <= hoje && !passouServico) {
-    d = { destino: 'Execução', motivo: 'previsão de execução atingida', gatilho: prevExec };
   } else if (status === 'Executada aguardando comercial' && ISO.test(prevFat) && prevFat <= hoje) {
     d = { destino: 'Relatório Concluído', motivo: 'previsão de faturamento atingida', gatilho: prevFat };
   }

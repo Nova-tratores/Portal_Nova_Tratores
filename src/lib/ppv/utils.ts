@@ -21,6 +21,13 @@ export function normalizarStatus(st: string | null | undefined): string {
     "Enviado Omie",
     "Concluída",
     "Cancelada",
+    // fases que só o POS tinha: o PPV de balcão também pode ficar nelas (mesmas fases do POS, 29/10/2026)
+    "Relatório Atualizado",
+    "Executada",
+    "Enviar Omie",
+    "Enviado Para Omie",
+    "Cobrando Cliente",
+    "Preenchido Garantia",
   ];
   const match = fasesValidas.find(f => f.toLowerCase() === s.toLowerCase());
   if (match) return match;

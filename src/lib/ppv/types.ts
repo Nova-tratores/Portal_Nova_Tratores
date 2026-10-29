@@ -16,6 +16,10 @@ export interface KanbanItem {
   // Extras do modo "Relação" (vêm na listagem do kanban; opcionais).
   pedidoOmie?: string;
   osId?: string;
+  /** fase atual da OS ligada — o quadro mostra o PPV nesta coluna (lib/fases/fases.ts) */
+  faseOS?: string;
+  /** NF-e emitida (faturado no Omie) — selo no cartão quando a OS ainda não concluiu */
+  faturadoEm?: string;
   nfNumero?: string;
   projeto?: string;
   previsaoFaturamento?: string;   // "YYYY-MM-DD" (espelho Omie)

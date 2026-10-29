@@ -4,9 +4,10 @@ import { decidirFaseAuto, ehRobo, hojeBrasilia, ultimoDiaServico } from '../fase
 const HOJE = '2026-10-23';
 
 describe('fase automática por data', () => {
-  it('previsão de execução chegou → Execução', () => {
-    expect(decidirFaseAuto({ Status: 'Orçamento', Previsao_Execucao: '2026-10-23' }, HOJE, null)?.destino).toBe('Execução');
-    expect(decidirFaseAuto({ Status: 'Orçamento', Previsao_Execucao: '2026-10-24' }, HOJE, null)).toBeNull();
+  it('previsão de execução chegou NÃO move mais para Execução (José, 29/10/2026)', () => {
+    expect(decidirFaseAuto({ Status: 'Orçamento', Previsao_Execucao: '2026-10-23' }, HOJE, null)).toBeNull();
+    expect(decidirFaseAuto({ Status: 'Orçamento Aprovado', Previsao_Execucao: '2026-10-23' }, HOJE, null)).toBeNull();
+    expect(decidirFaseAuto({ Status: 'Aguardando ordem Técnico', Previsao_Execucao: '2026-10-23' }, HOJE, null)).toBeNull();
   });
   it('passou o último dia de serviço → Aguardando ordem Técnico', () => {
     expect(decidirFaseAuto({ Status: 'Execução', Previsao_Execucao: '2026-10-20', Dias_Execucao: '2026-10-21,2026-10-22' }, HOJE, null)?.destino).toBe('Aguardando ordem Técnico');
@@ -22,9 +23,6 @@ describe('fase automática por data', () => {
     expect(decidirFaseAuto({ Status: 'Execução', Dias_Execucao: '2026-10-21' }, HOJE, { dia: '2026-10-23', de: 'Aguardando ordem Técnico' })).toBeNull();
     // a pessoa mexeu ANTES do gatilho: a regra vale
     expect(decidirFaseAuto({ Status: 'Execução', Dias_Execucao: '2026-10-21' }, HOJE, { dia: '2026-10-20', de: 'Aguardando ordem Técnico' })?.destino).toBe('Aguardando ordem Técnico');
-  });
-  it('agendar no mesmo dia não é desfazer o robô: vai para Execução (caso OS-0829)', () => {
-    expect(decidirFaseAuto({ Status: 'Orçamento Aprovado', Previsao_Execucao: '2026-10-23' }, HOJE, { dia: '2026-10-23', de: 'Orçamento' })?.destino).toBe('Execução');
   });
   it('previsão de faturamento → Relatório Concluído', () => {
     expect(decidirFaseAuto({ Status: 'Executada aguardando comercial', Previsao_Faturamento: '2026-10-22' }, HOJE, null)?.destino).toBe('Relatório Concluído');

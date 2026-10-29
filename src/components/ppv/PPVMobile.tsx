@@ -4,7 +4,9 @@ import { casaBusca } from '@/lib/texto';
 // fase em dropdown e botão flutuante de Novo Lançamento. Desktop não usa isto.
 import { Fragment, useMemo, useState } from "react";
 import type { KanbanItem } from "@/lib/ppv/types";
-import { PHASE_COLORS, PHASE_SHORT, PHASES } from "./PhaseView";
+import { PHASE_COLORS, PHASES } from "./PhaseView";
+import { faseDoPPVNaTela, rotuloDaFase } from "@/lib/fases/fases";
+import { useRotulosFases } from "@/hooks/useRotulosFases";
 
 // Ordem canônica das fases (Concluída/Cancelada por último). Fase desconhecida vai pro fim.
 const ordemFase = (s: string) => { const i = PHASES.indexOf(s); return i === -1 ? 998 : i; };
@@ -23,7 +25,6 @@ interface Props {
 }
 
 const cor = (s: string) => PHASE_COLORS[s] || "#64748b";
-const curto = (s: string) => PHASE_SHORT[s] || s;
 const dataBR = (d: string) => {
   if (!d) return "";
   const m = String(d).match(/^(\d{2})\/(\d{2})\/(\d{4})/);
@@ -33,8 +34,12 @@ const dataBR = (d: string) => {
 };
 const rs = (v: number) => `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function PPVMobile({ orders, searchTerm, onSearchChange, onCardClick, onNovo, podeCriar, loading, podeLiberar, onLiberar }: Props) {
+export default function PPVMobile({ orders: pedidos, searchTerm, onSearchChange, onCardClick, onNovo, podeCriar, loading, podeLiberar, onLiberar }: Props) {
   const [fase, setFase] = useState("TODAS");
+  // fase mostrada = a da OS quando o PPV é de uma OS; nome = o do lápis do pós-vendas (lib/fases/fases.ts)
+  const { rotulos } = useRotulosFases();
+  const curto = (s: string) => rotuloDaFase(s, rotulos);
+  const orders = useMemo(() => pedidos.map((o) => ({ ...o, status: faseDoPPVNaTela(o, o.faseOS) })), [pedidos]);
 
   const fasesPresentes = useMemo(() => {
     const m = new Map<string, number>();

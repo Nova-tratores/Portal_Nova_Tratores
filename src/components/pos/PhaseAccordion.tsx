@@ -5,6 +5,7 @@ import { useState, useMemo, memo, useCallback, useEffect, useRef, type ReactNode
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { PHASES } from "@/lib/pos/constants";
+import RotuloFase from "@/components/fases/RotuloFase";
 import { diasEntre } from "@/lib/pos/utils";
 import { OPCOES_PAGAMENTO, normalizarPagamento, perguntaPagamento } from "@/lib/pos/cobranca";
 import type { KanbanCard } from "@/lib/pos/types";
@@ -881,7 +882,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                   <i className={ocultas.has(phase) ? "fas fa-eye-slash" : "fas fa-eye"} />
                 </button>
                 <span className="phase-group-dot" style={{ background: PHASE_COLORS[phase] }} />
-                <span className="phase-group-name">{phase}</span>
+                <RotuloFase fase={phase} className="phase-group-name" />
                 {!SEM_CONTAGEM.has(phase) && <span className="phase-group-count">{items.length}</span>}
                 {/* Selo: esta fase é DIFERENTE — dinheiro na mesa */}
                 {phase === FASE_COBRANDO && (

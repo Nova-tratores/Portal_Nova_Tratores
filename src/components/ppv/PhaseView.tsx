@@ -5,7 +5,10 @@ import { useState, useMemo, memo, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
 import type { KanbanItem } from "@/lib/ppv/types";
 import { normalizarStatus, formatarDataFrontend, formatarMoeda } from "@/lib/ppv/utils";
-import { STATUS_COLORS, STATUS_OPTIONS, rotuloStatus, type StatusKey } from "@/lib/ppv/constants";
+import { STATUS_COLORS, type StatusKey } from "@/lib/ppv/constants";
+import { FASES, faseDoPPVNaTela, faseParaGravarNoPPV, rotuloDaFase } from "@/lib/fases/fases";
+import RotuloFase from "@/components/fases/RotuloFase";
+import { useRotulosFases } from "@/hooks/useRotulosFases";
 import { CapaTitulo, CapaFaseValor, CapaBolinhas, CapaLinha, CapaData, CapaTexto, CapaReservar, CapaRodape } from "@/components/comum/CapaCard";
 
 // Preview do card no hover (com OS → descrição da OS + produtos; sem OS → produtos + observação)
@@ -52,9 +55,17 @@ export const PHASE_COLORS: Record<string, string> = {
   "Enviado Omie": "#C2570A",
   "Concluída": "#047857",
   "Cancelada": "#B91C1C",
+  // fases que eram só do POS (as colunas do PPV são as do POS desde 29/10/2026)
+  "Relatório Atualizado": "#0E7490",
+  "Executada": "#7C3AED",
+  "Enviar Omie": "#C2570A",
+  "Enviado Para Omie": "#C2570A",
+  "Cobrando Cliente": "#92400E",
+  "Preenchido Garantia": "#0891B2",
 };
 
-export const PHASES = STATUS_OPTIONS.map((s) => s.value);
+// Colunas = as do POS, na mesma ordem e com o mesmo nome (José, 29/10/2026). Ver lib/fases/fases.ts.
+export const PHASES: string[] = [...FASES];
 
 export const PHASE_SHORT: Record<string, string> = {
   "Orçamento": "Orçamento",
@@ -100,6 +111,11 @@ const MiniCard = memo(function MiniCard({
   viewMode?: "cards" | "lista";
 }) {
   const statusNorm = normalizarStatus(o.status);
+  // coluna/fase mostrada: a da OS quando o PPV é de uma OS (lib/fases/fases.ts)
+  const faseTela = faseDoPPVNaTela(o, o.faseOS);
+  const { rotulos } = useRotulosFases();
+  const segueOS = !!o.osId && !!o.faseOS && statusNorm !== "Cancelada";
+  const nfEmitida = !!(o.faturadoEm || o.nfNumero) && faseTela !== "Concluída";
   const valorFmt = o.valor ? formatarMoeda(parseFloat(String(o.valor))) : "R$ 0,00";
   const dataFmt = formatarDataFrontend(o.data);
   const isTipoRem = (o.tipo || "").toLowerCase().includes("remessa") || (o.tipo || "").toUpperCase() === "REM";
@@ -188,7 +204,7 @@ const MiniCard = memo(function MiniCard({
   // ── Modo LISTA (linha compacta) ──
   if (viewMode === "lista") {
     return (
-      <div ref={cardRef} className={`ppv-list-row ${dragging ? "dragging" : ""}`} draggable onDragStart={dragStart} onDragEnd={dragEnd} onClick={onClick} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
+      <div ref={cardRef} className={`ppv-list-row ${dragging ? "dragging" : ""}`} draggable={!segueOS} onDragStart={dragStart} onDragEnd={dragEnd} onClick={onClick} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
         <span className="ppv-list-titulo" style={{ color: tituloColor }}>{titulo}</span>
         <div className="ppv-list-cli">
           <span className="ppv-list-cliente">{o.cliente || "Sem Cliente"}</span>
@@ -212,11 +228,16 @@ const MiniCard = memo(function MiniCard({
   const semZeros = (n?: string) => String(n || "").replace(/^0+(?=\d)/, "");
   const prevFat = o.previsaoFaturamento ? formatarDataFrontend(o.previsaoFaturamento) : "";
   return (
-    <div ref={cardRef} className={`ppv-mini-card ${dragging ? "dragging" : ""}`} draggable onDragStart={dragStart} onDragEnd={dragEnd} onClick={onClick} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}
+    <div ref={cardRef} className={`ppv-mini-card ${dragging ? "dragging" : ""}`} draggable={!segueOS} title={segueOS ? `Segue a fase da OS ${o.osId} — mude pela OS` : undefined} onDragStart={dragStart} onDragEnd={dragEnd} onClick={onClick} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}
       style={{ borderTop: `3px solid ${isTipoRem ? "#e8730c" : "#EA580C"}`, display: "flex", flexDirection: "column", gap: 8, borderRadius: 12, padding: "10px 12px" }}>
       <CapaTitulo numero={isTipoRem ? `REM ${numero}` : numero} cliente={o.cliente} corNumero={tituloColor} />
-      <CapaFaseValor fase={statusNorm} rotulo={PHASE_SHORT[statusNorm] || rotuloStatus(statusNorm)} fases={PHASES} rotuloDe={(p) => PHASE_SHORT[p] || p}
-        onChange={onStatusChange ? (f) => onStatusChange(o.id, f) : undefined} valor={valorFmt} />
+      <CapaFaseValor fase={faseTela} rotulo={rotuloDaFase(faseTela, rotulos)} fases={PHASES} rotuloDe={(p) => rotuloDaFase(p, rotulos)}
+        onChange={onStatusChange && !segueOS ? (f) => onStatusChange(o.id, faseParaGravarNoPPV(f)) : undefined} valor={valorFmt} />
+      {nfEmitida && (
+        <span title={o.nfNumero ? `NF-e ${semZeros(o.nfNumero)}` : "Faturado no Omie"} style={{ alignSelf: "flex-start", fontSize: 11, color: "#047857", background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 999, padding: "2px 9px" }}>
+          <i className="fas fa-file-invoice" style={{ marginRight: 5 }} />NF-e emitida
+        </span>
+      )}
       {!cancelada && <CapaBolinhas passos={passos} />}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <CapaLinha icone="fas fa-user-cog" rotulo="Técnico">{o.tecnico || "?"}</CapaLinha>
@@ -225,8 +246,8 @@ const MiniCard = memo(function MiniCard({
         {o.observacao && <CapaTexto>{o.observacao}</CapaTexto>}
       </div>
       {/* Reserva/agendamento: marcar → pergunta o dia → Orçamento Aprovado (OS junto) */}
-      {onAgendar && ["Orçamento", "Orçamento enviado para o cliente e aguardando", "Orçamento Aprovado"].includes(statusNorm) && (
-        <CapaReservar reservado={statusNorm === "Orçamento Aprovado"} onReservar={(d) => onAgendar(o.id, d)}
+      {onAgendar && ["Orçamento", "Orçamento enviado para o cliente e aguardando", "Orçamento Aprovado"].includes(faseTela) && (
+        <CapaReservar reservado={faseTela === "Orçamento Aprovado"} onReservar={(d) => onAgendar(o.id, d)}
           onDesmarcar={() => onStatusChange?.(o.id, "Orçamento enviado para o cliente e aguardando")} />
       )}
       <CapaRodape esquerda={(o.criadoPor || o.ultimoUsuario) ? <>por <b style={{ color: "var(--portal-text-secondary, #475569)" }}>{o.criadoPor || o.ultimoUsuario}</b></> : ""} icones={[
@@ -266,7 +287,10 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onStatusCha
   const dropOnPhase = (phase: string) => (e: React.DragEvent) => {
     e.preventDefault();
     const id = e.dataTransfer.getData("ppv-id");
-    if (id && onStatusChange) onStatusChange(id, phase);
+    if (!id || !onStatusChange) return;
+    const o = orders.find((x) => x.id === id);
+    if (o?.osId && o.faseOS && normalizarStatus(o.status) !== "Cancelada") { alert(`Este pedido segue a fase da OS ${o.osId}. Mude a fase pela OS no POS.`); return; }
+    onStatusChange(id, faseParaGravarNoPPV(phase));
   };
   const allowDrop = (e: React.DragEvent) => e.preventDefault();
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
@@ -285,14 +309,14 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onStatusCha
     return orders.filter(
       (o) =>
         casaBusca(searchTerm, o.cliente, o.id, o.tecnico) &&
-        (!activePhase || normalizarStatus(o.status) === activePhase)
+        (!activePhase || faseDoPPVNaTela(o, o.faseOS) === activePhase)
     );
   }, [orders, searchTerm, activePhase]);
 
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
     for (const o of orders) {
-      const norm = normalizarStatus(o.status);
+      const norm = faseDoPPVNaTela(o, o.faseOS);
       map[norm] = (map[norm] || 0) + 1;
     }
     return map;
@@ -302,7 +326,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onStatusCha
     if (activePhase) return null;
     const map: Record<string, KanbanItem[]> = {};
     for (const phase of PHASES) {
-      const items = filtered.filter((o) => normalizarStatus(o.status) === phase);
+      const items = filtered.filter((o) => faseDoPPVNaTela(o, o.faseOS) === phase);
       if (items.length > 0) map[phase] = items;
     }
     return map;
@@ -341,7 +365,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onStatusCha
                   <i className="fas fa-chevron-down" />
                 </span>
                 <span className="ppv-phase-group-dot" style={{ background: PHASE_COLORS[phase] }} />
-                <span className="ppv-phase-group-name">{rotuloStatus(phase)}</span>
+                <RotuloFase fase={phase} className="ppv-phase-group-name" />
                 <span className="ppv-phase-group-count">{items.length}</span>
                 <div className="ppv-phase-group-line" />
               </div>

@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { gateBtn, estiloSemPermissao } from "@/lib/permissoes/ui";
 import ProjetosBusca, { abrirBuscaTrator } from "./ProjetosBusca";
 import MenuRadial, { BotaoRedondo } from "@/components/comum/MenuRadial";
-import { ESTILO_POS_VN, definirVisualNovo, usePosVisualNovo } from "./VisualNovoPOS";
+import { ESTILO_POS_VN, usePosVisualNovo } from "./VisualNovoPOS";
 import { normName } from "@/lib/tecnico-utils";
 import { BTN_BARRA } from "./botoes-barra";
 import BuscaPOS from "./BuscaPOS";
@@ -38,7 +38,7 @@ interface HeaderProps {
 }
 
 export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved, podeCriar = true, tecnicosPerfil = [], tecnicoFiltro = "", onTecnicoFiltro, abertasPorTecnico = {}, ordens = [], onAbrirOS }: HeaderProps) {
-  const visualNovo = usePosVisualNovo();
+  usePosVisualNovo();
   const [showFiltroRelatorio, setShowFiltroRelatorio] = useState(false);
   const [filtroTecnico, setFiltroTecnico] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todas");
@@ -196,14 +196,13 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
         {/* Atalhos num círculo + "+" da Nova ordem, os dois redondos (José, 21/10/2026) */}
         <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <style>{ESTILO_POS_VN}</style>
-          <MenuRadial titulo="Atalhos: técnicos, buscar trator, lembretes, relatório, configurações e visual" corGatilho="linear-gradient(135deg, #38bdf8, #0369a1)"
+          <MenuRadial titulo="Atalhos: técnicos, buscar trator, lembretes, relatório, configurações" corGatilho="linear-gradient(135deg, #38bdf8, #0369a1)"
             centro={{ t: "Buscar trator", sub: "modelo, cliente ou chassi", ic: "fa-tractor", ir: abrirBuscaTrator }}
             itens={[
               ...(tecnicosPerfil.length > 0 ? [{ k: "tecnicos", t: "Técnicos", sub: tecnicoFiltro ? `filtrando: ${nomeBonito(tecnicoFiltro).split(" ")[0]}` : "ver as OS de um técnico", ic: "fa-user-gear", cor: "#0369a1", on: !!tecnicoFiltro, ir: () => { setTecBusca(""); setTecOpen(true); } }] : []),
               { k: "lembretes", t: "Lembretes", sub: "por cliente e máquina", ic: "fa-bell", cor: "#b45309", ir: () => onLembretes?.() },
               { k: "relatorio", t: "Gerar relatório", sub: "PDF por técnico e tipo", ic: "fa-file-invoice", cor: "#047857", ir: () => setShowFiltroRelatorio(true) },
               { k: "config", t: "Configurações", sub: "valor da hora e do km", ic: "fa-gear", cor: "#475569", ir: handleOpenConfig },
-              { k: "visual", t: visualNovo ? "Visual novo" : "Visual antigo", sub: visualNovo ? "ligado · clique p/ voltar" : "clique p/ ver o novo", ic: "fa-wand-magic-sparkles", cor: "#7c3aed", on: visualNovo, ir: () => definirVisualNovo(!visualNovo) },
             ]} />
           <BotaoRedondo icone="fa-plus" titulo={podeCriar ? "Nova ordem de serviço" : "Sem permissão para criar OS"} onClick={onNewOS}
             {...gateBtn(podeCriar)} style={estiloSemPermissao(podeCriar)} />
