@@ -207,6 +207,13 @@ export function TabelaCruzamentos({ linhas, onAcao }: { linhas: Cruzamento[]; on
                 <b>{l.v}</b>
                 <small>{l.erro ? 'divergência' : l.ok ? 'em ordem' : 'para saber'}</small>
               </>}</span>
+              {/* o mapa (com o Tratorilson) abre por este ícone no topo do cartão (José, 29/10/2026: "tira esse e coloca o ícone do mapa lá em cima") */}
+              {!dev && l.acao && (
+                <span role="button" tabIndex={0} className={`cz-mapa ${l.div ? 'tr' : ''}`} title={l.div ? 'ver no mapa, com o Tratorilson explicando cada dia' : `ver ${ROTULO[l.acao]}`}
+                  onClick={(e) => { e.stopPropagation(); onAcao(l.acao!, l.div) }} onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); onAcao(l.acao!, l.div) } }}>
+                  <i className={`fas ${l.acao === 'mapa' ? 'fa-map-location-dot' : l.acao === 'os' ? 'fa-file-lines' : 'fa-calendar-days'}`} />
+                </span>
+              )}
               {!dev && <i className="fas fa-chevron-down cz-seta" />}
             </button>
             <div className="cz-corpo" aria-hidden={!on}>
@@ -224,14 +231,6 @@ export function TabelaCruzamentos({ linhas, onAcao }: { linhas: Cruzamento[]; on
                   </div>
                 ) : null}
                 {l.itens?.length ? <ul className="cz-itens">{l.itens.map((it, k) => <li key={k} className={it.includes('⚠') ? 'x' : ''}>{it}</li>)}</ul> : null}
-                {l.acao && (
-                  <div className="cz-acoes">
-                    <button type="button" className={l.div ? 'tr' : ''} onClick={() => onAcao(l.acao!, l.div)}>
-                      {l.div ? <><i className="fas fa-robot" /> Tratorilson explica no mapa</> : <><i className={`fas ${l.acao === 'mapa' ? 'fa-map-location-dot' : l.acao === 'os' ? 'fa-file-lines' : 'fa-calendar-days'}`} /> ver {ROTULO[l.acao]}</>}
-                      <i className="fas fa-arrow-right" />
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
           </section>
@@ -251,7 +250,7 @@ const ESTILO_CZ = `
 @keyframes czEntra { from { opacity: 0 } }
 .cz-c:not(.dev):hover { border-color: color-mix(in srgb, var(--c) 35%, var(--border, #e2e8f0)); box-shadow: 0 14px 28px -22px rgba(15,23,42,.55) }
 .cz-c.on { border-color: color-mix(in srgb, var(--c) 35%, var(--border, #e2e8f0)) }
-.cz-cab { width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto 18px; gap: 12px; align-items: center; padding: 11px 14px; border: 0; background: none; font-family: inherit; text-align: left; color: inherit; cursor: pointer }
+.cz-cab { width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr); grid-auto-flow: column; grid-auto-columns: auto; gap: 12px; align-items: center; padding: 11px 14px; border: 0; background: none; font-family: inherit; text-align: left; color: inherit; cursor: pointer }
 .cz-cab:disabled { cursor: default }
 .cz-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 14px; color: var(--c); background: color-mix(in srgb, var(--c) 9%, var(--surface, #fefefe)); border: 1px solid color-mix(in srgb, var(--c) 18%, transparent) }
 .cz-tit { display: grid; min-width: 0; line-height: 1.3 } .cz-tit b { font-size: 15px; font-weight: 500; color: #0f172a } .cz-tit small { font-size: 12.5px; color: #64748b }
@@ -271,10 +270,8 @@ const ESTILO_CZ = `
 .cz-caso em { font-style: normal; font-size: 11px; border-radius: 99px; padding: 0 7px; background: #e2e8f0; color: #334155; white-space: nowrap }
 .cz-caso em.interna { background: #ede9fe; color: #5b21b6 } .cz-caso em.garantia { background: #dbeafe; color: #1e40af } .cz-caso em.aberta { background: #fef3c7; color: #92400e } .cz-caso em.nao-lancado { background: #fee2e2; color: #991b1b }
 .cz-itens { margin: 0; padding: 0 0 0 18px; display: grid; gap: 4px; font-size: 13px; color: #475569; line-height: 1.45 } .cz-itens li.x { color: #b91c1c }
-.cz-acoes { display: flex; gap: 8px; justify-content: flex-end }
-.cz-acoes button { display: inline-flex; gap: 8px; align-items: center; height: 36px; padding: 0 14px; border-radius: 11px; border: 1px solid var(--border, #e2e8f0); background: var(--surface, #fefefe); font-family: inherit; font-size: 13.5px; color: #0f172a; cursor: pointer; transition: background .2s, border-color .2s }
-.cz-acoes button:hover { border-color: #93c5fd; background: #eff6ff } .cz-acoes button i:first-child { color: #2563eb } .cz-acoes button .fa-arrow-right { font-size: 11px; color: #94a3b8; transition: transform .2s } .cz-acoes button:hover .fa-arrow-right { transform: translateX(3px) }
-.cz-acoes button.tr { background: #6d28d9; border-color: #6d28d9; color: #fefefe } .cz-acoes button.tr i { color: #fefefe !important } .cz-acoes button.tr:hover { background: #5b21b6 }
+.cz-mapa { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: #2563eb; background: color-mix(in srgb, #2563eb 8%, #fefefe); border: 1px solid color-mix(in srgb, #2563eb 18%, transparent); cursor: pointer; transition: background .2s, color .2s } .cz-mapa:hover { background: #2563eb; color: #fefefe }
+.cz-mapa.tr { color: #6d28d9; background: color-mix(in srgb, #6d28d9 8%, #fefefe); border-color: color-mix(in srgb, #6d28d9 20%, transparent) } .cz-mapa.tr:hover { background: #6d28d9; color: #fefefe }
 .cz-dev { font-size: 12.5px; color: #64748b; border: 1px dashed #cbd5e1; border-radius: 99px; padding: 2px 10px; white-space: nowrap }
 @media (max-width: 700px) { .cz-dentro { padding-left: 14px } .cz-val b { font-size: 17px } }
 `
