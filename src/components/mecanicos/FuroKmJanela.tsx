@@ -53,8 +53,12 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
   const camada = useRef<any>(null)
   const pedidos = useRef(new Set<string>())
   // animação do dia em foco (José, 28/10/2026: "dentro do mapa coloca a animação para ficar fácil de entender")
-  const [anim, setAnim] = useState<{ t: number; km: number; fim?: boolean } | null>(null)
-  const animRef = useRef<{ raf: number; marca: any; rastro: any } | null>(null)
+  // José, 29/10/2026: velocidade, hora e km em cima do carro, destacar quando passa de novo no mesmo lugar, zoom no carro
+  const [anim, setAnim] = useState<{ t: number; km: number; fim?: boolean; pausado?: boolean; repete?: string | null } | null>(null)
+  const animRef = useRef<{ raf: number; marca: any; rastro: any; repet: any; pausado: boolean } | null>(null)
+  const [vel, setVel] = useState(1)
+  const velRef = useRef(1)
+  useEffect(() => { velRef.current = vel }, [vel])
 
   const pedirIA = async (forcar = false) => {
     setPensando(true)
@@ -138,39 +142,64 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
     if (b.length > 1) mapa.current.fitBounds(b, { padding: [30, 30] })
   }, [sel, det, cor, foco, okMapa])
 
-  const parar = () => {
+  const limparAnim = () => {
     const a = animRef.current
-    if (a) { cancelAnimationFrame(a.raf); a.marca?.remove(); a.rastro?.remove() }
+    if (a) { cancelAnimationFrame(a.raf); a.marca?.remove(); a.rastro?.remove(); a.repet?.remove() }
     animRef.current = null
-    setAnim(null)
   }
+  const parar = () => { limparAnim(); setAnim(null) }
+  const pausar = () => { const a = animRef.current; if (!a) return; a.pausado = !a.pausado; setAnim((x) => (x ? { ...x, pausado: a.pausado } : x)) }
   const tocar = () => {
     const dd = foco ? det[foco] : null
-    if (!dd || dd.pontos.length < 2 || !mapa.current) return
-    parar()
+    const m = mapa.current
+    if (!dd || dd.pontos.length < 2 || !m) return
+    limparAnim()
     const L = (window as any).L
     // só os pontos em que o carro andou (parado não precisa de quadro)
     const pts = dd.pontos.filter((p, i, a) => i === 0 || distanciaM(a[i - 1], p) > 15)
     const acum: number[] = [0]
     for (let i = 1; i < pts.length; i++) acum.push(acum[i - 1] + distanciaM(pts[i - 1], pts[i]) / 1000)
-    const marca = L.marker([pts[0].lat, pts[0].lng], { icon: L.divIcon({ className: '', html: '<div class="fk-carro"><i class="fas fa-car-side"></i></div>', iconSize: [34, 34], iconAnchor: [17, 17] }), zIndexOffset: 1000 }).addTo(mapa.current)
-    const rastro = L.polyline([], { color: '#0f172a', weight: 6, opacity: 0.8 }).addTo(mapa.current)
-    const DUR = Math.min(32000, Math.max(12000, pts.length * 45))
-    const t0 = performance.now()
-    let ultimo = 0
+    const repete = repeticoes(pts, acum)
+    const marca = L.marker([pts[0].lat, pts[0].lng], { icon: L.divIcon({ className: '', html: '<div class="fk-carro-w"><div class="fk-carro-et"></div><div class="fk-carro"><i class="fas fa-car-side"></i></div></div>', iconSize: [34, 34], iconAnchor: [17, 17] }), zIndexOffset: 1000 }).addTo(m)
+    const repet = L.layerGroup().addTo(m)
+    const rastro = L.polyline([], { color: '#0f172a', weight: 6, opacity: 0.8 }).addTo(m)
+    // zoom no carro ao começar; depois o mapa acompanha quando ele chega perto da borda
+    m.setView([pts[0].lat, pts[0].lng], Math.max(m.getZoom(), 15), { animate: true })
+    const total = pts.length - 1
+    const base = total / Math.min(32000, Math.max(12000, pts.length * 45))   // pontos por ms em 1×
+    let prog = 0, antes = performance.now(), ultimo = 0, ultimoPan = 0, feito = 0
+    let trecho: any = null
+    const etiqueta = () => marca.getElement()?.querySelector('.fk-carro-et') as HTMLElement | null
     const passo = (agora: number) => {
-      const fr = Math.min(1, (agora - t0) / DUR), k = fr * (pts.length - 1), i = Math.floor(k), q = k - i
-      const a = pts[i], b = pts[Math.min(i + 1, pts.length - 1)]
-      const pos = [a.lat + (b.lat - a.lat) * q, a.lng + (b.lng - a.lng) * q]
+      const st = animRef.current
+      if (!st) return
+      const dt = Math.min(100, agora - antes); antes = agora
+      if (!st.pausado) prog = Math.min(total, prog + dt * base * velRef.current)
+      const i = Math.floor(prog), q = prog - i
+      const a = pts[i], b = pts[Math.min(i + 1, total)]
+      const pos: [number, number] = [a.lat + (b.lat - a.lat) * q, a.lng + (b.lng - a.lng) * q]
       marca.setLatLng(pos)
       rastro.setLatLngs([...pts.slice(0, i + 1).map((p) => [p.lat, p.lng]), pos])
-      if (agora - ultimo > 120 || fr >= 1) { ultimo = agora; setAnim({ t: Date.parse(a.dt), km: acum[i], fim: fr >= 1 }) }
-      if (fr < 1 && animRef.current) animRef.current.raf = requestAnimationFrame(passo)
+      // trecho repetido (passou de novo no mesmo lugar, no mesmo sentido) vai ficando laranja
+      for (let k = feito + 1; k <= i; k++) {
+        if (repete[k] >= 0) {
+          if (!trecho) trecho = L.polyline([[pts[k - 1].lat, pts[k - 1].lng]], { color: '#f97316', weight: 11, opacity: 0.75 }).addTo(repet)
+            .bindTooltip(`passou de novo aqui (a 1ª vez foi às ${hora(pts[repete[k]].dt)})`, { sticky: true })
+          trecho.addLatLng([pts[k].lat, pts[k].lng])
+        } else trecho = null
+      }
+      feito = Math.max(feito, i)
+      const el = etiqueta()
+      if (el) el.textContent = `${hora(a.dt)} · ${km(acum[i] + (acum[Math.min(i + 1, total)] - acum[i]) * q)}`
+      if (agora - ultimoPan > 700 && !m.getBounds().pad(-0.25).contains(pos)) { ultimoPan = agora; m.panTo(pos, { animate: true, duration: 0.6 }) }
+      const fim = prog >= total
+      if (agora - ultimo > 120 || fim) { ultimo = agora; setAnim({ t: Date.parse(a.dt), km: acum[i], fim, pausado: st.pausado, repete: repete[i] >= 0 ? pts[repete[i]].dt : null }) }
+      if (!fim) st.raf = requestAnimationFrame(passo)
     }
-    animRef.current = { raf: requestAnimationFrame(passo), marca, rastro }
+    animRef.current = { raf: requestAnimationFrame(passo), marca, rastro, repet, pausado: false }
   }
   // trocou de dia ou fechou: para a animação
-  useEffect(() => () => { const a = animRef.current; if (a) { cancelAnimationFrame(a.raf); a.marca?.remove(); a.rastro?.remove() } animRef.current = null }, [foco])
+  useEffect(() => () => { const a = animRef.current; if (a) { cancelAnimationFrame(a.raf); a.marca?.remove(); a.rastro?.remove(); a.repet?.remove() } animRef.current = null }, [foco])
   useEffect(() => { setAnim(null) }, [foco])
 
   // um dia por vez no mapa (José, 28/10/2026: marcar vários caminhos juntos "é ruim, tira isso")
@@ -247,12 +276,17 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
                 {!sel.length && <span className="fk-mapa-carr">Clique num dia ao lado para ver o caminho</span>}
                 {foco && df && df.pontos.length > 1 && (
                   <div className="fk-play">
-                    <button type="button" onClick={() => (anim && !anim.fim ? parar() : tocar())} title={anim && !anim.fim ? 'parar' : 'ver o carro andando'}>
-                      <i className={`fas ${anim && !anim.fim ? 'fa-stop' : anim?.fim ? 'fa-rotate-right' : 'fa-play'}`} />
+                    <button type="button" onClick={() => (anim && !anim.fim ? pausar() : tocar())} title={anim && !anim.fim ? (anim.pausado ? 'continuar' : 'pausar') : 'ver o carro andando'}>
+                      <i className={`fas ${anim && !anim.fim ? (anim.pausado ? 'fa-play' : 'fa-pause') : anim?.fim ? 'fa-rotate-right' : 'fa-play'}`} />
                     </button>
+                    {anim && !anim.fim && <button type="button" className="fk-stop" onClick={parar} title="parar"><i className="fas fa-stop" /></button>}
                     {anim ? <span><b>{hora(new Date(anim.t).toISOString())}</b> · {km(anim.km)} rodados{anim.fim ? ' · fim do dia' : ''}</span> : <span>ver o carro andando em {fmtDia(foco)}</span>}
+                    <span className="fk-vel" role="group" aria-label="velocidade">
+                      {[0.5, 1, 2, 4, 8].map((v) => <button key={v} type="button" className={vel === v ? 'on' : ''} onClick={() => setVel(v)}>{v === 0.5 ? '½' : v}×</button>)}
+                    </span>
                   </div>
                 )}
+                {anim?.repete && !anim.fim && <span className="fk-repete"><i className="fas fa-repeat" /> passando de novo por onde já tinha passado às {hora(anim.repete)}</span>}
                 <div className="fk-leg"><span><i className="bola" style={{ background: '#059669' }} /> cliente da OS</span><span><i className="bola" style={{ background: '#0f172a' }} /> loja</span><span><i className="bola" style={{ background: '#2563eb' }} /> outra parada</span><span><i className="bola" style={{ background: '#dc2626' }} /> atípica</span></div>
               </div>
               {foco && <LinhaDoTempo dia={foco} dd={df} cor={cor[foco]} agora={anim?.t ?? null} />}
@@ -300,9 +334,9 @@ function LinhaDia({ x, on, foco, cor, carregando, onClick, notas = [], pensando,
           <i className="fas fa-car-side" /> {x.saida ? <>saiu {hora(x.saida)}</> : 'saiu'}{x.volta ? <>, voltou {hora(x.volta)}</> : ''} · rodou {kmI(x.kmGps)}{x.ligadoH ? <> · motor ligado {h1(x.ligadoH)}</> : ''}
         </small>
         {x.os.map((o) => (
-          <small key={o.os} className={`fk-os ${o.noCliente ? (o.noCliente.conf === 'provavel' ? 'prov' : 'sim') : 'nao'}`}>
+          <small key={o.os} className={`fk-os ${o.noCliente ? (o.noCliente.conf === 'provavel' ? 'prov' : 'sim') : o.semLocal ? 'col' : 'nao'}`} title="OS dele com dia de execução nesse dia (pelo relatório do técnico ou pela previsão)">
             <i className="fas fa-file-invoice" /> {o.os} · {o.cliente.split(' ').slice(0, 3).join(' ')}
-            {o.noCliente ? <> · carro no cliente {hora(o.noCliente.inicio)}–{hora(o.noCliente.fim)}{o.noCliente.conf === 'provavel' ? ' (provável)' : ''}</> : <> · o carro não passou nesse cliente</>}
+            {o.noCliente ? <> · carro no cliente {hora(o.noCliente.inicio)}–{hora(o.noCliente.fim)}{o.noCliente.conf === 'provavel' ? ' (provável)' : ''}</> : o.semLocal ? <> · cliente sem localização cadastrada: não dá para conferir se o carro foi</> : <> · o carro não parou no local cadastrado do cliente</>}
           </small>
         ))}
         {colegas.map((o) => (
@@ -354,6 +388,32 @@ function LinhaDoTempo({ dia, dd, cor, agora }: { dia: string; dd: DiaDetalhado |
       </ol>
     </div>
   )
+}
+
+/** para cada ponto, o índice do 1º ponto em que o carro já tinha passado ali NO MESMO SENTIDO (−1 se não): ida e volta
+ *  pela mesma estrada não conta, só refazer o caminho. Grade de ~90 m para não comparar tudo com tudo. */
+function repeticoes(pts: { lat: number; lng: number; dt: string }[], acum: number[]): number[] {
+  const CEL = 0.0008, RAIO = 60
+  const grade = new Map<string, number[]>()
+  const rumo = (i: number) => { const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 1)]; return [b.lat - a.lat, b.lng - a.lng] }
+  const out: number[] = new Array(pts.length).fill(-1)
+  pts.forEach((p, i) => {
+    const cx = Math.floor(p.lat / CEL), cy = Math.floor(p.lng / CEL), t = Date.parse(p.dt), [ri, rj] = rumo(i)
+    let melhor = -1
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) {
+      for (const j of grade.get(`${cx + dx},${cy + dy}`) || []) {
+        if (acum[i] - acum[j] < 2 || t - Date.parse(pts[j].dt) < 10 * 60000) continue
+        const [rx, ry] = rumo(j)
+        if (ri * rx + rj * ry <= 0) continue
+        if (distanciaM(p, pts[j]) < RAIO && (melhor < 0 || j < melhor)) melhor = j
+      }
+    }
+    out[i] = melhor
+    const k = `${cx},${cy}`
+    const l = grade.get(k)
+    if (l) l.push(i); else grade.set(k, [i])
+  })
+  return out
 }
 
 const ESTILO_FK = `
@@ -417,6 +477,12 @@ const ESTILO_FK = `
 .fk-lt-l .tr small { align-self: center; font-size: 12.5px; color: #475569 } .fk-lt-l .tr small i { color: #94a3b8; margin-right: 3px }
 .fk-play { position: absolute; z-index: 600; top: 10px; left: 56px; display: flex; gap: 10px; align-items: center; background: rgba(254,254,254,.96); border-radius: 99px; padding: 5px 14px 5px 5px; box-shadow: 0 6px 18px -8px rgba(15,23,42,.4); font-size: 13px; color: #334155 }
 .fk-play button { width: 34px; height: 34px; border-radius: 50%; border: 0; background: #0f172a; color: #fefefe; cursor: pointer; font-size: 12px } .fk-play b { font-weight: 600; color: #0f172a; font-variant-numeric: tabular-nums }
+.fk-play { flex-wrap: wrap; max-width: calc(100% - 70px) } .fk-play .fk-stop { width: 28px; height: 28px; background: #e2e8f0; color: #334155; font-size: 10px }
+.fk-vel { display: inline-flex; gap: 2px; background: #f1f5f9; border-radius: 99px; padding: 2px } .fk-play .fk-vel button { width: auto; height: 26px; padding: 0 9px; border-radius: 99px; background: transparent; color: #475569; font-size: 12px; font-family: inherit } .fk-play .fk-vel button.on { background: #0f172a; color: #fefefe }
+.fk-repete { position: absolute; z-index: 600; top: 64px; left: 56px; background: #f97316; color: #fefefe; border-radius: 99px; padding: 5px 12px; font-size: 12.5px; box-shadow: 0 6px 18px -8px rgba(249,115,22,.7); animation: fkSobe .3s both } .fk-repete i { margin-right: 4px }
+.fk-carro-w { position: relative; width: 34px; height: 34px }
+.fk-carro-et { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: #0f172a; color: #fefefe; border-radius: 8px; padding: 3px 8px; font-size: 12px; font-variant-numeric: tabular-nums; box-shadow: 0 4px 12px rgba(15,23,42,.35); pointer-events: none } .fk-carro-et:empty { display: none }
+.fk-carro-et::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #0f172a }
 .fk-carro { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #0f172a; color: #fefefe; font-size: 14px; border: 3px solid #fefefe; box-shadow: 0 4px 12px rgba(15,23,42,.45) }
 .fk-lt-l .ev.depois { opacity: .35 } .fk-lt-l .ev.agora { background: #eff6ff; border-radius: 10px } .fk-lt-l .ev.agora .pt { transform: scale(1.35); box-shadow: 0 0 0 4px #bfdbfe } .fk-lt-l .ev { transition: opacity .3s, background .3s }
 .fk-naos { display: block; margin-top: 3px; font-size: 12.5px; font-weight: 500 } .fk-naos.sim { color: #047857 } .fk-naos.nao { color: #b91c1c } .fk-naos i { font-size: 11px; margin-right: 3px }

@@ -41,7 +41,7 @@ export interface ParadaFuro {
   inicio: string; fim: string | null; min: number; lat: number; lng: number; onde: string; classe: string; atipica: boolean
   loja: boolean; cliente: { os: string; nome: string; conf: ConfCliente; colega?: string } | null; cidade?: string | null; kmAntes?: number
 }
-export interface OSDoDia { os: string; cliente: string; kmCobrado: number; horasRel: number; noCliente: { inicio: string; fim: string | null; min: number; conf: ConfCliente } | null }
+export interface OSDoDia { os: string; cliente: string; kmCobrado: number; horasRel: number; semLocal?: boolean; noCliente: { inicio: string; fim: string | null; min: number; conf: ConfCliente } | null }
 export interface DiaFuro {
   data: string; placa: string | null; kmGps: number; kmCobrado: number; kmRel: number; furo: number; ligadoH: number
   saida: string | null; volta: string | null; os: OSDoDia[]; paradas: ParadaFuro[]
@@ -165,6 +165,8 @@ export async function furoKm(tecnico: string, mes: string): Promise<FuroKm | nul
       }
     }
     for (const o of [...d.os, ...d.colegas]) {
+      // cliente sem local conhecido: não dá para dizer que o carro não foi (José, 29/10/2026)
+      o.semLocal = !(locais.get(docDe.get(o.os) || '') || []).length
       const ps = d.paradas.filter((p) => p.cliente?.os === o.os)
       if (!ps.length) continue
       const conf = ps.some((p) => p.cliente!.conf === 'confirmado') ? 'confirmado' : ps.some((p) => p.cliente!.conf === 'cadastro') ? 'cadastro' : 'provavel'
