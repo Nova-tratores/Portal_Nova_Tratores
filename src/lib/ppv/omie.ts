@@ -517,22 +517,21 @@ export async function buscarCodigoProdutoOmie(codigoInterno: string, acc: OmieAc
   const cacheKey = `${acc.name}:${codigoInterno}`;
   if (cacheProdutos.has(cacheKey)) return cacheProdutos.get(cacheKey)!;
 
-  // Tenta por código de integração
+  // 1º o espelho `produtos` (código exato na conta, ativo): sem ir ao Omie. Antes a 1ª tentativa era o
+  // código de INTEGRAÇÃO, que quase nenhuma peça tem — cada peça dava um "não cadastrado", que a Omie conta
+  // como erro (10 seguidos travam o ConsultarProduto por 30 min). 28/10/2026.
   try {
-    const r1 = await omieCall<{ codigo_produto?: number }>(
-      "/geral/produtos/",
-      "ConsultarProduto",
-      { codigo_produto_integracao: codigoInterno },
-      acc.key,
-      acc.secret
+    const conta = acc.name.toLowerCase().startsWith("castro") ? "castro" : "nova";
+    const linhas = await supabaseFetch<Array<{ codigo_produto: number }>>(
+      `produtos?select=codigo_produto&conta_omie=eq.${conta}&codigo=eq.${encodeURIComponent(codigoInterno)}&inativo=is.false&limit=2`,
     );
-    if (r1?.codigo_produto) {
-      cacheProdutos.set(cacheKey, r1.codigo_produto);
-      return r1.codigo_produto;
+    if (linhas?.length === 1 && Number(linhas[0].codigo_produto) > 0) {
+      cacheProdutos.set(cacheKey, Number(linhas[0].codigo_produto));
+      return Number(linhas[0].codigo_produto);
     }
-  } catch { /* tenta próximo método */ }
+  } catch { /* segue para o Omie */ }
 
-  // Tenta pelo campo "codigo" (código do produto no Omie)
+  // Pelo campo "codigo" (código do produto no Omie) — é o que acha quase sempre
   try {
     const r2 = await omieCall<{ codigo_produto?: number }>(
       "/geral/produtos/",
@@ -547,8 +546,24 @@ export async function buscarCodigoProdutoOmie(codigoInterno: string, acc: OmieAc
     }
   } catch { /* tenta próximo método */ }
 
+  // Por último o código de integração (produto criado pelo portal)
+  try {
+    const r1 = await omieCall<{ codigo_produto?: number }>(
+      "/geral/produtos/",
+      "ConsultarProduto",
+      { codigo_produto_integracao: codigoInterno },
+      acc.key,
+      acc.secret
+    );
+    if (r1?.codigo_produto) {
+      cacheProdutos.set(cacheKey, r1.codigo_produto);
+      return r1.codigo_produto;
+    }
+  } catch { /* não achou */ }
+
   throw new Error(`Produto "${codigoInterno}" não encontrado no Omie (${acc.name})`);
 }
+
 
 // --- Buscar empresa dos produtos via Supabase (trata duplicatas) ---
 async function buscarEmpresasProdutos(codigos: string[]): Promise<Record<string, string[]>> {
@@ -960,20 +975,36 @@ export async function resolverContaDoPedido(
   const contas = empresaSalva
     ? [getAccount(empresaSalva), ...OMIE_ACCOUNTS.filter((a) => a.name.toLowerCase() !== String(empresaSalva).toLowerCase())]
     : OMIE_ACCOUNTS;
+  // achou: grava a empresa no PPV — da próxima vez vai direto na conta certa (236 de 245 PPVs
+  // abertos estavam sem empresa em 28/10/2026 e cada busca errava na outra conta)
+  const achou = async (acc: OmieAccount, pedido: OmiePedidoConsulta) => {
+    naoEstaNaConta.delete(`${acc.name}|${idPPV}`);
+    if (String(cab?.omie_empresa || "") !== acc.name) {
+      await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}`, "PATCH", { omie_empresa: acc.name }).catch(() => {});
+    }
+    return { acc, pedido };
+  };
   for (const acc of contas) {
+    // "não cadastrado" é ERRO para a Omie (10 seguidos travam o ConsultarPedido por 30 min — CASTRO, 28/10/2026):
+    // conta onde o pedido não estava há pouco não é perguntada de novo
+    const marca = `${acc.name}|${idPPV}`;
+    if ((naoEstaNaConta.get(marca) ?? 0) > Date.now()) continue;
     if (opts.porNumero && numero) {
       const primeiro = await consultarPedidoOmie({ numero_pedido: numero }, acc);
-      if (primeiro) return { acc, pedido: primeiro };
+      if (primeiro) return achou(acc, primeiro);
     }
     const pedido = await consultarPedidoOmie(codInt, acc);
-    if (pedido && (!numero || semZerosNum(pedido.cabecalho?.numero_pedido) === numero)) return { acc, pedido };
+    if (pedido && (!numero || semZerosNum(pedido.cabecalho?.numero_pedido) === numero)) return achou(acc, pedido);
     if (numero) {
       const porNumero = await consultarPedidoOmie({ numero_pedido: numero }, acc);
-      if (porNumero) return { acc, pedido: porNumero };
+      if (porNumero) return achou(acc, porNumero);
     }
+    naoEstaNaConta.set(marca, Date.now() + NAO_ESTA_NA_CONTA_MS);
   }
   return null;
 }
+const NAO_ESTA_NA_CONTA_MS = 10 * 60_000;
+const naoEstaNaConta = new Map<string, number>();
 
 /** Chamada ao Omie na conta do pedido (usada pela substituição de pedido/OS). */
 export function omieNaConta<T>(acc: OmieAccount, endpoint: string, call: string, param: Record<string, unknown>): Promise<T> {

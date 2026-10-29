@@ -251,8 +251,14 @@ export const LIMITES = {
   maxGravacoesChave: num(process.env.OMIE_MAX_GRAVACOES, 1),
   /** Espera máxima padrão quando o Omie pede "aguarde N s" (consumo redundante é liberado em ~60 s). */
   maxEsperaPadraoMs: num(process.env.OMIE_MAX_ESPERA_MS, 65_000),
-  /** Pausa da chave inteira depois de "chave inválida / aplicativo suspenso". */
-  pausaChaveRecusadaMs: num(process.env.OMIE_PAUSA_CHAVE_MS, 5 * 60_000),
+  /** Pausa da chave inteira depois de "chave inválida / aplicativo suspenso". Em 28/10/2026 foi soluço da
+   *  Omie (a chave voltou na hora): 1 min basta para não somar erros; 5 min travava o faturamento à toa. */
+  pausaChaveRecusadaMs: num(process.env.OMIE_PAUSA_CHAVE_MS, 60_000),
+  /** Freio do portal: N erros seguidos do mesmo método na mesma chave pausam esse método ANTES dos ~10 que
+   *  fazem a Omie travá-lo por 30 min ("não cadastrado" também conta para a Omie). Por processo: web + worker
+   *  somam no máximo 2N. */
+  freioErros: num(process.env.OMIE_FREIO_ERROS, 4),
+  freioPausaMs: num(process.env.OMIE_FREIO_PAUSA_MS, 90_000),
 };
 
 interface Espera { chave: string; metodo: string; peso: number; seq: number; gravacao: boolean; liberar: () => void }
@@ -278,6 +284,8 @@ interface EstadoInterno {
   pausaLidaEm?: number;
   /** quando cada bloqueio `${chave}|${metodo}` foi desfeito aqui (chamada voltou a dar certo) */
   liberadoEm?: Map<string, number>;
+  /** `${chave}|${metodo}` → erros seguidos (zera no primeiro acerto) */
+  errosSeguidos?: Map<string, { n: number; desde: number }>;
   bloqueiosLidosEm?: number;
   /** falhas da coordenação pelo banco (o processo segue com a coordenação local) */
   coordErro?: { em: number; msg: string };
@@ -324,6 +332,27 @@ function armarBloqueio(chave: string, metodo: string, ms: number, motivo: string
   const ate = Date.now() + ms;
   estado().bloqueios.set(`${chave}|${metodo}`, { ate, motivo });
   void comFonte((f) => f.gravarBloqueio(chave, metodo, ate, motivo, PAPEL));
+}
+
+/** Fim de lista ("não existem registros") é a resposta normal de quem pagina — não conta no freio. */
+export function ehSemRegistros(fault: string): boolean {
+  return /n[aã]o existem registros|nenhum registro/i.test(fault);
+}
+
+/** Conta um erro do método; no N-ésimo seguido (em até 5 min) pausa o método aqui e no banco. */
+function contarErroFreio(chave: string, metodo: string, fault: string) {
+  if (ehSemRegistros(fault)) return;
+  const s = estado();
+  const m = (s.errosSeguidos ??= new Map());
+  const k = `${chave}|${metodo}`;
+  const agora = Date.now();
+  const atual = m.get(k);
+  const n = atual && agora - atual.desde < 5 * 60_000 ? atual.n + 1 : 1;
+  m.set(k, { n, desde: n === 1 ? agora : atual!.desde });
+  if (n >= LIMITES.freioErros) {
+    m.delete(k);
+    armarBloqueio(chave, metodo, LIMITES.freioPausaMs, `freio do portal: ${n} erros seguidos — último: ${fault}`.slice(0, 300));
+  }
 }
 
 /** A chamada deu certo: se havia bloqueio, ele acabou — aqui e no banco. */
@@ -620,9 +649,11 @@ export async function omie<T = OmieResposta>(
     const restante = bloqueioRestanteMs(cred.appKey, call);
     if (restante > 0) {
       const seg = Math.ceil(restante / 1000);
-      const motivo = (estado().bloqueios.get(`${chave}|*`)?.ate ?? 0) > Date.now() ? 'chave recusada pela Omie' : 'Omie bloqueada';
+      const chaveToda = (estado().bloqueios.get(`${chave}|*`)?.ate ?? 0) > Date.now();
       contar(rotulo, call, prioridade, 'bloqueio', 0);
-      throw new OmieBloqueioError(`${motivo} ${onde} — aguardando ~${seg}s`, rotulo, call, seg);
+      throw new OmieBloqueioError(chaveToda
+        ? `O Omie ficou fora do ar por um instante ${onde}. Espere ~${seg}s e tente de novo.`
+        : `O Omie pediu uma pausa nesta consulta ${onde}. Espere ~${seg}s e tente de novo.`, rotulo, call, seg);
     }
 
     // Gravação: primeiro a vaga entre processos (banco), depois a vaga local. Nessa
@@ -672,6 +703,7 @@ export async function omie<T = OmieResposta>(
       : data.status === 'error' ? String(data.message || 'erro Omie sem mensagem') : '';
 
     if (!fault) {
+      estado().errosSeguidos?.delete(`${chave}|${call}`);
       desarmarBloqueio(chave, call);
       contar(rotulo, call, prioridade, 'ok', ms);
       return data as T;
@@ -680,7 +712,8 @@ export async function omie<T = OmieResposta>(
     if (ehChaveRecusada(fault)) {
       armarBloqueio(chave, '*', LIMITES.pausaChaveRecusadaMs, fault);
       contar(rotulo, call, prioridade, 'bloqueio', ms);
-      const e = new OmieChaveRecusadaError(`Omie API: ${fault}`, rotulo, call, Math.round(LIMITES.pausaChaveRecusadaMs / 1000));
+      const seg = Math.round(LIMITES.pausaChaveRecusadaMs / 1000);
+      const e = new OmieChaveRecusadaError(`O Omie ficou fora do ar por um instante ${onde} (respondeu "${fault}"). Espere ~${seg}s e tente de novo.`, rotulo, call, seg);
       e.faultstring = fault;
       throw e;
     }
@@ -708,11 +741,13 @@ export async function omie<T = OmieResposta>(
     // sync leria o JSON com erro como fim da lista).
     if (repetivel) {
       contar(rotulo, call, prioridade, 'erro', ms);
+      contarErroFreio(chave, call, fault);
       throw new OmieFaultError(`Omie API (depois de ${tentativa + 1} tentativas): ${fault}`, fault, rotulo, call);
     }
     // Erro de negócio (cadastro inválido, "não existem registros"…): a Omie respondeu
     // normalmente, então não conta como falha da porta.
     contar(rotulo, call, prioridade, 'ok', ms);
+    contarErroFreio(chave, call, fault);
     if (!lancarFault) return data as T;
     throw new OmieFaultError(`Omie API: ${fault}`, fault, rotulo, call);
   }

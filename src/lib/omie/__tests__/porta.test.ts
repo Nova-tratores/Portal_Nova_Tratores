@@ -116,6 +116,24 @@ describe('omie()', () => {
     expect(chamadas).toHaveLength(2);
   });
 
+  it('freio: 4 erros seguidos do mesmo método pausam o método antes da Omie travar', async () => {
+    Object.assign(LIMITES, { freioErros: 4, freioPausaMs: 90_000 });
+    respostas = Array(4).fill({ faultstring: 'ERROR: Pedido não cadastrado para o Código de Integração [PV-1]' });
+    for (let i = 0; i < 4; i++) await expect(omie(CASTRO, '/x/', 'ConsultarPedido', {})).rejects.toThrow(/não cadastrado/);
+    await expect(omie(CASTRO, '/x/', 'ConsultarPedido', {})).rejects.toBeInstanceOf(OmieBloqueioError);
+    expect(chamadas).toHaveLength(4);
+    await omie(CASTRO, '/x/', 'ConsultarCliente', {}); // outro método segue livre
+    expect(chamadas).toHaveLength(5);
+  });
+
+  it('freio: um acerto no meio zera a contagem e fim de lista não conta', async () => {
+    Object.assign(LIMITES, { freioErros: 3, freioPausaMs: 90_000 });
+    const erro = { faultstring: 'ERROR: Pedido não cadastrado' };
+    respostas = [erro, erro, { ok: 1 }, erro, erro, { faultstring: 'ERROR: Não existem registros para a página [2]!' }, { ok: 1 }];
+    for (let i = 0; i < 7; i++) await omie(CASTRO, '/x/', 'ConsultarPedido', {}).catch(() => {});
+    expect(chamadas).toHaveLength(7);
+  });
+
   it('leitura repete em falha de rede e em engasgo da Omie', async () => {
     respostas = [new TypeError('fetch failed'), { faultstring: 'SOAP-ERROR: Broken response from Application Server (BG)' }, { ok: 1 }];
     const r = await omie(NOVA, '/x/', 'ListarPedidos', {}, RAPIDO);
