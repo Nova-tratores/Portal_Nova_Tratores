@@ -182,6 +182,8 @@ function ContaPagamento({ p }: { p: PedidoComissao }) {
       {c.descontos > 0 && <span className="neg"><small>Descontos em folha</small><b>− {brl2(c.descontos)}</b></span>}
       <span className="cx"><small><i className="fas fa-piggy-bank" /> Caixinha {PCT_CAIXINHA}%</small><b>− {brl2(c.caixinha)}</b></span>
       <span className="liq"><small>Líquido para o técnico</small><b>{brl2(c.liquido)}</b></span>
+      {/* deixa claro onde o 1% aparece (José, 29/10/2026) */}
+      <small className="au-cx-nota"><i className="fas fa-circle-info" /> No RH a comissão fica com {brl2(c.comissao)}; o 1% ({brl2(c.caixinha)}) vai para a caixinha dos técnicos e o RH lança no Omie {brl2(c.comissao - c.caixinha)} (99%). No fim do ciclo a empresa dobra a caixinha e divide entre os técnicos.</small>
     </div>
   )
 }
@@ -255,6 +257,7 @@ const ESTILO_AU = `
 .au-p-cab { display: flex; gap: 14px; justify-content: space-between; align-items: flex-start; flex-wrap: wrap }
 .au-p-cab > div:first-child { display: grid; gap: 2px } .au-p-cab b { font-size: 17px; font-weight: 600; color: #0f172a } .au-p-cab small { font-size: 13px; color: var(--portal-text-muted, #64748b) }
 .au-p-v { display: grid; justify-items: end; gap: 2px } .au-p-v b { font-size: 22px; font-weight: 500; font-variant-numeric: tabular-nums } .au-p-v em { font-style: normal } .au-p-v em.mais { color: #047857 } .au-p-v em.menos { color: #b91c1c }
+.au-cx-nota { flex-basis: 100%; display: block; font-size: 12px; color: #475569; line-height: 1.45; margin-top: 4px } .au-cx-nota i { color: #047857; margin-right: 4px }
 .au-conta { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: flex-end; background: #f8fafc; border-radius: 12px; padding: 10px 14px }
 .au-conta span { display: grid; gap: 1px } .au-conta small { font-size: 12px; color: #64748b } .au-conta b { font-size: 15.5px; font-weight: 500; font-variant-numeric: tabular-nums; color: #0f172a }
 .au-conta .neg b { color: #b91c1c } .au-conta .cx small { color: #047857 } .au-conta .cx b { color: #047857 } .au-conta .liq { margin-left: auto; text-align: right } .au-conta .liq b { font-size: 18px; font-weight: 600 }

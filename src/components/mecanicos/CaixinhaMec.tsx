@@ -91,6 +91,33 @@ export default function CaixinhaMec({ icone }: { icone?: boolean } = {}) {
     <div className="cx" role="dialog" aria-modal="true" aria-label="Caixinha dos técnicos" onClick={(e) => e.stopPropagation()}>
       <style>{ESTILO}</style>
       <div className="cx-cab"><b><i className="fas fa-piggy-bank" /> Caixinha dos técnicos</b><button type="button" aria-label="Fechar" onClick={() => setAberta(false)}><i className="fas fa-xmark" /></button></div>
+      {/* o caminho do dinheiro, sempre à vista (José, 29/10/2026: "isso tem que ficar claro para a gente") */}
+      <ol className="cx-cam">
+        <li style={{ '--c': '#047857' } as React.CSSProperties}>
+          <span className="ic"><i className="fas fa-file-signature" /></span>
+          <b>Comissão aprovada</b>
+          <small>No RH (&quot;submeter&quot;) ou com a assinatura do diretor no portal: <strong>1%</strong> vai para a caixinha.</small>
+          <em>ex.: comissão de R$ 2.000 → R$ 20 na caixinha</em>
+        </li>
+        <li style={{ '--c': '#1d4ed8' } as React.CSSProperties}>
+          <span className="ic"><i className="fas fa-building-columns" /></span>
+          <b>Omie paga 99%</b>
+          <small>O RH lança a comissão no Omie já sem o 1% (a observação mostra &quot;1% caixinha do problema&quot;).</small>
+          <em>ex.: R$ 1.980 para o técnico</em>
+        </li>
+        <li style={{ '--c': '#b91c1c' } as React.CSSProperties}>
+          <span className="ic"><i className="fas fa-screwdriver-wrench" /></span>
+          <b>Erro pago pela caixinha</b>
+          <small>O RH pode pagar um desconto de erro pela caixinha: sai do bolo de todos, não do salário de quem errou.</small>
+          <em>{d.saiu ? `neste ciclo: ${brl2(d.saiu)} pagos` : 'neste ciclo: nenhum'}</em>
+        </li>
+        <li style={{ '--c': '#7c3aed' } as React.CSSProperties}>
+          <span className="ic"><i className="fas fa-people-arrows" /></span>
+          <b>Fim do ciclo: empresa dobra</b>
+          <small>A cada 3 meses a empresa põe o mesmo valor do saldo e o total é dividido igual entre quem contribuiu (vira bônus na comissão).</small>
+          <em>{d.contribuintes ? `hoje: ${brl2(d.saldo)} × 2 ÷ ${d.contribuintes} = ${brl2((d.saldo * 2) / d.contribuintes)} cada` : '—'}</em>
+        </li>
+      </ol>
       <div className="cx-topo">
         <div className="cx-saldo">
           <small>Saldo da caixinha</small>
@@ -144,7 +171,7 @@ export default function CaixinhaMec({ icone }: { icone?: boolean } = {}) {
       <button type="button" className="cx-como-t" onClick={() => setComoFunciona((v) => !v)}><i className={`fas fa-chevron-${comoFunciona ? 'up' : 'down'}`} /> Como a caixinha funciona</button>
       {comoFunciona && (
         <ol className="cx-como">
-          <li><b>Quem participa:</b> os técnicos. Cada comissão de técnico aprovada no RH põe <b>1%</b> na caixinha — o técnico recebe 99% da comissão.</li>
+          <li><b>Quem participa:</b> os técnicos. Cada comissão de técnico aprovada (no RH ou assinada pelo diretor no portal) põe <b>1%</b> na caixinha. No RH a comissão fica com o valor cheio; quando o RH lança no Omie, lança <b>99%</b>.</li>
           <li><b>Para que serve:</b> pagar descontos de erro (ex.: alimentação lançada errado, pequenos prejuízos) sem tirar do salário de quem errou. O RH decide quando um desconto sai da caixinha.</li>
           <li><b>Ciclo de 3 meses:</b> no fim, a <b>empresa dobra</b> o que sobrou e o total é <b>dividido igual</b> entre todos que contribuíram no ciclo (vira um bônus na comissão). Depois começa um ciclo novo.</li>
           <li><b>Quanto menos erro, mais sobra:</b> todo desconto pago sai do bolo de todos — a caixinha cheia é dinheiro de volta para a equipe.</li>
@@ -168,6 +195,15 @@ const ESTILO = `
 .cx-cab { display: flex; justify-content: space-between; align-items: center } .cx-cab b { font-size: 17px; font-weight: 500 } .cx-cab b i { color: #047857; margin-right: 6px } .cx-cab button { border: 0; background: #f1f5f9; border-radius: 10px; width: 34px; height: 34px; cursor: pointer; color: #475569 }
 .cx { display: grid; gap: 14px; background: #fefefe; border-radius: 18px; padding: 18px 20px; color: #0f172a; width: min(760px, 100%); max-height: calc(100vh - 32px); overflow: auto }
 .cx-carr { padding: 18px; text-align: center; color: #64748b; font-size: 14px }
+.cx-cam { list-style: none; margin: 0 0 14px; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; counter-reset: cam }
+@media (max-width: 760px) { .cx-cam { grid-template-columns: 1fr 1fr } }
+.cx-cam li { position: relative; display: grid; gap: 4px; align-content: start; background: color-mix(in srgb, var(--c) 6%, #fefefe); border: 1px solid color-mix(in srgb, var(--c) 22%, #e2e8f0); border-radius: 14px; padding: 12px; counter-increment: cam }
+.cx-cam li::before { content: counter(cam); position: absolute; top: 10px; right: 12px; font-size: 12px; font-weight: 600; color: var(--c); opacity: .7 }
+.cx-cam li:not(:last-child)::after { content: '→'; position: absolute; right: -11px; top: 22px; z-index: 1; width: 16px; height: 16px; display: grid; place-items: center; font-size: 12px; color: #94a3b8; background: #fefefe; border-radius: 50% }
+@media (max-width: 760px) { .cx-cam li::after { display: none } }
+.cx-cam .ic { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 14%, #fefefe); color: var(--c); font-size: 13px }
+.cx-cam b { font-size: 14px; font-weight: 500; color: #0f172a } .cx-cam small { font-size: 12.5px; color: #475569; line-height: 1.45 } .cx-cam strong { font-weight: 600; color: var(--c) }
+.cx-cam em { font-style: normal; font-size: 12px; color: var(--c); font-weight: 500; margin-top: 2px }
 .cx-topo { display: flex; gap: 18px; flex-wrap: wrap; align-items: stretch }
 .cx-saldo { flex: 1; min-width: 260px; display: grid; gap: 3px } .cx-saldo small { font-size: 13px; color: #475569 } .cx-saldo b { font-size: 34px; font-weight: 500; line-height: 1.1 } .cx-saldo > span { font-size: 13px; color: #475569 }
 .cx-alerta, .cx-info { font-style: normal; font-size: 12.5px; border-radius: 10px; padding: 6px 10px; margin-top: 4px; justify-self: start } .cx-alerta { color: #92400e; background: #fef3c7 } .cx-info { color: #1e3a8a; background: #eff6ff }
