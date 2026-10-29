@@ -28,13 +28,10 @@ export function Janela({ titulo, sub, ic, cor, children, onFechar }: { titulo: s
     const t = (e: KeyboardEvent) => { if (e.key !== 'Escape') return; if (onFechar) onFechar(); else abrirModalMec(null) }
     window.addEventListener('keydown', t); return () => window.removeEventListener('keydown', t)
   }, [onFechar, embutida])
+  // dentro da aba o nome já está no botão: sem cabeçalho repetido
   if (embutida) return (
     <div className="ji ji-emb" style={{ '--jc': cor } as React.CSSProperties}>
       <style>{ESTILO_JI}</style>
-      <header className="ji-cab">
-        <span className="ji-ic"><i className={`fas ${ic}`} /></span>
-        <div><b>{titulo}</b><small>{sub}</small></div>
-      </header>
       <div className="ji-corpo">{children}</div>
     </div>
   )
@@ -152,17 +149,15 @@ export function ComissoesJanela() {
         <div className="cj-cols">
           <div>
             <h4>Percentual de cada um</h4>
-            <div className="cj-pcts">{pcts.map((p) => <div key={p.nome}><span>{p.nome}</span><b>{p.pct}%</b><i style={{ width: `${p.pct * 2.5}%` }} /></div>)}</div>
+            <div className="cj-pcts">{pcts.map((p) => <div key={p.nome}><span>{p.nome}</span><em><i style={{ width: `${Math.min(100, (p.pct / Math.max(1, pcts[0]?.pct || 1)) * 100)}%` }} /></em><b>{p.pct}%</b></div>)}</div>
           </div>
           <div>
             <h4>Casos especiais</h4>
-            <dl className="cj-dl">
-              <dt>Garantia a receber</dt><dd>a hora conta no teto da montadora, R$ 100/h</dd>
-              <dt>Entrega e montagem</dt><dd>valor fixo por OS, dividido entre os técnicos</dd>
-              <dt>Ajuste do RH</dt><dd>o RH pode corrigir uma OS; o motivo fica registrado</dd>
-              <dt>Competência</dt><dd>a OS entra no mês em que faturou</dd>
-              <dt>Pagamento</dt><dd>por volta do dia 20 do mês seguinte</dd>
-            </dl>
+            <div className="cj-casos">
+              {([['fa-shield-heart', '#db2777', 'Garantia a receber', 'a hora conta no teto da montadora, R$ 100/h'], ['fa-truck-ramp-box', '#0369a1', 'Entrega e montagem', 'valor fixo por OS, dividido entre os técnicos'], ['fa-user-pen', '#7c3aed', 'Ajuste do RH', 'o RH pode corrigir uma OS; o motivo fica registrado'], ['fa-calendar-check', '#0f766e', 'Competência', 'a OS entra no mês em que faturou'], ['fa-money-bill-wave', '#047857', 'Pagamento', 'por volta do dia 20 do mês seguinte']] as const).map(([ic, cor, t, x]) => (
+                <div key={t} style={{ '--c': cor } as React.CSSProperties}><span><i className={`fas ${ic}`} /></span><b>{t}</b><small>{x}</small></div>
+              ))}
+            </div>
           </div>
         </div>
       </div>}
@@ -253,7 +248,7 @@ const ESTILO_JI = `
 @keyframes jiFade { from { opacity: 0 } } @keyframes jiSobe { from { opacity: 0; transform: translateY(20px) scale(.98) } }
 .ji-fundo { position: fixed; inset: 0; z-index: 9300; background: rgba(15,23,42,.5); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: jiFade .2s both }
 .ji { width: min(1180px, 100%); max-height: 94vh; display: flex; flex-direction: column; background: var(--portal-bg, #f8fafc); border-radius: 22px; overflow: hidden; box-shadow: 0 30px 80px rgba(15,23,42,.35); animation: jiSobe .35s cubic-bezier(.2,1.1,.3,1) both; color: var(--portal-text, #0f172a) }
-.ji.ji-emb { width: 100%; max-height: none; box-shadow: none; border: 1px solid var(--portal-border, #e2e8f0); animation: none } .ji-emb .ji-corpo { overflow: visible }
+.ji.ji-emb { width: 100%; max-height: none; box-shadow: none; border: 1px solid var(--portal-border, #e2e8f0); border-radius: 18px; animation: none; background: var(--portal-bg-card, #fefefe) } .ji-emb .ji-corpo { overflow: visible; padding: 16px 22px 22px }
 .ji-cab { display: flex; gap: 14px; align-items: center; padding: 16px 22px; background: #fefefe; border-bottom: 1px solid var(--portal-border, #e2e8f0) }
 .ji-ic { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 18px; color: #fefefe; background: var(--jc) }
 .ji-cab > div { flex: 1; display: grid } .ji-cab b { font-size: 19px; font-weight: 800 } .ji-cab small { font-size: 13px; color: ${MUDO} }
@@ -310,7 +305,8 @@ const ESTILO_JI = `
 .cj-formula .res b { color: #047857 }
 .cj-leg { margin: -6px 0 0; font-size: 13px; color: #64748b } .cj-leg b { color: #0f172a; font-weight: 600 }
 .cj-cols { display: grid; grid-template-columns: 1fr 1.4fr; gap: 28px } .cj-cols > div { display: grid; gap: 10px; align-content: start }
-.cj-pcts { display: grid; gap: 2px } .cj-pcts div { position: relative; display: flex; justify-content: space-between; padding: 8px 10px; font-size: 13.5px; border-radius: 8px; overflow: hidden } .cj-pcts span { position: relative; z-index: 1; color: #334155 } .cj-pcts b { position: relative; z-index: 1; font-weight: 600; color: #0f172a; font-variant-numeric: tabular-nums }
+.cj-pcts { display: grid; gap: 8px } .cj-pcts div { display: grid; grid-template-columns: 140px 1fr 48px; gap: 12px; align-items: center; font-size: 14px } .cj-pcts span { color: #334155; white-space: nowrap; overflow: hidden; text-overflow: ellipsis } .cj-pcts em { height: 10px; border-radius: 99px; background: #ecfdf5; overflow: hidden } .cj-pcts em i { display: block; height: 100%; border-radius: 99px; background: linear-gradient(90deg, #34d399, #047857) } .cj-pcts b { font-weight: 700; color: #047857; text-align: right; font-variant-numeric: tabular-nums }
+.cj-casos { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 10px } .cj-casos > div { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; padding: 12px; border-radius: 12px; border: 1px solid var(--portal-border, #e2e8f0); background: #fefefe } .cj-casos span { grid-row: span 2; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 12%, transparent); color: var(--c); font-size: 14px } .cj-casos b { font-size: 13.5px } .cj-casos small { font-size: 12.5px; color: #64748b; line-height: 1.35 }
 .cj-pcts i { position: absolute; left: 0; top: 0; bottom: 0; background: #ecfdf5; border-radius: 8px }
 .cj-dl { margin: 0; display: grid; grid-template-columns: 170px 1fr; font-size: 13.5px } .cj-dl dt, .cj-dl dd { margin: 0; padding: 9px 0; border-top: 1px solid var(--portal-border, #eef2f7) } .cj-dl dt { color: #0f172a; font-weight: 600 } .cj-dl dd { color: #475569 }
 .cj-dia { display: flex; height: 44px; border-radius: 10px; overflow: hidden; font-size: 13px }

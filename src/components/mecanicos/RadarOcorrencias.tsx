@@ -29,16 +29,16 @@ import { AutorizacoesJanela, useAutorizacoes } from './AutorizacoesJanela'
 
 // as janelas do topo viraram abas da Equipe (José, 29/10/2026); os técnicos do mês e a caixinha foram para Comissões
 const ABAS_EQUIPE_BASE: AbaAssunto[] = [
-  { id: 'horas', cor: '#0369a1', ic: 'fa-clock', titulo: 'Horas e km', sub: 'o mês da equipe toda', alvos: ['oc-horas'] },
+  { id: 'horas', cor: '#0369a1', ic: 'fa-bullseye', titulo: 'Metas', sub: 'horas e km da equipe no mês', alvos: ['oc-horas'] },
   { id: 'fantasmas', cor: '#be123c', ic: 'fa-ghost', titulo: 'Fantasmas', sub: 'carro × relatório × OS', alvos: ['oc-fantasmas'] },
   { id: 'comissoes', cor: '#047857', ic: 'fa-sack-dollar', titulo: 'Comissões', sub: 'técnicos, escritório e caixinha', alvos: ['oc-carreira', 'oc-radar'] },
   { id: 'podio', cor: '#b45309', ic: 'fa-trophy', titulo: 'Pódio', sub: 'vencedor de cada mês' },
-  { id: 'tribunal', cor: '#92400e', ic: 'fa-gavel', titulo: 'Tribunal', sub: 'defesas dos mecânicos', alvos: ['oc-tribunal'] },
-  { id: 'ocorrencias', cor: '#9f1239', ic: 'fa-clipboard-list', titulo: 'Ocorrências', sub: 'linha do tempo e motivos', alvos: ['oc-pontos'] },
+  // Tribunal e Ocorrências juntos (José, 29/10/2026: "tem que ficar junto, o ocorrência tá horrível para mexer")
+  { id: 'tribunal', cor: '#9f1239', ic: 'fa-gavel', titulo: 'Tribunal e ocorrências', sub: 'defesas, pontos e motivos', alvos: ['oc-tribunal', 'oc-pontos'] },
   { id: 'liga', cor: '#475569', ic: 'fa-ranking-star', titulo: 'Liga', sub: 'como funciona' },
   { id: 'tempario', cor: '#0f766e', ic: 'fa-stopwatch', titulo: 'Tempário', sub: 'tempo de cada serviço' },
 ]
-const ABAS_EQUIPE_DIRETOR: AbaAssunto[] = [...ABAS_EQUIPE_BASE.slice(0, 7), { id: 'autorizacoes', cor: '#1d4ed8', ic: 'fa-signature', titulo: 'Autorizações', sub: 'comissões para autorizar' }, ...ABAS_EQUIPE_BASE.slice(7)]
+const ABAS_EQUIPE_DIRETOR: AbaAssunto[] = [...ABAS_EQUIPE_BASE.slice(0, 6), { id: 'autorizacoes', cor: '#1d4ed8', ic: 'fa-signature', titulo: 'Autorizações', sub: 'comissões para autorizar' }, ...ABAS_EQUIPE_BASE.slice(6)]
 
 // assuntos da aba Mecânicos, com as bolinhas iguais às do Painel (José, 20/10/2026)
 import { patente } from '@/lib/mecanicos/carreira'
@@ -157,7 +157,14 @@ export default function RadarOcorrencias() {
     } catch (e) { alert(e instanceof Error ? e.message : 'Falha ao julgar') } finally { setJulgando(null) }
   }
 
-  const filtradas = useMemo(() => (d?.ocorrencias || []).filter((o) => (!tec || o.tecnico === tec) && (!cat || o.categoria === cat)), [d, tec, cat])
+  const [buscaOc, setBuscaOc] = useState('')
+  const [sitOc, setSitOc] = useState<'todas' | 'valem' | 'julgamento' | 'anuladas'>('todas')
+  const filtradas = useMemo(() => {
+    const q = buscaOc.trim().toLowerCase()
+    return (d?.ocorrencias || []).filter((o) => (!tec || o.tecnico === tec) && (!cat || o.categoria === cat)
+      && (sitOc === 'todas' || (sitOc === 'valem' ? o.vale : sitOc === 'anuladas' ? !o.vale : o.defesas.some((x) => x.status === 'pendente')))
+      && (!q || `${o.tecnico} ${o.rotulo} ${o.descricao} ${o.idOrdem || ''}`.toLowerCase().includes(q)))
+  }, [d, tec, cat, sitOc, buscaOc])
   const tot = useMemo(() => {
     const oc = d?.ocorrencias || []
     return {
@@ -184,7 +191,7 @@ export default function RadarOcorrencias() {
   // número em cima da aba: defesas para julgar e comissões para autorizar
   const abasVis = abasEquipe.map((x) => (x.id === 'tribunal' ? { ...x, n: d?.pendentes.length || 0 } : x.id === 'autorizacoes' ? { ...x, n: au.abertos.length } : x))
   // pedido de abrir o Tribunal/Ocorrências (endereço ?janela= ou o Tratorilson) abre a aba
-  useEffect(() => { if (ver === 'tribunal' || ver === 'ocorrencias') setAssunto(ver) }, [ver]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (ver === 'tribunal' || ver === 'ocorrencias') setAssunto('tribunal') }, [ver]) // eslint-disable-line react-hooks/exhaustive-deps
   const filtro = (tec || cat) && <button type="button" className="rdr-chip" onClick={() => { setCat(null); setTec(null) }}>limpar filtro ✕</button>
   return (
     <div>
@@ -237,11 +244,10 @@ export default function RadarOcorrencias() {
           {/* Tribunal e ocorrências ficam atrás dos botões do topo (José, 20/10/2026) */}
           <div id="oc-tribunal" />
           {assunto === 'tribunal' && (
-            <JanelaMec titulo="Tribunal de defesas" sub={`${d.pendentes.length} defesa(s) esperando julgamento · ${nomeMes(mes)}`} ic="fa-gavel" cor="#92400e">
-            <Cartao titulo={<>Tribunal de defesas {d.pendentes.length > 0 && <span className="rdr-badge">{d.pendentes.length}</span>}</>} atraso={240}>
-              {d.pendentes.length === 0 ? (
-                <Vazio icone="fa-circle-check" texto="Nenhuma defesa esperando julgamento." />
-              ) : (
+            <JanelaMec titulo="Tribunal e ocorrências" sub={`${d.pendentes.length ? `${d.pendentes.length} defesa(s) para julgar · ` : ''}${d.ocorrencias.length} ocorrência(s) · ${nomeMes(mes)}`} ic="fa-gavel" cor="#9f1239">
+            {d.pendentes.length === 0 ? <p className="oc-nada"><i className="fas fa-circle-check" /> Nenhuma defesa esperando julgamento.</p> : (
+            <Cartao titulo={<>Defesas para julgar <span className="rdr-badge">{d.pendentes.length}</span></>} atraso={0}>
+              {(
                 <div style={{ display: 'grid', gap: 10, maxHeight: 460, overflowY: 'auto', paddingRight: 4 }}>
                   {d.pendentes.map((o, i) => {
                     const def = o.defesas.find((x) => x.status === 'pendente')!
@@ -270,30 +276,48 @@ export default function RadarOcorrencias() {
                 </div>
               )}
             </Cartao>
-            </JanelaMec>
-          )}
+            )}
           <div id="oc-pontos" />
-          {assunto === 'ocorrencias' && (
-            <JanelaMec titulo="Ocorrências" sub={`${d.ocorrencias.length} no mês · ${nomeMes(mes)}`} ic="fa-clipboard-list" cor="#be123c">
-            <Cartao titulo={tec ? `Linha do tempo · ${tec}` : 'Linha do tempo do mês'} atraso={300} extra={<>{filtro}<span style={{ fontSize: 11.5, color: MUDO }}>{filtradas.length} registro(s)</span></>}>
-              {filtradas.length === 0 ? <Vazio icone="fa-face-smile" texto="Nenhuma ocorrência neste filtro." /> : (
-                <div className="rdr-linha" style={{ maxHeight: 460, overflowY: 'auto', paddingRight: 4 }}>
-                  {filtradas.map((o, i) => (
-                    <button key={o.id} type="button" className="rdr-evento" onClick={() => setAberta(o)} style={{ animationDelay: `${Math.min(i, 20) * 35}ms` }}>
-                      <span className="rdr-no" style={{ background: o.vale ? COR_CAT[o.categoria] : 'var(--portal-bg-card, #fefefe)', borderColor: COR_CAT[o.categoria] }} />
-                      <span style={{ fontSize: 11.5, color: MUDO, width: 42, flexShrink: 0 }}>{br(o.data)}</span>
-                      <span style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
-                        <span style={{ fontWeight: 700, textDecoration: o.vale ? 'none' : 'line-through', color: o.vale ? TXT : MUDO }}>{o.rotulo}</span>
-                        <span style={{ display: 'block', fontSize: 11.5, color: MUDO, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {!tec && `${o.tecnico} · `}{NOME_CAT[o.categoria]}{o.origem === 'auto' ? ' · automática' : ''}{o.defesas.some((x) => x.status === 'pendente') ? ' · defesa em julgamento' : ''}
-                        </span>
-                      </span>
-                      <span className="rdr-pts" style={{ opacity: o.vale ? 1 : .4 }}>{o.vale ? `−${o.pontos}` : 'anulada'}</span>
-                    </button>
+            {/* ocorrências em lista larga, com busca e filtros à vista (antes: caixinha de 460 px com rolagem própria) */}
+            <section className="oc-sec" id="oc-lista">
+              <div className="oc-filtros">
+                <div className="oc-busca"><i className="fas fa-magnifying-glass" /><input value={buscaOc} onChange={(ev) => setBuscaOc(ev.target.value)} placeholder="buscar técnico, motivo ou OS" /></div>
+                <select value={tec || ''} onChange={(ev) => setTec(ev.target.value || null)} aria-label="Técnico">
+                  <option value="">Todos os técnicos</option>
+                  {[...new Set(d.ocorrencias.map((o) => o.tecnico))].sort().map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <div className="oc-pilulas">
+                  {([['todas', 'Todas'], ['valem', 'Valendo'], ['julgamento', 'Em julgamento'], ['anuladas', 'Anuladas']] as const).map(([k, r]) => (
+                    <button key={k} type="button" className={sitOc === k ? 'on' : ''} onClick={() => setSitOc(k)}>{r}</button>
                   ))}
                 </div>
+              </div>
+              <div className="oc-cats">
+                <button type="button" className={!cat ? 'on' : ''} onClick={() => setCat(null)}>Todas as áreas</button>
+                {(Object.keys(NOME_CAT) as Cat[]).filter((c) => d.ocorrencias.some((o) => o.categoria === c)).map((c) => (
+                  <button key={c} type="button" className={cat === c ? 'on' : ''} style={{ '--c': COR_CAT[c] } as React.CSSProperties} onClick={() => setCat(cat === c ? null : c)}><i />{NOME_CAT[c]}</button>
+                ))}
+                <span className="oc-conta">{filtradas.length} de {d.ocorrencias.length} · <b>−{filtradas.filter((o) => o.vale).reduce((a, o) => a + o.pontos, 0)} pts</b>{(tec || cat || sitOc !== 'todas' || buscaOc) && <button type="button" className="oc-limpa" onClick={() => { setTec(null); setCat(null); setSitOc('todas'); setBuscaOc('') }}>limpar ✕</button>}</span>
+              </div>
+              {filtradas.length === 0 ? <Vazio icone="fa-face-smile" texto="Nenhuma ocorrência neste filtro." /> : (
+                <div className="oc-tab">
+                  <div className="oc-l cab"><span>Data</span><span>Técnico</span><span>O que aconteceu</span><span>Área</span><span>Situação</span><span className="n">Pontos</span></div>
+                  {filtradas.map((o) => {
+                    const julg = o.defesas.some((x) => x.status === 'pendente')
+                    return (
+                      <button key={o.id} type="button" className={`oc-l ${o.vale ? '' : 'anulada'}`} onClick={() => setAberta(o)} title="ver tudo, anexos e defesa">
+                        <span>{br(o.data)}</span>
+                        <span className="oc-tec"><Avatar nome={o.tecnico} cor={COR_CAT[o.categoria]} />{o.tecnico}</span>
+                        <span className="oc-o"><b>{o.rotulo}</b><small>{o.idOrdem ? `${o.idOrdem} · ` : ''}{o.origem === 'auto' ? 'automática' : o.criadoPor ? `por ${o.criadoPor}` : 'manual'}</small></span>
+                        <span><em className="oc-cat" style={{ '--c': COR_CAT[o.categoria] } as React.CSSProperties}>{NOME_CAT[o.categoria]}</em></span>
+                        <span><em className={`oc-st ${julg ? 'julg' : o.vale ? 'vale' : 'anul'}`}>{julg ? 'em julgamento' : o.vale ? 'valendo' : 'anulada'}</em></span>
+                        <span className="n"><b>{o.vale ? `−${o.pontos}` : '0'}</b></span>
+                      </button>
+                    )
+                  })}
+                </div>
               )}
-            </Cartao>
+            </section>
           <div className="rdr-duas">
             <Cartao titulo="O que mais tira pontos" atraso={360}>
               {d.motivos.length === 0 ? <Vazio icone="fa-face-smile" texto="Mês limpo até agora." /> : (
@@ -667,6 +691,31 @@ function JanelaMec({ titulo, sub, ic, cor, children }: { titulo: string; sub: st
   )
 }
 const ESTILO_JM = `
+.oc-nada { margin: 0; padding: 10px 14px; border-radius: 12px; background: #f0fdf4; color: #166534; font-size: 13.5px } .oc-nada i { margin-right: 6px }
+.oc-sec { display: grid; gap: 12px; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 16px; padding: 14px 16px }
+.oc-filtros { display: flex; gap: 10px; flex-wrap: wrap; align-items: center }
+.oc-busca { flex: 1 1 260px; display: flex; align-items: center; gap: 8px; border: 1px solid #cbd5e1; border-radius: 10px; padding: 0 12px; background: #fefefe } .oc-busca i { color: #94a3b8 }
+.oc-busca input { flex: 1; border: 0; outline: 0; padding: 10px 0; font: inherit; font-size: 14px; background: transparent; color: #0f172a }
+.oc-filtros select { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 14px; background: #fefefe; color: #0f172a }
+.oc-pilulas { display: inline-flex; gap: 2px; padding: 3px; border-radius: 99px; background: #f1f5f9 }
+.oc-pilulas button, .oc-cats button { border: 0; background: transparent; font: inherit; font-size: 13px; padding: 7px 13px; border-radius: 99px; cursor: pointer; color: #475569 }
+.oc-pilulas button.on { background: #fefefe; color: #0f172a; font-weight: 600; box-shadow: 0 1px 3px rgba(15,23,42,.14) }
+.oc-cats { display: flex; gap: 6px; flex-wrap: wrap; align-items: center }
+.oc-cats button { border: 1px solid var(--portal-border, #e2e8f0); display: inline-flex; gap: 6px; align-items: center } .oc-cats button i { width: 9px; height: 9px; border-radius: 50%; background: var(--c) }
+.oc-cats button.on { border-color: var(--c, #0f172a); background: color-mix(in srgb, var(--c, #0f172a) 10%, #fefefe); color: var(--c, #0f172a); font-weight: 600 }
+.oc-conta { margin-left: auto; font-size: 13px; color: #64748b } .oc-conta b { color: #dc2626 }
+.oc-limpa { margin-left: 8px; border: 0 !important; color: #dc2626 !important; padding: 4px 8px !important }
+.oc-tab { display: grid }
+.oc-l { display: grid; grid-template-columns: 60px minmax(160px, 1.1fr) minmax(220px, 2fr) 110px 120px 70px; gap: 12px; align-items: center; padding: 10px 8px; border: 0; border-top: 1px solid #f1f5f9; background: transparent; font: inherit; font-size: 13.5px; text-align: left; color: #0f172a; cursor: pointer; border-radius: 8px }
+.oc-l:hover { background: #f8fafc } .oc-l.cab { cursor: default; font-size: 12px; color: #64748b; border-top: 0 } .oc-l.cab:hover { background: transparent }
+.oc-l .n { text-align: right } .oc-l .n b { color: #dc2626 } .oc-l.anulada .n b { color: #94a3b8 } .oc-l.anulada .oc-o b { text-decoration: line-through; color: #64748b }
+.oc-tec { display: flex; gap: 8px; align-items: center; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.oc-o { display: grid; min-width: 0 } .oc-o b { font-weight: 600 } .oc-o small { font-size: 12px; color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.oc-cat, .oc-st { font-style: normal; font-size: 12px; padding: 3px 9px; border-radius: 99px; white-space: nowrap }
+.oc-cat { background: color-mix(in srgb, var(--c) 12%, #fefefe); color: var(--c) }
+.oc-st.vale { background: #fee2e2; color: #b91c1c } .oc-st.julg { background: #fef3c7; color: #92400e } .oc-st.anul { background: #f1f5f9; color: #64748b }
+@media (max-width: 900px) { .oc-l { grid-template-columns: 50px 1fr 70px } .oc-l > :nth-child(2), .oc-l > :nth-child(4), .oc-l > :nth-child(5) { display: none } .oc-conta { margin-left: 0; width: 100% } }
+
 @keyframes jmFade { from { opacity: 0 } } @keyframes jmSobe { from { opacity: 0; transform: translateY(24px) scale(.97) } }
 .jm-fundo { position: fixed; inset: 0; z-index: 9300; background: rgba(15,23,42,.5); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; padding: 16px; animation: jmFade .2s both }
 .jm { width: min(1180px, 100%); max-height: 92vh; display: flex; flex-direction: column; background: var(--portal-bg, #f8fafc); border-radius: 22px; overflow: hidden; box-shadow: 0 30px 80px rgba(15,23,42,.35); animation: jmSobe .4s cubic-bezier(.2,1.1,.3,1) both }
