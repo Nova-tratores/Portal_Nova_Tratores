@@ -62,4 +62,12 @@ describe('comEnderecoCompleto', () => {
     expect(comEnderecoCompleto([{ codigo: 'A', descricao: null, url: '/p/1' }, { codigo: 'B', descricao: null, token: 't' }], 'https://portal.novatratores.com'))
       .toEqual([{ codigo: 'A', descricao: null, url: 'https://portal.novatratores.com/p/1' }, { codigo: 'B', descricao: null, token: 't' }])
   })
+  it('leva o layout e marca/modelo da etiqueta, arrumando o layout', () => {
+    const r = limparItens([{ codigo: 'A1', semQr: true, marca: 'KUHN', modelo: '6075E', layout: [{ campo: 'local', ver: true, fonte: 12, negrito: false }, { campo: 'hack', ver: true }] }])
+    if (!('itens' in r)) throw new Error('esperava itens')
+    expect(r.itens[0].marca).toBe('KUHN')
+    expect(r.itens[0].modelo).toBe('6075E')
+    expect(r.itens[0].layout?.[0]).toEqual({ campo: 'local', ver: true, fonte: 12, negrito: false })
+    expect(r.itens[0].layout?.some((l) => (l.campo as string) === 'hack')).toBe(false)
+  })
 })

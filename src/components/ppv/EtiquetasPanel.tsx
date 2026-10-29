@@ -14,9 +14,10 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
 import { htmlFolha, qrSvg, urlDaUnidade, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
-import { guardarAjusteTermica, lerAjusteTermica, locacaoAbreviada, TERMICA_PADRAO, type AjusteTermica, type ItemTermica } from '@/lib/opa-pecas/etiqueta-termica'
+import { guardarAjusteTermica, lerAjusteTermica, layoutPadrao, locacaoAbreviada, normalizarLayout, TERMICA_PADRAO, type AjusteTermica, type ItemTermica, type LayoutCampo } from '@/lib/opa-pecas/etiqueta-termica'
 import { imprimirOuEnviar } from '@/lib/etiquetas/estacao-client'
-import { chaveMM, textoMarcaModelo, type MarcaModelo } from '@/lib/ppv/etiquetas-marca-modelo'
+import { chaveMM, type MarcaModelo } from '@/lib/ppv/etiquetas-marca-modelo'
+import EditorEtiquetaTermica from './EditorEtiquetaTermica'
 import AjustesTermica from '@/components/opa/pecas/AjustesTermica'
 import { botao } from '@/components/opa/pecas/comum'
 import { Janela } from '@/components/opa/pecas/Moldura'
@@ -113,14 +114,14 @@ function valColEtiq(i: ItemBusca, col: string): string {
 // só monta a matriz — quem vira SVG somos nós.
 // Térmica (rolo da ROGERIA, mesmas medidas do Opa): uma etiqueta por página.
 // Juntada (NOVA + CASTRO) leva a 2ª empresa numa linha pequena embaixo.
-function itemTermica(linhas: LinhaEtiqueta[], comBarra: boolean, unidade?: { id: string; numero?: string }, info?: string): ItemTermica {
+function itemTermica(linhas: LinhaEtiqueta[], comBarra: boolean, unidade?: { id: string; numero?: string }, mm?: MarcaModelo, layout?: LayoutCampo[]): ItemTermica {
   const [a, b] = linhas
   return {
     codigo: a?.codigo || '', descricao: a?.descricao || '', local: locacaoAbreviada(a?.locacao || ''), locGrande: true,
     topo: [a?.empresa, unidade?.numero].filter(Boolean).join(' · '),
     extra: b ? `${b.empresa}: ${b.codigo} · ${locacaoAbreviada(b.locacao)}` : undefined,
     semQr: !unidade, url: unidade ? urlDaUnidade(window.location.origin, unidade.id) : undefined,
-    barra: comBarra, info: info || undefined,
+    barra: comBarra, marca: mm?.marca || undefined, modelo: mm?.modelo || undefined, layout,
   }
 }
 
@@ -153,9 +154,8 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   // conseguia ler as letras, e a barra comia até 9mm da altura). Continua
   // disponível porque pistola 1D não lê QR.
   const [comBarra, setComBarra] = useState(false)
-  // Marca / modelo da peça numa linha pequena da térmica (José, 27/10/2026)
-  const [comMarca, setComMarca] = useState(false)
-  const [comModelo, setComModelo] = useState(false)
+  // Linhas da térmica: ordem, mostrar/esconder, fonte e negrito (José, 29/10/2026)
+  const [layout, setLayout] = useState<LayoutCampo[]>(layoutPadrao)
   // Calibração da impressora (mm): folha pré-cortada não perdoa deslocamento —
   // 2mm já jogam o texto pra fora do picote. Guardado por navegador porque é
   // característica da IMPRESSORA, não da folha.
@@ -184,8 +184,10 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
     try {
       setRastrear(localStorage.getItem('etiquetas_rastrear') === '1')
       setComBarra(localStorage.getItem('etiquetas_com_barra') === '1')
-      setComMarca(localStorage.getItem('etiquetas_com_marca') === '1')
-      setComModelo(localStorage.getItem('etiquetas_com_modelo') === '1')
+      const salvo = normalizarLayout(JSON.parse(localStorage.getItem('etiquetas_termica_layout') || 'null'))
+      // 1ª vez: herda as caixas Marca/Modelo da versão de 27/10
+      setLayout(salvo || layoutPadrao().map(l => l.campo === 'marca' || l.campo === 'modelo'
+        ? { ...l, ver: localStorage.getItem(`etiquetas_com_${l.campo}`) === '1' } : l))
       const fmt = localStorage.getItem('etiquetas_formato')
       if (fmt === 'recorte' || fmt === 'termica') setFormato(fmt)
       setAjusteX(Number(localStorage.getItem('etiquetas_ajuste_x')) || 0)
@@ -214,18 +216,14 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
     setComBarra(v)
     try { localStorage.setItem('etiquetas_com_barra', v ? '1' : '0') } catch { /* segue */ }
   }
-  const mudarComMarca = (v: boolean) => {
-    setComMarca(v)
-    try { localStorage.setItem('etiquetas_com_marca', v ? '1' : '0') } catch { /* segue */ }
+  const mudarLayout = (l: LayoutCampo[]) => {
+    setLayout(l)
+    try { localStorage.setItem('etiquetas_termica_layout', JSON.stringify(l)) } catch { /* segue */ }
   }
-  const mudarComModelo = (v: boolean) => {
-    setComModelo(v)
-    try { localStorage.setItem('etiquetas_com_modelo', v ? '1' : '0') } catch { /* segue */ }
-  }
-  // Linha "MARCA … · MODELO …" de cada etiqueta (pela 1ª peça), lida na hora de
-  // imprimir. Falhou a consulta → imprime sem a linha (não trava a impressão).
-  const infoMarcaModelo = async (todas: LinhaEtiqueta[][]): Promise<(linhas: LinhaEtiqueta[]) => string> => {
-    if (!comMarca && !comModelo) return () => ''
+  // Marca e modelo de cada etiqueta (pela 1ª peça), lidos na hora de imprimir.
+  // Falhou a consulta → imprime sem essas linhas (não trava a impressão).
+  const marcaModeloDe = async (todas: LinhaEtiqueta[][]): Promise<(linhas: LinhaEtiqueta[]) => MarcaModelo | undefined> => {
+    if (!layout.some(l => l.ver && (l.campo === 'marca' || l.campo === 'modelo'))) return () => undefined
     try {
       const res = await fetch('/api/ppv/etiquetas', {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
@@ -233,8 +231,8 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       })
       const json = await res.json()
       const mapa: Record<string, MarcaModelo> = (res.ok && json.marcaModelo) || {}
-      return (l) => textoMarcaModelo(mapa[chaveMM(l[0]?.conta, l[0]?.codigo)], { marca: comMarca, modelo: comModelo })
-    } catch { return () => '' }
+      return (l) => mapa[chaveMM(l[0]?.conta, l[0]?.codigo)]
+    } catch { return () => undefined }
   }
   const mudarFormato = (v: 'folha' | 'recorte' | 'termica') => {
     setFormato(v)
@@ -339,8 +337,8 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       const json = await res.json(); if (!res.ok || json.erro) throw new Error(json.erro || 'falha')
       const folha = json.folha as { formato: string; rastreado: boolean; usadas: number[]; itens: { linhas: LinhaEtiqueta[]; numero?: string; unidade_id?: string }[] }
       if (folha.formato === 'termica') {
-        const info = await infoMarcaModelo((folha.itens || []).map(it => it.linhas))
-        const itensT = (folha.itens || []).map(it => itemTermica(it.linhas, comBarra, folha.rastreado && it.unidade_id ? { id: it.unidade_id, numero: it.numero } : undefined, info(it.linhas)))
+        const mm = await marcaModeloDe((folha.itens || []).map(it => it.linhas))
+        const itensT = (folha.itens || []).map(it => itemTermica(it.linhas, comBarra, folha.rastreado && it.unidade_id ? { id: it.unidade_id, numero: it.numero } : undefined, mm(it.linhas), layout))
         const r = await imprimirOuEnviar(itensT, term, 'ppv')
         if (!r.ok) setErro(r.erro)
         return
@@ -559,8 +557,8 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
         itensFolha = fisicas.map((e, i) => ({ linhas: e.linhas, numero: unidades[i].numero, unidade_id: unidades[i].id }))
       }
       if (termica) {
-        const info = await infoMarcaModelo(itensFolha.map(it => it.linhas))
-        const itensT = itensFolha.map(it => itemTermica(it.linhas, comBarra, it.unidade_id ? { id: it.unidade_id, numero: it.numero } : undefined, info(it.linhas)))
+        const mm = await marcaModeloDe(itensFolha.map(it => it.linhas))
+        const itensT = itensFolha.map(it => itemTermica(it.linhas, comBarra, it.unidade_id ? { id: it.unidade_id, numero: it.numero } : undefined, mm(it.linhas), layout))
         const r = await imprimirOuEnviar(itensT, term, 'ppv')
         if (!r.ok) throw new Error(r.erro)
       } else if (w) {
@@ -843,18 +841,12 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
           )}
 
           {formato === 'termica' && <>
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
-              <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--portal-text)' }}>Mostrar na etiqueta:</span>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, color: comMarca ? '#EA580C' : 'var(--portal-text)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={comMarca} onChange={e => mudarComMarca(e.target.checked)} /> Marca
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, color: comModelo ? '#EA580C' : 'var(--portal-text)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={comModelo} onChange={e => mudarComModelo(e.target.checked)} /> Modelo
-              </label>
-              {(comMarca || comModelo) && (
-                <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>do cadastro da Omie; peça sem {comMarca && comModelo ? 'marca/modelo' : comMarca ? 'marca' : 'modelo'} sai sem a linha.</span>
-              )}
-            </div>
+            <EditorEtiquetaTermica layout={layout} setLayout={mudarLayout} term={term}
+              exemplo={{
+                ...itemTermica(etiquetas[0]?.linhas?.length ? etiquetas[0].linhas : [{ conta: 'NOVA', empresa: 'NOVA TRATORES', codigo: '0000000000', descricao: 'Descrição da peça', locacao: 'PRATELEIRA 3 · ANDAR G · CAIXA 1' }], comBarra, rastrear ? { id: 'exemplo', numero: 'U-0001' } : undefined, { marca: 'MAHINDRA', modelo: '6075E' }),
+                // a linha da outra empresa só existe na etiqueta juntada — na prévia aparece sempre
+                ...(etiquetas[0]?.linhas?.[1] ? {} : { extra: 'CASTRO PEÇAS: 0000000000 · PRAT 1 · AND A · CX 2' }),
+              }} />
             <AjustesTermica term={term} setTerm={setTerm} n={totalFisicas}
               exemplo={{ codigo: etiquetas[0]?.linhas[0]?.codigo || '0000000000', descricao: etiquetas[0]?.linhas[0]?.descricao || 'Descrição da peça' }} />
             <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted)', lineHeight: 1.5, marginBottom: 12 }}>

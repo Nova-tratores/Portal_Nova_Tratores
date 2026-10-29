@@ -73,6 +73,59 @@ export type ItemTermica = Omit<EtiquetaItem, 'token'> & {
   locGrande?: boolean
   /** linha pequena sob a descrição (PPV: marca/modelo, quando marcados na janela de impressão) */
   info?: string
+  /** PPV: marca e modelo da peça (só saem se o layout pedir) */
+  marca?: string; modelo?: string
+  /** ordem, visibilidade, tamanho e negrito de cada linha (PPV, José 29/10/2026);
+   *  sem layout = a etiqueta de sempre */
+  layout?: LayoutCampo[]
+}
+
+/** Linhas da etiqueta que o usuário arruma (o QR fica sempre à esquerda e a barra embaixo). */
+export const CAMPOS_ETIQUETA = ['topo', 'codigo', 'descricao', 'marca', 'modelo', 'local', 'extra'] as const
+export type CampoEtiqueta = typeof CAMPOS_ETIQUETA[number]
+export const NOME_CAMPO: Record<CampoEtiqueta, string> = {
+  topo: 'Empresa', codigo: 'Código', descricao: 'Descrição', marca: 'Marca', modelo: 'Modelo', local: 'Locação', extra: 'Outra empresa',
+}
+/** fonte: pt (0 = automático pelo tamanho da etiqueta) */
+export interface LayoutCampo { campo: CampoEtiqueta; ver: boolean; fonte: number; negrito: boolean }
+export const FONTE_MIN = 4
+export const FONTE_MAX = 30
+
+export function layoutPadrao(): LayoutCampo[] {
+  return CAMPOS_ETIQUETA.map((campo) => ({ campo, ver: campo !== 'marca' && campo !== 'modelo', fonte: 0, negrito: true }))
+}
+
+/** Arruma um layout vindo do navegador/da rede: campos conhecidos, sem repetir, faltantes no fim (puro — testável). */
+export function normalizarLayout(bruto: unknown): LayoutCampo[] | null {
+  if (!Array.isArray(bruto)) return null
+  const vistos = new Set<string>()
+  const out: LayoutCampo[] = []
+  for (const b of bruto) {
+    const o = (b && typeof b === 'object' ? b : {}) as Record<string, unknown>
+    const campo = String(o.campo) as CampoEtiqueta
+    if (!(CAMPOS_ETIQUETA as readonly string[]).includes(campo) || vistos.has(campo)) continue
+    vistos.add(campo)
+    const fonte = Number(o.fonte)
+    out.push({
+      campo, ver: o.ver !== false, negrito: o.negrito !== false,
+      fonte: Number.isFinite(fonte) && fonte >= FONTE_MIN && fonte <= FONTE_MAX ? Math.round(fonte * 2) / 2 : 0,
+    })
+  }
+  if (!out.length) return null
+  for (const p of layoutPadrao()) if (!vistos.has(p.campo)) out.push(p)
+  return out
+}
+
+/** Tamanho automático (pt) de cada linha para a altura da etiqueta — o que vale com fonte 0. */
+export function fontesPadrao(altura: number, locGrande = true): Record<CampoEtiqueta, number> {
+  const fc = Math.max(8, Math.min(16, altura * 0.42))
+  const fd = Math.max(6, Math.min(9, altura * 0.25))
+  const peq = Math.max(5.5, fd - 2)
+  const r = (n: number) => Math.round(n * 2) / 2
+  return {
+    topo: r(peq), codigo: r(fc), descricao: r(fd), marca: r(peq), modelo: r(peq),
+    local: r(locGrande ? Math.max(7, fc * 0.62) : Math.max(6, fd - 1)), extra: r(peq),
+  }
 }
 
 /** "PRATELEIRA 3 · ANDAR G · CAIXA 1" → "PRAT 3 · AND G · CX 1"; o que faltar sai "-"
@@ -110,15 +163,16 @@ export function partesTermica(itens: (ItemTermica & { qr: string })[], a: Ajuste
   const altBarra = Math.max(3, Math.min(6, H * 0.18))
   const paginas = itens.map((i) => {
     const desc = (i.descricao || 'Peça sem descrição') + (i.quantidade && i.quantidade > 1 ? ` (${i.quantidade} un.)` : '')
-    return `<div class="pg"><div class="area"><div class="et">
-  ${i.qr ? `<div class="qr">${i.qr}</div>` : ''}
-  <div class="tx">
+    const linhas = i.layout ? linhasComLayout(i, desc, i.layout) : `
     ${i.topo ? `<div class="topo">${esc(i.topo)}</div>` : ''}
     <div class="cod">${esc(i.codigo)}</div>
     <div class="desc">${esc(desc)}</div>
     ${i.info ? `<div class="extra">${esc(i.info)}</div>` : ''}
     ${i.local ? `<div class="loc${i.locGrande ? ' grande' : ''}">${esc(i.local)}</div>` : ''}
-    ${i.extra ? `<div class="extra">${esc(i.extra)}</div>` : ''}
+    ${i.extra ? `<div class="extra">${esc(i.extra)}</div>` : ''}`
+    return `<div class="pg"><div class="area"><div class="et">
+  ${i.qr ? `<div class="qr">${i.qr}</div>` : ''}
+  <div class="tx">${linhas}
     ${i.barra ? code128Svg(i.codigo, altBarra) : ''}
   </div>
 </div></div></div>`
@@ -144,9 +198,25 @@ export function partesTermica(itens: (ItemTermica & { qr: string })[], a: Ajuste
   .barra { display: block; max-width: 100%; margin-top: 0.4mm; }
   .barra rect { fill: #000; }
   .loc { font-weight: 700; font-size: ${Math.max(6, fonteDesc - 1)}pt; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-top: 0.3mm solid #000; padding-top: 0.5mm; }
+  .tx > .loc:first-child { border-top: none; padding-top: 0; }
   @media screen { body { margin: 10mm; } .pg { outline: 1px dashed #999; margin-bottom: 4mm; } }
 `
   return { css, paginas, PW, PH }
+}
+
+/** Linhas na ordem do layout; fonte/negrito escolhidos vão inline por cima da classe. */
+function linhasComLayout(i: ItemTermica, desc: string, layout: LayoutCampo[]): string {
+  const valor: Record<CampoEtiqueta, [string, string]> = {
+    topo: ['topo', i.topo || ''], codigo: ['cod', i.codigo], descricao: ['desc', desc],
+    marca: ['extra', i.marca ? `MARCA ${i.marca}` : ''], modelo: ['extra', i.modelo ? `MODELO ${i.modelo}` : ''],
+    local: [`loc${i.locGrande ? ' grande' : ''}`, i.local || ''], extra: ['extra', i.extra || ''],
+  }
+  return layout.filter((l) => l.ver && valor[l.campo]?.[1]).map((l) => {
+    const [classe, texto] = valor[l.campo]
+    const estilo = [l.fonte ? `font-size:${l.fonte}pt` : '', l.negrito ? '' : 'font-weight:400'].filter(Boolean).join(';')
+    return `
+    <div class="${classe}"${estilo ? ` style="${estilo}"` : ''}>${esc(texto)}</div>`
+  }).join('')
 }
 
 /** Página HTML com uma etiqueta por página (puro — testável). */

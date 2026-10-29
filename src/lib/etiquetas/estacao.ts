@@ -3,7 +3,7 @@
 // pedidos da fila e imprime com o MESMO desenho da térmica (etiqueta-termica.ts);
 // quem manda só escolhe "Na ROGERIA" em vez de "Neste computador".
 
-import type { ItemTermica } from '@/lib/opa-pecas/etiqueta-termica'
+import { normalizarLayout, type ItemTermica } from '@/lib/opa-pecas/etiqueta-termica'
 
 export type OrigemEtiqueta = 'ppv' | 'opa' | 'patrimonio' | 'teste'
 export type StatusTrabalho = 'pendente' | 'imprimindo' | 'impressa' | 'erro' | 'cancelada'
@@ -107,6 +107,9 @@ export function limparItens(bruto: unknown): { itens: ItemTermica[] } | { erro: 
     const topo = texto(o.topo, 80); if (topo) item.topo = topo
     const extra = texto(o.extra, 200); if (extra) item.extra = extra
     const info = texto(o.info, 200); if (info) item.info = info
+    const marca = texto(o.marca, 120); if (marca) item.marca = marca
+    const modelo = texto(o.modelo, 120); if (modelo) item.modelo = modelo
+    const layout = normalizarLayout(o.layout); if (layout) item.layout = layout
     if (o.semQr === true) item.semQr = true
     if (o.barra === true) item.barra = true
     if (o.locGrande === true) item.locGrande = true
