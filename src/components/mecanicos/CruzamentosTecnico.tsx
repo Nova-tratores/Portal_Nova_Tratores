@@ -186,86 +186,102 @@ const ROTULO: Record<AcaoCruzamento, string> = { mapa: 'mapa', os: 'OS', dias: '
 const TEMPARIO: Cruzamento = { titulo: 'Tempo × tempário', ic: 'fa-stopwatch', fontes: 'relatório × tempário', v: '', txt: '', erro: false,
   frase: 'Vai comparar as horas de cada OS com o tempo padrão do tempário Mahindra para aquele serviço. Está em desenvolvimento.' }
 
+/** Cruzamentos fechados no estilo POS NewPortal (José, 29/10/2026: "deixa as informações mais fechadas e vai abrindo,
+ *  com o estilo do NewPortal, conforme o usuário for clicando"): cada cruzamento é um cartão com ícone em quadradinho,
+ *  o título e o número; clicar abre a explicação, o caso a caso, o dia a dia e o botão do Tratorilson. */
 export function TabelaCruzamentos({ linhas, onAcao }: { linhas: Cruzamento[]; onAcao: (a: AcaoCruzamento, div?: Divergencia) => void }) {
-  const [aberta, setAberta] = useState<number | null>(null)
-  useEffect(() => {
-    if (aberta == null) return
-    const fechar = () => setAberta(null)
-    window.addEventListener('click', fechar)
-    return () => window.removeEventListener('click', fechar)
-  }, [aberta])
+  const [abertas, setAbertas] = useState<Set<number>>(new Set())
   const todas = [...linhas, TEMPARIO]
+  const alternar = (i: number) => setAbertas((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n })
+  const erros = linhas.filter((l) => l.erro).length
   return (
-    <table className="cz">
+    <div className="cz">
       <style>{ESTILO_CZ}</style>
-      <thead><tr><th /><th>cruzamento</th><th>resultado</th><th /></tr></thead>
-      <tbody>
-        {todas.map((l, i) => {
-          const dev = l === TEMPARIO
-          return (
-            <tr key={i} className={`${l.erro ? 'x' : l.ok ? 'ok' : ''} ${l.acao ? 'clica' : ''}`} style={{ animationDelay: `${i * 50}ms` }} onClick={l.acao ? () => onAcao(l.acao!, l.div) : undefined}>
-              <td className="s">{l.erro ? '✗' : l.ok ? '✓' : '·'}</td>
-              <td className="f">
-                <span className="cz-tit">
-                  <span className="cz-ic"><i className={`fas ${l.ic}`} /></span>
-                  <span><b>{l.titulo}</b><small>{l.fontes}</small></span>
-                  <span className={`cz-info ${aberta === i ? 'on' : ''}`} role="button" tabIndex={0} aria-label="o que é isso"
-                    onClick={(e) => { e.stopPropagation(); setAberta(aberta === i ? null : i) }}
-                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); setAberta(aberta === i ? null : i) } }}>
-                    <i className="fas fa-circle-info" />
-                    <span className="cz-frase" role="tooltip" onClick={(e) => e.stopPropagation()}>{l.frase}{l.itens?.length ? <ul>{l.itens.map((it, k) => <li key={k} className={it.includes('⚠') ? 'x' : ''}>{it}</li>)}</ul> : null}</span>
-                  </span>
-                </span>
-              </td>
-              <td>{dev ? <span className="cz-dev">em desenvolvimento</span> : <><b>{l.v}</b> {l.txt}{l.sub && <small>{l.sub}</small>}</>}
+      <div className="cz-topo">
+        <span>{erros ? <><b className="x">{erros}</b> {erros === 1 ? 'divergência' : 'divergências'} · {linhas.length - erros} {linhas.length - erros === 1 ? 'cruzamento' : 'cruzamentos'} em ordem</> : <><b className="ok">Tudo em ordem</b> nos {linhas.length} cruzamentos</>}</span>
+        <button type="button" onClick={() => setAbertas(abertas.size ? new Set() : new Set(todas.map((_, i) => i)))}>{abertas.size ? 'fechar tudo' : 'abrir tudo'}</button>
+      </div>
+      {todas.map((l, i) => {
+        const dev = l === TEMPARIO
+        const on = abertas.has(i)
+        const tom = dev ? 'dev' : l.erro ? 'x' : l.ok ? 'ok' : 'n'
+        return (
+          <section key={i} className={`cz-c ${tom} ${on ? 'on' : ''}`} style={{ animationDelay: `${i * 40}ms` }}>
+            <button type="button" className="cz-cab" onClick={() => !dev && alternar(i)} aria-expanded={on} disabled={dev}>
+              <span className="cz-ic"><i className={`fas ${l.ic}`} /></span>
+              <span className="cz-tit"><b>{l.titulo}</b><small>{l.fontes}</small></span>
+              <span className="cz-val">{dev ? <span className="cz-dev">em desenvolvimento</span> : <>
+                <b>{l.v}</b>
+                <small>{l.erro ? 'divergência' : l.ok ? 'em ordem' : 'para saber'}</small>
+              </>}</span>
+              {!dev && <i className="fas fa-chevron-down cz-seta" />}
+            </button>
+            <div className="cz-corpo" aria-hidden={!on}>
+              <div className="cz-dentro">
+                <p className="cz-res"><b>{l.v}</b> {l.txt}{l.sub ? <small>{l.sub}</small> : null}</p>
+                <p className="cz-frase"><i className="fas fa-circle-info" /> {l.frase}</p>
                 {l.casos?.length ? (
                   <div className="cz-casos">
                     {l.casos.map((c) => (
                       <div key={c.os} className="cz-caso" title={[...c.motivos.map((m) => m.texto), c.gps].filter(Boolean).join(' ')}>
-                        <span className="l1"><i className="fas fa-wrench" /><b>{c.os}</b><span className="cl">{c.cliente.split(' ').slice(0, 2).join(' ')}</span><span className="n">{c.nums}</span>{c.motivos.map((m) => <em key={m.etiqueta} className={m.etiqueta}>{ROTULO_CHICO[m.etiqueta]}</em>)}</span>
-                        <span className="l2">{[...c.motivos.map((m) => m.curto), c.gpsCurto].filter(Boolean).join(' · ')}</span>
+                        <span className="l1"><i className="fas fa-wrench" /><b>{c.os}</b><span className="cl">{c.cliente.split(' ').slice(0, 3).join(' ')}</span><span className="n">{c.nums}</span>{c.motivos.map((m) => <em key={m.etiqueta} className={m.etiqueta}>{ROTULO_CHICO[m.etiqueta]}</em>)}</span>
+                        <span className="l2"><i className="fas fa-robot" /> Chico: {[...c.motivos.map((m) => m.curto), c.gpsCurto].filter(Boolean).join(' · ')}</span>
                       </div>
                     ))}
                   </div>
-                ) : null}</td>
-              <td className="a">{l.div ? <span className="tr"><i className="fas fa-robot" /> Tratorilson explica ›</span> : l.acao && <span>{ROTULO[l.acao]} ›</span>}</td>
-            </tr>
-          )
-        })}
-      </tbody>
-    </table>
+                ) : null}
+                {l.itens?.length ? <ul className="cz-itens">{l.itens.map((it, k) => <li key={k} className={it.includes('⚠') ? 'x' : ''}>{it}</li>)}</ul> : null}
+                {l.acao && (
+                  <div className="cz-acoes">
+                    <button type="button" className={l.div ? 'tr' : ''} onClick={() => onAcao(l.acao!, l.div)}>
+                      {l.div ? <><i className="fas fa-robot" /> Tratorilson explica no mapa</> : <><i className={`fas ${l.acao === 'mapa' ? 'fa-map-location-dot' : l.acao === 'os' ? 'fa-file-lines' : 'fa-calendar-days'}`} /> ver {ROTULO[l.acao]}</>}
+                      <i className="fas fa-arrow-right" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </section>
+        )
+      })}
+    </div>
   )
 }
 
 const ESTILO_CZ = `
-.cz { width: 100%; border-collapse: collapse; font-size: 14.5px }
-.cz th { text-align: left; font-size: 12px; font-weight: 500; letter-spacing: .04em; text-transform: uppercase; color: #94a3b8; padding: 0 10px 8px; border-bottom: 1px solid #e2e8f0 }
-.cz td { padding: 10px; border-bottom: 1px solid #f1f5f9; color: #475569; vertical-align: middle }
-/* só aparece (sem deslocar e sem ficar com a animação presa): transform/fill criariam uma camada por linha e o balão do ⓘ ficava por baixo das linhas seguintes */
-.cz tr { animation: czEntra .35s backwards } @keyframes czEntra { from { opacity: 0 } }
-.cz-info:hover, .cz-info.on, .cz-info:focus-visible { z-index: 50 }
-.cz tr.clica { cursor: pointer } .cz tr.clica:hover td { background: #f8fafc }
-.cz td.s { width: 18px; color: #94a3b8; font-weight: 600 } .cz tr.x td.s, .cz tr.x td:nth-child(3) > b { color: #dc2626 } .cz tr.ok td.s { color: #16a34a }
-.cz td.f { width: 1%; white-space: nowrap; padding-right: 26px }
-.cz-tit { display: inline-flex; gap: 10px; align-items: center }
-.cz-ic { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: #f1f5f9; color: #64748b; font-size: 13px; flex: none }
-.cz tr.x .cz-ic { background: #fef2f2; color: #dc2626 } .cz tr.ok .cz-ic { background: #f0fdf4; color: #16a34a }
-.cz-tit > span:nth-child(2) { display: grid; line-height: 1.25 } .cz-tit b { font-size: 14px; font-weight: 500; color: #0f172a } .cz-tit small { font-size: 12px; color: #94a3b8 }
-.cz-info { position: relative; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; color: #94a3b8; cursor: help; outline: none }
-.cz-info:hover, .cz-info.on, .cz-info:focus-visible { color: #2563eb; background: #eff6ff }
-.cz-frase { position: absolute; z-index: 40; left: 50%; top: calc(100% + 8px); transform: translate(-50%, -4px); width: 460px; max-height: 60vh; overflow: auto; white-space: normal; background: #0f172a; color: #e2e8f0; border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.55; box-shadow: 0 16px 34px rgba(15,23,42,.3); opacity: 0; pointer-events: none; transition: opacity .15s, transform .15s; cursor: default; text-align: left }
-.cz-frase ul { margin: 8px 0 0; padding: 8px 0 0 16px; border-top: 1px solid #334155; display: grid; gap: 5px; font-size: 13px; color: #cbd5e1 } .cz-frase li.x { color: #fca5a5 }
-.cz-frase::before { content: ''; position: absolute; top: -6px; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top: 0; border-bottom-color: #0f172a }
-.cz-info:hover .cz-frase, .cz-info.on .cz-frase, .cz-info:focus-visible .cz-frase { opacity: 1; transform: translate(-50%, 0); pointer-events: auto }
-.cz td:nth-child(3) > b { font-weight: 600; color: #0f172a } .cz td small { display: block; font-size: 12.5px; color: #94a3b8 }
-.cz td.a { text-align: right; width: 1%; white-space: nowrap } .cz td.a span { font-size: 13px; color: #2563eb } .cz td.a span.tr { color: #6d28d9 } .cz td.a span.tr i { font-size: 11.5px; margin-right: 2px } .cz tr.clica:hover td.a span { text-decoration: underline }
-.cz-casos { display: grid; gap: 6px; margin-top: 8px }
-.cz-caso { display: grid; gap: 1px; padding: 5px 0 5px 10px; border-left: 2px solid #99f6e4; font-size: 13px; color: #334155; cursor: help; min-width: 0 }
+.cz { display: grid; gap: 8px }
+.cz-topo { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13.5px; color: #475569; padding: 0 2px }
+.cz-topo b { font-weight: 500 } .cz-topo b.x { color: #dc2626 } .cz-topo b.ok { color: #16a34a }
+.cz-topo button { border: 0; background: none; font-family: inherit; font-size: 13px; color: #2563eb; cursor: pointer; padding: 0 } .cz-topo button:hover { text-decoration: underline }
+.cz-c { --c: #64748b; background: var(--surface, #fefefe); border: 1px solid var(--border, #e2e8f0); border-radius: 14px; transition: box-shadow .25s, border-color .25s, transform .25s; animation: czEntra .35s backwards }
+.cz-c.x { --c: #dc2626 } .cz-c.ok { --c: #16a34a } .cz-c.n { --c: #2563eb } .cz-c.dev { --c: #94a3b8 }
+@keyframes czEntra { from { opacity: 0 } }
+.cz-c:not(.dev):hover { border-color: color-mix(in srgb, var(--c) 35%, var(--border, #e2e8f0)); box-shadow: 0 14px 28px -22px rgba(15,23,42,.55) }
+.cz-c.on { border-color: color-mix(in srgb, var(--c) 35%, var(--border, #e2e8f0)) }
+.cz-cab { width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto 18px; gap: 12px; align-items: center; padding: 11px 14px; border: 0; background: none; font-family: inherit; text-align: left; color: inherit; cursor: pointer }
+.cz-cab:disabled { cursor: default }
+.cz-ic { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: 14px; color: var(--c); background: color-mix(in srgb, var(--c) 9%, var(--surface, #fefefe)); border: 1px solid color-mix(in srgb, var(--c) 18%, transparent) }
+.cz-tit { display: grid; min-width: 0; line-height: 1.3 } .cz-tit b { font-size: 15px; font-weight: 500; color: #0f172a } .cz-tit small { font-size: 12.5px; color: #64748b }
+.cz-val { display: grid; justify-items: end; line-height: 1.2 } .cz-val b { font-size: 20px; font-weight: 500; letter-spacing: -.01em; font-variant-numeric: tabular-nums; color: #0f172a; white-space: nowrap }
+.cz-c.x .cz-val b { color: #dc2626 } .cz-val small { font-size: 12px; color: var(--c) }
+.cz-seta { font-size: 12px; color: #94a3b8; transition: transform .3s cubic-bezier(.2,.8,.2,1) } .cz-c.on .cz-seta { transform: rotate(180deg); color: var(--c) }
+.cz-corpo { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .35s cubic-bezier(.2,.8,.2,1) } .cz-c.on .cz-corpo { grid-template-rows: 1fr }
+.cz-dentro { overflow: hidden; display: grid; gap: 10px; padding: 0 14px 0 60px } .cz-c.on .cz-dentro { padding-bottom: 14px }
+.cz-dentro > * { opacity: 0; transform: translateY(-4px); transition: opacity .25s, transform .25s } .cz-c.on .cz-dentro > * { opacity: 1; transform: none; transition-delay: .1s }
+.cz-res { margin: 0; font-size: 14.5px; color: #334155; line-height: 1.45 } .cz-res b { font-weight: 500; color: #0f172a } .cz-c.x .cz-res b { color: #dc2626 } .cz-res small { display: block; font-size: 13px; color: #64748b; margin-top: 2px }
+.cz-frase { margin: 0; font-size: 13.5px; color: #475569; line-height: 1.55; background: var(--portal-bg-secondary, #f8fafc); border-radius: 10px; padding: 9px 12px } .cz-frase i { color: #94a3b8; margin-right: 4px }
+.cz-casos { display: grid; gap: 6px }
+.cz-caso { display: grid; gap: 2px; padding: 8px 12px; border: 1px solid var(--border, #e2e8f0); border-radius: 10px; font-size: 13px; color: #334155; cursor: help; min-width: 0 }
 .cz-caso .l1 { display: flex; gap: 6px; align-items: baseline; flex-wrap: wrap; min-width: 0 } .cz-caso .l1 > i { font-size: 10.5px; color: #0f766e }
-.cz-caso b { font-weight: 600; color: #0f172a } .cz-caso .cl { color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px } .cz-caso .n { color: #0f172a; font-variant-numeric: tabular-nums; white-space: nowrap }
-.cz-caso .l2 { font-size: 12.5px; color: #64748b; line-height: 1.35 }
-.cz-caso em { font-style: normal; font-size: 11px; font-weight: 500; border-radius: 99px; padding: 0 7px; background: #e2e8f0; color: #334155; white-space: nowrap }
+.cz-caso b { font-weight: 500; color: #0f172a } .cz-caso .cl { color: #475569 } .cz-caso .n { color: #0f172a; font-variant-numeric: tabular-nums; white-space: nowrap }
+.cz-caso .l2 { font-size: 12.5px; color: #64748b; line-height: 1.4 } .cz-caso .l2 i { font-size: 10.5px; color: #0f766e; margin-right: 2px }
+.cz-caso em { font-style: normal; font-size: 11px; border-radius: 99px; padding: 0 7px; background: #e2e8f0; color: #334155; white-space: nowrap }
 .cz-caso em.interna { background: #ede9fe; color: #5b21b6 } .cz-caso em.garantia { background: #dbeafe; color: #1e40af } .cz-caso em.aberta { background: #fef3c7; color: #92400e } .cz-caso em.nao-lancado { background: #fee2e2; color: #991b1b }
+.cz-itens { margin: 0; padding: 0 0 0 18px; display: grid; gap: 4px; font-size: 13px; color: #475569; line-height: 1.45 } .cz-itens li.x { color: #b91c1c }
+.cz-acoes { display: flex; gap: 8px; justify-content: flex-end }
+.cz-acoes button { display: inline-flex; gap: 8px; align-items: center; height: 36px; padding: 0 14px; border-radius: 11px; border: 1px solid var(--border, #e2e8f0); background: var(--surface, #fefefe); font-family: inherit; font-size: 13.5px; color: #0f172a; cursor: pointer; transition: background .2s, border-color .2s }
+.cz-acoes button:hover { border-color: #93c5fd; background: #eff6ff } .cz-acoes button i:first-child { color: #2563eb } .cz-acoes button .fa-arrow-right { font-size: 11px; color: #94a3b8; transition: transform .2s } .cz-acoes button:hover .fa-arrow-right { transform: translateX(3px) }
+.cz-acoes button.tr { background: #6d28d9; border-color: #6d28d9; color: #fefefe } .cz-acoes button.tr i { color: #fefefe !important } .cz-acoes button.tr:hover { background: #5b21b6 }
 .cz-dev { font-size: 12.5px; color: #64748b; border: 1px dashed #cbd5e1; border-radius: 99px; padding: 2px 10px; white-space: nowrap }
-@media (max-width: 700px) { .cz td.f { white-space: normal } .cz thead { display: none } .cz-frase { width: 290px } }
+@media (max-width: 700px) { .cz-dentro { padding-left: 14px } .cz-val b { font-size: 17px } }
 `
