@@ -67,10 +67,36 @@ function Ramo({ n, sel, onSel }: { n: NoOrg; sel: string | null; onSel: (c: stri
 
 function Janela({ p, dados, salvando, erro, onFechar, onSalvar }: {
   p: PessoaOrg; dados: Resp; salvando: boolean; erro: string
-  onFechar: () => void; onSalvar: (m: Partial<VinculoOrg>) => void
+  onFechar: () => void; onSalvar: (m: Partial<VinculoOrg>) => Promise<boolean>
 }) {
   const v = dados.vinculos.find((x) => x.pessoa_chave === p.chave)
+  const chefeAtual = v?.topo ? '__topo' : (v?.gestor_chave || '')
   const [cargo, setCargo] = useState(v?.cargo || '')
+  const [chefeSel, setChefeSel] = useState(chefeAtual)
+  const [salvo, setSalvo] = useState(false)
+  const mudou = chefeSel !== chefeAtual || cargo.trim() !== (v?.cargo || '')
+  const nomeDe = (c: string | null | undefined) => dados.pessoas.find((o) => o.chave === c)?.nome || 'alguém'
+  // Sobe a corrente de chefes: chega a alguém no topo? Se não, quem é o último sem chefe.
+  const corrente = (() => {
+    const porChave = new Map(dados.vinculos.map((x) => [x.pessoa_chave, x]))
+    const vistos = new Set<string>([p.chave])
+    let atual = v?.gestor_chave || null
+    let ultimo = p.chave
+    while (atual && !vistos.has(atual)) {
+      vistos.add(atual); ultimo = atual
+      const va = porChave.get(atual)
+      if (va?.topo) return { ligado: true, solto: null as string | null }
+      atual = va?.gestor_chave || null
+    }
+    return { ligado: false, solto: ultimo }
+  })()
+  const salvarTudo = async () => {
+    const m: Partial<VinculoOrg> = { cargo: cargo.trim() || null }
+    if (chefeSel === '__topo') m.topo = true
+    else { m.gestor_chave = chefeSel || null; m.topo = false }
+    const ok = await onSalvar(m)
+    if (ok) { setSalvo(true); setTimeout(() => setSalvo(false), 2500) }
+  }
   const outros = dados.vinculos.filter((x) => x.pessoa_chave !== p.chave)
   const opcoes = dados.pessoas.filter((o) => o.chave !== p.chave && !dados.vinculos.find((x) => x.pessoa_chave === o.chave)?.fora && !criaCiclo(p.chave, o.chave, outros))
   const chefe = v?.gestor_chave ? dados.pessoas.find((o) => o.chave === v.gestor_chave) : null
@@ -89,18 +115,20 @@ function Janela({ p, dados, salvando, erro, onFechar, onSalvar }: {
 
         <div style={{ fontSize: 13, marginBottom: 12, color: 'var(--portal-text)' }}>
           {v?.topo ? <><Crown size={13} style={{ verticalAlign: -2 }} /> Está no topo do organograma.</> : chefe ? <>Responde a <strong>{chefe.nome}</strong>.</> : <span style={{ color: '#b45309' }}>Ainda sem chefe definido.</span>}
+          {chefe && !corrente.ligado && (
+            <div style={{ marginTop: 6, fontSize: 12, color: '#b45309', lineHeight: 1.4 }}>
+              Ainda aparece em “a posicionar”: {corrente.solto === v?.gestor_chave ? <strong>{chefe.nome}</strong> : <>a corrente para em <strong>{nomeDe(corrente.solto)}</strong>, que</>} ainda não tem chefe.
+              Defina a quem {corrente.solto === v?.gestor_chave ? 'ele/ela' : 'essa pessoa'} responde (ou marque “Ninguém: está no topo” em quem dirige a empresa).
+            </div>
+          )}
         </div>
 
         {editar && (
           <div style={{ display: 'grid', gap: 10, marginBottom: 14, padding: 12, borderRadius: 12, background: 'var(--portal-bg-secondary)' }}>
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)' }}>
               Responde a
-              <select value={v?.topo ? '__topo' : (v?.gestor_chave || '')} disabled={salvando} style={{ ...inp, width: '100%', marginTop: 4 }}
-                onChange={(e) => {
-                  const val = e.target.value
-                  if (val === '__topo') onSalvar({ topo: true })
-                  else onSalvar({ gestor_chave: val || null, topo: false })
-                }}>
+              <select value={chefeSel} disabled={salvando} style={{ ...inp, width: '100%', marginTop: 4 }}
+                onChange={(e) => { setChefeSel(e.target.value); setSalvo(false) }}>
                 <option value="">— escolher —</option>
                 <option value="__topo">Ninguém: está no topo</option>
                 {opcoes.map((o) => <option key={o.chave} value={o.chave}>{o.nome}{o.setor ? ` (${o.setor})` : ''}</option>)}
@@ -108,11 +136,15 @@ function Janela({ p, dados, salvando, erro, onFechar, onSalvar }: {
             </label>
             <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)' }}>
               Cargo no organograma <span style={{ fontWeight: 400, color: 'var(--portal-text-muted)' }}>(vazio = o do RH)</span>
-              <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-                <input value={cargo} maxLength={80} onChange={(e) => setCargo(e.target.value)} placeholder={p.cargo || 'ex.: Gerente de Pós-venda'} style={{ ...inp, flex: 1 }} />
-                <button disabled={salvando || cargo === (v?.cargo || '')} onClick={() => onSalvar({ cargo: cargo.trim() || null })} style={{ ...inp, cursor: 'pointer', fontWeight: 700, background: '#0369A1', color: '#fff', border: 'none' }}>Salvar</button>
-              </div>
+              <input value={cargo} maxLength={80} onChange={(e) => { setCargo(e.target.value); setSalvo(false) }} placeholder={p.cargo || 'ex.: Gerente de Pós-venda'} style={{ ...inp, width: '100%', marginTop: 4, boxSizing: 'border-box' }} />
             </label>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <button disabled={salvando || !mudou} onClick={salvarTudo} style={{ ...inp, cursor: salvando || !mudou ? 'default' : 'pointer', fontWeight: 700, background: '#0369A1', color: '#fff', border: 'none', opacity: salvando || !mudou ? 0.5 : 1, padding: '9px 18px' }}>
+                {salvando ? 'Salvando…' : 'Salvar'}
+              </button>
+              {salvo && <span style={{ fontSize: 12, color: '#047857', fontWeight: 700 }}>Salvo ✓</span>}
+              {!salvo && mudou && !salvando && <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>alterações não salvas</span>}
+            </div>
             <button disabled={salvando} onClick={() => onSalvar({ fora: !v?.fora })} style={{ ...inp, cursor: 'pointer', fontSize: 12, display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center' }}>
               {v?.fora ? <><Eye size={14} /> Voltar para o organograma</> : <><EyeOff size={14} /> Tirar do organograma (não é da equipe / saiu)</>}
             </button>
@@ -158,8 +190,8 @@ export default function Organograma() {
   const arvore = useMemo(() => (dados ? montarArvore(dados.pessoas, dados.vinculos) : null), [dados])
   const pessoaSel = dados?.pessoas.find((p) => p.chave === sel) || null
 
-  const salvar = async (m: Partial<VinculoOrg>) => {
-    if (!sel || !dados) return
+  const salvar = async (m: Partial<VinculoOrg>): Promise<boolean> => {
+    if (!sel || !dados) return false
     setSalvando(true); setErroSalvar('')
     try {
       const r = await fetch('/api/organograma', {
@@ -169,7 +201,8 @@ export default function Organograma() {
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || `Erro ${r.status}`)
       setDados({ ...dados, vinculos: [...dados.vinculos.filter((v) => v.pessoa_chave !== sel), { ordem: 0, ...j.vinculo }] })
-    } catch (e) { setErroSalvar((e as Error).message) } finally { setSalvando(false) }
+      return true
+    } catch (e) { setErroSalvar((e as Error).message); return false } finally { setSalvando(false) }
   }
 
   if (!dados) {
@@ -216,7 +249,7 @@ export default function Organograma() {
       )}
 
       {arvore!.aPosicionar.length > 0 && (
-        <div style={{ ...card, padding: '14px 16px', marginBottom: 16 }}>
+        <div style={{ ...card, padding: '14px 16px', marginBottom: 16, overflowX: 'auto' }}>
           <h3 style={titulo}>A posicionar</h3>
           <p style={{ ...sub, marginBottom: 12 }}>Sem chefe definido (ou com chefe que saiu do organograma).</p>
           <div className={css.solta}>
