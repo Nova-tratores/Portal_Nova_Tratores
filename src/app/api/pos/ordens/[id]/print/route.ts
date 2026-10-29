@@ -5,14 +5,11 @@ import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { parseValorMisto } from "@/lib/marketing/custos";
 import { valorPecasDosPPVs } from "@/lib/pos/pecas-ppv";
-import { buscarPorOS as buscarAssinaturaCliente } from "@/lib/pos/assinatura-cliente-db";
-import { assinaturaTecnicoDisponivel } from "@/lib/revisoes/cheque-pdf";
-import { PORTAL_BASE } from "@/lib/portal-url";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
   // view=1 → modo VISUALIZAÇÃO (usado pelo QR Code): NÃO abre impressão, NÃO
-  // mostra a folha de assinatura. É a página pública/ao-vivo da OS (relê o banco
+  // mostra a folha de assinatura (que saiu de vez em 29/10/2026). É a página pública/ao-vivo da OS (relê o banco
   // a cada abertura, então o mesmo QR sempre reflete o estado atual).
   const viewMode = req.nextUrl.searchParams.get("view") === "1";
   // embed=1 → mostrada dentro do visualizador do portal: sem abrir a impressão sozinha
@@ -90,7 +87,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const ppvId = safeGet(row, "ID_PPV") as string;
   const listaIds = String(ppvId || "").split(",").map((s: string) => s.trim()).filter(Boolean);
   let produtosHtml = "";
-  let pecasSignRows = ""; // linhas das peças na folha de assinatura (com checkbox "não usado")
   let totalPecas = 0;     // já COM o desconto do PPV (entra no total da ordem)
   let pecasBruto = 0;
   let pecasDescPpv = 0;
@@ -130,9 +126,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           </table>
         </div>
         <hr class="sep">`;
-    }
-    if (comPecas && prods.length > 0) {
-      pecasSignRows = prods.map(([, p]) => `<tr><td>${p.qtde}× ${p.desc}</td><td style="text-align:center"><span class="chk"></span></td><td style="text-align:right">R$ ${p.total.toFixed(2)}</td></tr>`).join("");
     }
   }
 
@@ -239,83 +232,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       ? { cor: "#BE185D", clara: "#F9A8D4", titulo: "Ordem de Serviço", sub: "Ordem de Serviço — Pós-Vendas" }
       : { cor: "#1E3A5F", clara: "#93C5FD", titulo: "Ordem de Serviço", sub: "Ordem de Serviço — Pós-Vendas" };
 
-  // Folha de assinatura (Modelo "Limpo") — sai SEMPRE junto com a OS, numa nova página.
-  const servTextoAssin = (servRealizado || servSolicitado || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-
-  // Assinatura DIGITAL do cliente (link /assinar) + rubrica do técnico, quando existem.
-  const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-  let assinaturaClienteHtml = "";
-  try {
-    const a = await buscarAssinaturaCliente(idOs);
-    if (a?.assinado_em && a.assinatura_url) {
-      const quando = new Date(a.assinado_em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
-      const g = a.assinado_geo, d = a.assinado_dispositivo;
-      const local = g ? `local ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)}${g.precisao_m ? ` (±${g.precisao_m} m)` : ""}` : "local não informado";
-      const aparelho = d ? [d.modelo, d.plataforma && d.versao ? `${d.plataforma} ${d.versao}` : d.plataforma].filter(Boolean).join(" · ") : "";
-      assinaturaClienteHtml =
-        `<img src="${esc(a.assinatura_url)}" alt="Assinatura do cliente" style="display:block;max-height:52px;max-width:220px;object-fit:contain;margin:0 auto -6px">` +
-        `<div class="sign-digital">Assinado digitalmente por ${esc(a.assinado_nome || cliente)} em ${esc(quando)}${a.assinado_ip ? ` · IP ${esc(a.assinado_ip)}` : ""}<br>${esc(local)}${aparelho ? ` · ${esc(aparelho)}` : ""}</div>`;
-    }
-  } catch { /* tabela ausente ou sem assinatura */ }
-  const rubricaTecnico = assinaturaTecnicoDisponivel(tecnico);
-  const assinaturaTecnicoHtml = rubricaTecnico
-    ? `<img src="${PORTAL_BASE}${rubricaTecnico}" alt="Rubrica do técnico" style="display:block;max-height:44px;max-width:200px;object-fit:contain;margin:0 auto -4px">`
-    : "";
-  const assinaturaHtml = `
-  <div class="sign-page">
-    <div class="header">
-      <div>
-        <div class="company-name">Nova Tratores</div>
-        <div class="company-sub">Termo de conclusão de serviço</div>
-      </div>
-      <div class="doc-box">
-        <div class="doc-label">Ordem de Serviço</div>
-        <div class="doc-number">${id}</div>
-        <div class="doc-meta">${data}</div>
-      </div>
-    </div>
-
-    <div class="section">
-      <div class="section-title">Cliente</div>
-      <div class="field"><div class="val-name">${cliente.toUpperCase()}</div></div>
-      <div class="info-grid" style="margin-top:4px">
-        <div class="field"><div class="lbl">CPF / CNPJ</div><div class="val">${cpf}</div></div>
-        <div class="field span2"><div class="lbl">Endereço</div><div class="val">${endereco}</div></div>
-        <div class="field"><div class="lbl">Tipo de serviço</div><div class="val">${tipoServico}${revisao ? ` — ${revisao}` : ""}</div></div>
-        <div class="field"><div class="lbl">Técnico</div><div class="val">${tecnico}${tecnico2 ? ` / ${tecnico2}` : ""}</div></div>
-        <div class="field"><div class="lbl">Data</div><div class="val">${data}</div></div>
-      </div>
-    </div>
-
-    <hr class="sep">
-
-    ${servTextoAssin ? `<div class="section">
-      <div class="section-title">Serviços executados</div>
-      <div class="obs-box">${servTextoAssin}</div>
-    </div>` : ""}
-
-    ${pecasSignRows ? `<div class="section" style="margin-top:10px">
-      <div class="section-title">Peças utilizadas</div>
-      <table class="cost-table">
-        <thead><tr><th>Peça</th><th style="text-align:center">Não usado</th><th style="text-align:right">Valor</th></tr></thead>
-        <tbody>${pecasSignRows}</tbody>
-      </table>
-    </div>` : ""}
-
-    <div class="total-row" style="margin-top:12px">
-      <div><div class="total-lbl">Total da ordem</div></div>
-      <div class="total-val" style="font-size:18pt">R$ ${totalCalculado.toFixed(2)}</div>
-    </div>
-
-    <div class="aviso">Importante: as peças que não forem utilizadas serão retiradas do orçamento final — o mesmo vale para as horas. Da mesma forma, caso sejam necessárias mais horas ou peças, elas serão acrescentadas ao valor final.</div>
-
-    <div class="declar">Declaro que os serviços descritos acima foram <b>executados e conferidos</b>, e que recebi o equipamento em condições de uso. Autorizo a cobrança dos valores correspondentes.</div>
-
-    <div class="signs">
-      <div>${assinaturaClienteHtml}<div class="sign-line"${assinaturaClienteHtml ? ' style="margin-top:8px"' : ""}></div><div class="sign-name">${cliente.toUpperCase()}</div><div class="sign-role">Cliente — assinatura e data</div></div>
-      <div>${assinaturaTecnicoHtml}<div class="sign-line"${assinaturaTecnicoHtml ? ' style="margin-top:8px"' : ""}></div><div class="sign-name">${tecnico}${tecnico2 ? ` / ${tecnico2}` : ""}</div><div class="sign-role">Técnico responsável</div></div>
-    </div>
-  </div>`;
+  // A folha "Termo de conclusão de serviço" (2ª página, com as peças "não usado" e as assinaturas) saiu da
+  // impressão da OS — José, 29/10/2026: "não é para ter mais essa folha". Está no git (antes de 29/10).
 
   const html = `<!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="UTF-8"><title>OS ${id} - ${cliente}</title>
@@ -492,7 +410,6 @@ ${viewMode || embed ? "" : "<script>window.onload = function() { window.print();
     </div>
   </div>
 
-  ${viewMode ? "" : assinaturaHtml}
 
   <div class="footer">Documento gerado pelo Sistema POS &mdash; Nova Tratores</div>
 

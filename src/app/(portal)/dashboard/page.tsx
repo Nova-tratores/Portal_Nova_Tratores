@@ -10,6 +10,7 @@ import { useAuditLog } from '@/hooks/useAuditLog'
 import { TELAS, buscarTelas, normalizar, relevancia, type Tela } from '@/lib/dashboard/telas'
 import AtalhosDashboard from '@/components/dashboard/AtalhosDashboard'
 import NoticiasPortal from '@/components/conhecimento/NoticiasPortal'
+import AgendaDashboard from '@/components/dashboard/AgendaDashboard'
 import {
   Settings, ClipboardList, ListChecks, Wrench, FileText,
   DollarSign, Activity, Clock, ChevronRight, Search,
@@ -496,7 +497,7 @@ export default function DashboardPage() {
     // ===== CELULAR: lançador de apps próprio (o desktop abaixo não é usado) =====
     return (
       <>
-      <div style={{ padding: '12px 12px 0' }}><NoticiasPortal /></div>
+      <div style={{ padding: '12px 12px 0' }}><NoticiasPortal /><AgendaDashboard /></div>
       <DashboardMobile
         systems={allowedSystems}
         favoritos={favoritos}
@@ -622,6 +623,8 @@ export default function DashboardPage() {
 
       {/* Notícias do portal: o "O que mudou" agora mora só aqui, como notícia de jornal (José, 29/10/2026) */}
       {activeFolder === 'todos' && !editingFolder && <NoticiasPortal />}
+      {/* Minha agenda (próximos 7 dias) logo abaixo das notícias — José, 29/10/2026 */}
+      {activeFolder === 'todos' && !editingFolder && <AgendaDashboard />}
 
       {/* Filtros + View modes + Busca */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px', flexWrap: 'wrap' }}>
