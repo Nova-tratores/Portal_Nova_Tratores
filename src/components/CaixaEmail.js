@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation'
 import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
 import ConfigEmailEnvioModal from '@/components/financeiro/ConfigEmailEnvioModal'
-import { Mail, Reply, RefreshCw, ExternalLink, Paperclip, X, Send, Check, CheckCheck, PenLine } from 'lucide-react'
+import { Mail, Reply, RefreshCw, ExternalLink, Paperclip, X, Send, Check, CheckCheck, PenLine, ImagePlus } from 'lucide-react'
 
 const fmtData = (iso, comAno) => {
   if (!iso) return ''
@@ -35,6 +35,9 @@ const fmtTamanho = (b) => {
 const assinarLargura = (cb) => { window.addEventListener('resize', cb); return () => window.removeEventListener('resize', cb) }
 const larguraCelular = () => window.innerWidth <= 640
 
+// mesmo teto do servidor (lib/financeiro/email-anexos.ts)
+const LIMITE_ANEXOS = 18 * 1024 * 1024
+
 export default function CaixaEmail() {
   const { userProfile } = useAuth()
   const [temConfig, setTemConfig] = useState(false)
@@ -58,6 +61,10 @@ export default function CaixaEmail() {
   const [assinaturaHtml, setAssinaturaHtml] = useState('')
   const [salvandoAss, setSalvandoAss] = useState(false)
   const assEditorRef = useRef(null)
+  const [arquivosAss, setArquivosAss] = useState([])   // arquivos fixos: vão em toda resposta
+  const [subindoAss, setSubindoAss] = useState('')     // 'imagem' | 'arquivo' | ''
+  const imgAssRef = useRef(null)
+  const arqAssRef = useRef(null)
 
   // Modal de leitura
   const [msgAberta, setMsgAberta] = useState(null)   // item da lista
@@ -67,6 +74,8 @@ export default function CaixaEmail() {
   const [enviandoResp, setEnviandoResp] = useState(false)
   const [respOk, setRespOk] = useState('')
   const [baixandoAnexo, setBaixandoAnexo] = useState(null)
+  const [anexosResp, setAnexosResp] = useState([])     // File[] escolhidos para a resposta
+  const anexoRespRef = useRef(null)
 
   useEffect(() => {
     let ativo = true
@@ -76,6 +85,11 @@ export default function CaixaEmail() {
         const c = await r.json()
         if (ativo && c && !c.error && c.email_envio) { setTemConfig(true); setConta(c.email_envio) }
         if (ativo && c && !c.error) setAssinaturaHtml(c.assinatura_html || '')
+        if (ativo && c && !c.error && c.email_envio) {
+          const ra = await fetch('/api/financeiro/config-envio/assinatura-arquivos', { headers: { ...(await authHeaders()) } })
+          const ja = await ra.json().catch(() => ({}))
+          if (ativo && Array.isArray(ja.arquivos)) setArquivosAss(ja.arquivos)
+        }
       } catch { /* sem config */ }
     })()
     return () => { ativo = false }
@@ -156,7 +170,7 @@ export default function CaixaEmail() {
   }, [pasta])
 
   const abrirMensagem = async (em) => {
-    setMsgAberta(em); setDetalhe(null); setResposta(''); setRespOk('')
+    setMsgAberta(em); setDetalhe(null); setResposta(''); setRespOk(''); setAnexosResp([])
     carregarConversa(em, false)
   }
 
@@ -205,6 +219,64 @@ export default function CaixaEmail() {
     setSalvandoAss(false)
   }
 
+  // Imagem na assinatura: sobe e entra no ponto do cursor (ou no fim)
+  const inserirImagemAss = async (file) => {
+    if (!file) return
+    setSubindoAss('imagem')
+    try {
+      const fd = new FormData(); fd.append('arquivo', file); fd.append('imagem', '1')
+      const r = await fetch('/api/financeiro/config-envio/assinatura-arquivos', { method: 'POST', headers: { ...(await authHeaders()) }, body: fd })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok || !j.url) { alert(j.error || 'Falha ao enviar a imagem.'); return }
+      const ed = assEditorRef.current
+      if (!ed) return
+      const img = document.createElement('img')
+      img.src = j.url; img.alt = ''; img.style.maxWidth = '320px'
+      const sel = window.getSelection()
+      if (sel && sel.rangeCount && ed.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+        const rg = sel.getRangeAt(0); rg.deleteContents(); rg.insertNode(img)
+      } else ed.appendChild(img)
+    } catch { alert('Falha ao enviar a imagem.') }
+    finally { setSubindoAss('') }
+  }
+
+  const adicionarArquivoAss = async (file) => {
+    if (!file) return
+    setSubindoAss('arquivo')
+    try {
+      const fd = new FormData(); fd.append('arquivo', file)
+      const r = await fetch('/api/financeiro/config-envio/assinatura-arquivos', { method: 'POST', headers: { ...(await authHeaders()) }, body: fd })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok || j.error) alert(j.error || 'Falha ao guardar o arquivo.')
+      else if (Array.isArray(j.arquivos)) setArquivosAss(j.arquivos)
+    } catch { alert('Falha ao guardar o arquivo.') }
+    finally { setSubindoAss('') }
+  }
+
+  const removerArquivoAss = async (nome) => {
+    if (!confirm(`Tirar "${nome}" da assinatura? Ele deixa de ir nas respostas.`)) return
+    try {
+      const r = await fetch(`/api/financeiro/config-envio/assinatura-arquivos?nome=${encodeURIComponent(nome)}`, { method: 'DELETE', headers: { ...(await authHeaders()) } })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok || j.error) alert(j.error || 'Falha ao remover.')
+      else if (Array.isArray(j.arquivos)) setArquivosAss(j.arquivos)
+    } catch { alert('Falha ao remover.') }
+  }
+
+  // Anexos da resposta: somados aos da assinatura não podem passar do teto
+  const totalAss = arquivosAss.reduce((s, a) => s + (a.tamanho || 0), 0)
+  const incluirAnexos = (files) => {
+    const novos = Array.from(files || [])
+    if (!novos.length) return
+    const juntos = [...anexosResp, ...novos.filter((f) => !anexosResp.some((p) => p.name === f.name && p.size === f.size))]
+    if (juntos.reduce((s, f) => s + f.size, 0) + totalAss > LIMITE_ANEXOS) {
+      alert(`Os anexos passariam de ${fmtTamanho(LIMITE_ANEXOS)} (contando os arquivos da assinatura). Tire algum ou envie em outro e-mail.`)
+      return
+    }
+    if (juntos.length + arquivosAss.length > 10) { alert('No máximo 10 anexos por e-mail (contando os da assinatura).'); return }
+    setAnexosResp(juntos)
+  }
+
   // Marca como lida (seta o "lido" direto no seu e-mail via IMAP)
   const [marcando, setMarcando] = useState(false)
   const marcarLida = async (uid) => {
@@ -237,17 +309,17 @@ export default function CaixaEmail() {
   }
 
   const responder = async () => {
-    if (!msgAberta || !resposta.trim() || enviandoResp) return
+    if (!msgAberta || (!resposta.trim() && !anexosResp.length) || enviandoResp) return
     setEnviandoResp(true); setRespOk('')
     try {
-      const r = await fetch('/api/financeiro/caixa-email', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ uid: msgAberta.uid, texto: resposta.trim() }),
-      })
-      const j = await r.json()
+      const fd = new FormData()
+      fd.append('uid', String(msgAberta.uid)); fd.append('texto', resposta.trim())
+      anexosResp.forEach((f) => fd.append('arquivos', f, f.name))
+      const r = await fetch('/api/financeiro/caixa-email', { method: 'POST', headers: { ...(await authHeaders()) }, body: fd })
+      const j = await r.json().catch(() => ({}))
       if (!r.ok || j.error) alert(j.error || 'Falha ao enviar a resposta.')
       else {
-        setRespOk(`Resposta enviada para ${j.para}.`); setResposta('')
+        setRespOk(`Resposta enviada para ${j.para}${j.anexos ? ` com ${j.anexos} anexo${j.anexos > 1 ? 's' : ''}` : ''}.`); setResposta(''); setAnexosResp([])
         // a cópia cai nos Enviados em ~1-2s — recarrega a conversa pra ela aparecer
         const em = msgAberta
         setTimeout(() => { if (em) carregarConversa(em, true) }, 1800)
@@ -256,6 +328,7 @@ export default function CaixaEmail() {
     setEnviandoResp(false)
   }
 
+  const respVazia = !resposta.trim() && !anexosResp.length
   const chip = { display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--portal-text)', fontSize: 12.5, fontWeight: 600 }
 
   return (
@@ -418,6 +491,36 @@ export default function CaixaEmail() {
                 suppressContentEditableWarning
                 style={{ minHeight: 160, maxHeight: '46vh', overflowY: 'auto', border: '1.5px dashed var(--portal-border)', borderRadius: 10, padding: '12px 14px', background: '#ffffff', color: '#111', fontSize: 14, outline: 'none' }}
               />
+              <input ref={imgAssRef} type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden
+                onChange={(e) => { inserirImagemAss(e.target.files?.[0]); e.target.value = '' }} />
+              <input ref={arqAssRef} type="file" hidden
+                onChange={(e) => { adicionarArquivoAss(e.target.files?.[0]); e.target.value = '' }} />
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, flexWrap: 'wrap' }}>
+                <button onClick={() => imgAssRef.current?.click()} disabled={!!subindoAss} title="Põe uma imagem (logo, foto) onde está o cursor"
+                  style={{ ...chip, padding: '6px 11px' }}>
+                  {subindoAss === 'imagem' ? <RefreshCw size={13} className="spin-envio" /> : <ImagePlus size={13} />} Inserir imagem
+                </button>
+              </div>
+
+              <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid var(--portal-border)' }}>
+                <b style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>Arquivos anexados em toda resposta</b>
+                <p style={{ fontSize: 12, color: 'var(--portal-text-secondary)', margin: '4px 0 8px', lineHeight: 1.45 }}>
+                  Ex.: catálogo, apresentação da empresa, dados bancários em PDF. Vão anexados em todas as respostas enviadas pelo portal (até 9 MB no total). Ficam guardados assim que você adiciona.
+                </p>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                  {arquivosAss.map((a) => (
+                    <span key={a.nome} style={{ ...chip, cursor: 'default' }}>
+                      <Paperclip size={13} /> {a.nome} <span style={{ color: 'var(--portal-text-secondary)', fontWeight: 400 }}>{fmtTamanho(a.tamanho)}</span>
+                      <button onClick={() => removerArquivoAss(a.nome)} title="Tirar da assinatura"
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#dc2626', display: 'flex', padding: 0 }}><X size={13} /></button>
+                    </span>
+                  ))}
+                  <button onClick={() => arqAssRef.current?.click()} disabled={!!subindoAss}
+                    style={{ ...chip, borderStyle: 'dashed' }}>
+                    {subindoAss === 'arquivo' ? <RefreshCw size={13} className="spin-envio" /> : <Paperclip size={13} />} Adicionar arquivo
+                  </button>
+                </div>
+              </div>
               <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
                 <button onClick={salvarAssinatura} disabled={salvandoAss}
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 9, padding: '9px 18px', cursor: salvandoAss ? 'wait' : 'pointer', fontSize: 13.5, fontWeight: 700 }}>
@@ -599,7 +702,24 @@ export default function CaixaEmail() {
             {pasta === 'inbox' && (
             <div style={{ borderTop: '1px solid var(--portal-border)', padding: celular ? '10px 10px calc(10px + env(safe-area-inset-bottom))' : '12px 16px' }}>
               {respOk && <div style={{ fontSize: 12.5, fontWeight: 700, color: '#16a34a', marginBottom: 8 }}>✓ {respOk}</div>}
-              <div style={{ display: 'flex', gap: 10, alignItems: celular ? 'stretch' : 'flex-end', flexDirection: celular ? 'column' : 'row' }}>
+              {anexosResp.length > 0 && (
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8 }}>
+                  {anexosResp.map((f, i) => (
+                    <span key={`${f.name}-${i}`} style={{ ...chip, cursor: 'default', padding: '4px 10px', fontSize: 12 }}>
+                      <Paperclip size={12} /> <span style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                      <span style={{ color: 'var(--portal-text-secondary)', fontWeight: 400 }}>{fmtTamanho(f.size)}</span>
+                      <button onClick={() => setAnexosResp((prev) => prev.filter((_, j) => j !== i))} title="Tirar este anexo"
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#dc2626', display: 'flex', padding: 0 }}><X size={12} /></button>
+                    </span>
+                  ))}
+                </div>
+              )}
+              <input ref={anexoRespRef} type="file" multiple hidden
+                onChange={(e) => { incluirAnexos(e.target.files); e.target.value = '' }} />
+              <div
+                onDragOver={(e) => { if (e.dataTransfer?.types?.includes('Files')) e.preventDefault() }}
+                onDrop={(e) => { if (e.dataTransfer?.files?.length) { e.preventDefault(); incluirAnexos(e.dataTransfer.files) } }}
+                style={{ display: 'flex', gap: 10, alignItems: celular ? 'stretch' : 'flex-end', flexDirection: celular ? 'column' : 'row' }}>
                 <textarea
                   value={resposta}
                   onChange={(e) => setResposta(e.target.value)}
@@ -607,13 +727,19 @@ export default function CaixaEmail() {
                   rows={2}
                   style={{ flex: 1, resize: 'vertical', minHeight: 44, maxHeight: 160, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', fontSize: 13.5, boxSizing: 'border-box' }}
                 />
-                <button onClick={responder} disabled={enviandoResp || !resposta.trim()}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: enviandoResp || !resposta.trim() ? 'var(--portal-text-faint)' : '#16a34a', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 18px', cursor: enviandoResp || !resposta.trim() ? 'default' : 'pointer', fontSize: 13.5, fontWeight: 700, flexShrink: 0 }}>
-                  {enviandoResp ? <RefreshCw size={15} className="spin-envio" /> : <Send size={15} />} {enviandoResp ? 'Enviando…' : 'Responder'}
-                </button>
+                <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                  <button onClick={() => anexoRespRef.current?.click()} disabled={enviandoResp} title="Anexar arquivos (ou arraste para cá)"
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', border: '1px solid var(--portal-border)', borderRadius: 10, padding: '11px 14px', cursor: 'pointer', fontSize: 13.5, fontWeight: 600, flex: celular ? 1 : 'none' }}>
+                    <Paperclip size={15} /> Anexar
+                  </button>
+                  <button onClick={responder} disabled={enviandoResp || respVazia}
+                    style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 7, background: enviandoResp || respVazia ? 'var(--portal-text-faint)' : '#16a34a', color: '#fff', border: 'none', borderRadius: 10, padding: '11px 18px', cursor: enviandoResp || respVazia ? 'default' : 'pointer', fontSize: 13.5, fontWeight: 700, flex: celular ? 2 : 'none' }}>
+                    {enviandoResp ? <RefreshCw size={15} className="spin-envio" /> : <Send size={15} />} {enviandoResp ? 'Enviando…' : 'Responder'}
+                  </button>
+                </div>
               </div>
               <div style={{ fontSize: 11, color: 'var(--portal-text-secondary)', marginTop: 6 }}>
-                A resposta sai pelo seu e-mail ({conta}) e continua na mesma conversa.{assinaturaHtml ? ' Sua assinatura vai junto.' : ''}
+                A resposta sai pelo seu e-mail ({conta}) e continua na mesma conversa.{assinaturaHtml ? ' Sua assinatura vai junto.' : ''}{arquivosAss.length ? ` ${arquivosAss.length === 1 ? 'O arquivo' : `Os ${arquivosAss.length} arquivos`} da assinatura também.` : ''}
               </div>
             </div>
             )}

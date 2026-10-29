@@ -7,13 +7,15 @@
 //   GET ?uid=N&anexo=P→ baixa só o anexo da parte P
 //   GET ?badge=1      → não lidos da INBOX (STATUS)
 //   PATCH {uid|todas} → marca como lida (\Seen direto na caixa)
-//   POST {uid, texto} → responde na mesma conversa (SMTP do usuário)
+//   POST {uid, texto} → responde na mesma conversa (SMTP do usuário); em
+//                       multipart (uid, texto, arquivos[]) vai com anexos
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar } from "@/lib/auth/server";
 import { decrypt } from "@/lib/cripto";
 import { comImap } from "@/lib/financeiro/imapPool";
 import { enviarComCopia, escolherPasta, traduzirErroEmail } from "@/lib/financeiro/email-conta";
+import { anexosDaAssinatura, validarAnexos } from "@/lib/financeiro/email-anexos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -382,9 +384,32 @@ export async function POST(req: NextRequest) {
   if (!cfg) return NextResponse.json({ error: "Configure seu e-mail de envio primeiro." }, { status: 400 });
   const senha = decrypt(cfg.senha_enc);
 
-  const { uid, texto } = await req.json().catch(() => ({}));
-  const corpo = String(texto || "").trim();
-  if (!uid || !corpo) return NextResponse.json({ error: "uid e texto são obrigatórios." }, { status: 400 });
+  // JSON (só texto) ou multipart (texto + arquivos escolhidos na hora)
+  let uid: string | number | null = null;
+  let texto = "";
+  const daHora: { filename: string; content: Buffer; contentType?: string }[] = [];
+  if ((req.headers.get("content-type") || "").includes("multipart/form-data")) {
+    const form = await req.formData().catch(() => null);
+    uid = String(form?.get("uid") || "") || null;
+    texto = String(form?.get("texto") || "");
+    for (const f of form?.getAll("arquivos") || []) {
+      if (f instanceof File) daHora.push({ filename: f.name || "anexo", content: Buffer.from(await f.arrayBuffer()), contentType: f.type || undefined });
+    }
+  } else {
+    const b = await req.json().catch(() => ({}));
+    uid = b?.uid ?? null;
+    texto = String(b?.texto || "");
+  }
+  const corpo = texto.trim();
+  if (!uid || (!corpo && daHora.length === 0)) return NextResponse.json({ error: "Escreva a resposta ou anexe um arquivo." }, { status: 400 });
+
+  // Arquivos fixos da assinatura vão junto em toda resposta
+  let daAssinatura: { filename: string; content: Buffer }[] = [];
+  try { daAssinatura = await anexosDaAssinatura(supabase, auth.userId); }
+  catch (e) { return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 502 }); }
+  const anexos = [...daHora, ...daAssinatura];
+  const erroAnexos = validarAnexos(anexos.map((a) => ({ nome: a.filename, tamanho: a.content.length })));
+  if (erroAnexos) return NextResponse.json({ error: erroAnexos }, { status: 400 });
 
   let original: { de: string; assunto: string; messageId: string; inReplyTo: string } | null = null;
   try {
@@ -423,6 +448,7 @@ export async function POST(req: NextRequest) {
       to: original.de,
       subject: assunto,
       html: `<p>${html}</p>`,
+      ...(anexos.length ? { attachments: anexos } : {}),
       ...(original.messageId ? { inReplyTo: original.messageId, references: [original.inReplyTo, original.messageId].filter(Boolean).join(" ") } : {}),
     });
 
@@ -446,7 +472,7 @@ export async function POST(req: NextRequest) {
       }
     } catch { /* registro é best-effort */ }
 
-    return NextResponse.json({ ok: true, para: original.de });
+    return NextResponse.json({ ok: true, para: original.de, anexos: anexos.length });
   } catch (e) {
     return NextResponse.json({ error: `Falha ao enviar: ${traduzirErroEmail(e, cfg.smtp_host)}` }, { status: 502 });
   }
