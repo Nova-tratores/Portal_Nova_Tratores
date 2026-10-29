@@ -191,14 +191,17 @@ const TEMPARIO: Cruzamento = { titulo: 'Tempo × tempário', ic: 'fa-stopwatch',
  *  o título e o número; clicar abre a explicação, o caso a caso, o dia a dia e o botão do Tratorilson. */
 export function TabelaCruzamentos({ linhas, onAcao }: { linhas: Cruzamento[]; onAcao: (a: AcaoCruzamento, div?: Divergencia) => void }) {
   const [abertas, setAbertas] = useState<Set<number>>(new Set())
-  const todas = [...linhas, TEMPARIO]
+  // o que está em ordem não aparece em Horas e km fantasmas (José, 29/10/2026: "esse tipo de informação não precisa ficar aqui")
+  const emOrdem = linhas.filter((l) => l.ok)
+  const todas = [...linhas.filter((l) => !l.ok), TEMPARIO]
   const alternar = (i: number) => setAbertas((s) => { const n = new Set(s); if (n.has(i)) n.delete(i); else n.add(i); return n })
   const erros = linhas.filter((l) => l.erro).length
+  const nOrdem = emOrdem.length
   return (
     <div className="cz">
       <style>{ESTILO_CZ}</style>
       <div className="cz-topo">
-        <span>{erros ? <><b className="x">{erros}</b> {erros === 1 ? 'divergência' : 'divergências'} · {linhas.length - erros} {linhas.length - erros === 1 ? 'cruzamento' : 'cruzamentos'} em ordem</> : <><b className="ok">Tudo em ordem</b> nos {linhas.length} cruzamentos</>}</span>
+        <span title={nOrdem ? `em ordem: ${emOrdem.map((l) => l.titulo).join(', ')}` : undefined}>{erros ? <><b className="x">{erros}</b> {erros === 1 ? 'divergência' : 'divergências'}</> : <b className="ok">Nenhuma divergência</b>}{nOrdem ? <> · <i className="fas fa-check" style={{ color: '#16a34a', fontSize: 11 }} /> {nOrdem} {nOrdem === 1 ? 'cruzamento' : 'cruzamentos'} em ordem</> : null}</span>
         <button type="button" onClick={() => setAbertas(abertas.size ? new Set() : new Set(todas.map((_, i) => i)))}>{abertas.size ? 'fechar tudo' : 'abrir tudo'}</button>
       </div>
       {todas.map((l, i) => {
