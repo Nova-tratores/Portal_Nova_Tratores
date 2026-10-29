@@ -497,7 +497,7 @@ export default function DashboardPage() {
     // ===== CELULAR: lançador de apps próprio (o desktop abaixo não é usado) =====
     return (
       <>
-      <div style={{ padding: '12px 12px 0' }}><NoticiasPortal /><AgendaDashboard /></div>
+      <div style={{ padding: '12px 12px 0' }}><AgendaDashboard /></div>
       <DashboardMobile
         systems={allowedSystems}
         favoritos={favoritos}
@@ -509,6 +509,8 @@ export default function DashboardPage() {
         onAbrirTela={abrirTela}
         userNome={userProfile?.nome}
       />
+      {/* notícias do "O que mudou" lá embaixo (José, 29/10/2026) */}
+      <div style={{ padding: '0 12px 12px' }}><NoticiasPortal /></div>
       </>
     )
   }
@@ -621,9 +623,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Notícias do portal: o "O que mudou" agora mora só aqui, como notícia de jornal (José, 29/10/2026) */}
-      {activeFolder === 'todos' && !editingFolder && <NoticiasPortal />}
-      {/* Minha agenda (próximos 7 dias) logo abaixo das notícias — José, 29/10/2026 */}
+      {/* Minha semana (seg–sex, faixas) no topo — José, 29/10/2026 */}
       {activeFolder === 'todos' && !editingFolder && <AgendaDashboard />}
 
       {/* Filtros + View modes + Busca */}
@@ -1226,6 +1226,9 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Notícias do portal ("O que mudou") lá embaixo, antes do rodapé — José, 29/10/2026: "é pra ficar lá embaixo" */}
+      {activeFolder === 'todos' && !editingFolder && <div style={{ marginTop: 28 }}><NoticiasPortal /></div>}
 
       {/* Footer */}
       <div style={{

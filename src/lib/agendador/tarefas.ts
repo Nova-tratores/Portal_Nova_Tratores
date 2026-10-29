@@ -79,6 +79,16 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: `${r.versoes} versão(ões) · ${r.novidades.length} módulo(s): ${r.novidades.map((n) => n.modulo).join(', ') || '—'} · ${r.avisados} pessoa(s) avisada(s)` };
   },
 
+  // Tratorilson organiza a semana de tickets de cada pessoa (José, 29/10/2026): às 07:00 dá um dia aos
+  // tickets sem prazo; na dúvida de prioridade pergunta num popup. Chave geral + opt-out por pessoa na Central.
+  'tratorilson-tickets': async () => {
+    if (desligada('TRATORILSON_TICKETS')) return { pular: 'TRATORILSON_TICKETS=off' };
+    const { organizarTickets } = await import('@/lib/tickets/tratorilson-server');
+    const r = await organizarTickets();
+    if (r.pulado) return { pular: r.pulado };
+    return { resumo: `${r.pessoas} pessoa(s) · ${r.marcados} ticket(s) com dia · ${r.perguntas} pergunta(s)` };
+  },
+
   // CRM automático (José, 23/10/2026): toda OS faturada há 3–15 dias vira uma ligação
   // de satisfação no /feedbacks/crm, já preenchida. FEEDBACKS_CRM_AUTO=off desliga.
   'feedbacks-crm-automatico': async () => {

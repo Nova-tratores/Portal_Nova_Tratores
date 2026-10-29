@@ -220,8 +220,65 @@ function ComoFunciona({ onFechar }: { onFechar: () => void }) {
             ))}
           </div>
           <PreferenciaAtalho />
+          <PreferenciaTratorilson />
         </div>
       </div>
+    </div>
+  )
+}
+
+// Tratorilson organiza a semana de tickets (José, 29/10/2026): chave geral (admin) + cada um desliga o seu.
+function PreferenciaTratorilson() {
+  const [st, setSt] = useState<{ ligado: boolean; tabela: boolean; admin: boolean; desligadoParaMim: boolean } | null>(null)
+  const [msg, setMsg] = useState('')
+  useEffect(() => {
+    let vivo = true
+    ;(async () => {
+      try {
+        const r = await fetch('/api/tickets/tratorilson', { headers: await authHeaders() })
+        const j = await r.json()
+        if (vivo && r.ok) setSt(j)
+      } catch { /* sem a função */ }
+    })()
+    return () => { vivo = false }
+  }, [])
+  if (!st) return null
+  const enviar = async (corpo: Record<string, unknown>) => {
+    setMsg('')
+    const r = await fetch('/api/tickets/tratorilson', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify(corpo) })
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok) { setMsg(j.error || 'Não deu certo.'); return null }
+    return j
+  }
+  const linha: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer' }
+  return (
+    <div style={{ marginTop: 16, paddingTop: 14, borderTop: '1px solid var(--portal-border,#eee)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div style={{ fontSize: 13.5 }}><i className="fa-solid fa-robot" style={{ color: '#4F46E5', marginRight: 6 }} />Tratorilson organiza a semana</div>
+      <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)', lineHeight: 1.45 }}>
+        Todo dia às 7h ele dá um dia da semana aos tickets <b>sem prazo</b> de cada pessoa, pela prioridade e pelo que ela já tem marcado.
+        Prazo que alguém colocou ele não mexe. Na dúvida, pergunta numa janelinha.
+      </div>
+      {!st.tabela && <div style={{ fontSize: 12.5, color: '#b45309' }}>Falta rodar o SQL sql/tratorilson-tickets.sql no Supabase.</div>}
+      {st.admin && st.tabela && (
+        <label style={linha}>
+          <input type="checkbox" checked={st.ligado} onChange={async (e) => { const v = e.target.checked; if (await enviar({ acao: 'config', ligado: v })) setSt({ ...st, ligado: v }) }} />
+          Ligado para todos (admin)
+        </label>
+      )}
+      {!st.admin && st.tabela && <div style={{ fontSize: 12.5 }}>Para a empresa: <b>{st.ligado ? 'ligado' : 'desligado'}</b></div>}
+      {st.tabela && st.ligado && (
+        <label style={linha}>
+          <input type="checkbox" checked={!st.desligadoParaMim} onChange={async (e) => { const v = e.target.checked; if (await enviar({ acao: 'optout', desligado: !v })) setSt({ ...st, desligadoParaMim: !v }) }} />
+          Organizar a minha semana
+        </label>
+      )}
+      {st.tabela && st.ligado && !st.desligadoParaMim && (
+        <button type="button" onClick={async () => { const j = await enviar({ acao: 'organizar_agora' }); if (j) setMsg(j.pulado ? j.pulado : `Pronto: ${j.marcados} ticket(s) ganharam dia.`) }}
+          style={{ alignSelf: 'flex-start', fontSize: 13, padding: '6px 12px', borderRadius: 10, border: '1px solid var(--portal-border,#e2e8f0)', background: 'transparent', color: 'inherit', cursor: 'pointer' }}>
+          Organizar minha semana agora
+        </button>
+      )}
+      {msg && <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary,#475569)' }}>{msg}</div>}
     </div>
   )
 }

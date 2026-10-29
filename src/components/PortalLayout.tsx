@@ -9,6 +9,7 @@ import AcessoBloqueado from '@/components/AcessoBloqueado'
 import { usePathname, useRouter } from 'next/navigation'
 import TratorinoChat from '@/components/TratorinoChat'
 import PainelDoDia from '@/components/trabalho/PainelDoDia'
+import PerguntaTratorilson from '@/components/trabalho/PerguntaTratorilson'
 import AvisoComissoesDiretor from '@/components/mecanicos/AvisoComissoesDiretor'
 import CaixaEmail from '@/components/CaixaEmail'
 import VigiaCameras from '@/components/VigiaCameras'
@@ -1613,6 +1614,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
       {/* Central de Trabalho: confirmar ticket recebido, "Seu dia" e atalho na dashboard */}
       {!emIframe && userProfile?.id && <PainelDoDia nome={userProfile?.nome || ''} />}
+      {/* Tratorilson em dúvida de prioridade ao organizar a semana de tickets: pergunta num popup */}
+      {!emIframe && userProfile?.id && <PerguntaTratorilson />}
       {/* Diretor: comissões esperando autorização caem na cara dele (e atalho na dashboard) */}
       {!emIframe && userProfile?.id && <AvisoComissoesDiretor />}
       {!emIframe && userProfile?.id && <Suspense fallback={null}><JornadaQuery /></Suspense>}
