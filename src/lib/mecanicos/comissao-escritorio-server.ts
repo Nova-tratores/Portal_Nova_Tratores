@@ -2,7 +2,8 @@
 // Garantista (função dada na Administração: módulo Gestão Pós Vendas → "Garantista"):
 //   1% do total das GARANTIAS faturadas no mês (OS + peças) + X% do total das REVISÕES faturadas no mês (OS + peças).
 //   X começa em 1% e só o Gerente do Pós-Vendas (mesma tela da Administração → "Gerente do Pós-Vendas") muda.
-// Larissa Garcia: regra ainda a definir — aparece sem cálculo.
+// Larissa Garcia (29/10/2026): 1% de TUDO que entrou no mês (OS + peças, a mesma conta do "Entrou" do Resultados);
+//   o Gerente do Pós-Vendas troca a % ou passa para um valor fixo.
 // Config em posvendas_config (chave "comissao-escritorio"); sem a tabela, iv_config "posvendas:comissao-escritorio".
 import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
 import { carregarBase } from './painel-server'
@@ -19,8 +20,10 @@ import { FUNCAO_GARANTISTA as ACAO_GARANTISTA } from '@/lib/permissoes/funcoes-p
 const SEM_REGRA = ['Larissa Garcia']
 const CHAVE = 'comissao-escritorio'
 
-export interface ConfigEscritorio { pctGarantia: number; pctRevisao: number; atualizadoEm?: string | null; atualizadoPor?: string | null }
-const PADRAO: ConfigEscritorio = { pctGarantia: 1, pctRevisao: 1 }
+export interface RegraPessoa { modo: 'pct' | 'fixo'; pct: number; fixo: number }
+export interface ConfigEscritorio { pctGarantia: number; pctRevisao: number; larissa: RegraPessoa; atualizadoEm?: string | null; atualizadoPor?: string | null }
+const PADRAO: ConfigEscritorio = { pctGarantia: 1, pctRevisao: 1, larissa: { modo: 'pct', pct: 1, fixo: 0 } }
+const regraOk = (v: unknown, d: RegraPessoa): RegraPessoa => { const o = (v || {}) as Partial<RegraPessoa>; const fixo = Number(o.fixo); return { modo: o.modo === 'fixo' ? 'fixo' : 'pct', pct: pctOk(o.pct, d.pct), fixo: Number.isFinite(fixo) && fixo >= 0 ? Math.round(fixo * 100) / 100 : d.fixo } }
 const falta = (e: { code?: string; message?: string } | null) => !!e && (e.code === 'PGRST205' || e.code === '42P01' || /does not exist|could not find the table/i.test(e.message || ''))
 const r2 = (n: number) => Math.round(n * 100) / 100
 const pctOk = (v: unknown, d: number) => { const n = Number(v); return Number.isFinite(n) && n >= 0 && n <= 20 ? Math.round(n * 100) / 100 : d }
@@ -34,12 +37,12 @@ export async function lerConfigEscritorio(): Promise<ConfigEscritorio> {
     if (!b.error) linha = b.data
   }
   const v = (linha?.valor || {}) as Partial<ConfigEscritorio>
-  return { pctGarantia: pctOk(v.pctGarantia, PADRAO.pctGarantia), pctRevisao: pctOk(v.pctRevisao, PADRAO.pctRevisao), atualizadoEm: linha?.atualizado_em ?? null, atualizadoPor: linha?.atualizado_por ?? null }
+  return { pctGarantia: pctOk(v.pctGarantia, PADRAO.pctGarantia), pctRevisao: pctOk(v.pctRevisao, PADRAO.pctRevisao), larissa: regraOk(v.larissa, PADRAO.larissa), atualizadoEm: linha?.atualizado_em ?? null, atualizadoPor: linha?.atualizado_por ?? null }
 }
 
-export async function gravarConfigEscritorio(pctRevisao: unknown, autor: string): Promise<ConfigEscritorio> {
+export async function gravarConfigEscritorio(entrada: { pctRevisao?: unknown; larissa?: unknown }, autor: string): Promise<ConfigEscritorio> {
   const atual = await lerConfigEscritorio()
-  const valor = { pctGarantia: atual.pctGarantia, pctRevisao: pctOk(pctRevisao, atual.pctRevisao) }
+  const valor = { pctGarantia: atual.pctGarantia, pctRevisao: entrada.pctRevisao != null ? pctOk(entrada.pctRevisao, atual.pctRevisao) : atual.pctRevisao, larissa: entrada.larissa != null ? regraOk(entrada.larissa, atual.larissa) : atual.larissa }
   const reg = { valor, atualizado_em: new Date().toISOString(), atualizado_por: autor }
   const a = await sb.from('posvendas_config').upsert({ chave: CHAVE, ...reg })
   if (a.error) {
@@ -68,7 +71,7 @@ async function pessoas(): Promise<{ nome: string; foto: string | null; funcao: P
 }
 
 /** Garantias e revisões faturadas no mês (OS + peças). */
-export async function basesDoMes(mes: string): Promise<{ garantias: OSBase[]; revisoes: OSBase[] }> {
+export async function basesDoMes(mes: string): Promise<{ garantias: OSBase[]; revisoes: OSBase[]; entrou: number }> {
   const de = `${mes}-01`, ate = new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).toISOString().slice(0, 10)
   const base = (await comCache(`esc-base:${mes}`, 10 * 60_000, () => carregarBase(de, ate))).dados
   const fat = base.faturadas.filter((o) => o.data >= de && o.data <= ate)
@@ -83,7 +86,9 @@ export async function basesDoMes(mes: string): Promise<{ garantias: OSBase[]; re
   const garantias = fat.filter((o) => o.garantia || /garantia/i.test(tipo.get(o.os) || '')).map(linha)
   const revisoes = fat.filter((o) => /revis/i.test(tipo.get(o.os) || '') && !o.garantia).map(linha)
   const ord = (a: OSBase, b: OSBase) => b.data.localeCompare(a.data)
-  return { garantias: garantias.sort(ord), revisoes: revisoes.sort(ord) }
+  // tudo que entrou no mês nas OS faturadas (OS + peças) — base da comissão da Larissa
+  const entrou = r2(fat.reduce((a, o) => a + o.bruto + o.pecas, 0))
+  return { garantias: garantias.sort(ord), revisoes: revisoes.sort(ord), entrou }
 }
 
 export async function comissaoEscritorio(mes: string) {
@@ -105,7 +110,9 @@ export async function comissaoEscritorio(mes: string) {
     }
     return { ...p, rh: f ? { nome: f.nome, cargo: f.cargo, departamento: f.departamento } : null, comissoes }
   }))
-  return { mes, config, conta, total: r2(conta.comGarantia + conta.comRevisao), bases, pessoas: lista }
+  const lr = config.larissa
+  const larissa = { entrou: bases.entrou, modo: lr.modo, pct: lr.pct, fixo: lr.fixo, valor: lr.modo === 'fixo' ? lr.fixo : r2(bases.entrou * lr.pct / 100) }
+  return { mes, config, conta, total: r2(conta.comGarantia + conta.comRevisao), bases, pessoas: lista, larissa }
 }
 
 /** A pessoa (id do portal) tem a função Garantista? */

@@ -589,7 +589,7 @@ function ContVivo({ c }: { c: CardDados }) {
 /** S1 com outro estilo de contador. */
 /** `semFoto`: cabeçalho branco sem a foto (José, 21/10/2026: "melhora esse card, não precisa mostrar as fotos"). */
 /** `capa`: capa limpa — nome, pontos, a comissão e "Ver comissão" (José, 27/10/2026: "tira esse monte de informação da capa, só deixa óbvio que ali é a comissão e que é pra clicar"). */
-export function S1Estilo({ cards, contador, onAbrir, semFoto, capa }: { cards: CardDados[]; contador: EstiloContador; onAbrir?: (c: CardDados) => void; semFoto?: boolean; capa?: boolean }) {
+export function S1Estilo({ cards, contador, onAbrir, semFoto, capa, selos }: { cards: CardDados[]; contador: EstiloContador; onAbrir?: (c: CardDados) => void; semFoto?: boolean; capa?: boolean; selos?: Record<string, string | null> }) {
   return (
     <div className="s1-grade">
       {cards.map((c, i) => {
@@ -598,7 +598,7 @@ export function S1Estilo({ cards, contador, onAbrir, semFoto, capa }: { cards: C
         if (capa) return (
           <article key={c.nome} className={`s1 s1-capa ${onAbrir ? 'abre' : ''}`} style={{ animationDelay: `${i * 110}ms` }} onClick={onAbrir ? () => onAbrir(c) : undefined}
             role={onAbrir ? 'button' : undefined} tabIndex={onAbrir ? 0 : undefined} onKeyDown={onAbrir ? (e) => { if (e.key === 'Enter') onAbrir(c) } : undefined}>
-            <div className="s1c-topo"><span className="s1-sit" style={{ color: sv.cor, background: sv.fundo }}>● {sv.txt}</span><SeloPontos p={c.pontos} /></div>
+            <div className="s1c-topo"><span className="s1-sit" style={{ color: sv.cor, background: sv.fundo }}>● {sv.txt}</span>{selos?.[c.nome] && <span className="s1-enviada">{selos[c.nome]}</span>}<SeloPontos p={c.pontos} /></div>
             <div className="s1c-nome"><b>{c.nome}</b>{c.nivel != null && <IconeLiga nivel={c.nivel} tamanho={34} />}</div>
             <div className="s1c-com">
               <small>Comissão prevista</small>
@@ -693,7 +693,7 @@ export const ESTILO_CT = `
 .s1-liga { position: absolute; right: 14px; bottom: 10px; filter: drop-shadow(0 4px 10px rgba(0,0,0,.4)) }
 .s1.abre { cursor: pointer } .s1-nome .s1-int { display: block; margin-top: 2px; font-size: 12px; opacity: .85 } .s1-nome span i { font-size: 11px; margin-right: 3px; opacity: .8 } .s1-pts { position: absolute; top: 12px; right: 12px } .s1-ver { position: absolute; left: 50%; top: 46%; transform: translate(-50%, -50%) scale(.9); opacity: 0; background: rgba(15,23,42,.72); color: #fefefe; font-size: 12.5px; font-weight: 800; border-radius: 99px; padding: 7px 14px; transition: opacity .25s, transform .25s; pointer-events: none; white-space: nowrap } .s1.abre:hover .s1-ver { opacity: 1; transform: translate(-50%, -50%) scale(1) }
 .s1-capa { display: grid; gap: 14px; padding: 16px 18px; transform: none !important }
-.s1c-topo { display: flex; justify-content: space-between; align-items: center; gap: 8px } .s1-capa .s1-sit { position: static }
+.s1c-topo { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap } .s1-enviada { font-size: 11.5px; font-weight: 600; color: #6d28d9; background: #ede9fe; padding: 3px 9px; border-radius: 99px; white-space: nowrap } .s1-capa .s1-sit { position: static }
 .s1c-nome { display: flex; justify-content: space-between; align-items: center; gap: 8px } .s1c-nome b { font-size: 21px; font-weight: 500; color: #0f172a }
 .s1c-com { display: grid; gap: 2px; border-radius: 16px; padding: 14px 16px; background: #ecfdf5 } .s1c-com small { font-size: 13px; color: #047857 } .s1c-com b { font-size: 26px; font-weight: 500; color: #065f46; font-variant-numeric: tabular-nums } .s1c-com b .odo, .s1c-com b .odo span { font-size: 26px; color: #065f46 } .s1c-com b.vazio { color: #94a3b8 } .s1c-com span { font-size: 12.5px; color: #475569 } .s1c-com span i { color: #059669; margin-right: 3px }
 .s1c-nums { display: grid; grid-template-columns: 1fr 1fr auto; gap: 14px; align-items: end }

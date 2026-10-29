@@ -91,7 +91,8 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
   const [erro, setErro] = useState('')
   const [assinou, setAssinou] = useState(false)
   const assRef = useRef<CanvasAssinaturaRef>(null)
-  const [verTodas, setVerTodas] = useState(false)
+  // o diretor vê todas as OS do pedido, não só as mexidas (José, 29/10/2026)
+  const [verTodas, setVerTodas] = useState(true)
   const dif = p.calculado == null ? 0 : p.valor - p.calculado
   const nMex = p.linhas.filter(mexida).length
   const lista = verTodas || modo === 'devolver' ? p.linhas : p.linhas.filter(mexida)
@@ -162,7 +163,7 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
       {diretor && modo === 'assinar' && (
         <div className="au-box">
           <b>Autorizar {brl2(p.valor)} para {p.tecnico}</b>
-          <small>Assinando, a comissão vai para o RH como aprovada, {PCT_CAIXINHA}% ({brl2(contaDoPagamento(p.valor, p.descontos).caixinha)}) vai para a caixinha dos técnicos e o documento sai com a sua assinatura e a de {p.pedido_por || 'quem pediu'}.</small>
+          <small>Assinando, a comissão vai para o RH como aprovada, {p.info?.semCaixinha ? 'sem caixinha (garantista)' : `${PCT_CAIXINHA}% (${brl2(contaDoPagamento(p.valor, p.descontos).caixinha)}) vai para a caixinha dos técnicos`} e o documento sai com a sua assinatura e a de {p.pedido_por || 'quem pediu'}.</small>
           <div className="au-ass"><CanvasAssinatura ref={assRef} temTraco={assinou} onTraco={setAssinou} altura={140} />{assinou && <button type="button" className="au-volta" onClick={() => assRef.current?.limpar()}>limpar</button>}</div>
           <input placeholder="observação (opcional)" value={obs} onChange={(e) => setObs(e.target.value)} />
           <div className="au-dec"><button type="button" className="au-volta" onClick={() => setModo('ver')}>voltar</button><button type="button" className="au-pri" disabled={indo || !assinou} onClick={() => void enviar('autorizar')}>{indo ? 'Gravando no RH…' : 'Assinar e autorizar'}<span className="seta"><i className="fas fa-check" /></span></button></div>
@@ -175,15 +176,16 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
 
 /** O que o técnico recebe: comissão − descontos em folha (1ª parcela) − caixinha = líquido (igual ao documento). */
 function ContaPagamento({ p }: { p: PedidoComissao }) {
-  const c = contaDoPagamento(p.valor, p.descontos)
+  const semCx = !!p.info?.semCaixinha
+  const c = contaDoPagamento(p.valor, p.descontos, semCx)
   return (
     <div className="au-conta">
       <span><small>Comissão</small><b>{brl2(c.comissao)}</b></span>
       {c.descontos > 0 && <span className="neg"><small>Descontos em folha</small><b>− {brl2(c.descontos)}</b></span>}
-      <span className="cx"><small><i className="fas fa-piggy-bank" /> Caixinha {PCT_CAIXINHA}%</small><b>− {brl2(c.caixinha)}</b></span>
-      <span className="liq"><small>Líquido para o técnico</small><b>{brl2(c.liquido)}</b></span>
-      {/* deixa claro onde o 1% aparece (José, 29/10/2026) */}
-      <small className="au-cx-nota"><i className="fas fa-circle-info" /> No RH a comissão fica com {brl2(c.comissao)}; o 1% ({brl2(c.caixinha)}) vai para a caixinha dos técnicos e o RH lança no Omie {brl2(c.comissao - c.caixinha)} (99%). No fim do ciclo a empresa dobra a caixinha e divide entre os técnicos.</small>
+      {!semCx && <span className="cx"><small><i className="fas fa-piggy-bank" /> Caixinha {PCT_CAIXINHA}%</small><b>− {brl2(c.caixinha)}</b></span>}
+      <span className="liq"><small>{semCx ? 'Líquido' : 'Líquido para o técnico'}</small><b>{brl2(c.liquido)}</b></span>
+      {/* deixa claro onde o 1% aparece (José, 29/10/2026); garantista não contribui */}
+      {!semCx && <small className="au-cx-nota"><i className="fas fa-circle-info" /> No RH a comissão fica com {brl2(c.comissao)}; o 1% ({brl2(c.caixinha)}) vai para a caixinha dos técnicos e o RH lança no Omie {brl2(c.comissao - c.caixinha)} (99%). No fim do ciclo a empresa dobra a caixinha e divide entre os técnicos.</small>}
     </div>
   )
 }

@@ -7,12 +7,16 @@ import { useCardsTecnicos, S1Estilo, ESTILO_CT, ESTILO_CT2, ESTILO_CT3, METAS_PA
 import { FichaPro } from './FichaPro'
 import { useUrlMec } from './useUrlMec'
 import { prefetchFicha } from './FichaTecnico'
+import { useAutorizacoes } from './AutorizacoesJanela'
+import { seloEnviada } from './seloComissao'
 
 const MUDO = 'var(--portal-text-muted, #64748b)'
 
 export default function TecnicosDoMes() {
   const cards = useCardsTecnicos(METAS_PADRAO)
   const { pegar, mudar } = useUrlMec()
+  const au = useAutorizacoes()
+  const selos = Object.fromEntries((cards || []).map((c) => [c.nome, seloEnviada(au.pedidos, c.nome)]))
   const nomeAberto = pegar('tecnico')
   const aberto = nomeAberto ? cards?.find((c) => c.nome === nomeAberto) || ({ nome: nomeAberto } as CardDados) : null
   const setAberto = (c: CardDados | null) => mudar({ tecnico: c?.nome || null, secao: null, mes: null })
@@ -31,7 +35,7 @@ export default function TecnicosDoMes() {
       <style>{ESTILO_TDM}</style>
       {/* a linha "Só OS faturadas · meta por semana…" saiu (José, 28/10/2026: "remove isso, é inútil"); a caixinha continua na capa da equipe */}
       {!cards ? <div style={{ padding: 30, textAlign: 'center', color: MUDO }}><i className="fas fa-circle-notch fa-spin" /> carregando os técnicos…</div>
-        : <S1Estilo cards={cards} contador="vivo" onAbrir={setAberto} semFoto capa />}
+        : <S1Estilo cards={cards} contador="vivo" onAbrir={setAberto} semFoto capa selos={selos} />}
       {aberto && <FichaPro nome={aberto.nome} foto={aberto.foto} card={cards?.find((c) => c.nome === aberto.nome) || null} onFechar={() => setAberto(null)}
         secao={pegar('secao') || undefined} onSecao={(s) => mudar({ secao: s === 'comissao' ? null : s }, false)} mes={pegar('mes') || undefined} onMes={(m) => mudar({ mes: m }, false)} />}
     </div>

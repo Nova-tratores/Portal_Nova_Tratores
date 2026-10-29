@@ -12,10 +12,13 @@ import { ComissoesJanela, JanelaEmbutida } from './JanelasInfo'
 import { brl2, Odometro } from './ui'
 import { ESTILO_CT, ESTILO_CT2, ESTILO_CT3 } from './CardsTecnicoOpcoes'
 import { FichaPro } from './FichaPro'
+import { useAutorizacoes } from './AutorizacoesJanela'
+import { seloEnviada } from './seloComissao'
 
 type PessoaEsc = { nome: string; foto: string | null; funcao: 'garantista' | 'sem_regra'; rh: { nome: string; cargo: string | null; departamento: string | null } | null; comissoes: { mes: string; valor: number; status: string; origem: string }[] }
 type OSB = { os: string; numero: string | null; cliente: string; data: string; total: number; tipo: string }
-type DadosEsc = { mes: string; config: { pctGarantia: number; pctRevisao: number; atualizadoEm?: string | null; atualizadoPor?: string | null }; conta: { garantias: number; revisoes: number; comGarantia: number; comRevisao: number }; total: number; bases: { garantias: OSB[]; revisoes: OSB[] }; pessoas: PessoaEsc[]; podeEditar: boolean }
+type Larissa = { entrou: number; modo: 'pct' | 'fixo'; pct: number; fixo: number; valor: number }
+type DadosEsc = { larissa: Larissa; mes: string; config: { pctGarantia: number; pctRevisao: number; atualizadoEm?: string | null; atualizadoPor?: string | null }; conta: { garantias: number; revisoes: number; comGarantia: number; comRevisao: number }; total: number; bases: { garantias: OSB[]; revisoes: OSB[] }; pessoas: PessoaEsc[]; podeEditar: boolean }
 const NOMES_MES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 const nomeMes = (m: string) => `${NOMES_MES[Number(m.slice(5, 7)) - 1]} de ${m.slice(0, 4)}`
 const andar = (m: string, k: number) => { const a = Number(m.slice(0, 4)), x = Number(m.slice(5, 7)) - 1 + k; return `${a + Math.floor(x / 12)}-${String(((x % 12) + 12) % 12 + 1).padStart(2, '0')}` }
@@ -59,6 +62,7 @@ function Escritorio() {
   }
   useEffect(() => { void ler(mes) }, [mes])
   const pessoaAberta = d?.pessoas.find((p) => p.nome === aberto) || null
+  const au = useAutorizacoes()
   return (
     <div className="ca-corpo">
       <style>{ESTILO_CT}</style><style>{ESTILO_CT2}</style><style>{ESTILO_CT3}</style>
@@ -74,7 +78,7 @@ function Escritorio() {
           {d.pessoas.map((p, i) => p.funcao === 'garantista' ? (
             <article key={p.nome} className="s1 s1-capa abre" style={{ animationDelay: `${i * 110}ms` }} role="button" tabIndex={0}
               onClick={() => setAberto(p.nome)} onKeyDown={(e) => { if (e.key === 'Enter') setAberto(p.nome) }}>
-              <div className="s1c-topo"><span className="s1-sit" style={{ color: '#047857', background: '#ecfdf5' }}>● Garantista</span></div>
+              <div className="s1c-topo"><span className="s1-sit" style={{ color: '#047857', background: '#ecfdf5' }}>● Garantista</span>{(() => { const sl = seloEnviada(au.pedidos, p.nome); return sl ? <span className="s1-enviada">{sl}</span> : null })()}</div>
               <div className="s1c-nome"><b>{p.nome}</b></div>
               <div className="s1c-com">
                 <small>Comissão de {NOMES_MES[Number(mes.slice(5, 7)) - 1]}</small>
@@ -90,15 +94,23 @@ function Escritorio() {
             </article>
           ) : (
             <article key={p.nome} className="s1 s1-capa" style={{ animationDelay: `${i * 110}ms` }}>
-              <div className="s1c-topo"><span className="s1-sit" style={{ color: '#92400e', background: '#fffbeb' }}>● Regra a definir</span></div>
+              <div className="s1c-topo"><span className="s1-sit" style={{ color: '#1d4ed8', background: '#eff6ff' }}>● Escritório</span>{(() => { const sl = seloEnviada(au.pedidos, p.nome); return sl ? <span className="s1-enviada">{sl}</span> : null })()}</div>
               <div className="s1c-nome"><b>{p.nome}</b></div>
-              <div className="s1c-com"><small>Comissão</small><b className="vazio">—</b><span><i className="fas fa-circle-info" /> {p.rh ? 'a regra dela ainda vai ser definida' : 'não achada no cadastro do RH'}</span></div>
+              <div className="s1c-com">
+                <small>Comissão de {NOMES_MES[Number(mes.slice(5, 7)) - 1]}</small>
+                <b><Odometro texto={brl2(d.larissa.valor)} /></b>
+                <span><i className="fas fa-receipt" /> {d.larissa.modo === 'fixo' ? 'valor fixo do mês' : `${pctTxt(d.larissa.pct)} de tudo que entrou no mês`}</span>
+              </div>
+              <div className="s1c-nums">
+                <div title="Tudo que entrou nas OS faturadas do mês: serviço, km e peças"><small>Entrou no mês</small><b>{brl2(d.larissa.entrou)}</b><em>OS + peças</em></div>
+                <div><small>Regra</small><b>{d.larissa.modo === 'fixo' ? 'Fixo' : pctTxt(d.larissa.pct)}</b><em>{d.larissa.modo === 'fixo' ? brl2(d.larissa.fixo) : 'de tudo que entrou'}</em></div>
+              </div>
             </article>
           ))}
           {!d.pessoas.some((p) => p.funcao === 'garantista') && <p className="ca-mudo">Ninguém com a função Garantista. Marque em Administração → usuário → Gestão Pós Vendas → Garantista.</p>}
         </div>
       )}
-      {d && d.pessoas.some((p) => p.funcao === 'garantista') && <RegraEscritorio key={d.config.pctRevisao} d={d} onMudou={() => void ler(mes)} />}
+      {d && <RegraEscritorio key={`${d.config.pctRevisao}|${d.larissa.modo}|${d.larissa.pct}|${d.larissa.fixo}`} d={d} onMudou={() => void ler(mes)} />}
       {/* abre a MESMA ficha dos técnicos (José, 29/10/2026: "tudo tem que ser igual ao dos técnicos") */}
       {pessoaAberta && <FichaPro nome={pessoaAberta.nome} foto={pessoaAberta.foto || undefined} onFechar={() => { setAberto(null); void ler(mes) }} mes={mes} onMes={setMes} />}
     </div>
@@ -108,12 +120,16 @@ function Escritorio() {
 /** A regra do garantista embaixo dos cartões; a % das revisões só o Gerente do Pós-Vendas muda (29/10/2026). */
 function RegraEscritorio({ d, onMudou }: { d: DadosEsc; onMudou: () => void }) {
   const [pct, setPct] = useState(String(d.config.pctRevisao).replace('.', ','))
+  const [lModo, setLModo] = useState<'pct' | 'fixo'>(d.larissa.modo)
+  const [lVal, setLVal] = useState(String(d.larissa.modo === 'fixo' ? d.larissa.fixo : d.larissa.pct).replace('.', ','))
+  const num = (t: string) => Number(t.replace(/\./g, '').replace(',', '.'))
+  const lMudou = lModo !== d.larissa.modo || num(lVal) !== (lModo === 'fixo' ? d.larissa.fixo : d.larissa.pct)
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState('')
-  const salvar = async () => {
+  const salvar = async (corpo?: object) => {
     setSalvando(true); setMsg('')
     try {
-      const r = await fetch('/api/mecanicos/comissao-escritorio', { method: 'PUT', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ pctRevisao: Number(pct.replace(',', '.')) }) })
+      const r = await fetch('/api/mecanicos/comissao-escritorio', { method: 'PUT', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify(corpo || { pctRevisao: Number(pct.replace(',', '.')) }) })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || 'Não salvou')
       setMsg('Salvo.'); onMudou()
@@ -133,6 +149,23 @@ function RegraEscritorio({ d, onMudou }: { d: DadosEsc; onMudou: () => void }) {
         </div>
         <i>=</i>
         <div className="res"><small>Comissão do garantista</small><b>{brl2(d.total)}</b></div>
+      </div>
+      {/* Larissa: % de tudo que entrou ou valor fixo (José, 29/10/2026) */}
+      <div className="ca-conta">
+        <div><small>Tudo que entrou no mês</small><b>{brl2(d.larissa.entrou)}</b><span>OS + peças</span></div>
+        <i>→</i>
+        <div><small>Regra da Larissa</small>
+          {d.podeEditar ? (
+            <span>
+              <span className="ca-modo"><button type="button" className={lModo === 'pct' ? 'on' : ''} onClick={() => { setLModo('pct'); setLVal(String(d.larissa.pct).replace('.', ',')) }}>%</button><button type="button" className={lModo === 'fixo' ? 'on' : ''} onClick={() => { setLModo('fixo'); setLVal(String(d.larissa.fixo).replace('.', ',')) }}>valor fixo</button></span>
+              {lModo === 'fixo' && 'R$'}<input value={lVal} onChange={(e) => setLVal(e.target.value)} inputMode="decimal" aria-label="regra da Larissa" style={{ width: lModo === 'fixo' ? 90 : 56 }} />{lModo === 'pct' && '%'}
+              <button type="button" disabled={salvando || !lMudou} onClick={() => void salvar({ larissa: { modo: lModo, pct: lModo === 'pct' ? num(lVal) : d.larissa.pct, fixo: lModo === 'fixo' ? num(lVal) : d.larissa.fixo } })}>{salvando ? 'salvando…' : 'salvar'}</button>
+            </span>
+          ) : <b>{d.larissa.modo === 'fixo' ? `fixo ${brl2(d.larissa.fixo)}` : `${pctTxt(d.larissa.pct)} de tudo`}</b>}
+          {!d.podeEditar && <em>só o Gerente do Pós-Vendas muda essa regra</em>}
+        </div>
+        <i>=</i>
+        <div className="res"><small>Comissão da Larissa</small><b>{brl2(d.larissa.valor)}</b></div>
       </div>
     </section>
   )
@@ -154,6 +187,9 @@ const ESTILO_CA = `
 .ca-conta > div { display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; background: #f8fafc; min-width: 200px } .ca-conta small { font-size: 12px; color: #64748b } .ca-conta > div > b { font-size: 22px }
 .ca-conta span { font-size: 13px; color: #334155; display: flex; gap: 6px; align-items: center; flex-wrap: wrap } .ca-conta em { font-style: normal; font-size: 11.5px; color: #64748b }
 .ca-conta input { width: 56px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 4px 6px; font: inherit; text-align: right } .ca-conta button { border: 0; border-radius: 99px; padding: 4px 10px; background: #047857; color: #fefefe; font: inherit; font-size: 12px; cursor: pointer } .ca-conta button:disabled { opacity: .45 }
+.ca-modo { display: inline-flex; gap: 2px; padding: 2px; border-radius: 99px; background: #e2e8f0; margin-right: 4px } .ca-modo button { background: transparent !important; color: #475569 !important; padding: 3px 9px !important } .ca-modo button.on { background: #fefefe !important; color: #0f172a !important; font-weight: 600 }
+.ca-det { margin-top: 4px } .ca-det .ca-conta + .ca-conta { padding-top: 12px; border-top: 1px dashed var(--portal-border, #e5e7eb) }
+.s1-enviada { font-size: 11.5px; font-weight: 600; color: #6d28d9; background: #ede9fe; padding: 3px 9px; border-radius: 99px; white-space: nowrap }
 .ca-conta .res { background: #ecfdf5 } .ca-conta .res b { color: #047857 }
 .ca-abas { display: flex; gap: 20px; border-bottom: 1px solid var(--portal-border, #e5e7eb) } .ca-abas button { border: 0; background: none; padding: 8px 0 10px; font: inherit; font-size: 14px; color: #64748b; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px } .ca-abas button.on { color: #0f172a; font-weight: 600; border-bottom-color: #047857 }
 .ca-l.ca-os { grid-template-columns: 60px 1fr auto } .ca-os span small { display: block; font-size: 12px; color: #64748b }
