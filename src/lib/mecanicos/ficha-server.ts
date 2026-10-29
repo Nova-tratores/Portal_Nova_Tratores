@@ -17,7 +17,7 @@ import { clienteRH } from './rh-server'
 import { padronizadorOcorrencias, ocorrenciasEntre } from './ocorrencias-server'
 import { casarNome, BASE_PONTOS } from './ocorrencias-painel'
 import { carreiraEComissoes } from './carreira-server'
-import { comissaoDoTecnico, chaveDoTecnico, type MotivoAjuste } from './comissao-detalhe'
+import { comissaoDoTecnico, chaveDoTecnico, type MotivoAjuste, type Recebida } from './comissao-detalhe'
 import { previsaoPagamento } from './comissao'
 import { comCache, aquecer } from './cache'
 import { GRUPOS } from './painel'
@@ -86,14 +86,26 @@ async function montarFicha(nome: string, mes: string) {
 
   // ---------- ajustes manuais (comissoes_os_relatorio) das OS da janela + motivo (log do RH)
   const dele = (o: { tecnicos: string[]; tecnicosOmie?: string[] }) => o.tecnicos.includes(nome) || !!o.tecnicosOmie?.includes(nome)
-  const numeros = [...new Set([...base.faturadas, ...base.internasFechadas].filter(dele).flatMap((o) => [o.numeroOmie || o.os, o.os]).filter(Boolean))] as string[]
+  // OS que outro técnico dividiu com este (pedido esperando o diretor ou já autorizado) — José, 29/10/2026
+  const recebidas = new Map<string, Recebida>()
+  const { data: peds } = await sb.from('posvendas_comissoes').select('tecnico, status, linhas').eq('mes', mes).in('status', ['aguardando', 'espelhada']).neq('tecnico', nome)
+  for (const p of (peds || []) as { tecnico: string; status: string; linhas: { os: string; numero: string; acao: string; divisao?: Record<string, number> | null; horasDiv?: Record<string, number> | null }[] }[]) {
+    for (const l of p.linhas || []) {
+      if (!l.divisao || l.acao === 'nao') continue
+      const k = Object.keys(l.divisao).find((c) => c === nome || chaveDoTecnico(c, nome))
+      if (k == null || !(Number(l.divisao[k]) > 0)) continue
+      const r: Recebida = { de: p.tecnico, valor: Number(l.divisao[k]), horas: l.horasDiv?.[k] ?? null, status: p.status === 'espelhada' ? 'autorizada' : 'pedido' }
+      recebidas.set(l.numero || l.os, r); recebidas.set(l.os, r)
+    }
+  }
+  const numeros = [...new Set([...[...base.faturadas, ...base.internasFechadas].filter(dele).flatMap((o) => [o.numeroOmie || o.os, o.os]), ...recebidas.keys()].filter(Boolean))] as string[]
   const ajustes = await ajustesDeComissao(numeros)
   const motivos = new Map<string, MotivoAjuste>()
   for (const l of rh?.ajustesOS || []) if (!motivos.has(l.numero)) motivos.set(l.numero, { motivo: l.motivo, por: l.por, em: l.em, de: l.de })
 
   const regras = await lerRegrasComissao().catch(() => undefined)
   const pctPorOS = await pctsDasOS([...new Set([...base.faturadas, ...base.internasFechadas, ...pend].map((o) => o.os))]).catch(() => new Map())
-  const comissao = comissaoDoTecnico({ tecnico: nome, mes, hoje, pct, faturadas: base.faturadas, internas: base.internasFechadas, pendencias: pend, ajustes, motivos, regras, pctPorOS })
+  const comissao = comissaoDoTecnico({ tecnico: nome, mes, hoje, pct, faturadas: base.faturadas, internas: base.internasFechadas, pendencias: pend, ajustes, motivos, regras, pctPorOS, recebidas })
   const oficial = rh?.comissoes.find((c) => c.mes === mes) || null
 
   // ---------- horas do app (relatório do técnico) no mês

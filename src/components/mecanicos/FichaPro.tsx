@@ -473,14 +473,15 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
   const emCheio = ed.acao === 'ajustar' && !ed.divisao && ed.motivo.startsWith(MOT_CHEIO)
   const com = (l.tecnicos?.length || 0) > 1 ? l.tecnicos!.filter((t) => t !== d.nome).map((t) => t.split(' ')[0]).join(', ') : ''
   return (
-    <div className={`fp-lin ${estado}`}>
+    <div className={`fp-lin ${estado} ${l.veioDe ? 'recebida' : ''}`}>
       {/* clicar em qualquer lugar da linha abre a OS e o relatório do técnico (José, 29/10/2026) */}
       <div className="fp-row abre" title="Clique para abrir a OS e o relatório do técnico"
         onClick={(ev) => { if (!(ev.target as HTMLElement).closest('button, input, select, textarea, a, label')) verOS(l.os, l.cliente) }}>
         <button type="button" className="fp-num" onClick={() => verOS(l.os, l.cliente)} title="Abrir a OS e o relatório do técnico">{l.numeroOmie || l.os}<i className="fas fa-file-lines fp-num-ic" /></button>
         <div className="fp-cli">
           <b title={l.cliente}>{l.cliente || '—'}</b>
-          <small>{diaBR(l.data)}{com && <> · com {com}</>} · {l.regra.replace(/\s*÷ \d+.*$/, '')}</small>
+          <small>{diaBR(l.data)}{com && !l.veioDe && <> · com {com}</>} · {l.regra.replace(/\s*÷ \d+.*$/, '')}</small>
+          {l.veioDe && <small className="fp-veio"><i className="fas fa-people-arrows" /> dividida por {l.veioDe.de}{l.veioDe.horas ? ` · ${String(l.veioDe.horas).replace('.', ',')} h para ele` : ''} · {l.veioDe.status === 'autorizada' ? 'já autorizada' : 'esperando o diretor'}</small>}
           {l.motivo && <small className="fp-rh"><i className="fas fa-pen" /> RH: {l.motivo.motivo}</small>}
         </div>
         <div className="fp-valor">
@@ -508,7 +509,7 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
           )}
           {x?.motivo && (x.descBase || 0) > 0 && <small style={{ display: 'block', fontSize: 10.5, color: '#92400e', marginTop: 2, maxWidth: 180, marginLeft: 'auto', lineHeight: 1.3 }} title={x.motivo}>“{x.motivo.length > 60 ? `${x.motivo.slice(0, 60)}…` : x.motivo}”</small>}
         </span>
-        <div className="fp-dec">
+        {l.veioDe ? <div className="fp-dec veio" title="A divisão é decidida na ficha de quem dividiu"><span><i className="fas fa-lock" /> da divisão</span></div> : <div className="fp-dec">
           <button type="button" className={estado === 'pg' ? 'on pg' : ''} onClick={() => e.mudar(l, { acao: 'pagar', divisao: null })} title="Pagar como calculado"><i className="fas fa-check" /></button>
           <button type="button" className={estado === 'nao' ? 'on nao' : ''} onClick={() => e.mudar(l, { acao: 'nao', divisao: null })} title="Não pagar (escolher o motivo)"><i className="fas fa-ban" /></button>
           <button type="button" className={estado === 'aj' && !emCheio ? 'on aj' : ''} onClick={() => e.mudar(l, { acao: 'ajustar', divisao: null, valor: ed.valor ?? l.valor })} title="Ajustar o valor"><i className="fas fa-pen" /></button>
@@ -519,7 +520,7 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
               <i className="fas fa-tag" />
             </button>
           )}
-        </div>
+        </div>}
         <div className="fp-com">{f !== l.valor && <s>{brl2(l.valor)}</s>}<b>{brl2(f)}</b></div>
       </div>
       {ed.acao === 'nao' && (
@@ -677,6 +678,8 @@ const ESTILO_FP = `
 .fp-chips { display: flex; gap: 4px; flex-wrap: wrap } .fp-chips > * { display: inline-flex; gap: 4px; align-items: center; font-size: 11px; font-weight: 800; border-radius: 6px; padding: 2px 7px; border: none; font-family: inherit; white-space: nowrap }
 .fp-chips i { font-size: 9.5px } .fp-chips .pc { background: #eef2ff; color: #4338ca } .fp-chips .ds { background: #fffbeb; color: #b45309 } .fp-chips .rq { background: #fef2f2; color: #b91c1c; cursor: pointer } .fp-chips .rq:hover { background: #dc2626; color: #fefefe } .fp-chips .it { background: #f1f5f9; color: #475569; font-weight: 700 }
 .fp-base { text-align: right; font-size: 13px; color: ${MUDO}; font-variant-numeric: tabular-nums }
+.fp-lin.recebida { background: linear-gradient(90deg, #f5f3ff, transparent 70%); box-shadow: inset 4px 0 0 #8b5cf6 } .fp-veio { display: inline-flex; gap: 5px; align-items: center; margin-top: 3px; padding: 2px 9px; border-radius: 99px; background: #ede9fe; color: #6d28d9; font-size: 11.5px; font-weight: 600; width: fit-content }
+.fp-dec.veio span { padding: 0 12px; font-size: 12px; color: #6d28d9; line-height: 28px; white-space: nowrap }
 .fp-dec { display: inline-flex; gap: 2px; background: #f4f6f9; border-radius: 999px; padding: 3px; justify-self: center }
 .fp-dec button { width: 32px; height: 28px; border-radius: 999px; border: none; background: transparent; color: #94a3b8; cursor: pointer; font-size: 12.5px; transition: all .15s } .fp-dec button:hover { color: #0f172a; background: #fefefe }
 .fp-dec button.cheio { color: #b45309 } /* só o ícone, igual aos outros (José, 29/10/2026); o texto fica na dica */ .fp-dec button.cheio.on { background: #2563eb; color: #fefefe }

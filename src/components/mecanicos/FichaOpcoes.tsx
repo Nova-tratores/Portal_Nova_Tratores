@@ -24,7 +24,7 @@ const MUDO = 'var(--portal-text-muted, #64748b)'
 
 // ============================================================================ edição da comissão
 export type Acao = 'pagar' | 'nao' | 'ajustar'
-export interface Edicao { acao: Acao; motivo: string; valor?: number; divisao?: Record<string, number> | null }
+export interface Edicao { acao: Acao; motivo: string; valor?: number; divisao?: Record<string, number> | null; horasDiv?: Record<string, number> | null }
 export const MOTIVOS_NAO = ['Retorno de serviço (refez o trabalho)', 'Já cobrada / paga em outra OS', 'Garantia que a fábrica não pagou', 'Serviço não concluído', 'Erro de lançamento na OS', 'Cortesia sem trabalho do técnico']
 export const chaveL = (l: LinhaComissao) => `${l.os}|${l.tipo}`
 /** Bloco da OS na comissão (José, 20/10/2026): azul = faturada para cliente, rosa = garantia, cinza = interna. */
@@ -103,33 +103,60 @@ function LinhaEditavel({ d, l, e, verOS, compacta }: { d: Ficha; l: LinhaComissa
   )
 }
 
-/** Dividir a comissão de uma OS entre técnicos (valor de cada um, sem dividir de novo). */
+/** Dividir uma OS entre técnicos POR HORAS (José, 29/10/2026: "no lugar de dar porcentagens, nós vamos distribuir as
+ *  horas entre vários técnicos ou não. Cada um ganha a porcentagem que ganha em cima das horas que recebeu").
+ *  Valor de cada um = horas dele × valor da hora da OS × % dele. OS de valor fixo (sem horas) segue dividindo em R$. */
 export function Divisao({ d, l, e, fechar }: { d: Ficha; l: LinhaComissao; e: EdicaoComissao; fechar: () => void }) {
   const x = e.de(l)
+  const horasOS = Math.round((l.horas || 0) * 100) / 100
+  const porHoras = l.base > 0 && horasOS > 0
+  const vh = porHoras ? l.base / horasOS : 0
+  const pctDe = (n: string) => d.equipe.find((t) => t.nome === n)?.pct ?? (n === d.nome ? d.comissao.pct : 0)
+  const valorDe = (n: string, h: number) => Math.round(h * vh * (pctDe(n) / 100) * 100) / 100
   const totalOS = Math.round(l.calculado * Math.max(1, l.divisao) * 100) / 100
-  const inicial = () => { const ts = l.tecnicos?.length ? l.tecnicos : [d.nome]; return Object.fromEntries(ts.map((t) => [t, Math.round((totalOS / ts.length) * 100) / 100])) }
-  const div = x.divisao || inicial()
-  const soma = Object.values(div).reduce((s, v) => s + v, 0)
-  const salvar = (nv: Record<string, number>) => e.mudar(l, { divisao: nv, acao: 'pagar' })
-  const igual = () => { const ks = Object.keys(div); salvar(Object.fromEntries(ks.map((k) => [k, Math.round((totalOS / ks.length) * 100) / 100]))) }
+  // ---- por horas
+  const hIni = () => { const ts = l.tecnicos?.length ? l.tecnicos.filter((t) => d.equipe.some((q) => q.nome === t)) : []; const lista = ts.length ? ts : [d.nome]; return Object.fromEntries(lista.map((t) => [t, Math.round((horasOS / lista.length) * 10) / 10])) }
+  const hs = x.horasDiv || hIni()
+  const somaH = Math.round(Object.values(hs).reduce((a, v) => a + v, 0) * 100) / 100
+  const salvarH = (nh: Record<string, number>) => e.mudar(l, { horasDiv: nh, divisao: Object.fromEntries(Object.entries(nh).map(([n, h]) => [n, valorDe(n, h)])), acao: 'pagar' })
+  // ---- por valor (OS de valor fixo)
+  const vIni = () => { const ts = l.tecnicos?.length ? l.tecnicos : [d.nome]; return Object.fromEntries(ts.map((t) => [t, Math.round((totalOS / ts.length) * 100) / 100])) }
+  const div = x.divisao || vIni()
+  const somaV = Object.values(div).reduce((a, v) => a + v, 0)
+  const salvarV = (nv: Record<string, number>) => e.mudar(l, { divisao: nv, horasDiv: null, acao: 'pagar' })
+  const igual = () => {
+    if (porHoras) { const ks = Object.keys(hs); salvarH(Object.fromEntries(ks.map((k) => [k, Math.round((horasOS / ks.length) * 10) / 10]))) }
+    else { const ks = Object.keys(div); salvarV(Object.fromEntries(ks.map((k) => [k, Math.round((totalOS / ks.length) * 100) / 100]))) }
+  }
+  const hh = (v: number) => `${String(Math.round(v * 10) / 10).replace('.', ',')} h`
   return (
     <div className="fo-div">
-      <div className="fo-div-cab"><b><i className="fas fa-people-arrows" /> Dividir a comissão da OS</b><small>comissão total da OS pela regra: {brl2(totalOS)}</small>
+      <div className="fo-div-cab"><b><i className="fas fa-people-arrows" /> {porHoras ? 'Dividir as horas da OS' : 'Dividir a comissão da OS'}</b>
+        <small>{porHoras ? <>{hh(horasOS)} cobradas · hora da OS {brl2(vh)} · cada um ganha a % dele sobre as horas que recebeu</> : <>OS de valor fixo: comissão total {brl2(totalOS)}</>}</small>
         <button type="button" onClick={igual}>dividir igual</button>
-        {x.divisao && <button type="button" onClick={() => { e.mudar(l, { divisao: null }); fechar() }}>desfazer</button>}</div>
+        {x.divisao && <button type="button" onClick={() => { e.mudar(l, { divisao: null, horasDiv: null }); fechar() }}>desfazer</button>}</div>
       <div className="fo-div-lista">
         {d.equipe.map((t) => {
-          const marcado = t.nome in div
+          const marcado = porHoras ? t.nome in hs : t.nome in div
+          const trocar = () => {
+            if (porHoras) { const n = { ...hs }; if (marcado) delete n[t.nome]; else n[t.nome] = 0; salvarH(n) }
+            else { const n = { ...div }; if (marcado) delete n[t.nome]; else n[t.nome] = 0; salvarV(n) }
+          }
           return (
             <label key={t.nome} className={marcado ? 'on' : ''}>
-              <input type="checkbox" checked={marcado} onChange={() => { const n = { ...div }; if (marcado) delete n[t.nome]; else n[t.nome] = 0; salvar(n) }} />
-              <span>{t.nome}{t.nome === d.nome && <em> (este)</em>}</span>
-              {marcado && <><i>R$</i><input type="number" step="0.01" value={div[t.nome]} onChange={(ev) => salvar({ ...div, [t.nome]: Number(ev.target.value) || 0 })} /><small>{soma > 0 ? Math.round((div[t.nome] / soma) * 100) : 0}%</small></>}
+              <input type="checkbox" checked={marcado} onChange={trocar} />
+              <span>{t.nome}{t.nome === d.nome && <em> (este)</em>}<small className="fo-div-pct"> · {pctDe(t.nome)}%</small></span>
+              {marcado && (porHoras
+                ? <><input type="number" step="0.5" min="0" value={hs[t.nome]} onChange={(ev) => salvarH({ ...hs, [t.nome]: Math.max(0, Number(ev.target.value) || 0) })} /><i>h</i><b className="fo-div-v">{brl2(valorDe(t.nome, hs[t.nome] || 0))}</b></>
+                : <><i>R$</i><input type="number" step="0.01" value={div[t.nome]} onChange={(ev) => salvarV({ ...div, [t.nome]: Number(ev.target.value) || 0 })} /><small>{somaV > 0 ? Math.round((div[t.nome] / somaV) * 100) : 0}%</small></>)}
             </label>
           )
         })}
       </div>
-      <div className="fo-div-pe"><span>Soma: <b>{brl2(soma)}</b>{Math.abs(soma - totalOS) > 0.01 && <em> ({soma > totalOS ? '+' : ''}{brl2(soma - totalOS)} da regra)</em>}</span>
+      <div className="fo-div-pe">
+        {porHoras
+          ? <span>Horas distribuídas: <b>{hh(somaH)}</b> de {hh(horasOS)}{Math.abs(somaH - horasOS) > 0.05 && <em> ({somaH > horasOS ? 'passou ' : 'faltam '}{hh(Math.abs(somaH - horasOS))})</em>}</span>
+          : <span>Soma: <b>{brl2(somaV)}</b>{Math.abs(somaV - totalOS) > 0.01 && <em> ({somaV > totalOS ? '+' : ''}{brl2(somaV - totalOS)} da regra)</em>}</span>}
         <input className="fo-mot-txt" placeholder="motivo da divisão (ex.: Fernando ajudou na montagem)" value={x.motivo} onChange={(ev) => e.mudar(l, { motivo: ev.target.value })} /></div>
     </div>
   )
@@ -172,11 +199,11 @@ function DescontosComissao({ e, travado }: { e: EdicaoComissao; travado: boolean
   const mesHoje = hojeSP().slice(0, 7)
   return (
     <section className="fld">
-      <div className="fld-cab"><span className="fld-tit">Descontos do técnico</span><span className="fld-dica">saem na folha depois que o RH aprovar — a comissão não muda</span></div>
+      <div className="fld-cab"><span className="fld-tit">Descontos do técnico</span><span className="fld-dica">saem da comissão depois que o RH aprovar</span></div>
       {e.descontos.map((x, i) => (
         <div key={i} className="fld-lin">
           <span className="fld-tipo">{x.tipo === 'requisicao' ? `Requisição #${x.ref}` : 'Outro valor'}</span>
-          <span className="fld-desc">{x.descricao}<small className="fld-parc">{x.fonte === 'caixinha' ? 'pago pela caixinha · não sai do salário' : resumoParcelas(x, mesHoje)}</small></span>
+          <span className="fld-desc">{x.descricao}<small className="fld-parc">{x.fonte === 'caixinha' ? 'pago pela caixinha · não sai da comissão' : resumoParcelas(x, mesHoje)}</small></span>
           <span className="fld-v">{x.fonte === 'caixinha' ? '' : '− '}{brl2(x.valor)}</span>
           {!travado && <button type="button" onClick={() => e.remDesconto(i)} aria-label="Tirar"><i className="fas fa-xmark" /></button>}
         </div>
@@ -201,11 +228,11 @@ function DescontosNoRH({ d }: { d: Ficha }) {
       {lista.map((x, i) => (
         <div key={i} className={`fld-lin ${x.caixinha ? 'cx' : ''}`}>
           <span className="fld-tipo">{nomeMes(x.mes)}</span>
-          <span className="fld-desc">{limpa(x.descricao)}<small className="fld-parc">{x.caixinha ? 'pago pela caixinha · não sai do salário' : x.status === 'aprovado' ? 'aprovado · sai na folha' : 'esperando o RH aprovar'}</small></span>
+          <span className="fld-desc">{limpa(x.descricao)}<small className="fld-parc">{x.caixinha ? 'pago pela caixinha · não sai da comissão' : x.status === 'aprovado' ? 'aprovado · sai da comissão' : 'esperando o RH aprovar'}</small></span>
           <span className="fld-v">{x.caixinha ? '' : '− '}{brl2(x.valor)}</span>
         </div>
       ))}
-      <div className="fld-tot"><span>Do salário{cx > 0 ? ` · pela caixinha ${brl2(cx)}` : ''}</span><span>− {brl2(folha)}</span></div>
+      <div className="fld-tot"><span>Da comissão{cx > 0 ? ` · pela caixinha ${brl2(cx)}` : ''}</span><span>− {brl2(folha)}</span></div>
     </section>
   )
 }
@@ -256,7 +283,7 @@ export function ModalDesconto({ d, e, fechar }: { d: Ficha; e: EdicaoComissao; f
       <style>{ESTILO_MDD}</style>
       <div className="mdd" role="dialog" aria-label="Desconto do técnico" onClick={(ev) => ev.stopPropagation()}>
         <header className="mdd-cab">
-          <div><span className="mdd-tit">Desconto do técnico</span><span className="mdd-sub">{d.nome} · sai na folha depois que o RH aprovar, a comissão não muda</span></div>
+          <div><span className="mdd-tit">Desconto do técnico</span><span className="mdd-sub">{d.nome} · sai da comissão dele depois que o RH aprovar</span></div>
           <button type="button" className="mdd-x" onClick={fechar} aria-label="Fechar"><i className="fas fa-xmark" /></button>
         </header>
         <div className="mdd-corpo">
@@ -284,7 +311,7 @@ export function ModalDesconto({ d, e, fechar }: { d: Ficha; e: EdicaoComissao; f
             <label className="mdd-campo"><span>O que está sendo descontado</span><input value={desc} onChange={(ev) => setDesc(ev.target.value)} placeholder={tipo === 'outro' ? 'ex.: avaria no retrovisor do carro' : ''} /></label>
             <div className="mdd-campo"><span>Quem paga</span>
               <div className="mdd-quem">
-                <button type="button" className={fonte === 'funcionario' ? 'on' : ''} onClick={() => setFonte('funcionario')}><i className="fas fa-user" /><b>{d.nome.split(' ')[0]}</b><small>sai do salário, na folha</small></button>
+                <button type="button" className={fonte === 'funcionario' ? 'on' : ''} onClick={() => setFonte('funcionario')}><i className="fas fa-user" /><b>{d.nome.split(' ')[0]}</b><small>sai da comissão dele</small></button>
                 <button type="button" className={`cx ${fonte === 'caixinha' ? 'on' : ''}`} onClick={() => setFonte('caixinha')}><i className="fas fa-piggy-bank" /><b>Caixinha</b><small>sai do fundo dos técnicos</small></button>
               </div>
             </div>
@@ -302,7 +329,7 @@ export function ModalDesconto({ d, e, fechar }: { d: Ficha; e: EdicaoComissao; f
               <b className="mdd-grande">{ps.length}x de {brl2(ps[0].valor)}</b>
               <span className="mdd-sub">{ps.length > 1 ? `de ${mesCurto(ps[0].mes)} a ${mesCurto(ps[ps.length - 1].mes)}` : `em ${nomeMes(ps[0].mes).toLowerCase()}`} · total {brl2(v)}</span>
               <ol className="mdd-parc">{ps.map((p) => <li key={p.n}><span>{p.n}ª</span><span>{nomeMes(p.mes)}</span><span>{brl2(p.valor)}</span></li>)}</ol>
-              {fonte === 'caixinha' && <p className="mdd-nota cx">Pago pela caixinha: {d.nome.split(' ')[0]} não paga nada. Quando o diretor autorizar a comissão, {brl2(v)} saem do saldo da caixinha dos técnicos.</p>}
+              {fonte === 'caixinha' && <p className="mdd-nota cx">Pago pela caixinha: nada sai da comissão de {d.nome.split(' ')[0]}. Quando o diretor autorizar a comissão, {brl2(v)} saem do saldo da caixinha dos técnicos.</p>}
               {tipo === 'requisicao' && req && fonte === 'funcionario' && <p className="mdd-nota">A requisição #{req} fica marcada como cobrada de {d.nome.split(' ')[0]}, com as parcelas e quanto ainda falta.</p>}
             </>}
           </aside>
@@ -428,7 +455,7 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
   const soma = partes.reduce((a, x) => a + x.v, 0) || 1
   const dif = t.total - t.calc
   const mexidas = e.linhas.filter((l) => e.ed[chaveL(l)])
-  const linhasPedido = e.linhas.map((l) => { const x = e.de(l); return { os: l.os, numero: l.numeroOmie || l.os, cliente: l.cliente || '', data: l.data || null, grupo: grupoDa(l), regra: l.regra, calculado: l.valor, valor: e.final(l), acao: x.acao, motivo: x.motivo, divisao: x.divisao || null, descontoCliente: d.os.faturadas.find((o) => o.os === l.os)?.descontos || null } })
+  const linhasPedido = e.linhas.map((l) => { const x = e.de(l); return { os: l.os, numero: l.numeroOmie || l.os, cliente: l.cliente || '', data: l.data || null, grupo: grupoDa(l), regra: l.regra, calculado: l.valor, valor: e.final(l), acao: x.acao, motivo: x.motivo, divisao: x.divisao || null, horasDiv: x.horasDiv || null, descontoCliente: d.os.faturadas.find((o) => o.os === l.os)?.descontos || null } })
   const assRef = useRef<CanvasAssinaturaRef>(null)
   const [assinou, setAssinou] = useState(false)
   const aguardando = atual?.status === 'aguardando'
@@ -525,7 +552,7 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
           )}
           {e.descontos.length > 0 && (
             <div className="flc-mex">
-              <span className="flc-rot">Descontos do técnico ({e.descontos.length}) · saem na folha, depois que o RH aprovar</span>
+              <span className="flc-rot">Descontos do técnico ({e.descontos.length}) · saem da comissão, depois que o RH aprovar</span>
               {e.descontos.map((x, i) => <div key={i} className="flc-ml"><span className="n">{x.tipo === 'requisicao' ? `Req. #${x.ref}` : 'Outro'}</span><span className="m" style={{ gridColumn: 'span 2' }}>{x.descricao}{x.fonte === 'caixinha' ? ' · pago pela caixinha' : (x.parcelas || 1) > 1 ? ` · em ${x.parcelas}x a partir de ${nomeMes(x.inicio || hojeSP().slice(0, 7)).toLowerCase()}` : ''}</span><span className="v">{x.fonte === 'caixinha' ? '' : '− '}{brl2(x.valor)}</span></div>)}
             </div>
           )}
@@ -945,6 +972,7 @@ export const ESTILO_FO = `
 .fo-div { background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; animation: ftEntra .25s both }
 .fo-div-cab { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap } .fo-div-cab b { color: #6d28d9; font-size: 13px } .fo-div-cab small { color: ${MUDO}; font-size: 12px; flex: 1 }
 .fo-div-cab button { border: 1px solid #d8b4fe; background: #fefefe; color: #6d28d9; border-radius: 99px; padding: 3px 10px; font-family: inherit; font-size: 12px; font-weight: 800; cursor: pointer }
+/* divisão por horas */ .fo-div-pct { color: #64748b; font-size: 12px } .fo-div-v { margin-left: auto; color: #6d28d9; font-variant-numeric: tabular-nums }
 .fo-div-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px }
 .fo-div-lista label { display: flex; gap: 6px; align-items: center; background: #fefefe; border: 1px solid #ede9fe; border-radius: 10px; padding: 6px 8px; font-size: 13px; cursor: pointer } .fo-div-lista label.on { border-color: #c4b5fd }
 .fo-div-lista span { flex: 1 } .fo-div-lista em { font-style: normal; color: ${MUDO}; font-size: 11.5px } .fo-div-lista i { font-style: normal; color: ${MUDO}; font-size: 12px } .fo-div-lista input[type=number] { width: 86px; border: 1px solid #ddd6fe; border-radius: 7px; padding: 3px 6px; font-family: inherit; font-weight: 800 } .fo-div-lista small { width: 34px; text-align: right; color: #7c3aed; font-weight: 800; font-size: 12px }

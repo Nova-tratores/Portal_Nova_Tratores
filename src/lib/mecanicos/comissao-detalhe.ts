@@ -42,7 +42,14 @@ export interface LinhaComissao {
   garantia?: boolean
   /** no portal a OS está em nome de outro técnico (a comissão segue o Omie) */
   outroTecnicoNoPortal?: boolean
+  /** horas cobradas na OS (para dividir por horas) */
+  horas?: number
+  /** a OS não é deste técnico: veio da divisão feita na ficha de outro (José, 29/10/2026) */
+  veioDe?: { de: string; horas?: number | null; status: 'pedido' | 'autorizada' }
 }
+
+/** Parte de outro técnico numa OS dividida por ele (pedido esperando o diretor ou já autorizado). */
+export interface Recebida { de: string; valor: number; horas?: number | null; status: 'pedido' | 'autorizada' }
 
 export interface ComissaoDetalhada {
   tecnico: string
@@ -90,6 +97,8 @@ export function comissaoDoTecnico(args: {
   regras?: RegrasComissao
   /** % definida na OS pelo pós-vendas (chave = Id_Ordem), no lugar da % do técnico */
   pctPorOS?: Map<string, { pct: number; motivo: string; pcts?: Record<string, number> | null }>
+  /** OS de outros técnicos divididas com este (chave = nº da OS no Omie ou id) */
+  recebidas?: Map<string, Recebida>
 }): ComissaoDetalhada {
   const { tecnico, mes, hoje, pct, ajustes, motivos } = args
   const regras = args.regras || REGRAS_PADRAO
@@ -115,16 +124,34 @@ export function comissaoDoTecnico(args: {
     return { ...l, valor: r2(valor), calculado: r2(l.calculado), ajustada: ajustada && Math.abs(valor - l.calculado) > 0.004, motivo: motivos?.get(num) }
   }
 
+  /** OS de outro técnico que foi dividida com este: entra com a parte dele, marcada */
+  const recebida = (o: { os: string; numeroOmie: string | null; cliente: string; data: string; garantia?: boolean }, tipo: 'faturada' | 'interna', tecs: string[], horas: number) => {
+    const aj = ajustes.get(o.numeroOmie || o.os) || ajustes.get(o.os)
+    const rec = args.recebidas?.get(o.numeroOmie || o.os) || args.recebidas?.get(o.os)
+    const k = aj?.porTecnico ? Object.keys(aj.porTecnico).find((c) => chaveDoTecnico(c, tecnico)) : undefined
+    if (!rec && k == null) return
+    const data = dataAjustada(aj, o.data)
+    if (!data.startsWith(mes)) return
+    const valor = r2(k != null ? Number(aj!.porTecnico![k]) : rec!.valor)
+    const de = rec?.de || tecs.join(', ')
+    linhas.push({
+      os: o.os, numeroOmie: o.numeroOmie, cliente: o.cliente, data, tipo, garantia: !!o.garantia, tecnicos: tecs, horas,
+      regra: `veio da divisão com ${de.split(' ')[0]}${rec?.horas ? ` · ${String(rec.horas).replace('.', ',')} h` : ''}`,
+      base: 0, divisao: 1, calculado: valor, valor, ajustada: false, motivo: motivos?.get(o.numeroOmie || o.os),
+      veioDe: { de, horas: rec?.horas ?? null, status: k != null ? 'autorizada' : rec!.status },
+    })
+  }
+
   for (const o of args.faturadas) {
     const tecs = tecnicosDaComissao(o)
-    if (!tecs.includes(tecnico)) continue
+    if (!tecs.includes(tecnico)) { recebida(o, 'faturada', tecs, o.horasCobradas); continue }
     const aj = ajustes.get(o.numeroOmie || o.os) || ajustes.get(o.os)
     const data = dataAjustada(aj, o.data)
     if (!data.startsWith(mes)) continue
     const n = Math.max(1, tecs.length)
     const po = pctDa(o.os)
     linhas.push(aplicar({
-      os: o.os, numeroOmie: o.numeroOmie, cliente: o.cliente, data, tipo: 'faturada', garantia: !!o.garantia, tecnicos: tecs, outroTecnicoNoPortal: !o.tecnicos.includes(tecnico),
+      os: o.os, numeroOmie: o.numeroOmie, cliente: o.cliente, data, tipo: 'faturada', garantia: !!o.garantia, tecnicos: tecs, outroTecnicoNoPortal: !o.tecnicos.includes(tecnico), horas: o.horasCobradas,
       regra: `${po.txt} das horas${n > 1 ? ` ÷ ${n} técnicos` : ''}`,
       base: r2(o.servico), divisao: n, calculado: (o.servico / n) * (po.v / 100),
       movidaDe: data !== o.data ? o.data : undefined,
@@ -133,7 +160,7 @@ export function comissaoDoTecnico(args: {
 
   for (const x of args.internas) {
     const tecs = tecnicosDaComissao(x)
-    if (!tecs.includes(tecnico)) continue
+    if (!tecs.includes(tecnico)) { recebida(x, 'interna', tecs, x.horas); continue }
     const aj = ajustes.get(x.numeroOmie || x.os) || ajustes.get(x.os)
     const data = dataAjustada(aj, x.data)
     if (!data.startsWith(mes)) continue
@@ -154,7 +181,7 @@ export function comissaoDoTecnico(args: {
         : garantiaFabrica ? `${po.txt} das horas no teto da fábrica (R$ ${TETO_HORA_MONTADORA}/h — garantia a receber: ${x.contrato})${n > 1 ? ` ÷ ${n}` : ''}`
           : `${po.txt} das horas (interna: ${x.contrato || x.motivo})${n > 1 ? ` ÷ ${n}` : ''}`
     linhas.push(aplicar({
-      os: x.os, numeroOmie: x.numeroOmie, cliente: x.cliente, data, tipo: 'interna', tecnicos: tecs,
+      os: x.os, numeroOmie: x.numeroOmie, cliente: x.cliente, data, tipo: 'interna', tecnicos: tecs, horas: x.horas,
       regra, base: r2(fixa != null || garantiaLoja ? 0 : baseHoras), divisao: n, calculado,
       movidaDe: data !== x.data ? x.data : undefined,
     }, aj, n))

@@ -177,7 +177,7 @@ ${(() => {
   <h2>Descontos</h2>
   <table class="desc-t"><tbody>
     <tr class="ini"><td>Comissão das ordens de serviço</td><td class="v">${brl(t.total)}</td></tr>
-    ${ds.map((x) => `<tr><td>${x.tipo === 'requisicao' && x.ref ? `Requisição #${esc(x.ref)} — ` : ''}${esc(x.descricao)}<span class="onde">${x.fonte === 'caixinha' ? 'pago pela caixinha dos técnicos — não sai do salário' : (x.parcelas || 1) > 1 ? `desconto em folha em ${x.parcelas} parcelas de ${brl(primeira(x))}${x.inicio ? `, a partir de ${mesExtenso(x.inicio)}` : ''} (total ${brl(x.valor)})` : 'desconto em folha'}</span></td><td class="v neg">${x.fonte === 'caixinha' ? `(${brl(x.valor)})` : `− ${brl(primeira(x))}`}</td></tr>`).join('')}
+    ${ds.map((x) => `<tr><td>${x.tipo === 'requisicao' && x.ref ? `Requisição #${esc(x.ref)} — ` : ''}${esc(x.descricao)}<span class="onde">${x.fonte === 'caixinha' ? 'pago pela caixinha dos técnicos — não sai da comissão' : (x.parcelas || 1) > 1 ? `desconto em folha em ${x.parcelas} parcelas de ${brl(primeira(x))}${x.inicio ? `, a partir de ${mesExtenso(x.inicio)}` : ''} (total ${brl(x.valor)})` : 'desconto em folha'}</span></td><td class="v neg">${x.fonte === 'caixinha' ? `(${brl(x.valor)})` : `− ${brl(primeira(x))}`}</td></tr>`).join('')}
     ${pct > 0 ? `<tr><td>Caixinha ${String(pct).replace('.', ',')}%<span class="onde">retida no pagamento da comissão</span></td><td class="v neg">− ${brl(cx)}</td></tr>` : ''}
     <tr class="fim"><td>Líquido para o técnico</td><td class="v">${brl(t.total - totDs - cx)}</td></tr>
   </tbody></table>

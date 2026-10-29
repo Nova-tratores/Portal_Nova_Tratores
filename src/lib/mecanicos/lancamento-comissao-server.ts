@@ -9,13 +9,16 @@ import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
 import { clienteRH } from './rh-server'
 import { chaveDoTecnico } from './comissao-detalhe'
 import { casarNome } from './ocorrencias-painel'
+import { esquecer } from './cache'
 import { parcelasDoDesconto, qtdParcelas, caixinhaDe, type DescontoPedido } from './descontos-tecnico'
 export type { DescontoPedido } from './descontos-tecnico'
 
 type Rec = Record<string, unknown>
 export interface LinhaPedido {
   os: string; numero: string; cliente: string; calculado: number; valor: number; acao: 'pagar' | 'nao' | 'ajustar'; motivo: string
-  divisao?: Record<string, number> | null; data?: string | null; grupo?: 'cliente' | 'garantia' | 'interna'; regra?: string
+  divisao?: Record<string, number> | null
+  /** horas de cada técnico quando a divisão é por horas (José, 29/10/2026) */
+  horasDiv?: Record<string, number> | null; data?: string | null; grupo?: 'cliente' | 'garantia' | 'interna'; regra?: string
   descontoCliente?: { hora: number; km: number; geral: number; pecas: number } | null
 }
 /** O que o diretor pede para mudar numa OS (não altera nada — só informa). */
@@ -129,6 +132,9 @@ export async function pedirLancamento(
   if (error) { if (falta(error)) throw new SemTabela(); throw new Error(error.message) }
   const ped = data as unknown as PedidoComissao
   const mexidas = p.linhas.filter(linhaMexida)
+  // quem recebeu parte de uma OS dividida vê na ficha na hora (a ficha fica em cache)
+  const outros = [...new Set(p.linhas.flatMap((l) => Object.keys(l.divisao || {})).filter((n) => n !== p.tecnico))]
+  if (outros.length) await esquecer(outros.map((n) => `ficha12:${n}:`)).catch(() => {})
   await registrar(ped, 'pedido', autor, r2(p.valor), { calculado: r2(p.calculado), os: p.linhas.length, mexidas: mexidas.map((l) => ({ numero: l.numero, acao: l.divisao ? 'dividir' : l.acao, valor: l.valor, calculado: l.calculado, motivo: l.motivo })), descontos })
   const ds = await diretores()
   await avisar(ds, `Comissão para autorizar: ${p.tecnico}`, `${p.mes.slice(5)}/${p.mes.slice(0, 4)} · ${brl(p.valor)}${mexidas.length ? ` · ${mexidas.length} OS com decisão` : ''} — pedido de ${autor.nome}`, '/dashboard?comissoes=1')
