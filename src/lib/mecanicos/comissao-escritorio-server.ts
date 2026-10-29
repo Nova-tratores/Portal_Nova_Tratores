@@ -10,8 +10,9 @@ import { comCache } from './cache'
 import { clienteRH } from './rh-server'
 import { casarNome } from './ocorrencias-painel'
 
-export const ACAO_GARANTISTA = 'mecanicos:garantista'
-export const ACAO_GERENTE = 'mecanicos:gerente_posvendas'
+// função do Pós-Vendas marcada na Administração → usuário → aba Pós-Vendas (lib/permissoes/funcoes-posvendas.ts)
+export { FUNCAO_GARANTISTA as ACAO_GARANTISTA, FUNCAO_GERENTE as ACAO_GERENTE } from '@/lib/permissoes/funcoes-posvendas'
+import { FUNCAO_GARANTISTA as ACAO_GARANTISTA } from '@/lib/permissoes/funcoes-posvendas'
 const SEM_REGRA = ['Larissa Garcia']
 const CHAVE = 'comissao-escritorio'
 

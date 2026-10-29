@@ -168,9 +168,6 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'justificar_alerta', label: 'Justificar alerta' },
     { id: 'converter_alerta', label: 'Converter alerta em ocorrência' },
     { id: 'atualizar_ocorrencia', label: 'Atualizar status da ocorrência' },
-    // funções do Pós-Vendas (José, 29/10/2026)
-    { id: 'gerente_posvendas', label: 'Gerente do Pós-Vendas (muda a % das revisões do escritório)' },
-    { id: 'garantista', label: 'Garantista (comissão do escritório: garantias e revisões)' },
   ],
   'painel-mecanicos': [
     { id: 'criar_ocorrencia', label: 'Registrar ocorrência' },

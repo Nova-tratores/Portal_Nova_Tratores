@@ -3,6 +3,7 @@
 // permissões dos apps"). Três abas — Portal (módulos), App Mecânicos e App NT Vendas — no mesmo lugar.
 // Portal: cartões com interruptor por módulo, busca, grupos com contador, ações finas no painel ao lado,
 // e "copiar acessos de" outra pessoa. Usa as mesmas regras do catálogo (lib/permissoes/catalogo).
+import { FUNCOES_POSVENDAS, funcaoPosVendas, trocarFuncaoPosVendas } from '@/lib/permissoes/funcoes-posvendas'
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, ShieldCheck, Copy, Smartphone, Wrench, LayoutGrid, Check } from 'lucide-react';
@@ -19,7 +20,7 @@ interface Props {
 }
 
 export default function DistribuirAcessos(p: Props) {
-  const [aba, setAba] = useState<'portal' | 'mecanicos' | 'vendas'>('portal');
+  const [aba, setAba] = useState<'portal' | 'mecanicos' | 'posvendas' | 'vendas'>('portal');
   const [busca, setBusca] = useState('');
   const [grupo, setGrupo] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
@@ -56,6 +57,7 @@ export default function DistribuirAcessos(p: Props) {
       <div className="da-abas">
         <button type="button" className={aba === 'portal' ? 'on' : ''} onClick={() => setAba('portal')}><LayoutGrid size={15} />Portal<em>{ligados}</em></button>
         <button type="button" className={aba === 'mecanicos' ? 'on' : ''} onClick={() => setAba('mecanicos')}><Wrench size={15} />App Mecânicos<em className={p.mecanicoRole ? 'ok' : ''}>{p.mecanicoRole === 'tecnico' ? 'técnico' : p.mecanicoRole === 'observador' ? 'observador' : 'sem acesso'}</em></button>
+        <button type="button" className={aba === 'posvendas' ? 'on' : ''} onClick={() => setAba('posvendas')}><Wrench size={15} />Pós-Vendas<em className={funcaoPosVendas(p.modulos) ? 'ok' : ''}>{FUNCOES_POSVENDAS.find((f) => f.chave === funcaoPosVendas(p.modulos))?.rot.replace(' do Pós-Vendas', '') || 'sem função'}</em></button>
         <button type="button" className={aba === 'vendas' ? 'on' : ''} onClick={() => setAba('vendas')}><Smartphone size={15} />App NT Vendas<em className={p.vendedor ? 'ok' : ''}>{p.vendedor ? 'ativo' : 'sem acesso'}</em></button>
       </div>
 
@@ -148,6 +150,20 @@ export default function DistribuirAcessos(p: Props) {
             ))}
           </div>
           {p.mecanicoRole && <p className="da-app-txt">Aparece no app como <b>{p.mecanicoNome || p.nome}</b>.</p>}
+        </div>
+      )}
+
+      {/* função dentro do setor Pós-Vendas (José, 29/10/2026) */}
+      {aba === 'posvendas' && (
+        <div className="da-app">
+          <p className="da-app-txt">A função de {p.nome.split(' ')[0]} dentro do Pós-Vendas. Vale na comissão do escritório (Gestão Pós Vendas → Equipe → Comissões).</p>
+          <div className="da-opcoes">
+            {[{ chave: '', rot: 'Sem função', txt: 'não tem função no pós-vendas' }, ...FUNCOES_POSVENDAS].map((f) => (
+              <button key={f.chave} type="button" disabled={p.disabled} className={`da-op ${(funcaoPosVendas(p.modulos) || '') === f.chave ? 'on' : ''}`} onClick={() => p.onModulos(trocarFuncaoPosVendas(p.modulos, f.chave || null))}>
+                <span className="da-radio">{(funcaoPosVendas(p.modulos) || '') === f.chave && <Check size={13} />}</span><span><b>{f.rot}</b><small>{f.txt}</small></span>
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
