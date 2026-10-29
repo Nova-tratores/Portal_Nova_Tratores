@@ -125,8 +125,10 @@ export function Divisao({ d, l, e, fechar }: { d: Ficha; l: LinhaComissao; e: Ed
   const div = x.divisao || vIni()
   const somaV = Object.values(div).reduce((a, v) => a + v, 0)
   const salvarV = (nv: Record<string, number>) => e.mudar(l, { divisao: nv, horasDiv: null, acao: 'pagar' })
+  /** horas iguais entre os nomes, em décimos; a sobra do arredondamento fica com o último (a soma fecha) */
+  const repartir = (ks: string[]) => { if (!ks.length) return {}; const p = Math.floor((horasOS / ks.length) * 10) / 10; return Object.fromEntries(ks.map((k, i) => [k, i === ks.length - 1 ? Math.round((horasOS - p * (ks.length - 1)) * 10) / 10 : p])) }
   const igual = () => {
-    if (porHoras) { const ks = Object.keys(hs); salvarH(Object.fromEntries(ks.map((k) => [k, Math.round((horasOS / ks.length) * 10) / 10]))) }
+    if (porHoras) salvarH(repartir(Object.keys(hs)))
     else { const ks = Object.keys(div); salvarV(Object.fromEntries(ks.map((k) => [k, Math.round((totalOS / ks.length) * 100) / 100]))) }
   }
   const hh = (v: number) => `${String(Math.round(v * 10) / 10).replace('.', ',')} h`
@@ -140,7 +142,8 @@ export function Divisao({ d, l, e, fechar }: { d: Ficha; l: LinhaComissao; e: Ed
         {d.equipe.map((t) => {
           const marcado = porHoras ? t.nome in hs : t.nome in div
           const trocar = () => {
-            if (porHoras) { const n = { ...hs }; if (marcado) delete n[t.nome]; else n[t.nome] = 0; salvarH(n) }
+            // marcar ou desmarcar alguém já reparte as horas igual entre os marcados; depois dá para acertar na mão (José, 29/10/2026)
+            if (porHoras) { const n = { ...hs }; if (marcado) delete n[t.nome]; else n[t.nome] = 0; salvarH(repartir(Object.keys(n))) }
             else { const n = { ...div }; if (marcado) delete n[t.nome]; else n[t.nome] = 0; salvarV(n) }
           }
           return (
@@ -977,7 +980,7 @@ export const ESTILO_FO = `
 .fo-div-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 6px }
 .fo-div-lista label { display: flex; gap: 6px; align-items: center; background: #fefefe; border: 1px solid #ede9fe; border-radius: 10px; padding: 6px 8px; font-size: 13px; cursor: pointer } .fo-div-lista label.on { border-color: #c4b5fd }
 .fo-div-lista span { flex: 1 } .fo-div-lista em { font-style: normal; color: ${MUDO}; font-size: 11.5px } .fo-div-lista i { font-style: normal; color: ${MUDO}; font-size: 12px } .fo-div-lista input[type=number] { width: 86px; border: 1px solid #ddd6fe; border-radius: 7px; padding: 3px 6px; font-family: inherit; font-weight: 800 } .fo-div-lista small { width: 34px; text-align: right; color: #7c3aed; font-weight: 800; font-size: 12px }
-.fo-div-lista label > span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis } .fo-div-lista .fo-div-pct { width: auto; text-align: left; color: #64748b; font-weight: 500 } .fo-div-lista input[type=number] { width: 70px } .fo-div-lista .fo-div-v { min-width: 84px; text-align: right; color: #6d28d9; font-variant-numeric: tabular-nums }
+.fo-div-lista label > span { min-width: 0 } .fo-div-lista input[type=checkbox] { flex: 0 0 auto; width: 16px; height: 16px; margin: 0 } .fo-div-lista .fo-div-pct { width: auto; text-align: left; color: #64748b; font-weight: 500 } .fo-div-lista input[type=number] { width: 70px } .fo-div-lista .fo-div-v { min-width: 84px; text-align: right; color: #6d28d9; font-variant-numeric: tabular-nums }
 .fo-div-pe { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px } .fo-div-pe em { font-style: normal; color: #b45309 } .fo-div-pe .fo-mot-txt { flex: 1 }
 .fo-cam { margin: 4px 0 0; font-size: 12.5px; color: #b45309 }
 /* lançar */
