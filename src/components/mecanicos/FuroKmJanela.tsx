@@ -365,12 +365,23 @@ function LinhaDia({ x, on, foco, cor, carregando, onClick, notas = [], pensando,
         <small className="fk-dia-fez">
           <i className="fas fa-car-side" /> {x.saida ? <>saiu {hora(x.saida)}</> : 'saiu'}{x.volta ? <>, voltou {hora(x.volta)}</> : ''} · rodou {kmI(x.kmGps)}{x.ligadoH ? <> · motor ligado {h1(x.ligadoH)}</> : ''}
         </small>
-        {x.os.map((o) => (
-          <small key={o.os} className={`fk-os ${o.noCliente ? (o.noCliente.conf === 'provavel' ? 'prov' : 'sim') : o.semLocal ? 'col' : 'nao'}`} title="OS dele com dia de execução nesse dia (pelo relatório do técnico ou pela previsão)">
-            <i className="fas fa-file-invoice" /> {o.os} · {o.cliente.split(' ').slice(0, 3).join(' ')}
-            {o.noCliente ? <> · carro no cliente {hora(o.noCliente.inicio)}–{hora(o.noCliente.fim)}{o.noCliente.conf === 'provavel' ? ' (provável)' : ''}</> : o.semLocal ? <> · cliente sem localização cadastrada: não dá para conferir se o carro foi</> : <> · o carro não parou no local cadastrado do cliente</>}
-          </small>
-        ))}
+        {/* cada OS do dia em frase completa (José, 29/10/2026: "deixa bem explicado o que quer dizer") */}
+        {x.os.map((o) => {
+          const cli = o.cliente.split(' ').slice(0, 3).join(' ')
+          const tom = o.noCliente ? (o.noCliente.conf === 'provavel' ? 'prov' : 'sim') : o.semLocal ? 'col' : 'nao'
+          return (
+            <small key={o.os} className={`fk-os ${tom}`}>
+              <span className="fk-os-t"><i className="fas fa-file-invoice" /> {o.os} · {cli}</span>
+              <span className="fk-os-x">
+                {o.noCliente
+                  ? <>Pelo relatório, ele trabalhou nesta OS neste dia, e o GPS confirma: o carro ficou no cliente das {hora(o.noCliente.inicio)} às {hora(o.noCliente.fim)}{o.noCliente.conf === 'provavel' ? ' (provável: o cliente não tem local cadastrado e esta foi a parada mais longa do dia)' : ''}.</>
+                  : o.semLocal
+                    ? <>Pelo relatório, ele trabalhou nesta OS neste dia. O cliente não tem localização cadastrada, então não dá para saber pelo GPS se o carro foi lá. Para conferir, cadastre o local do cliente na Pasta Clientes (Localizações).</>
+                    : <>Pelo relatório, ele trabalhou nesta OS neste dia, mas o GPS não mostra o carro parado a menos de 500 m do local cadastrado do cliente. Ou o carro não foi lá (foi com outro carro, ou o dia do relatório está errado), ou o local cadastrado do cliente está errado.</>}
+              </span>
+            </small>
+          )
+        })}
         {colegas.map((o) => (
           <small key={o.os} className={`fk-os ${o.naOS ? 'sim' : 'nao'}`}>
             <i className="fas fa-user-group" /> foi ao atendimento da {o.os}, em nome do {o.tecnico.split(' ')[0]} ({o.cliente.split(' ').slice(0, 3).join(' ')}), {hora(o.noCliente!.inicio)}–{hora(o.noCliente!.fim)}
@@ -533,6 +544,7 @@ const ESTILO_FK = `
 .fk-carro-et::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #0f172a }
 .fk-carro { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #0f172a; color: #fefefe; font-size: 14px; border: 3px solid #fefefe; box-shadow: 0 4px 12px rgba(15,23,42,.45) }
 .fk-lt-l .ev.depois { opacity: .35 } .fk-lt-l .ev.agora { background: #eff6ff; border-radius: 10px } .fk-lt-l .ev.agora .pt { transform: scale(1.35); box-shadow: 0 0 0 4px #bfdbfe } .fk-lt-l .ev { transition: opacity .3s, background .3s }
+.fk-os-t { display: block } .fk-os-x { display: block; margin-top: 2px; font-size: 12px; line-height: 1.45; opacity: .9 }
 .fk-naos { display: block; margin-top: 3px; font-size: 12.5px; font-weight: 500 } .fk-naos.sim { color: #047857 } .fk-naos.nao { color: #b91c1c } .fk-naos i { font-size: 11px; margin-right: 3px }
 @keyframes fkSobe { from { opacity: 0; transform: translateY(6px) } }
 `
