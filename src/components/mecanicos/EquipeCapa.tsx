@@ -4,7 +4,7 @@
 // caixinha (que virou ícone nos atalhos). Mesma conta das horas do resto da aba (useHorasEquipe).
 // Gráfico (28/10/2026, "mais dinâmico, com ícone explicando o que cada coisa representa"): acumulado do mês dia a
 // dia — área = o que a equipe fez, linhas = onde deveria estar (básica) e a ideal, marca de hoje e a projeção.
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { somarDias, osAguardandoFaturar } from '@/lib/mecanicos/painel'
 import { useHorasEquipe, C6, META_SEM, ESTILO_HO, ESTILO_HC } from './HorasOpcoes'
 import { useBasePosVendas } from './useBasePosVendas'
@@ -24,14 +24,8 @@ export default function EquipeCapa({ mes }: { mes: string }) {
   const { base } = useBasePosVendas()
   const [abrir, setAbrir] = useState(false)
   const [visao, setVisao] = useState<'mes' | 'semana'>('mes')
-  const [auto, setAuto] = useState(true)
-  const [parado, setParado] = useState(false)
-  useEffect(() => {
-    if (!auto || parado) return
-    const t = setInterval(() => setVisao((v) => (v === 'mes' ? 'semana' : 'mes')), 9000)
-    return () => clearInterval(t)
-  }, [auto, parado, visao])
-  const escolher = (v: 'mes' | 'semana') => { setAuto(false); setVisao(v) }
+  // sem troca automática (José, 29/10/2026: "tira a animação daqui, só deixa no mês e se o usuário quiser trocar para semana ele troca")
+  const escolher = (v: 'mes' | 'semana') => setVisao(v)
   const hoje = hojeSP()
 
   // série do mês dia a dia, só com os mecânicos da capa (OS com 2 técnicos: cada um fica com a sua metade)
@@ -132,13 +126,12 @@ export default function EquipeCapa({ mes }: { mes: string }) {
               {([['mes', 'Mês', 'fa-calendar'], ['semana', 'Semanas', 'fa-calendar-week']] as const).map(([k, r, ic]) => (
                 <button key={k} type="button" role="tab" aria-selected={visao === k} className={visao === k ? 'on' : ''} onClick={() => escolher(k)}>
                   <i className={`fas ${ic}`} /> {r}
-                  {visao === k && auto && !parado && <span className="eqc-vis-t" key={visao} />}
                 </button>
               ))}
             </div>
             <span><i className="ok" /> bateu o esperado <i className="quase" /> perto <i className="baixo" /> abaixo</span>
           </div>
-          <div className="eqc-palco" onMouseEnter={() => setParado(true)} onMouseLeave={() => setParado(false)}>
+          <div className="eqc-palco">
           <div key={visao} className={`eqc-slide ${visao}`}>
           {visao === 'mes' ? (() => {
             // o mês (José, 28/10/2026: as colunas por dia "tá horrível, coloca outra"): um velocímetro do mês inteiro
