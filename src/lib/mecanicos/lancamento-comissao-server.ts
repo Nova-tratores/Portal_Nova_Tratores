@@ -109,7 +109,8 @@ export async function pedirLancamento(
   const descontos: DescontoPedido[] = (Array.isArray(p.descontos) ? p.descontos : []).map((x: Rec) => ({
     tipo: x.tipo === 'requisicao' ? 'requisicao' as const : 'outro' as const, ref: x.ref != null ? String(x.ref) : null,
     descricao: String(x.descricao || '').trim().slice(0, 200), valor: r2(Number(x.valor)),
-    parcelas: qtdParcelas(x as { parcelas?: number }), inicio: /^\d{4}-\d{2}$/.test(String(x.inicio || '')) ? String(x.inicio) : new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 7),
+    fonte: x.fonte === 'caixinha' ? 'caixinha' as const : 'funcionario' as const,
+    parcelas: qtdParcelas(x as { parcelas?: number; fonte?: string }), inicio: /^\d{4}-\d{2}$/.test(String(x.inicio || '')) ? String(x.inicio) : new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 7),
   }))
   if (descontos.some((x) => !(x.valor > 0) || !x.descricao)) throw new Error('Cada desconto precisa de descrição e valor')
   // um pedido em aberto por vez: o anterior (aguardando) vira substituído
@@ -257,13 +258,29 @@ async function espelharNoRH(p: PedidoComissao, autor: string): Promise<string> {
       const tag = x.tipo === 'requisicao' && x.ref ? `[Portal REQ #${x.ref}]` : `[Portal COM #${cod}-${i + 1}]`
       if (jaTem.has(tag)) continue
       const hojeMes = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' }).slice(0, 7)
+      const cx = x.fonte === 'caixinha'
+      let ciclo: Rec | null = null
+      if (cx) {
+        const { data } = await c.from('rh_caixinha_ciclo').select('id').eq('status', 'aberto').order('inicio_ano', { ascending: false }).order('inicio_mes', { ascending: false }).limit(1).maybeSingle()
+        if (!data) throw new Error('RH: não há ciclo da caixinha aberto para pagar o desconto')
+        ciclo = data as Rec
+      }
       for (const pc of parcelasDoDesconto(x, hojeMes)) {
         const sufixo = pc.de > 1 ? ` — parcela ${pc.n}/${pc.de}` : ''
-        const { error } = await c.from('rh_descontos').insert({
+        const { data: novo, error } = await c.from('rh_descontos').insert({
           funcionario_id: f.id, empresa: f.empresa, empresa_id: empresaId, tipo_id: (tipo as Rec).id, descricao: `${tag} ${x.descricao}${sufixo}`.slice(0, 300),
-          valor: pc.valor, competencia_mes: Number(pc.mes.slice(5)), competencia_ano: Number(pc.mes.slice(0, 4)), status: 'pendente_aprovacao', fonte: 'funcionario',
-        })
+          valor: pc.valor, competencia_mes: Number(pc.mes.slice(5)), competencia_ano: Number(pc.mes.slice(0, 4)),
+          // pela caixinha já entra aprovado (pago pelo fundo, não vai à folha) — mesmo jeito do RH
+          status: cx ? 'aprovado' : 'pendente_aprovacao', fonte: cx ? 'caixinha' : 'funcionario',
+        }).select('id').single()
         if (error) throw new Error(`RH (desconto): ${error.message}`)
+        if (cx && ciclo) {
+          const { error: em } = await c.from('rh_caixinha_mov').insert({
+            ciclo_id: ciclo.id, funcionario_id: f.id, tipo: 'desconto', valor: pc.valor, competencia_mes: Number(pc.mes.slice(5)), competencia_ano: Number(pc.mes.slice(0, 4)),
+            referencia_id: (novo as Rec).id, descricao: `Desconto pago pela caixinha: ${x.descricao}`.slice(0, 200), usuario_nome: 'Portal',
+          })
+          if (em) throw new Error(`RH (caixinha): ${em.message}`)
+        }
       }
     }
   }

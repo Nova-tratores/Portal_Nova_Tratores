@@ -176,8 +176,8 @@ function DescontosComissao({ e, travado }: { e: EdicaoComissao; travado: boolean
       {e.descontos.map((x, i) => (
         <div key={i} className="fld-lin">
           <span className="fld-tipo">{x.tipo === 'requisicao' ? `Requisição #${x.ref}` : 'Outro valor'}</span>
-          <span className="fld-desc">{x.descricao}<small className="fld-parc">{resumoParcelas(x, mesHoje)}</small></span>
-          <span className="fld-v">− {brl2(x.valor)}</span>
+          <span className="fld-desc">{x.descricao}<small className="fld-parc">{x.fonte === 'caixinha' ? 'pago pela caixinha · não sai do salário' : resumoParcelas(x, mesHoje)}</small></span>
+          <span className="fld-v">{x.fonte === 'caixinha' ? '' : '− '}{brl2(x.valor)}</span>
           {!travado && <button type="button" onClick={() => e.remDesconto(i)} aria-label="Tirar"><i className="fas fa-xmark" /></button>}
         </div>
       ))}
@@ -221,6 +221,8 @@ export function ModalDesconto({ d, e, fechar }: { d: Ficha; e: EdicaoComissao; f
   const [desc, setDesc] = useState('')
   const [valor, setValor] = useState('')
   const [parcelas, setParcelas] = useState(1)
+  // quem paga (José, 29/10/2026: "aqui a gente não escolhe quando é da comissão ou da caixinha")
+  const [fonte, setFonte] = useState<'funcionario' | 'caixinha'>('funcionario')
   const [inicio, setInicio] = useState(mesHoje)
   const [ja, setJa] = useState<JaCobrada[] | null>(null)
   useEffect(() => { const t = (ev: KeyboardEvent) => { if (ev.key === 'Escape') fechar() }; window.addEventListener('keydown', t); return () => window.removeEventListener('keydown', t) }, [fechar])
@@ -246,9 +248,9 @@ export function ModalDesconto({ d, e, fechar }: { d: Ficha; e: EdicaoComissao; f
   }
   const v = Number(valor.replace(/\./g, '').replace(',', '.'))
   const ok = !!desc.trim() && v > 0 && (tipo === 'outro' || !!req)
-  const previa: DescontoPedido = { tipo, ref: req || null, descricao: desc, valor: v > 0 ? v : 0, parcelas, inicio }
+  const previa: DescontoPedido = { tipo, ref: req || null, descricao: desc, valor: v > 0 ? v : 0, parcelas, inicio, fonte }
   const ps = v > 0 ? parcelasDoDesconto(previa, mesHoje) : []
-  const incluir = () => { if (!ok) return; e.addDesconto({ tipo, ref: tipo === 'requisicao' ? req : null, descricao: desc.trim(), valor: Math.round(v * 100) / 100, parcelas, inicio }); fechar() }
+  const incluir = () => { if (!ok) return; e.addDesconto({ tipo, ref: tipo === 'requisicao' ? req : null, descricao: desc.trim(), valor: Math.round(v * 100) / 100, parcelas: fonte === 'caixinha' ? 1 : parcelas, inicio, fonte }); fechar() }
   const tela = (
     <div className="mdd-fundo" onClick={fechar}>
       <style>{ESTILO_MDD}</style>
@@ -280,13 +282,19 @@ export function ModalDesconto({ d, e, fechar }: { d: Ficha; e: EdicaoComissao; f
               </div>
             )}
             <label className="mdd-campo"><span>O que está sendo descontado</span><input value={desc} onChange={(ev) => setDesc(ev.target.value)} placeholder={tipo === 'outro' ? 'ex.: avaria no retrovisor do carro' : ''} /></label>
+            <div className="mdd-campo"><span>Quem paga</span>
+              <div className="mdd-quem">
+                <button type="button" className={fonte === 'funcionario' ? 'on' : ''} onClick={() => setFonte('funcionario')}><i className="fas fa-user" /><b>{d.nome.split(' ')[0]}</b><small>sai do salário, na folha</small></button>
+                <button type="button" className={`cx ${fonte === 'caixinha' ? 'on' : ''}`} onClick={() => setFonte('caixinha')}><i className="fas fa-piggy-bank" /><b>Caixinha</b><small>sai do fundo dos técnicos</small></button>
+              </div>
+            </div>
             <div className="mdd-linha">
               <label className="mdd-campo"><span>Valor total</span><div className="mdd-rs"><i>R$</i><input inputMode="decimal" placeholder="0,00" value={valor} onChange={(ev) => setValor(ev.target.value)} /></div></label>
-              <label className="mdd-campo"><span>Primeira parcela</span><select value={inicio} onChange={(ev) => setInicio(ev.target.value)}>{[0, 1, 2, 3].map((k) => andarMes(mesHoje, k)).map((m) => <option key={m} value={m}>{nomeMes(m)}</option>)}</select></label>
+              {fonte === 'funcionario' && <label className="mdd-campo"><span>Primeira parcela</span><select value={inicio} onChange={(ev) => setInicio(ev.target.value)}>{[0, 1, 2, 3].map((k) => andarMes(mesHoje, k)).map((m) => <option key={m} value={m}>{nomeMes(m)}</option>)}</select></label>}
             </div>
-            <div className="mdd-campo"><span>Em quantas vezes</span>
+            {fonte === 'funcionario' && <div className="mdd-campo"><span>Em quantas vezes</span>
               <div className="mdd-vezes">{Array.from({ length: 12 }, (_, k) => k + 1).map((n) => <button type="button" key={n} className={parcelas === n ? 'on' : ''} onClick={() => setParcelas(n)}>{n}x</button>)}</div>
-            </div>
+            </div>}
           </div>
           <aside className="mdd-dir">
             <span className="mdd-rot">Previsão do desconto</span>
@@ -294,7 +302,8 @@ export function ModalDesconto({ d, e, fechar }: { d: Ficha; e: EdicaoComissao; f
               <b className="mdd-grande">{ps.length}x de {brl2(ps[0].valor)}</b>
               <span className="mdd-sub">{ps.length > 1 ? `de ${mesCurto(ps[0].mes)} a ${mesCurto(ps[ps.length - 1].mes)}` : `em ${nomeMes(ps[0].mes).toLowerCase()}`} · total {brl2(v)}</span>
               <ol className="mdd-parc">{ps.map((p) => <li key={p.n}><span>{p.n}ª</span><span>{nomeMes(p.mes)}</span><span>{brl2(p.valor)}</span></li>)}</ol>
-              {tipo === 'requisicao' && req && <p className="mdd-nota">A requisição #{req} fica marcada como cobrada de {d.nome.split(' ')[0]}, com as parcelas e quanto ainda falta.</p>}
+              {fonte === 'caixinha' && <p className="mdd-nota cx">Pago pela caixinha: {d.nome.split(' ')[0]} não paga nada. Quando o diretor autorizar a comissão, {brl2(v)} saem do saldo da caixinha dos técnicos.</p>}
+              {tipo === 'requisicao' && req && fonte === 'funcionario' && <p className="mdd-nota">A requisição #{req} fica marcada como cobrada de {d.nome.split(' ')[0]}, com as parcelas e quanto ainda falta.</p>}
             </>}
           </aside>
         </div>
@@ -323,6 +332,7 @@ const ESTILO_MDD = `
 .mdd-req-n { font-size: 13.5px; color: #475569 } .mdd-req-t { display: grid; font-size: 14.5px } .mdd-req-t small, .mdd-req-v small { font-size: 12.5px; color: #64748b } .mdd-req-v { display: grid; justify-items: end; font-size: 14.5px; font-variant-numeric: tabular-nums }
 .mdd-vazio { margin: 0; font-size: 13.5px; color: #64748b } .mdd-alerta { margin: 0; font-size: 13.5px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 8px 12px }
 .mdd-campo { display: grid; gap: 6px } .mdd-campo > span { font-size: 13px; color: #475569 } .mdd-campo input, .mdd-campo select { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; font-family: inherit; font-size: 15px; color: #0f172a; background: #fefefe; min-width: 0 }
+.mdd-quem { display: grid; grid-template-columns: 1fr 1fr; gap: 10px } .mdd-quem button { display: grid; grid-template-columns: auto 1fr; column-gap: 10px; align-items: center; text-align: left; border: 1.5px solid #cbd5e1; border-radius: 12px; padding: 10px 12px; background: #fefefe; font-family: inherit; cursor: pointer; color: #0f172a } .mdd-quem button i { grid-row: span 2; font-size: 18px; color: #64748b } .mdd-quem button b { font-size: 14.5px } .mdd-quem button small { font-size: 12px; color: #64748b } .mdd-quem button.on { border-color: #0f172a; background: #f8fafc } .mdd-quem button.on i { color: #0f172a } .mdd-quem button.cx.on { border-color: #047857; background: #ecfdf5 } .mdd-quem button.cx.on i { color: #047857 } .mdd-nota.cx { background: #ecfdf5; color: #047857 }
 .mdd-linha { display: grid; grid-template-columns: 1fr 1fr; gap: 12px }
 .mdd-rs { display: flex; align-items: center; border: 1px solid #cbd5e1; border-radius: 10px; padding-left: 12px; background: #fefefe } .mdd-rs i { font-style: normal; color: #64748b; font-size: 14px } .mdd-rs input { border: none !important; flex: 1; font-variant-numeric: tabular-nums }
 .mdd-vezes { display: grid; grid-template-columns: repeat(12, 1fr); gap: 6px } .mdd-vezes button { border: 1px solid #e2e8f0; background: #fefefe; border-radius: 10px; padding: 8px 0; font-family: inherit; font-size: 14px; color: #334155; cursor: pointer } .mdd-vezes button:hover { border-color: #94a3b8 } .mdd-vezes button.on { background: #0f172a; border-color: #0f172a; color: #fefefe }
@@ -516,7 +526,7 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
           {e.descontos.length > 0 && (
             <div className="flc-mex">
               <span className="flc-rot">Descontos do técnico ({e.descontos.length}) · saem na folha, depois que o RH aprovar</span>
-              {e.descontos.map((x, i) => <div key={i} className="flc-ml"><span className="n">{x.tipo === 'requisicao' ? `Req. #${x.ref}` : 'Outro'}</span><span className="m" style={{ gridColumn: 'span 2' }}>{x.descricao}{(x.parcelas || 1) > 1 ? ` · em ${x.parcelas}x a partir de ${nomeMes(x.inicio || hojeSP().slice(0, 7)).toLowerCase()}` : ''}</span><span className="v">− {brl2(x.valor)}</span></div>)}
+              {e.descontos.map((x, i) => <div key={i} className="flc-ml"><span className="n">{x.tipo === 'requisicao' ? `Req. #${x.ref}` : 'Outro'}</span><span className="m" style={{ gridColumn: 'span 2' }}>{x.descricao}{x.fonte === 'caixinha' ? ' · pago pela caixinha' : (x.parcelas || 1) > 1 ? ` · em ${x.parcelas}x a partir de ${nomeMes(x.inicio || hojeSP().slice(0, 7)).toLowerCase()}` : ''}</span><span className="v">{x.fonte === 'caixinha' ? '' : '− '}{brl2(x.valor)}</span></div>)}
             </div>
           )}
           <div className="flc-ass">

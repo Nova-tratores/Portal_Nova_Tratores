@@ -13,13 +13,16 @@ export interface DescontoPedido {
   parcelas?: number
   /** mês da 1ª parcela (YYYY-MM) */
   inicio?: string | null
+  /** quem paga (José, 29/10/2026): 'funcionario' = sai do salário (padrão); 'caixinha' = pago pelo fundo, uma vez só */
+  fonte?: 'funcionario' | 'caixinha'
 }
 export interface Parcela { mes: string; valor: number; n: number; de: number }
 
 const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
 export const mesCurto = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]}/${m.slice(2, 4)}`
 export const somarMes = (m: string, k: number) => { const abs = Number(m.slice(5, 7)) - 1 + k; const a = Number(m.slice(0, 4)) + Math.floor(abs / 12); return `${a}-${String(((abs % 12) + 12) % 12 + 1).padStart(2, '0')}` }
-export const qtdParcelas = (x: { parcelas?: number }) => Math.min(12, Math.max(1, Math.floor(Number(x.parcelas) || 1)))
+export const pelaCaixinha = (x: { fonte?: string }) => x.fonte === 'caixinha'
+export const qtdParcelas = (x: { parcelas?: number; fonte?: string }) => (pelaCaixinha(x) ? 1 : Math.min(12, Math.max(1, Math.floor(Number(x.parcelas) || 1))))
 
 export function parcelasDoDesconto(x: DescontoPedido, mesPadrao: string): Parcela[] {
   const qtd = qtdParcelas(x)
@@ -55,7 +58,8 @@ export const caixinhaDe = (valor: number) => (valor > 0 ? Math.round(valor * PCT
 /** A conta do pagamento, igual ao documento assinado: comissão − 1ª parcela de cada desconto − caixinha = líquido. */
 export function contaDoPagamento(valor: number, descontos: DescontoPedido[] | null | undefined) {
   const primeira = (x: DescontoPedido) => Math.round((x.valor / qtdParcelas(x)) * 100) / 100
-  const desc = Math.round((descontos || []).reduce((a, x) => a + primeira(x), 0) * 100) / 100
+  // pago pela caixinha não sai do pagamento do técnico
+  const desc = Math.round((descontos || []).filter((x) => !pelaCaixinha(x)).reduce((a, x) => a + primeira(x), 0) * 100) / 100
   const caixinha = caixinhaDe(valor)
   return { comissao: valor, descontos: desc, caixinha, liquido: Math.round((valor - desc - caixinha) * 100) / 100 }
 }

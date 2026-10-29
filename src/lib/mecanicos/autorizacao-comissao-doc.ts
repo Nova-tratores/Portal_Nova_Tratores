@@ -18,7 +18,7 @@ export interface DocAutorizacao {
   /** caixinha retida no pagamento da comissão (RH: 1%) */
   caixinhaPct?: number
   /** descontos do técnico lançados junto (requisição/outro) — saem na folha */
-  descontos?: { tipo: 'requisicao' | 'outro'; ref?: string | null; descricao: string; valor: number; parcelas?: number; inicio?: string | null }[] | null
+  descontos?: { tipo: 'requisicao' | 'outro'; ref?: string | null; descricao: string; valor: number; parcelas?: number; inicio?: string | null; fonte?: 'funcionario' | 'caixinha' }[] | null
 }
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
@@ -170,14 +170,14 @@ ${(() => {
   const ds = d.descontos || []
   // parcelado: neste pagamento entra só a 1ª parcela
   const primeira = (x: { valor: number; parcelas?: number }) => Math.round((x.valor / Math.max(1, x.parcelas || 1)) * 100) / 100
-  const totDs = ds.reduce((a, x) => a + primeira(x), 0)
+  const totDs = ds.filter((x) => x.fonte !== 'caixinha').reduce((a, x) => a + primeira(x), 0)
   const pct = d.caixinhaPct ?? 1
   const cx = Math.round(t.total * pct) / 100
   return `<section class="desc">
   <h2>Descontos</h2>
   <table class="desc-t"><tbody>
     <tr class="ini"><td>Comissão das ordens de serviço</td><td class="v">${brl(t.total)}</td></tr>
-    ${ds.map((x) => `<tr><td>${x.tipo === 'requisicao' && x.ref ? `Requisição #${esc(x.ref)} — ` : ''}${esc(x.descricao)}<span class="onde">${(x.parcelas || 1) > 1 ? `desconto em folha em ${x.parcelas} parcelas de ${brl(primeira(x))}${x.inicio ? `, a partir de ${mesExtenso(x.inicio)}` : ''} (total ${brl(x.valor)})` : 'desconto em folha'}</span></td><td class="v neg">− ${brl(primeira(x))}</td></tr>`).join('')}
+    ${ds.map((x) => `<tr><td>${x.tipo === 'requisicao' && x.ref ? `Requisição #${esc(x.ref)} — ` : ''}${esc(x.descricao)}<span class="onde">${x.fonte === 'caixinha' ? 'pago pela caixinha dos técnicos — não sai do salário' : (x.parcelas || 1) > 1 ? `desconto em folha em ${x.parcelas} parcelas de ${brl(primeira(x))}${x.inicio ? `, a partir de ${mesExtenso(x.inicio)}` : ''} (total ${brl(x.valor)})` : 'desconto em folha'}</span></td><td class="v neg">${x.fonte === 'caixinha' ? `(${brl(x.valor)})` : `− ${brl(primeira(x))}`}</td></tr>`).join('')}
     ${pct > 0 ? `<tr><td>Caixinha ${String(pct).replace('.', ',')}%<span class="onde">retida no pagamento da comissão</span></td><td class="v neg">− ${brl(cx)}</td></tr>` : ''}
     <tr class="fim"><td>Líquido para o técnico</td><td class="v">${brl(t.total - totDs - cx)}</td></tr>
   </tbody></table>
