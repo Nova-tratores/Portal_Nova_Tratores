@@ -14,11 +14,13 @@ const PX_MM = 96 / 25.4
 // QR de mentira na prévia (o de verdade depende do registro da unidade)
 const QR_FALSO = '<svg viewBox="0 0 10 10"><rect width="10" height="10" fill="#bbb"/><rect x="1" y="1" width="3" height="3" fill="#000"/><rect x="6" y="1" width="3" height="3" fill="#000"/><rect x="1" y="6" width="3" height="3" fill="#000"/></svg>'
 
-export default function EditorEtiquetaTermica({ layout, setLayout, term, exemplo }: {
+export default function EditorEtiquetaTermica({ layout, setLayout, term, exemplo, bloqueado }: {
   layout: LayoutCampo[]
   setLayout: (l: LayoutCampo[]) => void
   term: AjusteTermica
   exemplo: ItemTermica
+  /** usando um modelo (padrão): só a prévia, sem editar */
+  bloqueado?: boolean
 }) {
   const auto = fontesPadrao(term.altura, exemplo.locGrande !== false)
   const muda = (i: number, p: Partial<LayoutCampo>) => setLayout(layout.map((l, k) => (k === i ? { ...l, ...p } : l)))
@@ -49,15 +51,16 @@ export default function EditorEtiquetaTermica({ layout, setLayout, term, exemplo
   return (
     <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, padding: 10, marginBottom: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-        <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--portal-text)' }}>Linhas da etiqueta</span>
-        <button type="button" onClick={() => setLayout(layoutPadrao())} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#EA580C', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5 }}>
+        <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--portal-text)' }}>{bloqueado ? 'Prévia do modelo' : 'Linhas da etiqueta'}</span>
+        {!bloqueado && <button type="button" onClick={() => setLayout(layoutPadrao())} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 4, background: 'none', border: 'none', color: '#EA580C', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5 }}>
           <RotateCcw size={12} /> Voltar ao padrão
-        </button>
+        </button>}
       </div>
       <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
         <iframe title="Prévia da etiqueta" srcDoc={html} tabIndex={-1}
           style={{ width: 320, height: Math.ceil(PH * PX_MM * escala), border: '1.5px dashed var(--portal-border)', borderRadius: 6, background: '#fff', pointerEvents: 'none' }} />
       </div>
+      {!bloqueado && <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
         {layout.map((l, i) => (
           <div key={l.campo} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '3px 4px', borderRadius: 8, background: l.ver ? 'transparent' : 'var(--portal-bg-secondary)', opacity: l.ver ? 1 : 0.6 }}>
@@ -82,6 +85,7 @@ export default function EditorEtiquetaTermica({ layout, setLayout, term, exemplo
         * tamanho automático (acompanha a altura da etiqueta) — clique no número para voltar a ele.
         {' '}Marca e modelo vêm do cadastro da Omie (peça sem eles sai sem a linha); “Outra empresa” só sai na etiqueta juntada (NOVA + CASTRO). Tudo fica salvo neste computador.
       </div>
+      </>}
     </div>
   )
 }

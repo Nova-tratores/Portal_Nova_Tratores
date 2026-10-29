@@ -18,6 +18,7 @@ import { guardarAjusteTermica, lerAjusteTermica, layoutPadrao, locacaoAbreviada,
 import { imprimirOuEnviar } from '@/lib/etiquetas/estacao-client'
 import { chaveMM, type MarcaModelo } from '@/lib/ppv/etiquetas-marca-modelo'
 import EditorEtiquetaTermica from './EditorEtiquetaTermica'
+import ModelosEtiqueta, { lerModelosEtiqueta, type ModeloEtiqueta } from './ModelosEtiqueta'
 import AjustesTermica from '@/components/opa/pecas/AjustesTermica'
 import { botao } from '@/components/opa/pecas/comum'
 import { Janela } from '@/components/opa/pecas/Moldura'
@@ -156,6 +157,13 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   const [comBarra, setComBarra] = useState(false)
   // Linhas da térmica: ordem, mostrar/esconder, fonte e negrito (José, 29/10/2026)
   const [layout, setLayout] = useState<LayoutCampo[]>(layoutPadrao)
+  // Padrão escolhido (modelo do banco, lembrado neste navegador); null = o meu (editor)
+  const [modeloId, setModeloId] = useState<number | null>(null)
+  const [modelos, setModelos] = useState<{ lista: ModeloEtiqueta[]; podeEditar: boolean; migracaoFaltando?: boolean }>({ lista: [], podeEditar: false })
+  const carregarModelos = () => { void lerModelosEtiqueta().then(r => setModelos({ lista: r.modelos, podeEditar: r.podeEditar, migracaoFaltando: r.migracaoFaltando })) }
+  useEffect(carregarModelos, [])
+  // modelo apagado/sem acesso → cai no meu
+  const layoutEfetivo = (modeloId !== null && modelos.lista.find(m => m.id === modeloId)?.layout) || layout
   // Calibração da impressora (mm): folha pré-cortada não perdoa deslocamento —
   // 2mm já jogam o texto pra fora do picote. Guardado por navegador porque é
   // característica da IMPRESSORA, não da folha.
@@ -186,6 +194,8 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       setComBarra(localStorage.getItem('etiquetas_com_barra') === '1')
       const salvo = normalizarLayout(JSON.parse(localStorage.getItem('etiquetas_termica_layout') || 'null'))
       // 1ª vez: herda as caixas Marca/Modelo da versão de 27/10
+      const mod = Number(localStorage.getItem('etiquetas_termica_modelo'))
+      if (Number.isInteger(mod) && mod > 0) setModeloId(mod)
       setLayout(salvo || layoutPadrao().map(l => l.campo === 'marca' || l.campo === 'modelo'
         ? { ...l, ver: localStorage.getItem(`etiquetas_com_${l.campo}`) === '1' } : l))
       const fmt = localStorage.getItem('etiquetas_formato')
@@ -216,6 +226,10 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
     setComBarra(v)
     try { localStorage.setItem('etiquetas_com_barra', v ? '1' : '0') } catch { /* segue */ }
   }
+  const escolherModelo = (id: number | null) => {
+    setModeloId(id)
+    try { localStorage.setItem('etiquetas_termica_modelo', id === null ? '' : String(id)) } catch { /* segue */ }
+  }
   const mudarLayout = (l: LayoutCampo[]) => {
     setLayout(l)
     try { localStorage.setItem('etiquetas_termica_layout', JSON.stringify(l)) } catch { /* segue */ }
@@ -223,7 +237,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   // Marca e modelo de cada etiqueta (pela 1ª peça), lidos na hora de imprimir.
   // Falhou a consulta → imprime sem essas linhas (não trava a impressão).
   const marcaModeloDe = async (todas: LinhaEtiqueta[][]): Promise<(linhas: LinhaEtiqueta[]) => MarcaModelo | undefined> => {
-    if (!layout.some(l => l.ver && (l.campo === 'marca' || l.campo === 'modelo'))) return () => undefined
+    if (!layoutEfetivo.some(l => l.ver && (l.campo === 'marca' || l.campo === 'modelo'))) return () => undefined
     try {
       const res = await fetch('/api/ppv/etiquetas', {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
@@ -338,7 +352,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       const folha = json.folha as { formato: string; rastreado: boolean; usadas: number[]; itens: { linhas: LinhaEtiqueta[]; numero?: string; unidade_id?: string }[] }
       if (folha.formato === 'termica') {
         const mm = await marcaModeloDe((folha.itens || []).map(it => it.linhas))
-        const itensT = (folha.itens || []).map(it => itemTermica(it.linhas, comBarra, folha.rastreado && it.unidade_id ? { id: it.unidade_id, numero: it.numero } : undefined, mm(it.linhas), layout))
+        const itensT = (folha.itens || []).map(it => itemTermica(it.linhas, comBarra, folha.rastreado && it.unidade_id ? { id: it.unidade_id, numero: it.numero } : undefined, mm(it.linhas), layoutEfetivo))
         const r = await imprimirOuEnviar(itensT, term, 'ppv')
         if (!r.ok) setErro(r.erro)
         return
@@ -558,7 +572,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       }
       if (termica) {
         const mm = await marcaModeloDe(itensFolha.map(it => it.linhas))
-        const itensT = itensFolha.map(it => itemTermica(it.linhas, comBarra, it.unidade_id ? { id: it.unidade_id, numero: it.numero } : undefined, mm(it.linhas), layout))
+        const itensT = itensFolha.map(it => itemTermica(it.linhas, comBarra, it.unidade_id ? { id: it.unidade_id, numero: it.numero } : undefined, mm(it.linhas), layoutEfetivo))
         const r = await imprimirOuEnviar(itensT, term, 'ppv')
         if (!r.ok) throw new Error(r.erro)
       } else if (w) {
@@ -764,7 +778,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
               <Trash2 size={13} /> Limpar
             </button>
           )}
-          <button onClick={() => setJanelaImp(true)} disabled={etiquetas.length === 0 || imprimindo} style={{
+          <button onClick={() => { setJanelaImp(true); carregarModelos() }} disabled={etiquetas.length === 0 || imprimindo} style={{
             display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 8, border: 'none',
             background: etiquetas.length === 0 || imprimindo ? '#9ca3af' : '#111827', color: '#fff', fontSize: 15, fontWeight: 700,
             cursor: etiquetas.length === 0 || imprimindo ? 'default' : 'pointer',
@@ -841,7 +855,9 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
           )}
 
           {formato === 'termica' && <>
-            <EditorEtiquetaTermica layout={layout} setLayout={mudarLayout} term={term}
+            <ModelosEtiqueta modelos={modelos.lista} podeEditar={modelos.podeEditar} migracaoFaltando={modelos.migracaoFaltando}
+              escolhido={modelos.lista.some(m => m.id === modeloId) ? modeloId : null} onEscolher={escolherModelo} layoutMeu={layout} onMudou={carregarModelos} />
+            <EditorEtiquetaTermica layout={layoutEfetivo} setLayout={mudarLayout} term={term} bloqueado={layoutEfetivo !== layout}
               exemplo={{
                 ...itemTermica(etiquetas[0]?.linhas?.length ? etiquetas[0].linhas : [{ conta: 'NOVA', empresa: 'NOVA TRATORES', codigo: '0000000000', descricao: 'Descrição da peça', locacao: 'PRATELEIRA 3 · ANDAR G · CAIXA 1' }], comBarra, rastrear ? { id: 'exemplo', numero: 'U-0001' } : undefined, { marca: 'MAHINDRA', modelo: '6075E' }),
                 // a linha da outra empresa só existe na etiqueta juntada — na prévia aparece sempre
