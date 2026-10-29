@@ -59,8 +59,9 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
   // José, 29/10/2026: velocidade, hora e km em cima do carro, destacar quando passa de novo no mesmo lugar, zoom no carro
   const [anim, setAnim] = useState<{ t: number; km: number; fim?: boolean; pausado?: boolean; repete?: string | null } | null>(null)
   const animRef = useRef<{ raf: number; marca: any; rastro: any; repet: any; pausado: boolean } | null>(null)
-  const [vel, setVel] = useState(1)
-  const velRef = useRef(1)
+  // começa devagar (José, 29/10/2026: "deixa uma velocidade mais lenta e começa nela")
+  const [vel, setVel] = useState(0.25)
+  const velRef = useRef(0.25)
   useEffect(() => { velRef.current = vel }, [vel])
 
   const pedirIA = async (forcar = false) => {
@@ -314,7 +315,7 @@ export default function FuroKmJanela({ tecnico, mes, onFechar, divergencia = 'ge
                     {anim && !anim.fim && <button type="button" className="fk-stop" onClick={parar} title="parar"><i className="fas fa-stop" /></button>}
                     {anim ? <span><b>{hora(new Date(anim.t).toISOString())}</b> · {km(anim.km)} rodados{anim.fim ? ' · fim do dia' : ''}</span> : <span>ver o carro andando em {fmtDia(foco)}</span>}
                     <span className="fk-vel" role="group" aria-label="velocidade">
-                      {[0.5, 1, 2, 4, 8].map((v) => <button key={v} type="button" className={vel === v ? 'on' : ''} onClick={() => setVel(v)}>{v === 0.5 ? '½' : v}×</button>)}
+                      {[0.25, 0.5, 1, 2, 4, 8].map((v) => <button key={v} type="button" className={vel === v ? 'on' : ''} onClick={() => setVel(v)}>{v === 0.25 ? '¼' : v === 0.5 ? '½' : v}×</button>)}
                     </span>
                   </div>
                 )}
@@ -348,20 +349,23 @@ function LinhaDia({ x, on, foco, cor, carregando, onClick, notas = [], pensando,
       <div className="fk-dia-m">
         <div className="fk-dia-t">
           <b>{fmtDia(x.data)}</b>
+          {/* pílula com pontinho = tem explicação do Tratorilson; abre dentro do cartão (José, 29/10/2026: "deixa algo indicando
+              que tem informação no ícone do robô") */}
           {(notas.length > 0 || pensando) && (
-            <span role="button" tabIndex={0} className={`fk-tr ${fixo ? 'fixo' : ''}`} aria-label="o que o Tratorilson diz deste dia"
-              onClick={(e) => { e.stopPropagation(); setFixo((v) => !v) }} onKeyDown={(e) => { if (e.key === 'Enter') { e.stopPropagation(); setFixo((v) => !v) } }}>
+            <span role="button" tabIndex={0} className={`fk-tr ${fixo ? 'fixo' : ''} ${pensando ? 'pensa' : ''}`} aria-expanded={fixo} title={pensando ? 'o Tratorilson está analisando' : 'ver o que o Tratorilson diz deste dia'}
+              onClick={(e) => { e.stopPropagation(); if (!pensando) setFixo((v) => !v) }} onKeyDown={(e) => { if (e.key === 'Enter' && !pensando) { e.stopPropagation(); setFixo((v) => !v) } }}>
               <i className={`fas ${pensando ? 'fa-circle-notch fa-spin' : 'fa-robot'}`} />
-              {notas.length > 0 && (
-                <span className="fk-tr-bal" onClick={(e) => e.stopPropagation()}>
-                  <span className="fk-tr-cab"><i className="fas fa-robot" /> Tratorilson</span>
-                  {notas.map((p, i) => <span key={i} className="fk-tr-n"><b>{p.titulo}{p.valor ? <em> · ~{fmtValor(p.valor, un)}</em> : null}</b>{p.explicacao}</span>)}
-                </span>
-              )}
+              <span>{pensando ? 'analisando…' : fixo ? 'fechar' : 'Tratorilson explica'}</span>
+              {!pensando && !fixo && <i className="fk-tr-pt" />}
             </span>
           )}
           <em>{kmI(x.furo)} sem cobrar</em>
         </div>
+        {fixo && notas.length > 0 && (
+          <span className="fk-tr-bal" onClick={(e) => e.stopPropagation()}>
+            {notas.map((p, i) => <span key={i} className="fk-tr-n"><b>{p.titulo}{p.valor ? <em> · ~{fmtValor(p.valor, un)}</em> : null}</b>{p.explicacao}</span>)}
+          </span>
+        )}
         <small className="fk-dia-fez">
           <i className="fas fa-car-side" /> {x.saida ? <>saiu {hora(x.saida)}</> : 'saiu'}{x.volta ? <>, voltou {hora(x.volta)}</> : ''} · rodou {kmI(x.kmGps)}{x.ligadoH ? <> · motor ligado {h1(x.ligadoH)}</> : ''}
         </small>
@@ -500,9 +504,11 @@ const ESTILO_FK = `
 .fk-dias { display: grid; gap: 6px; align-content: start; max-height: 860px; overflow: auto; padding-right: 4px }
 .fk-dias-cab { display: flex; justify-content: space-between; align-items: baseline; padding: 0 2px 4px } .fk-dias-cab b { font-size: 14.5px; font-weight: 500 } .fk-dias-cab small { font-size: 12.5px; color: #64748b }
 .fk-vazio { color: #475569; font-size: 14px; margin: 0; padding: 14px }
-.fk-tr { position: relative; margin-right: auto; width: 24px; height: 24px; border-radius: 8px; display: grid; place-items: center; background: #ede9fe; color: #6d28d9; font-size: 12px; cursor: pointer } .fk-tr:hover, .fk-tr.fixo { background: #7c3aed; color: #fefefe }
-.fk-tr-bal { display: none; position: absolute; z-index: 30; top: 30px; left: -40px; width: 330px; background: #fefefe; color: #334155; border: 1px solid #ddd6fe; border-radius: 12px; padding: 10px 12px; box-shadow: 0 14px 34px -12px rgba(15,23,42,.35); cursor: default; text-align: left; gap: 8px }
-.fk-tr:hover .fk-tr-bal, .fk-tr.fixo .fk-tr-bal { display: grid }
+.fk-tr { position: relative; margin-right: auto; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px 0 8px; border-radius: 99px; background: #f5f3ff; border: 1px solid #ddd6fe; color: #6d28d9; font-size: 12px; cursor: pointer; transition: background .2s, color .2s }
+.fk-tr i.fa-robot, .fk-tr .fa-circle-notch { font-size: 12px } .fk-tr:hover, .fk-tr.fixo { background: #7c3aed; border-color: #7c3aed; color: #fefefe } .fk-tr.pensa { cursor: default }
+.fk-tr-pt { position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: #7c3aed; border: 2px solid #fefefe; animation: fkPt 1.6s ease-in-out infinite }
+@keyframes fkPt { 0%, 100% { box-shadow: 0 0 0 0 rgba(124,58,237,.55) } 50% { box-shadow: 0 0 0 6px rgba(124,58,237,0) } }
+.fk-tr-bal { display: grid; gap: 8px; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 12px; padding: 10px 12px; color: #334155; text-align: left; cursor: default; animation: fkSobe .25s both }
 .fk-tr-cab { font-size: 12.5px; color: #6d28d9 } .fk-tr-cab i { margin-right: 4px }
 .fk-tr-n { display: grid; gap: 2px; font-size: 13px; line-height: 1.45 } .fk-tr-n b { font-size: 13.5px; font-weight: 500; color: #0f172a } .fk-tr-n em { font-style: normal; color: #b91c1c }
 .fk-semdia { margin: 0; font-size: 13.5px; color: #475569; line-height: 1.5 } .fk-semdia b { font-weight: 500; color: #0f172a } .fk-semdia em { font-style: normal; color: #b91c1c }
@@ -540,8 +546,8 @@ const ESTILO_FK = `
 .fk-lim { border: 1px solid #ddd6fe; background: #fefefe; color: #6d28d9; border-radius: 99px; padding: 2px 9px; font: inherit; font-size: 12px; cursor: pointer } .fk-lim.on { background: #7c3aed; border-color: #7c3aed; color: #fefefe } .fk-lim i { font-size: 10px; margin-right: 3px }
 .fk-cid { background: rgba(124,58,237,.9); color: #fefefe; border: 0; border-radius: 6px; padding: 2px 8px; font-size: 12px; box-shadow: none } .fk-cid::before { display: none }
 .fk-carro-w { position: relative; width: 34px; height: 34px }
-.fk-carro-et { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: #0f172a; color: #fefefe; border-radius: 8px; padding: 3px 8px; font-size: 12px; font-variant-numeric: tabular-nums; box-shadow: 0 4px 12px rgba(15,23,42,.35); pointer-events: none } .fk-carro-et:empty { display: none }
-.fk-carro-et::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #0f172a }
+.fk-carro-et { position: absolute; bottom: 46px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: #0f172a; color: #fefefe; border-radius: 12px; padding: 7px 14px; font-size: 16px; font-weight: 500; letter-spacing: .2px; font-variant-numeric: tabular-nums; box-shadow: 0 4px 12px rgba(15,23,42,.35); pointer-events: none } .fk-carro-et:empty { display: none }
+.fk-carro-et::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 7px solid transparent; border-top-color: #0f172a }
 .fk-carro { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #0f172a; color: #fefefe; font-size: 14px; border: 3px solid #fefefe; box-shadow: 0 4px 12px rgba(15,23,42,.45) }
 .fk-lt-l .ev.depois { opacity: .35 } .fk-lt-l .ev.agora { background: #eff6ff; border-radius: 10px } .fk-lt-l .ev.agora .pt { transform: scale(1.35); box-shadow: 0 0 0 4px #bfdbfe } .fk-lt-l .ev { transition: opacity .3s, background .3s }
 .fk-os-t { display: block } .fk-os-x { display: block; margin-top: 2px; font-size: 12px; line-height: 1.45; opacity: .9 }
