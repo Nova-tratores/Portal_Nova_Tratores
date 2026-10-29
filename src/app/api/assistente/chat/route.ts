@@ -29,7 +29,7 @@ async function coordsDoLink(texto: string): Promise<{ lat: number; lng: number }
 const MOD_LABELS: Record<string, string> = {
   avisos: "Avisos", clientes: "Clientes", "visual-estoque": "Consulta Omie", revisoes: "Controle de Revisões",
   "dashboard-agro": "Dashboard Agro", dre: "DRE Financeiro", estoque: "Visual Estoque", feedbacks: "Feedbacks & CRM",
-  financeiro: "Financeiro", "fotos-tecnicos": "Fotos Técnicos", garantias: "Garantias", mecanicos: "Janela Mecânicos",
+  financeiro: "Financeiro", "fotos-tecnicos": "Fotos Técnicos", garantias: "Garantias", mecanicos: "Gestão Pós Vendas",
   mapa: "Mapeamento Técnico", opa: "Opa (Ocorrências)", orcamentos: "Orçamentos", "painel-mecanicos": "Painel Mecânicos",
   ppv: "Peças (PPV)", pos: "Pós-Vendas (OS)", propostas: "Proposta Comercial", requisicoes: "Requisições",
   sat: "SAT Digital", "supervisor-vendas": "Supervisor Vendas", tarefas: "Tarefas", tratorilson: "Tratorilson (Chat IA)",

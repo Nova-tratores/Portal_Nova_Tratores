@@ -55,7 +55,7 @@ const MODULOS = [
   { id: 'lead', label: 'Captura de Leads (celular)', color: '#DB2777' },
   { id: 'marketing', label: 'Marketing & Eventos', color: '#DB2777' },
   { id: 'inteligencia-vendas', label: 'Inteligência de Vendas', color: '#dc2626' },
-  { id: 'mecanicos', label: 'Janela Mecânicos', color: '#1d4ed8' },
+  { id: 'mecanicos', label: 'Gestão Pós Vendas', color: '#1d4ed8' },
   { id: 'mapa', label: 'Mapeamento Técnico', color: '#b91c1c' },
   // Lousa Virtual (agenda semanal dos técnicos; também lança na Agenda coletiva) — faltava aqui (16/10/2026)
   { id: 'lousa', label: 'Lousa Virtual (agenda dos técnicos)', color: '#0ea5e9' },
@@ -102,7 +102,7 @@ const SISTEMAS_MAP: Record<string, { label: string; icon: string }> = {
   financeiro: { label: 'Financeiro', icon: 'dollar' },
   propostas: { label: 'Proposta Comercial', icon: 'file' },
   garantias: { label: 'Garantias', icon: 'shield' },
-  mecanicos: { label: 'Janela Mecânicos', icon: 'wrench' },
+  mecanicos: { label: 'Gestão Pós Vendas', icon: 'wrench' },
   orcamentos: { label: 'Orçamentos', icon: 'file' },
   tarefas: { label: 'Tarefas', icon: 'clipboard' },
   admin: { label: 'Administração', icon: 'shield' },

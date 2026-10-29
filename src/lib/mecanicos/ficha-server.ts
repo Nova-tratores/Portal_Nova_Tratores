@@ -171,7 +171,7 @@ async function dadosRH(nome: string, userId: string | null, cadastro: string[]) 
   const [ferias, ponto, descontos, comissoes, logs, caixinha, uniformes] = await Promise.all([
     c.from('rh_ferias_periodos_aquisitivos').select('inicio, fim, dias_direito, dias_gozados, dias_vendidos, status').eq('funcionario_id', id).order('inicio', { ascending: false }),
     c.from('rh_ponto_eventos').select('data, tipo, quantidade, unidade, observacao, status').eq('funcionario_id', id).gte('data', umAno).order('data', { ascending: false }),
-    c.from('rh_descontos').select('descricao, valor, competencia_mes, competencia_ano, status').eq('funcionario_id', id).order('competencia_ano', { ascending: false }).order('competencia_mes', { ascending: false }).limit(40),
+    c.from('rh_descontos').select('descricao, valor, competencia_mes, competencia_ano, status, fonte').eq('funcionario_id', id).order('competencia_ano', { ascending: false }).order('competencia_mes', { ascending: false }).limit(40),
     c.from('rh_comissoes').select('competencia_mes, competencia_ano, valor, status, origem_tipo, origem_descricao').eq('funcionario_id', id).not('status', 'in', '(cancelada,rejeitada)').order('competencia_ano', { ascending: false }).order('competencia_mes', { ascending: false }).limit(24),
     c.from('rh_comissao_os_log').select('numero_os, campo, valor_de, valor_para, motivo, usuario_nome, criado_em').eq('funcionario_id', id).order('criado_em', { ascending: false }).limit(400),
     c.from('rh_caixinha_mov').select('tipo, valor, competencia_mes, competencia_ano, descricao').eq('funcionario_id', id).order('criado_em', { ascending: false }).limit(60),
@@ -197,7 +197,7 @@ async function dadosRH(nome: string, userId: string | null, cadastro: string[]) 
     aniversario: f.data_nascimento ? String(f.data_nascimento).slice(5, 10) : null,
     ferias: ((ferias.data || []) as Rec[]).map((p) => ({ inicio: String(p.inicio), fim: String(p.fim), direito: num(p.dias_direito), gozados: num(p.dias_gozados), vendidos: num(p.dias_vendidos), status: String(p.status), saldo: num(p.dias_direito) - num(p.dias_gozados) - num(p.dias_vendidos) })),
     ponto: ((ponto.data || []) as Rec[]).filter((p) => p.status !== 'cancelado').map((p) => ({ data: String(p.data), tipo: String(p.tipo), quantidade: num(p.quantidade), unidade: String(p.unidade || ''), obs: (p.observacao as string) || '' })),
-    descontos: ((descontos.data || []) as Rec[]).filter((d) => d.status !== 'cancelado').map((d) => ({ mes: mesDe(d), descricao: String(d.descricao || ''), valor: num(d.valor), status: String(d.status) })),
+    descontos: ((descontos.data || []) as Rec[]).filter((d) => d.status !== 'cancelado').map((d) => ({ mes: mesDe(d), descricao: String(d.descricao || ''), valor: num(d.valor), status: String(d.status), caixinha: d.fonte === 'caixinha' })),
     comissoes: [...porMes.values()].sort((a, b) => b.mes.localeCompare(a.mes)),
     caixinha: { saldo: saldoCaixinha, movimentos: cx.length },
     uniformes: ((uniformes.data || []) as Rec[]).map((u) => ({ data: String(u.data_entrega), assinado: !!u.assinado })),

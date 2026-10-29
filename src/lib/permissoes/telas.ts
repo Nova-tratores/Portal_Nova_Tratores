@@ -64,7 +64,7 @@ export const MODULOS_TELAS: { id: string; nome: string }[] = [
   { id: 'mapa', nome: 'Mapeamento Técnico' },
   { id: 'marketing', nome: 'Marketing & Eventos' },
   { id: 'inteligencia-vendas', nome: 'Inteligência de Vendas' },
-  { id: 'mecanicos', nome: 'Janela Mecânicos' },
+  { id: 'mecanicos', nome: 'Gestão Pós Vendas' },
   { id: 'opa', nome: 'Opa (Ocorrências)' },
   { id: 'opa-pecas', nome: 'Opa Peças — editar peças S/Estoque' },
   { id: 'orcamentos', nome: 'Orçamentos' },

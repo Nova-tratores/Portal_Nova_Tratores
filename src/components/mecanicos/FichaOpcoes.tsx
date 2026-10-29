@@ -186,6 +186,30 @@ function DescontosComissao({ e, travado }: { e: EdicaoComissao; travado: boolean
   )
 }
 
+/** Descontos que JÁ estão no RH e ainda não saíram (pendentes/aprovados), na tela de lançar a comissão
+ *  (José, 29/10/2026: "não está mostrando lá na ficha dele, onde lançamos a comissão"). Os pagos pela caixinha
+ *  aparecem marcados: não saem do salário dele. */
+function DescontosNoRH({ d }: { d: Ficha }) {
+  const lista = (d.rh?.descontos || []).filter((x) => x.status === 'pendente_aprovacao' || x.status === 'aprovado')
+  if (!lista.length) return null
+  const folha = lista.filter((x) => !x.caixinha).reduce((s, x) => s + x.valor, 0)
+  const cx = lista.filter((x) => x.caixinha).reduce((s, x) => s + x.valor, 0)
+  const limpa = (t: string) => t.split(' | Obs')[0].replace(/^[[^]]+]s*/, '')
+  return (
+    <section className="fld">
+      <div className="fld-cab"><span className="fld-tit">Já no RH ({lista.length})</span><span className="fld-dica">descontos lançados antes, ainda não aplicados na folha</span></div>
+      {lista.map((x, i) => (
+        <div key={i} className={`fld-lin ${x.caixinha ? 'cx' : ''}`}>
+          <span className="fld-tipo">{nomeMes(x.mes)}</span>
+          <span className="fld-desc">{limpa(x.descricao)}<small className="fld-parc">{x.caixinha ? 'pago pela caixinha · não sai do salário' : x.status === 'aprovado' ? 'aprovado · sai na folha' : 'esperando o RH aprovar'}</small></span>
+          <span className="fld-v">{x.caixinha ? '' : '− '}{brl2(x.valor)}</span>
+        </div>
+      ))}
+      <div className="fld-tot"><span>Do salário{cx > 0 ? ` · pela caixinha ${brl2(cx)}` : ''}</span><span>− {brl2(folha)}</span></div>
+    </section>
+  )
+}
+
 type JaCobrada = { tecnico: string; status: string; desconto: DescontoPedido; pedidoEm: string }
 
 /** Modal para lançar um desconto: requisição do mês (ou outro valor), em quantas vezes e a partir de quando. */
@@ -444,6 +468,7 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
         </ol>
       </section>
       <DescontosComissao e={e} travado={noOmie} />
+      <DescontosNoRH d={d} />
       {modalDesc && <ModalDesconto d={d} e={e} fechar={() => setModalDesc(false)} />}
       {atual && (
         <p className={`fo-lan-st ${atual.status}`}>
@@ -972,6 +997,7 @@ export const ESTILO_FO = `
 .fld-vazio button, .fld-mais { justify-self: start; border: 1px solid var(--portal-border, #cbd5e1); background: #fefefe; color: #0f172a; border-radius: 99px; padding: 7px 14px; font-family: inherit; font-size: 13.5px; cursor: pointer } .fld-mais { border-style: dashed }
 .fld-cab { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap } .fld-tit { font-size: 15px; color: #0f172a } .fld-dica { font-size: 12.5px; color: #64748b }
 .fld-lin { display: grid; grid-template-columns: 150px 1fr auto 28px; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--portal-border, #f1f5f9); font-size: 14.5px; color: #0f172a }
+.fld-lin.cx .fld-v { color: #047857 } .fld-lin.cx .fld-parc { color: #047857 }
 .fld-tipo { color: #475569; font-size: 13.5px } .fld-v { color: #b91c1c; font-variant-numeric: tabular-nums } .fld-lin button { width: 28px; height: 28px; border-radius: 50%; border: none; background: #f1f5f9; color: #64748b; cursor: pointer }
 .fld-tot { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding-top: 8px; border-top: 1px solid #0f172a; font-size: 14.5px; color: #0f172a } .fld-tot > span:nth-child(2) { color: #b91c1c; font-variant-numeric: tabular-nums } .fld-liq { grid-column: 1 / -1; font-size: 13px; color: #64748b }
 .fld-novo { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #f8fafc; border-radius: 12px; padding: 10px }

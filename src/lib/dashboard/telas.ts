@@ -38,7 +38,7 @@ export const TELAS: Tela[] = [
     ['Controle de Revisões', '/revisoes', ['cheque de revisão', 'envio revisão']],
     ['Revisões Mahindra', '/revisoes/mahindra'],
   ]),
-  ...t('Serviços', 'mecanicos', 'mecanicos', [['Janela Mecânicos', '/mecanicos', ['técnicos', 'gps']]]),
+  ...t('Serviços', 'mecanicos', 'mecanicos', [['Gestão Pós Vendas', '/mecanicos', ['técnicos', 'gps', 'mecânicos', 'janela mecânicos']]]),
   ...t('Serviços', 'sat', 'sat', [['SAT Digital', '/sat']]),
   ...t('Serviços', 'mapa-geral', 'mapa', [['Mapeamento Técnico', '/mapa-geral', ['mapa']]]),
   ...t('Serviços', 'fotos-tecnicos', 'fotos-tecnicos', [['Fotos Técnicos', '/fotos-tecnicos']]),

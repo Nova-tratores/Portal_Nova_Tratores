@@ -61,7 +61,7 @@ const AJUDA: Record<string, AjudaFrota> = {
     resumo: 'Onde cada carro está agora, quem está com ele e por onde andou.',
     oQueMostra:
       'Os carros ATIVOS da frota com rastreador, cada um na última posição recebida, com a cor da situação e há quanto tempo ' +
-      'foi o último sinal. A lista mostra o técnico (vínculo da Janela Mecânico ou quem pegou o carro hoje), o lugar ("Loja", ' +
+      'foi o último sinal. A lista mostra o técnico (vínculo da Gestão Pós Vendas ou quem pegou o carro hoje), o lugar ("Loja", ' +
       '"Cliente X") e a OS do Pós-Vendas em execução com o cliente. Carros muito próximos viram um grupo ("9 carros · Loja"). ' +
       'Camadas opcionais (começam desligadas): visitas do CRM do dia, locais cadastrados, propriedades rurais (CAR) e vias fora do mapa.',
     comoUsar: [
