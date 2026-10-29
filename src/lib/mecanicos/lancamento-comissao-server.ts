@@ -24,7 +24,8 @@ export interface LinhaPedido {
 /** O que o diretor pede para mudar numa OS (não altera nada — só informa). */
 export interface Apontamento { os: string; numero: string; pedido: 'alterar' | 'nao_pagar' | 'conferir'; valor?: number | null; texto: string }
 /** Dados do técnico no momento do pedido (vão para o documento). */
-export interface InfoPedido { nomeRh?: string | null; cargo?: string | null; pct?: number | null; pagamento?: string | null }
+/** semCaixinha: comissão do garantista, que não põe o 1% na caixinha dos técnicos (José, 29/10/2026) */
+export interface InfoPedido { nomeRh?: string | null; cargo?: string | null; pct?: number | null; pagamento?: string | null; semCaixinha?: boolean }
 export interface AssinaturaMeta { ip: string | null; ua: string | null; em: string }
 export type StatusPedido = 'aguardando' | 'devolvida' | 'recusada' | 'espelhada' | 'erro_rh' | 'cancelada' | 'substituida'
 export interface PedidoComissao {
@@ -252,7 +253,8 @@ async function espelharNoRH(p: PedidoComissao, autor: string): Promise<string> {
     if (error) throw new Error(`RH: ${error.message}`)
     rhId = String((nova as Rec).id)
   }
-  await caixinhaDaComissao(c, { id: rhId, funcionarioId: String(f.id), valor: p.valor, mes, ano })
+  // valor 0 = não contribui (e tira a contribuição se já tinha)
+  await caixinhaDaComissao(c, { id: rhId, funcionarioId: String(f.id), valor: p.info?.semCaixinha ? 0 : p.valor, mes, ano })
   // descontos do técnico: viram desconto no RH (folha), como o RH faz pela tela de comissão
   if (p.descontos?.length) {
     const { data: tipo } = await c.from('rh_desconto_tipos').select('id').eq('codigo', 'outro').maybeSingle()

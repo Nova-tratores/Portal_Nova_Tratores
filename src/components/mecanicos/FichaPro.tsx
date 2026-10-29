@@ -422,11 +422,16 @@ function ListaOS({ d, e, verOS, verReq }: { d: Ficha; e: EdicaoComissao; verOS: 
   const alerta = (l: LinhaComissao) => { const x = info.get(l.os); return !!x && (x.desconto > 0 || x.reqs.length > 0) }
   const lista = e.linhas.filter((l) => so === 'todas' || (so === 'mexidas' ? !!e.ed[chaveL(l)] : alerta(l)))
   const aCaminho = d.comissao.linhas.filter((l) => l.tipo === 'aguardando')
-  const GRUPOS = [
+  // garantista: separado em revisões e garantias, que é do que vem a comissão dele (José, 29/10/2026)
+  const GRUPOS = d.garantista ? [
+    { k: 'revisao', rot: 'Revisões', ic: 'fa-wrench', dica: 'revisões faturadas · OS + peças' },
+    { k: 'garantia', rot: 'Garantias', ic: 'fa-shield-heart', dica: 'garantias faturadas · OS + peças' },
+  ] as const : [
     { k: 'cliente', rot: 'Faturadas para clientes', ic: 'fa-user-tie', dica: 'contam no pódio' },
     { k: 'garantia', rot: 'Garantia', ic: 'fa-shield-heart', dica: 'paga pela fábrica' },
     { k: 'interna', rot: 'Internas', ic: 'fa-house-chimney', dica: 'loja, cortesia e entrega técnica · não contam no pódio' },
   ] as const
+  const grupoDe = (l: LinhaComissao) => d.garantista ? (l.garantia ? 'garantia' : 'revisao') : grupoDa(l)
   return (
     <section className="fp-os">
       <div className="fp-os-topo">
@@ -438,7 +443,7 @@ function ListaOS({ d, e, verOS, verReq }: { d: Ficha; e: EdicaoComissao; verOS: 
         <div className="fp-leg"><span className="pg">Pagar</span><span className="np">Não pagar</span><span className="aj">Ajustar</span><span className="dv">Dividir</span></div>
       </div>
       {GRUPOS.map((g) => {
-        const linhas = lista.filter((l) => grupoDa(l) === g.k)
+        const linhas = lista.filter((l) => grupoDe(l) === g.k)
         if (!linhas.length) return null
         const total = linhas.reduce((s, l) => s + e.final(l), 0)
         return (
@@ -449,7 +454,7 @@ function ListaOS({ d, e, verOS, verReq }: { d: Ficha; e: EdicaoComissao; verOS: 
               <span className="fp-g-tot"><em>{linhas.length} OS</em><b>{brl2(total)}</b></span>
             </div>
             <div className="fp-tab">
-              <div className="fp-th"><span>OS</span><span>Cliente</span><span>Valor da OS</span><span className="n">Base (horas)</span><span>Decisão</span><span className="n">Comissão</span></div>
+              <div className="fp-th"><span>OS</span><span>Cliente</span><span>Valor da OS</span><span className="n">{d.garantista ? 'Base (OS + peças)' : 'Base (horas)'}</span><span>Decisão</span><span className="n">Comissão</span></div>
               {linhas.map((l) => <LinhaOS key={chaveL(l)} d={d} l={l} e={e} x={info.get(l.os)} verOS={verOS} verReq={verReq} />)}
             </div>
           </div>
@@ -464,6 +469,8 @@ function ListaOS({ d, e, verOS, verReq }: { d: Ficha; e: EdicaoComissao; verOS: 
 function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e: EdicaoComissao; x?: InfoOS; verOS: (os: string, c?: string) => void; verReq: (r: { id: number; titulo: string }) => void }) {
   const ed = e.de(l)
   const [dividindo, setDividindo] = useState(false)
+  const [emPct, setEmPct] = useState(true)
+  const [pctTxt, setPctTxt] = useState<string | null>(null)
   const f = e.final(l)
   const estado = ed.acao === 'nao' ? 'nao' : ed.divisao ? 'div' : ed.acao === 'ajustar' ? 'aj' : 'pg'
   const reqTotal = x?.reqs.reduce((s, r) => s + r.valor, 0) || 0
@@ -488,7 +495,8 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
           {l.motivo && <small className="fp-rh"><i className="fas fa-pen" /> RH: {l.motivo.motivo}</small>}
         </div>
         <div className="fp-valor">
-          <b>{x ? brl(x.total) : '—'}</b>
+          {/* garantista: a OS não vem na lista dos técnicos; o valor dela é a própria base (horas + km + peças) */}
+          <b>{x ? brl(x.total) : d.garantista && l.base ? brl(l.base) : '—'}</b>
           <div className="fp-chips">
             {x && x.pecas > 0 && <span className="pc" title="Peças vinculadas (PPV)"><i className="fas fa-gear" />peças {brl(x.pecas)}</span>}
             {x && x.desconto > 0 && <span className="ds" title="Desconto dado na OS (hora, km, geral e peças)"><i className="fas fa-tag" />desconto {brl(x.desconto)}</span>}
@@ -516,7 +524,8 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
           <button type="button" className={estado === 'pg' ? 'on pg' : ''} onClick={() => e.mudar(l, { acao: 'pagar', divisao: null })} title="Pagar como calculado"><i className="fas fa-check" /></button>
           <button type="button" className={estado === 'nao' ? 'on nao' : ''} onClick={() => e.mudar(l, { acao: 'nao', divisao: null })} title="Não pagar (escolher o motivo)"><i className="fas fa-ban" /></button>
           <button type="button" className={estado === 'aj' && !emCheio ? 'on aj' : ''} onClick={() => e.mudar(l, { acao: 'ajustar', divisao: null, valor: ed.valor ?? l.valor })} title="Ajustar o valor"><i className="fas fa-pen" /></button>
-          <button type="button" className={estado === 'div' ? 'on div' : ''} onClick={() => setDividindo((v) => !v)} title="Dividir com outro técnico"><i className="fas fa-people-arrows" /></button>
+          {/* garantista não divide OS com ninguém (José, 29/10/2026) */}
+          {!d.garantista && <button type="button" className={estado === 'div' ? 'on div' : ''} onClick={() => setDividindo((v) => !v)} title="Dividir com outro técnico"><i className="fas fa-people-arrows" /></button>}
           {cheio > 0 && (
             <button type="button" className={`cheio ${emCheio ? 'on' : ''}`} title={`Pagar sem o desconto da OS: comissão sobre o valor cheio (${brl(l.base + descBase)}) = ${brl2(cheio)}`}
               onClick={() => e.mudar(l, emCheio ? { acao: 'pagar', divisao: null, motivo: '' } : { acao: 'ajustar', divisao: null, valor: cheio, motivo: `${MOT_CHEIO}: comissão sobre o valor cheio (desconto de ${brl(descBase)} não entra)` })}>
@@ -535,7 +544,17 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
       )}
       {ed.acao === 'ajustar' && !ed.divisao && (
         <div className="fp-extra aj">
-          <label>Valor para ele <span>R$</span><input type="number" step="0.01" value={ed.valor ?? ''} onChange={(ev) => e.mudar(l, { valor: Number(ev.target.value) || 0 })} /></label>
+          {/* garantista ajusta pela % sobre a OS + peças ou pelo valor, com troca entre os dois (José, 29/10/2026) */}
+          {d.garantista && l.base > 0 && (
+            <div className="fp-modo">
+              <button type="button" className={emPct ? 'on' : ''} onClick={() => { setEmPct(true); setPctTxt(null) }}>%</button>
+              <button type="button" className={!emPct ? 'on' : ''} onClick={() => setEmPct(false)}>R$</button>
+            </div>
+          )}
+          {d.garantista && emPct && l.base > 0
+            ? <label>Porcentagem <input type="text" inputMode="decimal" value={pctTxt ?? String(Math.round(((ed.valor ?? l.valor) / l.base) * 10000) / 100).replace('.', ',')}
+                onChange={(ev) => { setPctTxt(ev.target.value); const p = Number(ev.target.value.replace(',', '.')) || 0; e.mudar(l, { valor: Math.round(l.base * p) / 100 }) }} /><span>% de {brl2(l.base)} = <b>{brl2(ed.valor ?? 0)}</b></span></label>
+            : <label>Valor para ele <span>R$</span><input type="number" step="0.01" value={ed.valor ?? ''} onChange={(ev) => { setPctTxt(null); e.mudar(l, { valor: Number(ev.target.value) || 0 }) }} /></label>}
           <input placeholder="motivo do ajuste (vai junto para o RH)" value={ed.motivo} onChange={(ev) => e.mudar(l, { motivo: ev.target.value })} />
         </div>
       )}
@@ -643,7 +662,7 @@ const ESTILO_FP = `
 .fp-metas .fo-meta-sem small { font-size: 12.5px; font-weight: 600 } .fp-metas .fo-meta-sem b { font-size: 24px; font-weight: 800 }
 .fp-metas .fo-metas-leg { font-size: 12.5px }
 .fp .fl-rot { font-size: 12px; font-weight: 700; letter-spacing: .02em; text-transform: none } .fp .fl-total { font-size: 34px; font-weight: 800 } .fp .fl-lin { font-size: 14px } .fp .fl-passos b { font-size: 13.5px }
-.fp-th { font-size: 11.5px; font-weight: 700; letter-spacing: .03em } .fp-cli b { font-size: 14px; font-weight: 700 } .fp-valor > b { font-size: 14.5px; font-weight: 800 } .fp-com b { font-size: 16px; font-weight: 800 } .fp-g-cab > b { font-size: 15.5px; font-weight: 800 }
+.fp-th { font-size: 11.5px; font-weight: 700; letter-spacing: .03em } .fp-th > span { white-space: nowrap } .fp-cli b { font-size: 14px; font-weight: 700 } .fp-valor > b { font-size: 14.5px; font-weight: 800 } .fp-com b { font-size: 16px; font-weight: 800 } .fp-g-cab > b { font-size: 15.5px; font-weight: 800 }
 /* metas (reaproveita o bloco da ficha, sem o fundo extra) */
 .fp-metas .fo-metas { padding: 0; background: none; border: none; grid-template-columns: 1fr 1fr 220px } .fp-metas .fo-metas:not(:has(.fo-meta-sem)) { grid-template-columns: 1fr 1fr }
 /* seções */
@@ -662,7 +681,7 @@ const ESTILO_FP = `
 .fp-leg { display: flex; gap: 12px; font-size: 12px; color: ${MUDO} } .fp-leg span::before { content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; vertical-align: 1px }
 .fp-leg .pg::before { background: #10b981 } .fp-leg .np::before { background: #ef4444 } .fp-leg .aj::before { background: #f59e0b } .fp-leg .dv::before { background: #8b5cf6 }
 .fp-g { --g: #2563eb; --gf: #eff6ff; background: #fefefe; border: 1px solid var(--portal-border, #e2e8f0); border-radius: 18px; overflow: hidden }
-.fp-g.garantia { --g: #db2777; --gf: #fdf2f8 } .fp-g.interna { --g: #64748b; --gf: #f1f5f9 }
+.fp-g.garantia { --g: #db2777; --gf: #fdf2f8 } .fp-g.interna { --g: #64748b; --gf: #f1f5f9 } .fp-g.revisao { --g: #0d9488; --gf: #f0fdfa }
 .fp-g-cab { display: flex; gap: 10px; align-items: center; padding: 12px 16px; background: var(--gf); border-bottom: 1px solid color-mix(in srgb, var(--g) 15%, transparent) }
 .fp-g-ic { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--g); color: #fefefe; font-size: 13px }
 .fp-g-cab > b { font-size: 15px } .fp-g-cab > small { flex: 1; font-size: 12px; color: ${MUDO} } .fp-g-tot { display: inline-flex; gap: 10px; align-items: baseline } .fp-g-tot em { font-style: normal; font-size: 12px; color: ${MUDO} } .fp-g-tot b { font-size: 17px; color: var(--g); font-variant-numeric: tabular-nums }
@@ -691,6 +710,8 @@ const ESTILO_FP = `
 .fp-com { display: grid; justify-items: end } .fp-com s { font-size: 11px; color: ${MUDO} } .fp-com b { font-size: 15.5px; font-weight: 900; font-variant-numeric: tabular-nums; color: #047857 } .fp-lin.nao .fp-com b { color: #dc2626 } .fp-lin.aj .fp-com b { color: #b45309 } .fp-lin.div .fp-com b { color: #6d28d9 }
 .fp-extra { display: grid; gap: 6px; margin: 0 16px 12px 106px; padding: 10px 12px; border-radius: 12px; background: #fef2f2; animation: fpEntra .2s both } .fp-extra > small { font-size: 14px; font-weight: 500; color: #b91c1c }
 .fp-extra.aj { background: #fffbeb; display: flex; gap: 10px; align-items: center; flex-wrap: wrap } .fp-extra.aj label { display: inline-flex; gap: 8px; align-items: center; font-size: 15px; font-weight: 400; color: #0f172a } .fp-extra.aj label span { color: #0f172a } .fp-extra.aj label input { width: 120px; font-weight: 400 }
+.fp-modo { display: inline-flex; border: 1px solid var(--portal-border, #cbd5e1); border-radius: 9px; overflow: hidden; background: #fefefe } .fp-modo button { border: 0; background: none; padding: 8px 12px; font: inherit; font-size: 14px; font-weight: 600; color: #64748b; cursor: pointer } .fp-modo button.on { background: #f59e0b; color: #fefefe }
+.fp-extra.aj label > span b { font-weight: 600 }
 .fp-extra.dv { background: none; padding: 0 } .fp-extra input { border: 1px solid var(--portal-border, #cbd5e1); border-radius: 9px; padding: 8px 12px; font-family: inherit; font-size: 15px; font-weight: 400; color: #0f172a; background: #fefefe; min-width: 0; flex: 1 } .fp-extra input::placeholder { color: #64748b }
 .fp-mots { display: flex; gap: 5px; flex-wrap: wrap } .fp-mots button { border: 1px solid #fecaca; background: #fefefe; border-radius: 99px; padding: 6px 12px; font-family: inherit; font-size: 14px; font-weight: 400; color: #0f172a; cursor: pointer } .fp-mots button.on { background: #ef4444; border-color: #ef4444; color: #fefefe }
 .fp-vazio { padding: 30px; text-align: center; color: ${MUDO}; background: #fefefe; border-radius: 16px }

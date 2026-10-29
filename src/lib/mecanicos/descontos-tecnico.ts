@@ -56,10 +56,11 @@ export function resumoParcelas(x: DescontoPedido, mesPadrao: string): string {
 export const PCT_CAIXINHA = 1
 export const caixinhaDe = (valor: number) => (valor > 0 ? Math.round(valor * PCT_CAIXINHA) / 100 : 0)
 /** A conta do pagamento, igual ao documento assinado: comissão − 1ª parcela de cada desconto − caixinha = líquido. */
-export function contaDoPagamento(valor: number, descontos: DescontoPedido[] | null | undefined) {
+export function contaDoPagamento(valor: number, descontos: DescontoPedido[] | null | undefined, semCaixinha = false) {
   const primeira = (x: DescontoPedido) => Math.round((x.valor / qtdParcelas(x)) * 100) / 100
   // pago pela caixinha não sai do pagamento do técnico
   const desc = Math.round((descontos || []).filter((x) => !pelaCaixinha(x)).reduce((a, x) => a + primeira(x), 0) * 100) / 100
-  const caixinha = caixinhaDe(valor)
+  // garantista não contribui com a caixinha dos técnicos (José, 29/10/2026)
+  const caixinha = semCaixinha ? 0 : caixinhaDe(valor)
   return { comissao: valor, descontos: desc, caixinha, liquido: Math.round((valor - desc - caixinha) * 100) / 100 }
 }
