@@ -10,6 +10,7 @@ import {
   Activity, Clock, Settings, ClipboardList, DollarSign, FileText, Mail, Ban, RotateCcw
 } from 'lucide-react'
 import PermissoesModulos from '@/components/admin/PermissoesModulos'
+import { FUNCOES_POSVENDAS, funcaoPosVendas, trocarFuncaoPosVendas } from '@/lib/permissoes/funcoes-posvendas'
 import PapelMenu, { type Nivel } from '@/components/admin/PapelMenu'
 import AcoesUsuarioMenu from '@/components/admin/AcoesUsuarioMenu'
 import { ModalAcessos } from '@/components/admin/DistribuirAcessos'
@@ -919,6 +920,18 @@ export default function AdminPage() {
                     <option key={cat} value={cat}>{cat}</option>
                   ))}
                 </select>
+                {/* função dentro do Pós-Vendas (José, 29/10/2026: "garantista, gerente, auxiliar") */}
+                {perm?.categoria === 'Pós Vendas' && (
+                  <select
+                    value={funcaoPosVendas(perm?.modulos_permitidos || []) || ''}
+                    onChange={(e) => salvar(user.id, { modulos_permitidos: trocarFuncaoPosVendas(perm?.modulos_permitidos || [], e.target.value || null) })}
+                    title="Função no Pós-Vendas"
+                    style={{ marginTop: 6, padding: '6px 10px', borderRadius: '999px', border: '1px solid #c7d2fe', background: '#eef2ff', fontSize: '12px', fontWeight: '500', color: '#3730a3', cursor: 'pointer', outline: 'none', maxWidth: '100%', display: 'block' }}
+                  >
+                    <option value="">Função: nenhuma</option>
+                    {FUNCOES_POSVENDAS.map((f) => <option key={f.chave} value={f.chave}>{f.rot}</option>)}
+                  </select>
+                )}
               </div>
 
               {/* Acessos: resumo clicável → abre o editor */}
