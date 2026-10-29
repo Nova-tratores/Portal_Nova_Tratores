@@ -511,6 +511,8 @@ function ModalComparar({ e, a, hoje, itens, inicial, onOk, onFechar }: {
 
 /** No Painel o período é controlado de fora (`escala`/`refDia`/`onMudar`): o resto da tela segue o escolhido aqui.
  *  "Ainda não faturadas" é a MESMA caixinha do módulo (useComAguardando). */
+const CHAVE_CONTA = 'fp-conta-v1'
+
 export function FaturamentoPeriodo({ base, hoje, forma, escala, refDia, onMudar }: { base: BaseDados; hoje: string; forma: 'linha' | 'grade' | 'escada'; escala?: Escala; refDia?: string; onMudar?: (e: Escala, ref: string) => void }) {
   const [eL, setEL] = useState<Escala>('mes')
   const [refL, setRefL] = useState(hoje)
@@ -518,7 +520,18 @@ export function FaturamentoPeriodo({ base, hoje, forma, escala, refDia, onMudar 
   const setE = (x: Escala) => { if (onMudar) onMudar(x, ref); else setEL(x) }
   const setRef = (r: string) => { if (onMudar) onMudar(e, r); else setRefL(r) }
   const comAg = useComAguardando()
-  const [onL, setOnS] = useState<Record<Grupo, boolean>>({ faturada: true, garantia: true, interna: false, aguardando: false })
+  // Garantia e Internas começam FORA da conta e a escolha fica guardada neste navegador (José, 29/10/2026: "a garantia está
+  // se marcando sozinha, eu não deixo isso" — começava ligada a cada vez que a tela abria)
+  const [onL, setOnL] = useState<Record<Grupo, boolean>>(() => {
+    const padrao = { faturada: true, garantia: false, interna: false, aguardando: false }
+    try { const g = JSON.parse(localStorage.getItem(CHAVE_CONTA) || 'null'); if (g) return { ...padrao, garantia: !!g.garantia, interna: !!g.interna } } catch { /* sem localStorage */ }
+    return padrao
+  })
+  const setOnS = (fn: (x: Record<Grupo, boolean>) => Record<Grupo, boolean>) => setOnL((x) => {
+    const n = fn(x)
+    try { localStorage.setItem(CHAVE_CONTA, JSON.stringify({ garantia: n.garantia, interna: n.interna })) } catch { /* sem localStorage */ }
+    return n
+  })
   const on = useMemo(() => ({ ...onL, aguardando: comAg }), [onL, comAg])
   const [verOS, setVerOS] = useState(false)
   const [foco, setFoco] = useState(true)
