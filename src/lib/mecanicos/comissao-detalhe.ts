@@ -45,11 +45,11 @@ export interface LinhaComissao {
   /** horas cobradas na OS (para dividir por horas) */
   horas?: number
   /** a OS não é deste técnico: veio da divisão feita na ficha de outro (José, 29/10/2026) */
-  veioDe?: { de: string; horas?: number | null; status: 'pedido' | 'autorizada' }
+  veioDe?: { de: string; horas?: number | null; status: 'salva' | 'pedido' | 'autorizada' }
 }
 
 /** Parte de outro técnico numa OS dividida por ele (pedido esperando o diretor ou já autorizado). */
-export interface Recebida { de: string; valor: number; horas?: number | null; status: 'pedido' | 'autorizada' }
+export interface Recebida { de: string; valor: number; horas?: number | null; status: 'salva' | 'pedido' | 'autorizada' }
 
 export interface ComissaoDetalhada {
   tecnico: string

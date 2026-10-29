@@ -30,8 +30,33 @@ export const chaveL = (l: LinhaComissao) => `${l.os}|${l.tipo}`
 /** Bloco da OS na comissão (José, 20/10/2026): azul = faturada para cliente, rosa = garantia, cinza = interna. */
 export const grupoDa = (l: LinhaComissao): 'cliente' | 'garantia' | 'interna' => (l.garantia || /garantia/i.test(l.regra) ? 'garantia' : l.tipo === 'interna' ? 'interna' : 'cliente')
 
+const jsonDiv = (x: Edicao | undefined) => JSON.stringify({ h: x?.horasDiv || null, v: x?.divisao || null, m: (x?.motivo || '').trim() })
 export function useEdicao(d: Ficha) {
-  const [ed, setEd] = useState<Record<string, Edicao>>({})
+  // a ficha abre com as divisões já salvas (José, 29/10/2026: "tem que salvar para o usuário ter certeza de que foi")
+  const iniciais = () => Object.fromEntries(d.comissao.linhas.filter((l) => d.divisoes?.[l.os]).map((l) => { const v = d.divisoes![l.os]; return [chaveL(l), { acao: 'pagar' as Acao, motivo: v.motivo || '', divisao: v.valores, horasDiv: v.horas }] }))
+  const [ed, setEd] = useState<Record<string, Edicao>>(iniciais)
+  const [salvas, setSalvas] = useState<Record<string, { em: string; json: string }>>(() => Object.fromEntries(Object.entries(iniciais()).map(([k, v]) => { const os = k.split('|')[0]; return [k, { em: d.divisoes![os].em, json: jsonDiv(v) }] })))
+  const [salvando, setSalvando] = useState<string | null>(null)
+  const [erroDiv, setErroDiv] = useState<Record<string, string>>({})
+  const estadoDivisao = (l: LinhaComissao) => { const k = chaveL(l), s = salvas[k]; return { salvaEm: s?.em || null, mudou: jsonDiv(ed[k]) !== (s?.json ?? jsonDiv(undefined)), salvando: salvando === k, erro: erroDiv[k] || '' } }
+  const salvarDivisao = async (l: LinhaComissao, horasOS: number) => {
+    const k = chaveL(l), x = ed[k]
+    if (!x?.divisao) return
+    setSalvando(k); setErroDiv((m) => ({ ...m, [k]: '' }))
+    try {
+      const r = await fetch('/api/mecanicos/divisao', { method: 'POST', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ mes: d.mes, os: l.os, numero: l.numeroOmie || l.os, de: d.nome, horas: x.horasDiv || null, horasOS, valores: x.divisao, motivo: x.motivo }) })
+      const j = await r.json()
+      if (!r.ok) throw new Error(j.error || 'Não salvou')
+      setSalvas((m) => ({ ...m, [k]: { em: j.em, json: jsonDiv(x) } }))
+    } catch (err) { setErroDiv((m) => ({ ...m, [k]: err instanceof Error ? err.message : 'Não salvou' })) } finally { setSalvando(null) }
+  }
+  const apagarDivisao = async (l: LinhaComissao) => {
+    const k = chaveL(l)
+    if (salvas[k]) {
+      try { await fetch(`/api/mecanicos/divisao?mes=${d.mes}&numero=${encodeURIComponent(l.numeroOmie || l.os)}`, { method: 'DELETE', headers: await authHeaders() }) } catch { /* fica na tela */ }
+      setSalvas((m) => { const n = { ...m }; delete n[k]; return n })
+    }
+  }
   // descontos do técnico lançados junto (requisição ou outro valor) — viram desconto no RH, não mexem na comissão
   const [descontos, setDescontos] = useState<DescontoPedido[]>([])
   const mudar = (l: LinhaComissao, x: Partial<Edicao>) => setEd((e) => ({ ...e, [chaveL(l)]: { ...(e[chaveL(l)] || { acao: 'pagar', motivo: '' }), ...x } }))
@@ -58,7 +83,7 @@ export function useEdicao(d: Ficha) {
   }, { total: 0, calc: 0, pagas: 0, nao: 0, ajustadas: 0, divididas: 0, cliente: 0, interna: 0, garantia: 0, nCliente: 0, nInterna: 0, nGarantia: 0 })
   const pendentes = linhas.filter((l) => { const e = de(l); return (e.acao !== 'pagar' || e.divisao) && !e.motivo.trim() }).length
   const totDesc = Math.round(descontos.reduce((a, x) => a + x.valor, 0) * 100) / 100
-  return { ed, de, mudar, final, linhas, tot, pendentes, limpar: () => setEd({}), descontos, totDesc, addDesconto: (x: DescontoPedido) => setDescontos((v) => [...v, x]), remDesconto: (i: number) => setDescontos((v) => v.filter((_, k) => k !== i)) }
+  return { ed, de, mudar, final, linhas, tot, pendentes, estadoDivisao, salvarDivisao, apagarDivisao, limpar: () => setEd({}), descontos, totDesc, addDesconto: (x: DescontoPedido) => setDescontos((v) => [...v, x]), remDesconto: (i: number) => setDescontos((v) => v.filter((_, k) => k !== i)) }
 }
 export type EdicaoComissao = ReturnType<typeof useEdicao>
 
@@ -125,6 +150,8 @@ export function Divisao({ d, l, e, fechar }: { d: Ficha; l: LinhaComissao; e: Ed
   const div = x.divisao || vIni()
   const somaV = Object.values(div).reduce((a, v) => a + v, 0)
   const salvarV = (nv: Record<string, number>) => e.mudar(l, { divisao: nv, horasDiv: null, acao: 'pagar' })
+  // ninguém recebe mais horas do que a OS tem (José, 29/10/2026): o máximo de cada um é o que sobra dos outros
+  const livre = (n: string) => Math.max(0, Math.round((horasOS - Object.entries(hs).filter(([k]) => k !== n).reduce((a, [, v]) => a + v, 0)) * 10) / 10)
   /** horas iguais entre os nomes, em décimos; a sobra do arredondamento fica com o último (a soma fecha) */
   const repartir = (ks: string[]) => { if (!ks.length) return {}; const p = Math.floor((horasOS / ks.length) * 10) / 10; return Object.fromEntries(ks.map((k, i) => [k, i === ks.length - 1 ? Math.round((horasOS - p * (ks.length - 1)) * 10) / 10 : p])) }
   const igual = () => {
@@ -137,7 +164,7 @@ export function Divisao({ d, l, e, fechar }: { d: Ficha; l: LinhaComissao; e: Ed
       <div className="fo-div-cab"><b><i className="fas fa-people-arrows" /> {porHoras ? 'Dividir as horas da OS' : 'Dividir a comissão da OS'}</b>
         <small>{porHoras ? <>{hh(horasOS)} cobradas · hora da OS {brl2(vh)} · cada um ganha a % dele sobre as horas que recebeu</> : <>OS de valor fixo: comissão total {brl2(totalOS)}</>}</small>
         <button type="button" onClick={igual}>dividir igual</button>
-        {x.divisao && <button type="button" onClick={() => { e.mudar(l, { divisao: null, horasDiv: null }); fechar() }}>desfazer</button>}</div>
+        {x.divisao && <button type="button" onClick={() => { void e.apagarDivisao(l); e.mudar(l, { divisao: null, horasDiv: null }); fechar() }}>desfazer</button>}</div>
       <div className="fo-div-lista">
         {d.equipe.map((t) => {
           const marcado = porHoras ? t.nome in hs : t.nome in div
@@ -151,7 +178,7 @@ export function Divisao({ d, l, e, fechar }: { d: Ficha; l: LinhaComissao; e: Ed
               <input type="checkbox" checked={marcado} onChange={trocar} />
               <span>{t.nome}{t.nome === d.nome && <em> (este)</em>}<small className="fo-div-pct"> · {pctDe(t.nome)}%</small></span>
               {marcado && (porHoras
-                ? <><input type="number" step="0.5" min="0" value={hs[t.nome]} onChange={(ev) => salvarH({ ...hs, [t.nome]: Math.max(0, Number(ev.target.value) || 0) })} /><i>h</i><b className="fo-div-v">{brl2(valorDe(t.nome, hs[t.nome] || 0))}</b></>
+                ? <><input type="number" step="0.5" min="0" max={livre(t.nome)} value={hs[t.nome]} onChange={(ev) => salvarH({ ...hs, [t.nome]: Math.min(livre(t.nome), Math.max(0, Number(ev.target.value) || 0)) })} title={`até ${hh(livre(t.nome))} (o resto já está com os outros)`} /><i>h</i><b className="fo-div-v">{brl2(valorDe(t.nome, hs[t.nome] || 0))}</b></>
                 : <><i>R$</i><input type="number" step="0.01" value={div[t.nome]} onChange={(ev) => salvarV({ ...div, [t.nome]: Number(ev.target.value) || 0 })} /><small>{somaV > 0 ? Math.round((div[t.nome] / somaV) * 100) : 0}%</small></>)}
             </label>
           )
@@ -162,6 +189,21 @@ export function Divisao({ d, l, e, fechar }: { d: Ficha; l: LinhaComissao; e: Ed
           ? <span>Horas distribuídas: <b>{hh(somaH)}</b> de {hh(horasOS)}{Math.abs(somaH - horasOS) > 0.05 && <em> ({somaH > horasOS ? 'passou ' : 'faltam '}{hh(Math.abs(somaH - horasOS))})</em>}</span>
           : <span>Soma: <b>{brl2(somaV)}</b>{Math.abs(somaV - totalOS) > 0.01 && <em> ({somaV > totalOS ? '+' : ''}{brl2(somaV - totalOS)} da regra)</em>}</span>}
         <input className="fo-mot-txt" placeholder="motivo da divisão (ex.: Fernando ajudou na montagem)" value={x.motivo} onChange={(ev) => e.mudar(l, { motivo: ev.target.value })} /></div>
+      {(() => {
+        const st = e.estadoDivisao(l)
+        const outros = Object.keys(x.divisao || {}).filter((n) => n !== d.nome && (x.divisao![n] || 0) > 0).map((n) => n.split(' ')[0])
+        const falta = !x.divisao ? 'escolha os técnicos' : !x.motivo.trim() ? 'escreva o motivo' : porHoras && Math.abs(somaH - horasOS) > 0.05 ? 'distribua todas as horas' : ''
+        return (
+          <div className={`fo-div-salvar ${st.salvaEm && !st.mudou ? 'ok' : ''}`}>
+            {st.salvaEm && !st.mudou
+              ? <span><i className="fas fa-circle-check" /> Divisão salva às {new Date(st.salvaEm).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}{outros.length ? ` · já aparece na ficha de ${outros.join(' e ')}` : ''}</span>
+              : <span>{st.erro ? <em><i className="fas fa-triangle-exclamation" /> {st.erro}</em> : st.salvaEm ? 'Mudou depois de salvar — salve de novo.' : falta ? `Para salvar: ${falta}.` : 'Ainda não foi salva.'}</span>}
+            <button type="button" disabled={!!falta || st.salvando || (!!st.salvaEm && !st.mudou)} onClick={() => void e.salvarDivisao(l, horasOS)}>
+              {st.salvando ? <><i className="fas fa-circle-notch fa-spin" /> Salvando…</> : st.salvaEm && !st.mudou ? <><i className="fas fa-check" /> Salva</> : <><i className="fas fa-floppy-disk" /> Salvar divisão</>}
+            </button>
+          </div>
+        )
+      })()}
     </div>
   )
 }
@@ -225,14 +267,17 @@ function DescontosNoRH({ d }: { d: Ficha }) {
   if (!lista.length) return null
   const folha = lista.filter((x) => !x.caixinha).reduce((s, x) => s + x.valor, 0)
   const cx = lista.filter((x) => x.caixinha).reduce((s, x) => s + x.valor, 0)
-  const limpa = (t: string) => t.split(' | Obs')[0].replace(/^[[^]]+]s*/, '')
+  const limpa = (t: string) => t.split(' | Obs')[0].replace(/^\[[^\]]+\]\s*/, '')
+  const origem = (t: string) => { const m = t.match(/REQ #(\d+)/); return m ? `Requisição #${m[1]}` : /COM #/.test(t) ? 'Lançado na comissão' : 'Lançado no RH' }
   return (
     <section className="fld">
-      <div className="fld-cab"><span className="fld-tit">Já no RH ({lista.length})</span><span className="fld-dica">descontos lançados antes, ainda não aplicados na folha</span></div>
+      <div className="fld-cab"><span className="fld-tit">Descontos mecânicos · {d.nome} ({lista.length})</span><span className="fld-dica">lançados no RH e ainda não aplicados</span></div>
+      <div className="fld-lin cab"><span>Mês</span><span>O que é</span><span>De onde</span><span className="fld-v">Valor</span></div>
       {lista.map((x, i) => (
         <div key={i} className={`fld-lin ${x.caixinha ? 'cx' : ''}`}>
           <span className="fld-tipo">{nomeMes(x.mes)}</span>
-          <span className="fld-desc">{limpa(x.descricao)}<small className="fld-parc">{x.caixinha ? 'pago pela caixinha · não sai da comissão' : x.status === 'aprovado' ? 'aprovado · sai da comissão' : 'esperando o RH aprovar'}</small></span>
+          <span className="fld-desc">{limpa(x.descricao)}<small className="fld-parc">{x.status === 'aprovado' ? 'aprovado' : 'esperando o RH aprovar'}</small></span>
+          <span className="fld-onde"><b>{x.caixinha ? 'Caixinha' : 'Comissão'}</b><small>{origem(x.descricao)}</small></span>
           <span className="fld-v">{x.caixinha ? '' : '− '}{brl2(x.valor)}</span>
         </div>
       ))}
@@ -486,7 +531,7 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
           <span className="ok">{t.pagas} pagas</span>{t.nao > 0 && <span className="nao">{t.nao} não pagas</span>}{t.ajustadas > 0 && <span className="aj">{t.ajustadas} ajustadas</span>}{t.divididas > 0 && <span className="div">{t.divididas} divididas</span>}
         </div>
         {!confirmar && !noOmie && pedidos && <button type="button" className="fo-lan-bt" disabled={!podePedir} onClick={() => setConfirmar(true)}>{aguardando ? 'Pedir de novo com estes valores' : atual ? 'Pedir nova autorização' : 'Pedir autorização ao diretor'}<span className="seta"><i className="fas fa-arrow-right" /></span></button>}
-        {!confirmar && !noOmie && <button type="button" className="fo-lan-add" onClick={() => setModalDesc(true)}><i className="fas fa-minus" />Descontar do técnico{e.descontos.length ? ` (${e.descontos.length})` : ''}</button>}
+        {!confirmar && !noOmie && <button type="button" className="fo-lan-add" onClick={() => setModalDesc(true)}><i className="fas fa-plus" />Acrescentar desconto{e.descontos.length ? ` (${e.descontos.length})` : ''}</button>}
         {!confirmar && !noOmie && pedidos && !podePedir && <small className="fo-lan-pq">{aviso?.tipo === 'sql' ? 'falta rodar o SQL do diretor no Supabase' : e.pendentes > 0 ? `falta o motivo em ${e.pendentes} OS` : 'sem valor para pedir'}</small>}
       </section>
       <section className="fl-comp">
@@ -981,6 +1026,9 @@ export const ESTILO_FO = `
 .fo-div-lista label { display: flex; gap: 6px; align-items: center; background: #fefefe; border: 1px solid #ede9fe; border-radius: 10px; padding: 6px 8px; font-size: 13px; cursor: pointer } .fo-div-lista label.on { border-color: #c4b5fd }
 .fo-div-lista span { flex: 1 } .fo-div-lista em { font-style: normal; color: ${MUDO}; font-size: 11.5px } .fo-div-lista i { font-style: normal; color: ${MUDO}; font-size: 12px } .fo-div-lista input[type=number] { width: 86px; border: 1px solid #ddd6fe; border-radius: 7px; padding: 3px 6px; font-family: inherit; font-weight: 800 } .fo-div-lista small { width: 34px; text-align: right; color: #7c3aed; font-weight: 800; font-size: 12px }
 .fo-div-lista label > span { min-width: 0 } .fo-div-lista input[type=checkbox] { flex: 0 0 auto; width: 16px; height: 16px; margin: 0 } .fo-div-lista .fo-div-pct { width: auto; text-align: left; color: #64748b; font-weight: 500 } .fo-div-lista input[type=number] { width: 70px } .fo-div-lista .fo-div-v { min-width: 84px; text-align: right; color: #6d28d9; font-variant-numeric: tabular-nums }
+.fo-div-salvar { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 10px; background: #fefefe; border: 1px dashed #c4b5fd; font-size: 13px; color: #6d28d9 } .fo-div-salvar em { font-style: normal; color: #b91c1c }
+.fo-div-salvar.ok { border-style: solid; border-color: #86efac; background: #f0fdf4; color: #166534 }
+.fo-div-salvar button { border: 0; border-radius: 99px; padding: 8px 16px; background: #6d28d9; color: #fefefe; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap } .fo-div-salvar button:disabled { opacity: .55; cursor: default } .fo-div-salvar.ok button { background: #16a34a; opacity: 1 }
 .fo-div-pe { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px } .fo-div-pe em { font-style: normal; color: #b45309 } .fo-div-pe .fo-mot-txt { flex: 1 }
 .fo-cam { margin: 4px 0 0; font-size: 12.5px; color: #b45309 }
 /* lançar */
@@ -1040,7 +1088,9 @@ export const ESTILO_FO = `
 .fld-vazio button, .fld-mais { justify-self: start; border: 1px solid var(--portal-border, #cbd5e1); background: #fefefe; color: #0f172a; border-radius: 99px; padding: 7px 14px; font-family: inherit; font-size: 13.5px; cursor: pointer } .fld-mais { border-style: dashed }
 .fld-cab { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap } .fld-tit { font-size: 15px; color: #0f172a } .fld-dica { font-size: 12.5px; color: #64748b }
 .fld-lin { display: grid; grid-template-columns: 150px 1fr auto 28px; gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--portal-border, #f1f5f9); font-size: 14.5px; color: #0f172a }
-.fld-lin.cx .fld-v { color: #047857 } .fld-lin.cx .fld-parc { color: #047857 }
+.fld-lin.cx .fld-v { color: #047857 } .fld-lin.cx .fld-onde b { color: #047857 }
+.fld-onde { display: grid } .fld-onde b { font-size: 13px; font-weight: 600; color: #b91c1c } .fld-onde small { font-size: 12px; color: #64748b }
+.fld-lin.cab { font-size: 12px; color: #64748b; padding: 4px 0 } .fld:has(.fld-onde) .fld-lin { grid-template-columns: 150px 1fr 170px 110px }
 .fld-tipo { color: #475569; font-size: 13.5px } .fld-v { color: #b91c1c; font-variant-numeric: tabular-nums } .fld-lin button { width: 28px; height: 28px; border-radius: 50%; border: none; background: #f1f5f9; color: #64748b; cursor: pointer }
 .fld-tot { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; padding-top: 8px; border-top: 1px solid #0f172a; font-size: 14.5px; color: #0f172a } .fld-tot > span:nth-child(2) { color: #b91c1c; font-variant-numeric: tabular-nums } .fld-liq { grid-column: 1 / -1; font-size: 13px; color: #64748b }
 .fld-novo { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; background: #f8fafc; border-radius: 12px; padding: 10px }

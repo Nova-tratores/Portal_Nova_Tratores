@@ -98,6 +98,17 @@ async function montarFicha(nome: string, mes: string) {
       recebidas.set(l.numero || l.os, r); recebidas.set(l.os, r)
     }
   }
+  // divisões salvas na ficha (antes do pedido): as que este técnico fez voltam para a tela; as que deram horas a ele
+  // entram como recebidas (o pedido, quando existe, vale mais)
+  const divisoes: Record<string, { horas: Record<string, number> | null; valores: Record<string, number>; motivo: string; em: string; por: string | null }> = {}
+  const { data: dvs } = await sb.from('posvendas_divisoes').select('os, numero, de_tecnico, horas, valores, motivo, atualizado_em, salvo_por').eq('mes', mes)
+  for (const dv of (dvs || []) as { os: string; numero: string; de_tecnico: string; horas: Record<string, number> | null; valores: Record<string, number>; motivo: string; atualizado_em: string; salvo_por: string | null }[]) {
+    if (dv.de_tecnico === nome) { divisoes[dv.os] = { horas: dv.horas, valores: dv.valores, motivo: dv.motivo, em: dv.atualizado_em, por: dv.salvo_por }; continue }
+    const k = Object.keys(dv.valores || {}).find((c) => c === nome || chaveDoTecnico(c, nome))
+    if (k == null || !(Number(dv.valores[k]) > 0) || recebidas.has(dv.numero)) continue
+    const r: Recebida = { de: dv.de_tecnico, valor: Number(dv.valores[k]), horas: dv.horas?.[k] ?? null, status: 'salva' }
+    recebidas.set(dv.numero, r); recebidas.set(dv.os, r)
+  }
   const numeros = [...new Set([...[...base.faturadas, ...base.internasFechadas].filter(dele).flatMap((o) => [o.numeroOmie || o.os, o.os]), ...recebidas.keys()].filter(Boolean))] as string[]
   const ajustes = await ajustesDeComissao(numeros)
   const motivos = new Map<string, MotivoAjuste>()
@@ -147,6 +158,8 @@ async function montarFicha(nome: string, mes: string) {
 
   return {
     nome, mes, hoje, avisos, codOmie,
+    /** divisões de OS salvas por este técnico no mês (chave = id da OS) */
+    divisoes,
     /** técnicos com % de comissão (para dividir a comissão de uma OS) */
     equipe: Object.entries(pctTodos).map(([t, p]) => ({ nome: t, pct: p })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
     foto: pessoa?.avatar_url || carreira?.fotos?.[nome] || null,

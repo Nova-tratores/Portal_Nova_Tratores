@@ -481,7 +481,7 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
         <div className="fp-cli">
           <b title={l.cliente}>{l.cliente || '—'}</b>
           <small>{diaBR(l.data)}{com && !l.veioDe && <> · com {com}</>} · {l.regra.replace(/\s*÷ \d+.*$/, '')}</small>
-          {l.veioDe && <small className="fp-veio"><i className="fas fa-people-arrows" /> dividida por {l.veioDe.de}{l.veioDe.horas ? ` · ${String(l.veioDe.horas).replace('.', ',')} h para ele` : ''} · {l.veioDe.status === 'autorizada' ? 'já autorizada' : 'esperando o diretor'}</small>}
+          {l.veioDe && <small className="fp-veio"><i className="fas fa-people-arrows" /> dividida por {l.veioDe.de}{l.veioDe.horas ? ` · ${String(l.veioDe.horas).replace('.', ',')} h para ele` : ''} · {l.veioDe.status === 'autorizada' ? 'já autorizada' : l.veioDe.status === 'pedido' ? 'esperando o diretor' : 'divisão salva'}</small>}
           {l.motivo && <small className="fp-rh"><i className="fas fa-pen" /> RH: {l.motivo.motivo}</small>}
         </div>
         <div className="fp-valor">
