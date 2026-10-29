@@ -33,17 +33,20 @@ export function useAbaAssunto(chave: string, abas: AbaAssunto[]) {
 /** Leva a faixa das abas para logo abaixo do cabeçalho fixo do portal (José, 29/10/2026: "não centraliza direito,
  *  fica muito pra baixo"): mede o que está grudado no topo e rola o contêiner certo (o portal rola por dentro). */
 function levarAoTopo(el: HTMLElement) {
+  // cabeçalho grudado no topo: só o que é fixo/grudado, começa no topo e é baixo (o menu lateral fixo não conta)
   let topoFixo = 0
   for (const y of [2, 30, 60]) {
     for (const x of document.elementsFromPoint(window.innerWidth / 2, y)) {
-      const p = getComputedStyle(x).position
-      if ((p === 'fixed' || p === 'sticky') && !el.contains(x)) topoFixo = Math.max(topoFixo, x.getBoundingClientRect().bottom)
+      if (el.contains(x) || x.contains(el)) continue
+      const p = getComputedStyle(x).position, r = x.getBoundingClientRect()
+      if ((p === 'fixed' || p === 'sticky') && r.top <= 4 && r.height < window.innerHeight * 0.3) topoFixo = Math.max(topoFixo, r.bottom)
     }
   }
-  topoFixo = Math.min(topoFixo, window.innerHeight / 3)
+  // quem rola de verdade: um contêiner alto com bastante para rolar (faixas com rolagem lateral não contam)
   let pai: HTMLElement | null = el.parentElement
-  while (pai && !(/(auto|scroll)/.test(getComputedStyle(pai).overflowY) && pai.scrollHeight > pai.clientHeight)) pai = pai.parentElement
-  const dif = el.getBoundingClientRect().top - Math.max(topoFixo, pai ? pai.getBoundingClientRect().top : 0) - 10
+  while (pai && !(/(auto|scroll)/.test(getComputedStyle(pai).overflowY) && pai.scrollHeight - pai.clientHeight > 50 && pai.clientHeight > window.innerHeight * 0.5)) pai = pai.parentElement
+  const dif = el.getBoundingClientRect().top - Math.max(topoFixo, pai ? pai.getBoundingClientRect().top : 0) - 12
+  if (Math.abs(dif) < 4) return
   if (pai) pai.scrollBy({ top: dif, behavior: 'smooth' })
   else window.scrollBy({ top: dif, behavior: 'smooth' })
 }
