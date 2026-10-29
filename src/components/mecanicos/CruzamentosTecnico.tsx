@@ -62,7 +62,7 @@ export function montarCruzamentos(t: TecnicoFantasma, fk: FuroKm | null): Cruzam
   else out.push({ titulo: 'Km fantasma', ic: 'fa-ghost', fontes: 'GPS × relatório × OS', erro: fantasma > 0.5, ok: fantasma <= 0.5 && foraRel <= 0.5, acao: foraRel > 0.5 ? 'mapa' : undefined, div: foraRel > 0.5 ? 'km-fora-relatorio' : undefined,
     v: fantasma > 0.5 ? km(fantasma) : '0 km', txt: fantasma > 0.5 ? 'rodados sem destino: fora de qualquer relatório ou OS' : 'sem destino: todo km rodado tem relatório ou OS',
     sub: comColegaKm > 0.5 ? `fora isso, ${km(comColegaKm)} em dias em que o carro foi a atendimento de OS de outro técnico: o destino é essa OS` : undefined,
-    itens: foraRel > 0.5 && fk ? ate8(diasFora.sort((p, q) => q.fora - p.fora).map((z) => `${ddmm(z.d.data)}: rodou ${km(z.d.kmGps)}, relatório ${km(z.d.kmRel)} → ${z.colega ? `destino: ${z.colega.os} do ${z.colega.tecnico.split(' ')[0]} (${cli(z.colega.cliente)})` : `⚠ ${km(z.fora)} sem destino${z.d.os.length ? '' : ', nenhuma OS no dia'}`}`)) : undefined,
+    itens: foraRel > 0.5 && fk ? ate8(diasFora.sort((p, q) => q.fora - p.fora).map((z) => `${ddmm(z.d.data)}: rodou ${km(z.d.kmGps)}, relatório ${km(z.d.kmRel)} → ${z.colega ? `destino: ${z.colega.os}, em nome do ${z.colega.tecnico.split(' ')[0]} (${cli(z.colega.cliente)})` : `⚠ ${km(z.fora)} sem destino${z.d.os.length ? '' : ', nenhuma OS no dia'}`}`)) : undefined,
     frase: fantasma > 0.5
       ? `O carro de ${nome} rodou ${km(x.kmCarro)} no mês pelo GPS e os relatórios dele somam ${km(x.kmRel)}. Desses km rodados a mais, ${km(fantasma)} não têm destino: não estão em relatório nem em OS de ninguém. Esse é o km fantasma.${comColegaKm > 0.5 ? ` Outros ${km(comColegaKm)} foram em dias em que o carro esteve no cliente de um colega, então o destino é a OS do colega.` : ''} Dia a dia:`
       : `Todo km que o carro de ${nome} rodou tem destino: está nos relatórios dele${comColegaKm > 0.5 ? ` ou foi a atendimento de OS de outro técnico (${km(comColegaKm)})` : ''}.` })
@@ -232,7 +232,13 @@ export function TabelaCruzamentos({ linhas, onAcao }: { linhas: Cruzamento[]; on
                     ))}
                   </div>
                 ) : null}
-                {l.itens?.length ? <ul className="cz-itens">{l.itens.map((it, k) => <li key={k} className={it.includes('⚠') ? 'x' : ''}>{it}</li>)}</ul> : null}
+                {/* dia a dia fica escondido até pedir (José, 29/10/2026: "essas informações não precisam aparecer ali logo de cara") */}
+                {l.itens?.length ? (
+                  <details className="cz-dd">
+                    <summary><i className="fas fa-chevron-right" /> ver dia a dia</summary>
+                    <ul className="cz-itens">{l.itens.map((it, k) => <li key={k} className={it.includes('⚠') ? 'x' : ''}>{it}</li>)}</ul>
+                  </details>
+                ) : null}
               </div>
             </div>
           </section>
@@ -271,6 +277,7 @@ const ESTILO_CZ = `
 .cz-caso .l2 { font-size: 12.5px; color: #64748b; line-height: 1.4 } .cz-caso .l2 i { font-size: 10.5px; color: #0f766e; margin-right: 2px }
 .cz-caso em { font-style: normal; font-size: 11px; border-radius: 99px; padding: 0 7px; background: #e2e8f0; color: #334155; white-space: nowrap }
 .cz-caso em.interna { background: #ede9fe; color: #5b21b6 } .cz-caso em.garantia { background: #dbeafe; color: #1e40af } .cz-caso em.aberta { background: #fef3c7; color: #92400e } .cz-caso em.nao-lancado { background: #fee2e2; color: #991b1b }
+.cz-dd summary { list-style: none; cursor: pointer; display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: #2563eb; padding: 2px 0 } .cz-dd summary::-webkit-details-marker { display: none } .cz-dd summary i { font-size: 10px; transition: transform .2s } .cz-dd[open] summary i { transform: rotate(90deg) } .cz-dd[open] .cz-itens { margin-top: 6px }
 .cz-itens { margin: 0; padding: 0 0 0 18px; display: grid; gap: 4px; font-size: 13px; color: #475569; line-height: 1.45 } .cz-itens li.x { color: #b91c1c }
 .cz-mapa { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: #2563eb; background: color-mix(in srgb, #2563eb 8%, #fefefe); border: 1px solid color-mix(in srgb, #2563eb 18%, transparent); cursor: pointer; transition: background .2s, color .2s } .cz-mapa:hover { background: #2563eb; color: #fefefe }
 .cz-mapa.tr { color: #6d28d9; background: color-mix(in srgb, #6d28d9 8%, #fefefe); border-color: color-mix(in srgb, #6d28d9 20%, transparent) } .cz-mapa.tr:hover { background: #6d28d9; color: #fefefe }
