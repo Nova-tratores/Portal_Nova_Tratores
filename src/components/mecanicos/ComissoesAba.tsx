@@ -8,7 +8,7 @@
 import { useEffect, useState } from 'react'
 import { authHeaders } from '@/lib/auth/client'
 import CaixinhaMec from './CaixinhaMec'
-import { ComissoesJanela, JanelaEmbutida } from './JanelasInfo'
+import { ComissoesJanela, JanelaEmbutida, Janela } from './JanelasInfo'
 import { brl2, Odometro } from './ui'
 import { ESTILO_CT, ESTILO_CT2, ESTILO_CT3 } from './CardsTecnicoOpcoes'
 import { FichaPro } from './FichaPro'
@@ -63,6 +63,8 @@ function Escritorio() {
   useEffect(() => { void ler(mes) }, [mes])
   const pessoaAberta = d?.pessoas.find((p) => p.nome === aberto) || null
   const au = useAutorizacoes()
+  const [editando, setEditando] = useState(false)
+  const lapis = d?.podeEditar ? <button type="button" className="ca-lapis" title="Mudar a regra (Gerente do Pós-Vendas)" onClick={(e) => { e.stopPropagation(); setEditando(true) }}><i className="fas fa-pen" /></button> : null
   return (
     <div className="ca-corpo">
       <style>{ESTILO_CT}</style><style>{ESTILO_CT2}</style><style>{ESTILO_CT3}</style>
@@ -83,7 +85,7 @@ function Escritorio() {
               <div className="s1c-com">
                 <small>Comissão de {NOMES_MES[Number(mes.slice(5, 7)) - 1]}</small>
                 <b><Odometro texto={brl2(d.total)} /></b>
-                <span><i className="fas fa-receipt" /> {pctTxt(d.config.pctGarantia)} das garantias + {pctTxt(d.config.pctRevisao)} das revisões</span>
+                <span><i className="fas fa-receipt" /> {pctTxt(d.config.pctGarantia)} das garantias + {pctTxt(d.config.pctRevisao)} das revisões{lapis}</span>
               </div>
               <div className="s1c-nums">
                 <div title="OS de garantia faturadas no mês: serviço + peças"><small>Garantias</small><b>{brl2(d.conta.garantias)}</b><em>{d.bases.garantias.length} OS · {brl2(d.conta.comGarantia)}</em></div>
@@ -99,7 +101,7 @@ function Escritorio() {
               <div className="s1c-com">
                 <small>Comissão de {NOMES_MES[Number(mes.slice(5, 7)) - 1]}</small>
                 <b><Odometro texto={brl2(d.larissa.valor)} /></b>
-                <span><i className="fas fa-receipt" /> {d.larissa.modo === 'fixo' ? 'valor fixo do mês' : `${pctTxt(d.larissa.pct)} de tudo que entrou no mês`}</span>
+                <span><i className="fas fa-receipt" /> {d.larissa.modo === 'fixo' ? 'valor fixo do mês' : `${pctTxt(d.larissa.pct)} de tudo que entrou no mês`}{lapis}</span>
               </div>
               <div className="s1c-nums">
                 <div title="Tudo que entrou nas OS faturadas do mês: serviço, km e peças"><small>Entrou no mês</small><b>{brl2(d.larissa.entrou)}</b><em>OS + peças</em></div>
@@ -110,7 +112,12 @@ function Escritorio() {
           {!d.pessoas.some((p) => p.funcao === 'garantista') && <p className="ca-mudo">Ninguém com a função Garantista. Marque em Administração → usuário → Gestão Pós Vendas → Garantista.</p>}
         </div>
       )}
-      {d && <RegraEscritorio key={`${d.config.pctRevisao}|${d.larissa.modo}|${d.larissa.pct}|${d.larissa.fixo}`} d={d} onMudou={() => void ler(mes)} />}
+      {/* os blocos da conta saíram de baixo dos cartões (José, 29/10/2026); o gerente muda as regras pelo lápis do cartão */}
+      {d && editando && (
+        <Janela titulo="Regras do escritório" sub="só o Gerente do Pós-Vendas muda" ic="fa-sliders" cor="#047857" onFechar={() => setEditando(false)}>
+          <RegraEscritorio key={`${d.config.pctRevisao}|${d.larissa.modo}|${d.larissa.pct}|${d.larissa.fixo}`} d={d} onMudou={() => void ler(mes)} />
+        </Janela>
+      )}
       {/* abre a MESMA ficha dos técnicos (José, 29/10/2026: "tudo tem que ser igual ao dos técnicos") */}
       {pessoaAberta && <FichaPro nome={pessoaAberta.nome} foto={pessoaAberta.foto || undefined} onFechar={() => { setAberto(null); void ler(mes) }} mes={mes} onMes={setMes} />}
     </div>
@@ -187,6 +194,7 @@ const ESTILO_CA = `
 .ca-conta > div { display: grid; gap: 2px; padding: 12px 14px; border-radius: 14px; background: #f8fafc; min-width: 200px } .ca-conta small { font-size: 12px; color: #64748b } .ca-conta > div > b { font-size: 22px }
 .ca-conta span { font-size: 13px; color: #334155; display: flex; gap: 6px; align-items: center; flex-wrap: wrap } .ca-conta em { font-style: normal; font-size: 11.5px; color: #64748b }
 .ca-conta input { width: 56px; border: 1px solid #cbd5e1; border-radius: 8px; padding: 4px 6px; font: inherit; text-align: right } .ca-conta button { border: 0; border-radius: 99px; padding: 4px 10px; background: #047857; color: #fefefe; font: inherit; font-size: 12px; cursor: pointer } .ca-conta button:disabled { opacity: .45 }
+.ca-lapis { margin-left: 8px; width: 26px; height: 26px; border-radius: 50%; border: 1px solid #a7f3d0; background: #fefefe; color: #047857; cursor: pointer; font-size: 11px } .ca-lapis:hover { background: #047857; color: #fefefe }
 .ca-modo { display: inline-flex; gap: 2px; padding: 2px; border-radius: 99px; background: #e2e8f0; margin-right: 4px } .ca-modo button { background: transparent !important; color: #475569 !important; padding: 3px 9px !important } .ca-modo button.on { background: #fefefe !important; color: #0f172a !important; font-weight: 600 }
 .ca-det { margin-top: 4px } .ca-det .ca-conta + .ca-conta { padding-top: 12px; border-top: 1px dashed var(--portal-border, #e5e7eb) }
 .s1-enviada { font-size: 11.5px; font-weight: 600; color: #6d28d9; background: #ede9fe; padding: 3px 9px; border-radius: 99px; white-space: nowrap }
