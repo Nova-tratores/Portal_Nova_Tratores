@@ -57,7 +57,7 @@ export function Corpo({ d, foto, card, mes, setMes, sec, setSec }: { d: Ficha; f
       <h2 className="fp-h2">Dados do RH</h2>
       <Fatos d={d} />
       {/* garantista não tem meta de técnico (29/10/2026) */}
-      {!d.garantista && <><h2 className="fp-h2">Metas do mês<small>básica 20 h e R$ 4 mil · ideal 40 h e R$ 8 mil por semana</small></h2>
+      {!d.escritorio && <><h2 className="fp-h2">Metas do mês<small>básica 20 h e R$ 4 mil · ideal 40 h e R$ 8 mil por semana</small></h2>
       <MetasPro d={d} card={card} /></>}
       <nav className="fp-secoes">
         {SECOES.map((s) => <button key={s.k} type="button" className={sec === s.k ? 'on' : ''} onClick={() => setSec(s.k)}>{s.rot}</button>)}
@@ -454,7 +454,7 @@ function ListaOS({ d, e, verOS, verReq }: { d: Ficha; e: EdicaoComissao; verOS: 
               <span className="fp-g-tot"><em>{linhas.length} OS</em><b>{brl2(total)}</b></span>
             </div>
             <div className="fp-tab">
-              <div className="fp-th"><span>OS</span><span>Cliente</span><span>Valor da OS</span><span className="n">{d.garantista ? 'Base (OS + peças)' : 'Base (horas)'}</span><span>Decisão</span><span className="n">Comissão</span></div>
+              <div className="fp-th"><span>OS</span><span>Cliente</span><span>Valor da OS</span><span className="n">{d.escritorio ? 'Base (OS + peças)' : 'Base (horas)'}</span><span>Decisão</span><span className="n">Comissão</span></div>
               {linhas.map((l) => <LinhaOS key={chaveL(l)} d={d} l={l} e={e} x={info.get(l.os)} verOS={verOS} verReq={verReq} />)}
             </div>
           </div>
@@ -496,7 +496,7 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
         </div>
         <div className="fp-valor">
           {/* garantista: a OS não vem na lista dos técnicos; o valor dela é a própria base (horas + km + peças) */}
-          <b>{x ? brl(x.total) : d.garantista && l.base ? brl(l.base) : '—'}</b>
+          <b>{x ? brl(x.total) : d.escritorio && l.base ? brl(l.base) : '—'}</b>
           <div className="fp-chips">
             {x && x.pecas > 0 && <span className="pc" title="Peças vinculadas (PPV)"><i className="fas fa-gear" />peças {brl(x.pecas)}</span>}
             {x && x.desconto > 0 && <span className="ds" title="Desconto dado na OS (hora, km, geral e peças)"><i className="fas fa-tag" />desconto {brl(x.desconto)}</span>}
@@ -525,7 +525,7 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
           <button type="button" className={estado === 'nao' ? 'on nao' : ''} onClick={() => e.mudar(l, { acao: 'nao', divisao: null })} title="Não pagar (escolher o motivo)"><i className="fas fa-ban" /></button>
           <button type="button" className={estado === 'aj' && !emCheio ? 'on aj' : ''} onClick={() => e.mudar(l, { acao: 'ajustar', divisao: null, valor: ed.valor ?? l.valor })} title="Ajustar o valor"><i className="fas fa-pen" /></button>
           {/* garantista não divide OS com ninguém (José, 29/10/2026) */}
-          {!d.garantista && <button type="button" className={estado === 'div' ? 'on div' : ''} onClick={() => setDividindo((v) => !v)} title="Dividir com outro técnico"><i className="fas fa-people-arrows" /></button>}
+          {!d.escritorio && <button type="button" className={estado === 'div' ? 'on div' : ''} onClick={() => setDividindo((v) => !v)} title="Dividir com outro técnico"><i className="fas fa-people-arrows" /></button>}
           {cheio > 0 && (
             <button type="button" className={`cheio ${emCheio ? 'on' : ''}`} title={`Pagar sem o desconto da OS: comissão sobre o valor cheio (${brl(l.base + descBase)}) = ${brl2(cheio)}`}
               onClick={() => e.mudar(l, emCheio ? { acao: 'pagar', divisao: null, motivo: '' } : { acao: 'ajustar', divisao: null, valor: cheio, motivo: `${MOT_CHEIO}: comissão sobre o valor cheio (desconto de ${brl(descBase)} não entra)` })}>
@@ -545,13 +545,13 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
       {ed.acao === 'ajustar' && !ed.divisao && (
         <div className="fp-extra aj">
           {/* garantista ajusta pela % sobre a OS + peças ou pelo valor, com troca entre os dois (José, 29/10/2026) */}
-          {d.garantista && l.base > 0 && (
+          {d.escritorio && l.base > 0 && (
             <div className="fp-modo">
               <button type="button" className={emPct ? 'on' : ''} onClick={() => { setEmPct(true); setPctTxt(null) }}>%</button>
               <button type="button" className={!emPct ? 'on' : ''} onClick={() => setEmPct(false)}>R$</button>
             </div>
           )}
-          {d.garantista && emPct && l.base > 0
+          {d.escritorio && emPct && l.base > 0
             ? <label>Porcentagem <input type="text" inputMode="decimal" value={pctTxt ?? String(Math.round(((ed.valor ?? l.valor) / l.base) * 10000) / 100).replace('.', ',')}
                 onChange={(ev) => { setPctTxt(ev.target.value); const p = Number(ev.target.value.replace(',', '.')) || 0; e.mudar(l, { valor: Math.round(l.base * p) / 100 }) }} /><span>% de {brl2(l.base)} = <b>{brl2(ed.valor ?? 0)}</b></span></label>
             : <label>Valor para ele <span>R$</span><input type="number" step="0.01" value={ed.valor ?? ''} onChange={(ev) => { setPctTxt(null); e.mudar(l, { valor: Number(ev.target.value) || 0 }) }} /></label>}

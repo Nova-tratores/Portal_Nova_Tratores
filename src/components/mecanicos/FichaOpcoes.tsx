@@ -512,7 +512,7 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
   const pedir = async () => {
     setEnviando(true); setAviso(null)
     try {
-      const r = await fetch('/api/mecanicos/lancamento-comissao', { method: 'POST', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ tecnico: d.nome, mes: d.mes, valor: Math.round(t.total * 100) / 100, calculado: Math.round(t.calc * 100) / 100, linhas: linhasPedido, descontos: e.descontos, assinatura: assRef.current?.png(), info: { nomeRh: d.rh?.nomeRh || null, cargo: d.rh?.cargo || null, pct: d.comissao.pct ?? null, pagamento: d.comissao.pagamento || null, semCaixinha: !!d.garantista } }) })
+      const r = await fetch('/api/mecanicos/lancamento-comissao', { method: 'POST', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ tecnico: d.nome, mes: d.mes, valor: Math.round(t.total * 100) / 100, calculado: Math.round(t.calc * 100) / 100, linhas: linhasPedido, descontos: e.descontos, assinatura: assRef.current?.png(), info: { nomeRh: d.rh?.nomeRh || null, cargo: d.rh?.cargo || null, pct: d.comissao.pct ?? null, pagamento: d.comissao.pagamento || null, semCaixinha: !!d.escritorio } }) })
       const j = await r.json()
       if (j.semTabela) setAviso({ tipo: 'sql', txt: j.error })
       else if (!r.ok) setAviso({ tipo: 'erro', txt: j.error || 'Não foi possível pedir a autorização' })
@@ -583,8 +583,8 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
             <div><dt>Competência</dt><dd>{nomeMes(d.mes)}</dd></div>
             <div><dt>Pela regra</dt><dd>{brl2(t.calc)}</dd></div>
             <div className="tot"><dt>Comissão a pagar</dt><dd>{brl2(t.total)}</dd></div>
-            {!d.garantista && <div><dt>Caixinha {PCT_CAIXINHA}%</dt><dd>− {brl2(contaDoPagamento(t.total, e.descontos).caixinha)}</dd></div>}
-            <div><dt>{d.garantista ? 'Líquido (após descontos)' : 'Líquido (após descontos e caixinha)'}</dt><dd>{brl2(contaDoPagamento(t.total, e.descontos, !!d.garantista).liquido)}</dd></div>
+            {!d.escritorio && <div><dt>Caixinha {PCT_CAIXINHA}%</dt><dd>− {brl2(contaDoPagamento(t.total, e.descontos).caixinha)}</dd></div>}
+            <div><dt>{d.escritorio ? 'Líquido (após descontos)' : 'Líquido (após descontos e caixinha)'}</dt><dd>{brl2(contaDoPagamento(t.total, e.descontos, !!d.escritorio).liquido)}</dd></div>
           </dl>
           {mexidas.length > 0 && (
             <div className="flc-mex">

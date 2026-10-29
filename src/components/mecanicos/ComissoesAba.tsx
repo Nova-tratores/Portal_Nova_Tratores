@@ -95,7 +95,7 @@ function Escritorio() {
               <span className="s1c-ver">Abrir ficha <i className="fas fa-arrow-right" /></span>
             </article>
           ) : (
-            <article key={p.nome} className="s1 s1-capa" style={{ animationDelay: `${i * 110}ms` }}>
+            <article key={p.nome} className="s1 s1-capa abre" style={{ animationDelay: `${i * 110}ms` }} role="button" tabIndex={0} onClick={() => setAberto(p.nome)} onKeyDown={(e) => { if (e.key === 'Enter') setAberto(p.nome) }}>
               <div className="s1c-topo"><span className="s1-sit" style={{ color: '#1d4ed8', background: '#eff6ff' }}>● Escritório</span>{(() => { const sl = seloEnviada(au.pedidos, p.nome); return sl ? <span className="s1-enviada">{sl}</span> : null })()}</div>
               <div className="s1c-nome"><b>{p.nome}</b></div>
               <div className="s1c-com">
@@ -106,7 +106,9 @@ function Escritorio() {
               <div className="s1c-nums">
                 <div title="Tudo que entrou nas OS faturadas do mês: serviço, km e peças"><small>Entrou no mês</small><b>{brl2(d.larissa.entrou)}</b><em>OS + peças</em></div>
                 <div><small>Regra</small><b>{d.larissa.modo === 'fixo' ? 'Fixo' : pctTxt(d.larissa.pct)}</b><em>{d.larissa.modo === 'fixo' ? brl2(d.larissa.fixo) : 'de tudo que entrou'}</em></div>
+                <div title="Cadastro e última comissão no RH"><small>No RH</small><b>{p.comissoes[0] ? brl2(p.comissoes[0].valor) : '—'}</b><em>{!p.rh ? 'ainda não cadastrada' : p.comissoes[0] ? `${p.comissoes[0].mes.slice(5)}/${p.comissoes[0].mes.slice(2, 4)} · ${p.comissoes[0].status}` : 'sem lançamento'}</em></div>
               </div>
+              <span className="s1c-ver">Abrir ficha <i className="fas fa-arrow-right" /></span>
             </article>
           ))}
           {!d.pessoas.some((p) => p.funcao === 'garantista') && <p className="ca-mudo">Ninguém com a função Garantista. Marque em Administração → usuário → Gestão Pós Vendas → Garantista.</p>}

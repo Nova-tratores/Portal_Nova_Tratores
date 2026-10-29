@@ -23,7 +23,7 @@ import { comCache, aquecer } from './cache'
 import { GRUPOS } from './painel'
 import { ajustesDeComissao, pctsDasOS } from './comissao-server'
 import { lerRegrasComissao } from './regras-comissao-server'
-import { ehGarantista, comissaoDoGarantista } from './comissao-escritorio-server'
+import { ehGarantista, comissaoDoGarantista, ehLarissa, comissaoDaLarissa } from './comissao-escritorio-server'
 
 type Rec = Record<string, unknown>
 const hojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
@@ -119,7 +119,8 @@ async function montarFicha(nome: string, mes: string) {
   const pctPorOS = await pctsDasOS([...new Set([...base.faturadas, ...base.internasFechadas, ...pend].map((o) => o.os))]).catch(() => new Map())
   // garantista (função na Administração): a comissão é a das garantias e revisões do mês, na mesma ficha (29/10/2026)
   const garantista = pessoa ? await ehGarantista(pessoa.id).catch(() => false) : false
-  const comissao = garantista ? await comissaoDoGarantista(nome, mes, hoje) : comissaoDoTecnico({ tecnico: nome, mes, hoje, pct, faturadas: base.faturadas, internas: base.internasFechadas, pendencias: pend, ajustes, motivos, regras, pctPorOS, recebidas })
+  const larissa = !garantista && ehLarissa(nome)
+  const comissao = garantista ? await comissaoDoGarantista(nome, mes, hoje) : larissa ? await comissaoDaLarissa(nome, mes, hoje) : comissaoDoTecnico({ tecnico: nome, mes, hoje, pct, faturadas: base.faturadas, internas: base.internasFechadas, pendencias: pend, ajustes, motivos, regras, pctPorOS, recebidas })
   const oficial = rh?.comissoes.find((c) => c.mes === mes) || null
 
   // ---------- horas do app (relatório do técnico) no mês
@@ -165,6 +166,8 @@ async function montarFicha(nome: string, mes: string) {
     divisoes,
     /** é garantista do pós-vendas: comissão por garantias e revisões, sem metas de técnico */
     garantista,
+    /** é do escritório (garantista ou Larissa): sem caixinha, sem metas de técnico, OS sem dividir */
+    escritorio: garantista || larissa,
     /** técnicos com % de comissão (para dividir a comissão de uma OS) */
     equipe: Object.entries(pctTodos).map(([t, p]) => ({ nome: t, pct: p })).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')),
     foto: pessoa?.avatar_url || carreira?.fotos?.[nome] || null,

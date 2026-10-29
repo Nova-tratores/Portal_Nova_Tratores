@@ -71,7 +71,7 @@ async function pessoas(): Promise<{ nome: string; foto: string | null; funcao: P
 }
 
 /** Garantias e revisões faturadas no mês (OS + peças). */
-export async function basesDoMes(mes: string): Promise<{ garantias: OSBase[]; revisoes: OSBase[]; entrou: number }> {
+export async function basesDoMes(mes: string): Promise<{ garantias: OSBase[]; revisoes: OSBase[]; entrou: number; todas: OSBase[] }> {
   const de = `${mes}-01`, ate = new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).toISOString().slice(0, 10)
   const base = (await comCache(`esc-base:${mes}`, 10 * 60_000, () => carregarBase(de, ate))).dados
   const fat = base.faturadas.filter((o) => o.data >= de && o.data <= ate)
@@ -88,7 +88,7 @@ export async function basesDoMes(mes: string): Promise<{ garantias: OSBase[]; re
   const ord = (a: OSBase, b: OSBase) => b.data.localeCompare(a.data)
   // tudo que entrou no mês nas OS faturadas (OS + peças) — base da comissão da Larissa
   const entrou = r2(fat.reduce((a, o) => a + o.bruto + o.pecas, 0))
-  return { garantias: garantias.sort(ord), revisoes: revisoes.sort(ord), entrou }
+  return { garantias: garantias.sort(ord), revisoes: revisoes.sort(ord), entrou, todas: fat.map(linha).sort(ord) }
 }
 
 export async function comissaoEscritorio(mes: string) {
@@ -145,4 +145,25 @@ export async function comissaoDoGarantista(nome: string, mes: string, hoje: stri
     tecnico: nome, mes, pct: config.pctGarantia, linhas, faturadas: total, internas: 0, ajustes: r2(total - linhas.reduce((a, l) => a + l.calculado, 0)), total,
     aguardando: 0, projecao: hoje.startsWith(mes) ? projetarMes(total, mes, hoje) : total, qtdOS: linhas.length,
   }
+}
+
+/** É a Larissa (comissão sobre tudo que entrou)? */
+export const ehLarissa = (nome: string) => SEM_REGRA.some((n) => n === nome || !!casarNome(n, [nome]) || !!casarNome(nome, [n]))
+
+/** Comissão da Larissa na ficha dos técnicos (29/10/2026): % de cada OS faturada no mês (OS + peças) ou o valor fixo. */
+export async function comissaoDaLarissa(nome: string, mes: string, hoje: string): Promise<ComissaoDetalhada> {
+  const [config, bases] = await Promise.all([lerConfigEscritorio(), basesDoMes(mes)])
+  const lr = config.larissa
+  const ajustes = await ajustesDeComissao([...new Set(bases.todas.flatMap((o) => [o.numero || o.os, o.os]))]).catch(() => new Map())
+  const linhas: LinhaComissao[] = lr.modo === 'fixo'
+    ? [{ os: `FIXO-${mes}`, numeroOmie: null, cliente: 'Valor fixo do mês', data: `${mes}-01`, tipo: 'faturada', tecnicos: [], regra: 'valor fixo (regra do escritório)', base: 0, divisao: 1, calculado: lr.fixo, valor: lr.fixo, ajustada: false }]
+    : bases.todas.map((o) => {
+      const calculado = r2(o.total * lr.pct / 100)
+      const aj = ajustes.get(o.numero || o.os) || ajustes.get(o.os)
+      const k = aj?.porTecnico ? Object.keys(aj.porTecnico).find((c) => chaveDoTecnico(c, nome)) : undefined
+      const valor = k != null ? r2(Number(aj!.porTecnico![k])) : calculado
+      return { os: o.os, numeroOmie: o.numero, cliente: o.cliente, data: o.data, tipo: 'faturada' as const, garantia: /garantia/i.test(o.tipo), tecnicos: [], regra: `${String(lr.pct).replace('.', ',')}% da OS (OS + peças${o.tipo ? ` · ${o.tipo}` : ''})`, base: o.total, divisao: 1, calculado, valor, ajustada: Math.abs(valor - calculado) > 0.004 }
+    })
+  const total = r2(linhas.reduce((a, l) => a + l.valor, 0))
+  return { tecnico: nome, mes, pct: lr.modo === 'fixo' ? 0 : lr.pct, linhas, faturadas: total, internas: 0, ajustes: r2(total - linhas.reduce((a, l) => a + l.calculado, 0)), total, aguardando: 0, projecao: hoje.startsWith(mes) && lr.modo === 'pct' ? projetarMes(total, mes, hoje) : total, qtdOS: linhas.length }
 }
