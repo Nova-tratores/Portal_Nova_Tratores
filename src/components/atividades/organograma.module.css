@@ -1,12 +1,12 @@
 /* Árvore do organograma: linhas ligando chefe e equipe (ul/li com pseudo-elementos). */
 .palco { overflow-x: auto; padding: 8px 4px 16px; }
 .arvore { display: flex; justify-content: center; min-width: max-content; }
-.arvore ul { display: flex; justify-content: center; padding: 22px 0 0; margin: 0; position: relative; }
-.arvore li { list-style: none; position: relative; padding: 22px 6px 0; display: flex; flex-direction: column; align-items: center; }
+.arvore ul { display: flex; justify-content: center; padding: 26px 0 0; margin: 0; position: relative; }
+.arvore li { list-style: none; position: relative; padding: 26px 12px 0; display: flex; flex-direction: column; align-items: center; }
 .arvore > ul { padding-top: 0; }
 .arvore > ul > li { padding-top: 0; }
 .arvore li::before, .arvore li::after {
-  content: ''; position: absolute; top: 0; right: 50%; width: 50%; height: 22px;
+  content: ''; position: absolute; top: 0; right: 50%; width: 50%; height: 26px;
   border-top: 2px solid var(--org-linha, #cbd5e1);
 }
 .arvore li::after { right: auto; left: 50%; border-left: 2px solid var(--org-linha, #cbd5e1); }
@@ -16,14 +16,14 @@
 .arvore li:last-child::before { border-right: 2px solid var(--org-linha, #cbd5e1); border-radius: 0 8px 0 0; }
 .arvore li:first-child::after { border-radius: 8px 0 0 0; }
 .arvore ul ul::before {
-  content: ''; position: absolute; top: 0; left: 50%; height: 22px; width: 0;
+  content: ''; position: absolute; top: 0; left: 50%; height: 26px; width: 0;
   border-left: 2px solid var(--org-linha, #cbd5e1);
 }
 .arvore > ul > li::before, .arvore > ul > li::after { display: none; }
 
 .cartao {
-  width: 176px; text-align: left; background: var(--portal-bg-card, #fff); border: 1px solid var(--portal-border, #e5e5e5);
-  border-radius: 12px; padding: 10px 10px 9px; cursor: pointer; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  width: 210px; text-align: left; position: relative; z-index: 1; background: var(--portal-bg-card, #fff); border: 1px solid var(--portal-border, #e5e5e5);
+  border-radius: 12px; padding: 12px 12px 10px; cursor: pointer; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
   font-family: inherit; color: var(--portal-text, #1a1a1a);
 }
 .cartao:hover { box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1); }
@@ -40,3 +40,19 @@
 .selo { font-size: 9.5px; font-weight: 700; border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
 
 .solta { display: flex; flex-wrap: wrap; gap: 10px; }
+
+/* Equipe sem subordinados: em coluna debaixo do chefe, com a linha passando por trás. */
+.pilha { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.pilha::before { content: ''; position: absolute; left: 50%; top: 0; bottom: 24px; border-left: 2px solid var(--org-linha, #cbd5e1); z-index: 0; }
+
+/* Tarefas */
+.tabela { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tabela th { font-size: 10px; font-weight: 700; color: var(--portal-text-muted, #a3a3a3); letter-spacing: 1.2px; text-transform: uppercase; padding: 9px 12px; text-align: left; background: var(--portal-bg-secondary, #fafafa); border-bottom: 1px solid var(--portal-border, #f0f0f0); white-space: nowrap; position: sticky; top: 0; z-index: 1; }
+.tabela td { padding: 8px 12px; border-bottom: 1px solid var(--portal-border, #f5f5f5); vertical-align: top; color: var(--portal-text, #1a1a1a); }
+.grupo td { background: var(--portal-bg-secondary, #fafafa); font-weight: 800; font-size: 12px; text-transform: uppercase; letter-spacing: 0.6px; }
+.chip { display: inline-block; font-size: 11px; font-weight: 700; border-radius: 6px; padding: 1px 7px; margin: 1px 4px 1px 0; white-space: nowrap; }
+.matriz { border-collapse: separate; border-spacing: 0; font-size: 12px; }
+.matriz th { font-size: 11px; font-weight: 700; padding: 6px 8px; color: var(--portal-text, #1a1a1a); background: var(--portal-bg-secondary, #fafafa); border-bottom: 1px solid var(--portal-border, #e5e5e5); position: sticky; top: 0; z-index: 1; }
+.matriz th.vert { writing-mode: vertical-rl; transform: rotate(180deg); white-space: nowrap; height: 130px; vertical-align: bottom; }
+.matriz td { border-bottom: 1px solid var(--portal-border, #f0f0f0); padding: 5px 8px; color: var(--portal-text, #1a1a1a); }
+.matriz td.cel { width: 30px; min-width: 30px; padding: 0; border-left: 1px solid var(--portal-border, #f0f0f0); }

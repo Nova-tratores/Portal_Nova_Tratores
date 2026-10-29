@@ -3,6 +3,7 @@
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { listarFuncionariosRH, rhConfigurado } from '@/lib/frota/rh';
 import { juntarPessoas, type PessoaOrg, type UsuarioPortal, type VinculoOrg } from './arvore';
+import type { FuncaoOrg, TarefaOrg } from './tarefas';
 
 const faltando = (e: unknown) =>
   /PGRST205|PGRST204|42P01|42703|schema cache|does not exist/i.test(`${(e as { code?: string })?.code || ''} ${(e as Error)?.message || ''}`);
@@ -98,20 +99,43 @@ export interface DadosOrganograma {
   vinculos: VinculoOrg[];
   migracaoFaltando: boolean;
   rhConfigurado: boolean;
+  tarefas: TarefaOrg[];
+  funcoes: FuncaoOrg[];
+  /** sql/organograma-tarefas.sql ainda não aplicada */
+  tarefasFaltando: boolean;
+}
+
+async function lerTarefas(): Promise<{ tarefas: TarefaOrg[]; funcoes: FuncaoOrg[]; tarefasFaltando: boolean }> {
+  const [t, f] = await Promise.all([
+    supabaseAdmin.from('org_tarefas')
+      .select('id,origem,ordem,numero,assunto,acao,onde,quando,frequencia,quem,justificativa,destinatario,areas')
+      .eq('ativo', true).order('origem').order('ordem').range(0, 999),
+    supabaseAdmin.from('org_funcoes').select('funcao,pessoas'),
+  ]);
+  const erro = t.error || f.error;
+  if (erro) { if (faltando(erro)) return { tarefas: [], funcoes: [], tarefasFaltando: true }; throw new Error(erro.message); }
+  return { tarefas: (t.data || []) as TarefaOrg[], funcoes: (f.data || []) as FuncaoOrg[], tarefasFaltando: false };
+}
+
+export async function gravarFuncao(funcao: string, pessoas: string[], userId: string): Promise<void> {
+  const { error } = await supabaseAdmin.from('org_funcoes').upsert(
+    { funcao, pessoas, atualizado_em: new Date().toISOString(), atualizado_por: userId }, { onConflict: 'funcao' });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code, faltando: faltando(error) });
 }
 
 export async function lerOrganograma(): Promise<DadosOrganograma> {
-  const [usuarios, rh, papeis, pratica] = await Promise.all([
+  const [usuarios, rh, papeis, pratica, trf] = await Promise.all([
     opcional<UsuarioPortal>(supabaseAdmin.from('financeiro_usu').select('id,nome,email,funcao,avatar_url,ativo')),
     listarFuncionariosRH(),
     papeisPorUsuario(),
     praticaPorUsuario(),
+    lerTarefas(),
   ]);
   let migracaoFaltando = false;
   const { data: vinc, error } = await supabaseAdmin.from('org_pessoas').select('pessoa_chave,gestor_chave,topo,fora,cargo,ordem');
   if (error) { if (faltando(error)) migracaoFaltando = true; else throw new Error(error.message); }
   const pessoas = juntarPessoas(usuarios, rh).map((p) => ({ ...p, papeis: papeis.get(p.chave) || [], pratica: pratica.get(p.chave) || [] }));
-  return { pessoas, vinculos: (vinc || []) as VinculoOrg[], migracaoFaltando, rhConfigurado: rhConfigurado() };
+  return { pessoas, vinculos: (vinc || []) as VinculoOrg[], migracaoFaltando, rhConfigurado: rhConfigurado(), ...trf };
 }
 
 export async function lerVinculos(): Promise<VinculoOrg[]> {
