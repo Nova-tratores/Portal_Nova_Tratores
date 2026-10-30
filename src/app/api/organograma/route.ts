@@ -6,7 +6,7 @@ import { autenticar } from '@/lib/auth/server';
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
 import { criaCiclo } from '@/lib/organograma/arvore';
-import { gravarVinculo, lerOrganograma, lerVinculos } from '@/lib/organograma/server';
+import { gravarVinculo, lerAcessos, lerOrganograma, lerVinculos, telasParaMarcar } from '@/lib/organograma/server';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,7 +19,9 @@ export async function GET(req: NextRequest) {
   if (!auth.isAdmin && !auth.modulos.includes('atividades')) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
   try {
     const dados = await lerOrganograma();
-    return NextResponse.json({ ...dados, podeEditar: auth.isAdmin });
+    // As permissões de cada pessoa só vão para admin.
+    const acessos = auth.isAdmin ? await lerAcessos() : null;
+    return NextResponse.json({ ...dados, podeEditar: auth.isAdmin, telas: telasParaMarcar(), acessos });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });
   }

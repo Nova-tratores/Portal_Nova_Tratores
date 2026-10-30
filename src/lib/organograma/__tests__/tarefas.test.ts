@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ligacaoAutomatica, ligarFuncoes, tarefasPorPessoa, funcoesDaPessoa, tarefasSemPessoa, type TarefaOrg } from '../tarefas';
+import { ligacaoAutomatica, ligarFuncoes, tarefasPorPessoa, funcoesDaPessoa, tarefasSemPessoa, renomearNaLista, alternarOrdem, ordenarPor, type TarefaOrg } from '../tarefas';
 import type { PessoaOrg } from '../arvore';
 
 const p = (chave: string, nome: string): PessoaOrg => ({ chave, nome, foto: null, cargo: null, setor: null, empresa: null, origem: 'portal', papeis: [], pratica: [] });
@@ -31,5 +31,26 @@ describe('ligarFuncoes e tarefas por pessoa', () => {
   });
   it('sem pessoa: sem "quem" ou função ainda vaga', () => {
     expect(tarefasSemPessoa(tarefas, lig).map((x) => x.id)).toEqual([4, 5]);
+  });
+});
+
+describe('renomear e ordenar', () => {
+  it('renomeia sem repetir ao juntar', () => {
+    expect(renomearNaLista(['A', 'B'], 'A', 'C')).toEqual(['C', 'B']);
+    expect(renomearNaLista(['A', 'B'], 'A', 'B')).toEqual(['B']);
+  });
+  it('cabeçalho: A→Z, Z→A, volta', () => {
+    const a = alternarOrdem<'x' | 'y'>(null, 'x');
+    expect(a).toEqual({ coluna: 'x', dir: 'asc' });
+    const b = alternarOrdem(a, 'x');
+    expect(b).toEqual({ coluna: 'x', dir: 'desc' });
+    expect(alternarOrdem(b, 'x')).toBeNull();
+    expect(alternarOrdem(b, 'y')).toEqual({ coluna: 'y', dir: 'asc' });
+  });
+  it('ordena com acento e número; vazio no fim nos dois sentidos', () => {
+    const l = ['Auxiliar 10', '', 'Ágil', 'Auxiliar 9', 'Zé'];
+    expect(ordenarPor(l, (x) => x, 'asc')).toEqual(['Ágil', 'Auxiliar 9', 'Auxiliar 10', 'Zé', '']);
+    expect(ordenarPor(l, (x) => x, 'desc')).toEqual(['Zé', 'Auxiliar 10', 'Auxiliar 9', 'Ágil', '']);
+    expect(ordenarPor([3, 10, 1], (x) => x, 'desc')).toEqual([10, 3, 1]);
   });
 });

@@ -4,15 +4,17 @@
 // Tarefas (listas do Pós-vendas e do Mariano, por função → pessoa; lista e matriz) e Funções
 // (admin diz quem é "Auxiliar Adm 1" etc.). Admin escolhe o chefe na janela da pessoa.
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { RefreshCw, X, Crown, EyeOff, Eye, Network, ListChecks, Users } from 'lucide-react'
+import { RefreshCw, X, Crown, EyeOff, Eye, Network, ListChecks, Users, Pencil, Search } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { montarArvore, contarEquipe, criaCiclo, semAcento, type NoOrg, type PessoaOrg, type VinculoOrg } from '@/lib/organograma/arvore'
-import { ligarFuncoes, tarefasPorPessoa, funcoesDaPessoa, tarefasSemPessoa, ORIGENS, type TarefaOrg, type FuncaoOrg, type LigacaoFuncao } from '@/lib/organograma/tarefas'
+import { ligarFuncoes, tarefasPorPessoa, funcoesDaPessoa, tarefasSemPessoa, ORIGENS, alternarOrdem, ordenarPor, type Ordem, type TarefaOrg, type FuncaoOrg, type LigacaoFuncao } from '@/lib/organograma/tarefas'
+import { compararAcessos, NOME_NIVEL_REAL, NOME_SITUACAO, type AcessoPessoa, type Situacao, type TelaMarcada, type TelaOpcao } from '@/lib/organograma/acessos'
 import css from './organograma.module.css'
 
 type Resp = {
   pessoas: PessoaOrg[]; vinculos: VinculoOrg[]; migracaoFaltando: boolean; rhConfigurado: boolean; podeEditar: boolean
   tarefas: TarefaOrg[]; funcoes: FuncaoOrg[]; tarefasFaltando: boolean; error?: string
+  telas: TelaOpcao[]; acessos: Record<string, AcessoPessoa> | null; telasFaltando: boolean
 }
 
 const CORES = ['#0369A1', '#B45309', '#047857', '#7C3AED', '#BE185D', '#0891B2', '#DC2626', '#4D7C0F', '#C2410C', '#475569']
@@ -229,11 +231,139 @@ function Janela({ p, dados, salvando, erro, tarefas, funcoes, onFechar, onSalvar
   )
 }
 
-function VistaTarefas({ dados, ligacoes, porPessoa, onSel }: { dados: Resp; ligacoes: LigacaoFuncao[]; porPessoa: Map<string, TarefaOrg[]>; onSel: (c: string) => void }) {
+/** Cabeçalho que ordena: 1º clique A→Z, 2º Z→A, 3º volta à ordem original. */
+function ThOrdem<C extends string>({ coluna, ordem, onOrdem, children }: { coluna: C; ordem: Ordem<C>; onOrdem: (o: Ordem<C>) => void; children: React.ReactNode }) {
+  const ativa = ordem?.coluna === coluna
+  return (
+    <th aria-sort={ativa ? (ordem!.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button onClick={() => onOrdem(alternarOrdem(ordem, coluna))} title="Ordenar A→Z / Z→A"
+        style={{ all: 'unset', cursor: 'pointer', font: 'inherit', color: ativa ? '#0369A1' : 'inherit' }}>
+        {children} <span style={{ opacity: ativa ? 1 : 0.35, fontSize: 10 }}>{ativa ? (ordem!.dir === 'asc' ? 'A→Z' : 'Z→A') : '↕'}</span>
+      </button>
+    </th>
+  )
+}
+
+const COR_SITUACAO: Record<Situacao, { bg: string; fg: string }> = {
+  ok: { bg: '#d1fae5', fg: '#065f46' }, falta: { bg: '#fee2e2', fg: '#991b1b' }, falta_editar: { bg: '#fee2e2', fg: '#991b1b' },
+  a_mais: { bg: '#fef3c7', fg: '#92400e' }, nao_separa: { bg: '#e2e8f0', fg: '#334155' }, sem_login: { bg: '#e2e8f0', fg: '#334155' },
+}
+
+function ChipsTelas({ marcadas, nomes }: { marcadas: TelaMarcada[]; nomes: Map<string, string> }) {
+  return <>{marcadas.map((m) => (
+    <span key={m.tela} className={css.chip} style={m.nivel === 'editar' ? { background: '#d1fae5', color: '#065f46' } : { background: '#e0f2fe', color: '#075985' }}>
+      {nomes.get(m.tela) || m.tela} · {m.nivel === 'editar' ? 'editar' : 'só ver'}
+    </span>
+  ))}</>
+}
+
+/** Janela para marcar as telas de uma tarefa. */
+function EditorTelas({ tarefa, telas, onFechar, onSalvo }: { tarefa: TarefaOrg; telas: TelaOpcao[]; onFechar: () => void; onSalvo: (t: TelaMarcada[]) => void }) {
+  const [marcadas, setMarcadas] = useState<TelaMarcada[]>(tarefa.telas || [])
+  const [busca, setBusca] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState('')
+  const nomes = new Map(telas.map((t) => [t.id, t.nome]))
+  const q = semAcento(busca)
+  const ja = new Set(marcadas.map((m) => m.tela))
+  const opcoes = telas.filter((t) => !ja.has(t.id) && (!q || semAcento(t.nome).includes(q)))
+  const salvar = async () => {
+    setSalvando(true); setErro('')
+    try {
+      const r = await fetch('/api/organograma/tarefas', {
+        method: 'PATCH', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ id: tarefa.id, telas: marcadas }),
+      })
+      const j = await r.json()
+      if (!r.ok) throw new Error(j.error || `Erro ${r.status}`)
+      onSalvo(j.telas)
+    } catch (e) { setErro((e as Error).message); setSalvando(false) }
+  }
+  return (
+    <div role="dialog" aria-modal="true" onClick={onFechar} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ ...card, width: 'min(560px, 100%)', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: 18, gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+          <div style={{ flex: 1 }}>
+            <h3 style={titulo}>Telas da tarefa</h3>
+            <p style={sub}>{tarefa.acao}. Isto é só um registro: não muda o acesso de ninguém.</p>
+          </div>
+          <button aria-label="Fechar" onClick={onFechar} style={{ border: 'none', background: 'transparent', color: 'var(--portal-text)', cursor: 'pointer' }}><X size={18} /></button>
+        </div>
+        {marcadas.map((m) => (
+          <div key={m.tela} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--portal-text)' }}>
+            <span style={{ flex: 1, fontWeight: 600 }}>{nomes.get(m.tela) || m.tela}</span>
+            <select aria-label={`Nível em ${nomes.get(m.tela) || m.tela}`} value={m.nivel} onChange={(e) => setMarcadas(marcadas.map((x) => x.tela === m.tela ? { ...x, nivel: e.target.value as TelaMarcada['nivel'] } : x))} style={{ ...inp, padding: '5px 8px', fontSize: 12 }}>
+              <option value="editar">Pode editar</option>
+              <option value="ver">Só ver</option>
+            </select>
+            <button aria-label="Tirar" onClick={() => setMarcadas(marcadas.filter((x) => x.tela !== m.tela))} style={{ border: 'none', background: 'transparent', color: 'var(--portal-text)', cursor: 'pointer' }}><X size={15} /></button>
+          </div>
+        ))}
+        <div style={{ position: 'relative' }}>
+          <Search size={14} style={{ position: 'absolute', left: 10, top: 11, color: 'var(--portal-text-muted)' }} />
+          <input aria-label="Buscar tela" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar tela…" style={{ ...inp, width: '100%', boxSizing: 'border-box', paddingLeft: 30 }} />
+        </div>
+        <div style={{ overflow: 'auto', flex: 1, minHeight: 120, border: '1px solid var(--portal-border)', borderRadius: 10 }}>
+          {opcoes.map((t) => (
+            <button key={t.id} onClick={() => setMarcadas([...marcadas, { tela: t.id, nivel: 'editar' }])} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '7px 10px', border: 'none', borderBottom: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text)', fontSize: 13, cursor: 'pointer' }}>+ {t.nome}</button>
+          ))}
+          {!opcoes.length && <p style={{ ...sub, padding: 10 }}>Nenhuma tela encontrada.</p>}
+        </div>
+        {erro && <p style={{ fontSize: 12, color: '#b91c1c', fontWeight: 700, margin: 0 }}>{erro}</p>}
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button onClick={onFechar} style={{ ...inp, cursor: 'pointer' }}>Cancelar</button>
+          <button onClick={salvar} disabled={salvando} style={{ ...inp, cursor: 'pointer', background: '#0369A1', color: '#fefefe', border: 'none', fontWeight: 700 }}>{salvando ? 'Salvando…' : 'Salvar'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function VistaAcessos({ dados, porPessoa, pessoa }: { dados: Resp; porPessoa: Map<string, TarefaOrg[]>; pessoa: string }) {
+  type Col = 'pessoa' | 'tela' | 'pede' | 'tem' | 'situacao'
+  const [ordem, setOrdem] = useState<Ordem<Col>>(null)
+  const nomes = new Map(dados.pessoas.map((p) => [p.chave, p.nome]))
+  const nomesTela = new Map(dados.telas.map((t) => [t.id, t.nome]))
+  const linhas = compararAcessos(porPessoa, dados.telas, dados.acessos || {}).filter((l) => !pessoa || l.pessoa === pessoa)
+  const pesoSit: Record<Situacao, number> = { falta: 0, falta_editar: 1, a_mais: 2, nao_separa: 3, sem_login: 4, ok: 5 }
+  const valor: Record<Col, (l: typeof linhas[number]) => string> = {
+    pessoa: (l) => nomes.get(l.pessoa) || l.pessoa, tela: (l) => nomesTela.get(l.tela) || l.tela,
+    pede: (l) => l.pede, tem: (l) => (l.tem ? NOME_NIVEL_REAL[l.tem] : ''), situacao: (l) => NOME_SITUACAO[l.situacao],
+  }
+  const lista = ordem ? ordenarPor(linhas, valor[ordem.coluna], ordem.dir)
+    : [...linhas].sort((a, b) => pesoSit[a.situacao] - pesoSit[b.situacao] || valor.pessoa(a).localeCompare(valor.pessoa(b), 'pt-BR'))
+  const th = (c: Col, txt: string) => <ThOrdem coluna={c} ordem={ordem} onOrdem={setOrdem}>{txt}</ThOrdem>
+  return (
+    <div style={{ ...card, overflow: 'auto', maxHeight: '70vh' }}>
+      <table className={css.tabela}>
+        <thead><tr>{th('pessoa', 'Pessoa')}{th('tela', 'Tela')}{th('pede', 'Tarefas pedem')}{th('tem', 'Tem hoje')}{th('situacao', 'Situação')}<th>Tarefas</th></tr></thead>
+        <tbody>
+          {lista.map((l) => (
+            <tr key={`${l.pessoa}|${l.tela}`}>
+              <td style={{ fontWeight: 600 }}>{nomes.get(l.pessoa) || l.pessoa}</td>
+              <td>{nomesTela.get(l.tela) || l.tela}</td>
+              <td>{l.pede === 'editar' ? 'Editar' : 'Só ver'}</td>
+              <td>{l.tem ? NOME_NIVEL_REAL[l.tem] : '—'}</td>
+              <td><span className={css.chip} style={{ background: COR_SITUACAO[l.situacao].bg, color: COR_SITUACAO[l.situacao].fg }}>{NOME_SITUACAO[l.situacao]}</span></td>
+              <td style={{ fontSize: 12 }}>{l.tarefas.join(' · ')}</td>
+            </tr>
+          ))}
+          {!lista.length && <tr><td colSpan={6} style={{ color: 'var(--portal-text-muted)' }}>Nenhuma tela marcada ainda. Marque as telas na coluna “Telas” da Lista.</td></tr>}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function VistaTarefas({ dados, ligacoes, porPessoa, onSel, onTelas }: { dados: Resp; ligacoes: LigacaoFuncao[]; porPessoa: Map<string, TarefaOrg[]>; onSel: (c: string) => void; onTelas: (id: number, telas: TelaMarcada[]) => void }) {
   const [origem, setOrigem] = useState('')
   const [pessoa, setPessoa] = useState('')
   const [busca, setBusca] = useState('')
-  const [modo, setModo] = useState<'lista' | 'matriz'>('lista')
+  const [modo, setModo] = useState<'lista' | 'matriz' | 'acessos'>('lista')
+  type ColTarefa = 'acao' | 'quem' | 'quando' | 'onde' | 'destinatario' | 'telas'
+  const [ordem, setOrdem] = useState<Ordem<ColTarefa>>(null)
+  const [editando, setEditando] = useState<TarefaOrg | null>(null)
+  const nomesTela = useMemo(() => new Map(dados.telas.map((t) => [t.id, t.nome])), [dados.telas])
+  const marcarTelas = dados.podeEditar && !dados.telasFaltando
   const ligMap = useMemo(() => new Map(ligacoes.map((l) => [l.funcao, l])), [ligacoes])
   const pessoasMap = useMemo(() => new Map(dados.pessoas.map((p) => [p.chave, p])), [dados.pessoas])
   const doPessoa = pessoa ? new Set((porPessoa.get(pessoa) || []).map((t) => t.id)) : null
@@ -247,6 +377,26 @@ function VistaTarefas({ dados, ligacoes, porPessoa, onSel }: { dados: Resp; liga
     const g = `${ORIGENS[t.origem] || t.origem} › ${t.assunto || 'Sem assunto'}`
     grupos.set(g, [...(grupos.get(g) || []), t])
   }
+  const valorTarefa: Record<ColTarefa, (x: TarefaOrg) => string> = {
+    acao: (x) => x.acao, quem: (x) => x.quem.join(', '), quando: (x) => [x.quando, x.frequencia].filter(Boolean).join(' · '),
+    onde: (x) => x.onde || '', destinatario: (x) => x.destinatario || '', telas: (x) => (x.telas || []).map((m) => nomesTela.get(m.tela) || m.tela).join(', '),
+  }
+  const ordenada = ordem ? ordenarPor(lista, valorTarefa[ordem.coluna], ordem.dir) : []
+  const linhaTarefa = (x: TarefaOrg) => (
+    <tr key={x.id}>
+      <td style={{ fontWeight: 600 }}>{x.acao}{x.justificativa && <div style={{ fontWeight: 400, fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{x.justificativa}</div>}</td>
+      <td style={{ minWidth: 220 }}><ChipsFuncao funcoes={x.quem} ligacoes={ligMap} pessoas={pessoasMap} /></td>
+      <td style={{ fontSize: 12 }}>{[x.quando, x.frequencia].filter(Boolean).join(' · ') || '—'}</td>
+      <td style={{ fontSize: 12 }}>{x.onde || '—'}</td>
+      <td style={{ fontSize: 12 }}>{x.destinatario || '—'}</td>
+      <td style={{ minWidth: 170 }}>
+        <ChipsTelas marcadas={x.telas || []} nomes={nomesTela} />
+        {marcarTelas && <button onClick={() => setEditando(x)} style={{ ...inp, padding: '3px 8px', fontSize: 11.5, cursor: 'pointer' }}>{(x.telas || []).length ? 'Alterar' : '+ telas'}</button>}
+        {!marcarTelas && !(x.telas || []).length && <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>—</span>}
+      </td>
+    </tr>
+  )
+  const thT = (c: ColTarefa, txt: string) => <ThOrdem coluna={c} ordem={ordem} onOrdem={setOrdem}>{txt}</ThOrdem>
   const colunas = (pessoa ? comTarefas.filter((p) => p.chave === pessoa) : comTarefas)
 
   return (
@@ -263,9 +413,9 @@ function VistaTarefas({ dados, ligacoes, porPessoa, onSel }: { dados: Resp; liga
         <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar tarefa…" style={{ ...inp, minWidth: 180 }} />
         <div style={{ flex: 1 }} />
         <div style={{ display: 'inline-flex', border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'hidden' }}>
-          {(['lista', 'matriz'] as const).map((m) => (
+          {(dados.acessos ? ['lista', 'matriz', 'acessos'] as const : ['lista', 'matriz'] as const).map((m) => (
             <button key={m} onClick={() => setModo(m)} style={{ padding: '7px 14px', fontSize: 12, fontWeight: 700, border: 'none', cursor: 'pointer', fontFamily: 'Inter', background: modo === m ? '#0369A1' : 'var(--portal-bg-card)', color: modo === m ? '#fff' : 'var(--portal-text-muted)' }}>
-              {m === 'lista' ? 'Lista' : 'Tarefa × Pessoa'}
+              {m === 'lista' ? 'Lista' : m === 'matriz' ? 'Tarefa × Pessoa' : 'Telas × Acesso'}
             </button>
           ))}
         </div>
@@ -274,25 +424,21 @@ function VistaTarefas({ dados, ligacoes, porPessoa, onSel }: { dados: Resp; liga
         {lista.length} de {dados.tarefas.length} tarefas · {semPessoa} ainda sem pessoa (função vaga ou sem responsável na planilha) · as pessoas chegam pelas funções da aba Funções.
       </p>
 
-      {modo === 'lista' ? (
+      {dados.telasFaltando && dados.podeEditar && (
+        <div style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 12, padding: '10px 16px', marginBottom: 12, fontSize: 12, color: '#92400e' }}>
+          Para marcar as telas de cada tarefa, falta aplicar <code>sql/organograma-tarefa-telas.sql</code> no Supabase.
+        </div>
+      )}
+      {editando && <EditorTelas tarefa={editando} telas={dados.telas} onFechar={() => setEditando(null)} onSalvo={(telas) => { onTelas(editando.id, telas); setEditando(null) }} />}
+      {modo === 'acessos' ? <VistaAcessos dados={dados} porPessoa={porPessoa} pessoa={pessoa} /> : modo === 'lista' ? (
         <div style={{ ...card, overflow: 'auto', maxHeight: '70vh' }}>
           <table className={css.tabela}>
-            <thead><tr><th>Tarefa</th><th>Quem (função · pessoa)</th><th>Quando / frequência</th><th>Onde</th><th>Para quem</th></tr></thead>
+            <thead><tr>{thT('acao', 'Tarefa')}{thT('quem', 'Quem (função · pessoa)')}{thT('quando', 'Quando / frequência')}{thT('onde', 'Onde')}{thT('destinatario', 'Para quem')}{thT('telas', 'Telas')}</tr></thead>
             <tbody>
-              {[...grupos.entries()].map(([g, ts]) => (
-                <FragmentoGrupo key={g} titulo={g} n={ts.length}>
-                  {ts.map((t) => (
-                    <tr key={t.id}>
-                      <td style={{ fontWeight: 600 }}>{t.acao}{t.justificativa && <div style={{ fontWeight: 400, fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{t.justificativa}</div>}</td>
-                      <td style={{ minWidth: 220 }}><ChipsFuncao funcoes={t.quem} ligacoes={ligMap} pessoas={pessoasMap} /></td>
-                      <td style={{ fontSize: 12 }}>{[t.quando, t.frequencia].filter(Boolean).join(' · ') || '—'}</td>
-                      <td style={{ fontSize: 12 }}>{t.onde || '—'}</td>
-                      <td style={{ fontSize: 12 }}>{t.destinatario || '—'}</td>
-                    </tr>
-                  ))}
-                </FragmentoGrupo>
+              {ordem ? ordenada.map(linhaTarefa) : [...grupos.entries()].map(([g, ts]) => (
+                <FragmentoGrupo key={g} titulo={g} n={ts.length} colunas={6}>{ts.map(linhaTarefa)}</FragmentoGrupo>
               ))}
-              {!lista.length && <tr><td colSpan={5} style={{ color: 'var(--portal-text-muted)' }}>Nenhuma tarefa com esses filtros.</td></tr>}
+              {!lista.length && <tr><td colSpan={6} style={{ color: 'var(--portal-text-muted)' }}>Nenhuma tarefa com esses filtros.</td></tr>}
             </tbody>
           </table>
         </div>
@@ -339,11 +485,35 @@ function FragmentoGrupo({ titulo: t, n, colunas = 5, children }: { titulo: strin
   )
 }
 
-function VistaFuncoes({ dados, ligacoes, onMudou }: { dados: Resp; ligacoes: LigacaoFuncao[]; onMudou: (f: FuncaoOrg) => void }) {
+function VistaFuncoes({ dados, ligacoes, onMudou, onRenomeou }: { dados: Resp; ligacoes: LigacaoFuncao[]; onMudou: (f: FuncaoOrg) => void; onRenomeou: () => void }) {
+  type ColFuncao = 'funcao' | 'tarefas' | 'pessoas'
+  const [ordem, setOrdem] = useState<Ordem<ColFuncao>>(null)
+  const [renomeando, setRenomeando] = useState<{ funcao: string; nome: string } | null>(null)
   const [salvando, setSalvando] = useState('')
   const [msg, setMsg] = useState<{ funcao: string; txt: string; ok: boolean } | null>(null)
   const pessoasMap = new Map(dados.pessoas.map((p) => [p.chave, p]))
   const editar = dados.podeEditar && !dados.tarefasFaltando
+  const nomePessoas = (l: LigacaoFuncao) => l.pessoas.map((c) => pessoasMap.get(c)?.nome || c).join(', ')
+  const valorFuncao: Record<ColFuncao, (l: LigacaoFuncao) => string | number> = { funcao: (l) => l.funcao, tarefas: (l) => l.tarefas, pessoas: nomePessoas }
+  const linhas = ordem ? ordenarPor(ligacoes, valorFuncao[ordem.coluna], ordem.dir) : ligacoes
+  const renomear = async (l: LigacaoFuncao, juntar = false): Promise<void> => {
+    if (!renomeando) return
+    setSalvando(l.funcao); setMsg(null)
+    try {
+      const r = await fetch('/api/organograma/funcoes', {
+        method: 'PATCH', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ funcao: l.funcao, pessoas: l.pessoas, novoNome: renomeando.nome, juntar }),
+      })
+      const j = await r.json()
+      if (r.status === 409 && j.existe) {
+        if (window.confirm(`Já existe a função "${renomeando.nome.trim()}". Juntar "${l.funcao}" com ela? As tarefas e as pessoas das duas ficam numa só.`)) return renomear(l, true)
+        return
+      }
+      if (!r.ok) throw new Error(j.error || `Erro ${r.status}`)
+      setRenomeando(null)
+      onRenomeou()
+    } catch (e) { setMsg({ funcao: l.funcao, txt: (e as Error).message, ok: false }) } finally { setSalvando('') }
+  }
   const gravar = async (funcao: string, pessoas: string[]) => {
     setSalvando(funcao); setMsg(null)
     try {
@@ -364,11 +534,27 @@ function VistaFuncoes({ dados, ligacoes, onMudou }: { dados: Resp; ligacoes: Lig
           Função com o nome de alguém (“Henri”) liga sozinha — <em>automático</em> — até alguém salvar outra escolha.</p>
       </div>
       <table className={css.tabela}>
-        <thead><tr><th>Função</th><th>Tarefas</th><th>Pessoas</th>{editar && <th>Adicionar</th>}</tr></thead>
+        <thead><tr><ThOrdem coluna="funcao" ordem={ordem} onOrdem={setOrdem}>Função</ThOrdem><ThOrdem coluna="tarefas" ordem={ordem} onOrdem={setOrdem}>Tarefas</ThOrdem><ThOrdem coluna="pessoas" ordem={ordem} onOrdem={setOrdem}>Pessoas</ThOrdem>{editar && <th>Adicionar</th>}</tr></thead>
         <tbody>
-          {ligacoes.map((l) => (
+          {linhas.map((l) => (
             <tr key={l.funcao}>
-              <td style={{ fontWeight: 700 }}>{l.funcao}</td>
+              <td style={{ fontWeight: 700 }}>
+                {renomeando?.funcao === l.funcao ? (
+                  <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input autoFocus aria-label="Novo nome da função" maxLength={80} value={renomeando.nome}
+                      onChange={(e) => setRenomeando({ funcao: l.funcao, nome: e.target.value })}
+                      onKeyDown={(e) => { if (e.key === 'Enter') renomear(l); if (e.key === 'Escape') setRenomeando(null) }}
+                      style={{ ...inp, padding: '4px 8px', fontSize: 12 }} />
+                    <button disabled={!!salvando || !renomeando.nome.trim()} onClick={() => renomear(l)} style={{ ...inp, padding: '4px 8px', fontSize: 12, cursor: 'pointer' }}>Salvar</button>
+                    <button disabled={!!salvando} onClick={() => setRenomeando(null)} style={{ ...inp, padding: '4px 8px', fontSize: 12, cursor: 'pointer' }}>Cancelar</button>
+                  </span>
+                ) : (
+                  <>
+                    {l.funcao}
+                    {editar && <button aria-label={`Renomear ${l.funcao}`} title="Renomear" disabled={!!salvando} onClick={() => setRenomeando({ funcao: l.funcao, nome: l.funcao })} style={{ border: 'none', background: 'transparent', color: 'var(--portal-text-muted)', cursor: 'pointer', marginLeft: 6, padding: 0, verticalAlign: 'middle' }}><Pencil size={13} /></button>}
+                  </>
+                )}
+              </td>
               <td>{l.tarefas}</td>
               <td style={{ minWidth: 220 }}>
                 {l.pessoas.map((c) => (
@@ -416,7 +602,7 @@ export default function Organograma() {
       const r = await fetch('/api/organograma', { headers: await authHeaders() })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || `Erro ${r.status}`)
-      setDados({ tarefas: [], funcoes: [], tarefasFaltando: false, ...j })
+      setDados({ tarefas: [], funcoes: [], tarefasFaltando: false, telas: [], acessos: null, telasFaltando: false, ...j })
     } catch (e) { setErro((e as Error).message) } finally { setCarregando(false) }
   }, [])
   useEffect(() => { carregar() }, [carregar])
@@ -483,10 +669,11 @@ export default function Organograma() {
         </div>
       )}
 
-      {modo === 'tarefas' && <VistaTarefas dados={dados} ligacoes={ligacoes} porPessoa={porPessoa} onSel={setSel} />}
+      {modo === 'tarefas' && <VistaTarefas dados={dados} ligacoes={ligacoes} porPessoa={porPessoa} onSel={setSel}
+        onTelas={(id, telas) => setDados({ ...dados, tarefas: dados.tarefas.map((x) => x.id === id ? { ...x, telas } : x) })} />}
       {modo === 'funcoes' && (
         <VistaFuncoes dados={dados} ligacoes={ligacoes}
-          onMudou={(f) => setDados({ ...dados, funcoes: [...dados.funcoes.filter((x) => x.funcao !== f.funcao), f] })} />
+          onMudou={(f) => setDados({ ...dados, funcoes: [...dados.funcoes.filter((x) => x.funcao !== f.funcao), f] })} onRenomeou={carregar} />
       )}
 
       {modo === 'arvore' && (

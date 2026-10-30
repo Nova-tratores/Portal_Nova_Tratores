@@ -1,6 +1,7 @@
 // Organograma — tarefas de cada função (listas do Pós-vendas e do Mariano, sql/organograma-tarefas.sql)
 // e quem é cada função (org_funcoes). Pura (client-safe).
 import { semAcento, type PessoaOrg } from './arvore';
+import type { TelaMarcada } from './acessos';
 
 export interface TarefaOrg {
   id: number;
@@ -16,6 +17,8 @@ export interface TarefaOrg {
   justificativa: string | null;
   destinatario: string | null;
   areas: string[];
+  /** Telas que a tarefa pede (sql/organograma-tarefa-telas.sql). */
+  telas?: TelaMarcada[];
 }
 
 export interface FuncaoOrg { funcao: string; pessoas: string[] }
@@ -81,4 +84,29 @@ export function funcoesDaPessoa(chave: string, ligacoes: LigacaoFuncao[]): strin
 export function tarefasSemPessoa(tarefas: TarefaOrg[], ligacoes: LigacaoFuncao[]): TarefaOrg[] {
   const pessoasDa = new Map(ligacoes.map((l) => [l.funcao, l.pessoas]));
   return tarefas.filter((t) => !t.quem.some((f) => (pessoasDa.get(f) || []).length > 0));
+}
+
+/** Troca o nome da função na lista "quem" da tarefa, sem repetir (juntar duas funções). */
+export function renomearNaLista(quem: string[], de: string, para: string): string[] {
+  return [...new Set(quem.map((q) => (q === de ? para : q)))];
+}
+
+export type Ordem<C extends string> = { coluna: C; dir: 'asc' | 'desc' } | null;
+
+/** Clique no cabeçalho: A→Z, Z→A, volta à ordem original. */
+export function alternarOrdem<C extends string>(atual: Ordem<C>, coluna: C): Ordem<C> {
+  if (atual?.coluna !== coluna) return { coluna, dir: 'asc' };
+  return atual.dir === 'asc' ? { coluna, dir: 'desc' } : null;
+}
+
+/** Ordena por texto ou número (com acento e "10" depois de "9"); vazio fica sempre no fim. */
+export function ordenarPor<T>(lista: T[], valor: (x: T) => string | number | null | undefined, dir: 'asc' | 'desc'): T[] {
+  const sinal = dir === 'asc' ? 1 : -1;
+  const vazio = (v: unknown) => v == null || v === '';
+  return [...lista].sort((a, b) => {
+    const va = valor(a), vb = valor(b);
+    if (vazio(va) || vazio(vb)) return Number(vazio(va)) - Number(vazio(vb));
+    if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * sinal;
+    return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true, sensitivity: 'base' }) * sinal;
+  });
 }

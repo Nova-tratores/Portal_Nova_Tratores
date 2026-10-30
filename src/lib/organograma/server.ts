@@ -1,6 +1,10 @@
 // Organograma — leitura das fontes (portal, RH, responsabilidades em outros módulos, uso) e
 // gravação do chefe em org_pessoas. Servidor (service role); regras em ./arvore.ts.
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
+import { catalogoRotas, catalogoTelas } from '@/lib/permissoes/telas';
+import { ACOES_POR_MODULO } from '@/lib/permissoes/catalogo';
+import type { AcessoPessoa, TelaMarcada, TelaOpcao } from './acessos';
+import { renomearNaLista } from './tarefas';
 import { listarFuncionariosRH, rhConfigurado } from '@/lib/frota/rh';
 import { juntarPessoas, type PessoaOrg, type UsuarioPortal, type VinculoOrg } from './arvore';
 import type { FuncaoOrg, TarefaOrg } from './tarefas';
@@ -103,18 +107,76 @@ export interface DadosOrganograma {
   funcoes: FuncaoOrg[];
   /** sql/organograma-tarefas.sql ainda não aplicada */
   tarefasFaltando: boolean;
+  /** sql/organograma-tarefa-telas.sql ainda não aplicada */
+  telasFaltando: boolean;
 }
 
-async function lerTarefas(): Promise<{ tarefas: TarefaOrg[]; funcoes: FuncaoOrg[]; tarefasFaltando: boolean }> {
-  const [t, f] = await Promise.all([
-    supabaseAdmin.from('org_tarefas')
-      .select('id,origem,ordem,numero,assunto,acao,onde,quando,frequencia,quem,justificativa,destinatario,areas')
-      .eq('ativo', true).order('origem').order('ordem').range(0, 999),
-    supabaseAdmin.from('org_funcoes').select('funcao,pessoas'),
-  ]);
+const CAMPOS_TAREFA = 'id,origem,ordem,numero,assunto,acao,onde,quando,frequencia,quem,justificativa,destinatario,areas';
+
+async function lerTarefas(): Promise<{ tarefas: TarefaOrg[]; funcoes: FuncaoOrg[]; tarefasFaltando: boolean; telasFaltando: boolean }> {
+  const consulta = (campos: string) => supabaseAdmin.from('org_tarefas').select(campos).eq('ativo', true).order('origem').order('ordem').range(0, 999);
+  const [t0, f] = await Promise.all([consulta(`${CAMPOS_TAREFA},telas`), supabaseAdmin.from('org_funcoes').select('funcao,pessoas')]);
+  // Sem a coluna `telas` as tarefas continuam aparecendo; só a marcação fica desligada.
+  const telasFaltando = !!t0.error && /telas/.test(t0.error.message) && faltando(t0.error);
+  const t = telasFaltando ? await consulta(CAMPOS_TAREFA) : t0;
   const erro = t.error || f.error;
-  if (erro) { if (faltando(erro)) return { tarefas: [], funcoes: [], tarefasFaltando: true }; throw new Error(erro.message); }
-  return { tarefas: (t.data || []) as TarefaOrg[], funcoes: (f.data || []) as FuncaoOrg[], tarefasFaltando: false };
+  if (erro) { if (faltando(erro)) return { tarefas: [], funcoes: [], tarefasFaltando: true, telasFaltando: false }; throw new Error(erro.message); }
+  return { tarefas: (t.data || []) as unknown as TarefaOrg[], funcoes: (f.data || []) as FuncaoOrg[], tarefasFaltando: false, telasFaltando };
+}
+
+/** Telas com página própria, POS e PPV primeiro. */
+export function telasParaMarcar(): TelaOpcao[] {
+  const nomes = new Map(catalogoTelas().map((t) => [t.id, t.nome]));
+  const ids = new Set(catalogoRotas().flatMap((r) => (r.acesso === 'tela' && r.tela_id ? [r.tela_id] : [])));
+  const primeiro = (id: string) => (id === 'pos' ? 0 : id === 'ppv' ? 1 : 2);
+  return [...ids].filter((id) => nomes.has(id)).map((id) => ({
+    id, nome: nomes.get(id)!,
+    separaEditar: !id.includes(':') && (ACOES_POR_MODULO[id] || []).some((a) => a.id === 'editar'),
+  })).sort((a, b) => primeiro(a.id) - primeiro(b.id) || a.nome.localeCompare(b.nome, 'pt-BR'));
+}
+
+/** Permissões de quem tem login, por chave do organograma. Só para admin (a rota confere). */
+export async function lerAcessos(): Promise<Record<string, AcessoPessoa>> {
+  const { data, error } = await supabaseAdmin.from('portal_permissoes').select('user_id,is_admin,is_dev,modulos_permitidos');
+  if (error) throw new Error(error.message);
+  return Object.fromEntries((data || []).map((p) => [`u:${p.user_id}`, {
+    perms: (p.modulos_permitidos || []) as string[], isAdmin: !!p.is_admin || !!p.is_dev, isDev: !!p.is_dev,
+  }]));
+}
+
+export async function gravarTelasDaTarefa(id: number, telas: TelaMarcada[]): Promise<void> {
+  const { error } = await supabaseAdmin.from('org_tarefas').update({ telas }).eq('id', id);
+  if (error) throw Object.assign(new Error(error.message), { code: error.code, faltando: faltando(error) });
+}
+
+/** A função já existe (nas tarefas ou salva)? */
+export async function funcaoExiste(funcao: string): Promise<boolean> {
+  const [t, f] = await Promise.all([
+    supabaseAdmin.from('org_tarefas').select('id').contains('quem', [funcao]).limit(1),
+    supabaseAdmin.from('org_funcoes').select('funcao').eq('funcao', funcao).limit(1),
+  ]);
+  if (t.error || f.error) throw new Error((t.error || f.error)!.message);
+  return !!(t.data?.length || f.data?.length);
+}
+
+/**
+ * Renomeia a função em todas as tarefas. A ordem (grava o novo nome → troca nas tarefas → apaga o
+ * velho) permite repetir: se cair no meio, renomear de novo com "juntar" termina o serviço.
+ * `pessoas` = quem ocupa agora (inclui a ligação automática, que o nome novo perderia).
+ */
+export async function renomearFuncao(de: string, para: string, pessoas: string[], userId: string): Promise<void> {
+  const falha = (e: { message: string; code?: string }) => Object.assign(new Error(e.message), { code: e.code, faltando: faltando(e) });
+  const { data: destino, error: e1 } = await supabaseAdmin.from('org_funcoes').select('pessoas').eq('funcao', para).maybeSingle();
+  if (e1) throw falha(e1);
+  await gravarFuncao(para, [...new Set([...((destino?.pessoas || []) as string[]), ...pessoas])], userId);
+  const { data: tarefas, error: e2 } = await supabaseAdmin.from('org_tarefas').select('id,quem').contains('quem', [de]);
+  if (e2) throw falha(e2);
+  for (const t of tarefas || []) {
+    const { error } = await supabaseAdmin.from('org_tarefas').update({ quem: renomearNaLista(t.quem as string[], de, para) }).eq('id', t.id);
+    if (error) throw falha(error);
+  }
+  const { error: e3 } = await supabaseAdmin.from('org_funcoes').delete().eq('funcao', de);
+  if (e3) throw falha(e3);
 }
 
 export async function gravarFuncao(funcao: string, pessoas: string[], userId: string): Promise<void> {
