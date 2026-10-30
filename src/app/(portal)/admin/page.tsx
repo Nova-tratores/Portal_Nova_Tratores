@@ -573,6 +573,7 @@ export default function AdminPage() {
       )}
       {/* Header */}
       <div style={{ marginBottom: '40px' }}>
+        <a href="/admin/permissoes" style={{ float: 'right', fontSize: '13px', fontWeight: 600, color: '#dc2626' }}>Por que cada pessoa tem cada tela →</a>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
           <div style={{
             width: '48px', height: '48px', borderRadius: '14px', flexShrink: 0,

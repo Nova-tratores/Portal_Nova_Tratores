@@ -270,3 +270,15 @@ O Chatwoot fork e o vigia de câmeras não estão nesta máquina. Pelo CLAUDE.md
 - `on` virou o padrão em produção (sem login no Railway por aqui). **Voltar atrás, sem deploy:** `PERM_V2=sombra` no Railway.
 - Vale para os três verificadores genéricos. Páginas, rotas só com `autenticar` e checagens próprias seguem na regra antiga.
 - Tela fora do catálogo continua na regra antiga. Conta criada fora do Admin pode ficar até 10 min sem acesso até o espelho rodar.
+
+## Fase 4 — Tela de administração (começou em 30/10/2026)
+
+### 1ª parte: consulta (`/admin/permissoes`, só admin/dev)
+- **Por usuário:** cada tela com nível e origem (`lib/permissoes/explicar.ts`, 3 testes).
+- **Conjuntos:** telas e quantidade de pessoas de cada um.
+- **Revisão de extras:** quem tem pelo menos X extras.
+- Rota `GET /api/admin/permissoes-v2`. Não edita nada.
+
+### 2ª parte: edição (ainda não feita)
+- Não dá para editar conjuntos aqui enquanto as páginas e as demais rotas decidem por `portal_permissoes`: a pessoa passaria na rota e continuaria barrada na tela.
+- Ordem: primeiro `usePermissoes` passa a ler a v2 (com sombra no navegador), depois o CRUD de conjuntos, o cadastro por departamento e os overrides com motivo. O espelho sai quando a v2 virar a fonte.
