@@ -55,11 +55,14 @@ export default function DashboardAgroPage() {
       const r = await fetch('/api/agro/dashboard-token', { headers: await authHeaders(), cache: 'no-store' })
       const j = await r.json().catch(() => ({}))
       if (!r.ok || !j?.url) throw new Error(j?.error || `HTTP ${r.status}`)
-      setIframeUrl(String(j.url))
+      // link "abrir município" do painel chega aqui e é repassado para dentro dele
+      const painelTab = searchParams?.get('painel_tab'), mun = searchParams?.get('mun')
+      const extra = painelTab ? `&tab=${encodeURIComponent(painelTab)}${mun ? `&mun=${encodeURIComponent(mun)}` : ''}` : ''
+      setIframeUrl(String(j.url) + extra)
     } catch (e) {
       setErroIframe(e instanceof Error ? e.message : 'Falha ao abrir o painel')
     }
-  }, [])
+  }, [searchParams])
 
   // pede UMA vez, quando a permissão está confirmada (o token só vale na carga da página)
   useEffect(() => {

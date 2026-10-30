@@ -42,6 +42,16 @@ export function validarTokenDashboard(segredo: string, token: string, agoraMs: n
   return { ok: true, usuarioId, expira }
 }
 
+/** Segredo da página interna: o próprio, ou a service role (já existe em todo ambiente). */
+export function segredoPainel(): string {
+  return process.env.DASHBOARD_AGRO_TOKEN_SECRET || process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+}
+
+/** Página do painel servida pelo próprio portal (desde 30/10/2026). */
+export function urlPainelInterno(segredo: string, usuarioId: string, agoraMs: number = Date.now()): string {
+  return `/api/agro/painel/pagina?t=${encodeURIComponent(gerarTokenDashboard(segredo, usuarioId, agoraMs))}`
+}
+
 /** Endereço que a guia carrega. Sem segredo configurado, devolve o endereço puro. */
 export function urlDashboardComToken(segredo: string | undefined, usuarioId: string, agoraMs: number = Date.now()): { url: string; protegido: boolean } {
   if (!segredo) return { url: URL_DASHBOARD_AGRO, protegido: false }

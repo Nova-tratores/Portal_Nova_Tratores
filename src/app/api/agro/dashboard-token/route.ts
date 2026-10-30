@@ -6,7 +6,7 @@
 // ser publicado antes de a variável existir.
 import { NextResponse } from 'next/server';
 import { guardarAgro, erroAgro, logAgro } from '@/lib/agro/server';
-import { urlDashboardComToken, VALIDADE_TOKEN_SEGUNDOS } from '@/lib/agro/dashboard-token';
+import { segredoPainel, urlDashboardComToken, urlPainelInterno, VALIDADE_TOKEN_SEGUNDOS } from '@/lib/agro/dashboard-token';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,7 +15,10 @@ export async function GET(req: Request) {
   const g = await guardarAgro(req);
   if (g.resposta) return g.resposta;
   try {
-    const r = urlDashboardComToken(process.env.DASHBOARD_AGRO_TOKEN_SECRET, g.auth.userId);
+    // Painel dentro do portal (30/10/2026). AGRO_PAINEL_EXTERNO=on volta ao app externo sem deploy.
+    const r = process.env.AGRO_PAINEL_EXTERNO === 'on'
+      ? urlDashboardComToken(process.env.DASHBOARD_AGRO_TOKEN_SECRET, g.auth.userId)
+      : { url: urlPainelInterno(segredoPainel(), g.auth.userId), protegido: true };
     await logAgro(g.auth, { acao: 'dashboard_aberto', entidade: 'dashboard-externo', detalhes: { protegido: r.protegido } });
     return NextResponse.json(
       { url: r.url, protegido: r.protegido, validade_segundos: VALIDADE_TOKEN_SEGUNDOS },
