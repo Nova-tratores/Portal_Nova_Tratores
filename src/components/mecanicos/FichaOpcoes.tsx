@@ -14,7 +14,7 @@ import { authHeaders } from '@/lib/auth/client'
 import type { PedidoComissao } from '@/lib/mecanicos/lancamento-comissao-server'
 import { parcelasDoDesconto, resumoParcelas, mesCurto, contaDoPagamento, PCT_CAIXINHA, type DescontoPedido } from '@/lib/mecanicos/descontos-tecnico'
 import CanvasAssinatura, { type CanvasAssinaturaRef } from '@/components/assinatura/CanvasAssinatura'
-import { useMinhaAssinatura, AssinaturaSalva } from '@/components/assinatura/MinhaAssinatura'
+import { useMinhaAssinatura, AssinaturaSalva, CadastrarAssinatura } from '@/components/assinatura/MinhaAssinatura'
 import { abrirDocumento } from './AutorizacoesJanela'
 import {
   Resumo, Comissao, OSAba, Requisicoes, Frota, Ocorrencias, RH, Num,
@@ -508,7 +508,9 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
   const linhasPedido = e.linhas.map((l) => { const x = e.de(l); return { os: l.os, numero: l.numeroOmie || l.os, cliente: l.cliente || '', data: l.data || null, grupo: grupoDa(l), regra: l.regra, calculado: l.valor, valor: e.final(l), acao: x.acao, motivo: x.motivo, divisao: x.divisao || null, horasDiv: x.horasDiv || null, descontoCliente: d.os.faturadas.find((o) => o.os === l.os)?.descontos || null } })
   const assRef = useRef<CanvasAssinaturaRef>(null)
   const [assinou, setAssinou] = useState(false)
-  const salva = useMinhaAssinatura()
+  const salvaLida = useMinhaAssinatura()
+  const [salvaNova, setSalvaNova] = useState<string | null>(null)
+  const salva = salvaNova || salvaLida
   const [desenhar, setDesenhar] = useState(false)
   const usaSalva = !!salva && !desenhar
   const aguardando = atual?.status === 'aguardando'
@@ -576,31 +578,34 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
       {noOmie && <p className="fo-lan-of">A comissão de {nomeMes(d.mes).toLowerCase()} já está {pago ? 'paga' : 'lançada no Omie'} — mudanças agora só pelo RH.</p>}
       {e.pendentes > 0 && <p className="fo-lan-falta">Falta o motivo em {e.pendentes} OS — o diretor e o RH precisam saber por quê.</p>}
       {aviso && <p className={`fo-lan-aviso ${aviso.tipo}`}>{aviso.tipo === 'sql' ? <>Para lançar por aqui falta rodar o SQL <b>sql/diretor-comissoes.sql</b> no Supabase.</> : aviso.txt}</p>}
-      {confirmar && (
-        <div className="flc">
+      {confirmar && createPortal(
+        <div className="flc-fundo">
+        <div className="flc" role="dialog" aria-modal="true" aria-label="Pedir autorização ao diretor">
           <header className="flc-cab">
             <div><span className="flc-tit">Pedir autorização ao diretor</span><span className="flc-sub">Confira, assine e envie. O diretor recebe o aviso no sino.</span></div>
             <button type="button" className="flc-x" onClick={() => setConfirmar(false)} aria-label="Fechar"><i className="fas fa-xmark" /></button>
           </header>
           <dl className="flc-res">
-            <div><dt>Técnico</dt><dd>{(d.rh?.nomeRh || d.nome).toLowerCase().replace(/(^|s)S/g, (c) => c.toUpperCase())}</dd></div>
+            <div><dt>Técnico</dt><dd>{(d.rh?.nomeRh || d.nome).toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase())}</dd></div>
             <div><dt>Competência</dt><dd>{nomeMes(d.mes)}</dd></div>
             <div><dt>Pela regra</dt><dd>{brl2(t.calc)}</dd></div>
             <div className="tot"><dt>Comissão a pagar</dt><dd>{brl2(t.total)}</dd></div>
             {!d.escritorio && <div><dt>Caixinha {PCT_CAIXINHA}%</dt><dd>− {brl2(contaDoPagamento(t.total, e.descontos).caixinha)}</dd></div>}
             <div><dt>{d.escritorio ? 'Líquido (após descontos)' : 'Líquido (após descontos e caixinha)'}</dt><dd>{brl2(contaDoPagamento(t.total, e.descontos, !!d.escritorio).liquido)}</dd></div>
           </dl>
-          {mexidas.length > 0 && (
+          {e.linhas.length > 0 && (
             <div className="flc-mex">
-              <span className="flc-rot">OS com decisão ({mexidas.length})</span>
-              {mexidas.map((l) => { const x = e.de(l); return (
-                <div key={chaveL(l)} className="flc-ml">
-                  <span className="n">OS {l.numeroOmie || l.os}</span>
-                  <span className="o">{x.acao === 'nao' ? 'não paga' : x.divisao ? `dividida — ${Object.entries(x.divisao).map(([k, v]) => `${k.split(' ')[0]} ${brl2(v)}`).join(', ')}` : 'ajustada'}</span>
-                  <span className="m">{x.motivo || 'sem motivo'}</span>
-                  <span className="v">{brl2(l.valor)} → {brl2(e.final(l))}</span>
+              <span className="flc-rot">Ordens desta comissão ({e.linhas.length}){mexidas.length > 0 ? ` · ${mexidas.length} com decisão` : ''}</span>
+              <div className="flc-os flc-os-th"><span>OS</span><span>Cliente</span><span>Decisão</span><span className="v">A pagar</span></div>
+              {e.linhas.map((l) => { const x = e.de(l), mexeu = !!e.ed[chaveL(l)]; return (
+                <div key={chaveL(l)} className={`flc-os ${x.acao === 'nao' ? 'nao' : ''}`}>
+                  <span className="n">{l.numeroOmie || l.os}</span>
+                  <span className="c">{l.cliente || '—'}</span>
+                  <span className={mexeu ? 'o' : 'r'}>{!mexeu ? 'pela regra' : `${x.acao === 'nao' ? 'não paga' : x.divisao ? `dividida — ${Object.entries(x.divisao).map(([k, v]) => `${k.split(' ')[0]} ${brl2(v)}`).join(', ')}` : 'ajustada'}${x.motivo ? ` · ${x.motivo}` : ''}`}</span>
+                  <span className="v">{mexeu && <s>{brl2(l.valor)}</s>}{brl2(e.final(l))}</span>
                 </div>
               ) })}
+              <div className="flc-os flc-os-tot"><span>Total</span><span /><span /><span className="v">{brl2(t.total)}</span></div>
             </div>
           )}
           {e.descontos.length > 0 && (
@@ -611,15 +616,19 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
           )}
           <div className="flc-ass">
             <div className="flc-ass-cab"><span className="flc-rot">Sua assinatura</span>{assinou && <button type="button" onClick={() => assRef.current?.limpar()}>limpar</button>}</div>
+            {salva === null && <CadastrarAssinatura png={() => assRef.current?.png()} assinou={assinou} onSalva={setSalvaNova} />}
             {usaSalva ? <AssinaturaSalva imagem={salva!} onDesenhar={() => setDesenhar(true)} />
               : <div className="flc-ass-pad"><CanvasAssinatura ref={assRef} temTraco={assinou} onTraco={setAssinou} altura={150} />{!assinou && <span className="flc-ass-dica">assine aqui com o mouse ou o dedo</span>}</div>}
           </div>
+          {aviso && aviso.tipo !== 'ok' && <p className={`fo-lan-aviso ${aviso.tipo} flc-aviso`}>{aviso.tipo === 'sql' ? <>Para lançar por aqui falta rodar o SQL <b>sql/diretor-comissoes.sql</b> no Supabase.</> : aviso.txt}</p>}
           <footer className="flc-pe">
             <span>Autorizado, o portal lança no RH e gera o documento com as duas assinaturas.</span>
             <button type="button" className="flc-volta" onClick={() => setConfirmar(false)}>Cancelar</button>
             <button type="button" className="fo-lan-bt" disabled={enviando || !(assinou || usaSalva)} onClick={() => { void pedir() }}>{enviando ? 'Enviando…' : 'Assinar e enviar'}<span className="seta"><i className="fas fa-arrow-right" /></span></button>
           </footer>
         </div>
+        </div>,
+        document.body,
       )}
     </div>
   )
@@ -1072,8 +1081,11 @@ export const ESTILO_FO = `
 .fo-docs { grid-column: 1 / -1; display: grid; gap: 6px; margin: 0 22px 18px } .fo-docs > button { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 10px; align-items: center; text-align: left; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 12px; padding: 9px 14px; font-family: inherit; color: #0f172a; cursor: pointer }
 .fo-docs > button:hover { border-color: #1d4ed8 } .fo-docs > button.on { border-color: #93c5fd; background: #eff6ff } .fo-docs > button > i { color: #1d4ed8; font-size: 16px }
 .fo-docs span { display: grid; gap: 1px; min-width: 0 } .fo-docs b { font-weight: 500; font-size: 14px } .fo-docs span small { font-size: 12px; color: #64748b } .fo-docs em { font-style: normal; font-variant-numeric: tabular-nums; font-size: 14px }
-.flc { display: grid; gap: 0; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e2e8f0); border-radius: 16px; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 12px 32px rgba(15,23,42,.08); overflow: hidden; animation: ftEntra .25s both }
-.flc-cab { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 18px 22px 14px } .flc-cab > div { display: grid; gap: 3px } .flc-tit { font-size: 18px; color: #0f172a } .flc-sub { font-size: 13.5px; color: #64748b }
+.flc-fundo { position: fixed; inset: 0; z-index: 100100; background: rgba(15,23,42,.45); backdrop-filter: blur(3px); display: grid; place-items: center; padding: 16px; animation: ftFade .2s both }
+.flc { width: min(980px, 100%); max-height: calc(100vh - 32px); display: grid; gap: 0; align-content: start; background: #fefefe; color: #0f172a; font-family: inherit; border: 1px solid var(--portal-border, #e2e8f0); border-radius: 18px; box-shadow: 0 30px 80px rgba(15,23,42,.35); overflow-y: auto; overscroll-behavior: contain; animation: ftEntra .25s both }
+.flc-aviso { margin: 0 22px 14px } .flc-pe { position: sticky; bottom: 0 }
+.flc-os { display: grid; grid-template-columns: 80px minmax(0, 1.2fr) minmax(0, 1fr) 130px; gap: 12px; padding: 8px 0; border-top: 1px solid var(--portal-border, #f1f5f9); font-size: 14px; color: #0f172a; align-items: baseline } .flc-os .c { overflow: hidden; text-overflow: ellipsis; white-space: nowrap } .flc-os .r { color: #94a3b8; font-size: 13px } .flc-os .o { color: #92400e; font-size: 13px } .flc-os .v { text-align: right; font-variant-numeric: tabular-nums } .flc-os .v s { display: block; color: #94a3b8; font-size: 12px } .flc-os.nao .n, .flc-os.nao .c, .flc-os.nao .v { color: #94a3b8 }
+.flc-os-th { font-size: 12px; color: #64748b; border-top: none; padding-top: 0 } .flc-os-tot { font-weight: 500; border-top: 1px solid #cbd5e1 }.flc-cab { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 18px 22px 14px } .flc-cab > div { display: grid; gap: 3px } .flc-tit { font-size: 18px; color: #0f172a } .flc-sub { font-size: 13.5px; color: #64748b }
 .flc-x { width: 32px; height: 32px; border-radius: 50%; border: 1px solid var(--portal-border, #e2e8f0); background: #fefefe; color: #64748b; cursor: pointer }
 .flc-res { display: grid; grid-template-columns: 1.4fr 1fr 1fr 1.2fr; margin: 0; border-top: 1px solid var(--portal-border, #eef2f7); border-bottom: 1px solid var(--portal-border, #eef2f7) }
 .flc-res > div { padding: 12px 22px; display: grid; gap: 3px } .flc-res > div + div { border-left: 1px solid var(--portal-border, #eef2f7) } .flc-res dt { font-size: 12px; color: #64748b } .flc-res dd { margin: 0; font-size: 16px; color: #0f172a; font-variant-numeric: tabular-nums }

@@ -275,7 +275,7 @@ const ESTILO_EQC = `
 .eqc-vel-g { width: 100%; height: auto } .eqc-vel-g path { fill: none; stroke-width: 18; stroke-linecap: round } .eqc-vel-g .tr { stroke: #eef2f6 }
 .eqc-vel-g .ch { animation: eqcPonteiro 1.3s cubic-bezier(.2,.8,.2,1) both } @keyframes eqcPonteiro { from { stroke-dasharray: 0 100 } }
 .eqc-vel-g .hj { stroke: #0f172a; stroke-width: 3.5; stroke-linecap: round } .eqc-vel-g .pc { font-size: 34px; font-weight: 500; font-family: inherit } .eqc-vel-g .sb { font-size: 11.5px; fill: #475569; font-family: inherit }
-.eqc-vel-l { display: grid; gap: 10px } .eqc-vel-l > div { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: center; background: #f8fafc; border-radius: 12px; padding: 10px 14px; animation: eqcEntra .45s both } .eqc-vel-l > div:nth-child(2) { animation-delay: 90ms } .eqc-vel-l > div:nth-child(3) { animation-delay: 180ms }
+.eqc-vel-l { display: grid; gap: 10px } .eqc-vel-l > div { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; align-items: center; animation: eqcEntra .45s both } .eqc-vel-l > div:nth-child(2) { animation-delay: 90ms } .eqc-vel-l > div:nth-child(3) { animation-delay: 180ms }
 .eqc-vel-l span { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) 12%, #fefefe); color: var(--c); font-size: 14px }
 .eqc-vel-l p { margin: 0; font-size: 15px; color: #334155; line-height: 1.45 } .eqc-vel-l b { font-weight: 600; color: #0f172a }
 @media (max-width: 760px) { .eqc-vel { grid-template-columns: 1fr } }

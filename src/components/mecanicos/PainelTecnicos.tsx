@@ -1,6 +1,6 @@
 'use client'
 // Painel do pós-vendas (José, 16/10/2026) — uma história só, de cima para baixo:
-//  1. Faturamento ao vivo (hoje · semana · mês)
+//  1. Faturamento ao vivo: foi para o dashboard (José, 30/10/2026)
 //  2. Fita do tempo (escolhe o período)
 //  3. A CONTA do período: faturado − terceiros − gastos (abastecimento/alimentação) = resultado
 //  4. Um CARTÃO por técnico: horas × meta, faturado, gastos, km, pontos de ocorrência e resultado
@@ -16,7 +16,6 @@ import { SeletorCartoes, ESTILO_SO } from './SeletorOpcoes'
 import { DinheiroSimulador, contaDe, ESTILO_DX } from './DinheiroOpcoes'
 import { ESTILO_LD } from './LadoDireitoOpcoes'
 import { FaturamentoPeriodo, ESTILO_FP } from './FaturamentoPeriodo'
-import FaturamentoVivo from './FaturamentoVivo'
 import { useParadoVivo } from './DinheiroParado'
 import { ParadoFilaEstilo, ESTILO_PA } from './ParadoOpcoes'
 import { GarantiasNoPainel, ESTILO_GX } from './GarantiaOpcoes'
@@ -204,7 +203,6 @@ export default function PainelTecnicos() {
       <EstilosCPV />
       <style>{ESTILO_EV}</style>
       <style>{ESTILO}</style>
-      <FaturamentoVivo compacto />
       <style>{ESTILO_SO}</style>
       <style>{ESTILO_DX}</style>
       <style>{ESTILO_LD}</style>

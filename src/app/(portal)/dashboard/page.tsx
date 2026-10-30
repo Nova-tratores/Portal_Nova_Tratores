@@ -10,6 +10,7 @@ import { useAuditLog } from '@/hooks/useAuditLog'
 import { TELAS, buscarTelas, normalizar, relevancia, type Tela } from '@/lib/dashboard/telas'
 import AtalhosDashboard from '@/components/dashboard/AtalhosDashboard'
 import AgendaDashboard from '@/components/dashboard/AgendaDashboard'
+import nextDynamic from 'next/dynamic'
 import {
   Settings, ClipboardList, ListChecks, Wrench, FileText,
   DollarSign, Activity, Clock, ChevronRight, Search,
@@ -163,6 +164,9 @@ type ViewMode = 'grade' | 'lista' | 'circular' | 'omie'
 type FavFilter = 'so-favoritos' | 'todos' | 'ocultar'
 
 const defaultFolders: CardFolder[] = []
+
+// só baixa o painel (e os gráficos) para quem vai ver
+const FaturamentoVivo = nextDynamic(() => import('@/components/mecanicos/FaturamentoVivo'), { ssr: false })
 
 export default function DashboardPage() {
   const { userProfile, router } = useAuth()
@@ -1223,6 +1227,9 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      {/* Faturamento ao vivo, embaixo dos módulos: só para quem tem acesso ao Gestão Pós Vendas — José, 30/10/2026 */}
+      {activeFolder === 'todos' && !editingFolder && !loadingPerm && temAcesso('mecanicos') && <div style={{ marginTop: '28px' }}><FaturamentoVivo compacto /></div>}
 
       {/* Footer */}
       <div style={{

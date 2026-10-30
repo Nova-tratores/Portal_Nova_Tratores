@@ -13,6 +13,7 @@ import { brl2, Odometro } from './ui'
 import { ESTILO_CT, ESTILO_CT2, ESTILO_CT3 } from './CardsTecnicoOpcoes'
 import { FichaPro } from './FichaPro'
 import { useAutorizacoes } from './AutorizacoesJanela'
+import { useVersaoAoVivo } from './useAoVivo'
 import { seloEnviada } from './seloComissao'
 
 type PessoaEsc = { nome: string; foto: string | null; funcao: 'garantista' | 'sem_regra'; rh: { nome: string; cargo: string | null; departamento: string | null } | null; comissoes: { mes: string; valor: number; status: string; origem: string }[] }
@@ -60,7 +61,9 @@ function Escritorio() {
       setD(j)
     } catch (e) { setErro(e instanceof Error ? e.message : 'Falha ao calcular') }
   }
-  useEffect(() => { void ler(mes) }, [mes])
+  // faturou (aviso ao vivo do servidor): recalcula sem precisar atualizar a tela (José, 30/10/2026)
+  const versaoAoVivo = useVersaoAoVivo()
+  useEffect(() => { void ler(mes) }, [mes, versaoAoVivo])
   const pessoaAberta = d?.pessoas.find((p) => p.nome === aberto) || null
   const au = useAutorizacoes()
   const [editando, setEditando] = useState(false)
@@ -88,7 +91,7 @@ function Escritorio() {
                 <span><i className="fas fa-receipt" /> {pctTxt(d.config.pctGarantia)} das garantias + {pctTxt(d.config.pctRevisao)} das revisões{lapis}</span>
               </div>
               <div className="s1c-nums">
-                <div title="OS de garantia faturadas no mês: serviço + peças"><small>Garantias</small><b>{brl2(d.conta.garantias)}</b><em>{d.bases.garantias.length} OS · {brl2(d.conta.comGarantia)}</em></div>
+                <div title="Garantias aprovadas no mês no módulo Garantias: valor pago pela fábrica"><small>Garantias</small><b>{brl2(d.conta.garantias)}</b><em>{d.bases.garantias.length} OS · {brl2(d.conta.comGarantia)}</em></div>
                 <div title="OS de revisão faturadas no mês: serviço + peças"><small>Revisões</small><b>{brl2(d.conta.revisoes)}</b><em>{d.bases.revisoes.length} OS · {brl2(d.conta.comRevisao)}</em></div>
                 <div title="Última comissão lançada no RH"><small>No RH</small><b>{p.comissoes[0] ? brl2(p.comissoes[0].valor) : '—'}</b><em>{p.comissoes[0] ? `${p.comissoes[0].mes.slice(5)}/${p.comissoes[0].mes.slice(2, 4)} · ${p.comissoes[0].status}` : 'sem lançamento'}</em></div>
               </div>
@@ -147,7 +150,7 @@ function RegraEscritorio({ d, onMudou }: { d: DadosEsc; onMudou: () => void }) {
   return (
     <section className="ca-det">
       <div className="ca-conta">
-        <div><small>Garantias faturadas no mês</small><b>{brl2(d.conta.garantias)}</b><span>× {pctTxt(d.config.pctGarantia)} = <b>{brl2(d.conta.comGarantia)}</b></span></div>
+        <div><small>Garantias aprovadas no mês</small><b>{brl2(d.conta.garantias)}</b><span>× {pctTxt(d.config.pctGarantia)} = <b>{brl2(d.conta.comGarantia)}</b></span></div>
         <i>+</i>
         <div><small>Revisões faturadas no mês</small><b>{brl2(d.conta.revisoes)}</b>
           <span>× {d.podeEditar
