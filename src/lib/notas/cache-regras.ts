@@ -282,11 +282,19 @@ export function colunaBanco(o: Ordem, faltando: { semNumeroN?: boolean; semVincu
 
 /** Nota de ENTRADA só aparece para quem tem a permissão de Recebimentos (decisão
  *  do José, 15/10/2026): admin/dev, módulo Estoque ou Ajustes inteiro, ou as ações
- *  `estoque:recebimentos` / `ajustes:recebimentos` — o mesmo gate de /estoque/recebimentos. */
+ *  `estoque:recebimentos` / `ajustes:recebimentos` — o mesmo gate de /estoque/recebimentos —
+ *  ou `financeiro:notas-entrada` (só consulta; herdou a tela /visual-estoque/notas-entrada,
+ *  aposentada em 29/10/2026). */
 export function podeVerEntrada(isAdmin: boolean, modulos: string[] | null | undefined): boolean {
   if (isAdmin) return true;
   const m = modulos || [];
-  return m.includes('estoque') || m.includes('ajustes') || m.includes('estoque:recebimentos') || m.includes('ajustes:recebimentos');
+  return m.includes('estoque') || m.includes('ajustes') || m.includes('estoque:recebimentos') || m.includes('ajustes:recebimentos')
+    || m.includes('financeiro:notas-entrada');
+}
+
+/** `tipo` aceito na URL/API: um tipo de nota ou o grupo `saida` (produto + serviço). */
+export function ehTipoFiltro(v: unknown): v is TipoNota | 'saida' {
+  return v === 'saida' || ehTipoNota(v);
 }
 
 export type OndeBateu = 'nota' | 'pedido' | 'os' | 'cliente' | 'maquina';

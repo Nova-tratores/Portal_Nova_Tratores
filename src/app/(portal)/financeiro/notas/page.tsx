@@ -19,7 +19,7 @@ export default function NotasFiscaisPage() {
       <FinanceiroNav />
       <Suspense fallback={<div style={{ padding: 24, color: '#888', fontSize: '.85rem' }}>Carregando…</div>}>
         {/* nota de ENTRADA só para quem tem Recebimentos (mesmo gate de /estoque/recebimentos); o servidor também filtra */}
-        <NotasFiscais podeXml={pode('financeiro', 'notas-xml')} isAdmin={isAdmin} podeEntrada={pode('estoque', 'recebimentos') || pode('ajustes', 'recebimentos')} />
+        <NotasFiscais podeXml={pode('financeiro', 'notas-xml')} isAdmin={isAdmin} podeEntrada={pode('estoque', 'recebimentos') || pode('ajustes', 'recebimentos') || pode('financeiro', 'notas-entrada')} />
       </Suspense>
     </ContaProvider>
   );

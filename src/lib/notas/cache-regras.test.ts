@@ -148,6 +148,7 @@ describe('busca livre (Tudo)', () => {
     expect(podeVerEntrada(false, ['estoque'])).toBe(true);
     expect(podeVerEntrada(false, ['estoque:notas', 'estoque:recebimentos'])).toBe(true);
     expect(podeVerEntrada(false, ['ajustes:recebimentos'])).toBe(true);
+    expect(podeVerEntrada(false, ['financeiro:notas', 'financeiro:notas-entrada'])).toBe(true);
     expect(podeVerEntrada(false, ['estoque:notas', 'estoque:notas-xml'])).toBe(false);
     expect(podeVerEntrada(false, null)).toBe(false);
   });

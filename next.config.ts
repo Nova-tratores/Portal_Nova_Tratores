@@ -20,8 +20,14 @@ const nextConfig: NextConfig = {
   // em public/garantia/ — fora do (portal), sem login.
   // Notas fiscais mudaram do Estoque para o Financeiro (22/10/2026): links e
   // favoritos antigos seguem valendo (a query ?campo=&q= vai junto).
+  // Telas aposentadas em 29/10/2026 (o arquivo /financeiro/notas cobre as duas):
+  // /ajustes/notas (NF de venda ao vivo na Omie) → saída; /visual-estoque/notas-entrada → entrada.
   async redirects() {
-    return [{ source: "/estoque/notas", destination: "/financeiro/notas", permanent: false }];
+    return [
+      { source: "/estoque/notas", destination: "/financeiro/notas", permanent: false },
+      { source: "/ajustes/notas", destination: "/financeiro/notas?tipo=saida", permanent: false },
+      { source: "/visual-estoque/notas-entrada", destination: "/financeiro/notas?tipo=entrada", permanent: false },
+    ];
   },
   async rewrites() {
     return [{ source: "/garantia", destination: "/garantia/index.html" }];

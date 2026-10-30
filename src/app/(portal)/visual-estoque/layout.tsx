@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import EstResponsiveStyles from '@/components/estoque/ResponsiveStyles'
-import { LayoutDashboard, ShoppingBag, MapPin, AlertTriangle, Percent, FileInput, Send } from 'lucide-react'
+import { LayoutDashboard, ShoppingBag, MapPin, AlertTriangle, Percent, Send } from 'lucide-react'
 
 const tabs = [
   { href: '/visual-estoque', label: 'Dashboard', icon: LayoutDashboard },
@@ -12,7 +12,7 @@ const tabs = [
   { href: '/visual-estoque/patio', label: 'Pátio', icon: MapPin },
   // A aba Frota foi absorvida pelo módulo Frota (/frota)
   { href: '/visual-estoque/remessas', label: 'Remessas', icon: Send },
-  { href: '/visual-estoque/notas-entrada', label: 'Notas de Entrada', icon: FileInput },
+  // Notas de Entrada (29/10/2026): aposentada — o arquivo /financeiro/notas?tipo=entrada cobre (o endereço antigo redireciona)
   { href: '/visual-estoque/margens', label: 'Margens', icon: Percent },
   { href: '/visual-estoque/alertas', label: 'Alertas', icon: AlertTriangle },
 ]

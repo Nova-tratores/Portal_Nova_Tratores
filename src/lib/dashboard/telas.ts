@@ -113,7 +113,6 @@ export const TELAS: Tela[] = [
     ['Showroom', '/visual-estoque/showroom'],
     ['Pátio', '/visual-estoque/patio'],
     ['Remessas (Visual Estoque)', '/visual-estoque/remessas'],
-    ['Notas de Entrada (Visual Estoque)', '/visual-estoque/notas-entrada'],
     ['Margens (Visual Estoque)', '/visual-estoque/margens'],
     ['Alertas (Visual Estoque)', '/visual-estoque/alertas'],
   ]),

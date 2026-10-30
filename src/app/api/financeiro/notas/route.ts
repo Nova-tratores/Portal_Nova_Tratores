@@ -41,7 +41,8 @@ export async function GET(req: NextRequest) {
     let query = supabaseAdmin.from('notas_fiscais_docs').select(cols, { count: 'exact' });
     if (conta) query = query.eq('conta_omie', conta);
     if (!podeEntrada) query = query.neq('tipo', 'entrada');
-    if (ehTipoNota(tipo) && (podeEntrada || tipo !== 'entrada')) query = query.eq('tipo', tipo);
+    if (tipo === 'saida') query = query.in('tipo', ['saida_produto', 'saida_servico']);
+    else if (ehTipoNota(tipo) && (podeEntrada || tipo !== 'entrada')) query = query.eq('tipo', tipo);
     if (de) query = query.gte('data_emissao', de);
     if (ate) query = query.lte('data_emissao', ate);
     const or = filtroBusca(q, campo, { semVinculos });

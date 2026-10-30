@@ -14,7 +14,7 @@ import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento';
 import {
-  CAMPOS_BUSCA, ROTULO_BATEU, ROTULO_SELO, ROTULO_TIPO, TIPOS, chassiPrincipal, ehCampoBusca, linkPasta, ondeBateu, percent, selo,
+  CAMPOS_BUSCA, ROTULO_BATEU, ROTULO_SELO, ROTULO_TIPO, TIPOS, chassiPrincipal, ehCampoBusca, ehTipoFiltro, linkPasta, ondeBateu, percent, selo,
   alternarOrdem, ehOrdemPadrao, ordemParaParam, parseOrdem,
   type CampoBusca, type ColunaOrdem, type LinhaDoc, type Ordem, type Selo, type Cobertura,
 } from '@/lib/notas/cache-regras';
@@ -76,7 +76,7 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
   const pathname = usePathname();
   const sp = useSearchParams();
   const campoUrl = sp.get('campo');
-  const [tipo, setTipo] = useState('');
+  const [tipo, setTipo] = useState(() => (ehTipoFiltro(sp.get('tipo')) ? String(sp.get('tipo')) : '')); // ?tipo=entrada|saida|… (redirect das telas aposentadas)
   const [de, setDe] = useState(() => (sp.get('q') ? '' : menosDias(90)));
   const [ate, setAte] = useState(() => (sp.get('q') ? '' : hojeLocal()));
   const [q, setQ] = useState(() => sp.get('q') || '');
@@ -240,8 +240,9 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <div>
           <label style={rotulo}>Tipo</label>
-          <select value={mostraEntrada || tipo !== 'entrada' ? tipo : ''} onChange={(e) => { setTipo(e.target.value); setPagina(1); }} style={inp}>
+          <select value={mostraEntrada || (tipo !== 'entrada' && tipo !== 'saida') ? tipo : ''} onChange={(e) => { setTipo(e.target.value); setPagina(1); }} style={inp}>
             <option value="">{mostraEntrada ? 'Todas' : 'Todas (saída)'}</option>
+            {mostraEntrada && <option value="saida">Saída (peças, máquinas e serviço)</option>}
             {tiposVisiveis.map((t) => <option key={t} value={t}>{ROTULO_TIPO[t]}</option>)}
           </select>
         </div>

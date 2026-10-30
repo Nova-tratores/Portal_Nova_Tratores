@@ -185,6 +185,9 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'rastreio', label: 'Rastreio de notas (busca nota/boleto/requisição)' },
     { id: 'notas', label: 'Notas fiscais (cache PDF + XML)' },
     { id: 'notas-xml', label: 'Notas fiscais — baixar XML' },
+    // Só CONSULTA das notas de entrada no arquivo (quem dá entrada já vê pelo Recebimentos).
+    // Herdeira da consulta-estoque:notas-entrada (tela aposentada 29/10/2026).
+    { id: 'notas-entrada', label: 'Notas fiscais — ver também as de entrada (só consulta)' },
     { id: 'editar_cards', label: 'Editar cards do kanban a qualquer momento (nome, condição, valor, datas)' },
   ],
   // DRE Financeiro: granular POR TELA (cada ação = uma tela analítica). O id da
@@ -218,7 +221,8 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     // 'frota' foi absorvida pelo módulo Frota (compat removida em 16/07 —
     // ninguém mais tinha a chave legada consulta-estoque:frota)
     { id: 'remessas', label: 'Remessas' },
-    { id: 'notas-entrada', label: 'Notas de Entrada' },
+    // 'notas-entrada' aposentada em 29/10/2026 → financeiro:notas + financeiro:notas-entrada
+    // (sql/notas-telas-aposentadas.sql converte quem tinha)
     { id: 'margens', label: 'Margens' },
     { id: 'alertas', label: 'Alertas' },
   ],

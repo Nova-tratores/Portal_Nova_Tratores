@@ -56,7 +56,6 @@ export const PAGINAS_AJUSTES: PaginaAjustes[] = [
   { key: 'ajustes:remessas', label: 'Remessas em aberto', href: '/ajustes/remessas', grupo: 'Visualização', departamento: 'Estoque', funcao: 'Notas e relatórios' },
   // 'movimentacao-produto' migrou para o módulo Estoque (chave 'estoque:movimentacao-produto').
   { key: 'ajustes:antecipacoes', label: 'Antecipações', href: '/ajustes/antecipacoes', grupo: 'Visualização', departamento: 'Financeiro' },
-  { key: 'ajustes:notas', label: 'Notas fiscais', href: '/ajustes/notas', grupo: 'Visualização', departamento: 'Venda' },
   { key: 'ajustes:mahindra', label: 'Arquivo Mahindra', href: '/ajustes/mahindra', grupo: 'Visualização', departamento: 'Estoque', funcao: 'Notas e relatórios' },
   // Informação
   { key: 'ajustes:alertas', label: 'Alertas', href: '/ajustes/alertas', grupo: 'Informação', departamento: 'Estoque', funcao: 'Custo (CMC)' },
