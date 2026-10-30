@@ -264,3 +264,9 @@ O Chatwoot fork e o vigia de câmeras não estão nesta máquina. Pelo CLAUDE.md
   - o que a `/tv-painel`, o `bug-reporter.js` e o `mapa-geral` usam;
   - as tabelas que as rotas do servidor do NT_Mecanicos leem com anon.
 - As 13 rotas do portal que citam a anon key usam `SERVICE || ANON`. Em produção a service role existe, então não são afetadas.
+
+### V2 passa a decidir nas rotas (30/10/2026)
+- Aprovado pelo José depois da leitura de 21–30/10: 54.403 checagens, 3 divergências; diff 32 × 266 = 0.
+- `on` virou o padrão em produção (sem login no Railway por aqui). **Voltar atrás, sem deploy:** `PERM_V2=sombra` no Railway.
+- Vale para os três verificadores genéricos. Páginas, rotas só com `autenticar` e checagens próprias seguem na regra antiga.
+- Tela fora do catálogo continua na regra antiga. Conta criada fora do Admin pode ficar até 10 min sem acesso até o espelho rodar.

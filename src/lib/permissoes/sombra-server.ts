@@ -1,9 +1,9 @@
 // =============================================================================
 // Modo sombra das permissões v2 — lado servidor.
 //
-// PERM_V2 (env): 'sombra' (padrão em produção) = a regra antiga decide e a v2
-// é calculada em segundo plano e registrada; 'on' = a v2 decide (se o banco
-// falhar, cai na antiga) e a antiga vira a sombra; 'off' = nada. Fora de
+// PERM_V2 (env): 'on' (padrão em produção) = a v2 decide (se o banco falhar ou a
+// tela não estiver no catálogo, vale a antiga) e a antiga vira a sombra; 'sombra' =
+// a antiga decide e a v2 só é registrada; 'off' = nada. Fora de
 // produção fica 'off' a menos que PERM_V2 esteja definida (o dev usa o mesmo banco).
 //
 // Custo: telas efetivas por usuário ficam 60 s em memória (1 RPC por usuário
@@ -88,6 +88,9 @@ export async function decidirPermissao(req: Request, userId: string, ehAdmin: bo
   try {
     const r = await avaliar(userId, ehAdmin, c);
     if (!r) return antigo; // banco fora: não tranca ninguém
+    // Tela fora do catálogo (ex.: 1º minuto depois de um deploy com tela nova): a v2
+    // negaria para todos, até admin. Registra e deixa a regra antiga decidir.
+    if (!r.catalogada) { anotar(req, userId, c, antigo, r, 'antigo'); return antigo; }
     anotar(req, userId, c, antigo, r, 'v2');
     return r.v2;
   } catch {

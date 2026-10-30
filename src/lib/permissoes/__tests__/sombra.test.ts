@@ -4,11 +4,12 @@ import { agregar, decidirV2, modoV2, rotuloChecagem, telasDaChecagem } from '../
 describe('sombra', () => {
   const ef = new Set(['pos', 'pos:criar', 'estoque', 'estoque:notas']);
 
-  it('modo padrão é sombra; só aceita on/off explícitos', () => {
-    expect(modoV2(undefined)).toBe('sombra');
+  it('modo padrão é on; sombra e off só explícitos', () => {
+    expect(modoV2(undefined)).toBe('on');
+    expect(modoV2('sombra')).toBe('sombra');
     expect(modoV2('ON')).toBe('on');
     expect(modoV2('off')).toBe('off');
-    expect(modoV2('qualquer')).toBe('sombra');
+    expect(modoV2('qualquer')).toBe('on');
   });
 
   it('exigirPermissao/exigirAcessoModulo viram uma tela', () => {

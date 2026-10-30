@@ -18,7 +18,8 @@ export type ModoV2 = 'off' | 'sombra' | 'on';
 
 export function modoV2(valor: string | undefined): ModoV2 {
   const v = (valor || '').trim().toLowerCase();
-  return v === 'on' || v === 'off' ? v : 'sombra';
+  // Padrão desde 30/10/2026: a v2 decide (aprovado pelo José após 54 mil checagens na sombra).
+  return v === 'sombra' || v === 'off' ? v : 'on';
 }
 
 /** Telas da v2 que respondem por uma checagem (para registrar e conferir catálogo). */

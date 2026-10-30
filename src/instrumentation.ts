@@ -353,7 +353,7 @@ export async function register(): Promise<void> {
 
   // Permissões v2 — modo sombra (Fase 3a): as checagens das rotas comparam a regra
   // antiga com a v2 e o buffer desce a cada 60 s (RPC perm_sombra_registrar).
-  // PERM_V2 = sombra (padrão em produção) | on (v2 decide) | off.
+  // PERM_V2 = on (padrão em produção: v2 decide) | sombra (antiga decide) | off.
   {
     const { descarregarSombra, modoAtual } = await import('./lib/permissoes/sombra-server');
     const modo = modoAtual();
