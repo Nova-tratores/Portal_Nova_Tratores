@@ -31,23 +31,31 @@ const n = (v: unknown) => Number(v || 0);
 const sim = (v: unknown) => v === "S" || v === true;
 
 /** listas do Omie + OS do Omie + cliente (rota só de leitura, cache 30 min no servidor) */
+// Sem resposta em 90 s a tela desiste e mostra o erro com "Tentar de novo" —
+// antes o erro ficava no estado e ninguém mostrava: spinner eterno.
 export function useListasOmie(ativo: boolean, numOmie: string, cnpj: string) {
   const [dados, setDados] = useState<{ listas: ListasOmie | null; os: Rec | null; cliente: Rec | null; erro: string }>({ listas: null, os: null, cliente: null, erro: "" });
+  const [tentativa, setTentativa] = useState(0);
   useEffect(() => {
     if (!ativo) return;
     let vivo = true;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 90_000);
     (async () => {
       try {
-        const r = await fetch(`/api/pos/omie-listas?os=${encodeURIComponent(numOmie || "")}&cnpj=${encodeURIComponent(cnpj || "")}`, { headers: await authHeaders() });
-        const j = await r.json();
+        const r = await fetch(`/api/pos/omie-listas?os=${encodeURIComponent(numOmie || "")}&cnpj=${encodeURIComponent(cnpj || "")}`, { headers: await authHeaders(), signal: ctrl.signal });
+        const j = await r.json().catch(() => ({}));
         if (!vivo) return;
         if (!r.ok) setDados((d) => ({ ...d, erro: j.error || `Erro ${r.status}` }));
         else setDados({ listas: j.listas, os: j.os && !j.os.erro ? j.os : null, cliente: j.cliente || null, erro: "" });
-      } catch { if (vivo) setDados((d) => ({ ...d, erro: "Não consegui ler as listas do Omie." })); }
+      } catch (e) {
+        if (vivo) setDados((d) => ({ ...d, erro: (e as Error)?.name === "AbortError" ? "O Omie não respondeu em 90 segundos." : "Não consegui ler as listas do Omie." }));
+      } finally { clearTimeout(timer); }
     })();
-    return () => { vivo = false; };
-  }, [ativo, numOmie, cnpj]);
-  return dados;
+    return () => { vivo = false; clearTimeout(timer); ctrl.abort(); };
+  }, [ativo, numOmie, cnpj, tentativa]);
+  const tentarDeNovo = () => { setDados((d) => ({ ...d, erro: "" })); setTentativa((t) => t + 1); };
+  return { ...dados, tentarDeNovo };
 }
 
 // ── peças visuais no estilo do Omie
@@ -346,8 +354,8 @@ function ItemModal({ l, listas, osOmie, interna, podeEditar, linhas, abrir, fech
 }
 
 // ───────────────────────── Departamentos ─────────────────────────
-export function AbaDepartamentos({ esp, setEsp, listas, total, podeEditar }: { esp: OmieEspelho; setEsp: (f: (e: OmieEspelho) => OmieEspelho) => void; listas: ListasOmie | null; total: number; podeEditar: boolean }) {
-  if (!listas) return <Carregando />;
+export function AbaDepartamentos({ esp, setEsp, listas, total, podeEditar, erroListas, tentarListas }: { esp: OmieEspelho; setEsp: (f: (e: OmieEspelho) => OmieEspelho) => void; listas: ListasOmie | null; total: number; podeEditar: boolean; erroListas?: string; tentarListas?: () => void }) {
+  if (!listas) return <Carregando erro={erroListas} tentar={tentarListas} />;
   const soma = Object.values(esp.deptos).reduce((a, b) => a + (b || 0), 0);
   // marcar/desmarcar: os marcados dividem 100% igualmente (o último fica com o resto); o % segue editável
   const alternar = (codigo: string) => setEsp((x) => {
@@ -392,11 +400,11 @@ export function AbaDepartamentos({ esp, setEsp, listas, total, podeEditar }: { e
 }
 
 // ───────────────────────── Informações Adicionais ─────────────────────────
-export function AbaInfoAdicionais({ esp, setEsp, listas, interna, projeto, onTrocarProjeto, onNovaMaquina, pedidoCliente, ppv, oficina, cnpj, podeEditar }: {
+export function AbaInfoAdicionais({ esp, setEsp, listas, interna, projeto, onTrocarProjeto, onNovaMaquina, pedidoCliente, ppv, oficina, cnpj, podeEditar, erroListas, tentarListas }: {
   esp: OmieEspelho; setEsp: (f: (e: OmieEspelho) => OmieEspelho) => void; listas: ListasOmie | null; interna: boolean; projeto: string;
-  onTrocarProjeto?: () => void; onNovaMaquina?: () => void; numOmie: string; pedidoCliente: string; ppv?: string; oficina?: boolean; cnpj?: string; podeEditar: boolean;
+  onTrocarProjeto?: () => void; onNovaMaquina?: () => void; numOmie: string; pedidoCliente: string; ppv?: string; oficina?: boolean; cnpj?: string; podeEditar: boolean; erroListas?: string; tentarListas?: () => void;
 }) {
-  if (!listas) return <Carregando />;
+  if (!listas) return <Carregando erro={erroListas} tentar={tentarListas} />;
   const i = esp.info;
   const set = (p: Partial<OmieEspelho["info"]>) => setEsp((x) => ({ ...x, info: { ...x.info, ...p } }));
   const quando = CODIGOS_INTERNOS.find((c) => c.codigo === i.contrato)?.quando;
@@ -1084,6 +1092,12 @@ export function BuscaServico({ listas, onEscolher, rotulo = "+ Incluir serviço"
   );
 }
 
-function Carregando() {
+function Carregando({ erro, tentar }: { erro?: string; tentar?: () => void }) {
+  if (erro) return (
+    <div style={{ fontSize: 13, color: "#b91c1c", padding: 10, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+      <span><i className="fas fa-triangle-exclamation" /> Não carregou as listas do Omie: {erro}</span>
+      {tentar && <button type="button" onClick={tentar} style={{ height: 30, padding: "0 12px", borderRadius: 8, border: "1px solid #0F8B8D", background: "transparent", color: "#0F8B8D", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit" }}>Tentar de novo</button>}
+    </div>
+  );
   return <div style={{ fontSize: 13, color: CINZA, padding: 10 }}><i className="fas fa-spinner fa-spin" /> Carregando as listas do Omie…</div>;
 }

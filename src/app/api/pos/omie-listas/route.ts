@@ -25,10 +25,28 @@ export interface ListasOmie {
   servicos: { codigo: string; nCod: number; nome: string; preco: number; cabecalho: Record<string, unknown>; impostos: Record<string, unknown> }[];
   atualizadoEm: string;
 }
-const g = globalThis as unknown as { __omieListasPOS3?: { em: number; dados: ListasOmie } };
+const g = globalThis as unknown as { __omieListasPOS3?: { em: number; dados: ListasOmie }; __omieListasPOS3Carga?: Promise<ListasOmie> };
 
+// Uma carga por vez no processo (várias OS abertas juntas esperam a mesma) e, se a
+// Omie falhar, serve a cópia vencida em vez de deixar a tela sem as listas.
 async function carregarListas(): Promise<ListasOmie> {
-  if (g.__omieListasPOS3 && Date.now() - g.__omieListasPOS3.em < 30 * 60_000) return g.__omieListasPOS3.dados;
+  const cache = g.__omieListasPOS3;
+  if (cache && Date.now() - cache.em < 30 * 60_000) return cache.dados;
+  if (!g.__omieListasPOS3Carga) {
+    g.__omieListasPOS3Carga = buscarListas().finally(() => { g.__omieListasPOS3Carga = undefined; });
+  }
+  try {
+    return await g.__omieListasPOS3Carga;
+  } catch (e) {
+    if (cache) {
+      console.warn("[omie-listas] Omie falhou, servindo listas de", new Date(cache.em).toISOString(), "-", e instanceof Error ? e.message : e);
+      return cache.dados;
+    }
+    throw e;
+  }
+}
+
+async function buscarListas(): Promise<ListasOmie> {
   const d = await omie<{ departamentos?: { codigo: string; descricao: string; inativo?: string }[] }>("/geral/departamentos/", "ListarDepartamentos", { pagina: 1, registros_por_pagina: 200 });
   await espera(400);
   const p = await omie<{ cadastros?: { nCodigo: string; cDescricao: string }[] }>("/geral/parcelas/", "ListarParcelas", { pagina: 1, registros_por_pagina: 200 });
@@ -100,6 +118,7 @@ export async function GET(req: NextRequest) {
     }
     return NextResponse.json({ listas, os, cliente, clienteErro });
   } catch (e) {
+    console.error("[omie-listas]", e instanceof Error ? e.message : e);
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro ao ler o Omie." }, { status: 502 });
   }
 }
