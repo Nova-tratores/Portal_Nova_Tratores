@@ -103,7 +103,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
     const t = setTimeout(async () => {
       try {
         if (incluirTipo === "orcamento") {
-          const r = await fetch(`/api/orcamentos?q=${encodeURIComponent(docQ)}`);
+          const r = await fetch(`/api/orcamentos?q=${encodeURIComponent(docQ)}`, { headers: await authHeaders() });
           const d = r.ok ? await r.json() : null;
           // A rota devolve { orcamentos: [...] } — não um array puro
           const lista = Array.isArray(d) ? d : (Array.isArray(d?.orcamentos) ? d.orcamentos : []);
@@ -229,7 +229,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
       if (r.ok) {
         const lbl = incluirTipo === "ppv" ? `PPV ${j.id}` : `Orçamento ${j.numero || j.id}`;
         setMsg(`Peças incluídas em ${lbl}.${j.semPreco ? ` — ⚠️ ${j.semPreco} sem preço.` : ""}`);
-        await fetch(`/api/carrinhos/${sel.carrinho.id}/historico`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: incluirTipo === "ppv" ? "gerar_ppv" : "gerar_orcamento", detalhe: `Incluído em ${lbl}`, quem: userName || "" }) });
+        await fetch(`/api/carrinhos/${sel.carrinho.id}/historico`, { method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ acao: incluirTipo === "ppv" ? "gerar_ppv" : "gerar_orcamento", detalhe: `Incluído em ${lbl}`, quem: userName || "" }) });
         abrir(sel.carrinho.id);
       } else setMsg(j.error || "Erro ao incluir.");
     } catch { setMsg("Erro ao incluir."); }
@@ -238,7 +238,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
 
   const carregarLista = useCallback(async () => {
     setLoading(true);
-    try { const r = await fetch(`/api/carrinhos?status=${aba}`); setLista(r.ok ? await r.json() : []); } catch { setLista([]); }
+    try { const r = await fetch(`/api/carrinhos?status=${aba}`, { headers: await authHeaders() }); setLista(r.ok ? await r.json() : []); } catch { setLista([]); }
     setLoading(false);
   }, [aba]);
 
@@ -253,7 +253,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
     }
     setAbaDet("pecas");
     setAbrindo(true);
-    const r = await fetch(`/api/carrinhos/${id}`).finally(() => setAbrindo(false));
+    const r = await fetch(`/api/carrinhos/${id}`, { headers: await authHeaders() }).finally(() => setAbrindo(false));
     if (r.ok) {
       const d = await r.json(); setSel(d);
       setEditForm({ nome: d.carrinho.nome || "", cliente: d.carrinho.cliente || "", modelo: d.carrinho.modelo || "", servico: d.carrinho.servico || "" });
@@ -297,7 +297,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
         if (r.ok) {
           partes.push(t === "ppv" ? `PPV ${j.id || ""}` : `Orçamento ${j.numero || ""}`);
           semPrecoTotal = Math.max(semPrecoTotal, j.semPreco || 0);
-          await fetch(`/api/carrinhos/${sel.carrinho.id}/historico`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: t === "ppv" ? "gerar_ppv" : "gerar_orcamento", detalhe: t === "ppv" ? `PPV ${j.id || ""}` : `Orçamento ${j.numero || ""}`, quem: userName || "" }) });
+          await fetch(`/api/carrinhos/${sel.carrinho.id}/historico`, { method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ acao: t === "ppv" ? "gerar_ppv" : "gerar_orcamento", detalhe: t === "ppv" ? `PPV ${j.id || ""}` : `Orçamento ${j.numero || ""}`, quem: userName || "" }) });
           // Criou o PPV → abre DIRETO o modal do pedido (o mesmo do Pré-Pedido de
           // Venda), já com as peças dentro, pra completar os dados por lá.
           if (t === "ppv" && j.id) {
@@ -315,7 +315,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
   const compartilhar = async () => {
     if (!sel) return;
     setShareLink(""); setCopiado(false);
-    const r = await fetch(`/api/carrinhos/${sel.carrinho.id}/share`, { method: "POST" });
+    const r = await fetch(`/api/carrinhos/${sel.carrinho.id}/share`, { method: "POST", headers: await authHeaders() });
     const j = await r.json();
     // Link sempre no domínio de produção (pra poder enviar pra quem não tem acesso ao portal).
     const base = process.env.NEXT_PUBLIC_SITE_URL || "https://portal.novatratores.com";
@@ -336,27 +336,27 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
 
   const salvarEdicao = async () => {
     if (!sel || !editForm) return;
-    await fetch(`/api/carrinhos/${sel.carrinho.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...editForm, quem: userName || "" }) });
+    await fetch(`/api/carrinhos/${sel.carrinho.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ ...editForm, quem: userName || "" }) });
     await abrir(sel.carrinho.id); carregarLista();
   };
   const removerItem = async (item: Item) => {
     if (!sel) return;
-    await fetch(`/api/carrinhos/${sel.carrinho.id}/itens?itemId=${item.id}&codigo=${encodeURIComponent(item.codigo)}&quem=${encodeURIComponent(userName || "")}`, { method: "DELETE" });
+    await fetch(`/api/carrinhos/${sel.carrinho.id}/itens?itemId=${item.id}&codigo=${encodeURIComponent(item.codigo)}`, { method: "DELETE", headers: await authHeaders() });
     await abrir(sel.carrinho.id); carregarLista();
   };
   const mudarStatus = async (status: "aberto" | "fechado") => {
     if (!sel) return;
-    await fetch(`/api/carrinhos/${sel.carrinho.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, quem: userName || "" }) });
+    await fetch(`/api/carrinhos/${sel.carrinho.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ status, quem: userName || "" }) });
     setSel(null); carregarLista();
   };
   const excluir = async () => {
     if (!sel || !confirm("Mover este carrinho para a lixeira?")) return;
-    await fetch(`/api/carrinhos/${sel.carrinho.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "lixeira", quem: userName || "" }) });
+    await fetch(`/api/carrinhos/${sel.carrinho.id}`, { method: "PATCH", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ status: "lixeira", quem: userName || "" }) });
     setSel(null); carregarLista();
   };
   const excluirDefinitivo = async () => {
     if (!sel || !confirm("Excluir DEFINITIVAMENTE? Não dá pra desfazer.")) return;
-    await fetch(`/api/carrinhos/${sel.carrinho.id}`, { method: "DELETE" });
+    await fetch(`/api/carrinhos/${sel.carrinho.id}`, { method: "DELETE", headers: await authHeaders() });
     setSel(null); carregarLista();
   };
 

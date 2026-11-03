@@ -293,7 +293,7 @@ export default function DashboardPage() {
         const { data: { session } } = await supabase.auth.getSession()
         if (session) {
           const ts = Date.now().toString()
-          const res = await fetch('/api/portal-token', {
+          const res = await fetchAuth('/api/portal-token', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ ts })

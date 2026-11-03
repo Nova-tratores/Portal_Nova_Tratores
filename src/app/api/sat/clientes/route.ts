@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sanitizarFiltro } from "@/lib/busca-segura";
+import { autenticar } from "@/lib/auth/server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-// Busca de clientes (tabela principal) com endereço, para o SAT Digital
+// Busca de clientes (tabela principal) com endereço, para o SAT Digital.
+// O /sat abre para todo logado (PortalLayout), então aqui basta o login.
 export async function GET(req: NextRequest) {
+  if (!(await autenticar(req))) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   const q = (req.nextUrl.searchParams.get("q") || "").trim();
   if (q.length < 2) return NextResponse.json([]);
 

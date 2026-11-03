@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { lerPayloadRelease } from "@/lib/conhecimento/releases";
 import { registrarRelease, ultimasReleases } from "@/lib/conhecimento/releases-db";
-import { editaAlgo, entrar, erroResposta, negado } from "@/lib/conhecimento/rota";
+import { editaAlgo, guardarConhecimento, erroResposta, negado } from "@/lib/conhecimento/rota";
 import { registrarAuditLog } from "@/lib/server/audit-notify";
 
 export const runtime = "nodejs";
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 
 // GET — últimas versões registradas (para quem edita a base conferir que o registro está funcionando).
 export async function GET(req: NextRequest) {
-  const e = await entrar(req);
+  const e = await guardarConhecimento(req);
   if (e.resposta) return e.resposta;
   if (!editaAlgo(e.sessao)) return negado();
   try {

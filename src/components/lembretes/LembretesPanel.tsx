@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
+import { authHeaders } from '@/lib/auth/client'
 import {
   X, Bell, Plus, Clock, Check, User, Calendar,
   AlertCircle, ChevronDown, Send, Repeat
@@ -62,7 +63,7 @@ export default function LembretesPanel({
 
   const carregarLembretes = useCallback(async () => {
     if (!userId) return
-    const res = await fetch(`/api/lembretes?userId=${userId}&tipo=${filtro}`)
+    const res = await fetch(`/api/lembretes?userId=${userId}&tipo=${filtro}`, { headers: await authHeaders() })
     const data = await res.json()
     if (Array.isArray(data)) setLembretes(data)
   }, [userId, filtro])
@@ -82,7 +83,7 @@ export default function LembretesPanel({
     const dest = usuarios.find(u => u.id === destId)
     await fetch('/api/lembretes', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({
         criador_id: userId,
         criador_nome: userName,
@@ -115,7 +116,7 @@ export default function LembretesPanel({
   const concluirLembrete = async (id: string) => {
     await fetch('/api/lembretes', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ id, status: 'concluido' }),
     })
     carregarLembretes()

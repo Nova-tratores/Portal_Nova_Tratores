@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { mdParaBlocos } from "@/lib/conhecimento/blocos";
 import { rascunharComIA } from "@/lib/conhecimento/rascunho-ia";
-import { editaAlgo, entrar, erroResposta, negado } from "@/lib/conhecimento/rota";
+import { editaAlgo, guardarConhecimento, erroResposta, negado } from "@/lib/conhecimento/rota";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -11,7 +11,7 @@ export const maxDuration = 60;
 //   { modo: "converter", material }                      → só converte markdown/texto em blocos (sem IA)
 // Não grava nada: devolve o conteúdo para o editor, que salva como rascunho.
 export async function POST(req: NextRequest) {
-  const e = await entrar(req);
+  const e = await guardarConhecimento(req);
   if (e.resposta) return e.resposta;
   if (!editaAlgo(e.sessao)) return negado("Você não edita artigos da base de conhecimento.");
   const body = (await req.json().catch(() => ({}))) as { modo?: string; material?: string; titulo?: string; tela?: string; instrucao?: string };

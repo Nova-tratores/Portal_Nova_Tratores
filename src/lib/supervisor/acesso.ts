@@ -14,7 +14,8 @@ export function temSupervisorVendas(auth: Autenticado): boolean {
   return auth.modulos.some((m) => m === 'supervisor-vendas' || m.startsWith('supervisor-vendas:'));
 }
 
-export async function acessoSupervisor(
+// Nome com "guardar": é a guarda que o teste de rotas (rotas-gate.ts) reconhece.
+export async function guardarSupervisor(
   req: Request,
   { frota = false }: { frota?: boolean } = {},
 ): Promise<{ auth: Autenticado; resposta?: undefined } | { resposta: NextResponse; auth?: undefined }> {

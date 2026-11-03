@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 import { TBL_PRODUTOS, TBL_PRODUTOS_MANUAIS } from "@/lib/ppv/constants";
 
+// Carrinhos vivem na aba Catálogo do /ppv (pode("ppv", "catalogo")).
+const ACESSO = [{ modulo: "ppv", acao: "catalogo" }];
+
 // GET /api/carrinhos/:id  -> carrinho + itens + histórico
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const g = await protegerRota(req, ACESSO);
+  if (g.resposta) return g.resposta;
   const { id } = await params;
   try {
     // As três consultas são independentes: em paralelo em vez de esperar o
@@ -52,12 +58,14 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   }
 }
 
-// PATCH /api/carrinhos/:id  { nome?, cliente?, modelo?, servico?, status?, quem? }
+// PATCH /api/carrinhos/:id  { nome?, cliente?, modelo?, servico?, status? }
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const g = await protegerRota(req, ACESSO);
+  if (g.resposta) return g.resposta;
   const { id } = await params;
   try {
     const b = await req.json();
-    const quem = b?.quem ? String(b.quem) : "—";
+    const quem = autorDe(g.user); // do login, nunca do corpo
     const patch: Record<string, unknown> = { atualizado_em: new Date().toISOString() };
     for (const k of ["nome", "cliente", "modelo", "modelo_slug", "servico", "status"]) {
       if (b[k] !== undefined) patch[k] = String(b[k]);
@@ -78,7 +86,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 }
 
 // DELETE /api/carrinhos/:id  (apaga o carrinho e seus itens/histórico via cascade)
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const g = await protegerRota(req, ACESSO);
+  if (g.resposta) return g.resposta;
   const { id } = await params;
   try {
     const { error } = await supabase.from("carrinhos").delete().eq("id", id);

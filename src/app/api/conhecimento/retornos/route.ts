@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { feedbackAberto, resolverFeedback } from "@/lib/conhecimento/db";
-import { editaAlgo, entrar, erroResposta, negado, podeEditarModulo } from "@/lib/conhecimento/rota";
+import { editaAlgo, guardarConhecimento, erroResposta, negado, podeEditarModulo } from "@/lib/conhecimento/rota";
 
 export const dynamic = "force-dynamic";
 
 // Retornos dos leitores ainda sem resposta ("não ajudou" e "está desatualizado"),
 // só dos módulos que o usuário edita.
 export async function GET(req: NextRequest) {
-  const e = await entrar(req);
+  const e = await guardarConhecimento(req);
   if (e.resposta) return e.resposta;
   if (!editaAlgo(e.sessao)) return NextResponse.json({ ok: true, retornos: [] });
   try {
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
 // PATCH { id } → marca o retorno como resolvido.
 export async function PATCH(req: NextRequest) {
-  const e = await entrar(req);
+  const e = await guardarConhecimento(req);
   if (e.resposta) return e.resposta;
   if (!editaAlgo(e.sessao)) return negado();
   const { id } = (await req.json().catch(() => ({}))) as { id?: string };

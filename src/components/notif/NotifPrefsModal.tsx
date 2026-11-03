@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { X, Bell, BellOff, Lock, Loader2, Save, CheckCircle2 } from 'lucide-react'
 import { MODULOS_NOTIFICAVEIS } from '@/lib/notif/prefs'
+import { authHeaders } from '@/lib/auth/client'
 
 interface Props {
   userId: string
@@ -21,7 +22,7 @@ export default function NotifPrefsModal({ userId, onClose }: Props) {
     let alive = true
     const carregar = async () => {
       try {
-        const res = await fetch(`/api/perfil/notif-prefs?user_id=${userId}`)
+        const res = await fetch(`/api/perfil/notif-prefs?user_id=${userId}`, { headers: await authHeaders() })
         const data = await res.json()
         if (!alive) return
         setSilenciados(new Set<string>(data.silenciados || []))
@@ -53,7 +54,7 @@ export default function NotifPrefsModal({ userId, onClose }: Props) {
     try {
       const res = await fetch('/api/perfil/notif-prefs', {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ user_id: userId, silenciados: [...silenciados] }),
       })
       const data = await res.json()

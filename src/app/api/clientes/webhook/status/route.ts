@@ -1,10 +1,15 @@
 import { NextResponse } from "next/server";
+import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 
 // Diagnóstico: mostra os últimos webhooks que o Omie mandou pro portal.
 // Se "total" for 0, o Omie NÃO está enviando (webhook não configurado / URL errada).
 type WebhookLog = { recebido_em: string; topic: string; appKey: string; ping: boolean };
 
-export async function GET() {
+// Só admin (ou curl com CRON_SECRET): a lista traz a appKey das contas Omie, que é
+// justamente o que o webhook confere.
+export async function GET(req: Request) {
+  const guarda = await protegerRotaOuInterna(req, [{ admin: true }]);
+  if (guarda.resposta) return guarda.resposta;
   const g = globalThis as unknown as { __omieWebhookLog?: WebhookLog[] };
   const log = g.__omieWebhookLog || [];
   const ultimo = log[0] || null;

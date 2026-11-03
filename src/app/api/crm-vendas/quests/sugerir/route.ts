@@ -19,10 +19,18 @@ export function OPTIONS(req: NextRequest) {
   return new NextResponse(null, { status: 204, headers: corsVendas(req, 'POST, OPTIONS') });
 }
 
-export async function POST(req: NextRequest) {
+// Guarda: token do app de vendas (Bearer) que vire supervisor ativo, ou usuário
+// do portal com o CRM (regra em quemChamaVendas). Vendedor recebe 403.
+async function guardarSupervisor(req: NextRequest): Promise<NextResponse | null> {
   const quem = await quemChamaVendas(req);
   if (!quem) return json(req, { error: 'Entre no app para continuar.' }, 401);
   if (quem.tipo !== 'supervisor') return json(req, { error: 'Só o supervisor gera sugestões.' }, 403);
+  return null;
+}
+
+export async function POST(req: NextRequest) {
+  const negado = await guardarSupervisor(req);
+  if (negado) return negado;
   const body = await req.json().catch(() => ({})) as { limite?: number; simular?: boolean };
   try {
     const r = await sugerirQuests({ limite: Number(body.limite) || 10, gravar: !body.simular });

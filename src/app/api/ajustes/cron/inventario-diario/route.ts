@@ -20,4 +20,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export const POST = GET;
+// POST = mesmo cron (função, não alias: a trava de rotas confere cada método).
+export async function POST(req: NextRequest) {
+  return GET(req);
+}

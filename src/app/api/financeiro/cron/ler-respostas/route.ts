@@ -26,10 +26,11 @@ const supabase = createClient(
 const norm = (id?: string | null) => String(id || "").trim().replace(/^<|>$/g, "").toLowerCase();
 
 export async function POST(req: NextRequest) {
+  // Fail-closed: sem CRON_SECRET no ambiente ninguem passa. So header (o workflow
+  // manda x-cron-secret; segredo na query string vazava para logs de acesso).
   const secret = process.env.CRON_SECRET;
-  if (secret) {
-    const provided = req.headers.get("x-cron-secret") || req.nextUrl.searchParams.get("secret");
-    if (provided !== secret) return NextResponse.json({ ok: false, erro: "unauthorized" }, { status: 401 });
+  if (!secret || req.headers.get("x-cron-secret") !== secret) {
+    return NextResponse.json({ ok: false, erro: "unauthorized" }, { status: 401 });
   }
 
   // Mapa: message-id enviado → card
@@ -129,4 +130,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, ...stats });
 }
 
-export const GET = POST;
+export async function GET(req: NextRequest) {
+  return POST(req);
+}

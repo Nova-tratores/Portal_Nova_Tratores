@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Bell, Check, Clock, X } from 'lucide-react'
+import { authHeaders } from '@/lib/auth/client'
 
 interface Lembrete {
   id: string
@@ -22,7 +23,7 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
   const checarLembretes = useCallback(async () => {
     if (!userId) return
     try {
-      const res = await fetch(`/api/lembretes?userId=${userId}&tipo=vencidos`)
+      const res = await fetch(`/api/lembretes?userId=${userId}&tipo=vencidos`, { headers: await authHeaders() })
       const data = await res.json()
       if (!Array.isArray(data)) return
 
@@ -48,7 +49,7 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
     vistoIds.current.add(alerta.id)
     await fetch('/api/lembretes', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ id: alerta.id, status: 'concluido' }),
     })
     setAlerta(null)
@@ -61,7 +62,7 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
     const novaDataHora = new Date(`${novaData}T${novaHora}`).toISOString()
     await fetch('/api/lembretes', {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ id: alerta.id, data_hora: novaDataHora, status: 'pendente' }),
     })
     setAlerta(null)

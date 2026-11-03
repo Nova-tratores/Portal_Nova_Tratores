@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { FileText, ExternalLink, Loader2, Plus, Download, CheckCircle2, X, Package, Clock, MapPin } from "lucide-react";
 import ModalBuscaOrcamento, { statusBadge } from "./ModalBuscaOrcamento";
+import { authHeaders } from "@/lib/auth/client";
 
 interface ItemOrc { codigo?: string; descricao?: string; quantidade?: number; preco?: number; }
 interface OrcamentoVinc {
@@ -24,7 +25,7 @@ const fmt = (v: number) => (v || 0).toLocaleString("pt-BR", { minimumFractionDig
 
 // Seção da OS (Pós-Vendas) que mostra os orçamentos vinculados, com ações de
 // concluir e importar dados (peças/horas/km/observação) para a OS e o PPV.
-export default function OSorcamentosInfo({ osId, userName, onImported }: { osId: string; userName: string; onImported?: () => void }) {
+export default function OSorcamentosInfo({ osId, onImported }: { osId: string; userName?: string; onImported?: () => void }) {
   const [lista, setLista] = useState<OrcamentoVinc[]>([]);
   const [carregou, setCarregou] = useState(false);
   const [busy, setBusy] = useState("");
@@ -33,7 +34,7 @@ export default function OSorcamentosInfo({ osId, userName, onImported }: { osId:
 
   const carregar = useCallback(async () => {
     try {
-      const res = await fetch(`/api/orcamentos?os=${encodeURIComponent(osId)}`);
+      const res = await fetch(`/api/orcamentos?os=${encodeURIComponent(osId)}`, { headers: await authHeaders() });
       const data = await res.json();
       setLista(data.orcamentos || []);
     } catch {
@@ -50,7 +51,7 @@ export default function OSorcamentosInfo({ osId, userName, onImported }: { osId:
     try {
       await fetch(`/api/orcamentos/${id}/vincular`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ ordem_servico: osId }),
       });
       await carregar();
@@ -65,7 +66,7 @@ export default function OSorcamentosInfo({ osId, userName, onImported }: { osId:
     try {
       await fetch(`/api/orcamentos/${id}/vincular`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ ordem_servico: null }),
       });
       await carregar();
@@ -77,7 +78,7 @@ export default function OSorcamentosInfo({ osId, userName, onImported }: { osId:
   async function concluir(id: number) {
     setBusy(`concluir-${id}`);
     try {
-      await fetch(`/api/orcamentos/${id}/concluir`, { method: "POST" });
+      await fetch(`/api/orcamentos/${id}/concluir`, { method: "POST", headers: await authHeaders() });
       await carregar();
     } finally {
       setBusy("");
@@ -91,8 +92,8 @@ export default function OSorcamentosInfo({ osId, userName, onImported }: { osId:
     try {
       const res = await fetch(`/api/orcamentos/${o.id}/importar`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ordem_servico: osId, userName }),
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ ordem_servico: osId }),
       });
       const data = await res.json();
       if (!res.ok) {

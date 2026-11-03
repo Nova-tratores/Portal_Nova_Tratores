@@ -13,6 +13,7 @@ import ModalImportarKit from './ModalImportarKit'
 import PlanilhaPecas from './PlanilhaPecas'
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { authHeaders } from '@/lib/auth/client'
 import { useRascunho } from '@/lib/rascunho/useRascunho'
 import AvisoRascunho from '@/components/rascunho/AvisoRascunho'
 import { useConferenciaPrecos, PainelConferenciaPrecos, AvisoPrecoLinha } from '@/components/ppv/ConferenciaPrecos'
@@ -311,7 +312,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
       // Gerar PDF
       const res = await fetch('/api/orcamentos/pdf', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           numero,
           cliente: cliente.nome,

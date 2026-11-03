@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { registrarAuditLog } from "@/lib/server/audit-notify";
 import { temModulo } from "@/lib/conhecimento/artigos";
 import { atualizarNovidade, criarNovidade, idsLidos, marcarLidas, novidadesPublicadas, novidadesRascunho, obterNovidade } from "@/lib/conhecimento/releases-db";
-import { editaAlgo, entrar, erroResposta, negado, podePublicarModulo } from "@/lib/conhecimento/rota";
+import { editaAlgo, guardarConhecimento, erroResposta, negado, podePublicarModulo } from "@/lib/conhecimento/rota";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +13,7 @@ const JANELA_AVISO_MS = 30 * 24 * 60 * 60 * 1000;
 //   ?pendentes=1 → só as publicadas nos últimos 30 dias, dos módulos do usuário, que ele ainda não leu (aviso)
 //   sem parâmetro → histórico dos módulos do usuário (+ rascunhos dos módulos em que ele publica)
 export async function GET(req: NextRequest) {
-  const e = await entrar(req);
+  const e = await guardarConhecimento(req);
   if (e.resposta) return e.resposta;
   const s = e.sessao;
   try {
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
 // POST { ids: [] } → marca como lidas.  POST { criar: { modulo, titulo, texto } } → rascunho manual.
 export async function POST(req: NextRequest) {
-  const e = await entrar(req);
+  const e = await guardarConhecimento(req);
   if (e.resposta) return e.resposta;
   const s = e.sessao;
   const body = (await req.json().catch(() => ({}))) as { ids?: unknown; criar?: { modulo?: string; titulo?: string; texto?: string } };
@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
 
 // PATCH { id, acao: salvar | publicar | descartar, titulo?, texto? }
 export async function PATCH(req: NextRequest) {
-  const e = await entrar(req);
+  const e = await guardarConhecimento(req);
   if (e.resposta) return e.resposta;
   const s = e.sessao;
   const body = (await req.json().catch(() => ({}))) as { id?: string; acao?: string; titulo?: string; texto?: string };

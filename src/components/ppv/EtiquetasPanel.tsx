@@ -273,7 +273,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       let ordem: string[] | null = null
       let ocultas: string[] | null = null
       try {
-        const r = await fetch(`/api/perfil/ui-prefs?user_id=${encodeURIComponent(uid)}&chave=${CHAVE_PREF_COLUNAS}`)
+        const r = await fetch(`/api/perfil/ui-prefs?user_id=${encodeURIComponent(uid)}&chave=${CHAVE_PREF_COLUNAS}`, { headers: await authHeaders() })
         if (r.ok) {
           const d = await r.json()
           if (d.valor && typeof d.valor === 'object') {
@@ -446,7 +446,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
     try { localStorage.setItem(ORDEM_KEY(uid), JSON.stringify(ordem)); localStorage.setItem(OCULTAS_KEY(uid), JSON.stringify(ocultas)) } catch { /* ignore */ }
     try {
       await fetch('/api/perfil/ui-prefs', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        method: 'PUT', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ user_id: uid, chave: CHAVE_PREF_COLUNAS, valor: { ordem, ocultas } }),
       })
     } catch { /* best-effort */ }

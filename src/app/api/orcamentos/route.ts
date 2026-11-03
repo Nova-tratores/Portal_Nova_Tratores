@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { sanitizarFiltro } from "@/lib/busca-segura";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,11 @@ function calcExpiracao(createdAt: string | null, validade: number | null) {
 
 // GET /api/orcamentos?os=<id>  -> orçamentos vinculados à OS (detalhe completo)
 // GET /api/orcamentos?q=<termo> -> busca para o modal de vincular (lista leve)
+// Chamadores: /orcamentos, a OS do /pos (orçamentos vinculados) e o Catálogo do /ppv
+// ("Adicionar produtos em… Orçamento") — basta abrir uma dessas telas.
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "orcamentos" }, { modulo: "pos" }, { modulo: "ppv" }]);
+  if (g.resposta) return g.resposta;
   const os = (req.nextUrl.searchParams.get("os") || "").trim();
   const q = (req.nextUrl.searchParams.get("q") || "").trim();
 

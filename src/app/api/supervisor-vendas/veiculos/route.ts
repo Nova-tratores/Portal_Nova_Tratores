@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { fetchRotaExata, fetchTudo, computarESalvarRota } from "@/lib/pos/rastreamento";
 import { normalizarPlaca } from "@/lib/frota/placa";
-import { acessoSupervisor } from "@/lib/supervisor/acesso";
+import { guardarSupervisor } from "@/lib/supervisor/acesso";
 import { diaBR } from "@/lib/frota/mapa-vivo";
 
 export const maxDuration = 60;
@@ -14,7 +14,7 @@ const supabase = createClient(
 
 export async function GET(req: NextRequest) {
   // leitura do rastreamento: Frota ou Supervisor de Vendas (antes era aberta)
-  const acesso = await acessoSupervisor(req, { frota: true });
+  const acesso = await guardarSupervisor(req, { frota: true });
   if (acesso.resposta) return acesso.resposta;
   const acao = req.nextUrl.searchParams.get("acao") || "posicoes";
   const hoje = diaBR();
@@ -206,7 +206,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const acesso = await acessoSupervisor(req);
+  const acesso = await guardarSupervisor(req);
   if (acesso.resposta) return acesso.resposta;
   try {
     const { vendedor_id, vendedor_nome, placa } = await req.json();

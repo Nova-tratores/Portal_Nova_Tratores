@@ -4,6 +4,7 @@
 // docs/omie-fila-agendador-plano.md) e o resultado da última execução de cada um.
 import { useEffect, useMemo, useState } from 'react'
 import { Github, Server, Triangle, AlertTriangle, RefreshCw } from 'lucide-react'
+import { fetchAuth } from '@/lib/auth/client'
 import {
   AGENDAMENTOS,
   FONTE_LABEL,
@@ -198,7 +199,7 @@ export default function CatalogoGithub() {
   async function carregarStatus() {
     setCarregando(true)
     try {
-      const r = await fetch('/api/agendamentos/status')
+      const r = await fetchAuth('/api/agendamentos/status')
       const d = await r.json()
       if (d.ok) {
         setRuns(d.runs || {}); setTokenAusente(false); setErroStatus('')

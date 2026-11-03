@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import {
   exibeDesloc, exibeMaoObra, linhasDoOrcamento, subtotalLinha, totaisServicos,
   type LinhaServico,
@@ -273,7 +274,10 @@ function gerarHTML(dados: BodyOrc) {
 </body></html>`;
 }
 
+// Chamado pelo editor e pela lista do /orcamentos (temAcesso("orcamentos")).
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "orcamentos" }]);
+  if (g.resposta) return g.resposta;
   try {
     const body: BodyOrc = await req.json();
 

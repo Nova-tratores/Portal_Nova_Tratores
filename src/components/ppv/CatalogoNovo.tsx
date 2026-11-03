@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback, useRef, type CSSProperties, type MouseEvent as RMouseEvent } from "react";
 import CarrinhosPanel from "./CarrinhosPanel";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { authHeaders, fetchAuth } from "@/lib/auth/client";
 
 interface Peca { id: number; code: string; name: string; reference: string; qtd: number | null; unit: string | null; compravel?: boolean; figura?: any; figura_id?: string; modelos?: string[] }
 
@@ -70,7 +71,8 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
   const [salvando, setSalvando] = useState(false);
   const imgBoxRef = useRef<HTMLDivElement | null>(null);
   const marcaAtual = modeloSel?.marca || marcaSel?.nome || "";
-  const podeEditar = /ventura/i.test(marcaAtual);
+  // Link público (travado) não edita: a rota das bolinhas exige login.
+  const podeEditar = !travado && /ventura/i.test(marcaAtual);
   // Deep-link do catálogo (só standalone, não no drawer): a URL reflete a navegação.
   const urlInicialRef = useRef(typeof window !== "undefined" ? window.location.search : "");
   const [urlPronto, setUrlPronto] = useState(!!onSelecionarPeca); // embutido não sincroniza
@@ -373,7 +375,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
   const addToCart = useCallback((p: { code: string; name: string }, qty = 1) => {
     // Carrinho salvo ativo → grava direto nele (persistido).
     if (carrinhoAtivo) {
-      fetch(`/api/carrinhos/${carrinhoAtivo.id}/itens`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo: p.code, descricao: p.name, qtd: qty, quem: userName || "" }) }).catch(() => {});
+      fetchAuth(`/api/carrinhos/${carrinhoAtivo.id}/itens`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo: p.code, descricao: p.name, qtd: qty }) }).catch(() => {});
       setToast(`Adicionado a "${carrinhoAtivo.nome}": ${p.code}`); setTimeout(() => setToast(""), 1500);
       return;
     }
@@ -391,7 +393,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
     setSalvandoCarrinho(true);
     try {
       const r = await fetch("/api/carrinhos", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({
           // O nome do cliente entra no nome do carrinho: é assim que se acha
           // depois na lista ("Revisão 6060 P2 — João da Silva").
@@ -426,7 +428,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
           .map((p: any) => ({ id: String(p.id), rotulo: `PPV ${p.id} — ${p.cliente || "sem cliente"}`, sub: p.status || "" })));
       } else {
         // ?q= é obrigatório: sem ele a rota cai no ramo "por OS" e devolve vazio
-        const r = await fetch("/api/orcamentos?q=");
+        const r = await fetch("/api/orcamentos?q=", { headers: await authHeaders() });
         const d = await r.json();
         const lista = Array.isArray(d) ? d : (Array.isArray(d?.orcamentos) ? d.orcamentos : []);
         setDocsAbertos(lista
@@ -546,7 +548,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
     const ordemPorSlug = new Map<string, number>();
     fams.forEach((f, idx) => f.variantes.forEach((m) => ordemPorSlug.set(m.slug, idx + 1)));
     setModelos((prev) => prev.map((m) => (ordemPorSlug.has(m.slug) ? { ...m, ordem: ordemPorSlug.get(m.slug)! } : m)));
-    fetch("/api/catalogo", {
+    fetchAuth("/api/catalogo", {
       method: "PATCH", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ acao: "ordenar-modelos", ordens: [...ordemPorSlug].map(([slug, ordem]) => ({ slug, ordem })) }),
     }).catch(() => {});
@@ -682,7 +684,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
     setSalvando(true);
     try {
       const r = await fetch("/api/catalogo/hotspots", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ figuraId: figura.id, hotspots: hsEdit }),
       });
       if (r.ok) {

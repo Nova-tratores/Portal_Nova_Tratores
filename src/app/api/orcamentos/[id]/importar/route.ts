@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 import { TBL_OS, TBL_ITENS } from "@/lib/pos/constants";
 import { getConfigPOS } from "@/lib/pos/config";
 import { gerarProximoId, vincularPPVnaOS, atualizarValorTotal } from "@/lib/ppv/queries";
@@ -16,7 +17,7 @@ interface ItemOrc {
   preco?: number;
 }
 
-// POST /api/orcamentos/[id]/importar  body: { ordem_servico, userName }
+// POST /api/orcamentos/[id]/importar  body: { ordem_servico }  (autor = login)
 // Importa os dados do orçamento para a OS e o PPV:
 //  - Horas e KM SUBSTITUEM os valores da OS (Qtd_HR / Qtd_KM).
 //  - Observação é anexada à descrição do serviço (sem duplicar).
@@ -24,11 +25,15 @@ interface ItemOrc {
 //    (cria um PPV novo se a OS ainda não tiver).
 //  - Recalcula o Valor_Total da OS (mesma fórmula do PATCH da OS).
 //  - Marca o orçamento como aprovado e vinculado à OS.
+// Mexe na OS e no PPV: quem edita a OS (pode("pos","editar")) ou quem gera OS/PPV
+// a partir do orçamento (pode("orcamentos","gerar")).
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const g = await protegerRota(req, [{ modulo: "pos", acao: "editar" }, { modulo: "orcamentos", acao: "gerar" }]);
+  if (g.resposta) return g.resposta;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const osId = String(body.ordem_servico || "").trim();
-  const userName = String(body.userName || "Sistema");
+  const userName = autorDe(g.user); // do login, nunca do corpo
   if (!osId) return NextResponse.json({ error: "OS não informada." }, { status: 400 });
 
   // 1) Carrega orçamento + OS

@@ -16,7 +16,8 @@ export interface Sessao {
   respNomes: Record<string, string>;
 }
 
-export async function entrar(req: Request): Promise<{ sessao: Sessao; resposta?: never } | { sessao?: never; resposta: NextResponse }> {
+/** Guarda das rotas do conhecimento: exige login (autenticar) e monta a sessão. */
+export async function guardarConhecimento(req: Request): Promise<{ sessao: Sessao; resposta?: never } | { sessao?: never; resposta: NextResponse }> {
   const auth = await autenticar(req);
   if (!auth) return { resposta: NextResponse.json({ ok: false, erro: "Não autenticado" }, { status: 401 }) };
   try {
@@ -33,6 +34,9 @@ export async function entrar(req: Request): Promise<{ sessao: Sessao; resposta?:
     return { resposta: erroResposta(e, "sessão") };
   }
 }
+
+/** Nome antigo (rotas ainda não migradas, ex.: releases). */
+export const entrar = guardarConhecimento;
 
 /** Pode editar ALGUM módulo (para mostrar o botão "Novo artigo" e a fila). */
 export function editaAlgo(s: Sessao): boolean {

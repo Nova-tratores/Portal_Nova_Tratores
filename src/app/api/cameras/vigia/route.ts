@@ -172,10 +172,15 @@ async function circularNaFoto(buf: Buffer, box: CaixaAlvo): Promise<Buffer> {
   }
 }
 
+// Guarda do PUT: o script do PC da loja manda o token no corpo (não tem login).
+function tokenValidoVigia(token: unknown): boolean {
+  return typeof token === "string" && token === TOKEN_VIGIA;
+}
+
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
-    if (body.token !== TOKEN_VIGIA) {
+    if (!tokenValidoVigia(body.token)) {
       return NextResponse.json({ error: "token inválido" }, { status: 401 });
     }
     // Canal com filtro de IA: só segue se a foto tiver o alvo.

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { limparItens, type OrigemEtiqueta } from '@/lib/etiquetas/estacao'
 import { cancelar, enfileirar, recentes, reenviar, situacao } from '@/lib/etiquetas/estacao-server'
-import { acessoEtiquetas, erroEstacao } from './acesso'
+import { guardarEstacaoEtiquetas, erroEstacao } from './acesso'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 const ORIGENS: OrigemEtiqueta[] = ['ppv', 'opa', 'patrimonio', 'teste']
 
 export async function GET(req: NextRequest) {
-  const a = await acessoEtiquetas(req)
+  const a = await guardarEstacaoEtiquetas(req)
   if (a.resposta) return a.resposta
   try {
     const comRecentes = req.nextUrl.searchParams.get('recentes') === '1'
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const a = await acessoEtiquetas(req)
+  const a = await guardarEstacaoEtiquetas(req)
   if (a.resposta) return a.resposta
   const b = await req.json().catch(() => null) as { origem?: string; itens?: unknown; acao?: string; id?: unknown } | null
   try {

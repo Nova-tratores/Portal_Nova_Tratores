@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
+
+// Carrinhos vivem na aba Catálogo do /ppv (pode("ppv", "catalogo")).
+const ACESSO = [{ modulo: "ppv", acao: "catalogo" }];
 
 // GET /api/carrinhos?status=aberto|fechado  -> lista com contagem de itens
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, ACESSO);
+  if (g.resposta) return g.resposta;
   const status = req.nextUrl.searchParams.get("status") || "aberto";
   try {
     const { data: brutos, error } = await supabase
@@ -38,11 +44,14 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/carrinhos  { nome, cliente, modelo, modelo_slug, servico, criadoPor, itens: [{codigo, descricao, qtd, cadastrado}] }
+// POST /api/carrinhos  { nome, cliente, modelo, modelo_slug, servico, itens: [{codigo, descricao, qtd, cadastrado}] }
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, ACESSO);
+  if (g.resposta) return g.resposta;
   try {
     const b = await req.json();
-    const criadoPor = b?.criadoPor ? String(b.criadoPor) : null;
+    // autoria do login, nunca do corpo
+    const criadoPor = autorDe(g.user);
     const { data: cart, error } = await supabase
       .from("carrinhos")
       .insert({

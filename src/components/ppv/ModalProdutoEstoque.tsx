@@ -7,6 +7,7 @@ import { useState, useEffect } from "react";
 import type { BuscarResult } from "@/lib/estoque/types";
 import { useAuth } from "@/hooks/useAuth";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { authHeaders, fetchAuth } from "@/lib/auth/client";
 
 interface Props {
   open: boolean;
@@ -57,11 +58,11 @@ export default function ModalProdutoEstoque({ open, codigo, descricao, onClose }
       .then((rs) => setResultados(rs))
       .finally(() => setCarregando(false));
     // Características (localização/ajustes) + observação, em paralelo.
-    fetch(`/api/produtos/caracteristicas?codigo=${encodeURIComponent(codigo)}`)
+    fetchAuth(`/api/produtos/caracteristicas?codigo=${encodeURIComponent(codigo)}`)
       .then((r) => r.json())
       .then((d) => setCaracts(Array.isArray(d?.itens) ? d.itens : []))
       .catch(() => {});
-    fetch(`/api/produtos/observacao?codigo=${encodeURIComponent(codigo)}`)
+    fetchAuth(`/api/produtos/observacao?codigo=${encodeURIComponent(codigo)}`)
       .then((r) => r.json())
       .then((d) => setObservacao(d?.observacao || ""))
       .catch(() => {});
@@ -74,7 +75,7 @@ export default function ModalProdutoEstoque({ open, codigo, descricao, onClose }
     try {
       await fetch("/api/produtos/observacao", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ codigo, observacao, atualizadoPor: userProfile?.nome || "" }),
       });
       setObsSalva(true);

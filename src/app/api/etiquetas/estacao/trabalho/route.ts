@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { concluir, sinalEPegar } from '@/lib/etiquetas/estacao-server'
-import { acessoEtiquetas, erroEstacao } from '../acesso'
+import { guardarEstacaoEtiquetas, erroEstacao } from '../acesso'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
 // POST { id, ok, erro? } → resultado da impressão
 
 export async function GET(req: NextRequest) {
-  const a = await acessoEtiquetas(req)
+  const a = await guardarEstacaoEtiquetas(req)
   if (a.resposta) return a.resposta
   const p = req.nextUrl.searchParams
   try {
@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const a = await acessoEtiquetas(req)
+  const a = await guardarEstacaoEtiquetas(req)
   if (a.resposta) return a.resposta
   const b = await req.json().catch(() => null) as { id?: unknown; ok?: unknown; erro?: unknown } | null
   const id = Number(b?.id)

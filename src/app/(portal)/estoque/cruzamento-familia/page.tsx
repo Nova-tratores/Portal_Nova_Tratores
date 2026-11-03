@@ -4,6 +4,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
+import { authHeaders } from '@/lib/auth/client';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
@@ -405,7 +406,7 @@ export default function CruzamentoFamiliaPage() {
     (async () => {
       let tipos: string[] | null = null;
       try {
-        const r = await fetch(`/api/perfil/ui-prefs?user_id=${encodeURIComponent(uid)}&chave=${CHAVE_PREF_TIPOS}`);
+        const r = await fetch(`/api/perfil/ui-prefs?user_id=${encodeURIComponent(uid)}&chave=${CHAVE_PREF_TIPOS}`, { headers: await authHeaders() });
         if (r.ok) { const d = await r.json(); if (d.valor && Array.isArray(d.valor.tipos)) tipos = d.valor.tipos.map(String); }
       } catch { /* fallback */ }
       if (!tipos) { try { const raw = localStorage.getItem(TIPOS_KEY(uid)); if (raw) { const a = JSON.parse(raw); if (Array.isArray(a)) tipos = a.map(String); } } catch { /* ignore */ } }
@@ -434,7 +435,7 @@ export default function CruzamentoFamiliaPage() {
     const uid = userProfile?.id; if (!uid) return;
     const arr = Array.from(sel);
     try { localStorage.setItem(TIPOS_KEY(uid), JSON.stringify(arr)); } catch { /* ignore */ }
-    try { fetch('/api/perfil/ui-prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: uid, chave: CHAVE_PREF_TIPOS, valor: { tipos: arr } }) }); } catch { /* best-effort */ }
+    authHeaders().then((h) => fetch('/api/perfil/ui-prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify({ user_id: uid, chave: CHAVE_PREF_TIPOS, valor: { tipos: arr } }) })).catch(() => { /* best-effort */ });
   };
 
   // Séries escolhidas (ordem da API preservada). Enquanto inicializa, mostra top 8.

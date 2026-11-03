@@ -607,7 +607,7 @@ export default function CaracteristicasPage() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch('/api/ajustes/caracteristicas/sinalizar');
+        const r = await fetch('/api/ajustes/caracteristicas/sinalizar', { headers: await authHeaders() });
         if (!r.ok) return;
         const d = await r.json();
         if (!Array.isArray(d.sinalizacoes)) return;
@@ -663,7 +663,7 @@ export default function CaracteristicasPage() {
   useEffect(() => {
     (async () => {
       try {
-        const r = await fetch('/api/ajustes/caracteristicas/ok');
+        const r = await fetch('/api/ajustes/caracteristicas/ok', { headers: await authHeaders() });
         if (!r.ok) return;
         const d = await r.json();
         if (!Array.isArray(d.ok)) return;
@@ -785,7 +785,7 @@ export default function CaracteristicasPage() {
       let ordem: string[] | null = null;
       let ocultas: string[] | null = null;
       try {
-        const r = await fetch(`/api/perfil/ui-prefs?user_id=${encodeURIComponent(uid)}&chave=${CHAVE_PREF_COLUNAS}`);
+        const r = await fetch(`/api/perfil/ui-prefs?user_id=${encodeURIComponent(uid)}&chave=${CHAVE_PREF_COLUNAS}`, { headers: await authHeaders() });
         if (r.ok) {
           const d = await r.json();
           if (d?.valor && typeof d.valor === 'object') {

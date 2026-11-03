@@ -2,6 +2,7 @@
 //  GET  -> verificação do webhook (Meta envia hub.challenge)
 //  POST -> recebe mensagens dos clientes e responde com o Tratorilson
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { enviarWhatsApp, responderCliente } from "@/lib/whatsapp";
 
 export const dynamic = "force-dynamic";
@@ -16,16 +17,32 @@ export async function GET(req: NextRequest) {
   const mode = sp.get("hub.mode");
   const token = sp.get("hub.verify_token");
   const challenge = sp.get("hub.challenge");
-  if (mode === "subscribe" && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+  const esperado = process.env.WHATSAPP_VERIFY_TOKEN || "";
+  if (mode === "subscribe" && !!esperado && token === esperado) {
     return new Response(challenge || "", { status: 200, headers: { "Content-Type": "text/plain" } });
   }
   return new Response("Forbidden", { status: 403 });
 }
 
+// Assinatura da Meta (X-Hub-Signature-256 = HMAC-SHA256 do corpo cru com o App
+// Secret). Sem WHATSAPP_APP_SECRET ninguém passa: quem soubesse a URL fazia o
+// número da empresa responder a qualquer telefone, gastando IA e mensagens.
+function assinaturaMetaValida(cru: string, assinatura: string | null): boolean {
+  const segredo = process.env.WHATSAPP_APP_SECRET || "";
+  if (!segredo || !assinatura?.startsWith("sha256=")) return false;
+  const esperado = Buffer.from(crypto.createHmac("sha256", segredo).update(cru, "utf8").digest("hex"));
+  const recebido = Buffer.from(assinatura.slice(7));
+  return esperado.length === recebido.length && crypto.timingSafeEqual(esperado, recebido);
+}
+
 // --- Receção de mensagens ---
 export async function POST(req: NextRequest) {
+  const cru = await req.text();
+  if (!assinaturaMetaValida(cru, req.headers.get("x-hub-signature-256"))) {
+    return new Response("Forbidden", { status: 401 });
+  }
   try {
-    const body = await req.json();
+    const body = JSON.parse(cru);
     const value = body?.entry?.[0]?.changes?.[0]?.value;
     const msg = value?.messages?.[0];
 

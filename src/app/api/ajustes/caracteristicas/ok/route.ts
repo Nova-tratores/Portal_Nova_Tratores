@@ -2,13 +2,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
 
 export const dynamic = 'force-dynamic';
 
 // Marca "OK / conferido" COMPARTILHADA, por PRODUTO (empresa × codigo_produto).
 // Excludente com a sinalização: marcar OK apaga as pendencias do produto.
-// Leitura livre; escrita autenticada e via service role (RLS bloqueia o cliente).
+// Leitura com a permissão da tela; escrita autenticada e via service role (RLS bloqueia o cliente).
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
@@ -16,7 +17,10 @@ const supabase = createClient(
 );
 
 // GET → todos os produtos marcados OK.
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Leitura = mesma permissão da tela que usa (/ajustes/caracteristicas).
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'caracteristicas' }]);
+  if (g.resposta) return g.resposta;
   const { data, error } = await supabase
     .from('caracteristicas_ok')
     .select('empresa, codigo_produto, conferido_nome, conferido_em');

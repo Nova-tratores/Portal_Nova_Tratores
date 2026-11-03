@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { authHeaders, fetchAuth } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import CmcChart from '@/components/estoque/CmcChart';
@@ -47,7 +48,7 @@ export default function EstoqueBuscaPage() {
       setDados(d as BuscarResult);
       // Observação salva do produto (portal), em paralelo.
       setObsSalva(false);
-      fetch(`/api/produtos/observacao?codigo=${encodeURIComponent(c)}`)
+      fetchAuth(`/api/produtos/observacao?codigo=${encodeURIComponent(c)}`)
         .then((res) => res.json())
         .then((od) => setObservacoes(od?.observacao || ''))
         .catch(() => {});
@@ -73,7 +74,7 @@ export default function EstoqueBuscaPage() {
     try {
       await fetch('/api/produtos/observacao', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ codigo: c, observacao: observacoes, atualizadoPor: userProfile?.nome || '' }),
       });
       setObsSalva(true);

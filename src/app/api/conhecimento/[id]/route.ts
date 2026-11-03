@@ -6,7 +6,7 @@ import {
   type TipoFeedbackKb,
 } from "@/lib/conhecimento/db";
 import { marcarRevisado } from "@/lib/conhecimento/releases-db";
-import { entrar, erroResposta, negado, podeEditarModulo, podePublicarModulo } from "@/lib/conhecimento/rota";
+import { guardarConhecimento, erroResposta, negado, podeEditarModulo, podePublicarModulo } from "@/lib/conhecimento/rota";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +14,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 // GET /api/conhecimento/<id ou slug>
 export async function GET(req: NextRequest, ctx: Ctx) {
-  const e = await entrar(req);
+  const e = await guardarConhecimento(req);
   if (e.resposta) return e.resposta;
   const s = e.sessao;
   try {
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
 
 // PATCH /api/conhecimento/<id> { acao: salvar | publicar | descartar | arquivar | reabrir | revisado | meta, ... }
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  const e = await entrar(req);
+  const e = await guardarConhecimento(req);
   if (e.resposta) return e.resposta;
   const s = e.sessao;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
@@ -108,7 +108,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 
 // POST /api/conhecimento/<id> { tipo: leitura | ajudou | nao_ajudou | desatualizado, comentario?, tela? }
 export async function POST(req: NextRequest, ctx: Ctx) {
-  const e = await entrar(req);
+  const e = await guardarConhecimento(req);
   if (e.resposta) return e.resposta;
   const s = e.sessao;
   const body = (await req.json().catch(() => ({}))) as { tipo?: string; comentario?: string; tela?: string };

@@ -5,6 +5,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { supabase } from '@/lib/supabase'
+import { authHeaders } from '@/lib/auth/client'
 import {
   Plus, X, Search, Clock, User, Calendar, Check, Play, Ban, CheckCircle2,
   Headset, MapPin, AlertTriangle, Building2,
@@ -102,7 +103,7 @@ export default function SatPage() {
     if (q.trim().length < 2) { setResultados([]); return }
     buscaTimeout.current = setTimeout(async () => {
       setBuscando(true)
-      const res = await fetch(`/api/sat/clientes?q=${encodeURIComponent(q)}`)
+      const res = await fetch(`/api/sat/clientes?q=${encodeURIComponent(q)}`, { headers: await authHeaders() })
       const data = await res.json()
       setResultados(Array.isArray(data) ? data : [])
       setBuscando(false)

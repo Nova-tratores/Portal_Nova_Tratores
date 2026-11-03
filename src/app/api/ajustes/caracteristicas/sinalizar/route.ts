@@ -2,12 +2,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
 
 export const dynamic = 'force-dynamic';
 
 // Sinalização (pendência) COMPARTILHADA de características, por célula
-// (empresa × codigo_produto × coluna). Leitura livre (dado compartilhado);
+// (empresa × codigo_produto × coluna). Leitura com a permissão da tela (dado compartilhado);
 // escrita autenticada e via service role (RLS bloqueia escrita do cliente).
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -16,7 +17,10 @@ const supabase = createClient(
 );
 
 // GET → todas as sinalizações ativas (dataset pequeno: só as marcadas).
-export async function GET() {
+export async function GET(req: NextRequest) {
+  // Leitura = mesma permissão da tela que usa (/ajustes/caracteristicas).
+  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'caracteristicas' }]);
+  if (g.resposta) return g.resposta;
   const { data, error } = await supabase
     .from('caracteristicas_sinalizacoes')
     .select('empresa, codigo_produto, coluna, sinalizado_nome, criado_em');

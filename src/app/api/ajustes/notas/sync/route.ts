@@ -1,20 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/ajustes/conta';
 import { syncNotasSaida, syncNotasTodasContas } from '@/lib/ajustes/notas-sync';
+import { protegerRotaOuInterna } from '@/lib/auth/chamada-interna';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 800;
 
-// Trigger manual do sync de notas (backfill/incremental). Protegido por Bearer
-// CRON_SECRET quando definido; aberto quando nao ha secret (uso local/backfill).
-const CRON_SECRET = process.env.CRON_SECRET || '';
-function autorizado(req: NextRequest): boolean {
-  if (!CRON_SECRET) return true; // dev/local sem secret
-  return (req.headers.get('authorization') || '') === `Bearer ${CRON_SECRET}`;
-}
+// Trigger manual do sync de notas (backfill/incremental). Sem chamador no codigo:
+// roda por curl com Bearer CRON_SECRET (ou x-cron-secret) ou por admin logado.
+// Fechado tambem sem CRON_SECRET no ambiente (antes ficava aberto no local).
 
 export async function GET(req: NextRequest) {
-  if (!autorizado(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const g = await protegerRotaOuInterna(req, [{ admin: true }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const modo = (sp.get('modo') === 'backfill' ? 'backfill' : 'incremental') as 'backfill' | 'incremental';
   const desdeBR = sp.get('desde') || undefined;
@@ -31,4 +29,6 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export const POST = GET;
+export async function POST(req: NextRequest) {
+  return GET(req);
+}

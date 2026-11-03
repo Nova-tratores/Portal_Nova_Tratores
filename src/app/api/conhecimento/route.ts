@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { registrarAuditLog } from "@/lib/server/audit-notify";
 import { aguardaAprovacao, artigosDaTela, normalizarTela, podeLer, validarConteudo } from "@/lib/conhecimento/artigos";
 import { criar, listar, notificar, publicadosDaTela } from "@/lib/conhecimento/db";
-import { editaAlgo, entrar, erroResposta, negado, podeEditarModulo, podePublicarModulo } from "@/lib/conhecimento/rota";
+import { editaAlgo, guardarConhecimento, erroResposta, negado, podeEditarModulo, podePublicarModulo } from "@/lib/conhecimento/rota";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 //   ?q=&modulo=           → lista para a busca (leitor: só publicados que pode ler)
 //   ?fila=1               → o que espera aprovação nos módulos que o usuário edita
 export async function GET(req: NextRequest) {
-  const e = await entrar(req);
+  const e = await guardarConhecimento(req);
   if (e.resposta) return e.resposta;
   const s = e.sessao;
   const sp = req.nextUrl.searchParams;
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/conhecimento — cria um artigo como RASCUNHO.
 export async function POST(req: NextRequest) {
-  const e = await entrar(req);
+  const e = await guardarConhecimento(req);
   if (e.resposta) return e.resposta;
   const s = e.sessao;
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;

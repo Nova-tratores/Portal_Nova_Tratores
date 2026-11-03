@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { sanitizarSilenciados, modulosObrigatorios } from '@/lib/notif/prefs';
+import { autenticar } from '@/lib/auth/server';
 
 // Service role: a escrita em portal_permissoes (notif_silenciado) precisa passar
 // pelo servidor porque o RLS agora bloqueia escrita do cliente nessa tabela.
@@ -10,13 +11,15 @@ const supabase = createClient(
   { auth: { persistSession: false, autoRefreshToken: false } }
 );
 
-// GET /api/perfil/notif-prefs?user_id=...
+// Preferência é SEMPRE do usuário do login: o user_id da query/corpo é ignorado
+// (antes dava para ler/gravar a de qualquer pessoa passando o id dela).
+
+// GET /api/perfil/notif-prefs
 // Retorna preferências atuais + lista de módulos obrigatórios (não desativáveis).
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get('user_id');
-  if (!userId) {
-    return NextResponse.json({ error: 'user_id é obrigatório.' }, { status: 400 });
-  }
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+  const userId = auth.userId;
   const { data, error } = await supabase
     .from('portal_permissoes')
     .select('categoria, notif_silenciado, is_admin')
@@ -36,15 +39,14 @@ export async function GET(req: NextRequest) {
 }
 
 // PATCH /api/perfil/notif-prefs
-// body: { user_id, silenciados: string[] }
+// body: { silenciados: string[] }
 // Sanitiza removendo obrigatórios (segurança server-side).
 export async function PATCH(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
   const body = await req.json().catch(() => ({}));
-  const userId = String(body.user_id || '').trim();
+  const userId = auth.userId;
   const silenciadosIn = Array.isArray(body.silenciados) ? body.silenciados.map(String) : [];
-  if (!userId) {
-    return NextResponse.json({ error: 'user_id é obrigatório.' }, { status: 400 });
-  }
 
   // Carrega categoria pra aplicar a regra de obrigatórios
   const { data: row } = await supabase

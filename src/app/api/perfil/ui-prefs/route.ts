@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { autenticar } from '@/lib/auth/server';
 
 // Preferências de UI por usuário (ordem/visibilidade de colunas etc).
 // Tabela genérica portal_ui_prefs (user_id, chave, valor jsonb). A escrita
@@ -10,13 +11,17 @@ const supabase = createClient(
   { auth: { persistSession: false, autoRefreshToken: false } },
 );
 
-// GET /api/perfil/ui-prefs?user_id=...&chave=...
+// Preferência é SEMPRE do usuário do login: o user_id da query/corpo é ignorado.
+
+// GET /api/perfil/ui-prefs?chave=...
 // Retorna { valor } (objeto jsonb) ou { valor: null } se ainda não existir.
 export async function GET(req: NextRequest) {
-  const userId = req.nextUrl.searchParams.get('user_id');
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
+  const userId = auth.userId;
   const chave = req.nextUrl.searchParams.get('chave');
-  if (!userId || !chave) {
-    return NextResponse.json({ error: 'user_id e chave são obrigatórios.' }, { status: 400 });
+  if (!chave) {
+    return NextResponse.json({ error: 'chave é obrigatória.' }, { status: 400 });
   }
   const { data, error } = await supabase
     .from('portal_ui_prefs')
@@ -32,14 +37,16 @@ export async function GET(req: NextRequest) {
 }
 
 // PUT /api/perfil/ui-prefs
-// body: { user_id, chave, valor }  — grava (upsert) o objeto de preferência.
+// body: { chave, valor }  — grava (upsert) o objeto de preferência.
 export async function PUT(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: 'Não autenticado.' }, { status: 401 });
   const body = await req.json().catch(() => ({}));
-  const userId = String(body.user_id || '').trim();
+  const userId = auth.userId;
   const chave = String(body.chave || '').trim();
   const valor = body.valor;
-  if (!userId || !chave) {
-    return NextResponse.json({ error: 'user_id e chave são obrigatórios.' }, { status: 400 });
+  if (!chave) {
+    return NextResponse.json({ error: 'chave é obrigatória.' }, { status: 400 });
   }
   if (valor == null || typeof valor !== 'object') {
     return NextResponse.json({ error: 'valor deve ser um objeto.' }, { status: 400 });

@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getIA, chamarIA } from "@/lib/assistente/ia";
 import { sanitizarFiltro } from "@/lib/busca-segura";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
+
+// Editar o catálogo (ordem dos modelos / bolinhas) acontece onde o CatalogoNovo
+// abre logado: aba Catálogo e busca de produto do /ppv, editor do /orcamentos e
+// busca de produto da OS (/pos). O link público /carrinho/[token] não edita.
+const ACESSO_EDITAR = [{ modulo: "ppv" }, { modulo: "orcamentos" }, { modulo: "pos" }];
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -395,6 +401,8 @@ export async function GET(req: NextRequest) {
 // Recebe { acao: "ordenar-modelos", ordens: [{ slug, ordem }] } e grava a coluna
 // `ordem` de catalogo_modelos (0 = sem ordem manual; 1, 2, 3… = posição escolhida).
 export async function PATCH(req: NextRequest) {
+  const g = await protegerRota(req, ACESSO_EDITAR);
+  if (g.resposta) return g.resposta;
   try {
     const body = await req.json().catch(() => ({}));
     if (body?.acao !== "ordenar-modelos" || !Array.isArray(body?.ordens)) {

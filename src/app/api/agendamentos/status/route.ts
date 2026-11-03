@@ -7,6 +7,7 @@
 // sao fire-and-forget; o processamento roda em background) - ja pega 502/timeout.
 // =============================================================================
 import { NextResponse } from 'next/server'
+import { protegerRota } from '@/lib/ajustes/permissao-server'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,10 @@ type RunInfo = {
 let cache: { ts: number; payload: unknown } | null = null
 const TTL_MS = 60_000
 
-export async function GET() {
+// Mesmo gate da tela /agendamentos (só admin/dev).
+export async function GET(req: Request) {
+  const g = await protegerRota(req, [{ admin: true }])
+  if (g.resposta) return g.resposta
   const token = process.env.GITHUB_TOKEN
   if (!token) {
     return NextResponse.json({ ok: false, motivo: 'GITHUB_TOKEN ausente', repo: REPO })

@@ -24,6 +24,14 @@ export const PUBLICAS: Record<string, string> = {
   'src/app/api/publico/': 'páginas públicas do portal',
   'src/app/api/push/notificacao/': 'chamada pelo gatilho do banco a cada aviso do sino; só traz o id, cada aviso sai 1 vez',
   'src/app/api/push/inscrever/trocar/': 'service worker troca a inscrição sem login; exige o endpoint antigo (segredo do aparelho)',
+  'src/app/api/whatsapp/webhook/': 'webhook da Meta: GET confere o hub.verify_token; POST exige a assinatura X-Hub-Signature-256 (WHATSAPP_APP_SECRET)',
+  'src/app/api/clientes/webhook/route.ts': 'webhook da Omie: só processa appKey de conta conhecida e relê OS/PV na própria Omie (status/ fica travado)',
+  'src/app/api/assistente/novazap/': 'NovaZap (fork do Chatwoot): header x-tratorilson-token (TRATORILSON_TOKEN)',
+  'src/app/api/tratorilson/assumir/': 'NovaZap (fork do Chatwoot): header x-tratorilson-token (TRATORILSON_TOKEN)',
+  'src/app/api/chatwoot/vincular/': 'app do Chatwoot em iframe: secret no corpo = CHATWOOT_APP_SECRET; fecha se a variável faltar',
+  'src/app/api/versao/': 'só devolve o BUILD_ID (AutoAtualiza)',
+  'src/app/api/agendador/saude/': 'vigia externo do agendador: só diz se o laço bateu nos últimos 10 min, sem dados',
+  'src/app/api/ocorrencias/catalogo/': 'catálogo estático (rótulos e cores) lido pelo app NT_Mecanicos sem login; sem dado sensível',
 }
 
 const RAIZ = process.cwd()

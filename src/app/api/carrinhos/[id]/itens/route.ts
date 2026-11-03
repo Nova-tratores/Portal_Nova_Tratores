@@ -1,19 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
+
+// Carrinhos vivem na aba Catálogo do /ppv (pode("ppv", "catalogo")).
+const ACESSO = [{ modulo: "ppv", acao: "catalogo" }];
 
 async function toca(id: string) {
   await supabase.from("carrinhos").update({ atualizado_em: new Date().toISOString() }).eq("id", id);
 }
 
-// POST /api/carrinhos/:id/itens  { codigo, descricao, qtd, cadastrado, quem }
+// POST /api/carrinhos/:id/itens  { codigo, descricao, qtd, cadastrado }
 // Se o código já existe no carrinho, soma a quantidade.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const g = await protegerRota(req, ACESSO);
+  if (g.resposta) return g.resposta;
   const { id } = await params;
   try {
     const b = await req.json();
     const codigo = String(b?.codigo || "").trim();
     const qtd = Math.max(1, parseInt(String(b?.qtd)) || 1);
-    const quem = b?.quem ? String(b.quem) : "—";
+    const quem = autorDe(g.user); // do login, nunca do corpo
     if (!codigo) return NextResponse.json({ error: "codigo obrigatório" }, { status: 400 });
 
     const { data: existente } = await supabase.from("carrinho_itens").select("*").eq("carrinho_id", id).eq("codigo", codigo).maybeSingle();
@@ -30,8 +36,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 }
 
-// PATCH /api/carrinhos/:id/itens  { itemId, qtd, quem }  (altera quantidade)
+// PATCH /api/carrinhos/:id/itens  { itemId, qtd }  (altera quantidade)
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const g = await protegerRota(req, ACESSO);
+  if (g.resposta) return g.resposta;
   const { id } = await params;
   try {
     const b = await req.json();
@@ -46,13 +54,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 }
 
-// DELETE /api/carrinhos/:id/itens?itemId=...&codigo=...&quem=...
+// DELETE /api/carrinhos/:id/itens?itemId=...&codigo=...
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const g = await protegerRota(req, ACESSO);
+  if (g.resposta) return g.resposta;
   const { id } = await params;
   try {
     const itemId = req.nextUrl.searchParams.get("itemId") || "";
     const codigo = req.nextUrl.searchParams.get("codigo") || "";
-    const quem = req.nextUrl.searchParams.get("quem") || "—";
+    const quem = autorDe(g.user); // do login, nunca da URL
     if (!itemId) return NextResponse.json({ error: "itemId obrigatório" }, { status: 400 });
     await supabase.from("carrinho_itens").delete().eq("id", itemId).eq("carrinho_id", id);
     await supabase.from("carrinho_historico").insert({ carrinho_id: id, quem, acao: "rem_item", detalhe: codigo });

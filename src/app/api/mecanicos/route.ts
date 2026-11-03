@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/pos/supabase";
 import { normName, cleanName, namesMatch, splitTecnicos as splitTecsUtil, nomesBatem } from "@/lib/tecnico-utils";
+import { protegerRota, autorDe, type OpcaoAcesso } from "@/lib/ajustes/permissao-server";
 
 // Service role só pra ler o diretório (financeiro_usu), que com RLS a anon não lê.
 const sbAdmin = createClient(
@@ -40,6 +41,9 @@ async function resolverMesReferencia(): Promise<string> {
  * ?nome=X → filtra por nome (busca perfil individual)
  */
 export async function GET(req: NextRequest) {
+  // Quem lê: o filtro de técnicos do /feedbacks (useHoje) e as telas de mecânicos.
+  const g = await protegerRota(req, [{ modulo: "feedbacks" }, { modulo: "mecanicos" }, { modulo: "painel-mecanicos" }]);
+  if (g.resposta) return g.resposta;
   const nome = req.nextUrl.searchParams.get("nome");
 
   try {
@@ -725,17 +729,31 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// Ação do POST → permissão (ACOES_POR_MODULO de mecanicos / painel-mecanicos).
+function acessoDaAcao(acao: unknown): OpcaoAcesso[] {
+  switch (acao) {
+    case "criar_ocorrencia": return [{ modulo: "mecanicos", acao: "criar_ocorrencia" }, { modulo: "painel-mecanicos", acao: "criar_ocorrencia" }];
+    case "atualizar_ocorrencia": return [{ modulo: "mecanicos", acao: "atualizar_ocorrencia" }];
+    case "justificar_alerta": return [{ modulo: "mecanicos", acao: "justificar_alerta" }, { modulo: "painel-mecanicos", acao: "avaliar_justificativa" }];
+    case "alerta_para_ocorrencia": return [{ modulo: "mecanicos", acao: "converter_alerta" }, { modulo: "painel-mecanicos", acao: "converter_alerta" }];
+    default: return [{ modulo: "mecanicos" }, { modulo: "painel-mecanicos" }];
+  }
+}
+
 /**
  * POST /api/mecanicos
  * Cria ocorrencia para um mecanico
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
     const { acao } = body;
+    const g = await protegerRota(req, acessoDaAcao(acao));
+    if (g.resposta) return g.resposta;
+    const autor = autorDe(g.user); // autoria do login, nunca do corpo
 
     if (acao === "criar_ocorrencia") {
-      const { tecnico_nome, tipo, titulo, descricao, criado_por } = body;
+      const { tecnico_nome, tipo, titulo, descricao } = body;
       if (!tecnico_nome || !tipo || !titulo) {
         return NextResponse.json({ error: "tecnico_nome, tipo e titulo obrigatorios" }, { status: 400 });
       }
@@ -747,7 +765,7 @@ export async function POST(req: NextRequest) {
         tipo,
         descricao: textoDescricao,
         data_referencia: new Date().toISOString().slice(0, 10),
-        admin_nome: criado_por || "portal",
+        admin_nome: autor,
       }).select().single();
 
       if (error) throw error;
@@ -755,11 +773,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (acao === "atualizar_ocorrencia") {
-      const { id, status, resposta, admin_nome } = body;
+      const { id, status, resposta } = body;
       if (!id) return NextResponse.json({ error: "id obrigatorio" }, { status: 400 });
 
       const update: Record<string, unknown> = {};
-      if (admin_nome) update.admin_nome = admin_nome;
+      update.admin_nome = autor;
       // Usar pontos como flag de status: 0=pendente, 1=resolvida, -1=cancelada, 2=justificada
       if (status === "resolvida") update.pontos = 1;
       else if (status === "cancelada") update.pontos = -1;
@@ -771,13 +789,13 @@ export async function POST(req: NextRequest) {
     }
 
     if (acao === "justificar_alerta") {
-      const { id, admin_comentario, admin_nome } = body;
+      const { id, admin_comentario } = body;
       if (!id) return NextResponse.json({ error: "id obrigatorio" }, { status: 400 });
 
       const { error } = await supabase.from("mecanico_alertas").update({
         status: "justificada",
         admin_comentario: admin_comentario || "",
-        admin_nome: admin_nome || "portal",
+        admin_nome: autor,
         resolvido_em: new Date().toISOString(),
       }).eq("id", id);
       if (error) throw error;
@@ -785,7 +803,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (acao === "alerta_para_ocorrencia") {
-      const { id, admin_nome } = body;
+      const { id } = body;
       if (!id) return NextResponse.json({ error: "id obrigatorio" }, { status: 400 });
 
       // Buscar alerta
@@ -803,14 +821,14 @@ export async function POST(req: NextRequest) {
         tipo: tipoOc,
         descricao: alerta.descricao + (alerta.detalhes ? ` - ${alerta.detalhes}` : ""),
         data_referencia: alerta.data_referencia || new Date().toISOString().slice(0, 10),
-        admin_nome: admin_nome || "portal",
+        admin_nome: autor,
         id_alerta: String(alerta.id),
       });
 
       // Atualizar alerta como virou ocorrencia
       await supabase.from("mecanico_alertas").update({
         status: "ocorrencia",
-        admin_nome: admin_nome || "portal",
+        admin_nome: autor,
         resolvido_em: new Date().toISOString(),
       }).eq("id", id);
 

@@ -206,7 +206,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
 
     const res = await fetch('/api/orcamentos/pdf', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({
         numero: data.numero,
         cliente: data.cliente_nome,

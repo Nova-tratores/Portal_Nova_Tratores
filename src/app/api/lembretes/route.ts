@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { autenticar } from "@/lib/auth/server";
 
 function getSupabase() {
   return createClient(
@@ -10,14 +11,18 @@ function getSupabase() {
 
 const TBL = "portal_lembretes";
 
-/** GET — busca lembretes do usuário */
+// Quem chama é SEMPRE o usuário do login: o id que vem na query/corpo não vale
+// (antes qualquer um lia/criava/alterava lembretes de qualquer pessoa pelo userId).
+const naoAutenticado = () => NextResponse.json({ erro: "Não autenticado" }, { status: 401 });
+
+/** GET — busca lembretes do usuário logado (o ?userId= da query é ignorado) */
 export async function GET(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (!auth) return naoAutenticado();
   const supabase = getSupabase();
   const { searchParams } = new URL(req.url);
-  const userId = searchParams.get("userId");
+  const userId = auth.userId;
   const tipo = searchParams.get("tipo"); // "pendentes" | "todos" | "vencidos"
-
-  if (!userId) return NextResponse.json({ erro: "userId obrigatório" }, { status: 400 });
 
   let query = supabase
     .from(TBL)
@@ -38,13 +43,20 @@ export async function GET(req: NextRequest) {
 
 /** POST — criar lembrete */
 export async function POST(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (!auth) return naoAutenticado();
   const supabase = getSupabase();
   const body = await req.json();
-  const { criador_id, criador_nome, destinatario_id, destinatario_nome, titulo, descricao, data_hora, recorrencia } = body;
+  const { destinatario_id, destinatario_nome, titulo, descricao, data_hora, recorrencia } = body;
 
-  if (!criador_id || !destinatario_id || !titulo || !data_hora) {
-    return NextResponse.json({ erro: "Campos obrigatórios: criador_id, destinatario_id, titulo, data_hora" }, { status: 400 });
+  if (!destinatario_id || !titulo || !data_hora) {
+    return NextResponse.json({ erro: "Campos obrigatórios: destinatario_id, titulo, data_hora" }, { status: 400 });
   }
+
+  // Criador = login; o nome vem do cadastro (fallback: o que a tela mandou / e-mail).
+  const criador_id = auth.userId;
+  const { data: perfil } = await supabase.from("financeiro_usu").select("nome").eq("id", auth.userId).maybeSingle();
+  const criador_nome = perfil?.nome || body.criador_nome || auth.email || "";
 
   const insert: Record<string, unknown> = {
     criador_id,
@@ -91,11 +103,24 @@ function proximaData(dataAtual: string, recorrencia: string): string {
 
 /** PATCH — atualizar lembrete (concluir ou adiar) */
 export async function PATCH(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (!auth) return naoAutenticado();
   const supabase = getSupabase();
   const body = await req.json();
   const { id, status, data_hora } = body;
 
   if (!id) return NextResponse.json({ erro: "id obrigatório" }, { status: 400 });
+
+  // Só quem criou ou quem recebe o lembrete pode concluir/adiar.
+  const { data: atual, error: errAtual } = await supabase
+    .from(TBL)
+    .select("criador_id, destinatario_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (errAtual) return NextResponse.json({ erro: errAtual.message }, { status: 500 });
+  if (!atual || (atual.criador_id !== auth.userId && atual.destinatario_id !== auth.userId)) {
+    return NextResponse.json({ erro: "Lembrete não encontrado" }, { status: 404 });
+  }
 
   const updates: Record<string, unknown> = {};
   if (status) updates.status = status;

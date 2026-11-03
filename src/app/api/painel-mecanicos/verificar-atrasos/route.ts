@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { nomesBatem } from '@/lib/tecnico-utils'
+import { protegerRotaOuInterna } from '@/lib/auth/chamada-interna'
 
 function getSupabase() {
   return createClient(
@@ -9,7 +10,11 @@ function getSupabase() {
   )
 }
 
-export async function POST() {
+// Gera alertas de OS atrasada para os técnicos. Sem chamador no código (nem no app
+// dos mecânicos): só admin logado ou chamada de sistema (CRON_SECRET).
+export async function POST(req: Request) {
+  const g = await protegerRotaOuInterna(req, [{ admin: true }])
+  if (g.resposta) return g.resposta
   const supabase = getSupabase()
   const hoje = new Date().toISOString().split('T')[0]
   const mesAtual = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`

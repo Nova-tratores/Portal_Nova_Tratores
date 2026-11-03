@@ -6,7 +6,8 @@ import { EstacaoSemMigracao } from '@/lib/etiquetas/estacao-server'
 // manda para a estação — e a própria estação entra com um login desses.
 export const ACESSO_ETIQUETAS = [{ modulo: 'ppv', acao: 'etiquetas' }, { modulo: 'opa-pecas' }, { modulo: 'patrimonio' }]
 
-export async function acessoEtiquetas(req: Request) {
+// Nome com "guardar" de propósito: é a guarda que o teste de rotas (rotas-gate.ts) reconhece.
+export async function guardarEstacaoEtiquetas(req: Request) {
   const g = await protegerRota(req, ACESSO_ETIQUETAS)
   if (g.resposta) return { resposta: g.resposta }
   return { autor: { id: g.user.id, nome: g.user.nome || g.user.email || '—' } }

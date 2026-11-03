@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { X, Search, Loader2, FileText } from "lucide-react";
+import { authHeaders } from "@/lib/auth/client";
 
 interface OrcamentoBusca {
   id: number;
@@ -61,7 +62,7 @@ export default function ModalBuscaOrcamento({ open, osId, onClose, onSelect }: P
     debounceRef.current = setTimeout(async () => {
       setCarregando(true);
       try {
-        const res = await fetch(`/api/orcamentos?q=${encodeURIComponent(termo.trim())}`);
+        const res = await fetch(`/api/orcamentos?q=${encodeURIComponent(termo.trim())}`, { headers: await authHeaders() });
         const data = await res.json();
         setLista(data.orcamentos || []);
       } catch {

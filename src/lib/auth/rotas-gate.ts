@@ -4,7 +4,7 @@
 // protegido não pode esconder um GET aberto no mesmo route.ts. Vale como guarda o
 // próprio corpo do método OU uma função local que ele chama (ex.: GET → handler(req)).
 
-export const GUARDA = /protegerRota|autenticar\(|exigirAdmin|exigirPermissao|exigirAcessoModulo|guardar\w*\(|negarSem\w*|CRON_SECRET|temModulo\w*\(|podePPV|protegerRotaOuInterna|validarToken\w*\(|tokenValido\w*\(/
+export const GUARDA = /protegerRota|autenticar\(|exigirAdmin|exigirPermissao|exigirAcessoModulo|guardar\w*\(|negarSem\w*|CRON_SECRET|temModulo\w*\(|podePPV|exigirSessao\(|protegerRotaOuInterna|validarToken\w*\(|tokenValido\w*\(/
 
 const METODOS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
