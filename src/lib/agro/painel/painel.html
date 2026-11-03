@@ -1825,22 +1825,23 @@ function renderVendasGlobal() {
   let rows = vendasFlat();
   if (vendF && vendF !== '__all__') rows = rows.filter(v => v.vendedor === vendF);
   if (q) rows = rows.filter(v => (
-    (v.municipio + ' ' + v.uf + ' ' + (v.modelo || '') + ' ' + (v.chassis || '') + ' ' + v.cliente + ' ' + (v.vendedor || '')).toLowerCase().includes(q)
+    (v.municipio + ' ' + v.uf + ' ' + (v.modelo || '') + ' ' + (v.chassis || '') + ' ' + v.cliente + ' ' + (v.vendedor || '') + ' ' + (v.telefone || '')).toLowerCase().includes(q)
   ));
   rows.sort((a, b) => (b.dataTs || 0) - (a.dataTs || 0));
   const semMun = rows.filter(v => !v.matched).length;
   if (countEl) countEl.textContent = `${rows.length} trator${rows.length === 1 ? '' : 'es'}` + (semMun ? ` · ${semMun} sem município` : '');
   if (!rows.length) { cont.innerHTML = '<div style="padding:24px;color:var(--text-secondary)">Nenhum trator encontrado.</div>'; return; }
   let html = '<table class="vendas-table"><thead><tr>' +
-    '<th>Entrega</th><th>Município</th><th>UF</th><th>Modelo</th><th>Cliente</th><th>Vendedor</th><th>Chassis</th>' +
+    '<th>Entrega</th><th>Município</th><th>UF</th><th>Modelo</th><th>Cliente</th><th>Telefone</th><th>Vendedor</th><th>Chassis</th>' +
     '</tr></thead><tbody>';
   rows.forEach(v => {
     html += `<tr${v.matched ? '' : ' class="vendas-sem-mun"'}>
       <td>${escHtml(v.data || '—')}</td>
-      <td>${escHtml(v.municipio)}${v.matched ? '' : ' <span title="cidade não casou com município do mapa">⚠️</span>'}</td>
+      <td>${escHtml(v.municipio)}${v.cidadeDigitada ? ` <span title="cidade do cadastro do cliente no Omie (no controle de revisões está: ${escHtml(v.cidadeDigitada)})" style="font-size:10px;color:var(--text-secondary)">Omie</span>` : ""}${v.matched ? "" : " <span title=\"cidade não casou com município do mapa\">⚠️</span>"}</td>
       <td>${escHtml(v.uf || '—')}</td>
       <td>${escHtml(v.modelo)}</td>
       <td>${escHtml(v.cliente)}</td>
+      <td style="white-space:nowrap">${escHtml(v.telefone || '—')}</td>
       <td>${escHtml(v.vendedor || '—')}</td>
       <td style="font-size:11px;color:var(--text-secondary)">${escHtml(v.chassis || '—')}</td>
     </tr>`;
@@ -3018,25 +3019,128 @@ function buildCityToKey() {
   return _cityToKey;
 }
 
+// Vendedor é texto livre na tabela tratores ("FERNANDO", "Joaquim Fernando Leme",
+// "ANDRE/COMPRADO POR CAMPINAS"...). Unifica as grafias da mesma pessoa num nome só.
+// Chave = normalize() do trecho antes da barra. LUIZ FERNANDO SANCHEZ (Pardal) é
+// outra pessoa; PAULO e PAULO MOTTA também são pessoas diferentes.
+const _vendedorAliases = {
+  'fernando': 'Joaquim Fernando Leme',
+  'fernando leme': 'Joaquim Fernando Leme',
+  'fernando joaquim': 'Joaquim Fernando Leme',
+  'joaquim fernando': 'Joaquim Fernando Leme',
+  'joaquim leme': 'Joaquim Fernando Leme',
+  'joaquim fernando leme': 'Joaquim Fernando Leme',
+  'andre': 'André Anibal',
+  'andre anibal': 'André Anibal',
+  'pardal': 'Luiz Fernando Sanchez',
+  'luiz fernando sanchez': 'Luiz Fernando Sanchez'
+};
+function canonVendedor(raw) {
+  const limpo = String(raw || '').split('/')[0].trim().replace(/\s+/g, ' ');
+  if (!limpo) return '';
+  const k = normalize(limpo);
+  if (_vendedorAliases[k]) return _vendedorAliases[k];
+  // sem apelido conhecido: só padroniza maiúsculas ("HIGINO" → "Higino")
+  return limpo.toLowerCase().replace(/(^|\s)\S/g, c => c.toUpperCase());
+}
+
+// Cliente no Omie: a tabela tratores tem nome e cidade digitados à mão (Revisões →
+// "Novo trator"), sem telefone. Casamos com o Clientes_Omie pelo nome (exato; um
+// nome começando pelo outro — o Omie às vezes tem CPF/sufixo no fim; ou 1 letra
+// de diferença, ex.: UGUCCIONE × UGUCCIONI). Achou → telefone E cidade vêm do Omie
+// (a cidade digitada pode estar errada). Homônimos: desempata pela cidade digitada.
+// Vendas pré-Omie não casam e ficam com a cidade digitada, sem telefone.
+function nomeChave(s) {
+  return normalize(String(s || '')).toUpperCase().replace(/[^A-Z ]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+// a e b diferem em no máximo 1 letra (troca, sobra ou falta)
+function umaLetraDeDiferenca(a, b) {
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0, j = 0, dif = 0;
+  while (i < a.length && j < b.length) {
+    if (a[i] === b[j]) { i++; j++; continue; }
+    if (++dif > 1) return false;
+    if (a.length > b.length) i++;
+    else if (b.length > a.length) j++;
+    else { i++; j++; }
+  }
+  return dif + (a.length - i) + (b.length - j) <= 1;
+}
+async function loadClientesOmie() {
+  try {
+    const rows = await supabaseFetchAll('Clientes_Omie', 'nome,telefone,cidade');
+    return rows.filter(c => nomeChave(c.nome).length > 2).map(c => {
+      const m = String(c.cidade || '').match(/^(.*?)\s*\((\w{2})\)\s*$/);
+      const tel = String(c.telefone || '').trim();
+      return {
+        k: nomeChave(c.nome),
+        cidNome: (m ? m[1] : String(c.cidade || '')).trim(),
+        cid: nomeChave(m ? m[1] : c.cidade),
+        uf: m ? m[2].toUpperCase() : '',
+        tel: tel.replace(/\D/g, '').length >= 8 ? tel : ''
+      };
+    });
+  } catch (e) {
+    console.error('loadClientesOmie falhou:', e);
+    return [];
+  }
+}
+function clienteNoOmie(clientes, nome, cidade) {
+  const k = nomeChave(nome);
+  if (!k) return null;
+  let cand = clientes.filter(c => c.k === k);
+  if (!cand.length && k.length >= 10) cand = clientes.filter(c => c.k.startsWith(k + ' ') || k.startsWith(c.k + ' '));
+  if (!cand.length && k.length >= 12) cand = clientes.filter(c => umaLetraDeDiferenca(c.k, k));
+  if (!cand.length) return null;
+  const cid = nomeChave(cidade);
+  const naCidade = cand.filter(c => c.cid && cid.startsWith(c.cid));
+  if (naCidade.length) cand = naCidade;
+  const cidades = [...new Set(cand.filter(c => c.cid).map(c => c.uf + '|' + c.cid))];
+  return {
+    telefone: [...new Set(cand.map(c => c.tel).filter(Boolean))].slice(0, 2).join(' / '),
+    // só troca a cidade quando o Omie é unânime (homônimos em cidades diferentes → fica a digitada)
+    cidade: cidades.length === 1 ? cand.find(c => c.cid) : null
+  };
+}
+
 async function loadVendasTratores() {
   if (_vendasLoaded) return;
   try {
     // Fonte: tabela `tratores` (varejo completo, pré-Omie + Omie). Cidade é texto
     // livre → limpamos e casamos com o município do mapa por nome normalizado.
-    const rows = await supabaseFetchAll('tratores', 'Modelo,Chassis,Cliente,Cidade,Entrega,Vendedor');
+    const [rows, clientesOmie] = await Promise.all([
+      supabaseFetchAll('tratores', 'Modelo,Chassis,Cliente,Cidade,Entrega,Vendedor'),
+      loadClientesOmie()
+    ]);
     const cityToKey = buildCityToKey() || {};
-    let total = 0, matched = 0;
+    const geoKeys = new Set((geoData?.features || []).map(f => f.properties._normName));
+    let total = 0, matched = 0, cidadeDoOmie = 0;
     rows.forEach(r => {
       total++;
-      const cidadeLimpa = cleanCidadeTrator(r.Cidade);
-      let nrm = cidadeLimpa ? normalize(cidadeLimpa) : '';
-      if (_cidadeAliases[nrm]) nrm = _cidadeAliases[nrm];
-      const key = nrm ? cityToKey[nrm] : null;
+      const cidadeDigitada = cleanCidadeTrator(r.Cidade);
+      // trator em nome da própria loja = estoque: não vira venda em Piraju pela cidade do Omie
+      const omie = nomeChave(r.Cliente) === 'NOVA TRATORES' ? null : clienteNoOmie(clientesOmie, r.Cliente, cidadeDigitada);
+      let cidadeLimpa = cidadeDigitada, key = null;
+      if (omie?.cidade) {
+        // cidade do Omie (com UF): casa direto com o município do mapa
+        const kOmie = omie.cidade.uf + '|' + normalize(omie.cidade.cidNome);
+        key = geoKeys.has(kOmie) ? kOmie : (cityToKey[normalize(omie.cidade.cidNome)] || null);
+        cidadeLimpa = omie.cidade.cidNome;
+        if (nomeChave(cidadeLimpa) !== nomeChave(cidadeDigitada.replace(/\(.*\)/, ''))) cidadeDoOmie++;
+      }
+      if (!key) {
+        cidadeLimpa = cidadeDigitada;
+        let nrm = cidadeLimpa ? normalize(cidadeLimpa) : '';
+        if (_cidadeAliases[nrm]) nrm = _cidadeAliases[nrm];
+        key = nrm ? cityToKey[nrm] : null;
+      }
       const det = {
         municipio: cidadeLimpa || (r.Cidade || '—'),
+        cidadeDigitada: nomeChave(cidadeLimpa) !== nomeChave(cidadeDigitada.replace(/\(.*\)/, '')) ? (r.Cidade || '') : '',
         uf: key ? key.split('|')[0] : '',
         cliente: r.Cliente || '—', data: r.Entrega || '', dataTs: entregaSortKey(r.Entrega),
-        modelo: r.Modelo || '—', chassis: r.Chassis || '', vendedor: r.Vendedor || '',
+        modelo: r.Modelo || '—', chassis: r.Chassis || '', vendedor: canonVendedor(r.Vendedor),
+        telefone: omie?.telefone || '',
         matched: !!key
       };
       if (key) {
@@ -3048,7 +3152,7 @@ async function loadVendasTratores() {
       }
     });
     _vendasLoaded = true;
-    console.log(`Tratores: ${matched}/${total} casaram com município, ${Object.keys(_vendasTratores).length} municípios, ${_vendasSemMunicipio.length} sem município`);
+    console.log(`Tratores: ${matched}/${total} casaram com município, ${Object.keys(_vendasTratores).length} municípios, ${_vendasSemMunicipio.length} sem município, ${cidadeDoOmie} com cidade trocada pela do Omie`);
     const cb = document.getElementById('toggleVendasTratores');
     if (cb && cb.checked) renderVendasLabels();
   } catch (e) {

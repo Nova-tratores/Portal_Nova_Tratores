@@ -33,6 +33,14 @@ describe('rota de dados do Dashboard Agro', () => {
     expect(avaliarPedido('DELETE', ['v1', 'pecuaria'], p()).ok).toBe(false);
   });
 
+  it('Clientes_Omie: só nome, telefone e cidade, sem filtro', () => {
+    expect(avaliarPedido('GET', ['v1', 'Clientes_Omie'], p('select=nome,telefone,cidade&limit=1000&offset=0')).ok).toBe(true);
+    expect(avaliarPedido('GET', ['v1', 'Clientes_Omie'], p('select=*')).ok).toBe(false);
+    expect(avaliarPedido('GET', ['v1', 'Clientes_Omie'], p()).ok).toBe(false);
+    expect(avaliarPedido('GET', ['v1', 'Clientes_Omie'], p('select=nome,email')).ok).toBe(false);
+    expect(avaliarPedido('GET', ['v1', 'Clientes_Omie'], p('select=nome&cpf/cnpj=eq.123')).ok).toBe(false);
+  });
+
   it('nega caminho estranho', () => {
     expect(avaliarPedido('GET', ['v2', 'tratores'], p()).ok).toBe(false);
     expect(avaliarPedido('GET', ['v1', 'tratores', 'x'], p()).ok).toBe(false);

@@ -4,8 +4,13 @@
 export const TABELAS_LEITURA: ReadonlySet<string> = new Set([
   'lupa_maquinas', 'lupa_uso_solo', 'pecuaria', 'lavouras_temporarias', 'lavouras_permanentes',
   'municipio_pontos', 'municipio_relevo', 'hidrologia_municipio', 'temperatura_municipio',
-  'tratores', 'renagro_registros',
+  'tratores', 'renagro_registros', 'Clientes_Omie',
 ]);
+/** Tabelas com dado pessoal: só estas colunas, e sem filtro (nada de procurar por CPF). */
+const COLUNAS_LIMITADAS: Record<string, ReadonlySet<string>> = {
+  Clientes_Omie: new Set(['nome', 'telefone', 'cidade']), // telefone e cidade do cliente na aba Vendas
+};
+const PARAMS_SEM_FILTRO = new Set(['select', 'limit', 'offset', 'order']);
 export const FUNCOES: ReadonlySet<string> = new Set([
   'lupa_distinct_maquinas', 'lupa_maquinas_municipio', 'lupa_rank_maquina',
   'distinct_culturas_temp', 'distinct_culturas_perm',
@@ -28,6 +33,12 @@ export function avaliarPedido(metodo: string, caminho: string[], params: URLSear
   }
   if (caminho.length !== 2) return negar('caminho não permitido');
   const tabela = caminho[1];
+  const limitadas = COLUNAS_LIMITADAS[tabela];
+  if (metodo === 'GET' && limitadas) {
+    const cols = params.getAll('select').join(',').split(',').map((c) => c.trim());
+    if (!params.has('select') || cols.some((c) => !limitadas.has(c))) return negar('colunas não permitidas');
+    for (const k of params.keys()) if (!PARAMS_SEM_FILTRO.has(k)) return negar('filtro não permitido');
+  }
   if (metodo === 'GET') return TABELAS_LEITURA.has(tabela) ? { ok: true, caminho: tabela } : negar('tabela não permitida');
   if (metodo === 'POST' && tabela === TABELA_ESCRITA) {
     return { ok: true, caminho: tabela, prefer: 'resolution=merge-duplicates,return=minimal' };
