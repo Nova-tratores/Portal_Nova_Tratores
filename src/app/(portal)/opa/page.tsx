@@ -49,12 +49,27 @@ interface Opa {
   // vínculo com a frota (migração opa-vinculo-veiculo; ausente = Opa geral)
   vinculo_tipo?: string | null
   vinculo_ref?: string | null
+  // para quem é (migração opa-publico; ausente = todos)
+  publico?: Publico | null
   created_at: string
   anexos: OpaAnexo[]
   views: OpaView[]
 }
 
 interface Veiculo { placa: string; modelo: string | null }
+
+// Para quem é o Opa. 'escritorio' não aparece no app dos mecânicos (nem gera a
+// penalidade de "OPA não resolvida" para eles) — sql/opa-publico.sql.
+type Publico = 'todos' | 'escritorio' | 'oficina'
+const PUBLICOS: { v: Publico; rotulo: string; dica: string }[] = [
+  { v: 'todos', rotulo: 'Todos', dica: 'Portal e app dos mecânicos' },
+  { v: 'escritorio', rotulo: 'Escritório', dica: 'Só o portal — os mecânicos não veem' },
+  { v: 'oficina', rotulo: 'Oficina', dica: 'Para os mecânicos (o portal também lista)' },
+]
+const SELO_PUBLICO: Record<Exclude<Publico, 'todos'>, { txt: string; bg: string; cor: string }> = {
+  escritorio: { txt: 'ESCRITÓRIO', bg: '#EDE9FE', cor: '#5B21B6' },
+  oficina: { txt: 'OFICINA', bg: '#FEF3C7', cor: '#92400E' },
+}
 
 type Aba = 'abertos' | 'concluidos'
 
@@ -287,7 +302,9 @@ function CartaoOpa({ opa, aberto, onAlternar, isAdmin, usuarioId, usuarioNome, u
   const [editando, setEditando] = useState(false)
   const [resp, setResp] = useState('')
   const [sol, setSol] = useState('')
+  const [pub, setPub] = useState<Publico>('todos')
   const [salvando, setSalvando] = useState(false)
+  const [erroEdicao, setErroEdicao] = useState<string | null>(null)
   const resolvido = opa.status === 'resolvido'
   const podeEditar = isAdmin || (!!usuarioId && opa.criado_por === usuarioId)
 
@@ -301,12 +318,26 @@ function CartaoOpa({ opa, aberto, onAlternar, isAdmin, usuarioId, usuarioNome, u
     onMudou()
   }
 
-  const abrirEdicao = () => { setResp(opa.responsavel || ''); setSol(opa.solucao || ''); setEditando(true) }
+  const pubAtual: Publico = opa.publico || 'todos'
+  const abrirEdicao = () => { setResp(opa.responsavel || ''); setSol(opa.solucao || ''); setPub(pubAtual); setErroEdicao(null); setEditando(true) }
 
   const salvarEdicao = async () => {
     setSalvando(true)
-    await supabase.from('portal_opas').update({ responsavel: resp.trim() || null, solucao: sol.trim() || null }).eq('id', opa.id)
-    auditLog({ sistema: 'opa', acao: 'editar', entidade: 'opa', entidade_id: opa.id, entidade_label: `Opa: ${opa.titulo}` })
+    setErroEdicao(null)
+    const campos: Record<string, unknown> = { responsavel: resp.trim() || null, solucao: sol.trim() || null }
+    if (pub !== pubAtual) campos.publico = pub   // só manda a coluna quando mudou (banco sem a migração não quebra o resto)
+    const { error } = await supabase.from('portal_opas').update(campos).eq('id', opa.id)
+    if (error) {
+      setErroEdicao(/publico/i.test(error.message || '')
+        ? 'O banco ainda não tem a opção "para quem" (sql/opa-publico.sql).'
+        : 'Não foi possível salvar. Tente de novo.')
+      setSalvando(false)
+      return
+    }
+    auditLog({
+      sistema: 'opa', acao: 'editar', entidade: 'opa', entidade_id: opa.id, entidade_label: `Opa: ${opa.titulo}`,
+      ...(pub !== pubAtual ? { detalhes: { publico: { de: pubAtual, para: pub } } } : {}),
+    })
     setSalvando(false)
     setEditando(false)
     onMudou()
@@ -334,6 +365,11 @@ function CartaoOpa({ opa, aberto, onAlternar, isAdmin, usuarioId, usuarioNome, u
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', marginRight: 2 }}>{opa.titulo}</span>
             {opa.origem === 'mecanico' && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#FEF3C7', color: '#92400E' }}>MECÂNICO</span>}
+            {opa.publico && opa.publico !== 'todos' && SELO_PUBLICO[opa.publico] && (
+              <span title={PUBLICOS.find((p) => p.v === opa.publico)?.dica} style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: SELO_PUBLICO[opa.publico].bg, color: SELO_PUBLICO[opa.publico].cor }}>
+                SÓ {SELO_PUBLICO[opa.publico].txt}
+              </span>
+            )}
             {opa.vinculo_tipo === 'veiculo' && opa.vinculo_ref && (
               <span title="Vinculado a um veículo da frota — vira pendência no carro" style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: '#DBEAFE', color: '#1E40AF', ...meta }}>
                 <Car size={11} /> {opa.vinculo_ref}
@@ -380,6 +416,9 @@ function CartaoOpa({ opa, aberto, onAlternar, isAdmin, usuarioId, usuarioNome, u
           {/* Responsável + solução (criador ou admin) */}
           {editando ? (
             <div style={{ marginTop: 12, padding: 12, borderRadius: 10, background: 'var(--portal-bg-secondary)' }}>
+              {erroEdicao && <div role="alert" style={{ padding: 8, borderRadius: 8, background: '#FEF2F2', color: '#991B1B', fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{erroEdicao}</div>}
+              <label style={rotulo}>Para quem?</label>
+              <div style={{ marginBottom: 10 }}><SeletorPublico valor={pub} onMudar={setPub} /></div>
               <label style={rotulo}>Responsável</label>
               <input list={`usuarios-${opa.id}`} value={resp} onChange={(e) => setResp(e.target.value)} placeholder="Quem vai resolver?" style={{ ...inp, marginBottom: 10 }} />
               <datalist id={`usuarios-${opa.id}`}>{usuarios.map((u) => <option key={u} value={u} />)}</datalist>
@@ -418,7 +457,7 @@ function CartaoOpa({ opa, aberto, onAlternar, isAdmin, usuarioId, usuarioNome, u
             )}
             {resolvido && opa.resolvido_at && <span style={{ fontSize: 12, color: '#059669', fontWeight: 600, ...meta }}><CheckCircle2 size={14} /> Resolvido em {fmtData(opa.resolvido_at)}</span>}
             {podeEditar && !editando && (
-              <button type="button" onClick={abrirEdicao} style={btnSec}><User size={14} /> {opa.responsavel || opa.solucao ? 'Editar responsável/solução' : 'Responsável e solução'}</button>
+              <button type="button" onClick={abrirEdicao} style={btnSec}><User size={14} /> Editar (para quem, responsável, solução)</button>
             )}
             {isAdmin && (
               <button type="button" onClick={excluir} style={{ ...btnSec, marginLeft: 'auto', color: VERMELHO, borderColor: '#FECACA' }}><Trash2 size={13} /> Excluir</button>
@@ -442,6 +481,7 @@ function NovoOpa({ usuarioId, usuarioNome, onFechar, onCriado }: {
   const [titulo, setTitulo] = useState('')
   const [descricao, setDescricao] = useState('')
   const [arquivos, setArquivos] = useState<File[]>([])
+  const [publico, setPublico] = useState<Publico>('todos')
   const [vincTipo, setVincTipo] = useState<'' | 'veiculo'>('')
   const [placa, setPlaca] = useState('')
   const [veiculos, setVeiculos] = useState<Veiculo[]>([])
@@ -466,9 +506,17 @@ function NovoOpa({ usuarioId, usuarioNome, onFechar, onCriado }: {
     const comVinculo = vincTipo === 'veiculo' && !!placa
     const registro: Record<string, unknown> = {
       titulo: t, descricao: descricao.trim() || null, criado_por: usuarioId, criado_por_nome: usuarioNome, origem: 'portal',
+      ...(publico !== 'todos' ? { publico } : {}),
       ...(comVinculo ? { vinculo_tipo: 'veiculo', vinculo_ref: placa } : {}),
     }
     let { data: opa, error } = await supabase.from('portal_opas').insert(registro).select().single()
+    // banco sem a coluna "publico" (migração opa-publico não rodou)? não cria
+    // calado como "todos" — o Opa do escritório iria para os mecânicos
+    if (error && /publico/i.test(error.message || '')) {
+      setErro('O banco ainda não tem a opção "para quem" (sql/opa-publico.sql). Escolha "Todos" ou peça para aplicar a migração.')
+      setEnviando(false)
+      return
+    }
     // banco sem as colunas de vínculo (migração não rodou)? cria sem elas
     if (error && /vinculo/i.test(error.message || '')) {
       delete registro.vinculo_tipo
@@ -517,6 +565,10 @@ function NovoOpa({ usuarioId, usuarioNome, onFechar, onCriado }: {
             <textarea value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={4} style={{ ...inp, resize: 'vertical', lineHeight: 1.6 }} />
           </div>
           <div>
+            <label style={rotulo}>Para quem?</label>
+            <SeletorPublico valor={publico} onMudar={setPublico} />
+          </div>
+          <div>
             <label style={rotulo}>Sobre o quê? <span style={{ fontWeight: 500 }}>(opcional)</span></label>
             <div style={{ display: 'flex', gap: 8, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
               <select value={vincTipo} onChange={(e) => { setVincTipo(e.target.value as '' | 'veiculo'); if (e.target.value !== 'veiculo') setPlaca('') }} style={{ ...inp, flex: vincTipo === 'veiculo' && !isMobile ? '0 0 45%' : 1 }}>
@@ -554,6 +606,28 @@ function NovoOpa({ usuarioId, usuarioNome, onFechar, onCriado }: {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function SeletorPublico({ valor, onMudar, desabilitado }: { valor: Publico; onMudar: (p: Publico) => void; desabilitado?: boolean }) {
+  const dica = PUBLICOS.find((p) => p.v === valor)?.dica
+  return (
+    <div>
+      <div role="radiogroup" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {PUBLICOS.map((p) => {
+          const ativo = valor === p.v
+          return (
+            <button key={p.v} type="button" role="radio" aria-checked={ativo} disabled={desabilitado} onClick={() => onMudar(p.v)} title={p.dica} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 14px', borderRadius: 8, fontSize: 13.5, fontWeight: 700,
+              fontFamily: 'inherit', cursor: desabilitado ? 'default' : 'pointer', opacity: desabilitado ? 0.6 : 1,
+              border: `1.5px solid ${ativo ? VERMELHO : 'var(--portal-border)'}`,
+              background: ativo ? '#FEF2F2' : 'var(--portal-bg-card)', color: ativo ? '#991B1B' : 'var(--portal-text-secondary)',
+            }}>{ativo && <Check size={13} />} {p.rotulo}</button>
+          )
+        })}
+      </div>
+      {dica && <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: '6px 0 0' }}>{dica}</p>}
     </div>
   )
 }
