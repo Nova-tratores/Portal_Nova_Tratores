@@ -165,45 +165,59 @@ function dataBR(d: Date): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
-/** Produtos (peça) com movimento no MÊS CORRENTE — o conjunto que muda no dia a dia:
+/** Meses (no horário de Brasília) que a janela dos últimos `dias` toca, do mais recente ao mais antigo.
+ *  O servidor roda em UTC: às 21:00 de Brasília do dia 31 ele já está no dia 1º — olhar só o
+ *  "mês corrente" deixava de fora o fim do mês anterior (01/11/2026: 0 peças por 3 noites). */
+export function mesesRecentes(agora: Date, dias = 7): Array<{ mes: number; ano: number }> {
+  const out: Array<{ mes: number; ano: number }> = [];
+  const brt = agora.getTime() - 3 * 3600_000;
+  for (let d = 0; d <= dias; d++) {
+    const t = new Date(brt - d * 86400_000);
+    const m = { mes: t.getUTCMonth() + 1, ano: t.getUTCFullYear() };
+    if (!out.some((x) => x.mes === m.mes && x.ano === m.ano)) out.push(m);
+  }
+  return out;
+}
+
+/** Produtos (peça) com movimento nos meses que os últimos 7 dias tocam — o conjunto que muda no dia a dia:
  *  vendidos (vendas_itens) ∪ comprados (notas_entrada) ∪ já com movimento no razão. */
-async function ativosDoMes(conta: Conta, grupo: 'peca' | 'maquina'): Promise<Set<number>> {
-  const now = new Date();
-  const mes = now.getMonth() + 1, ano = now.getFullYear();
+async function ativosRecentes(conta: Conta, grupo: 'peca' | 'maquina'): Promise<Set<number>> {
   const grupoSet = new Set((await listarProdutos(conta, grupo)).map((p) => p.codigo_produto));
   const ativos = new Set<number>();
   const add = (c: unknown) => { const n = Number(c); if (grupoSet.has(n)) ativos.add(n); };
-  // vendas do mês (ATENÇÃO: vendas_itens/notas_entrada usam conta_omie MAIÚSCULO,
-  // ao contrário de produtos/estoque_movimentos que usam minúsculo).
-  for (let off = 0; ; off += 1000) {
-    const { data } = await supabase.from('vendas_itens').select('codigo_produto').eq('conta_omie', String(conta)).eq('ano', ano).eq('mes', mes).range(off, off + 999);
-    const lote = (data || []) as Array<{ codigo_produto: unknown }>;
-    lote.forEach((r) => add(r.codigo_produto));
-    if (lote.length < 1000) break;
-  }
-  // compras do mês (notas_entrada: itens[].nfProdInt.nCodProd)
-  for (let off = 0; ; off += 500) {
-    const { data } = await supabase.from('notas_entrada').select('itens').eq('conta_omie', String(conta)).eq('mes', mes).eq('ano', ano).range(off, off + 499);
-    const lote = (data || []) as Array<{ itens: unknown }>;
-    for (const n of lote) {
-      const itens = Array.isArray(n.itens) ? (n.itens as Array<Record<string, unknown>>) : [];
-      for (const it of itens) add((it.nfProdInt as Record<string, unknown> | undefined)?.nCodProd);
+  for (const { mes, ano } of mesesRecentes(new Date())) {
+    // vendas do mês (ATENÇÃO: vendas_itens/notas_entrada usam conta_omie MAIÚSCULO,
+    // ao contrário de produtos/estoque_movimentos que usam minúsculo).
+    for (let off = 0; ; off += 1000) {
+      const { data } = await supabase.from('vendas_itens').select('codigo_produto').eq('conta_omie', String(conta)).eq('ano', ano).eq('mes', mes).range(off, off + 999);
+      const lote = (data || []) as Array<{ codigo_produto: unknown }>;
+      lote.forEach((r) => add(r.codigo_produto));
+      if (lote.length < 1000) break;
     }
-    if (lote.length < 500) break;
-  }
-  // já com movimento no razão neste mês
-  for (let off = 0; ; off += 1000) {
-    const { data } = await supabase.from(TBL).select('codigo_produto').eq('conta_omie', contaLow(conta)).eq('grupo', grupo).eq('ano', ano).eq('mes', mes).range(off, off + 999);
-    const lote = (data || []) as Array<{ codigo_produto: unknown }>;
-    lote.forEach((r) => ativos.add(Number(r.codigo_produto)));
-    if (lote.length < 1000) break;
+    // compras do mês (notas_entrada: itens[].nfProdInt.nCodProd)
+    for (let off = 0; ; off += 500) {
+      const { data } = await supabase.from('notas_entrada').select('itens').eq('conta_omie', String(conta)).eq('mes', mes).eq('ano', ano).range(off, off + 499);
+      const lote = (data || []) as Array<{ itens: unknown }>;
+      for (const n of lote) {
+        const itens = Array.isArray(n.itens) ? (n.itens as Array<Record<string, unknown>>) : [];
+        for (const it of itens) add((it.nfProdInt as Record<string, unknown> | undefined)?.nCodProd);
+      }
+      if (lote.length < 500) break;
+    }
+    // já com movimento no razão neste mês
+    for (let off = 0; ; off += 1000) {
+      const { data } = await supabase.from(TBL).select('codigo_produto').eq('conta_omie', contaLow(conta)).eq('grupo', grupo).eq('ano', ano).eq('mes', mes).range(off, off + 999);
+      const lote = (data || []) as Array<{ codigo_produto: unknown }>;
+      lote.forEach((r) => ativos.add(Number(r.codigo_produto)));
+      if (lote.length < 1000) break;
+    }
   }
   return ativos;
 }
 
 /**
  * Sync INCREMENTAL (cron diário): re-puxa a janela recente dos produtos com movimento
- * no mês, dos mais DESATUALIZADOS primeiro (round-robin via sincronizado_em), até o
+ * no mês (e no anterior, na 1ª semana), dos mais DESATUALIZADOS primeiro (round-robin via sincronizado_em), até o
  * tempo acabar. Idempotente (upsert por mov_hash). Se não terminar num dia, o próximo
  * continua de onde parou.
  */
@@ -216,7 +230,7 @@ export async function sincronizarIncremental(
   const t0 = Date.now();
   const hoje = new Date();
   const desde = new Date(hoje.getTime() - janelaDias * 86400_000);
-  const ativos = [...await ativosDoMes(conta, grupo)];
+  const ativos = [...await ativosRecentes(conta, grupo)];
   // família por código (p/ gravar) e ordem por desatualizado (sincronizado_em asc).
   const famPor = new Map((await listarProdutos(conta, grupo)).map((p) => [p.codigo_produto, p.familia]));
   const staleMap = new Map<number, string>();

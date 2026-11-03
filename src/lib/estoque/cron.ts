@@ -27,7 +27,8 @@ export async function cronBackfillCmc(
   for (const c of getContasOmie().filter((x) => !opts.contas || opts.contas.includes(x.id))) {
     const r = await enriquecerCMCConta(c.id, { maxMs: opts.maxMsPorConta ?? 10 * 60_000 });
     resultado[c.id] = r;
-    if (r.paradoPor?.startsWith('bloqueio')) break; // não insiste na outra conta; a retomada pega depois
+    // bloqueio é por chave (conta): a outra conta segue; esta fica sem "feito" e a retomada pega depois
+    if (r.paradoPor?.startsWith('bloqueio')) continue;
     await opts.aoConcluirConta?.(c.id);
   }
   return resultado;

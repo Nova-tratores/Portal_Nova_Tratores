@@ -251,8 +251,8 @@ export const TAREFAS: Record<string, Tarefa> = {
     const bloqueio = Object.values(r).find((v) => v.paradoPor?.startsWith('bloqueio'));
     if (!bloqueio) await limparRetomada(ctx.chave);
     const progresso: Record<string, string> = Object.fromEntries(Object.entries(r).map(([k, v]) => [k,
-      `${v.tentados}/${v.pares} tentados · ${v.enriquecidos} com custo · ${v.semCusto} sem custo (tenta de novo) · ${v.desistidos} desistidos`
-      + ` · ${v.adiados} esperando · ${v.erros} erros · ${v.chamadasOmie} chamadas`
+      `${v.tentados}/${v.pares} tentados · ${v.enriquecidos} com custo · ${v.semCusto} sem custo (tenta de novo) · ${v.desistidos} desistidos · ${v.foraCadastro} fora do cadastro`
+      + ` · ${v.adiados} esperando · ${v.erros} erros · ${v.chamadasOmie} chamadas${v.pausas ? ` · ${v.pausas} pausas do freio` : ''}`
       + (v.restantes ? ` · ${v.restantes} ficaram pra amanhã` : '')]));
     for (const c of feitas) progresso[c] = 'já feito antes (retomada)';
     const resumo = Object.entries(r).map(([k, v]) => `${k} ${v.enriquecidos} com custo de ${v.tentados} tentados (${v.chamadasOmie} chamadas)`).join(' · ')

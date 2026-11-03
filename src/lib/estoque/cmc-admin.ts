@@ -8,7 +8,7 @@
 import { supabase } from './supabase';
 import { omieRequest } from './omie';
 import { sleep } from './utils';
-import { OmieBloqueioError } from '@/lib/omie/porta';
+import { OmieBloqueioError, OmieChaveRecusadaError } from '@/lib/omie/porta';
 import { chavePar, paresParaTentar, proximaTentativa, type Par, type Tentativa } from './cmc-tentativas';
 import type { Conta } from './conta';
 
@@ -50,6 +50,8 @@ export interface EnriquecerContaResult {
   erros: number;
   chamadasOmie: number;
   restantes: number;
+  foraCadastro: number;
+  pausas: number;
   paradoPor?: string;
   semTabelaTentativas?: boolean;
 }
@@ -72,6 +74,22 @@ async function lerItensSemCusto(conta: Conta): Promise<Par[]> {
     if (error) throw new Error('vendas_itens: ' + error.message);
     out.push(...((data || []) as Par[]));
     if (!data || data.length < 1000) return out;
+  }
+}
+
+/** Códigos do espelho `produtos` da conta (só ativos chegam lá). null = não deu pra ler: não pula ninguém. */
+async function lerCadastro(conta: Conta): Promise<Set<string> | null> {
+  const set = new Set<string>();
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await supabase
+      .from('produtos')
+      .select('codigo_produto')
+      .eq('conta_omie', String(conta).toLowerCase())
+      .order('codigo_produto')
+      .range(de, de + 999);
+    if (error) return null;
+    for (const p of (data || []) as Array<{ codigo_produto: unknown }>) set.add(String(p.codigo_produto));
+    if (!data || data.length < 1000) return set.size ? set : null;
   }
 }
 
@@ -101,11 +119,12 @@ export async function enriquecerCMCConta(
   const agora = new Date();
   const linhas = await lerItensSemCusto(conta);
   const tentativas = await lerTentativas(conta);
+  const cadastro = await lerCadastro(conta);
   const { pares, adiados, desistidos: jaDesistidos } = paresParaTentar(linhas, tentativas ?? new Map(), agora);
   const fila = opts.limitePares ? pares.slice(0, opts.limitePares) : pares;
   const r: EnriquecerContaResult = {
     conta, pares: pares.length, tentados: 0, enriquecidos: 0, semCusto: 0, desistidos: 0,
-    adiados, jaDesistidos, erros: 0, chamadasOmie: 0, restantes: 0,
+    adiados, jaDesistidos, erros: 0, chamadasOmie: 0, restantes: 0, foraCadastro: 0, pausas: 0,
     ...(tentativas ? {} : { semTabelaTentativas: true }),
   };
 
@@ -126,6 +145,13 @@ export async function enriquecerCMCConta(
     }
     const p = fila[i];
     const k = chavePar(p);
+    // Produto fora do cadastro (inativo/excluído): a Omie responde "inativo"/"não localizado",
+    // e 4 seguidas acionam o freio do portal (que pausava a rodada toda). Não pergunta: desiste já.
+    if (cadastro && !cadastro.has(String(p.codigo_produto))) {
+      r.foraCadastro++;
+      await gravarTentativa(p, { tentativas: tentativas?.get(k)?.tentativas ?? 0, proxima_em: null, ultimo_resultado: 'fora_cadastro' });
+      continue;
+    }
     r.tentados++;
     try {
       const { cmc, chamou } = await consultarCMCNaData(p.codigo_produto, p.data_pedido, conta);
@@ -149,6 +175,15 @@ export async function enriquecerCMCConta(
     } catch (e) {
       if (e instanceof OmieBloqueioError) {
         r.tentados--;
+        // Pausa curta do método (freio do portal / "aguarde"): espera e segue, até 2 vezes por conta.
+        const esperaMs = (e.aguardarSegundos + 2) * 1000;
+        const cabe = !opts.maxMs || Date.now() - inicio + esperaMs < opts.maxMs;
+        if (!(e instanceof OmieChaveRecusadaError) && r.pausas < 2 && e.aguardarSegundos <= 120 && cabe) {
+          r.pausas++;
+          await sleep(esperaMs);
+          i--;
+          continue;
+        }
         r.restantes = fila.length - i;
         r.paradoPor = 'bloqueio da Omie: ' + e.message;
         break;
