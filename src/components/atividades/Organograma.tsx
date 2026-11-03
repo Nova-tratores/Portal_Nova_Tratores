@@ -8,6 +8,7 @@ import { RefreshCw, X, Crown, EyeOff, Eye, Network, ListChecks, Users, Pencil, S
 import { authHeaders } from '@/lib/auth/client'
 import { montarArvore, contarEquipe, criaCiclo, semAcento, type NoOrg, type PessoaOrg, type VinculoOrg } from '@/lib/organograma/arvore'
 import { ligarFuncoes, tarefasPorPessoa, funcoesDaPessoa, tarefasSemPessoa, ORIGENS, alternarOrdem, ordenarPor, type Ordem, type TarefaOrg, type FuncaoOrg, type LigacaoFuncao } from '@/lib/organograma/tarefas'
+import { sugerirFuncoes, type Contagem } from '@/lib/organograma/sugestoes'
 import { compararAcessos, NOME_NIVEL_REAL, NOME_SITUACAO, type AcessoPessoa, type Situacao, type TelaMarcada, type TelaOpcao } from '@/lib/organograma/acessos'
 import css from './organograma.module.css'
 
@@ -496,6 +497,23 @@ function VistaFuncoes({ dados, ligacoes, onMudou, onRenomeou }: { dados: Resp; l
   const nomePessoas = (l: LigacaoFuncao) => l.pessoas.map((c) => pessoasMap.get(c)?.nome || c).join(', ')
   const valorFuncao: Record<ColFuncao, (l: LigacaoFuncao) => string | number> = { funcao: (l) => l.funcao, tarefas: (l) => l.tarefas, pessoas: nomePessoas }
   const linhas = ordem ? ordenarPor(ligacoes, valorFuncao[ordem.coluna], ordem.dir) : ligacoes
+  // Sugestão pelo histórico do portal (só admin): carregada uma vez ao abrir a aba.
+  const [historico, setHistorico] = useState<{ dias: number; contagem: Contagem } | null>(null)
+  const [erroHist, setErroHist] = useState('')
+  useEffect(() => {
+    if (!editar) return
+    let vivo = true
+    ;(async () => {
+      try {
+        const r = await fetch('/api/organograma/sugestoes', { headers: await authHeaders() })
+        const j = await r.json()
+        if (!r.ok) throw new Error(j.error || `Erro ${r.status}`)
+        if (vivo) setHistorico(j)
+      } catch (e) { if (vivo) setErroHist((e as Error).message) }
+    })()
+    return () => { vivo = false }
+  }, [editar])
+  const sugestoes = useMemo(() => (historico ? sugerirFuncoes(dados.tarefas, historico.contagem) : null), [historico, dados.tarefas])
   const renomear = async (l: LigacaoFuncao, juntar = false): Promise<void> => {
     if (!renomeando) return
     setSalvando(l.funcao); setMsg(null)
@@ -532,9 +550,10 @@ function VistaFuncoes({ dados, ligacoes, onMudou, onRenomeou }: { dados: Resp; l
         <h3 style={titulo}>Quem é cada função</h3>
         <p style={sub}>As listas falam em funções (“Auxiliar Adm 1”, “Estagiário”…). Diga quem ocupa cada uma e as tarefas aparecem na pessoa.
           Função com o nome de alguém (“Henri”) liga sozinha — <em>automático</em> — até alguém salvar outra escolha.</p>
+        {editar && <p style={{ ...sub, marginTop: 4 }}>{erroHist ? `Sugestões indisponíveis: ${erroHist}` : historico ? `Sugestão pelo histórico: quem mais fez, nos últimos ${historico.dias} dias, as tarefas da função que deixam rastro no portal (abrir e concluir OS, cheque de revisão, garantias, requisições, ligações de feedback). Nada é ligado sem você aceitar.` : 'Lendo o histórico para sugerir…'}</p>}
       </div>
       <table className={css.tabela}>
-        <thead><tr><ThOrdem coluna="funcao" ordem={ordem} onOrdem={setOrdem}>Função</ThOrdem><ThOrdem coluna="tarefas" ordem={ordem} onOrdem={setOrdem}>Tarefas</ThOrdem><ThOrdem coluna="pessoas" ordem={ordem} onOrdem={setOrdem}>Pessoas</ThOrdem>{editar && <th>Adicionar</th>}</tr></thead>
+        <thead><tr><ThOrdem coluna="funcao" ordem={ordem} onOrdem={setOrdem}>Função</ThOrdem><ThOrdem coluna="tarefas" ordem={ordem} onOrdem={setOrdem}>Tarefas</ThOrdem><ThOrdem coluna="pessoas" ordem={ordem} onOrdem={setOrdem}>Pessoas</ThOrdem>{editar && <th>Sugestão pelo histórico</th>}{editar && <th>Adicionar</th>}</tr></thead>
         <tbody>
           {linhas.map((l) => (
             <tr key={l.funcao}>
@@ -567,6 +586,27 @@ function VistaFuncoes({ dados, ligacoes, onMudou, onRenomeou }: { dados: Resp; l
                 {l.automatico && l.pessoas.length > 0 && <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}> automático</span>}
                 {msg?.funcao === l.funcao && <span style={{ fontSize: 12, marginLeft: 6, color: msg.ok ? '#047857' : '#b91c1c', fontWeight: 700 }}>{msg.txt}</span>}
               </td>
+              {editar && (
+                <td style={{ minWidth: 240, fontSize: 12 }}>
+                  {(() => {
+                    if (!sugestoes) return <span style={{ color: 'var(--portal-text-muted)' }}>…</span>
+                    const s = sugestoes.get(l.funcao)
+                    if (!s || s.situacao === 'sem_rastro') return <span style={{ color: 'var(--portal-text-muted)' }}>tarefas sem rastro no portal</span>
+                    if (s.situacao === 'pouco_rastro') return <span style={{ color: 'var(--portal-text-muted)' }} title="Só requisições (todo o escritório faz) ou menos de 10 registros no período">pouco rastro para sugerir</span>
+                    const novas = s.sugestoes.filter((x) => !l.pessoas.includes(x.pessoa) && pessoasMap.has(x.pessoa))
+                    if (!s.sugestoes.length) return <span style={{ color: 'var(--portal-text-muted)' }}>ninguém se destaca</span>
+                    if (!novas.length) return <span style={{ color: '#047857', fontWeight: 600 }}>já confere ✓</span>
+                    return novas.map((x) => (
+                      <div key={x.pessoa} style={{ marginBottom: 4 }}>
+                        <strong style={{ color: 'var(--portal-text)' }}>{pessoasMap.get(x.pessoa)!.nome}</strong>
+                        <span style={{ color: 'var(--portal-text-muted)' }}> · {Math.round(x.nota * 100)}%</span>
+                        <button disabled={!!salvando} onClick={() => gravar(l.funcao, [...l.pessoas, x.pessoa])} style={{ ...inp, padding: '2px 8px', fontSize: 11.5, marginLeft: 6, cursor: 'pointer' }}>Aceitar</button>
+                        <div style={{ color: 'var(--portal-text-muted)', fontSize: 11.5 }}>{x.motivos.join(' · ')}</div>
+                      </div>
+                    ))
+                  })()}
+                </td>
+              )}
               {editar && (
                 <td>
                   <select value="" disabled={!!salvando} onChange={(e) => e.target.value && gravar(l.funcao, [...l.pessoas, e.target.value])} style={{ ...inp, padding: '5px 8px', fontSize: 12 }}>
