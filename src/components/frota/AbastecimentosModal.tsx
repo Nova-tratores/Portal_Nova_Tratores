@@ -1,10 +1,14 @@
 'use client';
 // Modal de ABASTECIMENTOS do veículo (aberto pela Ficha — sem redirecionar):
 // todo o histórico da placa, agrupado por DIA, SEMANA ou MÊS.
+// Junta o cartão-frota (`abastecimentos`) e as requisições Veicular
+// Abastecimento já no FINANCEIRO — mesma regra dos Custos e do resumo do
+// Frota, senão a ficha mostrava menos que o resto da tela.
 import { useEffect, useMemo, useState } from 'react';
 import { Fuel, X, ExternalLink } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatarPlaca } from '@/lib/frota/placa';
+import { normalizarReqAbastecimento, type ReqAbastRow } from '@/lib/abastecimento/requisicoes';
 
 interface Props {
   placa: string;
@@ -20,6 +24,7 @@ interface Abast {
   posto_nome: string | null;
   motorista_nome: string | null;
   hodometro: number | null;
+  req_id?: number; // veio de requisição (só tem a data, sem hora)
 }
 
 type Visao = 'dia' | 'semana' | 'mes';
@@ -71,6 +76,34 @@ export default function AbastecimentosModal({ placa, onClose }: Props) {
           .range(off, off + 999);
         out.push(...((data || []) as Abast[]));
         if (!data || data.length < 1000) break;
+      }
+
+      // requisições: Requisicao.veiculo guarda o SupaPlacas.IdPlaca do carro
+      const { data: veic } = await supabase.from('frota_veiculos').select('modelo, supa_placa_id').eq('placa', placa).maybeSingle();
+      if (veic?.supa_placa_id != null) {
+        const { data: reqs } = await supabase
+          .from('Requisicao')
+          .select('id, tipo, data, status, veiculo, hodometro, litros_combustivel, combustivel, valor_despeza, fornecedor, solicitante, setor, empresa, Chassis_Modelo, ordem_servico')
+          .eq('tipo', 'Veicular Abastecimento')
+          .eq('veiculo', veic.supa_placa_id)
+          .limit(5000);
+        const porId = new Map([[String(veic.supa_placa_id), { placa, modelo: veic.modelo || null }]]);
+        for (const r of (reqs || []) as unknown as ReqAbastRow[]) {
+          const n = normalizarReqAbastecimento(r, porId);
+          if (!n) continue; // fora do financeiro / sem valor e sem litros
+          out.push({
+            data_transacao: n.data_transacao,
+            litros: n.litros,
+            valor_total: n.valor_total ?? 0,
+            valor_economizado: null,
+            combustivel: n.combustivel,
+            posto_nome: n.posto_nome,
+            motorista_nome: n.motorista_nome,
+            hodometro: n.hodometro,
+            req_id: n.req_id,
+          });
+        }
+        out.sort((a, b) => new Date(b.data_transacao).getTime() - new Date(a.data_transacao).getTime());
       }
       setLinhas(out);
       setCarregando(false);
@@ -145,10 +178,13 @@ export default function AbastecimentosModal({ placa, onClose }: Props) {
               </div>
               {/* nas visões semana/mês o grupo é só o resumo; no dia lista as linhas */}
               {visao === 'dia' && g.itens.map((l, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 10px 5px clamp(10px, 3vw, 22px)', fontSize: 13, color: 'var(--portal-text)', borderBottom: '1px dashed var(--portal-border)', flexWrap: 'wrap' }}>
-                  <span style={{ minWidth: 38, color: 'var(--portal-text)' }}>{fmtHora(l.data_transacao)}</span>
+                <div key={l.req_id ? `r${l.req_id}` : i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 10px 5px clamp(10px, 3vw, 22px)', fontSize: 13, color: 'var(--portal-text)', borderBottom: '1px dashed var(--portal-border)', flexWrap: 'wrap' }}>
+                  <span style={{ minWidth: 38, color: 'var(--portal-text)' }}>{l.req_id ? '—' : fmtHora(l.data_transacao)}</span>
                   <strong style={{ minWidth: 52, color: 'var(--portal-text)' }}>{fmtL(Number(l.litros))} L</strong>
                   {l.combustivel && <span style={{ fontSize: 11.5, fontWeight: 700, color: /etanol|alcool|álcool/i.test(l.combustivel) ? '#15803d' : /gasolina/i.test(l.combustivel) ? '#b45309' : 'var(--portal-text-muted)', background: 'var(--portal-bg-secondary)', borderRadius: 999, padding: '1px 8px' }}>{l.combustivel}</span>}
+                  {l.req_id && (
+                    <a href={`/requisicoes?req=${l.req_id}`} title="Abastecimento lançado por requisição (só tem a data, sem hora)" style={{ fontSize: 11.5, fontWeight: 700, color: '#9a3412', background: '#ffedd5', borderRadius: 999, padding: '1px 8px', textDecoration: 'none' }}>requisição {l.req_id}</a>
+                  )}
                   <span style={{ flex: 1, minWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.posto_nome || '—'}</span>
                   {l.hodometro != null && <span style={{ color: 'var(--portal-text)', fontSize: 11 }}>{Number(l.hodometro).toLocaleString('pt-BR')} km</span>}
                   {Number(l.valor_economizado) > 0 && (
