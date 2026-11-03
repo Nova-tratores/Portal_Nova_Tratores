@@ -196,9 +196,11 @@ export const TAREFAS: Record<string, Tarefa> = {
     const { cronSyncProdutos } = await import('@/lib/estoque/cron');
     const r = await cronSyncProdutos() as Record<string, { ok?: boolean; totalProdutos?: number; errosEstoque?: number; mensagem?: string; erro?: string }>;
     const contas = Object.entries(r);
-    const falhas = contas.filter(([, v]) => v.ok === false);
-    if (falhas.length === contas.length && falhas.length > 0) throw new Error(falhas.map(([k, v]) => `${k}: ${v.mensagem || v.erro}`).join(' | '));
-    return { resumo: contas.map(([k, v]) => (v.ok === false ? `${k} erro: ${v.mensagem || v.erro}` : `${k} ${v.totalProdutos} produtos${v.errosEstoque ? ` (${v.errosEstoque} sem estoque)` : ''}`)).join(' · ') };
+    const resumo = contas.map(([k, v]) => (v.ok === false ? `${k} erro: ${v.mensagem || v.erro}` : `${k} ${v.totalProdutos} produtos${v.errosEstoque ? ` (${v.errosEstoque} sem estoque)` : ''}`)).join(' · ');
+    // Uma conta que falhou já marca a rodada como erro: com "ok" a reserva do GitHub
+    // (rota sync-produtos) pulava a manhã seguinte — visto 28/10, chave da NOVA recusada.
+    if (contas.some(([, v]) => v.ok === false)) throw new Error(resumo);
+    return { resumo };
   },
 
   // Livro-razão de estoque (estoque_movimentos): janela recente das peças que se moveram
