@@ -12,6 +12,7 @@ import { LigaJanela, ComissoesJanela } from './JanelasInfo'
 import { AutorizacoesJanela } from './AutorizacoesJanela'
 import PodioMeses from './PodioMeses'
 import { useLigarAoVivo, useSeloAoVivo } from './useAoVivo'
+import { useMesGestao, mesAtualSP } from './useMesGestao'
 
 export type AbaCPV = 'painel' | 'ocorrencias' | 'podio'
 
@@ -27,6 +28,15 @@ export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a
   const { modal } = useModalMec()
   useEffect(() => { const m = ['tribunal', 'ocorrencias', 'liga', 'comissoes', 'autorizacoes'].includes(janelaUrl || '') ? (janelaUrl as 'tribunal') : null; abrirModalMec(m) }, [janelaUrl])
   useEffect(() => { if ((modal || null) !== (janelaUrl || null) && (aba === 'ocorrencias' || modal === 'liga' || modal === 'comissoes' || modal === 'autorizacoes' || janelaUrl === 'liga' || janelaUrl === 'comissoes' || janelaUrl === 'autorizacoes')) mudar({ janela: modal }, !!modal) }, [modal]) // eslint-disable-line react-hooks/exhaustive-deps
+  // o mês da Gestão vai no endereço (?mes=2026-10; o mês atual não aparece) e o endereço com mês abre nele
+  const [mesG, setMesG] = useMesGestao()
+  const leuMes = useRef(false)
+  useEffect(() => {
+    const daUrl = pegar('mes')
+    if (!leuMes.current) { leuMes.current = true; if (daUrl && daUrl !== mesG) { setMesG(daUrl); return } }
+    const alvo = mesG === mesAtualSP() ? null : mesG
+    if ((daUrl || null) !== alvo) mudar({ mes: alvo }, false)
+  }, [mesG]) // eslint-disable-line react-hooks/exhaustive-deps
   const [cheia, setCheia] = useState(false)
   useEffect(() => {
     const f = () => setCheia(!!document.fullscreenElement)

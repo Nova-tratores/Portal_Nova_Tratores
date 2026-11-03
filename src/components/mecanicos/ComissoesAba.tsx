@@ -15,6 +15,7 @@ import { FichaPro } from './FichaPro'
 import { useAutorizacoes } from './AutorizacoesJanela'
 import { useVersaoAoVivo } from './useAoVivo'
 import { seloEnviada } from './seloComissao'
+import { useMesGestao } from './useMesGestao'
 
 type PessoaEsc = { nome: string; foto: string | null; funcao: 'garantista' | 'sem_regra'; rh: { nome: string; cargo: string | null; departamento: string | null } | null; comissoes: { mes: string; valor: number; status: string; origem: string }[] }
 type OSB = { os: string; numero: string | null; cliente: string; data: string; total: number; tipo: string }
@@ -48,7 +49,7 @@ export default function ComissoesAba({ tecnicosDoMes }: { tecnicosDoMes: React.R
 }
 
 function Escritorio() {
-  const [mes, setMes] = useState(hojeMes)
+  const [mes, setMes] = useMesGestao() // mesmo mês da Equipe e dos Resultados (03/11/2026)
   const [d, setD] = useState<DadosEsc | null>(null)
   const [erro, setErro] = useState('')
   const [aberto, setAberto] = useState<string | null>(null)

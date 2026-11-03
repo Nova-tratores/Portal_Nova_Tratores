@@ -2,13 +2,15 @@
 // Cards dos técnicos — 2ª leva (José, 19/10/2026: "apaga esse, estão todos ridículos e me surpreenda").
 // Metas: R$ 20 mil/mês por mecânico, 20 h/semana, comparando com a ideal de 40 h/semana.
 // Dados reais: base do pós-vendas (mês atual) + comissões e fotos (useCarreira).
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { montarPainel, SEM_META, SEM_TECNICO } from '@/lib/mecanicos/painel'
 import { useBasePosVendas } from './useBasePosVendas'
 import { useCarreira } from './useCarreira'
 import { IconeLiga } from './CartaLiga'
 import { useComAguardando } from './useComAguardando'
 import { brl, horas, Odometro, useContador } from './ui'
+import { ouvirFichas, fichaGuardada } from './FichaTecnico'
+import { previsaoPagamento } from '@/lib/mecanicos/comissao'
 
 const MUDO = 'var(--portal-text-muted, #64748b)'
 const hojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
@@ -37,23 +39,34 @@ export type CardDados = {
   horasSemana: number; metaSemana: number; idealSemana: number
 }
 
-export function useCardsTecnicos(metas: Metas) {
+/** Cartões do mês `mes` (YYYY-MM; sem ele, o mês atual). Mês passado: fechado (fração 1, "hoje" = último dia).
+ *  A comissão prevista é a mesma da ficha quando ela já foi buscada (José, 03/11/2026: o cartão mostrava zero e a
+ *  ficha mostrava o valor); antes disso vem da carreira (mês atual e o anterior). */
+export function useCardsTecnicos(metas: Metas, mes?: string) {
   const { base } = useBasePosVendas()
   const { dados: car } = useCarreira()
   const comAg = useComAguardando()
+  // cada ficha que chega (busca antecipada ou clique) atualiza a comissão e os pontos do cartão
+  const [fichas, setFichas] = useState(0)
+  useEffect(() => ouvirFichas(() => setFichas((v) => v + 1)), [])
   return useMemo(() => {
     if (!base) return null
-    const hoje = hojeSP()
-    const d = montarPainel(base, 'mes', hoje, hoje, comAg)
-    const [a, m] = hoje.split('-').map(Number)
+    const hojeReal = hojeSP()
+    const mesAlvo = mes && mes <= hojeReal.slice(0, 7) ? mes : hojeReal.slice(0, 7)
+    const [a, m] = mesAlvo.split('-').map(Number)
     const diasMes = new Date(Date.UTC(a, m, 0)).getUTCDate()
+    const atual = mesAlvo === hojeReal.slice(0, 7)
+    // mês fechado: tudo é contado até o último dia
+    const hoje = atual ? hojeReal : `${mesAlvo}-${String(diasMes).padStart(2, '0')}`
+    const d = montarPainel(base, 'mes', hoje, hojeReal, comAg)
     const fracao = Math.min(1, Number(hoje.slice(8, 10)) / diasMes)
     const semanas = diasMes / 7
     const diaHoje = Number(hoje.slice(8, 10))
+    const mesCar = car?.mesAtual, mesAntCar = mesCar ? (() => { const [y, n] = mesCar.split('-').map(Number); return n === 1 ? `${y - 1}-12` : `${y}-${String(n - 1).padStart(2, '0')}` })() : null
     // faturado e horas cobradas dia a dia de cada técnico (OS com 2 técnicos divide)
     const porDia = new Map<string, { v: number[]; h: number[] }>()
     for (const o of base.faturadas) {
-      if (!o.data.startsWith(hoje.slice(0, 7))) continue
+      if (!o.data.startsWith(mesAlvo)) continue
       const k = Number(o.data.slice(8, 10)) - 1, n = Math.max(1, o.tecnicos.length)
       for (const t of o.tecnicos) {
         const x = porDia.get(t) || { v: Array(diasMes).fill(0), h: Array(diasMes).fill(0) }
@@ -63,19 +76,21 @@ export function useCardsTecnicos(metas: Metas) {
     const acum = (l: number[]) => l.reduce<number[]>((out, v, i) => { out.push((out[i - 1] || 0) + v); return out }, [])
     // quem já saiu do RH antes deste mês não ganha cartão, mesmo com OS no mês (José, 21/10/2026: "tira o Nicolas,
     // ele não é mais técnico nosso"); as OS dele continuam no total da equipe
-    const saiu = (t: string) => { const e = (base.equipe || []).find((x) => x.pessoa === t); return !!e?.demissao && e.demissao < hoje.slice(0, 7) }
+    const saiu = (t: string) => { const e = (base.equipe || []).find((x) => x.pessoa === t); return !!e?.demissao && e.demissao < mesAlvo }
     return d.linhas.filter((l) => l.tecnico !== SEM_TECNICO && !SEM_META.has(l.tecnico) && !saiu(l.tecnico)).map((l): CardDados => {
       const c = car?.comissoes.find((x) => x.tecnico === l.tecnico)
+      const f = fichaGuardada(l.tecnico, mesAlvo)
+      const comCar = c ? (mesAlvo === mesCar ? c.atual.projecao : mesAlvo === mesAntCar ? c.anterior.total : null) : null
       const h = l.faturadas + l.aguardando
       return {
         nome: l.tecnico, foto: car?.fotos?.[l.tecnico], nivel: car?.carreira.find((x) => x.tecnico === l.tecnico)?.nivel,
-        pontos: car ? Math.max(0, 100 - (car.pontosMes?.[l.tecnico] || 0)) : undefined,
+        pontos: f ? f.pontos.saldo : car && atual ? Math.max(0, 100 - (car.pontosMes?.[l.tecnico] || 0)) : undefined,
         internaHoras: l.internas,
-        internaValor: (base.internasFechadas || []).filter((x) => x.data.startsWith(hoje.slice(0, 7)) && x.tecnicos.includes(l.tecnico)).reduce((s, x) => s + x.valor / Math.max(1, x.tecnicos.length), 0),
+        internaValor: (base.internasFechadas || []).filter((x) => x.data.startsWith(mesAlvo) && x.tecnicos.includes(l.tecnico)).reduce((s, x) => s + x.valor / Math.max(1, x.tecnicos.length), 0),
         faturado: l.bruto, horas: h, os: Math.round(l.os), km: l.km,
         metaValor: metas.valorSemana * semanas, idealValor: metas.valorIdealSemana * semanas, metaHoras: metas.horasSemana * semanas, idealHoras: metas.horasIdeal * semanas, fracao,
         projValor: fracao > 0 ? l.bruto / fracao : 0, projHoras: fracao > 0 ? h / fracao : 0,
-        comissao: c ? c.atual.projecao : null, pagamento: c ? c.atual.pagamento : null, pct: c ? c.pct : null,
+        comissao: f ? f.comissao.projecao : comCar, pagamento: previsaoPagamento(mesAlvo), pct: c ? c.pct : null,
         diaValor: acum(porDia.get(l.tecnico)?.v || Array(diasMes).fill(0)),
         // horas: as cobradas dia a dia + as que aguardam faturar somadas no dia de hoje
         diaHoras: acum((porDia.get(l.tecnico)?.h || Array(diasMes).fill(0)).map((v, i) => (i === diaHoje - 1 ? v + l.aguardando : v))),
@@ -88,7 +103,7 @@ export function useCardsTecnicos(metas: Metas) {
         })(),
       }
     }).sort((x, y) => y.faturado - x.faturado)
-  }, [base, car, metas, comAg])
+  }, [base, car, metas, comAg, mes, fichas]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 function situacao(v: number, meta: number, fracao: number) {
@@ -589,14 +604,14 @@ function ContVivo({ c }: { c: CardDados }) {
 /** S1 com outro estilo de contador. */
 /** `semFoto`: cabeçalho branco sem a foto (José, 21/10/2026: "melhora esse card, não precisa mostrar as fotos"). */
 /** `capa`: capa limpa — nome, pontos, a comissão e "Ver comissão" (José, 27/10/2026: "tira esse monte de informação da capa, só deixa óbvio que ali é a comissão e que é pra clicar"). */
-export function S1Estilo({ cards, contador, onAbrir, semFoto, capa, selos }: { cards: CardDados[]; contador: EstiloContador; onAbrir?: (c: CardDados) => void; semFoto?: boolean; capa?: boolean; selos?: Record<string, string | null> }) {
+export function S1Estilo({ cards, contador, onAbrir, onPassar, semFoto, capa, selos }: { cards: CardDados[]; contador: EstiloContador; onAbrir?: (c: CardDados) => void; /** passou o mouse: a ficha já começa a vir */ onPassar?: (c: CardDados) => void; semFoto?: boolean; capa?: boolean; selos?: Record<string, string | null> }) {
   return (
     <div className="s1-grade">
       {cards.map((c, i) => {
         const sv = situacao(c.faturado, c.metaValor, c.fracao)
         const par = (Comp: typeof ContAnel) => <div className="s1-vels"><Comp v={c.faturado} meta={c.metaValor} fracao={c.fracao} f={brl} rot="faturado" cor="#2563eb" /><Comp v={c.horas} meta={c.metaHoras} ideal={c.idealHoras} fracao={c.fracao} f={horas} rot="horas" cor="#0891b2" /></div>
         if (capa) return (
-          <article key={c.nome} className={`s1 s1-capa ${onAbrir ? 'abre' : ''}`} style={{ animationDelay: `${i * 110}ms` }} onClick={onAbrir ? () => onAbrir(c) : undefined}
+          <article key={c.nome} className={`s1 s1-capa ${onAbrir ? 'abre' : ''}`} style={{ animationDelay: `${i * 110}ms` }} onMouseEnter={onPassar ? () => onPassar(c) : undefined} onClick={onAbrir ? () => onAbrir(c) : undefined}
             role={onAbrir ? 'button' : undefined} tabIndex={onAbrir ? 0 : undefined} onKeyDown={onAbrir ? (e) => { if (e.key === 'Enter') onAbrir(c) } : undefined}>
             <div className="s1c-topo"><span className="s1-sit" style={{ color: sv.cor, background: sv.fundo }}>● {sv.txt}</span>{selos?.[c.nome] && <span className="s1-enviada">{selos[c.nome]}</span>}<SeloPontos p={c.pontos} /></div>
             <div className="s1c-nome"><b>{c.nome}</b>{c.nivel != null && <IconeLiga nivel={c.nivel} tamanho={34} />}</div>

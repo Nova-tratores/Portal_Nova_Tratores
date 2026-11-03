@@ -19,8 +19,8 @@ function Tela() {
   const { pegar, mudar } = useUrlMec()
   const aba = DA_URL[pegar('aba') || ''] || 'painel'
   if (!loading && userProfile && !temAcesso('mecanicos')) return <SemPermissao />
-  // trocar de aba fecha a ficha e as janelas abertas (cada endereço mostra uma coisa só)
-  return <CentroPosVendas aba={aba} onAba={(a) => mudar({ aba: PARA_URL[a], tecnico: null, secao: null, mes: null, janela: a === 'ocorrencias' ? pegar('janela') : null })} />
+  // trocar de aba fecha a ficha e as janelas abertas (cada endereço mostra uma coisa só); o mês fica (03/11/2026)
+  return <CentroPosVendas aba={aba} onAba={(a) => mudar({ aba: PARA_URL[a], tecnico: null, secao: null, janela: a === 'ocorrencias' ? pegar('janela') : null })} />
 }
 
 export default function MecanicosPage() {

@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase'
 import { BASE_PONTOS, faixa, type Cat, type HistoricoPessoa, type LinhaEscudo, type OcorrenciaPainel } from '@/lib/mecanicos/ocorrencias-painel'
 import { Kpi, Cartao, EstilosCPV, useContador, brl } from './ui'
 import TecnicosDoMes from './TecnicosDoMes'
+import { useMesGestao } from './useMesGestao'
 import CartaLiga, { IconeLiga } from './CartaLiga'
 import { useCarreira } from './useCarreira'
 import FantasmasMec from './FantasmasMec'
@@ -91,7 +92,8 @@ const haQuanto = (iso: string | null) => {
 export default function RadarOcorrencias() {
   const { dados: carreira } = useCarreira()
   const [carta, setCarta] = useState<number | null>(null)
-  const [mes, setMes] = useState(mesSP)
+  // o mesmo mês dos Resultados (José, 03/11/2026: não precisa escolher de novo ao entrar na Equipe)
+  const [mes, setMes] = useMesGestao()
   const [d, setD] = useState<Resp | null>(null)
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(true)

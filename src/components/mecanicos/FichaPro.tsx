@@ -11,8 +11,12 @@ import { patente, NIVEL_MAX, PONTOS_POR_OS, PONTOS_POR_DEGRAU } from '@/lib/meca
 import { IconeLiga } from './CartaLiga'
 import { brl, brl2 } from './ui'
 import type { CardDados } from './CardsTecnicoOpcoes'
-import { nomeMes, dataBR, diaBR, iniciais, tempoDeCasa, useVisores, useFicha, andarMes, hojeSP, ESTILO_FT, Num } from './FichaTecnico'
+import { nomeMes, dataBR, diaBR, iniciais, tempoDeCasa, useVisores, useFicha, andarMes, hojeSP, ESTILO_FT, Num, prefetchFicha } from './FichaTecnico'
 import { useEdicao, LancarComissao, Divisao, Conteudo, MOTIVOS_NAO, grupoDa, chaveL, ESTILO_FO, type EdicaoComissao } from './FichaOpcoes'
+import Comparador, { type PessoaComparada } from './Comparador'
+import { useBasePosVendas } from './useBasePosVendas'
+import { useComAguardando } from './useComAguardando'
+import { montarPainel } from '@/lib/mecanicos/painel'
 
 const MUDO = 'var(--portal-text-muted, #64748b)'
 export const SECOES = [
@@ -21,10 +25,12 @@ export const SECOES = [
   { k: 'oc', rot: 'Ocorrências', ic: 'fa-shield-halved' }, { k: 'rh', rot: 'RH', ic: 'fa-id-card' },
 ] as const
 
-/** Janela da ficha (tela cheia). `secao`/`mes` controlados de fora quando vêm da URL. */
-export function FichaPro({ nome, foto, card, onFechar, secao, onSecao, mes: mesFora, onMes }: {
+/** Janela da ficha (tela cheia). `secao`/`mes` controlados de fora quando vêm da URL.
+ *  `equipe` + `onTrocar` (José, 03/11/2026): barra no topo para ir para outro mecânico e comparar com outro. */
+export function FichaPro({ nome, foto, card, onFechar, secao, onSecao, mes: mesFora, onMes, equipe, onTrocar }: {
   nome: string; foto?: string; card?: CardDados | null; onFechar: () => void
   secao?: string; onSecao?: (s: string) => void; mes?: string; onMes?: (m: string) => void
+  equipe?: { nome: string; foto?: string }[]; onTrocar?: (nome: string) => void
 }) {
   const [mesLocal, setMesLocal] = useState(() => hojeSP().slice(0, 7))
   const mes = mesFora || mesLocal
@@ -33,21 +39,88 @@ export function FichaPro({ nome, foto, card, onFechar, secao, onSecao, mes: mesF
   const sec = secao || secLocal
   const setSec = (s: string) => { setSecLocal(s); onSecao?.(s) }
   const { dados: d, erro } = useFicha(nome, mes)
+  const [cmp, setCmp] = useState<string | null>(null)
+  const trocar = equipe && equipe.length > 1 && onTrocar ? onTrocar : null
   useEffect(() => {
-    const t = (ev: KeyboardEvent) => { if (ev.key === 'Escape' && !document.querySelector('.ft-doc, .ft-req-fundo, .orj-fundo')) onFechar() }
+    const t = (ev: KeyboardEvent) => {
+      if (document.querySelector('.ft-doc, .ft-req-fundo, .orj-fundo, .cmp-fundo')) return
+      if (ev.key === 'Escape') onFechar()
+      // Alt + ← / → passa para o mecânico anterior / seguinte
+      else if (trocar && equipe && ev.altKey && (ev.key === 'ArrowLeft' || ev.key === 'ArrowRight')) {
+        const i = equipe.findIndex((p) => p.nome === nome), n = equipe.length
+        ev.preventDefault(); trocar(equipe[((i < 0 ? 0 : i) + (ev.key === 'ArrowLeft' ? -1 : 1) + n) % n].nome)
+      }
+    }
     window.addEventListener('keydown', t); return () => window.removeEventListener('keydown', t)
-  }, [onFechar])
+  }, [onFechar, trocar, equipe, nome])
   useEffect(() => { const o = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = o } }, [])
   const tela = (
     <div className="fp-fundo" role="dialog" aria-label={`Ficha de ${nome}`}>
-      <style>{ESTILO_FT}</style><style>{ESTILO_FO}</style><style>{ESTILO_FP}</style>
+      <style>{ESTILO_FT}</style><style>{ESTILO_FO}</style><style>{ESTILO_FP}</style><style>{ESTILO_TROCA}</style>
       <button type="button" className="fp-x" onClick={onFechar} aria-label="Fechar (Esc)" title="Fechar (Esc)"><i className="fas fa-xmark" /></button>
-      {d ? <Corpo key={mes} d={d} foto={foto} card={card} mes={mes} setMes={setMes} sec={sec} setSec={setSec} />
+      {trocar && equipe && <TrocaMecanico equipe={equipe} nome={nome} mes={mes} onTrocar={trocar} onComparar={() => setCmp(equipe.find((p) => p.nome !== nome)?.nome || null)} />}
+      {d ? <Corpo key={`${nome}|${mes}`} d={d} foto={foto} card={card} mes={mes} setMes={setMes} sec={sec} setSec={setSec} />
         : <div className="fp-carr">{erro ? <><i className="fas fa-triangle-exclamation" /> {erro}</> : <><i className="fas fa-circle-notch fa-spin" /> abrindo a ficha de {nome}…</>}</div>}
+      {cmp && equipe && <CompararMecanicos a={nome} b={cmp} mes={mes} pessoas={equipe.map((p) => p.nome)} onTrocar={(lado, n) => { if (lado) setCmp(n); else trocar?.(n) }} onFechar={() => setCmp(null)} />}
     </div>
   )
   return typeof document === 'undefined' ? tela : createPortal(tela, document.body)
 }
+
+/** Barra do topo da ficha: anterior · todos os mecânicos · próximo, e "Comparar". */
+function TrocaMecanico({ equipe, nome, mes, onTrocar, onComparar }: { equipe: { nome: string; foto?: string }[]; nome: string; mes: string; onTrocar: (n: string) => void; onComparar: () => void }) {
+  const i = Math.max(0, equipe.findIndex((p) => p.nome === nome)), n = equipe.length
+  const ant = equipe[(i - 1 + n) % n], prox = equipe[(i + 1) % n]
+  const curto = (s: string) => s.split(' ')[0]
+  const antes = (s: string) => prefetchFicha(s, mes, true)
+  return (
+    <nav className="fpt" aria-label="Trocar de mecânico">
+      <button type="button" className="fpt-seta" onClick={() => onTrocar(ant.nome)} onMouseEnter={() => antes(ant.nome)} title={`${ant.nome} (Alt + ←)`}><i className="fas fa-chevron-left" /> {curto(ant.nome)}</button>
+      <div className="fpt-lista" role="tablist">
+        {equipe.map((p) => (
+          <button key={p.nome} type="button" role="tab" aria-selected={p.nome === nome} className={p.nome === nome ? 'on' : ''} onClick={() => onTrocar(p.nome)} onMouseEnter={() => antes(p.nome)} title={p.nome}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <span className="fpt-av">{p.foto ? <img src={p.foto} alt="" /> : iniciais(p.nome)}</span>{curto(p.nome)}
+          </button>
+        ))}
+      </div>
+      <button type="button" className="fpt-seta" onClick={() => onTrocar(prox.nome)} onMouseEnter={() => antes(prox.nome)} title={`${prox.nome} (Alt + →)`}>{curto(prox.nome)} <i className="fas fa-chevron-right" /></button>
+      <button type="button" className="fpt-cmp" onClick={onComparar} title="Comparar com outro mecânico no mesmo mês"><i className="fas fa-scale-balanced" /> Comparar</button>
+    </nav>
+  )
+}
+
+/** O Comparador do Painel (barra contra barra), com os números do mês da ficha. */
+function CompararMecanicos({ a, b, mes, pessoas, onTrocar, onFechar }: { a: string; b: string; mes: string; pessoas: string[]; onTrocar: (lado: 0 | 1, nome: string) => void; onFechar: () => void }) {
+  const { base } = useBasePosVendas()
+  const comAg = useComAguardando()
+  const fa = useFicha(a, mes).dados, fb = useFicha(b, mes).dados
+  const p = useMemo(() => {
+    if (!base) return null
+    const hoje = hojeSP(), [y, m] = mes.split('-').map(Number)
+    const fim = `${mes}-${String(new Date(Date.UTC(y, m, 0)).getUTCDate()).padStart(2, '0')}`
+    return montarPainel(base, 'mes', hoje.startsWith(mes) ? hoje : fim, hoje, comAg)
+  }, [base, mes, comAg])
+  if (!p) return null
+  const pessoa = (nome: string, f: Ficha | null): PessoaComparada => ({ nome, l: p.linhas.find((x) => x.tecnico === nome), gastos: p.gastos.porPessoa.find((x) => x.pessoa === nome)?.total || 0, salario: p.equipe.porPessoa[nome] || 0, pontos: f?.pontos.saldo })
+  return <Comparador a={pessoa(a, fa)} b={pessoa(b, fb)} pessoas={pessoas} onTrocar={onTrocar} onFechar={onFechar} />
+}
+
+const ESTILO_TROCA = `
+.fpt { position: sticky; top: 0; z-index: 5; display: flex; gap: 8px; align-items: center; padding: 10px 70px 10px 18px; background: color-mix(in srgb, var(--portal-bg, #f4f6f9) 92%, transparent); backdrop-filter: blur(6px); border-bottom: 1px solid var(--portal-border, #e2e8f0) }
+.fpt button { font: inherit; cursor: pointer }
+.fpt-seta { flex: none; display: inline-flex; gap: 6px; align-items: center; height: 34px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: #334155; font-size: 13px }
+.fpt-seta:hover { border-color: #0369a1; color: #0369a1 }
+.fpt-lista { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: thin; padding: 2px }
+.fpt-lista button { flex: none; display: inline-flex; gap: 7px; align-items: center; height: 34px; padding: 0 12px 0 4px; border-radius: 99px; border: 1px solid transparent; background: transparent; color: var(--portal-text-muted, #64748b); font-size: 13px; transition: all .15s }
+.fpt-lista button:hover { background: var(--portal-bg-card, #fefefe); border-color: var(--portal-border, #e2e8f0); color: var(--portal-text, #0f172a) }
+.fpt-lista button.on { background: #0369a1; color: #fefefe; font-weight: 600 }
+.fpt-av { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; overflow: hidden; background: #e2e8f0; color: #334155; font-size: 10.5px; font-weight: 700 } .fpt-av img { width: 100%; height: 100%; object-fit: cover }
+.fpt-lista button.on .fpt-av { background: rgba(255,255,255,.25); color: #fefefe }
+.fpt-cmp { flex: none; display: inline-flex; gap: 7px; align-items: center; height: 34px; padding: 0 14px; border-radius: 99px; border: 1px solid #c4b5fd; background: #f5f3ff; color: #6d28d9; font-size: 13px; font-weight: 600 }
+.fpt-cmp:hover { background: #ede9fe }
+@media (max-width: 720px) { .fpt { padding: 8px 60px 8px 10px } .fpt-seta { padding: 0 10px; font-size: 0 } .fpt-seta i { font-size: 13px } .fpt-cmp { padding: 0 10px; font-size: 0 } .fpt-cmp i { font-size: 14px } }
+`
 
 export function Corpo({ d, foto, card, mes, setMes, sec, setSec }: { d: Ficha; foto?: string; card?: CardDados | null; mes: string; setMes: (m: string) => void; sec: string; setSec: (s: string) => void }) {
   const v = useVisores(d), e = useEdicao(d)

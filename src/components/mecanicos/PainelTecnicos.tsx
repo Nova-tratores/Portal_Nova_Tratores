@@ -29,6 +29,7 @@ import { EvolucaoViva, pontosDoPainel, ESTILO_EV } from './EvolucaoOpcoes'
 import type { Pendencia } from '@/lib/mecanicos/pendencias'
 import { useComAguardando, CaixaAguardando } from './useComAguardando'
 import { useCarreira } from './useCarreira'
+import { usePeriodoGestao } from './useMesGestao'
 
 type Resp = PainelMontado & { geradoEm?: string }
 
@@ -48,8 +49,8 @@ const ESTILO_SIM = `.pt-horas2 { display: flex; gap: 6px 8px; align-items: cente
 const ROTULO_HIST: Record<Escala, string> = { dia: 'últimos 14 dias', semana: 'últimas 8 semanas', mes: 'últimos 6 meses', ano: 'últimos 3 anos' }
 
 export default function PainelTecnicos() {
-  const [tipo, setTipo] = useState<Escala>('semana')
-  const [ref, setRef] = useState(hojeSP)
+  // período dividido com a Equipe e a ficha (José, 03/11/2026): trocar aqui já vale lá
+  const { tipo, ref, setTipo, setRef } = usePeriodoGestao()
   const [ficha, setFicha] = useState<string | null>(null)
   const [listaOS, setListaOS] = useState<{ titulo: string; os: OSFaturada[] } | null>(null)
   const [verInternas, setVerInternas] = useState(false)

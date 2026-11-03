@@ -612,17 +612,49 @@ export const ESTILO_FT = `
 
 // ============================================================================ peças reaproveitáveis (opções da página de teste)
 /** Busca a ficha antes de alguém clicar (os cards chamam ao aparecer) — o clique abre na hora. */
-const buscando = new Map<string, Promise<void>>()
-export function prefetchFicha(nome: string, mes: string) {
+// 03/11/2026 (José: "quero otimizar esse loading"): uma busca só por técnico+mês — o clique aproveita a que já
+// está a caminho em vez de pedir de novo; as antecipadas andam numa fila de 3 por vez (passar o mouse fura a fila)
+// e quem chega avisa os cartões (a comissão do cartão passa a ser a mesma da ficha).
+const buscando = new Map<string, Promise<Ficha>>()
+const ouvintesFicha = new Set<() => void>()
+export function ouvirFichas(f: () => void) { ouvintesFicha.add(f); return () => { ouvintesFicha.delete(f) } }
+export const fichaGuardada = (nome: string, mes: string): Ficha | null => cache.get(`${nome}|${mes}`) || null
+
+function baixarFicha(nome: string, mes: string): Promise<Ficha> {
+  const chave = `${nome}|${mes}`
+  const c = cache.get(chave)
+  if (c) return Promise.resolve(c)
+  const em = buscando.get(chave)
+  if (em) return em
+  const p = (async () => {
+    const r = await fetch(`/api/mecanicos/tecnico?nome=${encodeURIComponent(nome)}&mes=${mes}`, { headers: await authHeaders(), cache: 'no-store' })
+    const j = await r.json()
+    if (!r.ok) throw new Error(j.error || 'Falha ao carregar a ficha')
+    cache.set(chave, j)
+    ouvintesFicha.forEach((f) => f())
+    return j as Ficha
+  })().finally(() => buscando.delete(chave))
+  buscando.set(chave, p)
+  return p
+}
+
+const fila: string[] = []
+let rodando = 0
+function andarFila() {
+  while (rodando < 3 && fila.length) {
+    const chave = fila.shift()!
+    const [nome, mes] = chave.split('|')
+    rodando++
+    baixarFicha(nome, mes).catch(() => { /* tenta de novo no clique */ }).finally(() => { rodando--; andarFila() })
+  }
+}
+export function prefetchFicha(nome: string, mes: string, primeiro = false) {
   const chave = `${nome}|${mes}`
   if (cache.has(chave) || buscando.has(chave)) return
-  const p = (async () => {
-    try {
-      const r = await fetch(`/api/mecanicos/tecnico?nome=${encodeURIComponent(nome)}&mes=${mes}`, { headers: await authHeaders(), cache: 'no-store' })
-      if (r.ok) cache.set(chave, await r.json())
-    } catch { /* tenta de novo no clique */ } finally { buscando.delete(chave) }
-  })()
-  buscando.set(chave, p)
+  const i = fila.indexOf(chave)
+  if (i >= 0) { if (!primeiro) return; fila.splice(i, 1) }
+  if (primeiro) fila.unshift(chave); else fila.push(chave)
+  andarFila()
 }
 
 /** Carrega a ficha de `nome` no mês (cache por técnico+mês). */
@@ -639,15 +671,9 @@ export function useFicha(nome: string | null, mes: string): { dados: Ficha | nul
     const c = cache.get(chave)
     if (c) { setEstado({ chave, dados: c, erro: null }); return }
     setEstado((e) => (e.chave === chave && e.dados ? e : { chave, dados: null, erro: null }))
-    ;(async () => {
-      try {
-        const r = await fetch(`/api/mecanicos/tecnico?nome=${encodeURIComponent(nome)}&mes=${mes}`, { headers: await authHeaders(), cache: 'no-store' })
-        const j = await r.json()
-        if (!r.ok) throw new Error(j.error || 'Falha ao carregar a ficha')
-        cache.set(chave, j)
-        if (vivo) setEstado({ chave, dados: j, erro: null })
-      } catch (e) { if (vivo) setEstado({ chave, dados: null, erro: e instanceof Error ? e.message : 'Falha ao carregar a ficha' }) }
-    })()
+    baixarFicha(nome, mes)
+      .then((j) => { if (vivo) setEstado({ chave, dados: j, erro: null }) })
+      .catch((e) => { if (vivo) setEstado({ chave, dados: null, erro: e instanceof Error ? e.message : 'Falha ao carregar a ficha' }) })
     return () => { vivo = false }
   }, [chave, nome, mes, versao])
   return estado.chave === chave ? { dados: estado.dados, erro: estado.erro } : { dados: null, erro: null }
