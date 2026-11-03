@@ -501,7 +501,9 @@ function PainelCobranca({ osId, onPhaseChange, onStatus }: { osId: string; onPha
   );
 }
 
-const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange, onAgendar, garantiaStatus, onDescEnter, onDescLeave, onEnviarOmie, enviandoOmie, onFaturar }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void; onAgendar?: (orderId: string, dataISO: string) => void; garantiaStatus?: GarantiaStatus; onDescEnter?: (rect: DOMRect, texto: string) => void; onDescLeave?: () => void; onEnviarOmie?: (orderId: string) => void; enviandoOmie?: string | null; onFaturar?: (order: KanbanCard) => void }) {
+// onClick recebe a OS (função estável para todos os cards): com uma flecha nova por card o memo não segurava e
+// qualquer mudança na página redesenhava o quadro inteiro (03/11/2026)
+const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange, onAgendar, garantiaStatus, onDescEnter, onDescLeave, onEnviarOmie, enviandoOmie, onFaturar }: { order: KanbanCard; color: string; onClick: (o: KanbanCard) => void; onPhaseChange?: (orderId: string, newPhase: string) => void; onAgendar?: (orderId: string, dataISO: string) => void; garantiaStatus?: GarantiaStatus; onDescEnter?: (rect: DOMRect, texto: string) => void; onDescLeave?: () => void; onEnviarOmie?: (orderId: string) => void; enviandoOmie?: string | null; onFaturar?: (order: KanbanCard) => void }) {
   const diasFase = diasEntre(o.dataFase);
   const temReqInfo = o.reqInfo && o.reqInfo.length > 0;
   const numero = String(o.id || "").replace(/^#?OS-?/i, "");
@@ -525,7 +527,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
   );
 
   return (
-    <div className={`mini-card${corConcluida(o) ? ` mc-${corConcluida(o)}` : ""}`} style={{ ["--cor-tipo" as string]: COR_TIPO[tipoDaOS(o, garantia)], position: "relative", overflow: "visible", borderTop: `3px solid ${COR_TIPO[tipoDaOS(o, garantia)]}`, display: "flex", flexDirection: "column", gap: 8, borderRadius: 12, padding: "10px 12px" }} onClick={onClick}
+    <div className={`mini-card${corConcluida(o) ? ` mc-${corConcluida(o)}` : ""}`} style={{ ["--cor-tipo" as string]: COR_TIPO[tipoDaOS(o, garantia)], position: "relative", overflow: "visible", borderTop: `3px solid ${COR_TIPO[tipoDaOS(o, garantia)]}`, display: "flex", flexDirection: "column", gap: 8, borderRadius: 12, padding: "10px 12px" }} onClick={() => onClick(o)}
       onMouseEnter={(e) => onDescEnter?.(e.currentTarget.getBoundingClientRect(), o.servSolicitado || "")}
       onMouseLeave={() => onDescLeave?.()}>
       <CapaTitulo numero={numero} cliente={o.cliente} />
@@ -630,8 +632,10 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
   const [activePhase, setActivePhase] = useState<string>("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
   const [garantiaMap, setGarantiaMap] = useState<Record<string, GarantiaStatus>>({});
-  // Tooltip com a Descrição do Serviço completa ao passar o mouse no card
-  const [descTip, setDescTip] = useState<{ texto: string; top: number; left: number } | null>(null);
+  // Tooltip com a Descrição do Serviço completa ao passar o mouse no card. Vive no próprio <DescTooltip>
+  // (03/11/2026): guardado aqui, cada card que o mouse cruzava redesenhava o quadro inteiro.
+  const mostrarTip = useRef<((t: DescTip | null) => void) | null>(null);
+  const registrarTip = useCallback((f: ((t: DescTip | null) => void) | null) => { mostrarTip.current = f; }, []);
 
   // Aba do tipo (Faturamento Cliente / Garantias / Internas) — lembrada no navegador
   const [abaTipo, setAbaTipo] = useState<TipoOS>(() => {
@@ -659,13 +663,13 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
 
   // Mostra o tooltip da descrição ao lado do card (posição fixa, fora do fluxo)
   const onDescEnter = useCallback((rect: DOMRect, texto: string) => {
-    if (!texto || !texto.trim()) { setDescTip(null); return; }
+    if (!texto || !texto.trim()) { mostrarTip.current?.(null); return; }
     const TW = 320;
     const left = rect.right + 12 + TW <= window.innerWidth ? rect.right + 12 : Math.max(12, rect.left - TW - 12);
     const top = Math.max(12, Math.min(rect.top, window.innerHeight - 260));
-    setDescTip({ texto, top, left });
+    mostrarTip.current?.({ texto, top, left });
   }, []);
-  const onDescLeave = useCallback(() => setDescTip(null), []);
+  const onDescLeave = useCallback(() => mostrarTip.current?.(null), []);
 
   const toggleCollapse = useCallback((phase: string) => {
     setCollapsed((prev) => {
@@ -782,6 +786,9 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
       {acoesAbas && <div className="pos-abas-acoes">{acoesAbas}</div>}
       </div>
       <style>{`
+        /* fase fora da tela: o navegador pula o cálculo e a pintura dos cards dela (03/11/2026). A folga de padding
+           (com margem negativa igual) deixa a sombra do hover dos cards da borda sem cortar. */
+        .phase-group.pg-cv, body.pos-vn .phase-group.pg-cv { content-visibility: auto; contain-intrinsic-size: auto 640px; padding: 0 12px 24px; margin: 0 -12px 2px; }
         /* Abas em linha com sublinhado (José, 13/10/2026: as de cartão estavam feias) */
         /* Concluída: verde = concluída normal, vermelha = teve resserviço (José, 22/10/2026) */
         .mini-card.mc-ok { border-color: #86efac !important; background: color-mix(in srgb, #16a34a 5%, var(--surface, #fefefe)) !important; }
@@ -837,7 +844,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 key={o.id}
                 order={o}
                 color={PHASE_COLORS[o.status] || "#64748B"}
-                onClick={() => handleCardClick(o)}
+                onClick={handleCardClick}
                 onPhaseChange={onPhaseChange}
                 onAgendar={onAgendar}
                 onFaturar={onFaturar}
@@ -863,7 +870,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
             }
             return entradas;
           })().map(([phase, items]) => (
-            <div key={phase} className="phase-group"
+            <div key={phase} className={`phase-group${phase === FASE_COBRANDO ? "" : " pg-cv"}`}
               style={phase === FASE_COBRANDO ? {
                 border: "2px solid #0EA5E9", borderRadius: 14,
                 background: "rgba(56, 189, 248, 0.12)",
@@ -924,7 +931,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                       key={o.id}
                       order={o}
                       color={PHASE_COLORS[phase] || "#64748B"}
-                      onClick={() => handleCardClick(o)}
+                      onClick={handleCardClick}
                       onPhaseChange={onPhaseChange}
                       onAgendar={onAgendar}
                       onFaturar={onFaturar}
@@ -958,16 +965,26 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
       </main>
 
       {/* Tooltip: Descrição do Serviço completa ao passar o mouse no card */}
-      {descTip && (
-        <div style={{
-          position: "fixed", top: descTip.top, left: descTip.left, width: 320, maxHeight: "50vh", overflowY: "auto",
-          zIndex: 100000, pointerEvents: "none", background: "#0f172a", color: "#e2e8f0",
-          border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, boxShadow: "0 16px 40px rgba(0,0,0,0.35)", padding: "12px 14px",
-        }}>
-          <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#fbbf24", marginBottom: 6 }}>Descrição do Serviço</div>
-          <div style={{ fontSize: 12.5, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{descTip.texto}</div>
-        </div>
-      )}
+      <DescTooltip registrar={registrarTip} />
     </>
+  );
+}
+
+type DescTip = { texto: string; top: number; left: number };
+
+/** Balão da descrição com estado próprio: aparecer/sumir redesenha só ele, não o quadro. */
+function DescTooltip({ registrar }: { registrar: (f: ((t: DescTip | null) => void) | null) => void }) {
+  const [descTip, setDescTip] = useState<DescTip | null>(null);
+  useEffect(() => { registrar(setDescTip); return () => registrar(null); }, [registrar]);
+  if (!descTip) return null;
+  return (
+    <div style={{
+      position: "fixed", top: descTip.top, left: descTip.left, width: 320, maxHeight: "50vh", overflowY: "auto",
+      zIndex: 100000, pointerEvents: "none", background: "#0f172a", color: "#e2e8f0",
+      border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, boxShadow: "0 16px 40px rgba(0,0,0,0.35)", padding: "12px 14px",
+    }}>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, color: "#fbbf24", marginBottom: 6 }}>Descrição do Serviço</div>
+      <div style={{ fontSize: 12.5, lineHeight: 1.55, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{descTip.texto}</div>
+    </div>
   );
 }

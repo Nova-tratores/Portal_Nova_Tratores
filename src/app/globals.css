@@ -3230,7 +3230,9 @@ body {
   font-weight: 700;
   color: #991B1B;
   margin-bottom: 6px;
-  animation: posAtrasoPulse 2s ease-in-out infinite;
+  /* pisca 3 vezes e para (03/11/2026: o pisca sem fim em cada card atrasado pesava a tela) */
+  animation: posAtrasoPulse 2s ease-in-out;
+  animation-iteration-count: 3; /* separado: no atalho o compilador de CSS trocava o 3 por infinite */
 }
 
 .mini-card-atraso i {
@@ -3395,7 +3397,8 @@ body {
 /* (Histórico agora fica embaixo do conteúdo — sem alargar o modal) */
 
 /* OS em tela cheia (igual ao PPV) — só quando o overlay tem .fs */
-.drawer-overlay.fs { padding-top: 0; align-items: stretch; overflow: hidden; }
+/* tela cheia cobre tudo: o desfoque do quadro por baixo não aparece e custava caro (03/11/2026) */
+.drawer-overlay.fs { padding-top: 0; align-items: stretch; overflow: hidden; backdrop-filter: none; }
 .drawer-overlay.fs .modal-container { width: 100vw; max-width: none; height: 100vh; margin: 0; padding-bottom: 0; }
 .drawer-overlay.fs .drawer { max-height: 100vh; border-radius: 0; box-shadow: none; }
 .drawer-overlay.fs .os-action-rail { border-radius: 0; max-height: 100vh; overflow-y: auto; }

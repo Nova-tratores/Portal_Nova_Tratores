@@ -120,18 +120,35 @@ function PosPageInner() {
   const [selectedOsId, setSelectedOsId] = useState<string | null>(null);
   const [lembretesVisible, setLembretesVisible] = useState(false);
 
+  // 03/11/2026 (o quadro pesava): só a 1ª carga mostra o "carregando"; as atualizações (60 s, voltar à aba,
+  // depois de salvar) são silenciosas e reaproveitam o objeto da OS que não mudou — assim o card não redesenha.
+  // Se nada mudou, a lista nem é trocada.
+  const primeiraCarga = useRef(true);
   const fetchOrders = useCallback(async (signal?: AbortSignal) => {
-    setLoading(true);
+    const mostrar = primeiraCarga.current;
+    if (mostrar) setLoading(true);
     try {
       const res = await fetch("/api/pos/ordens", { signal });
       if (!res.ok) throw new Error("Erro HTTP");
-      const data = await res.json();
-      setOrders(data);
+      const data: KanbanCard[] = await res.json();
+      primeiraCarga.current = false;
+      setOrders((prev) => {
+        if (prev.length === 0) return data;
+        const antes = new Map(prev.map((o) => [o.id, o]));
+        let mudou = prev.length !== data.length;
+        const nova = data.map((o, i) => {
+          const a = antes.get(o.id);
+          if (a && JSON.stringify(a) === JSON.stringify(o)) { if (prev[i] !== a) mudou = true; return a; }
+          mudou = true;
+          return o;
+        });
+        return mudou ? nova : prev;
+      });
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       console.error("Erro ao carregar ordens:", err);
     }
-    setLoading(false);
+    if (mostrar) setLoading(false);
   }, []);
 
   const fetchClientes = useCallback(async (signal?: AbortSignal) => {
@@ -182,7 +199,8 @@ function PosPageInner() {
 
   // Auto-sync every 60 seconds
   useEffect(() => {
-    const interval = setInterval(fetchOrders, 60000);
+    // aba escondida não atualiza (a volta para a aba já busca de novo)
+    const interval = setInterval(() => { if (!document.hidden) fetchOrders(); }, 60000);
     return () => clearInterval(interval);
   }, [fetchOrders]);
 
@@ -235,23 +253,28 @@ function PosPageInner() {
     setDrawerVisible(true);
   };
 
-  const handleCardClick = (order: KanbanCard) => {
+  // Handlers ESTÁVEIS (03/11/2026): os cards são memo e recebem estas funções; recriadas a cada render, qualquer
+  // estado da página (busca, OS aberta, enviando…) redesenhava o quadro inteiro. O que elas leem vem deste ref.
+  const atual = useRef({ orders, searchTerm, podeOmie, podeMoverFase, nome: userProfile?.nome });
+  useEffect(() => { atual.current = { orders, searchTerm, podeOmie, podeMoverFase, nome: userProfile?.nome }; });
+
+  const handleCardClick = useCallback((order: KanbanCard) => {
     // aberta com a busca preenchida → entra no histórico da busca (José, 21/10/2026)
-    if (searchTerm.trim()) registrarRecenteOS(order.id);
+    if (atual.current.searchTerm.trim()) registrarRecenteOS(order.id);
     setDrawerMode("edit");
     setSelectedOsId(order.id);
     setDrawerVisible(true);
     // URL reflete o card aberto (/pos?id=OS-XXXX), pra copiar/compartilhar o link.
     if (typeof window !== "undefined") window.history.replaceState(null, "", `/pos?id=${encodeURIComponent(order.id)}`);
-  };
+  }, []);
 
   // ── Envio ao Omie (manual, pelos botões da fase "Enviar Omie") ──
   // Cria ordem/pedido REAL no Omie, por isso não é automático.
   const [enviandoOmie, setEnviandoOmie] = useState<string | null>(null); // id da OS, ou "__todas__"
 
-  const handleEnviarOmie = async (orderId: string) => {
-    if (!podeOmie) { alert("Você não tem permissão para enviar ao Omie."); return; }
-    const o = orders.find((x) => x.id === orderId);
+  const handleEnviarOmie = useCallback(async (orderId: string) => {
+    if (!atual.current.podeOmie) { alert("Você não tem permissão para enviar ao Omie."); return; }
+    const o = atual.current.orders.find((x) => x.id === orderId);
     if (!confirm(`Enviar a ${orderId} ao Omie?\n\nCliente: ${o?.cliente || "—"}\n${o?.temPPV ? "O PPV vinculado também vai (pedido de venda).\n" : ""}\nIsso cria ordem REAL no Omie. Ação irreversível.`)) return;
     setEnviandoOmie(orderId);
     try {
@@ -265,11 +288,11 @@ function PosPageInner() {
     } catch { alert("Erro de conexão ao enviar ao Omie."); }
     setEnviandoOmie(null);
     fetchOrders();
-  };
+  }, [fetchOrders]);
 
-  const handleEnviarOmieTodas = async () => {
-    if (!podeOmie) { alert("Você não tem permissão para enviar ao Omie."); return; }
-    const fila = orders.filter((o) => o.status === "Enviar Omie");
+  const handleEnviarOmieTodas = useCallback(async () => {
+    if (!atual.current.podeOmie) { alert("Você não tem permissão para enviar ao Omie."); return; }
+    const fila = atual.current.orders.filter((o) => o.status === "Enviar Omie");
     if (fila.length === 0) { alert('Não há nenhuma OS na fase "Enviar Omie".'); return; }
     if (!confirm(`Enviar ao Omie as ${fila.length} OS da fase "Enviar Omie"?\n\nIsso cria ordens REAIS no Omie (OS + PPV vinculado). Ação irreversível.`)) return;
     setEnviandoOmie("__todas__");
@@ -284,17 +307,17 @@ function PosPageInner() {
     } catch { alert("Erro de conexão ao enviar ao Omie."); }
     setEnviandoOmie(null);
     fetchOrders();
-  };
+  }, [fetchOrders]);
 
-  const handlePhaseChange = async (orderId: string, newPhase: string) => {
-    if (!podeMoverFase) { alert("Você não tem permissão para mover de fase."); return; }
+  const handlePhaseChange = useCallback(async (orderId: string, newPhase: string) => {
+    if (!atual.current.podeMoverFase) { alert("Você não tem permissão para mover de fase."); return; }
     // Atualiza localmente para feedback imediato
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: newPhase } : o));
     try {
       const res = await fetch(`/api/pos/ordens/${orderId}/fase`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newPhase, userName: userProfile?.nome }),
+        body: JSON.stringify({ status: newPhase, userName: atual.current.nome }),
       });
       const data = await res.json();
       if (!res.ok || data.erro) {
@@ -305,17 +328,17 @@ function PosPageInner() {
       console.error("Erro ao mudar fase:", err);
       fetchOrders();
     }
-  };
+  }, [fetchOrders]);
 
   // Checkbox de reserva no card: move pra "Orçamento Aprovado" e grava a Data Início escolhida
-  const handleAgendar = async (orderId: string, dataISO: string) => {
-    if (!podeMoverFase) { alert("Você não tem permissão para mover de fase."); return; }
+  const handleAgendar = useCallback(async (orderId: string, dataISO: string) => {
+    if (!atual.current.podeMoverFase) { alert("Você não tem permissão para mover de fase."); return; }
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: "Orçamento Aprovado", previsaoExecucao: dataISO } : o));
     try {
       const res = await fetch(`/api/pos/ordens/${orderId}/fase`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "Orçamento Aprovado", userName: userProfile?.nome, previsaoExecucao: dataISO }),
+        body: JSON.stringify({ status: "Orçamento Aprovado", userName: atual.current.nome, previsaoExecucao: dataISO }),
       });
       const data = await res.json();
       if (!res.ok || data.erro) alert(data.erro || "Erro ao agendar");
@@ -324,11 +347,11 @@ function PosPageInner() {
       console.error("Erro ao agendar:", err);
       fetchOrders();
     }
-  };
+  }, [fetchOrders]);
 
   // Botão Faturar da capa: abre a OS já com a janela de faturar
   const [abrirFaturar, setAbrirFaturar] = useState(false);
-  const handleFaturarCard = (order: KanbanCard) => { setAbrirFaturar(true); handleCardClick(order); };
+  const handleFaturarCard = useCallback((order: KanbanCard) => { setAbrirFaturar(true); handleCardClick(order); }, [handleCardClick]);
 
   const handleDrawerClose = () => {
     setAbrirFaturar(false);

@@ -16,20 +16,24 @@ export function CapaTitulo({ numero, cliente, corNumero }: { numero: string; cli
   );
 }
 
-/** Fase em pílula (o <select> fica por cima, invisível) + valor à direita. */
+/** Fase em pílula (o <select> fica por cima, invisível) + valor à direita.
+ *  A lista de fases só é montada quando o mouse ou o foco chegam na pílula (03/11/2026: eram ~18 opções em
+ *  cada card, milhares no quadro); antes disso o select tem só a fase atual. */
 export function CapaFaseValor({ fase, rotulo, fases, rotuloDe, onChange, valor }: {
   fase: string; rotulo: string; fases: string[]; rotuloDe: (f: string) => string;
   onChange?: (f: string) => void; valor: string;
 }) {
+  const [lista, setLista] = useState(false);
+  const abrir = () => { if (!lista) setLista(true); };
   return (
     <div className="capa-fase" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-      <span onClick={(e) => e.stopPropagation()} style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: "color-mix(in srgb, #0369A1 11%, transparent)", color: "#0369A1", whiteSpace: "nowrap", maxWidth: 170, minWidth: 0 }}>
+      <span onClick={(e) => e.stopPropagation()} onPointerEnter={abrir} style={{ position: "relative", display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10.5, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: "color-mix(in srgb, #0369A1 11%, transparent)", color: "#0369A1", whiteSpace: "nowrap", maxWidth: 170, minWidth: 0 }}>
         <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{rotulo}</span>
         {onChange && <i className="fas fa-chevron-down" style={{ fontSize: 8 }} />}
         {onChange && (
-          <select value={fase} onChange={(e) => onChange(e.target.value)} title="Mudar a fase"
+          <select value={fase} onChange={(e) => onChange(e.target.value)} onFocus={abrir} onPointerDown={abrir} title="Mudar a fase"
             style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%" }}>
-            {fases.map((f) => <option key={f} value={f}>{rotuloDe(f)}</option>)}
+            {lista ? fases.map((f) => <option key={f} value={f}>{rotuloDe(f)}</option>) : <option value={fase}>{rotuloDe(fase)}</option>}
           </select>
         )}
       </span>
@@ -100,18 +104,21 @@ export function CapaReservar({ reservado, onReservar, onDesmarcar }: { reservado
 }
 
 export interface IconeCapa { icone: string; rotulo: string; on: boolean; titulo: string; extra?: ReactNode }
-/** Rodapé: texto à esquerda e ícones com o nome embaixo (aceso = tem). */
+/** Rodapé: texto à esquerda e ícones com o nome embaixo (aceso = tem). O balão (`extra`) só é montado depois
+ *  que o mouse passa no ícone (03/11/2026: antes ficavam todos montados e escondidos em cada card). */
 export function CapaRodape({ esquerda, icones }: { esquerda: ReactNode; icones: IconeCapa[] }) {
+  const [vistos, setVistos] = useState<Set<string>>(() => new Set());
   return (
     <div className="capa-rodape" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 8, borderTop: "1px solid var(--border, #eef2f7)", paddingTop: 7 }}>
       <span style={{ fontSize: 10.5, color: CAPA_MUTED, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{esquerda}</span>
       <span style={{ display: "flex", gap: 9, flexShrink: 0 }}>
         {icones.map((x) => (
           <span key={x.rotulo} className="mc-icon-wrap" onClick={(e) => e.stopPropagation()} title={`${x.titulo}${x.on ? "" : " — não tem"}`}
+            onPointerEnter={x.extra && !vistos.has(x.rotulo) ? () => setVistos((v) => new Set(v).add(x.rotulo)) : undefined}
             style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, minWidth: 26, color: x.on ? "var(--portal-text, #0f172a)" : "#cbd5e1", position: "relative" }}>
             <i className={x.icone} style={{ fontSize: 12 }} />
             <span style={{ fontSize: 8.5, fontWeight: 700, color: x.on ? "var(--portal-text-secondary, #475569)" : "#cbd5e1" }}>{x.rotulo}</span>
-            {x.extra}
+            {vistos.has(x.rotulo) && x.extra}
           </span>
         ))}
       </span>
