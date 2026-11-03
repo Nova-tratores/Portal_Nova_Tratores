@@ -1,6 +1,7 @@
 // Contas a pagar recorrentes que não foram lançadas no Omie (José, 03/11/2026 — opção 1).
-// Fonte: contas_pagar (espelho Omie). Recorrente = mesmo fornecedor + categoria em 5 dos 6 meses
-// anteriores, até 3 títulos por mês, em categoria de despesa fixa (compra, frete, posto etc. ficam fora).
+// Fonte: contas_pagar (espelho Omie). Recorrente = mesmo fornecedor vencendo perto do mesmo dia em 5 dos 6
+// meses anteriores, até 2 títulos por mês nesse dia. Um fornecedor pode ter várias contas (Alelo da Castro:
+// fatura ~dia 12 e tag Veloe ~dia 18), e a categoria pode mudar entre os meses. Compra p/ revenda e frete ficam fora.
 // O aviso respeita o atraso costumeiro de cada conta: 55% das fixas entram no Omie DEPOIS do vencimento,
 // então só falta quando passou vencimento esperado + atraso costumeiro + FOLGA_DIAS.
 
@@ -12,8 +13,15 @@ export const MESES_BASE = 6;
 export const MIN_MESES = 5;
 export const MESES_AVALIADOS = 3; // mês atual e os 2 anteriores
 
-/** Categorias que não são conta fixa (compra solta, frete, imposto de operação, despesa eventual). */
-export const CATEGORIA_FORA = /compra|frete|combust|manuten|entradas? de pe|recebimento de pe|sa[ií]das de pe|envio de pe|brinde|material|almoxar|limpeza|rescis|adiantamento|devolu|iof|juros|tarifa|multa|hospedagem|viage|ped[aá]gio|passage|doa[çc]|documenta|contratos|ferramenta|equipamento|uniforme|^ve[ií]culos$|im[oó]veis|m[oó]veis|13º|f[eé]rias|bonifica|folheto|demonstra|ipva/i;
+/** Categorias que não são conta fixa (compra solta, frete, imposto de operação, despesa eventual).
+ *  Combustível, pedágio e manutenção ENTRAM: fatura de cartão (Alelo, Veloe) vence sempre no mesmo dia, e compra
+ *  solta no posto cai em dia aleatório (vira muitos títulos no mesmo dia ou dias espalhados, e sai pelo agrupamento). */
+export const CATEGORIA_FORA = /compra|frete|entradas? de pe|recebimento de pe|sa[ií]das de pe|envio de pe|brinde|material|almoxar|rescis|adiantamento|devolu|iof|juros|tarifa|multa|hospedagem|viage|passage|doa[çc]|documenta|contratos|ferramenta|equipamento|uniforme|^ve[ií]culos$|im[oó]veis|m[oó]veis|13º|f[eé]rias|bonifica|folheto|demonstra|ipva/i;
+
+/** Dias de vencimento a até GAP_DIA um do outro formam a mesma conta; a conta do mês é achada com JANELA_DIA de folga. */
+const GAP_DIA = 4;
+const JANELA_DIA = 3;
+const LARGURA_MAX = 10; // conta espalhada por mais que isso no mês não é fatura de dia certo
 
 export const COLUNAS_RECORRENTES =
   "id,conta_omie,codigo_cliente_fornecedor,nome_fornecedor,codigo_categoria,descricao_categoria,data_vencimento,data_inclusao,valor_documento,numero_parcela,status_titulo,incluido_por";
@@ -38,6 +46,7 @@ export type ItemRec = {
   codigo_categoria: string | null; mes: string; situacao: Situacao;
   valor_costumeiro: number; variacao: number; dia: number; vencimento_esperado: string;
   atraso_costumeiro: number; prazo: string; dias_passados: number; meses_com_conta: number;
+  qtd_costumeira: number; // títulos que costumam vir no mês (Alelo da Castro: 2 — fatura e tag)
   quem_lanca: string | null; decisao: Decisao | null;
   historico: { mes: string; qtd: number; valor: number }[];
   titulos_mes: { id: number; vencimento: string; valor: number; parcela: string | null; status: string | null }[];
@@ -71,6 +80,26 @@ function diaNoMes(mes: string, dia: number): string {
   return `${mes}-${String(Math.min(dia, ultimo)).padStart(2, "0")}`;
 }
 
+const diaDe = (t: TituloRec) => Number(t.data_vencimento.slice(8, 10));
+
+/** Junta os dias de vencimento em faixas [de, até] (dias a até GAP_DIA um do outro); faixas largas demais saem. */
+function agruparDias(dias: number[]): [number, number][] {
+  const s = [...new Set(dias)].sort((a, b) => a - b);
+  const faixas: [number, number][] = [];
+  for (const d of s) {
+    const ult = faixas[faixas.length - 1];
+    if (ult && d - ult[1] <= GAP_DIA) ult[1] = d; else faixas.push([d, d]);
+  }
+  return faixas.filter(([a, b]) => b - a <= LARGURA_MAX);
+}
+
+/** A decisão guarda a conta como "dia:NN" (o dia costumeiro), em `categoria`. */
+export const marcaDaConta = (dia: number) => `dia:${dia}`;
+const mesmoDia = (marca: string | null, dia: number) => {
+  const n = Number(String(marca || "").replace("dia:", ""));
+  return Number.isFinite(n) && Math.abs(n - dia) <= GAP_DIA;
+};
+
 /** Primeiro dia de vencimento que a API precisa ler (base de 6 meses do mês mais antigo avaliado + 1 mês de folga). */
 export function inicioLeitura(hoje: string): string {
   return `${somarMeses(mesDe(hoje), -(MESES_AVALIADOS - 1) - MESES_BASE - 1)}-01`;
@@ -80,69 +109,81 @@ export function detectarRecorrentes(
   titulosTodos: TituloRec[], hoje: string, decisoes: Decisao[], nomes: Record<string, string>,
 ): ItemRec[] {
   const titulos = titulosTodos.filter((t) => t.status_titulo !== "CANCELADO" && t.data_vencimento);
+  // Agrupa por fornecedor; dentro dele, cada "dia de vencimento" que se repete é uma conta (a Alelo da Castro
+  // tem a fatura do dia ~12 e a da tag no dia ~18, e a categoria muda de um mês para outro).
   const grupos = new Map<string, TituloRec[]>();
   for (const t of titulos) {
     if (CATEGORIA_FORA.test(t.descricao_categoria || "")) continue;
-    const k = `${t.conta_omie}|${t.codigo_cliente_fornecedor}|${t.codigo_categoria || ""}`;
+    const k = `${t.conta_omie}|${t.codigo_cliente_fornecedor}`;
     const g = grupos.get(k);
     if (g) g.push(t); else grupos.set(k, [t]);
   }
 
   const mesHoje = mesDe(hoje);
   const out: ItemRec[] = [];
-  for (const [chave, itens] of grupos) {
-    const porMes = new Map<string, TituloRec[]>();
-    for (const t of itens) { const m = mesDe(t.data_vencimento); const l = porMes.get(m); if (l) l.push(t); else porMes.set(m, [t]); }
-    const qtdMes = (m: string) => porMes.get(m)?.length || 0;
-    const atraso = Math.max(0, mediana(itens.filter((t) => t.data_inclusao)
-      .map((t) => diasEntre(t.data_vencimento, t.data_inclusao!.slice(0, 10)))));
-    const contagem: Record<string, number> = {};
-    for (const t of itens) if (t.incluido_por) contagem[t.incluido_por] = (contagem[t.incluido_por] || 0) + 1;
-    const quem = Object.entries(contagem).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  for (const [chave, todos] of grupos) {
     const [empresa, fornCod] = chave.split("|");
-    const ref = itens[itens.length - 1];
-
     for (let i = MESES_AVALIADOS - 1; i >= 0; i--) {
       const mes = somarMeses(mesHoje, -i);
       const base = Array.from({ length: MESES_BASE }, (_, j) => somarMeses(mes, -MESES_BASE + j));
-      const comConta = base.filter((m) => qtdMes(m) > 0);
-      if (comConta.length < MIN_MESES) continue;
-      const qtdTipica = mediana(comConta.map(qtdMes));
-      if (qtdTipica > 3) continue;
-      // Parcelamento que terminou: a última parcela vista na base é N/N.
-      const ultimo = base.flatMap((m) => porMes.get(m) || []).sort((a, b) => b.data_vencimento.localeCompare(a.data_vencimento))[0];
-      const [pa, pt] = String(ultimo?.numero_parcela || "").split("/").map(Number);
-      if (pt > 1 && pa === pt && !qtdMes(mes)) continue;
+      const naBase = todos.filter((t) => base.includes(mesDe(t.data_vencimento)));
+      for (const [lo, hi] of agruparDias(naBase.map(diaDe))) {
+        const itens = todos.filter((t) => diaDe(t) >= lo - JANELA_DIA && diaDe(t) <= hi + JANELA_DIA);
+        const porMes = new Map<string, TituloRec[]>();
+        for (const t of itens) { const m = mesDe(t.data_vencimento); const l = porMes.get(m); if (l) l.push(t); else porMes.set(m, [t]); }
+        const qtdMes = (m: string) => porMes.get(m)?.length || 0;
 
-      const valores = comConta.map((m) => porMes.get(m)!.reduce((s, t) => s + Number(t.valor_documento || 0), 0));
-      const vm = mediana(valores);
-      const variacao = vm ? Math.sqrt(valores.reduce((s, v) => s + (v - vm) ** 2, 0) / valores.length) / vm : 0;
-      const dia = mediana(comConta.flatMap((m) => porMes.get(m)!.map((t) => Number(t.data_vencimento.slice(8, 10)))));
-      const venc = diaNoMes(mes, dia);
-      const prazo = somarDias(venc, atraso + FOLGA_DIAS);
+        const comConta = base.filter((m) => qtdMes(m) > 0);
+        if (comConta.length < MIN_MESES) continue;
+        const qtdTipica = mediana(comConta.map(qtdMes));
+        if (qtdTipica > 2) continue; // muitos títulos no mesmo dia = compra solta, não fatura
+        // Parcelamento que terminou: a última parcela vista na base é N/N.
+        const ultimo = base.flatMap((m) => porMes.get(m) || []).sort((a, b) => b.data_vencimento.localeCompare(a.data_vencimento))[0];
+        const [pa, pt] = String(ultimo?.numero_parcela || "").split("/").map(Number);
+        if (pt > 1 && pa === pt && !qtdMes(mes)) continue;
 
-      const doMes = porMes.get(mes) || [];
-      const decisao = decisoes.find((d) => d.empresa === empresa && String(d.fornecedor_codigo) === fornCod
-        && (d.categoria || "") === (ref.codigo_categoria || "")
-        && (d.tipo === "nao_recorrente" || d.mes === mes)) || null;
-      if (decisao?.tipo === "nao_recorrente") continue;
+        const daBase = base.flatMap((m) => porMes.get(m) || []);
+        const atraso = Math.max(0, mediana(daBase.filter((t) => t.data_inclusao)
+          .map((t) => diasEntre(t.data_vencimento, t.data_inclusao!.slice(0, 10)))));
+        const maisComum = (f: (t: TituloRec) => string | null) => {
+          const c: Record<string, number> = {};
+          for (const t of daBase) { const v = f(t); if (v) c[v] = (c[v] || 0) + 1; }
+          return Object.entries(c).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+        };
+        const quem = maisComum((t) => t.incluido_por);
+        const codCat = maisComum((t) => t.codigo_categoria);
+        const ref = daBase.find((t) => t.codigo_categoria === codCat) || daBase[daBase.length - 1];
 
-      let situacao: Situacao;
-      if (doMes.length) situacao = "lancada";
-      // Lançada com vencimento no mês vizinho (ex.: Sabesp com 2 contas em agosto e nenhuma em setembro).
-      else if (qtdMes(somarMeses(mes, -1)) > qtdTipica || qtdMes(somarMeses(mes, 1)) > qtdTipica) situacao = "vizinho";
-      else if (decisao) situacao = "marcada";
-      else situacao = hoje > prazo ? "faltando" : "aguardando";
+        const valores = comConta.map((m) => porMes.get(m)!.reduce((s, t) => s + Number(t.valor_documento || 0), 0));
+        const vm = mediana(valores);
+        const variacao = vm ? Math.sqrt(valores.reduce((s, v) => s + (v - vm) ** 2, 0) / valores.length) / vm : 0;
+        const dia = mediana(daBase.map(diaDe));
+        const venc = diaNoMes(mes, dia);
+        const prazo = somarDias(venc, atraso + FOLGA_DIAS);
 
-      out.push({
-        chave: `${chave}|${mes}`, empresa, fornecedor_codigo: Number(fornCod), fornecedor: ref.nome_fornecedor || "—",
-        categoria: ref.descricao_categoria || "—", codigo_categoria: ref.codigo_categoria, mes, situacao,
-        valor_costumeiro: Math.round(vm * 100) / 100, variacao: Math.round(variacao * 100), dia, vencimento_esperado: venc,
-        atraso_costumeiro: atraso, prazo, dias_passados: diasEntre(prazo, hoje), meses_com_conta: comConta.length,
-        quem_lanca: quem ? nomes[quem] || quem : null, decisao,
-        historico: [...base, mes].map((m) => ({ mes: m, qtd: qtdMes(m), valor: (porMes.get(m) || []).reduce((s, t) => s + Number(t.valor_documento || 0), 0) })),
-        titulos_mes: doMes.map((t) => ({ id: t.id, vencimento: t.data_vencimento, valor: Number(t.valor_documento || 0), parcela: t.numero_parcela, status: t.status_titulo })),
-      });
+        const doMes = porMes.get(mes) || [];
+        const decisao = decisoes.find((d) => d.empresa === empresa && String(d.fornecedor_codigo) === fornCod
+          && mesmoDia(d.categoria, dia) && (d.tipo === "nao_recorrente" || d.mes === mes)) || null;
+        if (decisao?.tipo === "nao_recorrente") continue;
+
+        let situacao: Situacao;
+        // Veio menos do que o costume também falta (costuma vir 2 e veio 1).
+        if (doMes.length >= qtdTipica) situacao = "lancada";
+        // Lançada com vencimento no mês vizinho (ex.: Sabesp com 2 contas em agosto e nenhuma em setembro).
+        else if (qtdMes(somarMeses(mes, -1)) > qtdTipica || qtdMes(somarMeses(mes, 1)) > qtdTipica) situacao = "vizinho";
+        else if (decisao) situacao = "marcada";
+        else situacao = hoje > prazo ? "faltando" : "aguardando";
+
+        out.push({
+          chave: `${chave}|d${dia}|${mes}`, empresa, fornecedor_codigo: Number(fornCod), fornecedor: ref.nome_fornecedor || "—",
+          categoria: ref.descricao_categoria || "—", codigo_categoria: codCat, mes, situacao,
+          valor_costumeiro: Math.round(vm * 100) / 100, variacao: Math.round(variacao * 100), dia, vencimento_esperado: venc,
+          atraso_costumeiro: atraso, prazo, dias_passados: diasEntre(prazo, hoje), meses_com_conta: comConta.length, qtd_costumeira: qtdTipica,
+          quem_lanca: quem ? nomes[quem] || quem : null, decisao,
+          historico: [...base, mes].map((m) => ({ mes: m, qtd: qtdMes(m), valor: (porMes.get(m) || []).reduce((s, t) => s + Number(t.valor_documento || 0), 0) })),
+          titulos_mes: doMes.map((t) => ({ id: t.id, vencimento: t.data_vencimento, valor: Number(t.valor_documento || 0), parcela: t.numero_parcela, status: t.status_titulo })),
+        });
+      }
     }
   }
   const ordem: Record<Situacao, number> = { faltando: 0, aguardando: 1, marcada: 2, vizinho: 3, lancada: 4 };

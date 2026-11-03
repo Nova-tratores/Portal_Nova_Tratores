@@ -103,7 +103,9 @@ function Contador({ valor, dinheiro }) {
 }
 
 function textoPrazo(it) {
-  if (it.situacao === 'faltando') return { forte: `${it.dias_passados} dia${it.dias_passados === 1 ? '' : 's'} além do prazo`, fraco: `prazo era ${dataBR(it.prazo)}` }
+  const parcial = it.titulos_mes.length > 0 ? `veio ${it.titulos_mes.length} de ${it.qtd_costumeira} · ` : ''
+  if (it.situacao === 'faltando') return { forte: `${parcial}${it.dias_passados} dia${it.dias_passados === 1 ? '' : 's'} além do prazo`, fraco: `prazo era ${dataBR(it.prazo)}` }
+  if (it.situacao === 'aguardando' && parcial) return { forte: `${parcial}avisa em ${dataBR(it.prazo)}`, fraco: it.titulos_mes.map((t) => `vence ${dataBR(t.vencimento)}`).join(' · ') }
   if (it.situacao === 'aguardando') return { forte: `avisa em ${dataBR(it.prazo)}`, fraco: it.atraso_costumeiro ? `costuma entrar ${it.atraso_costumeiro} dias após vencer` : 'costuma entrar antes de vencer' }
   if (it.situacao === 'lancada') return { forte: `lançada (${it.titulos_mes.length})`, fraco: it.titulos_mes.map((t) => `vence ${dataBR(t.vencimento)}`).join(' · ') }
   if (it.situacao === 'vizinho') return { forte: 'mês vizinho com conta a mais', fraco: 'provavelmente lançada com outro vencimento' }
@@ -136,7 +138,7 @@ export default function RecorrentesNovo() {
     && (!busca || `${i.fornecedor} ${i.categoria}`.toLowerCase().includes(busca.toLowerCase()))), [itens, empresa, mes, busca])
   const por = (s) => base.filter((i) => (Array.isArray(s) ? s.includes(i.situacao) : i.situacao === s))
   const faltando = por('faltando'), aguardando = por('aguardando'), ok = por(['lancada', 'vizinho', 'marcada'])
-  const fixas = new Set(base.map((i) => `${i.empresa}|${i.fornecedor_codigo}|${i.codigo_categoria}`)).size
+  const fixas = new Set(base.map((i) => i.chave.replace(/\|[^|]*$/, ''))).size
   const lista = filtro === 'todas' ? base : filtro === 'ok' ? ok : por(filtro)
 
   const decidir = async (it, tipo) => {
@@ -144,7 +146,8 @@ export default function RecorrentesNovo() {
     try {
       const r = await fetch('/api/financeiro/recorrentes', {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ empresa: it.empresa, fornecedor_codigo: it.fornecedor_codigo, categoria: it.codigo_categoria, fornecedor_nome: it.fornecedor, tipo, mes: it.mes }),
+        // A conta é o fornecedor + o dia costumeiro (lib/financeiro/recorrentes.ts, marcaDaConta)
+        body: JSON.stringify({ empresa: it.empresa, fornecedor_codigo: it.fornecedor_codigo, categoria: `dia:${it.dia}`, fornecedor_nome: it.fornecedor, tipo, mes: it.mes }),
       })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error)
@@ -221,7 +224,9 @@ export default function RecorrentesNovo() {
             <div style={{ fontSize: 14 }}>Assim vai aparecer no sino do {dados?.responsavel || 'responsável'} (prévia, ainda não manda nada)</div>
             {faltando.slice(0, 3).map((it) => (
               <div key={it.chave} className="rc-sino-item">
-                <b style={{ fontWeight: 500 }}>{it.fornecedor}</b> ({EMPRESA[it.empresa] || it.empresa}) ainda não foi lançada em {mesBR(it.mes)}.
+                <b style={{ fontWeight: 500 }}>{it.fornecedor}</b> ({EMPRESA[it.empresa] || it.empresa}) {it.titulos_mes.length
+                  ? `costuma ter ${it.qtd_costumeira} contas por mês e só ${it.titulos_mes.length} foi lançada em ${mesBR(it.mes)}.`
+                  : `ainda não foi lançada em ${mesBR(it.mes)}.`}
                 Costuma vencer dia {it.dia}, uns {brl(it.valor_costumeiro)}.
               </div>
             ))}
@@ -274,7 +279,9 @@ export default function RecorrentesNovo() {
               </div>
               <div>
                 <div className="rc-valor">{brl(it.valor_costumeiro)}</div>
-                <div className="rc-sub" style={{ fontSize: 12.5 }}>vence dia {it.dia}{it.variacao > 25 ? ` · varia ±${it.variacao}%` : ''}</div>
+                <div className="rc-sub" style={{ fontSize: 12.5 }}>
+                  {it.qtd_costumeira > 1 ? `no mês, em ${it.qtd_costumeira} contas · ` : ''}vence dia {it.dia}{it.variacao > 25 ? ` · varia ±${it.variacao}%` : ''}
+                </div>
               </div>
               <div className="col-prazo">
                 <span className="rc-pill" style={{ '--c': s.cor }}>{p.forte}</span>
