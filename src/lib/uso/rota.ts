@@ -26,6 +26,7 @@ const CAUDA_DINAMICA: Array<[string, string]> = [
   ['/cheque/', '[token]'],
   ['/assinar/', '[token]'],
   ['/q/', '[token]'],
+  ['/r/', '[token]'],                 // recibo (QR)
   ['/p/', '[id]'],
   ['/agro/imovel/', '[cod]'],
   ['/api/agro/imovel/', '[cod]'],

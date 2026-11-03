@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import {
   LayoutDashboard, Columns3, BarChart3, History, Receipt, Users,
-  PlusCircle, FileText, DollarSign, UserCog, AlertTriangle, Search
+  PlusCircle, FileText, DollarSign, UserCog, AlertTriangle, Search, FileSignature
 } from 'lucide-react'
 
 const ICONS = {
@@ -21,6 +21,7 @@ const ICONS = {
   vencidos: AlertTriangle,
   rastreio: Search,
   notas: FileText,
+  recibos: FileSignature,
 }
 
 const LINKS_FINANCEIRO = [
@@ -47,6 +48,8 @@ const LINKS_PECAS = [
 ]
 
 const LINK_NOTAS = { label: 'Notas fiscais', href: '/financeiro/notas', icon: 'notas' }
+// Recibos de pagamento (03/11/2026): todas as funções do Financeiro (o balcão de peças também emite)
+const LINK_RECIBOS = { label: 'Recibos', href: '/financeiro/recibos', icon: 'recibos' }
 
 // `children` é um slot opcional à direita das guias. O default explícito é o
 // que permite chamar <FinanceiroNav /> de uma tela .tsx sem o TS exigir a prop
@@ -64,7 +67,7 @@ export default function FinanceiroNav({ children = null }) {
     : funcao === 'Peças' ? LINKS_PECAS
     : LINKS_POSVENDAS
   // Notas fiscais (cache PDF + XML) vale pela PERMISSÃO, não pela função
-  const links = pode('financeiro', 'notas') ? [...linksFuncao, LINK_NOTAS] : linksFuncao
+  const links = [...(pode('financeiro', 'notas') ? [...linksFuncao, LINK_NOTAS] : linksFuncao), LINK_RECIBOS]
 
   // Contar vencidos para badge
   useEffect(() => {

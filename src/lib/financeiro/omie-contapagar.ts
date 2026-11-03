@@ -141,6 +141,7 @@ export interface DadosFornecedor {
   telefone?: string;
   fornecedorId?: number | string; // id na tabela Fornecedores (para codigo_cliente_integracao estável)
   email?: string;
+  tag?: string; // tag do cadastro novo (padrão "Fornecedor"; recibo de recebimento usa "Cliente")
   // Endereço — Omie exige ao menos o Estado (UF) ao cadastrar um fornecedor novo.
   endereco?: {
     estado?: string;
@@ -196,7 +197,7 @@ export async function buscarOuCriarFornecedorOmie(dados: DadosFornecedor, acc: O
     cnpj_cpf: dados.documento,
     pessoa_fisica: pessoaFisica,
     inativo: "N",
-    tags: [{ tag: "Fornecedor" }],
+    tags: [{ tag: dados.tag || "Fornecedor" }],
   };
   if (ddd && num) {
     param.telefone1_ddd = ddd;
