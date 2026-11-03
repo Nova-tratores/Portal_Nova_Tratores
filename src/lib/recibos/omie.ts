@@ -71,14 +71,14 @@ export async function lancarReciboNoOmie(r: Recibo): Promise<{ codigo: number; b
       codigo = (await criarContaPagarOmie({
         codigoIntegracao: integ, codFornecedor: codPessoa, dataVencimento: data, valor: Number(r.valor),
         codigoCategoria: r.omie_categoria, idContaCorrente: Number(r.omie_conta_corrente),
-        numeroDocumento: `REC ${numeroRecibo(r.numero)}`, observacao: obs,
+        numeroDocumento: `REC ${numeroRecibo(r.numero)}`, observacao: obs, codigoTipoDocumento: 'REC', // "Recibo" (sem isto o Omie põe NFE)
       }, acc)).codigoLancamentoOmie
     } else {
       codigo = await criarContaReceber(acc, {
         codigo_lancamento_integracao: integ, codigo_cliente_fornecedor: codPessoa,
         data_vencimento: data, data_previsao: data, valor_documento: Number(Number(r.valor).toFixed(2)),
         codigo_categoria: r.omie_categoria, id_conta_corrente: Number(r.omie_conta_corrente),
-        numero_documento: `REC ${numeroRecibo(r.numero)}`, observacao: obs,
+        numero_documento: `REC ${numeroRecibo(r.numero)}`, observacao: obs, codigo_tipo_documento: 'REC',
       })
     }
   }
