@@ -613,14 +613,17 @@ function SemLocalizacao({ itens, termo, casa, podeEditar, onDefinir }: {
   const TETO = 200;
   const filtrados = useMemo(() => (termo ? itens.filter(casa) : itens), [itens, termo, casa]);
   const mostra = filtrados.slice(0, TETO);
+  // pesquisando: só aparece se a busca achou peça aqui — e já aberta
+  if (termo && filtrados.length === 0) return null;
+  const abrir = aberto || (!!termo && filtrados.length <= 20);
   return (
     <div style={{ ...box, marginTop: 12, overflow: 'hidden' }}>
       <button onClick={() => setAberto((v) => !v)} style={{ ...linhaBtn, background: '#f8fafc', fontWeight: 700 }}>
-        {aberto ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        {abrir ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         Sem localização
         <span style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: '.72rem', fontWeight: 500 }}>{filtrados.length} peça(s)</span>
       </button>
-      {aberto && (
+      {abrir && (
         <div style={{ padding: 10 }}>
           {mostra.map((p) => (
             <div key={chaveProd(p)} className="loc-item" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
@@ -651,14 +654,17 @@ function LocalizacaoInvalida({ itens, termo, casa, podeEditar, onMover, onRemove
   const filtrados = useMemo(() => (termo ? itens.filter(casa) : itens), [itens, termo, casa]);
   const mostra = filtrados.slice(0, TETO);
   if (itens.length === 0) return null;
+  // pesquisando: só aparece se a busca achou peça aqui — e já aberta
+  if (termo && filtrados.length === 0) return null;
+  const abrir = aberto || (!!termo && filtrados.length <= 20);
   return (
     <div style={{ ...box, marginTop: 12, overflow: 'hidden', border: '1px solid #fed7aa' }}>
       <button onClick={() => setAberto((v) => !v)} style={{ ...linhaBtn, background: '#fff7ed', fontWeight: 700, color: '#c2410c' }}>
-        {aberto ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+        {abrir ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
         <AlertTriangle size={15} /> Localização a corrigir
         <span style={{ marginLeft: 'auto', color: '#ea580c', fontSize: '.72rem', fontWeight: 700 }}>{filtrados.length} peça(s)</span>
       </button>
-      {aberto && (
+      {abrir && (
         <div style={{ padding: 10 }}>
           <div style={{ color: '#9a3412', fontSize: '.72rem', marginBottom: 6 }}>Posições com dado inválido (XXX / 000 / 0000). Corrija com <b>Mover</b> ou <b>Remova</b>.</div>
           {mostra.map((p) => (
