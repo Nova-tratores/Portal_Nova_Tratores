@@ -121,6 +121,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'cancelar_faturamento', label: 'Cancelar faturamento (NFS-e / NF-e) — só Dev concede' },
     { id: 'substituir_omie', label: 'Substituir OS / pedido no Omie (cancela o antigo) — só Dev concede' },
     { id: 'modelos_fiscais', label: 'Modelos fiscais da NFS-e (impostos dos serviços) — só marcando aqui' },
+    { id: 'tipos_atendimento', label: 'Cadastrar tipos de atendimento da OS' },
     { id: 'concluir', label: 'Concluir OS' },
     { id: 'cancelar', label: 'Cancelar OS' },
   ],

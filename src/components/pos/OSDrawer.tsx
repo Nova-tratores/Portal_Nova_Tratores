@@ -24,6 +24,7 @@ import OSUnidadesInfo from "@/components/ppv/OSUnidadesInfo";
 import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
+import TipoAtendimentoSelect from "./TipoAtendimentoSelect";
 import FaturamentoOSBloco from "./FaturamentoOSBloco";
 import SubstituirOmieModal from "./SubstituirOmieModal";
 import EditarPPVsModal from "./EditarPPVsModal";
@@ -2272,10 +2273,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                     <div className="os-row">
                       <div style={S_FLEX1}>
                         <label>Tipo de Atendimento</label>
-                        <select value={tipoServico} onChange={(e) => setTipoServico(e.target.value)}>
-                          <option value="Manutenção">Manutenção</option>
-                          <option value="Revisão">Revisão</option>
-                        </select>
+                        <TipoAtendimentoSelect value={tipoServico} onChange={setTipoServico} />
                       </div>
                       <div style={S_FLEX2}>
                         <label>Projeto / Equipamento</label>
@@ -2392,10 +2390,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       {false && <>
                       <div style={{ width: 130 }}>
                         <label style={L_DISC}>Atendimento</label>
-                        <select value={tipoServico} disabled={!podeEditar} onChange={(e) => setTipoServico(e.target.value)} style={I_DISC}>
-                          <option value="Manutenção">Manutenção</option>
-                          <option value="Revisão">Revisão</option>
-                        </select>
+                        <TipoAtendimentoSelect value={tipoServico} disabled={!podeEditar} onChange={setTipoServico} style={I_DISC} />
                       </div>
                       <div style={{ width: 300, maxWidth: "100%" }}>
                         <label style={L_DISC}>Projeto / Equipamento</label>
