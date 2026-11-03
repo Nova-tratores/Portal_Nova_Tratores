@@ -1193,6 +1193,19 @@ export async function gravarCaractProduto(conta: Conta, { codigoProduto, nomeCar
     nCodCaract: Number(nCodCaract) || nCodCaract,
     cConteudo: conteudo == null ? '' : String(conteudo)
   };
+  // Conteúdo vazio = TIRAR a característica do produto. A Omie recusa Alterar/Incluir
+  // com cConteudo em branco ("É obrigatório o preenchimento da tag [cConteudo]"), então
+  // limpar (ex.: tirar a peça da posição) exclui a associação. Se o produto já não
+  // tinha a característica, já está como queremos.
+  if (params.cConteudo.trim() === '') {
+    try {
+      return await omieRequest('/geral/prodcaract/', 'ExcluirCaractProduto', { nCodProd: params.nCodProd, nCodCaract: params.nCodCaract }, conta);
+    } catch (e) {
+      if ((e as OmieError).bloqueio) throw e;
+      if (/n[aã]o\s+(est[aá]\s+)?(cadastrad|associad|encontrad|exist|localizad)/i.test(String((e as OmieError).faultstring || (e as Error).message || ''))) return { jaVazia: true };
+      throw e;
+    }
+  }
   const alterar = () => omieRequest('/geral/prodcaract/', 'AlterarCaractProduto', params, conta);
   const incluir = () => omieRequest('/geral/prodcaract/', 'IncluirCaractProduto', params, conta);
   const jaExiste = (e: OmieError) => /j[aá]\s+(cadastrad|associad|exist)/i.test(String(e.faultstring || e.message || ''));

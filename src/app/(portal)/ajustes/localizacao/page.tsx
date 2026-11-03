@@ -257,37 +257,47 @@ export default function LocalizacaoPage() {
     }));
   }
 
-  async function postLoc(body: Record<string, unknown>): Promise<void> {
+  async function postLoc(body: Record<string, unknown>): Promise<{ falhas?: Array<{ empresa: string; codigo_produto: number | string; erro: string }> }> {
     const r = await fetch('/api/ajustes/localizacao', {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify(body),
     });
     const d = await r.json().catch(() => ({}));
     if (!r.ok || d.erro) throw new Error(d.erro || `Falha (${r.status})`);
+    return d;
   }
+
+  // Erro de gravação numa faixa da própria página (não `alert`: a caixa do navegador
+  // trava a tela inteira, inclusive o "relatar problema" do clique direito).
+  const [erroGravar, setErroGravar] = useState<string | null>(null);
 
   // define a posição de UM produto, liberando ocupantes anteriores (se houver)
   async function definir(target: Produto, pos: Pos, liberar: Produto[]) {
-    setSalvando(true);
+    setSalvando(true); setErroGravar(null);
     try {
-      await postLoc({
+      const d = await postLoc({
         acao: 'definir', empresa: target.empresa, codigo_produto: target.codigo_produto,
         prateleira: pos.prat, andar: pos.andar, caixa: pos.caixa,
         liberar: liberar.map((p) => ({ empresa: p.empresa, codigo_produto: p.codigo_produto })),
       });
-      aplicarLocalOtimista(liberar, null);
+      const falhou = new Set((d.falhas || []).map((f) => chaveProd(f)));
+      aplicarLocalOtimista(liberar.filter((p) => !falhou.has(chaveProd(p))), null);
       aplicarLocalOtimista([target], pos);
       setMover(null); setColocar(null);
-    } catch (e) { alert('Erro ao gravar: ' + (e as Error).message); }
+      if (falhou.size) {
+        const nomes = liberar.filter((p) => falhou.has(chaveProd(p))).map((p) => p.codigo || p.codigo_produto).join(', ');
+        setErroGravar(`A peça foi gravada na posição, mas não deu para tirar ${nomes} de lá: ${d.falhas![0].erro}`);
+      }
+    } catch (e) { setErroGravar('Não gravou: ' + (e as Error).message); }
     finally { setSalvando(false); }
   }
   async function remover(target: Produto) {
     if (!confirm(`Remover ${target.codigo || target.codigo_produto} da posição? (limpa a localização na Omie)`)) return;
-    setSalvando(true);
+    setSalvando(true); setErroGravar(null);
     try {
       await postLoc({ acao: 'liberar', empresa: target.empresa, codigo_produto: target.codigo_produto });
       aplicarLocalOtimista([target], null);
-    } catch (e) { alert('Erro: ' + (e as Error).message); }
+    } catch (e) { setErroGravar('Não removeu: ' + (e as Error).message); }
     finally { setSalvando(false); }
   }
 
@@ -459,6 +469,13 @@ export default function LocalizacaoPage() {
         </>
       )}
 
+      {erroGravar && (
+        <div role="alert" style={{ position: 'fixed', top: 96, left: '50%', transform: 'translateX(-50%)', width: 560, maxWidth: '94vw', background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca', padding: '10px 12px', borderRadius: 10, fontSize: '.82rem', fontWeight: 600, display: 'flex', alignItems: 'flex-start', gap: 8, zIndex: 80, boxShadow: '0 6px 20px rgba(0,0,0,.2)' }}>
+          <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1 }} />
+          <span style={{ flex: 1 }}>{erroGravar}</span>
+          <button onClick={() => setErroGravar(null)} title="Fechar" style={{ background: 'none', border: 'none', color: '#991b1b', fontSize: '1.2rem', lineHeight: 1, cursor: 'pointer' }}>×</button>
+        </div>
+      )}
       {flash && (
         <div style={{ position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)', background: '#0f172a', color: '#fff', padding: '10px 16px', borderRadius: 10, fontSize: '.82rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, zIndex: 60, boxShadow: '0 6px 20px rgba(0,0,0,.25)' }}>
           <Tag size={15} /> {flash}

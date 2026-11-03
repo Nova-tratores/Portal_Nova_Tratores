@@ -37,17 +37,24 @@ export async function POST(req: NextRequest) {
 
     if (acao === 'definir') {
       const { prateleira = '', andar = '', caixa = '', liberar } = body;
-      // Libera os ocupantes anteriores ANTES (se o usuário optou por isso).
+      // Grava a peça nova PRIMEIRO: se a Omie falhar aqui, nada mudou. Depois libera
+      // os ocupantes anteriores (se o usuário optou) um a um — a falha de um não
+      // desfaz os outros e volta na lista `falhas` (eles seguem na posição).
+      const r = await definirLocalizacao({ empresa, codigo_produto }, { prateleira, andar, caixa }, autor);
       const liberados: any[] = [];
+      const falhas: any[] = [];
       if (Array.isArray(liberar)) {
         for (const alvo of liberar as AlvoProduto[]) {
           if (!alvo?.empresa || !alvo?.codigo_produto) continue;
-          const r = await liberarLocalizacao({ empresa: alvo.empresa, codigo_produto: alvo.codigo_produto }, autor);
-          liberados.push({ empresa: alvo.empresa, codigo_produto: alvo.codigo_produto, ...r });
+          try {
+            const rl = await liberarLocalizacao({ empresa: alvo.empresa, codigo_produto: alvo.codigo_produto }, autor);
+            liberados.push({ empresa: alvo.empresa, codigo_produto: alvo.codigo_produto, ...rl });
+          } catch (e) {
+            falhas.push({ empresa: alvo.empresa, codigo_produto: alvo.codigo_produto, erro: (e as Error).message });
+          }
         }
       }
-      const r = await definirLocalizacao({ empresa, codigo_produto }, { prateleira, andar, caixa }, autor);
-      return NextResponse.json({ ok: true, ...r, liberados });
+      return NextResponse.json({ ok: true, ...r, liberados, falhas });
     }
 
     return NextResponse.json({ erro: 'acao inválida (use definir|liberar)' }, { status: 400 });
