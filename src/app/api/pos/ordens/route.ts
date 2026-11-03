@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS, FASES_CONTADOR_PARADO } from "@/lib/pos/constants";
 import { getConfigPOS } from "@/lib/pos/config";
@@ -44,11 +45,22 @@ async function atualizarMetricasAbertas() {
   }
 }
 
-async function getOrdensParaKanban(): Promise<KanbanCard[]> {
-  // Todas as queries em paralelo
-  const [{ data: ordens }, { data: logs }, { data: metricasAbertas }, { data: reqsNovas }, { data: relatorios }, { data: reqsSol }, { data: reqsAtt }, { data: projetosCron }] = await Promise.all([
-    supabase.from(TBL_OS).select("*").order("Id_Ordem", { ascending: false }),
-    supabase.from(TBL_LOGS_PPO).select("Id_ppo,Data_Acao,Hora_Acao,acao,UsuEmail,Status_Atual").order("id", { ascending: false }),
+/** abertas = tudo menos Concluída/Cancelada (o quadro do POS abre só com elas: ~8% do tamanho, 03/11/2026);
+ *  fechadas = só Concluída/Cancelada (vêm quando alguém busca, abre essas fases, a Relação ou o Dashboard). */
+type EscopoOrdens = "todas" | "abertas" | "fechadas";
+const FECHADAS = '("Concluída","Cancelada")';
+
+async function getOrdensParaKanban(escopo: EscopoOrdens = "todas"): Promise<KanbanCard[]> {
+  let qOrdens = supabase.from(TBL_OS).select("*").order("Id_Ordem", { ascending: false });
+  if (escopo === "abertas") qOrdens = qOrdens.or(`Status.is.null,Status.not.in.${FECHADAS}`);
+  else if (escopo === "fechadas") qOrdens = qOrdens.in("Status", ["Concluída", "Cancelada"]);
+  // nas abertas, o histórico (logs) vem só das OS da lista — antes lia o log inteiro a cada minuto
+  const { data: ordens } = await qOrdens;
+  const idsAbertas = escopo === "abertas" ? (ordens || []).map((r) => String(safeGet(r, "Id_Ordem") || "")).filter(Boolean) : null;
+  let qLogs = supabase.from(TBL_LOGS_PPO).select("Id_ppo,Data_Acao,Hora_Acao,acao,UsuEmail,Status_Atual").order("id", { ascending: false });
+  if (idsAbertas) qLogs = qLogs.in("Id_ppo", idsAbertas.length ? idsAbertas : ["-"]);
+  const [{ data: logs }, { data: metricasAbertas }, { data: reqsNovas }, { data: relatorios }, { data: reqsSol }, { data: reqsAtt }, { data: projetosCron }] = await Promise.all([
+    qLogs,
     supabase.from(TBL_METRICAS).select("id_ordem, dias").is("data_fim", null),
     supabase.from("Requisicao").select("id, titulo, valor_cobrado_cliente, ordem_servico"),
     supabase.from("Ordem_Servico_Tecnicos").select("Ordem_Servico, NomResp"),
@@ -172,7 +184,7 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
 let lastAutoMove = 0;
 const AUTO_MOVE_INTERVAL = 5 * 60 * 1000;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const agora = Date.now();
   // Auto-move roda em background, não bloqueia a resposta
   if (agora - lastAutoMove > AUTO_MOVE_INTERVAL) {
@@ -182,8 +194,14 @@ export async function GET() {
       .then(() => atualizarMetricasAbertas())
       .catch((e) => console.error("Erro auto-move:", e));
   }
-  const ordens = await getOrdensParaKanban();
-  return NextResponse.json(ordens);
+  const e = req.nextUrl.searchParams.get("escopo");
+  const escopo: EscopoOrdens = e === "abertas" || e === "fechadas" ? e : "todas";
+  const ordens = await getOrdensParaKanban(escopo);
+  // "nada mudou": o POS manda o ETag da última lista; igual → 304 sem corpo (o navegador não baixa nem lê de novo)
+  const corpo = JSON.stringify(ordens);
+  const etag = `"${createHash("sha1").update(corpo).digest("base64url")}"`;
+  if (req.headers.get("if-none-match") === etag) return new NextResponse(null, { status: 304, headers: { ETag: etag } });
+  return new NextResponse(corpo, { headers: { "Content-Type": "application/json", ETag: etag, "Cache-Control": "no-store" } });
 }
 
 async function buscarProdutosPorPPV(idPPVInput: string) {

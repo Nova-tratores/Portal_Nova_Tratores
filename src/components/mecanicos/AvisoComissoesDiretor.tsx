@@ -9,8 +9,12 @@ import { usePathname } from 'next/navigation'
 import { createPortal } from 'react-dom'
 import { authHeaders } from '@/lib/auth/client'
 import { DOCA_ID } from '@/components/dashboard/AtalhosDashboard'
-import { AutorizacoesJanela, recarregarAutorizacoes } from './AutorizacoesJanela'
+import dynamic from 'next/dynamic'
 import { brl2 } from './ui'
+
+// a janela de autorizações (pesada) só vem quando o diretor abre (03/11/2026: este aviso fica em toda página)
+const AutorizacoesJanela = dynamic(() => import('./AutorizacoesJanela').then((m) => m.AutorizacoesJanela), { ssr: false })
+const recarregarAutorizacoes = () => import('./AutorizacoesJanela').then((m) => m.recarregarAutorizacoes())
 
 interface Pendente { id: string; tecnico: string; mes: string; valor: number; pedido_por: string | null; pedido_em: string }
 interface Adiado { ate: number; ids: string[] }

@@ -55,8 +55,10 @@ const haQuanto = (ms: number) => {
   return d === 1 ? "ontem" : `há ${d} dias`;
 };
 
-export default function BuscaPOS({ searchTerm, onSearch, ordens, onAbrirOS }: {
+export default function BuscaPOS({ searchTerm, onSearch, ordens, onAbrirOS, onFoco }: {
   searchTerm: string; onSearch: (t: string) => void; ordens: KanbanCard[]; onAbrirOS?: (o: KanbanCard) => void;
+  /** clicou na busca: o POS já começa a trazer as concluídas/canceladas (03/11/2026) */
+  onFoco?: () => void;
 }) {
   const recentes = useSyncExternalStore(assinar, lerRecentes, () => VAZIO);
   const [aberto, setAberto] = useState(false);
@@ -101,7 +103,7 @@ export default function BuscaPOS({ searchTerm, onSearch, ordens, onAbrirOS }: {
       <style>{ESTILO_BP}</style>
       <span className="bp-lupa" aria-hidden><i className="fas fa-magnifying-glass" /></span>
       <input ref={campo} type="text" className="search-input" placeholder="Buscar cliente, nº da OS ou nº no Omie" value={searchTerm}
-        onFocus={() => { setAberto(true); setFoco(true); setSel(-1); }}
+        onFocus={() => { setAberto(true); setFoco(true); setSel(-1); onFoco?.(); }}
         onChange={(e) => { onSearch(e.target.value); setAberto(true); setSel(-1); }}
         onKeyDown={(e) => {
           if (e.key === "Escape") { setAberto(false); (e.target as HTMLInputElement).blur(); return; }

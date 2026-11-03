@@ -35,9 +35,11 @@ interface HeaderProps {
   /** OS da lista (para as sugestões e o histórico da busca, com a fase de agora) */
   ordens?: KanbanCard[];
   onAbrirOS?: (o: KanbanCard) => void;
+  /** clicou na busca (o POS traz as concluídas/canceladas) */
+  onBuscaFoco?: () => void;
 }
 
-export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved, podeCriar = true, tecnicosPerfil = [], tecnicoFiltro = "", onTecnicoFiltro, abertasPorTecnico = {}, ordens = [], onAbrirOS }: HeaderProps) {
+export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved, podeCriar = true, tecnicosPerfil = [], tecnicoFiltro = "", onTecnicoFiltro, abertasPorTecnico = {}, ordens = [], onAbrirOS, onBuscaFoco }: HeaderProps) {
   usePosVisualNovo();
   const [showFiltroRelatorio, setShowFiltroRelatorio] = useState(false);
   const [filtroTecnico, setFiltroTecnico] = useState("todos");
@@ -97,7 +99,7 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
       <header style={{ flexWrap: "wrap", rowGap: 10 }}>
         {/* Busca na ESQUERDA + perfis dos técnicos (filtro por foto) na direita
             dela + botões na cor da faixa azul (sem o logo — pedido de 21/08) */}
-        <BuscaPOS searchTerm={searchTerm} onSearch={onSearch} ordens={ordens} onAbrirOS={onAbrirOS} />
+        <BuscaPOS searchTerm={searchTerm} onSearch={onSearch} ordens={ordens} onAbrirOS={onAbrirOS} onFoco={onBuscaFoco} />
 
         {tecnicosPerfil.length > 0 && (() => {
           const sel = tecnicosPerfil.find((t) => t.nome === tecnicoFiltro) || null;

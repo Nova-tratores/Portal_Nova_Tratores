@@ -33,9 +33,14 @@ interface PhaseViewProps {
   tecnicoFiltro?: string;
   /** Vai à direita da faixa das abas (o seletor Cards/Relação/Dashboard da página). */
   acoesAbas?: ReactNode;
+  /** Concluída/Cancelada chegam só quando pedidas (03/11/2026): "nao" = ainda não vieram (a fase aparece
+   *  recolhida e abrir chama onPedirFechadas), "carregando", "ok". */
+  fechadas?: "nao" | "carregando" | "ok";
+  onPedirFechadas?: () => void;
 }
 
 const FASE_ENVIAR_OMIE = "Enviar Omie";
+const FASES_FECHADAS = new Set(["Concluída", "Cancelada"]);
 
 // ── Abas do quadro (guias estilo Chrome): o TIPO da ordem. Não há fase nova —
 // cada aba mostra as mesmas fases, só com as ordens daquele tipo; o que muda
@@ -628,7 +633,7 @@ const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
 // Fases que aparecem no quadro mas SEM mostrar a contagem no cabeçalho.
 const SEM_CONTAGEM = new Set(["Concluída", "Cancelada"]);
 
-export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange, onAgendar, onEnviarOmie, onEnviarOmieTodas, enviandoOmie, onFaturar, tecnicoFiltro = "", acoesAbas }: PhaseViewProps) {
+export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange, onAgendar, onEnviarOmie, onEnviarOmieTodas, enviandoOmie, onFaturar, tecnicoFiltro = "", acoesAbas, fechadas = "ok", onPedirFechadas }: PhaseViewProps) {
   const [activePhase, setActivePhase] = useState<string>("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
   const [garantiaMap, setGarantiaMap] = useState<Record<string, GarantiaStatus>>({});
@@ -672,13 +677,14 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
   const onDescLeave = useCallback(() => mostrarTip.current?.(null), []);
 
   const toggleCollapse = useCallback((phase: string) => {
+    if (FASES_FECHADAS.has(phase) && fechadas === "nao") onPedirFechadas?.();
     setCollapsed((prev) => {
       const next = new Set(prev);
       if (next.has(phase)) next.delete(phase);
       else next.add(phase);
       return next;
     });
-  }, []);
+  }, [fechadas, onPedirFechadas]);
 
   // ── Fases OCULTAS por usuário (olhinho no cabeçalho; escolha no navegador).
   // Fase oculta some do quadro, MAS volta a aparecer quando a busca encontra
@@ -751,13 +757,16 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
         // Fase vazia NÃO aparece (pedido 21/08 — antes Enviar/Enviado Omie e
         // Preenchido Garantia ficavam sempre visíveis, mesmo com 0).
         map[phase] = items;
+      } else if (FASES_FECHADAS.has(phase) && fechadas !== "ok") {
+        // Concluída/Cancelada ainda não vieram: a fase aparece (recolhida) e abrir traz as OS
+        map[phase] = [];
       }
     }
     // Ordens com status desconhecido — não deixa sumir
     const orphans = filtered.filter((o) => !phasesSet.has(o.status));
     if (orphans.length > 0) map["Outros"] = orphans;
     return map;
-  }, [filtered, activePhase, garantiaMap]);
+  }, [filtered, activePhase, garantiaMap, fechadas]);
 
   // Stable click handlers per card (avoid inline arrow in .map)
   const handleCardClick = useCallback((o: KanbanCard) => onCardClick(o), [onCardClick]);
@@ -926,6 +935,9 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
               </div>
               {!collapsed.has(phase) && (
                 <div className="cards-grid">
+                  {items.length === 0 && FASES_FECHADAS.has(phase) && fechadas !== "ok" && (
+                    <div className="cards-empty"><i className="fas fa-circle-notch fa-spin" /> carregando as ordens desta fase…</div>
+                  )}
                   {items.map((o) => (
                     <MiniCard
                       key={o.id}

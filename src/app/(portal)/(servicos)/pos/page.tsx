@@ -7,10 +7,8 @@ import SemPermissao from "@/components/SemPermissao";
 import Header from "@/components/pos/Header";
 import PhaseAccordion from "@/components/pos/PhaseAccordion";
 import { registrarRecenteOS } from "@/components/pos/BuscaPOS";
-import PosMobile from "@/components/pos/PosMobile";
-import OSDrawer from "@/components/pos/OSDrawer";
+import dynamic from "next/dynamic";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import LembretesDrawer from "@/components/pos/LembretesDrawer";
 import LoadingIndicator from "@/components/pos/LoadingIndicator";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { authHeaders } from "@/lib/auth/client";
@@ -18,9 +16,30 @@ import { supabase } from "@/lib/supabase";
 import { normName } from "@/lib/tecnico-utils";
 import type { PerfilTecnico } from "@/components/pos/Header";
 import type { KanbanCard, ClienteOption } from "@/lib/pos/types";
-import RelacaoOS from "@/components/pos/RelacaoOS";
-import DashboardOS from "@/components/pos/DashboardOS";
 import { anexarNfse, type MapaNfse } from "@/lib/pos/nota";
+
+// 03/11/2026 (memória): janela da OS, Relação, Dashboard (gráficos), Lembretes e a tela do celular só são
+// baixados quando aparecem; a janela da OS é pré-carregada quando o mouse chega no quadro.
+const carregarOSDrawer = () => import("@/components/pos/OSDrawer");
+const OSDrawer = dynamic(carregarOSDrawer, { ssr: false });
+const PosMobile = dynamic(() => import("@/components/pos/PosMobile"), { ssr: false });
+const LembretesDrawer = dynamic(() => import("@/components/pos/LembretesDrawer"), { ssr: false });
+const RelacaoOS = dynamic(() => import("@/components/pos/RelacaoOS"), { ssr: false });
+const DashboardOS = dynamic(() => import("@/components/pos/DashboardOS"), { ssr: false });
+
+const ehFechada = (o: KanbanCard) => o.status === "Concluída" || o.status === "Cancelada";
+
+/** Troca na lista só a parte que chegou (abertas ou fechadas). A OS que não mudou continua o MESMO objeto
+ *  (o card não redesenha); se nada mudou, devolve a lista anterior. */
+function mesclarOrdens(prev: KanbanCard[], data: KanbanCard[], escopo: "abertas" | "fechadas"): KanbanCard[] {
+  const chegaram = new Set(data.map((o) => o.id));
+  const antes = new Map(prev.map((o) => [o.id, o]));
+  const parte = data.map((o) => { const a = antes.get(o.id); return a && JSON.stringify(a) === JSON.stringify(o) ? a : o; });
+  // da outra parte fica o que é dela (pela fase de agora), sem repetir o que acabou de chegar
+  const resto = prev.filter((o) => !chegaram.has(o.id) && (escopo === "abertas" ? ehFechada(o) : !ehFechada(o)));
+  const nova = escopo === "abertas" ? [...parte, ...resto] : [...resto, ...parte];
+  return nova.length === prev.length && nova.every((o, i) => o === prev[i]) ? prev : nova;
+}
 
 function PosPageInner() {
   const { userProfile } = useAuth();
@@ -119,37 +138,58 @@ function PosPageInner() {
   const [drawerMode, setDrawerMode] = useState<"create" | "edit">("create");
   const [selectedOsId, setSelectedOsId] = useState<string | null>(null);
   const [lembretesVisible, setLembretesVisible] = useState(false);
+  // os Lembretes só existem depois da 1ª abertura (03/11/2026)
+  const [lembretesJaAbriu, setLembretesJaAbriu] = useState(false);
+  const precarregado = useRef(false);
+  const precarregarOS = useCallback(() => { if (!precarregado.current) { precarregado.current = true; void carregarOSDrawer(); } }, []);
 
   // 03/11/2026 (o quadro pesava): só a 1ª carga mostra o "carregando"; as atualizações (60 s, voltar à aba,
   // depois de salvar) são silenciosas e reaproveitam o objeto da OS que não mudou — assim o card não redesenha.
   // Se nada mudou, a lista nem é trocada.
+  // Mais 03/11/2026 (memória e processador): a lista vem em duas partes. As ABERTAS (~80 KB) sempre; as
+  // Concluídas/Canceladas (~90% do tamanho) só quando alguém busca, abre essas fases, vai na Relação/Dashboard
+  // ou está no celular. Cada parte manda o ETag da última vez: sem mudança o servidor responde 304, vazio.
   const primeiraCarga = useRef(true);
+  const etags = useRef<Record<string, string>>({});
+  const querFechadas = useRef(false);
+  const [fechadas, setFechadas] = useState<"nao" | "carregando" | "ok">("nao");
+  const baixar = useCallback(async (escopo: "abertas" | "fechadas", signal?: AbortSignal) => {
+    const res = await fetch(`/api/pos/ordens?escopo=${escopo}`, { signal, headers: etags.current[escopo] ? { "If-None-Match": etags.current[escopo] } : undefined });
+    if (res.status === 304) return;
+    if (!res.ok) throw new Error("Erro HTTP");
+    const data: KanbanCard[] = await res.json();
+    const et = res.headers.get("ETag");
+    if (et) etags.current[escopo] = et;
+    setOrders((prev) => mesclarOrdens(prev, data, escopo));
+  }, []);
   const fetchOrders = useCallback(async (signal?: AbortSignal) => {
     const mostrar = primeiraCarga.current;
     if (mostrar) setLoading(true);
     try {
-      const res = await fetch("/api/pos/ordens", { signal });
-      if (!res.ok) throw new Error("Erro HTTP");
-      const data: KanbanCard[] = await res.json();
+      await Promise.all([baixar("abertas", signal), querFechadas.current ? baixar("fechadas", signal) : null]);
       primeiraCarga.current = false;
-      setOrders((prev) => {
-        if (prev.length === 0) return data;
-        const antes = new Map(prev.map((o) => [o.id, o]));
-        let mudou = prev.length !== data.length;
-        const nova = data.map((o, i) => {
-          const a = antes.get(o.id);
-          if (a && JSON.stringify(a) === JSON.stringify(o)) { if (prev[i] !== a) mudou = true; return a; }
-          mudou = true;
-          return o;
-        });
-        return mudou ? nova : prev;
-      });
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
       console.error("Erro ao carregar ordens:", err);
     }
     if (mostrar) setLoading(false);
-  }, []);
+  }, [baixar]);
+  const pedirFechadas = useCallback(() => {
+    if (querFechadas.current) return;
+    querFechadas.current = true;
+    setFechadas("carregando");
+    baixar("fechadas").then(() => setFechadas("ok")).catch((err) => {
+      console.error("Erro ao carregar concluídas:", err);
+      querFechadas.current = false;
+      setFechadas("nao");
+    });
+  }, [baixar]);
+  // busca, Relação, Dashboard e celular precisam das concluídas/canceladas
+  useEffect(() => {
+    if (!(searchTerm.trim() || viewMode !== "cards" || isMobile)) return;
+    const t = setTimeout(pedirFechadas, 0);
+    return () => clearTimeout(t);
+  }, [searchTerm, viewMode, isMobile, pedirFechadas]);
 
   const fetchClientes = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -411,7 +451,7 @@ function PosPageInner() {
 
   return (
     <div className="pos-container" style={{ height: "calc(100vh - 64px)", overflow: "auto" }}>
-      <LoadingIndicator visible={loading} />
+      <LoadingIndicator visible={loading || (fechadas === "carregando" && viewMode !== "cards")} />
       {isMobile ? (
         // ===== CELULAR: tela própria (o desktop abaixo não é usado no mobile) =====
         <PosMobile
@@ -430,7 +470,7 @@ function PosPageInner() {
             onSearch={setSearchTerm}
             onNewOS={handleNewOS}
             onGenerateReport={handleGenerateReport}
-            onLembretes={() => setLembretesVisible(true)}
+            onLembretes={() => { setLembretesJaAbriu(true); setLembretesVisible(true); }}
             tecnicos={tecnicos}
             valorHora={valorHora}
             valorKm={valorKm}
@@ -442,6 +482,7 @@ function PosPageInner() {
             onTecnicoFiltro={setTecnicoFiltro}
             ordens={orders}
             onAbrirOS={handleCardClick}
+            onBuscaFoco={pedirFechadas}
           />
           {/* Alternar Cards ⇄ Relação ⇄ Dashboard — no modo Cards vai na MESMA
               linha das abas (Faturamento/Garantias/Internas), à direita */}
@@ -453,7 +494,9 @@ function PosPageInner() {
           ) : viewMode === "dashboard" ? (
             <DashboardOS orders={ordersNfse} searchTerm={searchTerm} tecnicoFiltro={tecnicoFiltro} onAbrirOS={handleCardClick} />
           ) : (
-                    <PhaseAccordion
+          // mouse no quadro: a janela da OS começa a vir por trás, para o clique abrir sem esperar
+          <div style={{ display: "contents" }} onPointerOver={precarregarOS}>
+          <PhaseAccordion
             orders={orders}
             searchTerm={searchTerm}
             tecnicoFiltro={tecnicoFiltro}
@@ -465,7 +508,10 @@ function PosPageInner() {
             enviandoOmie={enviandoOmie}
             onFaturar={handleFaturarCard}
             acoesAbas={alternarVisao}
+            fechadas={fechadas}
+            onPedirFechadas={pedirFechadas}
           />
+          </div>
           )}
         </>
       )}
@@ -491,7 +537,7 @@ function PosPageInner() {
         />
       )}
 
-      <LembretesDrawer
+      {lembretesJaAbriu && <LembretesDrawer
         visible={lembretesVisible}
         clientes={clientes}
         userName={userProfile?.nome || ""}
@@ -503,7 +549,7 @@ function PosPageInner() {
           setDrawerVisible(true);
           window.history.replaceState(null, "", `/pos?id=${encodeURIComponent(id)}`);
         }}
-      />
+      />}
     </div>
   );
 }

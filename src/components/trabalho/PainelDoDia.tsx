@@ -11,10 +11,13 @@ import {
 import { createPortal } from 'react-dom'
 import { authHeaders } from '@/lib/auth/client'
 import { DOCA_ID } from '@/components/dashboard/AtalhosDashboard'
-import FormTicket from '@/components/tickets/FormTicket'
-import TicketModal from '@/components/tickets/TicketModal'
+import dynamic from 'next/dynamic'
 import EscolhaBloco, { carregarMeusBlocos, type EscolhaBlocoValor } from './EscolhaBloco'
 import SeletorDataAgenda from './SeletorDataAgenda'
+
+// ticket (novo ou aberto) só vem quando alguém clica (03/11/2026: o Painel do Dia fica em toda página)
+const FormTicket = dynamic(() => import('@/components/tickets/FormTicket'), { ssr: false })
+const TicketModal = dynamic(() => import('@/components/tickets/TicketModal'), { ssr: false })
 
 interface Pendente { id: string; numero: number; titulo: string; prazo: string | null; solicitante_nome: string; quadro_id?: string | null; quadro_nome: string | null; visibilidade?: 'privado' | 'publico' }
 interface Item { tipo: 'andamento' | 'comeca' | 'ticket' | 'tarefa' | 'reuniao'; texto: string; detalhe?: string; ticketId?: string | null; atrasado?: boolean; link?: string }

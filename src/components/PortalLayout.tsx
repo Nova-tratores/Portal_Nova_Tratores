@@ -12,8 +12,6 @@ import PainelDoDia from '@/components/trabalho/PainelDoDia'
 import PerguntaTratorilson from '@/components/trabalho/PerguntaTratorilson'
 import AvisoComissoesDiretor from '@/components/mecanicos/AvisoComissoesDiretor'
 import CaixaEmail from '@/components/CaixaEmail'
-import VigiaCameras from '@/components/VigiaCameras'
-import SolicitacoesTratorilson from '@/components/SolicitacoesTratorilson'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
@@ -30,15 +28,21 @@ import IlhaNotificacao, { AjustesIlha, type AvisoIlha } from '@/components/notif
 import { AvisosAparelho } from '@/components/notif/AvisosAparelho'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
-import ChatPanel from './chat/ChatPanel'
-import LembretesPanel from './lembretes/LembretesPanel'
 import LembreteAlerta from './lembretes/LembreteAlerta'
 import OrcamentoVencidoAlerta from './orcamentos/OrcamentoVencidoAlerta'
-import NotifPrefsModal from './notif/NotifPrefsModal'
 import OpaLembrete from './opa/OpaLembrete'
 import SatLembrete from './sat/SatLembrete'
-import QuemAcessa from './permissoes/QuemAcessa'
 import JornadaQuery from './uso/JornadaQuery'
+import dynamic from 'next/dynamic'
+import MontaAoAbrir from './comum/MontaAoAbrir'
+// 03/11/2026 (memória): painéis que só aparecem quando alguém abre (chat, lembretes, solicitações, preferências)
+// ou só para alguns (câmeras, dev) são baixados sob demanda, não em toda página do portal
+const VigiaCameras = dynamic(() => import('@/components/VigiaCameras'), { ssr: false })
+const SolicitacoesTratorilson = dynamic(() => import('@/components/SolicitacoesTratorilson'), { ssr: false })
+const ChatPanel = dynamic(() => import('./chat/ChatPanel'), { ssr: false })
+const LembretesPanel = dynamic(() => import('./lembretes/LembretesPanel'), { ssr: false })
+const NotifPrefsModal = dynamic(() => import('./notif/NotifPrefsModal'), { ssr: false })
+const QuemAcessa = dynamic(() => import('./permissoes/QuemAcessa'), { ssr: false })
 
 interface NavItem {
   id: string
@@ -955,7 +959,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             )}
           </button>
 
-          <SolicitacoesTratorilson open={zapPanelOpen} onClose={() => setZapPanelOpen(false)} abaInicial={zapAba} />
+          <MontaAoAbrir open={zapPanelOpen}><SolicitacoesTratorilson open={zapPanelOpen} onClose={() => setZapPanelOpen(false)} abaInicial={zapAba} /></MontaAoAbrir>
           </div>
           )}
 
@@ -1655,6 +1659,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       )}
 
       {/* ===== CHAT PANEL ===== */}
+      <MontaAoAbrir open={chatOpen}>
       <ChatPanel
         open={chatOpen}
         onClose={() => setChatOpen(false)}
@@ -1667,14 +1672,17 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         tratorilsonLocal={isMobile ? 'chat' : tratorilsonLocal}
         onChangeTratorilsonLocal={mudarTratorilsonLocal}
       />
+      </MontaAoAbrir>
 
       {userProfile?.id && (
+        <MontaAoAbrir open={lembretesOpen}>
         <LembretesPanel
           open={lembretesOpen}
           onClose={() => setLembretesOpen(false)}
           userId={userProfile.id}
           userName={userProfile.nome || ''}
         />
+        </MontaAoAbrir>
       )}
 
       {/* ===== PAINEL LATERAL CONFIGURAÇÕES ===== */}
