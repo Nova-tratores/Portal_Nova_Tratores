@@ -334,6 +334,18 @@ export async function register(): Promise<void> {
     log('replanejamento diário dos cronogramas ligados a quadros LIGADO (06:00 BRT)');
   }
 
+  // Arquivo Mahindra (04/11/2026): geração que um deploy interrompeu recomeça sozinha
+  // ~45 s depois do boot (web ou worker — quem pegar primeiro; o UPDATE condicional
+  // garante um só). Também retoma no próximo /status da tela. Só produção.
+  if (process.env.NODE_ENV === 'production' && process.env.MAHINDRA_RETOMAR !== 'off') {
+    setTimeout(() => {
+      import('./lib/ajustes/mahindra')
+        .then((m) => m.retomarGeracoesInterrompidas())
+        .then((n) => { if (n) log(`mahindra: ${n} geração(ões) interrompida(s) retomada(s)`); })
+        .catch((e) => log('mahindra: retomada falhou: ' + ((e as Error)?.message || e)));
+    }, 45 * 1000);
+  }
+
   // Monitor de uso (quem usa o quê): o buffer em memória (páginas por beacon do
   // PortalLayout + chamadas de API contadas em autenticar()) desce ao banco UMA
   // vez por minuto pela RPC portal_uso_incrementar. Só produção (USO_MONITOR=on

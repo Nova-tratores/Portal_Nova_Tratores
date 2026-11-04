@@ -8,6 +8,7 @@ import { cronRelacaoPPV } from '@/lib/ppv/relatorio-lista'
 import { cronRelatorioListaSemanal } from '@/lib/dre-financeiro/cron-relatorio-lista'
 import { cronApoiosVencendo } from '@/lib/marketing/apoios-vencendo'
 import { enviarContrapartida } from '@/lib/marketing/relatorio-contrapartida'
+import { enviarMahindraMensal } from '@/lib/ajustes/mahindra-mensal'
 import { envioDef, getConfigEnvio } from './envios-config'
 
 export interface DispararArgs {
@@ -36,6 +37,8 @@ export async function dispararEnvio(a: DispararArgs): Promise<any> {
       return cronRelatorioListaSemanal(undefined, comum)
     case 'marketing_apoios_vencendo':
       return cronApoiosVencendo(comum)
+    case 'mahindra_mensal':
+      return enviarMahindraMensal(comum)
     case 'marketing_contrapartida': {
       // O envio de verdade sai da ficha da ação (é lá que se sabe QUAL apoio).
       // Aqui só dá pra testar, apontando o apoio nos parâmetros da tela.

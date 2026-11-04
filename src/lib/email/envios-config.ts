@@ -61,6 +61,15 @@ export const ENVIOS: EnvioDef[] = [
     rota: '/api/marketing/contrapartida/[apoioId]/enviar',
     parametros: [{ k: 'apoio_id', label: 'Apoio para os botões desta tela', tipo: 'text', padrao: '', ajuda: 'UUID do apoio. Usado só pelos botões "Enviar agora/teste" daqui — o envio de verdade sai da ficha da ação.' }],
   },
+  {
+    chave: 'mahindra_mensal',
+    nome: 'Mahindra — Arquivo de estoque e venda de peças (mensal)',
+    descricao: 'O xlsx padrão da Mahindra do MÊS ANTERIOR (posição de estoque no último dia + quantidade vendida no mês), igual ao de /ajustes/mahindra. Se o arquivo do mês já foi gerado depois do fechamento, ele é reaproveitado; senão o portal gera na hora (~11 min) e guarda no histórico.',
+    agenda: 'Dia 2 de cada mês, 07:00 (BRT) — agendador interno',
+    workflow: '— (agendador interno: mahindra-mensal)',
+    rota: '—',
+    parametros: [{ k: 'contas', label: 'Contas', tipo: 'text', padrao: 'NOVA', ajuda: 'NOVA, CASTRO ou "NOVA,CASTRO" (um anexo por conta).' }],
+  },
 ]
 
 export function envioDef(chave: string): EnvioDef | undefined {

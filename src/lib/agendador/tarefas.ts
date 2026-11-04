@@ -379,6 +379,18 @@ export const TAREFAS: Record<string, Tarefa> = {
 
   // Certificados de garantia do portal de concessionárias da Mahindra (entrega técnica do Radar
   // Tratores). Só leitura no site da Mahindra; sem MAHINDRA_DEALER_* no serviço, pula.
+  // Arquivo Mahindra do mês anterior por e-mail (José, 04/11/2026): dia 2, 07:00.
+  // Destinatários/liga-desliga em Dev → Envios de e-mail (chave mahindra_mensal).
+  // Interrompido por deploy: o motor roda de novo no mesmo dia e o arquivo já gerado
+  // é reaproveitado; mês já enviado não sai de novo. MAHINDRA_MENSAL=off desliga.
+  'mahindra-mensal': async () => {
+    if (desligada('MAHINDRA_MENSAL')) return { pular: 'MAHINDRA_MENSAL=off' };
+    const { enviarMahindraMensal } = await import('@/lib/ajustes/mahindra-mensal');
+    const r = await enviarMahindraMensal({ origem: 'cron' });
+    if (r.pulado) return { pular: String(r.pulado) };
+    return { resumo: `${r.mes} → ${r.destinatarios.join(', ')} · ${r.arquivos.join(' · ')}` };
+  },
+
   'mahindra-certificados': async () => {
     if (!process.env.MAHINDRA_DEALER_USUARIO || !process.env.MAHINDRA_DEALER_SENHA) return { pular: 'sem MAHINDRA_DEALER_USUARIO/SENHA' };
     const { sincronizarCertificados } = await import('@/lib/mahindra/portal-dealer-server');

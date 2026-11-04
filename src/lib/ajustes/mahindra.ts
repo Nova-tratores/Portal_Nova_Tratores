@@ -183,6 +183,164 @@ export interface IniciarGeracaoArgs {
   baseUrl?: string;
 }
 
+/** Parametros guardados no job (progresso.params) para RETOMAR depois de um reinicio. */
+interface ParamsGeracao {
+  mes: string;
+  criadoPor?: string | null;
+  baseUrl?: string;
+  /** so' quando o operador subiu um template proprio (o padrao e' relido do servidor). */
+  templateBase64?: string;
+}
+
+// Retomada (04/11/2026): cada deploy reinicia o servidor e matava a geracao no meio
+// (03/11: duas tentativas de outubro derrubadas por deploys de outras sessoes). Agora
+// o job guarda os parametros; no SIGTERM o processo marca seus jobs como
+// interrompidos e NAO grava resultado; o processo novo (no boot ou no proximo
+// /status) assume o job — com UPDATE condicional, um so' processo pega — e gera de novo.
+const MAX_RETOMADAS = 3;
+type ParamsVivos = ParamsGeracao & { retomadas: number };
+type EstadoProc = { jobs: Map<number, ParamsVivos>; encerrando: boolean; sigterm: boolean };
+function estadoProc(): EstadoProc {
+  const g = globalThis as unknown as { __mahindraProc?: EstadoProc };
+  if (!g.__mahindraProc) g.__mahindraProc = { jobs: new Map(), encerrando: false, sigterm: false };
+  return g.__mahindraProc;
+}
+function ouvirSigterm() {
+  const st = estadoProc();
+  if (st.sigterm) return;
+  st.sigterm = true;
+  const proc = process as unknown as { once?: (ev: string, fn: () => void) => void };
+  proc.once?.('SIGTERM', () => {
+    st.encerrando = true;
+    for (const [id, p] of st.jobs) {
+      const { retomadas, ...params } = p;
+      void atualizarJob(id, {
+        etapa: 'servidor reiniciando (deploy) - a geracao recomeca sozinha em seguida',
+        progresso: { params, retomadas, interrompido: true },
+      });
+    }
+  });
+}
+
+async function templateDe(params: ParamsGeracao): Promise<Buffer> {
+  if (params.templateBase64) return Buffer.from(params.templateBase64, 'base64');
+  try {
+    return await carregarTemplatePadrao(params.baseUrl);
+  } catch (e: any) {
+    throw new Error('Nenhum template enviado e o template padrao do servidor nao pode ser lido: ' + (e?.message || String(e)));
+  }
+}
+
+/** Grava o xlsx no historico (mahindra_arquivos). Devolve o id (null se nao gravou). */
+export async function salvarArquivoMahindra(
+  conta: Conta, mes: string, g: GerarMahindraResult, criadoPor?: string | null,
+): Promise<number | null> {
+  try {
+    const { data, error } = await supabase.from(TABELA_ARQ).insert({
+      conta_omie: labelConta(conta),
+      mes,
+      filename: g.filename,
+      tamanho_bytes: g.buffer.length,
+      resumo: g.resumo,
+      conteudo_base64: g.buffer.toString('base64'),
+      criado_por: criadoPor || 'portal',
+    }).select('id').single();
+    if (error) console.warn(`[mahindra ${conta}] historico nao salvo:`, error.message);
+    return (data as { id: number } | null)?.id ?? null;
+  } catch (e: any) {
+    console.warn(`[mahindra ${conta}] historico nao salvo:`, e.message);
+    return null;
+  }
+}
+
+/** Gera com o template padrao do servidor (agendador/e-mail mensal). Lanca em erro. */
+export async function gerarComTemplatePadrao(conta: Conta, mes: string, onProgress?: (m: string) => void): Promise<GerarMahindraResult> {
+  const templateBuffer = await templateDe({ mes });
+  return gerarArquivoMahindra(conta, { templateBuffer, mes, onProgress });
+}
+
+/** Roda a geracao de um job neste processo (em background; nao lanca). */
+function executarJob(jobId: number, conta: Conta, params: ParamsGeracao, retomadas: number) {
+  const st = estadoProc();
+  ouvirSigterm();
+  st.jobs.set(jobId, { ...params, retomadas });
+  (async () => {
+    try {
+      const templateBuffer = await templateDe(params);
+      if (!templateBuffer.length) throw new Error('Template vazio ou invalido.');
+      const gerado = await gerarArquivoMahindra(conta, {
+        templateBuffer,
+        mes: params.mes,
+        onProgress: (m: string) => {
+          if (st.encerrando) return; // nao apaga o aviso de "interrompido"
+          atualizarJob(jobId, { etapa: retomadas ? `${m} (retomada ${retomadas})` : m });
+          console.log(`[mahindra ${conta}] ${m}`);
+        },
+      });
+      if (st.encerrando) return; // o processo novo refaz; gravar aqui duplicaria o historico
+      const arquivoId = await salvarArquivoMahindra(conta, params.mes, gerado, params.criadoPor);
+      await concluirJob(jobId, {
+        arquivoId,
+        resumo: gerado.resumo as any,
+        filename: gerado.filename,
+        etapaFinal: `concluido - ${gerado.resumo.encontradas}/${gerado.resumo.totalPecas} pecas preenchidas`,
+      });
+    } catch (e: any) {
+      if (st.encerrando) return;
+      await falharJob(jobId, e.faultstring || e.message);
+      console.error(`[mahindra ${conta}]`, e);
+    } finally {
+      st.jobs.delete(jobId);
+    }
+  })();
+}
+
+/**
+ * Assume um job 'rodando' que morreu (deploy/queda) e gera de novo neste processo.
+ * Devolve true se assumiu. UPDATE condicional em atualizado_em: so' um processo pega.
+ */
+async function tentarRetomar(conta: Conta, job: any): Promise<boolean> {
+  const st = estadoProc();
+  if (st.encerrando || st.jobs.has(job.id)) return false;
+  const prog = (job.progresso || {}) as { params?: ParamsGeracao; retomadas?: number };
+  if (!prog.params?.mes) return false; // job antigo, sem parametros guardados
+  const retomadas = Number(prog.retomadas || 0) + 1;
+  if (retomadas > MAX_RETOMADAS) return false;
+  const { data } = await supabase.from('ajustes_jobs')
+    .update({
+      etapa: `retomando depois de reinicio do servidor (${retomadas}/${MAX_RETOMADAS})`,
+      progresso: { params: prog.params, retomadas },
+      atualizado_em: new Date().toISOString(),
+    })
+    .eq('id', job.id).eq('status', 'rodando').eq('atualizado_em', job.atualizado_em)
+    .select('id');
+  if (!data || !(data as any[]).length) return false;
+  console.log(`[mahindra ${conta}] job ${job.id} retomado (${retomadas}/${MAX_RETOMADAS})`);
+  executarJob(job.id, conta, prog.params, retomadas);
+  return true;
+}
+
+/** True quando o job 'rodando' nao esta sendo tocado por ninguem (interrompido ou sem sinal). */
+function jobOrfao(job: any): boolean {
+  if (!job || job.status !== 'rodando') return false;
+  if (estadoProc().jobs.has(job.id)) return false;
+  return !!(job.progresso as any)?.interrompido || !jobEstaVivo(job);
+}
+
+/** Boot do servidor: retoma as geracoes que um deploy interrompeu (chamado pelo instrumentation). */
+export async function retomarGeracoesInterrompidas(): Promise<number> {
+  let n = 0;
+  for (const conta of ['NOVA', 'CASTRO'] as Conta[]) {
+    try {
+      const ativo = await lerJobAtivo('mahindra-gerar', conta);
+      if (jobOrfao(ativo) && await tentarRetomar(conta, ativo)) n++;
+    } catch (e: any) {
+      console.warn(`[mahindra ${conta}] retomada no boot falhou:`, e?.message || e);
+    }
+  }
+  return n;
+}
+
 /**
  * Inicia a geracao do arquivo Mahindra em background (worker-ready). Se ja ha uma
  * geracao rodando para a conta, retorna {jaRodando:true}. Senao cria o job
@@ -194,69 +352,25 @@ export async function iniciarGeracao(conta: Conta, args: IniciarGeracaoArgs): Pr
   if (!/^\d{4}-\d{2}$/.test(String(mes || ''))) {
     throw new Error('Informe o mes no formato AAAA-MM');
   }
+  const atual = await lerJobAtivo('mahindra-gerar', conta);
+  if (jobOrfao(atual) && await tentarRetomar(conta, atual)) {
+    return { ok: true, rodando: true, jaRodando: true, jobId: atual!.id, etapa: 'retomando a geracao interrompida' };
+  }
   if (await jobRodando('mahindra-gerar', conta)) {
     const ativo = await lerJobAtivo('mahindra-gerar', conta);
     return { ok: true, rodando: true, jaRodando: true, jobId: ativo?.id, etapa: ativo?.etapa };
   }
 
-  // Sem upload -> usa o template padrao guardado no servidor (public/templates).
-  let templateBuffer: Buffer;
-  if (templateBase64) {
-    templateBuffer = Buffer.from(templateBase64, 'base64');
-  } else {
-    try {
-      templateBuffer = await carregarTemplatePadrao(baseUrl);
-    } catch (e: any) {
-      throw new Error('Nenhum template enviado e o template padrao do servidor nao pode ser lido: ' + (e?.message || String(e)));
-    }
-  }
+  const params: ParamsGeracao = { mes, criadoPor, baseUrl, ...(templateBase64 ? { templateBase64 } : {}) };
+  // le o template ANTES de criar o job (erro volta na hora para a tela)
+  const templateBuffer = await templateDe(params);
   if (!templateBuffer || templateBuffer.length === 0) {
     throw new Error('Template vazio ou invalido.');
   }
 
   const jobId = await criarJob('mahindra-gerar', conta, criadoPor);
-
-  // dispara em background (Railway: processo long-lived via next start)
-  (async () => {
-    try {
-      const { buffer, resumo, filename } = await gerarArquivoMahindra(conta, {
-        templateBuffer,
-        mes,
-        onProgress: (m: string) => {
-          atualizarJob(jobId, { etapa: m });
-          console.log(`[mahindra ${conta}] ${m}`);
-        },
-      });
-
-      let arquivoId: number | null = null;
-      try {
-        const { data, error } = await supabase.from(TABELA_ARQ).insert({
-          conta_omie: labelConta(conta),
-          mes,
-          filename,
-          tamanho_bytes: buffer.length,
-          resumo,
-          conteudo_base64: buffer.toString('base64'),
-          criado_por: criadoPor || 'portal',
-        }).select('id').single();
-        if (error) console.warn(`[mahindra ${conta}] historico nao salvo:`, error.message);
-        arquivoId = (data as { id: number } | null)?.id ?? null;
-      } catch (e: any) {
-        console.warn(`[mahindra ${conta}] historico nao salvo:`, e.message);
-      }
-
-      await concluirJob(jobId, {
-        arquivoId,
-        resumo: resumo as any,
-        filename,
-        etapaFinal: `concluido - ${resumo.encontradas}/${resumo.totalPecas} pecas preenchidas`,
-      });
-    } catch (e: any) {
-      await falharJob(jobId, e.faultstring || e.message);
-      console.error(`[mahindra ${conta}]`, e);
-    }
-  })();
-
+  await atualizarJob(jobId, { progresso: { params, retomadas: 0 } });
+  executarJob(jobId, conta, params, 0);
   return { ok: true, rodando: true, jobId };
 }
 
@@ -268,8 +382,16 @@ export async function lerStatusGeracao(conta: Conta): Promise<any> {
   const ativo = await lerJobAtivo('mahindra-gerar', conta);
   if (!ativo) return { rodando: false, semDados: true };
   if (ativo.status === 'rodando') {
-    // job travado (processo morreu no meio): reporta como erro e libera novas tentativas
-    if (!jobEstaVivo(ativo)) {
+    if (jobOrfao(ativo)) {
+      // processo morreu no meio (deploy/queda): retoma aqui. Sem parametros guardados
+      // ou passado do limite de retomadas, vira erro e libera novas tentativas.
+      if (await tentarRetomar(conta, ativo)) {
+        return { rodando: true, etapa: 'retomando depois de reinicio do servidor', inicio: ativo.iniciado_em, jobId: ativo.id };
+      }
+      if ((ativo.progresso as any)?.interrompido && jobEstaVivo(ativo)) {
+        // este processo esta saindo; o novo assume
+        return { rodando: true, etapa: ativo.etapa, inicio: ativo.iniciado_em, jobId: ativo.id };
+      }
       await falharJob(ativo.id, 'Processo interrompido (o servidor reiniciou durante a geração). Tente novamente.');
       return { rodando: false, erro: 'A geração foi interrompida (o servidor reiniciou). Clique em Gerar novamente.', etapa: ativo.etapa, jobId: ativo.id };
     }
