@@ -57,6 +57,10 @@ export const PAGINAS_FROTA: PaginaFrota[] = [
   // Pendências por veículo: régua de cadastro/documentação + checklist,
   // requisição, OS e Opa, num lugar só.
   { key: 'frota:pendencias',         label: 'Pendências',        href: '/frota/pendencias',         grupo: 'Operação', aba: 'manutencao' },
+  // Oficina (Fase 2, fatia 3 — 04/11/2026): OS da frota em kanban. Mesma chave
+  // de Pendências (a OS junta as pendências do carro); o pós-vendas, que move
+  // a OS, entra mesmo sem a Frota (exceção no frota/layout.tsx).
+  { key: 'frota:pendencias',         label: 'Oficina',           href: '/frota/oficina',            grupo: 'Operação', aba: 'manutencao' },
   // Preventiva por km, horas ou data (Fase 2): plano por modelo, pelo manual de
   // cada veículo; o que foi feito reinicia a contagem. Planos em /frota/preventivas/planos.
   { key: 'frota:preventivas',        label: 'Preventivas',       href: '/frota/preventivas',        grupo: 'Operação', aba: 'manutencao' },

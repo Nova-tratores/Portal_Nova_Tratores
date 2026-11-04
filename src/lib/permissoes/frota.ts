@@ -31,6 +31,8 @@ export function slugDaRota(pathname: string): string {
   if (partes[0] === 'veiculos') return 'dashboard';
   // Preencher/ver checklist de um veículo herda a permissão da tela "Checklists".
   if (partes[0] === 'checklist') return 'checklists';
+  // Oficina (OS da frota) herda a permissão de Pendências.
+  if (partes[0] === 'oficina') return 'pendencias';
 
   const doisNiveis = partes.slice(0, 2).join(':');
   if (SLUGS_FROTA.has(doisNiveis)) return doisNiveis;

@@ -145,6 +145,18 @@ async function executar(): Promise<ResultadoSync> {
     chamadosVendas: chamados.error ? null : [...(chamados.data || []), ...chamadosAntigos.data] as ChamadoVendasSync[],
   });
 
+  // Oficina (sql/frota-oficina.sql): pendência que está numa OS em andamento é
+  // fechada pela entrega do carro, não pelo motor; e a requisição aberta pela OS
+  // não vira pendência nova. Sem a migration, nada muda.
+  try {
+    const { travasDaOficina } = await import('@/lib/frota/oficina-server');
+    const travas = await travasDaOficina(supabase);
+    if (travas) {
+      plano.resolver = plano.resolver.filter((a) => !travas.pendencias.has(a.id));
+      plano.inserir = plano.inserir.filter((row) => !(row.origem === 'requisicao' && travas.requisicoes.has(String(row.origem_ref))));
+    }
+  } catch (e) { erros.push(`oficina: ${(e as Error).message}`); }
+
   // ── grava ──
   let inseridas = 0;
   if (plano.inserir.length) {

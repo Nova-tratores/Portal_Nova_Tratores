@@ -32,7 +32,14 @@ export default function FrotaLayout({ children }: { children: React.ReactNode })
 
   // Só bloqueia DEPOIS que tudo carregou. Durante o loading renderiza o layout
   // normal — trocar a árvore de filhos entre renders confunde o Router do Next.
-  if (!loading && userProfile) {
+  // Oficina: quem move a OS da frota é o pós-vendas (decisão do José), que nem
+  // sempre tem a Frota. Mesma regra de ehPosVendas (lib/assistente/notificados,
+  // que é só servidor): categoria "Pós Vendas" ou o módulo POS.
+  const perms0 = permissoes?.modulos_permitidos ?? [];
+  const posVendas = String(permissoes?.categoria || '').trim().toLowerCase() === 'pós vendas' || perms0.includes('pos');
+  const oficinaPosVendas = posVendas && pathname.startsWith('/frota/oficina');
+
+  if (!loading && userProfile && !oficinaPosVendas) {
     if (!temAcesso('frota')) return <SemPermissao />;
     const slug = slugDaRota(pathname);
     const perms = permissoes?.modulos_permitidos ?? [];

@@ -18,6 +18,7 @@ import { autenticar } from '@/lib/auth/server';
 import { temModuloPendencias } from '@/lib/frota/server';
 import { sincronizarPendencias } from '@/lib/frota/pendencias-sync';
 import { ehGravidade } from '@/lib/frota/gravidade';
+import { criarRequisicaoManutencao } from '@/lib/frota/requisicao-manutencao';
 import { paginar } from '@/lib/db/paginar';
 
 export const runtime = 'nodejs';
@@ -138,34 +139,14 @@ export async function POST(req: NextRequest) {
   let requisicaoErro: string | null = null;
   if (body.criar_requisicao === true) {
     try {
-      const { data: v } = await supabase
-        .from('frota_veiculos')
-        .select('supa_placa_id, modelo')
-        .eq('placa', placa)
-        .maybeSingle();
-      const obs = [
-        `Aberta automaticamente pela pendência da frota no ${placa}${v?.modelo ? ` (${v.modelo})` : ''}.`,
-        base.descricao || '',
-      ].filter(Boolean).join('\n');
-      const { data: reqIns, error: errReq } = await supabase
-        .from('Requisicao')
-        .insert({
-          titulo,
-          tipo: 'Veicular Manutenção',
-          solicitante: responsavel,
-          setor: 'Frota',
-          data: new Date().toISOString().slice(0, 10),
-          empresa: 'NOVA TRATORES MÁQUINAS AGRÍCOLAS LTDA',
-          endereco_empr: 'AVENIDA SÃO SEBASTIÃO, 1065 | Piraju - SP',
-          veiculo: v?.supa_placa_id ?? null,
-          hodometro: base.km != null ? String(base.km) : '',
-          obs,
-          status: 'pedido',
-          criado_por: nome,
-        })
-        .select('id')
-        .single();
-      if (errReq || !reqIns) throw new Error(errReq?.message || 'Erro ao criar a requisição.');
+      const reqIns = {
+        id: await criarRequisicaoManutencao(supabase, {
+          placa, titulo, solicitante: responsavel, criadoPor: nome,
+          km: base.km != null ? Number(base.km) : null,
+          origem: 'Aberta automaticamente pela pendência da frota',
+          descricao: base.descricao || null,
+        }),
+      };
       requisicao = { id: reqIns.id };
       const pendId = (data as { id?: string } | null)?.id;
       if (pendId) {

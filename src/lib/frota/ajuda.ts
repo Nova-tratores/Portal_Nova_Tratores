@@ -123,6 +123,26 @@ const AJUDA: Record<string, AjudaFrota> = {
       { t: '"Era pra durar mais"', d: 'O mesmo componente deu problema antes da vida útil cadastrada.' },
     ],
   },
+  '/frota/oficina': {
+    titulo: 'Oficina',
+    icon: '🔧',
+    resumo: 'A ordem de serviço da frota: o que está na oficina, o que espera peça e quanto tempo cada carro está parado.',
+    oQueMostra:
+      'Cada OS junta o que vai ser feito no carro: pendências abertas, preventivas vencidas ou vencendo e outros serviços. ' +
+      'As colunas são as etapas: Aberta, Em oficina, Aguardando peça e Pronta. O carro conta como parado da entrada na oficina ' +
+      'até ficar pronto, com custo estimado de R$ 250 por dia. As encerradas dos últimos 30 dias ficam embaixo.',
+    comoUsar: [
+      'Nova OS: escolha o carro e marque o que vai ser feito. Uma OS por carro de cada vez; o resto entra como item nela.',
+      'Arraste o cartão para a coluna seguinte ou abra a OS e use os botões. Quem muda as etapas é o Pós-Vendas.',
+      'Entrar na oficina pede o km com foto do painel. Aguardando peça pede a peça e a previsão. Entregar o carro pede o km com foto e quem retirou.',
+      'Ao entregar, os itens marcados como feitos resolvem as pendências e reiniciam as preventivas. Os não feitos continuam abertos no carro.',
+      'Criar requisição abre a requisição "Veicular Manutenção" com os itens da OS. Ela não fecha a OS: quem fecha é a entrega do carro.',
+    ],
+    termos: [
+      { t: 'Parado', d: 'Da entrada na oficina até a etapa Pronta, quando a OS imobiliza o carro.' },
+      { t: 'Tempo em vermelho', d: 'Mais de 3 dias na mesma etapa, ou peça com a previsão vencida.' },
+    ],
+  },
   '/frota/preventivas': {
     titulo: 'Preventivas',
     icon: '🗓️',
