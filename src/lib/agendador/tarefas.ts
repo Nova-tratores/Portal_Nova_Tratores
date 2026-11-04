@@ -337,10 +337,11 @@ export const TAREFAS: Record<string, Tarefa> = {
 
   'frota-pendencias-sync': async () => {
     if (desligada('FROTA_PENDENCIAS_SYNC')) return { pular: 'desligado (FROTA_PENDENCIAS_SYNC=off)' };
-    const { sincronizarPendencias } = await import('@/lib/frota/pendencias-sync');
+    const { sincronizarPendencias, higieneResponsaveis } = await import('@/lib/frota/pendencias-sync');
+    const higiene = await higieneResponsaveis();
     const res = await sincronizarPendencias();
     if (res.erros.length && !res.inseridas && !res.resolvidas) throw new Error(res.erros.join(' | '));
-    return { resumo: `abertas ${res.inseridas} · fechadas ${res.resolvidas}${res.erros.length ? ` · ${res.erros.length} erros` : ''}` };
+    return { resumo: `abertas ${res.inseridas} · fechadas ${res.resolvidas}${res.erros.length ? ` · ${res.erros.length} erros` : ''}${higiene ? ` · ${higiene}` : ''}` };
   },
 
   'vigia-conversas': async () => {

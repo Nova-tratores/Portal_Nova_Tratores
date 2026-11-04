@@ -189,18 +189,27 @@ async function executar(): Promise<ResultadoSync> {
   return { inseridas, resolvidas, erros };
 }
 
-/** Rodada do agendador interno (instrumentation.ts). Registra em cron_runs
- *  (job `frota-pendencias-sync`); a trava evita sobreposição entre réplicas. */
-export async function rodarPendenciasAgendado(): Promise<string | null> {
-  const { comCronRun } = await import('@/lib/cron/observar');
-  // antes das pendências: desligado ou carro fora da frota não fica como responsável
+/** Antes das pendências: desligado ou carro fora da frota não fica como
+ *  responsável (nem como técnico do carro). Usada pelos DOIS caminhos da rodada
+ *  — o agendador novo (agendador/tarefas.ts) chamava só sincronizarPendencias e
+ *  a higiene parou de rodar (04/11/2026: Nicolas seguia no FXM4G90 e no TKY6E68). */
+export async function higieneResponsaveis(): Promise<string | null> {
   try {
     const { fecharResponsaveisSemDireito } = await import('./higiene-responsaveis-server');
     const h = await fecharResponsaveisSemDireito();
     if (h.fechados) console.log(`[frota] responsáveis fechados: ${h.motivos.join('; ')}`);
+    return h.fechados ? `${h.fechados} vínculo(s) encerrado(s)` : null;
   } catch (e) {
     console.warn('[frota] higiene dos responsáveis falhou:', e instanceof Error ? e.message : e);
+    return 'higiene falhou';
   }
+}
+
+/** Rodada do agendador interno (instrumentation.ts). Registra em cron_runs
+ *  (job `frota-pendencias-sync`); a trava evita sobreposição entre réplicas. */
+export async function rodarPendenciasAgendado(): Promise<string | null> {
+  const { comCronRun } = await import('@/lib/cron/observar');
+  await higieneResponsaveis();
   const r = await comCronRun('frota-pendencias-sync', async () => {
     const res = await sincronizarPendencias();
     if (res.erros.length && !res.inseridas && !res.resolvidas) throw new Error(res.erros.join(' | '));
