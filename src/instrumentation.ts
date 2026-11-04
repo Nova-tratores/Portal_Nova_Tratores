@@ -290,6 +290,9 @@ export async function register(): Promise<void> {
       try {
         const r = await verificarGatilhosOS();
         if (!r.pulado) log(`pops-gatilhos-os: ${resumoGatilhos(r)}`);
+        const { varrerRoteiros } = await import('./lib/pops/roteiros-server');
+        const v = await varrerRoteiros();
+        if (v.liberadas || v.erros.length) log(`pops-roteiros: ${v.liberadas} etapa(s) liberada(s)${v.erros.length ? ` · erros: ${v.erros.slice(0, 3).join(' | ')}` : ''}`);
       } catch (e) { log('pops-gatilhos-os falhou: ' + (e as Error).message); }
     };
     setInterval(() => { rodarPopsOS().catch(() => {}); }, 10 * 60 * 1000);

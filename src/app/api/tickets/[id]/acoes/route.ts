@@ -23,6 +23,7 @@ import { colunaDoTicket, colunaDoStatus } from '@/lib/tickets/quadros'
 import { sincronizarEtapaDoTicket, moverEtapaDoTicket, hojeSP } from '@/lib/trabalho/cronograma-server'
 import { erroFimDeSemana } from '@/lib/trabalho/agenda'
 import { contaReprogramacao } from '@/lib/reunioes/regras'
+import { aoConcluirExecucao } from '@/lib/pops/roteiros-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -286,6 +287,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       para === 'resolvido' || para === 'fechado' ? 'ticket_concluido' : undefined)
     // Etapa do cronograma ligada acompanha (andamento / concluída / volta).
     await sincronizarEtapaDoTicket({ id, status: para })
+    // Execução de POP que é etapa de roteiro numa OS: terminou → libera a próxima.
+    if (ticket.tipo === 'pop' && (para === 'resolvido' || para === 'fechado')) await aoConcluirExecucao(id, auth.userId)
     return NextResponse.json({ ok: true })
   }
 

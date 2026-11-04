@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmarConclusaoOS } from "@/lib/pops/roteiros-client";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
@@ -351,6 +352,8 @@ function PosPageInner() {
 
   const handlePhaseChange = useCallback(async (orderId: string, newPhase: string) => {
     if (!atual.current.podeMoverFase) { alert("Você não tem permissão para mover de fase."); return; }
+    // Checklist de roteiro sem fazer: avisa antes de concluir (não bloqueia).
+    if (newPhase === "Concluída" && !(await confirmarConclusaoOS(orderId))) return;
     // Atualiza localmente para feedback imediato
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: newPhase } : o));
     try {

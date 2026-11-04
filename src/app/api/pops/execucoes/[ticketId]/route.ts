@@ -21,6 +21,7 @@ import {
 import {
   ehAdminPops, normalizarResposta, pendentes, podeAprovar, podeEditarPop, uuidValido, type Passo, type Resposta,
 } from '@/lib/pops/regras'
+import { aoConcluirExecucao } from '@/lib/pops/roteiros-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -152,6 +153,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tic
       await registrarEvento(ticketId, auth.userId, 'status', { de: c.ticket.status, para: 'resolvido' })
       await notificarTicket(c.ticket, [c.ticket.solicitante_id], auth.userId,
         `Execução #${c.ticket.numero} concluída`, c.ticket.titulo, 'ticket_concluido')
+      // Etapa de roteiro numa OS: libera a próxima (saída → chegada…).
+      await aoConcluirExecucao(ticketId, auth.userId)
       return NextResponse.json({ ok: true })
     }
 

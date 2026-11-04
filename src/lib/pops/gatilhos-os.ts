@@ -94,6 +94,9 @@ export async function verificarGatilhosOS(opts: { osIds?: string[] } = {}): Prom
       await supabaseAdmin.from('pops_gatilhos_os_disparos').update({ ticket_id: ticketId })
         .eq('gatilho_id', g.id).eq('os_id', os.Id_Ordem)
       if (!ticketId) continue
+      // Vínculo de verdade com a OS (aparece no bloco "Checklists desta OS"). Sem a coluna
+      // (sql/pops-05-roteiros.sql não aplicada) o update só falha e segue.
+      await supabaseAdmin.from('pops_execucoes').update({ os_id: os.Id_Ordem }).eq('ticket_id', ticketId)
       out.criadas++
       const t = await carregarTicket(ticketId)
       if (t) await notificarTicket(t.ticket, [responsavel], null,

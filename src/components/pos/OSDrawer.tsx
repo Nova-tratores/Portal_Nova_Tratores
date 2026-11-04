@@ -35,6 +35,8 @@ import AnexosModal from "@/components/ppv/AnexosModal";
 import TarefasModal from "@/components/ppv/TarefasModal";
 import ChequeRevisaoBloco from "./ChequeRevisaoBloco";
 import AssinaturaClienteBloco from "./AssinaturaClienteBloco";
+import ChecklistsOSBloco from "./ChecklistsOSBloco";
+import { confirmarConclusaoOS } from "@/lib/pops/roteiros-client";
 import ResservicoBloco from "./ResservicoBloco";
 import ComissaoOSBloco from "./ComissaoOSBloco";
 import TemparioOSBloco from "./TemparioOSBloco";
@@ -242,7 +244,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   // (só efetiva com o motivo preenchido).
   const [cancelModal, setCancelModal] = useState(false);
   const [motivoTmp, setMotivoTmp] = useState("");
-  const mudarStatus = (novo: string) => {
+  const mudarStatus = async (novo: string) => {
+    // Checklist de roteiro sem fazer: avisa antes (não bloqueia).
+    if (novo === "Concluída" && status !== "Concluída" && osId && !(await confirmarConclusaoOS(osId))) return;
     if (faturadaEm && novo !== status && novo !== "Concluída") {
       alert("Esta OS já foi faturada no Omie (NFS-e ou recibo): a fase fica travada — só pode ir para Concluída.");
       return;
@@ -888,6 +892,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     if (!osId) return;
     if (!podeConcluir) { alert("Você não tem permissão para concluir ordens."); return; }
     if (!confirm(`Confirmar que a OS ${osId} foi enviada ao Omie corretamente e movê-la para "Concluída"?`)) return;
+    if (!(await confirmarConclusaoOS(osId))) return;
     setConcluindo(true);
     try {
       const res = await fetch(`/api/pos/ordens/${osId}/fase`, {
@@ -1765,6 +1770,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         </div>
                         {tipoServico === "Revisão" && osId && <ChequeRevisaoBloco osId={osId} podeEditar={podeEditar} />}
                         {osId && <AssinaturaClienteBloco osId={osId} podeEditar={podeEditar} />}
+                        {osId && <ChecklistsOSBloco osId={osId} podeEditar={podeEditar} />}
                         {osId && <ResservicoBloco key={osId} osId={osId} podeEditar={podeEditar} tecnicos={tecnicos} tecnicoAtual={tecnico1} />}
                         {osId && <ComissaoOSBloco osId={osId} podeEditar={podeEditar} />}
                       </div>
@@ -2451,6 +2457,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                     )}
                     {mode === "edit" && osId && (
                       <AssinaturaClienteBloco osId={osId} podeEditar={podeEditar} />
+                    )}
+                    {mode === "edit" && osId && (
+                      <ChecklistsOSBloco osId={osId} podeEditar={podeEditar} />
                     )}
                     {mode === "edit" && osId && (
                       <ResservicoBloco key={osId} osId={osId} podeEditar={podeEditar} tecnicos={tecnicos} tecnicoAtual={tecnico1} />

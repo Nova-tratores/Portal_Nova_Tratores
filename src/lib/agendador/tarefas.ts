@@ -325,10 +325,14 @@ export const TAREFAS: Record<string, Tarefa> = {
   'pops-gatilhos-os': async () => {
     if (desligada('POPS_GATILHOS_OS')) return { pular: 'desligado (POPS_GATILHOS_OS=off)' };
     const { verificarGatilhosOS, resumoGatilhos } = await import('@/lib/pops/gatilhos-os');
+    const { varrerRoteiros } = await import('@/lib/pops/roteiros-server');
     const r = await verificarGatilhosOS();
-    if (r.pulado) return { pular: r.pulado };
+    // Roteiros na OS: etapa em andamento cuja execução já terminou → libera a próxima.
+    const v = await varrerRoteiros().catch((e) => ({ verificados: 0, liberadas: 0, erros: [(e as Error).message] }));
+    const rot = v.verificados ? ` · roteiros ${v.verificados} vistos, ${v.liberadas} etapa(s) liberada(s)${v.erros.length ? `, ${v.erros.length} erro(s)` : ''}` : '';
+    if (r.pulado) return rot ? { resumo: `gatilhos: ${r.pulado}${rot}` } : { pular: r.pulado };
     if (r.erros.length && !r.criadas) throw new Error(r.erros.slice(0, 5).join(' | '));
-    return { resumo: resumoGatilhos(r) };
+    return { resumo: resumoGatilhos(r) + rot };
   },
 
   'frota-pendencias-sync': async () => {
