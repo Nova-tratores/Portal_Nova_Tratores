@@ -1,4 +1,7 @@
-name: Estoque - Sync recebimentos NF-e
+# RESERVA desde 04/11/2026: o agendador do portal roda o sync COMPLETO às 22:00 BRT no
+# worker (tarefa estoque-sync-recebimentos); de dia o recente de 45 dias roda a cada
+# 10 min (pecas-alocacao-rapido). A rota pula se o portal rodou bem nas últimas 26 h.
+name: Estoque - Sync recebimentos NF-e (reserva)
 
 # Sincroniza os recebimentos de NF-e do Omie (ListarRecebimentos ->
 # recebimentos_nfe) para todas as contas, em janela comercial.
@@ -7,7 +10,7 @@ name: Estoque - Sync recebimentos NF-e
 
 on:
   schedule:
-    - cron: '*/15 9-22 * * *'   # a cada 15 min, das 09h às 22h UTC (06h-19h BRT)
+    - cron: '0 12 * * *'   # 09:00 BRT (reserva: só roda se o worker falhou à noite)
   workflow_dispatch: {}          # permite rodar manualmente
 
 jobs:

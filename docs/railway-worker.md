@@ -28,7 +28,7 @@ Pré-requisito: o commit com o gate `PAPEL` já em produção (ver `CLAUDE.md`,
 "Variáveis de ambiente"). Sem ele, o serviço novo rodaria os robôs em dobro.
 
 1. **Projeto → "+ New" → "GitHub Repo"** → escolher `Nova-tratores/Portal_Nova_Tratores`,
-   branch `main`. Nome sugerido: `portal-worker`.
+   branch **`worker`** (ver "Branch `worker`" abaixo). Nome sugerido: `portal-worker`.
 2. **Variables**: copiar TODAS as variáveis do serviço web (há o botão "Raw Editor"
    nos dois lados: copiar de um, colar no outro). Depois acrescentar/ajustar:
    - `PAPEL=worker`
@@ -51,6 +51,10 @@ Pré-requisito: o commit com o gate `PAPEL` já em produção (ver `CLAUDE.md`,
    next.config.ts
    ```
    Push que não toca nesses caminhos não redeploya o worker.
+   ⚠️ Na prática filtrou pouco: 27 dos 36 commits de 03–04/11/2026 tocavam `src/lib`
+   (toda tela nova põe as regras numa lib) e o worker reiniciava 11–13x por dia. Por isso
+   o deploy do worker passou a vir da branch `worker` (abaixo); os watch paths ficam como
+   segunda peneira.
 5. **No serviço web** (o atual), no MESMO momento em que o worker subir:
    - `Variables` → acrescentar `PAPEL=web` e salvar (isso redeploya o web).
    Entre o worker ficar "Active" e o web redeployar com `PAPEL=web` há alguns
@@ -63,6 +67,21 @@ Pré-requisito: o commit com o gate `PAPEL` já em produção (ver `CLAUDE.md`,
      linha de agendador/robô.
    - Tela `/agendamentos` → aba Hoje: as rodadas continuam chegando (vêm do worker).
    - `cron_runs`: nenhuma rodada "interrompida" quando o web redeployar.
+
+## Branch `worker` (desde 04/11/2026)
+
+O serviço `portal-worker` deploya da branch **`worker`**, não do `main`. O workflow
+`.github/workflows/worker-avancar.yml` avança `worker` para o `main` uma vez por dia
+(23:30 BRT no papel; com o atraso do GitHub, de madrugada), depois dos pesados da
+noite. Resultado: um reinício do worker por dia, em horário sem robô longo rodando.
+
+- Correção urgente de robô: **Actions → "Worker - Avançar branch para o main" → Run
+  workflow**, ou `git push origin origin/main:worker`.
+- Web e worker podem ficar até um dia em versões diferentes. Mudança de banco é
+  sempre aditiva (coluna/tabela nova com fallback no código), então o worker velho
+  segue funcionando; se uma migration exigir o código novo nos robôs no mesmo dia,
+  avançar a branch na mão.
+- Trocar o serviço de branch: **portal-worker → Settings → Source → Branch** = `worker`.
 
 ## Tela /agendamentos com o worker
 

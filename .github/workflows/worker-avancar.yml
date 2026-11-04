@@ -1,0 +1,30 @@
+# Avança a branch `worker` para o `main` uma vez por dia. O serviço portal-worker do
+# Railway (robôs) deploya dessa branch, não do main — assim ele reinicia UMA vez por dia,
+# à noite, em vez de a cada push de tela (04/11/2026: 27 dos 36 commits de dois dias
+# tocavam src/lib, e o worker reiniciava 11–13x por dia, interrompendo syncs).
+# Correção urgente de robô: rodar este workflow pelo botão "Run workflow" (ou
+# `git push origin origin/main:worker` na máquina).
+# Horário: 23:30 BRT no papel — o GitHub atrasa horas, mas os pesados do worker
+# (20:00–22:45 BRT) já terminaram; o que rodar de madrugada é curto e se refaz.
+name: Worker - Avançar branch para o main
+
+on:
+  schedule:
+    - cron: '30 2 * * *'   # 23:30 BRT
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  avancar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fast-forward worker -> main
+        run: |
+          echo "worker estava em $(git rev-parse --short origin/worker 2>/dev/null || echo '(sem branch)')"
+          git push origin origin/main:refs/heads/worker
+          echo "worker agora em $(git rev-parse --short origin/main)"

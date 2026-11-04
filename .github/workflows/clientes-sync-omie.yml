@@ -6,7 +6,9 @@
 # depende de OS e projetos atualizados. A rota responde na hora (202) e segue no
 # servidor; o resultado real fica em cron_runs (job clientes-sync-omie) — o proxy do
 # Railway corta em 5 min e o GitHub marcava failure/502 mesmo com o sync completo.
-name: Clientes - Sync completo Omie
+# RESERVA desde 04/11/2026: o agendador do portal roda este sync às 22:30 BRT no
+# worker (tarefa clientes-sync-omie). A rota pula se o portal rodou bem nas últimas 26 h.
+name: Clientes - Sync completo Omie (reserva)
 
 on:
   schedule:

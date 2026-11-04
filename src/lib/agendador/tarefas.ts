@@ -262,6 +262,53 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo, progresso };
   },
 
+  // Recebimentos de NF-e (ListarRecebimentos -> recebimentos_nfe), TODAS as páginas das
+  // duas contas (~20 min) + demanda de alocação. Veio do GitHub (estoque-sync-recebimentos.yml:
+  // "a cada 15 min" no papel, 3–4x/dia de fato, no web, morrendo no deploy). Decisão de
+  // 13/10: o RECENTE (45 dias) roda de 10 em 10 min (pecas-alocacao-rapido); o completo
+  // fica para a noite. Retomada por conta.
+  'estoque-sync-recebimentos': async (_p, ctx) => {
+    if (desligada('ESTOQUE_SYNC_RECEBIMENTOS')) return { pular: 'desligado (ESTOQUE_SYNC_RECEBIMENTOS=off)' };
+    const { sincronizarRecebimentos } = await import('@/lib/estoque/recebimentos');
+    const { getContasOmie } = await import('@/lib/estoque/conta');
+    const { sincronizarAlocacao } = await import('@/lib/pecas/alocacao-server');
+    const { lerRetomada, marcarFeito, limparRetomada } = await import('./retomada');
+    const feitas = await lerRetomada(ctx.chave);
+    const faltam = getContasOmie().map((c) => c.id).filter((c) => !feitas.includes(c));
+    if (!faltam.length) { await limparRetomada(ctx.chave); return { pular: `já feito hoje (${feitas.join(', ')})` }; }
+    const partes: string[] = [];
+    const erros: string[] = [];
+    const progresso: Record<string, string> = {};
+    for (const c of faltam) {
+      const r = await sincronizarRecebimentos(c);
+      if (r.erro) { erros.push(`${c}: ${r.erro}`); progresso[c] = `erro: ${r.erro}`; continue; }
+      progresso[c] = `${r.paginas ?? 0} páginas · ${r.upserts ?? 0} notas`;
+      partes.push(`${c} ${r.paginas ?? 0} pág., ${r.upserts ?? 0} notas`);
+      await marcarFeito(ctx.chave, c);
+    }
+    for (const c of feitas) progresso[c] = 'já feito antes (retomada)';
+    // Depois do espelho: abre demanda de alocação para peça recebida sem locação. Erro
+    // aqui não derruba o sync (mesma regra da rota do cron).
+    try {
+      const a = await sincronizarAlocacao();
+      if (!a.pulado && (a.abertas || a.fechadas)) partes.push(`alocação: ${a.abertas} abertas, ${a.fechadas} fechadas`);
+    } catch (e) { erros.push(`alocação: ${(e as Error).message}`); }
+    if (erros.length && !partes.length) throw new Error(erros.join(' | '));
+    if (!erros.length) await limparRetomada(ctx.chave);
+    return { resumo: [...partes, ...erros.map((x) => 'erro ' + x)].join(' · '), progresso };
+  },
+
+  // Sync COMPLETO da Pasta Clientes (clientes, projetos/máquinas com o último cliente,
+  // OS e PV do ano, NFs) nas duas contas (~16 min). Veio do GitHub (clientes-sync-omie.yml:
+  // 05:30 no papel, ~13h de fato, no web). Mesmo código do botão "Sincronizar" da Pasta.
+  'clientes-sync-omie': async () => {
+    if (desligada('CLIENTES_SYNC_OMIE')) return { pular: 'desligado (CLIENTES_SYNC_OMIE=off)' };
+    const { executarSyncCompleto } = await import('@/lib/clientes/sync-completo');
+    const r = await executarSyncCompleto(null);
+    const partes = Object.entries(r.resultado).map(([k, v]) => `${k}: ${v.clientes} clientes · ${v.os} OS · ${v.pv} PV · ${v.nfse} NFS-e`);
+    return { resumo: `${r.periodo} · ${partes.join(' · ')}` };
+  },
+
   'notas-cache-docs': async () => {
     if (desligada('NOTAS_CACHE')) return { pular: 'desligado (NOTAS_CACHE=off)' };
     const { indexarNotas, guardarLote, diasAtras, VINCULAR_JANELA_DIAS } = await import('@/lib/notas/cache-docs');
