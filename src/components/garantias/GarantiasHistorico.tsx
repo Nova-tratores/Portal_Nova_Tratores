@@ -17,6 +17,7 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
   // período da finalização (YYYY-MM-DD, dia de Brasília); vazio = sem limite
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
+  const [resultado, setResultado] = useState<'' | 'aprovada' | 'recusada'>('');
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -40,6 +41,8 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
     return lista.filter((g) => {
       if (t && ![g.numero, g.id_ordem, g.cliente, g.chassis, g.montadora?.nome]
         .some((v) => (v || '').toLowerCase().includes(t))) return false;
+      if (resultado === 'aprovada' && g.status !== 'aprovada') return false;
+      if (resultado === 'recusada' && g.status === 'aprovada') return false;
       if (de || ate) {
         const dia = diaBR(g.finalizada_em);
         if (!dia) return false;
@@ -48,10 +51,76 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
       }
       return true;
     });
-  }, [lista, filtro, de, ate]);
+  }, [lista, filtro, de, ate, resultado]);
 
   const totalPago = useMemo(() => filtrada.reduce((s, g) => s + (Number(g.valor_pago_total) || 0), 0), [filtrada]);
   const aprovadas = filtrada.filter((g) => g.status === 'aprovada').length;
+
+  // folha própria para imprimir: só a lista filtrada + totais no fim (o window.print() levava a tela inteira)
+  const imprimir = () => {
+    const w = window.open('', '_blank');
+    if (!w) { alert('O navegador bloqueou a janela de impressão. Libere pop-ups para o portal.'); return; }
+    const soma = (k: 'valor_pago_horas' | 'valor_pago_km' | 'valor_pago_pecas') =>
+      filtrada.reduce((s, g) => s + (Number(g[k]) || 0), 0);
+    const filtros = [
+      resultado === 'aprovada' ? 'Só aprovadas' : resultado === 'recusada' ? 'Só recusadas' : 'Aprovadas e recusadas',
+      de || ate ? `Finalizadas ${de ? 'de ' + fmtDia(de) : ''}${ate ? ' até ' + fmtDia(ate) : ''}` : 'Todo o período',
+      filtro.trim() ? `Busca: "${filtro.trim()}"` : '',
+    ].filter(Boolean).join(' · ');
+    const linhas = filtrada.map((g) => `
+      <tr>
+        <td><b>${esc(g.numero)}</b></td>
+        <td>${esc(g.id_ordem)}</td>
+        <td>${esc(g.cliente || '—')}</td>
+        <td>${esc(g.chassis || '—')}</td>
+        <td>${esc(g.montadora?.nome || '—')}</td>
+        <td class="${g.status === 'aprovada' ? 'ok' : 'nao'}">${g.status === 'aprovada' ? 'Aprovada' : 'Recusada'}</td>
+        <td>${esc(fmtData(g.finalizada_em))}</td>
+        <td class="num">${esc(fmtMoeda(g.valor_pago_total))}</td>
+      </tr>`).join('');
+    w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Garantias finalizadas</title>
+<style>
+  @page { size: A4 landscape; margin: 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, Helvetica, sans-serif; color: #111; margin: 0; font-size: 11px; }
+  .topo { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #be123c; padding-bottom: 6px; margin-bottom: 10px; }
+  h1 { font-size: 18px; margin: 0; }
+  .sub { color: #555; margin-top: 3px; }
+  .emitido { color: #555; text-align: right; }
+  table { width: 100%; border-collapse: collapse; }
+  thead { display: table-header-group; }
+  th { background: #f3f4f6; text-align: left; font-size: 10px; text-transform: uppercase; padding: 6px; border-bottom: 1px solid #999; }
+  td { padding: 5px 6px; border-bottom: 1px solid #ddd; vertical-align: top; }
+  tr { page-break-inside: avoid; }
+  tbody tr:nth-child(even) td { background: #fafafa; }
+  .num { text-align: right; white-space: nowrap; }
+  .ok { color: #15803d; font-weight: bold; }
+  .nao { color: #b91c1c; font-weight: bold; }
+  .totais { margin-top: 14px; margin-left: auto; width: 340px; border: 1px solid #999; page-break-inside: avoid; }
+  .totais td { border-bottom: 1px solid #eee; }
+  .totais tr:last-child td { border-top: 2px solid #111; font-size: 13px; font-weight: bold; }
+</style></head><body>
+<div class="topo">
+  <div><h1>Garantias finalizadas — Nova Tratores</h1><div class="sub">${esc(filtros)}</div></div>
+  <div class="emitido">Emitido em ${esc(new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }))}</div>
+</div>
+<table>
+  <thead><tr><th>Garantia</th><th>OS</th><th>Cliente</th><th>Chassi</th><th>Montadora</th><th>Resultado</th><th>Finalizada</th><th class="num">Valor pago</th></tr></thead>
+  <tbody>${linhas || '<tr><td colspan="8">Nenhuma garantia.</td></tr>'}</tbody>
+</table>
+<table class="totais">
+  <tr><td>Garantias</td><td class="num">${filtrada.length}</td></tr>
+  <tr><td>Aprovadas</td><td class="num">${aprovadas}</td></tr>
+  <tr><td>Recusadas</td><td class="num">${filtrada.length - aprovadas}</td></tr>
+  <tr><td>Mão de obra (horas)</td><td class="num">${esc(fmtMoeda(soma('valor_pago_horas')))}</td></tr>
+  <tr><td>Deslocamento (km)</td><td class="num">${esc(fmtMoeda(soma('valor_pago_km')))}</td></tr>
+  <tr><td>Peças</td><td class="num">${esc(fmtMoeda(soma('valor_pago_pecas')))}</td></tr>
+  <tr><td>Total pago</td><td class="num">${esc(fmtMoeda(totalPago))}</td></tr>
+</table>
+<script>window.onload = function () { window.print(); };</script>
+</body></html>`);
+    w.document.close();
+  };
 
   const atalho = (tipo: 'hoje' | 'ontem' | 'semana' | 'mes' | 'mes_ant') => {
     const hoje = diaBR(new Date().toISOString())!;
@@ -135,9 +204,14 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
           {(de || ate) && (
             <button onClick={() => { setDe(''); setAte(''); }} style={{ ...inpData, cursor: 'pointer' }}>Limpar</button>
           )}
+          <select value={resultado} onChange={(e) => setResultado(e.target.value as typeof resultado)} style={inpData} title="Resultado">
+            <option value="">Aprovadas e recusadas</option>
+            <option value="aprovada">Só aprovadas</option>
+            <option value="recusada">Só recusadas</option>
+          </select>
         </div>
         <button
-          onClick={() => window.print()}
+          onClick={imprimir}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -155,7 +229,7 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
         </button>
       </div>
 
-      {(de || ate || filtro.trim()) && filtrada.length > 0 && (
+      {(de || ate || resultado || filtro.trim()) && filtrada.length > 0 && (
         <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', marginBottom: 8 }}>
           {filtrada.length} garantia(s) · {aprovadas} aprovada(s) · {filtrada.length - aprovadas} recusada(s) · total pago <b>{fmtMoeda(totalPago)}</b>
         </div>
@@ -163,7 +237,7 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
 
       {filtrada.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 40, color: 'var(--portal-text-muted)', fontSize: 13 }}>
-          {de || ate ? 'Nenhuma garantia finalizada nesse período.' : 'Nenhuma garantia finalizada.'}
+          {de || ate || resultado ? 'Nenhuma garantia finalizada com esses filtros.' : 'Nenhuma garantia finalizada.'}
         </div>
       ) : (
         <div style={{ overflowX: 'auto', border: '1px solid var(--portal-border)', borderRadius: 12 }}>
@@ -221,4 +295,14 @@ function diaBR(v: string | null | undefined): string | null {
   const d = new Date(v);
   if (Number.isNaN(d.getTime())) return null;
   return d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+}
+
+// YYYY-MM-DD → DD/MM/YYYY
+function fmtDia(iso: string): string {
+  const [y, m, d] = iso.split('-');
+  return `${d}/${m}/${y}`;
+}
+
+function esc(v: unknown): string {
+  return String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!));
 }
