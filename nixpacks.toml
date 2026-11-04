@@ -2,7 +2,7 @@
 nixPkgs = ["nodejs_22"]
 
 [phases.build]
-cmds = ["npm run build"]
+cmds = ["NODE_OPTIONS=--max-old-space-size=6144 npm run build"]
 
 [start]
 cmd = "npm run start"
