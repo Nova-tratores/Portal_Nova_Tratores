@@ -1,11 +1,11 @@
-// Cron (GitHub Actions financeiro-emails.yml): lê a caixa de entrada de CADA
+// Cron (agendador do portal 09/13/17h; antes GitHub Actions financeiro-emails.yml): lê a caixa de entrada de CADA
 // usuário que envia boleto (financeiro_envio_config, via IMAP com a mesma
 // senha de app) e casa as RESPOSTAS dos clientes com o card certo pelo
 // In-Reply-To/References dos e-mails que enviamos (financeiro_emails).
 // Resposta casada → grava no histórico do card + notifica o setor.
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { fetchInterno } from "@/lib/auth/chamada-interna";
+import { ehChamadaInterna, fetchInterno } from "@/lib/auth/chamada-interna";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { decrypt } from "@/lib/cripto";
@@ -25,13 +25,13 @@ const supabase = createClient(
 
 const norm = (id?: string | null) => String(id || "").trim().replace(/^<|>$/g, "").toLowerCase();
 
+/** Só o agendador: senha dos agendamentos no header (Bearer ou x-cron-secret). Sem CRON_SECRET = 401. */
+const guardarCron = (req: Request) => ehChamadaInterna(req.headers);
+
 export async function POST(req: NextRequest) {
-  // Fail-closed: sem CRON_SECRET no ambiente ninguem passa. So header (o workflow
-  // manda x-cron-secret; segredo na query string vazava para logs de acesso).
-  const secret = process.env.CRON_SECRET;
-  if (!secret || req.headers.get("x-cron-secret") !== secret) {
-    return NextResponse.json({ ok: false, erro: "unauthorized" }, { status: 401 });
-  }
+  // Fail-closed (29/10/2026): sem CRON_SECRET no serviço ninguém passa, e a senha só vale no HEADER
+  // (Bearer ou x-cron-secret) — antes, sem a env a rota ficava aberta e aceitava ?secret= na URL.
+  if (!guardarCron(req)) return NextResponse.json({ ok: false, erro: "unauthorized" }, { status: 401 });
 
   // Mapa: message-id enviado → card
   const { data: enviados } = await supabase.from("financeiro_emails")

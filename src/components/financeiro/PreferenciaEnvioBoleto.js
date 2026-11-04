@@ -4,7 +4,6 @@ import { supabase } from '@/lib/supabase'
 import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
 import { montarParcelas, valorTotalCard, formatarBRL } from '@/lib/financeiro/parcelas'
-import { useAuditLog } from '@/hooks/useAuditLog'
 import { MessageCircle, Mail, Check, Pencil, Send, Plus, X } from 'lucide-react'
 import ConfigEmailEnvioModal from '@/components/financeiro/ConfigEmailEnvioModal'
 import { buscarFilhos, nfsLabel } from '@/lib/financeiro/grupo'
@@ -19,19 +18,20 @@ function boletoUrls(card) {
   return urls
 }
 
-// Fases em que o envio do boleto ainda está pendente: nelas, o envio por email
-// com sucesso MOVE o card para "Aguardando Cliente" (mesmo destino do botão
-// da capa). Em fases posteriores (aguardando/pago/vencido) um reenvio não mexe
-// no status — recobrança tem fluxo próprio.
-const STATUS_PRE_ENVIO = ['gerar_boleto', 'validar_pix', 'enviar_cliente', 'sem_boleto']
+// Fases em que o envio do boleto ainda está pendente (gerar_boleto, validar_pix, enviar_cliente,
+// sem_boleto): nelas, o envio por email com sucesso MOVE o card para "Aguardando Cliente". Desde
+// 29/10/2026 quem move é a ROTA /api/financeiro/enviar-boleto (lib/financeiro/mover-card.ts) — aqui
+// só se lê 'moveu' da resposta. Em fases posteriores um reenvio não mexe no status.
 
 // Mostra/registra a preferência de envio do boleto de um cliente (WhatsApp ou Email),
 // permite vários emails e envia o boleto por email (mesmo esquema do Controle Revisão).
 // Envio por email com sucesso move o card pra Aguardando Cliente; WhatsApp
 // continua com confirmação manual (abrir o wa.me não garante que foi enviado).
-export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nomeProp }) {
+// onEnviado({ moveu, destinatarios }) (opcional): chamado depois de um envio por email que deu certo,
+// para a tela-mãe fechar a janela e recarregar a lista (o card não fica parecendo "Enviar ao cliente"
+// e ninguém clica de novo — #1456 levou 2 e-mails). moveu = a rota levou o card para Aguardando Cliente.
+export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nomeProp, onEnviado }) {
   const { userProfile } = useAuth()
-  const { log: auditLog } = useAuditLog()
   const cnpj = cnpjProp ?? card?.cnpj_cliente
   const nome = nomeProp ?? card?.nom_cliente
 
@@ -202,22 +202,6 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
     setPref(data || row); setEditando(false); setAviso({ tipo: 'ok', msg: 'Preferência salva.' })
   }
 
-  // Depois do envio com sucesso: card em fase pré-envio → "Aguardando Cliente"
-  // (mesmo destino do envio rápido da capa). Devolve true se moveu.
-  const moverAposEnvio = async (destinatarios) => {
-    if (!card?.id || !STATUS_PRE_ENVIO.includes(card.status)) return false
-    const { error } = await supabase.from('Chamado_NF')
-      .update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Cliente', status_changed_at: new Date().toISOString() })
-      .eq('id', card.id)
-    if (error) return false
-    auditLog({
-      sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF',
-      entidade_id: String(card.id), entidade_label: `NF #${card.id} - ${nome || ''}`,
-      detalhes: { de: card.status, para: 'aguardando_vencimento', acao_desc: 'Boleto enviado por email ao cliente', destinatarios },
-    })
-    return true
-  }
-
   // Envia o boleto por email — sucesso move o card pra Aguardando Cliente
   const enviarBoleto = async (listaEmails, confirmado = false) => {
     const destinatarios = (listaEmails || []).map(e => e.trim()).filter(Boolean)
@@ -254,8 +238,10 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
         if (out.semConfig) { setEmailsPendentes(destinatarios); setConfigEmailOpen(true); return }
         throw new Error(out.error || 'Falha no envio')
       }
-      const moveu = await moverAposEnvio(destinatarios)
+      // a rota já mudou a fase (card + filhos do grupo) e gravou o histórico; aqui só lê o resultado
+      const moveu = !!out.moveu
       setAviso({ tipo: 'ok', msg: `Boleto enviado para ${destinatarios.join(', ')}.${moveu ? ' Card movido para Aguardando Cliente.' : ''}` })
+      try { onEnviado?.({ moveu, destinatarios }) } catch { /* a tela-mãe não derruba o aviso */ }
     } catch (e) {
       setAviso({ tipo: 'erro', msg: e.message })
     } finally { setEnviando(false) }

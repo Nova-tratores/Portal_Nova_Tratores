@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { formatarMoeda, formatarDataBR } from '@/lib/financeiro/utils'
+import { resumoDashboard } from '@/lib/financeiro/vencidos'
+import { paginar } from '@/lib/db/paginar'
 import {
   TrendingUp, AlertTriangle,
   CheckCircle, Clock, FileText, Printer,
@@ -124,27 +126,21 @@ export default function Dashboard() {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) return router.push('/login')
 
-        const { data: boletos, error: errBoletos } = await supabase
+        // Paginado: o PostgREST corta em 1000 linhas e o Chamado_NF já passa disso
+        const { data: boletos, error: errBoletos } = await paginar((de, ate) => supabase
           .from('Chamado_NF')
           .select('id, status, valor_servico, vencimento_boleto, forma_pagamento, tarefa, setor, grupo_pai_id')
+          .neq('status', 'excluido')
+          .order('id', { ascending: true })
+          .range(de, ate))
 
         if (errBoletos) throw new Error('Erro ao carregar boletos: ' + errBoletos.message)
 
-        // Cards agrupados num principal (boleto único) contam pelo principal
-        const boletosArr = (boletos || []).filter(b => !b.grupo_pai_id)
-
-        const totalBoletos = boletosArr.length
-        const boletosEmAberto = boletosArr.filter(b => !['concluido'].includes(b.status)).length
-        const boletosAtrasados = boletosArr.filter(b => b.status === 'vencido').length
-        const boletosConfirmados = boletosArr.filter(b => ['pago', 'concluido'].includes(b.status)).length
-        const totalFaturado = boletosArr
-          .filter(b => ['pago', 'concluido'].includes(b.status))
-          .reduce((acc, b) => acc + (parseFloat(b.valor_servico) || 0), 0)
-
-        const statusCount = {}
-        boletosArr.forEach(b => {
-          statusCount[b.status] = (statusCount[b.status] || 0) + 1
-        })
+        // Cards agrupados num principal (boleto único) contam pelo principal; 'excluido' (apagado) não conta
+        const {
+          validos: boletosArr, totalBoletos, boletosEmAberto, boletosAtrasados,
+          boletosConfirmados, totalFaturado, statusCount,
+        } = resumoDashboard(boletos || [])
 
         const relatorio = boletosArr
           .filter(b => b.status !== 'pago')
@@ -347,7 +343,7 @@ export default function Dashboard() {
         <div className="print-only" style={{ display: 'none' }}>
           <div style={{ marginBottom: '24px' }}>
             <h2 style={{ fontSize: '20px', letterSpacing: '-0.5px', margin: '0 0 4px' }}>RELATORIO DE PROCESSOS NF — NOVA TRATORES</h2>
-            <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>Gerado em {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} — Exclui processos com status "Pago"</p>
+            <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>Gerado em {new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })} — Exclui processos com status &quot;Pago&quot;</p>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
             <thead>

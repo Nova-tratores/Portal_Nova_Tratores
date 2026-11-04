@@ -4,6 +4,7 @@ import { protegerRotaOuInterna, fetchInterno } from "@/lib/auth/chamada-interna"
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { liberarPedidoDeCardsExcluidos, STATUS_EXCLUIDO } from "@/lib/financeiro/cards-chamado";
+import { decidirFormaPagamento, entradaDaOS, entradaDoPedido } from "@/lib/financeiro/forma-pagamento-omie";
 
 // Cria automaticamente um Chamado_NF (setor Oficina) para cada Ordem de Serviço
 // faturada (com NFS-e). Cruza com o Pedido de Venda pelo campo "Nº do Pedido do
@@ -73,18 +74,18 @@ function parsePedidoCliente(campo: string, empresaOS: string): { num: string; em
 }
 
 // Parcelas (ISO) da OS via ConsultarOS
-async function parcelasOS(codOS: number, acc: Acc): Promise<{ datas: string[]; qtd: number }> {
+async function parcelasOS(codOS: number, acc: Acc): Promise<{ datas: string[]; qtd: number; raw: any }> {
   try {
     const os: any = await omieCall("/servicos/os/", "ConsultarOS", { nCodOS: codOS }, acc);
     const parc: any[] = os?.Parcelas || [];
     const datas = parc.map(p => dataBRtoISO(p?.dDtVenc)).filter(Boolean) as string[];
     const qtd = Number(os?.Cabecalho?.nQtdeParc || datas.length || 0);
-    return { datas, qtd: qtd || datas.length };
-  } catch { return { datas: [], qtd: 0 }; }
+    return { datas, qtd: qtd || datas.length, raw: os };
+  } catch { return { datas: [], qtd: 0, raw: null }; }
 }
 
 // Parcelas (ISO) do PV via ConsultarPedido (por número, com fallback por código)
-async function parcelasPV(numPedido: string, codPedido: number | null, acc: Acc): Promise<{ datas: string[]; valor: number; numNF: string; danfe: string | null; codCli: number | null; codPedido: number | null; faturado: boolean; existe: boolean }> {
+async function parcelasPV(numPedido: string, codPedido: number | null, acc: Acc): Promise<{ datas: string[]; valor: number; numNF: string; danfe: string | null; codCli: number | null; codPedido: number | null; faturado: boolean; existe: boolean; raw: any }> {
   let pv: any = null;
   try {
     const r: any = await omieCall("/produtos/pedido/", "ConsultarPedido", codPedido ? { codigo_pedido: codPedido } : { numero_pedido: numPedido }, acc);
@@ -100,7 +101,7 @@ async function parcelasPV(numPedido: string, codPedido: number | null, acc: Acc)
   const codCli = pv?.cabecalho?.codigo_cliente ?? null;
   const codPed = pv?.cabecalho?.codigo_pedido ?? null;
   const faturado = pv?.infoCadastro?.faturado === "S";
-  return { datas, valor, numNF, danfe: null, codCli, codPedido: codPed, faturado, existe: !!pv };
+  return { datas, valor, numNF, danfe: null, codCli, codPedido: codPed, faturado, existe: !!pv, raw: pv };
 }
 
 async function dadosCliente(codCli: number | null, acc: Acc): Promise<{ nome: string; cnpj: string }> {
@@ -162,10 +163,15 @@ async function nfePedido(numPedido: string, codPedido: number | null, empKey: st
   } catch { return { num: "", url: null }; }
 }
 
-function condicao(datas: string[]) {
-  const qtd = datas.length;
-  if (qtd <= 1) return { forma_pagamento: "Boleto 30 dias", qtd_parcelas: 1, vencimento_boleto: datas[0] || null, datas_parcelas: "" };
-  return { forma_pagamento: "Boleto Parcelado", qtd_parcelas: qtd, vencimento_boleto: datas[0], datas_parcelas: datas.slice(1).join(", ") };
+// Forma de pagamento + fase inicial do card NOVO (regra pura em src/lib/financeiro/forma-pagamento-omie.ts).
+// Parcelas da mesma fonte de antes (OS quando as datas diferem ou o PV não tem; senão o PV);
+// o meio (Pix/cartão/dinheiro…) olha OS e PV. À vista vira "Pix" em Validar Recebimento.
+// Antes era só pela quantidade de parcelas: tudo virava boleto e caía em Gerar Boleto.
+function condicao(osRaw: any, pvRaw: any, usarOS: boolean) {
+  const eOS = entradaDaOS(osRaw);
+  const ePV = pvRaw ? entradaDoPedido(pvRaw) : null;
+  const base = usarOS || !ePV ? eOS : ePV;
+  return decidirFormaPagamento({ ...base, vencimentoPadrao: null, textos: [...(eOS.textos || []), ...(ePV?.textos || [])] });
 }
 
 // Processa UMA OS específica (ConsultarOS) — pra debug (?os=NNNN), webhook (?codOS=) e tempo real.
@@ -261,13 +267,12 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
       debug.ja_existe = true; // no dryRun, segue mostrando o que seria criado
     }
 
-    const pvParc = pvNum ? await parcelasPV(pvNum, null, accPV) : { datas: [] as string[], valor: 0, numNF: "", danfe: null, codCli: null, codPedido: null, faturado: false, existe: false };
+    const pvParc = pvNum ? await parcelasPV(pvNum, null, accPV) : { datas: [] as string[], valor: 0, numNF: "", danfe: null, codCli: null, codPedido: null, faturado: false, existe: false, raw: null };
     debug.pv_faturado = pvParc.faturado;
 
     const osParc = await parcelasOS(cab.nCodOS, acc);
     const datasDiferem = osParc.datas.length > 0 && (osParc.datas.length !== pvParc.datas.length || JSON.stringify(osParc.datas) !== JSON.stringify(pvParc.datas));
-    const datasFinais = datasDiferem ? osParc.datas : (pvParc.datas.length ? pvParc.datas : osParc.datas);
-    const cond = condicao(datasFinais);
+    const cond = condicao(osParc.raw, pvParc.raw, datasDiferem || !pvParc.datas.length);
 
     // NF de peça: do Omie OU anexada na pasta (mesma regra do serviço)
     const nfPeca = pvNum ? await nfePedido(pvNum, pvParc.codPedido, empKey, accPV) : { num: "", url: null };
@@ -316,9 +321,9 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
       nom_cliente: cli.nome, cnpj_cliente: cli.cnpj, valor_servico: valor,
       num_nf_servico: numNFServico, anexo_nf_servico: anexoServico, num_nf_peca: numNFPeca, anexo_nf_peca: anexoPeca,
       forma_pagamento: cond.forma_pagamento, qtd_parcelas: cond.qtd_parcelas, vencimento_boleto: cond.vencimento_boleto, datas_parcelas: cond.datas_parcelas,
-      setor: "Financeiro", status: "gerar_boleto", tarefa: "Gerar Boleto", setor_destino: "oficina", origem: "omie_os",
+      setor: "Financeiro", status: cond.status, tarefa: cond.tarefa, setor_destino: "oficina", origem: "omie_os",
       omie_num_os: numOS, omie_num_pedido: pvNum || null, omie_empresa: acc.name,
-      obs: `Gerado do Omie — OS ${numOS} (${acc.name}). Pedido cliente: ${pedCli || "(sem)"} → PV ${pvNum || "(sem)"} (${pvEmp}).${anexoServico ? "" : " ATENCAO: a NFS-e desta OS nao veio em PDF do Omie (NFS-e municipal) - anexe a nota de servico manualmente."}`,
+      obs: `Gerado do Omie — OS ${numOS} (${acc.name}). Pedido cliente: ${pedCli || "(sem)"} → PV ${pvNum || "(sem)"} (${pvEmp}).${cond.aviso ? " " + cond.aviso : ""}${anexoServico ? "" : " ATENCAO: a NFS-e desta OS nao veio em PDF do Omie (NFS-e municipal) - anexe a nota de servico manualmente."}`,
     };
 
     // Blindagem: se o PV já tem card (ex.: card de peças-puro criado pelo Omie),
@@ -469,7 +474,7 @@ async function handler(req: NextRequest) {
 
           // VÍNCULO: se a OS aponta um Pedido de Venda no campo, esse PV PRECISA estar faturado.
           // Se faturou só a OS e a peça (PV) ainda não, NÃO cria — espera as duas notas.
-          const pvParc = pvNum ? await parcelasPV(pvNum, null, accPV) : { datas: [] as string[], valor: 0, numNF: "", danfe: null, codCli: null, codPedido: null, faturado: false, existe: false };
+          const pvParc = pvNum ? await parcelasPV(pvNum, null, accPV) : { datas: [] as string[], valor: 0, numNF: "", danfe: null, codCli: null, codPedido: null, faturado: false, existe: false, raw: null };
           if (pvNum && !pvParc.faturado) {
             aguardandoPV++; porEmpresa[acc.name].aguardandoPV++;
             relatorio.push({ empresa: acc.name, os: numOS, pv: pvNum, pv_empresa: pvEmp, aguardando: "PV (peça) ainda não faturado" });
@@ -481,8 +486,7 @@ async function handler(req: NextRequest) {
           const osParc = await parcelasOS(cab.nCodOS, acc);
           const datasDiferem = osParc.datas.length > 0 &&
             (osParc.datas.length !== pvParc.datas.length || JSON.stringify(osParc.datas) !== JSON.stringify(pvParc.datas));
-          const datasFinais = datasDiferem ? osParc.datas : (pvParc.datas.length ? pvParc.datas : osParc.datas);
-          const cond = condicao(datasFinais);
+          const cond = condicao(osParc.raw, pvParc.raw, datasDiferem || !pvParc.datas.length);
 
           // NF de peça (PV): número + PDF via StatusPedido
           const nfPeca = pvNum ? await nfePedido(pvNum, pvParc.codPedido, empKey, accPV) : { num: "", url: null };
@@ -516,14 +520,14 @@ async function handler(req: NextRequest) {
             vencimento_boleto: cond.vencimento_boleto,
             datas_parcelas: cond.datas_parcelas,
             setor: "Financeiro",
-            status: "gerar_boleto",
-            tarefa: "Gerar Boleto",
+            status: cond.status,
+            tarefa: cond.tarefa,
             setor_destino: "oficina",
             origem: "omie_os",
             omie_num_os: numOS,
             omie_num_pedido: pvNum || null,
             omie_empresa: acc.name,
-            obs: `Gerado do Omie — OS ${numOS} (${acc.name}). Pedido cliente: ${pedCli || "(sem)"} → PV ${pvNum || "(sem)"} (${pvEmp}). Parcelas: ${datasDiferem ? "OS (priorizado)" : "PV"}.${anexoServico ? "" : " ATENCAO: NFS-e sem PDF do Omie - anexe a nota de servico manualmente."}`,
+            obs: `Gerado do Omie — OS ${numOS} (${acc.name}). Pedido cliente: ${pedCli || "(sem)"} → PV ${pvNum || "(sem)"} (${pvEmp}). Parcelas: ${datasDiferem ? "OS (priorizado)" : "PV"}.${cond.aviso ? " " + cond.aviso : ""}${anexoServico ? "" : " ATENCAO: NFS-e sem PDF do Omie - anexe a nota de servico manualmente."}`,
           };
 
           relatorio.push({

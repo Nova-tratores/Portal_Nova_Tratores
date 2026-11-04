@@ -1,8 +1,12 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { exigeComprovantePago, temComprovantePago } from '@/lib/financeiro/constants'
+import { entraEmVencidos, diasDeAtraso, hojeLocal } from '@/lib/financeiro/vencidos'
+import { podeRecobrar, hojeBR } from '@/lib/financeiro/fases-automaticas'
+import { pedirRecobranca } from '@/lib/financeiro/recobranca-client'
 import { useAuth } from '@/hooks/useAuth'
+import { useAuditLog } from '@/hooks/useAuditLog'
 import { formatarDataBR, formatarMoeda } from '@/lib/financeiro/utils'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { marcarMinhaAcao } from '@/components/financeiro/NotificationSystem'
@@ -36,6 +40,7 @@ function AnexoLink({ label, url }) {
 
 export default function VencidosPage() {
   const { userProfile } = useAuth()
+  const { log: auditLog } = useAuditLog()
   const [cards, setCards] = useState([])
   const [filtro, setFiltro] = useState('')
   const [selecionado, setSelecionado] = useState(null)
@@ -62,52 +67,53 @@ export default function VencidosPage() {
         .in('status', ['vencido', 'aguardando_vencimento'])
         .order('vencimento_boleto', { ascending: true })
 
-      const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
-      const vencidos = (data || []).filter(c => {
-        if (c.grupo_pai_id) return false // card agrupado: quem cobra é o principal
-        if (c.status === 'vencido') return true
-        // PIX/cartão/cheque não vencem: a data é só a combinada (José, 15/10/2026)
-        if (c.status === 'aguardando_vencimento' && c.vencimento_boleto && !/pix|cart[aã]o|cheque/i.test(String(c.forma_pagamento || ''))) {
-          const venc = new Date(c.vencimento_boleto); venc.setHours(0, 0, 0, 0)
-          return venc < hoje
-        }
-        return false
-      }).map(c => {
-        const venc = c.vencimento_boleto ? new Date(c.vencimento_boleto) : null
-        if (venc) venc.setHours(0, 0, 0, 0)
-        const diasAtraso = venc ? Math.floor((hoje.getTime() - venc.getTime()) / 86400000) : 0
-        return { ...c, diasAtraso }
-      })
+      // Mesma regra do Kanban (lib/financeiro/vencidos): PIX/cartão/cheque e Boleto 30 dias
+      // não vencem aqui; parcelado só se a parcela vencida estiver sem comprovante (29/10/2026)
+      const hoje = hojeLocal()
+      const vencidos = (data || [])
+        .filter(c => entraEmVencidos(c, hoje))
+        .map(c => ({ ...c, diasAtraso: diasDeAtraso(c, hoje) }))
 
       setCards(vencidos)
     } catch (err) { console.error(err) }
     setLoading(false)
   }
 
+  // Realtime com debounce: rajada de eventos (sync, fases automáticas) = 1 recarga
+  const carregarRef = useRef(carregarDados)
+  useEffect(() => { carregarRef.current = carregarDados })
+  const debounceRef = useRef(null)
+
   useEffect(() => {
-    if (userProfile) carregarDados()
+    if (userProfile) carregarRef.current() // pela ref: o lint do React acusa setState síncrono quando chama direto
   }, [userProfile])
 
   useEffect(() => {
     const channel = supabase
       .channel('vencidos_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'Chamado_NF' }, () => carregarDados())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'Chamado_NF' }, () => {
+        if (debounceRef.current) clearTimeout(debounceRef.current)
+        debounceRef.current = setTimeout(() => carregarRef.current(), 600)
+      })
       .subscribe()
-    return () => { supabase.removeChannel(channel) }
+    return () => { supabase.removeChannel(channel); if (debounceRef.current) clearTimeout(debounceRef.current) }
   }, [])
 
+  const registrarAudit = (t, para, acao_desc) => auditLog({
+    sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id),
+    entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}`, detalhes: { de: t.status, para, acao_desc },
+  })
+
   const handlePedirRecobranca = async (t) => {
-    const newVal = (t.recombrancas_qtd || 0) + 1
+    const pode = podeRecobrar(t, hojeBR())
+    if (!pode.ok) { alert('Não dá para recobrar: ' + pode.motivo); return }
+    // rota: grava o card, cria o ticket no bloco "Cobranças — <setor>" e registra o histórico (29/10/2026)
+    const r = await pedirRecobranca(t.id)
+    if (!r.ok) { alert(r.mensagem); return }
+    const newVal = r.numero || (t.recombrancas_qtd || 0) + 1
     notificarMovimento(t, 'vencido', `NF #${t.id} - ${t.nom_cliente || ''} — Recobrança #${newVal}`)
-    await supabase.from('Chamado_NF').update({
-      status: 'vencido',
-      tarefa: 'Cobrar Cliente (Recobrança)',
-      setor: 'Pós-Vendas',
-      recombrancas_qtd: newVal,
-      status_changed_at: new Date().toISOString(),
-    }).eq('id', t.id)
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} solicitou recobrança #${newVal}`, `NF #${t.id} — ${t.nom_cliente || ''}`, `/financeiro/vencidos`)
-    alert('Recobrança enviada ao Pós-Vendas!')
+    alert(r.mensagem)
     setSelecionado(null)
     carregarDados()
   }
@@ -117,12 +123,13 @@ export default function VencidosPage() {
       alert('Este método de pagamento exige o comprovante anexado para mover para Pago.')
       return
     }
-    notificarMovimento(t, 'pago', `NF #${t.id} - ${t.nom_cliente || ''} — Marcado como pago`)
-    await supabase.from('Chamado_NF').update({
+    const { error } = await supabase.from('Chamado_NF').update({
       status: 'pago',
       tarefa: 'Pagamento Confirmado',
-      status_changed_at: new Date().toISOString(),
     }).eq('id', t.id)
+    if (error) { alert('Erro ao marcar como pago: ' + error.message); return }
+    notificarMovimento(t, 'pago', `NF #${t.id} - ${t.nom_cliente || ''} — Marcado como pago`)
+    registrarAudit(t, 'pago', 'Pagamento confirmado (tela Vencidos)')
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} marcou NF #${t.id} como pago`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/vencidos`)
     alert('Card movido para Pago!')
     setSelecionado(null)
@@ -148,7 +155,7 @@ export default function VencidosPage() {
     <div style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--portal-bg-secondary)' }}>
       <FinanceiroNav />
 
-      <div style={{ padding: isMobile ? '16px 12px' : '28px 32px', maxWidth: '1100px', margin: '0 auto' }}>
+      <div style={{ padding: 'clamp(12px, 2vw, 28px)' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -394,13 +401,19 @@ export default function VencidosPage() {
 
             {/* Ações */}
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '4px' }}>
-              <button onClick={() => handlePedirRecobranca(selecionado)} style={{
-                flex: '1 1 140px', padding: '13px', borderRadius: '12px', border: 'none',
-                background: '#f97316', color: '#fff',
-                fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-              }}>
-                Pedir Recobrança
-              </button>
+              {(() => {
+                const pode = podeRecobrar(selecionado, hojeBR())
+                return (
+                  <button onClick={() => handlePedirRecobranca(selecionado)} disabled={!pode.ok}
+                    title={pode.motivo || 'Cria um ticket para o setor cobrar o cliente'} style={{
+                    flex: '1 1 140px', padding: '13px', borderRadius: '12px', border: 'none',
+                    background: '#f97316', color: '#fff',
+                    fontSize: '13px', fontWeight: '600', cursor: pode.ok ? 'pointer' : 'not-allowed', opacity: pode.ok ? 1 : 0.5,
+                  }}>
+                    {pode.ok ? 'Pedir Recobrança' : `Sem recobrança: ${pode.motivo}`}
+                  </button>
+                )
+              })()}
               <button onClick={() => handleMarcarPago(selecionado)} style={{
                 flex: '1 1 140px', padding: '13px', borderRadius: '12px', border: 'none',
                 background: '#22c55e', color: '#fff',

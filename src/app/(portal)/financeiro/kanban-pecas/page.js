@@ -29,6 +29,7 @@ import { autoEnviarENotificar } from '@/lib/financeiro/envioBoleto'
 import { textoConfirmacaoEnvio } from '@/lib/financeiro/tipo-anexo'
 import { montarMapasPref, acharMetodo } from '@/lib/financeiro/prefEnvio'
 import { authHeaders } from '@/lib/auth/client'
+import { valorNumericoOuNull, datasExtrasDoCard, salvarDataParcela, opcoesQtdParcelas, MAX_PARCELAS_TELA } from '@/lib/financeiro/kanban-campos'
 import { labelSetor, ehDoSetor, temNotaServico } from '@/lib/financeiro/setor'
 
 const STATUS_CONFIG = {
@@ -70,20 +71,25 @@ export default function Kanban() {
 
  const [fileBoleto, setFileBoleto] = useState(null)
  const carregarTimeoutRef = useRef(null)
+ // Card aberto num ref: o canal do realtime guarda o carregarDados do 1º render
+ const tarefaSelecionadaRef = useRef(null)
+ useEffect(() => { tarefaSelecionadaRef.current = tarefaSelecionada }, [tarefaSelecionada])
  const router = useRouter()
 
  const colunas = [
-  { id: 'gerar_boleto', titulo: 'GERAR BOLETO' },
-  { id: 'enviar_cliente', titulo: 'ENVIAR PARA CLIENTE' },
-  { id: 'aguardando_vencimento', titulo: 'AGUARDANDO CLIENTE' },
-  { id: 'sem_boleto', titulo: 'CLIENTE SEM BOLETO' },
-  { id: 'pago', titulo: 'PAGO' },
-  { id: 'vencido', titulo: 'VENCIDO' }
+  { id: 'gerar_boleto', titulo: 'Gerar boleto' },
+  { id: 'enviar_cliente', titulo: 'Enviar para cliente' },
+  { id: 'aguardando_vencimento', titulo: 'Aguardando cliente' },
+  { id: 'sem_boleto', titulo: 'Cliente sem boleto' },
+  { id: 'pago', titulo: 'Pago' },
+  { id: 'vencido', titulo: 'Vencido' }
  ];
 
  const carregarDados = async () => {
   try {
-    const { data } = await supabase.from('Chamado_NF').select('*').neq('status', 'concluido').order('id', { ascending: false });
+    // Pago/Vencido automáticos rodam no servidor: conferem o Omie e ficam no histórico (29/10/2026)
+    try { await fetch('/api/financeiro/fases-automaticas', { method: 'POST', headers: { ...(await authHeaders()) } }); } catch {}
+    const { data } = await supabase.from('Chamado_NF').select('*').neq('status', 'concluido').neq('status', 'excluido').order('id', { ascending: false });
     await sincronizarFilhosComPai(data); // cards agrupados espelham o status do card principal
     try {
       const rp = await fetch('/api/financeiro/prefs-envio', { headers: { ...(await authHeaders()) } });
@@ -92,39 +98,6 @@ export default function Kanban() {
     } catch {}
     const hoje = new Date(); hoje.setHours(0,0,0,0);
 
-    // ─── AUTO-MOVE: Boleto 30 dias vencido → pago (salva no banco) ────────────
-    const paraAutoPago = (data || []).filter(c =>
-      !c.grupo_pai_id &&
-      c.status === 'aguardando_vencimento' &&
-      c.forma_pagamento === 'Boleto 30 dias' &&
-      c.vencimento_boleto && new Date(c.vencimento_boleto + 'T00:00:00') < hoje
-    );
-    if (paraAutoPago.length > 0) {
-      await Promise.all(paraAutoPago.map(c => supabase.from('Chamado_NF').update({ status: 'pago' }).eq('id', c.id)));
-      paraAutoPago.forEach(c => {
-        const idx = (data || []).findIndex(d => d.id === c.id);
-        if (idx !== -1) data[idx] = { ...data[idx], status: 'pago' };
-      });
-    }
-
-    // ─── AUTO-MOVE: boleto simples vencido sem comprovante → vencido (salva no banco) ─
-    const paraAutoVencido = (data || []).filter(c =>
-      !c.grupo_pai_id &&
-      c.status === 'aguardando_vencimento' &&
-      !/pix|cart[aã]o|cheque/i.test(String(c.forma_pagamento || '')) && // PIX/cartão/cheque não vencem (José, 15/10/2026)
-      c.forma_pagamento !== 'Boleto 30 dias' &&
-      c.forma_pagamento !== 'Boleto Parcelado' &&
-      c.forma_pagamento !== 'Cartão Parcelado' &&
-      !c.comprovante_pagamento && !c.comprovante_pagamento_p1 &&
-      c.vencimento_boleto && new Date(c.vencimento_boleto + 'T00:00:00') < hoje
-    );
-    if (paraAutoVencido.length > 0) {
-      await Promise.all(paraAutoVencido.map(c => supabase.from('Chamado_NF').update({ status: 'vencido' }).eq('id', c.id)));
-      paraAutoVencido.forEach(c => {
-        const idx = (data || []).findIndex(d => d.id === c.id);
-        if (idx !== -1) data[idx] = { ...data[idx], status: 'vencido' };
-      });
-    }
 
     // ─── HELPER: calcula estado de cada parcela ────────────────────────────────
     const calcParcelas = (c) => {
@@ -173,9 +146,10 @@ export default function Kanban() {
     });
     const anotados = anotarGrupos(processados); // pais ganham grupo_filhos (cards juntados)
     setChamados(anotados);
-    if (tarefaSelecionada) {
-      const itemAtualizado = anotados.find(x => x.id === tarefaSelecionada.id);
-      if (itemAtualizado) setTarefaSelecionada(itemAtualizado);
+    const aberta = tarefaSelecionadaRef.current; // lê o card aberto AGORA (não o do render que criou a função)
+    if (aberta) {
+      const itemAtualizado = anotados.find(x => x.id === aberta.id);
+      if (itemAtualizado) setTarefaSelecionada(prev => (prev && prev.id === itemAtualizado.id ? itemAtualizado : prev));
     }
   } catch (err) { console.error(err); }
  }
@@ -222,7 +196,8 @@ export default function Kanban() {
  const handleUpdateField = async (id, field, value) => {
     // só age se houve MUDANÇA real (evita registrar/notificar ao só clicar e sair do campo)
     if (tarefaSelecionada && String(tarefaSelecionada.id) === String(id) && String(tarefaSelecionada[field] ?? '') === String(value ?? '')) return;
-    await supabase.from('Chamado_NF').update({ [field]: value }).eq('id', id);
+    const { error } = await supabase.from('Chamado_NF').update({ [field]: value }).eq('id', id);
+    if (error) { alert('Erro ao salvar: ' + error.message); return; }
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou NF #${id}`, `Campo: ${field}`, `/financeiro/kanban-pecas`)
     await auditLog({ sistema: 'financeiro', acao: 'editar', entidade: 'Chamado_NF', entidade_id: String(id), entidade_label: `NF #${id} - ${tarefaSelecionada?.nom_cliente || ''}`, detalhes: { campo: field, valor: value } });
     carregarCardLogs(id);
@@ -238,7 +213,10 @@ export default function Kanban() {
       if (uploadError) throw uploadError;
       const { data: linkData } = supabase.storage.from('anexos').getPublicUrl(path);
 
-      await supabase.from('Chamado_NF').update({ [field]: linkData.publicUrl }).eq('id', id);
+      const { error } = await supabase.from('Chamado_NF').update({ [field]: linkData.publicUrl }).eq('id', id);
+      if (error) throw error;
+      await auditLog({ sistema: 'financeiro', acao: 'anexar', entidade: 'Chamado_NF', entidade_id: String(id), entidade_label: `NF #${id} - ${tarefaSelecionada?.nom_cliente || ''}`, detalhes: { campo: field } });
+      carregarCardLogs(id);
       alert("Arquivo atualizado!");
       carregarDados();
       if(tarefaSelecionada) setTarefaSelecionada(prev => ({ ...prev, [field]: linkData.publicUrl }));
@@ -253,10 +231,13 @@ export default function Kanban() {
       if (uploadError) throw uploadError;
       const { data: linkData } = supabase.storage.from('anexos').getPublicUrl(path);
 
-      await supabase.from('Chamado_NF').update({
+      const { error } = await supabase.from('Chamado_NF').update({
         comprovante_pagamento: linkData.publicUrl,
         tarefa: 'Pagamento Realizado'
       }).eq('id', t.id);
+      if (error) throw error;
+      await auditLog({ sistema: 'financeiro', acao: 'anexar_comprovante', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}`, detalhes: { campo: 'comprovante_pagamento', tarefa: { de: t.tarefa || null, para: 'Pagamento Realizado' } } });
+      carregarCardLogs(t.id);
 
       notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} anexou comprovante NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-pecas`)
       alert("Comprovante anexado! Tarefa enviada ao Financeiro.");
@@ -265,8 +246,16 @@ export default function Kanban() {
     } catch (err) { alert("Erro: " + err.message); }
  };
 
+ // Muda a fase (a data da mudança o banco grava sozinho — trigger em sql/financeiro-status-changed-at.sql), confere o erro e grava no histórico
+ const moverFase = async (t, para, tarefa, acaoDesc) => {
+    const { error } = await supabase.from('Chamado_NF').update({ status: para, tarefa }).eq('id', t.id);
+    if (error) { alert('Erro ao mover o card: ' + error.message); return false; }
+    await auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}`, detalhes: { de: t.status, para, acao_desc: acaoDesc } });
+    return true;
+ };
+
  const handleConfirmarEnvioPV = async (t) => {
-    await supabase.from('Chamado_NF').update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Cliente' }).eq('id', t.id);
+    if (!(await moverFase(t, 'aguardando_vencimento', 'Aguardando Cliente', 'Marcado como enviado ao cliente'))) return;
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} enviou boleto ao cliente`, `NF #${t.id} — ${t.nom_cliente || ''}`, `/financeiro/kanban-pecas`)
     alert("Card movido para Aguardando Cliente!");
     setTarefaSelecionada(null);
@@ -307,7 +296,7 @@ export default function Kanban() {
  };
 
  const handleMoverSemBoleto = async (t) => {
-    await supabase.from('Chamado_NF').update({ status: 'sem_boleto', tarefa: 'Cliente Sem Boleto' }).eq('id', t.id);
+    if (!(await moverFase(t, 'sem_boleto', 'Cliente Sem Boleto', 'Movido para Cliente sem boleto'))) return;
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} para Sem Boleto`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-pecas`)
     carregarDados();
  };
@@ -326,7 +315,7 @@ export default function Kanban() {
  };
 
  const handleVoltarFluxo = async (t) => {
-    await supabase.from('Chamado_NF').update({ status: 'gerar_boleto', tarefa: 'Gerar Boleto' }).eq('id', t.id);
+    if (!(await moverFase(t, 'gerar_boleto', 'Gerar Boleto', 'Voltou para Gerar Boleto'))) return;
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} devolveu NF #${t.id} ao fluxo`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-pecas`)
     carregarDados();
  };
@@ -334,11 +323,12 @@ export default function Kanban() {
  const handleMoverParaPago = async (t) => {
     if (exigeComprovantePago(t.forma_pagamento) && !temComprovantePago(t)) {
       alert('Este método de pagamento exige o comprovante anexado para mover para Pago.');
-      return;
+      return false;
     }
-    await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
+    if (!(await moverFase(t, 'pago', 'Pagamento Confirmado', 'Pagamento confirmado'))) return false;
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} confirmou pagamento NF #${t.id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-pecas`)
     carregarDados();
+    return true;
  };
 
  const chamadosFiltrados = chamados.filter(c => !ehFilhoDeGrupo(c)).filter(c => ehDoSetor(c, SETOR_KANBAN)).filter(c => !temNotaServico(c)).filter(c => {
@@ -531,6 +521,7 @@ export default function Kanban() {
           <input
             className="fin-k-title"
             style={{fontSize:'32px', fontWeight:'500', margin:'25px 0', letterSpacing:'-1px', color:'var(--portal-text)', lineHeight:'1', border:'none', borderBottom:'2px dashed var(--portal-border)', background:'transparent', width:'100%', outline:'none', padding:'2px 0'}}
+            key={`nome-${tarefaSelecionada.id}-${tarefaSelecionada.nom_cliente || ''}`}
             defaultValue={tarefaSelecionada.nom_cliente || ''}
             placeholder="Nome do cliente"
             onBlur={e => handleUpdateField(tarefaSelecionada.id, 'nom_cliente', e.target.value)}
@@ -566,8 +557,9 @@ export default function Kanban() {
                 <input
                   type="number"
                   style={{ ...inputStyleModal, border: 'none', background: 'transparent', padding: '0', fontSize: '26px', fontWeight: '700', color: '#16a34a', fontVariantNumeric: 'tabular-nums' }}
+                  key={`valor-${tarefaSelecionada.id}-${tarefaSelecionada.valor_servico ?? ''}`}
                   defaultValue={tarefaSelecionada.valor_servico}
-                  onBlur={e => handleUpdateField(tarefaSelecionada.id, 'valor_servico', e.target.value)}
+                  onBlur={e => handleUpdateField(tarefaSelecionada.id, 'valor_servico', valorNumericoOuNull(e.target.value))}
                 />
               </div>
             ) : (
@@ -583,8 +575,9 @@ export default function Kanban() {
                 <input
                   type="date"
                   style={{ ...inputStyleModal, border: 'none', background: 'transparent', padding: '0', fontSize: '24px', fontWeight: '700', fontVariantNumeric: 'tabular-nums', color: tarefaSelecionada.status === 'vencido' ? '#dc2626' : 'var(--portal-text)' }}
+                  key={`venc-${tarefaSelecionada.id}-${tarefaSelecionada.vencimento_boleto || ''}`}
                   defaultValue={tarefaSelecionada.vencimento_boleto}
-                  onBlur={e => handleUpdateField(tarefaSelecionada.id, 'vencimento_boleto', e.target.value)}
+                  onBlur={e => handleUpdateField(tarefaSelecionada.id, 'vencimento_boleto', e.target.value || null)}
                 />
               ) : (
                 <p style={{ ...pModalStyle, fontSize: '24px', fontWeight: '700', fontVariantNumeric: 'tabular-nums', color: tarefaSelecionada.status === 'vencido' ? '#dc2626' : 'var(--portal-text)' }}>{formatarDataBR(tarefaSelecionada.vencimento_boleto) || '—'}</p>
@@ -600,13 +593,21 @@ export default function Kanban() {
                 <div className="fin-k-parc-head" style={{ display:'flex', gap:'40px' }}>
                   <div>
                     <label style={labelModalStyle}>Quantidade</label>
-                    <select
-                      style={{ ...inputStyleModal, width: '180px', padding: '10px' }}
-                      value={tarefaSelecionada.qtd_parcelas || 1}
-                      onChange={e => handleUpdateField(tarefaSelecionada.id, 'qtd_parcelas', e.target.value)}
-                    >
-                      {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}x</option>)}
-                    </select>
+                    {(() => {
+                      // Omie pode mandar mais de 5: mostra o valor real e avisa (campos só até a 5ª)
+                      const { qtd, opcoes, foraDoPadrao } = opcoesQtdParcelas(tarefaSelecionada.qtd_parcelas);
+                      return (<>
+                        <select
+                          disabled={!podeEditar}
+                          style={{ ...inputStyleModal, width: '180px', padding: '10px', cursor: podeEditar ? 'pointer' : 'not-allowed' }}
+                          value={qtd}
+                          onChange={e => handleUpdateField(tarefaSelecionada.id, 'qtd_parcelas', parseInt(e.target.value, 10))}
+                        >
+                          {opcoes.map(n => <option key={n} value={n}>{n}x{n > MAX_PARCELAS_TELA ? ' (Omie)' : ''}</option>)}
+                        </select>
+                        {foraDoPadrao && <div style={{ fontSize: '12px', color: '#b45309', marginTop: '6px', maxWidth: '260px' }}>Veio do Omie com {qtd} parcelas. Comprovante só até a {MAX_PARCELAS_TELA}ª pela tela.</div>}
+                      </>);
+                    })()}
                   </div>
                   <div>
                     <label style={labelModalStyle}>Cálculo Unitário</label>
@@ -618,33 +619,33 @@ export default function Kanban() {
              <div style={{ display:'flex', flexDirection:'column', gap: '15px' }}>
                 <div className="fin-k-cascade" style={cascadeRowStyle}>
                   <span style={cascadeLabelStyle}>1ª PARCELA</span>
-                  <input type="date" disabled={!podeEditar} style={{ ...inputCascadeStyle, cursor: podeEditar ? 'text' : 'not-allowed' }} defaultValue={tarefaSelecionada.vencimento_boleto} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'vencimento_boleto', e.target.value)} />
+                  <input key={`p1-${tarefaSelecionada.id}-${tarefaSelecionada.vencimento_boleto || ''}`} type="date" disabled={!podeEditar} style={{ ...inputCascadeStyle, cursor: podeEditar ? 'text' : 'not-allowed' }} defaultValue={tarefaSelecionada.vencimento_boleto} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'vencimento_boleto', e.target.value || null)} />
                   <span style={cascadeValueStyle}>{formatarMoeda(valorIndividual)}</span>
                   <AttachmentTag label="COMPROVANTE P1" fileUrl={tarefaSelecionada.comprovante_pagamento} onUpload={f => handleUpdateFileDirect(tarefaSelecionada.id, 'comprovante_pagamento', f)} />
                 </div>
 
-                {Array.from({ length: (tarefaSelecionada.qtd_parcelas || 1) - 1 }).map((_, i) => {
+                {Array.from({ length: (parseInt(tarefaSelecionada.qtd_parcelas, 10) || 1) - 1 }).map((_, i) => {
                   const pNum = i + 2;
-                  const rawDates = (tarefaSelecionada.datas_parcelas || "").split(/[\s,]+/).filter(d => d.includes('-'));
                   // Remove duplicata da parcela 1 se presente (registros antigos)
-                  if (rawDates.length > 0 && rawDates[0] === tarefaSelecionada.vencimento_boleto) rawDates.shift();
+                  const rawDates = datasExtrasDoCard(tarefaSelecionada);
                   return (
                     <div key={pNum} className="fin-k-cascade" style={cascadeRowStyle}>
                       <span style={cascadeLabelStyle}>{pNum}ª PARCELA</span>
                       <input
+                        key={`p${pNum}-${tarefaSelecionada.id}-${rawDates[i] || ''}`}
                         type="date"
                         disabled={!podeEditar}
                         style={{ ...inputCascadeStyle, cursor: podeEditar ? 'text' : 'not-allowed' }}
                         defaultValue={rawDates[i] || ""}
                         onBlur={e => {
-                          let arr = [...rawDates];
-                          while (arr.length < (tarefaSelecionada.qtd_parcelas || 1) - 1) arr.push('');
-                          arr[i] = e.target.value;
-                          handleUpdateField(tarefaSelecionada.id, 'datas_parcelas', arr.filter(d => d).join(', '));
+                          // datas em ordem: o texto não guarda buraco (a 3ª viraria 2ª)
+                          const r = salvarDataParcela(rawDates, i, e.target.value);
+                          if (!r.ok) { alert(r.erro); e.target.value = rawDates[i] || ''; return; }
+                          handleUpdateField(tarefaSelecionada.id, 'datas_parcelas', r.texto);
                         }}
                       />
                       <span style={cascadeValueStyle}>{formatarMoeda(valorIndividual)}</span>
-                      <AttachmentTag label={`COMPROVANTE P${pNum}`} fileUrl={tarefaSelecionada[`comprovante_pagamento_p${pNum}`]} onUpload={f => handleUpdateFileDirect(tarefaSelecionada.id, `comprovante_pagamento_p${pNum}`, f)} />
+                      <AttachmentTag label={`COMPROVANTE P${pNum}`} disabled={pNum > MAX_PARCELAS_TELA} fileUrl={tarefaSelecionada[`comprovante_pagamento_p${pNum}`]} onUpload={f => handleUpdateFileDirect(tarefaSelecionada.id, `comprovante_pagamento_p${pNum}`, f)} />
                     </div>
                   )
                 })}
@@ -661,13 +662,13 @@ export default function Kanban() {
             {(tarefaSelecionada.num_nf_servico || !tarefaSelecionada.num_nf_peca) && (
               <div>
                 <label style={{...labelModalStyle, fontSize:'11px', marginBottom:'4px'}}>NF Servico</label>
-                <input style={{...inputStyleModal, padding:'12px'}} defaultValue={tarefaSelecionada.num_nf_servico} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'num_nf_servico', e.target.value)} />
+                <input key={`nfs-${tarefaSelecionada.id}-${tarefaSelecionada.num_nf_servico || ''}`} disabled={!podeEditar} style={{...inputStyleModal, padding:'12px', cursor: podeEditar ? 'text' : 'not-allowed'}} defaultValue={tarefaSelecionada.num_nf_servico} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'num_nf_servico', e.target.value)} />
               </div>
             )}
             {(tarefaSelecionada.num_nf_peca || !tarefaSelecionada.num_nf_servico) && (
               <div>
                 <label style={{...labelModalStyle, fontSize:'11px', marginBottom:'4px'}}>NF Peca</label>
-                <input style={{...inputStyleModal, padding:'12px'}} defaultValue={tarefaSelecionada.num_nf_peca} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'num_nf_peca', e.target.value)} />
+                <input key={`nfp-${tarefaSelecionada.id}-${tarefaSelecionada.num_nf_peca || ''}`} disabled={!podeEditar} style={{...inputStyleModal, padding:'12px', cursor: podeEditar ? 'text' : 'not-allowed'}} defaultValue={tarefaSelecionada.num_nf_peca} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'num_nf_peca', e.target.value)} />
               </div>
             )}
             <div style={{ display:'flex', flexDirection:'column', gap:'8px' }}>
@@ -737,7 +738,7 @@ export default function Kanban() {
         {tarefaSelecionada.status === 'sem_boleto' && (
           <div style={{ marginTop:'20px', background:'#f0fdf4', padding:'20px', borderRadius:'16px', border:'1px solid #bbf7d0', display:'flex', justifyContent:'center' }}>
             <button
-              onClick={() => { handleMoverParaPago(tarefaSelecionada); setTarefaSelecionada(null); }}
+              onClick={async () => { if (await handleMoverParaPago(tarefaSelecionada)) setTarefaSelecionada(null); }}
               style={{ background: '#16a34a', color: '#fff', border: 'none', padding: '14px 32px', borderRadius: '12px', cursor: 'pointer', fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.2s' }}
               onMouseEnter={e => e.currentTarget.style.background = '#15803d'}
               onMouseLeave={e => e.currentTarget.style.background = '#16a34a'}
@@ -747,7 +748,7 @@ export default function Kanban() {
 
         {/* PREFERÊNCIA DE ENVIO + AÇÃO DE ENVIO — antes das observações */}
         <div style={{ marginTop:'20px', display:'flex', flexDirection:'column', gap:'20px' }}>
-          <PreferenciaEnvioBoleto card={tarefaSelecionada} />
+          <PreferenciaEnvioBoleto card={tarefaSelecionada} onEnviado={() => { setTarefaSelecionada(null); carregarDados(); }} />
           <EmailsDoCard chamadoId={tarefaSelecionada?.id} />
           {tarefaSelecionada.status === 'enviar_cliente' && (
             <div className="fin-k-box-lg" style={{background:'#f0fdf4', padding:'30px 35px', borderRadius:'20px', border:'1px solid #bbf7d0'}}>
@@ -764,7 +765,7 @@ export default function Kanban() {
         {tarefaSelecionada.obs && (
           <div style={{ marginTop:'20px', background:'var(--portal-bg-card)', padding:'20px', borderRadius:'16px', border:'1px solid var(--portal-border)' }}>
             <label style={{...labelModalStyle, marginBottom:'8px'}}>Observacoes</label>
-            <textarea style={{...inputStyleModal, height:'80px', resize: 'none', padding:'12px'}} defaultValue={tarefaSelecionada.obs} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'obs', e.target.value)} />
+            <textarea key={`obs-${tarefaSelecionada.id}-${tarefaSelecionada.obs || ''}`} disabled={!podeEditar} style={{...inputStyleModal, height:'80px', resize: 'none', padding:'12px', cursor: podeEditar ? 'text' : 'not-allowed'}} defaultValue={tarefaSelecionada.obs} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'obs', e.target.value)} />
           </div>
         )}
 

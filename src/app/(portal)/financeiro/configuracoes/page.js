@@ -148,12 +148,12 @@ function ConfiguracoesContent() {
   if (loading) return <div style={{background:'#f7f8fa', height:'100vh', display:'flex', alignItems:'center', justifyContent:'center', color:'#94a3b8', fontFamily:'Inter'}}>CARREGANDO...</div>
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f4f4f4', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--portal-bg-secondary)' }}>
       <FinanceiroNav />
 
       <div style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)' }}>
 
-        <main style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: compacto ? 'column' : 'row', gap: compacto ? '16px' : '30px' }}>
+        <main style={{ display: 'flex', flexDirection: compacto ? 'column' : 'row', gap: compacto ? '16px' : '30px' }}>
           <div style={compacto
             ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }
             : { width: '300px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -180,7 +180,7 @@ function ConfiguracoesContent() {
                     <div style={{ width: '120px', height: '120px', borderRadius: '40px', background: '#f1f5f9', overflow: 'hidden', border: '4px solid #fff', boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
                       <img src={avatarFile ? URL.createObjectURL(avatarFile) : avatarUrl || 'https://via.placeholder.com/150'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Avatar" />
                     </div>
-                    <label style={{ position: 'absolute', bottom: '-10px', right: '-10px', background: '#000', color: '#fff', padding: '10px', borderRadius: '15px', cursor: 'pointer' }}>
+                    <label style={{ position: 'absolute', bottom: '-10px', right: '-10px', background: '#2563eb', color: '#fff', padding: '10px', borderRadius: '15px', cursor: 'pointer' }}>
                       <Camera size={18} /><input type="file" hidden accept="image/*" onChange={e => setAvatarFile(e.target.files[0])} />
                     </label>
                   </div>
@@ -194,7 +194,7 @@ function ConfiguracoesContent() {
                   <div style={inputGroup}><label style={labelStyle}>E-MAIL (APENAS LEITURA)</label><input style={{...inputStyle, opacity: 0.6}} value={email} disabled /></div>
                   <div style={inputGroup}><label style={labelStyle}>NOVA SENHA</label><input type="password" style={inputStyle} placeholder="••••••••" value={senha} onChange={e => setSenha(e.target.value)} /></div>
                 </div>
-                <button disabled={updating} type="submit" style={{ marginTop: '40px', background: '#000', color: '#fff', border: 'none', padding: compacto ? '16px 24px' : '20px 40px', maxWidth: '100%', borderRadius: '18px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <button disabled={updating} type="submit" style={{ marginTop: '40px', background: '#2563eb', color: '#fff', border: 'none', padding: compacto ? '16px 24px' : '20px 40px', maxWidth: '100%', borderRadius: '18px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px' }}>
                   {updating ? 'SALVANDO...' : <><Save size={20} /> SALVAR ALTERAÇÕES</>}
                 </button>
               </form>
@@ -216,7 +216,7 @@ function ConfiguracoesContent() {
                       </div>
                     ))}
                  </div>
-                 <button onClick={handleUpdatePerfil} disabled={updating} style={{ marginTop: '40px', background: '#000', color: '#fff', border: 'none', padding: compacto ? '16px 24px' : '20px 40px', maxWidth: '100%', borderRadius: '18px', fontWeight: '900', cursor: 'pointer' }}>SALVAR PREFERÊNCIA DE SOM</button>
+                 <button onClick={handleUpdatePerfil} disabled={updating} style={{ marginTop: '40px', background: '#2563eb', color: '#fff', border: 'none', padding: compacto ? '16px 24px' : '20px 40px', maxWidth: '100%', borderRadius: '18px', fontWeight: '900', cursor: 'pointer' }}>SALVAR PREFERÊNCIA DE SOM</button>
               </div>
             )}
 
@@ -233,7 +233,7 @@ function ConfiguracoesContent() {
                     {temaSelecionado === 'escuro' && <CheckCircle2 size={24} color="#3b82f6" />}
                   </div>
                 </div>
-                <button onClick={handleUpdatePerfil} disabled={updating} style={{ marginTop: '40px', background: '#000', color: '#fff', border: 'none', padding: compacto ? '16px 24px' : '20px 40px', maxWidth: '100%', borderRadius: '18px', fontWeight: '900', cursor: 'pointer' }}>SALVAR PREFERÊNCIA DE TEMA</button>
+                <button onClick={handleUpdatePerfil} disabled={updating} style={{ marginTop: '40px', background: '#2563eb', color: '#fff', border: 'none', padding: compacto ? '16px 24px' : '20px 40px', maxWidth: '100%', borderRadius: '18px', fontWeight: '900', cursor: 'pointer' }}>SALVAR PREFERÊNCIA DE TEMA</button>
               </div>
             )}
 
@@ -266,7 +266,7 @@ function ConfiguracoesContent() {
                   </>)}
                 </div>
                 {envioMsg && <p style={{ marginTop: '18px', color: envioMsg.tipo === 'ok' ? '#059669' : '#dc2626', fontWeight: '800' }}>{envioMsg.msg}</p>}
-                <button onClick={() => salvarEnvio(false)} disabled={envioSalvando} style={{ marginTop: '30px', background: '#000', color: '#fff', border: 'none', padding: compacto ? '16px 24px' : '20px 40px', maxWidth: '100%', borderRadius: '18px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button onClick={() => salvarEnvio(false)} disabled={envioSalvando} style={{ marginTop: '30px', background: '#2563eb', color: '#fff', border: 'none', padding: compacto ? '16px 24px' : '20px 40px', maxWidth: '100%', borderRadius: '18px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
                   {envioSalvando ? 'TESTANDO A CONTA...' : <><Save size={20} /> SALVAR E-MAIL DE ENVIO</>}
                 </button>
                 <p style={{ marginTop: '18px', fontSize: '12px', color: '#94a3b8', lineHeight: 1.6 }}>
@@ -283,7 +283,7 @@ function ConfiguracoesContent() {
 
 export default function Configuracoes() {
   return (
-    <Suspense fallback={<div style={{background:'#000', color:'#fff', height:'100vh', display:'flex', alignItems:'center', justifyContent:'center'}}>CARREGANDO...</div>}>
+    <Suspense fallback={<div style={{background: '#2563eb', color:'#fff', height:'100vh', display:'flex', alignItems:'center', justifyContent:'center'}}>CARREGANDO...</div>}>
       <ConfiguracoesContent />
     </Suspense>
   );

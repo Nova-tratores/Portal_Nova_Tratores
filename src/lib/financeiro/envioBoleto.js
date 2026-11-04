@@ -37,7 +37,7 @@ export async function resolverCnpj(card) {
 
 // Tenta enviar o boleto automaticamente conforme a preferência salva em EnvioBoleto.
 // Retorna { status, metodo, destinatarios, erro }:
-//  - 'enviado'          → email disparado com sucesso
+//  - 'enviado'          → email disparado com sucesso (moveu = a ROTA levou o card para Aguardando Cliente)
 //  - 'erro'             → tentou enviar por email e falhou (erro)
 //  - 'whatsapp_manual'  → cliente prefere WhatsApp (não tem envio automático)
 //  - 'sem_preferencia'  → cliente sem preferência cadastrada
@@ -93,7 +93,7 @@ export async function tentarEnvioAutomaticoBoleto(card, remetente, confirmar) {
       ;({ res, out } = await enviar(true))
     }
     if (!res.ok) return { status: 'erro', metodo: 'email', destinatarios, erro: out.error || 'Falha no envio', semConfig: !!out.semConfig }
-    return { status: 'enviado', metodo: 'email', destinatarios }
+    return { status: 'enviado', metodo: 'email', destinatarios, moveu: !!out.moveu }
   } catch (e) {
     return { status: 'erro', metodo: 'email', destinatarios, erro: e.message }
   }
@@ -112,8 +112,9 @@ async function notificarSetor({ alvo, titulo, descricao, link, userId }) {
 }
 
 // Dispara o envio automático conforme a preferência e trata o resultado:
-//  - SUCESSO (email): marca o card como "enviado ao cliente" (status aguardando_vencimento),
-//    avisa o Pós-Vendas (deu certo) e o Financeiro (deu certo).
+//  - SUCESSO (email): a ROTA /api/financeiro/enviar-boleto já moveu o card (e os filhos do grupo)
+//    para Aguardando Cliente, com histórico (29/10/2026 — antes o navegador fazia o update e o erro
+//    era ignorado); aqui só lê 'moveu', avisa o Pós-Vendas e o Financeiro.
 //  - ERRO: NÃO altera o status; avisa só o Pós-Vendas (precisa enviar manual).
 //  - WhatsApp: NÃO altera o status; avisa o Pós-Vendas (envio manual).
 // `card` deve já conter o boleto anexado (anexo_boleto).
@@ -123,16 +124,10 @@ export async function autoEnviarENotificar({ card, remetente, userId, audit, con
   const link = '/financeiro/kanban'
 
   if (r.status === 'enviado') {
-    // marca como enviado ao cliente (mesmo status do botão manual)
-    try {
-      await supabase.from('Chamado_NF')
-        .update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Cliente', status_changed_at: new Date().toISOString() })
-        .eq('id', card.id)
-    } catch { /* ignore */ }
     const emails = r.destinatarios.join(', ')
-    notificarSetor({ alvo: 'posvendas', titulo: `Boleto enviado automaticamente — ${cliente}`, descricao: `Email: ${emails}. Card movido para Aguardando Cliente.`, link })
+    notificarSetor({ alvo: 'posvendas', titulo: `Boleto enviado automaticamente — ${cliente}`, descricao: `Email: ${emails}.${r.moveu ? ' Card movido para Aguardando Cliente.' : ''}`, link })
     notificarSetor({ alvo: 'financeiro', titulo: `Boleto enviado automaticamente — ${cliente}`, descricao: `Email: ${emails}.`, link }) // sem userId → inclui quem gerou
-    audit?.({ acao: 'enviar_email', detalhes: { auto: true, cliente, destinatarios: r.destinatarios, status: 'aguardando_vencimento' } })
+    audit?.({ acao: 'enviar_email', detalhes: { auto: true, cliente, destinatarios: r.destinatarios, ...(r.moveu ? { status: 'aguardando_vencimento' } : {}) } })
   } else if (r.status === 'erro') {
     // semConfig = o PRÓPRIO usuário precisa configurar o e-mail dele — não é falha
     // do fluxo, então não espalha notificação pro setor.

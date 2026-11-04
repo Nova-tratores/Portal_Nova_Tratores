@@ -414,6 +414,51 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: `${r.criadas} sugestão(ões) nova(s) · candidatas: revisão ${c.revisao_chegando}, aniversário ${c.aniversario_entrega}, sumido ${c.cliente_sumido}, sem notícia ${c.trator_sem_noticia}` };
   },
 
+  // Card recebido no Omie → Pago; vencido sem pagamento → Vencido (José, 29/10/2026)
+  'financeiro-fases': async () => {
+    if (desligada('FINANCEIRO_FASES')) return { pular: 'desligado (FINANCEIRO_FASES=off)' };
+    const { aplicarFasesAutomaticas, resumoFases } = await import('@/lib/financeiro/fases-automaticas');
+    const { createClient } = await import('@supabase/supabase-js');
+    const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+    const r = await aplicarFasesAutomaticas(sb);
+    // contas a pagar × Omie na mesma rodada (lib/financeiro/pagar-omie.ts); falha nela não derruba as fases
+    const { aplicarPagarOmie, resumoPagar } = await import('@/lib/financeiro/pagar-omie');
+    const pagar = await aplicarPagarOmie(sb).then(resumoPagar, (e) => `pagar: falhou (${e instanceof Error ? e.message : e})`);
+    if (r.erros.length && !r.movidos.length) throw new Error(`${r.erros.slice(0, 5).join(' | ')} · ${pagar}`);
+    return { resumo: `${resumoFases(r)} · ${pagar}` };
+  },
+
+  // Vigia de card parado (José, 29/10/2026): às 08:00 dos dias úteis, UM resumo por setor no sino
+  // (Financeiro: Gerar boleto + o que o robô de fases moveu + a receber na semana; Pós-Vendas/Peças:
+  // Enviar ao cliente, Sem boleto, Vencido sem recobrança). Só avisa. FINANCEIRO_VIGIA=off desliga.
+  'financeiro-vigia': async () => {
+    if (desligada('FINANCEIRO_VIGIA')) return { pular: 'desligado (FINANCEIRO_VIGIA=off)' };
+    const { rodarVigia } = await import('@/lib/financeiro/vigia-server');
+    const { supabaseAdmin } = await import('@/lib/server/supabase-admin');
+    return rodarVigia(supabaseAdmin);
+  },
+
+  // Conferência card × Omie (29/10/2026): às 05:45, título a receber sem card e card com valor ou
+  // vencimento diferente do Omie → aviso no sino do Financeiro. Não mexe em nada. FINANCEIRO_CONFERENCIA=off desliga.
+  'financeiro-conferencia': async () => {
+    if (desligada('FINANCEIRO_CONFERENCIA')) return { pular: 'desligado (FINANCEIRO_CONFERENCIA=off)' };
+    const { rodarConferencia } = await import('@/lib/financeiro/conferencia-server');
+    const { supabaseAdmin } = await import('@/lib/server/supabase-admin');
+    return rodarConferencia(supabaseAdmin);
+  },
+
+  // Cobrança por e-mail depois do vencimento (D+1 e D+7, título ATRASADO no Omie). ENVIA E-MAIL A
+  // CLIENTES: só roda com FINANCEIRO_COBRANCA=on (o agendamento também nasce desligado).
+  'financeiro-cobranca': async () => {
+    const { rodarCobrancas } = await import('@/lib/financeiro/emails-vencimento-server');
+    const { supabaseAdmin } = await import('@/lib/server/supabase-admin');
+    const r = await rodarCobrancas(supabaseAdmin);
+    if ('pulado' in r) return { pular: r.pulado };
+    if (r.erros.length && !r.enviados) throw new Error(r.erros.slice(0, 5).join(' | '));
+    if (!r.enviados) return { pular: `nenhuma cobrança a enviar (${r.candidatos} candidata(s), ${r.semEnvioEmail} sem e-mail do boleto)` };
+    return { resumo: `${r.enviados} cobrança(s) enviada(s) · ${r.semEnvioEmail} sem e-mail do boleto${r.erros.length ? ` · ${r.erros.length} erro(s): ${r.erros[0]}` : ''}` };
+  },
+
   'financeiro-scanner': async () => {
     if (process.env.SYNC_FINANCEIRO_AUTO !== 'on') return { pular: 'desligado (só com SYNC_FINANCEIRO_AUTO=on; a criação é pelo webhook)' };
     const { fetchInterno } = await import('@/lib/auth/chamada-interna');

@@ -5,15 +5,20 @@
 import { useState } from 'react'
 import { Link2, Eye, X } from 'lucide-react'
 import { formatarMoeda } from '@/lib/financeiro/utils'
-import { nfsLabel, removerDoGrupo } from '@/lib/financeiro/grupo'
+import { nfsLabel, removerDoGrupo, motivoGrupoTravado } from '@/lib/financeiro/grupo'
 
 export default function GrupoDoCardBox({ card, onChanged, audit }) {
   const [removendo, setRemovendo] = useState(null)
   const filhos = card?.grupo_filhos || []
   if (!filhos.length) return null
 
+  // Trava contra cobrança em dobro: fora de Gerar Boleto / Validar Pix o boleto
+  // com o total do grupo já saiu — tirar um card agora cobraria ele de novo.
+  const travado = motivoGrupoTravado(card?.status, 'remover', card?.id)
+
   const remover = async (filho) => {
-    if (!window.confirm(`Remover o card #${filho.id} deste grupo?\n\nEle volta pro kanban em Gerar Boleto com o valor original (${formatarMoeda(filho.grupo_valor_original)}), que sai do total deste card.`)) return
+    if (travado) { alert(travado); return }
+    if (!window.confirm(`Remover o card #${filho.id} deste grupo?\n\nEle volta pro kanban (mesma fase deste card) com o valor original (${formatarMoeda(filho.grupo_valor_original)}), que sai do total deste card.`)) return
     setRemovendo(filho.id)
     try {
       await removerDoGrupo(filho)
@@ -44,6 +49,11 @@ export default function GrupoDoCardBox({ card, onChanged, audit }) {
       <p style={{ fontSize: '12.5px', color: 'var(--portal-text-secondary)', margin: '0 0 14px' }}>
         O valor total e o boleto deste card valem para TODAS as NFs abaixo (as dele + as agrupadas).
       </p>
+      {travado && (
+        <p style={{ fontSize: '12px', color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '8px 10px', margin: '0 0 12px' }}>
+          <b>Grupo travado:</b> o boleto com o total já foi gerado/enviado, então não dá mais pra tirar cards (cobraria em dobro). Para separar, cancele/substitua o boleto e volte este card para Gerar Boleto.
+        </p>
+      )}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
         {filhos.map((f) => (
           <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '10px', padding: '12px 14px' }}>
@@ -62,8 +72,8 @@ export default function GrupoDoCardBox({ card, onChanged, audit }) {
                 <Eye size={13} /> {a.label}
               </button>
             ))}
-            <button onClick={() => remover(f)} disabled={removendo === f.id} title="Remover do grupo (o card volta pro kanban)"
-              style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'transparent', border: '1px solid #fecaca', borderRadius: '8px', padding: '6px 10px', cursor: removendo === f.id ? 'wait' : 'pointer', color: '#dc2626', fontSize: '11.5px', fontWeight: 600, flexShrink: 0, opacity: removendo === f.id ? 0.6 : 1 }}>
+            <button onClick={() => remover(f)} disabled={removendo === f.id || !!travado} title={travado || 'Remover do grupo (o card volta pro kanban)'}
+              style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'transparent', border: '1px solid #fecaca', borderRadius: '8px', padding: '6px 10px', cursor: travado ? 'not-allowed' : (removendo === f.id ? 'wait' : 'pointer'), color: '#dc2626', fontSize: '11.5px', fontWeight: 600, flexShrink: 0, opacity: (removendo === f.id || travado) ? 0.45 : 1 }}>
               <X size={13} /> {removendo === f.id ? 'Removendo…' : 'Remover'}
             </button>
           </div>

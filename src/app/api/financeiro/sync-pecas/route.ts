@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { protegerRotaOuInterna, fetchInterno } from "@/lib/auth/chamada-interna";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
+import { decidirFormaPagamento, entradaDoPedido } from "@/lib/financeiro/forma-pagamento-omie";
 
 // Cria automaticamente um Chamado_NF (setor Peças) para cada Pedido de Venda
 // faturado no Omie cuja Categoria seja a de "Revenda de Peças Balcão".
@@ -64,12 +65,6 @@ async function omieCall(ep: string, call: string, param: Record<string, unknown>
   return data;
 }
 
-// DD/MM/AAAA -> AAAA-MM-DD
-function dataBRtoISO(s: unknown): string | null {
-  const m = String(s || "").trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
-}
-
 async function baixarEAnexar(url: string, path: string): Promise<string | null> {
   try {
     const res = await fetch(url);
@@ -128,27 +123,13 @@ function ehCategoriaPecas(codigo: string, descricao: string): boolean {
   });
 }
 
-// Parcelas do pedido -> forma de pagamento + vencimentos
+// Pedido -> forma de pagamento + vencimentos + fase inicial do card NOVO
+// (regra pura em src/lib/financeiro/forma-pagamento-omie.ts). Antes era só pela
+// quantidade de parcelas: tudo virava boleto e caía em Gerar Boleto. Agora à vista
+// (codigo_parcela "000") vira "Pix" em Validar Recebimento, e meio explícito
+// (meio_pagamento/tipo_documento da parcela ou escrito na nota) é respeitado.
 function condicaoPagamento(pv: any) {
-  const parc: any[] = pv?.lista_parcelas?.parcela || pv?.parcelas || [];
-  const datas = parc
-    .map(p => dataBRtoISO(p?.data_vencimento || p?.dt_venc || p?.dDtVenc))
-    .filter(Boolean) as string[];
-  const qtd = datas.length;
-  if (qtd <= 1) {
-    return {
-      forma_pagamento: "Boleto 30 dias",
-      qtd_parcelas: 1,
-      vencimento_boleto: datas[0] || dataBRtoISO(pv?.cabecalho?.data_previsao) || null,
-      datas_parcelas: "",
-    };
-  }
-  return {
-    forma_pagamento: "Boleto Parcelado",
-    qtd_parcelas: qtd,
-    vencimento_boleto: datas[0],
-    datas_parcelas: datas.slice(1).join(", "),
-  };
+  return decidirFormaPagamento(entradaDoPedido(pv));
 }
 
 async function dadosCliente(codCli: number, acc: Acc): Promise<{ nome: string; cnpj: string }> {
@@ -307,14 +288,14 @@ async function handler(req: NextRequest) {
             vencimento_boleto: cond.vencimento_boleto,
             datas_parcelas: cond.datas_parcelas,
             setor: "Financeiro",
-            status: "gerar_boleto",
-            tarefa: "Gerar Boleto",
+            status: cond.status,
+            tarefa: cond.tarefa,
             setor_destino: "pecas",
             categoria_nota: "peças",
             origem: "omie_pecas",
             omie_num_pedido: numPedido,
             omie_empresa: acc.name,
-            obs: `Gerado do Omie — Pedido ${numPedido} (${acc.name}). Categoria: ${codCat} ${descCat}.`,
+            obs: `Gerado do Omie — Pedido ${numPedido} (${acc.name}). Categoria: ${codCat} ${descCat}.${cond.aviso ? " " + cond.aviso : ""}`,
           };
 
           relatorio.push({ empresa: acc.name, pedido: numPedido, cliente: cli.nome, cnpj: cli.cnpj, nf: nf.num, anexo: !!nf.url, ...cond, valor });

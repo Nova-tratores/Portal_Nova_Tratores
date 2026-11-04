@@ -7,6 +7,7 @@ import { decrypt } from '@/lib/cripto';
 import { criarTransporte, enviarComCopia, traduzirErroEmail, type ContaEmail } from '@/lib/financeiro/email-conta';
 import { createHash } from 'crypto';
 import { avisosEnvio, semRepetidos } from '@/lib/financeiro/tipo-anexo';
+import { moverAposEnvio } from '@/lib/financeiro/mover-card';
 
 // Cada usuário envia PELO SEU e-mail (financeiro_envio_config). Não há mais
 // fallback pro Gmail da empresa — sem config, o envio pede pra configurar.
@@ -225,7 +226,19 @@ ${blocoValores}
         console.warn('[enviar-boleto] falha ao registrar o e-mail no histórico:', e);
       }
     }
-    return NextResponse.json({ ok: true, id: info.messageId, enviados: destinatarios, de: fromEmail });
+    // Envio deu certo → a fase muda AQUI (antes era o navegador, e falhava calado): card e filhos do
+    // grupo numa fase pré-envio vão para Aguardando Cliente, com histórico. Reenvio de card que já
+    // saiu dessas fases não mexe na fase (e o aviso 'ja_enviado' acima continua valendo).
+    let moveu = false;
+    let movidos: number[] = [];
+    if (chamadoIdNum) {
+      const { data: eu } = await adminSupa.from('financeiro_usu').select('nome').eq('id', auth.userId).maybeSingle();
+      const r = await moverAposEnvio(adminSupa, chamadoIdNum, { userId: auth.userId, nome: eu?.nome || remetenteSan || auth.email || 'Usuário' }, { destinatarios });
+      if (r.erro) console.warn('[enviar-boleto] e-mail enviado, mas a fase não mudou:', r.erro);
+      moveu = r.moveu;
+      movidos = r.movidos.map((m) => m.id);
+    }
+    return NextResponse.json({ ok: true, id: info.messageId, enviados: destinatarios, de: fromEmail, moveu, movidos });
   } catch (error: any) {
     console.error('Erro ao enviar boleto por email:', error);
     return NextResponse.json({ error: `Falha ao enviar email: ${traduzirErroEmail(error, envioCfg?.smtp_host)}` }, { status: 500 });

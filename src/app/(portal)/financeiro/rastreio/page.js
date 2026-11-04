@@ -331,7 +331,7 @@ function RastreioInner() {
   }
 
   return (
-    <main style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)', maxWidth: '1180px', margin: '0 auto' }}>
+    <main style={{ padding: 'clamp(12px, 2vw, 28px)' }}>
       {/* Voltar: quase sempre se chega aqui vindo das Despesas, e sem isto o
           único caminho de volta é o botão do navegador. `router.back()` preserva
           o filtro e o mês que estavam abertos lá; o link direto é o plano B pra

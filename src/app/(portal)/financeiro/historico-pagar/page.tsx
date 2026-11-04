@@ -181,7 +181,7 @@ export default function HistoricoPagar() {
     <div style={{ minHeight: '100vh', background: 'var(--portal-bg)' }}>
       <FinanceiroNav />
 
-      <main style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)', maxWidth: 1440, margin: '0 auto' }}>
+      <main style={{ padding: 'clamp(12px, 2vw, 28px)' }}>
         {/* controle: busca inteligente + período + chips */}
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 16 }}>
           <BuscaInteligente valor={busca} onChange={setBusca} achados={filtradas.length} />

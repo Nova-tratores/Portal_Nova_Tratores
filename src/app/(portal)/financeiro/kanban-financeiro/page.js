@@ -9,6 +9,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { autoEnviarENotificar } from '@/lib/financeiro/envioBoleto'
+import ConfigEmailEnvioModal from '@/components/financeiro/ConfigEmailEnvioModal'
 import { formatarDataBR, formatarMoeda, calcTempo } from '@/lib/financeiro/utils'
 import { STATUS_CONFIG_NF as STATUS_CONFIG, exigeComprovantePago, temComprovantePago } from '@/lib/financeiro/constants'
 import {
@@ -17,9 +18,14 @@ import {
   Calendar, CreditCard, ArrowLeft,
   CheckCheck, Eye, ClipboardList, Search, Trash2, RefreshCw, AlertCircle, Lock, DollarSign, Barcode, Check, Clock, Link2
 } from 'lucide-react'
+import { authHeaders } from '@/lib/auth/client'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { marcarMinhaAcao } from '@/components/financeiro/NotificationSystem'
 import { anotarGrupos, ehFilhoDeGrupo, sincronizarFilhosComPai, nfsLabel } from '@/lib/financeiro/grupo'
+import { dataDiasAtras, ehBoleto30 } from '@/lib/financeiro/vencidos'
+import { paginar } from '@/lib/db/paginar'
+import { podeRecobrar, hojeBR } from '@/lib/financeiro/fases-automaticas'
+import { pedirRecobranca } from '@/lib/financeiro/recobranca-client'
 import AgruparCardsModal from '@/components/financeiro/AgruparCardsModal'
 import GrupoDoCardBox from '@/components/financeiro/GrupoDoCardBox'
 
@@ -28,9 +34,13 @@ export default function KanbanFinanceiro() {
 const { userProfile } = useAuth()
 const { isAdmin } = usePermissoes(userProfile?.id)
 const { log: auditLog } = useAuditLog()
-const isFinanceiro = userProfile?.funcao === 'Financeiro' // financeiro pode marcar pago sem comprovante
+const isFinanceiro = userProfile?.funcao === 'Financeiro' || isAdmin // financeiro (e admin) pode marcar pago sem comprovante
 const [chamados, setChamados] = useState([]);
 const [tarefaSelecionada, setTarefaSelecionada] = useState(null);
+// Refs: o canal realtime é criado no 1º render — sem isso ele lia o card aberto e o carregarDados VELHOS
+const tarefaSelRef = useRef(null);
+useEffect(() => { tarefaSelRef.current = tarefaSelecionada; }, [tarefaSelecionada]);
+const [cardSemEmail, setCardSemEmail] = useState(null); // envio automático parou: quem gerou não tem e-mail de envio
 const [cardLogs, setCardLogs] = useState([]);   // histórico (audit_log) do card aberto
 
 const [filtroBusca, setFiltroBusca] = useState('');
@@ -53,17 +63,26 @@ const notificarMovimento = (t, novoStatus, descExtra) => {
 };
 
 const colunas = [
-  { id: 'gerar_boleto', titulo: 'GERAR BOLETO' },
-  { id: 'enviar_cliente', titulo: 'ENVIAR PARA CLIENTE' },
-  { id: 'aguardando_vencimento', titulo: 'AGUARDANDO CLIENTE' },
-  { id: 'sem_boleto', titulo: 'CLIENTE SEM BOLETO' },
-  { id: 'pago', titulo: 'PAGO' },
-  { id: 'vencido', titulo: 'VENCIDO' }
+  { id: 'gerar_boleto', titulo: 'Gerar boleto' },
+  { id: 'enviar_cliente', titulo: 'Enviar para cliente' },
+  { id: 'aguardando_vencimento', titulo: 'Aguardando cliente' },
+  { id: 'sem_boleto', titulo: 'Cliente sem boleto' },
+  { id: 'pago', titulo: 'Pago' },
+  { id: 'vencido', titulo: 'Vencido' }
 ];
 
 const carregarDados = async () => {
   try {
-    const { data } = await supabase.from('Chamado_NF').select('*').neq('status', 'excluido').order('id', { ascending: false });
+    // Pago/Vencido automáticos rodam no servidor: conferem o Omie e ficam no histórico (29/10/2026)
+    try { await fetch('/api/financeiro/fases-automaticas', { method: 'POST', headers: { ...(await authHeaders()) } }); } catch {}
+    // Concluídos: só os com vencimento nos últimos 60 dias (aparecem esmaecidos na coluna Pago).
+    // Não usa status_changed_at: a coluna ainda não existe no banco (sql/financeiro-status-changed-at.sql).
+    // Paginado: limite de 1000 do PostgREST.
+    const corteConcluidos = dataDiasAtras(60);
+    const { data } = await paginar((de, ate) => supabase.from('Chamado_NF').select('*')
+      .neq('status', 'excluido')
+      .or(`status.neq.concluido,vencimento_boleto.gte.${corteConcluidos}`)
+      .order('id', { ascending: false }).range(de, ate));
     await sincronizarFilhosComPai(data); // cards agrupados espelham o status do card principal
     const hoje = new Date(); hoje.setHours(0,0,0,0);
 
@@ -85,54 +104,6 @@ const carregarDados = async () => {
       });
     }
 
-    // --- AUTO-MOVE: Boleto 30 dias vencido -> pago ---
-    const paraAutoPago = (data || []).filter(c =>
-      !c.grupo_pai_id &&
-      c.status === 'aguardando_vencimento' &&
-      c.forma_pagamento === 'Boleto 30 dias' &&
-      c.vencimento_boleto && new Date(c.vencimento_boleto + 'T00:00:00') < hoje
-    );
-    if (paraAutoPago.length > 0) {
-      await Promise.all(paraAutoPago.map(c => supabase.from('Chamado_NF').update({ status: 'pago' }).eq('id', c.id)));
-      paraAutoPago.forEach(c => {
-        const idx = (data || []).findIndex(d => d.id === c.id);
-        if (idx !== -1) data[idx] = { ...data[idx], status: 'pago' };
-      });
-    }
-
-    // --- AUTO-MOVE: boleto simples vencido sem comprovante -> vencido ---
-    const paraAutoVencido = (data || []).filter(c =>
-      !c.grupo_pai_id &&
-      c.status === 'aguardando_vencimento' &&
-      !/pix|cart[aã]o|cheque/i.test(String(c.forma_pagamento || '')) && // PIX/cartão/cheque não vencem (José, 15/10/2026)
-      c.forma_pagamento !== 'Boleto 30 dias' &&
-      c.forma_pagamento !== 'Boleto Parcelado' &&
-      c.forma_pagamento !== 'Cartão Parcelado' &&
-      !c.comprovante_pagamento && !c.comprovante_pagamento_p1 &&
-      c.vencimento_boleto && new Date(c.vencimento_boleto + 'T00:00:00') < hoje
-    );
-    if (paraAutoVencido.length > 0) {
-      await Promise.all(paraAutoVencido.map(c => supabase.from('Chamado_NF').update({ status: 'vencido' }).eq('id', c.id)));
-      paraAutoVencido.forEach(c => {
-        const idx = (data || []).findIndex(d => d.id === c.id);
-        if (idx !== -1) data[idx] = { ...data[idx], status: 'vencido' };
-      });
-    }
-
-    // --- AUTO-MOVE: gerar_boleto com vencimento passado -> vencido ---
-    const gerarBoletoVencido = (data || []).filter(c =>
-      !c.grupo_pai_id &&
-      c.status === 'gerar_boleto' &&
-      !/pix|cart[aã]o|cheque/i.test(String(c.forma_pagamento || '')) && // PIX/cartão/cheque não vencem (José, 15/10/2026)
-      c.vencimento_boleto && new Date(c.vencimento_boleto + 'T00:00:00') < hoje
-    );
-    if (gerarBoletoVencido.length > 0) {
-      await Promise.all(gerarBoletoVencido.map(c => supabase.from('Chamado_NF').update({ status: 'vencido', tarefa: 'Cobrar Cliente (Vencido sem boleto)' }).eq('id', c.id)));
-      gerarBoletoVencido.forEach(c => {
-        const idx = (data || []).findIndex(d => d.id === c.id);
-        if (idx !== -1) data[idx] = { ...data[idx], status: 'vencido', tarefa: 'Cobrar Cliente (Vencido sem boleto)' };
-      });
-    }
 
     // --- HELPER: calcula estado de cada parcela ---
     const calcParcelas = (c) => {
@@ -192,16 +163,19 @@ const carregarDados = async () => {
     const anotados = anotarGrupos(processados); // pais ganham grupo_filhos (cards juntados)
     setChamados(anotados);
 
-    if (tarefaSelecionada) {
-      const itemAtualizado = anotados.find(x => x.id === tarefaSelecionada.id);
+    const aberta = tarefaSelRef.current;
+    if (aberta) {
+      const itemAtualizado = anotados.find(x => x.id === aberta.id);
       if (itemAtualizado) setTarefaSelecionada(itemAtualizado);
     }
   } catch (err) { console.error("Erro ao carregar dados:", err); }
 }
 
+const carregarRef = useRef(carregarDados);
+useEffect(() => { carregarRef.current = carregarDados; });
 const carregarComDebounce = () => {
   if (carregarTimeoutRef.current) clearTimeout(carregarTimeoutRef.current);
-  carregarTimeoutRef.current = setTimeout(carregarDados, 600);
+  carregarTimeoutRef.current = setTimeout(() => carregarRef.current(), 600);
 };
 
 useEffect(() => {
@@ -237,7 +211,8 @@ const handleUpdateField = async (id, field, value) => {
       if (tarefaSelecionada?.status === 'concluido') return;
       // só age se houve MUDANÇA real (evita notificar ao só clicar/sair do campo)
       if (tarefaSelecionada && String(tarefaSelecionada.id) === String(id) && String(tarefaSelecionada[field] ?? '') === String(value ?? '')) return;
-      await supabase.from('Chamado_NF').update({ [field]: value }).eq('id', id);
+      const { error } = await supabase.from('Chamado_NF').update({ [field]: value }).eq('id', id);
+      if (error) { alert('Erro ao salvar: ' + error.message); carregarDados(); return; }
       notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou NF #${id}`, `Campo: ${field}`, `/financeiro/kanban-financeiro`)
       await auditLog({ sistema: 'financeiro', acao: 'editar', entidade: 'Chamado_NF', entidade_id: String(id), entidade_label: `NF #${id} - ${tarefaSelecionada?.nom_cliente || ''}`, detalhes: { campo: field, valor: value } });
       carregarCardLogs(id);
@@ -254,7 +229,7 @@ const dispararEnvioAuto = (card) => {
       auditLog({ sistema: 'financeiro', acao, entidade: 'Chamado_NF', entidade_id: String(card.id), entidade_label: `NF #${card.id} - ${card.nom_cliente || ''}`, detalhes });
       carregarCardLogs(card.id);
     },
-  });
+  }).then((r) => { if (r?.status === 'erro' && r.semConfig) setCardSemEmail(card); });
 };
 
 // Excluir card — somente admin
@@ -291,10 +266,12 @@ const handleUpdateFileDirect = async (id, field, file) => {
           updateData.setor = 'Pós-Vendas';
         }
 
-        await supabase.from('Chamado_NF').update(updateData).eq('id', id);
+        const { error: updError } = await supabase.from('Chamado_NF').update(updateData).eq('id', id);
+        if (updError) throw updError;
 
         // Notificar se mudou de fase
         if (updateData.status === 'enviar_cliente' && tarefaSelecionada) {
+          auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(id), entidade_label: `NF #${id} - ${tarefaSelecionada.nom_cliente || ''}`, detalhes: { de: tarefaSelecionada.status, para: 'enviar_cliente', acao_desc: 'Boleto anexado' } });
           notificarMovimento(tarefaSelecionada, 'enviar_cliente', `NF #${id} - ${tarefaSelecionada.nom_cliente || ''} — Boleto anexado, enviar ao cliente`);
           notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} anexou boleto NF #${id}`, `Cliente: ${tarefaSelecionada.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
           dispararEnvioAuto({ ...tarefaSelecionada, ...updateData });
@@ -316,77 +293,68 @@ const handleActionMoveStatus = async (t, newStatus) => {
         alert('Este método de pagamento exige o comprovante anexado para mover para Pago.');
         return;
       }
+      const upd = { status: newStatus };
+      // vencido manual: tarefa com "Cobrar", senão a home do Pós-Vendas não lista e ninguém cobra
+      if (newStatus === 'vencido') { upd.tarefa = 'Cobrar Cliente (Vencido)'; upd.setor = 'Pós-Vendas'; }
+      const { error } = await supabase.from('Chamado_NF').update(upd).eq('id', t.id);
+      if (error) { alert('Erro ao mover o card: ' + error.message); return; }
       notificarMovimento(t, newStatus);
-      const now = new Date().toISOString();
-      const { error } = await supabase.from('Chamado_NF').update({ status: newStatus }).eq('id', t.id);
-      if (!error) {
-          supabase.from('Chamado_NF').update({ status_changed_at: now }).eq('id', t.id).catch(() => {});
-          notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} → ${newStatus}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
-          await auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}`, detalhes: { de: t.status, para: newStatus } });
-          carregarCardLogs(t.id);
-          alert(newStatus === 'concluido' ? "Card Concluido!" : "Card movido!");
-          carregarDados();
-      }
+      notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} → ${newStatus}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
+      await auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}`, detalhes: { de: t.status, para: newStatus } });
+      carregarCardLogs(t.id);
+      alert(newStatus === 'concluido' ? "Card Concluido!" : "Card movido!");
+      carregarDados();
+};
+
+// Recobrança = rota no servidor: grava o card, cria o ticket no bloco "Cobranças — <setor>"
+// (rodízio do responsável) e registra o histórico (29/10/2026). Antes era update direto.
+const recobrarPelaRota = async (t, moverParaVencido) => {
+    const pode = podeRecobrar(t, hojeBR());
+    if (!pode.ok) { alert('Não dá para recobrar: ' + pode.motivo); return false; }
+    const r = await pedirRecobranca(t.id, { moverParaVencido });
+    if (!r.ok) { alert(r.mensagem); return false; }
+    const newVal = r.numero || (t.recombrancas_qtd || 0) + 1;
+    notificarMovimento(t, moverParaVencido ? 'vencido' : t.status, `NF #${t.id} - ${t.nom_cliente || ''} — Recobrança #${newVal}`);
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} solicitou recobrança #${newVal}`, `NF #${t.id} — ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
+    alert(r.mensagem);
+    return true;
 };
 
 const handleActionCobrarCliente = async (t) => {
-      const newVal = (t.recombrancas_qtd || 0) + 1;
-      notificarMovimento(t, t.status, `NF #${t.id} - ${t.nom_cliente || ''} — Recobrança #${newVal}`);
-      const now = new Date().toISOString();
-      const { error } = await supabase.from('Chamado_NF').update({
-          tarefa: 'Cobrar Cliente (Recobrança)',
-          recombrancas_qtd: newVal,
-          setor: 'Pós-Vendas'
-      }).eq('id', t.id);
-      if (!error) {
-          supabase.from('Chamado_NF').update({ status_changed_at: now }).eq('id', t.id).catch(() => {});
-          notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} solicitou recobrança #${newVal}`, `NF #${t.id} — ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
-          alert("Recobrança enviada ao Pós-Vendas!");
-          setTarefaSelecionada(null);
-          carregarDados();
-      }
+      if (!(await recobrarPelaRota(t, true))) return;
+      setTarefaSelecionada(null);
+      carregarDados();
 };
 
 const handleActionPedirRecobranca = async (t, moverParaVencido = true) => {
-    if (!window.confirm("Deseja solicitar recobrança ao Pós-Vendas?")) return;
-    const newVal = (t.recombrancas_qtd || 0) + 1;
-    notificarMovimento(t, moverParaVencido ? 'vencido' : t.status, `NF #${t.id} - ${t.nom_cliente || ''} — Recobrança #${newVal}`);
-    const now = new Date().toISOString();
+    if (!window.confirm("Deseja pedir recobrança? Vai virar um ticket para o setor cobrar o cliente.")) return;
+    if (!(await recobrarPelaRota(t, moverParaVencido))) return;
+    carregarDados();
+};
 
-    let updateData = {
-        tarefa: 'Cobrar Cliente (Recobrança)',
-        recombrancas_qtd: newVal,
-        setor: 'Pós-Vendas'
-    };
-
-    if (moverParaVencido) updateData.status = 'vencido';
-
-    const { error } = await supabase.from('Chamado_NF').update(updateData).eq('id', t.id);
-    if (!error) {
-        if (moverParaVencido) supabase.from('Chamado_NF').update({ status_changed_at: now }).eq('id', t.id).catch(() => {});
-        notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} solicitou recobrança #${newVal}`, `NF #${t.id} — ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
-        alert("Recobrança enviada ao Pós-Vendas!");
-        carregarDados();
-    }
+// botão Recobrar desabilitado (com o motivo) quando podeRecobrar não deixa
+const propsRecobrar = (t, estilo) => {
+    const p = podeRecobrar(t, hojeBR());
+    return { disabled: !p.ok, title: p.motivo || 'Cria um ticket para o setor cobrar o cliente', style: p.ok ? estilo : { ...estilo, opacity: 0.5, cursor: 'not-allowed' } };
 };
 
 const handleActionSomenteVencido = async (t) => {
+    // tarefa com "Cobrar": senão a home do Pós-Vendas não lista o card vencido e ninguém cobra
+    const { error } = await supabase.from('Chamado_NF').update({ status: 'vencido', tarefa: 'Cobrar Cliente (Vencido)', setor: 'Pós-Vendas' }).eq('id', t.id);
+    if (error) { alert('Erro ao mover para Vencido: ' + error.message); return; }
     notificarMovimento(t, 'vencido');
-    const now = new Date().toISOString();
-    const { error } = await supabase.from('Chamado_NF').update({ status: 'vencido' }).eq('id', t.id);
-    if (!error) {
-        supabase.from('Chamado_NF').update({ status_changed_at: now }).eq('id', t.id).catch(() => {});
-        notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} para Vencido`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
-        alert("Card movido para Vencido!");
-        carregarDados();
-    }
+    auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}`, detalhes: { de: t.status, para: 'vencido', acao_desc: 'Movido para Vencido — Pós-Vendas cobra' } });
+    notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu NF #${t.id} para Vencido`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
+    alert("Card movido para Vencido!");
+    carregarDados();
 };
 
 const handleGerarBoletoFaturamentoFinal = async (id, fileArg) => {
     const arquivo = fileArg || fileBoleto;
     if (!arquivo) return alert("Anexe o arquivo.");
     const path = `boletos/${Date.now()}-${arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_')}`;
-    await supabase.storage.from('anexos').upload(path, arquivo);
+    const { error: upError } = await supabase.storage.from('anexos').upload(path, arquivo);
+    if (upError) { alert('Erro ao enviar o boleto: ' + upError.message); return; }
     const { data } = supabase.storage.from('anexos').getPublicUrl(path);
 
     const updateData = {
@@ -397,9 +365,10 @@ const handleGerarBoletoFaturamentoFinal = async (id, fileArg) => {
     };
 
     const t = chamados.find(c => c.id === id) || { id, nom_cliente: '' };
+    const { error } = await supabase.from('Chamado_NF').update(updateData).eq('id', id);
+    if (error) { alert('Erro ao gravar o boleto no card: ' + error.message); return; }
     notificarMovimento(t, 'enviar_cliente', `NF #${id} - ${t.nom_cliente || ''} — Boleto gerado`);
-    await supabase.from('Chamado_NF').update(updateData).eq('id', id);
-    supabase.from('Chamado_NF').update({ status_changed_at: new Date().toISOString() }).eq('id', id).catch(() => {});
+    auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(id), entidade_label: `NF #${id} - ${t.nom_cliente || ''}`, detalhes: { de: t.status, para: 'enviar_cliente', acao_desc: 'Boleto gerado e enviado ao Pós-Vendas' } });
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} gerou boleto NF #${id}`, `Cliente: ${t.nom_cliente || ''}`, `/financeiro/kanban-financeiro`)
     dispararEnvioAuto({ ...t, ...updateData });
     setTarefaSelecionada(null); carregarDados();
@@ -424,13 +393,21 @@ const chamadosFiltrados = chamados.filter(c => !ehFilhoDeGrupo(c)).filter(c => {
 // --- LOGICAS CONDICIONAIS ---
 const isPixOuCartaoVista = tarefaSelecionada && ['Pix', 'Cartão a vista'].includes(tarefaSelecionada.forma_pagamento);
 const isCheque = tarefaSelecionada?.forma_pagamento === 'Cheque';
-const isBoleto30 = tarefaSelecionada && tarefaSelecionada.forma_pagamento === 'Boleto 30 dias';
+const isBoleto30 = tarefaSelecionada && ehBoleto30(tarefaSelecionada.forma_pagamento);
 const isBoletoParcelado = tarefaSelecionada?.forma_pagamento === 'Boleto Parcelado';
 const isCartaoParcelado = tarefaSelecionada?.forma_pagamento === 'Cartão Parcelado';
 
 return (
     <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Inter, sans-serif', background: 'var(--portal-bg-secondary)' }}>
     <FinanceiroNav />
+    {/* Quem gerou o boleto não tem e-mail de envio: configura aqui e o boleto sai na hora (29/10/2026) */}
+    <ConfigEmailEnvioModal
+      open={!!cardSemEmail}
+      emailInicial={userProfile?.email || ''}
+      onClose={() => { setCardSemEmail(null); alert('O boleto NÃO foi enviado ao cliente: falta configurar o seu e-mail de envio. O card ficou em "Enviar para Cliente".'); }}
+      onSaved={() => { const c = cardSemEmail; setCardSemEmail(null); if (c) dispararEnvioAuto(c); }}
+    />
+
 
     <main style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 56px)', overflow: 'hidden' }}>
       <header className="fin-k-header" style={{ padding: '20px 32px 16px' }}>
@@ -1042,7 +1019,7 @@ return (
               {/* BOLETO PARCELADO: ações quando há parcela em atraso */}
               {tarefaSelecionada.status === 'aguardando_vencimento' && isBoletoParcelado && tarefaSelecionada.parcelaVencida && !tarefaSelecionada.isPagamentoRealizado && (
                 <>
-                  <button onClick={() => handleActionPedirRecobranca(tarefaSelecionada, false)} style={btnActionBlue}>
+                  <button onClick={() => handleActionPedirRecobranca(tarefaSelecionada, false)} {...propsRecobrar(tarefaSelecionada, btnActionBlue)}>
                     <DollarSign size={20}/> PEDIR PÓS-VENDAS RECOBRAR PARCELA
                   </button>
                   <button onClick={() => handleUpdateField(tarefaSelecionada.id, 'tarefa', 'Conferido/Visto')} style={btnActionGreen}>
@@ -1068,7 +1045,7 @@ return (
               {/* OUTROS (PIX, Cartão à Vista, Boleto simples): recobrança e vencido */}
               {tarefaSelecionada.status === 'aguardando_vencimento' && !isBoletoParcelado && !isCartaoParcelado && !isBoleto30 && (
                 <>
-                  <button onClick={() => handleActionPedirRecobranca(tarefaSelecionada, true)} style={btnActionBlue}>
+                  <button onClick={() => handleActionPedirRecobranca(tarefaSelecionada, true)} {...propsRecobrar(tarefaSelecionada, btnActionBlue)}>
                     <DollarSign size={20}/> PEDIR PARA PÓS-VENDAS RECOBRAR
                   </button>
                   <button onClick={() => handleActionSomenteVencido(tarefaSelecionada)} style={btnActionRed}>
@@ -1104,7 +1081,7 @@ return (
 
               {tarefaSelecionada.status === 'vencido' && (
                 <>
-                    <button onClick={() => handleActionCobrarCliente(tarefaSelecionada)} style={btnActionBlue}>
+                    <button onClick={() => handleActionCobrarCliente(tarefaSelecionada)} {...propsRecobrar(tarefaSelecionada, btnActionBlue)}>
                         <DollarSign size={20}/> NOTIFICAR PÓS-VENDAS
                     </button>
                     <button onClick={() => { if(window.confirm("Confirmar Pagamento?")) handleActionMoveStatus(tarefaSelecionada, 'concluido') }} style={btnActionGreen}>
@@ -1138,7 +1115,7 @@ return (
     <style jsx global>{`
       .kanban-card { background: var(--portal-bg-card); border: 1px solid var(--portal-border); border-radius: 8px; transition: 0.3s ease; overflow: hidden; margin-bottom: 12px; flex-shrink: 0; }
       .kanban-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(47, 54, 64, 0.06); border-color: var(--portal-text-secondary); }
-      .btn-back { background: transparent; color: var(--portal-text-secondary); border: 1px solid var(--portal-border); padding: 12px 28px; border-radius: 0px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size:12px; transition: 0.2s; text-transform: uppercase; letter-spacing: 1px; }
+      .btn-back { background: transparent; color: var(--portal-text-secondary); border: 1px solid var(--portal-border); padding: 12px 28px; border-radius: 0px; cursor: pointer; display: flex; align-items: center; gap: 10px; font-size:12px; transition: 0.2s; text-transform: none; letter-spacing: 1px; }
       .btn-back:hover { background: var(--portal-text); color: var(--portal-bg-secondary); }
 
       ::-webkit-scrollbar { width: 6px; height: 10px; }

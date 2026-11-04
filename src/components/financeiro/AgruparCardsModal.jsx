@@ -7,7 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { X, Link2, Check } from 'lucide-react'
 import { formatarMoeda } from '@/lib/financeiro/utils'
 import { parseValorNum } from '@/lib/financeiro/parcelas'
-import { juntarCards, nfsLabel } from '@/lib/financeiro/grupo'
+import { juntarCards, nfsLabel, podeMexerNoGrupo } from '@/lib/financeiro/grupo'
 
 const norm = (s) => String(s || '').trim().toUpperCase()
 
@@ -19,7 +19,8 @@ export default function AgruparCardsModal({ open, cards, onClose, onDone, audit 
   useEffect(() => { if (open) { setSelIds([]); setPaiId(null); setSalvando(false) } }, [open])
 
   const lista = useMemo(() => {
-    return [...(cards || [])].sort((a, b) => {
+    // só Gerar Boleto / Validar Pix: depois disso o boleto já saiu (trava contra cobrança em dobro)
+    return [...(cards || [])].filter(c => podeMexerNoGrupo(c.status)).sort((a, b) => {
       const ca = norm(a.nom_cliente), cb = norm(b.nom_cliente)
       if (ca !== cb) return ca < cb ? -1 : 1
       return (a.id || 0) - (b.id || 0)

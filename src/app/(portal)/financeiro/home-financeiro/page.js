@@ -10,10 +10,16 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { autoEnviarENotificar } from '@/lib/financeiro/envioBoleto'
+import { authHeaders } from '@/lib/auth/client'
+import ConfigEmailEnvioModal from '@/components/financeiro/ConfigEmailEnvioModal'
 import { marcarMinhaAcao } from '@/components/financeiro/NotificationSystem'
 import { EnviarParaOmieBox } from '@/components/financeiro/OmieContaPagar'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { formatarDataBR, formatarMoeda, getRequisicoes } from '@/lib/financeiro/utils'
+import { dataLocal, hojeLocal, ehBoleto30 } from '@/lib/financeiro/vencidos'
+import { paginar } from '@/lib/db/paginar'
+import { podeRecobrar, hojeBR } from '@/lib/financeiro/fases-automaticas'
+import { pedirRecobranca } from '@/lib/financeiro/recobranca-client'
 import {
  X, PlusCircle, FileText, Download,
  CheckCircle, User, Upload, Send,
@@ -95,10 +101,11 @@ function HomeFinanceiroContent() {
  const { userProfile } = useAuth();
  const { isAdmin } = usePermissoes(userProfile?.id);
  const { log: auditLog } = useAuditLog();
- const isFinanceiro = userProfile?.funcao === 'Financeiro'; // financeiro pode marcar pago sem comprovante
+ const isFinanceiro = userProfile?.funcao === 'Financeiro' || isAdmin; // financeiro (e admin) pode marcar pago sem comprovante
  const [showNovoMenu, setShowNovoMenu] = useState(false);
  const [tarefaSelecionada, setTarefaSelecionada] = useState(null);
- const [listaBoletos, setListaBoletos] = useState([]); const [listaSemBoleto, setListaSemBoleto] = useState([]); const [listaPagar, setListaPagar] = useState([]); const [listaRH, setListaRH] = useState([]);
+ const [cardSemEmail, setCardSemEmail] = useState(null); // envio automático parou: quem gerou não tem e-mail de envio
+ const [listaBoletos, setListaBoletos] = useState([]); const [listaSemBoleto, setListaSemBoleto] = useState([]); const [listaPagos, setListaPagos] = useState([]); const [listaPagar, setListaPagar] = useState([]); const [listaRH, setListaRH] = useState([]);
  const [fileBoleto, setFileBoleto] = useState(null);
  const [zoom, setZoom] = useState(1);
  const [cardLogs, setCardLogs] = useState([]);   // histórico (audit_log) do card aberto
@@ -108,13 +115,18 @@ function HomeFinanceiroContent() {
  // --- CARREGAMENTO UNIFICADO ---
  const carregarDados = async () => {
   try {
-    const { data: bolds } = await supabase.from('Chamado_NF').select('*').neq('status', 'concluido').neq('status', 'pago').order('id', {ascending: false});
-    const hoje = new Date(); hoje.setHours(0,0,0,0);
+    // Robô no servidor: cards de cobrança × Omie e contas a pagar (Requisições) × Omie (29/10/2026)
+    try { await fetch('/api/financeiro/fases-automaticas', { method: 'POST', headers: { ...(await authHeaders()) } }); } catch {}
+    const { data: bolds } = await supabase.from('Chamado_NF').select('*').neq('status', 'concluido').neq('status', 'pago').neq('status', 'excluido').order('id', {ascending: false});
+    // Pagos esperando alguém concluir (antes sumiam da home sem ninguém concluir — 29/10/2026)
+    const { data: pagos } = await paginar((de, ate) => supabase.from('Chamado_NF').select('*').eq('status', 'pago').order('id', {ascending: false}).range(de, ate));
+    setListaPagos((pagos || []).filter(c => !c.grupo_pai_id).map(c => ({ ...c, gTipo: 'boleto', valor_exibicao: c.valor_servico })));
+    // Datas 'AAAA-MM-DD' lidas como meia-noite LOCAL (new Date('AAAA-MM-DD') vira o dia anterior em Brasília)
+    const hoje = hojeLocal();
 
     // Agrupamento: anota os pais com grupo_filhos e esconde os cards juntados
     const faturamentoFormatado = anotarGrupos(bolds || []).filter(c => !c.grupo_pai_id).map(c => {
-      const venc = c.vencimento_boleto ? new Date(c.vencimento_boleto) : null;
-      if (venc) venc.setHours(0,0,0,0);
+      const venc = dataLocal(c.vencimento_boleto);
 
       let todosPagos = false;
       const isParceladoLocal = c.forma_pagamento?.toLowerCase().includes('parcelado');
@@ -138,8 +150,7 @@ function HomeFinanceiroContent() {
         const datas = [c.vencimento_boleto, ...rawDatasF];
         for (let i = 0; i < qtd; i++) {
           const comp = i === 0 ? (c.comprovante_pagamento || c.comprovante_pagamento_p1) : c[`comprovante_pagamento_p${i + 1}`];
-          const dp = datas[i] ? new Date(datas[i]) : null;
-          if (dp) dp.setHours(0,0,0,0);
+          const dp = dataLocal(datas[i]);
           if (dp && dp < hoje && !comp) { parcelaVencida = true; break; }
         }
       }
@@ -184,10 +195,10 @@ function HomeFinanceiroContent() {
   const id = searchParams.get('id');
   const tipo = searchParams.get('tipo');
   if (!id || !tipo) return;
-  const listas = { boleto: listaBoletos, pagar: listaPagar, rh: listaRH };
+  const listas = { boleto: [...listaBoletos, ...listaSemBoleto, ...listaPagos], pagar: listaPagar, rh: listaRH };
   const card = (listas[tipo] || []).find(t => String(t.id) === id);
   if (card) setTarefaSelecionada(card);
- }, [searchParams, listaBoletos, listaPagar, listaRH]);
+ }, [searchParams, listaBoletos, listaSemBoleto, listaPagos, listaPagar, listaRH]);
 
  const getCardLabel = (t) => {
     if (t.gTipo === 'pagar') return `Pagar #${t.id} - ${t.fornecedor || ''}`;
@@ -248,7 +259,8 @@ function HomeFinanceiroContent() {
     // só age se houve MUDANÇA real (evita notificar ao só clicar/sair do campo)
     if (String(t[field] ?? '') === String(value ?? '')) return;
     const table = getCardTable(t);
-    await supabase.from(table).update({ [field]: value }).eq('id', t.id);
+    const { error } = await supabase.from(table).update({ [field]: value }).eq('id', t.id);
+    if (error) { alert('Erro ao salvar: ' + error.message); return; }
     auditLog({ sistema: 'financeiro', acao: 'editar', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { campo: field, valor: value } });
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} alterou ${getCardLabel(t)}`, `Campo: ${field}`, `/financeiro/home-financeiro`)
     carregarDados();
@@ -273,10 +285,12 @@ function HomeFinanceiroContent() {
         updateData.setor = 'Pós-Vendas';
       }
 
-      await supabase.from(table).update(updateData).eq('id', t.id);
+      const { error: updError } = await supabase.from(table).update(updateData).eq('id', t.id);
+      if (updError) throw updError;
       auditLog({ sistema: 'financeiro', acao: 'upload', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { campo: field, arquivo: file.name } });
 
       if (updateData.status === 'enviar_cliente') {
+        auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'enviar_cliente', acao_desc: 'Boleto anexado' } });
         notificarMovimento('Chamado_NF', t, 'enviar_cliente', `${getCardLabel(t)} — Boleto anexado, enviar ao cliente`);
         notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} anexou boleto em ${getCardLabel(t)}`, `Card movido para Enviar ao Cliente`, `/financeiro/home-financeiro`)
         dispararEnvioAuto({ ...t, ...updateData });
@@ -299,13 +313,14 @@ function HomeFinanceiroContent() {
     if (uploadError) throw uploadError;
     const { data } = supabase.storage.from('anexos').getPublicUrl(path);
 
-    notificarMovimento('Chamado_NF', t, 'enviar_cliente', `${getCardLabel(t)} — Boleto gerado`);
-    await supabase.from('Chamado_NF').update({
+    const { error: updError } = await supabase.from('Chamado_NF').update({
         status: 'enviar_cliente',
         tarefa: 'Enviar Boleto para o Cliente',
         setor: 'Pós-Vendas',
-        anexo_boleto: data.publicUrl
+        anexo_boleto: data.publicUrl,
     }).eq('id', t.id);
+    if (updError) throw updError;
+    notificarMovimento('Chamado_NF', t, 'enviar_cliente', `${getCardLabel(t)} — Boleto gerado`);
 
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'enviar_cliente', acao_desc: 'Boleto gerado e enviado ao Pós-Vendas' } });
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} gerou boleto — ${getCardLabel(t)}`, `Enviado ao Pós-Vendas`, `/financeiro/home-financeiro`)
@@ -321,7 +336,7 @@ function HomeFinanceiroContent() {
      remetente: userProfile?.nome,
      userId: userProfile?.id,
      audit: ({ acao, detalhes }) => auditLog({ sistema: 'financeiro', acao, entidade: 'Chamado_NF', entidade_id: String(card.id), entidade_label: getCardLabel(card), detalhes }),
-   });
+   }).then((r) => { if (r?.status === 'erro' && r.semConfig) setCardSemEmail(card); });
  };
 
  const handleMoverParaPago = async (t) => {
@@ -329,15 +344,17 @@ function HomeFinanceiroContent() {
       alert('Este método de pagamento exige o comprovante anexado para mover para Pago.');
       return;
     }
+    const { error } = await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
+    if (error) { alert('Erro ao confirmar pagamento: ' + error.message); return; }
     notificarMovimento('Chamado_NF', t, 'pago', `${getCardLabel(t)} — Pagamento confirmado`);
-    await supabase.from('Chamado_NF').update({ status: 'pago', tarefa: 'Pagamento Confirmado' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'pago', acao_desc: 'Pagamento confirmado' } });
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} confirmou pagamento — ${getCardLabel(t)}`, null, `/financeiro/home-financeiro`)
-    alert("Pagamento confirmado e processo finalizado!"); setTarefaSelecionada(null); carregarDados();
+    alert('Pagamento confirmado! O card foi para "Pagos para concluir" — conclua quando terminar a conferência.'); setTarefaSelecionada(null); carregarDados();
  };
 
  const handleConcluirGeral = async (t) => {
     const table = getCardTable(t);
+    if (table === 'Chamado_NF' && !window.confirm(`Concluir ${getCardLabel(t)}? O card sai da home e vai para Concluído.`)) return;
     // Conta a pagar sem código Omie → vai pra fase intermediária 'aguardando_omie'
     // pra Pós-Vendas finalizar o envio antes do ciclo ser dado como concluído.
     const precisaEnviarOmie = table === 'finan_pagar' && !t.omie_cod_lancamento;
@@ -349,11 +366,12 @@ function HomeFinanceiroContent() {
         'Deseja continuar?'
       );
       if (!ok) return;
-      notificarMovimento(table, t, 'aguardando_omie', `${getCardLabel(t)} — Pendente envio Omie`);
-      await supabase
+      const { error: errOmie } = await supabase
         .from('finan_pagar')
         .update({ status: 'aguardando_omie', aguardando_omie_desde: new Date().toISOString() })
         .eq('id', t.id);
+      if (errOmie) { alert('Erro ao encaminhar: ' + errOmie.message); return; }
+      notificarMovimento(table, t, 'aguardando_omie', `${getCardLabel(t)} — Pendente envio Omie`);
       auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'aguardando_omie', acao_desc: 'Aguardando envio Omie pelo Pós-Vendas' } });
       notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} encaminhou pro Pós-Vendas enviar ao Omie — ${getCardLabel(t)}`, null, `/financeiro/home-posvendas`)
       alert('Encaminhado pra Pós-Vendas finalizar o envio ao Omie.');
@@ -361,32 +379,33 @@ function HomeFinanceiroContent() {
       carregarDados();
       return;
     }
+    const { error } = await supabase.from(table).update({ status: 'concluido' }).eq('id', t.id);
+    if (error) { alert('Erro ao concluir: ' + error.message); return; }
     notificarMovimento(table, t, 'concluido', `${getCardLabel(t)} — Processo concluído`);
-    await supabase.from(table).update({ status: 'concluido' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: table, entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'concluido', acao_desc: 'Processo concluído' } });
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} concluiu ${getCardLabel(t)}`, null, `/financeiro/home-financeiro`)
     alert("Processo concluído!"); setTarefaSelecionada(null); carregarDados();
  };
 
  const handlePedirRecobranca = async (t) => {
-    if (!window.confirm("Deseja solicitar recobrança ao Pós-Vendas?")) return;
-    const newVal = (t.recombrancas_qtd || 0) + 1;
+    const pode = podeRecobrar(t, hojeBR());
+    if (!pode.ok) { alert('Não dá para recobrar: ' + pode.motivo); return; }
+    if (!window.confirm("Deseja pedir recobrança? Vai virar um ticket para o setor cobrar o cliente.")) return;
+    // a rota grava o card, cria o ticket no bloco "Cobranças — <setor>" e registra o histórico (29/10/2026)
+    const r = await pedirRecobranca(t.id);
+    if (!r.ok) { alert(r.mensagem); return; }
+    const newVal = r.numero || (t.recombrancas_qtd || 0) + 1;
     notificarMovimento('Chamado_NF', t, 'vencido', `${getCardLabel(t)} — Recobrança #${newVal}`);
-    await supabase.from('Chamado_NF').update({
-        status: 'vencido',
-        tarefa: 'Cobrar Cliente (Recobrança)',
-        setor: 'Pós-Vendas',
-        recombrancas_qtd: newVal
-    }).eq('id', t.id);
-    auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'vencido', acao_desc: `Recobrança #${newVal} solicitada ao Pós-Vendas` } });
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} solicitou recobrança #${newVal}`, getCardLabel(t), `/financeiro/home-financeiro`)
-    alert("Recobrança solicitada ao Pós-Vendas!"); setTarefaSelecionada(null); carregarDados();
+    alert(r.mensagem); setTarefaSelecionada(null); carregarDados();
  };
 
  const handleSomenteVencido = async (t) => {
+    // tarefa com "Cobrar": senão a home do Pós-Vendas não lista o card vencido e ninguém cobra
+    const { error } = await supabase.from('Chamado_NF').update({ status: 'vencido', tarefa: 'Cobrar Cliente (Vencido)', setor: 'Pós-Vendas' }).eq('id', t.id);
+    if (error) { alert('Erro ao mover para Vencido: ' + error.message); return; }
     notificarMovimento('Chamado_NF', t, 'vencido');
-    await supabase.from('Chamado_NF').update({ status: 'vencido' }).eq('id', t.id);
-    auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'vencido' } });
+    auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'vencido', acao_desc: 'Movido para Vencido — Pós-Vendas cobra' } });
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} moveu para Vencido — ${getCardLabel(t)}`, null, `/financeiro/home-financeiro`)
     alert("Card movido para Vencido!"); setTarefaSelecionada(null); carregarDados();
  };
@@ -416,7 +435,7 @@ function HomeFinanceiroContent() {
   } catch (err) { alert("Erro: " + err.message); }
  };
 
- const isBoleto30 = tarefaSelecionada?.forma_pagamento === 'Boleto 30 dias';
+ const isBoleto30 = ehBoleto30(tarefaSelecionada?.forma_pagamento);
  const isParcelamento = tarefaSelecionada?.forma_pagamento?.toLowerCase().includes('parcelado');
  const isBoletoType = tarefaSelecionada && (tarefaSelecionada.forma_pagamento?.toLowerCase().includes('boleto'));
  const isCashOrCardType = tarefaSelecionada && ['Pix', 'Cartão a vista', 'Cartão Parcelado'].includes(tarefaSelecionada.forma_pagamento);
@@ -425,6 +444,14 @@ function HomeFinanceiroContent() {
 
  return (
   <div style={{ fontFamily: 'Inter, sans-serif' }}>
+   {/* Quem gerou o boleto não tem e-mail de envio: configura aqui e o boleto sai na hora (29/10/2026) */}
+   <ConfigEmailEnvioModal
+     open={!!cardSemEmail}
+     emailInicial={userProfile?.email || ''}
+     onClose={() => { setCardSemEmail(null); alert('O boleto NÃO foi enviado ao cliente: falta configurar o seu e-mail de envio. O card ficou em "Enviar para Cliente".'); }}
+     onSaved={() => { const c = cardSemEmail; setCardSemEmail(null); if (c) dispararEnvioAuto(c); }}
+   />
+
    <FinanceiroNav>
       <div style={{ display: 'flex', alignItems: 'center', background: 'var(--portal-bg-secondary)', borderRadius: '8px', padding: '4px 10px', gap: '6px' }}>
         <button onClick={() => setZoom(prev => Math.max(0.5, prev - 0.1))} className="fin-h-touch" style={zoomBtnStyle} title="Diminuir zoom"><ZoomOut size={15} color="#737373" /></button>
@@ -601,6 +628,44 @@ function HomeFinanceiroContent() {
         ))}
         {listaSemBoleto.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--portal-text-secondary)', fontSize: '13px' }}>Nenhum cliente sem boleto</div>
+        )}
+       </div>
+      </div>
+
+      {/* Pagos para concluir: o card pago fica aqui até alguém concluir (29/10/2026) */}
+      <div className="fin-h-col" style={{ ...colWrapperStyle, minWidth: 0, borderRadius: 0, border: 'none', boxShadow: 'none', borderRight: '1px solid var(--portal-border)', paddingRight: '18px' }}>
+       <div style={{ ...colTitleStyle, background: '#bbf7d0', color: '#111111', padding: '14px', borderRadius: '10px' }}>Pagos para concluir<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{listaPagos.length}</span></div>
+       <div style={{ display: 'flex', flexDirection: 'column', gap: '0px', borderTop: '0.5px solid var(--portal-border)' }}>
+        {listaPagos.slice(0, 100).map((t, idx) => (
+         <div key={`pg-${t.id}-${idx}`} onClick={() => setTarefaSelecionada(t)} className="task-card-grid" style={{ cursor: 'pointer', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px', boxShadow: 'none' }}>
+          <div style={fichaBarStyle}>
+            <span style={fichaDotStyle('#16a34a')} />
+            <span style={fichaBarLabStyle('#15803d')}>Pago · concluir</span>
+            <span style={fichaIdStyle}>#{t.id}</span>
+          </div>
+          <div style={{ padding: '11px 14px 13px', background: 'var(--portal-bg-card)' }}>
+            <h4 style={{ margin: 0, fontSize: '16px', fontWeight:'500', lineHeight: 1.3, color: 'var(--portal-text)' }}>{t.nom_cliente?.toUpperCase()}</h4>
+            <table style={{ width: '100%', borderCollapse: 'collapse', margin: '10px 0 2px' }}>
+              <tbody>
+                <tr><td style={fichaTdLab}>Forma</td><td style={fichaTdVal}>{t.forma_pagamento?.toUpperCase() || '—'}</td></tr>
+                <tr><td style={fichaTdLab}>Venc</td><td style={fichaTdVal}>{formatarData(t.vencimento_boleto)}</td></tr>
+                {(t.num_nf_servico || t.num_nf_peca) && (
+                  <tr><td style={fichaTdLab}>NF</td><td style={fichaTdVal}>{[t.num_nf_servico && `S ${t.num_nf_servico}`, t.num_nf_peca && `P ${t.num_nf_peca}`].filter(Boolean).join(' / ')}</td></tr>
+                )}
+              </tbody>
+            </table>
+            <div style={fichaValorStyle}>{formatarMoeda(t.valor_exibicao)}</div>
+            <button onClick={(e) => { e.stopPropagation(); handleConcluirGeral(t); }} style={{ marginTop: '10px', width: '100%', background: '#16a34a', color: '#fff', border: 'none', padding: '9px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+              <CheckCheck size={14}/> CONCLUIR
+            </button>
+          </div>
+         </div>
+        ))}
+        {listaPagos.length > 100 && (
+          <div style={{ textAlign: 'center', padding: '12px', color: 'var(--portal-text-secondary)', fontSize: '12px' }}>Mostrando os 100 mais recentes de {listaPagos.length}</div>
+        )}
+        {listaPagos.length === 0 && (
+          <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--portal-text-secondary)', fontSize: '13px' }}>Nenhum pago esperando conclusão</div>
         )}
        </div>
       </div>
@@ -1082,7 +1147,7 @@ function HomeFinanceiroContent() {
                 </div>
             )}
 
-            {(isCashOrCardType || tarefaSelecionada.status === 'validar_pix' || (tarefaSelecionada.status === 'aguardando_vencimento' && (tarefaSelecionada.isTarefaPagamentoRealizado || isBoleto30 || isFinanceiro))) && (
+            {tarefaSelecionada.status !== 'pago' && (isCashOrCardType || tarefaSelecionada.status === 'validar_pix' || (tarefaSelecionada.status === 'aguardando_vencimento' && (tarefaSelecionada.isTarefaPagamentoRealizado || isBoleto30 || isFinanceiro))) && (
                 <button onClick={() => {
                   const precisaComp = exigeComprovantePago(tarefaSelecionada.forma_pagamento);
                   if (precisaComp && !temComprovantePago(tarefaSelecionada)) { alert('Este método de pagamento exige o comprovante anexado para mover para Pago.'); return; }
@@ -1094,7 +1159,7 @@ function HomeFinanceiroContent() {
 
             {tarefaSelecionada.gTipo === 'boleto' && tarefaSelecionada.status === 'aguardando_vencimento' && (
                 <div className="fin-h-btnpair" style={{ display: 'flex', gap: '20px', flex: 1 }}>
-                    <button onClick={() => handlePedirRecobranca(tarefaSelecionada)} className="fin-h-btnbig" style={{ ...btnPrimaryBeautified, flex: 1, background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)' }}>
+                    <button onClick={() => handlePedirRecobranca(tarefaSelecionada)} disabled={!podeRecobrar(tarefaSelecionada, hojeBR()).ok} title={podeRecobrar(tarefaSelecionada, hojeBR()).motivo || 'Cria um ticket para o setor cobrar o cliente'} className="fin-h-btnbig" style={{ ...btnPrimaryBeautified, flex: 1, background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)', ...(podeRecobrar(tarefaSelecionada, hojeBR()).ok ? {} : { opacity: 0.5, cursor: 'not-allowed' }) }}>
                         <DollarSign size={20}/> PEDIR PARA POS VENDAS RECOBRAR
                     </button>
                     <button onClick={() => handleSomenteVencido(tarefaSelecionada)} className="fin-h-btnbig" style={{ ...btnPrimaryBeautified, flex: 1, background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' }}>
@@ -1103,7 +1168,7 @@ function HomeFinanceiroContent() {
                 </div>
             )}
 
-            {tarefaSelecionada.gTipo !== 'boleto' && (
+            {(tarefaSelecionada.gTipo !== 'boleto' || tarefaSelecionada.status === 'pago') && (
                 <button onClick={() => handleConcluirGeral(tarefaSelecionada)} className="fin-h-btnbig" style={btnSuccessBeautified}>
                     <CheckCheck size={24}/> CONCLUIR PROCESSO
                 </button>
@@ -1143,7 +1208,7 @@ function HomeFinanceiroContent() {
    <style jsx global>{`
     .task-card-grid { background: var(--portal-bg-card); border: 1px solid var(--portal-border); border-radius: 14px; cursor: pointer; transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease; overflow: hidden; margin-bottom: 14px; box-shadow: 0 1px 2px rgba(16,24,40,.05); }
     .task-card-grid:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(16,24,40,.10); border-color: var(--portal-border-hover); }
-    .btn-back-light { background: var(--portal-bg-card); color: var(--portal-text-secondary); border: 1px solid var(--portal-border); padding: 9px 16px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; font-size:13px; font-weight:600; }
+    .btn-back-light { background: var(--portal-bg-card); color: var(--portal-text-secondary); border: 1px solid var(--portal-border); padding: 9px 16px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: 0.2s; font-size:13px; font-weight: 500; }
     .btn-back-light:hover { background: var(--portal-bg-secondary); color: var(--portal-text); }
     ::placeholder { color: var(--portal-text-secondary); }
     ::-webkit-scrollbar { width: 8px; height: 12px; }

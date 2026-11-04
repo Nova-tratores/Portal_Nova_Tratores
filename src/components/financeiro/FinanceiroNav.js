@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import {
   LayoutDashboard, Columns3, BarChart3, History, Receipt, Users,
-  PlusCircle, FileText, DollarSign, UserCog, AlertTriangle, Search, FileSignature
+  PlusCircle, FileText, DollarSign, UserCog, AlertTriangle, Search, CalendarDays, FileSignature
 } from 'lucide-react'
 
 const ICONS = {
@@ -21,6 +21,7 @@ const ICONS = {
   vencidos: AlertTriangle,
   rastreio: Search,
   notas: FileText,
+  agenda: CalendarDays,
   recibos: FileSignature,
 }
 
@@ -31,6 +32,8 @@ const LINKS_FINANCEIRO = [
   { label: 'Rastreio', href: '/financeiro/rastreio', icon: 'rastreio' },
   { label: 'Vencidos', href: '/financeiro/vencidos', icon: 'vencidos' },
   { label: 'Relatorio', href: '/financeiro/relatorio-pagar', icon: 'dashboard' },
+  // Agenda de pagamentos da semana: só Dev e Financeiro (o servidor também barra)
+  { label: 'Agenda', href: '/financeiro/agenda', icon: 'agenda', soDevFinanceiro: true },
 ]
 
 const LINKS_POSVENDAS = [
@@ -60,14 +63,23 @@ export default function FinanceiroNav({ children = null }) {
   const [vencidosCount, setVencidosCount] = useState(0)
   const isMobile = useIsMobile()
 
-  const { pode } = usePermissoes(userProfile?.id)
+  const { pode, isDev } = usePermissoes(userProfile?.id)
 
   const funcao = userProfile?.funcao
   const linksFuncao = funcao === 'Financeiro' ? LINKS_FINANCEIRO
     : funcao === 'Peças' ? LINKS_PECAS
     : LINKS_POSVENDAS
   // Notas fiscais (cache PDF + XML) vale pela PERMISSÃO, não pela função
-  const links = [...(pode('financeiro', 'notas') ? [...linksFuncao, LINK_NOTAS] : linksFuncao), LINK_RECIBOS]
+  const comNotas = [...(pode('financeiro', 'notas') ? [...linksFuncao, LINK_NOTAS] : linksFuncao), LINK_RECIBOS]
+  // Agenda (grupo Financeiro): só Dev ou função Financeiro; Dev de outra função também vê a aba
+  const podeAgenda = isDev || funcao === 'Financeiro'
+  const linkAgenda = LINKS_FINANCEIRO.find(l => l.soDevFinanceiro)
+  // Agenda logo depois do Kanban; aba Despesas fora da faixa (José, 30/10/2026), a tela segue no endereço dela
+  const semAgenda = comNotas.filter(l => !l.soDevFinanceiro && l.icon !== 'pagar')
+  const posKanban = semAgenda.findIndex(l => l.icon === 'kanban') + 1
+  const comAgenda = podeAgenda ? [...semAgenda.slice(0, posKanban), linkAgenda, ...semAgenda.slice(posKanban)] : semAgenda
+  // Vencidos sempre por último
+  const links = [...comAgenda.filter(l => l.icon !== 'vencidos'), ...comAgenda.filter(l => l.icon === 'vencidos')]
 
   // Contar vencidos para badge
   useEffect(() => {
@@ -133,13 +145,12 @@ export default function FinanceiroNav({ children = null }) {
                 // Guias: fechadas com letra PRETA; a ATIVA é BRANCA com letra preta,
                 // "colada" no conteúdo como nas outras faixas (José, 15/10/2026 — antes preta)
                 // #fefefe/#111111: o modo escuro não remapeia essas duas
-                color: isActive ? '#111111' : hasVencidos ? '#b91111' : '#111111',
-                background: isActive ? '#fefefe' : hasVencidos ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.45)',
+                color: '#111111',
+                background: isActive ? '#fefefe' : 'rgba(255,255,255,0.45)',
                 boxShadow: isActive ? '0 -2px 6px rgba(0,0,0,0.15)' : 'none',
                 textDecoration: 'none', transition: 'all 0.15s',
                 whiteSpace: 'nowrap',
                 position: 'relative',
-                animation: hasVencidos && !isActive ? 'pulse-vencido 2s ease-in-out infinite' : 'none',
               }}>
                 <Icon size={17} strokeWidth={isActive ? 2.5 : 2} />
                 {link.label}
@@ -169,12 +180,6 @@ export default function FinanceiroNav({ children = null }) {
         )}
       </div>
 
-      <style>{`
-        @keyframes pulse-vencido {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.6; }
-        }
-      `}</style>
     </div>
   )
 }
