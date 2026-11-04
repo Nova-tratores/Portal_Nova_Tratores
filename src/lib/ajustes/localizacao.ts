@@ -96,7 +96,10 @@ export async function definirLocalizacao(
   for (const slot of SLOTS_PRIMARIOS) {
     const { key, valor } = slots[slot];
     if (valor === valores[slot]) continue; // sem mudança real
-    await editarCaractProduto(alvo.empresa, alvo.codigo_produto, key, valores[slot], autor, 'localizacao-definir');
+    // campo vazio = a peça ainda não tem a característica na Omie: Incluir direto.
+    // Tentar Alterar antes dava erro "não cadastrada" em cada campo, e 3 campos de
+    // uma peça nova já quase acionavam o freio da porta Omie (4 erros = pausa de 90 s).
+    await editarCaractProduto(alvo.empresa, alvo.codigo_produto, key, valores[slot], autor, 'localizacao-definir', { preferirIncluir: valor.trim() === '' });
     gravou[key] = valores[slot];
   }
   // secundárias: só limpa se tinham valor (normalização)

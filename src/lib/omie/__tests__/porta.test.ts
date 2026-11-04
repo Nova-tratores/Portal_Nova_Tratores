@@ -134,6 +134,20 @@ describe('omie()', () => {
     expect(chamadas).toHaveLength(7);
   });
 
+  it('freio: "não/já cadastrada" do vaivém Alterar↔Incluir de característica não conta', async () => {
+    Object.assign(LIMITES, { freioErros: 4, freioPausaMs: 90_000 });
+    respostas = [
+      ...Array(5).fill({ faultstring: 'ERROR: Caracteristica do Produto nao cadastrada.' }),
+      { faultstring: 'ERROR: Característica já cadastrada para o produto.' },
+    ];
+    for (let i = 0; i < 6; i++) await omie(NOVA, '/x/', i < 5 ? 'AlterarCaractProduto' : 'IncluirCaractProduto', {}).catch(() => {});
+    expect(chamadas).toHaveLength(6); // nenhuma pausa
+    // outro erro do mesmo método continua contando
+    respostas = Array(4).fill({ faultstring: 'ERROR: Produto inválido' });
+    for (let i = 0; i < 4; i++) await omie(NOVA, '/x/', 'AlterarCaractProduto', {}).catch(() => {});
+    await expect(omie(NOVA, '/x/', 'AlterarCaractProduto', {})).rejects.toBeInstanceOf(OmieBloqueioError);
+  });
+
   it('leitura repete em falha de rede e em engasgo da Omie', async () => {
     respostas = [new TypeError('fetch failed'), { faultstring: 'SOAP-ERROR: Broken response from Application Server (BG)' }, { ok: 1 }];
     const r = await omie(NOVA, '/x/', 'ListarPedidos', {}, RAPIDO);

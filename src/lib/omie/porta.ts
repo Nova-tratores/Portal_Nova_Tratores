@@ -342,6 +342,9 @@ export function ehSemRegistros(fault: string): boolean {
 /** Conta um erro do método; no N-ésimo seguido (em até 5 min) pausa o método aqui e no banco. */
 function contarErroFreio(chave: string, metodo: string, fault: string) {
   if (ehSemRegistros(fault)) return;
+  // gravarCaractProduto tenta Alterar e cai pra Incluir (e vice-versa): "não cadastrada"
+  // / "já cadastrada" é a resposta esperada desse vaivém, não erro de verdade.
+  if (/CaractProduto$/.test(metodo) && /(n[aã]o|j[aá])\s+(est[aá]\s+)?(cadastrad|associad)/i.test(fault)) return;
   const s = estado();
   const m = (s.errosSeguidos ??= new Map());
   const k = `${chave}|${metodo}`;

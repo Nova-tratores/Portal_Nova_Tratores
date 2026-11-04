@@ -328,7 +328,7 @@ async function atualizarCaractSupabase(label: string, codigoProduto: number | st
 
 /** Edita a característica de um produto: grava no Omie + atualiza Supabase + audita.
  *  `acao` diferencia edição normal ('editar') de reversão ('reverter') no audit_log. */
-export async function editarCaractProduto(empresa: string, codigoProduto: number | string, nome: string, conteudo: unknown, autor?: AutorEdicao, acao: string = 'editar'): Promise<any> {
+export async function editarCaractProduto(empresa: string, codigoProduto: number | string, nome: string, conteudo: unknown, autor?: AutorEdicao, acao: string = 'editar', opts: { preferirIncluir?: boolean } = {}): Promise<any> {
   if (!empresa || !codigoProduto || !nome) throw new Error('empresa, codigo_produto e nome sao obrigatorios');
   if (caractOculta(nome)) throw new Error(`Caracteristica "${nome}" esta oculta e nao pode ser editada aqui`);
   const contaId = contaIdPorLabel(empresa);
@@ -336,7 +336,7 @@ export async function editarCaractProduto(empresa: string, codigoProduto: number
   const empresaLabel = String(empresa).toUpperCase();
   const cp = Number(codigoProduto) || codigoProduto;
   const novo = conteudo == null ? '' : String(conteudo);
-  await gravarCaractProduto(contaId, { codigoProduto, nomeCaract: nome, conteudo });
+  await gravarCaractProduto(contaId, { codigoProduto, nomeCaract: nome, conteudo, preferirIncluir: opts.preferirIncluir });
   const { valorAntigo, codigo, descricao } = await atualizarCaractSupabase(empresaLabel, cp, nome, conteudo);
   if (autor) {
     await registrarAuditLog({
