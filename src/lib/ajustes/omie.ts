@@ -217,7 +217,12 @@ export async function obterPosicaoEstoqueBulk(conta: Conta, opts: Record<string,
       paginaKey: 'nPagina', regKey: 'nRegPorPagina', regValue: 500,
       totalKeys: ['nTotPaginas', 'total_de_paginas'],
       listaKeys: ['produtos', 'lista', 'posicao'],
-      debugTag: 'ListarPosEstoque'
+      debugTag: 'ListarPosEstoque',
+      // progresso por página (04/11/2026): a geração Mahindra ficava 15+ min em
+      // "2 locais de estoque" sem dar para saber se estava lenta ou parada
+      onPagina: (_lista: any[], pagina: number, totalPaginas: number) => {
+        if (opts.onProgress) opts.onProgress(`local "${local.nome}": página ${pagina}${totalPaginas ? '/' + totalPaginas : ''}`);
+      },
     });
     for (const p of itens) {
       const id = p && (p.nCodProd ?? p.codigo_produto ?? p.nCodProduto);

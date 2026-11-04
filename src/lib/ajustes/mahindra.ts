@@ -198,6 +198,11 @@ interface ParamsGeracao {
 // interrompidos e NAO grava resultado; o processo novo (no boot ou no proximo
 // /status) assume o job — com UPDATE condicional, um so' processo pega — e gera de novo.
 const MAX_RETOMADAS = 3;
+// Sinal de vida: enquanto gera, o processo regrava o job a cada 30 s. Sem sinal por
+// 2,5 min = o processo morreu. (04/11 15:08: o aviso no SIGTERM NAO chegou ao banco
+// num deploy real — o processo morre antes —, entao o pulso e' quem decide.)
+const PULSO_MS = 30_000;
+const SEM_PULSO_MS = 150_000;
 type ParamsVivos = ParamsGeracao & { retomadas: number };
 type EstadoProc = { jobs: Map<number, ParamsVivos>; encerrando: boolean; sigterm: boolean };
 function estadoProc(): EstadoProc {
@@ -264,6 +269,9 @@ function executarJob(jobId: number, conta: Conta, params: ParamsGeracao, retomad
   const st = estadoProc();
   ouvirSigterm();
   st.jobs.set(jobId, { ...params, retomadas });
+  const pulso = setInterval(() => {
+    if (!st.encerrando) void atualizarJob(jobId, { progresso: { params, retomadas } });
+  }, PULSO_MS);
   (async () => {
     try {
       const templateBuffer = await templateDe(params);
@@ -290,6 +298,7 @@ function executarJob(jobId: number, conta: Conta, params: ParamsGeracao, retomad
       await falharJob(jobId, e.faultstring || e.message);
       console.error(`[mahindra ${conta}]`, e);
     } finally {
+      clearInterval(pulso);
       st.jobs.delete(jobId);
     }
   })();
@@ -324,7 +333,11 @@ async function tentarRetomar(conta: Conta, job: any): Promise<boolean> {
 function jobOrfao(job: any): boolean {
   if (!job || job.status !== 'rodando') return false;
   if (estadoProc().jobs.has(job.id)) return false;
-  return !!(job.progresso as any)?.interrompido || !jobEstaVivo(job);
+  const prog = (job.progresso || {}) as { interrompido?: boolean; params?: unknown };
+  if (prog.interrompido) return true;
+  if (!prog.params) return !jobEstaVivo(job); // job antigo, sem pulso
+  const ts = new Date(job.atualizado_em || job.iniciado_em).getTime();
+  return Number.isFinite(ts) && Date.now() - ts > SEM_PULSO_MS;
 }
 
 /** Boot do servidor: retoma as geracoes que um deploy interrompeu (chamado pelo instrumentation). */
