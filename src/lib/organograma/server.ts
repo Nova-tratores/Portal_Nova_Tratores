@@ -7,7 +7,8 @@ import type { AcessoPessoa, TelaMarcada, TelaOpcao } from './acessos';
 import { renomearNaLista } from './tarefas';
 import { listarFuncionariosRH, rhConfigurado } from '@/lib/frota/rh';
 import { juntarPessoas, type PessoaOrg, type UsuarioPortal, type VinculoOrg } from './arvore';
-import type { FuncaoOrg, TarefaOrg } from './tarefas';
+import type { TarefaOrg } from './tarefas';
+import { CAMPOS_FICHA, fichaVazia, type FichaFuncao } from './fichas';
 
 const faltando = (e: unknown) =>
   /PGRST205|PGRST204|42P01|42703|schema cache|does not exist/i.test(`${(e as { code?: string })?.code || ''} ${(e as Error)?.message || ''}`);
@@ -104,7 +105,9 @@ export interface DadosOrganograma {
   migracaoFaltando: boolean;
   rhConfigurado: boolean;
   tarefas: TarefaOrg[];
-  funcoes: FuncaoOrg[];
+  funcoes: FichaFuncao[];
+  /** sql/organograma-fichas.sql ainda não aplicada (quem ocupa cada função funciona igual) */
+  fichasFaltando: boolean;
   /** sql/organograma-tarefas.sql ainda não aplicada */
   tarefasFaltando: boolean;
   /** sql/organograma-tarefa-telas.sql ainda não aplicada */
@@ -113,15 +116,21 @@ export interface DadosOrganograma {
 
 const CAMPOS_TAREFA = 'id,origem,ordem,numero,assunto,acao,onde,quando,frequencia,quem,justificativa,destinatario,areas';
 
-async function lerTarefas(): Promise<{ tarefas: TarefaOrg[]; funcoes: FuncaoOrg[]; tarefasFaltando: boolean; telasFaltando: boolean }> {
+export async function lerTarefas(): Promise<{ tarefas: TarefaOrg[]; funcoes: FichaFuncao[]; tarefasFaltando: boolean; telasFaltando: boolean; fichasFaltando: boolean }> {
   const consulta = (campos: string) => supabaseAdmin.from('org_tarefas').select(campos).eq('ativo', true).order('origem').order('ordem').range(0, 999);
-  const [t0, f] = await Promise.all([consulta(`${CAMPOS_TAREFA},telas`), supabaseAdmin.from('org_funcoes').select('funcao,pessoas')]);
+  const [t0, f, cols] = await Promise.all([
+    consulta(`${CAMPOS_TAREFA},telas`),
+    supabaseAdmin.from('org_funcoes').select('*'),
+    supabaseAdmin.from('org_funcoes').select('funcao,status').limit(1),
+  ]);
+  const fichasFaltando = !!cols.error && faltando(cols.error);
   // Sem a coluna `telas` as tarefas continuam aparecendo; só a marcação fica desligada.
   const telasFaltando = !!t0.error && /telas/.test(t0.error.message) && faltando(t0.error);
   const t = telasFaltando ? await consulta(CAMPOS_TAREFA) : t0;
   const erro = t.error || f.error;
-  if (erro) { if (faltando(erro)) return { tarefas: [], funcoes: [], tarefasFaltando: true, telasFaltando: false }; throw new Error(erro.message); }
-  return { tarefas: (t.data || []) as unknown as TarefaOrg[], funcoes: (f.data || []) as FuncaoOrg[], tarefasFaltando: false, telasFaltando };
+  if (erro) { if (faltando(erro)) return { tarefas: [], funcoes: [], tarefasFaltando: true, telasFaltando: false, fichasFaltando: true }; throw new Error(erro.message); }
+  const funcoes = ((f.data || []) as Array<Partial<FichaFuncao> & { funcao: string }>).map((r) => ({ ...fichaVazia(r.funcao), ...r }) as FichaFuncao);
+  return { tarefas: (t.data || []) as unknown as TarefaOrg[], funcoes, tarefasFaltando: false, telasFaltando, fichasFaltando };
 }
 
 /** Telas com página própria, POS e PPV primeiro. */
@@ -175,8 +184,25 @@ export async function renomearFuncao(de: string, para: string, pessoas: string[]
     const { error } = await supabaseAdmin.from('org_tarefas').update({ quem: renomearNaLista(t.quem as string[], de, para) }).eq('id', t.id);
     if (error) throw falha(error);
   }
+  // A ficha vai junto com o nome (se o destino ainda não tem ficha própria).
+  const { data: velha } = await supabaseAdmin.from('org_funcoes').select('*').eq('funcao', de).maybeSingle();
+  const { data: nova } = await supabaseAdmin.from('org_funcoes').select('*').eq('funcao', para).maybeSingle();
+  const temFicha = (r: Record<string, unknown> | null) => !!(r && (r.missao || (Array.isArray(r.responsabilidades) && r.responsabilidades.length)));
+  if (velha && temFicha(velha) && !temFicha(nova)) {
+    const copia: Record<string, unknown> = {};
+    for (const c of [...CAMPOS_FICHA, 'tipo', 'status', 'aprovado_por', 'aprovado_em', 'rascunho_ia']) if (c in velha) copia[c] = (velha as Record<string, unknown>)[c];
+    const { error } = await supabaseAdmin.from('org_funcoes').update(copia).eq('funcao', para);
+    if (error) throw falha(error);
+  }
   const { error: e3 } = await supabaseAdmin.from('org_funcoes').delete().eq('funcao', de);
   if (e3) throw falha(e3);
+}
+
+/** Grava campos da ficha / quem ocupa (upsert: só as colunas enviadas mudam). */
+export async function gravarFicha(funcao: string, patch: Record<string, unknown>, userId: string): Promise<void> {
+  const { error } = await supabaseAdmin.from('org_funcoes').upsert(
+    { funcao, ...patch, atualizado_em: new Date().toISOString(), atualizado_por: userId }, { onConflict: 'funcao' });
+  if (error) throw Object.assign(new Error(error.message), { code: error.code, faltando: faltando(error) });
 }
 
 export async function gravarFuncao(funcao: string, pessoas: string[], userId: string): Promise<void> {

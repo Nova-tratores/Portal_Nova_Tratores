@@ -7,14 +7,16 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { RefreshCw, X, Crown, EyeOff, Eye, Network, ListChecks, Users, Pencil, Search } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { montarArvore, contarEquipe, criaCiclo, semAcento, type NoOrg, type PessoaOrg, type VinculoOrg } from '@/lib/organograma/arvore'
-import { ligarFuncoes, tarefasPorPessoa, funcoesDaPessoa, tarefasSemPessoa, ORIGENS, alternarOrdem, ordenarPor, type Ordem, type TarefaOrg, type FuncaoOrg, type LigacaoFuncao } from '@/lib/organograma/tarefas'
+import { ligarFuncoes, tarefasPorPessoa, funcoesDaPessoa, tarefasSemPessoa, ORIGENS, alternarOrdem, ordenarPor, type Ordem, type TarefaOrg, type LigacaoFuncao } from '@/lib/organograma/tarefas'
+import { fichaVazia, nomeDaFicha, tipoPadrao, type FichaFuncao } from '@/lib/organograma/fichas'
+import FichaFuncaoJanela from './FichaFuncao'
 import { sugerirFuncoes, type Contagem } from '@/lib/organograma/sugestoes'
 import { compararAcessos, NOME_NIVEL_REAL, NOME_SITUACAO, type AcessoPessoa, type Situacao, type TelaMarcada, type TelaOpcao } from '@/lib/organograma/acessos'
 import css from './organograma.module.css'
 
 type Resp = {
   pessoas: PessoaOrg[]; vinculos: VinculoOrg[]; migracaoFaltando: boolean; rhConfigurado: boolean; podeEditar: boolean
-  tarefas: TarefaOrg[]; funcoes: FuncaoOrg[]; tarefasFaltando: boolean; error?: string
+  tarefas: TarefaOrg[]; funcoes: FichaFuncao[]; tarefasFaltando: boolean; fichasFaltando: boolean; error?: string
   telas: TelaOpcao[]; acessos: Record<string, AcessoPessoa> | null; telasFaltando: boolean
 }
 
@@ -486,13 +488,27 @@ function FragmentoGrupo({ titulo: t, n, colunas = 5, children }: { titulo: strin
   )
 }
 
-function VistaFuncoes({ dados, ligacoes, onMudou, onRenomeou }: { dados: Resp; ligacoes: LigacaoFuncao[]; onMudou: (f: FuncaoOrg) => void; onRenomeou: () => void }) {
+function VistaFuncoes({ dados, ligacoes, onMudou, onRenomeou, onAbrir }: { dados: Resp; ligacoes: LigacaoFuncao[]; onMudou: (funcao: string, patch: Partial<FichaFuncao>) => void; onRenomeou: () => void; onAbrir: (funcao: string) => void }) {
   type ColFuncao = 'funcao' | 'tarefas' | 'pessoas'
   const [ordem, setOrdem] = useState<Ordem<ColFuncao>>(null)
   const [renomeando, setRenomeando] = useState<{ funcao: string; nome: string } | null>(null)
   const [salvando, setSalvando] = useState('')
   const [msg, setMsg] = useState<{ funcao: string; txt: string; ok: boolean } | null>(null)
   const pessoasMap = new Map(dados.pessoas.map((p) => [p.chave, p]))
+  const fichas = new Map(dados.funcoes.map((f) => [f.funcao, f]))
+  const ehGrupo = (funcao: string) => (fichas.get(funcao)?.tipo || tipoPadrao(funcao)) === 'grupo'
+  const seloFicha = (funcao: string) => {
+    if (ehGrupo(funcao)) return <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>grupo — sem ficha</span>
+    const f = fichas.get(funcao)
+    const tem = !!(f && (f.missao || f.responsabilidades?.length))
+    const [txt, bg, cor] = !tem ? ['sem ficha', '#f1f5f9', '#475569'] : f!.status === 'aprovada' ? ['aprovada', '#dcfce7', '#166534'] : ['rascunho', '#fef3c7', '#92400e']
+    return (
+      <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span className={css.chip} style={{ background: bg, color: cor }}>{txt}</span>
+        {(tem || dados.podeEditar) && <button onClick={() => onAbrir(funcao)} style={{ ...inp, padding: '4px 10px', fontSize: 12, cursor: 'pointer', fontWeight: 700 }}>{tem ? 'Abrir ficha' : 'Criar ficha'}</button>}
+      </span>
+    )
+  }
   const editar = dados.podeEditar && !dados.tarefasFaltando
   const nomePessoas = (l: LigacaoFuncao) => l.pessoas.map((c) => pessoasMap.get(c)?.nome || c).join(', ')
   const valorFuncao: Record<ColFuncao, (l: LigacaoFuncao) => string | number> = { funcao: (l) => l.funcao, tarefas: (l) => l.tarefas, pessoas: nomePessoas }
@@ -540,20 +556,22 @@ function VistaFuncoes({ dados, ligacoes, onMudou, onRenomeou }: { dados: Resp; l
       })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || `Erro ${r.status}`)
-      onMudou({ funcao, pessoas })
+      onMudou(funcao, { pessoas })
       setMsg({ funcao, txt: 'Salvo ✓', ok: true })
     } catch (e) { setMsg({ funcao, txt: (e as Error).message, ok: false }) } finally { setSalvando('') }
   }
   return (
     <div style={{ ...card, overflow: 'auto' }}>
       <div style={{ padding: '14px 18px' }}>
-        <h3 style={titulo}>Quem é cada função</h3>
+        <h3 style={titulo}>Funções: quem ocupa e a ficha</h3>
         <p style={sub}>As listas falam em funções (“Auxiliar Adm 1”, “Estagiário”…). Diga quem ocupa cada uma e as tarefas aparecem na pessoa.
-          Função com o nome de alguém (“Henri”) liga sozinha — <em>automático</em> — até alguém salvar outra escolha.</p>
+          Função com o nome de alguém (“Henri”) liga sozinha — <em>automático</em> — até alguém salvar outra escolha.
+          A <strong>ficha</strong> diz o que se espera da função: missão, a quem responde, responsabilidades (que agrupam as tarefas), autoridade, requisitos e indicadores{dados.podeEditar ? ' — a IA rascunha, você revisa e aprova' : ''}.</p>
+        {dados.fichasFaltando && <p style={{ ...sub, marginTop: 4, color: '#92400e' }}>Para as fichas falta aplicar <code>sql/organograma-fichas.sql</code> no Supabase.</p>}
         {editar && <p style={{ ...sub, marginTop: 4 }}>{erroHist ? `Sugestões indisponíveis: ${erroHist}` : historico ? `Sugestão pelo histórico: quem mais fez, nos últimos ${historico.dias} dias, as tarefas da função que deixam rastro no portal (abrir e concluir OS, cheque de revisão, garantias, requisições, ligações de feedback). Nada é ligado sem você aceitar.` : 'Lendo o histórico para sugerir…'}</p>}
       </div>
       <table className={css.tabela}>
-        <thead><tr><ThOrdem coluna="funcao" ordem={ordem} onOrdem={setOrdem}>Função</ThOrdem><ThOrdem coluna="tarefas" ordem={ordem} onOrdem={setOrdem}>Tarefas</ThOrdem><ThOrdem coluna="pessoas" ordem={ordem} onOrdem={setOrdem}>Pessoas</ThOrdem>{editar && <th>Sugestão pelo histórico</th>}{editar && <th>Adicionar</th>}</tr></thead>
+        <thead><tr><ThOrdem coluna="funcao" ordem={ordem} onOrdem={setOrdem}>Função</ThOrdem><ThOrdem coluna="tarefas" ordem={ordem} onOrdem={setOrdem}>Tarefas</ThOrdem><ThOrdem coluna="pessoas" ordem={ordem} onOrdem={setOrdem}>Pessoas</ThOrdem><th>Ficha</th>{editar && <th>Sugestão pelo histórico</th>}{editar && <th>Adicionar</th>}</tr></thead>
         <tbody>
           {linhas.map((l) => (
             <tr key={l.funcao}>
@@ -569,7 +587,8 @@ function VistaFuncoes({ dados, ligacoes, onMudou, onRenomeou }: { dados: Resp; l
                   </span>
                 ) : (
                   <>
-                    {l.funcao}
+                    {nomeDaFicha(fichas.get(l.funcao) || { funcao: l.funcao, titulo: null })}
+                    {nomeDaFicha(fichas.get(l.funcao) || { funcao: l.funcao, titulo: null }) !== l.funcao && <span style={{ fontWeight: 400, fontSize: 11, color: 'var(--portal-text-muted)' }}> ({l.funcao})</span>}
                     {editar && <button aria-label={`Renomear ${l.funcao}`} title="Renomear" disabled={!!salvando} onClick={() => setRenomeando({ funcao: l.funcao, nome: l.funcao })} style={{ border: 'none', background: 'transparent', color: 'var(--portal-text-muted)', cursor: 'pointer', marginLeft: 6, padding: 0, verticalAlign: 'middle' }}><Pencil size={13} /></button>}
                   </>
                 )}
@@ -586,6 +605,7 @@ function VistaFuncoes({ dados, ligacoes, onMudou, onRenomeou }: { dados: Resp; l
                 {l.automatico && l.pessoas.length > 0 && <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}> automático</span>}
                 {msg?.funcao === l.funcao && <span style={{ fontSize: 12, marginLeft: 6, color: msg.ok ? '#047857' : '#b91c1c', fontWeight: 700 }}>{msg.txt}</span>}
               </td>
+              <td style={{ minWidth: 150 }}>{seloFicha(l.funcao)}</td>
               {editar && (
                 <td style={{ minWidth: 240, fontSize: 12 }}>
                   {(() => {
@@ -635,6 +655,7 @@ export default function Organograma() {
   const [erroSalvar, setErroSalvar] = useState('')
   const [verFora, setVerFora] = useState(false)
   const [modo, setModo] = useState<'arvore' | 'tarefas' | 'funcoes'>('arvore')
+  const [fichaAberta, setFichaAberta] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro('')
@@ -642,7 +663,7 @@ export default function Organograma() {
       const r = await fetch('/api/organograma', { headers: await authHeaders() })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || `Erro ${r.status}`)
-      setDados({ tarefas: [], funcoes: [], tarefasFaltando: false, telas: [], acessos: null, telasFaltando: false, ...j })
+      setDados({ tarefas: [], funcoes: [], tarefasFaltando: false, fichasFaltando: false, telas: [], acessos: null, telasFaltando: false, ...j })
     } catch (e) { setErro((e as Error).message) } finally { setCarregando(false) }
   }, [])
   useEffect(() => { carregar() }, [carregar])
@@ -652,6 +673,10 @@ export default function Organograma() {
   const porPessoa = useMemo(() => (dados ? tarefasPorPessoa(dados.tarefas, ligacoes) : new Map<string, TarefaOrg[]>()), [dados, ligacoes])
   const nTarefas = useMemo(() => new Map([...porPessoa.entries()].map(([k, v]) => [k, v.length])), [porPessoa])
   const pessoaSel = dados?.pessoas.find((p) => p.chave === sel) || null
+
+  const mudarFicha = (funcao: string, patch: Partial<FichaFuncao>) => setDados((d) => d && ({
+    ...d, funcoes: [...d.funcoes.filter((x) => x.funcao !== funcao), { ...(d.funcoes.find((x) => x.funcao === funcao) || fichaVazia(funcao)), ...patch }],
+  }))
 
   const salvar = async (m: Partial<VinculoOrg>): Promise<boolean> => {
     if (!sel || !dados) return false
@@ -712,8 +737,7 @@ export default function Organograma() {
       {modo === 'tarefas' && <VistaTarefas dados={dados} ligacoes={ligacoes} porPessoa={porPessoa} onSel={setSel}
         onTelas={(id, telas) => setDados({ ...dados, tarefas: dados.tarefas.map((x) => x.id === id ? { ...x, telas } : x) })} />}
       {modo === 'funcoes' && (
-        <VistaFuncoes dados={dados} ligacoes={ligacoes}
-          onMudou={(f) => setDados({ ...dados, funcoes: [...dados.funcoes.filter((x) => x.funcao !== f.funcao), f] })} onRenomeou={carregar} />
+        <VistaFuncoes dados={dados} ligacoes={ligacoes} onMudou={mudarFicha} onRenomeou={carregar} onAbrir={setFichaAberta} />
       )}
 
       {modo === 'arvore' && (
@@ -758,6 +782,16 @@ export default function Organograma() {
             </div>
           )}
         </>
+      )}
+
+      {fichaAberta && (
+        <FichaFuncaoJanela key={fichaAberta}
+          ficha={{ ...(dados.funcoes.find((x) => x.funcao === fichaAberta) || fichaVazia(fichaAberta)), pessoas: ligacoes.find((l) => l.funcao === fichaAberta)?.pessoas || [] }}
+          tarefas={dados.tarefas.filter((t) => t.quem.includes(fichaAberta))}
+          pessoas={dados.pessoas}
+          funcoes={[...new Set([...ligacoes.map((l) => l.funcao), ...dados.funcoes.map((f) => f.funcao)])].map((f) => dados.funcoes.find((x) => x.funcao === f) || fichaVazia(f))}
+          podeEditar={dados.podeEditar} fichasFaltando={dados.fichasFaltando}
+          onFechar={() => setFichaAberta(null)} onSalvo={(patch) => mudarFicha(fichaAberta, patch)} />
       )}
 
       {pessoaSel && (
