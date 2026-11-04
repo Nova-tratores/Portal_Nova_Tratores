@@ -5,6 +5,7 @@
 import { useState, useSyncExternalStore } from 'react'
 import { useAutorizacoes } from './AutorizacoesJanela'
 import CaixinhaMec from './CaixinhaMec'
+import { CAIXINHA_ATIVA } from '@/lib/mecanicos/descontos-tecnico'
 import TemparioJanela from './TemparioJanela'
 
 export type ModalMec = 'tribunal' | 'ocorrencias' | 'liga' | 'comissoes' | 'autorizacoes' | null
@@ -87,7 +88,7 @@ export function MenuRadialMec({ onAbrir, podio, onPodio, onTratorilson }: { onAb
           <span className="mi-dica" role="tooltip"><b>{x.t}</b><small>{x.sub}</small></span>
         </button>
         {/* a caixinha dos técnicos logo depois do Tribunal (José, 28/10/2026) */}
-        {x.k === 'tribunal' && <CaixinhaMec icone />}
+        {CAIXINHA_ATIVA && x.k === 'tribunal' && <CaixinhaMec icone />}
         </span>
       ))}
       {tempario && <TemparioJanela onFechar={() => setTempario(false)} />}

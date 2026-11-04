@@ -8,6 +8,7 @@
 //  • Linha do tempo do mês, motivos mais comuns e os últimos 6 meses.
 // Atualiza sozinho pelo Realtime (tecnico_ocorrencias / tecnico_justificativas).
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useModalMec, abrirModalMec, contagensMec } from './BotoesMecanicos'
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts'
 import { authHeaders } from '@/lib/auth/client'
@@ -27,12 +28,13 @@ import PodioMeses from './PodioMeses'
 import TemparioJanela from './TemparioJanela'
 import { LigaJanela, JanelaEmbutida } from './JanelasInfo'
 import { AutorizacoesJanela, useAutorizacoes } from './AutorizacoesJanela'
+import { PontosPorTecnico, FontesDosPontos } from './TribunalPontos'
 
 // as janelas do topo viraram abas da Equipe (José, 29/10/2026); os técnicos do mês e a caixinha foram para Comissões
 const ABAS_EQUIPE_BASE: AbaAssunto[] = [
   { id: 'horas', cor: '#0369a1', ic: 'fa-bullseye', titulo: 'Metas', sub: 'horas e km da equipe no mês', alvos: ['oc-horas'] },
   { id: 'fantasmas', cor: '#be123c', ic: 'fa-ghost', titulo: 'Fantasmas', sub: 'carro × relatório × OS', alvos: ['oc-fantasmas'] },
-  { id: 'comissoes', cor: '#047857', ic: 'fa-sack-dollar', titulo: 'Comissões', sub: 'técnicos, escritório e caixinha', alvos: ['oc-carreira', 'oc-radar'] },
+  { id: 'comissoes', cor: '#047857', ic: 'fa-sack-dollar', titulo: 'Comissões', sub: 'técnicos e escritório', alvos: ['oc-carreira', 'oc-radar'] },
   { id: 'podio', cor: '#b45309', ic: 'fa-trophy', titulo: 'Pódio', sub: 'vencedor de cada mês' },
   // Tribunal e Ocorrências juntos (José, 29/10/2026: "tem que ficar junto, o ocorrência tá horrível para mexer")
   { id: 'tribunal', cor: '#9f1239', ic: 'fa-gavel', titulo: 'Tribunal e ocorrências', sub: 'defesas, pontos e motivos', alvos: ['oc-tribunal', 'oc-pontos'] },
@@ -72,14 +74,9 @@ const TXT = 'var(--portal-text, #0f172a)'
 const MUDO = 'var(--portal-text-muted, #64748b)'
 const BORDA = 'var(--portal-border, #e5e7eb)'
 
-const mesSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date()).slice(0, 7)
 const nomeMes = (m: string) => { const n = MESES[Number(m.slice(5, 7)) - 1] || ''; return `${n.charAt(0).toUpperCase()}${n.slice(1)} de ${m.slice(0, 4)}` }
 const mesCurto = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1].slice(0, 3)}/${m.slice(2, 4)}`
 const br = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
-const andarMes = (m: string, n: number) => {
-  const d = new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1 + n, 1))
-  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
-}
 const diasEntre = (a: string, b: string) => Math.round((Date.parse(b) - Date.parse(a)) / 86_400_000)
 const hash = (n: number) => { let x = n * 2654435761; x ^= x >>> 13; return Math.abs(x) % 1000 / 1000 }
 const iniciais = (n: string) => n.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0]).join('').toUpperCase()
@@ -93,7 +90,7 @@ export default function RadarOcorrencias() {
   const { dados: carreira } = useCarreira()
   const [carta, setCarta] = useState<number | null>(null)
   // o mesmo mês dos Resultados (José, 03/11/2026: não precisa escolher de novo ao entrar na Equipe)
-  const [mes, setMes] = useMesGestao()
+  const [mes] = useMesGestao()
   const [d, setD] = useState<Resp | null>(null)
   const [erro, setErro] = useState('')
   const [carregando, setCarregando] = useState(true)
@@ -178,7 +175,6 @@ export default function RadarOcorrencias() {
     }
   }, [d])
 
-  const ehAtual = mes === mesSP()
   // antigas × atuais (totais do mês escolhido, do anterior e média dos anteriores)
   const comp = useMemo(() => {
     const h = d?.historico || [], n = d?.meses?.length || 0
@@ -208,12 +204,7 @@ export default function RadarOcorrencias() {
       {/* barra do mês: navegador de mês + Tribunal e Ocorrências (José, 20/10/2026: "algo profissional") */}
       <div className="rdr-topo">
       <div className="rdr-tb">
-        <div className="rdr-mes">
-          <button type="button" onClick={() => setMes(andarMes(mes, -1))} aria-label="Mês anterior"><i className="fas fa-chevron-left" /></button>
-          <span><i className="fas fa-calendar" /> {nomeMes(mes)}</span>
-          <button type="button" onClick={() => setMes(andarMes(mes, 1))} disabled={ehAtual} aria-label="Próximo mês"><i className="fas fa-chevron-right" /></button>
-        </div>
-        {!ehAtual && <button type="button" className="rdr-hoje" onClick={() => setMes(mesSP())}><i className="fas fa-rotate-left" /> Mês atual</button>}
+        {/* o mês saiu daqui e foi para o topo do Centro (PeriodoNoTopo, José 04/11/2026) */}
         {carregando && !d && <span className="rdr-carr"><i className="fas fa-circle-notch fa-spin" /> carregando…</span>}
         <span className="rdr-vivo" title={`ao vivo · cada mecânico começa o mês com ${BASE_PONTOS} pontos`}><span className="cpv-pulso" /></span>
       </div>
@@ -247,6 +238,8 @@ export default function RadarOcorrencias() {
           <div id="oc-tribunal" />
           {assunto === 'tribunal' && (
             <JanelaMec titulo="Tribunal e ocorrências" sub={`${d.pendentes.length ? `${d.pendentes.length} defesa(s) para julgar · ` : ''}${d.ocorrencias.length} ocorrência(s) · ${nomeMes(mes)}`} ic="fa-gavel" cor="#9f1239">
+            {/* de cara, quantos pontos cada técnico perdeu; clicar mostra o que mais tirou e o que fazer (José, 04/11/2026) */}
+            <PontosPorTecnico ocorrencias={d.ocorrencias} linhas={d.linhas} podeJulgar={d.podeJulgar} julgando={julgando} onJulgar={julgar} onAbrir={setAberta} onRecarregar={() => void carregar(mes, true)} />
             {d.pendentes.length === 0 ? <p className="oc-nada"><i className="fas fa-circle-check" /> Nenhuma defesa esperando julgamento.</p> : (
             <Cartao titulo={<>Defesas para julgar <span className="rdr-badge">{d.pendentes.length}</span></>} atraso={0}>
               {(
@@ -320,6 +313,8 @@ export default function RadarOcorrencias() {
                 </div>
               )}
             </section>
+          {/* de onde vem cada ponto: qual robô ou quem lançou (José, 04/11/2026) */}
+          <FontesDosPontos ocorrencias={d.ocorrencias} />
           <div className="rdr-duas">
             <Cartao titulo="O que mais tira pontos" atraso={360}>
               {d.motivos.length === 0 ? <Vazio icone="fa-face-smile" texto="Mês limpo até agora." /> : (
@@ -362,7 +357,8 @@ export default function RadarOcorrencias() {
       )}
 
       {hover && <Dica o={hover.o} x={hover.x} y={hover.y} />}
-      {aberta && <Detalhe o={aberta} podeJulgar={!!d?.podeJulgar} julgando={julgando} onJulgar={julgar} onFechar={() => setAberta(null)} />}
+      {/* no <body>: abre por cima da janela do técnico (TribunalPontos) */}
+      {aberta && createPortal(<Detalhe o={aberta} podeJulgar={!!d?.podeJulgar} julgando={julgando} onJulgar={julgar} onFechar={() => setAberta(null)} />, document.body)}
     </div>
   )
 }
@@ -560,7 +556,7 @@ function Detalhe({ o, podeJulgar, julgando, onJulgar, onFechar }: { o: Ocorrenci
   const pend = o.defesas.find((x) => x.status === 'pendente')
   const mapa = typeof o.detalhes.maps_url === 'string' ? o.detalhes.maps_url : null
   return (
-    <div onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 9400, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <div data-oc-detalhe onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 9400, background: 'rgba(15,23,42,.45)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()} className="rdr-abre" style={{ width: 'min(640px, 100%)', maxHeight: '90vh', overflowY: 'auto', padding: 22, color: TXT, background: 'var(--portal-bg-card, #fefefe)', borderRadius: 16, borderTop: `4px solid ${cor}`, boxShadow: '0 24px 60px rgba(15,23,42,.3)' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
           <Avatar nome={o.tecnico} cor={cor} />
@@ -684,11 +680,8 @@ function JanelaMec({ titulo, sub, ic, cor, children }: { titulo: string; sub: st
   return (
     <div className="jm jm-emb aa-conteudo" style={{ '--jc': cor } as React.CSSProperties}>
       <style>{ESTILO_JM}</style>
-      <header className="jm-cab">
-        <span className="jm-ic"><i className={`fas ${ic}`} /></span>
-        <div><b>{titulo}</b><small>{sub}</small></div>
-      </header>
-      <div className="jm-corpo">{children}</div>
+      {/* o título saiu (José, 04/11/2026: "remove o título tribunal") — a aba já diz onde está */}
+      <div className="jm-corpo" aria-label={`${titulo} · ${sub}`} data-ic={ic}>{children}</div>
     </div>
   )
 }

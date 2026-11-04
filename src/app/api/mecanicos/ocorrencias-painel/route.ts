@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server'
 import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
 import { mesSP, ocorrenciasPainelComCache, esquecerOcorrenciasPainel } from '@/lib/mecanicos/ocorrencias-painel-vivo'
+import { atualizarPosVendasAgora } from '@/lib/mecanicos/ao-vivo-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
   if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
   if (!feito?.length) return NextResponse.json({ error: 'Essa defesa já foi julgada.' }, { status: 409 })
   await esquecerOcorrenciasPainel().catch(() => {})
+  await atualizarPosVendasAgora('defesa julgada', { leve: true })
 
   // avisa o técnico (app + portal) — nunca derruba o julgamento
   try {
@@ -71,5 +73,31 @@ export async function POST(req: NextRequest) {
       })
     }
   } catch { /* best-effort */ }
+  return NextResponse.json({ ok: true })
+}
+
+// PATCH {ocorrenciaId, pontos} → muda a pontuação de UMA ocorrência (José, 04/11/2026: "conseguir editar a pontuação
+// dentro de cada ocorrência"). Guarda em `detalhes` o valor original e quem mudou, para não perder a régua do catálogo.
+export async function PATCH(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: 'mecanicos', acao: 'atualizar_ocorrencia' }])
+  if (guarda.resposta) return guarda.resposta
+  const body = await req.json().catch(() => ({}))
+  const id = Number(body?.ocorrenciaId), pontos = Math.round(Number(body?.pontos))
+  if (!Number.isFinite(id) || id <= 0 || !Number.isFinite(pontos) || pontos < 0 || pontos > 50) {
+    return NextResponse.json({ error: 'Informe a ocorrência e os pontos (0 a 50).' }, { status: 400 })
+  }
+  const { data: oc, error } = await sb.from('tecnico_ocorrencias').select('id, pontos_descontados, detalhes').eq('id', id).maybeSingle()
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (!oc) return NextResponse.json({ error: 'Ocorrência não encontrada.' }, { status: 404 })
+  const det = (oc.detalhes && typeof oc.detalhes === 'object' ? oc.detalhes : {}) as Record<string, unknown>
+  const original = det.pontos_original ?? oc.pontos_descontados
+  const { error: e2 } = await sb.from('tecnico_ocorrencias').update({
+    pontos_descontados: pontos,
+    detalhes: { ...det, pontos_original: original, pontos_editado_por: autorDe(guarda.user), pontos_editado_em: new Date().toISOString() },
+  }).eq('id', id)
+  if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
+  await esquecerOcorrenciasPainel().catch(() => {})
+  // Liga, cartões e fichas da Gestão recalculam na hora (José: "tudo que alterar aqui tem que alterar lá")
+  await atualizarPosVendasAgora('pontos de ocorrência editados', { leve: true })
   return NextResponse.json({ ok: true })
 }

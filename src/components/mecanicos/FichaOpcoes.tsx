@@ -12,7 +12,7 @@ import { IconeLiga } from './CartaLiga'
 import { brl, brl2, horas } from './ui'
 import { authHeaders } from '@/lib/auth/client'
 import type { PedidoComissao } from '@/lib/mecanicos/lancamento-comissao-server'
-import { parcelasDoDesconto, resumoParcelas, mesCurto, contaDoPagamento, PCT_CAIXINHA, type DescontoPedido } from '@/lib/mecanicos/descontos-tecnico'
+import { parcelasDoDesconto, resumoParcelas, mesCurto, contaDoPagamento, PCT_CAIXINHA, CAIXINHA_ATIVA, type DescontoPedido } from '@/lib/mecanicos/descontos-tecnico'
 import CanvasAssinatura, { type CanvasAssinaturaRef } from '@/components/assinatura/CanvasAssinatura'
 import { useMinhaAssinatura, AssinaturaSalva, CadastrarAssinatura } from '@/components/assinatura/MinhaAssinatura'
 import { abrirDocumento } from './AutorizacoesJanela'
@@ -362,7 +362,7 @@ export function ModalDesconto({ d, e, fechar }: { d: Ficha; e: EdicaoComissao; f
             <div className="mdd-campo"><span>Quem paga</span>
               <div className="mdd-quem">
                 <button type="button" className={fonte === 'funcionario' ? 'on' : ''} onClick={() => setFonte('funcionario')}><i className="fas fa-user" /><b>{d.nome.split(' ')[0]}</b><small>sai da comissão dele</small></button>
-                <button type="button" className={`cx ${fonte === 'caixinha' ? 'on' : ''}`} onClick={() => setFonte('caixinha')}><i className="fas fa-piggy-bank" /><b>Caixinha</b><small>sai do fundo dos técnicos</small></button>
+                {CAIXINHA_ATIVA && <button type="button" className={`cx ${fonte === 'caixinha' ? 'on' : ''}`} onClick={() => setFonte('caixinha')}><i className="fas fa-piggy-bank" /><b>Caixinha</b><small>sai do fundo dos técnicos</small></button>}
               </div>
             </div>
             <div className="mdd-linha">
@@ -590,8 +590,8 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
             <div><dt>Competência</dt><dd>{nomeMes(d.mes)}</dd></div>
             <div><dt>Pela regra</dt><dd>{brl2(t.calc)}</dd></div>
             <div className="tot"><dt>Comissão a pagar</dt><dd>{brl2(t.total)}</dd></div>
-            {!d.escritorio && <div><dt>Caixinha {PCT_CAIXINHA}%</dt><dd>− {brl2(contaDoPagamento(t.total, e.descontos).caixinha)}</dd></div>}
-            <div><dt>{d.escritorio ? 'Líquido (após descontos)' : 'Líquido (após descontos e caixinha)'}</dt><dd>{brl2(contaDoPagamento(t.total, e.descontos, !!d.escritorio).liquido)}</dd></div>
+            {!d.escritorio && CAIXINHA_ATIVA && <div><dt>Caixinha {PCT_CAIXINHA}%</dt><dd>− {brl2(contaDoPagamento(t.total, e.descontos).caixinha)}</dd></div>}
+            <div><dt>{d.escritorio || !CAIXINHA_ATIVA ? 'Líquido (após descontos)' : 'Líquido (após descontos e caixinha)'}</dt><dd>{brl2(contaDoPagamento(t.total, e.descontos, !!d.escritorio).liquido)}</dd></div>
           </dl>
           {e.linhas.length > 0 && (
             <div className="flc-mex">
@@ -664,7 +664,7 @@ function DadosRH({ d, colunas = 3 }: { d: Ficha; colunas?: number }) {
     ['Telefone', r.telefone], ['Aniversário', r.aniversario ? `${r.aniversario.slice(3, 5)}/${r.aniversario.slice(0, 2)}` : null], ['Cidade', r.cidade],
     ['Férias', ferias.length ? `${ferias.reduce((s, f) => s + f.saldo, 0)} dias para tirar${vencida ? ' · uma vencida' : ''}` : 'em dia', vencida ? 'verm' : undefined],
     ['Ponto (12 meses)', `${faltas} falta${faltas === 1 ? '' : 's'} · ${atrasos} atraso${atrasos === 1 ? '' : 's'}`, faltas ? 'verm' : undefined],
-    ['Caixinha', brl2(r.caixinha.saldo), r.caixinha.saldo < 0 ? 'verm' : undefined],
+    ...(CAIXINHA_ATIVA ? [['Caixinha', brl2(r.caixinha.saldo), r.caixinha.saldo < 0 ? 'verm' : undefined] as [string, React.ReactNode, string?]] : []),
     ['Última comissão', r.comissoes[0] ? `${brl2(r.comissoes[0].valor)} · ${nomeMes(r.comissoes[0].mes).replace(/ de \d+$/, '')} (${r.comissoes[0].status.replace('_', ' ')})` : '—'],
   ]
   return <div className="fo-rh" style={{ gridTemplateColumns: `repeat(${colunas}, minmax(0, 1fr))` }}>{itens.filter(([, v]) => v).map(([k, v, c]) => <div key={k}><small>{k}</small><b className={c}>{v}</b></div>)}</div>
@@ -905,7 +905,7 @@ export function M5({ d, foto }: { d: Ficha; foto?: string }) {
         <div className="fo-m5-mini">
           <span><small>Férias</small><b>{d.rh?.ferias.filter((f) => /disponivel|vencid/.test(f.status)).reduce((s, f) => s + f.saldo, 0) ?? 0} d</b></span>
           <span><small>Faltas</small><b>{d.rh?.ponto.filter((p) => /falta/i.test(p.tipo)).length ?? 0}</b></span>
-          <span><small>Caixinha</small><b>{brl(d.rh?.caixinha.saldo || 0)}</b></span>
+          {CAIXINHA_ATIVA && <span><small>Caixinha</small><b>{brl(d.rh?.caixinha.saldo || 0)}</b></span>}
         </div>
       </header>
       <Abas abas={[{ k: 'mesa', rot: 'Mesa da comissão', ic: 'fa-scale-balanced' }, { k: 'rh', rot: 'RH', ic: 'fa-id-card' }, ...ABAS_RESTO]} aba={aba} setAba={setAba} />

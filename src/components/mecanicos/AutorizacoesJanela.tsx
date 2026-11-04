@@ -9,7 +9,7 @@ import CanvasAssinatura, { type CanvasAssinaturaRef } from '@/components/assinat
 import { useMinhaAssinatura, AssinaturaSalva } from '@/components/assinatura/MinhaAssinatura'
 import { Janela } from './JanelasInfo'
 import { brl2 } from './ui'
-import { contaDoPagamento, PCT_CAIXINHA } from '@/lib/mecanicos/descontos-tecnico'
+import { contaDoPagamento, PCT_CAIXINHA, CAIXINHA_ATIVA } from '@/lib/mecanicos/descontos-tecnico'
 
 // ---------------------------------------------------------------- loja: pedidos + se quem vê é diretor
 let estado: { pedidos: PedidoComissao[] | null; diretor: boolean; semTabela: boolean } = { pedidos: null, diretor: false, semTabela: false }
@@ -167,7 +167,7 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
       {diretor && modo === 'assinar' && (
         <div className="au-box">
           <b>Autorizar {brl2(p.valor)} para {p.tecnico}</b>
-          <small>Assinando, a comissão vai para o RH como aprovada, {p.info?.semCaixinha ? 'sem caixinha (garantista)' : `${PCT_CAIXINHA}% (${brl2(contaDoPagamento(p.valor, p.descontos).caixinha)}) vai para a caixinha dos técnicos`} e o documento sai com a sua assinatura e a de {p.pedido_por || 'quem pediu'}.</small>
+          <small>Assinando, a comissão vai para o RH como aprovada, {!CAIXINHA_ATIVA ? 'sem caixinha' : p.info?.semCaixinha ? 'sem caixinha (garantista)' : `${PCT_CAIXINHA}% (${brl2(contaDoPagamento(p.valor, p.descontos).caixinha)}) vai para a caixinha dos técnicos`} e o documento sai com a sua assinatura e a de {p.pedido_por || 'quem pediu'}.</small>
           {usaSalva ? <AssinaturaSalva imagem={salva!} onDesenhar={() => setDesenhar(true)} />
             : <div className="au-ass"><CanvasAssinatura ref={assRef} temTraco={assinou} onTraco={setAssinou} altura={140} />{assinou && <button type="button" className="au-volta" onClick={() => assRef.current?.limpar()}>limpar</button>}</div>}
           <input placeholder="observação (opcional)" value={obs} onChange={(e) => setObs(e.target.value)} />
@@ -181,7 +181,7 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
 
 /** O que o técnico recebe: comissão − descontos em folha (1ª parcela) − caixinha = líquido (igual ao documento). */
 function ContaPagamento({ p }: { p: PedidoComissao }) {
-  const semCx = !!p.info?.semCaixinha
+  const semCx = !!p.info?.semCaixinha || !CAIXINHA_ATIVA
   const c = contaDoPagamento(p.valor, p.descontos, semCx)
   return (
     <div className="au-conta">

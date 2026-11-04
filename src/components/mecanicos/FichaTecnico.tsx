@@ -11,6 +11,7 @@ import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/
 import type { FichaTecnico as Ficha } from '@/lib/mecanicos/ficha-server'
 import { IconeLiga } from './CartaLiga'
 import { brl, brl2, horas, kmFmt, useContador } from './ui'
+import { CAIXINHA_ATIVA } from '@/lib/mecanicos/descontos-tecnico'
 
 const MUDO = 'var(--portal-text-muted, #64748b)'
 export const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
@@ -487,7 +488,7 @@ export function RH({ d }: { d: Ficha }) {
       </div>
       <div className="ft-tiles mini">
         <Tile ic="fa-user-clock" cor="#dc2626" rot="Faltas em 12 meses" valor={faltas} sub={`${atrasos} atrasos lançados no ponto`} />
-        <Tile ic="fa-piggy-bank" cor="#059669" rot="Caixinha" valor={brl2(r.caixinha.saldo)} sub={`${r.caixinha.movimentos} movimentos`} />
+        {CAIXINHA_ATIVA && <Tile ic="fa-piggy-bank" cor="#059669" rot="Caixinha" valor={brl2(r.caixinha.saldo)} sub={`${r.caixinha.movimentos} movimentos`} />}
         <Tile ic="fa-shirt" cor="#1e40af" rot="Uniformes" valor={r.uniformes.length} sub={r.uniformes[0] ? `última entrega ${dataBR(r.uniformes[0].data)}` : 'nenhuma entrega'} />
         <Tile ic="fa-hand-holding-dollar" cor="#d97706" rot="Descontos lançados" valor={r.descontos.length} sub={brl(r.descontos.reduce((s, x) => s + x.valor, 0))} />
       </div>
@@ -659,11 +660,13 @@ export function prefetchFicha(nome: string, mes: string, primeiro = false) {
 
 /** Carrega a ficha de `nome` no mês (cache por técnico+mês). */
 let cacheVersao = 0
+/** Aviso ao vivo novo: as fichas guardadas ficaram velhas (os cartões também chamam, para não ficar com o número antigo). */
+export function limparFichasVelhas(versao: number) { if (versao !== cacheVersao) { cache.clear(); cacheVersao = versao } }
 export function useFicha(nome: string | null, mes: string): { dados: Ficha | null; erro: string | null } {
   const chave = `${nome}|${mes}`
   // aviso ao vivo: a ficha guardada ficou velha — busca de novo (a da tela fica até a nova chegar)
   const versao = useVersaoAoVivo()
-  if (versao !== cacheVersao) { cache.clear(); cacheVersao = versao }
+  limparFichasVelhas(versao)
   const [estado, setEstado] = useState<{ chave: string; dados: Ficha | null; erro: string | null }>(() => ({ chave, dados: cache.get(chave) || null, erro: null }))
   useEffect(() => {
     if (!nome) return

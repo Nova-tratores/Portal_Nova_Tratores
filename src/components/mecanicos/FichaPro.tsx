@@ -16,6 +16,7 @@ import { useEdicao, LancarComissao, Divisao, Conteudo, MOTIVOS_NAO, grupoDa, cha
 import Comparador, { type PessoaComparada } from './Comparador'
 import { useBasePosVendas } from './useBasePosVendas'
 import { useComAguardando } from './useComAguardando'
+import { CAIXINHA_ATIVA } from '@/lib/mecanicos/descontos-tecnico'
 import { montarPainel } from '@/lib/mecanicos/painel'
 
 const MUDO = 'var(--portal-text-muted, #64748b)'
@@ -331,7 +332,7 @@ function RHPro({ d }: { d: Ficha }) {
       <div className="rh2-resumo">
         <div className={vencida ? 'ruim' : ''}><small>Férias para tirar</small><b>{aTirar} dias</b><em>{vencida ? 'tem período vencido' : 'em dia'}</em></div>
         <div className={faltas ? 'ruim' : ''}><small>Ponto · 12 meses</small><b>{faltas} falta{faltas === 1 ? '' : 's'}</b><em>{atrasos} atraso{atrasos === 1 ? '' : 's'}</em></div>
-        <div className={r.caixinha.saldo < 0 ? 'ruim' : ''}><small>Caixinha</small><b>{brl2(r.caixinha.saldo)}</b><em>{r.caixinha.movimentos} movimentos</em></div>
+        {CAIXINHA_ATIVA && <div className={r.caixinha.saldo < 0 ? 'ruim' : ''}><small>Caixinha</small><b>{brl2(r.caixinha.saldo)}</b><em>{r.caixinha.movimentos} movimentos</em></div>}
         <div><small>Descontos lançados</small><b>{brl2(desc12)}</b><em>{r.descontos.length} lançamento{r.descontos.length === 1 ? '' : 's'}</em></div>
         <div><small>Uniformes</small><b>{r.uniformes.length}</b><em>{r.uniformes[0] ? `última entrega ${dataBR(r.uniformes[0].data)}` : 'nenhuma entrega'}</em></div>
       </div>
@@ -455,7 +456,7 @@ function Fatos({ d }: { d: Ficha }) {
     { tit: 'Situação', linhas: [
       { rot: 'Férias', v: ferias.length ? `${ferias.reduce((s, f) => s + f.saldo, 0)} dias${vencida ? ' · uma vencida' : ''}` : 'em dia', tom: vencida ? 'ruim' : 'bom' },
       { rot: 'Ponto (12 meses)', v: `${faltas} falta${faltas === 1 ? '' : 's'} · ${atrasos} atraso${atrasos === 1 ? '' : 's'}`, tom: faltas || atrasos ? 'ruim' : 'bom' },
-      { rot: 'Caixinha', v: brl2(r.caixinha.saldo), tom: r.caixinha.saldo < 0 ? 'ruim' : undefined },
+      ...(CAIXINHA_ATIVA ? [{ rot: 'Caixinha', v: brl2(r.caixinha.saldo), tom: r.caixinha.saldo < 0 ? 'ruim' as const : undefined }] : []),
     ] },
     { tit: 'Última comissão', linhas: [
       { rot: 'Valor', v: ult ? brl2(ult.valor) : '—' },

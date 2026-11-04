@@ -24,6 +24,10 @@ function somaDias(ref: string, n: number) {
 }
 
 /** Data (YYYY-MM-DD) de Brasília de um timestamp ISO; data pura passa direto. */
+/** Desde este dia a garantia do painel e a da comissão do garantista vêm do módulo Garantias (aprovadas, valor pago
+ *  pela fábrica) e não das OS faturadas (José, 30/10 e 04/11/2026). */
+export const INICIO_GARANTIAS_MODULO = '2026-10-01'
+
 export function diaBR(ts: string | null | undefined): string | null {
   if (!ts) return null
   if (/^\d{4}-\d{2}-\d{2}$/.test(ts)) return ts

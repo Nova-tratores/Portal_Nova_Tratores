@@ -8,6 +8,7 @@
 import { useEffect, useState } from 'react'
 import { authHeaders } from '@/lib/auth/client'
 import CaixinhaMec from './CaixinhaMec'
+import { CAIXINHA_ATIVA } from '@/lib/mecanicos/descontos-tecnico'
 import { ComissoesJanela, JanelaEmbutida, Janela } from './JanelasInfo'
 import { brl2, Odometro } from './ui'
 import { ESTILO_CT, ESTILO_CT2, ESTILO_CT3 } from './CardsTecnicoOpcoes'
@@ -17,7 +18,7 @@ import { useVersaoAoVivo } from './useAoVivo'
 import { seloEnviada } from './seloComissao'
 import { useMesGestao } from './useMesGestao'
 
-type PessoaEsc = { nome: string; foto: string | null; funcao: 'garantista' | 'sem_regra'; rh: { nome: string; cargo: string | null; departamento: string | null } | null; comissoes: { mes: string; valor: number; status: string; origem: string }[] }
+type PessoaEsc = { nome: string; foto: string | null; funcao: 'garantista' | 'sem_regra'; valor: number | null; rh: { nome: string; cargo: string | null; departamento: string | null } | null; comissoes: { mes: string; valor: number; status: string; origem: string }[] }
 type OSB = { os: string; numero: string | null; cliente: string; data: string; total: number; tipo: string }
 type Larissa = { entrou: number; modo: 'pct' | 'fixo'; pct: number; fixo: number; valor: number }
 type DadosEsc = { larissa: Larissa; mes: string; config: { pctGarantia: number; pctRevisao: number; atualizadoEm?: string | null; atualizadoPor?: string | null }; conta: { garantias: number; revisoes: number; comGarantia: number; comRevisao: number }; total: number; bases: { garantias: OSB[]; revisoes: OSB[] }; pessoas: PessoaEsc[]; podeEditar: boolean }
@@ -39,7 +40,7 @@ export default function ComissoesAba({ tecnicosDoMes }: { tecnicosDoMes: React.R
       </div>
       {quem === 'tec' ? (
         <div className="ca-corpo">
-          <CaixinhaMec />
+          {CAIXINHA_ATIVA && <CaixinhaMec />}
           {tecnicosDoMes}
           <JanelaEmbutida><ComissoesJanela /></JanelaEmbutida>
         </div>
@@ -88,7 +89,7 @@ function Escritorio() {
               <div className="s1c-nome"><b>{p.nome}</b></div>
               <div className="s1c-com">
                 <small>Comissão de {NOMES_MES[Number(mes.slice(5, 7)) - 1]}</small>
-                <b><Odometro texto={brl2(d.total)} /></b>
+                <b><Odometro texto={brl2(p.valor ?? d.total)} /></b>
                 <span><i className="fas fa-receipt" /> {pctTxt(d.config.pctGarantia)} das garantias + {pctTxt(d.config.pctRevisao)} das revisões{lapis}</span>
               </div>
               <div className="s1c-nums">
@@ -104,11 +105,11 @@ function Escritorio() {
               <div className="s1c-nome"><b>{p.nome}</b></div>
               <div className="s1c-com">
                 <small>Comissão de {NOMES_MES[Number(mes.slice(5, 7)) - 1]}</small>
-                <b><Odometro texto={brl2(d.larissa.valor)} /></b>
+                <b><Odometro texto={brl2(p.valor ?? d.larissa.valor)} /></b>
                 <span><i className="fas fa-receipt" /> {d.larissa.modo === 'fixo' ? 'valor fixo do mês' : `${pctTxt(d.larissa.pct)} de tudo que entrou no mês`}{lapis}</span>
               </div>
               <div className="s1c-nums">
-                <div title="Tudo que entrou nas OS faturadas do mês: serviço, km e peças"><small>Entrou no mês</small><b>{brl2(d.larissa.entrou)}</b><em>OS + peças</em></div>
+                <div title="O mesmo do painel: OS faturadas + garantias do mês (serviço, km e peças)"><small>Entrou no mês</small><b>{brl2(d.larissa.entrou)}</b><em>OS faturadas + garantias</em></div>
                 <div><small>Regra</small><b>{d.larissa.modo === 'fixo' ? 'Fixo' : pctTxt(d.larissa.pct)}</b><em>{d.larissa.modo === 'fixo' ? brl2(d.larissa.fixo) : 'de tudo que entrou'}</em></div>
                 <div title="Cadastro e última comissão no RH"><small>No RH</small><b>{p.comissoes[0] ? brl2(p.comissoes[0].valor) : '—'}</b><em>{!p.rh ? 'ainda não cadastrada' : p.comissoes[0] ? `${p.comissoes[0].mes.slice(5)}/${p.comissoes[0].mes.slice(2, 4)} · ${p.comissoes[0].status}` : 'sem lançamento'}</em></div>
               </div>

@@ -105,6 +105,17 @@ export default function TratorilsonLeitura({ onIr, aba = 'painel', oculto }: { o
   const ha = ultima && agoraMs ? Math.max(0, Math.round((agoraMs - Date.parse(ultima.geradaEm)) / 60_000)) : null
   const quando = ha == null ? '' : ha < 1 ? 'agora' : ha < 60 ? `há ${ha} min` : `há ${Math.round(ha / 60)} h`
   const urgentes = (a?.acoes || []).slice(0, 3)
+  const menuPerguntas = <>
+    <div className="tlf-capa" onClick={() => setMenu(false)} />
+    <div className="tlf-menu" role="menu">
+      {(aba === 'ocorrencias' ? PERGUNTAS_OC : PERGUNTAS).map((q, i) => (
+        <button key={`${aba}-${q.txt}`} type="button" role="menuitem" style={{ animationDelay: `${i * 30}ms` }}
+          onClick={() => { setMenu(false); if (q.relatorio) setAberto({ aba: q.relatorio }); else onIr?.(q.alvo!) }}>
+          <span>{q.txt}</span>{q.relatorio === 'plano' && urgentes.length > 0 ? <em>{urgentes.length}</em> : <i className="fas fa-arrow-right" />}
+        </button>
+      ))}
+    </div>
+  </>
 
   return (
     <>
@@ -119,18 +130,10 @@ export default function TratorilsonLeitura({ onIr, aba = 'painel', oculto }: { o
           {urgentes.length > 0 && <span className="tlf-n">{urgentes.length}</span>}
           <i className="fas fa-chevron-down tlf-seta" />
         </button>
-        {menu && <>
-          <div className="tlf-capa" onClick={() => setMenu(false)} />
-          <div className="tlf-menu" role="menu">
-            {(aba === 'ocorrencias' ? PERGUNTAS_OC : PERGUNTAS).map((q, i) => (
-              <button key={`${aba}-${q.txt}`} type="button" role="menuitem" style={{ animationDelay: `${i * 30}ms` }}
-                onClick={() => { setMenu(false); if (q.relatorio) setAberto({ aba: q.relatorio }); else onIr?.(q.alvo!) }}>
-                <span>{q.txt}</span>{q.relatorio === 'plano' && urgentes.length > 0 ? <em>{urgentes.length}</em> : <i className="fas fa-arrow-right" />}
-              </button>
-            ))}
-          </div>
-        </>}
+        {menu && !oculto && menuPerguntas}
       </div>
+      {/* sem o botão (aberto pelo topo do Centro), a janela vai para o body: nada da página a desloca ou corta */}
+      {menu && oculto && typeof document !== 'undefined' && createPortal(<div className="tlf oculto on">{menuPerguntas}</div>, document.body)}
 
       {aberto && <Relatorio ultima={ultima} ens={ens} setEns={setEns} gerando={gerando} etapa={etapa} quando={quando} onRefazer={refazer} erro={erro}
         abaInicial={aberto.aba} tecnicoInicial={aberto.tecnico} onFechar={() => setAberto(null)} />}
@@ -424,7 +427,8 @@ const ESTILO = `
 /* aberto pelo círculo de atalhos: sem o botão, perguntas no centro da tela com o fundo desfocado */
 .tlf.oculto .tlf-bt { display: none }
 .tlf.oculto .tlf-capa { z-index: 9700; background: rgba(15,23,42,.38); backdrop-filter: blur(9px); -webkit-backdrop-filter: blur(9px) }
-.tlf.oculto .tlf-menu { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 9701; width: min(400px, 92vw); padding: 10px; border-radius: 20px; box-shadow: 0 30px 80px -20px rgba(15,23,42,.6) }
+/* centrada sem transform: a animação de entrada (tlEntra) termina em transform: none e jogava a janela para o canto */
+.tlf.oculto .tlf-menu { position: fixed; inset: 0; margin: auto; height: fit-content; max-height: 86vh; overflow-y: auto; z-index: 9701; width: min(400px, 92vw); padding: 10px; border-radius: 20px; box-shadow: 0 30px 80px -20px rgba(15,23,42,.6) }
 .tlf.oculto .tlf-menu::before { content: 'Perguntas frequentes'; display: block; padding: 6px 12px 10px; font-size: 15px; font-weight: 600; color: #0369a1 }
 .tlf-bt { display: inline-flex; gap: 10px; align-items: center; min-height: 56px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); border-radius: 999px; padding: 6px 16px 6px 7px; font-family: inherit; text-align: left; cursor: pointer; box-shadow: 0 1px 2px rgba(15,23,42,.04), 0 6px 18px rgba(15,23,42,.05); transition: border-color .2s, box-shadow .2s, transform .15s }
 .tlf-bt:hover, .tlf.on .tlf-bt { transform: translateY(-1px); border-color: color-mix(in srgb, var(--c) 40%, transparent); box-shadow: 0 8px 20px rgba(15,23,42,.09) }

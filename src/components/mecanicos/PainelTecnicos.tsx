@@ -23,6 +23,7 @@ import Comparador, { type PessoaComparada } from './Comparador'
 import CartaJogo, { type DadosCarta } from './CartaJogo'
 import { faltasCartao, montarPainel, agruparBase, andarPeriodo, grupoDe, SEM_META, SEM_TECNICO, GRUPO_GARANTIA, type Escala, type PainelMontado } from '@/lib/mecanicos/painel'
 import { faixa } from '@/lib/mecanicos/ocorrencias-painel'
+import { garantiasFaturadas } from '@/lib/mecanicos/itens-periodo'
 import { authHeaders } from '@/lib/auth/client'
 import { useBasePosVendas } from './useBasePosVendas'
 import { EvolucaoViva, pontosDoPainel, ESTILO_EV } from './EvolucaoOpcoes'
@@ -220,7 +221,7 @@ export default function PainelTecnicos() {
       {/* P3 "Cartões de período" escolhida na página de teste (19/10) no lugar da fita antiga (SeletorTempo) */}
       {/* José, 21/10/2026: "já pode colocar no portal, no lugar desse" — os 4 cartões (dia, semana, mês, ano), metas,
           "o que entra na conta" e a comparação lado a lado; a antiga (SeletorCartoes) ficou no código */}
-      {assunto === 'fat' && base && <div id="sec-1" className="aa-conteudo" style={{ marginBottom: 14 }}><FaturamentoPeriodo base={base} hoje={hojeSP()} forma="escada" escala={tipo} refDia={ref} onMudar={(e, r) => { setTipo(e); setRef(r) }} /></div>}
+      {assunto === 'fat' && base && <div id="sec-1" className="aa-conteudo" style={{ marginBottom: 14 }}><FaturamentoPeriodo base={base} hoje={hojeSP()} forma="escada" escala={tipo} refDia={ref} onMudar={(e, r) => { setTipo(e); setRef(r) }} semNavegacao /></div>}
       {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
       {!d && carregando && <div style={{ padding: 40, textAlign: 'center', color: MUDO }}><i className="fas fa-circle-notch fa-spin" /> carregando o histórico…</div>}
 
@@ -241,7 +242,7 @@ export default function PainelTecnicos() {
           {/* José, 21/10/2026: "melhora essas informações, remove o que não for necessário" — sem a barra do simulador
               (fica sempre aberto), sem a frase grande e sem o guia de 3 passos */}
           {assunto === 'din' && <div id="sec-2" className="pt-sim-claro cpv-entra aa-conteudo">
-            {dMes && <DinheiroSimulador key={`mes|${dMes.periodo.de}|${comissaoOficial ? 1 : 0}`} c={contaDe(dMes, dMes.periodo.rotulo)} claro forma={1} />}
+            {dMes && <DinheiroSimulador key={`mes|${dMes.periodo.de}|${comissaoOficial ? 1 : 0}`} c={contaDe(dMes, dMes.periodo.rotulo, (de, ate) => garantiasFaturadas(base!, de, ate))} claro forma={1} />}
           </div>}
 
           {/* dinheiro parado: OS feitas e não faturadas / passou da data sem preencher (foto de agora) */}
@@ -267,7 +268,6 @@ export default function PainelTecnicos() {
       {carta != null && cartas.length > 0 && <CartaJogo lista={cartas} inicio={Math.min(carta, cartas.length - 1)} onFechar={() => setCarta(null)} />}
       {busca && <BuscaRapida itens={itensBusca} onFechar={() => setBusca(false)} />}
       {ajuda && <Atalhos onFechar={() => setAjuda(false)} />}
-      <button type="button" className="bq-flutua" onClick={() => setBusca(true)} title="Busca rápida (Ctrl+K) · ? = atalhos"><i className="fas fa-magnifying-glass" /> Buscar <kbd>Ctrl K</kbd></button>
       {verGastos && <ListaGastos gastos={gastosDoPeriodo} inicial={verGastos} onFechar={() => setVerGastos(false)} />}
       {verSal && d && <ListaSalarios porPessoa={d.equipe.porPessoa} detalhe={d.equipe.detalhe} equipe={(base?.equipe || []).map((e) => ({ ...e, pessoa: grupoDe(e.pessoa) }))} onFechar={() => setVerSal(false)} />}
       {verReqs && <ListaRequisicoes reqs={reqsDoPeriodo} onFechar={() => setVerReqs(false)} />}

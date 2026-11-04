@@ -8,7 +8,8 @@ import { useEffect } from 'react'
 import { useCardsTecnicos, S1Estilo, ESTILO_CT, ESTILO_CT2, ESTILO_CT3, METAS_PADRAO, type CardDados } from './CardsTecnicoOpcoes'
 import { FichaPro } from './FichaPro'
 import { useUrlMec } from './useUrlMec'
-import { prefetchFicha } from './FichaTecnico'
+import { prefetchFicha, limparFichasVelhas } from './FichaTecnico'
+import { useVersaoAoVivo } from './useAoVivo'
 import { useAutorizacoes } from './AutorizacoesJanela'
 import { seloEnviada } from './seloComissao'
 import { useMesGestao } from './useMesGestao'
@@ -17,6 +18,9 @@ const MUDO = 'var(--portal-text-muted, #64748b)'
 
 export default function TecnicosDoMes() {
   const [mes, setMes] = useMesGestao()
+  // entrou faturamento: joga fora as fichas guardadas e busca de novo, senão a capa fica com a comissão antiga (04/11/2026)
+  const versao = useVersaoAoVivo()
+  limparFichasVelhas(versao)
   const cards = useCardsTecnicos(METAS_PADRAO, mes)
   const { pegar, mudar } = useUrlMec()
   const au = useAutorizacoes()
@@ -32,7 +36,7 @@ export default function TecnicosDoMes() {
     const lista = nomes.split('|')
     if (nomeAberto) prefetchFicha(nomeAberto, mes, true)
     lista.forEach((n) => prefetchFicha(n, mes))
-  }, [nomes, mes, nomeAberto])
+  }, [nomes, mes, nomeAberto, versao])
   return (
     <div className="tdm cpv-entra">
       <style>{ESTILO_CT}</style>

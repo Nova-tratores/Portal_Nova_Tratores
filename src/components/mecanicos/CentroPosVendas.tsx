@@ -13,6 +13,7 @@ import { AutorizacoesJanela } from './AutorizacoesJanela'
 import PodioMeses from './PodioMeses'
 import { useLigarAoVivo, useSeloAoVivo } from './useAoVivo'
 import { useMesGestao, mesAtualSP } from './useMesGestao'
+import { PeriodoNoTopo } from './FaturamentoPeriodo'
 
 export type AbaCPV = 'painel' | 'ocorrencias' | 'podio'
 
@@ -103,7 +104,7 @@ export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a
         .cpv-podio { display: inline-flex; gap: 8px; align-items: center; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: #92400e; border-radius: 14px; padding: 10px 16px; font-family: inherit; font-size: 14.5px; font-weight: 900; cursor: pointer; transition: all .25s }
         .cpv-podio i { color: #d4a017 } .cpv-podio:hover { transform: translateY(-1px); border-color: #fcd34d } .cpv-podio.on { background: linear-gradient(135deg, #fde68a, #f59e0b); border-color: #f59e0b; color: #451a03; box-shadow: 0 8px 20px rgba(245,158,11,.35) } .cpv-podio.on i { color: #78350f }
         .cpv-robo { display: inline-flex; gap: 8px; align-items: center; height: 40px; padding: 0 16px; border-radius: 99px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: #0369a1; font: inherit; font-size: 14px; cursor: pointer } .cpv-robo:hover { border-color: #0369a1; background: #f0f9ff }
-        .cpv-tela { margin-left: auto; width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: var(--portal-text-muted, #64748b); cursor: pointer }
+        .cpv-tela { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: var(--portal-text-muted, #64748b); cursor: pointer }
         .cpv-tela:hover { color: #0369a1; border-color: #0369a1 }
         @media (max-width: 720px) { .cpv-modo { min-width: 0; flex: 1 } .cpv-op small { display: none } .cpv-op b { font-size: 13.5px } .cpv-op { padding: 8px 10px; gap: 8px } }
         @media (prefers-reduced-motion: reduce) { .cpv-luz, .cpv-luz::after, .cpv-barras i, .cpv-radar em, .cpv-conteudo { animation: none !important; transition: none !important } }
@@ -115,11 +116,12 @@ export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a
       <div className="cpv-topo">
         {/* Painel · Mecânicos · Pódio num seletor só (José, 20/10/2026) */}
         <AbasCentro aba={aba} onAba={onAba} />
-        {/* os atalhos viraram abas da Equipe (José, 29/10/2026); o Tratorilson fica aqui em cima */}
-        <button type="button" className="cpv-robo" onClick={abrirTratorilson} title="Tratorilson: perguntas frequentes"><i className="fas fa-robot" /> Tratorilson</button>
+        {/* o período fica no lugar do Tratorilson, e ele vai para a direita (José, 04/11/2026) */}
+        {aba !== 'podio' && <PeriodoNoTopo soMes={aba === 'ocorrencias'} />}
         <TratorilsonLeitura onIr={irPara} aba={aba === 'podio' ? 'painel' : aba} oculto />
         <span style={{ flex: 1 }} />
         {selo && <span className="cpv-aovivo" title={selo.motivo}><i />Atualizado agora · {selo.motivo}</span>}
+        <button type="button" className="cpv-robo" onClick={abrirTratorilson} title="Tratorilson: perguntas frequentes"><i className="fas fa-robot" /> Tratorilson</button>
         <button type="button" className="cpv-tela" onClick={alternarTela} title={cheia ? 'Sair da tela cheia (Esc)' : 'Tela cheia'}>
           <i className={`fas ${cheia ? 'fa-compress' : 'fa-expand'}`} />
         </button>

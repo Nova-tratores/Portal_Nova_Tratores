@@ -4,6 +4,7 @@
 // mais opções interativas e dinâmicas"). Mesmos números do Painel; nada aqui muda o Painel.
 import { useEffect, useState } from 'react'
 import { SEM_META, GRUPOS, GRUPO_GARANTIA, type PainelMontado } from '@/lib/mecanicos/painel'
+import type { AjusteGarantia } from '@/lib/mecanicos/itens-periodo'
 
 /** Por que a pessoa entra na conta sem ser de campo (José, 21/10/2026: "por que esses estão como pessoal?") */
 const membrosDe = (nome: string) => Object.entries(GRUPOS).filter(([, g]) => g === nome).map(([p]) => p)
@@ -37,18 +38,23 @@ export type Conta = {
 }
 /** Uma pessoa do Pessoal. campo = técnico de campo (tem OS no período); senão é apoio/oficina. */
 export type PessoaConta = { nome: string; salario: number; encargos: number; encComissao: number; encPrevista: number; comissao: number; prevista: number; rescisao: number; campo: boolean }
-export function contaDe(d: PainelMontado, rotulo: string): Conta {
+/** semGar: as notas de garantia faturadas de um período, que saem do "Entrou" (José, 04/11/2026: "ali não deve ir
+ *  garantia") — sem ele, a conta fica como o montarPainel deu. */
+export function contaDe(d: PainelMontado, rotulo: string, semGar?: (de: string, ate: string) => AjusteGarantia): Conta {
   const t = d.total, g = d.gastos, eq = d.equipe
   const pessoal = eq.total || 0
+  const zero: AjusteGarantia = { bruto: 0, mo: 0, km: 0, pecas: 0, outros: 0, nOS: 0 }
+  const gar = semGar ? semGar(d.periodo.de, d.periodo.ate) : zero
   // peças entram na conta (José, 29/10/2026: "aqui também precisa atualizar o valor com as peças")
-  const resultado = t.liquido + t.pecas - g.foraDasOS - pessoal
+  const resultado = t.liquido + t.pecas - gar.bruto - g.foraDasOS - pessoal
   const serie = d.serie.map((b, i) => {
     const tt = b.total, ga = d.gastosSerie[i]?.total || 0, pe = d.equipeSerie[i] || 0
-    return { rotulo: b.rotulo, bruto: tt.bruto + tt.pecas, gastos: tt.custo + ga, pessoal: pe, resultado: tt.liquido + tt.pecas - ga - pe }
+    const gb = semGar ? semGar(b.de, b.ate).bruto : 0
+    return { rotulo: b.rotulo, bruto: tt.bruto + tt.pecas - gb, gastos: tt.custo + ga, pessoal: pe, resultado: tt.liquido + tt.pecas - gb - ga - pe }
   })
   const naOS = Math.max(0, g.total - g.foraDasOS)
   return {
-    rotulo, bruto: t.bruto + t.pecas, mo: t.servico, km: t.kmValor, pecas: t.pecas, outros: Math.max(0, t.outros), horas: t.faturadas, kmRod: t.km, nOS: Math.round(t.os),
+    rotulo, bruto: t.bruto + t.pecas - gar.bruto, mo: t.servico - gar.mo, km: t.kmValor - gar.km, pecas: t.pecas - gar.pecas, outros: Math.max(0, t.outros - gar.outros), horas: t.faturadas, kmRod: t.km, nOS: Math.round(t.os - gar.nOS),
     comNota: d.notas.comNota, recibo: d.notas.recibo,
     gastos: t.custo + g.foraDasOS,
     gDet: [

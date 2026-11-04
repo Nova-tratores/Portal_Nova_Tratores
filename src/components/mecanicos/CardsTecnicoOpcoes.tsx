@@ -80,7 +80,8 @@ export function useCardsTecnicos(metas: Metas, mes?: string) {
     return d.linhas.filter((l) => l.tecnico !== SEM_TECNICO && !SEM_META.has(l.tecnico) && !saiu(l.tecnico)).map((l): CardDados => {
       const c = car?.comissoes.find((x) => x.tecnico === l.tecnico)
       const f = fichaGuardada(l.tecnico, mesAlvo)
-      const comCar = c ? (mesAlvo === mesCar ? c.atual.projecao : mesAlvo === mesAntCar ? c.anterior.total : null) : null
+      // o mesmo número da ficha: o que já foi feito no mês, não a projeção (José, 04/11/2026: a capa não acompanhava a ficha)
+      const comCar = c ? (mesAlvo === mesCar ? c.atual.total : mesAlvo === mesAntCar ? c.anterior.total : null) : null
       const h = l.faturadas + l.aguardando
       return {
         nome: l.tecnico, foto: car?.fotos?.[l.tecnico], nivel: car?.carreira.find((x) => x.tecnico === l.tecnico)?.nivel,
@@ -90,7 +91,7 @@ export function useCardsTecnicos(metas: Metas, mes?: string) {
         faturado: l.bruto, horas: h, os: Math.round(l.os), km: l.km,
         metaValor: metas.valorSemana * semanas, idealValor: metas.valorIdealSemana * semanas, metaHoras: metas.horasSemana * semanas, idealHoras: metas.horasIdeal * semanas, fracao,
         projValor: fracao > 0 ? l.bruto / fracao : 0, projHoras: fracao > 0 ? h / fracao : 0,
-        comissao: f ? f.comissao.projecao : comCar, pagamento: previsaoPagamento(mesAlvo), pct: c ? c.pct : null,
+        comissao: f ? f.comissao.total : comCar, pagamento: previsaoPagamento(mesAlvo), pct: c ? c.pct : null,
         diaValor: acum(porDia.get(l.tecnico)?.v || Array(diasMes).fill(0)),
         // horas: as cobradas dia a dia + as que aguardam faturar somadas no dia de hoje
         diaHoras: acum((porDia.get(l.tecnico)?.h || Array(diasMes).fill(0)).map((v, i) => (i === diaHoje - 1 ? v + l.aguardando : v))),
@@ -616,7 +617,7 @@ export function S1Estilo({ cards, contador, onAbrir, onPassar, semFoto, capa, se
             <div className="s1c-topo"><span className="s1-sit" style={{ color: sv.cor, background: sv.fundo }}>● {sv.txt}</span>{selos?.[c.nome] && <span className="s1-enviada">{selos[c.nome]}</span>}<SeloPontos p={c.pontos} /></div>
             <div className="s1c-nome"><b>{c.nome}</b>{c.nivel != null && <IconeLiga nivel={c.nivel} tamanho={34} />}</div>
             <div className="s1c-com">
-              <small>Comissão prevista</small>
+              <small>Comissão do mês</small>
               {c.comissao != null ? <b><Odometro texto={brl(c.comissao)} /></b> : <b className="vazio">—</b>}
               <span><i className="fas fa-calendar-check" /> paga em {dataBR(c.pagamento)}</span>
             </div>

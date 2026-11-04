@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { guardarComissao } from '@/lib/mecanicos/lancamento-comissao-rota'
 import { pedidoCompleto, codigoPedido, SemTabela } from '@/lib/mecanicos/lancamento-comissao-server'
 import { htmlAutorizacaoComissao } from '@/lib/mecanicos/autorizacao-comissao-doc'
+import { PCT_CAIXINHA } from '@/lib/mecanicos/descontos-tecnico'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -20,7 +21,8 @@ export async function GET(req: NextRequest) {
       linhas: (p.linhas || []).map((l) => ({ os: l.os, numero: l.numero || l.os, data: l.data || null, cliente: l.cliente, grupo: l.grupo || 'cliente', regra: l.regra || '', calculado: Number(l.calculado) || 0, valor: Number(l.valor) || 0, acao: l.acao, motivo: l.motivo, divisao: l.divisao || null, descontoCliente: l.descontoCliente || null })),
       solicitante: { nome: p.pedido_por || '—', papel: 'Pós-Vendas · pediu a autorização', em: p.assinatura_pedido_meta?.em || p.pedido_em, imagem: p.assinatura_pedido || null, ip: p.assinatura_pedido_meta?.ip },
       diretor: autorizada ? { nome: p.decidido_por || '—', papel: 'Diretor · autorizou', em: p.assinatura_diretor_meta?.em || p.decidido_em || p.pedido_em, imagem: p.assinatura_diretor || null, ip: p.assinatura_diretor_meta?.ip, observacao: p.observacao } : null,
-      descontos: p.descontos || [],
+      // assinada antes de a caixinha ser desligada (04/11/2026) continua com o 1% que foi retido de verdade
+      descontos: p.descontos || [], caixinhaPct: p.info?.semCaixinha ? 0 : autorizada && String(p.decidido_em || '') < '2026-11-04' ? 1 : PCT_CAIXINHA,
       logo: `${req.nextUrl.origin}/Logo_Nova.png`, emitidoEm: new Date().toISOString(),
     })
     return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } })

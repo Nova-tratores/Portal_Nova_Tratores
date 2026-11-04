@@ -1,14 +1,15 @@
 // Comissão do escritório do pós-vendas (José, 29/10/2026) — SÓ SERVIDOR.
 // Garantista (função dada na Administração: módulo Gestão Pós Vendas → "Garantista"):
-//   1% das GARANTIAS aprovadas no mês (valor pago pela fábrica, módulo Garantias) + X% do total das REVISÕES faturadas no mês (OS + peças).
+//   1% das GARANTIAS aprovadas no mês (valor pago pela fábrica, módulo Garantias — o chip Garantia do painel) + X% do total das REVISÕES faturadas no mês (OS + peças).
 //   X começa em 1% e só o Gerente do Pós-Vendas (mesma tela da Administração → "Gerente do Pós-Vendas") muda.
-// Larissa Garcia (29/10/2026): 1% de TUDO que entrou no mês (OS + peças, a mesma conta do "Entrou" do Resultados);
+// Larissa Garcia (29/10/2026): 1% de TUDO que entrou no mês (OS faturadas + garantias, os chips do painel);
 //   o Gerente do Pós-Vendas troca a % ou passa para um valor fixo.
 // Config em posvendas_config (chave "comissao-escritorio"); sem a tabela, iv_config "posvendas:comissao-escritorio".
 import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
-import { TBL_GARANTIAS } from '@/lib/garantias/constants'
 import { baseComCache } from './base-cache'
-import { diaBR } from './garantias-painel'
+import { INICIO_GARANTIAS_MODULO as INICIO_GARANTIAS } from './garantias-painel'
+import { garantiasPainelComCache } from './garantias-lista'
+import { itensDaBase, type GarantiaModulo, type ItemFat } from './itens-periodo'
 import { clienteRH } from './rh-server'
 import { casarNome } from './ocorrencias-painel'
 import { ajustesDeComissao } from './comissao-server'
@@ -20,8 +21,6 @@ export { FUNCAO_GARANTISTA as ACAO_GARANTISTA, FUNCAO_GERENTE as ACAO_GERENTE } 
 import { FUNCAO_GARANTISTA as ACAO_GARANTISTA } from '@/lib/permissoes/funcoes-posvendas'
 const SEM_REGRA = ['Larissa Garcia']
 const CHAVE = 'comissao-escritorio'
-// a comissão do garantista sobre as garantias da fábrica começa em outubro/2026 (José, 30/10/2026)
-const INICIO_GARANTIAS = '2026-10-01'
 
 export interface RegraPessoa { modo: 'pct' | 'fixo'; pct: number; fixo: number }
 export interface ConfigEscritorio { pctGarantia: number; pctRevisao: number; larissa: RegraPessoa; atualizadoEm?: string | null; atualizadoPor?: string | null }
@@ -59,6 +58,8 @@ export async function gravarConfigEscritorio(entrada: { pctRevisao?: unknown; la
 export interface OSBase { os: string; numero: string | null; cliente: string; data: string; total: number; tipo: string }
 export interface PessoaEscritorio {
   nome: string; foto: string | null; funcao: 'garantista' | 'sem_regra'
+  /** total da ficha (com os ajustes); null se a conta falhou */
+  valor: number | null
   rh: { nome: string; cargo: string | null; departamento: string | null } | null
   comissoes: { mes: string; valor: number; status: string; origem: string }[]
 }
@@ -73,39 +74,31 @@ async function pessoas(): Promise<{ nome: string; foto: string | null; funcao: P
   return lista
 }
 
-/** Garantias cobradas da fábrica no mês, direto do módulo Garantias (José, 30/10/2026: "tá faltando garantias"):
- *  aprovadas, no mês da aprovação (a mesma data do relatório do módulo), pelo valor que a fábrica pagou. */
-async function garantiasDaFabrica(de: string, ate: string): Promise<OSBase[]> {
-  if (de < INICIO_GARANTIAS) return []
-  const fim = new Date(Date.parse(`${ate}T12:00:00Z`) + 86400_000).toISOString().slice(0, 10)
-  const { data, error } = await sb.from(TBL_GARANTIAS).select('numero, id_ordem, cliente, valor_pago_total, finalizada_em, montadora:garantia_montadoras(nome)')
-    .eq('status', 'aprovada').gte('finalizada_em', `${de}T03:00:00Z`).lt('finalizada_em', `${fim}T03:00:00Z`) // meia-noite de Brasília
-  if (error) throw new Error(error.message)
-  return ((data || []) as unknown as { numero: string; id_ordem: string | null; cliente: string | null; valor_pago_total: number | null; finalizada_em: string; montadora: { nome: string } | null }[]).map((g) => ({
-    os: g.id_ordem || g.numero, numero: g.numero, cliente: g.cliente || '', data: diaBR(g.finalizada_em) || de, total: r2(Number(g.valor_pago_total) || 0), tipo: g.montadora?.nome ? `Garantia ${g.montadora.nome}` : 'Garantia',
-  }))
-}
-
-/** Garantias cobradas da fábrica e revisões faturadas no mês (OS + peças). */
+/** Garantias, revisões e tudo que entrou no mês — a MESMA lista do painel "Faturamento por período" (itens-periodo):
+ *  mexeu no painel, mexe aqui (José, 04/11/2026: "todos os cards da Gestão dependem do valor do painel"). */
 export async function basesDoMes(mes: string): Promise<{ garantias: OSBase[]; revisoes: OSBase[]; entrou: number; todas: OSBase[] }> {
   const de = `${mes}-01`, ate = new Date(Date.UTC(Number(mes.slice(0, 4)), Number(mes.slice(5, 7)), 0)).toISOString().slice(0, 10)
-  // a mesma base do Faturamento por período: entrou faturamento, a comissão acompanha sozinha (José, 30/10/2026)
-  const base = (await baseComCache()).dados
-  const fat = base.faturadas.filter((o) => o.data >= de && o.data <= ate)
-  // tipo de serviço do portal (Revisão, Garantia Trator…); OS só do Omie fica pelo selo de garantia
+  const [base, gar] = await Promise.all([baseComCache(), garantiasPainelComCache()])
+  const lista = (gar.dados.garantias || []) as unknown as (GarantiaModulo & { montadora?: { nome: string } | null })[]
+  const montadora = new Map(lista.map((g) => [g.numero, g.montadora?.nome || '']))
+  // OS faturadas + garantias (do módulo desde outubro/2026), igual aos chips "OS faturadas" e "Garantia" do painel
+  const itens = itensDaBase(base.dados, lista).filter((o) => (o.grupo === 'faturada' || o.grupo === 'garantia') && o.data >= de && o.data <= ate)
+  // tipo de serviço do portal (Revisão, Garantia Trator…)
   const tipo = new Map<string, string>()
-  const ids = fat.map((o) => o.os).filter((x) => !x.startsWith('OMIE'))
+  const ids = [...new Set(itens.map((o) => o.os).filter((x) => /^OS-/.test(x)))]
   for (let i = 0; i < ids.length; i += 200) {
     const { data } = await sb.from('Ordem_Servico').select('Id_Ordem, Tipo_Servico').in('Id_Ordem', ids.slice(i, i + 200))
     for (const r of (data || []) as { Id_Ordem: string; Tipo_Servico: string | null }[]) tipo.set(r.Id_Ordem, String(r.Tipo_Servico || ''))
   }
-  const linha = (o: (typeof fat)[number]): OSBase => ({ os: o.os, numero: o.numeroOmie, cliente: o.cliente, data: o.data, total: r2(o.bruto + o.pecas), tipo: tipo.get(o.os) || (o.garantia ? 'Garantia' : '') })
-  const garantias = await garantiasDaFabrica(de, ate)
-  const revisoes = fat.filter((o) => /revis/i.test(tipo.get(o.os) || '') && !o.garantia).map(linha)
+  const linha = (o: ItemFat): OSBase => ({ os: o.os, numero: o.numero, cliente: o.cliente, data: o.data, total: r2(o.bruto),
+    tipo: o.grupo === 'garantia' ? (montadora.get(o.numero || '') ? `Garantia ${montadora.get(o.numero || '')}` : 'Garantia') : tipo.get(o.os) || '' })
+  // a comissão do garantista sobre as garantias começa em outubro/2026 (José, 30/10/2026)
+  const garantias = de < INICIO_GARANTIAS ? [] : itens.filter((o) => o.grupo === 'garantia').map(linha)
+  const revisoes = itens.filter((o) => o.grupo === 'faturada' && /revis/i.test(tipo.get(o.os) || '')).map(linha)
   const ord = (a: OSBase, b: OSBase) => b.data.localeCompare(a.data)
-  // tudo que entrou no mês nas OS faturadas (OS + peças) — base da comissão da Larissa
-  const entrou = r2(fat.reduce((a, o) => a + o.bruto + o.pecas, 0))
-  return { garantias: garantias.sort(ord), revisoes: revisoes.sort(ord), entrou, todas: fat.map(linha).sort(ord) }
+  // tudo que entrou no mês (OS faturadas + garantias) — base da comissão da Larissa
+  const entrou = r2(itens.reduce((a, o) => a + o.bruto, 0))
+  return { garantias: garantias.sort(ord), revisoes: revisoes.sort(ord), entrou, todas: itens.map(linha).sort(ord) }
 }
 
 export async function comissaoEscritorio(mes: string) {
@@ -125,7 +118,10 @@ export async function comissaoEscritorio(mes: string) {
         .order('competencia_ano', { ascending: false }).order('competencia_mes', { ascending: false }).limit(12)
       comissoes = ((data || []) as Record<string, unknown>[]).map((x) => ({ mes: `${x.competencia_ano}-${String(x.competencia_mes).padStart(2, '0')}`, valor: Number(x.valor) || 0, status: String(x.status), origem: String(x.origem_descricao || '') }))
     }
-    return { ...p, rh: f ? { nome: f.nome, cargo: f.cargo, departamento: f.departamento } : null, comissoes }
+    // o cartão mostra o mesmo total da ficha, com o que já foi decidido nela (pagar/não pagar/ajuste) (José, 04/11/2026)
+    const pre = { config, bases }
+    const ficha = await (p.funcao === 'garantista' ? comissaoDoGarantista(p.nome, mes, '', pre) : comissaoDaLarissa(p.nome, mes, '', pre)).catch(() => null)
+    return { ...p, valor: ficha ? ficha.total : null, rh: f ? { nome: f.nome, cargo: f.cargo, departamento: f.departamento } : null, comissoes }
   }))
   const lr = config.larissa
   const larissa = { entrou: bases.entrou, modo: lr.modo, pct: lr.pct, fixo: lr.fixo, valor: lr.modo === 'fixo' ? lr.fixo : r2(bases.entrou * lr.pct / 100) }
@@ -142,8 +138,10 @@ export async function ehGarantista(userId: string): Promise<boolean> {
  *  ao dos técnicos"): cada OS de garantia e de revisão faturada no mês vira uma linha (base = OS + peças), então
  *  pagar/não pagar/ajustar, pedir autorização ao diretor e o RH funcionam igual. Ajuste já autorizado vem do
  *  comissoes_os_relatorio (por_tecnico com o nome dele). */
-export async function comissaoDoGarantista(nome: string, mes: string, hoje: string): Promise<ComissaoDetalhada> {
-  const [config, bases] = await Promise.all([lerConfigEscritorio(), basesDoMes(mes)])
+type Pre = { config: ConfigEscritorio; bases: Awaited<ReturnType<typeof basesDoMes>> }
+const lerPre = async (mes: string): Promise<Pre> => { const [config, bases] = await Promise.all([lerConfigEscritorio(), basesDoMes(mes)]); return { config, bases } }
+export async function comissaoDoGarantista(nome: string, mes: string, hoje: string, pre?: Pre): Promise<ComissaoDetalhada> {
+  const { config, bases } = pre || await lerPre(mes)
   const todas = [...bases.garantias.map((o) => ({ o, pct: config.pctGarantia, rot: 'da garantia', garantia: true })), ...bases.revisoes.map((o) => ({ o, pct: config.pctRevisao, rot: 'da revisão', garantia: false }))]
   const ajustes = await ajustesDeComissao([...new Set(todas.flatMap(({ o }) => [o.numero || o.os, o.os]))]).catch(() => new Map())
   const linhas: LinhaComissao[] = todas.map(({ o, pct, rot, garantia }) => {
@@ -168,8 +166,8 @@ export async function comissaoDoGarantista(nome: string, mes: string, hoje: stri
 export const ehLarissa = (nome: string) => SEM_REGRA.some((n) => n === nome || !!casarNome(n, [nome]) || !!casarNome(nome, [n]))
 
 /** Comissão da Larissa na ficha dos técnicos (29/10/2026): % de cada OS faturada no mês (OS + peças) ou o valor fixo. */
-export async function comissaoDaLarissa(nome: string, mes: string, hoje: string): Promise<ComissaoDetalhada> {
-  const [config, bases] = await Promise.all([lerConfigEscritorio(), basesDoMes(mes)])
+export async function comissaoDaLarissa(nome: string, mes: string, hoje: string, pre?: Pre): Promise<ComissaoDetalhada> {
+  const { config, bases } = pre || await lerPre(mes)
   const lr = config.larissa
   const ajustes = await ajustesDeComissao([...new Set(bases.todas.flatMap((o) => [o.numero || o.os, o.os]))]).catch(() => new Map())
   const linhas: LinhaComissao[] = lr.modo === 'fixo'

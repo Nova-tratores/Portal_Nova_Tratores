@@ -4,8 +4,8 @@
 //
 //   1. MULTA/AUTUAÇÃO  — frota_multas sincronizadas nos últimos 7 dias;
 //      data da ocorrência = data da INFRAÇÃO; anexos = imagens da multa.
-//   2. REQUISIÇÃO DE ABASTECIMENTO — TODA requisição (decisão do usuário):
-//      queremos o cartão; notificação AGRUPADA por técnico (anti-spam).
+//   2. REQUISIÇÃO DE ABASTECIMENTO — DESLIGADA em 04/11/2026 (José: "pode remover").
+//      Era: TODA requisição vira ocorrência; notificação AGRUPADA por técnico.
 //   3. CONSUMO ANORMAL — reusa anomaliasConsumo (2σ abaixo do histórico
 //      do próprio veículo) sobre a janela de 90 dias.
 //
@@ -22,6 +22,9 @@ import { TIPOS_REQ_ABASTECIMENTO } from '@/lib/abastecimento/requisicoes';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
+
+/** Requisição de abastecimento não vira mais ocorrência (José, 04/11/2026). */
+const REQ_ABASTECIMENTO_GERA_OCORRENCIA = false;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -126,7 +129,8 @@ export async function POST(req: NextRequest) {
   }
 
   // ── 2. Requisições de abastecimento (últimas 48h — TODA conta) ───────────
-  try {
+  // DESLIGADO (José, 04/11/2026: "requisição para abastecimento automático, pode remover").
+  if (REQ_ABASTECIMENTO_GERA_OCORRENCIA) try {
     const desde = new Date(Date.now() - 48 * 3600_000).toISOString().slice(0, 10);
     const { data: reqs } = await supabase
       .from('Requisicao')

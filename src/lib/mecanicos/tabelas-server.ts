@@ -14,6 +14,8 @@ import type { BaseDados, Descontos, DiaRegistrado, ExtraEquipe, Gasto, InternaFe
 import { carregarPendencias, idsGarantia, numsComNota } from './pendencias-server'
 import { ehMontadora } from './pendencias'
 import type { Pendencia } from './pendencias'
+import { mesesComQueda, type QuedaMes } from './trava-queda'
+import { notificarUsuarios, usuariosTI } from '@/lib/faturamento/alerta-ti'
 
 type Rec = Record<string, unknown>
 const hojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
@@ -92,11 +94,18 @@ export async function sincronizarPosVendas(de: string, ate: string) {
   // a mesma requisição pode vir 2x se mudar de tipo no meio — a chave é única
   const unicosGastos = [...new Map(linhasGastos.map((l) => [l.chave, l])).values()]
 
+  // trava: mês que despencaria de uma vez fica como estava e o T.I. é avisado (lib/mecanicos/trava-queda.ts)
+  const gravadas = await paginar((x, y) => sb.from('posvendas_os').select('*').gte('data', de).lte('data', ate).order('os').range(x, y))
+  const quedas = mesesComQueda(gravadas.map((r) => ({ data: String(r.data), bruto: Number(r.bruto) || 0, pecas: Number(r.pecas) || 0 })), linhasOS)
+  const travados = new Set(quedas.map((q) => q.mes))
+  const osFinal = travados.size ? [...linhasOS.filter((l) => !travados.has(l.data.slice(0, 7))), ...gravadas.filter((r) => travados.has(String(r.data).slice(0, 7)))] : linhasOS
+  if (quedas.length) void avisarQueda(quedas)
+
   // apaga a janela e grava de novo (o que sumiu da fonte some daqui também)
   ok(await sb.from('posvendas_os').delete().gte('data', de).lte('data', ate))
   ok(await sb.from('posvendas_horas').delete().gte('data', de).lte('data', ate))
   ok(await sb.from('posvendas_gastos').delete().gte('data', de).lte('data', ate))
-  await inserirComFallback('posvendas_os', linhasOS, (l) => l.map((x) => semCampo(x, 'descontos')))
+  await inserirComFallback('posvendas_os', osFinal, (l) => l.map((x) => semCampo(x, 'descontos')))
   await inserirEmLotes('posvendas_horas', linhasHoras)
   // formato antigo: sem "materiais" e sem as requisições em aberto (que lá contariam como confirmadas)
   await inserirComFallback('posvendas_gastos', unicosGastos, (l) => l.filter((x) => x.tipo !== 'materiais' && !x.aberto).map((x) => semCampo(x, 'aberto')))
@@ -117,7 +126,27 @@ export async function sincronizarPosVendas(de: string, ate: string) {
     await inserirEmLotes('posvendas_pendencias', lista.map((p) => ({ os: p.os, tipo: p.tipo, status: p.status, cliente: p.cliente, tecnicos: p.tecnicos, data_ref: p.dataRef, dias: p.dias, mao_de_obra: p.maoDeObra, deslocamento: p.deslocamento, pecas: p.pecas, total: p.total, garantia: p.garantia, atualizado_em: agora })))
     pendencias = lista.length
   } catch (e) { if (!(e instanceof TabelasFaltando)) console.error('[pos-tabelas] pendências', e) }
-  return { os: linhasOS.length, horas: linhasHoras.length, gastos: unicosGastos.length, equipe: equipe.length, pendencias }
+  return { os: osFinal.length, horas: linhasHoras.length, gastos: unicosGastos.length, equipe: equipe.length, pendencias, travados: [...travados] }
+}
+
+const MES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
+const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
+/** Sino do T.I., uma vez a cada 6 h por mês travado (o robô roda a cada 10 min). Nunca derruba a sincronização. */
+async function avisarQueda(quedas: QuedaMes[]) {
+  try {
+    const desde = new Date(Date.now() - 6 * 3600_000).toISOString()
+    const { data: recentes } = await sb.from('portal_notificacoes').select('titulo').like('titulo', 'Pós-Vendas: valores de%').gte('created_at', desde)
+    const ja = new Set(((recentes || []) as { titulo: string }[]).map((r) => r.titulo))
+    for (const q of quedas) {
+      const titulo = `Pós-Vendas: valores de ${MES[Number(q.mes.slice(5, 7)) - 1]}/${q.mes.slice(2, 4)} não foram atualizados`
+      if (ja.has(titulo)) continue
+      await notificarUsuarios(await usuariosTI(), {
+        titulo,
+        descricao: `A sincronização ia derrubar ${q.campo === 'peças' ? 'as peças' : 'o faturado'} do mês de ${brl(q.antes)} para ${brl(q.depois)} (−${String(q.queda).replace('.', ',')}%) e foi travada: a tela segue com os valores de antes. Conferir se alguma consulta falhou ou se a queda é real (OS cancelada em massa).`,
+        link: '/mecanicos',
+      })
+    }
+  } catch (e) { console.warn('[pos-tabelas] aviso da trava', e instanceof Error ? e.message : e) }
 }
 
 /** A base da tela lida das tabelas (null = tabelas vazias). */

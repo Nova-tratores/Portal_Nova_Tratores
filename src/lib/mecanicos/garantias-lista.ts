@@ -11,7 +11,7 @@ export async function listarGarantiasPainel(): Promise<{ hoje: string; garantias
   const out: Record<string, unknown>[] = []
   for (let de = 0; de < 20000; de += 1000) {
     const { data, error } = await sb.from(TBL_GARANTIAS)
-      .select('id, numero, numero_externo, id_ordem, cliente, modelo, chassis, status, tecnico_nome, garantista_nome, tecnico_horas, tecnico_km, garantista_horas, garantista_km, resultado, motivo_recusa, recusado_por, valor_pago_total, enviada_fabrica_em, finalizada_em, created_at, updated_at, cobranca_status, cobranca_valor_total, cobranca_vencimento, devolucao_status, devolucao_prazo, montadora:garantia_montadoras(id, nome, cor, valor_hora, valor_km), pecas:garantia_pecas(quantidade, preco_unitario, resultado), pendencias:garantia_pendencias(status, tipo)')
+      .select('id, numero, numero_externo, id_ordem, cliente, modelo, chassis, status, tecnico_nome, garantista_nome, tecnico_horas, tecnico_km, garantista_horas, garantista_km, resultado, motivo_recusa, recusado_por, valor_pago_total, valor_pago_horas, valor_pago_km, valor_pago_pecas, enviada_fabrica_em, finalizada_em, created_at, updated_at, cobranca_status, cobranca_valor_total, cobranca_vencimento, devolucao_status, devolucao_prazo, montadora:garantia_montadoras(id, nome, cor, valor_hora, valor_km), pecas:garantia_pecas(quantidade, preco_unitario, resultado), pendencias:garantia_pendencias(status, tipo)')
       .neq('status', 'cancelada').order('created_at', { ascending: false }).range(de, de + 999)
     if (error) throw new Error(error.message)
     for (const g of data || []) {
@@ -26,7 +26,7 @@ export async function listarGarantiasPainel(): Promise<{ hoje: string; garantias
         status: g.status, tecnico: g.tecnico_nome, garantista: g.garantista_nome, recusadoPor: g.recusado_por, motivo: g.motivo_recusa,
         montadora: m ? { nome: m.nome, cor: m.cor } : null,
         horas, km, valorPecas: Math.round(pecas * 100) / 100, valorServico: Math.round((horas * vf.hora + km * vf.km) * 100) / 100,
-        esperado: Math.round((pecas + horas * vf.hora + km * vf.km) * 100) / 100, pago: n(g.valor_pago_total),
+        esperado: Math.round((pecas + horas * vf.hora + km * vf.km) * 100) / 100, pago: n(g.valor_pago_total), pagoHoras: n(g.valor_pago_horas), pagoKm: n(g.valor_pago_km), pagoPecas: n(g.valor_pago_pecas),
         criadaEm: g.created_at, enviadaEm: g.enviada_fabrica_em, finalizadaEm: g.finalizada_em, mexidaEm: g.updated_at,
         cobranca: { status: g.cobranca_status, valor: n(g.cobranca_valor_total), vencimento: g.cobranca_vencimento },
         devolucao: { status: g.devolucao_status, prazo: g.devolucao_prazo },
