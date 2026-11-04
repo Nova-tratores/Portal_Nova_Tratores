@@ -28,6 +28,9 @@ import GuardaPecasSecao from './GuardaPecasSecao';
 import { guiaDaMontadora } from '@/lib/garantias/guias';
 import { ESTANTES, PRATELEIRAS, montarLocalizacao, partesLocalizacao, rotuloLocalizacao } from '@/lib/garantias/localizacao';
 import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui';
+import { useIsMobile } from '@/hooks/useIsMobile';
+import NotasGarantiaPainel from './NotasGarantia';
+import PecasFabricaPainel from './PecasFabrica';
 
 interface Props {
   garantiaId: string;
@@ -38,7 +41,20 @@ interface Props {
   podeAnalisar?: boolean;
   podeEnviarFabrica?: boolean;
   podeFinalizar?: boolean;
+  /** janela grande no meio da tela: o conteúdo de sempre à esquerda e, à direita,
+   *  Notas fiscais · Peças da fábrica · Histórico (no celular vira tela cheia com abas) */
+  janela?: boolean;
 }
+
+type AbaJanela = 'garantia' | 'notas' | 'pecas' | 'historico';
+const ABAS_JANELA: [AbaJanela, string][] = [
+  ['garantia', 'Garantia'], ['notas', 'Notas fiscais'], ['pecas', 'Peças da fábrica'], ['historico', 'Histórico'],
+];
+const abaEstilo = (ativa: boolean): React.CSSProperties => ({
+  padding: '11px 14px', minHeight: 42, border: 'none', background: 'transparent', cursor: 'pointer', whiteSpace: 'nowrap',
+  fontSize: 13, fontWeight: 700, color: ativa ? '#dc2626' : 'var(--portal-text-muted)',
+  borderBottom: `3px solid ${ativa ? '#dc2626' : 'transparent'}`,
+});
 
 function Secao({ titulo, icone, children }: { titulo: string; icone?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -91,7 +107,13 @@ const taStyle: React.CSSProperties = {
   outline: 'none',
 };
 
-export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, onSaved, podeAnalisar = true, podeEnviarFabrica = true, podeFinalizar = true }: Props) {
+export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, onSaved, podeAnalisar = true, podeEnviarFabrica = true, podeFinalizar = true, janela = false }: Props) {
+  const isMobile = useIsMobile();
+  // janela: no computador a coluna da direita tem abas próprias; no celular uma
+  // aba só troca a tela inteira ('garantia' = o conteúdo de sempre)
+  const [abaDireita, setAbaDireita] = useState<Exclude<AbaJanela, 'garantia'>>('notas');
+  const [abaCelular, setAbaCelular] = useState<AbaJanela>('garantia');
+  const abaVisivel: AbaJanela = isMobile ? abaCelular : abaDireita;
   const [g, setG] = useState<GarantiaDetalhe | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
@@ -518,17 +540,23 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 900, display: 'flex', justifyContent: 'flex-end' }}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 900, display: 'flex',
+        justifyContent: janela ? 'center' : 'flex-end', alignItems: janela ? 'center' : undefined,
+        padding: janela && !isMobile ? 16 : 0,
+      }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: 'min(560px, 100%)',
-          height: '100%',
+          width: janela ? (isMobile ? '100%' : 'min(1500px, 97vw)') : 'min(560px, 100%)',
+          height: janela && !isMobile ? '94vh' : '100%',
+          borderRadius: janela && !isMobile ? 14 : 0,
+          overflow: 'hidden',
           background: 'var(--portal-bg)',
           display: 'flex',
           flexDirection: 'column',
-          boxShadow: '-10px 0 40px rgba(0,0,0,0.3)',
+          boxShadow: janela ? '0 20px 60px rgba(0,0,0,0.35)' : '-10px 0 40px rgba(0,0,0,0.3)',
         }}
       >
         {loading ? (
@@ -570,21 +598,35 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 </span>
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button
+                {!janela && <button
                   onClick={() => setVerTimeline((v) => !v)}
                   title="Histórico"
                   style={{ background: 'none', border: 'none', cursor: 'pointer', color: verTimeline ? '#0ea5e9' : 'var(--portal-text-muted)', minWidth: 36, minHeight: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   <History size={19} />
-                </button>
+                </button>}
                 <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', minWidth: 36, minHeight: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                   <X size={20} />
                 </button>
               </div>
             </div>
 
+            {/* Janela no celular: abas trocam a tela inteira */}
+            {janela && isMobile && (
+              <div style={{ display: 'flex', overflowX: 'auto', borderBottom: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', flexShrink: 0 }}>
+                {ABAS_JANELA.map(([id, rot]) => (
+                  <button key={id} onClick={() => setAbaCelular(id)} style={abaEstilo(abaCelular === id)}>{rot}</button>
+                ))}
+              </div>
+            )}
+
+            <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
             {/* Body */}
-            <div style={{ flex: 1, overflow: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{
+              flex: janela && !isMobile ? '1 1 52%' : 1, minWidth: 0, overflow: 'auto', padding: 16, flexDirection: 'column', gap: 12,
+              display: janela && isMobile && abaCelular !== 'garantia' ? 'none' : 'flex',
+              borderRight: janela && !isMobile ? '1px solid var(--portal-border)' : undefined,
+            }}>
               {erro && (
                 <div ref={erroRef} style={{ fontSize: 12, color: '#dc2626', background: '#dc262615', padding: '8px 10px', borderRadius: 8 }}>
                   {erro}
@@ -611,11 +653,37 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 </Secao>
               )}
 
+              {/* Comprovação da resposta da fábrica (DRVG/demonstrativo) em destaque —
+                  o mesmo arquivo segue também na lista geral de anexos */}
+              {g.anexos?.some((a) => a.categoria === 'retorno_fabrica') && (
+                <div style={{ border: '2px solid #16a34a', borderRadius: 12, padding: 12, background: '#16a34a12' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, color: '#16a34a', textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 8 }}>
+                    <CheckCircle2 size={15} /> Comprovação da fábrica
+                    {g.resultado && <span style={{ marginLeft: 'auto', textTransform: 'none', fontWeight: 700, color: g.resultado === 'aprovada' ? '#16a34a' : '#dc2626' }}>{g.resultado === 'aprovada' ? 'Aprovada' : 'Recusada'}</span>}
+                  </div>
+                  {g.anexos.filter((a) => a.categoria === 'retorno_fabrica').map((a) => (
+                    <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '8px 10px', marginTop: 6 }}>
+                      <FileText size={16} color="#16a34a" />
+                      <div style={{ flex: '1 1 180px', minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)', wordBreak: 'break-word' }}>{a.nome_arquivo || 'Resposta da fábrica'}</div>
+                        <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>Resposta recebida · anexada em {fmtDataHora(a.created_at)}</div>
+                      </div>
+                      <a href={a.url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: '#0ea5e9', padding: '6px 8px', minHeight: 32 }}>
+                        <ExternalLink size={13} /> Abrir
+                      </a>
+                      <a href={`${a.url}${a.url.includes('?') ? '&' : '?'}download=${encodeURIComponent(a.nome_arquivo || 'resposta-fabrica')}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: '#16a34a', padding: '6px 8px', minHeight: 32 }}>
+                        <Download size={13} /> Baixar
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Dados da OS / máquina */}
               <Secao titulo="Ordem de serviço" icone={<ShieldCheck size={14} />}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px', fontSize: 13 }}>
                   <Campo label="Cliente" valor={g.cliente} />
-                  <Campo label="OS" valor={g.id_ordem} />
+                  <Campo label="OS" valor={g.id_ordem} href={g.id_ordem ? `/pos?id=${g.id_ordem}` : undefined} />
                   <Campo label="Chassi" valor={g.chassis} />
                   <Campo label="Modelo" valor={g.modelo} />
                   <Campo label="Técnico" valor={g.tecnico_nome} />
@@ -2055,6 +2123,34 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 <GuiaMontadoraModal montadoraNome={g.montadora.nome} onClose={() => setGuiaAberto(false)} />
               )}
             </div>
+
+            {/* Janela: coluna da direita (computador) ou aba escolhida (celular) */}
+            {janela && abaVisivel !== 'garantia' && (
+              <div style={{ flex: isMobile ? 1 : '1 1 48%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                {!isMobile && (
+                  <div style={{ display: 'flex', borderBottom: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', flexShrink: 0 }}>
+                    {ABAS_JANELA.filter(([id]) => id !== 'garantia').map(([id, rot]) => (
+                      <button key={id} onClick={() => setAbaDireita(id as Exclude<AbaJanela, 'garantia'>)} style={abaEstilo(abaDireita === id)}>{rot}</button>
+                    ))}
+                  </div>
+                )}
+                <div style={{ flex: 1, overflow: 'auto', padding: 16 }}>
+                  {abaVisivel === 'notas' && (
+                    <NotasGarantiaPainel garantiaId={g.id} compacto podeEditar={podeAnalisar || podeFinalizar} onMudou={onSaved} />
+                  )}
+                  {abaVisivel === 'pecas' && <PecasFabricaPainel garantiaId={g.id} podeEditar={podeAnalisar || podeFinalizar} />}
+                  {abaVisivel === 'historico' && (
+                    <>
+                      <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginBottom: 12 }}>
+                        Tudo o que foi feito nesta garantia, do mais antigo ao mais novo, com quem fez e quando.
+                      </div>
+                      <GarantiaTimeline eventos={g.eventos} />
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+            </div>
           </>
         )}
       </div>
@@ -2062,11 +2158,18 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   );
 }
 
-function Campo({ label, valor }: { label: string; valor: string | null | undefined }) {
+function Campo({ label, valor, href }: { label: string; valor: string | null | undefined; href?: string }) {
   return (
     <div>
       <div style={{ fontSize: 10, color: 'var(--portal-text-faint)', textTransform: 'uppercase' }}>{label}</div>
-      <div style={{ fontSize: 13, color: 'var(--portal-text)', fontWeight: 600 }}>{valor || '—'}</div>
+      {href && valor ? (
+        <a href={href} target="_blank" rel="noreferrer" title="Abrir a OS no Pós-Vendas"
+          style={{ fontSize: 13, color: '#0ea5e9', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+          {valor} <ExternalLink size={12} />
+        </a>
+      ) : (
+        <div style={{ fontSize: 13, color: 'var(--portal-text)', fontWeight: 600 }}>{valor || '—'}</div>
+      )}
     </div>
   );
 }

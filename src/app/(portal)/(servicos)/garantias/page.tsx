@@ -94,7 +94,7 @@ function GarantiasPageInner() {
   }
 
   return (
-    <div style={{ padding: isMobile ? '16px 12px' : '28px 32px', maxWidth: 1280, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '16px 12px' : '28px 32px', }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20, flexWrap: 'wrap' }}>
         <div
@@ -179,13 +179,9 @@ function GarantiasPageInner() {
           <div style={{ display: 'flex', justifyContent: 'center', padding: 60, color: 'var(--portal-text-muted)' }}>
             <Loader2 size={22} className="spin" />
           </div>
-        ) : garantias.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 60, color: 'var(--portal-text-muted)', fontSize: 14 }}>
-            <ShieldCheck size={36} style={{ opacity: 0.35 }} />
-            <p>Nenhuma garantia em andamento.</p>
-          </div>
         ) : (
-          <GarantiasBoard garantias={garantias} onCardClick={(g) => setDrawerId(g.id)} />
+          // sempre o quadro: aprovadas com NFS-e/peças pendentes aparecem mesmo sem nenhuma em andamento
+          <GarantiasBoard garantias={garantias} onCardClick={(g) => setDrawerId(g.id)} refreshKey={refreshKey} podeEditar={podeAnalisar || podeFinalizar} />
         ))}
 
       {aba === 'finalizadas' && <GarantiasHistorico onAbrir={setDrawerId} refreshKey={refreshKey} />}
@@ -205,6 +201,7 @@ function GarantiasPageInner() {
           podeAnalisar={podeAnalisar}
           podeEnviarFabrica={podeEnviarFabrica}
           podeFinalizar={podeFinalizar}
+          janela
         />
       )}
 

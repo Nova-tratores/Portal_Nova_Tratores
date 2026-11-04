@@ -7,9 +7,13 @@ import { tempoDecorrido, diasEntre, diasAte } from '@/lib/garantias/format';
 interface Props {
   garantia: GarantiaResumo;
   onClick: () => void;
+  /** cor da faixa (fase virtual do board); padrão = cor do status */
+  cor?: string;
+  /** linha extra no rodapé (selos das fases novas: NFS-e, peças da fábrica…) */
+  extra?: React.ReactNode;
 }
 
-export default function GarantiaMiniCard({ garantia: g, onClick }: Props) {
+export default function GarantiaMiniCard({ garantia: g, onClick, cor, extra }: Props) {
   const pendenciaAberta = g.pendencias?.some((p) => p.status === 'aberta');
   const naFabrica = g.status === 'enviada' || g.status === 'info_pendente' || g.status === 'ressarcimento_fabrica';
   const diasFabrica = naFabrica ? diasEntre(g.enviada_fabrica_em) : null;
@@ -27,7 +31,7 @@ export default function GarantiaMiniCard({ garantia: g, onClick }: Props) {
       style={{
         background: 'var(--portal-bg-card)',
         border: '1px solid var(--portal-border)',
-        borderLeft: `4px solid ${STATUS_COR[g.status]}`,
+        borderLeft: `4px solid ${cor || STATUS_COR[g.status]}`,
         borderRadius: 10,
         padding: 12,
         cursor: 'pointer',
@@ -66,7 +70,7 @@ export default function GarantiaMiniCard({ garantia: g, onClick }: Props) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         {g.montadora && (
           <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: g.montadora.cor || 'var(--portal-text-secondary)', fontWeight: 600 }}>
-            <Factory size={12} /> {g.montadora.nome}
+            <Factory size={12} /> {g.montadora.nome}{g.numero_externo ? ` · SG ${g.numero_externo}` : ''}
           </span>
         )}
         <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--portal-text-muted)' }}>
@@ -121,6 +125,7 @@ export default function GarantiaMiniCard({ garantia: g, onClick }: Props) {
           </span>
         )}
       </div>
+      {extra}
     </div>
   );
 }
