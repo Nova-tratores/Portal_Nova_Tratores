@@ -1,15 +1,16 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { fetchAuth } from '@/lib/auth/client';
-import { Loader2, FileText, Package, Check, X, Eye, Link2 } from 'lucide-react';
+import { Loader2, FileText, Package, Check, X, Eye, Link2, Paperclip, ExternalLink, Trash2, Undo2 } from 'lucide-react';
 import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento';
 import { fmtMoeda } from '@/lib/garantias/format';
 import { COMPONENTE_LABEL, type Componente } from '@/lib/garantias/notas';
-import type { NotasGarantia, NotaReembolso, NotaPecas } from '@/lib/garantias/notas-server';
+import type { NotasGarantia, NotaReembolso, NotaPecas, NotaManual } from '@/lib/garantias/notas-server';
 
 // Bloco "Notas fiscais" da garantia: NFS-e de reembolso (Nova → montadora) e
-// notas de peças recebidas da fábrica (entrada CFOP x.949). Sugestões; o vínculo
-// confirmado entra na versão final (por ora os botões só marcam na tela).
+// notas de peças recebidas da fábrica (entrada CFOP x.949). Sugestões que o
+// garantista confirma (grava em garantia_notas) ou nota anexada à mão quando ela
+// não está no sistema (sql/garantias-notas-manual.sql).
 
 const COR = '#dc2626';
 const COMP_COR: Record<Componente, string> = {
@@ -85,6 +86,8 @@ export default function NotasGarantiaPainel({ garantiaId, compacto, podeEditar =
 
   const { reembolso, pecas } = dados;
   const dec = (s: string | null) => (s ? DECISAO[s] : undefined);
+  const manuaisDe = (papel: NotaManual['papel']) => (dados.manuais || []).filter((m) => m.papel === papel);
+  const recarregar = () => { setVersao((x) => x + 1); onMudou?.(); };
   return (
     <div style={{ display: 'grid', gridTemplateColumns: compacto ? '1fr' : 'repeat(auto-fit, minmax(380px, 1fr))', gap: 16 }}>
       {(dados.migracaoFaltando || erroAcao) && (
@@ -93,27 +96,31 @@ export default function NotasGarantiaPainel({ garantiaId, compacto, podeEditar =
         </div>
       )}
       <section>
-        <Titulo icone={<FileText size={16} />} texto="NFS-e de reembolso (Nova → montadora)" n={reembolso.sugeridas.length} />
+        <Titulo icone={<FileText size={16} />} texto="NFS-e de reembolso (Nova → montadora)" n={reembolso.sugeridas.length + manuaisDe('reembolso').length} />
         <Ajuda>Nota de serviço que a Nova emite contra a {dados.garantia.montadora || 'montadora'} para receber o que a fábrica pagou. Achada pelo nº da SG ({dados.garantia.sg || 'sem nº'}) no texto da nota.</Ajuda>
-        {reembolso.sugeridas.length === 0 && (
-          <Vazio>Nenhuma NFS-e de reembolso cita esta garantia ainda. Ela entra na próxima OS de reembolso da montadora.</Vazio>
+        {reembolso.sugeridas.length === 0 && manuaisDe('reembolso').length === 0 && (
+          <Vazio>Nenhuma NFS-e de reembolso cita esta garantia ainda. Ela entra na próxima OS de reembolso da montadora — ou anexe a nota abaixo se ela não estiver no sistema.</Vazio>
         )}
         {reembolso.sugeridas.map((n) => (
           <CardReembolso key={n.docId} n={n} atual={dados.garantia.numero} decisao={dec(n.vinculo)} ocupado={gravando === `reembolso${n.docId}`} podeEditar={podeEditar}
             onDecidir={(v) => decidir('reembolso', { docId: n.docId }, dec(n.vinculo), v, false)} onVer={() => abrir(n.docId, `NFS-e ${n.numero}`)} />
         ))}
+        <NotasManuais papel="reembolso" garantiaId={garantiaId} manuais={manuaisDe('reembolso')} podeEditar={podeEditar}
+          faltaMigracao={dados.manualFaltando} onMudou={recarregar} />
       </section>
 
       <section>
-        <Titulo icone={<Package size={16} />} texto="Peças recebidas da fábrica" n={pecas.sugeridas.length} />
+        <Titulo icone={<Package size={16} />} texto="Peças recebidas da fábrica" n={pecas.sugeridas.length + manuaisDe('pecas').length} />
         <Ajuda>Notas de entrada da montadora com CFOP x.949 (remessa em garantia) emitidas depois da abertura. Os itens em destaque têm o código de uma peça desta garantia.</Ajuda>
-        {pecas.sugeridas.length === 0 && (
+        {pecas.sugeridas.length === 0 && manuaisDe('pecas').length === 0 && (
           <Vazio>Nenhuma nota de peça casou pelo código. {pecas.outras.length ? 'Veja abaixo as outras notas de remessa da montadora.' : ''}</Vazio>
         )}
         {pecas.sugeridas.map((n) => (
           <CardPecas key={n.entradaId} n={n} decisao={dec(n.vinculo)} ocupado={gravando === `pecas${n.entradaId}`} podeEditar={podeEditar}
             onDecidir={(v) => decidir('pecas', { entradaId: n.entradaId, docId: n.docId }, dec(n.vinculo), v, false)} onVer={() => abrir(n.docId, `NF-e ${n.numero}`)} />
         ))}
+        <NotasManuais papel="pecas" garantiaId={garantiaId} manuais={manuaisDe('pecas')} podeEditar={podeEditar}
+          faltaMigracao={dados.manualFaltando} onMudou={recarregar} />
       </section>
 
       {(reembolso.outras.length > 0 || pecas.outras.length > 0) && (
@@ -218,19 +225,147 @@ function Acoes({ decisao, ocupado, podeEditar = true, onDecidir, onVer }: {
   decisao?: 'ok' | 'nao'; ocupado?: boolean; podeEditar?: boolean; onDecidir: (v: 'ok' | 'nao') => void; onVer?: () => void;
 }) {
   const trava: React.CSSProperties = !podeEditar || ocupado ? { opacity: 0.5, cursor: 'not-allowed' } : {};
-  const dica = podeEditar ? 'Clique de novo para desfazer' : 'Sem permissão para vincular notas';
+  const dica = podeEditar ? undefined : 'Sem permissão para vincular notas';
+  const ver = onVer && <button onClick={onVer} style={{ ...btn, marginLeft: 'auto' }}><Eye size={14} /> Ver nota</button>;
+  const girando = ocupado ? <Loader2 size={14} className="spin" /> : null;
+
+  // Decidida: o estado aparece como SELO (não botão) e o único botão desfaz.
+  if (decisao) {
+    const ok = decisao === 'ok';
+    return (
+      <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 800, color: ok ? '#16a34a' : 'var(--portal-text-muted)' }}>
+          {ok ? <Check size={15} /> : <X size={15} />} {ok ? 'Vinculada a esta garantia' : 'Marcada como "não é esta"'}
+        </span>
+        <button disabled={!podeEditar || ocupado} title={dica} onClick={() => onDecidir(decisao)} style={{ ...btn, ...trava, color: ok ? COR : 'var(--portal-text)', borderColor: ok ? COR : 'var(--portal-border)' }}>
+          {girando || <Undo2 size={14} />} {ok ? 'Desvincular' : 'Desfazer'}
+        </button>
+        {ver}
+      </div>
+    );
+  }
   return (
     <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-      <button disabled={!podeEditar || ocupado} title={dica} onClick={() => onDecidir('ok')} style={{ ...btn, ...trava, background: decisao === 'ok' ? '#16a34a' : 'transparent', color: decisao === 'ok' ? '#fefefe' : '#16a34a', borderColor: '#16a34a' }}>
-        {ocupado ? <Loader2 size={14} className="spin" /> : <Check size={14} />} {decisao === 'ok' ? 'Vinculada' : 'Confirmar'}
+      <button disabled={!podeEditar || ocupado} title={dica} onClick={() => onDecidir('ok')} style={{ ...btn, ...trava, background: '#16a34a', color: '#fefefe', borderColor: '#16a34a' }}>
+        {girando || <Check size={14} />} Vincular a esta garantia
       </button>
-      <button disabled={!podeEditar || ocupado} title={dica} onClick={() => onDecidir('nao')} style={{ ...btn, ...trava, color: decisao === 'nao' ? COR : 'var(--portal-text-muted)', borderColor: decisao === 'nao' ? COR : 'var(--portal-border)' }}>
-        <X size={14} /> {decisao === 'nao' ? 'Marcada: não é esta' : 'Não é esta'}
+      <button disabled={!podeEditar || ocupado} title={dica} onClick={() => onDecidir('nao')} style={{ ...btn, ...trava, color: 'var(--portal-text-muted)' }}>
+        <X size={14} /> Não é esta
       </button>
-      {onVer && <button onClick={onVer} style={{ ...btn, marginLeft: 'auto' }}><Eye size={14} /> Ver nota</button>}
+      {ver}
     </div>
   );
 }
+
+// Notas anexadas à mão (quando a nota não está no sistema) + o formulário para anexar.
+function NotasManuais({ papel, garantiaId, manuais, podeEditar, faltaMigracao, onMudou }: {
+  papel: NotaManual['papel']; garantiaId: string; manuais: NotaManual[]; podeEditar: boolean;
+  faltaMigracao: boolean; onMudou: () => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [numero, setNumero] = useState('');
+  const [data, setData] = useState('');
+  const [valor, setValor] = useState('');
+  const [arquivo, setArquivo] = useState<File | null>(null);
+  const [gravando, setGravando] = useState('');
+  const [erro, setErro] = useState('');
+  const rotulo = papel === 'reembolso' ? 'NFS-e' : 'NF-e';
+
+  const salvar = async () => {
+    if (!numero.trim() || !arquivo) { setErro('Informe o número e escolha o arquivo da nota.'); return; }
+    setGravando('novo');
+    setErro('');
+    const fd = new FormData();
+    fd.append('papel', papel);
+    fd.append('numero', numero.trim());
+    if (data) fd.append('data', data);
+    if (valor.trim()) fd.append('valor', valor.trim());
+    fd.append('file', arquivo);
+    try {
+      const r = await fetchAuth(`/api/garantias/${garantiaId}/notas/manual`, { method: 'POST', body: fd });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErro(j.error || 'Não foi possível anexar.'); return; }
+      setAberto(false); setNumero(''); setData(''); setValor(''); setArquivo(null);
+      onMudou();
+    } catch {
+      setErro('Sem conexão com o portal.');
+    } finally {
+      setGravando('');
+    }
+  };
+
+  const remover = async (m: NotaManual) => {
+    if (!confirm(`Remover a ${rotulo} ${m.numero || ''} anexada à mão?`)) return;
+    setGravando(m.id);
+    setErro('');
+    try {
+      const r = await fetchAuth(`/api/garantias/${garantiaId}/notas/manual?nota=${m.id}`, { method: 'DELETE' });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) setErro(j.error || 'Não foi possível remover.');
+      else onMudou();
+    } catch {
+      setErro('Sem conexão com o portal.');
+    } finally {
+      setGravando('');
+    }
+  };
+
+  return (
+    <div>
+      {manuais.map((m) => (
+        <div key={m.id} style={{ ...card, borderLeft: '4px solid #16a34a' }}>
+          <div style={linhaTopo}>
+            <div>
+              <div style={{ fontWeight: 800, fontSize: 15 }}>{rotulo} {m.numero || 's/ nº'} <span style={muted}>· {dataBR(m.data)}</span></div>
+              <div style={muted}>Anexada à mão por {m.criadoPor || '—'} · {m.nomeArquivo}</div>
+            </div>
+            {m.valor != null && <div style={{ fontWeight: 800, fontSize: 16, whiteSpace: 'nowrap' }}>{fmtMoeda(m.valor)}</div>}
+          </div>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 800, color: '#16a34a' }}>
+              <Check size={15} /> Vinculada a esta garantia
+            </span>
+            <button disabled={!podeEditar || !!gravando} onClick={() => remover(m)} style={{ ...btn, color: COR, borderColor: COR, opacity: !podeEditar || gravando ? 0.5 : 1 }}>
+              {gravando === m.id ? <Loader2 size={14} className="spin" /> : <Trash2 size={14} />} Remover
+            </button>
+            <a href={m.url} target="_blank" rel="noreferrer" style={{ ...btn, marginLeft: 'auto', textDecoration: 'none' }}><ExternalLink size={14} /> Abrir</a>
+          </div>
+        </div>
+      ))}
+
+      {podeEditar && !aberto && (
+        <button onClick={() => { setAberto(true); setErro(''); }} style={{ ...btnLink, marginTop: 2 }}>
+          <Paperclip size={14} /> Não achou a nota? Anexar {rotulo} manualmente
+        </button>
+      )}
+      {aberto && (
+        <div style={{ ...card, borderStyle: 'dashed' }}>
+          <div style={{ fontWeight: 800, fontSize: 13, marginBottom: 8 }}>Anexar {rotulo} {papel === 'reembolso' ? 'de reembolso' : 'de peças da fábrica'}</div>
+          {faltaMigracao && <div style={{ fontSize: 12, color: '#b45309', marginBottom: 8 }}>Para gravar falta aplicar a migration sql/garantias-notas-manual.sql.</div>}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 8 }}>
+            <label style={rot}>Nº da nota *<input value={numero} onChange={(e) => setNumero(e.target.value)} style={inp} /></label>
+            <label style={rot}>Data de emissão<input type="date" value={data} onChange={(e) => setData(e.target.value)} style={inp} /></label>
+            <label style={rot}>Valor (R$)<input value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" inputMode="decimal" style={inp} /></label>
+          </div>
+          <label style={{ ...rot, marginTop: 8 }}>Arquivo da nota * (PDF, XML ou foto)
+            <input type="file" accept="application/pdf,.pdf,.xml,text/xml,application/xml,image/*" onChange={(e) => setArquivo(e.target.files?.[0] || null)} style={{ ...inp, padding: 6 }} />
+          </label>
+          {erro && <div style={{ fontSize: 12, color: COR, marginTop: 8 }}>{erro}</div>}
+          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+            <button disabled={!!gravando} onClick={salvar} style={{ ...btn, background: '#16a34a', color: '#fefefe', borderColor: '#16a34a' }}>
+              {gravando === 'novo' ? <Loader2 size={14} className="spin" /> : <Paperclip size={14} />} Anexar e vincular
+            </button>
+            <button disabled={!!gravando} onClick={() => setAberto(false)} style={btn}>Cancelar</button>
+          </div>
+        </div>
+      )}
+      {!aberto && erro && <div style={{ fontSize: 12, color: COR, marginTop: 6 }}>{erro}</div>}
+    </div>
+  );
+}
+
+const rot: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' };
+const inp: React.CSSProperties = { padding: '8px 9px', borderRadius: 7, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13, minHeight: 38, width: '100%', boxSizing: 'border-box' };
 
 function Titulo({ icone, texto, n }: { icone: React.ReactNode; texto: string; n: number }) {
   return (

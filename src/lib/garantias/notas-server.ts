@@ -6,7 +6,7 @@
 //  - garantia_pecas.forma_reembolso = checklist "reposta pela fábrica × paga na NFS-e".
 // Sem a migration tudo continua lendo (só as sugestões); gravar responde migracaoFaltando.
 import { supabase } from '@/lib/pos/supabase';
-import { TBL_GARANTIAS, TBL_GAR_PECAS } from './constants';
+import { TBL_GARANTIAS, TBL_GAR_PECAS, BUCKET_GARANTIAS } from './constants';
 import { registrarEvento } from './server';
 import {
   extrairSGs, extrairDRVG, normSG, somarComponentes, casarPecas, ehCfopGarantia,
@@ -48,11 +48,27 @@ export interface NotaPecas {
   vinculo: StatusVinculo;
 }
 
+/** nota anexada à mão (não estava no sistema) — sql/garantias-notas-manual.sql */
+export interface NotaManual {
+  id: string;
+  papel: 'reembolso' | 'pecas';
+  numero: string | null;
+  data: string | null;
+  valor: number | null;
+  url: string;
+  nomeArquivo: string | null;
+  criadoPor: string | null;
+  criadoEm: string;
+}
+
 export interface NotasGarantia {
   garantia: { id: string; numero: string; sg: string | null; montadora: string | null; status: string };
   reembolso: { sugeridas: NotaReembolso[]; outras: NotaReembolso[] };
   pecas: { sugeridas: NotaPecas[]; outras: NotaPecas[] };
+  manuais: NotaManual[];
   migracaoFaltando: boolean;
+  /** falta sql/garantias-notas-manual.sql (anexar à mão não grava) */
+  manualFaltando: boolean;
 }
 
 interface Vinculo {
@@ -283,12 +299,99 @@ export async function notasDaGarantia(id: string): Promise<NotasGarantia | null>
     for (const n of [...sugPecas, ...outrasPecas]) n.docId = docs.get(String(n.entradaId)) ?? null;
   }
 
+  const man = vinc.ok ? await lerManuais(g.id) : { ok: false, linhas: [] };
   return {
     garantia: { id: g.id, numero: g.numero, sg, montadora, status: g.status },
     reembolso: { sugeridas, outras },
     pecas: { sugeridas: sugPecas, outras: outrasPecas },
+    manuais: man.linhas,
     migracaoFaltando: !vinc.ok,
+    manualFaltando: !man.ok,
   };
+}
+
+async function lerManuais(garantiaId: string): Promise<{ ok: boolean; linhas: NotaManual[] }> {
+  const { data, error } = await supabase
+    .from(TBL_NOTAS)
+    .select('id, papel, numero, data_emissao, valor, arquivo_url, nome_arquivo, criado_por, criado_em')
+    .eq('garantia_id', garantiaId)
+    .not('arquivo_url', 'is', null)
+    .order('criado_em', { ascending: true });
+  if (error) {
+    if (error.code === '42703' || /arquivo_url/.test(error.message)) return { ok: false, linhas: [] };
+    throw new Error(error.message);
+  }
+  return {
+    ok: true,
+    linhas: (data || []).map((r) => ({
+      id: r.id, papel: r.papel, numero: r.numero, data: r.data_emissao, valor: r.valor == null ? null : Number(r.valor),
+      url: r.arquivo_url, nomeArquivo: r.nome_arquivo, criadoPor: r.criado_por, criadoEm: r.criado_em,
+    })),
+  };
+}
+
+function nomeSeguro(nome: string): string {
+  return nome.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, '-').replace(/[^a-zA-Z0-9.\-_]/g, '') || 'nota';
+}
+
+const MIG_MANUAL = 'Falta aplicar a migration sql/garantias-notas-manual.sql.';
+
+// Nota que não está no sistema: o garantista anexa o arquivo (PDF/XML/foto) com nº, data e valor.
+export async function anexarNotaManual(garantiaId: string, p: {
+  papel: 'reembolso' | 'pecas';
+  numero: string; data: string | null; valor: number | null;
+  arquivo: { nome: string; tipo: string; bytes: Buffer };
+  ator: string;
+}): Promise<{ ok: true } | { ok: false; erro: string; status: number }> {
+  const { data: g } = await supabase.from(TBL_GARANTIAS).select('id').eq('id', garantiaId).maybeSingle();
+  if (!g) return { ok: false, erro: 'Garantia não encontrada.', status: 404 };
+  const caminho = `${garantiaId}/nota_${p.papel}/${Date.now()}_${nomeSeguro(p.arquivo.nome)}`;
+  const { error: upErr } = await supabase.storage
+    .from(BUCKET_GARANTIAS)
+    .upload(caminho, p.arquivo.bytes, { contentType: p.arquivo.tipo || 'application/octet-stream', upsert: false });
+  if (upErr) return { ok: false, erro: 'Falha ao enviar o arquivo.', status: 500 };
+  const url = supabase.storage.from(BUCKET_GARANTIAS).getPublicUrl(caminho).data.publicUrl;
+
+  const { error } = await supabase.from(TBL_NOTAS).insert({
+    garantia_id: garantiaId,
+    papel: p.papel,
+    numero: p.numero, data_emissao: p.data, valor: p.valor,
+    arquivo_url: url, nome_arquivo: p.arquivo.nome,
+    status: 'vinculada', origem: 'manual', criado_por: p.ator,
+  });
+  if (error) {
+    await supabase.storage.from(BUCKET_GARANTIAS).remove([caminho]);
+    if (tabelaFalta(error)) return { ok: false, erro: 'Falta aplicar a migration sql/garantias-notas.sql.', status: 503 };
+    if (error.code === '42703' || error.code === '23514' || /arquivo_url|tem_nota/.test(error.message)) return { ok: false, erro: MIG_MANUAL, status: 503 };
+    return { ok: false, erro: error.message, status: 500 };
+  }
+  await registrarEvento(garantiaId, {
+    tipo: 'nota_vinculada',
+    ator: p.ator,
+    detalhe: `${p.papel === 'reembolso' ? 'NFS-e de reembolso' : 'NF-e de peças da fábrica'} ${p.numero} anexada à mão (${p.arquivo.nome})`,
+  });
+  return { ok: true };
+}
+
+export async function removerNotaManual(garantiaId: string, notaId: string, ator: string) {
+  const { data: n, error } = await supabase
+    .from(TBL_NOTAS)
+    .delete()
+    .eq('id', notaId)
+    .eq('garantia_id', garantiaId)
+    .not('arquivo_url', 'is', null)
+    .select('papel, numero, arquivo_url')
+    .maybeSingle();
+  if (error) return { ok: false as const, erro: error.message, status: 500 };
+  if (!n) return { ok: false as const, erro: 'Nota não encontrada.', status: 404 };
+  const caminho = String(n.arquivo_url).split(`/${BUCKET_GARANTIAS}/`)[1];
+  if (caminho) await supabase.storage.from(BUCKET_GARANTIAS).remove([decodeURIComponent(caminho)]);
+  await registrarEvento(garantiaId, {
+    tipo: 'nota_desfeita',
+    ator,
+    detalhe: `Removida a ${n.papel === 'reembolso' ? 'NFS-e de reembolso' : 'NF-e de peças da fábrica'} ${n.numero || ''} anexada à mão`,
+  });
+  return { ok: true as const };
 }
 
 // ── Gravar a decisão sobre uma nota ──────────────────────────────────────────
