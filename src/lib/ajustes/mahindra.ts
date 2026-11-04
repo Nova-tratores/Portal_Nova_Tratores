@@ -197,7 +197,8 @@ interface ParamsGeracao {
 // o job guarda os parametros; no SIGTERM o processo marca seus jobs como
 // interrompidos e NAO grava resultado; o processo novo (no boot ou no proximo
 // /status) assume o job — com UPDATE condicional, um so' processo pega — e gera de novo.
-const MAX_RETOMADAS = 3;
+// 10: em 04/11 entraram 3 deploys em ~50 min e a 3a retomada morreu na pagina 123/131.
+const MAX_RETOMADAS = 10;
 // Sinal de vida: enquanto gera, o processo regrava o job a cada 30 s. Sem sinal por
 // 2,5 min = o processo morreu. (04/11 15:08: o aviso no SIGTERM NAO chegou ao banco
 // num deploy real — o processo morre antes —, entao o pulso e' quem decide.)

@@ -335,10 +335,10 @@ export async function register(): Promise<void> {
   }
 
   // Arquivo Mahindra (04/11/2026): geração que um deploy interrompeu recomeça sozinha
-  // depois do boot (web ou worker — quem pegar primeiro; o UPDATE condicional garante
-  // um só). Confere aos 45 s, 4 min e 8 min: o processo velho ainda vive uns minutos
-  // durante o deploy e o job só conta como morto 2,5 min depois do último sinal de vida.
-  // Também retoma no próximo /status da tela. Só produção.
+  // (web ou worker — quem pegar primeiro; o UPDATE condicional garante um só). Confere
+  // 45 s depois do boot e a cada 2 min (1 leitura leve no banco): o processo velho ainda
+  // vive uns minutos durante o deploy e o job só conta como morto 2,5 min depois do
+  // último sinal de vida. Também retoma no próximo /status da tela. Só produção.
   if (process.env.NODE_ENV === 'production' && process.env.MAHINDRA_RETOMAR !== 'off') {
     const retomar = () => {
       import('./lib/ajustes/mahindra')
@@ -346,7 +346,8 @@ export async function register(): Promise<void> {
         .then((n) => { if (n) log(`mahindra: ${n} geração(ões) interrompida(s) retomada(s)`); })
         .catch((e) => log('mahindra: retomada falhou: ' + ((e as Error)?.message || e)));
     };
-    for (const s of [45, 240, 480]) setTimeout(retomar, s * 1000);
+    setTimeout(retomar, 45 * 1000);
+    setInterval(retomar, 2 * 60 * 1000);
   }
 
   // Monitor de uso (quem usa o quê): o buffer em memória (páginas por beacon do
