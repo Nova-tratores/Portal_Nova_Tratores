@@ -15,7 +15,10 @@ import { parseValorMisto } from '@/lib/marketing/custos';
 import { diaBR } from '@/lib/frota/mapa-vivo';
 
 export const MSG_MIGRACAO_OFICINA = 'Falta aplicar sql/frota-oficina.sql no Supabase para usar a oficina.';
-export const semTabelaOficina = (m: string) => /frota_os|relation .* does not exist|schema cache/i.test(m);
+// Só "tabela não existe": o nome do índice de trava (uq_frota_os_ativa) também
+// contém "frota_os", e a 2ª OS do mesmo carro respondia "falta aplicar".
+export const semTabelaOficina = (m: string) =>
+  /relation .*frota_os.* does not exist|could not find the table .*frota_os|schema cache.*frota_os/i.test(m);
 
 export class ErroOficina extends Error {
   constructor(msg: string, public status = 400) { super(msg); }
@@ -217,8 +220,8 @@ export async function abrirOS(supabase: SupabaseClient, n: NovaOS, quem: string)
     imobiliza: n.imobiliza !== false, criado_por: quem,
   }).select('id, numero').single();
   if (error) {
-    if (semTabelaOficina(error.message)) throw new ErroOficina(MSG_MIGRACAO_OFICINA, 503);
     if (error.code === '23505') throw new ErroOficina(`O ${n.placa} já tem uma OS em andamento. Inclua os itens nela.`, 409);
+    if (semTabelaOficina(error.message)) throw new ErroOficina(MSG_MIGRACAO_OFICINA, 503);
     throw new Error(error.message);
   }
   if (itens.length) {
