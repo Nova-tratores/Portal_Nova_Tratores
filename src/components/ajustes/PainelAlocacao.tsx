@@ -4,12 +4,12 @@
 // src/lib/pecas/alocacao-server.ts) e fecha sozinha quando a locação fica completa.
 // Aqui a pessoa: aloca (mesmo modal da tela de Localização → POST /api/ajustes/localizacao),
 // manda para a fila de etiquetas com cópias = quantidade recebida, ou dispensa com motivo.
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { MapPin, PackageOpen, RefreshCw, Tag, X, CheckCircle } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ArrowDown, ArrowUp, ArrowUpDown, MapPin, PackageOpen, RefreshCw, Tag, X, CheckCircle } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import { ModalMover } from '@/components/ajustes/ModalMoverPeca';
 import { chaveProd, locacaoEtiqueta, posLabel, type Pos, type ProdutoLoc } from '@/lib/ajustes/posicao';
-import { copiasEtiqueta, diasDesde, type GrupoAlocacao } from '@/lib/pecas/alocacao';
+import { copiasEtiqueta, diasDesde, filtrarGrupos, ordenarGrupos, textoColuna, type ColunaAlocacao, type FiltrosAlocacao, type GrupoAlocacao, type OrdemAlocacao } from '@/lib/pecas/alocacao';
 
 export interface ListaAlocacaoCliente {
   tabelaAusente: boolean;
@@ -60,6 +60,37 @@ function espera(iso: string | null): string {
   return d === 0 ? 'hoje' : d === 1 ? 'há 1 dia' : `há ${d} dias`;
 }
 
+const COLUNAS: Array<{ id: ColunaAlocacao; rotulo: string; minW: number; direita?: boolean }> = [
+  { id: 'empresa', rotulo: 'Empresa', minW: 104 },
+  { id: 'codigo', rotulo: 'Código', minW: 110 },
+  { id: 'descricao', rotulo: 'Descrição', minW: 220 },
+  { id: 'qtde', rotulo: 'Qtd', minW: 64, direita: true },
+  { id: 'nf', rotulo: 'NF', minW: 90 },
+  { id: 'fornecedor', rotulo: 'Fornecedor', minW: 170 },
+  { id: 'recebido_em', rotulo: 'Recebida', minW: 104 },
+  { id: 'responsavel', rotulo: 'Responsável', minW: 130 },
+];
+const thTabela: React.CSSProperties = { background: '#f1f5f9', borderBottom: '1px solid #cbd5e1', padding: '6px 8px', textAlign: 'left', verticalAlign: 'top' };
+const tdTabela: React.CSSProperties = { borderBottom: '1px solid #e2e8f0', padding: '8px', fontSize: '.8rem', color: '#334155', verticalAlign: 'top' };
+// computador: tabela com Ações fixa à direita; celular: cada peça vira um bloco empilhado
+const CSS_TABELA = `
+@media (min-width: 768px) {
+  .guardar-acoes { position: sticky; right: 0; box-shadow: -1px 0 0 #e2e8f0; }
+  .guardar-btn-filtros { display: none !important; }
+}
+@media (max-width: 767px) {
+  .guardar-tabela, .guardar-tabela thead, .guardar-tabela tbody { display: block; }
+  .guardar-tabela.guardar-fechada thead { display: none; }
+  .guardar-tabela thead tr { display: grid; grid-template-columns: 1fr 1fr; }
+  .guardar-tabela thead th { min-width: 0 !important; border-bottom: none !important; }
+  .guardar-tabela thead th:last-child { display: none; }
+  .guardar-tabela tbody tr { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; padding: 8px 4px; border-top: 1px solid #cbd5e1; }
+  .guardar-tabela tbody td { display: block; border: none !important; padding: 2px 6px !important; white-space: normal !important; text-align: left !important; }
+  .guardar-tabela tbody td[data-rotulo]::before { content: attr(data-rotulo) ": "; color: #64748b; font-weight: 400; }
+  .guardar-tabela tbody td.guardar-largo { flex: 1 1 100%; }
+  .guardar-tabela .guardar-recebida div { display: inline; margin-left: 6px; }
+}`;
+
 interface Alocada { grupo: GrupoAlocacao; pos: Pos; completa: boolean; naFila: boolean }
 
 export default function PainelAlocacao({ lista, carregando, erro, recarregar, produtos, focoCod, onFechar, onLocacaoGravada, modo = 'gaveta' }: {
@@ -84,6 +115,9 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
   const [motivo, setMotivo] = useState('');
   const [aviso, setAviso] = useState<{ texto: string; tipo: 'ok' | 'erro' } | null>(null);
   const [verificando, setVerificando] = useState(false);
+  const [ordem, setOrdem] = useState<OrdemAlocacao>({ coluna: 'recebido_em', dir: 'desc' }); // mais recente primeiro
+  const [filtrosCol, setFiltrosCol] = useState<FiltrosAlocacao>({});
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false); // só o celular recolhe
 
   const porChave = useMemo(() => new Map(produtos.map((p) => [chaveProd(p), p])), [produtos]);
   const empresas = useMemo(() => Array.from(new Set(lista.grupos.map((g) => g.conta_omie))).sort(), [lista.grupos]);
@@ -99,6 +133,13 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
         || g.notas.some((n) => String(n.numero_nfe || '').includes(t) || String(n.fornecedor || '').toLowerCase().includes(t));
     });
   }, [lista.grupos, lista.meuUserId, quem, empresa, busca]);
+
+  const linhas = useMemo(
+    () => (emPagina ? ordenarGrupos(filtrarGrupos(visiveis, filtrosCol), ordem) : visiveis),
+    [emPagina, visiveis, filtrosCol, ordem],
+  );
+
+  const nFiltros = Object.values(filtrosCol).filter((v) => String(v || '').trim()).length;
 
   // peça da demanda no formato da matriz (a recém-criada pode ainda não estar nela)
   const produtoDe = useCallback((g: GrupoAlocacao): ProdutoLoc => {
@@ -188,6 +229,15 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
 
   const alvoProduto = alocar ? produtoDe(alocar) : null;
 
+  const formDispensa = (g: GrupoAlocacao) => (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+      <input autoFocus value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo (obrigatório) — ex.: peça grande, fica no pátio"
+        onKeyDown={(e) => { if (e.key === 'Enter') confirmarDispensa(g); }}
+        style={{ flex: '1 1 200px', minWidth: 0, border: '1px solid #cbd5e1', borderRadius: 8, padding: '7px 9px', fontSize: '.78rem' }} />
+      <button disabled={salvando} onClick={() => confirmarDispensa(g)} style={{ ...btn, color: '#b91c1c', borderColor: '#fecaca', opacity: salvando ? .6 : 1 }}>Confirmar dispensa</button>
+    </div>
+  );
+
   return (
     <div style={emPagina ? undefined : { position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }} onClick={emPagina ? undefined : onFechar}>
       <div className="est-touch" onClick={(e) => e.stopPropagation()}
@@ -216,10 +266,12 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
                 </button>
               ))}
             </div>
-            <select value={empresa} onChange={(e) => setEmpresa(e.target.value)} style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 8px', fontSize: '.78rem', background: '#fff' }}>
-              <option value="">Todas as empresas</option>
-              {empresas.map((e) => <option key={e} value={e}>{EMPRESA_LABEL[e] || e}</option>)}
-            </select>
+            {!emPagina && (
+              <select value={empresa} onChange={(e) => setEmpresa(e.target.value)} style={{ border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 8px', fontSize: '.78rem', background: '#fff' }}>
+                <option value="">Todas as empresas</option>
+                {empresas.map((e) => <option key={e} value={e}>{EMPRESA_LABEL[e] || e}</option>)}
+              </select>
+            )}
             <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="código, descrição, nota ou fornecedor"
               style={{ flex: 1, minWidth: 160, border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 8px', fontSize: '.78rem' }} />
             <button onClick={verificarAgora} disabled={verificando} style={{ ...btn, opacity: verificando ? .6 : 1 }}
@@ -264,13 +316,84 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
           )}
 
           {carregando && lista.grupos.length === 0 && <div style={{ color: '#64748b', fontSize: '.8rem' }}>Carregando…</div>}
-          {!carregando && !lista.tabelaAusente && visiveis.length === 0 && (
+          {!carregando && !lista.tabelaAusente && linhas.length === 0 && (
             <div style={{ color: '#64748b', fontSize: '.82rem', padding: '18px 4px' }}>
               {lista.grupos.length === 0 ? 'Nenhuma peça recebida aguardando locação.' : 'Nenhuma peça no filtro.'}
             </div>
           )}
 
-          {visiveis.map((g) => {
+          {emPagina && lista.grupos.length > 0 && (
+            <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8 }}>
+              <style>{CSS_TABELA}</style>
+              <div className="guardar-btn-filtros" style={{ padding: 8 }}>
+                <button onClick={() => setFiltrosAbertos((a) => !a)} aria-expanded={filtrosAbertos} style={{ ...btn, width: '100%', justifyContent: 'center' }}>
+                  <ArrowUpDown size={14} /> {filtrosAbertos ? 'Fechar' : 'Ordenar e filtrar'}
+                  {nFiltros > 0 && ` (${nFiltros} ${nFiltros === 1 ? 'filtro' : 'filtros'})`}
+                </button>
+              </div>
+              <table className={`guardar-tabela${filtrosAbertos ? '' : ' guardar-fechada'}`} style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
+                <thead>
+                  <tr>
+                    {COLUNAS.map((c) => {
+                      const ativa = ordem.coluna === c.id;
+                      const Icone = !ativa ? ArrowUpDown : ordem.dir === 'asc' ? ArrowUp : ArrowDown;
+                      return (
+                        <th key={c.id} aria-sort={ativa ? (ordem.dir === 'asc' ? 'ascending' : 'descending') : 'none'} style={{ ...thTabela, minWidth: c.minW }}>
+                          <button onClick={() => setOrdem((o) => ({ coluna: c.id, dir: o.coluna === c.id && o.dir === 'asc' ? 'desc' : 'asc' }))}
+                            title="Clique para ordenar A→Z; de novo, Z→A"
+                            style={{ all: 'unset', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.74rem', fontWeight: 700, color: ativa ? '#1d4ed8' : '#334155' }}>
+                            {c.rotulo} <Icone size={12} />
+                          </button>
+                          <input value={filtrosCol[c.id] || ''} onChange={(e) => setFiltrosCol((f) => ({ ...f, [c.id]: e.target.value }))}
+                            placeholder="Filtrar" aria-label={`Filtrar por ${c.rotulo}`}
+                            style={{ display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 5, border: '1px solid #cbd5e1', borderRadius: 6, padding: '4px 6px', fontSize: '.74rem', fontWeight: 400, background: '#fff' }} />
+                        </th>
+                      );
+                    })}
+                    <th className="guardar-acoes" style={{ ...thTabela, fontSize: '.74rem', fontWeight: 700, color: '#334155' }}>Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {linhas.map((g) => {
+                    const p = porChave.get(`${g.conta_omie}|${g.codigo_produto}`);
+                    const parcial = p ? locacaoEtiqueta(p.caracteristicas) : '';
+                    return (
+                      <React.Fragment key={g.chave}>
+                        <tr>
+                          <td style={tdTabela}>
+                            <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999, color: '#fefefe', background: EMPRESA_COR[g.conta_omie] || '#6b7280', whiteSpace: 'nowrap' }}>{g.conta_omie}</span>
+                          </td>
+                          <td style={{ ...tdTabela, fontFamily: 'monospace', fontWeight: 700, color: '#0f172a', whiteSpace: 'nowrap' }}>{textoColuna(g, 'codigo')}</td>
+                          <td className="guardar-largo" style={tdTabela}>
+                            {g.descricao || <em style={{ color: '#94a3b8' }}>sem descrição</em>}
+                            {parcial && <div style={{ fontSize: '.72rem', color: '#64748b', marginTop: 2 }}>locação parcial: <b>{parcial}</b></div>}
+                          </td>
+                          <td data-rotulo="Qtd" style={{ ...tdTabela, textAlign: 'right', fontWeight: 700 }}>{fmtQtd(g.qtde)}</td>
+                          <td data-rotulo="NF" style={tdTabela}>{textoColuna(g, 'nf') || '—'}</td>
+                          <td className="guardar-largo" style={tdTabela}>{textoColuna(g, 'fornecedor') || '—'}</td>
+                          <td className="guardar-recebida guardar-largo" style={{ ...tdTabela, whiteSpace: 'nowrap' }}>
+                            {fmtData(g.recebido_em)}
+                            <div style={{ fontSize: '.72rem', color: '#b45309', fontWeight: 600 }}>{espera(g.recebido_em)}</div>
+                          </td>
+                          <td className="guardar-largo" data-rotulo="Responsável" style={tdTabela}>{g.responsavel_nome || <em>não definido</em>}</td>
+                          <td className="guardar-acoes guardar-largo" style={{ ...tdTabela, background: '#fff' }}>
+                            <div style={{ display: 'flex', gap: 6 }}>
+                              <button onClick={() => setAlocar(g)} style={btnPrim}><MapPin size={14} /> Alocar</button>
+                              <button onClick={() => { setDispensar(dispensar === g.chave ? null : g.chave); setMotivo(''); }} style={btn}
+                                title="Para peça que não vai para prateleira (ex.: fica no chão, já saiu)">Dispensar</button>
+                            </div>
+                          </td>
+                        </tr>
+                        {dispensar === g.chave && <tr><td colSpan={COLUNAS.length + 1} style={tdTabela}>{formDispensa(g)}</td></tr>}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {!emPagina && visiveis.map((g) => {
             const p = porChave.get(`${g.conta_omie}|${g.codigo_produto}`);
             const parcial = p ? locacaoEtiqueta(p.caracteristicas) : '';
             return (
@@ -301,12 +424,7 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
                   </div>
                 </div>
                 {dispensar === g.chave && (
-                  <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-                    <input autoFocus value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo (obrigatório) — ex.: peça grande, fica no pátio"
-                      onKeyDown={(e) => { if (e.key === 'Enter') confirmarDispensa(g); }}
-                      style={{ flex: '1 1 200px', minWidth: 0, border: '1px solid #cbd5e1', borderRadius: 8, padding: '7px 9px', fontSize: '.78rem' }} />
-                    <button disabled={salvando} onClick={() => confirmarDispensa(g)} style={{ ...btn, color: '#b91c1c', borderColor: '#fecaca', opacity: salvando ? .6 : 1 }}>Confirmar dispensa</button>
-                  </div>
+                  <div style={{ marginTop: 8 }}>{formDispensa(g)}</div>
                 )}
               </div>
             );

@@ -216,6 +216,50 @@ export function agruparPorProduto(linhas: PendenciaAlocacao[]): GrupoAlocacao[] 
     || String(a.codigo || '').localeCompare(String(b.codigo || ''), 'pt-BR', { numeric: true }));
 }
 
+export type ColunaAlocacao = 'empresa' | 'codigo' | 'descricao' | 'qtde' | 'nf' | 'fornecedor' | 'recebido_em' | 'responsavel';
+export type FiltrosAlocacao = Partial<Record<ColunaAlocacao, string>>;
+export interface OrdemAlocacao { coluna: ColunaAlocacao; dir: 'asc' | 'desc' }
+
+const semAcento = (s: string): string => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const unicos = (l: Array<string | null>): string[] => [...new Set(l.map((x) => String(x || '').trim()).filter(Boolean))];
+
+/** Texto da coluna como aparece na tela (é nele que o filtro procura). */
+export function textoColuna(g: GrupoAlocacao, c: ColunaAlocacao): string {
+  switch (c) {
+    case 'empresa': return g.conta_omie;
+    case 'codigo': return String(g.codigo || g.codigo_produto);
+    case 'descricao': return g.descricao || '';
+    case 'qtde': return String(g.qtde);
+    case 'nf': return unicos(g.notas.map((n) => n.numero_nfe)).join(', ');
+    case 'fornecedor': return unicos(g.notas.map((n) => n.fornecedor)).join(', ');
+    case 'recebido_em': {
+      const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(g.recebido_em || ''));
+      return m ? `${m[3]}/${m[2]}/${m[1]}` : '';
+    }
+    case 'responsavel': return g.responsavel_nome || '';
+  }
+}
+
+/** Filtro por coluna: todas as colunas preenchidas precisam casar (sem diferenciar acento/caixa). */
+export function filtrarGrupos(grupos: GrupoAlocacao[], filtros: FiltrosAlocacao): GrupoAlocacao[] {
+  const ativos = (Object.entries(filtros) as Array<[ColunaAlocacao, string]>)
+    .map(([c, v]) => [c, semAcento(String(v || '').trim())] as const)
+    .filter(([, v]) => v);
+  return grupos.filter((g) => ativos.every(([c, v]) => semAcento(textoColuna(g, c)).includes(v)));
+}
+
+/** A→Z / Z→A pela coluna; vazio fica sempre no fim e empate mantém a ordem recebida. */
+export function ordenarGrupos(grupos: GrupoAlocacao[], { coluna, dir }: OrdemAlocacao): GrupoAlocacao[] {
+  const sinal = dir === 'asc' ? 1 : -1;
+  const chave = (g: GrupoAlocacao): string => (coluna === 'recebido_em' ? String(g.recebido_em || '') : textoColuna(g, coluna));
+  return [...grupos].sort((a, b) => {
+    if (coluna === 'qtde') return sinal * (a.qtde - b.qtde);
+    const [x, y] = [chave(a), chave(b)];
+    if (!x || !y) return x ? -1 : y ? 1 : 0;
+    return sinal * x.localeCompare(y, 'pt-BR', { numeric: true, sensitivity: 'base' });
+  });
+}
+
 /** Cópias da etiqueta = quantidade recebida, entre 1 e o teto da fila. */
 export function copiasEtiqueta(qtde: number): number {
   const n = Math.ceil(num(qtde));

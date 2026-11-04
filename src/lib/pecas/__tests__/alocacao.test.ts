@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-  agruparPorProduto, cfopSemEstoque, chaveProduto, copiasEtiqueta, dataBrParaIso, dentroDoHorarioComercial, diasDesde, inicioAlocacao,
-  locacaoCompleta, locacaoCurta, motivoFora, planejar,
-  type EntradaPlano, type EspelhoCaract, type NotaRecebida, type PendenciaAlocacao,
+  agruparPorProduto, cfopSemEstoque, chaveProduto, copiasEtiqueta, dataBrParaIso, dentroDoHorarioComercial, diasDesde, filtrarGrupos, inicioAlocacao,
+  locacaoCompleta, locacaoCurta, motivoFora, ordenarGrupos, planejar, textoColuna,
+  type EntradaPlano, type GrupoAlocacao, type EspelhoCaract, type NotaRecebida, type PendenciaAlocacao,
 } from '../alocacao';
 import { locacaoEtiqueta, ocupantesDe, posDeCar } from '@/lib/ajustes/posicao';
 
@@ -182,5 +182,41 @@ describe('agendador rápido', () => {
     expect(dentroDoHorarioComercial(utc('2026-10-03T15:00:00Z'))).toBe(true);   // sáb 12:00 BRT
     expect(dentroDoHorarioComercial(utc('2026-10-04T15:00:00Z'))).toBe(false);  // dom 12:00 BRT
     expect(dentroDoHorarioComercial(utc('2026-10-05T01:00:00Z'))).toBe(false);  // dom 22:00 BRT (já é seg em UTC)
+  });
+});
+
+describe('tabela de Guardar peças', () => {
+  const grupo = (over: Partial<GrupoAlocacao> = {}): GrupoAlocacao => ({
+    chave: 'NOVA|1', conta_omie: 'NOVA', codigo_produto: 1, codigo: 'A10', descricao: 'Válvula', qtde: 2, ids: [1],
+    notas: [{ id: 1, id_receb: 1, numero_nfe: '100', fornecedor: 'Uniagro', recebido_em: '2026-10-02', qtde: 2 }],
+    recebido_em: '2026-10-02', responsavel_user_id: null, responsavel_nome: 'Felipe', ...over,
+  });
+  const a = grupo();
+  const b = grupo({ chave: 'CASTRO|2', conta_omie: 'CASTRO', codigo: 'A9', descricao: 'Anel', qtde: 10, recebido_em: '2026-10-20', responsavel_nome: null });
+  const c = grupo({ chave: 'NOVA|3', codigo: 'A100', descricao: null, qtde: 1, recebido_em: null });
+  const codigos = (l: GrupoAlocacao[]) => l.map((g) => g.codigo);
+
+  it('ordena A→Z e Z→A; código com número em ordem natural', () => {
+    expect(codigos(ordenarGrupos([a, b, c], { coluna: 'codigo', dir: 'asc' }))).toEqual(['A9', 'A10', 'A100']);
+    expect(codigos(ordenarGrupos([a, b, c], { coluna: 'codigo', dir: 'desc' }))).toEqual(['A100', 'A10', 'A9']);
+  });
+  it('quantidade é número e data é cronológica', () => {
+    expect(codigos(ordenarGrupos([a, b, c], { coluna: 'qtde', dir: 'desc' }))).toEqual(['A9', 'A10', 'A100']);
+    expect(codigos(ordenarGrupos([b, a], { coluna: 'recebido_em', dir: 'asc' }))).toEqual(['A10', 'A9']);
+  });
+  it('vazio fica no fim nas duas direções', () => {
+    expect(codigos(ordenarGrupos([c, a, b], { coluna: 'descricao', dir: 'asc' }))).toEqual(['A9', 'A10', 'A100']);
+    expect(codigos(ordenarGrupos([c, a, b], { coluna: 'descricao', dir: 'desc' }))).toEqual(['A10', 'A9', 'A100']);
+  });
+  it('filtro ignora acento/caixa e exige todas as colunas', () => {
+    expect(codigos(filtrarGrupos([a, b, c], { descricao: 'VALV' }))).toEqual(['A10']);
+    expect(codigos(filtrarGrupos([a, b, c], { empresa: 'nova', codigo: 'a100' }))).toEqual(['A100']);
+    expect(filtrarGrupos([a, b, c], { fornecedor: '  ' })).toHaveLength(3);
+  });
+  it('data filtra como aparece na tela; notas repetidas não duplicam', () => {
+    expect(codigos(filtrarGrupos([a, b], { recebido_em: '20/10' }))).toEqual(['A9']);
+    const duas = grupo({ notas: [...a.notas, { ...a.notas[0], id: 2, numero_nfe: '101' }] });
+    expect(textoColuna(duas, 'nf')).toBe('100, 101');
+    expect(textoColuna(duas, 'fornecedor')).toBe('Uniagro');
   });
 });
