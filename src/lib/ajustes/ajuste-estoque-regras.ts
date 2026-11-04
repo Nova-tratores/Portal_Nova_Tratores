@@ -28,7 +28,7 @@ export interface PlanoAjuste {
   motivo: 'INV' | 'CMC';
   qtdFinal: number;
   cmcFinal: number;
-  resumo: string; // "Qtd 3 -> 5 / Custo R$ 10,00 -> R$ 12,00"
+  resumo: string; // "Qtd 3 para 5 / Custo R$ 10,00 para R$ 12,00" (sem <, > e &: a Omie guarda escapado)
 }
 
 const EPS = 1e-6;
@@ -68,8 +68,8 @@ export function planejarAjuste(p: PedidoAjuste): PlanoAjuste | { erro: string } 
   if (!mudaQtd && !mudaCusto) return { erro: 'nada a alterar: quantidade e custo iguais aos atuais' };
 
   const partes: string[] = [];
-  if (mudaQtd) partes.push(`Qtd ${fmtQtd(qtdAtual)} -> ${fmtQtd(novaQtd)}`);
-  if (mudaCusto) partes.push(`Custo ${fmtMoedaBR(cmcAtual)} -> ${fmtMoedaBR(novoCusto)}`);
+  if (mudaQtd) partes.push(`Qtd ${fmtQtd(qtdAtual)} para ${fmtQtd(novaQtd)}`);
+  if (mudaCusto) partes.push(`Custo ${fmtMoedaBR(cmcAtual)} para ${fmtMoedaBR(novoCusto)}`);
   const resumo = partes.join(' / ');
   const motivo = mudaQtd ? 'INV' : 'CMC';
 
@@ -107,7 +107,8 @@ export function dataHoraBR(d: Date = new Date()): string {
  */
 export function montarObsAjuste(a: { quando: string; usuario: string; motivo: string; resumo: string; grupo?: string | null }, max = 240): string {
   const cabeca = `Ajuste portal ${a.quando} por ${a.usuario}${a.grupo ? ` (${a.grupo})` : ''} - ${a.resumo} - Motivo: `;
-  const motivo = a.motivo.replace(/\s+/g, ' ').trim();
+  // A Omie grava <, > e & escapados (&lt; &gt; &amp;) e eles aparecem assim no histórico.
+  const motivo = a.motivo.replace(/[<>]/g, '').replace(/&/g, 'e').replace(/\s+/g, ' ').trim();
   const sobra = max - cabeca.length;
   if (sobra <= 3) return (cabeca + motivo).slice(0, max);
   return cabeca + (motivo.length > sobra ? motivo.slice(0, sobra - 3) + '...' : motivo);

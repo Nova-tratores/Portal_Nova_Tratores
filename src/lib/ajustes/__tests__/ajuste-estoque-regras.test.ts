@@ -44,12 +44,18 @@ describe('planejarAjuste', () => {
 
 describe('montarObsAjuste', () => {
   it('leva data, usuário, resumo e motivo', () => {
-    const o = montarObsAjuste({ quando: '26/10/2026 14:32', usuario: 'Henri', motivo: 'contagem', resumo: 'Qtd 3 -> 5' });
-    expect(o).toBe('Ajuste portal 26/10/2026 14:32 por Henri - Qtd 3 -> 5 - Motivo: contagem');
+    const o = montarObsAjuste({ quando: '26/10/2026 14:32', usuario: 'Henri', motivo: 'contagem', resumo: 'Qtd 3 para 5' });
+    expect(o).toBe('Ajuste portal 26/10/2026 14:32 por Henri - Qtd 3 para 5 - Motivo: contagem');
+  });
+
+  it('sem caracteres que a Omie escapa', () => {
+    const o = montarObsAjuste({ quando: '26/10/2026 14:32', usuario: 'Henri', motivo: 'peça <errada> & trocada', resumo: 'Qtd 1 para 0' });
+    expect(o).not.toMatch(/[<>&]/);
+    expect(o).toContain('Motivo: peça errada e trocada');
   });
 
   it('corta só o motivo, nunca a identificação', () => {
-    const o = montarObsAjuste({ quando: '26/10/2026 14:32', usuario: 'Henri', motivo: 'x'.repeat(500), resumo: 'Qtd 3 -> 5', grupo: 'lote de 2' }, 120);
+    const o = montarObsAjuste({ quando: '26/10/2026 14:32', usuario: 'Henri', motivo: 'x'.repeat(500), resumo: 'Qtd 3 para 5', grupo: 'lote de 2' }, 120);
     expect(o.length).toBe(120);
     expect(o.startsWith('Ajuste portal 26/10/2026 14:32 por Henri (lote de 2)')).toBe(true);
     expect(o.endsWith('...')).toBe(true);
