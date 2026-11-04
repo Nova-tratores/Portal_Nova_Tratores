@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { motoristasDesligados, planejarHigiene, vinculosDeDesligados } from '../higiene-responsaveis';
+import { motoristasDesligados, planejarHigiene, responsavelEmOutroCarro, tecnicosQueNaoSaoDoResponsavel, vinculosDeDesligados } from '../higiene-responsaveis';
 
 describe('vínculo de técnico desligado', () => {
   const rhNomes = [
@@ -55,5 +55,39 @@ describe('responsável que não pode continuar aberto', () => {
       { id: 'r1', motivo: 'pessoa desligada no RH' },
       { id: 'r3', motivo: 'carro arquivado' },
     ]);
+  });
+});
+
+describe('um carro = uma pessoa (dados reais de 04/11/2026)', () => {
+  const abertos = [
+    { id: 'r-fhy', veiculo_id: 'v-fhy', motorista_id: 'm-danilo', motorista_nome: 'DANILO SOUZA', inicio: '2025-06-23' },
+    { id: 'r-tky', veiculo_id: 'v-tky', motorista_id: 'm-danilo', motorista_nome: 'Danilo de Souza', inicio: '2026-09-22' },
+    { id: 'r-tkc', veiculo_id: 'v-tkc', motorista_id: 'm-gabriel', motorista_nome: 'GABRIEL GOMES', inicio: '2026-07-15' },
+    { id: 'r-dlz', veiculo_id: 'v-dlz', motorista_id: 'm-jose', motorista_nome: 'ZECCA', inicio: '2026-07-15' },
+  ];
+  it('Danilo está no TKY6E68 (mais novo) → sai do carro antigo', () => {
+    expect(responsavelEmOutroCarro(abertos)).toEqual([{ id: 'r-fhy', motivo: 'a pessoa passou para outro carro' }]);
+  });
+  it('mesmo nome sem cadastro também conta', () => {
+    const a = [
+      { id: '1', veiculo_id: 'a', motorista_id: null, motorista_nome: 'Danilo de Souza', inicio: '2026-01-01' },
+      { id: '2', veiculo_id: 'b', motorista_id: null, motorista_nome: 'DANILO SOUZA', inicio: '2026-02-01' },
+    ];
+    expect(responsavelEmOutroCarro(a).map((x) => x.id)).toEqual(['1']);
+  });
+  it('técnico que não é o responsável sai; apelido casa pelo cadastro', () => {
+    const linhas = [
+      { id: 9, tecnico_nome: 'José Oliveira', placa: 'DLZ-1967' },
+      { id: 14, tecnico_nome: 'PAULO MOTTA', placa: 'TKY6E68' },
+      { id: 11, tecnico_nome: 'Gabriel Moraes', placa: 'TKC5D99' },
+      { id: 16, tecnico_nome: 'Paulo Motta', placa: 'TKC5D99' },
+      { id: 2, tecnico_nome: 'Nicolas Dario', placa: 'TKY6E68' },
+      { id: 8, tecnico_nome: 'Danilo de Souza', placa: 'TKY6E68' },
+      { id: 30, tecnico_nome: 'Fulano Sem Carro', placa: 'AAA1111' }, // carro sem responsável: fica
+    ];
+    const placas = new Map([['v-tky', 'TKY6E68'], ['v-tkc', 'TKC5D99'], ['v-dlz', 'DLZ1967'], ['v-fhy', 'FHY8D25']]);
+    const cad = new Map([['m-danilo', 'Danilo de Souza'], ['m-gabriel', 'Gabriel Moraes'], ['m-jose', 'José Oliveira']]);
+    const resolver = (p: string) => p.replace(/\W/g, '').toUpperCase();
+    expect(tecnicosQueNaoSaoDoResponsavel(linhas, abertos, placas, cad, resolver).sort()).toEqual([14, 16, 2].sort());
   });
 });

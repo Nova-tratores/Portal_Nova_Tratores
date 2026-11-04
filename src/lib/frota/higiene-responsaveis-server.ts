@@ -3,7 +3,9 @@
 // troca de responsável para recusar pessoa desligada.
 import { createClient } from '@supabase/supabase-js';
 import { listarFuncionariosRH, rhConfigurado } from './rh';
-import { motoristasDesligados, planejarHigiene, vinculosDeDesligados, type MotoristaLocal } from './higiene-responsaveis';
+import {
+  motoristasDesligados, planejarHigiene, responsavelEmOutroCarro, tecnicosQueNaoSaoDoResponsavel, vinculosDeDesligados, type MotoristaLocal,
+} from './higiene-responsaveis';
 import { resolverPlaca } from './placa';
 
 const supabase = createClient(
@@ -25,7 +27,7 @@ export async function carregarDesligados(): Promise<Set<string>> {
 export async function fecharResponsaveisSemDireito(): Promise<{ fechados: number; motivos: string[] }> {
   const [desligados, abertos, veiculos] = await Promise.all([
     carregarDesligados(),
-    supabase.from('frota_responsaveis').select('id, veiculo_id, motorista_id, motorista_nome').is('fim', null),
+    supabase.from('frota_responsaveis').select('id, veiculo_id, motorista_id, motorista_nome, inicio').is('fim', null),
     supabase.from('frota_veiculos').select('id, status, ativo, placa'),
   ]);
   if (abertos.error) throw abertos.error;
@@ -45,7 +47,9 @@ export async function fecharResponsaveisSemDireito(): Promise<{ fechados: number
     }
   }
 
+  // um carro = uma pessoa: quem passou para outro carro sai do antigo
   const plano = planejarHigiene(abertos.data || [], veiculos.data || [], desligados);
+  for (const p of responsavelEmOutroCarro(abertos.data || [])) if (!plano.some((x) => x.id === p.id)) plano.push(p);
   if (plano.length) {
     const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
     const { error } = await supabase.from('frota_responsaveis').update({ fim: hoje }).in('id', plano.map((p) => p.id));
@@ -55,6 +59,23 @@ export async function fecharResponsaveisSemDireito(): Promise<{ fechados: number
   // carro que saiu da frota também perde o vínculo de técnico (checklist/GPS)
   const fora = new Set((veiculos.data || []).filter((v) => v.status === 'vendido' || v.status === 'arquivado').map((v) => resolverPlaca(v.placa)));
   if (fora.size) await removerVinculoTecnico([...fora]);
+
+  // técnico vinculado a carro que tem OUTRO responsável sai (o responsável do
+  // Frota é quem manda; o nome casa também pelo cadastro do motorista)
+  const fechadosAgora = new Set(plano.map((p) => p.id));
+  const continuam = (abertos.data || []).filter((r) => !fechadosAgora.has(r.id));
+  const [{ data: tv2 }, { data: mot }] = await Promise.all([
+    supabase.from('tecnico_veiculos').select('id, tecnico_nome, placa'),
+    supabase.from('frota_motoristas').select('id, nome'),
+  ]);
+  const placaDoVeiculo = new Map((veiculos.data || []).map((v) => [v.id, resolverPlaca(v.placa)]));
+  const nomeDoMotorista = new Map((mot || []).map((m) => [m.id, m.nome]));
+  const sobrando = tecnicosQueNaoSaoDoResponsavel(tv2 || [], continuam, placaDoVeiculo, nomeDoMotorista, resolverPlaca);
+  if (sobrando.length) {
+    const { error } = await supabase.from('tecnico_veiculos').delete().in('id', sobrando);
+    if (error) throw error;
+    for (const t of (tv2 || []).filter((x) => sobrando.includes(x.id))) motivosTec.push(`${t.tecnico_nome} (${t.placa}): o carro é de outra pessoa`);
+  }
 
   const nomes = new Map((abertos.data || []).map((r) => [r.id, r.motorista_nome || '?']));
   return { fechados: plano.length + motivosTec.length, motivos: [...motivosTec, ...plano.map((p) => `${nomes.get(p.id)}: ${p.motivo}`)] };

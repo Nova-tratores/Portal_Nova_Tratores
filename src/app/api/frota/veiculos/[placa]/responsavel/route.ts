@@ -15,6 +15,8 @@ import { logFrota, podeFrota } from '@/lib/frota/server';
 import { resolverPlaca } from '@/lib/frota/placa';
 import { planejarVinculo } from '@/lib/frota/vinculo-tecnico';
 import { carregarDesligados } from '@/lib/frota/higiene-responsaveis-server';
+import { mesmoResponsavel } from '@/lib/frota/higiene-responsaveis';
+import { mesmaPessoa } from '@/lib/frota/responsavel';
 
 export const runtime = 'nodejs';
 
@@ -82,6 +84,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pla
     if (errAbre) return NextResponse.json({ error: errAbre.message }, { status: 500 });
   }
 
+  // 2b) um carro = uma pessoa (José, 04/11/2026): quem entrou aqui sai de
+  //     qualquer outro carro em que estava aberto
+  let saiuDe: string[] = [];
+  const { data: cad } = motoristaId
+    ? await supabase.from('frota_motoristas').select('nome').eq('id', motoristaId).maybeSingle()
+    : { data: null as { nome: string } | null };
+  if (nome) {
+    const { data: outros } = await supabase
+      .from('frota_responsaveis')
+      .select('id, veiculo_id, motorista_id, motorista_nome')
+      .is('fim', null)
+      .neq('veiculo_id', v.id);
+    const novoResp = { motorista_id: motoristaId, motorista_nome: nome };
+    const fechar = (outros || []).filter((o) => mesmoResponsavel(o, novoResp) || (!!cad?.nome && mesmaPessoa(o.motorista_nome, cad.nome)));
+    if (fechar.length) {
+      const { error: errOutros } = await supabase.from('frota_responsaveis').update({ fim: inicio }).in('id', fechar.map((o) => o.id));
+      if (errOutros) console.warn('[frota] fechar a pessoa nos outros carros falhou:', errOutros.message);
+      else {
+        const { data: placas } = await supabase.from('frota_veiculos').select('placa').in('id', fechar.map((o) => o.veiculo_id));
+        saiuDe = (placas || []).map((p) => p.placa);
+      }
+    }
+  }
+
   // 3) WRITE-THROUGH -> comercial_veiculos (o que o resto do portal lê).
   //    Melhor esforço: a troca no Frota vale mesmo se o espelho falhar.
   let writeThrough = 'nenhum';
@@ -129,7 +155,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pla
   //    Melhor esforço, como o espelho acima.
   let vinculoTecnico = 'nenhum';
   try {
-    vinculoTecnico = await moverVinculoTecnico(v, anterior?.motorista_nome || null, nome || null);
+    vinculoTecnico = await moverVinculoTecnico(v, anterior?.motorista_nome || null, nome || null, cad?.nome || null);
   } catch (e) {
     console.warn('[frota] vínculo do técnico falhou:', e);
     vinculoTecnico = 'falhou';
@@ -146,15 +172,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ pla
       inicio,
       write_through: writeThrough,
       vinculo_tecnico: vinculoTecnico,
+      saiu_de: saiuDe,
     },
   });
 
-  return NextResponse.json({ ok: true, write_through: writeThrough, vinculo_tecnico: vinculoTecnico });
+  return NextResponse.json({ ok: true, write_through: writeThrough, vinculo_tecnico: vinculoTecnico, saiu_de: saiuDe });
 }
 
 type VeiculoVinculo = { placa: string; placa_exibicao: string | null; descricao: string | null; modelo: string | null; adesao_id: number | null };
 
-async function moverVinculoTecnico(v: VeiculoVinculo, anterior: string | null, novo: string | null): Promise<string> {
+async function moverVinculoTecnico(v: VeiculoVinculo, anterior: string | null, novo: string | null, nomeCadastro: string | null): Promise<string> {
   const [{ data: linhas }, { data: perms }] = await Promise.all([
     supabase.from('tecnico_veiculos').select('id, tecnico_nome, placa'),
     supabase.from('portal_permissoes').select('user_id, mecanico_tecnico_nome').eq('mecanico_role', 'tecnico'),
@@ -168,7 +195,7 @@ async function moverVinculoTecnico(v: VeiculoVinculo, anterior: string | null, n
     .map((p) => p.mecanico_tecnico_nome || (usuarios || []).find((u) => u.id === p.user_id)?.nome || '')
     .filter(Boolean);
 
-  const plano = planejarVinculo({ linhas: linhas || [], tecnicos, placa: v.placa, anterior, novo });
+  const plano = planejarVinculo({ linhas: linhas || [], tecnicos, placa: v.placa, anterior, novo, novoApelidos: [nomeCadastro] });
   if (plano.apagar.length) {
     const { error } = await supabase.from('tecnico_veiculos').delete().in('id', plano.apagar);
     if (error) throw error;

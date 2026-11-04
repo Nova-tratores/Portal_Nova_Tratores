@@ -65,3 +65,59 @@ export function planejarHigiene(
   }
   return out;
 }
+
+// ── UM CARRO = UMA PESSOA (José, 04/11/2026) ────────────────────────────────
+// "Sempre que a gente vincula alguém em um carro, o que estava sai de jogo" e
+// "se o Danilo está no outro, ele não pode continuar nesse". A troca de
+// responsável só tirava quem ERA o responsável anterior; quem tinha entrado
+// pela Janela Mecânicos ficava (TKY6E68 chegou a ter Danilo + Paulo + Nicolas).
+
+export interface AbertoComInicio extends ResponsavelAberto { inicio: string | null }
+
+/** A mesma pessoa: mesmo cadastro de motorista, ou nome que bate. */
+export function mesmoResponsavel(
+  a: { motorista_id: string | null; motorista_nome: string | null },
+  b: { motorista_id: string | null; motorista_nome: string | null },
+): boolean {
+  if (a.motorista_id && b.motorista_id) return a.motorista_id === b.motorista_id;
+  return mesmaPessoa(a.motorista_nome, b.motorista_nome);
+}
+
+/** Pessoa aberta em mais de um carro: fica só o período MAIS RECENTE. */
+export function responsavelEmOutroCarro(abertos: AbertoComInicio[]): { id: string; motivo: string }[] {
+  const out: { id: string; motivo: string }[] = [];
+  for (const r of abertos) {
+    const maisNovo = abertos.find((o) => o.id !== r.id && o.veiculo_id !== r.veiculo_id && mesmoResponsavel(r, o)
+      && String(o.inicio || '') > String(r.inicio || ''));
+    if (maisNovo) out.push({ id: r.id, motivo: 'a pessoa passou para outro carro' });
+  }
+  return out;
+}
+
+/**
+ * Vínculos de técnico (tecnico_veiculos) num carro que TEM responsável aberto
+ * e que não são dele. O nome casa com o responsável OU com o cadastro do
+ * motorista dele ("ZECCA" é o José Oliveira, "GABRIEL GOMES" é o Gabriel Moraes).
+ * Carro sem responsável não é mexido.
+ */
+export function tecnicosQueNaoSaoDoResponsavel(
+  linhas: { id: number; tecnico_nome: string; placa: string | null }[],
+  abertos: ResponsavelAberto[],
+  placaDoVeiculo: Map<string, string>, // veiculo_id → placa resolvida
+  nomeDoMotorista: Map<string, string>, // frota_motoristas.id → nome
+  resolver: (p: string) => string,
+): number[] {
+  const porPlaca = new Map<string, string[]>();
+  for (const r of abertos) {
+    const placa = placaDoVeiculo.get(r.veiculo_id);
+    if (!placa) continue;
+    const nomes = [r.motorista_nome, r.motorista_id ? nomeDoMotorista.get(r.motorista_id) : null].filter(Boolean) as string[];
+    porPlaca.set(placa, [...(porPlaca.get(placa) || []), ...nomes]);
+  }
+  return linhas
+    .filter((l) => {
+      const nomes = porPlaca.get(resolver(l.placa || ''));
+      return !!nomes?.length && !nomes.some((n) => mesmaPessoa(l.tecnico_nome, n));
+    })
+    .map((l) => l.id);
+}
