@@ -310,6 +310,96 @@ footer b{color:var(--fg)}
 }
 </style>
 
+<!-- ===== Estilo novo do Portal (docs/estilo-pos-newportal.md), aprovado pelo José em 05/11/2026 ===== -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<style>
+:root{
+  --red:#C21F30; --red-ink:#B91C2C; --red-soft:#FDF0F1;
+  --bg:#F6F8F9; --surface:#FEFEFE; --line:#E2E8F0; --fg:#0F172A; --muted:#64748B; --sub:#475569;
+  --f-display:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif; --f-body:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#111111;--surface:#1A1A1A;--line:#2E2E2E;--fg:#F1F5F9;--muted:#94A3B8;--sub:#CBD5E1;--red-soft:#3A1E21;--red-ink:#FF8A93}}
+:root[data-theme="dark"]{--bg:#111111;--surface:#1A1A1A;--line:#2E2E2E;--fg:#F1F5F9;--muted:#94A3B8;--sub:#CBD5E1;--red-soft:#3A1E21;--red-ink:#FF8A93}
+
+/* 1. sem negrito e sem caixa alta (ícones do Font Awesome continuam 900) */
+body *:not(i):not([class*="fa-"]){font-weight:400}
+b,strong,h1,h2,h3,th,summary,.qans-q,.btn,.field label,.row .term,.stat,.cover b,.cards2 b.v,.hero-num b,.banner,.next-rev .big,.rev-list b,.wa-menu header b,.wa-opt .tx b{font-weight:500!important}
+.brand,.eyebrow,.logobar span,.group h3,.bnav a{text-transform:none!important;letter-spacing:0!important}
+body{font-size:15px;line-height:1.6;color:var(--fg)}
+h1,h2,h3{letter-spacing:-.01em}
+
+/* 2. cartões: brancos, borda fina, cantos 16, sem faixa colorida do lado */
+.panel{border-radius:16px;border:1px solid var(--line);background:var(--surface);transition:box-shadow .25s,transform .25s,border-color .25s}
+.cover .panel:hover,.cards2 .panel:hover,.group:hover{transform:translateY(-2px);box-shadow:0 14px 28px -20px rgba(15,23,42,.55);border-color:color-mix(in srgb,var(--red) 35%,var(--line))}
+.qans,.warn-box,.install{border-left:1px solid var(--line)!important}
+.calc{border-top:1px solid var(--line)!important}
+.tags span{border-left:1px solid var(--line)!important;border-radius:999px;padding:7px 13px 7px 9px;display:inline-flex;align-items:center;gap:8px}
+.tags span::before{content:"\f00d";font:900 11px/1 "Font Awesome 6 Free";color:var(--bad);width:20px;height:20px;border-radius:7px;display:grid;place-items:center;background:var(--bad-soft)}
+.cover .panel.main{box-shadow:none;border-color:color-mix(in srgb,var(--red) 40%,var(--line));background:color-mix(in srgb,var(--red) 4%,var(--surface))}
+
+/* 3. cabeçalho das seções com ícone em quadradinho */
+.sec-head{align-items:center;justify-content:flex-start;gap:12px}
+.sec-head h2{font-size:19px;color:var(--fg)}
+.np-ic{flex:none;width:36px;height:36px;border-radius:10px;display:grid;place-items:center;font-size:15px;color:var(--red);background:color-mix(in srgb,var(--red) 9%,var(--surface));border:1px solid color-mix(in srgb,var(--red) 18%,transparent)}
+.eyebrow{font-size:13px;color:var(--muted);margin-bottom:8px}
+.note,.hint,.row .name small{color:var(--muted)}
+
+/* 4. topo: mesma foto, letras mais leves, números em pílulas claras */
+.top h1{font-size:clamp(26px,6vw,36px)}
+.brand{font-size:13px;opacity:.9}
+.hero-num div{border-radius:12px;background:rgba(255,255,255,.12)}
+.hero-num b{font-size:19px;font-variant-numeric:tabular-nums}
+.band{border-radius:16px}
+.band h2{font-size:22px}
+.band .eyebrow{color:#FEFEFE}
+
+/* 5. busca e atalhos */
+.search{border:1px solid var(--line);border-radius:12px}
+.search:focus-within{border-color:color-mix(in srgb,var(--red) 55%,var(--line));box-shadow:0 0 0 3px color-mix(in srgb,var(--red) 12%,transparent)}
+.chips a{font-size:13.5px;color:var(--sub)}
+.chips a:hover{background:var(--red-soft);border-color:color-mix(in srgb,var(--red) 30%,var(--line))}
+
+/* 6. perguntas rápidas: botões-cartão com bolinha */
+.qbtns button{border:1px solid var(--line);border-radius:12px;font-size:14.5px;color:var(--fg)}
+.qbtns button:hover{background:var(--red-soft);color:var(--fg)}
+.qbtns button[aria-pressed="true"]{background:color-mix(in srgb,var(--red) 9%,var(--surface));border-color:var(--red);color:var(--red-ink)}
+.qbtns button[aria-pressed="true"]::before{background:var(--red)}
+.qans-q{font-size:16.5px}
+
+/* 7. prazos, tabela e listas */
+.group h3{background:transparent;color:var(--fg);font-size:15px;padding:14px 16px 10px;display:flex;align-items:center;gap:10px}
+.row .term{color:var(--fg);font-variant-numeric:tabular-nums}
+.stat{font-size:12px;padding:3px 10px}
+.cover b,.cards2 b.v{font-size:22px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+.cards2 b.v{color:var(--fg)}
+.revs{border:1px solid var(--line);border-radius:14px}
+.revs table{border:0}
+.revs th,.revs td{border:0;border-bottom:1px solid var(--line);font-size:13.5px}
+.revs th{background:var(--bg);color:var(--sub)}
+.revs th:first-child{background:var(--bg)!important;color:var(--sub)!important}
+.revs td.next{background:color-mix(in srgb,var(--red) 10%,var(--surface));color:var(--red-ink)}
+.rev-list div{border-radius:12px}
+.rev-list b{color:var(--fg)!important}
+.rev-list .next{background:color-mix(in srgb,var(--red) 10%,var(--surface))!important;border-color:color-mix(in srgb,var(--red) 40%,var(--line))!important}
+.rev-list .next b,.rev-list .next span{color:var(--red-ink)!important}
+
+/* 8. calculadora, formulário e botões */
+.field label{font-size:13px;color:var(--sub)}
+.field input,.field select,.field textarea{border-radius:10px;background:var(--surface)}
+.banner,.next-rev,.sent,.offline{border-radius:12px}
+.next-rev .big{font-size:24px;color:var(--fg);font-variant-numeric:tabular-nums}
+.btn{border-radius:11px;font-size:15px;padding:11px 18px}
+.btn.primary{animation:none!important}
+
+/* 9. dúvidas: + discreto em quadradinho */
+.faq summary{font-size:15px}
+.faq summary::after{border-radius:9px;width:26px;height:26px;margin-top:-13px;font-size:17px;background:color-mix(in srgb,var(--red) 9%,var(--surface));color:var(--red);animation:none!important}
+.faq details[open] summary::after{background:var(--bg);color:var(--sub)}
+.install .ic{border-radius:11px}
+footer{color:var(--muted)}
+</style>
+
 </head>
 <body>
 <div class="logobar">
@@ -862,6 +952,19 @@ footer b{color:var(--fg)}
     function sel(){var r=document.createRange();r.selectNodeContents(document.getElementById("a-text"));var s=getSelection();s.removeAllRanges();s.addRange(r);}
     try{navigator.clipboard.writeText(t).then(function(){b.textContent="Copiada";setTimeout(function(){b.textContent="Copiar mensagem";},1800);},sel);}catch(e){sel();}
   });
+})();
+</script>
+
+<script>
+// ícone em quadradinho no título de cada seção (Font Awesome, nada de emoji)
+(function(){
+  var IC={rapidas:'fa-hand-pointer',consulta:'fa-tractor',cobertura:'fa-calendar-check',prazos:'fa-list-check',revisoes:'fa-screwdriver-wrench',pecas:'fa-gears','nao-cobre':'fa-ban',duvidas:'fa-circle-question',pergunte:'fa-comments'};
+  document.querySelectorAll('section[id]').forEach(function(s){
+    var h=s.querySelector('.sec-head');if(!h||!IC[s.id])return;
+    var i=document.createElement('span');i.className='np-ic';i.innerHTML='<i class="fa-solid '+IC[s.id]+'"></i>';h.insertBefore(i,h.firstChild);
+  });
+  var G={'g-trator':'fa-tractor','g-cabine':'fa-car-side'};
+  Object.keys(G).forEach(function(id){var h=document.querySelector('#'+id+' h3');if(h)h.insertAdjacentHTML('afterbegin','<span class="np-ic" style="width:30px;height:30px;font-size:13px"><i class="fa-solid '+G[id]+'"></i></span>')});
 })();
 </script>
 
