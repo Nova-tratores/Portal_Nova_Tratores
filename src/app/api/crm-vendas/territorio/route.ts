@@ -56,15 +56,28 @@ let cacheFontes: { at: number; fontes: FonteLocal[] } | null = null;
 async function fontesLocais(): Promise<FonteLocal[]> {
   if (cacheFontes && Date.now() - cacheFontes.at < 30 * 60_000) return cacheFontes.fontes;
   const [faz, vis] = await Promise.all([
-    supabaseAdmin.from('clientes_localizacoes').select('cliente_nome, nome, lat, lng, tecnico, confirmado_em').limit(5000),
+    supabaseAdmin.from('clientes_localizacoes').select('cliente_nome, nome, lat, lng, tecnico, confirmado_em, os_id').limit(5000),
     paginar<{ cliente_nome: string | null; propriedade_nome: string | null; latitude: number | null; longitude: number | null; data_visita: string | null; deleted_at: string | null; duplicada_de: number | null }>((de, ate) =>
       supabaseAdmin.from('vw_visitas_detalhadas')
         .select('id, cliente_nome, propriedade_nome, latitude, longitude, data_visita, deleted_at, duplicada_de')
         .eq('tipo', 'presencial').not('latitude', 'is', null).order('id').range(de, ate)),
   ]);
   const fontes: FonteLocal[] = [];
-  for (const f of (faz.error ? [] : faz.data || []) as { cliente_nome: string | null; nome: string | null; lat: number; lng: number; tecnico: string | null; confirmado_em: string | null }[]) {
+  type Faz = { cliente_nome: string | null; nome: string | null; lat: number; lng: number; tecnico: string | null; confirmado_em: string | null; os_id: string | null };
+  const fazendas = (faz.error ? [] : faz.data || []) as Faz[];
+  // a OS de cada local: o Projeto/serviço cita o chassi atendido → o trator estava ali
+  const osIds = [...new Set(fazendas.map((f) => f.os_id).filter(Boolean))] as string[];
+  const textoDaOS = new Map<string, string>();
+  for (let i = 0; i < osIds.length; i += 200) {
+    const { data } = await supabaseAdmin.from('Ordem_Servico').select('Id_Ordem, Projeto, Serv_Solicitado').in('Id_Ordem', osIds.slice(i, i + 200));
+    for (const o of (data || []) as { Id_Ordem: string; Projeto: string | null; Serv_Solicitado: string | null }[]) {
+      textoDaOS.set(o.Id_Ordem, `${o.Projeto || ''} ${o.Serv_Solicitado || ''}`);
+    }
+  }
+  for (const f of fazendas) {
     if (f.lat == null || f.lng == null) continue;
+    const texto = f.os_id ? textoDaOS.get(f.os_id) : null;
+    if (texto) fontes.push({ nomes: [f.cliente_nome], textoChassi: texto, lat: f.lat, lng: f.lng, origem: 'atendimento', detalhe: [f.os_id, f.nome, f.tecnico].filter(Boolean).join(' · ') || null, quando: f.confirmado_em });
     fontes.push({ nomes: [f.cliente_nome], lat: f.lat, lng: f.lng, origem: 'fazenda', detalhe: [f.nome, f.tecnico ? `marcada pelo GPS do carro (${f.tecnico})` : null].filter(Boolean).join(' · ') || null, quando: f.confirmado_em });
   }
   for (const v of vis.data || []) {

@@ -25,10 +25,15 @@ export function mesmoDonoEstrito(a: string | null | undefined, b: string | null 
   return x === y || (x.length >= 12 && umaLetraDeDiferenca(x, y));
 }
 
+export type OrigemProvavel = 'atendimento' | 'fazenda' | 'visita';
+
 export interface FonteLocal {
   nomes: (string | null)[];          // nomes que podem ser do dono (cliente, propriedade)
+  // atendimento: o local gravado na Pasta Cliente ao faturar a OS (GPS do carro do técnico)
+  // casa pelo CHASSI citado na OS — vale mesmo com o trator no nome da filha/pai
+  textoChassi?: string | null;
   lat: number; lng: number;
-  origem: 'fazenda' | 'visita';
+  origem: OrigemProvavel;
   detalhe: string | null;            // "Fazenda X · técnico Y" / "visita de Z"
   quando: string | null;
 }
@@ -36,21 +41,32 @@ export interface FonteLocal {
 export interface PinoProvavel {
   lat: number; lng: number;
   modelo: string | null; cliente: string | null; chassis_fim: string;
-  origem: 'fazenda' | 'visita'; detalhe: string | null; quando: string | null;
+  origem: OrigemProvavel; detalhe: string | null; quando: string | null;
+}
+
+/** Só letras e números, maiúsculo. */
+const soAlnum = (s: string | null | undefined) => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
+/** O texto da OS (Projeto + serviço) cita este chassi? Compara o final de 7 (6 dá colisão). */
+export function citaChassi(texto: string | null | undefined, chassi: string | null | undefined): boolean {
+  const fim = soAlnum(chassi).slice(-7);
+  return fim.length === 7 && soAlnum(texto).includes(fim);
 }
 
 /**
- * Para cada trator sem localização confirmada, o ponto mais confiável que casa
- * com o dono: fazenda do técnico vence visita; entre iguais, a mais recente.
+ * Para cada trator sem localização confirmada, o ponto mais confiável: onde o
+ * técnico atendeu ESTE chassi > fazenda do dono marcada pelo técnico > visita
+ * ao dono; entre iguais, a mais recente.
  */
 export function pinosProvaveis(
   tratores: { Chassis: string; Modelo: string | null; Cliente: string | null }[],
   fontes: FonteLocal[],
 ): PinoProvavel[] {
-  const peso = (f: FonteLocal) => (f.origem === 'fazenda' ? 1 : 0);
+  const peso = (f: FonteLocal) => (f.origem === 'atendimento' ? 2 : f.origem === 'fazenda' ? 1 : 0);
   const out: PinoProvavel[] = [];
   for (const t of tratores) {
-    const casam = fontes.filter((f) => f.nomes.some((n) => mesmoDonoEstrito(t.Cliente, n)));
+    const casam = fontes.filter((f) => (f.textoChassi && citaChassi(f.textoChassi, t.Chassis))
+      || (f.origem !== 'atendimento' && f.nomes.some((n) => mesmoDonoEstrito(t.Cliente, n))));
     if (!casam.length) continue;
     casam.sort((a, b) => peso(b) - peso(a) || String(b.quando || '').localeCompare(String(a.quando || '')));
     const f = casam[0];

@@ -35,3 +35,28 @@ describe('localização provável do trator', () => {
     expect(r[0].chassis_fim).toBe('005931');
   });
 });
+
+import { citaChassi } from '../tratores-provaveis';
+describe('local do atendimento da OS (Pasta Cliente)', () => {
+  it('casa pelo chassi citado na OS, mesmo com o trator em nome de parente', () => {
+    const fontes: FonteLocal[] = [
+      { nomes: ['PEDRO ALCANTARA RIBEIRO NETO E OUTRO'], textoChassi: '6075E CAB MDI07513PS0006206 revisão', lat: 9, lng: 9, origem: 'atendimento', detalhe: 'OS-0851', quando: '2026-10-30' },
+      { nomes: ['Maria Beatriz Navarro Ribeiro Costacurta'], lat: 1, lng: 1, origem: 'visita', detalhe: null, quando: '2026-11-01' },
+    ];
+    const r = pinosProvaveis([{ Chassis: 'MDI07513PS0006206', Modelo: '6075E CAB', Cliente: 'MARIA BEATRIZ NAVARRO RIBEIRO COSTACURTA' }], fontes);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ origem: 'atendimento', lat: 9, detalhe: 'OS-0851' });
+  });
+  it('final de 7 do chassi, sem confundir quem só divide os 6 últimos', () => {
+    expect(citaChassi('JIVO 2025 MBN1KCBFPGL00790', 'MBN1KGCBFPGL00790')).toBe(true);
+    // caso real: o 6 últimos "000549" do 9500 do Olinto Jr aparecem dentro de "0005494" (7095 do Valmir)
+    expect(citaChassi('7095 PLAT MDI09510JS0005494', 'MDI09524PJ0000549')).toBe(false);
+    expect(citaChassi('7095 PLAT MDI09510JS0005494', 'MDI09510JS0005494')).toBe(true);
+    expect(citaChassi('', 'MDI07513PS0006206')).toBe(false);
+  });
+  it('local de atendimento NÃO casa pelo nome (só pelo chassi)', () => {
+    const r = pinosProvaveis([{ Chassis: 'OUTRO000001', Modelo: '9500', Cliente: 'PEDRO ALCANTARA RIBEIRO NETO' }],
+      [{ nomes: ['PEDRO ALCANTARA RIBEIRO NETO'], textoChassi: 'MDI07513PS0006206', lat: 9, lng: 9, origem: 'atendimento', detalhe: null, quando: null }]);
+    expect(r).toHaveLength(0);
+  });
+});
