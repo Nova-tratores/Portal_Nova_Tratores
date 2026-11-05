@@ -1,3 +1,4 @@
+import { reciboDoLink } from "@/lib/clientes/numero-nf";
 // Para onde cada documento do cockpit abre (funções PURAS, testáveis).
 //
 // Regra (decisão do usuário, 07/10/2026): com o módulo, abre a TELA
@@ -58,6 +59,9 @@ export function linkPV(c: { cod_pedido: number | null; empresa: string | null; n
 export function linkNF(url: string | null | undefined, numero?: string | null): LinkDoc | null {
   const u = String(url || "").trim();
   if (!/^https?:\/\//i.test(u) && !u.startsWith("/")) return null;
+  // OS faturada sem NFS-e guarda o RECIBO do Omie no mesmo link_nf (lib/clientes/numero-nf)
+  const recibo = reciboDoLink(u);
+  if (recibo) return { href: u, titulo: `Recibo nº ${recibo}`, tipo: "nf" };
   return { href: u, titulo: numero ? `Nota fiscal ${numero}` : "Nota fiscal", tipo: "nf" };
 }
 

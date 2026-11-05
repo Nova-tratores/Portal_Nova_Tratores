@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar } from "@/lib/auth/server";
+import { reciboDoLink } from "@/lib/clientes/numero-nf";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -114,8 +115,9 @@ export async function GET(req: NextRequest) {
     const notasFiscais: any[] = [];
     for (const os of osDoProj) {
       if (os.faturada && !os.cancelada && (os.num_nf || os.link_nf)) {
+        const recibo = reciboDoLink(os.link_nf); // OS faturada com recibo (sem NFS-e)
         notasFiscais.push({
-          tipo: "NFS-e", origem: `Ordem de Servico ${os.num_os}`, numero: os.num_nf || '',
+          tipo: recibo ? "Recibo" : "NFS-e", origem: `Ordem de Servico ${os.num_os}`, numero: recibo || os.num_nf || '',
           link: os.link_nf || '', valor: os.valor_total || 0,
           data: os.data_faturamento || os.data_previsao || '',
           cliente: clienteMap.get(os.cod_cli)?.nome_fantasia || clienteMap.get(os.cod_cli)?.razao_social || '',

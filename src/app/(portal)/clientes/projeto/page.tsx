@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { ArrowLeft, Download, Printer, ChevronDown, ChevronUp } from 'lucide-react'
 import { fetchAuth } from '@/lib/auth/client'
+import { reciboDoLink } from '@/lib/clientes/numero-nf'
 
 const gray = '#737373'
 const lightGray = '#a3a3a3'
@@ -147,7 +148,8 @@ export default function ProjetoPage() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                         <span style={{ fontSize: '12px', color: text }}>Ordem de Servico {os.num_os}</span>
                         <span style={{ fontSize: '10px', color: gray, padding: '1px 6px', borderRadius: '3px', background: bg2 }}>{os.status}</span>
-                        {os.num_nf && <span style={{ fontSize: '10px', color: gray }}>Nota Fiscal {os.num_nf}</span>}
+                        {reciboDoLink(os.link_nf) ? <span style={{ fontSize: '10px', color: gray }}>Recibo {reciboDoLink(os.link_nf)}</span>
+                          : os.num_nf && <span style={{ fontSize: '10px', color: gray }}>Nota Fiscal {os.num_nf}</span>}
                         <span style={{ fontSize: '10px', color: lightGray }}>{os.cliente_nome}</span>
                       </div>
                       <div style={{ fontSize: '10px', color: lightGray, marginTop: '2px' }}>
@@ -168,7 +170,7 @@ export default function ProjetoPage() {
                         {os.link_nf && (
                           <a href={os.link_nf} target="_blank" rel="noopener noreferrer"
                             style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', padding: '5px 10px', borderRadius: '5px', background: '#333', color: '#fff', fontSize: '11px', textDecoration: 'none' }}>
-                            <Download size={11} /> Nota Fiscal de Servico
+                            <Download size={11} /> {reciboDoLink(os.link_nf) ? 'Recibo de Servico' : 'Nota Fiscal de Servico'}
                           </a>
                         )}
                       </div>

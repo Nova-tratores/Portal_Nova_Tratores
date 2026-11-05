@@ -26,6 +26,8 @@ describe("linkPPV / linkPV / linkNF / linkProjeto", () => {
   });
   it("NF só com URL válida", () => {
     expect(linkNF("https://x/nf.pdf", "77")).toMatchObject({ tipo: "nf", titulo: "Nota fiscal 77" });
+    // recibo da OS faturada sem NFS-e (mesmo link_nf) ganha o rótulo certo
+    expect(linkNF("https://x/storage/v1/object/public/clientes-docs/Nova_Tratores/os_5410/recibo_345.pdf")).toMatchObject({ tipo: "nf", titulo: "Recibo nº 345" });
     expect(linkNF("")).toBeNull();
     expect(linkNF("javascript:alert(1)")).toBeNull();
   });
