@@ -18,6 +18,8 @@ import { JanelaOSParada } from './ParadoOpcoes'
 import { useComAguardando, definirComAguardando } from './useComAguardando'
 import { usePeriodoGestao, hojeSP as hojeGestao } from './useMesGestao'
 import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento'
+import { parseValorMisto } from '@/lib/marketing/custos'
+import { reqCancelada, reqAlimentacao, reqCustoDaLoja, temValorCobrado, type ReqCobranca } from '@/lib/pos/cobranca-requisicoes-regras'
 
 const TXT = '#0f172a', SEG = '#334155', CLARO = '#64748b'
 export const GRUPOS_FAT: { g: Grupo; rot: string; cor: string; dica: string }[] = [
@@ -81,6 +83,62 @@ function useTiposServico(ids: string[]): number {
 }
 /** OS de revisão: pelo tipo de serviço do portal ou interna de revisão (pré-entrega etc.). */
 const ehRevisao = (o: ItemFat) => /revis/i.test(tiposServ.get(o.os) || '') || (o.grupo === 'interna' && /revis/i.test(o.subtipo || ''))
+
+// requisições das OS (José, 05/11/2026: "um card a mais do lado de peças, linkado com as requisições, onde a gente
+// consegue ver quanto pagamos naqueles serviços e quanto cobramos") — lidas uma vez por página, como os tipos
+export type SituacaoReq = 'cobrada' | 'a_cobrar' | 'nao_cobrada' | 'loja'
+export interface ReqDaOS { id: number; os: string; titulo: string; tipo: string; fornecedor: string; data: string; pago: number; cobrado: number; situacao: SituacaoReq }
+const reqsPorOS = new Map<string, ReqDaOS[]>()
+const ouvintesReq = new Set<() => void>()
+let lendoReqs = false
+function useRequisicoesOS(ids: string[]): number {
+  const [versao, mexer] = useState(0)
+  const faltam = ids.filter((x) => /^OS-/.test(x) && !reqsPorOS.has(x))
+  const chave = faltam.length ? `${faltam.length}|${faltam[0]}|${faltam[faltam.length - 1]}` : ''
+  useEffect(() => {
+    const f = () => mexer((v) => v + 1)
+    ouvintesReq.add(f)
+    return () => { ouvintesReq.delete(f) }
+  }, [])
+  useEffect(() => {
+    if (!chave || lendoReqs) return
+    lendoReqs = true
+    const lista = [...new Set(faltam)]
+    ;(async () => {
+      for (let i = 0; i < lista.length; i += 200) {
+        const parte = lista.slice(i, i + 200)
+        const { data } = await supabase.from('Requisicao').select('id, ordem_servico, titulo, tipo, setor, status, fornecedor, data, created_at, valor_despeza, valor_cobrado_cliente, cobranca_status').in('ordem_servico', parte)
+        for (const id of parte) reqsPorOS.set(id, [])
+        for (const r of (data || []) as ReqCobranca[]) {
+          if (reqCancelada(r)) continue
+          const os = String(r.ordem_servico || '').trim()
+          const situacao: SituacaoReq = temValorCobrado(r) ? 'cobrada' : reqAlimentacao(r) || reqCustoDaLoja(r) ? 'loja' : r.cobranca_status === 'nao_cobrada' ? 'nao_cobrada' : 'a_cobrar'
+          const x = r as ReqCobranca & { fornecedor?: string | null; data?: string | null }
+          reqsPorOS.get(os)?.push({ id: Number(r.id), os, titulo: String(r.titulo || ''), tipo: String(r.tipo || ''), fornecedor: String(x.fornecedor || ''), data: String(x.data || r.created_at || '').slice(0, 10), pago: parseValorMisto(r.valor_despeza), cobrado: parseValorMisto(r.valor_cobrado_cliente), situacao })
+        }
+      }
+    })().catch(() => { /* sem requisições: o cartão mostra zero */ }).finally(() => { lendoReqs = false; ouvintesReq.forEach((x) => x()) })
+  }, [chave]) // eslint-disable-line react-hooks/exhaustive-deps
+  return versao
+}
+type SomaReq = { pago: number; cobrado: number; n: number; nOS: number; aCobrar: number; aCobrarPago: number; naoCobrada: number; naoCobradaPago: number; loja: number; lojaPago: number }
+function somarReq(itens: ItemFat[], de: string, ate: string): SomaReq {
+  const s: SomaReq = { pago: 0, cobrado: 0, n: 0, nOS: 0, aCobrar: 0, aCobrarPago: 0, naoCobrada: 0, naoCobradaPago: 0, loja: 0, lojaPago: 0 }
+  const vistas = new Set<string>()
+  for (const o of itens) {
+    if (o.data < de || o.data > ate || vistas.has(o.os)) continue
+    vistas.add(o.os)
+    const rs = reqsPorOS.get(o.os) || []
+    if (rs.length) s.nOS++
+    for (const r of rs) {
+      s.pago += r.pago; s.cobrado += r.cobrado; s.n++
+      if (r.situacao === 'a_cobrar') { s.aCobrar++; s.aCobrarPago += r.pago }
+      else if (r.situacao === 'nao_cobrada') { s.naoCobrada++; s.naoCobradaPago += r.pago }
+      else if (r.situacao === 'loja') { s.loja++; s.lojaPago += r.pago }
+    }
+  }
+  return s
+}
 
 type Soma = { bruto: number; servico: number; horas: number; kmValor: number; km: number; pecas: number; outros: number; n: number; porGrupo: Record<Grupo, number>; nGrupo: Record<Grupo, number> }
 const vazio = (): Soma => ({ bruto: 0, servico: 0, horas: 0, kmValor: 0, km: 0, pecas: 0, outros: 0, n: 0, porGrupo: { faturada: 0, garantia: 0, interna: 0, aguardando: 0 }, nGrupo: { faturada: 0, garantia: 0, interna: 0, aguardando: 0 } })
@@ -345,31 +403,46 @@ function Area({ vals, rotulos, cor, fmt }: { vals: number[]; rotulos: string[]; 
 }
 
 type Rev = { v: number; n: number }
-function Cartoes({ s, ant, serie, rev, revAnt, revSerie, nomeA, nomeB, onAbrir }: { s: Soma; ant: Soma | null; serie: Soma[]; rev: Rev; revAnt: Rev | null; revSerie: number[]; rotulos: string[]; nomeA: string; nomeB: string; onAbrir: (m: Metrica) => void }) {
+/** Cartão Requisições (página de teste, 05/11/2026): 'a' = cobrado do cliente em destaque; 'b' = saldo (cobrado − pago). */
+export type VarianteReq = 'a' | 'b'
+type CartaoReq = { s: SomaReq; ant: SomaReq | null; serie: SomaReq[]; variante: VarianteReq; onAbrir: () => void }
+function Cartoes({ s, ant, serie, rev, revAnt, revSerie, nomeA, nomeB, onAbrir, req }: { s: Soma; ant: Soma | null; serie: Soma[]; rev: Rev; revAnt: Rev | null; revSerie: number[]; rotulos: string[]; nomeA: string; nomeB: string; onAbrir: (m: Metrica) => void; req?: CartaoReq }) {
   const vh = s.horas > 0 ? s.servico / s.horas : 0
-  const ICONE: Record<string, string> = { fat: 'fa-sack-dollar', mo: 'fa-screwdriver-wrench', km: 'fa-route', pec: 'fa-gears', rev: 'fa-clipboard-check' }
-  const C: { k: string; t: string; n: number; a: number; sub: string; cor: string; dica: string; serie: number[]; fmt: (v: number) => string }[] = [
+  const ICONE: Record<string, string> = { fat: 'fa-sack-dollar', mo: 'fa-screwdriver-wrench', km: 'fa-route', pec: 'fa-gears', req: 'fa-file-invoice-dollar', rev: 'fa-clipboard-check' }
+  const saldo = (x: SomaReq) => x.cobrado - x.pago
+  const alertaReq = req && (req.s.aCobrar > 0 || req.s.naoCobrada > 0) ? (
+    <span className="fp-card-alerta">
+      {req.s.aCobrar > 0 && <span data-dica="Requisições destas OS sem valor cobrado do cliente e sem motivo de não cobrar.">{req.s.aCobrar} a cobrar · {brl(req.s.aCobrarPago)}</span>}
+      {req.s.naoCobrada > 0 && <span className="cinza" data-dica="Marcadas como não cobradas, com motivo.">{req.s.naoCobrada} não cobrada{req.s.naoCobrada > 1 ? 's' : ''} · {brl(req.s.naoCobradaPago)}</span>}
+    </span>
+  ) : null
+  const cartaoReq = req ? (req.variante === 'a'
+    ? { k: 'req', t: 'Requisições', n: req.s.cobrado, a: req.ant ? req.ant.cobrado : 0, sub: `cobrado · pagamos ${brl(req.s.pago)} · ${req.s.n} req. em ${req.s.nOS} OS`, cor: '#be123c', dica: 'Requisições das OS que estão na conta: em destaque o que foi cobrado do cliente; embaixo o que a loja pagou ao fornecedor. O cobrado entra no Faturado como "outros" quando vai na nota da OS.', serie: req.serie.map((x) => x.cobrado), fmt: brl, extra: alertaReq }
+    : { k: 'req', t: 'Requisições', n: saldo(req.s), a: req.ant ? saldo(req.ant) : 0, sub: `cobrado ${brl(req.s.cobrado)} − pago ${brl(req.s.pago)}`, cor: saldo(req.s) >= 0 ? '#15803d' : '#be123c', dica: 'Saldo das requisições das OS que estão na conta: o que foi cobrado do cliente menos o que a loja pagou ao fornecedor. Negativo = a loja pagou mais do que cobrou.', serie: req.serie.map(saldo), fmt: brl, extra: alertaReq }) : null
+  const C: { k: string; t: string; n: number; a: number; sub: string; cor: string; dica: string; serie: number[]; fmt: (v: number) => string; extra?: React.ReactNode }[] = [
     { k: 'fat', t: 'Faturado', n: s.bruto, a: ant ? ant.bruto : 0, sub: `${s.n} OS no período`, cor: '#2563eb', dica: 'Tudo o que entrou nas OS que estão na conta (veja "O que entra na conta"): mão de obra + deslocamento (km) + peças + outros.', serie: serie.map((x) => x.bruto), fmt: brl },
     { k: 'mo', t: 'Mão de obra', n: s.servico, a: ant ? ant.servico : 0, sub: s.horas > 0 ? `${(Math.round(s.horas * 10) / 10).toLocaleString('pt-BR')} h cobradas · ${brl(vh)}/h` : 'sem horas registradas', cor: '#7c3aed', dica: 'R$ das horas cobradas nas OS. O valor médio por hora fica abaixo da tabela por causa dos descontos e da garantia (R$ 100/h).', serie: serie.map((x) => x.servico), fmt: brl },
     { k: 'km', t: 'Deslocamento', n: s.kmValor, a: ant ? ant.kmValor : 0, sub: s.km > 0 ? `${Math.round(s.km).toLocaleString('pt-BR')} km cobrados` : 'sem km cobrado', cor: '#0891b2', dica: 'R$ dos quilômetros cobrados nas OS.', serie: serie.map((x) => x.kmValor), fmt: brl },
     { k: 'pec', t: 'Peças', n: s.pecas, a: ant ? ant.pecas : 0, sub: 'já somado no faturado', cor: '#ea580c', dica: 'Peças vendidas junto com as OS (pedido de peças faturado), pelo valor de venda. Estão somadas no Faturado. As peças de cada OS estão no PDF dela.', serie: serie.map((x) => x.pecas), fmt: brl },
+    ...(cartaoReq ? [cartaoReq] : []),
     // no lugar do Ordens de serviço (José, 04/11/2026: "troca esse card de ordens de serviço pelas revisões")
     { k: 'rev', t: 'Revisões', n: rev.v, a: revAnt ? revAnt.v : 0, sub: `${rev.n} OS · ${s.bruto ? Math.round((rev.v / s.bruto) * 100) : 0}% do faturado${revAnt ? ` · antes ${revAnt.n} OS` : ''}`, cor: '#0f766e', dica: 'OS de revisão (tipo de serviço Revisão no portal, ou interna de revisão) que estão na conta: serviço + km + peças.', serie: revSerie, fmt: brl },
   ]
   return (
-    <div className="fp-cards">
+    <div className={`fp-cards ${req ? 'seis' : ''}`}>
       {C.map((c, i) => {
         const d = c.n - c.a, p = ant && c.a ? (d / c.a) * 100 : null, bom = d >= 0
         const mx = Math.max(c.n, c.a, 1)
         return (
-          <div key={c.k} className="fp-card clica" style={{ '--c': c.cor, animationDelay: `${i * 60}ms` } as React.CSSProperties} role="button" tabIndex={0} onClick={() => onAbrir(c.k as Metrica)} onKeyDown={(ev) => { if (ev.key === 'Enter') onAbrir(c.k as Metrica) }}>
+          <div key={c.k} className="fp-card clica" style={{ '--c': c.cor, animationDelay: `${i * 60}ms` } as React.CSSProperties} role="button" tabIndex={0} onClick={() => (c.k === 'req' ? req?.onAbrir() : onAbrir(c.k as Metrica))} onKeyDown={(ev) => { if (ev.key !== 'Enter') return; if (c.k === 'req') req?.onAbrir(); else onAbrir(c.k as Metrica) }}>
             <div className="fp-card-t">
               <span className="fp-card-n" data-dica={`${c.t.toUpperCase()} — ${c.dica}`}><i className={`fas ${ICONE[c.k]}`} aria-hidden />{c.t}</span>
               {p != null && Math.abs(d) >= 0.5 && <em className={`fp-pill ${bom ? 'bom' : 'ruim'}`}>{bom ? '▲' : '▼'} {Math.abs(Math.round(p))}%</em>}
             </div>
             <b className="fp-card-v"><Numero valor={c.n} formato={c.fmt} /></b>
             <small className="fp-card-s">{c.sub}</small>
-            <span className="fp-card-ver">ver as OS ›</span>
+            {c.extra}
+            <span className="fp-card-ver">{c.k === 'req' ? 'ver as requisições ›' : 'ver as OS ›'}</span>
             {ant ? (
               <div className="fp-vs" data-dica={`${nomeA}: ${c.fmt(c.n)} · ${nomeB}: ${c.fmt(c.a)} · diferença ${bom ? '+' : '−'}${c.fmt(Math.abs(d))}`}>
                 <div><span>{nomeA}</span><i><u style={{ width: `${(c.n / mx) * 100}%` }} /></i><b>{c.fmt(c.n)}</b></div>
@@ -527,6 +600,63 @@ function ModalLista({ met, periodo, lista, onFechar }: { met: Metrica; periodo: 
   )
 }
 
+const SIT_REQ: Record<SituacaoReq, { rot: string; cor: string }> = {
+  cobrada: { rot: 'Cobrada', cor: '#15803d' }, a_cobrar: { rot: 'A cobrar', cor: '#be123c' },
+  nao_cobrada: { rot: 'Não cobrada', cor: '#64748b' }, loja: { rot: 'Custo da loja', cor: '#a16207' },
+}
+/** Requisições das OS do período: o que a loja pagou × o que cobrou do cliente, requisição por requisição. */
+function ModalRequisicoes({ periodo, lista, onFechar }: { periodo: string; lista: ItemFat[]; onFechar: () => void }) {
+  const [busca, setBusca] = useState('')
+  const [sit, setSit] = useState<SituacaoReq | null>(null)
+  const daOS = new Map(lista.map((o) => [o.os, o]))
+  const todas = [...new Set(lista.map((o) => o.os))].flatMap((os) => reqsPorOS.get(os) || [])
+  const linhas = todas.filter((r) => !sit || r.situacao === sit)
+    .filter((r) => !busca || `${r.id} ${r.os} ${daOS.get(r.os)?.cliente || ''} ${r.titulo} ${r.fornecedor} ${r.tipo}`.toLowerCase().includes(busca.toLowerCase()))
+    .sort((a, b) => b.pago - a.pago)
+  const tot = (xs: ReqDaOS[]) => ({ pago: xs.reduce((t, r) => t + r.pago, 0), cobrado: xs.reduce((t, r) => t + r.cobrado, 0) })
+  const t = tot(linhas), saldo = t.cobrado - t.pago
+  if (typeof document === 'undefined') return null
+  return createPortal(
+    <div className="fp-modal-fundo" role="presentation" onClick={onFechar}>
+      <div className="fp-modal fp-lista" role="dialog" aria-modal="true" aria-label={`Requisições — ${periodo}`} onClick={(ev) => ev.stopPropagation()}>
+        <div className="fp-modal-cab">
+          <div><small>{periodo}</small><b>Requisições: pagamos {brl(t.pago)} · cobramos {brl(t.cobrado)}</b>
+            <small>{linhas.length} requisições · saldo <span style={{ color: saldo >= 0 ? '#15803d' : '#be123c', fontWeight: 600 }}>{saldo >= 0 ? '+' : '−'}{brl(Math.abs(saldo))}</span> · clique para abrir a requisição</small></div>
+          <button type="button" className="fp-modal-x" onClick={onFechar} aria-label="fechar">×</button>
+        </div>
+        <div className="fp-req-sits">
+          <button type="button" className={!sit ? 'on' : ''} onClick={() => setSit(null)}>Todas <small>{todas.length}</small></button>
+          {(Object.keys(SIT_REQ) as SituacaoReq[]).map((k) => {
+            const xs = todas.filter((r) => r.situacao === k)
+            return <button key={k} type="button" className={sit === k ? 'on' : ''} style={{ '--c': SIT_REQ[k].cor } as React.CSSProperties} onClick={() => setSit(sit === k ? null : k)} disabled={!xs.length}><i />{SIT_REQ[k].rot} <small>{xs.length} · pago {brl(tot(xs).pago)}</small></button>
+          })}
+        </div>
+        <input className="fp-lista-busca" placeholder="buscar por requisição, OS, cliente, fornecedor ou tipo" value={busca} onChange={(ev) => setBusca(ev.target.value)} />
+        <div className="fp-lista-l">
+          <div className="fp-lista-r cab fp-req-r"><span>Data</span><span>Req · OS</span><span>O que · fornecedor</span><span>Cliente</span><span>Situação</span><span className="n">Pago</span><span className="n">Cobrado</span><span className="n">Saldo</span></div>
+          {linhas.map((r) => {
+            const o = daOS.get(r.os), d = r.cobrado - r.pago
+            return (
+              <a key={r.id} className="fp-lista-r fp-req-r" href={`/requisicoes/imprimir/${r.id}`} target="_blank" rel="noreferrer" title="abrir a requisição numa aba nova">
+                <span>{r.data ? r.data.split('-').reverse().slice(0, 2).join('/') : '—'}</span>
+                <span><b>#{r.id}</b><small>{o?.numero ? `OS ${o.numero} · ` : ''}{r.os}</small></span>
+                <span><b>{r.titulo || r.tipo || '—'}</b><small>{[r.tipo, r.fornecedor].filter(Boolean).join(' · ')}</small></span>
+                <span><b>{o?.cliente || '—'}</b><small>{o?.tecnicos.join(', ')}</small></span>
+                <span><em style={{ '--c': SIT_REQ[r.situacao].cor } as React.CSSProperties}>{SIT_REQ[r.situacao].rot}</em></span>
+                <span className="v"><b>{brl(r.pago)}</b></span>
+                <span className="v"><b>{r.cobrado ? brl(r.cobrado) : '—'}</b></span>
+                <span className="v"><b style={{ color: d >= 0 ? '#15803d' : '#be123c' }}>{d >= 0 ? '+' : '−'}{brl(Math.abs(d))}</b></span>
+              </a>
+            )
+          })}
+          {!linhas.length && <p className="fp-lista-vazio">Nenhuma requisição{busca || sit ? ' com esse filtro' : ''} nas OS deste período.</p>}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  )
+}
+
 // ---------------------------------------------------------------- modal da comparação
 
 /** Escolher o período B (José, 21/10/2026: "faz um modal bonitinho para a comparação"): grade de períodos com o
@@ -617,7 +747,8 @@ function ModalComparar({ e, a, hoje, itens, inicial, onOk, onFechar }: {
 const CHAVE_CONTA = 'fp-conta-v1'
 
 /** semNavegacao: o período é trocado no topo do Centro (PeriodoNoTopo); aqui ficam só as metas. */
-export function FaturamentoPeriodo({ base, hoje, forma, escala, refDia, onMudar, semNavegacao }: { base: BaseDados; hoje: string; forma: 'linha' | 'grade' | 'escada'; escala?: Escala; refDia?: string; onMudar?: (e: Escala, ref: string) => void; semNavegacao?: boolean }) {
+/** cartaoReq: mostra o cartão Requisições ao lado de Peças, na versão escolhida (por enquanto só na página de teste). */
+export function FaturamentoPeriodo({ base, hoje, forma, escala, refDia, onMudar, semNavegacao, cartaoReq }: { base: BaseDados; hoje: string; forma: 'linha' | 'grade' | 'escada'; escala?: Escala; refDia?: string; onMudar?: (e: Escala, ref: string) => void; semNavegacao?: boolean; cartaoReq?: VarianteReq }) {
   const [eL, setEL] = useState<Escala>('mes')
   const [refL, setRefL] = useState(hoje)
   const e = escala ?? eL, ref = refDia ?? refL
@@ -668,6 +799,12 @@ export function FaturamentoPeriodo({ base, hoje, forma, escala, refDia, onMudar,
   const rev = revDe(sel.de, ateSel)
   const revAnt = comp === 'nao' ? null : revDe(prev.de, ateAnt)
   const revSerie = periodos(e, ref, 8).map((b) => revDe(b.de, b.ate > hoje ? hoje : b.ate).v)
+  const [verReq, setVerReq] = useState(false)
+  useRequisicoesOS(useMemo(() => (cartaoReq ? todos.map((o) => o.os) : []), [todos, cartaoReq])) // redesenha quando as requisições chegam
+  const req = cartaoReq ? {
+    s: somarReq(itens, sel.de, ateSel), ant: comp === 'nao' ? null : somarReq(itens, prev.de, ateAnt),
+    serie: periodos(e, ref, 8).map((b) => somarReq(itens, b.de, b.ate > hoje ? hoje : b.ate)), variante: cartaoReq, onAbrir: () => setVerReq(true),
+  } : undefined
   const ir =(n: number) => { const r = andarPeriodo(e, ref, n); if (r <= hoje || n < 0) setRef(r > hoje ? hoje : r) }
   return (
     <div className={`fp ${foco ? 'foco' : ''}`}>
@@ -704,6 +841,7 @@ export function FaturamentoPeriodo({ base, hoje, forma, escala, refDia, onMudar,
 
       {modal && <ModalComparar e={e} a={sel} hoje={hoje} itens={itens} inicial={{ tipo: modal, ref: comp === 'outro' ? bRef : andarPeriodo(e, ref, -1), de: bDe, ate: bAte }} onFechar={() => setModal(null)} onOk={(r) => { if (r.tipo === 'outro') setBRef(r.ref); else { setBDe(r.de); setBAte(r.ate) } setComp(r.tipo); setModal(null) }} />}
 
+      {verReq && <ModalRequisicoes periodo={titulo(e, sel.de, sel.ate)} lista={lista} onFechar={() => setVerReq(false)} />}
       {listaDe && <ModalLista met={listaDe} periodo={titulo(e, sel.de, sel.ate)} lista={listaDe === 'rev' ? lista.filter(ehRevisao) : lista} onFechar={() => setListaDe(null)} />}
       {forma === 'escada' && comparando && ant ? (
         <div className="fp-lados">
@@ -719,7 +857,7 @@ export function FaturamentoPeriodo({ base, hoje, forma, escala, refDia, onMudar,
           <PainelPeriodo lado="a" titulo={titulo(e, sel.de, sel.ate)} sub={andamento ? 'em andamento · até hoje' : 'período escolhido'} s={s} outro={ant} onLista={setListaDe}
             topo={<button type="button" className="fp-pp-sair" onClick={() => setComparando(false)}>× sair da comparação</button>} />
         </div>
-      ) : <Cartoes onAbrir={setListaDe} key={`${e}|${sel.de}|${comp}`} s={s} ant={ant} serie={serie} rev={rev} revAnt={revAnt} revSerie={revSerie}rotulos={periodos(e, ref, 8).map((b) => titulo(e, b.de, b.ate))} nomeA={curto(e, sel.de)} nomeB={comp === 'datas' ? `${br(bDe).slice(0, 5)} a ${br(bAte).slice(0, 5)}` : curto(e, prev.de)} />}
+      ) : <Cartoes onAbrir={setListaDe} req={req} key={`${e}|${sel.de}|${comp}`} s={s} ant={ant} serie={serie} rev={rev} revAnt={revAnt} revSerie={revSerie}rotulos={periodos(e, ref, 8).map((b) => titulo(e, b.de, b.ate))} nomeA={curto(e, sel.de)} nomeB={comp === 'datas' ? `${br(bDe).slice(0, 5)} a ${br(bAte).slice(0, 5)}` : curto(e, prev.de)} />}
       {listaB && ant && <ModalLista met={listaB} periodo={comp === 'datas' ? `${br(bDe)} a ${br(bAte)}` : titulo(e, prev.de, prev.ate)} lista={itens.filter((o) => o.data >= prev.de && o.data <= ateAnt).sort((a, b) => b.data.localeCompare(a.data))} onFechar={() => setListaB(null)} />}
 
       <ListaDoPeriodo aberta={verOS} onAbrir={() => setVerOS((v) => !v)} periodo={titulo(e, sel.de, sel.ate)} de={sel.de} ate={ateSel}
@@ -1077,6 +1215,16 @@ export const ESTILO_FP = `
 .fp-lista-r .dest { background: color-mix(in srgb, #2563eb 8%, transparent); border-radius: 8px; padding: 4px 8px; margin: -4px -8px } .fp-lista-r .dest b { font-weight: 700 !important; color: #1d4ed8 }
 .fp-lista-r.cab .dest { color: #1d4ed8; font-weight: 700; padding: 2px 8px; margin: -2px -8px }
 @media (max-width: 900px) { .fp-lista-r.fp-lista-6 { grid-template-columns: 50px minmax(0, 1fr) 90px 90px; } .fp-lista-r.fp-lista-6 > span:nth-child(3), .fp-lista-r.fp-lista-6 > span:nth-child(4), .fp-lista-r.fp-lista-6 > span:nth-child(6), .fp-lista-r.fp-lista-6 > span:nth-child(9) { display: none } }
+@media (min-width: 1201px) { .fp-cards.seis { grid-template-columns: repeat(6, minmax(0, 1fr)) } }
+.fp-card-alerta { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 2px }
+.fp-card-alerta > span { font-size: 12px; font-weight: 600; color: #be123c; background: #fff1f2; border-radius: 99px; padding: 2px 8px } .fp-card-alerta > span.cinza { color: #475569; background: #f1f5f9 }
+.fp-req-sits { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px }
+.fp-req-sits button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #e2e8f0; background: #fefefe; color: ${TXT}; border-radius: 99px; padding: 5px 12px; font: inherit; font-size: 13.5px; cursor: pointer }
+.fp-req-sits button i { width: 8px; height: 8px; border-radius: 99px; background: var(--c) } .fp-req-sits button small { color: ${CLARO}; font-size: 12px }
+.fp-req-sits button.on { border-color: var(--c, #0f172a); background: color-mix(in srgb, var(--c, #0f172a) 8%, #fefefe) } .fp-req-sits button:disabled { opacity: .45; cursor: default }
+.fp-lista-r.fp-req-r { grid-template-columns: 54px 120px minmax(0, 1.3fr) minmax(0, 1fr) 112px 96px 96px 96px; gap: 10px; color: inherit; text-decoration: none }
+.fp-lista-r.fp-req-r .v { justify-items: end } .fp-lista-r.fp-req-r .v b { font-weight: 500 } .fp-lista-r.cab.fp-req-r span:nth-child(5) { text-align: left }
+@media (max-width: 900px) { .fp-lista-r.fp-req-r { grid-template-columns: 50px minmax(0, 1fr) 100px 90px 90px } .fp-lista-r.fp-req-r > span:nth-child(2), .fp-lista-r.fp-req-r > span:nth-child(4), .fp-lista-r.fp-req-r > span:nth-child(8) { display: none } }
 .fp-lista-r em { justify-self: start; font-style: normal; font-size: 12.5px; color: var(--c); background: color-mix(in srgb, var(--c) 10%, #fefefe); border-radius: 99px; padding: 2px 9px }
 .fp-lista-r.cab { position: sticky; top: 0; background: #fefefe; font-size: 13px; color: ${SEG}; border-top: 0; cursor: default; z-index: 1 } .fp-lista-r.cab span:nth-child(5) { text-align: right }
 .fp-lista-pdf { border: 1px solid #fca5a5; background: #fefefe; color: #b91c1c; border-radius: 99px; padding: 3px 10px; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer } .fp-lista-pdf:hover { background: #fee2e2 }

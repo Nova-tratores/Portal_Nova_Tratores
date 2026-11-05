@@ -15,6 +15,8 @@ export interface DocAutorizacao {
   pct?: number | null; pagamentoPrevisto?: string | null; linhas: LinhaDoc[]
   solicitante: AssinaturaDoc; diretor: (AssinaturaDoc & { observacao?: string | null }) | null
   logo: string; emitidoEm: string
+  /** lançamento no RH depois da autorização (05/11/2026: "assim que for autorizada, ela tem que ir para o RH") */
+  rh?: { em: string | null; erro: string | null } | null
   /** caixinha retida no pagamento da comissão (RH: 1%) */
   caixinhaPct?: number
   /** descontos do técnico lançados junto (requisição/outro) — saem na folha */
@@ -150,7 +152,7 @@ ${autorizada ? '' : '<div class="marca">AGUARDANDO AUTORIZAÇÃO</div>'}
 </header>
 <div class="faixa"></div>
 <section class="titulo">
-  <div><div class="st ${autorizada ? 'ok' : 'ag'}"><i></i>${autorizada ? 'Autorizada pelo diretor' : 'Aguardando autorização do diretor'}</div><h1>${esc(nome)}</h1>
+  <div><div class="st ${autorizada ? 'ok' : 'ag'}"><i></i>${autorizada ? 'Autorizada pelo diretor' : 'Aguardando autorização do diretor'}${autorizada && d.rh?.em ? ` · lançada no RH em ${dataHora(d.rh.em)}` : ''}</div>${autorizada && d.rh?.erro ? `<div class="st ag"><i></i>Ainda não chegou no RH: ${esc(d.rh.erro)}</div>` : ''}<h1>${esc(nome)}</h1>
   <p>${d.cargo ? `<span>${esc(nomeProprio(d.cargo))}</span>` : ''}<span>Competência ${esc(mesExtenso(d.mes))}</span>${d.pct != null ? `<span>${String(d.pct).replace('.', ',')}% sobre as horas</span>` : ''}${d.pagamentoPrevisto ? `<span>Pagamento previsto ${esc(d.pagamentoPrevisto.split('-').reverse().join('/'))}</span>` : ''}</p></div>
 </section>
 <section class="res">

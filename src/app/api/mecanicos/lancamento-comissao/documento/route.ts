@@ -1,5 +1,7 @@
 // Documento final da comissão (A4, com as OS e as duas assinaturas) — José, 20/10/2026.
 // GET ?id=<pedido> → HTML pronto para imprimir/salvar em PDF. Antes de autorizado sai com a marca "aguardando".
+import fs from 'fs'
+import path from 'path'
 import { NextRequest, NextResponse } from 'next/server'
 import { guardarComissao } from '@/lib/mecanicos/lancamento-comissao-rota'
 import { pedidoCompleto, codigoPedido, SemTabela } from '@/lib/mecanicos/lancamento-comissao-server'
@@ -8,6 +10,15 @@ import { PCT_CAIXINHA } from '@/lib/mecanicos/descontos-tecnico'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
+
+// a logo vai dentro do HTML (05/11/2026: logo quebrada): o documento abre como blob, e a origem da requisição no
+// Railway é a interna do contêiner — o endereço montado com ela não carregava no navegador
+let logoCache: string | null = null
+function logoEmbutida(): string {
+  if (logoCache) return logoCache
+  try { logoCache = `data:image/png;base64,${fs.readFileSync(path.join(process.cwd(), 'public', 'Logo_Nova.png')).toString('base64')}` } catch { return '/Logo_Nova.png' }
+  return logoCache
+}
 
 export async function GET(req: NextRequest) {
   const g = await guardarComissao(req)
@@ -23,7 +34,8 @@ export async function GET(req: NextRequest) {
       diretor: autorizada ? { nome: p.decidido_por || '—', papel: 'Diretor · autorizou', em: p.assinatura_diretor_meta?.em || p.decidido_em || p.pedido_em, imagem: p.assinatura_diretor || null, ip: p.assinatura_diretor_meta?.ip, observacao: p.observacao } : null,
       // assinada antes de a caixinha ser desligada (04/11/2026) continua com o 1% que foi retido de verdade
       descontos: p.descontos || [], caixinhaPct: p.info?.semCaixinha ? 0 : autorizada && String(p.decidido_em || '') < '2026-11-04' ? 1 : PCT_CAIXINHA,
-      logo: `${req.nextUrl.origin}/Logo_Nova.png`, emitidoEm: new Date().toISOString(),
+      logo: logoEmbutida(), emitidoEm: new Date().toISOString(),
+      rh: autorizada ? { em: p.status === 'erro_rh' ? null : p.espelhado_em, erro: p.status === 'erro_rh' ? p.rh_erro || 'erro ao lançar' : null } : null,
     })
     return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } })
   } catch (e) {

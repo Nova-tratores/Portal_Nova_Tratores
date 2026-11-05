@@ -580,6 +580,7 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
   const [desenhar, setDesenhar] = useState(false)
   const usaSalva = !!salva && !desenhar
   const aguardando = atual?.status === 'aguardando'
+  const enviada = !!atual && (aguardando || noRH || atual.status === 'erro_rh')
   const podePedir = !noOmie && e.pendentes === 0 && t.total >= 0 && aviso?.tipo !== 'sql'
   const pedir = async () => {
     setEnviando(true); setAviso(null)
@@ -606,8 +607,25 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
         <div className="fl-chips">
           <span className="ok">{t.pagas} pagas</span>{t.nao > 0 && <span className="nao">{t.nao} não pagas</span>}{t.ajustadas > 0 && <span className="aj">{t.ajustadas} ajustadas</span>}{t.divididas > 0 && <span className="div">{t.divididas} divididas</span>}
         </div>
-        {!confirmar && !noOmie && pedidos && <button type="button" className="fo-lan-bt" disabled={!podePedir} onClick={() => setConfirmar(true)}>{aguardando ? 'Pedir de novo com estes valores' : atual ? 'Pedir nova autorização' : 'Pedir autorização ao diretor'}<span className="seta"><i className="fas fa-arrow-right" /></span></button>}
-        {!confirmar && !noOmie && <button type="button" className="fo-lan-add" onClick={() => setModalDesc(true)}><i className="fas fa-plus" />Acrescentar desconto{e.descontos.length ? ` (${e.descontos.length})` : ''}</button>}
+        {/* já enviada (José, 05/11/2026): marca bem que foi enviada; mandar de novo e desconto ficam discretos */}
+        {enviada && atual && (
+          <div className={`fl-enviada ${aguardando ? 'ag' : atual.status === 'erro_rh' ? 'erro' : 'ok'}`}>
+            <b><i className={`fas ${aguardando ? 'fa-hourglass-half' : atual.status === 'erro_rh' ? 'fa-triangle-exclamation' : 'fa-circle-check'}`} />
+              {aguardando ? 'Enviada ao diretor' : atual.status === 'erro_rh' ? 'Autorizada, mas não chegou no RH' : noRH && atual.status !== 'espelhada' ? 'Já está no RH' : 'Autorizada e lançada no RH'}</b>
+            <span>{aguardando ? `${brl2(atual.valor)} · pedido em ${quando(atual.pedido_em)}${atual.pedido_por ? ` por ${atual.pedido_por}` : ''} · esperando a assinatura`
+              : atual.status === 'erro_rh' ? (atual.rh_erro || 'o RH recusou o lançamento')
+              : `${brl2(atual.valor)}${atual.decidido_por ? ` · autorizada por ${atual.decidido_por}` : ''}${atual.espelhado_em ? ` · no RH desde ${quando(atual.espelhado_em)}` : ''}`}</span>
+            {Math.abs(atual.valor - t.total) > 0.01 && <span className="mudou">o valor mudou depois do envio: enviada {brl2(atual.valor)} · agora {brl2(t.total)}</span>}
+          </div>
+        )}
+        {!confirmar && !noOmie && pedidos && !enviada && <button type="button" className="fo-lan-bt" disabled={!podePedir} onClick={() => setConfirmar(true)}>{atual ? 'Pedir nova autorização' : 'Pedir autorização ao diretor'}<span className="seta"><i className="fas fa-arrow-right" /></span></button>}
+        {!confirmar && !noOmie && !enviada && <button type="button" className="fo-lan-add" onClick={() => setModalDesc(true)}><i className="fas fa-plus" />Acrescentar desconto{e.descontos.length ? ` (${e.descontos.length})` : ''}</button>}
+        {!confirmar && !noOmie && pedidos && enviada && (
+          <div className="fl-discretos">
+            <button type="button" disabled={!podePedir} onClick={() => setConfirmar(true)} title={aguardando ? 'troca o pedido que está com o diretor por um novo, com os valores de agora' : 'pede ao diretor uma nova autorização; ao autorizar, o valor no RH é trocado'}>enviar de novo{aguardando ? '' : ' (substitui no RH)'}</button>
+            <button type="button" onClick={() => setModalDesc(true)}>acrescentar desconto{e.descontos.length ? ` (${e.descontos.length})` : ''}</button>
+          </div>
+        )}
         {!confirmar && !noOmie && pedidos && !podePedir && <small className="fo-lan-pq">{aviso?.tipo === 'sql' ? 'falta rodar o SQL do diretor no Supabase' : e.pendentes > 0 ? `falta o motivo em ${e.pendentes} OS` : 'sem valor para pedir'}</small>}
       </section>
       <section className="fl-comp">
@@ -1147,6 +1165,12 @@ export const ESTILO_FO = `
 .fo-lan-bt { justify-self: start; display: inline-flex; align-items: center; gap: 10px; border: none; background: #0f172a; color: #fefefe; border-radius: 999px; padding: 11px 14px 11px 22px; font-family: inherit; font-size: 14.5px; font-weight: 600; letter-spacing: .1px; cursor: pointer; box-shadow: 0 1px 2px rgba(15,23,42,.08), 0 8px 20px rgba(15,23,42,.14); transition: background .2s, transform .15s, box-shadow .2s }
 .fo-lan-bt .seta { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: rgba(255,255,255,.14); font-size: 12px; transition: transform .2s } .fo-lan-bt:hover:not(:disabled) { background: #1d4ed8; transform: translateY(-1px); box-shadow: 0 10px 24px rgba(29,78,216,.28) } .fo-lan-bt:hover:not(:disabled) .seta { transform: translateX(2px) }
 .fo-lan-bt:disabled { background: #f1f5f9; color: #94a3b8; box-shadow: none; cursor: not-allowed } .fo-lan-bt:disabled .seta { background: #e2e8f0 }
+.fl-enviada { display: grid; gap: 3px; justify-self: stretch; border-radius: 14px; padding: 10px 14px; margin-top: 4px; background: #ecfdf5; color: #065f46 }
+.fl-enviada b { display: flex; align-items: center; gap: 8px; font-size: 14.5px; font-weight: 700 } .fl-enviada span { font-size: 13px; color: #334155 }
+.fl-enviada.ag { background: #fffbeb; color: #92400e } .fl-enviada.erro { background: #fef2f2; color: #991b1b }
+.fl-enviada .mudou { color: #b45309; font-weight: 600 }
+.fl-discretos { display: flex; flex-wrap: wrap; gap: 4px 14px } .fl-discretos button { border: none; background: none; padding: 2px 0; font: inherit; font-size: 12.5px; color: #64748b; text-decoration: underline; text-underline-offset: 2px; cursor: pointer }
+.fl-discretos button:hover:not(:disabled) { color: #0f172a } .fl-discretos button:disabled { opacity: .5; cursor: not-allowed }
 .fo-lan-pq { font-size: 12.5px; color: var(--portal-text-muted, #64748b); margin-top: -2px }
 .fo-lan-conf { display: grid; gap: 8px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 12px 14px; font-size: 13px; animation: ftEntra .25s both } .fo-lan-conf ul { margin: 0; padding-left: 18px; display: grid; gap: 3px } .fo-lan-conf > div { display: flex; gap: 8px; align-items: center }
 .fo-lan-volta { border: none; background: none; color: ${MUDO}; font-family: inherit; font-weight: 800; cursor: pointer }
