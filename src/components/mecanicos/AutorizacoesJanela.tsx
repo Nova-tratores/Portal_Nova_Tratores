@@ -52,6 +52,8 @@ export async function abrirDocumento(id: string) {
 
 const mesBR = (m: string) => { const n = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'][Number(m.slice(5, 7)) - 1]; return `${n} de ${m.slice(0, 4)}` }
 const quando = (s: string | null) => s ? new Date(s).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''
+const vl = (v?: number | null) => (v ? brl2(v) : '—')
+const pctTxt = (x: number) => `${(Math.round(x * 1000) / 10).toLocaleString('pt-BR')}%`
 const mexida = (l: LinhaPedido) => l.acao !== 'pagar' || !!l.divisao || Math.abs((l.valor || 0) - (l.calculado || 0)) > 0.005
 const decisao = (l: LinhaPedido) => l.acao === 'nao' ? 'não paga' : l.divisao ? `dividida (${Object.entries(l.divisao).map(([k, v]) => `${k.split(' ')[0]} ${brl2(v)}`).join(', ')})` : mexida(l) ? 'ajustada' : ''
 const ROT_EV: Record<TipoEvento, string> = { pedido: 'Pediu autorização', devolvida: 'Devolveu para ajuste', autorizada: 'Autorizou', espelhada: 'Lançada no RH', erro_rh: 'Erro ao lançar no RH', substituida: 'Substituída' }
@@ -123,18 +125,21 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
       <ContaPagamento p={p} />
       <div className="au-sub">
         <span>{p.linhas.length} OS · {nMex ? `${nMex} com decisão do pós-vendas` : 'todas pela regra'}</span>
-        {modo !== 'devolver' && p.linhas.length > nMex && <button type="button" onClick={() => setVerTodas((v) => !v)}>{verTodas ? 'só as com decisão' : 'ver todas as OS'}</button>}
+        {/* só aparece quando o pós-vendas mexeu em alguma OS (com 0 mexidas a lista ficava vazia) */}
+        {modo !== 'devolver' && nMex > 0 && p.linhas.length > nMex && <button type="button" onClick={() => setVerTodas((v) => !v)}>{verTodas ? `ver só as ${nMex} que o pós-vendas mexeu` : 'ver todas as OS'}</button>}
         <button type="button" onClick={() => { void abrirDocumento(p.id) }}>ver documento</button>
       </div>
       {lista.length > 0 && (
         <div className={`au-lin ${modo === 'devolver' ? 'dev' : ''}`}>
-          <div className="au-th"><span>OS</span><span>Cliente</span><span className="n">Regra</span><span className="n">A pagar</span><span>Decisão do pós-vendas</span>{modo === 'devolver' && <span>O que mudar</span>}</div>
+          <div className="au-th"><span>OS</span><span>Cliente</span><span className="n">Hora</span><span className="n">Km</span><span className="n">Peças</span><span className="n">Total da OS</span><span className="n">Comissão pela regra</span><span className="n">A pagar</span><span>Decisão do pós-vendas</span>{modo === 'devolver' && <span>O que mudar</span>}</div>
           {lista.map((l) => {
             const m = marcas[l.os]
             return (
               <div key={l.os} className={`au-tr ${mexida(l) ? 'mex' : ''} ${m ? 'marcada' : ''}`}>
                 <span>{l.numero}</span><span>{l.cliente || '—'}</span>
-                <span className="n">{brl2(l.calculado)}</span><span className="n">{brl2(l.valor)}</span>
+                <span className="n">{vl(l.valores?.hora)}</span><span className="n">{vl(l.valores?.km)}</span><span className="n">{vl(l.valores?.pecas)}</span>
+                <span className="n au-tot">{l.valores ? brl2(l.valores.total) : '—'}{l.valores && l.valores.outros > 0.5 && <small title="requisições cobradas e outros itens da OS">+ outros {brl2(l.valores.outros)}</small>}</span>
+                <span className="n">{brl2(l.calculado)}</span><span className="n au-com">{brl2(l.valor)}{l.valores && l.valores.total > 0 && <small>{pctTxt(l.valor / l.valores.total)} da OS</small>}</span>
                 <span className="au-dec-pv">{decisao(l)}{l.motivo && mexida(l) ? ` — ${l.motivo}` : ''}</span>
                 {modo === 'devolver' && (
                   <span className="au-marca">
@@ -148,6 +153,17 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
               </div>
             )
           })}
+          {lista.length > 1 && (() => {
+            const so = (k: 'hora' | 'km' | 'pecas' | 'total') => lista.reduce((a, l) => a + (l.valores?.[k] || 0), 0)
+            return (
+              <div className="au-tr au-soma">
+                <span>Total</span><span>{lista.length} OS</span>
+                <span className="n">{brl2(so('hora'))}</span><span className="n">{brl2(so('km'))}</span><span className="n">{brl2(so('pecas'))}</span><span className="n">{brl2(so('total'))}</span>
+                <span className="n">{brl2(lista.reduce((a, l) => a + (l.calculado || 0), 0))}</span><span className="n">{brl2(lista.reduce((a, l) => a + (l.valor || 0), 0))}</span><span />
+                {modo === 'devolver' && <span />}
+              </div>
+            )
+          })()}
         </div>
       )}
       {diretor && modo === 'ver' && (
@@ -269,9 +285,11 @@ const ESTILO_AU = `
 .au-conta span { display: grid; gap: 1px } .au-conta small { font-size: 12px; color: #64748b } .au-conta b { font-size: 15.5px; font-weight: 500; font-variant-numeric: tabular-nums; color: #0f172a }
 .au-conta .neg b { color: #b91c1c } .au-conta .cx small { color: #047857 } .au-conta .cx b { color: #047857 } .au-conta .liq { margin-left: auto; text-align: right } .au-conta .liq b { font-size: 18px; font-weight: 600 }
 .au-sub { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 13px; color: #475569 } .au-sub button { border: none; background: none; padding: 0; font-family: inherit; font-size: 13px; color: #1d4ed8; cursor: pointer; text-decoration: underline; text-underline-offset: 3px }
-.au-lin { display: grid; font-size: 13.5px; color: #0f172a; border: 1px solid var(--portal-border, #eef2f7); border-radius: 10px; overflow: hidden }
-.au-th, .au-tr { display: grid; grid-template-columns: 64px minmax(130px, 1.3fr) 90px 90px minmax(160px, 1.6fr); gap: 10px; padding: 7px 12px; align-items: center }
-.au-lin.dev .au-th, .au-lin.dev .au-tr { grid-template-columns: 64px minmax(110px, 1fr) 84px 84px minmax(120px, 1.1fr) minmax(250px, 1.6fr) }
+.au-lin { display: grid; font-size: 13.5px; color: #0f172a; border: 1px solid var(--portal-border, #eef2f7); border-radius: 10px; overflow-x: auto }
+.au-th, .au-tr { display: grid; grid-template-columns: 64px minmax(130px, 1.3fr) 84px 76px 84px 96px 92px 92px minmax(150px, 1.4fr); gap: 10px; padding: 7px 12px; align-items: center; min-width: 980px }
+.au-lin.dev .au-th, .au-lin.dev .au-tr { grid-template-columns: 64px minmax(110px, 1fr) 80px 72px 80px 92px 88px 88px minmax(120px, 1.1fr) minmax(250px, 1.6fr); min-width: 1240px }
+.au-tr .au-tot, .au-tr .au-com { display: grid; justify-items: end } .au-tot small, .au-com small { font-size: 11px; color: var(--portal-text-muted, #64748b); font-weight: 400 }
+.au-tr .au-com { font-weight: 700 } .au-tr.au-soma { background: #f8fafc; font-weight: 700; border-top: 1px solid var(--portal-border, #e2e8f0) }
 .au-th { background: #f8fafc; font-size: 12px; color: var(--portal-text-muted, #64748b) } .au-tr + .au-tr { border-top: 1px solid var(--portal-border, #eef2f7) }
 .au-tr.mex { background: #fffbeb } .au-tr.marcada { background: #eff6ff }
 .au-th .n, .au-tr .n { text-align: right; font-variant-numeric: tabular-nums } .au-dec-pv { font-size: 12.5px; color: #92400e }
@@ -296,5 +314,5 @@ const ESTILO_AU = `
 .au-ev-c { display: grid; gap: 2px } .au-ev-l1 { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; font-size: 14px; color: #0f172a } .au-ev-l1 b { font-weight: 600; color: var(--ec) } .au-ev-v { margin-left: auto; font-variant-numeric: tabular-nums }
 .au-ev-l2 { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: #475569 } .au-ev-erro { color: #b91c1c }
 .au-ev-lst { margin: 2px 0 0; padding-left: 16px; font-size: 12.5px; color: #334155; display: grid; gap: 1px }
-@media (max-width: 800px) { .au-th { display: none } .au-tr, .au-lin.dev .au-tr { grid-template-columns: 1fr 1fr } }
+@media (max-width: 800px) { .au-th { display: none } .au-tr, .au-lin.dev .au-tr { grid-template-columns: 1fr 1fr; min-width: 0 } }
 `

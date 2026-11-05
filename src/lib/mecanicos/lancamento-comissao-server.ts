@@ -10,6 +10,7 @@ import { clienteRH } from './rh-server'
 import { chaveDoTecnico } from './comissao-detalhe'
 import { casarNome } from './ocorrencias-painel'
 import { esquecer } from './cache'
+import { comValoresDasOS, type ValoresOS } from './valores-os-pedido'
 import { lerAssinatura } from '@/lib/assinaturas/server'
 import { parcelasDoDesconto, qtdParcelas, caixinhaDe, type DescontoPedido } from './descontos-tecnico'
 export type { DescontoPedido } from './descontos-tecnico'
@@ -21,6 +22,8 @@ export interface LinhaPedido {
   /** horas de cada técnico quando a divisão é por horas (José, 29/10/2026) */
   horasDiv?: Record<string, number> | null; data?: string | null; grupo?: 'cliente' | 'garantia' | 'interna'; regra?: string
   descontoCliente?: { hora: number; km: number; geral: number; pecas: number } | null
+  /** R$ de hora, km, peças e total da OS, para o diretor ver ao autorizar (05/11/2026) */
+  valores?: ValoresOS | null
 }
 /** O que o diretor pede para mudar numa OS (não altera nada — só informa). */
 export interface Apontamento { os: string; numero: string; pedido: 'alterar' | 'nao_pagar' | 'conferir'; valor?: number | null; texto: string }
@@ -86,7 +89,9 @@ export async function listarPedidos(f: { mes?: string; tecnico?: string; abertos
   if (f.abertos) q = q.eq('status', 'aguardando')
   const { data, error } = await q
   if (error) { if (falta(error)) throw new SemTabela(); throw new Error(error.message) }
-  return (data || []) as unknown as PedidoComissao[]
+  const pedidos = (data || []) as unknown as PedidoComissao[]
+  // pedidos feitos antes de gravar os valores: completa os que esperam o diretor (só na resposta, sem gravar)
+  return Promise.all(pedidos.map(async (p) => (p.status === 'aguardando' ? { ...p, linhas: await comValoresDasOS(p.linhas || []) } : p)))
 }
 export async function pedidoCompleto(id: string): Promise<PedidoComissao | null> {
   const { data, error } = await sb.from('posvendas_comissoes').select('*').eq('id', id).maybeSingle()
@@ -127,8 +132,10 @@ export async function pedirLancamento(
     await registrar({ id: String(v.id), tecnico: p.tecnico, mes: p.mes }, 'substituida', autor, Number(v.valor), { motivo: 'pedido novo antes da decisão do diretor' })
   }
   const agora = new Date().toISOString()
+  // grava os valores de cada OS como estavam no pedido (o diretor autoriza olhando estes)
+  const linhas = await comValoresDasOS(p.linhas)
   const { data, error } = await sb.from('posvendas_comissoes').insert({
-    tecnico: p.tecnico, mes: p.mes, valor: r2(p.valor), calculado: r2(p.calculado), linhas: p.linhas,
+    tecnico: p.tecnico, mes: p.mes, valor: r2(p.valor), calculado: r2(p.calculado), linhas,
     status: 'aguardando', pedido_por: autor.nome, pedido_por_id: autor.id, info: p.info || null, descontos,
     assinatura_pedido: assinatura, assinatura_pedido_meta: { ...meta, em: agora },
   }).select(SEM_ASSINATURAS).single()

@@ -25,8 +25,8 @@ export async function definirPagoFabrica(id: string, horas: number, km: number, 
   if (g.status !== 'aprovada') return { ok: false as const, status: 409, erro: 'Só dá para informar o que a fábrica pagou numa garantia aprovada.' };
 
   const taxa = valoresFabrica(g.montadora);
-  const antes = pagoDaGarantia(g, taxa);
-  const novos = novosValoresPagos(g, horas, km, taxa);
+  const antes = pagoDaGarantia(g as Parameters<typeof pagoDaGarantia>[0], taxa);
+  const novos = novosValoresPagos(g as Parameters<typeof novosValoresPagos>[0], horas, km, taxa);
   const update: Record<string, unknown> = { ...novos };
   if (colunas) { update.fabrica_horas_pagas = horas; update.fabrica_km_pagos = km; }
   const { error: e2 } = await supabase.from(TBL_GARANTIAS).update(update).eq('id', id);
