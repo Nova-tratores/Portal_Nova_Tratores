@@ -449,6 +449,7 @@ export default function AdminPage() {
       if (!res.ok) {
         throw new Error(r.error || 'Falha ao alterar status')
       }
+      if (r.avisoLogin) alert(r.avisoLogin)
       // desativou e havia tarefas abertas → oferecer reatribuição (senão ficam órfãs)
       if (!novo && (r.tarefasAbertas || 0) > 0) {
         const nome = usuarios.find(u => u.id === userId)?.nome || 'usuário'

@@ -6,6 +6,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/pos/supabase';
 import { httpErr } from '@/lib/ajustes/cmc';
+import { contaDesativada, MENSAGEM_DESATIVADA } from '@/lib/auth/ativo';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
 import { filtrarDestinatarios } from '@/lib/notif/prefs';
 import { TRANSICOES, type PecaUnidade, type UnidadeAcao } from './unidades';
@@ -28,6 +29,7 @@ export async function exigirSessao(req: Request): Promise<{ id: string; email?: 
   );
   const { data: { user }, error } = await anon.auth.getUser(token);
   if (error || !user) throw httpErr(401, 'sessão inválida');
+  if (await contaDesativada(user.id)) throw httpErr(403, MENSAGEM_DESATIVADA);
 
   let nome = '';
   try {

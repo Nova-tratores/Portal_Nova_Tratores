@@ -11,6 +11,7 @@ import { createClient } from '@supabase/supabase-js';
 import { supabase as supabaseAdmin } from './supabase';
 import { httpErr } from './cmc';
 import { decidirPermissao } from '@/lib/permissoes/sombra-server';
+import { contaDesativada, MENSAGEM_DESATIVADA } from '@/lib/auth/ativo';
 
 // Valida o usuario logado e exige a permissao `modulo` (ou is_admin/is_dev). Com
 // `acao`, espelha a semantica do cliente pode(modulo, acao): passa quem tem o
@@ -27,6 +28,7 @@ export async function exigirPermissao(req: Request, modulo: string, acao?: strin
   );
   const { data: { user }, error } = await anon.auth.getUser(token);
   if (error || !user) throw httpErr(401, 'sessao invalida');
+  if (await contaDesativada(user.id)) throw httpErr(403, MENSAGEM_DESATIVADA);
 
   const { data: perm } = await supabaseAdmin
     .from('portal_permissoes')
@@ -68,6 +70,7 @@ export async function exigirAcessoModulo(req: Request, modulo: string): Promise<
   );
   const { data: { user }, error } = await anon.auth.getUser(token);
   if (error || !user) throw httpErr(401, 'sessao invalida');
+  if (await contaDesativada(user.id)) throw httpErr(403, MENSAGEM_DESATIVADA);
 
   const { data: perm } = await supabaseAdmin
     .from('portal_permissoes')
@@ -121,6 +124,7 @@ export async function protegerRota(
   );
   const { data: { user }, error } = await anon.auth.getUser(token);
   if (error || !user) return negar(401, 'sessao invalida');
+  if (await contaDesativada(user.id)) return negar(403, MENSAGEM_DESATIVADA);
 
   const { data: perm } = await supabaseAdmin
     .from('portal_permissoes')

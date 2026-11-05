@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { exigirAdmin } from '@/lib/auth/server'
+import { esquecerConta } from '@/lib/auth/ativo'
 
 // Ativar/inativar usuário (financeiro_usu.ativo) — só admin, pelo servidor.
 // Com o RLS de financeiro_usu (cada um só edita a própria linha), o admin não
@@ -23,6 +24,13 @@ export async function POST(req: NextRequest) {
 
   const { error } = await supabase.from('financeiro_usu').update({ ativo }).eq('id', userId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  esquecerConta(userId)
+
+  // Desativada também não entra: bloqueia o login no Supabase (corta as telas que leem
+  // o banco direto pelo navegador e o token renovado). Reativar desbloqueia.
+  let avisoLogin: string | undefined
+  const { error: errBan } = await supabase.auth.admin.updateUserById(userId, { ban_duration: ativo ? 'none' : '876000h' })
+  if (errBan) avisoLogin = `A conta foi ${ativo ? 'ativada' : 'desativada'}, mas o login não foi ${ativo ? 'liberado' : 'bloqueado'}: ${errBan.message}`
 
   // Ao DESATIVAR: conta as tarefas abertas do usuário (viram órfãs) p/ o /admin
   // avisar e oferecer reatribuição.
@@ -35,5 +43,5 @@ export async function POST(req: NextRequest) {
       .eq('concluida', false)
     tarefasAbertas = count || 0
   }
-  return NextResponse.json({ ok: true, tarefasAbertas })
+  return NextResponse.json({ ok: true, tarefasAbertas, avisoLogin })
 }

@@ -11,6 +11,7 @@
 //   if (!auth.isAdmin) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
 import { createClient } from '@supabase/supabase-js'
 import { registrarUsoApi } from '@/lib/uso/buffer-server'
+import { contaDesativada } from '@/lib/auth/ativo'
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -47,6 +48,7 @@ export async function autenticar(req: Request): Promise<Autenticado | null> {
   const { data, error } = await supa.auth.getUser(token)
   if (error || !data?.user) return null
   const userId = data.user.id
+  if (await contaDesativada(userId)) return null
 
   const { data: perm } = await supa
     .from('portal_permissoes')

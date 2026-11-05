@@ -18,6 +18,7 @@ import { supabaseAdmin as sb } from '@/lib/server/supabase-admin';
 import { comCronRun, fecharOrfas, marcarInterrompidas, type CronRunResultado } from '@/lib/cron/observar';
 import { estadoPorta } from '@/lib/omie/porta';
 import { filtrarDestinatarios, type PrefsDestinatario } from '@/lib/notif/prefs';
+import { semDesativados } from '@/lib/auth/ativo';
 import { estaNaHora, falhouDuasSeguidas, type Agendamento } from './regras';
 import { TAREFAS, type ResultadoTarefa } from './tarefas';
 
@@ -185,7 +186,7 @@ async function notificarDevs(titulo: string, descricao: string, chaveAviso: stri
   if (s.avisados.has(k)) return;
   s.avisados.add(k);
   const { data } = await sb.from('portal_permissoes').select('user_id, categoria, notif_silenciado').eq('is_dev', true);
-  const ids = filtrarDestinatarios('agendamentos', (data || []) as PrefsDestinatario[]);
+  const ids = await semDesativados(filtrarDestinatarios('agendamentos', (data || []) as PrefsDestinatario[]));
   if (!ids.length) return;
   await sb.from('portal_notificacoes').insert(ids.map((user_id) => ({
     user_id, tipo: 'agendamentos', titulo, descricao, link: '/agendamentos',

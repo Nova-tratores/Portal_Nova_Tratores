@@ -5,6 +5,7 @@
 import { createClient } from "@supabase/supabase-js";
 import type { Autenticado } from "@/lib/auth/server";
 import { podeNotificar } from "@/lib/notif/prefs";
+import { semDesativados } from "@/lib/auth/ativo";
 
 const sb = () =>
   createClient(
@@ -38,7 +39,7 @@ export async function destinatariosTratorilson(): Promise<string[]> {
       if (emails.includes(String(u.email || "").toLowerCase())) ids.add(String(u.id));
     }
   }
-  return [...ids];
+  return semDesativados([...ids]);
 }
 
 // ── Quem vê o alerta em JANELA (modal) × quem recebe só no sino ──────────────
