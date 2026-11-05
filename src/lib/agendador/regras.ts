@@ -35,6 +35,7 @@ export interface Agendamento {
 const OFFSET_MS = 3 * 60 * 60 * 1000; // Brasília = UTC-3
 const DIA_MS = 24 * 60 * 60 * 1000;
 const TOLERANCIA_MS = 20_000; // o laço roda a cada 30 s; não perder a vez por segundos
+export const ATRASO_MAX_PESADO_MS = 3 * 3600_000; // tarefa pesada perdida: recupera só até 3 h depois
 
 /** Partes da data no horário de Brasília. */
 export function partesSP(d: Date): { ano: number; mes: number; dia: number; diaSemana: number; minutos: number } {
@@ -72,7 +73,10 @@ function dentroDaJanela(ag: Agendamento, d: Date): boolean {
  * Está na hora de rodar? `ultima` = início da última execução (qualquer origem:
  * agendador, botão ou GitHub). Agendamento pausado nunca está na hora.
  * Diário/semanal/mensal perdido (servidor fora no horário) roda assim que voltar,
- * desde que ainda seja o mesmo dia.
+ * desde que ainda seja o mesmo dia. Tarefa PESADA perdida só recupera até
+ * ATRASO_MAX_PESADO_MS depois do horário; passou disso, fica para o próximo dia —
+ * em 05/11/2026 seis syncs da madrugada (cadastrados de manhã) dispararam juntos às
+ * 09:44 em pleno horário comercial e pesaram no banco (plano micro do Supabase).
  */
 export function estaNaHora(ag: Agendamento, ultima: Date | null, agora: Date): boolean {
   if (!ag.ativo) return false;
@@ -90,6 +94,7 @@ export function estaNaHora(ag: Agendamento, ultima: Date | null, agora: Date): b
       if (!ag.hora || !diaPermitido(ag, agora)) return false;
       const inicio = noDiaAs(agora, ag.hora);
       if (agora.getTime() < inicio.getTime()) return false;
+      if (ag.prioridade === 'pesado' && agora.getTime() - inicio.getTime() > ATRASO_MAX_PESADO_MS) return false;
       return !ultima || ultima.getTime() < inicio.getTime();
     }
   }

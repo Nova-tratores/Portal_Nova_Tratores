@@ -61,6 +61,14 @@ describe('diário', () => {
   it('perdido (servidor fora às 20:00) roda quando voltar no mesmo dia', () => {
     expect(estaNaHora(a, sp('2026-10-13T20:05:00'), sp('2026-10-14T22:40:00'))).toBe(true);
   });
+  it('pesado perdido há mais de 3 h não roda de dia: fica para o próximo', () => {
+    const noite = ag({ tipo: 'diario', hora: '01:00', prioridade: 'pesado' });
+    expect(estaNaHora(noite, null, sp('2026-11-05T03:30:00'))).toBe(true);
+    expect(estaNaHora(noite, null, sp('2026-11-05T09:44:00'))).toBe(false);
+    expect(proximaExecucao(noite, null, sp('2026-11-05T09:44:00'))).toEqual(sp('2026-11-06T01:00:00'));
+    const leve = ag({ tipo: 'diario', hora: '01:00', prioridade: 'rapido' });
+    expect(estaNaHora(leve, null, sp('2026-11-05T09:44:00'))).toBe(true);
+  });
   it('rodada manual antes do horário não conta como a do dia', () => {
     expect(estaNaHora(a, sp('2026-10-14T11:00:00'), sp('2026-10-14T20:00:30'))).toBe(true);
   });
