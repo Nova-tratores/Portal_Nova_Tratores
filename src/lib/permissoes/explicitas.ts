@@ -16,6 +16,8 @@ export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
   'frota:veiculos:inativar',
   // ver os números sensíveis da Planta Viva (financeiro, R$) — o módulo Planta não dá (29/10/2026)
   'planta:sensivel',
+  // desenhar o mapa do Opa (andares, blocos, lugares) — o módulo Opa não dá (05/11/2026)
+  'opa:mapa',
 ]);
 
 // Ações FISCAIS de Dev (José, 13/10/2026): no começo só os Devs fazem; admin comum

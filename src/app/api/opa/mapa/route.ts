@@ -1,13 +1,17 @@
 // Opa → Mapa (sql/opa-mapa.sql): planta da loja por andar + onde fica cada lugar (pni_locais),
 // com o departamento/gestor (sql/opa-departamentos.sql) e os Opas abertos de cada lugar.
-// Ler = qualquer pessoa logada; desenhar = admin.
+// Ler = qualquer pessoa logada; desenhar = admin ou a ação explícita opa:mapa.
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { registrarAuditLog } from '@/lib/server/audit-notify'
+import { permite } from '@/lib/permissoes/explicitas'
 import { idUnico, limitarRet, validarBlocos, type Andar } from '@/lib/opa/mapa'
 
 export const dynamic = 'force-dynamic'
+
+const podeDesenhar = (a: { modulos: string[]; isAdmin: boolean; isDev: boolean }) =>
+  permite(a.modulos, a.isAdmin, 'opa', 'mapa', a.isDev)
 
 const semTabela = (e: { code?: string; message?: string } | null) =>
   !!e && (e.code === '42P01' || e.code === 'PGRST205' || /does not exist|schema cache/i.test(e.message || ''))
@@ -35,14 +39,14 @@ export async function GET(req: NextRequest) {
     departamentos: deps.error ? [] : deps.data || [],
     ligacoes: ligs.error ? [] : ligs.data || [],
     opas: opas.error ? [] : opas.data || [],
-    podeEditar: auth.isAdmin,
+    podeEditar: podeDesenhar(auth),
   })
 }
 
 export async function POST(req: NextRequest) {
   const auth = await autenticar(req)
   if (!auth) return NextResponse.json({ error: 'nao autenticado' }, { status: 401 })
-  if (!auth.isAdmin) return NextResponse.json({ error: 'Só admin desenha o mapa.' }, { status: 403 })
+  if (!podeDesenhar(auth)) return NextResponse.json({ error: 'Sem permissão para desenhar o mapa (Admin → Opa → Desenhar o mapa).' }, { status: 403 })
   const body = await req.json().catch(() => ({})) as Record<string, unknown>
   const acao = String(body.acao || '')
   const { data: u } = await supabaseAdmin.from('financeiro_usu').select('nome').eq('id', auth.userId).maybeSingle()

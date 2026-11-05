@@ -65,6 +65,10 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
   planta: [
     { id: 'sensivel', label: 'Ver os números sensíveis (financeiro, valores em R$) e o detalhe deles' },
   ],
+  // Opa → Mapa: desenhar a planta (andares, blocos, lugares). Ação explícita (05/11/2026).
+  opa: [
+    { id: 'mapa', label: 'Desenhar o mapa do Opa (andares, blocos e lugares)' },
+  ],
   pops: [
     { id: 'admin', label: 'Administrar POPs (áreas, papéis, modelos, aprovar qualquer área)' },
     { id: 'executar', label: 'Executar POPs' },
