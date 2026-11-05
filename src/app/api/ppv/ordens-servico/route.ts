@@ -18,6 +18,7 @@ const STATUS_ABERTOS = [
   "Aguardando outros",
   "Executada",
   "Relatório Atualizado",
+  "Preenchido Paliativo", // paliativo: serviço ainda não acabou (José, 05/11/2026)
   "Relatório Concluído",
   "Executada aguardando comercial",
   "Enviar Omie",

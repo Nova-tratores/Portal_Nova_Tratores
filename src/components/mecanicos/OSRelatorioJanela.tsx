@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { authHeaders } from '@/lib/auth/client'
+import type { PaliativoOS } from '@/lib/pos/paliativos'
 
 interface Rel { status: string | null; tecnico: string | null; tecnico2: string | null; modelo: string | null; tipo: string | null; motivo: string | null; servico: string | null; horas: string | null; km: string | number | null; dias: { data: string; horas: number }[] }
 
@@ -14,6 +15,7 @@ const h = (v: number) => `${String(Math.round(v * 10) / 10).replace('.', ',')} h
 export default function OSRelatorioJanela({ os, cliente, onFechar }: { os: string; cliente?: string; onFechar: () => void }) {
   const [rel, setRel] = useState<Rel | null | undefined>(undefined)
   const [pdf, setPdf] = useState<string | null>(null)
+  const [paliativos, setPaliativos] = useState<PaliativoOS[]>([])
   const [aba, setAba] = useState<'texto' | 'pdf'>('texto')
   useEffect(() => {
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar() }
@@ -27,11 +29,27 @@ export default function OSRelatorioJanela({ os, cliente, onFechar }: { os: strin
         const r = await fetch(`/api/mecanicos/os-relatorio?os=${encodeURIComponent(os)}`, { headers: await authHeaders(), cache: 'no-store' })
         const j = r.ok ? await r.json() : {}
         if (!vivo) return
-        setRel(j.relatorio ?? null); setPdf(j.pdf ?? null)
+        setRel(j.relatorio ?? null); setPdf(j.pdf ?? null); setPaliativos(Array.isArray(j.paliativos) ? j.paliativos : [])
       } catch { if (vivo) setRel(null) }
     })()
     return () => { vivo = false }
   }, [os])
+
+  // paliativos: visitas que ajudaram mas não concluíram (José, 05/11/2026)
+  const blocoPaliativos = paliativos.map((p, i) => (
+    <div key={p.id || i} className="orj-pal">
+      <div className="orj-chips">
+        <span className="pal"><i className="fas fa-bandage" /> {[`Paliativo ${i + 1}`, br(String(p.dataInicio || p.createdAt).slice(0, 10)), p.tecResp1].filter(Boolean).join(' · ')}</span>
+        {p.motivo && <span className="pal-mot">{p.motivo}</span>}
+        {p.totalHora && <span><i className="fas fa-clock" /> {p.totalHora}</span>}
+        {p.totalKm && <span><i className="fas fa-road" /> {p.totalKm} km</span>}
+        {p.pdfUrl && <a href={p.pdfUrl} target="_blank" rel="noreferrer"><i className="fas fa-file-pdf" /> PDF</a>}
+      </div>
+      {p.dias.length > 0 && <p className="orj-dias">{p.dias.map((d) => `${br(d.data.slice(0, 10))}${d.horaInicio || d.horaFim ? ` · ${d.horaInicio}–${d.horaFim}` : ''}${d.kmTotal ? ` · ${d.kmTotal} km` : ''}`).join('   |   ')}</p>}
+      {p.diagnostico && <div className="orj-bloco"><small>Diagnóstico</small><p>{p.diagnostico}</p></div>}
+      {p.servicoRealizado && <div className="orj-bloco"><small>Serviço realizado</small><p>{p.servicoRealizado}</p></div>}
+    </div>
+  ))
 
   const tela = (
     <div className="orj-fundo" onClick={onFechar}>
@@ -60,9 +78,13 @@ export default function OSRelatorioJanela({ os, cliente, onFechar }: { os: strin
             </div>
             {rel === undefined ? <p className="orj-vazio"><i className="fas fa-circle-notch fa-spin" /> buscando o relatório…</p>
               : aba === 'pdf' && pdf ? <iframe src={pdf} title="Relatório do técnico" />
-              : !rel ? <p className="orj-vazio">Esta OS não tem relatório do técnico{pdf ? ' escrito (veja o PDF enviado)' : ''}.</p>
+              : !rel ? <>
+                  <p className="orj-vazio">Esta OS não tem relatório {paliativos.length ? 'final' : 'do técnico'}{pdf ? ' escrito (veja o PDF enviado)' : ''}.</p>
+                  {paliativos.length > 0 && <div className="orj-texto">{blocoPaliativos}</div>}
+                </>
               : (
                 <div className="orj-texto">
+                  {paliativos.length > 0 && <small className="orj-pal-rot">Relatório finalizado</small>}
                   <div className="orj-chips">
                     {rel.tecnico && <span><i className="fas fa-user-gear" /> {rel.tecnico}{rel.tecnico2 ? ` e ${rel.tecnico2}` : ''}</span>}
                     {rel.horas && <span><i className="fas fa-clock" /> {rel.horas}</span>}
@@ -74,6 +96,7 @@ export default function OSRelatorioJanela({ os, cliente, onFechar }: { os: strin
                   {rel.dias.length > 0 && <p className="orj-dias">{rel.dias.map((d) => `${br(d.data)} · ${h(d.horas)}`).join('   |   ')}</p>}
                   <div className="orj-bloco"><small>Diagnóstico</small><p>{rel.motivo || '—'}</p></div>
                   <div className="orj-bloco"><small>Serviço realizado</small><p>{rel.servico || '—'}</p></div>
+                  {blocoPaliativos}
                 </div>
               )}
           </section>
@@ -103,6 +126,8 @@ const ESTILO = `
 .orj-vazio { padding: 24px 16px; color: #64748b; font-size: 14px; margin: 0 }
 .orj-texto { flex: 1; overflow: auto; padding: 0 16px 18px; display: grid; gap: 12px; align-content: start }
 .orj-chips { display: flex; gap: 6px; flex-wrap: wrap } .orj-chips span { font-size: 12.5px; color: #334155; background: #f1f5f9; border-radius: 99px; padding: 3px 10px } .orj-chips i { color: #64748b; margin-right: 3px; font-size: 11px } .orj-chips .st { background: #ecfdf5; color: #047857 }
+.orj-pal { display: grid; gap: 8px; padding-top: 12px; border-top: 1px dashed var(--border, #e2e8f0) } .orj-pal-rot { font-size: 12.5px; color: #64748b }
+.orj-chips .pal { background: #ffedd5; color: #9a3412 } .orj-chips .pal-mot { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa } .orj-chips a { font-size: 12.5px; color: #b91c1c; text-decoration: none; padding: 3px 10px; border-radius: 99px; background: #fff5f5 }
 .orj-dias { margin: 0; font-size: 12.5px; color: #475569; white-space: pre-wrap }
 .orj-bloco { background: #f8fafc; border: 1px solid var(--border, #e2e8f0); border-radius: 12px; padding: 10px 14px } .orj-bloco small { font-size: 12.5px; color: #64748b } .orj-bloco p { margin: 4px 0 0; font-size: 14.5px; line-height: 1.55; color: #0f172a; white-space: pre-wrap }
 `

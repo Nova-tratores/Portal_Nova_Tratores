@@ -8,6 +8,7 @@ import { createHash } from 'crypto'
 import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
 import { chamarIA } from '@/lib/assistente/ia'
 import { parseHoras } from '@/lib/pos/horas-tecnico'
+import { listarPaliativos, somaPaliativos } from '@/lib/pos/paliativos'
 import { candidatos, compararPrevisao, fmtMin, type AtividadeTempario, type SituacaoPrevisao } from './tempario'
 import { temparioVigente } from './tempario-server'
 
@@ -72,7 +73,9 @@ export async function preverOS(idOrdem: string, opts: { forcar?: boolean } = {})
   const rel = await relatorioDaOS(idOrdem)
   if (!rel) return null
   const texto = [rel.Motivo && `Diagnóstico: ${rel.Motivo}`, rel.ServicoRealizado && `Serviço realizado: ${rel.ServicoRealizado}`].filter(Boolean).join('\n')
-  const horas = parseHoras(rel.TotalHora), km = num(rel.TotalKm)
+  // paliativos da mesma OS: o tempo do serviço é o das visitas todas (José, 05/11/2026)
+  const pal = somaPaliativos(await listarPaliativos(sb, idOrdem))
+  const horas = Math.round((parseHoras(rel.TotalHora) + pal.horas) * 100) / 100, km = num(rel.TotalKm) + pal.km
   const vig = await temparioVigente()
   // a versão do tempário entra no hash: ajustou o tempário, a OS é reavaliada
   const hash = createHash('sha1').update(`${texto}|${horas}|${vig.lista.length}|${vig.versao}`).digest('hex')

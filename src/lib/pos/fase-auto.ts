@@ -72,6 +72,8 @@ export interface MudancaManual { dia: string; de: string }
 export function decidirFaseAuto(os: OSParaFaseAuto, hoje: string, ultimaMudancaManual: MudancaManual | null): DecisaoFaseAuto | null {
   const status = String(os.Status || '').trim();
   if (!status || os.faturado_omie_em || status === 'Concluída' || status === 'Cancelada') return null;
+  // paliativo: o técnico ainda volta para concluir; quem tira dessa fase é o relatório final ou a pessoa (José, 05/11/2026)
+  if (status === 'Preenchido Paliativo') return null;
 
   const ultimo = ultimoDiaServico(os.Previsao_Execucao, os.Dias_Execucao);
   const passouServico = !!ultimo && maisUmDia(ultimo) <= hoje;

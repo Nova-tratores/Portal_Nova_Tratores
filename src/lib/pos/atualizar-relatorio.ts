@@ -19,6 +19,7 @@ import { criarOSNoOmie } from "@/lib/pos/omie";
 import { registrarAlimentacaoOS } from "@/lib/pos/alimentacao-os";
 import { parseHoras } from "@/lib/pos/horas-tecnico";
 import { preverOS } from "@/lib/mecanicos/previsao-os-server";
+import { listarPaliativos, somaPaliativos } from "@/lib/pos/paliativos";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -138,9 +139,14 @@ export async function montarAtualizacaoOS(osId: string, userName?: string): Prom
     .eq("Ordem_Servico", idReal).maybeSingle();
   if (!rel) return vazia(`Relatório do técnico da OS ${osId} não encontrado (a OS já foi preenchida pelo técnico?).`);
 
-  const qtdHoras = parseHoras(rel.TotalHora);
-  const qtdKm = parseNum(rel.TotalKm);
-  const dataInicio = String(rel.DataInicio || "").slice(0, 10);
+  // paliativos (visitas que não concluíram) entram na cobrança: horas e km somados ao final e o
+  // início da OS = o primeiro dia de qualquer visita (José, 05/11/2026). Sem a tabela, só o final.
+  const paliativos = await listarPaliativos(supabase, idReal);
+  const somaPal = somaPaliativos(paliativos);
+  const qtdHoras = Math.round((parseHoras(rel.TotalHora) + somaPal.horas) * 100) / 100;
+  const qtdKm = Math.round((parseNum(rel.TotalKm) + somaPal.km) * 100) / 100;
+  const inicioFinal = String(rel.DataInicio || "").slice(0, 10);
+  const dataInicio = somaPal.inicioMaisAntigo && (!inicioFinal || somaPal.inicioMaisAntigo < inicioFinal) ? somaPal.inicioMaisAntigo : inicioFinal;
   const dataFim = String(rel.DataFinal || dataInicio || "").slice(0, 10);
   const horimetro = String(rel.Horimetro || "").trim();
 

@@ -28,6 +28,7 @@ export function normalizarStatus(st: string | null | undefined): string {
     "Enviado Para Omie",
     "Cobrando Cliente",
     "Preenchido Garantia",
+    "Preenchido Paliativo", // relatório paliativo do técnico (José, 05/11/2026)
   ];
   const match = fasesValidas.find(f => f.toLowerCase() === s.toLowerCase());
   if (match) return match;

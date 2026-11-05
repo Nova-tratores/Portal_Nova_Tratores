@@ -21,6 +21,7 @@ const COLUMNS = [
   { key: "Executada aguardando comercial", title: "Aguar. Comercial" },
   { key: "Aguardando outros", title: "Aguar. Outros" },
   { key: "Aguardando ordem Técnico", title: "Aguar. Técnico" },
+  { key: "Preenchido Paliativo", title: "Paliativo" },
   { key: "Relatório Concluído", title: "Rel. Concluído" },
   { key: "Enviado Omie", title: "Enviado Omie" },
   { key: "Concluída", title: "Faturado" },

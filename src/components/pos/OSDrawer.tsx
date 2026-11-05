@@ -50,6 +50,8 @@ import { ModalValorLembrete, ModalMotivoDesconto, IconeMotivoDesconto, temValorP
 import { GradeServicosOmie, AbaDepartamentos, AbaInfoAdicionais, AbaParcelas, AbaEmail, ClienteOmieModal, SeletorCondicao, SeletorTecnicos, Chave, useListasOmie } from "./OSOmieAbas";
 import { espelhoPadrao, normalizarEspelho, aplicarInterna, totalExtras, type OmieEspelho } from "@/lib/pos/omie-espelho";
 import type { DocAnterior } from "@/lib/pos/omie-anteriores";
+import PaliativosOS from "./PaliativosOS";
+import type { PaliativoOS } from "@/lib/pos/paliativos";
 
 // Previsão de faturamento vazia = hoje (José, 13/10/2026), no fuso de São Paulo, "aaaa-mm-dd".
 const hojeSP = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
@@ -482,6 +484,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [concluindo, setConcluindo] = useState(false);
   const [showDescontos, setShowDescontos] = useState(false);
   const [dadosTecnico, setDadosTecnico] = useState<any>(null);
+  // relatórios paliativos do técnico (José, 05/11/2026)
+  const [paliativos, setPaliativos] = useState<PaliativoOS[]>([]);
   const [fotoExpandida, setFotoExpandida] = useState<string | null>(null);
   const [lembretes, setLembretes] = useState<Array<LembreteValor>>([]);
   // Lembrete com valor (cobrar / crédito) ao abrir a OS + motivo do desconto (José, 27/10/2026)
@@ -1133,7 +1137,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setPrevisaoExecucao(hojeStr)
     setPrevisaoFaturamento(""); setDataFimServico(""); setDiasExecucao([]); setServicoNumero(0); setHoraInicioExec(horaStr); setHoraChegada(""); setHoraFimExec(""); setAgendaTecnico([]);
     setEstimativa(null); setErroEstimativa(""); setLoadingEstimativa(false); setEnderecoEstimativa(""); setEnderecosDisponiveis([]);
-    setProdutos([]); setTotalPecas(0); setShowLogs(false); setRequisicoes([]); setReqsOcultasPrint(new Set()); setOmieAnteriores([]);
+    setProdutos([]); setTotalPecas(0); setShowLogs(false); setRequisicoes([]); setReqsOcultasPrint(new Set()); setOmieAnteriores([]); setPaliativos([]);
     setGerarPPV(false); setShowDescontos(false); setLoadingData(false);
     setLembretes([]); setEditingLembreteId(null);
     setServicoOficina(false);
@@ -1226,6 +1230,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           }
           setFotosAlmocoDia(_fad);
           setDadosTecnico(d.dadosTecnico || null);
+          setPaliativos(Array.isArray(d.paliativos) ? d.paliativos : []);
           setShowDescontos(dv > 0 || dh > 0 || dk > 0);
           if (d.ppv) loadPPV(d.ppv);
           if (d.nomeCliente) {
@@ -2062,6 +2067,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   {mode === "edit" && osId && <div className="os-aba os-aba-servicos" style={{ display: "contents" }}><OSUnidadesInfo osId={osId} /></div>}
 
 
+                  {/* ── Relatórios paliativos (José, 05/11/2026): só aparece quando a OS tem algum ── */}
+                  {mode === "edit" && (
+                    <PaliativosOS paliativos={paliativos} cartao="os-card os-aba os-aba-relatorio"
+                      temFinal={String(dadosTecnico?.status || "").toLowerCase() === "enviado"}
+                      finalHora={dadosTecnico?.totalHora} finalKm={dadosTecnico?.totalKm} />
+                  )}
+
                   {/* ── Relatório do técnico (14/10/2026): situação no app + PDF + correção + dados, num cartão só ── */}
                   {mode === "edit" && (() => {
                     const dt = dadosTecnico;
@@ -2112,7 +2124,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       <div className="rt-topo">
                         <span className="rt-ico"><i className="fas fa-clipboard-check" /></span>
                         <div className="rt-nome">
-                          <b>Relatório do técnico</b>
+                          <b>{paliativos.length > 0 ? "Relatório finalizado" : "Relatório do técnico"}</b>
                           <span>{enviado ? `Preenchido no app${dp ? ` em ${dp}` : ""}` : dt ? "Rascunho iniciado no app do técnico" : "O técnico ainda não preencheu no app"}</span>
                         </div>
                         <span className={`rt-selo ${enviado ? "ok" : diasAtraso > 0 ? "atraso" : "espera"}`}>

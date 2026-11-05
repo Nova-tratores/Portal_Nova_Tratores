@@ -72,6 +72,7 @@ const FASES_DEF: Record<string, { label: string; bg: string; text: string }> = {
   "Executada aguardando comercial": { label: "Aguard. comercial", bg: "#FAF5FF", text: "#7C3AED" },
   "Aguardando outros": { label: "Aguard. outros", bg: "#FEFCE8", text: "#CA8A04" },
   "Aguardando ordem Técnico": { label: "Aguard. técnico", bg: "#FFF7ED", text: "#D97706" },
+  "Preenchido Paliativo": { label: "Paliativo", bg: "#FFEDD5", text: "#EA580C" },
   "Relatório Concluído": { label: "Rel. concluído", bg: "#ECFEFF", text: "#0891B2" },
   "Enviar Omie": { label: "Enviar Omie", bg: "#FFEDD5", text: "#C2410C" },
   "Enviado Para Omie": { label: "Enviado Omie", bg: "#FFF3E6", text: "#C2570A" },

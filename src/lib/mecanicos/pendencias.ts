@@ -17,6 +17,8 @@ export const FASES_POS_EXECUCAO = new Set([
 export const FASES_ATE_EXECUCAO = new Set([
   'Orçamento Aprovado', 'Execução', 'Execução (Realizando Diagnóstico)', 'Execução aguardando peças (em transporte)',
   'Aguardando outros', 'Aguardando ordem Técnico',
+  // paliativo: o técnico foi mas o serviço não acabou — ainda não é dinheiro parado (José, 05/11/2026)
+  'Preenchido Paliativo',
 ])
 
 const DIA = /^\d{4}-\d{2}-\d{2}$/

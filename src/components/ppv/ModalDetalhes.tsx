@@ -34,6 +34,7 @@ const STATUS_ICON: Record<string, string> = {
   "Executada aguardando comercial": "fa-file-invoice-dollar",
   "Aguardando outros": "fa-clock",
   "Aguardando ordem Técnico": "fa-user-cog",
+  "Preenchido Paliativo": "fa-band-aid",
   "Relatório Concluído": "fa-user-clock",
   "Concluída": "fa-check-circle",
   "Cancelada": "fa-times-circle",

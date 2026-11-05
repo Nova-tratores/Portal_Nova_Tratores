@@ -360,6 +360,8 @@ function mapearStatusOS(statusOS: string): string | null {
     "Relatório Concluído", "Cancelada",
     // "Concluída" fica de fora de propósito: OS concluída não conclui o PPV (só o faturamento conclui)
   ];
+  // paliativo: o PPV continua em execução (mesmo mapa do POS_TO_PPV_STATUS, José 05/11/2026)
+  if (s.toLowerCase() === "preenchido paliativo") return "Execução";
   return fasesValidas.find(f => f.toLowerCase() === s.toLowerCase()) || null;
 }
 

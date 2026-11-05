@@ -30,6 +30,8 @@ export const POS_TO_PPV_STATUS: Record<string, string> = {
   "Aguardando outros": "Aguardando outros",
   "Aguardando ordem Técnico": "Aguardando ordem Técnico",
   "Relatório Concluído": "Relatório Concluído",
+  // Paliativo: o técnico foi mas o serviço não terminou — o PPV segue em execução (José, 05/11/2026)
+  "Preenchido Paliativo": "Execução",
   // Fases que só existem no POS → equivalente válido do kanban do PPV
   // (gravar o texto do POS faria o card cair em "Orçamento" no normalizarStatus)
   "Executada": "Executada aguardando comercial",
@@ -58,6 +60,8 @@ export const PHASES = [
   "Executada aguardando comercial",
   "Aguardando outros",
   "Aguardando ordem Técnico",
+  // relatório paliativo do app do técnico: ajudou o cliente mas não concluiu (José, 05/11/2026)
+  "Preenchido Paliativo",
   "Relatório Concluído",
   "Enviar Omie",
   "Enviado Para Omie",
@@ -69,6 +73,8 @@ export const PHASES = [
 
 // Fases que pausam o contador de métricas do técnico
 export const FASES_CONTADOR_PARADO = new Set([
+  // o técnico foi e mandou o paliativo: não conta atraso dele (José, 05/11/2026)
+  "Preenchido Paliativo",
   "Relatório Concluído",
   "Concluída",
   "Cancelada",

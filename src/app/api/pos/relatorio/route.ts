@@ -38,6 +38,7 @@ const CORES_FASE: Record<string, string> = {
   "Executada aguardando comercial": "#C084FC",
   "Aguardando outros": "#A855F7",
   "Aguardando ordem Técnico": "#0EA5E9",
+  "Preenchido Paliativo": "#EA580C",
   "Relatório Concluído": "#A78BFA",
   "Relatório Concluído - Garantia": "#0D9488",
 };

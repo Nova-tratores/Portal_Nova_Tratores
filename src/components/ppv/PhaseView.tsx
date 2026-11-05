@@ -51,6 +51,7 @@ export const PHASE_COLORS: Record<string, string> = {
   "Executada aguardando comercial": "#7C3AED",
   "Aguardando outros": "#CA8A04",
   "Aguardando ordem Técnico": "#D97706",
+  "Preenchido Paliativo": "#EA580C",
   "Relatório Concluído": "#0891B2",
   "Enviado Omie": "#C2570A",
   "Concluída": "#047857",
@@ -77,6 +78,7 @@ export const PHASE_SHORT: Record<string, string> = {
   "Executada aguardando comercial": "Aguar. Comercial",
   "Aguardando outros": "Aguar. Outros",
   "Aguardando ordem Técnico": "Aguar. Técnico",
+  "Preenchido Paliativo": "Paliativo",
   "Relatório Concluído": "Rel. Concluído",
   "Enviado Omie": "Enviado Omie",
   "Concluída": "Faturado",
@@ -91,7 +93,7 @@ const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
 const ETAPAS_PPV: { r: string; fases: string[] }[] = [
   { r: "Orçamento", fases: ["Orçamento", "Orçamento enviado para o cliente e aguardando"] },
   { r: "Aprovado", fases: ["Orçamento Aprovado"] },
-  { r: "Execução", fases: ["Execução", "Execução (Realizando Diagnóstico)", "Execução aguardando peças (em transporte)", "Executada aguardando comercial", "Aguardando outros", "Aguardando ordem Técnico", "Relatório Concluído"] },
+  { r: "Execução", fases: ["Execução", "Execução (Realizando Diagnóstico)", "Execução aguardando peças (em transporte)", "Executada aguardando comercial", "Aguardando outros", "Aguardando ordem Técnico", "Preenchido Paliativo", "Relatório Concluído"] },
   { r: "Omie", fases: ["Enviado Omie"] },
   { r: "Faturado", fases: ["Concluída"] },
 ];

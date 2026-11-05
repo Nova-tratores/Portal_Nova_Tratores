@@ -14,6 +14,7 @@ export default function OSCard({ order: o, onClick }: OSCardProps) {
   let borderColor = "#1E3A5F";
   if (o.status === "Aguardando ordem Técnico") borderColor = "#0EA5E9";
   else if (o.status === "Aguardando outros") borderColor = "#A855F7";
+  else if (o.status === "Preenchido Paliativo") borderColor = "#EA580C";
   else if (o.status.includes("Exec")) borderColor = "#F59E0B";
   else if (o.status.includes("Concluída")) borderColor = "#10B981";
   else if (o.status.includes("Cancelada")) borderColor = "#EF4444";

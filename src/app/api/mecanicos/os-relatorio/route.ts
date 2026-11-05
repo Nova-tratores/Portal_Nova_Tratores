@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { protegerRota } from '@/lib/ajustes/permissao-server'
 import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
 import { diasDoRelatorio, type RelatorioTecnico } from '@/lib/pos/horas-tecnico'
+import { listarPaliativos } from '@/lib/pos/paliativos'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,16 +14,19 @@ export async function GET(req: NextRequest) {
   const g = await protegerRota(req, [{ modulo: 'mecanicos' }, { modulo: 'pos' }])
   if (g.resposta) return g.resposta
   const os = String(req.nextUrl.searchParams.get('os') || '').trim()
-  if (!/^OS-\d+$/i.test(os)) return NextResponse.json({ relatorio: null, pdf: null })
-  const [{ data: rels }, { data: ordem }] = await Promise.all([
+  if (!/^OS-\d+$/i.test(os)) return NextResponse.json({ relatorio: null, pdf: null, paliativos: [] })
+  // relatórios paliativos (visitas que não concluíram) vêm junto (José, 05/11/2026)
+  const [{ data: rels }, { data: ordem }, paliativos] = await Promise.all([
     sb.from('Ordem_Servico_Tecnicos').select('*').eq('Ordem_Servico', os).order('IdOs', { ascending: false }).limit(5),
     sb.from('Ordem_Servico').select('ID_Relatorio_Final, Os_Cliente').eq('Id_Ordem', os).maybeSingle(),
+    listarPaliativos(sb, os, { comDados: true }),
   ])
   const ls = (rels || []) as Rec[]
   const r = ls.find((x) => String(x.Status || '').toLowerCase() === 'enviado') || ls[0] || null
   const pdf = String((ordem as Rec | null)?.ID_Relatorio_Final || '').trim()
   return NextResponse.json({
     pdf: /^https?:\/\//.test(pdf) ? pdf : null,
+    paliativos,
     relatorio: r ? {
       status: r.Status || null, tecnico: r.TecResp1 || null, tecnico2: r.TecResp2 || null, modelo: r.Modelo || null, tipo: r.TipoServico || null,
       motivo: r.Motivo || null, servico: r.ServicoRealizado || null, horas: r.TotalHora || null, km: r.TotalKm || null,
