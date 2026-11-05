@@ -7,8 +7,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  Car, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Eye, Film, Image as ImageIcon,
-  Paperclip, Plus, Send, Trash2, User, X,
+  Building2, Car, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Eye, Film, Image as ImageIcon,
+  MapPin, Paperclip, Plus, Send, Trash2, User, X,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -51,6 +51,9 @@ interface Opa {
   vinculo_ref?: string | null
   // para quem é (migração opa-publico; ausente = todos)
   publico?: Publico | null
+  // território (lugar físico) e departamento responsável — só organizam/filtram (sql/opa-local-departamento.sql)
+  local?: string | null
+  departamento?: string | null
   created_at: string
   anexos: OpaAnexo[]
   views: OpaView[]
@@ -70,6 +73,17 @@ const SELO_PUBLICO: Record<Exclude<Publico, 'todos'>, { txt: string; bg: string;
   escritorio: { txt: 'ESCRITÓRIO', bg: '#EDE9FE', cor: '#5B21B6' },
   oficina: { txt: 'OFICINA', bg: '#FEF3C7', cor: '#92400E' },
 }
+
+// Território (lugar físico onde está o problema) e departamento responsável.
+// Só organizam e filtram — todos continuam vendo. Listas aqui (a coluna é texto):
+// incluir item novo não precisa de migration.
+const LOCAIS = ['Oficina', 'Pátio', 'Peças / Balcão', 'Estoque / Almoxarifado', 'Escritório', 'Showroom', 'Lavador', 'Área externa', 'Outro']
+const DEPARTAMENTOS = ['Pós-Vendas', 'Peças', 'Comercial', 'Financeiro', 'Administrativo', 'RH', 'Frota', 'Diretoria']
+const SEM_INFO = '__sem__'   // valor do filtro "não informado"
+
+/** erro do banco por falta das colunas local/departamento (migração não rodou) */
+const faltaColunaLocalDep = (msg?: string) => /\b(local|departamento)\b/i.test(msg || '') && /column|coluna|schema/i.test(msg || '')
+const MSG_FALTA_LOCAL_DEP = 'O banco ainda não tem território/departamento (sql/opa-local-departamento.sql). Deixe os dois em branco ou peça para aplicar a migração.'
 
 type Aba = 'abertos' | 'concluidos'
 
@@ -166,8 +180,18 @@ export default function OpaPage() {
     registrarView(opa)
   }
 
-  const abertos = opas.filter((o) => o.status === 'aberto')
-  const concluidos = opas.filter((o) => o.status === 'resolvido')
+  // filtros de território e departamento (valem nos Cards e na Lista; vazio = todos)
+  const [filtroLocal, setFiltroLocal] = useState('')
+  const [filtroDep, setFiltroDep] = useState('')
+  const casa = (valor: string | null | undefined, filtro: string) =>
+    !filtro || (filtro === SEM_INFO ? !valor : valor === filtro)
+  const filtrados = opas.filter((o) => casa(o.local, filtroLocal) && casa(o.departamento, filtroDep))
+  // opções = lista fixa + o que já existir no banco fora dela (texto livre)
+  const opcoes = (fixas: string[], campo: 'local' | 'departamento') =>
+    [...fixas, ...[...new Set(opas.map((o) => o[campo]).filter((v): v is string => !!v && !fixas.includes(v)))].sort()]
+
+  const abertos = filtrados.filter((o) => o.status === 'aberto')
+  const concluidos = filtrados.filter((o) => o.status === 'resolvido')
   const lista = aba === 'abertos' ? abertos : concluidos
 
   // Cards (como sempre foi) × Lista (tabela com filtro e A→Z/Z→A no cabeçalho)
@@ -193,6 +217,14 @@ export default function OpaPage() {
             {rotulo} <span style={{ fontSize: 11.5, fontWeight: 800, opacity: 0.8 }}>{n}</span>
           </button>
         ))}
+        <FiltroSelect rotulo="Território" valor={filtroLocal} onMudar={setFiltroLocal} opcoes={opcoes(LOCAIS, 'local')} />
+        <FiltroSelect rotulo="Departamento" valor={filtroDep} onMudar={setFiltroDep} opcoes={opcoes(DEPARTAMENTOS, 'departamento')} />
+        {(filtroLocal || filtroDep) && (
+          <button type="button" onClick={() => { setFiltroLocal(''); setFiltroDep('') }} title="Limpar território e departamento"
+            style={{ display: 'inline-flex', alignItems: 'center', height: 32, padding: '0 8px', borderRadius: 8, border: 'none', background: 'transparent', color: VERMELHO, cursor: 'pointer' }}>
+            <X size={15} />
+          </button>
+        )}
         <div style={{ flex: 1 }} />
         {modo === 'lista' && tabela.ativos > 0 && (
           <button type="button" onClick={tabela.limpar} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 32, padding: '0 11px', borderRadius: 8, border: `1px solid ${VERMELHO}`, background: 'transparent', color: VERMELHO, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -210,7 +242,9 @@ export default function OpaPage() {
         <TabelaFiltravel colunas={colunas} todas={lista} lista={tabela} chaveLinha={(o) => o.id} onAbrir={abrirNaJanela} cor={VERMELHO} />
       ) : lista.length === 0 ? (
         <div style={{ padding: 40, textAlign: 'center', borderRadius: 12, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', color: 'var(--portal-text-muted)', fontWeight: 600 }}>
-          {aba === 'abertos' ? <><CheckCircle2 size={28} color="#10B981" style={{ display: 'block', margin: '0 auto 8px' }} />Nenhum Opa aberto — tudo em ordem!</> : 'Nenhum Opa concluído ainda'}
+          {(filtroLocal || filtroDep)
+            ? 'Nenhum Opa com esse território/departamento'
+            : aba === 'abertos' ? <><CheckCircle2 size={28} color="#10B981" style={{ display: 'block', margin: '0 auto 8px' }} />Nenhum Opa aberto — tudo em ordem!</> : 'Nenhum Opa concluído ainda'}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -263,6 +297,8 @@ function useColunasOpa(isAdmin: boolean): ColunaTabela<Opa>[] {
         render: (o) => (o.vinculo_tipo === 'veiculo' && o.vinculo_ref
           ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 700, color: '#1E40AF', whiteSpace: 'nowrap' }}><Car size={12} /> {o.vinculo_ref}</span>
           : <span style={{ color: 'var(--portal-text-muted)' }}>Geral</span>) },
+      { chave: 'local', titulo: 'Território', ordem: (o) => o.local || '', render: (o) => <span style={{ whiteSpace: 'nowrap' }}>{vazio(o.local)}</span> },
+      { chave: 'departamento', titulo: 'Departamento', ordem: (o) => o.departamento || '', render: (o) => <span style={{ whiteSpace: 'nowrap' }}>{vazio(o.departamento)}</span> },
       { chave: 'origem', titulo: 'Origem', ordem: (o) => (o.origem === 'mecanico' ? 'Mecânico' : 'Portal'),
         render: (o) => <span style={{ fontSize: 12.5 }}>{o.origem === 'mecanico' ? 'Mecânico' : 'Portal'}</span> },
       isAdmin && { chave: 'criador', titulo: 'Aberto por', ordem: (o) => o.criado_por_nome || '', render: (o) => <span style={{ whiteSpace: 'nowrap' }}>{vazio(o.criado_por_nome)}</span> },
@@ -303,6 +339,8 @@ function CartaoOpa({ opa, aberto, onAlternar, isAdmin, usuarioId, usuarioNome, u
   const [resp, setResp] = useState('')
   const [sol, setSol] = useState('')
   const [pub, setPub] = useState<Publico>('todos')
+  const [loc, setLoc] = useState('')
+  const [dep, setDep] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erroEdicao, setErroEdicao] = useState<string | null>(null)
   const resolvido = opa.status === 'resolvido'
@@ -319,24 +357,33 @@ function CartaoOpa({ opa, aberto, onAlternar, isAdmin, usuarioId, usuarioNome, u
   }
 
   const pubAtual: Publico = opa.publico || 'todos'
-  const abrirEdicao = () => { setResp(opa.responsavel || ''); setSol(opa.solucao || ''); setPub(pubAtual); setErroEdicao(null); setEditando(true) }
+  const abrirEdicao = () => {
+    setResp(opa.responsavel || ''); setSol(opa.solucao || ''); setPub(pubAtual)
+    setLoc(opa.local || ''); setDep(opa.departamento || '')
+    setErroEdicao(null); setEditando(true)
+  }
 
   const salvarEdicao = async () => {
     setSalvando(true)
     setErroEdicao(null)
     const campos: Record<string, unknown> = { responsavel: resp.trim() || null, solucao: sol.trim() || null }
-    if (pub !== pubAtual) campos.publico = pub   // só manda a coluna quando mudou (banco sem a migração não quebra o resto)
+    // colunas novas só vão quando mudaram (banco sem a migração não quebra o resto)
+    const detalhes: Record<string, { de: string | null; para: string | null }> = {}
+    if (pub !== pubAtual) { campos.publico = pub; detalhes.publico = { de: pubAtual, para: pub } }
+    if ((loc || null) !== (opa.local || null)) { campos.local = loc || null; detalhes.local = { de: opa.local || null, para: loc || null } }
+    if ((dep || null) !== (opa.departamento || null)) { campos.departamento = dep || null; detalhes.departamento = { de: opa.departamento || null, para: dep || null } }
     const { error } = await supabase.from('portal_opas').update(campos).eq('id', opa.id)
     if (error) {
       setErroEdicao(/publico/i.test(error.message || '')
         ? 'O banco ainda não tem a opção "para quem" (sql/opa-publico.sql).'
+        : faltaColunaLocalDep(error.message) ? MSG_FALTA_LOCAL_DEP
         : 'Não foi possível salvar. Tente de novo.')
       setSalvando(false)
       return
     }
     auditLog({
       sistema: 'opa', acao: 'editar', entidade: 'opa', entidade_id: opa.id, entidade_label: `Opa: ${opa.titulo}`,
-      ...(pub !== pubAtual ? { detalhes: { publico: { de: pubAtual, para: pub } } } : {}),
+      ...(Object.keys(detalhes).length ? { detalhes } : {}),
     })
     setSalvando(false)
     setEditando(false)
@@ -377,6 +424,8 @@ function CartaoOpa({ opa, aberto, onAlternar, isAdmin, usuarioId, usuarioNome, u
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: 'var(--portal-text-muted)', flexWrap: 'wrap', marginTop: 3 }}>
+            {opa.local && <span title="Território" style={{ ...meta, color: 'var(--portal-text-secondary)', fontWeight: 600 }}><MapPin size={11} /> {opa.local}</span>}
+            {opa.departamento && <span title="Departamento responsável" style={{ ...meta, color: 'var(--portal-text-secondary)', fontWeight: 600 }}><Building2 size={11} /> {opa.departamento}</span>}
             {isAdmin && opa.criado_por_nome && <span style={meta}><User size={11} /> {opa.criado_por_nome}</span>}
             <span style={meta}><Clock size={11} /> {fmtData(opa.created_at)}</span>
             {opa.anexos.length > 0 && <span style={meta}><Paperclip size={11} /> {opa.anexos.length}</span>}
@@ -419,6 +468,7 @@ function CartaoOpa({ opa, aberto, onAlternar, isAdmin, usuarioId, usuarioNome, u
               {erroEdicao && <div role="alert" style={{ padding: 8, borderRadius: 8, background: '#FEF2F2', color: '#991B1B', fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{erroEdicao}</div>}
               <label style={rotulo}>Para quem?</label>
               <div style={{ marginBottom: 10 }}><SeletorPublico valor={pub} onMudar={setPub} /></div>
+              <CamposLocalDep local={loc} departamento={dep} onLocal={setLoc} onDepartamento={setDep} />
               <label style={rotulo}>Responsável</label>
               <input list={`usuarios-${opa.id}`} value={resp} onChange={(e) => setResp(e.target.value)} placeholder="Quem vai resolver?" style={{ ...inp, marginBottom: 10 }} />
               <datalist id={`usuarios-${opa.id}`}>{usuarios.map((u) => <option key={u} value={u} />)}</datalist>
@@ -482,6 +532,8 @@ function NovoOpa({ usuarioId, usuarioNome, onFechar, onCriado }: {
   const [descricao, setDescricao] = useState('')
   const [arquivos, setArquivos] = useState<File[]>([])
   const [publico, setPublico] = useState<Publico>('todos')
+  const [local, setLocal] = useState('')
+  const [departamento, setDepartamento] = useState('')
   const [vincTipo, setVincTipo] = useState<'' | 'veiculo'>('')
   const [placa, setPlaca] = useState('')
   const [veiculos, setVeiculos] = useState<Veiculo[]>([])
@@ -507,11 +559,18 @@ function NovoOpa({ usuarioId, usuarioNome, onFechar, onCriado }: {
     const registro: Record<string, unknown> = {
       titulo: t, descricao: descricao.trim() || null, criado_por: usuarioId, criado_por_nome: usuarioNome, origem: 'portal',
       ...(publico !== 'todos' ? { publico } : {}),
+      ...(local ? { local } : {}),
+      ...(departamento ? { departamento } : {}),
       ...(comVinculo ? { vinculo_tipo: 'veiculo', vinculo_ref: placa } : {}),
     }
     let { data: opa, error } = await supabase.from('portal_opas').insert(registro).select().single()
     // banco sem a coluna "publico" (migração opa-publico não rodou)? não cria
     // calado como "todos" — o Opa do escritório iria para os mecânicos
+    if (error && faltaColunaLocalDep(error.message)) {
+      setErro(MSG_FALTA_LOCAL_DEP)
+      setEnviando(false)
+      return
+    }
     if (error && /publico/i.test(error.message || '')) {
       setErro('O banco ainda não tem a opção "para quem" (sql/opa-publico.sql). Escolha "Todos" ou peça para aplicar a migração.')
       setEnviando(false)
@@ -568,6 +627,7 @@ function NovoOpa({ usuarioId, usuarioNome, onFechar, onCriado }: {
             <label style={rotulo}>Para quem?</label>
             <SeletorPublico valor={publico} onMudar={setPublico} />
           </div>
+          <CamposLocalDep local={local} departamento={departamento} onLocal={setLocal} onDepartamento={setDepartamento} />
           <div>
             <label style={rotulo}>Sobre o quê? <span style={{ fontWeight: 500 }}>(opcional)</span></label>
             <div style={{ display: 'flex', gap: 8, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
@@ -607,6 +667,49 @@ function NovoOpa({ usuarioId, usuarioNome, onFechar, onCriado }: {
         </div>
       </div>
     </div>
+  )
+}
+
+/** Território (lugar físico) + departamento responsável — opcionais, lado a lado (empilha no celular). */
+function CamposLocalDep({ local, departamento, onLocal, onDepartamento }: {
+  local: string; departamento: string; onLocal: (v: string) => void; onDepartamento: (v: string) => void
+}) {
+  const { isMobile, inp, rotulo } = useEstilos()
+  // valor antigo fora da lista (texto livre) continua aparecendo como opção
+  const comAtual = (lista: string[], atual: string) => (atual && !lista.includes(atual) ? [...lista, atual] : lista)
+  return (
+    <div style={{ display: 'flex', gap: 10, flexDirection: isMobile ? 'column' : 'row', marginBottom: 10 }}>
+      <div style={{ flex: 1 }}>
+        <label style={rotulo}>Território <span style={{ fontWeight: 500 }}>(onde?)</span></label>
+        <select value={local} onChange={(e) => onLocal(e.target.value)} style={inp}>
+          <option value="">Não informado</option>
+          {comAtual(LOCAIS, local).map((l) => <option key={l} value={l}>{l}</option>)}
+        </select>
+      </div>
+      <div style={{ flex: 1 }}>
+        <label style={rotulo}>Departamento <span style={{ fontWeight: 500 }}>(de quem é?)</span></label>
+        <select value={departamento} onChange={(e) => onDepartamento(e.target.value)} style={inp}>
+          <option value="">Não informado</option>
+          {comAtual(DEPARTAMENTOS, departamento).map((d) => <option key={d} value={d}>{d}</option>)}
+        </select>
+      </div>
+    </div>
+  )
+}
+
+/** Filtro compacto da faixa das abas: Todos · Não informado · cada opção. */
+function FiltroSelect({ rotulo, valor, onMudar, opcoes }: { rotulo: string; valor: string; onMudar: (v: string) => void; opcoes: string[] }) {
+  const ativo = !!valor
+  return (
+    <select aria-label={rotulo} value={valor} onChange={(e) => onMudar(e.target.value)} title={rotulo} style={{
+      height: 32, padding: '0 8px', borderRadius: 8, fontSize: 13, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer', maxWidth: 190,
+      border: `1.5px solid ${ativo ? VERMELHO : 'var(--portal-border)'}`,
+      background: ativo ? '#FEF2F2' : 'var(--portal-bg-card)', color: ativo ? '#991B1B' : 'var(--portal-text-secondary)',
+    }}>
+      <option value="">{rotulo}: todos</option>
+      <option value={SEM_INFO}>{rotulo}: não informado</option>
+      {opcoes.map((o) => <option key={o} value={o}>{o}</option>)}
+    </select>
   )
 }
 
