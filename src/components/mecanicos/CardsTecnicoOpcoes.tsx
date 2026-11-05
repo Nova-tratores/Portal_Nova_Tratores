@@ -91,7 +91,7 @@ export function useCardsTecnicos(metas: Metas, mes?: string) {
         faturado: l.bruto, horas: h, os: Math.round(l.os), km: l.km,
         metaValor: metas.valorSemana * semanas, idealValor: metas.valorIdealSemana * semanas, metaHoras: metas.horasSemana * semanas, idealHoras: metas.horasIdeal * semanas, fracao,
         projValor: fracao > 0 ? l.bruto / fracao : 0, projHoras: fracao > 0 ? h / fracao : 0,
-        comissao: f ? f.comissao.total : comCar, pagamento: previsaoPagamento(mesAlvo), pct: c ? c.pct : null,
+        comissao: f ? f.comissao.totalDecidido ?? f.comissao.total : comCar, pagamento: previsaoPagamento(mesAlvo), pct: c ? c.pct : null,
         diaValor: acum(porDia.get(l.tecnico)?.v || Array(diasMes).fill(0)),
         // horas: as cobradas dia a dia + as que aguardam faturar somadas no dia de hoje
         diaHoras: acum((porDia.get(l.tecnico)?.h || Array(diasMes).fill(0)).map((v, i) => (i === diaHoje - 1 ? v + l.aguardando : v))),

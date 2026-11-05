@@ -24,6 +24,7 @@ import { GRUPOS } from './painel'
 import { ajustesDeComissao, pctsDasOS } from './comissao-server'
 import { lerRegrasComissao } from './regras-comissao-server'
 import { ehGarantista, comissaoDoGarantista, ehLarissa, comissaoDaLarissa } from './comissao-escritorio-server'
+import type { DescontoPedido } from './descontos-tecnico'
 
 type Rec = Record<string, unknown>
 const hojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
@@ -110,6 +111,11 @@ async function montarFicha(nome: string, mes: string) {
     const r: Recebida = { de: dv.de_tecnico, valor: Number(dv.valores[k]), horas: dv.horas?.[k] ?? null, status: 'salva' }
     recebidas.set(dv.numero, r); recebidas.set(dv.os, r)
   }
+  // decisões da comissão salvas na ficha (pagar / não pagar / ajustar e descontos ainda não pedidos) — 05/11/2026
+  type DecisaoSalva = { acao: 'pagar' | 'nao' | 'ajustar'; motivo: string; valor?: number }
+  const { data: dec } = await sb.from('posvendas_comissao_decisoes').select('decisoes, descontos, atualizado_em, salvo_por').eq('mes', mes).eq('tecnico', nome).maybeSingle()
+  const decisoes = ((dec as Rec | null)?.decisoes || {}) as Record<string, DecisaoSalva>
+  const decisoesInfo = dec ? { em: String((dec as Rec).atualizado_em), por: ((dec as Rec).salvo_por as string) || null, descontos: (((dec as Rec).descontos as DescontoPedido[]) || []) } : null
   const numeros = [...new Set([...[...base.faturadas, ...base.internasFechadas].filter(dele).flatMap((o) => [o.numeroOmie || o.os, o.os]), ...recebidas.keys()].filter(Boolean))] as string[]
   const ajustes = await ajustesDeComissao(numeros)
   const motivos = new Map<string, MotivoAjuste>()
@@ -122,6 +128,14 @@ async function montarFicha(nome: string, mes: string) {
   const larissa = !garantista && ehLarissa(nome)
   const comissao = garantista ? await comissaoDoGarantista(nome, mes, hoje) : larissa ? await comissaoDaLarissa(nome, mes, hoje) : comissaoDoTecnico({ tecnico: nome, mes, hoje, pct, faturadas: base.faturadas, internas: base.internasFechadas, pendencias: pend, ajustes, motivos, regras, pctPorOS, recebidas })
   const oficial = rh?.comissoes.find((c) => c.mes === mes) || null
+  // o que ele recebe depois das decisões salvas (o cartão mostra este, não o da regra)
+  const totalDecidido = r2(comissao.linhas.filter((l) => l.tipo !== 'aguardando').reduce((s, l) => {
+    const x = decisoes[`${l.os}|${l.tipo}`], dv = divisoes[l.os]
+    if (x?.acao === 'nao') return s
+    if (dv) return s + (Number(Object.entries(dv.valores).find(([k]) => k === nome || chaveDoTecnico(k, nome))?.[1]) || 0)
+    if (x?.acao === 'ajustar') return s + (Number(x.valor) || 0)
+    return s + l.valor
+  }, 0))
 
   // ---------- horas do app (relatório do técnico) no mês
   const dias = base.diasTodos.filter((d) => d.tecnico === nome && d.data >= deMes && d.data <= ateMes)
@@ -164,6 +178,8 @@ async function montarFicha(nome: string, mes: string) {
     nome, mes, hoje, avisos, codOmie,
     /** divisões de OS salvas por este técnico no mês (chave = id da OS) */
     divisoes,
+    /** decisões da comissão salvas (chave = os|tipo) e os descontos ainda não pedidos */
+    decisoes, decisoesInfo,
     /** é garantista do pós-vendas: comissão por garantias e revisões, sem metas de técnico */
     garantista,
     /** é do escritório (garantista ou Larissa): sem caixinha, sem metas de técnico, OS sem dividir */
@@ -173,7 +189,7 @@ async function montarFicha(nome: string, mes: string) {
     foto: pessoa?.avatar_url || carreira?.fotos?.[nome] || null,
     pontos: { saldo: Math.max(0, BASE_PONTOS - pontosMes), base: BASE_PONTOS, descontados: pontosMes, nivel: car?.nivel ?? null, seFecharAssim: car?.seFecharAssim ?? null, sequencia: car?.sequencia ?? 0, saldoLiga: car?.saldoAgora ?? 0, ganhosMes: car?.mesAtual.ganhos ?? 0, osLimpasMes: car?.mesAtual.osLimpas ?? 0, faltaProximo: car?.faltaProximo ?? 0, historico: (car?.historico || []).slice(-6) },
     rh: rh ? { ...rh, ajustesOS: undefined } : null,
-    comissao: { ...comissao, oficial, pagamento: previsaoPagamento(mes), historico: rh?.comissoes || [] },
+    comissao: { ...comissao, totalDecidido, oficial, pagamento: previsaoPagamento(mes), historico: rh?.comissoes || [] },
     os: {
       faturadas: osMes, internas: internasMes,
       aguardando: minhasPend.map((p) => ({ os: p.os, tipo: p.tipo, status: p.status, cliente: p.cliente, dataRef: p.dataRef, dias: p.dias, maoDeObra: r2(p.maoDeObra), total: r2(p.total), garantia: p.garantia, tecnicos: p.tecnicos })),
