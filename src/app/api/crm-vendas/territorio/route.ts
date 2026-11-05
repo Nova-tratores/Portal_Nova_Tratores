@@ -14,7 +14,8 @@ import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { autenticar } from '@/lib/auth/server';
 import { corsVendas } from '@/lib/vendas-app/cors';
 import { NIVEIS_TERRITORIO, nivelDoImovel, resumoTerritorio, geometriaLeve, bboxVazio, type NegocioProp, type VisitaCar } from '@/lib/vendas-app/territorio';
-import { tratoresDoMunicipio, type TratorLocalizado, type TratorVendido } from '@/lib/vendas-app/tratores-territorio';
+import { chaveMunicipio, tratoresDoMunicipio, type TratorLocalizado, type TratorVendido } from '@/lib/vendas-app/tratores-territorio';
+import { pinosProvaveis, type FonteLocal } from '@/lib/vendas-app/tratores-provaveis';
 import { cidadeDoTrator, indexarClientesOmie, type ClienteOmieIdx } from '@/lib/vendas-app/tratores-cidade';
 import { paginar } from '@/lib/db/paginar';
 
@@ -47,6 +48,31 @@ async function clientesOmie(): Promise<ClienteOmieIdx[]> {
     console.warn('[territorio] Clientes_Omie:', e);
     return cacheOmie?.idx || [];
   }
+}
+
+// Pontos onde o dono do trator já foi achado: fazenda marcada pelo GPS do técnico
+// (clientes_localizacoes) e visitas presenciais com GPS. 30 min no processo.
+let cacheFontes: { at: number; fontes: FonteLocal[] } | null = null;
+async function fontesLocais(): Promise<FonteLocal[]> {
+  if (cacheFontes && Date.now() - cacheFontes.at < 30 * 60_000) return cacheFontes.fontes;
+  const [faz, vis] = await Promise.all([
+    supabaseAdmin.from('clientes_localizacoes').select('cliente_nome, nome, lat, lng, tecnico, confirmado_em').limit(5000),
+    paginar<{ cliente_nome: string | null; propriedade_nome: string | null; latitude: number | null; longitude: number | null; data_visita: string | null; deleted_at: string | null; duplicada_de: number | null }>((de, ate) =>
+      supabaseAdmin.from('vw_visitas_detalhadas')
+        .select('id, cliente_nome, propriedade_nome, latitude, longitude, data_visita, deleted_at, duplicada_de')
+        .eq('tipo', 'presencial').not('latitude', 'is', null).order('id').range(de, ate)),
+  ]);
+  const fontes: FonteLocal[] = [];
+  for (const f of (faz.error ? [] : faz.data || []) as { cliente_nome: string | null; nome: string | null; lat: number; lng: number; tecnico: string | null; confirmado_em: string | null }[]) {
+    if (f.lat == null || f.lng == null) continue;
+    fontes.push({ nomes: [f.cliente_nome], lat: f.lat, lng: f.lng, origem: 'fazenda', detalhe: [f.nome, f.tecnico ? `marcada pelo GPS do carro (${f.tecnico})` : null].filter(Boolean).join(' · ') || null, quando: f.confirmado_em });
+  }
+  for (const v of vis.data || []) {
+    if (v.deleted_at || v.duplicada_de || v.latitude == null || v.longitude == null) continue;
+    fontes.push({ nomes: [v.cliente_nome, v.propriedade_nome], lat: v.latitude, lng: v.longitude, origem: 'visita', detalhe: v.propriedade_nome, quando: v.data_visita });
+  }
+  cacheFontes = { at: Date.now(), fontes };
+  return fontes;
 }
 
 async function validarTokenTerritorio(req: NextRequest): Promise<Quem> {
@@ -166,11 +192,17 @@ export async function GET(req: NextRequest) {
       new Set(features.map((f) => f.properties.cod_car)),
       (t) => cidadeDoTrator(t, omie).chave,
     );
+    // os que ninguém localizou ainda: ponto PROVÁVEL (fazenda do técnico / visita ao dono)
+    const alvo = chaveMunicipio(fc.municipio || '');
+    const localizados = new Set(((loc.error ? [] : loc.data || []) as TratorLocalizado[]).map((l) => l.chassis));
+    const semLocal = ((vendidos || []) as TratorVendido[])
+      .filter((t) => t.Chassis && !localizados.has(t.Chassis) && cidadeDoTrator(t, omie).chave === alvo);
+    const provaveis = semLocal.length ? pinosProvaveis(semLocal, await fontesLocais().catch(() => [])) : [];
     const carsComTrator = new Set(tratores.pinos.map((p) => p.cod_car).filter(Boolean));
     for (const f of features) (f.properties as Record<string, unknown>).trator = carsComTrator.has(f.properties.cod_car);
 
     return json(req, {
-      tratores,
+      tratores: { ...tratores, provaveis },
       municipio: fc.municipio || null,
       ibge,
       bbox: Number.isFinite(bbox[0]) ? bbox : null,
