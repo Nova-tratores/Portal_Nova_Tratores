@@ -12,6 +12,7 @@ import { getConfig } from './config';
 import { hoje, addMeses, addDias, fmtBR, fmtISO, parseAnyDate } from './dates';
 import { num } from './utils';
 import { supabase } from './supabase';
+import { paginar } from '../db/paginar';
 import { httpErr } from './cmc';
 import { mapaFamiliaProduto, listarNotasSaida, obterPosicaoEstoqueBulk, obterPosicaoEstoqueProduto } from './omie';
 import { criarJob, atualizarJob, concluirJob, falharJob, lerJobAtivo, jobRodando } from './jobs';
@@ -198,10 +199,13 @@ export async function recalcularCurvaInventario(opts: any = {}): Promise<any> {
 
   const existentes = new Map<string, any>();
   {
-    const { data, error } = await supabase
+    // paginado: o PostgREST corta em 1000 linhas e a tabela tem ~11 mil — sem isso
+    // ~90% dos SKUs viravam "novos" e perdiam frequência manual/curadoria/próxima contagem.
+    const { data, error } = await paginar((de, ate) => supabase
       .from('produtos_inventario')
       .select('sku, frequencia_dias, frequencia_manual, ultima_contagem, proxima_contagem, ativo, incluido_manual')
-      .limit(200000);
+      .order('sku')
+      .range(de, ate), { max: 200000 });
     if (error) throw new Error(`leitura de produtos_inventario falhou: ${error.message}`);
     for (const r of data || []) existentes.set(r.sku, r);
   }
@@ -288,16 +292,18 @@ export async function gerarTarefasDia(opts: any = {}): Promise<any> {
     if (jah && jah[0]) return { cicloId: jah[0].id, referencia, tipo, capacidade, criadas: 0, jaExistia: true, porClasse: { A: 0, B: 0, C: 0 } };
   }
 
-  const { data: candidatos, error: e1 } = await supabase
+  const { data: candidatos, error: e1 } = await paginar((de, ate) => supabase
     .from('produtos_inventario')
     .select('sku, descricao_produto, classe_abc, proxima_contagem')
     .eq('ativo', true)
     .in('classe_abc', ['A', 'B', 'C'])
     .lte('proxima_contagem', hojeStr)
-    .limit(200000);
+    .order('sku')
+    .range(de, ate), { max: 200000 });
   if (e1) throw new Error(`selecao de candidatos falhou: ${e1.message}`);
 
-  const { data: abertas, error: e2 } = await supabase.from('inventario_tarefas').select('sku').in('status', ['pendente', 'contando', 'recontagem']).limit(200000);
+  const { data: abertas, error: e2 } = await paginar((de, ate) => supabase.from('inventario_tarefas').select('sku')
+    .in('status', ['pendente', 'contando', 'recontagem']).order('id').range(de, ate), { max: 200000 });
   if (e2) throw new Error(`leitura de tarefas em aberto falhou: ${e2.message}`);
   const emAberto = new Set((abertas || []).map((t) => t.sku));
 
@@ -515,16 +521,22 @@ export async function lerStatusRecalculo(): Promise<any> {
 }
 
 export async function listarProdutosInventario(q: { classe?: string; ativo?: string; busca?: string; limit?: number }): Promise<any> {
-  let query: any = supabase
-    .from('produtos_inventario')
-    .select('sku, descricao_produto, classe_abc, valor_consumo, frequencia_dias, frequencia_manual, proxima_contagem, ultima_contagem, saldo_total, ativo, incluido_manual')
-    .order('valor_consumo', { ascending: false })
-    .limit(Math.min(q.limit || 2000, 10000));
-  if (q.classe && ['A', 'B', 'C'].includes(String(q.classe).toUpperCase())) query = query.eq('classe_abc', String(q.classe).toUpperCase());
-  if (q.ativo === '1' || q.ativo === 'true') query = query.eq('ativo', true);
-  if (q.ativo === '0' || q.ativo === 'false') query = query.eq('ativo', false);
-  if (q.busca) query = query.or(`sku.ilike.%${String(q.busca)}%,descricao_produto.ilike.%${String(q.busca)}%`);
-  const { data, error } = await query;
+  const max = Math.min(q.limit || 2000, 10000);
+  const montar = (): any => {
+    let query: any = supabase
+      .from('produtos_inventario')
+      .select('sku, descricao_produto, classe_abc, valor_consumo, frequencia_dias, frequencia_manual, proxima_contagem, ultima_contagem, saldo_total, ativo, incluido_manual')
+      .order('valor_consumo', { ascending: false })
+      .order('sku');
+    if (q.classe && ['A', 'B', 'C'].includes(String(q.classe).toUpperCase())) query = query.eq('classe_abc', String(q.classe).toUpperCase());
+    if (q.ativo === '1' || q.ativo === 'true') query = query.eq('ativo', true);
+    if (q.ativo === '0' || q.ativo === 'false') query = query.eq('ativo', false);
+    if (q.busca) query = query.or(`sku.ilike.%${String(q.busca)}%,descricao_produto.ilike.%${String(q.busca)}%`);
+    return query;
+  };
+  // .limit() acima de 1000 não adianta (o PostgREST corta) — lê em páginas até `max`.
+  const { data: todos, error } = await paginar<any>((de, ate) => montar().range(de, ate), { max });
+  const data = todos.slice(0, max);
   if (error) throw new Error(error.message);
   const resumo: Record<string, number> = { A: 0, B: 0, C: 0, total: (data || []).length };
   for (const p of data || []) if (resumo[p.classe_abc] != null) resumo[p.classe_abc]++;
@@ -542,15 +554,17 @@ export async function listarCiclos(): Promise<any> {
 }
 
 export async function listarTarefas(q: { ciclo?: any; status?: string }): Promise<any> {
-  let query: any = supabase
-    .from('inventario_tarefas')
-    .select('id, ciclo_id, sku, descricao_produto, classe_abc, status, freeze_em, criado_em')
-    .order('classe_abc', { ascending: true })
-    .order('id', { ascending: true })
-    .limit(5000);
-  if (q.ciclo) query = query.eq('ciclo_id', parseInt(q.ciclo, 10));
-  if (q.status) query = query.eq('status', String(q.status));
-  const { data, error } = await query;
+  const montar = (): any => {
+    let query: any = supabase
+      .from('inventario_tarefas')
+      .select('id, ciclo_id, sku, descricao_produto, classe_abc, status, freeze_em, criado_em')
+      .order('classe_abc', { ascending: true })
+      .order('id', { ascending: true });
+    if (q.ciclo) query = query.eq('ciclo_id', parseInt(q.ciclo, 10));
+    if (q.status) query = query.eq('status', String(q.status));
+    return query;
+  };
+  const { data, error } = await paginar((de, ate) => montar().range(de, ate), { max: 5000 });
   if (error) throw new Error(error.message);
   return { tarefas: data || [] };
 }
@@ -599,7 +613,8 @@ const STATUS_ABERTOS = ['pendente', 'contando', 'recontagem'];
 
 /** SKUs com tarefa de contagem em aberto (selo "na contagem" da conferência). */
 export async function skusEmContagem(): Promise<string[]> {
-  const { data, error } = await supabase.from('inventario_tarefas').select('sku').in('status', STATUS_ABERTOS).limit(200000);
+  const { data, error } = await paginar((de, ate) => supabase.from('inventario_tarefas').select('sku')
+    .in('status', STATUS_ABERTOS).order('id').range(de, ate), { max: 200000 });
   if (error) throw new Error(error.message);
   return [...new Set((data || []).map((t: any) => String(t.sku)))];
 }
