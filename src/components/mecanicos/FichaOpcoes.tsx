@@ -18,7 +18,7 @@ import { useMinhaAssinatura, AssinaturaSalva, CadastrarAssinatura } from '@/comp
 import { abrirDocumento } from './AutorizacoesJanela'
 import {
   Resumo, Comissao, OSAba, Requisicoes, Frota, Ocorrencias, RH, Num,
-  nomeMes, dataBR, diaBR, iniciais, tempoDeCasa, useVisores, useFicha, andarMes, hojeSP, ESTILO_FT, type Aba,
+  nomeMes, dataBR, diaBR, iniciais, tempoDeCasa, useVisores, useFicha, andarMes, hojeSP, ESTILO_FT, atualizarFichaGuardada, type Aba,
 } from './FichaTecnico'
 
 const MUDO = 'var(--portal-text-muted, #64748b)'
@@ -28,6 +28,7 @@ export type Acao = 'pagar' | 'nao' | 'ajustar'
 export interface Edicao { acao: Acao; motivo: string; valor?: number; divisao?: Record<string, number> | null; horasDiv?: Record<string, number> | null }
 export const MOTIVOS_NAO = ['Retorno de serviço (refez o trabalho)', 'Já cobrada / paga em outra OS', 'Garantia que a fábrica não pagou', 'Serviço não concluído', 'Erro de lançamento na OS', 'Cortesia sem trabalho do técnico']
 export const chaveL = (l: LinhaComissao) => `${l.os}|${l.tipo}`
+type DecisaoSalva = { acao: Acao; motivo: string; valor?: number }
 /** Bloco da OS na comissão (José, 20/10/2026): azul = faturada para cliente, rosa = garantia, cinza = interna. */
 export const grupoDa = (l: LinhaComissao): 'cliente' | 'garantia' | 'interna' => (l.garantia || /garantia/i.test(l.regra) ? 'garantia' : l.tipo === 'interna' ? 'interna' : 'cliente')
 
@@ -35,21 +36,28 @@ const jsonDiv = (x: Edicao | undefined) => JSON.stringify({ h: x?.horasDiv || nu
 export function useEdicao(d: Ficha) {
   // a ficha abre com as divisões já salvas (José, 29/10/2026: "tem que salvar para o usuário ter certeza de que foi")
   const iniciais = () => Object.fromEntries(d.comissao.linhas.filter((l) => d.divisoes?.[l.os]).map((l) => { const v = d.divisoes![l.os]; return [chaveL(l), { acao: 'pagar' as Acao, motivo: v.motivo || '', divisao: v.valores, horasDiv: v.horas }] }))
-  const [ed, setEd] = useState<Record<string, Edicao>>(iniciais)
+  // pagar / não pagar / ajustar salvos com o botão Salvar de cada OS (José, 05/11/2026: "não está salvando";
+  // "coloca um botão de salvar em cada mudança")
+  const [salvasDec, setSalvasDec] = useState<Record<string, DecisaoSalva>>(() => ({ ...(d.decisoes || {}) }))
+  const [decEm, setDecEm] = useState<Record<string, string>>(() => Object.fromEntries(Object.keys(d.decisoes || {}).map((k) => [k, d.decisoesInfo?.em || ''])))
+  const [salvandoDec, setSalvandoDec] = useState<string | null>(null)
+  const [erroDec, setErroDec] = useState<Record<string, string>>({})
+  const [ed, setEd] = useState<Record<string, Edicao>>(() => ({ ...Object.fromEntries(Object.entries(d.decisoes || {}).map(([k, v]) => [k, { acao: v.acao, motivo: v.motivo || '', valor: v.valor }])), ...iniciais() }))
   const [salvas, setSalvas] = useState<Record<string, { em: string; json: string }>>(() => Object.fromEntries(Object.entries(iniciais()).map(([k, v]) => { const os = k.split('|')[0]; return [k, { em: d.divisoes![os].em, json: jsonDiv(v) }] })))
   const [salvando, setSalvando] = useState<string | null>(null)
   const [erroDiv, setErroDiv] = useState<Record<string, string>>({})
   const estadoDivisao = (l: LinhaComissao) => { const k = chaveL(l), s = salvas[k]; return { salvaEm: s?.em || null, mudou: jsonDiv(ed[k]) !== (s?.json ?? jsonDiv(undefined)), salvando: salvando === k, erro: erroDiv[k] || '' } }
   const salvarDivisao = async (l: LinhaComissao, horasOS: number) => {
     const k = chaveL(l), x = ed[k]
-    if (!x?.divisao) return
+    if (!x?.divisao) return false
     setSalvando(k); setErroDiv((m) => ({ ...m, [k]: '' }))
     try {
       const r = await fetch('/api/mecanicos/divisao', { method: 'POST', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ mes: d.mes, os: l.os, numero: l.numeroOmie || l.os, de: d.nome, horas: x.horasDiv || null, horasOS, valores: x.divisao, motivo: x.motivo }) })
       const j = await r.json()
       if (!r.ok) throw new Error(j.error || 'Não salvou')
-      setSalvas((m) => ({ ...m, [k]: { em: j.em, json: jsonDiv(x) } }))
+      setSalvas((m) => ({ ...m, [k]: { em: j.em, json: jsonDiv(x) } })); return true
     } catch (err) { setErroDiv((m) => ({ ...m, [k]: err instanceof Error ? err.message : 'Não salvou' })) } finally { setSalvando(null) }
+    return false
   }
   const apagarDivisao = async (l: LinhaComissao) => {
     const k = chaveL(l)
@@ -59,8 +67,34 @@ export function useEdicao(d: Ficha) {
     }
   }
   // descontos do técnico lançados junto (requisição ou outro valor) — viram desconto no RH, não mexem na comissão
-  const [descontos, setDescontos] = useState<DescontoPedido[]>([])
-  const mudar = (l: LinhaComissao, x: Partial<Edicao>) => setEd((e) => ({ ...e, [chaveL(l)]: { ...(e[chaveL(l)] || { acao: 'pagar', motivo: '' }), ...x } }))
+  const [descontos, setDescontos] = useState<DescontoPedido[]>(() => d.decisoesInfo?.descontos || [])
+  const [erroDesc, setErroDesc] = useState('')
+  const gravar = async (dec: Record<string, DecisaoSalva>, desc: DescontoPedido[]) => {
+    const r = await fetch('/api/mecanicos/decisoes', { method: 'POST', headers: { ...(await authHeaders()), 'Content-Type': 'application/json' }, body: JSON.stringify({ mes: d.mes, tecnico: d.nome, decisoes: dec, descontos: desc }) })
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok) throw new Error(j.error || 'Não salvou')
+    // o cartão do técnico passa a mostrar a comissão com as decisões salvas
+    atualizarFichaGuardada(d.nome, d.mes, (f) => ({ ...f, decisoes: dec, decisoesInfo: { em: j.em, por: null, descontos: desc }, comissao: { ...f.comissao, totalDecidido: totalCom(dec) } }))
+    return String(j.em)
+  }
+  const decDe = (x: Edicao | undefined): DecisaoSalva | null => !x || x.divisao || (x.acao === 'pagar' && !x.motivo.trim()) ? null : { acao: x.acao, motivo: x.motivo, ...(x.acao === 'ajustar' ? { valor: x.valor ?? 0 } : {}) }
+  const mesmaDec = (a: DecisaoSalva | null | undefined, b: DecisaoSalva | null | undefined) => JSON.stringify(a || null) === JSON.stringify(b || null)
+  const estadoDecisao = (l: LinhaComissao) => {
+    const k = chaveL(l), x = ed[k]
+    const falta = x?.acao === 'nao' && !x.motivo.trim() ? 'escolha o motivo' : x?.acao === 'ajustar' && !x.motivo.trim() ? 'escreva o motivo' : ''
+    return { mudou: !x?.divisao && !mesmaDec(decDe(x), salvasDec[k]), salvaEm: salvasDec[k] ? decEm[k] || null : null, salvando: salvandoDec === k, erro: erroDec[k] || '', falta }
+  }
+  const salvarDecisao = async (l: LinhaComissao) => {
+    const k = chaveL(l), nova = { ...salvasDec }, x = decDe(ed[k])
+    if (x) nova[k] = x; else delete nova[k]
+    setSalvandoDec(k); setErroDec((m) => ({ ...m, [k]: '' }))
+    try { const em = await gravar(nova, descontos); setSalvasDec(nova); setDecEm((m) => ({ ...m, [k]: em })); return true }
+    catch (err) { setErroDec((m) => ({ ...m, [k]: err instanceof Error ? err.message : 'Não salvou' })) } finally { setSalvandoDec(null) }
+    return false
+  }
+  // desconto incluído ou tirado já grava (junto só das decisões que já estavam salvas)
+  const mudarDescontos = (v: DescontoPedido[]) => { setDescontos(v); setErroDesc(''); gravar(salvasDec, v).catch((err) => setErroDesc(err instanceof Error ? err.message : 'O desconto não foi salvo')) }
+  const mudar =(l: LinhaComissao, x: Partial<Edicao>) => setEd((e) => ({ ...e, [chaveL(l)]: { ...(e[chaveL(l)] || { acao: 'pagar', motivo: '' }), ...x } }))
   const de = (l: LinhaComissao): Edicao => ed[chaveL(l)] || { acao: 'pagar', motivo: '' }
   /** quanto ESTE técnico recebe pela linha depois da decisão */
   const final = (l: LinhaComissao) => {
@@ -71,7 +105,16 @@ export function useEdicao(d: Ficha) {
     return l.valor
   }
   const linhas = d.comissao.linhas.filter((l) => l.tipo !== 'aguardando')
-  const tot = linhas.reduce((s, l) => {
+  /** comissão só com o que está salvo (a mesma conta do servidor, totalDecidido) */
+  const totalCom = (dec: Record<string, DecisaoSalva>) => Math.round(linhas.reduce((s, l) => {
+    const k = chaveL(l), x = dec[k], dv = salvas[k] ? ed[k]?.divisao : null
+    if (x?.acao === 'nao') return s
+    if (dv) return s + (dv[d.nome] ?? 0)
+    if (x?.acao === 'ajustar') return s + (x.valor ?? 0)
+    return s + l.valor
+  }, 0) * 100) / 100
+  const naoSalvas = linhas.filter((l) => estadoDecisao(l).mudou).length
+  const tot =linhas.reduce((s, l) => {
     const e = de(l), f = final(l)
     s.total += f; s.calc += l.valor
     const g = grupoDa(l)
@@ -84,8 +127,28 @@ export function useEdicao(d: Ficha) {
   }, { total: 0, calc: 0, pagas: 0, nao: 0, ajustadas: 0, divididas: 0, cliente: 0, interna: 0, garantia: 0, nCliente: 0, nInterna: 0, nGarantia: 0 })
   const pendentes = linhas.filter((l) => { const e = de(l); return (e.acao !== 'pagar' || e.divisao) && !e.motivo.trim() }).length
   const totDesc = Math.round(descontos.reduce((a, x) => a + x.valor, 0) * 100) / 100
-  return { ed, de, mudar, final, linhas, tot, pendentes, estadoDivisao, salvarDivisao, apagarDivisao, limpar: () => setEd({}), descontos, totDesc, addDesconto: (x: DescontoPedido) => setDescontos((v) => [...v, x]), remDesconto: (i: number) => setDescontos((v) => v.filter((_, k) => k !== i)) }
+  return { ed, de, mudar, final, linhas, tot, pendentes, estadoDivisao, salvarDivisao, apagarDivisao, estadoDecisao, salvarDecisao, naoSalvas, erroDesc, limpar: () => setEd({}), descontos, totDesc, addDesconto: (x: DescontoPedido) => mudarDescontos([...descontos, x]), remDesconto: (i: number) => mudarDescontos(descontos.filter((_, k) => k !== i)) }
 }
+
+/** Botão Salvar da decisão de uma OS (aparece quando ela mudou; depois mostra "salva"). */
+// dentro = no pé da caixa do motivo (sempre visível); salvou → aoSalvar fecha a caixa (José, 05/11/2026)
+export function SalvarDecisao({ l, e, dentro, aoSalvar }: { l: LinhaComissao; e: EdicaoComissao; dentro?: boolean; aoSalvar?: () => void }) {
+  const st = e.estadoDecisao(l)
+  if (!dentro && !st.mudou && !st.erro) return null
+  const ok = !st.mudou && !st.erro && !!st.salvaEm
+  return (
+    <div className={`fo-dec-salvar ${dentro ? 'dentro' : ''} ${ok ? 'ok' : ''}`}>
+      <span>{st.erro ? <em><i className="fas fa-triangle-exclamation" /> {st.erro}</em> : st.falta ? `Para salvar: ${st.falta}.` : ok ? <><i className="fas fa-circle-check" /> Salva</> : st.salvaEm ? 'Mudou depois de salvar — salve de novo.' : 'Alteração ainda não salva.'}</span>
+      {ok && aoSalvar
+        ? <button type="button" onClick={aoSalvar}><i className="fas fa-chevron-up" /> Fechar</button>
+        : <button type="button" disabled={!!st.falta || st.salvando} onClick={async () => { if (await e.salvarDecisao(l)) aoSalvar?.() }}>
+          {st.salvando ? <><i className="fas fa-circle-notch fa-spin" /> Salvando…</> : <><i className="fas fa-floppy-disk" /> Salvar</>}
+        </button>}
+    </div>
+  )
+}
+/** Selo "salva" na OS com decisão já gravada. */
+export const SeloSalva = ({ l, e }: { l: LinhaComissao; e: EdicaoComissao }) => { const st = e.estadoDecisao(l); return st.salvaEm && !st.mudou ? <small className="fo-dec-ok" title={`Salva em ${new Date(st.salvaEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}`}><i className="fas fa-circle-check" /> salva</small> : null }
 export type EdicaoComissao = ReturnType<typeof useEdicao>
 
 /** Uma OS da comissão: Pagar · Não pagar (por quê) · Ajustar valor · Dividir entre técnicos. */
@@ -100,7 +163,7 @@ function LinhaEditavel({ d, l, e, verOS, compacta }: { d: Ficha; l: LinhaComissa
         <button type="button" className="ft-os" onClick={() => verOS(l.os, l.cliente)}>{l.numeroOmie || l.os}</button>
         <div className="fo-lin-id"><b>{l.cliente || '—'}</b><small>{diaBR(l.data)} · {l.regra}{(l.tecnicos?.length || 0) > 1 ? ` · com ${l.tecnicos!.filter((t) => t !== d.nome).join(', ')}` : ''}</small>
           {l.motivo && <small className="fo-rh-mot"><i className="fas fa-pen" /> RH: {l.motivo.motivo}</small>}</div>
-        <div className="fo-lin-val">{f !== l.valor && <s>{brl2(l.valor)}</s>}<b>{brl2(f)}</b></div>
+        <div className="fo-lin-val">{f !== l.valor && <s>{brl2(l.valor)}</s>}<b>{brl2(f)}</b><SeloSalva l={l} e={e} /></div>
       </div>
       <div className="fo-lin-acoes">
         <div className="fo-seg">
@@ -125,6 +188,7 @@ function LinhaEditavel({ d, l, e, verOS, compacta }: { d: Ficha; l: LinhaComissa
         </div>
       )}
       {(dividindo || x.divisao) && <Divisao d={d} l={l} e={e} fechar={() => setDividindo(false)} />}
+      <SalvarDecisao l={l} e={e} />
     </div>
   )
 }
@@ -199,9 +263,11 @@ export function Divisao({ d, l, e, fechar }: { d: Ficha; l: LinhaComissao; e: Ed
             {st.salvaEm && !st.mudou
               ? <span><i className="fas fa-circle-check" /> Divisão salva às {new Date(st.salvaEm).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}{outros.length ? ` · já aparece na ficha de ${outros.join(' e ')}` : ''}</span>
               : <span>{st.erro ? <em><i className="fas fa-triangle-exclamation" /> {st.erro}</em> : st.salvaEm ? 'Mudou depois de salvar — salve de novo.' : falta ? `Para salvar: ${falta}.` : 'Ainda não foi salva.'}</span>}
-            <button type="button" disabled={!!falta || st.salvando || (!!st.salvaEm && !st.mudou)} onClick={() => void e.salvarDivisao(l, horasOS)}>
-              {st.salvando ? <><i className="fas fa-circle-notch fa-spin" /> Salvando…</> : st.salvaEm && !st.mudou ? <><i className="fas fa-check" /> Salva</> : <><i className="fas fa-floppy-disk" /> Salvar divisão</>}
-            </button>
+            {st.salvaEm && !st.mudou
+              ? <button type="button" onClick={fechar}><i className="fas fa-chevron-up" /> Fechar</button>
+              : <button type="button" disabled={!!falta || st.salvando} onClick={async () => { if (await e.salvarDivisao(l, horasOS)) fechar() }}>
+                {st.salvando ? <><i className="fas fa-circle-notch fa-spin" /> Salvando…</> : <><i className="fas fa-floppy-disk" /> Salvar divisão</>}
+              </button>}
           </div>
         )
       })()}
@@ -533,6 +599,10 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
         <small className="fl-rot">Comissão de {nomeMes(d.mes).toLowerCase()}</small>
         <b className="fl-total"><Num v={t.total} f={brl2} /></b>
         <span className="fl-regra">{Math.abs(dif) > 0.01 ? <>pela regra seria {brl2(t.calc)} · <em className={dif > 0 ? 'mais' : 'menos'}>{dif > 0 ? '+' : '−'}{brl2(Math.abs(dif))}</em></> : 'igual ao calculado pela regra'}</span>
+        {/* descontos lançados aqui saem da comissão: mostra o que sobra (José, 05/11/2026: "não está descontando") */}
+        {e.descontos.length > 0 && <span className="fl-liq">com os descontos: <b>{brl2(contaDoPagamento(t.total, e.descontos, !!d.escritorio).liquido)}</b></span>}
+        {e.erroDesc && <small className="fo-lan-pq">{e.erroDesc}</small>}
+        {e.naoSalvas > 0 && <small className="fo-lan-pq">{e.naoSalvas} OS com alteração sem salvar</small>}
         <div className="fl-chips">
           <span className="ok">{t.pagas} pagas</span>{t.nao > 0 && <span className="nao">{t.nao} não pagas</span>}{t.ajustadas > 0 && <span className="aj">{t.ajustadas} ajustadas</span>}{t.divididas > 0 && <span className="div">{t.divididas} divididas</span>}
         </div>
@@ -1041,6 +1111,14 @@ export const ESTILO_FO = `
 .fo-div-lista span { flex: 1 } .fo-div-lista em { font-style: normal; color: ${MUDO}; font-size: 11.5px } .fo-div-lista i { font-style: normal; color: ${MUDO}; font-size: 12px } .fo-div-lista input[type=number] { width: 86px; border: 1px solid #ddd6fe; border-radius: 7px; padding: 3px 6px; font-family: inherit; font-weight: 800 } .fo-div-lista small { width: 34px; text-align: right; color: #7c3aed; font-weight: 800; font-size: 12px }
 .fo-div-lista label > span { min-width: 0 } .fo-div-lista input[type=checkbox] { flex: 0 0 auto; width: 16px; height: 16px; margin: 0 } .fo-div-lista .fo-div-pct { width: auto; text-align: left; color: #64748b; font-weight: 500 } .fo-div-lista input[type=number] { width: 70px } .fo-div-lista .fo-div-v { min-width: 84px; text-align: right; color: #6d28d9; font-variant-numeric: tabular-nums }
 .fo-div-salvar { display: flex; gap: 12px; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 10px; background: #fefefe; border: 1px dashed #c4b5fd; font-size: 13px; color: #6d28d9 } .fo-div-salvar em { font-style: normal; color: #b91c1c }
+.fo-dec-salvar { display: flex; gap: 12px; align-items: center; justify-content: space-between; margin: 0 14px 10px; padding: 8px 10px; border-radius: 10px; background: #fffbeb; border: 1px dashed #f59e0b; font-size: 13px; color: #92400e } .fo-dec-salvar em { font-style: normal; color: #b91c1c }
+.fo-dec-salvar button { border: 0; border-radius: 99px; padding: 8px 18px; background: #2563eb; color: #fefefe; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap } .fo-dec-salvar button:disabled { opacity: .55; cursor: default }
+.fo-dec-salvar.dentro { margin: 10px 0 0 } .fo-dec-salvar.ok { border-style: solid; border-color: #86efac; background: #f0fdf4; color: #166534 } .fo-dec-salvar.ok button { background: #fefefe; color: #166534; border: 1px solid #86efac }
+.fp-mot-salvo { display: inline-flex; gap: 6px; align-items: center; max-width: 100%; margin-top: 4px; padding: 3px 10px; border-radius: 99px; border: 1px solid #fecaca; background: #fef2f2; color: #b91c1c; font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; text-align: left } .fp-mot-salvo span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500 }
+.fp-mot-salvo.aj { border-color: #fde68a; background: #fffbeb; color: #92400e } .fp-mot-salvo:hover { filter: brightness(.97) }
+.fo-dec-ok { display: block; font-size: 11.5px; font-weight: 600; color: #16a34a; margin-top: 2px }
+.fo-nao-salvas { font-size: 12.5px; font-weight: 600; color: #b45309; background: #fffbeb; border-radius: 99px; padding: 4px 12px }
+.fl-liq { display: block; font-size: 13px; color: #475569; margin-top: 2px } .fl-liq b { color: #0f172a }
 .fo-div-salvar.ok { border-style: solid; border-color: #86efac; background: #f0fdf4; color: #166534 }
 .fo-div-salvar button { border: 0; border-radius: 99px; padding: 8px 16px; background: #6d28d9; color: #fefefe; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap } .fo-div-salvar button:disabled { opacity: .55; cursor: default } .fo-div-salvar.ok button { background: #16a34a; opacity: 1 }
 .fo-div-pe { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px } .fo-div-pe em { font-style: normal; color: #b45309 } .fo-div-pe .fo-mot-txt { flex: 1 }

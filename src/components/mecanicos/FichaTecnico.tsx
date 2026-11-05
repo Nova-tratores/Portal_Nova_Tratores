@@ -620,6 +620,13 @@ const buscando = new Map<string, Promise<Ficha>>()
 const ouvintesFicha = new Set<() => void>()
 export function ouvirFichas(f: () => void) { ouvintesFicha.add(f); return () => { ouvintesFicha.delete(f) } }
 export const fichaGuardada = (nome: string, mes: string): Ficha | null => cache.get(`${nome}|${mes}`) || null
+/** troca a ficha guardada (ex.: decisão da comissão salva) e avisa os cartões */
+export function atualizarFichaGuardada(nome: string, mes: string, f: (x: Ficha) => Ficha) {
+  const c = cache.get(`${nome}|${mes}`)
+  if (!c) return
+  cache.set(`${nome}|${mes}`, f(c))
+  ouvintesFicha.forEach((o) => o())
+}
 
 function baixarFicha(nome: string, mes: string): Promise<Ficha> {
   const chave = `${nome}|${mes}`

@@ -5,7 +5,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, ArrowLeft, ChevronDown, GitCompare, Landmark, LayoutList, Package, PackageOpen, Plus, Printer } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ChevronDown, GitCompare, Landmark, LayoutList, Map as MapaIcone, Package, PackageOpen, Plus, Printer } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -112,6 +112,8 @@ export function OpaBarra({ acao, podeGerir = false }: { acao?: React.ReactNode; 
   const vePatrimonio = !carregandoPerm && podePerm('patrimonio')
   // Guardar peças: peças recebidas sem locação (mesmo painel de /ajustes/caracteristicas)
   const emGuardar = pathname.startsWith('/opa/guardar')
+  // Mapa: a planta da loja por andar com os territórios (todo logado vê; admin desenha)
+  const emMapa = pathname.startsWith('/opa/mapa')
   const veGuardar = !carregandoPerm && (podePerm('ajustes', 'caracteristicas') || podePerm('ajustes', 'localizacao'))
   const paraGuardar = useParaGuardar(veGuardar)
   const c = useContagens()
@@ -131,8 +133,10 @@ export function OpaBarra({ acao, podeGerir = false }: { acao?: React.ReactNode; 
       background: faixa, boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
     }}>
       <div role="tablist" style={{ display: 'flex', alignItems: 'flex-end', gap: isMobile ? 3 : 4, overflowX: 'auto', flexShrink: 0, maxWidth: '100%', width: isMobile ? '100%' : undefined, WebkitOverflowScrolling: 'touch' }}>
-        <GuiaChrome href="/opa" ativo={!emPecas && !emPatrimonio && !emGuardar} cor="#dc2626" icone={<AlertCircle size={16} />} titulo="Ocorrências"
+        <GuiaChrome href="/opa" ativo={!emPecas && !emPatrimonio && !emGuardar && !emMapa} cor="#dc2626" icone={<AlertCircle size={16} />} titulo="Ocorrências"
           conta={c?.opasAbertos ?? null} dica={c ? (c.opasAbertos === 1 ? '1 aberta' : `${c.opasAbertos} abertas`) : ''} mobile={isMobile} />
+        <GuiaChrome href="/opa/mapa" ativo={emMapa} cor="#dc2626" icone={<MapaIcone size={16} />} titulo="Mapa"
+          conta={null} dica="A planta da loja por andar: onde fica cada lugar, de qual departamento é e os Opas abertos" mobile={isMobile} />
         <GuiaChrome href="/opa/pecas" ativo={emPecas} cor={LARANJA} icone={<Package size={16} />} titulo="Peças S/Estoque" curto="Peças"
           conta={c?.emAberto ?? null} dica={c ? `${c.emAberto} em andamento` : ''} mobile={isMobile} />
         {(veGuardar || emGuardar) && (

@@ -12,7 +12,7 @@ import { IconeLiga } from './CartaLiga'
 import { brl, brl2 } from './ui'
 import type { CardDados } from './CardsTecnicoOpcoes'
 import { nomeMes, dataBR, diaBR, iniciais, tempoDeCasa, useVisores, useFicha, andarMes, hojeSP, ESTILO_FT, Num, prefetchFicha } from './FichaTecnico'
-import { useEdicao, LancarComissao, Divisao, Conteudo, MOTIVOS_NAO, grupoDa, chaveL, ESTILO_FO, type EdicaoComissao } from './FichaOpcoes'
+import { useEdicao, LancarComissao, Divisao, Conteudo, MOTIVOS_NAO, grupoDa, chaveL, ESTILO_FO, SalvarDecisao, SeloSalva, type EdicaoComissao } from './FichaOpcoes'
 import Comparador, { type PessoaComparada } from './Comparador'
 import { useBasePosVendas } from './useBasePosVendas'
 import { useComAguardando } from './useComAguardando'
@@ -514,6 +514,7 @@ function ListaOS({ d, e, verOS, verReq }: { d: Ficha; e: EdicaoComissao; verOS: 
           <button type="button" className={so === 'alerta' ? 'on' : ''} onClick={() => setSo('alerta')}>Com desconto ou requisição <b>{e.linhas.filter(alerta).length}</b></button>
           <button type="button" className={so === 'mexidas' ? 'on' : ''} onClick={() => setSo('mexidas')}>Com decisão <b>{Object.keys(e.ed).length}</b></button>
         </div>
+        {e.naoSalvas > 0 && <span className="fo-nao-salvas"><i className="fas fa-triangle-exclamation" /> {e.naoSalvas} OS com alteração sem salvar</span>}
         <div className="fp-leg"><span className="pg">Pagar</span><span className="np">Não pagar</span><span className="aj">Ajustar</span><span className="dv">Dividir</span></div>
       </div>
       {GRUPOS.map((g) => {
@@ -554,6 +555,11 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
   const MOT_CHEIO = 'Desconto da OS não foi erro do técnico'
   const emCheio = ed.acao === 'ajustar' && !ed.divisao && ed.motivo.startsWith(MOT_CHEIO)
   const com = (l.tecnicos?.length || 0) > 1 ? l.tecnicos!.filter((t) => t !== d.nome).map((t) => t.split(' ')[0]).join(', ') : ''
+  // caixa do motivo / da divisão: aberta enquanto mexe; salvou, fecha e o motivo fica num selo que reabre (José, 05/11/2026)
+  const [aberto, setAberto] = useState(false)
+  const st = e.estadoDecisao(l), stDiv = e.estadoDivisao(l)
+  const verMotivo = aberto || st.mudou || !!st.erro
+  const verDiv = dividindo || (!!ed.divisao && (stDiv.mudou || !!stDiv.erro))
   return (
     <div className={`fp-lin ${estado} ${l.veioDe ? 'recebida' : com || ed.divisao ? 'dividida' : ''}`}>
       {/* clicar em qualquer lugar da linha abre a OS e o relatório do técnico (José, 29/10/2026) */}
@@ -564,7 +570,14 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
           <b title={l.cliente}>{l.cliente || '—'}</b>
           <small>{diaBR(l.data)}{l.regra.replace(/\s*÷ \d+.*$/, '')}</small>
           {/* dividida (no Omie com outro técnico, ou dividida aqui por horas) em destaque (José, 29/10/2026) */}
-          {!l.veioDe && (com || ed.divisao) && <small className="fp-veio div"><i className="fas fa-people-arrows" /> dividida com {ed.divisao ? Object.keys(ed.divisao).filter((n) => n !== d.nome).map((n) => `${n.split(" ")[0]}${ed.horasDiv?.[n] ? ` (${String(ed.horasDiv[n]).replace(".", ",")} h)` : ""}`).join(", ") || "ninguém" : com}</small>}
+          {!l.veioDe && (com || ed.divisao) && (ed.divisao && !verDiv
+            ? <button type="button" className="fp-veio div" style={{ border: 0, cursor: 'pointer', font: 'inherit' }} title={`${ed.motivo ? `Motivo: ${ed.motivo}. ` : ''}Clique para ver a divisão`} onClick={() => setDividindo(true)}><i className="fas fa-people-arrows" /> dividida com {Object.keys(ed.divisao).filter((n) => n !== d.nome && (ed.divisao![n] || 0) > 0).map((n) => `${n.split(' ')[0]}${ed.horasDiv?.[n] ? ` (${String(ed.horasDiv[n]).replace('.', ',')} h)` : ''}`).join(', ') || 'ninguém'} · ver</button>
+            : <small className="fp-veio div"><i className="fas fa-people-arrows" /> dividida com {ed.divisao ? Object.keys(ed.divisao).filter((n) => n !== d.nome).map((n) => `${n.split(" ")[0]}${ed.horasDiv?.[n] ? ` (${String(ed.horasDiv[n]).replace(".", ",")} h)` : ""}`).join(", ") || "ninguém" : com}</small>)}
+          {!verMotivo && !ed.divisao && ed.acao !== 'pagar' && ed.motivo && (
+            <button type="button" className={`fp-mot-salvo ${ed.acao === 'ajustar' ? 'aj' : ''}`} title="Clique para ver ou mudar" onClick={() => setAberto(true)}>
+              <i className={`fas ${ed.acao === 'nao' ? 'fa-ban' : 'fa-pen'}`} />{ed.acao === 'nao' ? 'Não paga' : 'Ajustada'}: <span>{ed.motivo}</span>
+            </button>
+          )}
           {l.veioDe && <small className="fp-veio"><i className="fas fa-people-arrows" /> dividida por {l.veioDe.de}{l.veioDe.horas ? ` · ${String(l.veioDe.horas).replace('.', ',')} h para ele` : ''} · {l.veioDe.status === 'autorizada' ? 'já autorizada' : l.veioDe.status === 'pedido' ? 'esperando o diretor' : 'divisão salva'}</small>}
           {l.motivo && <small className="fp-rh"><i className="fas fa-pen" /> RH: {l.motivo.motivo}</small>}
         </div>
@@ -596,8 +609,8 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
         </span>
         {l.veioDe ? <div className="fp-dec veio" title="A divisão é decidida na ficha de quem dividiu"><span><i className="fas fa-lock" /> da divisão</span></div> : <div className="fp-dec">
           <button type="button" className={estado === 'pg' ? 'on pg' : ''} onClick={() => e.mudar(l, { acao: 'pagar', divisao: null })} title="Pagar como calculado"><i className="fas fa-check" /></button>
-          <button type="button" className={estado === 'nao' ? 'on nao' : ''} onClick={() => e.mudar(l, { acao: 'nao', divisao: null })} title="Não pagar (escolher o motivo)"><i className="fas fa-ban" /></button>
-          <button type="button" className={estado === 'aj' && !emCheio ? 'on aj' : ''} onClick={() => e.mudar(l, { acao: 'ajustar', divisao: null, valor: ed.valor ?? l.valor })} title="Ajustar o valor"><i className="fas fa-pen" /></button>
+          <button type="button" className={estado === 'nao' ? 'on nao' : ''} onClick={() => { setAberto(true); e.mudar(l, { acao: 'nao', divisao: null }) }} title="Não pagar (escolher o motivo)"><i className="fas fa-ban" /></button>
+          <button type="button" className={estado === 'aj' && !emCheio ? 'on aj' : ''} onClick={() => { setAberto(true); e.mudar(l, { acao: 'ajustar', divisao: null, valor: ed.valor ?? l.valor }) }} title="Ajustar o valor"><i className="fas fa-pen" /></button>
           {/* garantista não divide OS com ninguém (José, 29/10/2026) */}
           {!d.escritorio && <button type="button" className={estado === 'div' ? 'on div' : ''} onClick={() => setDividindo((v) => !v)} title="Dividir com outro técnico"><i className="fas fa-people-arrows" /></button>}
           {cheio > 0 && (
@@ -607,16 +620,18 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
             </button>
           )}
         </div>}
-        <div className="fp-com">{f !== l.valor && <s>{brl2(l.valor)}</s>}<b>{brl2(f)}</b></div>
+        <div className="fp-com">{f !== l.valor && <s>{brl2(l.valor)}</s>}<b>{brl2(f)}</b><SeloSalva l={l} e={e} /></div>
       </div>
-      {ed.acao === 'nao' && (
+      {!l.veioDe && ed.acao === 'pagar' && !ed.divisao && <SalvarDecisao l={l} e={e} />}
+      {ed.acao === 'nao' && verMotivo && (
         <div className="fp-extra">
           <small>Por que não vai pagar?</small>
           <div className="fp-mots">{MOTIVOS_NAO.map((m) => <button key={m} type="button" className={ed.motivo === m ? 'on' : ''} onClick={() => e.mudar(l, { motivo: m })}>{m}</button>)}</div>
           <input placeholder="ou escreva o motivo…" value={MOTIVOS_NAO.includes(ed.motivo) ? '' : ed.motivo} onChange={(ev) => e.mudar(l, { motivo: ev.target.value })} />
+          <SalvarDecisao l={l} e={e} dentro aoSalvar={() => setAberto(false)} />
         </div>
       )}
-      {ed.acao === 'ajustar' && !ed.divisao && (
+      {ed.acao === 'ajustar' && !ed.divisao && verMotivo && (
         <div className="fp-extra aj">
           {/* garantista ajusta pela % sobre a OS + peças ou pelo valor, com troca entre os dois (José, 29/10/2026) */}
           {d.escritorio && l.base > 0 && (
@@ -630,9 +645,10 @@ function LinhaOS({ d, l, e, x, verOS, verReq }: { d: Ficha; l: LinhaComissao; e:
                 onChange={(ev) => { setPctTxt(ev.target.value); const p = Number(ev.target.value.replace(',', '.')) || 0; e.mudar(l, { valor: Math.round(l.base * p) / 100 }) }} /><span>% de {brl2(l.base)} = <b>{brl2(ed.valor ?? 0)}</b></span></label>
             : <label>Valor para ele <span>R$</span><input type="number" step="0.01" value={ed.valor ?? ''} onChange={(ev) => { setPctTxt(null); e.mudar(l, { valor: Number(ev.target.value) || 0 }) }} /></label>}
           <input placeholder="motivo do ajuste (vai junto para o RH)" value={ed.motivo} onChange={(ev) => e.mudar(l, { motivo: ev.target.value })} />
+          <SalvarDecisao l={l} e={e} dentro aoSalvar={() => setAberto(false)} />
         </div>
       )}
-      {(dividindo || ed.divisao) && <div className="fp-extra dv"><Divisao d={d} l={l} e={e} fechar={() => setDividindo(false)} /></div>}
+      {verDiv &&<div className="fp-extra dv"><Divisao d={d} l={l} e={e} fechar={() => setDividindo(false)} /></div>}
     </div>
   )
 }
