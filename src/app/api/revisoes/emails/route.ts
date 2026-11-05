@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { protegerRota } from "@/lib/ajustes/permissao-server";
+import { paginar } from "@/lib/db/paginar";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,10 +14,14 @@ export async function GET(req: Request) {
   if (g.resposta) return g.resposta;
 
   try {
-    const { data, error } = await supabase
+    // Em páginas: o PostgREST corta em 1000 linhas e a tabela já passa de 950 —
+    // sem isso, revisões enviadas sumiriam da lista e a tela as daria como não enviadas.
+    const { data, error } = await paginar<any>((de, ate) => supabase
       .from("revisao_emails")
       .select("*")
-      .order("enviado_em", { ascending: false });
+      .order("enviado_em", { ascending: false })
+      .order("id", { ascending: false })
+      .range(de, ate));
 
     if (error) {
       console.error("Erro ao buscar revisao_emails:", error.message);
