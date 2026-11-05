@@ -6,6 +6,7 @@ import {
   type TipoFeedbackKb,
 } from "@/lib/conhecimento/db";
 import { marcarRevisado } from "@/lib/conhecimento/releases-db";
+import { agendarReciclagem } from "@/lib/treinamento/server";
 import { guardarConhecimento, erroResposta, negado, podeEditarModulo, podePublicarModulo } from "@/lib/conhecimento/rota";
 
 export const dynamic = "force-dynamic";
@@ -70,6 +71,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         relevante: body.relevante === true,
       }, s.autor);
       await audit("publicar", { versao: publicado.versao, relevante: body.relevante === true });
+      // treinamento: mudança relevante → reciclagem para quem já concluiu uma trilha com este artigo
+      if (body.relevante === true) await agendarReciclagem({ id: publicado.id, titulo: publicado.titulo, versao: publicado.versao }).catch((e) => console.error("[treinamento] reciclagem:", e));
       return NextResponse.json({ ok: true, artigo: publicado });
     }
 

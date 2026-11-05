@@ -1,6 +1,6 @@
 # Base de conhecimento (KMS) e treinamento (LMS)
 
-> Documento vivo. Entrega 1 (02–05/10/2026): base de conhecimento com o piloto do Pós-Vendas. Entrega 2 (05/10/2026): versões, artigos desatualizados e novidades.
+> Documento vivo. Entrega 1 (02–05/10/2026): base de conhecimento com o piloto do Pós-Vendas. Entrega 2 (05/10/2026): versões, artigos desatualizados e novidades. Entrega 3 (05/11/2026): treinamento (trilhas + prova).
 > Plano completo das 4 entregas em `C:\Users\hhenr\.claude\plans\estou-pensando-em-considerar-wondrous-papert.md` (resumo abaixo).
 
 ## 1. Por que existe
@@ -85,8 +85,40 @@ Módulos por commit corretos (inclusive `feat(etiquetas)` → ppv pelos arquivos
 - Aba Artigos, para quem edita: filtro **Tudo | Só publicados | Só rascunhos e edições pendentes**.
 - Publicar ou confirmar um artigo limpa o cache do botão "?" (`limparCacheAjuda`), então ele aparece na hora para quem publicou; os outros navegadores levam até 5 min ou um recarregamento.
 
-## 3b. Entregas seguintes (não feitas)
-3. **Treinamento**: `lms_trilhas/etapas/perguntas/atribuicoes/progresso`; trilha "Pós-Vendas — operação da OS" para a categoria Pós Vendas, nota mínima 70 %, prazo 7 dias; reciclagem só quando a versão nova é `relevante`; painel do gestor.
+## 4. Entrega 3 — Treinamento (LMS), piloto Pós-Vendas (05/11/2026)
+
+O treinamento **não tem conteúdo próprio**: uma trilha é uma sequência de artigos PUBLICADOS da base + uma prova de múltipla escolha. Decisões de 02/10: nota mínima **70 %**, prazo **7 dias**, reciclagem quando um artigo da trilha é republicado como "mudança relevante".
+
+### Banco (`sql/treinamento.sql`, rollback `sql/rollback-treinamento.sql`)
+`lms_trilhas` (título, módulo, `publico[]` = categorias do Admin que recebem sozinhas, `nota_minima`, `prazo_dias`, status rascunho | ativa | arquivada) · `lms_etapas` (artigo + ordem; `UNIQUE (trilha, artigo)`) · `lms_perguntas` (enunciado, `opcoes` jsonb, `correta`, `explicacao`, `artigo_id` de origem) · `lms_atribuicoes` (pessoa × trilha × `ciclo`; `origem` categoria | manual | reciclagem; `etapas[]` restringe na reciclagem; `prazo`; situação pendente | em_andamento | concluida; `nota`, `tentativas`) · `lms_progresso` (etapa lida + versão do artigo) · `lms_tentativas` (respostas, acertos, nota, aprovado). RLS sem policy + REVOKE.
+
+### Regras puras (`lib/treinamento/regras.ts`, 11 testes)
+- **Situação** `vencida` é calculada na leitura (prazo < hoje e não concluída); concluída nunca vence.
+- **Progresso** = artigos lidos + a prova como último passo; a prova só libera com todos lidos.
+- **Prova**: nota = acertos/total; aprovado se ≥ nota mínima; sem limite de tentativas; a ORDEM das perguntas é embaralhada por pessoa (`embaralharDeterministico`), o gabarito não muda e nunca vai ao navegador — quem errou recebe a certa + explicação só depois de enviar.
+- **Reciclagem**: etapas restritas ao artigo que mudou; perguntas só desse artigo (se não houver, a prova toda).
+- Validação de trilha (título, módulo, ≥ 1 artigo, nota 0–100, prazo 1–365) e de pergunta (≥ 2 opções, sem repetidas, certa marcada).
+
+### Servidor e rotas
+- `lib/treinamento/server.ts`: trilhas/etapas/perguntas, atribuições (`atribuir`, `atribuirPeloPublico` ao ativar, **`garantirAtribuicoes` ao abrir /treinamento** — usuário novo da categoria recebe sem cron), `situacaoDaPessoa`, `concluirEtapa`, `responderProva`, **`agendarReciclagem`** (chamada pela rota de publicar artigo quando `relevante`: quem concluiu a trilha ganha ciclo+1 só com aquele artigo), `painelEquipe`.
+- `lib/treinamento/rota.ts`: `guardarTreinamento` (login via `autenticar`). Fazer = todo logado. **Gerir** = admin, módulo `treinamento` (ação `gerir`) ou responsável do módulo na base (`kb_responsaveis`).
+- `/api/treinamento` (GET minhas + trilhas que giro + artigos publicados; POST criar), `/api/treinamento/[id]` (GET trilha + minha situação; PATCH salvar | perguntas | ativar | arquivar | rascunho; POST li | prova | atribuir | reabrir), `/api/treinamento/equipe` (painel), `/api/treinamento/perguntas-ia` (IA sugere 3 perguntas a partir do artigo; `lib/treinamento/perguntas-ia.ts`, só rascunha). Tudo no `audit_log` (`sistema='treinamento'`).
+
+### Telas (padrão `docs/padrao-telas.md`: tela cheia, guias Chrome roxas `#7c3aed`, "Como ler esta tela", estilo NewPortal via `estiloKB`)
+- `/treinamento` **Minhas trilhas**: cartões com situação, barra de progresso, "onde parei", prazo; concluídas embaixo.
+- `/treinamento/[id]` **Fazer**: lista à esquerda (artigos + prova), artigo com `ArtigoView` e **"Li e entendi"** (abre o próximo), prova com rádio, resultado com o que errou + explicação, "Tentar de novo".
+- `/treinamento/trilhas` e `/treinamento/editar/[id|nova]` (quem gere): dados, público por categoria, artigos em ordem (só publicados do módulo), perguntas com **✨ IA** por artigo, Ativar (atribui ao público), Arquivar, **Atribuir** a outras pessoas.
+- `/treinamento/equipe` (quem gere): contadores-filtro, por trilha: pessoa, situação, progresso, prazo, nota, tentativas, Reabrir.
+- Registro: `catalogo.ts` (Outros, ação `gerir`), `telas.ts`, `navItems` (todo logado), card no dashboard fora de `systemToModulo`, `notif/prefs.ts`.
+
+### Trilha piloto (`scripts/treinamento-seed-pos.ts`)
+"Pós-Vendas — operação da OS": os 7 artigos do `/pos` (publicados em 05/11 por Henri, com revisão de texto) + 10 perguntas escritas dos artigos; nota 70, prazo 7, público "Pós Vendas" (3 pessoas ativas em 05/11: Vinicius Correa, Nicolly, Larissa Garcia). `--ativar` ativa e atribui.
+
+### Limpeza de 05/11
+127 rascunhos de novidade da fase manual (antes do fluxo automático de 22/10) descartados; os 7 artigos publicados de Garantias marcados "em dia".
+
+## 4b. Entregas seguintes (não feitas)
+
 4. **Tratorilson** lê a base (`buscar_conhecimento`), perguntas sem resposta viram lacunas/FAQ.
 - Não feito na entrega 2: rascunho de ARTIGO vindo junto com a entrega de código (pasta `conhecimento/rascunhos/`), e registro de visita de rota no servidor para achar telas usadas sem artigo.
 

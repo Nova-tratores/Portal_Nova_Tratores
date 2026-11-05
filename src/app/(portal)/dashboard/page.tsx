@@ -18,6 +18,7 @@ import {
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
   FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck, Building,
   Star, LayoutGrid, List, CircleDot, AlertCircle, Headset, LayoutDashboard, Truck, UserPlus, Tags, BookOpen, CalendarClock, CalendarDays, Radar,
+  GraduationCap,
 } from 'lucide-react'
 
 interface SystemCard {
@@ -94,6 +95,7 @@ const systems: SystemCard[] = [
   // Outros (cinza)
   { id: 'conhecimento', name: 'Base de conhecimento', description: 'Como usar cada tela do portal — o mesmo texto do botão "?" do cabeçalho', icon: <BookOpen size={28} />, color: '#0369a1', gradient: 'linear-gradient(135deg, #0ea5e9, #0369a1)', href: '/conhecimento', tag: 'AJUDA', group: 'outros' },
   // POPs: ler procedimento publicado é de todo logado — fica FORA do systemToModulo (aparece para todos).
+  { id: 'treinamento', name: 'Treinamento', description: 'Trilhas de treinamento da sua área: leia os artigos, faça a prova e fique em dia', icon: <GraduationCap size={28} />, color: '#7c3aed', gradient: 'linear-gradient(135deg, #a78bfa, #7c3aed)', href: '/treinamento', tag: 'TRILHAS', group: 'outros' },
   { id: 'pops', name: 'Procedimentos (POP)', description: 'Procedimentos padrão de cada área — ler, executar passo a passo no celular e imprimir', icon: <ListChecks size={28} />, color: '#0f766e', gradient: 'linear-gradient(135deg, #14b8a6, #0f766e)', href: '/pops', tag: 'POP', group: 'outros' },
   { id: 'opa', name: 'Opa', description: 'Sinalize ocorrências e coisas fora do lugar — todos veem até alguém resolver', icon: <AlertCircle size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', href: '/opa', tag: 'OCORRÊNCIAS', group: 'outros' },
   { id: 'avisos', name: 'Avisos', description: 'Comunicados e avisos para toda a equipe, com anexos e notificações', icon: <Megaphone size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #4B5563)', href: '/avisos', tag: 'COMUNICADOS', group: 'outros' },
@@ -147,7 +149,7 @@ const systemToModulo: Record<string, string> = {
   'painel-omie': 'painel-omie',
   'back-nova': 'back-nova',
   'supervisor-vendas': 'supervisor-vendas',
-  // 'conhecimento' e 'pops' ficam de FORA de propósito: ler é de todo usuário logado
+  // 'conhecimento', 'treinamento' e 'pops' ficam de FORA de propósito: ler é de todo usuário logado
   // (card sem módulo aparece para todos — ver aviso acima).
   'gestao-vendas': 'gestao-vendas',
   'vendas-modelo': 'vendas-modelo',

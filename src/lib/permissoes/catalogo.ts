@@ -46,6 +46,8 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   planta: 'Outros',
   // Base de conhecimento: LER é de todo mundo logado (sem módulo); as ações aqui são de quem escreve/aprova.
   conhecimento: 'Outros',
+  // Treinamento: FAZER trilha é de todo logado; o módulo dá o direito de criar/ativar trilhas e ver a equipe.
+  treinamento: 'Outros',
   // POPs: ler publicado e dar ciência é de todo logado; o escopo de dono/aprovador é por ÁREA (pops_area_papeis).
   pops: 'Outros',
 };
@@ -76,6 +78,9 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'geral', label: 'Relatório geral da empresa' },
     { id: 'frota', label: 'Frota' },
     { id: 'config', label: 'Configurações e sincronizações' },
+  ],
+  treinamento: [
+    { id: 'gerir', label: 'Criar e ativar trilhas, perguntas e painel da equipe (qualquer módulo)' },
   ],
   conhecimento: [
     { id: 'editar', label: 'Escrever e editar artigos (qualquer módulo)' },

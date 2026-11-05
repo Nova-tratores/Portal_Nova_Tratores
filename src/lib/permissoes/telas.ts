@@ -48,6 +48,7 @@ export const MODULOS_TELAS: { id: string; nome: string }[] = [
   { id: 'cameras', nome: 'Vigia das Câmeras' },
   { id: 'clientes', nome: 'Pasta Clientes' },
   { id: 'conhecimento', nome: 'Base de conhecimento (escrever/aprovar)' },
+  { id: 'treinamento', nome: 'Treinamento (gerir trilhas)' },
   { id: 'consulta-estoque', nome: 'Visual Estoque' },
   { id: 'cronograma', nome: 'Cronograma (Central de Trabalho)' },
   { id: 'dashboard-agro', nome: 'Dashboard Agro' },
