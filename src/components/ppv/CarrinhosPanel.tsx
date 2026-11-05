@@ -204,7 +204,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
     setAddindo(true);
     try {
       const r = await fetch("/api/catalogo/criar-doc", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ tipo: "ppv", alvoId: ppvModal.id, items: [{ codigo: i.codigo, descricao: i.descricao, quantidade: i.qtd }], userName: userName || "" }),
       });
       if (r.ok) {
@@ -224,7 +224,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
     setIncluindo(true); setMsg("");
     try {
       const items = sel.itens.map((i) => ({ codigo: i.codigo, descricao: i.descricao, quantidade: i.qtd }));
-      const r = await fetch("/api/catalogo/criar-doc", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipo: incluirTipo, items, alvoId, tecnico: tecnicoSel, userName: userName || "" }) });
+      const r = await fetch("/api/catalogo/criar-doc", { method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ tipo: incluirTipo, items, alvoId, tecnico: tecnicoSel, userName: userName || "" }) });
       const j = await r.json();
       if (r.ok) {
         const lbl = incluirTipo === "ppv" ? `PPV ${j.id}` : `Orçamento ${j.numero || j.id}`;
@@ -292,7 +292,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
     const partes: string[] = []; let semPrecoTotal = 0;
     try {
       for (const t of tipos) {
-        const r = await fetch("/api/catalogo/criar-doc", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipo: t, items, cliente: cliSel, tecnico: tecnicoSel, userName: userName || "" }) });
+        const r = await fetch("/api/catalogo/criar-doc", { method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ tipo: t, items, cliente: cliSel, tecnico: tecnicoSel, userName: userName || "" }) });
         const j = await r.json();
         if (r.ok) {
           partes.push(t === "ppv" ? `PPV ${j.id || ""}` : `Orçamento ${j.numero || ""}`);

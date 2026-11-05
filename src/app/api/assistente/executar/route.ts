@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
 
     // Orçamento e PPV reutilizam o endpoint do carrinho do catálogo
     if (proposta.tipo === "orcamento" || proposta.tipo === "ppv") {
-      const r = await fetch(`${origin}/api/catalogo/criar-doc`, {
+      const r = await fetchInterno(`${origin}/api/catalogo/criar-doc`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

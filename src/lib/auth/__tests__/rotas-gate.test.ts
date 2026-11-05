@@ -17,6 +17,7 @@ import pendentesJson from './rotas-pendentes.json'
 // do webhook) ou são páginas públicas. Prefixo de caminho → motivo.
 export const PUBLICAS: Record<string, string> = {
   'src/app/api/q/': 'questionário por link único: token na URL validado no servidor',
+  'src/app/api/catalogo/figura/': 'desenho do catálogo de peças (sem preço/cliente), lido pelo link público /carrinho/[token]',
   'src/app/api/assinar/': 'assinatura do cliente por link único: token na URL',
   'src/app/api/assinatura-link/': 'a pessoa da equipe grava a própria assinatura por link único (token, 7 dias, uso único)',
   'src/app/api/garantia-cliente/evento/': 'página pública do QR da garantia (só registra evento)',
@@ -62,6 +63,14 @@ export async function POST(req) { return handler(req) }`
     const src = `async function handler(req) { if (!autenticar(req)) return 1 }
 export { handler as GET, handler as POST }`
     expect(metodosSemGuarda(src)).toEqual([])
+  })
+  it('guarda citada só em comentário não vale (caso catalogo/criar-doc)', () => {
+    const src = `export async function POST(req) {
+  // vai como chamada de sistema, valendo mesmo sem CRON_SECRET no ambiente
+  /* protegerRota fica pra depois */
+  const u = 'https://x.com/a'; return fetch(u)
+}`
+    expect(metodosSemGuarda(src)).toEqual(['POST'])
   })
 })
 

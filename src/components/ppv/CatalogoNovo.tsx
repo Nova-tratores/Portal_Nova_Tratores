@@ -445,7 +445,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
     setCriando(true);
     try {
       const r = await fetch("/api/catalogo/criar-doc", {
-        method: "POST", headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ tipo: addEmTipo, alvoId: docSel.id, items: cart.map((c) => ({ codigo: c.code, descricao: c.name, quantidade: c.qty })), userName: userName || "" }),
       });
       const j = await r.json();

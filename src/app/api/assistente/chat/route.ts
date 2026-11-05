@@ -4,6 +4,7 @@ import { getIA, chamarIA } from "@/lib/assistente/ia";
 import { blocoMemoria } from "@/lib/assistente/memoria";
 import { geocodificar, rotaDaOficina } from "@/lib/pos/ors";
 import { autenticar } from "@/lib/auth/server";
+import { fetchInterno } from "@/lib/auth/chamada-interna";
 import { logTratorilson } from "@/lib/assistente/log";
 import { corrigirCampoOS } from "@/lib/pos/atualizar-relatorio";
 
@@ -346,7 +347,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
     }
     if (name === "buscar_pecas") {
       const q = ((args.consulta || "") + (args.modelo ? " " + args.modelo : "")).trim();
-      const r = await fetch(`${origin}/api/catalogo?acao=robo&q=${encodeURIComponent(q)}`);
+      const r = await fetchInterno(`${origin}/api/catalogo?acao=robo&q=${encodeURIComponent(q)}`);
       const d = r.ok ? await r.json() : { grupos: [] };
       const grupos = (d.grupos || []).slice(0, 10).map((g: any) => ({ codigo: g.code, nome: g.name, qtd: g.qtd, tratores: (g.tratores || []).map((t: any) => t.modelo) }));
       return { total: grupos.length, pecas: grupos };
@@ -354,12 +355,12 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
     if (name === "explorar_catalogo") {
       const acao = String(args.acao || "tratores");
       if (acao === "tratores") {
-        const d: any[] = await fetch(`${origin}/api/catalogo?acao=modelos`).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+        const d: any[] = await fetchInterno(`${origin}/api/catalogo?acao=modelos`).then((r) => (r.ok ? r.json() : [])).catch(() => []);
         return { total: d.length, tratores: d.map((m) => ({ modelo: m.nome, figuras: m.figuras })) };
       }
       if (acao === "sistemas") {
         if (!args.modelo) return { precisa: "modelo", mensagem: "De qual trator você quer os sistemas?" };
-        const d: any[] = await fetch(`${origin}/api/catalogo?acao=secoes&modelo=${encodeURIComponent(args.modelo)}`).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+        const d: any[] = await fetchInterno(`${origin}/api/catalogo?acao=secoes&modelo=${encodeURIComponent(args.modelo)}`).then((r) => (r.ok ? r.json() : [])).catch(() => []);
         if (!d.length) return { encontrado: false, mensagem: `Não achei o trator "${args.modelo}" no catálogo.` };
         return { modelo: args.modelo, total: d.length, sistemas: d.map((s) => ({ sistema: s.secao, figuras: s.figuras })) };
       }
@@ -485,7 +486,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
         let codigo = String(it.codigo || "").trim();
         let descricao = it.descricao || "";
         if (!codigo && descricao) {
-          const rs = await fetch(`${origin}/api/catalogo?acao=busca&q=${encodeURIComponent(descricao)}`);
+          const rs = await fetchInterno(`${origin}/api/catalogo?acao=busca&q=${encodeURIComponent(descricao)}`);
           const ds = rs.ok ? await rs.json() : [];
           if (ds[0]) { codigo = ds[0].code; descricao = ds[0].name; }
         }
@@ -553,7 +554,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
         let codigo = String(it.codigo || "").trim();
         let descricao = it.descricao || "";
         if (!codigo && descricao) {
-          const rs = await fetch(`${origin}/api/catalogo?acao=busca&q=${encodeURIComponent(descricao)}`);
+          const rs = await fetchInterno(`${origin}/api/catalogo?acao=busca&q=${encodeURIComponent(descricao)}`);
           const ds = rs.ok ? await rs.json() : [];
           if (ds[0]) { codigo = ds[0].code; descricao = ds[0].name; }
         }

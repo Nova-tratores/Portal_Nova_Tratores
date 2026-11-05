@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { X, Printer, Download, ExternalLink, RefreshCw, AlertTriangle } from 'lucide-react'
-import { authHeaders } from '@/lib/auth/client'
+import { authHeaders, abrirComLogin, htmlComBase } from '@/lib/auth/client'
 
 export type DocumentoVisualizavel = {
   titulo: string
@@ -60,8 +60,11 @@ export default function VisualizadorDocumento({ doc, onClose }: { doc: Documento
           blobUrl = URL.createObjectURL(new Blob([j.html], { type: 'text/html' }))
           setSrc(blobUrl); setEstado('html')
         } else {
+          // página de impressão: vira blob (o iframe direto na rota não leva o token)
+          const html = await r.text()
           if (cancelado) return
-          setSrc(alvo); setEstado('html')
+          blobUrl = URL.createObjectURL(new Blob([htmlComBase(html)], { type: 'text/html' }))
+          setSrc(blobUrl); setEstado('html')
         }
       })
       .catch(e => { if (!cancelado) { setErro(e.message || 'Erro ao carregar'); setEstado('erro') } })
@@ -91,6 +94,13 @@ export default function VisualizadorDocumento({ doc, onClose }: { doc: Documento
   }
 
   const pronto = estado === 'pdf' || estado === 'html'
+  // rota interna exige login: abre a cópia já carregada (blob) ou busca com o token
+  const abrirFora = (e: React.MouseEvent) => {
+    if (!doc.url.startsWith('/')) return
+    e.preventDefault()
+    if (src.startsWith('blob:')) window.open(src, '_blank')
+    else void abrirComLogin(srcDe(doc.url, doc.nome))
+  }
   const BTN: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap' }
 
   return (
@@ -110,7 +120,7 @@ export default function VisualizadorDocumento({ doc, onClose }: { doc: Documento
             style={{ ...BTN, border: 'none', background: '#dc2626', color: '#fefefe', opacity: pronto ? 1 : 0.5 }}>
             <Download size={15} /> {estado === 'html' ? 'Salvar PDF' : 'Baixar'}
           </button>
-          <a href={doc.url} target="_blank" rel="noopener noreferrer" title="Abrir em outra guia"
+          <a href={doc.url} onClick={abrirFora} target="_blank" rel="noopener noreferrer" title="Abrir em outra guia"
             style={{ ...BTN, padding: '8px 10px', border: '1px solid #E5E7EB', background: 'var(--portal-bg-card)', color: '#64748B' }}>
             <ExternalLink size={15} />
           </a>
@@ -132,7 +142,7 @@ export default function VisualizadorDocumento({ doc, onClose }: { doc: Documento
               <AlertTriangle size={26} color="#B45309" />
               <div style={{ fontSize: 14, color: 'var(--portal-text)', fontWeight: 600 }}>Este documento não pode ser mostrado aqui.</div>
               <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted)', maxWidth: 420 }}>{erro}</div>
-              <a href={doc.url} target="_blank" rel="noopener noreferrer" style={{ ...BTN, border: 'none', background: '#dc2626', color: '#fefefe' }}>
+              <a href={doc.url} onClick={abrirFora} target="_blank" rel="noopener noreferrer" style={{ ...BTN, border: 'none', background: '#dc2626', color: '#fefefe' }}>
                 <ExternalLink size={15} /> Abrir em outra guia
               </a>
             </div>

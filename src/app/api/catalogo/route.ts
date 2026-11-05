@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { getIA, chamarIA } from "@/lib/assistente/ia";
 import { sanitizarFiltro } from "@/lib/busca-segura";
 import { protegerRota } from "@/lib/ajustes/permissao-server";
+import { autenticar } from "@/lib/auth/server";
+import { ehChamadaInterna } from "@/lib/auth/chamada-interna";
 
 // Editar o catálogo (ordem dos modelos / bolinhas) acontece onde o CatalogoNovo
 // abre logado: aba Catálogo e busca de produto do /ppv, editor do /orcamentos e
@@ -71,6 +73,10 @@ function miniatura(url: string | null | undefined): string | null {
   return url || null;
 }
 
+// GET aberto de propósito (menos acao=robo): o link público /carrinho/[token] mostra o
+// catálogo (marcas, modelos, seções, figuras, busca) para o cliente montar o carrinho sem
+// login. É só o catálogo de peças, sem preço nem cliente. acao=robo chama a IA (custo):
+// exige login ou chamada de sistema (o chat do Tratorilson).
 export async function GET(req: NextRequest) {
   const acao = req.nextUrl.searchParams.get("acao") || "secoes";
   const modelo = req.nextUrl.searchParams.get("modelo");
@@ -290,6 +296,9 @@ export async function GET(req: NextRequest) {
 
     // Robô de ajuda: linguagem natural → (Groq ou heurística) → peças agrupadas por código + tratores
     if (acao === "robo") {
+      if (!ehChamadaInterna(req.headers) && !(await autenticar(req))) {
+        return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+      }
       const raw = (req.nextUrl.searchParams.get("q") || "").trim();
       if (raw.length < 2) return NextResponse.json({ modelo: null, termos: [], grupos: [], ia: false });
       const ql = " " + raw.toLowerCase() + " ";

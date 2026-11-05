@@ -14,7 +14,7 @@ import { fmtRS } from '@/components/estoque/ui';
 import RelatorioDashboard from '@/components/estoque/RelatorioDashboard';
 import ComposicaoBarra, { type SerieBarra } from '@/components/estoque/ComposicaoBarra';
 import { chartColors } from '@/lib/estoque/chartColors';
-import { authHeaders } from '@/lib/auth/client';
+import { authHeaders, abrirComLogin } from '@/lib/auth/client';
 import HistoricoGrade, { type SerieGrade, type MesHistorico, type SemanaHistorico, type Medida } from '@/components/estoque/HistoricoGrade';
 import { agruparDias } from '@/lib/estoque/historico-semanas';
 import { ROTULO_CLASSE, CLASSES_NAO_COMERCIAIS, type ClasseServico } from '@/lib/estoque/servicos-classe';
@@ -605,11 +605,11 @@ export default function DashboardPage() {
       if (num) {
         const r = await fetch(`/api/pos/ordens/por-omie?num=${encodeURIComponent(num)}`);
         const d = await r.json();
-        if (d.idOrdem) { window.open(`/api/pos/ordens/${encodeURIComponent(d.idOrdem)}/print`, '_blank'); return; }
+        if (d.idOrdem) { void abrirComLogin(`/api/pos/ordens/${encodeURIComponent(d.idOrdem)}/print`); return; }
       }
       if (ncodOs) {
         const empresa = conta === 'CASTRO' ? 'Castro Pecas' : 'Nova Tratores';
-        window.open(`/api/clientes/print?tipo=os&cod=${ncodOs}&empresa=${encodeURIComponent(empresa)}`, '_blank');
+        void abrirComLogin(`/api/clientes/print?tipo=os&cod=${ncodOs}&empresa=${encodeURIComponent(empresa)}`);
         return;
       }
       alert(`OS ${num || ''} — não foi possível localizar os dados para impressão.`);

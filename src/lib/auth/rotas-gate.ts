@@ -16,8 +16,16 @@ function blocos(src: string): { nome: string; corpo: string }[] {
   return marcas.map((m, i) => ({ nome: m.nome, corpo: src.slice(m.ini, marcas[i + 1]?.ini ?? src.length) }))
 }
 
+/** Tira os comentários: guarda citada só em comentário não vale (caso real:
+ *  catalogo/criar-doc passava por citar CRON_SECRET num comentário). O `//` de URL
+ *  ("https://…") fica, por ter `:` antes. */
+export function semComentarios(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+}
+
 /** Métodos exportados que não passam por nenhuma guarda. */
-export function metodosSemGuarda(src: string): string[] {
+export function metodosSemGuarda(srcBruto: string): string[] {
+  const src = semComentarios(srcBruto)
   const bs = blocos(src)
   const porNome = new Map(bs.map((b) => [b.nome, b.corpo]))
   // export { handler as GET }

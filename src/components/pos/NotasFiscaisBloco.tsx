@@ -6,7 +6,7 @@
 import FaturarRemessaBotao from "@/components/ppv/FaturarRemessaBotao";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { authHeaders } from "@/lib/auth/client";
+import { authHeaders, abrirComLogin } from "@/lib/auth/client";
 import NfseRejeitada from "./NfseRejeitada";
 import type { DocAnterior } from "@/lib/pos/omie-anteriores";
 
@@ -211,7 +211,7 @@ export default function NotasFiscaisBloco({ osId, ordemOmie = "", anteriores: do
       <div style={{ padding: "2px 10px", borderRadius: 9, background: "var(--surface)", border: "1px solid var(--border)" }}>
         {temOS && st === "recibo_emitido" && linha("recibo", `Recibo${nfse?.reciboNumero ? ` nº ${nfse.reciboNumero}` : ""}`,
           <>serviço · {chip("OS interna · sem NFS-e", "#6d28d9", "#ede9fe")}</>,
-          linkPdf(`Recibo de prestação de serviço${nfse?.reciboNumero ? ` nº ${nfse.reciboNumero}` : ""}`, () => window.open(`/api/pos/ordens/${encodeURIComponent(osId)}/recibo`, "_blank")), true)}
+          linkPdf(`Recibo de prestação de serviço${nfse?.reciboNumero ? ` nº ${nfse.reciboNumero}` : ""}`, () => void abrirComLogin(`/api/pos/ordens/${encodeURIComponent(osId)}/recibo`)), true)}
         {temOS && st !== "nfse_cancelada" && st !== "recibo_emitido" && linha("nfse",
           st === "nfse_aguardando" ? "NFS-e" : `NFS-e ${semZeros(nfse?.nfseNumero) || ""}`.trim(),
           st === "nfse_aguardando" ? <>serviço · {chip("aguardando o sistema nacional", "#075985", "#e0f2fe")}</>

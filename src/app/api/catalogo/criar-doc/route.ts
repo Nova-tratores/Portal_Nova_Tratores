@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { TIPOS_PEDIDO, MOTIVOS_SAIDA } from "@/lib/ppv/constants";
-import { fetchInterno } from "@/lib/auth/chamada-interna";
+import { fetchInterno, protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
+import { autorDe } from "@/lib/ajustes/permissao-server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -16,12 +17,17 @@ const supabase = createClient(
 //   alvoId?                                      // se presente: INCLUI nesse doc existente
 // }
 export async function POST(req: NextRequest) {
+  // Cria PPV/Orçamento de verdade: quem usa o carrinho do catálogo (PPV, Orçamentos, POS)
+  // ou o Tratorilson (assistente/executar, chamada de sistema).
+  const g = await protegerRotaOuInterna(req, [{ modulo: "ppv" }, { modulo: "orcamentos" }, { modulo: "pos" }]);
+  if (g.resposta) return g.resposta;
   try {
     const body = await req.json();
     const tipo = body.tipo;
     const itensIn: any[] = Array.isArray(body.items) ? body.items : [];
     const cliente = body.cliente || {};
-    const userName = (body.userName || "Catálogo").toString();
+    // autoria: do login; na chamada de sistema (Tratorilson) vem no corpo
+    const userName = g.interno ? (body.userName || "Catálogo").toString() : autorDe(g.user);
     const tecnico = (body.tecnico || "").toString().trim();
     const alvoId = body.alvoId ? String(body.alvoId).trim() : "";
     const incluir = !!alvoId;
@@ -128,7 +134,7 @@ export async function POST(req: NextRequest) {
         userName,
         produtosSelecionados: resolvidos,
       };
-      const r = await fetch(`${req.nextUrl.origin}/api/ppv/pedidos`, {
+      const r = await fetchInterno(`${req.nextUrl.origin}/api/ppv/pedidos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(ppvBody),

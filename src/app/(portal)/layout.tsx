@@ -3,6 +3,7 @@ import BugReporterChat from '@/components/BugReporterChat'
 import ReporterAcoes from '@/components/ReporterAcoes'
 import AutoAtualiza from '@/components/AutoAtualiza'
 import ProtecaoAlteracoes from '@/components/rascunho/ProtecaoAlteracoes'
+import LinksComLogin from '@/components/auth/LinksComLogin'
 import Script from 'next/script'
 
 export default function PortalGroupLayout({
@@ -18,6 +19,8 @@ export default function PortalGroupLayout({
       {/* "O que mudou": novidade publicada pelo responsável, vista uma vez por quem usa o módulo */}
       {/* pergunta antes de sair com formulário não salvo + marca digitação recente */}
       <ProtecaoAlteracoes />
+      {/* link pra /api/... em aba nova ou download leva o login (senão dá 401) */}
+      <LinksComLogin />
       {/* Apontador de Falhas */}
       <Script
         src="/bug-reporter.js"

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { renderOS, renderPV, e } from "@/lib/omie/os-print";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 // PDF OFICIAL do Omie (osdocs/dfedocs) — em vez da versão refeita no portal:
 //   os → /servicos/osdocs/  · ObterOS       { nIdOs }  → cPdfOs
@@ -23,6 +24,14 @@ async function pdfOficialOmie(tipo: string, cod: number, empresa: string): Promi
 
 // ====================== ROUTE ======================
 export async function GET(req: NextRequest) {
+  // Telas que mostram a OS/PV da Omie: Pasta Clientes, Feedbacks (cockpit e janelas),
+  // Dashboard de Vendas, Mecânicos (ficha do técnico), POS e PPV. Os links abrem
+  // pelo visualizador ou pelo LinksComLogin, ambos com o token.
+  const g = await protegerRota(req, [
+    { modulo: "clientes" }, { modulo: "feedbacks" }, { modulo: "estoque", acao: "dashboard" },
+    { modulo: "mecanicos" }, { modulo: "pos" }, { modulo: "ppv" },
+  ]);
+  if (g.resposta) return g.resposta;
   const tipo = req.nextUrl.searchParams.get("tipo");
   const cod = req.nextUrl.searchParams.get("cod");
   const empresa = req.nextUrl.searchParams.get("empresa") || "Nova Tratores";

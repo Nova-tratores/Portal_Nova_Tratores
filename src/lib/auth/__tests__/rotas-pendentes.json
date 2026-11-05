@@ -1,8 +1,4 @@
 [
- "src/app/api/catalogo/figura/[id]/route.ts#GET",
- "src/app/api/catalogo/route.ts#GET",
- "src/app/api/clientes/print/route.ts#GET",
- "src/app/api/documentos/arquivo/route.ts#GET",
  "src/app/api/pos/agenda-notas/route.ts#GET",
  "src/app/api/pos/agenda-notas/route.ts#POST",
  "src/app/api/pos/agenda-visao/caminho/route.ts#POST",

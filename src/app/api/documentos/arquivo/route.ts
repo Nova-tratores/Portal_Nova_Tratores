@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { autenticar } from "@/lib/auth/server";
 
 // Repassa o PDF de um documento externo (DANFE no storage, nota no CDN da Omie,
 // boleto) pela MESMA origem do portal, para o visualizador poder mostrar,
@@ -37,6 +38,9 @@ function nomeSeguro(nome: string | null): string {
 }
 
 export async function GET(req: NextRequest) {
+  // Só logado: o visualizador busca com o token (e os links em aba nova passam pelo
+  // LinksComLogin do layout). Qualquer tela do portal pode mostrar documento.
+  if (!(await autenticar(req))) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   const bruto = req.nextUrl.searchParams.get("url") || "";
   let alvo: URL;
   try { alvo = new URL(bruto); } catch {
