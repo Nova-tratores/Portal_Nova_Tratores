@@ -1,3 +1,5 @@
+# DESLIGADO do GitHub em 05/11/2026 (só 'Run workflow'): o agendador chama /api/pos/cron/sync-omie as 23:45 BRT (rota-interna, no worker).
+# apagar este arquivo em/depois de 05/12/2026 (reserva de 30 dias).
 # POS — sync de cadastros da Omie 1x por dia: clientes → portal_nt_clientes_PRINCIPAL
 # (cadastro usado pelo POS, propostas, Agro e cockpit), projetos → portal_nt_projetos_PRINCIPAL
 # (só inclui projetos novos; o "último cliente" vem do sync completo das 05:30).
@@ -7,8 +9,6 @@
 name: POS - Sync cadastros Omie
 
 on:
-  schedule:
-    - cron: '10 8 * * *'   # 05:10 BRT
   workflow_dispatch: {}
 
 jobs:

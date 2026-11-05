@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cronEnriquecerNotas } from '@/lib/estoque/cron';
+import { agendadorJaRodou } from '@/lib/agendador/reserva';
 
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
@@ -22,6 +23,10 @@ export async function GET(req: NextRequest) {
   const ano = parseInt(req.nextUrl.searchParams.get('ano') || '') || 2022;
   const mes = parseInt(req.nextUrl.searchParams.get('mes') || '') || 11;
 
+  // RESERVA (05/11/2026): o agendador do portal roda este sync no worker (tarefa estoque-enriquecer-notas).
+  // O GitHub só roda se o portal não tiver rodado bem nas últimas 26 h.
+  const feito = await agendadorJaRodou('estoque-enriquecer-notas', 26);
+  if (feito) return NextResponse.json({ ok: true, pulado: `o agendador do portal já rodou (${feito})` });
   cronEnriquecerNotas({ ano, mes })
     .then((r) => console.log('[cron enriquecer-notas] concluído', JSON.stringify(r)))
     .catch((e) => console.error('[cron enriquecer-notas] erro', (e as Error).message));

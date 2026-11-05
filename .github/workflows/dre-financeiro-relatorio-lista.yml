@@ -1,11 +1,11 @@
+# DESLIGADO do GitHub em 05/11/2026 (só 'Run workflow'): o agendador chama /api/dre-financeiro/cron/relatorio-lista toda segunda 07:00 BRT (rota-interna, no worker).
+# apagar este arquivo em/depois de 05/12/2026 (reserva de 30 dias).
 # DRE Financeiro — Relatorio semanal da Lista (titulos criados nos ultimos 7
 # dias, NOVA + CASTRO). Envia 2 emails (Pagar / Receber), cada um com PDF + CSV.
 # Roda toda segunda 07:00 BRT (10:00 UTC). Tambem acionavel manualmente.
 name: DRE Financeiro - Relatorio semanal (Lista)
 
 on:
-  schedule:
-    - cron: '0 10 * * 1'   # Segunda 07:00 BRT (10:00 UTC)
   workflow_dispatch: {}
 
 jobs:

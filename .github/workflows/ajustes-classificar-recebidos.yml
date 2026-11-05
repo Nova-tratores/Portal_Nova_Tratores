@@ -1,3 +1,5 @@
+# RESERVA desde 05/11/2026: o agendador roda ajustes-classificar-recebidos às 05:00 BRT no worker.
+# A rota pula se o agendador do portal rodou bem há pouco (agendadorJaRodou).
 name: Ajustes - Classificar produtos recebidos (robô)
 
 # Robô diário: produtos recém-recebidos SEM FAMÍLIA e com valor < R$10.000 →
@@ -21,8 +23,7 @@ on:
         required: false
         default: ''
   schedule:
-    - cron: '0 8 * * *'    # diário 08:00 UTC ≈ 05:00 BRT
-    - cron: '0 13 * * *'   # backup 13:00 UTC ≈ 10:00 BRT (cobre o dia se o 1º pular)
+    - cron: '0 13 * * *'   # reserva (ver cabeçalho)
 
 jobs:
   classificar-recebidos:

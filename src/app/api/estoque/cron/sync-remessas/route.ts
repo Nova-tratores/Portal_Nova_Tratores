@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cronSyncRemessas } from '@/lib/estoque/cron';
+import { agendadorJaRodou } from '@/lib/agendador/reserva';
 
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
@@ -18,6 +19,10 @@ export async function GET(req: NextRequest) {
   if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  // RESERVA (05/11/2026): o agendador do portal roda este sync no worker (tarefa estoque-sync-remessas).
+  // O GitHub só roda se o portal não tiver rodado bem nas últimas 12 h.
+  const feito = await agendadorJaRodou('estoque-sync-remessas', 12);
+  if (feito) return NextResponse.json({ ok: true, pulado: `o agendador do portal já rodou (${feito})` });
   cronSyncRemessas()
     .then((r) => console.log('[cron sync-remessas] concluído', JSON.stringify(r)))
     .catch((e) => console.error('[cron sync-remessas] erro', (e as Error).message));

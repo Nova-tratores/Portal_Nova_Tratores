@@ -1,11 +1,11 @@
+# DESLIGADO do GitHub em 05/11/2026 (só 'Run workflow'): o agendador chama /api/war-room/cron/snapshot toda segunda 06:00 BRT (rota-interna, no worker).
+# apagar este arquivo em/depois de 05/12/2026 (reserva de 30 dias).
 # War Room — snapshot semanal imutável. Roda toda segunda 06:00 BRT (09:00 UTC),
 # criando a foto da semana que acabou de fechar (pré-preenche o derivável; caixa
 # fica manual). Idempotente. Também acionável manualmente (workflow_dispatch).
 name: War Room - Snapshot semanal
 
 on:
-  schedule:
-    - cron: '0 9 * * 1'   # Segunda 06:00 BRT (09:00 UTC)
   workflow_dispatch: {}
 
 jobs:

@@ -1,3 +1,5 @@
+# RESERVA desde 05/11/2026: o agendador roda estoque-enriquecer-notas às 23:30 BRT no worker.
+# A rota pula se o agendador do portal rodou bem há pouco (agendadorJaRodou).
 name: Estoque - Enriquecer notas de entrada (emitente/categoria, diário)
 
 # Preenche automaticamente o nome do emitente (fornecedor) e a categoria das
@@ -9,7 +11,7 @@ name: Estoque - Enriquecer notas de entrada (emitente/categoria, diário)
 
 on:
   schedule:
-    - cron: '30 7 * * *'    # 07:30 UTC = 04:30 BRT
+    - cron: '30 7 * * *'   # reserva (ver cabeçalho)
   workflow_dispatch: {}       # permite rodar manualmente
 
 jobs:

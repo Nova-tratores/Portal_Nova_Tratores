@@ -1,11 +1,11 @@
+# DESLIGADO do GitHub em 05/11/2026 (só 'Run workflow'): o agendador chama /api/pecas/unidades/cron/abate de 30 em 30 min (rota-interna, no worker).
+# apagar este arquivo em/depois de 05/12/2026 (reserva de 30 dias).
 # Rastreio de peças — ABATE automático: cruza as unidades retiradas pra OS
 # (status 'liberada') com o relatório do técnico (PecasInfo) e transiciona:
 # usada -> aplicada · não usada/devolvida -> devolução pendente.
 name: Pecas - Abate de unidades rastreadas
 
 on:
-  schedule:
-    - cron: '*/30 * * * *'
   workflow_dispatch: {}
 
 jobs:

@@ -1,3 +1,5 @@
+# DESLIGADO do GitHub em 05/11/2026 (só 'Run workflow'): o agendador ja roda clientes-sync-recente a cada 5 min e chama /api/clientes/sync-nfs?limite=1000 as 00:45 BRT (rota-interna, no worker).
+# apagar este arquivo em/depois de 05/12/2026 (reserva de 30 dias).
 name: Sync NFs (Pastas Clientes)
 
 # Agenda o sync de NF do Omie, já que o portal roda no Railway
@@ -5,10 +7,6 @@ name: Sync NFs (Pastas Clientes)
 # Roda 1x por madrugada e repete o sync de NF em lotes até zerar o backlog.
 
 on:
-  schedule:
-    - cron: '0 8 * * *'    # 08:00 UTC = 05:00 BRT (passada completa da madrugada)
-    - cron: '0 15 * * *'   # 15:00 UTC = 12:00 BRT (pega NFs emitidas de manhã)
-    - cron: '0 20 * * *'   # 20:00 UTC = 17:00 BRT (pega NFs emitidas à tarde)
   workflow_dispatch: {}      # permite rodar manualmente pelo botão "Run workflow"
 
 jobs:

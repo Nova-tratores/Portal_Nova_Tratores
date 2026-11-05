@@ -1,3 +1,5 @@
+# RESERVA desde 05/11/2026: o agendador roda dre-financeiro-sync a cada 3 h no worker (leve de dia, completo à noite).
+# A rota pula se o agendador do portal rodou bem há pouco (agendadorJaRodou).
 name: DRE Financeiro - Sync contas (pagar/receber)
 
 # Sincroniza contas a pagar/receber de todas as contas Omie sem depender de
@@ -7,7 +9,7 @@ name: DRE Financeiro - Sync contas (pagar/receber)
 
 on:
   schedule:
-    - cron: '10 */3 * * *'   # a cada 3h no minuto :10
+    - cron: '10 */6 * * *'   # reserva (ver cabeçalho)
   workflow_dispatch: {}        # permite rodar manualmente
 
 jobs:

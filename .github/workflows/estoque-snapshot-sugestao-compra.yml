@@ -1,3 +1,5 @@
+# DESLIGADO do GitHub em 05/11/2026 (só 'Run workflow'): o agendador chama /api/estoque/cron/snapshot-sugestao-compra as 03:30 BRT (rota-interna, no worker).
+# apagar este arquivo em/depois de 05/12/2026 (reserva de 30 dias).
 name: Estoque - Snapshot da Sugestão de Compra (diário)
 
 # Gera o snapshot noturno da Sugestão de Compra de peças (curva ABC + demanda
@@ -7,8 +9,6 @@ name: Estoque - Snapshot da Sugestão de Compra (diário)
 # Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
 
 on:
-  schedule:
-    - cron: '30 6 * * *'    # 06:30 UTC = 03:30 BRT (após os syncs de estoque)
   workflow_dispatch: {}      # permite rodar manualmente
 
 jobs:

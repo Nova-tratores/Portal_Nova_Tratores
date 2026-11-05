@@ -12,6 +12,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getContasOmie, getSyncState, sincronizarTudo, sincronizarTudoLeve, sincronizarMovimentosCC, fmtBR } from '@/lib/dre-financeiro/omie-api'
 import { inicioMes, fimMes } from '@/lib/dre-financeiro/dates'
+import { agendadorJaRodou } from '@/lib/agendador/reserva';
 
 export const dynamic = 'force-dynamic'
 
@@ -24,6 +25,12 @@ export async function GET(request: NextRequest) {
   }
 
   const sp = request.nextUrl.searchParams
+  // RESERVA (05/11/2026): o agendador do portal roda este sync no worker (tarefa dre-financeiro-sync).
+  // O GitHub só roda se o portal não tiver rodado bem nas últimas 4 h.
+  if (!sp.get('completo') && !sp.get('leve')) {
+    const feito = await agendadorJaRodou('dre-financeiro-sync', 4);
+    if (feito) return NextResponse.json({ ok: true, pulado: `o agendador do portal já rodou (${feito})` });
+  }
   const contas = getContasOmie()
   const now = new Date()
   const mesRef = parseInt(sp.get('mes') || '', 10) || (now.getMonth() + 1)

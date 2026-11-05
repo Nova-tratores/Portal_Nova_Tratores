@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { classificarRecebidosTodasContas, classificarRecebidos } from '@/lib/ajustes/robo-recebidos';
 import { parseConta } from '@/lib/ajustes/conta';
+import { agendadorJaRodou } from '@/lib/agendador/reserva';
 
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
@@ -20,6 +21,12 @@ export async function GET(req: NextRequest) {
   const conta = parseConta(sp.get('conta'));
   const dry = sp.get('dry') === '1' || sp.get('dry') === 'true';
   const aguardar = dry || sp.get('sync') === '1' || sp.get('sync') === 'true'; // dry sempre síncrono
+  // RESERVA (05/11/2026): o agendador do portal roda este sync no worker (tarefa ajustes-classificar-recebidos).
+  // O GitHub só roda se o portal não tiver rodado bem nas últimas 20 h.
+  if (!conta && !dry && !aguardar) {
+    const feito = await agendadorJaRodou('ajustes-classificar-recebidos', 20);
+    if (feito) return NextResponse.json({ ok: true, pulado: `o agendador do portal já rodou (${feito})` });
+  }
   const job = conta ? classificarRecebidos(conta, { dry }) : classificarRecebidosTodasContas({ dry });
   if (aguardar) {
     const resultado = await job;

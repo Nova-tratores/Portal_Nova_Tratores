@@ -1,3 +1,5 @@
+# RESERVA desde 05/11/2026: o agendador roda estoque-sync-incremental de 30 em 30 min (seg–sáb 06–20h30) no worker.
+# A rota pula se o agendador do portal rodou bem há pouco (agendadorJaRodou).
 name: Estoque - Sync incremental (mês atual)
 
 # Sincroniza vendas + OS do mês atual (todas as contas) para manter o
@@ -7,7 +9,7 @@ name: Estoque - Sync incremental (mês atual)
 
 on:
   schedule:
-    - cron: '5,35 9-23 * * *'   # :05 e :35, 06:05-20:35 BRT (horário comercial)
+    - cron: '0 15 * * *'   # reserva (ver cabeçalho)
   workflow_dispatch: {}        # permite rodar manualmente
 
 jobs:

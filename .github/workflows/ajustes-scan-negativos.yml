@@ -1,3 +1,5 @@
+# DESLIGADO do GitHub em 05/11/2026 (só 'Run workflow'): o agendador roda ajustes-scan-negativos (NOVA e CASTRO, em sequencia) a 01:00 BRT no worker.
+# apagar este arquivo em/depois de 05/12/2026 (reserva de 30 dias).
 name: Ajustes - Varredura de estoque negativo (diária)
 
 # Dispara a varredura de "estoque negativo" (NOVA + CASTRO) 1x/dia às 06:00 BRT,
@@ -11,8 +13,6 @@ name: Ajustes - Varredura de estoque negativo (diária)
 
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: '0 4 * * *'   # 01:00 BRT (diário) — slot isolado da madrugada
 
 jobs:
   scan-negativos:

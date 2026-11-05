@@ -50,6 +50,8 @@ function resumirResposta(corpo: string): string {
   }
 }
 
+const resumoJson = (v: unknown) => resumirResposta(JSON.stringify(v ?? {}));
+
 export const TAREFAS: Record<string, Tarefa> = {
   // Agendamentos trazidos do GitHub que não usam a Omie (etapa 3): cada um chama a
   // própria rota de cron, como o GitHub fazia — parametros { metodo, caminho, timeout_min }.
@@ -307,6 +309,134 @@ export const TAREFAS: Record<string, Tarefa> = {
     const r = await executarSyncCompleto(null);
     const partes = Object.entries(r.resultado).map(([k, v]) => `${k}: ${v.clientes} clientes · ${v.os} OS · ${v.pv} PV · ${v.nfse} NFS-e`);
     return { resumo: `${r.periodo} · ${partes.join(' · ')}` };
+  },
+
+  // ---------------------------------------------------------------------------
+  // Syncs da Omie que ainda rodavam no WEB pelo GitHub (Etapa 3, 05/11/2026). Cada um
+  // chama a MESMA função da rota de cron; a rota do GitHub virou reserva (pula se o
+  // agendador rodou bem há pouco). Resumo = resposta da função, encurtada.
+  // ---------------------------------------------------------------------------
+
+  // NFS-e de saída (portal_nt_notas_saida) — ~1 min, a cada 3 h o dia todo.
+  'ajustes-sync-notas': async () => {
+    if (desligada('AJUSTES_SYNC_NOTAS')) return { pular: 'desligado (AJUSTES_SYNC_NOTAS=off)' };
+    const { cronSyncNotasSaida } = await import('@/lib/ajustes/cron');
+    return { resumo: resumoJson(await cronSyncNotasSaida()) };
+  },
+
+  // Vendas incrementais (vendas_itens) — ~20 s, de 30 em 30 min no horário comercial.
+  'estoque-sync-incremental': async () => {
+    if (desligada('ESTOQUE_SYNC_INCREMENTAL')) return { pular: 'desligado (ESTOQUE_SYNC_INCREMENTAL=off)' };
+    const { cronSyncIncremental } = await import('@/lib/estoque/cron');
+    return { resumo: resumoJson(await cronSyncIncremental()) };
+  },
+
+  // Notas de entrada (notas_entrada + itens) dos últimos N meses — ~5 min. parametros { meses (3) }.
+  'estoque-sync-compras': async (p) => {
+    if (desligada('ESTOQUE_SYNC_COMPRAS')) return { pular: 'desligado (ESTOQUE_SYNC_COMPRAS=off)' };
+    const { cronSyncCompras } = await import('@/lib/estoque/cron');
+    const meses = Math.min(12, Math.max(1, Number(p.meses) || 3));
+    return { resumo: resumoJson(await cronSyncCompras(meses)) };
+  },
+
+  // Remessas, movimentação por produto e outras entradas (tela Remessas) — > 5 min, 2x/dia.
+  'estoque-sync-remessas': async () => {
+    if (desligada('ESTOQUE_SYNC_REMESSAS')) return { pular: 'desligado (ESTOQUE_SYNC_REMESSAS=off)' };
+    const { cronSyncRemessas } = await import('@/lib/estoque/cron');
+    return { resumo: resumoJson(await cronSyncRemessas()) };
+  },
+
+  // Emitente + categoria das notas_entrada em toda a história. parametros { ano (2022), mes (11) }.
+  'estoque-enriquecer-notas': async (p) => {
+    if (desligada('ESTOQUE_ENRIQUECER_NOTAS')) return { pular: 'desligado (ESTOQUE_ENRIQUECER_NOTAS=off)' };
+    const { cronEnriquecerNotas } = await import('@/lib/estoque/cron');
+    const ano = Number(p.ano) || 2022;
+    const mes = Number(p.mes) || 11;
+    return { resumo: resumoJson(await cronEnriquecerNotas({ ano, mes })) };
+  },
+
+  // os_servicos_itens (popup do card Serviços): meses que ainda não têm itens, as duas contas.
+  'estoque-backfill-os-servicos': async () => {
+    if (desligada('ESTOQUE_BACKFILL_OS_SERVICOS')) return { pular: 'desligado (ESTOQUE_BACKFILL_OS_SERVICOS=off)' };
+    const { backfillOsServicos, getBackfillOsServicosStatus } = await import('@/lib/estoque/os-backfill');
+    const { getContasOmie } = await import('@/lib/estoque/conta');
+    const contas = getContasOmie().map((c) => c.id);
+    await backfillOsServicos(contas, false);
+    return { resumo: resumoJson(getBackfillOsServicosStatus()) };
+  },
+
+  // Robô: produto recém-recebido sem família vira "Peças" + sugestão de Tipo + tarefa.
+  'ajustes-classificar-recebidos': async () => {
+    if (desligada('AJUSTES_CLASSIFICAR_RECEBIDOS')) return { pular: 'desligado (AJUSTES_CLASSIFICAR_RECEBIDOS=off)' };
+    const { classificarRecebidosTodasContas } = await import('@/lib/ajustes/robo-recebidos');
+    return { resumo: resumoJson(await classificarRecebidosTodasContas({ dry: false })) };
+  },
+
+  // DRE: títulos a pagar/receber + baixas + movimentos de conta corrente, as duas contas em
+  // paralelo (chaves diferentes). Mesma regra da rota /api/dre-financeiro/cron/sync: no
+  // horário comercial (07–19 BRT) é LEVE (alterados em 2 dias + baixas de 15 dias);
+  // fora dele, COMPLETO (mês-3 a mês+6, baixas de 24 meses, reconciliação dos excluídos).
+  // parametros { modo: 'auto' | 'leve' | 'completo' }.
+  'dre-financeiro-sync': async (p) => {
+    if (desligada('DRE_FINANCEIRO_SYNC')) return { pular: 'desligado (DRE_FINANCEIRO_SYNC=off)' };
+    const api = await import('@/lib/dre-financeiro/omie-api');
+    const { inicioMes, fimMes } = await import('@/lib/dre-financeiro/dates');
+    const now = new Date();
+    const mesRef = now.getMonth() + 1;
+    const anoRef = now.getFullYear();
+    const horaBR = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23' }).format(now));
+    const modo = String(p.modo || 'auto');
+    const leve = modo === 'completo' ? false : modo === 'leve' ? true : (horaBR >= 7 && horaBR < 19);
+    const diasAtras = (d: number) => { const x = new Date(now); x.setDate(x.getDate() - d); return x; };
+    const de = api.fmtBR(inicioMes(anoRef, mesRef - 3));
+    const ate = api.fmtBR(fimMes(anoRef, mesRef + 6));
+    const alteradoDe = api.fmtBR(diasAtras(2));
+    const deMov = leve ? api.fmtBR(diasAtras(15)) : api.fmtBR(inicioMes(anoRef, mesRef - 2));
+    const ateMov = api.fmtBR(fimMes(anoRef, mesRef));
+    const contas = (api.getContasOmie() as Array<{ id: string }>).map((c) => c.id);
+    const partes: string[] = [];
+    const progresso: Record<string, string> = {};
+    await Promise.all(contas.map(async (c) => {
+      if (api.getSyncState(c)?.rodando) { progresso[c] = 'pulada (já rodando)'; partes.push(`${c} pulada`); return; }
+      try {
+        if (leve) await api.sincronizarTudoLeve(c, alteradoDe); else await api.sincronizarTudo(c, de, ate);
+        await api.sincronizarMovimentosCC(c, deMov, ateMov, { leve });
+        progresso[c] = 'ok'; partes.push(`${c} ok`);
+      } catch (e) {
+        progresso[c] = `erro: ${(e as Error).message}`; partes.push(`${c} erro: ${(e as Error).message}`);
+      }
+    }));
+    const resumo = `${leve ? `LEVE (alterados desde ${alteradoDe})` : `COMPLETO (${de}..${ate})`} · movimentos ${deMov}..${ateMov} · ${partes.join(' · ')}`;
+    if (partes.length && partes.every((x) => x.includes('erro'))) throw new Error(resumo);
+    return { resumo, progresso };
+  },
+
+  // Varredura de estoque negativo (ajustes_jobs), uma conta por vez; espera cada
+  // varredura terminar (o job grava heartbeat; a tela /ajustes/negativos lê o mesmo job).
+  'ajustes-scan-negativos': async (_p, ctx) => {
+    if (desligada('AJUSTES_SCAN_NEGATIVOS')) return { pular: 'desligado (AJUSTES_SCAN_NEGATIVOS=off)' };
+    const { iniciarScanNegativos, lerStatusNegativos } = await import('@/lib/ajustes/negativos');
+    const { getContasOmie } = await import('@/lib/ajustes/omie');
+    const partes: string[] = [];
+    const progresso: Record<string, string> = {};
+    for (const c of getContasOmie().map((x) => x.id)) {
+      const ini = await iniciarScanNegativos(c, ctx.chave);
+      if (ini?.jaRodando) { progresso[c] = 'já estava rodando'; partes.push(`${c} já rodando`); continue; }
+      const limite = Date.now() + 50 * 60_000;
+      let st: Record<string, unknown> = {};
+      while (Date.now() < limite) {
+        await new Promise((r) => setTimeout(r, 20_000));
+        st = (await lerStatusNegativos(c, true)) || {};
+        if (!st.rodando) break;
+        progresso[c] = `varrendo: ${String(st.etapa || '')}`;
+      }
+      if (st.rodando) { progresso[c] = 'ainda rodando depois de 50 min'; partes.push(`${c} ainda rodando`); continue; }
+      const neg = Array.isArray(st.negativos) ? st.negativos.length : (st.total ?? st.qtd ?? '');
+      progresso[c] = st.erro ? `erro: ${st.erro}` : `concluído${neg !== '' ? ` · ${neg} negativos` : ''}`;
+      partes.push(st.erro ? `${c} erro: ${st.erro}` : `${c} ${neg !== '' ? `${neg} negativos` : 'ok'}`);
+    }
+    if (partes.length && partes.every((x) => x.includes('erro'))) throw new Error(partes.join(' | '));
+    return { resumo: partes.join(' · '), progresso };
   },
 
   'notas-cache-docs': async () => {

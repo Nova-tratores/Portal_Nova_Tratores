@@ -1,3 +1,5 @@
+# RESERVA desde 05/11/2026: o agendador roda estoque-sync-remessas às 03:15 e 13:15 BRT no worker.
+# A rota pula se o agendador do portal rodou bem há pouco (agendadorJaRodou).
 name: Estoque - Sync remessas (Visual Estoque)
 
 # Sincroniza remessas, movimentação por produto (demonstração) e outras entradas
@@ -6,7 +8,7 @@ name: Estoque - Sync remessas (Visual Estoque)
 
 on:
   schedule:
-    - cron: '15 7,16 * * *'   # 04:15 e 13:15 BRT
+    - cron: '15 16 * * *'   # reserva (ver cabeçalho)
   workflow_dispatch: {}        # permite rodar manualmente
 
 jobs:

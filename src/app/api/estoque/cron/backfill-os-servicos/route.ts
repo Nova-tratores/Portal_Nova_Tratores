@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { getContasOmie } from '@/lib/estoque/conta';
 import { backfillOsServicos } from '@/lib/estoque/os-backfill';
+import { agendadorJaRodou } from '@/lib/agendador/reserva';
 
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
@@ -24,6 +25,12 @@ export async function GET(req: NextRequest) {
   const contas = conta ? [conta] : getContasOmie().map((c) => c.id);
   const forcar = sp.get('forcar') === '1';
 
+  // RESERVA (05/11/2026): o agendador do portal roda este sync no worker (tarefa estoque-backfill-os-servicos).
+  // O GitHub só roda se o portal não tiver rodado bem nas últimas 26 h.
+  if (!forcar && !conta) {
+    const feito = await agendadorJaRodou('estoque-backfill-os-servicos', 26);
+    if (feito) return NextResponse.json({ ok: true, pulado: `o agendador do portal já rodou (${feito})` });
+  }
   backfillOsServicos(contas, forcar)
     .catch((e) => console.error('[cron backfill-os-servicos] erro', (e as Error).message));
 
