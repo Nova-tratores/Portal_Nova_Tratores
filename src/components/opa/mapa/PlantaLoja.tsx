@@ -7,7 +7,7 @@
 
 import { useRef, useState } from 'react'
 import { ChevronDown, ChevronUp, Layers } from 'lucide-react'
-import { andaresOrdenados, andarVizinho, corDoDepartamento, limitarRet, type Andar, type Bloco, type OpaNoMapa, type PosicaoLocal, type Retangulo } from '@/lib/opa/mapa'
+import { andaresOrdenados, andarVizinho, corDoDepartamento, redimensionar, type Andar, type Bloco, type OpaNoMapa, type PosicaoLocal, type Puxador, type Retangulo } from '@/lib/opa/mapa'
 import { destinoDoLocal, type Departamento, type LigacaoLocal } from '@/lib/opa/departamentos'
 import { nomeLocalCompleto } from '@/lib/opa-pecas/regras'
 import type { Local } from '@/lib/opa-pecas/tipos'
@@ -27,7 +27,7 @@ export type CamadaEdicao = 'lugares' | 'blocos'
 interface Arrasto {
   tipo: 'lugar' | 'bloco'
   id: string
-  modo: 'mover' | 'resize'
+  modo: Puxador
   x0: number; y0: number
   original: Retangulo
   moveu: boolean
@@ -78,8 +78,7 @@ export default function PlantaLoja({
     const dx = ((e.clientX - arrasto.x0) / r.width) * 100
     const dy = ((e.clientY - arrasto.y0) / r.height) * 100
     if (Math.abs(dx) + Math.abs(dy) < 0.4 && !arrasto.moveu) return
-    const o = arrasto.original
-    setTemp(limitarRet(arrasto.modo === 'mover' ? { ...o, x: o.x + dx, y: o.y + dy } : { ...o, w: o.w + dx, h: o.h + dy }))
+    setTemp(redimensionar(arrasto.original, arrasto.modo, dx, dy))
     if (!arrasto.moveu) setArrasto({ ...arrasto, moveu: true })
   }
   const soltar = () => {
@@ -139,9 +138,9 @@ export default function PlantaLoja({
             <div key={b.id} onPointerDown={(e) => comecar(e, 'bloco', b.id, 'mover', b)}
               style={{ ...pos(r), borderRadius: 6, border: `2px ${sel ? 'solid' : 'dashed'} ${sel ? '#dc2626' : 'var(--portal-border)'}`,
                 background: 'color-mix(in srgb, var(--portal-text-muted) 7%, transparent)', cursor: editandoBlocos ? 'move' : 'default',
-                zIndex: editandoBlocos ? 3 : 1, pointerEvents: editandoBlocos ? 'auto' : 'none' }}>
+                zIndex: editandoBlocos ? (sel ? 4 : 3) : 1, pointerEvents: editandoBlocos ? 'auto' : 'none' }}>
               <span style={{ position: 'absolute', top: 4, left: 6, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--portal-text-muted)' }}>{b.nome}</span>
-              {editandoBlocos && <Alca onPointerDown={(e) => comecar(e, 'bloco', b.id, 'resize', b)} />}
+              {editandoBlocos && <Alcas lados={sel} onPuxar={(e, px) => comecar(e, 'bloco', b.id, px, b)} />}
             </div>
           )
         })}
@@ -161,15 +160,16 @@ export default function PlantaLoja({
               onClick={() => { if (!editandoLugares && clicavel) onSelecionar?.('lugar', p.local_id) }}
               title={`${nome}\n${destino.departamento ? `Departamento: ${destino.departamento.nome}` : 'Sem departamento'}\n${destino.gestorNome ? `Gestor: ${destino.gestorNome}` : 'Sem gestor configurado'}${n ? `\n${n} Opa(s) aberto(s)` : ''}`}
               style={{ ...pos(r), borderRadius: 8, border: `${sel ? 3 : 2}px solid ${cor}`, background: `color-mix(in srgb, ${cor} ${sel ? 30 : 16}%, transparent)`,
-                cursor: editandoLugares ? 'move' : clicavel ? 'pointer' : 'default', zIndex: 5, opacity: editandoBlocos ? 0.35 : 1,
+                cursor: editandoLugares ? 'move' : clicavel ? 'pointer' : 'default', zIndex: sel ? 7 : 5, opacity: editandoBlocos ? 0.35 : 1,
                 pointerEvents: editandoBlocos ? 'none' : 'auto', boxShadow: sel ? `0 0 0 3px color-mix(in srgb, ${cor} 25%, transparent)` : 'none',
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 2, overflow: 'hidden' }}>
+                // editando: deixa as alças das bordas aparecerem por fora da caixa
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 2, overflow: editandoLugares ? 'visible' : 'hidden' }}>
               <span style={{ fontSize: 'clamp(9px, 1.15vw, 12.5px)', fontWeight: 800, color: 'var(--portal-text)', textAlign: 'center', lineHeight: 1.15 }}>{nome}</span>
               {destino.gestorNome && <span style={{ fontSize: 'clamp(8px, 0.95vw, 11px)', color: 'var(--portal-text-secondary)', textAlign: 'center', lineHeight: 1.1 }}>{destino.gestorNome.split(' ').slice(0, 2).join(' ')}</span>}
               {n > 0 && (
                 <span style={{ position: 'absolute', top: 3, right: 3, minWidth: 20, height: 20, borderRadius: 10, padding: '0 5px', background: '#dc2626', color: '#fefefe', fontSize: 11.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{n}</span>
               )}
-              {editandoLugares && <Alca onPointerDown={(e) => comecar(e, 'lugar', p.local_id, 'resize', p)} />}
+              {editandoLugares && <Alcas lados={sel} onPuxar={(e, px) => comecar(e, 'lugar', p.local_id, px, p)} />}
             </div>
           )
         })}
@@ -184,10 +184,24 @@ export default function PlantaLoja({
   )
 }
 
-function Alca({ onPointerDown }: { onPointerDown: (e: React.PointerEvent) => void }) {
+/** Puxadores do tamanho: o canto sempre; os 4 lados quando o item está selecionado
+ *  (puxar o lado direito do Showroom muda só a largura). */
+function Alcas({ lados, onPuxar }: { lados: boolean; onPuxar: (e: React.PointerEvent, p: Puxador) => void }) {
+  const base: React.CSSProperties = { position: 'absolute', background: '#dc2626', border: '2px solid #fefefe', zIndex: 10, touchAction: 'none', boxShadow: '0 1px 3px rgba(0,0,0,0.35)' }
+  const lado = (p: Exclude<Puxador, 'mover' | 'se'>, estilo: React.CSSProperties, cursor: string, dica: string) => (
+    <div key={p} onPointerDown={(e) => onPuxar(e, p)} title={dica} style={{ ...base, borderRadius: 6, cursor, ...estilo }} />
+  )
   return (
-    <div onPointerDown={onPointerDown} title="Arraste para mudar o tamanho"
-      style={{ position: 'absolute', right: -2, bottom: -2, width: 16, height: 16, borderRadius: 4, background: '#dc2626', border: '2px solid #fefefe', cursor: 'nwse-resize', zIndex: 10, touchAction: 'none' }} />
+    <>
+      <div onPointerDown={(e) => onPuxar(e, 'se')} title="Arraste para mudar largura e altura"
+        style={{ ...base, right: -2, bottom: -2, width: 16, height: 16, borderRadius: 4, cursor: 'nwse-resize' }} />
+      {lados && [
+        lado('l', { right: -6, top: '50%', width: 12, height: 34, marginTop: -17 }, 'ew-resize', 'Arraste para mudar a largura (lado direito)'),
+        lado('o', { left: -6, top: '50%', width: 12, height: 34, marginTop: -17 }, 'ew-resize', 'Arraste para mudar a largura (lado esquerdo)'),
+        lado('n', { top: -6, left: '50%', width: 34, height: 12, marginLeft: -17 }, 'ns-resize', 'Arraste para mudar a altura (lado de cima)'),
+        lado('s', { bottom: -6, left: '50%', width: 34, height: 12, marginLeft: -17 }, 'ns-resize', 'Arraste para mudar a altura (lado de baixo)'),
+      ]}
+    </>
   )
 }
 

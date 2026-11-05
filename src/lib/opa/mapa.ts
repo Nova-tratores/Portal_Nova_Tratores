@@ -22,7 +22,30 @@ export function limitarRet(r: Partial<Retangulo>): Retangulo {
   return { x: arred(x), y: arred(y), w: arred(w), h: arred(h) }
 }
 
-const sobrepoe = (a: Retangulo, b: Retangulo) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
+/** Por onde se puxa: o corpo (mover), um lado (n/s/l/o) ou o canto de baixo à direita. */
+export type Puxador = 'mover' | 'n' | 's' | 'l' | 'o' | 'se'
+
+/**
+ * Retângulo depois de arrastar `dx`/`dy` (% da planta) pelo puxador. Puxar o lado esquerdo (o) ou
+ * o de cima (n) mexe na posição E no tamanho, segurando o lado oposto no lugar (como no PowerPoint).
+ */
+export function redimensionar(o: Retangulo, puxador: Puxador, dx: number, dy: number): Retangulo {
+  if (puxador === 'mover') return limitarRet({ ...o, x: o.x + dx, y: o.y + dy })
+  let { x, y, w, h } = o
+  if (puxador === 'l' || puxador === 'se') w = Math.min(100 - o.x, Math.max(MIN_LADO, o.w + dx))
+  if (puxador === 's' || puxador === 'se') h = Math.min(100 - o.y, Math.max(MIN_LADO, o.h + dy))
+  if (puxador === 'o') {
+    const direita = o.x + o.w
+    x = Math.min(direita - MIN_LADO, Math.max(0, o.x + dx)); w = direita - x
+  }
+  if (puxador === 'n') {
+    const baixo = o.y + o.h
+    y = Math.min(baixo - MIN_LADO, Math.max(0, o.y + dy)); h = baixo - y
+  }
+  return limitarRet({ x, y, w, h })
+}
+
+const sobrepoe =(a: Retangulo, b: Retangulo) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h
 
 /** Primeiro espaço livre (varrendo de cima para baixo, da esquerda para a direita) para um lugar novo. */
 export function retanguloNovo(ocupados: Retangulo[], w = LARGURA_NOVO, h = ALTURA_NOVO): Retangulo {

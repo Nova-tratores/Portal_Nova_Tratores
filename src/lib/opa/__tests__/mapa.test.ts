@@ -1,13 +1,25 @@
 import { describe, expect, it } from 'vitest'
 import {
   andarVizinho, corDoDepartamento, COR_SEM_DEPARTAMENTO, idUnico, limitarRet, MIN_LADO, opasPorLocal,
-  PALETA, retanguloNovo, validarBlocos, type Andar,
+  PALETA, redimensionar, retanguloNovo, validarBlocos, type Andar,
 } from '../mapa'
 
 describe('limitarRet', () => {
   it('não sai da planta e respeita o tamanho mínimo', () => {
     expect(limitarRet({ x: 95, y: -5, w: 20, h: 1 })).toEqual({ x: 80, y: 0, w: 20, h: MIN_LADO })
     expect(limitarRet({ x: 10.04, y: 10, w: 200, h: 30 }).w).toBe(100)
+  })
+})
+
+describe('redimensionar', () => {
+  const o = { x: 40, y: 30, w: 40, h: 60 }
+  it('lado direito muda só a largura', () => expect(redimensionar(o, 'l', 10, 99)).toEqual({ x: 40, y: 30, w: 50, h: 60 }))
+  it('lado esquerdo segura a parede da direita', () => expect(redimensionar(o, 'o', -10, 0)).toEqual({ x: 30, y: 30, w: 50, h: 60 }))
+  it('lado de cima segura o de baixo', () => expect(redimensionar(o, 'n', 0, 10)).toEqual({ x: 40, y: 40, w: 40, h: 50 }))
+  it('não passa da planta nem do mínimo', () => {
+    expect(redimensionar(o, 'l', 50, 0).w).toBe(60)
+    expect(redimensionar(o, 'o', 80, 0)).toMatchObject({ x: 80 - MIN_LADO, w: MIN_LADO })
+    expect(redimensionar(o, 'mover', 90, 0).x).toBe(60)
   })
 })
 

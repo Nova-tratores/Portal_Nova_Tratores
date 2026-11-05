@@ -10,7 +10,7 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { OpaBarra, BTN_FAIXA } from '@/components/opa/pecas/comum'
 import PlantaLoja, { type CamadaEdicao } from '@/components/opa/mapa/PlantaLoja'
 import { useDadosMapa } from '@/components/opa/mapa/useDadosMapa'
-import { andaresOrdenados, corDoDepartamento, COR_SEM_DEPARTAMENTO, idUnico, opasPorLocal, retanguloNovo, type Bloco, type Retangulo } from '@/lib/opa/mapa'
+import { andaresOrdenados, corDoDepartamento, COR_SEM_DEPARTAMENTO, idUnico, limitarRet, opasPorLocal, retanguloNovo, type Bloco, type Retangulo } from '@/lib/opa/mapa'
 import { destinoDoLocal } from '@/lib/opa/departamentos'
 import { agruparLocais, nomeLocalCompleto } from '@/lib/opa-pecas/regras'
 
@@ -141,7 +141,7 @@ export default function MapaOpaPage() {
                   <button key={c} type="button" onClick={() => { setCamada(c); setSel(null) }} aria-pressed={camada === c}
                     style={{ ...btn(VERMELHO, camada === c), height: 30 }}>{c === 'lugares' ? <MapPin size={14} /> : <Square size={14} />} {c === 'lugares' ? 'Lugares' : 'Blocos do andar'}</button>
                 ))}
-                <span style={{ flex: 1, minWidth: 160 }}>Arraste para mover; o quadradinho do canto muda o tamanho.</span>
+                <span style={{ flex: 1, minWidth: 160 }}>Arraste para mover. Toque num item e puxe as bordas vermelhas para mudar a largura ou a altura (ou digite as medidas ao lado).</span>
                 {salvando && <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} />}
               </div>
             )}
@@ -192,6 +192,10 @@ export default function MapaOpaPage() {
                 )}
                 {editando && posSel && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <CamposMedidas key={`${posSel.local_id}-${posSel.x}-${posSel.y}-${posSel.w}-${posSel.h}`} r={posSel}
+                      onSalvar={(r) => salvar({ acao: 'posicionar', local_id: posSel.local_id, andar_id: posSel.andar_id, ...r }, () => setDados((d) => d && ({
+                        ...d, posicoes: d.posicoes.map((p) => (p.local_id === posSel.local_id ? { ...p, ...r } : p)),
+                      })))} />
                     {andares.length > 1 && (
                       <label style={{ fontSize: 13, color: 'var(--portal-text-secondary)', display: 'flex', alignItems: 'center', gap: 6 }}>
                         Andar
@@ -209,6 +213,7 @@ export default function MapaOpaPage() {
             {editando && blocoSel && (
               <section style={cartao}>
                 <h2 style={titulo}><Square size={16} color={VERMELHO} /> Bloco: {blocoSel.nome}</h2>
+                <CamposMedidas key={`${blocoSel.id}-${blocoSel.x}-${blocoSel.y}-${blocoSel.w}-${blocoSel.h}`} r={blocoSel} onSalvar={(r) => moverBloco(blocoSel.id, r)} />
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <button type="button" style={btn()} onClick={() => {
                     const nome = prompt('Nome do bloco:', blocoSel.nome)?.trim()
@@ -274,6 +279,37 @@ export default function MapaOpaPage() {
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+/** Largura/altura/posição em % da planta, para acertar na medida (ex.: alargar o Showroom).
+ *  Grava ao sair do campo ou com Enter; valores fora da planta são ajustados. */
+function CamposMedidas({ r, onSalvar }: { r: Retangulo; onSalvar: (r: Retangulo) => void }) {
+  const [v, setV] = useState({ w: String(r.w), h: String(r.h), x: String(r.x), y: String(r.y) })
+  const gravar = () => {
+    const n = (s: string, padrao: number) => { const x = Number(s.replace(',', '.')); return Number.isFinite(x) ? x : padrao }
+    const novo = limitarRet({ w: n(v.w, r.w), h: n(v.h, r.h), x: n(v.x, r.x), y: n(v.y, r.y) })
+    setV({ w: String(novo.w), h: String(novo.h), x: String(novo.x), y: String(novo.y) })
+    if (novo.w !== r.w || novo.h !== r.h || novo.x !== r.x || novo.y !== r.y) onSalvar(novo)
+  }
+  const campo = (k: keyof typeof v, rotulo: string) => (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>
+      {rotulo}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+        <input inputMode="decimal" value={v[k]} onChange={(e) => setV({ ...v, [k]: e.target.value })} onBlur={gravar}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); gravar() } }}
+          style={{ width: '100%', minWidth: 0, height: 32, padding: '0 8px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 14, fontFamily: 'inherit' }} />
+        <span style={{ fontWeight: 500, color: 'var(--portal-text-muted)' }}>%</span>
+      </span>
+    </label>
+  )
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8 }}>
+        {campo('w', 'Largura')}{campo('h', 'Altura')}{campo('x', 'Da esquerda')}{campo('y', 'Do topo')}
+      </div>
+      <p style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', margin: '6px 0 0' }}>Em % da planta. Ou puxe pelas bordas vermelhas no mapa.</p>
     </div>
   )
 }
