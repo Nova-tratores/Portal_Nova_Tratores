@@ -209,7 +209,7 @@ export default function RecebimentosPage() {
     try {
       const contaUp = String(r.conta_omie || '').toUpperCase();
       const u = `/api/estoque/danfe?numero_nf=${encodeURIComponent(r.numero_nf || '')}&serie=${encodeURIComponent(r.serie || '1')}${contaUp ? `&conta=${encodeURIComponent(contaUp)}` : ''}`;
-      const res = await fetch(u);
+      const res = await fetchAuth(u);
       const d = await res.json();
       if (d.erro) return flash(d.erro, 'err');
       if (d.url) window.open(d.url, '_blank');
@@ -340,7 +340,7 @@ function ConcluirModal({ receb, contaParam, onClose, onAbrirProduto, onSucesso, 
   const contaUp = String(receb.conta_omie || '').toUpperCase();
 
   useEffect(() => {
-    fetch(`/api/estoque/omie-categorias${contaParam}`).then((r) => r.json()).then((d) => setCategorias(d.categorias || [])).catch(() => setCategorias([]));
+    fetchAuth(`/api/estoque/omie-categorias${contaParam}`).then((r) => r.json()).then((d) => setCategorias(d.categorias || [])).catch(() => setCategorias([]));
   }, [contaParam]);
 
   const filtradas = (busca.trim()

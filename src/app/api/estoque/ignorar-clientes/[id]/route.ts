@@ -2,13 +2,17 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/estoque/supabase';
 import { invalidarIgnorarCache } from '@/lib/estoque/ignorar-clientes';
 import type { Conta } from '@/lib/estoque/conta';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 // Remove um CNPJ ignorado por id. Portado de DELETE /api/ignorar-clientes/:id
 // (server.js:7043).
-export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // Mesma regra da tela /estoque/ignorar-clientes: pode('estoque', 'ignorar-clientes').
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'ignorar-clientes' }]);
+  if (g.resposta) return g.resposta;
   try {
     const { id } = await params;
     const idNum = parseInt(id, 10);

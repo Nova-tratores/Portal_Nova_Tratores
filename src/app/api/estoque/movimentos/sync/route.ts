@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { sincronizarLote } from '@/lib/estoque/movimentos-sync';
+import { protegerRotaOuInterna } from '@/lib/auth/chamada-interna';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -17,7 +18,11 @@ function dataBRdefault(offMonths: number): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
+// Backfill pesado na Omie: só admin do Estoque (mesma chave da tela /estoque/admin)
+// ou chamada de sistema com o CRON_SECRET (curl manual do backfill).
 async function handle(req: NextRequest) {
+  const g = await protegerRotaOuInterna(req, [{ modulo: 'estoque', acao: 'admin' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta((sp.get('conta') || '').toUpperCase()) ?? 'NOVA';
   const grupo = sp.get('grupo') === 'maquina' ? 'maquina' : 'peca';
@@ -32,5 +37,5 @@ async function handle(req: NextRequest) {
   }
 }
 
-export const GET = handle;
-export const POST = handle;
+export async function GET(req: NextRequest) { return handle(req); }
+export async function POST(req: NextRequest) { return handle(req); }

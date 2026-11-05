@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { listarNotasEntrada, listarNotasEntradaTodas, pendentesRecebimentoPorNF } from '@/lib/estoque/notas-entrada';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
 // Lista de notas de entrada (paginada). Portado de /api/notas-entrada (server.js:7056).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'notas-entrada' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const sp = req.nextUrl.searchParams;
   const mes = sp.get('mes') ? parseInt(sp.get('mes')!) : undefined;

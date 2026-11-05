@@ -3,6 +3,7 @@
 // Busca por código/descrição; clicar num produto abre o Histórico dele (uso em PPVs).
 import { useEffect, useState } from "react";
 import { formatarMoeda } from "@/lib/ppv/utils";
+import { fetchAuth } from "@/lib/auth/client";
 
 interface ProdutoEstoque { codigo: string; descricao: string; estoque: number; reservados: number; estoqueReal: number; valor: number; cmc: number; conta: string }
 
@@ -23,7 +24,7 @@ export default function ModalProdutosEstoque({
     setLoading(true);
     const t = setTimeout(async () => {
       try {
-        const r = await fetch(`/api/ppv/produtos-estoque?termo=${encodeURIComponent(busca.trim())}`);
+        const r = await fetchAuth(`/api/ppv/produtos-estoque?termo=${encodeURIComponent(busca.trim())}`);
         const j = await r.json();
         if (!cancelado) setLista(Array.isArray(j.produtos) ? j.produtos : []);
       } catch { if (!cancelado) setLista([]); }

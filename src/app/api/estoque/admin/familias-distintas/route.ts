@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { parseConta } from '@/lib/estoque/conta';
 import { familiasDistintas } from '@/lib/estoque/admin';
 
@@ -8,6 +9,8 @@ export const maxDuration = 60;
 // Famílias distintas em vendas_itens com count/soma. Portado de
 // GET /api/admin/familias-distintas (server.js:2224).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'admin' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   if (!conta) return NextResponse.json({ erro: 'Informe ?conta=NOVA|CASTRO' });
   try {

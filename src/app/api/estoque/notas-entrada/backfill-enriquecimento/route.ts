@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { iniciarBackfillEnriquecimento, getBackfillStatus } from '@/lib/estoque/notas-entrada';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
 // Dispara o backfill de enriquecimento (nome emitente + categoria) em background.
 // Portado de POST /api/notas-entrada/backfill-enriquecimento (server.js:7254).
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'notas-entrada' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const sp = req.nextUrl.searchParams;
   const mes = parseInt(sp.get('mes') || '');

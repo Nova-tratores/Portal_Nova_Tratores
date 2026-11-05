@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { comprasPorProduto, clientesResumo, oportunidadesRFM, exportarOportunidadesClientes, sugestoesSazonais, sugestoesPorProduto, type GrupoFamilia } from '@/lib/estoque/inteligencia-comercial';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -9,6 +10,9 @@ export const maxDuration = 120;
 // ?aba=compras|clientes|oportunidades|export-oportunidades|sugestoes-sazonais|sugestoes-produto
 //   (+ conta; clientes aceita &grupo=; sugestoes-* aceita &mes=&lead=).
 export async function GET(req: NextRequest) {
+  // Mesma regra da tela /estoque/inteligencia-comercial: pode('estoque', 'inteligencia-comercial').
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'inteligencia-comercial' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const aba = (req.nextUrl.searchParams.get('aba') || 'compras').toLowerCase();
   try {

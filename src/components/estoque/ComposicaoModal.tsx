@@ -4,6 +4,7 @@
 // /api/estoque/cruzamento-familia/composicao.
 
 import { useEffect, useState } from 'react';
+import { fetchAuth } from '@/lib/auth/client';
 
 export interface ComposicaoParams {
   fonte: 'estoque' | 'entrada' | 'saida';
@@ -65,7 +66,7 @@ export default function ComposicaoModal({ titulo, params, contaParam, onClose, r
         if (params.tipocarac) qs.set('tipocarac', params.tipocarac);
         if (params.tipocaracExceto) { qs.set('tipocarac_exceto', JSON.stringify(params.tipocaracExceto)); qs.set('semtipo', params.incluirSemTipo ? '1' : '0'); }
         if (zerados) qs.set('zerados', '1');
-        const r = await fetch(`/api/estoque/cruzamento-familia/composicao?${qs.toString()}${contaParam}`);
+        const r = await fetchAuth(`/api/estoque/cruzamento-familia/composicao?${qs.toString()}${contaParam}`);
         const d = (await r.json()) as ComposicaoResp;
         if (!vivo) return;
         if (d.erro) { setErro(d.erro); setDados(null); return; }

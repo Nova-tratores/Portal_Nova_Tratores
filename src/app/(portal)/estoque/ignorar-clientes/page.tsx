@@ -8,6 +8,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
+import { fetchAuth } from '@/lib/auth/client';
 
 interface Registro { id: number; conta_omie: string; cnpj: string; nome?: string; nota?: string; created_at?: string }
 
@@ -46,7 +47,7 @@ export default function IgnorarClientesPage() {
 
   const carregar = useCallback(() => {
     const q = filtroConta ? `?conta=${filtroConta}` : '';
-    fetch(`/api/estoque/ignorar-clientes${q}`)
+    fetchAuth(`/api/estoque/ignorar-clientes${q}`)
       .then((r) => r.json())
       .then((d) => setLista(d.lista || []))
       .catch((ex) => setMsg({ texto: 'Erro: ' + (ex as Error).message, tipo: 'err' }));
@@ -58,7 +59,7 @@ export default function IgnorarClientesPage() {
     const limpo = cnpj.replace(/\D/g, '');
     if (limpo.length !== 14) { setMsg({ texto: 'CNPJ inválido (14 dígitos)', tipo: 'err' }); return; }
     if (!contaForm) { setMsg({ texto: 'Selecione a conta', tipo: 'err' }); return; }
-    const r = await fetch('/api/estoque/ignorar-clientes', {
+    const r = await fetchAuth('/api/estoque/ignorar-clientes', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ cnpj: limpo, nome, nota, conta_omie: contaForm }),
     });
@@ -70,7 +71,7 @@ export default function IgnorarClientesPage() {
   }, [cnpj, nome, nota, contaForm, carregar]);
 
   const remover = useCallback(async (id: number) => {
-    const r = await fetch(`/api/estoque/ignorar-clientes/${id}`, { method: 'DELETE' });
+    const r = await fetchAuth(`/api/estoque/ignorar-clientes/${id}`, { method: 'DELETE' });
     const d = await r.json();
     if (d.erro) { setMsg({ texto: d.erro, tipo: 'err' }); return; }
     setMsg({ texto: 'Removido.', tipo: 'ok' });

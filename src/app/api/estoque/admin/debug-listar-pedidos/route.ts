@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { parseConta } from '@/lib/estoque/conta';
 import { debugListarPedidos } from '@/lib/estoque/admin';
 
@@ -8,6 +9,8 @@ export const maxDuration = 300;
 // Chamada bruta a ListarPedidos classificando tudo (só leitura). Portado de
 // GET /api/admin/debug-listar-pedidos (server.js:2348).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'admin' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
   const de = (sp.get('de') || '').trim();

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/estoque/conta';
 import { consultarProduto } from '@/lib/estoque/omie';
 import { buscarCmcHistorico } from '@/lib/estoque/produtos';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -9,6 +10,8 @@ export const maxDuration = 120;
 // Histórico de CMC dos últimos 13 meses (cache + Omie nos meses faltantes).
 // Portado de /api/cmc-historico (server.js:4844).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const codigo = req.nextUrl.searchParams.get('codigo');
   if (!codigo) return NextResponse.json({ erro: 'Informe o codigo do produto' });

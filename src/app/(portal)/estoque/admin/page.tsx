@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 
@@ -46,7 +47,7 @@ export default function AdminEstoquePage() {
   const [debugBusy, setDebugBusy] = useState(false);
 
   const carregarCats = useCallback(async () => {
-    const r = await fetch('/api/estoque/admin/categorias');
+    const r = await fetchAuth('/api/estoque/admin/categorias');
     const d = (await r.json()) as Categoria[];
     setCats(Array.isArray(d) ? d : []);
   }, []);
@@ -57,7 +58,7 @@ export default function AdminEstoquePage() {
     setSalvandoCat(true);
     setCatMsg('');
     try {
-      const r = await fetch('/api/estoque/admin/categorias', {
+      const r = await fetchAuth('/api/estoque/admin/categorias', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ categorias: cats.map((c) => ({ slug: c.slug, nome: c.nome, palavras_chave: c.palavras_chave })) }),
       });
@@ -73,7 +74,7 @@ export default function AdminEstoquePage() {
     if (!conta) { setMeses({ erro: 'Selecione NOVA ou CASTRO (modo Todas não suportado aqui)' }); return; }
     setCarregandoMeses(true);
     try {
-      const r = await fetch(`/api/estoque/admin/meses-zerados?pct=${pct}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/admin/meses-zerados?pct=${pct}${contaParam}`);
       setMeses((await r.json()) as MesesResp);
     } finally {
       setCarregandoMeses(false);
@@ -82,20 +83,20 @@ export default function AdminEstoquePage() {
 
   const dispararPopular = useCallback(async (forcar: boolean) => {
     setPopMsg('Disparando…');
-    const r = await fetch(`/api/estoque/popular-cache?${forcar ? 'forcar=1&' : ''}${contaParam.replace(/^&/, '')}`);
+    const r = await fetchAuth(`/api/estoque/popular-cache?${forcar ? 'forcar=1&' : ''}${contaParam.replace(/^&/, '')}`);
     setPopMsg(JSON.stringify(await r.json()));
   }, [contaParam]);
 
   const dispararPopularOS = useCallback(async () => {
     setPopMsg('Disparando popular-os (foreground, pode demorar)…');
-    const r = await fetch(`/api/estoque/popular-os?${contaParam.replace(/^&/, '')}`);
+    const r = await fetchAuth(`/api/estoque/popular-os?${contaParam.replace(/^&/, '')}`);
     setPopMsg(JSON.stringify(await r.json()));
   }, [contaParam]);
 
   const forcarResync = useCallback(async () => {
     if (!conta) { setResyncMsg('Selecione NOVA ou CASTRO.'); return; }
     setResyncMsg('Disparando…');
-    const r = await fetch('/api/estoque/admin/forcar-resync-meses', {
+    const r = await fetchAuth('/api/estoque/admin/forcar-resync-meses', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conta }),
     });
     setResyncMsg(JSON.stringify(await r.json()));
@@ -104,7 +105,7 @@ export default function AdminEstoquePage() {
   const repopularTipo = useCallback(async () => {
     if (!conta) { setResyncMsg('Selecione NOVA ou CASTRO.'); return; }
     setResyncMsg('Repopulando produto_tipo…');
-    const r = await fetch(`/api/estoque/admin/repopular-produto-tipo${contaParam}`);
+    const r = await fetchAuth(`/api/estoque/admin/repopular-produto-tipo${contaParam}`);
     setResyncMsg(JSON.stringify(await r.json()));
   }, [conta, contaParam]);
 
@@ -115,7 +116,7 @@ export default function AdminEstoquePage() {
     setDebugOut('Carregando…');
     try {
       const ep = tipo === 'pedidos' ? 'debug-listar-pedidos' : 'debug-listar-os';
-      const r = await fetch(`/api/estoque/admin/${ep}?de=${encodeURIComponent(debugDe)}&ate=${encodeURIComponent(debugAte)}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/admin/${ep}?de=${encodeURIComponent(debugDe)}&ate=${encodeURIComponent(debugAte)}${contaParam}`);
       setDebugOut(JSON.stringify(await r.json(), null, 2));
     } finally {
       setDebugBusy(false);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { getContasOmie, type Conta } from '@/lib/estoque/conta';
 import { iniciarPopularCompras } from '@/lib/estoque/compras-sync';
 
@@ -8,6 +9,8 @@ export const maxDuration = 300;
 // GET /api/popular-compras (server.js:4237). Repopula compras_itens + notas_entrada
 // (NF-e fornecedor + contas a pagar + enriquecimento) em background, por conta.
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'admin' }]);
+  if (g.resposta) return g.resposta;
   const reqConta = (req.nextUrl.searchParams.get('conta') || '').trim();
   const contasAlvo: Conta[] =
     reqConta && reqConta.toLowerCase() !== 'todas'

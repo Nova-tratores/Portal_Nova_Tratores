@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { parseConta } from '@/lib/estoque/conta';
 import { enriquecerCMCLote } from '@/lib/estoque/cmc-admin';
 
@@ -8,6 +9,8 @@ export const maxDuration = 300;
 // Backfill de cmc_unitario num lote (foreground, paginado pela UI). Portado de
 // GET /api/admin/enriquecer-cmc (server.js:1761). ?limite=N (default 100).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'admin-cmc' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
   if (!conta) return NextResponse.json({ erro: 'Informe ?conta=NOVA|CASTRO' });

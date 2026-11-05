@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { parseConta, getContasOmie, type Conta } from '@/lib/estoque/conta';
 import { iniciarPopularCache } from '@/lib/estoque/admin';
 
@@ -8,6 +9,8 @@ export const maxDuration = 300;
 // Popula vendas (runs trimestrais) + OS em background, lock per-conta.
 // Portado de GET /api/popular-cache (server.js:1598). ?forcar=1 limpa antes.
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'admin' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
   const forcar = sp.get('forcar') === '1';

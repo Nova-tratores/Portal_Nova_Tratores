@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { parseConta } from '@/lib/estoque/conta';
 import { listarVendasCMC } from '@/lib/estoque/cmc-admin';
 
@@ -8,6 +9,8 @@ export const maxDuration = 60;
 // Lista vendas_itens com cmc_unitario (paginado, filtrável). Portado de
 // GET /api/admin/vendas-cmc (server.js:2034).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'admin-cmc' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
   if (!conta) return NextResponse.json({ erro: 'Informe ?conta=NOVA|CASTRO' });

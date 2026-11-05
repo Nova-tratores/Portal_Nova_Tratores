@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { ultimosMeses } from '@/lib/estoque/cruzamento-familia';
 import { reconciliacaoLedger } from '@/lib/estoque/reconciliacao';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -11,6 +12,9 @@ export const maxDuration = 60;
 // decomposto por bucket (compra/venda/ajuste/remessa/frete/devoluções), estoque
 // derivado do razão (âncora = estoque real de hoje).
 export async function GET(req: NextRequest) {
+  // Mesma regra da tela /estoque/cruzamento-familia: temAcesso('estoque').
+  const g = await protegerRota(req, [{ modulo: 'estoque' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const n = Math.min(48, Math.max(2, parseInt(sp.get('meses') || '12') || 12));
   const conta = parseConta((sp.get('conta') || '').toUpperCase()); // undefined = TODAS (Nova+Castro)

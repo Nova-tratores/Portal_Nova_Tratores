@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/estoque/supabase';
 import { invalidarIgnorarCache } from '@/lib/estoque/ignorar-clientes';
 import { parseConta } from '@/lib/estoque/conta';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -9,6 +10,9 @@ export const maxDuration = 60;
 // CRUD de CNPJs ignorados (vendas entre lojas etc.). Portado de
 // GET/POST /api/ignorar-clientes (server.js:7012/7024).
 export async function GET(req: NextRequest) {
+  // Mesma regra da tela /estoque/ignorar-clientes: pode('estoque', 'ignorar-clientes').
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'ignorar-clientes' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   try {
     let q = supabase.from('ignorar_clientes').select('*').order('created_at', { ascending: false });
@@ -22,6 +26,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Mesma regra da tela /estoque/ignorar-clientes: pode('estoque', 'ignorar-clientes').
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'ignorar-clientes' }]);
+  if (g.resposta) return g.resposta;
   try {
     const body = (await req.json().catch(() => ({}))) as { cnpj?: string; nome?: string; nota?: string; conta_omie?: string };
     const cnpjLimpo = (body.cnpj || '').replace(/\D/g, '');

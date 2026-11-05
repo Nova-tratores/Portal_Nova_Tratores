@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { detalheBucket } from '@/lib/estoque/reconciliacao';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -9,6 +10,9 @@ export const maxDuration = 60;
 // Composição de uma célula: movimentos do razão agregados por produto. bucket
 // vazio = todos (Δ Estoque do mês).
 export async function GET(req: NextRequest) {
+  // Mesma regra da tela /estoque/cruzamento-familia: temAcesso('estoque').
+  const g = await protegerRota(req, [{ modulo: 'estoque' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta((sp.get('conta') || '').toUpperCase()); // undefined = TODAS
   const grupo = sp.get('grupo') === 'maquina' ? 'maquina' : 'peca';

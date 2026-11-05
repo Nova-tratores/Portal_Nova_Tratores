@@ -39,7 +39,7 @@ export default function EstoqueBuscaPage() {
     setCmc(null);
     setObservacoes('');
     try {
-      const r = await fetch(`/api/estoque/buscar?codigo=${encodeURIComponent(c)}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/buscar?codigo=${encodeURIComponent(c)}${contaParam}`);
       const d = await r.json();
       if (d.erro) {
         setErro(d.erro);
@@ -53,7 +53,7 @@ export default function EstoqueBuscaPage() {
         .then((od) => setObservacoes(od?.observacao || ''))
         .catch(() => {});
       // CMC em paralelo (não bloqueia a renderização dos cards).
-      fetch(`/api/estoque/cmc-historico?codigo=${encodeURIComponent(c)}${contaParam}`)
+      fetchAuth(`/api/estoque/cmc-historico?codigo=${encodeURIComponent(c)}${contaParam}`)
         .then((res) => res.json())
         .then((cd) => {
           if (cd.cmc) setCmc((cd.cmc as Array<{ periodo: string; cmc: number }>).map((p) => ({ periodo: p.periodo, mes: 0, ano: 0, cmc: p.cmc, venda: 0, margem: 0 })));

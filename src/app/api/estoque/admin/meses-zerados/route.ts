@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { parseConta } from '@/lib/estoque/conta';
 import { detectarMesesSuspeitos } from '@/lib/estoque/admin';
 
@@ -8,6 +9,8 @@ export const maxDuration = 60;
 // Meses zerados/parciais em vendas_itens (só leitura). ?pct=N ajusta threshold.
 // Portado de GET /api/admin/meses-zerados (server.js:2196).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'admin' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
   if (!conta) return NextResponse.json({ erro: 'Informe ?conta=NOVA|CASTRO' });

@@ -3,6 +3,7 @@
 // lista os movimentos que somam aquele valor, agregados por produto.
 // Consome /api/estoque/cruzamento-familia/reconciliacao/detalhe.
 import { useEffect, useState } from 'react';
+import { fetchAuth } from '@/lib/auth/client';
 
 export interface DetalheParams { grupo: 'peca' | 'maquina'; ano: number; mes: number; bucket: string }
 interface DetalheItem { codigo_produto: number; sku: string; descricao: string; movimentos: number; qtde: number; efeito: number }
@@ -26,7 +27,7 @@ export default function RazaoDetalheModal({ titulo, params, contaParam, onClose 
         const qs = new URLSearchParams();
         qs.set('grupo', params.grupo); qs.set('ano', String(params.ano)); qs.set('mes', String(params.mes));
         if (params.bucket) qs.set('bucket', params.bucket);
-        const r = await fetch(`/api/estoque/cruzamento-familia/reconciliacao/detalhe?${qs.toString()}${contaParam}`);
+        const r = await fetchAuth(`/api/estoque/cruzamento-familia/reconciliacao/detalhe?${qs.toString()}${contaParam}`);
         const d = (await r.json()) as DetalheResp;
         if (!vivo) return;
         if (d.erro) { setErro(d.erro); setDados(null); return; }

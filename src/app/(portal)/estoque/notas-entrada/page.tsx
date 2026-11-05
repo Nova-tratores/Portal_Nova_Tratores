@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
@@ -71,7 +72,7 @@ export default function NotasEntradaPage() {
     setCarregando(true);
     setErro('');
     try {
-      const r = await fetch(`/api/estoque/notas-entrada?pagina=${pagina}${filtrosParam}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/notas-entrada?pagina=${pagina}${filtrosParam}${contaParam}`);
       const d = (await r.json()) as NotasResp;
       if (d.erro) { setErro(d.erro); return; }
       setResp(d);
@@ -110,7 +111,7 @@ export default function NotasEntradaPage() {
   const selecionarTodasPeriodo = useCallback(async () => {
     setCarregandoTodas(true);
     try {
-      const r = await fetch(`/api/estoque/notas-entrada?todas=1${filtrosParam}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/notas-entrada?todas=1${filtrosParam}${contaParam}`);
       const d = await r.json();
       if (d.erro) { alert(d.erro); return; }
       const notas = (d.notas || []) as Array<{ id: number; valor_nf: number }>;
@@ -140,7 +141,7 @@ export default function NotasEntradaPage() {
   const verContasPagar = useCallback(async (n: Nota) => {
     setTitulos((t) => ({ ...t, [n.id]: 'loading' }));
     const cnpj = n.emitente?.cnpj_cpf || '';
-    const r = await fetch(`/api/estoque/contas-pagar-nf?numero_nf=${encodeURIComponent(n.numero_nf || '')}&cnpj=${encodeURIComponent(cnpj)}&data_emissao=${encodeURIComponent(n.data_emissao || '')}${contaParam}`);
+    const r = await fetchAuth(`/api/estoque/contas-pagar-nf?numero_nf=${encodeURIComponent(n.numero_nf || '')}&cnpj=${encodeURIComponent(cnpj)}&data_emissao=${encodeURIComponent(n.data_emissao || '')}${contaParam}`);
     const d = await r.json();
     setTitulos((t) => ({ ...t, [n.id]: d.titulos || [] }));
   }, [contaParam]);
@@ -149,7 +150,7 @@ export default function NotasEntradaPage() {
     // Abre a aba SINCRONAMENTE no clique — se abrir depois do await, o browser
     // bloqueia o popup (era o motivo de "a DANFE nunca abrir").
     const w = window.open('', '_blank');
-    const r = await fetch(`/api/estoque/danfe?ncod_nf=${n.ncod_nf || ''}&numero_nf=${encodeURIComponent(n.numero_nf || '')}&serie=${encodeURIComponent(n.serie || '')}${contaParam}`);
+    const r = await fetchAuth(`/api/estoque/danfe?ncod_nf=${n.ncod_nf || ''}&numero_nf=${encodeURIComponent(n.numero_nf || '')}&serie=${encodeURIComponent(n.serie || '')}${contaParam}`);
     const d = await r.json();
     if (d.url) { if (w) w.location.href = d.url; else window.open(d.url, '_blank'); }
     else { if (w) w.close(); alert('DANFE indisponível: ' + (d.erro || '')); }
@@ -158,7 +159,7 @@ export default function NotasEntradaPage() {
   const pollStatus = useCallback(() => {
     if (pollRef.current) clearInterval(pollRef.current);
     pollRef.current = setInterval(async () => {
-      const r = await fetch(`/api/estoque/notas-entrada/backfill-enriquecimento/status?${contaParam.replace(/^&/, '')}`);
+      const r = await fetchAuth(`/api/estoque/notas-entrada/backfill-enriquecimento/status?${contaParam.replace(/^&/, '')}`);
       const d = (await r.json()) as BackfillStatus;
       setBackfill(d);
       if (!d.rodando && pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; carregar(); }
@@ -166,7 +167,7 @@ export default function NotasEntradaPage() {
   }, [contaParam, carregar]);
 
   const iniciarBackfill = useCallback(async () => {
-    const r = await fetch(`/api/estoque/notas-entrada/backfill-enriquecimento?mes=${mes}&ano=${ano}${contaParam}`, { method: 'POST' });
+    const r = await fetchAuth(`/api/estoque/notas-entrada/backfill-enriquecimento?mes=${mes}&ano=${ano}${contaParam}`, { method: 'POST' });
     const d = await r.json();
     if (d.erro && !d.status) { alert(d.erro); return; }
     setBackfill({ rodando: true, etapa: 'iniciando' });
@@ -183,7 +184,7 @@ export default function NotasEntradaPage() {
       if (fornecedor.trim()) parts.push(`fornecedor=${encodeURIComponent(fornecedor.trim())}`);
       if (descricao.trim()) parts.push(`descricao=${encodeURIComponent(descricao.trim())}`);
       const qs = (parts.length ? '&' + parts.join('&') : '') + contaParam;
-      const r = await fetch(`/api/estoque/notas-entrada/export?_=1${qs}`);
+      const r = await fetchAuth(`/api/estoque/notas-entrada/export?_=1${qs}`);
       if (!r.ok) { const d = await r.json().catch(() => ({})); alert('Erro ao exportar: ' + (d.erro || r.status)); return; }
       const blob = await r.blob();
       const url = URL.createObjectURL(blob);
@@ -204,7 +205,7 @@ export default function NotasEntradaPage() {
   const pollResolver = useCallback(() => {
     if (pollResolverRef.current) clearInterval(pollResolverRef.current);
     pollResolverRef.current = setInterval(async () => {
-      const r = await fetch(`/api/estoque/notas-entrada/resolver-fornecedores/status`);
+      const r = await fetchAuth(`/api/estoque/notas-entrada/resolver-fornecedores/status`);
       const d = (await r.json()) as ResolverStatus;
       setResolver(d);
       if (!d.rodando && pollResolverRef.current) { clearInterval(pollResolverRef.current); pollResolverRef.current = null; carregar(); }
@@ -213,7 +214,7 @@ export default function NotasEntradaPage() {
 
   const iniciarResolver = useCallback(async () => {
     if (!confirm('Buscar o nome dos fornecedores por CNPJ em todo o histórico (NOVA + CASTRO)?\n\nRoda em segundo plano e pode levar vários minutos (consulta a Omie). É seguro fechar a página — o processo continua no servidor.')) return;
-    const r = await fetch(`/api/estoque/notas-entrada/resolver-fornecedores${contaParam}`, { method: 'POST' });
+    const r = await fetchAuth(`/api/estoque/notas-entrada/resolver-fornecedores?_=1${contaParam}`, { method: 'POST' });
     const d = await r.json();
     if (!d.ok && !d.status?.rodando) { alert(d.erro || 'Não foi possível iniciar'); return; }
     setResolver(d.status || { rodando: true, etapa: 'iniciando' });

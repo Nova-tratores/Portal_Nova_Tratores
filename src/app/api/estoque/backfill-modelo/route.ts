@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/estoque/conta';
 import { iniciarBackfillModelo } from '@/lib/estoque/cmc-admin';
 
@@ -9,6 +10,8 @@ export const maxDuration = 300;
 // modelo é global (produtos não tem conta_omie); default conta=NOVA.
 // ?so_vazios=0 atualiza todos. Portado de GET /api/backfill-modelo (server.js:1913).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'admin-cmc' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta')) ?? CONTA_DEFAULT;
   const soVazios = sp.get('so_vazios') !== '0';

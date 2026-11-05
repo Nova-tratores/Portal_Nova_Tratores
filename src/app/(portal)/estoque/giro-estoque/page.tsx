@@ -10,6 +10,7 @@ import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
+import { fetchAuth } from '@/lib/auth/client';
 
 type Classe = 'excelente' | 'bom' | 'lento' | 'morto' | 'sem_giro' | 'fora_estoque';
 interface GiroItem {
@@ -49,7 +50,7 @@ export default function GiroEstoquePage() {
     setErro('');
     try {
       const famParam = familia ? `&familia=${familia}` : '';
-      const r = await fetch(`/api/estoque/giro-estoque?periodo=${periodo}${famParam}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/giro-estoque?periodo=${periodo}${famParam}${contaParam}`);
       const d = (await r.json()) as GiroResp;
       if (d.erro) { setErro(d.erro); return; }
       setResp(d);

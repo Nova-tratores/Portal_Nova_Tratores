@@ -8,6 +8,7 @@ import {
   buscarHistoricoProduto,
 } from '@/lib/estoque/produtos';
 import type { ProdutoDetalheResult } from '@/lib/estoque/types';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -17,6 +18,8 @@ const n = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
 // Cadastro completo do produto + custos + histórico mensal.
 // Portado de /api/produto-detalhe (server.js:4690).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'cadastro-produto' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const codigo = req.nextUrl.searchParams.get('codigo');
   if (!codigo) return NextResponse.json({ erro: 'Informe o codigo do produto' });

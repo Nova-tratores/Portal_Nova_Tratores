@@ -9,11 +9,12 @@ export const maxDuration = 800;
 // Cron diário do LIVRO-RAZÃO de estoque: re-sincroniza a janela recente dos produtos
 // com movimento no mês (mais desatualizados primeiro). Idempotente. Fire-and-forget
 // por padrão (Railway mantém o processo) — a request volta na hora; use ?wait=1 p/
-// aguardar (teste manual). Auth via Bearer CRON_SECRET (GitHub Action).
+// aguardar (teste manual). Auth: Bearer CRON_SECRET (GitHub Action) ou x-cron-secret.
 const CRON_SECRET = process.env.CRON_SECRET || '';
 function autorizado(req: NextRequest): boolean {
-  const auth = req.headers.get('authorization') || '';
-  return !!CRON_SECRET && auth === `Bearer ${CRON_SECRET}`;
+  if (!CRON_SECRET) return false;
+  const auth = (req.headers.get('authorization') || '').trim();
+  return auth === `Bearer ${CRON_SECRET}` || (req.headers.get('x-cron-secret') || '').trim() === CRON_SECRET;
 }
 
 async function handle(req: NextRequest) {
@@ -51,5 +52,5 @@ async function handle(req: NextRequest) {
   return NextResponse.json({ sucesso: true, disparado: true, contas, grupo, janelaDias, timestamp: new Date().toISOString() });
 }
 
-export const GET = handle;
-export const POST = handle;
+export async function GET(req: NextRequest) { return handle(req); }
+export async function POST(req: NextRequest) { return handle(req); }

@@ -10,6 +10,7 @@ import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
+import { fetchAuth } from '@/lib/auth/client';
 
 type Aba = 'compras' | 'clientes' | 'oportunidades' | 'sugestoes-sazonais' | 'sugestoes-produto';
 const ABAS: Array<{ id: Aba; label: string }> = [
@@ -284,7 +285,7 @@ function RegistrarContato({ alvo, motivos, autor, dica }: { alvo: AlvoContato; m
     if (resultado === 'nao_vendeu' && !motivoId) { alert('Escolha o motivo.'); return; }
     setSalvando(true);
     try {
-      const r = await fetch(`/api/estoque/inteligencia-comercial/contatos`, {
+      const r = await fetchAuth(`/api/estoque/inteligencia-comercial/contatos`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           codigo_produto: alvo.codigo_produto, sku: alvo.sku, descricao_produto: alvo.descricao,
@@ -350,7 +351,7 @@ function ExpandOportunidade({ produto, contaParam, motivos, autor }: {
   const carregar = useCallback(async () => {
     setErro('');
     try {
-      const r = await fetch(`/api/estoque/inteligencia-comercial/clientes-produto?produto=${encodeURIComponent(produto.codigo_produto)}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/inteligencia-comercial/clientes-produto?produto=${encodeURIComponent(produto.codigo_produto)}${contaParam}`);
       const d = await r.json();
       if (d.erro) { setErro(d.erro); return; }
       setDados(d.itens || []);
@@ -368,7 +369,7 @@ function ExpandOportunidade({ produto, contaParam, motivos, autor }: {
     if (resultado === 'nao_vendeu' && !motivoId) { alert('Escolha o motivo.'); return; }
     setSalvando(true);
     try {
-      const r = await fetch(`/api/estoque/inteligencia-comercial/contatos`, {
+      const r = await fetchAuth(`/api/estoque/inteligencia-comercial/contatos`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           codigo_produto: produto.codigo_produto, sku: produto.sku, descricao_produto: produto.descricao,
@@ -521,7 +522,7 @@ function ExpandClienteSugestoes({ row, contaParam, motivos, autor }: {
   useEffect(() => {
     let vivo = true;
     setErro('');
-    fetch(`/api/estoque/inteligencia-comercial/sugestoes-cliente?cliente=${encodeURIComponent(codCliente)}${contaParam}`)
+    fetchAuth(`/api/estoque/inteligencia-comercial/sugestoes-cliente?cliente=${encodeURIComponent(codCliente)}${contaParam}`)
       .then((r) => r.json())
       .then((d) => { if (!vivo) return; if (d.erro) setErro(d.erro); else setDados(d.itens || []); })
       .catch((ex) => { if (vivo) setErro('Erro: ' + (ex as Error).message); });
@@ -622,7 +623,7 @@ function ExpandProdutoClientes({ row, contaParam, motivos, autor }: {
     let vivo = true;
     setErro('');
     const q = isTipo ? `tipo=${encodeURIComponent(param)}` : `produto=${encodeURIComponent(param)}`;
-    fetch(`/api/estoque/inteligencia-comercial/clientes-grupo?${q}${contaParam}`)
+    fetchAuth(`/api/estoque/inteligencia-comercial/clientes-grupo?${q}${contaParam}`)
       .then((r) => r.json())
       .then((d) => { if (!vivo) return; if (d.erro) setErro(d.erro); else setDados(d.itens || []); })
       .catch((ex) => { if (vivo) setErro('Erro: ' + (ex as Error).message); });
@@ -702,7 +703,7 @@ export default function InteligenciaComercialPage() {
     setCarregando(true); setErro('');
     try {
       const gp = ab === 'clientes' && grupo !== 'ambos' ? `&grupo=${grupo}` : '';
-      const r = await fetch(`/api/estoque/inteligencia-comercial?aba=${ab}${gp}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/inteligencia-comercial?aba=${ab}${gp}${contaParam}`);
       const d = await r.json();
       if (d.erro) { setErro(d.erro); return; }
       setDados((prev) => ({ ...prev, [ab]: d.itens || [] }));
@@ -715,7 +716,7 @@ export default function InteligenciaComercialPage() {
   }, [contaParam, grupo]);
 
   // Motivos do CRM (para o <select> do form de contato).
-  useEffect(() => { fetch('/api/estoque/inteligencia-comercial/contatos').then((r) => r.json()).then((d) => setMotivos(d.motivos || [])).catch(() => {}); }, []);
+  useEffect(() => { fetchAuth('/api/estoque/inteligencia-comercial/contatos').then((r) => r.json()).then((d) => setMotivos(d.motivos || [])).catch(() => {}); }, []);
   // Recarrega ao trocar de aba/conta (invalida cache local ao mudar conta).
   useEffect(() => { setDados({ compras: null, clientes: null, oportunidades: null, 'sugestoes-sazonais': null, 'sugestoes-produto': null }); }, [contaParam]);
   // Trocar o grupo invalida a aba Clientes (re-segmenta).
@@ -725,7 +726,7 @@ export default function InteligenciaComercialPage() {
   const exportarOportunidades = useCallback(async () => {
     setExportando(true);
     try {
-      const r = await fetch(`/api/estoque/inteligencia-comercial?aba=export-oportunidades${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/inteligencia-comercial?aba=export-oportunidades${contaParam}`);
       const d = await r.json();
       if (d.erro) { alert('Erro: ' + d.erro); return; }
       const rows = (d.itens || []) as Array<Record<string, unknown>>;

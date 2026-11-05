@@ -3,6 +3,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseFetch } from "@/lib/ppv/supabase";
 import { filtroBuscaProdutos } from "@/lib/ppv/busca-produtos";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,6 +42,8 @@ async function mapaReservados(): Promise<Record<string, number>> {
 }
 
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "ppv" }]);
+  if (g.resposta) return g.resposta;
   const termo = (req.nextUrl.searchParams.get("termo") || "").trim();
   // cada palavra no código OU na descrição; sem acento; parâmetro codificado (lib/ppv/busca-produtos)
   const filtro = filtroBuscaProdutos(termo);

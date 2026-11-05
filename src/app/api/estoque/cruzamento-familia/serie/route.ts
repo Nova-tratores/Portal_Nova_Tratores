@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { serieMensal, ultimosMeses, type Dimensao } from '@/lib/estoque/cruzamento-familia';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -8,6 +9,9 @@ export const maxDuration = 60;
 // GET /api/estoque/cruzamento-familia/serie?meses=12&dimensao=tipo|categoria&conta=NOVA
 // Série mensal: Estoque Peça/Máquina + NF Entrada/Saída por tipo ou por categoria.
 export async function GET(req: NextRequest) {
+  // Mesma regra da tela /estoque/cruzamento-familia: temAcesso('estoque').
+  const g = await protegerRota(req, [{ modulo: 'estoque' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const n = Math.min(48, Math.max(2, parseInt(sp.get('meses') || '12') || 12));
   const dimRaw = sp.get('dimensao');

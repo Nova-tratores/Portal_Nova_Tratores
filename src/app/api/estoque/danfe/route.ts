@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/estoque/conta';
 import { getUrlDanfe } from '@/lib/estoque/notas-entrada';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
 // URL do DANFE (PDF). Portado de /api/danfe (server.js:7170).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'notas-entrada' }, { modulo: 'estoque', acao: 'recebimentos-omie' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const sp = req.nextUrl.searchParams;
   try {

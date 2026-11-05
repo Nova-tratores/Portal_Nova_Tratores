@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { cruzamentoPorFamilia, type TipoFamilia } from '@/lib/estoque/cruzamento-familia';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -8,6 +9,9 @@ export const maxDuration = 60;
 // GET /api/estoque/cruzamento-familia?mes=6&ano=2026&tipo=&conta=NOVA
 // Cruza estoque atual × entradas do mês × saídas (vendas) do mês, por família.
 export async function GET(req: NextRequest) {
+  // Mesma regra da tela /estoque/cruzamento-familia: temAcesso('estoque').
+  const g = await protegerRota(req, [{ modulo: 'estoque' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const agora = new Date();
   const mes = parseInt(sp.get('mes') || '') || (agora.getMonth() + 1);

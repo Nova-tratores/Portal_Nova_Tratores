@@ -9,6 +9,7 @@ import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
+import { fetchAuth } from '@/lib/auth/client';
 
 type Tab = 'abc' | 'inativos';
 type CurvaTipo = 'produto' | 'cliente' | 'familia';
@@ -58,12 +59,12 @@ export default function CurvaABCPage() {
     try {
       const famParam = familia ? `&familia=${familia}` : '';
       if (tab === 'abc') {
-        const r = await fetch(`/api/estoque/curva-abc?tipo=${tipo}&periodo=${periodo}${famParam}${contaParam}`);
+        const r = await fetchAuth(`/api/estoque/curva-abc?tipo=${tipo}&periodo=${periodo}${famParam}${contaParam}`);
         const d = (await r.json()) as ABCResp;
         if (d.erro) { setErro(d.erro); return; }
         setAbc(d);
       } else {
-        const r = await fetch(`/api/estoque/curva-abc/inativos?periodo=${periodo}${famParam}${contaParam}`);
+        const r = await fetchAuth(`/api/estoque/curva-abc/inativos?periodo=${periodo}${famParam}${contaParam}`);
         const d = (await r.json()) as InativosResp;
         if (d.erro) { setErro(d.erro); return; }
         setInativos(d);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { parseConta, getContasOmie, type Conta } from '@/lib/estoque/conta';
 import { popularOS } from '@/lib/estoque/admin';
 
@@ -8,6 +9,8 @@ export const maxDuration = 300;
 // Limpa e repopula os_mensal por conta (foreground). Portado de
 // GET /api/popular-os (server.js:1561).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'admin' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const contasAlvo: Conta[] = conta ? [conta] : getContasOmie().map((c) => c.id);
   if (contasAlvo.length === 0) return NextResponse.json({ erro: 'Nenhuma conta Omie configurada' });

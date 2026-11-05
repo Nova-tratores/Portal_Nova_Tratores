@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { exportarItensNotasEntrada } from '@/lib/estoque/notas-entrada';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -13,6 +14,8 @@ function csvCell(v: unknown): string {
 // Exporta as notas de entrada item-a-item em CSV. Params iguais à listagem
 // (conta, nf, fornecedor, descricao, mes?, ano?). Sem mes/ano => histórico inteiro.
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'notas-entrada' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const sp = req.nextUrl.searchParams;
   const mes = sp.get('mes') ? parseInt(sp.get('mes')!) : undefined;

@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
@@ -43,7 +44,7 @@ export default function AdminCMCPage() {
   const pollCMC = useCallback(() => {
     if (cmcPoll.current) clearInterval(cmcPoll.current);
     cmcPoll.current = setInterval(async () => {
-      const r = await fetch(`/api/estoque/admin/enriquecer-cmc-status${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/admin/enriquecer-cmc-status${contaParam}`);
       const d = (await r.json()) as LoopState;
       setCmcState(d);
       if (!d.rodando && cmcPoll.current) { clearInterval(cmcPoll.current); cmcPoll.current = null; }
@@ -53,7 +54,7 @@ export default function AdminCMCPage() {
   const pollModelo = useCallback(() => {
     if (modeloPoll.current) clearInterval(modeloPoll.current);
     modeloPoll.current = setInterval(async () => {
-      const r = await fetch(`/api/estoque/backfill-modelo-status${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/backfill-modelo-status${contaParam}`);
       const d = (await r.json()) as ModeloState;
       setModeloState(d);
       if (!d.rodando && modeloPoll.current) { clearInterval(modeloPoll.current); modeloPoll.current = null; }
@@ -64,7 +65,7 @@ export default function AdminCMCPage() {
 
   const iniciarCMC = useCallback(async () => {
     if (!requireConta) { alert('Selecione NOVA ou CASTRO'); return; }
-    const r = await fetch(`/api/estoque/admin/enriquecer-cmc-loop${contaParam}`);
+    const r = await fetchAuth(`/api/estoque/admin/enriquecer-cmc-loop${contaParam}`);
     const d = await r.json();
     if (d.erro) { setCmcState(d.estado || { rodando: false }); alert(d.erro); return; }
     setCmcState({ rodando: true, processados: 0 });
@@ -72,7 +73,7 @@ export default function AdminCMCPage() {
   }, [requireConta, contaParam, pollCMC]);
 
   const iniciarModelo = useCallback(async () => {
-    const r = await fetch(`/api/estoque/backfill-modelo${contaParam}`);
+    const r = await fetchAuth(`/api/estoque/backfill-modelo${contaParam}`);
     const d = await r.json();
     if (d.erro) { setModeloState(d.estado || { rodando: false }); alert(d.erro); return; }
     setModeloState({ rodando: true, pagina: 0 });
@@ -83,7 +84,7 @@ export default function AdminCMCPage() {
     if (!requireConta) { setVendas({ erro: 'Selecione NOVA ou CASTRO' }); return; }
     setCarregando(true);
     try {
-      const r = await fetch(`/api/estoque/admin/vendas-cmc?pagina=${pagina}&filtro=${filtro}&busca=${encodeURIComponent(busca)}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/admin/vendas-cmc?pagina=${pagina}&filtro=${filtro}&busca=${encodeURIComponent(busca)}${contaParam}`);
       setVendas((await r.json()) as VendasResp);
     } finally {
       setCarregando(false);

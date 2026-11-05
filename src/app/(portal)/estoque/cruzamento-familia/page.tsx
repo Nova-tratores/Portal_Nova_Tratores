@@ -4,7 +4,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
-import { authHeaders } from '@/lib/auth/client';
+import { authHeaders, fetchAuth } from '@/lib/auth/client';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
@@ -237,7 +237,7 @@ export default function CruzamentoFamiliaPage() {
     setCarregando(true);
     setErro('');
     try {
-      const r = await fetch(`/api/estoque/cruzamento-familia?mes=${mes}&ano=${ano}&tipo=${tipo}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/cruzamento-familia?mes=${mes}&ano=${ano}&tipo=${tipo}${contaParam}`);
       const d = (await r.json()) as Resp;
       if (d.erro) { setErro(d.erro); setDados(null); return; }
       setDados(d);
@@ -254,7 +254,7 @@ export default function CruzamentoFamiliaPage() {
     setSerieCarregando(true);
     setSerieErro('');
     try {
-      const r = await fetch(`/api/estoque/cruzamento-familia/serie?meses=${meses}&dimensao=${dimensao}&demo=${incluirDemo ? 1 : 0}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/cruzamento-familia/serie?meses=${meses}&dimensao=${dimensao}&demo=${incluirDemo ? 1 : 0}${contaParam}`);
       const d = (await r.json()) as SerieResp;
       if (d.erro) { setSerieErro(d.erro); setSerie(null); return; }
       setSerie(d);
@@ -271,7 +271,7 @@ export default function CruzamentoFamiliaPage() {
     setReconCarregando(true);
     setReconErro('');
     try {
-      const r = await fetch(`/api/estoque/cruzamento-familia/reconciliacao?meses=${meses}&grupo=${grupoRec}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/cruzamento-familia/reconciliacao?meses=${meses}&grupo=${grupoRec}${contaParam}`);
       const d = (await r.json()) as ReconResp;
       if (d.erro) { setReconErro(d.erro); setRecon(null); return; }
       setRecon(d);
@@ -288,7 +288,7 @@ export default function CruzamentoFamiliaPage() {
     setSerieTipoCarregando(true);
     setSerieTipoErro('');
     try {
-      const r = await fetch(`/api/estoque/cruzamento-familia/serie-tipo?meses=${mesesTipo}&semtipo=${incluirSemTipo ? 1 : 0}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/cruzamento-familia/serie-tipo?meses=${mesesTipo}&semtipo=${incluirSemTipo ? 1 : 0}${contaParam}`);
       const d = (await r.json()) as SerieTipoResp;
       if (d.erro) { setSerieTipoErro(d.erro); setSerieTipo(null); return; }
       setSerieTipo(d);

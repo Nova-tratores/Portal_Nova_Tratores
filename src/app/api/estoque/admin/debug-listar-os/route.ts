@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { parseConta } from '@/lib/estoque/conta';
 import { debugListarOS } from '@/lib/estoque/admin';
 
@@ -8,6 +9,8 @@ export const maxDuration = 300;
 // Classifica OS de um período por etapa (count + soma R$). Portado de
 // GET /api/admin/debug-listar-os (server.js:2456).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'admin' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
   const de = (sp.get('de') || '').trim();

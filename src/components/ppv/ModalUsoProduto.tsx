@@ -5,6 +5,7 @@
 // ModalProdutoEstoque).
 import { useEffect, useState } from "react";
 import ModalProdutoEstoque from "./ModalProdutoEstoque";
+import { fetchAuth } from "@/lib/auth/client";
 
 interface PpvUso {
   id: string; quantidade: number; descricao: string; preco: number;
@@ -65,7 +66,7 @@ export default function ModalUsoProduto({ open, codigo, descricao, onClose, onAb
     // Info do produto nas duas empresas (mesma fonte do popup de informações).
     setInfo(null); setInfoLoad(true);
     Promise.all(["NOVA", "CASTRO"].map((c) =>
-      fetch(`/api/estoque/buscar?codigo=${encodeURIComponent(codigo)}&conta=${c}`)
+      fetchAuth(`/api/estoque/buscar?codigo=${encodeURIComponent(codigo)}&conta=${c}`)
         .then((r) => r.json())
         .then((d) => (d?.erro ? null : { conta: c, valor_venda: d?.produto?.valor_venda, saldo: d?.estoque?.saldo, cmc: d?.estoque?.cmc, familia: d?.produto?.familia, marca: d?.produto?.marca }))
         .catch(() => null)

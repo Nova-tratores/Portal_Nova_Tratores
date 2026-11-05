@@ -1,4 +1,5 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { supabase } from '@/lib/estoque/supabase';
 import { parseDataBR } from '@/lib/estoque/utils';
 
@@ -7,7 +8,9 @@ export const maxDuration = 60;
 
 // Última sync do Supabase (lendo cache_controle). Versão simplificada de
 // GET /api/versao (server.js:1527) — só retorna { ultimaSync }.
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque' }]);
+  if (g.resposta) return g.resposta;
   let ultimaSync: string | null = null;
   try {
     const { data } = await supabase.from('cache_controle').select('ultima_data,tipo,conta_omie');

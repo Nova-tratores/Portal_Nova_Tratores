@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { clientesPorGrupo } from '@/lib/estoque/inteligencia-comercial';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -8,6 +9,9 @@ export const maxDuration = 120;
 // Clientes que compram um GRUPO de peça (para o expand da aba "Sugestões por produto").
 // GET ?tipo=<Tipo>&conta=  OU  ?produto=<codigo_produto>&conta=  (opcional &mes=&lead=)
 export async function GET(req: NextRequest) {
+  // Mesma regra da tela /estoque/inteligencia-comercial: pode('estoque', 'inteligencia-comercial').
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'inteligencia-comercial' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const sp = req.nextUrl.searchParams;
   const tipo = sp.get('tipo') || undefined;

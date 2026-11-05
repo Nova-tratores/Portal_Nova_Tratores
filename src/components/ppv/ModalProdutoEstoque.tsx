@@ -49,7 +49,7 @@ export default function ModalProdutoEstoque({ open, codigo, descricao, onClose }
     const CONTAS = ["NOVA", "CASTRO"];
     Promise.all(
       CONTAS.map((c) =>
-        fetch(`/api/estoque/buscar?codigo=${encodeURIComponent(codigo)}&conta=${c}`)
+        fetchAuth(`/api/estoque/buscar?codigo=${encodeURIComponent(codigo)}&conta=${c}`)
           .then((r) => r.json())
           .then((d) => ({ conta: c, dados: d?.erro ? null : (d as BuscarResult) }))
           .catch(() => ({ conta: c, dados: null }))

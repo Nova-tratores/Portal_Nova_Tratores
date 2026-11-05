@@ -3,6 +3,7 @@ import { parseConta } from '@/lib/estoque/conta';
 import { consultarProduto, consultarEstoque } from '@/lib/estoque/omie';
 import { buscarVendasPeriodos, buscarVendasLista, buscarComprasLista } from '@/lib/estoque/produtos';
 import type { BuscarResult } from '@/lib/estoque/types';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -10,6 +11,8 @@ export const maxDuration = 60;
 // Busca rápida de produto: cadastro Omie + estoque + cards de venda + listas.
 // Portado de /api/buscar (server.js:4473).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque' }, { modulo: 'ppv' }, { modulo: 'pos' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const codigo = req.nextUrl.searchParams.get('codigo');
   if (!codigo) return NextResponse.json({ erro: 'Informe o codigo do produto' });

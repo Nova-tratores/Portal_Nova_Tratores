@@ -4,6 +4,7 @@
 // monolito já gravava, então a seleção do usuário carrega para o portal nativo.
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { fetchAuth } from '@/lib/auth/client';
 
 function lerContaSalva(): string {
   if (typeof window === 'undefined') return '';
@@ -40,7 +41,7 @@ export function ContaProvider({ children }: { children: React.ReactNode }) {
 
   // Lista de contas configuradas no backend.
   useEffect(() => {
-    fetch('/api/estoque/contas')
+    fetchAuth('/api/estoque/contas')
       .then((r) => r.json())
       .then((d) => setContas(d.contas || []))
       .catch(() => setContas([]));

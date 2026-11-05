@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { composicao, type ComposicaoFiltro } from '@/lib/estoque/cruzamento-familia';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -9,6 +10,9 @@ export const maxDuration = 60;
 //   ?fonte=estoque|entrada|saida&mes=&ano=&grupo=peca|maquina&categoria=&familia=&conta=
 // Lista os itens que compõem o valor de uma célula (popup de drill-down).
 export async function GET(req: NextRequest) {
+  // Mesma regra da tela /estoque/cruzamento-familia: temAcesso('estoque').
+  const g = await protegerRota(req, [{ modulo: 'estoque' }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const fonteRaw = sp.get('fonte') || '';
   const fonte = (['estoque', 'entrada', 'saida'].includes(fonteRaw) ? fonteRaw : 'estoque') as ComposicaoFiltro['fonte'];

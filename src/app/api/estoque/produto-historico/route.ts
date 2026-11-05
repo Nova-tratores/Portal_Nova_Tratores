@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/estoque/conta';
 import { consultarProduto } from '@/lib/estoque/omie';
 import { buscarHistoricoProduto } from '@/lib/estoque/produtos';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
@@ -9,6 +10,8 @@ export const maxDuration = 300;
 // Histórico CMC + venda + margem com período variável (12/24/36/48 meses).
 // Portado de /api/produto-historico (server.js:4825).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'cadastro-produto' }]);
+  if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const codigo = req.nextUrl.searchParams.get('codigo');
   const periodo = parseInt(req.nextUrl.searchParams.get('periodo') || '12', 10) || 12;

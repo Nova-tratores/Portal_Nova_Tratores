@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
+import { fetchAuth } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import CmcChart from '@/components/estoque/CmcChart';
@@ -28,7 +29,7 @@ export default function CadastroProdutoPage() {
   const carregarHistorico = useCallback(
     async (cod: string, per: number) => {
       try {
-        const r = await fetch(`/api/estoque/produto-historico?codigo=${encodeURIComponent(cod)}&periodo=${per}${contaParam}`);
+        const r = await fetchAuth(`/api/estoque/produto-historico?codigo=${encodeURIComponent(cod)}&periodo=${per}${contaParam}`);
         const d = await r.json();
         if (d.historico) setHistorico(d.historico as HistoricoPonto[]);
       } catch {
@@ -46,7 +47,7 @@ export default function CadastroProdutoPage() {
     setDados(null);
     setHistorico(null);
     try {
-      const r = await fetch(`/api/estoque/produto-detalhe?codigo=${encodeURIComponent(c)}${contaParam}`);
+      const r = await fetchAuth(`/api/estoque/produto-detalhe?codigo=${encodeURIComponent(c)}${contaParam}`);
       const d = await r.json();
       if (d.erro) {
         setErro(d.erro);
