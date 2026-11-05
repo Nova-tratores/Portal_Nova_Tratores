@@ -13,11 +13,14 @@ function esc(v: unknown): string {
 const num = (n: number, casas = 2) => n.toLocaleString('pt-BR', { minimumFractionDigits: casas, maximumFractionDigits: casas });
 const texto = (s: string | null) => (s ? esc(s).replace(/\n+/g, '<br>') : '<span class="vazio">Não registrado</span>');
 
-function linhaServico(rotulo: string, qtd: number, unidade: string, valor: number): string {
-  if (valor <= 0.004 && qtd <= 0.004) return `<div class="item"><span>${rotulo}</span><b>—</b></div>`;
+function linhaServico(rotulo: string, qtd: number, pedida: number, unidade: string, valor: number): string {
+  const recusada = Math.max(0, pedida - qtd);
+  const pedido = pedida > 0.004 && Math.abs(pedida - qtd) > 0.004
+    ? ` <small>de ${num(pedida)} pedidas · <span class="nao">${num(recusada)} ${unidade} recusada(s)</span></small>` : '';
+  if (valor <= 0.004 && qtd <= 0.004) return `<div class="item"><span>${rotulo}${pedido}</span><b>—</b></div>`;
   const unit = valorUnitario(valor, qtd);
   const conta = unit != null ? `${num(qtd)} ${unidade} × ${fmtMoeda(unit)} = ` : qtd > 0 ? `${num(qtd)} ${unidade} · ` : '';
-  return `<div class="item"><span>${rotulo}</span><b>${esc(conta)}${esc(fmtMoeda(valor))}</b></div>`;
+  return `<div class="item"><span>${rotulo}${pedido}</span><b>${esc(conta)}${esc(fmtMoeda(valor))}</b></div>`;
 }
 
 function blocoNfse(g: GarantiaDetalhada): string {
@@ -74,8 +77,8 @@ function blocoGarantia(g: GarantiaDetalhada): string {
   </div>
   ${recusa}
   <div class="valores">
-    ${linhaServico('Mão de obra', g.horas, 'h', g.valorHoras)}
-    ${linhaServico('Deslocamento', g.km, 'km', g.valorKm)}
+    ${linhaServico('Mão de obra', g.horas, g.horasPedidas, 'h', g.valorHoras)}
+    ${linhaServico('Deslocamento', g.km, g.kmPedidos, 'km', g.valorKm)}
     <div class="item"><span>Peças pagas em dinheiro</span><b>${g.pecasDinheiro ? esc(fmtMoeda(g.pecasDinheiro)) : '—'}</b></div>
     <div class="item"><span>Peças repostas pela fábrica</span><b>${
       g.pecasReposicaoChegou + g.pecasReposicaoAChegar > 0.004
@@ -102,8 +105,8 @@ export function htmlImpressaoDetalhada(gs: GarantiaDetalhada[], filtros: string)
     <td class="nw"><b>${esc(g.numero)}</b>${g.aprovada ? '' : ' <span class="nao">recusada</span>'}<div class="mini">${esc(g.sg ? 'SG ' + g.sg : '')}</div></td>
     <td class="nw">${esc(g.os)}</td>
     <td>${esc(g.cliente || '—')}</td>
-    <td class="num">${esc(fmtMoeda(g.valorHoras))}${g.horas ? `<div class="mini">${esc(num(g.horas))} h</div>` : ''}</td>
-    <td class="num">${esc(fmtMoeda(g.valorKm))}${g.km ? `<div class="mini">${esc(num(g.km, 0))} km</div>` : ''}</td>
+    <td class="num">${esc(fmtMoeda(g.valorHoras))}${g.horas || g.horasPedidas ? `<div class="mini">${esc(num(g.horas))} de ${esc(num(g.horasPedidas))} h</div>` : ''}</td>
+    <td class="num">${esc(fmtMoeda(g.valorKm))}${g.km || g.kmPedidos ? `<div class="mini">${esc(num(g.km, 0))} de ${esc(num(g.kmPedidos, 0))} km</div>` : ''}</td>
     <td class="num">${esc(fmtMoeda(g.pecasDinheiro))}</td>
     <td class="num"><b>${esc(fmtMoeda(dinheiroDe(g)))}</b><div class="mini">${!g.aprovada ? '' : g.nfse.situacao === 'emitida' ? 'NFS-e ' + esc(g.nfse.numero || '?') : g.nfse.situacao === 'pendente' || dinheiroDe(g) > 0.004 ? '<span class="atencao">sem NFS-e</span>' : ''}</div></td>
     <td class="num">${esc(fmtMoeda(g.pecasReposicaoChegou + g.pecasReposicaoAChegar))}${g.pecasReposicaoAChegar > 0.004 ? `<div class="mini atencao">a chegar ${esc(fmtMoeda(g.pecasReposicaoAChegar))}</div>` : ''}</td>
@@ -189,8 +192,8 @@ export function htmlImpressaoDetalhada(gs: GarantiaDetalhada[], filtros: string)
   <div class="comp-lados">
     <div class="comp">
       <div class="comp-t">Pago em dinheiro (NFS-e de reembolso)<b>${esc(fmtMoeda(dinheiro))}</b></div>
-      <div class="item"><span>Mão de obra · ${esc(num(t.horas))} h</span><b>${esc(fmtMoeda(t.valorHoras))}</b></div>
-      <div class="item"><span>Deslocamento · ${esc(num(t.km, 0))} km</span><b>${esc(fmtMoeda(t.valorKm))}</b></div>
+      <div class="item"><span>Mão de obra · ${esc(num(t.horas))} h pagas de ${esc(num(t.horasPedidas))}</span><b>${esc(fmtMoeda(t.valorHoras))}</b></div>
+      <div class="item"><span>Deslocamento · ${esc(num(t.km, 0))} km pagos de ${esc(num(t.kmPedidos, 0))}</span><b>${esc(fmtMoeda(t.valorKm))}</b></div>
       <div class="item"><span>Peças pagas em dinheiro</span><b>${esc(fmtMoeda(t.pecasDinheiro))}</b></div>
       <div class="item forte"><span class="ok">Com NFS-e já emitida · ${t.dinheiroNfEmitida.qtd} garantia(s)</span><b class="ok">${esc(fmtMoeda(t.dinheiroNfEmitida.valor))}</b></div>
       <div class="item forte"><span class="${t.dinheiroSemNf.qtd ? 'atencao' : ''}">Ainda sem NFS-e · ${t.dinheiroSemNf.qtd} garantia(s)</span><b class="${t.dinheiroSemNf.qtd ? 'atencao' : ''}">${esc(fmtMoeda(t.dinheiroSemNf.valor))}</b></div>

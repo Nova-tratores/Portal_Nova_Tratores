@@ -46,7 +46,7 @@ const peca = (situacao: PecaDetalhe['situacao'], valor: number, quantidade = 1):
   ({ cod: 'X', descricao: 'x', quantidade, valor, situacao, nota: null, marcada: true, pago: 0 });
 const gar = (o: Partial<GarantiaDetalhada>): GarantiaDetalhada => ({
   id: '1', numero: 'GAR', sg: null, os: 'OS', cliente: null, chassi: null, modelo: null, montadora: null, aprovada: true,
-  finalizada_em: null, tecnico: null, horas: 0, km: 0, valorHoras: 0, valorKm: 0, valorPecas: 0,
+  finalizada_em: null, tecnico: null, horas: 0, km: 0, horasPedidas: 0, kmPedidos: 0, valorHoras: 0, valorKm: 0, valorPecas: 0,
   pecasDinheiro: 0, pecasReposicaoChegou: 0, pecasReposicaoAChegar: 0, total: 0,
   nfse: { situacao: 'nao_precisa', numero: null, data: null, confirmada: false }, pecas: [],
   servico: { reclamacao: null, diagnostico: null, executado: null }, motivoRecusa: null, recusadoPor: null,

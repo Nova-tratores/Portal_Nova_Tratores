@@ -31,6 +31,7 @@ import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import NotasGarantiaPainel from './NotasGarantia';
 import PecasFabricaPainel from './PecasFabrica';
+import PagoPelaFabrica from './PagoPelaFabrica';
 
 interface Props {
   garantiaId: string;
@@ -1960,10 +1961,10 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                       <div>
                         Pago em garantia: <strong style={{ color: '#16a34a' }}>{fmtMoeda(g.valor_pago_total)}</strong>
                       </div>
-                      <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
-                        Horas: {fmtMoeda(g.valor_pago_horas)} · KM: {fmtMoeda(g.valor_pago_km)}
-                        {g.valor_pago_pecas != null && g.valor_pago_pecas > 0 ? ` · Peças: ${fmtMoeda(g.valor_pago_pecas)}` : ''}
-                      </div>
+                      {g.valor_pago_pecas != null && g.valor_pago_pecas > 0 && (
+                        <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>Peças: {fmtMoeda(g.valor_pago_pecas)}</div>
+                      )}
+                      <PagoPelaFabrica g={g} podeEditar={!!(podeAnalisar || podeFinalizar)} onSalvo={() => { carregar(); onSaved(); }} />
                       {g.pecas.filter((p) => p.resultado === 'rejeitada').length > 0 && (
                         <div style={{ fontSize: 11, color: '#dc2626' }}>
                           {g.pecas.filter((p) => p.resultado === 'rejeitada').length} peça(s) não foram pagas pela fábrica.

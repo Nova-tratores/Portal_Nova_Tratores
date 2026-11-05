@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
-import { TBL_GARANTIAS, VALOR_HORA, VALOR_KM, STATUS_FINALIZADOS } from '@/lib/garantias/constants';
+import { TBL_GARANTIAS, STATUS_FINALIZADOS, valoresFabrica } from '@/lib/garantias/constants';
 import type { RelatorioMontadora } from '@/lib/garantias/types';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
 
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from(TBL_GARANTIAS)
-    .select('*, montadora:garantia_montadoras(id,nome,cor)');
+    .select('*, montadora:garantia_montadoras(id,nome,cor,valor_hora,valor_km)');
   if (de) query = query.gte(campoData, de);
   if (ate) query = query.lte(campoData, `${ate}T23:59:59`);
 
@@ -91,7 +91,7 @@ export async function GET(req: NextRequest) {
     // Cancelada por DUPLICAÇÃO fica fora de TUDO — contar horas/qtd dela
     // seria contar o mesmo caso duas vezes (a original já conta).
     if (g.status === 'cancelada') continue;
-    const mont = g.montadora as { id: string; nome: string; cor: string | null } | null;
+    const mont = g.montadora as { id: string; nome: string; cor: string | null; valor_hora?: number | null; valor_km?: number | null } | null;
     const chave = mont?.id || 'sem_montadora';
     if (!grupos[chave]) grupos[chave] = novo(mont?.id || null, mont?.nome || 'Sem montadora', mont?.cor || null);
     const acc = grupos[chave];
@@ -115,7 +115,9 @@ export async function GET(req: NextRequest) {
       acc.lucro += Number(g.valor_pago_total) || 0;
       const h = g.garantista_horas != null ? Number(g.garantista_horas) : Number(g.tecnico_horas) || 0;
       const k = g.garantista_km != null ? Number(g.garantista_km) : Number(g.tecnico_km) || 0;
-      acc.prejuizo += h * VALOR_HORA + k * VALOR_KM;
+      // o que ESTA fábrica pagaria por hora/km (Mahindra 121/2,10, Kuhn 130/1,50…)
+      const fab = valoresFabrica(mont);
+      acc.prejuizo += h * fab.hora + k * fab.km;
       totais.qtd_finalizadas++;
 
       // Cobrança ao cliente — só faz sentido em rejeitadas

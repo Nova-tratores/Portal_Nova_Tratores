@@ -270,6 +270,9 @@ export interface Garantia {
   guarda_descartada_em: string | null;
   guarda_obs: string | null;
   guarda_alertado_em: string | null;       // DATE — anti-spam do "já pode descartar"
+  // Horas/km que a fábrica realmente pagou (DRVG) — sql/garantias-pago-fabrica.sql
+  fabrica_horas_pagas?: number | null;
+  fabrica_km_pagos?: number | null;
   created_at: string;
   updated_at: string;
 }

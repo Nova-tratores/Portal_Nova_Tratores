@@ -2,7 +2,8 @@
 // Junta garantia + peças (e a nota em que chegaram) + NFS-e de reembolso +
 // serviço executado da OS. Regras em relatorio-detalhado.ts.
 import { supabase } from '@/lib/pos/supabase';
-import { TBL_GARANTIAS } from './constants';
+import { TBL_GARANTIAS, valoresFabrica } from './constants';
+import { pagoDaGarantia } from './pago-fabrica';
 import { pecasAprovadasDasGarantias, nfseReembolsoDasGarantias, precisaNfseReembolso } from './notas-server';
 import { textosDoServico, situacaoDaPeca, repartirPecas, type GarantiaDetalhada, type PecaDetalhe } from './relatorio-detalhado';
 
@@ -18,12 +19,13 @@ type LinhaG = {
   finalizada_em: string | null; created_at: string; checklist_respostas: Record<string, unknown> | null;
   motivo_recusa: string | null; recusado_por: string | null; cobranca_status: string | null; cobranca_valor_total: number | null;
   reembolso_dispensado?: boolean | null;
-  montadora: { nome: string } | null; pecas: LinhaPeca[] | null;
+  fabrica_horas_pagas?: number | null; fabrica_km_pagos?: number | null;
+  montadora: { nome: string; valor_hora?: number | null; valor_km?: number | null } | null; pecas: LinhaPeca[] | null;
 };
 
 const COLS = 'id, numero, numero_externo, id_ordem, cliente, chassis, modelo, status, tecnico_nome, tecnico_horas, tecnico_km, '
   + 'garantista_horas, garantista_km, valor_pago_horas, valor_pago_km, valor_pago_pecas, valor_pago_total, finalizada_em, created_at, '
-  + 'checklist_respostas, motivo_recusa, recusado_por, cobranca_status, cobranca_valor_total, montadora:garantia_montadoras(nome)';
+  + 'checklist_respostas, motivo_recusa, recusado_por, cobranca_status, cobranca_valor_total, montadora:garantia_montadoras(nome, valor_hora, valor_km)';
 
 async function lerGarantias(ids: string[]): Promise<LinhaG[]> {
   const out: LinhaG[] = [];
@@ -32,7 +34,8 @@ async function lerGarantias(ids: string[]): Promise<LinhaG[]> {
     const ler = (extra: string, pecaExtra: string) => supabase.from(TBL_GARANTIAS)
       .select((COLS + extra + ', pecas:garantia_pecas(id, cod_produto, descricao, quantidade, preco_unitario, resultado' + pecaExtra + ')') as string)
       .in('id', lote);
-    let { data, error } = await ler(', reembolso_dispensado', ', forma_reembolso');
+    let { data, error } = await ler(', reembolso_dispensado, fabrica_horas_pagas, fabrica_km_pagos', ', forma_reembolso');
+    if (error && error.code === '42703') ({ data, error } = await ler(', reembolso_dispensado', ', forma_reembolso'));
     if (error && error.code === '42703') ({ data, error } = await ler('', ', forma_reembolso'));
     if (error && error.code === '42703') ({ data, error } = await ler('', ''));
     if (error) throw new Error(error.message);
@@ -81,6 +84,7 @@ export async function detalharGarantias(ids: string[]): Promise<GarantiaDetalhad
       const t = tec.get(g.id_ordem);
       const o = os.get(g.id_ordem);
       const valorPecas = Number(g.valor_pago_pecas) || 0;
+      const pago = pagoDaGarantia(g, valoresFabrica(g.montadora));
       const pecas: PecaDetalhe[] = (g.pecas || [])
         .filter((p) => !/^MDI/i.test(String(p.cod_produto || '')))
         .map((p) => {
@@ -112,9 +116,11 @@ export async function detalharGarantias(ids: string[]): Promise<GarantiaDetalhad
         aprovada,
         finalizada_em: g.finalizada_em,
         tecnico: g.tecnico_nome || t?.TecResp1 || null,
-        // horas/km que a fábrica considerou (garantista); sem isso, as do técnico
-        horas: Number(g.garantista_horas ?? g.tecnico_horas) || 0,
-        km: Number(g.garantista_km ?? g.tecnico_km) || 0,
+        // pagas pela fábrica (informadas da DRVG, senão valor ÷ taxa) × pedidas
+        horas: pago.horas.pagas,
+        km: pago.km.pagas,
+        horasPedidas: pago.horas.pedidas,
+        kmPedidos: pago.km.pedidas,
         valorHoras,
         valorKm,
         valorPecas,

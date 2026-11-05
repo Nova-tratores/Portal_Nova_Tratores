@@ -37,8 +37,12 @@ export interface GarantiaDetalhada {
   aprovada: boolean;
   finalizada_em: string | null;
   tecnico: string | null;
+  /** horas/km PAGOS pela fábrica */
   horas: number;
   km: number;
+  /** horas/km que pedimos (garantista, senão técnico) */
+  horasPedidas: number;
+  kmPedidos: number;
   valorHoras: number;
   valorKm: number;
   valorPecas: number;
@@ -149,6 +153,8 @@ export interface TotaisDetalhados {
   recusadas: number;
   horas: number;
   km: number;
+  horasPedidas: number;
+  kmPedidos: number;
   valorHoras: number;
   valorKm: number;
   valorPecas: number;
@@ -164,7 +170,7 @@ export interface TotaisDetalhados {
 
 export function totaisDetalhados(gs: GarantiaDetalhada[]): TotaisDetalhados {
   const t: TotaisDetalhados = {
-    qtd: gs.length, aprovadas: 0, recusadas: 0, horas: 0, km: 0, valorHoras: 0, valorKm: 0, valorPecas: 0, total: 0,
+    qtd: gs.length, aprovadas: 0, recusadas: 0, horas: 0, km: 0, horasPedidas: 0, kmPedidos: 0, valorHoras: 0, valorKm: 0, valorPecas: 0, total: 0,
     dinheiroNfEmitida: { qtd: 0, valor: 0 }, dinheiroSemNf: { qtd: 0, valor: 0 }, pecasDinheiro: 0,
     reposicaoChegou: { itens: 0, valor: 0 }, reposicaoAChegar: { itens: 0, valor: 0 },
   };
@@ -175,7 +181,7 @@ export function totaisDetalhados(gs: GarantiaDetalhada[]): TotaisDetalhados {
     t.valorPecas += g.valorPecas;
     t.total += g.total;
     t.pecasDinheiro += g.pecasDinheiro;
-    if (g.aprovada) { t.horas += g.horas; t.km += g.km; }
+    if (g.aprovada) { t.horas += g.horas; t.km += g.km; t.horasPedidas += g.horasPedidas; t.kmPedidos += g.kmPedidos; }
     const dinheiro = g.valorHoras + g.valorKm + g.pecasDinheiro;
     if (Math.abs(dinheiro) > 0.004) {
       const alvo = g.nfse.situacao === 'emitida' ? t.dinheiroNfEmitida : t.dinheiroSemNf;
