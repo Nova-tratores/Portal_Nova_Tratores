@@ -20,7 +20,12 @@ export async function definirPagoFabrica(id: string, horas: number, km: number, 
   let { data, error } = await ler(', fabrica_horas_pagas, fabrica_km_pagos');
   if (error && error.code === '42703') { colunas = false; ({ data, error } = await ler('')); }
   if (error) return { ok: false as const, status: 500, erro: error.message };
-  const g = data as unknown as Record<string, unknown> & { montadora: { nome: string; valor_hora: number | null; valor_km: number | null } | null } | null;
+  const g = data as unknown as {
+    status: string; tecnico_horas: number | null; tecnico_km: number | null; garantista_horas: number | null; garantista_km: number | null;
+    valor_pago_horas: number | null; valor_pago_km: number | null; valor_pago_total: number | null;
+    fabrica_horas_pagas?: number | null; fabrica_km_pagos?: number | null;
+    montadora: { nome: string; valor_hora: number | null; valor_km: number | null } | null;
+  } | null;
   if (!g) return { ok: false as const, status: 404, erro: 'Garantia não encontrada.' };
   if (g.status !== 'aprovada') return { ok: false as const, status: 409, erro: 'Só dá para informar o que a fábrica pagou numa garantia aprovada.' };
 
