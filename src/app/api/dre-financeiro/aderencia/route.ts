@@ -14,6 +14,7 @@ import {
   tabelaPorTipo, colunaNomePorTipo, aplicarConta,
 } from '@/lib/dre-financeiro/calc'
 import { hoje, fmtISO } from '@/lib/dre-financeiro/dates'
+import { paginar } from '@/lib/db/paginar'
 
 export const dynamic = 'force-dynamic'
 
@@ -60,12 +61,10 @@ export async function GET(request: NextRequest) {
       const tabela = tabelaPorTipo(t)
       const colNome = colunaNomePorTipo(t)
       // Pega titulos cujo vencimento OU pagamento caiu na janela
-      let q: any = supabase.from(tabela)
+      // em páginas: o .limit() acima de 1000 não escapa do corte do PostgREST
+      const { data, error } = await paginar<any>((de, ate) => (aplicarConta(supabase!.from(tabela)
         .select(`codigo_lancamento,data_vencimento,data_pagamento,valor_documento,valor_pago,status_titulo,numero_documento_fiscal,numero_documento,${colNome}`)
-        .or(`and(data_vencimento.gte.${deStr},data_vencimento.lte.${ateStr}),and(data_pagamento.gte.${deStr},data_pagamento.lte.${ateStr})`)
-        .limit(50000)
-      q = aplicarConta(q, conta)
-      const { data, error } = await q
+        .or(`and(data_vencimento.gte.${deStr},data_vencimento.lte.${ateStr}),and(data_pagamento.gte.${deStr},data_pagamento.lte.${ateStr})`), conta) as any).order('id').range(de, ate))
       if (error) throw new Error(error.message)
       ;(data || []).forEach((r: any) => todasRows.push({ ...r, _tipo: t, _nome: r[colNome] || null }))
     }

@@ -1344,11 +1344,12 @@ async function calcularCicloCaixa(meses) {
 
   // 2. Contas a receber em aberto (exclui PAGO/RECEBIDO/LIQUIDADO/CANCELADO)
   const aReceber = { nova: 0, castro: 0 };
-  const { data: cr } = await supabase.from('contas_receber')
+  // selectPaginado: o .limit(100000) NAO escapa do corte de 1000 linhas do PostgREST
+  const cr = await selectPaginado(() => supabase.from('contas_receber')
     .select('conta_omie,valor_documento,valor_pago,status_titulo')
     .neq('status_titulo', 'PAGO').neq('status_titulo', 'RECEBIDO')
     .neq('status_titulo', 'LIQUIDADO').neq('status_titulo', 'CANCELADO')
-    .limit(100000);
+    .order('id'));
   (cr || []).forEach(r => {
     const k = String(r.conta_omie).toLowerCase();
     if (!(k in aReceber)) return;
@@ -1357,10 +1358,10 @@ async function calcularCicloCaixa(meses) {
 
   // 3. Contas a pagar em aberto
   const aPagar = { nova: 0, castro: 0 };
-  const { data: cp } = await supabase.from('contas_pagar')
+  const cp = await selectPaginado(() => supabase.from('contas_pagar')
     .select('conta_omie,valor_documento,valor_pago,status_titulo')
     .neq('status_titulo', 'PAGO').neq('status_titulo', 'LIQUIDADO').neq('status_titulo', 'CANCELADO')
-    .limit(100000);
+    .order('id'));
   (cp || []).forEach(r => {
     const k = String(r.conta_omie).toLowerCase();
     if (!(k in aPagar)) return;
@@ -1369,8 +1370,9 @@ async function calcularCicloCaixa(meses) {
 
   // 4. Estoque (valor) - hoje so NOVA tem produtos no supabase
   const estoque = { nova: 0, castro: 0 };
-  const { data: pr } = await supabase.from('produtos')
-    .select('conta_omie,valor_estoque').eq('inativo', false).eq('arquivado', false).gt('valor_estoque', 0).limit(20000);
+  const pr = await selectPaginado(() => supabase.from('produtos')
+    .select('conta_omie,valor_estoque').eq('inativo', false).eq('arquivado', false).gt('valor_estoque', 0)
+    .order('conta_omie').order('codigo_produto'));
   (pr || []).forEach(r => {
     const k = String(r.conta_omie).toLowerCase();
     if (!(k in estoque)) return;
@@ -2353,11 +2355,11 @@ async function detectarPedidosInvalidos(conta, opts) {
     // Mapeia pra heuristica: precisa do data_pedido da venda MAIS RECENTE de cada codigo
     let datasRecentes = {};
     if (heuristicaFallback) {
-      const { data: rows } = await supabase.from('vendas_itens')
+      const rows = await selectPaginado(() => supabase.from('vendas_itens')
         .select('codigo_produto,data_pedido')
         .ilike('conta_omie', slug.toUpperCase())
         .order('data_pedido', { ascending: false })
-        .limit(50000);
+        .order('id'));
       (rows||[]).forEach(r => {
         const cp = String(r.codigo_produto);
         if (!datasRecentes[cp]) datasRecentes[cp] = r.data_pedido;

@@ -8,6 +8,7 @@ import {
 import { fmtISO, hoje, addDias } from '@/lib/dre-financeiro/dates'
 // @ts-ignore - modulo CommonJS sem tipos
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
+import { paginar } from '@/lib/db/paginar'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,14 +43,12 @@ export async function GET(request: NextRequest) {
     // Busca pagar e receber dentro do range
     async function buscaTipo(tipo: string) {
       const tabela = tabelaPorTipo(tipo)
-      let q = db.from(tabela)
+      // em páginas: o .limit() acima de 1000 não escapa do corte do PostgREST
+      const { data, error } = await paginar<any>((de, ate) => (aplicarConta(db.from(tabela)
         .select('data_vencimento,valor_documento,valor_pago,data_pagamento')
         .gte('data_vencimento', dataInicio)
         .lte('data_vencimento', dataFim)
-        .or('status_titulo.is.null,status_titulo.neq.CANCELADO') // título cancelado não entra (15/10/2026)
-        .limit(50000)
-      q = aplicarConta(q, conta)
-      const { data, error } = await q
+        .or('status_titulo.is.null,status_titulo.neq.CANCELADO'), conta) as any).order('id').range(de, ate)) // título cancelado não entra (15/10/2026)
       if (error) throw new Error(error.message)
       return data || []
     }

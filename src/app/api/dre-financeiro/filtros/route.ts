@@ -11,6 +11,7 @@ import {
   CONTA_PADRAO, TIPO_PADRAO, TIPOS_VALIDOS,
   tabelaPorTipo, colunaNomePorTipo, aplicarConta,
 } from '@/lib/dre-financeiro/calc'
+import { paginar } from '@/lib/db/paginar'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +33,11 @@ function pegaTipo(request: NextRequest): string {
   return (TIPOS_VALIDOS as Set<string>).has(t) ? t : 'pagar'
 }
 
+// A lista sai de TODOS os títulos (~40 mil, lidos em páginas) e muda pouco:
+// guarda 30 min por conta|tipo para não reler a tabela a cada abertura do Calendário.
+const CACHE_MS = 30 * 60_000
+const cache = ((globalThis as unknown as { __dreFiltros?: Map<string, { em: number; corpo: unknown }> }).__dreFiltros ??= new Map())
+
 export async function GET(request: NextRequest) {
   const g = await guardarDre(request, 'calendario')
   if (g.resposta) return g.resposta
@@ -40,6 +46,9 @@ export async function GET(request: NextRequest) {
     const conta = pegaConta(request)
     const tipo = pegaTipo(request)
     const tipos = tipo === 'ambos' ? ['pagar', 'receber'] : [tipo]
+    const chave = `${conta}|${tipo}`
+    const guardado = cache.get(chave)
+    if (guardado && Date.now() - guardado.em < CACHE_MS) return NextResponse.json(guardado.corpo)
 
     const fornecedores = new Map<any, any>()
     const categorias = new Map<any, any>()
@@ -49,11 +58,9 @@ export async function GET(request: NextRequest) {
     for (const t of tipos) {
       const tabela = tabelaPorTipo(t)
       const colNome = colunaNomePorTipo(t)
-      let q = supabase.from(tabela)
-        .select(`codigo_cliente_fornecedor,${colNome},codigo_categoria,descricao_categoria,codigo_departamento,descricao_departamento,grupo_categoria`)
-        .limit(20000)
-      q = aplicarConta(q, conta)
-      const { data, error } = await q
+      // em páginas: o .limit() acima de 1000 não escapa do corte do PostgREST
+      const { data, error } = await paginar<any>((de, ate) => (aplicarConta(supabase!.from(tabela)
+        .select(`codigo_cliente_fornecedor,${colNome},codigo_categoria,descricao_categoria,codigo_departamento,descricao_departamento,grupo_categoria`), conta) as any).order('id').range(de, ate))
       if (error) throw new Error(error.message)
 
       ;(data || []).forEach((r: any) => {
@@ -74,13 +81,15 @@ export async function GET(request: NextRequest) {
     const sortMap = (m: Map<any, any>) => Array.from(m, ([codigo, nome]) => ({ codigo, nome }))
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 
-    return NextResponse.json({
+    const corpo = {
       fornecedores: sortMap(fornecedores),
       categorias: sortMap(categorias),
       departamentos: sortMap(departamentos),
       grupos: Array.from(grupos).sort((a, b) => a.localeCompare(b, 'pt-BR'))
         .map((g) => ({ codigo: g, nome: g })),
-    })
+    }
+    cache.set(chave, { em: Date.now(), corpo })
+    return NextResponse.json(corpo)
   } catch (e: any) {
     console.error(e)
     return NextResponse.json({ erro: e.message }, { status: 500 })
