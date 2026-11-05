@@ -154,8 +154,10 @@ function PosPageInner() {
   const etags = useRef<Record<string, string>>({});
   const querFechadas = useRef(false);
   const [fechadas, setFechadas] = useState<"nao" | "carregando" | "ok">("nao");
-  const baixar = useCallback(async (escopo: "abertas" | "fechadas", signal?: AbortSignal) => {
-    const res = await fetchAuth(`/api/pos/ordens?escopo=${escopo}`, { signal, headers: etags.current[escopo] ? { "If-None-Match": etags.current[escopo] } : undefined });
+  // `compartilhado`: só a atualização AUTOMÁTICA (1 min e volta para a aba) aceita a lista que o
+  // servidor montou para todos nos últimos 30 s; o resto (abrir, depois de salvar) lê o banco.
+  const baixar = useCallback(async (escopo: "abertas" | "fechadas", signal?: AbortSignal, compartilhado = false) => {
+    const res = await fetchAuth(`/api/pos/ordens?escopo=${escopo}${compartilhado ? "&compartilhado=1" : ""}`, { signal, headers: etags.current[escopo] ? { "If-None-Match": etags.current[escopo] } : undefined });
     if (res.status === 304) return;
     if (!res.ok) throw new Error("Erro HTTP");
     const data: KanbanCard[] = await res.json();
@@ -163,11 +165,11 @@ function PosPageInner() {
     if (et) etags.current[escopo] = et;
     setOrders((prev) => mesclarOrdens(prev, data, escopo));
   }, []);
-  const fetchOrders = useCallback(async (signal?: AbortSignal) => {
+  const fetchOrders = useCallback(async (signal?: AbortSignal, compartilhado = false) => {
     const mostrar = primeiraCarga.current;
     if (mostrar) setLoading(true);
     try {
-      await Promise.all([baixar("abertas", signal), querFechadas.current ? baixar("fechadas", signal) : null]);
+      await Promise.all([baixar("abertas", signal, compartilhado), querFechadas.current ? baixar("fechadas", signal, compartilhado) : null]);
       primeiraCarga.current = false;
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") return;
@@ -241,7 +243,7 @@ function PosPageInner() {
   // Auto-sync every 60 seconds
   useEffect(() => {
     // aba escondida não atualiza (a volta para a aba já busca de novo)
-    const interval = setInterval(() => { if (!document.hidden) fetchOrders(); }, 60000);
+    const interval = setInterval(() => { if (!document.hidden) fetchOrders(undefined, true); }, 60000);
     return () => clearInterval(interval);
   }, [fetchOrders]);
 
@@ -272,7 +274,8 @@ function PosPageInner() {
   }, []);
 
   // Refresh ao voltar para a aba
-  useRefreshOnFocus(fetchOrders);
+  const atualizarAoVoltar = useCallback(() => fetchOrders(undefined, true), [fetchOrders]);
+  useRefreshOnFocus(atualizarAoVoltar);
 
   // Abre a OS que veio na URL (/pos?id=OS-XXXX) uma vez, ao montar.
   const urlHandledRef = useRef(false);

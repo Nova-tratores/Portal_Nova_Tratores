@@ -187,6 +187,29 @@ async function getOrdensParaKanban(escopo: EscopoOrdens = "todas"): Promise<Kanb
 let lastAutoMove = 0;
 const AUTO_MOVE_INTERVAL = 5 * 60 * 1000;
 
+/* ── Cópia compartilhada da lista (05/11/2026) ──
+ * Com 5 pessoas no POS eram ~35 consultas/min só para responder "nada mudou". Guarda a lista
+ * pronta por escopo, por COPIA_MS; pedidos simultâneos esperam a mesma montagem. */
+const COPIA_MS = 30_000;
+type Copia = { em: number; pronto: Promise<{ corpo: string; etag: string }> };
+const copias = ((globalThis as unknown as { __posOrdensCopias?: Map<EscopoOrdens, Copia> }).__posOrdensCopias ??= new Map());
+
+function listaDoQuadro(escopo: EscopoOrdens, compartilhado: boolean): Promise<{ corpo: string; etag: string }> {
+  const atual = copias.get(escopo);
+  if (compartilhado && atual && Date.now() - atual.em < COPIA_MS) return atual.pronto;
+  const pronto = getOrdensParaKanban(escopo).then((ordens) => {
+    const corpo = JSON.stringify(ordens);
+    return { corpo, etag: `"${createHash("sha1").update(corpo).digest("base64url")}"` };
+  });
+  const copia: Copia = { em: Date.now(), pronto };
+  copias.set(escopo, copia);
+  pronto.catch(() => { if (copias.get(escopo) === copia) copias.delete(escopo); });
+  return pronto;
+}
+
+/** Joga fora as cópias (depois de gravar uma OS por esta rota). */
+function descartarCopias() { copias.clear(); }
+
 // GET: quadro do POS e a lista de OS dos drawers (POS e PPV: substituto/vinculo).
 export async function GET(req: NextRequest) {
   const g = await protegerRota(req, [{ modulo: "pos" }, { modulo: "ppv" }]);
@@ -202,10 +225,12 @@ export async function GET(req: NextRequest) {
   }
   const e = req.nextUrl.searchParams.get("escopo");
   const escopo: EscopoOrdens = e === "abertas" || e === "fechadas" ? e : "todas";
-  const ordens = await getOrdensParaKanban(escopo);
+  // Atualização automática do quadro (a cada 1 min e ao voltar para a aba) pede `compartilhado=1`:
+  // recebe a lista montada para todo mundo nos últimos 30 s, em vez de refazer as ~7 consultas por
+  // pessoa. Abrir a tela, salvar etc. pedem sem o parâmetro e sempre leem o banco (e renovam a cópia).
+  const compartilhado = req.nextUrl.searchParams.get("compartilhado") === "1";
+  const { corpo, etag } = await listaDoQuadro(escopo, compartilhado);
   // "nada mudou": o POS manda o ETag da última lista; igual → 304 sem corpo (o navegador não baixa nem lê de novo)
-  const corpo = JSON.stringify(ordens);
-  const etag = `"${createHash("sha1").update(corpo).digest("base64url")}"`;
   if (req.headers.get("if-none-match") === etag) return new NextResponse(null, { status: 304, headers: { ETag: etag } });
   return new NextResponse(corpo, { headers: { "Content-Type": "application/json", ETag: etag, "Cache-Control": "no-store" } });
 }
@@ -301,6 +326,7 @@ async function gerarPPVId(): Promise<string> {
 export async function POST(req: NextRequest) {
   const g = await protegerRotaOuInterna(req, [{ modulo: "pos" }, { modulo: "ppv" }, { modulo: "orcamentos", acao: "gerar" }]);
   if (g.resposta) return g.resposta;
+  descartarCopias(); // OS nova: a próxima atualização automática já a mostra
   const dados = await req.json();
   // autoria do login; só a chamada de sistema mantém o nome que veio no corpo
   dados.userName = g.interno ? (dados.userName || "Sistema") : autorDe(g.user);
