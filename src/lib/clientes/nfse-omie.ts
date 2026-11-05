@@ -103,6 +103,48 @@ export async function resolverNfseDaOS(
   return out;
 }
 
+export type StatusRecibo = { numRecibo: string; urlRecibo: string };
+
+/**
+ * StatusOS pedindo também o PDF do RECIBO (`lPdfRecibo`). Sem essa flag o `cUrlPdfRecibo`
+ * vem vazio — por isso ninguém achava recibo. A URL é temporária (muda a cada chamada e
+ * expira em minutos): baixar na hora. Vale para qualquer OS faturada sem NFS-e, inclusive
+ * serviço interno (sondado 05/11/2026: OS 5398/5410/5377 → recibos 343/345/333).
+ */
+export async function statusOSComRecibo(acc: ContaOmieNfse, codOS: number): Promise<{ nfse: any[]; recibo: StatusRecibo | null }> {
+  const st = await omie("/servicos/os/", "StatusOS", { nCodOS: codOS, lPdfRecibo: true }, acc);
+  const nfse: any[] = st?.ListaRpsNfse || [];
+  const urlRecibo = String(st?.cUrlPdfRecibo || "");
+  return { nfse, recibo: urlRecibo ? { numRecibo: String(st?.cNumRecibo || ""), urlRecibo } : null };
+}
+
+/** Guarda o PDF do recibo na pasta do cliente e devolve a URL pública. */
+export async function guardarPdfRecibo(supabase: SupabaseClient, empresa: string, numOS: string, numRecibo: string | null, pdf: Buffer): Promise<string | null> {
+  const path = `${empresa.replace(/ /g, "_")}/os_${numOS}/recibo_${(numRecibo || "").replace(/\D/g, "") || numOS}.pdf`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, pdf, { contentType: "application/pdf", upsert: true });
+  if (error) return null;
+  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+}
+
+/**
+ * OS faturada SEM NFS-e: baixa o recibo do Omie e guarda na pasta. Devolve `link_nf`
+ * (PDF no portal) e o número do recibo; nada quando o Omie não tem recibo. `st` evita
+ * um StatusOS a mais quando o chamador acabou de fazer um.
+ */
+export async function resolverReciboDaOS(
+  supabase: SupabaseClient,
+  acc: ContaOmieNfse,
+  os: { empresa: string; num_os: string; cod_os: number },
+  st?: StatusRecibo | null,
+): Promise<{ link_nf?: string; num_recibo?: string }> {
+  const rec = st === undefined ? (await statusOSComRecibo(acc, os.cod_os)).recibo : st;
+  if (!rec?.urlRecibo) return {};
+  const pdf = await baixarPdf(rec.urlRecibo);
+  if (!pdf) return {};
+  const link = await guardarPdfRecibo(supabase, os.empresa, os.num_os, rec.numRecibo, pdf);
+  return link ? { link_nf: link, num_recibo: rec.numRecibo } : {};
+}
+
 /** Número da NFS-e pelo StatusOS (fallback quando ninguém mais sabe). */
 export async function numeroNfsePeloStatusOS(acc: ContaOmieNfse, codOS: number): Promise<string | null> {
   const st = await omie("/servicos/os/", "StatusOS", { nCodOS: codOS }, acc);

@@ -19,6 +19,7 @@ import { useSyncPasta, RelogioSync, textoProxima } from '@/components/clientes/S
 import { authHeaders, fetchAuth } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
 import { BellOff, Tractor, Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save, Upload, AlertTriangle, Send, Phone, Copy, Check } from 'lucide-react'
+import { reciboDoLink } from '@/lib/clientes/numero-nf'
 
 interface Cliente {
   cod_cli: number; empresa: string; razao_social: string; nome_fantasia: string
@@ -1331,9 +1332,11 @@ function ClientesPageInner() {
                     const pdfNaPasta = (u: string | null | undefined) => !!u && /\/storage\/v1\/object\/public\//.test(u)
                     type NotaCard = { chave: string; rotulo: string; num: string; link: string | null; rejeitada?: string; corpo: { tipo: 'nfse'; empresa: string; cod_os: number } | { tipo: 'nfe'; empresa: string; num_pedido: string } }
                     const notasCard: NotaCard[] = []
-                    if (!os.cancelada && !ehInterno && (os.faturada || os.num_nf || os.link_nf)) {
+                    // OS faturada sem NFS-e guarda o RECIBO do Omie em link_nf (inclusive serviço interno)
+                    const reciboCard = reciboDoLink(os.link_nf)
+                    if (!os.cancelada && (!ehInterno || reciboCard) && (os.faturada || os.num_nf || os.link_nf)) {
                       const link = pdfNaPasta(os.link_nf) ? os.link_nf : (os.financeiro?.nf_servico || null)
-                      notasCard.push({ chave: `nfse:${os.empresa}:${os.cod_os}`, rotulo: 'NFS-e', num: fmtNF(os.num_nf || os.financeiro?.num_nf_servico), link, corpo: { tipo: 'nfse', empresa: os.empresa, cod_os: os.cod_os } })
+                      notasCard.push({ chave: `nfse:${os.empresa}:${os.cod_os}`, rotulo: reciboCard ? 'Recibo' : 'NFS-e', num: reciboCard || fmtNF(os.num_nf || os.financeiro?.num_nf_servico), link, corpo: { tipo: 'nfse', empresa: os.empresa, cod_os: os.cod_os } })
                     }
                     for (const pv of pvsLig as PedidoVenda[]) {
                       if (pv.cancelado || !(pv.faturado || pv.numero_nf || pv.link_nf)) continue
@@ -1783,7 +1786,8 @@ function ClientesPageInner() {
                     const vServico = os.valor_total || 0
                     const vPecas = pvs.reduce((s: number, p: PedidoVenda) => s + (p.valor_total || 0), 0)
                     const vTotal = vServico + vPecas
-                    const numNfServ = fmtNF(os.num_nf || os.financeiro?.num_nf_servico) || '—'
+                    const reciboServ = reciboDoLink(os.link_nf)
+                    const numNfServ = reciboServ ? `Recibo nº ${reciboServ}` : (fmtNF(os.num_nf || os.financeiro?.num_nf_servico) || '—')
                     const numNfPeca = fmtNF(os.financeiro?.num_nf_peca) || pvs.map((p: PedidoVenda) => fmtNF(p.numero_nf)).filter(Boolean).join(', ') || '—'
                     const celulas = [
                       { l: 'Valor total', v: formatCurrency(vTotal), c: '#DC2626', sub: vPecas > 0 ? `Serviço ${formatCurrency(vServico)} · Peças ${formatCurrency(vPecas)}` : null },
@@ -1886,6 +1890,7 @@ function ClientesPageInner() {
                     const GREEN = { ...BASE, border: 'none', background: '#059669', color: '#fff' }
                     const nfServ = os.link_nf || os.financeiro?.nf_servico
                     const numNfServ = fmtNF(os.num_nf || os.financeiro?.num_nf_servico)
+                    const reciboDoc = reciboDoLink(os.link_nf) // OS faturada com recibo (sem NFS-e)
                     // Pra VER: PDF já no storage abre direto; senão a rota busca o PDF da NFS-e
                     // no Omie, guarda na pasta e grava na OS (o link salvo costuma ser a
                     // consulta do nfse.gov.br ou da prefeitura, que não abrem aqui).
@@ -1932,7 +1937,7 @@ function ClientesPageInner() {
                             </button>
                           )
                           const urlOS = os.pos_pdf || `/api/clientes/print?tipo=os&cod=${os.cod_os}&empresa=${encodeURIComponent(os.empresa)}`
-                          const tituloNfServ = `NF de Serviço${numNfServ ? ` nº ${numNfServ}` : ''}`
+                          const tituloNfServ = reciboDoc ? `Recibo de Serviço nº ${reciboDoc}` : `NF de Serviço${numNfServ ? ` nº ${numNfServ}` : ''}`
                           return (<>
                             {/* DOCUMENTOS */}
                             <div style={CARD}>

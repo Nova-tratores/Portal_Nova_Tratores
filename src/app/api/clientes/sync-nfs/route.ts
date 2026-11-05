@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
-import { resolverNfseDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
+import { resolverNfseDaOS, resolverReciboDaOS, OR_OS_SEM_PDF_NFSE, type StatusRecibo } from "@/lib/clientes/nfse-omie";
 import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 
 const supabase = createClient(
@@ -50,10 +50,15 @@ export async function POST(req: NextRequest) {
   const limite = parseInt(req.nextUrl.searchParams.get("limite") || "2000");
 
   try {
-    const resultado: Record<string, { os_processadas: number; os_com_nf: number; pv_processados: number; pv_com_nf: number }> = {};
+    const resultado: Record<string, { os_processadas: number; os_com_nf: number; os_com_recibo: number; os_sem_documento: number; pv_processados: number; pv_com_nf: number }> = {};
 
+    // Janela: só OS dos últimos 24 meses, mais recentes primeiro. Antes vinha sem ordem e
+    // sem janela: 2.451 OS antigas faturadas com recibo (sem NFS-e) eram consultadas todo
+    // dia (1.000 chamadas, 22 min, resultado zero). Agora essas ganham o RECIBO e saem da fila.
+    const desde = new Date(); desde.setMonth(desde.getMonth() - 24);
+    const desdeISO = desde.toISOString().slice(0, 10);
     for (const acc of ACCS) {
-      let osComNF = 0, pvComNF = 0;
+      let osComNF = 0, pvComNF = 0, osComRecibo = 0, osSemDocumento = 0;
       const empKey = acc.name.replace(/ /g, "_");
 
       // OS faturadas sem o PDF da nota no portal (sem link ou só a consulta do gov.br/prefeitura)
@@ -61,6 +66,8 @@ export async function POST(req: NextRequest) {
         .select("num_os, cod_os")
         .eq("empresa", acc.name).eq("faturada", true).eq("cancelada", false)
         .or(OR_OS_SEM_PDF_NFSE)
+        .gte("data_inclusao", desdeISO)
+        .order("data_inclusao", { ascending: false })
         .limit(limite);
 
       const osTotal = osSemNF?.length || 0;
@@ -109,14 +116,18 @@ export async function POST(req: NextRequest) {
             }
           }
 
-          // 2º (fallback): o caminho antigo via StatusOS
+          // 2º (fallback): StatusOS — traz a NFS-e antiga OU o recibo (`lPdfRecibo`; OS
+          // faturada sem nota, inclusive serviço interno). A URL do recibo é temporária.
+          let recibo: StatusRecibo | null = null;
           if (!numNFSe && !danfeUrl) {
-            const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: os.cod_os }, acc);
+            const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: os.cod_os, lPdfRecibo: true }, acc);
             const nfseList: any[] = st?.ListaRpsNfse || [];
             if (nfseList.length > 0) {
               const nfse = nfseList.find((n: any) => n?.danfe || n?.cUrlNfse) || nfseList[nfseList.length - 1];
               numNFSe = nfse.nNfse || "";
               danfeUrl = nfse.danfe || nfse.cUrlNfse || "";
+            } else if (st?.cUrlPdfRecibo) {
+              recibo = { numRecibo: String(st.cNumRecibo || ""), urlRecibo: String(st.cUrlPdfRecibo) };
             }
           }
 
@@ -129,7 +140,13 @@ export async function POST(req: NextRequest) {
             if (r.link_nf) updates.link_nf = r.link_nf;
             if (Object.keys(updates).length) await supabase.from("portal_nt_clientes_os").update(updates).eq("num_os", os.num_os).eq("empresa", acc.name);
             if (r.link_nf) osComNF++;
-          }
+          } else if (recibo) {
+            const r = await resolverReciboDaOS(supabase, acc, { empresa: acc.name, num_os: os.num_os, cod_os: os.cod_os }, recibo);
+            if (r.link_nf) {
+              await supabase.from("portal_nt_clientes_os").update({ link_nf: r.link_nf }).eq("num_os", os.num_os).eq("empresa", acc.name);
+              osComRecibo++;
+            } else osSemDocumento++;
+          } else osSemDocumento++;
           await new Promise(r => setTimeout(r, 250));
         } catch { /* ignore */ }
       }
@@ -187,8 +204,8 @@ export async function POST(req: NextRequest) {
         } catch { /* ignore */ }
       }
 
-      resultado[acc.name] = { os_processadas: osTotal, os_com_nf: osComNF, pv_processados: pvTotal, pv_com_nf: pvComNF };
-      console.log(`[sync-nfs] ${acc.name}: OS ${osComNF}/${osTotal}, PV ${pvComNF}/${pvTotal}`);
+      resultado[acc.name] = { os_processadas: osTotal, os_com_nf: osComNF, os_com_recibo: osComRecibo, os_sem_documento: osSemDocumento, pv_processados: pvTotal, pv_com_nf: pvComNF };
+      console.log(`[sync-nfs] ${acc.name}: OS nota ${osComNF} + recibo ${osComRecibo} + sem documento ${osSemDocumento} de ${osTotal}, PV ${pvComNF}/${pvTotal}`);
     }
 
     return NextResponse.json({ sucesso: true, resultado });

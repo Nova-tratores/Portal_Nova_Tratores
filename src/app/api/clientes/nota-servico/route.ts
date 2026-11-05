@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
 import { numeroNfse, contaOmieDaEmpresa, chaveOS } from "@/lib/clientes/numero-nf";
-import { linkNoPortal, baixarPdf, pdfNfseNoOmie, guardarPdfNfse, numeroNfsePeloStatusOS } from "@/lib/clientes/nfse-omie";
+import { linkNoPortal, baixarPdf, pdfNfseNoOmie, guardarPdfNfse, numeroNfsePeloStatusOS, resolverReciboDaOS } from "@/lib/clientes/nfse-omie";
 import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 // PDF da NFS-e de uma OS, direto do Omie, para o botão "Ver a nota" da pasta.
@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
     const buf = await baixarPdf(os.link_nf);
     if (buf) return pdfResposta(buf, nome);
   }
-  if (!os.faturada) return falha("A OS ainda não foi faturada — não há nota.");
+  if (!os.faturada) return falha("A OS ainda não foi faturada — não há nota nem recibo.");
 
   const acc = contaOmie(empresa);
   try {
@@ -63,7 +63,17 @@ export async function GET(req: NextRequest) {
       numero = numeroNfse(c?.nfse_num);
     }
     if (!numero) numero = await numeroNfsePeloStatusOS(acc, codOS);
-    if (!numero) return falha("O Omie não tem NFS-e emitida para esta OS (pode ter sido faturada só com recibo).");
+    if (!numero) {
+      // Sem NFS-e: OS faturada com RECIBO (inclusive serviço interno) — pega o recibo do Omie,
+      // guarda na pasta e grava na OS; da próxima vez abre direto.
+      const r = await resolverReciboDaOS(supabase, acc, { empresa, num_os: os.num_os, cod_os: codOS });
+      if (r.link_nf) {
+        await supabase.from("portal_nt_clientes_os").update({ link_nf: r.link_nf }).eq("empresa", empresa).eq("cod_os", codOS);
+        const buf = await baixarPdf(r.link_nf);
+        if (buf) return pdfResposta(buf, `Recibo-${r.num_recibo || ""}-OS-${os.num_os}`);
+      }
+      return falha("O Omie não tem NFS-e nem recibo para esta OS.");
+    }
 
     // 3) a NFS-e desta OS e o PDF
     const achado = await pdfNfseNoOmie(acc, codOS, numero);

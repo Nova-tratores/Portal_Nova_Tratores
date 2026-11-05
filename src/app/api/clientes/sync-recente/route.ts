@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { fetchInterno, protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
-import { resolverNfseDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
+import { resolverNfseDaOS, resolverReciboDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
 import { escolherDaVez, registrarConsulta } from "@/lib/clientes/sync-recente-fila";
 
 const supabase = createClient(
@@ -277,8 +277,15 @@ export async function GET(req: Request) {
       for (const os of escolherDaVez(osSemNF || [], chaveOS)) {
         let achou = false;
         try {
-          const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: os.cod_os }, acc);
+          const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: os.cod_os, lPdfRecibo: true }, acc);
           const nfseList: any[] = st?.ListaRpsNfse || [];
+          if (nfseList.length === 0 && st?.cUrlPdfRecibo) {
+            // Faturada sem NFS-e (recibo, inclusive serviço interno): guarda o recibo e tira da
+            // fila. Não dispara o financeiro — isso continua sendo só da NFS-e.
+            const r = await resolverReciboDaOS(supabase, acc, { empresa: acc.name, num_os: os.num_os, cod_os: os.cod_os },
+              { numRecibo: String(st.cNumRecibo || ""), urlRecibo: String(st.cUrlPdfRecibo) });
+            if (r.link_nf) { await supabase.from("portal_nt_clientes_os").update({ link_nf: r.link_nf }).eq("num_os", os.num_os).eq("empresa", acc.name); achou = true; }
+          }
           if (nfseList.length > 0) {
             // Pega a nota que REALMENTE tem link (uma NF rejeitada e depois reemitida deixa
             // a rejeitada em [0]; pegar [0] cegamente perdia a nota boa).

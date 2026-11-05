@@ -4,6 +4,7 @@
 // notificação (admins + quem tem o módulo Clientes). Chamado pelo cron de sexta 08:00.
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { reciboDoLink } from "@/lib/clientes/numero-nf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,7 +56,8 @@ async function gerar(req: NextRequest) {
       "num_os, empresa, cod_cli, valor_total, faturada, cancelada, num_nf, link_nf, data_faturamento, data_previsao, cliente_nome",
       (q: any) => q.eq("faturada", true)
     );
-    const osSem = osAll.filter((o) => !o.cancelada && !o.num_nf && !o.link_nf);
+    // Recibo em link_nf não é nota fiscal: a OS continua "sem nota", só ganha o nº do recibo.
+    const osSem = osAll.filter((o) => !o.cancelada && !o.num_nf && (!o.link_nf || reciboDoLink(o.link_nf)));
 
     // PV faturados sem NF de peça
     const pvAll = await fetchAll<Record<string, any>>(
@@ -70,6 +72,7 @@ async function gerar(req: NextRequest) {
         tipo: "OS" as const, numero: String(o.num_os || ""), empresa: o.empresa || "",
         cliente: o.cliente_nome || "", valor: Number(o.valor_total) || 0,
         data: o.data_faturamento || o.data_previsao || "",
+        recibo: reciboDoLink(o.link_nf) || undefined,
       })),
       ...pvSem.map((p) => ({
         tipo: "PV" as const, numero: String(p.num_pedido || ""), empresa: p.empresa || "",

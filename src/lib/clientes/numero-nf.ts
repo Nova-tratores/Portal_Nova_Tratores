@@ -18,6 +18,16 @@ export function numeroNfDoLink(link: string | null | undefined): string | null {
   return null
 }
 
+/**
+ * Número do RECIBO a partir do link do PDF guardado na pasta ("…/os_5410/recibo_345.pdf").
+ * OS faturada SEM NFS-e (com recibo, inclusive serviço interno) guarda o recibo em `link_nf`;
+ * ele é documento da OS, mas NÃO é nota fiscal (dashboard e relatório "sem nota" sabem disso).
+ */
+export function reciboDoLink(link: string | null | undefined): string | null {
+  const m = String(link || '').match(/\/recibo_(\d+)\.pdf/i)
+  return m ? m[1] : null
+}
+
 /** Número da NFS-e do cache (vem com zeros à esquerda: "0000000000064" → "64"). */
 export function numeroNfse(n: string | null | undefined): string | null {
   const d = String(n || '').replace(/\D/g, '').replace(/^0+/, '')

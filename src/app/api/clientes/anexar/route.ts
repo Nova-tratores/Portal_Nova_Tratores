@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
-import { resolverNfseDaOS } from "@/lib/clientes/nfse-omie";
+import { resolverReciboDaOS, resolverNfseDaOS } from "@/lib/clientes/nfse-omie";
 import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const supabase = createClient(
@@ -155,11 +155,17 @@ export async function POST(req: NextRequest) {
       // NF de serviço (NFS-e). Se o usuário anexou o PDF, usa ele; senão busca no Omie. O número vem do Omie.
       let numNF = info.nNumNFSe ? String(info.nNumNFSe) : "";
       let linkNF = "";
-      // Serviço interno: não busca NFS-e no Omie (usa só o recibo, se anexado).
-      if (!servico_interno) {
+      // StatusOS com `lPdfRecibo`: traz a NFS-e ou, na OS faturada sem nota (inclusive
+      // serviço interno), o recibo — que vai para a pasta como documento da OS.
+      {
         try {
-          const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: cab.nCodOS }, empresa);
-          const nfse = (st?.ListaRpsNfse || [])[0];
+          const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: cab.nCodOS, lPdfRecibo: true }, empresa);
+          const nfse = servico_interno ? null : (st?.ListaRpsNfse || [])[0];
+          if (!nfse && st?.cUrlPdfRecibo && !nf_pdf_url) {
+            const r = await resolverReciboDaOS(supabase, contaOmie(empresa), { empresa, num_os: String(cab.cNumOS), cod_os: Number(cab.nCodOS) },
+              { numRecibo: String(st.cNumRecibo || ""), urlRecibo: String(st.cUrlPdfRecibo) });
+            if (r.link_nf) linkNF = r.link_nf;
+          }
           if (nfse) {
             numNF = nfse.nNfse ? String(nfse.nNfse) : numNF;
             if (!nf_pdf_url) {

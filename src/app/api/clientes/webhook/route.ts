@@ -3,7 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { fetchInterno } from "@/lib/auth/chamada-interna";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie, comPrioridade } from "@/lib/omie/porta";
-import { resolverNfseDaOS } from "@/lib/clientes/nfse-omie";
+import { resolverNfseDaOS, resolverReciboDaOS } from "@/lib/clientes/nfse-omie";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -99,14 +99,23 @@ async function buscarNfseDaOS(numOS: string, codOS: number, acc: Acc) {
         } catch { /* segue só com o número */ }
       }
 
-      // Fallback: caminho antigo via StatusOS (o link dele só vale se for PDF)
+      // Fallback: caminho antigo via StatusOS (o link dele só vale se for PDF). Com
+      // `lPdfRecibo` ele também traz o RECIBO da OS faturada sem nota (inclusive interna).
       if (!numNFSe && !danfeUrl) {
-        const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: codOS }, acc);
+        const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: codOS, lPdfRecibo: true }, acc);
         const lista: any[] = st?.ListaRpsNfse || [];
         const nfse = lista.find((n: any) => n?.danfe || n?.cUrlNfse) || lista[lista.length - 1];
         if (nfse) {
           numNFSe = nfse.nNfse || "";
           danfeUrl = nfse.danfe || nfse.cUrlNfse || "";
+        } else if (st?.cUrlPdfRecibo) {
+          const r = await resolverReciboDaOS(supabase, acc, { empresa: acc.name, num_os: numOS, cod_os: codOS },
+            { numRecibo: String(st.cNumRecibo || ""), urlRecibo: String(st.cUrlPdfRecibo) });
+          if (r.link_nf) {
+            await supabase.from("portal_nt_clientes_os").update({ link_nf: r.link_nf }).eq("num_os", numOS).eq("empresa", acc.name);
+            console.log(`[webhook] recibo ${r.num_recibo} da OS ${numOS} guardado na pasta (faturada sem NFS-e)`);
+            return;
+          }
         }
       }
 

@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { fetchAuth } from '@/lib/auth/client'
 
-interface Item { tipo: 'OS' | 'PV'; numero: string; empresa: string; cliente: string; valor: number; data: string }
+interface Item { tipo: 'OS' | 'PV'; numero: string; empresa: string; cliente: string; valor: number; data: string; recibo?: string }
 interface Relatorio { semana: string; gerado_em: string; total_cards: number; total_valor: number; dados: Item[] }
 
 const fmtR$ = (v: number) => (Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
@@ -92,7 +92,7 @@ export default function RelatorioSemanaPage() {
                 {itens.map((i, idx) => (
                   <div key={idx} style={{ display: 'grid', gridTemplateColumns: '54px 1fr auto auto', gap: 10, alignItems: 'center', padding: '9px 14px', borderTop: idx ? '1px solid #f1f5f9' : 'none', fontSize: 13 }}>
                     <span style={{ fontWeight: 800, color: i.tipo === 'OS' ? '#0369a1' : '#b45309' }}>{i.tipo}</span>
-                    <span style={{ fontWeight: 600 }}>#{i.numero}<span style={{ color: '#94a3b8', fontWeight: 400 }}> · {i.empresa}</span></span>
+                    <span style={{ fontWeight: 600 }}>#{i.numero}<span style={{ color: '#94a3b8', fontWeight: 400 }}> · {i.empresa}{i.recibo ? ` · recibo nº ${i.recibo}` : ''}</span></span>
                     <span style={{ color: '#64748b', whiteSpace: 'nowrap' }}>{fmtData(i.data)}</span>
                     <span style={{ fontWeight: 700, textAlign: 'right', whiteSpace: 'nowrap' }}>R$ {fmtR$(i.valor)}</span>
                   </div>
