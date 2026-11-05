@@ -1139,6 +1139,7 @@ export async function reconciliarFaturamentoOS(id: string, opts: { forcar?: bool
     if (travaAtiva(os.faturando_desde)) return 'aguardando o Omie (trava ativa)';
     // trava vencida e o Omie não registrou nada: libera para tentar de novo
     await gravarOS(id, { faturando_desde: null, faturamento_status: 'erro', faturamento_pecas: null, faturamento_erro: 'O Omie não registrou o faturamento. Pode tentar de novo.' });
+    void avisarTI(id, 'a OS (NFS-e)', 'O Omie aceitou o faturamento, mas em 10 minutos a OS continuou aberta lá, sem nota. O portal liberou para faturar de novo.', `/pos?id=${id}`);
     return 'não faturada (liberada)';
   }
   return 'aberta';
@@ -1291,7 +1292,10 @@ async function vigiado<T>(doc: string, oque: string, link: string, rodar: () => 
     throw e;
   }
 }
-const erroOS = (r: { ok: boolean; tipo?: string; mensagem?: string }) => (!r.ok && r.tipo !== 'em_andamento' ? r.mensagem || r.tipo || 'erro' : null);
+// "desconhecido"/"pendente_omie" = o Omie aceitou e ainda está processando (OS-0870, 05/11/2026: avisava
+// "erro" com a resposta "A NFS-e foi faturada com sucesso"); se não faturar mesmo, a reconciliação avisa
+const erroOS = (r: { ok: boolean; tipo?: string; mensagem?: string }) =>
+  (!r.ok && !['em_andamento', 'desconhecido', 'pendente_omie'].includes(String(r.tipo)) ? r.mensagem || r.tipo || 'erro' : null);
 export const faturarOSComRecibo: typeof faturarOSComReciboSemPausa = (...a) => vigiado(a[0], 'a OS (recibo)', `/pos?id=${a[0]}`,
   () => comRobosPausados('faturar OS (recibo)', () => faturarOSComReciboSemPausa(...a)), erroOS);
 export const faturarOSNoOmie: typeof faturarOSNoOmieSemPausa = (...a) => vigiado(a[0], 'a OS (NFS-e)', `/pos?id=${a[0]}`,
