@@ -13,6 +13,7 @@ import type { KanbanCard } from "@/lib/pos/types";
 import { dataHoraBR } from "@/lib/datas/brasil";
 import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
+import { paginar } from "@/lib/db/paginar";
 
 /* ── Atualiza contadores de métricas abertas ── */
 async function atualizarMetricasAbertas() {
@@ -54,19 +55,35 @@ type EscopoOrdens = "todas" | "abertas" | "fechadas";
 const FECHADAS = '("Concluída","Cancelada")';
 
 async function getOrdensParaKanban(escopo: EscopoOrdens = "todas"): Promise<KanbanCard[]> {
-  let qOrdens = supabase.from(TBL_OS).select("*").order("Id_Ordem", { ascending: false });
-  if (escopo === "abertas") qOrdens = qOrdens.or(`Status.is.null,Status.not.in.${FECHADAS}`);
-  else if (escopo === "fechadas") qOrdens = qOrdens.in("Status", ["Concluída", "Cancelada"]);
-  // nas abertas, o histórico (logs) vem só das OS da lista — antes lia o log inteiro a cada minuto
-  const { data: ordens } = await qOrdens;
-  const idsAbertas = escopo === "abertas" ? (ordens || []).map((r) => String(safeGet(r, "Id_Ordem") || "")).filter(Boolean) : null;
-  let qLogs = supabase.from(TBL_LOGS_PPO).select("Id_ppo,Data_Acao,Hora_Acao,acao,UsuEmail,Status_Atual").order("id", { ascending: false });
-  if (idsAbertas) qLogs = qLogs.in("Id_ppo", idsAbertas.length ? idsAbertas : ["-"]);
+  // Tudo em páginas (paginar): o PostgREST corta cada resposta em 1000 linhas —
+  // OS (~900 e subindo), logs_ppo (~5,7 mil) e Requisicao (~2,8 mil) já passavam/vão passar.
+  const montarOrdens = () => {
+    let q = supabase.from(TBL_OS).select("*").order("Id_Ordem", { ascending: false });
+    if (escopo === "abertas") q = q.or(`Status.is.null,Status.not.in.${FECHADAS}`);
+    else if (escopo === "fechadas") q = q.in("Status", ["Concluída", "Cancelada"]);
+    return q;
+  };
+  const { data: ordens } = await paginar<Record<string, unknown>>((de, ate) => montarOrdens().range(de, ate));
+  // nas abertas, logs/requisições/relatórios vêm só das OS da lista — antes lia as tabelas inteiras a cada minuto
+  const idsAbertas = escopo === "abertas" ? ordens.map((r) => String(safeGet(r, "Id_Ordem") || "")).filter(Boolean) : null;
+  const filtroIds = idsAbertas && idsAbertas.length ? idsAbertas : ["-"];
+  const lerLogs = () => {
+    const q = supabase.from(TBL_LOGS_PPO).select("Id_ppo,Data_Acao,Hora_Acao,acao,UsuEmail,Status_Atual").order("id", { ascending: false });
+    return idsAbertas ? q.in("Id_ppo", filtroIds) : q;
+  };
+  const lerReqs = () => {
+    const q = supabase.from("Requisicao").select("id, titulo, valor_cobrado_cliente, ordem_servico").order("id");
+    return idsAbertas ? q.in("ordem_servico", filtroIds) : q.not("ordem_servico", "is", null).neq("ordem_servico", "");
+  };
+  const lerRelatorios = () => {
+    const q = supabase.from("Ordem_Servico_Tecnicos").select("Ordem_Servico, NomResp").order("IdOs");
+    return idsAbertas ? q.in("Ordem_Servico", filtroIds) : q;
+  };
   const [{ data: logs }, { data: metricasAbertas }, { data: reqsNovas }, { data: relatorios }, { data: reqsSol }, { data: reqsAtt }, { data: projetosCron }] = await Promise.all([
-    qLogs,
+    paginar<{ Id_ppo: string; Data_Acao: string | null; Hora_Acao: string | null; acao: string | null; UsuEmail: string | null; Status_Atual: string | null }>((de, ate) => lerLogs().range(de, ate)),
     supabase.from(TBL_METRICAS).select("id_ordem, dias").is("data_fim", null),
-    supabase.from("Requisicao").select("id, titulo, valor_cobrado_cliente, ordem_servico"),
-    supabase.from("Ordem_Servico_Tecnicos").select("Ordem_Servico, NomResp"),
+    paginar<{ id: number; titulo: string | null; valor_cobrado_cliente: string | number | null; ordem_servico: string | null }>((de, ate) => lerReqs().range(de, ate)),
+    paginar<{ Ordem_Servico: string | null; NomResp: string | null }>((de, ate) => lerRelatorios().range(de, ate)),
     supabase.from(TBL_REQ_SOL).select("IdReq, Material_Serv_Solicitado"),
     supabase.from(TBL_REQ_ATT).select("ReqREF, ReqValor"),
     // Vínculo reverso do Cronograma: projetos que apontam para uma OS (leitura, não escreve na OS)

@@ -5,6 +5,7 @@ import { TBL_OS, PHASES } from "@/lib/pos/constants";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { OS_BADGE_LABEL } from "@/lib/garantias/constants";
 import type { GarantiaStatus } from "@/lib/garantias/types";
+import { paginar } from "@/lib/db/paginar";
 
 // Escudo outline, sem cor — marca discreta de "OS em garantia" no relatório,
 // no mesmo tom neutro do texto pra ficar conciso com o resto do documento.
@@ -62,7 +63,8 @@ export async function GET(request: NextRequest) {
   const filtroTecnico = searchParams.get("tecnico") || "todos";
   const filtroTipo = searchParams.get("tipo") || "todas"; // "todas" | "atrasadas"
 
-  const { data: ordens } = await supabase.from(TBL_OS).select("*").order("Id_Ordem", { ascending: false });
+  // em páginas: o PostgREST corta em 1000 linhas e as OS já passam de 900
+  const { data: ordens } = await paginar<Record<string, unknown>>((de, ate) => supabase.from(TBL_OS).select("*").order("Id_Ordem", { ascending: false }).range(de, ate));
 
   const allRows = (ordens || []).map((row) => {
     const qtdHr = parseFloat(String(safeGet(row, "Qtd_HR") || 0));
