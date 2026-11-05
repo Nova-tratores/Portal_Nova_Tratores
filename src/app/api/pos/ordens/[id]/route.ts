@@ -6,7 +6,7 @@ import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
 import { checarIrregularidade } from "@/lib/pos/checarIrregularidade";
-import { normalizarAlimentacoes, agregadosAlimentacao } from "@/lib/pos/alimentacao-os";
+import { normalizarAlimentacoes, agregadosAlimentacao, desligarAlimentacaoNoPdfAoEntrar } from "@/lib/pos/alimentacao-os";
 import { parseValorMisto } from "@/lib/marketing/custos";
 import { valorPecasDosPPVs } from "@/lib/pos/pecas-ppv";
 import { totalExtras, type OmieEspelho } from "@/lib/pos/omie-espelho";
@@ -406,12 +406,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
+  const { data: faseAntes } = await supabase.from(TBL_OS).select("Status").eq("Id_Ordem", idOs).maybeSingle();
   const { error } = await supabase.from(TBL_OS).update(baseUpdate).eq("Id_Ordem", idOs);
 
   if (error) {
     console.error("Erro Supabase update:", error);
     return NextResponse.json({ success: false, erro: `Erro ao salvar: ${error.message}` }, { status: 500 });
   }
+  // entrou em orçamento ou de "Enviado Para Omie" em diante: alimentação sai do PDF (o usuário religa se quiser)
+  await desligarAlimentacaoNoPdfAoEntrar(idOs, (faseAntes as { Status?: string } | null)?.Status, baseUpdate.Status as string).catch(() => {});
 
   if (dados.omieEspelho && typeof dados.omieEspelho === "object") {
     const { error: eEsp } = await supabase.from(TBL_OS).update({ Omie_Espelho: dados.omieEspelho }).eq("Id_Ordem", idOs);

@@ -41,6 +41,8 @@ export async function aplicarMudancaFase(
   }
 
   await supabase.from(TBL_OS).update({ Status: newStatus }).eq("Id_Ordem", idOs);
+  // orçamento e de "Enviado Para Omie" em diante: alimentação sai do PDF (o usuário religa se quiser)
+  await import("@/lib/pos/alimentacao-os").then((m) => m.desligarAlimentacaoNoPdfAoEntrar(idOs, statusAnterior, newStatus)).catch(() => {});
 
   // Registrar log
   const agora = new Date();

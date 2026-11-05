@@ -194,12 +194,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   const { data: reqsNovas } = await supabase
     .from("Requisicao")
-    .select("id, titulo, fornecedor, status, valor_cobrado_cliente, recibo_fornecedor")
+    .select("id, titulo, tipo, fornecedor, status, valor_cobrado_cliente, recibo_fornecedor")
     .eq("ordem_servico", idOs)
     .not("status", "in", '("lixeira","cancelada")');
   for (const r of reqsNovas || []) {
     const rid = String(r.id);
     if (idsJaAdicionados.has(rid) || reqOcultas.has(rid)) continue;
+    // a despesa que a alimentação gera sozinha não é requisição do cliente: a alimentação tem a chave dela no PDF
+    // (José, 05/11/2026: "mesmo desligando a chave continua aparecendo, por causa que está em requisição")
+    if (/aliment/i.test(String(r.tipo || "")) || /^\s*alimenta/i.test(String(r.titulo || ""))) continue;
     const valor = parseValorMisto(r.valor_cobrado_cliente);
     totalReq += valor;
     reqs.push({

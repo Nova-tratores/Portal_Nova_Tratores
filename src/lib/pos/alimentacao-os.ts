@@ -49,6 +49,27 @@ export function normalizarAlimentacoes(raw: unknown): AlimentacaoItem[] {
     .filter((a) => a.valor > 0 || a.foto);
 }
 
+// Fases em que a alimentação não vai no PDF da OS (José, 05/11/2026: "na fase orçamento, ou a partir de enviada
+// Omie, não precisa mais aparecer no PDF; desliga a chave automaticamente e só retorna se o usuário ligar").
+export const FASES_SEM_ALIMENTACAO_NO_PDF = new Set([
+  "Orçamento", "Orçamento enviado para o cliente e aguardando", "Orçamento Aprovado",
+  "Enviado Para Omie", "Cobrando Cliente", "Preenchido Garantia", "Concluída", "Cancelada",
+]);
+
+/** Ao ENTRAR numa dessas fases, desliga o "no PDF" de cada alimentação. Quem religar depois, fica ligado
+ *  (só age na entrada, vindo de uma fase fora da lista). */
+export async function desligarAlimentacaoNoPdfAoEntrar(idOs: string, anterior: string | null | undefined, nova: string | null | undefined) {
+  if (!nova || !FASES_SEM_ALIMENTACAO_NO_PDF.has(nova) || (anterior && FASES_SEM_ALIMENTACAO_NO_PDF.has(anterior))) return
+  const { data } = await supabase.from(TBL_OS).select("Alimentacoes, Alimentacao_No_PDF").eq("Id_Ordem", idOs).maybeSingle()
+  if (!data) return
+  const lista = normalizarAlimentacoes((data as Record<string, unknown>).Alimentacoes)
+  if (!lista.some((a) => a.no_pdf) && !(data as Record<string, unknown>).Alimentacao_No_PDF) return
+  await supabase.from(TBL_OS).update({
+    Alimentacao_No_PDF: false,
+    ...(lista.length ? { Alimentacoes: lista.map((a) => ({ ...a, no_pdf: false })) } : {}),
+  }).eq("Id_Ordem", idOs)
+}
+
 export function agregadosAlimentacao(lista: AlimentacaoItem[]) {
   const valor = lista.reduce((s, a) => s + (Number(a.valor) || 0), 0);
   return { tecnico: lista.length > 0, valor, noPdf: lista.some((a) => a.no_pdf) };
