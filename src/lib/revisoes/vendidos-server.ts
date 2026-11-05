@@ -384,7 +384,8 @@ export async function tratoresVendidos(desde: string, seminovos = false): Promis
 
     // a loja conta a entrega pela ENTREGA TÉCNICA do certificado da Mahindra (José, 27/10/2026)
     const cert = certDe(v.chassi);
-    const base = cert?.dataEntrega && cert.dataEntrega >= v.dataISO.slice(0, 10) ? cert.dataEntrega : v.dataISO;
+    // certificado com anexos de outro trator (lançado no chassi errado na Mahindra): a data não vale
+    const base = cert?.dataEntrega && !cert.deOutroTrator && cert.dataEntrega >= v.dataISO.slice(0, 10) ? cert.dataEntrega : v.dataISO;
     return {
       chave: `${v.empresa}|${v.pedido}|${v.chassi || ''}`,
       empresa: v.empresa,

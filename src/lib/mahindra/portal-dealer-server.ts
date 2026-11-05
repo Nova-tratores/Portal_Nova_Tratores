@@ -5,7 +5,7 @@
 // Leitura do HTML: ./certificados.ts.
 
 import { supabaseAdmin as db } from '@/lib/server/supabase-admin';
-import { lerCertificado, lerListaCertificados, type Certificado } from './certificados';
+import { chassiLimpo, conferirAnexos, lerCertificado, lerListaCertificados, type Certificado } from './certificados';
 
 const BASE = 'https://dealerportal.mahindrabrasil.com.br';
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36';
@@ -130,22 +130,34 @@ export interface CertificadoResumo {
   itemId: number; chassi: string; dataEntrega: string | null; entregaTecnica: boolean | null; responsavel: string | null;
   horasEntrega: number | null; motor: string | null; bombaInjetora: string | null; banco: string | null; linhaCredito: string | null;
   status: string | null; link: string; documentos: { tipo: string; url: string }[];
+  /** anexos de outro trator (finais do chassi citados): certificado lançado no chassi errado na Mahindra */
+  deOutroTrator: string[] | null;
+  /** algo estranho nos anexos (de outro trator, ou mais de 3): mostrar para conferir na Mahindra */
+  alertaAnexos: string | null;
 }
 
 /** Certificados gravados, por chassi (limpo). Tabela ausente → mapa vazio. */
 export async function certificadosPorChassi(): Promise<Map<string, CertificadoResumo>> {
-  const { data, error } = await db.from(TABELA)
-    .select('item_id, chassi, data_entrega, entrega_tecnica, responsavel_tecnico, horas_entrega, motor, bomba_injetora, banco, linha_credito, status, documentos');
+  const [{ data, error }, prods] = await Promise.all([
+    db.from(TABELA)
+      .select('item_id, chassi, data_entrega, entrega_tecnica, responsavel_tecnico, horas_entrega, motor, bomba_injetora, banco, linha_credito, status, documentos'),
+    // finais dos tratores do cadastro: para reconhecer anexo de outro trator no certificado
+    db.from('produtos').select('codigo').ilike('familia_nome', 'Trator%').limit(5000),
+  ]);
   const mapa = new Map<string, CertificadoResumo>();
   if (error) return mapa;
+  const finais = new Set([...(prods.data || []).map((p) => p.codigo), ...(data || []).map((r) => r.chassi)].map((c) => chassiLimpo(c).slice(-4)));
   for (const r of data || []) {
+    const anexos = conferirAnexos(r.chassi, Array.isArray(r.documentos) ? r.documentos : [], finais);
+    const deOutroTrator = anexos.trocado;
     const atual = mapa.get(r.chassi);
-    if (atual && atual.itemId > Number(r.item_id)) continue; // fica o certificado mais novo do chassi
+    // dois certificados no mesmo chassi: fica o que tem os anexos deste trator; empatou, o mais novo
+    if (atual && (Number(!atual.deOutroTrator) - Number(!deOutroTrator) || atual.itemId - Number(r.item_id)) > 0) continue;
     mapa.set(r.chassi, {
       itemId: Number(r.item_id), chassi: r.chassi, dataEntrega: r.data_entrega, entregaTecnica: r.entrega_tecnica,
       responsavel: r.responsavel_tecnico, horasEntrega: r.horas_entrega != null ? Number(r.horas_entrega) : null,
       motor: r.motor, bombaInjetora: r.bomba_injetora, banco: r.banco, linhaCredito: r.linha_credito, status: r.status,
-      link: linkCertificado(Number(r.item_id)), documentos: Array.isArray(r.documentos) ? r.documentos : [],
+      link: linkCertificado(Number(r.item_id)), documentos: anexos.documentos, deOutroTrator, alertaAnexos: anexos.alerta,
     });
   }
   return mapa;

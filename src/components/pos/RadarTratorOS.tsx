@@ -66,11 +66,14 @@ export default function RadarTratorOS({ osId }: { osId: string }) {
         <div style={linha}><span style={rot}>Entrega técnica</span>
           {t.entrega.origem === "mahindra"
             ? <b>{dataBR(t.entrega.data)}{c?.responsavel ? ` · ${c.responsavel}` : ""}{c?.horasEntrega != null ? ` · ${c.horasEntrega} h` : ""} · {t.entrega.dias} dias com o cliente</b>
-            : <span style={{ color: "#b45309" }}>sem certificado no portal da Mahindra — contando da nota de {dataBR(t.dataVenda)}</span>}
+            : c?.deOutroTrator
+              ? <span style={{ color: "#dc2626" }}>certificado da Mahindra com documentos de outro trator (final {c.deOutroTrator.join(", ")}) — contando da nota de {dataBR(t.dataVenda)}</span>
+              : <span style={{ color: "#b45309" }}>sem certificado no portal da Mahindra — contando da nota de {dataBR(t.dataVenda)}</span>}
         </div>
         <div style={linha}><span style={rot}>Venda (nota)</span><span>{dataBR(t.dataVenda)} · {t.dias} dias</span></div>
         {c && (c.motor || c.bombaInjetora) && <div style={linha}><span style={rot}>Motor · bomba</span><span style={{ fontFamily: "monospace" }}>{c.motor || "—"} · {c.bombaInjetora || "—"}</span></div>}
         {c?.banco && <div style={linha}><span style={rot}>Pagamento</span><span>{c.banco}{c.linhaCredito && c.linhaCredito !== "N/A" ? ` · ${c.linhaCredito}` : ""}</span></div>}
+        {c?.alertaAnexos && !c.deOutroTrator && <div style={linha}><span style={rot}>Atenção</span><span style={{ color: "#b45309" }}>{c.alertaAnexos}</span></div>}
         {c && (
           <div style={linha}><span style={rot}>Certificado Mahindra</span>
             <a href={c.link} target="_blank" rel="noreferrer" style={{ color: "#1d4ed8" }}>nº {c.itemId} ({c.status || "—"})</a>

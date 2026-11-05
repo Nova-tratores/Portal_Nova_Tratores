@@ -3,12 +3,14 @@
 // dispensar) → grava em radar_tratores_contatos. Saiu de dentro do RoteiroLigacao (28/10/2026) para ser
 // usado também DENTRO da ficha (José: "quando a gente clicar aqui tem que formalizar o atendimento dentro
 // do modal"). Com `atendimentoId`, gravar fecha o atendimento em andamento. Classes rl-* (ESTILO_RL).
-import { useState } from "react";
+// 05/11/2026 (José: "precisa mostrar em que passo está o atendimento"): faixa 1 Iniciar · 2 Atendeu? ·
+// 3 Como foi em cima, e cada troca de passo fica guardada no atendimento (volta no mesmo passo ao reabrir).
+import { useState, type ReactNode } from "react";
 import { fetchAuth } from "@/lib/auth/client";
 import type { TratorVendido } from "@/lib/revisoes/vendidos-server";
 import {
-  MOTIVOS_SEM_50, ROTULO_MOTIVO, ROTULO_RESULTADO, RESULTADOS, previsaoPorHorimetro, retornoSugerido,
-  type Contato, type MotivoSem50, type Resultado, type Situacao,
+  ETAPAS_ATENDIMENTO, MOTIVOS_SEM_50, ROTULO_MOTIVO, ROTULO_RESULTADO, RESULTADOS, previsaoPorHorimetro, retornoSugerido,
+  type Contato, type MotivoSem50, type PassoAtendimento, type Resultado, type Situacao,
 } from "@/lib/revisoes/contatos-radar";
 
 const dataBR = (iso: string | null | undefined) => (iso ? new Date(iso.slice(0, 10) + "T12:00:00").toLocaleDateString("pt-BR") : "—");
@@ -16,16 +18,41 @@ const hojeISO = () => { const d = new Date(Date.now() - 3 * 3_600_000); return d
 const primeiroNome = (n: string | null | undefined) => { const p = (n || "").trim().split(/\s+/)[0] || ""; return p ? p[0] + p.slice(1).toLowerCase() : ""; };
 
 type Modo = "atendeu" | "liguei" | "dispensar" | "sem50";
+const PASSO_DO_MODO: Record<Modo, PassoAtendimento> = { atendeu: "atendeu", liguei: "conversa", sem50: "motivo", dispensar: "dispensar" };
+const MODO_DO_PASSO: Record<PassoAtendimento, Modo> = { atendeu: "atendeu", conversa: "liguei", motivo: "sem50", dispensar: "dispensar" };
 
-export default function RegistroAtendimento({ t, s, atendimentoId, onGravado, onVoltar, rotuloSalvar = "Salvar e ir para o próximo" }: {
+/** 1 Iniciar · 2 Atendeu? · 3 Como foi — o passo atual aceso, os feitos com visto. */
+export function EtapasAtendimento({ etapa }: { etapa: 1 | 2 | 3 }) {
+  return (
+    <ol className="rl-etapas" aria-label={`Passo ${etapa} de 3`}>
+      {ETAPAS_ATENDIMENTO.map((rot, x) => {
+        const n = x + 1;
+        return (
+          <li key={rot} className={n < etapa ? "feito" : n === etapa ? "atual" : ""}>
+            <span>{n < etapa ? <i className="fa-solid fa-check" /> : n}</span>{rot}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+export default function RegistroAtendimento({ t, s, atendimentoId, passoInicial, onGravado, onVoltar, rotuloSalvar = "Salvar e ir para o próximo" }: {
   t: TratorVendido; s: Situacao; atendimentoId?: string | null;
+  /** onde o atendimento parou (guardado no banco) */
+  passoInicial?: PassoAtendimento | null;
   /** contato gravado + frase curta do que aconteceu (para o aviso) */
   onGravado: (c: Contato, aviso: string) => void;
   /** "Voltar" do 1º passo (null = não mostra) */
   onVoltar?: () => void;
   rotuloSalvar?: string;
 }) {
-  const [modo, setModo] = useState<Modo>("atendeu");
+  const [modo, setModoBruto] = useState<Modo>(passoInicial ? MODO_DO_PASSO[passoInicial] : "atendeu");
+  // troca de passo: guarda no atendimento para a equipe ver onde parou (sem esperar a resposta)
+  const setModo = (m: Modo) => {
+    setModoBruto(m);
+    if (atendimentoId) void fetchAuth("/api/revisoes/vendidos/atendimentos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao: "passo", id: atendimentoId, passo: PASSO_DO_MODO[m] }) }).catch(() => null);
+  };
   const [motivo, setMotivo] = useState<MotivoSem50 | null>(null);
   const [horimetro, setHorimetro] = useState("");
   const [retornar, setRetornar] = useState<string | null>(null);
@@ -62,7 +89,10 @@ export default function RegistroAtendimento({ t, s, atendimentoId, onGravado, on
     finally { setSalvando(false); }
   };
 
-  if (modo === "atendeu") return (
+  // dentro de um atendimento aberto (ficha), a faixa de passos vai em cima
+  const comEtapas = (el: ReactNode) => (atendimentoId !== undefined ? <div className="rl-reg"><EtapasAtendimento etapa={modo === "atendeu" ? 2 : 3} />{el}</div> : el);
+
+  if (modo === "atendeu") return comEtapas(
     <div className="rl-passo">
       <span className="rl-passo-n">?</span>
       <div className="rl-passo-c">
@@ -78,7 +108,7 @@ export default function RegistroAtendimento({ t, s, atendimentoId, onGravado, on
     </div>
   );
 
-  if (modo === "liguei") return (
+  if (modo === "liguei") return comEtapas(
     <div className="rl-painel">
       <b>Como foi a conversa?</b>
       <div className="rl-res">
@@ -105,7 +135,7 @@ export default function RegistroAtendimento({ t, s, atendimentoId, onGravado, on
     </div>
   );
 
-  if (modo === "sem50") return (
+  if (modo === "sem50") return comEtapas(
     <div className="rl-painel">
       <b>Por que ainda não fez a revisão de 50 h?</b>
       <div className="rl-res">
@@ -142,7 +172,7 @@ export default function RegistroAtendimento({ t, s, atendimentoId, onGravado, on
     </div>
   );
 
-  return (
+  return comEtapas(
     <div className="rl-painel">
       <b>Por que não precisa ligar?</b>
       <textarea rows={2} autoFocus value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Ex.: o vendedor já conversou, cliente pediu para não ligar…" />

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { autorDe, protegerRota } from '@/lib/ajustes/permissao-server';
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
+import { PASSOS_ATENDIMENTO, type PassoAtendimento } from '@/lib/revisoes/contatos-radar';
 
 export const dynamic = 'force-dynamic';
 
@@ -8,6 +9,7 @@ export const dynamic = 'force-dynamic';
 // conseguir fazer uma aba de atendimentos em andamento").
 // GET → os abertos (encerrado_em nulo), do mais novo ao mais velho.
 // POST { acao: 'iniciar', chave, marco? } → abre (se já tem um aberto para o trator, devolve esse, com `ja`).
+// POST { acao: 'passo', id, passo } → guarda onde parou (atendeu | conversa | motivo | dispensar).
 // POST { acao: 'cancelar' | 'encerrar', id } → fecha sem registro / registrado (revisões: o contato é gravado
 // por /api/feedbacks/crm/revisoes e a tela encerra aqui). Chave das revisões = 'rev:<id do trator>'.
 // O registro da ligação (POST /api/revisoes/vendidos/contatos com atendimento_id) fecha como 'registrado'.
@@ -31,7 +33,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const g = await protegerRota(req, [{ modulo: 'revisoes' }, { modulo: 'feedbacks' }]);
   if (g.resposta) return g.resposta;
-  const b = await req.json().catch(() => ({})) as { acao?: string; chave?: unknown; marco?: unknown; id?: unknown };
+  const b = await req.json().catch(() => ({})) as { acao?: string; chave?: unknown; marco?: unknown; id?: unknown; passo?: unknown };
 
   if (b.acao === 'iniciar') {
     const chave = typeof b.chave === 'string' ? b.chave.trim() : '';
@@ -52,6 +54,18 @@ export async function POST(req: NextRequest) {
       entidade_label: marco ? `${marco} dias` : 'atendimento', user_id: g.user.id, user_nome: autorDe(g.user),
     }).then(() => null, () => null);
     return NextResponse.json({ ok: true, atendimento: data });
+  }
+
+  // onde o atendimento parou (Atendeu? / Como foi…), para a equipe ver na faixa "Em atendimento agora"
+  if (b.acao === 'passo') {
+    const id = typeof b.id === 'string' ? b.id : '';
+    if (!/^[0-9a-f-]{36}$/i.test(id) || !PASSOS_ATENDIMENTO.includes(b.passo as PassoAtendimento)) return NextResponse.json({ ok: false, erro: 'Passo inválido.' }, { status: 400 });
+    const { error } = await supabaseAdmin.from(TABELA).update({ passo: b.passo }).eq('id', id).is('encerrado_em', null);
+    // sem a coluna (SQL radar-tratores-atendimento-passo não rodado): segue sem guardar
+    if (error && (error.code === '42703' || error.code === 'PGRST204')) return NextResponse.json({ ok: true, semColuna: true });
+    if (faltaTabela(error)) return semTabela();
+    if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
   }
 
   if (b.acao === 'cancelar' || b.acao === 'encerrar') {

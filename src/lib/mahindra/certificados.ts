@@ -57,6 +57,57 @@ export function pdfDoCertificado<T extends { tipo: string; url: string }>(docs: 
   return l.find((d) => /certificado/i.test(d.tipo)) || l[0] || null;
 }
 
+/**
+ * Certificado lançado no chassi errado no portal da Mahindra (Vinicius, 03/11/2026: o 9500 do Jair
+ * …3784 abria a nota do Jivo 2025 do Paulo César …2093). Os anexos têm o final do chassi no nome do
+ * arquivo ("NF6901PAULOCESARJIVO20252093.pdf"): se algum anexo cita o final de OUTRO trator nosso e
+ * nenhum cita o deste, devolve os finais citados; senão null. `finais` = finais (4) dos tratores conhecidos.
+ */
+export function anexosDeOutroTrator(chassi: string, docs: { url: string }[] | null | undefined, finais: Set<string>): string[] | null {
+  const meu = chassiLimpo(chassi).slice(-4);
+  if (meu.length < 4) return null;
+  const outros = new Set<string>();
+  let citaMeu = false;
+  for (const d of docs || []) {
+    // "87_20_20260615170157_NF6901PAULO…" → tira o prefixo do portal (tipo + carimbo de data)
+    const arq = decodeURIComponent(String(d.url).split('/').pop() || '').replace(/^\d+_\d+_\d+_/, '').toUpperCase();
+    for (const run of arq.match(/\d{4,}/g) || []) {
+      const f = run.slice(-4);
+      if (f === meu) citaMeu = true;
+      else if (finais.has(f)) outros.add(f);
+    }
+  }
+  return !citaMeu && outros.size ? [...outros] : null;
+}
+
+/** O normal são 3 anexos: NF da concessionária, NF da Mahindra e o certificado assinado. */
+export const ANEXOS_NORMAIS = 3;
+
+/**
+ * Confere os anexos do certificado. José, 05/11/2026 (o 1002 do Jair ficou com 6: os 3 dele e os 3 do
+ * Paulo César): "quando tiver mais de 3 arquivos, acusa que pode ter erro". Devolve os anexos com os
+ * deste trator primeiro (os que citam outro final vão para o fim — não some nada: "OJA00302" do …0030
+ * pode ser só o arquivo 2), os finais de fora e o aviso.
+ */
+export function conferirAnexos<T extends { url: string }>(chassi: string, docs: T[] | null | undefined, finais: Set<string>): {
+  documentos: T[]; trocado: string[] | null; alerta: string | null;
+} {
+  const lista = docs || [];
+  const trocado = anexosDeOutroTrator(chassi, lista, finais);
+  if (trocado) return { documentos: lista, trocado, alerta: `os anexos são de outro trator (final ${trocado.join(', ')}): certificado lançado no chassi errado no portal da Mahindra` };
+  const deFora = new Map<T, string>();
+  for (const d of lista) {
+    const so = anexosDeOutroTrator(chassi, [d], finais);
+    if (so) deFora.set(d, so[0]);
+  }
+  const documentos = [...lista.filter((d) => !deFora.has(d)), ...lista.filter((d) => deFora.has(d))];
+  const finaisFora = [...new Set(deFora.values())];
+  const alerta = finaisFora.length
+    ? `tem ${deFora.size} anexo${deFora.size > 1 ? 's' : ''} que parece${deFora.size > 1 ? 'm' : ''} de outro trator (final ${finaisFora.join(', ')}) junto com os deste — confira no portal da Mahindra`
+    : lista.length > ANEXOS_NORMAIS ? `tem ${lista.length} anexos (o normal são ${ANEXOS_NORMAIS}) — pode ter documento de outro trator; confira no portal da Mahindra` : null;
+  return { documentos, trocado: null, alerta };
+}
+
 const entidades = (s: string) => s
   .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
   .replace(/&#(\d+);/g, (_, n) => String.fromCharCode(Number(n)));

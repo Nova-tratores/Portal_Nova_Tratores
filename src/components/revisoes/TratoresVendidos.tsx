@@ -17,7 +17,7 @@ import { ROTULO_FASE, type Fase } from '@/lib/revisoes/vendidos';
 import type { TratorVendido } from '@/lib/revisoes/vendidos-server';
 import type { AtendimentoRadar } from '@/lib/revisoes/contatos-radar';
 import type { CtxAtendimento } from '@/components/feedbacks/tratores/RoteiroLigacao';
-import RegistroAtendimento from '@/components/feedbacks/tratores/RegistroAtendimento';
+import RegistroAtendimento, { EtapasAtendimento } from '@/components/feedbacks/tratores/RegistroAtendimento';
 
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const dataBR = (iso: string | null | undefined) => {
@@ -319,6 +319,9 @@ export function Ficha({ t, podeControle, meses, seminovos, onFechar, atendimento
                   <div className="tv-linha"><span>Certificado Mahindra</span><b>
                     <a href={t.certificado.link} target="_blank" rel="noreferrer">nº {t.certificado.itemId} ({t.certificado.status || "—"})</a>
                   </b></div>
+                  {t.certificado.alertaAnexos && (
+                    <div className="tv-linha"><span>Atenção</span><b style={{ color: t.certificado.deOutroTrator ? COR.vermelho : COR.ambar }}>{t.certificado.alertaAnexos}{t.certificado.deOutroTrator ? "; a data de entrega não foi usada" : ""}</b></div>
+                  )}
                   {t.certificado.documentos.length > 0 && (
                     <div className="tv-docs">
                       {t.certificado.documentos.map((d) => {
@@ -474,6 +477,7 @@ function Comecar({ t, atendimento }: { t: TratorVendido; atendimento?: CtxAtendi
         <div className="tv-cm-feito"><i className="fa-solid fa-circle-check" /> <span><b>Atendimento registrado</b>{feito}</span></div>
       ) : !atend ? (
         <div className="tv-cm-iniciar">
+          <EtapasAtendimento etapa={1} />
           <button type="button" className="tv-btn cheio grande" style={{ ['--c' as string]: COR.verde } as React.CSSProperties} disabled={iniciando} onClick={() => void iniciar()}>
             {iniciando ? <i className="fa-solid fa-circle-notch fa-spin" /> : <i className="fa-solid fa-headset" />} Iniciar atendimento
           </button>
@@ -488,7 +492,7 @@ function Comecar({ t, atendimento }: { t: TratorVendido; atendimento?: CtxAtendi
             <small>{semTabela ? 'sem registro de andamento (falta o SQL radar-tratores-atendimentos)' : `desde ${hora(atend.iniciado_em)}${atend.user_nome ? ` · ${atend.user_nome}` : ''}`}</small>
             <button type="button" className="tv-cm-link" onClick={() => void cancelar()}>Cancelar o atendimento</button>
           </div>
-          <RegistroAtendimento t={t} s={atendimento.s} atendimentoId={atend.id || null} rotuloSalvar="Salvar o atendimento"
+          <RegistroAtendimento t={t} s={atendimento.s} atendimentoId={atend.id || null} passoInicial={atend.passo} rotuloSalvar="Salvar o atendimento"
             onGravado={(ct, txt) => { setFeito(txt.replace(/^[^:]*:\s*/, ' · ')); atendimento.onGravado(ct, txt); }} />
         </div>
       ))}

@@ -13,7 +13,7 @@ import { Contador } from "../hoje/kit";
 import { guardar, lerGuardado } from "./cacheTela";
 import type { TratorVendido } from "@/lib/revisoes/vendidos-server";
 import {
-  DIAS_ANTES_50, ROTULO_MOTIVO, ROTULO_RESULTADO, ordemDaFila, situacaoContato, vermelho,
+  DIAS_ANTES_50, ROTULO_MOTIVO, ROTULO_RESULTADO, ordemDaFila, passoDoAtendimento, situacaoContato, vermelho,
   type AtendimentoRadar, type Contato, type Estado, type Situacao,
 } from "@/lib/revisoes/contatos-radar";
 
@@ -101,7 +101,7 @@ export default function RoteiroLigacao({ lista, desde, onAbrir: abrirFicha }: { 
   useEffect(() => { const id = setTimeout(() => { void carregar(); void carregarAtends(); }, 0); return () => clearTimeout(id); }, [carregar, carregarAtends]);
 
   const hoje = hojeISO();
-  const itens = useMemo(() => {
+  const todos = useMemo(() => {
     const porChave = new Map<string, Contato[]>();
     contatos.forEach((c) => porChave.set(c.chave, [...(porChave.get(c.chave) || []), c]));
     return lista.map((t) => {
@@ -109,6 +109,12 @@ export default function RoteiroLigacao({ lista, desde, onAbrir: abrirFicha }: { 
       return { t, s, red: vermelho(t.entrega.dias, s) };
     });
   }, [lista, contatos, hoje]);
+  // José, 05/11/2026: "se ele já está em atendimento, não precisa aparecer aqui de novo" — sai da fila e
+  // dos números; fica só na faixa "Em atendimento agora", com o passo em que parou
+  const itens = useMemo(() => {
+    const emAtendimento = new Set(atends.map((a) => a.chave));
+    return todos.filter((x) => !emAtendimento.has(x.t.chave));
+  }, [todos, atends]);
 
   const conta = (e: Estado[]) => itens.filter((x) => e.includes(x.s.estado)).length;
   const nGrupo: Record<Grupo, number> = { acao: 0, esperando: 0, resolvido: 0 };
@@ -148,7 +154,7 @@ export default function RoteiroLigacao({ lista, desde, onAbrir: abrirFicha }: { 
     if (c.resultado === "nao_atendeu" && filtro !== "acao") setK((x) => x + 1);
   };
   const ctxDe = (t: TratorVendido, iniciar = false): CtxAtendimento | undefined => {
-    const x = itens.find((y) => y.t.chave === t.chave);
+    const x = todos.find((y) => y.t.chave === t.chave);
     if (!x?.s.marco || semTabela) return undefined;
     return { s: x.s, aberto: atends.find((a) => a.chave === t.chave) ?? null, iniciar, onMudou: () => void carregarAtends(), onGravado: aoGravar };
   };
@@ -173,11 +179,12 @@ export default function RoteiroLigacao({ lista, desde, onAbrir: abrirFicha }: { 
         <div className="rl-andamento">
           <span className="rl-and-t"><i className="fa-solid fa-headset" /> Em atendimento agora <b>{atends.length}</b></span>
           {atends.map((a) => {
-            const x = itens.find((y) => y.t.chave === a.chave);
+            const x = todos.find((y) => y.t.chave === a.chave);
+            const p = passoDoAtendimento(a.passo);
             return (
               <button key={a.id} type="button" disabled={!x} onClick={() => x && onAbrir(x.t)} title="Abrir a ficha e continuar o atendimento">
                 <span className="pulso" />
-                <span className="tx"><b>{x?.t.cliente?.nome || "Trator fora da lista"}</b><small>{x ? `${x.t.modelo} · ` : ""}{primeiroNome(a.user_nome) || "alguém"} desde {new Date(a.iniciado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</small></span>
+                <span className="tx"><b>{x?.t.cliente?.nome || "Trator fora da lista"}</b><small>{x ? `${x.t.modelo} · ` : ""}{primeiroNome(a.user_nome) || "alguém"} desde {new Date(a.iniciado_em).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</small><em className="rl-and-passo"><span>Passo {p.etapa} de 3</span> {p.falta}</em></span>
               </button>
             );
           })}
@@ -240,8 +247,13 @@ export default function RoteiroLigacao({ lista, desde, onAbrir: abrirFicha }: { 
               <div className={`rl-entrega ${atual.t.entrega.origem}`}>
                 {atual.t.entrega.origem === "mahindra"
                   ? <><i className="fa-solid fa-handshake-simple" /> Entrega técnica em {dataBR(atual.t.entrega.data)}{atual.t.certificado?.responsavel ? ` · ${primeiroNome(atual.t.certificado.responsavel)}` : ""} · {atual.t.entrega.dias} dias com o cliente</>
-                  : <><i className="fa-solid fa-circle-exclamation" /> Sem entrega técnica no portal da Mahindra — contando da nota</>}
+                  : atual.t.certificado?.deOutroTrator
+                    ? <><i className="fa-solid fa-circle-exclamation" /> Certificado da Mahindra com documentos de outro trator (final {atual.t.certificado.deOutroTrator.join(", ")}) — corrigir lá; contando da nota</>
+                    : <><i className="fa-solid fa-circle-exclamation" /> Sem entrega técnica no portal da Mahindra — contando da nota</>}
               </div>
+              {atual.t.certificado?.alertaAnexos && !atual.t.certificado.deOutroTrator && (
+                <div className="rl-entrega nota"><i className="fa-solid fa-triangle-exclamation" /> Certificado da Mahindra {atual.t.certificado.alertaAnexos}</div>
+              )}
 
               {(atual.s.estado === "orcado" || atual.s.estado === "feita") && atual.t.revisao50 && (
                 <div className="rl-rev">
@@ -320,7 +332,7 @@ export default function RoteiroLigacao({ lista, desde, onAbrir: abrirFicha }: { 
               <div className="rl-extras">
                 <button type="button" onClick={() => onAbrir(atual.t)}><i className="fa-solid fa-id-card" /> Ficha e mapa</button>
                 {(() => {
-                  const pdf = pdfDoCertificado(atual.t.certificado?.documentos);
+                  const pdf = atual.t.certificado?.deOutroTrator ? null : pdfDoCertificado(atual.t.certificado?.documentos);
                   return pdf && <button type="button" onClick={() => setDoc({ titulo: `Certificado de garantia · ${atual.t.modelo} ${atual.t.chassi?.slice(-6) || ""}`, url: pdf.url, nome: `Certificado ${atual.t.chassi?.slice(-6) || ""}` })}><i className="fa-solid fa-file-pdf" /> Certificado de garantia</button>;
                 })()}
                 {atual.t.revisao50?.os && <a href={`/pos?id=${encodeURIComponent(atual.t.revisao50.os)}`} target="_blank" rel="noreferrer"><i className="fa-solid fa-screwdriver-wrench" /> Abrir a {atual.t.revisao50.os}</a>}
@@ -376,6 +388,16 @@ export const ESTILO_RL = `
 .rl-andamento .tx { display: grid } .rl-andamento .tx b { font-weight: 500; font-size: 13px } .rl-andamento .tx small { font-size: 11.5px; color: var(--t2, #64748b) }
 .rl-andamento .pulso { width: 9px; height: 9px; border-radius: 50%; background: #16a34a; animation: rlPulsoA 1.6s ease-in-out infinite }
 @keyframes rlPulsoA { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, #16a34a 25%, transparent) } }
+
+.rl-and-passo { font-style: normal; font-size: 12px; color: #15803d } .rl-and-passo span { font-weight: 500; padding: 0 6px; border-radius: 99px; background: color-mix(in srgb, #16a34a 14%, transparent) }
+.rl-reg { display: grid; gap: 10px }
+.rl-etapas { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none }
+.rl-etapas li { display: inline-flex; gap: 7px; align-items: center; height: 32px; padding: 0 12px 0 5px; border-radius: 99px; font-size: 13.5px; color: var(--t2, #64748b); background: var(--soft, #f1f5f9) }
+.rl-etapas li > span { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; background: var(--s, #fefefe); color: var(--t2, #64748b) }
+.rl-etapas li.feito { color: #15803d; background: color-mix(in srgb, #16a34a 10%, var(--s, #fefefe)) }
+.rl-etapas li.feito > span { background: #16a34a; color: #fefefe }
+.rl-etapas li.atual { color: #fefefe; background: #2563eb }
+.rl-etapas li.atual > span { background: #fefefe; color: #2563eb }
 
 .rl { display: grid; gap: 14px }
 @keyframes rlEntra { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: none } }

@@ -31,6 +31,22 @@ export interface AtendimentoRadar {
   user_id: string | null;
   user_nome: string | null;
   iniciado_em: string;
+  /** onde parou (coluna `passo`, sql/radar-tratores-atendimento-passo.sql); sem a coluna, undefined */
+  passo?: PassoAtendimento | null;
+}
+
+// José, 05/11/2026: "precisa mostrar em que passo está o atendimento, pois tá muito difícil de entender".
+// 1 Iniciar (abre o atendimento) → 2 Atendeu? → 3 Como foi (resultado, motivo da 50 h ou dispensa) → grava e fecha.
+export type PassoAtendimento = 'atendeu' | 'conversa' | 'motivo' | 'dispensar';
+export const PASSOS_ATENDIMENTO: PassoAtendimento[] = ['atendeu', 'conversa', 'motivo', 'dispensar'];
+export const ETAPAS_ATENDIMENTO = ['Iniciar', 'Atendeu?', 'Como foi'] as const;
+
+/** Número da etapa (1–3) e o que falta, para a faixa "Em atendimento agora" e o cabeçalho da ficha. */
+export function passoDoAtendimento(p: PassoAtendimento | null | undefined): { etapa: 2 | 3; falta: string } {
+  if (p === 'conversa') return { etapa: 3, falta: 'conversou · falta dizer como foi' };
+  if (p === 'motivo') return { etapa: 3, falta: 'conversou · falta o motivo de não fazer a 50 h' };
+  if (p === 'dispensar') return { etapa: 3, falta: 'dispensando · falta o motivo' };
+  return { etapa: 2, falta: 'ligando · falta marcar se o cliente atendeu' };
 }
 
 export interface Contato {
