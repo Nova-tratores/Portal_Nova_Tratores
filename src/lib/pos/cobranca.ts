@@ -50,3 +50,48 @@ export function mensagemAssinaturaCobranca(r: Pick<ResumoOS, 'revisaoHoras' | 'n
 export function ehMensagemDeCobranca(texto: string): boolean {
   return /Segue o orçamento|Valor Total:|^Posso fechar (o serviço )?(para|à vista)|assinar na tela do celular/i.test(String(texto || ''));
 }
+
+// ── Em qual empresa está o pedido de peças da cobrança ───────────────────────
+// A OS vai sempre para a Nova, mas o pedido de peças pode estar na Castro. O nº
+// do pedido se repete entre as duas contas (cada uma tem a sua numeração), então
+// achar "um pedido com esse número" não basta: ele só vale se o cliente do pedido
+// for o cliente da OS NAQUELA empresa (o cadastro da Castro espelha o da Nova,
+// mas com outro código).
+
+const semAcentoEmp = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+/** "Nova Tratores" / "Castro Peças" / "Castro Pecas" → 'nova' | 'castro'. */
+export function chaveEmpresa(nome: unknown): 'nova' | 'castro' | null {
+  const n = semAcentoEmp(nome);
+  if (!n) return null;
+  if (n.includes('castro') || n.includes('primari')) return 'castro';
+  if (n.includes('nova')) return 'nova';
+  return null;
+}
+
+/** Códigos Omie do cliente em uma empresa, a partir do cadastro espelhado. */
+export function codigosClienteNaEmpresa(registros: { cod_cli?: unknown; empresa?: unknown }[], empresa: unknown): Set<string> {
+  const alvo = chaveEmpresa(empresa);
+  return new Set(
+    (registros || [])
+      .filter((r) => alvo && chaveEmpresa(r.empresa) === alvo)
+      .map((r) => String(r.cod_cli ?? '').trim())
+      .filter(Boolean),
+  );
+}
+
+/**
+ * O pedido achado nesta empresa é do cliente da OS?
+ * - 'sim': o código do cliente do pedido está no cadastro do cliente nessa empresa;
+ * - 'nao': o cliente tem cadastro nessa empresa e o pedido é de OUTRO cliente;
+ * - 'sem_cadastro': não há cadastro do cliente nessa empresa para conferir.
+ */
+export function pedidoDoCliente(
+  codigoClientePedido: unknown,
+  empresa: unknown,
+  registros: { cod_cli?: unknown; empresa?: unknown }[],
+): 'sim' | 'nao' | 'sem_cadastro' {
+  const codigos = codigosClienteNaEmpresa(registros, empresa);
+  if (!codigos.size) return 'sem_cadastro';
+  return codigos.has(String(codigoClientePedido ?? '').trim()) ? 'sim' : 'nao';
+}

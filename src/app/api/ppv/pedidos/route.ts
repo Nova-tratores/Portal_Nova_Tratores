@@ -31,6 +31,7 @@ import { soltarUnidadesDoPPV } from "@/lib/pecas/ppv-vinculo";
 import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 import { motivoClienteInativo } from "@/lib/clientes/inativo";
+import { cancelarPeloSalvar } from "@/lib/ppv/cancelamento";
 
 // GET - Listar kanban OU buscar por ID
 // Quem lê: o PPV, o POS (PPV vinculado na OS, editar PPVs da OS) e Orçamentos
@@ -240,9 +241,12 @@ export async function PATCH(req: NextRequest) {
     let statusAntes: string | null = null;
     try {
       const atual = await supabaseFetch<Record<string, unknown>[]>(
-        `${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(dados.id)}&select=faturado_omie_em,status&limit=1`,
+        `${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(dados.id)}&select=faturado_omie_em,status,pedido_omie&limit=1`,
       );
       statusAntes = atual?.[0] ? String(atual[0].status ?? '') : null;
+      // cancelar pelo "salvar" deixava o pedido vivo no Omie: só pelo botão Cancelar pedido
+      const naoCancela = cancelarPeloSalvar({ statusAntes, statusNovo: dados.status, pedidoOmie: atual?.[0]?.pedido_omie as string | null });
+      if (naoCancela) return NextResponse.json({ error: naoCancela }, { status: 409 });
       if (atual?.[0]?.faturado_omie_em && !["Concluída", "Cancelada"].includes(dados.status)) {
         dados.status = "Concluída";
       }

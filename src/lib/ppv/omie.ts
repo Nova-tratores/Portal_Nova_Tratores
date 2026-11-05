@@ -1248,6 +1248,9 @@ export async function cancelarPedidoVendaOmie(
 
   const cab = await lerCabecalhoPPV(idPPV);
   if (!cab) return { sucesso: false, erro: "PPV não encontrado." };
+  const { bloqueioCancelamento, falhaNaResposta } = await import("./cancelamento");
+  const jaFaturado = bloqueioCancelamento({ faturadoEm: (cab.faturado_omie_em as string) || null });
+  if (jaFaturado) return { sucesso: false, erro: jaFaturado };
 
   let empresa: string | undefined;
   // Se já existe no Omie, cancela lá primeiro (se falhar, NÃO marca cancelado aqui).
@@ -1258,12 +1261,17 @@ export async function cancelarPedidoVendaOmie(
     empresa = acc.name;
     const nCodPed = Number(pedido.cabecalho?.codigo_pedido) || 0;
     if (!nCodPed) return { sucesso: false, empresa, erro: "Não consegui o código interno do pedido no Omie (nCodPed)." };
+    const faturadoLa = bloqueioCancelamento({ etapaOmie: pedido.cabecalho?.etapa });
+    if (faturadoLa) return { sucesso: false, empresa, erro: faturadoLa };
     try {
       const resp = await omieCall<Record<string, unknown>>(
         "/produtos/pedidovendafat/", "CancelarPedidoVenda",
         { nCodPed, ...(pedido.cabecalho?.codigo_pedido_integracao ? { cCodIntPed: String(pedido.cabecalho.codigo_pedido_integracao) } : {}) }, acc.key, acc.secret,
       );
       console.log(`[Omie PPV cancelar] ${idPPV}: CancelarPedidoVenda ->`, JSON.stringify(resp).slice(0, 200));
+      // a Omie responde 200 com cCodStatus ≠ "0" quando recusa: aí NÃO marca cancelado aqui
+      const recusa = falhaNaResposta(resp as { cCodStatus?: unknown; cDescStatus?: unknown });
+      if (recusa) return { sucesso: false, empresa, erro: `O Omie recusou o cancelamento: ${recusa}` };
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.error(`[Omie PPV cancelar] ${idPPV}: CancelarPedidoVenda FALHOU: ${msg}`);

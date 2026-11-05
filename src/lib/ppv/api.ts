@@ -170,9 +170,9 @@ export const api = {
   simularFaturamento: (id: string) =>
     postAuth<PrevisaoFat>("/api/ppv/pedidos/faturar/simular", { id }),
 
-  faturar: (id: string, categoria: string, userName?: string) =>
+  faturar: (id: string, categoria: string, userName?: string, aceitouDivergencias = false) =>
     postAuth<{ success: boolean; pendente?: boolean; aguardandoSefaz?: boolean; numeroPedido: string; nfNumero: string | null; etapa?: string; empresa: string; error?: string }>(
-      "/api/ppv/pedidos/faturar", { id, categoria, userName }),
+      "/api/ppv/pedidos/faturar", { id, categoria, userName, aceitouDivergencias }),
 
   // --- Categorias de faturamento (gerenciamento) ---
   listarCategoriasFat: (empresa: string, all = false) =>

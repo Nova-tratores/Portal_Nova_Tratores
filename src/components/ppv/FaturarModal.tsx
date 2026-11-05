@@ -37,6 +37,8 @@ export default function FaturarModal({
   const [reservadasPendentes, setReservadasPendentes] = useState(0);
   // fechou durante o "Faturando": o resultado só vai para o sino
   const fechouRef = useRef(false);
+  // "faturar assim mesmo" com diferença no Omie: o servidor confere de novo e só aceita com isto
+  const aceitouDivRef = useRef(false);
   // o modal é montado a cada abertura (showFaturar && …): o "ciente" nasce desmarcado
   const conferencia = useConferenciaPrecos(itensConferir || [], open);
   const [ciente, setCiente] = useState(false);
@@ -70,12 +72,12 @@ export default function FaturarModal({
   if (!open || !ppvId) return null;
   const numero = numeroPedido ? (String(numeroPedido).replace(/^0+/, "") || String(numeroPedido)) : "";
 
-  if (etapa === "conferencia") return <ConferenciaOmie alvo={{ tipo: "ppv", ppvId }} cor="#e8730c" onOk={() => setEtapa("confirmar")} onCancelar={onClose} />;
+  if (etapa === "conferencia") return <ConferenciaOmie alvo={{ tipo: "ppv", ppvId }} cor="#e8730c" onOk={(com) => { aceitouDivRef.current = !!com; setEtapa("confirmar"); }} onCancelar={onClose} />;
 
   const faturar = async () => {
     setEtapa("faturando"); setErro("");
     try {
-      const r = await api.faturar(ppvId, "", userName); // sem categoria: usa a do pedido
+      const r = await api.faturar(ppvId, "", userName, aceitouDivRef.current); // sem categoria: usa a do pedido
       if (r.success) {
         onDone(); // marca Concluída/Faturado no drawer
         if (fechouRef.current) return; // o aviso chega no sino

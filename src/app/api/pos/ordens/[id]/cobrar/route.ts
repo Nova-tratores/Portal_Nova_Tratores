@@ -13,7 +13,8 @@ import { chatwootConfigurado, chatwootVariaveisFaltando } from "@/lib/chatwoot/c
 import { nomeVendedorPorCodigo } from "@/lib/pos/omie";
 import { omie as omiePorta } from "@/lib/omie/porta";
 import { garantirAssinatura, linkAssinatura, resumoDaOS } from "@/lib/pos/assinatura-cliente-db";
-import { ehMensagemDeCobranca, mensagemAssinaturaCobranca, normalizarPagamento, perguntaPagamento } from "@/lib/pos/cobranca";
+import { ehMensagemDeCobranca, mensagemAssinaturaCobranca, normalizarPagamento, pedidoDoCliente, perguntaPagamento } from "@/lib/pos/cobranca";
+import { resolverContaDoPedido, consultarPedidoOmie, omieNaConta, getAccount, type OmieAccount, type OmiePedidoConsulta } from "@/lib/ppv/omie";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -81,8 +82,10 @@ interface DadosCobranca {
   valorPV: number;
   total: number;
   nCodOS: number;
-  codPedidos: number[];
-  numsPV: string[];
+  /** pedidos de peças da cobrança, cada um na empresa (conta Omie) onde está */
+  pedidos: { acc: OmieAccount; num: string; cod: number; valor: number }[];
+  /** pedidos que ficaram FORA (de outro cliente / empresa não confirmada / não achado) */
+  avisoPedidos: string[];
   mensagem: (nomeContato: string) => string;
   cliente: { nome: string; cnpj: string };
 }
@@ -116,31 +119,58 @@ async function montarCobranca(id: string): Promise<DadosCobranca | { erro: strin
   const nCodOS = Number(c?.Cabecalho?.nCodOS || 0);
   const valorOS = Number(c?.Cabecalho?.nValorTotal || 0);
 
-  // Números dos Pedidos de Venda: o campo da OS quando existir; senão o
-  // pedido_omie dos PPVs vinculados (o envio pelo drawer não grava na OS).
-  let pvNums = String(os.Pedido_Venda || "").split(",").map((s: string) => s.trim()).filter(Boolean);
-  if (!pvNums.length && os.ID_PPV) {
-    const ids = String(os.ID_PPV).split(",").map((s: string) => s.trim()).filter(Boolean);
-    if (ids.length) {
-      const { data: peds } = await supabase.from("pedidos")
-        .select("id_pedido, pedido_omie")
-        .in("id_pedido", ids);
-      pvNums = (peds || []).map((p) => String(p.pedido_omie || "").trim()).filter(Boolean);
+  // Pedidos de peças: os PPVs vinculados (cada um na empresa onde foi enviado)
+  // + os números do campo Pedido_Venda. A OS é sempre da Nova, mas o pedido pode
+  // estar na Castro, e o mesmo nº existe nas duas contas com clientes diferentes:
+  // o pedido só entra se o cliente dele for o cliente da OS naquela empresa.
+  const lista = (v: unknown) => String(v || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const semZeros = (v: unknown) => String(v ?? "").trim().replace(/^0+(?=d)/, "");
+  const pedidos: DadosCobranca["pedidos"] = [];
+  const avisoPedidos: string[] = [];
+  const aceitar = (acc: OmieAccount, ped: OmiePedidoConsulta) => {
+    const num = String(ped.cabecalho?.numero_pedido || "");
+    if (pedidoDoCliente(ped.cabecalho?.codigo_cliente, acc.name, registros) === "nao") {
+      avisoPedidos.push(`O pedido ${semZeros(num)} da ${acc.name} é de outro cliente: ficou fora da cobrança.`);
+      return;
+    }
+    if (pedidos.some((p) => p.acc.name === acc.name && semZeros(p.num) === semZeros(num))) return;
+    pedidos.push({ acc, num, cod: Number(ped.cabecalho?.codigo_pedido || 0), valor: Number(ped.total_pedido?.valor_total_pedido || 0) });
+  };
+
+  const idsPPV = lista(os.ID_PPV);
+  if (idsPPV.length) {
+    const { data: peds } = await supabase.from("pedidos")
+      .select("id_pedido, pedido_omie, omie_empresa, status")
+      .in("id_pedido", idsPPV);
+    for (const p of peds || []) {
+      if (!String(p.pedido_omie || "").trim() || /cancel/i.test(String(p.status || ""))) continue;
+      const achado = await resolverContaDoPedido(String(p.id_pedido), (p.omie_empresa as string) || null).catch(() => null);
+      if (achado) aceitar(achado.acc, achado.pedido);
+      else avisoPedidos.push(`Não achei no Omie o pedido ${semZeros(p.pedido_omie)} (${p.id_pedido}): ficou fora da cobrança.`);
     }
   }
 
-  let valorPV = 0;
-  const codPedidos: number[] = [];
-  const numsPV: string[] = [];
-  for (const num of [...new Set(pvNums)]) {
-    try {
-      const p = await omie<any>("/produtos/pedido/", "ConsultarPedido", { numero_pedido: num });
-      const pv = p?.pedido_venda_produto || p;
-      valorPV += Number(pv?.total_pedido?.valor_total_pedido || 0);
-      const cod = Number(pv?.cabecalho?.codigo_pedido || 0);
-      if (cod) { codPedidos.push(cod); numsPV.push(num); }
-    } catch { /* PV sem consulta — segue com o que somou */ }
+  // nº digitado na OS sem PPV no portal: procura nas duas empresas, a Nova primeiro;
+  // para na primeira em que o pedido é do cliente (cada "não cadastrado" conta como
+  // erro na Omie, então não pergunta à Castro à toa).
+  const contas = [getAccount("Nova Tratores"), getAccount("Castro Peças")];
+  for (const num of [...new Set(lista(os.Pedido_Venda))]) {
+    if (pedidos.some((p) => semZeros(p.num) === semZeros(num))) continue;
+    const achados: { acc: OmieAccount; ped: OmiePedidoConsulta; conf: ReturnType<typeof pedidoDoCliente> }[] = [];
+    for (const acc of contas) {
+      const ped = await consultarPedidoOmie({ numero_pedido: num }, acc);
+      if (!ped) continue;
+      const conf = pedidoDoCliente(ped.cabecalho?.codigo_cliente, acc.name, registros);
+      achados.push({ acc, ped, conf });
+      if (conf === "sim") break;
+    }
+    const certo = achados.find((a) => a.conf === "sim")
+      || (achados.length === 1 && achados[0].conf === "sem_cadastro" ? achados[0] : null);
+    if (certo) aceitar(certo.acc, certo.ped);
+    else if (achados.length) avisoPedidos.push(`Não deu para confirmar que o pedido ${semZeros(num)} é deste cliente: ficou fora da cobrança.`);
+    else avisoPedidos.push(`Pedido ${semZeros(num)} não encontrado no Omie: ficou fora da cobrança.`);
   }
+  const valorPV = pedidos.reduce((t, p) => t + p.valor, 0);
   const total = valorOS + valorPV;
 
   // ── Mensagem-modelo ──
@@ -180,7 +210,7 @@ async function montarCobranca(id: string): Promise<DadosCobranca | { erro: strin
   };
 
   return {
-    os, contatos, avisoContatos, valorOS, valorPV, total, nCodOS, codPedidos, numsPV, mensagem,
+    os, contatos, avisoContatos, valorOS, valorPV, total, nCodOS, pedidos, avisoPedidos, mensagem,
     cliente: { nome: String(os.Os_Cliente || ""), cnpj: String(os.Cnpj_Cliente || "") },
   };
 }
@@ -322,6 +352,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       cliente: d.cliente,
       contatos: d.contatos,
       avisoContatos: d.avisoContatos,
+      avisoPedidos: d.avisoPedidos,
+      pedidos: d.pedidos.map((p) => ({ numero: p.num, empresa: p.acc.name, valor: p.valor })),
       valores: { os: d.valorOS, pv: d.valorPV, total: d.total },
       mensagem: d.mensagem(d.contatos[0]?.nome || ""),
       assinatura: assinatura ? { assinada: assinatura.assinada, revisaoHoras: assinatura.revisaoHoras, mensagem: assinatura.mensagem, link: assinatura.link } : null,
@@ -411,13 +443,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
       } catch (e) { console.warn("[cobrar] PDF da OS falhou:", e); }
     }
-    for (let i = 0; i < d.codPedidos.length; i++) {
+    for (const p of d.pedidos) {
+      if (!p.cod) continue;
+      const numero = String(p.num || "").replace(/^0+/, "");
       try {
-        const doc = await omie<any>("/produtos/dfedocs/", "ObterPedVenda", { nIdPed: d.codPedidos[i] });
+        // o PDF sai da empresa onde o pedido está (Nova ou Castro)
+        const doc = await omieNaConta<any>(p.acc, "/produtos/dfedocs/", "ObterPedVenda", { nIdPed: p.cod });
         if (doc?.cPdfPed) {
           const pdf = await fetch(String(doc.cPdfPed)).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`PDF PV ${r.status}`))));
-          await enviarPdfConversa(conversa, `Pedido_${String(d.numsPV[i] || i + 1).replace(/^0+/, "")}.pdf`, pdf);
-          enviados.push(`PDF do PV ${String(d.numsPV[i]).replace(/^0+/, "")}`);
+          await enviarPdfConversa(conversa, `Pedido_${numero}.pdf`, pdf);
+          enviados.push(`PDF do PV ${numero}`);
         }
       } catch (e) { console.warn("[cobrar] PDF do PV falhou:", e); }
     }

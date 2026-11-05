@@ -16,7 +16,8 @@ const PASSOS_PPV = ["Lendo o pedido no Omie", "Peças, quantidades e valores", "
 const PASSOS_ATUALIZAR = ["Enviando as correções ao Omie", "Conferindo de novo"];
 
 export default function ConferenciaOmie({ alvo, cor = "#0F8B8D", onOk, onCancelar }: {
-  alvo: Alvo; cor?: string; onOk: () => void; onCancelar: () => void;
+  /** comDivergencias = a pessoa viu as diferenças e escolheu "faturar assim mesmo" */
+  alvo: Alvo; cor?: string; onOk: (comDivergencias?: boolean) => void; onCancelar: () => void;
 }) {
   const [fase, setFase] = useState<Fase>("conferindo");
   const [res, setRes] = useState<Resposta | null>(null);
@@ -263,7 +264,7 @@ export default function ConferenciaOmie({ alvo, cor = "#0F8B8D", onOk, onCancela
                 </div>
                 <div style={{ display: "flex", gap: 8, marginTop: 20, justifyContent: "flex-end" }}>
                   <button type="button" onClick={() => setConfirmarCom(false)} style={btnSec}>Voltar</button>
-                  <button type="button" onClick={() => { setConfirmarCom(false); onOk(); }} style={{ ...btn, background: "#b45309", color: "#fefefe" }}>Sim, faturar assim mesmo</button>
+                  <button type="button" onClick={() => { setConfirmarCom(false); onOk(true); }} style={{ ...btn, background: "#b45309", color: "#fefefe" }}>Sim, faturar assim mesmo</button>
                 </div>
               </div>
             </div>

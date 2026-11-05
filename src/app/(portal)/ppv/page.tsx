@@ -84,6 +84,21 @@ function PPVApp() {
   // Handler para trocar status via dropdown — update otimista
   const handleStatusChange = useCallback(async (id: string, newStatus: string) => {
     if (!podeMoverFase) { showToast("error", "Você não tem permissão para mover de fase."); return; }
+    // Cancelada: pede o motivo e cancela de verdade (no Omie primeiro, se o pedido está lá).
+    // Antes só mudava a fase no portal e o pedido seguia vivo no Omie.
+    if (newStatus === "Cancelada") {
+      const motivo = (window.prompt(`Motivo do cancelamento da PPV #${id}:`) || "").trim();
+      if (!motivo) { showToast("error", "Cancelamento não feito: informe o motivo."); return; }
+      atualizarKanbanLocal(id, { status: newStatus });
+      try {
+        const r = await api.cancelarPedido(id, motivo, userProfile?.nome || "");
+        showToast("success", r?.empresa ? `PPV #${id} cancelada no Omie (${r.empresa}) e no portal.` : `PPV #${id} cancelada.`);
+      } catch (e) {
+        showToast("error", e instanceof Error ? e.message : `Erro ao cancelar a PPV #${id}`);
+        carregarKanban();
+      }
+      return;
+    }
     // Atualiza UI imediatamente (otimista)
     atualizarKanbanLocal(id, { status: newStatus });
 

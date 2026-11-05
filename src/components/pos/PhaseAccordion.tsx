@@ -375,6 +375,14 @@ function PainelCobranca({ osId, onPhaseChange, onStatus }: { osId: string; onPha
                 <b style={{ color: "#15803D" }}>= R$ {din(dados.valores?.total)}</b>
               </div>
               {dados.avisoContatos && <div style={{ color: "#B45309", marginTop: 5 }}>{dados.avisoContatos}</div>}
+              {dados.pedidos?.length > 0 && (
+                <div style={{ color: "#64748B", marginTop: 3, fontSize: 11 }}>
+                  {dados.pedidos.map((p: any) => `PV ${String(p.numero || "").replace(/^0+/, "")} (${/castro/i.test(p.empresa) ? "Castro" : "Nova"})`).join(" · ")}
+                </div>
+              )}
+              {(dados.avisoPedidos || []).map((t: string, i: number) => (
+                <div key={i} style={{ color: "#B91C1C", marginTop: 4, fontWeight: 600 }}>{t}</div>
+              ))}
               {dados.contatos?.length > 0 && (
                 <div style={{ marginTop: 7 }}>
                   <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: "#94A3B8" }}>Vai pra quem (NovaZap):</div>

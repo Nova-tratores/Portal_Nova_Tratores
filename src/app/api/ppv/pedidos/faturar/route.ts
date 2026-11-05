@@ -3,6 +3,7 @@
 // a UI faz confirmação dupla; aqui garantimos permissão e anti-duplicidade.
 import { NextRequest, NextResponse, after } from "next/server";
 import { faturarPPVNoOmie, obterComunicacaoSefaz } from "@/lib/ppv/omie";
+import { conferirPPV } from "@/lib/ppv/conferencia-omie";
 import { avisarUsuarioPorEmail } from "@/lib/notif/avisar-usuario";
 import { autenticar } from "@/lib/auth/server";
 import { temModuloPPV } from "@/lib/ppv/server";
@@ -25,6 +26,19 @@ export async function POST(req: NextRequest) {
     const userName = body?.userName || auth.email || "Sistema";
     if (!id || typeof id !== "string") {
       return NextResponse.json({ error: "ID do PPV obrigatório" }, { status: 400 });
+    }
+
+    // Confere de novo AQUI (a janela conferiu antes, mas o pedido pode ter mudado no
+    // meio, ou a chamada pode vir de fora da janela). Com diferença, só fatura se a
+    // pessoa viu e escolheu "faturar assim mesmo".
+    if (body?.aceitouDivergencias !== true) {
+      const conf = await conferirPPV(id).catch(() => null);
+      if (conf && !conf.pulado && !conf.erro && conf.divergencias.length) {
+        return NextResponse.json({
+          error: `O pedido no Omie está diferente do portal (${conf.divergencias.length} diferença(s)). Clique em "Conferir e tentar de novo".`,
+          divergencias: conf.divergencias,
+        }, { status: 409 });
+      }
     }
 
     const resultado = await faturarPPVNoOmie(id, { categoria });

@@ -819,6 +819,9 @@ async function faturarOSNoOmieSemPausa(
     .update({
       faturando_desde: agoraIso, faturamento_status: 'faturando', faturamento_erro: null, faturado_por: userName,
       faturamento_pecas: pedidos.map((pid) => ({ id: pid, ok: false, erro: 'não processado' })),
+      // a forma escolhida vai junto com a trava: se o Omie demorar e quem confirmar
+      // o faturamento for a conferência, ela ainda sabe a forma (antes ficava vazia)
+      forma_pagamento: forma,
       // o que será aplicado (só manda a coluna quando há impostos: ela vem da migration dos modelos)
       ...(registroImpostos ? { faturamento_impostos: registroImpostos } : {}),
     })
@@ -947,6 +950,21 @@ async function posFaturamento(id: string, ctx: {
 }): Promise<{ pecas: PecaFaturada[]; concluida: boolean }> {
   const os = await lerOS(id);
   const statusAntes = String(os?.Status || '');
+  // Só UMA chamada conclui o faturamento. A tela confere a cada 40 s, a janela de notas
+  // a cada 20 s, o agendador a cada 10 min e o webhook também: quando o Omie mostrava
+  // a OS faturada, todas seguiam e repetiam carimbo, faturamento do PPV, log e aviso
+  // (OS-0856: 42 avisos, PPV-0541 com "o Omie recusou" falso). Toma a vez no banco
+  // trocando o faturando_desde que ESTA chamada leu; quem chegar depois não acha a
+  // mesma linha e sai sem fazer nada.
+  if (!os || os.faturado_omie_em) return { pecas: Array.isArray(os?.faturamento_pecas) ? os!.faturamento_pecas! : [], concluida: false };
+  let vez = supabase.from(TBL_OS).update({ faturando_desde: new Date().toISOString() })
+    .eq('Id_Ordem', id).is('faturado_omie_em', null);
+  vez = os.faturando_desde ? vez.eq('faturando_desde', os.faturando_desde) : vez.is('faturando_desde', null);
+  const { data: tomou, error: errVez } = await vez.select('Id_Ordem');
+  if (errVez) throw new Error(errVez.message);
+  if (!tomou?.length) return { pecas: Array.isArray(os.faturamento_pecas) ? os.faturamento_pecas : [], concluida: false };
+  // a forma vale a da chamada; sem ela (conferência), a gravada quando clicaram em Faturar
+  ctx = { ...ctx, forma: ctx.forma || normalizarPagamento(os.forma_pagamento) };
   await gravarOS(id, {
     faturado_omie_em: dataOmieISO(ctx.dataFaturamentoOmie) || new Date().toISOString(),
     ...(ctx.porFora ? { faturado_por: 'Omie (faturada direto lá)' } : { faturado_por: ctx.userName }),

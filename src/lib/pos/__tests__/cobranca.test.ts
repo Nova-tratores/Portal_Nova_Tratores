@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { OPCOES_PAGAMENTO, ehMensagemDeCobranca, mensagemAssinaturaCobranca, normalizarPagamento, perguntaPagamento } from '../cobranca';
+import { OPCOES_PAGAMENTO, chaveEmpresa, codigosClienteNaEmpresa, pedidoDoCliente, ehMensagemDeCobranca, mensagemAssinaturaCobranca, normalizarPagamento, perguntaPagamento } from '../cobranca';
 
 describe('cobrança — forma de pagamento', () => {
   it('tem as 5 opções na ordem da tela', () => {
@@ -55,3 +55,29 @@ describe('cobrança — link de assinatura', () => {
     expect(ehMensagemDeCobranca('Bom dia, pode ser sim')).toBe(false);
   });
 });
+
+
+describe('pedido de peças na empresa certa', () => {
+  const registros = [
+    { cod_cli: 111, empresa: 'Nova Tratores' },
+    { cod_cli: 999, empresa: 'Castro Pecas' },
+  ]
+  it('reconhece as grafias das empresas', () => {
+    expect(chaveEmpresa('Castro Peças')).toBe('castro')
+    expect(chaveEmpresa('Castro Pecas')).toBe('castro')
+    expect(chaveEmpresa('Nova Tratores')).toBe('nova')
+    expect(chaveEmpresa('')).toBeNull()
+  })
+  it('separa os códigos do cliente por empresa', () => {
+    expect([...codigosClienteNaEmpresa(registros, 'Castro Peças')]).toEqual(['999'])
+    expect([...codigosClienteNaEmpresa(registros, 'Nova Tratores')]).toEqual(['111'])
+  })
+  it('mesmo nº de pedido de outro cliente não vale', () => {
+    expect(pedidoDoCliente(999, 'Castro Peças', registros)).toBe('sim')
+    expect(pedidoDoCliente(111, 'Castro Peças', registros)).toBe('nao')
+    expect(pedidoDoCliente(555, 'Nova Tratores', registros)).toBe('nao')
+  })
+  it('sem cadastro na empresa não dá para conferir', () => {
+    expect(pedidoDoCliente(1, 'Castro Peças', [{ cod_cli: 111, empresa: 'Nova Tratores' }])).toBe('sem_cadastro')
+  })
+})
