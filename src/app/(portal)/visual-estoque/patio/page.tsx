@@ -194,7 +194,41 @@ export default function PatioPage() {
     } finally { setBuscandoCatalogo(false) }
   }
 
+  // Move a máquina para outra área (arrastando ou pelo "Mover para" do painel).
+  // Mostra na hora e confere a gravação: se falhar, avisa e recarrega o pátio.
+  // pos 0,0 = posição automática (o servidor distribui na área).
+  const moverMaquina = useCallback((maq: Maquina, ambiente: string, posX: number, posY: number) => {
+    setData(prev => {
+      if (!prev) return prev
+      const newAmb = { ...prev.ambientes }
+      for (const key of Object.keys(newAmb)) {
+        newAmb[key] = newAmb[key].filter(m => m.codigo_produto !== maq.codigo_produto)
+      }
+      const updated = { ...maq, ambiente, pos_x: posX, pos_y: posY }
+      newAmb[ambiente] = [...(newAmb[ambiente] || []), updated]
+      return { ...prev, ambientes: newAmb }
+    })
+    setSelecionada(prev => prev?.codigo_produto === maq.codigo_produto ? { ...prev, ambiente, pos_x: posX, pos_y: posY } : prev)
+    fetchAuth('/api/visual-estoque/mover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codigo_produto: maq.codigo_produto, ambiente, pos_x: posX, pos_y: posY }),
+    })
+      .then(async r => {
+        if (r.ok) {
+          // Posição automática é calculada no servidor: relê para a máquina cair no lugar.
+          if (posX === 0 && posY === 0) recarregar()
+          return
+        }
+        const d = await r.json().catch(() => ({}))
+        alert(`Não foi possível mover a máquina: ${d.erro || `erro ${r.status}`}`)
+        recarregar()
+      })
+      .catch(() => { alert('Não foi possível mover a máquina (sem conexão). Tente de novo.'); recarregar() })
+  }, [recarregar])
+
   const handleDragStart = useCallback((e: React.MouseEvent, maq: Maquina) => {
+    if (e.button !== 0) return
     e.preventDefault()
     const startX = e.clientX
     const startY = e.clientY
@@ -208,9 +242,16 @@ export default function PatioPage() {
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
 
+      // Soltou quase no mesmo lugar = foi um clique (seleciona), não um arraste.
+      if (Math.abs(ev.clientX - startX) < 5 && Math.abs(ev.clientY - startY) < 5) {
+        setDragging(null)
+        return
+      }
+
       let targetAmb: string | null = null
       for (const [amb, el] of Object.entries(zonesRef.current)) {
-        if (!el) continue
+        // Demonstração vem das remessas pendentes: não se coloca máquina lá arrastando.
+        if (!el || amb === 'demonstracao') continue
         const r = el.getBoundingClientRect()
         if (ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom) {
           targetAmb = amb
@@ -222,26 +263,11 @@ export default function PatioPage() {
         const el = zonesRef.current[targetAmb]
         if (el) {
           const r = el.getBoundingClientRect()
-          const posX = Math.max(0, Math.min(92, ((ev.clientX - r.left) / r.width) * 100))
-          const posY = Math.max(0, Math.min(88, ((ev.clientY - r.top) / r.height) * 100))
-
-          fetchAuth('/api/visual-estoque/mover', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ codigo_produto: maq.codigo_produto, ambiente: targetAmb, pos_x: posX, pos_y: posY }),
-          })
-
-          setData(prev => {
-            if (!prev) return prev
-            const newAmb = { ...prev.ambientes }
-            for (const key of Object.keys(newAmb)) {
-              newAmb[key] = newAmb[key].filter(m => m.codigo_produto !== maq.codigo_produto)
-            }
-            const updated = { ...maq, ambiente: targetAmb!, pos_x: posX, pos_y: posY }
-            if (!newAmb[targetAmb!]) newAmb[targetAmb!] = []
-            newAmb[targetAmb!] = [...newAmb[targetAmb!], updated]
-            return { ...prev, ambientes: newAmb }
-          })
+          // Barracão e Fartura são listas (sem posição): 0,0 = ordem automática.
+          const lista = targetAmb === 'barracao' || targetAmb === 'fartura'
+          const posX = lista ? 0 : Math.max(0.5, Math.min(92, ((ev.clientX - r.left) / r.width) * 100))
+          const posY = lista ? 0 : Math.max(0.5, Math.min(88, ((ev.clientY - r.top) / r.height) * 100))
+          moverMaquina(maq, targetAmb, posX, posY)
         }
       }
 
@@ -250,7 +276,7 @@ export default function PatioPage() {
 
     document.addEventListener('mousemove', onMove)
     document.addEventListener('mouseup', onUp)
-  }, [])
+  }, [moverMaquina])
 
   if (!pLoading && userProfile && !pode('consulta-estoque', 'patio')) return <SemPermissao />
 
@@ -452,7 +478,8 @@ export default function PatioPage() {
                       {maquinas.map(m => (
                         <div
                           key={m.codigo_produto}
-                          style={{ cursor: 'pointer', textAlign: 'center', width: 80 }}
+                          style={{ cursor: amb === 'demonstracao' ? 'pointer' : 'grab', textAlign: 'center', width: 80 }}
+                          onMouseDown={amb === 'demonstracao' ? undefined : e => handleDragStart(e, m)}
                           onClick={() => { setSelecionada(m); setSidebarTab('detalhes') }}
                           onMouseEnter={e => {
                             const r = (e.target as HTMLElement).getBoundingClientRect()
@@ -604,6 +631,25 @@ export default function PatioPage() {
               <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, background: '#F3F4F6', display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#6B7280' }}>
                 <MapPin size={14} /> {AMB_CONFIG[selecionada.ambiente]?.label || selecionada.ambiente}
               </div>
+
+              {selecionada.ambiente === 'demonstracao' ? (
+                <div style={{ marginTop: 8, fontSize: 10, color: '#9CA3AF' }}>
+                  Em demonstração (remessa pendente): sai daqui quando a remessa voltar.
+                </div>
+              ) : (
+                <label style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#6B7280' }}>
+                  Mover para
+                  <select
+                    value={selecionada.ambiente}
+                    onChange={e => moverMaquina(selecionada, e.target.value, 0, 0)}
+                    style={{ flex: 1, padding: '6px 8px', borderRadius: 6, border: '1px solid var(--portal-border, #e5e5e5)', fontSize: 12 }}
+                  >
+                    {Object.entries(AMB_CONFIG)
+                      .filter(([k]) => k !== 'demonstracao' && (k !== 'oficina2' || zonas.oficina2))
+                      .map(([k, c]) => <option key={k} value={k}>{c.label}</option>)}
+                  </select>
+                </label>
+              )}
 
               <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
                 <button onClick={() => setMenuImagem(true)} style={{
