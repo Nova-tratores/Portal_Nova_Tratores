@@ -18,6 +18,7 @@ import { classificarParadas, type GeocercaCtx } from '@/lib/frota/paradas';
 import { carregarPropriedades, propriedadesComoGeocercas } from '@/lib/frota/propriedades';
 import { resolverPlaca } from '@/lib/frota/placa';
 import { detectarExcessoVelocidade } from '@/lib/ocorrencias/auto-frota';
+import { carregarGeocercasAtivas } from '@/lib/frota/geocercas-server';
 
 export const runtime = 'nodejs';
 export const maxDuration = 300;
@@ -75,10 +76,7 @@ export async function GET(req: NextRequest) {
         .select('id, placa, adesao_id')
         .not('adesao_id', 'is', null)
         .eq('tipo_registro', 'veiculo'),
-      supabase
-        .from('frota_geocercas')
-        .select('id, latitude, longitude, raio_m, classe, nome, cliente_id')
-        .eq('ativo', true),
+      carregarGeocercasAtivas<GeocercaCtx>(supabase, 'id, latitude, longitude, raio_m, classe, nome, cliente_id'),
       supabase.from('frota_responsaveis').select('veiculo_id, motorista_id, motorista_nome, inicio, fim'),
       supabase.from('vw_frota_uso_diario').select('veiculo_id, data, pessoa_nome'),
       supabase
