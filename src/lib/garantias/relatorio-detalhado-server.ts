@@ -4,7 +4,7 @@
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS } from './constants';
 import { pecasAprovadasDasGarantias, nfseReembolsoDasGarantias, precisaNfseReembolso } from './notas-server';
-import { textosDoServico, situacaoDaPeca, type GarantiaDetalhada } from './relatorio-detalhado';
+import { textosDoServico, situacaoDaPeca, repartirPecas, type GarantiaDetalhada, type PecaDetalhe } from './relatorio-detalhado';
 
 type LinhaPeca = {
   id: string; cod_produto: string | null; descricao: string | null; quantidade: number;
@@ -80,6 +80,26 @@ export async function detalharGarantias(ids: string[]): Promise<GarantiaDetalhad
       const nfse = nfses.get(g.id);
       const t = tec.get(g.id_ordem);
       const o = os.get(g.id_ordem);
+      const valorPecas = Number(g.valor_pago_pecas) || 0;
+      const pecas: PecaDetalhe[] = (g.pecas || [])
+        .filter((p) => !/^MDI/i.test(String(p.cod_produto || '')))
+        .map((p) => {
+          const c = chegadaPorPeca.get(p.id);
+          const forma = c ? (c.forma || c.sugestao) : (p.forma_reembolso === 'paga' || p.forma_reembolso === 'reposta' ? p.forma_reembolso : null);
+          const qtd = Number(p.quantidade) || 1;
+          return {
+            cod: p.cod_produto,
+            descricao: p.descricao || '',
+            quantidade: qtd,
+            valor: Math.round((Number(p.preco_unitario) || 0) * qtd * 100) / 100,
+            situacao: situacaoDaPeca({ cod: p.cod_produto, resultado: aprovada ? p.resultado : 'rejeitada', forma, chegou: !!c?.chegou }),
+            nota: c?.chegou ? { numero: c.chegou.numero, data: c.chegou.data } : null,
+            marcada: !!c?.forma,
+            pago: 0,
+          };
+        });
+      const rep = repartirPecas(valorPecas, pecas);
+      rep.pago.forEach((v, i) => { pecas[i].pago = v; });
       return {
         id: g.id,
         numero: g.numero,
@@ -97,27 +117,15 @@ export async function detalharGarantias(ids: string[]): Promise<GarantiaDetalhad
         km: Number(g.garantista_km ?? g.tecnico_km) || 0,
         valorHoras,
         valorKm,
-        valorPecas: Number(g.valor_pago_pecas) || 0,
+        valorPecas,
+        pecasDinheiro: rep.dinheiro,
+        pecasReposicaoChegou: rep.chegou,
+        pecasReposicaoAChegar: rep.aChegar,
         total: Number(g.valor_pago_total) || 0,
         nfse: nfse
           ? { situacao: 'emitida' as const, numero: nfse.numero, data: nfse.data, confirmada: nfse.como === 'vinculada' }
           : { situacao: aprovada && precisaNfseReembolso(g) ? 'pendente' as const : 'nao_precisa' as const, numero: null, data: null, confirmada: false },
-        pecas: (g.pecas || [])
-          .filter((p) => !/^MDI/i.test(String(p.cod_produto || '')))
-          .map((p) => {
-            const c = chegadaPorPeca.get(p.id);
-            const forma = c ? (c.forma || c.sugestao) : (p.forma_reembolso === 'paga' || p.forma_reembolso === 'reposta' ? p.forma_reembolso : null);
-            const qtd = Number(p.quantidade) || 1;
-            return {
-              cod: p.cod_produto,
-              descricao: p.descricao || '',
-              quantidade: qtd,
-              valor: Math.round((Number(p.preco_unitario) || 0) * qtd * 100) / 100,
-              situacao: situacaoDaPeca({ cod: p.cod_produto, resultado: aprovada ? p.resultado : 'rejeitada', forma, chegou: !!c?.chegou }),
-              nota: c?.chegou ? { numero: c.chegou.numero, data: c.chegou.data } : null,
-              marcada: !!c?.forma,
-            };
-          }),
+        pecas,
         servico: textosDoServico({
           respostas: g.checklist_respostas, tecnico: t || null,
           servSolicitado: o?.Serv_Solicitado || null, servRealizado: o?.Serv_Realizado || null,

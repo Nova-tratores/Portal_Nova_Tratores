@@ -26,10 +26,12 @@ function blocoNfse(g: GarantiaDetalhada): string {
   const v = n.situacao === 'emitida'
     ? `<b class="ok">NF ${esc(n.numero || '?')}${n.data ? ' · ' + esc(fmtData(n.data)) : ''}</b>${n.confirmada ? '' : ' <small>(achada pela SG)</small>'}`
     : n.situacao === 'pendente'
-      ? `<b class="atencao">Falta emitir · ${esc(fmtMoeda(g.valorHoras + g.valorKm))}</b>`
-      : '<b>Não precisa</b>';
+      ? '<b class="atencao">Falta emitir</b>'
+      : dinheiroDe(g) > 0.004 ? '<b class="atencao">Não localizada</b>' : '<b>Não precisa</b>';
   return `<div class="item"><span>NFS-e de reembolso</span>${v}</div>`;
 }
+
+const dinheiroDe = (g: GarantiaDetalhada) => g.valorHoras + g.valorKm + g.pecasDinheiro;
 
 function blocoGarantia(g: GarantiaDetalhada): string {
   const ident = [
@@ -43,12 +45,13 @@ function blocoGarantia(g: GarantiaDetalhada): string {
   ].filter(Boolean).join(' · ');
 
   const pecas = g.pecas.length
-    ? `<table class="pecas"><thead><tr><th>Código</th><th>Peça</th><th class="num">Qtd</th><th class="num">Valor (ref.)</th><th>Situação</th></tr></thead><tbody>${
+    ? `<table class="pecas"><thead><tr><th>Código</th><th>Peça</th><th class="num">Qtd</th><th class="num">Pleiteado</th><th class="num">Pago</th><th>Situação</th></tr></thead><tbody>${
       g.pecas.map((p) => `<tr>
         <td>${esc(p.cod || '—')}</td>
         <td>${esc(p.descricao)}</td>
         <td class="num">${esc(num(p.quantidade, p.quantidade % 1 ? 2 : 0))}</td>
-        <td class="num">${p.valor > 0 ? esc(fmtMoeda(p.valor)) : '—'}</td>
+        <td class="num">${p.valor ? esc(fmtMoeda(p.valor)) : '—'}</td>
+        <td class="num">${p.pago > 0 ? esc(fmtMoeda(p.pago)) : '—'}</td>
         <td class="sit-${p.situacao}">${esc(ROTULO_SITUACAO[p.situacao])}${
           p.nota ? ` · NF ${esc(p.nota.numero)}${p.nota.data ? ' (' + esc(fmtData(p.nota.data)) + ')' : ''}` : ''}${
           p.quantidade <= 0 || p.valor < 0 ? ' <b class="nao">· qtd/valor negativo — conferir</b>' : ''}${
@@ -73,7 +76,13 @@ function blocoGarantia(g: GarantiaDetalhada): string {
   <div class="valores">
     ${linhaServico('Mão de obra', g.horas, 'h', g.valorHoras)}
     ${linhaServico('Deslocamento', g.km, 'km', g.valorKm)}
-    <div class="item"><span>Peças pagas em dinheiro</span><b>${g.valorPecas ? esc(fmtMoeda(g.valorPecas)) : '—'}</b></div>
+    <div class="item"><span>Peças pagas em dinheiro</span><b>${g.pecasDinheiro ? esc(fmtMoeda(g.pecasDinheiro)) : '—'}</b></div>
+    <div class="item"><span>Peças repostas pela fábrica</span><b>${
+      g.pecasReposicaoChegou + g.pecasReposicaoAChegar > 0.004
+        ? esc(fmtMoeda(g.pecasReposicaoChegou + g.pecasReposicaoAChegar))
+          + (g.pecasReposicaoAChegar > 0.004 ? ` <small>(a chegar ${esc(fmtMoeda(g.pecasReposicaoAChegar))})</small>` : ' <small>(já chegaram)</small>')
+        : '—'}</b></div>
+    <div class="item forte"><span>Total em dinheiro</span><b>${esc(fmtMoeda(dinheiroDe(g)))}</b></div>
     ${blocoNfse(g)}
   </div>
   ${pecas}
@@ -90,30 +99,30 @@ export function htmlImpressaoDetalhada(gs: GarantiaDetalhada[], filtros: string)
   const aChegar = gs.flatMap((g) => g.pecas.filter((p) => p.situacao === 'a_chegar' && p.quantidade > 0 && p.valor >= 0).map((p) => ({ g, p })));
 
   const resumo = gs.map((g) => `<tr>
-    <td class="nw"><b>${esc(g.numero)}</b></td><td class="nw">${esc(g.sg || '—')}</td><td class="nw">${esc(g.os)}</td><td>${esc(g.cliente || '—')}</td>
-    <td class="${g.aprovada ? 'ok' : 'nao'}">${g.aprovada ? 'Aprovada' : 'Recusada'}</td>
-    <td class="num">${g.horas ? esc(num(g.horas)) : '—'}</td>
-    <td class="num">${esc(fmtMoeda(g.valorHoras))}</td>
-    <td class="num">${g.km ? esc(num(g.km, 0)) : '—'}</td>
-    <td class="num">${esc(fmtMoeda(g.valorKm))}</td>
-    <td class="num">${esc(fmtMoeda(g.valorPecas))}</td>
+    <td class="nw"><b>${esc(g.numero)}</b>${g.aprovada ? '' : ' <span class="nao">recusada</span>'}<div class="mini">${esc(g.sg ? 'SG ' + g.sg : '')}</div></td>
+    <td class="nw">${esc(g.os)}</td>
+    <td>${esc(g.cliente || '—')}</td>
+    <td class="num">${esc(fmtMoeda(g.valorHoras))}${g.horas ? `<div class="mini">${esc(num(g.horas))} h</div>` : ''}</td>
+    <td class="num">${esc(fmtMoeda(g.valorKm))}${g.km ? `<div class="mini">${esc(num(g.km, 0))} km</div>` : ''}</td>
+    <td class="num">${esc(fmtMoeda(g.pecasDinheiro))}</td>
+    <td class="num"><b>${esc(fmtMoeda(dinheiroDe(g)))}</b><div class="mini">${!g.aprovada ? '' : g.nfse.situacao === 'emitida' ? 'NFS-e ' + esc(g.nfse.numero || '?') : g.nfse.situacao === 'pendente' || dinheiroDe(g) > 0.004 ? '<span class="atencao">sem NFS-e</span>' : ''}</div></td>
+    <td class="num">${esc(fmtMoeda(g.pecasReposicaoChegou + g.pecasReposicaoAChegar))}${g.pecasReposicaoAChegar > 0.004 ? `<div class="mini atencao">a chegar ${esc(fmtMoeda(g.pecasReposicaoAChegar))}</div>` : ''}</td>
     <td class="num"><b>${esc(fmtMoeda(g.total))}</b></td>
-    <td class="nw">${!g.aprovada ? '—' : g.nfse.situacao === 'emitida' ? 'NF ' + esc(g.nfse.numero || '?') : g.nfse.situacao === 'pendente' ? '<span class="atencao">falta</span>' : 'não precisa'}</td>
   </tr>`).join('');
 
   const tabelaAChegar = aChegar.length
     ? `<h2>Peças repostas pela fábrica que ainda não chegaram</h2>
-<table><thead><tr><th>Garantia</th><th>SG</th><th>Código</th><th>Peça</th><th class="num">Qtd</th><th class="num">Valor (ref.)</th><th class="num">Dias desde a aprovação</th></tr></thead><tbody>${
+<table><thead><tr><th>Garantia</th><th>SG</th><th>Código</th><th>Peça</th><th class="num">Qtd</th><th class="num">Valor pago em peça</th><th class="num">Dias desde a aprovação</th></tr></thead><tbody>${
       aChegar.map(({ g, p }) => {
         const dias = g.finalizada_em ? Math.floor((Date.now() - new Date(g.finalizada_em).getTime()) / 86400000) : null;
         return `<tr><td class="nw"><b>${esc(g.numero)}</b></td><td class="nw">${esc(g.sg || '—')}</td><td>${esc(p.cod || '—')}</td><td>${esc(p.descricao)}</td>
-          <td class="num">${esc(num(p.quantidade, p.quantidade % 1 ? 2 : 0))}</td><td class="num">${p.valor > 0 ? esc(fmtMoeda(p.valor)) : '—'}</td>
+          <td class="num">${esc(num(p.quantidade, p.quantidade % 1 ? 2 : 0))}</td><td class="num">${p.pago > 0 ? esc(fmtMoeda(p.pago)) : '—'}</td>
           <td class="num">${dias ?? '—'}</td></tr>`;
       }).join('')}</tbody></table>`
     : '';
 
-  const card = (titulo: string, valor: string, sub = '') =>
-    `<div class="card"><div class="card-t">${titulo}</div><div class="card-v">${valor}</div>${sub ? `<div class="card-s">${sub}</div>` : ''}</div>`;
+  const dinheiro = t.valorHoras + t.valorKm + t.pecasDinheiro;
+  const repostas = t.reposicaoChegou.valor + t.reposicaoAChegar.valor;
 
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Garantias finalizadas — detalhado</title>
 <style>
@@ -125,12 +134,15 @@ export function htmlImpressaoDetalhada(gs: GarantiaDetalhada[], filtros: string)
   h2 { font-size: 13px; margin: 16px 0 6px; border-left: 4px solid #be123c; padding-left: 6px; }
   .sub, .emitido { color: #555; margin-top: 3px; }
   .emitido { text-align: right; }
-  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
-  .card { border: 1px solid #ccc; border-radius: 4px; padding: 6px 8px; }
-  .card-t { font-size: 9px; text-transform: uppercase; color: #555; font-weight: bold; }
-  .card-v { font-size: 14px; font-weight: bold; margin-top: 2px; }
-  .card-s { font-size: 9.5px; color: #444; margin-top: 2px; }
-  .card.destaque { border: 2px solid #111; }
+  .composicao { border: 2px solid #111; border-radius: 4px; padding: 8px 10px; page-break-inside: avoid; }
+  .comp-total { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; border-bottom: 1px solid #ccc; padding-bottom: 6px; }
+  .comp-total span { font-size: 11px; text-transform: uppercase; font-weight: bold; color: #444; }
+  .comp-total b { font-size: 18px; }
+  .comp-lados { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 6px; }
+  .comp-t { display: flex; justify-content: space-between; font-size: 10px; text-transform: uppercase; font-weight: bold; color: #444; border-bottom: 2px solid #be123c; padding-bottom: 3px; margin-bottom: 3px; }
+  .comp-t b { font-size: 14px; color: #111; }
+  .item.forte { font-weight: bold; }
+  .nota { font-size: 9px; color: #666; margin-top: 5px; }
   table { width: 100%; border-collapse: collapse; }
   thead { display: table-header-group; }
   th { background: #f3f4f6; text-align: left; font-size: 9px; text-transform: uppercase; padding: 4px 5px; border-bottom: 1px solid #999; }
@@ -138,6 +150,7 @@ export function htmlImpressaoDetalhada(gs: GarantiaDetalhada[], filtros: string)
   tr { page-break-inside: avoid; }
   .num { text-align: right; white-space: nowrap; }
   .nw { white-space: nowrap; }
+  .mini { font-size: 8.5px; color: #555; font-weight: normal; }
   .ok { color: #15803d; font-weight: bold; }
   .nao { color: #b91c1c; font-weight: bold; }
   .atencao { color: #b45309; font-weight: bold; }
@@ -170,27 +183,37 @@ export function htmlImpressaoDetalhada(gs: GarantiaDetalhada[], filtros: string)
   <div class="emitido">Emitido em ${esc(new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }))}</div>
 </div>
 
-<div class="cards">
-  ${card('Total pago pela fábrica', esc(fmtMoeda(t.total)), `${t.qtd} garantia(s) · ${t.aprovadas} aprovada(s) · ${t.recusadas} recusada(s)`).replace('class="card"', 'class="card destaque"')}
-  ${card('Mão de obra (horas)', esc(fmtMoeda(t.valorHoras)), `${esc(num(t.horas))} h pagas`)}
-  ${card('Deslocamento (km)', esc(fmtMoeda(t.valorKm)), `${esc(num(t.km, 0))} km pagos`)}
-  ${card('Peças pagas em dinheiro', esc(fmtMoeda(t.valorPecas)), `${t.pecasPagas.itens} peça(s) pagas em dinheiro`)}
-  ${card('Peças repostas — já chegaram', `${t.pecasChegaram.itens} item(ns)`, `valor de referência ${esc(fmtMoeda(t.pecasChegaram.valor))}`)}
-  ${card('Peças repostas — a chegar', `<span class="${t.pecasAChegar.itens ? 'atencao' : ''}">${t.pecasAChegar.itens} item(ns)</span>`, `valor de referência ${esc(fmtMoeda(t.pecasAChegar.valor))}`)}
-  ${card('NFS-e de reembolso emitidas', `${t.nfseEmitidas}`)}
-  ${card('NFS-e de reembolso a emitir', `<span class="${t.nfsePendentes.qtd ? 'atencao' : ''}">${t.nfsePendentes.qtd}</span>`, `mão de obra + km ${esc(fmtMoeda(t.nfsePendentes.valor))}`)}
+<div class="composicao">
+  <div class="comp-total"><span>Total pago pela fábrica</span><b>${esc(fmtMoeda(t.total))}</b>
+    <small>${t.qtd} garantia(s) · ${t.aprovadas} aprovada(s) · ${t.recusadas} recusada(s) · = dinheiro + peças repostas</small></div>
+  <div class="comp-lados">
+    <div class="comp">
+      <div class="comp-t">Pago em dinheiro (NFS-e de reembolso)<b>${esc(fmtMoeda(dinheiro))}</b></div>
+      <div class="item"><span>Mão de obra · ${esc(num(t.horas))} h</span><b>${esc(fmtMoeda(t.valorHoras))}</b></div>
+      <div class="item"><span>Deslocamento · ${esc(num(t.km, 0))} km</span><b>${esc(fmtMoeda(t.valorKm))}</b></div>
+      <div class="item"><span>Peças pagas em dinheiro</span><b>${esc(fmtMoeda(t.pecasDinheiro))}</b></div>
+      <div class="item forte"><span class="ok">Com NFS-e já emitida · ${t.dinheiroNfEmitida.qtd} garantia(s)</span><b class="ok">${esc(fmtMoeda(t.dinheiroNfEmitida.valor))}</b></div>
+      <div class="item forte"><span class="${t.dinheiroSemNf.qtd ? 'atencao' : ''}">Ainda sem NFS-e · ${t.dinheiroSemNf.qtd} garantia(s)</span><b class="${t.dinheiroSemNf.qtd ? 'atencao' : ''}">${esc(fmtMoeda(t.dinheiroSemNf.valor))}</b></div>
+    </div>
+    <div class="comp">
+      <div class="comp-t">Pago em peças repostas pela fábrica<b>${esc(fmtMoeda(repostas))}</b></div>
+      <div class="item forte"><span class="ok">Já chegaram · ${t.reposicaoChegou.itens} item(ns)</span><b class="ok">${esc(fmtMoeda(t.reposicaoChegou.valor))}</b></div>
+      <div class="item forte"><span class="${t.reposicaoAChegar.itens ? 'atencao' : ''}">Ainda vão chegar · ${t.reposicaoAChegar.itens} item(ns)</span><b class="${t.reposicaoAChegar.itens ? 'atencao' : ''}">${esc(fmtMoeda(t.reposicaoAChegar.valor))}</b></div>
+      <div class="nota">A fábrica informa um valor só de peças por garantia. Quando parte é paga em dinheiro e parte em peça, o valor é dividido na proporção do preço pleiteado de cada peça.</div>
+    </div>
+  </div>
 </div>
 
 <h2>Resumo por garantia</h2>
 <table>
-  <thead><tr><th>Garantia</th><th>SG</th><th>OS</th><th>Cliente</th><th>Resultado</th><th class="num">Horas</th><th class="num">R$ horas</th><th class="num">KM</th><th class="num">R$ km</th><th class="num">R$ peças</th><th class="num">Total</th><th>NFS-e</th></tr></thead>
-  <tbody>${resumo || '<tr><td colspan="12">Nenhuma garantia.</td></tr>'}</tbody>
+  <thead><tr><th>Garantia</th><th>OS</th><th>Cliente</th><th class="num">Mão de obra</th><th class="num">Deslocamento</th><th class="num">Peças em dinheiro</th><th class="num">Total em dinheiro</th><th class="num">Peças repostas</th><th class="num">Total pago</th></tr></thead>
+  <tbody>${resumo || '<tr><td colspan="9">Nenhuma garantia.</td></tr>'}</tbody>
 </table>
 
 ${tabelaAChegar}
 
 <h2>Detalhe de cada garantia</h2>
-<div class="sub">Valor (ref.) da peça = preço pleiteado; peça com quantidade ou valor negativo fica fora dos totais; o que a fábrica pagou em dinheiro está em "Peças pagas em dinheiro". "(sugestão)" = o portal deduziu, ninguém marcou no checklist.</div>
+<div class="sub">Valor (ref.) da peça = preço pleiteado; Pago = parte do valor de peças que a fábrica pagou por aquela peça (em dinheiro ou repondo a peça); peça com quantidade ou valor negativo fica fora da conta. "(sugestão)" = o portal deduziu, ninguém marcou no checklist.</div>
 ${gs.map(blocoGarantia).join('')}
 <script>window.onload = function () { window.print(); };</script>
 </body></html>`;

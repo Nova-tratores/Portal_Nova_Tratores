@@ -15,6 +15,8 @@ export interface PecaDetalhe {
   nota: { numero: string; data: string } | null;
   /** forma marcada à mão no checklist (false = sugestão do portal) */
   marcada: boolean;
+  /** parte do "valor pago de peças" da garantia que cabe a esta peça (repartirPecas) */
+  pago: number;
 }
 
 export interface ServicoTexto {
@@ -40,6 +42,10 @@ export interface GarantiaDetalhada {
   valorHoras: number;
   valorKm: number;
   valorPecas: number;
+  /** valorPecas separado: pago em dinheiro (vai na NFS-e) × pago em peça repostas pela fábrica */
+  pecasDinheiro: number;
+  pecasReposicaoChegou: number;
+  pecasReposicaoAChegar: number;
   total: number;
   nfse: { situacao: 'emitida' | 'pendente' | 'nao_precisa'; numero: string | null; data: string | null; confirmada: boolean };
   pecas: PecaDetalhe[];
@@ -107,6 +113,36 @@ export const ROTULO_SITUACAO: Record<SituacaoPeca, string> = {
   terceiros: 'Serviço de terceiros',
 };
 
+// O "valor pago de peças" da garantia é um número só; a fábrica paga parte em
+// DINHEIRO (na NFS-e de reembolso) e parte REPONDO a peça (nota x.949). Reparte o
+// valor entre as peças aprovadas na proporção do preço pleiteado de cada uma;
+// o que não cabe em nenhuma peça (sem preço, valor negativo) conta como dinheiro.
+export function repartirPecas(valorPecas: number, pecas: Pick<PecaDetalhe, 'situacao' | 'valor' | 'quantidade'>[]): {
+  pago: number[]; dinheiro: number; chegou: number; aChegar: number;
+} {
+  const cent = (n: number) => Math.round(n * 100);
+  const total = cent(valorPecas);
+  const elegivel = pecas.map((p) => p.situacao !== 'recusada' && p.quantidade > 0 && p.valor > 0);
+  const base = pecas.reduce((s, p, i) => s + (elegivel[i] ? cent(p.valor) : 0), 0);
+  const pago = pecas.map(() => 0);
+  if (total > 0 && base > 0) {
+    const idx = pecas.map((_, i) => i).filter((i) => elegivel[i]);
+    let resto = total;
+    idx.forEach((i, k) => {
+      const v = k === idx.length - 1 ? resto : Math.round((total * cent(pecas[i].valor)) / base);
+      pago[i] = v;
+      resto -= v;
+    });
+  }
+  let chegou = 0, aChegar = 0, dinheiro = total - pago.reduce((s, v) => s + v, 0);
+  pecas.forEach((p, i) => {
+    if (p.situacao === 'chegou') chegou += pago[i];
+    else if (p.situacao === 'a_chegar') aChegar += pago[i];
+    else dinheiro += pago[i];
+  });
+  return { pago: pago.map((v) => v / 100), dinheiro: dinheiro / 100, chegou: chegou / 100, aChegar: aChegar / 100 };
+}
+
 export interface TotaisDetalhados {
   qtd: number;
   aprovadas: number;
@@ -117,18 +153,20 @@ export interface TotaisDetalhados {
   valorKm: number;
   valorPecas: number;
   total: number;
-  pecasPagas: { itens: number; valor: number };
-  pecasChegaram: { itens: number; valor: number };
-  pecasAChegar: { itens: number; valor: number };
-  nfseEmitidas: number;
-  nfsePendentes: { qtd: number; valor: number };
+  /** pago em dinheiro (mão de obra + km + peças pagas) — com NFS-e já emitida × ainda sem NFS-e */
+  dinheiroNfEmitida: { qtd: number; valor: number };
+  dinheiroSemNf: { qtd: number; valor: number };
+  pecasDinheiro: number;
+  /** pago em peça repostas pela fábrica */
+  reposicaoChegou: { itens: number; valor: number };
+  reposicaoAChegar: { itens: number; valor: number };
 }
 
 export function totaisDetalhados(gs: GarantiaDetalhada[]): TotaisDetalhados {
   const t: TotaisDetalhados = {
     qtd: gs.length, aprovadas: 0, recusadas: 0, horas: 0, km: 0, valorHoras: 0, valorKm: 0, valorPecas: 0, total: 0,
-    pecasPagas: { itens: 0, valor: 0 }, pecasChegaram: { itens: 0, valor: 0 }, pecasAChegar: { itens: 0, valor: 0 },
-    nfseEmitidas: 0, nfsePendentes: { qtd: 0, valor: 0 },
+    dinheiroNfEmitida: { qtd: 0, valor: 0 }, dinheiroSemNf: { qtd: 0, valor: 0 }, pecasDinheiro: 0,
+    reposicaoChegou: { itens: 0, valor: 0 }, reposicaoAChegar: { itens: 0, valor: 0 },
   };
   for (const g of gs) {
     if (g.aprovada) t.aprovadas++; else t.recusadas++;
@@ -136,15 +174,20 @@ export function totaisDetalhados(gs: GarantiaDetalhada[]): TotaisDetalhados {
     t.valorKm += g.valorKm;
     t.valorPecas += g.valorPecas;
     t.total += g.total;
-    if (!g.aprovada) continue;
-    t.horas += g.horas;
-    t.km += g.km;
-    if (g.nfse.situacao === 'emitida') t.nfseEmitidas++;
-    if (g.nfse.situacao === 'pendente') { t.nfsePendentes.qtd++; t.nfsePendentes.valor += g.valorHoras + g.valorKm; }
+    t.pecasDinheiro += g.pecasDinheiro;
+    if (g.aprovada) { t.horas += g.horas; t.km += g.km; }
+    const dinheiro = g.valorHoras + g.valorKm + g.pecasDinheiro;
+    if (Math.abs(dinheiro) > 0.004) {
+      const alvo = g.nfse.situacao === 'emitida' ? t.dinheiroNfEmitida : t.dinheiroSemNf;
+      alvo.qtd++;
+      alvo.valor += dinheiro;
+    }
+    t.reposicaoChegou.valor += g.pecasReposicaoChegou;
+    t.reposicaoAChegar.valor += g.pecasReposicaoAChegar;
     for (const p of g.pecas) {
-      if (p.quantidade <= 0 || p.valor < 0) continue; // linha de estorno/qtd negativa: conferir, não soma
-      const alvo = p.situacao === 'paga' ? t.pecasPagas : p.situacao === 'chegou' ? t.pecasChegaram : p.situacao === 'a_chegar' ? t.pecasAChegar : null;
-      if (alvo) { alvo.itens++; alvo.valor += p.valor; }
+      if (p.quantidade <= 0 || p.valor < 0) continue; // linha de estorno/qtd negativa: conferir, não conta
+      if (p.situacao === 'chegou') t.reposicaoChegou.itens++;
+      if (p.situacao === 'a_chegar') t.reposicaoAChegar.itens++;
     }
   }
   return t;
