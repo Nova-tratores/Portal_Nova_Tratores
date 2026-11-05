@@ -21,6 +21,7 @@ import { BotaoPrincipal, BTN_FAIXA, OpaBarra } from '@/components/opa/pecas/comu
 import { Janela } from '@/components/opa/pecas/Moldura'
 import TabelaFiltravel, { SeletorVisao, useListaFiltrada, useModoVisao, type ColunaTabela } from '@/components/opa/pecas/TabelaFiltravel'
 import { SeletorLocal } from '@/components/opa/pecas/Campos'
+import EscolherNoMapa from '@/components/opa/mapa/EscolherNoMapa'
 import { agruparLocais, textoLocal } from '@/lib/opa-pecas/regras'
 import type { Local } from '@/lib/opa-pecas/tipos'
 
@@ -232,7 +233,12 @@ export default function OpaPage() {
 
   // filtro de território (vale nos Cards e na Lista; vazio = todos). O departamento é oculto.
   const [filtroLocal, setFiltroLocal] = useState('')
-  const casa = (valor: string | null | undefined, filtro: string) =>
+  // vindo do Mapa ("Ver em Ocorrências"): /opa?local=<id> já abre filtrado
+  useEffect(() => {
+    const l = new URLSearchParams(window.location.search).get('local')
+    if (l) Promise.resolve().then(() => setFiltroLocal(l))
+  }, [])
+  const casa =(valor: string | null | undefined, filtro: string) =>
     !filtro || (filtro === SEM_INFO ? !valor : valor === filtro)
   const filtrados = opas.filter((o) => casa(o.local, filtroLocal))
   // território: os locais do Opa agrupados por área ("Oficina · Box Técnico"); inativos só se algum Opa usa
@@ -752,13 +758,24 @@ function CampoTerritorio({ local, tecnico, obrigatorio, onLocal }: {
 }) {
   const { rotulo } = useEstilos()
   const [locais, recarregarLocais] = useLocais()
+  const [noMapa, setNoMapa] = useState(false)
   return (
     <div style={{ marginBottom: 10 }}>
-      <label style={rotulo}>
-        Onde está o problema? {obrigatorio && !local && <span style={{ color: VERMELHO, fontWeight: 800 }}>*</span>}
-      </label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        <label style={{ ...rotulo, marginBottom: 0, flex: 1 }}>
+          Onde está o problema? {obrigatorio && !local && <span style={{ color: VERMELHO, fontWeight: 800 }}>*</span>}
+        </label>
+        <button type="button" onClick={() => setNoMapa(true)} style={{
+          display: 'inline-flex', alignItems: 'center', gap: 5, height: 30, padding: '0 10px', borderRadius: 8, fontFamily: 'inherit',
+          fontSize: 12.5, fontWeight: 700, cursor: 'pointer', border: `1px solid ${VERMELHO}`, background: 'transparent', color: VERMELHO,
+        }}><MapPin size={13} /> Escolher no mapa</button>
+      </div>
       <SeletorLocal locais={locais} local={local} tecnico={tecnico} onChange={onLocal} onLocalCriado={recarregarLocais} />
       <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: '6px 0 0' }}>O Opa vai direto para o responsável desse lugar.</p>
+      {noMapa && (
+        <EscolherNoMapa atual={local} onFechar={() => setNoMapa(false)}
+          onEscolher={(id) => { onLocal(id, id === local ? tecnico : ''); setNoMapa(false) }} />
+      )}
     </div>
   )
 }
