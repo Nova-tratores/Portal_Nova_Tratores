@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { temAcessoMapa } from '@/lib/frota/server';
 import { carregarPropriedades } from '@/lib/frota/propriedades';
+import { carregarGeocercasAtivas } from '@/lib/frota/geocercas-server';
 
 export const runtime = 'nodejs';
 
@@ -22,10 +23,8 @@ export async function GET(req: NextRequest) {
   if (!temAcessoMapa(auth)) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
 
   const [geo, props] = await Promise.all([
-    supabase
-      .from('frota_geocercas')
-      .select('id, nome, classe, latitude, longitude, raio_m, endereco')
-      .eq('ativo', true),
+    carregarGeocercasAtivas<{ id: string; nome: string; classe: string; latitude: number; longitude: number; raio_m: number; endereco: string | null }>(
+      supabase, 'id, nome, classe, latitude, longitude, raio_m, endereco'),
     carregarPropriedades(supabase).catch(() => []),
   ]);
 

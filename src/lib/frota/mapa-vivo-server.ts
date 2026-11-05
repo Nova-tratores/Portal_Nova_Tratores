@@ -15,6 +15,7 @@ import { classificarParada, type GeocercaCtx } from '@/lib/frota/paradas';
 import { carregarPropriedades, propriedadesComoGeocercas } from '@/lib/frota/propriedades';
 import { chaveNome, diaBR, limparNome, ordenarVivos, osDosTecnicos, rotuloLocal, rumoDosPontos, statusVivo, type OsExecucao, type StatusVivo } from '@/lib/frota/mapa-vivo';
 import { formatarPlaca, resolverPlaca } from '@/lib/frota/placa';
+import { carregarGeocercasAtivas } from '@/lib/frota/geocercas-server';
 
 export interface VeiculoVivo {
   placa: string;
@@ -111,7 +112,7 @@ let ctxCache: { at: number; geocercas: GeocercaCtx[] } | null = null;
 export async function geocercasCtx(supabase: SupabaseClient): Promise<GeocercaCtx[]> {
   if (ctxCache && Date.now() - ctxCache.at < 10 * 60_000) return ctxCache.geocercas;
   const [geo, props] = await Promise.all([
-    supabase.from('frota_geocercas').select('id, latitude, longitude, raio_m, classe, nome, cliente_id').eq('ativo', true),
+    carregarGeocercasAtivas<GeocercaCtx>(supabase, 'id, latitude, longitude, raio_m, classe, nome, cliente_id'),
     carregarPropriedades(supabase).catch(() => []),
   ]);
   const geocercas = [...((geo.data || []) as GeocercaCtx[]), ...propriedadesComoGeocercas(props)];

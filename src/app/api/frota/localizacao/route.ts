@@ -19,6 +19,7 @@ import { fetchTudo } from '@/lib/pos/rastreamento';
 import { classificarParada, type GeocercaCtx } from '@/lib/frota/paradas';
 import { carregarPropriedades, propriedadesComoGeocercas } from '@/lib/frota/propriedades';
 import { rotuloLocal as rotuloDe } from '@/lib/frota/mapa-vivo';
+import { carregarGeocercasAtivas } from '@/lib/frota/geocercas-server';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -137,10 +138,7 @@ export async function GET(req: NextRequest) {
         .not('adesao_id', 'is', null)
         .eq('tipo_registro', 'veiculo')
         .eq('ativo', true),
-      supabase
-        .from('frota_geocercas')
-        .select('id, latitude, longitude, raio_m, classe, nome, cliente_id')
-        .eq('ativo', true),
+      carregarGeocercasAtivas<GeocercaCtx>(supabase, 'id, latitude, longitude, raio_m, classe, nome, cliente_id'),
       carregarPropriedades(supabase).catch(() => []),
     ]);
     const veiculos = veic.data || [];

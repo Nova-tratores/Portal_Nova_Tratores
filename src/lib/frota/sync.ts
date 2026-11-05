@@ -313,13 +313,18 @@ export async function syncCadastro() {
     if (tipos.some((t: string) => t.includes('descarga'))) return 'descarga';
     return 'outro';
   };
+  // re_id = _id da Rota Exata (TEXTO, ObjectId do Mongo). Antes era Number(_id) = NaN → NULL,
+  // o upsert nunca casava e os destinos eram INSERIDOS de novo a cada rodada (26/dia desde
+  // 14/07/2026). Precisa de sql/frota-geocercas-dedup.sql (re_id TEXT); sem ela a coluna
+  // ainda é BIGINT e o passo é PULADO (melhor que duplicar) — o resto do sync segue.
+  try {
   await upsertLotes(
     supabase,
     'frota_geocercas',
     destinos
       .filter((d: any) => (d.id ?? d._id) != null && num(d.latitude) && num(d.longitude))
       .map((d: any) => ({
-        re_id: Number(d.id ?? d._id),
+        re_id: String(d._id ?? d.id),
         nome: str(d.nome) || '(sem nome)',
         latitude: Number(d.latitude),
         longitude: Number(d.longitude),
@@ -335,6 +340,12 @@ export async function syncCadastro() {
     're_id',
   );
   resumo.geocercas = destinos.length;
+  } catch (e) {
+    const msg = (e as Error).message;
+    if (!/bigint/i.test(msg)) throw e;
+    console.warn('[frota] sync: geocercas puladas — falta aplicar sql/frota-geocercas-dedup.sql:', msg);
+    resumo.geocercas = 0;
+  }
 
   // 5) /odometro -> frota_odometro (a fonte BOA de km; valores vêm em METROS)
   const odometros = (await fetchTudo('/odometro')).sort((a: any, b: any) =>

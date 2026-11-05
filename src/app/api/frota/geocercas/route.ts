@@ -12,6 +12,7 @@ import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { logFrota, podeFrota } from '@/lib/frota/server';
 import { distanciaKm } from '@/lib/pos/rastreamento';
+import { paginar } from '@/lib/db/paginar';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -55,10 +56,13 @@ export async function POST(req: NextRequest) {
 
   // Absolvição retroativa: toda parada ATÍPICA dentro do raio vira a classe do
   // novo local. (Paradas já classificadas em outro lugar ficam como estão.)
-  const { data: atipicas } = await supabase
+  // em páginas: são milhares de paradas atípicas e o PostgREST corta em 1000
+  const { data: atipicas } = await paginar<{ id: string; veiculo_id: string; data: string; latitude: number | null; longitude: number | null }>((de, ate) => supabase
     .from('frota_paradas')
     .select('id, veiculo_id, data, latitude, longitude')
-    .eq('atipica', true);
+    .eq('atipica', true)
+    .order('id')
+    .range(de, ate));
   const raioKm = raio_m / 1000;
   const afetadas = (atipicas || []).filter(
     (p) => p.latitude && p.longitude && distanciaKm(p.latitude, p.longitude, latitude, longitude) <= raioKm,
