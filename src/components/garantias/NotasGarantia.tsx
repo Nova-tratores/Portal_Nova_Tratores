@@ -98,6 +98,9 @@ export default function NotasGarantiaPainel({ garantiaId, compacto, podeEditar =
       <section>
         <Titulo icone={<FileText size={16} />} texto="NFS-e de reembolso (Nova → montadora)" n={reembolso.sugeridas.length + manuaisDe('reembolso').length} />
         <Ajuda>Nota de serviço que a Nova emite contra a {dados.garantia.montadora || 'montadora'} para receber o que a fábrica pagou. Achada pelo nº da SG ({dados.garantia.sg || 'sem nº'}) no texto da nota.</Ajuda>
+        <DispensaReembolso garantiaId={garantiaId} garantia={dados.garantia} podeEditar={podeEditar}
+          temVinculada={reembolso.sugeridas.some((n) => n.vinculo === 'vinculada') || manuaisDe('reembolso').length > 0}
+          onMudou={recarregar} onErro={setErroAcao} />
         {reembolso.sugeridas.length === 0 && manuaisDe('reembolso').length === 0 && (
           <Vazio>Nenhuma NFS-e de reembolso cita esta garantia ainda. Ela entra na próxima OS de reembolso da montadora — ou anexe a nota abaixo se ela não estiver no sistema.</Vazio>
         )}
@@ -366,6 +369,60 @@ function NotasManuais({ papel, garantiaId, manuais, podeEditar, faltaMigracao, o
 
 const rot: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' };
 const inp: React.CSSProperties = { padding: '8px 9px', borderRadius: 7, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13, minHeight: 38, width: '100%', boxSizing: 'border-box' };
+
+// Garantia sem mão de obra/deslocamento cobrado não gera NFS-e de reembolso; os
+// outros casos o garantista marca "não precisa" (sai da coluna "falta NFS-e").
+function DispensaReembolso({ garantiaId, garantia, temVinculada, podeEditar, onMudou, onErro }: {
+  garantiaId: string; garantia: NotasGarantia['garantia']; temVinculada: boolean; podeEditar: boolean;
+  onMudou: () => void; onErro: (m: string) => void;
+}) {
+  const [gravando, setGravando] = useState(false);
+  if (temVinculada) return null;
+  const mudar = async (dispensado: boolean) => {
+    if (!podeEditar || gravando) return;
+    setGravando(true);
+    onErro('');
+    try {
+      const r = await fetchAuth(`/api/garantias/${garantiaId}/reembolso`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dispensado }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) onErro(j.error || 'Não foi possível gravar.');
+      else onMudou();
+    } catch {
+      onErro('Sem conexão com o portal.');
+    } finally {
+      setGravando(false);
+    }
+  };
+  const caixa: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 12, padding: '8px 10px',
+    borderRadius: 8, marginBottom: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)',
+  };
+  const botao: React.CSSProperties = {
+    marginLeft: 'auto', padding: '6px 10px', minHeight: 34, borderRadius: 6, fontSize: 12, fontWeight: 700,
+    border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text)',
+    cursor: podeEditar ? 'pointer' : 'not-allowed',
+  };
+  if (garantia.reembolsoDispensado) {
+    return (
+      <div style={caixa}>
+        <Check size={14} color="#16a34a" /> <b>Marcada: não precisa de NFS-e de reembolso.</b>
+        {podeEditar && <button style={botao} disabled={gravando} onClick={() => mudar(false)}>{gravando ? <Loader2 size={13} className="spin" /> : 'Desfazer'}</button>}
+      </div>
+    );
+  }
+  if (!garantia.precisaNfse) {
+    return <div style={caixa}><Check size={14} color="#16a34a" /> Sem mão de obra nem deslocamento cobrados: esta garantia não precisa de NFS-e de reembolso.</div>;
+  }
+  if (!podeEditar) return null;
+  return (
+    <div style={caixa}>
+      <span style={{ color: 'var(--portal-text-muted)' }}>Esta garantia não vai ter NFS-e de reembolso?</span>
+      <button style={botao} disabled={gravando} onClick={() => mudar(true)}>{gravando ? <Loader2 size={13} className="spin" /> : 'Não precisa de NFS-e'}</button>
+    </div>
+  );
+}
 
 function Titulo({ icone, texto, n }: { icone: React.ReactNode; texto: string; n: number }) {
   return (

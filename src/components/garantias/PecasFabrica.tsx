@@ -45,6 +45,28 @@ export function ChecklistPecasFabrica({ info, podeEditar = true, onMudou }: {
     }
   };
 
+  // "em qual nota chegou?" — a chegada é calculada no servidor, então relê a garantia
+  const escolherNota = async (pecaId: string, notaId: string | null) => {
+    if (!podeEditar || gravando) return;
+    setGravando(pecaId);
+    setErro('');
+    try {
+      const r = await fetchAuth(`/api/garantias/${info.garantiaId}/pecas-fabrica`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pecaId, notaId }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErro(j.error || 'Não foi possível gravar.'); return; }
+      const novo = await fetchAuth(`/api/garantias/${info.garantiaId}/pecas-fabrica`).then((x) => x.json()).catch(() => null);
+      if (novo?.pecas) onMudou?.(novo);
+    } catch {
+      setErro('Sem conexão com o portal.');
+    } finally {
+      setGravando('');
+    }
+  };
+
   if (!info.pecas.length) {
     return <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>Nenhuma peça aprovada nesta garantia.</div>;
   }
@@ -77,8 +99,48 @@ export function ChecklistPecasFabrica({ info, podeEditar = true, onMudou }: {
             </div>
             {!p.forma && <div style={{ marginTop: 4, color: 'var(--portal-text-muted)', fontSize: 11 }}>Sugestão do portal (tracejado) — clique para confirmar.</div>}
             {f === 'reposta' && (
-              <div style={{ marginTop: 6, color: p.chegou ? '#16a34a' : '#d97706', fontWeight: 600 }}>
-                {p.chegou ? `Chegou na NF ${p.chegou.numero}${p.chegou.data ? ` (${fmtData(p.chegou.data)})` : ''}` : 'Ainda não chegou'}
+              <div style={{ marginTop: 6 }}>
+                {p.chegou ? (
+                  <div style={{ color: '#16a34a', fontWeight: 600 }}>
+                    Chegou na NF {p.chegou.numero}{p.chegou.data ? ` (${fmtData(p.chegou.data)})` : ''}
+                    {p.chegou.como === 'escolhida' && <span style={{ color: 'var(--portal-text-muted)', fontWeight: 500 }}> · escolhido à mão</span>}
+                    {p.tambem.length > 0 && (
+                      <span style={{ color: 'var(--portal-text-muted)', fontWeight: 500 }}> · também na NF {p.tambem.map((t) => t.numero).join(', ')}</span>
+                    )}
+                  </div>
+                ) : p.perguntar ? null : (
+                  <div style={{ color: '#d97706', fontWeight: 600 }}>Ainda não chegou</div>
+                )}
+                {p.perguntar && (
+                  <div style={{ border: '1px solid #f59e0b', background: '#f59e0b14', borderRadius: 6, padding: 8 }}>
+                    <div style={{ fontWeight: 700, color: '#b45309', marginBottom: 6 }}>
+                      Não achei o código desta peça nas notas. Em qual nota ela chegou?
+                    </div>
+                    <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                      {info.notas.map((n) => (
+                        <button key={n.notaId} disabled={!podeEditar || !!gravando} onClick={(e) => { e.stopPropagation(); escolherNota(p.id, n.notaId); }}
+                          style={{ minHeight: 32, padding: '4px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: podeEditar ? 'pointer' : 'not-allowed', border: '1px solid #f59e0b', background: 'transparent', color: 'var(--portal-text)' }}>
+                          NF {n.numero}{n.data ? ` (${fmtData(n.data)})` : ''}
+                        </button>
+                      ))}
+                    </div>
+                    <div style={{ marginTop: 4, color: 'var(--portal-text-muted)', fontSize: 11 }}>
+                      Se ela ainda não veio, deixe sem escolher.
+                    </div>
+                  </div>
+                )}
+                {!p.perguntar && podeEditar && info.notas.length > 0 && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, fontSize: 11, color: 'var(--portal-text-muted)' }}
+                    onClick={(e) => e.stopPropagation()}>
+                    Nota:
+                    <select value={p.chegou?.como === 'escolhida' ? p.chegou.notaId || '' : ''} disabled={!!gravando}
+                      onChange={(e) => escolherNota(p.id, e.target.value || null)}
+                      style={{ fontSize: 11, padding: '2px 4px', borderRadius: 4, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }}>
+                      <option value="">Automático (pelo código da peça)</option>
+                      {info.notas.map((n) => <option key={n.notaId} value={n.notaId}>NF {n.numero}{n.data ? ` (${fmtData(n.data)})` : ''}</option>)}
+                    </select>
+                  </label>
+                )}
               </div>
             )}
           </div>
