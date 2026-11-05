@@ -18,7 +18,7 @@ import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 async function atualizarMetricasAbertas() {
   const { data: abertas } = await supabase
     .from(TBL_METRICAS)
-    .select("id, id_ordem, data_inicio")
+    .select("id, id_ordem, data_inicio, dias")
     .is("data_fim", null);
 
   if (!abertas || abertas.length === 0) return;
@@ -40,8 +40,9 @@ async function atualizarMetricasAbertas() {
     if (FASES_CONTADOR_PARADO.has(statusAtual)) {
       // Fecha a métrica
       await supabase.from(TBL_METRICAS).update({ data_fim: agora.toISOString(), dias }).eq("id", m.id);
-    } else {
-      // Atualiza dias
+    } else if (Number(m.dias) !== dias) {
+      // Atualiza dias — só quando mudou (antes regravava as ~30 abertas a cada 5 min,
+      // e a Planta Viva via a tabela "mudando" sempre e nunca pulava a rodada).
       await supabase.from(TBL_METRICAS).update({ dias }).eq("id", m.id);
     }
   }
