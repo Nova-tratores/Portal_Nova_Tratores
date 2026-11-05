@@ -147,7 +147,7 @@ export async function pedirLancamento(
   if (outros.length) await esquecer(outros.map((n) => `ficha13:${n}:`)).catch(() => {})
   await registrar(ped, 'pedido', autor, r2(p.valor), { calculado: r2(p.calculado), os: p.linhas.length, mexidas: mexidas.map((l) => ({ numero: l.numero, acao: l.divisao ? 'dividir' : l.acao, valor: l.valor, calculado: l.calculado, motivo: l.motivo })), descontos })
   const ds = await diretores()
-  await avisar(ds, `Comissão para autorizar: ${p.tecnico}`, `${p.mes.slice(5)}/${p.mes.slice(0, 4)} · ${brl(p.valor)}${mexidas.length ? ` · ${mexidas.length} OS com decisão` : ''} — pedido de ${autor.nome}`, '/dashboard?comissoes=1')
+  await avisar(ds, `Comissão para autorizar: ${p.tecnico}`, `${p.mes.slice(5)}/${p.mes.slice(0, 4)} · ${brl(p.valor)}${mexidas.length ? ` · ${mexidas.length} OS mudadas` : ''} — pedido de ${autor.nome}`, '/dashboard?comissoes=1')
   return { pedido: ped, semDiretor: ds.length === 0 }
 }
 

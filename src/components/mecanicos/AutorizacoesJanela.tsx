@@ -55,7 +55,7 @@ const quando = (s: string | null) => s ? new Date(s).toLocaleString('pt-BR', { t
 const vl = (v?: number | null) => (v ? brl2(v) : '—')
 const pctTxt = (x: number) => `${(Math.round(x * 1000) / 10).toLocaleString('pt-BR')}%`
 const mexida = (l: LinhaPedido) => l.acao !== 'pagar' || !!l.divisao || Math.abs((l.valor || 0) - (l.calculado || 0)) > 0.005
-const decisao = (l: LinhaPedido) => l.acao === 'nao' ? 'não paga' : l.divisao ? `dividida (${Object.entries(l.divisao).map(([k, v]) => `${k.split(' ')[0]} ${brl2(v)}`).join(', ')})` : mexida(l) ? 'ajustada' : ''
+const decisao = (l: LinhaPedido) => l.acao === 'nao' ? 'não paga' : l.divisao ? `dividida (${Object.entries(l.divisao).map(([k, v]) => `${k.split(' ')[0]} ${brl2(v)}`).join(', ')})` : mexida(l) ? 'valor mudado' : ''
 const ROT_EV: Record<TipoEvento, string> = { pedido: 'Pediu autorização', devolvida: 'Devolveu para ajuste', autorizada: 'Autorizou', espelhada: 'Lançada no RH', erro_rh: 'Erro ao lançar no RH', substituida: 'Substituída' }
 
 export function AutorizacoesJanela({ onFechar }: { onFechar?: () => void } = {}) {
@@ -120,18 +120,18 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
     <div className="au-p">
       <div className="au-p-cab">
         <div><b>{p.tecnico}</b><small>comissão de {mesBR(p.mes)} · pedido e assinado por {p.pedido_por || '—'} em {quando(p.pedido_em)}</small></div>
-        <div className="au-p-v"><b>{brl2(p.valor)}</b>{p.calculado != null && <small>{Math.abs(dif) > 0.01 ? <>pela regra {brl2(p.calculado)} · <em className={dif > 0 ? 'mais' : 'menos'}>{dif > 0 ? '+' : '−'}{brl2(Math.abs(dif))}</em></> : 'igual ao calculado pela regra'}</small>}</div>
+        <div className="au-p-v"><b>{brl2(p.valor)}</b>{p.calculado != null && <small>{Math.abs(dif) > 0.01 ? <>calculado {brl2(p.calculado)} · <em className={dif > 0 ? 'mais' : 'menos'}>{dif > 0 ? '+' : '−'}{brl2(Math.abs(dif))}</em></> : 'igual ao calculado'}</small>}</div>
       </div>
       <ContaPagamento p={p} />
       <div className="au-sub">
-        <span>{p.linhas.length} OS · {nMex ? `${nMex} com decisão do pós-vendas` : 'todas pela regra'}</span>
+        <span>{p.linhas.length} OS · {nMex ? `${nMex} mudadas` : 'nenhuma mudada'}</span>
         {/* só aparece quando o pós-vendas mexeu em alguma OS (com 0 mexidas a lista ficava vazia) */}
-        {modo !== 'devolver' && nMex > 0 && p.linhas.length > nMex && <button type="button" onClick={() => setVerTodas((v) => !v)}>{verTodas ? `ver só as ${nMex} que o pós-vendas mexeu` : 'ver todas as OS'}</button>}
+        {modo !== 'devolver' && nMex > 0 && p.linhas.length > nMex && <button type="button" onClick={() => setVerTodas((v) => !v)}>{verTodas ? 'ver só as mudadas' : 'ver todas'}</button>}
         <button type="button" onClick={() => { void abrirDocumento(p.id) }}>ver documento</button>
       </div>
       {lista.length > 0 && (
         <div className={`au-lin ${modo === 'devolver' ? 'dev' : ''}`}>
-          <div className="au-th"><span>OS</span><span>Cliente</span><span className="n">Hora</span><span className="n">Km</span><span className="n">Peças</span><span className="n">Total da OS</span><span className="n">Comissão pela regra</span><span className="n">A pagar</span><span>Decisão do pós-vendas</span>{modo === 'devolver' && <span>O que mudar</span>}</div>
+          <div className="au-th"><span>OS</span><span>Cliente</span><span className="n">Hora</span><span className="n">Km</span><span className="n">Peças</span><span className="n">Total da OS</span><span className="n">Calculado</span><span className="n">A pagar</span><span>Mudança</span>{modo === 'devolver' && <span>O que mudar</span>}</div>
           {lista.map((l) => {
             const m = marcas[l.os]
             return (
@@ -259,13 +259,13 @@ function LinhaEvento({ e }: { e: EventoComissao }) {
         <div className="au-ev-l1"><b>{ROT_EV[e.tipo] || e.tipo}</b><span>{e.tecnico} · {mesBR(e.mes)}</span>{e.valor != null && <span className="au-ev-v">{brl2(Number(e.valor))}</span>}</div>
         <div className="au-ev-l2">
           {e.autor && <span>por {e.autor}</span>}
-          {e.tipo === 'pedido' && det.mexidas && <span>{det.mexidas.length ? `${det.mexidas.length} OS com decisão` : 'todas pela regra'}{det.calculado != null && Math.abs(Number(e.valor) - det.calculado) > 0.01 ? ` · pela regra ${brl2(det.calculado)}` : ''}</span>}
+          {e.tipo === 'pedido' && det.mexidas && <span>{det.mexidas.length ? `${det.mexidas.length} OS mudadas` : 'nenhuma mudada'}{det.calculado != null && Math.abs(Number(e.valor) - det.calculado) > 0.01 ? ` · calculado ${brl2(det.calculado)}` : ''}</span>}
           {det.observacao && <span>“{det.observacao}”</span>}
           {det.erro && <span className="au-ev-erro">{det.erro}</span>}
           {det.motivo && <span>{det.motivo}</span>}
         </div>
         {!!det.apontamentos?.length && <ul className="au-ev-lst">{det.apontamentos.map((a) => <li key={a.os}>OS {a.numero}: {a.pedido === 'nao_pagar' ? 'não pagar' : a.pedido === 'alterar' ? `pagar ${brl2(Number(a.valor) || 0)}` : 'conferir'}{a.texto ? ` — ${a.texto}` : ''}</li>)}</ul>}
-        {e.tipo === 'pedido' && !!det.mexidas?.length && <ul className="au-ev-lst">{det.mexidas.map((m) => <li key={m.numero}>OS {m.numero}: {m.acao === 'nao' ? 'não paga' : m.acao === 'dividir' ? 'dividida' : 'ajustada'} {brl2(m.calculado)} → {brl2(m.valor)} — {m.motivo}</li>)}</ul>}
+        {e.tipo === 'pedido' && !!det.mexidas?.length && <ul className="au-ev-lst">{det.mexidas.map((m) => <li key={m.numero}>OS {m.numero}: {m.acao === 'nao' ? 'não paga' : m.acao === 'dividir' ? 'dividida' : 'valor mudado'} {brl2(m.calculado)} → {brl2(m.valor)} — {m.motivo}</li>)}</ul>}
       </div>
     </div>
   )

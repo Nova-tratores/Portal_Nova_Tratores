@@ -599,7 +599,7 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
       <section className="fl-valor">
         <small className="fl-rot">Comissão de {nomeMes(d.mes).toLowerCase()}</small>
         <b className="fl-total"><Num v={t.total} f={brl2} /></b>
-        <span className="fl-regra">{Math.abs(dif) > 0.01 ? <>pela regra seria {brl2(t.calc)} · <em className={dif > 0 ? 'mais' : 'menos'}>{dif > 0 ? '+' : '−'}{brl2(Math.abs(dif))}</em></> : 'igual ao calculado pela regra'}</span>
+        <span className="fl-regra">{Math.abs(dif) > 0.01 ? <>calculado {brl2(t.calc)} · <em className={dif > 0 ? 'mais' : 'menos'}>{dif > 0 ? '+' : '−'}{brl2(Math.abs(dif))}</em></> : 'igual ao calculado'}</span>
         {/* descontos lançados aqui saem da comissão: mostra o que sobra (José, 05/11/2026: "não está descontando") */}
         {e.descontos.length > 0 && <span className="fl-liq">com os descontos: <b>{brl2(contaDoPagamento(t.total, e.descontos, !!d.escritorio).liquido)}</b></span>}
         {e.erroDesc && <small className="fo-lan-pq">{e.erroDesc}</small>}
