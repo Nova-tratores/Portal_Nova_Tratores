@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { variantesDocumento } from "./documento-variantes";
 
 // Cliente INATIVO no Omie não pode receber PPV nem OS novos.
 // A checagem usa o ESPELHO local (portal_nt_clientes_cadastro_omie, campo
@@ -23,12 +24,16 @@ export async function motivoClienteInativo(nome?: string, documento?: string): P
   try {
     let candidatos: LinhaCliente[] = [];
 
-    // 1º: documento (identifica de verdade — nome tem homônimos)
+    // 1º: documento (identifica de verdade — nome tem homônimos).
+    // Filtra NO BANCO pelas grafias do documento (o espelho guarda formatado).
+    // Antes baixava a tabela e filtrava aqui — mas o PostgREST corta em 1000
+    // linhas (de ~6 mil), então quase todo cliente inativo passava.
     if (alvoDoc.length >= 11) {
       const { data } = await supabase
         .from("portal_nt_clientes_cadastro_omie")
         .select("razao_social,nome_fantasia,cnpj_cpf,inativo")
-        .limit(2000);
+        .in("cnpj_cpf", variantesDocumento(alvoDoc))
+        .limit(50);
       candidatos = (data || []).filter(
         (c) => String(c.cnpj_cpf || "").replace(/\D/g, "") === alvoDoc
       );
