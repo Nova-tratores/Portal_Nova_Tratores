@@ -13,7 +13,7 @@ export default function IdeiasLayout({ children }: { children: React.ReactNode }
   if (!loading && userProfile && !isDev) return <SemPermissao />
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--portal-bg)' }}>
+    <div className="ct-vn" style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--portal-bg)' }}>
       <Suspense fallback={null}><CentralNav /></Suspense>
       {children}
     </div>

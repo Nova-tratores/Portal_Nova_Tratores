@@ -30,19 +30,37 @@ async function criarComoReuniao(r: RascunhoEvento, eu: string) {
   const [h1, m1] = r.horaIni.split(':').map(Number), [h2, m2] = r.horaFim.split(':').map(Number)
   const duracao = h2 * 60 + m2 - (h1 * 60 + m1)
   if (duracao <= 0) throw new Error('O fim tem de ser depois do início.')
-  const descricao = [r.descricao.trim(), r.local.trim() ? `Local: ${r.local.trim()}` : ''].filter(Boolean).join('\n\n')
+  // local que é uma sala de verdade (Salas) reserva a sala junto com a reunião (José, 04/11/2026: "a agenda geral não
+  // está vinculada com a sala de reunião"); outro local continua só escrito na descrição
+  const sala = await salaDoLocal(r.local)
+  const descricao = [r.descricao.trim(), r.local.trim() && !sala ? `Local: ${r.local.trim()}` : ''].filter(Boolean).join('\n\n')
   await chamar('/api/reunioes', 'POST', {
     dia: r.diaIni, hora: r.horaIni, titulo: r.titulo.trim(), descricao: descricao || null,
     participantes: r.participantes.filter((p) => p !== eu), duracao_min: duracao,
+    ...(sala ? { sala_id: sala.id } : {}),
   })
+  return sala
+}
+
+const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+/** A sala (módulo Salas) cujo nome é o local escrito no compromisso; null se o local não é uma sala. */
+export async function salaDoLocal(local: string): Promise<{ id: string; nome: string } | null> {
+  if (!local.trim()) return null
+  try {
+    const res = await fetch('/api/salas', { cache: 'no-store', headers: await authHeaders() })
+    const j = await res.json().catch(() => ({}))
+    const salas = (Array.isArray(j.salas) ? j.salas : []) as { id: string; nome: string }[]
+    return salas.find((s) => semAcento(s.nome) === semAcento(local)) || null
+  } catch { return null }
 }
 
 /** Grava e devolve a frase do aviso. Lança Error com a mensagem para mostrar no formulário. */
 export async function salvarCompromisso(r: RascunhoEvento, eu: string): Promise<string> {
   if (!r.id && r.tipo === 'reuniao') {
-    await criarComoReuniao(r, eu)
+    const sala = await criarComoReuniao(r, eu)
     contarUsoTipo(r.tipo)
-    return 'Reunião criada em Reuniões e na agenda'
+    window.dispatchEvent(new Event('central-trabalho-mudou'))
+    return sala ? `Reunião criada em Reuniões e ${sala.nome} reservada` : 'Reunião criada em Reuniões e na agenda'
   }
   if (r.id) await chamar(`/api/agenda/eventos/${r.id}`, 'PATCH', { acao: 'editar', ...corpoEvento(r) })
   else { await chamar('/api/agenda/eventos', 'POST', corpoEvento(r)); contarUsoTipo(r.tipo) }

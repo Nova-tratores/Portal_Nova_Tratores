@@ -295,7 +295,7 @@ export function FormEvento({ inicial, pessoas, eu, corPadrao, salvando, erro, on
           {avisoSerie && <div className="gc-aviso">Este é um evento que se repete: a mudança vale para todos os dias da série.</div>}
           <div className="gc-tipo-rotulo">Tipo do compromisso</div>
           <SeletorTipo valor={r.tipo} onChange={(t) => up({ tipo: t })} uso={usoTipos} />
-          {!r.id && r.tipo === 'reuniao' && <div className="gc-tipo-nota">Vai ser criada em <b>Reuniões</b>, com pauta e ata: você conduz e os convidados viram participantes. Para repetir toda semana, use <b>Séries</b> em Reuniões.</div>}
+          {!r.id && r.tipo === 'reuniao' && <div className="gc-tipo-nota">Vai ser criada em <b>Reuniões</b>, com pauta e ata: você conduz e os convidados viram participantes. Se o local for a <b>Sala de Reunião</b>, ela já fica reservada. Para repetir toda semana, use <b>Séries</b> em Reuniões.</div>}
           <div className="gc-datas">
             <input type="date" value={r.diaIni} onChange={(e) => { const d = e.target.value; up({ diaIni: d, diaFim: r.diaFim < d ? d : r.diaFim }) }} aria-label="Data inicial" />
             {!r.diaInteiro && <input type="time" step={900} value={r.horaIni} onChange={(e) => up({ horaIni: e.target.value })} aria-label="Hora inicial" />}
@@ -315,7 +315,8 @@ export function FormEvento({ inicial, pessoas, eu, corPadrao, salvando, erro, on
           <div className="gc-secao"><Users size={18} /><b>Convidados</b></div>
           <SeletorPessoas pessoas={pessoas} escolhidos={r.participantes} onChange={(ids) => up({ participantes: ids })} eu={eu} />
 
-          <CampoLocal valor={r.local} onChange={(v) => up({ local: v })} />
+          {/* escolheu uma sala de reunião num compromisso novo sem tipo: já vira Reunião (José, 04/11/2026) — dá para trocar o tipo */}
+          <CampoLocal valor={r.local} onChange={(v) => up({ local: v, ...(!r.id && !r.tipo && /sala de reuni/i.test(v.normalize('NFD').replace(/[̀-ͯ]/g, '')) ? { tipo: 'reuniao' as TipoCompromisso } : {}) })} />
           <div className="gc-campo-ic gc-topo-al"><AlignLeft size={18} /><textarea placeholder="Adicionar descrição" rows={4} value={r.descricao} maxLength={4000} onChange={(e) => up({ descricao: e.target.value })} /></div>
 
           <div className="gc-cores">

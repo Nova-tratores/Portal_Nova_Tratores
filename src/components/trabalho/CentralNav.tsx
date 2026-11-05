@@ -17,6 +17,7 @@ import FormTicket from '@/components/tickets/FormTicket'
 import TicketModal from '@/components/tickets/TicketModal'
 import { useBlocoAtual, type BlocoAtual } from '@/lib/trabalho/bloco-atual'
 import FormTarefa from './FormTarefa'
+import { ESTILO_CENTRAL_VN } from './visualCentral'
 
 export default function CentralNav() {
   const pathname = usePathname() || ''
@@ -74,19 +75,19 @@ export default function CentralNav() {
   const naGerencial = pathname === '/tickets'
   const emQuadros = pathname.startsWith('/tickets') && !naGerencial
   const abas = [
-    { href: '/tickets/quadros', label: 'Quadros', icone: <LayoutGrid size={16} />, ativo: emQuadros },
+    { href: '/tickets/quadros', label: 'Quadros', icone: <LayoutGrid size={15} />, ativo: emQuadros },
     // Agenda coletiva estilo Google (todos por setor + reuniões, sala, prazos, técnicos).
-    { href: '/agenda', label: 'Agenda', icone: <CalendarDays size={16} />, ativo: pathname.startsWith('/agenda') },
-    { href: '/cronograma', label: 'Cronograma', icone: <GanttChartSquare size={16} />, ativo: pathname.startsWith('/cronograma') },
+    { href: '/agenda', label: 'Agenda', icone: <CalendarDays size={15} />, ativo: pathname.startsWith('/agenda') },
+    { href: '/cronograma', label: 'Cronograma', icone: <GanttChartSquare size={15} />, ativo: pathname.startsWith('/cronograma') },
     // Reuniões (pauta + ata sobre a engine de tickets): mesma permissão da Central.
-    { href: '/reunioes', label: 'Reuniões', icone: <CalendarClock size={16} />, ativo: pathname.startsWith('/reunioes'), n: reunioesHoje },
-    // Agenda da sala física (tela própria, aberta a todo logado).
-    { href: '/salas', label: 'Sala', icone: <MapPin size={16} />, ativo: pathname.startsWith('/salas') },
-    ...(isAdmin ? [{ href: '/tickets?aba=gerencial', label: 'Visão gerencial', icone: <BarChart3 size={16} />, ativo: naGerencial }] : []),
+    { href: '/reunioes', label: 'Reuniões', icone: <CalendarClock size={15} />, ativo: pathname.startsWith('/reunioes'), n: reunioesHoje },
+    // Sala de reunião: um dos módulos da Central (José, 04/11/2026), aberta a todo logado.
+    { href: '/salas', label: 'Sala de reunião', icone: <MapPin size={15} />, ativo: pathname.startsWith('/salas') },
+    ...(isAdmin ? [{ href: '/tickets?aba=gerencial', label: 'Visão gerencial', icone: <BarChart3 size={15} />, ativo: naGerencial }] : []),
     // Bloco de notas dos devs (captar → agrupar → planejar vira ticket). Só Dev.
-    ...(isDev ? [{ href: '/ideias', label: 'Ideias', icone: <Lightbulb size={16} />, ativo: pathname.startsWith('/ideias') }] : []),
+    ...(isDev ? [{ href: '/ideias', label: 'Ideias', icone: <Lightbulb size={15} />, ativo: pathname.startsWith('/ideias') }] : []),
     ...(pendencias > 0 || pathname.startsWith('/tarefas')
-      ? [{ href: '/tarefas', label: 'Pendências', icone: <ListTodo size={16} />, ativo: pathname.startsWith('/tarefas'), n: pendencias }]
+      ? [{ href: '/tarefas', label: 'Pendências', icone: <ListTodo size={15} />, ativo: pathname.startsWith('/tarefas'), n: pendencias }]
       : []),
   ]
   // Avisa a página aberta (Quadros/Cronograma) que algo novo foi criado.
@@ -99,21 +100,15 @@ export default function CentralNav() {
   return (
     <>
       {/* Tela estreita: abas numa linha (rolam de lado) e os botões de criar na linha de baixo. */}
+      <style>{ESTILO_CENTRAL_VN}</style>
       <style>{`@media (max-width: 900px){.ct-nav{flex-wrap:wrap;padding:0 12px !important}.ct-nav-abas{flex:1 1 100% !important}.ct-nav-acoes{flex:1 1 100%;margin-left:0 !important;padding:8px 0 10px !important;justify-content:flex-end}.ct-nav-acoes button{min-height:36px}.ct-nav-acoes .ct-nav-ajuda{width:36px !important;height:36px !important}}`}</style>
       <nav aria-label="Central de Trabalho" className="ct-nav" style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '0 16px', borderBottom: '1px solid var(--portal-border,#eee)', background: 'var(--portal-surface,#fff)' }}>
         <div className="ct-nav-abas" style={{ display: 'flex', alignItems: 'center', gap: 4, flex: '0 1 auto', minWidth: 0, overflowX: 'auto' }}>
-        <span style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text,#111)', padding: '12px 12px 12px 0', marginRight: 4, borderRight: '1px solid var(--portal-border,#eee)', whiteSpace: 'nowrap' }}>Central de Trabalho</span>
+        {/* abas estilo Chrome, sem o nome do módulo ao lado (José, 04/11/2026 — docs/padrao-telas.md); CSS em visualCentral.ts */}
         {abas.map((a) => (
-          <Link key={a.label} href={a.href} style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '12px 14px', whiteSpace: 'nowrap',
-            fontSize: 14, fontWeight: 600, textDecoration: 'none',
-            color: a.ativo ? '#dc2626' : 'var(--portal-text-muted,#888)',
-            borderBottom: a.ativo ? '2px solid #dc2626' : '2px solid transparent',
-          }}>
-            {a.icone} {a.label}
-            {'n' in a && typeof a.n === 'number' && a.n > 0 && (
-              <span style={{ fontSize: 11, fontWeight: 800, padding: '1px 7px', borderRadius: 999, background: '#dc2626', color: '#fff' }}>{a.n}</span>
-            )}
+          <Link key={a.label} href={a.href} className={`ct-aba${a.ativo ? ' on' : ''}`} aria-current={a.ativo ? 'page' : undefined}>
+            <span className="ct-aba-ic">{a.icone}</span> {a.label}
+            {'n' in a && typeof a.n === 'number' && a.n > 0 && <span className="ct-aba-n">{a.n}</span>}
           </Link>
         ))}
         </div>

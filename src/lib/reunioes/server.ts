@@ -263,11 +263,19 @@ export async function garantirProximaInstancia(auth: Autenticado, serie: Serie, 
 export type VisaoReunioes = 'proximas' | 'historico' | 'minhas'
 
 export async function listarReunioes(auth: Autenticado, visao: VisaoReunioes, serieId?: string | null) {
+  // Reunião cuja hora já passou sem acontecer sai das Próximas e vai para o Histórico (José, 04/11/2026: "se já foi
+  // não deve mostrar em próximas"); em andamento continua nas Próximas.
+  const agora = new Date().toISOString()
+  const fimDe = (t: Ticket) => new Date(new Date(t.reuniao_inicio || 0).getTime() + Math.max(5, Number((t.payload as { duracao_min?: number } | null)?.duracao_min) || 30) * 60_000).toISOString()
+  const jaPassou = (t: Ticket) => !!t.reuniao_inicio && t.reuniao_etapa !== 'em_andamento' && fimDe(t) < agora
   let q = supabaseAdmin.from('tickets').select('*').eq('tipo', 'reuniao').limit(300)
-  if (visao === 'historico') q = q.in('reuniao_etapa', ETAPAS_ENCERRADAS).order('reuniao_inicio', { ascending: false })
+  if (visao === 'historico') q = q.or(`reuniao_etapa.in.(${ETAPAS_ENCERRADAS.join(',')}),reuniao_inicio.lt.${agora}`).order('reuniao_inicio', { ascending: false })
   else q = q.not('reuniao_etapa', 'in', `(${ETAPAS_ENCERRADAS.join(',')})`).order('reuniao_inicio')
   if (serieId && uuidValido(serieId)) q = q.eq('reuniao_serie_id', serieId)
-  const tickets = ok(await q) as Ticket[]
+  const tickets = (ok(await q) as Ticket[]).filter((t) => {
+    const encerrada = ETAPAS_ENCERRADAS.includes(t.reuniao_etapa as ReuniaoEtapa)
+    return visao === 'historico' ? encerrada || jaPassou(t) : !jaPassou(t)
+  })
   if (!tickets.length) return { reunioes: [] as Ticket[], presencas: {} as Record<string, PresencaRow[]>, itens: {} as Record<string, number> }
   const ids = tickets.map((t) => t.id)
   const [parts, pres, itens] = await Promise.all([

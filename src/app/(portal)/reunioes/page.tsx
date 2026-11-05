@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import type { Ticket, UsuarioMin } from '@/lib/tickets/constantes'
-import { ETAPA_INFO, type ReuniaoEtapa, type Serie } from '@/lib/reunioes/regras'
+import { ETAPA_INFO, ETAPAS_PAUTA, type ReuniaoEtapa, type Serie } from '@/lib/reunioes/regras'
 import type { PresencaRow } from '@/lib/reunioes/server'
 import FormReuniao from '@/components/reunioes/FormReuniao'
 import FormSerie from '@/components/reunioes/FormSerie'
@@ -59,6 +59,7 @@ const ESTILO_RN = `
 .rn-card{display:grid;grid-template-columns:92px 1fr auto;gap:14px;align-items:center;text-align:left;width:100%;padding:14px 18px;border-radius:16px;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);cursor:pointer;color:inherit;font:inherit;transition:box-shadow .25s,transform .25s,border-color .25s}
 .rn-card:hover{transform:translateY(-2px);box-shadow:0 14px 28px -20px rgba(15,23,42,.55);border-color:color-mix(in srgb,var(--c) 35%,var(--portal-border,#e2e8f0))}
 .rn-card.passou{opacity:.72}
+.rn-nao{font-size:12px;padding:3px 10px;border-radius:999px;background:rgba(100,116,139,.12);color:#64748b;white-space:nowrap}
 .rn-hora{display:flex;flex-direction:column;gap:1px;font-variant-numeric:tabular-nums}
 .rn-hora b{font-size:17px;font-weight:500;color:var(--portal-text,#0f172a)}
 .rn-hora small{font-size:12.5px;color:var(--portal-text-muted,#64748b)}
@@ -181,7 +182,8 @@ function ReunioesInner() {
     const sala = dados?.salas?.[t.id]
     const titulo = serie && semData(t.titulo) === serie.nome ? serie.nome : semData(t.titulo)
     const outros = pres.filter((p) => p.usuario_id !== condutor)
-    const passou = aba === 'proximas' && !!fim && fim < new Date().toISOString() && etapa !== 'em_andamento'
+    // a hora passou e não foi encerrada: fica no Histórico como "não aconteceu" (José, 04/11/2026)
+    const passou = !!fim && fim < new Date().toISOString() && ETAPAS_PAUTA.includes(etapa)
     return (
       <button key={t.id} className={`rn-card${passou ? ' passou' : ''}`} style={{ ['--c' as string]: cor }} onClick={() => router.push(`/reunioes/${t.id}`)}>
         <span className="rn-hora">
@@ -202,7 +204,7 @@ function ReunioesInner() {
           </span>
         </span>
         <span className="rn-dir">
-          <EtapaChip etapa={etapa} />
+          {passou ? <span className="rn-nao">não aconteceu · {ETAPA_INFO[etapa]?.label?.toLowerCase() || etapa}</span> : <EtapaChip etapa={etapa} />}
           <span className="rn-pilhas">
             {outros.length > 0 && (
               <span className="rn-pilha" title={outros.map((p) => nome(p.usuario_id)).join(', ')}>

@@ -5,9 +5,9 @@ import CentralNav from '@/components/trabalho/CentralNav'
 
 export default function TarefasLayout({ children }: { children: React.ReactNode }) {
   return (
-    <>
+    <div className="ct-vn">
       <Suspense fallback={null}><CentralNav /></Suspense>
       {children}
-    </>
+    </div>
   )
 }

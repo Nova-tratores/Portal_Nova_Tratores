@@ -20,6 +20,7 @@ import ContasSemCadastro from '@/components/admin/ContasSemCadastro'
 import TrocarEmailModal from '@/components/admin/TrocarEmailModal'
 import AvisosTratorilson from '@/components/admin/AvisosTratorilson'
 import NotificacoesAdmin from '@/components/admin/NotificacoesAdmin'
+import BuscaModulo from '@/components/admin/BuscaModulo'
 
 const MODULOS = [
   // Ajustes: módulo único que expande nas páginas (ações vêm de
@@ -625,6 +626,8 @@ export default function AdminPage() {
             }}
           />
         </div>
+        {/* procurar por módulo: quem tem acesso a ele (José, 04/11/2026) */}
+        <BuscaModulo modulos={MODULOS} usuarios={usuarios} permissoes={permissoes} onVerUsuario={(nome) => { setFiltroPapel(null); setSearch(nome) }} />
         <button
           onClick={() => { setShowNovoUsuario(true); setCriarErro('') }}
           style={{

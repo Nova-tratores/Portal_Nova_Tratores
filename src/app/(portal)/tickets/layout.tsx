@@ -12,7 +12,7 @@ export default function TicketsLayout({ children }: { children: React.ReactNode 
   if (!loading && userProfile && !temAcesso('tickets')) return <SemPermissao />
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--portal-bg)' }}>
+    <div className="ct-vn" style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--portal-bg)' }}>
       <Suspense fallback={null}><CentralNav /></Suspense>
       {children}
     </div>

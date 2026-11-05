@@ -177,6 +177,12 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
   // ---------- pessoas, cores, filtros
   const eu = dados?.eu || userProfile?.id || ''
   const pessoas = useMemo(() => dados?.pessoas || [], [dados])
+  // Agenda geral abre com os técnicos desmarcados (José, 04/11/2026); marcar na lateral mostra — só nesta visita
+  const [tecnicosEscondidos, setTecnicosEscondidos] = useState(false)
+  if (modo === 'coletiva' && !tecnicosEscondidos && pessoas.length) {
+    setTecnicosEscondidos(true)
+    setOcultos((s) => new Set([...s, ...pessoas.filter((p) => p.tecnico).map((p) => p.id)]))
+  }
   const porId = useMemo(() => new Map(pessoas.map((p) => [p.id, p])), [pessoas])
   const nomes = useMemo(() => new Map(pessoas.map((p) => [p.id, p.nome])), [pessoas])
   const visivel = useCallback((id: string) => !ocultos.has(id), [ocultos])
