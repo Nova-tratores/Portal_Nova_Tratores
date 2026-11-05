@@ -411,6 +411,45 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo, progresso };
   },
 
+  // Robôs do Monitor do DRE (/dre-financeiro/monitor): 4 módulos × 2 contas, só leem o
+  // banco (sem Omie). Antes quem rodava às 07/13/19 h era o app antigo financeiro-omie no
+  // Railway. Statement timeout é passageiro (banco cheio no mesmo minuto de outros robôs):
+  // o que falhou tenta de novo uma vez, 2 min depois.
+  'dre-monitor': async () => {
+    if (desligada('DRE_MONITOR')) return { pular: 'desligado (DRE_MONITOR=off)' };
+    const { runMonitor, MODULOS } = await import('@/lib/dre-financeiro/monitors');
+    const { getContasOmie } = await import('@/lib/dre-financeiro/omie-api');
+    const pares: Array<[string, string]> = [];
+    for (const c of getContasOmie() as Array<{ id: string }>) for (const m of MODULOS as string[]) pares.push([m, c.id]);
+    const rodar = async ([m, c]: [string, string]) => (await runMonitor(m, c)) as { ok: boolean; novas?: number; resolvidas?: number; abertas?: number; mensagem?: string };
+    const res = new Map<string, Awaited<ReturnType<typeof rodar>>>();
+    for (const p of pares) res.set(p.join(':'), await rodar(p));
+    const falhas = pares.filter((p) => !res.get(p.join(':'))?.ok);
+    if (falhas.length) {
+      await new Promise((r) => setTimeout(r, 120_000));
+      for (const p of falhas) res.set(p.join(':'), await rodar(p));
+    }
+    const progresso: Record<string, string> = {};
+    let novas = 0, resolvidas = 0, erros = 0;
+    for (const p of pares) {
+      const r = res.get(p.join(':'))!;
+      if (r.ok) { novas += r.novas || 0; resolvidas += r.resolvidas || 0; progresso[p.join(' ')] = `${r.abertas || 0} abertas`; }
+      else { erros++; progresso[p.join(' ')] = `erro: ${r.mensagem || '?'}`; }
+    }
+    const resumo = `${pares.length - erros}/${pares.length} ok · ${novas} novas · ${resolvidas} resolvidas` +
+      (falhas.length ? ` · ${falhas.length} repetidas` : '') + (erros ? ` · ${erros} com erro` : '');
+    if (erros === pares.length) throw new Error(resumo);
+    return { resumo, progresso };
+  },
+
+  // Retrato diário do Patrimônio (cp_patrimonio_snapshot). Só lê o banco.
+  'dre-patrimonio-snapshot': async () => {
+    if (desligada('DRE_PATRIMONIO_SNAPSHOT')) return { pular: 'desligado (DRE_PATRIMONIO_SNAPSHOT=off)' };
+    const { gravarSnapshotPatrimonio } = await import('@/lib/dre-financeiro/patrimonio-snapshot');
+    const r = await gravarSnapshotPatrimonio();
+    return { resumo: `${r.data}: ` + r.resultados.map((x) => `${x.conta} ${Math.round(x.patrimonio).toLocaleString('pt-BR')}`).join(' · ') };
+  },
+
   // Varredura de estoque negativo (ajustes_jobs), uma conta por vez; espera cada
   // varredura terminar (o job grava heartbeat; a tela /ajustes/negativos lê o mesmo job).
   'ajustes-scan-negativos': async (_p, ctx) => {
