@@ -38,14 +38,17 @@ export async function PUT(req: NextRequest) {
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
 
   const diretoria = String(body.diretoria_id || '').trim() || null
+  const diretoria2 = String(body.diretoria2_id || '').trim() || null
   const financeiro = String(body.financeiro_id || '').trim() || null
   const comprador = String(body.comprador_id || '').trim() || null
 
-  for (const [rotulo, id] of [['Diretoria', diretoria], ['Financeiro', financeiro], ['Comprador', comprador]] as const) {
+  if (diretoria2 && !diretoria) return NextResponse.json({ error: 'Escolha a 1ª pessoa da Diretoria antes da 2ª.' }, { status: 400 })
+  if (diretoria2 && diretoria2 === diretoria) return NextResponse.json({ error: 'A 2ª pessoa da Diretoria precisa ser diferente da 1ª.' }, { status: 400 })
+  for (const [rotulo, id] of [['Diretoria', diretoria], ['Diretoria (2ª pessoa)', diretoria2], ['Financeiro', financeiro], ['Comprador', comprador]] as const) {
     if (id && !(await usuarioAtivo(id))) return NextResponse.json({ error: `${rotulo}: usuário inválido ou inativo` }, { status: 400 })
   }
 
-  const { error } = await supabaseAdmin.from('tickets_compras_config').upsert({
+  const linha = {
     id: true,
     diretoria_id: diretoria,
     financeiro_id: financeiro,
@@ -53,8 +56,14 @@ export async function PUT(req: NextRequest) {
     valor_limite_bloqueio: num(body.valor_limite_bloqueio),
     qtd_excesso_estoque: num(body.qtd_excesso_estoque),
     atualizado_em: new Date().toISOString(),
-  })
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+  // Sem a migration da 2ª pessoa, grava sem a coluna (padrão retry).
+  const { error } = await supabaseAdmin.from('tickets_compras_config').upsert({ ...linha, diretoria2_id: diretoria2 })
+  if (error && /diretoria2_id/.test(error.message)) {
+    if (diretoria2) return NextResponse.json({ error: 'Para designar a 2ª pessoa da Diretoria, aplique antes a migration sql/tickets-compras-diretoria2.sql.' }, { status: 503 })
+    const { error: e2 } = await supabaseAdmin.from('tickets_compras_config').upsert(linha)
+    if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
+  } else if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   const config = await carregarConfigCompras()
   return NextResponse.json({ ok: true, config })

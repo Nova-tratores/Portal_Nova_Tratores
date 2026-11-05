@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
   SC_TRANSICOES, SC_ETAPA_INFO, SC_ETAPAS_ATIVAS, SC_ETAPAS_FINAIS,
-  pessoaDoPapel, podeExecutar, proximoResponsavel,
+  pessoaDoPapel, pessoasDoPapel, pessoasComPapel, podeExecutar, proximoResponsavel,
   validarNovaSC, margemPrevista, agruparModelos, rotuloModelo, motivosDoDestino, SC_MOTIVOS,
   idPedidoFabrica, faseFabricaAposPC, scDoPedidoFabrica, PEDIDO_FABRICA_STATUS_PC,
   type ConfigCompras, type ScEtapa, type ScAcao,
@@ -269,6 +269,38 @@ describe('agruparModelos', () => {
   it('rótulo = família + marca + modelo, sem sobras quando falta parte', () => {
     expect(rotuloModelo({ familia: 'Trator Novo', marca: 'MAHINDRA', modelo: '6075' })).toBe('Trator Novo MAHINDRA 6075')
     expect(rotuloModelo({ familia: '', marca: '', modelo: '6075' })).toBe('6075')
+  })
+})
+
+describe('Diretoria com duas pessoas', () => {
+  const cfg2: ConfigCompras = { ...config, diretoria2_id: 'u-diretoria2' }
+
+  it('as duas executam as ações da Diretoria; ninguém mais', () => {
+    const t = transicao('diretoria', 'alterar_qtd')
+    expect(podeExecutar(t, usuario('u-diretoria'), cfg2, VENDEDOR)).toBe(true)
+    expect(podeExecutar(t, usuario('u-diretoria2'), cfg2, VENDEDOR)).toBe(true)
+    expect(podeExecutar(t, usuario('u-financeiro'), cfg2, VENDEDOR)).toBe(false)
+  })
+
+  it('a 2ª pessoa não ganha as outras etapas', () => {
+    expect(podeExecutar(transicao('financeiro', 'aprovar'), usuario('u-diretoria2'), cfg2, VENDEDOR)).toBe(false)
+    expect(podeExecutar(transicao('comprador', 'emitir_pc'), usuario('u-diretoria2'), cfg2, VENDEDOR)).toBe(false)
+  })
+
+  it('a bola fica com a 1ª pessoa', () => {
+    expect(proximoResponsavel('diretoria', cfg2, VENDEDOR)).toBe('u-diretoria')
+  })
+
+  it('pessoasDoPapel lista as duas sem repetir; sem 2ª pessoa, só a 1ª', () => {
+    expect(pessoasDoPapel(cfg2, 'diretoria')).toEqual(['u-diretoria', 'u-diretoria2'])
+    expect(pessoasDoPapel(config, 'diretoria')).toEqual(['u-diretoria'])
+    expect(pessoasDoPapel({ ...cfg2, diretoria2_id: 'u-diretoria' }, 'diretoria')).toEqual(['u-diretoria'])
+    expect(pessoasDoPapel(semConfig, 'diretoria')).toEqual([])
+  })
+
+  it('pessoasComPapel = todo mundo com papel fixo', () => {
+    expect(pessoasComPapel(cfg2).sort()).toEqual(['u-comprador', 'u-diretoria', 'u-diretoria2', 'u-financeiro'])
+    expect(pessoasComPapel(semConfig)).toEqual([])
   })
 })
 

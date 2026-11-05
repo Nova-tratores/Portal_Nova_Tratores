@@ -23,6 +23,7 @@ export default function ComprasConfigPage() {
   const { isAdmin, loading } = usePermissoes(userProfile?.id)
 
   const [diretoria, setDiretoria] = useState('')
+  const [diretoria2, setDiretoria2] = useState('')
   const [financeiro, setFinanceiro] = useState('')
   const [comprador, setComprador] = useState('')
   const [valorLimite, setValorLimite] = useState('')
@@ -40,6 +41,7 @@ export default function ComprasConfigPage() {
       if (res.ok) {
         const c: ConfigCompras = json.config
         setDiretoria(c.diretoria_id || '')
+        setDiretoria2(c.diretoria2_id || '')
         setFinanceiro(c.financeiro_id || '')
         setComprador(c.comprador_id || '')
         setValorLimite(c.valor_limite_bloqueio != null ? String(c.valor_limite_bloqueio) : '')
@@ -62,6 +64,7 @@ export default function ComprasConfigPage() {
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           diretoria_id: diretoria || null,
+          diretoria2_id: diretoria2 || null,
           financeiro_id: financeiro || null,
           comprador_id: comprador || null,
           valor_limite_bloqueio: valorLimite || null,
@@ -101,6 +104,13 @@ export default function ComprasConfigPage() {
               <div>
                 <label style={rotulo}>Diretoria de Compras</label>
                 <UserSelect value={diretoria} onChange={setDiretoria} placeholder="Quem avalia e define a quantidade..." autoFocus={false} />
+              </div>
+              <div>
+                <label style={rotulo}>Diretoria — 2ª pessoa (opcional)</label>
+                <UserSelect value={diretoria2} onChange={setDiretoria2} excluir={diretoria ? [diretoria] : []} placeholder="Outra pessoa que também decide..." autoFocus={false} />
+                <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted,#888)', marginTop: 4 }}>
+                  As duas decidem igual. A solicitação nova fica com a 1ª pessoa; a 2ª entra como participante e é avisada.
+                </div>
               </div>
               <div>
                 <label style={rotulo}>Financeiro</label>

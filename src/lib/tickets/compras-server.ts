@@ -5,18 +5,24 @@ import { parseValorBR } from '@/lib/requisicoes/autorizacao'
 import type { ConfigCompras, PayloadSC } from './compras'
 
 const CONFIG_VAZIA: ConfigCompras = {
-  diretoria_id: null, financeiro_id: null, comprador_id: null,
+  diretoria_id: null, diretoria2_id: null, financeiro_id: null, comprador_id: null,
   valor_limite_bloqueio: null, qtd_excesso_estoque: null,
 }
 
 // Lê a linha singleton de configuração (ou devolve tudo vazio se não existir).
+// `diretoria2_id` veio em sql/tickets-compras-diretoria2.sql; sem a migration
+// relê sem a coluna (a 2ª pessoa só fica indisponível). Sem trava "sticky":
+// aplicada a migration, a próxima leitura já enxerga a coluna.
+const COLUNAS = 'diretoria_id, diretoria2_id, financeiro_id, comprador_id, valor_limite_bloqueio, qtd_excesso_estoque'
+const COLUNAS_SEM_2 = COLUNAS.replace('diretoria2_id, ', '')
 export async function carregarConfigCompras(): Promise<ConfigCompras> {
-  const { data } = await supabaseAdmin
-    .from('tickets_compras_config')
-    .select('diretoria_id, financeiro_id, comprador_id, valor_limite_bloqueio, qtd_excesso_estoque')
-    .eq('id', true)
-    .maybeSingle()
-  return data ? { ...CONFIG_VAZIA, ...data } : { ...CONFIG_VAZIA }
+  const ler = (colunas: string) => supabaseAdmin
+    .from('tickets_compras_config').select(colunas).eq('id', true).maybeSingle()
+  let { data, error } = await ler(COLUNAS)
+  if (error && /diretoria2_id/.test(error.message)) {
+    ;({ data } = await ler(COLUNAS_SEM_2))
+  }
+  return data ? { ...CONFIG_VAZIA, ...(data as unknown as Partial<ConfigCompras>) } : { ...CONFIG_VAZIA }
 }
 
 // Gatilho de bloqueio (valor alto / excesso de estoque) — flag SUAVE: registra

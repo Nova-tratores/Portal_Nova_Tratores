@@ -18,7 +18,7 @@ import {
 } from '@/lib/tickets/server'
 import type { EventoTipo } from '@/lib/tickets/constantes'
 import {
-  SC_TRANSICOES, SC_ETAPA_INFO, proximoResponsavel, podeExecutarAuth,
+  SC_TRANSICOES, SC_ETAPA_INFO, proximoResponsavel, podeExecutarAuth, pessoasDoPapel,
   faseFabricaAposPC, type PayloadSC, type ScAcao, type ScEtapa,
 } from '@/lib/tickets/compras'
 import { avaliarBloqueio, carregarConfigCompras } from '@/lib/tickets/compras-server'
@@ -157,11 +157,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
 
   // O novo ator entra como participante; o vendedor (solicitante) nunca sai.
-  if (novoResponsavel && novoResponsavel !== ticket.responsavel_id) {
-    await garantirParticipante(id, novoResponsavel, auth.userId)
+  // Voltou para a Diretoria: a 2ª pessoa (se houver) também entra e é avisada.
+  const novosAtores = para === 'diretoria' ? pessoasDoPapel(config, 'diretoria') : [novoResponsavel]
+  for (const u of novosAtores) {
+    if (u && u !== ticket.responsavel_id) await garantirParticipante(id, u, auth.userId)
   }
 
-  const alvo = [...new Set([...envolvidos(ticket, participantes), novoResponsavel])]
+  const alvo = [...new Set([...envolvidos(ticket, participantes), ...novosAtores])]
   await notificarTicket({ ...ticket, responsavel_id: novoResponsavel }, alvo, auth.userId, notifTitulo, notifDescricao)
 
   return NextResponse.json({ ok: true })

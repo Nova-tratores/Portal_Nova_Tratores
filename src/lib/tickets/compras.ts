@@ -266,6 +266,7 @@ export function rotuloModelo(m: Pick<ModeloOpcao, 'marca' | 'modelo' | 'familia'
 // ---------------------------------------------------------------------
 export interface ConfigCompras {
   diretoria_id: string | null
+  diretoria2_id?: string | null // 2ª pessoa da Diretoria (opcional): decide igual; a "bola" fica com a 1ª
   financeiro_id: string | null
   comprador_id: string | null
   valor_limite_bloqueio: number | null
@@ -273,10 +274,28 @@ export interface ConfigCompras {
 }
 
 // A pessoa fixa designada para o papel de uma etapa (null se não configurada).
+// Na Diretoria pode haver duas pessoas: esta é a PRINCIPAL (recebe a "bola").
 export function pessoaDoPapel(config: ConfigCompras, papel: ScPapel): string | null {
   if (papel === 'diretoria') return config.diretoria_id
   if (papel === 'financeiro') return config.financeiro_id
   return config.comprador_id
+}
+
+// Todas as pessoas que decidem naquela etapa (Diretoria pode ter 2; as outras, 1).
+export function pessoasDoPapel(config: ConfigCompras, papel: ScPapel): string[] {
+  const lista = papel === 'diretoria'
+    ? [config.diretoria_id, config.diretoria2_id]
+    : [pessoaDoPapel(config, papel)]
+  return [...new Set(lista.filter((x): x is string => !!x))]
+}
+
+// Todo mundo com papel fixo no trilho (vê o pipeline inteiro).
+export function pessoasComPapel(config: ConfigCompras): string[] {
+  return [...new Set([
+    ...pessoasDoPapel(config, 'diretoria'),
+    ...pessoasDoPapel(config, 'financeiro'),
+    ...pessoasDoPapel(config, 'comprador'),
+  ])]
 }
 
 // O usuário pode executar uma transição, dado seu papel no ticket? (puro)
@@ -289,7 +308,7 @@ export function podeExecutar(
   if (auth.isAdmin) return true
   if (t.papel === 'solicitante') return auth.userId === solicitanteId
   if (t.papel === null) return true
-  return pessoaDoPapel(config, t.papel) === auth.userId
+  return pessoasDoPapel(config, t.papel).includes(auth.userId)
 }
 
 // Etapa alvo → responsável (a "bola"). Etapas terminais / devolução ao vendedor

@@ -63,7 +63,7 @@ export default function PainelCompras({ ticket, uid, isAdmin, agindo, onAcao }: 
   const etapa = (ticket.sc_etapa || '') as ScEtapa
   const info = SC_ETAPA_INFO[etapa]
   const transicoes = SC_TRANSICOES[etapa] || []
-  const cfg = config || { diretoria_id: null, financeiro_id: null, comprador_id: null, valor_limite_bloqueio: null, qtd_excesso_estoque: null }
+  const cfg = config || { diretoria_id: null, diretoria2_id: null, financeiro_id: null, comprador_id: null, valor_limite_bloqueio: null, qtd_excesso_estoque: null }
   const disponiveis = transicoes.filter((t) =>
     podeExecutar(t, { userId: uid || '', isAdmin }, cfg, ticket.solicitante_id))
 

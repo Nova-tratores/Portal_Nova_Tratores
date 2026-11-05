@@ -8,7 +8,7 @@ import {
   temModuloTickets, registrarEvento, notificarTicket, garantirParticipante,
 } from '@/lib/tickets/server'
 import { STATUS_FINAIS, type Ticket, type TicketPlanoItem, type TicketVisibilidade } from '@/lib/tickets/constantes'
-import { validarNovaSC } from '@/lib/tickets/compras'
+import { validarNovaSC, pessoasDoPapel, pessoasComPapel } from '@/lib/tickets/compras'
 import { carregarConfigCompras, avaliarBloqueio } from '@/lib/tickets/compras-server'
 import type { Autenticado } from '@/lib/auth/server'
 import { carregarQuadro, papeis } from '@/lib/tickets/quadros-server'
@@ -79,8 +79,7 @@ export async function GET(req: NextRequest) {
     query = query.eq('tipo', 'compras')
     if (!auth.isAdmin) {
       const config = await carregarConfigCompras()
-      const papeis = [config.diretoria_id, config.financeiro_id, config.comprador_id].filter(Boolean)
-      if (!papeis.includes(auth.userId)) {
+      if (!pessoasComPapel(config).includes(auth.userId)) {
         const orParts = [`solicitante_id.eq.${auth.userId}`, `responsavel_id.eq.${auth.userId}`]
         if (idsParticipa.length) orParts.push(`id.in.(${idsParticipa.join(',')})`)
         query = query.or(orParts.join(','))
@@ -294,14 +293,17 @@ async function criarSC(auth: Autenticado, body: Record<string, unknown>) {
   if (error || !criado) return NextResponse.json({ error: error?.message || 'Falha ao criar' }, { status: 500 })
 
   const ticket = criado as Ticket
+  // A bola fica com a 1ª pessoa da Diretoria; a 2ª (se houver) entra como
+  // participante e é avisada igual — as duas decidem.
+  const diretoria = pessoasDoPapel(config, 'diretoria')
   await garantirParticipante(ticket.id, auth.userId, null)
-  await garantirParticipante(ticket.id, config.diretoria_id, auth.userId)
+  for (const d of diretoria) await garantirParticipante(ticket.id, d, auth.userId)
   // Snapshot do pedido na timeline imutável (sem o aviso de bloqueio, que é derivado).
   const { bloqueio: _b, ...snapshot } = payload
   void _b
   await registrarEvento(ticket.id, auth.userId, 'sc_criada', snapshot)
   await notificarTicket(
-    ticket, [config.diretoria_id], auth.userId,
+    ticket, diretoria, auth.userId,
     `Nova Solicitação de Compras #${ticket.numero}: ${payload.produto}`,
     'Você é a Diretoria responsável por avaliar esta SC.',
   )
