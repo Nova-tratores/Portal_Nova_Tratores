@@ -1,24 +1,13 @@
-// Documento final da comissão (A4, com as OS e as duas assinaturas) — José, 20/10/2026.
-// GET ?id=<pedido> → HTML pronto para imprimir/salvar em PDF. Antes de autorizado sai com a marca "aguardando".
-import fs from 'fs'
-import path from 'path'
+// Documento final da comissão (A4, com as OS e as assinaturas) — José, 20/10/2026.
+// GET ?id=<pedido>[&doc=autorizacao|recibo|ambos] → HTML pronto para imprimir/salvar em PDF.
+// Antes de autorizado sai com a marca "aguardando". 'ambos' = de acordo + recibo na mesma impressão (05/11/2026).
 import { NextRequest, NextResponse } from 'next/server'
 import { guardarComissao } from '@/lib/mecanicos/lancamento-comissao-rota'
-import { pedidoCompleto, codigoPedido, SemTabela } from '@/lib/mecanicos/lancamento-comissao-server'
-import { htmlAutorizacaoComissao } from '@/lib/mecanicos/autorizacao-comissao-doc'
-import { PCT_CAIXINHA } from '@/lib/mecanicos/descontos-tecnico'
+import { pedidoCompleto, SemTabela } from '@/lib/mecanicos/lancamento-comissao-server'
+import { montarDocumento } from '@/lib/mecanicos/documento-comissao-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-// a logo vai dentro do HTML (05/11/2026: logo quebrada): o documento abre como blob, e a origem da requisição no
-// Railway é a interna do contêiner — o endereço montado com ela não carregava no navegador
-let logoCache: string | null = null
-function logoEmbutida(): string {
-  if (logoCache) return logoCache
-  try { logoCache = `data:image/png;base64,${fs.readFileSync(path.join(process.cwd(), 'public', 'Logo_Nova.png')).toString('base64')}` } catch { return '/Logo_Nova.png' }
-  return logoCache
-}
 
 export async function GET(req: NextRequest) {
   const g = await guardarComissao(req)
@@ -26,17 +15,8 @@ export async function GET(req: NextRequest) {
   try {
     const p = await pedidoCompleto(String(req.nextUrl.searchParams.get('id') || ''))
     if (!p) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 })
-    const autorizada = !!p.assinatura_diretor && ['espelhada', 'erro_rh', 'substituida'].includes(p.status)
-    const html = htmlAutorizacaoComissao({
-      codigo: codigoPedido(p), tecnico: p.tecnico, nomeRh: p.info?.nomeRh, cargo: p.info?.cargo, mes: p.mes, pct: p.info?.pct ?? null, pagamentoPrevisto: p.info?.pagamento || null,
-      linhas: (p.linhas || []).map((l) => ({ os: l.os, numero: l.numero || l.os, data: l.data || null, cliente: l.cliente, grupo: l.grupo || 'cliente', regra: l.regra || '', calculado: Number(l.calculado) || 0, valor: Number(l.valor) || 0, acao: l.acao, motivo: l.motivo, divisao: l.divisao || null, descontoCliente: l.descontoCliente || null })),
-      solicitante: { nome: p.pedido_por || '—', papel: 'Pós-Vendas · pediu a autorização', em: p.assinatura_pedido_meta?.em || p.pedido_em, imagem: p.assinatura_pedido || null, ip: p.assinatura_pedido_meta?.ip },
-      diretor: autorizada ? { nome: p.decidido_por || '—', papel: 'Diretor · autorizou', em: p.assinatura_diretor_meta?.em || p.decidido_em || p.pedido_em, imagem: p.assinatura_diretor || null, ip: p.assinatura_diretor_meta?.ip, observacao: p.observacao } : null,
-      // assinada antes de a caixinha ser desligada (04/11/2026) continua com o 1% que foi retido de verdade
-      descontos: p.descontos || [], caixinhaPct: p.info?.semCaixinha ? 0 : autorizada && String(p.decidido_em || '') < '2026-11-04' ? 1 : PCT_CAIXINHA,
-      logo: logoEmbutida(), emitidoEm: new Date().toISOString(),
-      rh: autorizada ? { em: p.status === 'erro_rh' ? null : p.espelhado_em, erro: p.status === 'erro_rh' ? p.rh_erro || 'erro ao lançar' : null } : null,
-    })
+    const doc = req.nextUrl.searchParams.get('doc')
+    const html = await montarDocumento(p, doc === 'recibo' || doc === 'ambos' ? doc : 'autorizacao')
     return new NextResponse(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } })
   } catch (e) {
     if (e instanceof SemTabela) return NextResponse.json({ error: e.message, semTabela: true }, { status: 503 })

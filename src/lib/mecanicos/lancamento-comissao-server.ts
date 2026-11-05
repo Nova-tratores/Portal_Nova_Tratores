@@ -12,6 +12,7 @@ import { casarNome } from './ocorrencias-painel'
 import { esquecer } from './cache'
 import { comValoresDasOS, type ValoresOS } from './valores-os-pedido'
 import { lerAssinatura } from '@/lib/assinaturas/server'
+import { aceitaCiencia, validarCiencia, type CienciaStatus, type CienciaForma } from './de-acordo'
 import { parcelasDoDesconto, qtdParcelas, caixinhaDe, type DescontoPedido } from './descontos-tecnico'
 export type { DescontoPedido } from './descontos-tecnico'
 
@@ -42,8 +43,15 @@ export interface PedidoComissao {
   info?: InfoPedido | null
   assinatura_pedido?: string | null; assinatura_pedido_meta?: AssinaturaMeta | null
   assinatura_diretor?: string | null; assinatura_diretor_meta?: AssinaturaMeta | null
+  /** de acordo do técnico depois de autorizada (sql/comissao-de-acordo-tecnico.sql) */
+  ciencia_status?: CienciaStatus | null; ciencia_forma?: CienciaForma | null; ciencia_em?: string | null; ciencia_nome?: string | null
+  ciencia_registrada_por?: string | null; ciencia_arquivo_nome?: string | null; ciencia_motivo?: string | null
+  ciencia_assinatura?: string | null; ciencia_meta?: AssinaturaMeta | null; ciencia_arquivo?: string | null
+  /** recibo assinado e cópias na pasta do funcionário no RH (sql/comissao-recibo-pasta-rh.sql) */
+  recibo_em?: string | null; recibo_arquivo?: string | null; recibo_arquivo_nome?: string | null; recibo_registrado_por?: string | null
+  ciencia_rh_doc_id?: string | null; ciencia_rh_erro?: string | null; recibo_rh_doc_id?: string | null; recibo_rh_erro?: string | null
 }
-export type TipoEvento = 'pedido' | 'devolvida' | 'autorizada' | 'espelhada' | 'erro_rh' | 'substituida'
+export type TipoEvento = 'pedido' | 'devolvida' | 'autorizada' | 'espelhada' | 'erro_rh' | 'substituida' | 'de_acordo' | 'contestada' | 'recibo'
 export interface EventoComissao { id: string; pedido_id: string; tecnico: string; mes: string; tipo: TipoEvento; autor: string | null; em: string; valor: number | null; detalhes: Rec | null }
 
 const falta = (e: { code?: string; message?: string } | null) => !!e && (e.code === 'PGRST205' || e.code === '42P01' || e.code === '42703' || /does not exist|could not find/i.test(e.message || ''))
@@ -76,18 +84,31 @@ async function avisar(ids: string[], titulo: string, descricao: string, link: st
   if (!ids.length) return
   await sb.from('portal_notificacoes').insert(ids.map((user_id) => ({ user_id, tipo: 'sistema', titulo, descricao, link }))).then(() => {}, () => {})
 }
+export async function registrarEvento(p: { id: string; tecnico: string; mes: string }, tipo: TipoEvento, autor: { id?: string | null; nome: string } | null, valor: number | null, detalhes?: Rec) { return registrar(p, tipo, autor, valor, detalhes) }
 async function registrar(p: { id: string; tecnico: string; mes: string }, tipo: TipoEvento, autor: { id?: string | null; nome: string } | null, valor: number | null, detalhes?: Rec) {
   await sb.from('posvendas_comissoes_eventos').insert({ pedido_id: p.id, tecnico: p.tecnico, mes: p.mes, tipo, autor: autor?.nome || null, autor_id: autor?.id || null, valor, detalhes: detalhes || null }).then(() => {}, () => {})
 }
 const linkFicha = (p: { tecnico: string; mes: string }) => `/mecanicos?aba=mecanicos&tecnico=${encodeURIComponent(p.tecnico)}&secao=comissao&mes=${p.mes}`
 
 const SEM_ASSINATURAS = 'id, tecnico, mes, valor, calculado, linhas, status, pedido_por, pedido_por_id, pedido_em, decidido_por, decidido_em, observacao, rh_comissao_id, rh_erro, espelhado_em, apontamentos, info, descontos'
+const CIENCIA = 'ciencia_status, ciencia_forma, ciencia_em, ciencia_nome, ciencia_registrada_por, ciencia_arquivo_nome, ciencia_motivo'
+const RECIBO = 'recibo_em, recibo_arquivo_nome, recibo_registrado_por, ciencia_rh_doc_id, ciencia_rh_erro, recibo_rh_doc_id, recibo_rh_erro'
+/** Sem os SQLs do de acordo/recibo essas colunas não existem: lê com o que tiver (o resto segue igual). */
+let nivelColunas = 2
 export async function listarPedidos(f: { mes?: string; tecnico?: string; abertos?: boolean }): Promise<PedidoComissao[]> {
-  let q = sb.from('posvendas_comissoes').select(SEM_ASSINATURAS).order('pedido_em', { ascending: false }).limit(200)
-  if (f.mes) q = q.eq('mes', f.mes)
-  if (f.tecnico) q = q.eq('tecnico', f.tecnico)
-  if (f.abertos) q = q.eq('status', 'aguardando')
-  const { data, error } = await q
+  const ler = (cols: string) => {
+    let q = sb.from('posvendas_comissoes').select(cols).order('pedido_em', { ascending: false }).limit(200)
+    if (f.mes) q = q.eq('mes', f.mes)
+    if (f.tecnico) q = q.eq('tecnico', f.tecnico)
+    if (f.abertos) q = q.eq('status', 'aguardando')
+    return q
+  }
+  const cols = () => [SEM_ASSINATURAS, `${SEM_ASSINATURAS}, ${CIENCIA}`, `${SEM_ASSINATURAS}, ${CIENCIA}, ${RECIBO}`][nivelColunas]
+  let { data, error } = await ler(cols())
+  while (error && nivelColunas > 0 && (error.code === '42703' || /ciencia_|recibo_/.test(error.message || ''))) {
+    nivelColunas--
+    ;({ data, error } = await ler(cols()))
+  }
   if (error) { if (falta(error)) throw new SemTabela(); throw new Error(error.message) }
   const pedidos = (data || []) as unknown as PedidoComissao[]
   // pedidos feitos antes de gravar os valores: completa os que esperam o diretor (só na resposta, sem gravar)
@@ -222,6 +243,14 @@ async function caixinhaDaComissao(c: NonNullable<ReturnType<typeof clienteRH>>, 
   if (eu) throw new Error(`RH (caixinha): ${eu.message}`)
 }
 
+/** Funcionário do RH pelo nome do técnico (o ativo primeiro). */
+export async function acharFuncionarioRH(c: NonNullable<ReturnType<typeof clienteRH>>, tecnico: string, cols = 'id, nome, empresa, empresa_id, status'): Promise<Rec | null> {
+  const { data, error } = await c.from('rh_funcionarios').select(cols)
+  if (error) throw new Error(`RH: ${error.message}`)
+  const cand = ((data || []) as unknown as Rec[]).filter((f) => chaveDoTecnico(String(f.nome), tecnico) || casarNome(String(f.nome), [tecnico]) === tecnico)
+  return cand.find((f) => f.status !== 'demitido') || cand[0] || null
+}
+
 /** Espelha no RH: comissão do mês + ajustes por OS (com motivo). Devolve o id da comissão no RH. */
 async function espelharNoRH(p: PedidoComissao, autor: string): Promise<string> {
   const c = clienteRH()
@@ -336,4 +365,46 @@ export async function descontosDaRequisicao(reqId: string): Promise<DescontoNaRe
     if (x.tipo === 'requisicao' && String(x.ref) === String(reqId)) out.push({ pedidoId: String(p.id), tecnico: String(p.tecnico), mes: String(p.mes), status: p.status as StatusPedido, pedidoPor: (p.pedido_por as string) || null, pedidoEm: String(p.pedido_em), decididoPor: (p.decidido_por as string) || null, desconto: x })
   }
   return out
+}
+
+// ---------------------------------------------------------------------------------------------- de acordo do técnico
+export class SemCiencia extends Error { constructor() { super('Falta rodar o SQL sql/comissao-de-acordo-tecnico.sql (de acordo do técnico).') } }
+const BUCKET_TERMOS = 'comissoes-termos'
+
+/** Registra que o técnico conferiu e assinou "de acordo" (no papel ou na tela) — ou que não concordou. */
+export async function registrarCiencia(
+  id: string,
+  x: { acao: 'de_acordo' | 'contestou'; forma?: CienciaForma; nome?: string; motivo?: string; assinatura?: unknown; arquivo?: { nome: string; tipo: string; bytes: Buffer } | null },
+  autor: { id: string; nome: string }, meta: { ip: string | null; ua: string | null },
+) {
+  const p = await pedidoCompleto(id)
+  if (!p) throw Object.assign(new Error('Pedido não encontrado'), { status: 404 })
+  if (!aceitaCiencia(p)) throw Object.assign(new Error('Só comissão autorizada pelo diretor recebe o de acordo do técnico'), { status: 409 })
+  if (p.ciencia_status === 'de_acordo') throw Object.assign(new Error('O de acordo do técnico já foi registrado nesta comissão'), { status: 409 })
+  const erroV = validarCiencia({ acao: x.acao, forma: x.forma, temArquivo: !!x.arquivo?.bytes.length, temAssinatura: !!x.assinatura, nome: x.nome, motivo: x.motivo })
+  if (erroV) throw Object.assign(new Error(erroV), { status: 400 })
+  const agora = new Date().toISOString()
+  const nome = String(x.nome || p.info?.nomeRh || p.tecnico).trim().slice(0, 120)
+  const base = { ciencia_em: agora, ciencia_nome: nome, ciencia_registrada_por: autor.nome, ciencia_registrada_por_id: autor.id, ciencia_meta: { ...meta, em: agora } }
+  let upd: Rec
+  if (x.acao === 'contestou') {
+    upd = { ...base, ciencia_status: 'contestou', ciencia_forma: null, ciencia_motivo: String(x.motivo).trim().slice(0, 1000) }
+  } else if (x.forma === 'tela') {
+    upd = { ...base, ciencia_status: 'de_acordo', ciencia_forma: 'tela', ciencia_assinatura: validarAssinatura(x.assinatura), ciencia_motivo: null }
+  } else {
+    const a = x.arquivo!
+    const ext = (a.nome.match(/\.([a-z0-9]{2,5})$/i)?.[1] || (a.tipo === 'application/pdf' ? 'pdf' : 'jpg')).toLowerCase()
+    const caminho = `${p.mes}/${p.id}/termo-${Date.now()}.${ext}`
+    const { error: eu } = await sb.storage.from(BUCKET_TERMOS).upload(caminho, a.bytes, { contentType: a.tipo, upsert: false })
+    if (eu) throw /bucket not found|not found/i.test(eu.message) ? new SemCiencia() : new Error(`Não consegui guardar a folha: ${eu.message}`)
+    upd = { ...base, ciencia_status: 'de_acordo', ciencia_forma: 'papel', ciencia_arquivo: caminho, ciencia_arquivo_nome: a.nome.slice(0, 200), ciencia_motivo: null }
+  }
+  const { error } = await sb.from('posvendas_comissoes').update(upd).eq('id', id)
+  if (error) { if (falta(error) || /ciencia/.test(error.message)) throw new SemCiencia(); throw new Error(error.message) }
+  await registrar(p, x.acao === 'contestou' ? 'contestada' : 'de_acordo', autor, p.valor, x.acao === 'contestou' ? { motivo: upd.ciencia_motivo, tecnico: nome } : { forma: upd.ciencia_forma, tecnico: nome, arquivo: upd.ciencia_arquivo_nome || null })
+  if (x.acao === 'contestou') {
+    const ids = [...new Set([...(await diretores()), p.pedido_por_id].filter((v): v is string => !!v && v !== autor.id))]
+    await avisar(ids, `Técnico não concordou com a comissão: ${p.tecnico}`, `${p.mes.slice(5)}/${p.mes.slice(0, 4)} · ${brl(p.valor)} — ${upd.ciencia_motivo}`, linkFicha(p))
+  }
+  return { ciencia_status: upd.ciencia_status as CienciaStatus }
 }

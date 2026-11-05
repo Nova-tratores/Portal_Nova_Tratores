@@ -12,7 +12,11 @@ import { IconeLiga } from './CartaLiga'
 import { brl, brl2 } from './ui'
 import type { CardDados } from './CardsTecnicoOpcoes'
 import { nomeMes, dataBR, diaBR, iniciais, tempoDeCasa, useVisores, useFicha, andarMes, hojeSP, ESTILO_FT, Num, prefetchFicha } from './FichaTecnico'
-import { useEdicao, LancarComissao, Divisao, Conteudo, MOTIVOS_NAO, grupoDa, chaveL, ESTILO_FO, SalvarDecisao, SeloSalva, type EdicaoComissao } from './FichaOpcoes'
+import { useEdicao, LancarComissao, Divisao, Conteudo, MOTIVOS_NAO, grupoDa, chaveL, ESTILO_FO, SalvarDecisao, SeloSalva, buscarPedidos, type EdicaoComissao } from './FichaOpcoes'
+import { htmlRelacaoOS, type DocRelacaoOS, type TipoSituacao, type LinhaRelacao } from '@/lib/mecanicos/relacao-os-comissao-doc'
+import { contaDoPagamento, PCT_CAIXINHA } from '@/lib/mecanicos/descontos-tecnico'
+import { useAuth } from '@/hooks/useAuth'
+import { useAuditLog } from '@/hooks/useAuditLog'
 import Comparador, { type PessoaComparada } from './Comparador'
 import { useBasePosVendas } from './useBasePosVendas'
 import { useComAguardando } from './useComAguardando'
@@ -480,19 +484,43 @@ function Fatos({ d }: { d: Ficha }) {
 // horas = horas cobradas; descBase = desconto que caiu na base da comissão (hora + geral rateado); motivo = escrito na OS
 type InfoOS = { total: number; pecas: number; servico: number; desconto: number; reqs: { id: number; titulo: string; valor: number }[]; interna?: string; horas?: number; descBase?: number; motivo?: string | null }
 
+/** Valor, peças, desconto e requisições de cada OS do mês (a lista da tela e a impressão usam o mesmo). */
+function infoDasOS(d: Ficha): Map<string, InfoOS> {
+  const m = new Map<string, InfoOS>()
+  for (const o of d.os.faturadas) {
+    const ds = (o as { descontos?: { hora: number; km: number; geral: number; pecas: number } | null }).descontos
+    const extra = o as { horas?: number; descontoMotivo?: string | null }
+    m.set(o.os, { total: o.bruto, pecas: o.pecas, servico: o.servico + o.kmValor, desconto: ds ? ds.hora + ds.km + ds.geral + ds.pecas : 0, reqs: o.requisicoes,
+      horas: extra.horas, descBase: ds ? ds.hora + ds.geral : 0, motivo: extra.descontoMotivo ?? null })
+  }
+  for (const o of d.os.internas) if (!m.has(o.os)) m.set(o.os, { total: o.valor, pecas: 0, servico: o.valor, desconto: 0, reqs: [], interna: o.contrato })
+  return m
+}
+
+/** Situação da comissão do mês para o selo da impressão (mesma leitura do bloco "Até o pagamento"). */
+async function situacaoDaComissao(d: Ficha): Promise<{ tipo: TipoSituacao; texto: string }> {
+  const st = d.comissao.oficial?.status || null
+  if (st === 'paga') return { tipo: 'paga', texto: 'Comissão paga' }
+  if (st === 'lancada_omie') return { tipo: 'omie', texto: 'Lançada no contas a pagar (Omie)' }
+  const { pedidos } = await buscarPedidos(d.nome, d.mes)
+  const p = pedidos.filter((x) => x.status !== 'cancelada' && x.status !== 'substituida').sort((a, b) => b.pedido_em.localeCompare(a.pedido_em))[0]
+  const quem = p?.decidido_por || 'diretor'
+  const quando = p?.decidido_em ? ` em ${new Date(p.decidido_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}` : ''
+  if (p?.status === 'espelhada') return { tipo: 'autorizada', texto: `Autorizada por ${quem}${quando} · ${brl2(p.valor)} no RH` }
+  if (p?.status === 'erro_rh') return { tipo: 'erro_rh', texto: `Autorizada por ${quem}, mas o RH não aceitou` }
+  if (p?.status === 'aguardando') return { tipo: 'aguardando', texto: `Aguardando o diretor · pedido de ${brl2(p.valor)} por ${p.pedido_por || '—'}` }
+  if (p?.status === 'devolvida') return { tipo: 'devolvida', texto: `Devolvida para ajuste por ${quem}${quando}` }
+  if (p?.status === 'recusada') return { tipo: 'recusada', texto: `Recusada por ${quem}${quando}` }
+  if (st === 'aprovada') return { tipo: 'autorizada', texto: 'Aprovada no RH' }
+  return { tipo: 'previa', texto: 'Prévia — ainda sem pedido de autorização' }
+}
+
 function ListaOS({ d, e, verOS, verReq }: { d: Ficha; e: EdicaoComissao; verOS: (os: string, c?: string) => void; verReq: (r: { id: number; titulo: string }) => void }) {
   const [so, setSo] = useState<'todas' | 'mexidas' | 'alerta'>('todas')
-  const info = useMemo(() => {
-    const m = new Map<string, InfoOS>()
-    for (const o of d.os.faturadas) {
-      const ds = (o as { descontos?: { hora: number; km: number; geral: number; pecas: number } | null }).descontos
-      const extra = o as { horas?: number; descontoMotivo?: string | null }
-      m.set(o.os, { total: o.bruto, pecas: o.pecas, servico: o.servico + o.kmValor, desconto: ds ? ds.hora + ds.km + ds.geral + ds.pecas : 0, reqs: o.requisicoes,
-        horas: extra.horas, descBase: ds ? ds.hora + ds.geral : 0, motivo: extra.descontoMotivo ?? null })
-    }
-    for (const o of d.os.internas) if (!m.has(o.os)) m.set(o.os, { total: o.valor, pecas: 0, servico: o.valor, desconto: 0, reqs: [], interna: o.contrato })
-    return m
-  }, [d])
+  const info = useMemo(() => infoDasOS(d), [d])
+  const { userProfile } = useAuth()
+  const { log } = useAuditLog()
+  const [imprimindo, setImprimindo] = useState(false)
   const alerta = (l: LinhaComissao) => { const x = info.get(l.os); return !!x && (x.desconto > 0 || x.reqs.length > 0) }
   const lista = e.linhas.filter((l) => so === 'todas' || (so === 'mexidas' ? !!e.ed[chaveL(l)] : alerta(l)))
   const aCaminho = d.comissao.linhas.filter((l) => l.tipo === 'aguardando')
@@ -506,6 +534,50 @@ function ListaOS({ d, e, verOS, verReq }: { d: Ficha; e: EdicaoComissao; verOS: 
     { k: 'interna', rot: 'Internas', ic: 'fa-house-chimney', dica: 'loja, cortesia e entrega técnica · não contam no pódio' },
   ] as const
   const grupoDe = (l: LinhaComissao) => d.garantista ? (l.garantia ? 'garantia' : 'revisao') : grupoDa(l)
+  // impressão: TODAS as OS do mês (ignora o filtro da tela), com as decisões como estão agora (05/11/2026)
+  const imprimir = async () => {
+    setImprimindo(true)
+    try {
+      const linhaDoc = (l: LinhaComissao): LinhaRelacao => {
+        const x = info.get(l.os), ed = e.de(l)
+        const com = (l.tecnicos?.length || 0) > 1 ? l.tecnicos!.filter((t) => t !== d.nome) : []
+        const obs: string[] = []
+        if (x?.reqs.length) obs.push(`Requisição não cobrada do cliente: ${x.reqs.map((r) => `#${r.id} ${r.titulo} ${brl2(r.valor)}`).join(' · ')}`)
+        if (x && (x.descBase || 0) > 0 && l.base > 0) obs.push(x.motivo ? `Desconto na base: “${x.motivo}”` : 'Desconto na base sem motivo escrito na OS')
+        if (x?.interna) obs.push(`Interna: ${x.interna}`)
+        return {
+          numero: l.numeroOmie || l.os, data: l.data || null, cliente: l.cliente || '', valorOS: x ? x.total : null, pecas: x?.pecas || 0,
+          descontoCliente: x?.desconto || 0, horas: x?.horas ?? l.horas ?? null, base: l.base, calculado: l.valor, final: e.final(l),
+          acao: ed.acao, motivo: ed.motivo, divisao: ed.divisao || null, veioDe: l.veioDe || null, com, motivoRH: l.motivo?.motivo || null, obs,
+        }
+      }
+      const total = e.tot.total
+      const conta = contaDoPagamento(total, e.descontos, !!d.escritorio)
+      const doc: DocRelacaoOS = {
+        tecnico: d.nome, nomeRh: d.rh?.nomeRh || null, cargo: d.rh?.cargo || null, mes: d.mes,
+        regra: d.garantista ? 'Garantista: % das garantias + % das revisões faturadas' : d.escritorio ? 'Escritório: regra própria do mês' : `${String(d.comissao.pct ?? 0).replace('.', ',')}% sobre as horas`,
+        pagamentoPrevisto: d.comissao.pagamento || null, emitidoEm: new Date().toISOString(), emitidoPor: userProfile?.nome || null,
+        logo: `${window.location.origin}/Logo_Nova.png`, situacao: await situacaoDaComissao(d),
+        grupos: GRUPOS.map((g) => ({ k: g.k, rot: g.rot, dica: g.dica, linhas: e.linhas.filter((l) => grupoDe(l) === g.k).map(linhaDoc) })),
+        aguardando: aCaminho.map((l) => ({ numero: l.numeroOmie || l.os, cliente: l.cliente || '', data: l.data || null, valor: l.valor })),
+        descontos: e.descontos.map((x) => ({ descricao: x.descricao, valor: x.valor, parcelas: x.parcelas, inicio: x.inicio || null, caixinha: x.fonte === 'caixinha', ref: x.tipo === 'requisicao' ? x.ref : null })),
+        descontosRH: (d.rh?.descontos || []).filter((x) => x.status === 'pendente_aprovacao' || x.status === 'aprovado').map((x) => ({ descricao: x.descricao, valor: x.valor, caixinha: x.caixinha })),
+        caixinha: conta.caixinha, caixinhaPct: PCT_CAIXINHA,
+      }
+      const fr = document.createElement('iframe')
+      fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden'
+      fr.srcdoc = htmlRelacaoOS(doc)
+      fr.onload = () => {
+        const w = fr.contentWindow
+        const ir = () => { w?.focus(); w?.print(); setTimeout(() => fr.remove(), 60_000) }
+        // espera as fontes carregarem antes de abrir a impressão
+        const fontes = w?.document.fonts
+        if (fontes?.ready) void fontes.ready.then(() => setTimeout(ir, 150)); else setTimeout(ir, 400)
+      }
+      document.body.appendChild(fr)
+      void log({ sistema: 'mecanicos', acao: 'imprimir_relacao_os', entidade: 'comissao', entidade_id: `${d.nome}|${d.mes}`, entidade_label: `${d.nome} · ${d.mes}`, detalhes: { os: e.linhas.length, total } })
+    } finally { setImprimindo(false) }
+  }
   return (
     <section className="fp-os">
       <div className="fp-os-topo">
@@ -515,6 +587,9 @@ function ListaOS({ d, e, verOS, verReq }: { d: Ficha; e: EdicaoComissao; verOS: 
           <button type="button" className={so === 'mexidas' ? 'on' : ''} onClick={() => setSo('mexidas')}>Com decisão <b>{Object.keys(e.ed).length}</b></button>
         </div>
         {e.naoSalvas > 0 && <span className="fo-nao-salvas"><i className="fas fa-triangle-exclamation" /> {e.naoSalvas} OS com alteração sem salvar</span>}
+        <button type="button" className="fp-imp" disabled={imprimindo || !e.linhas.length} onClick={() => void imprimir()} title="Imprimir a relação de todas as OS do mês com os valores e as decisões">
+          <i className={`fas ${imprimindo ? 'fa-circle-notch fa-spin' : 'fa-print'}`} /> Imprimir relação
+        </button>
         <div className="fp-leg"><span className="pg">Pagar</span><span className="np">Não pagar</span><span className="aj">Ajustar</span><span className="dv">Dividir</span></div>
       </div>
       {GRUPOS.map((g) => {
@@ -658,6 +733,8 @@ const ESTILO_FP = `
 .fp-fundo *, .fp-fundo *::before, .fp-fundo *::after { box-sizing: border-box }
 .fp-fundo { position: fixed; inset: 0; z-index: 100050; background: var(--portal-bg, #f4f6f9); overflow-y: auto; overscroll-behavior: contain; animation: fpFade .2s both; color: var(--portal-text, #0f172a) }
 .fp-x { position: fixed; top: 14px; right: 18px; z-index: 6; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--portal-border, #e2e8f0); background: #fefefe; color: #334155; font-size: 17px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,.12); transition: all .2s } .fp-x:hover { background: #fee2e2; color: #dc2626; transform: rotate(90deg) }
+.fp-imp { display: inline-flex; gap: 8px; align-items: center; height: 34px; padding: 0 14px; border-radius: 99px; border: 1px solid #bae6fd; background: #f0f9ff; color: #0369a1; font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap }
+.fp-imp:hover:not(:disabled) { background: #0369a1; color: #fefefe } .fp-imp:disabled { opacity: .5; cursor: default }
 .fp-carr { min-height: 100vh; display: grid; place-items: center; color: ${MUDO}; font-size: 15px }
 .fp { width: 100%; box-sizing: border-box; margin: 0; padding: 20px clamp(16px, 2.5vw, 40px) 48px; display: grid; gap: 14px; animation: fpEntra .4s both }
 /* cabeçalho */

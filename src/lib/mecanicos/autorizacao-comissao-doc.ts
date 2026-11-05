@@ -1,6 +1,7 @@
 // Documento final da comissão autorizada (José, 20/10/2026: "na hora de pedir a autorização tem que pedir a
 // assinatura de quem está pedindo, e no final gera um PDF com as comissões e as duas assinaturas").
 // PURO: recebe os dados e devolve o HTML A4 (o PDF sai dele pelo navegador/Chrome). Nada de banco aqui.
+import { textoDeAcordo } from './de-acordo'
 
 export type GrupoOS = 'cliente' | 'garantia' | 'interna'
 export interface LinhaDoc {
@@ -21,14 +22,18 @@ export interface DocAutorizacao {
   caixinhaPct?: number
   /** descontos do técnico lançados junto (requisição/outro) — saem na folha */
   descontos?: { tipo: 'requisicao' | 'outro'; ref?: string | null; descricao: string; valor: number; parcelas?: number; inicio?: string | null; fonte?: 'funcionario' | 'caixinha' }[] | null
+  /** de acordo do técnico (só depois de autorizada): assinado na tela, no papel, contestado ou em branco p/ assinar */
+  /** página extra impressa junto (o recibo) */
+  anexo?: { css: string; html: string } | null
+  tecnicoAcordo?: { forma: 'tela' | 'papel' | null; nome?: string | null; em?: string | null; imagem?: string | null; ip?: string | null; registradoPor?: string | null; contestou?: string | null } | null
 }
 
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
 export const mesExtenso = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]} de ${m.slice(0, 4)}`
-const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
-const esc = (s: unknown) => String(s ?? '').replace(/&amp;/gi, '&').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-const dia = (s: string | null) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : '—')
-const dataHora = (s: string) => new Date(s).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+export const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+export const esc = (s: unknown) => String(s ?? '').replace(/&amp;/gi, '&').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+export const dia = (s: string | null) => (s ? `${s.slice(8, 10)}/${s.slice(5, 7)}` : '—')
+export const dataHora = (s: string) => new Date(s).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 const ROT_GRUPO: Record<GrupoOS, string> = { cliente: 'Faturadas para clientes', garantia: 'Garantia', interna: 'Internas' }
 
 /** O que aconteceu com a OS, em palavras (vai na coluna Observação). */
@@ -71,7 +76,7 @@ export function totaisDoc(linhas: LinhaDoc[]) {
   return t
 }
 
-const nomeProprio = (s: string) => s.toLowerCase().replace(/(^|\s)(\S)/g, (_, a: string, b: string) => a + b.toUpperCase()).replace(/\b(De|Da|Do|Dos|Das|E)\b/g, (m) => m.toLowerCase())
+export const nomeProprio = (s: string) => s.toLowerCase().replace(/(^|\s)(\S)/g, (_, a: string, b: string) => a + b.toUpperCase()).replace(/\b(De|Da|Do|Dos|Das|E)\b/g, (m) => m.toLowerCase())
 
 function blocoAssinatura(a: AssinaturaDoc | null, papel: string, obs?: string | null): string {
   if (!a) return `<div class="ass vazia"><div class="ass-img"><span>aguardando assinatura</span></div><div class="ass-linha"></div><div class="ass-nome">&nbsp;</div><div class="ass-papel">${esc(papel)}</div></div>`
@@ -85,11 +90,36 @@ function blocoAssinatura(a: AssinaturaDoc | null, papel: string, obs?: string | 
   </div>`
 }
 
+/** Parte que o técnico assina depois da autorização: em branco (para imprimir e assinar) ou já assinada. */
+function blocoDeAcordo(d: DocAutorizacao, nome: string, comissao: number, liquido: number, temDescontos: boolean): string {
+  const a = d.tecnicoAcordo || null
+  const texto = textoDeAcordo({ nome, mes: d.mes, comissao, liquido, temDescontos, pagamento: d.pagamentoPrevisto })
+  const assinado = a && (a.forma === 'tela' || a.forma === 'papel') && !a.contestou
+  const ass = assinado && a.forma === 'tela'
+    ? blocoAssinatura({ nome: nomeProprio(a.nome || nome), papel: 'Técnico · de acordo', em: a.em || d.emitidoEm, imagem: a.imagem || null, ip: a.ip }, 'Técnico')
+    : `<div class="ass"><div class="ass-img"></div><div class="ass-linha"></div><div class="ass-nome">${esc(nome)}</div><div class="ass-papel">Técnico · de acordo</div>${assinado ? `<div class="ac-papel">Assinado no papel${a.em ? ` — registrado em ${esc(dataHora(a.em))}` : ''}${a.registradoPor ? ` por ${esc(a.registradoPor)}` : ''}. A folha assinada está guardada no portal.</div>` : ''}</div>`
+  return `<section class="acordo">
+  <h2>De acordo do técnico</h2>
+  ${a?.contestou ? `<div class="ac-contestou">O técnico não concordou${a.em ? ` (registrado em ${esc(dataHora(a.em))}${a.registradoPor ? ` por ${esc(a.registradoPor)}` : ''})` : ''}: “${esc(a.contestou)}”</div>` : ''}
+  <p>${esc(texto)}</p>
+  <div class="ac-grade">${ass}<div class="ac-data">${assinado && a.em ? `Data: ${esc(new Date(a.em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' }))}` : 'Data: ______ / ______ / __________'}</div></div>
+</section>`
+}
+
 export function htmlAutorizacaoComissao(d: DocAutorizacao): string {
   const t = totaisDoc(d.linhas)
   const dif = t.total - t.calculado
   const autorizada = !!d.diretor
   const nome = nomeProprio(d.nomeRh || d.tecnico)
+  const conta = (() => {
+    const ds = d.descontos || []
+    // parcelado: neste pagamento entra só a 1ª parcela
+    const primeira = (x: { valor: number; parcelas?: number }) => Math.round((x.valor / Math.max(1, x.parcelas || 1)) * 100) / 100
+    const totDs = ds.filter((x) => x.fonte !== 'caixinha').reduce((a, x) => a + primeira(x), 0)
+    const pct = d.caixinhaPct ?? 1
+    const cx = Math.round(t.total * pct) / 100
+    return { ds, primeira, pct, cx, liquido: t.total - totDs - cx }
+  })()
   const grupos = (['cliente', 'garantia', 'interna'] as GrupoOS[]).map((g) => ({ g, ls: d.linhas.filter((l) => l.grupo === g) })).filter((x) => x.ls.length)
   const tabela = grupos.map(({ g, ls }) => {
     const sub = ls.reduce((s, l) => s + l.valor, 0), subCalc = ls.reduce((s, l) => s + l.calculado, 0)
@@ -143,6 +173,12 @@ td.cli .sub { font-size: 8.4pt; color: #6b7280; margin-top: 1px } td.cli .sub .d
 .ass-linha { border-top: 1px solid #111827; margin-top: 2px } .ass-nome { font-size: 11.4pt; margin-top: 6px } .ass-papel { font-size: 9pt; color: #6b7280 }
 .ass-prova { font-size: 8.4pt; color: #9ca3af; margin-top: 5px; line-height: 1.5 } .ass-obs { font-size: 9.6pt; color: #374151; margin-top: 4px }
 .verif { margin-top: 22px; padding-top: 8px; border-top: 1px solid #f3f4f6; font-size: 8.2pt; color: #9ca3af }
+.acordo { margin-top: 30px; padding-top: 16px; border-top: 1px dashed #9ca3af; break-inside: avoid }
+.acordo p { margin: 0 0 14px; font-size: 10.4pt; line-height: 1.6; color: #111827; max-width: 165mm }
+.acordo .ac-grade { display: grid; grid-template-columns: 1.4fr 1fr; gap: 16mm; align-items: end }
+.acordo .ac-data { font-size: 10.4pt; padding-bottom: 6px } .acordo .ac-papel { font-size: 9pt; color: #166534; margin-top: 4px }
+.acordo .ac-contestou { font-size: 9.6pt; color: #991b1b; margin: 0 0 12px; padding: 8px 10px; background: #fef2f2; border-left: 3px solid #dc2626 }
+${d.anexo?.css || ''}
 .marca { position: fixed; top: 46%; left: 0; right: 0; text-align: center; transform: rotate(-22deg); font-size: 48pt; color: rgba(217,119,6,.08); letter-spacing: 6px; pointer-events: none }
 </style></head><body><div class="folha">
 ${autorizada ? '' : '<div class="marca">AGUARDANDO AUTORIZAÇÃO</div>'}
@@ -169,19 +205,14 @@ ${autorizada ? '' : '<div class="marca">AGUARDANDO AUTORIZAÇÃO</div>'}
 </table>
 
 ${(() => {
-  const ds = d.descontos || []
-  // parcelado: neste pagamento entra só a 1ª parcela
-  const primeira = (x: { valor: number; parcelas?: number }) => Math.round((x.valor / Math.max(1, x.parcelas || 1)) * 100) / 100
-  const totDs = ds.filter((x) => x.fonte !== 'caixinha').reduce((a, x) => a + primeira(x), 0)
-  const pct = d.caixinhaPct ?? 1
-  const cx = Math.round(t.total * pct) / 100
+  const { ds, primeira, pct, cx, liquido } = conta
   return `<section class="desc">
   <h2>Descontos</h2>
   <table class="desc-t"><tbody>
     <tr class="ini"><td>Comissão das ordens de serviço</td><td class="v">${brl(t.total)}</td></tr>
     ${ds.map((x) => `<tr><td>${x.tipo === 'requisicao' && x.ref ? `Requisição #${esc(x.ref)} — ` : ''}${esc(x.descricao)}<span class="onde">${x.fonte === 'caixinha' ? 'pago pela caixinha dos técnicos — não sai da comissão' : (x.parcelas || 1) > 1 ? `desconto em folha em ${x.parcelas} parcelas de ${brl(primeira(x))}${x.inicio ? `, a partir de ${mesExtenso(x.inicio)}` : ''} (total ${brl(x.valor)})` : 'desconto em folha'}</span></td><td class="v neg">${x.fonte === 'caixinha' ? `(${brl(x.valor)})` : `− ${brl(primeira(x))}`}</td></tr>`).join('')}
     ${pct > 0 ? `<tr><td>Caixinha ${String(pct).replace('.', ',')}%<span class="onde">retida no pagamento da comissão</span></td><td class="v neg">− ${brl(cx)}</td></tr>` : ''}
-    <tr class="fim"><td>Líquido para o técnico</td><td class="v">${brl(t.total - totDs - cx)}</td></tr>
+    <tr class="fim"><td>Líquido para o técnico</td><td class="v">${brl(liquido)}</td></tr>
   </tbody></table>
 </section>`
 })()}
@@ -190,6 +221,7 @@ ${(() => {
   ${blocoAssinatura(d.solicitante, d.solicitante.papel)}
   ${blocoAssinatura(d.diretor, d.diretor?.papel || 'Diretor', d.diretor?.observacao)}
 </section>
+${autorizada ? blocoDeAcordo(d, nome, t.total, conta.liquido, conta.ds.length > 0 || conta.cx > 0) : ''}
 <div class="verif">Documento gerado pelo Portal Nova Tratores. As assinaturas foram feitas na tela do portal, com data, hora e endereço de rede registrados. Código ${esc(d.codigo)}.</div>
-</div></body></html>`
+</div>${d.anexo?.html || ''}</body></html>`
 }

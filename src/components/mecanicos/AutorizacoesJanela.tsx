@@ -56,7 +56,7 @@ const vl = (v?: number | null) => (v ? brl2(v) : '—')
 const pctTxt = (x: number) => `${(Math.round(x * 1000) / 10).toLocaleString('pt-BR')}%`
 const mexida = (l: LinhaPedido) => l.acao !== 'pagar' || !!l.divisao || Math.abs((l.valor || 0) - (l.calculado || 0)) > 0.005
 const decisao = (l: LinhaPedido) => l.acao === 'nao' ? 'não paga' : l.divisao ? `dividida (${Object.entries(l.divisao).map(([k, v]) => `${k.split(' ')[0]} ${brl2(v)}`).join(', ')})` : mexida(l) ? 'valor alterado' : ''
-const ROT_EV: Record<TipoEvento, string> = { pedido: 'Pediu autorização', devolvida: 'Devolveu para ajuste', autorizada: 'Autorizou', espelhada: 'Lançada no RH', erro_rh: 'Erro ao lançar no RH', substituida: 'Substituída' }
+const ROT_EV: Record<TipoEvento, string> = { pedido: 'Pediu autorização', devolvida: 'Devolveu para ajuste', autorizada: 'Autorizou', espelhada: 'Lançada no RH', erro_rh: 'Erro ao lançar no RH', substituida: 'Substituída', de_acordo: 'Técnico de acordo', contestada: 'Técnico não concordou', recibo: 'Recibo assinado anexado' }
 
 export function AutorizacoesJanela({ onFechar }: { onFechar?: () => void } = {}) {
   const a = useAutorizacoes()

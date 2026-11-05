@@ -16,6 +16,7 @@ import { parcelasDoDesconto, resumoParcelas, mesCurto, contaDoPagamento, PCT_CAI
 import CanvasAssinatura, { type CanvasAssinaturaRef } from '@/components/assinatura/CanvasAssinatura'
 import { useMinhaAssinatura, AssinaturaSalva, CadastrarAssinatura } from '@/components/assinatura/MinhaAssinatura'
 import { abrirDocumento } from './AutorizacoesJanela'
+import DeAcordoTecnico from './DeAcordoTecnico'
 import {
   Resumo, Comissao, OSAba, Requisicoes, Frota, Ocorrencias, RH, Num,
   nomeMes, dataBR, diaBR, iniciais, tempoDeCasa, useVisores, useFicha, andarMes, hojeSP, ESTILO_FT, atualizarFichaGuardada, type Aba,
@@ -488,7 +489,7 @@ const ESTILO_MDD = `
 @media (max-width: 820px) { .mdd-corpo { grid-template-columns: 1fr } .mdd-dir { border-left: none; border-top: 1px solid #eef2f7 } .mdd-vezes { grid-template-columns: repeat(6, 1fr) } .mdd-linha { grid-template-columns: 1fr } }
 `
 
-async function buscarPedidos(nome: string, mes: string): Promise<{ pedidos: PedidoComissao[]; sql?: string }> {
+export async function buscarPedidos(nome: string, mes: string): Promise<{ pedidos: PedidoComissao[]; sql?: string }> {
   try {
     const r = await fetch(`/api/mecanicos/lancamento-comissao?tecnico=${encodeURIComponent(nome)}&mes=${mes}`, { headers: await authHeaders(), cache: 'no-store' })
     const j = await r.json()
@@ -525,7 +526,7 @@ function DocumentosAssinados({ nome, mesAtual }: { nome: string; mesAtual: strin
       {docs.map((p) => (
         <button key={p.id} type="button" className={p.mes === mesAtual ? 'on' : ''} onClick={() => { void abrirDocumento(p.id) }} title="Abrir o documento com as assinaturas (imprimir ou salvar em PDF)">
           <i className="fas fa-file-signature" />
-          <span><b>{nomeMes(p.mes)}</b><small>autorizada por {p.decidido_por || 'diretor'}{p.decidido_em ? ` em ${new Date(p.decidido_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}` : ''}{p.status === 'erro_rh' ? ' · RH não aceitou' : ''}</small></span>
+          <span><b>{nomeMes(p.mes)}</b><small>autorizada por {p.decidido_por || 'diretor'}{p.decidido_em ? ` em ${new Date(p.decidido_em).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}` : ''}{p.status === 'erro_rh' ? ' · RH não aceitou' : ''}{p.ciencia_status === 'de_acordo' ? ` · técnico de acordo${p.recibo_em ? ' · recibo assinado' : p.recibo_em === null ? ' · falta o recibo' : ''}` : p.ciencia_status === 'contestou' ? ' · técnico não concordou' : p.ciencia_status === null ? ' · falta o de acordo do técnico' : ''}</small></span>
           <em>{brl2(p.valor)}</em>
         </button>
       ))}
@@ -554,11 +555,18 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
   const rhSt = of?.status || null
   const pago = rhSt === 'paga', noOmie = pago || rhSt === 'lancada_omie'
   const noRH = noOmie || atual?.status === 'espelhada' || rhSt === 'aprovada'
-  const feitos = [!!atual || noRH, noRH || atual?.status === 'erro_rh', noRH, noOmie, pago]
+  // de acordo do técnico: só aparece com o SQL rodado (sem ele a coluna nem vem — undefined)
+  const comAcordo = !!atual && atual.ciencia_status !== undefined
+  const deAcordo = atual?.ciencia_status === 'de_acordo'
+  // com o SQL do recibo, o passo só fecha com os dois documentos assinados
+  const comRecibo = !!atual && atual.recibo_em !== undefined
+  const assinados = deAcordo && (!comRecibo || !!atual?.recibo_em)
+  const feitos = [!!atual || noRH, noRH || atual?.status === 'erro_rh', noRH, ...(comAcordo ? [assinados] : []), noOmie, pago]
   const passos = [
     { rot: 'Pedir autorização', txt: 'valor do mês e o motivo de cada OS mexida' },
     { rot: 'Diretor autoriza', txt: atual?.status === 'devolvida' ? 'devolvida para ajuste' : atual?.status === 'recusada' ? `recusada por ${atual.decidido_por || 'diretor'}` : 'ele assina e recebe o aviso no sino' },
     { rot: 'Espelhado no RH', txt: atual?.status === 'erro_rh' ? 'o RH recusou — veja abaixo' : 'o portal grava no RH sozinho' },
+    ...(comAcordo ? [{ rot: comRecibo ? 'Técnico assina' : 'Técnico de acordo', txt: atual?.ciencia_status === 'contestou' ? 'não concordou — veja abaixo' : comRecibo ? `de acordo ${deAcordo ? '✓' : 'falta'} · recibo ${atual?.recibo_em ? '✓' : 'falta'}` : deAcordo ? `assinou ${atual?.ciencia_forma === 'tela' ? 'na tela' : 'no papel'}` : 'imprima, ele confere e assina' }] : []),
     { rot: 'Contas a pagar', txt: 'o RH lança no Omie' },
     { rot: 'Pago', txt: `por volta de ${dataBR(d.comissao.pagamento)}` },
   ]
@@ -642,7 +650,7 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
         <ol className="fl-passos">
           {passos.map((p, i) => {
             const feitoP = feitos[i], agora = i === agoraIdx
-            const ruim = (i === 1 && (atual?.status === 'recusada' || atual?.status === 'devolvida')) || (i === 2 && atual?.status === 'erro_rh')
+            const ruim = (i === 1 && (atual?.status === 'recusada' || atual?.status === 'devolvida')) || (i === 2 && atual?.status === 'erro_rh') || (comAcordo && i === 3 && atual?.ciencia_status === 'contestou')
             return <li key={p.rot} className={ruim ? 'ruim' : feitoP ? 'feito' : agora ? 'agora' : ''}><span>{ruim ? '!' : feitoP ? <i className="fas fa-check" /> : i + 1}</span><div><b>{p.rot}</b><small>{p.txt}</small></div></li>
           })}
         </ol>
@@ -661,6 +669,7 @@ export function LancarComissao({ d, e, vertical }: { d: Ficha; e: EdicaoComissao
         </p>
       )}
       {atual && <button type="button" className="fo-lan-doc" onClick={() => { void abrirDocumento(atual.id) }}>{['espelhada', 'erro_rh'].includes(atual.status) ? 'Documento assinado (PDF)' : 'Ver documento do pedido'}</button>}
+      {atual && <DeAcordoTecnico p={atual} onFeito={() => setVersao((v) => v + 1)} />}
       <DocumentosAssinados nome={d.nome} mesAtual={d.mes} />
       {of && !atual && <p className="fo-lan-of">Já existe comissão no RH para {nomeMes(d.mes).toLowerCase()}: <b>{brl2(of.valor)}</b> ({of.status.replace('_', ' ')}).{!noOmie && ' Um pedido autorizado atualiza esse valor.'}</p>}
       {noOmie && <p className="fo-lan-of">A comissão de {nomeMes(d.mes).toLowerCase()} já está {pago ? 'paga' : 'lançada no Omie'} — mudanças agora só pelo RH.</p>}
