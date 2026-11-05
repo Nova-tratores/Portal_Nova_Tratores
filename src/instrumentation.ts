@@ -173,7 +173,7 @@ export async function register(): Promise<void> {
     log('vigia de conversas do NovaZap LIGADO (a cada 5 min)');
   }
 
-  // Planta Viva (docs/planta-viva-plano.md): recalcula a tabela planta_kpi a cada 5 min.
+  // Planta Viva (docs/planta-viva-plano.md): recalcula a tabela planta_kpi a cada 20 min.
   // Só lê espelhos do Supabase (nada de Omie). Com o agendador ligado, é a tarefa
   // `planta-snapshot` dele. PLANTA=off desliga. Só produção.
   if (rodaRobos && !agendadorLigado && process.env.NODE_ENV === 'production' && process.env.PLANTA !== 'off') {
@@ -184,7 +184,7 @@ export async function register(): Promise<void> {
         await comCronRun('planta-snapshot', rodarSnapshot, { lockMinutos: 4 });
       } catch (e) { log('planta-snapshot falhou: ' + (e as Error).message); }
     };
-    setInterval(() => { rodarPlanta().catch(() => {}); }, CINCO_MIN);
+    setInterval(() => { rodarPlanta().catch(() => {}); }, 4 * CINCO_MIN); // 20 min
     setTimeout(() => { rodarPlanta().catch(() => {}); }, 2 * 60 * 1000);
     log('planta viva LIGADA (a cada 5 min)');
   }

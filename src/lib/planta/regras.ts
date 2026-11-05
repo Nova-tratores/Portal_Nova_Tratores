@@ -570,3 +570,18 @@ export function prepararParaUsuario(ls: Array<LinhaKpi & { dado_ate?: string | n
 export function filtrarConta<T extends { kpi_id: string; conta: string }>(ls: T[], conta: ContaPlanta): T[] {
   return ls.filter((l) => (CATALOGO[l.kpi_id]?.porConta ? l.conta === conta : l.conta === 'TODAS'));
 }
+
+
+/** Recalcula pelo menos a cada 1 h, mesmo sem mudança nas fontes (idades em horas, sala de máquinas). */
+export const PLANTA_FORCAR_MS = 60 * 60 * 1000;
+
+/** Pura (testável): pode pular esta rodada? */
+export function podePularSnapshot(
+  anterior: { assinatura: string; dia: string; em: number } | undefined,
+  atual: { assinatura: string | null; dia: string; agora: number },
+): boolean {
+  if (!anterior || !atual.assinatura) return false;
+  if (anterior.dia !== atual.dia) return false;
+  if (atual.agora - anterior.em >= PLANTA_FORCAR_MS) return false;
+  return anterior.assinatura === atual.assinatura;
+}

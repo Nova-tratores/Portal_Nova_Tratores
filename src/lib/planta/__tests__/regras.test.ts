@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { calcularKpis, frescor, prepararParaUsuario, filtrarConta, isoDe, itensDoKpi, CATALOGO, doSnapshot, linhaOmie, itemPedidoOmie, itemRemessaOmie, semItens, porCriador, type Fontes, type LinhaKpi } from '../regras';
+import { calcularKpis, frescor, prepararParaUsuario, filtrarConta, isoDe, itensDoKpi, CATALOGO, doSnapshot, linhaOmie, itemPedidoOmie, itemRemessaOmie, semItens, porCriador, podePularSnapshot, type Fontes, type LinhaKpi } from '../regras';
 
 const HOJE = '2026-10-19';
 function fontes(p: Partial<Fontes> = {}): Fontes {
@@ -329,5 +329,21 @@ describe('o snapshot de 5 min nunca chama a Omie', () => {
     for (const f of readdirSync(dir).filter((n) => /\.tsx?$/.test(n))) {
       expect(readFileSync(join(dir, f), 'utf8')).not.toMatch(/from ['"][^'"]*\/omie[/'"]/);
     }
+  });
+});
+
+describe('podePularSnapshot', () => {
+  const ant = { assinatura: '{"a":1}', dia: '2026-11-05', em: 1_000_000 };
+  it('pula quando nada mudou no mesmo dia e dentro de 1 h', () => {
+    expect(podePularSnapshot(ant, { assinatura: '{"a":1}', dia: '2026-11-05', agora: 1_000_000 + 20 * 60_000 })).toBe(true);
+  });
+  it('recalcula quando a assinatura muda', () => {
+    expect(podePularSnapshot(ant, { assinatura: '{"a":2}', dia: '2026-11-05', agora: 1_000_000 + 60_000 })).toBe(false);
+  });
+  it('recalcula quando o dia vira, passou 1 h, sem assinatura ou sem rodada anterior', () => {
+    expect(podePularSnapshot(ant, { assinatura: '{"a":1}', dia: '2026-11-06', agora: 1_000_000 + 60_000 })).toBe(false);
+    expect(podePularSnapshot(ant, { assinatura: '{"a":1}', dia: '2026-11-05', agora: 1_000_000 + 60 * 60_000 })).toBe(false);
+    expect(podePularSnapshot(ant, { assinatura: null, dia: '2026-11-05', agora: 1_000_000 })).toBe(false);
+    expect(podePularSnapshot(undefined, { assinatura: '{"a":1}', dia: '2026-11-05', agora: 1_000_000 })).toBe(false);
   });
 });

@@ -181,7 +181,7 @@ function PPVApp() {
     try {
       const res = await fetchAuth('/api/ppv/sync-produtos', { method: 'POST' });
       const data = await res.json();
-      setSyncResult(data.sucesso ? `Sincronizado! ${data.total} produtos atualizados.` : `Erro: ${data.erro || 'Falha na sincronização'}`);
+      setSyncResult(data.sucesso ? `Sincronizado! ${data.total} produtos atualizados.` : `Erro: ${data.erro || 'Falha na sincronização'}${data.total ? ` (${data.total} gravados)` : ''}`);
     } catch {
       setSyncResult('Erro de conexão ao sincronizar produtos.');
     } finally {

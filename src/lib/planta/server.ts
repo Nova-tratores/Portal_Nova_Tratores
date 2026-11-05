@@ -1,9 +1,10 @@
 // Planta Viva — leitura das fontes + gravação do resumo (tabela planta_kpi).
-// Roda no WORKER pelo agendador (tarefa `planta-snapshot`, a cada 5 min); o site só lê
+// Roda no WORKER pelo agendador (tarefa `planta-snapshot`, a cada 20 min, e só quando uma
+// fonte mudou — ver `podePularSnapshot`); o site só lê
 // planta_kpi. Só LÊ espelhos do Supabase — nenhuma chamada à Omie. A exceção é `rodarOmieAbertos`
 // (tarefa `planta-omie-abertos`, a cada 2 h): PV e remessas abertos lidos da Omie.
 import { supabaseAdmin as sb } from '@/lib/server/supabase-admin';
-import { calcularKpis, hojeBrasilia, CATALOGO, FECHADOS, LIMITE_ITENS, itemPedidoOmie, itemRemessaOmie, linhaOmie, semItens, type Fontes, type Comodo, type Fonte, type LinhaKpi, type ItemKpi, type ContaPlanta, type PedidoOmie, type RemessaOmie } from './regras';
+import { calcularKpis, hojeBrasilia, podePularSnapshot, CATALOGO, FECHADOS, LIMITE_ITENS, itemPedidoOmie, itemRemessaOmie, linhaOmie, semItens, type Fontes, type Comodo, type Fonte, type LinhaKpi, type ItemKpi, type ContaPlanta, type PedidoOmie, type RemessaOmie } from './regras';
 import { calcularMedias, type Medias, type Meta } from './termometro';
 
 type Row = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
@@ -131,8 +132,26 @@ export function semTabela(e: { code?: string; message?: string } | null | undefi
   return !!e && (e.code === '42P01' || e.code === 'PGRST205' || /planta_kpi/.test(e.message || '') && /not find|does not exist/i.test(e.message || ''));
 }
 
+// ── Só recalcula quando uma fonte mudou (sql/planta-mudancas.sql) ─────────────
+// A RPC devolve os contadores de escrita de cada tabela de origem (milissegundos). Assinatura
+// igual à da última rodada completa = nada mudou → pula. Mesmo sem mudança recalcula quando o
+// dia vira (vencidos, "dias na fase") e no máximo a cada PLANTA_FORCAR_MS (1 h: idades em horas, sala de
+// máquinas). Sem a RPC (migration não aplicada) ou com erro nela, recalcula sempre.
+const ultimaCompleta = globalThis as unknown as { __plantaAssinatura?: { assinatura: string; dia: string; em: number } };
+
+async function assinaturaFontes(): Promise<string | null> {
+  const { data, error } = await sb.rpc('planta_assinatura_fontes');
+  if (error || data == null) return null;
+  return JSON.stringify(data);
+}
+
 export async function rodarSnapshot(): Promise<{ resumo?: string; pular?: string }> {
   const t0 = Date.now();
+  const assinatura = await assinaturaFontes().catch(() => null);
+  const dia = hojeBrasilia();
+  if (podePularSnapshot(ultimaCompleta.__plantaAssinatura, { assinatura, dia, agora: t0 })) {
+    return { pular: 'nenhuma tabela de origem mudou' };
+  }
   const { fontes, dadoAte } = await carregarFontes();
   const linhas = calcularKpis(fontes);
   const agora = new Date().toISOString();
@@ -146,6 +165,8 @@ export async function rodarSnapshot(): Promise<{ resumo?: string; pular?: string
     if (semTabela(error)) return { pular: 'migration sql/planta-viva.sql não aplicada' };
     if (error) throw new Error(error.message);
   }
+  // Só memoriza a assinatura de rodada sem erro: com falha, a próxima tenta de novo.
+  if (assinatura && !linhas.some((l) => l.erro)) ultimaCompleta.__plantaAssinatura = { assinatura, dia, em: t0 };
   const termo = await gravarHistoricoEMedias(boas, fontes.hoje);
   const falhas = [...new Set(linhas.filter((l) => l.erro).map((l) => `${l.comodo}: ${String(l.erro).slice(0, 120)}`))];
   return { resumo: `${linhas.length} números em ${((Date.now() - t0) / 1000).toFixed(1)} s${termo ? ` · ${termo}` : ''}${falhas.length ? ` · com erro (mantido o último valor) — ${falhas.join(' | ')}` : ''}` };

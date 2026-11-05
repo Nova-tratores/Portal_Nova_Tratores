@@ -4,7 +4,9 @@ import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+// Service role: desde sql/permissoes-v2-06 (22/10/2026) o anon não tem acesso a
+// Produtos_Completos — com a chave anon todo upsert dava "permission denied".
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 interface OmieAccount {
   name: string;
@@ -119,7 +121,8 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({
-      sucesso: true,
+      sucesso: erros.length === 0,
+      erro: erros.length > 0 ? `${erros.length} página(s) falharam: ${erros[0]}` : undefined,
       total,
       erros: erros.length > 0 ? erros : undefined,
       timestamp: new Date().toISOString(),
