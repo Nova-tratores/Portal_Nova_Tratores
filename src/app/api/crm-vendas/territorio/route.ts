@@ -15,6 +15,8 @@ import { autenticar } from '@/lib/auth/server';
 import { corsVendas } from '@/lib/vendas-app/cors';
 import { NIVEIS_TERRITORIO, nivelDoImovel, resumoTerritorio, geometriaLeve, bboxVazio, type NegocioProp, type VisitaCar } from '@/lib/vendas-app/territorio';
 import { tratoresDoMunicipio, type TratorLocalizado, type TratorVendido } from '@/lib/vendas-app/tratores-territorio';
+import { cidadeDoTrator, indexarClientesOmie, type ClienteOmieIdx } from '@/lib/vendas-app/tratores-cidade';
+import { paginar } from '@/lib/db/paginar';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,6 +31,23 @@ export function OPTIONS(req: NextRequest) {
 }
 
 type Quem = { tipo: 'vendedor'; vendedorId: number } | { tipo: 'supervisor' } | null;
+
+// Clientes_Omie (nome → cidade) para corrigir a cidade dos tratores vendidos.
+// ~3 mil linhas, muda pouco: 6 h no processo. Falhou = cidade digitada (como antes).
+let cacheOmie: { at: number; idx: ClienteOmieIdx[] } | null = null;
+async function clientesOmie(): Promise<ClienteOmieIdx[]> {
+  if (cacheOmie && Date.now() - cacheOmie.at < 6 * 3600_000) return cacheOmie.idx;
+  try {
+    const { data: rows, error } = await paginar<{ nome: string | null; cidade: string | null }>((de, ate) =>
+      supabaseAdmin.from('Clientes_Omie').select('nome, cidade').order('id').range(de, ate));
+    if (error) throw new Error(error.message);
+    cacheOmie = { at: Date.now(), idx: indexarClientesOmie(rows) };
+    return cacheOmie.idx;
+  } catch (e) {
+    console.warn('[territorio] Clientes_Omie:', e);
+    return cacheOmie?.idx || [];
+  }
+}
 
 async function validarTokenTerritorio(req: NextRequest): Promise<Quem> {
   const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
@@ -135,15 +154,17 @@ export async function GET(req: NextRequest) {
     });
 
     // tratores vendidos no município + os já localizados em campo (pinos)
-    const [{ data: vendidos }, loc] = await Promise.all([
+    const [{ data: vendidos }, loc, omie] = await Promise.all([
       supabaseAdmin.from('tratores').select('Chassis, Modelo, Cliente, Cidade, Entrega').limit(5000),
       supabaseAdmin.from('trator_localizacao_atual').select('chassis, lat, lng, cod_car, confirmado_em, vendedor_nome').limit(5000),
+      clientesOmie(),
     ]);
     const tratores = tratoresDoMunicipio(
       fc.municipio || '',
       (vendidos || []) as TratorVendido[],
       (loc.error ? [] : loc.data || []) as TratorLocalizado[], // sem a migration: ninguém localizado ainda
       new Set(features.map((f) => f.properties.cod_car)),
+      (t) => cidadeDoTrator(t, omie).chave,
     );
     const carsComTrator = new Set(tratores.pinos.map((p) => p.cod_car).filter(Boolean));
     for (const f of features) (f.properties as Record<string, unknown>).trator = carsComTrator.has(f.properties.cod_car);

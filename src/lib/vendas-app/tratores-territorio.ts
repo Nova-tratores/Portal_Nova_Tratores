@@ -20,18 +20,24 @@ export function tratoresDoMunicipio(
   vendidos: TratorVendido[],
   localizados: TratorLocalizado[],
   codCarsDoMunicipio: Set<string>,
+  // cidade do trator já corrigida (cliente achado no Clientes_Omie — lib/vendas-app/tratores-cidade);
+  // sem ela, a digitada no controle de revisões
+  cidadeDe: (t: TratorVendido) => string = (t) => chaveMunicipio(t.Cidade),
 ) {
   const alvo = chaveMunicipio(municipio);
+  const daqui = (t: TratorVendido) => cidadeDe(t) === alvo;
   const porChassi = new Map(localizados.map((l) => [l.chassis, l]));
   const lista = vendidos
-    .filter((t) => t.Chassis && chaveMunicipio(t.Cidade) === alvo)
+    .filter((t) => t.Chassis && daqui(t))
     .map((t) => ({
       chassis_fim: String(t.Chassis).slice(-6),
       modelo: t.Modelo, cliente: t.Cliente, entrega: t.Entrega,
+      // o controle de revisões diz outra cidade (a lista usa a do Omie)
+      ...(chaveMunicipio(t.Cidade) !== alvo ? { cidade_controle: t.Cidade } : {}),
       localizado: porChassi.has(t.Chassis),
     }));
   // pinos: localizados dentro de um imóvel deste município (ou vendidos aqui, se o GPS caiu fora do CAR)
-  const chassisDaqui = new Set(vendidos.filter((t) => chaveMunicipio(t.Cidade) === alvo).map((t) => t.Chassis));
+  const chassisDaqui = new Set(vendidos.filter(daqui).map((t) => t.Chassis));
   const vendidosPorChassi = new Map(vendidos.map((t) => [t.Chassis, t]));
   const pinos = localizados
     .filter((l) => l.lat != null && l.lng != null && ((l.cod_car && codCarsDoMunicipio.has(l.cod_car)) || chassisDaqui.has(l.chassis)))
