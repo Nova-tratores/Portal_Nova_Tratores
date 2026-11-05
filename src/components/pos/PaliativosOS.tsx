@@ -27,7 +27,8 @@ const parseNum = (v: unknown) => parseFloat(String(v ?? "").replace(/[^\d.,-]/g,
 
 const ESTILO = `
   .pl-cab { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-  .pl-ico { width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0; display: grid; place-items: center; font-size: 16px; color: ${COR}; background: color-mix(in srgb, ${COR} 9%, var(--surface, #fefefe)); border: 1px solid color-mix(in srgb, ${COR} 18%, transparent); }
+  .pl-ico { width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0; display: grid; place-items: center; font-size: 17px; color: ${COR}; background: color-mix(in srgb, ${COR} 9%, var(--surface, #fefefe)); border: 1px solid color-mix(in srgb, ${COR} 18%, transparent); }
+  .pl-ico i { color: ${COR}; }
   .pl-cab b { font-size: 16px; font-weight: 500; color: var(--portal-text, #0f172a); }
   .pl-cab span { display: block; font-size: 12.5px; color: #64748b; }
   .pl-item { border: 1px solid var(--border, #e2e8f0); border-radius: 14px; background: var(--surface, #fefefe); padding: 12px 14px; margin-top: 10px; }
@@ -63,7 +64,7 @@ export default function PaliativosOS({ paliativos, finalHora, finalKm, temFinal,
     <div className={cartao}>
       <style>{ESTILO}</style>
       <div className="pl-cab">
-        <span className="pl-ico"><i className="fas fa-bandage" /></span>
+        <span className="pl-ico"><i className="fas fa-screwdriver-wrench" /></span>
         <div>
           <b>Relatórios paliativos</b>
           <span>Visitas que ajudaram o cliente mas não concluíram o serviço</span>
