@@ -794,3 +794,37 @@ export async function pendentesDeReembolso(montadoraId: string): Promise<{
     }));
   return { montadora, pendentes, faturadas: faturadas.slice(0, 30) };
 }
+
+// ── NFS-e de reembolso de várias garantias (relatório detalhado) ──────────────
+
+export interface NfseDaGarantia {
+  numero: string | null;
+  data: string | null;
+  /** 'vinculada' = confirmada na janela · 'sg' = a nota cita a SG (ou bate o valor) */
+  como: 'vinculada' | 'sg';
+}
+
+export async function nfseReembolsoDasGarantias(gs: {
+  id: string; numero_externo: string | null; montadora: string | null; created_at: string; valor_pago_total: number | null;
+}[]): Promise<Map<string, NfseDaGarantia>> {
+  const out = new Map<string, NfseDaGarantia>();
+  if (!gs.length) return out;
+  const vinc = await lerVinculos(gs.map((g) => g.id));
+  const notasPor = new Map<string, NotaReembolso[]>();
+  for (const m of [...new Set(gs.map((g) => g.montadora).filter(Boolean))] as string[]) {
+    const desde = gs.filter((g) => g.montadora === m).reduce((min, g) => (g.created_at < min ? g.created_at : min), new Date().toISOString());
+    notasPor.set(m, await notasReembolsoDaMontadora(m, diasAntes(desde, 3)));
+  }
+  for (const g of gs) {
+    const minhas = vinc.linhas.filter((v) => v.garantia_id === g.id && v.papel === 'reembolso');
+    const ligada = minhas.find((v) => v.status === 'vinculada');
+    if (ligada) { out.set(g.id, { numero: ligada.numero, data: ligada.data_emissao, como: 'vinculada' }); continue; }
+    const descartadas = new Set(minhas.filter((v) => v.status === 'descartada').map((v) => v.doc_id));
+    const sg = normSG(g.numero_externo);
+    const pago = Number(g.valor_pago_total) || 0;
+    const n = ((g.montadora && notasPor.get(g.montadora)) || []).find((x) => !descartadas.has(x.docId)
+      && ((sg && x.sgs.includes(sg)) || (!x.sgs.length && pago > 0 && Math.abs(x.valor - pago) < 0.05)));
+    if (n) out.set(g.id, { numero: n.numero, data: n.data, como: 'sg' });
+  }
+  return out;
+}

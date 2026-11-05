@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Search, Loader2, Printer, CheckCircle2, XCircle } from 'lucide-react';
 import type { GarantiaResumo } from '@/lib/garantias/types';
 import { fmtData, fmtMoeda } from '@/lib/garantias/format';
+import { htmlImpressaoDetalhada } from './impressaoDetalhada';
 
 interface Props {
   onAbrir: (id: string) => void;
@@ -57,16 +58,45 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
   const aprovadas = filtrada.filter((g) => g.status === 'aprovada').length;
 
   // folha própria para imprimir: só a lista filtrada + totais no fim (o window.print() levava a tela inteira)
+  const textoFiltros = () => [
+    resultado === 'aprovada' ? 'Só aprovadas' : resultado === 'recusada' ? 'Só recusadas' : 'Aprovadas e recusadas',
+    de || ate ? `Finalizadas ${de ? 'de ' + fmtDia(de) : ''}${ate ? ' até ' + fmtDia(ate) : ''}` : 'Todo o período',
+    filtro.trim() ? `Busca: "${filtro.trim()}"` : '',
+  ].filter(Boolean).join(' · ');
+
+  // detalhado: horas/km com a conta, peças pagas × repostas (chegou / a chegar),
+  // NFS-e de reembolso e o serviço executado da OS — dados montados no servidor
+  const [preparando, setPreparando] = useState(false);
+  const imprimirDetalhado = async () => {
+    if (!filtrada.length || preparando) return;
+    const w = window.open('', '_blank');
+    if (!w) { alert('O navegador bloqueou a janela de impressão. Libere pop-ups para o portal.'); return; }
+    w.document.write('<p style="font-family:Arial;padding:20px">Montando o relatório detalhado…</p>');
+    setPreparando(true);
+    try {
+      const r = await fetchAuth('/api/garantias/relatorio-detalhado', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: filtrada.map((g) => g.id) }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(j.error || 'Não foi possível montar o relatório.');
+      w.document.open();
+      w.document.write(htmlImpressaoDetalhada(j.garantias || [], textoFiltros()));
+      w.document.close();
+    } catch (e) {
+      w.document.body.innerHTML = `<p style="font-family:Arial;padding:20px;color:#b91c1c">${esc(e instanceof Error ? e.message : 'Erro')}</p>`;
+    } finally {
+      setPreparando(false);
+    }
+  };
+
   const imprimir = () => {
     const w = window.open('', '_blank');
     if (!w) { alert('O navegador bloqueou a janela de impressão. Libere pop-ups para o portal.'); return; }
     const soma = (k: 'valor_pago_horas' | 'valor_pago_km' | 'valor_pago_pecas') =>
       filtrada.reduce((s, g) => s + (Number(g[k]) || 0), 0);
-    const filtros = [
-      resultado === 'aprovada' ? 'Só aprovadas' : resultado === 'recusada' ? 'Só recusadas' : 'Aprovadas e recusadas',
-      de || ate ? `Finalizadas ${de ? 'de ' + fmtDia(de) : ''}${ate ? ' até ' + fmtDia(ate) : ''}` : 'Todo o período',
-      filtro.trim() ? `Busca: "${filtro.trim()}"` : '',
-    ].filter(Boolean).join(' · ');
+    const filtros = textoFiltros();
     const linhas = filtrada.map((g) => `
       <tr>
         <td><b>${esc(g.numero)}</b></td>
@@ -225,7 +255,28 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
             cursor: 'pointer',
           }}
         >
-          <Printer size={15} /> Imprimir
+          <Printer size={15} /> Imprimir resumo
+        </button>
+        <button
+          onClick={imprimirDetalhado}
+          disabled={preparando || !filtrada.length}
+          title="Horas e km com a conta, peças pagas × repostas (chegou / a chegar), NFS-e de reembolso e o serviço executado da OS"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '8px 14px',
+            borderRadius: 8,
+            border: '1px solid #be123c',
+            background: '#be123c',
+            color: '#fefefe',
+            fontSize: 13,
+            fontWeight: 600,
+            cursor: preparando ? 'wait' : 'pointer',
+            opacity: !filtrada.length ? 0.5 : 1,
+          }}
+        >
+          {preparando ? <Loader2 size={15} className="spin" /> : <Printer size={15} />} Imprimir detalhado
         </button>
       </div>
 
