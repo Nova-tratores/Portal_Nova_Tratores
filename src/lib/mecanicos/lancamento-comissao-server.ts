@@ -93,8 +93,8 @@ const linkFicha = (p: { tecnico: string; mes: string }) => `/mecanicos?aba=mecan
 const SEM_ASSINATURAS = 'id, tecnico, mes, valor, calculado, linhas, status, pedido_por, pedido_por_id, pedido_em, decidido_por, decidido_em, observacao, rh_comissao_id, rh_erro, espelhado_em, apontamentos, info, descontos'
 const CIENCIA = 'ciencia_status, ciencia_forma, ciencia_em, ciencia_nome, ciencia_registrada_por, ciencia_arquivo_nome, ciencia_motivo'
 const RECIBO = 'recibo_em, recibo_arquivo_nome, recibo_registrado_por, ciencia_rh_doc_id, ciencia_rh_erro, recibo_rh_doc_id, recibo_rh_erro'
-/** Sem os SQLs do de acordo/recibo essas colunas não existem: lê com o que tiver (o resto segue igual). */
-let nivelColunas = 2
+/** Sem os SQLs do de acordo/recibo essas colunas não existem: lê com o que tiver (o resto segue igual).
+ *  Cada leitura começa do nível completo — guardado no processo, o SQL rodado depois só valeria após reiniciar. */
 export async function listarPedidos(f: { mes?: string; tecnico?: string; abertos?: boolean }): Promise<PedidoComissao[]> {
   const ler = (cols: string) => {
     let q = sb.from('posvendas_comissoes').select(cols).order('pedido_em', { ascending: false }).limit(200)
@@ -103,6 +103,7 @@ export async function listarPedidos(f: { mes?: string; tecnico?: string; abertos
     if (f.abertos) q = q.eq('status', 'aguardando')
     return q
   }
+  let nivelColunas = 2
   const cols = () => [SEM_ASSINATURAS, `${SEM_ASSINATURAS}, ${CIENCIA}`, `${SEM_ASSINATURAS}, ${CIENCIA}, ${RECIBO}`][nivelColunas]
   let { data, error } = await ler(cols())
   while (error && nivelColunas > 0 && (error.code === '42703' || /ciencia_|recibo_/.test(error.message || ''))) {
