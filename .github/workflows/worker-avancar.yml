@@ -4,13 +4,16 @@
 # tocavam src/lib, e o worker reiniciava 11–13x por dia, interrompendo syncs).
 # Correção urgente de robô: rodar este workflow pelo botão "Run workflow" (ou
 # `git push origin origin/main:worker` na máquina).
-# Horário: 23:30 BRT no papel — o GitHub atrasa horas, mas os pesados do worker
-# (20:00–22:45 BRT) já terminaram; o que rodar de madrugada é curto e se refaz.
+# Horário: ALMOÇO (05/11/2026, decisão do José) — 11:40 BRT no papel; o GitHub costuma
+# atrasar, então cai perto do meio-dia, quando a lentidão do reinício quase não pega
+# ninguém. Antes era 23:30, no meio da cadeia pesada da noite (20:00–00:45 BRT).
+# Trava: no agendado, só avança entre 11:30 e 13:30 BRT — atraso maior pula o dia
+# (o botão "Run workflow" avança a qualquer hora).
 name: Worker - Avançar branch para o main
 
 on:
   schedule:
-    - cron: '30 2 * * *'   # 23:30 BRT
+    - cron: '40 14 * * *'   # 11:40 BRT
   workflow_dispatch: {}
 
 permissions:
@@ -25,6 +28,15 @@ jobs:
           fetch-depth: 0
       - name: Fast-forward worker -> main
         run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            hm=$(TZ=America/Sao_Paulo date +%H%M)
+            if [ "$hm" -lt 1130 ] || [ "$hm" -gt 1330 ]; then
+              echo "Fora do almoço ($hm BRT): não reinicia o worker hoje."; exit 0
+            fi
+          fi
+          if [ "$(git rev-parse origin/worker 2>/dev/null)" = "$(git rev-parse origin/main)" ]; then
+            echo "worker já está no main: nada a fazer (não reinicia)."; exit 0
+          fi
           echo "worker estava em $(git rev-parse --short origin/worker 2>/dev/null || echo '(sem branch)')"
           git push origin origin/main:refs/heads/worker
           echo "worker agora em $(git rev-parse --short origin/main)"
