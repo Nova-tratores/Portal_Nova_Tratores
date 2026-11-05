@@ -7,6 +7,7 @@
 -- produtos, só o retrato do estoque negativo (o sync de preços regrava produtos a cada
 -- 10 min sem mudar o estoque). Se a "assinatura" for igual à da última rodada, o robô pula.
 -- Sem esta função o robô continua recalculando sempre (só no novo ritmo de 20 min).
+-- 05/11 (v2): recebimentos_nfe saiu dos contadores e virou o retrato das máquinas a caminho.
 -- Idempotente: pode rodar de novo.
 
 create or replace function public.planta_assinatura_fontes()
@@ -24,10 +25,16 @@ as $$
         and s.relname in (
           'contas_pagar', 'contas_receber', 'finan_pagar',
           'Formulario', 'status_proposta', 'vendedores', 'Proposta_Fabrica', 'fase_fabrica',
-          'tratorilson_solicitacoes', 'Ordem_Servico', 'garantias', 'recebimentos_nfe',
+          'tratorilson_solicitacoes', 'Ordem_Servico', 'garantias',
           'pedidos', 'tecnico_metricas', 'Requisicao', 'pecas_alocacao_pendencias', 'logs_ppo'
         )
     ), '{}'::jsonb),
+    -- recebimentos_nfe é regravada a cada 10 min pelo robô de alocação (notas de 45 dias,
+    -- mesmo sem mudança): olha só o que a Planta usa — notas Faturada com máquina.
+    'maquinas_vindo', (
+      select jsonb_build_array(count(*), md5(coalesce(string_agg(id_receb::text || ':' || coalesce(qtd_maquinas, 0) || ':' || coalesce(valor_maquinas, 0) || ':' || coalesce(conta_omie, ''), ',' order by id_receb), '')))
+      from recebimentos_nfe where status = 'Faturada' and qtd_maquinas > 0
+    ),
     'produtos_negativos', (
       select jsonb_build_array(count(*), coalesce(sum(estoque), 0))
       from produtos where estoque < 0
