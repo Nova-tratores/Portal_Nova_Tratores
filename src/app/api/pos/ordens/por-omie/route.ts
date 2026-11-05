@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_OS } from '@/lib/pos/constants';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 
@@ -9,7 +10,10 @@ export const dynamic = 'force-dynamic';
 // pelo módulo Pós-vendas — senão devolve { idOrdem: null } (o dashboard avisa).
 // Campos de ligação em Ordem_Servico: `id_omie` (nº Omie sem zeros) ou
 // `Ordem_Omie` (às vezes zero-padded p/ 15, ex.: "000000000004873").
+// Chamada pelo Dashboard de Vendas (pode('estoque','dashboard')); POS também pode.
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: 'estoque', acao: 'dashboard' }, { modulo: 'pos' }]);
+  if (g.resposta) return g.resposta;
   const num = (req.nextUrl.searchParams.get('num') || '').replace(/\D/g, '');
   if (!num) return NextResponse.json({ idOrdem: null });
   const n = parseInt(num, 10);

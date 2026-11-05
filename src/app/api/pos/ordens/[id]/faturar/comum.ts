@@ -8,7 +8,7 @@ export function temModuloPOS(auth: Autenticado): boolean {
 }
 
 /** exigeFaturar: além do login no POS, precisa do interruptor ligado e da permissão explícita pos:faturar. */
-export async function gate(req: NextRequest, exigeFaturar: boolean): Promise<Autenticado | NextResponse> {
+export async function guardarFaturamentoOS(req: NextRequest, exigeFaturar: boolean): Promise<Autenticado | NextResponse> {
   const auth = await autenticar(req);
   if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   if (!temModuloPOS(auth)) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });

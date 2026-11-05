@@ -31,6 +31,7 @@ import BotaoRetiradas from "@/components/ppv/BotaoRetiradas";
 import { PECAS_TOPBAR_CSS } from "@/components/ppv/PecasNav";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
+import { fetchAuth } from "@/lib/auth/client";
 
 function PPVApp() {
   const { kanbanItems, carregarKanban, atualizarKanbanLocal, toast, hideToast, globalLoading, cacheProduct, showToast, recarregarRevisoes } = usePPV();
@@ -116,7 +117,7 @@ function PPVApp() {
       const item = kanbanItems.find((k) => k.id === id) as { osId?: string } | undefined;
       const osId = String(item?.osId || "").trim();
       if (osId) {
-        const res = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/fase`, {
+        const res = await fetchAuth(`/api/pos/ordens/${encodeURIComponent(osId)}/fase`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ status: "Orçamento Aprovado", userName: userProfile?.nome, previsaoExecucao: dataISO }),
@@ -178,7 +179,7 @@ function PPVApp() {
     setSyncingProdutos(true);
     setSyncResult(null);
     try {
-      const res = await fetch('/api/ppv/sync-produtos', { method: 'POST' });
+      const res = await fetchAuth('/api/ppv/sync-produtos', { method: 'POST' });
       const data = await res.json();
       setSyncResult(data.sucesso ? `Sincronizado! ${data.total} produtos atualizados.` : `Erro: ${data.erro || 'Falha na sincronização'}`);
     } catch {
@@ -249,7 +250,7 @@ function PPVApp() {
       setOsIdValue(id); setOsDisplayValue(display);
       // Vincular OS no formulário novo: puxa cliente + os demais campos.
       if (cliente) setClienteValue(cliente);
-      fetch(`/api/ppv/ordens-servico?id=${encodeURIComponent(id)}`)
+      fetchAuth(`/api/ppv/ordens-servico?id=${encodeURIComponent(id)}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((d) => {
           if (!d || d.error) return;

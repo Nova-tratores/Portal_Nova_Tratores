@@ -603,7 +603,7 @@ export default function DashboardPage() {
     const num = String(numeroOs || '').trim();
     try {
       if (num) {
-        const r = await fetch(`/api/pos/ordens/por-omie?num=${encodeURIComponent(num)}`);
+        const r = await fetch(`/api/pos/ordens/por-omie?num=${encodeURIComponent(num)}`, { headers: await authHeaders() });
         const d = await r.json();
         if (d.idOrdem) { void abrirComLogin(`/api/pos/ordens/${encodeURIComponent(d.idOrdem)}/print`); return; }
       }

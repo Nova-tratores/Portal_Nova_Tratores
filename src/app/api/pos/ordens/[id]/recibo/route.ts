@@ -8,6 +8,7 @@ import { TBL_OS } from "@/lib/pos/constants";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { PORTAL_BASE } from "@/lib/portal-url";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +24,10 @@ interface OSOmie {
   ServicosPrestados?: Array<{ cDescServ?: string; cCodigo?: string; nQtde?: number; nValUnit?: number; nValorDesconto?: number }>;
 }
 
+// Aberto só pelo bloco de notas do drawer da OS (POS), com abrirComLogin.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const g = await protegerRota(_req, [{ modulo: "pos" }]);
+  if (g.resposta) return g.resposta;
   const { id } = await params;
   const { data } = await supabase.from(TBL_OS).select("*").eq("Id_Ordem", id).limit(1);
   const os = data?.[0] as Record<string, unknown> | undefined;

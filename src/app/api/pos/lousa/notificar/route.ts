@@ -8,7 +8,7 @@ const CRON_SECRET = process.env.CRON_SECRET || "";
 // GET — disparado via cron às 16h — notifica se há OS com pedido PPV na lousa do dia
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
-  if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+  if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) { // sem a env, recusa (antes ficava aberta)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

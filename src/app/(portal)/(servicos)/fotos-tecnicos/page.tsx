@@ -5,6 +5,7 @@ import { Search, Image, X, ChevronLeft, ChevronRight, Camera, Wrench, User } fro
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
+import { fetchAuth } from '@/lib/auth/client'
 
 interface FotoItem {
   label: string
@@ -50,7 +51,7 @@ export default function FotosTecnicosPage() {
   const [fotoIdx, setFotoIdx] = useState(0)
 
   useEffect(() => {
-    fetch('/api/pos/fotos-tecnico')
+    fetchAuth('/api/pos/fotos-tecnico')
       .then(r => r.json())
       .then(setLista)
       .catch(() => setLista([]))
@@ -60,7 +61,7 @@ export default function FotosTecnicosPage() {
   const abrirOS = useCallback(async (osId: string) => {
     setLoadingOS(true)
     try {
-      const res = await fetch(`/api/pos/fotos-tecnico?os=${encodeURIComponent(osId)}`)
+      const res = await fetchAuth(`/api/pos/fotos-tecnico?os=${encodeURIComponent(osId)}`)
       if (res.ok) {
         const data = await res.json()
         setOsSelecionada(data)

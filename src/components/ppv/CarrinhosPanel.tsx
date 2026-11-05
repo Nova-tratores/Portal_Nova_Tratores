@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useIsMobile } from "@/hooks/useIsMobile";
-import { authHeaders } from "@/lib/auth/client";
+import { authHeaders, fetchAuth } from "@/lib/auth/client";
 
 interface Carrinho { id: string; nome: string; cliente: string; modelo: string; modelo_slug: string; servico: string; status: string; criado_por?: string; criado_em: string; atualizado_em: string; expira_em: string; total_itens?: number; marca?: string | null }
 
@@ -93,7 +93,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
 
   const temNaoCadastrado = !!sel && sel.itens.some((i) => !i.cadastrado);
 
-  useEffect(() => { fetch("/api/ppv/dados-iniciais").then((r) => r.json()).then((d) => setTecnicos(Array.isArray(d?.tecnicos) ? d.tecnicos : [])).catch(() => {}); }, []);
+  useEffect(() => { fetchAuth("/api/ppv/dados-iniciais").then((r) => r.json()).then((d) => setTecnicos(Array.isArray(d?.tecnicos) ? d.tecnicos : [])).catch(() => {}); }, []);
   // Peça sem cadastro NÃO trava mais o PPV (decisão do usuário, 18/08): ela
   // entra sem preço e ajusta-se depois no próprio pedido.
 
@@ -111,7 +111,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
             .filter((o: { status?: string; expirado?: boolean }) => !/aprovad|recusad|cancel|conclu|expirad/i.test(String(o.status || "")) && !o.expirado)
             .slice(0, 40).map((o: { id: string; numero?: string; cliente_nome?: string }) => ({ id: String(o.id), label: o.numero || `#${o.id}`, sub: `${o.cliente_nome || "—"}` })));
         } else {
-          const r = await fetch(`/api/ppv/pedidos`);
+          const r = await fetchAuth(`/api/ppv/pedidos`);
           const d = r.ok ? await r.json() : [];
           const q = docQ.trim().toLowerCase();
           setDocRes((Array.isArray(d) ? d : [])
@@ -167,7 +167,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
 
   const abrirPpvModal = async (d: { id: string; label: string }) => {
     setPpvModal(d); setPpvDet(null); setProdQ(""); setProdRes([]); setPpvCarregando(true);
-    try { const r = await fetch(`/api/ppv/pedidos?id=${encodeURIComponent(d.id)}`); setPpvDet(r.ok ? await r.json() : null); } catch { setPpvDet(null); }
+    try { const r = await fetchAuth(`/api/ppv/pedidos?id=${encodeURIComponent(d.id)}`); setPpvDet(r.ok ? await r.json() : null); } catch { setPpvDet(null); }
     setPpvCarregando(false);
   };
 
@@ -178,7 +178,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
     if (q.length < 2) { setProdRes([]); return; }
     const t = setTimeout(async () => {
       setProdBuscando(true);
-      try { const r = await fetch(`/api/ppv/produtos?termo=${encodeURIComponent(q)}`); setProdRes(r.ok ? await r.json() : []); } catch { setProdRes([]); }
+      try { const r = await fetchAuth(`/api/ppv/produtos?termo=${encodeURIComponent(q)}`); setProdRes(r.ok ? await r.json() : []); } catch { setProdRes([]); }
       setProdBuscando(false);
     }, 350);
     return () => clearTimeout(t);
@@ -209,7 +209,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
       });
       if (r.ok) {
         setAddFlash(i.codigo); setTimeout(() => setAddFlash(null), 1400);
-        try { const r2 = await fetch(`/api/ppv/pedidos?id=${encodeURIComponent(ppvModal.id)}`); if (r2.ok) setPpvDet(await r2.json()); } catch { /* mantém o que tem */ }
+        try { const r2 = await fetchAuth(`/api/ppv/pedidos?id=${encodeURIComponent(ppvModal.id)}`); if (r2.ok) setPpvDet(await r2.json()); } catch { /* mantém o que tem */ }
       }
     } catch { /* segue */ }
     setAddindo(false);
@@ -264,7 +264,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
       setCliSel(nomeCli ? { nome: nomeCli } : null);
       if (nomeCli) {
         try {
-          const rc = await fetch(`/api/ppv/clientes?termo=${encodeURIComponent(nomeCli)}`);
+          const rc = await fetchAuth(`/api/ppv/clientes?termo=${encodeURIComponent(nomeCli)}`);
           const cs: { nome: string; documento?: string; endereco?: string; cidade?: string }[] = rc.ok ? await rc.json() : [];
           const norm = (s: string) => String(s || "").toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^A-Z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
           const alvo = norm(nomeCli);
@@ -279,7 +279,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
   useEffect(() => {
     const q = cliQ.trim();
     if (q.length < 2) { setCliRes([]); return; }
-    const t = setTimeout(async () => { try { const r = await fetch(`/api/ppv/clientes?termo=${encodeURIComponent(q)}`); setCliRes(r.ok ? await r.json() : []); } catch { setCliRes([]); } }, 300);
+    const t = setTimeout(async () => { try { const r = await fetchAuth(`/api/ppv/clientes?termo=${encodeURIComponent(q)}`); setCliRes(r.ok ? await r.json() : []); } catch { setCliRes([]); } }, 300);
     return () => clearTimeout(t);
   }, [cliQ]);
 
@@ -327,7 +327,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
     if (!criarProd) return;
     setSalvandoProd(true);
     try {
-      const r = await fetch("/api/ppv/produtos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo: criarProd.codigo, descricao: criarProd.descricao || criarProd.codigo, preco: parseFloat(prodPreco || "0") }) });
+      const r = await fetchAuth("/api/ppv/produtos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo: criarProd.codigo, descricao: criarProd.descricao || criarProd.codigo, preco: parseFloat(prodPreco || "0") }) });
       if (r.ok) { setCriarProd(null); setProdPreco("0.00"); if (sel) abrir(sel.carrinho.id); }
       else { const j = await r.json().catch(() => ({})); setMsg(j.error || "Erro ao criar produto."); }
     } catch { setMsg("Erro de conexão."); }

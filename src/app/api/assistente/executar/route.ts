@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
 
     // OS (POS) — com PPV vinculado quando há peças
     if (proposta.tipo === "os") {
-      const r = await fetch(`${origin}/api/pos/ordens`, {
+      const r = await fetchInterno(`${origin}/api/pos/ordens`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...proposta.dados, userName: quem }),

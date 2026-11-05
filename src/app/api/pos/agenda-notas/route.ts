@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const TBL = "agenda_notas";
 
 /** GET — busca notas de um range de datas */
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "pos" }, { modulo: "mecanicos" }, { modulo: "painel-mecanicos" }]);
+  if (g.resposta) return g.resposta;
   const { searchParams } = new URL(req.url);
   const datas = searchParams.get("datas"); // comma-separated: 2026-04-01,2026-04-02,...
 
@@ -22,6 +25,8 @@ export async function GET(req: NextRequest) {
 
 /** POST — upsert nota (tecnico_nome + data) */
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "pos" }, { modulo: "mecanicos" }, { modulo: "painel-mecanicos" }]);
+  if (g.resposta) return g.resposta;
   const { tecnico_nome, data, nota } = await req.json();
 
   if (!tecnico_nome || !data) {

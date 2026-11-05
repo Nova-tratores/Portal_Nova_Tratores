@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_PROJETOS_DB } from "@/lib/pos/constants";
+import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 
 export async function GET(req: NextRequest) {
+  // OS (POS), PPV e o chat do Tratorilson (servidor, fetchInterno)
+  const g = await protegerRotaOuInterna(req, [{ modulo: "pos" }, { modulo: "ppv" }]);
+  if (g.resposta) return g.resposta;
   const termo = req.nextUrl.searchParams.get("termo") || "";
 
   if (!termo.trim()) {

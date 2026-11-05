@@ -1,8 +1,12 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { cronogramaAdmin } from "@/lib/cronograma/supabase-server";
 
 // Lista os projetos do cronograma para o PPV escolher (alternativa a puxar o da OS).
-export async function GET() {
+// Sem chamador hoje no código; fica com as telas que escolhem projeto (PPV e POS).
+export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "ppv" }, { modulo: "pos" }]);
+  if (g.resposta) return g.resposta;
   try {
     const { data, error } = await cronogramaAdmin()
       .schema("cronograma")

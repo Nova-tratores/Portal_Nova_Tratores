@@ -6,7 +6,7 @@ import { Search, FileText, Trash2, Plus, FilterX, Package, Wrench, Send, Printer
 import { gateBtn, estiloSemPermissao, MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { linhasDoOrcamento, nomesServicos, somaHorasKm } from '@/lib/orcamentos/servicos'
-import { authHeaders } from '@/lib/auth/client'
+import { authHeaders, fetchAuth } from '@/lib/auth/client'
 
 interface Orcamento {
   id: number
@@ -46,7 +46,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
 
   // Lista de técnicos — mesma fonte do POS/PPV
   useEffect(() => {
-    fetch('/api/pos/tecnicos')
+    fetchAuth('/api/pos/tecnicos')
       .then(r => r.ok ? r.json() : [])
       .then(d => { if (Array.isArray(d)) setTecnicos(d) })
       .catch(() => {})
@@ -103,7 +103,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
         const descricaoOS = idx >= 0
           ? TEMPLATE.slice(0, idx + marca.length) + " " + trecho + TEMPLATE.slice(idx + marca.length)
           : `${TEMPLATE}\n${trecho}`
-        const res = await fetch('/api/pos/ordens', {
+        const res = await fetchAuth('/api/pos/ordens', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -155,7 +155,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
         let clientePPV = nomeOrc || 'NOVA TRATORES'
         try {
           // busca pelo NOME (o banco guarda o CNPJ formatado, então buscar por dígitos falharia)
-          const rc = await fetch(`/api/ppv/clientes?termo=${encodeURIComponent(nomeOrc || orc.cliente_documento || '')}`)
+          const rc = await fetchAuth(`/api/ppv/clientes?termo=${encodeURIComponent(nomeOrc || orc.cliente_documento || '')}`)
           const cls = rc.ok ? await rc.json() : []
           const bate = Array.isArray(cls) ? cls.find((c: any) => {
             const cd = String(c.documento || '').replace(/\D/g, '')
@@ -169,7 +169,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
         const usouFallback = clientePPV === 'NOVA TRATORES' && !!nomeOrc && nomeOrc.toUpperCase() !== 'NOVA TRATORES'
         const obsPPV = `Ref. Orçamento ${orc.numero}` + (usouFallback ? ` (cliente "${nomeOrc}" não cadastrado — emitido em Nova Tratores)` : '')
 
-        const res = await fetch('/api/ppv/pedidos', {
+        const res = await fetchAuth('/api/ppv/pedidos', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

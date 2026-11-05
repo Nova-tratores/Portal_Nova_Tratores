@@ -6,6 +6,7 @@ import type { KanbanItem } from "@/lib/ppv/types";
 import { normalizarStatus, formatarDataFrontend, formatarMoeda } from "@/lib/ppv/utils";
 import { STATUS_COLORS, STATUS_OPTIONS, rotuloStatus, type StatusKey } from "@/lib/ppv/constants";
 import { useClienteEtiquetas } from "@/hooks/useClienteEtiquetas";
+import { fetchAuth } from "@/lib/auth/client";
 
 interface HoverPreview {
   temOS: boolean;
@@ -57,7 +58,7 @@ export default function KanbanCard({ item, onClick, onStatusChange }: KanbanCard
       let data = hoverCache.get(item.id);
       if (!data) {
         try {
-          const r = await fetch(`/api/ppv/hover?id=${encodeURIComponent(item.id)}`);
+          const r = await fetchAuth(`/api/ppv/hover?id=${encodeURIComponent(item.id)}`);
           if (r.ok) { data = await r.json() as HoverPreview; hoverCache.set(item.id, data); }
         } catch { /* ignore */ }
       }

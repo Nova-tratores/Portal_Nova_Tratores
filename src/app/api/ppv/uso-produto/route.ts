@@ -3,6 +3,7 @@
 // (cliente, status, data). Usado pelo filtro por código dentro do PPV.
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 export const dynamic = "force-dynamic";
 
@@ -13,7 +14,10 @@ const variantes = (c: string) => {
   return [...new Set([base, semRp, `RP-${semRp}`])];
 };
 
+// Filtro "onde este produto foi usado" dentro do PPV.
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "ppv" }]);
+  if (g.resposta) return g.resposta;
   const codigo = (req.nextUrl.searchParams.get("codigo") || "").trim();
   if (!codigo) return NextResponse.json({ error: "informe o código" }, { status: 400 });
 

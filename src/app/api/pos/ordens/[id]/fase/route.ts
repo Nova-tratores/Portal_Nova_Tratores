@@ -2,10 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { aplicarMudancaFase } from "@/lib/pos/fase";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO } from "@/lib/pos/constants";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // POS (quadro e drawer), PPV (agendar a OS vinculada = pode("ppv","mover_fase")) e a Lousa (ficha da OS)
+  const g = await protegerRota(req, [{ modulo: "pos" }, { modulo: "ppv", acao: "mover_fase" }, { modulo: "lousa" }]);
+  if (g.resposta) return g.resposta;
   const { id: idOs } = await params;
-  const { status: newStatus, userName, previsaoExecucao } = await req.json();
+  const { status: newStatus, previsaoExecucao } = await req.json();
+  const userName = autorDe(g.user); // autoria do login, nunca do corpo
 
   // OS faturada não muda de fase (a coluna só existe com sql/pos-faturamento.sql)
   const { data: fat, error: errFat } = await supabase.from(TBL_OS).select("faturado_omie_em, Status").eq("Id_Ordem", idOs).limit(1);

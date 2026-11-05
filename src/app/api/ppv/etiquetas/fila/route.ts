@@ -19,8 +19,9 @@ async function autor(req: NextRequest) {
   return { userId: auth.userId, userName: data?.nome || auth.email || '—' };
 }
 
-// GET: fila compartilhada (livre).
-export async function GET() {
+// GET: fila compartilhada — qualquer pessoa logada (mesma regra do POST/PATCH/DELETE).
+export async function GET(req: NextRequest) {
+  if (!(await autenticar(req))) return NextResponse.json({ erro: 'Não autenticado' }, { status: 401 });
   try { return NextResponse.json({ fila: await listarFila() }); }
   catch (e) { return NextResponse.json({ erro: (e as Error).message }, { status: 500 }); }
 }

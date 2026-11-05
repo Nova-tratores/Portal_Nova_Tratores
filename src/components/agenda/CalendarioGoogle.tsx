@@ -7,7 +7,7 @@
 // t hoje · d/w/m/a/e vistas · j/n próximo · k/p anterior · c criar · / buscar · ? ajuda.
 import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Menu, ChevronLeft, ChevronRight, Search, HelpCircle, X, ChevronDown, ChevronUp, Check, RefreshCw } from 'lucide-react'
-import { authHeaders } from '@/lib/auth/client'
+import { authHeaders, fetchAuth } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import TicketModal from '@/components/tickets/TicketModal'
@@ -301,15 +301,15 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
     }
     try {
       const res = r.id
-        ? await fetch('/api/pos/lousa', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: r.id, ...corpo }) })
-        : await fetch('/api/pos/lousa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...corpo, criado_por_id: userProfile.id, criado_por_nome: userProfile.nome || 'Usuário' }) })
+        ? await fetchAuth('/api/pos/lousa', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: r.id, ...corpo }) })
+        : await fetchAuth('/api/pos/lousa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...corpo, criado_por_id: userProfile.id, criado_por_nome: userProfile.nome || 'Usuário' }) })
       if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || 'Falha ao salvar')
       setFormLousa(null); setToast(r.id ? 'Lousa atualizada' : 'Lançado na Lousa'); carregar(true)
     } catch (e) { setErroForm(e instanceof Error ? e.message : 'Falha ao salvar') } finally { setSalvando(false) }
   }
   const excluirLousa = async (id: string) => {
     if (!window.confirm('Excluir este lançamento da Lousa?')) return
-    const res = await fetch(`/api/pos/lousa?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
+    const res = await fetchAuth(`/api/pos/lousa?id=${encodeURIComponent(id)}`, { method: 'DELETE' })
     if (!res.ok) { setToast('Não deu para excluir.'); return }
     setFormLousa(null); setAberto(null); setToast('Excluído da Lousa'); carregar(true)
   }
@@ -328,7 +328,7 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
       } else {
         const x = it.extra || {}
         const trocaTec = col.pessoa?.tecnicoNome && !it.pessoas.includes(col.pessoa.id) ? col.pessoa.tecnicoNome : undefined
-        const res = await fetch('/api/pos/lousa', {
+        const res = await fetchAuth('/api/pos/lousa', {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: it.ref, data: col.dia, periodo: periodoDoHorario(minParaHora(ini), minParaHora(fim)), ...(trocaTec ? { tecnico_nome: trocaTec } : {}) }),
         })

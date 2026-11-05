@@ -10,6 +10,7 @@ import {
   CheckCircle, XCircle, Package, Bell, User, Calendar, Wrench,
   Ban, Sun, LogOut, Warehouse, Settings, UserPlus, Pencil, MapPin, FileText
 } from 'lucide-react'
+import { fetchAuth } from '@/lib/auth/client'
 
 interface LousaEntry {
   id: string
@@ -143,7 +144,7 @@ export default function LousaClassica() {
 
   const carregarEntradas = useCallback(async () => {
     setLoading(true)
-    const res = await fetch(`/api/pos/lousa?inicio=${fmtDate(semana)}&fim=${fmtDate(sabado)}`)
+    const res = await fetchAuth(`/api/pos/lousa?inicio=${fmtDate(semana)}&fim=${fmtDate(sabado)}`)
     const data = await res.json()
     setEntradas(Array.isArray(data) ? data : [])
     setLoading(false)
@@ -181,7 +182,7 @@ export default function LousaClassica() {
     if (q.length < 2) { setClienteResults([]); return }
     searchTimeout.current = setTimeout(async () => {
       setSearchingClientes(true)
-      const res = await fetch(`/api/pos/lousa?modo=clientes&q=${encodeURIComponent(q)}`)
+      const res = await fetchAuth(`/api/pos/lousa?modo=clientes&q=${encodeURIComponent(q)}`)
       const data = await res.json()
       setClienteResults(Array.isArray(data) ? data : [])
       setSearchingClientes(false)
@@ -277,11 +278,11 @@ export default function LousaClassica() {
     let res: Response
     if (editEntry) {
       payload.id = editEntry.id
-      res = await fetch('/api/pos/lousa', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      res = await fetchAuth('/api/pos/lousa', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     } else {
       payload.criado_por_id = userProfile.id
       payload.criado_por_nome = userProfile.nome || 'Usuário'
-      res = await fetch('/api/pos/lousa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      res = await fetchAuth('/api/pos/lousa', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
     }
     setSaving(false)
     if (!res.ok) {
@@ -294,7 +295,7 @@ export default function LousaClassica() {
   }
 
   const excluir = async (id: string) => {
-    await fetch(`/api/pos/lousa?id=${id}`, { method: 'DELETE' })
+    await fetchAuth(`/api/pos/lousa?id=${id}`, { method: 'DELETE' })
     carregarEntradas()
   }
 
@@ -302,8 +303,8 @@ export default function LousaClassica() {
     setConfigOpen(true)
     setLoadingConfig(true)
     const [configRes, usersRes] = await Promise.all([
-      fetch('/api/pos/lousa?modo=config'),
-      fetch('/api/pos/lousa?modo=usuarios'),
+      fetchAuth('/api/pos/lousa?modo=config'),
+      fetchAuth('/api/pos/lousa?modo=usuarios'),
     ])
     const cfg = await configRes.json()
     const usrs = await usersRes.json()
@@ -313,7 +314,7 @@ export default function LousaClassica() {
   }
 
   const salvarConfig = async () => {
-    await fetch('/api/pos/lousa', {
+    await fetchAuth('/api/pos/lousa', {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ modo: 'config', notificar_user_id: configUser?.id || null, notificar_user_nome: configUser?.nome || null }),

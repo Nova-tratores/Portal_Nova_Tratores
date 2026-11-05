@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { geocodificar, rotaDaOficina, OFICINA } from "@/lib/pos/ors";
 import { buscarEnderecos } from "@/lib/pos/enderecos";
 
+// estimativa de horas/km no drawer da OS (POS)
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "pos" }]);
+  if (g.resposta) return g.resposta;
   const { cnpj, endereco, cidade, qtdHoras, enderecoManual } = await req.json();
 
   // Buscar todos os endereços disponíveis

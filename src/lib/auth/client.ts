@@ -32,8 +32,9 @@ export function htmlComBase(html: string, origem: string = window.location.origi
 /** Abre um documento de rota que exige login (PDF ou página de impressão) numa aba nova.
  *  Link direto (<a href>/window.open) não leva o token e dá 401; aqui a aba abre na hora
  *  (o navegador não bloqueia) e recebe o documento depois de buscado com o login. */
-export async function abrirComLogin(url: string): Promise<void> {
-  const janela = window.open('', '_blank')
+export async function abrirComLogin(url: string, jaAberta?: Window | null): Promise<void> {
+  // jaAberta: aba aberta antes de um await (no clique), para o navegador não bloquear
+  const janela = jaAberta ?? window.open('', '_blank')
   const aviso = (texto: string) => {
     if (!janela) return
     janela.document.title = 'Documento'

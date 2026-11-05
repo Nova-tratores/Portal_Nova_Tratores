@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import { autenticar } from "@/lib/auth/server";
+import { ehChamadaInterna } from "@/lib/auth/chamada-interna";
 import { supabaseFetch } from "@/lib/ppv/supabase";
 import { TBL_CLIENTES } from "@/lib/ppv/constants";
 import { buscaTermoSchema } from "@/lib/ppv/schemas";
 import type { ClienteBusca } from "@/lib/ppv/types";
 
+// Busca de cliente usada em muitas telas (PPV, Orçamentos, catálogo/carrinho,
+// Financeiro — chamado de NF e envio de boleto —, a página da etiqueta da peça
+// /p/[id], que só garante a sessão) e pelo chat do Tratorilson no servidor.
+// Por isso: login sem módulo OU chamada interna.
 export async function GET(req: NextRequest) {
+  if (!ehChamadaInterna(req.headers) && !(await autenticar(req))) {
+    return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  }
   const termo = req.nextUrl.searchParams.get("termo") || "";
   const parsed = buscaTermoSchema.safeParse({ termo });
   if (!parsed.success) return NextResponse.json([]);

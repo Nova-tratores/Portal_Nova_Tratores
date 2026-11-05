@@ -11,6 +11,7 @@ import {
   type ItemAgenda, type Pessoa, type Freq, type Resposta, type TipoLousa, type PeriodoLousa, type TipoCompromisso,
 } from '@/lib/agenda/regras'
 import { SeletorTipo, TipoIcone } from './TipoIcone'
+import { fetchAuth } from '@/lib/auth/client'
 
 const FONTE_ROTULO: Record<ItemAgenda['fonte'], string> = {
   evento: 'Compromisso', reuniao: 'Reunião', sala: 'Reserva da sala', ticket: 'Prazo de ticket', os: 'OS do POS', lousa: 'Lousa',
@@ -358,7 +359,7 @@ export function FormLousa({ inicial, tecnicos, salvando, erro, onSalvar, onExclu
     if (q.trim().length < 2) { setRes([]); return }
     t.current = setTimeout(async () => {
       try {
-        const j = await (await fetch(`/api/pos/lousa?modo=clientes&q=${encodeURIComponent(q)}`)).json()
+        const j = await (await fetchAuth(`/api/pos/lousa?modo=clientes&q=${encodeURIComponent(q)}`)).json()
         setRes(Array.isArray(j) ? j : []); setAbrir(true)
       } catch { setRes([]) }
     }, 300)

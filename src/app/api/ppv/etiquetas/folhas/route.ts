@@ -13,7 +13,9 @@ const supabase = createClient(
 );
 
 // GET: ?id= → { folha } (p/ reimprimir); senão → { folhas: [...] } (histórico).
+// Login sem módulo: mesma regra do POST (a tela já manda o token).
 export async function GET(req: NextRequest) {
+  if (!(await autenticar(req))) return NextResponse.json({ erro: 'Não autenticado' }, { status: 401 });
   try {
     const id = req.nextUrl.searchParams.get('id');
     if (id) {

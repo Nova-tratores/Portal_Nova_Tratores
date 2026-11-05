@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { fetchInterno } from "@/lib/auth/chamada-interna";
 import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/pos/supabase";
 import { normName, cleanName, namesMatch, splitTecnicos as splitTecsUtil, nomesBatem } from "@/lib/tecnico-utils";
@@ -523,7 +524,7 @@ export async function GET(req: NextRequest) {
         const base = { placa: vinc.placa, adesao_id: vinc.adesao_id ?? null, motorista_id: vinc.motorista_id ?? null };
         try {
           const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000';
-          const veicRes = await fetch(`${baseUrl}/api/pos/rastreamento?acao=veiculos`);
+          const veicRes = await fetchInterno(`${baseUrl}/api/pos/rastreamento?acao=veiculos`);
           if (veicRes.ok) {
             const veicList = await veicRes.json();
             const placaNorm = (vinc.placa || '').replace(/[^A-Z0-9]/g, '').toUpperCase();

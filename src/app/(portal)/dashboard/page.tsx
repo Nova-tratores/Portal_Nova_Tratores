@@ -5,7 +5,7 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import DashboardMobile from '@/components/dashboard/DashboardMobile'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { supabase } from '@/lib/supabase'
-import { fetchAuth } from '@/lib/auth/client'
+import { fetchAuth, authHeaders } from '@/lib/auth/client'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { TELAS, buscarTelas, normalizar, relevancia, type Tela } from '@/lib/dashboard/telas'
 import AtalhosDashboard from '@/components/dashboard/AtalhosDashboard'
@@ -472,7 +472,7 @@ export default function DashboardPage() {
 
         const res = await fetch(`/api/pos/sync?tipo=${step.tipo}`, {
           method: 'POST',
-          headers: { 'x-sync-manual': 'true' },
+          headers: await authHeaders(),
         })
         clearInterval(interval)
         const data = await res.json()

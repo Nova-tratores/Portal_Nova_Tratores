@@ -4,7 +4,7 @@
 // dias e horas) e, se ele mandou, o PDF do relatório.
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { authHeaders } from '@/lib/auth/client'
+import { authHeaders, fetchAuth, htmlComBase } from '@/lib/auth/client'
 import type { PaliativoOS } from '@/lib/pos/paliativos'
 
 interface Rel { status: string | null; tecnico: string | null; tecnico2: string | null; modelo: string | null; tipo: string | null; motivo: string | null; servico: string | null; horas: string | null; km: string | number | null; dias: { data: string; horas: number }[] }
@@ -17,6 +17,16 @@ export default function OSRelatorioJanela({ os, cliente, onFechar }: { os: strin
   const [pdf, setPdf] = useState<string | null>(null)
   const [paliativos, setPaliativos] = useState<PaliativoOS[]>([])
   const [aba, setAba] = useState<'texto' | 'pdf'>('texto')
+  // a impressão da OS exige login: iframe com src direto não leva o token, então busca e mostra por srcDoc
+  const [htmlOS, setHtmlOS] = useState<string | null>(null)
+  useEffect(() => {
+    let vivo = true
+    fetchAuth(`/api/pos/ordens/${encodeURIComponent(os)}/print?embed=1`)
+      .then(async (r) => (r.ok ? r.text() : `<p style="font-family:system-ui;padding:16px">Não foi possível abrir a OS (${r.status}).</p>`))
+      .then((html) => { if (vivo) setHtmlOS(htmlComBase(html)) })
+      .catch(() => { if (vivo) setHtmlOS('<p style="font-family:system-ui;padding:16px">Não foi possível abrir a OS.</p>') })
+    return () => { vivo = false }
+  }, [os])
   useEffect(() => {
     const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar() }
     window.addEventListener('keydown', esc)
@@ -64,7 +74,7 @@ export default function OSRelatorioJanela({ os, cliente, onFechar }: { os: strin
         <div className="orj-corpo">
           <section className="orj-os">
             <span className="orj-rot"><i className="fas fa-file-invoice" /> Ordem de serviço</span>
-            <iframe src={`/api/pos/ordens/${encodeURIComponent(os)}/print?embed=1`} title={os} />
+            <iframe srcDoc={htmlOS ?? '<p style="font-family:system-ui;padding:16px;color:#64748b">Carregando a OS…</p>'} title={os} />
           </section>
           <section className="orj-rel">
             <div className="orj-rel-cab">

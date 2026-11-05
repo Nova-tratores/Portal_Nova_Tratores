@@ -10,7 +10,7 @@ import {
   type UltimaOS,
 } from "./historico-cliente";
 import type { ChamadaResumo } from "./atendimento/performance";
-import { authHeaders } from "@/lib/auth/client";
+import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import type {
   ClienteInfo,
   ClienteOmie,
@@ -329,7 +329,7 @@ export async function buscarProjetosOmie(q: string): Promise<ProjetoOmie[]> {
 }
 
 export async function listarTecnicos(): Promise<string[]> {
-  const res = await fetch("/api/pos/tecnicos");
+  const res = await fetchAuth("/api/pos/tecnicos");
   if (!res.ok) return [];
   return res.json();
 }

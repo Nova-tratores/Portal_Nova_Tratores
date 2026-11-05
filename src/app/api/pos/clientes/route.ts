@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, supabaseFetchAll } from "@/lib/pos/supabase";
 import { TBL_CLIENTES, TBL_CLIENTES_MANUAIS } from "@/lib/pos/constants";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "pos" }, { modulo: "mecanicos" }, { modulo: "painel-mecanicos" }]);
+  if (g.resposta) return g.resposta;
   const id = req.nextUrl.searchParams.get("id");
 
   if (id) {

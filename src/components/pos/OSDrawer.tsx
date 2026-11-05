@@ -217,7 +217,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       const emp: Record<string, string> = {};
       await Promise.all(ids.map(async (pid) => {
         try {
-          const r = await fetch(`/api/ppv/pedidos?id=${encodeURIComponent(pid)}`);
+          const r = await fetchAuth(`/api/ppv/pedidos?id=${encodeURIComponent(pid)}`);
           const j = r.ok ? await r.json() : null;
           if (j?.pedidoOmie) mapa[pid] = String(j.pedidoOmie);
           if (j?.omieEmpresa) emp[pid] = String(j.omieEmpresa);
@@ -342,7 +342,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     const w = window.open("", "_blank");
     if (!w) return;
     const ocultas = [...reqsOcultasPrint].join(",");
-    fetch(`/api/pos/ordens/${osId}/print?pecas=${comPecas ? 1 : 0}${ocultas ? `&reqocultas=${encodeURIComponent(ocultas)}` : ""}`)
+    fetchAuth(`/api/pos/ordens/${osId}/print?pecas=${comPecas ? 1 : 0}${ocultas ? `&reqocultas=${encodeURIComponent(ocultas)}` : ""}`)
       .then((r) => r.text()).then((html) => { w.document.write(html); w.document.close(); })
       .catch(() => w.close());
   }, [osId, reqsOcultasPrint]);
@@ -351,7 +351,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setPrintMenu(false);
     const w = window.open("", "_blank");
     if (!w) return;
-    fetch(`/api/ppv/pdf?id=${encodeURIComponent(ppvId)}`)
+    fetchAuth(`/api/ppv/pdf?id=${encodeURIComponent(ppvId)}`)
       .then((r) => r.json()).then((d) => {
         if (d?.html) { w.document.write(d.html); w.document.close(); }
         else { w.close(); alert("Não consegui gerar o PDF do PPV " + ppvId); }
@@ -367,7 +367,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [qrObs, setQrObs] = useState("");
   const abrirQR = useCallback(async () => {
     if (!osId) return;
-    const link = `${window.location.origin}/api/pos/ordens/${osId}/print?view=1`;
+    const link = `${window.location.origin}/pos?id=${encodeURIComponent(osId)}`;
     setQrLink(link); setQrCopiado(false); setQrDataUrl(""); setQrObs("");
     setQrOpen(true);
     try { setQrDataUrl(await QRCode.toDataURL(link, { width: 720, margin: 1 })); } catch { /* mostra erro simples */ }
@@ -418,7 +418,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const recarregarAnexosCount = useCallback(async () => {
     if (!osId) { setAnexosCount(0); return; }
     try {
-      const r = await fetch(`/api/ppv/anexos?id=${encodeURIComponent(osId)}`);
+      const r = await fetchAuth(`/api/ppv/anexos?id=${encodeURIComponent(osId)}`);
       const j = await r.json();
       setAnexosCount(r.ok ? (j.anexos || []).length : 0);
     } catch { setAnexosCount(0); }
@@ -542,7 +542,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   // Buscar agenda do técnico quando muda técnico + data de execução
   useEffect(() => {
     if (!tecnico1 || !previsaoExecucao) { setAgendaTecnico([]); return; }
-    fetch(`/api/pos/agenda-visao?data=${previsaoExecucao}&tecnico=${encodeURIComponent(tecnico1)}`)
+    fetchAuth(`/api/pos/agenda-visao?data=${previsaoExecucao}&tecnico=${encodeURIComponent(tecnico1)}`)
       .then(r => r.ok ? r.json() : [])
       .then((rows: any[]) => {
         const outros = rows
@@ -556,7 +556,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   // Verificar quantos serviços em execução o técnico tem
   useEffect(() => {
     if (!tecnico1) { setServicoNumero(0); return; }
-    fetch(`/api/pos/tecnicos?contarServicos=${encodeURIComponent(tecnico1)}&osAtual=${osId || ''}`)
+    fetchAuth(`/api/pos/tecnicos?contarServicos=${encodeURIComponent(tecnico1)}&osAtual=${osId || ''}`)
       .then(r => r.ok ? r.json() : { servicosEmExecucao: 0 })
       .then((data: any) => {
         setServicoNumero((data.servicosEmExecucao || 0) + 1);
@@ -570,12 +570,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     if (!temSubstituto) return;
     if (substitutoTipo === "POS" && listaOSAbertas.length === 0) {
       // /api/pos/ordens devolve KanbanCard[] (campos minúsculos: id/cliente/status)
-      fetch("/api/pos/ordens").then(r => r.json()).then((data) => {
+      fetchAuth("/api/pos/ordens").then(r => r.json()).then((data) => {
         if (Array.isArray(data)) setListaOSAbertas(data.filter((o: any) => o.status !== "Cancelada" && o.status !== "Concluída" && String(o.id) !== osId).map((o: any) => ({ id: String(o.id), cliente: o.cliente || "", status: o.status || "" })));
       }).catch(() => {});
     }
     if (substitutoTipo === "PPV" && listaPPVAbertos.length === 0) {
-      fetch("/api/ppv/pedidos").then(r => r.json()).then((data) => {
+      fetchAuth("/api/ppv/pedidos").then(r => r.json()).then((data) => {
         if (Array.isArray(data)) setListaPPVAbertos(data.filter((p: any) => p.status !== "Cancelado" && p.status !== "Fechado").map((p: any) => ({ id: p.id, cliente: p.cliente || "", status: p.status || "" })));
       }).catch(() => {});
     }
@@ -640,7 +640,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     estimativaTimerRef.current = setTimeout(async () => {
       setErroEstimativa("");
       try {
-        const res = await fetch("/api/pos/estimativa", {
+        const res = await fetchAuth("/api/pos/estimativa", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -682,7 +682,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const loadPPV = useCallback(async (ppvId: string) => {
     if (!ppvId) { setProdutos([]); setTotalPecas(0); return; }
     try {
-      const res = await fetch(`/api/pos/financeiro?ppv=${encodeURIComponent(ppvId)}`);
+      const res = await fetchAuth(`/api/pos/financeiro?ppv=${encodeURIComponent(ppvId)}`);
       if (!res.ok) return;
       const data = await res.json();
       // formato novo { produtos, desconto_ppv }; aceita o array antigo no meio do deploy
@@ -713,7 +713,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     if (!confirm(`Criar um PPV de peças vinculado à ${osId}?\n\nEle nasce na fase acompanhando a OS e libera o "Adicionar peça".`)) return;
     setCriandoPPV(true);
     try {
-      const res = await fetch(`/api/pos/ordens/${osId}/criar-ppv`, {
+      const res = await fetchAuth(`/api/pos/ordens/${osId}/criar-ppv`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userName }),
       });
@@ -792,7 +792,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const fetchLembretes = useCallback(async (chave: string) => {
     if (!chave) { setLembretes([]); return; }
     try {
-      const res = await fetch(`/api/pos/lembretes?cliente=${encodeURIComponent(chave)}`);
+      const res = await fetchAuth(`/api/pos/lembretes?cliente=${encodeURIComponent(chave)}`);
       if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data)) setLembretes(data);
@@ -807,7 +807,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setClienteChave(chave);
     if (!chave) return;
     try {
-      const res = await fetch(`/api/pos/clientes?id=${encodeURIComponent(chave)}`);
+      const res = await fetchAuth(`/api/pos/clientes?id=${encodeURIComponent(chave)}`);
       if (!res.ok) return;
       const c: ClienteDados = await res.json();
       setClienteInfo(c);
@@ -899,7 +899,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     if (!(await confirmarConclusaoOS(osId))) return;
     setConcluindo(true);
     try {
-      const res = await fetch(`/api/pos/ordens/${osId}/fase`, {
+      const res = await fetchAuth(`/api/pos/ordens/${osId}/fase`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "Concluída", userName }),
       });
@@ -935,7 +935,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         horaInicioServico: "", servicoNumero: 0, horaInicioExec: "", horaFimExec: "", horaChegada: "",
         gerarPPV: false, servicoOficina, servicoInterno, alimentacoes: [], userName,
       };
-      const res = await fetch("/api/pos/ordens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) });
+      const res = await fetchAuth("/api/pos/ordens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) });
       const r = await res.json().catch(() => ({}));
       if (!res.ok || r.erro) { alert(r.erro || "Não foi possível duplicar a OS."); return; }
       onSaved();
@@ -989,7 +989,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     try {
       const url = mode === "create" ? "/api/pos/ordens" : `/api/pos/ordens/${osId}`;
       const method = mode === "create" ? "POST" : "PATCH";
-      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) });
+      const res = await fetchAuth(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) });
       const result = await res.json();
       if (!res.ok || result.erro) {
         janelaReq?.close();
@@ -1165,7 +1165,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     if (mode === "edit" && osId) {
       setAba("os");
       setLoadingData(true);
-      fetch(`/api/pos/ordens/${osId}`, { signal: ac.signal })
+      fetchAuth(`/api/pos/ordens/${osId}`, { signal: ac.signal })
         .then((r) => r.json())
         .then((d) => {
           if (!d || ac.signal.aborted) return;
@@ -1234,7 +1234,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           setShowDescontos(dv > 0 || dh > 0 || dk > 0);
           if (d.ppv) loadPPV(d.ppv);
           if (d.nomeCliente) {
-            fetch(`/api/pos/lembretes?nome=${encodeURIComponent(d.nomeCliente)}`, { signal: ac.signal })
+            fetchAuth(`/api/pos/lembretes?nome=${encodeURIComponent(d.nomeCliente)}`, { signal: ac.signal })
               .then((r) => r.json())
               .then((lbs) => { if (Array.isArray(lbs) && !ac.signal.aborted) setLembretes(lbs); })
               .catch(() => {});
@@ -1846,7 +1846,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           onClose={() => setSubstituindo(false)}
                           onFeito={async () => {
                             try {
-                              const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
+                              const d = await fetchAuth(`/api/pos/ordens/${osId}`).then((r) => r.json());
                               if (d?.ordemOmie !== undefined) setOrdemOmie(d.ordemOmie || "");
                               if (d?.pedidoVenda !== undefined) setPedidoVenda(d.pedidoVenda || "");
                             } catch { /* a lista recarrega */ }
@@ -2733,7 +2733,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       {novaReqOS && osId && (
                         <NovaRequisicaoOSModal osId={osId} tecnico={tecnico1} userName={userName || ""} onClose={() => setNovaReqOS(false)}
                           onCriada={async () => {
-                            try { const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json()); setRequisicoes(d.infoRequisicoes || []); } catch { /* a lista recarrega ao reabrir */ }
+                            try { const d = await fetchAuth(`/api/pos/ordens/${osId}`).then((r) => r.json()); setRequisicoes(d.infoRequisicoes || []); } catch { /* a lista recarrega ao reabrir */ }
                             setLogRefreshKey((k) => k + 1);
                           }} />
                       )}
@@ -2923,7 +2923,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           abrirAoCarregar={abrirFaturar}
                           onAtualizar={async () => {
                             try {
-                              const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
+                              const d = await fetchAuth(`/api/pos/ordens/${osId}`).then((r) => r.json());
                               if (d?.status) setStatusDoServidor(d.status); if (d && "faturadoOmieEm" in d) setFaturadaEm(d.faturadoOmieEm || null);
                               if (d?.ordemOmie !== undefined) setOrdemOmie(d.ordemOmie || "");
                               if (Array.isArray(d?.omieAnteriores)) setOmieAnteriores(d.omieAnteriores);
@@ -2935,7 +2935,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                             // bloco de notas já entra em "aguardando a nota" (José, 14/10/2026)
                             setNotasEsperaDesde(Date.now());
                             try {
-                              const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
+                              const d = await fetchAuth(`/api/pos/ordens/${osId}`).then((r) => r.json());
                               if (d?.status) setStatusDoServidor(d.status); if (d && "faturadoOmieEm" in d) setFaturadaEm(d.faturadoOmieEm || null);
                             } catch { /* a lista recarrega */ }
                             setLogRefreshKey((k) => k + 1);

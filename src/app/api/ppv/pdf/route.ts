@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { buscarPPVPorId, montarDadosParaImpressao, buscarDadosCliente } from "@/lib/ppv/queries";
 import { buscarCaracteristicas } from "@/lib/ppv/caracteristicas";
 
@@ -171,6 +172,15 @@ function gerarHTML(dado: ReturnType<typeof montarDadosParaImpressao>, caracMap: 
 }
 
 export async function GET(req: NextRequest) {
+  // Quem abre o PDF do PPV: o próprio PPV, o POS (PPV vinculado na OS), a Pasta
+  // Clientes (pv_pdf), o cockpit de Feedbacks (link para quem não tem o PPV) e a
+  // Janela Mecânicos (OS parada). Mesmas telas da impressão da Omie (clientes/print).
+  // Abre pelo VisualizadorDocumento ou pelo LinksComLogin, ambos com o token.
+  const g = await protegerRota(req, [
+    { modulo: "ppv" }, { modulo: "pos" }, { modulo: "clientes" },
+    { modulo: "feedbacks" }, { modulo: "mecanicos" },
+  ]);
+  if (g.resposta) return g.resposta;
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "ID obrigatório" }, { status: 400 });
 

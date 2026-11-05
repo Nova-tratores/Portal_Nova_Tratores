@@ -28,11 +28,16 @@ import { buscarPPVPorId, atualizarValorTotal, registrarLog, vincularPPVnaOS, ger
 import { criarPedidoSchema, editarPedidoSchema } from "@/lib/ppv/schemas";
 import { logAndNotify } from "@/lib/server/audit-notify";
 import { soltarUnidadesDoPPV } from "@/lib/pecas/ppv-vinculo";
-import { exigirAcessoModulo } from "@/lib/ajustes/permissao-server";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
+import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 import { motivoClienteInativo } from "@/lib/clientes/inativo";
 
 // GET - Listar kanban OU buscar por ID
+// Quem lê: o PPV, o POS (PPV vinculado na OS, editar PPVs da OS) e Orçamentos
+// (catálogo embutido no orçamento lista os PPVs abertos para "Adicionar produtos em…").
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "ppv" }, { modulo: "pos" }, { modulo: "orcamentos" }]);
+  if (g.resposta) return g.resposta;
   const id = req.nextUrl.searchParams.get("id");
 
   if (id) {
@@ -119,7 +124,12 @@ export async function GET(req: NextRequest) {
 }
 
 // POST - Criar novo pedido
+// Quem cria: tela do PPV (novo lançamento e "Duplicador", que só exige o módulo),
+// Orçamentos ("Gerar PPV" = orcamentos:gerar) e o catálogo pelo servidor
+// (catalogo/criar-doc, chamada interna).
 export async function POST(req: NextRequest) {
+  const g = await protegerRotaOuInterna(req, [{ modulo: "ppv" }, { modulo: "orcamentos", acao: "gerar" }]);
+  if (g.resposta) return g.resposta;
   try {
     const raw = await req.json();
     const parsed = criarPedidoSchema.safeParse(raw);
@@ -127,6 +137,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues.map((i) => i.message).join(", ") }, { status: 400 });
     }
     const dadosPPV = parsed.data;
+    // Autoria vem do login; só a chamada interna (catálogo) traz o nome no corpo.
+    if (!g.interno) dadosPPV.userName = autorDe(g.user);
 
     // Cliente inativo no Omie NÃO cria PPV (checa no espelho local)
     const motivoInativo = await motivoClienteInativo(dadosPPV.cliente);
@@ -213,19 +225,15 @@ export async function PATCH(req: NextRequest) {
     // Sem isto, um curl anônimo cancelava PPV e soltava as unidades rastreadas
     // (o hook de cancelamento mexe na máquina de estados do rastreio, cujo
     // contrato é escrita só autenticada). Módulo puro, granular ou admin.
-    // As demais rotas legadas do ppv seguem sem auth — débito pré-existente.
-    try {
-      await exigirAcessoModulo(req, "ppv");
-    } catch (e) {
-      const st = (e as { http?: number })?.http || 401;
-      return NextResponse.json({ error: e instanceof Error ? e.message : "não autenticado" }, { status: st });
-    }
+    const g = await protegerRota(req, [{ modulo: "ppv" }]);
+    if (g.resposta) return g.resposta;
     const raw = await req.json();
     const parsed = editarPedidoSchema.safeParse(raw);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues.map((i) => i.message).join(", ") }, { status: 400 });
     }
     const dados = parsed.data;
+    dados.userName = autorDe(g.user); // autoria do login, não do corpo
 
     // Blindagem: pedido JÁ FATURADO (faturado_omie_em setado) não pode voltar de
     // fase — força "Concluída" se tentarem gravar outra coisa (menos Cancelada).

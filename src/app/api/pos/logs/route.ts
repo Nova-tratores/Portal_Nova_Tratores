@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_LOGS_PPO } from "@/lib/pos/constants";
 
+// linha do tempo do drawer da OS (POS)
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "pos" }]);
+  if (g.resposta) return g.resposta;
   const osId = req.nextUrl.searchParams.get("osId");
   if (!osId) return NextResponse.json([]);
 

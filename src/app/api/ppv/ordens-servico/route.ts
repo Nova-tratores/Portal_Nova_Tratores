@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { autenticar } from "@/lib/auth/server";
 import { supabaseFetch } from "@/lib/ppv/supabase";
 import { TBL_OS } from "@/lib/ppv/constants";
 import type { OSBusca } from "@/lib/ppv/types";
@@ -27,7 +28,10 @@ const STATUS_ABERTOS = [
   "Preenchido Garantia",
 ];
 
+// Busca de OS: PPV (vincular OS), Cronograma (ligar projeto a uma OS) e a página
+// da etiqueta da peça /p/[id] (retirada para OS; só garante a sessão) → login sem módulo.
 export async function GET(req: NextRequest) {
+  if (!(await autenticar(req))) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   const termo = req.nextUrl.searchParams.get("termo") || "";
   const abertas = req.nextUrl.searchParams.get("abertas") === "1";
   const id = req.nextUrl.searchParams.get("id");

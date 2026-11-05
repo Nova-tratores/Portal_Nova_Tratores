@@ -9,6 +9,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { FileText, Calendar, CreditCard, User, Hash, CheckCircle, Upload, Paperclip, X, Mail, MessageCircle } from 'lucide-react'
+import { fetchAuth } from '@/lib/auth/client'
 
 export default function NovoChamadoNF() {
   const { log: auditLog } = useAuditLog()
@@ -63,7 +64,7 @@ export default function NovoChamadoNF() {
     const q = (formData.nom_cliente || '').trim()
     if (!cliShow || q.length < 2) { setCliRes([]); return }
     const t = setTimeout(async () => {
-      try { const r = await fetch(`/api/ppv/clientes?termo=${encodeURIComponent(q)}`); setCliRes(r.ok ? await r.json() : []) } catch { setCliRes([]) }
+      try { const r = await fetchAuth(`/api/ppv/clientes?termo=${encodeURIComponent(q)}`); setCliRes(r.ok ? await r.json() : []) } catch { setCliRes([]) }
     }, 300)
     return () => clearTimeout(t)
   }, [formData.nom_cliente, cliShow])

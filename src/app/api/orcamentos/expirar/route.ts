@@ -11,7 +11,7 @@ const DIAS_TOLERANCIA = 3;
 // GET — expira automaticamente orçamentos ativos que passaram da validade + tolerância
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
-  if (CRON_SECRET && authHeader !== `Bearer ${CRON_SECRET}`) {
+  if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) { // sem a env, recusa (antes ficava aberta)
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

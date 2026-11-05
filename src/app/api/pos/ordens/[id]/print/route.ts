@@ -5,6 +5,15 @@ import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { parseValorMisto } from "@/lib/marketing/custos";
 import { valorPecasDosPPVs } from "@/lib/pos/pecas-ppv";
+import { protegerRota, type OpcaoAcesso } from "@/lib/ajustes/permissao-server";
+import { PORTAL_BASE } from "@/lib/portal-url";
+
+// Quem abre o PDF da OS: POS, PPV (OS vinculada), Janela Mecânicos, cockpit dos Feedbacks
+// (sem módulo POS mostra o PDF), Pasta Clientes e o Dashboard de Vendas (clique no nº da OS).
+const ACESSO_PDF_OS: OpcaoAcesso[] = [
+  { modulo: "pos" }, { modulo: "ppv" }, { modulo: "mecanicos" }, { modulo: "feedbacks" },
+  { modulo: "clientes" }, { modulo: "estoque", acao: "dashboard" },
+];
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
@@ -17,6 +26,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const autoPrint = req.nextUrl.searchParams.get("auto") === "1" && !viewMode;
   // pecas=0 → NÃO lista as peças no PDF da OS (o usuário escolhe na hora de imprimir).
   const comPecas = req.nextUrl.searchParams.get("pecas") !== "0";
+  const g = await protegerRota(req, ACESSO_PDF_OS);
+  if (g.resposta) {
+    // QR Code impresso (view=1) aberto direto no celular não leva o token: em vez do
+    // 401 cru, manda para a OS dentro do portal (lá a pessoa entra com o login).
+    if (viewMode && g.resposta.status === 401) return NextResponse.redirect(`${PORTAL_BASE}/pos?id=${encodeURIComponent(idOs)}`);
+    return g.resposta;
+  }
   // reqocultas=1,2 → requisições que o usuário escolheu ESCONDER da impressão
   // (saem da lista E do total, igual ao "sem peças").
   const reqOcultas = new Set(

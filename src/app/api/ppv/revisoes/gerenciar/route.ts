@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -28,7 +29,14 @@ function buildColumns(produtos: { codigo: string; quantidade: number }[]) {
   return cols;
 }
 
-export async function GET() {
+// Ler a lista de kits: "Importar kit" (PPV, OS do POS, Orçamento) e o "Gerenciar Kits".
+// Mudar kit: só o "Gerenciar Kits" do menu do PPV, que aparece com pode('ppv','catalogo').
+const LER = [{ modulo: "ppv" }, { modulo: "pos" }, { modulo: "orcamentos" }];
+const GERENCIAR = [{ modulo: "ppv", acao: "catalogo" }];
+
+export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, LER);
+  if (g.resposta) return g.resposta;
   try {
     const { data, error } = await supabase
       .from("revisoes")
@@ -54,6 +62,8 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, GERENCIAR);
+  if (g.resposta) return g.resposta;
   try {
     const { Trator, Cod_Trator, Horas, produtos, tipo } = await req.json();
     if (!Trator || !Horas) return NextResponse.json({ error: "Trator e Horas obrigatórios" }, { status: 400 });
@@ -74,6 +84,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const g = await protegerRota(req, GERENCIAR);
+  if (g.resposta) return g.resposta;
   try {
     const { id, Trator, Cod_Trator, Horas, produtos, tipo } = await req.json();
     if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
@@ -89,6 +101,8 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const g = await protegerRota(req, GERENCIAR);
+  if (g.resposta) return g.resposta;
   try {
     const { id } = await req.json();
     if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });

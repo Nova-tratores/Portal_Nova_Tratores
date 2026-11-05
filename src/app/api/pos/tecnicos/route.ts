@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_TECNICOS, TBL_OS } from "@/lib/pos/constants";
+import { autenticar } from "@/lib/auth/server";
+import { ehChamadaInterna } from "@/lib/auth/chamada-interna";
 
 export async function GET(req: NextRequest) {
+  // lista usada em muitas telas (POS, Orçamentos, Feedbacks, Opa, etiqueta de peça) e pelo chat do Tratorilson
+  if (!ehChamadaInterna(req.headers) && !(await autenticar(req))) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   const contarServicos = req.nextUrl.searchParams.get("contarServicos");
   const osAtual = req.nextUrl.searchParams.get("osAtual") || "";
 

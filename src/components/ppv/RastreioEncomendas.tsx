@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchAuth } from "@/lib/auth/client";
 
 interface Encomenda {
   codigo: string;
@@ -67,7 +68,7 @@ export default function RastreioEncomendas() {
 
   const rastrear = useCallback(async (codigo: string): Promise<Partial<Encomenda>> => {
     try {
-      const res = await fetch(`/api/ppv/rastreio?codigo=${encodeURIComponent(codigo)}`);
+      const res = await fetchAuth(`/api/ppv/rastreio?codigo=${encodeURIComponent(codigo)}`);
       const data = await res.json();
 
       if (data.error) {

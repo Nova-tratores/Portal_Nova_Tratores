@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/pos/supabase'
 import { fetchRotaExata, getDestinos, detectarViagens, type Posicao, type Viagem } from '@/lib/pos/rastreamento'
+import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna"
 
 export const maxDuration = 300
 
@@ -41,6 +42,9 @@ function calcularMetricas(viagem: Viagem) {
  * para todos os tecnicos vinculados, para cada dia do periodo.
  */
 export async function POST(req: NextRequest) {
+  // robô (CRON_SECRET) ou admin rodando à mão — chama a API paga da Rota Exata dia a dia
+  const g = await protegerRotaOuInterna(req, [{ admin: true }])
+  if (g.resposta) return g.resposta
   const de = req.nextUrl.searchParams.get('de')
   const ate = req.nextUrl.searchParams.get('ate')
 

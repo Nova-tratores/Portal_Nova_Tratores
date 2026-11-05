@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { autenticar } from '@/lib/auth/server'
 
 function getSupabase() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
@@ -52,6 +53,7 @@ async function buscarNominatim(lat: string, lng: string): Promise<string> {
 }
 
 export async function GET(req: NextRequest) {
+  if (!(await autenticar(req))) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   const supabase = getSupabase()
   const lat = req.nextUrl.searchParams.get('lat')
   const lng = req.nextUrl.searchParams.get('lng')

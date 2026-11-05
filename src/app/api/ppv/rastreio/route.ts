@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const API_KEY = process.env.SEURASTREIO_API_KEY || "";
 const BASE_URL = "https://seurastreio.com.br/api/public/rastreio";
 
+// Consulta paga (SeuRastreio) — RastreioEncomendas do PPV. Exige o módulo.
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "ppv" }]);
+  if (g.resposta) return g.resposta;
   const codigo = req.nextUrl.searchParams.get("codigo");
 
   if (!codigo) {

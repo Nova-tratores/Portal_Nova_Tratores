@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, PHASES } from "@/lib/pos/constants";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
@@ -53,7 +54,10 @@ const FASES_ATRASO = new Set([
   "Relatório Concluído",
 ]);
 
+// relatório do quadro do POS
 export async function GET(request: NextRequest) {
+  const g = await protegerRota(request, [{ modulo: "pos" }]);
+  if (g.resposta) return g.resposta;
   const { searchParams } = new URL(request.url);
   const filtroTecnico = searchParams.get("tecnico") || "todos";
   const filtroTipo = searchParams.get("tipo") || "todas"; // "todas" | "atrasadas"

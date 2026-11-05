@@ -4,7 +4,7 @@
 //        explícita pos:faturar, trava no banco, sem reenvio automático ao Omie.
 import { NextRequest, NextResponse } from "next/server";
 import { estadoFaturamento, faturamentoHabilitado, faturarOSComRecibo, faturarOSNoOmie, previaRecibo, reconciliarFaturamentoOS } from "@/lib/pos/faturamento";
-import { gate, erroRota } from "./comum";
+import { guardarFaturamentoOS, erroRota } from "./comum";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,7 +13,7 @@ export const maxDuration = 300;
 const conferidas = new Map<string, number>();
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await gate(req, false);
+  const auth = await guardarFaturamentoOS(req, false);
   if (auth instanceof NextResponse) return auth;
   const { id } = await params;
   try {
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await gate(req, true);
+  const auth = await guardarFaturamentoOS(req, true);
   if (auth instanceof NextResponse) return auth;
   const { id } = await params;
   try {
@@ -50,7 +50,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
 /** PATCH → OS INTERNA: fatura com recibo (sem NFS-e, sem conta a receber). body { totalConfirmado } */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await gate(req, true);
+  const auth = await guardarFaturamentoOS(req, true);
   if (auth instanceof NextResponse) return auth;
   const { id } = await params;
   try {

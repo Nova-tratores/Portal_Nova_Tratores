@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
+import { ehChamadaInterna } from '@/lib/auth/chamada-interna'
 import { normalizarPlaca } from '@/lib/frota/placa'
 import { supabase } from '@/lib/pos/supabase'
 import { horaBR } from "@/lib/datas/brasil";
@@ -286,6 +287,13 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url)
     const acao = searchParams.get('acao') || 'veiculos'
 
+    // acao=viagens fica ABERTA de propósito: a TV da oficina (/tv-painel) lê sem login
+    // (falta um token próprio da TV). As outras ações exigem login (Meu Painel, Mecânicos)
+    // ou a chamada do sistema (api/mecanicos → acao=veiculos, via fetchInterno).
+    if (acao !== 'viagens' && !ehChamadaInterna(req.headers) && !(await autenticar(req))) {
+      return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+    }
+
     switch (acao) {
       case 'veiculos': {
         const data = await fetchRotaExata('/adesoes', { limit: '200', page: '0' })
@@ -562,7 +570,7 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   // grava no Rota Exata e em tecnico_veiculos: exige login (até 16/10/2026 era
-  // aberto). O GET continua aberto porque a TV da oficina (/tv-painel) lê sem login.
+  // aberto). No GET só acao=viagens continua aberta (a TV /tv-painel lê sem login).
   const auth = await autenticar(req)
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
   const podeGravar = auth.isAdmin || auth.modulos.some((m) => ['mecanicos', 'pos', 'frota'].some((x) => m === x || m.startsWith(x + ':')))

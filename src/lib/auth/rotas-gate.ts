@@ -4,7 +4,8 @@
 // protegido não pode esconder um GET aberto no mesmo route.ts. Vale como guarda o
 // próprio corpo do método OU uma função local que ele chama (ex.: GET → handler(req)).
 
-export const GUARDA = /protegerRota|autenticar\(|exigirAdmin|exigirPermissao|exigirAcessoModulo|guardar\w*\(|negarSem\w*|acessoDashboard\(|CRON_SECRET|temModulo\w*\(|podePPV|exigirSessao\(|protegerRotaOuInterna|validarToken\w*\(|tokenValido\w*\(/
+// guardar…( = guardas como guardarDre/guardarAgro; os guardar… que GRAVAM arquivo não contam.
+export const GUARDA = /protegerRota|autenticar\(|exigirAdmin|exigirPermissao|exigirAcessoModulo|guardar(?!Nota|PdfNfse|Lote|ImagemAssinatura|EscolhaOmie|ArquivoAssinatura)\w*\(|negarSem\w*|acessoDashboard\(|Bearer \$\{CRON_SECRET\}|ehChamadaInterna\(|cron-secret|temModulo\w*\(|podePPV|exigirSessao\(|protegerRotaOuInterna|validarToken\w*\(|tokenValido\w*\(/
 
 const METODOS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
@@ -16,11 +17,14 @@ function blocos(src: string): { nome: string; corpo: string }[] {
   return marcas.map((m, i) => ({ nome: m.nome, corpo: src.slice(m.ini, marcas[i + 1]?.ini ?? src.length) }))
 }
 
-/** Tira os comentários: guarda citada só em comentário não vale (caso real:
+/** Tira os comentários e os imports: guarda citada só em comentário não vale (caso real:
  *  catalogo/criar-doc passava por citar CRON_SECRET num comentário). O `//` de URL
  *  ("https://…") fica, por ter `:` antes. */
 export function semComentarios(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
+    // import no meio do arquivo cairia dentro do bloco da função de cima (caso ppv/pedidos:
+    // o import de exigirAcessoModulo "protegia" o POST aberto)
+    .replace(/^import\s[\s\S]*?from\s*['"][^'"]+['"];?/gm, '')
 }
 
 /** Métodos exportados que não passam por nenhuma guarda. */

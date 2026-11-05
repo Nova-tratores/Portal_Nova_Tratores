@@ -2,13 +2,13 @@
 // total, serviços, ValidarOS (em cache), forma de pagamento e pedidos de peças.
 import { NextRequest, NextResponse } from "next/server";
 import { simularFaturamentoOS } from "@/lib/pos/faturamento";
-import { gate, erroRota } from "../comum";
+import { guardarFaturamentoOS, erroRota } from "../comum";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await gate(req, true);
+  const auth = await guardarFaturamentoOS(req, true);
   if (auth instanceof NextResponse) return auth;
   const { id } = await params;
   try {

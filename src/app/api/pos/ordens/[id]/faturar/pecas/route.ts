@@ -2,14 +2,14 @@
 // que falharam quando a OS foi faturada. body { ppvIds[] }. Exige ppv:faturar.
 import { NextRequest, NextResponse } from "next/server";
 import { faturarPecasPendentes } from "@/lib/pos/faturamento";
-import { gate, erroRota } from "../comum";
+import { guardarFaturamentoOS, erroRota } from "../comum";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await gate(req, true);
+  const auth = await guardarFaturamentoOS(req, true);
   if (auth instanceof NextResponse) return auth;
   const { id } = await params;
   try {

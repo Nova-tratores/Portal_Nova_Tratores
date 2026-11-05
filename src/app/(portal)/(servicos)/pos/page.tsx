@@ -12,7 +12,7 @@ import dynamic from "next/dynamic";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import LoadingIndicator from "@/components/pos/LoadingIndicator";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
-import { authHeaders } from "@/lib/auth/client";
+import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import { supabase } from "@/lib/supabase";
 import { normName } from "@/lib/tecnico-utils";
 import type { PerfilTecnico } from "@/components/pos/Header";
@@ -103,7 +103,7 @@ function PosPageInner() {
         // (conta desativada = vai para o fim da lista, separado — José, 13/10/2026)
         const [{ data: usuarios }, emails] = await Promise.all([
           supabase.from("financeiro_usu").select("nome, email, avatar_url, ativo"),
-          fetch("/api/pos/tecnicos?perfil=1").then((r) => (r.ok ? r.json() : [])).catch(() => []) as Promise<{ nome: string; email: string }[]>,
+          fetchAuth("/api/pos/tecnicos?perfil=1").then((r) => (r.ok ? r.json() : [])).catch(() => []) as Promise<{ nome: string; email: string }[]>,
         ]);
         if (!ativo) return;
         const lista = usuarios || [];
@@ -155,7 +155,7 @@ function PosPageInner() {
   const querFechadas = useRef(false);
   const [fechadas, setFechadas] = useState<"nao" | "carregando" | "ok">("nao");
   const baixar = useCallback(async (escopo: "abertas" | "fechadas", signal?: AbortSignal) => {
-    const res = await fetch(`/api/pos/ordens?escopo=${escopo}`, { signal, headers: etags.current[escopo] ? { "If-None-Match": etags.current[escopo] } : undefined });
+    const res = await fetchAuth(`/api/pos/ordens?escopo=${escopo}`, { signal, headers: etags.current[escopo] ? { "If-None-Match": etags.current[escopo] } : undefined });
     if (res.status === 304) return;
     if (!res.ok) throw new Error("Erro HTTP");
     const data: KanbanCard[] = await res.json();
@@ -194,7 +194,7 @@ function PosPageInner() {
 
   const fetchClientes = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch("/api/pos/clientes", { signal });
+      const res = await fetchAuth("/api/pos/clientes", { signal });
       if (!res.ok) return;
       const data = await res.json();
       setClientes(data);
@@ -206,7 +206,7 @@ function PosPageInner() {
 
   const fetchTecnicos = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch("/api/pos/tecnicos", { signal });
+      const res = await fetchAuth("/api/pos/tecnicos", { signal });
       if (!res.ok) return;
       const data = await res.json();
       setTecnicos(data);
@@ -218,7 +218,7 @@ function PosPageInner() {
 
   const fetchConfig = useCallback(async (signal?: AbortSignal) => {
     try {
-      const res = await fetch("/api/pos/configuracoes", { signal });
+      const res = await fetchAuth("/api/pos/configuracoes", { signal });
       if (!res.ok) return;
       const data = await res.json();
       setValorHora(data.valor_hora);
@@ -357,7 +357,7 @@ function PosPageInner() {
     // Atualiza localmente para feedback imediato
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: newPhase } : o));
     try {
-      const res = await fetch(`/api/pos/ordens/${orderId}/fase`, {
+      const res = await fetchAuth(`/api/pos/ordens/${orderId}/fase`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newPhase, userName: atual.current.nome }),
@@ -378,7 +378,7 @@ function PosPageInner() {
     if (!atual.current.podeMoverFase) { alert("Você não tem permissão para mover de fase."); return; }
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: "Orçamento Aprovado", previsaoExecucao: dataISO } : o));
     try {
-      const res = await fetch(`/api/pos/ordens/${orderId}/fase`, {
+      const res = await fetchAuth(`/api/pos/ordens/${orderId}/fase`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "Orçamento Aprovado", userName: atual.current.nome, previsaoExecucao: dataISO }),
@@ -412,7 +412,7 @@ function PosPageInner() {
     try {
       const res = await fetch("/api/pos/sync", {
         method: "POST",
-        headers: { "x-sync-manual": "true" },
+        headers: await authHeaders(),
       });
       const data = await res.json();
       if (data.sucesso) {
@@ -438,7 +438,7 @@ function PosPageInner() {
       if (filtros.tecnico !== "todos") params.set("tecnico", filtros.tecnico);
       if (filtros.tipo !== "todas") params.set("tipo", filtros.tipo);
       const qs = params.toString();
-      const res = await fetch(`/api/pos/relatorio${qs ? `?${qs}` : ""}`);
+      const res = await fetchAuth(`/api/pos/relatorio${qs ? `?${qs}` : ""}`);
       const html = await res.text();
       const w = window.open("", "_blank");
       if (w) {

@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase'
-import { authHeaders } from '@/lib/auth/client'
+import { authHeaders, fetchAuth } from '@/lib/auth/client'
 import { montarParcelas, valorTotalCard, formatarBRL } from '@/lib/financeiro/parcelas'
 import { buscarFilhos, nfsLabel } from '@/lib/financeiro/grupo'
 
@@ -26,7 +26,7 @@ export async function resolverCnpj(card) {
   let doc = (card?.cnpj_cliente || '').trim()
   if (!doc && card?.nom_cliente) {
     try {
-      const r = await fetch(`/api/ppv/clientes?termo=${encodeURIComponent(card.nom_cliente)}`)
+      const r = await fetchAuth(`/api/ppv/clientes?termo=${encodeURIComponent(card.nom_cliente)}`)
       const arr = r.ok ? await r.json() : []
       const m = arr.find(c => (c.nome || '').toLowerCase() === card.nom_cliente.toLowerCase()) || arr[0]
       doc = (m?.documento || '').trim()

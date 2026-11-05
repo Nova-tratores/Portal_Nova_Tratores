@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { Package, Search } from 'lucide-react'
+import { fetchAuth } from '@/lib/auth/client'
 
 interface KitProduto { codigo: string; quantidade: number }
 interface Kit {
@@ -58,7 +59,7 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
   async function carregarKits() {
     setLoading(true)
     try {
-      const res = await fetch('/api/ppv/revisoes/gerenciar')
+      const res = await fetchAuth('/api/ppv/revisoes/gerenciar')
       const data = await res.json()
       setKits(Array.isArray(data) ? data : [])
     } catch { setKits([]) }
@@ -108,7 +109,7 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
       // preço certos. A busca por "termo" (ilike) falhava no quadriciclo e vinha preço 0.
       let lista: any[] = []
       try {
-        const res = await fetch(`/api/ppv/revisoes?trator=${encodeURIComponent(kit.Trator)}&horas=${encodeURIComponent(kit.Horas)}`)
+        const res = await fetchAuth(`/api/ppv/revisoes?trator=${encodeURIComponent(kit.Trator)}&horas=${encodeURIComponent(kit.Horas)}`)
         if (res.ok) lista = await res.json()
       } catch { /* tenta o fallback abaixo */ }
       let produtos: ProdutoResolvido[] = (Array.isArray(lista) ? lista : []).map((p: any) => ({
@@ -120,7 +121,7 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
           if (!p.codigo) continue
           let descricao = `Produto ${p.codigo}`, preco = 0
           try {
-            const arr = await (await fetch(`/api/ppv/produtos?termo=${encodeURIComponent(p.codigo)}`)).json()
+            const arr = await (await fetchAuth(`/api/ppv/produtos?termo=${encodeURIComponent(p.codigo)}`)).json()
             const match = Array.isArray(arr) ? arr.find((r: any) => r.codigo === p.codigo) : null
             if (match) { descricao = match.descricao || descricao; preco = match.preco || 0 }
           } catch { /* mantém fallback */ }

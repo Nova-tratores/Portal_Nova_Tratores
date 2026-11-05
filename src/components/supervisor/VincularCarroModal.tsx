@@ -23,7 +23,7 @@ export default function VincularCarroModal({ onClose, onSaved }: { onClose: () =
     Promise.all([
       fetchAuth('/api/supervisor-vendas/veiculos?acao=adesoes').then(r => r.ok ? r.json() : []),
       fetchAuth('/api/supervisor-vendas/carros?todos=1').then(r => r.ok ? r.json() : []),
-      fetch('/api/pos/lousa?modo=usuarios').then(r => r.ok ? r.json() : []),
+      fetchAuth('/api/pos/lousa?modo=usuarios').then(r => r.ok ? r.json() : []),
       fetchAuth('/api/supervisor-vendas?acao=vendedores').then(r => r.ok ? r.json() : []),
     ]).then(([ad, cl, us, ve]) => {
       setAdesoes(Array.isArray(ad) ? ad : [])

@@ -7,7 +7,7 @@ import { EMAIL_INTERNO } from "@/lib/pos/omie-espelho";
 import EditarClienteOmie from "@/components/clientes/EditarClienteOmie";
 import { alertaCepGeral } from "@/lib/clientes/novo-cliente";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { authHeaders } from "@/lib/auth/client";
+import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import { supabase } from "@/lib/supabase";
 import {
   CODIGOS_INTERNOS, calcularParcelas, diasDoEspelho, codigoRevisao, dadosAdicionaisAuto, textoContatos, type OmieEspelho, type ServicoExtra, type ContatoOS,
@@ -840,7 +840,7 @@ export function SeletorTecnicos({ tecnicos, t1, t2, onChange, podeEditar, unico 
   const [inativos, setInativos] = useState<Set<string>>(new Set());
   useEffect(() => {
     let vivo = true;
-    fetch("/api/pos/tecnicos?perfil=1").then((r) => (r.ok ? r.json() : [])).then((l: { nome: string; inativo?: boolean }[]) => {
+    fetchAuth("/api/pos/tecnicos?perfil=1").then((r) => (r.ok ? r.json() : [])).then((l: { nome: string; inativo?: boolean }[]) => {
       if (vivo) setInativos(new Set(l.filter((x) => x.inativo).map((x) => x.nome.trim())));
     }).catch(() => {});
     return () => { vivo = false; };

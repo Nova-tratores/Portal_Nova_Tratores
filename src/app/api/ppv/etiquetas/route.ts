@@ -22,6 +22,8 @@ const SELECT_PRODUTO = "conta_omie, codigo, codigo_produto, descricao, familia_n
 const FILTRO_PECA = "familia_nome.is.null,familia_nome.ilike.pe%";
 
 export async function GET(req: NextRequest) {
+  // Login sem módulo: mesma regra do POST e da fila (Etiquetas do PPV, Opa e Patrimônio imprimem).
+  if (!(await autenticar(req))) return NextResponse.json({ erro: "Faça login." }, { status: 401 });
   if (req.nextUrl.searchParams.get("recentes") === "1") {
     try {
       const { data: compras, error } = await supabase

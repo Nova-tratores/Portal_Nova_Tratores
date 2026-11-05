@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 
@@ -66,7 +67,11 @@ async function supabaseUpsert(registros: Record<string, unknown>[]) {
   }
 }
 
-export async function POST() {
+// Carga completa dos produtos da Omie (pesada): botão "Sync Preços" do menu do PPV,
+// que só aparece com pode('ppv','catalogo'). Admin passa sempre.
+export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "ppv", acao: "catalogo" }]);
+  if (g.resposta) return g.resposta;
   try {
     let total = 0;
     const erros: string[] = [];

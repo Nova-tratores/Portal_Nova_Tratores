@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const CAMPOS_NOMEADOS: [string, string, string][] = [
   ["FotoHorimetro", "Horímetro", "Identificação"],
@@ -31,6 +32,9 @@ function extrasDe(row: Record<string, unknown>): string[] {
 const SELECT_FOTOS = CAMPOS_NOMEADOS.map(([c]) => c).join(", ") + ", FotosExtras";
 
 export async function GET(req: NextRequest) {
+  // tela Fotos dos Técnicos, janela da garantia (GarantiaFotosOS) e o POS
+  const g = await protegerRota(req, [{ modulo: "fotos-tecnicos" }, { modulo: "garantias" }, { modulo: "pos" }]);
+  if (g.resposta) return g.resposta;
   const { searchParams } = new URL(req.url);
   const osId = searchParams.get("os");
 

@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_REV_PRONTAS } from "@/lib/pos/constants";
+import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 
 export async function GET(req: NextRequest) {
+  // OS (POS) e o chat do Tratorilson (servidor, fetchInterno)
+  const g = await protegerRotaOuInterna(req, [{ modulo: "pos" }]);
+  if (g.resposta) return g.resposta;
   const termo = req.nextUrl.searchParams.get("termo") || "";
   let query = supabase.from(TBL_REV_PRONTAS).select("IdRevisoes,DescricaoCompleta");
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 import { supabaseFetch, getValorInsensivel } from "@/lib/ppv/supabase";
 import { TBL_REVISOES, TBL_PRODUTOS } from "@/lib/ppv/constants";
 
@@ -19,7 +20,11 @@ async function buscarDetalhesProduto(codigo: string) {
   return { descricao: `Item ${codigo} (Não Cadastrado)`, preco: 0 };
 }
 
+// Kit de revisão: "Importar kit" do PPV, da OS (POS) e do Orçamento, e o chat do
+// Tratorilson pelo servidor (chamada interna).
 export async function GET(req: NextRequest) {
+  const g = await protegerRotaOuInterna(req, [{ modulo: "ppv" }, { modulo: "pos" }, { modulo: "orcamentos" }]);
+  if (g.resposta) return g.resposta;
   const trator = req.nextUrl.searchParams.get("trator");
   const horas = req.nextUrl.searchParams.get("horas");
 

@@ -12,7 +12,10 @@ import type {
 import { authHeaders } from "@/lib/auth/client";
 
 async function request<T>(url: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(url, options);
+  // Todas as rotas /api/ppv/* exigem login (Fase 3b): o token vai sempre.
+  // Só junta o Authorization — FormData continua sem Content-Type.
+  const headers = { ...((options?.headers as Record<string, string>) || {}), ...(await authHeaders()) };
+  const res = await fetch(url, { ...options, headers });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
   return data as T;

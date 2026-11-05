@@ -10,6 +10,7 @@ import { FASES, faseDoPPVNaTela, faseParaGravarNoPPV, rotuloDaFase } from "@/lib
 import RotuloFase from "@/components/fases/RotuloFase";
 import { useRotulosFases } from "@/hooks/useRotulosFases";
 import { CapaTitulo, CapaFaseValor, CapaBolinhas, CapaLinha, CapaData, CapaTexto, CapaReservar, CapaRodape } from "@/components/comum/CapaCard";
+import { fetchAuth } from "@/lib/auth/client";
 
 // Preview do card no hover (com OS → descrição da OS + produtos; sem OS → produtos + observação)
 interface HoverPreview {
@@ -144,7 +145,7 @@ const MiniCard = memo(function MiniCard({
       let data = hoverCache.get(o.id);
       if (!data) {
         try {
-          const r = await fetch(`/api/ppv/hover?id=${encodeURIComponent(o.id)}`);
+          const r = await fetchAuth(`/api/ppv/hover?id=${encodeURIComponent(o.id)}`);
           if (r.ok) { data = await r.json() as HoverPreview; hoverCache.set(o.id, data); }
         } catch { /* ignore */ }
       }

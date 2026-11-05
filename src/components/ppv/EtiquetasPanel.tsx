@@ -256,7 +256,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   useEffect(() => {
     ;(async () => {
       try {
-        const res = await fetch('/api/ppv/etiquetas?recentes=1')
+        const res = await fetch('/api/ppv/etiquetas?recentes=1', { headers: await authHeaders() })
         const json = await res.json()
         if (res.ok) setRecentes(json.itens || [])
       } catch { /* silencioso — a busca continua funcionando */ }
@@ -381,7 +381,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       setBuscando(true)
       setErro('')
       try {
-        const res = await fetch(`/api/ppv/etiquetas?q=${encodeURIComponent(q.trim())}`)
+        const res = await fetch(`/api/ppv/etiquetas?q=${encodeURIComponent(q.trim())}`, { headers: await authHeaders() })
         const json = await res.json()
         if (!res.ok) throw new Error(json.error || 'Falha na busca')
         setResultados(json.itens || [])

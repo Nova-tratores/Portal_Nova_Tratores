@@ -1,10 +1,14 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { supabaseFetch, getValorInsensivel } from "@/lib/ppv/supabase";
 import { TBL_ITENS } from "@/lib/ppv/constants";
 
 // GET — Produtos MAIS UTILIZADOS nos pedidos (modal "Novo Item").
 // Agrega as saídas mais recentes das movimentações e devolve o top 10.
-export async function GET() {
+// Modal de busca de peça do PPV, também aberto dentro da OS (POS).
+export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "ppv" }, { modulo: "pos" }]);
+  if (g.resposta) return g.resposta;
   try {
     let rows: Record<string, unknown>[] = [];
     try {

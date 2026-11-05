@@ -5,6 +5,7 @@ import {
   MapPin, Clock, Truck, ArrowRight, RefreshCw, Timer, Car, Activity, Zap, Home,
   AlertTriangle, Edit3, Check, X, ExternalLink, Navigation, ArrowDown
 } from 'lucide-react'
+import { fetchAuth } from '@/lib/auth/client'
 
 // ── Types ──
 interface OrdemServico { Id_Ordem: string; Status: string; Os_Cliente: string; Cnpj_Cliente: string; Os_Tecnico: string; Os_Tecnico2: string; Previsao_Execucao: string | null; Previsao_Faturamento: string | null; Serv_Solicitado: string; Endereco_Cliente: string; Cidade_Cliente: string; Tipo_Servico: string; Qtd_HR?: string | number | null; Servico_Oficina?: boolean; Hora_Inicio_Exec?: string; Hora_Fim_Exec?: string }
@@ -250,7 +251,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
   const key = `${lat.toFixed(5)},${lng.toFixed(5)}`
   if (geoCache[key]) return geoCache[key]
   try {
-    const r = await fetch(`/api/pos/geocode?lat=${lat}&lng=${lng}`)
+    const r = await fetchAuth(`/api/pos/geocode?lat=${lat}&lng=${lng}`)
     if (!r.ok) return ''
     const { endereco } = await r.json()
     if (endereco) geoCache[key] = endereco
@@ -337,9 +338,9 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
 
   // ── API ──
   const calcRota = useCallback(async (row: AgendaRow) => {
-    try { const r = await fetch('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: row.id, calcular: true }) }); if (r.ok) { const u = await r.json(); setAgenda(p => p.map(a => a.id === row.id ? u : a)) } } catch { }
+    try { const r = await fetchAuth('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: row.id, calcular: true }) }); if (r.ok) { const u = await r.json(); setAgenda(p => p.map(a => a.id === row.id ? u : a)) } } catch { }
   }, [])
-  const carregar = useCallback(async () => { const r = await fetch(`/api/pos/agenda-visao?data=${hoje}`); if (r.ok) { const rows = await r.json() as AgendaRow[]; setAgenda(rows); rows.filter(r => r.endereco && !r.coordenadas).forEach(r => calcRota(r)); return rows }; return [] }, [hoje, calcRota])
+  const carregar = useCallback(async () => { const r = await fetchAuth(`/api/pos/agenda-visao?data=${hoje}`); if (r.ok) { const rows = await r.json() as AgendaRow[]; setAgenda(rows); rows.filter(r => r.endereco && !r.coordenadas).forEach(r => calcRota(r)); return rows }; return [] }, [hoje, calcRota])
 
   const tecsRef = useRef(tecs); const ordensRef = useRef(ordens); tecsRef.current = tecs; ordensRef.current = ordens
   const sincronizar = useCallback(async () => {
@@ -354,16 +355,16 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
         const fim = fimExecucaoReal(ord)
         return hojeStr >= inicio && hojeStr <= fim
       }).map(ord => ({ id: ord.Id_Ordem, cliente: ord.Os_Cliente, cnpj: ord.Cnpj_Cliente, endereco: ord.Endereco_Cliente, cidade: ord.Cidade_Cliente, servico: ord.Serv_Solicitado, qtdHoras: parseFloat(String(ord.Qtd_HR || 0)) || 2, horaInicio: ord.Hora_Inicio_Exec || '', horaFim: ord.Hora_Fim_Exec || '', observacoes: extrairSolicitacao(ord.Serv_Solicitado || '') })) }))
-      if (payload.length > 0) { const r = await fetch('/api/pos/agenda-visao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: hoje, tecnicos: payload }) }); if (r.ok) { const rows = await r.json() as AgendaRow[]; setAgenda(rows); rows.filter(r => r.endereco && (r.tempo_ida_min === 0 || !r.coordenadas)).forEach(r => calcRota(r)) } } else { await carregar() }
+      if (payload.length > 0) { const r = await fetchAuth('/api/pos/agenda-visao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: hoje, tecnicos: payload }) }); if (r.ok) { const rows = await r.json() as AgendaRow[]; setAgenda(rows); rows.filter(r => r.endereco && (r.tempo_ida_min === 0 || !r.coordenadas)).forEach(r => calcRota(r)) } } else { await carregar() }
     } finally { setSyncing(false) }
   }, [hoje, carregar, calcRota])
 
-  const carregarVeiculos = useCallback(async () => { try { const r = await fetch('/api/pos/rastreamento?acao=veiculos'); if (r.ok) setVeiculos(await r.json()) } catch { } }, [])
+  const carregarVeiculos = useCallback(async () => { try { const r = await fetchAuth('/api/pos/rastreamento?acao=veiculos'); if (r.ok) setVeiculos(await r.json()) } catch { } }, [])
   const carregarVinculos = useCallback(async () => { const { data } = await supabase.from('tecnico_veiculos').select('*'); if (data) setVinculos(data as VinculoVeiculo[]) }, [])
   const carregarGPS = useCallback(async (vincs: VinculoVeiculo[]) => {
     if (vincs.length === 0) return; setGpsLoading(true)
     const map: Record<string, ViagemGPS> = {}
-    for (const v of vincs) { try { const r = await fetch(`/api/pos/rastreamento?acao=viagens&adesao_id=${v.adesao_id}`); if (r.ok) { const viagens: ViagemGPS[] = await r.json(); const h = viagens.find(vi => vi.data === hoje); if (h) map[v.tecnico_nome] = h } } catch { } }
+    for (const v of vincs) { try { const r = await fetchAuth(`/api/pos/rastreamento?acao=viagens&adesao_id=${v.adesao_id}`); if (r.ok) { const viagens: ViagemGPS[] = await r.json(); const h = viagens.find(vi => vi.data === hoje); if (h) map[v.tecnico_nome] = h } } catch { } }
     setViagensPorTec(map); setGpsLoading(false)
     // Salvar GPS no banco (GPS_Viagens) para histórico
     for (const [nome, viagem] of Object.entries(map)) {
@@ -408,13 +409,13 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
     if (ex) await supabase.from('tecnico_veiculos').update({ adesao_id: adesaoId, placa: vei.placa, descricao: vei.descricao }).eq('id', ex.id)
     else await supabase.from('tecnico_veiculos').insert({ tecnico_nome: tecNome, adesao_id: adesaoId, placa: vei.placa, descricao: vei.descricao })
     await carregarVinculos()
-    try { const r = await fetch(`/api/pos/rastreamento?acao=viagens&adesao_id=${adesaoId}`); if (r.ok) { const vs: ViagemGPS[] = await r.json(); const h = vs.find(v => v.data === hoje); if (h) { setViagensPorTec(p => ({ ...p, [tecNome]: h })); if (h.ultima_posicao) reverseGeocode(h.ultima_posicao.lat, h.ultima_posicao.lng).then(a => { if (a) setCarAddr(p => ({ ...p, [tecNome]: a })) }) } else setViagensPorTec(p => { const n = { ...p }; delete n[tecNome]; return n }) } } catch { }
+    try { const r = await fetchAuth(`/api/pos/rastreamento?acao=viagens&adesao_id=${adesaoId}`); if (r.ok) { const vs: ViagemGPS[] = await r.json(); const h = vs.find(v => v.data === hoje); if (h) { setViagensPorTec(p => ({ ...p, [tecNome]: h })); if (h.ultima_posicao) reverseGeocode(h.ultima_posicao.lat, h.ultima_posicao.lng).then(a => { if (a) setCarAddr(p => ({ ...p, [tecNome]: a })) }) } else setViagensPorTec(p => { const n = { ...p }; delete n[tecNome]; return n }) } } catch { }
   }, [veiculos, hoje, carregarVinculos])
   const desvincularVeiculo = useCallback(async (tecNome: string) => { await supabase.from('tecnico_veiculos').delete().eq('tecnico_nome', tecNome); await carregarVinculos(); setViagensPorTec(p => { const n = { ...p }; delete n[tecNome]; return n }) }, [carregarVinculos])
 
   const salvarEndereco = useCallback(async () => {
     if (!editingAddr) return; setSavingAddr(true)
-    try { const r = await fetch('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingAddr.id, endereco: editingAddr.value }) }); if (r.ok) { const u = await r.json(); setAgenda(p => p.map(a => a.id === editingAddr.id ? u : a)) } } catch { }
+    try { const r = await fetchAuth('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: editingAddr.id, endereco: editingAddr.value }) }); if (r.ok) { const u = await r.json(); setAgenda(p => p.map(a => a.id === editingAddr.id ? u : a)) } } catch { }
     setSavingAddr(false); setEditingAddr(null)
   }, [editingAddr])
 
@@ -422,11 +423,11 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
     const key = `${agendaId}`
     if (autoUpdatedRef.current.has(key)) return
     autoUpdatedRef.current.add(key)
-    try { const r = await fetch('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: agendaId, endereco: newAddr }) }); if (r.ok) { const u = await r.json(); setAgenda(p => p.map(a => a.id === agendaId ? u : a)) } } catch { }
+    try { const r = await fetchAuth('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: agendaId, endereco: newAddr }) }); if (r.ok) { const u = await r.json(); setAgenda(p => p.map(a => a.id === agendaId ? u : a)) } } catch { }
   }, [])
 
   const aplicarEnderecoGPS = useCallback(async (agendaId: number, gpsAddr: string, tecNome: string) => {
-    try { const r = await fetch('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: agendaId, endereco: gpsAddr }) }); if (r.ok) { const u = await r.json(); setAgenda(p => p.map(a => a.id === agendaId ? u : a)) } } catch { }
+    try { const r = await fetchAuth('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: agendaId, endereco: gpsAddr }) }); if (r.ok) { const u = await r.json(); setAgenda(p => p.map(a => a.id === agendaId ? u : a)) } } catch { }
     setAddrMismatch(p => { const n = { ...p }; delete n[tecNome]; return n })
   }, [])
 
@@ -518,7 +519,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
         // 1. Atualiza ordem_sequencia
         for (const upd of updates) {
           try {
-            const r = await fetch('/api/pos/agenda-visao', {
+            const r = await fetchAuth('/api/pos/agenda-visao', {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ id: upd.id, ordem_sequencia: upd.ordem_sequencia })
@@ -535,7 +536,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
           const atual = novaOrdem[i]
           if (anterior.coordenadas && atual.endereco) {
             try {
-              const r = await fetch('/api/pos/agenda-visao', {
+              const r = await fetchAuth('/api/pos/agenda-visao', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -816,7 +817,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
       setResumoSalvoEm(null)
 
       // Carregar do banco (sobrescreve auto-cálculo se já foi salvo antes)
-      fetch(`/api/pos/resumo-diario?data=${hoje}&tecnico=${encodeURIComponent(modalTec)}`)
+      fetchAuth(`/api/pos/resumo-diario?data=${hoje}&tecnico=${encodeURIComponent(modalTec)}`)
         .then(r => r.ok ? r.json() : null)
         .then((saved: any) => {
           if (saved) {
@@ -830,7 +831,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
             if (saved.resumo && saved.resumo.trim()) { setResumoTec(saved.resumo); return }
           }
           // Fallback: carregar resumo da agenda_visao ou auto-gerar
-          fetch(`/api/pos/agenda-visao?data=${hoje}&tecnico=${encodeURIComponent(modalTec)}`)
+          fetchAuth(`/api/pos/agenda-visao?data=${hoje}&tecnico=${encodeURIComponent(modalTec)}`)
             .then(r => r.ok ? r.json() : [])
             .then((rows: any[]) => {
               const existing = rows.find((r: any) => r.resumo && r.resumo.trim())
@@ -878,12 +879,12 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
       setHistMetricas({ horasDirigindo: 0, kmPercorrido: 0, horasNoCliente: 0 })
     }
     // Carregar resumo salvo
-    fetch(`/api/pos/resumo-diario?data=${dataHistorico}&tecnico=${encodeURIComponent(modalHistTec)}`)
+    fetchAuth(`/api/pos/resumo-diario?data=${dataHistorico}&tecnico=${encodeURIComponent(modalHistTec)}`)
       .then(r => r.ok ? r.json() : null)
       .then((saved: any) => {
         if (saved?.resumo) { setHistResumo(saved.resumo); return }
         // Fallback: carregar da agenda_visao
-        fetch(`/api/pos/agenda-visao?data=${dataHistorico}&tecnico=${encodeURIComponent(modalHistTec)}`)
+        fetchAuth(`/api/pos/agenda-visao?data=${dataHistorico}&tecnico=${encodeURIComponent(modalHistTec)}`)
           .then(r => r.ok ? r.json() : [])
           .then((rows: any[]) => {
             const existing = rows.find((r: any) => r.resumo && r.resumo.trim())
@@ -901,13 +902,13 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
     if (d) {
       // Salvar resumo texto na agenda_visao (legado)
       for (const item of d.items) {
-        await fetch('/api/pos/agenda-visao', {
+        await fetchAuth('/api/pos/agenda-visao', {
           method: 'PATCH', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: item.id, resumo: resumoTec }),
         }).catch(() => {})
       }
       // Salvar resumo texto na tabela resumo_diario_tecnico (métricas já são auto-salvas pelo GPS)
-      await fetch('/api/pos/resumo-diario', {
+      await fetchAuth('/api/pos/resumo-diario', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           data: hoje,
@@ -930,7 +931,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
     const d = cardData.find(c => c.tec.tecnico_nome === tecNome)
     if (d && d.items.length > 0) {
       // Salva no primeiro item do técnico
-      await fetch('/api/pos/agenda-visao', {
+      await fetchAuth('/api/pos/agenda-visao', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: d.items[0].id, atividade_oficina: texto }),
       }).catch(() => {})
@@ -966,7 +967,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
       const metricas = calcularMetricasGPS(d)
       // Só salva se tem dados reais
       if (metricas.horasDirigindo > 0 || metricas.kmPercorrido > 0 || metricas.horasNoCliente > 0) {
-        fetch('/api/pos/resumo-diario', {
+        fetchAuth('/api/pos/resumo-diario', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             data: hoje,
@@ -1053,7 +1054,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
         lastSyncRef.current[String(agItem.id)] = key
 
         // Sync to API
-        fetch('/api/pos/agenda-visao', {
+        fetchAuth('/api/pos/agenda-visao', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -1080,7 +1081,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
     if (!dataHistorico || dataHistorico === hoje) { setAgendaHistorico(null); setGpsHistorico({}); return }
     setLoadingHistorico(true)
     Promise.all([
-      fetch(`/api/pos/agenda-visao?data=${dataHistorico}`).then(r => r.ok ? r.json() : []),
+      fetchAuth(`/api/pos/agenda-visao?data=${dataHistorico}`).then(r => r.ok ? r.json() : []),
       supabase.from('GPS_Viagens').select('*').eq('data', dataHistorico).then(({ data }) => data || []),
     ]).then(([rows, gpsRows]: [AgendaRow[], any[]]) => {
       setAgendaHistorico(rows)
@@ -1653,7 +1654,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                             if (dd && dd.items.length > 0) {
                               const hora = dv.visita.chegada ? fHora(dv.visita.chegada) : ''
                               const txt = `Desvio de rota: parou ${fm(dv.permanenciaMin)} às ${hora}${dv.visita.destino_nome ? ` (${dv.visita.destino_nome})` : ''}`
-                              await fetch('/api/pos/agenda-visao', {
+                              await fetchAuth('/api/pos/agenda-visao', {
                                 method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ id: dd.items[0].id, resumo: txt }),
                               }).catch(() => {})
@@ -2097,7 +2098,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                               if (d.items.length > 0) {
                                 const hora = dv.visita.chegada ? fHora(dv.visita.chegada) : ''
                                 const txt = `Desvio de rota: parou ${fm(dv.permanenciaMin)} às ${hora}${dv.visita.destino_nome ? ` (${dv.visita.destino_nome})` : ''}`
-                                await fetch('/api/pos/agenda-visao', {
+                                await fetchAuth('/api/pos/agenda-visao', {
                                   method: 'PATCH', headers: { 'Content-Type': 'application/json' },
                                   body: JSON.stringify({ id: d.items[0].id, resumo: txt }),
                                 }).catch(() => {})
@@ -2218,7 +2219,7 @@ export default function BlocoVisaoGeral({ tecnicos, ordens, caminhos }: { tecnic
                             <div style={{ display: 'flex', gap: 3, flexShrink: 0 }}>
                               <button onClick={async () => {
                                 try {
-                                  const r = await fetch('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: agItem.id, endereco: ENDERECO_OFICINA }) })
+                                  const r = await fetchAuth('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: agItem.id, endereco: ENDERECO_OFICINA }) })
                                   if (r.ok) { const u = await r.json(); setAgenda(p => p.map(a => a.id === agItem.id ? u : a)) }
                                 } catch { }
                               }}

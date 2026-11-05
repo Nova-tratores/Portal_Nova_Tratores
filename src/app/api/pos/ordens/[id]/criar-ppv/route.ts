@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_PEDIDOS, POS_TO_PPV_STATUS } from "@/lib/pos/constants";
 import { dataHoraBR } from "@/lib/datas/brasil";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 
 // POST /api/pos/ordens/[id]/criar-ppv
 // Cria um PPV de peças JÁ VINCULADO a uma OS existente — em QUALQUER etapa.
@@ -9,9 +10,11 @@ import { dataHoraBR } from "@/lib/datas/brasil";
 // a OS já está em Executada/Preenchimento Garantia/Concluída sem PPV e não
 // havia como criar um pelo drawer (o toggle "gerar PPV" é só da criação).
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // só o drawer da OS (POS) chama
+  const g = await protegerRota(req, [{ modulo: "pos" }]);
+  if (g.resposta) return g.resposta;
   const { id: idOs } = await params;
-  const body = await req.json().catch(() => ({}));
-  const userName = String(body.userName || "Sistema");
+  const userName = autorDe(g.user); // autoria do login, nunca do corpo
 
   const { data: osRes } = await supabase
     .from(TBL_OS)

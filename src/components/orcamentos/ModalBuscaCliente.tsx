@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { fetchAuth } from '@/lib/auth/client'
 
 interface ClienteBusca {
   nome: string
@@ -28,7 +29,7 @@ export default function ModalBuscaClienteOrc({ open, onClose, onSelect }: Props)
       setTermo('')
       setResultados([])
       setBuscando(true)
-      fetch('/api/ppv/clientes?termo=a')
+      fetchAuth('/api/ppv/clientes?termo=a')
         .then(r => r.json())
         .then(data => setResultados(data))
         .catch(() => {})
@@ -41,7 +42,7 @@ export default function ModalBuscaClienteOrc({ open, onClose, onSelect }: Props)
     if (t.trim().length < 1) return
     setBuscando(true)
     try {
-      const res = await fetch(`/api/ppv/clientes?termo=${encodeURIComponent(t.trim())}`)
+      const res = await fetchAuth(`/api/ppv/clientes?termo=${encodeURIComponent(t.trim())}`)
       const data = await res.json()
       setResultados(data)
     } catch { /* */ }

@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
 import { numeroNfse, contaOmieDaEmpresa, chaveOS } from "@/lib/clientes/numero-nf";
 import { linkNoPortal, baixarPdf, pdfNfseNoOmie, guardarPdfNfse, numeroNfsePeloStatusOS } from "@/lib/clientes/nfse-omie";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 // PDF da NFS-e de uma OS, direto do Omie, para o botão "Ver a nota" da pasta.
 // Se a OS já tem o PDF no storage, devolve ele; senão acha a NFS-e da OS no
@@ -30,6 +31,9 @@ function falha(msg: string, status = 404) {
 }
 
 export async function GET(req: NextRequest) {
+  // botão "Ver" da NFS-e na Pasta Clientes (VisualizadorDocumento manda o token)
+  const g = await protegerRota(req, [{ modulo: "clientes" }]);
+  if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const empresa = (sp.get("empresa") || "").trim();
   const codOS = Number(sp.get("cod_os") || 0);

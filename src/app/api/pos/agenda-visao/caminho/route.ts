@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 /** POST — cria um novo caminho (tecnico_caminhos) vinculado à agenda */
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "pos" }, { modulo: "mecanicos" }, { modulo: "painel-mecanicos" }]);
+  if (g.resposta) return g.resposta;
   const { tecnico_nome, destino, cidade, motivo } = await req.json();
 
   if (!tecnico_nome || !destino) {

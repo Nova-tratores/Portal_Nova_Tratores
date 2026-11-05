@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { fetchAuth } from "@/lib/auth/client";
 
 interface Produto { codigo: string; quantidade: number }
 interface Revisao {
@@ -30,7 +31,7 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
 
   const carregar = useCallback(async () => {
     setLoading(true);
-    try { const res = await fetch("/api/ppv/revisoes/gerenciar"); if (res.ok) setRevisoes(await res.json()); } catch { /* */ }
+    try { const res = await fetchAuth("/api/ppv/revisoes/gerenciar"); if (res.ok) setRevisoes(await res.json()); } catch { /* */ }
     setLoading(false);
   }, []);
 
@@ -64,7 +65,7 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
     try {
       let criados = 0;
       for (const k of kits) {
-        const res = await fetch("/api/ppv/revisoes/gerenciar", {
+        const res = await fetchAuth("/api/ppv/revisoes/gerenciar", {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ Trator: novo, Cod_Trator: cloneCod.trim(), Horas: k.Horas, tipo: k.tipo || "revisao", produtos: k.produtos }),
         });
@@ -90,7 +91,7 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
     try {
       const body: any = { Trator: editTrator.trim(), Cod_Trator: editCodTrator.trim(), Horas: horasFinal, tipo: editTipo, produtos: produtosLimpos };
       if (selected) body.id = selected.id;
-      const res = await fetch("/api/ppv/revisoes/gerenciar", { method: selected ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await fetchAuth("/api/ppv/revisoes/gerenciar", { method: selected ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) { setMsg(data.error || "Erro ao salvar"); }
       else { setMsg("Salvo!"); setSelected(null); setCriando(false); await carregar(); onSaved?.(); }
@@ -100,7 +101,7 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
 
   const excluir = async (id: number) => {
     if (!confirm("Excluir este kit?")) return;
-    try { await fetch("/api/ppv/revisoes/gerenciar", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    try { await fetchAuth("/api/ppv/revisoes/gerenciar", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
       if (selected?.id === id) { setSelected(null); setCriando(false); } await carregar(); onSaved?.();
     } catch { /* */ }
   };

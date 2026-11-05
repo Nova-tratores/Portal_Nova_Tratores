@@ -10,7 +10,7 @@
 //
 // O que sai daqui vai pro POST /api/pecas/unidades/[id]/acoes (ação 'retirar').
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { authHeaders } from '@/lib/auth/client';
+import { authHeaders, fetchAuth } from '@/lib/auth/client';
 import type { DestinoTipo } from '@/lib/pecas/unidades';
 
 export interface ClienteEscolhido {
@@ -60,7 +60,7 @@ function BuscaCliente({ valor, onEscolher }: { valor: ClienteEscolhido | null; o
     timer.current = setTimeout(async () => {
       setBuscando(true);
       try {
-        const r = await fetch(`/api/ppv/clientes?termo=${encodeURIComponent(t)}`);
+        const r = await fetchAuth(`/api/ppv/clientes?termo=${encodeURIComponent(t)}`);
         const j = await r.json();
         setAchados(Array.isArray(j) ? j.slice(0, 8) : []);
       } catch { setAchados([]); } finally { setBuscando(false); }
@@ -143,7 +143,7 @@ export default function FormRetirada({ nome, enviando, onConfirmar, onVoltar }: 
     if (destino !== 'os' || oss.length > 0) return;
     (async () => {
       try {
-        const r = await fetch('/api/ppv/ordens-servico?abertas=1');
+        const r = await fetchAuth('/api/ppv/ordens-servico?abertas=1');
         const j = await r.json();
         if (r.ok) setOss(j.ordens || j || []);
       } catch { /* select fica vazio; dá pra criar a OS aqui mesmo */ }
@@ -168,7 +168,7 @@ export default function FormRetirada({ nome, enviando, onConfirmar, onVoltar }: 
     if (tecnicos.length > 0) return;
     (async () => {
       try {
-        const r = await fetch('/api/pos/tecnicos');
+        const r = await fetchAuth('/api/pos/tecnicos');
         const j = await r.json();
         if (Array.isArray(j)) setTecnicos(j);
       } catch { /* fica como texto livre */ }
@@ -182,7 +182,7 @@ export default function FormRetirada({ nome, enviando, onConfirmar, onVoltar }: 
     setSalvandoOs(true);
     setErro('');
     try {
-      const r = await fetch('/api/pos/ordens', {
+      const r = await fetchAuth('/api/pos/ordens', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

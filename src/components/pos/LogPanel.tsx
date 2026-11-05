@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import type { LogEntry } from "@/lib/pos/types";
+import { fetchAuth } from "@/lib/auth/client";
 
 interface LogPanelProps {
   osId: string | null;
@@ -17,7 +18,7 @@ export default function LogPanel({ osId, visible, refreshKey }: LogPanelProps) {
     if (!osId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/pos/logs?osId=${osId}`);
+      const res = await fetchAuth(`/api/pos/logs?osId=${osId}`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data)) setLogs(data);

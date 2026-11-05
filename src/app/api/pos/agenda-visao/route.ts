@@ -2,11 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { buscarEnderecos } from "@/lib/pos/enderecos";
 import { geocodificar, rotaDaOficina, calcularRota, OFICINA } from "@/lib/pos/ors";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const TBL = "agenda_visao";
 
 /** GET — busca agenda do dia ou range de datas */
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "pos" }, { modulo: "mecanicos" }, { modulo: "painel-mecanicos" }]);
+  if (g.resposta) return g.resposta;
   const { searchParams } = new URL(req.url);
   const data = searchParams.get("data");
   const de = searchParams.get("de");
@@ -31,6 +34,8 @@ export async function GET(req: NextRequest) {
 
 /** POST — sync rápido: salva dados básicos das ordens SEM chamar ORS */
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "pos" }, { modulo: "mecanicos" }, { modulo: "painel-mecanicos" }]);
+  if (g.resposta) return g.resposta;
   const { data: dataStr, tecnicos } = await req.json();
 
   if (!dataStr || !Array.isArray(tecnicos)) {
@@ -138,6 +143,8 @@ export async function POST(req: NextRequest) {
 
 /** PATCH — atualiza item. Se manda calcular=true, faz geocode+rota */
 export async function PATCH(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "pos" }, { modulo: "mecanicos" }, { modulo: "painel-mecanicos" }]);
+  if (g.resposta) return g.resposta;
   const dados = await req.json();
   const { id, calcular, ...campos } = dados;
 
@@ -267,6 +274,8 @@ export async function PATCH(req: NextRequest) {
 
 /** DELETE — remove item */
 export async function DELETE(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "pos" }, { modulo: "mecanicos" }, { modulo: "painel-mecanicos" }]);
+  if (g.resposta) return g.resposta;
   const { id } = await req.json();
   if (!id) return NextResponse.json({ erro: "id obrigatório" }, { status: 400 });
 

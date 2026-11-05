@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { supabaseFetch, getValorInsensivel } from "@/lib/ppv/supabase";
 import { TBL_PRODUTOS, TBL_PRODUTOS_MANUAIS } from "@/lib/ppv/constants";
 import { buscaTermoSchema, produtoManualSchema, editarPrecoSchema } from "@/lib/ppv/schemas";
 import type { ProdutoBusca } from "@/lib/ppv/types";
 import { filtroBuscaProdutos } from "@/lib/ppv/busca-produtos";
 
-// GET - Buscar produtos
+// GET - Buscar produtos: PPV, POS (busca de peça na OS) e Orçamentos (busca e importar kit).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "ppv" }, { modulo: "pos" }, { modulo: "orcamentos" }]);
+  if (g.resposta) return g.resposta;
   const termo = req.nextUrl.searchParams.get("termo") || "";
   const parsed = buscaTermoSchema.safeParse({ termo });
   if (!parsed.success) return NextResponse.json([]);
@@ -66,7 +69,12 @@ export async function GET(req: NextRequest) {
 }
 
 // PATCH - Editar preço de produto (Produtos_Completos)
+// Nenhuma tela chega aqui: o preço da Omie é de Peças, no cadastro da Omie (a busca
+// só deixa editar produto MANUAL, que vai pelo POST). Grava o preço de todo mundo
+// até o próximo sync → só admin.
 export async function PATCH(req: NextRequest) {
+  const g = await protegerRota(req, [{ admin: true }]);
+  if (g.resposta) return g.resposta;
   try {
     const raw = await req.json();
     const parsed = editarPrecoSchema.safeParse(raw);
@@ -89,8 +97,11 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-// POST - Salvar produto manual
+// POST - Salvar produto manual: PPV (Criar/Editar Produto, carrinho) e a busca de
+// peça dentro da OS do POS (mesmo ModalBuscaProduto).
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "ppv" }, { modulo: "pos" }]);
+  if (g.resposta) return g.resposta;
   try {
     const raw = await req.json();
     const parsed = produtoManualSchema.safeParse(raw);

@@ -15,6 +15,7 @@ export const rotuloApoio = (nome: string) => {
 }
 import { brl, horas, kmFmt, Numero, useContador } from './ui'
 import { LadoDireito } from './LadoDireitoOpcoes'
+import { fetchAuth } from '@/lib/auth/client'
 
 const MUDO = 'var(--portal-text-muted, #64748b)'
 export const CE = { mo: '#0369a1', km: '#16a34a', pecas: '#ea580c', outros: '#94a3b8' }
@@ -317,7 +318,7 @@ export function useSimulacao(c: Conta) {
   // valor da hora de TABELA (configuração do POS, hoje R$ 200) — José, 21/10/2026: "a hora não é 185, é 200".
   // A média cobrada (vh) fica abaixo da tabela por causa de descontos e da garantia paga a R$ 100/h.
   const [vhTab, setVhTab] = useState(200)
-  useEffect(() => { let vivo = true; fetch('/api/pos/configuracoes').then((r) => r.json()).then((j) => { if (vivo && Number(j.valor_hora) > 0) setVhTab(Number(j.valor_hora)) }).catch(() => {}); return () => { vivo = false } }, [])
+  useEffect(() => { let vivo = true; fetchAuth('/api/pos/configuracoes').then((r) => r.json()).then((j) => { if (vivo && Number(j.valor_hora) > 0) setVhTab(Number(j.valor_hora)) }).catch(() => {}); return () => { vivo = false } }, [])
   const vkm = c.kmRod > 0 ? c.km / c.kmRod : 0
   // pessoal: só quem está marcado na lista; técnico novo custa a média do salário dos técnicos de campo
   const dentro = c.equipe.filter((p) => !fora.includes(p.nome))

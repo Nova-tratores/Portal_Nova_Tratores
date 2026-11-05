@@ -4,7 +4,7 @@
 // motivo). Grava em POST /api/pos/ordens/[id]/ppvs.
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { authHeaders } from "@/lib/auth/client";
+import { authHeaders, fetchAuth } from "@/lib/auth/client";
 
 interface PPVResumo { id: string; cliente: string; status: string; valor: number; pedidoOmie: string; osId: string; tipo: string; data: string; nfNumero: string }
 type Destino = "manter" | "cancelar";
@@ -27,7 +27,7 @@ export default function EditarPPVsModal({ osId, cliente, vinculados, onClose, on
 
   useEffect(() => {
     let vivo = true;
-    fetch("/api/ppv/pedidos").then((r) => r.json()).then((l: PPVResumo[]) => { if (vivo) setTodos(Array.isArray(l) ? l : []); }).catch(() => { if (vivo) setTodos([]); });
+    fetchAuth("/api/ppv/pedidos").then((r) => r.json()).then((l: PPVResumo[]) => { if (vivo) setTodos(Array.isArray(l) ? l : []); }).catch(() => { if (vivo) setTodos([]); });
     return () => { vivo = false; };
   }, []);
 

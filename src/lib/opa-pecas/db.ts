@@ -5,6 +5,7 @@
 import { supabase } from '@/lib/supabase'
 import { mensagemErro } from './fotos'
 import type { Aplicacao, Decisao, Destino, Historico, Item, Local, Lookup, Qualidade, Status } from './tipos'
+import { fetchAuth } from '@/lib/auth/client'
 
 const SELECT_ITEM = '*, pni_fotos(id, storage_path, ordem), pni_aplicacoes(id, tipo_maquina_id, marca_id)'
 
@@ -81,7 +82,7 @@ let cacheTecnicos: string[] | null = null
 export async function listarTecnicos(): Promise<string[]> {
   if (cacheTecnicos) return cacheTecnicos
   try {
-    const r = await fetch('/api/pos/tecnicos')
+    const r = await fetchAuth('/api/pos/tecnicos')
     const j = await r.json()
     if (Array.isArray(j)) cacheTecnicos = [...new Set(j.filter((x): x is string => typeof x === 'string' && !!x.trim()))]
   } catch { /* segue vazio */ }

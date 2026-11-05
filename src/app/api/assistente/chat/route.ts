@@ -334,13 +334,13 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
         const combos = [...new Set(rows.map((r) => `${r.Trator} (${r.Horas})`))];
         return { encontrado: false, mensagem: `Não achei kit pra "${args.modelo}" / ${args.horas}h.`, kits_disponiveis: combos };
       }
-      const r = await fetch(`${origin}/api/ppv/revisoes?trator=${encodeURIComponent(row.Trator)}&horas=${encodeURIComponent(row.Horas)}`);
+      const r = await fetchInterno(`${origin}/api/ppv/revisoes?trator=${encodeURIComponent(row.Trator)}&horas=${encodeURIComponent(row.Horas)}`);
       const itens: any[] = r.ok ? await r.json() : [];
       return { encontrado: true, modelo: args.modelo, kit: `${row.Trator} ${row.Horas}`, total: itens.length, pecas: itens.map((i: any) => ({ codigo: i.codigo, descricao: i.descricao, qtd: i.quantidade, preco: i.preco })) };
     }
     if (name === "buscar_plano_revisao") {
       const termo = String(args.termo || "").trim();
-      const r = await fetch(`${origin}/api/pos/buscas/revisoes?termo=${encodeURIComponent(termo)}`);
+      const r = await fetchInterno(`${origin}/api/pos/buscas/revisoes?termo=${encodeURIComponent(termo)}`);
       const d: any[] = r.ok ? await r.json() : [];
       if (!d.length) return { encontrado: false, mensagem: `Não achei plano de revisão pra "${termo}". Tenta só o número de horas (ex.: 600).` };
       return { encontrado: true, total: d.length, planos: d.slice(0, 8).map((p) => ({ id: p.id, plano: p.descricao })) };
@@ -474,7 +474,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       const tipo = name === "propor_ppv" ? "ppv" : "orcamento";
       let cliente: any = null;
       if (args.cliente) {
-        const rc = await fetch(`${origin}/api/ppv/clientes?termo=${encodeURIComponent(args.cliente)}`);
+        const rc = await fetchInterno(`${origin}/api/ppv/clientes?termo=${encodeURIComponent(args.cliente)}`);
         const cls = rc.ok ? await rc.json() : [];
         cliente = Array.isArray(cls) ? cls[0] : null;
       }
@@ -506,7 +506,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
     if (name === "propor_os") {
       let cliente: any = null;
       if (args.cliente) {
-        const rc = await fetch(`${origin}/api/ppv/clientes?termo=${encodeURIComponent(args.cliente)}`);
+        const rc = await fetchInterno(`${origin}/api/ppv/clientes?termo=${encodeURIComponent(args.cliente)}`);
         const cls = rc.ok ? await rc.json() : [];
         cliente = Array.isArray(cls) ? cls[0] : null;
       }
@@ -519,7 +519,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       let tecnicoMatch = "";
       if (args.tecnico) {
         try {
-          const rt = await fetch(`${origin}/api/pos/tecnicos`);
+          const rt = await fetchInterno(`${origin}/api/pos/tecnicos`);
           const tecs: string[] = rt.ok ? await rt.json() : [];
           const q = normT(args.tecnico);
           tecnicoMatch = tecs.find((t) => normT(t) === q)
@@ -534,7 +534,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       let projetoNome = "", modeloProj = "", chassisProj = "";
       if (args.projeto) {
         try {
-          const rp = await fetch(`${origin}/api/pos/buscas/projetos?termo=${encodeURIComponent(String(args.projeto))}`);
+          const rp = await fetchInterno(`${origin}/api/pos/buscas/projetos?termo=${encodeURIComponent(String(args.projeto))}`);
           const projs: any[] = rp.ok ? await rp.json() : [];
           if (projs[0]) {
             projetoNome = projs[0].nome || "";
@@ -592,7 +592,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       // REVISÃO: busca o PLANO certo pelas HORAS (e trator), pra não depender do texto que o modelo escolheu
       if (ehRevisao && hrev) {
         try {
-          const rpl = await fetch(`${origin}/api/pos/buscas/revisoes?termo=${encodeURIComponent(`${hrev} horas`)}`);
+          const rpl = await fetchInterno(`${origin}/api/pos/buscas/revisoes?termo=${encodeURIComponent(`${hrev} horas`)}`);
           let planos: any[] = rpl.ok ? await rpl.json() : [];
           planos = planos.filter((p) => parseInt((String(p.descricao || "").match(/(\d{2,4})\s*horas?/i) || [])[1] || "0", 10) === hrev);
           const digitsT = (String(trator).toUpperCase().match(/\d{3,}/g) || []);
@@ -615,7 +615,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
             return h === alvoH && tDig.some((d: string) => userDig.includes(d));
           });
           if (row) {
-            const rk = await fetch(`${origin}/api/ppv/revisoes?trator=${encodeURIComponent(row.Trator)}&horas=${encodeURIComponent(row.Horas)}`);
+            const rk = await fetchInterno(`${origin}/api/ppv/revisoes?trator=${encodeURIComponent(row.Trator)}&horas=${encodeURIComponent(row.Horas)}`);
             const kit: any[] = rk.ok ? await rk.json() : [];
             for (const k of (Array.isArray(kit) ? kit : [])) {
               const cod = String(k.codigo || "").trim();
@@ -644,7 +644,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
           }
           const row = quad || doTrator[0];
           if (row) {
-            const rk = await fetch(`${origin}/api/ppv/revisoes?trator=${encodeURIComponent(row.Trator)}&horas=${encodeURIComponent(row.Horas)}`);
+            const rk = await fetchInterno(`${origin}/api/ppv/revisoes?trator=${encodeURIComponent(row.Trator)}&horas=${encodeURIComponent(row.Horas)}`);
             const kit: any[] = rk.ok ? await rk.json() : [];
             for (const k of (Array.isArray(kit) ? kit : [])) {
               const cod = String(k.codigo || "").trim();
@@ -775,7 +775,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       }
       // Cliente informado direto (Trator-Cliente sem OS)
       if (!cliente && args.cliente) {
-        const rc = await fetch(`${origin}/api/ppv/clientes?termo=${encodeURIComponent(args.cliente)}`).then((r) => (r.ok ? r.json() : [])).catch(() => []);
+        const rc = await fetchInterno(`${origin}/api/ppv/clientes?termo=${encodeURIComponent(args.cliente)}`).then((r) => (r.ok ? r.json() : [])).catch(() => []);
         const c = Array.isArray(rc) ? rc[0] : null;
         if (c) { cliente = c.nome; cliente_cnpj = c.documento || ""; }
         else cliente = String(args.cliente).toUpperCase();

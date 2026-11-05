@@ -1,6 +1,7 @@
 'use client'
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { Loader2, Plus, X, Search, MapPin, Trash2, FileText, Truck, Edit3, StickyNote, ExternalLink, Link2, ArrowDown, Navigation, Clock, ChevronDown, ChevronLeft, ChevronRight, CalendarDays, LayoutGrid, Building2, MapPinned, Coffee } from 'lucide-react'
+import { fetchAuth } from '@/lib/auth/client'
 
 interface Tecnico { user_id: string; tecnico_nome: string; tecnico_email: string; mecanico_role: 'tecnico' | 'observador' }
 interface OrdemServico {
@@ -146,7 +147,7 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
   // Ordens em execução (para popup adicionar)
   const ordensExecucao = useMemo(() => ordens.filter(o => o.Status === 'Execução'), [ordens])
 
-  useEffect(() => { fetch('/api/pos/clientes').then(r => r.ok ? r.json() : []).then(setClientes).catch(() => {}) }, [])
+  useEffect(() => { fetchAuth('/api/pos/clientes').then(r => r.ok ? r.json() : []).then(setClientes).catch(() => {}) }, [])
   const clientesFiltrados = useMemo(() => {
     if (!clienteFilter) return []; const terms = clienteFilter.toLowerCase().split(/\s+/).filter(Boolean)
     return clientes.filter(c => { const d = c.display.toLowerCase(); return terms.every(t => d.includes(t)) }).slice(0, 12)
@@ -155,7 +156,7 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
   const carregarSemana = useCallback(async () => {
     setLoading(true)
     try {
-      const results = await Promise.all(dias.map(d => fetch(`/api/pos/agenda-visao?data=${d}`).then(r => r.ok ? r.json() : [])))
+      const results = await Promise.all(dias.map(d => fetchAuth(`/api/pos/agenda-visao?data=${d}`).then(r => r.ok ? r.json() : [])))
       const rows = results.flat() as AgendaRow[]
       setAgendaSemana(rows)
 
@@ -199,7 +200,7 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
       const syncDias = Object.keys(toSync)
       if (syncDias.length > 0) {
         const syncResults = await Promise.all(syncDias.map(dia =>
-          fetch('/api/pos/agenda-visao', {
+          fetchAuth('/api/pos/agenda-visao', {
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ data: dia, tecnicos: toSync[dia] }),
           }).then(r => r.ok ? r.json() : [])
@@ -212,7 +213,7 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
           })
           // Calc rotas para novos sem rota
           newRows.filter(r => r.tempo_ida_min === 0 && r.endereco).forEach(r => {
-            fetch('/api/pos/agenda-visao', {
+            fetchAuth('/api/pos/agenda-visao', {
               method: 'PATCH', headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ id: r.id, calcular: true }),
             }).then(async res => { if (res.ok) { const u = await res.json(); setAgendaSemana(p => p.map(a => a.id === u.id ? u : a)) } }).catch(() => {})
@@ -225,7 +226,7 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
 
   const carregarNotas = useCallback(async () => {
     try {
-      const r = await fetch(`/api/pos/agenda-notas?datas=${dias.join(',')}`)
+      const r = await fetchAuth(`/api/pos/agenda-notas?datas=${dias.join(',')}`)
       if (r.ok) { const rows = await r.json() as { tecnico_nome: string; data: string; nota: string }[]; const map: Record<string, string> = {}; rows.forEach(n => { if (n.nota) map[`${n.tecnico_nome}|${n.data}`] = n.nota }); setNotas(map) }
     } catch { }
   }, [dias])
@@ -233,21 +234,21 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
   useEffect(() => { carregarSemana(); carregarNotas() }, [carregarSemana, carregarNotas])
 
   const salvarObs = async (id: number, obs: string) => {
-    try { await fetch('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, observacoes: obs }) }); setAgendaSemana(p => p.map(a => a.id === id ? { ...a, observacoes: obs } : a)) } catch { }
+    try { await fetchAuth('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, observacoes: obs }) }); setAgendaSemana(p => p.map(a => a.id === id ? { ...a, observacoes: obs } : a)) } catch { }
     setEditingNote(null)
   }
 
   const salvarNota = async (tecNome: string, dia: string, nota: string) => {
     const key = `${tecNome}|${dia}`; setNotaSalvando(key)
-    try { const r = await fetch('/api/pos/agenda-notas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tecnico_nome: tecNome, data: dia, nota }) }); if (r.ok) setNotas(p => nota ? { ...p, [key]: nota } : (() => { const n = { ...p }; delete n[key]; return n })()) } catch { }
+    try { const r = await fetchAuth('/api/pos/agenda-notas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tecnico_nome: tecNome, data: dia, nota }) }); if (r.ok) setNotas(p => nota ? { ...p, [key]: nota } : (() => { const n = { ...p }; delete n[key]; return n })()) } catch { }
     setNotaSalvando(null); setEditingNote(null)
   }
 
-  const remover = async (id: number) => { const r = await fetch('/api/pos/agenda-visao', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }); if (r.ok) setAgendaSemana(p => p.filter(a => a.id !== id)) }
+  const remover = async (id: number) => { const r = await fetchAuth('/api/pos/agenda-visao', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) }); if (r.ok) setAgendaSemana(p => p.filter(a => a.id !== id)) }
 
   const selecionarCliente = async (c: ClienteOption) => {
     setCarregandoCliente(true); setClienteFilter(c.display.split('[')[0].trim())
-    try { const r = await fetch(`/api/pos/clientes?id=${encodeURIComponent(c.chave)}`); if (r.ok) { const data = await r.json(); setClienteSelecionado({ chave: c.chave, nome: data.nome, endereco: data.endereco || '', cidade: data.cidade || '' }) } } catch { }
+    try { const r = await fetchAuth(`/api/pos/clientes?id=${encodeURIComponent(c.chave)}`); if (r.ok) { const data = await r.json(); setClienteSelecionado({ chave: c.chave, nome: data.nome, endereco: data.endereco || '', cidade: data.cidade || '' }) } } catch { }
     setCarregandoCliente(false)
   }
 
@@ -262,12 +263,12 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
       const totalHoras = parseFloat(String(os.Qtd_HR || 0)) || 2; const diasExec = calcDiasExecucao(os.Qtd_HR); const diasP = proximosDiasUteis(diaInicial, diasExec, dias)
       for (let d = 0; d < diasP.length; d++) {
         const diaA = diasP[d]; const hDia = d < diasP.length - 1 ? 8 : Math.min(8, totalHoras - d * 8); const ultimo = getUltimaLocalizacao(tecNome, diaA)
-        const r = await fetch('/api/pos/agenda-visao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: diaA, tecnicos: [{ nome: tecNome, ordens: [{ id: os.Id_Ordem, cliente: os.Os_Cliente, cnpj: os.Cnpj_Cliente, endereco: os.Endereco_Cliente, cidade: os.Cidade_Cliente, servico: os.Serv_Solicitado, qtdHoras: Math.max(1, hDia), observacoes: diasExec > 1 ? `Dia ${d + 1}/${diasExec} · ${extrairSolicitacao(os.Serv_Solicitado || '')}` : extrairSolicitacao(os.Serv_Solicitado || '') }] }] }) })
+        const r = await fetchAuth('/api/pos/agenda-visao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: diaA, tecnicos: [{ nome: tecNome, ordens: [{ id: os.Id_Ordem, cliente: os.Os_Cliente, cnpj: os.Cnpj_Cliente, endereco: os.Endereco_Cliente, cidade: os.Cidade_Cliente, servico: os.Serv_Solicitado, qtdHoras: Math.max(1, hDia), observacoes: diasExec > 1 ? `Dia ${d + 1}/${diasExec} · ${extrairSolicitacao(os.Serv_Solicitado || '')}` : extrairSolicitacao(os.Serv_Solicitado || '') }] }] }) })
         if (r.ok) {
           const rows = await r.json() as AgendaRow[]; setAgendaSemana(prev => [...prev.filter(a => a.data !== diaA), ...rows])
-          if (d === 0) await fetch('/api/pos/agenda-visao/caminho', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tecnico_nome: tecNome, destino: os.Os_Cliente, cidade: os.Cidade_Cliente || '', motivo: os.Id_Ordem }) }).catch(() => {})
+          if (d === 0) await fetchAuth('/api/pos/agenda-visao/caminho', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tecnico_nome: tecNome, destino: os.Os_Cliente, cidade: os.Cidade_Cliente || '', motivo: os.Id_Ordem }) }).catch(() => {})
           const ni = rows.find(row => row.tecnico_nome === tecNome && row.id_ordem === os.Id_Ordem && row.tempo_ida_min === 0)
-          if (ni) { const cb: Record<string, any> = { id: ni.id, calcular: true }; if (ultimo?.coordenadas) { cb.origemLat = ultimo.coordenadas.lat; cb.origemLng = ultimo.coordenadas.lng }; fetch('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cb) }).then(async r2 => { if (r2.ok) { const u = await r2.json(); setAgendaSemana(p => p.map(a => a.id === u.id ? u : a)) } }) }
+          if (ni) { const cb: Record<string, any> = { id: ni.id, calcular: true }; if (ultimo?.coordenadas) { cb.origemLat = ultimo.coordenadas.lat; cb.origemLng = ultimo.coordenadas.lng }; fetchAuth('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cb) }).then(async r2 => { if (r2.ok) { const u = await r2.json(); setAgendaSemana(p => p.map(a => a.id === u.id ? u : a)) } }) }
         }
       }
     } catch { }
@@ -278,12 +279,12 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
     if (!clienteSelecionado) return; setAddSalvando(true)
     try {
       const ultimo = getUltimaLocalizacao(tecNome, dia)
-      const r = await fetch('/api/pos/agenda-visao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: dia, tecnicos: [{ nome: tecNome, ordens: [{ id: `AG-${Date.now()}`, cliente: clienteSelecionado.nome, cnpj: '', endereco: clienteSelecionado.endereco, cidade: clienteSelecionado.cidade, servico: '', qtdHoras: addHoras, observacoes: addObs }] }] }) })
+      const r = await fetchAuth('/api/pos/agenda-visao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ data: dia, tecnicos: [{ nome: tecNome, ordens: [{ id: `AG-${Date.now()}`, cliente: clienteSelecionado.nome, cnpj: '', endereco: clienteSelecionado.endereco, cidade: clienteSelecionado.cidade, servico: '', qtdHoras: addHoras, observacoes: addObs }] }] }) })
       if (r.ok) {
         const rows = await r.json() as AgendaRow[]; setAgendaSemana(prev => [...prev.filter(a => a.data !== dia), ...rows])
-        await fetch('/api/pos/agenda-visao/caminho', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tecnico_nome: tecNome, destino: clienteSelecionado.nome, cidade: clienteSelecionado.cidade, motivo: addObs || 'Serviço agendado' }) }).catch(() => {})
+        await fetchAuth('/api/pos/agenda-visao/caminho', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tecnico_nome: tecNome, destino: clienteSelecionado.nome, cidade: clienteSelecionado.cidade, motivo: addObs || 'Serviço agendado' }) }).catch(() => {})
         const ni = rows.find(row => row.tecnico_nome === tecNome && row.tempo_ida_min === 0 && row.endereco && !agendaSemana.some(exist => exist.id === row.id))
-        if (ni) { const cb: Record<string, any> = { id: ni.id, calcular: true }; if (ultimo?.coordenadas) { cb.origemLat = ultimo.coordenadas.lat; cb.origemLng = ultimo.coordenadas.lng }; fetch('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cb) }).then(async r2 => { if (r2.ok) { const u = await r2.json(); setAgendaSemana(p => p.map(a => a.id === u.id ? u : a)) } }) }
+        if (ni) { const cb: Record<string, any> = { id: ni.id, calcular: true }; if (ultimo?.coordenadas) { cb.origemLat = ultimo.coordenadas.lat; cb.origemLng = ultimo.coordenadas.lng }; fetchAuth('/api/pos/agenda-visao', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cb) }).then(async r2 => { if (r2.ok) { const u = await r2.json(); setAgendaSemana(p => p.map(a => a.id === u.id ? u : a)) } }) }
       }
     } catch { }
     fecharAdd(); setAddSalvando(false)
@@ -307,7 +308,7 @@ export default function BlocoAgenda({ tecnicos, ordens, semanaOffset = 0 }: { te
     try {
       const primeiroDia = `${mesStr}-01`
       const ultimoDia = `${mesStr}-${new Date(anoMes, mesNumMes, 0).getDate()}`
-      const r = await fetch(`/api/pos/agenda-visao?de=${primeiroDia}&ate=${ultimoDia}`)
+      const r = await fetchAuth(`/api/pos/agenda-visao?de=${primeiroDia}&ate=${ultimoDia}`)
       if (r.ok) setAgendaMes(await r.json())
     } catch { }
     setLoadingMes(false)

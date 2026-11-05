@@ -1,7 +1,7 @@
 // POST → cancela a OS ainda NÃO faturada no Omie e no portal (motivo obrigatório).
 // body { motivo, cancelarPedidos }. Permissão: a mesma de faturar (pos:faturar).
 import { NextRequest, NextResponse } from "next/server";
-import { gate, erroRota } from "../faturar/comum";
+import { guardarFaturamentoOS, erroRota } from "../faturar/comum";
 import { cancelarOSNaoFaturada } from "@/lib/pos/cancelar-os";
 import { logAndNotify } from "@/lib/server/audit-notify";
 
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 180;
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await gate(req, true);
+  const auth = await guardarFaturamentoOS(req, true);
   if (auth instanceof NextResponse) return auth;
   const { id } = await params;
   try {

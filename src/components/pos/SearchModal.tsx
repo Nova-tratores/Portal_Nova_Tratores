@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
+import { authHeaders } from "@/lib/auth/client";
 
 interface SearchModalProps {
   title: string;
@@ -55,7 +56,7 @@ export default function SearchModal({ title, placeholder, apiUrl, paramName, vis
       abortRef.current = ac;
       setLoading(true);
       try {
-        const res = await fetch(`${apiUrl}?${paramName}=${encodeURIComponent(termo)}`, { signal: ac.signal });
+        const res = await fetch(`${apiUrl}?${paramName}=${encodeURIComponent(termo)}`, { signal: ac.signal, headers: await authHeaders() });
         const data = await res.json();
         if (!ac.signal.aborted) setResults(data);
       } catch (err) {

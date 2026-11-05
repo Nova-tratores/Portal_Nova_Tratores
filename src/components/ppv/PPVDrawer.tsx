@@ -12,7 +12,7 @@ import { formatarDataFrontend, formatarMoeda } from "@/lib/ppv/utils";
 import { normalizarStatus } from "@/lib/ppv/utils";
 import { STATUS_OPTIONS, STATUS_COLORS, type StatusKey } from "@/lib/ppv/constants";
 import { api } from "@/lib/ppv/api";
-import { authHeaders } from "@/lib/auth/client";
+import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import { usePPV } from "@/lib/ppv/PPVContext";
 import { useAuth } from "@/hooks/useAuth";
 import ModalBuscaCliente from "./ModalBuscaCliente";
@@ -187,7 +187,7 @@ export default function PPVDrawer({
     const id = (modalOSId || "").trim();
     if (!ppvId || !id) { setOsVinc(null); return; }
     let ativo = true;
-    fetch(`/api/pos/ordens/${encodeURIComponent(id)}`)
+    fetchAuth(`/api/pos/ordens/${encodeURIComponent(id)}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!ativo || !d) return;
@@ -209,7 +209,7 @@ export default function PPVDrawer({
     if (!id) return;
     const w = window.open("", "_blank");
     if (!w) return;
-    fetch(`/api/pos/ordens/${encodeURIComponent(id)}/print?pecas=1`)
+    fetchAuth(`/api/pos/ordens/${encodeURIComponent(id)}/print?pecas=1`)
       .then((r) => r.text()).then((html) => { w.document.write(html); w.document.close(); })
       .catch(() => w.close());
   }, [modalOSId]);
@@ -290,12 +290,12 @@ export default function PPVDrawer({
     if (!temSubstituto) return;
     if (substitutoTipo === "POS" && listaOSAbertas.length === 0) {
       // /api/pos/ordens devolve KanbanCard[] (campos minúsculos: id/cliente/status)
-      fetch("/api/pos/ordens").then(r => r.json()).then((data) => {
+      fetchAuth("/api/pos/ordens").then(r => r.json()).then((data) => {
         if (Array.isArray(data)) setListaOSAbertas(data.filter((o: any) => o.status !== "Cancelada" && o.status !== "Concluída").map((o: any) => ({ id: String(o.id), cliente: o.cliente || "", status: o.status || "" })));
       }).catch(() => {});
     }
     if (substitutoTipo === "PPV" && listaPPVAbertos.length === 0) {
-      fetch("/api/ppv/pedidos").then(r => r.json()).then((data) => {
+      fetchAuth("/api/ppv/pedidos").then(r => r.json()).then((data) => {
         if (Array.isArray(data)) setListaPPVAbertos(data.filter((p: any) => p.status !== "Cancelada" && p.status !== "Concluída" && p.status !== "Cancelado" && p.status !== "Fechado" && p.id !== ppvId).map((p: any) => ({ id: p.id, cliente: p.cliente || "", status: p.status || "" })));
       }).catch(() => {});
     }
@@ -1325,7 +1325,7 @@ export default function PPVDrawer({
                             placeholder={usarProjetoOS && modalOSId ? "Projeto da OS" : "Digite ou banco"}
                             style={{ marginBottom: 0, fontWeight: 600, flex: 1, background: usarProjetoOS && modalOSId && !projeto ? "#f8fafc" : "#fff" }} />
                           <button type="button" title="Escolher um projeto do banco"
-                            onClick={() => { setProjDropdown((o) => !o); setProjBusca(""); if (projetosDB.length === 0) fetch("/api/pos/buscas/projetos").then((r) => r.json()).then((d) => setProjetosDB(Array.isArray(d) ? d : [])).catch(() => {}); }}
+                            onClick={() => { setProjDropdown((o) => !o); setProjBusca(""); if (projetosDB.length === 0) fetchAuth("/api/pos/buscas/projetos").then((r) => r.json()).then((d) => setProjetosDB(Array.isArray(d) ? d : [])).catch(() => {}); }}
                             style={{ flexShrink: 0, padding: "0 11px", borderRadius: 8, border: "1px solid #E2E8F0", background: projDropdown ? "#EFF6FF" : "#fff", color: "#334155", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                             <i className="fas fa-database" style={{ fontSize: 11 }} />
                           </button>

@@ -13,8 +13,12 @@ import { totalExtras, type OmieEspelho } from "@/lib/pos/omie-espelho";
 import { documentosAnteriores, type DocAnterior } from "@/lib/pos/omie-anteriores";
 import { statusCobranca, type CobrancaStatus } from "@/lib/pos/cobranca-requisicoes-regras";
 import { listarPaliativos } from "@/lib/pos/paliativos";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 
+// GET: drawer da OS (POS) e o bloco da OS vinculada no drawer do PPV.
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const g = await protegerRota(_req, [{ modulo: "pos" }, { modulo: "ppv" }]);
+  if (g.resposta) return g.resposta;
   const { id: idOs } = await params;
   const { data: res } = await supabase.from(TBL_OS).select("*").eq("Id_Ordem", idOs).limit(1);
   if (!res || !res.length) return NextResponse.json(null);
@@ -224,8 +228,12 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  // só o drawer da OS (POS) edita
+  const g = await protegerRota(req, [{ modulo: "pos" }]);
+  if (g.resposta) return g.resposta;
   const { id: idOs } = await params;
   const dados = await req.json();
+  dados.userName = autorDe(g.user); // autoria do login, nunca do corpo
 
   // Bloqueia mudança para Concluída se não foi enviada para Omie
   if (dados.status === "Concluída") {

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { authHeaders } from "@/lib/auth/client";
+import { authHeaders, abrirComLogin } from "@/lib/auth/client";
 import { useIsMobile } from "@/hooks/useIsMobile";
 
 const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/storage/v1/object/public/catalogo/mascote2-removebg-preview.png";
@@ -170,7 +170,7 @@ export default function TratorinoChat({ userName = "", userId = "", isAdmin = fa
     try {
       const r = await fetch("/api/assistente/executar", { method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ proposta, userName }) });
       const j = await r.json();
-      if (r.ok) { const L: any = { orcamento: "Orçamento", ppv: "PPV", os: "OS", requisicao: "Requisição" }; const extra = j.ppv ? ` PPV ${j.ppv} vinculado gerado.` : ""; setMsgs((ms) => [...ms, { role: "assistant", content: `Pronto! ${L[proposta.tipo] || ""} ${j.numero || ""} criado.${extra}`, abrirUrl: j.abrirUrl }]); if (win) { if (j.abrirUrl) win.location.href = location.origin + j.abrirUrl; else win.close(); } }
+      if (r.ok) { const L: any = { orcamento: "Orçamento", ppv: "PPV", os: "OS", requisicao: "Requisição" }; const extra = j.ppv ? ` PPV ${j.ppv} vinculado gerado.` : ""; setMsgs((ms) => [...ms, { role: "assistant", content: `Pronto! ${L[proposta.tipo] || ""} ${j.numero || ""} criado.${extra}`, abrirUrl: j.abrirUrl }]); if (win) { if (j.abrirUrl?.startsWith("/api/")) void abrirComLogin(j.abrirUrl, win); else if (j.abrirUrl) win.location.href = location.origin + j.abrirUrl; else win.close(); } }
       else { if (win) win.close(); setMsgs((ms) => [...ms, { role: "assistant", content: `Não consegui criar: ${j.error || "erro"}` }]); }
     } catch { if (win) win.close(); setMsgs((ms) => [...ms, { role: "assistant", content: "Erro de conexão ao criar." }]); }
     setLoading(false);

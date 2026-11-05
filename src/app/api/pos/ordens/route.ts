@@ -11,6 +11,8 @@ import { checarIrregularidade } from "@/lib/pos/checarIrregularidade";
 import { normalizarAlimentacoes, agregadosAlimentacao } from "@/lib/pos/alimentacao-os";
 import type { KanbanCard } from "@/lib/pos/types";
 import { dataHoraBR } from "@/lib/datas/brasil";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
+import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
 
 /* ── Atualiza contadores de métricas abertas ── */
 async function atualizarMetricasAbertas() {
@@ -184,7 +186,10 @@ async function getOrdensParaKanban(escopo: EscopoOrdens = "todas"): Promise<Kanb
 let lastAutoMove = 0;
 const AUTO_MOVE_INTERVAL = 5 * 60 * 1000;
 
+// GET: quadro do POS e a lista de OS dos drawers (POS e PPV: substituto/vinculo).
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "pos" }, { modulo: "ppv" }]);
+  if (g.resposta) return g.resposta;
   const agora = Date.now();
   // Auto-move roda em background, não bloqueia a resposta
   if (agora - lastAutoMove > AUTO_MOVE_INTERVAL) {
@@ -290,8 +295,14 @@ async function gerarPPVId(): Promise<string> {
   return `PPV-${String(maxNum + 1).padStart(4, "0")}`;
 }
 
+// POST: POS (OSDrawer), PPV/etiqueta da peça (FormRetirada), Orçamentos ("gerar OS")
+// e o Tratorilson (assistente/executar, chamada interna).
 export async function POST(req: NextRequest) {
+  const g = await protegerRotaOuInterna(req, [{ modulo: "pos" }, { modulo: "ppv" }, { modulo: "orcamentos", acao: "gerar" }]);
+  if (g.resposta) return g.resposta;
   const dados = await req.json();
+  // autoria do login; só a chamada de sistema mantém o nome que veio no corpo
+  dados.userName = g.interno ? (dados.userName || "Sistema") : autorDe(g.user);
 
   // Cliente inativo no Omie NÃO cria OS (checa no espelho local)
   const motivoInativo = await motivoClienteInativo(dados.nomeCliente, dados.cpfCliente);

@@ -57,7 +57,7 @@ export default function ModalUsoProduto({ open, codigo, descricao, onClose, onAb
   useEffect(() => {
     if (!open || !codigo) return;
     setDados(null); setSoAberto(false); setCarregando(true);
-    fetch(`/api/ppv/uso-produto?codigo=${encodeURIComponent(codigo)}`)
+    fetchAuth(`/api/ppv/uso-produto?codigo=${encodeURIComponent(codigo)}`)
       .then((r) => r.json())
       .then((d) => setDados(d?.error ? null : d))
       .catch(() => setDados(null))

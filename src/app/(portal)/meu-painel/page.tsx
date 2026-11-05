@@ -13,6 +13,7 @@ import { rotuloOcorrencia } from '@/lib/ocorrencias/catalogo'
 import { uploadAnexosOcorrencia, validarAnexo, ACCEPT_ANEXOS } from '@/lib/ocorrencias/anexos'
 import type { AnexoOcorrencia } from '@/lib/ocorrencias/registrar'
 import MinhasGarantias from '@/components/meu-painel/MinhasGarantias'
+import { fetchAuth } from '@/lib/auth/client'
 
 interface AgendaItem {
   id: number
@@ -287,7 +288,7 @@ export default function MeuPainelPage() {
     if (veiculosDisponiveis.length > 0) return
     setLoadingVeiculos(true)
     try {
-      const res = await fetch('/api/pos/rastreamento?acao=veiculos')
+      const res = await fetchAuth('/api/pos/rastreamento?acao=veiculos')
       if (res.ok) {
         const data = await res.json()
         setVeiculosDisponiveis(data)

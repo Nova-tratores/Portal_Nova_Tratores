@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncClientes, syncProjetos, syncProdutos } from "@/lib/pos/sync-omie";
-
-const CRON_SECRET = process.env.CRON_SECRET || "";
+import { autenticar } from "@/lib/auth/server";
+import { ehChamadaInterna } from "@/lib/auth/chamada-interna";
 
 async function executarSync() {
   const resultados: Record<string, unknown> = {};
@@ -39,13 +39,10 @@ async function executarSync() {
   };
 }
 
-// POST — chamado pelo botão manual do frontend
+// POST — botão "Sincronizar com Omie" do dashboard (todo logado vê) ou robô.
+// Antes bastava o header x-sync-manual: qualquer um disparava o sync com a Omie.
 export async function POST(req: NextRequest) {
-  const isManual = req.headers.get("x-sync-manual") === "true";
-  const authHeader = req.headers.get("authorization") || "";
-  const isFromCron = CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`;
-
-  if (!isManual && !isFromCron) {
+  if (!ehChamadaInterna(req.headers) && !(await autenticar(req))) {
     return NextResponse.json({ erro: "Não autorizado" }, { status: 401 });
   }
 
@@ -84,13 +81,8 @@ export async function POST(req: NextRequest) {
 
 // GET — para Railway Cron Job (configura no painel do Railway)
 export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization") || "";
-  const isFromCron = CRON_SECRET && authHeader === `Bearer ${CRON_SECRET}`;
-
-  // Permite sem auth se vier do mesmo servidor (Railway internal)
-  const isInternal = req.headers.get("x-railway-cron") === "true";
-
-  if (!isFromCron && !isInternal) {
+  // só o robô (Bearer CRON_SECRET / x-cron-secret); x-railway-cron qualquer um forjava
+  if (!ehChamadaInterna(req.headers)) {
     return NextResponse.json({ erro: "Não autorizado" }, { status: 401 });
   }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { fetchAuth } from "@/lib/auth/client";
 
 interface ClientDrawerProps {
   visible: boolean;
@@ -16,7 +17,7 @@ export default function ClientDrawer({ visible, onClose, onSaved }: ClientDrawer
     if (!form.nome) { alert("Nome obrigatório"); return; }
     setSaving(true);
     try {
-      const res = await fetch("/api/pos/clientes/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
+      const res = await fetchAuth("/api/pos/clientes/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         alert(err.erro || "Erro ao cadastrar cliente.");

@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_LEMBRETES } from "@/lib/pos/constants";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 
 // GET /api/pos/lembretes — lista todos ou filtra por chave de cliente / cnpj
 export async function GET(req: NextRequest) {
+  // mesmas telas do PATCH/DELETE de /api/pos/lembretes/[id]
+  const g = await protegerRota(req, [{ modulo: "pos" }, { modulo: "requisicoes" }]);
+  if (g.resposta) return g.resposta;
   const cliente = req.nextUrl.searchParams.get("cliente");
   const nome = req.nextUrl.searchParams.get("nome");
   const cnpj = req.nextUrl.searchParams.get("cnpj");
@@ -78,8 +82,10 @@ export async function GET(req: NextRequest) {
 
 // POST /api/pos/lembretes — criar lembrete
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "pos" }, { modulo: "requisicoes" }]);
+  if (g.resposta) return g.resposta;
   const body = await req.json();
-  const { cliente_chaves, cliente_nomes, lembrete, criado_por, cliente_cnpj_cpf } = body;
+  const { cliente_chaves, cliente_nomes, lembrete, cliente_cnpj_cpf } = body;
 
   if (!cliente_chaves?.length || !lembrete?.trim()) {
     return NextResponse.json({ erro: "Selecione ao menos um cliente e preencha o lembrete." }, { status: 400 });
@@ -92,7 +98,7 @@ export async function POST(req: NextRequest) {
       cliente_nomes,
       cliente_cnpj_cpf: cliente_cnpj_cpf || "",
       lembrete: lembrete.trim(),
-      criado_por: criado_por || "Sistema",
+      criado_por: autorDe(g.user), // autoria do login, nunca do corpo
       ativo: true,
       concluido: false,
       created_at: new Date().toISOString(),

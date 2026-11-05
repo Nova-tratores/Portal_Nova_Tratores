@@ -1,7 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { authHeaders } from '@/lib/auth/client'
+import { authHeaders, fetchAuth } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
 import { montarParcelas, valorTotalCard, formatarBRL } from '@/lib/financeiro/parcelas'
 import { MessageCircle, Mail, Check, Pencil, Send, Plus, X } from 'lucide-react'
@@ -154,7 +154,7 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
       let doc = (cnpj || '').trim()
       if (!doc && nome) {
         try {
-          const r = await fetch(`/api/ppv/clientes?termo=${encodeURIComponent(nome)}`)
+          const r = await fetchAuth(`/api/ppv/clientes?termo=${encodeURIComponent(nome)}`)
           const arr = r.ok ? await r.json() : []
           const m = arr.find(c => (c.nome || '').toLowerCase() === nome.toLowerCase()) || arr[0]
           doc = (m?.documento || '').trim()

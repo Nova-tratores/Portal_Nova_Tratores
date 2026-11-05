@@ -114,7 +114,7 @@ export async function vincularProjeto(projetoId: string, v: { osRef?: string | n
 export interface OSBuscaRow { id: string; cliente: string; status: string; servSolicitado: string }
 export async function buscarOS(termo: string): Promise<OSBuscaRow[]> {
   const qs = termo.trim() ? `termo=${encodeURIComponent(termo.trim())}` : 'abertas=1';
-  const r = await fetch(`/api/ppv/ordens-servico?${qs}`);
+  const r = await fetchAuth(`/api/ppv/ordens-servico?${qs}`);
   return r.ok ? r.json() : [];
 }
 export interface OSvinculada {

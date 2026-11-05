@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { supabaseFetch, getValorInsensivel } from "@/lib/ppv/supabase";
 import { TBL_PEDIDOS, TBL_ITENS, TBL_OS } from "@/lib/ppv/constants";
 
@@ -8,6 +9,9 @@ import { TBL_PEDIDOS, TBL_ITENS, TBL_OS } from "@/lib/ppv/constants";
 // Uma chamada só; o card cacheia no cliente.
 
 export async function GET(req: NextRequest) {
+  // Só o quadro do PPV (KanbanCard / PhaseView) usa.
+  const g = await protegerRota(req, [{ modulo: "ppv" }]);
+  if (g.resposta) return g.resposta;
   const id = (req.nextUrl.searchParams.get("id") || "").trim();
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
 

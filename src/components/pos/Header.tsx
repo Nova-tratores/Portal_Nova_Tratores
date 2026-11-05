@@ -9,6 +9,7 @@ import { normName } from "@/lib/tecnico-utils";
 import { BTN_BARRA } from "./botoes-barra";
 import BuscaPOS from "./BuscaPOS";
 import type { KanbanCard } from "@/lib/pos/types";
+import { fetchAuth } from "@/lib/auth/client";
 
 export interface PerfilTecnico { nome: string; avatar: string; inativo?: boolean }
 
@@ -75,7 +76,7 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
   const handleSalvarConfig = async () => {
     setSalvando(true);
     try {
-      const res = await fetch("/api/pos/configuracoes", {
+      const res = await fetchAuth("/api/pos/configuracoes", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ valor_hora: cfgHora, valor_km: cfgKm }),

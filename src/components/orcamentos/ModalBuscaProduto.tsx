@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react'
 import CatalogoNovo from '@/components/ppv/CatalogoNovo'
+import { fetchAuth } from '@/lib/auth/client'
 
 interface ProdutoBusca {
   codigo: string
@@ -45,7 +46,7 @@ export default function ModalBuscaProdutoOrc({ open, onClose, onSelect }: Props)
     setBuscando(true)
     setMensagem('')
     try {
-      const res = await fetch(`/api/ppv/produtos?termo=${encodeURIComponent(t.trim())}`)
+      const res = await fetchAuth(`/api/ppv/produtos?termo=${encodeURIComponent(t.trim())}`)
       const data: ProdutoBusca[] = await res.json()
       setResultados(data)
       if (data.length === 0) setMensagem('Nenhum produto encontrado.')

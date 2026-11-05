@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 
 const NCODSERV_HORA = 1979758762;
@@ -109,7 +110,10 @@ const ETAPA_LABEL: Record<string, string> = {
   "50": "Faturando", "60": "Faturada",
 };
 
+// Sem chamador na tela nem cron (05/11/2026): sincronização pesada da Omie, só admin.
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, [{ admin: true }]);
+  if (g.resposta) return g.resposta;
   const ano = req.nextUrl.searchParams.get("ano") || String(new Date().getFullYear());
 
   try {

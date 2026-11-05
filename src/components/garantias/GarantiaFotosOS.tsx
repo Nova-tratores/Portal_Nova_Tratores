@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { Download, Loader2, ImageOff, Archive } from 'lucide-react';
 import JSZip from 'jszip';
+import { fetchAuth } from '@/lib/auth/client';
 
 interface FotoItem {
   label: string;
@@ -44,7 +45,7 @@ export default function GarantiaFotosOS({ osId }: Props) {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/pos/fotos-tecnico?os=${encodeURIComponent(osId)}`);
+        const res = await fetchAuth(`/api/pos/fotos-tecnico?os=${encodeURIComponent(osId)}`);
         if (!res.ok) {
           if (!cancel) setFotos([]);
           return;

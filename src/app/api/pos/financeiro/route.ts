@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { valorPecasDosPPVs } from "@/lib/pos/pecas-ppv";
 import { buscarPPVPorId } from "@/lib/ppv/queries";
 
+// peças dos PPVs no drawer da OS (POS)
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "pos" }]);
+  if (g.resposta) return g.resposta;
   const ppv = req.nextUrl.searchParams.get("ppv") || "";
   const listaIds = ppv.split(",").map((s) => s.trim()).filter(Boolean);
   if (!listaIds.length) return NextResponse.json([]);

@@ -3,6 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import { TBL_LOUSA, TBL_LOUSA_CONFIG, TBL_OS, TBL_CLIENTES } from "@/lib/pos/constants";
 import { sanitizarFiltro } from "@/lib/busca-segura";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
+import { autenticar } from "@/lib/auth/server";
 
 // Service role só pra ler o diretório (financeiro_usu), que com RLS a anon não lê.
 const sbAdmin = createClient(
@@ -12,6 +14,8 @@ const sbAdmin = createClient(
 
 // GET — buscar entradas da semana + verificar OS abertas + pedidos PPV
 export async function GET(req: NextRequest) {
+  // quadro da Lousa, calendário (busca de cliente) e Supervisor de Vendas (modo=usuarios) → só login
+  if (!(await autenticar(req))) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   const { searchParams } = new URL(req.url);
   const inicio = searchParams.get("inicio"); // YYYY-MM-DD (segunda)
   const fim = searchParams.get("fim");       // YYYY-MM-DD (sábado)
@@ -133,9 +137,15 @@ export async function GET(req: NextRequest) {
 
 // POST — criar entrada
 export async function POST(req: NextRequest) {
+  // escrever na Lousa = módulo lousa (mesma regra do podeEditar da Agenda, lib/agenda/server.ts)
+  const g = await protegerRota(req, [{ modulo: "lousa" }]);
+  if (g.resposta) return g.resposta;
   const body = await req.json();
-  const { data, cliente_cnpj, cliente_nome, descricao, criado_por_id, criado_por_nome, cor, tecnico_nome, periodo, tipo, tecnico_acompanhante } = body;
+  const { data, cliente_cnpj, cliente_nome, descricao, cor, tecnico_nome, periodo, tipo, tecnico_acompanhante } = body;
   const tipoFinal = tipo || "servico";
+  // autoria do login, nunca do corpo
+  const criado_por_id = g.user.id;
+  const criado_por_nome = autorDe(g.user);
 
   // Cliente só é obrigatório para serviço; faltou/feriado/saida não precisam
   if (!data || !criado_por_id || !criado_por_nome || (tipoFinal === "servico" && !cliente_nome)) {
@@ -154,6 +164,8 @@ export async function POST(req: NextRequest) {
 
 // PATCH — atualizar entrada ou config
 export async function PATCH(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "lousa" }]);
+  if (g.resposta) return g.resposta;
   const body = await req.json();
 
   if (body.modo === "config") {
@@ -182,6 +194,8 @@ export async function PATCH(req: NextRequest) {
 
 // DELETE — remover entrada
 export async function DELETE(req: NextRequest) {
+  const g = await protegerRota(req, [{ modulo: "lousa" }]);
+  if (g.resposta) return g.resposta;
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });

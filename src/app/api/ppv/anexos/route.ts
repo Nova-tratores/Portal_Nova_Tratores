@@ -5,11 +5,15 @@
 //   DELETE ?anexoId=123                        -> remove um anexo/comentário
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const TBL = "ppv_anexos";
+// Mesma regra das tarefas: anexos valem para PPV e OS (id PPV-xxxx / OS-xxxx),
+// então quem tem o PPV ou o POS passa.
+const ACESSO = [{ modulo: "ppv" }, { modulo: "pos" }];
 const BUCKET = "requisicoes";
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -18,6 +22,8 @@ const supabase = createClient(
 );
 
 export async function GET(req: NextRequest) {
+  const g = await protegerRota(req, ACESSO);
+  if (g.resposta) return g.resposta;
   const id = req.nextUrl.searchParams.get("id") || "";
   if (!id) return NextResponse.json({ error: "Passe ?id=" }, { status: 400 });
   const { data, error } = await supabase.from(TBL).select("*").eq("id_pedido", id).order("created_at", { ascending: false });
@@ -26,12 +32,14 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const g = await protegerRota(req, ACESSO);
+  if (g.resposta) return g.resposta;
+  const autor = autorDe(g.user); // autoria do login, nunca do corpo
   const contentType = req.headers.get("content-type") || "";
   try {
     if (contentType.includes("multipart/form-data")) {
       const fd = await req.formData();
       const id = String(fd.get("id") || "");
-      const autor = String(fd.get("autor") || "");
       const idTarefa = fd.get("id_tarefa") ? Number(fd.get("id_tarefa")) : null;
       const file = fd.get("file") as File | null;
       if (!id || !file) return NextResponse.json({ error: "id e file são obrigatórios" }, { status: 400 });
@@ -49,7 +57,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({}));
     const id = String(body?.id || "");
     const comentario = String(body?.comentario || "").trim();
-    const autor = String(body?.autor || "");
     const idTarefa = body?.id_tarefa ? Number(body.id_tarefa) : null;
     if (!id || !comentario) return NextResponse.json({ error: "id e comentário são obrigatórios" }, { status: 400 });
     const { error } = await supabase.from(TBL).insert({ id_pedido: id, tipo: "comentario", comentario, autor, id_tarefa: idTarefa });
@@ -61,6 +68,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const g = await protegerRota(req, ACESSO);
+  if (g.resposta) return g.resposta;
   const anexoId = req.nextUrl.searchParams.get("anexoId") || "";
   if (!anexoId) return NextResponse.json({ error: "Passe ?anexoId=" }, { status: 400 });
   const { error } = await supabase.from(TBL).delete().eq("id", anexoId);

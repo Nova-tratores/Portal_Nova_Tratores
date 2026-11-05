@@ -420,7 +420,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
     setAddEmTipo(tipoDoc); setDocSel(null); setDocBusca(""); setDocsAbertos([]); setDocsCarregando(true);
     try {
       if (tipoDoc === "ppv") {
-        const r = await fetch("/api/ppv/pedidos");
+        const r = await fetchAuth("/api/ppv/pedidos");
         const d = await r.json();
         const fechados = ["Cancelada", "Concluída", "Cancelado", "Fechado"];
         setDocsAbertos((Array.isArray(d) ? d : [])

@@ -5,7 +5,7 @@
 // Estilo POS NewPortal (docs/estilo-pos-newportal.md).
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { authHeaders } from "@/lib/auth/client";
+import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import type { Trava, ChaveTrava } from "@/lib/pos/travas-faturar";
 import LocalizacaoClienteModal from "./LocalizacaoClienteModal";
 
@@ -130,7 +130,7 @@ function EscolherProjeto({ documento, ocupado, onEscolher }: { documento?: strin
           const j = await fetch(`/api/clientes/maquinas?doc=${encodeURIComponent(documento)}`).then((r) => r.json());
           const chassis = ((j.maquinas || []) as Array<{ chassis?: string }>).map((m) => String(m.chassis || "").trim().slice(-7)).filter((c) => c.length >= 5).slice(0, 6);
           for (const c of chassis) {
-            const ps = await fetch(`/api/pos/buscas/projetos?termo=${encodeURIComponent(c)}`).then((r) => r.json()).catch(() => []);
+            const ps = await fetchAuth(`/api/pos/buscas/projetos?termo=${encodeURIComponent(c)}`).then((r) => r.json()).catch(() => []);
             for (const p of (ps as Array<{ nome: string }>).slice(0, 3)) nomes.add(p.nome);
           }
         }
@@ -144,7 +144,7 @@ function EscolherProjeto({ documento, ocupado, onEscolher }: { documento?: strin
     if (termo.trim().length < 3) return;
     let vivo = true;
     const t = setTimeout(async () => {
-      const ps = await fetch(`/api/pos/buscas/projetos?termo=${encodeURIComponent(termo.trim())}`).then((r) => r.json()).catch(() => []);
+      const ps = await fetchAuth(`/api/pos/buscas/projetos?termo=${encodeURIComponent(termo.trim())}`).then((r) => r.json()).catch(() => []);
       if (vivo) setLista((ps as Array<{ nome: string }>).map((p) => p.nome).slice(0, 12));
     }, 300);
     return () => { vivo = false; clearTimeout(t); };
