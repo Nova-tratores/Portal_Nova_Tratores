@@ -231,6 +231,17 @@ const SONS_NOTIFICACAO = [
   }},
 ]
 
+/** Guarda os avisos de notificação já mostrados na ilha (últimos 200) — devolve true se este já foi mostrado. */
+function jaMostrouAviso(id: string): boolean {
+  try {
+    const CHAVE = 'portal-ilha-vistos'
+    const vistos: string[] = JSON.parse(localStorage.getItem(CHAVE) || '[]')
+    if (vistos.includes(id)) return true
+    localStorage.setItem(CHAVE, JSON.stringify([id, ...vistos].slice(0, 200)))
+  } catch { /* sem localStorage: mostra como antes */ }
+  return false
+}
+
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const { userProfile, setUserProfile, loading, handleLogout, bloqueio } = useAuth()
   const { permissoes, isAdmin, isDev, temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
@@ -601,6 +612,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   useEffect(() => {
     if (!lastSysNotif || lastSysNotif.lida || lastSysNotif.id === lastSysNotifIdRef.current) return
     lastSysNotifIdRef.current = lastSysNotif.id
+    // cada aviso aparece UMA vez neste navegador (auditoria 06/11/2026: a mesma notificação não lida voltava a
+    // cada tela aberta e cobria o topo no celular); continua no sino
+    if (jaMostrouAviso(String(lastSysNotif.id))) return
 
     const toastId = 'sys-' + lastSysNotif.id
     setToasts(prev => [{

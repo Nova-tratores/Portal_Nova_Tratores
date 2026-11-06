@@ -246,7 +246,9 @@ function Ensinar({ ens, setEns }: { ens: Ensinamento[]; setEns: (e: Ensinamento[
         onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && novo.trim()) void mexer({ acao: 'ensinar', conteudo: novo }, () => setNovo('')) }} />
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         <button type="button" className="rl-btn rl-roxo" disabled={salvando || novo.trim().length < 5} onClick={() => mexer({ acao: 'ensinar', conteudo: novo }, () => setNovo(''))}><i className="fas fa-plus" /> Ensinar</button>
-        <span style={{ fontSize: 12, color: MUDO }}>Ctrl+Enter</span>
+        {/* no toque não tem Ctrl+Enter (auditoria 06/11/2026) */}
+        <style>{`@media (hover: none) { .rl-dica-teclado { display: none } }`}</style>
+        <span className="rl-dica-teclado" style={{ fontSize: 12, color: MUDO }}>Ctrl+Enter</span>
       </div>
       {ens.length === 0 && EXEMPLOS.map((x) => <button key={x} type="button" className="rl-ens rl-ex" onClick={() => setNovo(x)}><i className="fas fa-wand-magic-sparkles" /> {x}</button>)}
       {ens.map((e, i) => (

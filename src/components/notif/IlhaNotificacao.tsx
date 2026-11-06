@@ -242,4 +242,7 @@ const CSS_ILHA = `
 .sino-pulo { animation: sinoPulo .55s cubic-bezier(.34,1.8,.5,1); }
 @keyframes sinoPulo { 30% { transform: scale(1.22) rotate(-12deg) } 60% { transform: scale(.95) rotate(8deg) } }
 @media (max-width: 640px) { .ilha-notif.exp { width: calc(100vw - 16px); } }
+/* celular (auditoria 06/11/2026): fechar com alvo de dedo (era 23 px); no toque não tem arrastar, a alça sai */
+@media (max-width: 640px) { .ilha-x { width: 44px; height: 44px; align-items: center; justify-content: center; margin: -6px -6px -6px 0; } }
+@media (hover: none) { .ilha-alca { display: none; } .ilha-notif.exp { padding-left: 12px; } }
 `

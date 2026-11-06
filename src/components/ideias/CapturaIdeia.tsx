@@ -47,7 +47,9 @@ export default function CapturaIdeia({ onSalvar, focarAoAbrir = true }: Props) {
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: 12.5, fontWeight: 800, color: 'var(--portal-text,#111)' }}>
         <Lightbulb size={15} /> Nova ideia
-        <span style={{ fontWeight: 500, color: 'var(--portal-text-muted,#888)' }}>— escreva e aperte Ctrl+Enter</span>
+        {/* no toque não tem Ctrl+Enter: a dica some e fica o botão "Salvar ideia" (auditoria 06/11/2026) */}
+        <style>{`@media (hover: none) { .ideia-dica-teclado { display: none } }`}</style>
+        <span className="ideia-dica-teclado" style={{ fontWeight: 500, color: 'var(--portal-text-muted,#888)' }}>— escreva e aperte Ctrl+Enter</span>
       </div>
       <textarea
         ref={ref}

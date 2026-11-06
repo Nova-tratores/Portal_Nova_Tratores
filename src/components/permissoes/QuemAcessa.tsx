@@ -65,9 +65,10 @@ export default function QuemAcessa() {
       >
         <KeyRound size={14} /> <span className="qa-txt">Quem acessa</span>
         <span className="qa-txt" style={{ fontSize: 9, fontWeight: 800, background: '#111111', color: '#fefefe', padding: '1px 6px', borderRadius: 999 }}>DEV</span>
-        {/* celular: só a chave — o selo inteiro tapava o conteúdo no canto */}
-        <style>{`@media (max-width: 640px) { .quem-acessa-btn { padding: 8px !important; } .quem-acessa-btn .qa-txt { display: none; } }`}</style>
       </button>
+      {/* celular: só a chave — o selo inteiro tapava o conteúdo no canto. O <style> fica FORA do botão
+          (dentro dele o CSS entrava no texto do botão; auditoria 06/11/2026); meio transparente até tocar */}
+      <style>{`@media (max-width: 640px) { .quem-acessa-btn { padding: 8px !important; opacity: .55; } .quem-acessa-btn:active, .quem-acessa-btn:focus { opacity: 1; } .quem-acessa-btn .qa-txt { display: none; } }`}</style>
 
       {aberto && (
         <aside
