@@ -377,7 +377,7 @@ export function ProspeccaoJornada({ inicial, aoMudar }: { inicial?: Dados; aoMud
       </div>
       <div className="pv-nav">
         <button type="button" className="pv-bt" onClick={() => ir(passo - 1)}><i className="fas fa-arrow-left" /> Anterior</button>
-        <small>use ← → do teclado</small>
+        <small className="pv-dica-teclado">use ← → do teclado</small>
         <button type="button" className="pv-bt pv-bt-pri" onClick={() => ir(passo + 1)}>{passo === 3 ? 'Voltar ao início' : `Próximo: ${GRUPOS[passo + 1].nome}`} <i className="fas fa-arrow-right" /></button>
       </div>
       {ficha && <FichaExecutiva c={ficha} modo="abas" onFechar={() => setFicha(null)} />}
@@ -506,6 +506,9 @@ function TeclasFila({ ativo, onLigar, onDepois }: { ativo: boolean; onLigar: () 
 
 const ESTILO = `
   .pv-tela { padding: 18px clamp(12px, 2vw, 28px) 40px; display: grid; gap: 18px }
+  /* celular (auditoria 06/11/2026): a grade crescia até o slide e a página rolava de lado; sem dica de teclado no toque */
+  @media (max-width: 760px) { .pv-tela { grid-template-columns: minmax(0, 1fr) } .pv-tela > * { min-width: 0 } .pv-slide { grid-template-columns: minmax(0, 1fr) } .pv-slide > * { min-width: 0 } .pv-tela :where(div, section, button, a) { min-width: 0 } .pv-nav { flex-wrap: wrap } }
+  @media (hover: none) { .pv-dica-teclado { display: none } }
   .pv-erro { background: #fee2e2; color: #991b1b; border-radius: 12px; padding: 12px 14px }
   .pv-tl { display: flex; gap: 12px; align-items: flex-start; animation: pvSobe .45s ease both }
   .pv-rosto { width: 40px; height: 40px; border-radius: 13px; flex-shrink: 0; display: grid; place-items: center; color: #fefefe; font-size: 18px; background: linear-gradient(140deg, #0ea5e9, #0369a1); box-shadow: 0 6px 16px rgba(3,105,161,.25) }
