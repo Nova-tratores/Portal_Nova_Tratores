@@ -32,6 +32,7 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import NotasGarantiaPainel from './NotasGarantia';
 import PecasFabricaPainel from './PecasFabrica';
 import PagoPelaFabrica from './PagoPelaFabrica';
+import { CancelarPorMotivo, AvisoCancelada } from './CancelarGarantia';
 
 interface Props {
   garantiaId: string;
@@ -1885,14 +1886,24 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 </>
               )}
 
-              {/* Cancelar por duplicação — único motivo de cancelamento que existe */}
+              {/* Cancelar: duplicação (aponta a original) ou teste/engano/outro */}
+              {finalizada && !cancelada && podeFinalizar && (
+                <Secao titulo="Cancelar garantia" icone={<XCircle size={14} />}>
+                  <CancelarPorMotivo g={g} onFeito={() => { carregar(); onSaved(); }} />
+                </Secao>
+              )}
               {!finalizada && podeFinalizar && (
-                <Secao titulo="Cancelar por duplicação" icone={<XCircle size={14} />}>
+                <Secao titulo="Cancelar garantia" icone={<XCircle size={14} />}>
+                  {!cancelDupAberto && (
+                    <div style={{ marginBottom: 10, paddingBottom: 10, borderBottom: '1px dashed var(--portal-border)' }}>
+                      <CancelarPorMotivo g={g} onFeito={() => { carregar(); onSaved(); }} />
+                    </div>
+                  )}
                   {!cancelDupAberto ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 12, color: 'var(--portal-text-muted)', flex: 1, minWidth: 220, lineHeight: 1.5 }}>
                         Abriram duas garantias pro <b>mesmo caso</b>? Cancele esta apontando a original.
-                        Duplicação é o único motivo de cancelamento — fábrica negar é Recusar, lá em cima.
+                        Fábrica negar não é cancelamento — é Recusar, lá em cima.
                       </span>
                       <button onClick={() => setCancelDupAberto(true)} style={btn('#64748b')}>
                         <XCircle size={14} /> Cancelar como duplicada…
@@ -1932,8 +1943,15 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 </Secao>
               )}
 
+              {/* Cancelada por teste / engano / outro motivo */}
+              {cancelada && !g.duplicada_de && (
+                <Secao titulo="Garantia cancelada" icone={<XCircle size={14} />}>
+                  <AvisoCancelada g={g} podeDesfazer={podeFinalizar} onFeito={() => { carregar(); onSaved(); }} />
+                </Secao>
+              )}
+
               {/* Cancelada por duplicação */}
-              {cancelada && (
+              {cancelada && !!g.duplicada_de && (
                 <Secao titulo="Garantia cancelada — duplicada" icone={<XCircle size={14} />}>
                   <div style={{ fontSize: 13, color: 'var(--portal-text)', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '10px 12px', lineHeight: 1.6 }}>
                     Cancelada por <b>duplicação</b>{g.cancelada_em ? ` em ${fmtDataHora(g.cancelada_em)}` : ''} — o caso é o

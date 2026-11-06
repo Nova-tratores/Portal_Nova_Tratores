@@ -18,7 +18,7 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
   // período da finalização (YYYY-MM-DD, dia de Brasília); vazio = sem limite
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
-  const [resultado, setResultado] = useState<'' | 'aprovada' | 'recusada'>('');
+  const [resultado, setResultado] = useState<'' | 'aprovada' | 'recusada' | 'cancelada'>('');
 
   const carregar = useCallback(async () => {
     setLoading(true);
@@ -42,8 +42,11 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
     return lista.filter((g) => {
       if (t && ![g.numero, g.id_ordem, g.cliente, g.chassis, g.montadora?.nome]
         .some((v) => (v || '').toLowerCase().includes(t))) return false;
+      // canceladas (teste/engano/duplicada) só aparecem pedindo
+      if (resultado === 'cancelada') { if (g.status !== 'cancelada') return false; }
+      else if (g.status === 'cancelada') return false;
       if (resultado === 'aprovada' && g.status !== 'aprovada') return false;
-      if (resultado === 'recusada' && g.status === 'aprovada') return false;
+      if (resultado === 'recusada' && g.status !== 'rejeitada') return false;
       if (de || ate) {
         const dia = diaBR(g.finalizada_em);
         if (!dia) return false;
@@ -59,7 +62,7 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
 
   // folha própria para imprimir: só a lista filtrada + totais no fim (o window.print() levava a tela inteira)
   const textoFiltros = () => [
-    resultado === 'aprovada' ? 'Só aprovadas' : resultado === 'recusada' ? 'Só recusadas' : 'Aprovadas e recusadas',
+    resultado === 'aprovada' ? 'Só aprovadas' : resultado === 'recusada' ? 'Só recusadas' : resultado === 'cancelada' ? 'Só canceladas' : 'Aprovadas e recusadas',
     de || ate ? `Finalizadas ${de ? 'de ' + fmtDia(de) : ''}${ate ? ' até ' + fmtDia(ate) : ''}` : 'Todo o período',
     filtro.trim() ? `Busca: "${filtro.trim()}"` : '',
   ].filter(Boolean).join(' · ');
@@ -104,7 +107,7 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
         <td>${esc(g.cliente || '—')}</td>
         <td>${esc(g.chassis || '—')}</td>
         <td>${esc(g.montadora?.nome || '—')}</td>
-        <td class="${g.status === 'aprovada' ? 'ok' : 'nao'}">${g.status === 'aprovada' ? 'Aprovada' : 'Recusada'}</td>
+        <td class="${g.status === 'aprovada' ? 'ok' : 'nao'}">${g.status === 'aprovada' ? 'Aprovada' : g.status === 'cancelada' ? 'Cancelada' : 'Recusada'}</td>
         <td>${esc(fmtData(g.finalizada_em))}</td>
         <td class="num">${esc(fmtMoeda(g.valor_pago_total))}</td>
       </tr>`).join('');
@@ -238,6 +241,7 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
             <option value="">Aprovadas e recusadas</option>
             <option value="aprovada">Só aprovadas</option>
             <option value="recusada">Só recusadas</option>
+            <option value="cancelada">Só canceladas</option>
           </select>
         </div>
         <button
@@ -321,6 +325,10 @@ export default function GarantiasHistorico({ onAbrir, refreshKey }: Props) {
                     {g.status === 'aprovada' ? (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#16a34a', fontWeight: 600 }}>
                         <CheckCircle2 size={13} /> Aprovada
+                      </span>
+                    ) : g.status === 'cancelada' ? (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#64748b', fontWeight: 600 }}>
+                        <XCircle size={13} /> Cancelada
                       </span>
                     ) : (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#dc2626', fontWeight: 600 }}>

@@ -60,7 +60,7 @@ export const STATUS_LABEL: Record<GarantiaStatus, string> = {
   ressarcimento_fabrica: 'Ressarcimento na fábrica',
   aprovada:              'Aprovada',
   rejeitada:             'Rejeitada',
-  cancelada:             'Cancelada (duplicada)',
+  cancelada:             'Cancelada',
 };
 
 // Cores por status (badges / colunas do Kanban)
@@ -88,7 +88,7 @@ export const OS_BADGE_LABEL: Record<GarantiaStatus, string> = {
   ressarcimento_fabrica: 'Ressarcimento na fábrica',
   aprovada:              'Garantia paga',
   rejeitada:             'Garantia não paga',
-  cancelada:             'Garantia cancelada (duplicada)',
+  cancelada:             'Garantia cancelada',
 };
 
 // Status terminais
@@ -106,8 +106,8 @@ export const TRANSICOES: Record<GarantiaStatus, GarantiaStatus[]> = {
   ressarcimento_fabrica: ['info_pendente', 'aprovada', 'rejeitada'],
   aprovada:              [],
   rejeitada:             [],
-  // cancelada não entra no pipeline: só nasce pela ação "cancelar por
-  // duplicação" (qualquer status não-finalizado → cancelada) e é terminal
+  // cancelada não entra no pipeline: nasce pela ação "cancelar por duplicação"
+  // (terminal) ou "cancelar por motivo" (teste/engano/outro — /cancelar, desfazível)
   cancelada:             [],
 };
 
