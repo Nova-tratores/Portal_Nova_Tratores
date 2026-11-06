@@ -20,7 +20,8 @@ export function CaixaAguardando(_: { compacta?: boolean }) {
       <style>{ESTILO_CXA}</style>
       <input type="checkbox" role="switch" aria-checked={on} checked={on} onChange={(e) => definirComAguardando(e.target.checked)} />
       <span className="cxa-sw" aria-hidden><i /></span>
-      <span className="cxa-t">{on ? 'Com OS não faturadas' : 'Só OS faturadas'}</span>
+      {/* nome fixo, a chave diz se está valendo (José, 06/11/2026: "Só OS faturadas" com a chave desligada confundia) */}
+      <span className="cxa-t">Somar OS não faturadas</span>
     </label>
   )
 }

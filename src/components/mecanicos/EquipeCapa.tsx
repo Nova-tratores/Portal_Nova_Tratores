@@ -110,8 +110,9 @@ export default function EquipeCapa({ mes }: { mes: string }) {
           oque={<><b>{bateram}</b> de <b>{n}</b> mecânicos estão no ritmo da meta básica.</>}
           conta={<>{d.tecs.map((t) => `${t.nome.split(' ')[0]} ${Math.round(t.pBas)}%`).join(' · ')}</>}
           porque="A meta é de cada um: a equipe só bate se cada mecânico fizer a parte dele." />
-        <Meta ic="fa-road" cor="#0891b2" rot="Km rodados" v={`${Math.round(d.km).toLocaleString('pt-BR')} km`}
-          oque={<>Os carros da equipe rodaram <b>{Math.round(d.km).toLocaleString('pt-BR')} km</b> no mês.</>}
+        {/* é o km COBRADO nas OS do mês, não o GPS dos carros (esse está em Fantasmas) — José, 06/11/2026 */}
+        <Meta ic="fa-road" cor="#0891b2" rot="Km cobrados" v={`${Math.round(d.km).toLocaleString('pt-BR')} km`}
+          oque={<>As OS do mês cobraram <b>{Math.round(d.km).toLocaleString('pt-BR')} km</b> de deslocamento. O km que o GPS dos carros registrou está em Fantasmas.</>}
           conta={kmPorH ? <><b>{h1(kmPorH)} km</b> para cada hora cobrada</> : <>sem horas no mês</>}
           porque="Muito km para pouca hora cobrada quer dizer deslocamento que não virou serviço." />
         {varH != null && <Meta ic={`fa-arrow-${varH >= 0 ? 'up' : 'down'}`} cor={varH >= 0 ? '#047857' : '#b91c1c'} rot="Mês passado" v={`${varH >= 0 ? '+' : ''}${varH}%`}
@@ -129,7 +130,7 @@ export default function EquipeCapa({ mes }: { mes: string }) {
                 </button>
               ))}
             </div>
-            <span><i className="ok" /> bateu o esperado <i className="quase" /> perto <i className="baixo" /> abaixo</span>
+            <span><u><i className="ok" /> bateu o esperado</u><u><i className="quase" /> perto</u><u><i className="baixo" /> abaixo</u></span>
           </div>
           <div className="eqc-palco">
           <div key={visao} className={`eqc-slide ${visao}`}>
@@ -191,8 +192,10 @@ export default function EquipeCapa({ mes }: { mes: string }) {
 
 /** Ícone de meta: valor à vista; o "o que é", a conta e o porquê aparecem ao passar o mouse ou clicar. */
 function Meta({ ic, cor, rot, v, pct, oque, conta, porque }: { ic: string; cor: string; rot: string; v: string; pct?: number; oque: React.ReactNode; conta: React.ReactNode; porque: string }) {
+  // no celular não tem mouse: tocar abre a explicação embaixo do cartão e tocar de novo fecha (06/11/2026)
+  const [aberta, setAberta] = useState(false)
   return (
-    <button type="button" className="eqc-m" style={{ '--c': cor } as React.CSSProperties}>
+    <button type="button" className={`eqc-m ${aberta ? 'on' : ''}`} style={{ '--c': cor } as React.CSSProperties} onClick={() => setAberta((a) => !a)} aria-expanded={aberta}>
       <span className="eqc-m-ic"><i className={`fas ${ic}`} />{pct != null && <svg viewBox="0 0 44 44"><circle cx="22" cy="22" r="20" pathLength={100} style={{ strokeDasharray: `${Math.min(100, pct)} 100` }} /></svg>}</span>
       <span className="eqc-m-t"><small>{rot}</small><b>{v}</b>{pct != null && <em>{Math.round(pct)}%</em>}</span>
       <span className="eqc-m-dica" role="tooltip">
@@ -247,7 +250,8 @@ const ESTILO_EQC = `
 .eqc-chips { display: flex; gap: 8px; flex-wrap: wrap } .eqc-chips span { font-size: 13px; color: #334155; background: #f1f5f9; border-radius: 99px; padding: 5px 12px } .eqc-chips i { color: #64748b; margin-right: 3px } .eqc-chips b { font-weight: 600 }
 .eqc-sem { display: grid; gap: 8px; min-width: 0; align-content: start }
 .eqc-sem-cab { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap } .eqc-sem-cab b { font-size: 15px; font-weight: 500; color: #0f172a }
-.eqc-sem-cab span { display: inline-flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: #475569 } .eqc-sem-cab i { display: inline-block; width: 10px; height: 10px; border-radius: 3px; margin-right: -6px } .eqc-sem-cab i.ok { background: #10b981 } .eqc-sem-cab i.quase { background: #f59e0b } .eqc-sem-cab i.baixo { background: #ef4444 }
+.eqc-sem-cab span { display: inline-flex; gap: 6px 12px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: #475569 } .eqc-sem-cab i { display: inline-block; width: 10px; height: 10px; border-radius: 3px }
+.eqc-sem-cab span u { display: inline-flex; gap: 6px; align-items: center; text-decoration: none } .eqc-sem-cab i.ok { background: #10b981 } .eqc-sem-cab i.quase { background: #f59e0b } .eqc-sem-cab i.baixo { background: #ef4444 }
 .eqc-vis { display: inline-flex; gap: 2px; background: #f1f5f9; border-radius: 99px; padding: 3px }
 .eqc-vis button { position: relative; overflow: hidden; border: 0; background: transparent; border-radius: 99px; padding: 6px 14px; font-family: inherit; font-size: 13.5px; color: #334155; cursor: pointer; transition: background .25s, color .25s }
 .eqc-vis button i { font-size: 12px; margin-right: 3px; color: #2563eb } .eqc-vis button.on { background: #fefefe; color: #0f172a; box-shadow: 0 1px 3px rgba(15,23,42,.12) }

@@ -11,7 +11,8 @@ import { IconeLiga } from './CartaLiga'
 import { useCarreira } from './useCarreira'
 
 const br = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
-const nomeCurto = (n: string) => n.split(' ').slice(0, 2).join(' ')
+// "Danilo de Souza" → "Danilo Souza": pula de/da/do/das/dos/e (antes parava no "Danilo de")
+const nomeCurto = (n: string) => n.split(' ').filter((p, i) => p && (i === 0 || !/^(d[aeo]s?|e)$/i.test(p))).slice(0, 2).join(' ')
 const COR_CAT: Record<Cat, string> = { os: '#0c63e4', pv: '#7c3aed', rh: '#d97706', frota: '#0d9488', legado: '#71717a' }
 const NOME_CAT: Record<Cat, string> = { os: 'OS', pv: 'PV', rh: 'RH', frota: 'Frota', legado: 'Antigas' }
 

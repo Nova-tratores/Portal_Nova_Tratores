@@ -99,6 +99,8 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
   const assRef = useRef<CanvasAssinaturaRef>(null)
   // o diretor vê todas as OS do pedido, não só as mexidas (José, 29/10/2026)
   const [verTodas, setVerTodas] = useState(true)
+  // celular: as OS de cada pedido começam recolhidas (eram 6 pedidos abertos = ~23.000 px); o computador mostra sempre
+  const [verOS, setVerOS] = useState(() => typeof window === 'undefined' || !window.matchMedia('(max-width: 760px)').matches)
   const dif = p.calculado == null ? 0 : p.valor - p.calculado
   const nMex = p.linhas.filter(mexida).length
   const lista = verTodas || modo === 'devolver' ? p.linhas : p.linhas.filter(mexida)
@@ -125,22 +127,25 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
       <ContaPagamento p={p} />
       <div className="au-sub">
         <span>{p.linhas.length} OS · {nMex ? `${nMex} alteradas` : 'nenhuma alterada'}</span>
+        <button type="button" className="au-so-cel" onClick={() => setVerOS((v) => !v)}>{verOS ? 'esconder as OS' : `ver as ${p.linhas.length} OS`}</button>
         {/* só aparece quando o pós-vendas mexeu em alguma OS (com 0 mexidas a lista ficava vazia) */}
         {modo !== 'devolver' && nMex > 0 && p.linhas.length > nMex && <button type="button" onClick={() => setVerTodas((v) => !v)}>{verTodas ? 'ver só as alteradas' : 'ver todas'}</button>}
         <button type="button" onClick={() => { void abrirDocumento(p.id) }}>ver documento</button>
       </div>
-      {lista.length > 0 && (
+      {lista.length > 0 && (verOS || modo === 'devolver') && (
         <div className={`au-lin ${modo === 'devolver' ? 'dev' : ''}`}>
           <div className="au-th"><span>OS</span><span>Cliente</span><span className="n">Hora</span><span className="n">Km</span><span className="n">Peças</span><span className="n">Total da OS</span><span className="n">Calculado</span><span className="n">A pagar</span><span>Alteração</span>{modo === 'devolver' && <span>O que mudar</span>}</div>
-          {lista.map((l) => {
+          {lista.map((l, i) => {
             const m = marcas[l.os]
             return (
-              <div key={l.os} className={`au-tr ${mexida(l) ? 'mex' : ''} ${m ? 'marcada' : ''}`}>
+              // a mesma OS pode vir 2× (faturada ao cliente + garantia aprovada, ex.: OS-0670): a chave leva a posição
+              <div key={`${l.os}|${i}`} className={`au-tr ${mexida(l) ? 'mex' : ''} ${m ? 'marcada' : ''}`}>
                 <span>{l.numero}</span><span>{l.cliente || '—'}</span>
-                <span className="n">{vl(l.valores?.hora)}</span><span className="n">{vl(l.valores?.km)}</span><span className="n">{vl(l.valores?.pecas)}</span>
-                <span className="n au-tot">{l.valores ? brl2(l.valores.total) : '—'}{l.valores && l.valores.outros > 0.5 && <small title="requisições cobradas e outros itens da OS">+ outros {brl2(l.valores.outros)}</small>}</span>
-                <span className="n">{brl2(l.calculado)}</span><span className="n au-com">{brl2(l.valor)}{l.valores && l.valores.total > 0 && <small>{pctTxt(l.valor / l.valores.total)} da OS</small>}</span>
-                <span className="au-dec-pv">{decisao(l)}{l.motivo && mexida(l) ? ` — ${l.motivo}` : ''}</span>
+                {/* data-r: no celular a linha vira cartão e cada valor mostra o nome em cima (o cabeçalho some) */}
+                <span className="n" data-r="Hora">{vl(l.valores?.hora)}</span><span className="n" data-r="Km">{vl(l.valores?.km)}</span><span className="n" data-r="Peças">{vl(l.valores?.pecas)}</span>
+                <span className="n au-tot" data-r="Total da OS">{l.valores ? brl2(l.valores.total) : '—'}{l.valores && l.valores.outros > 0.5 && <small title="requisições cobradas e outros itens da OS">+ outros {brl2(l.valores.outros)}</small>}</span>
+                <span className="n" data-r="Calculado">{brl2(l.calculado)}</span><span className="n au-com" data-r="A pagar">{brl2(l.valor)}{l.valores && l.valores.total > 0 && <small>{pctTxt(l.valor / l.valores.total)} da OS</small>}</span>
+                <span className="au-dec-pv" data-r="Alteração">{decisao(l)}{l.motivo && mexida(l) ? ` — ${l.motivo}` : ''}</span>
                 {modo === 'devolver' && (
                   <span className="au-marca">
                     <select value={m?.pedido || ''} onChange={(e) => marcar(l.os, e.target.value ? { pedido: e.target.value as Marca['pedido'] } : null)}>
@@ -158,8 +163,8 @@ function Pedido({ p, diretor }: { p: PedidoComissao; diretor: boolean }) {
             return (
               <div className="au-tr au-soma">
                 <span>Total</span><span>{lista.length} OS</span>
-                <span className="n">{brl2(so('hora'))}</span><span className="n">{brl2(so('km'))}</span><span className="n">{brl2(so('pecas'))}</span><span className="n">{brl2(so('total'))}</span>
-                <span className="n">{brl2(lista.reduce((a, l) => a + (l.calculado || 0), 0))}</span><span className="n">{brl2(lista.reduce((a, l) => a + (l.valor || 0), 0))}</span><span />
+                <span className="n" data-r="Hora">{brl2(so('hora'))}</span><span className="n" data-r="Km">{brl2(so('km'))}</span><span className="n" data-r="Peças">{brl2(so('pecas'))}</span><span className="n" data-r="Total da OS">{brl2(so('total'))}</span>
+                <span className="n" data-r="Calculado">{brl2(lista.reduce((a, l) => a + (l.calculado || 0), 0))}</span><span className="n" data-r="A pagar">{brl2(lista.reduce((a, l) => a + (l.valor || 0), 0))}</span><span />
                 {modo === 'devolver' && <span />}
               </div>
             )
@@ -284,6 +289,7 @@ const ESTILO_AU = `
 .au-conta { display: flex; flex-wrap: wrap; gap: 6px 22px; align-items: flex-end; background: #f8fafc; border-radius: 12px; padding: 10px 14px }
 .au-conta span { display: grid; gap: 1px } .au-conta small { font-size: 12px; color: #64748b } .au-conta b { font-size: 15.5px; font-weight: 500; font-variant-numeric: tabular-nums; color: #0f172a }
 .au-conta .neg b { color: #b91c1c } .au-conta .cx small { color: #047857 } .au-conta .cx b { color: #047857 } .au-conta .liq { margin-left: auto; text-align: right } .au-conta .liq b { font-size: 18px; font-weight: 600 }
+.au-so-cel { display: none !important }
 .au-sub { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; font-size: 13px; color: #475569 } .au-sub button { border: none; background: none; padding: 0; font-family: inherit; font-size: 13px; color: #1d4ed8; cursor: pointer; text-decoration: underline; text-underline-offset: 3px }
 .au-lin { display: grid; font-size: 13.5px; color: #0f172a; border: 1px solid var(--portal-border, #eef2f7); border-radius: 10px; overflow-x: auto }
 .au-th, .au-tr { display: grid; grid-template-columns: 64px minmax(130px, 1.3fr) 84px 76px 84px 96px 92px 92px minmax(150px, 1.4fr); gap: 10px; padding: 7px 12px; align-items: center; min-width: 980px }

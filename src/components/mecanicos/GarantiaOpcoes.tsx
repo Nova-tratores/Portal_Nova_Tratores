@@ -8,6 +8,7 @@ import { authHeaders } from '@/lib/auth/client'
 import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants'
 import type { GarantiaStatus } from '@/lib/garantias/types'
 import { brl, Numero } from './ui'
+import { useMesGestao } from './useMesGestao'
 import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento'
 import type { GarantiaDetalhe } from '@/lib/garantias/types'
 import { agruparPorDestino, andar, dentro, destinoRejeicao, DESTINOS, diaBR, ehAtual, janela, ROTULO_COBRANCA, trocarEscala, valorNoDestino, type Escala, type Janela } from '@/lib/mecanicos/garantias-painel'
@@ -580,9 +581,11 @@ export function GarantiasNoPainel() {
   const { dados, erro } = useGarantias()
   // José, 22/10/2026: "por dia, mês e ano" — padrão = mês de hoje; setas andam um dia/mês/ano
   const [per, setPer] = useState<Janela | null>(null)
+  // abre no mês escolhido no topo da Gestão (06/11/2026: o topo em outubro e esta aba em novembro)
+  const [mesG] = useMesGestao()
   if (erro) return <div className="gx-caixa" style={{ color: '#b91c1c' }}>{erro}</div>
   if (!dados) return <div className="gx-caixa" style={{ color: MUDO }}><span><i className="fas fa-circle-notch fa-spin" /> carregando as garantias…</span></div>
-  const periodo = per || janela('mes', dados.hoje)
+  const periodo = per || janela('mes', dados.hoje.startsWith(mesG) ? dados.hoje : `${mesG}-01`)
   const atual = ehAtual(periodo, dados.hoje)
   return (
     <div className="gx-painel">

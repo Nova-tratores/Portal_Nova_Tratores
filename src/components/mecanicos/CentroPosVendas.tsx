@@ -14,6 +14,7 @@ import PodioMeses from './PodioMeses'
 import { useLigarAoVivo, useSeloAoVivo } from './useAoVivo'
 import { useMesGestao, mesAtualSP } from './useMesGestao'
 import { PeriodoNoTopo } from './FaturamentoPeriodo'
+import { ESTILO_CELULAR_GESTAO } from './celularGestao'
 
 export type AbaCPV = 'painel' | 'ocorrencias' | 'podio'
 
@@ -119,7 +120,7 @@ export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a
         {/* o período fica no lugar do Tratorilson, e ele vai para a direita (José, 04/11/2026) */}
         {aba !== 'podio' && <PeriodoNoTopo soMes={aba === 'ocorrencias'} />}
         <TratorilsonLeitura onIr={irPara} aba={aba === 'podio' ? 'painel' : aba} oculto />
-        <span style={{ flex: 1 }} />
+        <span className="cpv-espaco" style={{ flex: 1 }} />
         {selo && <span className="cpv-aovivo" title={selo.motivo}><i />Atualizado agora · {selo.motivo}</span>}
         <button type="button" className="cpv-robo" onClick={abrirTratorilson} title="Tratorilson: perguntas frequentes"><i className="fas fa-robot" /> Tratorilson</button>
         <button type="button" className="cpv-tela" onClick={alternarTela} title={cheia ? 'Sair da tela cheia (Esc)' : 'Tela cheia'}>
@@ -130,6 +131,8 @@ export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a
       {modal === 'comissoes' && <ComissoesJanela />}
       {modal === 'autorizacoes' && <AutorizacoesJanela />}
       <div key={aba} className="cpv-conteudo">{aba === 'ocorrencias' ? <RadarOcorrencias /> : aba === 'podio' ? <PodioMeses /> : <PainelTecnicos />}</div>
+      {/* regras do celular (até 760 px) por último: valem por cima das de cada parte (06/11/2026) */}
+      <style>{ESTILO_CELULAR_GESTAO}</style>
     </div>
   )
 }

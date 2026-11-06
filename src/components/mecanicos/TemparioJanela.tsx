@@ -10,6 +10,7 @@ import { authHeaders } from '@/lib/auth/client'
 import type { AjusteTempario, AtividadeTempario } from '@/lib/mecanicos/tempario'
 import type { PrevisaoOS } from '@/lib/mecanicos/previsao-os-server'
 import { Janela } from './JanelasInfo'
+import { acentuar } from '@/lib/mecanicos/acentos'
 
 type Ativ = AtividadeTempario & { i: number; ajuste?: AjusteTempario; nova?: boolean }
 interface Rel { motivo: string | null; servico: string | null; horas: string | null; tecnico: string | null; modelo: string | null; tipo: string | null }
@@ -19,7 +20,7 @@ const semAcento = (t: string) => t.toLowerCase().normalize('NFD').replace(/[̀-�
 // "EixoDianteiro" → "Eixo dianteiro"; os sistemas do PDF vêm grudados
 const bonito = (t: string | null) => {
   if (!t) return 'Outros'
-  const s = t.replace(/([a-zçãéí])([A-Z0-9])/g, '$1 $2').toLowerCase()
+  const s = acentuar(t.replace(/([a-zçãéí])([A-Z0-9])/g, '$1 $2').toLowerCase())
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 const tempo = (m: number) => { const h = Math.floor(m / 60), mm = Math.round(m % 60); return h ? `${h} h${mm ? ` ${String(mm).padStart(2, '0')} min` : ''}` : `${mm} min` }
@@ -32,6 +33,7 @@ export default function TemparioJanela({ onFechar, os, onMudou }: { onFechar: ()
   const [semTabela, setSemTabela] = useState(false)
   const [q, setQ] = useState('')
   const [sis, setSis] = useState<string | null>(null)
+  const [tudo, setTudo] = useState(false)
   const [ras, setRas] = useState<Rascunho | null>(null)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -134,7 +136,7 @@ export default function TemparioJanela({ onFechar, os, onMudou }: { onFechar: ()
                   const atual = porI.get(a.i)
                   return (
                     <div key={a.i} className="tp-l casada">
-                      <div><b>{atual?.atividade || a.atividade}{a.qtd > 1 ? ` × ${a.qtd}` : ''}</b><small>{a.porque ? `“${a.porque}”` : ''}</small></div>
+                      <div><b>{acentuar(atual?.atividade || a.atividade)}{a.qtd > 1 ? ` × ${a.qtd}` : ''}</b><small>{a.porque ? `“${a.porque}”` : ''}</small></div>
                       <em><i className="fas fa-stopwatch" /> {tempo((atual?.minutos ?? a.minutos) * a.qtd)}</em>
                       {atual && <span className="tp-acoes"><button type="button" onClick={() => ajustar(atual)}><i className="fas fa-pen" /> ajustar tempo</button><button type="button" onClick={() => parecida(atual, rel?.servico?.slice(0, 200) || undefined, hRel * 60)}><i className="fas fa-clone" /> incluir parecida</button></span>}
                     </div>
@@ -175,11 +177,11 @@ export default function TemparioJanela({ onFechar, os, onMudou }: { onFechar: ()
       {!lista ? <p className="ji-mudo"><i className="fas fa-circle-notch fa-spin" /> carregando o tempário…</p> : (
         <>
           <small className="tp-cont">{achados.length} atividade{achados.length === 1 ? '' : 's'}{achados.length > mostrar.length ? ` · mostrando ${mostrar.length}; refine a busca` : ''}{ajustes.length ? ` · ${ajustes.length} ajuste${ajustes.length === 1 ? '' : 's'} da equipe` : ''}</small>
-          <div className="tp-lista">
+          <div className={`tp-lista ${tudo ? 'tudo' : ''}`}>
             {mostrar.map((a) => (
               <div key={a.i} className={`tp-l ${a.ajuste ? 'aj' : ''}`}>
                 <div>
-                  <b>{a.atividade}{a.nova && <span className="tp-selo novo">nova</span>}{a.ajuste && !a.nova && <span className="tp-selo">ajustada</span>}</b>
+                  <b>{acentuar(a.atividade)}{a.nova && <span className="tp-selo novo">nova</span>}{a.ajuste && !a.nova && <span className="tp-selo">ajustada</span>}</b>
                   <small>{[bonito(a.sistema), a.subsistema && bonito(a.subsistema), a.codigo].filter(Boolean).join(' · ')}</small>
                   {a.ajuste && <small className="tp-quem">{a.nova ? 'incluída' : 'ajustada'} por {a.ajuste.criado_por} em {dataBR(a.ajuste.criado_em)}{a.ajuste.os_origem ? ` (${a.ajuste.os_origem})` : ''}: “{a.ajuste.motivo}” <button type="button" onClick={() => void desfazer(a.ajuste!)}>desfazer</button></small>}
                 </div>
@@ -190,6 +192,8 @@ export default function TemparioJanela({ onFechar, os, onMudou }: { onFechar: ()
                 </span>
               </div>
             ))}
+            {/* celular: sem caixa com rolagem própria; mostra 40 e o resto num toque */}
+            {mostrar.length > 40 && !tudo && <button type="button" className="tp-mais" onClick={() => setTudo(true)}>ver mais {mostrar.length - 40} atividades</button>}
             {!achados.length && <p className="ji-mudo">Nada no tempário com essa busca. <button type="button" className="tp-link" onClick={() => nova(q)}>Incluir “{q}”</button></p>}
           </div>
         </>
@@ -217,6 +221,7 @@ const ESTILO_TP = `
 .tp-sis { display: flex; gap: 6px; flex-wrap: wrap } .tp-sis button { border: 1px solid #e2e8f0; background: #fefefe; border-radius: 99px; padding: 5px 12px; font-family: inherit; font-size: 13px; color: #334155; cursor: pointer } .tp-sis button small { color: #94a3b8; margin-left: 2px }
 .tp-sis button:hover { border-color: #0f766e } .tp-sis button.on { background: #0f766e; border-color: #0f766e; color: #fefefe } .tp-sis button.on small { color: #ccfbf1 } .tp-sis .tp-sis-novo { border-style: dashed; color: #0f766e }
 .tp-cont { font-size: 12.5px; color: #475569 }
+.tp-mais { display: none; border: 0; border-top: 1px solid #eef2f7; background: #f8fafc; color: #0f766e; font: inherit; font-size: 14px; min-height: 44px; cursor: pointer }
 .tp-lista { display: grid; border: 1px solid #eef2f7; border-radius: 12px; overflow: hidden; max-height: 52vh; overflow-y: auto }
 .tp-l { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 9px 14px } .tp-l + .tp-l { border-top: 1px solid #f1f5f9 } .tp-l:hover { background: #f8fafc } .tp-l.aj { background: #fffdf5 }
 .tp-l.casada { background: #fefefe; border: 1px solid #ccfbf1; border-radius: 10px }

@@ -54,6 +54,13 @@ function levarAoTopo(el: HTMLElement) {
 /** Clicar abre o assunto e já leva a tela até ele (José, 29/10/2026: "quando a gente clicar já centralizar nas informações"). */
 export function AbasAssuntos({ abas, atual, onTroca }: { abas: AbaAssunto[]; atual: string; onTroca: (id: string) => void }) {
   const raiz = useRef<HTMLDivElement>(null)
+  // no celular a faixa rola de lado: a aba escolhida fica à vista (sem rolar a página)
+  useEffect(() => {
+    const r = raiz.current, b = r?.querySelector<HTMLElement>('.aa-aba.on')
+    if (!r || !b || r.scrollWidth <= r.clientWidth) return
+    const dr = r.getBoundingClientRect(), db = b.getBoundingClientRect()
+    r.scrollTo({ left: r.scrollLeft + db.left - dr.left - (dr.width - db.width) / 2, behavior: 'smooth' })
+  }, [atual])
   const clicar = (id: string) => {
     onTroca(id)
     setTimeout(() => { if (raiz.current) levarAoTopo(raiz.current) }, 60)

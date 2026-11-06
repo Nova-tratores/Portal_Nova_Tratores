@@ -5,6 +5,7 @@
 // Só mostra as guias que a pessoa tem permissão de ver (módulos do Admin).
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 
@@ -24,6 +25,14 @@ export default function ServicosNav() {
   const pathname = usePathname() ?? '';
   const { userProfile } = useAuth();
   const { temAcesso, loading } = usePermissoes(userProfile?.id);
+  // celular: a faixa rola de lado e a guia do módulo aberto ficava fora da tela — rola só a faixa até ela
+  const faixa = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const f = faixa.current, a = f?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!f || !a || f.scrollWidth <= f.clientWidth) return;
+    const df = f.getBoundingClientRect(), da = a.getBoundingClientRect();
+    f.scrollLeft += da.left - df.left - (df.width - da.width) / 2;
+  }, [pathname, loading, userProfile]);
 
   if (loading || !userProfile) return null;
   const visiveis = ABAS.filter((a) => temAcesso(a.modulo));
@@ -31,6 +40,7 @@ export default function ServicosNav() {
 
   return (
     <div
+      ref={faixa}
       className="print:hidden servicos-nav"
       style={{
         display: 'flex',
@@ -48,6 +58,7 @@ export default function ServicosNav() {
           <Link
             key={a.href}
             href={a.href}
+            aria-current={ativo ? 'page' : undefined}
             style={{
               display: 'flex',
               alignItems: 'center',
