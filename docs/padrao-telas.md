@@ -28,5 +28,18 @@ Regras definidas pelo José (19/10/2026). Valem para **toda tela nova** e para a
 - **Proibido: card com faixa colorida grossa na lateral** (`border-left: 4px+ solid <cor>` ou `::before` vertical colorido) — José, 19/10/2026: "tira esse tipo de card… para não criar mais card assim". Para destacar, use um ícone ou um selo colorido, ou a cor no próprio número; separe blocos com espaço ou uma linha fina.
 - **Fonte do mesmo tamanho das vizinhas.** Nada de número gigante isolado num bloco (ex.: 30px quando o resto da tela usa 16–20px). Valor principal: 18–22px; texto: 13–14px; rótulo: 11–12px em maiúsculas.
 
-## 5. Antes de trocar uma tela
+## 5. Celular junto, sempre
+José, 06/11/2026: "sempre que alterar o módulo ou adicionar um módulo, também fazer ou alterar para o mobile".
+Mexeu numa tela (ou criou uma), o celular faz parte da MESMA entrega — não é "depois". Antes de dizer que terminou:
+- Abrir a tela com **390 px** de largura (iPhone) e **768 px** (tablet) — DevTools > modo celular, ou `window.innerWidth`.
+- **Sem rolagem lateral da página**: `document.documentElement.scrollWidth <= window.innerWidth`.
+- Grades viram 1 ou 2 colunas (`repeat(auto-fit, minmax(min(240px, 100%), 1fr))` ou `@media (max-width: 760px)`).
+- Tabela larga **rola dentro do cartão** (`overflow-x: auto` no contêiner + `min-width` nas linhas) ou vira cartões.
+- Janelas/modais em **tela cheia** no celular (`width: 100%`, `max-height: 100dvh`, rolagem por dentro).
+- Botões e campos com **alvo de toque ≥ 40 px**; nada que só funcione com o mouse (hover, arrastar) sem alternativa de toque.
+- Texto não estoura: `min-width: 0` nos filhos de grid/flex, `overflow-wrap: anywhere` em nomes longos.
+- `min-width`/`width` fixos maiores que 360 px só dentro de um contêiner que rola.
+- Na resposta ao José, dizer em uma linha como ficou no celular (ou que não deu para ver e por quê).
+
+## 6. Antes de trocar uma tela
 - Montar as opções numa **página de teste** (`/<modulo>/teste`, "Opção 1, 2, 3…", a atual como nº 1), com os dados reais, e só trocar depois que o José escolher.

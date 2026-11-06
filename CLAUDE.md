@@ -4,6 +4,12 @@
 > para qualquer sessão (em qualquer computador) continuar de onde parámos.
 > NÃO colocar segredos aqui (só nomes de variáveis). As chaves vivem no `.env.local` (local) e no Railway (produção).
 
+## ⚠️ Regra fixa: toda tela mexida ou criada sai pronta para o CELULAR
+José, 06/11/2026: "sempre que alterar o módulo ou adicionar um módulo, também fazer ou alterar para o mobile".
+O celular faz parte da mesma entrega. Antes de dizer que terminou: abrir com 390 px e 768 px de largura, sem
+rolagem lateral da página, tabelas rolando dentro do cartão, modais em tela cheia, alvos de toque ≥ 40 px.
+Checklist completo em `docs/padrao-telas.md` (seção 5). Na resposta, dizer como ficou no celular.
+
 ## Visão geral
 - Portal interno da **Nova Tratores** (concessionária Mahindra). **Next.js 16** (App Router, TypeScript), **Supabase** (BD + auth), deploy no **Railway** (e Vercel). Realtime via Supabase.
 - Assistente **"Tratorilson"**: chat com IA (OpenAI ou Groq) em `src/app/api/assistente/chat/route.ts`.
