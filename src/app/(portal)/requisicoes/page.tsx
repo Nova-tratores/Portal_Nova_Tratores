@@ -894,7 +894,11 @@ function RequisicoesPageInner() {
       {/* Painel do Dev agora fica inline na barra de filtros do Kanban (extraControles) */}
 
       {/* Card aberto (modal de detalhes) → os botões flutuantes somem */}
-      <style>{`body[data-req-modal="1"] .fab-nova-req, body[data-req-modal="1"] .fab-painel-dev { display: none !important; }`}</style>
+      <style>{`body[data-req-modal="1"] .fab-nova-req, body[data-req-modal="1"] .fab-painel-dev { display: none !important; }
+        /* celular (auditoria 06/11/2026): o "+" cobria valor e selo do último cartão — espaço no fim da tela;
+           ações dos cartões (30 px) com alvo de dedo */
+        @media (max-width: 760px) { .req-vn { padding-bottom: 96px; } }
+        @media (hover: none) { .req-vn .rq-req-acoes button { width: 38px; height: 38px; } }`}</style>
 
       {/* FAB - Nova Requisição */}
       <button

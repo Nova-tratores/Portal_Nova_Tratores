@@ -159,7 +159,8 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
       </div>
 
       {/* Tela estreita: chat em cima, o resto embaixo. */}
-      <style>{`@media (max-width: 900px){.ens-split{grid-template-columns:minmax(0,1fr) !important}.ens-chat{border-right:none !important;border-bottom:1px solid var(--portal-border)}}`}</style>
+      <style>{`@media (max-width: 900px){.ens-split{grid-template-columns:minmax(0,1fr) !important}.ens-chat{border-right:none !important;border-bottom:1px solid var(--portal-border)}}
+        @media (hover: none){.ens-mod{min-height:38px}.ens-ic{min-width:40px;min-height:40px;display:inline-flex !important;align-items:center;justify-content:center;margin:-8px -4px}}`}</style>
       <div className="ens-split" style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(300px, 1fr)', gap: 0 }}>
         {/* Chat de ensino */}
         <div className="ens-chat" style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--portal-border)', minHeight: 420, maxHeight: 560, minWidth: 0 }}>
@@ -201,9 +202,9 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
           </div>
           {/* Botões de MÓDULO (e submódulos dentro do módulo escolhido) */}
           <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--portal-border)', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            <button onClick={() => { setModSel('todas'); setSubSel('') }} style={btnMod(modSel === 'todas')}>Todas ({visiveis.length})</button>
+            <button onClick={() => { setModSel('todas'); setSubSel('') }} className="ens-mod" style={btnMod(modSel === 'todas')}>Todas ({visiveis.length})</button>
             {Object.keys(MODULO_ROTULO).filter((mod) => visiveis.some((m) => baseDe(m) === mod)).map((mod) => (
-              <button key={mod} onClick={() => { setModSel(mod); setSubSel('') }} style={btnMod(modSel === mod)}>
+              <button key={mod} onClick={() => { setModSel(mod); setSubSel('') }} className="ens-mod" style={btnMod(modSel === mod)}>
                 {MODULO_ROTULO[mod]} ({visiveis.filter((m) => baseDe(m) === mod).length})
               </button>
             ))}
@@ -240,8 +241,8 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
                       </>
                     ) : (
                       <>
-                        <button title="Editar" onClick={() => { setEditando(m.id); setEditTexto(m.conteudo) }} style={{ background: 'none', border: 'none', color: 'var(--portal-text-muted)', cursor: 'pointer', padding: 2 }}><Pencil size={13} /></button>
-                        <button title={m.ativo ? 'Esquecer (desativar)' : 'Reativar'} onClick={() => patch(m.id, { ativo: !m.ativo })} style={{ background: 'none', border: 'none', color: m.ativo ? '#dc2626' : '#16a34a', cursor: 'pointer', padding: 2 }}><Power size={13} /></button>
+                        <button className="ens-ic" title="Editar" onClick={() => { setEditando(m.id); setEditTexto(m.conteudo) }} style={{ background: 'none', border: 'none', color: 'var(--portal-text-muted)', cursor: 'pointer', padding: 2 }}><Pencil size={13} /></button>
+                        <button className="ens-ic" title={m.ativo ? 'Esquecer (desativar)' : 'Reativar'} onClick={() => patch(m.id, { ativo: !m.ativo })} style={{ background: 'none', border: 'none', color: m.ativo ? '#dc2626' : '#16a34a', cursor: 'pointer', padding: 2 }}><Power size={13} /></button>
                       </>
                     )}
                   </div>

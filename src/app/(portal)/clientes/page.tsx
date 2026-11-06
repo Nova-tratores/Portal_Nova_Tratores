@@ -2457,7 +2457,7 @@ function ClientesPageInner() {
                                           <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', flexShrink: 0 }}>{f.l}</span>
                                           <span style={{ fontSize: 12.5, fontWeight: 600, color: '#14171d', textAlign: 'right', display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, fontFamily: f.mono ? 'monospace' : undefined }}>
                                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.v}</span>
-                                            {f.copy ? <button onClick={e => copiarContato(e, f.copy)} title="Copiar" style={{ ...btnCopiar, color: copiadoContato === f.copy ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === f.copy ? <Check size={12} /> : <Copy size={12} />}</button> : null}
+                                            {f.copy ? <button onClick={e => copiarContato(e, f.copy)} title="Copiar" className="cli-copiar" style={{ ...btnCopiar, color: copiadoContato === f.copy ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === f.copy ? <Check size={12} /> : <Copy size={12} />}</button> : null}
                                           </span>
                                         </div>
                                       ))}
@@ -3206,6 +3206,8 @@ function ClientesPageInner() {
     <div className="cli-page" style={{ padding: 'clamp(12px, 3vw, 20px) clamp(12px, 4vw, 32px) 32px', width: '100%', boxSizing: 'border-box' }}>
       {/* Linha 1: abas (esquerda) + ações (direita) */}
       <style>{`
+        /* toque (auditoria 06/11/2026): copiar telefone/e-mail tinha 16x16 px; área de 40 px sem mudar a linha */
+        @media (hover: none) { .cli-copiar { min-width: 40px; min-height: 40px; justify-content: center; margin: -12px -10px -12px -8px; } }
         @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
         @keyframes slideIn { from { opacity: 0; transform: scale(0.96) translateY(10px) } to { opacity: 1; transform: scale(1) translateY(0) } }
@@ -3382,13 +3384,13 @@ function ClientesPageInner() {
                     {cli.telefone && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 500 }}>
                         <Phone size={12} style={{ flexShrink: 0 }} /> {cli.telefone}
-                        <button onClick={e => copiarContato(e, cli.telefone)} title="Copiar telefone" style={{ ...btnCopiar, color: copiadoContato === cli.telefone ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.telefone ? <Check size={12} /> : <Copy size={12} />}</button>
+                        <button onClick={e => copiarContato(e, cli.telefone)} title="Copiar telefone" className="cli-copiar" style={{ ...btnCopiar, color: copiadoContato === cli.telefone ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.telefone ? <Check size={12} /> : <Copy size={12} />}</button>
                       </span>
                     )}
                     {cli.email && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 500, minWidth: 0 }}>
                         <Mail size={12} style={{ flexShrink: 0 }} /> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{cli.email}</span>
-                        <button onClick={e => copiarContato(e, cli.email)} title="Copiar email" style={{ ...btnCopiar, color: copiadoContato === cli.email ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.email ? <Check size={12} /> : <Copy size={12} />}</button>
+                        <button onClick={e => copiarContato(e, cli.email)} title="Copiar email" className="cli-copiar" style={{ ...btnCopiar, color: copiadoContato === cli.email ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.email ? <Check size={12} /> : <Copy size={12} />}</button>
                       </span>
                     )}
                   </div>
@@ -3435,9 +3437,9 @@ function ClientesPageInner() {
                   {(cli.telefone || cli.email) && (
                     <div style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', fontWeight: 500, marginTop: 3, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
                       {cli.telefone && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Phone size={11} /> {cli.telefone}
-                        <button onClick={e => copiarContato(e, cli.telefone)} title="Copiar telefone" style={{ ...btnCopiar, color: copiadoContato === cli.telefone ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.telefone ? <Check size={12} /> : <Copy size={12} />}</button></span>}
+                        <button onClick={e => copiarContato(e, cli.telefone)} title="Copiar telefone" className="cli-copiar" style={{ ...btnCopiar, color: copiadoContato === cli.telefone ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.telefone ? <Check size={12} /> : <Copy size={12} />}</button></span>}
                       {cli.email && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Mail size={11} /> {cli.email}
-                        <button onClick={e => copiarContato(e, cli.email)} title="Copiar email" style={{ ...btnCopiar, color: copiadoContato === cli.email ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.email ? <Check size={12} /> : <Copy size={12} />}</button></span>}
+                        <button onClick={e => copiarContato(e, cli.email)} title="Copiar email" className="cli-copiar" style={{ ...btnCopiar, color: copiadoContato === cli.email ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.email ? <Check size={12} /> : <Copy size={12} />}</button></span>}
                     </div>
                   )}
                 </div>
