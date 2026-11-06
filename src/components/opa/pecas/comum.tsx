@@ -12,7 +12,7 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { contagens, listarLookups, type Contagens } from '@/lib/opa-pecas/db'
 import { mensagemErro, urlsMiniaturas } from '@/lib/opa-pecas/fotos'
-import { codigoDefinitivo } from '@/lib/opa-pecas/regras'
+import { codigoDefinitivo, mapaNomesLocais } from '@/lib/opa-pecas/regras'
 import { BotaoLerCodigo } from './LeitorCodigo'
 import dynamic from 'next/dynamic'
 
@@ -287,10 +287,12 @@ function MenuEtapas({ podeGerir, c, mobile = false }: { podeGerir: boolean; c: C
 /** Ação principal da barra (Novo item / Novo Opa). */
 export function BotaoPrincipal({ href, onClick, cor, claro, children }: { href?: string; onClick?: () => void; cor: string; claro?: boolean; children: React.ReactNode }) {
   // claro = dentro da faixa colorida do Opa: branco com texto preto (#fefefe/#111111 escapam do remapeio do modo escuro)
+  // na faixa do computador não ocupa a largura toda (senão cai pra 2ª linha e a faixa fica alta)
+  const isMobile = useIsMobile()
   const estilo: React.CSSProperties = {
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 16px', borderRadius: 10,
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '9px 16px', borderRadius: 10, height: claro ? 38 : undefined,
     textDecoration: 'none', background: claro ? '#fefefe' : cor, color: claro ? '#111111' : '#fff', fontSize: 14, fontWeight: 800, border: 'none',
-    cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', width: '100%', boxSizing: 'border-box',
+    cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'inherit', width: claro && !isMobile ? undefined : '100%', boxSizing: 'border-box',
     boxShadow: claro ? '0 2px 8px rgba(0,0,0,0.18)' : undefined,
   }
   return href ? <Link href={href} style={estilo}>{children}</Link> : <button type="button" onClick={onClick} style={estilo}>{children}</button>
@@ -365,7 +367,7 @@ export function useBase(): Base {
 
   const nomesTipos = useMemo(() => Object.fromEntries(tipos.map((t) => [t.id, t.nome])), [tipos])
   const nomesMarcas = useMemo(() => Object.fromEntries(marcas.map((m) => [m.id, m.nome])), [marcas])
-  const nomesLocais = useMemo(() => Object.fromEntries(locais.map((l) => [l.id, l.nome])), [locais])
+  const nomesLocais = useMemo(() => mapaNomesLocais(locais), [locais])
 
   return {
     userId: userProfile?.id || null,

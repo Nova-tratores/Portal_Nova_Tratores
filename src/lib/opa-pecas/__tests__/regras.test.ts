@@ -211,3 +211,22 @@ describe('código definitivo só na conclusão', () => {
     expect(nomeDoItem('PNI-000123')).toBe('PNI-000123')
   })
 })
+
+describe('setor do local (06/11)', () => {
+  it('lugar com setor aparece "Setor · Nome" e cai no grupo do setor; sem setor vai para Outros (por último)', async () => {
+    const { nomeDoLocal, mapaNomesLocais, setoresDosLocais, textoLocal } = await import('../regras')
+    const locais = [
+      { id: 'oficina_banheiro', nome: 'Banheiro', setor: 'Oficina', exige_tecnico: false, ordem: 5, ativo: true },
+      { id: 'copa', nome: 'Copa', setor: null, exige_tecnico: false, ordem: 1, ativo: true },
+      { id: 'fundo_oficina', nome: 'Fundo Oficina', exige_tecnico: false, ordem: 30, ativo: true },
+    ]
+    expect(nomeDoLocal(locais[0])).toBe('Oficina · Banheiro')
+    expect(nomeDoLocal(locais[1])).toBe('Copa')
+    expect(nomeDoLocal(locais[2])).toBe('Oficina · Fundo')
+    const g = agruparLocais(locais)
+    expect(g.map((x) => x.titulo)).toEqual(['Oficina', 'Outros'])
+    expect(g[0].itens.map((i) => i.rotulo)).toEqual(['Banheiro', 'Fundo'])
+    expect(setoresDosLocais(locais)).toEqual(['Oficina'])
+    expect(textoLocal({ local_id: 'oficina_banheiro', local_tecnico: null }, mapaNomesLocais(locais))).toBe('Oficina · Banheiro')
+  })
+})

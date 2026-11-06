@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   const [deps, ligs, locais, usuarios] = await Promise.all([
     supabaseAdmin.from('opa_departamentos').select('id, nome, gestor_id, gestor_nome, padrao, ativo, ordem').eq('ativo', true).order('ordem').order('nome'),
     supabaseAdmin.from('opa_local_departamento').select('local_id, departamento_id'),
-    supabaseAdmin.from('pni_locais').select('id, nome, exige_tecnico, ordem, ativo').order('ordem'),
+    supabaseAdmin.from('pni_locais').select('*').order('ordem'),
     auth.isAdmin
       ? supabaseAdmin.from('financeiro_usu').select('id, nome').eq('ativo', true).order('nome')
       : Promise.resolve({ data: [], error: null }),

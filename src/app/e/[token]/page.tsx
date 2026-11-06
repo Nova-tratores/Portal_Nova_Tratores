@@ -5,7 +5,7 @@
 
 import type { Metadata } from 'next'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
-import { textoAplicacoes, textoLocal } from '@/lib/opa-pecas/regras'
+import { mapaNomesLocais, textoAplicacoes, textoLocal } from '@/lib/opa-pecas/regras'
 import { ROTULO_QUALIDADE, ROTULO_STATUS, type Aplicacao, type Qualidade, type Status } from '@/lib/opa-pecas/tipos'
 
 export const dynamic = 'force-dynamic'
@@ -42,7 +42,7 @@ async function carregar(token: string) {
   const [tipos, marcas, locais, assinadas] = await Promise.all([
     supabaseAdmin.from('maquina_tipos').select('id, nome'),
     supabaseAdmin.from('maquina_marcas').select('id, nome'),
-    supabaseAdmin.from('pni_locais').select('id, nome'),
+    supabaseAdmin.from('pni_locais').select('*'),
     fotos.length ? supabaseAdmin.storage.from(BUCKET).createSignedUrls(fotos, VALIDADE_FOTO_S) : Promise.resolve({ data: [] }),
   ])
   const mapa = (l: { id: string; nome: string }[] | null) => Object.fromEntries((l || []).map((x) => [x.id, x.nome]))
@@ -50,7 +50,7 @@ async function carregar(token: string) {
     item: data,
     aplicacao: textoAplicacoes({ aplicacoes: data.pni_aplicacoes || [], nao_identificavel: data.nao_identificavel },
       { tipos: mapa(tipos.data), marcas: mapa(marcas.data) }),
-    local: textoLocal(data, mapa(locais.data)),
+    local: textoLocal(data, mapaNomesLocais(locais.data || [])),
     fotos: (assinadas.data || []).map((f) => f.signedUrl).filter(Boolean) as string[],
   }
 }

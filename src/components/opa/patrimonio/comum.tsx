@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { mensagemErro } from '@/lib/opa-pecas/fotos'
+import { mapaNomesLocais } from '@/lib/opa-pecas/regras'
 import type { Local } from '@/lib/opa-pecas/tipos'
 import { INFO_ESTADO, type Estado, type ItemPat } from '@/lib/patrimonio/tipos'
 
@@ -65,7 +66,7 @@ export function useBasePat(): BasePat {
     return () => { vivo = false }
   }, [liberado, versao])
 
-  const nomes = Object.fromEntries(dados.locais.map((l) => [l.id, l.nome]))
+  const nomes = mapaNomesLocais(dados.locais)
   const recarregar = useCallback(() => setVersao((v) => v + 1), [])
   return {
     userId: userProfile?.id || null, pode: liberado, carregandoPermissao: loading || !userProfile,

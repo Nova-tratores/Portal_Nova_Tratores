@@ -81,3 +81,41 @@ describe('opasPorLocal', () => {
     expect(Object.keys(m)).toEqual(['x'])
   })
 })
+
+describe('formas e estrutura (06/11)', () => {
+  it('arrasto vira a caixa; clique sem arrastar usa o tamanho padrão no meio', async () => {
+    const { retanguloDoArrasto } = await import('../mapa')
+    expect(retanguloDoArrasto(40, 30, 20, 50, { w: 10, h: 10 })).toEqual({ x: 20, y: 30, w: 20, h: 20 })
+    expect(retanguloDoArrasto(50, 50, 50.5, 50.2, { w: 10, h: 8 })).toEqual({ x: 45, y: 46, w: 10, h: 8 })
+  })
+  it('pontos da forma livre ficam em % da própria caixa', async () => {
+    const { caixaDosPontos } = await import('../mapa')
+    expect(caixaDosPontos([{ x: 10, y: 10 }, { x: 30, y: 10 }])).toBeNull()
+    const c = caixaDosPontos([{ x: 10, y: 10 }, { x: 30, y: 10 }, { x: 20, y: 30 }])!
+    expect(c.ret).toEqual({ x: 10, y: 10, w: 20, h: 20 })
+    expect(c.pontos).toEqual([{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 50, y: 100 }])
+  })
+  it('área no ponto = a menor área que contém (estrutura não conta)', async () => {
+    const { areaNoPonto } = await import('../mapa')
+    const blocos = [
+      { id: 'oficina', nome: 'Oficina', x: 0, y: 0, w: 50, h: 50 },
+      { id: 'pecas', nome: 'Peças', x: 10, y: 10, w: 10, h: 10 },
+      { id: 'parede', nome: 'Parede', tipo: 'parede' as const, x: 12, y: 12, w: 2, h: 1 },
+    ]
+    expect(areaNoPonto(blocos, 12.5, 12.5)?.id).toBe('pecas')
+    expect(areaNoPonto(blocos, 40, 40)?.id).toBe('oficina')
+    expect(areaNoPonto(blocos, 80, 80)).toBeNull()
+  })
+  it('validarBlocos guarda o tipo e deixa a parede fininha', () => {
+    const r = validarBlocos([{ nome: 'Parede', tipo: 'parede', x: 10, y: 10, w: 20, h: 0.8 }, { nome: 'X', tipo: 'invasor', x: 0, y: 0, w: 10, h: 10 }])
+    if (typeof r === 'string') throw new Error(r)
+    expect(r[0]).toMatchObject({ tipo: 'parede', h: 0.8 })
+    expect(r[1].tipo).toBe('area')
+  })
+  it('forma personalizada sem 3 pontos volta a retângulo', async () => {
+    const { validarForma } = await import('../mapa')
+    expect(validarForma('personalizada', [{ x: 1, y: 1 }])).toEqual({ forma: 'retangulo', pontos: null })
+    expect(validarForma('circulo', null)).toEqual({ forma: 'circulo', pontos: null })
+    expect(validarForma('hack', null).forma).toBe('retangulo')
+  })
+})

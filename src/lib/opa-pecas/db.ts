@@ -64,7 +64,7 @@ export async function listarLookups(): Promise<{ tipos: Lookup[]; marcas: Lookup
   const [t, m, l, d] = await Promise.all([
     supabase.from('maquina_tipos').select('id, nome, ativo, ordem').order('ordem').order('nome'),
     supabase.from('maquina_marcas').select('id, nome, ativo, ordem').order('ordem').order('nome'),
-    supabase.from('pni_locais').select('id, nome, exige_tecnico, ordem, ativo').order('ordem'),
+    supabase.from('pni_locais').select('*').order('ordem'),
     // destinos criados pelo usuário (sql/pni-11) — sem a migration a lista fica vazia
     supabase.from('pni_destinos').select('id, nome, ativo, ordem').eq('ativo', true).order('ordem').order('nome'),
   ])
@@ -215,8 +215,18 @@ export function separar(id: string, decisao: Decisao, obs?: string, destinoId?: 
 }
 
 /** Cria (ou reativa, se o nome já existe) um LOCAL novo — sql/pni-14. Qualquer pessoa logada. */
-export function criarLocal(nome: string, exigeTecnico = false) {
-  return rpc<Local>('pni_criar_local', { p_nome: nome, p_exige_tecnico: exigeTecnico })
+export const MSG_MIGRACAO_SETOR = 'Para criar o local dentro de um setor falta rodar o sql/opa-locais-setor-formas.sql no banco do portal.'
+
+/** Cria (ou reaproveita) um local; `setor` = onde ele fica ("Oficina" + "Banheiro" → "Oficina · Banheiro"). */
+export async function criarLocal(nome: string, exigeTecnico = false, setor?: string | null) {
+  if (!setor?.trim()) return rpc<Local>('pni_criar_local', { p_nome: nome, p_exige_tecnico: exigeTecnico })
+  try {
+    return await rpc<Local>('pni_criar_local', { p_nome: nome, p_exige_tecnico: exigeTecnico, p_setor: setor.trim() })
+  } catch (e) {
+    // sem a migration a função não tem p_setor
+    if (e instanceof Error && e.message === MSG_MIGRACAO) throw new Error(MSG_MIGRACAO_SETOR)
+    throw e
+  }
 }
 
 /** Cria (ou reativa) um destino novo na separação. */

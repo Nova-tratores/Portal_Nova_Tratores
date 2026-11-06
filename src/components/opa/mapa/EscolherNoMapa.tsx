@@ -34,7 +34,7 @@ export default function EscolherNoMapa({ atual, onEscolher, onFechar }: {
           {!dados && !erro && <div style={{ display: 'flex', gap: 8, justifyContent: 'center', padding: 40, color: 'var(--portal-text-muted)' }}><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Carregando o mapa…</div>}
           {vazio && <div style={{ padding: 10, borderRadius: 8, background: '#FFFBEB', color: '#92400E', fontSize: 13.5, marginBottom: 10 }}>Os lugares ainda não foram colocados no mapa. Escolha pela lista.</div>}
           {dados && !vazio && (
-            <PlantaLoja dados={dados} andarId={andarId} onAndar={setAndar} modo="escolher" selecionado={atual || null}
+            <PlantaLoja dados={dados} andarId={andarId} onAndar={setAndar} modo="escolher" selecionado={atual ? { tipo: 'lugar', id: atual } : null}
               contagem={contagem} onSelecionar={(tipo, id) => { if (tipo === 'lugar') onEscolher(id) }} />
           )}
         </div>

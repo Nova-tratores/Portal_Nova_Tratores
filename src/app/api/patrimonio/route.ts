@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
   try {
     const [itens, locais] = await Promise.all([
       listarItens(),
-      supabaseAdmin.from('pni_locais').select('id, nome, exige_tecnico, ordem, ativo').order('ordem'),
+      supabaseAdmin.from('pni_locais').select('*').order('ordem'),
     ])
     const tags = [...new Set(itens.flatMap((i) => i.tags))].sort()
     const categorias = [...new Set([...CATEGORIAS_PADRAO, ...itens.map((i) => i.categoria).filter((c): c is string => !!c)])]

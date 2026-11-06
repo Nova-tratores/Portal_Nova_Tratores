@@ -6,11 +6,12 @@ import { useEffect, useState } from 'react'
 import { Loader2, MapPin, Minus, Plus, UserRound, X } from 'lucide-react'
 import { criarLocal, listarTecnicos } from '@/lib/opa-pecas/db'
 import { mensagemErro } from '@/lib/opa-pecas/fotos'
-import { agruparLocais, mascaraMoeda, textoAplicacao } from '@/lib/opa-pecas/regras'
+import { agruparLocais, mascaraMoeda, setoresDosLocais, textoAplicacao } from '@/lib/opa-pecas/regras'
 import { INFO_QUALIDADE, ROTULO_QUALIDADE, type Aplicacao, type Local, type Lookup, type Qualidade } from '@/lib/opa-pecas/tipos'
 import { botao, INP, LARANJA } from './comum'
 
 const NOVO_LOCAL = '__novo__'
+const SETOR_NOVO = '__setor_novo__'
 
 export function SeletorLocal({ locais, local, tecnico, onChange, disabled, onLocalCriado }: {
   locais: Local[]
@@ -27,6 +28,9 @@ export function SeletorLocal({ locais, local, tecnico, onChange, disabled, onLoc
   const [criando, setCriando] = useState(false)
   const [nomeNovo, setNomeNovo] = useState('')
   const [boxNovo, setBoxNovo] = useState(false)
+  // setor onde o local novo fica ("Oficina" + "Banheiro" → "Oficina · Banheiro"); '' = sem setor
+  const [setorNovo, setSetorNovo] = useState('')
+  const [setorDigitado, setSetorDigitado] = useState('')
   const [salvandoNovo, setSalvandoNovo] = useState(false)
   const [erroNovo, setErroNovo] = useState<string | null>(null)
   // o recém-criado aparece no select antes da lista recarregar
@@ -35,6 +39,8 @@ export function SeletorLocal({ locais, local, tecnico, onChange, disabled, onLoc
   const escolhido = locais.find((l) => l.id === local)
   const precisaTecnico = !!escolhido?.exige_tecnico
   const grupos = agruparLocais(locais.filter((l) => l.ativo || l.id === local))
+  const setores = setoresDosLocais(locais.filter((l) => l.ativo))
+  const setorFinal = (setorNovo === SETOR_NOVO ? setorDigitado : setorNovo).replace(/s+/g, ' ').trim()
 
   useEffect(() => {
     if (!precisaTecnico) return
@@ -49,11 +55,12 @@ export function SeletorLocal({ locais, local, tecnico, onChange, disabled, onLoc
     setSalvandoNovo(true)
     setErroNovo(null)
     try {
-      const novo = await criarLocal(nome, boxNovo)
+      if (setorNovo === SETOR_NOVO && !setorFinal) { setErroNovo('Escreva o nome do setor novo.'); return }
+      const novo = await criarLocal(nome, boxNovo, setorFinal || null)
       setCriados((c) => [...c, novo])
       onChange(novo.id, novo.exige_tecnico ? tecnico : '')
       onLocalCriado?.()
-      setCriando(false); setNomeNovo(''); setBoxNovo(false)
+      setCriando(false); setNomeNovo(''); setBoxNovo(false); setSetorNovo(''); setSetorDigitado('')
     } catch (e) {
       const m = mensagemErro(e)
       setErroNovo(/pni_criar_local/.test(m) ? 'Falta rodar o sql/pni-14-criar-local.sql no banco.' : m)
@@ -80,7 +87,7 @@ export function SeletorLocal({ locais, local, tecnico, onChange, disabled, onLoc
           <option value="">Sem local</option>
           {grupos.map((g) => (
             <optgroup key={g.titulo} label={g.titulo}>
-              {g.itens.map(({ local: l, rotulo }) => <option key={l.id} value={l.id}>{g.titulo === rotulo ? rotulo : `${g.titulo} · ${rotulo}`}</option>)}
+              {g.itens.map(({ local: l, rotulo }) => <option key={l.id} value={l.id}>{g.titulo === rotulo || g.titulo === 'Outros' ? rotulo : `${g.titulo} · ${rotulo}`}</option>)}
             </optgroup>
           ))}
           {onLocalCriado && <option value={NOVO_LOCAL}>+ Criar local novo…</option>}
@@ -89,12 +96,28 @@ export function SeletorLocal({ locais, local, tecnico, onChange, disabled, onLoc
       {criando && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 10, border: '1.5px dashed ' + LARANJA, background: 'var(--portal-bg-secondary)' }}>
           <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text)' }}>Local novo</div>
-          <input value={nomeNovo} autoFocus onChange={(e) => setNomeNovo(e.target.value.slice(0, 60))} placeholder="Ex.: Barracão 3, Prateleira da entrada"
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>
+            Fica dentro de qual setor?
+            <select value={setorNovo} onChange={(e) => setSetorNovo(e.target.value)} style={INP}>
+              <option value="">Nenhum (vai para Outros)</option>
+              {setores.map((s) => <option key={s} value={s}>{s}</option>)}
+              <option value={SETOR_NOVO}>+ Setor novo…</option>
+            </select>
+          </label>
+          {setorNovo === SETOR_NOVO && (
+            <input value={setorDigitado} onChange={(e) => setSetorDigitado(e.target.value.slice(0, 40))} placeholder="Nome do setor novo, ex.: Barracão 3" style={INP} />
+          )}
+          <input value={nomeNovo} autoFocus onChange={(e) => setNomeNovo(e.target.value.slice(0, 60))} placeholder={setorFinal ? 'Nome do lugar, ex.: Banheiro, Copa' : 'Ex.: Barracão 3, Prateleira da entrada'}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); salvarNovo() } if (e.key === 'Escape') setCriando(false) }} style={INP} />
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
             <input type="checkbox" checked={boxNovo} onChange={(e) => setBoxNovo(e.target.checked)} style={{ width: 16, height: 16, accentColor: LARANJA }} />
             É um box de técnico (pede o nome do técnico)
           </label>
+          {nomeNovo.trim() && (
+            <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
+              Vai aparecer como <b style={{ color: 'var(--portal-text)' }}>{setorFinal ? `${setorFinal} · ${nomeNovo.trim()}` : nomeNovo.trim()}</b>
+            </div>
+          )}
           {erroNovo && <div style={{ fontSize: 12.5, color: '#B91C1C' }}>{erroNovo}</div>}
           <div style={{ display: 'flex', gap: 8 }}>
             <button type="button" onClick={salvarNovo} disabled={!nomeNovo.trim() || salvandoNovo} style={botao(LARANJA, { desab: !nomeNovo.trim() || salvandoNovo })}>

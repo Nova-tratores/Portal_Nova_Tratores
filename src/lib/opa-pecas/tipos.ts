@@ -180,6 +180,8 @@ export interface Lookup {
 export interface Local {
   id: string
   nome: string
+  /** setor onde fica ("Oficina"); null = setor fixo do código ou "Outros" (sql/opa-locais-setor-formas) */
+  setor?: string | null
   exige_tecnico: boolean
   ordem: number
   ativo: boolean

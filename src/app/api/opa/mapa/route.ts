@@ -6,7 +6,7 @@ import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { registrarAuditLog } from '@/lib/server/audit-notify'
 import { permite } from '@/lib/permissoes/explicitas'
-import { idUnico, limitarRet, validarBlocos, type Andar } from '@/lib/opa/mapa'
+import { idUnico, limitarRet, validarBlocos, validarForma, type Andar } from '@/lib/opa/mapa'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,8 +22,9 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'nao autenticado' }, { status: 401 })
   const [andares, posicoes, locais, deps, ligs, opas] = await Promise.all([
     supabaseAdmin.from('opa_mapa_andares').select('id, nome, ordem, blocos, ativo').order('ordem'),
-    supabaseAdmin.from('opa_local_mapa').select('local_id, andar_id, x, y, w, h'),
-    supabaseAdmin.from('pni_locais').select('id, nome, exige_tecnico, ordem, ativo').order('ordem'),
+    // '*': forma/pontos só existem depois do sql/opa-locais-setor-formas.sql
+    supabaseAdmin.from('opa_local_mapa').select('*'),
+    supabaseAdmin.from('pni_locais').select('*').order('ordem'),
     supabaseAdmin.from('opa_departamentos').select('id, nome, gestor_id, gestor_nome, padrao, ativo, ordem').eq('ativo', true).order('ordem').order('nome'),
     supabaseAdmin.from('opa_local_departamento').select('local_id, departamento_id'),
     supabaseAdmin.from('portal_opas').select('id, titulo, local, responsavel, created_at').eq('status', 'aberto'),
@@ -33,7 +34,10 @@ export async function GET(req: NextRequest) {
   if (erro) return NextResponse.json({ error: erro.message }, { status: 500 })
   return NextResponse.json({
     andares: (andares.data || []).map((a) => ({ ...a, blocos: Array.isArray(a.blocos) ? a.blocos : [] })),
-    posicoes: (posicoes.data || []).map((p) => ({ ...p, x: Number(p.x), y: Number(p.y), w: Number(p.w), h: Number(p.h) })),
+    posicoes: (posicoes.data || []).map((p) => ({
+      local_id: p.local_id, andar_id: p.andar_id, x: Number(p.x), y: Number(p.y), w: Number(p.w), h: Number(p.h),
+      ...validarForma(p.forma, p.pontos),
+    })),
     locais: locais.data || [],
     // departamentos são opcionais (outra migration): sem eles o mapa só não pinta
     departamentos: deps.error ? [] : deps.data || [],
@@ -65,11 +69,32 @@ export async function POST(req: NextRequest) {
     const localId = String(body.local_id || ''), andarId = String(body.andar_id || '')
     if (!localId || !andarId) return NextResponse.json({ error: 'local e andar obrigatórios' }, { status: 400 })
     const r = limitarRet(body as Record<string, number>)
+    // forma só vem quando muda (desenhou ou trocou a forma); mover/redimensionar não mexe nela
+    const forma = body.forma !== undefined ? validarForma(body.forma, body.pontos) : null
     const { error } = await supabaseAdmin.from('opa_local_mapa')
-      .upsert({ local_id: localId, andar_id: andarId, ...r, atualizado_em: agora, atualizado_por: autor })
+      .upsert({ local_id: localId, andar_id: andarId, ...r, ...(forma || {}), atualizado_em: agora, atualizado_por: autor })
+    if (forma && error && (error.code === '42703' || error.code === 'PGRST204' || /column/i.test(error.message))) {
+      return NextResponse.json({ error: 'Para salvar a forma falta rodar o sql/opa-locais-setor-formas.sql no banco do portal.', migracaoFaltando: true }, { status: 503 })
+    }
     const falha = responder(error); if (falha) return falha
-    await log('posicionar', localId, { andar: andarId, ...r })
-    return NextResponse.json({ ok: true, posicao: { local_id: localId, andar_id: andarId, ...r } })
+    await log('posicionar', localId, { andar: andarId, ...r, ...(forma || {}) })
+    return NextResponse.json({ ok: true, posicao: { local_id: localId, andar_id: andarId, ...r, ...(forma || {}) } })
+  }
+
+  if (acao === 'editar_local') {
+    // nome e setor do lugar ("W/C Oficina" → setor Oficina, nome Banheiro)
+    const localId = String(body.local_id || '')
+    const nome = String(body.nome ?? '').replace(/\s+/g, ' ').trim()
+    const setor = String(body.setor ?? '').replace(/\s+/g, ' ').trim()
+    if (!localId || !nome || nome.length > 60) return NextResponse.json({ error: 'Nome do lugar de 1 a 60 letras.' }, { status: 400 })
+    if (setor.length > 40) return NextResponse.json({ error: 'Setor com mais de 40 letras.' }, { status: 400 })
+    const { error } = await supabaseAdmin.from('pni_locais').update({ nome, setor: setor || null }).eq('id', localId)
+    if (error && (error.code === '42703' || error.code === 'PGRST204' || /setor/i.test(error.message))) {
+      return NextResponse.json({ error: 'Para dar setor ao lugar falta rodar o sql/opa-locais-setor-formas.sql no banco do portal.', migracaoFaltando: true }, { status: 503 })
+    }
+    const falha = responder(error); if (falha) return falha
+    await log('editar_local', localId, { nome, setor })
+    return NextResponse.json({ ok: true })
   }
 
   if (acao === 'tirar_do_mapa') {

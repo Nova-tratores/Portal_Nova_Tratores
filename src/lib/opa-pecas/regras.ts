@@ -205,16 +205,52 @@ const AREA_DO_LOCAL: Record<string, { area: string; rotulo: string }> = {
   barracao_2: { area: 'Barracão 2', rotulo: 'Barracão 2' },
 }
 
-/** Nome do local COM o setor ("Pós-Vendas · Térreo"): há "Térreo" em mais de um setor. */
+/** Setor do local: o gravado (pni_locais.setor) ou o fixo dos locais antigos; sem nenhum, "Outros". */
+export function setorDoLocal(l: Pick<Local, 'id' | 'setor'>): string {
+  return l.setor?.trim() || AREA_DO_LOCAL[l.id]?.area || 'Outros'
+}
+
+/** Nome do local dentro do setor ("Térreo", "Banheiro"). */
+export function rotuloDoLocal(l: Pick<Local, 'id' | 'nome' | 'setor'>): string {
+  if (l.setor?.trim()) return l.nome
+  return AREA_DO_LOCAL[l.id]?.rotulo || l.nome
+}
+
+/** Nome do local COM o setor ("Pós-Vendas · Térreo", "Oficina · Banheiro"): há "Térreo" em mais de um setor. */
+export function nomeDoLocal(l: Pick<Local, 'id' | 'nome' | 'setor'>): string {
+  const setor = l.setor?.trim() || AREA_DO_LOCAL[l.id]?.area
+  const rotulo = rotuloDoLocal(l)
+  return !setor || setor === rotulo ? rotulo : `${setor} · ${rotulo}`
+}
+
+/** id → nome com o setor, para textoLocal e as telas. */
+export function mapaNomesLocais(locais: Pick<Local, 'id' | 'nome' | 'setor'>[]): Record<string, string> {
+  return Object.fromEntries(locais.map((l) => [l.id, nomeDoLocal(l)]))
+}
+
+/** Setores em uso (ordem dos locais), para escolher onde fica um local novo. */
+export function setoresDosLocais(locais: Pick<Local, 'id' | 'setor' | 'ordem'>[]): string[] {
+  const vistos: string[] = []
+  for (const l of [...locais].sort((a, b) => a.ordem - b.ordem)) {
+    const s = setorDoLocal(l)
+    if (s !== 'Outros' && !vistos.some((v) => v.toLowerCase() === s.toLowerCase())) vistos.push(s)
+  }
+  return vistos
+}
+
+/** Nome do local COM o setor só pelo id (locais antigos); o resto volta o nome recebido. */
 export function nomeLocalCompleto(id: string, nome?: string): string {
   const info = AREA_DO_LOCAL[id]
   if (!info) return nome || id
   return info.area === info.rotulo ? info.rotulo : `${info.area} · ${info.rotulo}`
 }
 
+/** `locais` = mapaNomesLocais (id → nome já com o setor). */
 export function textoLocal(item: Pick<Item, 'local_id' | 'local_tecnico'>, locais: Record<string, string> = {}): string {
   if (!item.local_id) return ''
-  const nome = nomeLocalCompleto(item.local_id, locais[item.local_id])
+  // local antigo com mapa de nome cru ("Box Técnico") continua "Oficina · Box Técnico"
+  const doMapa = locais[item.local_id]
+  const nome = doMapa && (doMapa.includes(' · ') || !AREA_DO_LOCAL[item.local_id]) ? doMapa : nomeLocalCompleto(item.local_id, doMapa)
   return item.local_tecnico ? `${nome} (${item.local_tecnico})` : nome
 }
 
@@ -225,12 +261,14 @@ export interface GrupoLocal { titulo: string; itens: { local: Local; rotulo: str
 export function agruparLocais(locais: Local[]): GrupoLocal[] {
   const grupos: GrupoLocal[] = []
   for (const l of [...locais].sort((a, b) => a.ordem - b.ordem)) {
-    const info = AREA_DO_LOCAL[l.id] || { area: 'Outros', rotulo: l.nome }
-    let g = grupos.find((x) => x.titulo === info.area)
-    if (!g) { g = { titulo: info.area, itens: [] }; grupos.push(g) }
-    g.itens.push({ local: l, rotulo: info.rotulo })
+    const area = setorDoLocal(l)
+    // "oficina" e "Oficina" caem no mesmo grupo
+    let g = grupos.find((x) => x.titulo.toLowerCase() === area.toLowerCase())
+    if (!g) { g = { titulo: area, itens: [] }; grupos.push(g) }
+    g.itens.push({ local: l, rotulo: rotuloDoLocal(l) })
   }
-  return grupos
+  // "Outros" (sem setor) sempre por último
+  return [...grupos.filter((g) => g.titulo !== 'Outros'), ...grupos.filter((g) => g.titulo === 'Outros')]
 }
 
 // ── Filtros da visão do portal ──────────────────────────────────────

@@ -22,7 +22,7 @@ import { Janela } from '@/components/opa/pecas/Moldura'
 import TabelaFiltravel, { SeletorVisao, useListaFiltrada, useModoVisao, type ColunaTabela } from '@/components/opa/pecas/TabelaFiltravel'
 import { SeletorLocal } from '@/components/opa/pecas/Campos'
 import EscolherNoMapa from '@/components/opa/mapa/EscolherNoMapa'
-import { agruparLocais, textoLocal } from '@/lib/opa-pecas/regras'
+import { agruparLocais, mapaNomesLocais, textoLocal } from '@/lib/opa-pecas/regras'
 import type { Local } from '@/lib/opa-pecas/tipos'
 
 const VERMELHO = '#dc2626'
@@ -93,7 +93,7 @@ function buscarLocais(forcar = false): Promise<Local[]> {
   if (cacheLocais && !forcar) return Promise.resolve(cacheLocais)
   if (carregandoLocais && !forcar) return carregandoLocais
   carregandoLocais = Promise.resolve(
-    supabase.from('pni_locais').select('id, nome, exige_tecnico, ordem, ativo').order('ordem'),
+    supabase.from('pni_locais').select('*').order('ordem'),
   ).then(({ data }) => {
     cacheLocais = (data || []) as Local[]
     carregandoLocais = null
@@ -112,7 +112,7 @@ function useLocais(): [Local[], () => void] {
   }, [])
   return [locais, () => { buscarLocais(true) }]
 }
-const nomesLocais = (locais: Local[]) => Object.fromEntries(locais.map((l) => [l.id, l.nome]))
+const nomesLocais = (locais: Local[]) => mapaNomesLocais(locais)
 /** "Oficina · Box Técnico (Gabriel)" — id desconhecido aparece como veio */
 const textoTerritorio = (o: Pick<Opa, 'local' | 'local_tecnico'>, locais: Local[]) =>
   o.local ? textoLocal({ local_id: o.local, local_tecnico: o.local_tecnico || null }, nomesLocais(locais)) : ''
