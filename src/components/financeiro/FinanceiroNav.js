@@ -6,13 +6,13 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import FinanceiroTopoNovo from './FinanceiroTopoNovo'
 import {
-  LayoutDashboard, Columns3, BarChart3, History, Receipt, Users,
-  PlusCircle, FileText, DollarSign, UserCog, AlertTriangle, Search, CalendarDays, FileSignature
+  Columns3, BarChart3, Receipt, Users,
+  FileText, DollarSign, AlertTriangle, Search, Wallet, FileSignature
 } from 'lucide-react'
 
 const ICONS = {
-  painel: LayoutDashboard,
   kanban: Columns3,
   dashboard: BarChart3,
   pagar: Receipt,
@@ -21,31 +21,33 @@ const ICONS = {
   vencidos: AlertTriangle,
   rastreio: Search,
   notas: FileText,
-  agenda: CalendarDays,
+  caixa: Wallet,
   recibos: FileSignature,
 }
 
+// Aba Painel fora da faixa para todo mundo (José, 05/11/2026): as páginas home-* seguem no ar,
+// abertas pelos links de card (sino, e-mail, requisições: ?id=); /financeiro entra pelo Kanban
 const LINKS_FINANCEIRO = [
-  { label: 'Painel', href: '/financeiro/home-financeiro', icon: 'painel' },
-  { label: 'Kanban', href: '/financeiro/kanban-financeiro', icon: 'kanban' },
+  // Kanban vira Recebimentos (José, 06/11/2026): acompanha cada venda faturada da nota até o dinheiro entrar
+  { label: 'Recebimentos', href: '/financeiro/kanban-financeiro', icon: 'kanban' },
   { label: 'Despesas', href: '/financeiro/historico-pagar', icon: 'pagar' },
   { label: 'Rastreio', href: '/financeiro/rastreio', icon: 'rastreio' },
-  { label: 'Vencidos', href: '/financeiro/vencidos', icon: 'vencidos' },
+  // Vencidos fora da faixa do Financeiro (José, 04/11/2026): o Caixa › Vencidos mostra tudo que o Omie diz
+  // estar atrasado; Pós-Vendas e Peças seguem com a aba (cobrança dos cards deles). A tela segue no endereço.
   { label: 'Relatorio', href: '/financeiro/relatorio-pagar', icon: 'dashboard' },
-  // Agenda de pagamentos da semana: só Dev e Financeiro (o servidor também barra)
-  { label: 'Agenda', href: '/financeiro/agenda', icon: 'agenda', soDevFinanceiro: true },
+  // Caixa (Calendário, Vencidos, Curva de Saldo, Fluxo do DRE em outra interface; substituiu a Agenda em 04/11/2026):
+  // só Dev e Financeiro (as rotas do DRE também barram)
+  { label: 'Caixa', href: '/financeiro/caixa/calendario', icon: 'caixa', soDevFinanceiro: true, prefixo: '/financeiro/caixa' },
 ]
 
 const LINKS_POSVENDAS = [
-  { label: 'Painel', href: '/financeiro/home-posvendas', icon: 'painel' },
-  { label: 'Kanban', href: '/financeiro/kanban', icon: 'kanban' },
+  { label: 'Recebimentos', href: '/financeiro/kanban', icon: 'kanban' },
   { label: 'Despesas', href: '/financeiro/historico-pagar', icon: 'pagar' },
   { label: 'Vencidos', href: '/financeiro/vencidos', icon: 'vencidos' },
 ]
 
 const LINKS_PECAS = [
-  { label: 'Painel', href: '/financeiro/home-pecas', icon: 'painel' },
-  { label: 'Kanban', href: '/financeiro/kanban-pecas', icon: 'kanban' },
+  { label: 'Recebimentos', href: '/financeiro/kanban-pecas', icon: 'kanban' },
   { label: 'Despesas', href: '/financeiro/historico-pagar', icon: 'pagar' },
   { label: 'Vencidos', href: '/financeiro/vencidos', icon: 'vencidos' },
 ]
@@ -53,7 +55,6 @@ const LINKS_PECAS = [
 const LINK_NOTAS = { label: 'Notas fiscais', href: '/financeiro/notas', icon: 'notas' }
 // Recibos de pagamento (03/11/2026): todas as funções do Financeiro (o balcão de peças também emite)
 const LINK_RECIBOS = { label: 'Recibos', href: '/financeiro/recibos', icon: 'recibos' }
-
 // `children` é um slot opcional à direita das guias. O default explícito é o
 // que permite chamar <FinanceiroNav /> de uma tela .tsx sem o TS exigir a prop
 // (este arquivo é .js, então o tipo é inferido da assinatura).
@@ -71,15 +72,17 @@ export default function FinanceiroNav({ children = null }) {
     : LINKS_POSVENDAS
   // Notas fiscais (cache PDF + XML) vale pela PERMISSÃO, não pela função
   const comNotas = [...(pode('financeiro', 'notas') ? [...linksFuncao, LINK_NOTAS] : linksFuncao), LINK_RECIBOS]
-  // Agenda (grupo Financeiro): só Dev ou função Financeiro; Dev de outra função também vê a aba
-  const podeAgenda = isDev || funcao === 'Financeiro'
-  const linkAgenda = LINKS_FINANCEIRO.find(l => l.soDevFinanceiro)
-  // Agenda logo depois do Kanban; aba Despesas fora da faixa (José, 30/10/2026), a tela segue no endereço dela
-  const semAgenda = comNotas.filter(l => !l.soDevFinanceiro && l.icon !== 'pagar')
-  const posKanban = semAgenda.findIndex(l => l.icon === 'kanban') + 1
-  const comAgenda = podeAgenda ? [...semAgenda.slice(0, posKanban), linkAgenda, ...semAgenda.slice(posKanban)] : semAgenda
+  // Caixa (grupo Financeiro): só Dev ou função Financeiro; Dev de outra função também vê a aba
+  const podeCaixa = isDev || funcao === 'Financeiro'
+  const linkCaixa = LINKS_FINANCEIRO.find(l => l.soDevFinanceiro)
+  // Caixa logo depois do Kanban; aba Despesas fora da faixa (José, 30/10/2026), a tela segue no endereço dela
+  const semCaixa = comNotas.filter(l => !l.soDevFinanceiro && l.icon !== 'pagar')
+  const posKanban = semCaixa.findIndex(l => l.icon === 'kanban') + 1
+  const comCaixa = podeCaixa ? [...semCaixa.slice(0, posKanban), linkCaixa, ...semCaixa.slice(posKanban)] : semCaixa
+  // Quem tem o Caixa (Dev incluso) não vê a aba Vencidos: está no Caixa › Vencidos (José, 05/11/2026).
   // Vencidos sempre por último
-  const links = [...comAgenda.filter(l => l.icon !== 'vencidos'), ...comAgenda.filter(l => l.icon === 'vencidos')]
+  const semVencidosDup = podeCaixa ? comCaixa.filter(l => l.icon !== 'vencidos') : comCaixa
+  const links = [...semVencidosDup.filter(l => l.icon !== 'vencidos'), ...semVencidosDup.filter(l => l.icon === 'vencidos')]
 
   // Contar vencidos para badge
   useEffect(() => {
@@ -109,6 +112,9 @@ export default function FinanceiroNav({ children = null }) {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
+  // Topo novo (José, 06/11/2026): empresa pela logo + abas do Financeiro novo, para quem tem o Caixa
+  if (podeCaixa) return <FinanceiroTopoNovo comNotas={pode('financeiro', 'notas')}>{children}</FinanceiroTopoNovo>
+
   return (
     <div className="fin-band-verde" style={{
       position: 'sticky', top: '84px', zIndex: 30,
@@ -132,7 +138,7 @@ export default function FinanceiroNav({ children = null }) {
           paddingTop: isMobile ? '6px' : undefined,
         }}>
           {links.map(link => {
-            const isActive = pathname === link.href
+            const isActive = pathname === link.href || (!!link.prefixo && pathname?.startsWith(link.prefixo))
             const Icon = ICONS[link.icon]
             const isVencidosTab = link.icon === 'vencidos'
             const hasVencidos = isVencidosTab && vencidosCount > 0

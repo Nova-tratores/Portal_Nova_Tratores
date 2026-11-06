@@ -38,6 +38,9 @@ ${CANTOS} { border-radius: 16px !important }
 .fin-vn .fin-col-title${ambos('background', '#fde68a')[0]}, .fin-vn .fin-col-title${ambos('background', '#fde68a')[1]},
 .fin-vn .fin-col-title[style*="rgb(253, 230, 138)"] { color: #b45309 !important; border-color: color-mix(in srgb, #d97706 30%, var(--portal-border, #e2e8f0)) !important }
 .fin-vn .fin-col-title > span { background: var(--portal-bg-secondary, #f1f5f9) !important; color: var(--portal-text-secondary, #475569) }
+/* título da coluna preso no topo ao rolar o quadro (José, 05/11/2026); a sombra cobre o vão de baixo,
+   para os cartões não aparecerem passando entre o título e a lista */
+.fin-vn .fin-k-board .fin-col-title { position: sticky; top: 0; z-index: 5; box-shadow: 0 16px 0 0 var(--portal-bg-secondary, #f1f5f9) }
 /* 6. números com dígitos alinhados */
 .fin-vn [style*="R$"], .fin-vn td { font-variant-numeric: tabular-nums }
 `

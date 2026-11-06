@@ -16,7 +16,7 @@ import {
   X, PlusCircle, FileText, Download,
   CheckCircle, Upload, Send,
   Calendar, CreditCard, ArrowLeft,
-  CheckCheck, Eye, ClipboardList, Search, Trash2, RefreshCw, AlertCircle, Lock, DollarSign, Barcode, Check, Clock, Link2
+  CheckCheck, Eye, ClipboardList, Search, Trash2, RefreshCw, AlertCircle, Lock, DollarSign, Barcode, Check, Clock, Link2, ChevronLeft, ChevronRight
 } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
@@ -70,6 +70,27 @@ const colunas = [
   { id: 'pago', titulo: 'Pago' },
   { id: 'vencido', titulo: 'Vencido' }
 ];
+const cardsDaColuna = (col, lista) => lista.filter(c => {
+  if (col.id === 'pago') return (c.status === 'pago' || c.status === 'concluido');
+  if (col.id === 'gerar_boleto') return (c.status === 'gerar_boleto' || c.status === 'validar_pix');
+  return c.status === col.id;
+});
+
+// Navegar no quadro (José, 06/11/2026: "meio ruim para navegar"). A tela ocupa só o que sobra abaixo do
+// cabeçalho e da faixa (antes um calc fixo com 64px deixava 20px a mais e a página rolava junto com as
+// colunas); atalhos levam a cada coluna e as setas andam uma coluna por vez.
+const telaRef = useRef(null);
+const quadroRef = useRef(null);
+useEffect(() => {
+  const el = telaRef.current;
+  if (!el) return;
+  const ajustar = () => { el.style.height = `${Math.max(360, window.innerHeight - (el.getBoundingClientRect().top + window.scrollY))}px`; };
+  ajustar();
+  window.addEventListener('resize', ajustar);
+  return () => window.removeEventListener('resize', ajustar);
+}, []);
+const irParaColuna = (id) => document.getElementById(`fin-k-col-${id}`)?.scrollIntoView({ behavior: 'smooth', inline: 'start', block: 'nearest' });
+const andarQuadro = (lado) => quadroRef.current?.scrollBy({ left: lado * 316, behavior: 'smooth' });
 
 const carregarDados = async () => {
   try {
@@ -398,7 +419,8 @@ const isBoletoParcelado = tarefaSelecionada?.forma_pagamento === 'Boleto Parcela
 const isCartaoParcelado = tarefaSelecionada?.forma_pagamento === 'Cartão Parcelado';
 
 return (
-    <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Inter, sans-serif', background: 'var(--portal-bg-secondary)' }}>
+    <div ref={telaRef} style={{ height: 'calc(100dvh - 84px)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, sans-serif', background: 'var(--portal-bg-secondary)' }}>
+    {/* sem overflow nesta div: ela viraria o contêiner de rolagem e o "top: 84px" da faixa (sticky) passaria a contar daqui, abrindo um vão em cima */}
     <FinanceiroNav />
     {/* Quem gerou o boleto não tem e-mail de envio: configura aqui e o boleto sai na hora (29/10/2026) */}
     <ConfigEmailEnvioModal
@@ -409,7 +431,7 @@ return (
     />
 
 
-    <main style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 56px)', overflow: 'hidden' }}>
+    <main style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
       <header className="fin-k-header" style={{ padding: '20px 32px 16px' }}>
       <div className="fin-k-toolbar" style={{ display:'flex', gap:'12px', alignItems:'center', flexWrap:'wrap' }}>
           <div className="fin-k-search" style={{ position: 'relative', flex: '1 1 420px', maxWidth: '560px', minWidth: 0 }}>
@@ -417,6 +439,17 @@ return (
               <input type="text" placeholder="Buscar por cliente, nº da nota, vencimento, condição ou ID..." value={filtroBusca} onChange={e => setFiltroBusca(e.target.value)} style={{...inputFilterStyle, fontSize:'13px', padding:'10px 36px 10px 36px'}} />
               {filtroBusca && <X size={14} onClick={() => setFiltroBusca('')} style={{position:'absolute', right: '10px', top: '50%', transform:'translateY(-50%)', cursor:'pointer', color:'var(--portal-text-muted)'}} title="Limpar busca" />}
           </div>
+          {!filtroBusca.trim() && (
+            <nav className="fin-k-atalhos" aria-label="Ir para a coluna">
+              <button type="button" className="fin-k-seta" onClick={() => andarQuadro(-1)} aria-label="Coluna anterior"><ChevronLeft size={18} /></button>
+              {colunas.map(col => (
+                <button key={col.id} type="button" className={`fin-k-atalho fin-k-atalho-${col.id}`} onClick={() => irParaColuna(col.id)}>
+                  {col.titulo} <span>{cardsDaColuna(col, chamadosFiltrados).length}</span>
+                </button>
+              ))}
+              <button type="button" className="fin-k-seta" onClick={() => andarQuadro(1)} aria-label="Próxima coluna"><ChevronRight size={18} /></button>
+            </nav>
+          )}
       </div>
       </header>
 
@@ -430,7 +463,7 @@ return (
             return (
               <div key={`${t.id}-${idx}`} className="kanban-card" onClick={() => setTarefaSelecionada(t)} style={{
                 background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '12px',
-                borderLeft: `4px solid ${statusColor}`, cursor: 'pointer', overflow: 'hidden',
+                cursor: 'pointer', overflow: 'hidden', // sem faixa colorida na lateral (padrão de telas): a fase já vai no selo
               }}>
                 <div style={{ padding: '16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
@@ -450,15 +483,11 @@ return (
         </div>
       </div>
       ) : (
-      <div className="fin-k-board" style={{ flex: 1, display: 'flex', gap: '16px', overflowX: 'auto', overflowY: 'hidden', padding: '0 24px 24px 24px', boxSizing: 'border-box', minWidth: 0 }}>
+      <div ref={quadroRef} className="fin-k-board" style={{ flex: 1, minHeight: 0, display: 'flex', gap: '16px', overflowX: 'auto', overflowY: 'hidden', padding: '0 24px 24px 24px', boxSizing: 'border-box', minWidth: 0 }}>
       {colunas.map(col => {
-        const cardsCol = chamadosFiltrados.filter(c => {
-            if (col.id === 'pago') return (c.status === 'pago' || c.status === 'concluido');
-            if (col.id === 'gerar_boleto') return (c.status === 'gerar_boleto' || c.status === 'validar_pix');
-            return c.status === col.id;
-        });
+        const cardsCol = cardsDaColuna(col, chamadosFiltrados);
         return (
-        <div key={col.id} className="fin-k-col" style={{ width: '300px', flex: '0 0 300px', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--portal-border)', padding: '0 12px' }}>
+        <div key={col.id} id={`fin-k-col-${col.id}`} className="fin-k-col" style={{ width: '300px', flex: '0 0 300px', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--portal-border)', padding: '0 12px' }}>
         <h3 className="fin-col-title" style={{ ...colTitleStyle, background: col.id === 'vencido' ? '#fecaca' : col.id === 'sem_boleto' ? '#fde68a' : '#c5e29f', color: '#111111', borderRadius: '10px', borderBottom: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>{col.titulo}<span style={{ background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '1px 9px', fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{cardsCol.length}</span>
         {col.id === 'gerar_boleto' && (
           <button onClick={() => setAgruparOpen(true)} title="Juntar cards do mesmo cliente num só (boleto único pra todas as NFs)"
@@ -1152,7 +1181,7 @@ function AttachmentTag({ icon, label, fileUrl, onUpload, disabled = false, onRem
 }
 
 // --- ESTILOS AUXILIARES ---
-const colWrapperStyle = { flex: 1, display: 'flex', flexDirection: 'column', gap: '0px', overflowY: 'auto', padding: '0' };
+const colWrapperStyle = { flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', gap: '0px', overflowY: 'auto', padding: '0' };
 const colTitleStyle = { textAlign: 'center', fontSize: '13px', color:'var(--portal-text-secondary)', fontWeight:'600', marginBottom:'16px', textTransform:'uppercase', letterSpacing:'1.5px', padding: '12px 8px', borderBottom: '1px solid var(--portal-border)' };
 const btnActionRed = { flex: 1, background: 'transparent', color: '#c0392b', border: '1px solid #c0392b', padding: '22px', borderRadius: '0px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' , gap: '15px', fontSize: '15px', textTransform:'uppercase', letterSpacing:'2px' };
 const btnActionGreen = { flex: 1, background: 'transparent', color: '#27ae60', border: '1px solid #27ae60', padding: '22px', borderRadius: '0px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '15px', fontSize: '15px', textTransform:'uppercase', letterSpacing:'2px' };
@@ -1173,6 +1202,17 @@ const fieldBoxInner = { padding: '10px', background: 'transparent' };
 const miniActionBtn = { background: 'transparent', border: 'none', padding: '10px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', hover: { background: 'var(--portal-bg-secondary)' } };
 
 const FIN_K_CSS = `
+/* atalhos para as colunas do quadro (06/11/2026) */
+.fin-k-atalhos { display: flex; align-items: center; gap: 6px; flex: 1 1 auto; min-width: 0; overflow-x: auto; scrollbar-width: none }
+.fin-k-atalhos::-webkit-scrollbar { display: none }
+.fin-k-atalho { display: inline-flex; align-items: center; gap: 7px; flex-shrink: 0; height: 36px; padding: 0 12px; border-radius: 99px; border: 1px solid var(--portal-border); background: var(--portal-bg-card); color: var(--portal-text); font-size: 13.5px; cursor: pointer; white-space: nowrap; transition: background .15s, border-color .15s }
+.fin-k-atalho:hover { border-color: #8bc53f; background: color-mix(in srgb, #8bc53f 10%, var(--portal-bg-card)) }
+.fin-k-atalho span { min-width: 20px; padding: 0 7px; border-radius: 99px; background: var(--portal-bg-secondary); color: var(--portal-text-secondary); font-size: 12px; text-align: center; font-variant-numeric: tabular-nums }
+.fin-k-atalho-vencido span { background: #fee2e2; color: #dc2626 }
+.fin-k-atalho-sem_boleto span { background: #fef3c7; color: #b45309 }
+.fin-k-seta { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; border-radius: 50%; border: 1px solid var(--portal-border); background: var(--portal-bg-card); color: var(--portal-text); cursor: pointer }
+.fin-k-seta:hover { background: var(--portal-bg-secondary) }
+@media (max-width: 768px) { .fin-k-atalhos { flex: 1 1 100% } .fin-k-seta { display: none } }
 @media (max-width: 1024px) {
   .fin-k-board { scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
   .fin-k-col { scroll-snap-align: start; }

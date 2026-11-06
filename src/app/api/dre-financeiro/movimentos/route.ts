@@ -80,6 +80,14 @@ export async function GET(request: NextRequest) {
       if (!data || data.length < PAGE) break
     }
 
+    // O Omie devolve DUAS linhas para o mesmo dinheiro: o título quitado (VENR, COMP, CTEP, MANP, APIP, RPTR/RPTP…)
+    // e a baixa dele (BAXR/BAXP), mesmo valor, conta e dia. Somar as duas dobrava os totais (out/2026, Nova:
+    // R$ 1,01 mi a mais nas entradas e R$ 919 mil nas saídas). Título com baixa conta só pela baixa. (06/11/2026)
+    const comBaixa = new Set(rows.filter((r) => /^BAX/.test(String(r.origem || '')) && r.codigo_titulo).map((r) => `${r.conta_omie}|${r.codigo_titulo}`))
+    const emDobro = (r: Record<string, unknown>) => !/^BAX/.test(String(r.origem || '')) && r.codigo_titulo && comBaixa.has(`${r.conta_omie}|${r.codigo_titulo}`)
+    const tirados = rows.filter(emDobro).length
+    if (tirados) { const unicos = rows.filter((r) => !emDobro(r)); rows.length = 0; rows.push(...unicos) }
+
     let entradas = 0
     let saidas = 0
     rows.forEach((r) => {
@@ -103,6 +111,7 @@ export async function GET(request: NextRequest) {
       movimentos: rows,
       contasCorrentes,
       totais: { entradas, saidas, saldo: entradas - saidas, qtd: rows.length },
+      emDobroTirados: tirados, // linhas de título que repetiam a baixa (ver acima)
     })
   } catch (e: any) {
     console.error(e)

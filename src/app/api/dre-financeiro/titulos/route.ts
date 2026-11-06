@@ -50,8 +50,9 @@ export async function GET(request: NextRequest) {
     const tipo = pegaTipo(request)
     const sp = request.nextUrl.searchParams
     const eixoRaw = sp.get('eixo')
-    const eixo = eixoRaw === 'emissao' || eixoRaw === 'inclusao' ? eixoRaw : 'vencimento'
-    const campoData = eixo === 'emissao' ? 'data_emissao' : eixo === 'inclusao' ? 'data_inclusao' : 'data_vencimento'
+    // eixo=pagamento (06/11/2026, aba Hoje do Financeiro): o que foi pago/recebido no dia
+    const eixo = eixoRaw === 'emissao' || eixoRaw === 'inclusao' || eixoRaw === 'pagamento' ? eixoRaw : 'vencimento'
+    const campoData = eixo === 'emissao' ? 'data_emissao' : eixo === 'inclusao' ? 'data_inclusao' : eixo === 'pagamento' ? 'data_pagamento' : 'data_vencimento'
     const data = sp.get('data')
     const de = sp.get('de')
     const ate = sp.get('ate')

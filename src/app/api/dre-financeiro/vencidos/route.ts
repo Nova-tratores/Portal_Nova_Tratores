@@ -150,6 +150,29 @@ export async function GET(request: NextRequest) {
       })
     }
 
+    // CPF/CNPJ e telefone de cada cliente/fornecedor (Caixa › Vencidos junta por documento: o mesmo
+    // cliente tem um código na Nova e outro na Castro). Primeiro a tabela `clientes` (espelho do Omie);
+    // quem não estiver lá sai do cadastro do portal. Os códigos do Omie não se repetem entre as duas contas.
+    const docs = new Map<number, { documento: string | null; documento_norm: string | null; telefone: string | null }>()
+    const codigos = [...new Set(titulos.map(t => Number(t.codigo_contraparte)).filter(Boolean))]
+    for (let i = 0; i < codigos.length; i += 300) {
+      const lote = codigos.slice(i, i + 300)
+      const [cli, cad] = await Promise.all([
+        db.from('clientes').select('codigo_cliente_omie,cnpj_cpf,cnpj_norm').in('codigo_cliente_omie', lote),
+        db.from('portal_nt_clientes_cadastro_omie').select('cod_cli,cnpj_cpf,telefone').in('cod_cli', lote),
+      ])
+      for (const c of cad.data || []) {
+        const norm = String(c.cnpj_cpf || '').replace(/\D/g, '') || null
+        docs.set(Number(c.cod_cli), { documento: c.cnpj_cpf || null, documento_norm: norm, telefone: c.telefone || null })
+      }
+      for (const c of cli.data || []) {
+        if (!c.cnpj_norm) continue
+        const antes = docs.get(Number(c.codigo_cliente_omie))
+        docs.set(Number(c.codigo_cliente_omie), { documento: c.cnpj_cpf || null, documento_norm: c.cnpj_norm, telefone: antes?.telefone || null })
+      }
+    }
+    for (const t of titulos) Object.assign(t, docs.get(Number(t.codigo_contraparte)) || { documento: null, documento_norm: null, telefone: null })
+
     titulos.sort((a, b) => b.dias_atraso - a.dias_atraso || b.valor_aberto - a.valor_aberto)
 
     // Faixas de atraso (aging buckets)

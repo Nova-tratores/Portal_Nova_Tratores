@@ -55,11 +55,11 @@ export const TELAS: Tela[] = [
   // ── Financeiro
   ...t('Financeiro', 'sistema-financeiro', 'financeiro', [
     ['Painel do Financeiro', '/financeiro/home-financeiro'],
-    ['Kanban do Financeiro', '/financeiro/kanban-financeiro'],
+    ['Recebimentos do Financeiro', '/financeiro/kanban-financeiro', ['kanban']],
     ['Painel Pós-Vendas (financeiro)', '/financeiro/home-posvendas'],
-    ['Kanban Pós-Vendas (financeiro)', '/financeiro/kanban'],
+    ['Recebimentos Pós-Vendas (financeiro)', '/financeiro/kanban', ['kanban']],
     ['Painel Peças (financeiro)', '/financeiro/home-pecas'],
-    ['Kanban Peças (financeiro)', '/financeiro/kanban-pecas'],
+    ['Recebimentos Peças (financeiro)', '/financeiro/kanban-pecas', ['kanban']],
     ['Despesas', '/financeiro/historico-pagar', ['contas a pagar', 'histórico pagar']],
     ['Rastreio', '/financeiro/rastreio'],
     ['Vencidos (financeiro)', '/financeiro/vencidos', ['boletos vencidos', 'inadimplência']],
