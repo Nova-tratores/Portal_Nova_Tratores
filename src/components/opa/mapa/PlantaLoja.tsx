@@ -227,7 +227,7 @@ export default function PlantaLoja({
           return (
             <button key={a.id} type="button" onClick={() => onAndar(a.id)} aria-pressed={ativo} style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 8, fontFamily: 'inherit',
-              fontSize: 13, fontWeight: 800, cursor: 'pointer', border: `1.5px solid ${ativo ? '#dc2626' : 'var(--portal-border)'}`,
+              fontSize: 13, fontWeight: 500, cursor: 'pointer', border: `1.5px solid ${ativo ? '#dc2626' : 'var(--portal-border)'}`,
               background: ativo ? '#FEF2F2' : 'var(--portal-bg-card)', color: ativo ? '#991B1B' : 'var(--portal-text-secondary)',
             }}>
               {a.nome}
@@ -246,7 +246,7 @@ export default function PlantaLoja({
         onDragOver={(e) => { if (modo === 'editar' && e.dataTransfer.types.includes('text/opa-local')) e.preventDefault() }}
         onDrop={(e) => { const id = e.dataTransfer.getData('text/opa-local'); const c = emPct(e); if (id && c) { e.preventDefault(); onColocar?.(id, c.x, c.y) } }}
         onPointerCancel={() => { setArrasto(null); setTemp(null); setRiscando(null) }}
-        style={{ position: 'relative', width: '100%', paddingBottom: '80%', borderRadius: 10, overflow: 'hidden', background: 'var(--portal-bg-card)', border: `1px solid ${desenhando || colocando ? '#dc2626' : 'var(--portal-border)'}`, touchAction: modo === 'editar' ? 'none' : 'auto', userSelect: 'none', cursor: desenhando || colocando ? 'crosshair' : 'default' }}>
+        style={{ position: 'relative', width: '100%', paddingBottom: '80%', borderRadius: 16, overflow: 'hidden', background: 'var(--portal-bg-card)', border: `1px solid ${desenhando || colocando ? '#dc2626' : 'var(--portal-border)'}`, touchAction: modo === 'editar' ? 'none' : 'auto', userSelect: 'none', cursor: desenhando || colocando ? 'crosshair' : 'default' }}>
         {/* as ruas em volta (mesma planta do Pátio); nos andares de cima ficam apagadas */}
         <div style={{ ...rua, top: 0, left: 0, right: 0, height: '2.5%' }}>R. Hermes Corrêa de Carvalho</div>
         <div style={{ ...rua, top: '2.5%', left: 0, bottom: 0, width: '2%', writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 8 }}>Av. São Sebastião (SP-287)</div>
@@ -257,16 +257,18 @@ export default function PlantaLoja({
           const r = ret('bloco', b.id, b)
           const sel = editandoBlocos && eSel('bloco', b.id)
           const forma = b.forma || 'retangulo'
-          const corBorda = sel ? '#dc2626' : 'var(--portal-border)'
+          // cor própria da área (escolhida no editar) ou o cinza de sempre
+          const corBorda = sel ? '#dc2626' : b.cor ? `color-mix(in srgb, ${b.cor} 55%, transparent)` : 'var(--portal-border)'
+          const fundo = b.cor ? `color-mix(in srgb, ${b.cor} 10%, transparent)` : 'color-mix(in srgb, var(--portal-text-muted) 7%, transparent)'
           return (
             <div key={b.id} onPointerDown={(e) => comecar(e, 'bloco', b.id, 'mover', b)}
-              style={{ ...pos(r), borderRadius: forma === 'circulo' ? '50%' : 6, border: forma === 'retangulo' || forma === 'circulo' ? `2px ${sel ? 'solid' : 'dashed'} ${corBorda}` : 'none',
-                background: forma === 'retangulo' || forma === 'circulo' ? 'color-mix(in srgb, var(--portal-text-muted) 7%, transparent)' : 'transparent', cursor: editandoBlocos ? (sel ? 'move' : 'pointer') : 'default',
+              style={{ ...pos(r), borderRadius: forma === 'circulo' ? '50%' : 10, border: forma === 'retangulo' || forma === 'circulo' ? `2px ${sel || b.cor ? 'solid' : 'dashed'} ${corBorda}` : 'none',
+                background: forma === 'retangulo' || forma === 'circulo' ? fundo : 'transparent', cursor: editandoBlocos ? (sel ? 'move' : 'pointer') : 'default',
                 zIndex: sel ? 4 : 1, pointerEvents: editandoBlocos ? 'auto' : 'none' }}>
               {forma !== 'retangulo' && forma !== 'circulo' && (
-                <FormaSvg forma={forma} pontos={b.pontos} preenche="color-mix(in srgb, var(--portal-text-muted) 7%, transparent)" borda={corBorda} tracejada={!sel} />
+                <FormaSvg forma={forma} pontos={b.pontos} preenche={fundo} borda={corBorda} tracejada={!sel && !b.cor} />
               )}
-              <span style={{ position: 'absolute', top: 4, left: 6, fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--portal-text-muted)' }}>{b.nome}</span>
+              <span style={{ position: 'absolute', top: 5, left: 8, fontSize: 11, fontWeight: 500, color: b.cor || 'var(--portal-text-muted)' }}>{b.nome}</span>
               {editandoBlocos && <Alcas lados={sel} onPuxar={(e, px) => comecar(e, 'bloco', b.id, px, b)} />}
             </div>
           )
@@ -295,10 +297,10 @@ export default function PlantaLoja({
                 // editando: deixa as alças das bordas aparecerem por fora da caixa
                 display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 2, overflow: editandoLugares ? 'visible' : 'hidden' }}>
               {!caixa && <FormaSvg forma={forma} pontos={p.pontos} preenche={`color-mix(in srgb, ${cor} ${sel ? 30 : 16}%, transparent)`} borda={cor} espessura={sel ? 3 : 2} />}
-              <span style={{ position: 'relative', fontSize: 'clamp(9px, 1.15vw, 12.5px)', fontWeight: 800, color: 'var(--portal-text)', textAlign: 'center', lineHeight: 1.15, marginTop: forma === 'triangulo' ? '30%' : forma === 'L' ? '35%' : 0 }}>{nome}</span>
+              <span style={{ position: 'relative', fontSize: 'clamp(9px, 1.15vw, 12.5px)', fontWeight: 500, color: 'var(--portal-text)', textAlign: 'center', lineHeight: 1.15, marginTop: forma === 'triangulo' ? '30%' : forma === 'L' ? '35%' : 0 }}>{nome}</span>
               {destino.gestorNome && <span style={{ position: 'relative', fontSize: 'clamp(8px, 0.95vw, 11px)', color: 'var(--portal-text-secondary)', textAlign: 'center', lineHeight: 1.1 }}>{destino.gestorNome.split(' ').slice(0, 2).join(' ')}</span>}
               {n > 0 && (
-                <span style={{ position: 'absolute', top: 3, right: 3, minWidth: 20, height: 20, borderRadius: 10, padding: '0 5px', background: '#dc2626', color: '#fefefe', fontSize: 11.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{n}</span>
+                <span style={{ position: 'absolute', top: 3, right: 3, minWidth: 20, height: 20, borderRadius: 10, padding: '0 5px', background: '#dc2626', color: '#fefefe', fontSize: 11.5, fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.3)' }}>{n}</span>
               )}
               {editandoLugares && <Alcas lados={sel} onPuxar={(e, px) => comecar(e, 'lugar', p.local_id, px, p)} />}
             </div>
@@ -312,11 +314,11 @@ export default function PlantaLoja({
           const min = minDoTipo(b.tipo)
           return (
             <div key={b.id} onPointerDown={(e) => comecar(e, 'bloco', b.id, 'mover', b, min)} title={b.nome}
-              style={{ ...pos(r), ...visualEstrutura(b.tipo!), outline: sel ? '2px solid #dc2626' : 'none', outlineOffset: 2,
+              style={{ ...pos(r), ...visualEstrutura(b.tipo!, b.cor), outline: sel ? '2px solid #dc2626' : 'none', outlineOffset: 2,
                 cursor: editandoBlocos ? 'move' : 'default', zIndex: sel ? 9 : 8, pointerEvents: editandoBlocos ? 'auto' : 'none',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: editandoBlocos ? 'visible' : 'hidden' }}>
               {(b.tipo === 'corredor' || b.tipo === 'escada') && r.h >= 3 && r.w >= 5 && (
-                <span style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--portal-text-muted)', background: 'var(--portal-bg-card)', padding: '0 4px', borderRadius: 4 }}>{b.nome}</span>
+                <span style={{ fontSize: 10.5, fontWeight: 500, color: b.cor || 'var(--portal-text-muted)', background: 'var(--portal-bg-card)', padding: '0 4px', borderRadius: 4 }}>{b.nome}</span>
               )}
               {editandoBlocos && <Alcas lados={sel} onPuxar={(e, px) => comecar(e, 'bloco', b.id, px, b, min)} />}
             </div>
@@ -373,13 +375,14 @@ function FormaSvg({ forma, pontos, preenche, borda, espessura = 2, tracejada }: 
 }
 
 /** Visual de cada estrutura (cores fixas que funcionam nos dois temas). */
-function visualEstrutura(tipo: TipoBloco): React.CSSProperties {
+function visualEstrutura(tipo: TipoBloco, cor?: string | null): React.CSSProperties {
+  const c = cor || 'var(--portal-text-muted)'
   switch (tipo) {
-    case 'parede': return { background: '#475569', borderRadius: 2 }
-    case 'porta': return { background: '#D97706', borderRadius: 3, boxShadow: 'inset 0 0 0 1.5px #92400E' }
-    case 'janela': return { background: 'repeating-linear-gradient(90deg, #7DD3FC 0 6px, #0EA5E9 6px 8px)', borderRadius: 2 }
-    case 'corredor': return { background: 'repeating-linear-gradient(45deg, color-mix(in srgb, var(--portal-text-muted) 14%, transparent) 0 6px, transparent 6px 12px)', border: '1.5px dashed color-mix(in srgb, var(--portal-text-muted) 60%, transparent)', borderRadius: 4 }
-    case 'escada': return { background: 'repeating-linear-gradient(0deg, color-mix(in srgb, var(--portal-text-muted) 55%, transparent) 0 2px, transparent 2px 9px)', border: '1.5px solid color-mix(in srgb, var(--portal-text-muted) 70%, transparent)', borderRadius: 3 }
+    case 'parede': return { background: cor || '#475569', borderRadius: 2 }
+    case 'porta': return { background: cor || '#D97706', borderRadius: 3, boxShadow: `inset 0 0 0 1.5px color-mix(in srgb, ${cor || '#D97706'} 60%, #000)` }
+    case 'janela': return { background: `repeating-linear-gradient(90deg, color-mix(in srgb, ${cor || '#0EA5E9'} 45%, #fefefe) 0 6px, ${cor || '#0EA5E9'} 6px 8px)`, borderRadius: 2 }
+    case 'corredor': return { background: `repeating-linear-gradient(45deg, color-mix(in srgb, ${c} 14%, transparent) 0 6px, transparent 6px 12px)`, border: `1.5px dashed color-mix(in srgb, ${c} 60%, transparent)`, borderRadius: 4 }
+    case 'escada': return { background: `repeating-linear-gradient(0deg, color-mix(in srgb, ${c} 55%, transparent) 0 2px, transparent 2px 9px)`, border: `1.5px solid color-mix(in srgb, ${c} 70%, transparent)`, borderRadius: 3 }
     default: return {}
   }
 }

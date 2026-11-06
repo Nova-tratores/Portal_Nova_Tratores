@@ -24,7 +24,11 @@ export const TIPOS_ESTRUTURA: { id: Exclude<TipoBloco, 'area'>; nome: string; w:
 ]
 export const nomeDoTipo = (t: TipoBloco) => (t === 'area' ? 'Área' : TIPOS_ESTRUTURA.find((x) => x.id === t)?.nome || 'Área')
 
-export interface Bloco extends Retangulo { id: string; nome: string; tipo?: TipoBloco; forma?: Forma; pontos?: Ponto[] | null }
+export interface Bloco extends Retangulo { id: string; nome: string; tipo?: TipoBloco; forma?: Forma; pontos?: Ponto[] | null; cor?: string | null }
+
+/** Cores para pintar áreas e estrutura (a 1ª é o padrão: sem cor própria). */
+export const CORES_BLOCO = ['#64748B', '#2563EB', '#059669', '#D97706', '#7C3AED', '#DB2777', '#0891B2', '#65A30D', '#DC2626', '#92400E']
+export const corValida = (c: unknown): string | null => (typeof c === 'string' && /^#[0-9a-f]{6}$/i.test(c) ? c.toUpperCase() : null)
 export interface Andar { id: string; nome: string; ordem: number; blocos: Bloco[]; ativo: boolean }
 export interface PosicaoLocal extends Retangulo { local_id: string; andar_id: string; forma?: Forma; pontos?: Ponto[] | null }
 
@@ -166,7 +170,8 @@ export function validarBlocos(blocos: unknown): Bloco[] | string {
     ids.push(id)
     const tipo: TipoBloco = TIPOS_ESTRUTURA.some((t) => t.id === b?.tipo) ? (b.tipo as TipoBloco) : 'area'
     const { forma, pontos } = validarForma(b?.forma, b?.pontos)
-    saida.push({ id, nome, tipo, ...(tipo === 'area' && forma !== 'retangulo' ? { forma, pontos } : {}), ...limitarRet(b as Partial<Retangulo>, minDoTipo(tipo)) })
+    const cor = corValida(b?.cor)
+    saida.push({ id, nome, tipo, ...(tipo === 'area' && forma !== 'retangulo' ? { forma, pontos } : {}), ...(cor ? { cor } : {}), ...limitarRet(b as Partial<Retangulo>, minDoTipo(tipo)) })
   }
   return saida
 }

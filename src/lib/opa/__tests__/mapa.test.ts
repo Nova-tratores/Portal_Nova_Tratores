@@ -119,3 +119,15 @@ describe('formas e estrutura (06/11)', () => {
     expect(validarForma('hack', null).forma).toBe('retangulo')
   })
 })
+
+describe('cor do bloco (06/11)', () => {
+  it('guarda cor #RRGGBB e descarta o resto', () => {
+    const r = validarBlocos([
+      { nome: 'Oficina', x: 0, y: 0, w: 10, h: 10, cor: '#2563eb' },
+      { nome: 'Peças', x: 20, y: 0, w: 10, h: 10, cor: 'red; background:url(x)' },
+    ])
+    if (typeof r === 'string') throw new Error(r)
+    expect(r[0].cor).toBe('#2563EB')
+    expect(r[1].cor).toBeUndefined()
+  })
+})

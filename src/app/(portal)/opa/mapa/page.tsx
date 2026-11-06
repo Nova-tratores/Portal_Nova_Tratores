@@ -8,14 +8,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ArrowRight, Building2, Circle, DoorOpen, Footprints, Hexagon, Loader2, MapPin, MousePointer2, Pencil, Plus, RectangleHorizontal, Square, SquareDashed, Trash2, Triangle, UserRound, X } from 'lucide-react'
+import { ArrowRight, Building2, Circle, DoorOpen, Footprints, Hexagon, Loader2, MapPin, MousePointer2, Palette, Pencil, Plus, RectangleHorizontal, Redo2, Square, SquareDashed, Trash2, Triangle, Undo2, UserRound, X } from 'lucide-react'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { OpaBarra, BTN_FAIXA } from '@/components/opa/pecas/comum'
 import PlantaLoja, { type Desenho, type Ferramenta } from '@/components/opa/mapa/PlantaLoja'
 import { useDadosMapa } from '@/components/opa/mapa/useDadosMapa'
 import {
   andaresOrdenados, areaNoPonto, corDoDepartamento, COR_SEM_DEPARTAMENTO, FORMAS, idUnico, limitarRet, minDoTipo, nomeDoTipo, opasPorLocal,
-  TIPOS_ESTRUTURA, type Bloco, type Forma, type Retangulo, type TipoBloco,
+  CORES_BLOCO, TIPOS_ESTRUTURA, type Andar, type Bloco, type Forma, type PosicaoLocal, type Retangulo, type TipoBloco,
 } from '@/lib/opa/mapa'
 import { destinoDoLocal } from '@/lib/opa/departamentos'
 import { agruparLocais, mapaNomesLocais, rotuloDoLocal, setorDoLocal, setoresDosLocais } from '@/lib/opa-pecas/regras'
@@ -46,6 +46,14 @@ const ICONE_ESTRUTURA: Record<Exclude<TipoBloco, 'area'>, React.ReactNode> = {
 /** Lugar desenhado esperando confirmação ("dentro de Peças?"). */
 interface PedidoLugar { desenho: Desenho; area: Bloco | null }
 
+/** Como o mapa estava (para voltar/avançar). */
+interface Foto { andares: Andar[]; posicoes: PosicaoLocal[]; locais: Local[] }
+
+/** Cor de cada ferramenta (como as abas do POS: a cor aparece mesmo sem estar escolhida). */
+const COR_FERRAMENTA: Record<string, string> = {
+  mover: '#475569', sala: '#dc2626', area: '#059669', parede: '#475569', porta: '#D97706', janela: '#0EA5E9', corredor: '#0891B2', escada: '#7C3AED',
+}
+
 export default function MapaOpaPage() {
   const isMobile = useIsMobile()
   const { dados, setDados, erro, setErro, semMigracao, enviar } = useDadosMapa()
@@ -60,6 +68,7 @@ export default function MapaOpaPage() {
   const [pedidoArea, setPedidoArea] = useState<Desenho | null>(null)
   const [editandoNome, setEditandoNome] = useState(false)
   const [medidas, setMedidas] = useState(false)
+  const [hist, setHist] = useState<{ passado: Foto[]; futuro: Foto[] }>({ passado: [], futuro: [] })
 
   const andares = dados ? andaresOrdenados(dados.andares) : []
   const andar = andares.find((a) => a.id === andarEscolhido) || andares[0] || null
@@ -72,7 +81,48 @@ export default function MapaOpaPage() {
   const cancelarDesenho = useCallback(() => setFerramenta(null), [])
 
   // ── gravações (otimistas: a tela muda na hora; erro aparece em cima) ──
+  // ── voltar / avançar: fotos do mapa antes de cada mudança (até 50) ──
+  const fotoAtual = (): Foto | null => (dados ? { andares: dados.andares, posicoes: dados.posicoes, locais: dados.locais } : null)
+  const lembrar = () => { const f = fotoAtual(); if (f) setHist((h) => ({ passado: [...h.passado.slice(-49), f], futuro: [] })) }
+  /** leva o mapa (tela e banco) da foto `de` para a foto `alvo`, mandando só o que mudou */
+  const restaurar = async (alvo: Foto, de: Foto) => {
+    setSel(null)
+    setDados((d) => d && ({ ...d, andares: alvo.andares, posicoes: alvo.posicoes, locais: d.locais.map((l) => alvo.locais.find((x) => x.id === l.id) || l) }))
+    setSalvando(true)
+    for (const a of alvo.andares) {
+      const antes = de.andares.find((x) => x.id === a.id)
+      if (!antes) continue
+      if (JSON.stringify(antes.blocos) !== JSON.stringify(a.blocos)) await enviar({ acao: 'salvar_blocos', andar_id: a.id, blocos: a.blocos })
+      if (antes.nome !== a.nome) await enviar({ acao: 'renomear_andar', id: a.id, nome: a.nome })
+    }
+    for (const p of alvo.posicoes) {
+      const antes = de.posicoes.find((x) => x.local_id === p.local_id)
+      if (!antes || JSON.stringify(antes) !== JSON.stringify(p)) {
+        await enviar({ acao: 'posicionar', local_id: p.local_id, andar_id: p.andar_id, x: p.x, y: p.y, w: p.w, h: p.h, forma: p.forma || 'retangulo', pontos: p.pontos || null })
+      }
+    }
+    for (const p of de.posicoes) if (!alvo.posicoes.some((x) => x.local_id === p.local_id)) await enviar({ acao: 'tirar_do_mapa', local_id: p.local_id })
+    for (const l of alvo.locais) {
+      const antes = de.locais.find((x) => x.id === l.id)
+      if (antes && (antes.nome !== l.nome || (antes.setor || '') !== (l.setor || ''))) await enviar({ acao: 'editar_local', local_id: l.id, nome: l.nome, setor: l.setor || '' })
+    }
+    setSalvando(false)
+  }
+  const voltar = () => {
+    const atual = fotoAtual(), alvo = hist.passado[hist.passado.length - 1]
+    if (!atual || !alvo || salvando) return
+    setHist((h) => ({ passado: h.passado.slice(0, -1), futuro: [atual, ...h.futuro] }))
+    restaurar(alvo, atual)
+  }
+  const avancar = () => {
+    const atual = fotoAtual(), alvo = hist.futuro[0]
+    if (!atual || !alvo || salvando) return
+    setHist((h) => ({ passado: [...h.passado, atual], futuro: h.futuro.slice(1) }))
+    restaurar(alvo, atual)
+  }
+
   const salvar = async (corpo: Record<string, unknown>, aplicar?: () => void) => {
+    if (aplicar) lembrar()
     aplicar?.(); setSalvando(true)
     const j = await enviar(corpo)
     setSalvando(false)
@@ -211,14 +261,40 @@ export default function MapaOpaPage() {
     window.addEventListener('keydown', tecla)
     return () => window.removeEventListener('keydown', tecla)
   })
+  // Ctrl+Z volta, Ctrl+Y (ou Ctrl+Shift+Z) avança
+  useEffect(() => {
+    if (!editando) return
+    const tecla = (e: KeyboardEvent) => {
+      const alvo = e.target as HTMLElement
+      if (alvo && (alvo.tagName === 'INPUT' || alvo.tagName === 'SELECT' || alvo.tagName === 'TEXTAREA')) return
+      if (!(e.ctrlKey || e.metaKey)) return
+      const k = e.key.toLowerCase()
+      if (k === 'z' && !e.shiftKey) { e.preventDefault(); voltar() }
+      else if (k === 'y' || (k === 'z' && e.shiftKey)) { e.preventDefault(); avancar() }
+    }
+    window.addEventListener('keydown', tecla)
+    return () => window.removeEventListener('keydown', tecla)
+  })
 
-  const cartao: React.CSSProperties = { borderRadius: 12, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', padding: 14 }
-  const titulo: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 7, fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', margin: '0 0 8px' }
+  // estilo POS NewPortal (docs/estilo-pos-newportal.md): cartão 16, peso 500, cantos 10
+  const cartao: React.CSSProperties = { borderRadius: 16, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', padding: '14px 16px' }
+  const titulo: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 10, fontSize: 16, fontWeight: 500, color: 'var(--portal-text)', margin: '0 0 10px' }
   const btn = (cor = 'var(--portal-text-secondary)', cheio = false): React.CSSProperties => ({
-    display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 12px', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+    display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 12px', borderRadius: 10, fontFamily: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer',
     border: cheio ? 'none' : '1px solid var(--portal-border)', background: cheio ? cor : 'var(--portal-bg-card)', color: cheio ? '#fefefe' : cor, whiteSpace: 'nowrap',
   })
-  const pequeno = (cor?: string, cheio?: boolean): React.CSSProperties => ({ ...btn(cor, cheio), height: 32, padding: isMobile ? '0 9px' : '0 11px', fontSize: 12.5 })
+  const pequeno = (cor?: string, cheio?: boolean): React.CSSProperties => ({ ...btn(cor, cheio), height: 34, padding: isMobile ? '0 9px' : '0 11px', fontSize: 13 })
+  /** botão com a cor sempre visível; escolhido = fundo da cor a 9% e borda da cor */
+  const colorido = (cor: string, ativo: boolean): React.CSSProperties => ({
+    ...pequeno(), color: ativo ? cor : 'var(--portal-text-secondary)',
+    background: ativo ? `color-mix(in srgb, ${cor} 9%, var(--portal-bg-card))` : 'var(--portal-bg-card)',
+    border: `1px solid ${ativo ? `color-mix(in srgb, ${cor} 45%, transparent)` : 'var(--portal-border)'}`,
+    boxShadow: ativo ? `inset 0 -2px 0 ${cor}` : 'none',
+  })
+  const quadradinho = (cor: string, tam = 32): React.CSSProperties => ({
+    width: tam, height: tam, borderRadius: tam >= 32 ? 9 : 7, display: 'grid', placeItems: 'center', flex: 'none', color: cor,
+    background: `color-mix(in srgb, ${cor} 9%, var(--portal-bg-card))`, border: `1px solid color-mix(in srgb, ${cor} 18%, transparent)`,
+  })
 
   // ferramentas: Mover (padrão) + Sala + estrutura
   const ferramentaAtiva = !ferramenta ? 'mover' : ferramenta.tipo === 'estrutura' ? ferramenta.estrutura : ferramenta.tipo === 'lugar' ? 'sala' : 'area'
@@ -246,93 +322,138 @@ export default function MapaOpaPage() {
         {pode && <Link href="/opa/departamentos" style={{ ...BTN_FAIXA, padding: '0 12px' }}><Building2 size={16} /> Departamentos</Link>}
       </>} />
 
-      {erro && <div role="alert" style={{ padding: 10, borderRadius: 8, background: '#FEF2F2', color: '#991B1B', fontSize: 13.5, fontWeight: 600, marginBottom: 12 }}>{erro}</div>}
-      {semMigracao && <div style={{ padding: 10, borderRadius: 8, background: '#FFFBEB', color: '#92400E', fontSize: 13.5, marginBottom: 12 }}>O mapa ainda não foi ativado no banco (falta o sql/opa-mapa.sql).</div>}
+      {erro && <div role="alert" style={{ padding: 10, borderRadius: 10, background: '#FEF2F2', color: '#991B1B', fontSize: 13.5, fontWeight: 500, marginBottom: 12 }}>{erro}</div>}
+      {semMigracao && <div style={{ padding: 10, borderRadius: 10, background: '#FFFBEB', color: '#92400E', fontSize: 13.5, marginBottom: 12 }}>O mapa ainda não foi ativado no banco (falta o sql/opa-mapa.sql).</div>}
       {!dados && !erro && <div style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'center', padding: 40, color: 'var(--portal-text-muted)' }}><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> Carregando o mapa…</div>}
 
       {dados && andar && (
         <div style={{ display: 'grid', gridTemplateColumns: isMobile || editando ? '1fr' : 'minmax(0, 1fr) 320px', gap: 14, alignItems: 'start' }}>
           <div>
             {editando && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 10 }}>
-                {/* ferramentas numa linha só */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  {FERRAMENTAS.map((t) => (
-                    <button key={t.id} type="button" aria-pressed={ferramentaAtiva === t.id}
-                      onClick={() => escolherFerramenta(ferramentaAtiva === t.id && t.id !== 'mover' ? null : t.f)}
-                      style={pequeno(VERMELHO, ferramentaAtiva === t.id)}>{t.icone} {t.nome}</button>
-                  ))}
-                  {salvando && <Loader2 size={15} color={VERMELHO} style={{ animation: 'spin 1s linear infinite' }} />}
-                </div>
-                {/* Sala: a forma */}
-                {ferramenta?.tipo === 'lugar' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', paddingLeft: isMobile ? 0 : 4 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted)' }}>Forma:</span>
-                    {FERRAMENTAS_FORMA.map((f) => (
-                      <button key={f.forma} type="button" title={f.nome} aria-pressed={formaSala === f.forma}
-                        onClick={() => { setFormaSala(f.forma); setFerramenta({ tipo: 'lugar', forma: f.forma }) }}
-                        style={{ ...pequeno(VERMELHO, formaSala === f.forma), padding: '0 9px' }}>{f.icone}{!isMobile && ` ${f.nome}`}</button>
-                    ))}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 12 }}>
+                {/* cartão das ferramentas */}
+                <section style={{ ...cartao, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span style={quadradinho(VERMELHO)}><Pencil size={16} /></span>
+                    <span style={{ fontSize: 16, fontWeight: 500, color: 'var(--portal-text)' }}>Editar mapa</span>
+                    {salvando && <Loader2 size={15} color={VERMELHO} style={{ animation: 'spin 1s linear infinite' }} />}
+                    <span style={{ flex: 1 }} />
+                    <button type="button" onClick={voltar} disabled={!hist.passado.length || salvando} title="Voltar a última mudança (Ctrl+Z)"
+                      style={{ ...pequeno(), opacity: hist.passado.length ? 1 : 0.4, cursor: hist.passado.length ? 'pointer' : 'default' }}><Undo2 size={15} /> Voltar</button>
+                    <button type="button" onClick={avancar} disabled={!hist.futuro.length || salvando} title="Refazer o que voltou (Ctrl+Y)"
+                      style={{ ...pequeno(), opacity: hist.futuro.length ? 1 : 0.4, cursor: hist.futuro.length ? 'pointer' : 'default' }}>Avançar <Redo2 size={15} /></button>
                   </div>
-                )}
+                  {/* ferramentas: cada uma com a sua cor */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    {FERRAMENTAS.map((t) => {
+                      const cor = COR_FERRAMENTA[t.id] || VERMELHO
+                      const on = ferramentaAtiva === t.id
+                      return (
+                        <button key={t.id} type="button" aria-pressed={on}
+                          onClick={() => escolherFerramenta(on && t.id !== 'mover' ? null : t.f)} style={colorido(cor, on)}>
+                          <span style={{ color: cor, display: 'inline-flex' }}>{t.icone}</span> {t.nome}
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {/* Sala: a forma */}
+                  {ferramenta?.tipo === 'lugar' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)' }}>Forma da sala</span>
+                      {FERRAMENTAS_FORMA.map((f) => (
+                        <button key={f.forma} type="button" title={f.nome} aria-pressed={formaSala === f.forma}
+                          onClick={() => { setFormaSala(f.forma); setFerramenta({ tipo: 'lugar', forma: f.forma }) }}
+                          style={{ ...colorido(VERMELHO, formaSala === f.forma), padding: '0 10px' }}>{f.icone}{!isMobile && ` ${f.nome}`}</button>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 13, color: ferramenta || colocando ? '#991B1B' : 'var(--portal-text-muted)' }}>{dica}</div>
+                </section>
+
                 {/* lugares criados que ainda não estão no mapa */}
                 {foraDoMapa.length > 0 && !ferramenta && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', padding: '8px 10px', borderRadius: 10, background: '#FFFBEB', border: '1px solid #FDE68A' }}>
-                    <span style={{ fontSize: 12.5, fontWeight: 800, color: '#92400E' }}>Para posicionar ({foraDoMapa.length}):</span>
+                  <section style={{ ...cartao, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 14px' }}>
+                    <span style={quadradinho('#D97706', 28)}><MapPin size={14} /></span>
+                    <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text)' }}>Para posicionar</span>
+                    <span style={{ fontSize: 12, padding: '1px 8px', borderRadius: 999, color: '#B45309', background: 'color-mix(in srgb, #D97706 12%, var(--portal-bg-card))' }}>{foraDoMapa.length}</span>
                     {agruparLocais(foraDoMapa).flatMap((g) => g.itens.map(({ local: l }) => (
                       <button key={l.id} type="button" draggable={!isMobile}
                         onDragStart={(e) => { e.dataTransfer.setData('text/opa-local', l.id); e.dataTransfer.effectAllowed = 'move' }}
                         onClick={() => { setColocando(colocando === l.id ? null : l.id); setSel(null) }}
                         title="Toque e depois toque no mapa (ou arraste até o mapa)"
-                        style={{ ...pequeno('#92400E', colocando === l.id), height: 30, cursor: 'grab', background: colocando === l.id ? '#B45309' : '#fefefe', border: '1px solid #FCD34D' }}>
-                        <Plus size={13} /> {nomeLugar(l.id)}
+                        style={{ ...colorido('#D97706', colocando === l.id), height: 32, borderRadius: 999, cursor: 'grab' }}>
+                        <Plus size={13} color="#D97706" /> {nomeLugar(l.id)}
                       </button>
                     )))}
-                    {colocando && <button type="button" onClick={() => setColocando(null)} style={{ ...pequeno(), height: 30 }}><X size={13} /> Cancelar</button>}
-                  </div>
+                    {colocando && <button type="button" onClick={() => setColocando(null)} style={{ ...pequeno(), height: 32 }}><X size={13} /> Cancelar</button>}
+                  </section>
                 )}
-                <div style={{ fontSize: 12.5, color: ferramenta || colocando ? '#991B1B' : 'var(--portal-text-muted)' }}>{dica}</div>
 
                 {/* item selecionado: ações rápidas */}
-                {sel && (posSel || blocoSel) && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', padding: '8px 10px', borderRadius: 10, background: 'var(--portal-bg-card)', border: `1.5px solid ${VERMELHO}` }}>
-                    <b style={{ fontSize: 13.5, color: 'var(--portal-text)', marginRight: 4 }}>
-                      {lugarSel ? nomeLugar(lugarSel) : `${nomeDoTipo(blocoSel!.tipo || 'area')}: ${blocoSel!.nome}`}
-                    </b>
-                    {lugarSel && localSel && <button type="button" onClick={() => setEditandoNome(true)} style={pequeno()}><Pencil size={13} /> Nome e setor</button>}
-                    {blocoSel && <button type="button" style={pequeno()} onClick={() => {
-                      const nome = prompt('Nome:', blocoSel.nome)?.trim()
-                      if (nome && andar) salvarBlocos(andar.blocos.map((b) => (b.id === blocoSel.id ? { ...b, nome: nome.slice(0, 40) } : b)))
-                    }}><Pencil size={13} /> Renomear</button>}
-                    {(posSel || (blocoSel && (blocoSel.tipo || 'area') === 'area')) && (
-                      <select aria-label="Forma" value={(posSel?.forma || blocoSel?.forma) || 'retangulo'} style={{ ...campoSelect, flex: 'none', height: 32, width: 'auto', fontSize: 12.5 }}
-                        onChange={(e) => {
-                          const forma = e.target.value as Forma
-                          if (posSel && lugarSel) moverLugar(lugarSel, posSel, { forma, pontos: posSel.pontos })
-                          else if (blocoSel && andar) salvarBlocos(andar.blocos.map((b) => (b.id === blocoSel.id ? { ...b, forma } : b)))
-                        }}>
-                        {FORMAS.filter((f) => f.id !== 'personalizada' || (posSel?.forma || blocoSel?.forma) === 'personalizada').map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
-                      </select>
-                    )}
-                    {posSel && lugarSel && andares.length > 1 && (
-                      <select aria-label="Andar" value={posSel.andar_id} onChange={(e) => mudarDeAndar(lugarSel, e.target.value)} style={{ ...campoSelect, flex: 'none', height: 32, width: 'auto', fontSize: 12.5 }}>
-                        {andares.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
-                      </select>
-                    )}
-                    <button type="button" onClick={() => setMedidas((v) => !v)} aria-pressed={medidas} style={pequeno(undefined, false)}>Medidas</button>
-                    <button type="button" onClick={() => {
-                      if (lugarSel) tirarDoMapa(lugarSel)
-                      else if (blocoSel && confirm(`Apagar "${blocoSel.nome}"?`)) apagarBloco(blocoSel.id)
-                    }} style={pequeno(VERMELHO)}><Trash2 size={13} /> {lugarSel ? 'Tirar do mapa' : 'Apagar'}</button>
-                    <button type="button" aria-label="Soltar" onClick={() => setSel(null)} style={{ ...pequeno(), marginLeft: 'auto', padding: '0 8px' }}><X size={14} /></button>
-                    {medidas && selRet && (
-                      <div style={{ width: '100%', maxWidth: 360 }}>
-                        <CamposMedidas key={`${sel.id}-${selRet.x}-${selRet.y}-${selRet.w}-${selRet.h}`} r={selRet} min={blocoSel ? minDoTipo(blocoSel.tipo) : undefined}
-                          onSalvar={(r) => (lugarSel ? moverLugar(lugarSel, r) : blocoSel && moverBloco(blocoSel.id, r))} />
-                      </div>
-                    )}
-                  </div>
-                )}
+                {sel && (posSel || blocoSel) && (() => {
+                  const corItem = blocoSel ? blocoSel.cor || (blocoSel.tipo && blocoSel.tipo !== 'area' ? COR_FERRAMENTA[blocoSel.tipo] : '#64748B') : VERMELHO
+                  return (
+                    <section style={{ ...cartao, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '10px 14px', borderColor: `color-mix(in srgb, ${corItem} 40%, var(--portal-border))` }}>
+                      <span style={quadradinho(corItem, 28)}>{lugarSel ? <MapPin size={14} /> : <Square size={14} />}</span>
+                      <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text)', marginRight: 4 }}>
+                        {lugarSel ? nomeLugar(lugarSel) : `${nomeDoTipo(blocoSel!.tipo || 'area')}: ${blocoSel!.nome}`}
+                      </span>
+                      {lugarSel && localSel && <button type="button" onClick={() => setEditandoNome(true)} style={pequeno()}><Pencil size={13} /> Nome e setor</button>}
+                      {blocoSel && <button type="button" style={pequeno()} onClick={() => {
+                        const nome = prompt('Nome:', blocoSel.nome)?.trim()
+                        if (nome && andar) salvarBlocos(andar.blocos.map((b) => (b.id === blocoSel.id ? { ...b, nome: nome.slice(0, 40) } : b)))
+                      }}><Pencil size={13} /> Renomear</button>}
+                      {(posSel || (blocoSel && (blocoSel.tipo || 'area') === 'area')) && (
+                        <select aria-label="Forma" value={(posSel?.forma || blocoSel?.forma) || 'retangulo'} style={{ ...campoSelect, flex: 'none', height: 34, width: 'auto', fontSize: 13 }}
+                          onChange={(e) => {
+                            const forma = e.target.value as Forma
+                            if (posSel && lugarSel) moverLugar(lugarSel, posSel, { forma, pontos: posSel.pontos })
+                            else if (blocoSel && andar) salvarBlocos(andar.blocos.map((b) => (b.id === blocoSel.id ? { ...b, forma } : b)))
+                          }}>
+                          {FORMAS.filter((f) => f.id !== 'personalizada' || (posSel?.forma || blocoSel?.forma) === 'personalizada').map((f) => <option key={f.id} value={f.id}>{f.nome}</option>)}
+                        </select>
+                      )}
+                      {posSel && lugarSel && andares.length > 1 && (
+                        <select aria-label="Andar" value={posSel.andar_id} onChange={(e) => mudarDeAndar(lugarSel, e.target.value)} style={{ ...campoSelect, flex: 'none', height: 34, width: 'auto', fontSize: 13 }}>
+                          {andares.map((a) => <option key={a.id} value={a.id}>{a.nome}</option>)}
+                        </select>
+                      )}
+                      <button type="button" onClick={() => setMedidas((v) => !v)} aria-pressed={medidas} style={colorido('#475569', medidas)}>Medidas</button>
+                      <button type="button" onClick={() => {
+                        if (lugarSel) tirarDoMapa(lugarSel)
+                        else if (blocoSel && confirm(`Apagar "${blocoSel.nome}"?`)) apagarBloco(blocoSel.id)
+                      }} style={pequeno(VERMELHO)}><Trash2 size={13} /> {lugarSel ? 'Tirar do mapa' : 'Apagar'}</button>
+                      <button type="button" aria-label="Soltar" onClick={() => setSel(null)} style={{ ...pequeno(), marginLeft: 'auto', padding: '0 9px' }}><X size={14} /></button>
+                      {/* cor do bloco (áreas e estrutura); o lugar fica com a cor do departamento */}
+                      {blocoSel && (
+                        <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--portal-text-secondary)', marginRight: 2 }}><Palette size={14} /> Cor</span>
+                          {CORES_BLOCO.map((c, i) => {
+                            const atual = (blocoSel.cor || '') === (i === 0 ? '' : c)
+                            return (
+                              <button key={c} type="button" aria-label={i === 0 ? 'Cor padrão' : `Cor ${c}`} title={i === 0 ? 'Padrão' : c}
+                                onClick={() => andar && salvarBlocos(andar.blocos.map((b) => (b.id === blocoSel.id ? { ...b, cor: i === 0 ? null : c } : b)))}
+                                style={{ width: 26, height: 26, borderRadius: 10, cursor: 'pointer', padding: 0, background: i === 0 ? 'repeating-linear-gradient(45deg, #e2e8f0 0 4px, #fefefe 4px 8px)' : c,
+                                  border: atual ? '2px solid var(--portal-text)' : '1px solid var(--portal-border)', boxShadow: atual ? '0 0 0 2px var(--portal-bg-card) inset' : 'none' }} />
+                            )
+                          })}
+                          <label title="Outra cor" style={{ position: 'relative', width: 26, height: 26, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--portal-border)', cursor: 'pointer',
+                            background: 'conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #6366f1, #d946ef, #ef4444)' }}>
+                            <input type="color" value={blocoSel.cor || '#64748b'} aria-label="Outra cor"
+                              onChange={(e) => andar && salvarBlocos(andar.blocos.map((b) => (b.id === blocoSel.id ? { ...b, cor: e.target.value } : b)))}
+                              style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%', height: '100%' }} />
+                          </label>
+                        </div>
+                      )}
+                      {medidas && selRet && (
+                        <div style={{ width: '100%', maxWidth: 360 }}>
+                          <CamposMedidas key={`${sel.id}-${selRet.x}-${selRet.y}-${selRet.w}-${selRet.h}`} r={selRet} min={blocoSel ? minDoTipo(blocoSel.tipo) : undefined}
+                            onSalvar={(r) => (lugarSel ? moverLugar(lugarSel, r) : blocoSel && moverBloco(blocoSel.id, r))} />
+                        </div>
+                      )}
+                    </section>
+                  )
+                })()}
               </div>
             )}
             <PlantaLoja dados={dados} andarId={andar.id} onAndar={(id) => { setAndar(id); if (sel?.tipo === 'bloco') setSel(null) }}
@@ -378,11 +499,11 @@ export default function MapaOpaPage() {
                     <span><Building2 size={12} /> {destinoSel?.departamento?.nome || 'Sem departamento'}</span>
                     <span style={{ color: destinoSel?.gestorNome ? undefined : '#B45309' }}><UserRound size={12} /> {destinoSel?.gestorNome ? `Gestor: ${destinoSel.gestorNome}` : 'Sem gestor: o Opa avisa todo mundo'}</span>
                   </div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text)', marginBottom: 6 }}>{porLocal[lugarSel]?.length ? `${porLocal[lugarSel].length} Opa(s) aberto(s)` : 'Nenhum Opa aberto aqui'}</div>
+                  <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--portal-text)', marginBottom: 6 }}>{porLocal[lugarSel]?.length ? `${porLocal[lugarSel].length} Opa(s) aberto(s)` : 'Nenhum Opa aberto aqui'}</div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
                     {(porLocal[lugarSel] || []).map((o) => (
-                      <div key={o.id} style={{ fontSize: 13, padding: '6px 8px', borderRadius: 8, background: 'var(--portal-bg-secondary)' }}>
-                        <div style={{ fontWeight: 700, color: 'var(--portal-text)' }}>{o.titulo}</div>
+                      <div key={o.id} style={{ fontSize: 13, padding: '6px 8px', borderRadius: 10, background: 'var(--portal-bg-secondary)' }}>
+                        <div style={{ fontWeight: 500, color: 'var(--portal-text)' }}>{o.titulo}</div>
                         <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>aberto {fmtDia(o.created_at)}{o.responsavel ? ` · ${o.responsavel}` : ''}</div>
                       </div>
                     ))}
@@ -408,6 +529,7 @@ export default function MapaOpaPage() {
         <Janela titulo="Nome e setor do lugar" mobile={isMobile} onFechar={() => setEditandoNome(false)}>
           <NomeESetor local={localSel} setores={setores}
             onSalvar={async (nome, setor) => {
+              lembrar()
               const j = await salvar({ acao: 'editar_local', local_id: localSel.id, nome, setor })
               if (j) { setDados((d) => d && ({ ...d, locais: d.locais.map((l) => (l.id === localSel.id ? { ...l, nome, setor: setor || null } : l)) })); setEditandoNome(false) }
             }} />
@@ -424,8 +546,8 @@ export default function MapaOpaPage() {
   )
 }
 
-const campoSelect: React.CSSProperties = { flex: 1, minWidth: 0, height: 34, borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontFamily: 'inherit', fontSize: 13.5 }
-const campoTexto: React.CSSProperties = { width: '100%', boxSizing: 'border-box', height: 38, padding: '0 10px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 14, fontFamily: 'inherit' }
+const campoSelect: React.CSSProperties = { flex: 1, minWidth: 0, height: 34, borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontFamily: 'inherit', fontSize: 13.5 }
+const campoTexto: React.CSSProperties = { width: '100%', boxSizing: 'border-box', height: 38, padding: '0 10px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 14, fontFamily: 'inherit' }
 const SETOR_NOVO = '__setor_novo__'
 
 /** Ícone do "Em L" (o lucide não tem). */
@@ -456,14 +578,14 @@ function NomeESetor({ local, setores, onSalvar }: { local: Local; setores: strin
   const [nome, setNome] = useState(rotuloDoLocal(local))
   const [setor, setSetor] = useState(local.setor || (setorDoLocal(local) === 'Outros' ? '' : setorDoLocal(local)))
   const mudou = nome.trim() !== rotuloDoLocal(local) || setor.trim() !== (local.setor || (setorDoLocal(local) === 'Outros' ? '' : setorDoLocal(local)))
-  const lbl: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)' }
+  const lbl: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 500, color: 'var(--portal-text-secondary)' }
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 10, borderRadius: 10, background: 'var(--portal-bg-secondary)' }}>
       <label style={lbl}>Setor<CampoSetor valor={setor} onChange={setSetor} setores={setores} /></label>
       <label style={lbl}>Nome do lugar<input value={nome} onChange={(e) => setNome(e.target.value.slice(0, 60))} style={campoTexto} /></label>
       {mudou && nome.trim() && (
         <button type="button" onClick={() => onSalvar(nome.replace(/\s+/g, ' ').trim(), setor.replace(/\s+/g, ' ').trim())}
-          style={{ height: 34, borderRadius: 8, border: 'none', background: VERMELHO, color: '#fefefe', fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer' }}>
+          style={{ height: 34, borderRadius: 10, border: 'none', background: VERMELHO, color: '#fefefe', fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer' }}>
           Salvar como &ldquo;{setor.trim() ? `${setor.trim()} · ${nome.trim()}` : nome.trim()}&rdquo;
         </button>
       )}
@@ -502,7 +624,7 @@ function JanelaNovoLugar({ pedido, setores, foraDoMapa, mobile, onConfirmar, onF
       setFalha(m); onErro(m)
     } finally { setSalvando(false) }
   }
-  const lbl: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text-secondary)' }
+  const lbl: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5, fontWeight: 500, color: 'var(--portal-text-secondary)' }
 
   return (
     <Janela titulo="Lugar novo no mapa" mobile={mobile} onFechar={onFechar}>
@@ -521,7 +643,7 @@ function JanelaNovoLugar({ pedido, setores, foraDoMapa, mobile, onConfirmar, onF
       ) : (
         <>
           {resposta === 'sim'
-            ? <div style={{ fontSize: 13.5, color: 'var(--portal-text-secondary)' }}>Setor: <b style={{ color: 'var(--portal-text)' }}>{area}</b> <button type="button" onClick={() => setResposta('nao')} style={{ border: 'none', background: 'none', color: VERMELHO, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>trocar</button></div>
+            ? <div style={{ fontSize: 13.5, color: 'var(--portal-text-secondary)' }}>Setor: <b style={{ color: 'var(--portal-text)' }}>{area}</b> <button type="button" onClick={() => setResposta('nao')} style={{ border: 'none', background: 'none', color: VERMELHO, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>trocar</button></div>
             : <label style={lbl}>Fica dentro de qual setor?<CampoSetor valor={setor} onChange={setSetor} setores={setores} /></label>}
           <label style={lbl}>
             Nome do lugar
@@ -578,11 +700,11 @@ function Janela({ titulo, mobile, onFechar, children }: { titulo: string; mobile
   return (
     <div onClick={onFechar} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: mobile ? 'flex-end' : 'center', justifyContent: 'center', zIndex: 10050 }}>
       <div onClick={(e) => e.stopPropagation()} role="dialog" aria-label={titulo} style={{
-        background: 'var(--portal-bg-card)', borderRadius: mobile ? '16px 16px 0 0' : 14, width: '100%', maxWidth: mobile ? '100%' : 460, maxHeight: '92vh', overflow: 'auto', boxSizing: 'border-box',
+        background: 'var(--portal-bg-card)', borderRadius: mobile ? '16px 16px 0 0' : 16, width: '100%', maxWidth: mobile ? '100%' : 460, maxHeight: '92vh', overflow: 'auto', boxSizing: 'border-box',
       }}>
         <div style={{ display: 'flex', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid var(--portal-border)' }}>
-          <span style={{ flex: 1, fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>{titulo}</span>
-          <button type="button" aria-label="Fechar" onClick={onFechar} style={{ width: 34, height: 34, borderRadius: 8, border: 'none', background: 'var(--portal-bg-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text)' }}><X size={17} /></button>
+          <span style={{ flex: 1, fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>{titulo}</span>
+          <button type="button" aria-label="Fechar" onClick={onFechar} style={{ width: 34, height: 34, borderRadius: 10, border: 'none', background: 'var(--portal-bg-secondary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text)' }}><X size={17} /></button>
         </div>
         <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>{children}</div>
       </div>
@@ -591,7 +713,7 @@ function Janela({ titulo, mobile, onFechar, children }: { titulo: string; mobile
 }
 
 const botaoJanela = (principal: boolean): React.CSSProperties => ({
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 38, padding: '0 14px', borderRadius: 9, fontFamily: 'inherit', fontSize: 13.5, fontWeight: 800, cursor: 'pointer',
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, height: 38, padding: '0 14px', borderRadius: 10, fontFamily: 'inherit', fontSize: 13.5, fontWeight: 500, cursor: 'pointer',
   border: principal ? 'none' : '1px solid var(--portal-border)', background: principal ? VERMELHO : 'var(--portal-bg-card)', color: principal ? '#fefefe' : 'var(--portal-text-secondary)',
 })
 
@@ -606,12 +728,12 @@ function CamposMedidas({ r, onSalvar, min }: { r: Retangulo; onSalvar: (r: Retan
     if (novo.w !== r.w || novo.h !== r.h || novo.x !== r.x || novo.y !== r.y) onSalvar(novo)
   }
   const campo = (k: keyof typeof v, rotulo: string) => (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 12, fontWeight: 500, color: 'var(--portal-text-secondary)' }}>
       {rotulo}
       <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
         <input inputMode="decimal" value={v[k]} onChange={(e) => setV({ ...v, [k]: e.target.value })} onBlur={gravar}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); gravar() } }}
-          style={{ width: '100%', minWidth: 0, height: 32, padding: '0 8px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 14, fontFamily: 'inherit' }} />
+          style={{ width: '100%', minWidth: 0, height: 32, padding: '0 8px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 14, fontFamily: 'inherit' }} />
         <span style={{ fontWeight: 500, color: 'var(--portal-text-muted)' }}>%</span>
       </span>
     </label>
