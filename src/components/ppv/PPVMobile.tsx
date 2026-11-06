@@ -34,6 +34,8 @@ const dataBR = (d: string) => {
 };
 const rs = (v: number) => `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const POR_VEZ = 50;
+
 export default function PPVMobile({ orders: pedidos, searchTerm, onSearchChange, onCardClick, onNovo, podeCriar, loading, podeLiberar, onLiberar }: Props) {
   const [fase, setFase] = useState("TODAS");
   // fase mostrada = a da OS quando o PPV é de uma OS; nome = o do lápis do pós-vendas (lib/fases/fases.ts)
@@ -60,9 +62,18 @@ export default function PPVMobile({ orders: pedidos, searchTerm, onSearchChange,
       .sort((a, b) => ordemFase(a.status) - ordemFase(b.status));
   }, [orders, fase, searchTerm]);
 
+  // A página rola (antes a lista ficava numa caixa de ~175 px com rolagem própria; auditoria 06/11/2026).
+  // Mostra 50 por vez; trocar fase/busca volta a 50.
+  const chaveLista = `${fase}|${searchTerm}`;
+  const [lim, setLim] = useState({ chave: chaveLista, n: POR_VEZ });
+  const limite = lim.chave === chaveLista ? lim.n : POR_VEZ;
+  const visiveis = filtradas.slice(0, limite);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, background: "#f1f5f9" }}>
-      {/* Topo: título + busca */}
+    <div style={{ display: "flex", flexDirection: "column", flex: 1, background: "#f1f5f9" }}>
+      {/* Topo grudado: título + busca + fase */}
+      {/* aqui quem rola é a janela: gruda logo abaixo do cabeçalho do portal (84 px, também grudado) */}
+      <div style={{ position: "sticky", top: 84, zIndex: 10 }}>
       <div style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 14px 10px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <span style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>Peças (PPV)</span>
@@ -80,14 +91,15 @@ export default function PPVMobile({ orders: pedidos, searchTerm, onSearchChange,
       <div style={{ padding: "10px 14px", background: "#fff", borderBottom: "1px solid #eef2f7", display: "flex", alignItems: "center", gap: 10 }}>
         <span style={{ width: 10, height: 10, borderRadius: "50%", background: fase === "TODAS" ? "#0f172a" : cor(fase), flexShrink: 0 }} />
         <select value={fase} onChange={(e) => setFase(e.target.value)}
-          style={{ flex: 1, padding: "11px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 15, background: "#f8fafc", color: "#0f172a", fontWeight: 600, outline: "none" }}>
+          style={{ flex: 1, padding: "11px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 15, background: "#f8fafc", color: "#0f172a", fontWeight: 600, outline: "none", minWidth: 0 }}>
           <option value="TODAS">Todas as fases ({orders.length})</option>
           {fasesPresentes.map(([s, n]) => <option key={s} value={s}>{curto(s)} ({n})</option>)}
         </select>
       </div>
+      </div>
 
-      {/* Lista */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px 96px", WebkitOverflowScrolling: "touch" }}>
+      {/* Lista (rola com a página; o fundo de 96 px deixa o último cartão fora do botão "+") */}
+      <div style={{ flex: 1, padding: "12px 14px 96px" }}>
         {loading && orders.length === 0 ? (
           <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}><i className="fas fa-spinner fa-spin" style={{ marginRight: 8 }} />Carregando…</div>
         ) : filtradas.length === 0 ? (
@@ -97,7 +109,7 @@ export default function PPVMobile({ orders: pedidos, searchTerm, onSearchChange,
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {filtradas.map((o, idx) => {
+            {visiveis.map((o, idx) => {
               const c = cor(o.status);
               const remessa = /remessa/i.test(o.tipo || "");
               // Cabeçalho da fase quando muda (só em "Todas") — leitura em grupos, como no PC.
@@ -143,6 +155,12 @@ export default function PPVMobile({ orders: pedidos, searchTerm, onSearchChange,
                 </Fragment>
               );
             })}
+            {filtradas.length > limite && (
+              <button type="button" onClick={() => setLim({ chave: chaveLista, n: limite + POR_VEZ })}
+                style={{ minHeight: 48, border: "1.5px solid #e2e8f0", borderRadius: 12, background: "#fff", color: "#0f172a", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+                Mostrar mais {Math.min(POR_VEZ, filtradas.length - limite)} <span style={{ color: "#64748b", fontWeight: 500 }}>· faltam {filtradas.length - limite}</span>
+              </button>
+            )}
           </div>
         )}
       </div>

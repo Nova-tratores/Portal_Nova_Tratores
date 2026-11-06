@@ -390,8 +390,10 @@ function PPVApp() {
     </div>
   );
 
+  const listaCelular = isMobile && activeTab === "kanbanTab";
   return (
-    <div className="flex flex-col overflow-hidden font-[Poppins] text-[14px] text-slate-800" style={{ height: "calc(100vh - 84px)" }}>
+    // celular na lista: a página rola (sem altura travada nem overflow-hidden); o quadro do PC continua preso à tela
+    <div className={`flex min-w-0 flex-col ${listaCelular ? "overflow-x-clip" : "overflow-hidden"} font-[Poppins] text-[14px] text-slate-800`} style={listaCelular ? { minHeight: "calc(100vh - 84px)" } : { height: "calc(100vh - 84px)" }}>
       <GlobalLoader visible={globalLoading} />
       <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={hideToast} />
 
@@ -432,7 +434,7 @@ function PPVApp() {
       </div>
 
       {/* ===== CONTENT ===== */}
-      <main className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+      <main className={`relative flex min-w-0 flex-1 flex-col ${listaCelular ? "" : "overflow-hidden"}`}>
         {activeTab === "kanbanTab" && isMobile && (
           // ===== CELULAR: lista própria (o kanban de colunas do PC não é usado) =====
           <PPVMobile

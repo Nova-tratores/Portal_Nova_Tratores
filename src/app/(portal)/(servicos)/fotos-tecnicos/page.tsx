@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { Search, Image, X, ChevronLeft, ChevronRight, Camera, Wrench, User } from 'lucide-react'
+import { Search, Image, X, ChevronLeft, ChevronRight, Camera, Wrench, User, ArrowLeft } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
@@ -60,6 +60,8 @@ export default function FotosTecnicosPage() {
 
   const abrirOS = useCallback(async (osId: string) => {
     setLoadingOS(true)
+    // celular: a lista some e as fotos abrem no lugar dela — leva a tela para o topo
+    if (window.matchMedia('(max-width: 900px)').matches) window.scrollTo({ top: 0 })
     try {
       const res = await fetchAuth(`/api/pos/fotos-tecnico?os=${encodeURIComponent(osId)}`)
       if (res.ok) {
@@ -93,13 +95,18 @@ export default function FotosTecnicosPage() {
   if (!loadingPerm && userProfile && !temAcesso('fotos-tecnicos')) return <SemPermissao />
 
   return (
-    <div style={{ padding: 'clamp(14px, 2.5vw, 24px) clamp(12px, 2.5vw, 28px)', maxWidth: 1400, margin: '0 auto' }}>
-      {/* Responsivo: abaixo de 900px a lista de OS fica em cima e as fotos embaixo */}
+    <div className={`ft-raiz ${osSelecionada || loadingOS ? 'com-os' : ''}`} style={{ padding: 'clamp(14px, 2.5vw, 24px) clamp(12px, 2.5vw, 28px)', maxWidth: 1400, margin: '0 auto' }}>
+      {/* Celular (auditoria 06/11/2026): uma tela de cada vez — a lista (rolando com a página, sem caixa própria)
+          ou as fotos da OS tocada, com "Voltar para a lista". Antes as fotos apareciam embaixo de uma caixa de ~200 px. */}
       <style>{`
+        .ft-voltar { display: none }
         @media (max-width: 900px) {
           .ft-layout { flex-direction: column; gap: 16px !important; }
           .ft-lista { width: 100% !important; }
-          .ft-lista-scroll { max-height: 40vh !important; }
+          .ft-lista-scroll { max-height: none !important; overflow: visible !important; }
+          .ft-raiz.com-os .ft-lista, .ft-raiz.com-os .ft-busca { display: none }
+          .ft-raiz:not(.com-os) .ft-detalhe { display: none }
+          .ft-voltar { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px; margin-bottom: 12px; border: 1px solid #E2E8F0; border-radius: 12px; background: #fff; color: #1E293B; font: inherit; font-size: 15px; font-weight: 600; cursor: pointer }
         }
       `}</style>
       {/* Header */}
@@ -107,23 +114,23 @@ export default function FotosTecnicosPage() {
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: '#1E293B', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Camera size={24} color="#C41E2A" />
-            Fotos dos Tecnicos
+            Fotos dos Técnicos
           </h1>
           <p style={{ fontSize: 13, color: '#64748B', margin: '4px 0 0' }}>
-            Visualize as fotos anexadas pelos tecnicos em cada ordem de servico
+            Visualize as fotos anexadas pelos técnicos em cada ordem de serviço
           </p>
         </div>
         <div style={{ fontSize: 13, color: '#94A3B8', fontWeight: 600 }}>
-          {lista.length} relatorio(s)
+          {lista.length} relatório(s)
         </div>
       </div>
 
       {/* Barra de busca */}
-      <div style={{ position: 'relative', marginBottom: 20, maxWidth: 400 }}>
+      <div className="ft-busca" style={{ position: 'relative', marginBottom: 20, maxWidth: 400 }}>
         <Search size={16} style={{ position: 'absolute', left: 12, top: 12, color: '#94A3B8' }} />
         <input
           type="text"
-          placeholder="Buscar por OS ou tecnico..."
+          placeholder="Buscar por OS ou técnico..."
           value={busca}
           onChange={e => setBusca(e.target.value)}
           style={{
@@ -141,7 +148,7 @@ export default function FotosTecnicosPage() {
             <div style={{ textAlign: 'center', padding: 40, color: '#94A3B8' }}>Carregando...</div>
           ) : listaFiltrada.length === 0 ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#94A3B8' }}>
-              {busca ? 'Nenhum resultado' : 'Nenhum relatorio encontrado'}
+              {busca ? 'Nenhum resultado' : 'Nenhum relatório encontrado'}
             </div>
           ) : (
             <div className="ft-lista-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
@@ -174,7 +181,7 @@ export default function FotosTecnicosPage() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700, color: '#1E293B' }}>{item.os}</div>
                     <div style={{ fontSize: 12, color: '#64748B', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {item.tecnico || 'Sem tecnico'}
+                      {item.tecnico || 'Sem técnico'}
                     </div>
                   </div>
                   <div style={{
@@ -190,7 +197,8 @@ export default function FotosTecnicosPage() {
         </div>
 
         {/* Detalhe da OS */}
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <div className="ft-detalhe" style={{ flex: 1, minWidth: 0 }}>
+          <button type="button" className="ft-voltar" onClick={() => setOsSelecionada(null)}><ArrowLeft size={16} /> Voltar para a lista</button>
           {loadingOS ? (
             <div style={{ textAlign: 'center', padding: 60, color: '#94A3B8' }}>Carregando fotos...</div>
           ) : !osSelecionada ? (
@@ -214,7 +222,7 @@ export default function FotosTecnicosPage() {
                 </div>
                 {osSelecionada.tecnico && (
                   <div>
-                    <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600, textTransform: 'uppercase' }}>Tecnico</div>
+                    <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600, textTransform: 'uppercase' }}>Técnico</div>
                     <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <User size={14} /> {osSelecionada.tecnico}
                     </div>
@@ -236,7 +244,7 @@ export default function FotosTecnicosPage() {
                 )}
                 {osSelecionada.horimetro && (
                   <div>
-                    <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600, textTransform: 'uppercase' }}>Horimetro</div>
+                    <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600, textTransform: 'uppercase' }}>Horímetro</div>
                     <div style={{ fontSize: 14, fontWeight: 600, color: '#374151' }}>{osSelecionada.horimetro}</div>
                   </div>
                 )}

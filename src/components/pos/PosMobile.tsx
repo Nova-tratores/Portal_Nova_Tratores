@@ -30,6 +30,8 @@ const dataBR = (d: string) => {
   return p.length === 3 ? `${p[2]}/${p[1]}` : d;
 };
 
+const POR_VEZ = 50;
+
 export default function PosMobile({ orders, searchTerm, onSearchChange, onCardClick, onNewOS, podeCriar, loading }: Props) {
   const [fase, setFase] = useState<string>("TODAS");
 
@@ -53,10 +55,18 @@ export default function PosMobile({ orders, searchTerm, onSearchChange, onCardCl
       .sort((a, b) => ordemFase(a.status) - ordemFase(b.status));
   }, [orders, fase, searchTerm]);
 
+  // A página rola (antes era uma caixa de altura fixa com rolagem própria — no celular a lista ficava numa
+  // janelinha de ~250 px e o dedo travava; auditoria 06/11/2026). Mostra 50 por vez; trocar fase/busca volta a 50.
+  const chaveLista = `${fase}|${searchTerm}`;
+  const [lim, setLim] = useState({ chave: chaveLista, n: POR_VEZ });
+  const limite = lim.chave === chaveLista ? lim.n : POR_VEZ;
+  const visiveis = filtradas.slice(0, limite);
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)", background: "#f1f5f9" }}>
-      {/* Topo fixo: título + busca */}
-      <div style={{ position: "sticky", top: 0, zIndex: 10, background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 14px 10px" }}>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "calc(100vh - 64px)", background: "#f1f5f9" }}>
+      {/* Topo grudado: título + busca + fase */}
+      <div style={{ position: "sticky", top: 0, zIndex: 10 }}>
+      <div style={{ background: "#fff", borderBottom: "1px solid #e2e8f0", padding: "12px 14px 10px" }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <span style={{ fontSize: 18, fontWeight: 800, color: "#0f172a" }}>Ordens de Serviço</span>
           <span style={{ fontSize: 13, color: "#64748b", fontWeight: 600 }}>{filtradas.length}</span>
@@ -80,9 +90,10 @@ export default function PosMobile({ orders, searchTerm, onSearchChange, onCardCl
           {fasesPresentes.map(([s, n]) => <option key={s} value={s}>{curto(s)} ({n})</option>)}
         </select>
       </div>
+      </div>
 
-      {/* Lista de cartões */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "12px 14px 96px", WebkitOverflowScrolling: "touch" }}>
+      {/* Lista de cartões (rola com a página; o fundo de 96 px deixa o último cartão fora do botão "+") */}
+      <div style={{ flex: 1, padding: "12px 14px 96px" }}>
         {loading && orders.length === 0 ? (
           <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}><i className="fas fa-spinner fa-spin" style={{ marginRight: 8 }} />Carregando…</div>
         ) : filtradas.length === 0 ? (
@@ -92,7 +103,7 @@ export default function PosMobile({ orders, searchTerm, onSearchChange, onCardCl
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {filtradas.map((o, idx) => {
+            {visiveis.map((o, idx) => {
               const c = cor(o.status);
               const atraso = Number(o.diasAtraso) || 0;
               // Cabeçalho da fase quando muda (só em "Todas") — leitura em grupos, como no PC.
@@ -135,6 +146,12 @@ export default function PosMobile({ orders, searchTerm, onSearchChange, onCardCl
                 </Fragment>
               );
             })}
+            {filtradas.length > limite && (
+              <button type="button" onClick={() => setLim({ chave: chaveLista, n: limite + POR_VEZ })}
+                style={{ minHeight: 48, border: "1.5px solid #e2e8f0", borderRadius: 12, background: "#fff", color: "#0f172a", fontSize: 15, fontWeight: 700, cursor: "pointer" }}>
+                Mostrar mais {Math.min(POR_VEZ, filtradas.length - limite)} <span style={{ color: "#64748b", fontWeight: 500 }}>· faltam {filtradas.length - limite}</span>
+              </button>
+            )}
           </div>
         )}
       </div>
