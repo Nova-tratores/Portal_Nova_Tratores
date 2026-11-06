@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Plus, Search, AlertTriangle, UserX, Trash2, RotateCcw } from 'lucide-react';
+import { Plus, Search, AlertTriangle, UserX, Trash2, RotateCcw, CalendarDays, UserRound } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui';
@@ -21,8 +21,8 @@ import type { Acao } from '@/lib/marketing/tipos';
 import AcaoForm from '@/components/marketing/AcaoForm';
 import Modal from '@/components/marketing/Modal';
 import {
-  apiGet, apiEnviar, brl, periodoBR, diasAte, Painel, Selo, Kpi, Vazio,
-  AvisoMigracao, Erro, BotaoRosa, estiloInput, ROSA,
+  apiGet, apiEnviar, brl, periodoBR, diasAte, Selo, Kpi, Vazio, IconeTipoAcao,
+  AvisoMigracao, Erro, BotaoRosa, estiloInput, estiloBotaoContorno,
 } from '@/components/marketing/ui';
 
 interface Resumo {
@@ -163,13 +163,12 @@ export default function MarketingPage() {
           onClick={() => setLixeira((v) => !v)}
           title="Ações mandadas pra lixeira"
           style={{
-            padding: '9px 12px', fontSize: 13, borderRadius: 3, cursor: 'pointer',
-            border: '1px solid var(--portal-border)',
+            ...estiloBotaoContorno, minHeight: 40,
             background: lixeira ? '#fee2e2' : 'var(--portal-bg-card)',
             color: lixeira ? '#111111' : 'var(--portal-text)',
           }}
         >
-          Lixeira
+          <Trash2 size={14} /> Lixeira
         </button>
         <BotaoRosa
           onClick={() => { setErroForm(null); setModal(true); }}
@@ -208,36 +207,54 @@ export default function MarketingPage() {
             : 'Nenhuma ação cadastrada ainda. Comece pela feira que está devendo relatório.'}
         </Vazio>
       ) : (
-        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(min(330px, 100%), 1fr))' }}>
+        <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(min(330px, 100%), 1fr))' }}>
           {acoes.map((a) => {
             const r = resumos[a.id];
             const dias = diasAte(r?.prazoMaisProximo);
             const semDono = !!a.responsavel_id && inativos.has(a.responsavel_id);
             const vencido = dias !== null && dias < 0;
 
+            const corStatus = cor(STATUS_ACAO, a.status);
             return (
-              <Painel key={a.id} style={{ borderLeft: `3px solid ${cor(STATUS_ACAO, a.status)}`, padding: 0 }}>
+              <div
+                key={a.id}
+                className="mkt-card mkt-card-hover"
+                style={{
+                  ['--c' as any]: corStatus,
+                  background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+                  borderRadius: 16, display: 'flex', flexDirection: 'column',
+                }}
+              >
                 <Link
                   href={`/marketing/${a.id}`}
-                  style={{ display: 'block', padding: 14, textDecoration: 'none', color: 'inherit' }}
+                  style={{ display: 'block', padding: '16px 18px 14px', textDecoration: 'none', color: 'inherit', flex: 1 }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
-                    <strong style={{ fontSize: 15, color: 'var(--portal-text)' }}>{a.nome}</strong>
-                    <Selo texto={rotulo(STATUS_ACAO, a.status)} cor={cor(STATUS_ACAO, a.status)} />
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                    <IconeTipoAcao tipo={a.tipo} cor={corStatus} />
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 13, color: 'var(--portal-text-muted, #475569)' }}>{rotulo(TIPOS_ACAO, a.tipo)}</span>
+                        <Selo texto={rotulo(STATUS_ACAO, a.status)} cor={corStatus} />
+                      </div>
+                      <div style={{ fontSize: 16.5, fontWeight: 500, color: 'var(--portal-text)', marginTop: 2, lineHeight: 1.3 }}>{a.nome}</div>
+                    </div>
                   </div>
 
-                  <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)', marginTop: 4 }}>
-                    {rotulo(TIPOS_ACAO, a.tipo)} · {periodoBR(a.data_inicio, a.data_fim)}
-                    {a.cidade ? ` · ${a.cidade}${a.uf ? `/${a.uf}` : ''}` : ''}
-                  </div>
-
-                  <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)', marginTop: 2 }}>
-                    {a.responsavel_nome || 'Sem responsável'} · {a.empresa}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 10, fontSize: 13, color: 'var(--portal-text-muted, #475569)' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <CalendarDays size={14} style={{ opacity: 0.7, flex: 'none' }} />
+                      {periodoBR(a.data_inicio, a.data_fim)}
+                      {a.cidade ? ` · ${a.cidade}${a.uf ? `/${a.uf}` : ''}` : ''}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <UserRound size={14} style={{ opacity: 0.7, flex: 'none' }} />
+                      {a.responsavel_nome || 'Sem responsável'} · {a.empresa}
+                    </span>
                   </div>
 
                   {/* Os dois alertas que a lista precisa gritar sozinha */}
                   {(r?.apoioPendente ?? 0) > 0 && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 12, fontWeight: 700, color: vencido ? '#dc2626' : '#b45309' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '6px 10px', borderRadius: 10, fontSize: 13, fontWeight: 500, color: vencido ? '#b91c1c' : '#92400e', background: vencido ? '#fef2f2' : '#fffbeb' }}>
                       <AlertTriangle size={14} />
                       {vencido
                         ? `Relatório de contrapartida venceu há ${Math.abs(dias!)} dia(s)`
@@ -247,31 +264,44 @@ export default function MarketingPage() {
                     </div>
                   )}
                   {semDono && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, fontWeight: 700, color: '#dc2626' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, padding: '6px 10px', borderRadius: 10, fontSize: 13, fontWeight: 500, color: '#b91c1c', background: '#fef2f2' }}>
                       <UserX size={14} /> Responsável não está mais ativo — reatribuir
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--portal-border)', fontSize: 12 }}>
-                    <span><b>{brl(r?.custo ?? 0)}</b> investido</span>
-                    <span><b>{brl(r?.apoioRecebido ?? 0)}</b> de apoio</span>
-                    <span><b>{r?.leads ?? 0}</b> leads</span>
-                    <span><b>{r?.propostas ?? 0}</b> propostas</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--portal-border)' }}>
+                    <div>
+                      <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted, #64748b)' }}>Investido</div>
+                      <div style={{ fontSize: 23, fontWeight: 500, letterSpacing: '-.01em', fontVariantNumeric: 'tabular-nums', color: 'var(--portal-text)' }}>
+                        {brl(r?.custo ?? 0)}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 14, fontSize: 13, color: 'var(--portal-text-muted, #475569)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                      <span title="Apoio de fábrica recebido">
+                        <span style={{ display: 'block', fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>{brl(r?.apoioRecebido ?? 0)}</span>apoio
+                      </span>
+                      <span>
+                        <span style={{ display: 'block', fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>{r?.leads ?? 0}</span>leads
+                      </span>
+                      <span>
+                        <span style={{ display: 'block', fontSize: 15, fontWeight: 500, color: 'var(--portal-text)' }}>{r?.propostas ?? 0}</span>propostas
+                      </span>
+                    </div>
                   </div>
                 </Link>
 
                 {podeExcluir && (
-                  <div style={{ padding: '0 14px 12px', display: 'flex', justifyContent: 'flex-end' }}>
+                  <div style={{ padding: '0 18px 14px', display: 'flex', justifyContent: 'flex-end' }}>
                     <button
                       onClick={() => mandarPraLixeira(a, !!a.deleted_at)}
                       title={a.deleted_at ? 'Restaurar' : 'Mandar pra lixeira'}
-                      style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, padding: '5px 9px', borderRadius: 3, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', cursor: 'pointer' }}
+                      style={{ ...estiloBotaoContorno, fontSize: 12.5, padding: '5px 10px' }}
                     >
                       {a.deleted_at ? <><RotateCcw size={13} /> Restaurar</> : <><Trash2 size={13} /> Lixeira</>}
                     </button>
                   </div>
                 )}
-              </Painel>
+              </div>
             );
           })}
         </div>
@@ -286,7 +316,7 @@ export default function MarketingPage() {
         />
       </Modal>
 
-      <div style={{ marginTop: 20, fontSize: 11, color: 'var(--portal-text-muted, #64748b)', borderTop: `2px solid ${ROSA}`, paddingTop: 8 }}>
+      <div style={{ marginTop: 20, fontSize: 12, color: 'var(--portal-text-muted, #64748b)', borderTop: '1px solid var(--portal-border)', paddingTop: 10 }}>
         Feira, dia de campo, ação de loja, patrocínio, mídia e brinde ficam todos aqui — o tipo é que muda.
       </div>
     </div>

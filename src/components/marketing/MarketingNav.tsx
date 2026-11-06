@@ -5,6 +5,15 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { GRUPOS_MKT, PAGINAS_MARKETING, slugDaPagina } from '@/app/(portal)/marketing/paginas';
 import { podeTelaMarketing } from '@/lib/permissoes/marketing';
+import { BarChart3, HandCoins, Megaphone, Users, Wallet, type LucideIcon } from 'lucide-react';
+
+const ICONES: Record<string, LucideIcon> = {
+  'marketing:dashboard': Megaphone,
+  'marketing:apoios': HandCoins,
+  'marketing:custos': Wallet,
+  'marketing:leads': Users,
+  'marketing:resultados': BarChart3,
+};
 
 // Sub-nav do Marketing & Eventos. Mostra só as telas que a pessoa pode ver — a
 // fonte é PAGINAS_MARKETING (o mesmo array que alimenta o gate e o catálogo de
@@ -44,6 +53,7 @@ export default function MarketingNav() {
         return doGrupo.map((p) => {
           const ativo =
             p.href === '/marketing' ? pathname === '/marketing' : pathname.startsWith(p.href);
+          const Ico = ICONES[p.key];
           return (
             <Link
               key={p.key}
@@ -54,7 +64,7 @@ export default function MarketingNav() {
                 gap: 7,
                 padding: '11px 20px',
                 fontSize: 14,
-                fontWeight: ativo ? 700 : 500,
+                fontWeight: 500,
                 color: '#111111', // preto sempre (#111827 é remapeado pra branco no escuro)
                 // #fefefe: branco que o modo escuro NÃO converte (o #fff vira card escuro)
                 background: ativo ? '#fefefe' : 'rgba(255,255,255,0.30)',
@@ -65,6 +75,7 @@ export default function MarketingNav() {
                 whiteSpace: 'nowrap',
               }}
             >
+              {Ico && <Ico size={16} color={ativo ? '#DB2777' : '#111111'} />}
               {p.label}
             </Link>
           );

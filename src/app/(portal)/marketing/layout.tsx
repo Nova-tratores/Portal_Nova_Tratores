@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import MarketingNav from '@/components/marketing/MarketingNav';
+import { ESTILO_MKT_VN } from '@/components/marketing/visualMarketing';
 import { podeTelaMarketing, slugDaRota } from '@/lib/permissoes/marketing';
 
 // Gate centralizado do módulo (mesmo padrão do frota/layout.tsx): módulo + tela
@@ -23,7 +24,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div style={{ minHeight: 'calc(100vh - 84px)', background: 'var(--portal-bg)' }}>
+    <div className="mkt-vn" style={{ minHeight: 'calc(100vh - 84px)', background: 'var(--portal-bg)' }}>
+      <style>{ESTILO_MKT_VN}</style>
       <MarketingNav />
       {children}
     </div>

@@ -1,7 +1,7 @@
 'use client';
 import { useEffect } from 'react';
-import { X } from 'lucide-react';
-import { ROSA_CLARO, ROSA_ESCURO } from './ui';
+import { Megaphone, X } from 'lucide-react';
+import { IconeQuadrado, ROSA } from './ui';
 
 // Modal central do módulo. Fecha no Esc e no clique fora — nunca prende quem
 // abriu por engano no meio de uma feira.
@@ -39,28 +39,30 @@ export default function Modal({
           width: '100%', maxWidth: largura,
           background: 'var(--portal-bg-card)',
           border: '1px solid var(--portal-border)',
-          borderRadius: 4,
-          boxShadow: '0 12px 40px rgba(0,0,0,0.3)',
+          borderRadius: 16,
+          boxShadow: '0 24px 60px -24px rgba(15,23,42,.55)',
         }}
       >
         <div
           style={{
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '12px 16px',
-            background: `linear-gradient(135deg, ${ROSA_CLARO}, ${ROSA_ESCURO})`,
-            borderRadius: '3px 3px 0 0',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+            padding: '14px 18px',
+            borderBottom: '1px solid var(--portal-border)',
           }}
         >
-          <strong style={{ fontSize: 15, color: '#111111' }}>{titulo}</strong>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 16, fontWeight: 500, color: 'var(--portal-text)', minWidth: 0 }}>
+            <IconeQuadrado cor={ROSA}><Megaphone size={16} /></IconeQuadrado>
+            {titulo}
+          </span>
           <button
             onClick={onFechar}
             aria-label="Fechar"
-            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 36, minHeight: 36, margin: '-8px -8px -8px 0', flex: 'none' }}
+            style={{ background: 'var(--portal-bg-secondary, #f1f5f9)', border: 'none', borderRadius: 10, cursor: 'pointer', color: 'var(--portal-text)', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 36, minHeight: 36, flex: 'none' }}
           >
             <X size={20} />
           </button>
         </div>
-        <div style={{ padding: 16 }}>{children}</div>
+        <div style={{ padding: 18 }}>{children}</div>
       </div>
     </div>
   );

@@ -11,6 +11,10 @@
 // `background-color:`). Por isso os brancos/pretos daqui usam #fefefe e #111111,
 // que o dark NÃO converte, e o resto sai das vars do tema.
 // =============================================================================
+import {
+  AlertTriangle, BarChart3, CalendarDays, ClipboardCheck, FileText, Gift, HandCoins, Handshake, Megaphone,
+  Percent, Sprout, Store, Tent, TrendingUp, Users, Wallet, type LucideIcon,
+} from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 
 export const ROSA = '#DB2777';
@@ -119,17 +123,36 @@ export function diasAte(iso: string | null | undefined): number | null {
   return Math.round((alvo - hoje) / 86_400_000);
 }
 
-// ── Componentes ──────────────────────────────────────────────────────────────
+// ── Componentes (estilo POS NewPortal — docs/estilo-pos-newportal.md) ───────
+/** Quadradinho do ícone: cor no ícone e no fundo clarinho, nunca numa faixa. */
+export function IconeQuadrado({ cor = ROSA, tamanho = 32, children }: { cor?: string; tamanho?: number; children: React.ReactNode }) {
+  return (
+    <span
+      style={{
+        width: tamanho, height: tamanho, borderRadius: tamanho >= 40 ? 11 : 9, flex: 'none',
+        display: 'grid', placeItems: 'center', color: cor,
+        background: `color-mix(in srgb, ${cor} 9%, var(--portal-bg-card))`,
+        border: `1px solid color-mix(in srgb, ${cor} 18%, transparent)`,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
 export function Painel({ children, style }: { children: React.ReactNode; style?: React.CSSProperties }) {
+  // Sem faixa colorida do lado: quem passava borderLeft perde a faixa aqui.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { borderLeft, ...resto } = style ?? {};
   return (
     <div
+      className="mkt-card"
       style={{
         background: 'var(--portal-bg-card)',
         border: '1px solid var(--portal-border)',
-        borderRadius: 4,
-        padding: 16,
-        boxShadow: '0 1px 2px var(--portal-shadow)',
-        ...style,
+        borderRadius: 16,
+        padding: '16px 18px',
+        ...resto,
       }}
     >
       {children}
@@ -137,15 +160,19 @@ export function Painel({ children, style }: { children: React.ReactNode; style?:
   );
 }
 
-export function Titulo({ children, acao }: { children: React.ReactNode; acao?: React.ReactNode }) {
+export function Titulo({ children, acao, icone, cor }: { children: React.ReactNode; acao?: React.ReactNode; icone?: React.ReactNode; cor?: string }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 12 }}>
-      <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--portal-text)' }}>{children}</h3>
+      <h3 style={{ margin: 0, fontSize: 16, fontWeight: 500, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        {icone && <IconeQuadrado cor={cor}>{icone}</IconeQuadrado>}
+        {children}
+      </h3>
       {acao}
     </div>
   );
 }
 
+/** Etiqueta em pílula: texto na cor, fundo da cor a 10%. */
 export function Selo({ texto, cor, titulo }: { texto: string; cor: string; titulo?: string }) {
   return (
     <span
@@ -154,13 +181,13 @@ export function Selo({ texto, cor, titulo }: { texto: string; cor: string; titul
         display: 'inline-flex',
         alignItems: 'center',
         gap: 5,
-        padding: '3px 9px',
-        borderRadius: 3,
-        fontSize: 11,
-        fontWeight: 700,
-        letterSpacing: 0.2,
-        color: '#111111',
-        background: cor,
+        padding: '3px 10px',
+        borderRadius: 999,
+        fontSize: 12,
+        fontWeight: 500,
+        color: `color-mix(in srgb, ${cor} 85%, var(--portal-text))`,
+        background: `color-mix(in srgb, ${cor} 10%, var(--portal-bg-card))`,
+        border: `1px solid color-mix(in srgb, ${cor} 22%, transparent)`,
         whiteSpace: 'nowrap',
       }}
     >
@@ -169,27 +196,61 @@ export function Selo({ texto, cor, titulo }: { texto: string; cor: string; titul
   );
 }
 
+const ICONE_TIPO: Record<string, LucideIcon> = {
+  feira: Tent, dia_de_campo: Sprout, acao_loja: Store, patrocinio: Handshake,
+  midia: Megaphone, brinde: Gift, outro: CalendarDays,
+};
+
+/** Ícone do tipo da ação (feira, dia de campo…) em quadradinho, na cor da situação. */
+export function IconeTipoAcao({ tipo, cor, tamanho = 40 }: { tipo: string; cor: string; tamanho?: number }) {
+  const Ico = ICONE_TIPO[tipo] ?? CalendarDays;
+  return <IconeQuadrado cor={cor} tamanho={tamanho}><Ico size={tamanho >= 40 ? 18 : 16} /></IconeQuadrado>;
+}
+
+// Ícone do número pelo rótulo — assim todas as réguas do módulo ganham ícone
+// sem mexer em cada tela.
+function iconeDoKpi(rotulo: string) {
+  const r = rotulo.toLowerCase();
+  if (/apoio|recebido|receber|aprovado/.test(r)) return <HandCoins size={17} />;
+  if (/receita|vend/.test(r)) return <TrendingUp size={17} />;
+  if (/retorno/.test(r)) return <Percent size={17} />;
+  if (/lead/.test(r)) return <Users size={17} />;
+  if (/proposta|vinculad|aberto/.test(r)) return <FileText size={17} />;
+  if (/relat|prazo|diverg/.test(r)) return <AlertTriangle size={17} />;
+  if (/investido|custo|confirmado|previsto|lançamento|total/.test(r)) return <Wallet size={17} />;
+  if (/respondid|enviado/.test(r)) return <ClipboardCheck size={17} />;
+  if (/aç/.test(r)) return <Megaphone size={17} />;
+  return <BarChart3 size={17} />;
+}
+
 /** Número grande com rótulo. `dica` explica o indicador quando ele é sutil. */
 export function Kpi({
   rotulo, valor, dica, cor, alerta,
 }: { rotulo: string; valor: string; dica?: string; cor?: string; alerta?: boolean }) {
+  const c = cor || ROSA;
   return (
     <div
       title={dica}
+      className="mkt-card"
       style={{
         background: 'var(--portal-bg-card)',
-        border: `1px solid ${alerta ? '#dc2626' : 'var(--portal-border)'}`,
-        borderLeft: `3px solid ${cor || ROSA}`,
-        borderRadius: 4,
-        padding: '10px 14px',
-        minWidth: 130,
-        flex: '1 1 130px',
+        border: `1px solid ${alerta ? 'color-mix(in srgb, #dc2626 45%, var(--portal-border))' : 'var(--portal-border)'}`,
+        borderRadius: 16,
+        padding: '14px 16px',
+        minWidth: 150,
+        flex: '1 1 150px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
       }}
     >
-      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--portal-text-muted, #64748b)', textTransform: 'uppercase', letterSpacing: 0.3 }}>
-        {rotulo}
+      <IconeQuadrado cor={c} tamanho={40}>{iconeDoKpi(rotulo)}</IconeQuadrado>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 13, color: 'var(--portal-text-muted, #475569)' }}>{rotulo}</div>
+        <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: '-.01em', fontVariantNumeric: 'tabular-nums', color: 'var(--portal-text)', marginTop: 1, whiteSpace: 'nowrap' }}>
+          {valor}
+        </div>
       </div>
-      <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', marginTop: 2 }}>{valor}</div>
     </div>
   );
 }
@@ -198,24 +259,32 @@ export function Campo({
   label, children, ajuda, largura,
 }: { label: string; children: React.ReactNode; ajuda?: string; largura?: string }) {
   return (
-    <label style={{ display: 'flex', flexDirection: 'column', gap: 4, flex: largura ?? '1 1 200px', minWidth: 0 }}>
-      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text)' }}>{label}</span>
+    <label style={{ display: 'flex', flexDirection: 'column', gap: 5, flex: largura ?? '1 1 200px', minWidth: 0 }}>
+      <span style={{ fontSize: 13, color: 'var(--portal-text-muted, #475569)' }}>{label}</span>
       {children}
-      {ajuda && <span style={{ fontSize: 11, color: 'var(--portal-text-muted, #64748b)' }}>{ajuda}</span>}
+      {ajuda && <span style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>{ajuda}</span>}
     </label>
   );
 }
 
 /** fontSize 16 é obrigatório: abaixo disso o iPhone dá zoom ao focar o campo. */
 export const estiloInput: React.CSSProperties = {
-  padding: '9px 10px',
+  padding: '9px 12px',
   fontSize: 16,
   border: '1px solid var(--portal-border)',
-  borderRadius: 3,
+  borderRadius: 10,
   background: 'var(--portal-bg-card)',
   color: 'var(--portal-text)',
   width: '100%',
   boxSizing: 'border-box',
+};
+
+/** Botão secundário com contorno (Editar, Lixeira…). */
+export const estiloBotaoContorno: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', gap: 6,
+  padding: '8px 13px', fontSize: 13, fontWeight: 500,
+  borderRadius: 10, border: '1px solid var(--portal-border)',
+  background: 'var(--portal-bg-card)', color: 'var(--portal-text)', cursor: 'pointer',
 };
 
 export function BotaoRosa({
@@ -232,12 +301,13 @@ export function BotaoRosa({
       title={title}
       style={{
         padding: '9px 16px',
+        minHeight: 40,
         fontSize: 14,
-        fontWeight: 700,
+        fontWeight: 500,
         color: '#111111', // legenda PRETA nos botões coloridos (padrão do portal no escuro)
         background: ROSA_CLARO,
         border: 'none',
-        borderRadius: 3,
+        borderRadius: 11,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
         ...style,
@@ -259,8 +329,8 @@ export function Vazio({ children }: { children: React.ReactNode }) {
 /** Aviso de migration pendente — o módulo avisa, o portal não quebra. */
 export function AvisoMigracao() {
   return (
-    <div style={{ margin: 16, padding: 16, borderRadius: 4, border: '1px solid #f59e0b', background: '#fffbeb', color: '#111111' }}>
-      <strong>Banco ainda não preparado.</strong>
+    <div style={{ margin: 16, padding: 16, borderRadius: 14, border: '1px solid #f59e0b', background: '#fffbeb', color: '#111111' }}>
+      <span style={{ fontWeight: 500 }}>Banco ainda não preparado.</span>
       <div style={{ marginTop: 6, fontSize: 13 }}>
         As tabelas deste módulo não existem. Rode <code>sql/marketing-acoes.sql</code> no SQL Editor
         do Supabase e recarregue a página.
@@ -271,7 +341,7 @@ export function AvisoMigracao() {
 
 export function Erro({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ margin: 16, padding: 14, borderRadius: 4, border: '1px solid #dc2626', background: '#fef2f2', color: '#111111', fontSize: 13 }}>
+    <div style={{ margin: 16, padding: 14, borderRadius: 12, border: '1px solid #dc2626', background: '#fef2f2', color: '#111111', fontSize: 13 }}>
       {children}
     </div>
   );

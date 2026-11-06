@@ -31,7 +31,7 @@ import AvaliacaoAba from '@/components/marketing/abas/AvaliacaoAba';
 import QuestionarioAba from '@/components/marketing/abas/QuestionarioAba';
 import RelatorioAba from '@/components/marketing/abas/RelatorioAba';
 import {
-  apiGet, apiEnviar, periodoBR, Selo, Vazio, AvisoMigracao, Erro, ROSA,
+  apiGet, apiEnviar, periodoBR, Selo, Vazio, AvisoMigracao, Erro, ROSA, IconeTipoAcao, estiloBotaoContorno,
 } from '@/components/marketing/ui';
 
 const ABAS = [
@@ -123,13 +123,14 @@ export default function FichaAcaoPage() {
         style={{
           background: 'var(--portal-bg-card)',
           border: '1px solid var(--portal-border)',
-          borderLeft: `4px solid ${cor(STATUS_ACAO, acao.status)}`,
-          borderRadius: 4, padding: 16, marginBottom: 14,
+          borderRadius: 16, padding: '16px 18px', marginBottom: 14,
         }}
       >
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-start', justifyContent: 'space-between' }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: 'var(--portal-text)' }}>{acao.nome}</h1>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', minWidth: 0, flex: '1 1 300px' }}>
+          <IconeTipoAcao tipo={acao.tipo} cor={cor(STATUS_ACAO, acao.status)} tamanho={48} />
+          <div style={{ minWidth: 0 }}>
+            <h1 style={{ margin: 0, fontSize: 22, fontWeight: 500, letterSpacing: '-.01em', color: 'var(--portal-text)' }}>{acao.nome}</h1>
             <div style={{ fontSize: 13, color: 'var(--portal-text-muted, #64748b)', marginTop: 3 }}>
               {rotulo(TIPOS_ACAO, acao.tipo)} · {periodoBR(acao.data_inicio, acao.data_fim)}
               {acao.cidade ? ` · ${acao.cidade}${acao.uf ? `/${acao.uf}` : ''}` : ''}
@@ -140,17 +141,13 @@ export default function FichaAcaoPage() {
               {acao.projeto_nome ? ` · Projeto Omie: ${acao.projeto_nome}` : ''}
             </div>
           </div>
+          </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <Selo texto={rotulo(STATUS_ACAO, acao.status)} cor={cor(STATUS_ACAO, acao.status)} />
             <button
               onClick={() => { setErroForm(null); setEditando(true); }}
               {...gateBtn(podeEditar)}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', fontSize: 13,
-                borderRadius: 3, border: '1px solid var(--portal-border)',
-                background: 'var(--portal-bg-card)', color: 'var(--portal-text)', cursor: 'pointer',
-                ...estiloSemPermissao(podeEditar),
-              }}
+              style={{ ...estiloBotaoContorno, ...estiloSemPermissao(podeEditar) }}
             >
               <Pencil size={14} /> Editar
             </button>
@@ -158,7 +155,7 @@ export default function FichaAcaoPage() {
         </div>
 
         {semDono && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12, padding: 10, borderRadius: 3, background: '#fef2f2', border: '1px solid #dc2626', fontSize: 13, fontWeight: 700, color: '#111111' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12, padding: 10, borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 13, fontWeight: 500, color: '#111111' }}>
             <UserX size={16} color="#dc2626" />
             O responsável desta ação não está mais ativo no portal. Reatribua antes que o histórico fique sem dono.
           </div>
@@ -166,7 +163,9 @@ export default function FichaAcaoPage() {
       </div>
 
       {/* Abas */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, borderBottom: `2px solid ${ROSA}`, marginBottom: 14 }}>
+      {/* Abas no jeito das do POS: escolhida com fundo clarinho e sublinhado cheio,
+          contador em pílula na cor do módulo. */}
+      <div className="mkt-abas" style={{ display: 'flex', flexWrap: 'wrap', gap: 2, borderBottom: '1px solid var(--portal-border)', marginBottom: 14 }}>
         {ABAS.map((a) => {
           const ativa = aba === a;
           const n = contagem[a];
@@ -175,15 +174,27 @@ export default function FichaAcaoPage() {
               key={a}
               onClick={() => setAba(a)}
               style={{
-                padding: '8px 13px', fontSize: 13, fontWeight: ativa ? 700 : 500,
-                border: 'none', borderRadius: '4px 4px 0 0', cursor: 'pointer',
-                background: ativa ? ROSA : 'transparent',
-                color: ativa ? '#111111' : 'var(--portal-text)',
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '9px 13px', fontSize: 13.5, fontWeight: 500,
+                border: 'none', borderRadius: '10px 10px 0 0', cursor: 'pointer',
+                borderBottom: `3px solid ${ativa ? ROSA : 'transparent'}`,
+                marginBottom: -1,
+                background: ativa ? `color-mix(in srgb, ${ROSA} 9%, var(--portal-bg-card))` : 'transparent',
+                color: 'var(--portal-text)',
+                whiteSpace: 'nowrap',
               }}
             >
               {a}
               {n !== undefined && n > 0 && (
-                <span style={{ marginLeft: 6, fontSize: 11, opacity: 0.75 }}>{n}</span>
+                <span
+                  style={{
+                    fontSize: 11.5, padding: '1px 7px', borderRadius: 999, fontVariantNumeric: 'tabular-nums',
+                    color: ativa ? '#fefefe' : ROSA,
+                    background: ativa ? ROSA : `color-mix(in srgb, ${ROSA} 12%, var(--portal-bg-card))`,
+                  }}
+                >
+                  {n}
+                </span>
               )}
             </button>
           );
