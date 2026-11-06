@@ -105,6 +105,12 @@ describe('situação da NFS-e (StatusOS)', () => {
     expect(r.mensagem).toContain('CNAE inválido');
     expect(situacaoNfse([{ cStatusRps: '004', nNfse: '1' }, { cStatusRps: '005' }]).status).toBe('nfse_cancelada');
   });
+  it('prefeitura sem resposta (E3741) não é rejeição', () => {
+    const r = situacaoNfse([{ cStatusRps: '003', mensagens: [{ cCodigo: 'E3741', cDescricao: 'Aguarde alguns minutos e realize um novo envio.' }, { cDescricao: 'Nenhuma resposta obtida do servidor de Nota Fiscal!' }] }]);
+    expect(r.status).toBe('nfse_aguardando');
+    expect(r.mensagem).toBeNull();
+    expect(r.transitorio).toContain('Aguarde alguns minutos');
+  });
 });
 
 describe('fluxo do faturamento (Omie simulado)', () => {

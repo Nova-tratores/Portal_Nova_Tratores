@@ -137,13 +137,27 @@ function textoMensagens(m: unknown): string | null {
   return t ? t.slice(0, 500) : null;
 }
 
-export function situacaoNfse(lista: RpsNfse[] | null | undefined): { status: StatusFaturamento; numero: string | null; mensagem: string | null } {
+/**
+ * Erro de COMUNICAÇÃO com a prefeitura (não é recusa da nota): o Omie reenvia
+ * sozinho e a nota sai minutos depois (OS 5416, 06/11/2026: E3741 "Aguarde
+ * alguns minutos e realize um novo envio · Nenhuma resposta obtida do servidor").
+ */
+export function erroNfseTransitorio(msg: string | null | undefined): boolean {
+  return !!msg && /\bE3741\b|aguarde alguns minutos|nenhuma resposta obtida|realize um novo envio|tempo (limite )?esgotado|time ?out|indispon[ií]vel|servi[cç]o fora do ar/i.test(msg);
+}
+
+export function situacaoNfse(lista: RpsNfse[] | null | undefined): { status: StatusFaturamento; numero: string | null; mensagem: string | null; transitorio?: string } {
   const rps = Array.isArray(lista) && lista.length ? lista[lista.length - 1] : null;
   if (!rps) return { status: 'nfse_aguardando', numero: null, mensagem: null };
   const st = String(rps.cStatusRps || rps.cStatusLote || '');
   const numero = chaveNum(rps.nNfse) || null;
   if (st === '005') return { status: 'nfse_cancelada', numero, mensagem: textoMensagens(rps.mensagens) };
-  if (st === '003') return { status: 'nfse_rejeitada', numero: null, mensagem: textoMensagens(rps.mensagens) || 'A prefeitura recusou a nota.' };
+  if (st === '003') {
+    const msg = textoMensagens(rps.mensagens);
+    // prefeitura não respondeu: segue "aguardando" (a reconciliação volta a olhar)
+    if (erroNfseTransitorio(msg)) return { status: 'nfse_aguardando', numero: null, mensagem: null, transitorio: msg || undefined };
+    return { status: 'nfse_rejeitada', numero: null, mensagem: msg || 'A prefeitura recusou a nota.' };
+  }
   if (st === '004' || numero) return { status: 'nfse_autorizada', numero, mensagem: null };
   return { status: 'nfse_aguardando', numero: null, mensagem: null };
 }

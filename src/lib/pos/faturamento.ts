@@ -1052,6 +1052,15 @@ async function atualizarNfse(id: string, nCodOS: number): Promise<StatusFaturame
     return 'recibo_emitido';
   }
   const sit = situacaoNfse(st?.ListaRpsNfse);
+  // erro de comunicação com a prefeitura: só vira "rejeitada" (e avisa) se o
+  // Omie não conseguiu reenviar em 30 min depois do faturamento
+  if (sit.transitorio) {
+    const desde = new Date(antes?.faturado_omie_em || 0).getTime();
+    if (Number.isFinite(desde) && desde > 0 && Date.now() - desde >= 30 * 60_000) {
+      sit.status = 'nfse_rejeitada';
+      sit.mensagem = `${sit.transitorio} (a prefeitura não respondeu há mais de 30 min)`;
+    }
+  }
   const upd: Record<string, unknown> = { faturamento_status: sit.status, faturamento_erro: sit.mensagem };
   if (sit.numero) upd.nfse_numero = sit.numero;
 
