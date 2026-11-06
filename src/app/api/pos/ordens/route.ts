@@ -110,7 +110,7 @@ async function getOrdensParaKanban(escopo: EscopoOrdens = "todas"): Promise<Kanb
     mapaReqs[osId].push({
       id: String(r.id),
       titulo: r.titulo || "",
-      valor: parseFloat(r.valor_cobrado_cliente || 0) || 0,
+      valor: parseFloat(String(r.valor_cobrado_cliente || 0)) || 0,
     });
   });
 
@@ -135,7 +135,7 @@ async function getOrdensParaKanban(escopo: EscopoOrdens = "todas"): Promise<Kanb
   (logs || []).forEach((l) => {
     if (l.Status_Atual) (mapaFaseDesde[l.Id_ppo] ||= []).push({ status: String(l.Status_Atual), data: l.Data_Acao || "" });
     if (!mapaDatasFase[l.Id_ppo]) {
-      mapaDatasFase[l.Id_ppo] = l.Data_Acao;
+      mapaDatasFase[l.Id_ppo] = l.Data_Acao || "";
       mapaUltimoLog[l.Id_ppo] = {
         acao: l.acao || "",
         usuario: l.UsuEmail || "",
