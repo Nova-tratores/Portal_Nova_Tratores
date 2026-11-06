@@ -4,6 +4,7 @@
 // Mostra só as páginas que o usuário pode acessar (pode('ajustes', '<x>'); admin/total veem todas).
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { PAGINAS_AJUSTES, DEPARTAMENTOS, FUNCOES, type Departamento, type PaginaAjustes } from './paginas';
@@ -22,6 +23,9 @@ export default function AjustesNav() {
   const { userProfile } = useAuth();
   const { pode, loading } = usePermissoes(userProfile?.id);
   const pathname = usePathname();
+  // celular: o menu vem recolhido (aberto ocupava a 1ª tela inteira; auditoria 06/11/2026) e fecha ao trocar de página
+  const [aberto, setAberto] = useState({ em: pathname, on: false });
+  const menuAberto = aberto.em === pathname && aberto.on;
 
   if (loading) return null;
   const visiveis = PAGINAS_AJUSTES.filter((p) => pode('ajustes', p.key.slice('ajustes:'.length)));
@@ -59,9 +63,10 @@ export default function AjustesNav() {
     );
   };
 
+  const atual = visiveis.find((p) => p.href === pathname);
   return (
     <nav
-      className="est-nav"
+      className={`est-nav ajn ${menuAberto ? 'aberto' : ''}`}
       style={{
         background: '#fff',
         borderBottom: '1px solid #e2e8f0',
@@ -75,6 +80,19 @@ export default function AjustesNav() {
         zIndex: 20,
       }}
     >
+      <style>{`
+        .ajn-botao { display: none }
+        @media (max-width: 760px) {
+          .est-nav.ajn { position: static !important; padding: 8px 12px !important }
+          .est-nav.ajn:not(.aberto) .est-nav-row { display: none !important }
+          .ajn-botao { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; color: #0f172a; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer }
+          .ajn-botao small { color: #64748b; font-weight: 400 }
+        }
+      `}</style>
+      <button type="button" className="ajn-botao" aria-expanded={menuAberto} onClick={() => setAberto({ em: pathname, on: !menuAberto })}>
+        <span>{atual ? atual.label : 'Páginas de Ajustes'} <small>· trocar de página</small></span>
+        <i className={`fas fa-chevron-${menuAberto ? 'up' : 'down'}`} />
+      </button>
       {blocos.map(({ dep, itens }, idx) => (
         <div
           key={dep.key}

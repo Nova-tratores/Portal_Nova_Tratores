@@ -18,6 +18,9 @@ interface Dados {
 }
 
 const nf = (n: number) => (Number(n) || 0).toLocaleString('pt-BR')
+// transcrição de áudio do NovaZap: a "pergunta" gravada é o fim da URL do áudio (texto codificado, ilegível);
+// na tela vai o começo do que foi transcrito (auditoria 06/11/2026)
+const perguntaTela = (l: LogRow) => l.tipo === 'novazap:transcricao' ? `Áudio transcrito: ${(l.resposta || '').slice(0, 120)}` : (l.pergunta || '')
 const fmtData = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 const fmtDia = (v: unknown) => {
   const s = String(v ?? '').slice(0, 10)
@@ -340,7 +343,7 @@ export default function TratorilsonPainel() {
                     <td style={{ padding: '8px 12px', whiteSpace: 'nowrap', color: 'var(--portal-text-secondary)' }}>{fmtData(l.created_at)}</td>
                     <td style={{ padding: '8px 12px', color: 'var(--portal-text)' }}>{l.user_nome || '—'}</td>
                     <td style={{ padding: '8px 12px' }}><span style={{ fontSize: 11, background: 'var(--portal-bg-secondary)', padding: '2px 7px', borderRadius: 6, color: 'var(--portal-text-secondary)' }}>{l.tipo}</span></td>
-                    <td style={{ padding: '8px 12px', color: 'var(--portal-text-secondary)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{l.pergunta || ''}</td>
+                    <td style={{ padding: '8px 12px', color: 'var(--portal-text-secondary)', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{perguntaTela(l)}</td>
                     <td style={{ padding: '8px 12px', textAlign: 'right', fontWeight: 700, color: 'var(--portal-text)' }}>{nf(l.tokens)}</td>
                   </tr>
                 ))}
@@ -377,7 +380,7 @@ export default function TratorilsonPainel() {
             </div>
             <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginBottom: 12 }}>{detalhe.tipo} · {detalhe.modelo || '—'} · {nf(detalhe.tokens)} tokens</div>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)', marginBottom: 4 }}>Pergunta</div>
-            <div style={{ fontSize: 13, color: 'var(--portal-text)', whiteSpace: 'pre-wrap', background: 'var(--portal-bg-secondary)', padding: 10, borderRadius: 8, marginBottom: 12 }}>{detalhe.pergunta || '—'}</div>
+            <div style={{ fontSize: 13, color: 'var(--portal-text)', whiteSpace: 'pre-wrap', background: 'var(--portal-bg-secondary)', padding: 10, borderRadius: 8, marginBottom: 12 }}>{(detalhe.tipo === 'novazap:transcricao' ? 'Áudio do NovaZap (o texto transcrito está na resposta)' : detalhe.pergunta) || '—'}</div>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary)', marginBottom: 4 }}>Resposta</div>
             <div style={{ fontSize: 13, color: 'var(--portal-text)', whiteSpace: 'pre-wrap', background: 'var(--portal-bg-secondary)', padding: 10, borderRadius: 8 }}>{detalhe.resposta || '—'}</div>
           </div>

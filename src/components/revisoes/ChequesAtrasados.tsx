@@ -100,7 +100,9 @@ export default function ChequesAtrasados({ podeVarrer, onIrParaChassi }: { podeV
       {erro && <p className="px-4 pb-3 text-sm text-red-600">{erro}</p>}
       {aberto && total > 0 && (
         <div className="border-t border-red-200 overflow-x-auto">
-          <table className="w-full min-w-[720px] text-sm">
+          {/* celular (auditoria 06/11/2026): cada linha vira cartão — numa tabela de 720 px o cliente ficava com 87 px e a linha passava de 270 px */}
+          <style>{CSS_CARTOES}</style>
+          <table className="cq-tab w-full min-w-[720px] text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-zinc-500">
                 <th className="px-4 py-2">OS</th>
@@ -119,16 +121,16 @@ export default function ChequesAtrasados({ podeVarrer, onIrParaChassi }: { podeV
                     <a href={`/pos?id=${encodeURIComponent(it.id)}`} className="font-semibold text-red-700 hover:underline">{it.id}</a>
                     {it.nova && <span className="ml-1 text-[10px] font-bold text-white bg-red-600 rounded px-1">NOVA</span>}
                   </td>
-                  <td className="px-2 py-2">{it.cliente || "—"}</td>
-                  <td className="px-2 py-2 whitespace-nowrap">
+                  <td className="px-2 py-2 cq-cli">{it.cliente || "—"}</td>
+                  <td className="px-2 py-2 whitespace-nowrap" data-r="Chassi">
                     {onIrParaChassi
                       ? <button type="button" className="font-mono text-zinc-800 hover:underline" onClick={() => onIrParaChassi(it.chassis)} title="Ver na lista de tratores">{it.chassis}</button>
                       : <span className="font-mono">{it.chassis}</span>}
                   </td>
-                  <td className="px-2 py-2 whitespace-nowrap">{it.horas ? `${it.horas}h` : "—"}</td>
-                  <td className="px-2 py-2 whitespace-nowrap">{fmt(it.dataFim || it.data)}</td>
-                  <td className="px-2 py-2 whitespace-nowrap">{it.status || "—"}</td>
-                  <td className="px-2 py-2">
+                  <td className="px-2 py-2 whitespace-nowrap" data-r="Revisão">{it.horas ? `${it.horas}h` : "—"}</td>
+                  <td className="px-2 py-2 whitespace-nowrap" data-r="Data">{fmt(it.dataFim || it.data)}</td>
+                  <td className="px-2 py-2 whitespace-nowrap" data-r="Fase">{it.status || "—"}</td>
+                  <td className="px-2 py-2 cq-falta" data-r="O que falta">
                     <ul className="list-disc pl-4 space-y-0.5">
                       {it.detalhes.map((d, i) => <li key={i} className="text-zinc-800">{d}</li>)}
                     </ul>
@@ -142,3 +144,16 @@ export default function ChequesAtrasados({ podeVarrer, onIrParaChassi }: { podeV
     </section>
   );
 }
+
+const CSS_CARTOES = `
+@media (max-width: 760px) {
+  .cq-tab { min-width: 0 !important; }
+  .cq-tab thead { display: none; }
+  .cq-tab, .cq-tab tbody { display: block; }
+  .cq-tab tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px; padding: 12px 14px; }
+  .cq-tab td { display: block; padding: 0 !important; min-width: 0; white-space: normal !important; }
+  .cq-tab td.cq-cli { grid-column: 2; font-weight: 600; }
+  .cq-tab td.cq-falta { grid-column: 1 / -1; }
+  .cq-tab td[data-r]::before { content: attr(data-r); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: #71717a; }
+}
+`
