@@ -31,6 +31,13 @@ export const PECAS_TOPBAR_CSS = `
 @media (min-width: 769px) and (max-width: 1023px) {
   .ppv-x-topbar .ppv-topbar-nav-btn { padding: 10px 12px; font-size: 13px; gap: 6px; }
 }
+/* celular + tema escuro (auditoria 06/11/2026): no celular o globals.css pinta a faixa de branco e o seletor de
+   cinza-claro fixos — no escuro ela ficava clara (PPV, Orçamentos, Requisições) */
+@media (max-width: 768px) {
+  [data-theme="dark"] .ppv-topbar { background: var(--portal-bg-card); color: var(--portal-text); }
+  [data-theme="dark"] .ppv-topbar-actions { background: var(--portal-bg-secondary); }
+  [data-theme="dark"] .ppv-topbar-nav-btn:not(.active) { color: var(--portal-text-secondary); }
+}
 `;
 
 export default function PecasNav() {

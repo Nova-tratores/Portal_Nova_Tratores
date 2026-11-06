@@ -17,6 +17,8 @@ const ESTILO = `
   border-radius: 11px 11px 0 0; text-decoration: none; white-space: nowrap; flex-shrink: 0; transition: background .2s }
 .fbt-guia:hover { background: rgba(255,255,255,0.45) }
 .fbt-guia.on { background: #fefefe; box-shadow: 0 -2px 6px rgba(0,0,0,0.15) }
+/* tema escuro (auditoria 06/11/2026): a guia ativa ficava branca colada no conteúdo preto — segue o fundo da tela */
+[data-theme="dark"] .fbt-guia.on { background: var(--portal-bg); color: var(--portal-text) }
 .fbt-guia i { font-size: 13px }
 @media (max-width: 640px) { .fbt-faixa { padding: 8px 12px 0 } .fbt-guia { padding: 10px 14px; font-size: 13.5px } }
 `;

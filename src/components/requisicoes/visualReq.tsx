@@ -20,6 +20,10 @@ export function IconeQuadrado({ icone, cor, tamanho = 40 }: { icone: string; cor
 
 export const ESTILO_REQ_VN = `
 .req-vn { --rq-txt: var(--portal-text, #0f172a); --rq-sec: var(--portal-text-secondary, #475569); --rq-apag: var(--portal-text-muted, #64748b); --rq-borda: var(--border, #e2e8f0); }
+/* tema escuro (auditoria 06/11/2026): o contêiner de fora define --surface branco e não troca no escuro —
+   cartões brancos com texto branco; aqui dentro as duas seguem o tema */
+[data-theme="dark"] .req-vn { --surface: var(--portal-bg-card); --border: var(--portal-border); }
+[data-theme="dark"] .req-vn .rq-req-num small { color: color-mix(in srgb, var(--c) 70%, #fefefe) }
 .req-vn .req-ico { display: inline-grid; place-items: center; flex: none; }
 .req-vn .req-ico i { font-weight: 900 }
 

@@ -815,7 +815,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
               return (
                 <button key={col.id} onClick={() => setFaseMobile(col.id)}
                   className="shrink-0 flex items-center gap-2 h-[38px] px-3.5 rounded-[11px] text-sm border transition-all"
-                  style={ativo ? { borderColor: COR_FASE[col.id], background: `color-mix(in srgb, ${COR_FASE[col.id]} 9%, #fefefe)`, color: '#0f172a' } : { borderColor: '#e2e8f0', background: '#fefefe', color: '#0f172a' }}>
+                  style={ativo ? { borderColor: COR_FASE[col.id], background: `color-mix(in srgb, ${COR_FASE[col.id]} 9%, var(--portal-bg-card, #fefefe))`, color: 'var(--portal-text, #0f172a)' } : { borderColor: 'var(--portal-border, #e2e8f0)', background: 'var(--portal-bg-card, #fefefe)', color: 'var(--portal-text, #0f172a)' }}>
                   <span className="w-2 h-2 rounded-full" style={{ background: COR_FASE[col.id] }}></span>
                   {col.titulo}
                   <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: ativo ? COR_FASE[col.id] : '#f1f5f9', color: ativo ? '#fefefe' : '#475569' }}>{n}</span>

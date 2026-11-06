@@ -455,6 +455,10 @@ export default function QuadroLousa({ variante, gravar = false, acoes }: { varia
 const CSS_QUADRO = `
 @import url('https://fonts.googleapis.com/css2?family=Kalam:wght@400;700&display=swap');
 .ql { --ql-linha: var(--portal-border); --ql-azul: #1e3a8a; --ql-fundo: var(--portal-bg-card); --ql-cel: var(--portal-bg-card); display: grid; gap: 12px; color: var(--portal-text); }
+/* tema escuro (auditoria 06/11/2026): azul-marinho sobre o cartão preto ficava ilegível (contraste 1.7);
+   no quadro branco (.ql-lousa) o fundo é claro e o azul fica */
+[data-theme="dark"] .ql:not(.ql-lousa) { --ql-azul: #93c5fd; }
+[data-theme="dark"] .ql:not(.ql-lousa) .ql-num { color: #93c5fd; } [data-theme="dark"] .ql:not(.ql-lousa) .ql-num.lousa { color: #5eead4; }
 .ql-barra { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .ql-nav, .ql-hoje, .ql-reset { display: inline-flex; align-items: center; gap: 5px; height: 34px; padding: 0 10px; border-radius: 9px; border: 1px solid var(--portal-border); background: var(--portal-bg-card); color: var(--portal-text); font-family: inherit; font-weight: 700; font-size: 13px; cursor: pointer; }
 .ql-titulo { font-size: 17px; margin: 0 6px; }

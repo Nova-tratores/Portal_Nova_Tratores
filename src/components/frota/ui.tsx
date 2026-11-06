@@ -39,6 +39,9 @@ const TOM_COR: Record<TomKpi, string> = { neutro: AZUL_FROTA, bom: '#15803d', at
 export function KpisFrota({ children }: { children: ReactNode }) {
   return (
     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(190px, 100%), 1fr))', gap: 12, marginBottom: 22 }}>
+      {/* tema escuro (auditoria 06/11/2026): vermelho/âmbar/verde-escuros e o selo de gravidade (fundo pastel)
+          ficavam apagados no fundo preto; no claro nada muda */}
+      <style>{`[data-theme="dark"] .frota-kpi-v { filter: brightness(1.6) } [data-theme="dark"] .frota-selo-grav { color: var(--gf) !important; background: color-mix(in srgb, var(--gf) 18%, transparent) !important }`}</style>
       {children}
     </div>
   );
@@ -62,7 +65,7 @@ export function KpiFrota({ rotulo, valor, contexto, tom = 'neutro', icone, href,
       <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: 'var(--portal-text-secondary)' }}>
         {icone}{rotulo}
       </span>
-      <strong style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.1, color: tom === 'neutro' ? 'var(--portal-text)' : cor, fontVariantNumeric: 'tabular-nums' }}>
+      <strong className="frota-kpi-v" style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.1, color: tom === 'neutro' ? 'var(--portal-text)' : cor, fontVariantNumeric: 'tabular-nums' }}>
         {valor}
       </strong>
       {contexto && <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>{contexto}</span>}

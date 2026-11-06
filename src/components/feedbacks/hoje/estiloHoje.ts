@@ -3,6 +3,9 @@
 // peso máx. 500, sem caixa alta, sem faixa colorida do lado; guias Chrome (docs/padrao-telas.md).
 export const ESTILO_HOJE = `
 .fbh { padding-top: 0; gap: 14px }
+/* tema escuro (auditoria 06/11/2026): o texto colorido era escurecido com #0f172a e sumia no fundo preto
+   (contadores, pontos, "Ligar"); --tinta clareia no escuro */
+[data-theme="dark"] .fbh { --tinta: #fefefe }
 .fbh-faixa { display: flex; align-items: flex-end; gap: 3px; padding: 10px clamp(10px, 2.5vw, 24px) 0; margin: 0 calc(-1 * clamp(10px, 2.5vw, 24px));
   background: linear-gradient(135deg, #f87171, #991b1b); overflow-x: auto; -webkit-overflow-scrolling: touch; box-shadow: 0 1px 4px var(--portal-shadow, rgba(0,0,0,.12)) }
 .fbh-guia { padding: 11px 20px; font: inherit; font-size: 15px; font-weight: 500; color: #111111; background: rgba(255,255,255,0.30); border: 0; border-radius: 11px 11px 0 0;
@@ -59,12 +62,12 @@ export const ESTILO_HOJE = `
   background: var(--s); color: var(--t2); border: 1px solid var(--b); font-variant-numeric: tabular-nums }
 .fbh-cli .pos.urg { background: #dc2626; border-color: #dc2626; color: #fefefe }
 .fbh-cli .nm { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 15.5px; font-weight: 500; line-height: 1.3; overflow-wrap: anywhere }
-.fbh-classe { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 400; padding: 1px 8px 1px 7px; border-radius: 99px; color: color-mix(in srgb, var(--k) 80%, #0f172a); background: color-mix(in srgb, var(--k) 9%, var(--s)) }
+.fbh-classe { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 400; padding: 1px 8px 1px 7px; border-radius: 99px; color: color-mix(in srgb, var(--k) 80%, var(--tinta, #0f172a)); background: color-mix(in srgb, var(--k) 9%, var(--s)) }
 .fbh-classe::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--k); box-shadow: 0 0 0 3px color-mix(in srgb, var(--k) 18%, transparent) }
 .fbh-cli .sub { font-size: 12.5px; color: var(--t2); display: flex; gap: 4px 14px; flex-wrap: wrap; margin-top: 3px }
 .fbh-cli .sub i { color: var(--t3, var(--t2)); margin-right: 2px }
 .fbh-cli .faz { display: inline-flex; gap: 7px; align-items: center; max-width: 100%; margin-top: 9px; padding: 5px 12px 5px 10px; border-radius: 10px; font-size: 13px;
-  color: color-mix(in srgb, var(--k) 85%, #0f172a); background: color-mix(in srgb, var(--k) 8%, var(--s)); transition: background .2s }
+  color: color-mix(in srgb, var(--k) 85%, var(--tinta, #0f172a)); background: color-mix(in srgb, var(--k) 8%, var(--s)); transition: background .2s }
 .fbh-cli .faz .tx { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0 }
 .fbh-cli .faz i { color: var(--k); font-size: 12px }
 .fbh-cli .faz .seta { font-size: 11px; opacity: 0; transform: translateX(-6px); transition: opacity .2s, transform .2s }
@@ -72,11 +75,11 @@ export const ESTILO_HOJE = `
 .fbh-cli:hover .faz .seta, .fbh-cli.sel .faz .seta { opacity: 1; transform: none }
 .fbh-selos { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px }
 .fbh-selo { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 10px; border-radius: 8px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis;
-  color: color-mix(in srgb, var(--k) 78%, #0f172a); background: color-mix(in srgb, var(--k) 8%, var(--s)); border: 1px solid color-mix(in srgb, var(--k) 14%, transparent) }
+  color: color-mix(in srgb, var(--k) 78%, var(--tinta, #0f172a)); background: color-mix(in srgb, var(--k) 8%, var(--s)); border: 1px solid color-mix(in srgb, var(--k) 14%, transparent) }
 .fbh-selo i { font-size: 10.5px; color: var(--k) }
 .fbh-selo.fraco { opacity: .72 }
 .fbh-pts { font-size: 12.5px; padding: 4px 11px; border-radius: 999px; font-variant-numeric: tabular-nums; white-space: nowrap; border: 1px solid var(--b); background: var(--soft); color: var(--t2) }
-.fbh-pts.alto { color: color-mix(in srgb, var(--cc) 80%, #0f172a); background: color-mix(in srgb, var(--cc) 10%, var(--s)); border-color: color-mix(in srgb, var(--cc) 28%, transparent) }
+.fbh-pts.alto { color: color-mix(in srgb, var(--cc) 80%, var(--tinta, #0f172a)); background: color-mix(in srgb, var(--cc) 10%, var(--s)); border-color: color-mix(in srgb, var(--cc) 28%, transparent) }
 .fbh-cabeca { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: flex-start }
 .fbh-cabeca > .fbf-como { padding-top: 10px }
 .fbh-cabeca .fbf-topo { margin: 0 }
@@ -352,7 +355,7 @@ button.fbp-li { cursor: pointer } .fbp-li:hover { background: var(--soft) }
 .fbh-pq .cab { font-size: 11.5px; color: var(--t3, #94a3b8); letter-spacing: .01em }
 .fbh-mt { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 10px; align-items: center; font-size: 13px; padding: 3px 0 }
 .fbh-mt .tp { display: inline-flex; gap: 6px; align-items: center; justify-self: start; max-width: 100%; font-size: 12px; padding: 2px 9px; border-radius: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  color: color-mix(in srgb, var(--k) 82%, #0f172a); background: color-mix(in srgb, var(--k) 11%, var(--s)) }
+  color: color-mix(in srgb, var(--k) 82%, var(--tinta, #0f172a)); background: color-mix(in srgb, var(--k) 11%, var(--s)) }
 .fbh-mt .tp i { font-size: 10.5px; color: var(--k) }
 .fbh-mt .dt { color: var(--t2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 .fbh-mt.principal .dt { color: var(--t) }
@@ -360,7 +363,7 @@ button.fbp-li { cursor: pointer } .fbp-li:hover { background: var(--soft) }
 .fbh-mt-mais { font-size: 12px; color: var(--t2); padding-left: 200px }
 .fbh-dir { display: grid; gap: 6px; justify-items: end; align-content: start }
 .fbh-acao { display: inline-flex; gap: 7px; align-items: center; padding: 6px 12px; border-radius: 10px; font-size: 13.5px; white-space: nowrap;
-  color: color-mix(in srgb, var(--k) 88%, #0f172a); background: color-mix(in srgb, var(--k) 10%, var(--s)); transition: background .2s }
+  color: color-mix(in srgb, var(--k) 88%, var(--tinta, #0f172a)); background: color-mix(in srgb, var(--k) 10%, var(--s)); transition: background .2s }
 .fbh-acao i { color: var(--k); font-size: 12px }
 .fbh-acao .seta { font-size: 11px; opacity: 0; width: 0; transform: translateX(-6px); transition: opacity .2s, transform .2s, width .2s }
 .fbh-cli:hover .fbh-acao { background: color-mix(in srgb, var(--k) 16%, var(--s)) }
@@ -382,7 +385,7 @@ button.fbp-li { cursor: pointer } .fbp-li:hover { background: var(--soft) }
 .fbh-listas .tx { display: grid; min-width: 0 }
 .fbh-listas .r { font-size: 15px; font-weight: 500 }
 .fbh-listas .r .n { font-size: 12.5px; font-weight: 400; padding: 1px 8px; margin-left: 4px; border-radius: 99px; background: var(--soft); color: var(--t2); font-variant-numeric: tabular-nums }
-.fbh-listas > button.on .r .n { background: color-mix(in srgb, var(--k) 14%, var(--s)); color: color-mix(in srgb, var(--k) 85%, #0f172a) }
+.fbh-listas > button.on .r .n { background: color-mix(in srgb, var(--k) 14%, var(--s)); color: color-mix(in srgb, var(--k) 85%, var(--tinta, #0f172a)) }
 .fbh-listas small { font-size: 12px; color: var(--t2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 
 /* Histórico de atendimento do cliente, separado do bloco de atendimento (28/10/2026) */

@@ -158,7 +158,7 @@ export default function FrotaHoje() {
             ajuda="Pendências de gravidade crítica ou grave, da mais urgente e mais antiga para a mais nova.">
             {d.graves.slice(0, 30).map((g) => (
               <Linha key={g.id} placa={g.placa} modelo={g.modelo}
-                selo={<span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.4, padding: '2px 8px', borderRadius: 999, background: GRAVIDADE_COR[g.gravidade].bg, color: GRAVIDADE_COR[g.gravidade].cor }}>{GRAVIDADE_LABEL[g.gravidade].toUpperCase()}</span>}
+                selo={<span className="frota-selo-grav" style={{ '--gf': GRAVIDADE_COR[g.gravidade].forte, fontSize: 10.5, fontWeight: 800, letterSpacing: 0.4, padding: '2px 8px', borderRadius: 999, background: GRAVIDADE_COR[g.gravidade].bg, color: GRAVIDADE_COR[g.gravidade].cor } as React.CSSProperties}>{GRAVIDADE_LABEL[g.gravidade].toUpperCase()}</span>}
                 texto={`${g.titulo}${g.aberta_em ? ` · aberta em ${fmtData(g.aberta_em)}` : ''}${g.responsavel ? ` · ${g.responsavel}` : ''}`}
                 acao={<Acao href={`${linkPendencias(g.placa)}&pend=${g.id}`}>Abrir</Acao>} />
             ))}
@@ -171,7 +171,7 @@ export default function FrotaHoje() {
             ajuda={`${d.preventivas.resumo.pctEmDia != null ? `${d.preventivas.resumo.pctEmDia}% das preventivas em dia. ` : ''}Vence o que chegar primeiro: km, horas de motor ou data, pelo manual de cada modelo.${d.preventivas.semPlano ? ` ${d.preventivas.semPlano} carro(s) ainda sem plano.` : ''}`}>
             {d.preventivas.itens.slice(0, 20).map((p) => (
               <Linha key={`${p.placa}-${p.nome}`} placa={p.placa} modelo={p.modelo}
-                selo={<span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.4, padding: '2px 8px', borderRadius: 999, background: p.estado === 'vencida' ? '#fee2e2' : '#fef3c7', color: p.estado === 'vencida' ? '#991b1b' : '#92400e' }}>{p.estado === 'vencida' ? 'VENCIDA' : 'EM BREVE'}</span>}
+                selo={<span className="frota-selo-grav" style={{ '--gf': p.estado === 'vencida' ? '#f87171' : '#fbbf24', fontSize: 10.5, fontWeight: 800, letterSpacing: 0.4, padding: '2px 8px', borderRadius: 999, background: p.estado === 'vencida' ? '#fee2e2' : '#fef3c7', color: p.estado === 'vencida' ? '#991b1b' : '#92400e' } as React.CSSProperties}>{p.estado === 'vencida' ? 'VENCIDA' : 'EM BREVE'}</span>}
                 texto={`${p.nome} · ${p.texto}${p.regua ? ` (por ${p.regua === 'data' ? 'data' : p.regua})` : ''}`}
                 destaque={p.estado === 'vencida'}
                 acao={<Acao href="/frota/preventivas">Registrar feito</Acao>} />
