@@ -18,13 +18,28 @@ export default function FactoryFormModal({ onClose }) {
 
   useEffect(() => {
     async function fetchData() {
-      const { data: clis } = await supabase.from('portal_nt_clientes_PRINCIPAL').select('*')
       const { data: equis } = await supabase.from('Equipamentos').select('*')
-      if (clis) setListaClientes(clis)
       if (equis) setListaEquipamentos(equis)
     }
     fetchData()
   }, [])
+
+  // Clientes: busca NO BANCO enquanto digita. Antes baixava a tabela inteira
+  // (~6,5 mil) e o PostgREST devolvia só 1000 — a maioria dos clientes não aparecia.
+  useEffect(() => {
+    const termo = buscaCli.trim().replace(/[,()%*\\]/g, ' ').trim()
+    if (termo.length < 2) return
+    let cancelado = false
+    const t = setTimeout(async () => {
+      const { data } = await supabase.from('portal_nt_clientes_PRINCIPAL')
+        .select('id, nome_fantasia, razao_social')
+        .or(`nome_fantasia.ilike.%${termo}%,razao_social.ilike.%${termo}%`)
+        .order('nome_fantasia')
+        .limit(8)
+      if (!cancelado) setListaClientes(data || [])
+    }, 300)
+    return () => { cancelado = true; clearTimeout(t) }
+  }, [buscaCli])
 
   const selecionarCliente = (c) => {
     const nome = c.nome_fantasia || c.razao_social || c.nome || 'Sem Nome'
@@ -60,8 +75,8 @@ export default function FactoryFormModal({ onClose }) {
               <input className={inputStyle} value={buscaCli} onChange={e => { setBuscaCli(e.target.value); setShowCli(true) }} placeholder="Pesquisar..." />
               {showCli && buscaCli && (
                 <div className="absolute top-[65px] left-0 w-full bg-white border border-zinc-300 z-[100] max-h-[150px] overflow-y-auto rounded-lg shadow-lg">
-                  {listaClientes.filter(c => (c.nome_fantasia || c.nome || "").toLowerCase().includes(buscaCli.toLowerCase())).slice(0, 8).map(c => (
-                    <div key={c.id} className="p-2.5 cursor-pointer border-b border-zinc-100 hover:bg-red-50 text-sm" onClick={() => selecionarCliente(c)}>{c.nome_fantasia || c.nome}</div>
+                  {listaClientes.map(c => (
+                    <div key={c.id} className="p-2.5 cursor-pointer border-b border-zinc-100 hover:bg-red-50 text-sm" onClick={() => selecionarCliente(c)}>{c.nome_fantasia || c.razao_social}</div>
                   ))}
                 </div>
               )}

@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { supabase } from "@/lib/pos/supabase";
 import { normName, cleanName, namesMatch, splitTecnicos as splitTecsUtil, nomesBatem } from "@/lib/tecnico-utils";
 import { protegerRota, autorDe, type OpcaoAcesso } from "@/lib/ajustes/permissao-server";
+import { paginar } from "@/lib/db/paginar";
 
 // Service role só pra ler o diretório (financeiro_usu), que com RLS a anon não lê.
 const sbAdmin = createClient(
@@ -539,11 +540,13 @@ export async function GET(req: NextRequest) {
       }
 
       // Data de entrada: primeira OS do tecnico no Omie
-      const { data: todasOsOrdenadas } = await supabase
+      // em páginas: o .limit(2000) não escapa do corte de 1000 do PostgREST (tabela já ~920)
+      const { data: todasOsOrdenadas } = await paginar<{ data: string | null; tecnicos: unknown }>((de, ate) => supabase
         .from("Ordens_Omie")
         .select("data, tecnicos")
         .order("data", { ascending: true })
-        .limit(2000);
+        .order("os_num")
+        .range(de, ate));
 
       let dataEntrada: string | null = null;
       if (todasOsOrdenadas) {

@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin as supabase } from "@/lib/server/supabase-admin";
 import type { StatusOportunidade } from "@/lib/feedbacks/types";
 import { protegerRota } from "@/lib/ajustes/permissao-server";
+import { paginar } from "@/lib/db/paginar";
 
 const STATUS_VALIDOS: StatusOportunidade[] = ["aberta", "atendida", "dispensada", "expirada"];
 
@@ -19,14 +20,17 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const status = (searchParams.get("status") || "aberta") as StatusOportunidade | "todas";
 
-  let q = supabase
-    .from("feedback_oportunidades")
-    .select("*")
-    .order("prioridade", { ascending: false })
-    .order("computado_em", { ascending: false });
-  if (status !== "todas") q = q.eq("status", status);
-
-  const { data, error } = await q;
+  // em páginas: já são >1000 abertas e o PostgREST corta em 1000
+  const { data, error } = await paginar<Record<string, unknown>>((de, ate) => {
+    let q = supabase
+      .from("feedback_oportunidades")
+      .select("*")
+      .order("prioridade", { ascending: false })
+      .order("computado_em", { ascending: false })
+      .order("id");
+    if (status !== "todas") q = q.eq("status", status);
+    return q.range(de, ate);
+  });
   if (error) {
     return NextResponse.json({ erro: error.message }, { status: 500 });
   }

@@ -13,6 +13,7 @@ import {
   selectPaginado, calcularPatrimonio, calcularCobertura, familiaNormalizada,
 } from '@/lib/dre-financeiro/calc'
 import { labelConta, EMPRESAS_GRUPO_CNPJ } from '@/lib/dre-financeiro/omie-api'
+import { paginar } from '@/lib/db/paginar'
 
 export const dynamic = 'force-dynamic'
 
@@ -128,8 +129,10 @@ export async function GET(request: NextRequest) {
       const totalBruto = abertos.reduce((s: number, r: any) => s + r._aberto, 0)
 
       // Carrega clientes p/ identificar intercompany e mapear CNPJ
-      const { data: clientes } = await db.from('clientes')
+      // em páginas: ~5,6 mil clientes, o PostgREST corta em 1000
+      const { data: clientes } = await paginar<any>((de, ate) => db.from('clientes')
         .select('codigo_cliente_omie,conta_omie,cnpj_norm,razao_social,nome_fantasia,cidade,estado')
+        .order('conta_omie').order('codigo_cliente_omie').range(de, ate))
       const clienteMap: Record<string, any> = {}
       const interCodigos: Record<string, Set<number>> = { nova: new Set(), castro: new Set() }
       const cnpjsIntercompany = new Set([EMPRESAS_GRUPO_CNPJ.nova, EMPRESAS_GRUPO_CNPJ.castro])

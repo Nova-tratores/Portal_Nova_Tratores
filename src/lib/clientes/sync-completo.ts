@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { resolverNfseDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
+import { paginar } from "@/lib/db/paginar";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -577,10 +578,13 @@ async function ensureBucket() {
 // ================ VINCULAR PROJETOS AO ULTIMO CLIENTE ================
 async function vincularProjetosAoUltimoCliente(acc: OmieAccount) {
   // Para cada projeto, achar a OS mais recente e pegar o cod_cli/cnpj
-  const { data: projetos } = await supabase
+  // em páginas: a Nova já passa de 1000 projetos e o PostgREST corta em 1000
+  const { data: projetos } = await paginar<{ codigo: string; nome: string }>((de, ate) => supabase
     .from("portal_nt_projetos_PRINCIPAL")
     .select("codigo, nome")
-    .eq("empresa", acc.name);
+    .eq("empresa", acc.name)
+    .order("codigo")
+    .range(de, ate));
 
   if (!projetos || projetos.length === 0) return;
 

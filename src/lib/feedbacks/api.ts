@@ -22,6 +22,7 @@ import type {
   StatusOportunidade,
   TipoFeedback,
 } from "./types";
+import { paginar } from "@/lib/db/paginar";
 
 // Transforma PostgrestError do Supabase (que não é instanceof Error) em Error
 // nativo com mensagem legível. Sem isso, "throw error" + String(e) vira
@@ -192,13 +193,17 @@ export async function registrarEquipamentoCliente(
 export async function listarOportunidades(
   status: StatusOportunidade | "todas" = "aberta"
 ): Promise<Oportunidade[]> {
-  let q = supabase
-    .from("feedback_oportunidades")
-    .select("*")
-    .order("prioridade", { ascending: false })
-    .order("computado_em", { ascending: false });
-  if (status !== "todas") q = q.eq("status", status);
-  const { data, error } = await q;
+  // em páginas: já são >1000 abertas e o PostgREST corta em 1000
+  const { data, error } = await paginar<Oportunidade>((de, ate) => {
+    let q = supabase
+      .from("feedback_oportunidades")
+      .select("*")
+      .order("prioridade", { ascending: false })
+      .order("computado_em", { ascending: false })
+      .order("id");
+    if (status !== "todas") q = q.eq("status", status);
+    return q.range(de, ate);
+  });
   if (error) throw wrapErr(error);
   return (data || []) as Oportunidade[];
 }

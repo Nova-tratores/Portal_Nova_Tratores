@@ -1,5 +1,6 @@
 import { supabaseVE } from "./supabase";
 import { carregarSelicCache, calcularSelicAcumulada, calcularDiasCorridos } from "./selic";
+import { paginar } from "@/lib/db/paginar";
 
 export interface ProdutoVE {
   codigo_produto: number;
@@ -219,7 +220,8 @@ export async function buscarMaquinasDemonstracao(contaFiltro?: string): Promise<
 }
 
 export async function buscarPecasPorTipo(contaFiltro?: string) {
-  const { data } = await supabaseVE.from("produto_tipo").select("*");
+  // em páginas: ~10 mil linhas, o PostgREST corta em 1000
+  const { data } = await paginar<any>((de, ate) => supabaseVE.from("produto_tipo").select("*").order("id").range(de, ate));
   const tipos = data || [];
   const produtosRaw = await fetchAllProdutos(contaFiltro);
   const produtosMap = new Map(produtosRaw.map((p: any) => [p.codigo_produto, p]));

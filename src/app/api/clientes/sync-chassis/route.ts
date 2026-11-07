@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { ImapFlow } from "imapflow";
 import { protegerRotaOuInterna } from "@/lib/auth/chamada-interna";
+import { paginar } from "@/lib/db/paginar";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -104,9 +105,11 @@ export async function POST(req: NextRequest) {
       const todosChassisDB = (chassisSemEmail || []).map(c => c.chassis);
 
       // Ver quais ja tem emails
-      const { data: jaTemEmail } = await supabase
+      const { data: jaTemEmail } = await paginar<{ chassis: string }>((de, ate) => supabase
         .from("portal_nt_projetos_emails")
-        .select("chassis");
+        .select("chassis")
+        .order("id")
+        .range(de, ate));
       const jaProcessados = new Set((jaTemEmail || []).map(e => e.chassis));
 
       const chassisParaBuscar = todosChassisDB.filter(ch => !jaProcessados.has(ch));

@@ -7,6 +7,7 @@ import { estadoPorta } from '@/lib/omie/porta';
 import { descreverQuando, proximaExecucao, validarHorario, type Agendamento, type CamposHorario } from './regras';
 import { estadoMotor, executar, invalidarLista, lerAgendamentos } from './motor';
 import { TAREFAS } from './tarefas';
+import { paginar } from '@/lib/db/paginar';
 
 export const MSG_MIGRACAO = 'Falta aplicar a migration sql/agendador.sql no banco — enquanto isso os agendamentos internos seguem como antes (sem histórico nem botões).';
 
@@ -49,8 +50,9 @@ export async function montarPainel() {
     selecionarRodadas((c) => sb.from('cron_runs').select(c).eq('job', a.chave).order('iniciado_em', { ascending: false }).limit(1))
       .then((r) => r[0] ?? null).catch(() => null)));
 
-  const hoje = await selecionarRodadas((c) => sb.from('cron_runs').select(c)
-    .gte('iniciado_em', inicioDoDiaSP()).order('iniciado_em', { ascending: true }).limit(5000)).catch(() => []);
+  // em páginas: já passa de 1000 rodadas por dia e o .limit(5000) não escapa do corte do PostgREST
+  const hoje = await selecionarRodadas((c) => paginar((de, ate) => sb.from('cron_runs').select(c)
+    .gte('iniciado_em', inicioDoDiaSP()).order('iniciado_em', { ascending: true }).order('id').range(de, ate))).catch(() => []);
 
   const { data: batida } = await sb.from('agendador_estado').select('batida_em,iniciado_em,versao').eq('id', 1).maybeSingle();
 

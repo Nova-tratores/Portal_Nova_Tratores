@@ -18,6 +18,7 @@ import {
   FileText, Calendar, User, Hash,
   CheckCircle, Upload, Paperclip, X, CreditCard, Package, ExternalLink, Search, Send
 } from 'lucide-react'
+import { paginar } from '@/lib/db/paginar'
 
 export default function NovoPagarReceber() {
   const { log: auditLog } = useAuditLog()
@@ -89,10 +90,12 @@ export default function NovoPagarReceber() {
 
       const [{ data: fornData }, { data: reqData, error: reqError }] = await Promise.all([
         supabase.from('Fornecedores').select('*').order('nome', { ascending: true }),
-        supabase.from('Requisicao')
+        // em páginas: são ~2,5 mil requisições no financeiro e o PostgREST corta em 1000
+        paginar((de, ate) => supabase.from('Requisicao')
           .select('id, titulo, numero_nota, foto_nf, boleto_fornecedor, recibo_fornecedor, valor_despeza, tipo, fornecedor, solicitante, setor, data, obs, status')
           .eq('status', 'financeiro')
           .order('id', { ascending: false })
+          .range(de, ate))
       ])
 
       if (reqError) console.error('[Init] Erro Supabase:', reqError)
