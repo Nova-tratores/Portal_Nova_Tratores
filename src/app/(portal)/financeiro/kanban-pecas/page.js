@@ -74,6 +74,17 @@ export default function Kanban() {
  // Card aberto num ref: o canal do realtime guarda o carregarDados do 1º render
  const tarefaSelecionadaRef = useRef(null)
  useEffect(() => { tarefaSelecionadaRef.current = tarefaSelecionada }, [tarefaSelecionada])
+ // Altura do quadro = o que sobra abaixo do cabeçalho e da faixa (09/11/2026). O calc fixo com 64px deixava
+ // uns 20px a mais e a página rolava junto com o quadro (mesmo conserto dos Recebimentos do Financeiro).
+ const telaRef = useRef(null)
+ useEffect(() => {
+   const el = telaRef.current
+   if (!el) return
+   const ajustar = () => { el.style.height = `${Math.max(360, window.innerHeight - (el.getBoundingClientRect().top + window.scrollY))}px` }
+   ajustar()
+   window.addEventListener('resize', ajustar)
+   return () => window.removeEventListener('resize', ajustar)
+ }, [loading])
  const router = useRouter()
 
  const colunas = [
@@ -361,10 +372,11 @@ export default function Kanban() {
  const valorIndividual = tarefaSelecionada ? (tarefaSelecionada.valor_servico / (tarefaSelecionada.qtd_parcelas || 1)) : 0;
 
  return (
-  <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Inter, sans-serif' }}>
+  <div ref={telaRef} style={{ height: 'calc(100dvh - 84px)', display: 'flex', flexDirection: 'column', fontFamily: 'Inter, sans-serif' }}>
+   {/* sem overflow nesta div: ela viraria o contêiner de rolagem e a faixa (sticky) abriria um vão em cima */}
    <FinanceiroNav />
 
-   <main style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 56px)', overflow: 'hidden' }}>
+   <main style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
     <header className="fin-k-header" style={{ padding: '20px 32px 16px' }}>
 
      <div className="fin-k-toolbar" style={{ display:'flex', gap:'20px', flexWrap:'wrap', justifyContent: 'flex-start' }}>
@@ -377,7 +389,7 @@ export default function Kanban() {
     </header>
 
     {/* Uma rolagem só: o board inteiro desce junto (as colunas não rolam individualmente) */}
-    <div className="fin-k-board" style={{ flex: 1, display: 'flex', alignItems: 'flex-start', gap: '0', overflowX: 'auto', overflowY: 'auto', padding: '0 clamp(10px, 4vw, 50px) 40px', boxSizing: 'border-box', minWidth: 0 }}>
+    <div className="fin-k-board" style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'flex-start', gap: '0', overflowX: 'auto', overflowY: 'auto', padding: '0 clamp(10px, 4vw, 50px) 40px', boxSizing: 'border-box', minWidth: 0 }}>
      {colunas.map(col => {
       const cardsCol = chamadosFiltrados.filter(c => {
         if (col.id === 'gerar_boleto') return c.status === 'gerar_boleto' || c.status === 'validar_pix';
