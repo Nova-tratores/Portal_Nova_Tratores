@@ -240,6 +240,15 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
     if (de.slice(0, 4) === ate.slice(0, 4)) return `${m(de).slice(0, 3)}. – ${m(ate).slice(0, 3)}. de ${ate.slice(0, 4)}`
     return `${m(de).slice(0, 3)}. de ${de.slice(0, 4)} – ${m(ate).slice(0, 3)}. de ${ate.slice(0, 4)}`
   }, [vista, dia, faixa])
+  // forma curta para o celular ("9 nov. 2026", "nov. 2026", "out. – nov. 2026")
+  const tituloCurto = useMemo(() => {
+    const m = (d: string) => MESES[Number(d.slice(5, 7)) - 1].slice(0, 3) + '.'
+    if (vista === 'dia' || vista === 'pessoas') return `${Number(dia.slice(8, 10))} ${m(dia)} ${dia.slice(0, 4)}`
+    if (vista === 'mes') return `${m(dia)} ${dia.slice(0, 4)}`
+    const { de, ate } = faixa
+    if (de.slice(0, 7) === ate.slice(0, 7)) return `${m(de)} ${de.slice(0, 4)}`
+    return `${m(de)} – ${m(ate)} ${ate.slice(0, 4)}`
+  }, [vista, dia, faixa])
 
   // ---------- criar
   const modoTecnicos = modo === 'tecnicos'
@@ -496,7 +505,7 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
         <button className="gc-btn-hoje" onClick={() => setDia(hojeSP())} title={`${DIAS_LONGOS[diaDaSemana(hoje)]}, ${Number(hoje.slice(8, 10))} de ${MESES[Number(hoje.slice(5, 7)) - 1]} (T)`}>Hoje</button>
         <button className="gc-icone gc-icone-p" style={{ width: 32, height: 32 }} aria-label="Anterior" title="Anterior (K)" onClick={() => andar(-1)}><ChevronLeft size={20} /></button>
         <button className="gc-icone gc-icone-p" style={{ width: 32, height: 32 }} aria-label="Próximo" title="Próximo (J)" onClick={() => andar(1)}><ChevronRight size={20} /></button>
-        <span className="gc-titulo-per">{tituloPeriodo}</span>
+        <span className="gc-titulo-per" title={tituloPeriodo}><span className="gc-tp-longo">{tituloPeriodo}</span><span className="gc-tp-curto">{tituloCurto}</span></span>
         <div className="gc-direita">
           <div className="gc-busca">
             <Search size={18} className="gc-muted" />

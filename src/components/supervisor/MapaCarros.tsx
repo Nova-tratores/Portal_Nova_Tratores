@@ -706,11 +706,11 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       {/* tema escuro (auditoria 06/11/2026): os painéis e botões sobre o mapa tinham fundo branco fixo, mas o
           globals.css clareia o texto escrito em cinza-escuro — "desligado" e afins sumiam. No escuro o fundo
           deles também fica escuro. */}
-      <style>{`[data-theme="dark"] .mapa-carros [style*="background: rgba(255, 255, 255, 0.97)"] { background: color-mix(in srgb, var(--portal-bg-card) 96%, transparent) !important; }`}</style>
+      <style>{`[data-theme="dark"] .mapa-carros [style*="background: rgba(255, 255, 255, 0.97)"] { background: color-mix(in srgb, var(--portal-bg-card) 96%, transparent) !important; } .mapa-filtros > button { flex: none; white-space: nowrap; } .mapa-filtros::-webkit-scrollbar { display: none; }`}</style>
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
 
       {/* Painel de controle */}
-      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 1000, background: 'rgba(255,255,255,0.97)', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', width: isMobile ? 'min(190px, calc(100% - 20px))' : 240, maxHeight: isMobile ? '45%' : 'calc(100% - 20px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: isMobile ? 52 : 10, left: 10, zIndex: 1000, background: 'rgba(255,255,255,0.97)', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', width: isMobile ? 'min(190px, calc(100% - 20px))' : 240, maxHeight: isMobile ? '45%' : 'calc(100% - 20px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {!carroSel ? (
           <>
             <div style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontSize: 12, fontWeight: 700, color: '#64748B', letterSpacing: 0.3 }}>
@@ -833,7 +833,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
 
       {/* Liga/desliga as camadas de contexto (aparecem quando a tela passou os dados) */}
       {(locais.length > 0 || visitas.length > 0 || ehFrota) && (
-        <div style={{ position: 'absolute', ...(isMobile ? { top: 10, right: 10, flexDirection: 'column', alignItems: 'flex-end' } as React.CSSProperties : { bottom: 12, right: 12 }), zIndex: 1000, display: 'flex', gap: 6 }}>
+        <div className="mapa-filtros" style={{ position: 'absolute', ...(isMobile ? { top: 8, left: 8, right: 8, flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 2 } as React.CSSProperties : { bottom: 12, right: 12 }), zIndex: 1000, display: 'flex', gap: 6 }}>{/* celular: uma linha no topo que rola de lado (empilhados, cobriam o painel da frota; auditoria 06/11/2026) */}
           {visitas.length > 0 && (
             <button
               onClick={() => setMostrarVisitas((v) => !v)}

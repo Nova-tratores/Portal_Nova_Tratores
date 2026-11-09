@@ -30,4 +30,10 @@ ${PESADO},
   .mkt-vn .mkt-abas { flex-wrap: nowrap !important; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none }
   .mkt-vn .mkt-abas > * { flex: none }
 }
+/* celular (auditoria 06/11/2026): "R$ 38.534,00" não cabia no indicador e a página rolava de lado (396 px a 360) */
+@media (max-width: 480px) {
+  .mkt-vn .mkt-kpi { min-width: 0 !important; flex-basis: calc(50% - 6px) !important; padding: 12px !important; gap: 9px !important }
+  .mkt-vn .mkt-kpi-v { font-size: 18px !important; white-space: normal !important; overflow-wrap: anywhere }
+  .mkt-vn select { min-width: 0; max-width: 100% }
+}
 `

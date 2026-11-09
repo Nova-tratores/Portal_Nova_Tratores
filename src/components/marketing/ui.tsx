@@ -231,7 +231,7 @@ export function Kpi({
   return (
     <div
       title={dica}
-      className="mkt-card"
+      className="mkt-card mkt-kpi"
       style={{
         background: 'var(--portal-bg-card)',
         border: `1px solid ${alerta ? 'color-mix(in srgb, #dc2626 45%, var(--portal-border))' : 'var(--portal-border)'}`,
@@ -247,7 +247,7 @@ export function Kpi({
       <IconeQuadrado cor={c} tamanho={40}>{iconeDoKpi(rotulo)}</IconeQuadrado>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontSize: 13, color: 'var(--portal-text-muted, #475569)' }}>{rotulo}</div>
-        <div style={{ fontSize: 22, fontWeight: 500, letterSpacing: '-.01em', fontVariantNumeric: 'tabular-nums', color: 'var(--portal-text)', marginTop: 1, whiteSpace: 'nowrap' }}>
+        <div className="mkt-kpi-v" style={{ fontSize: 22, fontWeight: 500, letterSpacing: '-.01em', fontVariantNumeric: 'tabular-nums', color: 'var(--portal-text)', marginTop: 1, whiteSpace: 'nowrap' }}>
           {valor}
         </div>
       </div>

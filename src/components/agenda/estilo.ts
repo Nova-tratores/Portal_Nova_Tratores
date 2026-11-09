@@ -17,6 +17,7 @@ export const CSS_AGENDA = `
 .gc-btn-hoje{height:36px;padding:0 16px;border-radius:18px;border:1px solid var(--gc-linha);background:transparent;cursor:pointer;font-weight:500;margin-right:8px}
 .gc-btn-hoje:hover{background:var(--gc-hover)}
 .gc-titulo-per{font-size:22px;margin-left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.gc-tp-curto{display:none}
 .gc-direita{margin-left:auto;display:flex;align-items:center;gap:6px}
 .gc-busca{display:flex;align-items:center;gap:6px;height:40px;padding:0 10px;border-radius:8px;background:var(--gc-hover);width:260px}
 .gc-busca input{border:none;outline:none;background:transparent;color:var(--gc-txt);width:100%;font-size:14px}
@@ -265,6 +266,8 @@ export const CSS_AGENDA = `
   .gc-logo,.gc-so-largo{display:none}
   .gc-btn-hoje{padding:0 10px;margin-right:2px}
   .gc-titulo-per{font-size:15px;margin-left:2px}
+  /* auditoria 06/11/2026: "9 de nove…" cortado — no celular vai a forma curta ("9 nov. 2026") */
+  .gc-tp-longo{display:none}.gc-tp-curto{display:inline}
   .gc-select-vista{padding:0 4px;max-width:96px}
   .gc-topo-esc{white-space:nowrap;font-size:11px;left:0}
 }

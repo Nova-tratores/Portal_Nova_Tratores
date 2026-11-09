@@ -225,7 +225,7 @@ function StatCard({ label, valor, cor, compacto }: { label: string; valor: numbe
   return (
     <div
       style={{
-        flex: compacto ? '1 1 30%' : '1 1 150px',
+        flex: compacto ? '1 1 40%' : '1 1 150px', // celular: 2 por linha (3 cortavam o rótulo; auditoria 06/11/2026)
         background: 'var(--portal-bg-card)',
         border: '1px solid var(--portal-border)',
         borderLeft: `4px solid ${cor}`,
@@ -234,7 +234,7 @@ function StatCard({ label, valor, cor, compacto }: { label: string; valor: numbe
         minWidth: 0,
       }}
     >
-      <div style={{ fontSize: compacto ? 10.5 : 12, color: 'var(--portal-text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+      <div style={{ fontSize: compacto ? 11.5 : 12, color: 'var(--portal-text-muted)', ...(compacto ? { lineHeight: 1.25 } : { whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }) }}>{label}</div>
       <div style={{ fontSize: compacto ? 20 : 26, fontWeight: 800, color: 'var(--portal-text)' }}>{valor}</div>
     </div>
   );

@@ -978,7 +978,7 @@ function DashboardAgrupadoInner() {
                 {emailsCarregados && <span className="text-zinc-500 ml-3">{emails.length} emails</span>}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full">
               <a
                 href="/revisoes/vendidos"
                 title="Tratores vendidos recentemente: 30, 60 e 90 dias da venda, cliente, localização e se já estão no controle"
