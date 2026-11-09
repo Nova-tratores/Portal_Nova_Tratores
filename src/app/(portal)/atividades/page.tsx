@@ -91,17 +91,31 @@ function textoDetalhes(entry: AuditEntry): string {
     const status = d.status === 'aplicado' ? '' : ` · Status: ${d.status}`
     return `${itens.join(' | ')} · Motivo: ${d.motivo ?? '—'}${status}`
   }
+  // posição/tamanho de um bloco no mapa (Opa, Planta): frase no lugar de "h: 12 · w: 7.7 · x: 40.2 · y: 83.6"
+  // (auditoria 06/11/2026: dados técnicos crus para o usuário)
+  const COORD = ['x', 'y', 'w', 'h', 'largura', 'altura']
+  const temPos = 'x' in d || 'y' in d, temTam = 'w' in d || 'h' in d || 'largura' in d || 'altura' in d
+  const frases: string[] = []
+  if (temPos || temTam) {
+    const andar = d.andar != null && d.andar !== '' ? ` (andar ${ANDAR[String(d.andar)] ?? String(d.andar)})` : ''
+    frases.push(`Mudou ${temPos && temTam ? 'a posição e o tamanho' : temPos ? 'a posição' : 'o tamanho'} no mapa${andar}`)
+  }
   const partes = Object.entries(d)
-    .filter(([, v]) => v != null && v !== '' && !(Array.isArray(v) && v.length === 0))
+    .filter(([k, v]) => v != null && v !== '' && !(Array.isArray(v) && v.length === 0) && !((temPos || temTam) && (COORD.includes(k) || k === 'andar')))
     .map(([k, v]) => {
       const val = typeof v === 'object' ? JSON.stringify(v) : String(v)
-      if (k === 'campo') return `Campo: ${val}`
-      if (k === 'de') return `De: ${val}`
-      if (k === 'para') return `Para: ${val}`
-      if (k === 'status') return `Status: ${val}`
-      return `${k}: ${val}`
+      return `${ROTULO_CHAVE[k] ?? k.charAt(0).toUpperCase() + k.slice(1).replace(/_/g, ' ')}: ${val}`
     })
-  return partes.length ? partes.join(' · ') : '—'
+  const tudo = [...frases, ...partes]
+  return tudo.length ? tudo.join(' · ') : '—'
+}
+
+const ANDAR: Record<string, string> = { t: 'térreo', terreo: 'térreo', '1': '1º', '2': '2º', s: 'superior', m: 'mezanino' }
+const ROTULO_CHAVE: Record<string, string> = {
+  campo: 'Campo', de: 'De', para: 'Para', status: 'Status', tipo: 'Tipo', codigo: 'Código', quantidade: 'Quantidade',
+  qtd: 'Quantidade', descricao: 'Descrição', nome: 'Nome', motivo: 'Motivo', obs: 'Observação', observacao: 'Observação',
+  valor: 'Valor', setor: 'Setor', local: 'Local', cor: 'Cor', forma: 'Forma', cliente: 'Cliente', os: 'OS', numero: 'Número',
+  codigo_produto: 'Cód. Omie', caracteristica: 'Característica', empresa: 'Empresa', conta: 'Conta', usuario: 'Usuário', familia: 'Família',
 }
 
 function AtividadesPageInner() {

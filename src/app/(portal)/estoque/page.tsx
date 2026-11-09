@@ -30,6 +30,18 @@ export default function EstoqueBuscaPage() {
   const [salvandoObs, setSalvandoObs] = useState(false);
   const [obsSalva, setObsSalva] = useState(false);
 
+  // Busca por NOME (auditoria 06/11/2026): texto com espaço ou só letras vira lista de sugestões do cadastro;
+  // código que o Omie não acha também cai nas sugestões. Tocar numa sugestão consulta pelo código dela.
+  const [sugestoes, setSugestoes] = useState<{ codigo: string; descricao: string; estoque: number }[] | null>(null);
+  const sugerir = useCallback(async (q: string) => {
+    try {
+      const r = await fetchAuth(`/api/estoque/sugerir?q=${encodeURIComponent(q)}${contaParam}`);
+      const d = await r.json();
+      setSugestoes(d.itens || []);
+      return (d.itens || []).length as number;
+    } catch { setSugestoes([]); return 0; }
+  }, [contaParam]);
+
   const buscar = useCallback(async (override?: string) => {
     const c = (override ?? codigo).trim();
     if (!c) return;
@@ -38,11 +50,15 @@ export default function EstoqueBuscaPage() {
     setDados(null);
     setCmc(null);
     setObservacoes('');
+    setSugestoes(null);
     try {
+      const pareceNome = /\s/.test(c) || (/[a-zà-ú]{3,}/i.test(c) && !/\d/.test(c));
+      if (pareceNome && !override) { await sugerir(c); return; }
       const r = await fetchAuth(`/api/estoque/buscar?codigo=${encodeURIComponent(c)}${contaParam}`);
       const d = await r.json();
       if (d.erro) {
-        setErro(d.erro);
+        const n = override ? 0 : await sugerir(c);
+        setErro(n ? `Nenhum produto com o código "${c}". Veja abaixo os que têm isso no nome ou no código.` : d.erro);
         return;
       }
       setDados(d as BuscarResult);
@@ -64,7 +80,7 @@ export default function EstoqueBuscaPage() {
     } finally {
       setCarregando(false);
     }
-  }, [codigo, contaParam]);
+  }, [codigo, contaParam, sugerir]);
 
   async function salvarObs() {
     const c = codigo.trim();
@@ -104,7 +120,7 @@ export default function EstoqueBuscaPage() {
           value={codigo}
           onChange={(e) => setCodigo(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && buscar()}
-          placeholder="Codigo do produto"
+          placeholder="Código ou nome do produto"
           style={{ padding: '10px 16px', border: '1px solid #e0e0e0', background: '#fff', color: '#333', borderRadius: 10, fontSize: 13, width: 320, maxWidth: '100%', minWidth: 0, outline: 'none' }}
           className="est-grow"
         />
@@ -118,6 +134,22 @@ export default function EstoqueBuscaPage() {
         <ContaSelector />
       </div>
 
+      {sugestoes && (
+        <div style={{ marginBottom: 18, border: '1px solid var(--portal-border, #e5e7eb)', borderRadius: 12, overflow: 'hidden', background: 'var(--portal-bg-card, #fff)' }}>
+          <div style={{ padding: '8px 14px', fontSize: 12.5, color: 'var(--portal-text-muted, #64748b)', borderBottom: '1px solid var(--portal-border, #e5e7eb)' }}>
+            {sugestoes.length ? `${sugestoes.length === 20 ? 'Primeiros 20' : sugestoes.length} produto(s) — toque para consultar` : 'Nenhum produto com esse nome. Tente outra palavra ou o código.'}
+          </div>
+          {sugestoes.map((s) => (
+            <button key={s.codigo} type="button" onClick={() => { setCodigo(s.codigo); buscar(s.codigo); }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', minHeight: 48, padding: '8px 14px', border: 'none', borderTop: '1px solid var(--portal-border, #f1f5f9)', background: 'transparent', color: 'var(--portal-text, #333)', textAlign: 'left', cursor: 'pointer', font: 'inherit' }}>
+              <code style={{ flex: 'none', fontSize: 12.5, color: '#dc2626', minWidth: 72 }}>{s.codigo}</code>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 13.5, overflowWrap: 'anywhere' }}>{s.descricao}</span>
+              <span style={{ flex: 'none', fontSize: 12, color: s.estoque > 0 ? '#16a34a' : 'var(--portal-text-muted, #94a3b8)' }}>{s.estoque > 0 ? `${s.estoque} em estoque` : 'sem estoque'}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
       {erro && (
         <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', padding: '10px 14px', borderRadius: 10, marginBottom: 12, fontSize: 12 }}>{erro}</div>
       )}
@@ -126,7 +158,7 @@ export default function EstoqueBuscaPage() {
         <>
           <Card titulo="Produto">
             <InfoGrid>
-              <InfoItem label="Codigo" valor={dados.produto.codigo} />
+              <InfoItem label="Código" valor={dados.produto.codigo} />
               <InfoItem label="Descricao" valor={dados.produto.descricao} />
               <InfoItem label="Familia" valor={dados.produto.familia} />
               <InfoItem label="Marca" valor={dados.produto.marca} />

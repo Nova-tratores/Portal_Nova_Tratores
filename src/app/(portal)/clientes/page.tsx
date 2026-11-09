@@ -61,6 +61,25 @@ interface PedidoVenda {
 
 // Nº de nota pra mostrar: sem os zeros à esquerda do Omie (0000000000065 → 65)
 function fmtNF(n: string | null | undefined) { return String(n || '').trim().replace(/^0+(?=\d)/, '') }
+
+/** Telefone que liga ao tocar (tel:) + atalho do WhatsApp quando é celular (auditoria 06/11/2026).
+ *  Mostra formatado — "() 14996689475" (DDD vazio no cadastro) vira "(14) 99668-9475". */
+function LinkTelefone({ tel }: { tel: string }) {
+  let dig = String(tel || '').replace(/\D/g, '')
+  if (dig.length > 11 && dig.startsWith('55')) dig = dig.slice(2)
+  const ok = dig.length === 10 || dig.length === 11
+  const texto = ok ? `(${dig.slice(0, 2)}) ${dig.slice(2, dig.length - 4)}-${dig.slice(-4)}` : tel.replace(/^\(\s*\)\s*/, '')
+  const parar = (e: React.MouseEvent) => e.stopPropagation()
+  return (
+    <>
+      <a href={`tel:${dig || tel}`} onClick={parar} style={{ color: 'inherit', textDecoration: 'none' }} title="Ligar">{texto}</a>
+      {dig.length === 11 && (
+        <a href={`https://wa.me/55${dig}`} target="_blank" rel="noreferrer" onClick={parar} title="Abrir no WhatsApp"
+          style={{ fontSize: 11, fontWeight: 600, color: '#16a34a', textDecoration: 'none', border: '1px solid #bbf7d0', borderRadius: 99, padding: '1px 7px' }}>WhatsApp</a>
+      )}
+    </>
+  )
+}
 function formatCurrency(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
 function formatDate(d: string | null) {
   if (!d) return '-'
@@ -3383,7 +3402,7 @@ function ClientesPageInner() {
                     )}
                     {cli.telefone && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 500 }}>
-                        <Phone size={12} style={{ flexShrink: 0 }} /> {cli.telefone}
+                        <Phone size={12} style={{ flexShrink: 0 }} /> <LinkTelefone tel={cli.telefone} />
                         <button onClick={e => copiarContato(e, cli.telefone)} title="Copiar telefone" className="cli-copiar" style={{ ...btnCopiar, color: copiadoContato === cli.telefone ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.telefone ? <Check size={12} /> : <Copy size={12} />}</button>
                       </span>
                     )}
@@ -3436,7 +3455,7 @@ function ClientesPageInner() {
                   )}
                   {(cli.telefone || cli.email) && (
                     <div style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', fontWeight: 500, marginTop: 3, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                      {cli.telefone && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Phone size={11} /> {cli.telefone}
+                      {cli.telefone && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Phone size={11} /> <LinkTelefone tel={cli.telefone} />
                         <button onClick={e => copiarContato(e, cli.telefone)} title="Copiar telefone" className="cli-copiar" style={{ ...btnCopiar, color: copiadoContato === cli.telefone ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.telefone ? <Check size={12} /> : <Copy size={12} />}</button></span>}
                       {cli.email && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Mail size={11} /> {cli.email}
                         <button onClick={e => copiarContato(e, cli.email)} title="Copiar email" className="cli-copiar" style={{ ...btnCopiar, color: copiadoContato === cli.email ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.email ? <Check size={12} /> : <Copy size={12} />}</button></span>}

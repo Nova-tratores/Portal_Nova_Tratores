@@ -1,5 +1,5 @@
 'use client'
-import { use, useEffect, useRef } from 'react'
+import { use, useEffect, useRef, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
@@ -27,6 +27,9 @@ export default function CrmVendasPage({ searchParams }: { searchParams: Promise<
   const { temAcesso, loading } = usePermissoes(userProfile?.id)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const podeVer = !loading && !!userProfile && temAcesso('crm-vendas')
+  const [deuSinal, setDeuSinal] = useState(false)
+  const [talvezNaoAbriu, setTalvezNaoAbriu] = useState(false)
+  const [fechouAviso, setFechouAviso] = useState(false)
 
   useEffect(() => {
     if (!podeVer) return
@@ -45,8 +48,12 @@ export default function CrmVendasPage({ searchParams }: { searchParams: Promise<
 
     const onMsg = (e: MessageEvent) => {
       if (e.origin !== ORIGEM_VENDAS || e.source !== iframeRef.current?.contentWindow) return
+      setDeuSinal(true)
       if (e.data?.tipo === 'vendas:precisa-sessao') enviarSessao()
     }
+    // sem sinal do app em 10 s: oferece abrir em nova aba (auditoria 06/11/2026: a tela ficava cinza com o
+    // ícone de página quebrada quando o app não abria dentro do portal)
+    const t = setTimeout(() => setTalvezNaoAbriu(true), 10_000)
     window.addEventListener('message', onMsg)
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((evento) => {
@@ -56,6 +63,7 @@ export default function CrmVendasPage({ searchParams }: { searchParams: Promise<
     return () => {
       window.removeEventListener('message', onMsg)
       subscription.unsubscribe()
+      clearTimeout(t)
     }
   }, [podeVer])
 
@@ -63,7 +71,14 @@ export default function CrmVendasPage({ searchParams }: { searchParams: Promise<
 
   return (
     // dvh = altura VISÍVEL (no celular a barra do navegador não corta o rodapé); no PC é igual a vh
-    <div style={{ width: '100%', height: 'calc(100dvh - 84px)', overflow: 'hidden' }}>
+    <div style={{ position: 'relative', width: '100%', height: 'calc(100dvh - 84px)', overflow: 'hidden' }}>
+      {podeVer && talvezNaoAbriu && !deuSinal && !fechouAviso && (
+        <div role="status" style={{ position: 'absolute', left: 12, right: 12, bottom: 12, zIndex: 5, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 14px', borderRadius: 12, background: 'var(--portal-bg-card, #fff)', border: '1px solid var(--portal-border, #e5e7eb)', boxShadow: '0 8px 24px rgba(0,0,0,.15)', fontSize: 14, color: 'var(--portal-text, #111)' }}>
+          <span style={{ flex: '1 1 200px' }}>O CRM Vendas não carregou aqui dentro?</span>
+          <a href={`${ORIGEM_VENDAS}/supervisor${tela}`} target="_blank" rel="noreferrer" style={{ minHeight: 40, display: 'inline-flex', alignItems: 'center', padding: '0 14px', borderRadius: 10, background: '#dc2626', color: '#fff', fontWeight: 600, textDecoration: 'none' }}>Abrir em nova aba</a>
+          <button type="button" onClick={() => setFechouAviso(true)} aria-label="Fechar aviso" style={{ minWidth: 40, minHeight: 40, border: 'none', background: 'transparent', color: 'var(--portal-text-muted, #64748b)', fontSize: 18, cursor: 'pointer' }}>✕</button>
+        </div>
+      )}
       {podeVer && (
         <iframe
           ref={iframeRef}

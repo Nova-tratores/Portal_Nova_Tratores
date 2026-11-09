@@ -131,6 +131,15 @@ function PendenciasInner() {
   const filtra = (p: Pend) => !q || [p.placa, p.titulo, p.responsavel, p.aberta_por].some((s) => s && s.toLowerCase().includes(q));
   const abertas = pendencias.filter((p) => p.status === 'aberta').filter(filtra);
   const resolvidas = pendencias.filter((p) => p.status === 'resolvida').filter(filtra);
+  // celular (auditoria 06/11/2026): 77 pendências abertas, todas expandidas = 19.600 px. Lá elas ficam agrupadas
+  // por veículo e recolhidas; tocar no carro abre as dele. No computador a lista segue igual.
+  const [celular] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 760px)').matches);
+  const gruposPlaca = useMemo(() => {
+    const m = new Map<string, Pend[]>();
+    for (const p of abertas) { const k = p.placa || 'Sem placa'; const l = m.get(k) || []; l.push(p); m.set(k, l); }
+    return [...m.entries()];
+  }, [abertas]);
+  const modeloDe = (placa: string) => { const v = veiculos.find((x) => x.placa === placa); return v ? [v.marca, v.modelo].filter(Boolean).join(' ') : ''; };
 
   const abrirForm = () => {
     setFAberto(true); setFPlaca(''); setFTitulo(''); setFFoto(null); setFFotoPreview(null);
@@ -325,7 +334,19 @@ function PendenciasInner() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {abertas.length === 0 && <div style={{ fontSize: 14, color: 'var(--portal-text)' }}>Nenhuma pendência em aberto. 🎉</div>}
-            {abertas.map((p) => cardPend(p))}
+            {celular && gruposPlaca.length > 1
+              ? gruposPlaca.map(([placa, lista]) => (
+                <details key={placa} open={!!busca.trim()} style={{ border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)' }}>
+                  <summary style={{ display: 'flex', alignItems: 'center', gap: 10, minHeight: 48, padding: '8px 12px', cursor: 'pointer', listStyle: 'none', color: 'var(--portal-text)' }}>
+                    <b style={{ fontSize: 15 }}>{placa}</b>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 12.5, color: 'var(--portal-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{modeloDe(placa)}</span>
+                    <span style={{ flex: 'none', fontSize: 12.5, fontWeight: 700, color: '#dc2626' }}>{lista.length} {lista.length === 1 ? 'pendência' : 'pendências'}</span>
+                    <ChevronDown size={15} style={{ flex: 'none' }} />
+                  </summary>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '0 8px 10px' }}>{lista.map((p) => cardPend(p))}</div>
+                </details>
+              ))
+              : abertas.map((p) => cardPend(p))}
           </div>
 
           {resolvidas.length > 0 && (
