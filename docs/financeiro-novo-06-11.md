@@ -210,3 +210,12 @@ Regras que valem sempre:
 - O Omie devolve duas linhas para o mesmo dinheiro: o título quitado (VENR, COMP, CTEP, MANP, APIP, RPTR/RPTP) e a baixa dele (BAXR/BAXP), com mesmo valor, conta e dia. A rota `/api/dre-financeiro/movimentos` somava as duas.
 - Em outubro, na Nova, isso dava **R$ 1,01 mi a mais nas entradas** (R$ 2,54 mi mostrados) e **R$ 919 mil a mais nas saídas**. Na Castro, R$ 67 mil e R$ 142 mil.
 - Agora, quando um título tem baixa, conta só a baixa (`emDobroTirados` na resposta). Isso corrige também a tela **DRE › Movimentações CC**, que já está publicada com o erro.
+
+## 09/11/2026: o que entrou depois (branch feat/financeiro-novo, sem publicar)
+
+- **Leitura em páginas:** Pessoas, Contas do mês, Banco e Compras leem de 1000 em 1000 linhas (o PostgREST corta em 1000).
+- **Recebimentos do Pós-Vendas e do Peças:** mesmo conserto da altura do Financeiro; o visual ficou igual.
+- **Banco › Empréstimos › Contratos:** sem cadastro novo. As parcelas "Pagamento de Empréstimos" do Omie com a mesma empresa, o mesmo banco e o mesmo total na numeração (x/024) formam um contrato (`src/lib/financeiro/contratos.ts`, rota `/api/dre-financeiro/banco/contratos`). "Falta" é a soma das parcelas em aberto, com o juro dentro, e não o saldo devedor do banco. Achados na Castro: Iritani & Coelho Advogados com 7 parcelas de 2024–25 em aberto (R$ 116,7 mil) e um Bradesco de 6x com 4 em aberto de jul–out/26 (R$ 56,6 mil). Parecem pagas sem baixa no Omie.
+- **Celular:** abaixo de 640 px, as tabelas com `.cx-cartao` viram um cartão por linha.
+- **Compras (C1–C6):** `/financeiro/compras/{mercadoria,tratores,uso-e-consumo,frete,servicos,devolucoes}`, na tela comum das áreas (`ComprasCaixa.tsx`, rota `/api/dre-financeiro/compras`). Cada conta mostra o boleto: código de barras no Omie, foto ou código em `finan_pagar` (pelo `omie_cod_lancamento`) ou boleto agrupado (`boleto_titulos`). Ainda ficam de fora combustível e a manutenção de veículos e do imobilizado. Em novembro, a Nova tem C1 R$ 444 mil e C2 R$ 761 mil, e só 10 contas de compra da Castro têm boleto no portal.
+- **Falta:** o José dizer qual banco tem DDA, como chegam os boletos e o que são C2 e C6. Depois disso: anexar o boleto, pagar pelo portal e o DDA.
