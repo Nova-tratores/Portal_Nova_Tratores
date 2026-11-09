@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom'
 import { X, ExternalLink, MapPin, Wrench, CalendarDays, User, Save, Pin, PinOff, FileText } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
-import { PHASES } from '@/lib/pos/constants'
+import { useFasesDo } from '@/hooks/useFasesQuadro'
 import { corStatusOS } from './status'
 import { novoValorTotal, numeroOS } from '@/lib/lousa/quadro'
 
@@ -41,6 +41,7 @@ export default function FichaOS({ id, tecnicos, onFechar, onMudou }: {
   const [salvando, setSalvando] = useState(false)
   const [form, setForm] = useState({ dia: '', hora: '', tecnico1: '', tecnico2: '', observacoes: '', projeto: '', pedido: '', horas: '', km: '' })
   const [fase, setFase] = useState('')
+  const fasesQ = useFasesDo('pos') // fases do controlador (09/11/2026)
   const { userProfile } = useAuth()
 
   useEffect(() => {
@@ -145,7 +146,7 @@ export default function FichaOS({ id, tecnicos, onFechar, onMudou }: {
             <section className="fo-sec">
               <h4>Fase</h4>
               <select className="fo-in" value={fase} disabled={!pode || salvando || f.faturada} onChange={(e) => { setFase(e.target.value); void trocarFase(e.target.value) }}>
-                {(f.faturada ? PHASES.filter((p) => p === f.status || p === 'Concluída') : PHASES).map((p) => <option key={p} value={p}>{p}</option>)}
+                {(() => { const l = !f.status || fasesQ.chaves.includes(f.status) ? fasesQ.chaves : [f.status, ...fasesQ.chaves]; return (f.faturada ? l.filter((p) => p === f.status || p === 'Concluída') : l).map((p) => <option key={p} value={p}>{fasesQ.nome(p)}</option>) })()}
               </select>
             </section>
 

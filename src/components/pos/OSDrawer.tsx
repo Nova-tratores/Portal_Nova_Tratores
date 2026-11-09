@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "rea
 import { useMarcarCaso } from "@/lib/uso/caso";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE, PHASES } from "@/lib/pos/constants";
+import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE } from "@/lib/pos/constants";
+import { useFasesDo } from "@/hooks/useFasesQuadro";
 import { faltaParaEnviarOmie } from "@/lib/pos/envio-omie-regras";
 import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import type { ClienteOption, ClienteDados, Produto, AlimentacaoItem } from "@/lib/pos/types";
@@ -118,6 +119,8 @@ function horaAtualBR() {
 
 export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriado, tecnicos, userName, onClose, onSaved, valorHora: propValorHora, valorKm: propValorKm, podeEditar = true, podeOmie = true, podeConcluir = true, podeCancelar = true, abrirFaturar = false }: OSDrawerProps) {
   // valor da hora/km DESTA OS (editável com dois cliques na linha); sem ele, o da configuração
+  // fases do controlador (09/11/2026); a fase atual sempre aparece, mesmo se saiu da lista
+  const fasesQ = useFasesDo("pos");
   const [unitHr, setUnitHr] = useState<number | null>(null);
   // faturou agora: o bloco de notas mostra "aguardando" e confere de 15 em 15 s
   const [notasEsperaDesde, setNotasEsperaDesde] = useState<number | null>(null);
@@ -133,6 +136,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [clienteChave, setClienteChave] = useState("");
   const [clienteInfo, setClienteInfo] = useState<ClienteDados | null>(null);
   const [status, setStatus] = useState("Orçamento");
+  const fasesOS = fasesQ.chaves.includes(status) || !status ? fasesQ.chaves : [status, ...fasesQ.chaves];
   // Fase que o BANCO tinha quando a janela carregou (ou depois de uma ação do servidor).
   // O salvar manda junto: se a pessoa não mexeu na fase, o servidor não regrava a fase velha
   // por cima do que o robô ou o Tratorilson moveram enquanto a janela estava aberta.
@@ -1541,7 +1545,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                     title={faturadaEm ? "OS faturada: a fase fica travada (só pode ir para Concluída)" : "Alterar status da OS"}
                     style={{ ...STATUS_BADGE_STYLE(status), border: "none", outline: "none", cursor: podeEditar && !(faturadaEm && status === "Concluída") ? "pointer" : "not-allowed", maxWidth: 340, minWidth: 0, ...(faturadaEm && status === "Concluída" ? { appearance: "none" as const, opacity: 1 } : {}) }}
                   >
-                    {(faturadaEm ? PHASES.filter((p) => p === status || p === "Concluída") : PHASES).map((p) => <option key={p} value={p}>{p}</option>)}
+                    {(faturadaEm ? fasesOS.filter((p) => p === status || p === "Concluída") : fasesOS).map((p) => <option key={p} value={p}>{fasesQ.nome(p)}</option>)}
                   </select>
                 )}
                 {mode === "edit" && faturadaEm && (

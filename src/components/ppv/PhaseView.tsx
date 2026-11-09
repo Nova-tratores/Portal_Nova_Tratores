@@ -6,9 +6,9 @@ import { createPortal } from "react-dom";
 import type { KanbanItem } from "@/lib/ppv/types";
 import { normalizarStatus, formatarDataFrontend, formatarMoeda } from "@/lib/ppv/utils";
 import { STATUS_COLORS, type StatusKey } from "@/lib/ppv/constants";
-import { FASES, faseDoPPVNaTela, faseParaGravarNoPPV, rotuloDaFase } from "@/lib/fases/fases";
+import { FASES, faseDoPPVNaTela, faseParaGravarNoPPV } from "@/lib/fases/fases";
 import RotuloFase from "@/components/fases/RotuloFase";
-import { useRotulosFases } from "@/hooks/useRotulosFases";
+import { useFasesDo } from "@/hooks/useFasesQuadro";
 import { CapaTitulo, CapaFaseValor, CapaBolinhas, CapaLinha, CapaData, CapaTexto, CapaReservar, CapaRodape } from "@/components/comum/CapaCard";
 import { fetchAuth } from "@/lib/auth/client";
 
@@ -68,6 +68,8 @@ export const PHASE_COLORS: Record<string, string> = {
 
 // Colunas = as do POS, na mesma ordem e com o mesmo nome (José, 29/10/2026). Ver lib/fases/fases.ts.
 export const PHASES: string[] = [...FASES];
+/** grupo do quadro para PPV em fase que saiu da lista (controlador de fases, 09/11/2026) */
+const FASE_OUTROS = "Outros";
 
 export const PHASE_SHORT: Record<string, string> = {
   "Orçamento": "Orçamento",
@@ -115,8 +117,9 @@ const MiniCard = memo(function MiniCard({
 }) {
   const statusNorm = normalizarStatus(o.status);
   // coluna/fase mostrada: a da OS quando o PPV é de uma OS (lib/fases/fases.ts)
-  const faseTela = faseDoPPVNaTela(o, o.faseOS);
-  const { rotulos } = useRotulosFases();
+  // fases do quadro do PPV: as do controlador de fases (09/11/2026)
+  const fq = useFasesDo("ppv");
+  const faseTela = faseDoPPVNaTela(o, o.faseOS, fq.chaves);
   const segueOS = !!o.osId && !!o.faseOS && statusNorm !== "Cancelada";
   const nfEmitida = !!(o.faturadoEm || o.nfNumero) && faseTela !== "Concluída";
   const valorFmt = o.valor ? formatarMoeda(parseFloat(String(o.valor))) : "R$ 0,00";
@@ -234,7 +237,7 @@ const MiniCard = memo(function MiniCard({
     <div ref={cardRef} className={`ppv-mini-card ${dragging ? "dragging" : ""}`} draggable={!segueOS} title={segueOS ? `Segue a fase da OS ${o.osId} — mude pela OS` : undefined} onDragStart={dragStart} onDragEnd={dragEnd} onClick={onClick} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}
       style={{ borderTop: `3px solid ${isTipoRem ? "#e8730c" : "#EA580C"}`, display: "flex", flexDirection: "column", gap: 8, borderRadius: 12, padding: "10px 12px" }}>
       <CapaTitulo numero={isTipoRem ? `REM ${numero}` : numero} cliente={o.cliente} corNumero={tituloColor} />
-      <CapaFaseValor fase={faseTela} rotulo={rotuloDaFase(faseTela, rotulos)} fases={PHASES} rotuloDe={(p) => rotuloDaFase(p, rotulos)}
+      <CapaFaseValor fase={faseTela} rotulo={fq.nome(faseTela)} fases={fq.chaves} rotuloDe={(p) => fq.nome(p)}
         onChange={onStatusChange && !segueOS ? (f) => onStatusChange(o.id, faseParaGravarNoPPV(f)) : undefined} valor={valorFmt} />
       {nfEmitida && (
         <span title={o.nfNumero ? `NF-e ${semZeros(o.nfNumero)}` : "Faturado no Omie"} style={{ alignSelf: "flex-start", fontSize: 11, color: "#047857", background: "#ECFDF5", border: "1px solid #A7F3D0", borderRadius: 999, padding: "2px 9px" }}>
@@ -307,33 +310,38 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onStatusCha
     });
   };
 
+  const { chaves: fasesPPV } = useFasesDo("ppv");
   const filtered = useMemo(() => {
     // Busca sem maiúscula/acento
     return orders.filter(
       (o) =>
         casaBusca(searchTerm, o.cliente, o.id, o.tecnico) &&
-        (!activePhase || faseDoPPVNaTela(o, o.faseOS) === activePhase)
+        (!activePhase || faseDoPPVNaTela(o, o.faseOS, fasesPPV) === activePhase)
     );
-  }, [orders, searchTerm, activePhase]);
+  }, [orders, searchTerm, activePhase, fasesPPV]);
 
   const counts = useMemo(() => {
     const map: Record<string, number> = {};
     for (const o of orders) {
-      const norm = faseDoPPVNaTela(o, o.faseOS);
+      const norm = faseDoPPVNaTela(o, o.faseOS, fasesPPV);
       map[norm] = (map[norm] || 0) + 1;
     }
     return map;
-  }, [orders]);
+  }, [orders, fasesPPV]);
 
   const grouped = useMemo(() => {
     if (activePhase) return null;
     const map: Record<string, KanbanItem[]> = {};
-    for (const phase of PHASES) {
-      const items = filtered.filter((o) => faseDoPPVNaTela(o, o.faseOS) === phase);
+    const conjunto = new Set(fasesPPV);
+    for (const phase of fasesPPV) {
+      const items = filtered.filter((o) => faseDoPPVNaTela(o, o.faseOS, fasesPPV) === phase);
       if (items.length > 0) map[phase] = items;
     }
+    // PPV numa fase que saiu do quadro: não some (fica em "Outros")
+    const orfaos = filtered.filter((o) => !conjunto.has(faseDoPPVNaTela(o, o.faseOS, fasesPPV)));
+    if (orfaos.length > 0) map[FASE_OUTROS] = orfaos;
     return map;
-  }, [filtered, activePhase]);
+  }, [filtered, activePhase, fasesPPV]);
 
   return (
     <>
@@ -362,13 +370,13 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onStatusCha
           </div>
         ) : (
           grouped && Object.entries(grouped).map(([phase, items]) => (
-            <div key={phase} className="ppv-phase-group" onDragOver={allowDrop} onDrop={dropOnPhase(phase)}>
+            <div key={phase} className="ppv-phase-group" onDragOver={phase === FASE_OUTROS ? undefined : allowDrop} onDrop={phase === FASE_OUTROS ? undefined : dropOnPhase(phase)}>
               <div className="ppv-phase-group-header" onClick={() => toggleCollapse(phase)}>
                 <span style={{ display: "inline-block", transition: "transform 0.2s", transform: collapsed.has(phase) ? "rotate(-90deg)" : "rotate(0deg)", marginRight: 6 }}>
                   <i className="fas fa-chevron-down" />
                 </span>
-                <span className="ppv-phase-group-dot" style={{ background: PHASE_COLORS[phase] }} />
-                <RotuloFase fase={phase} className="ppv-phase-group-name" />
+                <span className="ppv-phase-group-dot" style={{ background: PHASE_COLORS[phase] || "#64748B" }} />
+                <RotuloFase fase={phase} className="ppv-phase-group-name" modulo="ppv" />
                 <span className="ppv-phase-group-count">{items.length}</span>
                 <div className="ppv-phase-group-line" />
               </div>

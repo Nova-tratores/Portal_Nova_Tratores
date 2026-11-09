@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { gateBtn, estiloSemPermissao } from "@/lib/permissoes/ui";
 import ProjetosBusca, { abrirBuscaTrator } from "./ProjetosBusca";
-import MenuRadial, { BotaoRedondo } from "@/components/comum/MenuRadial";
+import { BotaoRedondo } from "@/components/comum/MenuRadial";
+import MenuSuspenso from "@/components/comum/MenuSuspenso";
+import ControladorFases from "@/components/fases/ControladorFases";
+import { useFasesQuadro } from "@/hooks/useFasesQuadro";
 import { ESTILO_POS_VN, usePosVisualNovo } from "./VisualNovoPOS";
 import { normName } from "@/lib/tecnico-utils";
 import { BTN_BARRA } from "./botoes-barra";
@@ -42,6 +45,14 @@ interface HeaderProps {
 
 export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved, podeCriar = true, tecnicosPerfil = [], tecnicoFiltro = "", onTecnicoFiltro, abertasPorTecnico = {}, ordens = [], onAbrirOS, onBuscaFoco }: HeaderProps) {
   usePosVisualNovo();
+  // Controlador de fases do POS e do PPV (José, 09/11/2026) — abre pelo menu de atalhos
+  const [fasesAberto, setFasesAberto] = useState(false);
+  const { podeEditar: podeEditarFases } = useFasesQuadro();
+  const contagemPOS = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const o of ordens) c[o.status] = (c[o.status] || 0) + 1;
+    return c;
+  }, [ordens]);
   const [showFiltroRelatorio, setShowFiltroRelatorio] = useState(false);
   const [filtroTecnico, setFiltroTecnico] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todas");
@@ -196,21 +207,26 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
         {/* Busca de PROJETOS (tratores): modelo + cliente + final do chassis */}
         <ProjetosBusca semBotao />
 
-        {/* Atalhos num círculo + "+" da Nova ordem, os dois redondos (José, 21/10/2026) */}
+        {/* Atalhos num menu suspenso (José, 09/11/2026: "deixa isso um menu dropdown bonitinho"; antes era o
+            círculo de 21/10) + "+" da Nova ordem */}
         <div className="header-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <style>{ESTILO_POS_VN}</style>
-          <MenuRadial titulo="Atalhos: técnicos, buscar trator, lembretes, relatório, configurações" corGatilho="linear-gradient(135deg, #38bdf8, #0369a1)"
-            centro={{ t: "Buscar trator", sub: "modelo, cliente ou chassi", ic: "fa-tractor", ir: abrirBuscaTrator }}
+          <MenuSuspenso titulo="Atalhos: buscar trator, técnicos, lembretes, relatório, fases e configurações"
             itens={[
-              ...(tecnicosPerfil.length > 0 ? [{ k: "tecnicos", t: "Técnicos", sub: tecnicoFiltro ? `filtrando: ${nomeBonito(tecnicoFiltro).split(" ")[0]}` : "ver as OS de um técnico", ic: "fa-user-gear", cor: "#0369a1", on: !!tecnicoFiltro, ir: () => { setTecBusca(""); setTecOpen(true); } }] : []),
-              { k: "lembretes", t: "Lembretes", sub: "por cliente e máquina", ic: "fa-bell", cor: "#b45309", ir: () => onLembretes?.() },
+              { k: "trator", t: "Buscar trator", sub: "modelo, cliente ou chassi", ic: "fa-tractor", cor: "#0369a1", destaque: true, ir: abrirBuscaTrator },
+              ...(tecnicosPerfil.length > 0 ? [{ k: "tecnicos", grupo: "Ver", t: "Técnicos", sub: tecnicoFiltro ? `filtrando: ${nomeBonito(tecnicoFiltro).split(" ")[0]}` : "ver as OS de um técnico", ic: "fa-user-gear", cor: "#0369a1", on: !!tecnicoFiltro, ir: () => { setTecBusca(""); setTecOpen(true); } }] : []),
+              { k: "lembretes", ...(tecnicosPerfil.length > 0 ? {} : { grupo: "Ver" }), t: "Lembretes", sub: "por cliente e máquina", ic: "fa-bell", cor: "#b45309", ir: () => onLembretes?.() },
               { k: "relatorio", t: "Gerar relatório", sub: "PDF por técnico e tipo", ic: "fa-file-invoice", cor: "#047857", ir: () => setShowFiltroRelatorio(true) },
+              { k: "fases", grupo: "Ajustes", t: "Fases do POS e PPV", sub: podeEditarFases ? "renomear, criar, remover e ordenar" : "ver as fases dos quadros", ic: "fa-layer-group", cor: "#7c3aed", ir: () => setFasesAberto(true) },
               { k: "config", t: "Configurações", sub: "valor da hora e do km", ic: "fa-gear", cor: "#475569", ir: handleOpenConfig },
             ]} />
           <BotaoRedondo icone="fa-plus" titulo={podeCriar ? "Nova ordem de serviço" : "Sem permissão para criar OS"} onClick={onNewOS}
             {...gateBtn(podeCriar)} style={estiloSemPermissao(podeCriar)} />
         </div>
       </header>
+
+      {/* monta só aberto: cada abertura começa do que está salvo */}
+      {fasesAberto && <ControladorFases aberto onFechar={() => setFasesAberto(false)} contagemPOS={contagemPOS} />}
 
       {showFiltroRelatorio && (
         <div

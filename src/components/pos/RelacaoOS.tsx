@@ -9,7 +9,7 @@
 // =============================================
 import { useMemo, useState, useCallback } from "react";
 import type { KanbanCard } from "@/lib/pos/types";
-import { PHASES } from "@/lib/pos/constants";
+import { useFasesDo } from "@/hooks/useFasesQuadro";
 import {
   COLS_RELACAO_OS, COLS_DATA_OS, FASES_OS, FASES_PDF_OS, FASE_PENDENTE_OS, faseOS, rotuloFaseOS, colTextoOS, filtrarOS, ordenarOS,
   resumoFiltrosOS, totaisOS, estaPendente, gerarCSVOS, valorOS, OPCOES_PERIODO, fmtBRL, type ColOSKey, type OrdemOS, type CobrancaOS,
@@ -39,6 +39,7 @@ const btnBase: React.CSSProperties = { display: "inline-flex", alignItems: "cent
 const inputBase: React.CSSProperties = { width: "100%", minWidth: 60, padding: "6px 8px", fontSize: 12, borderRadius: 6, border: `1px solid ${T.border}`, background: "#fefefe", color: T.text, outline: "none", fontFamily: "inherit" };
 
 export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCardClick, onPhaseChange }: Props) {
+  const fasesQ = useFasesDo("pos"); // fases do controlador (09/11/2026)
   const { log } = useAuditLog();
   const [filtroStatus, setFiltroStatus] = useState("");
   const [cobranca, setCobranca] = useState<CobrancaOS>("");
@@ -265,7 +266,7 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
                     <td style={tdBase} onClick={(e) => e.stopPropagation()}>
                       <select value={o.status} onChange={(e) => onPhaseChange(o.id, e.target.value)}
                         style={{ width: "100%", padding: "7px 8px", fontSize: 12.5, fontWeight: 600, borderRadius: 6, border: `1px solid ${T.border}`, background: "#fefefe", color: T.text, cursor: "pointer", fontFamily: "inherit" }}>
-                        {PHASES.map((p) => <option key={p} value={p}>{rotuloFaseOS(p)}</option>)}
+                        {(fasesQ.chaves.includes(o.status) ? fasesQ.chaves : [o.status, ...fasesQ.chaves]).map((p) => <option key={p} value={p}>{fasesQ.lista.find((x) => x.chave === p)?.rotulo || rotuloFaseOS(p)}</option>)}
                       </select>
                     </td>
                   )}

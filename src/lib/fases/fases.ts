@@ -22,10 +22,16 @@ export function ehFase(f: string): boolean {
 }
 
 /** Coluna em que o PPV aparece no quadro. */
-export function faseDoPPVNaTela(ppv: { status?: string | null; osId?: string | null }, faseDaOS?: string | null): string {
-  const propria = normalizarStatus(ppv.status);
+/**
+ * `fasesDoQuadro` = as chaves do quadro do PPV (controlador de fases, 09/11/2026). Sem ela, as de sempre.
+ * Fase criada no controlador vale como está (normalizarStatus a jogaria em "Orçamento").
+ */
+export function faseDoPPVNaTela(ppv: { status?: string | null; osId?: string | null }, faseDaOS?: string | null, fasesDoQuadro?: readonly string[]): string {
+  const bruta = String(ppv.status ?? "").trim();
+  const propria = fasesDoQuadro?.includes(bruta) ? bruta : normalizarStatus(ppv.status);
   if (propria === "Cancelada") return "Cancelada";
-  if (ppv.osId && faseDaOS && ehFase(faseDaOS)) return faseDaOS;
+  const lista = fasesDoQuadro ?? FASES;
+  if (ppv.osId && faseDaOS && lista.includes(faseDaOS)) return faseDaOS;
   return PPV_PARA_POS[propria] || propria;
 }
 

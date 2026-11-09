@@ -33,7 +33,7 @@ export function CapaFaseValor({ fase, rotulo, fases, rotuloDe, onChange, valor }
         {onChange && (
           <select value={fase} onChange={(e) => onChange(e.target.value)} onFocus={abrir} onPointerDown={abrir} title="Mudar a fase"
             style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer", width: "100%" }}>
-            {lista ? fases.map((f) => <option key={f} value={f}>{rotuloDe(f)}</option>) : <option value={fase}>{rotuloDe(fase)}</option>}
+            {lista ? (fases.includes(fase) ? fases : [fase, ...fases]).map((f) => <option key={f} value={f}>{rotuloDe(f)}</option>) : <option value={fase}>{rotuloDe(fase)}</option>}
           </select>
         )}
       </span>

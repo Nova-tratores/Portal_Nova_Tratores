@@ -4,12 +4,13 @@ import { casaBusca } from '@/lib/texto';
 // fase em dropdown e botão flutuante de Novo Lançamento. Desktop não usa isto.
 import { Fragment, useMemo, useState } from "react";
 import type { KanbanItem } from "@/lib/ppv/types";
-import { PHASE_COLORS, PHASES } from "./PhaseView";
-import { faseDoPPVNaTela, rotuloDaFase } from "@/lib/fases/fases";
-import { useRotulosFases } from "@/hooks/useRotulosFases";
+import { PHASE_COLORS } from "./PhaseView";
+import { faseDoPPVNaTela } from "@/lib/fases/fases";
+import { useFasesDo } from "@/hooks/useFasesQuadro";
 
 // Ordem canônica das fases (Concluída/Cancelada por último). Fase desconhecida vai pro fim.
-const ordemFase = (s: string) => { const i = PHASES.indexOf(s); return i === -1 ? 998 : i; };
+// ordem/nome: as fases do PPV no controlador de fases (09/11/2026)
+const ordemNa = (lista: readonly string[], s: string) => { const i = lista.indexOf(s); return i === -1 ? 998 : i; };
 
 interface Props {
   orders: KanbanItem[];
@@ -39,15 +40,14 @@ const POR_VEZ = 50;
 export default function PPVMobile({ orders: pedidos, searchTerm, onSearchChange, onCardClick, onNovo, podeCriar, loading, podeLiberar, onLiberar }: Props) {
   const [fase, setFase] = useState("TODAS");
   // fase mostrada = a da OS quando o PPV é de uma OS; nome = o do lápis do pós-vendas (lib/fases/fases.ts)
-  const { rotulos } = useRotulosFases();
-  const curto = (s: string) => rotuloDaFase(s, rotulos);
-  const orders = useMemo(() => pedidos.map((o) => ({ ...o, status: faseDoPPVNaTela(o, o.faseOS) })), [pedidos]);
+  const { chaves, nome: curto } = useFasesDo("ppv");
+  const orders = useMemo(() => pedidos.map((o) => ({ ...o, status: faseDoPPVNaTela(o, o.faseOS, chaves) })), [pedidos, chaves]);
 
   const fasesPresentes = useMemo(() => {
     const m = new Map<string, number>();
     for (const o of orders) m.set(o.status, (m.get(o.status) || 0) + 1);
-    return [...m.entries()].sort((a, b) => ordemFase(a[0]) - ordemFase(b[0]));
-  }, [orders]);
+    return [...m.entries()].sort((a, b) => ordemNa(chaves, a[0]) - ordemNa(chaves, b[0]));
+  }, [orders, chaves]);
 
   const filtradas = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -59,8 +59,8 @@ export default function PPVMobile({ orders: pedidos, searchTerm, onSearchChange,
       })
       // Mesma ordem do PC: agrupadas por fase (Concluída/Cancelada por último),
       // sem misturar cancelada com aberta. Sort estável mantém a ordem dentro da fase.
-      .sort((a, b) => ordemFase(a.status) - ordemFase(b.status));
-  }, [orders, fase, searchTerm]);
+      .sort((a, b) => ordemNa(chaves, a.status) - ordemNa(chaves, b.status));
+  }, [orders, fase, searchTerm, chaves]);
 
   // A página rola (antes a lista ficava numa caixa de ~175 px com rolagem própria; auditoria 06/11/2026).
   // Mostra 50 por vez; trocar fase/busca volta a 50.

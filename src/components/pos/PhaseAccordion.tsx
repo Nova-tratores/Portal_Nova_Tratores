@@ -4,8 +4,8 @@ import { casaBusca } from '@/lib/texto';
 import { useState, useMemo, memo, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
-import { PHASES } from "@/lib/pos/constants";
 import RotuloFase from "@/components/fases/RotuloFase";
+import { useFasesDo } from "@/hooks/useFasesQuadro";
 import { diasEntre } from "@/lib/pos/utils";
 import { OPCOES_PAGAMENTO, normalizarPagamento, perguntaPagamento } from "@/lib/pos/cobranca";
 import type { KanbanCard } from "@/lib/pos/types";
@@ -519,6 +519,7 @@ function PainelCobranca({ osId, onPhaseChange, onStatus }: { osId: string; onPha
 // onClick recebe a OS (função estável para todos os cards): com uma flecha nova por card o memo não segurava e
 // qualquer mudança na página redesenhava o quadro inteiro (03/11/2026)
 const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange, onAgendar, garantiaStatus, onDescEnter, onDescLeave, onEnviarOmie, enviandoOmie, onFaturar }: { order: KanbanCard; color: string; onClick: (o: KanbanCard) => void; onPhaseChange?: (orderId: string, newPhase: string) => void; onAgendar?: (orderId: string, dataISO: string) => void; garantiaStatus?: GarantiaStatus; onDescEnter?: (rect: DOMRect, texto: string) => void; onDescLeave?: () => void; onEnviarOmie?: (orderId: string) => void; enviandoOmie?: string | null; onFaturar?: (order: KanbanCard) => void }) {
+  const fq = useFasesDo("pos");
   const diasFase = diasEntre(o.dataFase);
   const temReqInfo = o.reqInfo && o.reqInfo.length > 0;
   const numero = String(o.id || "").replace(/^#?OS-?/i, "");
@@ -569,7 +570,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
           )}
         </div>
       )}
-      <CapaFaseValor fase={o.status} rotulo={PHASE_SHORT[o.status] || o.status} fases={PHASES} rotuloDe={(p) => PHASE_SHORT[p] || p}
+      <CapaFaseValor fase={o.status} rotulo={fq.nome(o.status, PHASE_SHORT[o.status])} fases={fq.chaves} rotuloDe={(p) => fq.nome(p, PHASE_SHORT[p])}
         onChange={onPhaseChange ? (f) => onPhaseChange(o.id, f) : undefined} valor={`R$ ${o.valor}`} />
       {/* as bolinhas do caminho (Orçamento → Omie) saíram — José, 21/10/2026: "pode remover" */}
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -645,6 +646,9 @@ const SEM_CONTAGEM = new Set(["Concluída", "Cancelada"]);
 
 export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange, onAgendar, onEnviarOmie, onEnviarOmieTodas, enviandoOmie, onFaturar, tecnicoFiltro = "", acoesAbas, fechadas = "ok", onPedirFechadas }: PhaseViewProps) {
   const [activePhase, setActivePhase] = useState<string>("");
+  // fases do quadro vêm do controlador de fases (09/11/2026); sem nada salvo = PHASES
+  const fq = useFasesDo("pos");
+  const fasesPOS = fq.chaves;
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
   const [garantiaMap, setGarantiaMap] = useState<Record<string, GarantiaStatus>>({});
   // Tooltip com a Descrição do Serviço completa ao passar o mouse no card. Vive no próprio <DescTooltip>
@@ -754,8 +758,8 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
   const grouped = useMemo(() => {
     if (activePhase) return null;
     const map: Record<string, KanbanCard[]> = {};
-    const phasesSet = new Set(PHASES);
-    for (const phase of PHASES) {
+    const phasesSet = new Set(fasesPOS);
+    for (const phase of fasesPOS) {
       const items = filtered.filter((o) => o.status === phase);
       if (phase === FASE_CONCLUIDO) {
         // separa as concluídas: sem garantia ficam na fase; com garantia vão pro grupo próprio
@@ -776,7 +780,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
     const orphans = filtered.filter((o) => !phasesSet.has(o.status));
     if (orphans.length > 0) map["Outros"] = orphans;
     return map;
-  }, [filtered, activePhase, garantiaMap, fechadas]);
+  }, [filtered, activePhase, garantiaMap, fechadas, fasesPOS]);
 
   // Stable click handlers per card (avoid inline arrow in .map)
   const handleCardClick = useCallback((o: KanbanCard) => onCardClick(o), [onCardClick]);
@@ -907,7 +911,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                   style={{ border: "none", background: "transparent", cursor: "pointer", padding: "2px 4px", marginRight: 4, color: ocultas.has(phase) ? "#D97706" : "#94a3b8", fontSize: 13 }}>
                   <i className={ocultas.has(phase) ? "fas fa-eye-slash" : "fas fa-eye"} />
                 </button>
-                <span className="phase-group-dot" style={{ background: PHASE_COLORS[phase] }} />
+                <span className="phase-group-dot" style={{ background: PHASE_COLORS[phase] || PRETO_FASE }} />
                 <RotuloFase fase={phase} className="phase-group-name" />
                 {!SEM_CONTAGEM.has(phase) && <span className="phase-group-count">{items.length}</span>}
                 {/* Selo: esta fase é DIFERENTE — dinheiro na mesa */}
@@ -979,7 +983,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
             {[...ocultas].map((f) => (
               <button key={f} onClick={() => toggleOculta(f)} title="Voltar a mostrar esta fase"
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--border, #cbd5e1)", background: "transparent", color: "#64748b", borderRadius: 20, padding: "4px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
-                <i className="fas fa-eye" style={{ fontSize: 11 }} />{PHASE_SHORT[f] || f}
+                <i className="fas fa-eye" style={{ fontSize: 11 }} />{fq.nome(f, PHASE_SHORT[f])}
               </button>
             ))}
           </div>

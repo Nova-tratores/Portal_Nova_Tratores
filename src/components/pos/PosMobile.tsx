@@ -7,10 +7,11 @@ import { casaBusca } from '@/lib/texto';
 import { Fragment, useMemo, useState } from "react";
 import type { KanbanCard } from "@/lib/pos/types";
 import { PHASE_COLORS, PHASE_SHORT } from "./PhaseAccordion";
-import { PHASES } from "@/lib/pos/constants";
+import { useFasesDo } from "@/hooks/useFasesQuadro";
 
 // Ordem canônica das fases (Concluída/Cancelada por último). Fase desconhecida vai pro fim.
-const ordemFase = (s: string) => { const i = PHASES.indexOf(s); return i === -1 ? 998 : i; };
+// ordem/nome das fases: as do controlador de fases (09/11/2026); estas são o padrão
+const ordemNa = (lista: readonly string[], s: string) => { const i = lista.indexOf(s); return i === -1 ? 998 : i; };
 
 interface Props {
   orders: KanbanCard[];
@@ -23,7 +24,6 @@ interface Props {
 }
 
 const cor = (s: string) => PHASE_COLORS[s] || "#64748b";
-const curto = (s: string) => PHASE_SHORT[s] || s;
 const dataBR = (d: string) => {
   if (!d) return "";
   const p = d.split("-");
@@ -34,13 +34,15 @@ const POR_VEZ = 50;
 
 export default function PosMobile({ orders, searchTerm, onSearchChange, onCardClick, onNewOS, podeCriar, loading }: Props) {
   const [fase, setFase] = useState<string>("TODAS");
+  const { chaves, nome } = useFasesDo("pos");
+  const curto = (s: string) => nome(s, PHASE_SHORT[s]);
 
   // Fases presentes (com contagem), na ordem que aparecem.
   const fasesPresentes = useMemo(() => {
     const m = new Map<string, number>();
     for (const o of orders) m.set(o.status, (m.get(o.status) || 0) + 1);
-    return [...m.entries()].sort((a, b) => ordemFase(a[0]) - ordemFase(b[0]));
-  }, [orders]);
+    return [...m.entries()].sort((a, b) => ordemNa(chaves, a[0]) - ordemNa(chaves, b[0]));
+  }, [orders, chaves]);
 
   const filtradas = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
@@ -52,8 +54,8 @@ export default function PosMobile({ orders, searchTerm, onSearchChange, onCardCl
       })
       // Mesma ordem do PC: agrupadas por fase (Concluída/Cancelada por último),
       // nunca misturando cancelada com aberta. Sort estável mantém a ordem dentro da fase.
-      .sort((a, b) => ordemFase(a.status) - ordemFase(b.status));
-  }, [orders, fase, searchTerm]);
+      .sort((a, b) => ordemNa(chaves, a.status) - ordemNa(chaves, b.status));
+  }, [orders, fase, searchTerm, chaves]);
 
   // A página rola (antes era uma caixa de altura fixa com rolagem própria — no celular a lista ficava numa
   // janelinha de ~250 px e o dedo travava; auditoria 06/11/2026). Mostra 50 por vez; trocar fase/busca volta a 50.
