@@ -252,28 +252,48 @@ export interface BaixaPlanejada {
 }
 
 /** Plano de baixa de UMA parcela: cada duplicata alocada é baixada pelo que foi
- *  alocado (teto = valor em aberto na Omie agora). A diferença entre a parcela
- *  e a soma vai como juros (parcela maior) ou desconto (menor) na última baixa. */
+ *  alocado. A diferença entre a parcela e o que foi ALOCADO nela (fixa, decidida no
+ *  registro) vai como juros (parcela maior) ou desconto (menor) na ÚLTIMA alocação.
+ *
+ *  Repetir o pagamento é seguro (auditoria 30/10/2026): `jaBaixadas` = duplicatas
+ *  que ESTE boleto já baixou NESTA parcela (gravado alocação a alocação). Elas são
+ *  puladas e não mudam a diferença: antes a diferença era contra o que sobrava, e o
+ *  valor já baixado virava juros. Duplicata zerada ou com menos em aberto do que o
+ *  alocado, sem ter sido baixada por este boleto, foi mexida por fora (baixa avulsa,
+ *  NF cancelada): o plano para e pede conferência em vez de inventar juros. */
 export function planoBaixaParcela(
   parcela: ParcelaIn,
   alocacoes: Alocacao[],
   abertos: Map<number, number>,
-): { baixas: BaixaPlanejada[]; jaPagos: number[]; diferenca: number; erro?: string } {
+  jaBaixadas: Set<number> = new Set(),
+): { baixas: BaixaPlanejada[]; jaPagos: number[]; diferenca: number; concluida?: boolean; erro?: string } {
   const minhas = alocacoes.filter((a) => a.parcelaNumero === parcela.numero);
   if (!minhas.length) return { baixas: [], jaPagos: [], diferenca: 0, erro: 'parcela sem duplicatas alocadas' };
+  const diferenca = arred(arred(parcela.valor) - somar(minhas.map((a) => a.valor)));
+  const jaPagos = minhas.filter((a) => jaBaixadas.has(a.codigoLancamento)).map((a) => a.codigoLancamento);
   const baixas: BaixaPlanejada[] = [];
-  const jaPagos: number[] = [];
   for (const a of minhas) {
+    if (jaBaixadas.has(a.codigoLancamento)) continue;
     const aberto = abertos.has(a.codigoLancamento) ? arred(abertos.get(a.codigoLancamento) || 0) : null;
-    if (aberto == null) return { baixas: [], jaPagos: [], diferenca: 0, erro: `duplicata ${a.codigoLancamento} não encontrada na Omie` };
-    if (aberto <= 0.004) { jaPagos.push(a.codigoLancamento); continue; }
-    baixas.push({ codigoLancamento: a.codigoLancamento, valor: Math.min(arred(a.valor), aberto) });
+    if (aberto == null) return { baixas: [], jaPagos, diferenca, erro: `duplicata ${a.codigoLancamento} não encontrada na Omie` };
+    if (aberto < arred(a.valor) - 0.004) {
+      return {
+        baixas: [], jaPagos, diferenca,
+        erro: aberto <= 0.004
+          ? `a duplicata ${a.codigoLancamento} já foi baixada ou cancelada fora deste boleto: confira na Omie antes de pagar esta parcela`
+          : `a duplicata ${a.codigoLancamento} tem R$ ${aberto.toFixed(2)} em aberto, menos que os R$ ${arred(a.valor).toFixed(2)} desta parcela: confira na Omie antes de pagar`,
+      };
+    }
+    baixas.push({ codigoLancamento: a.codigoLancamento, valor: arred(a.valor) });
   }
-  if (!baixas.length) return { baixas: [], jaPagos, diferenca: 0, erro: 'todas as duplicatas desta parcela já estão baixadas' };
-  const diferenca = arred(arred(parcela.valor) - somar(baixas.map((b) => b.valor)));
-  const ultima = baixas[baixas.length - 1];
-  if (diferenca > 0.004) ultima.juros = diferenca;
-  else if (diferenca < -0.004) ultima.desconto = Math.min(arred(-diferenca), ultima.valor);
+  if (!baixas.length) return { baixas: [], jaPagos, diferenca, concluida: true };
+  // a diferença vai na ÚLTIMA alocação da parcela; se ela já foi baixada, a diferença foi junto
+  const ultimaAloc = minhas[minhas.length - 1].codigoLancamento;
+  const ultima = baixas.find((x) => x.codigoLancamento === ultimaAloc);
+  if (ultima) {
+    if (diferenca > 0.004) ultima.juros = diferenca;
+    else if (diferenca < -0.004) ultima.desconto = Math.min(arred(-diferenca), ultima.valor);
+  }
   return { baixas, jaPagos, diferenca };
 }
 

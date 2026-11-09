@@ -44,7 +44,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       const out = await pagarParcela({
         boletoId: id, parcelaId: String(b.parcelaId), codigoContaCorrente: Number(b.codigoContaCorrente) || 0,
         data: String(b.data || '').slice(0, 10) || new Date().toISOString().slice(0, 10), observacao: b.observacao || null,
-        conciliar: !!b.conciliar, criadoPor, userId: g.user.id,
+        conciliar: !!b.conciliar, criadoPor, userId: g.user.id, conferido: b.conferido === true,
       });
       return NextResponse.json(out, { status: out.ok ? 200 : 400 });
     }
@@ -53,7 +53,9 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json(out, { status: out.ok ? 200 : 400 });
     }
     if (acao === 'reaplicar') {
-      const out = await aplicarPendentes(id, criadoPor);
+      let out;
+      try { out = await aplicarPendentes(id, criadoPor); }
+      catch (e) { if (migracaoFaltando((e as Error).message)) throw e; return NextResponse.json({ ok: false, erro: (e as Error).message }, { status: 400 }); }
       return NextResponse.json({ ok: out.falhas === 0, ...out, boleto: await obterBoleto(id) });
     }
     return NextResponse.json({ ok: false, erro: 'acao inválida (pagar | estornar | reaplicar)' }, { status: 400 });

@@ -206,6 +206,18 @@ export interface RegistrarArgs {
 
 /** Registra o boleto e reprograma cada duplicata na Omie (previsão/vencimento/observação). */
 export async function registrarBoleto(a: RegistrarArgs): Promise<{ ok: boolean; erro?: string; boleto?: BoletoLinha; aplicados?: number; falhas?: number; bloqueado?: boolean }> {
+  // dois registros juntos (duas pessoas/abas) passavam pela checagem "já está em outro boleto"
+  // ao mesmo tempo: um registro por empresa por vez neste processo
+  const chave = `registrar:${a.conta}`;
+  if (emAndamento.has(chave)) return { ok: false, erro: 'outro boleto desta empresa está sendo registrado agora: espere terminar e tente de novo' };
+  emAndamento.add(chave);
+  try { return await registrarBoletoSemTrava(a); } finally { emAndamento.delete(chave); }
+}
+
+/** Operações de boleto em andamento neste processo (o portal web roda em 1 instância). */
+const emAndamento: Set<string> = ((globalThis as any).__boletosEmAndamento ??= new Set<string>());
+
+async function registrarBoletoSemTrava(a: RegistrarArgs): Promise<{ ok: boolean; erro?: string; boleto?: BoletoLinha; aplicados?: number; falhas?: number; bloqueado?: boolean }> {
   const codigos = Array.from(new Set((a.codigos || []).map((c) => Number(c)).filter((c) => c > 0)));
   if (!codigos.length) return { ok: false, erro: 'selecione ao menos uma duplicata' };
   const titulos = await lerDuplicatas(a.conta, codigos);
@@ -250,6 +262,8 @@ export async function registrarBoleto(a: RegistrarArgs): Promise<{ ok: boolean; 
       boleto_id: boletoId, parcela_id: parcelaId.get(al.parcelaNumero), conta_omie: a.conta, codigo_lancamento: al.codigoLancamento,
       numero_documento: t.numeroDoc, numero_documento_fiscal: t.numeroDocFiscal, valor_titulo: t.valor, valor_alocado: al.valor,
       principal: al.principal, status: 'pendente', campos_novos: al.principal && c ? c.campos : null,
+      // cópia do ANTES gravada já aqui, antes de qualquer escrita na Omie: o estorno depende dela
+      snapshot_anterior: al.principal ? { dataVencimento: t.vencimento ? String(t.vencimento).slice(0, 10) : null, dataPrevisao: t.previsao ? String(t.previsao).slice(0, 10) : null, observacao: t.observacao || '' } : null,
     };
   }));
   if (et) throw new Error(et.message);
@@ -267,10 +281,13 @@ export async function registrarBoleto(a: RegistrarArgs): Promise<{ ok: boolean; 
 
 /** Aplica na Omie os títulos ainda pendentes/erro do boleto (também serve ao botão "Reaplicar"). */
 export async function aplicarPendentes(boletoId: string, criadoPor: string): Promise<{ aplicados: number; falhas: number; bloqueado: boolean }> {
+  const { data: bol } = await supabase.from('boletos_fornecedor').select('conta_omie, status').eq('id', boletoId).single();
+  const conta = (bol as any).conta_omie as Conta;
+  if ((bol as any).status === 'cancelado') throw new Error('boleto cancelado: não dá para reaplicar');
+  const { count: estornados } = await supabase.from('boleto_titulos').select('id', { count: 'exact', head: true }).eq('boleto_id', boletoId).eq('status', 'estornado');
+  if ((estornados || 0) > 0) throw new Error('o estorno deste boleto ficou pela metade: clique em Estornar de novo para terminar');
   const { data: tit, error } = await supabase.from('boleto_titulos').select('*').eq('boleto_id', boletoId).eq('principal', true).in('status', ['pendente', 'erro']).order('created_at');
   if (error) throw new Error(error.message);
-  const { data: bol } = await supabase.from('boletos_fornecedor').select('conta_omie').eq('id', boletoId).single();
-  const conta = (bol as any).conta_omie as Conta;
   let aplicados = 0; let falhas = 0; let bloqueado = false; let primeiro = true;
   for (const t of (tit || []) as any[]) {
     if (bloqueado) { falhas++; continue; }
@@ -281,7 +298,11 @@ export async function aplicarPendentes(boletoId: string, criadoPor: string): Pro
     if (out.ok) {
       aplicados++;
       const { data: corr } = await supabase.from('contas_correcoes').select('id').eq('conta_omie', conta).eq('codigo_lancamento', Number(t.codigo_lancamento)).order('id', { ascending: false }).limit(1).maybeSingle();
-      await supabase.from('boleto_titulos').update({ status: 'aplicado', erro: null, correcao_id: (corr as any)?.id || null, snapshot_anterior: out.campos ? out.campos.anterior : (t.snapshot_anterior || {}), updated_at: new Date().toISOString() }).eq('id', t.id);
+      // 1ª tentativa: completa a cópia do antes com o que a Omie tinha. Repetição: mantém a
+      // cópia (a Omie já pode estar com os dados do boleto e o "antes" viria vazio)
+      const snapAtual = (t.snapshot_anterior || {}) as Record<string, unknown>;
+      const snap = !t.erro && out.campos ? { ...snapAtual, ...out.campos.anterior } : snapAtual;
+      await supabase.from('boleto_titulos').update({ status: 'aplicado', erro: null, correcao_id: (corr as any)?.id || null, snapshot_anterior: snap, updated_at: new Date().toISOString() }).eq('id', t.id);
     } else {
       falhas++;
       if (out.bloqueio) bloqueado = true;
@@ -296,25 +317,57 @@ export async function aplicarPendentes(boletoId: string, criadoPor: string): Pro
   return { aplicados, falhas, bloqueado };
 }
 
-/** Paga UMA parcela: baixa cada duplicata alocada (valor alocado, teto = aberto na Omie agora). */
+/** Paga UMA parcela: baixa cada duplicata alocada nela.
+ *
+ *  Repetir é seguro: cada alocação (duplicata × parcela) baixada é marcada na hora
+ *  ("baixado" na linha de boleto_titulos daquela parcela) e pulada na próxima vez;
+ *  a parcela só vira "paga" quando todas as suas alocações estão baixadas. Resposta
+ *  incerta da Omie (pode ter baixado) marca a alocação "INCERTO" e a próxima tentativa
+ *  só segue com a confirmação de quem conferiu na Omie (`conferido`). Uma parcela
+ *  por vez neste processo (duas abas/pessoas não baixam em dobro). */
 export async function pagarParcela(a: {
   boletoId: string; parcelaId: string; codigoContaCorrente: number; data: string; observacao?: string | null; conciliar?: boolean; criadoPor: string; userId?: string;
-}): Promise<{ ok: boolean; erro?: string; baixados?: number; falhas?: number; jaPagos?: number[]; detalhes?: any[] }> {
+  /** quem conferiu na Omie que a baixa incerta NÃO entrou e quer tentar de novo */
+  conferido?: boolean;
+}): Promise<ResultadoPagar> {
+  const chave = `pagar:${a.parcelaId}`;
+  if (emAndamento.has(chave)) return { ok: false, erro: 'esta parcela já está sendo paga agora (outra aba ou outra pessoa): espere terminar' };
+  emAndamento.add(chave);
+  try { return await pagarParcelaSemTrava(a); } finally { emAndamento.delete(chave); }
+}
+
+type ResultadoPagar = { ok: boolean; erro?: string; incerto?: boolean; baixados?: number; falhas?: number; jaPagos?: number[]; detalhes?: any[] };
+
+/** Marca no erro da alocação: a Omie não respondeu com clareza (a baixa pode ter entrado). */
+const INCERTO = 'INCERTO: ';
+
+async function pagarParcelaSemTrava(a: Parameters<typeof pagarParcela>[0]): Promise<ResultadoPagar> {
   const boleto = await obterBoleto(a.boletoId);
   if (!boleto) return { ok: false, erro: 'boleto não encontrado' };
   if (boleto.status === 'cancelado') return { ok: false, erro: 'boleto cancelado' };
-  if (boleto.status === 'pendente' || boleto.status === 'erro_omie') return { ok: false, erro: 'o boleto ainda não foi aplicado inteiro na Omie — use "Reaplicar" antes de pagar' };
+  if (boleto.status === 'pendente' || boleto.status === 'erro_omie') return { ok: false, erro: boleto.erro && /estorno/i.test(boleto.erro) ? boleto.erro : 'o boleto ainda não foi aplicado inteiro na Omie — use "Reaplicar" antes de pagar' };
+  if (boleto.titulos.some((t) => t.status === 'estornado')) return { ok: false, erro: 'o estorno deste boleto ficou pela metade: termine o estorno antes de pagar' };
   const parcela = boleto.parcelas.find((p) => p.id === a.parcelaId);
   if (!parcela) return { ok: false, erro: 'parcela não encontrada' };
   if (parcela.status === 'paga') return { ok: false, erro: `parcela ${parcela.numero}/${parcela.total} já está paga` };
   if (!(Number(a.codigoContaCorrente) > 0)) return { ok: false, erro: 'informe a conta corrente' };
-  const alocacoes = boleto.titulos.filter((t) => t.status !== 'estornado').map((t) => ({
+  const alocacoes = boleto.titulos.map((t) => ({
     codigoLancamento: Number(t.codigo_lancamento), parcelaNumero: boleto.parcelas.find((p) => p.id === t.parcela_id)?.numero || 0, valor: Number(t.valor_alocado), principal: !!t.principal,
   }));
-  // valor em aberto AGORA, na Omie (não no espelho)
+  const linhasParcela = boleto.titulos.filter((t) => t.parcela_id === parcela.id);
+  const jaBaixadas = new Set(linhasParcela.filter((t) => t.status === 'baixado').map((t) => Number(t.codigo_lancamento)));
+  const incertas = linhasParcela.filter((t) => t.status !== 'baixado' && String(t.erro || '').startsWith(INCERTO));
+  if (incertas.length && !a.conferido) {
+    return {
+      ok: false, incerto: true,
+      erro: `a última tentativa não teve resposta clara da Omie para ${incertas.map((t) => t.numero_documento || t.codigo_lancamento).join(', ')}: a baixa pode ter entrado. Confira na Omie antes de tentar de novo.`,
+    };
+  }
+
+  // valor em aberto AGORA, na Omie (não no espelho), só das alocações que faltam
   const abertos = new Map<number, number>();
-  const codigosParcela = Array.from(new Set(alocacoes.filter((x) => x.parcelaNumero === parcela.numero).map((x) => x.codigoLancamento)));
-  for (const c of codigosParcela) {
+  const faltam = Array.from(new Set(linhasParcela.filter((t) => t.status !== 'baixado').map((t) => Number(t.codigo_lancamento))));
+  for (const c of faltam) {
     try {
       const t = await consultarConta(boleto.conta_omie, 'pagar', c);
       const st = String(t.status_titulo || '').toUpperCase();
@@ -327,12 +380,12 @@ export async function pagarParcela(a: {
     }
     if (throttleMs() > 0) await sleep(Math.min(300, throttleMs()));
   }
-  const plano = planoBaixaParcela({ numero: parcela.numero, dataVencimento: parcela.data_vencimento, valor: parcela.valor }, alocacoes, abertos);
+  const plano = planoBaixaParcela({ numero: parcela.numero, dataVencimento: parcela.data_vencimento, valor: parcela.valor }, alocacoes, abertos, jaBaixadas);
   if (plano.erro) return { ok: false, erro: plano.erro, jaPagos: plano.jaPagos };
 
   const detalhes: any[] = [];
-  const baixaIds: number[] = [];
-  let baixados = 0; let falhas = 0; let primeiro = true;
+  const baixaIds: number[] = (parcela.baixa_ids || []).map(Number); // acumula com as tentativas anteriores
+  let baixados = 0; let falhas = 0; let incerto = false; let primeiro = true;
   const obs = `Boleto ${boleto.nome_fornecedor} nº ${boleto.numero} parc ${parcela.numero}/${parcela.total}${a.observacao ? ' — ' + a.observacao : ''}`.slice(0, 200);
   for (const b of plano.baixas) {
     if (!primeiro && throttleMs() > 0) await sleep(throttleMs());
@@ -341,67 +394,91 @@ export async function pagarParcela(a: {
       conta: boleto.conta_omie, tipo: 'pagar', codigoLancamento: b.codigoLancamento, codigoContaCorrente: a.codigoContaCorrente,
       valor: b.valor, data: a.data, juros: b.juros, desconto: b.desconto, observacao: obs, conciliar: !!a.conciliar,
     });
-    detalhes.push({ codigoLancamento: b.codigoLancamento, valor: b.valor, juros: b.juros || 0, desconto: b.desconto || 0, ok: out.ok, erro: out.erro || null });
+    detalhes.push({ codigoLancamento: b.codigoLancamento, valor: b.valor, juros: b.juros || 0, desconto: b.desconto || 0, ok: out.ok, erro: out.erro || null, incerto: !!out.incerto });
     if (out.ok) {
       baixados++;
+      // marca ESTA alocação na hora: a repetição não baixa de novo nem conta como juros
+      await supabase.from('boleto_titulos').update({ status: 'baixado', erro: null, updated_at: new Date().toISOString() })
+        .eq('boleto_id', boleto.id).eq('parcela_id', parcela.id).eq('codigo_lancamento', b.codigoLancamento);
       const { data: bx } = await supabase.from('contas_baixas').select('id').eq('conta_omie', boleto.conta_omie).eq('codigo_lancamento', b.codigoLancamento).order('id', { ascending: false }).limit(1).maybeSingle();
       if ((bx as any)?.id) baixaIds.push(Number((bx as any).id));
-      // a duplicata fica "baixada" no boleto quando TODA a sua alocação foi paga
-      const restante = alocacoes.filter((x) => x.codigoLancamento === b.codigoLancamento && x.parcelaNumero !== parcela.numero)
-        .map((x) => boleto.parcelas.find((p) => p.numero === x.parcelaNumero)).filter((p) => p && p.status !== 'paga');
-      if (!restante.length) await supabase.from('boleto_titulos').update({ status: 'baixado', updated_at: new Date().toISOString() }).eq('boleto_id', boleto.id).eq('codigo_lancamento', b.codigoLancamento);
     } else {
       falhas++;
-      if (/bloque/i.test(String(out.erro || ''))) break;
+      if (out.incerto) incerto = true;
+      await supabase.from('boleto_titulos').update({ erro: `${out.incerto ? INCERTO : ''}${String(out.erro || 'falhou').slice(0, 480)}`, updated_at: new Date().toISOString() })
+        .eq('boleto_id', boleto.id).eq('parcela_id', parcela.id).eq('codigo_lancamento', b.codigoLancamento);
+      // resposta incerta ou Omie bloqueada: para aqui (não empilha mais baixas no escuro)
+      if (out.incerto || /bloque/i.test(String(out.erro || ''))) break;
     }
   }
-  if (!falhas) {
-    await supabase.from('boleto_parcelas').update({ status: 'paga', pago_em: a.data.slice(0, 10), codigo_conta_corrente: Number(a.codigoContaCorrente), baixa_ids: baixaIds }).eq('id', parcela.id);
+  await supabase.from('boleto_parcelas').update({ baixa_ids: Array.from(new Set(baixaIds)) }).eq('id', parcela.id);
+  // parcela paga = todas as alocações dela baixadas (nesta ou em tentativas anteriores)
+  const { data: linhas } = await supabase.from('boleto_titulos').select('status').eq('boleto_id', boleto.id).eq('parcela_id', parcela.id);
+  const ls = (linhas || []) as any[];
+  if (ls.length > 0 && ls.every((l) => l.status === 'baixado')) {
+    await supabase.from('boleto_parcelas').update({ status: 'paga', pago_em: a.data.slice(0, 10), codigo_conta_corrente: Number(a.codigoContaCorrente) }).eq('id', parcela.id);
     const { data: ps } = await supabase.from('boleto_parcelas').select('status').eq('boleto_id', boleto.id);
     const status = statusPorParcelas((ps || []) as any[], boleto.status);
     await supabase.from('boletos_fornecedor').update({ status, updated_at: new Date().toISOString() }).eq('id', boleto.id);
-  } else if (baixaIds.length) {
-    await supabase.from('boleto_parcelas').update({ baixa_ids: baixaIds }).eq('id', parcela.id);
   }
   await registrarAuditLog({
     userId: a.userId, userName: a.criadoPor, sistema: SISTEMA_AUDIT, acao: 'boleto-pagar-parcela', entidade: 'boletos_fornecedor', entidadeId: boleto.id,
     entidadeLabel: `${boleto.nome_fornecedor} boleto ${boleto.numero} parc ${parcela.numero}/${parcela.total}`,
-    detalhes: { conta: boleto.conta_omie, parcela: parcela.numero, valor: parcela.valor, data: a.data, contaCorrente: a.codigoContaCorrente, baixados, falhas, detalhes, diferenca: plano.diferenca },
+    detalhes: { conta: boleto.conta_omie, parcela: parcela.numero, valor: parcela.valor, data: a.data, contaCorrente: a.codigoContaCorrente, baixados, falhas, incerto, conferido: !!a.conferido, jaBaixadas: plano.jaPagos, detalhes, diferenca: plano.diferenca },
   }).catch(() => {});
+  if (incerto) return { ok: false, incerto: true, erro: 'a Omie não respondeu com clareza: a baixa pode ter entrado. Confira na Omie antes de tentar de novo (as baixas confirmadas não se repetem).', baixados, falhas, detalhes, jaPagos: plano.jaPagos };
   if (falhas) return { ok: false, erro: `${falhas} baixa(s) falharam — veja os detalhes e tente de novo (as já feitas não se repetem)`, baixados, falhas, detalhes, jaPagos: plano.jaPagos };
   return { ok: true, baixados, falhas: 0, detalhes, jaPagos: plano.jaPagos };
 }
 
-/** Estorna o boleto: devolve vencimento/previsão/observação de cada duplicata ao que era. Só sem parcela paga. */
+/** Estorna o boleto: devolve vencimento/previsão/observação de cada duplicata ao que era.
+ *  Só sem NENHUMA baixa feita (nem parcial, nem incerta). Se alguma duplicata não
+ *  voltar, o boleto fica "erro_omie" (não dá para pagar) até o estorno terminar. */
 export async function estornarBoleto(a: { boletoId: string; criadoPor: string; userId?: string; motivo?: string | null }): Promise<{ ok: boolean; erro?: string; revertidos?: number; falhas?: number }> {
   const boleto = await obterBoleto(a.boletoId);
   if (!boleto) return { ok: false, erro: 'boleto não encontrado' };
   if (boleto.status === 'cancelado') return { ok: false, erro: 'boleto já cancelado' };
-  if (boleto.parcelas.some((p) => p.status === 'paga')) return { ok: false, erro: 'boleto com parcela paga não pode ser estornado pelo portal (estorne a baixa na Omie primeiro)' };
+  const comBaixa = boleto.parcelas.some((p) => p.status === 'paga' || (p.baixa_ids || []).length > 0)
+    || boleto.titulos.some((t) => t.status === 'baixado' || String(t.erro || '').startsWith(INCERTO));
+  if (comBaixa) return { ok: false, erro: 'este boleto já tem baixa feita (ou com resposta incerta) na Omie: estorne a baixa na Omie primeiro; o portal não estorna boleto com pagamento' };
   let revertidos = 0; let falhas = 0; let primeiro = true;
-  for (const t of boleto.titulos.filter((x) => x.principal && x.status === 'aplicado')) {
-    if (!primeiro && throttleMs() > 0) await sleep(throttleMs());
-    primeiro = false;
+  const pendentes: string[] = [];
+  for (const t of boleto.titulos.filter((x) => x.principal && ['aplicado', 'erro', 'pendente'].includes(x.status))) {
     const snap = (t.snapshot_anterior || {}) as { dataVencimento?: string | null; dataPrevisao?: string | null; observacao?: string | null };
+    const nuncaFoi = t.status === 'pendente' && !t.erro; // nunca foi à Omie: nada a desfazer
     const campos: Record<string, unknown> = {};
     if (snap.dataVencimento) campos.dataVencimento = snap.dataVencimento;
     if (snap.dataPrevisao) campos.dataPrevisao = snap.dataPrevisao;
-    if (snap.observacao !== undefined) campos.observacao = snap.observacao || '';
-    const out = Object.keys(campos).length
-      ? await aplicarCorrecaoLancamento({ conta: boleto.conta_omie, tipo: 'pagar', codigoLancamento: t.codigo_lancamento, campos, origem: 'boleto-estorno', criadoPor: a.criadoPor })
-      : { ok: true };
-    if (out.ok) { revertidos++; await supabase.from('boleto_titulos').update({ status: 'estornado', updated_at: new Date().toISOString() }).eq('boleto_id', boleto.id).eq('codigo_lancamento', t.codigo_lancamento); }
-    else { falhas++; await supabase.from('boleto_titulos').update({ erro: String(out.erro || 'falha no estorno').slice(0, 500) }).eq('id', t.id); }
+    if (snap.observacao != null) campos.observacao = snap.observacao || '';
+    let out: { ok: boolean; erro?: string };
+    if (nuncaFoi) out = { ok: true };
+    else if (!Object.keys(campos).length) out = { ok: false, erro: 'sem a cópia de como estava antes do boleto: confira e ajuste na mão na Omie' };
+    else {
+      if (!primeiro && throttleMs() > 0) await sleep(throttleMs());
+      primeiro = false;
+      out = await aplicarCorrecaoLancamento({ conta: boleto.conta_omie, tipo: 'pagar', codigoLancamento: t.codigo_lancamento, campos, origem: 'boleto-estorno', criadoPor: a.criadoPor });
+    }
+    if (out.ok) {
+      revertidos++;
+      await supabase.from('boleto_titulos').update({ status: 'estornado', erro: null, updated_at: new Date().toISOString() }).eq('boleto_id', boleto.id).eq('codigo_lancamento', t.codigo_lancamento);
+    } else {
+      falhas++;
+      pendentes.push(String(t.numero_documento || t.codigo_lancamento));
+      await supabase.from('boleto_titulos').update({ erro: String(out.erro || 'falha no estorno').slice(0, 500) }).eq('id', t.id);
+    }
   }
   if (!falhas) {
     await supabase.from('boleto_titulos').update({ status: 'estornado' }).eq('boleto_id', boleto.id).in('status', ['pendente', 'erro', 'aplicado']);
     await supabase.from('boleto_parcelas').update({ status: 'cancelada' }).eq('boleto_id', boleto.id);
     await supabase.from('boletos_fornecedor').update({ status: 'cancelado', erro: null, observacao: [boleto.observacao, a.motivo ? `Estornado: ${a.motivo}` : 'Estornado'].filter(Boolean).join(' · '), updated_at: new Date().toISOString() }).eq('id', boleto.id);
+  } else {
+    // estorno pela metade: trava o pagamento até terminar
+    await supabase.from('boletos_fornecedor').update({ status: 'erro_omie', erro: `estorno incompleto: ${pendentes.join(', ')} não voltaram. Clique em Estornar de novo.`, updated_at: new Date().toISOString() }).eq('id', boleto.id);
   }
   await registrarAuditLog({
     userId: a.userId, userName: a.criadoPor, sistema: SISTEMA_AUDIT, acao: 'boleto-estornar', entidade: 'boletos_fornecedor', entidadeId: boleto.id,
-    entidadeLabel: `${boleto.nome_fornecedor} boleto ${boleto.numero}`, detalhes: { conta: boleto.conta_omie, revertidos, falhas, motivo: a.motivo || null },
+    entidadeLabel: `${boleto.nome_fornecedor} boleto ${boleto.numero}`, detalhes: { conta: boleto.conta_omie, revertidos, falhas, pendentes, motivo: a.motivo || null },
   }).catch(() => {});
-  if (falhas) return { ok: false, erro: `${falhas} duplicata(s) não voltaram na Omie — tente de novo`, revertidos, falhas };
+  if (falhas) return { ok: false, erro: `${falhas} duplicata(s) não voltaram na Omie (${pendentes.join(', ')}) — o boleto fica travado até terminar o estorno`, revertidos, falhas };
   return { ok: true, revertidos, falhas: 0 };
 }

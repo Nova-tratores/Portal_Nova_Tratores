@@ -101,11 +101,15 @@ function ModalPagarParcela({ conta, boleto, parcela, onClose, onPago }: { conta:
     setAplicando(true);
     setStatus('baixando as duplicatas na Omie…');
     try {
-      const r = await fetch(`/api/ajustes/boletos-fornecedor/${boleto.id}`, {
+      const enviar = async (conferido: boolean) => (await fetch(`/api/ajustes/boletos-fornecedor/${boleto.id}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ acao: 'pagar', parcelaId: parcela.id, codigoContaCorrente: ccSel, data, observacao: obs, conciliar }),
-      });
-      const d = await r.json();
+        body: JSON.stringify({ acao: 'pagar', parcelaId: parcela.id, codigoContaCorrente: ccSel, data, observacao: obs, conciliar, conferido }),
+      })).json();
+      let d = await enviar(false);
+      // a tentativa anterior ficou sem resposta clara da Omie: só repete com a conferência de quem está pagando
+      if (!d.ok && d.incerto && !d.detalhes && confirm(`${d.erro}
+
+Você conferiu na Omie e a baixa NÃO entrou? OK = baixar de novo. Cancelar = não fazer nada.`)) d = await enviar(true);
       setDetalhes(d.detalhes || null);
       if (!d.ok) { setStatus(d.erro || 'falha'); setAplicando(false); return; }
       setStatus(`parcela paga ✓ · ${d.baixados} duplicata(s) baixada(s)${d.jaPagos?.length ? ` · ${d.jaPagos.length} já estava(m) baixada(s)` : ''}`);

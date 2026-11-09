@@ -554,6 +554,7 @@ export async function baixarTitulo(b: {
 
   let resultado: any = null;
   let erro: string | null = null;
+  let incerto = false;
   let anterior: any = null;
   try {
     const out = await baixarConta(conta, {
@@ -572,6 +573,8 @@ export async function baixarTitulo(b: {
     anterior = out.anterior;
   } catch (e: any) {
     erro = e.faultstring || e.message;
+    // sem resposta clara: a baixa pode ter entrado na Omie (porta: OmieIncertoError)
+    incerto = !!e?.incerto;
   }
 
   if (!erro) {
@@ -609,6 +612,6 @@ export async function baixarTitulo(b: {
     console.warn('[baixar] log auditoria:', e.message);
   }
 
-  if (erro) return { ok: false, erro };
+  if (erro) return { ok: false, erro, incerto };
   return { ok: true, codigoBaixa: resultado && (resultado.codigo_baixa || resultado.codigo_lancamento), anterior };
 }

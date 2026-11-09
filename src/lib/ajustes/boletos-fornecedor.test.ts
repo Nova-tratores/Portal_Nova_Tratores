@@ -122,14 +122,43 @@ describe('planoBaixaParcela', () => {
     const menor = planoBaixaParcela({ ...PARCELAS[0], valor: 1000.0 }, alocacoes, abertos);
     expect(menor.baixas[1]).toEqual({ codigoLancamento: 3, valor: 448.14, desconto: 29.81 });
   });
-  it('pula duplicata já baixada e avisa quando nenhuma sobra', () => {
+  it('repetir o pagamento pula o que o boleto já baixou e não inventa juros', () => {
     const abertos = new Map(TITULOS.map((t) => [t.codigoLancamento, t.codigoLancamento === 1 ? 0 : t.valor]));
-    const plano = planoBaixaParcela(PARCELAS[0], alocacoes, abertos);
+    // a duplicata 1 foi baixada por este boleto na 1ª tentativa
+    const plano = planoBaixaParcela(PARCELAS[0], alocacoes, abertos, new Set([1]));
     expect(plano.jaPagos).toEqual([1]);
-    expect(plano.baixas.map((b) => b.codigoLancamento)).toEqual([3]);
-    const nada = planoBaixaParcela(PARCELAS[0], alocacoes, new Map([[1, 0], [3, 0]]));
-    expect(nada.erro).toMatch(/já estão baixadas/);
+    expect(plano.baixas).toEqual([{ codigoLancamento: 3, valor: 448.14 }]);
+    // com a parcela maior, os juros são só a diferença da parcela, nunca o já baixado
+    const maior = planoBaixaParcela({ ...PARCELAS[0], valor: 1035.0 }, alocacoes, abertos, new Set([1]));
+    expect(maior.baixas).toEqual([{ codigoLancamento: 3, valor: 448.14, juros: 5.19 }]);
+    // tudo baixado: a parcela está concluída
+    const tudo = planoBaixaParcela(PARCELAS[0], alocacoes, new Map(), new Set([1, 3]));
+    expect(tudo.concluida).toBe(true);
+    expect(tudo.baixas).toEqual([]);
+  });
+  it('a diferença não se repete quando a última alocação já foi baixada', () => {
+    const abertos = new Map(TITULOS.map((t) => [t.codigoLancamento, t.valor]));
+    const plano = planoBaixaParcela({ ...PARCELAS[0], valor: 1035.0 }, alocacoes, abertos, new Set([3]));
+    expect(plano.baixas).toEqual([{ codigoLancamento: 1, valor: 581.67 }]);
+  });
+  it('duplicata mexida por fora (zerada ou com menos em aberto) pede conferência', () => {
+    const zerada = new Map(TITULOS.map((t) => [t.codigoLancamento, t.codigoLancamento === 1 ? 0 : t.valor]));
+    expect(planoBaixaParcela(PARCELAS[0], alocacoes, zerada).erro).toMatch(/fora deste boleto/);
+    const menos = new Map(TITULOS.map((t) => [t.codigoLancamento, t.codigoLancamento === 1 ? 100 : t.valor]));
+    expect(planoBaixaParcela(PARCELAS[0], alocacoes, menos).erro).toMatch(/confira na Omie/);
     expect(planoBaixaParcela(PARCELAS[0], alocacoes, new Map()).erro).toMatch(/não encontrada/);
+  });
+  it('duplicata dividida: a parte desta parcela não é baixada de novo', () => {
+    // duplicatas 1 e 2 de 500; parcelas 700 e 300 → a 2 tem 200 na parcela 1 e 300 na 2
+    const tit = [
+      { conta: 'NOVA' as const, codigoLancamento: 1, valor: 500 },
+      { conta: 'NOVA' as const, codigoLancamento: 2, valor: 500 },
+    ];
+    const parc = [{ numero: 1, dataVencimento: '2026-12-01', valor: 700 }, { numero: 2, dataVencimento: '2027-01-01', valor: 300 }];
+    const al = alocar(tit, parc).alocacoes;
+    const abertos = new Map([[1, 500], [2, 300]]);
+    const retry = planoBaixaParcela(parc[0], al, abertos, new Set([2]));
+    expect(retry.baixas).toEqual([{ codigoLancamento: 1, valor: 500 }]);
   });
   it('status do boleto segue as parcelas', () => {
     expect(statusPorParcelas([{ status: 'aberta' }, { status: 'aberta' }], 'registrado')).toBe('registrado');

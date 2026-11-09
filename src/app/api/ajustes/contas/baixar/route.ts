@@ -4,6 +4,7 @@ import { parseConta } from '@/lib/ajustes/conta';
 import { baixarTitulo } from '@/lib/ajustes/contas';
 import { baixaAntecipadaSuspeita } from '@/lib/ajustes/boletos-fornecedor';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
+import { titulosEmBoletoAtivo } from '@/lib/ajustes/boletos-fornecedor-db';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -28,6 +29,14 @@ export async function POST(req: NextRequest) {
     if (b.vencimento && baixaAntecipadaSuspeita(String(b.data || '').slice(0, 10) || new Date().toISOString().slice(0, 10), String(b.vencimento).slice(0, 10), b.idOrigem || null)
       && String(b.observacao || '').trim().length < 5) {
       return NextResponse.json({ ok: false, erro: 'baixa mais de 7 dias antes do vencimento de uma duplicata de NF: informe o motivo na observação (se for boleto agrupado do fornecedor, registre o boleto em vez de baixar)', antecipada: true }, { status: 400 });
+    }
+    // Duplicata que está num boleto agrupado ativo é paga pelo boleto (Baixar contas → Boletos de
+    // fornecedor → Pagar parcela). Baixar avulsa aqui fazia o pagamento da parcela contar o valor
+    // dela como juros depois. Sem as tabelas do boleto (migration), segue como antes.
+    if (b.tipo !== 'receber') {
+      const ativos = await titulosEmBoletoAtivo(conta).catch(() => ({} as Record<string, { numero: string }>));
+      const emBoleto = ativos[String(b.codigoLancamento)];
+      if (emBoleto) return NextResponse.json({ ok: false, erro: `esta duplicata está no boleto de fornecedor nº ${emBoleto.numero}: pague pela parcela do boleto (painel Boletos de fornecedor), não aqui`, emBoleto: true }, { status: 409 });
     }
     const out = await baixarTitulo({ ...b, conta, valor });
     if (!out.ok) return NextResponse.json({ ok: false, erro: out.erro }, { status: 502 });
