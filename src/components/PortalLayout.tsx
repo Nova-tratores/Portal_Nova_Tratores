@@ -1402,8 +1402,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             <div key={group.key} style={{ marginBottom: group.key === 'geral' ? 4 : 8 }}>
               {group.config.label && (
                 <p style={{
-                  fontSize: '9px', fontWeight: '800', color: group.config.color,
-                  letterSpacing: '2px', margin: '14px 0 6px', paddingLeft: '4px',
+                  fontSize: '11px', fontWeight: '800', color: group.config.color,
+                  letterSpacing: '1.2px', margin: '14px 0 6px', paddingLeft: '4px',
                   display: 'flex', alignItems: 'center', gap: 6,
                 }}>
                   <span style={{ width: 12, height: 2, borderRadius: 1, background: group.config.color, opacity: 0.4 }} />
