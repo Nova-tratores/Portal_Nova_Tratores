@@ -15,6 +15,8 @@ export async function POST(req: NextRequest) {
     // Só admin pode criar usuário (antes era um endpoint público de provisionamento).
     const auth = await exigirAdmin(req);
     if (!auth) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+    // Criar usuário é só para Dev (José, 09/11/2026).
+    if (!auth.isDev) return NextResponse.json({ error: "Só um Dev pode criar usuário" }, { status: 403 });
 
     const { nome, email, funcao, senha, modulos_permitidos } = await req.json();
 

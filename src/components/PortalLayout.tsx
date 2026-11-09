@@ -42,6 +42,8 @@ const SolicitacoesTratorilson = dynamic(() => import('@/components/SolicitacoesT
 const ChatPanel = dynamic(() => import('./chat/ChatPanel'), { ssr: false })
 const LembretesPanel = dynamic(() => import('./lembretes/LembretesPanel'), { ssr: false })
 const NotifPrefsModal = dynamic(() => import('./notif/NotifPrefsModal'), { ssr: false })
+// a própria pessoa preenche a ficha cadastral (José, 09/11/2026)
+const FichaCadastral = dynamic(() => import('./admin/FichaCadastral'), { ssr: false })
 const QuemAcessa = dynamic(() => import('./permissoes/QuemAcessa'), { ssr: false })
 
 interface NavItem {
@@ -446,7 +448,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   }
 
   // ===== Perfil (dentro das Configurações) =====
-  const [configTab, setConfigTab] = useState<'perfil' | 'aparencia' | 'som'>('perfil')
+  const [configTab, setConfigTab] = useState<'perfil' | 'ficha' | 'aparencia' | 'som'>('perfil')
   const [perfilNome, setPerfilNome] = useState('')
   // Modelo de exibição do dashboard (sincroniza com a chave que o Dashboard lê)
   const [dashView, setDashView] = useState<string>('grade')
@@ -1718,7 +1720,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         >
           <style>{`@keyframes cfgSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}`}</style>
           <div style={{
-            background: 'var(--portal-bg-card)', width: '440px', maxWidth: '96vw', height: '100%',
+            background: 'var(--portal-bg-card)', width: configTab === 'ficha' ? '860px' : '440px', maxWidth: isMobile ? '100vw' : '96vw', height: '100%', transition: 'width .25s',
             boxShadow: '-8px 0 40px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column',
             animation: 'cfgSlideIn 0.25s ease-out'
           }}>
@@ -1750,6 +1752,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '14px 20px', borderBottom: '1px solid var(--portal-border)' }}>
               {([
                 { id: 'perfil', label: 'Perfil', icon: <UserIcon size={15} /> },
+                { id: 'ficha', label: 'Minha ficha', icon: <ClipboardList size={15} /> },
                 { id: 'aparencia', label: 'Aparência', icon: <Sun size={15} /> },
                 { id: 'som', label: 'Som', icon: <Volume2 size={15} /> },
               ] as const).map(t => {
@@ -1778,6 +1781,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 color: perfilMsg.tipo === 'ok' ? '#059669' : '#DC2626',
                 border: `1px solid ${perfilMsg.tipo === 'ok' ? '#A7F3D0' : '#FECACA'}`
               }}>{perfilMsg.texto}</div>
+            )}
+
+            {/* ===== ABA MINHA FICHA (cadastro que vai ao RH) ===== */}
+            {configTab === 'ficha' && userProfile && (
+              <FichaCadastral eu nome={userProfile.nome} cargo={userProfile.funcao} />
             )}
 
             {/* ===== ABA PERFIL ===== */}

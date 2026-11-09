@@ -15,7 +15,7 @@ const haQuanto = (iso: string | null) => {
   return d <= 0 ? 'entrou hoje' : d === 1 ? 'entrou ontem' : d < 30 ? `entrou há ${d} dias` : `último login ${data(iso)}`
 }
 
-export default function ContasSemCadastro({ versao, onCadastrar, onTrocarEmail }: { versao: number; onCadastrar: (email: string) => void; onTrocarEmail?: (c: Conta) => void }) {
+export default function ContasSemCadastro({ versao, onCadastrar, onTrocarEmail }: { versao: number; onCadastrar?: (email: string) => void; onTrocarEmail?: (c: Conta) => void }) {
   const [contas, setContas] = useState<Conta[] | null>(null)
   const [erro, setErro] = useState('')
   const [apagando, setApagando] = useState<string | null>(null)
@@ -74,7 +74,7 @@ export default function ContasSemCadastro({ versao, onCadastrar, onTrocarEmail }
             </>
           ) : (
             <>
-              <button type="button" className="csc-b verde" onClick={() => onCadastrar(c.email)}><UserPlus size={14} />Cadastrar no Portal</button>
+              {onCadastrar && <button type="button" className="csc-b verde" onClick={() => onCadastrar(c.email)}><UserPlus size={14} />Cadastrar no Portal</button>}
               {onTrocarEmail && <button type="button" className="csc-ic" onClick={() => onTrocarEmail(c)} title="E-mail digitado errado? Troque pelo certo sem criar outro login"><Mail size={15} /></button>}
               {!c.uso && <button type="button" className="csc-ic perigo" onClick={() => setConfirmar(c.id)} title="Apagar o login"><Trash2 size={15} /></button>}
             </>

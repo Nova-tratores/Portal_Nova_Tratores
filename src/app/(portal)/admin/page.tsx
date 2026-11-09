@@ -29,64 +29,6 @@ const COLS_ADMIN = 'minmax(260px,1.3fr) minmax(180px,220px) 150px minmax(240px,1
 
 const CATEGORIAS = ['Pós Vendas', 'Peças', 'Comercial', 'Financeiro', 'T.I.']
 
-const SISTEMAS_MAP: Record<string, { label: string; icon: string }> = {
-  revisoes: { label: 'Controle de Revisões', icon: 'wrench' },
-  requisicoes: { label: 'Requisições', icon: 'clipboard' },
-  pos: { label: 'Pós-Vendas (OS)', icon: 'settings' },
-  ppv: { label: 'Peças (PPV)', icon: 'shield' },
-  financeiro: { label: 'Financeiro', icon: 'dollar' },
-  propostas: { label: 'Proposta Comercial', icon: 'file' },
-  garantias: { label: 'Garantias', icon: 'shield' },
-  mecanicos: { label: 'Gestão Pós Vendas', icon: 'wrench' },
-  orcamentos: { label: 'Orçamentos', icon: 'file' },
-  tarefas: { label: 'Tarefas', icon: 'clipboard' },
-  admin: { label: 'Administração', icon: 'shield' },
-  frota: { label: 'Frota', icon: 'settings' },
-}
-
-const SISTEMA_ICON_MAP: Record<string, React.ReactNode> = {
-  wrench: <Wrench size={16} />,
-  clipboard: <ClipboardList size={16} />,
-  settings: <Settings size={16} />,
-  shield: <Shield size={16} />,
-  dollar: <DollarSign size={16} />,
-  file: <FileText size={16} />,
-}
-
-const ACAO_COLORS: Record<string, { bg: string; text: string; border: string }> = {
-  criar: { bg: '#ecfdf5', text: '#059669', border: '#a7f3d0' },
-  editar: { bg: '#eff6ff', text: '#2563eb', border: '#bfdbfe' },
-  deletar: { bg: '#fef2f2', text: '#dc2626', border: '#fecaca' },
-  visualizar: { bg: '#f5f5f5', text: '#737373', border: '#e5e5e5' },
-  enviar_email: { bg: '#faf5ff', text: '#7c3aed', border: '#ddd6fe' },
-  mover_status: { bg: '#fffbeb', text: '#d97706', border: '#fde68a' },
-  upload: { bg: '#ecfeff', text: '#0891b2', border: '#a5f3fc' },
-  acesso: { bg: '#f5f5f5', text: '#a3a3a3', border: '#e5e5e5' },
-  enviar_omie: { bg: '#eef2ff', text: '#4f46e5', border: '#c7d2fe' },
-  adicionar_item: { bg: '#f0fdfa', text: '#0d9488', border: '#99f6e4' },
-  devolver: { bg: '#fff7ed', text: '#ea580c', border: '#fed7aa' },
-}
-
-const ACAO_LABELS: Record<string, string> = {
-  criar: 'Criou', editar: 'Editou', deletar: 'Deletou', visualizar: 'Visualizou',
-  enviar_email: 'Enviou email', mover_status: 'Moveu status', upload: 'Fez upload',
-  acesso: 'Acessou', enviar_omie: 'Enviou p/ Omie', adicionar_item: 'Adicionou item',
-  devolver: 'Devolveu',
-}
-
-interface AuditEntry {
-  id: number
-  user_id: string
-  user_nome: string
-  sistema: string
-  acao: string
-  entidade: string | null
-  entidade_id: string | null
-  entidade_label: string | null
-  detalhes: Record<string, unknown>
-  created_at: string
-}
-
 interface Usuario {
   id: string
   nome: string
@@ -145,37 +87,8 @@ export default function AdminPage() {
   const [versaoContas, setVersaoContas] = useState(0)
   const [trocarEmailDe, setTrocarEmailDe] = useState<{ id: string; nome?: string; email?: string | null } | null>(null)
 
-  // Estado do painel de atividades do usuário
-  const [selectedUser, setSelectedUser] = useState<Usuario | null>(null)
-  const [userLogs, setUserLogs] = useState<AuditEntry[]>([])
-  const [loadingLogs, setLoadingLogs] = useState(false)
-  const [expandedSistema, setExpandedSistema] = useState<string | null>(null)
-  const [resetandoSenha, setResetandoSenha] = useState(false)
-  const [resetSenhaMsg, setResetSenhaMsg] = useState('')
-
-  const fetchUserLogs = useCallback(async (userId: string) => {
-    setLoadingLogs(true)
-    const { data } = await supabase
-      .from('audit_log')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(500)
-    setUserLogs(data || [])
-    setLoadingLogs(false)
-  }, [])
-
-  const openUserDetail = (user: Usuario) => {
-    setSelectedUser(user)
-    setExpandedSistema(null)
-    setResetSenhaMsg('')
-    fetchUserLogs(user.id)
-  }
-
   const resetarSenha = async (email: string) => {
-    if (!email) { setResetSenhaMsg('Usuário sem email cadastrado'); return }
-    setResetandoSenha(true)
-    setResetSenhaMsg('')
+    if (!email) { alert('Usuário sem email cadastrado'); return }
     try {
       const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/api/admin/resetar-senha', {
@@ -188,37 +101,13 @@ export default function AdminPage() {
       })
       const result = await res.json()
       if (!res.ok) {
-        setResetSenhaMsg('Erro: ' + (result.error || 'Falha ao enviar'))
+        alert('Erro: ' + (result.error || 'Falha ao enviar'))
       } else {
-        setResetSenhaMsg('Email de redefinição enviado para ' + email)
+        alert('Email de redefinição enviado para ' + email)
       }
     } catch {
-      setResetSenhaMsg('Erro ao conectar com servidor')
-    } finally {
-      setResetandoSenha(false)
+      alert('Erro ao conectar com servidor')
     }
-  }
-
-  const formatDateFull = (iso: string) => {
-    const d = new Date(iso)
-    return d.toLocaleDateString('pt-BR', {
-      day: '2-digit', month: '2-digit', year: '2-digit',
-      hour: '2-digit', minute: '2-digit',
-    })
-  }
-
-  const formatDateRelative = (iso: string) => {
-    const d = new Date(iso)
-    const now = new Date()
-    const diffMs = now.getTime() - d.getTime()
-    const diffMin = Math.floor(diffMs / 60000)
-    const diffH = Math.floor(diffMs / 3600000)
-    const diffD = Math.floor(diffMs / 86400000)
-    if (diffMin < 1) return 'Agora'
-    if (diffMin < 60) return `${diffMin}min atrás`
-    if (diffH < 24) return `${diffH}h atrás`
-    if (diffD < 7) return `${diffD}d atrás`
-    return formatDateFull(iso)
   }
 
   useEffect(() => {
@@ -562,7 +451,8 @@ export default function AdminPage() {
         </div>
         {/* procurar por módulo: quem tem acesso a ele (José, 04/11/2026) */}
         <BuscaModulo modulos={MODULOS} usuarios={usuarios} permissoes={permissoes} onVerUsuario={(nome) => { setFiltroPapel(null); setSearch(nome) }} />
-        <button
+        {/* criar usuário é só para Dev (José, 09/11/2026) — a rota também barra */}
+        {isDev && <button
           onClick={() => { setShowNovoUsuario(true); setCriarErro('') }}
           style={{
             display: 'flex', alignItems: 'center', gap: '8px',
@@ -575,11 +465,11 @@ export default function AdminPage() {
           onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)' }}
         >
           <UserPlus size={18} /> Novo Usuário
-        </button>
+        </button>}
       </div>
 
       {/* Modal Criar Usuário */}
-      {showNovoUsuario && (
+      {showNovoUsuario && isDev && (
         <div
           onClick={(e) => { if (e.target === e.currentTarget && !criando) setShowNovoUsuario(false) }}
           style={{
@@ -802,8 +692,8 @@ export default function AdminPage() {
                 </button>
                 <div
                   style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1, minWidth: 0 }}
-                  onClick={() => openUserDetail(user)}
-                  title="Ver atividades deste usuário"
+                  onClick={() => toggleExpandirUsuario(user.id)}
+                  title="Abrir acessos, ficha cadastral e atividades"
                 >
                   <div style={{
                     width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden',
@@ -904,6 +794,7 @@ export default function AdminPage() {
 
             {expandido && (
                 <ModalAcessos
+                  userId={user.id}
                   avatar={user.avatar_url}
                   funcao={user.funcao}
                   email={user.email}
@@ -988,7 +879,7 @@ export default function AdminPage() {
       {assinaturaDe && <AssinaturaUsuarioModal userId={assinaturaDe.id} nome={assinaturaDe.nome} onFechar={() => setAssinaturaDe(null)} />}
 
       {/* ===== Logins sem cadastro (Auth sem financeiro_usu) ===== */}
-      <ContasSemCadastro versao={versaoContas} onCadastrar={(email) => { setNovoEmail(email); setCriarErro(''); setShowNovoUsuario(true) }} onTrocarEmail={(c) => setTrocarEmailDe({ id: c.id, email: c.email })} />
+      <ContasSemCadastro versao={versaoContas} onCadastrar={isDev ? (email) => { setNovoEmail(email); setCriarErro(''); setShowNovoUsuario(true) } : undefined} onTrocarEmail={(c) => setTrocarEmailDe({ id: c.id, email: c.email })} />
 
       {trocarEmailDe && (
         <TrocarEmailModal
@@ -1001,278 +892,6 @@ export default function AdminPage() {
         />
       )}
 
-      {/* Modal de Atividades do Usuário */}
-      {selectedUser && (() => {
-        const perm = permissoes[selectedUser.id]
-        // Agrupar logs por sistema
-        const logsBySistema: Record<string, AuditEntry[]> = {}
-        for (const log of userLogs) {
-          const key = log.sistema || 'outros'
-          if (!logsBySistema[key]) logsBySistema[key] = []
-          logsBySistema[key].push(log)
-        }
-        // Ordenar sistemas por quantidade de atividades (desc)
-        const sistemas = Object.entries(logsBySistema).sort((a, b) => b[1].length - a[1].length)
-
-        return (
-          <div
-            onClick={(e) => { if (e.target === e.currentTarget) setSelectedUser(null) }}
-            style={{
-              position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-              backdropFilter: 'blur(8px)', zIndex: 50000,
-              display: 'flex', justifyContent: 'flex-end'
-            }}
-          >
-            <div style={{
-              width: '680px', maxWidth: '100vw', height: '100%', background: 'var(--portal-bg-card)',
-              boxShadow: '-8px 0 30px rgba(0,0,0,0.15)', overflow: 'hidden',
-              display: 'flex', flexDirection: 'column',
-              animation: 'slideInRight 0.25s ease-out'
-            }}>
-              {/* Header */}
-              <div style={{
-                padding: 'clamp(16px, 4vw, 24px) clamp(14px, 4vw, 28px)', borderBottom: '1px solid var(--portal-border)',
-                background: 'var(--portal-bg-secondary)', flexShrink: 0, maxHeight: '55vh', overflowY: 'auto'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px 16px' }}>
-                  <button
-                    onClick={() => setSelectedUser(null)}
-                    style={{
-                      width: '36px', height: '36px', borderRadius: '10px',
-                      background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      cursor: 'pointer', color: '#737373'
-                    }}
-                  >
-                    <ArrowLeft size={18} />
-                  </button>
-                  <div style={{
-                    width: '44px', height: '44px', borderRadius: '12px', overflow: 'hidden',
-                    background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
-                  }}>
-                    {selectedUser.avatar_url ? (
-                      <img src={selectedUser.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <UserIcon size={22} color="#fff" />
-                    )}
-                  </div>
-                  <div style={{ flex: '1 1 160px', minWidth: 0 }}>
-                    <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)', margin: 0, overflowWrap: 'anywhere' }}>
-                      {selectedUser.nome}
-                    </h3>
-                    <p style={{ fontSize: '12px', color: '#a3a3a3', margin: 0, overflowWrap: 'anywhere' }}>
-                      {selectedUser.funcao || 'Sem função'} {selectedUser.email ? `· ${selectedUser.email}` : ''}
-                    </p>
-                  </div>
-                  {perm?.is_admin && (
-                    <span style={{
-                      padding: '4px 12px', borderRadius: '8px',
-                      background: '#fef3c7', color: '#d97706',
-                      fontSize: '11px', fontWeight: '700'
-                    }}>ADMIN</span>
-                  )}
-                </div>
-
-                {/* Resumo rápido */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '16px' }}>
-                  <div style={{
-                    padding: '10px 16px', borderRadius: '10px', minWidth: 120,
-                    background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', flex: 1
-                  }}>
-                    <p style={{ fontSize: '10px', color: '#a3a3a3', fontWeight: '600', letterSpacing: '0.5px' }}>TOTAL AÇÕES</p>
-                    <p style={{ fontSize: '20px', fontWeight: '800', color: 'var(--portal-text)' }}>{userLogs.length}</p>
-                  </div>
-                  <div style={{
-                    padding: '10px 16px', borderRadius: '10px',
-                    background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', flex: 1
-                  }}>
-                    <p style={{ fontSize: '10px', color: '#a3a3a3', fontWeight: '600', letterSpacing: '0.5px' }}>MÓDULOS ATIVOS</p>
-                    <p style={{ fontSize: '20px', fontWeight: '800', color: 'var(--portal-text)' }}>{(perm?.modulos_permitidos || []).length}</p>
-                  </div>
-                  <div style={{
-                    padding: '10px 16px', borderRadius: '10px',
-                    background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', flex: 1
-                  }}>
-                    <p style={{ fontSize: '10px', color: '#a3a3a3', fontWeight: '600', letterSpacing: '0.5px' }}>ÚLTIMA AÇÃO</p>
-                    <p style={{ fontSize: '13px', fontWeight: '700', color: 'var(--portal-text)', marginTop: '2px' }}>
-                      {userLogs.length > 0 ? formatDateRelative(userLogs[0].created_at) : '—'}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Resetar Senha */}
-                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginTop: '16px' }}>
-                  <button
-                    onClick={() => resetarSenha(selectedUser.email)}
-                    disabled={resetandoSenha}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: '8px',
-                      padding: '10px 20px', borderRadius: '10px', border: '1px solid #e5e5e5',
-                      background: 'var(--portal-bg-card)', color: '#525252',
-                      fontSize: '13px', fontWeight: '600', cursor: resetandoSenha ? 'not-allowed' : 'pointer',
-                      opacity: resetandoSenha ? 0.6 : 1, transition: '0.2s'
-                    }}
-                  >
-                    <Mail size={16} />
-                    {resetandoSenha ? 'Enviando...' : 'Resetar Senha'}
-                  </button>
-                  {resetSenhaMsg && (
-                    <span style={{
-                      fontSize: '12px', fontWeight: '500',
-                      color: resetSenhaMsg.startsWith('Erro') ? '#dc2626' : '#16a34a'
-                    }}>
-                      {resetSenhaMsg}
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Conteúdo scrollável */}
-              <div style={{ flex: 1, overflow: 'auto', padding: '20px clamp(14px, 4vw, 28px)' }}>
-                {loadingLogs ? (
-                  <div style={{ padding: '60px 0', textAlign: 'center' }}>
-                    <p style={{ color: '#a3a3a3', fontSize: '13px', letterSpacing: '2px' }}>CARREGANDO...</p>
-                  </div>
-                ) : userLogs.length === 0 ? (
-                  <div style={{ padding: '60px 0', textAlign: 'center' }}>
-                    <Activity size={36} color="#e5e5e5" style={{ margin: '0 auto 12px' }} />
-                    <p style={{ color: '#a3a3a3', fontSize: '14px', fontWeight: '500' }}>Nenhuma atividade registrada</p>
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {sistemas.map(([sistemaKey, logs]) => {
-                      const info = SISTEMAS_MAP[sistemaKey] || { label: sistemaKey, icon: 'settings' }
-                      const icon = SISTEMA_ICON_MAP[info.icon] || <Activity size={16} />
-                      const isExpanded = expandedSistema === sistemaKey
-
-                      return (
-                        <div key={sistemaKey} style={{
-                          borderRadius: '14px', overflow: 'hidden',
-                          border: '1px solid var(--portal-border)',
-                          background: 'var(--portal-bg-card)'
-                        }}>
-                          {/* Cabeçalho do sistema */}
-                          <button
-                            onClick={() => setExpandedSistema(isExpanded ? null : sistemaKey)}
-                            style={{
-                              width: '100%', display: 'flex', alignItems: 'center', gap: '12px',
-                              padding: '14px 18px', border: 'none', cursor: 'pointer',
-                              background: isExpanded ? 'var(--portal-bg-secondary)' : 'transparent',
-                              transition: 'background 0.15s'
-                            }}
-                          >
-                            <span style={{ color: '#dc2626', display: 'flex' }}>{icon}</span>
-                            <span style={{ fontSize: '14px', fontWeight: '700', color: 'var(--portal-text)', flex: 1, textAlign: 'left' }}>
-                              {info.label}
-                            </span>
-                            <span style={{
-                              padding: '3px 10px', borderRadius: '8px',
-                              background: '#fef2f2', color: '#dc2626',
-                              fontSize: '12px', fontWeight: '700'
-                            }}>
-                              {logs.length}
-                            </span>
-                            {isExpanded ? <ChevronUp size={16} color="#a3a3a3" /> : <ChevronDown size={16} color="#a3a3a3" />}
-                          </button>
-
-                          {/* Lista de atividades */}
-                          {isExpanded && (
-                            <div style={{ borderTop: '1px solid var(--portal-border)' }}>
-                              {logs.slice(0, 50).map((entry, i) => {
-                                const acaoStyle = ACAO_COLORS[entry.acao] || ACAO_COLORS.acesso
-                                const detalhes = entry.detalhes && Object.keys(entry.detalhes).length > 0
-                                  ? Object.entries(entry.detalhes)
-                                      .map(([k, v]) => {
-                                        if (k === 'campo') return `Campo: ${v}`
-                                        if (k === 'de') return `De: ${v}`
-                                        if (k === 'para') return `Para: ${v}`
-                                        if (k === 'status') return `Status: ${v}`
-                                        return `${k}: ${v}`
-                                      })
-                                      .join(' · ')
-                                  : null
-
-                                return (
-                                  <div
-                                    key={entry.id}
-                                    style={{
-                                      padding: '12px 18px',
-                                      borderBottom: i < Math.min(logs.length, 50) - 1 ? '1px solid #f5f5f5' : 'none',
-                                      display: 'flex', gap: '12px', alignItems: 'flex-start'
-                                    }}
-                                  >
-                                    {/* Horário */}
-                                    <div style={{ width: '80px', flexShrink: 0, paddingTop: '2px' }}>
-                                      <p style={{ fontSize: '11px', color: '#a3a3a3', fontWeight: '600' }}>
-                                        {formatDateFull(entry.created_at)}
-                                      </p>
-                                    </div>
-
-                                    {/* Ação badge */}
-                                    <span style={{
-                                      fontSize: '11px', fontWeight: '700',
-                                      padding: '3px 10px', borderRadius: '6px',
-                                      background: acaoStyle.bg, color: acaoStyle.text,
-                                      border: `1px solid ${acaoStyle.border}`,
-                                      flexShrink: 0, whiteSpace: 'nowrap'
-                                    }}>
-                                      {ACAO_LABELS[entry.acao] || entry.acao}
-                                    </span>
-
-                                    {/* Entidade + detalhes */}
-                                    <div style={{ flex: 1, minWidth: 0 }}>
-                                      {entry.entidade_label ? (
-                                        <p style={{ fontSize: '13px', color: 'var(--portal-text)', fontWeight: '500' }}>
-                                          {entry.entidade_label}
-                                          {entry.entidade_id && (
-                                            <span style={{ color: '#a3a3a3', fontWeight: '400' }}> #{entry.entidade_id}</span>
-                                          )}
-                                        </p>
-                                      ) : entry.entidade_id ? (
-                                        <p style={{ fontSize: '13px', color: '#a3a3a3' }}>ID: {entry.entidade_id}</p>
-                                      ) : null}
-                                      {detalhes && (
-                                        <p style={{
-                                          fontSize: '11px', color: '#a3a3a3', marginTop: '2px',
-                                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
-                                        }}>
-                                          {detalhes}
-                                        </p>
-                                      )}
-                                    </div>
-                                  </div>
-                                )
-                              })}
-                              {logs.length > 50 && (
-                                <div style={{
-                                  padding: '10px 18px', textAlign: 'center',
-                                  fontSize: '12px', color: '#a3a3a3', fontWeight: '500',
-                                  background: '#fafafa'
-                                }}>
-                                  Mostrando 50 de {logs.length} atividades
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )
-      })()}
-
-      {/* CSS Animation */}
-      <style>{`
-        @keyframes slideInRight {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-      `}</style>
     </div>
   )
 }

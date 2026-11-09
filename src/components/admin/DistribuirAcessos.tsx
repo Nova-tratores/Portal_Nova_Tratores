@@ -6,7 +6,9 @@
 import { FUNCOES_POSVENDAS, funcaoPosVendas, trocarFuncaoPosVendas } from '@/lib/permissoes/funcoes-posvendas'
 import { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, ShieldCheck, Copy, Smartphone, Wrench, LayoutGrid, Check } from 'lucide-react';
+import { Search, ShieldCheck, Copy, Smartphone, Wrench, LayoutGrid, Check, IdCard, Activity } from 'lucide-react';
+import FichaCadastral from './FichaCadastral';
+import AtividadesUsuario from './AtividadesUsuario';
 import { GRUPOS_ORDEM, grupoDoModulo, acoesDoModulo, estadoModulo, acoesMarcadas, setTotal, setOff, toggleAcao } from '@/lib/permissoes/catalogo';
 import { acaoExplicita, acaoSoDev } from '@/lib/permissoes/explicitas';
 
@@ -17,10 +19,12 @@ interface Props {
   mecanicoRole: 'tecnico' | 'observador' | null; mecanicoNome: string | null; onMecanico: (role: string, nome?: string) => void
   vendedor: boolean; salvandoVendedor?: boolean; onVendedor: (v: boolean) => void
   outros: { id: string; nome: string; modulos: string[] }[]
+  /** com o id, aparecem as abas Ficha cadastral e Atividades (José, 09/11/2026) */
+  userId?: string; funcao?: string; email?: string
 }
 
 export default function DistribuirAcessos(p: Props) {
-  const [aba, setAba] = useState<'portal' | 'mecanicos' | 'posvendas' | 'vendas'>('portal');
+  const [aba, setAba] = useState<'portal' | 'mecanicos' | 'posvendas' | 'vendas' | 'ficha' | 'atividades'>(p.userId ? 'ficha' : 'portal');
   const [busca, setBusca] = useState('');
   const [grupo, setGrupo] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
@@ -55,11 +59,17 @@ export default function DistribuirAcessos(p: Props) {
     <div className="da">
       <style>{ESTILO_DA}</style>
       <div className="da-abas">
-        <button type="button" className={aba === 'portal' ? 'on' : ''} onClick={() => setAba('portal')}><LayoutGrid size={15} />Portal<em>{ligados}</em></button>
+        {/* ficha primeiro, depois as permissões (José, 09/11/2026) */}
+        {p.userId && <button type="button" className={aba === 'ficha' ? 'on' : ''} onClick={() => setAba('ficha')}><IdCard size={15} />Ficha cadastral</button>}
+        <button type="button" className={aba === 'portal' ? 'on' : ''} onClick={() => setAba('portal')}><LayoutGrid size={15} />Permissões Portal<em>{ligados}</em></button>
         <button type="button" className={aba === 'mecanicos' ? 'on' : ''} onClick={() => setAba('mecanicos')}><Wrench size={15} />App Mecânicos<em className={p.mecanicoRole ? 'ok' : ''}>{p.mecanicoRole === 'tecnico' ? 'técnico' : p.mecanicoRole === 'observador' ? 'observador' : 'sem acesso'}</em></button>
         <button type="button" className={aba === 'posvendas' ? 'on' : ''} onClick={() => setAba('posvendas')}><Wrench size={15} />Pós-Vendas<em className={funcaoPosVendas(p.modulos) ? 'ok' : ''}>{FUNCOES_POSVENDAS.find((f) => f.chave === funcaoPosVendas(p.modulos))?.rot.replace(' do Pós-Vendas', '') || 'sem função'}</em></button>
         <button type="button" className={aba === 'vendas' ? 'on' : ''} onClick={() => setAba('vendas')}><Smartphone size={15} />App NT Vendas<em className={p.vendedor ? 'ok' : ''}>{p.vendedor ? 'ativo' : 'sem acesso'}</em></button>
+        {p.userId && <button type="button" className={aba === 'atividades' ? 'on' : ''} onClick={() => setAba('atividades')}><Activity size={15} />Atividades</button>}
       </div>
+
+      {aba === 'ficha' && p.userId && <FichaCadastral userId={p.userId} nome={p.nome} cargo={p.funcao} email={p.email} />}
+      {aba === 'atividades' && p.userId && <AtividadesUsuario userId={p.userId} qtdModulos={new Set(p.modulos.map((m) => m.split(':')[0])).size} />}
 
       {aba === 'portal' && (
         <div className="da-portal">
@@ -181,9 +191,10 @@ export default function DistribuirAcessos(p: Props) {
 
 const ESTILO_DA = `
 @keyframes daEntra { from { opacity: 0; transform: translateY(6px) } }
-.da { display: grid; gap: 14px; animation: daEntra .25s both; font-family: inherit }
+.da { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; animation: daEntra .25s both; font-family: inherit; min-width: 0 } .da > * { min-width: 0 }
 .da-abas { display: inline-flex; gap: 4px; background: #f1f5f9; border-radius: 999px; padding: 4px; justify-self: start; flex-wrap: wrap }
 .da-abas button { display: inline-flex; align-items: center; gap: 7px; border: none; background: none; border-radius: 999px; padding: 8px 14px; font-family: inherit; font-size: 13.5px; color: #475569; cursor: pointer; transition: all .15s }
+@media (max-width: 640px) { .da-abas { display: flex; flex-wrap: nowrap; overflow-x: auto; border-radius: 14px; max-width: 100%; scrollbar-width: none } .da-abas button { flex-shrink: 0; min-height: 40px } }
 .da-abas button.on { background: #fefefe; color: #0f172a; box-shadow: 0 1px 4px rgba(15,23,42,.12) } .da-abas em { font-style: normal; font-size: 11.5px; border-radius: 99px; padding: 1px 8px; background: #e2e8f0; color: #475569 } .da-abas em.ok { background: #dcfce7; color: #166534 }
 .da-aviso { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 8px 12px }
 .da-portal { display: grid; gap: 12px }
@@ -230,11 +241,11 @@ export function ModalAcessos({ avatar, funcao, email, onFechar, ...p }: Props & 
       <div className="mda" role="dialog" aria-label={`Acessos de ${p.nome}`}>
         <header className="mda-cab">
           <span className="mda-av">{avatar ? <img src={avatar} alt="" /> : p.nome.charAt(0)}</span>
-          <div><b>Acessos de {p.nome}</b><small>{[funcao, email].filter(Boolean).join(' · ')} · cada mudança grava na hora</small></div>
+          <div><b>{p.nome}</b><small>{[funcao, email].filter(Boolean).join(' · ') || 'acessos, ficha cadastral e atividades'}</small></div>
           <button type="button" className="mda-x" onClick={onFechar} aria-label="Fechar">×</button>
         </header>
-        <div className="mda-corpo"><DistribuirAcessos {...p} /></div>
-        <footer className="mda-pe"><span>As mudanças valem na hora: a pessoa vê sem precisar sair e entrar.</span><button type="button" onClick={onFechar}>Pronto</button></footer>
+        <div className="mda-corpo"><DistribuirAcessos {...p} funcao={funcao} email={email} /></div>
+        <footer className="mda-pe"><span>Tudo grava na hora — acessos valem sem a pessoa precisar sair e entrar.</span><button type="button" onClick={onFechar}>Pronto</button></footer>
       </div>
     </div>, document.body)
 }
@@ -247,5 +258,6 @@ const ESTILO_MDA = `
 .mda-av { width: 46px; height: 46px; border-radius: 50%; overflow: hidden; display: grid; place-items: center; background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fefefe; font-size: 18px; flex-shrink: 0 } .mda-av img { width: 100%; height: 100%; object-fit: cover }
 .mda-x { width: 36px; height: 36px; border-radius: 50%; border: 1px solid #e2e8f0; background: #fefefe; color: #64748b; font-size: 20px; cursor: pointer } .mda-x:hover { border-color: #0f172a; color: #0f172a }
 .mda-corpo { overflow: auto; padding: 18px 24px }
+@media (max-width: 640px) { .mda-fundo { padding: 0 } .mda { width: 100%; height: 100dvh; border-radius: 0 } .mda-cab, .mda-corpo { padding: 12px 14px } .mda-pe { padding: 10px 14px } .mda-pe span { display: none } .mda-pe button { margin-left: auto } }
 .mda-pe { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 24px; border-top: 1px solid #eef2f7; background: #f8fafc } .mda-pe span { font-size: 13px; color: #64748b } .mda-pe button { border: none; background: #0f172a; color: #fefefe; border-radius: 999px; padding: 10px 22px; font-family: inherit; font-size: 14px; cursor: pointer } .mda-pe button:hover { background: #1d4ed8 }
 `
