@@ -9,7 +9,7 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import FinanceiroTopoNovo from './FinanceiroTopoNovo'
 import {
   Columns3, BarChart3, Receipt, Users,
-  FileText, DollarSign, AlertTriangle, Search, Wallet, FileSignature
+  FileText, DollarSign, AlertTriangle, Search, Wallet, FileSignature, Calculator
 } from 'lucide-react'
 
 const ICONS = {
@@ -23,6 +23,7 @@ const ICONS = {
   notas: FileText,
   caixa: Wallet,
   recibos: FileSignature,
+  'contas-cliente': Calculator,
 }
 
 // Aba Painel fora da faixa para todo mundo (José, 05/11/2026): as páginas home-* seguem no ar,
@@ -53,6 +54,8 @@ const LINKS_PECAS = [
 ]
 
 const LINK_NOTAS = { label: 'Notas fiscais', href: '/financeiro/notas', icon: 'notas' }
+// Contas do cliente/fornecedor + calculadora de dívida (09/11/2026): vale pela PERMISSÃO
+const LINK_CONTAS_CLIENTE = { label: 'Contas do cliente', href: '/financeiro/contas-cliente', icon: 'contas-cliente' }
 // Recibos de pagamento (03/11/2026): todas as funções do Financeiro (o balcão de peças também emite)
 const LINK_RECIBOS = { label: 'Recibos', href: '/financeiro/recibos', icon: 'recibos' }
 // `children` é um slot opcional à direita das guias. O default explícito é o
@@ -71,7 +74,7 @@ export default function FinanceiroNav({ children = null }) {
     : funcao === 'Peças' ? LINKS_PECAS
     : LINKS_POSVENDAS
   // Notas fiscais (cache PDF + XML) vale pela PERMISSÃO, não pela função
-  const comNotas = [...(pode('financeiro', 'notas') ? [...linksFuncao, LINK_NOTAS] : linksFuncao), LINK_RECIBOS]
+  const comNotas = [...(pode('financeiro', 'notas') ? [...linksFuncao, LINK_NOTAS] : linksFuncao), ...(pode('financeiro', 'contas-cliente') ? [LINK_CONTAS_CLIENTE] : []), LINK_RECIBOS]
   // Caixa (grupo Financeiro): só Dev ou função Financeiro; Dev de outra função também vê a aba
   const podeCaixa = isDev || funcao === 'Financeiro'
   const linkCaixa = LINKS_FINANCEIRO.find(l => l.soDevFinanceiro)

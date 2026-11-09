@@ -2,7 +2,8 @@
 // (como o dashboard) e a faixa mostra só as abas da área aberta. Pós-Vendas e Peças seguem com a faixa antiga.
 // Uma tela pertence à área cujo prefixo casar com o endereço (o mais comprido ganha).
 
-export type AbaArea = { nome: string; href: string; fa: string; prefixo?: string; descricao?: string }
+// perm: ação do módulo financeiro exigida para a aba aparecer (pode('financeiro', perm)); sem perm = todos da área
+export type AbaArea = { nome: string; href: string; fa: string; prefixo?: string; descricao?: string; perm?: string }
 // largo: ocupa dois lugares no menu (7 áreas + 1 = 8 lugares: as linhas fecham sem buraco)
 export type AreaFinanceiro = { id: string; nome: string; descricao: string; fa: string; cor: string; abas: AbaArea[]; emMontagem?: boolean; largo?: boolean }
 
@@ -20,6 +21,8 @@ export const AREAS_FINANCEIRO: AreaFinanceiro[] = [
       { nome: 'Hoje', href: '/financeiro/hoje', fa: 'fa-sun', descricao: 'vence hoje, vencido e o que entrou' },
       { nome: 'Calendário', href: '/financeiro/caixa/calendario', fa: 'fa-calendar-days', descricao: 'um dia por vez, contas a pagar e a receber' },
       { nome: 'Vencidos', href: '/financeiro/caixa/vencidos', fa: 'fa-triangle-exclamation', descricao: 'por cliente, com juros e cobrança' },
+      // Contas do cliente/fornecedor + calculadora de dívida (09/11/2026)
+      { nome: 'Contas do cliente', href: '/financeiro/contas-cliente', fa: 'fa-calculator', descricao: 'tudo do cliente e a dívida atualizada', perm: 'contas-cliente' },
       { nome: 'Baixar contas', href: '/financeiro/caixa/baixar-contas', fa: 'fa-circle-check', descricao: 'dar baixa no Omie' },
     ],
   },
@@ -84,3 +87,8 @@ export function areaDoEndereco(path: string): AreaFinanceiro | null {
 }
 
 export const abaAtiva = (a: AbaArea, path: string) => casa(a, path)
+
+/** Abas que a pessoa pode ver: Notas fiscais pela financeiro:notas (comNotas) e as com `perm` pelo pode(). */
+export function abasVisiveis(abas: AbaArea[], comNotas: boolean, pode: (modulo: string, acao: string) => boolean): AbaArea[] {
+  return abas.filter((a) => (comNotas || a.href !== '/financeiro/notas') && (!a.perm || pode('financeiro', a.perm)))
+}

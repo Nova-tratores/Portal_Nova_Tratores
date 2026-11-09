@@ -3,7 +3,9 @@
 // Só para Dev e função Financeiro; cada cartão abre a primeira aba da área, e as abas aparecem embaixo para ir direto.
 import Link from 'next/link'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
-import { AREAS_FINANCEIRO } from './areasFinanceiro'
+import { AREAS_FINANCEIRO, abasVisiveis } from './areasFinanceiro'
+import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
 
 export default function MenuAreasFinanceiro({ comNotas }: { comNotas: boolean }) {
   return (
@@ -19,12 +21,14 @@ export default function MenuAreasFinanceiro({ comNotas }: { comNotas: boolean })
 
 /** A grade de cartões do menu de áreas. */
 export function GradeAreasAtual({ comNotas }: { comNotas: boolean }) {
+  const { userProfile } = useAuth()
+  const { pode } = usePermissoes(userProfile?.id)
   return (
     <>
       <style>{ESTILO}</style>
   <div className="mfa-grade">
     {AREAS_FINANCEIRO.map((area, i) => {
-      const abas = area.abas.filter((a) => comNotas || a.href !== '/financeiro/notas')
+      const abas = abasVisiveis(area.abas, comNotas, pode)
       return (
         <section key={area.id} className={`mfa-card${area.largo ? ' mfa-largo' : ''}`} style={{ ['--c' as string]: area.cor, animationDelay: `${i * 40}ms` }}>
           <Link href={abas[0].href} className="mfa-topo">

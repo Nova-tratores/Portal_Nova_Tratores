@@ -6,14 +6,18 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { LOGO_EMPRESA_FIN, NOME_EMPRESA_FIN, useEmpresaFinanceiro } from './empresaFinanceiro'
-import { abaAtiva, areaDoEndereco, type AbaArea } from './areasFinanceiro'
+import { abaAtiva, abasVisiveis, areaDoEndereco, type AbaArea } from './areasFinanceiro'
+import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
 
 export default function FinanceiroTopoNovo({ comNotas, children }: { comNotas: boolean; children?: ReactNode }) {
   const pathname = usePathname() || ''
   const [empresa, setEmpresa] = useEmpresaFinanceiro()
   const area = areaDoEndereco(pathname)
+  const { userProfile } = useAuth()
+  const { pode } = usePermissoes(userProfile?.id)
   // Notas fiscais vale pela permissão financeiro:notas, como na faixa antiga
-  const abas = (area?.abas || []).filter((a) => comNotas || a.href !== '/financeiro/notas')
+  const abas = abasVisiveis(area?.abas || [], comNotas, pode)
   const noMenu = pathname === '/financeiro'
 
   const guia = (a: AbaArea, on: boolean, extra = '') => (

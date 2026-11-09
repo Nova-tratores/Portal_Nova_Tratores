@@ -69,6 +69,7 @@ const systems: SystemCard[] = [
   { id: 'dre', name: 'DRE Financeiro', description: 'Demonstração do Resultado do Exercício com dados integrados do Omie', icon: <TrendingUp size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #059669, #047857)', href: '/dre-financeiro', tag: 'DRE', group: 'financeiro' },
   { id: 'painel-omie', name: 'Painel Omie', description: 'Relatórios de oficina, peças, comercial e comissões dos técnicos', icon: <BarChart3 size={28} />, color: '#1f5c46', gradient: 'linear-gradient(135deg, #1f5c46, #14532d)', href: '/painel-omie', tag: 'RELATORIOS', group: 'financeiro' },
   { id: 'financeiro-notas', name: 'Notas fiscais', description: 'Entradas e saídas guardadas no portal (PDF + XML) — abrem mesmo com a Omie fora', icon: <FileText size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)', href: '/financeiro/notas', tag: 'NOTAS', group: 'financeiro', permAcao: 'notas' },
+  { id: 'financeiro-contas-cliente', name: 'Contas do cliente', description: 'Tudo o que o cliente ou fornecedor deve e tem a receber, nas duas empresas, e a calculadora de dívida atualizada', icon: <Calculator size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)', href: '/financeiro/contas-cliente', tag: 'CONTAS', group: 'financeiro', permAcao: 'contas-cliente' },
 
   // Comercial (roxo)
   { id: 'proposta-comercial', name: 'Proposta Comercial', description: 'Geração de propostas com PDF e QR Code para clientes', icon: <FileText size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #B91C1C)', href: '/propostas', tag: 'VENDAS', group: 'comercial' },
@@ -140,6 +141,7 @@ const systemToModulo: Record<string, string> = {
   'estoque-notas-entrada': 'estoque',     // sub-tela; gate por pode('estoque','notas-entrada')
   'estoque-recebimentos': 'estoque',      // sub-tela; gate por pode('estoque','recebimentos')
   'financeiro-notas': 'financeiro',       // sub-tela; gate por pode('financeiro','notas')
+  'financeiro-contas-cliente': 'financeiro', // sub-tela; gate por pode('financeiro','contas-cliente')
   'estoque-movimentacao': 'estoque',      // sub-tela; gate por pode('estoque','movimentacao-produto')
   'frota': 'frota',                       // ⚠️ card SEM entrada aqui = visível pra TODOS
   'pendencias': 'pendencias',

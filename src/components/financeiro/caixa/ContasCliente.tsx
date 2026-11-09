@@ -8,6 +8,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { fetchAuth } from '@/lib/auth/client'
 import { COR, Documento, brl, dataBR, empresa, hojeISO, pegarDre, semZeros } from './comum'
+import { atualizarTitulo, type RegraJuros } from '@/lib/financeiro/divida'
 
 interface Conta {
   tipo: 'pagar' | 'receber'; codigo_lancamento: number; conta_omie: string; numero_documento: string | null; numero_documento_fiscal: string | null
@@ -21,7 +22,9 @@ type Situacao = { estado: 'baixando' | 'ok' | 'erro'; msg?: string }
 const diaN = (iso: string) => Date.parse(`${iso.slice(0, 10)}T12:00:00Z`) / 864e5
 const dinheiro = (n: number) => Math.round(n * 100) / 100
 
-export default function ContasCliente({ cliente, taxa, onFechar, onBaixou }: { cliente: ClienteAberto; taxa: number; onFechar: () => void; onBaixou: () => void }) {
+// regra: multa + juros da empresa (financeiro_regra_juros, com o ajuste feito no Vencidos), desde 09/11/2026
+export default function ContasCliente({ cliente, regra, onFechar, onBaixou }: { cliente: ClienteAberto; regra: RegraJuros; onFechar: () => void; onBaixou: () => void }) {
+  const taxa = regra.juros_mes_pct
   const { userProfile } = useAuth()
   const { pode } = usePermissoes(userProfile?.id)
   const podeBaixar = pode('ajustes', 'baixa-contas')
@@ -65,7 +68,14 @@ export default function ContasCliente({ cliente, taxa, onFechar, onBaixou }: { c
   }, [empresas, podeBaixar, ccs])
 
   const atrasoEm = useCallback((t: Conta) => Math.max(0, Math.round(diaN(data) - diaN(t.data_vencimento))), [data])
-  const jurosDe = useCallback((t: Conta) => (receber && cobrarJuros ? dinheiro(t.valor_aberto * (taxa / 100) * (atrasoEm(t) / 30)) : 0), [receber, cobrarJuros, taxa, atrasoEm])
+  // multa (uma vez) e juros pro-rata até a data do recebimento; vão separados para a baixa no Omie
+  const encargosDe = useCallback((t: Conta) => {
+    if (!receber || !cobrarJuros) return { multa: 0, juros: 0 }
+    const a = atualizarTitulo({ id: '', vencimento: t.data_vencimento, valorAberto: t.valor_aberto }, regra, data)
+    return { multa: a.multa, juros: a.juros }
+  }, [receber, cobrarJuros, regra, data])
+  const jurosDe = useCallback((t: Conta) => { const e = encargosDe(t); return dinheiro(e.multa + e.juros) }, [encargosDe])
+  const textoRegra = `${regra.multa_pct ? `multa ${regra.multa_pct.toLocaleString('pt-BR')}% + ` : ''}juros ${taxa.toLocaleString('pt-BR')}% ao mês`
   const ccDe = (t: Conta) => ccEscolhida[t.conta_omie] || (t.id_conta_corrente ? String(t.id_conta_corrente) : '')
   const nomeCc = (e: string, cod: string) => ccs[e]?.find((c) => String(c.codigo) === cod)?.descricao || (cod ? `conta ${cod}` : 'sem conta corrente')
 
@@ -82,21 +92,21 @@ export default function ContasCliente({ cliente, taxa, onFechar, onBaixou }: { c
     if (!sel.length) return
     if (semCc.length) { alert(`Escolha a conta corrente: ${semCc.length} conta(s) sem conta corrente no Omie.`); return }
     const ok = confirm(`Dar baixa no Omie de ${sel.length} ${sel.length === 1 ? 'conta' : 'contas'} de ${cliente.nome}?\n\n`
-      + `Em aberto: ${brl(soma)}\nJuros: ${brl(somaJuros)}\nTotal ${receber ? 'recebido' : 'pago'}: ${brl(soma + somaJuros)}\nData: ${dataBR(data)}`)
+      + `Em aberto: ${brl(soma)}\nMulta e juros: ${brl(somaJuros)}\nTotal ${receber ? 'recebido' : 'pago'}: ${brl(soma + somaJuros)}\nData: ${dataBR(data)}`)
     if (!ok) return
     setRodando(true)
     let baixou = false
     // uma de cada vez: o Omie não gosta de rajada
     for (const t of sel) {
       setSituacao((s) => ({ ...s, [t.codigo_lancamento]: { estado: 'baixando' } }))
-      const juros = jurosDe(t)
+      const { multa, juros } = encargosDe(t)
       try {
         const r = await fetchAuth('/api/ajustes/contas/baixar', {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             conta: t.conta_omie, tipo: t.tipo, codigoLancamento: t.codigo_lancamento, codigoContaCorrente: ccDe(t),
-            valor: dinheiro(t.valor_aberto), data, juros, multa: 0, desconto: 0,
-            observacao: `Baixa pelo Caixa do portal${juros ? ` · juros ${taxa.toLocaleString('pt-BR')}% a.m. (${atrasoEm(t)} dias)` : ''}`,
+            valor: dinheiro(t.valor_aberto), data, juros, multa, desconto: 0,
+            observacao: `Baixa pelo Caixa do portal${juros || multa ? ` · ${textoRegra} (${atrasoEm(t)} dias)` : ''}`,
           }),
         })
         const d = await r.json().catch(() => ({}))
@@ -171,7 +181,7 @@ export default function ContasCliente({ cliente, taxa, onFechar, onBaixou }: { c
                 <label className="cx-campo">{receber ? 'Recebido em' : 'Pago em'} <input type="date" value={data} max={hoje} onChange={(e) => setData(e.target.value || hoje)} disabled={rodando} style={{ width: 150 }} /></label>
                 {receber && (
                   <div className="cx-seg" role="group" aria-label="Juros">
-                    <button type="button" aria-pressed={cobrarJuros} className={cobrarJuros ? 'cx-seg-on' : ''} onClick={() => setCobrarJuros(true)} disabled={rodando}>Com juros de {taxa.toLocaleString('pt-BR')}% ao mês</button>
+                    <button type="button" aria-pressed={cobrarJuros} className={cobrarJuros ? 'cx-seg-on' : ''} onClick={() => setCobrarJuros(true)} disabled={rodando}>Com {textoRegra}</button>
                     <button type="button" aria-pressed={!cobrarJuros} className={!cobrarJuros ? 'cx-seg-on' : ''} onClick={() => setCobrarJuros(false)} disabled={rodando}>Sem juros</button>
                   </div>
                 )}
@@ -198,7 +208,7 @@ export default function ContasCliente({ cliente, taxa, onFechar, onBaixou }: { c
             <span>Total <b style={{ color: receber ? COR.receber : COR.pagar }}>{brl(soma + somaJuros)}</b></span>
           </div>
           <div className="cx-grupo">
-            {receber && sel.length > 0 && <button type="button" className="cx-chip" onClick={() => navigator.clipboard.writeText(textoCobranca(cliente, sel, jurosDe, atrasoEm, taxa, data)).catch(() => alert('Não deu para copiar.'))}><i className="fa-solid fa-copy" /> Copiar cobrança</button>}
+            {receber && sel.length > 0 && <button type="button" className="cx-chip" onClick={() => navigator.clipboard.writeText(textoCobranca(cliente, sel, jurosDe, atrasoEm, textoRegra, data)).catch(() => alert('Não deu para copiar.'))}><i className="fa-solid fa-copy" /> Copiar cobrança</button>}
             {podeBaixar
               ? <button type="button" className="cc-finalizar" onClick={finalizar} disabled={rodando || !sel.length}>{rodando ? 'Dando baixa…' : `Finalizar ${sel.length || ''} no Omie`}</button>
               : <span className="cx-apagado" style={{ fontSize: 14 }}>Para dar baixa, peça a permissão Ajustes › Baixar contas</span>}
@@ -209,16 +219,16 @@ export default function ContasCliente({ cliente, taxa, onFechar, onBaixou }: { c
   )
 }
 
-function textoCobranca(c: ClienteAberto, lista: Conta[], jurosDe: (t: Conta) => number, atrasoEm: (t: Conta) => number, taxa: number, data: string) {
+function textoCobranca(c: ClienteAberto, lista: Conta[], jurosDe: (t: Conta) => number, atrasoEm: (t: Conta) => number, textoRegra: string, data: string) {
   const linhas = lista.map((t) => {
     const j = jurosDe(t), d = atrasoEm(t)
     const doc = t.numero_documento_fiscal ? `NF ${semZeros(t.numero_documento_fiscal)}` : t.numero_documento || 'Documento'
     const parc = t.numero_parcela && t.numero_parcela !== '001/001' ? ` parc. ${t.numero_parcela}` : ''
-    return `• ${doc}${parc} — vence${d > 0 ? 'u' : ''} ${dataBR(t.data_vencimento)}${d > 0 ? ` (${d} ${d === 1 ? 'dia' : 'dias'})` : ''}: ${brl(t.valor_aberto)}${j ? ` + juros ${brl(j)} = ${brl(t.valor_aberto + j)}` : ''}`
+    return `• ${doc}${parc} — vence${d > 0 ? 'u' : ''} ${dataBR(t.data_vencimento)}${d > 0 ? ` (${d} ${d === 1 ? 'dia' : 'dias'})` : ''}: ${brl(t.valor_aberto)}${j ? ` + multa e juros ${brl(j)} = ${brl(t.valor_aberto + j)}` : ''}`
   })
   const soma = lista.reduce((a, t) => a + t.valor_aberto, 0), juros = lista.reduce((a, t) => a + jurosDe(t), 0)
   return [`${c.nome}${c.documento ? ` — ${c.documento}` : ''}`, '', ...linhas, '', `Total em aberto: ${brl(soma)}`,
-    ...(juros ? [`Juros (${taxa.toLocaleString('pt-BR')}% ao mês, proporcional aos dias): ${brl(juros)}`] : []),
+    ...(juros ? [`Encargos (${textoRegra}, proporcional aos dias): ${brl(juros)}`] : []),
     `Total atualizado em ${dataBR(data)}: ${brl(soma + juros)}`].join('\n')
 }
 

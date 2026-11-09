@@ -196,6 +196,7 @@ export function catalogoRotas(): RotaDef[] {
   tela('/financeiro/novo-chamado-rh', 'financeiro:criar_chamado');
   tela('/financeiro/novo-pagar-receber', 'financeiro:criar_lancamento');
   tela('/financeiro/notas', 'financeiro:notas');
+  tela('/financeiro/contas-cliente', 'financeiro:contas-cliente');
 
   for (const [padrao, nota] of LIVRES) r.set(padrao, { padrao, acesso: 'livre', ...(nota ? { nota } : {}) });
   for (const padrao of SO_ADMIN) r.set(padrao, { padrao, acesso: 'admin' });

@@ -199,6 +199,8 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     // Herdeira da consulta-estoque:notas-entrada (tela aposentada 29/10/2026).
     { id: 'notas-entrada', label: 'Notas fiscais — ver também as de entrada (só consulta)' },
     { id: 'editar_cards', label: 'Editar cards do kanban a qualquer momento (nome, condição, valor, datas)' },
+    { id: 'contas-cliente', label: 'Contas do cliente/fornecedor + calculadora de dívida' },
+    { id: 'contas-cliente-regra', label: 'Contas do cliente — editar a regra de juros da empresa' },
   ],
   // DRE Financeiro: granular POR TELA (cada ação = uma tela analítica). O id da
   // ação é o slug da rota (/dre-financeiro/<id>). Quem tem 'financeiro' ou é

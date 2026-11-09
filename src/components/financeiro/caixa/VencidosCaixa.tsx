@@ -4,6 +4,8 @@
 // Nada de conta aqui além de filtrar, ordenar e somar o que a busca mostra.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import ContasCliente, { type ClienteAberto } from './ContasCliente'
+import { atualizarTitulo, type RegraJuros } from '@/lib/financeiro/divida'
+import { contaDaRegra, useRegrasJuros } from '@/lib/financeiro/regra-juros-client'
 import { useEmpresaFinanceiro } from '../empresaFinanceiro'
 import { COR, Documento, ESTILO_CAIXA, SegTipo, Seta, brl, contas, dataBR, empresa, nomeDe, pegarDre, sem, semZeros, type Tipo } from './comum'
 
@@ -48,21 +50,28 @@ const COR_FAIXA = Object.fromEntries(FAIXAS.map((f) => [f.id, f.cor])) as Record
 const POR_VEZ = 60
 const quem = (tipo: Tipo) => (tipo === 'receber' ? 'cliente' : tipo === 'pagar' ? 'fornecedor' : 'cliente ou fornecedor')
 
-// Juros de atraso para cobrar do cliente (José, 05/11/2026): taxa ao mês dividida pelos dias em atraso,
-// juros simples — 6% a.m. = 0,2% por dia (mês de 30 dias). Só nas contas a receber.
-const juros = (t: Titulo, taxaMes: number) => (t.tipo === 'receber' ? t.valor_aberto * (taxaMes / 100) * (t.dias_atraso / 30) : 0)
+// Encargos de atraso para cobrar do cliente. Só nas contas a receber. Desde 09/11/2026 seguem a REGRA DA EMPRESA
+// (financeiro_regra_juros, a mesma da tela Contas do cliente): multa uma vez + juros pro-rata por dia (mês de 30 dias).
+// Antes era só juros simples de 6% a.m. digitado aqui (José, 05/11/2026).
+const hojeBR = () => new Date(Date.now() - 3 * 3600e3).toISOString().slice(0, 10)
+const juros = (t: Titulo, regra: RegraJuros) => {
+  if (t.tipo !== 'receber') return 0
+  const a = atualizarTitulo({ id: '', vencimento: t.data_vencimento, valorAberto: t.valor_aberto }, regra, hojeBR())
+  return a.multa + a.juros
+}
 const lerTaxa = (s: string) => { const n = Number(s.replace(',', '.')); return Number.isFinite(n) && n >= 0 ? n : 0 }
 const pct = (n: number) => n.toLocaleString('pt-BR', { maximumFractionDigits: 3 })
+const descRegra = (r: RegraJuros) => `${r.multa_pct ? `multa de ${pct(r.multa_pct)}% + ` : ''}juros de ${pct(r.juros_mes_pct)}% ao mês`
 
 interface Grupo { chave: string; tipo: 'pagar' | 'receber'; nome: string; documento: string | null; telefone: string | null; empresas: Set<string>; total: number; juros: number; maxAtraso: number; titulos: Titulo[] }
 
 /** Texto pronto para mandar ao cliente (WhatsApp/e-mail): cada conta com atraso e juros, e o total. */
-function textoCobranca(g: Grupo, taxaMes: number) {
+function textoCobranca(g: Grupo, regra: RegraJuros) {
   const linhas = [...g.titulos].sort((a, b) => a.data_vencimento.localeCompare(b.data_vencimento)).map((t) => {
-    const j = juros(t, taxaMes)
+    const j = juros(t, regra)
     const doc = t.numero_documento_fiscal ? `NF ${semZeros(t.numero_documento_fiscal)}` : t.numero_documento || 'Documento'
     const parc = t.numero_parcela && t.numero_parcela !== '001/001' ? ` parc. ${t.numero_parcela}` : ''
-    return `• ${doc}${parc} — venceu ${dataBR(t.data_vencimento)} (${t.dias_atraso} ${t.dias_atraso === 1 ? 'dia' : 'dias'}): ${brl(t.valor_aberto)} + juros ${brl(j)} = ${brl(t.valor_aberto + j)}`
+    return `• ${doc}${parc} — venceu ${dataBR(t.data_vencimento)} (${t.dias_atraso} ${t.dias_atraso === 1 ? 'dia' : 'dias'}): ${brl(t.valor_aberto)} + multa e juros ${brl(j)} = ${brl(t.valor_aberto + j)}`
   })
   return [
     `${g.nome}${g.documento ? ` — ${g.documento}` : ''}`,
@@ -70,7 +79,7 @@ function textoCobranca(g: Grupo, taxaMes: number) {
     ...linhas,
     '',
     `Total em aberto: ${brl(g.total)}`,
-    `Juros (${pct(taxaMes)}% ao mês, proporcional aos dias): ${brl(g.juros)}`,
+    `Encargos (${descRegra(regra)}, proporcional aos dias): ${brl(g.juros)}`,
     `Total atualizado em ${dataBR(new Date(Date.now() - 3 * 3600e3).toISOString())}: ${brl(g.total + g.juros)}`,
   ].join('\n')
 }
@@ -88,13 +97,13 @@ function Valor({ t }: { t: Titulo }) {
   )
 }
 
-function ComJuros({ t, taxa }: { t: Titulo; taxa: number }) {
+function ComJuros({ t, regra }: { t: Titulo; regra: RegraJuros }) {
   if (t.tipo !== 'receber') return <span className="cx-apagado">—</span>
-  const j = juros(t, taxa)
+  const j = juros(t, regra)
   return (
     <span style={{ fontWeight: 500 }}>
       {brl(t.valor_aberto + j)}
-      <small className="cx-apagado" style={{ display: 'block', fontWeight: 400 }}>+ {brl(j)} de juros</small>
+      <small className="cx-apagado" style={{ display: 'block', fontWeight: 400 }}>+ {brl(j)} de multa e juros</small>
     </span>
   )
 }
@@ -109,8 +118,17 @@ export default function VencidosCaixa() {
   const [faixa, setFaixa] = useState<Faixa | null>(null)
   // abre por cliente: é onde aparece tudo o que cada um deve, com os juros
   const [visao, setVisao] = useState<'lista' | 'terceiro'>('terceiro')
-  const [taxaTxt, setTaxaTxt] = useState('6')
-  const taxa = lerTaxa(taxaTxt)
+  // regra da empresa do topo; os campos da tela ajustam só esta consulta (null = vale a regra salva)
+  const { regras } = useRegrasJuros()
+  const [jurosTxt, setJurosTxt] = useState<string | null>(null)
+  const [multaTxt, setMultaTxt] = useState<string | null>(null)
+  const base = regras[contaDaRegra(conta)]
+  const regra = useMemo<RegraJuros>(() => ({
+    ...base,
+    juros_mes_pct: jurosTxt == null ? base.juros_mes_pct : lerTaxa(jurosTxt),
+    multa_pct: multaTxt == null ? base.multa_pct : lerTaxa(multaTxt),
+  }), [base, jurosTxt, multaTxt])
+  const taxa = regra.juros_mes_pct
   const [copiado, setCopiado] = useState<string | null>(null)
   const [busca, setBusca] = useState('')
   const [ordem, setOrdem] = useState<{ col: Coluna; desc: boolean }>({ col: 'atraso', desc: true })
@@ -145,15 +163,15 @@ export default function VencidosCaixa() {
     for (const t of filtrados) {
       const chave = `${t.tipo}|${t.documento_norm ? `doc:${t.documento_norm}` : t.codigo_contraparte ?? `nome:${t.nome || 'sem'}`}`
       const g = m.get(chave) || { chave, tipo: t.tipo, nome: nomeDe(t.nome), documento: t.documento, telefone: t.telefone, empresas: new Set<string>(), total: 0, juros: 0, maxAtraso: 0, titulos: [] }
-      g.total += t.valor_aberto; g.juros += juros(t, taxa); g.maxAtraso = Math.max(g.maxAtraso, t.dias_atraso); g.titulos.push(t)
+      g.total += t.valor_aberto; g.juros += juros(t, regra); g.maxAtraso = Math.max(g.maxAtraso, t.dias_atraso); g.titulos.push(t)
       g.empresas.add(empresa(t.conta_omie)); g.telefone ||= t.telefone
       m.set(chave, g)
     }
     return [...m.values()].sort((a, b) => b.total + b.juros - (a.total + a.juros))
-  }, [filtrados, taxa])
+  }, [filtrados, regra])
 
   const somaFiltrada = filtrados.reduce((a, t) => a + t.valor_aberto, 0)
-  const jurosTotal = (dados?.titulos || []).reduce((a, t) => a + juros(t, taxa), 0)
+  const jurosTotal = (dados?.titulos || []).reduce((a, t) => a + juros(t, regra), 0)
   const comJuros = tipo !== 'pagar'
   // clique no cliente: janela com TODAS as contas em aberto dele e a baixa no Omie
   const [cliente, setCliente] = useState<ClienteAberto | null>(null)
@@ -162,7 +180,7 @@ export default function VencidosCaixa() {
     setCliente({ nome: g.nome, documento: g.documento, telefone: g.telefone, tipo: g.tipo, codigos: [...new Set(g.titulos.map((t) => Number(t.codigo_contraparte)).filter(Boolean))] })
   }
   const copiar = async (g: Grupo) => {
-    try { await navigator.clipboard.writeText(textoCobranca(g, taxa)); setCopiado(g.chave); setTimeout(() => setCopiado((c) => (c === g.chave ? null : c)), 2500) }
+    try { await navigator.clipboard.writeText(textoCobranca(g, regra)); setCopiado(g.chave); setTimeout(() => setCopiado((c) => (c === g.chave ? null : c)), 2500) }
     catch { alert('Não deu para copiar. Tente de novo.') }
   }
   const maiorFaixa = Math.max(1, ...(dados?.faixas || []).map((f) => f.total))
@@ -213,9 +231,9 @@ export default function VencidosCaixa() {
             )}
             {comJuros && (
               <div className="cx-res">
-                <span className="cx-rot">Receber com juros</span>
+                <span className="cx-rot">Receber com multa e juros</span>
                 <strong style={{ color: COR.receber }}>{brl(k.totalReceber + jurosTotal)}</strong>
-                <span className="cx-det">+ {brl(jurosTotal)} de juros ({pct(taxa)}% ao mês)</span>
+                <span className="cx-det">+ {brl(jurosTotal)} ({descRegra(regra)})</span>
               </div>
             )}
             <div className="cx-res">
@@ -245,9 +263,12 @@ export default function VencidosCaixa() {
               <button type="button" aria-pressed={visao === 'terceiro'} className={`cx-chip${visao === 'terceiro' ? ' cx-chip-on' : ''}`} onClick={() => setVisao('terceiro')}><i className="fa-solid fa-users" /> Por {quem(tipo)} <span>{terceiros.length}</span></button>
               <button type="button" aria-pressed={visao === 'lista'} className={`cx-chip${visao === 'lista' ? ' cx-chip-on' : ''}`} onClick={() => setVisao('lista')}><i className="fa-solid fa-list" /> Conta por conta <span>{filtrados.length}</span></button>
               {comJuros && (
-                <label className="cx-campo" title="Juros simples: a taxa do mês dividida por 30 e multiplicada pelos dias em atraso">
-                  Juros <input value={taxaTxt} onChange={(e) => setTaxaTxt(e.target.value)} inputMode="decimal" aria-label="Juros ao mês, em %" style={{ width: 44, textAlign: 'right' }} /> % ao mês
-                  <span className="cx-apagado" style={{ fontSize: 14 }}>· {pct(taxa / 30)}% por dia</span>
+                <label className="cx-campo" title="Regra da empresa (a mesma da tela Contas do cliente). Mudar aqui vale só para esta consulta.">
+                  Multa <input value={multaTxt ?? pct(base.multa_pct)} onChange={(e) => setMultaTxt(e.target.value)} inputMode="decimal" aria-label="Multa, em %" style={{ width: 40, textAlign: 'right' }} /> %
+                  · Juros <input value={jurosTxt ?? pct(base.juros_mes_pct)} onChange={(e) => setJurosTxt(e.target.value)} inputMode="decimal" aria-label="Juros ao mês, em %" style={{ width: 40, textAlign: 'right' }} /> % ao mês
+                  {(jurosTxt != null || multaTxt != null)
+                    ? <button type="button" className="cx-link" onClick={() => { setJurosTxt(null); setMultaTxt(null) }}>voltar à regra</button>
+                    : <span className="cx-apagado" style={{ fontSize: 14 }}>· regra da empresa</span>}
                 </label>
               )}
               {(faixa || termo) && <span className="cx-filtro">Mostrando {contas(filtrados.length)}, {brl(somaFiltrada)}{faixa ? ` · ${FAIXAS.find((f) => f.id === faixa)?.nome}` : ''} <button type="button" className="cx-link" onClick={() => { setFaixa(null); setBusca('') }}>Ver tudo</button></span>}
@@ -284,7 +305,7 @@ export default function VencidosCaixa() {
                       <td>{dataBR(t.data_vencimento)}</td>
                       <td><Atraso t={t} /></td>
                       <td style={{ textAlign: 'right' }}><Valor t={t} /></td>
-                      {comJuros && <td style={{ textAlign: 'right' }}><ComJuros t={t} taxa={taxa} /></td>}
+                      {comJuros && <td style={{ textAlign: 'right' }}><ComJuros t={t} regra={regra} /></td>}
                     </tr>
                   ))}
                   {lista.length === 0 && <tr><td colSpan={comJuros ? 7 : 6} className="cx-vazio">{termo || faixa ? 'Nada com esse filtro' : 'Nenhuma conta vencida'}</td></tr>}
@@ -344,12 +365,12 @@ export default function VencidosCaixa() {
           <p className="cx-nota">
             Mesmo cálculo do DRE Financeiro: contas que o Omie marca como atrasadas e que venceram a partir de 01/01/{ano}, sem as contas entre Nova e Castro.
             Os dados vêm do espelho do Omie, atualizado algumas vezes por dia. Por cliente, as contas se juntam pelo CPF/CNPJ (o mesmo cliente na Nova e na Castro vira uma linha só).
-            {comJuros && ` Juros simples só nas contas a receber: ${pct(taxa)}% ao mês dividido por 30 (${pct(taxa / 30)}% por dia) vezes os dias em atraso, sobre o valor em aberto.`}
+            {comJuros && ` Encargos só nas contas a receber, pela regra da empresa (a mesma da tela Contas do cliente): ${descRegra(regra)}${regra.tipo_juros === 'composto' ? ' (compostos)' : ` (${pct(taxa / 30)}% por dia)`} sobre o valor em aberto${regra.multa_pct ? ', com a multa cobrada uma vez' : ''}${regra.carencia_dias ? `, carência de ${regra.carencia_dias} dia(s)` : ''}.`}
           </p>
         </>
       )}
       {/* baixou alguma conta: recarrega a lista (o espelho já foi atualizado pela própria baixa) */}
-      {cliente && <ContasCliente cliente={cliente} taxa={taxa} onFechar={() => setCliente(null)} onBaixou={carregar} />}
+      {cliente && <ContasCliente cliente={cliente} regra={regra} onFechar={() => setCliente(null)} onBaixou={carregar} />}
     </div>
   )
 }
