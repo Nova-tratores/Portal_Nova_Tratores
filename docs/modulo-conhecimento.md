@@ -114,6 +114,9 @@ O treinamento **não tem conteúdo próprio**: uma trilha é uma sequência de a
 ### Trilha piloto (`scripts/treinamento-seed-pos.ts`)
 "Pós-Vendas — operação da OS": os 7 artigos do `/pos` (publicados em 05/11 por Henri, com revisão de texto) + 10 perguntas escritas dos artigos; nota 70, prazo 7, público "Pós Vendas" (3 pessoas ativas em 05/11: Vinicius Correa, Nicolly, Larissa Garcia). `--ativar` ativa e atribui.
 
+### Fontes por artigo (09/11/2026)
+O seed dava a cada artigo as fontes do módulo inteiro, então qualquer commit no POS marcava os 7 artigos como "pode estar desatualizado" (aconteceu no mesmo dia da publicação). Em 09/11 cada artigo do /pos passou a vigiar só os arquivos que descreve (`FONTES_POR_SLUG` no seed; gravado no banco direto). Regra para artigo novo: apontar arquivos/pastas específicos, nunca `src/**/modulo/**`. Prazo do piloto estendido para 27/11 (ninguém tinha começado em 09/11).
+
 ### Limpeza de 05/11
 127 rascunhos de novidade da fase manual (antes do fluxo automático de 22/10) descartados; os 7 artigos publicados de Garantias marcados "em dia".
 

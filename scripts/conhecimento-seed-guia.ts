@@ -37,6 +37,22 @@ const FONTES: Record<string, string[]> = {
   tickets: ["src/app/(portal)/tickets/**", "src/components/tickets/**", "src/lib/tickets/**", "src/app/api/tickets/**"],
 };
 
+// fontes POR ARTIGO (09/11/2026): o mapa por módulo marcava os 7 artigos do /pos a cada commit do POS.
+// Cada artigo passa a vigiar só os arquivos que descreve (gravado no banco em 09/11; aqui para novos seeds).
+const FONTES_POR_SLUG: Record<string, string[]> = {
+  "pos-fases-na-ordem-do-quadro": ["src/lib/pos/constants.ts", "src/components/pos/PhaseAccordion.tsx", "src/components/pos/KanbanGrid.tsx"],
+  "pos-como-a-os-muda-de-fase": ["src/lib/pos/fase.ts", "src/lib/pos/fase-auto.ts", "src/lib/pos/fase-auto-server.ts", "src/lib/pos/atualizar-relatorio.ts",
+    "src/app/api/pos/ordens/auto-fase/**", "src/app/api/pos/ordens/[id]/fase/**", "src/app/api/pos/ordens/enviar-omie-lote/**",
+    "src/components/pos/PhaseAccordion.tsx", "src/components/pos/OSCard.tsx"],
+  "pos-campos-obrigatorios-para-abrir-uma-os": ["src/app/api/pos/ordens/route.ts", "src/components/pos/OSDrawer.tsx"],
+  "pos-campos-obrigatorios-para-concluir": ["src/app/api/pos/ordens/[id]/route.ts", "src/lib/pos/fase.ts", "src/lib/pos/cancelar-os.ts", "src/components/pos/OSDrawer.tsx"],
+  "pos-o-que-acontece-ao-enviar-ao-omie": ["src/lib/pos/omie.ts", "src/lib/pos/envio-omie-regras.ts", "src/lib/pos/omie-espelho.ts", "src/lib/pos/pecas-ppv.ts",
+    "src/app/api/pos/ordens/[id]/omie/**", "src/app/api/pos/ordens/[id]/enviar-omie/**", "src/app/api/pos/ordens/enviar-omie-lote/**", "src/components/pos/EnviarOmieModal.tsx"],
+  "pos-nfs-e": ["src/lib/estoque/os.ts", "src/lib/pos/nota.ts", "src/lib/clientes/nfse-omie.ts", "src/app/api/pos/ordens/nfse/**"],
+  "pos-outras-regras-automaticas": ["src/lib/pos/alimentacao-os.ts", "src/lib/pos/checarIrregularidade.ts", "src/lib/pos/emails-pecas.ts", "src/lib/pos/horas-tecnico.ts",
+    "src/app/api/pos/ordens/[id]/criar-ppv/**", "src/app/api/pos/ordens/route.ts", "src/app/api/pos/cron/**"],
+};
+
 function lerEnv(): Record<string, string> {
   const p = path.resolve(".env.local");
   if (!fs.existsSync(p)) return {};
@@ -72,7 +88,7 @@ async function main() {
     const slug = slugify(`${a.modulo} ${a.titulo}`);
     const resumo = `${a.secao}: ${a.titulo.toLowerCase()}.`.slice(0, 200);
     const linha = {
-      slug, titulo: a.titulo, tipo: "regra", modulo: a.modulo, telas: [a.tela], fontes: FONTES[a.modulo] ?? [`src/**/${a.modulo}/**`],
+      slug, titulo: a.titulo, tipo: "regra", modulo: a.modulo, telas: [a.tela], fontes: FONTES_POR_SLUG[slug] ?? FONTES[a.modulo] ?? [`src/**/${a.modulo}/**`],
       resumo, corpo: a.corpo, tags: [a.modulo, "guia pós-venda"], publico: [], ordem: a.ordem, status: "rascunho", versao: 0, origem: "seed",
       texto_busca: textoDeBusca(a.titulo, resumo, a.corpo, [a.modulo]),
       criado_por_nome: "seed (guia do Pós-Venda)", rascunho_por: "seed (guia do Pós-Venda)", rascunho_em: new Date().toISOString(),
