@@ -44,7 +44,7 @@ export default function GarantiaMiniCard({ garantia: g, onClick, cor, extra }: P
         <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)' }}>{g.numero}</span>
         <span
           style={{
-            fontSize: 9,
+            fontSize: 10.5,
             fontWeight: 700,
             textTransform: 'uppercase',
             color: STATUS_COR[g.status],
@@ -79,14 +79,14 @@ export default function GarantiaMiniCard({ garantia: g, onClick, cor, extra }: P
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: 'var(--portal-text-faint)' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--portal-text-faint)' }}>
           <Clock size={11} />
           {naFabrica && diasFabrica != null
             ? `${diasFabrica}d na fábrica`
             : `Aberta ${tempoDecorrido(g.created_at)}`}
         </span>
         {pendenciaAberta && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, color: '#f59e0b' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#f59e0b' }}>
             <AlertTriangle size={11} /> Aguardando técnico
           </span>
         )}
@@ -94,7 +94,7 @@ export default function GarantiaMiniCard({ garantia: g, onClick, cor, extra }: P
           <span
             style={{
               display: 'flex', alignItems: 'center', gap: 3,
-              fontSize: 10, fontWeight: 700,
+              fontSize: 11, fontWeight: 700,
               color: diasDevolucao != null && diasDevolucao < 0 ? '#dc2626' : '#b45309',
             }}
           >
@@ -112,7 +112,7 @@ export default function GarantiaMiniCard({ garantia: g, onClick, cor, extra }: P
           <span
             style={{
               display: 'flex', alignItems: 'center', gap: 3,
-              fontSize: 10, fontWeight: 700,
+              fontSize: 11, fontWeight: 700,
               color: diasGuarda != null && diasGuarda <= 0 ? '#16a34a' : '#0e7490',
             }}
           >

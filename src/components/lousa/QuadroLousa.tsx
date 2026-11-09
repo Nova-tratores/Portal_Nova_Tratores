@@ -585,6 +585,8 @@ const CSS_QUADRO = `
 .ql-lousa .ql-faixa { height: 16px; }
 .ql-lousa .ql-pendentes { background: #fbfbf8; }
 @media (max-width: 900px) { .ql-moldura { overflow-x: auto; } .ql-grade { min-width: 860px; } }
+/* celular (auditoria 06/11/2026): selos e rótulos de 9,5–10,5 px sobem para 11 px */
+@media (max-width: 760px) { .ql-num, .ql-st, .ql-local, .ql-cab-mais, .ql-ordem, .ql-dias { font-size: 11px; } }
 /* toque (auditoria 06/11/2026): Pilha/Lista com 28 px e "ver as N" com 22 px */
 @media (hover: none) { .ql-bolas { gap: 0; } .ql-bolas button { box-sizing: content-box; padding: 10px 6px; background-clip: content-box; } .ql-seg button { min-height: 38px; padding-left: 14px; padding-right: 14px; } .ql-pilha-mais { min-height: 32px; padding: 6px 12px; font-size: 12px; } }
 `
