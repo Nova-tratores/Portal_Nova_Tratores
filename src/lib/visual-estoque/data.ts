@@ -41,27 +41,27 @@ export interface FamiliaVE {
   custoCapital: number;
 }
 
+// ~11,5 mil produtos: a 1ª página traz o total e as demais saem juntas (antes, uma depois da outra e
+// lidas duas vezes — o painel levava ~30 s; auditoria 06/11/2026). Ordem fixa: sem ela as páginas podem
+// repetir ou pular linhas.
 async function fetchAllProdutos(contaFiltro?: string) {
-  const all: any[] = [];
-  let from = 0;
   const PAGE = 1000;
-  let hasMore = true;
-  while (hasMore) {
+  const pagina = (from: number, contar = false) => {
     let q = supabaseVE
       .from("produtos")
-      .select("*")
+      .select("*", contar ? { count: "exact" } : undefined)
       .eq("arquivado", false)
+      .order("codigo_produto")
       .range(from, from + PAGE - 1);
     if (contaFiltro && contaFiltro !== "todas") q = q.eq("conta_omie", contaFiltro);
-    const { data } = await q;
-    if (data && data.length > 0) {
-      all.push(...data);
-      if (data.length < PAGE) hasMore = false;
-      else from += PAGE;
-    } else {
-      hasMore = false;
-    }
-  }
+    return q;
+  };
+  const { data, count } = await pagina(0, true);
+  const all: any[] = [...(data || [])];
+  const total = count ?? all.length;
+  if (all.length < PAGE || total <= PAGE) return all;
+  const resto = await Promise.all(Array.from({ length: Math.ceil(total / PAGE) - 1 }, (_, i) => pagina((i + 1) * PAGE).then((r) => r.data || [])));
+  for (const p of resto) all.push(...p);
   return all;
 }
 
@@ -219,11 +219,15 @@ export async function buscarMaquinasDemonstracao(contaFiltro?: string): Promise<
   return maquinas;
 }
 
-export async function buscarPecasPorTipo(contaFiltro?: string) {
+/** `produtosJaLidos`: quem já tem os produtos (o painel) passa aqui e evita ler os ~11,5 mil de novo. */
+type ProdutoMin = { codigo_produto: number; estoque: number; cmc: number };
+export async function buscarPecasPorTipo(contaFiltro?: string, produtosJaLidos?: ProdutoMin[] | Promise<ProdutoMin[]>) {
   // em páginas: ~10 mil linhas, o PostgREST corta em 1000
-  const { data } = await paginar<any>((de, ate) => supabaseVE.from("produto_tipo").select("*").order("id").range(de, ate));
+  const [{ data }, produtosRaw] = await Promise.all([
+    paginar<any>((de, ate) => supabaseVE.from("produto_tipo").select("*").order("id").range(de, ate)),
+    produtosJaLidos ? Promise.resolve(produtosJaLidos) : (fetchAllProdutos(contaFiltro) as Promise<ProdutoMin[]>),
+  ]);
   const tipos = data || [];
-  const produtosRaw = await fetchAllProdutos(contaFiltro);
   const produtosMap = new Map(produtosRaw.map((p: any) => [p.codigo_produto, p]));
 
   const porTipo = new Map<string, { tipo: string; qtd: number; unidades: number; valor: number }>();

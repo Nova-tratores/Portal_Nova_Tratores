@@ -22,14 +22,17 @@ export async function GET(req: NextRequest) {
   if (g.resposta) return g.resposta;
 
   try {
-    const produtos = await buscarProdutosEnriquecidos(conta);
+    // painel: os tipos das peças são lidos junto e reaproveitam os produtos (antes os ~11,5 mil eram lidos 2x)
+    const produtosP = buscarProdutosEnriquecidos(conta);
+    const pecasTipoP = modo === "dashboard" ? buscarPecasPorTipo(conta, produtosP) : null;
+    const produtos = await produtosP;
 
     if (modo === "dashboard") {
       // Máquina vs peça é definido pela FAMÍLIA (familia_nome), não por `tipo`
       // (igual ao app legado). 'tipo' é uma característica livre e não confiável.
       const maquinas = produtos.filter(p => p.familia_nome !== "Peças" && p.estoque > 0);
       const familias = agruparFamilias(maquinas);
-      const pecasTipo = await buscarPecasPorTipo(conta);
+      const pecasTipo = await pecasTipoP!;
 
       const totalProdutos = maquinas.length;
       const valorTotalEstoque = maquinas.reduce((s, p) => s + p.valor_estoque, 0);

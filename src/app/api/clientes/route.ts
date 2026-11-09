@@ -15,24 +15,24 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-// Supabase retorna no máximo 1000 rows por query — paginar para pegar tudo
+// Supabase retorna no máximo 1000 rows por query — paginar para pegar tudo.
+// A 1ª página já traz o total; as demais saem todas juntas (antes era uma depois da outra e a
+// lista de clientes levava 13–18 s; auditoria 06/11/2026).
 async function fetchAll<T>(table: string, select: string, filters?: (q: any) => any): Promise<T[]> {
-  const all: T[] = [];
   const PAGE = 1000;
-  let from = 0;
-  let hasMore = true;
-  while (hasMore) {
-    let q = supabase.from(table).select(select).range(from, from + PAGE - 1);
+  const pagina = (from: number, contar = false) => {
+    let q = supabase.from(table).select(select, contar ? { count: "exact" } : undefined).range(from, from + PAGE - 1);
     if (filters) q = filters(q);
-    const { data } = await q;
-    if (data && data.length > 0) {
-      all.push(...(data as T[]));
-      if (data.length < PAGE) hasMore = false;
-      else from += PAGE;
-    } else {
-      hasMore = false;
-    }
-  }
+    return q;
+  };
+  const { data, count } = await pagina(0, true);
+  const all: T[] = [...((data as T[]) || [])];
+  const total = count ?? all.length;
+  if (all.length < PAGE || total <= PAGE) return all;
+  const resto = await Promise.all(
+    Array.from({ length: Math.ceil(total / PAGE) - 1 }, (_, i) => pagina((i + 1) * PAGE).then((r) => (r.data as T[]) || [])),
+  );
+  for (const p of resto) all.push(...p);
   return all;
 }
 
@@ -263,9 +263,22 @@ export async function GET(req: NextRequest) {
     }
 
     // -------- Lista de clientes com ranking + projetos --------
-    const osCounts = await fetchAll<{ cod_cli: number; empresa: string; valor_total: number; cancelada: boolean; faturada: boolean; data_faturamento: string | null; num_nf: string | null; num_os: string | null }>(
-      "portal_nt_clientes_os", "cod_cli, empresa, valor_total, cancelada, faturada, data_faturamento, num_nf, num_os"
-    );
+    // As cinco leituras saem juntas (antes, uma depois da outra — e a de OS era lida duas vezes).
+    const [osCounts, nfsesLidas, pvDocsLidos, allProjetos, clientes] = await Promise.all([
+      fetchAll<{ cod_cli: number; empresa: string; valor_total: number; cancelada: boolean; faturada: boolean; data_faturamento: string | null; num_nf: string | null; num_os: string | null }>(
+        "portal_nt_clientes_os", "cod_cli, empresa, valor_total, cancelada, faturada, data_faturamento, num_nf, num_os"),
+      fetchAll<{ conta_omie: string; num_os: string; nfse_num: string }>(
+        "os_nfse", "conta_omie, num_os, nfse_num", (q: any) => q.eq("tem_nota", true)).catch((e) => { console.warn("[clientes] os_nfse:", e); return []; }),
+      fetchAll<{ cod_cli: number; empresa: string; num_pedido: string; numero_nf: string | null; link_nf: string | null; cancelado: boolean }>(
+        "portal_nt_clientes_pv", "cod_cli, empresa, num_pedido, numero_nf, link_nf, cancelado").catch((e) => { console.warn("[clientes] pv:", e); return []; }),
+      fetchAll<{ nome: string; empresa: string; cod_cli_ultimo: number | null; cliente_nome_ultimo: string | null }>(
+        "portal_nt_projetos_PRINCIPAL", "nome, empresa, cod_cli_ultimo, cliente_nome_ultimo", (q: any) => q.not("cod_cli_ultimo", "is", null)),
+      fetchAll<{
+        cod_cli: number; empresa: string; razao_social: string; nome_fantasia: string;
+        cnpj_cpf: string; cidade: string; estado: string; telefone: string; email: string;
+        endereco: string; bairro: string;
+      }>("portal_nt_clientes_cadastro_omie", "cod_cli, empresa, razao_social, nome_fantasia, cnpj_cpf, cidade, estado, telefone, email, endereco, bairro"),
+    ]);
 
     // Agrupar por cod_cli + empresa
     const ranking = new Map<string, { cod_cli: number; empresa: string; total_os: number; total_valor: number; os_ativas: number; ultimo_faturamento: string | null }>();
@@ -306,14 +319,7 @@ export async function GET(req: NextRequest) {
     const docsPorCliente = new Map<string, string[][]>();
     try {
       const semZeros = (n: unknown) => String(n ?? "").trim().replace(/^0+(?=\d)/, "");
-      const [osDocs, nfses, pvDocs] = await Promise.all([
-        fetchAll<{ cod_cli: number; empresa: string; num_os: string; num_nf: string | null; cancelada: boolean }>(
-          "portal_nt_clientes_os", "cod_cli, empresa, num_os, num_nf, cancelada"),
-        fetchAll<{ conta_omie: string; num_os: string; nfse_num: string }>(
-          "os_nfse", "conta_omie, num_os, nfse_num", (q: any) => q.eq("tem_nota", true)),
-        fetchAll<{ cod_cli: number; empresa: string; num_pedido: string; numero_nf: string | null; link_nf: string | null; cancelado: boolean }>(
-          "portal_nt_clientes_pv", "cod_cli, empresa, num_pedido, numero_nf, link_nf, cancelado"),
-      ]);
+      const osDocs = osCounts, nfses = nfsesLidas, pvDocs = pvDocsLidos;
       const nfsePorOS = new Map(nfses.map(n => [`${n.conta_omie}|${semZeros(n.num_os)}`, semZeros(n.nfse_num)]));
       const add = (key: string, d: string[]) => { const l = docsPorCliente.get(key) || []; l.push(d); docsPorCliente.set(key, l); };
       for (const o of osDocs) {
@@ -327,13 +333,7 @@ export async function GET(req: NextRequest) {
       }
     } catch (e) { console.warn("[clientes] docs p/ busca:", e instanceof Error ? e.message : e); }
 
-    // Buscar projetos vinculados a clientes (da tabela projetos_omie)
-    const allProjetos = await fetchAll<{
-      nome: string; empresa: string; cod_cli_ultimo: number | null; cliente_nome_ultimo: string | null;
-    }>("portal_nt_projetos_PRINCIPAL", "nome, empresa, cod_cli_ultimo, cliente_nome_ultimo",
-      (q: any) => q.not("cod_cli_ultimo", "is", null)
-    );
-
+    // Projetos vinculados a clientes (portal_nt_projetos_PRINCIPAL, lidos lá em cima junto com o resto)
     // Agrupar: cod_cli+empresa -> lista de nomes de projetos
     const clienteProjetos = new Map<string, string[]>();
     for (const p of allProjetos) {
@@ -343,13 +343,6 @@ export async function GET(req: NextRequest) {
       arr.push(p.nome);
       clienteProjetos.set(key, arr);
     }
-
-    // Buscar dados de todos os clientes
-    const clientes = await fetchAll<{
-      cod_cli: number; empresa: string; razao_social: string; nome_fantasia: string;
-      cnpj_cpf: string; cidade: string; estado: string; telefone: string; email: string;
-      endereco: string; bairro: string;
-    }>("portal_nt_clientes_cadastro_omie", "cod_cli, empresa, razao_social, nome_fantasia, cnpj_cpf, cidade, estado, telefone, email, endereco, bairro");
 
     // Juntar ranking + projetos com dados do cliente
     const resultado = clientes.map(c => {

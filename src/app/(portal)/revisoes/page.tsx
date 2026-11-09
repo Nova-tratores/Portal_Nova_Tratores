@@ -501,6 +501,22 @@ function DashboardAgrupadoInner() {
     }, {} as Record<string, Trator[]>);
   }, [tratores, busca, filtroCliente, filtroTipoObs, obsAtivasByTratorId]);
 
+  // Mostra 60 tratores por vez (antes todos de uma vez, cada um com foto: ~12 mil elementos e 174 mil px no
+  // celular; auditoria 06/11/2026). O corte vem depois do filtro; mudar busca/filtro volta a 60.
+  const POR_VEZ_TRATORES = 60;
+  const chaveFiltros = `${busca}|${filtroCliente}|${filtroTipoObs}`;
+  const [limTratores, setLimTratores] = useState({ chave: chaveFiltros, n: POR_VEZ_TRATORES });
+  const limiteTratores = limTratores.chave === chaveFiltros ? limTratores.n : POR_VEZ_TRATORES;
+  const { gruposVisiveis, totalTratores } = useMemo(() => {
+    let resta = limiteTratores, total = 0;
+    const vis: [string, Trator[]][] = [];
+    for (const [cliente, lista] of Object.entries(grupos) as [string, Trator[]][]) {
+      total += lista.length;
+      if (resta > 0) { vis.push([cliente, lista.slice(0, resta)]); resta -= lista.length; }
+    }
+    return { gruposVisiveis: vis, totalTratores: total };
+  }, [grupos, limiteTratores]);
+
   const adicionarDestinatario = async () => {
     if (!podeDestinatarios) return;
     if (!novoDestNome.trim() || !novoDestEmail.trim()) return;
@@ -1025,12 +1041,12 @@ function DashboardAgrupadoInner() {
         )}
 
         <div className="space-y-10">
-          {(Object.entries(grupos) as [string, Trator[]][]).map(([cliente, lista]) => (
+          {gruposVisiveis.map(([cliente, lista]) => (
             <section key={cliente}>
               <div className="flex items-center gap-3 mb-4">
                 <h2 className="text-base font-medium text-zinc-400">{cliente}</h2>
                 <div className="flex-1 h-px bg-zinc-200"></div>
-                <span className="text-sm text-zinc-400">{lista.length}</span>
+                <span className="text-sm text-zinc-400">{grupos[cliente]?.length ?? lista.length}</span>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -1119,6 +1135,12 @@ function DashboardAgrupadoInner() {
               </div>
             </section>
           ))}
+          {totalTratores > limiteTratores && (
+            <button type="button" onClick={() => setLimTratores({ chave: chaveFiltros, n: limiteTratores + POR_VEZ_TRATORES })}
+              className="w-full min-h-[48px] rounded-xl border border-zinc-200 bg-white text-zinc-800 font-semibold hover:border-red-200">
+              Mostrar mais {Math.min(POR_VEZ_TRATORES, totalTratores - limiteTratores)} <span className="font-normal text-zinc-500">· faltam {totalTratores - limiteTratores} de {totalTratores} tratores</span>
+            </button>
+          )}
         </div>
       </div>
 
