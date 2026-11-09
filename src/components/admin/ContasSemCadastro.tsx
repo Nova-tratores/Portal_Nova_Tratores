@@ -143,4 +143,7 @@ const ESTILO_CSC = `
 .csc-b.perigo.cheio { background: #dc2626; border-color: #dc2626; color: #fefefe }
 .csc-ic { width: 32px; height: 32px; border-radius: 50%; border: 1px solid #e2e8f0; background: #fefefe; color: #475569; display: grid; place-items: center; cursor: pointer } .csc-ic:hover { border-color: #1d4ed8; color: #1d4ed8 } .csc-ic.perigo:hover { border-color: #dc2626; color: #dc2626; background: #fef2f2 }
 .csc-pergunta { font-size: 12.5px; color: #991b1b }
+/* tema escuro (auditoria 06/11/2026): nomes quase pretos e botões brancos no fundo preto */
+[data-theme="dark"] .csc-id b { color: var(--portal-text) } [data-theme="dark"] .csc-explica { background: var(--portal-bg-secondary); border-color: var(--portal-border); color: var(--portal-text-secondary) }
+[data-theme="dark"] :is(.csc-help, .csc-b, .csc-ic) { background: var(--portal-bg-card); border-color: var(--portal-border); color: var(--portal-text-secondary) }
 `

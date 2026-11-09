@@ -80,7 +80,9 @@ export default function DashboardMobile({ systems, favoritos, onToggleFav, onOpe
   };
 
   return (
-    <div style={{ minHeight: "calc(100vh - 64px)", background: "#f4f6f9" }}>
+    <div style={{ minHeight: "calc(100vh - 64px)", background: "var(--portal-bg-dash, #f4f6f9)" }}>
+      {/* tema escuro (auditoria 06/11/2026): o fundo fixo #f4f6f9 ficava claro atrás dos cartões escuros */}
+      <style>{`[data-theme="dark"] { --portal-bg-dash: var(--portal-bg); }`}</style>
       {/* Cabeçalho grafite */}
       <div style={{ background: "linear-gradient(150deg,#1b2230,#2c3648)", color: "#fff", padding: "20px 18px 22px", borderRadius: "0 0 26px 26px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>

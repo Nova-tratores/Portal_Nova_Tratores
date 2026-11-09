@@ -85,7 +85,7 @@ export default function AjustesNav() {
         @media (max-width: 760px) {
           .est-nav.ajn { position: static !important; padding: 8px 12px !important }
           .est-nav.ajn:not(.aberto) .est-nav-row { display: none !important }
-          .ajn-botao { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 44px; padding: 0 14px; border: 1px solid #e2e8f0; border-radius: 10px; background: #f8fafc; color: #0f172a; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer }
+          .ajn-botao { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 44px; padding: 0 14px; border: 1px solid var(--portal-border, #e2e8f0); border-radius: 10px; background: var(--portal-bg-secondary, #f8fafc); color: var(--portal-text, #0f172a); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer }
           .ajn-botao small { color: #64748b; font-weight: 400 }
         }
       `}</style>

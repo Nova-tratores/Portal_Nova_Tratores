@@ -245,6 +245,8 @@ function DetalheItem({ item: i, onFechar }: { item: ItemAgenda; onFechar: () => 
 }
 
 const ESTILO = `
+/* tema escuro (auditoria 06/11/2026): --surface vinha branco de fora e o bloco ficava branco com título claro */
+[data-theme="dark"] .ms, [data-theme="dark"] .ms-jan, [data-theme="dark"] .ms-pop { --surface: var(--portal-bg-card); --border: var(--portal-border) }
 .ms { background: var(--surface, #fff); border: 1px solid var(--border, #e2e8f0); border-radius: 16px; padding: 12px 16px 14px; margin-bottom: 16px }
 .ms-cab { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px }
 .ms-nome { font-size: 15px; color: var(--portal-text, #0f172a) }

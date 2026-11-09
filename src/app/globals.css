@@ -912,6 +912,21 @@ body {
   [data-theme="dark"] [style*="color: rgb(138, 131, 120)"] {
     color: #b6bcc6 !important;
   }
+  /* Índigo/azul-marinho/violeta escuros (selos INTERNA, REMESSA, "NFs juntas", categoria das pendências):
+     o fundo pastel deles já escurece no escuro e o texto sumia (contraste 1,5–2,0; auditoria 06/11/2026) */
+  [data-theme="dark"] [style*="color: rgb(67, 56, 202)"],
+  [data-theme="dark"] [style*="color: rgb(55, 48, 163)"],
+  [data-theme="dark"] [style*="color: rgb(49, 46, 129)"] {
+    color: #a5b4fc !important;
+  }
+  [data-theme="dark"] [style*="color: rgb(30, 58, 138)"],
+  [data-theme="dark"] [style*="color: rgb(30, 64, 175)"] {
+    color: #93c5fd !important;
+  }
+  [data-theme="dark"] [style*="color: rgb(91, 33, 182)"],
+  [data-theme="dark"] [style*="color: rgb(76, 29, 149)"] {
+    color: #c4b5fd !important;
+  }
   /* Âmbar/marrom escuros (avisos amarelos): no escuro viram âmbar CLARO legível */
   [data-theme="dark"] [style*="color: rgb(146, 64, 14)"],
   [data-theme="dark"] [style*="color: rgb(122, 90, 0)"],

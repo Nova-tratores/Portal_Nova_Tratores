@@ -702,7 +702,11 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
   )
 
   return (
-    <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+    <div className="mapa-carros" style={{ position: 'relative', width: '100%', height: '100%' }}>
+      {/* tema escuro (auditoria 06/11/2026): os painéis e botões sobre o mapa tinham fundo branco fixo, mas o
+          globals.css clareia o texto escrito em cinza-escuro — "desligado" e afins sumiam. No escuro o fundo
+          deles também fica escuro. */}
+      <style>{`[data-theme="dark"] .mapa-carros [style*="background: rgba(255, 255, 255, 0.97)"] { background: color-mix(in srgb, var(--portal-bg-card) 96%, transparent) !important; }`}</style>
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
 
       {/* Painel de controle */}

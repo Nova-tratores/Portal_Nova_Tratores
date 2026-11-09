@@ -110,4 +110,7 @@ const ESTILO_RA = `
 .ra-nv-res { font-size: 15px; font-weight: 500; color: #0f172a }
 .ra-nv ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px } .ra-nv li { display: flex; gap: 7px; align-items: flex-start; font-size: 13px; color: #334155; line-height: 1.4 } .ra-nv li svg { color: var(--c); flex-shrink: 0; margin-top: 2px } .ra-nv.extra li svg { color: #059669 } .ra-nv li b { font-weight: 500; color: #0f172a }
 .ra-avs { display: flex; margin-top: 4px } .ra-avs span { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #fefefe; margin-left: -8px; overflow: hidden; display: grid; place-items: center; background: #e2e8f0; color: #475569; font-size: 12px; box-shadow: 0 1px 3px rgba(15,23,42,.15) } .ra-avs span:first-child { margin-left: 0 } .ra-avs img { width: 100%; height: 100%; object-fit: cover } .ra-avs .mais { background: #0f172a; color: #fefefe; font-size: 11px }
+/* tema escuro (auditoria 06/11/2026): rótulos e textos em cinza/azul-escuro fixos sumiam no fundo preto */
+[data-theme="dark"] .ra-tx small, [data-theme="dark"] .ra-nv li { color: var(--portal-text-secondary) } [data-theme="dark"] .ra-nv-res { color: var(--portal-text) }
+[data-theme="dark"] .ra-kpi[style*="#0f172a"], [data-theme="dark"] .ra-kpi[style*="#334155"] { --k: #cbd5e1 }
 `;
