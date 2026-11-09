@@ -113,7 +113,7 @@ export default function ModuloContasTela<R extends { contas: ContaModulo[] }>({ 
                   <tbody>
                     {lista.map((c) => (
                       <tr key={c.codigo_lancamento} className={c.status === 'LIQUIDADO' ? 'ps-pago' : ''}>
-                        <td className="cx-nome">{nomeDe(c.nome)}<small>{[c.categoria, c.numero_documento, c.observacao].filter(Boolean).join(' · ')}</small></td>
+                        <td className="cx-nome">{nomeDe(c.nome)}<small>{[c.categoria, c.numero_documento, c.observacao, c.boleto === undefined ? null : c.boleto ? 'com boleto' : 'sem boleto'].filter(Boolean).join(' · ')}</small></td>
                         <td>{dataBR(c.data_vencimento)}</td>
                         <td>{brl(c.valor_documento)}</td>
                         <td><Situacao c={c} /></td>

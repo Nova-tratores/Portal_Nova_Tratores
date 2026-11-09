@@ -24,8 +24,15 @@ export const AREAS_FINANCEIRO: AreaFinanceiro[] = [
     ],
   },
   {
-    id: 'compras', nome: 'Compras', descricao: 'Mercadoria, tratores, uso e consumo, frete e serviços, com o boleto junto', fa: 'fa-cart-shopping', cor: '#b45309', emMontagem: true,
-    abas: [{ nome: 'Compras', href: '/financeiro/compras', fa: 'fa-cart-shopping', descricao: 'C1 a C6, com o boleto junto' }],
+    id: 'compras', nome: 'Compras', descricao: 'Mercadoria, tratores, uso e consumo, frete e serviços, com o boleto junto', fa: 'fa-cart-shopping', cor: '#b45309',
+    abas: [
+      { nome: 'Mercadoria', href: '/financeiro/compras/mercadoria', fa: 'fa-boxes-stacked', descricao: 'peças e implementos para revenda' },
+      { nome: 'Tratores', href: '/financeiro/compras/tratores', fa: 'fa-tractor', descricao: 'parcelas dos tratores do estoque' },
+      { nome: 'Uso e consumo', href: '/financeiro/compras/uso-e-consumo', fa: 'fa-screwdriver-wrench', descricao: 'oficina, escritório e limpeza' },
+      { nome: 'Frete', href: '/financeiro/compras/frete', fa: 'fa-truck', descricao: 'transporte de compras e máquinas' },
+      { nome: 'Serviços', href: '/financeiro/compras/servicos', fa: 'fa-handshake', descricao: 'serviços contratados de fora' },
+      { nome: 'Devoluções', href: '/financeiro/compras/devolucoes', fa: 'fa-rotate-left', descricao: 'dinheiro devolvido a clientes' },
+    ],
   },
   {
     id: 'pessoas', nome: 'Pessoas', descricao: 'Folha, benefícios, comissões, viagens e alimentação', fa: 'fa-users', cor: '#7c3aed',

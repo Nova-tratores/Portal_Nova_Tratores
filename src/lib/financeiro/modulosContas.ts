@@ -20,7 +20,11 @@ export interface ContaModulo {
   valor_documento: number
   valor_pago: number
   status: string // statusDerivado: LIQUIDADO, PARCIAL, VENCIDO, A_VENCER_PROXIMO, A_VENCER
+  /** só em Compras: onde está o boleto (código de barras no Omie, foto/código no portal, boleto agrupado) ou null se não tem */
+  boleto?: OrigemBoleto | null
 }
+
+export type OrigemBoleto = 'omie' | 'portal' | 'agrupado'
 
 export const blocoDe = (blocos: BlocoModulo[], cat: string | null | undefined, nome?: string | null) =>
   [...blocos.filter((b) => b.fornecedores), ...blocos.filter((b) => !b.fornecedores)]
@@ -57,4 +61,28 @@ export const BLOCOS_BANCO: BlocoModulo[] = [
     fornecedores: 'votorantim|erg risk|direitos credit',
   },
   { codigo: 'B4', nome: 'Tarifas e multas', slug: 'tarifas', fa: 'fa-receipt', cor: '#b45309', categorias: ['Tarifas Bancárias', 'Multas'] },
+]
+
+// Compras (C1–C6, 09/11/2026). Combustível, manutenção de veículos e imobilizado ficam fora por enquanto: são da frota
+// e da estrutura, não de compra para vender ou para a oficina. C2 e C6 ainda dependem de o José dizer o que são
+// (parcelas de trator sem nota, possível floor plan; R$ 4,9 mi de devoluções lançadas por repetição só na Nova).
+export const BLOCOS_COMPRAS: BlocoModulo[] = [
+  {
+    codigo: 'C1', nome: 'Mercadoria para revenda', slug: 'mercadoria', fa: 'fa-boxes-stacked', cor: '#b45309',
+    categorias: ['Compras de Peças para Revenda', 'Compras de Implementos para Revenda', 'Recebimento de Peças Garantia/Outras Entradas',
+      'Outras Entradas de Peças', 'Entrada de mercadoria em demonstraçao'],
+  },
+  { codigo: 'C2', nome: 'Tratores Mahindra', slug: 'tratores', fa: 'fa-tractor', cor: '#b42318', categorias: ['Compras de Tratores para Revenda'] },
+  {
+    codigo: 'C3', nome: 'Uso e consumo', slug: 'uso-e-consumo', fa: 'fa-screwdriver-wrench', cor: '#0e7490',
+    categorias: ['Compras de Mercadorias para Manutenção de Maquinas/Veiculos', 'Compra de Material de Consumo da Oficina',
+      'Compras de Peças para Manutenção de Tratores/Implementos', 'Material de Escritório', 'Almoxarifado /  Limpeza', 'Limpeza'],
+  },
+  { codigo: 'C4', nome: 'Frete', slug: 'frete', fa: 'fa-truck', cor: '#3b5bdb', categorias: ['Frete', 'Frete (Retirada)', 'Envio de Peças (Correios, Transportadora)'] },
+  {
+    codigo: 'C5', nome: 'Serviço de terceiros', slug: 'servicos', fa: 'fa-handshake', cor: '#7c3aed',
+    categorias: ['Compra de Serviços', 'Compra de Serviços para Implementos', 'Compra de Serviços para Tratores Mahindra',
+      'Compra de Serviços para Tratores de Outras Marcas', 'Compra de Serviços para ATVs e UTVs'],
+  },
+  { codigo: 'C6', nome: 'Devolução ao cliente', slug: 'devolucoes', fa: 'fa-rotate-left', cor: '#475569', categorias: ['Devoluções de Vendas de Mercadoria'] },
 ]

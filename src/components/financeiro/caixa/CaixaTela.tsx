@@ -8,7 +8,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 
-export type AbaCaixa = 'hoje' | 'pessoas' | 'contas-do-mes' | 'banco' | 'calendario' | 'vencidos' | 'baixar-contas'
+export type AbaCaixa = 'hoje' | 'compras' | 'pessoas' | 'contas-do-mes' | 'banco' | 'calendario' | 'vencidos' | 'baixar-contas'
 
 export default function CaixaTela({ children }: { aba: AbaCaixa; children: ReactNode }) {
   const { userProfile, loading: carregandoAuth } = useAuth()
