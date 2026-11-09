@@ -10,6 +10,7 @@ import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import { BLOCOS_PESSOAS, type ContaPessoas, type RespostaPessoas } from '@/lib/financeiro/pessoas'
 import { fimDoMes, lerContasModulo, mesDeHoje, mesValido } from '@/lib/financeiro/modulosContas-server'
+import { paginar } from '@/lib/db/paginar'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,6 +23,7 @@ export async function GET(request: NextRequest) {
   const g = await guardarDre(request, 'calendario')
   if (g.resposta) return g.resposta
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
+  const sb = supabase
   try {
     const sp = request.nextUrl.searchParams
     const mes = mesValido(sp.get('mes')) || mesDeHoje()
@@ -32,8 +34,8 @@ export async function GET(request: NextRequest) {
       lerContasModulo(BLOCOS_PESSOAS, mes, conta),
       // mesma regra do Controle de comissões da Gestão: só os status que valem, o pedido mais recente de cada técnico
       supabase.from('posvendas_comissoes').select('id, tecnico, mes, valor, status').eq('mes', mesCom).in('status', COMISSAO_VALE).order('pedido_em', { ascending: false }),
-      supabase.from('Requisicao').select('id, titulo, solicitante, data, status, valor_despeza, ordem_servico, fornecedor')
-        .eq('tipo', 'Alimentação').gte('data', de).lte('data', ate).neq('status', 'lixeira').order('data', { ascending: false }).limit(2000),
+      paginar((a, b) => sb.from('Requisicao').select('id, titulo, solicitante, data, status, valor_despeza, ordem_servico, fornecedor')
+        .eq('tipo', 'Alimentação').gte('data', de).lte('data', ate).neq('status', 'lixeira').order('data', { ascending: false }).order('id', { ascending: false }).range(a, b)),
     ])
     for (const r of [rCom, rAli]) if (r.error) throw new Error(r.error.message)
 

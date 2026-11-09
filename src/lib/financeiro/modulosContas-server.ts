@@ -3,6 +3,7 @@
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 import { aplicarConta } from '@/lib/dre-financeiro/calc'
 import { hoje, statusDerivado } from '@/lib/dre-financeiro/dates'
+import { paginar } from '@/lib/db/paginar'
 import { blocoDe, type BlocoModulo, type ContaModulo } from './modulosContas'
 
 export const mesValido = (m: string | null) => (m && /^\d{4}-\d{2}$/.test(m) ? m : null)
@@ -11,16 +12,19 @@ export const fimDoMes = (m: string) => { const [a, n] = m.split('-').map(Number)
 
 export async function lerContasModulo(blocos: BlocoModulo[], mes: string, conta: 'nova' | 'castro'): Promise<ContaModulo[]> {
   if (!supabase) throw new Error('Supabase nao configurado')
-  const { data, error } = await aplicarConta(
-    supabase.from('contas_pagar')
+  // o PostgREST corta em 1000 linhas: lê em páginas (ordem estável pelo código do lançamento)
+  const sb = supabase
+  const { data, error } = await paginar<Record<string, unknown>>((de, ate) => aplicarConta(
+    sb.from('contas_pagar')
       .select('codigo_lancamento, nome_fornecedor, descricao_categoria, numero_documento, observacao, data_vencimento, data_pagamento, valor_documento, valor_pago, status_titulo')
       .gte('data_vencimento', `${mes}-01`).lte('data_vencimento', fimDoMes(mes))
       .in('descricao_categoria', blocos.flatMap((b) => b.categorias))
       .neq('status_titulo', 'CANCELADO')
       .order('data_vencimento', { ascending: true })
-      .limit(5000),
+      .order('codigo_lancamento', { ascending: true })
+      .range(de, ate),
     conta,
-  )
+  ))
   if (error) throw new Error(error.message)
   const ref = hoje()
   return (data || []).map((r: Record<string, unknown>) => ({
