@@ -25,8 +25,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt-BR">
+    // suppressHydrationWarning: o script abaixo põe data-theme no <html> antes do React carregar
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
+        {/* Tema antes do 1º desenho (auditoria 06/11/2026: a tela abria clara e depois virava escura).
+            Lê o mesmo 'portal-tema' que o PortalLayout grava; o perfil do banco continua valendo depois. */}
+        <script dangerouslySetInnerHTML={{ __html: "try{var t=localStorage.getItem('portal-tema');if(t==='dark'||t==='light')document.documentElement.setAttribute('data-theme',t)}catch(e){}" }} />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
       </head>
       <body>{children}</body>
