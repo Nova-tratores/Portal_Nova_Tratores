@@ -508,16 +508,21 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     const carregarPendentes = async () => {
       const { data: avisos } = await supabase
         .from('portal_avisos')
-        .select('id, titulo, conteudo, prioridade, criado_por_nome')
+        .select('id, titulo, conteudo, prioridade, criado_por_nome, created_at')
         .eq('ativo', true)
         .order('created_at', { ascending: true })
       if (!avisos || avisos.length === 0) { setAvisosPendentes([]); return }
+      // 09/11/2026: usuário novo não recebe avisos publicados antes de ele ter conta
+      // (data de criação do login no Supabase Auth; 1 dia de folga p/ quem foi cadastrado pouco antes do aviso)
+      const { data: authData } = await supabase.auth.getUser()
+      const criadoEm = authData?.user?.created_at ? new Date(authData.user.created_at).getTime() - 86400000 : 0
+      const avisosValidos = criadoEm ? avisos.filter((a: any) => !a.created_at || new Date(a.created_at).getTime() >= criadoEm) : avisos
       const { data: lidos } = await supabase
         .from('portal_avisos_lidos')
         .select('aviso_id')
         .eq('user_id', userProfile.id)
       const lidosSet = new Set((lidos || []).map((l: any) => l.aviso_id))
-      setAvisosPendentes(avisos.filter(a => !lidosSet.has(a.id)))
+      setAvisosPendentes(avisosValidos.filter(a => !lidosSet.has(a.id)))
     }
     carregarPendentes()
     const ch = supabase.channel('portal_aviso_popup')
