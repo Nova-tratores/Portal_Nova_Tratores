@@ -42,7 +42,7 @@ import ComissaoOSBloco from "./ComissaoOSBloco";
 import TemparioOSBloco from "./TemparioOSBloco";
 import ModalNovoCliente from "@/components/clientes/ModalNovoCliente";
 import ModalNovaMaquina from "@/components/clientes/ModalNovaMaquina";
-import MaquinasClienteDestaque from "./MaquinasClienteDestaque";
+import MaquinasClienteDestaque, { esquecerMaquinasCliente } from "./MaquinasClienteDestaque";
 // Cobrança das requisições + lembretes ligados à OS (José, 26/10/2026)
 import { SeloCobranca, AcoesCobranca, AvisoCobrancaOS, temCobranca, statusCobranca, type ReqCobranca } from "./CobrancaRequisicao";
 import LembretesDaOS from "./LembretesDaOS";
@@ -311,6 +311,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   // atalhos de cadastro (criam no Omie e já usam na OS)
   const [showNovoCliente, setShowNovoCliente] = useState(false);
   const [showNovaMaquina, setShowNovaMaquina] = useState(false);
+  const [maquinasVersao, setMaquinasVersao] = useState(0);
   const [showRevModal, setShowRevModal] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   // celular/tablet: a coluna de ações vira gaveta que sobe de baixo (fechada = só Salvar + "Ações")
@@ -1969,6 +1970,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         {/* Máquinas do CPF/CNPJ em destaque — clicar já põe na OS */}
                         {mode === "create" && (
                           <MaquinasClienteDestaque
+                            key={maquinasVersao}
                             doc={clienteInfo.cpf}
                             selecionado={projeto}
                             onEscolher={(m) => aplicarEquipamento(m.projeto, m.modelo, m.chassis)}
@@ -3222,8 +3224,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           else if (c.ja_existia) alert(`Esse CNPJ/CPF já estava cadastrado no Omie — usei o cadastro existente (cód. ${c.cod_cli}).`);
         }} />
       <ModalNovaMaquina aberto={showNovaMaquina} onFechar={() => setShowNovaMaquina(false)} zIndex={95000}
+        cnpjCliente={clienteInfo?.cpf || ""}
         onCriada={(m) => {
           setShowNovaMaquina(false);
+          // já ficou vinculada ao cliente: recarrega os cards "Máquinas deste cliente"
+          if (clienteInfo?.cpf) { esquecerMaquinasCliente(clienteInfo.cpf); setMaquinasVersao((v) => v + 1); }
           aplicarEquipamento(m.nome, m.modelo, m.chassi);
           if (m.aviso) alert(m.aviso);
           else if (m.ja_existia) alert(`A máquina "${m.nome}" já existia — usei a cadastrada.`);

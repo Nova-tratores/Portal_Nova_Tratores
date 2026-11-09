@@ -19,6 +19,11 @@ export interface MaquinaCliente {
 
 const cache = new Map<string, MaquinaCliente[]>();
 
+/** Máquina nova criada para o cliente: joga fora a lista guardada desse documento */
+export function esquecerMaquinasCliente(doc: string) {
+  cache.delete(String(doc || "").trim());
+}
+
 function dataBR(s?: string): string {
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || ""));
   return m ? `${m[3]}/${m[2]}/${m[1]}` : "";

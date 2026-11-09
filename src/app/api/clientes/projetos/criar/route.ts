@@ -37,6 +37,25 @@ async function omieCall<T>(endpoint: string, call: string, param: Record<string,
 
 const normalizarNome = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim().toUpperCase();
 
+// Máquina criada de dentro da OS já nasce do cliente da OS: grava o "último
+// cliente" na hora (antes só o sync fazia isso, a partir das OS faturadas), e
+// ela aparece em "Máquinas deste cliente" sem esperar faturar. O sync depois só
+// sobrescreve quando achar OS do projeto — nunca apaga.
+async function vinculoCliente(cnpj: string, empresa: string): Promise<Record<string, unknown>> {
+  if (!cnpj) return {};
+  const { data } = await supabase
+    .from("portal_nt_clientes_cadastro_omie")
+    .select("cod_cli, empresa, nome_fantasia, razao_social")
+    .eq("cnpj_cpf", cnpj)
+    .limit(5);
+  const lista = data || [];
+  const c = lista.find(x => empresaCanonica(x.empresa) === empresa) || lista[0];
+  return {
+    cnpj_cpf_ultimo: cnpj,
+    ...(c ? { cod_cli_ultimo: c.cod_cli, cliente_nome_ultimo: c.nome_fantasia || c.razao_social || "" } : {}),
+  };
+}
+
 export async function POST(req: NextRequest) {
   const acesso = await protegerRota(req, [{ modulo: "clientes" }, { modulo: "pos" }]);
   if (acesso.resposta) return acesso.resposta;
@@ -45,6 +64,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const nome = normalizarNome(body?.nome);
     const empresa = empresaCanonica(body?.empresa);
+    const cnpjCliente = String(body?.cnpj_cliente ?? "").trim();
 
     if (!nome) return NextResponse.json({ error: "Nome do projeto / máquina é obrigatório" }, { status: 400 });
     if (nome.length > NOME_MAX) return NextResponse.json({ error: `Nome com ${nome.length} letras — o Omie aceita no máximo ${NOME_MAX}.` }, { status: 400 });
@@ -53,11 +73,17 @@ export async function POST(req: NextRequest) {
     // Já existe com esse nome (qualquer grafia da empresa)? Usa o existente.
     const { data: existentes } = await supabase
       .from("portal_nt_projetos_PRINCIPAL")
-      .select("codigo, nome, empresa")
+      .select("codigo, nome, empresa, cnpj_cpf_ultimo")
       .ilike("nome", nome)
       .limit(5);
     const mesmo = (existentes || []).find(p => normalizarNome(p.nome) === nome && empresaCanonica(p.empresa) === empresa);
+    const vinculo = await vinculoCliente(cnpjCliente, empresa);
     if (mesmo) {
+      // Já existia sem dono: passa a ser do cliente desta OS (com dono, não mexe)
+      if (!mesmo.cnpj_cpf_ultimo && cnpjCliente) {
+        await supabase.from("portal_nt_projetos_PRINCIPAL").update(vinculo)
+          .eq("codigo", mesmo.codigo).eq("empresa", mesmo.empresa).then(() => {}, () => {});
+      }
       return NextResponse.json({ ok: true, ja_existia: true, codigo: mesmo.codigo, nome: mesmo.nome, empresa });
     }
 
@@ -79,7 +105,7 @@ export async function POST(req: NextRequest) {
         const achado = (l?.cadastro || []).find(p => normalizarNome(p.nome) === nome);
         if (achado) {
           await supabase.from("portal_nt_projetos_PRINCIPAL")
-            .upsert({ codigo: achado.codigo, empresa, nome, inativo: "N", updated_at: new Date().toISOString() }, { onConflict: "codigo,empresa" })
+            .upsert({ codigo: achado.codigo, empresa, nome, inativo: "N", ...vinculo, updated_at: new Date().toISOString() }, { onConflict: "codigo,empresa" })
             .then(() => {}, () => {});
           return NextResponse.json({ ok: true, ja_existia: true, codigo: achado.codigo, nome, empresa });
         }
@@ -89,7 +115,7 @@ export async function POST(req: NextRequest) {
 
     const { error: dbError } = await supabase
       .from("portal_nt_projetos_PRINCIPAL")
-      .insert({ codigo, empresa, nome, inativo: "N", updated_at: new Date().toISOString() });
+      .insert({ codigo, empresa, nome, inativo: "N", ...vinculo, updated_at: new Date().toISOString() });
 
     if (dbError) {
       console.error("Projeto criado no Omie mas falhou no Supabase:", dbError.message);

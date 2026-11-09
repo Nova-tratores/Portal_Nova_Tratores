@@ -13,8 +13,10 @@ const LBL: React.CSSProperties = { display: 'block', fontSize: 10.5, fontWeight:
 const INP: React.CSSProperties = { width: '100%', boxSizing: 'border-box', height: 40, padding: '0 12px', borderRadius: 9, border: '1px solid #E5E7EB', background: 'var(--portal-bg-card, #fff)', color: 'var(--portal-text, #0f172a)', fontSize: 13.5, outline: 'none' }
 const NOME_MAX = 70
 
-export default function ModalNovaMaquina({ aberto, onFechar, onCriada, empresaPadrao, zIndex = 90000 }: {
-  aberto: boolean; onFechar: () => void; onCriada: (m: MaquinaCriada) => void; empresaPadrao?: string; zIndex?: number
+export default function ModalNovaMaquina({ aberto, onFechar, onCriada, empresaPadrao, cnpjCliente, zIndex = 90000 }: {
+  aberto: boolean; onFechar: () => void; onCriada: (m: MaquinaCriada) => void; empresaPadrao?: string
+  /** CPF/CNPJ do cliente da OS: a máquina já nasce vinculada a ele */
+  cnpjCliente?: string; zIndex?: number
 }) {
   const [empresa, setEmpresa] = useState('Nova Tratores')
   const [modelo, setModelo] = useState('')
@@ -47,7 +49,7 @@ export default function ModalNovaMaquina({ aberto, onFechar, onCriada, empresaPa
       const r = await fetch('/api/clientes/projetos/criar', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ nome, empresa }),
+        body: JSON.stringify({ nome, empresa, cnpj_cliente: cnpjCliente || '' }),
       })
       const j = await r.json().catch(() => null)
       if (!r.ok || !j?.ok) { setErro(j?.error || j?.erro || `Erro ${r.status}`); return }
