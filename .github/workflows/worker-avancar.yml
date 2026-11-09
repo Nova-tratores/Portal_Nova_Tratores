@@ -15,11 +15,14 @@
 # a execução que cair no almoço avança, e as outras saem sem fazer nada (worker == main
 # também sai). Rede de segurança: se o worker estiver há mais de 48 h atrás do main,
 # avança no próximo disparo, a qualquer hora.
+# 09/11/2026 (José): janela larga, 07:00–19:30 BRT — o reinício do worker não afeta quem
+# usa o portal (é outro serviço; só os robôs leves param 1–2 min). Nunca avança durante a
+# cadeia pesada da noite (20:00–01:00 BRT), nem pela rede de segurança das 48 h.
 name: Worker - Avançar branch para o main
 
 on:
   schedule:
-    - cron: '40 6-16 * * *'   # de hora em hora; só o que cair 11:30–13:30 BRT avança
+    - cron: '40 6-16 * * *'   # de hora em hora; avança o que cair 07:00–19:30 BRT
   workflow_dispatch: {}
 
 permissions:
@@ -42,11 +45,14 @@ jobs:
             # idade do commit mais antigo do main que o worker ainda não tem
             pendente=$(git log --format=%ct origin/worker..origin/main | sort -n | head -1)
             idade_h=$(( ( $(date +%s) - ${pendente:-$(date +%s)} ) / 3600 ))
-            if [ "$hm" -lt 1130 ] || [ "$hm" -gt 1330 ]; then
+            if [ "$hm" -ge 2000 ] || [ "$hm" -lt 100 ]; then
+              echo "Cadeia pesada da noite ($hm BRT): não reinicia o worker agora."; exit 0
+            fi
+            if [ "$hm" -lt 700 ] || [ "$hm" -gt 1930 ]; then
               if [ "$idade_h" -lt 48 ]; then
-                echo "Fora do almoço ($hm BRT), worker ${idade_h} h atrás: espera o almoço."; exit 0
+                echo "Fora da janela 07:00–19:30 ($hm BRT), worker ${idade_h} h atrás: espera a janela."; exit 0
               fi
-              echo "Fora do almoço ($hm BRT), mas o worker está ${idade_h} h atrás: avança assim mesmo."
+              echo "Fora da janela ($hm BRT), mas o worker está ${idade_h} h atrás: avança assim mesmo."
             fi
           fi
           echo "worker estava em $(git rev-parse --short origin/worker 2>/dev/null || echo '(sem branch)')"
