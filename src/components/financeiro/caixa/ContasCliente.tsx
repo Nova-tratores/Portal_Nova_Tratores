@@ -141,7 +141,7 @@ export default function ContasCliente({ cliente, taxa, onFechar, onBaixou }: { c
         {!rodando && <button type="button" className="cx-link" onClick={() => marcarTodas(lista, !lista.every((t) => marcadas.has(t.codigo_lancamento)))}>{lista.every((t) => marcadas.has(t.codigo_lancamento)) ? 'Desmarcar todas' : 'Marcar todas'}</button>}
       </div>
       <div className="cx-rola">
-        <table className="cx-tab" style={{ minWidth: 760 }}>
+        <table className="cx-tab cx-cartao" style={{ minWidth: 760 }}>
           <thead><tr><th /><th>Empresa</th><th>Documento</th><th>Vencimento</th><th style={{ textAlign: 'right' }}>Em aberto</th>{receber && <th style={{ textAlign: 'right' }}>Juros</th>}<th style={{ textAlign: 'right' }}>Total</th>{podeBaixar && <th>Conta corrente</th>}<th /></tr></thead>
           <tbody>{lista.map(linha)}</tbody>
         </table>

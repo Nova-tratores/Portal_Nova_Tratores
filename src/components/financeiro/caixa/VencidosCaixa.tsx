@@ -260,7 +260,7 @@ export default function VencidosCaixa() {
 
           {visao === 'lista' ? (
             <section className="cx-card cx-rola">
-              <table className="cx-tab">
+              <table className="cx-tab cx-cartao">
                 <thead>
                   <tr>
                     <th>Empresa</th>

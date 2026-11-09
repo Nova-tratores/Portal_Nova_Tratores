@@ -99,7 +99,7 @@ export default function ContasCorrentesCaixa() {
             <section className="cx-card">
               <div className="cx-tab-cab"><span>{sel.nome} em {nomeMes(mes).toLowerCase()}</span></div>
               <div className="cx-rola">
-                <table className="cx-tab ccx-tab">
+                <table className="cx-tab ccx-tab cx-cartao">
                   <thead><tr><th>Dia</th><th>Quem</th><th>O que foi</th><th>Entrou</th><th>Saiu</th></tr></thead>
                   <tbody>
                     {[...sel.movs].sort((a, b) => (a.data_pagamento < b.data_pagamento ? 1 : -1)).map((m) => (

@@ -108,7 +108,7 @@ export default function ModuloContasTela<R extends { contas: ContaModulo[] }>({ 
             )}
             {lista.length === 0 ? <div className="cx-vazio">Nenhuma conta de {info.nome.toLowerCase()} com vencimento em {nomeMes(mes).toLowerCase()}</div> : (
               <div className="cx-rola">
-                <table className="cx-tab ps-tab">
+                <table className="cx-tab ps-tab cx-cartao">
                   <thead><tr><th>Para quem</th><th>Vencimento</th><th>Valor</th><th>Situação</th></tr></thead>
                   <tbody>
                     {lista.map((c) => (

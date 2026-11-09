@@ -116,4 +116,16 @@ export const ESTILO_CAIXA = `
 .cx-nota { margin: 0; font-size: 14px; line-height: 1.6; color: var(--portal-text-muted, #64748b) }
 .cx-campo { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border: 1px solid var(--border, #e2e8f0); border-radius: 10px; color: var(--portal-text-secondary, #475569); font-size: 15px }
 .cx-campo input { width: 130px; border: none; outline: none; background: transparent; color: var(--portal-text, #0f172a); font-size: 15.5px; font-variant-numeric: tabular-nums }
+/* celular (09/11/2026): tabela com .cx-cartao vira um cartão por linha, o nome em cima e o resto embaixo, sem rolar de lado */
+@media (max-width: 640px) {
+  .cx-tab.cx-cartao { min-width: 0 !important }
+  .cx-cartao thead { display: none }
+  .cx-cartao tbody { display: block }
+  .cx-cartao tr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 12px 16px; border-bottom: 1px solid var(--border, #e2e8f0) }
+  .cx-cartao tbody tr:last-child { border-bottom: none }
+  .cx-cartao td { display: block; padding: 0 !important; border: none !important; text-align: left !important; white-space: normal }
+  .cx-cartao td:empty { display: none }
+  .cx-cartao td.cx-nome { order: -1; flex-basis: 100%; min-width: 0 }
+  .cx-cartao td[colspan] { flex-basis: 100% }
+}
 `
