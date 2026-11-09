@@ -15,6 +15,7 @@ import { omieRequest, consultarEstoque as omieConsultarEstoque, type OmieRequest
 import { type Conta } from './conta';
 import { supabase } from './supabase';
 import { sleep } from './utils';
+import { consertarAcento } from './acento';
 import { agregarPosicoes, planejarSaldos, zeramentoSuspeito, type LinhaBancoSaldo } from './saldos-diff';
 
 const FAMILIAS_OCULTAS = ['.Inativo', '####Requisição####', 'Sem família'];
@@ -94,8 +95,9 @@ function dataHojeBR(): string {
 }
 
 function resolverFamilia(produto: OmieProdutoCadastro, mapaFamilias: Record<number, string>): string {
-  if (produto.descricao_familia?.trim()) return produto.descricao_familia.trim();
-  if (produto.codigo_familia) return mapaFamilias[produto.codigo_familia] || 'Sem família';
+  // o Omie devolve a família de produtos antigos com acentuação quebrada ("PeÃ§as"); consertarAcento desfaz
+  if (produto.descricao_familia?.trim()) return consertarAcento(produto.descricao_familia.trim());
+  if (produto.codigo_familia) return consertarAcento(mapaFamilias[produto.codigo_familia]) || 'Sem família';
   return 'Sem família';
 }
 

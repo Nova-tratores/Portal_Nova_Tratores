@@ -15,6 +15,10 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
+// O cadastro do Omie traz alguns nomes com código HTML ("FELIZARDO &amp; FELIZARDO"); na tela vai o caractere
+// (auditoria 06/11/2026). Só troca as entidades comuns; o banco não muda.
+const semEntidades = (t: string | null | undefined) => (t ? t.replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#0?39;|&apos;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">") : t);
+
 // Supabase retorna no máximo 1000 rows por query — paginar para pegar tudo.
 // A 1ª página já traz o total; as demais saem todas juntas (antes era uma depois da outra e a
 // lista de clientes levava 13–18 s; auditoria 06/11/2026).
@@ -256,7 +260,7 @@ export async function GET(req: NextRequest) {
       }
 
       return NextResponse.json({
-        cliente,
+        cliente: cliente ? { ...cliente, razao_social: semEntidades(cliente.razao_social), nome_fantasia: semEntidades(cliente.nome_fantasia) } : cliente,
         ordens: ordensEnr,
         pedidos: pvsEnr,
       });
@@ -351,6 +355,8 @@ export async function GET(req: NextRequest) {
       const projetos = clienteProjetos.get(key) || [];
       return {
         ...c,
+        razao_social: semEntidades(c.razao_social),
+        nome_fantasia: semEntidades(c.nome_fantasia),
         total_os: rank?.total_os || 0,
         total_valor: rank?.total_valor || 0,
         os_ativas: rank?.os_ativas || 0,
