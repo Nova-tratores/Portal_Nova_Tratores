@@ -12,6 +12,7 @@ import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { authHeaders } from '@/lib/auth/client';
 import ModalRegistrarBoleto from '@/components/ajustes/ModalRegistrarBoleto';
+import { PaginaFin, CampoFin, Segmentado, BotaoFin, Chip, ChipSituacao, ChipEmpresa, RodapeGrade, JanelaFin, ThOrdena, TEAL_ESC } from '@/components/ajustes/omie-fin';
 
 // ---------- tipos ----------
 type Tipo = 'pagar' | 'receber';
@@ -65,9 +66,6 @@ function isoDefault(meses: number): { de: string; ate: string } {
   const d = new Date(hoje); d.setMonth(d.getMonth() - meses);
   return { de: d.toISOString().slice(0, 10), ate };
 }
-
-const thStyle: React.CSSProperties = { background: '#f8fafc', color: '#475569', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' };
-const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f1f5f9', color: '#334155', fontSize: '.82rem' };
 
 // colunas da tabela de lancamentos (filtraveis/ordenaveis)
 interface ColDef { key: string; label: string; type: 'num' | 'date' | 'text'; align?: 'right'; val: (l: Lancamento) => number | string; txt: (l: Lancamento) => string }
@@ -308,140 +306,136 @@ export default function CorrecaoContasPage() {
   const topRanking = ranking.slice(0, TOP);
   const maxTotal = topRanking.reduce((m, r) => Math.max(m, r.total), 0) || 1;
 
+  const colsGrade = COLS.length + (modoBoleto ? 2 : 1);
   return (
-    <div className="est-page" style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
-        <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Correcao de contas</h1>
-          <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 820 }}>
-            Ranking de gastos por <b>categoria</b> ou <b>departamento</b> (a pagar e a receber) pra achar valores que distorcem o DRE. Use <b>Situacao</b> pra ver so as contas <b>em aberto</b> ou <b>atrasadas</b>. Clique numa barra pra ver os lancamentos e <b>corrigir</b> direto no Omie: categoria, departamento, vencimento, previsao, projeto, conta corrente, nº do documento e observacao. Na vista <b>Lista</b> todos os lancamentos do filtro aparecem numa tabela so, com o cabecalho ordenando A→Z / Z→A — e, a pagar, da pra marcar as duplicatas de NF de um fornecedor e <b>registrar o boleto agrupado</b> (o boleto reprograma as duplicatas; nada de titulo manual nem baixa antes de pagar). Conta <b>{conta ? conta.toUpperCase() : 'Todas'}</b>.
-          </p>
+    <PaginaFin
+      titulo="Correção de contas"
+      sub={<>Categoria, departamento e campos dos títulos <b>a pagar / a receber</b> — corrige direto na Omie · conta <b>{conta ? conta.toUpperCase() : 'Todas'}</b></>}
+      direita={<ContaSelector />}
+      comoLer={<>
+        <b>Ranking</b>: gastos por <b>categoria</b> ou <b>departamento</b> para achar valores que distorcem o DRE — clique numa barra para ver os lançamentos.
+        <b> Lista</b>: todos os lançamentos do filtro numa grade só; o cabeçalho ordena A→Z / Z→A e a 2ª linha filtra cada coluna.
+        Em qualquer linha, <b>Corrigir</b> (ou dois cliques) abre a janela do lançamento: categoria, departamento com rateio, vencimento, previsão, projeto, conta corrente, nº do documento e observação — só o que mudar vai para a Omie.
+        <b> Situação</b> = Em aberto / Atrasado ignora as datas de emissão. Quando o filtro deixa um único fornecedor/cliente aparece <b>Alterar em massa</b>.
+        Na Lista a pagar dá para marcar as duplicatas de NF de um fornecedor e <b>registrar o boleto agrupado</b> (o boleto reprograma as duplicatas; nada de título manual nem baixa antes de pagar).
+        <div style={{ marginTop: 6 }}><Link href="/ajustes/boletos-fornecedor">Boletos de fornecedor</Link> · <Link href="/ajustes">← Ajustes</Link></div>
+      </>}
+    >
+      {/* Filtros */}
+      <div className="ofin-cartao">
+        <div className="ofin-filtros">
+          <CampoFin titulo="Visualização"><Segmentado<Vista> valor={vista} onChange={mudarVista} opcoes={[['ranking', 'Ranking'], ['lista', 'Lista']]} /></CampoFin>
+          <CampoFin titulo="Tipo"><Segmentado<Tipo> valor={tipo} onChange={setTipo} opcoes={[['pagar', 'A pagar'], ['receber', 'A receber']]} /></CampoFin>
+          {vista === 'ranking' && <CampoFin titulo="Agrupar por"><Segmentado<Dim> valor={dim} onChange={setDim} opcoes={[['categoria', 'Categoria'], ['departamento', 'Departamento']]} /></CampoFin>}
+          <CampoFin titulo="Situação"><Segmentado<Situacao> valor={situacao} onChange={setSituacao} opcoes={[['todas', 'Todas'], ['aberto', 'Em aberto'], ['atrasado', 'Atrasado']]} /></CampoFin>
+          <CampoFin titulo="Emissão de" apagado={!usaData} style={{ width: 160 }}><input className="ofin-inp" type="date" value={de} disabled={!usaData} onChange={(e) => setDe(e.target.value)} /></CampoFin>
+          <CampoFin titulo="Até" apagado={!usaData} style={{ width: 160 }}><input className="ofin-inp" type="date" value={ate} disabled={!usaData} onChange={(e) => setAte(e.target.value)} /></CampoFin>
+          <div style={{ marginLeft: 'auto' }}><BotaoFin variante="prim" icone="fa-rotate" onClick={buscar} disabled={carregando} style={{ height: 38 }}>{carregando ? 'Carregando…' : 'Atualizar'}</BotaoFin></div>
         </div>
-        <div style={{ marginLeft: 'auto' }}><ContaSelector /></div>
-      </div>
-
-      <div style={{ margin: '6px 0 14px', display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: '.8rem' }}>
-        <Link href="/ajustes" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>← Ajustes</Link>
-      </div>
-
-      {/* Controles */}
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, marginBottom: 14 }}>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
-          <Toggle label="Visualizacao" value={vista} onChange={(v) => mudarVista(v as Vista)} opts={[['ranking', 'Ranking'], ['lista', 'Lista']]} />
-          <Toggle label="Tipo" value={tipo} onChange={(v) => setTipo(v as Tipo)} opts={[['pagar', 'A pagar'], ['receber', 'A receber']]} />
-          {vista === 'ranking' && <Toggle label="Agrupar por" value={dim} onChange={(v) => setDim(v as Dim)} opts={[['categoria', 'Categoria'], ['departamento', 'Departamento']]} />}
-          <Toggle label="Situacao" value={situacao} onChange={(v) => setSituacao(v as Situacao)} opts={[['todas', 'Todas'], ['aberto', 'Em aberto'], ['atrasado', 'Atrasado']]} />
-          <div>
-            <label style={{ display: 'block', fontSize: '.65rem', color: usaData ? '#64748b' : '#cbd5e1', marginBottom: 2 }}>Emissao de</label>
-            <input type="date" value={de} disabled={!usaData} onChange={(e) => setDe(e.target.value)} style={{ ...inpStyle, opacity: usaData ? 1 : 0.5 }} />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '.65rem', color: usaData ? '#64748b' : '#cbd5e1', marginBottom: 2 }}>Ate</label>
-            <input type="date" value={ate} disabled={!usaData} onChange={(e) => setAte(e.target.value)} style={{ ...inpStyle, opacity: usaData ? 1 : 0.5 }} />
-          </div>
-          <button onClick={buscar} disabled={carregando} style={{ padding: '7px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando ? 0.5 : 1 }}>Atualizar</button>
-        </div>
-        <div style={{ marginTop: 8, fontSize: '.75rem' }}>
-          <span style={{ color: status.startsWith('Erro') ? '#dc2626' : '#64748b' }}>{status}</span>
-          <span style={{ marginLeft: 8, color: '#94a3b8' }}>{resumo}</span>
-        </div>
-      </div>
-
-      {/* Ranking (lista de barras clicaveis) — so na vista Ranking */}
-      {vista === 'ranking' && <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, marginBottom: 14 }}>
-        {topRanking.length === 0 ? (
-          <div style={{ padding: 36, textAlign: 'center', color: '#94a3b8' }}>{carregando ? 'Carregando…' : 'Sem dados para o periodo/filtro.'}</div>
-        ) : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {topRanking.map((r) => {
-              const ativo = grupoSel && String(grupoSel.codigo) === String(r.codigo);
-              return (
-                <button key={String(r.codigo)} onClick={() => abrirLancamentos(r)} title={`${r.descricao} · ${fmtBRL(r.total)} (${r.n} lanc.)`}
-                  className="rank-row" style={{ display: 'grid', gridTemplateColumns: '260px 1fr 130px', alignItems: 'center', gap: 10, background: ativo ? '#eff6ff' : 'transparent', border: 'none', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', textAlign: 'left' }}>
-                  <span style={{ fontSize: '.78rem', color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.descricao || '(sem)'}</span>
-                  <span className="rank-bar" style={{ background: '#e2e8f0', borderRadius: 4, height: 18, position: 'relative' }}>
-                    <span style={{ position: 'absolute', inset: 0, width: `${Math.max(2, (r.total / maxTotal) * 100)}%`, background: '#3b82f6', borderRadius: 4 }} />
-                  </span>
-                  <span style={{ fontSize: '.78rem', color: '#1e293b', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(r.total)} <span style={{ color: '#94a3b8', fontWeight: 400 }}>({r.n})</span></span>
-                </button>
-              );
-            })}
+        {(status || resumo) && (
+          <div className="ofin-filtros-pe">
+            {status && <span className={`ofin-msg${status.startsWith('Erro') ? ' erro' : ''}`}>{status}</span>}
+            {resumo && <span className="ofin-resumo">{resumo}</span>}
           </div>
         )}
-      </div>}
+      </div>
 
-      {/* Painel de lancamentos (grupo do ranking ou todos, na vista Lista) */}
+      {/* Ranking (barras clicáveis) — só na vista Ranking */}
+      {vista === 'ranking' && (
+        <div className="ofin-cartao">
+          <div className="ofin-grade-cab">
+            <h2>Ranking por {dim}</h2>
+            <span className="ofin-sub">{topRanking.length ? `os ${topRanking.length} maiores · clique para ver os lançamentos` : ''}</span>
+          </div>
+          {topRanking.length === 0 ? (
+            <div style={{ padding: 36, textAlign: 'center', color: '#94a3b8' }}>{carregando ? 'Carregando…' : 'Sem dados para o período/filtro.'}</div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, padding: '8px 10px 12px' }}>
+              {topRanking.map((r) => {
+                const ativo = !!grupoSel && String(grupoSel.codigo) === String(r.codigo);
+                return (
+                  <button key={String(r.codigo)} type="button" onClick={() => abrirLancamentos(r)} title={`${r.descricao} · ${fmtBRL(r.total)} (${r.n} lanç.)`} className={`ofin-barra${ativo ? ' ativo' : ''}`}>
+                    <span style={{ fontSize: 12.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: ativo ? 600 : 400 }}>{r.descricao || '(sem)'}</span>
+                    <span className="trilho"><i style={{ width: `${Math.max(2, (r.total / maxTotal) * 100)}%` }} /></span>
+                    <span style={{ fontSize: 12.5, fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(r.total)} <span style={{ color: '#94a3b8', fontWeight: 400 }}>({r.n})</span></span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Lançamentos (grupo do ranking ou todos, na vista Lista) */}
       {grupoSel && (
-        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', marginBottom: 14 }}>
-          <div style={{ padding: '10px 14px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.9rem', margin: 0 }}>{grupoSel.codigo === '*' ? 'Todos os lancamentos' : `${dim === 'categoria' ? 'Categoria: ' : 'Departamento: '}${grupoSel.descricao || '(sem)'}`}</h2>
-            <span style={{ fontSize: '.72rem', color: '#64748b' }}>{lancSub}</span>
+        <div className="ofin-cartao">
+          <div className="ofin-grade-cab">
+            <h2>{grupoSel.codigo === '*' ? 'Lançamentos' : `${dim === 'categoria' ? 'Categoria' : 'Departamento'}: ${grupoSel.descricao || '(sem)'}`}</h2>
+            <span className="ofin-sub">{lancSub}</span>
             <div style={{ flex: 1 }} />
             {modoBoleto && selecionados.length > 0 && (
-              <button onClick={() => boletoInfo.ok && setModalBoleto(selecionados)} disabled={!boletoInfo.ok}
-                title={boletoInfo.ok ? 'O boleto do fornecedor reprograma estas duplicatas (previsão/vencimento = parcela) — sem título manual, sem baixa' : boletoInfo.motivo}
-                style={{ padding: '4px 12px', background: '#7c3aed', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.72rem', cursor: boletoInfo.ok ? 'pointer' : 'not-allowed', opacity: boletoInfo.ok ? 1 : 0.5 }}>
+              <BotaoFin variante="prim" icone="fa-barcode" onClick={() => boletoInfo.ok && setModalBoleto(selecionados)} disabled={!boletoInfo.ok}
+                title={boletoInfo.ok ? 'O boleto do fornecedor reprograma estas duplicatas (previsão/vencimento = parcela) — sem título manual, sem baixa' : boletoInfo.motivo}>
                 Registrar boleto agrupado ({selecionados.length}){boletoInfo.ok ? '' : ` — ${boletoInfo.motivo}`}
-              </button>
+              </BotaoFin>
             )}
             {massaInfo && (
-              <button onClick={() => setMassaRows(massaInfo.rows)} style={{ padding: '4px 12px', background: '#d97706', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.72rem', cursor: 'pointer' }} title="So aparece quando o filtro deixa um unico cliente/fornecedor">Alterar em massa ({massaInfo.rows.length})</button>
+              <BotaoFin variante="aviso" icone="fa-layer-group" onClick={() => setMassaRows(massaInfo.rows)} title="Só aparece quando o filtro deixa um único cliente/fornecedor">Alterar em massa ({massaInfo.rows.length})</BotaoFin>
             )}
-            {vista === 'ranking' && <button onClick={() => setGrupoSel(null)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>}
+            {vista === 'ranking' && <button type="button" className="ofin-fechar" onClick={() => setGrupoSel(null)}>Fechar ✕</button>}
           </div>
-          <div style={{ overflow: 'auto', maxHeight: '60vh' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+          <div className="ofin-grade-caixa" style={{ maxHeight: '62vh' }}>
+            <table className="ofin-grade fixo">
+              <thead>
                 <tr>
-                  {modoBoleto && <th style={{ ...thStyle, width: 28 }} title="selecionar duplicatas de NF em aberto para registrar um boleto agrupado"><input type="checkbox" onChange={toggleTodos} checked={linhasVisiveis.some(podeSelecionar) && linhasVisiveis.filter(podeSelecionar).every((l) => selBoleto.has(chaveSel(l)))} /></th>}
-                  {COLS.map((c) => (
-                    <th key={c.key} onClick={() => ordenarPor(c.key)} title={sort.key === c.key ? (sort.dir > 0 ? 'A→Z — clique para inverter' : 'Z→A — clique para inverter') : 'Clique para ordenar A→Z / Z→A'} aria-sort={sort.key === c.key ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'} style={{ ...thStyle, textAlign: c.align === 'right' ? 'right' : 'left', color: sort.key === c.key ? '#2563eb' : thStyle.color }}>
-                      {c.label}{sort.key === c.key ? (sort.dir > 0 ? ' ▲' : ' ▼') : <span style={{ opacity: 0.35 }}> ⇅</span>}
-                    </th>
-                  ))}
-                  <th style={thStyle} />
+                  {modoBoleto && <th className="centro" style={{ width: 34 }} title="selecionar duplicatas de NF em aberto para registrar um boleto agrupado"><input type="checkbox" onChange={toggleTodos} checked={linhasVisiveis.some(podeSelecionar) && linhasVisiveis.filter(podeSelecionar).every((l) => selBoleto.has(chaveSel(l)))} /></th>}
+                  {COLS.map((c) => <ThOrdena key={c.key} rotulo={c.label} ativo={sort.key === c.key} dir={sort.dir} num={c.align === 'right'} onClick={() => ordenarPor(c.key)} />)}
+                  <th />
                 </tr>
                 <tr>
-                  {modoBoleto && <th style={{ ...thStyle, cursor: 'auto' }} />}
+                  {modoBoleto && <th className="filtro" />}
                   {COLS.map((c) => (
-                    <th key={c.key} style={{ ...thStyle, cursor: 'auto', padding: '2px 6px' }}>
-                      <input value={filtros[c.key] || ''} onChange={(e) => setFiltros((s) => ({ ...s, [c.key]: e.target.value }))} placeholder="filtrar" style={{ width: '100%', minWidth: 80, border: '1px solid #e2e8f0', borderRadius: 4, padding: '2px 6px', fontSize: '.72rem', fontWeight: 400, textTransform: 'none' }} />
+                    <th key={c.key} className="filtro">
+                      <input className="ofin-filtro-col" value={filtros[c.key] || ''} onChange={(e) => setFiltros((s) => ({ ...s, [c.key]: e.target.value }))} placeholder="filtrar" />
                     </th>
                   ))}
-                  <th style={{ ...thStyle, cursor: 'auto' }} />
+                  <th className="filtro" />
                 </tr>
               </thead>
               <tbody>
                 {linhasVisiveis.length === 0 ? (
-                  <tr><td colSpan={COLS.length + (modoBoleto ? 2 : 1)} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8' }}>Nenhum lancamento bate com os filtros.</td></tr>
-                ) : linhasVisiveis.map((l) => (
-                  <tr key={`${l.conta}:${l.codigoLancamento}`} style={{ borderTop: '1px solid #f1f5f9', background: selBoleto.has(chaveSel(l)) ? '#faf5ff' : undefined }}>
-                    {modoBoleto && (
-                      <td style={{ ...tdStyle, textAlign: 'center' }} title={emBoleto[chaveSel(l)] ? `já está no boleto ${emBoleto[chaveSel(l)].numero}` : (l.idOrigem || 'COMP') !== 'COMP' ? 'título manual (não é duplicata de NF)' : ''}>
-                        {podeSelecionar(l) ? <input type="checkbox" checked={selBoleto.has(chaveSel(l))} onChange={() => toggleSel(l)} />
-                          : emBoleto[chaveSel(l)] ? <span style={{ fontSize: '.6rem', padding: '1px 5px', borderRadius: 4, background: '#ede9fe', color: '#6d28d9', whiteSpace: 'nowrap' }}>boleto {emBoleto[chaveSel(l)].numero}</span>
-                          : (l.idOrigem || 'COMP') !== 'COMP' && ['A VENCER', 'ATRASADO', 'VENCE HOJE'].includes(String(l.status || '')) ? <span style={{ fontSize: '.6rem', color: '#b45309' }} title="título digitado à mão na Omie (não veio de NF)">manual</span> : null}
-                      </td>
-                    )}
-                    <td style={tdStyle}><Badge conta={l.conta} /></td>
-                    <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(l.valor)}</td>
-                    <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: '#64748b' }}>{fmtData(l.dataEmissao) || '-'}</td>
-                    <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: '#64748b' }}>{fmtData(l.vencimento) || '-'}</td>
-                    <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: l.dataPrevisao && l.dataPrevisao !== l.vencimento ? '#b45309' : '#64748b' }}>{fmtData(l.dataPrevisao) || '-'}</td>
-                    <td style={tdStyle}><StatusBadge s={l.status} /></td>
-                    <td style={tdStyle}>{decode(l.contraparte) || '-'}</td>
-                    <td style={{ ...tdStyle, fontSize: '.72rem', color: '#64748b', whiteSpace: 'nowrap' }}>{l.numeroDoc || '-'}</td>
-                    <td style={{ ...tdStyle, fontSize: '.72rem', color: '#64748b' }}>{l.descricaoCategoria || '-'}</td>
-                    <td style={{ ...tdStyle, fontSize: '.72rem', color: '#64748b' }}>{l.descricaoDepartamento || '-'}</td>
-                    <td style={{ ...tdStyle, fontSize: '.72rem', color: '#64748b', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.projetoNome || ''}>{l.projetoNome || '-'}</td>
-                    <td style={{ ...tdStyle, textAlign: 'right' }}>
-                      <button onClick={() => setModalLanc(l)} style={{ padding: '3px 10px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, fontSize: '.72rem', cursor: 'pointer' }}>Corrigir</button>
-                    </td>
-                  </tr>
-                ))}
+                  <tr><td colSpan={colsGrade} className="vazio">{lancSub === 'carregando...' ? 'Carregando…' : 'Nenhum lançamento bate com os filtros.'}</td></tr>
+                ) : linhasVisiveis.map((l) => {
+                  const marcado = selBoleto.has(chaveSel(l));
+                  const prevDif = !!l.dataPrevisao && l.dataPrevisao !== l.vencimento;
+                  return (
+                    <tr key={`${l.conta}:${l.codigoLancamento}`} className={marcado ? 'sel' : undefined} onDoubleClick={() => setModalLanc(l)} title="Dois cliques: corrigir este lançamento">
+                      {modoBoleto && (
+                        <td className="centro" title={emBoleto[chaveSel(l)] ? `já está no boleto ${emBoleto[chaveSel(l)].numero}` : (l.idOrigem || 'COMP') !== 'COMP' ? 'título manual (não é duplicata de NF)' : ''} onDoubleClick={(e) => e.stopPropagation()}>
+                          {podeSelecionar(l) ? <input type="checkbox" checked={marcado} onChange={() => toggleSel(l)} />
+                            : emBoleto[chaveSel(l)] ? <Chip cor="roxo">boleto {emBoleto[chaveSel(l)].numero}</Chip>
+                            : (l.idOrigem || 'COMP') !== 'COMP' && ['A VENCER', 'ATRASADO', 'VENCE HOJE'].includes(String(l.status || '')) ? <Chip cor="ambar" title="título digitado à mão na Omie (não veio de NF)">manual</Chip> : null}
+                        </td>
+                      )}
+                      <td><ChipEmpresa conta={l.conta} /></td>
+                      <td className="num" style={{ fontWeight: 600 }}>{fmtBRL(l.valor)}</td>
+                      <td className="apagado nowrap">{fmtData(l.dataEmissao) || '-'}</td>
+                      <td className="apagado nowrap">{fmtData(l.vencimento) || '-'}</td>
+                      <td className="apagado nowrap" style={prevDif ? { color: '#b45309', fontWeight: 600 } : undefined}>{fmtData(l.dataPrevisao) || '-'}</td>
+                      <td><ChipSituacao s={l.status} /></td>
+                      <td>{decode(l.contraparte) || '-'}</td>
+                      <td className="apagado nowrap">{l.numeroDoc || '-'}</td>
+                      <td className="apagado">{l.descricaoCategoria || '-'}</td>
+                      <td className="apagado">{l.descricaoDepartamento || '-'}</td>
+                      <td className="apagado" style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.projetoNome || ''}>{l.projetoNome || '-'}</td>
+                      <td className="num"><BotaoFin mini icone="fa-pen" onClick={() => setModalLanc(l)}>Corrigir</BotaoFin></td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+          <RodapeGrade mostrando={linhasVisiveis.length} total={lancs.length} dica={<><i className="fas fa-hand-pointer" /> dois cliques numa linha abre a correção</>} />
         </div>
       )}
 
@@ -456,37 +450,8 @@ export default function CorrecaoContasPage() {
         <ModalMassa rows={massaRows} tipo={tipo} criadoPor={criadoPor} carregarCats={carregarCats} carregarDeps={carregarDeps}
           onClose={() => setMassaRows(null)} onAplicado={() => { setMassaRows(null); buscar(); }} />
       )}
-    </div>
+    </PaginaFin>
   );
-}
-
-const inpStyle: React.CSSProperties = { border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem' };
-
-function Toggle({ label, value, onChange, opts }: { label: string; value: string; onChange: (v: string) => void; opts: [string, string][] }) {
-  return (
-    <div>
-      <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>{label}</label>
-      <div style={{ display: 'inline-flex', borderRadius: 6, border: '1px solid #cbd5e1', overflow: 'hidden', fontSize: '.82rem' }}>
-        {opts.map(([v, lbl], i) => (
-          <button key={v} onClick={() => onChange(v)} style={{ padding: '6px 12px', border: 'none', borderLeft: i ? '1px solid #cbd5e1' : 'none', background: value === v ? '#2563eb' : '#fff', color: value === v ? '#fff' : '#475569', cursor: 'pointer' }}>{lbl}</button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function Badge({ conta }: { conta: string }) {
-  const castro = conta === 'CASTRO';
-  return <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: '.68rem', background: castro ? '#f3e8ff' : '#e0f2fe', color: castro ? '#7e22ce' : '#0369a1' }}>{conta}</span>;
-}
-
-function StatusBadge({ s }: { s?: string | null }) {
-  const map: Record<string, [string, string]> = {
-    'ATRASADO': ['#fee2e2', '#b91c1c'], 'VENCE HOJE': ['#fef3c7', '#b45309'], 'A VENCER': ['#e0f2fe', '#0369a1'],
-    'PAGO': ['#dcfce7', '#15803d'], 'RECEBIDO': ['#dcfce7', '#15803d'],
-  };
-  const [bg, fg] = map[s || ''] || ['#f1f5f9', '#475569'];
-  return <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: '.68rem', whiteSpace: 'nowrap', background: bg, color: fg }}>{s || '-'}</span>;
 }
 
 // ---------- modal de correcao individual ----------
@@ -525,12 +490,6 @@ function ModalCorrecao({ lanc, tipo, carregarCats, carregarDeps, carregarProjeto
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form]);
   const nMudados = Object.keys(camposMudados).length;
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   useEffect(() => {
     let vivo = true;
@@ -574,83 +533,80 @@ function ModalCorrecao({ lanc, tipo, carregarCats, carregarDeps, carregarProjeto
     }
   }, [somaOk, rateio, lanc, slug, tipo, catSel, onAplicado, camposMudados, nMudados]);
 
+  const mud = (k: keyof CamposForm) => `ofin-inp${form[k] !== inicial[k] ? ' mudou' : ''}`;
   return (
-    <Overlay onClose={onClose}>
-      <div style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 680, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
-        <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Corrigir lancamento</h2>
-          <button onClick={onClose} style={closeBtn}>×</button>
-        </div>
-        <div style={{ padding: 18, overflowY: 'auto', fontSize: '.85rem' }}>
-          {carregando ? <div style={{ color: '#94a3b8' }}>carregando categorias/departamentos...</div> : (
-            <>
-              <div style={{ marginBottom: 12, fontSize: '.72rem', color: '#64748b' }}>{lanc.conta} · {decode(lanc.contraparte)} · {fmtBRL(lanc.valor)} · {fmtData(lanc.dataEmissao)} · lanc <span style={{ fontFamily: 'monospace' }}>{lanc.codigoLancamento}</span></div>
-              <label style={lblStyle}>Categoria</label>
-              <select value={catSel} onChange={(e) => setCatSel(e.target.value)} style={{ ...selStyle, marginBottom: 16 }}>
-                {catFalta && <option value={String(lanc.codigoCategoria)}>{lanc.codigoCategoria} — {lanc.descricaoCategoria || '(atual)'} [atual/inativa]</option>}
-                {cats.map((c) => <option key={String(c.codigo)} value={String(c.codigo)}>{c.codigo} — {c.descricao}</option>)}
-              </select>
-              <div style={{ display: 'flex', alignItems: 'center', marginBottom: 4 }}>
-                <label style={{ fontSize: '.72rem', color: '#64748b' }}>Departamento (rateio %)</label>
-                <button onClick={() => setRateio((s) => [...s, { id: rowSeq++, codDep: '', perc: '0' }])} style={{ marginLeft: 'auto', fontSize: '.72rem', padding: '2px 8px', background: '#f1f5f9', border: 'none', borderRadius: 4, cursor: 'pointer' }}>+ departamento</button>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {rateio.map((row) => {
+    <JanelaFin titulo="Corrigir lançamento" largura={760} onFechar={onClose} travado={aplicando}
+      sub={<>{lanc.conta} · {decode(lanc.contraparte)} · {fmtBRL(lanc.valor)} · emissão {fmtData(lanc.dataEmissao)} · lanç. <span style={{ fontFamily: 'monospace' }}>{lanc.codigoLancamento}</span></>}
+      pe={<>
+        <span className={`ofin-msg${modalStatus.includes('✓') ? ' ok' : modalStatus ? ' erro' : ''}`}>{modalStatus}</span>
+        <BotaoFin variante="neutro" onClick={onClose} disabled={aplicando}>Cancelar</BotaoFin>
+        <BotaoFin variante="prim" icone="fa-check" onClick={aplicar} disabled={aplicando || carregando}>Aplicar na Omie</BotaoFin>
+      </>}>
+      {carregando ? <div className="ofin-msg">carregando categorias e departamentos…</div> : (
+        <>
+          <CampoFin titulo="Categoria">
+            <select className="ofin-inp" value={catSel} onChange={(e) => setCatSel(e.target.value)}>
+              {catFalta && <option value={String(lanc.codigoCategoria)}>{lanc.codigoCategoria} — {lanc.descricaoCategoria || '(atual)'} [atual/inativa]</option>}
+              {cats.map((c) => <option key={String(c.codigo)} value={String(c.codigo)}>{c.codigo} — {c.descricao}</option>)}
+            </select>
+          </CampoFin>
+
+          <div>
+            <h3 className="ofin-secao">Departamentos <small>rateio em % · soma <b style={{ color: somaOk ? '#047857' : '#dc2626' }}>{soma.toFixed(2)}%</b>{somaOk ? '' : ' (precisa ser 100)'}</small></h3>
+            <div className="ofin-cartao" style={{ marginBottom: 0 }}>
+              <table className="ofin-grade compacta">
+                <thead><tr><th>Departamento</th><th className="num" style={{ width: 120 }}>%</th><th style={{ width: 36 }} /></tr></thead>
+                <tbody>{rateio.map((row) => {
                   const rowFalta = row.codDep && !deps.some((d) => String(d.codigo) === String(row.codDep));
                   return (
-                    <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <select value={row.codDep} onChange={(e) => setRateio((s) => s.map((x) => x.id === row.id ? { ...x, codDep: e.target.value } : x))} style={{ ...selStyle, flex: 1 }}>
-                        <option value="">(escolha)</option>
-                        {rowFalta && <option value={row.codDep}>{depFalta && String(row.codDep) === String(lanc.codigoDepartamento) ? (lanc.descricaoDepartamento || row.codDep) : row.codDep} [atual/inativo]</option>}
-                        {deps.map((d) => <option key={String(d.codigo)} value={String(d.codigo)}>{d.descricao}</option>)}
-                      </select>
-                      <input type="number" min="0" max="100" step="0.01" value={row.perc} onChange={(e) => setRateio((s) => s.map((x) => x.id === row.id ? { ...x, perc: e.target.value } : x))} style={{ width: 80, ...selStyle, textAlign: 'right' }} />
-                      <span style={{ fontSize: '.72rem', color: '#94a3b8' }}>%</span>
-                      <button onClick={() => setRateio((s) => s.length > 1 ? s.filter((x) => x.id !== row.id) : s)} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.1rem', cursor: 'pointer' }}>×</button>
-                    </div>
+                    <tr key={row.id}>
+                      <td style={{ padding: '4px 10px' }}>
+                        <select className="ofin-inp" style={{ minHeight: 34 }} value={row.codDep} onChange={(e) => setRateio((s) => s.map((x) => x.id === row.id ? { ...x, codDep: e.target.value } : x))}>
+                          <option value="">(escolha)</option>
+                          {rowFalta && <option value={row.codDep}>{depFalta && String(row.codDep) === String(lanc.codigoDepartamento) ? (lanc.descricaoDepartamento || row.codDep) : row.codDep} [atual/inativo]</option>}
+                          {deps.map((d) => <option key={String(d.codigo)} value={String(d.codigo)}>{d.descricao}</option>)}
+                        </select>
+                      </td>
+                      <td style={{ padding: '4px 10px' }}><input className="ofin-inp num" style={{ minHeight: 34 }} type="number" min="0" max="100" step="0.01" value={row.perc} onChange={(e) => setRateio((s) => s.map((x) => x.id === row.id ? { ...x, perc: e.target.value } : x))} /></td>
+                      <td className="centro"><button type="button" className="ofin-x" title="Tirar este departamento" disabled={rateio.length <= 1} onClick={() => setRateio((s) => s.length > 1 ? s.filter((x) => x.id !== row.id) : s)}>×</button></td>
+                    </tr>
                   );
-                })}
-              </div>
-              <div style={{ marginTop: 6, fontSize: '.72rem' }}>Soma: <b style={{ color: somaOk ? '#047857' : '#dc2626' }}>{soma.toFixed(2)}%</b>{somaOk ? '' : ' (precisa ser 100)'}</div>
+                })}</tbody>
+              </table>
+              <div className="ofin-rodape"><button type="button" className="ofin-link" onClick={() => setRateio((s) => [...s, { id: rowSeq++, codDep: '', perc: '0' }])}><i className="fas fa-plus" /> Incluir departamento</button><span>{rateio.length} {rateio.length === 1 ? 'departamento' : 'departamentos'}</span></div>
+            </div>
+          </div>
 
-              {/* Outros campos do titulo — so o que mudar vai para a Omie */}
-              <div style={{ marginTop: 16, borderTop: '1px solid #e2e8f0', paddingTop: 12 }}>
-                <div style={{ fontSize: '.72rem', color: '#64748b', marginBottom: 8 }}>Outros campos do titulo <span style={{ color: '#94a3b8' }}>(so o que voce alterar e enviado; {nMudados ? <b style={{ color: '#b45309' }}>{nMudados} alterado(s)</b> : 'nada alterado'})</span></div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                  <div><label style={lblStyle}>Vencimento</label><input type="date" value={form.dataVencimento} onChange={(e) => setCampo('dataVencimento', e.target.value)} style={{ ...selStyle, borderColor: form.dataVencimento !== inicial.dataVencimento ? '#f59e0b' : '#cbd5e1' }} /></div>
-                  <div><label style={lblStyle}>Previsao de {tipo === 'receber' ? 'recebimento' : 'pagamento'}</label><input type="date" value={form.dataPrevisao} onChange={(e) => setCampo('dataPrevisao', e.target.value)} style={{ ...selStyle, borderColor: form.dataPrevisao !== inicial.dataPrevisao ? '#f59e0b' : '#cbd5e1' }} /></div>
-                  <div style={{ gridColumn: '1 / -1' }}>
-                    <label style={lblStyle}>Projeto <span style={{ color: '#94a3b8' }}>({projs.length} no cadastro · digite para filtrar)</span></label>
-                    <div style={{ display: 'flex', gap: 6 }}>
-                      <input value={filtroProj} onChange={(e) => setFiltroProj(e.target.value)} placeholder="filtrar projeto (modelo, chassi, nome)" style={{ ...selStyle, flex: '0 0 42%' }} />
-                      <select value={form.codigoProjeto} onChange={(e) => setCampo('codigoProjeto', e.target.value)} style={{ ...selStyle, flex: 1, borderColor: form.codigoProjeto !== inicial.codigoProjeto ? '#f59e0b' : '#cbd5e1' }}>
-                        <option value="">{inicial.codigoProjeto ? '(manter sem alterar)' : '(sem projeto)'}</option>
-                        {inicial.codigoProjeto && !projs.some((p) => String(p.codigo) === inicial.codigoProjeto) && <option value={inicial.codigoProjeto}>{lanc.projetoNome || inicial.codigoProjeto} [atual]</option>}
-                        {projs.filter((p) => !filtroProj.trim() || norm(p.descricao).includes(norm(filtroProj)) || String(p.codigo).includes(filtroProj.trim())).slice(0, 400).map((p) => <option key={String(p.codigo)} value={String(p.codigo)}>{p.descricao}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <div><label style={lblStyle}>Conta corrente</label>
-                    <select value={form.idContaCorrente} onChange={(e) => setCampo('idContaCorrente', e.target.value)} style={{ ...selStyle, borderColor: form.idContaCorrente !== inicial.idContaCorrente ? '#f59e0b' : '#cbd5e1' }}>
-                      <option value="">{inicial.idContaCorrente ? '(manter sem alterar)' : '(sem conta corrente)'}</option>
-                      {inicial.idContaCorrente && !ccs.some((c) => String(c.codigo) === inicial.idContaCorrente) && <option value={inicial.idContaCorrente}>{inicial.idContaCorrente} [atual]</option>}
-                      {ccs.map((c) => <option key={String(c.codigo)} value={String(c.codigo)}>{c.descricao}</option>)}
-                    </select>
-                  </div>
-                  <div><label style={lblStyle}>Nº do documento</label><input value={form.numeroDocumento} onChange={(e) => setCampo('numeroDocumento', e.target.value)} maxLength={60} style={{ ...selStyle, borderColor: form.numeroDocumento !== inicial.numeroDocumento ? '#f59e0b' : '#cbd5e1' }} /></div>
-                  <div style={{ gridColumn: '1 / -1' }}><label style={lblStyle}>Observacao</label><textarea value={form.observacao} onChange={(e) => setCampo('observacao', e.target.value)} maxLength={1000} rows={2} style={{ ...selStyle, resize: 'vertical', borderColor: form.observacao !== inicial.observacao ? '#f59e0b' : '#cbd5e1' }} /></div>
+          {/* Outros campos do título — só o que mudar vai para a Omie */}
+          <div>
+            <h3 className="ofin-secao">Outros campos do título <small>só o que você alterar é enviado · {nMudados ? <b style={{ color: '#b45309' }}>{nMudados} alterado(s)</b> : 'nada alterado'}</small></h3>
+            <div className="ofin-grid" style={{ gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' }}>
+              <CampoFin titulo="Vencimento"><input className={mud('dataVencimento')} type="date" value={form.dataVencimento} onChange={(e) => setCampo('dataVencimento', e.target.value)} /></CampoFin>
+              <CampoFin titulo={`Previsão de ${tipo === 'receber' ? 'recebimento' : 'pagamento'}`}><input className={mud('dataPrevisao')} type="date" value={form.dataPrevisao} onChange={(e) => setCampo('dataPrevisao', e.target.value)} /></CampoFin>
+              <CampoFin titulo={<>Projeto <span style={{ fontWeight: 400, color: '#94a3b8' }}>({projs.length} no cadastro · digite para filtrar)</span></>} style={{ gridColumn: '1 / -1' }}>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input className="ofin-inp" style={{ flex: '0 0 40%' }} value={filtroProj} onChange={(e) => setFiltroProj(e.target.value)} placeholder="filtrar projeto (modelo, chassi, nome)" />
+                  <select className={mud('codigoProjeto')} style={{ flex: 1 }} value={form.codigoProjeto} onChange={(e) => setCampo('codigoProjeto', e.target.value)}>
+                    <option value="">{inicial.codigoProjeto ? '(manter sem alterar)' : '(sem projeto)'}</option>
+                    {inicial.codigoProjeto && !projs.some((p) => String(p.codigo) === inicial.codigoProjeto) && <option value={inicial.codigoProjeto}>{lanc.projetoNome || inicial.codigoProjeto} [atual]</option>}
+                    {projs.filter((p) => !filtroProj.trim() || norm(p.descricao).includes(norm(filtroProj)) || String(p.codigo).includes(filtroProj.trim())).slice(0, 400).map((p) => <option key={String(p.codigo)} value={String(p.codigo)}>{p.descricao}</option>)}
+                  </select>
                 </div>
-              </div>
-            </>
-          )}
-        </div>
-        <div style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: '.72rem', color: modalStatus.includes('✓') ? '#047857' : '#dc2626', marginRight: 'auto' }}>{modalStatus}</span>
-          <button onClick={onClose} style={btnSec}>Cancelar</button>
-          <button onClick={aplicar} disabled={aplicando || carregando} style={{ ...btnPrim, background: '#059669', opacity: aplicando || carregando ? 0.5 : 1 }}>Aplicar no Omie</button>
-        </div>
-      </div>
-    </Overlay>
+              </CampoFin>
+              <CampoFin titulo="Conta corrente">
+                <select className={mud('idContaCorrente')} value={form.idContaCorrente} onChange={(e) => setCampo('idContaCorrente', e.target.value)}>
+                  <option value="">{inicial.idContaCorrente ? '(manter sem alterar)' : '(sem conta corrente)'}</option>
+                  {inicial.idContaCorrente && !ccs.some((c) => String(c.codigo) === inicial.idContaCorrente) && <option value={inicial.idContaCorrente}>{inicial.idContaCorrente} [atual]</option>}
+                  {ccs.map((c) => <option key={String(c.codigo)} value={String(c.codigo)}>{c.descricao}</option>)}
+                </select>
+              </CampoFin>
+              <CampoFin titulo="Nº do documento"><input className={mud('numeroDocumento')} value={form.numeroDocumento} onChange={(e) => setCampo('numeroDocumento', e.target.value)} maxLength={60} /></CampoFin>
+              <CampoFin titulo="Observação" style={{ gridColumn: '1 / -1' }}><textarea className={mud('observacao')} value={form.observacao} onChange={(e) => setCampo('observacao', e.target.value)} maxLength={1000} rows={2} /></CampoFin>
+            </div>
+          </div>
+        </>
+      )}
+    </JanelaFin>
   );
 }
 
@@ -678,12 +634,6 @@ function ModalMassa({ rows, tipo, criadoPor, carregarCats, carregarDeps, onClose
   const [rateio, setRateio] = useState<RateioRow[]>([{ id: rowSeq++, codDep: '', perc: '100' }]);
   const [modalStatus, setModalStatus] = useState('');
   const [aplicando, setAplicando] = useState(false);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   useEffect(() => {
     if (multiConta) return;
@@ -738,72 +688,47 @@ function ModalMassa({ rows, tipo, criadoPor, carregarCats, carregarDeps, onClose
   }, [catOn, depOn, catSel, somaOk, rateio, rows, soCatVazia, soDepVazio, tipo, criadoPor, onAplicado]);
 
   return (
-    <Overlay onClose={onClose}>
-      <div style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 560, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
-        <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Alteracao em massa</h2>
-          <button onClick={onClose} style={closeBtn}>×</button>
-        </div>
-        <div style={{ padding: 18, overflowY: 'auto', fontSize: '.85rem' }}>
-          {multiConta ? (
-            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 6, padding: 12, fontSize: '.78rem' }}>
-              Os {rows.length} lancamentos sao de mais de uma empresa ({contas.join(', ')}). A alteracao em massa exige uma empresa por vez — filtre tambem pela coluna <b>Empresa</b>.
+    <JanelaFin titulo="Alteração em massa" largura={620} onFechar={onClose} travado={aplicando}
+      sub={<>{cliente} · {rows.length} lançamento(s){multiConta ? '' : ` · empresa ${contas[0]}`}</>}
+      pe={<>
+        <span className="ofin-msg">{modalStatus}</span>
+        <BotaoFin variante="neutro" onClick={onClose} disabled={aplicando}>Cancelar</BotaoFin>
+        <BotaoFin variante="prim" icone="fa-layer-group" onClick={aplicar} disabled={aplicando || carregando || multiConta}>Aplicar em massa</BotaoFin>
+      </>}>
+      {multiConta ? (
+        <div className="ofin-aviso"><div>Os {rows.length} lançamentos são de mais de uma empresa ({contas.join(', ')}). A alteração em massa exige uma empresa por vez — filtre também pela coluna <b>Empresa</b>.</div></div>
+      ) : carregando ? <div className="ofin-msg">carregando categorias e departamentos…</div> : (
+        <>
+          <div className="ofin-resumo">{semCat} sem categoria · {semDep} sem departamento</div>
+          <div className="ofin-caixa" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 600, color: TEAL_ESC, cursor: 'pointer' }}><input type="checkbox" checked={catOn} onChange={(e) => setCatOn(e.target.checked)} /> Definir categoria</label>
+            <select className="ofin-inp" value={catSel} onChange={(e) => setCatSel(e.target.value)} disabled={!catOn}>
+              <option value="">(escolha)</option>
+              {cats.map((c) => <option key={String(c.codigo)} value={String(c.codigo)}>{c.codigo} — {c.descricao}</option>)}
+            </select>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#6b7a89', cursor: 'pointer' }}><input type="checkbox" checked={soCatVazia} disabled={!catOn} onChange={(e) => setSoCatVazia(e.target.checked)} /> Aplicar só nas que estão <b>sem categoria</b> ({semCat})</label>
+          </div>
+          <div className="ofin-caixa" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontWeight: 600, color: TEAL_ESC, cursor: 'pointer' }}><input type="checkbox" checked={depOn} onChange={(e) => setDepOn(e.target.checked)} /> Definir departamento (rateio %)</label>
+              <span style={{ marginLeft: 'auto', fontSize: 12.5 }}>Soma: <b style={{ color: somaOk ? '#047857' : '#dc2626' }}>{soma.toFixed(2)}%</b>{somaOk ? '' : ' (precisa ser 100)'}</span>
             </div>
-          ) : carregando ? <div style={{ color: '#94a3b8' }}>carregando categorias/departamentos...</div> : (
-            <>
-              <div style={{ marginBottom: 12, fontSize: '.72rem', color: '#475569' }}>Cliente/Fornecedor: <b>{cliente}</b> · <b>{rows.length}</b> lancamento(s) · empresa <b>{contas[0]}</b><br /><span style={{ color: '#94a3b8' }}>{semCat} sem categoria · {semDep} sem departamento</span></div>
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 12, marginBottom: 12 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500, color: '#334155' }}><input type="checkbox" checked={catOn} onChange={(e) => setCatOn(e.target.checked)} /> Definir categoria</label>
-                <select value={catSel} onChange={(e) => setCatSel(e.target.value)} disabled={!catOn} style={{ ...selStyle, marginTop: 8 }}>
+            {rateio.map((row) => (
+              <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <select className="ofin-inp" style={{ flex: 1 }} value={row.codDep} disabled={!depOn} onChange={(e) => setRateio((s) => s.map((x) => x.id === row.id ? { ...x, codDep: e.target.value } : x))}>
                   <option value="">(escolha)</option>
-                  {cats.map((c) => <option key={String(c.codigo)} value={String(c.codigo)}>{c.codigo} — {c.descricao}</option>)}
+                  {deps.map((d) => <option key={String(d.codigo)} value={String(d.codigo)}>{d.descricao}</option>)}
                 </select>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.72rem', color: '#64748b', marginTop: 8 }}><input type="checkbox" checked={soCatVazia} disabled={!catOn} onChange={(e) => setSoCatVazia(e.target.checked)} /> Aplicar so nas que estao <b>sem categoria</b> ({semCat})</label>
+                <input className="ofin-inp num" style={{ width: 90 }} type="number" min="0" max="100" step="0.01" value={row.perc} disabled={!depOn} onChange={(e) => setRateio((s) => s.map((x) => x.id === row.id ? { ...x, perc: e.target.value } : x))} />
+                <span className="ofin-msg">%</span>
+                <button type="button" className="ofin-x" disabled={!depOn || rateio.length <= 1} onClick={() => setRateio((s) => s.length > 1 ? s.filter((x) => x.id !== row.id) : s)}>×</button>
               </div>
-              <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500, color: '#334155' }}><input type="checkbox" checked={depOn} onChange={(e) => setDepOn(e.target.checked)} /> Definir departamento (rateio %)</label>
-                  <button onClick={() => setRateio((s) => [...s, { id: rowSeq++, codDep: '', perc: '0' }])} disabled={!depOn} style={{ marginLeft: 'auto', fontSize: '.72rem', padding: '2px 8px', background: '#f1f5f9', border: 'none', borderRadius: 4, cursor: 'pointer', opacity: depOn ? 1 : 0.5 }}>+ departamento</button>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
-                  {rateio.map((row) => (
-                    <div key={row.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <select value={row.codDep} disabled={!depOn} onChange={(e) => setRateio((s) => s.map((x) => x.id === row.id ? { ...x, codDep: e.target.value } : x))} style={{ ...selStyle, flex: 1 }}>
-                        <option value="">(escolha)</option>
-                        {deps.map((d) => <option key={String(d.codigo)} value={String(d.codigo)}>{d.descricao}</option>)}
-                      </select>
-                      <input type="number" min="0" max="100" step="0.01" value={row.perc} disabled={!depOn} onChange={(e) => setRateio((s) => s.map((x) => x.id === row.id ? { ...x, perc: e.target.value } : x))} style={{ width: 80, ...selStyle, textAlign: 'right' }} />
-                      <span style={{ fontSize: '.72rem', color: '#94a3b8' }}>%</span>
-                      <button onClick={() => setRateio((s) => s.length > 1 ? s.filter((x) => x.id !== row.id) : s)} disabled={!depOn} style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.1rem', cursor: 'pointer' }}>×</button>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ marginTop: 6, fontSize: '.72rem' }}>Soma: <b style={{ color: somaOk ? '#047857' : '#dc2626' }}>{soma.toFixed(2)}%</b>{somaOk ? '' : ' (precisa ser 100)'}</div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.72rem', color: '#64748b', marginTop: 8 }}><input type="checkbox" checked={soDepVazio} disabled={!depOn} onChange={(e) => setSoDepVazio(e.target.checked)} /> Aplicar so nas que estao <b>sem departamento</b> ({semDep})</label>
-              </div>
-            </>
-          )}
-        </div>
-        <div style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: '.72rem', color: '#475569', marginRight: 'auto' }}>{modalStatus}</span>
-          <button onClick={onClose} style={btnSec}>Cancelar</button>
-          <button onClick={aplicar} disabled={aplicando || carregando || multiConta} style={{ ...btnPrim, background: '#d97706', opacity: aplicando || carregando || multiConta ? 0.5 : 1 }}>Aplicar em massa</button>
-        </div>
-      </div>
-    </Overlay>
+            ))}
+            <div><button type="button" className="ofin-link" disabled={!depOn} style={{ opacity: depOn ? 1 : 0.5 }} onClick={() => setRateio((s) => [...s, { id: rowSeq++, codDep: '', perc: '0' }])}><i className="fas fa-plus" /> Incluir departamento</button></div>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: '#6b7a89', cursor: 'pointer' }}><input type="checkbox" checked={soDepVazio} disabled={!depOn} onChange={(e) => setSoDepVazio(e.target.checked)} /> Aplicar só nas que estão <b>sem departamento</b> ({semDep})</label>
+          </div>
+        </>
+      )}
+    </JanelaFin>
   );
 }
-
-function Overlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
-  return (
-    <div className="est-overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ display: 'contents' }}>{children}</div>
-    </div>
-  );
-}
-
-const lblStyle: React.CSSProperties = { display: 'block', fontSize: '.72rem', color: '#64748b', marginBottom: 2 };
-const selStyle: React.CSSProperties = { width: '100%', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem', background: '#fff' };
-const closeBtn: React.CSSProperties = { background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' };
-const btnSec: React.CSSProperties = { padding: '6px 12px', fontSize: '.82rem', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, cursor: 'pointer' };
-const btnPrim: React.CSSProperties = { padding: '6px 12px', fontSize: '.82rem', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' };

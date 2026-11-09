@@ -14,6 +14,7 @@ import { tempoRelativo } from '@/lib/ajustes/tempo-relativo';
 import { RECORTES, RECORTE_PADRAO, ehRecorte, aplicarRecorte, resumir, type Recorte } from '@/lib/ajustes/baixa-contas-recorte';
 import { baixaAntecipadaSuspeita } from '@/lib/ajustes/boletos-fornecedor';
 import PainelBoletosBaixa from '@/components/ajustes/PainelBoletosBaixa';
+import { PaginaFin, CampoFin, Segmentado, BotaoFin, ChipSituacao, Chip, RodapeGrade, JanelaFin, ThOrdena, TEAL } from '@/components/ajustes/omie-fin';
 
 const LS_RECORTE = 'baixa-contas-recorte';
 function lerRecorteSalvo(): Recorte {
@@ -58,9 +59,6 @@ function hojeISO(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-const thStyle: React.CSSProperties = { background: '#f8fafc', color: '#475569', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', userSelect: 'none' };
-const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f1f5f9', color: '#334155', fontSize: '.82rem' };
-
 interface ColDef { key: string; label: string; type: 'num' | 'date' | 'text'; align?: 'right'; val: (l: Titulo) => number | string; txt: (l: Titulo) => string }
 const COLS: ColDef[] = [
   { key: 'vencimento', label: 'Vencimento', type: 'date', val: (l) => l.vencimento || '', txt: (l) => fmtData(l.vencimento) },
@@ -74,14 +72,6 @@ const COLS: ColDef[] = [
   { key: 'categoria', label: 'Categoria', type: 'text', val: (l) => decode(l.categoria), txt: (l) => decode(l.categoria) },
   { key: 'valorAberto', label: 'Valor em aberto', type: 'num', align: 'right', val: (l) => Number(l.valorAberto) || 0, txt: (l) => fmtBRL(l.valorAberto) },
 ];
-
-function StatusBadge({ s }: { s?: string }) {
-  const map: Record<string, [string, string]> = {
-    'ATRASADO': ['#fee2e2', '#b91c1c'], 'VENCE HOJE': ['#fef3c7', '#b45309'], 'A VENCER': ['#e0f2fe', '#0369a1'],
-  };
-  const [bg, fg] = map[s || ''] || ['#f1f5f9', '#475569'];
-  return <span style={{ padding: '1px 6px', borderRadius: 4, fontSize: '.68rem', background: bg, color: fg }}>{s || '-'}</span>;
-}
 
 export default function BaixaContasPage() {
   const { userProfile } = useAuth();
@@ -168,115 +158,97 @@ export default function BaixaContasPage() {
 
   if (!permLoading && userProfile && !pode('ajustes', 'baixa-contas')) return <SemPermissao />;
 
+  const COLS_GRADE = COLS.length + 1;
   return (
-    <div className="est-page" style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
-        <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Baixar contas</h1>
-          <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 820 }}>
-            Marca titulos <b>a pagar</b> e <b>a receber</b> como pagos/recebidos direto no Omie. Lista os titulos <b>em aberto</b> da empresa selecionada — <b>uma empresa por vez</b>. Clique em <b>Baixar</b> para liquidar um titulo.
-          </p>
-          <p style={{ color: '#94a3b8', fontSize: '.72rem', maxWidth: 820, marginTop: 4 }}>
-            A lista vem do <b>espelho sincronizado</b> da Omie (cron a cada poucas horas); a baixa vai <b>direto na Omie</b>. Ordenada por <b>previsão</b>, como o card &quot;Pagar/Receber hoje&quot; da Omie.
-          </p>
-        </div>
-        <div style={{ marginLeft: 'auto' }}><ContaSelector /></div>
-      </div>
-
-      <div style={{ margin: '6px 0 14px', display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: '.8rem' }}>
-        <Link href="/ajustes" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>← Ajustes</Link>
-      </div>
-
+    <PaginaFin
+      titulo="Baixar contas"
+      sub={<>Títulos <b>em aberto</b> da empresa — a baixa vai direto na Omie</>}
+      direita={<ContaSelector />}
+      comoLer={<>
+        Marca títulos <b>a pagar</b> e <b>a receber</b> como pagos/recebidos direto na Omie, <b>uma empresa por vez</b> (troque no seletor de conta).
+        Clique em <b>Baixar</b> numa linha (ou dois cliques nela) para abrir a janela de baixa. A lista vem do <b>espelho sincronizado</b> da Omie (o selo mostra há quanto tempo);
+        a baixa em si vai <b>ao vivo</b> na Omie. A ordem padrão é pela <b>previsão</b>, como o card &quot;Pagar/Receber hoje&quot; da Omie — previsão em âmbar = diferente do vencimento.
+        Boletos agrupados de fornecedor (ex.: CAMBUCI) aparecem no painel <b>Boletos de fornecedor</b>: pague a parcela por lá, não as duplicatas soltas.
+        <div style={{ marginTop: 6 }}><Link href="/ajustes">← Ajustes</Link></div>
+      </>}
+    >
       {conta === '' ? (
-        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: 16, fontSize: '.85rem' }}>
-          A baixa de contas precisa de uma empresa especifica. Selecione <b>NOVA</b> ou <b>CASTRO</b> no menu acima.
-        </div>
+        <div className="ofin-aviso"><div>A baixa de contas precisa de uma empresa específica. Selecione <b>NOVA</b> ou <b>CASTRO</b> no seletor de conta acima.</div></div>
       ) : (
         <>
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, marginBottom: 14 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Tipo</label>
-                <div style={{ display: 'inline-flex', borderRadius: 6, border: '1px solid #cbd5e1', overflow: 'hidden', fontSize: '.82rem' }}>
-                  {(['pagar', 'receber'] as Tipo[]).map((t, i) => (
-                    <button key={t} onClick={() => setTipo(t)} style={{ padding: '6px 12px', border: 'none', borderLeft: i ? '1px solid #cbd5e1' : 'none', background: tipo === t ? '#2563eb' : '#fff', color: tipo === t ? '#fff' : '#475569', cursor: 'pointer' }}>{t === 'pagar' ? 'A pagar' : 'A receber'}</button>
-                  ))}
+          <div className="ofin-cartao">
+            <div className="ofin-filtros">
+              <CampoFin titulo="Tipo"><Segmentado<Tipo> valor={tipo} onChange={setTipo} opcoes={[['pagar', 'A pagar'], ['receber', 'A receber']]} /></CampoFin>
+              <CampoFin titulo="Previsão">
+                <div className="ofin-pilulas">
+                  {RECORTES.map((r) => {
+                    const c = contagens[r.id];
+                    return (
+                      <button key={r.id} type="button" onClick={() => escolherRecorte(r.id)} title={r.dica} className={`ofin-pilula${recorte === r.id ? ' ativo' : ''}`}>
+                        {r.rotulo}{c && <span className="n">{c.n}</span>}
+                      </button>
+                    );
+                  })}
                 </div>
+              </CampoFin>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+                <BotaoFin variante="prim" icone="fa-rotate" onClick={buscar} disabled={carregando}>{carregando ? 'Carregando…' : 'Atualizar'}</BotaoFin>
               </div>
-              <button onClick={buscar} disabled={carregando} style={{ padding: '7px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando ? 0.5 : 1 }}>Atualizar</button>
-              <div style={{ fontSize: '.72rem', color: '#94a3b8' }}>Empresa: <b style={{ color: '#475569' }}>{conta.toUpperCase()}</b> — troque no seletor &quot;Conta&quot; do topo.</div>
             </div>
-            <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: '.65rem', color: '#64748b', marginRight: 2 }}>Previsão:</span>
-              {RECORTES.map((r) => {
-                const ativo = recorte === r.id;
-                const c = contagens[r.id];
-                return (
-                  <button key={r.id} onClick={() => escolherRecorte(r.id)} title={r.dica}
-                    style={{ padding: '4px 10px', borderRadius: 999, border: `1px solid ${ativo ? '#2563eb' : '#cbd5e1'}`, background: ativo ? '#2563eb' : '#fff', color: ativo ? '#fff' : '#475569', fontSize: '.75rem', cursor: 'pointer', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                    {r.rotulo}
-                    {c && <span style={{ fontSize: '.65rem', padding: '0 6px', borderRadius: 999, background: ativo ? 'rgba(255,255,255,.25)' : '#f1f5f9', color: ativo ? '#fff' : '#64748b' }}>{c.n}</span>}
-                  </button>
-                );
-              })}
-            </div>
-            <div style={{ marginTop: 8, fontSize: '.75rem', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ color: status.startsWith('Erro') ? '#dc2626' : '#64748b' }}>{status}</span>
-              <span style={{ color: '#94a3b8' }}>{resumo}</span>
+            <div className="ofin-filtros-pe">
+              <span>Empresa <b style={{ color: 'var(--portal-text, #1f2d3d)' }}>{conta.toUpperCase()}</b></span>
+              {status && <span className={`ofin-msg${status.startsWith('Erro') ? ' erro' : ''}`}>{status}</span>}
+              {resumo && <span className="ofin-resumo">· {resumo}</span>}
               {!carregando && <SeloSincronizacao iso={sincronizadoEm} />}
             </div>
           </div>
 
           {tipo === 'pagar' && <PainelBoletosBaixa conta={conta.toUpperCase()} versao={versaoBoletos} onPago={buscar} />}
 
-          <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
-            <div style={{ overflow: 'auto', maxHeight: '70vh' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
+          <div className="ofin-cartao">
+            <div className="ofin-grade-caixa" style={{ maxHeight: '70vh' }}>
+              <table className="ofin-grade fixo">
+                <thead>
                   <tr>
-                    {COLS.map((c) => (
-                      <th key={c.key} onClick={() => ordenarPor(c.key)} style={{ ...thStyle, textAlign: c.align === 'right' ? 'right' : 'left' }}>
-                        {c.label}{sort.key === c.key ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}
-                      </th>
-                    ))}
-                    <th style={thStyle} />
+                    {COLS.map((c) => <ThOrdena key={c.key} rotulo={c.label} ativo={sort.key === c.key} dir={sort.dir} num={c.align === 'right'} onClick={() => ordenarPor(c.key)} />)}
+                    <th />
                   </tr>
                   <tr>
                     {COLS.map((c) => (
-                      <th key={c.key} style={{ ...thStyle, cursor: 'auto', padding: '2px 6px' }}>
-                        <input value={filtros[c.key] || ''} onChange={(e) => setFiltros((s) => ({ ...s, [c.key]: e.target.value }))} placeholder="filtrar" style={{ width: '100%', minWidth: 80, border: '1px solid #e2e8f0', borderRadius: 4, padding: '2px 6px', fontSize: '.72rem', fontWeight: 400, textTransform: 'none' }} />
+                      <th key={c.key} className="filtro">
+                        <input className="ofin-filtro-col" value={filtros[c.key] || ''} onChange={(e) => setFiltros((s) => ({ ...s, [c.key]: e.target.value }))} placeholder="filtrar" />
                       </th>
                     ))}
-                    <th style={{ ...thStyle, cursor: 'auto' }} />
+                    <th className="filtro" />
                   </tr>
                 </thead>
                 <tbody>
                   {linhasVisiveis.length === 0 ? (
-                    <tr><td colSpan={COLS.length + 1} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', padding: 40 }}>{carregando ? 'Carregando…' : titulos.length && recorte !== 'todos' ? 'Nenhum titulo neste recorte de previsão — veja "Todos".' : 'Nenhum titulo em aberto para esta empresa/tipo.'}</td></tr>
+                    <tr><td colSpan={COLS_GRADE} className="vazio">{carregando ? 'Carregando…' : titulos.length && recorte !== 'todos' ? 'Nenhum título neste recorte de previsão — veja "Todos".' : 'Nenhum título em aberto para esta empresa/tipo.'}</td></tr>
                   ) : linhasVisiveis.map((l) => {
                     const parcial = (Number(l.valorPago) || 0) > 0;
+                    const prevDif = !!l.previsao && l.previsao !== l.vencimento;
                     return (
-                      <tr key={String(l.codigoLancamento)} style={{ borderTop: '1px solid #f1f5f9' }}>
-                        <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: '#64748b' }}>{fmtData(l.vencimento) || '-'}</td>
-                        <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: l.previsao && l.previsao !== l.vencimento ? '#b45309' : '#64748b' }} title={l.previsao && l.previsao !== l.vencimento ? 'previsão diferente do vencimento' : undefined}>{fmtData(l.previsao || l.vencimento) || '-'}</td>
-                        <td style={tdStyle}><StatusBadge s={l.status} /></td>
-                        <td style={tdStyle}>{l.contraparte || '-'}</td>
-                        <td style={{ ...tdStyle, fontSize: '.72rem', color: '#64748b', whiteSpace: 'nowrap' }}>{l.numeroDoc || '-'}</td>
-                        <td style={{ ...tdStyle, fontSize: '.72rem', color: '#64748b', whiteSpace: 'nowrap' }}>{l.parcela || '-'}</td>
-                        <td style={{ ...tdStyle, fontSize: '.72rem', color: '#64748b' }}>{l.categoria || '-'}</td>
-                        <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>
+                      <tr key={String(l.codigoLancamento)} onDoubleClick={() => setModalTitulo(l)} title="Dois cliques: baixar este título">
+                        <td className="apagado nowrap">{fmtData(l.vencimento) || '-'}</td>
+                        <td className="nowrap" style={{ color: prevDif ? '#b45309' : '#6b7a89', fontWeight: prevDif ? 600 : 400, fontSize: 12 }} title={prevDif ? 'previsão diferente do vencimento' : undefined}>{fmtData(l.previsao || l.vencimento) || '-'}</td>
+                        <td><ChipSituacao s={l.status} /></td>
+                        <td>{l.contraparte || '-'}</td>
+                        <td className="apagado nowrap">{l.numeroDoc || '-'}</td>
+                        <td className="apagado nowrap">{l.parcela || '-'}</td>
+                        <td className="apagado">{l.categoria || '-'}</td>
+                        <td className="num" style={{ fontWeight: 600 }}>
                           {fmtBRL(l.valorAberto)}
-                          {parcial && <div style={{ fontSize: '.62rem', color: '#94a3b8', fontWeight: 400 }}>doc {fmtBRL(l.valorDocumento)}</div>}
+                          {parcial && <div style={{ fontSize: 11, color: '#94a3b8', fontWeight: 400 }}>doc {fmtBRL(l.valorDocumento)}</div>}
                         </td>
-                        <td style={{ ...tdStyle, textAlign: 'right' }}>
-                          <button onClick={() => setModalTitulo(l)} style={{ padding: '3px 10px', background: '#059669', color: '#fff', border: 'none', borderRadius: 4, fontSize: '.72rem', cursor: 'pointer' }}>Baixar</button>
-                        </td>
+                        <td className="num"><BotaoFin mini variante="prim" icone="fa-check" onClick={() => setModalTitulo(l)}>Baixar</BotaoFin></td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
+            <RodapeGrade mostrando={linhasVisiveis.length} total={titulosNoRecorte.length} dica={<><i className="fas fa-hand-pointer" /> dois cliques numa linha abre a baixa</>} />
           </div>
         </>
       )}
@@ -285,24 +257,16 @@ export default function BaixaContasPage() {
         <ModalBaixa titulo={modalTitulo} tipo={tipo} conta={conta}
           onClose={() => setModalTitulo(null)} onBaixado={() => { setModalTitulo(null); buscar(); setVersaoBoletos((v) => v + 1); }} />
       )}
-    </div>
+    </PaginaFin>
   );
 }
 
 // ---------- selo "espelho atualizado há X" ----------
 function SeloSincronizacao({ iso }: { iso: string | null }) {
   const t = tempoRelativo(iso);
-  const cores: Record<string, [string, string]> = {
-    ok: ['#ecfdf5', '#047857'], atencao: ['#fef3c7', '#b45309'], critico: ['#fee2e2', '#b91c1c'], desconhecido: ['#f1f5f9', '#64748b'],
-  };
-  const [bg, fg] = cores[t.nivel];
+  const cor = ({ ok: 'verde', atencao: 'ambar', critico: 'vermelho', desconhecido: 'cinza' } as const)[t.nivel];
   const quando = iso ? new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso.replace(' ', 'T') + 'Z').toLocaleString('pt-BR') : '';
-  return (
-    <span title={quando ? `último sync concluído em ${quando}` : 'nenhum sync registrado para esta empresa/tipo'}
-      style={{ padding: '2px 8px', borderRadius: 999, fontSize: '.7rem', background: bg, color: fg, whiteSpace: 'nowrap' }}>
-      espelho atualizado {t.texto}
-    </span>
-  );
+  return <Chip cor={cor} title={quando ? `último sync concluído em ${quando}` : 'nenhum sync registrado para esta empresa/tipo'}>espelho atualizado {t.texto}</Chip>;
 }
 
 // ---------- modal de baixa ----------
@@ -324,12 +288,6 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
   const [conciliar, setConciliar] = useState(false);
   const [modalStatus, setModalStatus] = useState('');
   const [aplicando, setAplicando] = useState(false);
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
 
   // consulta o titulo no Omie ao abrir (pre-preenche valor + conta corrente)
   useEffect(() => {
@@ -398,77 +356,61 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
     }
   }, [ccSel, valor, data, juros, multa, desconto, obs, conciliar, conta, tipo, titulo, onBaixado, antecipada]);
 
+  const desabBaixa = aplicando || carregando || bloqueada || !!erroConsulta;
   return (
-    <div className="est-overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
-        <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Marcar como pago / recebido</h2>
-          <button onClick={onClose} style={closeBtn}>×</button>
-        </div>
-        <div style={{ padding: 18, overflowY: 'auto', fontSize: '.85rem' }}>
-          {carregando ? <div style={{ color: '#94a3b8' }}>consultando titulo no Omie...</div>
-            : erroConsulta ? <div style={{ color: '#dc2626' }}>{erroConsulta}</div>
-            : bloqueada ? (
-              <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 6, padding: 12, fontSize: '.8rem' }}>
-                Este titulo esta com a <b>baixa bloqueada</b> no Omie. Desbloqueie no Omie antes de marcar como pago.
+    <JanelaFin titulo="Lançar pagamento / recebimento" largura={640} onFechar={onClose} travado={aplicando}
+      sub={<>{titulo.conta} · {titulo.contraparte || ''} · lanç. <span style={{ fontFamily: 'monospace' }}>{titulo.codigoLancamento}</span></>}
+      pe={<>
+        <span className={`ofin-msg${modalStatus.includes('✓') ? ' ok' : modalStatus ? ' erro' : ''}`}>{modalStatus}</span>
+        <BotaoFin variante="neutro" onClick={onClose} disabled={aplicando}>Cancelar</BotaoFin>
+        <BotaoFin variante="prim" icone="fa-check" onClick={aplicar} disabled={desabBaixa}>Baixar na Omie</BotaoFin>
+      </>}>
+      {carregando ? <div className="ofin-msg">consultando o título na Omie…</div>
+        : erroConsulta ? <div className="ofin-aviso erro"><div>{erroConsulta}</div></div>
+        : bloqueada ? (
+          <div className="ofin-aviso"><div>Este título está com a <b>baixa bloqueada</b> na Omie. Desbloqueie na Omie antes de marcar como pago.</div></div>
+        ) : (
+          <>
+            {antecipada && (
+              <div className="ofin-aviso">
+                <div>Esta duplicata de NF vence em <b>{fmtData(titulo.vencimento)}</b> e você está baixando em <b>{fmtData(data)}</b>. Se o fornecedor mandou um <b>boleto agrupando várias NFs</b>, não baixe: registre o boleto em <b>Correção de contas → Lista</b> (ele reprograma as duplicatas) e pague a parcela aqui no painel <b>Boletos de fornecedor</b>. Se a baixa antecipada é real (desconto, pagamento adiantado), informe o motivo na observação.</div>
               </div>
-            ) : (
-              <>
-                {antecipada && (
-                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 6, padding: '8px 10px', fontSize: '.74rem', marginBottom: 10 }}>
-                    Esta duplicata de NF vence em <b>{fmtData(titulo.vencimento)}</b> e voce esta baixando em <b>{fmtData(data)}</b>. Se o fornecedor mandou um <b>boleto agrupando varias NFs</b>, nao baixe: registre o boleto em <b>Correcao de contas → Lista</b> (ele reprograma as duplicatas) e pague a parcela aqui no painel <b>Boletos de fornecedor</b>. Se a baixa antecipada e real (desconto, pagamento adiantado), informe o motivo na observacao.
-                  </div>
-                )}
-                <div style={{ marginBottom: 12, fontSize: '.72rem', color: '#64748b' }}>{titulo.conta} · {titulo.contraparte || ''} · doc {titulo.numeroDoc || '-'} · venc {fmtData(titulo.vencimento) || '-'}{titulo.previsao && titulo.previsao !== titulo.vencimento ? ` · prev ${fmtData(titulo.previsao)}` : ''} · lanc <span style={{ fontFamily: 'monospace' }}>{titulo.codigoLancamento}</span></div>
-
-                <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 12, marginBottom: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ fontSize: '.68rem', color: '#64748b' }}>Conta corrente</div>
-                      <div style={{ fontWeight: 500, color: '#334155' }}>{ccAtualDesc}</div>
-                    </div>
-                    {!mostrarDropdownCC && <button onClick={() => setMostrarDropdownCC(true)} style={{ fontSize: '.72rem', padding: '4px 8px', background: '#f1f5f9', border: 'none', borderRadius: 4, cursor: 'pointer' }}>Alterar</button>}
-                  </div>
-                  {mostrarDropdownCC && (
-                    <select value={ccSel} onChange={(e) => setCcSel(e.target.value)} style={{ ...selStyle, marginTop: 8 }}>
-                      <option value="">(escolha a conta corrente)</option>
-                      {ccAtualFalta && <option value={ccSel}>{consulta?.contaCorrenteDescricao || ccSel} [atual]</option>}
-                      {ccs.map((c) => <option key={String(c.codigo)} value={String(c.codigo)}>{c.descricao}{c.tipo ? ` (${c.tipo})` : ''}</option>)}
-                    </select>
-                  )}
-                </div>
-
-                <div className="est-stack-xs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <div><label style={lblStyle}>{verbo}</label><input type="date" value={data} onChange={(e) => setData(e.target.value)} style={selStyle} /></div>
-                  <div><label style={lblStyle}>Valor</label><input type="number" step="0.01" min="0" value={valor} onChange={(e) => setValor(e.target.value)} style={{ ...selStyle, textAlign: 'right' }} /></div>
-                </div>
-
-                <details style={{ marginTop: 12 }}>
-                  <summary style={{ fontSize: '.72rem', color: '#64748b', cursor: 'pointer', userSelect: 'none' }}>Juros / multa / desconto (opcional)</summary>
-                  <div className="est-stack-xs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 8 }}>
-                    <div><label style={lblStyle}>Juros</label><input type="number" step="0.01" min="0" value={juros} onChange={(e) => setJuros(e.target.value)} style={{ ...selStyle, textAlign: 'right' }} /></div>
-                    <div><label style={lblStyle}>Multa</label><input type="number" step="0.01" min="0" value={multa} onChange={(e) => setMulta(e.target.value)} style={{ ...selStyle, textAlign: 'right' }} /></div>
-                    <div><label style={lblStyle}>Desconto</label><input type="number" step="0.01" min="0" value={desconto} onChange={(e) => setDesconto(e.target.value)} style={{ ...selStyle, textAlign: 'right' }} /></div>
-                  </div>
-                </details>
-
-                <div style={{ marginTop: 12 }}><label style={lblStyle}>Observacao (opcional)</label><input type="text" value={obs} onChange={(e) => setObs(e.target.value)} style={selStyle} placeholder="ex.: baixa via portal" /></div>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.72rem', color: '#64748b', marginTop: 12 }}><input type="checkbox" checked={conciliar} onChange={(e) => setConciliar(e.target.checked)} /> Conciliar o documento automaticamente</label>
-              </>
             )}
-        </div>
-        <div style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: '.72rem', color: modalStatus.includes('✓') ? '#047857' : '#dc2626', marginRight: 'auto' }}>{modalStatus}</span>
-          <button onClick={onClose} style={btnSec}>Cancelar</button>
-          <button onClick={aplicar} disabled={aplicando || carregando || bloqueada || !!erroConsulta} style={{ ...btnPrim, background: '#059669', opacity: aplicando || carregando || bloqueada || erroConsulta ? 0.5 : 1 }}>Baixar no Omie</button>
-        </div>
-      </div>
-    </div>
+            <div className="ofin-grid" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+              <CampoFin titulo="Documento"><div className="ofin-leitura">{titulo.numeroDoc || '—'}</div></CampoFin>
+              <CampoFin titulo="Vencimento"><div className="ofin-leitura">{fmtData(titulo.vencimento) || '—'}</div></CampoFin>
+              <CampoFin titulo="Previsão"><div className="ofin-leitura" style={{ color: titulo.previsao && titulo.previsao !== titulo.vencimento ? '#b45309' : undefined }}>{fmtData(titulo.previsao || titulo.vencimento) || '—'}</div></CampoFin>
+              <CampoFin titulo="Valor em aberto"><div className="ofin-leitura" style={{ justifyContent: 'flex-end', fontWeight: 600 }}>{fmtBRL(titulo.valorAberto)}</div></CampoFin>
+            </div>
+
+            <CampoFin titulo={<>Conta corrente {!mostrarDropdownCC && <button type="button" className="ofin-link" style={{ marginLeft: 6, fontSize: 11.5 }} onClick={() => setMostrarDropdownCC(true)}>alterar</button>}</>}>
+              {mostrarDropdownCC ? (
+                <select className="ofin-inp" value={ccSel} onChange={(e) => setCcSel(e.target.value)}>
+                  <option value="">(escolha a conta corrente)</option>
+                  {ccAtualFalta && <option value={ccSel}>{consulta?.contaCorrenteDescricao || ccSel} [atual]</option>}
+                  {ccs.map((c) => <option key={String(c.codigo)} value={String(c.codigo)}>{c.descricao}{c.tipo ? ` (${c.tipo})` : ''}</option>)}
+                </select>
+              ) : <div className="ofin-leitura">{ccAtualDesc}</div>}
+            </CampoFin>
+
+            <div className="ofin-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <CampoFin titulo={verbo}><input className="ofin-inp" type="date" value={data} onChange={(e) => setData(e.target.value)} /></CampoFin>
+              <CampoFin titulo="Valor"><input className="ofin-inp num" type="number" step="0.01" min="0" value={valor} onChange={(e) => setValor(e.target.value)} /></CampoFin>
+            </div>
+
+            <details>
+              <summary style={{ fontSize: 12.5, color: TEAL, fontWeight: 600, cursor: 'pointer', userSelect: 'none' }}>Juros / multa / desconto (opcional)</summary>
+              <div className="ofin-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', marginTop: 10 }}>
+                <CampoFin titulo="Juros"><input className="ofin-inp num" type="number" step="0.01" min="0" value={juros} onChange={(e) => setJuros(e.target.value)} /></CampoFin>
+                <CampoFin titulo="Multa"><input className="ofin-inp num" type="number" step="0.01" min="0" value={multa} onChange={(e) => setMulta(e.target.value)} /></CampoFin>
+                <CampoFin titulo="Desconto"><input className="ofin-inp num" type="number" step="0.01" min="0" value={desconto} onChange={(e) => setDesconto(e.target.value)} /></CampoFin>
+              </div>
+            </details>
+
+            <CampoFin titulo={antecipada ? 'Observação (obrigatória: motivo da baixa antecipada)' : 'Observação (opcional)'}><input className="ofin-inp" type="text" value={obs} onChange={(e) => setObs(e.target.value)} placeholder="ex.: baixa via portal" /></CampoFin>
+            <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={conciliar} onChange={(e) => setConciliar(e.target.checked)} /> Conciliar o documento automaticamente</label>
+          </>
+        )}
+    </JanelaFin>
   );
 }
-
-const lblStyle: React.CSSProperties = { display: 'block', fontSize: '.68rem', color: '#64748b', marginBottom: 2 };
-const selStyle: React.CSSProperties = { width: '100%', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem', background: '#fff' };
-const closeBtn: React.CSSProperties = { background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' };
-const btnSec: React.CSSProperties = { padding: '6px 12px', fontSize: '.82rem', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, cursor: 'pointer' };
-const btnPrim: React.CSSProperties = { padding: '6px 12px', fontSize: '.82rem', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' };

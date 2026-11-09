@@ -13,6 +13,7 @@ import ContaSelector from '@/components/estoque/ContaSelector';
 import { authHeaders } from '@/lib/auth/client';
 import { fmtBR } from '@/lib/ajustes/boletos-fornecedor';
 import type { Boleto } from '@/components/ajustes/PainelBoletosBaixa';
+import { PaginaFin, CampoFin, Segmentado, BotaoFin, Chip, ChipEmpresa, RodapeGrade, TEAL, type CorChip } from '@/components/ajustes/omie-fin';
 
 interface BoletoFull extends Boleto {
   codigo_barras: string | null; data_emissao: string | null; valor_titulos: number; alinhar_vencimento: boolean; observacao: string | null; criado_por: string | null; created_at: string;
@@ -22,9 +23,9 @@ interface Regra { id: string; conta_omie: string; codigo_cliente_fornecedor: num
 
 const brl = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtBRL = (n: number) => brl.format(Number(n) || 0);
-const STATUS_ROTULO: Record<string, [string, string, string]> = {
-  pendente: ['Pendente', '#fef3c7', '#b45309'], registrado: ['Registrado', '#e0f2fe', '#0369a1'], parcial: ['Parcialmente pago', '#ede9fe', '#6d28d9'],
-  pago: ['Pago', '#dcfce7', '#15803d'], cancelado: ['Estornado', '#f1f5f9', '#64748b'], erro_omie: ['Erro na Omie', '#fee2e2', '#b91c1c'],
+const STATUS_ROTULO: Record<string, [string, CorChip]> = {
+  pendente: ['Pendente', 'ambar'], registrado: ['Registrado', 'azul'], parcial: ['Parcialmente pago', 'roxo'],
+  pago: ['Pago', 'verde'], cancelado: ['Estornado', 'cinza'], erro_omie: ['Erro na Omie', 'vermelho'],
 };
 
 export default function BoletosFornecedorPage() {
@@ -67,109 +68,114 @@ export default function BoletosFornecedorPage() {
   const podeEditar = pode('ajustes', 'boletos-fornecedor');
 
   return (
-    <div className="est-page" style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 10 }}>
-        <div style={{ flex: 1, minWidth: 280 }}>
-          <h1 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#1e293b', margin: 0 }}>Boletos de fornecedor</h1>
-          <p style={{ fontSize: '.78rem', color: '#64748b', margin: '4px 0 0' }}>
-            Fornecedor que junta várias NFs num boleto parcelado (ex.: CAMBUCI). O boleto <b>reprograma</b> as duplicatas da NF na Omie (previsão/vencimento = parcela, observação com o nº) — nada de título manual nem baixa antes de pagar.
-            Registrar: <Link href="/ajustes/correcao-contas" style={{ color: '#7c3aed' }}>Correção de contas</Link> → vista Lista → marcar as duplicatas. Pagar: <Link href="/ajustes/baixa-contas" style={{ color: '#7c3aed' }}>Baixar contas</Link> → Boletos de fornecedor.
-          </p>
-        </div>
-        <ContaSelector />
-      </div>
-      <div style={{ margin: '6px 0 14px', fontSize: '.8rem' }}><Link href="/ajustes" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>← Ajustes</Link></div>
-
+    <PaginaFin
+      titulo="Boletos de fornecedor"
+      sub={<>Boleto parcelado que junta várias NFs — ele <b>reprograma</b> as duplicatas na Omie</>}
+      direita={<ContaSelector />}
+      comoLer={<>
+        Fornecedor que junta várias NFs num boleto parcelado (ex.: CAMBUCI). O boleto <b>reprograma</b> as duplicatas da NF na Omie (previsão/vencimento = parcela, observação com o nº) — nada de título manual nem baixa antes de pagar.
+        Clique numa linha para ver as <b>parcelas</b> e as <b>duplicatas</b> (antes → depois). <b>Reaplicar</b> refaz na Omie o que falhou; <b>Estornar</b> devolve cada duplicata ao que era antes.
+        <div style={{ marginTop: 6 }}>Registrar: <Link href="/ajustes/correcao-contas">Correção de contas</Link> → vista Lista → marcar as duplicatas. Pagar: <Link href="/ajustes/baixa-contas">Baixar contas</Link> → Boletos de fornecedor. · <Link href="/ajustes">← Ajustes</Link></div>
+      </>}
+    >
       {semTabela ? (
-        <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: 16, fontSize: '.85rem' }}>
-          As tabelas do boleto agrupado ainda não existem no banco. Aplique <code>sql/boletos-fornecedor.sql</code> no SQL Editor do Supabase.
-        </div>
+        <div className="ofin-aviso"><div>As tabelas do boleto agrupado ainda não existem no banco. Aplique <code>sql/boletos-fornecedor.sql</code> no SQL Editor do Supabase.</div></div>
       ) : (
         <>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-            {(['boletos', 'regras'] as const).map((a) => (
-              <button key={a} onClick={() => setAba(a)} style={{ padding: '6px 14px', borderRadius: 6, border: '1px solid #cbd5e1', background: aba === a ? '#7c3aed' : '#fff', color: aba === a ? '#fff' : '#475569', fontSize: '.82rem', cursor: 'pointer' }}>{a === 'boletos' ? `Boletos (${boletos.length})` : `Regras por fornecedor (${regras.length})`}</button>
-            ))}
-            {aba === 'boletos' && (
-              <select value={filtro} onChange={(e) => setFiltro(e.target.value as 'ativos' | 'todos')} style={{ ...inp, width: 'auto' }}>
-                <option value="ativos">em andamento</option><option value="todos">todos</option>
-              </select>
-            )}
-            <span style={{ fontSize: '.74rem', color: status.startsWith('Erro') ? '#dc2626' : '#64748b' }}>{status}</span>
+          <div className="ofin-abas">
+            <button type="button" className={`ofin-aba${aba === 'boletos' ? ' ativo' : ''}`} onClick={() => setAba('boletos')}>Boletos ({boletos.length})</button>
+            <button type="button" className={`ofin-aba${aba === 'regras' ? ' ativo' : ''}`} onClick={() => setAba('regras')}>Regras por fornecedor ({regras.length})</button>
           </div>
 
           {aba === 'boletos' && (
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
-                <thead><tr>{['Empresa', 'Fornecedor', 'Boleto', 'Data', 'Parcelas', 'Duplicatas', 'Valor', 'Situação', 'Por', ''].map((h, i) => <th key={i} style={th}>{h}</th>)}</tr></thead>
-                <tbody>
-                  {boletos.length === 0 && <tr><td colSpan={10} style={{ ...td, textAlign: 'center', color: '#94a3b8', padding: 30 }}>Nenhum boleto {filtro === 'ativos' ? 'em andamento' : 'registrado'}.</td></tr>}
-                  {boletos.map((b) => {
-                    const [rot, bg, fg] = STATUS_ROTULO[b.status] || [b.status, '#f1f5f9', '#475569'];
-                    const pagas = b.parcelas.filter((p) => p.status === 'paga').length;
-                    const exp = aberto === b.id;
-                    return [
-                      <tr key={b.id} onClick={() => setAberto(exp ? null : b.id)} style={{ cursor: 'pointer', background: exp ? '#faf5ff' : undefined }}>
-                        <td style={td}>{b.conta_omie}</td>
-                        <td style={td}>{b.nome_fornecedor}</td>
-                        <td style={{ ...td, fontFamily: 'monospace' }}>{b.numero}</td>
-                        <td style={td}>{fmtBR(b.data_emissao) || fmtBR(b.created_at.slice(0, 10))}</td>
-                        <td style={td}>{pagas}/{b.parcelas.length} pagas</td>
-                        <td style={td}>{new Set(b.titulos.map((t) => t.codigo_lancamento)).size}</td>
-                        <td style={{ ...td, textAlign: 'right', fontWeight: 500 }}>{fmtBRL(b.valor_total)}</td>
-                        <td style={td}><span style={{ padding: '1px 8px', borderRadius: 4, fontSize: '.68rem', background: bg, color: fg }} title={b.erro || ''}>{rot}</span></td>
-                        <td style={{ ...td, fontSize: '.7rem', color: '#64748b' }}>{b.criado_por || '-'}</td>
-                        <td style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
-                          {podeEditar && (b.status === 'erro_omie' || b.status === 'pendente') && <button onClick={() => acao(b, 'reaplicar')} style={btnMini('#d97706')}>Reaplicar</button>}
-                          {podeEditar && ['registrado', 'erro_omie', 'pendente'].includes(b.status) && <button onClick={() => acao(b, 'estornar')} style={btnMini('#dc2626')}>Estornar</button>}
-                        </td>
-                      </tr>,
-                      exp && (
-                        <tr key={b.id + '-det'}>
-                          <td colSpan={10} style={{ ...td, background: '#faf5ff', padding: '8px 14px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 14 }}>
-                              <div>
-                                <div style={sub}>Parcelas</div>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.74rem' }}>
-                                  <thead><tr><th style={th}>#</th><th style={th}>Vencimento</th><th style={th}>Valor</th><th style={th}>Situação</th></tr></thead>
-                                  <tbody>{b.parcelas.map((p) => <tr key={p.id}><td style={td}>{p.numero}/{p.total}</td><td style={td}>{fmtBR(p.data_vencimento)}</td><td style={{ ...td, textAlign: 'right' }}>{fmtBRL(p.valor)}</td><td style={td}>{p.status === 'paga' ? `paga em ${fmtBR(p.pago_em)}` : p.status}</td></tr>)}</tbody>
-                                </table>
-                                {b.codigo_barras && <div style={{ fontSize: '.68rem', color: '#64748b', marginTop: 6, fontFamily: 'monospace' }}>{b.codigo_barras}</div>}
-                                {b.observacao && <div style={{ fontSize: '.7rem', color: '#64748b', marginTop: 4 }}>{b.observacao}</div>}
-                              </div>
-                              <div>
-                                <div style={sub}>Duplicatas ({fmtBRL(b.valor_titulos)})</div>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.74rem' }}>
-                                  <thead><tr><th style={th}>Documento</th><th style={th}>Parcela</th><th style={th}>Alocado</th><th style={th}>Antes → depois</th><th style={th}>Situação</th></tr></thead>
-                                  <tbody>{b.titulos.map((t) => {
-                                    const p = b.parcelas.find((x) => x.id === t.parcela_id);
-                                    return (
-                                      <tr key={t.parcela_id + t.codigo_lancamento}>
-                                        <td style={td}>{t.numero_documento || t.codigo_lancamento}</td>
-                                        <td style={td}>{p ? `${p.numero}/${p.total}` : '-'}{t.principal ? '' : ' (parte)'}</td>
-                                        <td style={{ ...td, textAlign: 'right' }}>{fmtBRL(t.valor_alocado)}</td>
-                                        <td style={{ ...td, fontSize: '.68rem', color: '#64748b' }}>{t.principal && t.campos_novos ? `venc ${fmtBR(t.snapshot_anterior?.dataVencimento) || '?'} → ${fmtBR(t.campos_novos.dataVencimento) || '='} · prev → ${fmtBR(t.campos_novos.dataPrevisao)}` : ''}</td>
-                                        <td style={{ ...td, fontSize: '.68rem', color: t.status === 'erro' ? '#dc2626' : '#475569' }} title={t.erro || ''}>{t.status}{t.erro ? ` — ${t.erro}` : ''}</td>
-                                      </tr>
-                                    );
-                                  })}</tbody>
-                                </table>
-                              </div>
-                            </div>
+            <div className="ofin-cartao">
+              <div className="ofin-grade-cab">
+                <Segmentado<'ativos' | 'todos'> valor={filtro} onChange={setFiltro} opcoes={[['ativos', 'Em andamento'], ['todos', 'Todos']]} />
+                {status && <span className={`ofin-msg${status.startsWith('Erro') ? ' erro' : status.includes('✓') ? ' ok' : ''}`}>{status}</span>}
+                <div style={{ flex: 1 }} />
+                <BotaoFin variante="neutro" icone="fa-rotate" onClick={carregar}>Atualizar</BotaoFin>
+              </div>
+              <div className="ofin-grade-caixa">
+                <table className="ofin-grade">
+                  <thead><tr><th>Empresa</th><th>Fornecedor</th><th>Boleto</th><th>Data</th><th>Parcelas</th><th className="num">Duplicatas</th><th className="num">Valor</th><th>Situação</th><th>Por</th><th /></tr></thead>
+                  <tbody>
+                    {boletos.length === 0 && <tr><td colSpan={10} className="vazio">Nenhum boleto {filtro === 'ativos' ? 'em andamento' : 'registrado'}.</td></tr>}
+                    {boletos.map((b) => {
+                      const [rot, cor] = STATUS_ROTULO[b.status] || [b.status, 'cinza'];
+                      const pagas = b.parcelas.filter((p) => p.status === 'paga').length;
+                      const exp = aberto === b.id;
+                      return [
+                        <tr key={b.id} className={`clica${exp ? ' sel' : ''}`} onClick={() => setAberto(exp ? null : b.id)}>
+                          <td><ChipEmpresa conta={b.conta_omie} /></td>
+                          <td><i className={`fas fa-chevron-${exp ? 'down' : 'right'}`} style={{ fontSize: 10, color: TEAL, marginRight: 8 }} />{b.nome_fornecedor}</td>
+                          <td style={{ fontFamily: 'monospace' }}>{b.numero}</td>
+                          <td className="nowrap">{fmtBR(b.data_emissao) || fmtBR(b.created_at.slice(0, 10))}</td>
+                          <td className="nowrap">{pagas}/{b.parcelas.length} pagas</td>
+                          <td className="num">{new Set(b.titulos.map((t) => t.codigo_lancamento)).size}</td>
+                          <td className="num" style={{ fontWeight: 600 }}>{fmtBRL(b.valor_total)}</td>
+                          <td><Chip cor={cor} title={b.erro || ''}>{rot}</Chip></td>
+                          <td className="apagado">{b.criado_por || '-'}</td>
+                          <td className="num" onClick={(e) => e.stopPropagation()}>
+                            <span style={{ display: 'inline-flex', gap: 6 }}>
+                              {podeEditar && (b.status === 'erro_omie' || b.status === 'pendente') && <BotaoFin mini variante="aviso" icone="fa-rotate-right" onClick={() => acao(b, 'reaplicar')}>Reaplicar</BotaoFin>}
+                              {podeEditar && ['registrado', 'erro_omie', 'pendente'].includes(b.status) && <BotaoFin mini variante="perigo" icone="fa-rotate-left" onClick={() => acao(b, 'estornar')}>Estornar</BotaoFin>}
+                            </span>
                           </td>
-                        </tr>
-                      ),
-                    ];
-                  })}
-                </tbody>
-              </table>
+                        </tr>,
+                        exp && (
+                          <tr key={b.id + '-det'} style={{ background: 'transparent' }}>
+                            <td colSpan={10} style={{ padding: '12px 16px 16px', background: 'var(--ofin-cinza)' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', gap: 14 }}>
+                                <div>
+                                  <h3 className="ofin-secao">Parcelas</h3>
+                                  <div className="ofin-cartao" style={{ marginBottom: 0 }}>
+                                    <table className="ofin-grade compacta">
+                                      <thead><tr><th>Parcela</th><th>Vencimento</th><th className="num">Valor</th><th>Situação</th></tr></thead>
+                                      <tbody>{b.parcelas.map((p) => <tr key={p.id}><td>{String(p.numero).padStart(3, '0')}/{String(p.total).padStart(3, '0')}</td><td>{fmtBR(p.data_vencimento)}</td><td className="num">{fmtBRL(p.valor)}</td><td>{p.status === 'paga' ? <Chip cor="verde">paga em {fmtBR(p.pago_em)}</Chip> : <Chip cor="azul">{p.status}</Chip>}</td></tr>)}</tbody>
+                                    </table>
+                                  </div>
+                                  {b.codigo_barras && <div className="ofin-msg" style={{ marginTop: 8, fontFamily: 'monospace' }}>{b.codigo_barras}</div>}
+                                  {b.observacao && <div className="ofin-msg" style={{ marginTop: 4 }}>{b.observacao}</div>}
+                                </div>
+                                <div>
+                                  <h3 className="ofin-secao">Duplicatas <small>{fmtBRL(b.valor_titulos)}</small></h3>
+                                  <div className="ofin-cartao" style={{ marginBottom: 0 }}>
+                                    <div className="ofin-grade-caixa">
+                                      <table className="ofin-grade compacta">
+                                        <thead><tr><th>Documento</th><th>Parcela</th><th className="num">Alocado</th><th>Antes → depois</th><th>Situação</th></tr></thead>
+                                        <tbody>{b.titulos.map((t) => {
+                                          const p = b.parcelas.find((x) => x.id === t.parcela_id);
+                                          return (
+                                            <tr key={t.parcela_id + t.codigo_lancamento}>
+                                              <td>{t.numero_documento || t.codigo_lancamento}</td>
+                                              <td className="nowrap">{p ? `${p.numero}/${p.total}` : '-'}{t.principal ? '' : ' (parte)'}</td>
+                                              <td className="num">{fmtBRL(t.valor_alocado)}</td>
+                                              <td className="apagado">{t.principal && t.campos_novos ? `venc ${fmtBR(t.snapshot_anterior?.dataVencimento) || '?'} → ${fmtBR(t.campos_novos.dataVencimento) || '='} · prev → ${fmtBR(t.campos_novos.dataPrevisao)}` : ''}</td>
+                                              <td style={{ fontSize: 12, color: t.status === 'erro' ? '#dc2626' : undefined }} title={t.erro || ''}>{t.status}{t.erro ? ` — ${t.erro}` : ''}</td>
+                                            </tr>
+                                          );
+                                        })}</tbody>
+                                      </table>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        ),
+                      ];
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <RodapeGrade mostrando={boletos.length} dica={<><i className="fas fa-hand-pointer" /> clique numa linha para ver parcelas e duplicatas</>} />
             </div>
           )}
 
           {aba === 'regras' && <Regras regras={regras} conta={conta} podeEditar={podeEditar} onMudou={carregar} />}
         </>
       )}
-    </div>
+    </PaginaFin>
   );
 }
 
@@ -204,50 +210,55 @@ function Regras({ regras, conta, podeEditar, onMudou }: { regras: Regra[]; conta
   }, [conta, onMudou]);
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: podeEditar ? '1.4fr 1fr' : '1fr', gap: 14 }}>
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
-          <thead><tr>{['Empresa', 'Fornecedor', 'Cód. Omie', 'Aguardando boleto após', 'Tolerância', 'Alinha venc.', 'Ativa'].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
-          <tbody>
-            {regras.length === 0 && <tr><td colSpan={7} style={{ ...td, textAlign: 'center', color: '#94a3b8', padding: 30 }}>Nenhuma regra. A regra só muda tolerâncias e avisos — registrar boleto funciona para qualquer fornecedor.</td></tr>}
-            {regras.map((r) => (
-              <tr key={r.id}>
-                <td style={td}>{r.conta_omie}</td><td style={td}>{r.nome}</td><td style={{ ...td, fontFamily: 'monospace', fontSize: '.72rem' }}>{r.codigo_cliente_fornecedor}</td>
-                <td style={td}>{r.dias_tolerancia} dias</td><td style={td}>{fmtBRL(r.tolerancia_valor)}</td><td style={td}>{r.alinhar_vencimento ? 'sim' : 'só previsão'}</td>
-                <td style={td}>{podeEditar ? <input type="checkbox" checked={r.ativo} onChange={(e) => salvar({ ...r, codigoFornecedor: r.codigo_cliente_fornecedor, ativo: e.target.checked })} /> : r.ativo ? 'sim' : 'não'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+    <div style={{ display: 'grid', gridTemplateColumns: podeEditar ? 'minmax(0, 1.5fr) minmax(min(340px, 100%), 1fr)' : '1fr', gap: 14, alignItems: 'start' }} className="ofin-regras">
+      <style>{`@media (max-width: 900px) { .ofin-regras { grid-template-columns: 1fr !important; } }`}</style>
+      <div className="ofin-cartao" style={{ marginBottom: 0 }}>
+        <div className="ofin-grade-caixa">
+          <table className="ofin-grade">
+            <thead><tr><th>Empresa</th><th>Fornecedor</th><th>Cód. Omie</th><th>Aguardando boleto após</th><th className="num">Tolerância</th><th>Alinha venc.</th><th className="centro">Ativa</th></tr></thead>
+            <tbody>
+              {regras.length === 0 && <tr><td colSpan={7} className="vazio">Nenhuma regra. A regra só muda tolerâncias e avisos — registrar boleto funciona para qualquer fornecedor.</td></tr>}
+              {regras.map((r) => (
+                <tr key={r.id}>
+                  <td><ChipEmpresa conta={r.conta_omie} /></td><td>{r.nome}</td><td className="apagado" style={{ fontFamily: 'monospace' }}>{r.codigo_cliente_fornecedor}</td>
+                  <td>{r.dias_tolerancia} dias</td><td className="num">{fmtBRL(r.tolerancia_valor)}</td><td>{r.alinhar_vencimento ? 'sim' : 'só previsão'}</td>
+                  <td className="centro">{podeEditar ? <input type="checkbox" checked={r.ativo} onChange={(e) => salvar({ ...r, codigoFornecedor: r.codigo_cliente_fornecedor, ativo: e.target.checked })} /> : r.ativo ? 'sim' : 'não'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <RodapeGrade mostrando={regras.length} />
       </div>
       {podeEditar && (
-        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14 }}>
-          <div style={sub}>Nova regra · empresa <b>{conta || '(escolha NOVA ou CASTRO no topo)'}</b></div>
-          <label style={lbl}>Fornecedor (busca nos títulos a pagar)</label>
-          <input value={busca} onChange={(e) => { setBusca(e.target.value); setSel(null); }} placeholder="ex.: CAMBUCI" style={inp} disabled={!conta} />
-          {achados.length > 0 && !sel && (
-            <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, marginTop: 4, maxHeight: 160, overflow: 'auto' }}>
-              {achados.map((a) => <div key={a.codigo} onClick={() => { setSel({ codigo: a.codigo, nome: a.nome }); setBusca(a.nome); }} style={{ padding: '5px 8px', fontSize: '.76rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}>{a.nome} <span style={{ color: '#94a3b8' }}>· {a.codigo} · {a.titulos} títulos</span></div>)}
+        <div className="ofin-cartao" style={{ marginBottom: 0, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <h3 className="ofin-secao" style={{ margin: 0 }}>Nova regra <small>empresa <b>{conta || '(escolha NOVA ou CASTRO no topo)'}</b></small></h3>
+          <CampoFin titulo="Fornecedor (busca nos títulos a pagar)">
+            <div style={{ position: 'relative' }}>
+              <input className="ofin-inp" value={busca} onChange={(e) => { setBusca(e.target.value); setSel(null); }} placeholder="ex.: CAMBUCI" disabled={!conta} />
+              {achados.length > 0 && !sel && (
+                <div style={{ position: 'absolute', zIndex: 30, top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--portal-bg-card, #fefefe)', border: '1px solid var(--portal-border, #d7dee3)', borderRadius: 10, boxShadow: '0 14px 34px rgba(15,23,42,.16)', maxHeight: 220, overflow: 'auto' }}>
+                  {achados.map((a) => (
+                    <button key={a.codigo} type="button" onClick={() => { setSel({ codigo: a.codigo, nome: a.nome }); setBusca(a.nome); }}
+                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 12px', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, color: 'inherit' }}>
+                      {a.nome} <span style={{ color: '#94a3b8' }}>· {a.codigo} · {a.titulos} títulos</span>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
-          )}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-            <div><label style={lbl}>Aguardando boleto após (dias)</label><input type="number" value={dias} onChange={(e) => setDias(e.target.value)} style={inp} /></div>
-            <div><label style={lbl}>Tolerância de valor (R$)</label><input value={tol} onChange={(e) => setTol(e.target.value)} style={inp} /></div>
+          </CampoFin>
+          <div className="ofin-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <CampoFin titulo="Aguardando boleto após (dias)"><input className="ofin-inp num" type="number" value={dias} onChange={(e) => setDias(e.target.value)} /></CampoFin>
+            <CampoFin titulo="Tolerância de valor (R$)"><input className="ofin-inp num" value={tol} onChange={(e) => setTol(e.target.value)} /></CampoFin>
           </div>
-          <label style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: '.76rem', marginTop: 8 }}><input type="checkbox" checked={alinhar} onChange={(e) => setAlinhar(e.target.checked)} /> Alinhar o vencimento da duplicata à parcela (padrão)</label>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
-            <button disabled={!sel} onClick={() => sel && salvar({ codigoFornecedor: sel.codigo, nome: sel.nome, ativo: true, dias_tolerancia: Number(dias) || 10, tolerancia_valor: Number(String(tol).replace(',', '.')) || 1, alinhar_vencimento: alinhar })} style={{ padding: '6px 12px', fontSize: '.82rem', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', background: '#7c3aed', opacity: sel ? 1 : 0.5 }}>Salvar regra</button>
-            <span style={{ fontSize: '.72rem', color: status.startsWith('Erro') ? '#dc2626' : '#047857' }}>{status}</span>
+          <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}><input type="checkbox" checked={alinhar} onChange={(e) => setAlinhar(e.target.checked)} /> Alinhar o vencimento da duplicata à parcela (padrão)</label>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <BotaoFin variante="prim" icone="fa-floppy-disk" disabled={!sel} onClick={() => sel && salvar({ codigoFornecedor: sel.codigo, nome: sel.nome, ativo: true, dias_tolerancia: Number(dias) || 10, tolerancia_valor: Number(String(tol).replace(',', '.')) || 1, alinhar_vencimento: alinhar })}>Salvar regra</BotaoFin>
+            <span className={`ofin-msg${status.startsWith('Erro') ? ' erro' : status.includes('✓') ? ' ok' : ''}`}>{status}</span>
           </div>
         </div>
       )}
     </div>
   );
 }
-
-const th: React.CSSProperties = { background: '#f8fafc', color: '#475569', fontSize: '.64rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '7px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: 600, whiteSpace: 'nowrap' };
-const td: React.CSSProperties = { padding: '6px 10px', borderBottom: '1px solid #f1f5f9', color: '#334155', verticalAlign: 'top' };
-const sub: React.CSSProperties = { fontSize: '.72rem', color: '#64748b', marginBottom: 6, fontWeight: 600 };
-const lbl: React.CSSProperties = { display: 'block', fontSize: '.68rem', color: '#64748b', marginBottom: 2 };
-const inp: React.CSSProperties = { width: '100%', border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 8px', fontSize: '.8rem', background: '#fff' };
-const btnMini = (bg: string): React.CSSProperties => ({ padding: '3px 10px', background: bg, color: '#fff', border: 'none', borderRadius: 4, fontSize: '.7rem', cursor: 'pointer', marginLeft: 6 });
