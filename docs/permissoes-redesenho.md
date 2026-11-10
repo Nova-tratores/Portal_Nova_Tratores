@@ -279,6 +279,16 @@ O Chatwoot fork e o vigia de câmeras não estão nesta máquina. Pelo CLAUDE.md
 - **Revisão de extras:** quem tem pelo menos X extras.
 - Rota `GET /api/admin/permissoes-v2`. Não edita nada.
 
+### Editor em caixinhas (09–10/11/2026)
+- Pedido do usuário (print de outro sistema). Página de teste `/admin/teste` (Opção 1 = pílulas, Opção 2 = caixinhas, rascunho + Salvar).
+- Escolhido o novo formato: a janela da pessoa (Distribuir acessos → Permissões Portal) abre em **Caixinhas**, com o seletor **Caixinhas | Interruptores** (o de interruptores de 21/10 continua). O novo usuário também usa caixinhas. Nada apagado. Componente `components/admin/PermissoesCartoes.tsx`; lista `lib/permissoes/modulos-admin.ts`.
+
+### Telas em modo sombra (10/11/2026)
+- `usePermissoes` lê a v2 do próprio usuário (`permissoes_efetivas` + catálogo `perm_telas`) e compara cada `temAcesso`/`pode` com a regra antiga, que **continua decidindo**.
+- Cada combinação (dia, tela, página, antiga, v2) vai uma vez por aba para `POST /api/permissoes/sombra-navegador` → mesma `perm_sombra`, com `rota = "tela:<página>"`. Não compara: Central de Trabalho (junta 3 módulos), tela fora do catálogo, painéis da tela dividida, e os 20 s depois de mudar a própria permissão (espelho).
+- Teste local: admin no /pos (38 checagens) e Mecânico Teste no /dashboard (94) — 0 divergências.
+- Leitura: `perm_sombra` com `rota like 'tela:%'` e `antigo <> v2`.
+
 ### 2ª parte: edição (ainda não feita)
 - Não dá para editar conjuntos aqui enquanto as páginas e as demais rotas decidem por `portal_permissoes`: a pessoa passaria na rota e continuaria barrada na tela.
 - Ordem: primeiro `usePermissoes` passa a ler a v2 (com sombra no navegador), depois o CRUD de conjuntos, o cadastro por departamento e os overrides com motivo. O espelho sai quando a v2 virar a fonte.

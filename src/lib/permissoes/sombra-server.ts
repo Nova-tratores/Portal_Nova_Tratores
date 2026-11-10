@@ -98,6 +98,19 @@ export async function decidirPermissao(req: Request, userId: string, ehAdmin: bo
   }
 }
 
+/** Comparações feitas nas TELAS (usePermissoes): a antiga decidiu; rota = "tela:<página>". */
+export function anotarDoNavegador(userId: string, lista: { tela_id: string; rota: string; antigo: boolean; v2: boolean }[]): void {
+  if (modoAtual() === 'off' || !lista.length) return;
+  for (const i of lista) {
+    itens().push({
+      dia: diaLocal(), user_id: userId, tela_id: i.tela_id.slice(0, 200),
+      rota: 'tela:' + (normalizarRota(i.rota) || i.rota.slice(0, 120) || '?'),
+      antigo: i.antigo, v2: i.v2, catalogada: true, decidiu: 'antigo', vezes: 1,
+    });
+  }
+  if (itens().length > 5000) g.__permSombraItens = agregar(itens()).slice(-20000);
+}
+
 /** Flush do buffer (RPC perm_sombra_registrar). Nunca lança. */
 export async function descarregarSombra(): Promise<{ itens: number; ok: boolean; erro?: string }> {
   if (g.__permSombraFlushing || itens().length === 0) return { itens: 0, ok: true };
