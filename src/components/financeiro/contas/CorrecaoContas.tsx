@@ -526,8 +526,8 @@ function ModalCorrecao({ lanc, tipo, carregarCats, carregarDeps, carregarProjeto
       });
       const d = await r.json();
       if (!d.ok) { setModalStatus(d.erro || 'falha'); setAplicando(false); return; }
-      setModalStatus('aplicado ✓');
-      setTimeout(onAplicado, 600);
+      setModalStatus(`aplicado ✓${d.aviso ? ` · ${d.aviso}` : ''}`);
+      setTimeout(onAplicado, d.aviso ? 6000 : 600);
     } catch (ex) {
       setModalStatus('rede: ' + (ex as Error).message); setAplicando(false);
     }

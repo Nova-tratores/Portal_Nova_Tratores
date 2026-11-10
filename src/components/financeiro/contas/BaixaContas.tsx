@@ -347,8 +347,10 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
       });
       const d = await r.json();
       if (!d.ok) { setModalStatus(d.erro || 'falha'); setAplicando(false); return; }
-      setModalStatus('baixado ✓');
-      setTimeout(onBaixado, 600);
+      const parcial = d.liquidou === false ? ' — baixa parcial: o título continua em aberto' : '';
+      setModalStatus(`baixado ✓${parcial}${d.aviso ? ` · ${d.aviso}` : ''}`);
+      // com aviso, dá tempo de ler antes de fechar
+      setTimeout(onBaixado, d.aviso ? 6000 : parcial ? 2500 : 600);
     } catch (ex) {
       setModalStatus('rede: ' + (ex as Error).message); setAplicando(false);
     }

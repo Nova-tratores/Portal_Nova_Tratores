@@ -11,6 +11,7 @@ import { supabase } from './supabase';
 import * as cache from './cache';
 import { fmtBR, parseAnyDate, hoje } from './dates';
 import { temCampos, updateEspelhoCampos, rawComCampos, type CamposCorrecao } from './contas-campos';
+import { espelhoAposBaixa } from './baixa-espelho';
 import {
   omieRequest,
   alterarContaCategoriaDepto,
@@ -295,6 +296,7 @@ export async function aplicarCorrecaoLancamento(args: {
   let anterior: any = null;
   let mudou: CamposCorrecao = {};
   let camposAnteriores: CamposCorrecao = {};
+  let avisoEspelho: string | null = null;
   try {
     const out = await alterarContaCategoriaDepto(conta, { tipo, codigoLancamento, codigoCategoria, distribuicao, campos: campos || undefined });
     resultado = out.rawResponse;
@@ -342,19 +344,19 @@ export async function aplicarCorrecaoLancamento(args: {
     }
     // campos extras: colunas do espelho + raw (projeto e conta corrente só vivem no raw)
     Object.assign(upd, updateEspelhoCampos(mudou));
+    // O supabase-js DEVOLVE o erro em vez de lançar: antes o `catch` nunca disparava —
+    // a Omie mudava, o espelho não, e a tela dizia "ok" sem log nenhum.
     if (temCampos(mudou)) {
-      try {
-        const { data: linha } = await supabase.from(tabelaContas(tipo)).select('raw').eq('conta_omie', conta).eq('codigo_lancamento', Number(codigoLancamento)).maybeSingle();
-        upd.raw = rawComCampos((linha as any)?.raw || null, mudou);
-      } catch (e: any) {
-        console.warn('[corrigir] ler raw:', e.message);
-      }
+      const { data: linha, error: errRaw } = await supabase.from(tabelaContas(tipo)).select('raw').eq('conta_omie', conta).eq('codigo_lancamento', Number(codigoLancamento)).maybeSingle();
+      // sem conseguir ler o raw, NÃO regrava (regravar com só os campos novos apagaria o resto)
+      if (errRaw) console.warn('[corrigir] ler raw:', errRaw.message);
+      else upd.raw = rawComCampos((linha as any)?.raw || null, mudou);
     }
     if (Object.keys(upd).length) {
-      try {
-        await supabase.from(tabelaContas(tipo)).update(upd).eq('conta_omie', conta).eq('codigo_lancamento', Number(codigoLancamento));
-      } catch (e: any) {
-        console.warn('[corrigir] update linha:', e.message);
+      const { error: errUpd } = await supabase.from(tabelaContas(tipo)).update(upd).eq('conta_omie', conta).eq('codigo_lancamento', Number(codigoLancamento));
+      if (errUpd) {
+        console.warn('[corrigir] update linha:', errUpd.message);
+        avisoEspelho = `Gravado na Omie, mas a cópia do portal não foi atualizada (${errUpd.message}). Ela se acerta na próxima sincronização.`;
       }
     }
   }
@@ -394,6 +396,7 @@ export async function aplicarCorrecaoLancamento(args: {
     anterior,
     nova: { codigoCategoria, descricaoCategoria: descNovaCat, codigoDepartamento: novoCodDep, descricaoDepartamento: novoDescDep },
     campos: temCampos(mudou) ? { anterior: camposAnteriores, novo: mudou } : null,
+    ...(avisoEspelho ? { aviso: avisoEspelho } : {}),
   };
 }
 
@@ -577,20 +580,33 @@ export async function baixarTitulo(b: {
     incerto = !!e?.incerto;
   }
 
+  // Espelho depois da baixa: relê o título na Omie (status e valor pago de verdade —
+  // baixa PARCIAL continua em aberto). Antes gravava PAGO + valor desta baixa sempre.
+  let avisoEspelho: string | null = null;
+  let liquidou = true;
   if (!erro) {
-    const statusLiquidado = tipo === 'receber' ? 'RECEBIDO' : 'PAGO';
+    const tabela = tabelaContas(tipo);
+    let omieDepois: { status_titulo?: string | null; valor_pago?: number | string | null } | null = null;
     try {
-      await supabase
-        .from(tabelaContas(tipo))
-        .update({ status_titulo: statusLiquidado, data_pagamento: dataISO, valor_pago: b.valor })
-        .eq('conta_omie', conta)
-        .eq('codigo_lancamento', Number(b.codigoLancamento));
+      omieDepois = await consultarConta(conta, tipo, b.codigoLancamento);
     } catch (e: any) {
-      console.warn('[baixar] update linha:', e.message);
+      console.warn('[baixar] reler título na Omie:', e.faultstring || e.message);
+    }
+    const { data: antes, error: errLer } = await supabase.from(tabela)
+      .select('status_titulo, valor_documento, valor_pago')
+      .eq('conta_omie', conta).eq('codigo_lancamento', Number(b.codigoLancamento)).maybeSingle();
+    if (errLer) console.warn('[baixar] ler espelho:', errLer.message);
+    const plano = espelhoAposBaixa({ tipo, dataISO, valorBaixa: Number(b.valor) || 0, desconto, antes: (antes as any) || null, omie: omieDepois });
+    liquidou = plano.liquidou;
+    const { error: errUpd } = await supabase.from(tabela).update(plano.update)
+      .eq('conta_omie', conta).eq('codigo_lancamento', Number(b.codigoLancamento));
+    if (errUpd) {
+      console.warn('[baixar] update linha:', errUpd.message);
+      avisoEspelho = `A baixa entrou na Omie, mas a cópia do portal não foi atualizada (${errUpd.message}). Ela se acerta na próxima sincronização.`;
     }
   }
   try {
-    await supabase.from('contas_baixas').insert({
+    const { error: errLog } = await supabase.from('contas_baixas').insert({
       conta_omie: conta,
       tipo,
       codigo_lancamento: Number(b.codigoLancamento),
@@ -608,10 +624,16 @@ export async function baixarTitulo(b: {
       raw_response: erro ? { erro } : resultado,
       criado_por: 'app',
     });
+    if (errLog) console.warn('[baixar] log auditoria:', errLog.message);
   } catch (e: any) {
     console.warn('[baixar] log auditoria:', e.message);
   }
 
   if (erro) return { ok: false, erro, incerto };
-  return { ok: true, codigoBaixa: resultado && (resultado.codigo_baixa || resultado.codigo_lancamento), anterior };
+  return {
+    ok: true, codigoBaixa: resultado && (resultado.codigo_baixa || resultado.codigo_lancamento), anterior,
+    /** false = baixa parcial: o título continua em aberto (na Omie e no portal) */
+    liquidou,
+    ...(avisoEspelho ? { aviso: avisoEspelho } : {}),
+  };
 }
