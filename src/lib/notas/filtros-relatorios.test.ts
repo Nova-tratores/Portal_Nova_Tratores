@@ -58,11 +58,18 @@ describe('filtros do cabeçalho', () => {
   });
   it('sem a migration da categoria, filtra pelo tipo cru', () => {
     const ops = opsFiltrosColuna({ ...FILTROS_VAZIOS, cat: ['nfe_pecas', 'nfe_maquinas', 'nfs'] }, { semCategoria: true });
-    expect(ops).toEqual([{ op: 'in', col: 'tipo', val: ['saida_produto', 'saida_servico'] }]);
+    expect(ops).toEqual([{ op: 'in', col: 'tipo', val: ['saida_produto', 'saida_servico'] }, { op: 'notTrue', col: 'cancelada' }]);
   });
   it('nome do cliente vai para ilike entre aspas', () => {
     const ops = opsFiltrosColuna({ ...FILTROS_VAZIOS, parte: 'Agro, Silva (ME)' });
-    expect(ops).toEqual([{ op: 'or', val: 'parte_nome.ilike."*Agro  Silva  ME*"' }]);
+    expect(ops).toEqual([{ op: 'or', val: 'parte_nome.ilike."*Agro  Silva  ME*"' }, { op: 'notTrue', col: 'cancelada' }]);
+  });
+  it('canceladas: escondidas por padrão; com canc=1 aparecem e não contam como filtro', () => {
+    const f = lerFiltrosColuna(new URLSearchParams('canc=1'));
+    expect(f.canceladas).toBe(true);
+    expect(contarFiltrosColuna(f)).toBe(0);
+    expect(opsFiltrosColuna(f)).toEqual([]);
+    expect(escreverFiltrosColuna(f, new URLSearchParams()).toString()).toBe('canc=1');
   });
 });
 

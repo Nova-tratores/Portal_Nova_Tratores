@@ -87,9 +87,10 @@ export interface FiltrosColuna {
   vmin: number | null;
   vmax: number | null;
   situacao: SituacaoDoc; // Documento
+  canceladas: boolean;   // mostrar as canceladas (padrão: escondidas)
 }
 
-export const FILTROS_VAZIOS: FiltrosColuna = { cat: [], numero: '', parte: '', pedido: '', maquina: '', vmin: null, vmax: null, situacao: '' };
+export const FILTROS_VAZIOS: FiltrosColuna = { cat: [], numero: '', parte: '', pedido: '', maquina: '', vmin: null, vmax: null, situacao: '', canceladas: false };
 
 /** "1.234,56" / "1234.56" / "R$ 1.000" → número; vazio ou lixo → null. */
 export function numeroBR(v: string | null | undefined): number | null {
@@ -115,6 +116,7 @@ export function lerFiltrosColuna(sp: { get(k: string): string | null }): Filtros
     vmin: numeroBR(sp.get('f_vmin')),
     vmax: numeroBR(sp.get('f_vmax')),
     situacao: (SITUACOES as string[]).includes(sit) ? (sit as SituacaoDoc) : '',
+    canceladas: sp.get('canc') === '1',
   };
 }
 
@@ -127,6 +129,7 @@ export function escreverFiltrosColuna(f: FiltrosColuna, p: URLSearchParams): URL
   if (f.vmin != null) p.set('f_vmin', String(f.vmin));
   if (f.vmax != null) p.set('f_vmax', String(f.vmax));
   if (f.situacao) p.set('situacao', f.situacao);
+  if (f.canceladas) p.set('canc', '1');
   return p;
 }
 
@@ -141,6 +144,7 @@ export type OpFiltro =
   | { op: 'or'; val: string }
   | { op: 'gte' | 'lte'; col: string; val: number }
   | { op: 'notNull'; col: string }
+  | { op: 'notTrue'; col: string }
   | { op: 'gteNum'; col: string; val: number };
 
 /** Texto para `ilike` dentro de `or=` (entre aspas: chassi/projeto têm `.`, `/`, `-`). */
@@ -184,6 +188,7 @@ export function opsFiltrosColuna(f: FiltrosColuna, faltando: { semVinculos?: boo
   if (f.situacao === 'completa') { ops.push({ op: 'notNull', col: 'pdf_path' }); ops.push({ op: 'notNull', col: 'xml_path' }); }
   else if (f.situacao === 'incompleta') ops.push({ op: 'or', val: 'pdf_path.is.null,xml_path.is.null' });
   else if (f.situacao === 'sem_documento') ops.push({ op: 'gteNum', col: 'tentativas', val: 8 });
+  if (!f.canceladas) ops.push({ op: 'notTrue', col: 'cancelada' }); // canceladas só quando pedir
   return ops;
 }
 
@@ -470,6 +475,7 @@ export function descreverFiltros(p: {
   if (f.pedido) out.push(`Pedido/OS: ${f.pedido}`);
   if (f.maquina) out.push(`Máquina: ${f.maquina}`);
   if (f.vmin != null || f.vmax != null) out.push(`Valor: ${f.vmin != null ? `≥ ${fmtCelula(f.vmin, 'moeda')}` : ''}${f.vmin != null && f.vmax != null ? ' e ' : ''}${f.vmax != null ? `≤ ${fmtCelula(f.vmax, 'moeda')}` : ''}`);
+  out.push(f.canceladas ? 'Canceladas: aparecem na lista (fora das somas)' : 'Canceladas: não entram');
   if (f.situacao) out.push(`Documento: ${f.situacao === 'completa' ? 'guardado (PDF + XML)' : f.situacao === 'incompleta' ? 'falta PDF ou XML' : 'sem documento na Omie'}`);
   return out;
 }

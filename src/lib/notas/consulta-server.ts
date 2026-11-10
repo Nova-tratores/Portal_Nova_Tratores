@@ -67,6 +67,7 @@ export function montarConsultaNotas(p: ParamsNotas, f: Faltando, opts: { cols?: 
     else if (op.op === 'gte' || op.op === 'gteNum') query = query.gte(op.col, op.val);
     else if (op.op === 'lte') query = query.lte(op.col, op.val);
     else if (op.op === 'notNull') query = query.not(op.col, 'is', null);
+    else if (op.op === 'notTrue') query = query.not(op.col, 'is', true);
   }
   return query;
 }

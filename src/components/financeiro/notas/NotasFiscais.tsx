@@ -55,6 +55,12 @@ const COR_SELO: Record<Selo, { bg: string; fg: string; bd: string }> = {
 function isoDia(d: Date) { return d.toISOString().slice(0, 10); }
 function hojeLocal() { return isoDia(new Date(Date.now() - 3 * 3600 * 1000)); }
 function menosDias(n: number) { return isoDia(new Date(Date.now() - 3 * 3600 * 1000 - n * 86400000)); }
+/** "AAAA-MM" quando de/até cobrem exatamente um mês inteiro (para o seletor de mês do cabeçalho). */
+function mesDoPeriodo(de: string, ate: string): string {
+  if (!de || !ate || !de.endsWith('-01') || de.slice(0, 7) !== ate.slice(0, 7)) return '';
+  const [a, m] = de.split('-').map(Number);
+  return isoDia(new Date(Date.UTC(a, m, 0))) === ate ? de.slice(0, 7) : '';
+}
 function fmtData(iso: string | null) { if (!iso) return '—'; const [a, m, d] = iso.split('-'); return `${d}/${m}/${a}`; }
 function fmtDoc(d: string | null) {
   if (!d) return '';
@@ -64,8 +70,8 @@ function fmtDoc(d: string | null) {
 }
 
 const AZUL = '#2563eb';
-const th: React.CSSProperties = { background: 'var(--portal-bg-secondary, #f8fafc)', color: 'var(--portal-text-secondary, #475569)', fontSize: 14.5, padding: '10px 12px', textAlign: 'left', borderBottom: '1px solid var(--border, #e2e8f0)', fontWeight: 400, whiteSpace: 'nowrap' };
-const td: React.CSSProperties = { padding: '10px 12px', borderBottom: '1px solid var(--border, #e2e8f0)', color: 'var(--portal-text, #0f172a)', fontSize: 15.5, verticalAlign: 'middle' };
+const th: React.CSSProperties = { background: 'var(--portal-bg-secondary, #f8fafc)', color: 'var(--portal-text-secondary, #475569)', fontSize: 13.5, padding: '7px 8px 3px', textAlign: 'left', borderBottom: '1px solid var(--border, #e2e8f0)', fontWeight: 400, whiteSpace: 'nowrap' };
+const td: React.CSSProperties = { padding: '9px 9px', borderBottom: '1px solid var(--border, #e2e8f0)', color: 'var(--portal-text, #0f172a)', fontSize: 15.5, verticalAlign: 'middle' };
 const inp: React.CSSProperties = { height: 36, padding: '0 12px', border: '1px solid var(--border, #e2e8f0)', borderRadius: 10, fontSize: 15.5, outline: 'none', background: 'var(--surface, #fefefe)', color: 'var(--portal-text, #0f172a)' };
 const btn: React.CSSProperties = { height: 36, padding: '0 12px', border: '1px solid var(--border, #e2e8f0)', background: 'var(--surface, #fefefe)', color: 'var(--portal-text-secondary, #475569)', borderRadius: 10, fontSize: 15, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 };
 const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color: AZUL, fontSize: 15, cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 4 };
@@ -73,8 +79,8 @@ const linkPastaSt: React.CSSProperties = { color: AZUL, textDecoration: 'none' }
 const rotulo: React.CSSProperties = { display: 'block', color: 'var(--portal-text-secondary, #475569)', fontSize: 14.5, marginBottom: 5 };
 const cartao: React.CSSProperties = { background: 'var(--surface, #fefefe)', border: '1px solid var(--border, #e2e8f0)', borderRadius: 16 };
 const apagado = 'var(--portal-text-muted, #64748b)';
-const thFiltro: React.CSSProperties = { background: 'var(--portal-bg-secondary, #f8fafc)', padding: '0 8px 8px', borderBottom: '1px solid var(--border, #e2e8f0)', verticalAlign: 'top', fontWeight: 400 };
-const inpF: React.CSSProperties = { height: 30, width: '100%', minWidth: 0, padding: '0 8px', border: '1px solid var(--border, #e2e8f0)', borderRadius: 8, fontSize: 14, outline: 'none', background: 'var(--surface, #fefefe)', color: 'var(--portal-text, #0f172a)', boxSizing: 'border-box' };
+const thFiltro: React.CSSProperties = { background: 'var(--portal-bg-secondary, #f8fafc)', padding: '0 4px 6px', borderBottom: '1px solid var(--border, #e2e8f0)', verticalAlign: 'top', fontWeight: 400 };
+const inpF: React.CSSProperties = { height: 27, width: '100%', minWidth: 0, padding: '0 6px', border: '1px solid var(--border, #e2e8f0)', borderRadius: 7, fontSize: 13, outline: 'none', background: 'var(--surface, #fefefe)', color: 'var(--portal-text, #0f172a)', boxSizing: 'border-box' };
 const ativoF = (on: boolean): React.CSSProperties => (on ? { borderColor: AZUL, boxShadow: `0 0 0 1px ${AZUL}` } : {});
 
 const ESTILO_NOTAS = `
@@ -199,7 +205,7 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
   const buscar = (texto: string, c: CampoBusca) => { setCampo(c); setQ(texto); setDe(''); setAte(''); setPagina(1); };
   const ordenar = (col: ColunaOrdem) => { setOrdem((o) => alternarOrdem(o, col)); setPagina(1); };
   const setF = (patch: Partial<FiltrosColuna>) => { setFiltros((f) => ({ ...f, ...patch })); setPagina(1); };
-  const limparFiltros = () => { setFiltros(FILTROS_VAZIOS); setVminTxt(''); setVmaxTxt(''); setPagina(1); };
+  const limparFiltros = () => { setFiltros((f) => ({ ...FILTROS_VAZIOS, canceladas: f.canceladas })); setVminTxt(''); setVmaxTxt(''); setPagina(1); };
   const alternarCat = (c: Categoria) => setF({ cat: filtros.cat.includes(c) ? filtros.cat.filter((x) => x !== c) : [...filtros.cat, c] });
   const trocarAba = (valor: string) => {
     setTipo(valor); setPagina(1);
@@ -340,6 +346,14 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
             <input type="date" value={ate} onChange={(e) => { setAte(e.target.value); setPagina(1); }} style={inp} />
           </div>
         </div>
+        <div>
+          <label style={rotulo}>Canceladas</label>
+          <button type="button" onClick={() => setF({ canceladas: !filtros.canceladas })} aria-pressed={filtros.canceladas}
+            title={filtros.canceladas ? 'As canceladas aparecem na lista (apagadas) e continuam fora das somas — clique para esconder' : 'As notas canceladas estão escondidas — clique para mostrar'}
+            style={{ ...btn, background: filtros.canceladas ? '#dc2626' : btn.background, borderColor: filtros.canceladas ? '#dc2626' : undefined, color: filtros.canceladas ? '#fefefe' : btn.color }}>
+            <i className={`fa-solid ${filtros.canceladas ? 'fa-eye' : 'fa-eye-slash'}`} /> {filtros.canceladas ? 'Mostrando' : 'Mostrar canceladas'}
+          </button>
+        </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {nFiltros > 0 && (
@@ -430,26 +444,27 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
                 </th>
                 <th style={thFiltro}><input value={filtros.numero} onChange={(e) => setF({ numero: e.target.value })} placeholder="nº ou chave" aria-label="Filtrar nº da nota" style={{ ...inpF, ...ativoF(!!filtros.numero) }} /></th>
                 <th style={thFiltro}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <input type="date" value={de} onChange={(e) => { setDe(e.target.value); setPagina(1); }} aria-label="Emissão a partir de" title="Emissão a partir de" style={{ ...inpF, ...ativoF(!!de), padding: '0 4px' }} />
-                    <input type="date" value={ate} onChange={(e) => { setAte(e.target.value); setPagina(1); }} aria-label="Emissão até" title="Emissão até" style={{ ...inpF, ...ativoF(!!ate), padding: '0 4px' }} />
-                  </div>
+                  {/* mês da emissão (o período livre de/até fica no cartão de cima) */}
+                  <input type="month" value={mesDoPeriodo(de, ate)} aria-label="Mês da emissão"
+                    title={de || ate ? `Emissão: ${de ? fmtData(de) : 'início'} a ${ate ? fmtData(ate) : 'hoje'} — escolha um mês ou ajuste o período no cartão acima` : 'Escolha um mês de emissão'}
+                    onChange={(e) => { const [a, m] = e.target.value.split('-').map(Number); if (!a || !m) { setDe(''); setAte(''); } else { setDe(`${e.target.value}-01`); setAte(isoDia(new Date(Date.UTC(a, m, 0)))); } setPagina(1); }}
+                    style={{ ...inpF, ...ativoF(!!de || !!ate), padding: '0 4px', minWidth: 130 }} />
                 </th>
-                <th style={thFiltro}><input value={filtros.parte} onChange={(e) => setF({ parte: e.target.value })} placeholder="nome ou CPF/CNPJ" aria-label="Filtrar cliente ou fornecedor" style={{ ...inpF, ...ativoF(!!filtros.parte) }} /></th>
+                <th style={thFiltro}><input value={filtros.parte} onChange={(e) => setF({ parte: e.target.value })} placeholder="nome ou CNPJ" aria-label="Filtrar cliente ou fornecedor" style={{ ...inpF, ...ativoF(!!filtros.parte) }} /></th>
                 <th style={thFiltro}><input value={filtros.pedido} onChange={(e) => setF({ pedido: e.target.value })} placeholder="nº PV ou OS" aria-label="Filtrar pedido ou OS" style={{ ...inpF, ...ativoF(!!filtros.pedido) }} /></th>
-                <th style={thFiltro}><input value={filtros.maquina} onChange={(e) => setF({ maquina: e.target.value })} placeholder="chassi ou modelo" aria-label="Filtrar máquina" style={{ ...inpF, ...ativoF(!!filtros.maquina) }} /></th>
+                <th style={thFiltro}><input value={filtros.maquina} onChange={(e) => setF({ maquina: e.target.value })} placeholder="chassi/modelo" aria-label="Filtrar máquina" style={{ ...inpF, ...ativoF(!!filtros.maquina) }} /></th>
                 <th style={thFiltro}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <input value={vminTxt} inputMode="decimal" onChange={(e) => { setVminTxt(e.target.value); setF({ vmin: numeroBR(e.target.value) }); }} placeholder="de R$" aria-label="Valor mínimo" style={{ ...inpF, ...ativoF(filtros.vmin != null) }} />
-                    <input value={vmaxTxt} inputMode="decimal" onChange={(e) => { setVmaxTxt(e.target.value); setF({ vmax: numeroBR(e.target.value) }); }} placeholder="até R$" aria-label="Valor máximo" style={{ ...inpF, ...ativoF(filtros.vmax != null) }} />
+                  <div style={{ display: 'flex', gap: 3, minWidth: 130 }}>
+                    <input value={vminTxt} inputMode="decimal" onChange={(e) => { setVminTxt(e.target.value); setF({ vmin: numeroBR(e.target.value) }); }} placeholder="de" aria-label="Valor mínimo" style={{ ...inpF, ...ativoF(filtros.vmin != null) }} />
+                    <input value={vmaxTxt} inputMode="decimal" onChange={(e) => { setVmaxTxt(e.target.value); setF({ vmax: numeroBR(e.target.value) }); }} placeholder="até" aria-label="Valor máximo" style={{ ...inpF, ...ativoF(filtros.vmax != null) }} />
                   </div>
                 </th>
                 <th style={thFiltro}>
                   <select value={filtros.situacao} onChange={(e) => setF({ situacao: e.target.value as SituacaoDoc })} aria-label="Filtrar documento" style={{ ...inpF, ...ativoF(!!filtros.situacao) }}>
                     <option value="">Todos</option>
-                    <option value="completa">Guardadas (PDF + XML)</option>
-                    <option value="incompleta">Falta PDF ou XML</option>
-                    <option value="sem_documento">Sem documento na Omie</option>
+                    <option value="completa">PDF + XML</option>
+                    <option value="incompleta">Falta PDF/XML</option>
+                    <option value="sem_documento">Sem documento</option>
                   </select>
                 </th>
                 <th style={thFiltro}>
@@ -517,7 +532,7 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
                         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                           <button onClick={() => verPdf(n)} style={linkBtn} title={n.pdf_path ? 'PDF guardado no portal' : 'Busca na Omie e guarda'}><FileText size={13} /> Ver PDF</button>
                           {podeXml && <button onClick={() => baixarXml(n)} disabled={ocupado === n.id} style={linkBtn} title={n.xml_path ? 'XML guardado no portal' : 'Busca na Omie e guarda'}><Download size={13} /> XML</button>}
-                          {s !== 'completa' && <button onClick={() => guardarAgora(n)} disabled={ocupado === n.id} style={{ ...linkBtn, color: apagado }}><RefreshCw size={12} className={ocupado === n.id ? 'animate-spin' : ''} /> Guardar agora</button>}
+                          {s !== 'completa' && <button onClick={() => guardarAgora(n)} disabled={ocupado === n.id} style={{ ...linkBtn, color: apagado }} title="Guardar agora: busca o PDF e o XML desta nota na Omie" aria-label="Guardar agora"><RefreshCw size={13} className={ocupado === n.id ? 'animate-spin' : ''} /></button>}
                         </div>
                       </td>
                     </tr>

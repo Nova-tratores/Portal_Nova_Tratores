@@ -919,14 +919,15 @@ Arquivo das notas fiscais da Nova e da Castro guardadas no próprio portal, em P
 - A separação entre peças e máquinas vem dos itens do pedido de venda da nota: família "Peças" conta como peça; trator, implemento, carreta e as demais famílias contam como máquina.
 
 **Filtros do cabeçalho da tabela**
-- Embaixo do título de cada coluna há um campo de filtro: Tipo (marque um ou vários), Nº ou chave, Emissão (de / até), Cliente ou fornecedor (nome ou CPF/CNPJ), Pedido ou OS, Máquina (chassi ou modelo), Valor (de / até) e Documento (guardada, falta PDF ou XML, sem documento).
+- Embaixo do título de cada coluna há um campo de filtro: Tipo (marque um ou vários), Nº ou chave, Emissão (o mês; o período livre de/até fica no cartão de cima), Cliente ou fornecedor (nome ou CPF/CNPJ), Pedido ou OS, Máquina (chassi ou modelo), Valor (de / até) e Documento (guardada, falta PDF ou XML, sem documento).
 - Os filtros se somam: a lista mostra só as notas que passam em todos.
 - O campo filtrado fica com a borda azul. "Limpar filtros (N)" tira todos de uma vez.
 - Os filtros ficam no endereço da página: dá para copiar o link e mandar para outra pessoa já filtrado.
 
 **Total dos filtros**
 - O quadro verde acima da lista mostra a soma do valor de TODAS as notas do filtro (não só da página aberta) e quantas são.
-- Notas canceladas ficam fora do total; o quadro diz quantas são e quanto somam.
+- Notas canceladas ficam ESCONDIDAS da lista. O botão "Mostrar canceladas" (no cartão do período) faz elas aparecerem, apagadas e com "Cancelada" embaixo do número.
+- Mesmo aparecendo, as canceladas nunca entram no total: o quadro diz quantas são e quanto somariam.
 - Ao lado vem o total de cada tipo (NFS-e, NF-e Peças, NF-e Máquinas…). Clique num deles para filtrar só aquele tipo; clique de novo para tirar.
 
 **Exportar relatórios**
@@ -944,6 +945,7 @@ Arquivo das notas fiscais da Nova e da Castro guardadas no próprio portal, em P
 - Embaixo do número aparece o começo e o fim da chave da nota (parando o mouse, a chave inteira).
 - Pedido / OS: o número é um link que abre o pedido ou a OS na Pasta Clientes, em outra aba.
 - Máquina: clique para ver todas as notas daquela máquina (busca pelo chassi).
+- "Guardar agora" é o ícone de setas circulares ao lado de Ver PDF / XML (só nas notas que ainda não estão completas).
 - A lista mostra 50 notas por página, com "← Anterior" e "Próxima →" no fim.
 
 **Abrir o PDF e baixar o XML**
