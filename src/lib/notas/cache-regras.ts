@@ -33,6 +33,7 @@ export interface LinhaDoc {
   os_num?: string | null;      // nº da OS
   os_cod?: number | null;
   maquina?: string | null;     // "MODELO CHASSI | CHASSI2"
+  categoria?: string | null;   // sql/notas-fiscais-categoria.sql (ver Categoria)
 }
 
 export const MAX_TENTATIVAS = 8;
@@ -235,8 +236,8 @@ export interface Ordem { coluna: ColunaOrdem; dir: DirOrdem }
 
 /** coluna do banco por chave; `semNumeroN` = sem sql/notas-fiscais-ordem.sql (texto);
  *  `semVinculos` = sem sql/notas-fiscais-vinculos.sql. `padrao` = direção do 1º clique. */
-export const COLUNAS_ORDEM: Record<ColunaOrdem, { coluna: string; semNumeroN?: string; semVinculos?: string; padrao: DirOrdem }> = {
-  tipo:         { coluna: 'tipo',        padrao: 'asc' },
+export const COLUNAS_ORDEM: Record<ColunaOrdem, { coluna: string; semNumeroN?: string; semVinculos?: string; semCategoria?: string; padrao: DirOrdem }> = {
+  tipo:         { coluna: 'categoria',   semCategoria: 'tipo', padrao: 'asc' },
   numero:       { coluna: 'numero_n',    semNumeroN: 'numero', padrao: 'desc' },
   data_emissao: { coluna: 'data_emissao', padrao: 'desc' },
   parte_nome:   { coluna: 'parte_nome',  padrao: 'asc' },
@@ -273,8 +274,9 @@ export function alternarOrdem(atual: Ordem, coluna: ColunaOrdem): Ordem {
 }
 
 /** Coluna real do banco para o `.order()` do PostgREST, conforme as migrations presentes. */
-export function colunaBanco(o: Ordem, faltando: { semNumeroN?: boolean; semVinculos?: boolean } = {}): string {
+export function colunaBanco(o: Ordem, faltando: { semNumeroN?: boolean; semVinculos?: boolean; semCategoria?: boolean } = {}): string {
   const c = COLUNAS_ORDEM[o.coluna];
+  if ((faltando.semCategoria || faltando.semVinculos) && c.semCategoria) return c.semCategoria;
   if (faltando.semNumeroN && c.semNumeroN) return c.semNumeroN;
   if (faltando.semVinculos && c.semVinculos) return c.semVinculos;
   return c.coluna;

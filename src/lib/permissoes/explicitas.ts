@@ -49,6 +49,9 @@ export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
   'financeiro:banco-contas-correntes',
   'financeiro:relatorio-pagar',
   'financeiro:contas-cliente-regra',
+  // exportar relatórios das notas fiscais (todas as notas do filtro numa planilha/PDF) —
+  // permissão especial, cada exportação fica no audit_log (José, 10/11/2026)
+  'financeiro:notas-relatorios',
 ]);
 
 // Ações FISCAIS de Dev (José, 13/10/2026): no começo só os Devs fazem; admin comum

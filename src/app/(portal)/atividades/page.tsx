@@ -66,6 +66,7 @@ const ACAO_COLORS: Record<string, { bg: string; text: string }> = {
   detalhe: { bg: 'bg-blue-50', text: 'text-blue-700' },
   ver_cmc: { bg: 'bg-amber-50', text: 'text-amber-700' },
   exportar_pdf: { bg: 'bg-rose-50', text: 'text-rose-700' },
+  exportar_relatorio_notas: { bg: 'bg-rose-50', text: 'text-rose-700' },
   sincronizar: { bg: 'bg-indigo-50', text: 'text-indigo-700' },
   // Ajustes (estoque)
   'ajuste-estoque': { bg: 'bg-amber-50', text: 'text-amber-700' },
@@ -225,6 +226,7 @@ function AtividadesPageInner() {
       detalhe: 'Abriu detalhe',
       ver_cmc: 'Viu CMC',
       exportar_pdf: 'Baixou PDF',
+      exportar_relatorio_notas: 'Exportou relatório de notas',
       sincronizar: 'Sincronizou',
       'ajuste-estoque': 'Ajustou estoque',
       'corrigir-estoque-negativo': 'Corrigiu estoque negativo',

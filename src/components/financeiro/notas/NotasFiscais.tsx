@@ -14,15 +14,22 @@ import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento';
 import {
-  CAMPOS_BUSCA, ROTULO_BATEU, ROTULO_SELO, ROTULO_TIPO, TIPOS, chassiPrincipal, ehCampoBusca, ehTipoFiltro, linkPasta, ondeBateu, percent, selo,
+  CAMPOS_BUSCA, ROTULO_BATEU, ROTULO_SELO, ROTULO_TIPO, chassiPrincipal, ehCampoBusca, ehTipoFiltro, linkPasta, ondeBateu, percent, selo,
   alternarOrdem, ehOrdemPadrao, ordemParaParam, parseOrdem,
   type CampoBusca, type ColunaOrdem, type LinhaDoc, type Ordem, type Selo, type Cobertura,
 } from '@/lib/notas/cache-regras';
+import {
+  COR_CATEGORIA, DICA_CATEGORIA, FILTROS_VAZIOS, ROTULO_CATEGORIA, categoriaDe, categoriasDaAba, contarFiltrosColuna, descreverFiltros,
+  ehCategoria, escreverFiltrosColuna, lerFiltrosColuna, numeroBR, rotuloCategoria,
+  type Categoria, type FiltrosColuna, type SituacaoDoc, type Soma,
+} from '@/lib/notas/filtros-relatorios';
+import RelatoriosNotas from './RelatoriosNotas';
 
 interface Resp {
   notas: LinhaDoc[]; total: number; pagina: number; porPagina: number; totalPaginas: number;
   cobertura: Cobertura; ultimaRodada: { iniciado_em: string; status: string | null; detalhe: unknown } | null;
   podeIndexar: boolean; podeEntrada?: boolean; vinculosFaltando?: boolean; numeroComoTexto?: boolean; erro?: string; migracaoFaltando?: boolean;
+  soma?: Soma | null; somaErro?: string | null; podeRelatorios?: boolean; categoriaFaltando?: boolean;
 }
 
 /** Cabeçalho da tabela: `col` = ordenável clicando (A→Z / Z→A). */
@@ -72,6 +79,9 @@ const linkPastaSt: React.CSSProperties = { color: AZUL, textDecoration: 'none' }
 const rotulo: React.CSSProperties = { display: 'block', color: 'var(--portal-text-secondary, #475569)', fontSize: 14.5, marginBottom: 5 };
 const cartao: React.CSSProperties = { background: 'var(--surface, #fefefe)', border: '1px solid var(--border, #e2e8f0)', borderRadius: 16 };
 const apagado = 'var(--portal-text-muted, #64748b)';
+const thFiltro: React.CSSProperties = { background: 'var(--portal-bg-secondary, #f8fafc)', padding: '0 8px 8px', borderBottom: '1px solid var(--border, #e2e8f0)', verticalAlign: 'top', fontWeight: 400 };
+const inpF: React.CSSProperties = { height: 30, width: '100%', minWidth: 0, padding: '0 8px', border: '1px solid var(--border, #e2e8f0)', borderRadius: 8, fontSize: 14, outline: 'none', background: 'var(--surface, #fefefe)', color: 'var(--portal-text, #0f172a)', boxSizing: 'border-box' };
+const ativoF = (on: boolean): React.CSSProperties => (on ? { borderColor: AZUL, boxShadow: `0 0 0 1px ${AZUL}` } : {});
 
 const ESTILO_NOTAS = `
 .nf-res { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); overflow: hidden }
@@ -92,6 +102,21 @@ const ESTILO_NOTAS = `
 .nf-menu button:hover:not(:disabled) { background: color-mix(in srgb, #2563eb 9%, transparent) }
 .nf-menu button:disabled { opacity: .5; cursor: default }
 .nf-tr { transition: background .15s }
+.nf-tipo { --c: #b45309; display: inline-block; font-size: 14px; padding: 2px 9px; border-radius: 999px; white-space: nowrap; color: var(--c); background: color-mix(in srgb, var(--c) 10%, transparent); border: 1px solid color-mix(in srgb, var(--c) 28%, transparent) }
+.nf-total { display: flex; flex-wrap: wrap; align-items: stretch; overflow: hidden }
+.nf-total-main { display: flex; flex-direction: column; gap: 2px; padding: 12px 18px; min-width: 240px; border-right: 1px solid var(--border, #e2e8f0) }
+.nf-total-main span { font-size: 14.5px; color: var(--portal-text-secondary, #475569) }
+.nf-total-main b { font-size: 26px; font-weight: 600; letter-spacing: -.01em; font-variant-numeric: tabular-nums; color: #15803d }
+.nf-total-main small { font-size: 14px; color: var(--portal-text-secondary, #475569) }
+.nf-total-cats { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 14px; flex: 1; align-content: center }
+.nf-cat { --c: #64748b; display: flex; flex-direction: column; align-items: flex-start; gap: 1px; padding: 7px 12px; border-radius: 10px; cursor: pointer; text-align: left; color: var(--portal-text, #0f172a); background: color-mix(in srgb, var(--c) 6%, var(--surface, #fefefe)); border: 1px solid color-mix(in srgb, var(--c) 25%, transparent); border-left: 4px solid var(--c); transition: background .15s }
+.nf-cat:hover:not(:disabled) { background: color-mix(in srgb, var(--c) 13%, var(--surface, #fefefe)) }
+.nf-cat:disabled { cursor: default }
+.nf-cat-on { background: color-mix(in srgb, var(--c) 18%, var(--surface, #fefefe)); box-shadow: 0 0 0 1.5px var(--c) }
+.nf-cat-nome { font-size: 13.5px; color: var(--c); font-weight: 600 }
+.nf-cat-val { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums }
+.nf-cat-n { font-size: 12.5px; color: var(--portal-text-secondary, #475569) }
+@media (max-width: 560px) { .nf-total-main { border-right: none; width: 100% } }
 .nf-tr:hover { background: color-mix(in srgb, #0369a1 4%, var(--surface, #fefefe)) }
 .nf-tr:last-child td { border-bottom: none }
 @media (max-width: 1000px) { .nf-res { grid-template-columns: repeat(3, minmax(0, 1fr)) } .nf-res > div:nth-child(3n+1) { border-left: none } }
@@ -109,8 +134,12 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
   const [ate, setAte] = useState(() => (sp.get('q') ? '' : hojeLocal()));
   const [q, setQ] = useState(() => sp.get('q') || '');
   const [campo, setCampo] = useState<CampoBusca>(() => (ehCampoBusca(campoUrl) ? campoUrl : 'auto'));
-  const [situacao, setSituacao] = useState('');
-  const [soMaquinas, setSoMaquinas] = useState(false); // notas de máquinas (venda e compra, pelo chassi)
+  // filtros do cabeçalho da tabela (tipo, nº, cliente, pedido/OS, máquina, valor, documento) — vivem na URL
+  const [filtros, setFiltros] = useState<FiltrosColuna>(() => lerFiltrosColuna(sp));
+  const [vminTxt, setVminTxt] = useState(() => (filtros.vmin != null ? String(filtros.vmin).replace('.', ',') : ''));
+  const [vmaxTxt, setVmaxTxt] = useState(() => (filtros.vmax != null ? String(filtros.vmax).replace('.', ',') : ''));
+  const [menuTipo, setMenuTipo] = useState<{ x: number; y: number } | null>(null);
+  const [relatorios, setRelatorios] = useState(false);
   const [ordem, setOrdem] = useState<Ordem>(() => parseOrdem(sp.get('ordem')));
   const [pagina, setPagina] = useState(1);
   const [resp, setResp] = useState<Resp | null>(null);
@@ -146,21 +175,27 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
     if (q.trim()) p.set('q', q.trim());
     if (campo !== 'auto') p.set('campo', campo);
     if (!ehOrdemPadrao(ordem)) p.set('ordem', ordemParaParam(ordem));
+    escreverFiltrosColuna(filtros, p);
     const alvo = p.toString() ? `${pathname}?${p}` : pathname;
     if (`${window.location.pathname}${window.location.search}` !== alvo) router.replace(alvo, { scroll: false });
-  }, [q, campo, ordem, pathname, router]);
+  }, [q, campo, ordem, filtros, pathname, router]);
 
-  const qs = useMemo(() => {
-    const p = new URLSearchParams({ pagina: String(pagina) });
+  // filtros SEM página/ordem: os mesmos vão para o relatório
+  const filtrosQs = useMemo(() => {
+    const p = new URLSearchParams();
     if (tipo) p.set('tipo', tipo);
     if (de) p.set('de', de);
     if (ate) p.set('ate', ate);
     if (q.trim()) { p.set('q', q.trim()); if (campo !== 'auto') p.set('campo', campo); }
-    if (situacao) p.set('situacao', situacao);
-    if (soMaquinas) p.set('maquinas', '1');
-    if (!ehOrdemPadrao(ordem)) p.set('ordem', ordemParaParam(ordem));
+    escreverFiltrosColuna(filtros, p);
     return p.toString() + contaParam;
-  }, [pagina, tipo, de, ate, q, campo, situacao, soMaquinas, ordem, contaParam]);
+  }, [tipo, de, ate, q, campo, filtros, contaParam]);
+  const qs = useMemo(() => {
+    const p = new URLSearchParams(filtrosQs);
+    p.set('pagina', String(pagina));
+    if (!ehOrdemPadrao(ordem)) p.set('ordem', ordemParaParam(ordem));
+    return p.toString();
+  }, [filtrosQs, pagina, ordem]);
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro('');
@@ -175,6 +210,14 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
 
   const buscar = (texto: string, c: CampoBusca) => { setCampo(c); setQ(texto); setDe(''); setAte(''); setPagina(1); };
   const ordenar = (col: ColunaOrdem) => { setOrdem((o) => alternarOrdem(o, col)); setPagina(1); };
+  const setF = (patch: Partial<FiltrosColuna>) => { setFiltros((f) => ({ ...f, ...patch })); setPagina(1); };
+  const limparFiltros = () => { setFiltros(FILTROS_VAZIOS); setVminTxt(''); setVmaxTxt(''); setPagina(1); };
+  const alternarCat = (c: Categoria) => setF({ cat: filtros.cat.includes(c) ? filtros.cat.filter((x) => x !== c) : [...filtros.cat, c] });
+  const trocarAba = (valor: string) => {
+    setTipo(valor); setPagina(1);
+    const da = categoriasDaAba(valor === 'entrada' ? 'entrada' : valor === '' ? 'todas' : 'saida', true);
+    setFiltros((f) => ({ ...f, cat: f.cat.filter((c) => da.includes(c)) }));
+  };
 
   const verPdf = (n: LinhaDoc) => {
     setDoc({ titulo: `${ROTULO_TIPO[n.tipo]} · NF ${n.numero || n.n_cod_nf} · ${n.parte_nome || ''}`, url: `/api/financeiro/notas/${n.id}/arquivo?tipo=pdf`, nome: `NF-${n.numero || n.n_cod_nf}-${n.conta_omie}` });
@@ -231,8 +274,11 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
   const cob = resp?.cobertura;
   // quem não tem Recebimentos não vê nota de entrada (o servidor decide; a prop só esconde antes da 1ª resposta)
   const mostraEntrada = podeEntrada && resp?.podeEntrada !== false;
-  const tiposSaida = TIPOS.filter((t) => t !== 'entrada');
   const aba = tipo === 'entrada' ? 'entrada' : tipo === '' ? 'todas' : 'saida';
+  const catsAba = categoriasDaAba(aba, mostraEntrada);
+  const nFiltros = contarFiltrosColuna(filtros);
+  const soma = resp?.soma;
+  const resumoFiltros = descreverFiltros({ conta, aba, de, ate, q: q.trim(), campo, filtros });
   const abas: Array<{ id: string; nome: string; fa: string; cor: string; valor: string }> = [
     { id: 'saida', nome: 'Saída', fa: 'fa-arrow-up', cor: '#9333ea', valor: 'saida' },
     ...(mostraEntrada ? [{ id: 'entrada', nome: 'Entrada', fa: 'fa-arrow-down', cor: '#059669', valor: 'entrada' }] : []),
@@ -286,7 +332,7 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
       {/* Saída × Entrada */}
       <div className="nf-abas" role="tablist" aria-label="Tipo de nota">
         {abas.map((a) => (
-          <button key={a.id} type="button" role="tab" aria-selected={aba === a.id} className={`nf-aba${aba === a.id ? ' nf-aba-on' : ''}`} style={{ ['--c' as string]: a.cor }} onClick={() => { setTipo(a.valor); setPagina(1); }}>
+          <button key={a.id} type="button" role="tab" aria-selected={aba === a.id} className={`nf-aba${aba === a.id ? ' nf-aba-on' : ''}`} style={{ ['--c' as string]: a.cor }} onClick={() => trocarAba(a.valor)}>
             <span className="nf-aba-ico"><i className={`fa-solid ${a.fa}`} /></span> {a.nome}
           </button>
         ))}
@@ -295,15 +341,6 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
 
       {/* Filtros */}
       <div style={{ ...cartao, display: 'flex', gap: 12, padding: '12px 16px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        {aba === 'saida' && (
-          <div>
-            <label style={rotulo}>Tipo de saída</label>
-            <select value={tipo} onChange={(e) => { setTipo(e.target.value); setPagina(1); }} style={inp}>
-              <option value="saida">Peças, máquinas e serviço</option>
-              {tiposSaida.map((t) => <option key={t} value={t}>{ROTULO_TIPO[t]}</option>)}
-            </select>
-          </div>
-        )}
         <div>
           <label style={rotulo}>Período (emissão)</label>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -315,23 +352,6 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
             <span style={{ fontSize: 14.5, color: apagado }}>até</span>
             <input type="date" value={ate} onChange={(e) => { setAte(e.target.value); setPagina(1); }} style={inp} />
           </div>
-        </div>
-        <div>
-          <label style={rotulo}>Situação</label>
-          <select value={situacao} onChange={(e) => { setSituacao(e.target.value); setPagina(1); }} style={inp}>
-            <option value="">Todas</option>
-            <option value="completa">Guardadas (PDF + XML)</option>
-            <option value="incompleta">Falta PDF ou XML</option>
-            <option value="sem_documento">Sem documento na Omie</option>
-          </select>
-        </div>
-        <div>
-          <label style={rotulo}>Máquinas</label>
-          <button type="button" onClick={() => { setSoMaquinas((v) => !v); setPagina(1); }}
-            title="Só notas que citam máquina (chassi / nº de série) — vendas e compras de máquinas"
-            style={{ ...inp, display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer', background: soMaquinas ? AZUL : inp.background, borderColor: soMaquinas ? AZUL : undefined, color: soMaquinas ? '#fefefe' : undefined }}>
-            <i className="fas fa-tractor" /> {soMaquinas ? 'Só máquinas' : 'Todas'}
-          </button>
         </div>
         <div style={{ flex: 1, minWidth: 'min(320px, 100%)' }}>
           <label style={rotulo}>Buscar</label>
@@ -345,6 +365,18 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
             </select>
           </div>
         </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {nFiltros > 0 && (
+            <button type="button" onClick={limparFiltros} style={btn} title="Tira os filtros do cabeçalho da tabela (tipo, nº, cliente, pedido/OS, máquina, valor, documento)">
+              <i className="fa-solid fa-filter-circle-xmark" /> Limpar filtros ({nFiltros})
+            </button>
+          )}
+          {resp?.podeRelatorios && (
+            <button type="button" onClick={() => setRelatorios(true)} style={{ ...btn, background: '#15803d', borderColor: '#15803d', color: '#fefefe' }} title="Relatórios prontos (por mês, tipo, máquina, cliente…) com os filtros da tela — fica registrado">
+              <i className="fa-solid fa-file-export" /> Exportar relatórios
+            </button>
+          )}
+        </div>
       </div>
 
       {erro && (
@@ -354,8 +386,42 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
 
       {resp && (
         <>
+          {/* Total dos filtros (todas as páginas) */}
+          <div className="nf-total" style={cartao}>
+            <div className="nf-total-main">
+              <span>Total dos filtros{carregando ? ' · atualizando…' : ''}</span>
+              <b>{soma ? fmtRS(soma.valor) : '—'}</b>
+              <small>
+                {resp.total.toLocaleString('pt-BR')} nota(s)
+                {soma && soma.canceladas > 0 ? <> · {soma.canceladas} cancelada(s) fora do total ({fmtRS(soma.valorCanceladas)})</> : null}
+                {resp.somaErro ? <span style={{ color: '#b45309' }}> · {resp.somaErro}</span> : null}
+              </small>
+            </div>
+            {soma && soma.porCategoria.length > 0 && (
+              <div className="nf-total-cats">
+                {soma.porCategoria.map((c) => {
+                  const cat = ehCategoria(c.id) ? c.id : null;
+                  const on = !!cat && filtros.cat.length === 1 && filtros.cat[0] === cat;
+                  return (
+                    <button key={c.id} type="button" disabled={!cat || !!resp.categoriaFaltando} onClick={() => cat && setF({ cat: on ? [] : [cat] })}
+                      title={cat ? `${DICA_CATEGORIA[cat]} — clique para ${on ? 'tirar o filtro' : 'filtrar só este tipo'}` : 'NF-e sem classificação'}
+                      style={{ ['--c' as string]: cat ? COR_CATEGORIA[cat] : '#64748b' }} className={`nf-cat${on ? ' nf-cat-on' : ''}`}>
+                      <span className="nf-cat-nome">{c.rotulo}</span>
+                      <span className="nf-cat-val">{fmtRS(c.valor)}</span>
+                      <span className="nf-cat-n">{c.notas.toLocaleString('pt-BR')} nota(s)</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {resp.categoriaFaltando && (
+            <div style={{ fontSize: 15, color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 12, padding: '8px 14px' }}>
+              Separação da NF-e em Peças / Máquinas ainda não instalada no banco (aplicar <code>sql/notas-fiscais-categoria.sql</code>). Por enquanto o tipo é só NF-e, NFS-e ou Entrada.
+            </div>
+          )}
           <div style={{ fontSize: 15.5, color: 'var(--portal-text-secondary, #475569)' }}>
-            {resp.total.toLocaleString('pt-BR')} notas · página {resp.pagina} de {resp.totalPaginas}{carregando ? ' · atualizando…' : ''}
+            {resp.total.toLocaleString('pt-BR')} notas · página {resp.pagina} de {resp.totalPaginas}
             {q.trim() && campo !== 'auto' ? <> · buscando <strong>{q.trim()}</strong> em {campoInfo.label}</> : null}
             {q.trim() && campo === 'os' ? <span style={{ color: apagado }}> (NFS-e da OS + NF-e das peças ligadas a ela)</span> : null}
             {resp.numeroComoTexto && ordem.coluna === 'numero' ? <span style={{ color: '#b45309' }}> · nº ordenado como texto (aplicar sql/notas-fiscais-ordem.sql para ordem numérica)</span> : null}
@@ -376,6 +442,43 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
                     </th>
                   );
                 })}
+              </tr>
+              <tr>
+                <th style={thFiltro}>
+                  <button type="button" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); setMenuTipo(menuTipo ? null : { x: r.left, y: r.bottom + 4 }); }}
+                    style={{ ...inpF, ...ativoF(filtros.cat.length > 0), display: 'inline-flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, cursor: 'pointer', textAlign: 'left' }}
+                    aria-haspopup="menu" aria-expanded={!!menuTipo} title="Filtrar por tipo de nota">
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{filtros.cat.length === 0 ? 'Todos' : filtros.cat.length === 1 ? ROTULO_CATEGORIA[filtros.cat[0]] : `${filtros.cat.length} tipos`}</span>
+                    <i className="fa-solid fa-chevron-down" style={{ fontSize: 10, opacity: 0.6 }} />
+                  </button>
+                </th>
+                <th style={thFiltro}><input value={filtros.numero} onChange={(e) => setF({ numero: e.target.value })} placeholder="nº ou chave" aria-label="Filtrar nº da nota" style={{ ...inpF, ...ativoF(!!filtros.numero) }} /></th>
+                <th style={thFiltro}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <input type="date" value={de} onChange={(e) => { setDe(e.target.value); setPagina(1); }} aria-label="Emissão a partir de" title="Emissão a partir de" style={{ ...inpF, ...ativoF(!!de), padding: '0 4px' }} />
+                    <input type="date" value={ate} onChange={(e) => { setAte(e.target.value); setPagina(1); }} aria-label="Emissão até" title="Emissão até" style={{ ...inpF, ...ativoF(!!ate), padding: '0 4px' }} />
+                  </div>
+                </th>
+                <th style={thFiltro}><input value={filtros.parte} onChange={(e) => setF({ parte: e.target.value })} placeholder="nome ou CPF/CNPJ" aria-label="Filtrar cliente ou fornecedor" style={{ ...inpF, ...ativoF(!!filtros.parte) }} /></th>
+                <th style={thFiltro}><input value={filtros.pedido} onChange={(e) => setF({ pedido: e.target.value })} placeholder="nº PV ou OS" aria-label="Filtrar pedido ou OS" style={{ ...inpF, ...ativoF(!!filtros.pedido) }} /></th>
+                <th style={thFiltro}><input value={filtros.maquina} onChange={(e) => setF({ maquina: e.target.value })} placeholder="chassi ou modelo" aria-label="Filtrar máquina" style={{ ...inpF, ...ativoF(!!filtros.maquina) }} /></th>
+                <th style={thFiltro}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    <input value={vminTxt} inputMode="decimal" onChange={(e) => { setVminTxt(e.target.value); setF({ vmin: numeroBR(e.target.value) }); }} placeholder="de R$" aria-label="Valor mínimo" style={{ ...inpF, ...ativoF(filtros.vmin != null) }} />
+                    <input value={vmaxTxt} inputMode="decimal" onChange={(e) => { setVmaxTxt(e.target.value); setF({ vmax: numeroBR(e.target.value) }); }} placeholder="até R$" aria-label="Valor máximo" style={{ ...inpF, ...ativoF(filtros.vmax != null) }} />
+                  </div>
+                </th>
+                <th style={thFiltro}>
+                  <select value={filtros.situacao} onChange={(e) => setF({ situacao: e.target.value as SituacaoDoc })} aria-label="Filtrar documento" style={{ ...inpF, ...ativoF(!!filtros.situacao) }}>
+                    <option value="">Todos</option>
+                    <option value="completa">Guardadas (PDF + XML)</option>
+                    <option value="incompleta">Falta PDF ou XML</option>
+                    <option value="sem_documento">Sem documento na Omie</option>
+                  </select>
+                </th>
+                <th style={thFiltro}>
+                  {nFiltros > 0 && <button type="button" onClick={limparFiltros} style={{ ...linkBtn, fontSize: 14, whiteSpace: 'nowrap' }} title="Limpar os filtros do cabeçalho"><i className="fa-solid fa-xmark" /> Limpar</button>}
+                </th>
               </tr></thead>
               <tbody>
                 {resp.notas.map((n) => {
@@ -386,7 +489,9 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
                   return (
                     <tr key={n.id} className="nf-tr" style={{ opacity: n.cancelada ? 0.55 : 1 }}>
                       <td style={td}>
-                        <span style={{ fontSize: 14.5, color: n.tipo === 'entrada' ? '#047857' : '#b45309' }}>{ROTULO_TIPO[n.tipo]}</span>
+                        {(() => { const cat = categoriaDe(n); return (
+                          <span className="nf-tipo" style={{ ['--c' as string]: cat ? COR_CATEGORIA[cat] : '#b45309' }} title={cat ? DICA_CATEGORIA[cat] : 'NF-e (sem classificação)'}>{rotuloCategoria(n)}</span>
+                        ); })()}
                         {conta === '' && <div style={{ fontSize: 14.5, color: apagado }}>{n.conta_omie}</div>}
                       </td>
                       <td style={td}>
@@ -463,6 +568,26 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
           </div>
         </>
       )}
+
+      {menuTipo && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 60 }} onClick={() => setMenuTipo(null)} />
+          <div role="menu" className="nf-menu" style={{ left: menuTipo.x, top: menuTipo.y, minWidth: 240 }}>
+            {catsAba.map((c) => (
+              <label key={c} role="menuitemcheckbox" aria-checked={filtros.cat.includes(c)} title={DICA_CATEGORIA[c]}
+                style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '8px 11px', borderRadius: 8, cursor: 'pointer', fontSize: 15 }}>
+                <input type="checkbox" checked={filtros.cat.includes(c)} onChange={() => alternarCat(c)} />
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: COR_CATEGORIA[c] }} />
+                {ROTULO_CATEGORIA[c]}
+              </label>
+            ))}
+            {resp?.categoriaFaltando && <div style={{ fontSize: 13, color: '#92400e', padding: '6px 11px' }}>Peças × Máquinas depende de sql/notas-fiscais-categoria.sql</div>}
+            {filtros.cat.length > 0 && <button type="button" onClick={() => { setF({ cat: [] }); setMenuTipo(null); }}><i className="fa-solid fa-xmark" /> Todos os tipos</button>}
+          </div>
+        </>
+      )}
+
+      {relatorios && <RelatoriosNotas filtrosQs={filtrosQs} resumo={resumoFiltros} totalNotas={resp?.total ?? null} onClose={() => setRelatorios(false)} />}
 
       {doc && <VisualizadorDocumento key={doc.url} doc={doc} onClose={() => { setDoc(null); carregar(); }} />}
       {conta === '' && <div style={{ fontSize: 14.5, color: apagado }}>Mostrando as duas empresas: Nova e Castro</div>}

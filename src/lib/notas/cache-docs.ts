@@ -29,6 +29,8 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export const COLS = 'id,conta_omie,tipo,chave_nfe,n_cod_nf,numero,serie,data_emissao,parte_nome,parte_doc,valor,cancelada,pdf_path,xml_path,pdf_em,xml_em,tentativas,proxima_tentativa_em,ultimo_erro';
 /** COLS + vínculos (sql/notas-fiscais-vinculos.sql). A rota cai para COLS se a migration faltar. */
 export const COLS_VINCULOS = COLS + ',parte_cod,pedido_num,pedido_cod,os_num,os_cod,maquina';
+/** + tipo da nota (sql/notas-fiscais-categoria.sql). A rota cai para COLS_VINCULOS se faltar. */
+export const COLS_CATEGORIA = COLS_VINCULOS + ',categoria';
 /** Janela do vincular no ciclo de 10 min (dias). Crons e botão passam null = tudo. */
 export const VINCULAR_JANELA_DIAS = 120;
 
@@ -82,6 +84,8 @@ async function vincularNotas(r: ResultadoIndexar, desde?: string | null): Promis
   const v = await supabaseAdmin.rpc('notas_fiscais_vincular', { p_desde: desde ?? null });
   // notas de ENTRADA: chassis dos itens (sql/notas-maquina-entrada.sql; sem ela, só pula)
   await supabaseAdmin.rpc('notas_fiscais_vincular_entrada', { p_desde: desde ?? null }).then(() => {}, () => {});
+  // tipo da nota (NF-e peças/máquinas/mista…) pelos itens do pedido — sql/notas-fiscais-categoria.sql; sem ela, só pula
+  await supabaseAdmin.rpc('notas_fiscais_categorizar', { p_desde: desde ?? null }).then(() => {}, () => {});
   if (v.error) return { ...r, vinculosErro: v.error.message };
   const vd = (v.data || {}) as { nfe?: number; nfse?: number };
   return { ...r, vinculos: { nfe: Number(vd.nfe || 0), nfse: Number(vd.nfse || 0) } };
