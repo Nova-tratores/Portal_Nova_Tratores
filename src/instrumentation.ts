@@ -315,6 +315,21 @@ export async function register(): Promise<void> {
     log('cobrança de requisições LIGADA (a cada 30 min)');
   }
 
+  // Requisições paradas: vão sozinhas ao financeiro com comprovante + lembretes 3/7/15 dias
+  // (Henri, 10/11/2026). SÓ produção. Desliga com REQ_LEMBRETES=off.
+  if (rodaRobos && !agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.REQ_LEMBRETES !== 'off')) {
+    const { vigiarRequisicoes } = await import('./lib/requisicoes/lembretes-server');
+    const rodarReqLembretes = async () => {
+      try {
+        const r = await vigiarRequisicoes();
+        log(`requisicoes-lembretes: ${r.resumo || r.pular}`);
+      } catch (e) { log('requisicoes-lembretes falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarReqLembretes().catch(() => {}); }, 30 * 60 * 1000);
+    setTimeout(() => { rodarReqLembretes().catch(() => {}); }, 8 * 60 * 1000);
+    log('lembretes de requisições LIGADOS (a cada 30 min)');
+  }
+
   // Central de Trabalho: replanejamento diário dos cronogramas ligados a quadros
   // de tickets (etapa atrasada empurra as seguintes). Uma vez por dia, a partir
   // das 06:00 BRT — antes da tela "Seu dia" das 7:30. SÓ produção.

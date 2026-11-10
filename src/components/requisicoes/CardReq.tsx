@@ -25,6 +25,7 @@ import DialogoImprimirReq from './DialogoImprimirReq';
 import LeituraNota from './LeituraNota';
 import { anexosDaReq, anexosNoDrive as anexosNoDriveDe, getUrlAnexo, CAMPOS_NF } from '@/lib/requisicoes/anexos';
 import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
+import { prontaParaFinanceiro, CAMPOS_COMPROVANTE } from '@/lib/requisicoes/lembretes';
 import { buscarContaDaReq, criarContaDaRequisicao, type ContaExistente } from '@/lib/financeiro/conta-da-requisicao';
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins';
 import { fetchAuth } from '@/lib/auth/client';
@@ -512,10 +513,17 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       if (uploadError) throw uploadError;
       persist(fieldName, filePath);
       if (fieldName.startsWith('foto_nf')) setGatilhoNota({ campo: fieldName, em: Date.now() });
-      // Alimentação com NF anexada pula direto pra "Enviado Financeiro"
-      // (nos outros tipos a nota não muda o status)
+      // Com a nota ou o recibo anexado (e valor + fornecedor preenchidos), a
+      // requisição vai sozinha para "Enviado Financeiro" (10/11/2026; antes só a
+      // Alimentação fazia isso). Boleto não conta. O robô das requisições faz o
+      // mesmo a cada 30 min para quem preencher o valor/fornecedor depois.
+      const depois = { ...localData, [fieldName]: filePath };
+      // Alimentação segue como era: nota anexada = financeiro (inclusive a criada pela OS).
       const tipoReq = String(localData.tipo || localData.ReqTipo || '').toLowerCase();
-      if (fieldName.startsWith('foto_nf') && tipoReq.startsWith('alimenta') && !['financeiro', 'lixeira'].includes(String(localData.status || ''))) {
+      const vai = tipoReq.startsWith('alimenta')
+        ? fieldName.startsWith('foto_nf') && !['financeiro', 'lixeira'].includes(String(localData.status || ''))
+        : (CAMPOS_COMPROVANTE as readonly string[]).includes(fieldName) && prontaParaFinanceiro(depois as never);
+      if (vai && !bloqueada) {
         const hoje = new Date().toISOString().slice(0, 10);
         setLocalData((prev: any) => ({ ...prev, status: 'financeiro', enviado_financeiro_data: hoje }));
         onUpdate(req.id, { status: 'financeiro', enviado_financeiro_data: hoje });

@@ -538,6 +538,13 @@ export const TAREFAS: Record<string, Tarefa> = {
     return vigiarCobrancas();
   },
 
+  // Requisição parada: vai sozinha ao financeiro com comprovante; lembretes 3/7/15 dias (Henri, 10/11/2026)
+  'requisicoes-lembretes': async () => {
+    if (desligada('REQ_LEMBRETES')) return { pular: 'desligado (REQ_LEMBRETES=off)' };
+    const { vigiarRequisicoes } = await import('@/lib/requisicoes/lembretes-server');
+    return vigiarRequisicoes();
+  },
+
   'pops-gatilhos-os': async () => {
     if (desligada('POPS_GATILHOS_OS')) return { pular: 'desligado (POPS_GATILHOS_OS=off)' };
     const { verificarGatilhosOS, resumoGatilhos } = await import('@/lib/pops/gatilhos-os');
