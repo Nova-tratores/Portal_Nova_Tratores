@@ -59,7 +59,8 @@ export default function DistribuirAcessos(p: Props) {
         {verAtividades && <button type="button" className={aba === 'atividades' ? 'on' : ''} onClick={() => setAba('atividades')}><Activity size={15} />Atividades</button>}
       </div>
 
-      {aba === 'ficha' && verFicha && p.userId && <FichaCadastral userId={p.userId} nome={p.nome} cargo={p.funcao} email={p.email} />}
+      {/* fica montada nas outras abas: trocar de aba não apaga o que foi digitado (10/11/2026) */}
+      {verFicha && p.userId && <div hidden={aba !== 'ficha'}><FichaCadastral userId={p.userId} nome={p.nome} cargo={p.funcao} email={p.email} /></div>}
       {aba === 'atividades' && verAtividades && p.userId && <AtividadesUsuario userId={p.userId} qtdModulos={new Set(p.modulos.map((m) => m.split(':')[0])).size} />}
 
       {aba === 'portal' && !p.soFicha && (
@@ -172,24 +173,51 @@ const ESTILO_DA = `
 
 /** O editor de acessos num modal (José, 21/10/2026: "faz um modal"). */
 export function ModalAcessos({ avatar, funcao, email, onFechar, ...p }: Props & { avatar?: string; funcao?: string; email?: string; onFechar: () => void }) {
+  // mudança na ficha ainda não enviada: Pronto/×/Esc/fora não fecham direto — aparece o botão
+  // de enviar para o Diretor (José, 10/11/2026: "aperta pronto, a aba fecha e apaga as infos")
+  const [ficha, setFicha] = useState({ n: 0, souDiretor: false });
+  const [perguntar, setPerguntar] = useState(false);
+  const [enviando, setEnviando] = useState(false);
   useEffect(() => {
-    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar() }
+    const mud = (e: Event) => { const d = (e as CustomEvent).detail || {}; setFicha({ n: d.n || 0, souDiretor: !!d.souDiretor }); if (!d.n) setPerguntar(false) };
+    const env = (e: Event) => { setEnviando(false); if ((e as CustomEvent).detail?.ok) onFechar(); else setPerguntar(false) };
+    window.addEventListener('ficha-mudancas', mud); window.addEventListener('ficha-enviada', env);
+    return () => { window.removeEventListener('ficha-mudancas', mud); window.removeEventListener('ficha-enviada', env) };
+  }, [onFechar]);
+  const fechar = () => { if (enviando) return; if (ficha.n > 0) setPerguntar(true); else onFechar() };
+  const enviarEFechar = () => { setEnviando(true); window.dispatchEvent(new Event('ficha-enviar-agora')) };
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') fechar() }
     window.addEventListener('keydown', esc)
+    return () => window.removeEventListener('keydown', esc)
+  })
+  useEffect(() => {
     const ov = document.body.style.overflow; document.body.style.overflow = 'hidden'
-    return () => { window.removeEventListener('keydown', esc); document.body.style.overflow = ov }
-  }, [onFechar])
+    return () => { document.body.style.overflow = ov }
+  }, [])
   if (typeof document === 'undefined') return null
+  const nMud = `${ficha.n} mudança${ficha.n === 1 ? '' : 's'} na ficha ainda não enviada${ficha.n === 1 ? '' : 's'}`
   return createPortal(
-    <div className="mda-fundo" onMouseDown={(e) => { if (e.target === e.currentTarget) onFechar() }}>
+    <div className="mda-fundo" onMouseDown={(e) => { if (e.target === e.currentTarget) fechar() }}>
       <style>{ESTILO_MDA}</style>
       <div className="mda" role="dialog" aria-label={`Acessos de ${p.nome}`}>
         <header className="mda-cab">
           <span className="mda-av">{avatar ? <img src={avatar} alt="" /> : p.nome.charAt(0)}</span>
           <div><b>{p.nome}</b><small>{[funcao, email].filter(Boolean).join(' · ') || 'acessos, ficha cadastral e atividades'}</small></div>
-          <button type="button" className="mda-x" onClick={onFechar} aria-label="Fechar">×</button>
+          <button type="button" className="mda-x" onClick={fechar} aria-label="Fechar">×</button>
         </header>
         <div className="mda-corpo"><DistribuirAcessos {...p} funcao={funcao} email={email} /></div>
-        <footer className="mda-pe"><span>Permissões gravam na hora; mudança na ficha cadastral só vale depois que o Diretor autorizar.</span><button type="button" onClick={onFechar}>Pronto</button></footer>
+        {perguntar && ficha.n > 0 ? (
+          <footer className="mda-pe mda-pe-envio">
+            <span><b>{nMud}</b>{ficha.souDiretor ? 'Você é o Diretor: salva direto.' : 'Se fechar agora, o que foi preenchido se perde.'}</span>
+            <div className="mda-pe-bts">
+              <button type="button" className="sec" disabled={enviando} onClick={() => { if (confirm('Fechar sem enviar? O que foi preenchido na ficha se perde.')) onFechar() }}>Fechar sem enviar</button>
+              <button type="button" className="pri" disabled={enviando} onClick={enviarEFechar}>{enviando ? 'Enviando…' : ficha.souDiretor ? 'Salvar e fechar' : 'Enviar para o Diretor autorizar'}</button>
+            </div>
+          </footer>
+        ) : (
+          <footer className="mda-pe"><span>{ficha.n > 0 ? `${nMud} — o Pronto pergunta antes de fechar.` : 'Permissões gravam na hora; mudança na ficha cadastral só vale depois que o Diretor autorizar.'}</span><button type="button" onClick={fechar}>Pronto</button></footer>
+        )}
       </div>
     </div>, document.body)
 }
@@ -204,4 +232,7 @@ const ESTILO_MDA = `
 .mda-corpo { overflow: auto; padding: 18px 24px }
 @media (max-width: 640px) { .mda-fundo { padding: 0 } .mda { width: 100%; height: 100dvh; border-radius: 0 } .mda-cab, .mda-corpo { padding: 12px 14px } .mda-pe { padding: 10px 14px } .mda-pe span { display: none } .mda-pe button { margin-left: auto } }
 .mda-pe { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 24px; border-top: 1px solid #eef2f7; background: #f8fafc } .mda-pe span { font-size: 13px; color: #64748b } .mda-pe button { border: none; background: #0f172a; color: #fefefe; border-radius: 999px; padding: 10px 22px; font-family: inherit; font-size: 14px; cursor: pointer } .mda-pe button:hover { background: #1d4ed8 }
+.mda-pe-envio { background: #0f172a; border-top-color: #0f172a; flex-wrap: wrap } .mda-pe-envio span { display: grid !important; color: #cbd5e1 } .mda-pe-envio span b { color: #fefefe; font-weight: 600; font-size: 14px }
+.mda-pe-bts { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto } .mda-pe-envio button.sec { background: transparent; border: 1px solid #334155; color: #e2e8f0 } .mda-pe-envio button.sec:hover { background: #1e293b } .mda-pe-envio button.pri { background: #dc2626 } .mda-pe-envio button.pri:hover:not(:disabled) { background: #b91c1c } .mda-pe-envio button:disabled { opacity: .6; cursor: wait }
+@media (max-width: 640px) { .mda-pe-bts { width: 100% } .mda-pe-bts button { flex: 1 } }
 `

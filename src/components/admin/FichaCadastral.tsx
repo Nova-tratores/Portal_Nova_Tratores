@@ -51,6 +51,8 @@ export default function FichaCadastral({ userId, eu, nome, cargo, email }: { use
   const [d, setD] = useState<Dados>({})
   /** como estava ao abrir (ou depois de enviar) — base para "o que mudou" */
   const [base, setBase] = useState<Dados>({})
+  /** como abriu na tela (já com nome/cargo do portal): só o que a pessoa digitou depois faz a janela perguntar */
+  const [aberta, setAberta] = useState<Dados>({})
   const [nivel, setNivel] = useState<Nivel>('parcial')
   const [souDiretor, setSouDiretor] = useState(false)
   const [rh, setRh] = useState<ResumoRH | null>(null)
@@ -78,7 +80,7 @@ export default function FichaCadastral({ userId, eu, nome, cargo, email }: { use
         // ficha nova: já começa com o que o portal sabe (conta como mudança a enviar)
         if (!dados.nome_completo && nome) dados.nome_completo = nome
         if (!dados.cargo && cargo) dados.cargo = cargo
-        setD(dados); setBase(inicial); setNivel(j.nivel || 'parcial'); setSouDiretor(!!j.souDiretor); setRh(j.rh || null); setPend(j.pendente || null)
+        setD(dados); setBase(inicial); setAberta(dados); setNivel(j.nivel || 'parcial'); setSouDiretor(!!j.souDiretor); setRh(j.rh || null); setPend(j.pendente || null)
         setQuando({ em: j.atualizado_em, por: j.atualizado_por_nome }); setEstado('pronto')
       } catch { if (vivo) { setErro('Sem conexão com o servidor'); setEstado('erro') } }
     })()
@@ -86,6 +88,7 @@ export default function FichaCadastral({ userId, eu, nome, cargo, email }: { use
   }, [userId, eu, nome, cargo, versao])
 
   const mudancasLocais = useMemo(() => listarMudancas(base, d), [base, d])
+  const digitou = useMemo(() => listarMudancas(aberta, d).length > 0, [aberta, d])
 
   const enviar = useCallback(async () => {
     setEstado('enviando'); setErro(''); setAviso('')
@@ -96,14 +99,32 @@ export default function FichaCadastral({ userId, eu, nome, cargo, email }: { use
         body: JSON.stringify(eu ? { eu: true, dados: d } : { user_id: userId, dados: d }),
       })
       const j = await r.json().catch(() => ({}))
-      if (!r.ok) { setErro(j.error || 'Não deu para enviar'); setEstado('erro'); return }
+      if (!r.ok) { setErro(j.error || 'Não deu para enviar'); setEstado('erro'); return false }
       setAviso(j.situacao === 'aplicado' ? `Salvo.${j.rh?.ok && j.rh.campos?.length ? ' Também foi para o RH.' : ''}`
         : j.situacao === 'pendente' ? 'Enviado. A ficha só muda depois que o Diretor autorizar — o aviso chega no sino.'
         : 'Nada mudou em relação à ficha atual.')
       window.dispatchEvent(new Event('ficha-pedido'))
       setVersao((v) => v + 1)
-    } catch { setErro('Sem conexão: não foi enviado'); setEstado('erro') }
+      return true
+    } catch { setErro('Sem conexão: não foi enviado'); setEstado('erro'); return false }
   }, [d, eu, userId])
+
+  // a janela do /admin pergunta antes de fechar com mudança não enviada (José, 10/11/2026:
+  // "aperta Pronto, a aba fecha e apaga as infos") — avisa quantas há e envia quando ela pede
+  useEffect(() => {
+    if (eu) return
+    window.dispatchEvent(new CustomEvent('ficha-mudancas', { detail: { n: digitou ? mudancasLocais.length : 0, souDiretor } }))
+  }, [eu, digitou, mudancasLocais.length, souDiretor])
+  useEffect(() => {
+    if (eu) return
+    const pedir = async () => {
+      const ok = await enviar()
+      window.dispatchEvent(new CustomEvent('ficha-enviada', { detail: { ok } }))
+    }
+    window.addEventListener('ficha-enviar-agora', pedir)
+    return () => window.removeEventListener('ficha-enviar-agora', pedir)
+  }, [eu, enviar])
+  useEffect(() => () => { if (!eu) window.dispatchEvent(new CustomEvent('ficha-mudancas', { detail: { n: 0, souDiretor: false } })) }, [eu])
 
   const cancelarPedido = async () => {
     if (!pend || !confirm('Cancelar o pedido? A ficha continua como está hoje.')) return
