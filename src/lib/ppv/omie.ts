@@ -861,9 +861,18 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
           ? { departamentos: dep.map((d) => ({ cCodDepto: String(d.codigo), nPerc: d.perc, nValor: Math.round(totalPedido * d.perc) / 100, nValorFixo: "N" })) }
           : {}),
       };
-      const resposta = await omieCall<{ numero_pedido?: string; codigo_pedido?: number }>(
-        "/produtos/pedido/", "IncluirPedido", payload, acc.key, acc.secret,
-      );
+      let resposta: { numero_pedido?: string; codigo_pedido?: number };
+      try {
+        resposta = await omieCall<{ numero_pedido?: string; codigo_pedido?: number }>(
+          "/produtos/pedido/", "IncluirPedido", payload, acc.key, acc.secret,
+        );
+      } catch (e) {
+        // O pedido pode ter entrado na Omie sem o portal saber (resposta perdida, timeout,
+        // falha ao gravar o nº no PPV): o reenvio levava "já cadastrado" e o PPV travava.
+        const adotado = await adotarPedidoJaCriado(acc, idPPV, nCodCli, e);
+        if (!adotado) throw e;
+        resposta = adotado;
+      }
       numPedido = (resposta.numero_pedido || String(resposta.codigo_pedido || "")).trim();
       // consumo final faz o Omie pôr o ICMS no CST 51; o certo para as peças é o 60
       try {
@@ -936,6 +945,37 @@ interface OmiePedidoConsulta {
 }
 
 const codIntPV = (idPPV: string) => `PV-${idPPV}`;
+
+/** Envio que falhou com "já cadastrado" ou resposta incerta: o pedido PV-<PPV> pode já
+ *  estar na Omie. Adota se for do mesmo cliente, não cancelado e não faturado (molde da
+ *  OS em lib/pos/omie.ts). Devolve null quando não há o que adotar — o chamador relança
+ *  o erro original. Pedido de outro cliente/cancelado vira erro claro (não cria outro). */
+async function adotarPedidoJaCriado(
+  acc: OmieAccount, idPPV: string, nCodCli: number, erro: unknown,
+): Promise<{ numero_pedido?: string; codigo_pedido?: number } | null> {
+  const msg = erro instanceof Error ? erro.message : String(erro);
+  const jaCadastrado = /j[aá]\s+cadastrad|Client-10[23]\b/i.test(msg);
+  const incerto = !!(erro as { incerto?: boolean })?.incerto;
+  if (!jaCadastrado && !incerto) return null;
+  const ped = await consultarPedidoOmie(codIntPV(idPPV), acc);
+  if (!ped?.cabecalho?.codigo_pedido) {
+    if (jaCadastrado) {
+      throw new Error(`A Omie diz que o pedido ${codIntPV(idPPV)} já existe, mas não foi possível consultá-lo agora. Nada foi criado de novo. Espere alguns segundos e envie outra vez.`);
+    }
+    return null; // incerto e não apareceu: o erro original já pede para conferir antes de refazer
+  }
+  const cab = ped.cabecalho;
+  const info = (ped as unknown as { infoCadastro?: { cancelado?: string; faturado?: string } }).infoCadastro;
+  const num = String(cab.numero_pedido || cab.codigo_pedido);
+  if (Number(cab.codigo_cliente) !== Number(nCodCli)) {
+    throw new Error(`Já existe na Omie o pedido nº ${num} com o código ${codIntPV(idPPV)}, mas de OUTRO cliente. Confira na Omie antes de enviar de novo.`);
+  }
+  if (info?.cancelado === "S" || info?.faturado === "S" || Number(cab.etapa || 0) >= 50) {
+    throw new Error(`Já existe na Omie o pedido nº ${num} com o código ${codIntPV(idPPV)}, mas ele está ${info?.cancelado === "S" ? "cancelado" : "faturado"}. Confira na Omie antes de enviar de novo.`);
+  }
+  console.log(`[Omie PPV] ${idPPV}: pedido já estava na Omie (nº ${num}) — adotado, sem criar outro`);
+  return { numero_pedido: cab.numero_pedido, codigo_pedido: cab.codigo_pedido };
+}
 
 // Consulta o Pedido de Venda no Omie por código de integração (ou por outra
 // chave: { numero_pedido } / { codigo_pedido }). Devolve null se não existir
