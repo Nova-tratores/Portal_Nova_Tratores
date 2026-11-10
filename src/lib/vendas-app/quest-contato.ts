@@ -1,10 +1,10 @@
-// Contato do alvo de uma quest (app de vendas) — regras puras, sem banco.
-// O vendedor abre a quest e precisa LIGAR / chamar no WhatsApp / saber onde é.
+// Contato do alvo de uma quest ou de um negócio (app de vendas) — regras puras, sem banco.
+// O vendedor abre a quest/o card do negócio e precisa LIGAR / chamar no WhatsApp / saber onde é.
 // Os números vêm de vários lugares (cadastro Omie, CRM, descrição da quest) e
 // costumam vir sujos: "(14) 998378238", "14 3351-6049 / 14 99762-7413", sem DDD.
 // Sem número ou sem endereço/local, o app oferece "Pedir ao suporte" (Mariano).
 
-export type OrigemTelefone = 'omie' | 'crm' | 'quest';
+export type OrigemTelefone = 'omie' | 'crm' | 'quest' | 'contato';
 export interface TelefoneQuest {
   /** só dígitos com DDD (10 ou 11), sem o 55 */
   numero: string;
@@ -12,6 +12,8 @@ export interface TelefoneQuest {
   exibir: string;
   celular: boolean;
   origem: OrigemTelefone;
+  /** de quem é o número (pessoa cadastrada na propriedade), quando se sabe */
+  nome?: string | null;
 }
 export type FaltaContato = 'telefone' | 'whatsapp' | 'endereco';
 
@@ -27,7 +29,7 @@ export function formatarTelefone(d: string): string {
  * aceita o 55 na frente. Celular = 11 dígitos com 9 depois do DDD. Número sem
  * DDD (8–9 dígitos) é descartado: ligar para ele daria em outra cidade.
  */
-export function telefonesDoTexto(texto: string | null | undefined, origem: OrigemTelefone): TelefoneQuest[] {
+export function telefonesDoTexto(texto: string | null | undefined, origem: OrigemTelefone, nome?: string | null): TelefoneQuest[] {
   const out: TelefoneQuest[] = [];
   const partes = String(texto || '').split(/[\/;,|\n]|\s+e\s+|\s+ou\s+/i);
   for (const p of partes) {
@@ -38,7 +40,7 @@ export function telefonesDoTexto(texto: string | null | undefined, origem: Orige
     if (Number(d.slice(0, 2)) < 11) continue; // DDD inválido
     // celular gravado antes do 9º dígito ("(43) 9157-8141"): fixo começa com 2–5
     if (d.length === 10 && /[6-9]/.test(d[2])) d = `${d.slice(0, 2)}9${d.slice(2)}`;
-    out.push({ numero: d, exibir: formatarTelefone(d), celular: d.length === 11 && d[2] === '9', origem });
+    out.push({ numero: d, exibir: formatarTelefone(d), celular: d.length === 11 && d[2] === '9', origem, ...(nome?.trim() ? { nome: nome.trim() } : {}) });
   }
   return out;
 }
@@ -73,14 +75,17 @@ export const ROTULO_FALTA: Record<FaltaContato, string> = {
 /** Texto da notificação para o suporte. */
 export function textoPedidoSuporte(p: {
   vendedor: string; cliente: string | null; cidade: string | null; trator: string | null;
-  falta: FaltaContato[]; obs?: string | null; questId: number;
+  falta: FaltaContato[]; obs?: string | null; questId?: number | null;
+  /** negócio do funil ("Pulverizador KUHN ARBO 2000"), quando o pedido vem do card de Negócios */
+  negocio?: string | null;
 }): { titulo: string; descricao: string } {
   const oque = p.falta.map((f) => ROTULO_FALTA[f]).join(' e ') || 'contato';
-  const alvo = p.cliente || p.trator || `quest #${p.questId}`;
+  const alvo = p.cliente || p.trator || p.negocio || (p.questId ? `quest #${p.questId}` : 'cliente');
+  const onde = p.negocio ? 'um negócio' : 'uma quest';
   const titulo = `${p.vendedor} pede ${oque}: ${alvo}`.slice(0, 200);
   const linhas = [
-    `O vendedor ${p.vendedor} está com uma quest e não achou ${oque} no cadastro.`,
-    [p.cliente && `Cliente: ${p.cliente}`, p.cidade && `Cidade: ${p.cidade}`, p.trator && `Trator: ${p.trator}`].filter(Boolean).join(' · '),
+    `O vendedor ${p.vendedor} está com ${onde} e não achou ${oque} no cadastro.`,
+    [p.cliente && `Cliente: ${p.cliente}`, p.cidade && `Cidade: ${p.cidade}`, p.trator && `Trator: ${p.trator}`, p.negocio && `Negócio: ${p.negocio}`].filter(Boolean).join(' · '),
     p.obs ? `Recado: ${String(p.obs).trim().slice(0, 300)}` : '',
     'Atualize no cadastro do cliente na Omie: o app do vendedor puxa sozinho na próxima sincronização.',
   ].filter(Boolean);

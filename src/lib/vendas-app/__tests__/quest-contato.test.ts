@@ -43,5 +43,11 @@ describe('pedido ao suporte', () => {
     expect(t.titulo).toBe('Matheus pede telefone e endereço / localização: PAULO');
     expect(t.descricao).toContain('Trator: JIVO …F00710');
   });
+  it('pedido vindo de negócio', () => {
+    const t = textoPedidoSuporte({ vendedor: 'Matheus', cliente: null, cidade: 'Carlópolis', trator: null, negocio: 'Pulverizador KUHN', falta: ['whatsapp'] });
+    expect(t.titulo).toBe('Matheus pede celular / WhatsApp: Pulverizador KUHN');
+    expect(t.descricao).toContain('com um negócio');
+  });
+  it('telefone guarda o nome da pessoa', () => expect(telefonesDoTexto('14 99762-7413', 'contato', ' João ')[0].nome).toBe('João'));
   it('normalizarFalta ignora lixo', () => expect(normalizarFalta(['endereco', 'x', 'telefone'])).toEqual(['telefone', 'endereco']));
 });

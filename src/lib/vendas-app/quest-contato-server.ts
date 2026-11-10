@@ -110,16 +110,22 @@ async function idSuporte(): Promise<string> {
   return String(data?.[0]?.id || MARIANO_PADRAO);
 }
 
+export interface AlvoPedido { cliente: string | null; cidade: string | null; trator: string | null; negocio: string | null; questId: number | null }
+
+/** Monta o pedido de uma quest (cliente, cidade e trator dela). */
+export function alvoDaQuest(q: QuestAlvo, contato?: ContatoQuest | null): AlvoPedido {
+  return {
+    cliente: contato?.cliente?.nome || q.cliente_nome, cidade: q.cidade, questId: q.id, negocio: null,
+    trator: q.chassis ? `${q.modelo || 'Trator'} …${String(q.chassis).slice(-6)}` : null,
+  };
+}
+
 export async function pedirContatoAoSuporte(p: {
-  quest: QuestAlvo; vendedorNome: string; falta: FaltaContato[]; obs?: string | null; contato?: ContatoQuest | null;
+  vendedorNome: string; falta: FaltaContato[]; obs?: string | null; contato?: ContatoQuest | null;
+  alvo: AlvoPedido;
 }): Promise<{ ok: true; jaPedido: boolean }> {
   const suporte = await idSuporte();
-  const q = p.quest;
-  const trator = q.chassis ? `${q.modelo || 'Trator'} …${String(q.chassis).slice(-6)}` : null;
-  const { titulo, descricao } = textoPedidoSuporte({
-    vendedor: p.vendedorNome, cliente: p.contato?.cliente?.nome || q.cliente_nome, cidade: q.cidade, trator,
-    falta: p.falta, obs: p.obs, questId: q.id,
-  });
+  const { titulo, descricao } = textoPedidoSuporte({ vendedor: p.vendedorNome, falta: p.falta, obs: p.obs, ...p.alvo });
   // o mesmo pedido em 12 h não repete (vendedor apertando de novo)
   const desde = new Date(Date.now() - 12 * 3600_000).toISOString();
   const { data: ja } = await db.from('portal_notificacoes').select('id').eq('user_id', suporte).eq('titulo', titulo).gte('created_at', desde).limit(1);
@@ -129,4 +135,69 @@ export async function pedirContatoAoSuporte(p: {
   const { error } = await db.from('portal_notificacoes').insert({ user_id: suporte, tipo: 'avisos', titulo, descricao, link });
   if (error) throw new Error(error.message);
   return { ok: true, jaPedido: false };
+}
+
+// ─── Negócio do funil (card de Negócios) ───────────────────────────────────────
+export interface NegocioAlvo {
+  id: number; vendedor_id: number | null; cliente_id: number | null; propriedade_id: number | null; cidade: string | null;
+  maquina_familia: string | null; maquina_marca: string | null; maquina_modelo: string | null;
+}
+
+export async function carregarNegocio(id: number): Promise<NegocioAlvo | null> {
+  const { data } = await db.from('negocios')
+    .select('id, vendedor_id, cliente_id, propriedade_id, cidade, maquina_familia, maquina_marca, maquina_modelo').eq('id', id).maybeSingle();
+  return (data as NegocioAlvo) || null;
+}
+
+const rotuloNegocio = (n: NegocioAlvo) => [n.maquina_familia, n.maquina_marca, n.maquina_modelo].filter(Boolean).join(' ') || `negócio #${n.id}`;
+
+/**
+ * Contato do negócio: a propriedade do CRM (telefone, endereço, ponto do 1º
+ * check-in), as pessoas cadastradas nela, o cliente do vendedor e, se a
+ * propriedade está ligada à Omie, o cadastro Omie + locais (GPS do técnico…).
+ */
+export async function contatoDoNegocio(n: NegocioAlvo): Promise<ContatoQuest> {
+  const [prop, pessoas, cli] = await Promise.all([
+    n.propriedade_id != null
+      ? db.from('portal_nt_clientes_PRINCIPAL').select('id_omie, razao_social, nome_fantasia, cnpj_cpf, telefone, endereco, cidade, latitude, longitude, lat, lng')
+        .eq('id', n.propriedade_id).maybeSingle().then((r) => r.data || null)
+      : Promise.resolve(null),
+    n.propriedade_id != null
+      ? db.from('pessoas').select('nome, cargo, telefone').eq('propriedade_id', n.propriedade_id).limit(20).then((r) => r.data || [])
+      : Promise.resolve([]),
+    n.cliente_id != null
+      ? db.from('clientes_vendas').select('nome, telefone').eq('id', n.cliente_id).maybeSingle().then((r) => (r.error ? null : r.data))
+      : Promise.resolve(null),
+  ]);
+  const cod = Number(prop?.id_omie) || null;
+  const lista = cod ? await cadastros().catch(() => [] as Cadastro[]) : [];
+  const cad = cod ? lista.find((x) => Number(x.cod_cli) === cod) || null : null;
+  const { locais, endereco } = cod
+    ? await locaisDoTrator({ codOmie: cod }).catch(() => ({ locais: [] as LocalMapa[], endereco: null }))
+    : { locais: [] as LocalMapa[], endereco: null };
+  const lat = Number(prop?.latitude ?? prop?.lat), lng = Number(prop?.longitude ?? prop?.lng);
+  if (prop && Number.isFinite(lat) && Number.isFinite(lng) && lat !== 0 && !locais.some((l) => Math.abs(l.lat - lat) < 0.0005 && Math.abs(l.lng - lng) < 0.0005)) {
+    locais.push({ nome: 'Ponto da propriedade (check-in)', lat, lng, origem: 'crm', quando: null, quem: null });
+  }
+  const nomeCliente = String(cli?.nome || prop?.nome_fantasia || prop?.razao_social || cad?.razao_social || '').trim() || null;
+  const telefones = juntarTelefones(
+    telefonesDoTexto(prop?.telefone, 'crm'),
+    telefonesDoTexto(cli?.telefone, 'crm', cli?.nome),
+    ...(pessoas as { nome: string | null; cargo: string | null; telefone: string | null }[])
+      .map((p) => telefonesDoTexto(p.telefone, 'contato', [p.nome, p.cargo].filter(Boolean).join(' · '))),
+    telefonesDoTexto(cad?.telefone, 'omie'),
+  );
+  const endProp = prop ? [prop.endereco, prop.cidade].map((s) => String(s || '').trim()).filter(Boolean).join(', ') || null : null;
+  const end = endereco || endProp;
+  return {
+    cliente: nomeCliente ? { nome: nomeCliente, cod, doc: cad?.cnpj_cpf || prop?.cnpj_cpf || null } : null,
+    telefones,
+    endereco: end,
+    locais,
+    falta: faltaContato({ telefones, temLocal: locais.length > 0, endereco: end }),
+  };
+}
+
+export function alvoDoNegocio(n: NegocioAlvo, contato?: ContatoQuest | null): AlvoPedido {
+  return { cliente: contato?.cliente?.nome || null, cidade: n.cidade, trator: null, negocio: rotuloNegocio(n), questId: null };
 }
