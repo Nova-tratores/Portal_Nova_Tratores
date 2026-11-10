@@ -9,6 +9,7 @@ import { createPortal } from 'react-dom';
 import { Search, ShieldCheck, Copy, Smartphone, Wrench, LayoutGrid, Check, IdCard, Activity } from 'lucide-react';
 import FichaCadastral from './FichaCadastral';
 import AtividadesUsuario from './AtividadesUsuario';
+import PermissoesCartoes from './PermissoesCartoes';
 import { GRUPOS_ORDEM, grupoDoModulo, acoesDoModulo, estadoModulo, acoesMarcadas, setTotal, setOff, toggleAcao } from '@/lib/permissoes/catalogo';
 import { acaoExplicita, acaoSoDev } from '@/lib/permissoes/explicitas';
 
@@ -29,6 +30,16 @@ export default function DistribuirAcessos(p: Props) {
   const [grupo, setGrupo] = useState<string | null>(null);
   const [sel, setSel] = useState<string | null>(null);
   const [copiar, setCopiar] = useState('');
+  // Formato do editor do Portal (José, 09/11/2026: "mantenha o novo formato"): caixinhas é o padrão;
+  // o de interruptores (21/10) continua disponível. Lembrado no navegador.
+  const [formato, setFormato] = useState<'caixinhas' | 'interruptores'>('caixinhas');
+  useEffect(() => {
+    try { if (localStorage.getItem('admin-perm-formato') === 'interruptores') setFormato('interruptores'); } catch { /* sem storage */ }
+  }, []);
+  const trocarFormato = (f: 'caixinhas' | 'interruptores') => {
+    setFormato(f);
+    try { localStorage.setItem('admin-perm-formato', f); } catch { /* sem storage */ }
+  };
 
   const porGrupo = useMemo(() => {
     const m: Record<string, Mod[]> = {};
@@ -54,6 +65,14 @@ export default function DistribuirAcessos(p: Props) {
     } else p.onModulos(toggleAcao(p.modulos, mod, acao));
   };
   const modSel = sel ? p.catalogo.find((m) => m.id === sel) : null;
+  const seletorCopiar = (
+    <label className="da-copiar"><Copy size={14} />
+      <select value={copiar} disabled={p.disabled} onChange={(e) => { const o = p.outros.find((x) => x.id === e.target.value); setCopiar(''); if (o && confirm(`Copiar os acessos de ${o.nome} para ${p.nome}? Os acessos atuais de ${p.nome} serão trocados.`)) p.onModulos([...o.modulos]); }}>
+        <option value="">copiar acessos de…</option>
+        {p.outros.filter((o) => o.modulos.length).map((o) => <option key={o.id} value={o.id}>{o.nome} ({new Set(o.modulos.map((m) => m.split(':')[0])).size})</option>)}
+      </select>
+    </label>
+  );
 
   return (
     <div className="da">
@@ -74,6 +93,15 @@ export default function DistribuirAcessos(p: Props) {
       {aba === 'portal' && (
         <div className="da-portal">
           {p.ehAdmin && <p className="da-aviso"><ShieldCheck size={14} /> {p.nome.split(' ')[0]} é Admin e já vê tudo — estas marcações só valem se voltar a Usuário.</p>}
+          <div className="da-formato">
+            <span>Formato:</span>
+            <button type="button" className={formato === 'caixinhas' ? 'on' : ''} onClick={() => trocarFormato('caixinhas')}>Caixinhas</button>
+            <button type="button" className={formato === 'interruptores' ? 'on' : ''} onClick={() => trocarFormato('interruptores')}>Interruptores</button>
+            {formato === 'caixinhas' && <span className="da-formato-copiar">{seletorCopiar}</span>}
+          </div>
+          {formato === 'caixinhas' ? (
+            <PermissoesCartoes modulos={p.modulos} catalogo={p.catalogo} onChange={p.onModulos} disabled={p.disabled} souDev={p.souDev} />
+          ) : (<>
           <div className="da-barra">
             <label className="da-busca"><Search size={15} /><input placeholder="buscar módulo…" value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
             <div className="da-grupos">
@@ -88,12 +116,7 @@ export default function DistribuirAcessos(p: Props) {
                 <button type="button" disabled={p.disabled} onClick={() => ligarGrupo(grupo, true)}>Liberar {grupo}</button>
                 <button type="button" disabled={p.disabled} onClick={() => ligarGrupo(grupo, false)}>Tirar {grupo}</button>
               </>}
-              <label className="da-copiar"><Copy size={14} />
-                <select value={copiar} disabled={p.disabled} onChange={(e) => { const o = p.outros.find((x) => x.id === e.target.value); setCopiar(''); if (o && confirm(`Copiar os acessos de ${o.nome} para ${p.nome}? Os acessos atuais de ${p.nome} serão trocados.`)) p.onModulos([...o.modulos]); }}>
-                  <option value="">copiar acessos de…</option>
-                  {p.outros.filter((o) => o.modulos.length).map((o) => <option key={o.id} value={o.id}>{o.nome} ({new Set(o.modulos.map((m) => m.split(':')[0])).size})</option>)}
-                </select>
-              </label>
+              {seletorCopiar}
             </div>
           </div>
           <div className={`da-corpo ${modSel ? 'com-lado' : ''}`}>
@@ -146,6 +169,7 @@ export default function DistribuirAcessos(p: Props) {
               </aside>
             )}
           </div>
+          </>)}
         </div>
       )}
 
@@ -198,6 +222,7 @@ const ESTILO_DA = `
 .da-abas button.on { background: #fefefe; color: #0f172a; box-shadow: 0 1px 4px rgba(15,23,42,.12) } .da-abas em { font-style: normal; font-size: 11.5px; border-radius: 99px; padding: 1px 8px; background: #e2e8f0; color: #475569 } .da-abas em.ok { background: #dcfce7; color: #166534 }
 .da-aviso { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 8px 12px }
 .da-portal { display: grid; gap: 12px }
+.da-formato { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: #64748b } .da-formato > button { border: 1px solid #e2e8f0; background: #fefefe; border-radius: 999px; padding: 5px 12px; font-family: inherit; font-size: 12.5px; color: #334155; cursor: pointer } .da-formato > button.on { background: #111111; border-color: #111111; color: #fefefe } .da-formato-copiar { margin-left: auto }
 .da-barra { display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
 .da-busca { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #e2e8f0; background: #fefefe; border-radius: 999px; padding: 7px 12px; color: #94a3b8 } .da-busca input { border: none; outline: none; font-family: inherit; font-size: 13.5px; width: 170px; color: #0f172a; background: none }
 .da-grupos { display: flex; gap: 5px; flex-wrap: wrap } .da-grupos button { border: 1px solid #e2e8f0; background: #fefefe; border-radius: 999px; padding: 6px 12px; font-family: inherit; font-size: 12.5px; color: #334155; cursor: pointer; transition: all .15s }

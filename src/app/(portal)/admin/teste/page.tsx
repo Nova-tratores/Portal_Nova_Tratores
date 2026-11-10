@@ -107,7 +107,7 @@ export default function TestePermissoesPage() {
         </Link>
         <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }}>PÁGINA DE TESTE</span>
         <div style={{ flex: 1 }} />
-        {botaoOpcao(1, 'Opção 1 · atual (pílulas)')}
+        {botaoOpcao(1, 'Opção 1 · pílulas (antigo)')}
         {botaoOpcao(2, 'Opção 2 · cartões com caixinhas')}
         <button type="button" onClick={() => setAjuda((v) => !v)} title="Como ler esta tela"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 12px', borderRadius: 10, fontSize: 13, cursor: 'pointer', border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }}>

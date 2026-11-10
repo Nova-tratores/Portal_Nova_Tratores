@@ -9,7 +9,7 @@ import {
   User as UserIcon, Lock, Unlock, Wrench, UserPlus, Eye, EyeOff,
   Activity, Clock, Settings, ClipboardList, DollarSign, FileText, Mail, Ban, RotateCcw
 } from 'lucide-react'
-import PermissoesModulos from '@/components/admin/PermissoesModulos'
+import PermissoesCartoes from '@/components/admin/PermissoesCartoes'
 import AssinaturaUsuarioModal from '@/components/admin/AssinaturaUsuarioModal'
 import { FUNCOES_POSVENDAS, funcaoPosVendas, trocarFuncaoPosVendas } from '@/lib/permissoes/funcoes-posvendas'
 import PapelMenu, { type Nivel } from '@/components/admin/PapelMenu'
@@ -596,7 +596,7 @@ export default function AdminPage() {
                   {MODULOS.every(m => novoModulos.includes(m.id)) ? 'Desmarcar todos' : 'Marcar todos'}
                 </button>
               </div>
-              <PermissoesModulos
+              <PermissoesCartoes
                 modulos={novoModulos}
                 catalogo={MODULOS}
                 souDev={isDev}
