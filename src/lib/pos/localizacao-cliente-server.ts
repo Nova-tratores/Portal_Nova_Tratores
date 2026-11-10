@@ -2,7 +2,7 @@
 // Tabela clientes_localizacoes (sql/clientes-localizacoes.sql): várias por CPF/CNPJ, cada uma com o nome da fazenda. Sem ela: ler devolve { semTabela } e a trava não segura.
 import { supabase } from './supabase';
 import { computarESalvarRota } from './rastreamento';
-import { diasDoRelatorio, type RelatorioTecnico } from './horas-tecnico';
+import { diasDoRelatorio, COLUNAS_RELATORIO_LEVE, type RelatorioTecnico } from './horas-tecnico';
 import { chaveNome } from '@/lib/frota/mapa-vivo';
 import { normalizarPlaca } from '@/lib/frota/placa';
 import { coordenadaValida, diasDaOS, distanciaM, paradasCandidatas, soDigitos, type ParadaGPS } from './localizacao-cliente';
@@ -57,7 +57,7 @@ export async function paradasDaOS(osId: string): Promise<{
   if (error) throw new Error(error.message);
   const os = (osRows || [])[0] as Rec | undefined;
   if (!os) throw new Error('OS não encontrada.');
-  const rel = await supabase.from('Ordem_Servico_Tecnicos').select('*').eq('Ordem_Servico', osId);
+  const rel = await supabase.from('Ordem_Servico_Tecnicos').select(COLUNAS_RELATORIO_LEVE).eq('Ordem_Servico', osId);
   const relatorios = ((rel.data || []) as RelatorioTecnico[]);
   const dias = diasDaOS(String(os.Dias_Execucao || ''), relatorios.flatMap((r) => diasDoRelatorio(r).map((d) => d.data)), String(os.Previsao_Execucao || ''));
   const tecnicos = [...new Set([os.Os_Tecnico, os.Os_Tecnico2, ...relatorios.map((r) => r.TecResp1)].map((t) => String(t || '').trim()).filter(Boolean))];

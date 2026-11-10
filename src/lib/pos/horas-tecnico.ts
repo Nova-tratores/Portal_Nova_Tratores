@@ -85,3 +85,10 @@ export function diasDoRelatorio(r: RelatorioTecnico): DiaTrabalhado[] {
   const resto = semHora > 0 ? Math.max(0, total - comHora) / semHora : 0;
   return dias.map((d) => ({ os, data: d.data, tecnico, horas: Math.round((d.horas ?? resto) * 100) / 100 }));
 }
+
+/** Colunas do relatório do técnico SEM fotos e assinaturas. As assinaturas antigas estão em base64 dentro da
+ *  linha (até 7 MB cada): `select('*')` em Ordem_Servico_Tecnicos baixa tudo isso sem usar (10/11/2026). */
+export const COLUNAS_RELATORIO_LEVE =
+  'IdOs, Ordem_Servico, Status, TecResp1, TecResp2, Modelo, TipoServico, Motivo, ServicoRealizado, TotalHora, TotalKm, ' +
+  'DataInicio, InicioHora, FinalHora, InicioKm, FinalKm, DataInicio2, InicioHora2, FinalHora2, InicioKm2, FinalKm2, ' +
+  'DataInicio3, InicioHora3, FinaHora3, InicioKm3, FinalKm3, DiasExecucao';

@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { protegerRota } from '@/lib/ajustes/permissao-server'
 import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
-import { diasDoRelatorio, type RelatorioTecnico } from '@/lib/pos/horas-tecnico'
+import { diasDoRelatorio, COLUNAS_RELATORIO_LEVE, type RelatorioTecnico } from '@/lib/pos/horas-tecnico'
 import { listarPaliativos } from '@/lib/pos/paliativos'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   if (!/^OS-\d+$/i.test(os)) return NextResponse.json({ relatorio: null, pdf: null, paliativos: [] })
   // relatórios paliativos (visitas que não concluíram) vêm junto (José, 05/11/2026)
   const [{ data: rels }, { data: ordem }, paliativos] = await Promise.all([
-    sb.from('Ordem_Servico_Tecnicos').select('*').eq('Ordem_Servico', os).order('IdOs', { ascending: false }).limit(5),
+    sb.from('Ordem_Servico_Tecnicos').select(COLUNAS_RELATORIO_LEVE).eq('Ordem_Servico', os).order('IdOs', { ascending: false }).limit(5),
     sb.from('Ordem_Servico').select('ID_Relatorio_Final, Os_Cliente').eq('Id_Ordem', os).maybeSingle(),
     listarPaliativos(sb, os, { comDados: true }),
   ])
