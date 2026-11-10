@@ -1,17 +1,19 @@
 'use client'
 // Aba "Ficha cadastral" do usuário no /admin (José, 09/11/2026). Os campos vêm de
-// lib/admin/ficha-cadastral (mesma lista da impressão). Grava sozinho ~1s depois
-// de parar de digitar, pela rota /api/admin/ficha-cadastral, que também manda ao RH.
+// lib/admin/ficha-cadastral (mesma lista da impressão). Nada muda sozinho: quem edita
+// clica em "Enviar para o Diretor autorizar"; só depois que ele autoriza a ficha muda
+// (e vai ao RH). Se quem edita é o Diretor, salva direto (mesmo esquema da comissão).
 // Níveis: Dev vê tudo; admin vê sem os sensíveis (cadeado); `eu` = a própria pessoa
 // em Configurações → Minha ficha (tudo, menos salário).
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Printer, FileText, Plus, Trash2, Check, Loader2, AlertTriangle, HeartPulse, Lock, Building2 } from 'lucide-react'
-import { SECOES, type Campo, type Dados, campoSensivel, campoVisivel, dataBR, htmlImpressao, idade, mascarar, progresso } from '@/lib/admin/ficha-cadastral'
+import { Printer, FileText, Plus, Trash2, Check, Loader2, AlertTriangle, HeartPulse, Lock, Building2, Send, Undo2, Hourglass, ChevronDown } from 'lucide-react'
+import { SECOES, type Campo, type Dados, campoSensivel, campoVisivel, dataBR, htmlImpressao, idade, listarMudancas, mascarar, progresso, type Mudanca } from '@/lib/admin/ficha-cadastral'
 
-type Estado = 'carregando' | 'pronto' | 'salvando' | 'salvo' | 'erro'
+type Estado = 'carregando' | 'pronto' | 'enviando' | 'erro'
 type Nivel = 'total' | 'parcial' | 'proprio'
 interface ResumoRH { ligado: boolean; motivo?: string; empresa?: string; cargo?: string; departamento?: string; admissao?: string; contrato?: string; status?: string; matricula?: string; dependentes_irrf?: number; salario?: number | null; comissao?: number | null }
+interface Pendente { id: number; criado_em: string; atualizado_em: string; pedido_por_nome: string | null; mudancas: Mudanca[] }
 
 const novoId = () => Math.random().toString(36).slice(2, 10)
 /** linhas de lista ganham um _id (o servidor casa por ele para não perder dados ocultos) */
@@ -20,7 +22,7 @@ function comIds(d: Dados): Dados {
   for (const s of SECOES) if (s.lista && Array.isArray(o[s.lista.k])) o[s.lista.k] = o[s.lista.k].map((l: Dados) => l._id ? l : { ...l, _id: novoId() })
   return o
 }
-const CAMPOS_RH: Record<string, string> = { cpf: 'CPF', rg: 'RG', data_nascimento: 'nascimento', sexo: 'sexo', estado_civil: 'estado civil', telefone: 'telefone', endereco: 'endereço', bairro: 'bairro', cidade: 'cidade', estado: 'UF', cep: 'CEP' }
+const quandoBR = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 async function token() {
   const { data: { session } } = await supabase.auth.getSession()
@@ -37,14 +39,18 @@ function imprimir(d: Dados) {
 
 export default function FichaCadastral({ userId, eu, nome, cargo, email }: { userId?: string; eu?: boolean; nome: string; cargo?: string; email?: string }) {
   const [d, setD] = useState<Dados>({})
+  /** como estava ao abrir (ou depois de enviar) — base para "o que mudou" */
+  const [base, setBase] = useState<Dados>({})
   const [nivel, setNivel] = useState<Nivel>('parcial')
+  const [souDiretor, setSouDiretor] = useState(false)
   const [rh, setRh] = useState<ResumoRH | null>(null)
-  const [rhEnvio, setRhEnvio] = useState<{ ok: boolean; campos: string[]; motivo?: string } | null>(null)
+  const [pend, setPend] = useState<Pendente | null>(null)
+  const [verPend, setVerPend] = useState(false)
   const [estado, setEstado] = useState<Estado>('carregando')
   const [erro, setErro] = useState('')
+  const [aviso, setAviso] = useState('')
   const [quando, setQuando] = useState<{ em: string | null; por: string | null }>({ em: null, por: null })
-  const pendente = useRef<Dados | null>(null)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [versao, setVersao] = useState(0)
   const refs = useRef<Record<string, HTMLElement | null>>({})
 
   useEffect(() => {
@@ -56,47 +62,47 @@ export default function FichaCadastral({ userId, eu, nome, cargo, email }: { use
         const j = await r.json().catch(() => ({}))
         if (!vivo) return
         if (!r.ok) { setErro(j.error || 'Não deu para abrir a ficha'); setEstado('erro'); return }
-        const dados: Dados = j.dados || {}
-        // ficha nova: já começa com o que o portal sabe
-        if (!Object.keys(dados).length) {
-          if (nome) dados.nome_completo = nome
-          if (cargo) dados.cargo = cargo
-        }
-        setD(comIds(dados)); setNivel(j.nivel || 'parcial'); setRh(j.rh || null); setQuando({ em: j.atualizado_em, por: j.atualizado_por_nome }); setEstado('pronto')
+        const dados: Dados = comIds(j.dados || {})
+        const inicial = { ...dados }
+        // ficha nova: já começa com o que o portal sabe (conta como mudança a enviar)
+        if (!dados.nome_completo && nome) dados.nome_completo = nome
+        if (!dados.cargo && cargo) dados.cargo = cargo
+        setD(dados); setBase(inicial); setNivel(j.nivel || 'parcial'); setSouDiretor(!!j.souDiretor); setRh(j.rh || null); setPend(j.pendente || null)
+        setQuando({ em: j.atualizado_em, por: j.atualizado_por_nome }); setEstado('pronto')
       } catch { if (vivo) { setErro('Sem conexão com o servidor'); setEstado('erro') } }
     })()
     return () => { vivo = false }
-  }, [userId, eu, nome, cargo])
+  }, [userId, eu, nome, cargo, versao])
 
-  const gravar = useCallback(async () => {
-    const dados = pendente.current
-    if (!dados) return
-    pendente.current = null
-    setEstado('salvando')
+  const mudancasLocais = useMemo(() => listarMudancas(base, d), [base, d])
+
+  const enviar = useCallback(async () => {
+    setEstado('enviando'); setErro(''); setAviso('')
     try {
       const r = await fetch('/api/admin/ficha-cadastral', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` },
-        body: JSON.stringify(eu ? { eu: true, dados } : { user_id: userId, dados }),
+        body: JSON.stringify(eu ? { eu: true, dados: d } : { user_id: userId, dados: d }),
       })
       const j = await r.json().catch(() => ({}))
-      if (!r.ok) { setErro(j.error || 'Falha ao salvar'); setEstado('erro'); return }
-      setErro(''); setQuando({ em: j.atualizado_em, por: j.atualizado_por_nome })
-      if (j.rh) setRhEnvio((ant) => j.rh.ok && !j.rh.campos.length && ant?.campos.length ? ant : j.rh)
-      setEstado(pendente.current ? 'salvando' : 'salvo')
-    } catch { setErro('Sem conexão: a última mudança não foi salva'); setEstado('erro') }
-  }, [userId, eu])
+      if (!r.ok) { setErro(j.error || 'Não deu para enviar'); setEstado('erro'); return }
+      setAviso(j.situacao === 'aplicado' ? `Salvo.${j.rh?.ok && j.rh.campos?.length ? ' Também foi para o RH.' : ''}`
+        : j.situacao === 'pendente' ? 'Enviado. A ficha só muda depois que o Diretor autorizar — o aviso chega no sino.'
+        : 'Nada mudou em relação à ficha atual.')
+      window.dispatchEvent(new Event('ficha-pedido'))
+      setVersao((v) => v + 1)
+    } catch { setErro('Sem conexão: não foi enviado'); setEstado('erro') }
+  }, [d, eu, userId])
 
-  // ao trocar de aba / fechar: grava o que faltou
-  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); if (pendente.current) gravar() }, [gravar])
-
-  const mudar = (novo: Dados) => {
-    setD(novo)
-    pendente.current = novo
-    setEstado('salvando')
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(gravar, 900)
+  const cancelarPedido = async () => {
+    if (!pend || !confirm('Cancelar o pedido? A ficha continua como está hoje.')) return
+    const r = await fetch('/api/admin/ficha-cadastral/pedidos', { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${await token()}` }, body: JSON.stringify({ id: pend.id, acao: 'cancelar' }) })
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok) { alert(j.error || 'Não deu para cancelar'); return }
+    setAviso('Pedido cancelado.'); window.dispatchEvent(new Event('ficha-pedido')); setVersao((v) => v + 1)
   }
+
+  const mudar = (novo: Dados) => { setD(novo); setAviso('') }
   const set = (k: string, v: any) => mudar({ ...d, [k]: v })
 
   const buscarCep = async (cep: string) => {
@@ -163,15 +169,30 @@ export default function FichaCadastral({ userId, eu, nome, cargo, email }: { use
                 {nivel === 'total' && 'salario' in rh && <span className="dev"><small><Lock size={10} /> Salário (só Dev)</small>{rh.salario != null ? Number(rh.salario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}</span>}
                 {nivel === 'total' && rh.comissao != null && <span className="dev"><small><Lock size={10} /> Comissão (só Dev)</small>{rh.comissao}%</span>}
               </div>
-              <small className="fc-rh-pe">
-                {rhEnvio && !rhEnvio.ok ? <span className="err"><AlertTriangle size={12} /> Não foi para o RH: {rhEnvio.motivo}</span>
-                  : rhEnvio?.campos.length ? <span className="ok"><Check size={12} /> Enviado ao RH: {rhEnvio.campos.map((c) => CAMPOS_RH[c] || c).join(', ')}</span>
-                  : 'O que for preenchido aqui (documentos, nascimento, estado civil, telefone e endereço) vai sozinho para o RH.'}
-              </small>
+              <small className="fc-rh-pe">Depois que o Diretor autoriza, documentos, nascimento, estado civil, telefone e endereço vão também para o RH.</small>
             </div>
           ) : (
             <div className="fc-rh-tx"><b>Sem cadastro no RH</b><small className="fc-rh-pe">{rh.motivo} A ficha fica salva só no portal.</small></div>
           )}
+        </div>
+      )}
+
+      {aviso && <p className="fc-ok"><Check size={15} />{aviso}</p>}
+
+      {pend && (
+        <div className="fc-pend">
+          <div className="fc-pend-cab">
+            <span className="fc-pend-ic"><Hourglass size={16} /></span>
+            <div>
+              <b>Esperando o Diretor autorizar</b>
+              <small>{pend.mudancas.length} mudança{pend.mudancas.length === 1 ? '' : 's'} pedida{pend.mudancas.length === 1 ? '' : 's'} por {pend.pedido_por_nome?.split(' ')[0] || 'alguém'} em {quandoBR(pend.atualizado_em || pend.criado_em)}. A ficha abaixo já mostra como vai ficar; até ele autorizar, vale a anterior.</small>
+            </div>
+          </div>
+          <div className="fc-pend-bts">
+            <button type="button" onClick={() => setVerPend((v) => !v)}><ChevronDown size={14} style={{ transform: verPend ? 'rotate(180deg)' : undefined }} />{verPend ? 'Esconder' : 'Ver'} o que muda</button>
+            <button type="button" onClick={cancelarPedido}>Cancelar pedido</button>
+          </div>
+          {verPend && <ListaMudancas ms={pend.mudancas} />}
         </div>
       )}
 
@@ -183,10 +204,9 @@ export default function FichaCadastral({ userId, eu, nome, cargo, email }: { use
           </div>
           <div className="fc-barra"><i style={{ width: `${pct}%` }} /></div>
           <small className={`fc-est ${estado}`}>
-            {estado === 'salvando' ? <><Loader2 size={13} className="fc-gira" />salvando…</>
-              : estado === 'erro' ? <><AlertTriangle size={13} />{erro}</>
-              : quando.em ? <><Check size={13} />salva {new Date(quando.em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}{quando.por ? ` por ${quando.por.split(' ')[0]}` : ''}</>
-              : 'ainda não preenchida — grava sozinha ao digitar'}
+            {estado === 'erro' ? <><AlertTriangle size={13} />{erro}</>
+              : quando.em ? <><Check size={13} />última atualização autorizada em {quandoBR(quando.em)}{quando.por ? ` · ${quando.por.split(' ')[0]}` : ''}</>
+              : 'ainda não preenchida'}
           </small>
         </div>
         <div className="fc-bts">
@@ -259,6 +279,20 @@ export default function FichaCadastral({ userId, eu, nome, cargo, email }: { use
         </section>
       ))}
 
+      {mudancasLocais.length > 0 && (
+        <div className="fc-envio">
+          <div className="fc-envio-tx">
+            <b>{mudancasLocais.length} mudança{mudancasLocais.length === 1 ? '' : 's'} ainda não enviada{mudancasLocais.length === 1 ? '' : 's'}</b>
+            <small>{souDiretor ? 'Você é o Diretor: salva direto.' : 'Nada muda até o Diretor autorizar.'}</small>
+          </div>
+          <button type="button" className="fc-envio-sec" disabled={estado === 'enviando'} onClick={() => { if (confirm('Desfazer as mudanças não enviadas?')) setD(base) }}><Undo2 size={15} />Desfazer</button>
+          <button type="button" className="fc-envio-pri" disabled={estado === 'enviando'} onClick={enviar}>
+            {estado === 'enviando' ? <Loader2 size={15} className="fc-gira" /> : <Send size={15} />}
+            {souDiretor ? 'Salvar' : 'Enviar para o Diretor autorizar'}
+          </button>
+        </div>
+      )}
+
       <p className="fc-rodape">Dados pessoais (LGPD): {eu ? 'só você e a administração do portal veem esta ficha; documentos, saúde e banco, só a T.I.' : 'documentos, saúde, banco e salário só Dev vê; o restante, os administradores.'}{email ? ` Login: ${email}.` : ''}</p>
     </div>
   )
@@ -305,6 +339,52 @@ const ESTILO = `
 .fc-rh-itens span.dev { color: #7c2d12 } .fc-rh-itens span.dev small { color: #c2410c }
 .fc-rh-pe { font-size: 12px; color: #64748b } .fc-rh-pe span { display: inline-flex; align-items: center; gap: 4px } .fc-rh-pe .ok { color: #059669 } .fc-rh-pe .err { color: #dc2626 }
 .fc-tranca { margin: 0; display: flex; align-items: center; gap: 7px; font-size: 13px; color: #64748b; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 10px 12px } .fc-tranca.pq { grid-column: 1 / -1; font-size: 12px; padding: 6px 10px; order: 99 }
+.fc-ok { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 10px 14px }
+.fc-pend { display: grid; gap: 10px; border: 1px solid #fde68a; background: #fffbeb; border-radius: 16px; padding: 12px 14px }
+.fc-pend-cab { display: flex; gap: 12px; align-items: flex-start } .fc-pend-cab > div { display: grid; gap: 3px; min-width: 0 } .fc-pend-cab b { font-size: 14.5px; font-weight: 600; color: #78350f } .fc-pend-cab small { font-size: 12.5px; color: #92400e; line-height: 1.45 }
+.fc-pend-ic { width: 32px; height: 32px; border-radius: 10px; background: #fef3c7; color: #b45309; display: grid; place-items: center; flex-shrink: 0 }
+.fc-pend-bts { display: flex; gap: 8px; flex-wrap: wrap } .fc-pend-bts button { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; border: 1px solid #fcd34d; background: #fefefe; border-radius: 999px; padding: 6px 12px; font-family: inherit; font-size: 13px; color: #78350f; cursor: pointer }
+.fc-envio { position: sticky; bottom: 0; z-index: 2; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: #0f172a; color: #fefefe; border-radius: 16px; padding: 12px 14px; box-shadow: 0 10px 30px rgba(15,23,42,.3) }
+.fc-envio-tx { display: grid; flex: 1 1 200px; min-width: 0 } .fc-envio-tx b { font-size: 14px; font-weight: 600 } .fc-envio-tx small { font-size: 12.5px; color: #cbd5e1 }
+.fc-envio button { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; border-radius: 999px; padding: 8px 16px; font-family: inherit; font-size: 13.5px; cursor: pointer; border: 1px solid transparent }
+.fc-envio-sec { background: transparent; color: #e2e8f0; border-color: #334155 !important } .fc-envio-pri { background: #dc2626; color: #fefefe } .fc-envio-pri:hover:not(:disabled) { background: #b91c1c } .fc-envio button:disabled { opacity: .6; cursor: wait }
+@media (max-width: 520px) { .fc-envio button { flex: 1; justify-content: center } }
 .fc-rodape { margin: 0; font-size: 12px; color: #94a3b8 }
 @media (max-width: 520px) { .fc-campo.w2 { grid-column: 1 / -1 } .fc-sec, .fc-topo { padding: 12px } .fc-bts { width: 100% } .fc-bts button { flex: 1; justify-content: center } }
+`
+
+/** a lista "o que muda" — campo, de → para (dado sensível aparece só como alterado) */
+export function ListaMudancas({ ms }: { ms: Mudanca[] }) {
+  const porSecao: Record<string, Mudanca[]> = {}
+  for (const m of ms) (porSecao[m.secao] ||= []).push(m)
+  return (
+    <div className="lm">
+      <style>{ESTILO_LM}</style>
+      {Object.entries(porSecao).map(([sec, xs]) => (
+        <div key={sec} className="lm-sec">
+          <small>{sec}</small>
+          {xs.map((m, i) => (
+            <div key={i} className={`lm-it ${m.tipo}`}>
+              <b>{m.campo}</b>
+              <span>
+                {m.tipo === 'incluido' ? <><em className="tag">novo</em> {m.para}</>
+                  : m.tipo === 'removido' ? <><em className="tag">tirar</em> <s>{m.de}</s></>
+                  : <><s>{m.de}</s> <i>→</i> {m.para}</>}
+              </span>
+            </div>
+          ))}
+        </div>
+      ))}
+    </div>
+  )
+}
+
+const ESTILO_LM = `
+.lm { display: grid; gap: 8px; min-width: 0 }
+.lm-sec { display: grid; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #fefefe }
+.lm-sec > small { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; color: #64748b; background: #f8fafc; padding: 5px 12px }
+.lm-it { display: grid; grid-template-columns: minmax(110px, 38%) minmax(0, 1fr); gap: 10px; padding: 7px 12px; font-size: 13.5px; border-top: 1px solid #f1f5f9; align-items: baseline }
+.lm-it b { font-weight: 500; color: #0f172a; overflow-wrap: anywhere } .lm-it span { color: #0f172a; overflow-wrap: anywhere } .lm-it s { color: #94a3b8 } .lm-it i { font-style: normal; color: #dc2626; margin: 0 2px }
+.lm-it .tag { font-style: normal; font-size: 11px; border-radius: 99px; padding: 1px 7px; margin-right: 4px; background: #dcfce7; color: #166534 } .lm-it.removido .tag { background: #fee2e2; color: #b91c1c }
+@media (max-width: 520px) { .lm-it { grid-template-columns: 1fr; gap: 2px } }
 `

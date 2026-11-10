@@ -270,7 +270,7 @@ export function ModalAcessos({ avatar, funcao, email, onFechar, ...p }: Props & 
           <button type="button" className="mda-x" onClick={onFechar} aria-label="Fechar">×</button>
         </header>
         <div className="mda-corpo"><DistribuirAcessos {...p} funcao={funcao} email={email} /></div>
-        <footer className="mda-pe"><span>Tudo grava na hora — acessos valem sem a pessoa precisar sair e entrar.</span><button type="button" onClick={onFechar}>Pronto</button></footer>
+        <footer className="mda-pe"><span>Permissões gravam na hora; mudança na ficha cadastral só vale depois que o Diretor autorizar.</span><button type="button" onClick={onFechar}>Pronto</button></footer>
       </div>
     </div>, document.body)
 }

@@ -371,3 +371,65 @@ ${secoes}
 <script>window.addEventListener('load',()=>document.fonts.ready.then(()=>setTimeout(()=>window.print(),300)))</script>
 </body></html>`
 }
+
+// ---------------------------------------------------------------------------
+// Mudanças para o Diretor autorizar (José, 09/11/2026: "chega uma notificação
+// para o Diretor… explicando o que está mudando e quem está fazendo… após ele
+// autorizar, aí muda"). Compara a ficha aprovada com a proposta, campo a campo.
+// ---------------------------------------------------------------------------
+
+export interface Mudanca {
+  secao: string
+  /** "Celular / WhatsApp", "Filho(a) Pedro — Data de nascimento"… */
+  campo: string
+  de: string
+  para: string
+  /** dado sensível: o valor não aparece para o Diretor, só que mudou */
+  sens: boolean
+  tipo: 'alterado' | 'incluido' | 'removido'
+}
+
+const textoValor = (c: Campo, v: any): string => {
+  if (Array.isArray(v)) return v.join(', ')
+  if (c.t === 'data') return dataBR(v)
+  return String(v ?? '').trim()
+}
+
+export function listarMudancas(antes: Dados, depois: Dados): Mudanca[] {
+  const out: Mudanca[] = []
+  for (const s of SECOES) {
+    for (const c of s.campos || []) {
+      const a = textoValor(c, antes[c.k]), b = textoValor(c, depois[c.k])
+      if (a === b) continue
+      out.push({ secao: s.titulo, campo: c.saude && s.id === 'familia' ? `Cônjuge — ${c.l}` : c.l, de: a, para: b, sens: campoSensivel(s, c), tipo: !a ? 'incluido' : !b ? 'removido' : 'alterado' })
+    }
+    if (s.lista) {
+      const va: Dados[] = Array.isArray(antes[s.lista.k]) ? antes[s.lista.k] : []
+      const vb: Dados[] = Array.isArray(depois[s.lista.k]) ? depois[s.lista.k] : []
+      const quem = (l: Dados, i: number) => String(l.nome || '').trim() || `${s.id === 'filhos' ? 'Filho(a)' : 'Dependente'} ${i + 1}`
+      vb.forEach((l, i) => {
+        const velho = va.find((x) => x._id && x._id === l._id)
+        if (!velho) {
+          const resumo = s.lista!.colunas.filter((c) => !campoSensivel(s, c) && textoValor(c, l[c.k])).map((c) => `${c.l}: ${textoValor(c, l[c.k])}`).join(' · ')
+          out.push({ secao: s.titulo, campo: `Novo: ${quem(l, i)}`, de: '', para: resumo || quem(l, i), sens: false, tipo: 'incluido' })
+          return
+        }
+        for (const c of s.lista!.colunas) {
+          const a = textoValor(c, velho[c.k]), b = textoValor(c, l[c.k])
+          if (a === b) continue
+          out.push({ secao: s.titulo, campo: `${quem(l, i)} — ${c.l}`, de: a, para: b, sens: campoSensivel(s, c), tipo: !a ? 'incluido' : !b ? 'removido' : 'alterado' })
+        }
+      })
+      va.forEach((l, i) => {
+        if (!vb.some((x) => x._id && x._id === l._id)) out.push({ secao: s.titulo, campo: `Tirar: ${quem(l, i)}`, de: quem(l, i), para: '', sens: false, tipo: 'removido' })
+      })
+    }
+  }
+  return out
+}
+
+/** "3 mudanças: Celular, Endereço e +1" — para o sino */
+export function resumoMudancas(ms: Mudanca[]): string {
+  const nomes = ms.map((m) => m.campo.replace(/^.* — /, '')).filter((v, i, a) => a.indexOf(v) === i)
+  return `${ms.length} mudança${ms.length === 1 ? '' : 's'}: ${nomes.slice(0, 3).join(', ')}${nomes.length > 3 ? ` e +${nomes.length - 3}` : ''}`
+}

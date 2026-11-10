@@ -44,6 +44,7 @@ const LembretesPanel = dynamic(() => import('./lembretes/LembretesPanel'), { ssr
 const NotifPrefsModal = dynamic(() => import('./notif/NotifPrefsModal'), { ssr: false })
 // a própria pessoa preenche a ficha cadastral (José, 09/11/2026)
 const FichaCadastral = dynamic(() => import('./admin/FichaCadastral'), { ssr: false })
+const AvisoFichasDiretor = dynamic(() => import('./admin/AvisoFichasDiretor'), { ssr: false })
 const QuemAcessa = dynamic(() => import('./permissoes/QuemAcessa'), { ssr: false })
 
 interface NavItem {
@@ -1645,6 +1646,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {!emIframe && userProfile?.id && <PerguntaTratorilson />}
       {/* Diretor: comissões esperando autorização caem na cara dele (e atalho na dashboard) */}
       {!emIframe && userProfile?.id && <AvisoComissoesDiretor />}
+      {/* mudanças na ficha cadastral esperando o Diretor (09/11/2026) */}
+      {!emIframe && userProfile?.id && <AvisoFichasDiretor />}
       {!emIframe && userProfile?.id && <Suspense fallback={null}><JornadaQuery /></Suspense>}
 
       {/* Dev: quem tem acesso à página atual (permissões v2 × regra de hoje) */}
