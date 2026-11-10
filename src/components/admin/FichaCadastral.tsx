@@ -22,6 +22,16 @@ function comIds(d: Dados): Dados {
   for (const s of SECOES) if (s.lista && Array.isArray(o[s.lista.k])) o[s.lista.k] = o[s.lista.k].map((l: Dados) => l._id ? l : { ...l, _id: novoId() })
   return o
 }
+/** "há 1 ano e 3 meses" a partir da admissão */
+function tempoDeCasa(iso: string) {
+  const a = new Date(iso), h = new Date()
+  if (isNaN(a.getTime())) return ''
+  let m = (h.getFullYear() - a.getFullYear()) * 12 + (h.getMonth() - a.getMonth())
+  if (h.getDate() < a.getDate()) m--
+  if (m < 1) return 'menos de 1 mês'
+  const anos = Math.floor(m / 12), meses = m % 12
+  return [anos ? `${anos} ano${anos > 1 ? 's' : ''}` : '', meses ? `${meses} ${meses > 1 ? 'meses' : 'mês'}` : ''].filter(Boolean).join(' e ') + ' de casa'
+}
 const quandoBR = (iso: string) => new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 
 async function token() {
@@ -51,6 +61,7 @@ export default function FichaCadastral({ userId, eu, nome, cargo, email }: { use
   const [aviso, setAviso] = useState('')
   const [quando, setQuando] = useState<{ em: string | null; por: string | null }>({ em: null, por: null })
   const [versao, setVersao] = useState(0)
+  const [verSalario, setVerSalario] = useState(false)
   const refs = useRef<Record<string, HTMLElement | null>>({})
 
   useEffect(() => {
@@ -153,29 +164,40 @@ export default function FichaCadastral({ userId, eu, nome, cargo, email }: { use
     <div className="fc">
       <style>{ESTILO}</style>
 
-      {rh && (
-        <div className={`fc-rh ${rh.ligado ? '' : 'off'}`}>
-          <span className="fc-rh-ic"><Building2 size={16} /></span>
-          {rh.ligado ? (
-            <div className="fc-rh-tx">
-              <b>Cadastro no RH{rh.empresa ? ` · ${rh.empresa}` : ''}</b>
-              <div className="fc-rh-itens">
-                {rh.cargo && <span><small>Cargo</small>{[rh.cargo, rh.departamento].filter(Boolean).join(' · ')}</span>}
-                {rh.admissao && <span><small>Admissão</small>{dataBR(rh.admissao)}</span>}
-                {rh.contrato && <span><small>Contrato</small>{rh.contrato.toUpperCase()}</span>}
-                {rh.status && <span><small>Situação</small>{rh.status}</span>}
-                {rh.matricula && <span><small>Matrícula</small>{rh.matricula}</span>}
-                <span><small>Dependentes IRRF</small>{rh.dependentes_irrf ?? 0}</span>
-                {nivel === 'total' && 'salario' in rh && <span className="dev"><small><Lock size={10} /> Salário (só Dev)</small>{rh.salario != null ? Number(rh.salario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}</span>}
-                {nivel === 'total' && rh.comissao != null && <span className="dev"><small><Lock size={10} /> Comissão (só Dev)</small>{rh.comissao}%</span>}
-              </div>
-              <small className="fc-rh-pe">Depois que o Diretor autoriza, documentos, nascimento, estado civil, telefone e endereço vão também para o RH.</small>
-            </div>
-          ) : (
-            <div className="fc-rh-tx"><b>Sem cadastro no RH</b><small className="fc-rh-pe">{rh.motivo} A ficha fica salva só no portal.</small></div>
-          )}
-        </div>
-      )}
+      {/* Cadastro no RH (José, 10/11/2026: "que negócio feio, arruma isso") */}
+      {rh && (rh.ligado ? (
+        <section className="fc-rh" title="Depois que o Diretor autoriza, documentos, nascimento, estado civil, telefone e endereço vão também para o RH.">
+          <header className="fc-rh-cab">
+            <span className="fc-rh-ic"><Building2 size={17} /></span>
+            <div className="fc-rh-nome"><small>Cadastro no RH</small><b>{rh.empresa || 'Empresa'}</b></div>
+            <span className="fc-rh-chips">
+              {rh.status && <em className={`st ${/ativ/i.test(rh.status) ? 'ok' : ''}`}>{rh.status}</em>}
+              {rh.contrato && <em>{rh.contrato.toUpperCase()}</em>}
+            </span>
+          </header>
+          <div className="fc-rh-grade">
+            {rh.cargo && <div><small>Cargo</small><b>{rh.cargo}</b>{rh.departamento && <span>{rh.departamento}</span>}</div>}
+            {rh.admissao && <div><small>Admissão</small><b>{dataBR(rh.admissao)}</b><span>{tempoDeCasa(rh.admissao)}</span></div>}
+            {rh.matricula && <div><small>Matrícula</small><b>{rh.matricula}</b></div>}
+            <div><small>Dependentes IRRF</small><b>{rh.dependentes_irrf ?? 0}</b></div>
+            {nivel === 'total' && 'salario' in rh && (
+              <button type="button" className={`fc-rh-sal ${verSalario ? 'ver' : ''}`} onClick={() => setVerSalario((v) => !v)} title={verSalario ? 'Esconder' : 'Mostrar (só Dev vê)'}>
+                <small><Lock size={10} /> Salário · só Dev</small>
+                <b>{rh.salario != null ? Number(rh.salario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '—'}</b>
+                {rh.comissao != null && <span>comissão {rh.comissao}%</span>}
+              </button>
+            )}
+          </div>
+        </section>
+      ) : (
+        <section className="fc-rh off">
+          <header className="fc-rh-cab">
+            <span className="fc-rh-ic"><Building2 size={17} /></span>
+            <div className="fc-rh-nome"><small>Cadastro no RH</small><b>Não encontrado</b></div>
+          </header>
+          <p className="fc-rh-pe">{rh.motivo} A ficha fica salva só no portal.</p>
+        </section>
+      ))}
 
       {aviso && <p className="fc-ok"><Check size={15} />{aviso}</p>}
 
@@ -332,12 +354,18 @@ const ESTILO = `
 .fc-idade { font-size: 12px; background: #f1f5f9; color: #475569; border-radius: 99px; padding: 2px 9px } .fc-idade.sf { background: #ecfdf5; color: #047857 }
 .fc-tira { margin-left: auto; width: 36px; height: 36px; border-radius: 50%; border: 1px solid #fecaca; background: #fff; color: #dc2626; display: grid; place-items: center; cursor: pointer }
 .fc-add { justify-self: start; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; border: 1px dashed #cbd5e1; background: none; border-radius: 999px; padding: 8px 14px; font-family: inherit; font-size: 13px; color: #334155; cursor: pointer } .fc-add:hover { border-color: #dc2626; color: #dc2626 }
-.fc-rh { display: flex; gap: 12px; align-items: flex-start; border: 1px solid #e2e8f0; border-radius: 16px; padding: 12px 14px; background: #fefefe }
-.fc-rh.off { background: #f8fafc } .fc-rh-ic { width: 32px; height: 32px; border-radius: 10px; background: #eff6ff; color: #1d4ed8; display: grid; place-items: center; flex-shrink: 0 } .fc-rh.off .fc-rh-ic { background: #f1f5f9; color: #94a3b8 }
-.fc-rh-tx { display: grid; gap: 6px; min-width: 0; flex: 1 } .fc-rh-tx > b { font-size: 14px; font-weight: 600; color: #0f172a }
-.fc-rh-itens { display: flex; flex-wrap: wrap; gap: 6px 18px } .fc-rh-itens span { display: grid; font-size: 13px; color: #0f172a; min-width: 0; overflow-wrap: anywhere } .fc-rh-itens small { font-size: 10.5px; text-transform: uppercase; letter-spacing: .4px; color: #94a3b8; display: inline-flex; align-items: center; gap: 3px }
-.fc-rh-itens span.dev { color: #7c2d12 } .fc-rh-itens span.dev small { color: #c2410c }
-.fc-rh-pe { font-size: 12px; color: #64748b } .fc-rh-pe span { display: inline-flex; align-items: center; gap: 4px } .fc-rh-pe .ok { color: #059669 } .fc-rh-pe .err { color: #dc2626 }
+.fc-rh { display: grid; gap: 14px; border: 1px solid #e2e8f0; border-radius: 18px; padding: 16px; background: linear-gradient(180deg, #f8fafc, #fefefe 60%) }
+.fc-rh.off { background: #f8fafc; gap: 8px }
+.fc-rh-cab { display: flex; align-items: center; gap: 12px; flex-wrap: wrap }
+.fc-rh-ic { width: 40px; height: 40px; border-radius: 12px; background: #0f172a; color: #fefefe; display: grid; place-items: center; flex-shrink: 0 } .fc-rh.off .fc-rh-ic { background: #e2e8f0; color: #94a3b8 }
+.fc-rh-nome { display: grid; flex: 1; min-width: 0 } .fc-rh-nome small { font-size: 11px; letter-spacing: .5px; text-transform: uppercase; color: #94a3b8 } .fc-rh-nome b { font-size: 16px; font-weight: 600; color: #0f172a }
+.fc-rh-chips { display: flex; gap: 6px; flex-wrap: wrap } .fc-rh-chips em { font-style: normal; font-size: 12px; border-radius: 999px; padding: 4px 11px; background: #f1f5f9; color: #475569; text-transform: capitalize } .fc-rh-chips em.st.ok { background: #ecfdf5; color: #047857 }
+.fc-rh-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(170px, 100%), 1fr)); gap: 8px }
+.fc-rh-grade > div, .fc-rh-sal { display: grid; gap: 2px; align-content: start; border: 1px solid #eef2f7; background: #fefefe; border-radius: 14px; padding: 10px 12px; min-width: 0; text-align: left; font-family: inherit }
+.fc-rh-grade small { font-size: 10.5px; letter-spacing: .5px; text-transform: uppercase; color: #94a3b8; display: inline-flex; align-items: center; gap: 4px }
+.fc-rh-grade b { font-size: 14.5px; font-weight: 600; color: #0f172a; overflow-wrap: anywhere } .fc-rh-grade span { font-size: 12px; color: #64748b }
+.fc-rh-sal { cursor: pointer; border-color: #fed7aa; background: #fffbf5 } .fc-rh-sal small { color: #c2410c } .fc-rh-sal b { filter: blur(6px); transition: filter .2s; user-select: none } .fc-rh-sal.ver b { filter: none; user-select: auto }
+.fc-rh-pe { margin: 0; font-size: 12.5px; color: #64748b }
 .fc-tranca { margin: 0; display: flex; align-items: center; gap: 7px; font-size: 13px; color: #64748b; background: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 10px; padding: 10px 12px } .fc-tranca.pq { grid-column: 1 / -1; font-size: 12px; padding: 6px 10px; order: 99 }
 .fc-ok { margin: 0; display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: #047857; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 10px 14px }
 .fc-pend { display: grid; gap: 10px; border: 1px solid #fde68a; background: #fffbeb; border-radius: 16px; padding: 12px 14px }

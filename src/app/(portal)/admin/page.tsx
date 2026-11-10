@@ -5,13 +5,13 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 import {
-  Shield, Users, Check, X, Search, ChevronDown, ChevronUp, ChevronRight, ArrowLeft,
-  User as UserIcon, Lock, Unlock, Wrench, UserPlus, Eye, EyeOff,
+  Users, Check, X, Search, ChevronDown, ChevronUp, ChevronRight, ArrowLeft,
+  User as UserIcon, Lock, Unlock, Wrench, Smartphone, UserPlus, Eye, EyeOff,
   Activity, Clock, Settings, ClipboardList, DollarSign, FileText, Mail, Ban, RotateCcw
 } from 'lucide-react'
 import PermissoesCartoes from '@/components/admin/PermissoesCartoes'
 import AssinaturaUsuarioModal from '@/components/admin/AssinaturaUsuarioModal'
-import { FUNCOES_POSVENDAS, funcaoPosVendas, trocarFuncaoPosVendas } from '@/lib/permissoes/funcoes-posvendas'
+import { setorComFuncao, funcaoNoSetor, trocarFuncaoSetor, limparFuncoesDeOutrosSetores } from '@/lib/permissoes/funcoes-setor'
 import PapelMenu, { type Nivel } from '@/components/admin/PapelMenu'
 import AcoesUsuarioMenu from '@/components/admin/AcoesUsuarioMenu'
 import { ModalAcessos } from '@/components/admin/DistribuirAcessos'
@@ -21,11 +21,10 @@ import TrocarEmailModal from '@/components/admin/TrocarEmailModal'
 import AvisosTratorilson from '@/components/admin/AvisosTratorilson'
 import NotificacoesAdmin from '@/components/admin/NotificacoesAdmin'
 import BuscaModulo from '@/components/admin/BuscaModulo'
-import { MODULOS_ADMIN as MODULOS } from '@/lib/permissoes/modulos-admin'
+import { MODULOS_ADMIN as MODULOS, MODULO_ADMINISTRACAO } from '@/lib/permissoes/modulos-admin'
 
 
 // colunas da lista de usuários (21/10/2026): usuário · papel · categoria · acessos · ⋯
-const COLS_ADMIN = 'minmax(260px,1.3fr) minmax(180px,220px) 150px minmax(240px,1.2fr) 44px'
 
 const CATEGORIAS = ['Pós Vendas', 'Peças', 'Comercial', 'Financeiro', 'T.I.']
 
@@ -53,7 +52,14 @@ interface Permissao {
 
 export default function AdminPage() {
   const { userProfile } = useAuth()
-  const { isAdmin, isDev, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { isAdmin, isDev, temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  // Módulo "Administração" (José, 10/11/2026: "coloca a própria Administração pra gente dar
+  // acesso aos usuários ou remover"): quem o tem sem ser Admin entra aqui só para dar e tirar
+  // acessos do Portal (e a função do setor). Nível, Diretor, categoria, conta, ficha e os
+  // apps continuam só do Admin — o servidor (/api/admin/permissoes) barra o resto.
+  const gestorAcessos = !isAdmin && temAcesso(MODULO_ADMINISTRACAO)
+  const podeEntrar = isAdmin || gestorAcessos
+  const catalogoGestor = gestorAcessos ? MODULOS.filter((m) => m.id !== MODULO_ADMINISTRACAO) : MODULOS
   const router = useRouter()
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [permissoes, setPermissoes] = useState<Record<string, Permissao>>({})
@@ -65,6 +71,15 @@ export default function AdminPage() {
   const [expandidoUsuario, setExpandidoUsuario] = useState<Set<string>>(new Set())
   // filtro pelos números do topo (Admins, Devs, Diretores…)
   const [filtroPapel, setFiltroPapel] = useState<FiltroPapel>(null)
+  // resumo dos níveis (números + cartões) fica fechado; abre quando quiser (José, 10/11/2026)
+  const [verResumo, setVerResumo] = useState(false)
+  useEffect(() => { try { setVerResumo(localStorage.getItem('admin-ver-resumo') === '1') } catch { /* sem storage */ } }, [])
+  const trocarResumo = () => {
+    const novo = !verResumo
+    setVerResumo(novo)
+    if (!novo) setFiltroPapel(null)
+    try { localStorage.setItem('admin-ver-resumo', novo ? '1' : '0') } catch { /* sem storage */ }
+  }
   // a pessoa aberta fica na URL (/admin?usuario=<id>): recarregar ou mandar o link abre
   // direto nela; Voltar do navegador fecha (José, 10/11/2026)
   const usuarioDaUrl = () => (typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('usuario'))
@@ -130,10 +145,10 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    if (!loadingPerm && !isAdmin && userProfile) {
+    if (!loadingPerm && !podeEntrar && userProfile) {
       router.push('/dashboard')
     }
-  }, [loadingPerm, isAdmin, userProfile, router])
+  }, [loadingPerm, podeEntrar, userProfile, router])
 
   const carregar = async () => {
     const { data: users } = await supabase.from('financeiro_usu').select('id, nome, funcao, avatar_url, email, ativo').order('nome')
@@ -145,7 +160,7 @@ export default function AdminPage() {
     setPermissoes(map)
 
     setLoading(false)
-    carregarVendedores()
+    if (isAdmin) carregarVendedores()
   }
 
   const carregarVendedores = async () => {
@@ -177,9 +192,9 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    if (!isAdmin) return
+    if (!podeEntrar) return
     carregar()
-  }, [isAdmin])
+  }, [podeEntrar])
 
   const salvar = async (userId: string, updates: Partial<Permissao>) => {
     setSaving(userId)
@@ -230,7 +245,10 @@ export default function AdminPage() {
   }
 
   const setCategoria = (userId: string, cat: string) => {
-    salvar(userId, { categoria: cat })
+    // a função de outro setor (ex.: Garantista ao virar Peças) deixa de valer
+    const mods = permissoes[userId]?.modulos_permitidos || []
+    const limpos = limparFuncoesDeOutrosSetores(mods, cat)
+    salvar(userId, limpos.length !== mods.length ? { categoria: cat, modulos_permitidos: limpos } : { categoria: cat })
   }
 
   const setMecanicoRole = (userId: string, role: string) => {
@@ -385,11 +403,37 @@ export default function AdminPage() {
     )
   }
 
-  if (!isAdmin) return null
+  if (!podeEntrar) return null
 
   return (
     <div className="adm-root" style={{ padding: '32px 40px', fontFamily: 'Inter, sans-serif', background: 'var(--portal-bg)', minHeight: '100%' }}>
       <style>{`
+        .adm-resumo-bt { display: inline-flex; align-items: center; gap: 6px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--portal-border); background: var(--portal-bg-card); color: var(--portal-text-secondary); font-family: inherit; font-size: 13.5px; cursor: pointer }
+        .adm-resumo-bt:hover, .adm-resumo-bt.on { color: var(--portal-text); border-color: #94a3b8 }
+        .adm-lista { border-radius: 20px; background: var(--portal-bg-card); border: 1px solid var(--portal-border); overflow: hidden }
+        .adm-cab, .adm-linha { display: grid; grid-template-columns: minmax(240px, 1.4fr) minmax(150px, 210px) minmax(200px, 1fr) minmax(170px, 1fr) 44px; gap: 14px; align-items: center; padding: 0 20px }
+        .adm-cab { padding-top: 12px; padding-bottom: 12px; font-size: 11px; letter-spacing: .7px; text-transform: uppercase; color: #94a3b8; border-bottom: 1px solid var(--portal-border) }
+        .adm-item { border-bottom: 1px solid var(--portal-border); transition: opacity .15s } .adm-item:last-of-type { border-bottom: none }
+        .adm-linha { padding-top: 10px; padding-bottom: 10px; transition: background .12s } .adm-linha:hover { background: var(--portal-bg-secondary) }
+        .adm-pessoa { display: flex; align-items: center; gap: 12px; min-width: 0; border: none; background: none; padding: 4px 0; cursor: pointer; text-align: left; font-family: inherit; color: inherit }
+        .adm-av { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex-shrink: 0; display: grid; place-items: center; background: linear-gradient(135deg, #dc2626, #b91c1c); color: #fefefe; font-size: 15px }
+        .adm-av img { width: 100%; height: 100%; object-fit: cover } .adm-av.admin { box-shadow: 0 0 0 2px var(--portal-bg-card), 0 0 0 4px #f59e0b } .adm-av.dev { box-shadow: 0 0 0 2px var(--portal-bg-card), 0 0 0 4px #0f172a }
+        .adm-quem { display: grid; min-width: 0 } .adm-quem b { font-size: 14.5px; font-weight: 500; color: var(--portal-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+        .adm-quem em { font-style: normal; font-size: 11.5px; color: #94a3b8; font-weight: 400 } .adm-quem small { font-size: 12.5px; color: #94a3b8; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+        .adm-pessoa:hover .adm-quem b { color: #dc2626 }
+        .adm-setor { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0 }
+        .adm-sel { appearance: none; -webkit-appearance: none; border: 1px solid transparent; background: var(--portal-bg-secondary) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 9px center; border-radius: 999px; padding: 6px 28px 6px 12px; font-family: inherit; font-size: 12.5px; color: var(--portal-text); cursor: pointer; outline: none; max-width: 100% }
+        .adm-sel:hover:not(:disabled) { border-color: #cbd5e1 } .adm-sel:disabled { cursor: default; opacity: .7 }
+        .adm-sel.fn { color: #94a3b8 } .adm-sel.fn.tem { color: #3730a3; background-color: #eef2ff }
+        .adm-apps { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0 }
+        .adm-tag { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; border-radius: 999px; padding: 4px 10px; white-space: nowrap }
+        .adm-tag.adm { background: #fef3c7; color: #b45309 } .adm-tag.mec { background: #ecfdf5; color: #047857 } .adm-tag.ven { background: #fef2f2; color: #b91c1c }
+        .adm-nada { color: #cbd5e1; font-size: 13px } .adm-acoes { display: flex; justify-content: flex-end }
+        @media (max-width: 900px) {
+          .adm-cab { display: none }
+          .adm-linha { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'pessoa acoes' 'papel papel' 'setor setor' 'apps apps'; gap: 8px; padding: 12px 14px }
+          .adm-pessoa { grid-area: pessoa } .adm-acoes { grid-area: acoes } .adm-papel { grid-area: papel } .adm-setor { grid-area: setor } .adm-apps { grid-area: apps } .adm-apps:has(.adm-nada) { display: none }
+        }
         @media (max-width: 768px) {
           .adm-root { padding: 16px 12px !important; }
           .adm-root h2 { font-size: 22px !important; }
@@ -413,31 +457,9 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-      {/* Header */}
-      <div style={{ marginBottom: '40px' }}>
-        <a href="/admin/permissoes" style={{ float: 'right', fontSize: '13px', fontWeight: 600, color: '#dc2626' }}>Por que cada pessoa tem cada tela →</a>
-        <a href="/admin/teste" style={{ float: 'right', fontSize: '13px', fontWeight: 600, color: '#c2410c', marginRight: 16 }}>Testar editor em cartões →</a>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
-          <div style={{
-            width: '48px', height: '48px', borderRadius: '14px', flexShrink: 0,
-            background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
-          }}>
-            <Shield size={24} color="#fff" />
-          </div>
-          <div>
-            <h2 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--portal-text)', margin: 0 }}>
-              Administração
-            </h2>
-            <p style={{ fontSize: '14px', color: '#a3a3a3', margin: 0 }}>
-              Gerencie os acessos e permissões dos usuários do portal
-            </p>
-          </div>
-        </div>
-      </div>
-
+      {/* sem título nem links no topo (José, 10/11/2026); o editor de teste e o "por que cada pessoa tem cada tela" seguem em /admin/teste e /admin/permissoes */}
       {/* Números que filtram a lista + o que cada nível acessa (21/10/2026) */}
-      {(() => {
+      {verResumo && (() => {
         const ativos = usuarios.filter((u) => u.ativo !== false)
         const nivelDe = (id: string) => (permissoes[id]?.is_dev ? 'dev' : permissoes[id]?.is_admin ? 'admin' : 'usuario') as 'usuario' | 'admin' | 'dev'
         const conta = {
@@ -469,6 +491,9 @@ export default function AdminPage() {
           />
         </div>
         {/* procurar por módulo: quem tem acesso a ele (José, 04/11/2026) */}
+        <button type="button" className={`adm-resumo-bt ${verResumo ? 'on' : ''}`} onClick={trocarResumo} title="Números de cada nível e o que cada um acessa">
+          <ChevronDown size={15} style={{ transform: verResumo ? 'rotate(180deg)' : undefined, transition: 'transform .2s' }} />{verResumo ? 'Esconder resumo' : 'Ver resumo'}
+        </button>
         <BuscaModulo modulos={MODULOS} usuarios={usuarios} permissoes={permissoes} onVerUsuario={(nome) => { setFiltroPapel(null); setSearch(nome) }} />
         {/* criar usuário é só para Dev (José, 09/11/2026) — a rota também barra */}
         {isDev && <button
@@ -656,24 +681,13 @@ export default function AdminPage() {
         </div>
       )}
 
-      {/* Users Table */}
-      <div style={{
-        borderRadius: '20px', overflowX: 'auto', WebkitOverflowScrolling: 'touch',
-        background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
-      }}>
-        {/* Largura mínima das colunas: em tela estreita a tabela rola DENTRO da caixa */}
-        <div style={{ minWidth: 968 }}>
-        {/* Table Header */}
-        <div style={{
-          display: 'grid', gridTemplateColumns: COLS_ADMIN,
-          padding: '14px 24px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)',
-          fontSize: '11px', fontWeight: '600', color: '#94a3b8', letterSpacing: '.8px', gap: 12
-        }}>
-          <span>USUÁRIO</span>
-          <span>PAPEL</span>
-          <span>CATEGORIA</span>
-          <span>ACESSOS</span>
+      {/* Lista de usuários (José, 10/11/2026: "deixa algo mais bonito"; sem contar módulos) */}
+      <div className="adm-lista">
+        <div className="adm-cab">
+          <span>Pessoa</span>
+          <span>Papel</span>
+          <span>Setor e função</span>
+          <span>Apps</span>
           <span />
         </div>
 
@@ -685,65 +699,30 @@ export default function AdminPage() {
           const modulos = perm?.modulos_permitidos || []
 
           const expandido = expandidoUsuario.has(user.id)
-          const qtdAcessos = new Set(modulos.map(m => m.split(':')[0])).size
           const nivelAtual: Nivel = perm?.is_dev ? 'dev' : perm?.is_admin ? 'admin' : 'usuario'
           const devLock = !isDev && nivelAtual === 'dev'
           const ehVendedor = !!vendedores[user.id]?.ativo
 
           return (
-            <div
-              key={user.id}
-              style={{
-                borderBottom: '1px solid #f1f5f9', transition: '0.15s',
-                opacity: isSaving ? 0.6 : 1,
-                background: 'var(--portal-bg-card)'
-              }}
-            >
-            <div style={{ display: 'grid', gridTemplateColumns: COLS_ADMIN, padding: '14px 24px', alignItems: 'center', gap: 12 }}>
-              {/* User Info + expandir acessos */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-                <button
-                  onClick={() => toggleExpandirUsuario(user.id)}
-                  title={expandido ? 'Recolher acessos' : 'Distribuir acessos'}
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', padding: 2, display: 'flex', flexShrink: 0 }}
-                >
-                  {expandido ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                </button>
-                <div
-                  style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1, minWidth: 0 }}
-                  onClick={() => toggleExpandirUsuario(user.id)}
-                  title="Abrir acessos, ficha cadastral e atividades"
-                >
-                  <div style={{
-                    width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden',
-                    background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-                    boxShadow: nivelAtual !== 'usuario' ? `0 0 0 2px ${nivelAtual === 'dev' ? '#0f172a' : '#f59e0b'}` : 'none'
-                  }}>
-                    {user.avatar_url ? (
-                      <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    ) : (
-                      <UserIcon size={18} color="#fff" />
-                    )}
-                  </div>
-                  <div style={{ minWidth: 0 }}>
-                    <p style={{ fontSize: '14.5px', fontWeight: '500', color: 'var(--portal-text)', marginBottom: '1px' }}>
-                      {user.nome} {isMe && <span style={{ fontSize: '11px', color: '#a3a3a3' }}>(você)</span>}
-                    </p>
-                    <p style={{ fontSize: '12px', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {user.funcao}{user.email ? ` · ${user.email}` : ''}
-                    </p>
-                  </div>
-                </div>
-              </div>
+            <div key={user.id} className="adm-item" style={{ opacity: isSaving ? 0.6 : 1 }}>
+            <div className="adm-linha">
+              <button type="button" className="adm-pessoa" onClick={() => toggleExpandirUsuario(user.id)} title="Abrir ficha e permissões">
+                <span className={`adm-av ${nivelAtual}`}>
+                  {user.avatar_url ? <img src={user.avatar_url} alt="" /> : user.nome.charAt(0)}
+                </span>
+                <span className="adm-quem">
+                  <b>{user.nome}{isMe && <em> (você)</em>}</b>
+                  <small>{user.email || user.funcao || ''}</small>
+                </span>
+              </button>
 
               {/* Papel: nível + Diretor + Vendedor num menu só */}
-              <div>
+              <div className="adm-papel">
                 <PapelMenu
                   nivel={nivelAtual}
                   podeDev={isDev}
-                  bloqueado={isMe || devLock}
-                  motivoBloqueio={isMe ? 'Você não pode mudar o seu próprio nível.' : devLock ? 'Só um Dev pode mudar um Dev.' : undefined}
+                  bloqueado={isMe || devLock || gestorAcessos}
+                  motivoBloqueio={isMe ? 'Você não pode mudar o seu próprio nível.' : devLock ? 'Só um Dev pode mudar um Dev.' : gestorAcessos ? 'Só um Admin muda o nível, Diretor e Vendedor.' : undefined}
                   diretor={!!perm?.is_diretor}
                   vendedor={ehVendedor}
                   salvandoVendedor={salvandoVendedor === user.id}
@@ -753,51 +732,37 @@ export default function AdminPage() {
                 />
               </div>
 
-              {/* Categoria */}
-              <div>
-                <select
-                  value={perm?.categoria || ''}
-                  onChange={(e) => setCategoria(user.id, e.target.value)}
-                  style={{
-                    padding: '7px 12px', borderRadius: '999px',
-                    border: '1px solid #e2e8f0', background: '#fff',
-                    fontSize: '12.5px', fontWeight: '500', color: '#334155',
-                    cursor: 'pointer', outline: 'none', maxWidth: '100%'
-                  }}
-                >
-                  <option value="">Sem categoria</option>
-                  {CATEGORIAS.map(cat => (
-                    <option key={cat} value={cat}>{cat}</option>
-                  ))}
+              {/* Setor (Categoria) e função no setor */}
+              <div className="adm-setor">
+                <select className="adm-sel" value={perm?.categoria || ''} onChange={(e) => setCategoria(user.id, e.target.value)}
+                  disabled={gestorAcessos} title={gestorAcessos ? 'Só um Admin muda o setor' : 'Setor'}>
+                  <option value="">Sem setor</option>
+                  {CATEGORIAS.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
-                {/* função dentro do Pós-Vendas (José, 29/10/2026: "garantista, gerente, auxiliar") */}
-                {perm?.categoria === 'Pós Vendas' && (
-                  <select
-                    value={funcaoPosVendas(perm?.modulos_permitidos || []) || ''}
-                    onChange={(e) => salvar(user.id, { modulos_permitidos: trocarFuncaoPosVendas(perm?.modulos_permitidos || [], e.target.value || null) })}
-                    title="Função no Pós-Vendas"
-                    style={{ marginTop: 6, padding: '6px 10px', borderRadius: '999px', border: '1px solid #c7d2fe', background: '#eef2ff', fontSize: '12px', fontWeight: '500', color: '#3730a3', cursor: 'pointer', outline: 'none', maxWidth: '100%', display: 'block' }}
-                  >
-                    <option value="">Função: nenhuma</option>
-                    {FUNCOES_POSVENDAS.map((f) => <option key={f.chave} value={f.chave}>{f.rot}</option>)}
+                {/* função dentro do setor: Pós-Vendas, Peças ou Comercial (José, 29/10 e 10/11/2026) */}
+                {setorComFuncao(perm?.categoria) && (
+                  <select className={`adm-sel fn ${funcaoNoSetor(modulos, perm?.categoria) ? 'tem' : ''}`}
+                    value={funcaoNoSetor(modulos, perm?.categoria)?.chave || ''}
+                    disabled={gestorAcessos && isMe}
+                    onChange={(e) => salvar(user.id, { modulos_permitidos: trocarFuncaoSetor(modulos, perm!.categoria, e.target.value || null) })}
+                    title={`Função no ${setorComFuncao(perm?.categoria)!.nome}`}>
+                    <option value="">sem função</option>
+                    {setorComFuncao(perm?.categoria)!.funcoes.map((fn) => <option key={fn.chave} value={fn.chave}>{fn.rot}</option>)}
                   </select>
                 )}
               </div>
 
-              {/* Acessos: resumo clicável → abre o editor */}
-              <button type="button" onClick={() => toggleExpandirUsuario(user.id)} title="Distribuir acessos"
-                style={{ display: 'flex', flexWrap: 'wrap', gap: 6, border: 'none', background: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit' }}>
-                <span style={{ fontSize: 12, borderRadius: 999, padding: '4px 10px', background: perm?.is_admin ? '#fef3c7' : qtdAcessos ? '#eff6ff' : '#f1f5f9', color: perm?.is_admin ? '#b45309' : qtdAcessos ? '#1d4ed8' : '#94a3b8' }}>
-                  Portal · {perm?.is_admin ? 'tudo' : `${qtdAcessos} módulo${qtdAcessos === 1 ? '' : 's'}`}
-                </span>
-                {perm?.mecanico_role && <span style={{ fontSize: 12, borderRadius: 999, padding: '4px 10px', background: '#dcfce7', color: '#166534' }}>Mecânicos · {perm.mecanico_role === 'tecnico' ? 'técnico' : 'observador'}</span>}
-                {ehVendedor && <span style={{ fontSize: 12, borderRadius: 999, padding: '4px 10px', background: '#fee2e2', color: '#b91c1c' }}>NT Vendas</span>}
-                <span style={{ fontSize: 12, borderRadius: 999, padding: '4px 10px', border: '1px dashed #cbd5e1', color: '#64748b' }}>ajustar</span>
-              </button>
+              {/* Apps: só o que a pessoa tem (sem contar módulos) */}
+              <div className="adm-apps">
+                {perm?.is_admin && <span className="adm-tag adm">acesso total</span>}
+                {perm?.mecanico_role && <span className="adm-tag mec"><Wrench size={12} />Mecânicos · {perm.mecanico_role === 'tecnico' ? 'técnico' : 'observador'}</span>}
+                {ehVendedor && <span className="adm-tag ven"><Smartphone size={12} />NT Vendas</span>}
+                {!perm?.is_admin && !perm?.mecanico_role && !ehVendedor && <span className="adm-nada">—</span>}
+              </div>
 
               {/* Ações da conta */}
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <AcoesUsuarioMenu
+              <div className="adm-acoes">
+                {isAdmin && <AcoesUsuarioMenu
                   podeInativar={!isMe}
                   motivo={isMe ? 'Você não pode inativar a própria conta' : undefined}
                   onResetar={() => {
@@ -807,7 +772,7 @@ export default function AdminPage() {
                   onEmail={() => setTrocarEmailDe({ id: user.id, nome: user.nome, email: user.email })}
                   onAssinatura={() => setAssinaturaDe({ id: user.id, nome: user.nome })}
                   onInativar={() => { if (!isMe && confirm(`Inativar ${user.nome}? Ele não conseguirá entrar e some das listas, mas os dados ficam.`)) toggleAtivo(user.id, false) }}
-                />
+                />}
               </div>
             </div>
 
@@ -816,14 +781,16 @@ export default function AdminPage() {
                   userId={user.id}
                   avatar={user.avatar_url}
                   funcao={user.funcao}
+                  categoria={perm?.categoria || ''}
                   email={user.email}
                   onFechar={() => toggleExpandirUsuario(user.id)}
                   nome={user.nome}
                   ehAdmin={!!perm?.is_admin}
                   souDev={isDev}
-                  disabled={saving === user.id}
+                  soPermissoes={gestorAcessos}
+                  disabled={saving === user.id || (gestorAcessos && isMe)}
                   modulos={modulos}
-                  catalogo={MODULOS}
+                  catalogo={catalogoGestor}
                   onModulos={(novo) => salvar(user.id, { modulos_permitidos: novo })}
                   mecanicoRole={perm?.mecanico_role ?? null}
                   mecanicoNome={perm?.mecanico_tecnico_nome ?? null}
@@ -843,11 +810,10 @@ export default function AdminPage() {
             Nenhum usuário encontrado
           </div>
         )}
-        </div>
       </div>
 
       {/* ===== Seção: Usuários Inativos ===== */}
-      {inativosFiltrados.length > 0 && (
+      {isAdmin && inativosFiltrados.length > 0 && (
         <div style={{ marginTop: 28 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
             <Ban size={16} color="#a3a3a3" />
@@ -891,14 +857,14 @@ export default function AdminPage() {
       )}
 
       {/* ===== Avisos do Tratorilson (Devs sempre + escolhidos aqui) ===== */}
-      <AvisosTratorilson />
+      {isAdmin && <AvisosTratorilson />}
 
       {/* ===== Notificações: quem recebe o quê + o que cada app aciona (José, 29/10/2026) ===== */}
-      <NotificacoesAdmin />
+      {isAdmin && <NotificacoesAdmin />}
       {assinaturaDe && <AssinaturaUsuarioModal userId={assinaturaDe.id} nome={assinaturaDe.nome} onFechar={() => setAssinaturaDe(null)} />}
 
       {/* ===== Logins sem cadastro (Auth sem financeiro_usu) ===== */}
-      <ContasSemCadastro versao={versaoContas} onCadastrar={isDev ? (email) => { setNovoEmail(email); setCriarErro(''); setShowNovoUsuario(true) } : undefined} onTrocarEmail={(c) => setTrocarEmailDe({ id: c.id, email: c.email })} />
+      {isAdmin && <ContasSemCadastro versao={versaoContas} onCadastrar={isDev ? (email) => { setNovoEmail(email); setCriarErro(''); setShowNovoUsuario(true) } : undefined} onTrocarEmail={(c) => setTrocarEmailDe({ id: c.id, email: c.email })} />}
 
       {trocarEmailDe && (
         <TrocarEmailModal

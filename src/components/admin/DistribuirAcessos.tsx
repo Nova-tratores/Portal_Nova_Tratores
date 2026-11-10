@@ -3,15 +3,13 @@
 // permissões dos apps"). Três abas — Portal (módulos), App Mecânicos e App NT Vendas — no mesmo lugar.
 // Portal: cartões com interruptor por módulo, busca, grupos com contador, ações finas no painel ao lado,
 // e "copiar acessos de" outra pessoa. Usa as mesmas regras do catálogo (lib/permissoes/catalogo).
-import { FUNCOES_POSVENDAS, funcaoPosVendas, trocarFuncaoPosVendas } from '@/lib/permissoes/funcoes-posvendas'
-import { useEffect, useMemo, useState } from 'react';
+import { setorComFuncao, funcaoNoSetor, trocarFuncaoSetor } from '@/lib/permissoes/funcoes-setor'
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Search, ShieldCheck, Copy, Smartphone, Wrench, LayoutGrid, Check, IdCard, Activity } from 'lucide-react';
+import { ShieldCheck, Copy, Smartphone, Wrench, LayoutGrid, Check, IdCard, Activity, Briefcase } from 'lucide-react';
 import FichaCadastral from './FichaCadastral';
 import AtividadesUsuario from './AtividadesUsuario';
-import PermissoesCartoes from './PermissoesCartoes';
-import { GRUPOS_ORDEM, grupoDoModulo, acoesDoModulo, estadoModulo, acoesMarcadas, setTotal, setOff, toggleAcao } from '@/lib/permissoes/catalogo';
-import { acaoExplicita, acaoSoDev } from '@/lib/permissoes/explicitas';
+import PermissoesLista from './PermissoesLista';
 
 type Mod = { id: string; label: string; color?: string };
 interface Props {
@@ -22,54 +20,24 @@ interface Props {
   outros: { id: string; nome: string; modulos: string[] }[]
   /** com o id, aparecem as abas Ficha cadastral e Atividades (José, 09/11/2026) */
   userId?: string; funcao?: string; email?: string
+  /** Categoria (setor) da pessoa: a aba de função só aparece em Pós Vendas, Peças e Comercial (José, 10/11/2026) */
+  categoria?: string
+  /** quem tem só o módulo Administração (não é Admin): só Permissões Portal e a função do setor */
+  soPermissoes?: boolean
 }
 
 export default function DistribuirAcessos(p: Props) {
-  const [aba, setAba] = useState<'portal' | 'mecanicos' | 'posvendas' | 'vendas' | 'ficha' | 'atividades'>(p.userId ? 'ficha' : 'portal');
-  const [busca, setBusca] = useState('');
-  const [grupo, setGrupo] = useState<string | null>(null);
-  const [sel, setSel] = useState<string | null>(null);
+  const setor = setorComFuncao(p.categoria);
+  const funcao = funcaoNoSetor(p.modulos, p.categoria);
+  // abas (José, 10/11/2026): os apps (Mecânicos e NT Vendas) ficam DENTRO de Permissões
+  const [aba, setAba] = useState<'portal' | 'funcao' | 'ficha' | 'atividades'>(p.userId && !p.soPermissoes ? 'ficha' : 'portal');
   const [copiar, setCopiar] = useState('');
-  // Formato do editor do Portal (José, 09/11/2026: "mantenha o novo formato"): caixinhas é o padrão;
-  // o de interruptores (21/10) continua disponível. Lembrado no navegador.
-  const [formato, setFormato] = useState<'caixinhas' | 'interruptores'>('caixinhas');
-  useEffect(() => {
-    try { if (localStorage.getItem('admin-perm-formato') === 'interruptores') setFormato('interruptores'); } catch { /* sem storage */ }
-  }, []);
-  const trocarFormato = (f: 'caixinhas' | 'interruptores') => {
-    setFormato(f);
-    try { localStorage.setItem('admin-perm-formato', f); } catch { /* sem storage */ }
-  };
 
-  const porGrupo = useMemo(() => {
-    const m: Record<string, Mod[]> = {};
-    for (const x of p.catalogo) (m[grupoDoModulo(x.id)] ||= []).push(x);
-    return m;
-  }, [p.catalogo]);
-  const grupos = GRUPOS_ORDEM.filter((g) => porGrupo[g]?.length);
-  const ligados = p.catalogo.filter((m) => estadoModulo(p.modulos, m.id) !== 'off').length;
-  const q = busca.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-  const visivel = (m: Mod) => (!grupo || grupoDoModulo(m.id) === grupo) && (!q || m.label.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(q));
-  const ligarModulo = (id: string, on: boolean) => p.onModulos(on ? setTotal(p.modulos, id) : setOff(p.modulos, id));
-  const ligarGrupo = (g: string, on: boolean) => {
-    let n = p.modulos;
-    for (const m of porGrupo[g] || []) n = on ? setTotal(n, m.id) : setOff(n, m.id);
-    p.onModulos(n);
-  };
-  const handleAcao = (mod: string, acao: string) => {
-    if (acaoExplicita(mod, acao)) p.onModulos(toggleAcao(p.modulos, mod, acao));
-    else if (estadoModulo(p.modulos, mod) === 'total') {
-      const explicitas = p.modulos.filter((x) => x.startsWith(mod + ':') && acaoExplicita(mod, x.slice(mod.length + 1)));
-      const outras = acoesDoModulo(mod).map((a) => a.id).filter((x) => x !== acao && !acaoExplicita(mod, x));
-      p.onModulos([...setOff(p.modulos, mod), ...outras.map((x) => `${mod}:${x}`), ...explicitas]);
-    } else p.onModulos(toggleAcao(p.modulos, mod, acao));
-  };
-  const modSel = sel ? p.catalogo.find((m) => m.id === sel) : null;
   const seletorCopiar = (
     <label className="da-copiar"><Copy size={14} />
       <select value={copiar} disabled={p.disabled} onChange={(e) => { const o = p.outros.find((x) => x.id === e.target.value); setCopiar(''); if (o && confirm(`Copiar os acessos de ${o.nome} para ${p.nome}? Os acessos atuais de ${p.nome} serão trocados.`)) p.onModulos([...o.modulos]); }}>
         <option value="">copiar acessos de…</option>
-        {p.outros.filter((o) => o.modulos.length).map((o) => <option key={o.id} value={o.id}>{o.nome} ({new Set(o.modulos.map((m) => m.split(':')[0])).size})</option>)}
+        {p.outros.filter((o) => o.modulos.length).map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
       </select>
     </label>
   );
@@ -79,134 +47,67 @@ export default function DistribuirAcessos(p: Props) {
       <style>{ESTILO_DA}</style>
       <div className="da-abas">
         {/* ficha primeiro, depois as permissões (José, 09/11/2026) */}
-        {p.userId && <button type="button" className={aba === 'ficha' ? 'on' : ''} onClick={() => setAba('ficha')}><IdCard size={15} />Ficha cadastral</button>}
-        <button type="button" className={aba === 'portal' ? 'on' : ''} onClick={() => setAba('portal')}><LayoutGrid size={15} />Permissões Portal<em>{ligados}</em></button>
-        <button type="button" className={aba === 'mecanicos' ? 'on' : ''} onClick={() => setAba('mecanicos')}><Wrench size={15} />App Mecânicos<em className={p.mecanicoRole ? 'ok' : ''}>{p.mecanicoRole === 'tecnico' ? 'técnico' : p.mecanicoRole === 'observador' ? 'observador' : 'sem acesso'}</em></button>
-        <button type="button" className={aba === 'posvendas' ? 'on' : ''} onClick={() => setAba('posvendas')}><Wrench size={15} />Pós-Vendas<em className={funcaoPosVendas(p.modulos) ? 'ok' : ''}>{FUNCOES_POSVENDAS.find((f) => f.chave === funcaoPosVendas(p.modulos))?.rot.replace(' do Pós-Vendas', '') || 'sem função'}</em></button>
-        <button type="button" className={aba === 'vendas' ? 'on' : ''} onClick={() => setAba('vendas')}><Smartphone size={15} />App NT Vendas<em className={p.vendedor ? 'ok' : ''}>{p.vendedor ? 'ativo' : 'sem acesso'}</em></button>
-        {p.userId && <button type="button" className={aba === 'atividades' ? 'on' : ''} onClick={() => setAba('atividades')}><Activity size={15} />Atividades</button>}
+        {p.userId && !p.soPermissoes && <button type="button" className={aba === 'ficha' ? 'on' : ''} onClick={() => setAba('ficha')}><IdCard size={15} />Ficha cadastral</button>}
+        <button type="button" className={aba === 'portal' ? 'on' : ''} onClick={() => setAba('portal')}><LayoutGrid size={15} />Permissões</button>
+        {setor && <button type="button" className={aba === 'funcao' ? 'on' : ''} onClick={() => setAba('funcao')}><Briefcase size={15} />{setor.nome}<em className={funcao ? 'ok' : ''}>{funcao?.rot.replace(' do Pós-Vendas', '') || 'sem função'}</em></button>}
+        {p.userId && !p.soPermissoes && <button type="button" className={aba === 'atividades' ? 'on' : ''} onClick={() => setAba('atividades')}><Activity size={15} />Atividades</button>}
       </div>
 
-      {aba === 'ficha' && p.userId && <FichaCadastral userId={p.userId} nome={p.nome} cargo={p.funcao} email={p.email} />}
-      {aba === 'atividades' && p.userId && <AtividadesUsuario userId={p.userId} qtdModulos={new Set(p.modulos.map((m) => m.split(':')[0])).size} />}
+      {aba === 'ficha' && p.userId && !p.soPermissoes && <FichaCadastral userId={p.userId} nome={p.nome} cargo={p.funcao} email={p.email} />}
+      {aba === 'atividades' && p.userId && !p.soPermissoes && <AtividadesUsuario userId={p.userId} qtdModulos={new Set(p.modulos.map((m) => m.split(':')[0])).size} />}
 
       {aba === 'portal' && (
         <div className="da-portal">
           {p.ehAdmin && <p className="da-aviso"><ShieldCheck size={14} /> {p.nome.split(' ')[0]} é Admin e já vê tudo — estas marcações só valem se voltar a Usuário.</p>}
-          <div className="da-formato">
-            <span>Formato:</span>
-            <button type="button" className={formato === 'caixinhas' ? 'on' : ''} onClick={() => trocarFormato('caixinhas')}>Caixinhas</button>
-            <button type="button" className={formato === 'interruptores' ? 'on' : ''} onClick={() => trocarFormato('interruptores')}>Interruptores</button>
-            {formato === 'caixinhas' && <span className="da-formato-copiar">{seletorCopiar}</span>}
-          </div>
-          {formato === 'caixinhas' ? (
-            <PermissoesCartoes modulos={p.modulos} catalogo={p.catalogo} onChange={p.onModulos} disabled={p.disabled} souDev={p.souDev} />
-          ) : (<>
-          <div className="da-barra">
-            <label className="da-busca"><Search size={15} /><input placeholder="buscar módulo…" value={busca} onChange={(e) => setBusca(e.target.value)} /></label>
-            <div className="da-grupos">
-              <button type="button" className={!grupo ? 'on' : ''} onClick={() => setGrupo(null)}>Todos <small>{ligados}/{p.catalogo.length}</small></button>
-              {grupos.map((g) => {
-                const lig = porGrupo[g].filter((m) => estadoModulo(p.modulos, m.id) !== 'off').length;
-                return <button key={g} type="button" className={grupo === g ? 'on' : ''} onClick={() => setGrupo(grupo === g ? null : g)}>{g} <small className={lig ? 'ok' : ''}>{lig}/{porGrupo[g].length}</small></button>;
-              })}
-            </div>
-            <div className="da-mais">
-              {grupo && <>
-                <button type="button" disabled={p.disabled} onClick={() => ligarGrupo(grupo, true)}>Liberar {grupo}</button>
-                <button type="button" disabled={p.disabled} onClick={() => ligarGrupo(grupo, false)}>Tirar {grupo}</button>
-              </>}
-              {seletorCopiar}
-            </div>
-          </div>
-          <div className={`da-corpo ${modSel ? 'com-lado' : ''}`}>
-            <div className="da-grade">
-              {grupos.map((g) => {
-                const ms = porGrupo[g].filter(visivel);
-                if (!ms.length) return null;
-                return (
-                  <section key={g} className="da-sec">
-                    <h4>{g}</h4>
-                    <div className="da-cards">
-                      {ms.map((m, k) => {
-                        const est = estadoModulo(p.modulos, m.id);
-                        const acoes = acoesDoModulo(m.id);
-                        const marc = acoesMarcadas(p.modulos, m.id);
-                        const on = est !== 'off';
-                        return (
-                          <div key={m.id} className={`da-card ${est} ${sel === m.id ? 'sel' : ''}`} style={{ '--c': m.color || '#dc2626', '--d': `${k * 25}ms` } as React.CSSProperties}
-                            onClick={() => acoes.length ? setSel(sel === m.id ? null : m.id) : (!p.disabled && ligarModulo(m.id, !on))}>
-                            <span className="da-ic">{m.label.charAt(0)}</span>
-                            <span className="da-tx"><b>{m.label}</b><small>{est === 'total' ? (acoes.length ? 'acesso total' : 'liberado') : est === 'parcial' ? `${marc.size} de ${acoes.length} ações` : 'sem acesso'}{acoes.length ? ' · ajustar ›' : ''}</small></span>
-                            <button type="button" className={`da-sw ${on ? 'on' : ''} ${est === 'parcial' ? 'meio' : ''}`} disabled={p.disabled} aria-label={on ? 'Tirar acesso' : 'Dar acesso'} onClick={(e) => { e.stopPropagation(); ligarModulo(m.id, !on); }}><i /></button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
-            {modSel && (
-              <aside className="da-lado" style={{ '--c': modSel.color || '#dc2626' } as React.CSSProperties}>
-                <div className="da-lado-cab"><b>{modSel.label}</b><button type="button" onClick={() => setSel(null)} aria-label="Fechar">×</button></div>
-                <button type="button" className={`da-total ${estadoModulo(p.modulos, modSel.id) === 'total' ? 'on' : ''}`} disabled={p.disabled}
-                  onClick={() => ligarModulo(modSel.id, estadoModulo(p.modulos, modSel.id) !== 'total')}><ShieldCheck size={15} />Acesso total</button>
-                <div className="da-acoes">
-                  {acoesDoModulo(modSel.id).map((a) => {
-                    const est = estadoModulo(p.modulos, modSel.id);
-                    const marc = acoesMarcadas(p.modulos, modSel.id);
-                    const on = acaoExplicita(modSel.id, a.id) ? marc.has(a.id) : (est === 'total' || marc.has(a.id));
-                    const trav = acaoSoDev(modSel.id, a.id) && !p.souDev;
-                    return (
-                      <button key={a.id} type="button" className="da-acao" disabled={p.disabled || trav} title={trav ? 'Só um Dev pode dar ou tirar esta permissão' : undefined} onClick={() => handleAcao(modSel.id, a.id)}>
-                        <span className={`da-sw pq ${on ? 'on' : ''}`}><i /></span>
-                        <span>{a.label}{acaoExplicita(modSel.id, a.id) && <small> · precisa marcar à parte</small>}</span>
-                      </button>
-                    );
-                  })}
+
+          {!p.soPermissoes && (
+            <section className="da-apps">
+              <h4>Aplicativos</h4>
+              <div className="da-apps-grade">
+                <div className={`da-appc ${p.mecanicoRole ? 'on' : ''}`}>
+                  <span className="da-appc-ic mec"><Wrench size={18} /></span>
+                  <div className="da-appc-tx">
+                    <b>App Mecânicos</b>
+                    <small>{p.mecanicoRole ? `aparece como ${p.mecanicoNome || p.nome}` : 'relatórios, fotos e jornada — mesmo login'}</small>
+                  </div>
+                  <div className="da-seg" role="radiogroup" aria-label="App Mecânicos">
+                    {([['', 'Não'], ['tecnico', 'Técnico'], ['observador', 'Observador']] as const).map(([v, rot]) => (
+                      <button key={v} type="button" role="radio" aria-checked={(p.mecanicoRole || '') === v} disabled={p.disabled}
+                        className={(p.mecanicoRole || '') === v ? 'on' : ''} onClick={() => p.onMecanico(v)}
+                        title={v === 'tecnico' ? 'preenche relatórios das suas OS, fotos e jornada' : v === 'observador' ? 'só acompanha o que os técnicos lançam' : 'não entra no app'}>{rot}</button>
+                    ))}
+                  </div>
                 </div>
-              </aside>
-            )}
-          </div>
-          </>)}
+                <div className={`da-appc ${p.vendedor ? 'on' : ''}`}>
+                  <span className="da-appc-ic ven"><Smartphone size={18} /></span>
+                  <div className="da-appc-tx">
+                    <b>App NT Vendas</b>
+                    <small>visitas, carteira, propostas e rota do vendedor</small>
+                  </div>
+                  <button type="button" className={`da-sw ${p.vendedor ? 'on' : ''}`} disabled={p.salvandoVendedor} onClick={() => p.onVendedor(!p.vendedor)} aria-label={p.vendedor ? 'Tirar o app NT Vendas' : 'Liberar o app NT Vendas'}><i /></button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          <section className="da-mods">
+            <div className="da-mods-cab"><h4>Portal</h4>{seletorCopiar}</div>
+            <PermissoesLista modo="painel" modulos={p.modulos} catalogo={p.catalogo} onChange={p.onModulos} disabled={p.disabled} souDev={p.souDev} />
+          </section>
         </div>
       )}
 
-      {aba === 'mecanicos' && (
+      {/* função dentro do setor: Pós-Vendas, Peças ou Comercial (José, 29/10 e 10/11/2026) */}
+      {aba === 'funcao' && setor && (
         <div className="da-app">
-          <p className="da-app-txt">O app dos mecânicos (relatórios, fotos e jornada) usa o mesmo login do portal.</p>
+          <p className="da-app-txt">A função de {p.nome.split(' ')[0]} dentro do {setor.nome}.{setor.categoria === 'Pós Vendas' ? ' Vale na comissão do escritório (Gestão Pós Vendas → Equipe → Comissões).' : ''}</p>
           <div className="da-opcoes">
-            {([['', 'Sem acesso', 'não entra no app dos mecânicos'], ['tecnico', 'Técnico', 'preenche relatórios das suas OS, fotos e jornada'], ['observador', 'Observador', 'só acompanha o que os técnicos lançam']] as const).map(([v, rot, txt]) => (
-              <button key={v} type="button" disabled={p.disabled} className={`da-op ${(p.mecanicoRole || '') === v ? 'on' : ''}`} onClick={() => p.onMecanico(v)}>
-                <span className="da-radio">{(p.mecanicoRole || '') === v && <Check size={13} />}</span><span><b>{rot}</b><small>{txt}</small></span>
+            {[{ chave: '', rot: 'Sem função', txt: `não tem função no ${setor.nome}` }, ...setor.funcoes].map((f) => (
+              <button key={f.chave} type="button" disabled={p.disabled} className={`da-op ${(funcao?.chave || '') === f.chave ? 'on' : ''}`} onClick={() => p.onModulos(trocarFuncaoSetor(p.modulos, setor.categoria, f.chave || null))}>
+                <span className="da-radio">{(funcao?.chave || '') === f.chave && <Check size={13} />}</span><span><b>{f.rot}</b><small>{f.txt}</small></span>
               </button>
             ))}
           </div>
-          {p.mecanicoRole && <p className="da-app-txt">Aparece no app como <b>{p.mecanicoNome || p.nome}</b>.</p>}
-        </div>
-      )}
-
-      {/* função dentro do setor Pós-Vendas (José, 29/10/2026) */}
-      {aba === 'posvendas' && (
-        <div className="da-app">
-          <p className="da-app-txt">A função de {p.nome.split(' ')[0]} dentro do Pós-Vendas. Vale na comissão do escritório (Gestão Pós Vendas → Equipe → Comissões).</p>
-          <div className="da-opcoes">
-            {[{ chave: '', rot: 'Sem função', txt: 'não tem função no pós-vendas' }, ...FUNCOES_POSVENDAS].map((f) => (
-              <button key={f.chave} type="button" disabled={p.disabled} className={`da-op ${(funcaoPosVendas(p.modulos) || '') === f.chave ? 'on' : ''}`} onClick={() => p.onModulos(trocarFuncaoPosVendas(p.modulos, f.chave || null))}>
-                <span className="da-radio">{(funcaoPosVendas(p.modulos) || '') === f.chave && <Check size={13} />}</span><span><b>{f.rot}</b><small>{f.txt}</small></span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {aba === 'vendas' && (
-        <div className="da-app">
-          <button type="button" className={`da-grande ${p.vendedor ? 'on' : ''}`} disabled={p.salvandoVendedor} onClick={() => p.onVendedor(!p.vendedor)}>
-            <span className={`da-sw ${p.vendedor ? 'on' : ''}`}><i /></span>
-            <span><b>{p.vendedor ? `${p.nome.split(' ')[0]} entra no app NT Vendas` : 'Liberar o app NT Vendas'}</b><small>com o mesmo login do portal — visitas, carteira, propostas e rota do vendedor</small></span>
-          </button>
         </div>
       )}
     </div>
@@ -221,7 +122,19 @@ const ESTILO_DA = `
 @media (max-width: 640px) { .da-abas { display: flex; flex-wrap: nowrap; overflow-x: auto; border-radius: 14px; max-width: 100%; scrollbar-width: none } .da-abas button { flex-shrink: 0; min-height: 40px } }
 .da-abas button.on { background: #fefefe; color: #0f172a; box-shadow: 0 1px 4px rgba(15,23,42,.12) } .da-abas em { font-style: normal; font-size: 11.5px; border-radius: 99px; padding: 1px 8px; background: #e2e8f0; color: #475569 } .da-abas em.ok { background: #dcfce7; color: #166534 }
 .da-aviso { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 13px; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 8px 12px }
-.da-portal { display: grid; gap: 12px }
+.da-portal { display: grid; gap: 18px }
+.da-apps, .da-mods { display: grid; gap: 10px; min-width: 0 }
+.da-apps h4, .da-mods h4 { margin: 0; font-size: 11.5px; font-weight: 600; letter-spacing: .6px; text-transform: uppercase; color: #64748b }
+.da-mods-cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap } .da-mods-cab .da-copiar { margin-left: auto }
+.da-apps-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 10px }
+.da-appc { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; border: 1px solid #e2e8f0; border-radius: 16px; padding: 12px 14px; background: #fefefe; transition: border-color .15s }
+.da-appc.on { border-color: #cbd5e1; box-shadow: 0 2px 10px rgba(15,23,42,.05) }
+.da-appc-ic { width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; flex-shrink: 0; background: #f1f5f9; color: #94a3b8 }
+.da-appc.on .da-appc-ic.mec { background: #ecfdf5; color: #047857 } .da-appc.on .da-appc-ic.ven { background: #fef2f2; color: #dc2626 }
+.da-appc-tx { display: grid; gap: 1px; flex: 1 1 140px; min-width: 0 } .da-appc-tx b { font-size: 14px; font-weight: 600; color: #0f172a } .da-appc-tx small { font-size: 12.5px; color: #64748b }
+.da-seg { display: inline-flex; gap: 3px; padding: 3px; border-radius: 999px; background: #f1f5f9 }
+.da-seg button { border: none; background: none; border-radius: 999px; padding: 6px 12px; font-family: inherit; font-size: 12.5px; color: #475569; cursor: pointer; min-height: 32px }
+.da-seg button.on { background: #fefefe; color: #0f172a; box-shadow: 0 1px 3px rgba(15,23,42,.14) } .da-seg button:disabled { cursor: wait }
 .da-formato { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12.5px; color: #64748b } .da-formato > button { border: 1px solid #e2e8f0; background: #fefefe; border-radius: 999px; padding: 5px 12px; font-family: inherit; font-size: 12.5px; color: #334155; cursor: pointer } .da-formato > button.on { background: #111111; border-color: #111111; color: #fefefe } .da-formato-copiar { margin-left: auto }
 .da-barra { display: flex; gap: 10px; align-items: center; flex-wrap: wrap }
 .da-busca { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #e2e8f0; background: #fefefe; border-radius: 999px; padding: 7px 12px; color: #94a3b8 } .da-busca input { border: none; outline: none; font-family: inherit; font-size: 13.5px; width: 170px; color: #0f172a; background: none }

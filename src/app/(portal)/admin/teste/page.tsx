@@ -14,10 +14,12 @@ import { authHeaders } from '@/lib/auth/client'
 import { MODULOS_ADMIN } from '@/lib/permissoes/modulos-admin'
 import PermissoesModulos from '@/components/admin/PermissoesModulos'
 import PermissoesCartoes from '@/components/admin/PermissoesCartoes'
+import PermissoesLista from '@/components/admin/PermissoesLista'
 import { acoesDoModulo } from '@/lib/permissoes/catalogo'
 
 interface Usuario { id: string; nome: string; funcao: string | null; ativo?: boolean }
-type Opcao = 1 | 2
+// 3, 4 e 5 = lista em linhas (José, 10/11/2026: "essa distribuição está horrível, melhora")
+type Opcao = 1 | 2 | 3 | 4 | 5
 
 const VERMELHO = '#dc2626'
 // 'pos:editar' -> 'Pós-Vendas (OS) · Editar OS'; 'pos' -> 'Pós-Vendas (OS) (inteiro)'
@@ -37,7 +39,7 @@ export default function TestePermissoesPage() {
   const [salvo, setSalvo] = useState<Record<string, string[]>>({})
   const [userId, setUserId] = useState('')
   const [rascunho, setRascunho] = useState<string[]>([])
-  const [opcao, setOpcao] = useState<Opcao>(2)
+  const [opcao, setOpcao] = useState<Opcao>(3)
   const [salvando, setSalvando] = useState(false)
   const [aviso, setAviso] = useState<{ tipo: 'ok' | 'erro'; texto: string } | null>(null)
   const [ajuda, setAjuda] = useState(false)
@@ -107,8 +109,11 @@ export default function TestePermissoesPage() {
         </Link>
         <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa' }}>PÁGINA DE TESTE</span>
         <div style={{ flex: 1 }} />
-        {botaoOpcao(1, 'Opção 1 · pílulas (antigo)')}
-        {botaoOpcao(2, 'Opção 2 · cartões com caixinhas')}
+        {botaoOpcao(3, 'A · lista com pílulas')}
+        {botaoOpcao(4, 'B · lista sanfona')}
+        {botaoOpcao(5, 'C · lista + painel')}
+        {botaoOpcao(2, 'Atual · cartões')}
+        {botaoOpcao(1, 'Antigo')}
         <button type="button" onClick={() => setAjuda((v) => !v)} title="Como ler esta tela"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '8px 12px', borderRadius: 10, fontSize: 13, cursor: 'pointer', border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }}>
           <HelpCircle size={15} /> Como ler esta tela
@@ -117,7 +122,8 @@ export default function TestePermissoesPage() {
 
       {ajuda && (
         <div style={{ padding: 14, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', fontSize: 13.5, lineHeight: 1.55, color: 'var(--portal-text)' }}>
-          <b>Para que serve:</b> comparar dois jeitos de marcar o que cada pessoa pode fazer no portal. Escolha a pessoa, alterne entre a Opção 1 e a Opção 2 e veja qual é mais prático.<br />
+          <b>Novas (10/11):</b> <b>A</b> = cada módulo numa linha, com as ações em pílulas ao lado (clicou, liga/desliga). <b>B</b> = a linha mostra só o módulo; a seta abre as ações embaixo. <b>C</b> = lista à esquerda e as ações do módulo escolhido num painel à direita (no celular vira a B). Em todas, a caixinha da esquerda dá ou tira o módulo inteiro e cada grupo tem "Dar todos / Tirar todos".<br />
+          <b>Para que serve:</b> comparar jeitos de marcar o que cada pessoa pode fazer no portal. Escolha a pessoa, alterne entre a Opção 1 e a Opção 2 e veja qual é mais prático.<br />
           <b>Opção 2 (cartões):</b> cada cartão é um módulo. A caixinha do título dá o <b>módulo inteiro</b>; as caixinhas de baixo dão só aquela ação. Caixinha com traço (–) = a pessoa tem só parte do módulo. O número no canto (ex.: 3/7) mostra quantas ações ela tem.<br />
           <b>“À parte”</b> = ação que o módulo inteiro não dá (precisa marcar sozinha, ex.: Faturar OS). <b>Cadeado</b> = só um Dev pode mexer.<br />
           <b>Nada grava sozinho:</b> as duas opções mexem num rascunho. O quadro de baixo mostra o que a pessoa ganha e perde; só vale depois de <b>Salvar</b>. <b>Desfazer</b> volta ao que está gravado.
@@ -162,6 +168,8 @@ export default function TestePermissoesPage() {
         <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 14, borderRadius: 12, border: '1px dashed var(--portal-border)' }}>
           Escolha uma pessoa para ver e mexer nas permissões dela.
         </div>
+      ) : opcao >= 3 ? (
+        <PermissoesLista modo={opcao === 3 ? 'pilulas' : opcao === 4 ? 'sanfona' : 'painel'} modulos={rascunho} catalogo={MODULOS_ADMIN} onChange={setRascunho} disabled={salvando} souDev={isDev} />
       ) : opcao === 1 ? (
         <PermissoesModulos modulos={rascunho} catalogo={MODULOS_ADMIN} onChange={setRascunho} disabled={salvando} souDev={isDev} />
       ) : (

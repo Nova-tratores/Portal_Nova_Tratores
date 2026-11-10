@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { autenticar } from '@/lib/auth/server'
 import { ACOES_SO_DEV } from '@/lib/permissoes/explicitas'
 import { espelhoLigado, espelharPermissoes } from '@/lib/permissoes/espelho-server'
+import { MODULO_ADMINISTRACAO } from '@/lib/permissoes/modulos-admin'
 
 // Escrita de permissões (portal_permissoes) — SÓ pelo servidor, com checagem de
 // admin. Antes o painel gravava direto do navegador com a anon key: como não
@@ -21,12 +22,25 @@ const CAMPOS = ['is_admin', 'is_diretor', 'categoria', 'modulos_permitidos', 'me
 export async function POST(req: NextRequest) {
   const auth = await autenticar(req)
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
-  if (!auth.isAdmin) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
+  // Módulo "Administração" (10/11/2026): sem ser Admin, só mexe nos módulos dos OUTROS,
+  // sem dar nem tirar a própria Administração (nível, Diretor, categoria e apps: só Admin).
+  const gestor = !auth.isAdmin && auth.modulos.includes(MODULO_ADMINISTRACAO)
+  if (!auth.isAdmin && !gestor) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
 
   const body = await req.json().catch(() => ({}))
   const userId = String(body.user_id || '').trim()
   const updates = body.updates && typeof body.updates === 'object' ? body.updates : {}
   if (!userId) return NextResponse.json({ error: 'user_id obrigatório' }, { status: 400 })
+
+  if (gestor) {
+    if (userId === auth.userId) return NextResponse.json({ error: 'Você não pode mudar os seus próprios acessos.' }, { status: 403 })
+    const outros = Object.keys(updates).filter((k) => k !== 'modulos_permitidos')
+    if (outros.length || !Array.isArray(updates.modulos_permitidos)) return NextResponse.json({ error: 'Só um Admin muda nível, Diretor, categoria e os apps.' }, { status: 403 })
+    const { data: atual } = await supabase.from('portal_permissoes').select('modulos_permitidos').eq('user_id', userId).maybeSingle()
+    const tinha = ((atual?.modulos_permitidos as string[] | null) || []).includes(MODULO_ADMINISTRACAO)
+    const tera = (updates.modulos_permitidos as string[]).includes(MODULO_ADMINISTRACAO)
+    if (tinha !== tera) return NextResponse.json({ error: 'Só um Admin dá ou tira o acesso à Administração.' }, { status: 403 })
+  }
 
   const patch: Record<string, unknown> = {}
   for (const k of CAMPOS) {

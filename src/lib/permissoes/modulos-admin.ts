@@ -1,6 +1,11 @@
 // Módulos que o Admin concede (lista única: tela Administração e o editor em cartões).
 // Saiu de src/app/(portal)/admin/page.tsx em 09/11/2026, sem mudar nada.
+// Administração como módulo (José, 10/11/2026): quem tem, sem ser Admin, entra no /admin
+// só para dar e tirar acessos do Portal. Só um Admin dá ou tira este módulo.
+export const MODULO_ADMINISTRACAO = 'administracao'
+
 export const MODULOS_ADMIN: { id: string; label: string; color: string }[] = [
+  { id: MODULO_ADMINISTRACAO, label: 'Administração (dar e tirar acessos)', color: '#0f172a' },
   // Ajustes: módulo único que expande nas páginas (ações vêm de
   // ACOES_POR_MODULO['ajustes'], derivado de PAGINAS_AJUSTES).
   { id: 'ajustes', label: 'Ajustes', color: '#991b1b' },

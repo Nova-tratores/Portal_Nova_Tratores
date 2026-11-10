@@ -18,10 +18,11 @@ export interface AcaoPermissao {
 }
 
 // Ordem dos grupos na tela de Admin.
-export const GRUPOS_ORDEM = ['Serviços', 'Peças', 'Financeiro', 'Comercial', 'Estoque', 'Frota', 'Ajustes', 'Outros'] as const;
+export const GRUPOS_ORDEM = ['Administração', 'Serviços', 'Peças', 'Financeiro', 'Comercial', 'Estoque', 'Frota', 'Ajustes', 'Outros'] as const;
 
 // módulo id → grupo (organiza os módulos na tela). Ids que não estão aqui caem em 'Outros'.
 const GRUPO_POR_MODULO: Record<string, string> = {
+  administracao: 'Administração',
   // Serviços
   pos: 'Serviços', garantias: 'Serviços', revisoes: 'Serviços', mecanicos: 'Serviços',
   'painel-mecanicos': 'Serviços', sat: 'Serviços', mapa: 'Serviços', 'fotos-tecnicos': 'Serviços', lousa: 'Serviços',
