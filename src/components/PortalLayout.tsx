@@ -22,7 +22,7 @@ import {
   LayoutGrid, List, CircleDot, Clock, Truck, Bot, Ticket, Cctv, GraduationCap, UserPlus, Tags,
   ListPlus, CircleCheckBig, MessageSquarePlus, BadgeCheck
 } from 'lucide-react'
-import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias, CalendarClock, CalendarDays, LineChart, Radar } from 'lucide-react'
+import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias, CalendarClock, CalendarDays, LineChart, Radar, Globe } from 'lucide-react'
 import BotaoAjuda from '@/components/conhecimento/BotaoAjuda'
 import IlhaNotificacao, { AjustesIlha, type AvisoIlha } from '@/components/notif/IlhaNotificacao'
 import { AvisosAparelho } from '@/components/notif/AvisosAparelho'
@@ -119,6 +119,10 @@ const navItems: NavItem[] = [
   { id: 'vendas-modelo', name: 'Vendas por Modelo', href: '/vendas-modelo', icon: <Tags size={18} />, tag: 'MODELOS', gradient: '', group: 'comercial' },
   { id: 'marketing', name: 'Marketing & Eventos', href: '/marketing', icon: <Megaphone size={18} />, tag: 'EVENTOS', gradient: '', group: 'comercial' },
   { id: 'inteligencia-vendas', name: 'Inteligência de Vendas', href: '/inteligencia-vendas', icon: <Radar size={18} />, tag: 'RADAR', gradient: '', group: 'comercial' },
+  // Site (10/11/2026): pedidos de proposta do site, catálogo do site (preço/selo/ocultar) e acessos.
+  { id: 'site', name: 'Site', href: '/site', icon: <Globe size={18} />, tag: 'SITE', gradient: '', group: 'comercial' },
+  // Site (10/11/2026): pedidos de proposta do site, catálogo do site (preço/selo/ocultar) e acessos.
+  { id: 'site', name: 'Site', href: '/site', icon: <Globe size={18} />, tag: 'SITE', gradient: '', group: 'comercial' },
   // Tela mobile do estande: quem só captura lead não precisa do módulo inteiro.
   { id: 'lead', name: 'Captura de Leads', href: '/lead', icon: <UserPlus size={18} />, tag: 'FEIRA', gradient: '', group: 'comercial' },
 
@@ -153,19 +157,20 @@ const NOTIF_ICONS: Record<string, import('react').ReactNode> = {
   sistema: <Bell size={18} />,
   tickets: <Ticket size={18} />,
   frota: <Truck size={18} />,
+  site: <Globe size={18} />,
 }
 
 // Nome do módulo no aviso da ilha
 const NOME_MODULO_NOTIF: Record<string, string> = {
   chat: 'Chat', financeiro: 'Financeiro', requisicao: 'Requisições', revisao: 'Revisões', pos: 'Pós-Vendas', ppv: 'Peças',
-  garantia: 'Garantias', proposta: 'Propostas', tickets: 'Central de Trabalho', frota: 'Frota', novazap: 'NovaZap', agenda: 'Agenda', avisos: 'Aviso',
+  garantia: 'Garantias', proposta: 'Propostas', tickets: 'Central de Trabalho', frota: 'Frota', novazap: 'NovaZap', agenda: 'Agenda', avisos: 'Aviso', site: 'Site',
 }
 
 // Cor de acento por tipo de notificação
 const NOTIF_COLORS: Record<string, string> = {
   chat: '#3b82f6', financeiro: '#10b981', requisicao: '#f97316', revisao: '#0ea5e9',
   pos: '#0ea5e9', ppv: '#f97316', garantia: '#0ea5e9', proposta: '#8b5cf6',
-  admin: '#dc2626', sistema: '#6b7280', tickets: '#0891b2', frota: '#0d9488',
+  admin: '#dc2626', sistema: '#6b7280', tickets: '#0891b2', frota: '#0d9488', site: '#dc2626',
 }
 
 // Variantes (coluna `icone`) — avisos de ticket com cara própria no sino.

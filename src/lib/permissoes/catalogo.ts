@@ -11,6 +11,7 @@ import { CHAVES_ABAS_FINANCEIRO } from '@/components/financeiro/areasFinanceiro'
 import { PAGINAS_FROTA } from '@/app/(portal)/frota/paginas';
 import { PAGINAS_MARKETING } from '@/app/(portal)/marketing/paginas';
 import { PAGINAS_IV } from '@/app/(portal)/inteligencia-vendas/paginas';
+import { PAGINAS_SITE } from '@/app/(portal)/site/paginas';
 import { ACOES_EXPLICITAS } from './explicitas';
 
 export interface AcaoPermissao {
@@ -33,7 +34,7 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   financeiro: 'Financeiro', dre: 'Financeiro',
   // Comercial
   propostas: 'Comercial', feedbacks: 'Comercial', clientes: 'Comercial', 'supervisor-vendas': 'Comercial', 'crm-vendas': 'Comercial',
-  'gestao-vendas': 'Comercial', marketing: 'Comercial', lead: 'Comercial', 'inteligencia-vendas': 'Comercial',
+  'gestao-vendas': 'Comercial', marketing: 'Comercial', lead: 'Comercial', 'inteligencia-vendas': 'Comercial', site: 'Comercial',
   // Mesma tela de /dre-financeiro/vendas-modelo, liberável sem o DRE.
   'vendas-modelo': 'Comercial',
   // Estoque
@@ -316,6 +317,12 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
   // manda e-mail pra fora da empresa (o relatório de contrapartida vai pra
   // fábrica). Não deve vir de brinde na cabeça de ninguém.
   // INTELIGÊNCIA DE VENDAS — por tela (PAGINAS_IV) + as escritas.
+  // SITE (10/11/2026): telas de PAGINAS_SITE + ações de escrita.
+  site: [
+    ...PAGINAS_SITE.map((p) => ({ id: p.key.replace('site:', ''), label: p.label })),
+    { id: 'pedidos:editar', label: 'Pedidos do site — assumir / mudar status / anotar' },
+    { id: 'catalogo:editar', label: 'Catálogo do site — mudar preço, selo, pronta entrega, ocultar' },
+  ],
   'inteligencia-vendas': [
     ...PAGINAS_IV.map((p) => ({ id: p.key.replace('inteligencia-vendas:', ''), label: p.label })),
     { id: 'indicacoes:editar', label: 'Indicações — registrar / editar' },
