@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
+import { MODULO_FICHA_CADASTRAL } from '@/lib/permissoes/modulos-admin'
 import { semSensiveis, manterSensiveis, type Dados } from '@/lib/admin/ficha-cadastral'
 import { lerRH, completarComRH } from '@/lib/admin/ficha-rh-server'
 import { fichaAprovada, pedidoPendente, pedirMudanca, mascarar, nomeDe, ehDiretor } from '@/lib/admin/ficha-pedidos-server'
 
 // Ficha cadastral do colaborador (José, 09/11/2026). Três níveis:
 //  - Dev: vê tudo, inclusive salário/comissão do RH;
-//  - Admin (não Dev): vê só o que não é sensível (sem documentos, saúde e banco) —
+//  - Admin (não Dev) ou quem tem o módulo Ficha cadastral (10/11/2026): vê só o que não é sensível (sem documentos, saúde e banco) —
 //    os sensíveis salvos ficam intactos;
 //  - a própria pessoa (?eu=1, Configurações → Minha ficha): a ficha inteira dela, sem salário.
 // Salvar NÃO muda a ficha: vira pedido para o Diretor autorizar (mesmo esquema da
@@ -20,7 +21,7 @@ async function quem(req: NextRequest, alvo: string | null, eu: boolean) {
   const auth = await autenticar(req)
   if (!auth) return { erro: 'Faça login de novo', status: 401 as const }
   if (eu || !alvo || alvo === auth.userId) return { auth, userId: auth.userId, nivel: (auth.isDev ? 'total' : 'proprio') as Nivel }
-  if (!auth.isAdmin) return { erro: 'Sem permissão', status: 403 as const }
+  if (!auth.isAdmin && !auth.modulos.includes(MODULO_FICHA_CADASTRAL)) return { erro: 'Sem permissão', status: 403 as const }
   return { auth, userId: alvo, nivel: (auth.isDev ? 'total' : 'parcial') as Nivel }
 }
 

@@ -24,13 +24,19 @@ interface Props {
   categoria?: string
   /** quem tem só o módulo Administração (não é Admin): só Permissões Portal e a função do setor */
   soPermissoes?: boolean
+  /** pode abrir a Ficha cadastral (Admin ou módulo Ficha cadastral, José 10/11/2026); sem o valor, segue o soPermissoes */
+  comFicha?: boolean
+  /** só o módulo Ficha cadastral (sem Administração): a janela mostra só a Ficha, sem sensíveis */
+  soFicha?: boolean
 }
 
 export default function DistribuirAcessos(p: Props) {
   const setor = setorComFuncao(p.categoria);
   const funcao = funcaoNoSetor(p.modulos, p.categoria);
   // abas (José, 10/11/2026): os apps (Mecânicos e NT Vendas) ficam DENTRO de Permissões
-  const [aba, setAba] = useState<'portal' | 'funcao' | 'ficha' | 'atividades'>(p.userId && !p.soPermissoes ? 'ficha' : 'portal');
+  const verFicha = !!p.userId && (p.comFicha ?? !p.soPermissoes);
+  const verAtividades = !!p.userId && !p.soPermissoes && !p.soFicha;
+  const [aba, setAba] = useState<'portal' | 'funcao' | 'ficha' | 'atividades'>(verFicha ? 'ficha' : 'portal');
   const [copiar, setCopiar] = useState('');
 
   const seletorCopiar = (
@@ -47,16 +53,16 @@ export default function DistribuirAcessos(p: Props) {
       <style>{ESTILO_DA}</style>
       <div className="da-abas">
         {/* ficha primeiro, depois as permissões (José, 09/11/2026) */}
-        {p.userId && !p.soPermissoes && <button type="button" className={aba === 'ficha' ? 'on' : ''} onClick={() => setAba('ficha')}><IdCard size={15} />Ficha cadastral</button>}
-        <button type="button" className={aba === 'portal' ? 'on' : ''} onClick={() => setAba('portal')}><LayoutGrid size={15} />Permissões</button>
-        {setor && <button type="button" className={aba === 'funcao' ? 'on' : ''} onClick={() => setAba('funcao')}><Briefcase size={15} />{setor.nome}<em className={funcao ? 'ok' : ''}>{funcao?.rot.replace(' do Pós-Vendas', '') || 'sem função'}</em></button>}
-        {p.userId && !p.soPermissoes && <button type="button" className={aba === 'atividades' ? 'on' : ''} onClick={() => setAba('atividades')}><Activity size={15} />Atividades</button>}
+        {verFicha && <button type="button" className={aba === 'ficha' ? 'on' : ''} onClick={() => setAba('ficha')}><IdCard size={15} />Ficha cadastral</button>}
+        {!p.soFicha && <button type="button" className={aba === 'portal' ? 'on' : ''} onClick={() => setAba('portal')}><LayoutGrid size={15} />Permissões</button>}
+        {setor && !p.soFicha && <button type="button" className={aba === 'funcao' ? 'on' : ''} onClick={() => setAba('funcao')}><Briefcase size={15} />{setor.nome}<em className={funcao ? 'ok' : ''}>{funcao?.rot.replace(' do Pós-Vendas', '') || 'sem função'}</em></button>}
+        {verAtividades && <button type="button" className={aba === 'atividades' ? 'on' : ''} onClick={() => setAba('atividades')}><Activity size={15} />Atividades</button>}
       </div>
 
-      {aba === 'ficha' && p.userId && !p.soPermissoes && <FichaCadastral userId={p.userId} nome={p.nome} cargo={p.funcao} email={p.email} />}
-      {aba === 'atividades' && p.userId && !p.soPermissoes && <AtividadesUsuario userId={p.userId} qtdModulos={new Set(p.modulos.map((m) => m.split(':')[0])).size} />}
+      {aba === 'ficha' && verFicha && p.userId && <FichaCadastral userId={p.userId} nome={p.nome} cargo={p.funcao} email={p.email} />}
+      {aba === 'atividades' && verAtividades && p.userId && <AtividadesUsuario userId={p.userId} qtdModulos={new Set(p.modulos.map((m) => m.split(':')[0])).size} />}
 
-      {aba === 'portal' && (
+      {aba === 'portal' && !p.soFicha && (
         <div className="da-portal">
           {p.ehAdmin && <p className="da-aviso"><ShieldCheck size={14} /> {p.nome.split(' ')[0]} é Admin e já vê tudo — estas marcações só valem se voltar a Usuário.</p>}
 
@@ -98,7 +104,7 @@ export default function DistribuirAcessos(p: Props) {
       )}
 
       {/* função dentro do setor: Pós-Vendas, Peças ou Comercial (José, 29/10 e 10/11/2026) */}
-      {aba === 'funcao' && setor && (
+      {aba === 'funcao' && setor && !p.soFicha && (
         <div className="da-app">
           <p className="da-app-txt">A função de {p.nome.split(' ')[0]} dentro do {setor.nome}.{setor.categoria === 'Pós Vendas' ? ' Vale na comissão do escritório (Gestão Pós Vendas → Equipe → Comissões).' : ''}</p>
           <div className="da-opcoes">

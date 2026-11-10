@@ -23,7 +23,7 @@ export const GRUPOS_ORDEM = ['Administração', 'Serviços', 'Peças', 'Financei
 
 // módulo id → grupo (organiza os módulos na tela). Ids que não estão aqui caem em 'Outros'.
 const GRUPO_POR_MODULO: Record<string, string> = {
-  administracao: 'Administração',
+  administracao: 'Administração', 'ficha-cadastral': 'Administração',
   // Serviços
   pos: 'Serviços', garantias: 'Serviços', revisoes: 'Serviços', mecanicos: 'Serviços',
   'painel-mecanicos': 'Serviços', sat: 'Serviços', mapa: 'Serviços', 'fotos-tecnicos': 'Serviços', lousa: 'Serviços',

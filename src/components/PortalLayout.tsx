@@ -1495,7 +1495,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           )}
 
           {/* Admin (ou quem tem o módulo Administração: só dar/tirar acessos — 10/11/2026) */}
-          {(isAdmin || temAcesso('administracao')) && (
+          {(isAdmin || temAcesso('administracao') || temAcesso('ficha-cadastral')) && (
             <Link
               href="/admin"
               onClick={() => setSidebarOpen(false)}

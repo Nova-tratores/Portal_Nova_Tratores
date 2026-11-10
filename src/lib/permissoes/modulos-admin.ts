@@ -3,9 +3,15 @@
 // Administração como módulo (José, 10/11/2026): quem tem, sem ser Admin, entra no /admin
 // só para dar e tirar acessos do Portal. Só um Admin dá ou tira este módulo.
 export const MODULO_ADMINISTRACAO = 'administracao'
+// Ficha cadastral sem dados sensíveis (José, 10/11/2026): quem tem entra no /admin e abre a
+// ficha dos colegas sem documentos, saúde e banco; mudança vira pedido ao Diretor. Só Admin dá.
+export const MODULO_FICHA_CADASTRAL = 'ficha-cadastral'
+/** módulos que só um Admin dá ou tira (quem tem Administração não mexe neles) */
+export const MODULOS_SO_ADMIN = [MODULO_ADMINISTRACAO, MODULO_FICHA_CADASTRAL]
 
 export const MODULOS_ADMIN: { id: string; label: string; color: string }[] = [
   { id: MODULO_ADMINISTRACAO, label: 'Administração (dar e tirar acessos)', color: '#0f172a' },
+  { id: MODULO_FICHA_CADASTRAL, label: 'Ficha cadastral dos colaboradores (sem dados sensíveis)', color: '#0f172a' },
   // Ajustes: módulo único que expande nas páginas (ações vêm de
   // ACOES_POR_MODULO['ajustes'], derivado de PAGINAS_AJUSTES).
   { id: 'ajustes', label: 'Ajustes', color: '#991b1b' },

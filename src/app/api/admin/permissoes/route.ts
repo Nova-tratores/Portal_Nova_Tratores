@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { autenticar } from '@/lib/auth/server'
 import { ACOES_SO_DEV } from '@/lib/permissoes/explicitas'
 import { espelhoLigado, espelharPermissoes } from '@/lib/permissoes/espelho-server'
-import { MODULO_ADMINISTRACAO } from '@/lib/permissoes/modulos-admin'
+import { MODULO_ADMINISTRACAO, MODULOS_SO_ADMIN } from '@/lib/permissoes/modulos-admin'
 
 // Escrita de permissões (portal_permissoes) — SÓ pelo servidor, com checagem de
 // admin. Antes o painel gravava direto do navegador com a anon key: como não
@@ -37,9 +37,9 @@ export async function POST(req: NextRequest) {
     const outros = Object.keys(updates).filter((k) => k !== 'modulos_permitidos')
     if (outros.length || !Array.isArray(updates.modulos_permitidos)) return NextResponse.json({ error: 'Só um Admin muda nível, Diretor, categoria e os apps.' }, { status: 403 })
     const { data: atual } = await supabase.from('portal_permissoes').select('modulos_permitidos').eq('user_id', userId).maybeSingle()
-    const tinha = ((atual?.modulos_permitidos as string[] | null) || []).includes(MODULO_ADMINISTRACAO)
-    const tera = (updates.modulos_permitidos as string[]).includes(MODULO_ADMINISTRACAO)
-    if (tinha !== tera) return NextResponse.json({ error: 'Só um Admin dá ou tira o acesso à Administração.' }, { status: 403 })
+    const antes = (atual?.modulos_permitidos as string[] | null) || []
+    const depois = updates.modulos_permitidos as string[]
+    if (MODULOS_SO_ADMIN.some((m) => antes.includes(m) !== depois.includes(m))) return NextResponse.json({ error: 'Só um Admin dá ou tira a Administração e a Ficha cadastral.' }, { status: 403 })
   }
 
   const patch: Record<string, unknown> = {}

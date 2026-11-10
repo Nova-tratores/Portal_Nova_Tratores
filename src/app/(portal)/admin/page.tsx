@@ -21,7 +21,7 @@ import TrocarEmailModal from '@/components/admin/TrocarEmailModal'
 import AvisosTratorilson from '@/components/admin/AvisosTratorilson'
 import NotificacoesAdmin from '@/components/admin/NotificacoesAdmin'
 import BuscaModulo from '@/components/admin/BuscaModulo'
-import { MODULOS_ADMIN as MODULOS, MODULO_ADMINISTRACAO } from '@/lib/permissoes/modulos-admin'
+import { MODULOS_ADMIN as MODULOS, MODULO_ADMINISTRACAO, MODULO_FICHA_CADASTRAL, MODULOS_SO_ADMIN } from '@/lib/permissoes/modulos-admin'
 
 
 // colunas da lista de usuários (21/10/2026): usuário · papel · categoria · acessos · ⋯
@@ -58,8 +58,12 @@ export default function AdminPage() {
   // acessos do Portal (e a função do setor). Nível, Diretor, categoria, conta, ficha e os
   // apps continuam só do Admin — o servidor (/api/admin/permissoes) barra o resto.
   const gestorAcessos = !isAdmin && temAcesso(MODULO_ADMINISTRACAO)
-  const podeEntrar = isAdmin || gestorAcessos
-  const catalogoGestor = gestorAcessos ? MODULOS.filter((m) => m.id !== MODULO_ADMINISTRACAO) : MODULOS
+  // Ficha cadastral sem sensíveis (José, 10/11/2026): quem tem o módulo abre a ficha dos colegas;
+  // sem a Administração, a janela da pessoa mostra só a Ficha.
+  const leitorFicha = !isAdmin && temAcesso(MODULO_FICHA_CADASTRAL)
+  const podeEntrar = isAdmin || gestorAcessos || leitorFicha
+  const restrito = gestorAcessos || leitorFicha
+  const catalogoGestor = gestorAcessos ? MODULOS.filter((m) => !MODULOS_SO_ADMIN.includes(m.id)) : MODULOS
   const router = useRouter()
   const [usuarios, setUsuarios] = useState<Usuario[]>([])
   const [permissoes, setPermissoes] = useState<Record<string, Permissao>>({})
@@ -721,8 +725,8 @@ export default function AdminPage() {
                 <PapelMenu
                   nivel={nivelAtual}
                   podeDev={isDev}
-                  bloqueado={isMe || devLock || gestorAcessos}
-                  motivoBloqueio={isMe ? 'Você não pode mudar o seu próprio nível.' : devLock ? 'Só um Dev pode mudar um Dev.' : gestorAcessos ? 'Só um Admin muda o nível, Diretor e Vendedor.' : undefined}
+                  bloqueado={isMe || devLock || restrito}
+                  motivoBloqueio={isMe ? 'Você não pode mudar o seu próprio nível.' : devLock ? 'Só um Dev pode mudar um Dev.' : restrito ? 'Só um Admin muda o nível, Diretor e Vendedor.' : undefined}
                   diretor={!!perm?.is_diretor}
                   vendedor={ehVendedor}
                   salvandoVendedor={salvandoVendedor === user.id}
@@ -735,7 +739,7 @@ export default function AdminPage() {
               {/* Setor (Categoria) e função no setor */}
               <div className="adm-setor">
                 <select className="adm-sel" value={perm?.categoria || ''} onChange={(e) => setCategoria(user.id, e.target.value)}
-                  disabled={gestorAcessos} title={gestorAcessos ? 'Só um Admin muda o setor' : 'Setor'}>
+                  disabled={restrito} title={restrito ? 'Só um Admin muda o setor' : 'Setor'}>
                   <option value="">Sem setor</option>
                   {CATEGORIAS.map(cat => <option key={cat} value={cat}>{cat}</option>)}
                 </select>
@@ -743,7 +747,7 @@ export default function AdminPage() {
                 {setorComFuncao(perm?.categoria) && (
                   <select className={`adm-sel fn ${funcaoNoSetor(modulos, perm?.categoria) ? 'tem' : ''}`}
                     value={funcaoNoSetor(modulos, perm?.categoria)?.chave || ''}
-                    disabled={gestorAcessos && isMe}
+                    disabled={(gestorAcessos && isMe) || (restrito && !gestorAcessos)}
                     onChange={(e) => salvar(user.id, { modulos_permitidos: trocarFuncaoSetor(modulos, perm!.categoria, e.target.value || null) })}
                     title={`Função no ${setorComFuncao(perm?.categoria)!.nome}`}>
                     <option value="">sem função</option>
@@ -788,6 +792,8 @@ export default function AdminPage() {
                   ehAdmin={!!perm?.is_admin}
                   souDev={isDev}
                   soPermissoes={gestorAcessos}
+                  comFicha={isAdmin || leitorFicha}
+                  soFicha={leitorFicha && !gestorAcessos}
                   disabled={saving === user.id || (gestorAcessos && isMe)}
                   modulos={modulos}
                   catalogo={catalogoGestor}
