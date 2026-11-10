@@ -13,10 +13,12 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null)
   const lista = Array.isArray(body?.itens) ? body.itens.slice(0, 200) : []
   const itens = lista
-    .filter((i: unknown): i is { tela_id: string; rota: string; antigo: boolean; v2: boolean } => {
+    .filter((i: unknown): i is { tela_id: string; rota: string; antigo: boolean; v2: boolean; decidiu?: string } => {
       const x = i as Record<string, unknown>
       return typeof x?.tela_id === 'string' && typeof x?.rota === 'string' && typeof x?.antigo === 'boolean' && typeof x?.v2 === 'boolean'
     })
+    .map((i: { tela_id: string; rota: string; antigo: boolean; v2: boolean; decidiu?: string }) =>
+      ({ ...i, decidiu: i.decidiu === 'v2' ? 'v2' as const : 'antigo' as const }))
   anotarDoNavegador(auth.userId, itens)
   return new NextResponse(null, { status: 204 })
 }

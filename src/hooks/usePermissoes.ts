@@ -4,8 +4,8 @@ import { permite } from '@/lib/permissoes/explicitas'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
-import { compararNaTela, lerV2, type DadosV2 } from '@/lib/permissoes/sombra-navegador'
-import type { Checagem } from '@/lib/permissoes/sombra'
+import { decidirNaTela, lerModoTelas, lerV2, type DadosV2 } from '@/lib/permissoes/sombra-navegador'
+import type { Checagem, ModoV2 } from '@/lib/permissoes/sombra'
 
 interface Permissoes {
   id: string
@@ -79,8 +79,10 @@ export function usePermissoes(userId: string | undefined) {
   const [permissoes, setPermissoes] = useState<Permissoes | null>(null)
   const [loading, setLoading] = useState(true)
   const fetchedId = useRef<string | undefined>(undefined)
-  // v2 em modo SOMBRA (Fase 4.2): só compara, quem decide continua sendo portal_permissoes.
+  // v2 nas telas (Fase 4.3): com modo 'on' a v2 decide e portal_permissoes vira a
+  // sombra; com 'sombra' é o contrário (env PERM_V2_TELAS, ver /api/permissoes/modo).
   const [v2, setV2] = useState<DadosV2 | null>(null)
+  const [modo, setModo] = useState<ModoV2 | null>(null)
   const v2Timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -134,12 +136,13 @@ export function usePermissoes(userId: string | undefined) {
   }, [userId, recarregar])
 
   // Lê a v2 do próprio usuário. Depois de uma mudança na linha antiga, o espelho
-  // leva alguns segundos para refletir na v2: some com a cópia e relê em 20 s
-  // (sem v2 carregada nada é comparado — evita divergência falsa).
+  // leva alguns segundos para refletir na v2: some com a cópia (enquanto isso vale
+  // a antiga, que já tem a mudança) e relê em 20 s e de novo em 90 s.
   useEffect(() => {
     if (!userId) { setV2(null); return }
     let vivo = true
     lerV2(userId).then((d) => { if (vivo) setV2(d) }).catch(() => {})
+    lerModoTelas().then((m) => { if (vivo) setModo(m) }).catch(() => {})
     return () => { vivo = false }
   }, [userId])
   const atualizado = useRef<string>('')
@@ -152,7 +155,8 @@ export function usePermissoes(userId: string | undefined) {
     setV2(null)
     if (v2Timer.current) clearTimeout(v2Timer.current)
     v2Timer.current = setTimeout(() => { lerV2(userId, true).then(setV2).catch(() => {}) }, 20_000)
-    return () => { if (v2Timer.current) clearTimeout(v2Timer.current) }
+    const segunda = setTimeout(() => { lerV2(userId, true).then(setV2).catch(() => {}) }, 90_000)
+    return () => { if (v2Timer.current) clearTimeout(v2Timer.current); clearTimeout(segunda) }
   }, [userId, permissoes])
 
   useRefreshOnFocus(recarregar, 30_000)
@@ -167,8 +171,7 @@ export function usePermissoes(userId: string | undefined) {
   // Acesso a um módulo (ver/entrar na página). Inclui quem tem só permissões
   // granulares dele (ex: tem 'requisicoes:criar' mas não 'requisicoes').
   const sombra = (c: Checagem, antigo: boolean) => {
-    try { if (permissoes) compararNaTela(c, antigo, v2, isAdmin) } catch { /* nunca atrapalha a tela */ }
-    return antigo
+    try { return permissoes ? decidirNaTela(c, antigo, v2, isAdmin, modo) : antigo } catch { return antigo }
   }
 
   const temAcesso = (modulo: string): boolean => {

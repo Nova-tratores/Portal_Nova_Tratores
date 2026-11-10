@@ -289,6 +289,12 @@ O Chatwoot fork e o vigia de câmeras não estão nesta máquina. Pelo CLAUDE.md
 - Teste local: admin no /pos (38 checagens) e Mecânico Teste no /dashboard (94) — 0 divergências.
 - Leitura: `perm_sombra` com `rota like 'tela:%'` e `antigo <> v2`.
 
+### Telas decidem pela v2 (10/11/2026, aprovado pelo José)
+- Base: rotas da API com 174 mil checagens em 26 dias (a v2 decide desde 30/10; último caso de divergência em 30/10) e telas com 8 mil checagens de 9 pessoas no 1º dia, zero divergências.
+- `GET /api/permissoes/modo` devolve o modo das telas pela env **`PERM_V2_TELAS`**: `on` (padrão em produção) = a v2 decide e a antiga vira a sombra; `sombra` = volta para a antiga sem deploy (só trocar a env no Railway); `off` = nada é comparado. Falha ao ler o modo = `sombra`.
+- `decidirNaTela` (sombra-navegador.ts) continua usando a antiga quando: o usuário é admin/dev (nunca tranca quem conserta), a v2 ainda não carregou, a tela não está no catálogo, ou é Central de Trabalho. Depois de mudar a própria permissão a v2 é relida em 20 s e 90 s; nesse meio-tempo vale a antiga (que já tem a mudança).
+- `perm_sombra.decidiu` diz qual regra valeu também nas linhas `tela:`.
+
 ### 2ª parte: edição (ainda não feita)
 - Não dá para editar conjuntos aqui enquanto as páginas e as demais rotas decidem por `portal_permissoes`: a pessoa passaria na rota e continuaria barrada na tela.
-- Ordem: primeiro `usePermissoes` passa a ler a v2 (com sombra no navegador), depois o CRUD de conjuntos, o cadastro por departamento e os overrides com motivo. O espelho sai quando a v2 virar a fonte.
+- Ordem: primeiro `usePermissoes` passa a ler a v2 (feito 10/11), depois o CRUD de conjuntos, o cadastro por departamento e os overrides com motivo. O espelho sai quando a v2 virar a fonte.

@@ -98,14 +98,14 @@ export async function decidirPermissao(req: Request, userId: string, ehAdmin: bo
   }
 }
 
-/** Comparações feitas nas TELAS (usePermissoes): a antiga decidiu; rota = "tela:<página>". */
-export function anotarDoNavegador(userId: string, lista: { tela_id: string; rota: string; antigo: boolean; v2: boolean }[]): void {
+/** Comparações feitas nas TELAS (usePermissoes); `decidiu` = qual regra valeu; rota = "tela:<página>". */
+export function anotarDoNavegador(userId: string, lista: { tela_id: string; rota: string; antigo: boolean; v2: boolean; decidiu: 'antigo' | 'v2' }[]): void {
   if (modoAtual() === 'off' || !lista.length) return;
   for (const i of lista) {
     itens().push({
       dia: diaLocal(), user_id: userId, tela_id: i.tela_id.slice(0, 200),
       rota: 'tela:' + (normalizarRota(i.rota) || i.rota.slice(0, 120) || '?'),
-      antigo: i.antigo, v2: i.v2, catalogada: true, decidiu: 'antigo', vezes: 1,
+      antigo: i.antigo, v2: i.v2, catalogada: true, decidiu: i.decidiu, vezes: 1,
     });
   }
   if (itens().length > 5000) g.__permSombraItens = agregar(itens()).slice(-20000);
