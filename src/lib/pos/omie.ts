@@ -563,6 +563,11 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
       // e a resposta perdida: conexão caiu, deploy). Se for do mesmo cliente, não cancelada e ainda não
       // faturada, ADOTA — senão um reenvio criava uma 2ª OS no Omie (item 8 de docs/omie-otimizacao-pos-ppv.md).
       let adotada: OmieOSResponse | null = null;
+      // conferiuOutra = a consulta FUNCIONOU e a OS com este código é outra (outro cliente,
+      // cancelada, faturada). Só nesse caso é seguro criar com código novo: antes, a consulta
+      // falhar (ex.: "consumo redundante" logo depois do IncluirOS) também caía no "cria com
+      // sufixo" — e era justamente o caso do envio repetido, que criava uma 2ª OS na Omie.
+      let conferiuOutra = false;
       if (msg.includes("já cadastrado") || msg.includes("Client-103")) {
         try {
           const ja = await omieCall<{ Cabecalho?: { nCodOS?: number; cNumOS?: string; cCodIntOS?: string; nCodCli?: number; cEtapa?: string }; InfoCadastro?: { cCancelada?: string; cFaturada?: string } }>(
@@ -574,12 +579,22 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
           if (c?.nCodOS && mesmoCliente && viva) {
             adotada = { nCodOS: c.nCodOS, cNumOS: c.cNumOS || String(c.nCodOS), cStatus: "adotada" };
             console.log(`[Omie] ${os.Id_Ordem} já estava no Omie (nº ${c.cNumOS}) — adotada, sem criar outra OS`);
+          } else if (c?.nCodOS) {
+            conferiuOutra = true;
           }
-        } catch { /* não deu para conferir: segue o caminho antigo (código com sufixo) */ }
+        } catch (e) {
+          console.warn(`[Omie] ${os.Id_Ordem}: não deu para conferir a OS já cadastrada:`, e instanceof Error ? e.message : e);
+        }
+        if (!adotada && !conferiuOutra) {
+          throw new Error(
+            `A Omie diz que a OS ${os.Id_Ordem} já foi enviada, mas não foi possível conferir qual é agora. ` +
+            `Nada foi criado de novo. Espere alguns segundos e clique em enviar outra vez.`,
+          );
+        }
       }
       if (adotada) {
         resposta = adotada;
-      } else if (msg.includes("já cadastrado") || msg.includes("Client-103")) {
+      } else if (conferiuOutra) {
         const novoCodigoInt = `${os.Id_Ordem}-${Date.now()}`;
         console.log(`[Omie] Código ${os.Id_Ordem} já existe, reenviando como ${novoCodigoInt}`);
         payload.Cabecalho.cCodIntOS = novoCodigoInt;
