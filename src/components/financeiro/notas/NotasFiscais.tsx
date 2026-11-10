@@ -7,14 +7,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { FileText, Download, RefreshCw, ShieldCheck, CloudOff, Database, Search, Tractor, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
+import { FileText, Download, RefreshCw, ShieldCheck, CloudOff, Search, Tractor, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento';
 import {
-  CAMPOS_BUSCA, ROTULO_BATEU, ROTULO_SELO, ROTULO_TIPO, chassiPrincipal, ehCampoBusca, ehTipoFiltro, linkPasta, ondeBateu, percent, selo,
+  CAMPOS_BUSCA, ROTULO_BATEU, ROTULO_SELO, ROTULO_TIPO, chassiPrincipal, ehCampoBusca, ehTipoFiltro, linkPasta, ondeBateu, selo,
   alternarOrdem, ehOrdemPadrao, ordemParaParam, parseOrdem,
   type CampoBusca, type ColunaOrdem, type LinhaDoc, type Ordem, type Selo, type Cobertura,
 } from '@/lib/notas/cache-regras';
@@ -56,12 +56,6 @@ function isoDia(d: Date) { return d.toISOString().slice(0, 10); }
 function hojeLocal() { return isoDia(new Date(Date.now() - 3 * 3600 * 1000)); }
 function menosDias(n: number) { return isoDia(new Date(Date.now() - 3 * 3600 * 1000 - n * 86400000)); }
 function fmtData(iso: string | null) { if (!iso) return '—'; const [a, m, d] = iso.split('-'); return `${d}/${m}/${a}`; }
-function fmtQuando(iso: string | null | undefined) {
-  if (!iso) return 'nunca';
-  const min = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
-  if (min < 1) return 'agora'; if (min < 60) return `${min} min atrás`; if (min < 1440) return `${Math.floor(min / 60)} h atrás`;
-  return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
 function fmtDoc(d: string | null) {
   if (!d) return '';
   if (d.length === 14) return d.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5');
@@ -84,11 +78,7 @@ const inpF: React.CSSProperties = { height: 30, width: '100%', minWidth: 0, padd
 const ativoF = (on: boolean): React.CSSProperties => (on ? { borderColor: AZUL, boxShadow: `0 0 0 1px ${AZUL}` } : {});
 
 const ESTILO_NOTAS = `
-.nf-res { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); overflow: hidden }
-.nf-res > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 12px 16px; border-left: 1px solid var(--border, #e2e8f0) }
-.nf-res > div:first-child { border-left: none }
-.nf-res span { font-size: 14.5px; color: var(--portal-text-secondary, #475569) }
-.nf-res b { font-size: 22px; font-weight: 500; letter-spacing: -.01em; font-variant-numeric: tabular-nums }
+.nf-pagina { background: color-mix(in srgb, var(--portal-text, #0f172a) 6%, var(--portal-bg, #fafafa)); min-height: calc(100vh - 150px) }
 .nf-abas { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--border, #e2e8f0) }
 .nf-aba { --c: #2563eb; display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border: none; border-bottom: 3px solid color-mix(in srgb, var(--c) 30%, transparent); border-radius: 10px 10px 0 0; background: transparent; color: var(--portal-text, #0f172a); font-size: 16.5px; cursor: pointer; transition: background .2s, border-color .2s }
 .nf-aba:hover { background: color-mix(in srgb, var(--c) 6%, transparent) }
@@ -119,8 +109,6 @@ const ESTILO_NOTAS = `
 @media (max-width: 560px) { .nf-total-main { border-right: none; width: 100% } }
 .nf-tr:hover { background: color-mix(in srgb, #0369a1 4%, var(--surface, #fefefe)) }
 .nf-tr:last-child td { border-bottom: none }
-@media (max-width: 1000px) { .nf-res { grid-template-columns: repeat(3, minmax(0, 1fr)) } .nf-res > div:nth-child(3n+1) { border-left: none } }
-@media (max-width: 560px) { .nf-res { grid-template-columns: repeat(2, minmax(0, 1fr)) } .nf-res > div { border-left: none } }
 `;
 
 export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: { podeXml: boolean; isAdmin: boolean; podeEntrada?: boolean }) {
@@ -271,7 +259,6 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
     } finally { setIndexando(false); }
   };
 
-  const cob = resp?.cobertura;
   // quem não tem Recebimentos não vê nota de entrada (o servidor decide; a prop só esconde antes da 1ª resposta)
   const mostraEntrada = podeEntrada && resp?.podeEntrada !== false;
   const aba = tipo === 'entrada' ? 'entrada' : tipo === '' ? 'todas' : 'saida';
@@ -288,7 +275,7 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
   const mostrarBateu = campo === 'auto' && !!q.trim();
 
   return (
-    <div style={{ padding: 'clamp(12px, 2vw, 28px)', color: 'var(--portal-text, #0f172a)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div className="nf-pagina" style={{ padding: 'clamp(12px, 2vw, 28px)', color: 'var(--portal-text, #0f172a)', display: 'flex', flexDirection: 'column', gap: 12 }}>
       <style>{ESTILO_NOTAS}</style>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
         <div style={{ fontSize: 15.5, color: 'var(--portal-text-secondary, #475569)' }}>
@@ -304,18 +291,6 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
           <ContaSelector />
         </div>
       </div>
-
-      {/* Cobertura */}
-      {cob && (
-        <div className="nf-res" style={cartao} title={`Última rodada: ${fmtQuando(resp?.ultimaRodada?.iniciado_em)}${resp?.ultimaRodada?.status ? ` (${resp.ultimaRodada.status})` : ''}`}>
-          <div><span><Database size={13} color={AZUL} style={{ verticalAlign: -2, marginRight: 4 }} />Notas{conta ? ` (${conta})` : ''}</span><b>{cob.total.toLocaleString('pt-BR')}</b></div>
-          <div><span>Com PDF</span><b>{percent(cob.comPdf, cob.total)}</b></div>
-          <div><span>Com XML</span><b>{percent(cob.comXml, cob.total)}</b></div>
-          <div><span>Completas</span><b>{cob.completas.toLocaleString('pt-BR')}</b></div>
-          <div><span>Na fila</span><b>{cob.naFila.toLocaleString('pt-BR')}</b></div>
-          <div><span>Sem documento</span><b style={{ color: cob.semDocumento ? '#dc2626' : undefined }}>{cob.semDocumento.toLocaleString('pt-BR')}</b></div>
-        </div>
-      )}
 
       {omieFora && (
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 12, padding: '10px 14px', fontSize: 15.5, color: '#92400e' }}>
@@ -339,6 +314,18 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
         <span style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: 15, color: apagado }}>Da mais nova para a mais velha; clique no título da coluna para mudar</span>
       </div>
 
+      {/* Busca (acima dos filtros) */}
+      <div style={{ ...cartao, display: 'flex', gap: 8, padding: '10px 12px', alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+          <Search size={17} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: apagado }} />
+          <input value={q} onChange={(e) => { setQ(e.target.value); setPagina(1); }} placeholder={`Buscar: ${campoInfo.placeholder}`} style={{ ...inp, width: '100%', height: 42, fontSize: 16.5, paddingLeft: 40 }} aria-label="Buscar" />
+        </div>
+        <select value={campo} onChange={(e) => { setCampo(ehCampoBusca(e.target.value) ? e.target.value : 'auto'); setPagina(1); }} style={{ ...inp, height: 42 }} title="Em que campo buscar" aria-label="Buscar em">
+          {CAMPOS_BUSCA.map((c) => <option key={c.id} value={c.id}>{c.id === 'auto' ? 'em: Tudo' : `em: ${c.label}`}</option>)}
+        </select>
+        {q && <button type="button" onClick={() => { setQ(''); setPagina(1); }} style={{ ...btn, height: 42 }} title="Limpar a busca" aria-label="Limpar a busca"><i className="fa-solid fa-xmark" /></button>}
+      </div>
+
       {/* Filtros */}
       <div style={{ ...cartao, display: 'flex', gap: 12, padding: '12px 16px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <div>
@@ -353,18 +340,7 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
             <input type="date" value={ate} onChange={(e) => { setAte(e.target.value); setPagina(1); }} style={inp} />
           </div>
         </div>
-        <div style={{ flex: 1, minWidth: 'min(320px, 100%)' }}>
-          <label style={rotulo}>Buscar</label>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <div style={{ position: 'relative', flex: 1 }}>
-              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: apagado }} />
-              <input value={q} onChange={(e) => { setQ(e.target.value); setPagina(1); }} placeholder={campoInfo.placeholder} style={{ ...inp, width: '100%', paddingLeft: 30 }} aria-label="Buscar" />
-            </div>
-            <select value={campo} onChange={(e) => { setCampo(ehCampoBusca(e.target.value) ? e.target.value : 'auto'); setPagina(1); }} style={inp} title="Em que campo buscar" aria-label="Buscar em">
-              {CAMPOS_BUSCA.map((c) => <option key={c.id} value={c.id}>{c.id === 'auto' ? 'em: Tudo' : `em: ${c.label}`}</option>)}
-            </select>
-          </div>
-        </div>
+        <div style={{ flex: 1 }} />
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {nFiltros > 0 && (
             <button type="button" onClick={limparFiltros} style={btn} title="Tira os filtros do cabeçalho da tabela (tipo, nº, cliente, pedido/OS, máquina, valor, documento)">
