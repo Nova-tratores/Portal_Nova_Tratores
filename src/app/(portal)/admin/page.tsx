@@ -65,9 +65,28 @@ export default function AdminPage() {
   const [expandidoUsuario, setExpandidoUsuario] = useState<Set<string>>(new Set())
   // filtro pelos números do topo (Admins, Devs, Diretores…)
   const [filtroPapel, setFiltroPapel] = useState<FiltroPapel>(null)
-  const toggleExpandirUsuario = (id: string) => setExpandidoUsuario(prev => {
-    const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n
-  })
+  // a pessoa aberta fica na URL (/admin?usuario=<id>): recarregar ou mandar o link abre
+  // direto nela; Voltar do navegador fecha (José, 10/11/2026)
+  const usuarioDaUrl = () => (typeof window === 'undefined' ? null : new URLSearchParams(window.location.search).get('usuario'))
+  const toggleExpandirUsuario = (id: string) => {
+    const abrindo = !expandidoUsuario.has(id)
+    setExpandidoUsuario(abrindo ? new Set([id]) : new Set())
+    const u = new URL(window.location.href)
+    if (abrindo) {
+      u.searchParams.set('usuario', id)
+      if (usuarioDaUrl()) window.history.replaceState(window.history.state, '', u.toString())
+      else window.history.pushState(window.history.state, '', u.toString())
+    } else {
+      u.searchParams.delete('usuario')
+      window.history.replaceState(window.history.state, '', u.toString())
+    }
+  }
+  useEffect(() => {
+    const ler = () => { const id = usuarioDaUrl(); setExpandidoUsuario(id ? new Set([id]) : new Set()) }
+    ler()
+    window.addEventListener('popstate', ler)
+    return () => window.removeEventListener('popstate', ler)
+  }, [])
   const [search, setSearch] = useState('')
   const [showNovoUsuario, setShowNovoUsuario] = useState(false)
   const [novoNome, setNovoNome] = useState('')
