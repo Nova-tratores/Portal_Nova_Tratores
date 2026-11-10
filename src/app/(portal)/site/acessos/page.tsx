@@ -14,6 +14,7 @@ const NOME_CLIQUE: Record<string, string> = {
   usado_whatsapp: 'Avaliar usado → WhatsApp', demonstracao_whatsapp: 'Pedir demonstração',
   pecas_whatsapp: 'Peças → pedir no WhatsApp', pecas3d_whatsapp: 'Catálogo 3D → pedir peça', pecas_abrir_3d: 'Abriu o catálogo 3D',
   pecas_nao_achou: 'Peças → não achou', busca_pecas: 'Buscou peça', pecas_aba: 'Peças → trocou de aba', posvenda_whatsapp: 'Pós-venda → WhatsApp',
+  contato_whatsapp_vendas: 'Contato → WhatsApp Vendas', contato_whatsapp_posvenda: 'Contato → WhatsApp Pós-Vendas', contato_whatsapp_pecas: 'Contato → WhatsApp Peças', contato_como_chegar: 'Contato → Como chegar',
   garantia_agendar_revisao: 'Garantia → agendar revisão',
 };
 const nomeClique = (e: string) => NOME_CLIQUE[e] || e.replace(/_/g, ' ');
