@@ -112,6 +112,10 @@ export interface Resumo {
   origens: { nome: string; visitas: number; conversoes: number }[]
   saidas: { caminho: string; titulo: string; saidas: number; semConversao: number }[]
   cliques: { evento: string; total: number }[]
+  /** Peças (José, 10/11): termos buscados e peças pedidas pelo WhatsApp (site e catálogo 3D). */
+  buscasPecas: { termo: string; total: number }[]
+  pecasPedidas: { codigo: string; total: number }[]
+  aberturas3d: number
 }
 
 const diaBR = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
@@ -128,7 +132,15 @@ export function resumir(visitas: Visita[]): Resumo {
   const saidas = new Map<string, { titulo: string; saidas: number; semConversao: number }>()
   const cliques = new Map<string, number>()
 
+  const buscas = new Map<string, number>()
+  const pedidas = new Map<string, number>()
+  let aberturas3d = 0
   for (const v of visitas) {
+    for (const c of v.cliques) {
+      if (c.evento === 'busca_pecas' && c.rotulo) { const t = c.rotulo.toLowerCase(); buscas.set(t, (buscas.get(t) || 0) + 1) }
+      if ((c.evento === 'pecas_whatsapp' || c.evento === 'pecas3d_whatsapp') && c.rotulo) pedidas.set(c.rotulo, (pedidas.get(c.rotulo) || 0) + 1)
+      if (c.evento === 'pecas_abrir_3d') aberturas3d++
+    }
     const d = dias.get(diaBR(v.inicio)) || { visitas: 0, conversoes: 0 }
     d.visitas++; if (v.converteu) d.conversoes++
     dias.set(diaBR(v.inicio), d)
@@ -163,5 +175,8 @@ export function resumir(visitas: Visita[]): Resumo {
     origens: [...origens].map(([nome, x]) => ({ nome, ...x })).sort((a, b) => b.visitas - a.visitas),
     saidas: [...saidas].map(([caminho, x]) => ({ caminho, ...x })).sort((a, b) => b.semConversao - a.semConversao).slice(0, 10),
     cliques: [...cliques].map(([evento, total]) => ({ evento, total })).sort((a, b) => b.total - a.total),
+    buscasPecas: [...buscas].map(([termo, total]) => ({ termo, total })).sort((a, b) => b.total - a.total).slice(0, 15),
+    pecasPedidas: [...pedidas].map(([codigo, total]) => ({ codigo, total })).sort((a, b) => b.total - a.total).slice(0, 15),
+    aberturas3d,
   }
 }

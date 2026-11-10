@@ -322,6 +322,8 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     ...PAGINAS_SITE.map((p) => ({ id: p.key.replace('site:', ''), label: p.label })),
     { id: 'pedidos:editar', label: 'Pedidos do site — assumir / mudar status / anotar' },
     { id: 'catalogo:editar', label: 'Catálogo do site — mudar preço, selo, pronta entrega, ocultar' },
+    { id: 'conteudo:editar', label: 'Conteúdo do site — editar telefones, horário, textos e aviso' },
+    { id: 'conteudo:publicar', label: 'Conteúdo do site — publicar o site' },
   ],
   'inteligencia-vendas': [
     ...PAGINAS_IV.map((p) => ({ id: p.key.replace('inteligencia-vendas:', ''), label: p.label })),

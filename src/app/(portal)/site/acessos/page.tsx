@@ -12,6 +12,9 @@ const NOME_CLIQUE: Record<string, string> = {
   clique_whatsapp: 'WhatsApp', clique_telefone: 'Telefone', simulador_whatsapp: 'Simulador → WhatsApp',
   simulador_formulario: 'Simulador → pedido de proposta', clique_whatsapp_trator_ideal: 'Trator ideal → WhatsApp',
   usado_whatsapp: 'Avaliar usado → WhatsApp', demonstracao_whatsapp: 'Pedir demonstração',
+  pecas_whatsapp: 'Peças → pedir no WhatsApp', pecas3d_whatsapp: 'Catálogo 3D → pedir peça', pecas_abrir_3d: 'Abriu o catálogo 3D',
+  pecas_nao_achou: 'Peças → não achou', busca_pecas: 'Buscou peça', pecas_aba: 'Peças → trocou de aba', posvenda_whatsapp: 'Pós-venda → WhatsApp',
+  garantia_agendar_revisao: 'Garantia → agendar revisão',
 };
 const nomeClique = (e: string) => NOME_CLIQUE[e] || e.replace(/_/g, ' ');
 
@@ -113,6 +116,14 @@ export default function AcessosSitePage() {
             <div style={cartao}>
               <div style={{ fontWeight: 500, marginBottom: 10 }}>Botões tocados</div>
               <Barras cor="#16a34a" linhas={r.cliques.slice(0, 8).map((c) => ({ rotulo: nomeClique(c.evento), valor: c.total }))} />
+            </div>
+            <div style={cartao}>
+              <div style={{ fontWeight: 500, marginBottom: 10 }}>Peças mais buscadas</div>
+              <Barras cor="#d97706" linhas={r.buscasPecas.slice(0, 10).map((b) => ({ rotulo: b.termo, valor: b.total }))} />
+            </div>
+            <div style={cartao}>
+              <div style={{ fontWeight: 500, marginBottom: 10 }}>Peças pedidas no WhatsApp {r.aberturas3d ? <span style={{ fontWeight: 400, fontSize: 13 }}>· catálogo 3D aberto {r.aberturas3d}×</span> : null}</div>
+              <Barras cor="#1f9d55" linhas={r.pecasPedidas.slice(0, 10).map((p) => ({ rotulo: p.codigo, valor: p.total }))} />
             </div>
           </div>
 
