@@ -20,7 +20,7 @@ const CAMPOS = ["AssCliente", "AssTecnico"] as const;
 const LIMITE_SEM_MEXER = 400_000;
 
 function decodificar(dataUri: string): { mime: string; buf: Buffer } | null {
-  const m = /^data:([^;,]+)(;base64)?,(.*)$/s.exec(dataUri);
+  const m = /^data:([^;,]+)(;base64)?,([\s\S]*)$/.exec(dataUri); // [\s\S] = a flag /s, que o target do projeto não aceita
   if (!m || !m[2]) return null;
   return { mime: m[1].toLowerCase(), buf: Buffer.from(m[3], "base64") };
 }

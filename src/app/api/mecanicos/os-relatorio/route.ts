@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     sb.from('Ordem_Servico').select('ID_Relatorio_Final, Os_Cliente').eq('Id_Ordem', os).maybeSingle(),
     listarPaliativos(sb, os, { comDados: true }),
   ])
-  const ls = (rels || []) as Rec[]
+  const ls = (rels || []) as unknown as Rec[] // select com string montada: o supabase-js não deduz o tipo
   const r = ls.find((x) => String(x.Status || '').toLowerCase() === 'enviado') || ls[0] || null
   const pdf = String((ordem as Rec | null)?.ID_Relatorio_Final || '').trim()
   return NextResponse.json({
