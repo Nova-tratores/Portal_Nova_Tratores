@@ -37,5 +37,7 @@ describe('montarPecas e buscarPecas', () => {
     expect(buscarPecas(pecas, 'rp007205821').length).toBe(1)
     expect(buscarPecas(pecas, 'filtro', 'mahindra')).toEqual([])
     expect(buscarPecas(pecas, '', 'outras').map((x) => x.codigo)).toEqual(['B2022060'])
+    expect(buscarPecas(pecas, 'filtros de ar').map((x) => x.codigo)).toEqual(['B2022060'])
+    expect(buscarPecas(pecas, 'molas').length).toBe(1)
   })
 })

@@ -53,8 +53,23 @@ export function montarPecas(produtos: ProdutoEstoque[]): PecaSite[] {
   return [...vistos.values()].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
 }
 
-/** Busca: todas as palavras precisam aparecer (no nome ou no código, ignorando pontuação). */
+/** Variações de uma palavra para achar o singular: filtros → filtro, vedacoes → vedacao, rolamentos → rolamento. */
+export function variantes(t: string): string[] {
+  const v = new Set([t])
+  if (t.length > 4) {
+    if (t.endsWith('oes') || t.endsWith('aes')) v.add(t.slice(0, -3) + 'ao')
+    if (t.endsWith('is')) v.add(t.slice(0, -2) + 'l')
+    if (t.endsWith('es')) v.add(t.slice(0, -2))
+    if (t.endsWith('s')) v.add(t.slice(0, -1))
+  }
+  return [...v]
+}
+
+const VAZIAS = ['de', 'da', 'do', 'das', 'dos', 'para', 'e', 'o', 'a']
+
+/** Busca: todas as palavras precisam aparecer (no nome ou no código, ignorando pontuação; aceita plural). */
 export function buscarPecas(pecas: PecaSite[], q: string, grupo?: GrupoPeca): PecaSite[] {
-  const termos = norm(q).split(/\s+/).filter(Boolean).map((t) => ({ t, so: t.replace(/[^a-z0-9]/g, '') }))
-  return pecas.filter((p) => (!grupo || p.grupo === grupo) && termos.every(({ t, so }) => p.busca.includes(t) || (so.length >= 3 && p.busca.includes(so))))
+  const termos = norm(q).split(/\s+/).filter((t) => t && !VAZIAS.includes(t))
+    .map((t) => ({ vs: variantes(t), so: t.replace(/[^a-z0-9]/g, '') }))
+  return pecas.filter((p) => (!grupo || p.grupo === grupo) && termos.every(({ vs, so }) => vs.some((t) => p.busca.includes(t)) || (so.length >= 3 && p.busca.includes(so))))
 }
