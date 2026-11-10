@@ -9,7 +9,7 @@ export const maxDuration = 300;
 // WRITE no Omie: corrige categoria/departamento de vários lançamentos (loop + throttle).
 export async function POST(req: NextRequest) {
   // Onda 0: exige login e permissao; o autor sai do login, nao do corpo.
-  const acesso = await protegerRota(req, [{ modulo: 'ajustes', acao: 'correcao-contas' }]);
+  const acesso = await protegerRota(req, [{ modulo: 'financeiro', acao: 'correcao-contas' }, { modulo: 'ajustes', acao: 'correcao-contas' }]);
   if (acesso.resposta) return acesso.resposta;
   try {
     const b = (await req.json().catch(() => ({}))) as any;

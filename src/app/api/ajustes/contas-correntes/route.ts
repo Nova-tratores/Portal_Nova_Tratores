@@ -10,8 +10,8 @@ export const maxDuration = 60;
 export async function GET(req: NextRequest) {
   // Telas: /ajustes/baixa-contas, /ajustes/correcao-contas e /estoque/recebimentos.
   const g = await protegerRota(req, [
-    { modulo: 'ajustes', acao: 'baixa-contas' },
-    { modulo: 'ajustes', acao: 'correcao-contas' },
+    { modulo: 'financeiro', acao: 'baixa-contas' }, { modulo: 'ajustes', acao: 'baixa-contas' },
+    { modulo: 'financeiro', acao: 'correcao-contas' }, { modulo: 'ajustes', acao: 'correcao-contas' },
     { modulo: 'estoque', acao: 'recebimentos' },
     { modulo: 'ajustes', acao: 'recebimentos' },
   ]);

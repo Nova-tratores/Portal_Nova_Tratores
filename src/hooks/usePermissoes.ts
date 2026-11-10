@@ -41,6 +41,40 @@ function assinarMudancas(userId: string, cb: () => void): () => void {
   }
 }
 
+// Leitura COMPARTILHADA da linha, com novas tentativas (10/11/2026). Caso real: o menu de Áreas do Financeiro
+// apareceu e, na mesma tela, o topo e o card Caixa ficaram "sem permissão" (abas sumidas) — cada instância do
+// hook (layout, página, faixa, cartões) lia sozinha; a leitura que falhava (rede oscilando, volta da suspensão,
+// troca de token) virava "nenhuma permissão" e assim ficava até trocar de aba. Agora: uma leitura por usuário
+// para todas as instâncias (a mesma promessa; 5 s de cache) e, se falhar, até 4 tentativas (0,5/1/2 s, como o
+// useAuth). O supabase-js NÃO lança no erro: devolve { error } — o código antigo nem olhava.
+type Linha = { em: number; dado: Permissoes | null; promessa?: Promise<Permissoes | null> }
+const linhas = new Map<string, Linha>()
+const ESPERAS_MS = [0, 500, 1000, 2000]
+
+async function lerLinha(userId: string, forcar = false): Promise<Permissoes | null> {
+  const atual = linhas.get(userId)
+  if (atual?.promessa) return atual.promessa
+  if (!forcar && atual && Date.now() - atual.em < 5_000) return atual.dado
+  const promessa = (async () => {
+    let erro: unknown = null
+    for (const espera of ESPERAS_MS) {
+      if (espera) await new Promise((r) => setTimeout(r, espera))
+      try {
+        const { data, error } = await supabase.from('portal_permissoes').select('*').eq('user_id', userId).maybeSingle()
+        if (!error) {
+          linhas.set(userId, { em: Date.now(), dado: (data as Permissoes | null) ?? null })
+          return (data as Permissoes | null) ?? null
+        }
+        erro = error
+      } catch (e) { erro = e }
+    }
+    linhas.delete(userId)
+    throw erro ?? new Error('não foi possível ler as permissões')
+  })()
+  linhas.set(userId, { em: atual?.em ?? 0, dado: atual?.dado ?? null, promessa })
+  return promessa
+}
+
 export function usePermissoes(userId: string | undefined) {
   const [permissoes, setPermissoes] = useState<Permissoes | null>(null)
   const [loading, setLoading] = useState(true)
@@ -59,21 +93,23 @@ export function usePermissoes(userId: string | undefined) {
 
     fetchedId.current = userId
     setLoading(true)
+    let vivo = true
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let falhas = 0
     const buscar = async () => {
       try {
-        const { data } = await supabase
-          .from('portal_permissoes')
-          .select('*')
-          .eq('user_id', userId)
-          .single()
-        setPermissoes(data)
+        const dado = await lerLinha(userId)
+        if (vivo) setPermissoes(dado)
       } catch {
-        setPermissoes(null)
+        // as 4 tentativas falharam: segue sem permissão por ora e tenta de novo a cada 10 s (até 6 vezes);
+        // a volta à aba e o Realtime também releem
+        if (vivo && ++falhas <= 6) timer = setTimeout(buscar, 10_000)
       } finally {
-        setLoading(false)
+        if (vivo) setLoading(false)
       }
     }
     buscar()
+    return () => { vivo = false; if (timer) clearTimeout(timer) }
   }, [userId])
 
   // Relê a linha SEM piscar o loading (usado pelo Realtime e pela volta à aba).
@@ -82,11 +118,7 @@ export function usePermissoes(userId: string | undefined) {
   const recarregar = useCallback(async () => {
     if (!userId) return
     try {
-      const { data } = await supabase
-        .from('portal_permissoes')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle()
+      const data = await lerLinha(userId, true)
       if (data) setPermissoes(data)
     } catch { /* mantém o que já tinha */ }
   }, [userId])

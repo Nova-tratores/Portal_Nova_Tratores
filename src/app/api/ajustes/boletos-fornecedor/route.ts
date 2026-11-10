@@ -9,7 +9,7 @@ import { listarBoletos, listarRegras, migracaoFaltando, registrarBoleto, titulos
 export const dynamic = 'force-dynamic';
 export const maxDuration = 300;
 
-const GATE = [{ modulo: 'ajustes', acao: 'boletos-fornecedor' }, { modulo: 'ajustes', acao: 'correcao-contas' }, { modulo: 'ajustes', acao: 'baixa-contas' }];
+const GATE = [{ modulo: 'financeiro', acao: 'boletos-fornecedor' }, { modulo: 'ajustes', acao: 'boletos-fornecedor' }, { modulo: 'financeiro', acao: 'correcao-contas' }, { modulo: 'ajustes', acao: 'correcao-contas' }, { modulo: 'financeiro', acao: 'baixa-contas' }, { modulo: 'ajustes', acao: 'baixa-contas' }];
 
 function erroResp(e: unknown) {
   const msg = (e as Error).message || String(e);
@@ -37,7 +37,7 @@ export async function GET(req: NextRequest) {
 
 // WRITE na Omie: registra o boleto e altera previsão/vencimento/observação de cada duplicata.
 export async function POST(req: NextRequest) {
-  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'boletos-fornecedor' }, { modulo: 'ajustes', acao: 'correcao-contas' }]);
+  const g = await protegerRota(req, [{ modulo: 'financeiro', acao: 'boletos-fornecedor' }, { modulo: 'ajustes', acao: 'boletos-fornecedor' }, { modulo: 'financeiro', acao: 'correcao-contas' }, { modulo: 'ajustes', acao: 'correcao-contas' }]);
   if (g.resposta) return g.resposta;
   try {
     const b = (await req.json().catch(() => ({}))) as any;

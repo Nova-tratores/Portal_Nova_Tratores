@@ -3,8 +3,9 @@ import { useConta } from './ContaProvider';
 
 /** Dropdown de conta (Todas / Nova / Castro). Lê e grava no ContaProvider. */
 export default function ContaSelector({ label = 'Conta' }: { label?: string }) {
-  const { conta, setConta, contas } = useConta();
-  if (contas.length === 0) return null;
+  const { conta, setConta, contas, fixa } = useConta();
+  // conta fixa (ex.: telas do Financeiro, que seguem o NOVA/CASTRO do topo): não mostra uma 2ª escolha de empresa
+  if (fixa || contas.length === 0) return null;
   return (
     <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 4 }}>
       <label style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase' }}>{label}</label>

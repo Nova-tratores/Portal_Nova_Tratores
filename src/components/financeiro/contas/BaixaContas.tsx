@@ -155,7 +155,7 @@ export default function BaixaContasPage() {
     setSort((s) => s.key === key ? { key, dir: -s.dir } : { key, dir: 1 });
   }, []);
 
-  if (!permLoading && userProfile && !pode('ajustes', 'baixa-contas')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('financeiro', 'baixa-contas')) return <SemPermissao />;
 
   const COLS_GRADE = COLS.length + 1;
   return (

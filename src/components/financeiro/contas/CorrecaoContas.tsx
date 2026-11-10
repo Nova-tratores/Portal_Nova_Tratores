@@ -300,7 +300,7 @@ export default function CorrecaoContasPage() {
     setSelBoleto((s) => elegiveis.every((l) => s.has(chaveSel(l))) ? new Set() : new Set(elegiveis.map(chaveSel)));
   };
 
-  if (!permLoading && userProfile && !pode('ajustes', 'correcao-contas')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('financeiro', 'correcao-contas')) return <SemPermissao />;
 
   const TOP = 30;
   const topRanking = ranking.slice(0, TOP);

@@ -5,13 +5,15 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { useRouter } from 'next/navigation'
 import SemPermissao from '@/components/SemPermissao'
 import MenuAreasFinanceiro from '@/components/financeiro/MenuAreasFinanceiro'
+import { temAlgumaAba } from '@/components/financeiro/areasFinanceiro'
 
 export default function FinanceiroEntryPage() {
   const { userProfile, loading } = useAuth()
   const { temAcesso, pode, isDev, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const router = useRouter()
-  // Dev e função Financeiro entram no menu de áreas (José, 06/11/2026); os outros seguem para o Kanban deles
-  const menuAreas = isDev || userProfile?.funcao === 'Financeiro'
+  // Menu de áreas (José, 06/11/2026) para quem tem alguma aba do Financeiro no Admin (10/11/2026; antes: Dev ou
+  // função Financeiro); os outros seguem para o Kanban deles
+  const menuAreas = isDev || temAlgumaAba(pode)
 
   useEffect(() => {
     if (loading || loadingPerm || !userProfile) return

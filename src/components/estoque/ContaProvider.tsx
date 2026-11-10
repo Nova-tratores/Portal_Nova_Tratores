@@ -27,12 +27,16 @@ interface ContaContextValue {
   contas: ContaOption[];
   /** Sufixo pronto para anexar à query string ('' ou '&conta=NOVA'). */
   contaParam: string;
+  /** Conta vem de fora (ex.: o NOVA/CASTRO do topo do Financeiro): o ContaSelector some e não grava nada. */
+  fixa: boolean;
 }
 
 const STORAGE_KEY = 'omie_conta_selecionada';
 const ContaContext = createContext<ContaContextValue | null>(null);
 
-export function ContaProvider({ children }: { children: React.ReactNode }) {
+// `fixa` (10/11/2026): a conta vem de quem monta o provider — as telas de contas do Financeiro seguem o NOVA/CASTRO
+// do topo (uma escolha de empresa só na tela); sem `fixa`, o de sempre (Todas/Nova/Castro, lembrado no navegador).
+export function ContaProvider({ children, fixa }: { children: React.ReactNode; fixa?: 'NOVA' | 'CASTRO' }) {
   // Inicializador lazy lê a seleção salva no client (no SSR retorna ''). Como o
   // ContaSelector só renderiza depois que `contas` carrega (async), não há
   // mismatch de hidratação sobre o valor do <select>.
@@ -56,10 +60,11 @@ export function ContaProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const contaParam = conta ? '&conta=' + encodeURIComponent(conta) : '';
+  const contaEfetiva = fixa ?? conta;
+  const contaParam = contaEfetiva ? '&conta=' + encodeURIComponent(contaEfetiva) : '';
 
   return (
-    <ContaContext.Provider value={{ conta, setConta, contas, contaParam }}>{children}</ContaContext.Provider>
+    <ContaContext.Provider value={{ conta: contaEfetiva, setConta: fixa ? () => {} : setConta, contas, contaParam, fixa: !!fixa }}>{children}</ContaContext.Provider>
   );
 }
 

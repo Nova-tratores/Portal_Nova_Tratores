@@ -5,6 +5,7 @@
 // Tela nova num módulo sem lista própria = linha nova aqui.
 import { PAGINAS_ESTOQUE } from '@/app/(portal)/estoque/paginas'
 import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas'
+import { CHAVES_ABAS_FINANCEIRO } from '@/components/financeiro/areasFinanceiro'
 import { PAGINAS_FROTA } from '@/app/(portal)/frota/paginas'
 import { PAGINAS_MARKETING } from '@/app/(portal)/marketing/paginas'
 
@@ -118,7 +119,10 @@ export const TELAS: Tela[] = [
   ]),
   { nome: 'Consulta de produto', href: '/estoque', area: 'Estoque', sistema: 'consulta-omie', modulo: 'estoque', sinonimos: ['consulta estoque', 'produto', 'saldo'] },
   ...PAGINAS_ESTOQUE.map((p) => ({ nome: p.label, href: p.href, area: 'Estoque', sistema: 'consulta-omie', modulo: 'estoque', acao: p.key })),
-  ...PAGINAS_AJUSTES.map((p) => ({ nome: p.label, href: p.href, area: p.modulo === 'financeiro' ? 'Financeiro' : 'Ajustes', modulo: 'ajustes', acao: p.key.split(':')[1] })),
+  ...PAGINAS_AJUSTES.map((p) => ({ nome: p.label, href: p.href, area: 'Ajustes', modulo: 'ajustes', acao: p.key.split(':')[1] })),
+  // abas das áreas do Financeiro novo (10/11/2026), cada uma pela sua chave
+  ...CHAVES_ABAS_FINANCEIRO.filter((c) => !/^\/financeiro\/(notas|rastreio|contas-cliente|kanban-financeiro)$/.test(c.href))
+    .map((c) => ({ nome: `${c.aba} (Financeiro › ${c.area})`, href: c.href, area: 'Financeiro', modulo: 'financeiro', acao: c.chave })),
   // ── Frota
   ...PAGINAS_FROTA.map((p) => ({ nome: p.href === '/frota' ? 'Frota — Hoje' : p.href === '/frota/veiculos' ? 'Frota — Veículos' : p.label, href: p.href, area: 'Frota', sistema: 'frota', modulo: 'frota', acao: p.key.slice('frota:'.length) })),
   ...t('Frota', 'pendencias', 'pendencias', [['Pendências da frota', '/pendencias', ['pendência do carro', 'pendências frota']]]),

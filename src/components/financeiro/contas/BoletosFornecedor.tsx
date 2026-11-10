@@ -64,8 +64,8 @@ export default function BoletosFornecedorPage() {
     } catch (ex) { setStatus('Erro de rede: ' + (ex as Error).message); }
   }, [carregar]);
 
-  if (!permLoading && userProfile && !pode('ajustes', 'boletos-fornecedor') && !pode('ajustes', 'correcao-contas') && !pode('ajustes', 'baixa-contas')) return <SemPermissao />;
-  const podeEditar = pode('ajustes', 'boletos-fornecedor');
+  if (!permLoading && userProfile && !pode('financeiro', 'boletos-fornecedor') && !pode('financeiro', 'correcao-contas') && !pode('financeiro', 'baixa-contas')) return <SemPermissao />;
+  const podeEditar = pode('financeiro', 'boletos-fornecedor');
 
   return (
     <PaginaFin

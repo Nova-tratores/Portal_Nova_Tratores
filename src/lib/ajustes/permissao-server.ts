@@ -11,6 +11,7 @@ import { createClient } from '@supabase/supabase-js';
 import { supabase as supabaseAdmin } from './supabase';
 import { httpErr } from './cmc';
 import { decidirPermissao } from '@/lib/permissoes/sombra-server';
+import { acaoExplicita } from '@/lib/permissoes/explicitas';
 import { contaDesativada, MENSAGEM_DESATIVADA } from '@/lib/auth/ativo';
 
 // Valida o usuario logado e exige a permissao `modulo` (ou is_admin/is_dev). Com
@@ -39,9 +40,10 @@ export async function exigirPermissao(req: Request, modulo: string, acao?: strin
   const p = perm as any;
   const isAdmin = p?.is_admin === true || p?.is_dev === true;
   const mods: string[] = p?.modulos_permitidos || [];
+  // ação explícita (lib/permissoes/explicitas): o módulo inteiro não dá, igual ao pode() da tela (10/11/2026)
   const okAntigo = isAdmin
-    || mods.includes(modulo)
-    || (!!acao && mods.includes(`${modulo}:${acao}`));
+    || (acaoExplicita(modulo, acao) ? mods.includes(`${modulo}:${acao}`)
+      : mods.includes(modulo) || (!!acao && mods.includes(`${modulo}:${acao}`)));
   // Permissões v2 (Fase 3a): no modo sombra decide a regra acima e a v2 só é registrada.
   const ok = await decidirPermissao(req, user.id, isAdmin, { tipo: 'permissao', modulo, acao }, okAntigo);
   if (!ok) throw httpErr(403, `sem permissao para esta acao${acao ? ` (${acao})` : ''}`);
@@ -136,6 +138,8 @@ export async function protegerRota(
   const mods: string[] = p?.modulos_permitidos || [];
   const okAntigo = isAdmin || opcoes.some((o) => {
     if ('admin' in o) return false;
+    // ação explícita: o módulo inteiro não dá (igual ao pode() da tela; antes a rota deixava passar — 10/11/2026)
+    if (acaoExplicita(o.modulo, o.acao)) return mods.includes(`${o.modulo}:${o.acao}`);
     if (mods.includes(o.modulo)) return true;
     return o.acao ? mods.includes(`${o.modulo}:${o.acao}`) : mods.some((m) => m.startsWith(`${o.modulo}:`));
   });

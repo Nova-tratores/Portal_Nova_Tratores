@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import FinanceiroTopoNovo from './FinanceiroTopoNovo'
+import { temAlgumaAba } from './areasFinanceiro'
 import {
   Columns3, BarChart3, Receipt, Users,
   FileText, DollarSign, AlertTriangle, Search, Wallet, FileSignature, Calculator, FilePen, CircleCheck, Barcode
@@ -61,7 +62,7 @@ const LINK_NOTAS = { label: 'Notas fiscais', href: '/financeiro/notas', icon: 'n
 const LINK_CONTAS_CLIENTE = { label: 'Contas do cliente', href: '/financeiro/contas-cliente', icon: 'contas-cliente' }
 // Recibos de pagamento (03/11/2026): todas as funções do Financeiro (o balcão de peças também emite)
 const LINK_RECIBOS = { label: 'Recibos', href: '/financeiro/recibos', icon: 'recibos' }
-// Telas de contas que vieram do Ajustes (09/11/2026), com a permissão de sempre (ajustes:<icon>). Quem tem o
+// Telas de contas que vieram do Ajustes (09/11/2026); chave financeiro:<icon> desde 10/11. Quem tem o
 // Caixa as vê como abas da área Caixa (topo novo); na faixa antiga entram para quem tem a permissão.
 const LINKS_CONTAS_AJUSTES = [
   { label: 'Correção de contas', href: '/financeiro/caixa/correcao-contas', icon: 'correcao-contas' },
@@ -84,9 +85,11 @@ export default function FinanceiroNav({ children = null }) {
     : funcao === 'Peças' ? LINKS_PECAS
     : LINKS_POSVENDAS
   // Notas fiscais (cache PDF + XML) vale pela PERMISSÃO, não pela função
-  const comNotas = [...(pode('financeiro', 'notas') ? [...linksFuncao, LINK_NOTAS] : linksFuncao), ...(pode('financeiro', 'contas-cliente') ? [LINK_CONTAS_CLIENTE] : []), ...LINKS_CONTAS_AJUSTES.filter(l => pode('ajustes', l.icon)), LINK_RECIBOS]
+  const comNotas = [...(pode('financeiro', 'notas') ? [...linksFuncao, LINK_NOTAS] : linksFuncao), ...(pode('financeiro', 'contas-cliente') ? [LINK_CONTAS_CLIENTE] : []), ...LINKS_CONTAS_AJUSTES.filter(l => pode('financeiro', l.icon)), LINK_RECIBOS]
   // Caixa (grupo Financeiro): só Dev ou função Financeiro; Dev de outra função também vê a aba
-  const podeCaixa = isDev || funcao === 'Financeiro'
+  // 10/11/2026: o topo novo (áreas) vale para quem tem alguma aba do Financeiro no Admin (antes: Dev ou função
+  // Financeiro). Admin e Dev têm todas; a função Financeiro ganhou todas pelo sql/financeiro-permissoes-abas.sql.
+  const podeCaixa = isDev || temAlgumaAba(pode)
   const linkCaixa = LINKS_FINANCEIRO.find(l => l.soDevFinanceiro)
   // Caixa logo depois do Kanban; aba Despesas fora da faixa (José, 30/10/2026), a tela segue no endereço dela
   const semCaixa = comNotas.filter(l => !l.soDevFinanceiro && l.icon !== 'pagar')

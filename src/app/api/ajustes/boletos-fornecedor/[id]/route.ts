@@ -14,7 +14,7 @@ function erroResp(e: unknown) {
 }
 
 export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
-  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'boletos-fornecedor' }, { modulo: 'ajustes', acao: 'correcao-contas' }, { modulo: 'ajustes', acao: 'baixa-contas' }]);
+  const g = await protegerRota(req, [{ modulo: 'financeiro', acao: 'boletos-fornecedor' }, { modulo: 'ajustes', acao: 'boletos-fornecedor' }, { modulo: 'financeiro', acao: 'correcao-contas' }, { modulo: 'ajustes', acao: 'correcao-contas' }, { modulo: 'financeiro', acao: 'baixa-contas' }, { modulo: 'ajustes', acao: 'baixa-contas' }]);
   if (g.resposta) return g.resposta;
   const { id } = await ctx.params;
   try {
@@ -33,8 +33,8 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
   const acao = String(b.acao || '');
   // pagar = permissão de baixa; estornar/reaplicar = permissão do boleto (ou correção de contas)
   const gate = acao === 'pagar'
-    ? [{ modulo: 'ajustes', acao: 'baixa-contas' }, { modulo: 'ajustes', acao: 'boletos-fornecedor' }]
-    : [{ modulo: 'ajustes', acao: 'boletos-fornecedor' }, { modulo: 'ajustes', acao: 'correcao-contas' }];
+    ? [{ modulo: 'financeiro', acao: 'baixa-contas' }, { modulo: 'ajustes', acao: 'baixa-contas' }, { modulo: 'financeiro', acao: 'boletos-fornecedor' }, { modulo: 'ajustes', acao: 'boletos-fornecedor' }]
+    : [{ modulo: 'financeiro', acao: 'boletos-fornecedor' }, { modulo: 'ajustes', acao: 'boletos-fornecedor' }, { modulo: 'financeiro', acao: 'correcao-contas' }, { modulo: 'ajustes', acao: 'correcao-contas' }];
   const g = await protegerRota(req, gate);
   if (g.resposta) return g.resposta;
   const criadoPor = autorDe(g.user);

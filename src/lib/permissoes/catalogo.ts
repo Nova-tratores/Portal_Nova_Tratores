@@ -7,6 +7,7 @@
 //  acesso total por ações específicas.
 
 import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas';
+import { CHAVES_ABAS_FINANCEIRO } from '@/components/financeiro/areasFinanceiro';
 import { PAGINAS_FROTA } from '@/app/(portal)/frota/paginas';
 import { PAGINAS_MARKETING } from '@/app/(portal)/marketing/paginas';
 import { PAGINAS_IV } from '@/app/(portal)/inteligencia-vendas/paginas';
@@ -200,8 +201,10 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     // Herdeira da consulta-estoque:notas-entrada (tela aposentada 29/10/2026).
     { id: 'notas-entrada', label: 'Notas fiscais — ver também as de entrada (só consulta)' },
     { id: 'editar_cards', label: 'Editar cards do kanban a qualquer momento (nome, condição, valor, datas)' },
-    { id: 'contas-cliente', label: 'Contas do cliente/fornecedor + calculadora de dívida' },
     { id: 'contas-cliente-regra', label: 'Contas do cliente — editar a regra de juros da empresa' },
+    // uma ação por aba das áreas do Financeiro novo (10/11/2026; explícitas: o módulo inteiro não dá)
+    ...CHAVES_ABAS_FINANCEIRO.filter((c) => c.chave !== 'rastreio' && c.chave !== 'notas')
+      .map((c) => ({ id: c.chave, label: `${c.area} › ${c.aba}` })),
   ],
   // DRE Financeiro: granular POR TELA (cada ação = uma tela analítica). O id da
   // ação é o slug da rota (/dre-financeiro/<id>). Quem tem 'financeiro' ou é

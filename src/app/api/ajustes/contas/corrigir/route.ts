@@ -12,7 +12,7 @@ export const maxDuration = 60;
 // projeto, conta corrente, nº documento, observação) de UM lançamento (AlterarConta*).
 export async function POST(req: NextRequest) {
   // Onda 0: exige login e permissao; o autor sai do login, nao do corpo.
-  const acesso = await protegerRota(req, [{ modulo: 'ajustes', acao: 'correcao-contas' }]);
+  const acesso = await protegerRota(req, [{ modulo: 'financeiro', acao: 'correcao-contas' }, { modulo: 'ajustes', acao: 'correcao-contas' }]);
   if (acesso.resposta) return acesso.resposta;
   try {
     const b = (await req.json().catch(() => ({}))) as any;

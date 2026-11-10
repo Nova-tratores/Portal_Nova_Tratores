@@ -18,6 +18,37 @@ export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
   'planta:sensivel',
   // desenhar o mapa do Opa (andares, blocos, lugares) — o módulo Opa não dá (05/11/2026)
   'opa:mapa',
+  // abas do Financeiro novo, uma chave por aba (10/11/2026): o "acesso total" ao Financeiro NÃO dá — Pós-Vendas e
+  // Peças têm o módulo para os kanbans deles e não podem passar a ver Folha, Banco etc. Lista conferida contra
+  // areasFinanceiro.ts (permissoes/__tests__/financeiro-abas.test.ts).
+  'financeiro:recebimentos',
+  'financeiro:hoje',
+  'financeiro:calendario',
+  'financeiro:vencidos',
+  'financeiro:contas-cliente',
+  'financeiro:baixa-contas',
+  'financeiro:correcao-contas',
+  'financeiro:boletos-fornecedor',
+  'financeiro:compras-mercadoria',
+  'financeiro:compras-tratores',
+  'financeiro:compras-uso-e-consumo',
+  'financeiro:compras-frete',
+  'financeiro:compras-servicos',
+  'financeiro:compras-devolucoes',
+  'financeiro:pessoas-folha',
+  'financeiro:pessoas-beneficios',
+  'financeiro:pessoas-comissoes',
+  'financeiro:pessoas-viagens',
+  'financeiro:contas-fixas',
+  'financeiro:contas-impostos',
+  'financeiro:contas-bens',
+  'financeiro:contas-marketing',
+  'financeiro:banco-emprestimos',
+  'financeiro:banco-antecipacoes',
+  'financeiro:banco-tarifas',
+  'financeiro:banco-contas-correntes',
+  'financeiro:relatorio-pagar',
+  'financeiro:contas-cliente-regra',
 ]);
 
 // Ações FISCAIS de Dev (José, 13/10/2026): no começo só os Devs fazem; admin comum

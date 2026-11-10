@@ -2,7 +2,7 @@
 // Caixa › Vencidos › clique num cliente (José, 05/11/2026): todas as contas em aberto dele, nas duas empresas,
 // com os juros até a data do recebimento, e "Finalizar" = dar baixa no Omie conta por conta.
 // Lê de /api/dre-financeiro/vencidos/cliente; a baixa é a MESMA da tela Baixar contas (/api/ajustes/contas/baixar,
-// permissão ajustes:baixa-contas): valor em aberto + juros à parte, na conta corrente de cada conta no Omie.
+// permissão financeiro:baixa-contas): valor em aberto + juros à parte, na conta corrente de cada conta no Omie.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -27,7 +27,7 @@ export default function ContasCliente({ cliente, regra, onFechar, onBaixou }: { 
   const taxa = regra.juros_mes_pct
   const { userProfile } = useAuth()
   const { pode } = usePermissoes(userProfile?.id)
-  const podeBaixar = pode('ajustes', 'baixa-contas')
+  const podeBaixar = pode('financeiro', 'baixa-contas')
   const receber = cliente.tipo === 'receber'
   const hoje = useMemo(() => hojeISO(), [])
 

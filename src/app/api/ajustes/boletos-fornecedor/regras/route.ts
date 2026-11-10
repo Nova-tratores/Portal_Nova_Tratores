@@ -15,7 +15,7 @@ function erroResp(e: unknown) {
 }
 
 export async function GET(req: NextRequest) {
-  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'boletos-fornecedor' }, { modulo: 'ajustes', acao: 'correcao-contas' }, { modulo: 'ajustes', acao: 'baixa-contas' }]);
+  const g = await protegerRota(req, [{ modulo: 'financeiro', acao: 'boletos-fornecedor' }, { modulo: 'ajustes', acao: 'boletos-fornecedor' }, { modulo: 'financeiro', acao: 'correcao-contas' }, { modulo: 'ajustes', acao: 'correcao-contas' }, { modulo: 'financeiro', acao: 'baixa-contas' }, { modulo: 'ajustes', acao: 'baixa-contas' }]);
   if (g.resposta) return g.resposta;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
@@ -32,7 +32,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'boletos-fornecedor' }]);
+  const g = await protegerRota(req, [{ modulo: 'financeiro', acao: 'boletos-fornecedor' }, { modulo: 'ajustes', acao: 'boletos-fornecedor' }]);
   if (g.resposta) return g.resposta;
   try {
     const b = (await req.json().catch(() => ({}))) as any;

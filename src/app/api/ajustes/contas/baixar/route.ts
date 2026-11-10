@@ -12,7 +12,7 @@ export const maxDuration = 60;
 // WRITE no Omie: baixa (marca pago/recebido) UM título (LancarPagamento/Recebimento).
 export async function POST(req: NextRequest) {
   // Onda 0: exige login e permissao; o autor sai do login, nao do corpo.
-  const acesso = await protegerRota(req, [{ modulo: 'ajustes', acao: 'baixa-contas' }]);
+  const acesso = await protegerRota(req, [{ modulo: 'financeiro', acao: 'baixa-contas' }, { modulo: 'ajustes', acao: 'baixa-contas' }]);
   if (acesso.resposta) return acesso.resposta;
   try {
     const b = (await req.json().catch(() => ({}))) as any;

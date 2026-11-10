@@ -29,6 +29,7 @@ export function GradeAreasAtual({ comNotas }: { comNotas: boolean }) {
   <div className="mfa-grade">
     {AREAS_FINANCEIRO.map((area, i) => {
       const abas = abasVisiveis(area.abas, comNotas, pode)
+      if (!abas.length) return null // nenhuma aba desta área liberada no Admin
       return (
         <section key={area.id} className={`mfa-card${area.largo ? ' mfa-largo' : ''}`} style={{ ['--c' as string]: area.cor, animationDelay: `${i * 40}ms` }}>
           <Link href={abas[0].href} className="mfa-topo">

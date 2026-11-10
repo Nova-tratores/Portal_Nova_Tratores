@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function GET(req: NextRequest) {
-  const g = await protegerRota(req, [{ modulo: 'ajustes', acao: 'correcao-contas' }]);
+  const g = await protegerRota(req, [{ modulo: 'financeiro', acao: 'correcao-contas' }, { modulo: 'ajustes', acao: 'correcao-contas' }]);
   if (g.resposta) return g.resposta;
   const conta = parseConta(req.nextUrl.searchParams.get('conta')) ?? CONTA_DEFAULT;
   try {

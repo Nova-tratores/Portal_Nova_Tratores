@@ -2,8 +2,8 @@
 // (como o dashboard) e a faixa mostra só as abas da área aberta. Pós-Vendas e Peças seguem com a faixa antiga.
 // Uma tela pertence à área cujo prefixo casar com o endereço (o mais comprido ganha).
 
-// perm: permissão exigida para a aba aparecer: 'acao' = pode('financeiro', acao); 'modulo:acao' = pode(modulo, acao)
-// (as telas de contas que vieram do Ajustes mantêm a chave ajustes:*); sem perm = todos da área
+// perm: ação do Financeiro que libera a aba (pode('financeiro', perm)). Sem `perm`, vale a chave derivada do
+// endereço (permDaAba). Desde 10/11/2026 cada aba tem a sua chave no Admin (decisão do usuário: "uma por aba").
 export type AbaArea = { nome: string; href: string; fa: string; prefixo?: string; descricao?: string; perm?: string }
 // largo: ocupa dois lugares no menu (7 áreas + 1 = 8 lugares: as linhas fecham sem buraco)
 export type AreaFinanceiro = { id: string; nome: string; descricao: string; fa: string; cor: string; abas: AbaArea[]; emMontagem?: boolean; largo?: boolean }
@@ -23,11 +23,11 @@ export const AREAS_FINANCEIRO: AreaFinanceiro[] = [
       { nome: 'Calendário', href: '/financeiro/caixa/calendario', fa: 'fa-calendar-days', descricao: 'um dia por vez, contas a pagar e a receber' },
       { nome: 'Vencidos', href: '/financeiro/caixa/vencidos', fa: 'fa-triangle-exclamation', descricao: 'por cliente, com juros e cobrança' },
       // Contas do cliente/fornecedor + calculadora de dívida (09/11/2026)
-      { nome: 'Contas do cliente', href: '/financeiro/contas-cliente', fa: 'fa-calculator', descricao: 'tudo do cliente e a dívida atualizada', perm: 'contas-cliente' },
-      { nome: 'Baixar contas', href: '/financeiro/caixa/baixar-contas', fa: 'fa-circle-check', descricao: 'dar baixa no Omie', perm: 'ajustes:baixa-contas' },
-      // vieram do Ajustes em 09/11/2026, com a mesma permissão de antes
-      { nome: 'Correção de contas', href: '/financeiro/caixa/correcao-contas', fa: 'fa-pen-to-square', descricao: 'categoria, vencimento, projeto e rateio no Omie', perm: 'ajustes:correcao-contas' },
-      { nome: 'Boletos de fornecedor', href: '/financeiro/caixa/boletos-fornecedor', fa: 'fa-barcode', descricao: 'boleto que junta várias NFs do fornecedor', perm: 'ajustes:boletos-fornecedor' },
+      { nome: 'Contas do cliente', href: '/financeiro/contas-cliente', fa: 'fa-calculator', descricao: 'tudo do cliente e a dívida atualizada' },
+      { nome: 'Baixar contas', href: '/financeiro/caixa/baixar-contas', fa: 'fa-circle-check', descricao: 'dar baixa no Omie', perm: 'baixa-contas' },
+      // vieram do Ajustes em 09/11/2026; a chave virou financeiro:<x> em 10/11 (sql/financeiro-permissoes-abas.sql)
+      { nome: 'Correção de contas', href: '/financeiro/caixa/correcao-contas', fa: 'fa-pen-to-square', descricao: 'categoria, vencimento, projeto e rateio no Omie', perm: 'correcao-contas' },
+      { nome: 'Boletos de fornecedor', href: '/financeiro/caixa/boletos-fornecedor', fa: 'fa-barcode', descricao: 'boleto que junta várias NFs do fornecedor', perm: 'boletos-fornecedor' },
     ],
   },
   {
@@ -92,8 +92,58 @@ export function areaDoEndereco(path: string): AreaFinanceiro | null {
 
 export const abaAtiva = (a: AbaArea, path: string) => casa(a, path)
 
-/** Abas que a pessoa pode ver: Notas fiscais pela financeiro:notas (comNotas) e as com `perm` pelo pode(). */
-export function abasVisiveis(abas: AbaArea[], comNotas: boolean, pode: (modulo: string, acao: string) => boolean): AbaArea[] {
-  const libera = (perm: string) => { const [m, x] = perm.includes(':') ? perm.split(':') : ['financeiro', perm]; return pode(m, x) }
-  return abas.filter((a) => (comNotas || a.href !== '/financeiro/notas') && (!a.perm || libera(a.perm)))
+/**
+ * Chave (ação do módulo financeiro) de cada aba — 10/11/2026, "uma por aba" no Admin. Derivada do endereço:
+ * /financeiro/caixa/vencidos → 'vencidos', /financeiro/pessoas/folha → 'pessoas-folha', … `perm` na aba vence.
+ * null = a aba não tem chave própria (Recibos: quem tem Financeiro, POS ou PPV, como sempre).
+ */
+export function permDaAba(a: AbaArea): string | null {
+  if (a.perm) return a.perm
+  const p = a.href.replace(/^\/financeiro\/?/, '')
+  if (p === 'kanban-financeiro') return 'recebimentos'
+  if (p === 'recibos') return null
+  const m = /^(caixa|compras|pessoas|contas-do-mes|banco)\/(.+)$/.exec(p)
+  if (m) return m[1] === 'caixa' ? m[2] : `${m[1] === 'contas-do-mes' ? 'contas' : m[1]}-${m[2]}`
+  return p || null
 }
+
+/** Todas as chaves das abas (catálogo do Admin, explícitas, mapa de telas). */
+export const CHAVES_ABAS_FINANCEIRO: { chave: string; area: string; aba: string; href: string }[] =
+  AREAS_FINANCEIRO.flatMap((area) => area.abas.flatMap((a) => {
+    const chave = permDaAba(a)
+    return chave ? [{ chave, area: area.nome, aba: a.nome, href: a.href }] : []
+  }))
+
+/** Aba (com a área) da tela aberta — a mais específica, como areaDoEndereco. */
+export function abaDoEndereco(path: string): AbaArea | null {
+  let melhor: { aba: AbaArea; tam: number } | null = null
+  for (const area of AREAS_FINANCEIRO) for (const a of area.abas) {
+    const tam = (a.prefixo || a.href).length
+    if (casa(a, path) && (!melhor || tam > melhor.tam)) melhor = { aba: a, tam }
+  }
+  return melhor?.aba ?? null
+}
+
+type Pode = (modulo: string, acao: string) => boolean
+
+/** A pessoa pode abrir esta aba? (Notas fiscais seguem a financeiro:notas, como antes.) */
+export const podeAba = (a: AbaArea, pode: Pode): boolean => {
+  const chave = permDaAba(a)
+  return !chave || pode('financeiro', chave)
+}
+
+/** Abas que a pessoa pode ver. */
+export function abasVisiveis(abas: AbaArea[], comNotas: boolean, pode: Pode): AbaArea[] {
+  return abas.filter((a) => (comNotas || a.href !== '/financeiro/notas') && (a.href === '/financeiro/notas' || podeAba(a, pode)))
+}
+
+/** Abas que seguem chaves antigas, NÃO explícitas (o módulo Financeiro inteiro dá): não contam para entrar nas áreas. */
+export const CHAVES_ANTIGAS_FINANCEIRO: ReadonlySet<string> = new Set(['rastreio', 'notas'])
+
+/**
+ * Tem alguma aba do Financeiro novo? Decide o topo novo e o menu de áreas (antes: Dev ou função Financeiro).
+ * Só as chaves próprias das abas (explícitas) contam — senão o Pós-Vendas, que tem o módulo para o kanban dele,
+ * "teria" o Rastreio e cairia nas áreas.
+ */
+export const temAlgumaAba = (pode: Pode): boolean =>
+  CHAVES_ABAS_FINANCEIRO.some((c) => !CHAVES_ANTIGAS_FINANCEIRO.has(c.chave) && pode('financeiro', c.chave))

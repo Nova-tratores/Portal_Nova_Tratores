@@ -8,6 +8,7 @@
 // Puro (sem banco) — usado pelo sync, pelos testes e pelo painel "quem tem acesso".
 // =============================================================================
 import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas';
+import { CHAVES_ABAS_FINANCEIRO } from '@/components/financeiro/areasFinanceiro';
 import { PAGINAS_ESTOQUE } from '@/app/(portal)/estoque/paginas';
 import { PAGINAS_FROTA } from '@/app/(portal)/frota/paginas';
 import { PAGINAS_MARKETING } from '@/app/(portal)/marketing/paginas';
@@ -197,6 +198,8 @@ export function catalogoRotas(): RotaDef[] {
   tela('/financeiro/novo-pagar-receber', 'financeiro:criar_lancamento');
   tela('/financeiro/notas', 'financeiro:notas');
   tela('/financeiro/contas-cliente', 'financeiro:contas-cliente');
+  // áreas do Financeiro novo (CaixaTela/TelaContas barram pela chave da aba, 10/11/2026)
+  for (const c of CHAVES_ABAS_FINANCEIRO) if (/^\/financeiro\/(caixa|hoje|compras|pessoas|contas-do-mes|banco)(\/|$)/.test(c.href)) tela(c.href, `financeiro:${c.chave}`);
 
   for (const [padrao, nota] of LIVRES) r.set(padrao, { padrao, acesso: 'livre', ...(nota ? { nota } : {}) });
   for (const padrao of SO_ADMIN) r.set(padrao, { padrao, acesso: 'admin' });
