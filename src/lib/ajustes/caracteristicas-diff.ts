@@ -59,6 +59,31 @@ export function planejarEspelho<T extends LinhaEspelho>(
   return { gravar, apagar, novas: novasN, alteradas, iguais };
 }
 
+/**
+ * Família que entra no espelho: Peças, sem família ou N/D. Não depende só de
+ * `normalize('NFD')`: entre 05 e 08/11/2026 o sync no worker passou a tratar quase
+ * toda "Peças" como outra família (6.548 de 6.558 no completo de 08/11) e apagou 77
+ * peças do espelho — entre elas a RP-006515424U91, com locação 4·H·04 na Omie.
+ * Aqui o ç vira c antes, e o que sobrar fora de a–z some ("PeÃ§as" também casa).
+ */
+export function familiaCaractPermitida(fam: unknown): boolean {
+  const base = String(fam == null ? '' : fam).trim().toLowerCase().replace(/^#/, '');
+  if (base === '' || base === 'n/d' || base === 'nd') return true;
+  const semAcento = base.replace(/ç/g, 'c').normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (semAcento === 'pecas') return true;
+  const soLetras = base.replace(/ç/g, 'c').replace(/[^a-z]/g, '');
+  return soLetras === 'pecas' || soLetras === 'peas';
+}
+
+/**
+ * Trava do incremental: ele só deveria remover a peça que virou máquina ou foi
+ * inativada — umas poucas por dia. Mais que max(5, 20 % dos lidos) é sinal de leitura
+ * errada (foi o que apagou 77 peças entre 05 e 08/11/2026): suspende as remoções.
+ */
+export function remocaoIncrementalSuspeita(apagar: number, lidos: number): boolean {
+  return apagar > Math.max(5, lidos * 0.2);
+}
+
 /** Data no formato da Omie (DD/MM/AAAA) no horário de Brasília. */
 export function dataOmie(d: Date): string {
   const l = new Date(d.getTime() - 3 * 3600_000);

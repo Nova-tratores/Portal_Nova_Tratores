@@ -132,12 +132,12 @@ export const TAREFAS: Record<string, Tarefa> = {
     if (!r.ok) throw new Error(r.erro || 'sync falhou');
     // Terminou inteira: a próxima rodada (ex.: a das 20:00 depois de um "Rodar agora") é completa.
     await limparRetomada(ctx.chave);
-    type Det = { lidos: number; novas: number; alteradas: number; removidas: number; iguais: number };
+    type Det = { lidos: number; novas: number; alteradas: number; removidas: number; iguais: number; remocaoSuspensa?: number };
     const detalhe = (r.resumo?.detalhe || {}) as Record<string, Det>;
     const progresso: Record<string, string> = Object.fromEntries(Object.entries(detalhe).map(([k, d]) =>
-      [k, `${d.lidos} lidas · ${d.novas} novas · ${d.alteradas} alteradas · ${d.removidas} removidas`]));
+      [k, `${d.lidos} lidas · ${d.novas} novas · ${d.alteradas} alteradas · ${d.removidas} removidas${d.remocaoSuspensa ? ` · ⚠ ${d.remocaoSuspensa} remoções SUSPENSAS (leitura suspeita)` : ''}`]));
     for (const l of feitas) progresso[l] = 'já feito antes (retomada)';
-    const soma = (c: keyof Det) => Object.values(detalhe).reduce((a, d) => a + d[c], 0);
+    const soma = (c: Exclude<keyof Det, 'remocaoSuspensa'>) => Object.values(detalhe).reduce((a, d) => a + d[c], 0);
     const modoTxt = decisao.modo === 'incremental' ? `incremental desde ${decisao.desde}` : `completa (${decisao.motivo})`;
     return { resumo: `Leitura ${modoTxt}: ${soma('lidos')} lidas · gravadas ${soma('novas') + soma('alteradas')} (${soma('novas')} novas, ${soma('alteradas')} alteradas) · ${soma('removidas')} removidas${feitas.length ? ` · retomada: ${feitas.join(', ')} já feitas` : ''}`, progresso };
   },

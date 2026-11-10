@@ -17,7 +17,7 @@ import { criarJob, atualizarJob, concluirJob, falharJob, lerJobAtivo, jobRodando
 import { registrarAuditLog } from '@/lib/server/audit-notify';
 import { fecharSeAlocada } from '@/lib/pecas/alocacao-server';
 import { norm as normCaract } from './posicao';
-import { planejarEspelho, dataOmie, type LinhaEspelho } from './caracteristicas-diff';
+import { planejarEspelho, dataOmie, familiaCaractPermitida, remocaoIncrementalSuspeita, type LinhaEspelho } from './caracteristicas-diff';
 
 // Identidade (do token, resolvida na rota) para auditar quem editou a característica.
 export interface AutorEdicao { userId?: string; userName: string }
@@ -33,10 +33,6 @@ function caractOculta(nome: unknown): boolean {
 }
 
 // Só entram produtos da família "Peças" ou SEM família (máquinas ficam de fora).
-function familiaCaractPermitida(fam: unknown): boolean {
-  const f = String(fam == null ? '' : fam).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase().replace(/^#/, '');
-  return f === '' || f === 'n/d' || f === 'nd' || f === 'pecas';
-}
 
 function contaIdPorLabel(label: unknown): Conta | null {
   const alvo = String(label || '').trim().toUpperCase();
@@ -71,7 +67,7 @@ export async function iniciarSyncCaracteristicas(
 
   const execucao = (async () => {
     const porConta: Record<string, number> = {};
-    const detalhe: Record<string, { modo: string; lidos: number; novas: number; alteradas: number; removidas: number; iguais: number; remocaoSuspensa?: number }> = {};
+    const detalhe: Record<string, { modo: string; lidos: number; novas: number; alteradas: number; removidas: number; iguais: number; remocaoSuspensa?: number; familiasFora?: Record<string, number> }> = {};
     const modo: 'completo' | 'incremental' = opts.incrementalDesde ? 'incremental' : 'completo';
     try {
       const contas = getContasOmie().filter((c) => !opts.contas || opts.contas.includes(c.label));
@@ -118,9 +114,22 @@ export async function iniciarSyncCaracteristicas(
         // comparação acharia que milhares de peças "sumiram". Acima de 5% do espelho (mín.
         // 50) as remoções ficam suspensas — o completo da semana seguinte tenta de novo.
         let remocaoSuspensa = 0;
-        if (modo === 'completo' && plano.apagar.length > Math.max(50, existentes.length * 0.05)) {
+        const suspeito = modo === 'completo'
+          ? plano.apagar.length > Math.max(50, existentes.length * 0.05)
+          : remocaoIncrementalSuspeita(plano.apagar.length, produtos.length);
+        // Com a trava acionada, guarda quais famílias vieram (escapadas, para ver acento
+        // estragado) — a causa de 05–08/11/2026 não ficou registrada em lugar nenhum.
+        let familiasFora: Record<string, number> | undefined;
+        if (suspeito) {
           remocaoSuspensa = plano.apagar.length;
-          console.warn(`[caract ${label}] ${plano.apagar.length} remoções suspensas (${existentes.length} no espelho, ${rows.length} vieram da Omie)`);
+          familiasFora = {};
+          for (const p of produtos) {
+            if (elegivel(p)) continue;
+            const k = `${JSON.stringify(p.familia ?? null).replace(/[\u0080-\uffff]/g, (ch: string) => '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0'))}${p.inativo ? ' (inativo)' : ''}`;
+            familiasFora[k] = (familiasFora[k] || 0) + 1;
+          }
+          familiasFora = Object.fromEntries(Object.entries(familiasFora).sort((a, b) => b[1] - a[1]).slice(0, 15));
+          console.warn(`[caract ${label}] ${modo}: ${plano.apagar.length} remoções suspensas (${existentes.length} no espelho, ${rows.length} de ${produtos.length} elegíveis) · famílias fora: ${JSON.stringify(familiasFora)}`);
           plano.apagar = [];
         }
         atualizarJob(jobId, { etapa: `${label}: gravando ${plano.gravar.length} e removendo ${plano.apagar.length}...` });
@@ -135,7 +144,7 @@ export async function iniciarSyncCaracteristicas(
           if (error) throw new Error(`remover ${label}: ${error.message}`);
         }
         porConta[label] = rows.length;
-        detalhe[label] = { modo, lidos: produtos.length, novas: plano.novas, alteradas: plano.alteradas, removidas: plano.apagar.length, iguais: plano.iguais, ...(remocaoSuspensa ? { remocaoSuspensa } : {}) };
+        detalhe[label] = { modo, lidos: produtos.length, novas: plano.novas, alteradas: plano.alteradas, removidas: plano.apagar.length, iguais: plano.iguais, ...(remocaoSuspensa ? { remocaoSuspensa, familiasFora } : {}) };
         await opts.aoConcluirConta?.(label, rows.length);
         console.log(`[caract ${label}] ${modo}: ${produtos.length} lidos · ${plano.novas} novas · ${plano.alteradas} alteradas · ${plano.apagar.length} removidas · ${plano.iguais} iguais`);
       }

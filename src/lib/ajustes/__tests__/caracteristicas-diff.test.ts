@@ -56,3 +56,25 @@ describe('decidirModo', () => {
     expect(dataOmie(new Date('2026-10-23T02:30:00Z'))).toBe('22/10/2026');
   });
 });
+
+import { familiaCaractPermitida, remocaoIncrementalSuspeita } from '../caracteristicas-diff';
+
+describe('familiaCaractPermitida', () => {
+  it('aceita Peças em qualquer grafia, sem família e N/D', () => {
+    for (const f of ['Peças', 'PEÇAS', ' peças ', 'Pecas', 'Pec\u0327as', 'PeÃ§as', '#Peças', '', null, undefined, 'N/D', '#N/D', 'nd'])
+      expect(familiaCaractPermitida(f)).toBe(true);
+  });
+  it('recusa outras famílias', () => {
+    for (const f of ['Trator Novo', 'Conjunto Frontal', 'Implementos', 'Peças Usadas', 'Serviços'])
+      expect(familiaCaractPermitida(f)).toBe(false);
+  });
+});
+
+describe('remocaoIncrementalSuspeita', () => {
+  it('poucas remoções passam; leva grande trava (caso de 05/11: 44 de 52)', () => {
+    expect(remocaoIncrementalSuspeita(2, 162)).toBe(false);
+    expect(remocaoIncrementalSuspeita(5, 10)).toBe(false);
+    expect(remocaoIncrementalSuspeita(44, 52)).toBe(true);
+    expect(remocaoIncrementalSuspeita(13, 45)).toBe(true);
+  });
+});
