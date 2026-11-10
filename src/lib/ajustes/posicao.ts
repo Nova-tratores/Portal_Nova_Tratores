@@ -64,6 +64,31 @@ export function cmpSeg(a: string, b: string): number {
   return a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' });
 }
 
+// As características de locação na Omie são LISTA FIXA (conteudosPermitidos): "h"
+// minúsculo ou caixa "4" (a lista tem "04") são recusados pela Omie. Casa o valor
+// digitado com a grafia da lista: exato → sem maiúscula/acento → mesmo número
+// ("4" = "04"). Vazio continua vazio (= tirar da posição). Sem lista (catálogo
+// indisponível ou característica livre) devolve o próprio valor. null = não existe.
+export function casarValorPermitido(valor: string, permitidos: string[] | null | undefined): string | null {
+  const v = String(valor ?? '').trim();
+  if (v === '') return '';
+  const lista = (permitidos || []).map((p) => String(p).trim()).filter(Boolean);
+  if (!lista.length) return v;
+  const exato = lista.find((p) => p === v);
+  if (exato) return exato;
+  const semCaixa = lista.find((p) => norm(p) === norm(v));
+  if (semCaixa) return semCaixa;
+  if (/^\d+$/.test(v)) {
+    const num = lista.find((p) => /^\d+$/.test(p) && Number(p) === Number(v));
+    if (num) return num;
+  }
+  return null;
+}
+
+// Nomes canônicos das características de locação por campo da posição.
+export const CARACT_POS: Record<keyof Pos, string> = { prat: '#PRATELEIRA', andar: '#ANDAR', caixa: '#CAIXA' };
+export const ROTULO_POS: Record<keyof Pos, string> = { prat: 'Prateleira', andar: 'Andar', caixa: 'Caixa' };
+
 // Ocupantes de uma posição (exceto o próprio alvo), dentro da lista dada (uma empresa)
 export function ocupantesDe<T extends ProdutoLoc>(produtosEmpresa: T[], pos: Pos, excetoKey?: string): T[] {
   return produtosEmpresa.filter((p) => {

@@ -162,6 +162,7 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
       });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || d.erro) throw new Error(d.erro || `Falha (${r.status})`);
+      pos = (d.posicao as Pos | undefined) || pos; // grafia da Omie ("h" → "H", "4" → "04")
       onLocacaoGravada(target, pos, liberar);
       const completa = !!(pos.prat && pos.andar && pos.caixa);
       setAlocadas((prev) => [{ grupo: g, pos, completa, naFila: false }, ...prev.filter((a) => a.grupo.chave !== g.chave)]);

@@ -257,7 +257,7 @@ export default function LocalizacaoPage() {
     }));
   }
 
-  async function postLoc(body: Record<string, unknown>): Promise<{ falhas?: Array<{ empresa: string; codigo_produto: number | string; erro: string }> }> {
+  async function postLoc(body: Record<string, unknown>): Promise<{ posicao?: Pos; falhas?: Array<{ empresa: string; codigo_produto: number | string; erro: string }> }> {
     const r = await fetch('/api/ajustes/localizacao', {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify(body),
@@ -282,7 +282,7 @@ export default function LocalizacaoPage() {
       });
       const falhou = new Set((d.falhas || []).map((f) => chaveProd(f)));
       aplicarLocalOtimista(liberar.filter((p) => !falhou.has(chaveProd(p))), null);
-      aplicarLocalOtimista([target], pos);
+      aplicarLocalOtimista([target], d.posicao || pos); // grafia da Omie ("h" → "H", "4" → "04")
       setMover(null); setColocar(null);
       if (falhou.size) {
         const nomes = liberar.filter((p) => falhou.has(chaveProd(p))).map((p) => p.codigo || p.codigo_produto).join(', ');

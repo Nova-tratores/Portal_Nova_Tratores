@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
-import { definirLocalizacao, liberarLocalizacao, type AlvoProduto } from '@/lib/ajustes/localizacao';
+import { definirLocalizacao, liberarLocalizacao, ErroValorLocacao, type AlvoProduto } from '@/lib/ajustes/localizacao';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
 
 export const dynamic = 'force-dynamic';
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
       registrarErro(ctx.autor, String(b.acao || ''), { empresa: b.empresa, codigo_produto: b.codigo_produto },
         b.acao === 'definir' ? `${b.prateleira ?? ''}|${b.andar ?? ''}|${b.caixa ?? ''}` : null, e);
     }
-    return NextResponse.json({ erro: (e as Error).message }, { status: 500 });
+    return NextResponse.json({ erro: (e as Error).message }, { status: e instanceof ErroValorLocacao ? 400 : 500 });
   }
 }
 

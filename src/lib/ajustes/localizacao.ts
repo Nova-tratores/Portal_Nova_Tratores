@@ -14,6 +14,9 @@
 // canônico quando a peça ainda não tem aquela característica.
 import { createClient } from '@supabase/supabase-js';
 import { editarCaractProduto, type AutorEdicao } from './caracteristicas';
+import { listarCaracteristicas } from './omie';
+import { getContasOmie, type Conta } from './conta';
+import { casarValorPermitido, CARACT_POS, ROTULO_POS, norm as normPos, type Pos } from './posicao';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || '',
@@ -79,16 +82,61 @@ export async function liberarLocalizacao(alvo: AlvoProduto, autor?: AutorEdicao)
 // Define a posição (prateleira/andar/caixa) numa peça. Normaliza: grava as 3
 // primárias e ZERA #ANDAR2/#CAIXA2 se existirem (o encoding alternativo vira
 // posição primária limpa). Usa a chave real da Omie para não duplicar no JSONB.
+export type OpcoesLocacao = Record<keyof Pos, string[]>;
+
+/** Valores permitidos na Omie para Prateleira/Andar/Caixa de UMA empresa (lista fixa
+ *  do cadastro de características). Lista vazia = a Omie não restringe (ou não achou). */
+export async function opcoesLocacao(empresa: string): Promise<OpcoesLocacao> {
+  const conta = getContasOmie().find((c) => c.label.toUpperCase() === String(empresa).toUpperCase())?.id as Conta | undefined;
+  if (!conta) throw new Error(`Empresa desconhecida: ${empresa}`);
+  const cat = await listarCaracteristicas(conta);
+  const out = { prat: [], andar: [], caixa: [] } as OpcoesLocacao;
+  (Object.keys(CARACT_POS) as Array<keyof Pos>).forEach((campo) => {
+    const hit = (cat as any[]).find((c) => normPos(c.nome) === normPos(CARACT_POS[campo]));
+    out[campo] = hit ? (hit.conteudosPermitidos || []).map(String) : [];
+  });
+  return out;
+}
+
+/** Erro de valor fora da lista da Omie — a rota devolve 400 com a mensagem. */
+export class ErroValorLocacao extends Error {}
+
+// Confere os 3 valores contra a lista da Omie ANTES de gravar qualquer campo (antes,
+// "h" ou caixa "4" gravavam a prateleira e paravam no andar: peça meio endereçada).
+// Devolve a grafia da lista ("h" → "H", "4" → "04"). Catálogo indisponível = segue
+// sem conferir (a própria Omie recusa o que estiver errado).
+async function conferirValores(empresa: string, destino: Pos): Promise<Pos> {
+  let opcoes: OpcoesLocacao | null = null;
+  try { opcoes = await opcoesLocacao(empresa); } catch (e) { console.warn('[localizacao] catálogo indisponível:', (e as Error).message); }
+  if (!opcoes) return destino;
+  const out = { ...destino };
+  const erros: string[] = [];
+  (Object.keys(CARACT_POS) as Array<keyof Pos>).forEach((campo) => {
+    const casado = casarValorPermitido(destino[campo], opcoes![campo]);
+    if (casado === null) {
+      const lista = opcoes![campo];
+      erros.push(`${ROTULO_POS[campo]} "${destino[campo]}" não existe na Omie (${String(empresa).toUpperCase()}). Opções: ${lista.slice(0, 40).join(', ')}${lista.length > 40 ? '…' : ''}`);
+    } else out[campo] = casado;
+  });
+  if (erros.length) throw new ErroValorLocacao(erros.join(' · ') + '. Nada foi gravado.');
+  return out;
+}
+
 export async function definirLocalizacao(
   alvo: AlvoProduto,
   destino: { prateleira: string; andar: string; caixa: string },
   autor?: AutorEdicao,
-): Promise<{ gravou: Record<string, string> }> {
-  const slots = await lerSlots(alvo.empresa, alvo.codigo_produto);
-  const valores: Record<SlotLoc, string> = {
-    prateleira: (destino.prateleira ?? '').toString().trim(),
+): Promise<{ gravou: Record<string, string>; posicao: Pos }> {
+  const conferido = await conferirValores(alvo.empresa, {
+    prat: (destino.prateleira ?? '').toString().trim(),
     andar: (destino.andar ?? '').toString().trim(),
     caixa: (destino.caixa ?? '').toString().trim(),
+  });
+  const slots = await lerSlots(alvo.empresa, alvo.codigo_produto);
+  const valores: Record<SlotLoc, string> = {
+    prateleira: conferido.prat,
+    andar: conferido.andar,
+    caixa: conferido.caixa,
     andar2: '', caixa2: '',
   };
   const gravou: Record<string, string> = {};
@@ -110,5 +158,5 @@ export async function definirLocalizacao(
       gravou[key] = '';
     }
   }
-  return { gravou };
+  return { gravou, posicao: conferido };
 }
