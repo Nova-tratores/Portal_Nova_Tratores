@@ -2,7 +2,8 @@
 // (como o dashboard) e a faixa mostra só as abas da área aberta. Pós-Vendas e Peças seguem com a faixa antiga.
 // Uma tela pertence à área cujo prefixo casar com o endereço (o mais comprido ganha).
 
-// perm: ação do módulo financeiro exigida para a aba aparecer (pode('financeiro', perm)); sem perm = todos da área
+// perm: permissão exigida para a aba aparecer: 'acao' = pode('financeiro', acao); 'modulo:acao' = pode(modulo, acao)
+// (as telas de contas que vieram do Ajustes mantêm a chave ajustes:*); sem perm = todos da área
 export type AbaArea = { nome: string; href: string; fa: string; prefixo?: string; descricao?: string; perm?: string }
 // largo: ocupa dois lugares no menu (7 áreas + 1 = 8 lugares: as linhas fecham sem buraco)
 export type AreaFinanceiro = { id: string; nome: string; descricao: string; fa: string; cor: string; abas: AbaArea[]; emMontagem?: boolean; largo?: boolean }
@@ -23,7 +24,10 @@ export const AREAS_FINANCEIRO: AreaFinanceiro[] = [
       { nome: 'Vencidos', href: '/financeiro/caixa/vencidos', fa: 'fa-triangle-exclamation', descricao: 'por cliente, com juros e cobrança' },
       // Contas do cliente/fornecedor + calculadora de dívida (09/11/2026)
       { nome: 'Contas do cliente', href: '/financeiro/contas-cliente', fa: 'fa-calculator', descricao: 'tudo do cliente e a dívida atualizada', perm: 'contas-cliente' },
-      { nome: 'Baixar contas', href: '/financeiro/caixa/baixar-contas', fa: 'fa-circle-check', descricao: 'dar baixa no Omie' },
+      { nome: 'Baixar contas', href: '/financeiro/caixa/baixar-contas', fa: 'fa-circle-check', descricao: 'dar baixa no Omie', perm: 'ajustes:baixa-contas' },
+      // vieram do Ajustes em 09/11/2026, com a mesma permissão de antes
+      { nome: 'Correção de contas', href: '/financeiro/caixa/correcao-contas', fa: 'fa-pen-to-square', descricao: 'categoria, vencimento, projeto e rateio no Omie', perm: 'ajustes:correcao-contas' },
+      { nome: 'Boletos de fornecedor', href: '/financeiro/caixa/boletos-fornecedor', fa: 'fa-barcode', descricao: 'boleto que junta várias NFs do fornecedor', perm: 'ajustes:boletos-fornecedor' },
     ],
   },
   {
@@ -90,5 +94,6 @@ export const abaAtiva = (a: AbaArea, path: string) => casa(a, path)
 
 /** Abas que a pessoa pode ver: Notas fiscais pela financeiro:notas (comNotas) e as com `perm` pelo pode(). */
 export function abasVisiveis(abas: AbaArea[], comNotas: boolean, pode: (modulo: string, acao: string) => boolean): AbaArea[] {
-  return abas.filter((a) => (comNotas || a.href !== '/financeiro/notas') && (!a.perm || pode('financeiro', a.perm)))
+  const libera = (perm: string) => { const [m, x] = perm.includes(':') ? perm.split(':') : ['financeiro', perm]; return pode(m, x) }
+  return abas.filter((a) => (comNotas || a.href !== '/financeiro/notas') && (!a.perm || libera(a.perm)))
 }

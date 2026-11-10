@@ -25,6 +25,10 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/estoque/notas", destination: "/financeiro/notas", permanent: false },
+      // telas de contas que saíram do Ajustes para o Financeiro › Caixa (09/11/2026)
+      { source: "/ajustes/correcao-contas", destination: "/financeiro/caixa/correcao-contas", permanent: false },
+      { source: "/ajustes/baixa-contas", destination: "/financeiro/caixa/baixar-contas", permanent: false },
+      { source: "/ajustes/boletos-fornecedor", destination: "/financeiro/caixa/boletos-fornecedor", permanent: false },
       { source: "/ajustes/notas", destination: "/financeiro/notas?tipo=saida", permanent: false },
       { source: "/visual-estoque/notas-entrada", destination: "/financeiro/notas?tipo=entrada", permanent: false },
     ];

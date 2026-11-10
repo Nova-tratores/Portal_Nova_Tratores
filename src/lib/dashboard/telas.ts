@@ -118,7 +118,7 @@ export const TELAS: Tela[] = [
   ]),
   { nome: 'Consulta de produto', href: '/estoque', area: 'Estoque', sistema: 'consulta-omie', modulo: 'estoque', sinonimos: ['consulta estoque', 'produto', 'saldo'] },
   ...PAGINAS_ESTOQUE.map((p) => ({ nome: p.label, href: p.href, area: 'Estoque', sistema: 'consulta-omie', modulo: 'estoque', acao: p.key })),
-  ...PAGINAS_AJUSTES.map((p) => ({ nome: p.label, href: p.href, area: 'Ajustes', modulo: 'ajustes', acao: p.key.split(':')[1] })),
+  ...PAGINAS_AJUSTES.map((p) => ({ nome: p.label, href: p.href, area: p.modulo === 'financeiro' ? 'Financeiro' : 'Ajustes', modulo: 'ajustes', acao: p.key.split(':')[1] })),
   // ── Frota
   ...PAGINAS_FROTA.map((p) => ({ nome: p.href === '/frota' ? 'Frota — Hoje' : p.href === '/frota/veiculos' ? 'Frota — Veículos' : p.label, href: p.href, area: 'Frota', sistema: 'frota', modulo: 'frota', acao: p.key.slice('frota:'.length) })),
   ...t('Frota', 'pendencias', 'pendencias', [['Pendências da frota', '/pendencias', ['pendência do carro', 'pendências frota']]]),

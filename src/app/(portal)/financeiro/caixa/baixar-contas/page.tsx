@@ -1,18 +1,9 @@
 'use client'
-// Baixar contas do Caixa: a MESMA tela do /ajustes/baixa-contas (mesma permissão 'ajustes:baixa-contas'),
-// com a escolha de conta Nova/Castro/Todas do Ajustes.
-import CaixaTela from '@/components/financeiro/caixa/CaixaTela'
-import { ContaProvider } from '@/components/estoque/ContaProvider'
-import EstResponsiveStyles from '@/components/estoque/ResponsiveStyles'
-import BaixaContas from '@/app/(portal)/ajustes/baixa-contas/page'
+// Caixa › Baixar contas (saiu do Ajustes em 09/11/2026; /ajustes/baixa-contas redireciona para cá).
+// Permissão de sempre: ajustes:baixa-contas (a tela checa por dentro).
+import TelaContas from '@/components/financeiro/contas/TelaContas'
+import BaixaContas from '@/components/financeiro/contas/BaixaContas'
 
 export default function CaixaBaixarContasPage() {
-  return (
-    <CaixaTela aba="baixar-contas">
-      <ContaProvider>
-        <EstResponsiveStyles />
-        <BaixaContas />
-      </ContaProvider>
-    </CaixaTela>
-  )
+  return <TelaContas><BaixaContas /></TelaContas>
 }

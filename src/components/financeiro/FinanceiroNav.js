@@ -9,7 +9,7 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import FinanceiroTopoNovo from './FinanceiroTopoNovo'
 import {
   Columns3, BarChart3, Receipt, Users,
-  FileText, DollarSign, AlertTriangle, Search, Wallet, FileSignature, Calculator
+  FileText, DollarSign, AlertTriangle, Search, Wallet, FileSignature, Calculator, FilePen, CircleCheck, Barcode
 } from 'lucide-react'
 
 const ICONS = {
@@ -24,6 +24,9 @@ const ICONS = {
   caixa: Wallet,
   recibos: FileSignature,
   'contas-cliente': Calculator,
+  'correcao-contas': FilePen,
+  'baixa-contas': CircleCheck,
+  'boletos-fornecedor': Barcode,
 }
 
 // Aba Painel fora da faixa para todo mundo (José, 05/11/2026): as páginas home-* seguem no ar,
@@ -58,6 +61,13 @@ const LINK_NOTAS = { label: 'Notas fiscais', href: '/financeiro/notas', icon: 'n
 const LINK_CONTAS_CLIENTE = { label: 'Contas do cliente', href: '/financeiro/contas-cliente', icon: 'contas-cliente' }
 // Recibos de pagamento (03/11/2026): todas as funções do Financeiro (o balcão de peças também emite)
 const LINK_RECIBOS = { label: 'Recibos', href: '/financeiro/recibos', icon: 'recibos' }
+// Telas de contas que vieram do Ajustes (09/11/2026), com a permissão de sempre (ajustes:<icon>). Quem tem o
+// Caixa as vê como abas da área Caixa (topo novo); na faixa antiga entram para quem tem a permissão.
+const LINKS_CONTAS_AJUSTES = [
+  { label: 'Correção de contas', href: '/financeiro/caixa/correcao-contas', icon: 'correcao-contas' },
+  { label: 'Baixar contas', href: '/financeiro/caixa/baixar-contas', icon: 'baixa-contas' },
+  { label: 'Boletos de fornecedor', href: '/financeiro/caixa/boletos-fornecedor', icon: 'boletos-fornecedor' },
+]
 // `children` é um slot opcional à direita das guias. O default explícito é o
 // que permite chamar <FinanceiroNav /> de uma tela .tsx sem o TS exigir a prop
 // (este arquivo é .js, então o tipo é inferido da assinatura).
@@ -74,7 +84,7 @@ export default function FinanceiroNav({ children = null }) {
     : funcao === 'Peças' ? LINKS_PECAS
     : LINKS_POSVENDAS
   // Notas fiscais (cache PDF + XML) vale pela PERMISSÃO, não pela função
-  const comNotas = [...(pode('financeiro', 'notas') ? [...linksFuncao, LINK_NOTAS] : linksFuncao), ...(pode('financeiro', 'contas-cliente') ? [LINK_CONTAS_CLIENTE] : []), LINK_RECIBOS]
+  const comNotas = [...(pode('financeiro', 'notas') ? [...linksFuncao, LINK_NOTAS] : linksFuncao), ...(pode('financeiro', 'contas-cliente') ? [LINK_CONTAS_CLIENTE] : []), ...LINKS_CONTAS_AJUSTES.filter(l => pode('ajustes', l.icon)), LINK_RECIBOS]
   // Caixa (grupo Financeiro): só Dev ou função Financeiro; Dev de outra função também vê a aba
   const podeCaixa = isDev || funcao === 'Financeiro'
   const linkCaixa = LINKS_FINANCEIRO.find(l => l.soDevFinanceiro)

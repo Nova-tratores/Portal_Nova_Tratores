@@ -15,6 +15,10 @@ export interface PaginaAjustes {
   grupo: GrupoAjustes;         // mantido (ordenação/histórico); o nav agrupa por `departamento`
   departamento: Departamento;
   funcao?: string;             // sub-linha dentro do departamento (ordem em FUNCOES)
+  // Tela que mudou para outro módulo mas manteve a chave 'ajustes:<x>' (09/11/2026: Correção de contas,
+  // Baixar contas e Boletos de fornecedor foram para o Financeiro › Caixa). Some do menu do Ajustes;
+  // continua no Admin (catálogo), no mapa de permissões das telas e na busca do dashboard.
+  modulo?: 'financeiro';
 }
 
 export const GRUPOS_AJUSTES: GrupoAjustes[] = ['Início', 'Edição', 'Visualização', 'Informação'];
@@ -37,10 +41,10 @@ export const PAGINAS_AJUSTES: PaginaAjustes[] = [
   // Edição
   { key: 'ajustes:ajuste-custos', label: 'Ajuste de custos', href: '/ajustes/ajuste-custos', grupo: 'Edição', departamento: 'Estoque', funcao: 'Custo (CMC)' },
   { key: 'ajustes:ajuste-estoque', label: 'Ajuste de estoque (qtd)', href: '/ajustes/ajuste-estoque', grupo: 'Edição', departamento: 'Estoque', funcao: 'Quantidade' },
-  { key: 'ajustes:correcao-contas', label: 'Correção de contas', href: '/ajustes/correcao-contas', grupo: 'Edição', departamento: 'Financeiro' },
+  { key: 'ajustes:correcao-contas', label: 'Correção de contas', href: '/financeiro/caixa/correcao-contas', grupo: 'Edição', departamento: 'Financeiro', modulo: 'financeiro' },
   { key: 'ajustes:devolucao', label: 'Devolução de compra', href: '/ajustes/devolucao', grupo: 'Edição', departamento: 'Estoque', funcao: 'Notas e relatórios' },
-  { key: 'ajustes:baixa-contas', label: 'Baixar contas', href: '/ajustes/baixa-contas', grupo: 'Edição', departamento: 'Financeiro' },
-  { key: 'ajustes:boletos-fornecedor', label: 'Boletos de fornecedor', href: '/ajustes/boletos-fornecedor', grupo: 'Edição', departamento: 'Financeiro' },
+  { key: 'ajustes:baixa-contas', label: 'Baixar contas', href: '/financeiro/caixa/baixar-contas', grupo: 'Edição', departamento: 'Financeiro', modulo: 'financeiro' },
+  { key: 'ajustes:boletos-fornecedor', label: 'Boletos de fornecedor', href: '/financeiro/caixa/boletos-fornecedor', grupo: 'Edição', departamento: 'Financeiro', modulo: 'financeiro' },
   { key: 'ajustes:inventario', label: 'Inventário rotativo', href: '/ajustes/inventario', grupo: 'Edição', departamento: 'Estoque', funcao: 'Quantidade' },
   { key: 'ajustes:inventario-contagem', label: 'Contagem', href: '/ajustes/inventario/contagem', grupo: 'Edição', departamento: 'Estoque', funcao: 'Quantidade' },
   { key: 'ajustes:caracteristicas', label: 'Características', href: '/ajustes/caracteristicas', grupo: 'Edição', departamento: 'Estoque', funcao: 'Cadastro' },

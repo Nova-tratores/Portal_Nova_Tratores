@@ -318,7 +318,7 @@ export default function CorrecaoContasPage() {
         Em qualquer linha, <b>Corrigir</b> (ou dois cliques) abre a janela do lançamento: categoria, departamento com rateio, vencimento, previsão, projeto, conta corrente, nº do documento e observação — só o que mudar vai para a Omie.
         <b> Situação</b> = Em aberto / Atrasado ignora as datas de emissão. Quando o filtro deixa um único fornecedor/cliente aparece <b>Alterar em massa</b>.
         Na Lista a pagar dá para marcar as duplicatas de NF de um fornecedor e <b>registrar o boleto agrupado</b> (o boleto reprograma as duplicatas; nada de título manual nem baixa antes de pagar).
-        <div style={{ marginTop: 6 }}><Link href="/ajustes/boletos-fornecedor">Boletos de fornecedor</Link> · <Link href="/ajustes">← Ajustes</Link></div>
+        <div style={{ marginTop: 6 }}><Link href="/financeiro/caixa/boletos-fornecedor">Boletos de fornecedor</Link></div>
       </>}
     >
       {/* Filtros */}

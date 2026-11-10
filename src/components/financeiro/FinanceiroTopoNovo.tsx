@@ -1,11 +1,12 @@
 'use client'
-// Topo do Financeiro novo (José, 06/11/2026): a empresa na frente, pela logo; depois "Áreas" (o menu do
-// Financeiro, em /financeiro) e as abas da área aberta (areasFinanceiro.ts). Só para Dev e função Financeiro;
+// Topo do Financeiro novo (José, 06/11/2026): "Áreas" (o menu do Financeiro, em /financeiro) e as abas da área
+// aberta (areasFinanceiro.ts); a empresa fica no LADO DIREITO da faixa, em texto, NOVA vermelha e CASTRO azul
+// (09/11/2026 — as duas logos lado a lado ficavam desencontradas). Só para Dev e função Financeiro;
 // Pós-Vendas e Peças seguem com a faixa deles. A empresa vale para todas as telas (useEmpresaFinanceiro).
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
-import { LOGO_EMPRESA_FIN, NOME_EMPRESA_FIN, useEmpresaFinanceiro } from './empresaFinanceiro'
+import { NOME_EMPRESA_FIN, useEmpresaFinanceiro } from './empresaFinanceiro'
 import { abaAtiva, abasVisiveis, areaDoEndereco, type AbaArea } from './areasFinanceiro'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -30,14 +31,6 @@ export default function FinanceiroTopoNovo({ comNotas, children }: { comNotas: b
     <div className="fin-band-verde ftn">
       <style>{ESTILO}</style>
       <div className="ftn-lin">
-        <div className="ftn-empresa" role="group" aria-label="Empresa">
-          {(['nova', 'castro'] as const).map((e) => (
-            <button key={e} type="button" aria-pressed={empresa === e} className={empresa === e ? 'on' : ''} onClick={() => setEmpresa(e)} title={NOME_EMPRESA_FIN[e]}>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={LOGO_EMPRESA_FIN[e]} alt={NOME_EMPRESA_FIN[e]} className={`ftn-logo-${e}`} />
-            </button>
-          ))}
-        </div>
         {/* fin-tabs-nav: escapa da regra ".portal-dark nav" (ver FinanceiroNav) */}
         <nav className="fin-tabs-nav ftn-guias">
           {guia({ nome: area ? 'Áreas' : 'Áreas do Financeiro', href: '/financeiro', fa: 'fa-table-cells-large' }, noMenu, ' ftn-areas')}
@@ -45,6 +38,13 @@ export default function FinanceiroTopoNovo({ comNotas, children }: { comNotas: b
           {abas.map((a) => guia(a, abaAtiva(a, pathname)))}
         </nav>
         {children && <div className="ftn-slot">{children}</div>}
+        <div className="ftn-empresa" role="group" aria-label="Empresa">
+          {(['nova', 'castro'] as const).map((e) => (
+            <button key={e} type="button" aria-pressed={empresa === e} className={`ftn-emp-${e}${empresa === e ? ' on' : ''}`} onClick={() => setEmpresa(e)} title={`Ver o Financeiro da ${NOME_EMPRESA_FIN[e]}`}>
+              {e === 'nova' ? 'NOVA' : 'CASTRO'}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   )
@@ -54,13 +54,13 @@ export default function FinanceiroTopoNovo({ comNotas, children }: { comNotas: b
 const ESTILO = `
 .ftn { position: sticky; top: 84px; z-index: 30; padding: 0 24px; background: linear-gradient(135deg, #D8F0B2, #A9D47D); box-shadow: 0 1px 4px var(--portal-shadow) }
 .ftn-lin { display: flex; align-items: flex-end; gap: 10px; min-height: 56px }
-.ftn-empresa { align-self: center; display: inline-flex; gap: 2px; padding: 3px; border-radius: 11px; background: rgba(255,255,255,0.5); flex-shrink: 0; margin-right: 4px }
-/* os dois botões do mesmo tamanho; cada logo cabe inteira e centralizada (o T da Nova é quase quadrado, o CASTRO é comprido) */
-.ftn-empresa button { width: 116px; height: 40px; display: grid; place-items: center; border: 0; background: transparent; padding: 6px 14px; border-radius: 8px; cursor: pointer; transition: background .15s }
-.ftn-empresa img { width: 100%; height: 100%; object-fit: contain; display: block; filter: grayscale(1); opacity: .45; transition: filter .15s, opacity .15s }
-.ftn-empresa button:hover img { opacity: .75 }
-.ftn-empresa .on { background: #fefefe; box-shadow: 0 1px 2px rgba(15,23,42,.15) }
-.ftn-empresa .on img { filter: none; opacity: 1 }
+.ftn-empresa { align-self: center; display: inline-flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(255,255,255,0.55); flex-shrink: 0; margin-left: auto }
+/* NOVA vermelha, CASTRO azul: a escolhida fica cheia (letra #fefefe, que o modo escuro não remapeia), a outra só com a letra na cor */
+.ftn-empresa button { --c: #dc2626; min-width: 92px; height: 36px; padding: 0 16px; border: 0; border-radius: 8px; background: transparent; color: var(--c); font: 800 14px/1 inherit; letter-spacing: .06em; cursor: pointer; transition: background .15s, color .15s, box-shadow .15s }
+.ftn-empresa .ftn-emp-castro { --c: #2563eb }
+.ftn-empresa button:hover { background: color-mix(in srgb, var(--c) 12%, transparent) }
+.ftn-empresa button.on { background: var(--c); color: #fefefe; box-shadow: 0 1px 3px rgba(15,23,42,.25) }
+.ftn-empresa button:focus-visible { outline: 2px solid var(--c); outline-offset: 2px }
 .ftn-guias { display: flex; align-items: flex-end; gap: 3px; flex: 1; min-width: 0; overflow-x: auto; -webkit-overflow-scrolling: touch }
 .ftn-guia { display: inline-flex; align-items: center; gap: 8px; padding: 11px 18px; border-radius: 11px 11px 0 0; font-size: 15px; white-space: nowrap; flex-shrink: 0; color: #111111; background: rgba(255,255,255,0.45); text-decoration: none; transition: background .15s }
 .ftn-guia i { font-size: 14px }
@@ -72,7 +72,7 @@ const ESTILO = `
 @media (max-width: 767px) {
   .ftn { padding: 0 12px }
   .ftn-lin { flex-wrap: wrap; gap: 6px; min-height: 48px }
-  .ftn-empresa { width: 100%; margin: 8px 0 0 } .ftn-empresa button { flex: 1; width: auto }
+  .ftn-empresa { order: -2; width: 100%; margin: 8px 0 0 } .ftn-empresa button { flex: 1; min-width: 0 }
   .ftn-guias { flex-basis: 100% }
   .ftn-guia { padding: 10px 12px; font-size: 13px }
   .ftn-slot { order: -1; width: 100%; flex-wrap: wrap; padding-top: 8px }

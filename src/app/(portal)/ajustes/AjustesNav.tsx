@@ -28,7 +28,8 @@ export default function AjustesNav() {
   const menuAberto = aberto.em === pathname && aberto.on;
 
   if (loading) return null;
-  const visiveis = PAGINAS_AJUSTES.filter((p) => pode('ajustes', p.key.slice('ajustes:'.length)));
+  // telas com `modulo` moraram para outro módulo (ex.: Financeiro › Caixa) e saem deste menu
+  const visiveis = PAGINAS_AJUSTES.filter((p) => !p.modulo && pode('ajustes', p.key.slice('ajustes:'.length)));
   if (visiveis.length === 0) return null;
 
   // Blocos por departamento (na ordem de DEPARTAMENTOS), só os que têm páginas visíveis.

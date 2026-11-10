@@ -75,7 +75,7 @@ export default function BoletosFornecedorPage() {
       comoLer={<>
         Fornecedor que junta várias NFs num boleto parcelado (ex.: CAMBUCI). O boleto <b>reprograma</b> as duplicatas da NF na Omie (previsão/vencimento = parcela, observação com o nº) — nada de título manual nem baixa antes de pagar.
         Clique numa linha para ver as <b>parcelas</b> e as <b>duplicatas</b> (antes → depois). <b>Reaplicar</b> refaz na Omie o que falhou; <b>Estornar</b> devolve cada duplicata ao que era antes.
-        <div style={{ marginTop: 6 }}>Registrar: <Link href="/ajustes/correcao-contas">Correção de contas</Link> → vista Lista → marcar as duplicatas. Pagar: <Link href="/ajustes/baixa-contas">Baixar contas</Link> → Boletos de fornecedor. · <Link href="/ajustes">← Ajustes</Link></div>
+        <div style={{ marginTop: 6 }}>Registrar: <Link href="/financeiro/caixa/correcao-contas">Correção de contas</Link> → vista Lista → marcar as duplicatas. Pagar: <Link href="/financeiro/caixa/baixar-contas">Baixar contas</Link> → Boletos de fornecedor.</div>
       </>}
     >
       {semTabela ? (

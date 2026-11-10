@@ -3,7 +3,6 @@
 // Lista titulos EM ABERTO (a pagar/receber) de UMA empresa por vez e baixa
 // (marca como pago/recebido) um titulo de cada vez no Omie.
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
@@ -169,7 +168,6 @@ export default function BaixaContasPage() {
         Clique em <b>Baixar</b> numa linha (ou dois cliques nela) para abrir a janela de baixa. A lista vem do <b>espelho sincronizado</b> da Omie (o selo mostra há quanto tempo);
         a baixa em si vai <b>ao vivo</b> na Omie. A ordem padrão é pela <b>previsão</b>, como o card &quot;Pagar/Receber hoje&quot; da Omie — previsão em âmbar = diferente do vencimento.
         Boletos agrupados de fornecedor (ex.: CAMBUCI) aparecem no painel <b>Boletos de fornecedor</b>: pague a parcela por lá, não as duplicatas soltas.
-        <div style={{ marginTop: 6 }}><Link href="/ajustes">← Ajustes</Link></div>
       </>}
     >
       {conta === '' ? (
