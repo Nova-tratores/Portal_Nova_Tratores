@@ -8,13 +8,13 @@ export interface PontoMapa {
   nome: string;
   lat: number;
   lng: number;
-  origem: 'visita' | 'gps' | 'crm' | 'cadastro';
+  origem: 'visita' | 'gps' | 'crm' | 'cadastro' | 'suporte';
   quando: string | null;
   quem: string | null;
 }
 
 const ORIGEM: Record<PontoMapa['origem'], string> = {
-  visita: 'Vendedor viu o trator aqui', gps: 'Fazenda confirmada pelo GPS do carro', crm: 'Ponto anotado no CRM', cadastro: 'Ponto do cadastro',
+  visita: 'Vendedor viu o trator aqui', gps: 'Fazenda confirmada pelo GPS do carro', crm: 'Ponto anotado no CRM', cadastro: 'Ponto do cadastro', suporte: 'Informado pelo suporte',
 };
 const dataBR = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '');
 

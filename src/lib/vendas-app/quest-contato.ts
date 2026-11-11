@@ -4,7 +4,7 @@
 // costumam vir sujos: "(14) 998378238", "14 3351-6049 / 14 99762-7413", sem DDD.
 // Sem número ou sem endereço/local, o app oferece "Pedir ao suporte" (Mariano).
 
-export type OrigemTelefone = 'omie' | 'crm' | 'quest' | 'contato';
+export type OrigemTelefone = 'omie' | 'crm' | 'quest' | 'contato' | 'suporte';
 export interface TelefoneQuest {
   /** só dígitos com DDD (10 ou 11), sem o 55 */
   numero: string;
@@ -87,7 +87,7 @@ export function textoPedidoSuporte(p: {
     `O vendedor ${p.vendedor} está com ${onde} e não achou ${oque} no cadastro.`,
     [p.cliente && `Cliente: ${p.cliente}`, p.cidade && `Cidade: ${p.cidade}`, p.trator && `Trator: ${p.trator}`, p.negocio && `Negócio: ${p.negocio}`].filter(Boolean).join(' · '),
     p.obs ? `Recado: ${String(p.obs).trim().slice(0, 300)}` : '',
-    'Atualize no cadastro do cliente na Omie: o app do vendedor puxa sozinho na próxima sincronização.',
+    'Abra o pedido para preencher: o vendedor é avisado e o contato aparece na quest dele.',
   ].filter(Boolean);
   return { titulo, descricao: linhas.join('\n').slice(0, 1000) };
 }
@@ -97,4 +97,65 @@ export function normalizarFalta(v: unknown): FaltaContato[] {
   const ok: FaltaContato[] = ['telefone', 'whatsapp', 'endereco'];
   const arr = Array.isArray(v) ? v : [];
   return ok.filter((f) => arr.includes(f));
+}
+
+// ─── Resposta do suporte (Mariano preenche o pedido no portal) ─────────────────
+export interface RespostaSuporte {
+  telefone: string | null; celular: string | null; endereco: string | null;
+  lat: number | null; lng: number | null;
+  respondido_por: string | null; respondido_em: string | null;
+}
+export interface PontoContato { nome: string; lat: number; lng: number; origem: string; quando: string | null; quem: string | null }
+
+/**
+ * Junta ao contato o que o suporte informou (mais recente primeiro). Telefones do
+ * suporte vêm na frente (alguém conferiu); o endereço do suporte vale sobre o do
+ * cadastro; o ponto do suporte entra depois de "o vendedor viu o trator aqui".
+ */
+export function mesclarSuporte<L extends PontoContato>(
+  c: { telefones: TelefoneQuest[]; endereco: string | null; locais: L[] },
+  respostas: RespostaSuporte[],
+): { telefones: TelefoneQuest[]; endereco: string | null; locais: (L | PontoContato)[] } {
+  if (!respostas.length) return c;
+  const ordem = [...respostas].sort((a, b) => String(b.respondido_em || '').localeCompare(String(a.respondido_em || '')));
+  const doSuporte = ordem.flatMap((r) => [
+    ...telefonesDoTexto(r.celular, 'suporte'),
+    ...telefonesDoTexto(r.telefone, 'suporte'),
+  ]);
+  const endereco = ordem.map((r) => String(r.endereco || '').trim()).find(Boolean) || c.endereco;
+  const locais: (L | PontoContato)[] = [...c.locais];
+  const r = ordem.find((x) => Number.isFinite(Number(x.lat)) && Number.isFinite(Number(x.lng)) && x.lat != null && x.lng != null && Number(x.lat) !== 0);
+  if (r && !locais.some((l) => Math.abs(l.lat - Number(r.lat)) < 0.0005 && Math.abs(l.lng - Number(r.lng)) < 0.0005)) {
+    const ponto: PontoContato = { nome: 'Local informado pelo suporte', lat: Number(r.lat), lng: Number(r.lng), origem: 'suporte', quando: r.respondido_em, quem: r.respondido_por };
+    const iVisita = locais.findLastIndex((l) => l.origem === 'visita');
+    locais.splice(iVisita + 1, 0, ponto);
+  }
+  return { telefones: juntarTelefones(doSuporte, c.telefones), endereco, locais };
+}
+
+/** Recado ao vendedor quando o suporte responde o pedido. */
+export function textoRespostaVendedor(p: {
+  alvo: string | null; respondidoPor: string | null;
+  telefone: string | null; celular: string | null; endereco: string | null; temLocal: boolean; obs?: string | null;
+}): { titulo: string; corpo: string } {
+  const tels = juntarTelefones(telefonesDoTexto(p.celular, 'suporte'), telefonesDoTexto(p.telefone, 'suporte')).map((t) => t.exibir);
+  const partes = [
+    tels.length ? `Telefone: ${tels.join(', ')}` : '',
+    String(p.endereco || '').trim() ? `Endereço: ${String(p.endereco).trim()}` : '',
+    p.temLocal ? 'Localização no mapa' : '',
+  ].filter(Boolean);
+  const quem = String(p.respondidoPor || 'O suporte').trim();
+  const corpo = [
+    `${quem} atualizou o contato${p.alvo ? ` de ${p.alvo}` : ''}.`,
+    partes.join(' · '),
+    p.obs ? `Recado: ${String(p.obs).trim().slice(0, 300)}` : '',
+    'Abra a quest: o contato já aparece lá.',
+  ].filter(Boolean).join('\n');
+  return { titulo: 'Contato atualizado pelo suporte', corpo: corpo.slice(0, 1000) };
+}
+
+/** A resposta precisa trazer pelo menos um dado útil. */
+export function respostaVazia(r: { telefone?: string | null; celular?: string | null; endereco?: string | null; lat?: number | null }): boolean {
+  const tels = [...telefonesDoTexto(r.telefone, 'suporte'), ...telefonesDoTexto(r.celular, 'suporte')];
+  return !tels.length && !String(r.endereco || '').trim() && r.lat == null;
 }

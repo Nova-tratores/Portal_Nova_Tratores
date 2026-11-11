@@ -10,7 +10,7 @@ export interface LocalMapa {
   nome: string;
   lat: number;
   lng: number;
-  origem: 'visita' | 'gps' | 'crm' | 'cadastro';
+  origem: 'visita' | 'gps' | 'crm' | 'cadastro' | 'suporte';
   quando: string | null;
   quem: string | null;
 }
