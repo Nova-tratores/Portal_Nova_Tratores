@@ -4,7 +4,7 @@
 //   Ata (ata_rascunho/ata_publicada). Dados de GET /api/reunioes/[id].
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Play, Square, FileCheck2, Copy, Users, Lock, Globe, Repeat, AlertTriangle, CalendarPlus, Plus, Check, UserCheck, Ban, MessageSquarePlus } from 'lucide-react'
+import { ArrowLeft, Play, Square, FileCheck2, Copy, Users, Lock, Globe, Repeat, AlertTriangle, CalendarPlus, Plus, Check, UserCheck, Ban, MessageSquarePlus, RotateCcw } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import TicketModal from '@/components/tickets/TicketModal'
@@ -104,6 +104,14 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
         )}
         {modo === 'conducao' && conduz && (
           <button onClick={() => acao({ acao: 'etapa', para: 'ata_rascunho' }).catch(() => {})} disabled={ocupado} style={botao('#7c3aed')}><Square size={14} /> Encerrar e fechar ata</button>
+        )}
+        {d.posso_reabrir && (
+          <button onClick={() => {
+            const msg = publicada ? 'Reabrir a reunião? A ata publicada volta para edição e precisa ser publicada de novo.'
+              : cancelada ? 'Reabrir a reunião cancelada? Ela volta para agendada (a sala não é reservada de novo).'
+              : 'Reabrir a reunião? Ela volta para a condução.'
+            if (window.confirm(msg)) acao({ acao: 'reabrir' }).catch(() => {})
+          }} disabled={ocupado} style={botaoClaro()}><RotateCcw size={14} /> Reabrir</button>
         )}
       </div>
       {/* data em destaque à esquerda, como na Agenda (José, 29/10/2026) */}

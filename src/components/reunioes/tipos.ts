@@ -21,6 +21,8 @@ export interface ReuniaoUI {
   secretario_id: string | null
   meu_papel: PapelReuniao | null
   posso_conduzir: boolean
+  criador_id?: string | null
+  posso_reabrir?: boolean
   aviso: string | null
   tempo_previsto: number
   duracao_min: number

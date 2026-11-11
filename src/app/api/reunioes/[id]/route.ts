@@ -3,10 +3,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { temModuloTickets } from '@/lib/tickets/server'
-import { avisoMesmaPessoa, corteEm, podeConduzir, somaTempo } from '@/lib/reunioes/regras'
+import { avisoMesmaPessoa, corteEm, podeConduzir, podeReabrir, somaTempo, REABRIR_PARA, type ReuniaoEtapa } from '@/lib/reunioes/regras'
 import {
   carregarReuniao, podeVerReuniao, blocoPendencias, condutorDe, secretarioDe, papelNaReuniao, usuariosMin, proximaReuniaoDaSerie,
-  migrationFaltou, MSG_MIGRATION_REUNIOES,
+  migrationFaltou, MSG_MIGRATION_REUNIOES, criadorDaReuniao,
 } from '@/lib/reunioes/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { reservaDaReuniao } from '@/lib/salas/server'
@@ -29,6 +29,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     ])
     const { destinos, origens, proxima } = await reagendamentos(r)
     const reserva = await reservaDaReuniao(r.ticket.id).catch(() => null)
+    const criador = await criadorDaReuniao(r.ticket.id).catch(() => null)
     const sala = reserva ? { id: reserva.sala_id, nome: reserva.sala_nome || 'Sala', inicio: reserva.inicio, fim: reserva.fim } : null
     const condutor = condutorDe(r)
     const secretario = secretarioDe(r)
@@ -47,6 +48,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       condutor_id: condutor, secretario_id: secretario,
       meu_papel: papelNaReuniao(r, auth.userId),
       posso_conduzir: podeConduzir(r.presencas, auth.userId, auth.isAdmin),
+      criador_id: criador,
+      posso_reabrir: !!REABRIR_PARA[r.ticket.reuniao_etapa as ReuniaoEtapa] && podeReabrir(criador, r.ticket.solicitante_id, auth.userId, auth.isAdmin),
       aviso: avisoMesmaPessoa(condutor, secretario),
       tempo_previsto: somaTempo(r.itens),
       duracao_min: Number((r.ticket.payload as { duracao_min?: unknown })?.duracao_min) || r.serie?.duracao_min || 30,

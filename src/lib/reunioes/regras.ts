@@ -33,6 +33,19 @@ export function podeMoverEtapa(de: ReuniaoEtapa, para: ReuniaoEtapa): boolean {
   return (TRANSICOES_ETAPA[de] || []).includes(para)
 }
 
+// Reabrir (José, 11/11/2026): quem criou desfaz o "fechar". Ata (rascunho ou publicada)
+// volta para a condução; cancelada volta para agendada.
+export const REABRIR_PARA: Partial<Record<ReuniaoEtapa, ReuniaoEtapa>> = {
+  ata_rascunho: 'em_andamento',
+  ata_publicada: 'em_andamento',
+  cancelada: 'agendada',
+}
+
+/** Quem criou a reunião, o condutor (dono do ticket) ou admin reabrem. */
+export function podeReabrir(criadorId: string | null, solicitanteId: string | null, userId: string, isAdmin: boolean): boolean {
+  return isAdmin || (!!criadorId && criadorId === userId) || (!!solicitanteId && solicitanteId === userId)
+}
+
 export const ETAPAS_PAUTA: ReuniaoEtapa[] = ['agendada', 'pauta_fechada']
 export const ETAPAS_ENCERRADAS: ReuniaoEtapa[] = ['ata_publicada', 'cancelada']
 

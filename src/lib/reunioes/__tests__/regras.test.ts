@@ -210,3 +210,18 @@ describe('rotuloAtraso', () => {
   })
   it('sem prazo', () => { expect(rotuloAtraso(null, '2026-10-15')).toBe('sem prazo') })
 })
+
+describe('reabrir (11/11/2026)', () => {
+  it('quem criou, o condutor ou admin reabrem; outro participante não', async () => {
+    const { podeReabrir, REABRIR_PARA } = await import('../regras')
+    expect(podeReabrir('criador', 'condutor', 'criador', false)).toBe(true)
+    expect(podeReabrir('criador', 'condutor', 'condutor', false)).toBe(true)
+    expect(podeReabrir('criador', 'condutor', 'outro', true)).toBe(true)
+    expect(podeReabrir('criador', 'condutor', 'outro', false)).toBe(false)
+    expect(podeReabrir(null, null, 'outro', false)).toBe(false)
+    expect(REABRIR_PARA.ata_publicada).toBe('em_andamento')
+    expect(REABRIR_PARA.ata_rascunho).toBe('em_andamento')
+    expect(REABRIR_PARA.cancelada).toBe('agendada')
+    expect(REABRIR_PARA.em_andamento).toBeUndefined()
+  })
+})

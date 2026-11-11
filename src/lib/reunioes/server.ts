@@ -421,6 +421,25 @@ export async function escalarAcao(auth: Autenticado, r: ReuniaoCarregada, acao: 
   return { item_id: item.id, reuniao_id: prox.id }
 }
 
+/** Quem criou: autor do evento 'criacao' (o solicitante é o condutor, que pode ser outra pessoa). */
+export async function criadorDaReuniao(id: string): Promise<string | null> {
+  const { data } = await supabaseAdmin.from('tickets_eventos').select('autor_id')
+    .eq('ticket_id', id).eq('tipo', 'criacao').order('created_at').limit(1)
+  return (data?.[0] as { autor_id: string | null } | undefined)?.autor_id ?? null
+}
+
+/** Desfaz o "fechar". A ata publicada sai da tabela (a chave é a reunião) mas fica guardada na timeline. */
+export async function reabrirReuniao(auth: Autenticado, r: ReuniaoCarregada, para: ReuniaoEtapa) {
+  if (r.ata) {
+    await registrarEvento(r.ticket.id, auth.userId, 'edicao', {
+      campo: 'ata_reaberta', publicada_em: r.ata.publicada_em, publicada_por: r.ata.publicada_por,
+      texto_whatsapp: r.ata.texto_whatsapp, snapshot: r.ata.snapshot,
+    })
+    ok(await supabaseAdmin.from('reunioes_ata').delete().eq('reuniao_id', r.ticket.id).select('reuniao_id'))
+  }
+  await mudarEtapa(auth, r, para, 'reaberta')
+}
+
 export async function publicarAta(auth: Autenticado, r: ReuniaoCarregada, link: string): Promise<AtaRow> {
   const [acoes, pend] = await Promise.all([
     supabaseAdmin.from('tickets').select('id, numero, titulo, responsavel_id, prazo, status, aceite').eq('origem_reuniao_id', r.ticket.id).order('created_at'),

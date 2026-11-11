@@ -8,6 +8,7 @@
 //   tratar_pendencia { ticket_id, saida: novo_prazo|reatribuir|escalar|cancelar, prazo?, para?, motivo? } (R3/R4)
 //   publicar_ata     {}                                                   quem conduz, em ata_rascunho (R7/R10)
 //   adendo           { texto }                                            quem conduz, depois da ata (R10)
+//   reabrir          { motivo? }                                          quem criou, condutor ou admin: ata → condução, cancelada → agendada
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
@@ -19,11 +20,11 @@ import type { Ticket } from '@/lib/tickets/constantes'
 import { hojeSP } from '@/lib/trabalho/cronograma-server'
 import { erroFimDeSemana, dataMinima } from '@/lib/trabalho/agenda'
 import {
-  podeMoverEtapa, podeConduzir, validarResultado, validarPublicacao, validarSaida, ETAPA_INFO,
+  podeMoverEtapa, podeConduzir, podeReabrir, REABRIR_PARA, validarResultado, validarPublicacao, validarSaida, ETAPA_INFO,
   type ReuniaoEtapa, type SaidaPendencia,
 } from '@/lib/reunioes/regras'
 import {
-  carregarReuniao, podeVerReuniao, mudarEtapa, criarAcao, reatribuirAcao, novoPrazoAcao, cancelarAcao, escalarAcao, publicarAta,
+  carregarReuniao, podeVerReuniao, mudarEtapa, criarAcao, reatribuirAcao, novoPrazoAcao, cancelarAcao, escalarAcao, publicarAta, criadorDaReuniao, reabrirReuniao,
   uuidValido, migrationFaltou, MSG_MIGRATION_REUNIOES,
 } from '@/lib/reunioes/server'
 
@@ -194,6 +195,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const origem = req.headers.get('origin') || process.env.PORTAL_BASE || process.env.PORTAL_URL || 'https://portal.novatratores.com'
       const ata = await publicarAta(auth, r, `${origem.replace(/\/$/, '')}/reunioes/${id}`)
       return NextResponse.json({ ata })
+    }
+
+    // ------------------------------------------------------------ reabrir
+    if (acao === 'reabrir') {
+      const para = REABRIR_PARA[etapa]
+      if (!para) return erro('Esta reunião não está fechada.', 409)
+      const criador = await criadorDaReuniao(id)
+      if (!podeReabrir(criador, r.ticket.solicitante_id, auth.userId, auth.isAdmin)) return erro('Só quem criou a reunião (ou o condutor/admin) reabre.', 403)
+      await reabrirReuniao(auth, r, para)
+      await notificarTicket(r.ticket, r.presencas.map((p) => p.usuario_id), auth.userId, `Reunião reaberta: ${r.ticket.titulo}`,
+        etapa === 'ata_publicada' ? 'A ata voltou para edição e será publicada de novo.' : undefined)
+      return NextResponse.json({ ok: true, etapa: para })
     }
 
     // ------------------------------------------------------------- adendo
