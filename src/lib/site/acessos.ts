@@ -11,6 +11,7 @@ export interface EventoSite {
   titulo?: string | null
   origem?: string | null
   utm?: string | null
+  campanha?: string | null
   aparelho?: string | null
   evento?: string | null
   rotulo?: string | null
@@ -25,6 +26,8 @@ export interface Visita {
   fim: string
   aparelho: string
   origem: string
+  /** utm_campaign do link (anúncio, post…), vazio sem campanha */
+  campanha: string
   paginas: { caminho: string; titulo: string; tempo_s: number; rolou: number }[]
   cliques: { evento: string; rotulo: string; caminho: string }[]
   tempo_s: number
@@ -34,6 +37,35 @@ export interface Visita {
 }
 
 const CONVERSAO = /whatsapp|telefone|simulador|proposta/i
+
+/** Páginas fixas do site; qualquer outro /slug/ na raiz é página de produto (trator-… ou implemento). */
+const PAGINAS_FIXAS = new Set(['avaliar-usado', 'contato', 'credito', 'garantia', 'implementos', 'oficina', 'pecas-genuinas-mahindra',
+  'politica-de-privacidade', 'pos-venda', 'trator-ideal', 'tratores', '404'])
+const semSufixo = (t: string) => t.replace(/ — Nova Tratores.*$/, '').trim()
+
+/** Página de produto → tipo e nome (pelo título da página); null nas outras páginas. */
+export function produtoDaPagina(caminho: string, titulo?: string | null): { tipo: 'Trator' | 'Implemento'; slug: string; nome: string } | null {
+  const m = /^\/([a-z0-9-]+)\/?$/.exec(caminho)
+  if (!m || PAGINAS_FIXAS.has(m[1]) || m[1].startsWith('teste-')) return null
+  const slug = m[1]
+  const nome = titulo && semSufixo(titulo) ? semSufixo(titulo) : slug.replace(/-/g, ' ')
+  return { tipo: slug.startsWith('trator-') ? 'Trator' : 'Implemento', slug, nome }
+}
+
+/** Para que a pessoa chamou, pelo botão tocado (null = não é contato). */
+export function assuntoDoContato(evento: string): string | null {
+  if (!CONVERSAO.test(evento)) return null
+  if (/pecas/.test(evento)) return 'Peças'
+  if (/posvenda|garantia/.test(evento)) return 'Pós-venda e oficina'
+  if (/usado/.test(evento)) return 'Vender o usado'
+  if (/simulador|proposta/.test(evento)) return 'Financiamento'
+  if (/trator_ideal/.test(evento)) return 'Qual trator serve'
+  if (/demonstracao/.test(evento)) return 'Demonstração'
+  if (/telefone/.test(evento)) return 'Ligou'
+  return 'Comprar máquina (WhatsApp)'
+}
+
+const DIAS_SEMANA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
 
 /** De onde veio, em português curto: Google, Instagram, Facebook, WhatsApp, Direto, ou o domínio. */
 export function nomeOrigem(origem?: string | null, utm?: string | null): string {
@@ -66,12 +98,13 @@ export function montarVisitas(eventos: EventoSite[]): Visita[] {
     evs.sort((a, b) => a.em.localeCompare(b.em))
     const paginas: Visita['paginas'] = []
     const cliques: Visita['cliques'] = []
-    let origem = '', aparelho = ''
+    let origem = '', aparelho = '', campanha = ''
     for (const e of evs) {
       if (e.tipo === 'pagina') {
         paginas.push({ caminho: e.caminho, titulo: e.titulo || e.caminho, tempo_s: 0, rolou: 0 })
         if (!origem) origem = nomeOrigem(e.origem, e.utm)
         if (!aparelho && e.aparelho) aparelho = e.aparelho
+        if (!campanha && e.campanha) campanha = e.campanha
       } else if (e.tipo === 'saida') {
         // a saída vale para a última abertura da mesma página
         for (let i = paginas.length - 1; i >= 0; i--) {
@@ -88,7 +121,7 @@ export function montarVisitas(eventos: EventoSite[]): Visita[] {
     if (!paginas.length) continue
     visitas.push({
       sessao, visitante: evs[0].visitante, inicio: evs[0].em, fim: evs[evs.length - 1].em,
-      aparelho: aparelho || 'computador', origem: origem || 'Direto', paginas, cliques,
+      aparelho: aparelho || 'computador', origem: origem || 'Direto', campanha, paginas, cliques,
       tempo_s: paginas.reduce((s, p) => s + p.tempo_s, 0),
       converteu: cliques.some((c) => CONVERSAO.test(c.evento)),
       saiuEm: paginas[paginas.length - 1].caminho,
@@ -118,6 +151,23 @@ export interface Resumo {
   /** Barra de busca de Tratores e Implementos (José, 11/11): o que digitaram e em qual página. */
   buscasProdutos: { termo: string; onde: 'Tratores' | 'Implementos'; total: number }[]
   aberturas3d: number
+  /** página por onde a visita entrou */
+  entradas: { caminho: string; titulo: string; visitas: number; conversoes: number }[]
+  /** tratores e implementos abertos: quantas visitas viram e quantas dessas chamaram */
+  produtos: { tipo: 'Trator' | 'Implemento'; slug: string; nome: string; visitas: number; conversoes: number }[]
+  /** visitas que chamaram, por assunto (uma visita pode ter mais de um) */
+  assuntos: { assunto: string; visitas: number }[]
+  /** caminho até o contato */
+  funil: { entraram: number; viramMaquina: number; viramPreco: number; chamaram: number }
+  porHora: { hora: number; visitas: number }[]
+  porSemana: { dia: string; visitas: number; conversoes: number }[]
+  aparelhos: { aparelho: string; visitas: number; conversoes: number }[]
+  /** aparelhos que vieram mais de uma vez no período */
+  voltaram: number
+  campanhas: { nome: string; visitas: number; conversoes: number }[]
+  /** buscas em Tratores/Implementos que não acharam nada */
+  buscasSemResultado: { termo: string; onde: string; total: number }[]
+  pecasNaoAchou: number
 }
 
 const diaBR = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
@@ -137,12 +187,45 @@ export function resumir(visitas: Visita[]): Resumo {
   const buscas = new Map<string, number>()
   const pedidas = new Map<string, number>()
   const buscasProd = new Map<string, number>()
-  let aberturas3d = 0
+  let aberturas3d = 0, pecasNaoAchou = 0
+  const entradas = new Map<string, { titulo: string; visitas: number; conversoes: number }>()
+  const produtos = new Map<string, { tipo: 'Trator' | 'Implemento'; nome: string; visitas: number; conversoes: number }>()
+  const assuntos = new Map<string, number>()
+  const funil = { entraram: n, viramMaquina: 0, viramPreco: 0, chamaram: conversoes }
+  const porHora = Array.from({ length: 24 }, (_, hora) => ({ hora, visitas: 0 }))
+  const porSemana = DIAS_SEMANA.map((dia) => ({ dia, visitas: 0, conversoes: 0 }))
+  const aparelhos = new Map<string, { visitas: number; conversoes: number }>()
+  const campanhas = new Map<string, { visitas: number; conversoes: number }>()
+  const semResultado = new Map<string, number>()
+  const vezes = new Map<string, number>()
+  const soma = <T extends { visitas: number; conversoes: number }>(m: Map<string, T>, k: string, novo: () => T, conv: boolean) => {
+    const x = m.get(k) || novo(); x.visitas++; if (conv) x.conversoes++; m.set(k, x)
+  }
   for (const v of visitas) {
+    vezes.set(v.visitante, (vezes.get(v.visitante) || 0) + 1)
+    const p0 = v.paginas[0]
+    soma(entradas, p0.caminho, () => ({ titulo: semSufixo(p0.titulo), visitas: 0, conversoes: 0 }), v.converteu)
+    const vistos = new Map<string, NonNullable<ReturnType<typeof produtoDaPagina>>>()
+    for (const p of v.paginas) { const pr = produtoDaPagina(p.caminho, p.titulo); if (pr) vistos.set(pr.slug, pr) }
+    for (const pr of vistos.values()) soma(produtos, pr.slug, () => ({ tipo: pr.tipo, nome: pr.nome, visitas: 0, conversoes: 0 }), v.converteu)
+    if (vistos.size || v.paginas.some((p) => /^\/(tratores|implementos)\//.test(p.caminho))) funil.viramMaquina++
+    if (v.paginas.some((p) => p.caminho.startsWith('/credito')) || v.cliques.some((c) => c.evento.startsWith('simulador'))) funil.viramPreco++
+    for (const a of new Set(v.cliques.map((c) => assuntoDoContato(c.evento)).filter((a): a is string => !!a))) assuntos.set(a, (assuntos.get(a) || 0) + 1)
+    const hora = Number(new Date(v.inicio).toLocaleString('en-US', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23' }))
+    porHora[hora % 24].visitas++
+    const ds = porSemana[new Date(diaBR(v.inicio) + 'T12:00:00Z').getUTCDay()]
+    ds.visitas++; if (v.converteu) ds.conversoes++
+    soma(aparelhos, v.aparelho, () => ({ visitas: 0, conversoes: 0 }), v.converteu)
+    if (v.campanha) soma(campanhas, v.campanha, () => ({ visitas: 0, conversoes: 0 }), v.converteu)
     for (const c of v.cliques) {
       if (c.evento === 'busca_pecas' && c.rotulo) { const t = c.rotulo.toLowerCase(); buscas.set(t, (buscas.get(t) || 0) + 1) }
       if ((c.evento === 'pecas_whatsapp' || c.evento === 'pecas3d_whatsapp') && c.rotulo) pedidas.set(c.rotulo, (pedidas.get(c.rotulo) || 0) + 1)
       if (c.evento === 'pecas_abrir_3d') aberturas3d++
+      if (c.evento === 'pecas_nao_achou') pecasNaoAchou++
+      if (c.evento.startsWith('busca_sem_resultado_') && c.rotulo) {
+        const k = `${c.evento.endsWith('tratores') ? 'Tratores' : 'Implementos'}|${c.rotulo.toLowerCase()}`
+        semResultado.set(k, (semResultado.get(k) || 0) + 1)
+      }
       if ((c.evento === 'busca_tratores' || c.evento === 'busca_implementos') && c.rotulo) {
         const k = `${c.evento === 'busca_tratores' ? 'Tratores' : 'Implementos'}|${c.rotulo.toLowerCase()}`
         buscasProd.set(k, (buscasProd.get(k) || 0) + 1)
@@ -178,13 +261,22 @@ export function resumir(visitas: Visita[]): Resumo {
       caminho, titulo: x.titulo, aberturas: x.aberturas,
       tempoMedio_s: x.comTempo ? Math.round(x.tempo / x.comTempo) : 0,
       rolouMedio: x.comTempo ? Math.round(x.rolou / x.comTempo) : 0,
-    })).sort((a, b) => b.aberturas - a.aberturas).slice(0, 15),
+    })).sort((a, b) => b.aberturas - a.aberturas).slice(0, 30),
     origens: [...origens].map(([nome, x]) => ({ nome, ...x })).sort((a, b) => b.visitas - a.visitas),
-    saidas: [...saidas].map(([caminho, x]) => ({ caminho, ...x })).sort((a, b) => b.semConversao - a.semConversao).slice(0, 10),
+    saidas: [...saidas].map(([caminho, x]) => ({ caminho, ...x })).sort((a, b) => b.semConversao - a.semConversao).slice(0, 30),
     cliques: [...cliques].map(([evento, total]) => ({ evento, total })).sort((a, b) => b.total - a.total),
-    buscasProdutos: [...buscasProd].map(([k, total]) => { const [onde, termo] = k.split('|'); return { termo, onde: onde as 'Tratores' | 'Implementos', total } }).sort((a, b) => b.total - a.total).slice(0, 15),
-    buscasPecas: [...buscas].map(([termo, total]) => ({ termo, total })).sort((a, b) => b.total - a.total).slice(0, 15),
-    pecasPedidas: [...pedidas].map(([codigo, total]) => ({ codigo, total })).sort((a, b) => b.total - a.total).slice(0, 15),
+    buscasProdutos: [...buscasProd].map(([k, total]) => { const [onde, termo] = k.split('|'); return { termo, onde: onde as 'Tratores' | 'Implementos', total } }).sort((a, b) => b.total - a.total).slice(0, 30),
+    buscasPecas: [...buscas].map(([termo, total]) => ({ termo, total })).sort((a, b) => b.total - a.total).slice(0, 30),
+    pecasPedidas: [...pedidas].map(([codigo, total]) => ({ codigo, total })).sort((a, b) => b.total - a.total).slice(0, 30),
     aberturas3d,
+    entradas: [...entradas].map(([caminho, x]) => ({ caminho, ...x })).sort((a, b) => b.visitas - a.visitas).slice(0, 30),
+    produtos: [...produtos].map(([slug, x]) => ({ slug, ...x })).sort((a, b) => b.visitas - a.visitas || b.conversoes - a.conversoes),
+    assuntos: [...assuntos].map(([assunto, visitas]) => ({ assunto, visitas })).sort((a, b) => b.visitas - a.visitas),
+    funil, porHora, porSemana,
+    aparelhos: [...aparelhos].map(([aparelho, x]) => ({ aparelho, ...x })).sort((a, b) => b.visitas - a.visitas),
+    voltaram: [...vezes.values()].filter((k) => k > 1).length,
+    campanhas: [...campanhas].map(([nome, x]) => ({ nome, ...x })).sort((a, b) => b.visitas - a.visitas),
+    buscasSemResultado: [...semResultado].map(([k, total]) => { const [onde, termo] = k.split('|'); return { termo, onde, total } }).sort((a, b) => b.total - a.total).slice(0, 30),
+    pecasNaoAchou,
   }
 }

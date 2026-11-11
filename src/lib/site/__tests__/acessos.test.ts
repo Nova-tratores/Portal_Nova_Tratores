@@ -51,3 +51,37 @@ describe('montarVisitas', () => {
     expect(montarVisitas([ev({ tipo: 'clique', evento: 'x' })])).toEqual([])
   })
 })
+
+describe('contas novas (11/11)', () => {
+  it('reconhece página de produto e o assunto do contato', async () => {
+    const { produtoDaPagina, assuntoDoContato } = await import('../acessos')
+    expect(produtoDaPagina('/trator-mahindra-6075/', 'Mahindra 6075 — Nova Tratores')).toEqual({ tipo: 'Trator', slug: 'trator-mahindra-6075', nome: 'Mahindra 6075' })
+    expect(produtoDaPagina('/arado-fixo-af-tatu-marchesan/', null)?.tipo).toBe('Implemento')
+    expect(produtoDaPagina('/credito/', 'Crédito')).toBeNull()
+    expect(produtoDaPagina('/tratores/', 'Tratores')).toBeNull()
+    expect(assuntoDoContato('pecas_whatsapp')).toBe('Peças')
+    expect(assuntoDoContato('simulador_formulario')).toBe('Financiamento')
+    expect(assuntoDoContato('busca_pecas')).toBeNull()
+  })
+
+  it('máquinas vistas, entrada, funil, hora e buscas sem resultado', () => {
+    const vs = montarVisitas([
+      ev({ em: '2026-11-10T23:30:00Z', caminho: '/' }), // 20h30 em Piraju, terça
+      ev({ em: '2026-11-10T23:31:00Z', caminho: '/tratores/' }),
+      ev({ em: '2026-11-10T23:31:30Z', tipo: 'clique', caminho: '/tratores/', evento: 'busca_sem_resultado_tratores', rotulo: 'Colhedora' }),
+      ev({ em: '2026-11-10T23:32:00Z', caminho: '/trator-mahindra-6075/', titulo: 'Mahindra 6075 — Nova Tratores' }),
+      ev({ em: '2026-11-10T23:33:00Z', tipo: 'clique', caminho: '/trator-mahindra-6075/', evento: 'clique_whatsapp' }),
+      ev({ em: '2026-11-11T12:00:00Z', sessao: 's2', caminho: '/trator-mahindra-6075/', titulo: 'Mahindra 6075 — Nova Tratores', campanha: 'safra' }),
+    ])
+    const r = resumir(vs)
+    expect(r.produtos[0]).toMatchObject({ nome: 'Mahindra 6075', visitas: 2, conversoes: 1 })
+    expect(r.entradas.map((e) => e.caminho).sort()).toEqual(['/', '/trator-mahindra-6075/'])
+    expect(r.funil).toEqual({ entraram: 2, viramMaquina: 2, viramPreco: 0, chamaram: 1 })
+    expect(r.porHora[20].visitas).toBe(1)
+    expect(r.porSemana[2]).toMatchObject({ dia: 'terça', visitas: 1, conversoes: 1 })
+    expect(r.buscasSemResultado).toEqual([{ termo: 'colhedora', onde: 'Tratores', total: 1 }])
+    expect(r.assuntos).toEqual([{ assunto: 'Comprar máquina (WhatsApp)', visitas: 1 }])
+    expect(r.campanhas).toEqual([{ nome: 'safra', visitas: 1, conversoes: 0 }])
+    expect(r.voltaram).toBe(1)
+  })
+})
