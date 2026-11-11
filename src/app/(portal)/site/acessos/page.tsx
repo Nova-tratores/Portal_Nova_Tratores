@@ -17,6 +17,16 @@ const NOME_CLIQUE: Record<string, string> = {
   contato_whatsapp_vendas: 'Contato → WhatsApp Vendas', contato_whatsapp_posvenda: 'Contato → WhatsApp Pós-Vendas', contato_whatsapp_pecas: 'Contato → WhatsApp Peças', contato_como_chegar: 'Contato → Como chegar',
   garantia_agendar_revisao: 'Garantia → agendar revisão',
 };
+const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+const nomeMes = (mes: string) => { const [a, m] = mes.split('-').map(Number); return `${MESES[m - 1]} de ${a}`; };
+/** Últimos 12 meses (AAAA-MM), do atual para trás, pelo relógio de Piraju. */
+function ultimosMeses(): string[] {
+  const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit' }).format(new Date()).slice(0, 7);
+  let [a, m] = hoje.split('-').map(Number);
+  const lista: string[] = [];
+  for (let i = 0; i < 12; i++) { lista.push(`${a}-${String(m).padStart(2, '0')}`); m--; if (!m) { m = 12; a--; } }
+  return lista;
+}
 const nomeClique = (e: string) => NOME_CLIQUE[e] || e.replace(/_/g, ' ');
 
 function Barras({ linhas, cor }: { linhas: { rotulo: string; valor: number; extra?: string }[]; cor: string }) {
@@ -41,31 +51,51 @@ function Barras({ linhas, cor }: { linhas: { rotulo: string; valor: number; extr
 
 export default function AcessosSitePage() {
   const [dias, setDias] = useState(7);
+  // Ver por mês (José, 11/11): escolhido um mês, os dias ficam de lado.
+  const [mes, setMes] = useState<string | null>(null);
+  const meses = useMemo(ultimosMeses, []);
   const [dados, setDados] = useState<{ resumo: Resumo; pedidos: number; visitas: Visita[] } | null>(null);
   const [erro, setErro] = useState('');
   const [so, setSo] = useState<'todas' | 'converteu' | 'saiu'>('todas');
   const [aberta, setAberta] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
-    const r = await fetchAuth(`/api/site/acessos?dias=${dias}`);
+    const r = await fetchAuth(mes ? `/api/site/acessos?mes=${mes}` : `/api/site/acessos?dias=${dias}`);
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j.ok) { setErro(j.erro || 'Não consegui carregar os acessos.'); return; }
     setErro(''); setDados(j);
-  }, [dias]);
+  }, [dias, mes]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setDados(null); carregar(); const t = setInterval(carregar, 120_000); return () => clearInterval(t); }, [carregar]);
 
   const r = dados?.resumo;
   const visitas = useMemo(() => (dados?.visitas || []).filter((v) => so === 'todas' || (so === 'converteu' ? v.converteu : !v.converteu)), [dados, so]);
-  const maxDia = Math.max(1, ...(r?.porDia || []).map((d) => d.visitas));
+  // No mês, todos os dias aparecem (os sem visita ficam com barra zerada), para ler o mês inteiro.
+  const porDia = useMemo(() => {
+    const lista = r?.porDia || [];
+    if (!mes) return lista;
+    const [a, m] = mes.split('-').map(Number);
+    const total = new Date(a, m, 0).getDate();
+    const mapa = new Map(lista.map((d) => [d.dia, d]));
+    return Array.from({ length: total }, (_, i) => { const dia = `${mes}-${String(i + 1).padStart(2, '0')}`; return mapa.get(dia) || { dia, visitas: 0, conversoes: 0 }; });
+  }, [r, mes]);
+  const maxDia = Math.max(1, ...porDia.map((d) => d.visitas));
 
   return (
     <div style={tela}>
       {erro && <Aviso>{erro}</Aviso>}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {[[1, 'Hoje e ontem'], [7, '7 dias'], [30, '30 dias'], [90, '90 dias']].map(([d, rot]) => (
-          <button key={d} style={botao('#dc2626', dias === d)} onClick={() => setDias(Number(d))}>{rot}</button>
+          <button key={d} style={botao('#dc2626', !mes && dias === d)} onClick={() => { setMes(null); setDias(Number(d)); }}>{rot}</button>
         ))}
+        <label style={{ ...botao('#dc2626', !!mes), paddingBlock: 0, gap: 8 }}>
+          <i className="fa-regular fa-calendar" style={{ fontWeight: 400 }} />
+          <select aria-label="Ver por mês" value={mes || ''} onChange={(e) => setMes(e.target.value || null)}
+            style={{ minHeight: 38, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', cursor: 'pointer', outline: 'none' }}>
+            <option value="">Por mês…</option>
+            {meses.map((m) => <option key={m} value={m} style={{ color: '#111' }}>{nomeMes(m)}</option>)}
+          </select>
+        </label>
       </div>
 
       {!r && !erro && <p>Carregando…</p>}
@@ -87,17 +117,22 @@ export default function AcessosSitePage() {
           </ComoLer>
 
           <div style={cartao}>
-            <div style={{ fontWeight: 500, marginBottom: 10 }}>Visitas por dia</div>
+            <div style={{ fontWeight: 500, marginBottom: 10 }}>Visitas por dia{mes ? ` em ${nomeMes(mes)}` : ''}</div>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 120, overflowX: 'auto' }}>
-              {r.porDia.map((d) => (
+              {porDia.map((d) => (
                 <div key={d.dia} title={`${d.dia.split('-').reverse().join('/')}: ${d.visitas} visitas, ${d.conversoes} chamaram`} style={{ flex: '1 0 14px', display: 'grid', alignContent: 'end', height: '100%' }}>
                   <div style={{ height: `${(d.visitas / maxDia) * 100}%`, minHeight: 2, borderRadius: '4px 4px 0 0', background: 'color-mix(in srgb, #dc2626 35%, transparent)', position: 'relative' }}>
                     <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: `${d.visitas ? (d.conversoes / d.visitas) * 100 : 0}%`, background: '#16a34a', borderRadius: 2 }} />
                   </div>
                 </div>
               ))}
-              {!r.porDia.length && <span style={{ fontSize: 13, color: 'var(--portal-text-muted, #6b7280)' }}>Sem visitas no período.</span>}
+              {!porDia.length && <span style={{ fontSize: 13, color: 'var(--portal-text-muted, #6b7280)' }}>Sem visitas no período.</span>}
             </div>
+            {mes && porDia.length > 0 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--portal-text-muted, #6b7280)', marginTop: 4 }}>
+                <span>dia 1</span><span>dia {porDia.length}</span>
+              </div>
+            )}
             <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #6b7280)', marginTop: 6 }}>Barra = visitas do dia; verde = as que chamaram.</div>
           </div>
 
