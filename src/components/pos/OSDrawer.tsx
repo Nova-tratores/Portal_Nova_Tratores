@@ -2279,19 +2279,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       <i className="fas fa-users" /> Equipe &amp; Atendimento
                     </div>
                     <div className="os-row">
+                      {/* mesmo seletor da OS aberta: só técnicos ativos, busca, um ou dupla (José, 11/11) */}
                       <div style={S_FLEX1}>
-                        <label>Técnico Responsável</label>
-                        <select value={tecnico1} onChange={(e) => setTecnico1(e.target.value)}>
-                          <option value="">Selecione...</option>
-                          {tecnicos.map((t) => <option key={t} value={t}>{t}</option>)}
-                        </select>
-                      </div>
-                      <div style={S_FLEX1}>
-                        <label>Segundo Técnico</label>
-                        <select value={tecnico2} onChange={(e) => setTecnico2(e.target.value)}>
-                          <option value="">Nenhum</option>
-                          {tecnicos.map((t) => <option key={t} value={t}>{t}</option>)}
-                        </select>
+                        <label>Técnico(s)</label>
+                        <SeletorTecnicos tecnicos={tecnicos} t1={tecnico1} t2={tecnico2} podeEditar={podeEditar} onChange={(a, b) => { setTecnico1(a); setTecnico2(b); }} />
                       </div>
                     </div>
                     <div className="os-row">
