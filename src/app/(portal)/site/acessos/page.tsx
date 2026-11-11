@@ -17,6 +17,9 @@ const NOME_CLIQUE: Record<string, string> = {
   contato_whatsapp_vendas: 'Contato → WhatsApp Vendas', contato_whatsapp_posvenda: 'Contato → WhatsApp Pós-Vendas', contato_whatsapp_pecas: 'Contato → WhatsApp Peças', contato_como_chegar: 'Contato → Como chegar',
   garantia_agendar_revisao: 'Garantia → agendar revisão',
   busca_tratores: 'Tratores → buscou', busca_implementos: 'Implementos → buscou',
+  busca_vazia_whatsapp: 'Busca sem resultado → WhatsApp', busca_vazia_outra_pagina: 'Busca sem resultado → procurou em Implementos', tipo_implementos: 'Implementos → filtrou por tipo',
+  home_entrega_whatsapp: 'Home → entrega na propriedade (WhatsApp)', garantia_nao_achou: 'Garantia → não achou, perguntou no WhatsApp',
+  menu_atalho: 'Menu → atalho de ajuda', implemento_funciona_com: 'Implemento → abriu trator compatível', pagina_404: 'Caiu em página que não existe', pagina_404_caminho: 'Página 404 → seguiu para',
 };
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const nomeMes = (mes: string) => { const [a, m] = mes.split('-').map(Number); return `${MESES[m - 1]} de ${a}`; };
