@@ -26,6 +26,7 @@ import { getCredentials } from './conta';
 import { omie } from '@/lib/omie/porta';
 import { sleep, num } from './utils';
 import { fmtBR, hoje } from './dates';
+import { erroJaExiste, erroNaoAssociada, exibicaoParaIncluir, precisaRegravar, type Exibicao } from './caract-gravacao';
 
 // Re-exports (outros modulos importam estes simbolos a partir de omie.ts).
 export { getCredentials, getContasOmie, labelConta } from './conta';
@@ -1186,65 +1187,69 @@ async function codigoCaractPorNome(conta: Conta, nome: any): Promise<any> {
   return hit ? hit.nCodCaract : null;
 }
 
-// Grava (associa/atualiza) o conteudo de uma caracteristica num produto.
-// /geral/prodcaract/ -> AlterarCaractProduto (ja associada) com fallback p/
-// IncluirCaractProduto (ainda nao associada), e vice-versa. Exige nCodProd +
-// nCodCaract + cConteudo.
-export async function gravarCaractProduto(conta: Conta, { codigoProduto, nomeCaract, conteudo, preferirIncluir }: { codigoProduto: any; nomeCaract: any; conteudo: any; preferirIncluir?: boolean }): Promise<any> {
+// Grava o conteudo de uma caracteristica num produto (/geral/prodcaract/).
+// NUNCA usa AlterarCaractProduto: a Omie aceita e a API devolve o valor novo,
+// mas a TELA de Produtos continua mostrando o antigo (achado de 11/11/2026).
+// Trocar conteudo = ExcluirCaractProduto + IncluirCaractProduto, levando os
+// ajustes de "Onde sera exibida" da associacao (regras em caract-gravacao.ts).
+// Se o Incluir falhar depois do Excluir, recoloca o valor antigo.
+export async function gravarCaractProduto(conta: Conta, { codigoProduto, nomeCaract, conteudo, preferirIncluir, forcar }: { codigoProduto: any; nomeCaract: any; conteudo: any; preferirIncluir?: boolean; forcar?: boolean }): Promise<any> {
   const nCodCaract = await codigoCaractPorNome(conta, nomeCaract);
   if (nCodCaract == null) throw new Error(`Caracteristica nao encontrada na Omie: "${nomeCaract}"`);
-  const params = {
-    nCodProd: Number(codigoProduto) || codigoProduto,
-    nCodCaract: Number(nCodCaract) || nCodCaract,
-    cConteudo: conteudo == null ? '' : String(conteudo)
-  };
-  // Conteúdo vazio = TIRAR a característica do produto. A Omie recusa Alterar/Incluir
-  // com cConteudo em branco ("É obrigatório o preenchimento da tag [cConteudo]"), então
-  // limpar (ex.: tirar a peça da posição) exclui a associação. Se o produto já não
-  // tinha a característica, já está como queremos.
-  if (params.cConteudo.trim() === '') {
+  const chave = { nCodProd: Number(codigoProduto) || codigoProduto, nCodCaract: Number(nCodCaract) || nCodCaract };
+  const cConteudo = conteudo == null ? '' : String(conteudo);
+  const msgDe = (e: unknown) => String((e as OmieError)?.faultstring || (e as Error)?.message || '');
+  // Conteúdo vazio = TIRAR a característica do produto. A Omie recusa Incluir com
+  // cConteudo em branco, então limpar (ex.: tirar a peça da posição) exclui a
+  // associação. Se o produto já não tinha a característica, já está como queremos.
+  if (cConteudo.trim() === '') {
     try {
-      return await omieRequest('/geral/prodcaract/', 'ExcluirCaractProduto', { nCodProd: params.nCodProd, nCodCaract: params.nCodCaract }, conta);
+      return await omieRequest('/geral/prodcaract/', 'ExcluirCaractProduto', chave, conta);
     } catch (e) {
       if ((e as OmieError).bloqueio) throw e;
-      if (/n[aã]o\s+(est[aá]\s+)?(cadastrad|associad|encontrad|exist|localizad)/i.test(String((e as OmieError).faultstring || (e as Error).message || ''))) return { jaVazia: true };
+      if (erroNaoAssociada(msgDe(e))) return { jaVazia: true };
       throw e;
     }
   }
-  const alterar = () => omieRequest('/geral/prodcaract/', 'AlterarCaractProduto', params, conta);
-  const incluir = () => omieRequest('/geral/prodcaract/', 'IncluirCaractProduto', params, conta);
-  const jaExiste = (e: OmieError) => /j[aá]\s+(cadastrad|associad|exist)/i.test(String(e.faultstring || e.message || ''));
-  // preferirIncluir: quando o campo esta vazio a caracteristica quase nunca esta
-  // associada ao produto — Incluir primeiro evita a chamada dupla (Alterar falha
-  // + Incluir), que dobrava o consumo e derrubava lotes no bloqueio da Omie.
-  if (preferirIncluir) {
+  const incluir = (valor: string, exib: Exibicao | null) =>
+    omieRequest('/geral/prodcaract/', 'IncluirCaractProduto', { ...chave, cConteudo: valor, ...(exib || {}) }, conta);
+  const consultar = async (): Promise<any | null> => {
     try {
-      return await incluir();
+      return await omieRequest('/geral/prodcaract/', 'ConsultarCaractProduto', chave, conta);
+    } catch (e) {
+      if ((e as OmieError).bloqueio) throw e;
+      if (erroNaoAssociada(msgDe(e))) return null;
+      throw e;
+    }
+  };
+  // preferirIncluir: quando o campo esta vazio a caracteristica quase nunca esta
+  // associada — Incluir direto gasta 1 chamada em vez de 2 (lotes do Tipo).
+  if (preferirIncluir && !forcar) {
+    try {
+      return await incluir(cConteudo, exibicaoParaIncluir(nomeCaract, null));
     } catch (eInc) {
-      if ((eInc as OmieError).bloqueio) throw eInc;
-      try {
-        return await alterar();
-      } catch (eAlt) {
-        if ((eAlt as OmieError).bloqueio) throw eAlt;
-        if (jaExiste(eInc as OmieError)) throw eAlt;
-        throw eInc;
-      }
+      if ((eInc as OmieError).bloqueio || !erroJaExiste(msgDe(eInc))) throw eInc;
+      // já existe: segue para a troca abaixo
     }
   }
-  // Tenta Alterar (caracteristica ja associada ao produto). Se a Omie recusar
-  // porque ainda nao esta associada (ex.: "Caracteristica do Produto nao
-  // cadastrada."), cai pra Incluir. Se o Incluir falhar por ja existir, o erro
-  // real e' do Alterar.
+  const atual = await consultar();
+  if (!atual) return await incluir(cConteudo, exibicaoParaIncluir(nomeCaract, null));
+  const exib = exibicaoParaIncluir(nomeCaract, atual);
+  if (!precisaRegravar(atual, cConteudo, exib, forcar)) return { semMudanca: true };
+  await omieRequest('/geral/prodcaract/', 'ExcluirCaractProduto', chave, conta);
   try {
-    return await alterar();
-  } catch (eAlt) {
-    if ((eAlt as OmieError).bloqueio) throw eAlt;  // bloqueio longo: nao adianta tentar Incluir
-    try {
-      return await incluir();
-    } catch (eInc) {
-      if (jaExiste(eInc as OmieError)) throw eAlt;
-      throw eInc;
+    return await incluir(cConteudo, exib);
+  } catch (eInc) {
+    // A associação já foi excluída: tenta recolocar o valor antigo para a peça não ficar sem ele.
+    const antigo = String(atual.cConteudo ?? '');
+    if (antigo.trim() !== '') {
+      try {
+        await incluir(antigo, exib);
+      } catch {
+        throw omieError(`A Omie excluiu "${nomeCaract}" mas não aceitou o valor novo nem o antigo ("${antigo}"); o produto ficou SEM essa característica. Erro: ${msgDe(eInc)}`, { faultstring: msgDe(eInc) });
+      }
     }
+    throw eInc;
   }
 }
 
