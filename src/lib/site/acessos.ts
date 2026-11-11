@@ -115,6 +115,8 @@ export interface Resumo {
   /** Peças (José, 10/11): termos buscados e peças pedidas pelo WhatsApp (site e catálogo 3D). */
   buscasPecas: { termo: string; total: number }[]
   pecasPedidas: { codigo: string; total: number }[]
+  /** Barra de busca de Tratores e Implementos (José, 11/11): o que digitaram e em qual página. */
+  buscasProdutos: { termo: string; onde: 'Tratores' | 'Implementos'; total: number }[]
   aberturas3d: number
 }
 
@@ -134,12 +136,17 @@ export function resumir(visitas: Visita[]): Resumo {
 
   const buscas = new Map<string, number>()
   const pedidas = new Map<string, number>()
+  const buscasProd = new Map<string, number>()
   let aberturas3d = 0
   for (const v of visitas) {
     for (const c of v.cliques) {
       if (c.evento === 'busca_pecas' && c.rotulo) { const t = c.rotulo.toLowerCase(); buscas.set(t, (buscas.get(t) || 0) + 1) }
       if ((c.evento === 'pecas_whatsapp' || c.evento === 'pecas3d_whatsapp') && c.rotulo) pedidas.set(c.rotulo, (pedidas.get(c.rotulo) || 0) + 1)
       if (c.evento === 'pecas_abrir_3d') aberturas3d++
+      if ((c.evento === 'busca_tratores' || c.evento === 'busca_implementos') && c.rotulo) {
+        const k = `${c.evento === 'busca_tratores' ? 'Tratores' : 'Implementos'}|${c.rotulo.toLowerCase()}`
+        buscasProd.set(k, (buscasProd.get(k) || 0) + 1)
+      }
     }
     const d = dias.get(diaBR(v.inicio)) || { visitas: 0, conversoes: 0 }
     d.visitas++; if (v.converteu) d.conversoes++
@@ -175,6 +182,7 @@ export function resumir(visitas: Visita[]): Resumo {
     origens: [...origens].map(([nome, x]) => ({ nome, ...x })).sort((a, b) => b.visitas - a.visitas),
     saidas: [...saidas].map(([caminho, x]) => ({ caminho, ...x })).sort((a, b) => b.semConversao - a.semConversao).slice(0, 10),
     cliques: [...cliques].map(([evento, total]) => ({ evento, total })).sort((a, b) => b.total - a.total),
+    buscasProdutos: [...buscasProd].map(([k, total]) => { const [onde, termo] = k.split('|'); return { termo, onde: onde as 'Tratores' | 'Implementos', total } }).sort((a, b) => b.total - a.total).slice(0, 15),
     buscasPecas: [...buscas].map(([termo, total]) => ({ termo, total })).sort((a, b) => b.total - a.total).slice(0, 15),
     pecasPedidas: [...pedidas].map(([codigo, total]) => ({ codigo, total })).sort((a, b) => b.total - a.total).slice(0, 15),
     aberturas3d,

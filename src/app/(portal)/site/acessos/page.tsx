@@ -16,6 +16,7 @@ const NOME_CLIQUE: Record<string, string> = {
   pecas_nao_achou: 'Peças → não achou', busca_pecas: 'Buscou peça', pecas_aba: 'Peças → trocou de aba', posvenda_whatsapp: 'Pós-venda → WhatsApp',
   contato_whatsapp_vendas: 'Contato → WhatsApp Vendas', contato_whatsapp_posvenda: 'Contato → WhatsApp Pós-Vendas', contato_whatsapp_pecas: 'Contato → WhatsApp Peças', contato_como_chegar: 'Contato → Como chegar',
   garantia_agendar_revisao: 'Garantia → agendar revisão',
+  busca_tratores: 'Tratores → buscou', busca_implementos: 'Implementos → buscou',
 };
 const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
 const nomeMes = (mes: string) => { const [a, m] = mes.split('-').map(Number); return `${MESES[m - 1]} de ${a}`; };
@@ -152,6 +153,10 @@ export default function AcessosSitePage() {
             <div style={cartao}>
               <div style={{ fontWeight: 500, marginBottom: 10 }}>Botões tocados</div>
               <Barras cor="#16a34a" linhas={r.cliques.slice(0, 8).map((c) => ({ rotulo: nomeClique(c.evento), valor: c.total }))} />
+            </div>
+            <div style={cartao}>
+              <div style={{ fontWeight: 500, marginBottom: 10 }}>Buscas em Tratores e Implementos</div>
+              <Barras cor="#7c3aed" linhas={(r.buscasProdutos || []).slice(0, 10).map((b) => ({ rotulo: `${b.termo} (${b.onde})`, valor: b.total }))} />
             </div>
             <div style={cartao}>
               <div style={{ fontWeight: 500, marginBottom: 10 }}>Peças mais buscadas</div>
