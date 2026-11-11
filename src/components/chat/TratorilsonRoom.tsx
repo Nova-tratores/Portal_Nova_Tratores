@@ -2,10 +2,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 import { authHeaders, abrirComLogin } from '@/lib/auth/client'
+import { urlPublica } from '@/lib/midia';
 
 // Conversa do Tratorilson (IA) embutida no painel de Mensagens — usa a mesma
 // API do assistente flutuante (/api/assistente/chat + /api/assistente/executar).
-const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || '') + '/storage/v1/object/public/catalogo/mascote2-removebg-preview.png'
+const MASCOTE_IMG = urlPublica('catalogo', 'mascote2-removebg-preview.png')
 
 interface Msg { role: 'user' | 'assistant'; content: string; proposta?: any; feito?: boolean; abrirUrl?: string; moderacao?: boolean }
 const SAUDACAO: Msg = { role: 'assistant', content: 'Opa, tudo bem? Eu sou o Tratorilson, da Nova Tratores.\nTô aqui pra te dar uma mão com o portal — peças, catálogo, ordens, PPV, orçamentos, requisições... É só me dizer o que você precisa.' }

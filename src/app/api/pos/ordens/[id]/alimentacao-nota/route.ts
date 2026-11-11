@@ -12,17 +12,18 @@ import { createClient } from "@supabase/supabase-js";
 import { autenticar } from "@/lib/auth/server";
 import { registrarAlimentacaoItem, normalizarAlimentacoes } from "@/lib/pos/alimentacao-os";
 import { TBL_OS } from "@/lib/pos/constants";
+import { comMidia } from '@/lib/midia';
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const BUCKET = "requisicoes";
 
-const supabase = createClient(
+const supabase = comMidia(createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   { auth: { persistSession: false } },
-);
+));
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await autenticar(req);

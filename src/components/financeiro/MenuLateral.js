@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { authHeaders } from '@/lib/auth/client'
 import {
+import { urlPublica } from '@/lib/midia';
  LayoutDashboard, ClipboardList, TrendingDown, TrendingUp,
  UserCheck, LogOut, Menu, MessageSquare, X, Send, Paperclip,
  FileText, Settings, User, CheckCheck, History, Bell, RefreshCw, ChevronRight, Clock, BarChart2
@@ -292,7 +293,7 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
     <div style={{ padding: '0 25px', marginBottom: '40px', display: 'flex', alignItems: 'center', justifyContent: isSidebarOpen ? 'flex-start' : 'center' }}>
         <div style={{ position: 'relative', flexShrink: 0 }}>
             <img 
-                src={userProfile?.avatar_url || 'https://citrhumdkfivdzbmayde.supabase.co/storage/v1/object/public/avatars/default.png'} 
+                src={userProfile?.avatar_url || urlPublica('avatars', 'default.png')} 
                 style={{ width: '85px', height: '85px', borderRadius: '26px', objectFit: 'cover', border: '2px solid #0f172a', padding: '2px', background: '#fff' }}
                 alt="Avatar"
             />
@@ -444,7 +445,7 @@ export default function MenuLateral({ isSidebarOpen, setIsSidebarOpen, path, rou
               animation: 'slideIn 0.3s ease'
             }}>
               <img
-                src={userDaMsg?.avatar_url || 'https://citrhumdkfivdzbmayde.supabase.co/storage/v1/object/public/avatars/default.png'}
+                src={userDaMsg?.avatar_url || urlPublica('avatars', 'default.png')}
                 style={{ width: '48px', height: '48px', borderRadius: '16px', objectFit: 'cover', border: '2px solid #fff', boxShadow: '0 5px 15px rgba(0,0,0,0.1)' }}
                 alt="User"
               />

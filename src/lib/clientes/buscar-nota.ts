@@ -4,6 +4,7 @@ import { omie as omiePorta } from "@/lib/omie/porta";
 import { chaveOS, contaOmieDaEmpresa, numeroNfse } from "./numero-nf";
 import { baixarPdf, guardarPdfNfse, linkNoPortal, numeroNfsePeloStatusOS, pdfNfseNoOmie } from "./nfse-omie";
 import { explicarErroOmie, explicarNfeSemDanfe, falha, type FalhaNota } from "./buscar-nota-erros";
+import { urlMidia } from '@/lib/midia';
 
 // Botão "Buscar no Omie" do cartão do serviço (pasta do cliente): traz AGORA o
 // PDF da nota que ainda não está na pasta — NFS-e da OS ou NF-e (DANFE) do
@@ -106,7 +107,7 @@ export async function buscarNfeDoPedido(supabase: SupabaseClient, empresa: strin
     const path = `${empresa.replace(/ /g, "_")}/pv_${numPedido}/danfe_${numero || numPedido}.pdf`;
     const { error: up } = await supabase.storage.from(BUCKET).upload(path, pdf, { contentType: "application/pdf", upsert: true });
     if (up) return falha("Achei a nota no Omie, mas não consegui guardar o PDF na pasta.", "Tente de novo. Se continuar, avise o T.I.", up.message);
-    const link = supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+    const link = urlMidia(supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl);
     const { error: e2 } = await supabase.from("portal_nt_clientes_pv")
       .update({ link_nf: link, faturado: true, nf_status: null, nf_motivo: null, ...(numero ? { numero_nf: numero } : {}) })
       .eq("empresa", empresa).eq("num_pedido", numPedido);

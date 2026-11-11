@@ -5,6 +5,7 @@
 //  · imagens da assinatura — sobem no bucket público `anexos` e entram no HTML
 //    por URL, como as assinaturas do Gmail (data: URI o Gmail bloqueia).
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { urlMidia } from '@/lib/midia';
 
 export const BUCKET_ASSINATURA = "email-assinatura";
 /** O Gmail recusa mensagem acima de 25 MB; o base64 aumenta ~33%. */
@@ -93,5 +94,5 @@ export async function guardarImagemAssinatura(sb: SupabaseClient, userId: string
   const path = `email-assinatura/${userId}/${Date.now()}-${nomeSeguro(nome)}`;
   const { error } = await sb.storage.from("anexos").upload(path, conteudo, { contentType: tipo, upsert: false });
   if (error) throw new Error(error.message);
-  return sb.storage.from("anexos").getPublicUrl(path).data.publicUrl;
+  return urlMidia(sb.storage.from("anexos").getPublicUrl(path).data.publicUrl);
 }

@@ -2,16 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { corsChatwoot } from "@/lib/chatwoot/cors";
 import { guardarNovazap, comCors } from "@/lib/chatwoot/proxy";
+import { comMidia } from '@/lib/midia';
 
 // Galeria de figurinhas do NovaZap (ChatWoot) — compartilhada por todo
 // mundo. Os arquivos vivem no bucket público `anexos`, pasta figurinhas/.
 // GET lista, POST salva (base64), DELETE remove.
-const supabase = createClient(
+const supabase = comMidia(createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     ""
-);
+));
 
 const BUCKET = "anexos";
 const PASTA = "figurinhas";

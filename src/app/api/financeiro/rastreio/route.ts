@@ -17,6 +17,7 @@ import { sanitizarFiltro } from '@/lib/busca-segura';
 import { normalizarTermo, mesmoNumero, type TermoNormalizado } from '@/lib/financeiro/rastreio/normalizar';
 import { agruparResultados, requisicaoIdsDe, type DocsBrutos, type VinculoRow } from '@/lib/financeiro/rastreio/agrupar';
 import type { AnexoFicha, DocumentoFicha, RefDoc, RespostaRastreio } from '@/lib/financeiro/rastreio/tipos';
+import { urlPublica } from '@/lib/midia';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -331,7 +332,7 @@ export async function GET(req: NextRequest) {
 // Anexos: resolve colunas CSV/paths pra URLs (Drive legado → url null)
 // ---------------------------------------------------------------------------
 
-const BASE_REQ = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/requisicoes/`;
+const BASE_REQ = urlPublica('requisicoes', '');
 
 function urlDeAnexoReq(valor: unknown): string | null {
   const v = String(valor || '').trim();

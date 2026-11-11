@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { logFrota, podeFrota, temModuloFrota } from '@/lib/frota/server';
 import { resolverPlaca } from '@/lib/frota/placa';
+import { comMidia } from '@/lib/midia';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -14,11 +15,11 @@ export const maxDuration = 60;
 const BUCKET = 'frota-documentos';
 const TIPOS = new Set(['crlv', 'seguro', 'ipva', 'licenciamento', 'contrato_locacao', 'laudo', 'outros']);
 
-const supabase = createClient(
+const supabase = comMidia(createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   { auth: { persistSession: false } },
-);
+));
 
 export async function GET(req: NextRequest) {
   const auth = await autenticar(req);

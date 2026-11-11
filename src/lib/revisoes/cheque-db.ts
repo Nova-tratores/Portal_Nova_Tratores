@@ -15,11 +15,12 @@ import {
   classificarAnteriores, dadosAtrasadoSemOS, dadosIniciais, dataBR, normalizarDados, HORAS_CHEQUE, PAGINA_TALAO,
   type DadosCheque, type FonteOS, type FonteTrator, type OSRef, type RevisaoAnterior,
 } from './cheque';
+import { comMidia } from '@/lib/midia';
 
-const db = createClient(
+const db = comMidia(createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-);
+));
 
 export interface ChequeRow {
   id: string;

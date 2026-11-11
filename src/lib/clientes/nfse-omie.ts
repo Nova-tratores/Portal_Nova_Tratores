@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { numeroNfse } from "./numero-nf";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie as omiePorta } from "@/lib/omie/porta";
+import { urlMidia } from '@/lib/midia';
 
 // NFS-e da OS → PDF guardado na pasta do cliente. Usado por TODOS os caminhos
 // que trazem a nota do Omie (webhook do faturamento, syncs, anexar, botão "Ver").
@@ -66,7 +67,7 @@ export async function guardarPdfNfse(supabase: SupabaseClient, empresa: string, 
   const path = `${empresa.replace(/ /g, "_")}/os_${numOS}/nfse_${numero || numOS}.pdf`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, pdf, { contentType: "application/pdf", upsert: true });
   if (error) return null;
-  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  return urlMidia(supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl);
 }
 
 /**
@@ -123,7 +124,7 @@ export async function guardarPdfRecibo(supabase: SupabaseClient, empresa: string
   const path = `${empresa.replace(/ /g, "_")}/os_${numOS}/recibo_${(numRecibo || "").replace(/\D/g, "") || numOS}.pdf`;
   const { error } = await supabase.storage.from(BUCKET).upload(path, pdf, { contentType: "application/pdf", upsert: true });
   if (error) return null;
-  return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl;
+  return urlMidia(supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl);
 }
 
 /**

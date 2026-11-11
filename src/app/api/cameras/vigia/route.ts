@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar } from "@/lib/auth/server";
+import { comMidia } from '@/lib/midia';
 
 // Vigia das câmeras (script na loja que escuta o DVR Intelbras):
 // - GET  (usuário do portal): status + configuração
@@ -8,12 +9,12 @@ import { autenticar } from "@/lib/auth/server";
 // - PUT  (o script, com token): batimento + eventos disparados
 // Tudo guardado como JSON no bucket público `anexos`, pasta cameras/
 // (o script lê a config pela URL pública — sem chave nenhuma na loja).
-const supabase = createClient(
+const supabase = comMidia(createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
     ""
-);
+));
 
 const BUCKET = "anexos";
 const ARQ_CONFIG = "cameras/config.json";

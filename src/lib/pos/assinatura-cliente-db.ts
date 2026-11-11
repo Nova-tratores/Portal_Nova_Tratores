@@ -9,12 +9,13 @@ import { PORTAL_BASE } from '@/lib/portal-url';
 import { extrairChassis, extrairHorasRevisaoOS } from '@/lib/pos/extrairTrator';
 import { normalizarHorasRevisao } from '@/lib/pos/vigia-revisoes-regras';
 import { resumirSolicitacao, type ResumoOS } from './assinatura-cliente';
+import { comMidia } from '@/lib/midia';
 export { mensagemAssinatura, type ResumoOS } from './assinatura-cliente';
 
-const db = createClient(
+const db = comMidia(createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-);
+));
 
 export interface GeoAssinatura { lat: number; lng: number; precisao_m?: number | null; obtido_em?: string | null }
 export interface DispositivoAssinatura { modelo?: string | null; plataforma?: string | null; versao?: string | null; ua?: string | null; tela?: string | null }

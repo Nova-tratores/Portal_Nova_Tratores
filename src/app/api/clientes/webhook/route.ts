@@ -4,11 +4,12 @@ import { fetchInterno } from "@/lib/auth/chamada-interna";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie, comPrioridade } from "@/lib/omie/porta";
 import { resolverNfseDaOS, resolverReciboDaOS } from "@/lib/clientes/nfse-omie";
+import { comMidia } from '@/lib/midia';
 
-const supabase = createClient(
+const supabase = comMidia(createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-);
+));
 
 interface Acc { name: string; key: string; secret: string }
 const ACCS: Acc[] = [

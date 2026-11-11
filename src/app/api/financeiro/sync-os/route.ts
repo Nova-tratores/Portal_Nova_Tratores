@@ -5,15 +5,16 @@ import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { liberarPedidoDeCardsExcluidos, STATUS_EXCLUIDO } from "@/lib/financeiro/cards-chamado";
 import { decidirFormaPagamento, entradaDaOS, entradaDoPedido } from "@/lib/financeiro/forma-pagamento-omie";
+import { comMidia } from '@/lib/midia';
 
 // Cria automaticamente um Chamado_NF (setor Oficina) para cada Ordem de Serviço
 // faturada (com NFS-e). Cruza com o Pedido de Venda pelo campo "Nº do Pedido do
 // Cliente" da OS, soma NF de serviço + NF de peças, e pega condição/vencimentos.
 
-const supabase = createClient(
+const supabase = comMidia(createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-);
+));
 
 interface Acc { name: string; key: string; secret: string }
 const ACCS: Acc[] = [

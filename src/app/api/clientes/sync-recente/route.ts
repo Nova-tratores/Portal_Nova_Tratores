@@ -5,11 +5,12 @@ import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { resolverNfseDaOS, resolverReciboDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
 import { escolherDaVez, registrarConsulta } from "@/lib/clientes/sync-recente-fila";
+import { comMidia } from '@/lib/midia';
 
-const supabase = createClient(
+const supabase = comMidia(createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-);
+));
 
 interface Acc { name: string; key: string; secret: string }
 const ACCS: Acc[] = [

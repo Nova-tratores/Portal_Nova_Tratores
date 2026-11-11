@@ -2,6 +2,7 @@
 import { createPortal } from 'react-dom'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { X, MapPin, User, Calendar, MessageSquare, Flag, Navigation, Camera, ArrowRight } from 'lucide-react'
+import { urlPublica } from '@/lib/midia';
 
 const tipoCores: Record<string, { bg: string; text: string; label: string }> = {
   presencial: { bg: '#DBEAFE', text: '#1E40AF', label: 'Presencial' },
@@ -16,7 +17,7 @@ export default function ModalVisita({ visita, onClose }: { visita: any; onClose:
 
   const tc = tipoCores[visita.tipo] || { bg: '#F1F5F9', text: '#475569', label: visita.tipo }
   const fmtData = (iso: string) => iso ? new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'
-  const fotoUrl = visita.foto_path ? `https://citrhumdkfivdzbmayde.supabase.co/storage/v1/object/public/fotos-visitas/${visita.foto_path}` : null
+  const fotoUrl = visita.foto_path ? urlPublica('fotos-visitas', visita.foto_path) : null
 
   return createPortal(
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}

@@ -4,14 +4,15 @@ import { protegerRotaOuInterna, fetchInterno } from "@/lib/auth/chamada-interna"
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { decidirFormaPagamento, entradaDoPedido } from "@/lib/financeiro/forma-pagamento-omie";
+import { comMidia } from '@/lib/midia';
 
 // Cria automaticamente um Chamado_NF (setor Peças) para cada Pedido de Venda
 // faturado no Omie cuja Categoria seja a de "Revenda de Peças Balcão".
 
-const supabase = createClient(
+const supabase = comMidia(createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-);
+));
 
 // temOS: empresa que possui módulo de OS (Nova Tratores). A Castro é loja de
 // peças — não tem OS, então a checagem de "OS vinculada" NÃO pode rodar pra ela

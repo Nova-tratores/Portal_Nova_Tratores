@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth/server";
+import { hostMidia } from "@/lib/midia";
 
 // Repassa o PDF de um documento externo (DANFE no storage, nota no CDN da Omie,
 // boleto) pela MESMA origem do portal, para o visualizador poder mostrar,
@@ -25,6 +26,8 @@ function hostsPermitidos(): string[] {
     const sb = process.env.NEXT_PUBLIC_SUPABASE_URL;
     if (sb) hosts.push(new URL(sb).host);
   } catch { /* env inválida: segue só com a Omie */ }
+  const midia = hostMidia();
+  if (midia) hosts.push(midia);
   return hosts;
 }
 

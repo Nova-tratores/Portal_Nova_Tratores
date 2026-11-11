@@ -2,8 +2,9 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { authHeaders, abrirComLogin } from "@/lib/auth/client";
 import { useIsMobile } from "@/hooks/useIsMobile";
+import { urlPublica } from '@/lib/midia';
 
-const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || "") + "/storage/v1/object/public/catalogo/mascote2-removebg-preview.png";
+const MASCOTE_IMG = urlPublica('catalogo', 'mascote2-removebg-preview.png');
 
 interface Msg { role: "user" | "assistant"; content: string; proposta?: any; feito?: boolean; abrirUrl?: string; moderacao?: boolean }
 

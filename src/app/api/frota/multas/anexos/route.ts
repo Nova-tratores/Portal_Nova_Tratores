@@ -7,17 +7,18 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { logFrota, podeFrota } from '@/lib/frota/server';
+import { comMidia } from '@/lib/midia';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 const BUCKET = 'frota-documentos';
 
-const supabase = createClient(
+const supabase = comMidia(createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
   { auth: { persistSession: false } },
-);
+));
 
 interface Anexo { url: string; nome: string; por: string | null; em: string }
 

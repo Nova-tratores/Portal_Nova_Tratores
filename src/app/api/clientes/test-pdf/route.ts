@@ -3,11 +3,12 @@ import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { protegerRota } from "@/lib/ajustes/permissao-server";
+import { comMidia } from '@/lib/midia';
 
-const supabase = createClient(
+const supabase = comMidia(createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-);
+));
 
 const BUCKET = "clientes-docs";
 

@@ -7,8 +7,9 @@ import {
   CheckCheck, Check, Users, User as UserIcon, MessageCircle, Settings
 } from 'lucide-react'
 import TratorilsonRoom from './TratorilsonRoom'
+import { urlPublica } from '@/lib/midia';
 
-const MASCOTE_IMG = (process.env.NEXT_PUBLIC_SUPABASE_URL || '') + '/storage/v1/object/public/catalogo/mascote2-removebg-preview.png'
+const MASCOTE_IMG = urlPublica('catalogo', 'mascote2-removebg-preview.png')
 
 // ==================== TYPES ====================
 
