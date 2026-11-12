@@ -64,13 +64,13 @@ export default function CalendarioRedes() {
   const [copiado, setCopiado] = useState('');
 
   // ---- endereço
-  const [rota, setRota] = useState<{ mes: string; post: string | null; novo: string | null; promo: string | null }>({ mes: hoje().slice(0, 7), post: null, novo: null, promo: null });
+  const [rota, setRota] = useState<{ mes: string; post: string | null; novo: string | null; promo: string | null; ano: boolean }>({ mes: hoje().slice(0, 7), post: null, novo: null, promo: null, ano: false });
   const abriuAqui = useRef(false);
   useEffect(() => {
     const ler = () => {
       const q = new URLSearchParams(window.location.search);
       const mes = q.get('mes');
-      setRota({ mes: mes && /^\d{4}-\d{2}$/.test(mes) ? mes : hoje().slice(0, 7), post: q.get('post'), novo: q.get('novo'), promo: q.get('da_promocao') });
+      setRota({ mes: mes && /^\d{4}-\d{2}$/.test(mes) ? mes : hoje().slice(0, 7), post: q.get('post'), novo: q.get('novo'), promo: q.get('da_promocao'), ano: q.get('ver') === 'ano' });
     };
     ler();
     const voltou = () => { abriuAqui.current = false; ler(); };
@@ -81,6 +81,7 @@ export default function CalendarioRedes() {
     setRota((a) => {
       const u = { ...a, ...novo };
       const q = new URLSearchParams();
+      if (u.ano) q.set('ver', 'ano');
       if (u.mes !== hoje().slice(0, 7)) q.set('mes', u.mes);
       if (u.post) q.set('post', u.post); else if (u.novo) q.set('novo', u.novo); else if (u.promo) q.set('da_promocao', u.promo);
       const destino = `${window.location.pathname}${q.toString() ? `?${q}` : ''}`;
@@ -97,12 +98,12 @@ export default function CalendarioRedes() {
   const inicioGrade = useMemo(() => { const p = `${rota.mes}-01`; const dow = (new Date(`${p}T12:00:00Z`).getUTCDay() + 6) % 7; return somaDias(p, -dow); }, [rota.mes]);
   const carregar = useCallback(async () => {
     const de = [inicioGrade, hoje()].sort()[0];
-    const ate = [somaDias(inicioGrade, 41), somaDias(hoje(), 62)].sort()[1];
+    const ate = [somaDias(inicioGrade, 41), somaDias(hoje(), rota.ano ? 400 : 62)].sort()[1];
     const res = await fetchAuth(`/api/site/posts?de=${de}&ate=${ate}`);
     const j = await res.json().catch(() => ({}));
     if (!res.ok || !j.ok) { setErro(j.erro || 'Não consegui carregar o calendário.'); setPosts([]); return; }
     setErro(''); setPosts(j.posts); setIdeias(j.ideias); setContas(j.contas || []); setPodeEditar(!!j.podeEditar);
-  }, [inicioGrade]);
+  }, [inicioGrade, rota.ano]);
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { carregar(); }, [carregar]);
 
@@ -221,11 +222,11 @@ export default function CalendarioRedes() {
     return (
       <button key={x.nome} type="button" disabled={!pode} title={`${x.nome} (${NOME_PRIOR[x.prior]}): ${x.ideia}`}
         onClick={(e) => { e.stopPropagation(); if (pode) novoPost(d, x); }}
-        style={{ display: 'flex', gap: 5, alignItems: 'center', width: '100%', textAlign: 'left', font: 'inherit', cursor: pode ? 'pointer' : 'default', minWidth: 0,
-          padding: compacto ? '2px 0' : '6px 10px', border: compacto ? 'none' : `1px dashed color-mix(in srgb, ${cor} 45%, transparent)`, borderRadius: 8,
-          background: 'transparent', color: x.prior === 1 ? T3 : cor, fontSize: compacto ? 11 : 13 }}>
-        {ic('fa-wheat-awn')}
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: compacto ? 'nowrap' : 'normal' }}>{x.nome}{x.confirmar ? ' (confirmar)' : ''}</span>
+        style={{ display: 'flex', gap: 6, alignItems: 'flex-start', width: '100%', textAlign: 'left', font: 'inherit', cursor: pode ? 'pointer' : 'default', minWidth: 0,
+          padding: compacto ? '4px 7px' : '6px 10px', border: `1px solid color-mix(in srgb, ${cor} ${x.prior === 1 ? 20 : 30}%, transparent)`, borderRadius: 8,
+          background: `color-mix(in srgb, ${cor} ${x.prior === 1 ? 5 : 9}%, var(--surface))`, color: x.prior === 1 ? T2 : cor, fontSize: compacto ? 12.5 : 13, lineHeight: 1.3 }}>
+        <span style={{ flexShrink: 0 }}>{ic('fa-wheat-awn')}</span>
+        <span style={{ minWidth: 0, color: x.prior === 1 ? T2 : T1 }}>{x.nome}{x.confirmar ? ' (confirmar)' : ''}</span>
         {!compacto && pode && <span style={{ marginLeft: 'auto', fontSize: 12, whiteSpace: 'nowrap' }}>{ic('fa-plus')} criar post</span>}
       </button>
     );
@@ -250,25 +251,83 @@ export default function CalendarioRedes() {
   function grade7() {
     const dias = Array.from({ length: 42 }, (_, i) => somaDias(inicioGrade, i));
     const h = hoje();
+    // só o mês da tela: dias de outro mês viram espaço vazio e a última semana sem dia do mês sai
+    const ultimo = dias.map((d) => d.startsWith(rota.mes)).lastIndexOf(true);
+    const visiveis = dias.slice(0, Math.ceil((ultimo + 1) / 7) * 7);
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 6 }}>
-        {['seg', 'ter', 'qua', 'qui', 'sex', 'sáb', 'dom'].map((d) => <span key={d} style={{ fontSize: 12, color: T3, padding: '0 4px' }}>{d}</span>)}
-        {dias.map((d) => {
-          const doMes = d.startsWith(rota.mes);
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8 }}>
+        {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d) => <span key={d} style={{ fontSize: 13, color: T2, padding: '0 6px' }}>{d}</span>)}
+        {visiveis.map((d) => {
+          if (!d.startsWith(rota.mes)) return <div key={d} />;
           const lista = porDia.get(d) || [];
-          const vazioFuturo = !lista.length && d >= h && d <= prox30[29];
+          const passado = d < h;
+          const vazioFuturo = !lista.length && !passado && d <= prox30[29];
           return (
-            <div key={d} onClick={() => podeEditar && d >= h && novoPost(d)}
-              style={{ minHeight: 104, padding: 6, borderRadius: 10, display: 'grid', alignContent: 'start', gap: 4, cursor: podeEditar && d >= h ? 'pointer' : 'default', minWidth: 0,
-                border: `1px ${vazioFuturo ? 'dashed' : 'solid'} ${d === h ? '#dc2626' : vazioFuturo ? '#f59e0b' : 'var(--border)'}`,
-                background: doMes ? 'var(--surface)' : 'transparent', opacity: doMes ? 1 : 0.55 }}>
-              <span style={{ display: 'flex', alignItems: 'center', fontSize: 12, color: d === h ? '#dc2626' : T2 }}>
-                {Number(d.slice(8))}{d === h && <span style={{ marginLeft: 6 }}>hoje</span>}
-                {vazioFuturo && podeEditar && <span style={{ marginLeft: 'auto', color: '#f59e0b' }}>{ic('fa-plus')}</span>}
+            <div key={d} onClick={() => podeEditar && !passado && novoPost(d)}
+              style={{ minHeight: 112, padding: 8, borderRadius: 12, display: 'grid', alignContent: 'start', gap: 6, cursor: podeEditar && !passado ? 'pointer' : 'default', minWidth: 0,
+                border: `1px solid ${d === h ? '#dc2626' : 'var(--border)'}`, boxShadow: d === h ? '0 0 0 1px #dc2626' : 'none',
+                background: passado ? 'transparent' : 'var(--surface)', opacity: passado ? 0.6 : 1 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 15, color: d === h ? '#dc2626' : T1 }}>{Number(d.slice(8))}</span>
+                {d === h && <span style={{ fontSize: 12, color: '#dc2626' }}>hoje</span>}
+                {vazioFuturo && <span style={{ marginLeft: 'auto', fontSize: 11.5, color: '#b45309' }}>sem post</span>}
               </span>
               {datasDoDia(d).map((x) => chipAgro(x, d, true))}
               {lista.map((p) => chipPost(p, true))}
             </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  /** Os próximos 12 meses lado a lado: dia com post fica verde, data do agro ganha anel colorido. Tocar no mês abre ele. */
+  function anoTodo() {
+    const h = hoje();
+    const meses = Array.from({ length: 12 }, (_, i) => { const x = new Date(`${h.slice(0, 7)}-15T12:00:00Z`); x.setUTCMonth(x.getUTCMonth() + i); return x.toISOString().slice(0, 7); });
+    return (
+      <div style={grade(260)}>
+        {meses.map((m) => {
+          const ini = `${m}-01`;
+          const dow = (new Date(`${ini}T12:00:00Z`).getUTCDay() + 6) % 7;
+          const dias = Array.from({ length: 31 }, (_, i) => somaDias(ini, i)).filter((d) => d.startsWith(m));
+          const nPosts = dias.reduce((s, d) => s + (porDia.get(d)?.length || 0), 0);
+          const datas = DATAS_AGRO.filter((x) => x.prior >= 2 && x.d.startsWith(m));
+          const temp = temporadasDoMes(m);
+          return (
+            <section key={m} onClick={() => ir({ mes: m, ano: false })} style={{ ...cartaoNP, display: 'grid', gap: 10, alignContent: 'start', cursor: 'pointer' }}>
+              <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+                <span style={{ fontSize: 16, textTransform: 'capitalize', color: m === h.slice(0, 7) ? '#dc2626' : T1 }}>{nomeMes(m)}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 12.5, color: nPosts ? '#16a34a' : T3 }}>{nPosts ? `${nPosts} post${nPosts > 1 ? 's' : ''}` : 'sem posts'}</span>
+              </span>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
+                {['S', 'T', 'Q', 'Q', 'S', 'S', 'D'].map((x, i) => <span key={i} style={{ fontSize: 10.5, color: T3, textAlign: 'center' }}>{x}</span>)}
+                {Array.from({ length: dow }, (_, i) => <span key={`v${i}`} />)}
+                {dias.map((d) => {
+                  const tem = !!porDia.get(d)?.length;
+                  const ag = datasDoDia(d).filter((x) => x.prior >= 2).sort((a, b) => b.prior - a.prior)[0];
+                  return (
+                    <span key={d} title={[ag?.nome, tem ? 'tem post' : ''].filter(Boolean).join(' · ') || undefined}
+                      style={{ fontSize: 11.5, textAlign: 'center', lineHeight: '22px', borderRadius: 999,
+                        background: tem ? '#16a34a' : 'transparent', color: tem ? '#fefefe' : d < h ? T3 : T1,
+                        boxShadow: ag ? `inset 0 0 0 2px ${COR_PRIOR[ag.prior]}` : d === h ? 'inset 0 0 0 1px #dc2626' : 'none' }}>
+                      {Number(d.slice(8))}
+                    </span>
+                  );
+                })}
+              </div>
+              {(datas.length > 0 || temp.length > 0) && (
+                <div style={{ display: 'grid', gap: 4, fontSize: 12.5 }}>
+                  {datas.map((x) => (
+                    <span key={x.d + x.nome} style={{ display: 'flex', gap: 6, color: T2 }}>
+                      <span style={{ color: COR_PRIOR[x.prior], minWidth: 22 }}>{x.d.slice(8)}</span>
+                      <span>{x.nome}{porDia.get(x.d)?.length ? <span style={{ color: '#16a34a' }}> {ic('fa-check')}</span> : ''}</span>
+                    </span>
+                  ))}
+                  {temp.map((t) => <span key={t.nome} style={{ color: COR_PRIOR[t.prior] }}>{ic('fa-seedling')} {t.nome}</span>)}
+                </div>
+              )}
+            </section>
           );
         })}
       </div>
@@ -426,30 +485,30 @@ export default function CalendarioRedes() {
               </span>
               {podeEditar && <button style={bt('#dc2626', true)} onClick={() => novoPost(vazios[0] || '')}>{ic('fa-plus')}Novo post</button>}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(30, minmax(0, 1fr))', gap: 2 }} aria-label="Próximos 30 dias">
-              {prox30.map((d) => {
-                const n = porDia.get(d)?.length || 0;
-                return <span key={d} title={`${nomeDia(d, { day: '2-digit', month: '2-digit' })}: ${n ? `${n} post${n > 1 ? 's' : ''}` : 'sem post'}`}
-                  onClick={() => (n ? abrirPost(porDia.get(d)![0]) : podeEditar && novoPost(d))}
-                  style={{ height: 22, borderRadius: 4, cursor: 'pointer', background: n ? '#16a34a' : 'color-mix(in srgb, #f59e0b 35%, transparent)' }} />;
-              })}
-            </div>
-            <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: T3 }}>
-              <span>hoje</span><span><span style={{ color: '#16a34a' }}>■</span> com post · <span style={{ color: '#f59e0b' }}>■</span> sem post</span><span>daqui 30 dias</span>
-            </span>
           </section>
 
           <section style={{ ...cartaoNP, display: 'grid', gap: 12 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <button style={bt('#64748b')} onClick={mesAnt} aria-label="Mês anterior">{ic('fa-chevron-left')}</button>
-              <span style={{ fontSize: 17, minWidth: 170, textAlign: 'center', textTransform: 'capitalize' }}>{nomeMes(rota.mes)}</span>
-              <button style={bt('#64748b')} onClick={mesProx} aria-label="Próximo mês">{ic('fa-chevron-right')}</button>
-              {rota.mes !== hoje().slice(0, 7) && <button style={bt(AZUL)} onClick={() => ir({ mes: hoje().slice(0, 7) })}>Hoje</button>}
+              <span style={{ display: 'inline-flex', padding: 3, borderRadius: 10, border: '1px solid var(--border)', gap: 2 }}>
+                {([[false, 'Mês', 'fa-calendar'], [true, 'Ano todo', 'fa-calendar-days']] as const).map(([v, nome, icone]) => (
+                  <button key={nome} type="button" onClick={() => ir({ ano: v })}
+                    style={{ font: 'inherit', fontSize: 13, padding: '5px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', display: 'inline-flex', gap: 6, alignItems: 'center',
+                      background: rota.ano === v ? '#dc2626' : 'transparent', color: rota.ano === v ? '#fefefe' : T2 }}>{ic(icone)}{nome}</button>
+                ))}
+              </span>
+              {rota.ano ? <span style={{ fontSize: 17 }}>Próximos 12 meses</span> : (
+                <>
+                  <button style={bt('#64748b')} onClick={mesAnt} aria-label="Mês anterior">{ic('fa-chevron-left')}</button>
+                  <span style={{ fontSize: 17, minWidth: 170, textAlign: 'center', textTransform: 'capitalize' }}>{nomeMes(rota.mes)}</span>
+                  <button style={bt('#64748b')} onClick={mesProx} aria-label="Próximo mês">{ic('fa-chevron-right')}</button>
+                  {rota.mes !== hoje().slice(0, 7) && <button style={bt(AZUL)} onClick={() => ir({ mes: hoje().slice(0, 7) })}>Hoje</button>}
+                </>
+              )}
               <span style={{ marginLeft: 'auto', display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 12, color: T3 }}>
                 {(['ideia', 'pronto', 'publicado'] as StatusPost[]).map((k) => <span key={k} style={{ color: STATUS_POST[k].cor }}>{ic(STATUS_POST[k].icone)} {STATUS_POST[k].nome}</span>)}
               </span>
             </div>
-            {temporadasDoMes(rota.mes).length > 0 && (
+            {!rota.ano && temporadasDoMes(rota.mes).length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {temporadasDoMes(rota.mes).map((t) => (
                   <span key={t.nome} title={t.ideia} style={{ fontSize: 12.5, padding: '4px 10px', borderRadius: 999, color: COR_PRIOR[t.prior], background: `color-mix(in srgb, ${COR_PRIOR[t.prior]} 9%, transparent)` }}>
@@ -458,8 +517,9 @@ export default function CalendarioRedes() {
                 ))}
               </div>
             )}
-            {posts === null ? <p>Carregando…</p> : largo ? grade7() : agenda()}
-            {largo && podeEditar && <span style={{ fontSize: 12, color: T3 }}>Toque num dia para criar um post nele. Dia com borda laranja tracejada = sem post nos próximos 30 dias. {ic('fa-wheat-awn')} = data do agro: tocar cria o post já com a ideia.</span>}
+            {posts === null ? <p>Carregando…</p> : rota.ano ? anoTodo() : largo ? grade7() : agenda()}
+            {rota.ano && <span style={{ fontSize: 12, color: T3 }}><span style={{ color: '#16a34a' }}>●</span> dia com post · <span style={{ color: '#dc2626' }}>○</span> data obrigatória · <span style={{ color: '#d97706' }}>○</span> data boa. Toque num mês para abrir.</span>}
+            {!rota.ano && largo && podeEditar && <span style={{ fontSize: 12, color: T3 }}>Toque num dia para criar um post nele. {ic('fa-wheat-awn')} = data do agro: tocar cria o post já com a ideia.</span>}
           </section>
 
           <Secao icone="fa-wheat-awn" cor="#dc2626" titulo={proximasAgro.length ? `${proximasAgro.filter((x) => !porDia.get(x.d)?.length).length} das ${proximasAgro.length} datas do agro dos próximos 60 dias ainda sem post` : 'Nenhuma data importante nos próximos 60 dias'}
