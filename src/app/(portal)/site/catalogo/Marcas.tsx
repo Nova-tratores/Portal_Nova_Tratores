@@ -12,14 +12,20 @@ import { PreviaMarca, type CardPrevia } from '@/components/site/Previa';
 type Modelo = { marca: string; categoria: string; cartao: CardPrevia; abrir: () => void };
 type MarcaSite = { nome: string; logo_url?: string | null; banner_url?: string | null; sobre?: string | null; sob_consulta?: string[]; modelos?: number; origem?: string };
 type Salva = { nome: string; logo: string | null; banner: string | null; sobre: string | null; sob_consulta: string[]; ordem: number | null; atualizado_em: string; atualizado_por: string | null };
-type Rascunho = { nome: string; nome_antigo?: string; logo: string | null; banner: string | null; sobre: string; consulta: string; nova: boolean };
+type Rascunho = { chave: string; nome: string; nome_antigo?: string; logo: string | null; banner: string | null; sobre: string; consulta: string; nova: boolean };
 
 const muted = 'var(--portal-text-muted, #6b7280)';
 const rotulo: React.CSSProperties = { display: 'grid', gap: 4, fontSize: 13 };
 const ajuda: React.CSSProperties = { fontSize: 12, color: muted };
 
-export default function MarcasVista({ itens, podeEditar, versao, gravou, incluirModelo }: {
+/** Valor de `aberta` para a marca nova (no endereço: ?marca=nova). */
+export const MARCA_NOVA = 'nova';
+
+// Qual marca está aberta vem do endereço da página (?marca=Piccin), para o Voltar do navegador funcionar
+// (José, 12/11: "eu entro e não consigo voltar, tem que ter a opção e mudar a URL").
+export default function MarcasVista({ itens, podeEditar, versao, gravou, incluirModelo, aberta, irMarca }: {
   itens: Modelo[]; podeEditar: boolean; versao: number; gravou: () => void; incluirModelo: (marca: string) => void;
+  aberta: string | null; irMarca: (nome: string | null) => void;
 }) {
   const [doSite, setDoSite] = useState<MarcaSite[]>([]);
   const [salvas, setSalvas] = useState<Salva[]>([]);
@@ -57,12 +63,18 @@ export default function MarcasVista({ itens, podeEditar, versao, gravou, incluir
     }).sort((a, b) => b.modelos.length - a.modelos.length || a.nome.localeCompare(b.nome, 'pt-BR'));
   }, [doSite, salvas, itens]);
 
-  function abrir(m?: (typeof marcas)[number]) {
+  // abre/fecha conforme o endereço; não apaga o que está sendo digitado na mesma marca
+  useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect */
+    if (aberta === null) { setR(null); return; }
     setErroForm('');
-    setR(m
-      ? { nome: m.nome, nome_antigo: m.salva?.nome, logo: m.logo, banner: m.banner, sobre: m.sobre || '', consulta: m.consulta.join('\n'), nova: m.nova }
-      : { nome: '', logo: null, banner: null, sobre: '', consulta: '', nova: true });
-  }
+    if (aberta === MARCA_NOVA) { setR((x) => (x?.chave === MARCA_NOVA ? x : { chave: MARCA_NOVA, nome: '', logo: null, banner: null, sobre: '', consulta: '', nova: true })); return; }
+    const m = marcas.find((x) => x.nome === aberta);
+    if (!m) return;
+    setR((x) => (x?.chave === aberta ? x : { chave: aberta, nome: m.nome, nome_antigo: m.salva?.nome, logo: m.logo, banner: m.banner, sobre: m.sobre || '', consulta: m.consulta.join('\n'), nova: m.nova }));
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [aberta, marcas]);
+  const fecharMarca = () => irMarca(null);
 
   async function salvar() {
     if (!r) return;
@@ -83,7 +95,7 @@ export default function MarcasVista({ itens, podeEditar, versao, gravou, incluir
   async function desfazer(nome: string, nova: boolean) {
     if (!confirm(nova ? `Apagar a marca "${nome}"? Os modelos dela continuam no catálogo.` : `Voltar a marca "${nome}" ao que está no site (logo, banner e textos)?`)) return;
     const res = await fetchAuth(`/api/site/marcas?nome=${encodeURIComponent(nome)}`, { method: 'DELETE' });
-    if (res.ok) { setR(null); gravou(); carregar(); }
+    if (res.ok) { fecharMarca(); gravou(); carregar(); }
   }
 
   const atual = r ? marcas.find((m) => m.nome === (r.nome_antigo || r.nome)) : null;
@@ -92,16 +104,21 @@ export default function MarcasVista({ itens, podeEditar, versao, gravou, incluir
   return (
     <div style={{ display: 'grid', gap: 12 }}>
       {erro && <Aviso>{erro}</Aviso>}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+      {!r && <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ flex: '1 1 240px', fontSize: 14, color: muted }}>
           {marcas.length} marcas de implemento no site. Toque numa para mudar o logo, a foto do banner e os textos, ou para incluir um modelo nela.
         </span>
-        {podeEditar && <button style={botao()} onClick={() => abrir()}><i className="fa-solid fa-plus" style={{ fontWeight: 900 }} />Nova marca</button>}
-      </div>
+        {podeEditar && <button style={botao()} onClick={() => irMarca(MARCA_NOVA)}><i className="fa-solid fa-plus" style={{ fontWeight: 900 }} />Nova marca</button>}
+      </div>}
 
       {r && (
         <div style={{ ...cartao, display: 'grid', gap: 14 }}>
-          <b style={{ fontWeight: 500, fontSize: 16 }}>{r.nova && !atual ? 'Nova marca no site' : `Marca ${r.nome_antigo || r.nome}`}</b>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button type="button" onClick={fecharMarca} style={{ ...botao('#6b7280', false), minHeight: 38 }}>
+              <i className="fa-solid fa-arrow-left" style={{ fontWeight: 900 }} />Voltar para as marcas
+            </button>
+            <b style={{ fontWeight: 500, fontSize: 16 }}>{r.nova && !atual ? 'Nova marca no site' : `Marca ${r.nome_antigo || r.nome}`}</b>
+          </div>
           <fieldset disabled={!podeEditar || salvando} style={{ border: 0, padding: 0, margin: 0, display: 'grid', gap: 14, minWidth: 0 }}>
             <label style={rotulo}>Nome da marca
               <input style={{ ...campo, maxWidth: 360 }} maxLength={40} value={r.nome} placeholder="Ex.: Jumil" onChange={(e) => setR({ ...r, nome: e.target.value })} />
@@ -160,8 +177,8 @@ export default function MarcasVista({ itens, podeEditar, versao, gravou, incluir
 
           {erroForm && <span style={{ color: '#dc2626', fontSize: 13 }}>{erroForm}</span>}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {podeEditar && <button style={botao()} disabled={salvando} onClick={async () => { if (await salvar()) setR(null); }}>{salvando ? 'Gravando…' : 'Gravar marca'}</button>}
-            <button style={botao('#dc2626', false)} onClick={() => setR(null)}>Fechar</button>
+            {podeEditar && <button style={botao()} disabled={salvando} onClick={async () => { if (await salvar()) fecharMarca(); }}>{salvando ? 'Gravando…' : 'Gravar marca'}</button>}
+            <button style={botao('#dc2626', false)} onClick={fecharMarca}>Voltar sem gravar</button>
             {podeEditar && atual?.salva && (
               <button style={{ ...botao('#6b7280', false), marginLeft: 'auto' }} onClick={() => desfazer(atual.nome, atual.nova)}>
                 <i className={`fa-solid ${atual.nova ? 'fa-trash' : 'fa-rotate-left'}`} style={{ fontWeight: 900 }} />{atual.nova ? 'Apagar marca' : 'Desfazer mudanças'}
@@ -171,9 +188,9 @@ export default function MarcasVista({ itens, podeEditar, versao, gravou, incluir
         </div>
       )}
 
-      <div style={grade(240)}>
+      {!r && <div style={grade(240)}>
         {marcas.map((m) => (
-          <button key={m.nome} onClick={() => abrir(m)} style={{ ...cartao, padding: 0, overflow: 'hidden', display: 'grid', textAlign: 'left', font: 'inherit', color: 'inherit', cursor: 'pointer' }}>
+          <button key={m.nome} onClick={() => irMarca(m.nome)} style={{ ...cartao, padding: 0, overflow: 'hidden', display: 'grid', textAlign: 'left', font: 'inherit', color: 'inherit', cursor: 'pointer' }}>
             <span style={{ position: 'relative', aspectRatio: '3', background: m.banner ? '#111' : 'linear-gradient(#fff, #ececee)', display: 'block', overflow: 'hidden' }}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               {m.banner && <img src={m.banner} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: 0.85 }} loading="lazy" />}
@@ -194,7 +211,7 @@ export default function MarcasVista({ itens, podeEditar, versao, gravou, incluir
             </span>
           </button>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }

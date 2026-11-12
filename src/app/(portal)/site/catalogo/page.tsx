@@ -3,7 +3,7 @@
 // 12/11 ("um bloco onde vemos quais máquinas estão no site, para incluir, excluir ou alterar uma informação"):
 // ficha completa de cada máquina (nome, fotos, textos, ficha técnica), máquina nova, tirar do site / voltar, e a barra
 // Publicar. Preço, selo e pronta entrega aparecem no site sozinhos em até 10 min; o resto, depois de publicar.
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { fetchAuth } from '@/lib/auth/client';
 import { Aviso, ComoLer, Conta, Numero, botao, campo, cartao, grade, real, tela } from '@/components/site/ui';
 import PublicarBarra from '@/components/site/PublicarBarra';
@@ -315,10 +315,42 @@ export default function CatalogoSitePage() {
   const [semSql, setSemSql] = useState(false);
   const [busca, setBusca] = useState('');
   const [cat, setCat] = useState<'todos' | 'tratores' | 'implementos' | 'com-preco' | 'ocultos' | 'pronta' | 'mudados'>('todos');
-  const [aberto, setAberto] = useState<Item | 'novo' | null>(null);
-  const [marcaNova, setMarcaNova] = useState<string | undefined>(undefined);
-  const [vista, setVista] = useState<'maquinas' | 'marcas'>('maquinas');
   const [versao, setVersao] = useState(0);
+  const abriuAqui = useRef(false);
+  // O que está aberto mora no endereço (?aba=marcas, ?marca=Piccin, ?maquina=slug | novo, &na_marca=Piccin), para o
+  // Voltar do navegador e do celular funcionarem (José, 12/11: "eu entro e não consigo voltar, tem que mudar a URL").
+  const [url, setUrl] = useState<{ aba: string | null; marca: string | null; maquina: string | null; naMarca: string | null }>({ aba: null, marca: null, maquina: null, naMarca: null });
+  useEffect(() => {
+    const ler = () => {
+      const q = new URLSearchParams(window.location.search);
+      setUrl({ aba: q.get('aba'), marca: q.get('marca'), maquina: q.get('maquina'), naMarca: q.get('na_marca') });
+    };
+    ler();
+    const voltou = () => { abriuAqui.current = false; ler(); };
+    window.addEventListener('popstate', voltou);
+    return () => window.removeEventListener('popstate', voltou);
+  }, []);
+  const ir = useCallback((novo: Partial<typeof url>, trocar = false) => {
+    setUrl((atual) => {
+      const u = { ...atual, ...novo };
+      const q = new URLSearchParams();
+      if (u.aba === 'marcas') q.set('aba', 'marcas');
+      if (u.marca) q.set('marca', u.marca);
+      if (u.maquina) q.set('maquina', u.maquina);
+      if (u.maquina === 'novo' && u.naMarca) q.set('na_marca', u.naMarca);
+      const destino = `${window.location.pathname}${q.toString() ? `?${q}` : ''}`;
+      if (destino !== `${window.location.pathname}${window.location.search}`) window.history[trocar ? 'replaceState' : 'pushState'](null, '', destino);
+      return u;
+    });
+  }, []);
+  const vista: 'maquinas' | 'marcas' = url.aba === 'marcas' || url.marca ? 'marcas' : 'maquinas';
+  const setVista = (v: 'maquinas' | 'marcas') => ir({ aba: v === 'marcas' ? 'marcas' : null, marca: null, maquina: null });
+  const aberto: Item | 'novo' | null = useMemo(
+    () => (url.maquina === 'novo' ? 'novo' : (url.maquina && itens?.find((i) => i.slug === url.maquina)) || null),
+    [url.maquina, itens],
+  );
+  const marcaNova = url.naMarca || undefined;
+  const abrirMaquina = useCallback((slug: string, naMarca?: string) => { abriuAqui.current = true; ir({ maquina: slug, naMarca: naMarca || null }); }, [ir]);
 
   const carregar = useCallback(async () => {
     const r = await fetchAuth('/api/site/catalogo');
@@ -329,7 +361,8 @@ export default function CatalogoSitePage() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { carregar(); }, [carregar]);
   const gravou = useCallback(() => { setVersao((n) => n + 1); carregar(); }, [carregar]);
-  const fechar = useCallback(() => setAberto(null), []);
+  // fechar a ficha = voltar uma página quando ela foi aberta aqui (assim o Voltar do navegador não reabre a ficha)
+  const fechar = useCallback(() => { if (abriuAqui.current) { abriuAqui.current = false; window.history.back(); } else ir({ maquina: null, naMarca: null }, true); }, [ir]);
 
   const mudado = (i: Item) => !!i.mudanca && (Object.keys(i.mudanca.dados || {}).length > 0 || !!i.mudanca.novo);
   const contagem = useMemo(() => {
@@ -385,9 +418,10 @@ export default function CatalogoSitePage() {
       </div>
       {vista === 'marcas' ? (
         <MarcasVista
-          itens={(itens || []).filter((i) => !vigor(i).oculto).map((i) => ({ marca: marcaDe(i), categoria: fichaDe(i).categoria, cartao: cartaoDe(i), abrir: () => setAberto(i) }))}
+          itens={(itens || []).filter((i) => !vigor(i).oculto).map((i) => ({ marca: marcaDe(i), categoria: fichaDe(i).categoria, cartao: cartaoDe(i), abrir: () => abrirMaquina(i.slug) }))}
           podeEditar={podeEditar && !semSql} versao={versao} gravou={gravou}
-          incluirModelo={(marca) => { setMarcaNova(marca); setAberto('novo'); }}
+          incluirModelo={(marca) => abrirMaquina('novo', marca)}
+          aberta={url.marca} irMarca={(nome) => ir({ aba: 'marcas', marca: nome })}
         />
       ) : (<>
       <div style={grade(160)}>
@@ -408,7 +442,7 @@ export default function CatalogoSitePage() {
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <input style={{ ...campo, flex: '1 1 240px', maxWidth: 420 }} placeholder="Buscar por nome, marca ou modelo" value={busca} onChange={(e) => setBusca(e.target.value)} />
-        {podeEditar && !semSql && <button style={botao()} onClick={() => { setMarcaNova(undefined); setAberto('novo'); }}><i className="fa-solid fa-plus" style={{ fontWeight: 900 }} />Nova máquina</button>}
+        {podeEditar && !semSql && <button style={botao()} onClick={() => abrirMaquina('novo')}><i className="fa-solid fa-plus" style={{ fontWeight: 900 }} />Nova máquina</button>}
       </div>
 
       <div style={grade(280)}>
@@ -420,7 +454,7 @@ export default function CatalogoSitePage() {
           const foto = (d.fotos?.[0] && fotoUrl({ ...d.fotos[0], url: i.fotos?.find((x) => x.src === d.fotos![0].src)?.url })) || i.foto;
           const nome = i.categoria === 'tratores' && (d.marca || d.modelo) ? `${d.marca || i.marca} ${d.modelo || i.modelo}` : d.titulo || i.titulo;
           return (
-            <button key={i.slug} onClick={() => setAberto(i)}
+            <button key={i.slug} onClick={() => abrirMaquina(i.slug)}
               style={{ ...cartao, display: 'grid', gap: 10, textAlign: 'left', font: 'inherit', color: 'inherit', cursor: 'pointer', opacity: v.oculto ? 0.55 : 1 }}>
               <span style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                 <span style={{ flex: 'none', width: 84, height: 63, borderRadius: 10, background: '#fff', display: 'grid', placeItems: 'center', overflow: 'hidden', border: '1px solid var(--border)' }}>

@@ -23,7 +23,7 @@ export function FontesSite() {
 }
 
 /** Desenha `children` na largura real (1280 ou 390) e reduz para caber no espaço da tela. */
-function Escala({ largura, children }: { largura: number; children: ReactNode }) {
+export function Escala({ largura, children }: { largura: number; children: ReactNode }) {
   const caixa = useRef<HTMLDivElement>(null);
   const dentro = useRef<HTMLDivElement>(null);
   const [k, setK] = useState(0.3);
@@ -85,7 +85,7 @@ export type PromoPrevia = {
   fim?: string | null; maquina?: { nome: string; foto: string | null } | null; whats: boolean
 };
 
-function PromoSlide({ p, celular }: { p: PromoPrevia; celular: boolean }) {
+export function PromoSlide({ p, celular }: { p: PromoPrevia; celular: boolean }) {
   const faixa = !!(p.imagem && p.imagem_celular);
   const botao = p.botao || (p.whats ? 'Quero essa condição' : p.maquina ? 'Ver condições' : 'Saiba mais');
   const validade = p.fim ? ` · Válida até ${p.fim.split('-').reverse().slice(0, 2).join('/')}` : '';
@@ -127,22 +127,22 @@ function PromoSlide({ p, celular }: { p: PromoPrevia; celular: boolean }) {
   );
 }
 
-export function PreviaPromocao({ p, total = 1 }: { p: PromoPrevia; total?: number }) {
+export function PreviaPromocao({ p, total = 1, atual = 0, onIr, titulo = 'Como fica na página inicial do site' }: { p: PromoPrevia; total?: number; atual?: number; onIr?: (i: number) => void; titulo?: string }) {
   const bloco = (celular: boolean) => (
     <div style={{ padding: celular ? '32px 16px' : '48px 64px' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
         <span style={{ fontFamily: SITE.titulo, fontWeight: 500, fontSize: celular ? 28 : 40, color: SITE.aco }}>Promoções</span>
-        {!celular && total > 1 && <span style={{ display: 'flex', gap: 8 }}>{['‹', '›'].map((s) => <span key={s} style={{ width: 44, height: 44, borderRadius: 999, border: `1px solid ${SITE.borda}`, display: 'grid', placeItems: 'center', fontSize: 28, color: SITE.preto }}>{s}</span>)}</span>}
+        {!celular && total > 1 && <span style={{ display: 'flex', gap: 8 }}>{['‹', '›'].map((s, k) => <span key={s} onClick={onIr ? () => onIr((atual + (k ? 1 : total - 1)) % total) : undefined} style={{ cursor: onIr ? 'pointer' : undefined, width: 44, height: 44, borderRadius: 999, border: `1px solid ${SITE.borda}`, display: 'grid', placeItems: 'center', fontSize: 28, color: SITE.preto }}>{s}</span>)}</span>}
       </div>
       <PromoSlide p={p} celular={celular} />
       {total > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: 12, marginTop: 14 }}>
-          {Array.from({ length: total }, (_, i) => <span key={i} style={{ width: i === 0 ? 26 : 10, height: 10, borderRadius: 999, background: i === 0 ? SITE.vermelho : SITE.borda }} />)}
+          {Array.from({ length: total }, (_, i) => <span key={i} onClick={onIr ? () => onIr(i) : undefined} style={{ cursor: onIr ? 'pointer' : undefined, width: i === atual ? 26 : 10, height: 10, borderRadius: 999, background: i === atual ? SITE.vermelho : SITE.borda }} />)}
         </div>
       )}
     </div>
   );
-  return <Previa titulo="Como fica na página inicial do site" pc={bloco(false)} celular={bloco(true)} />;
+  return <Previa titulo={titulo} pc={bloco(false)} celular={bloco(true)} />;
 }
 
 /* ---------------------------------------------------------------- Cartão de máquina */
