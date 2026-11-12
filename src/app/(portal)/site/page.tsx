@@ -4,6 +4,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { fetchAuth } from '@/lib/auth/client';
+import SubAbas, { ABAS_PEDIDOS_CATALOGO } from '@/components/site/SubAbas';
 import { Aviso, ComoLer, Conta, Numero, botao, campo, cartao, grade, quando, real, tela } from '@/components/site/ui';
 
 type Pedido = {
@@ -74,6 +75,7 @@ function Pedidos() {
 
   return (
     <div style={tela}>
+      <SubAbas abas={ABAS_PEDIDOS_CATALOGO} />
       {erro && <Aviso>{erro}</Aviso>}
       <div style={grade(180)}>
         <Numero icone="fa-bell" cor="#dc2626" rotulo="Novos (sem resposta)" valor={<Conta valor={conta.novo || 0} />} ativo={filtro === 'novo'} onClick={() => setFiltro(filtro === 'novo' ? 'abertos' : 'novo')} />

@@ -18,7 +18,8 @@ export async function GET(req: Request) {
     .eq('ativo', true).order('ordem').order('criado_em')
   if (error) return NextResponse.json({ promocoes: [] }, { headers: cors })
   // fim no futuro (ou sem fim); início pode ser futuro: o site mostra a partir do dia. Só campos públicos.
-  const promocoes = ((data || []) as Record<string, unknown>[]).filter((p) => !p.fim || String(p.fim) >= hoje)
+  // redes (12/11): só as marcadas para o site (antes da coluna existir, todas)
+  const promocoes = ((data || []) as Record<string, unknown>[]).filter((p) => (!p.fim || String(p.fim) >= hoje) && (!Array.isArray(p.redes) || p.redes.includes('site')))
     .map(({ id, titulo, texto, imagem, imagem_celular, produto_slug, link, botao, inicio, fim }) =>
       ({ id, titulo, texto, imagem, imagem_celular: imagem_celular ?? null, produto_slug, link, botao, inicio, fim }))
   return NextResponse.json({ promocoes }, { headers: cors })

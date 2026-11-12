@@ -12,11 +12,14 @@ import { Aviso, tela } from '@/components/site/ui';
 import PublicarBarra from '@/components/site/PublicarBarra';
 import EnviarFoto from '@/components/site/EnviarFoto';
 import { Escala, FontesSite, PreviaPromocao, PromoSlide, type PromoPrevia } from '@/components/site/Previa';
+import { ArtesDasRedes, EscolherRedes, IconeRede, LegendaRedes } from '@/components/site/Artes';
+import { REDE, faltas, type RedeId } from '@/lib/site/redes';
 import { AZUL, Campo, Quadradinho, Secao, T1, T2, T3, bt, campoNP, cartaoNP, grade, ic } from '@/components/site/np';
 
 type Promo = {
   id: string; titulo: string; texto: string | null; imagem: string | null; imagem_celular?: string | null; produto_slug: string | null; link: string | null
   botao: string | null; inicio: string | null; fim: string | null; ativo: boolean; ordem: number; atualizado_por: string | null
+  arte_feed?: string | null; arte_vertical?: string | null; video?: string | null; legenda?: string | null; redes?: RedeId[]
 };
 type Maquina = { slug: string; titulo: string; marca: string; foto: string | null; categoria: string };
 type Rascunho = Omit<Promo, 'id' | 'ordem' | 'atualizado_por'> & { id?: string };
@@ -54,7 +57,7 @@ function SeloTamanho({ url, ideal }: { url: string | null | undefined; ideal: { 
 
 const hoje = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const dataBR = (d: string) => d.split('-').reverse().join('/');
-const VAZIA: Rascunho = { titulo: '', texto: '', imagem: null, imagem_celular: null, produto_slug: null, link: '', botao: '', inicio: null, fim: null, ativo: true };
+const VAZIA: Rascunho = { titulo: '', texto: '', imagem: null, imagem_celular: null, produto_slug: null, link: '', botao: '', inicio: null, fim: null, ativo: true, arte_feed: null, arte_vertical: null, video: null, legenda: '', redes: ['site'] };
 const IDEAL_PC = { w: 1920, h: 640, nome: 'deitada, 3 por 1' };
 const IDEAL_CEL = { w: 1080, h: 1080, nome: 'quadrada' };
 const VERDE = '#16a34a', CINZA = '#64748b', AZUL_CLARO = '#0284c7';
@@ -168,6 +171,7 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
     return maquinas.filter((m) => !q || `${m.titulo} ${m.marca}`.toLowerCase().includes(q)).slice(0, 40);
   }, [maquinas, buscaMaq]);
 
+  const midiaDe = (p: Promo) => ({ site: p.imagem, feed: p.arte_feed, vertical: p.arte_vertical, video: p.video });
   const previaDe = useCallback((p: Promo): PromoPrevia => {
     const m = maq(p.produto_slug);
     const link = (p.link || '').trim();
@@ -201,8 +205,11 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
     if (!r) return;
     const { chave: _chave, ...resto } = r; void _chave;
     const corpo = { ...resto, imagem: modo === 'foto' ? r.imagem : null, imagem_celular: modo === 'foto' ? r.imagem_celular ?? null : null };
-    if (modo === 'foto' && !corpo.imagem) { setErroForm('Envie a arte do computador.'); return; }
-    if (modo === 'maquina' && !corpo.produto_slug) { setErroForm('Escolha a máquina.'); return; }
+    const noSite = !r.redes?.length || r.redes.includes('site');
+    if (!r.redes?.length) { setErroForm('Escolha pelo menos uma rede (ou o site).'); return; }
+    if (noSite && modo === 'foto' && !corpo.imagem) { setErroForm('Envie a arte do computador (é a do site).'); return; }
+    if (!noSite && !corpo.arte_feed && !corpo.arte_vertical && !corpo.video) { setErroForm('Envie pelo menos uma arte para as redes.'); return; }
+    if (noSite && modo === 'maquina' && !corpo.produto_slug) { setErroForm('Escolha a máquina.'); return; }
     if (!corpo.titulo.trim()) { setErroForm('Escreva o título.'); return; }
     const j = await chamar(r.id ? 'PATCH' : 'POST', corpo);
     if (j) { fecharEditor(); mudou(); }
@@ -225,6 +232,12 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
     return (
       <span style={{ display: 'grid', gap: 5 }}>
         {linha(p.imagem ? 'fa-image' : 'fa-tractor', p.imagem ? (faixa(p) ? 'Arte do computador e do celular' : 'Uma arte, com o texto ao lado') : `Foto da máquina ${m?.titulo || p.produto_slug}`)}
+        {linha('fa-share-nodes', <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          {(p.redes?.length ? p.redes : ['site'] as RedeId[]).map((id) => {
+            const falta = id !== 'site' && faltas([id], midiaDe(p)).length > 0;
+            return <span key={id} title={falta ? `${REDE[id].nome}: falta arte` : REDE[id].nome} style={{ display: 'inline-flex', gap: 4, alignItems: 'center', opacity: falta ? 0.5 : 1 }}><IconeRede id={id} />{falta && <i className="fa-solid fa-triangle-exclamation" style={{ fontWeight: 900, color: '#b45309', fontSize: 11 }} />}</span>;
+          })}
+        </span>)}
         {linha('fa-hand-pointer', <>Botão leva {p.link ? <>para {p.link}</> : p.produto_slug ? 'à página da máquina' : 'ao WhatsApp do vendedor'}</>)}
         {linha('fa-calendar-days', p.inicio || p.fim ? `${p.inicio ? `De ${dataBR(p.inicio)}` : 'Desde já'} ${p.fim ? `até ${dataBR(p.fim)}` : 'sem data para sair'}` : 'Sem datas: fica até alguém desligar')}
       </span>
@@ -238,6 +251,7 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
     return (
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <button style={b(AZUL)} onClick={() => abrir(p)} title="Trocar arte, textos e datas">{ic('fa-pen')}Mudar</button>
+        {(p.redes || []).some((x) => x !== 'site') && <a style={{ ...b('#7c3aed'), textDecoration: 'none' }} href={`/site/conteudo?da_promocao=${p.id}`} title="Marca o dia e a hora de postar nas redes">{ic('fa-calendar-plus')}Postar nas redes</a>}
         <button style={b(p.ativo ? CINZA : VERDE)} disabled={salvando} onClick={() => ligar(p)} title={p.ativo ? 'Tira do site sem apagar' : 'Volta a aparecer no site'}>
           {ic(p.ativo ? 'fa-eye-slash' : 'fa-eye')}{p.ativo ? 'Tirar do site' : 'Pôr no site'}
         </button>
@@ -566,6 +580,20 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
           <Campo rotulo="Para onde o botão leva (opcional)" ajuda="Deixe vazio na maioria das vezes. Use só para mandar a outra página, ex.: /credito/.">
             <input style={campoNP} value={r.link || ''} placeholder="Vazio = página da máquina ou WhatsApp" onChange={(e) => setR({ ...r, link: e.target.value })} />
           </Campo>
+        </Secao>
+
+        <Secao icone="fa-share-nodes" cor="#c13584" titulo="Em quais redes vai sair" sub="O site usa as artes de cima. Instagram, Facebook, TikTok e Shorts usam as daqui">
+          <EscolherRedes valor={r.redes?.length ? r.redes : ['site']} onChange={(v) => setR({ ...r, redes: v })} />
+          {(r.redes || []).some((x) => x !== 'site') && (
+            <>
+              <ArtesDasRedes semSite redes={(r.redes || []).filter((x) => x !== 'site')} pasta="promocoes"
+                midia={{ feed: r.arte_feed, vertical: r.arte_vertical, video: r.video }}
+                onTroca={(a, u) => setR({ ...r, ...(a === 'feed' ? { arte_feed: u } : a === 'vertical' ? { arte_vertical: u } : a === 'video' ? { video: u } : {}) })} />
+              <Campo rotulo="Texto do post nas redes" ajuda="Vai junto da arte no Instagram, Facebook e TikTok. No Shorts, as primeiras 100 letras viram o título.">
+                <LegendaRedes valor={r.legenda || ''} onChange={(v) => setR({ ...r, legenda: v })} redes={r.redes || []} />
+              </Campo>
+            </>
+          )}
         </Secao>
 
         <Secao icone="fa-calendar-days" cor={AZUL_CLARO} titulo="Quando aparece" sub="Sem datas, fica no ar até alguém tirar">

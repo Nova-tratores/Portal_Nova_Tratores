@@ -7,6 +7,8 @@
 // Anônimo: cada visita é um aparelho sem nome.
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { fetchAuth } from '@/lib/auth/client';
+import SubAbas from '@/components/site/SubAbas';
+import { ABAS_ACESSOS } from '@/components/site/abasAcessos';
 import type { Resumo, Visita } from '@/lib/site/acessos';
 import type { ResumoPedidos } from '@/app/api/site/acessos/route';
 import { Aviso, ComoLer, Conta, Numero, botao, cartao, duracao, grade, quando, real, tela } from '@/components/site/ui';
@@ -212,6 +214,7 @@ export default function AcessosSitePage() {
 
   return (
     <div style={tela}>
+      <SubAbas abas={ABAS_ACESSOS} />
       {erro && <Aviso>{erro}</Aviso>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {[[1, 'Hoje e ontem'], [7, '7 dias'], [30, '30 dias'], [90, '90 dias']].map(([d, rot]) => (

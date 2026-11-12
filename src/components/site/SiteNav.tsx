@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
-import { PAGINAS_SITE, podeTelaSite, slugDaPaginaSite, slugDaRotaSite } from '@/app/(portal)/site/paginas';
+import { ABAS_SITE, PAGINAS_SITE, podeTelaSite, slugDaPaginaSite, slugDaRotaSite } from '@/app/(portal)/site/paginas';
 
 // Guias estilo Chrome na faixa vermelha do Comercial (molde do IVNav).
 export default function SiteNav() {
@@ -12,7 +12,10 @@ export default function SiteNav() {
   const { permissoes, isAdmin, loading } = usePermissoes(userProfile?.id);
   if (loading) return null;
   const perms = permissoes?.modulos_permitidos ?? [];
-  const visiveis = PAGINAS_SITE.filter((p) => podeTelaSite(perms, isAdmin, slugDaPaginaSite(p)));
+  const pode = (key: string) => { const p = PAGINAS_SITE.find((x) => x.key === key); return !!p && podeTelaSite(perms, isAdmin, slugDaPaginaSite(p)); };
+  // cada guia abre a primeira tela dela que a pessoa pode ver
+  const visiveis = ABAS_SITE.map((a) => ({ ...a, telas: a.telas.filter(pode) })).filter((a) => a.telas.length)
+    .map((a) => ({ key: a.label, label: a.label, href: PAGINAS_SITE.find((p) => p.key === a.telas[0])!.href, slugs: a.telas.map((t) => t.slice('site:'.length)) }));
   return (
     <div
       className="print:hidden"
@@ -23,7 +26,7 @@ export default function SiteNav() {
       }}
     >
       {visiveis.map((p) => {
-        const ativo = slugDaRotaSite(pathname) === slugDaPaginaSite(p);
+        const ativo = p.slugs.includes(slugDaRotaSite(pathname));
         return (
           <Link
             key={p.key}

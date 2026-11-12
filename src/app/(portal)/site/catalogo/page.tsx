@@ -9,6 +9,7 @@ import { Aviso, ComoLer, Conta, Numero, botao, campo, cartao, grade, real, tela 
 import PublicarBarra from '@/components/site/PublicarBarra';
 import EnviarFoto from '@/components/site/EnviarFoto';
 import { PreviaCartao, type CardPrevia } from '@/components/site/Previa';
+import SubAbas, { ABAS_PEDIDOS_CATALOGO } from '@/components/site/SubAbas';
 import MarcasVista from './Marcas';
 
 type Foto = { src: string; alt: string; url?: string };
@@ -411,6 +412,7 @@ export default function CatalogoSitePage() {
       {erro && <Aviso>{erro}</Aviso>}
       {erroSite && <Aviso>{erroSite} Confira a variável SITE_URL do portal.</Aviso>}
       {semSql && <Aviso>Para incluir máquinas e mudar textos e fotos, rode <b>sql/site-produtos-promocoes.sql</b> no projeto do portal (citrhumdkfivdzbmayde).</Aviso>}
+      <SubAbas abas={ABAS_PEDIDOS_CATALOGO} />
       <PublicarBarra versao={versao} />
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <button style={botao('#dc2626', vista === 'maquinas')} onClick={() => setVista('maquinas')}><i className="fa-solid fa-tractor" style={{ fontWeight: 900 }} />Máquinas</button>

@@ -3,12 +3,13 @@
 // GET lista · POST cria · PATCH muda (ou { ordem: [ids] } reordena) · DELETE ?id= apaga. Aparece no site depois do Publicar.
 import { NextResponse } from 'next/server'
 import { guardarSite, sb } from '@/lib/site/server'
+import { ehRede } from '@/lib/site/redes'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const MSG_SQL = 'Rode sql/site-produtos-promocoes.sql no projeto do portal (citrhumdkfivdzbmayde).'
-const falta = (m: string) => /site_promocoes|does not exist|schema cache/i.test(m)
+const MSG_SQL = 'Rode sql/site-produtos-promocoes.sql e sql/site-redes.sql no projeto do portal (citrhumdkfivdzbmayde).'
+const falta = (m: string) => /site_promocoes|arte_feed|arte_vertical|legenda|redes|does not exist|schema cache/i.test(m)
 type Linha = Record<string, unknown>
 
 const podeEditar = (u: { isAdmin: boolean; modulos: string[] }) =>
@@ -27,6 +28,10 @@ function limpar(b: Linha): { ok: true; v: Linha } | { ok: false; erro: string } 
   for (const c of ['inicio', 'fim'] as const) if (c in b) { v[c] = t(b[c], 10); if (v[c] && !/^\d{4}-\d{2}-\d{2}$/.test(String(v[c]))) return { ok: false, erro: 'Data inválida' } }
   if (v.inicio && v.fim && String(v.fim) < String(v.inicio)) return { ok: false, erro: 'A data de fim é antes do começo' }
   if ('ativo' in b) v.ativo = b.ativo === true
+  // redes (12/11): artes de cada tamanho + texto do post
+  for (const c of ['arte_feed', 'arte_vertical', 'video'] as const) if (c in b) { v[c] = t(b[c], 600); if (v[c] && !/^https:\/\//.test(String(v[c]))) return { ok: false, erro: 'Arquivo inválido' } }
+  if ('legenda' in b) v.legenda = String(b.legenda ?? '').trim().slice(0, 5000) || null
+  if ('redes' in b) { const r = (Array.isArray(b.redes) ? b.redes : []).filter(ehRede); v.redes = r.length ? [...new Set(r)] : ['site'] }
   return { ok: true, v }
 }
 
@@ -45,7 +50,7 @@ export async function POST(req: Request) {
   const b = ((await req.json().catch(() => null)) || {}) as Linha
   const l = limpar({ titulo: '', ...b })
   if (!l.ok) return NextResponse.json({ ok: false, erro: l.erro }, { status: 400 })
-  if (!l.v.imagem && !l.v.produto_slug) return NextResponse.json({ ok: false, erro: 'Envie a foto da promoção ou escolha uma máquina do site' }, { status: 400 })
+  if (!l.v.imagem && !l.v.produto_slug && !l.v.arte_feed && !l.v.arte_vertical && !l.v.video) return NextResponse.json({ ok: false, erro: 'Envie a foto da promoção ou escolha uma máquina do site' }, { status: 400 })
   const { data: ult } = await sb.from('site_promocoes').select('ordem').order('ordem', { ascending: false }).limit(1).maybeSingle()
   const { data, error } = await sb.from('site_promocoes').insert({
     ...l.v, ordem: ((ult as { ordem?: number } | null)?.ordem ?? -1) + 1, atualizado_por: g.user.nome || g.user.email || 'Portal',
@@ -71,7 +76,7 @@ export async function PATCH(req: Request) {
   const l = limpar(b)
   if (!l.ok) return NextResponse.json({ ok: false, erro: l.erro }, { status: 400 })
   const { data, error } = await sb.from('site_promocoes').update({ ...l.v, atualizado_em: agora, atualizado_por: por }).eq('id', id).select('*').single()
-  if (error) return NextResponse.json({ ok: false, erro: /check/i.test(error.message) ? 'A promoção precisa de foto ou de uma máquina' : error.message }, { status: 400 })
+  if (error) return NextResponse.json({ ok: false, erro: /check/i.test(error.message) ? 'A promoção precisa de foto ou de uma máquina' : falta(error.message) ? MSG_SQL : error.message }, { status: 400 })
   return NextResponse.json({ ok: true, promocao: data })
 }
 

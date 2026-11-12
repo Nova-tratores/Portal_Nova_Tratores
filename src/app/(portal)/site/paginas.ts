@@ -9,6 +9,16 @@ export const PAGINAS_SITE: PaginaSite[] = [
   { key: 'site:conteudo', label: 'Conteúdo e publicar', href: '/site/conteudo' },
 ]
 
+// Guias da faixa vermelha (12/11/2026, José: "pedidos do site e catálogo ficam no mesmo lugar"; o módulo controla
+// site + redes). Cada guia junta telas; a permissão continua por tela (PAGINAS_SITE).
+export interface AbaSite { label: string; telas: string[] }
+export const ABAS_SITE: AbaSite[] = [
+  { label: 'Pedidos e catálogo', telas: ['site:pedidos', 'site:catalogo'] },
+  { label: 'Promoções', telas: ['site:promocoes'] },
+  { label: 'Acessos', telas: ['site:acessos'] },
+  { label: 'Conteúdo e publicar', telas: ['site:conteudo'] },
+]
+
 export const slugDaPaginaSite = (p: PaginaSite) => p.key.slice('site:'.length)
 
 export function slugDaRotaSite(pathname: string): string {
