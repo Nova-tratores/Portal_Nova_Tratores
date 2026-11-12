@@ -3,13 +3,35 @@ import { useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
+function ehLinkDeRecuperacao(): boolean {
+  if (typeof window === 'undefined') return false
+  const h = window.location.hash || ''
+  return /(^|[#&])type=recovery(&|$)/.test(h) || /(^|[#&])error_code=otp_expired(&|$)/.test(h)
+}
+
 export default function RootPage() {
   const router = useRouter()
 
   useEffect(() => {
+    // Link de recuperação de senha que caiu na raiz (o Supabase usa a "Site URL"
+    // quando o redirect não está liberado ou quando o e-mail sai do painel dele):
+    // leva para a tela de nova senha em vez do login.
+    if (ehLinkDeRecuperacao()) {
+      window.location.replace('/resetar-senha' + window.location.hash)
+      return
+    }
+    let foi = false
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY' && !foi) {
+        foi = true
+        router.replace('/resetar-senha')
+      }
+    })
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (foi) return
       router.push(session ? '/dashboard' : '/login')
     })
+    return () => subscription.unsubscribe()
   }, [router])
 
   return (

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { exigirAdmin } from "@/lib/auth/server";
+import { portalBase } from "@/lib/portal-url";
 
 function getSupabase() {
   return createClient(
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
 
     // Envia email de redefinição de senha via Supabase Auth
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL || "https://portalnovatratores-production.up.railway.app"}/resetar-senha`,
+      redirectTo: `${portalBase()}/resetar-senha`,
     });
 
     if (error) {
