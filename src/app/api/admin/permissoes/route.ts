@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { autenticar } from '@/lib/auth/server'
 import { ACOES_SO_DEV } from '@/lib/permissoes/explicitas'
 import { espelhoLigado, espelharPermissoes } from '@/lib/permissoes/espelho-server'
+import { fonteV2Ligada, gravarChavesPessoa, regerarChaves } from '@/lib/permissoes/fonte-server'
 import { MODULO_ADMINISTRACAO, MODULOS_SO_ADMIN } from '@/lib/permissoes/modulos-admin'
 
 // Escrita de permissões (portal_permissoes) — SÓ pelo servidor, com checagem de
@@ -75,11 +76,32 @@ export async function POST(req: NextRequest) {
   }
   patch.updated_at = new Date().toISOString()
 
+  // V2 é a fonte (10/11/2026): a lista vira extras/bloqueios por cima dos
+  // departamentos/pacotes da pessoa e a lista gravada é a REGERADA da v2.
+  const fonteV2 = fonteV2Ligada() && Array.isArray(patch.modulos_permitidos)
+  let mudancas: { ganha: string[]; perde: string[] } | null = null
+  if (fonteV2) {
+    try {
+      const r = await gravarChavesPessoa(userId, patch.modulos_permitidos as string[], {
+        motivo: typeof body.motivo === 'string' ? body.motivo : undefined,
+        autor: { id: auth.userId, nome: auth.email || auth.userId },
+      })
+      patch.modulos_permitidos = r.chaves
+      mudancas = { ganha: r.ganha, perde: r.perde }
+    } catch (e) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 409 })
+    }
+  }
+
   const { error } = await supabase
     .from('portal_permissoes')
     .upsert({ user_id: userId, ...patch }, { onConflict: 'user_id' })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (error) {
+    // a v2 já mudou: alinha a lista antiga a ela (senão a conferência reimportaria o que foi tirado)
+    if (fonteV2) await regerarChaves([userId]).catch(() => {})
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
 
   // Fonte da verdade do setor = Categoria do Admin. Ao mudar a Categoria, sincroniza
   // a função do financeiro (financeiro_usu.funcao), que é o que aparece em Configurações
@@ -91,5 +113,5 @@ export async function POST(req: NextRequest) {
   // Permissões v2 (modo sombra): a cópia nova acompanha na hora, em segundo plano.
   if (espelhoLigado()) void espelharPermissoes([userId]).catch(() => {})
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({ ok: true, ...(mudancas ? { mudancas } : {}) })
 }

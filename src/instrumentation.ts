@@ -418,6 +418,25 @@ export async function register(): Promise<void> {
       setTimeout(() => { void espelhar(true); }, 60 * 1000);
       setInterval(() => { void espelhar(false); }, 10 * 60 * 1000);
     }
+
+    // V2 é a FONTE (Fase 4, parte 2, 10/11/2026): em vez do espelho, a conferência
+    // regera a lista antiga a partir da v2; o que só a lista tem (gravado por fora
+    // do Admin) vira extra — ninguém perde acesso. PERM_FONTE=antiga volta atrás.
+    const { fonteV2Ligada, conferirFonte } = await import('./lib/permissoes/fonte-server');
+    if (fonteV2Ligada()) {
+      const conferir = async (comCatalogo: boolean) => {
+        try {
+          if (comCatalogo) await sincronizarCatalogo();
+          const r = await conferirFonte();
+          if (r.importados.length || r.regravados) log(`permissões v2 (fonte): ${r.importados.length} usuário(s) com permissão gravada fora do Admin importada; ${r.regravados} lista(s) regerada(s)`);
+        } catch (e) {
+          log('permissões v2 (fonte): conferência falhou: ' + (e as Error).message);
+        }
+      };
+      setTimeout(() => { void conferir(true); }, 60 * 1000);
+      setInterval(() => { void conferir(false); }, 10 * 60 * 1000);
+    }
+    log(`permissões v2: fonte ${fonteV2Ligada() ? 'v2' : 'portal_permissoes (espelho)'}`);
   }
 
   // Cache de NOTAS FISCAIS (PDF + XML no bucket privado): indexa as fontes e

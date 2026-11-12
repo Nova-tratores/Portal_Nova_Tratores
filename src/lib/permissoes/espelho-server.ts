@@ -12,10 +12,12 @@
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { MOTIVO_BACKFILL, planejarBackfill, planejarEspelho, planoVazio, type DepartamentoV2, type LinhaPermissao } from './backfill';
 import { esquecerEfetivas, modoAtual } from './sombra-server';
+import { fonteV2Ligada } from './fonte-server';
 import { catalogoRotas, catalogoTelas, type Nivel } from './telas';
 
 export function espelhoLigado(): boolean {
-  return process.env.PERM_ESPELHO !== 'off' && modoAtual() !== 'off';
+  // Com a v2 como fonte (fonte-server.ts) o espelho antigo→v2 brigaria com as edições.
+  return process.env.PERM_ESPELHO !== 'off' && modoAtual() !== 'off' && !fonteV2Ligada();
 }
 
 async function linhasDe(userIds?: string[]): Promise<LinhaPermissao[]> {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { exigirAdmin } from "@/lib/auth/server";
+import { fonteV2Ligada, gravarChavesPessoa } from "@/lib/permissoes/fonte-server";
 
 function getSupabase() {
   return createClient(
@@ -92,6 +93,17 @@ export async function POST(req: NextRequest) {
           mecanico_role: null,
           mecanico_tecnico_nome: null,
         }]);
+      }
+      // V2 é a fonte: o que foi marcado vira extras na v2 e a lista é regerada dela.
+      if (fonteV2Ligada()) {
+        try {
+          const r = await gravarChavesPessoa(userId, modulos_permitidos || [], {
+            motivo: "Usuário criado no Admin", autor: { id: auth.userId, nome: auth.email || auth.userId },
+          });
+          await supabase.from("portal_permissoes").update({ modulos_permitidos: r.chaves }).eq("user_id", userId);
+        } catch (e) {
+          console.error("[criar-usuario] permissões v2:", (e as Error).message);
+        }
       }
     }
 

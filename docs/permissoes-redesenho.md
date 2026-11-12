@@ -295,6 +295,14 @@ O Chatwoot fork e o vigia de câmeras não estão nesta máquina. Pelo CLAUDE.md
 - `decidirNaTela` (sombra-navegador.ts) continua usando a antiga quando: o usuário é admin/dev (nunca tranca quem conserta), a v2 ainda não carregou, a tela não está no catálogo, ou é Central de Trabalho. Depois de mudar a própria permissão a v2 é relida em 20 s e 90 s; nesse meio-tempo vale a antiga (que já tem a mudança).
 - `perm_sombra.decidiu` diz qual regra valeu também nas linhas `tela:`.
 
-### 2ª parte: edição (ainda não feita)
+### V2 vira a FONTE (12/11/2026, aprovado pelo José; decisões: vários departamentos por pessoa, pacotes, só Admin/Dev editam)
+- Antes o Admin gravava `portal_permissoes.modulos_permitidos` e o espelho copiava para a v2. Agora a edição grava NA V2 e a lista antiga é REGERADA dela (as checagens que ainda leem a lista continuam iguais).
+- Regras puras `lib/permissoes/fonte.ts` (testes em `__tests__/fonte.test.ts`): `planejarPessoa` (as caixinhas viram extras e bloqueios POR CIMA dos departamentos/pacotes; o que o departamento já dá não vira extra; desmarcar algo do departamento vira bloqueio no ponto mais alto), `chavesDaEntrada` (a lista sai do que foi CONCEDIDO, não só do resultado — senão telas dadas uma a uma virariam o módulo inteiro e a pessoa ganharia sozinha cada tela nova), `chavesDaV2`, `diferenca`. Tudo comparado no espaço da v2 (`telasDasChaves`).
+- Servidor `lib/permissoes/fonte-server.ts`: `gravarChavesPessoa` (rota `/api/admin/permissoes` e criar usuário; motivo opcional `body.motivo`, padrão "Ajuste no Admin por … em …"; audit `permissoes_pessoa` com ganha/perde), `regerarChaves`, `conferirFonte` (a cada 10 min no lugar do espelho: lista gravada por fora do Admin NUNCA tira acesso — o que só a lista tem vira extra com motivo "Gravado fora do Admin"; audit `permissoes_importadas`).
+- Liga quando `PERM_V2=on` e `PERM_FONTE` ≠ `antiga`; **voltar atrás = `PERM_FONTE=antiga`** no Railway (o espelho volta). O espelho antigo→v2 desliga sozinho com a fonte v2.
+- Prova antes de publicar: `npx tsx scripts/permissoes-fonte-conferir.ts` (só leitura) — 36 usuários × 304 telas, 0 falhas (v2 = lista, lista regenerável, editar com a lista atual não muda nada). Teste no dev com o Mecânico Teste: dar/tirar PPV, bloqueio sobre o departamento Peças, remarcar, limpeza — 5/5.
+- Caso que a lista antiga não escreve: bloquear a ÚNICA tela de um módulo deixa o módulo "aberto e vazio" (herança do banco); o editor nunca gera (bloqueia o módulo inteiro). Nesse caso a lista não é regravada.
+
+### 2ª parte: edição de departamentos e pacotes (próximo)
 - Não dá para editar conjuntos aqui enquanto as páginas e as demais rotas decidem por `portal_permissoes`: a pessoa passaria na rota e continuaria barrada na tela.
 - Ordem: primeiro `usePermissoes` passa a ler a v2 (feito 10/11), depois o CRUD de conjuntos, o cadastro por departamento e os overrides com motivo. O espelho sai quando a v2 virar a fonte.
