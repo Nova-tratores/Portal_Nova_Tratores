@@ -21,13 +21,13 @@ export async function GET(req: Request) {
     const { data } = await q.maybeSingle()
     return ((data as Record<string, string> | null)?.[col]) || null
   }
-  const [pub, conteudo, catalogo, promo, promoApagada, maqApagada] = await Promise.all([
+  const [pub, conteudo, catalogo, promo, promoApagada, maqApagada, marcas] = await Promise.all([
     sb.from('site_publicacoes').select('pedido_em, por').eq('ok', true).order('pedido_em', { ascending: false }).limit(1).maybeSingle(),
     ult('site_conteudo', 'atualizado_em'), ult('site_catalogo', 'atualizado_em'), ult('site_promocoes', 'atualizado_em'),
-    ult('site_conteudo_hist', 'em', ['grupo', 'promocoes']), ult('site_catalogo_hist', 'em', ['campo', 'apagou']),
+    ult('site_conteudo_hist', 'em', ['grupo', 'promocoes']), ult('site_catalogo_hist', 'em', ['campo', 'apagou']), ult('site_marcas', 'atualizado_em'),
   ])
   const ultima = (pub.data as { pedido_em: string; por: string | null } | null) || null
-  const mudou = [conteudo, catalogo, promo, promoApagada, maqApagada].filter(Boolean).sort().pop() || null
+  const mudou = [conteudo, catalogo, promo, promoApagada, maqApagada, marcas].filter(Boolean).sort().pop() || null
   return NextResponse.json({
     ok: true, ultima, mudancaEm: mudou, pendente: !!mudou && (!ultima || mudou > ultima.pedido_em),
     podePublicar: podePublicar(g.user), hookConfigurado: !!process.env.SITE_DEPLOY_HOOK,

@@ -8,6 +8,8 @@ import { fetchAuth } from '@/lib/auth/client';
 import { Aviso, ComoLer, Conta, Numero, botao, campo, cartao, grade, real, tela } from '@/components/site/ui';
 import PublicarBarra from '@/components/site/PublicarBarra';
 import EnviarFoto from '@/components/site/EnviarFoto';
+import { PreviaCartao, type CardPrevia } from '@/components/site/Previa';
+import MarcasVista from './Marcas';
 
 type Foto = { src: string; alt: string; url?: string };
 type Dados = Partial<{
@@ -92,9 +94,10 @@ function Bloco({ titulo, children, aberto = true }: { titulo: string; children: 
   );
 }
 
-function Editor({ item, podeEditar, fechar, gravou }: { item: Item | null; podeEditar: boolean; fechar: () => void; gravou: (slugAbrir?: string) => void }) {
+function Editor({ item, podeEditar, fechar, gravou, marcaInicial }: { item: Item | null; podeEditar: boolean; fechar: () => void; gravou: (slugAbrir?: string) => void; marcaInicial?: string }) {
   const novo = !item;
-  const original = useMemo(() => fichaDe(item), [item]);
+  // "Incluir modelo nesta marca" (12/11): máquina nova já com a marca e como implemento
+  const original = useMemo(() => (!item && marcaInicial ? { ...fichaDe(null), categoria: 'implementos' as const, marca: marcaInicial } : fichaDe(item)), [item, marcaInicial]);
   const [f, setF] = useState<Ficha>(original);
   const [v, setV] = useState<Venda>(item ? vigor(item) : { preco: null, exibir_preco: false, pronta_entrega: false, oculto: false, selo: '', notas: '' });
   const [salvando, setSalvando] = useState(false);
@@ -269,6 +272,15 @@ function Editor({ item, podeEditar, fechar, gravou }: { item: Item | null; podeE
             </Bloco>
           </fieldset>
 
+          {/* Prévia ao vivo do cartão (José, 12/11: "vai mostrando a prévia") */}
+          <div style={{ ...cartao }}>
+            <PreviaCartao c={{
+              nome: f.categoria === 'tratores' ? `${f.marca} ${f.modelo}`.trim() : f.titulo, marca: f.marca, cv: f.potencia || null,
+              foto: f.fotos[0] ? fotoUrl(f.fotos[0]) || null : null, ideal: linhas(f.ideal), selo: v.selo || (v.pronta_entrega ? 'Pronta entrega' : null),
+              trator: f.categoria === 'tratores',
+            }} />
+          </div>
+
           {!novo && podeEditar && (
             <div style={{ ...cartao, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
               <span style={{ flex: '1 1 220px', fontSize: 13, color: muted }}>
@@ -304,6 +316,8 @@ export default function CatalogoSitePage() {
   const [busca, setBusca] = useState('');
   const [cat, setCat] = useState<'todos' | 'tratores' | 'implementos' | 'com-preco' | 'ocultos' | 'pronta' | 'mudados'>('todos');
   const [aberto, setAberto] = useState<Item | 'novo' | null>(null);
+  const [marcaNova, setMarcaNova] = useState<string | undefined>(undefined);
+  const [vista, setVista] = useState<'maquinas' | 'marcas'>('maquinas');
   const [versao, setVersao] = useState(0);
 
   const carregar = useCallback(async () => {
@@ -347,12 +361,35 @@ export default function CatalogoSitePage() {
 
   const filtro = (id: typeof cat) => () => setCat(cat === id ? 'todos' : id);
 
+  /** Cartão do jeito que o site mostra (nome, foto e usos em vigor), para a prévia das marcas. */
+  const cartaoDe = useCallback((i: Item): CardPrevia => {
+    const f = fichaDe(i);
+    const v = vigor(i);
+    return {
+      nome: f.categoria === 'tratores' ? `${f.marca} ${f.modelo}`.trim() : f.titulo, marca: f.marca, cv: f.potencia || null,
+      foto: (f.fotos[0] && fotoUrl(f.fotos[0])) || i.foto, ideal: linhas(f.ideal), selo: v.selo || (v.pronta_entrega ? 'Pronta entrega' : null),
+      trator: f.categoria === 'tratores',
+    };
+  }, []);
+  const marcaDe = (i: Item) => fichaDe(i).marca;
+
   return (
     <div style={tela}>
       {erro && <Aviso>{erro}</Aviso>}
       {erroSite && <Aviso>{erroSite} Confira a variável SITE_URL do portal.</Aviso>}
       {semSql && <Aviso>Para incluir máquinas e mudar textos e fotos, rode <b>sql/site-produtos-promocoes.sql</b> no projeto do portal (citrhumdkfivdzbmayde).</Aviso>}
       <PublicarBarra versao={versao} />
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <button style={botao('#dc2626', vista === 'maquinas')} onClick={() => setVista('maquinas')}><i className="fa-solid fa-tractor" style={{ fontWeight: 900 }} />Máquinas</button>
+        <button style={botao('#dc2626', vista === 'marcas')} onClick={() => setVista('marcas')}><i className="fa-solid fa-copyright" style={{ fontWeight: 900 }} />Marcas</button>
+      </div>
+      {vista === 'marcas' ? (
+        <MarcasVista
+          itens={(itens || []).filter((i) => !vigor(i).oculto).map((i) => ({ marca: marcaDe(i), categoria: fichaDe(i).categoria, cartao: cartaoDe(i), abrir: () => setAberto(i) }))}
+          podeEditar={podeEditar && !semSql} versao={versao} gravou={gravou}
+          incluirModelo={(marca) => { setMarcaNova(marca); setAberto('novo'); }}
+        />
+      ) : (<>
       <div style={grade(160)}>
         <Numero icone="fa-tractor" cor="#dc2626" rotulo="Tratores no site" valor={<Conta valor={contagem.tratores} />} ativo={cat === 'tratores'} onClick={filtro('tratores')} />
         <Numero icone="fa-gears" cor="#0284c7" rotulo="Implementos no site" valor={<Conta valor={contagem.implementos} />} ativo={cat === 'implementos'} onClick={filtro('implementos')} />
@@ -371,7 +408,7 @@ export default function CatalogoSitePage() {
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <input style={{ ...campo, flex: '1 1 240px', maxWidth: 420 }} placeholder="Buscar por nome, marca ou modelo" value={busca} onChange={(e) => setBusca(e.target.value)} />
-        {podeEditar && !semSql && <button style={botao()} onClick={() => setAberto('novo')}><i className="fa-solid fa-plus" style={{ fontWeight: 900 }} />Nova máquina</button>}
+        {podeEditar && !semSql && <button style={botao()} onClick={() => { setMarcaNova(undefined); setAberto('novo'); }}><i className="fa-solid fa-plus" style={{ fontWeight: 900 }} />Nova máquina</button>}
       </div>
 
       <div style={grade(280)}>
@@ -408,7 +445,8 @@ export default function CatalogoSitePage() {
           );
         })}
       </div>
-      {aberto && <Editor key={aberto === 'novo' ? 'novo' : aberto.slug} item={aberto === 'novo' ? null : aberto} podeEditar={podeEditar} fechar={fechar} gravou={gravou} />}
+      </>)}
+      {aberto && <Editor key={aberto === 'novo' ? `novo-${marcaNova || ''}` : aberto.slug} item={aberto === 'novo' ? null : aberto} podeEditar={podeEditar} fechar={fechar} gravou={gravou} marcaInicial={aberto === 'novo' ? marcaNova : undefined} />}
     </div>
   );
 }

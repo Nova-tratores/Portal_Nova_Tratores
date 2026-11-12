@@ -38,9 +38,30 @@ create index if not exists site_promocoes_ordem_idx on site_promocoes (ordem, cr
 alter table site_promocoes enable row level security;
 revoke all on site_promocoes from anon, authenticated;
 
+-- 2b) Arte quadrada do celular (12/11): com ela, a promoção vira faixa larga só com a arte (1920×640 + 1080×1080).
+alter table site_promocoes add column if not exists imagem_celular text;
+
 -- 3) Pasta pública das fotos de máquina e das artes de promoção (até 8 MB; jpg, png, webp).
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('site-produtos', 'site-produtos', true, 8388608, array['image/jpeg', 'image/png', 'image/webp'])
 on conflict (id) do update set public = true, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+
+notify pgrst, 'reload schema';
+
+-- 4) Marcas (12/11, José: "colocar uma nova marca, ou incluir modelos dentro de uma; pede a imagem do banner e tudo
+--    mais"). Valem por cima do que está no código do site; marca nova aparece quando tiver modelo ou itens sob consulta.
+create table if not exists site_marcas (
+  nome            text primary key check (char_length(nome) between 2 and 40),
+  logo            text,            -- URL pública (Storage site-produtos/marcas), PNG transparente ou fundo branco
+  banner          text,            -- foto de campo deitada, topo da página da marca
+  sobre           text check (sobre is null or char_length(sobre) <= 600),
+  sob_consulta    text[] not null default '{}',
+  ordem           integer,
+  criado_em       timestamptz not null default now(),
+  atualizado_em   timestamptz not null default now(),
+  atualizado_por  text
+);
+alter table site_marcas enable row level security;
+revoke all on site_marcas from anon, authenticated;
 
 notify pgrst, 'reload schema';

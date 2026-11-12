@@ -21,6 +21,7 @@ function limpar(b: Linha): { ok: true; v: Linha } | { ok: false; erro: string } 
   if ('texto' in b) v.texto = t(b.texto, 240)
   if ('botao' in b) v.botao = t(b.botao, 30)
   if ('imagem' in b) { v.imagem = t(b.imagem, 500); if (v.imagem && !/^https:\/\//.test(String(v.imagem))) return { ok: false, erro: 'Foto inválida' } }
+  if ('imagem_celular' in b) { v.imagem_celular = t(b.imagem_celular, 500); if (v.imagem_celular && !/^https:\/\//.test(String(v.imagem_celular))) return { ok: false, erro: 'Foto do celular inválida' } }
   if ('produto_slug' in b) { v.produto_slug = t(b.produto_slug, 120); if (v.produto_slug && !/^[a-z0-9-]+$/.test(String(v.produto_slug))) return { ok: false, erro: 'Máquina inválida' } }
   if ('link' in b) { v.link = t(b.link, 500); if (v.link && !/^(https?:\/\/|\/)/.test(String(v.link))) return { ok: false, erro: 'Link: comece com https:// ou /' } }
   for (const c of ['inicio', 'fim'] as const) if (c in b) { v[c] = t(b[c], 10); if (v[c] && !/^\d{4}-\d{2}-\d{2}$/.test(String(v[c]))) return { ok: false, erro: 'Data inválida' } }

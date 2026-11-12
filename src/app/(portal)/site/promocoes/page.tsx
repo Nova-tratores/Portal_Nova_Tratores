@@ -6,9 +6,10 @@ import { fetchAuth } from '@/lib/auth/client';
 import { Aviso, ComoLer, botao, campo, cartao, grade, tela } from '@/components/site/ui';
 import PublicarBarra from '@/components/site/PublicarBarra';
 import EnviarFoto from '@/components/site/EnviarFoto';
+import { PreviaPromocao } from '@/components/site/Previa';
 
 type Promo = {
-  id: string; titulo: string; texto: string | null; imagem: string | null; produto_slug: string | null; link: string | null
+  id: string; titulo: string; texto: string | null; imagem: string | null; imagem_celular?: string | null; produto_slug: string | null; link: string | null
   botao: string | null; inicio: string | null; fim: string | null; ativo: boolean; ordem: number; atualizado_por: string | null
 };
 type Maquina = { slug: string; titulo: string; marca: string; foto: string | null; categoria: string };
@@ -17,7 +18,7 @@ type Rascunho = Omit<Promo, 'id' | 'ordem' | 'atualizado_por'> & { id?: string }
 const muted = 'var(--portal-text-muted, #6b7280)';
 const hoje = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
 const dataBR = (d: string) => d.split('-').reverse().join('/');
-const VAZIA: Rascunho = { titulo: '', texto: '', imagem: null, produto_slug: null, link: '', botao: '', inicio: null, fim: null, ativo: true };
+const VAZIA: Rascunho = { titulo: '', texto: '', imagem: null, imagem_celular: null, produto_slug: null, link: '', botao: '', inicio: null, fim: null, ativo: true };
 
 function situacao(p: Promo): { txt: string; cor: string } {
   const h = hoje();
@@ -75,7 +76,7 @@ export default function PromocoesSitePage() {
 
   async function salvar() {
     if (!r) return;
-    const corpo = { ...r, imagem: modo === 'foto' ? r.imagem : null };
+    const corpo = { ...r, imagem: modo === 'foto' ? r.imagem : null, imagem_celular: modo === 'foto' ? r.imagem_celular ?? null : null };
     if (modo === 'foto' && !corpo.imagem) { setErroForm('Envie a foto da promoção.'); return; }
     if (modo === 'maquina' && !corpo.produto_slug) { setErroForm('Escolha a máquina.'); return; }
     if (!corpo.titulo.trim()) { setErroForm('Escreva o título.'); return; }
@@ -118,14 +119,32 @@ export default function PromocoesSitePage() {
           </div>
 
           {modo === 'foto' ? (
-            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ width: 'min(260px, 100%)', aspectRatio: '1', borderRadius: 12, background: '#111', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                {r.imagem ? <img src={r.imagem} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <i className="fa-solid fa-image" style={{ color: '#9ca3af', fontSize: 28 }} />}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              {/* 12/11: arte feita para o site = deitada (computador, 1920×640) + quadrada (celular, 1080×1080) → a faixa mostra só a arte */}
+              <span style={{ display: 'grid', gap: 6, flex: '2 1 300px' }}>
+                <span style={{ fontSize: 13 }}>Arte do computador <span style={{ color: muted }}>(deitada, 1920×640)</span></span>
+                <span style={{ aspectRatio: '3', borderRadius: 12, background: '#111', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {r.imagem ? <img src={r.imagem} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <i className="fa-solid fa-image" style={{ color: '#9ca3af', fontSize: 28 }} />}
+                </span>
+                <EnviarFoto pasta="promocoes" rotulo={r.imagem ? 'Trocar' : 'Enviar a arte'} onEnviada={([u]) => setR({ ...r, imagem: u })} />
               </span>
-              <span style={{ display: 'grid', gap: 6, flex: '1 1 200px' }}>
-                <EnviarFoto pasta="promocoes" rotulo={r.imagem ? 'Trocar a foto' : 'Enviar a foto'} onEnviada={([u]) => setR({ ...r, imagem: u })} />
-                <span style={{ fontSize: 12, color: muted }}>A arte inteira aparece sem corte: quadrada (post), deitada ou em pé (story). JPG, PNG ou WebP.</span>
+              <span style={{ display: 'grid', gap: 6, flex: '1 1 160px', maxWidth: 220 }}>
+                <span style={{ fontSize: 13 }}>Arte do celular <span style={{ color: muted }}>(quadrada, 1080×1080)</span></span>
+                <span style={{ aspectRatio: '1', borderRadius: 12, background: '#111', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {r.imagem_celular ? <img src={r.imagem_celular} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} /> : <i className="fa-solid fa-mobile-screen" style={{ color: '#9ca3af', fontSize: 28 }} />}
+                </span>
+                <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  <EnviarFoto pasta="promocoes" rotulo={r.imagem_celular ? 'Trocar' : 'Enviar'} onEnviada={([u]) => setR({ ...r, imagem_celular: u })} />
+                  {r.imagem_celular && <button type="button" style={botao('#6b7280', false)} onClick={() => setR({ ...r, imagem_celular: null })}>Tirar</button>}
+                </span>
+              </span>
+              <span style={{ display: 'grid', gap: 6, flexBasis: '100%' }}>
+                <span style={{ fontSize: 12, color: muted }}>
+                  Com as <b>duas</b> artes (feitas para o site), o quadro mostra só a arte, inteira e larga, como nos outros sites.
+                  Com só uma arte (ex.: o story do Instagram), ela aparece inteira ao lado do título e do texto. JPG, PNG ou WebP.
+                </span>
                 <label style={{ display: 'grid', gap: 4, fontSize: 13 }}>Máquina ligada a esta promoção (opcional)
                   <select style={campo} value={r.produto_slug || ''} onChange={(e) => setR({ ...r, produto_slug: e.target.value || null })}>
                     <option value="">Nenhuma (o botão abre o WhatsApp)</option>
@@ -175,6 +194,21 @@ export default function PromocoesSitePage() {
             </label>
           </div>
           <span style={{ fontSize: 12, color: muted }}>Na data de fim, a promoção sai do site sozinha.</span>
+          {/* Prévia ao vivo (José, 12/11: "dentro já mostra como fica no site em celular e no PC") */}
+          {(() => {
+            const m = maq(r.produto_slug);
+            const link = (r.link || '').trim();
+            const whats = link ? /wa\.me|whatsapp/.test(link) : !m;
+            return (
+              <div style={{ ...cartao, background: 'var(--portal-bg)' }}>
+                <PreviaPromocao total={Math.max(1, (promos || []).filter((p) => p.ativo).length + (r.id ? 0 : 1))} p={{
+                  titulo: r.titulo || m?.titulo || '', texto: r.texto, botao: r.botao, fim: r.fim, whats,
+                  imagem: modo === 'foto' ? r.imagem : null, imagem_celular: modo === 'foto' ? r.imagem_celular : null,
+                  maquina: m ? { nome: m.titulo, foto: m.foto } : null,
+                }} />
+              </div>
+            );
+          })()}
           {erroForm && <span style={{ color: '#dc2626', fontSize: 13 }}>{erroForm}</span>}
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button style={botao()} disabled={salvando} onClick={salvar}>{salvando ? 'Gravando…' : r.id ? 'Gravar' : 'Criar promoção'}</button>
