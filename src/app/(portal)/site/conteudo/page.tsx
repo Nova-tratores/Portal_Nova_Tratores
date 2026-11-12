@@ -252,23 +252,27 @@ export default function CalendarioRedes() {
     // só o mês da tela: dias de outro mês viram espaço vazio e a última semana sem dia do mês sai
     const ultimo = dias.map((d) => d.startsWith(rota.mes)).lastIndexOf(true);
     const visiveis = dias.slice(0, Math.ceil((ultimo + 1) / 7) * 7);
+    // grade de calendário de parede: linhas finas entre os dias (o fundo do quadro aparece no vão de 1px)
+    const LINHA = 'color-mix(in srgb, var(--portal-text, #0f172a) 16%, transparent)';
+    const FUNDO = 'var(--portal-bg-secondary, #ffffff)';
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 8 }}>
-        {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d) => <span key={d} style={{ fontSize: 13, color: T2, padding: '0 6px' }}>{d}</span>)}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 1, background: LINHA, border: `1px solid ${LINHA}`, borderRadius: 14, overflow: 'hidden' }}>
+        {['Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb', 'Dom'].map((d) => <span key={d} style={{ fontSize: 13, color: T2, padding: '8px 10px', background: 'color-mix(in srgb, var(--portal-text, #0f172a) 5%, var(--portal-bg, #f8fafc))' }}>{d}</span>)}
         {visiveis.map((d) => {
-          if (!d.startsWith(rota.mes)) return <div key={d} />;
+          if (!d.startsWith(rota.mes)) return <div key={d} style={{ background: 'color-mix(in srgb, var(--portal-text, #0f172a) 3%, var(--portal-bg, #f8fafc))' }} />;
           const lista = porDia.get(d) || [];
           const passado = d < h;
           const vazioFuturo = !lista.length && !passado && d <= prox30[29];
+          const fimDeSemana = [5, 6].includes(visiveis.indexOf(d) % 7);
           return (
             <div key={d} onClick={() => podeEditar && !passado && novoPost(d)}
-              style={{ minHeight: 112, padding: 8, borderRadius: 12, display: 'grid', alignContent: 'start', gap: 6, cursor: podeEditar && !passado ? 'pointer' : 'default', minWidth: 0,
-                border: `1px solid ${d === h ? '#d97706' : 'var(--border)'}`, boxShadow: d === h ? '0 0 0 1px #d97706' : 'none',
-                background: passado ? 'transparent' : 'var(--surface)', opacity: passado ? 0.6 : 1 }}>
+              style={{ minHeight: 118, padding: '8px 10px', display: 'grid', alignContent: 'start', gap: 6, cursor: podeEditar && !passado ? 'pointer' : 'default', minWidth: 0,
+                boxShadow: d === h ? 'inset 0 0 0 2px #d97706' : 'none',
+                background: passado ? 'color-mix(in srgb, var(--portal-text, #0f172a) 3%, var(--portal-bg, #f8fafc))' : fimDeSemana ? 'color-mix(in srgb, var(--portal-text, #0f172a) 1.5%, ' + FUNDO + ')' : FUNDO }}>
               <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 15, color: d === h ? '#d97706' : T1 }}>{Number(d.slice(8))}</span>
+                <span style={{ fontSize: 15, color: d === h ? '#d97706' : passado ? T3 : T1 }}>{Number(d.slice(8))}</span>
                 {d === h && <span style={{ fontSize: 12, color: '#d97706' }}>hoje</span>}
-                {vazioFuturo && <span style={{ marginLeft: 'auto', fontSize: 11.5, color: '#b45309' }}>sem post</span>}
+                {vazioFuturo && <span style={{ marginLeft: 'auto', fontSize: 11, color: T3 }}>sem post</span>}
               </span>
               {datasDoDia(d).map((x) => chipAgro(x, d, true))}
               {lista.map((p) => chipPost(p, true))}
