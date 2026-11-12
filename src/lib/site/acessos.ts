@@ -55,6 +55,7 @@ export function produtoDaPagina(caminho: string, titulo?: string | null): { tipo
 /** Para que a pessoa chamou, pelo botão tocado (null = não é contato). */
 export function assuntoDoContato(evento: string): string | null {
   if (!CONVERSAO.test(evento)) return null
+  if (/promocao/.test(evento)) return 'Promoção'
   if (/pecas/.test(evento)) return 'Peças'
   if (/posvenda|garantia/.test(evento)) return 'Pós-venda e oficina'
   if (/usado/.test(evento)) return 'Vender o usado'

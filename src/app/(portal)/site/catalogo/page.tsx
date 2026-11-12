@@ -216,6 +216,7 @@ function Editor({ item, podeEditar, fechar, gravou }: { item: Item | null; podeE
             <Bloco titulo="Textos da página">
               <label style={rotulo}>Descrição
                 <textarea style={{ ...campo, minHeight: 110, resize: 'vertical' }} value={f.descricao} onChange={(e) => set({ descricao: e.target.value })} placeholder="O que é a máquina e por que vale a pena, em 2 ou 3 frases." />
+                <span style={ajuda}>Com pontos fortes preenchidos, a página mostra os pontos no lugar da descrição (a descrição vai para o Google e para o WhatsApp).</span>
               </label>
               <label style={rotulo}>Pontos fortes <span style={ajuda}>um por linha</span>
                 <textarea style={{ ...campo, minHeight: 90, resize: 'vertical' }} value={f.pontos} onChange={(e) => set({ pontos: e.target.value })} placeholder={'Ex.: Cabine com ar-condicionado\nTDP reversora'} />

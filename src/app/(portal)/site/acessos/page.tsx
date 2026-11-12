@@ -27,6 +27,7 @@ const NOME_CLIQUE: Record<string, string> = {
   home_entrega_whatsapp: 'Home → entrega na propriedade (WhatsApp)', garantia_nao_achou: 'Garantia → não achou, perguntou no WhatsApp',
   menu_atalho: 'Menu → atalho de ajuda', implemento_funciona_com: 'Implemento → abriu trator compatível', pagina_404: 'Caiu em página que não existe', pagina_404_caminho: 'Página 404 → seguiu para',
   aviso_topo: 'Tocou no aviso do topo',
+  promocao_vista: 'Viu o bloco de promoções', promocao_clique: 'Promoção → abriu', promocao_whatsapp: 'Promoção → WhatsApp',
 };
 const NOME_STATUS: Record<string, string> = { novo: 'Novo, ninguém atendeu', em_contato: 'Em contato', proposta: 'Proposta enviada', ganho: 'Vendido', perdido: 'Perdido', descartado: 'Descartado' };
 const NOME_APARELHO: Record<string, string> = { celular: 'Celular', computador: 'Computador', tablet: 'Tablet' };
