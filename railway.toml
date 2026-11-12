@@ -1,2 +1,9 @@
 [build]
 builder = "nixpacks"
+
+[deploy]
+# Só passa visitantes para a versão nova quando ela já responde (antes o Railway
+# mandava gente para o portal ainda subindo e aparecia a tela de erro dele).
+# Enquanto isso a versão anterior continua atendendo. /api/versao é pública e leve.
+healthcheckPath = "/api/versao"
+healthcheckTimeout = 300
