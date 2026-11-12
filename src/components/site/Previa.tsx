@@ -226,3 +226,106 @@ export function PreviaMarca({ m }: { m: MarcaPrevia }) {
   );
   return <Previa titulo="Como fica a página da marca no site" pc={pagina(false)} celular={pagina(true)} />;
 }
+
+/* ---------------------------------------------------------------- Conteúdo (Site → Conteúdo, 12/11) */
+type V = Record<string, unknown>;
+const s = (v: unknown) => String(v ?? '');
+
+/** Topo do site (logo, menu, WhatsApp) — moldura comum das prévias de conteúdo. */
+function Cabecalho({ celular, aviso }: { celular: boolean; aviso?: V }) {
+  const ligado = aviso?.ligado === true && s(aviso?.texto).trim();
+  return (
+    <div>
+      {ligado && (
+        <div style={{ background: SITE.vermelho, color: '#fff', textAlign: 'center', fontSize: 14, fontWeight: 600, padding: '9px 16px' }}>
+          {s(aviso!.texto)}{aviso!.link ? <span style={{ textDecoration: 'underline', marginLeft: 8 }}>Saiba mais →</span> : null}
+        </div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 24, padding: celular ? '12px 16px' : '14px 64px', borderBottom: `1px solid ${SITE.claro}`, background: '#fff' }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/Logo_Nova.png" alt="" style={{ height: celular ? 28 : 34, width: 'auto' }} />
+        {!celular && <span style={{ display: 'flex', gap: 22, fontSize: 15, color: SITE.aco }}>{['Tratores', 'Implementos', 'Crédito', 'Pós-venda', 'Peças', 'Contato'].map((m) => <span key={m}>{m}</span>)}</span>}
+        <span style={{ marginLeft: 'auto', ...pilula(SITE.vermelho, '#fff'), minHeight: celular ? 38 : 42, padding: celular ? '8px 14px' : '10px 18px', fontSize: 14 }}>WhatsApp</span>
+        {celular && <span style={{ fontSize: 22, color: SITE.preto }}>☰</span>}
+      </div>
+    </div>
+  );
+}
+
+/** Topo da página inicial: texto por cima do vídeo da loja. */
+function Topo({ celular, home }: { celular: boolean; home: V }) {
+  return (
+    <div style={{ position: 'relative', minHeight: celular ? 420 : 520, display: 'grid', alignContent: 'end', background: 'linear-gradient(135deg, #3b3f45 0%, #1d1f22 55%, #111 100%)', color: '#fff' }}>
+      <span style={{ position: 'absolute', right: celular ? 16 : 64, top: celular ? 16 : 24, fontSize: 12, opacity: 0.6 }}>▶ vídeo da loja</span>
+      <div style={{ padding: celular ? '0 16px 32px' : '0 64px 64px', display: 'grid', gap: 14, maxWidth: celular ? undefined : 760 }}>
+        <span style={{ fontSize: 14, fontWeight: 600, letterSpacing: '.04em', opacity: 0.9 }}>{s(home.olho)}</span>
+        <span style={{ fontFamily: SITE.titulo, fontWeight: 500, fontSize: celular ? 38 : 60, lineHeight: 1.05 }}>{s(home.titulo)}</span>
+        <span style={{ fontSize: celular ? 17 : 20, opacity: 0.92 }}>{s(home.texto)}</span>
+        <span style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+          <span style={pilula(SITE.vermelho, '#fff')}>Falar no WhatsApp</span>
+          <span style={{ ...pilula('transparent', '#fff'), border: '1px solid rgba(255,255,255,.6)' }}>Ver tratores</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function PreviaConteudo({ grupo, valores }: { grupo: string; valores: Record<string, V> }) {
+  const aviso = valores.aviso || {}, home = valores.home || {}, contato = valores.contato || {}, horario = valores.horario || {}, banners = valores.banners || {};
+  const periodo = (p: unknown) => s(p).replace('-', ' às ');
+  const pagina = (celular: boolean): ReactNode => {
+    if (grupo === 'aviso') return <><Cabecalho celular={celular} aviso={aviso} /><Topo celular={celular} home={home} /></>;
+    if (grupo === 'home') return <><Cabecalho celular={celular} /><Topo celular={celular} home={home} /></>;
+    if (grupo === 'contato' || grupo === 'horario') {
+      return (
+        <>
+          <Cabecalho celular={celular} />
+          <div style={{ background: SITE.preto, color: '#e6e7e8', padding: celular ? '28px 16px' : '48px 64px', display: 'grid', gridTemplateColumns: celular ? '1fr' : 'repeat(3, 1fr)', gap: 24, fontSize: 15, lineHeight: 1.7 }}>
+            <div style={{ outline: grupo === 'contato' ? `2px dashed ${SITE.vermelho}` : 'none', outlineOffset: 8, borderRadius: 4 }}>
+              <div style={{ fontFamily: SITE.titulo, fontSize: 20, color: '#fff', marginBottom: 6 }}>Fale com a gente</div>
+              <div>Telefone {s(contato.telefone)}</div>
+              <div>Celular {s(contato.celular)}</div>
+              <div>WhatsApp Vendas {s(contato.whatsapp)}</div>
+              <div>Pós-Vendas {s(contato.posVendas)}</div>
+              <div>Peças {s(contato.pecas)}</div>
+            </div>
+            <div style={{ outline: grupo === 'contato' ? `2px dashed ${SITE.vermelho}` : 'none', outlineOffset: 8, borderRadius: 4 }}>
+              <div style={{ fontFamily: SITE.titulo, fontSize: 20, color: '#fff', marginBottom: 6 }}>Onde estamos</div>
+              <div>{s(contato.endereco)}</div>
+              <div>{s(contato.cidade)}/{s(contato.uf)}</div>
+              <div style={{ marginTop: 6, opacity: 0.85 }}>Instagram · Facebook · YouTube</div>
+            </div>
+            <div style={{ outline: grupo === 'horario' ? `2px dashed ${SITE.vermelho}` : 'none', outlineOffset: 8, borderRadius: 4 }}>
+              <div style={{ fontFamily: SITE.titulo, fontSize: 20, color: '#fff', marginBottom: 6 }}>Horário</div>
+              <div>Segunda a sexta</div>
+              <div>{periodo(horario.manha)} · {periodo(horario.tarde)}</div>
+              <div>Sábado: {s(horario.sabado) ? periodo(horario.sabado) : 'fechado'}</div>
+              <div style={{ marginTop: 6, color: '#4ade80' }}>● Aberto agora</div>
+            </div>
+          </div>
+        </>
+      );
+    }
+    // banners: um banner por página, com o texto embaixo do título
+    const lista: [string, string][] = [['Crédito', 'credito'], ['Pós-venda', 'posVenda'], ['Peças', 'pecas'], ['Contato', 'contato'], ['Implementos', 'implementos']];
+    return (
+      <div style={{ display: 'grid', gap: 12, padding: celular ? 12 : 24, background: '#f4f4f5' }}>
+        {lista.map(([titulo, chave]) => (
+          <div key={chave} style={{ borderRadius: SITE.raio, overflow: 'hidden', background: 'linear-gradient(to right, #1d1f22 0, #3b3f45 100%)', color: '#fff', padding: celular ? '22px 16px' : '32px 48px', display: 'grid', gap: 8 }}>
+            <span style={{ fontSize: 12, opacity: 0.75 }}>Início › {titulo}</span>
+            <span style={{ fontFamily: SITE.titulo, fontWeight: 500, fontSize: celular ? 28 : 40 }}>{titulo === 'Implementos' ? 'Implementos' : titulo}</span>
+            <span style={{ fontSize: 16, opacity: 0.92, maxWidth: 720 }}>{chave === 'implementos' ? `92 implementos de 9 marcas. ${s(banners[chave])}` : s(banners[chave])}</span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+  const titulos: Record<string, string> = {
+    aviso: 'Como fica a faixa no topo do site',
+    home: 'Como fica o topo da página inicial',
+    contato: 'Onde telefones e endereço aparecem (rodapé de todas as páginas)',
+    horario: 'Onde o horário aparece (rodapé e página Contato)',
+    banners: 'Como fica o topo de cada página',
+  };
+  return <Previa titulo={titulos[grupo] || 'Como fica no site'} pc={pagina(false)} celular={pagina(true)} />;
+}

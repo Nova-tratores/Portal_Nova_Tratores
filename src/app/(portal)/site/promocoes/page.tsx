@@ -3,7 +3,7 @@
 // nos outros sites". Carrossel na página inicial; só aparece quando houver promoção ligada e dentro da data.
 // 12/11 tarde: estilo NewPortal; cada campo e botão diz o que faz; guia de tamanho ideal das artes e aviso quando a
 // arte enviada não tem o tamanho certo; prévia de computador e celular ao vivo.
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchAuth } from '@/lib/auth/client';
 import { Aviso, ComoLer, tela } from '@/components/site/ui';
 import PublicarBarra from '@/components/site/PublicarBarra';
@@ -17,59 +17,7 @@ type Promo = {
 type Maquina = { slug: string; titulo: string; marca: string; foto: string | null; categoria: string };
 type Rascunho = Omit<Promo, 'id' | 'ordem' | 'atualizado_por'> & { id?: string };
 
-// ---- Estilo NewPortal (docs/estilo-pos-newportal.md): sem negrito, sem caixa alta, texto escuro, cartão 16, ícone em quadradinho
-const T1 = 'var(--portal-text, #0f172a)';
-const T2 = 'var(--portal-text-secondary, #475569)';
-const T3 = 'var(--portal-text-muted, #64748b)';
-const AZUL = '#2563eb';
-const cartaoNP: CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '16px 18px 14px', minWidth: 0 };
-const campoNP: CSSProperties = {
-  width: '100%', minHeight: 40, padding: '8px 12px', borderRadius: 10, boxSizing: 'border-box', font: 'inherit', fontSize: 14,
-  border: '1px solid color-mix(in srgb, var(--portal-text, #0f172a) 18%, transparent)', background: 'var(--surface)', color: T1,
-};
-const bt = (cor: string, cheio = false): CSSProperties => ({
-  display: 'inline-flex', alignItems: 'center', gap: 7, minHeight: 40, padding: '8px 14px', borderRadius: 11, font: 'inherit', fontSize: 14, fontWeight: 500,
-  cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap',
-  border: `1px solid ${cheio ? cor : `color-mix(in srgb, ${cor} 30%, var(--border))`}`,
-  background: cheio ? cor : 'var(--surface)', color: cheio ? '#fefefe' : cor,
-});
-const ic = (nome: string) => <i className={`fa-solid ${nome}`} style={{ fontWeight: 900 }} />;
-
-function Quadradinho({ icone, cor, tam = 32 }: { icone: string; cor: string; tam?: number }) {
-  return (
-    <span style={{ flex: 'none', width: tam, height: tam, borderRadius: tam > 32 ? 11 : 9, display: 'grid', placeItems: 'center', fontSize: tam > 32 ? 16 : 14,
-      color: cor, background: `color-mix(in srgb, ${cor} 9%, var(--surface))`, border: `1px solid color-mix(in srgb, ${cor} 18%, transparent)` }}>
-      {ic(icone)}
-    </span>
-  );
-}
-
-function Secao({ icone, cor = AZUL, titulo, sub, children }: { icone: string; cor?: string; titulo: string; sub?: ReactNode; children: ReactNode }) {
-  return (
-    <section style={{ ...cartaoNP, display: 'grid', gap: 14 }}>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <Quadradinho icone={icone} cor={cor} />
-        <span style={{ display: 'grid', minWidth: 0 }}>
-          <span style={{ fontSize: 16, fontWeight: 500, color: T1 }}>{titulo}</span>
-          {sub && <span style={{ fontSize: 13, color: T3 }}>{sub}</span>}
-        </span>
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function Campo({ rotulo, ajuda, children }: { rotulo: string; ajuda?: ReactNode; children: ReactNode }) {
-  return (
-    <label style={{ display: 'grid', gap: 5, alignContent: 'start', minWidth: 0 }}>
-      <span style={{ fontSize: 13, color: T2 }}>{rotulo}</span>
-      {children}
-      {ajuda && <span style={{ fontSize: 12, color: T3, lineHeight: 1.45 }}>{ajuda}</span>}
-    </label>
-  );
-}
-
-const grade = (min: number): CSSProperties => ({ display: 'grid', gap: 14, gridTemplateColumns: `repeat(auto-fit, minmax(min(${min}px, 100%), 1fr))` });
+import { AZUL, Campo, Quadradinho, Secao, T1, T2, T3, bt, campoNP, cartaoNP, grade, ic } from '@/components/site/np';
 
 /** Tamanho real da imagem (para avisar quando a arte não tem o formato certo). */
 function useTamanho(url: string | null | undefined) {
