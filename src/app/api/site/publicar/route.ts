@@ -2,15 +2,42 @@
 // (SITE_DEPLOY_HOOK = URL do "Deploy hook" do Cloudflare Pages). O site é gerado de novo em ~2 min, já com o
 // conteúdo e o catálogo do portal. Quem publica: módulo Site inteiro ou site:conteudo:publicar.
 import { NextResponse } from 'next/server'
-import { guardarSite, sb } from '@/lib/site/server'
+import { sb } from '@/lib/site/server'
+import { protegerRota } from '@/lib/ajustes/permissao-server'
 
 export const runtime = 'nodejs'
 
-export async function POST(req: Request) {
-  const g = await guardarSite(req, 'conteudo', true)
+/** Quem vê a barra de publicar: telas Conteúdo, Catálogo ou Promoções. */
+const guardaBarra = (req: Request) => protegerRota(req, [{ modulo: 'site', acao: 'conteudo' }, { modulo: 'site', acao: 'catalogo' }, { modulo: 'site', acao: 'promocoes' }])
+const podePublicar = (u: { isAdmin: boolean; modulos: string[] }) => u.isAdmin || u.modulos.includes('site') || u.modulos.includes('site:conteudo:publicar')
+
+// GET (12/11): há mudança gravada no portal (conteúdo, máquinas, promoções) depois da última publicação?
+export async function GET(req: Request) {
+  const g = await guardaBarra(req)
   if (g.resposta) return g.resposta
-  const pode = g.user.isAdmin || g.user.modulos.includes('site') || g.user.modulos.includes('site:conteudo:publicar')
-  if (!pode) return NextResponse.json({ ok: false, erro: 'sem permissão para publicar o site' }, { status: 403 })
+  const ult = async (t: string, col: string, filtro?: [string, string]) => {
+    let q = sb.from(t).select(col).order(col, { ascending: false }).limit(1)
+    if (filtro) q = q.eq(filtro[0], filtro[1])
+    const { data } = await q.maybeSingle()
+    return ((data as Record<string, string> | null)?.[col]) || null
+  }
+  const [pub, conteudo, catalogo, promo, promoApagada, maqApagada] = await Promise.all([
+    sb.from('site_publicacoes').select('pedido_em, por').eq('ok', true).order('pedido_em', { ascending: false }).limit(1).maybeSingle(),
+    ult('site_conteudo', 'atualizado_em'), ult('site_catalogo', 'atualizado_em'), ult('site_promocoes', 'atualizado_em'),
+    ult('site_conteudo_hist', 'em', ['grupo', 'promocoes']), ult('site_catalogo_hist', 'em', ['campo', 'apagou']),
+  ])
+  const ultima = (pub.data as { pedido_em: string; por: string | null } | null) || null
+  const mudou = [conteudo, catalogo, promo, promoApagada, maqApagada].filter(Boolean).sort().pop() || null
+  return NextResponse.json({
+    ok: true, ultima, mudancaEm: mudou, pendente: !!mudou && (!ultima || mudou > ultima.pedido_em),
+    podePublicar: podePublicar(g.user), hookConfigurado: !!process.env.SITE_DEPLOY_HOOK,
+  })
+}
+
+export async function POST(req: Request) {
+  const g = await guardaBarra(req)
+  if (g.resposta) return g.resposta
+  if (!podePublicar(g.user)) return NextResponse.json({ ok: false, erro: 'sem permissão para publicar o site' }, { status: 403 })
   const hook = process.env.SITE_DEPLOY_HOOK
   const por = g.user.nome || g.user.email || 'Portal'
   if (!hook) {

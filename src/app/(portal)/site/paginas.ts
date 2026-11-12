@@ -4,6 +4,7 @@ export interface PaginaSite { key: string; label: string; href: string }
 export const PAGINAS_SITE: PaginaSite[] = [
   { key: 'site:pedidos', label: 'Pedidos do site', href: '/site' },
   { key: 'site:catalogo', label: 'Catálogo do site', href: '/site/catalogo' },
+  { key: 'site:promocoes', label: 'Promoções', href: '/site/promocoes' },
   { key: 'site:acessos', label: 'Acessos', href: '/site/acessos' },
   { key: 'site:conteudo', label: 'Conteúdo e publicar', href: '/site/conteudo' },
 ]

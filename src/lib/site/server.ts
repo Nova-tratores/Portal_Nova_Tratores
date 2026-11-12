@@ -51,7 +51,7 @@ export function semMigration(msg?: string): boolean {
 export const AVISO_MIGRATION = 'Módulo Site não ativado: rode sql/site-modulo.sql no projeto do portal.'
 
 /** Guarda das rotas do portal. tela = pedidos | catalogo | acessos; editar = ação de escrita. */
-export async function guardarSite(req: Request, tela: 'pedidos' | 'catalogo' | 'acessos' | 'conteudo', editar = false) {
+export async function guardarSite(req: Request, tela: 'pedidos' | 'catalogo' | 'acessos' | 'conteudo' | 'promocoes', editar = false) {
   return protegerRota(req, editar
     ? [{ modulo: 'site', acao: `${tela}:editar` }, { modulo: 'site', acao: tela }]
     : [{ modulo: 'site', acao: tela }])
