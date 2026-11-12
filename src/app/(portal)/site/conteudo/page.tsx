@@ -11,6 +11,7 @@ import SubAbas from '@/components/site/SubAbas';
 import { ABAS_CONTEUDO } from '@/components/site/abasConteudo';
 import { ArtesDasRedes, EscolherRedes, IconeRede, LegendaRedes } from '@/components/site/Artes';
 import { REDE, STATUS_POST, faltas, type Arte, type Midia, type RedeId, type StatusPost } from '@/lib/site/redes';
+import { COR_PRIOR, NOME_PRIOR, DATAS_AGRO, datasDoDia, temporadasDoMes, type DataAgro } from '@/lib/site/datasAgro';
 import { AZUL, Campo, Quadradinho, Secao, T1, T2, T3, bt, campoNP, cartaoNP, grade, ic } from '@/components/site/np';
 
 type Resultado = Partial<Record<RedeId, { ok: boolean; link?: string | null; em?: string; manual?: boolean; erro?: string | null }>>;
@@ -88,14 +89,15 @@ export default function CalendarioRedes() {
     });
   }, []);
   const abrirPost = (p: Post) => { abriuAqui.current = true; ir({ post: p.id, novo: null, promo: null }); window.scrollTo({ top: 0 }); };
-  const novoPost = (dia: string) => { abriuAqui.current = true; ir({ post: null, novo: dia || 'sem-data', promo: null }); window.scrollTo({ top: 0 }); };
+  const tema = useRef<DataAgro | null>(null);
+  const novoPost = (dia: string, t: DataAgro | null = null) => { tema.current = t; abriuAqui.current = true; ir({ post: null, novo: dia || 'sem-data', promo: null }); window.scrollTo({ top: 0 }); };
   const fechar = () => { if (abriuAqui.current) { abriuAqui.current = false; window.history.back(); } else ir({ post: null, novo: null, promo: null }, true); };
 
   // ---- dados: o mês da tela + os próximos 31 dias (para a conta do "1 mês adiantado")
   const inicioGrade = useMemo(() => { const p = `${rota.mes}-01`; const dow = (new Date(`${p}T12:00:00Z`).getUTCDay() + 6) % 7; return somaDias(p, -dow); }, [rota.mes]);
   const carregar = useCallback(async () => {
     const de = [inicioGrade, hoje()].sort()[0];
-    const ate = [somaDias(inicioGrade, 41), somaDias(hoje(), 31)].sort()[1];
+    const ate = [somaDias(inicioGrade, 41), somaDias(hoje(), 62)].sort()[1];
     const res = await fetchAuth(`/api/site/posts?de=${de}&ate=${ate}`);
     const j = await res.json().catch(() => ({}));
     if (!res.ok || !j.ok) { setErro(j.erro || 'Não consegui carregar o calendário.'); setPosts([]); return; }
@@ -132,7 +134,10 @@ export default function CalendarioRedes() {
           promocao_id: p.id, status: 'ideia', resultado: {} });
       });
     } else {
-      setR({ chave, titulo: '', legenda: '', redes: [...SOCIAIS], formato: 'feed', midia: {}, data: rota.novo === 'sem-data' ? '' : rota.novo || '', hora: '09:00', notas: '', promocao_id: null, status: 'ideia', resultado: {} });
+      // veio de uma data do agro: já entra com o tema, a ideia e o formato sugeridos
+      const t = tema.current; tema.current = null;
+      setR({ chave, titulo: t ? t.nome : '', legenda: '', redes: [...SOCIAIS], formato: t?.formato || 'feed', midia: {}, data: rota.novo === 'sem-data' ? '' : rota.novo || '', hora: '09:00',
+        notas: t ? `Ideia: ${t.ideia}` : '', promocao_id: null, status: 'ideia', resultado: {} });
     }
     /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -205,7 +210,26 @@ export default function CalendarioRedes() {
   const semArte = todos.filter((p) => p.quando && diaDe(p.quando) >= hoje() && faltas(p.redes, p.midia).length).length;
   const ultimoCheio = (() => { let d = ''; for (const x of prox30) { if (!porDia.get(x)?.length) break; d = x; } return d; })();
 
+  // datas do agro: as importantes (obrigatória e boa) dos próximos 30 dias que ainda estão sem post no dia
+  const agroSemPost = DATAS_AGRO.filter((x) => x.prior >= 2 && x.d >= hoje() && x.d <= prox30[29] && !porDia.get(x.d)?.length);
+  const proximasAgro = DATAS_AGRO.filter((x) => x.prior >= 2 && (x.ate || x.d) >= hoje() && x.d <= somaDias(hoje(), 60));
+
   // ---------------------------------------------------------------- peças
+  const chipAgro = (x: DataAgro, d: string, compacto: boolean) => {
+    const cor = COR_PRIOR[x.prior];
+    const pode = podeEditar && d >= hoje();
+    return (
+      <button key={x.nome} type="button" disabled={!pode} title={`${x.nome} (${NOME_PRIOR[x.prior]}): ${x.ideia}`}
+        onClick={(e) => { e.stopPropagation(); if (pode) novoPost(d, x); }}
+        style={{ display: 'flex', gap: 5, alignItems: 'center', width: '100%', textAlign: 'left', font: 'inherit', cursor: pode ? 'pointer' : 'default', minWidth: 0,
+          padding: compacto ? '2px 0' : '6px 10px', border: compacto ? 'none' : `1px dashed color-mix(in srgb, ${cor} 45%, transparent)`, borderRadius: 8,
+          background: 'transparent', color: x.prior === 1 ? T3 : cor, fontSize: compacto ? 11 : 13 }}>
+        {ic('fa-wheat-awn')}
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: compacto ? 'nowrap' : 'normal' }}>{x.nome}{x.confirmar ? ' (confirmar)' : ''}</span>
+        {!compacto && pode && <span style={{ marginLeft: 'auto', fontSize: 12, whiteSpace: 'nowrap' }}>{ic('fa-plus')} criar post</span>}
+      </button>
+    );
+  };
   const chipPost = (p: Post, compacto: boolean) => {
     const s = STATUS_POST[p.status] || STATUS_POST.ideia;
     const falta = faltas(p.redes, p.midia).length > 0;
@@ -242,6 +266,7 @@ export default function CalendarioRedes() {
                 {Number(d.slice(8))}{d === h && <span style={{ marginLeft: 6 }}>hoje</span>}
                 {vazioFuturo && podeEditar && <span style={{ marginLeft: 'auto', color: '#f59e0b' }}>{ic('fa-plus')}</span>}
               </span>
+              {datasDoDia(d).map((x) => chipAgro(x, d, true))}
               {lista.map((p) => chipPost(p, true))}
             </div>
           );
@@ -258,7 +283,8 @@ export default function CalendarioRedes() {
         {dias.map((d) => {
           const lista = porDia.get(d) || [];
           const vazioFuturo = !lista.length && d >= h && d <= prox30[29];
-          if (!lista.length && !vazioFuturo) return null;
+          const agro = datasDoDia(d);
+          if (!lista.length && !vazioFuturo && !agro.length) return null;
           return (
             <div key={d} style={{ display: 'grid', gridTemplateColumns: '54px 1fr', gap: 10, alignItems: 'start' }}>
               <span style={{ display: 'grid', justifyItems: 'center', padding: '6px 0', borderRadius: 10, background: d === h ? '#dc2626' : 'var(--surface)', color: d === h ? '#fefefe' : T1, border: '1px solid var(--border)' }}>
@@ -266,8 +292,9 @@ export default function CalendarioRedes() {
                 <span style={{ fontSize: 11, opacity: 0.8 }}>{nomeDia(d, { weekday: 'short' }).replace('.', '')}</span>
               </span>
               <span style={{ display: 'grid', gap: 6 }}>
+                {agro.map((x) => chipAgro(x, d, false))}
                 {lista.map((p) => chipPost(p, false))}
-                {vazioFuturo && (
+                {vazioFuturo && !agro.length && (
                   <button type="button" disabled={!podeEditar} onClick={() => novoPost(d)}
                     style={{ ...bt('#d97706'), borderStyle: 'dashed', justifyContent: 'flex-start' }}>{ic('fa-plus')}Dia sem post: criar</button>
                 )}
@@ -307,6 +334,16 @@ export default function CalendarioRedes() {
           <Campo rotulo="Texto do post" ajuda="O mesmo texto vai para todas as redes escolhidas. O contador fica vermelho quando passa do limite da rede.">
             <LegendaRedes valor={r.legenda} onChange={(v) => setR({ ...r, legenda: v })} redes={r.redes} />
           </Campo>
+          <Campo rotulo="Anotações (não vai para as redes)" ajuda="Ideia do post, quem gravar, material que falta.">
+            <textarea style={{ ...campoNP, minHeight: 64, resize: 'vertical' }} maxLength={1000} value={r.notas} onChange={(e) => setR({ ...r, notas: e.target.value })} />
+          </Campo>
+          {r.data && datasDoDia(r.data).map((x) => (
+            <div key={x.d + x.nome} style={{ display: 'grid', gap: 2, padding: '10px 12px', borderRadius: 12, background: `color-mix(in srgb, ${COR_PRIOR[x.prior]} 8%, var(--surface))`, border: `1px solid color-mix(in srgb, ${COR_PRIOR[x.prior]} 25%, transparent)` }}>
+              <span style={{ fontSize: 13, color: COR_PRIOR[x.prior] }}>{ic('fa-wheat-awn')} {x.nome} · {NOME_PRIOR[x.prior]}{x.confirmar ? ' · confirmar a data' : ''}</span>
+              <span style={{ fontSize: 13, color: T2 }}>{x.ideia}</span>
+            </div>
+          ))}
+          <span style={{ fontSize: 12, color: T3 }}>Regra de ouro: mostrar gente real da região (cliente, técnico, operador). Sem material próprio, melhor não postar card genérico. Post de venda termina com o WhatsApp.</span>
         </Secao>
 
         <Secao icone="fa-calendar-days" cor="#0284c7" titulo="Quando sai" sub="Sem data, fica guardado em Ideias">
@@ -384,6 +421,7 @@ export default function CalendarioRedes() {
                 <span style={{ fontSize: 13, color: T3 }}>
                   {ultimoCheio ? `Coberto sem buraco até ${nomeDia(ultimoCheio, { day: '2-digit', month: '2-digit' })}. ` : 'Hoje ainda não tem post. '}
                   {semArte ? `${semArte} post${semArte > 1 ? 's' : ''} marcado${semArte > 1 ? 's' : ''} sem a arte.` : 'Meta: no mínimo 1 mês adiantado.'}
+                  {agroSemPost.length > 0 && <span style={{ color: '#dc2626' }}> {agroSemPost.length} data{agroSemPost.length > 1 ? 's' : ''} do agro sem post: {agroSemPost.map((x) => `${x.nome} (${nomeDia(x.d, { day: '2-digit', month: '2-digit' })})`).join(', ')}.</span>}
                 </span>
               </span>
               {podeEditar && <button style={bt('#dc2626', true)} onClick={() => novoPost(vazios[0] || '')}>{ic('fa-plus')}Novo post</button>}
@@ -411,9 +449,42 @@ export default function CalendarioRedes() {
                 {(['ideia', 'pronto', 'publicado'] as StatusPost[]).map((k) => <span key={k} style={{ color: STATUS_POST[k].cor }}>{ic(STATUS_POST[k].icone)} {STATUS_POST[k].nome}</span>)}
               </span>
             </div>
+            {temporadasDoMes(rota.mes).length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {temporadasDoMes(rota.mes).map((t) => (
+                  <span key={t.nome} title={t.ideia} style={{ fontSize: 12.5, padding: '4px 10px', borderRadius: 999, color: COR_PRIOR[t.prior], background: `color-mix(in srgb, ${COR_PRIOR[t.prior]} 9%, transparent)` }}>
+                    {ic('fa-seedling')} No mês: {t.nome}
+                  </span>
+                ))}
+              </div>
+            )}
             {posts === null ? <p>Carregando…</p> : largo ? grade7() : agenda()}
-            {largo && podeEditar && <span style={{ fontSize: 12, color: T3 }}>Toque num dia para criar um post nele. Dia com borda laranja tracejada = sem post nos próximos 30 dias.</span>}
+            {largo && podeEditar && <span style={{ fontSize: 12, color: T3 }}>Toque num dia para criar um post nele. Dia com borda laranja tracejada = sem post nos próximos 30 dias. {ic('fa-wheat-awn')} = data do agro: tocar cria o post já com a ideia.</span>}
           </section>
+
+          <Secao icone="fa-wheat-awn" cor="#dc2626" titulo={proximasAgro.length ? `${proximasAgro.filter((x) => !porDia.get(x.d)?.length).length} das ${proximasAgro.length} datas do agro dos próximos 60 dias ainda sem post` : 'Nenhuma data importante nos próximos 60 dias'}
+            sub="Obrigatórias: planejar 2 a 3 semanas antes, de preferência com vídeo ou foto própria">
+            <div style={{ display: 'grid', gap: 8 }}>
+              {proximasAgro.map((x) => {
+                const tem = porDia.get(x.d) || [];
+                const faltam = Math.round((new Date(`${x.d}T12:00:00Z`).getTime() - new Date(`${hoje()}T12:00:00Z`).getTime()) / 864e5);
+                return (
+                  <div key={x.d + x.nome} style={{ display: 'grid', gridTemplateColumns: '54px 1fr', gap: 10, alignItems: 'start' }}>
+                    <span style={{ display: 'grid', justifyItems: 'center', padding: '6px 0', borderRadius: 10, border: `1px solid color-mix(in srgb, ${COR_PRIOR[x.prior]} 35%, transparent)`, color: COR_PRIOR[x.prior] }}>
+                      <span style={{ fontSize: 16 }}>{nomeDia(x.d, { day: '2-digit', month: '2-digit' })}</span>
+                      <span style={{ fontSize: 11, color: T3 }}>{faltam <= 0 ? 'agora' : `${faltam} dia${faltam > 1 ? 's' : ''}`}</span>
+                    </span>
+                    <span style={{ display: 'grid', gap: 4 }}>
+                      <span style={{ fontSize: 14 }}>{x.nome}{x.ate ? ` (até ${nomeDia(x.ate, { day: '2-digit', month: '2-digit' })})` : ''} <span style={{ fontSize: 12, color: COR_PRIOR[x.prior] }}>{NOME_PRIOR[x.prior]}{x.confirmar ? ' · confirmar a data' : ''}</span></span>
+                      <span style={{ fontSize: 13, color: T2 }}>{x.ideia}</span>
+                      {tem.length ? tem.map((p) => chipPost(p, false))
+                        : podeEditar && <button type="button" style={{ ...bt(COR_PRIOR[x.prior]), width: 'fit-content' }} onClick={() => novoPost(x.d, x)}>{ic('fa-plus')}Criar o post</button>}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </Secao>
 
           <Secao icone="fa-lightbulb" cor="#64748b" titulo={`Ideias sem data (${ideias.length})`} sub="Posts guardados para quando faltar assunto. Abra e escolha o dia">
             {ideias.length ? (
