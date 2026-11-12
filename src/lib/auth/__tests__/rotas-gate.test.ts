@@ -22,6 +22,7 @@ export const PUBLICAS: Record<string, string> = {
   'src/app/api/assinatura-link/': 'a pessoa da equipe grava a própria assinatura por link único (token, 7 dias, uso único)',
   'src/app/api/garantia-cliente/evento/': 'página pública do QR da garantia (só registra evento)',
   'src/app/api/garantia-cliente/duvida/': 'página pública do QR da garantia (formulário de dúvida)',
+  'src/app/api/garantia-cliente/trator/': 'página pública do QR por trator: código aleatório na URL, devolve só modelo/entrega/revisões (sem nome nem chassi inteiro), freio por IP',
   'src/app/api/publico/': 'páginas públicas do portal',
   'src/app/api/push/notificacao/': 'chamada pelo gatilho do banco a cada aviso do sino; só traz o id, cada aviso sai 1 vez',
   'src/app/api/push/inscrever/trocar/': 'service worker troca a inscrição sem login; exige o endpoint antigo (segredo do aparelho)',

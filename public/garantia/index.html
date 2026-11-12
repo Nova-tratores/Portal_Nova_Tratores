@@ -398,6 +398,16 @@ h1,h2,h3{letter-spacing:-.01em}
 .faq details[open] summary::after{background:var(--bg);color:var(--sub)}
 .install .ic{border-radius:11px}
 footer{color:var(--muted)}
+/* Trator do adesivo (QR por trator: /garantia/K7P2QX) */
+.meu-trator{margin:16px 0 0;background:var(--surface);border:1px solid var(--line);border-left:6px solid var(--red);border-radius:12px;padding:16px}
+.meu-trator .eyebrow{color:var(--red-ink);font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+.meu-trator h2{margin:4px 0 10px;font-size:24px;line-height:1.15}
+.meu-trator dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:0 0 12px}
+.meu-trator dt{font-size:13px;color:var(--muted)}
+.meu-trator dd{margin:2px 0 0;font-size:17px}
+.meu-trator .rev-feitas{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.meu-trator .rev-feitas span{border:1px solid var(--line);border-radius:999px;padding:4px 10px;font-size:14px}
+.meu-trator a.btn-trator{display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:10px;background:var(--red);color:var(--on-red);text-decoration:none;font-size:17px;padding:0 16px}
 </style>
 
 </head>
@@ -445,6 +455,8 @@ footer{color:var(--muted)}
 <main class="wrap">
 
   <div class="offline" id="offline" hidden role="status">Você está sem internet. Esta é a versão salva no seu celular.</div>
+
+  <section class="meu-trator" id="meu-trator" hidden aria-live="polite"></section>
 
   <section id="rapidas" data-quick>
     <div class="eyebrow">Perguntas rápidas</div>
@@ -861,6 +873,40 @@ footer{color:var(--muted)}
   [cE,cH,cT].forEach(function(i){i.addEventListener("input",calcular);i.addEventListener("change",calcular);});
   try{var sv=JSON.parse(localStorage.getItem("garantia-mahindra")||"null");if(sv){cE.value=sv.e||"";cH.value=sv.h||"";cT.value=sv.t||"padrao";calcular();}}catch(e){}
   [cE,cH,cT].forEach(function(i){i.addEventListener("change",function(){try{localStorage.setItem("garantia-mahindra",JSON.stringify({e:cE.value,h:cH.value,t:cT.value}));}catch(e){}});});
+
+  // Adesivo do trator: /garantia/K7P2QX (QR de 30 mm). A página abre já com o
+  // trator: modelo, entrega e revisões registradas. Sem internet usa a cópia salva.
+  (function(){
+    var m=location.pathname.match(/^\/garantia\/([2-9A-Za-z]{6})$/);
+    if(!m)return;
+    var codigo=m[1].toUpperCase(), chave="garantia-trator-"+codigo, box=document.getElementById("meu-trator");
+    registrar("qr_trator",codigo);
+    function esc(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+    function mostrar(t){
+      if(!t)return;
+      var ent=t.entrega?t.entrega.split("-"):null, entTxt=ent?ent[2]+"/"+ent[1]+"/"+ent[0]:"—";
+      var revs=(t.revisoesFeitas||[]);
+      box.innerHTML='<div class="eyebrow">Este adesivo é do seu trator</div>'+
+        '<h2>'+esc(t.modelo?"Mahindra "+t.modelo:"Seu trator Mahindra")+'</h2>'+
+        '<dl><div><dt>Final do chassi</dt><dd>'+esc(t.chassiFinal||"—")+'</dd></div><div><dt>Entregue em</dt><dd>'+esc(entTxt)+'</dd></div></dl>'+
+        (revs.length?'<p class="hint" style="margin:0 0 6px">Revisões registradas na Nova Tratores:</p><div class="rev-feitas">'+revs.map(function(h){return'<span>'+h.toLocaleString("pt-BR")+' h</span>';}).join("")+'</div>'
+          :'<p class="hint" style="margin:0 0 12px">Ainda não há revisão registrada na Nova Tratores para este trator.</p>')+
+        '<a class="btn-trator" href="#consulta" id="btn-trator">Ver se ainda está na garantia</a>';
+      box.hidden=false;
+      document.getElementById("btn-trator").addEventListener("click",function(){setTimeout(function(){cH.focus();},400);});
+      if(t.entrega){cE.value=t.entrega;calcular();}
+      var achassi=document.getElementById("a-chassi");if(achassi&&!achassi.value)achassi.value=t.chassiFinal||"";
+      var extra=" Meu trator: "+(t.modelo?"Mahindra "+t.modelo+", ":"")+"chassi final "+(t.chassiFinal||"")+".";
+      [].slice.call(document.querySelectorAll("#wa-list a.wa-opt")).forEach(function(a,i){if(SETORES[i])a.href="https://wa.me/"+SETORES[i].num+"?text="+encodeURIComponent(SETORES[i].msg+extra);});
+    }
+    try{mostrar(JSON.parse(localStorage.getItem(chave)||"null"));}catch(e){}
+    if(!API)return;
+    fetch(API+"trator?c="+codigo).then(function(r){return r.ok?r.json():null;}).then(function(d){
+      if(!d||!d.trator)return;
+      try{localStorage.setItem(chave,JSON.stringify(d.trator));}catch(e){}
+      mostrar(d.trator);
+    }).catch(function(){});
+  })();
 
   // Busca
   var q=document.getElementById("q"), qc=document.getElementById("qclear"), qi=document.getElementById("qinfo"), nr=document.getElementById("noresult");

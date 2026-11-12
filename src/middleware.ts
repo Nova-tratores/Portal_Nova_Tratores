@@ -24,9 +24,17 @@ export function middleware(req: NextRequest) {
     url.pathname = `/p/${pathname.slice(3)}`
     return NextResponse.redirect(url)
   }
+  // QR da garantia por trator (adesivo de 30 mm): o QR vai em MAIÚSCULAS para
+  // caber em 29 × 29 (modo alfanumérico). /GARANTIA/K7P2QX → /garantia/K7P2QX,
+  // onde mora a página (e o service worker que guarda ela sem internet).
+  if (pathname.startsWith('/GARANTIA/')) {
+    const url = req.nextUrl.clone()
+    url.pathname = `/garantia/${pathname.slice(10)}`
+    return NextResponse.redirect(url)
+  }
   return NextResponse.next()
 }
 
 // Escopo mínimo: o matcher também casa sem distinguir caixa, então ele deixa
 // passar "/p/..." por aqui — e a função acima simplesmente não faz nada nesses.
-export const config = { matcher: ['/P/:path*'] }
+export const config = { matcher: ['/P/:path*', '/GARANTIA/:path*'] }

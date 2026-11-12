@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, QrCode, ExternalLink, Download, RefreshCw, MessageCircleQuestion, CheckCircle2, Archive, RotateCcw } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
+import QrTratores from './QrTratores';
 import { URL_PAGINA, type ItemContagem, type ResumoUso, type StatusDuvida } from '@/lib/garantias/pagina-cliente';
 
 type Duvida = {
@@ -121,6 +122,9 @@ export default function PaginaClientePainel() {
         </div>
       </div>
 
+      {/* QR por trator (adesivo de 30 mm) */}
+      <QrTratores />
+
       {/* Período */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 13, color: 'var(--portal-text-muted)' }}>Período:</span>
@@ -155,6 +159,7 @@ export default function PaginaClientePainel() {
             <Tile label="Cliques no WhatsApp" valor={r?.whatsapp ?? 0} cor="#16a34a" />
             <Tile label='Consultas "Meu trator"' valor={r?.consultas ?? 0} cor="#f59e0b" />
             <Tile label="Salvaram no celular" valor={r?.salvaramNoCelular ?? 0} cor="#0d9488" />
+            <Tile label="Leituras dos adesivos do trator" valor={r?.leiturasAdesivo ?? 0} cor="#7c3aed" />
           </div>
 
           {/* Rankings */}

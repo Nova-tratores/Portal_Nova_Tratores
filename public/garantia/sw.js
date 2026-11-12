@@ -5,7 +5,7 @@
 // Escopo "/garantia" casa por prefixo também com "/garantias" (tela interna do
 // portal): por isso o fetch só responde às URLs desta página e deixa todo o
 // resto seguir direto para a rede, sem tocar.
-const VERSAO = 'garantia-v2';
+const VERSAO = 'garantia-v3';
 const PAGINA = '/garantia';
 const ARQUIVOS = [
   PAGINA,
@@ -17,6 +17,12 @@ const ARQUIVOS = [
   '/icon-192.png',
   '/favicon.ico',
 ];
+
+// /garantia/K7P2QX = a mesma página aberta pelo QR do trator (adesivo de 30 mm)
+const RE_TRATOR = /^\/garantia\/[2-9A-Za-z]{6}$/;
+function ehNavegacaoDaPagina(url) {
+  return url.origin === self.location.origin && (url.pathname === PAGINA || RE_TRATOR.test(url.pathname));
+}
 
 function ehDaPagina(url) {
   if (url.origin === self.location.origin) {
@@ -49,14 +55,16 @@ self.addEventListener('fetch', (e) => {
   if (!ehDaPagina(url)) return; // /garantias, /api e o resto do portal: rede, sem cache
 
   // A página: rede primeiro (para receber atualizações), cópia salva sem internet.
-  if (url.origin === self.location.origin && url.pathname === PAGINA) {
+  // Cada endereço guarda a sua cópia; sem internet e sem cópia daquele trator, a página geral.
+  if (ehNavegacaoDaPagina(url)) {
+    const chave = url.pathname;
     e.respondWith(
       fetch(req)
         .then((r) => {
-          if (r.ok) { const copia = r.clone(); caches.open(VERSAO).then((c) => c.put(PAGINA, copia)); }
+          if (r.ok) { const copia = r.clone(); caches.open(VERSAO).then((c) => c.put(chave, copia)); }
           return r;
         })
-        .catch(() => caches.match(PAGINA))
+        .catch(() => caches.match(chave).then((salvo) => salvo || caches.match(PAGINA)))
     );
     return;
   }

@@ -36,7 +36,12 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    return [{ source: "/garantia", destination: "/garantia/index.html" }];
+    return [
+      { source: "/garantia", destination: "/garantia/index.html" },
+      // QR por trator (adesivo de 30 mm): /garantia/K7P2QX abre a mesma página,
+      // que lê o código do endereço. O middleware leva o /GARANTIA/ maiúsculo do QR para cá.
+      { source: "/garantia/:codigo([2-9A-Za-z]{6})", destination: "/garantia/index.html" },
+    ];
   },
   async headers() {
     return [
