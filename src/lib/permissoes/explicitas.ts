@@ -27,6 +27,7 @@ export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
   'financeiro:vencidos',
   'financeiro:contas-cliente',
   'financeiro:baixa-contas',
+  'financeiro:lancar-conta',
   'financeiro:correcao-contas',
   'financeiro:boletos-fornecedor',
   'financeiro:compras-mercadoria',

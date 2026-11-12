@@ -196,7 +196,9 @@ function Combobox({ value, onChange, opcoes, getKey, getLabel, placeholder, disa
 // `autoOrigem` = { projeto?: 'os'|'placa'|'chassi', projetoAproximado?, vendedor?: 'solicitante', vendedorAproximado? }
 // Tema "form" (formulário denso) ou "modal" (modal com fontes maiores).
 // ---------------------------------------------------------------------
-export function CamposOmieContaPagar({ value, onChange, tema = 'form', autoOrigem = {}, contextoTexto = '' }) {
+// `semEmpresa`: a empresa vem de fora (o NOVA/CASTRO do topo do Financeiro) e o seletor some — evita duas escolhas
+// de empresa na mesma tela (Caixa › Lançar conta, 12/11/2026).
+export function CamposOmieContaPagar({ value, onChange, tema = 'form', autoOrigem = {}, contextoTexto = '', semEmpresa = false }) {
   const { opcoes, carregando, erro, recarregar, forcarRefresh } = useOmieOpcoes(value.empresa)
   const isModal = tema === 'modal'
 
@@ -228,7 +230,7 @@ export function CamposOmieContaPagar({ value, onChange, tema = 'form', autoOrige
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: isModal ? '18px' : '14px' }}>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: isModal ? '18px' : '14px' }}>
-        <div>
+        {!semEmpresa && <div>
           <label style={labelStyle}><Building2 size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Empresa</label>
           <select
             style={selStyle}
@@ -237,7 +239,7 @@ export function CamposOmieContaPagar({ value, onChange, tema = 'form', autoOrige
           >
             {EMPRESAS.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
-        </div>
+        </div>}
         <div>
           <label style={labelStyle}><Landmark size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Conta Corrente</label>
           <select style={selStyle} value={value.idContaCorrente || ''} onChange={e => onChange({ ...value, idContaCorrente: e.target.value })} disabled={carregando}>
@@ -405,16 +407,22 @@ function CampoDocumento({ icone, label, valor, onChange, placeholder, anexoUrl, 
 // <EnviarParaOmieBox> — bloco completo para o modal do Painel:
 // se já enviado → mostra badge; senão → selects + checklist + botão "Enviar pro Omie".
 // ---------------------------------------------------------------------
-export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
+// `empresaFixa` (opcional): a empresa vem do topo do Financeiro e o seletor some. Se o rascunho estava salvo com a
+// OUTRA empresa, os códigos (categoria, conta, projeto…) são da outra conta do Omie e começam vazios.
+export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {}, empresaFixa, textoBotao }) {
   const jaEnviado = !!finanPagar?.omie_cod_lancamento
-  const [campos, setCampos] = useState({
-    empresa: finanPagar?.omie_empresa || 'Nova Tratores',
-    codigoCategoria: finanPagar?.omie_categoria || '',
-    idContaCorrente: finanPagar?.omie_conta_corrente || '',
-    codigoProjeto: finanPagar?.omie_projeto || '',
-    codigoVendedor: finanPagar?.omie_vendedor || '',
-    codigoTipoDocumento: finanPagar?.omie_tipo_documento || '',
-    codigoDepartamento: finanPagar?.omie_departamento || '',
+  const [campos, setCampos] = useState(() => {
+    const salva = finanPagar?.omie_empresa || 'Nova Tratores'
+    const outraEmpresa = !!empresaFixa && empresaFixa !== salva
+    return {
+      empresa: empresaFixa || salva,
+      codigoCategoria: outraEmpresa ? '' : finanPagar?.omie_categoria || '',
+      idContaCorrente: outraEmpresa ? '' : finanPagar?.omie_conta_corrente || '',
+      codigoProjeto: outraEmpresa ? '' : finanPagar?.omie_projeto || '',
+      codigoVendedor: outraEmpresa ? '' : finanPagar?.omie_vendedor || '',
+      codigoTipoDocumento: outraEmpresa ? '' : finanPagar?.omie_tipo_documento || '',
+      codigoDepartamento: outraEmpresa ? '' : finanPagar?.omie_departamento || '',
+    }
   })
   const [chaveNFe, setChaveNFe] = useState(finanPagar?.nfe_chave || '')
   const [enviando, setEnviando] = useState(false)
@@ -639,7 +647,7 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
         </div>
       )}
 
-      <CamposOmieContaPagar value={campos} onChange={setCampos} tema="modal" autoOrigem={autoOrigem} contextoTexto={finanPagar?.motivo || ''} />
+      <CamposOmieContaPagar value={campos} onChange={setCampos} tema="modal" autoOrigem={autoOrigem} contextoTexto={finanPagar?.motivo || ''} semEmpresa={!!empresaFixa} />
 
       {/* Chave NF-e — lida do anexo de NF ou preenchida à mão */}
       <div style={{ marginTop: '18px', background: '#fff', border: '1px solid #dbeafe', borderRadius: '12px', padding: '18px' }}>
@@ -687,7 +695,7 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
           title={valido ? 'Enviar para o Omie' : 'Resolva as pendências do checklist primeiro'}
         >
           {enviando ? <RefreshCw size={18} className="animate-spin" /> : <Send size={18} />}
-          {enviando ? 'Enviando...' : 'Validar e enviar ao Omie'}
+          {enviando ? 'Enviando...' : (textoBotao || 'Validar e enviar ao Omie')}
         </button>
       </div>
     </div>

@@ -16,6 +16,7 @@ describe('chaves das abas do Financeiro', () => {
     expect(porHref('/financeiro/contas-do-mes/fixas')).toBe('contas-fixas')
     expect(porHref('/financeiro/caixa/vencidos')).toBe('vencidos')
     expect(porHref('/financeiro/caixa/baixar-contas')).toBe('baixa-contas')
+    expect(porHref('/financeiro/caixa/lancar-conta')).toBe('lancar-conta')
     expect(porHref('/financeiro/kanban-financeiro')).toBe('recebimentos')
     expect(porHref('/financeiro/recibos')).toBeNull()
   })

@@ -24,6 +24,8 @@ export const AREAS_FINANCEIRO: AreaFinanceiro[] = [
       { nome: 'Vencidos', href: '/financeiro/caixa/vencidos', fa: 'fa-triangle-exclamation', descricao: 'por cliente, com juros e cobrança' },
       // Contas do cliente/fornecedor + calculadora de dívida (09/11/2026)
       { nome: 'Contas do cliente', href: '/financeiro/contas-cliente', fa: 'fa-calculator', descricao: 'tudo do cliente e a dívida atualizada' },
+      // criar a conta a pagar e lançar no Omie na hora (+ rascunhos das Requisições) — 12/11/2026
+      { nome: 'Lançar conta', href: '/financeiro/caixa/lancar-conta', fa: 'fa-file-circle-plus', descricao: 'cria a conta a pagar e lança no Omie' },
       { nome: 'Baixar contas', href: '/financeiro/caixa/baixar-contas', fa: 'fa-circle-check', descricao: 'dar baixa no Omie', perm: 'baixa-contas' },
       // vieram do Ajustes em 09/11/2026; a chave virou financeiro:<x> em 10/11 (sql/financeiro-permissoes-abas.sql)
       { nome: 'Correção de contas', href: '/financeiro/caixa/correcao-contas', fa: 'fa-pen-to-square', descricao: 'categoria, vencimento, projeto e rateio no Omie', perm: 'correcao-contas' },
