@@ -180,6 +180,22 @@ table.ofin-grade { width: 100%; border-collapse: collapse; }
   .ofin-barra .trilho { grid-column: 1 / -1; grid-row: 2; }
   .ofin-grid { grid-template-columns: 1fr !important; }
   .ofin-grid > * { grid-column: auto !important; }
+  .ofin-filtros > div[style*="margin-left"] { margin-left: 0 !important; width: 100%; }
+  .ofin-filtros > div[style*="margin-left"] .ofin-btn { width: 100%; }
+  /* janela em tela cheia no celular */
+  .ofin-overlay { padding: 0; align-items: stretch; }
+  .ofin-janela { max-width: none !important; max-height: none; height: 100%; border-radius: 0; }
+  .ofin-janela-pe .ofin-btn { flex: 1 1 auto; }
+}
+/* celular e tablet: alvo de toque de pelo menos 40 px (docs/padrao-telas.md §5); botões juntos quebram linha */
+@media (max-width: 900px) {
+  .ofin-btn, .ofin-btn.mini, .ofin-pilula, .ofin-inp, .ofin-filtro-col, .ofin-leitura { min-height: 40px; height: auto; }
+  .ofin-seg { height: auto; min-height: 40px; flex-wrap: wrap; max-width: 100%; }
+  .ofin-seg button { min-height: 40px; flex: 1 1 auto; }
+  .ofin-aba { min-height: 40px; }
+  .ofin-link, .ofin-fechar, .ofin-x { min-height: 40px; display: inline-flex; align-items: center; }
+  .ofin-pilula { white-space: normal; }
+  .ofin-barra { min-height: 40px; }
 }
 @media (prefers-reduced-motion: reduce) { .ofin-barra .trilho > i { transition: none; } }
 `;
