@@ -17,7 +17,7 @@ export type Rede = {
 }
 
 export const REDES: Rede[] = [
-  { id: 'site', nome: 'Site', cor: '#dc2626', icone: 'fa-solid fa-globe', artes: ['site'], soVideo: false, limite: 240, envio: 'site' },
+  { id: 'site', nome: 'Site', cor: '#d97706', icone: 'fa-solid fa-globe', artes: ['site'], soVideo: false, limite: 240, envio: 'site' },
   { id: 'instagram', nome: 'Instagram', cor: '#c13584', icone: 'fa-brands fa-instagram', artes: ['feed', 'vertical', 'video'], soVideo: false, limite: 2200, envio: 'automatico' },
   { id: 'facebook', nome: 'Facebook', cor: '#1877f2', icone: 'fa-brands fa-facebook', artes: ['feed', 'vertical', 'video'], soVideo: false, limite: 5000, envio: 'automatico' },
   { id: 'tiktok', nome: 'TikTok', cor: '#111111', icone: 'fa-brands fa-tiktok', artes: ['video'], soVideo: true, limite: 2200, envio: 'celular' },

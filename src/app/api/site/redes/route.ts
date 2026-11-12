@@ -1,5 +1,5 @@
 // Acessos por rede (José, 12/11/2026: "os acessos também precisam se dividir nisso").
-// GET ?rede=instagram → números por dia gravados pelo robô (site_redes_metricas, 90 dias), a conta ligada (sem token)
+// GET ?rede=todas → as 4 redes juntas (aba Todas as redes). GET ?rede=instagram → números por dia gravados pelo robô (site_redes_metricas, 90 dias), a conta ligada (sem token)
 // e os posts do calendário daquela rede (o que saiu e o que está marcado).
 import { NextResponse } from 'next/server'
 import { guardarSite, sb } from '@/lib/site/server'
@@ -12,12 +12,13 @@ export async function GET(req: Request) {
   const g = await guardarSite(req, 'acessos')
   if (g.resposta) return g.resposta
   const rede = new URL(req.url).searchParams.get('rede') || ''
-  if (!ehRede(rede) || rede === 'site') return NextResponse.json({ ok: false, erro: 'rede inválida' }, { status: 400 })
+  const todas = rede === 'todas'
+  if (!todas && (!ehRede(rede) || rede === 'site')) return NextResponse.json({ ok: false, erro: 'rede inválida' }, { status: 400 })
   const desde = new Date(Date.now() - 90 * 864e5).toISOString().slice(0, 10)
   const [m, c, p] = await Promise.all([
-    sb.from('site_redes_metricas').select('*').eq('rede', rede).gte('dia', desde).order('dia'),
-    sb.from('site_redes_contas').select('rede, nome, atualizado_em').eq('rede', rede).maybeSingle(),
-    sb.from('site_posts').select('id, titulo, quando, status, resultado, redes').contains('redes', [rede]).gte('quando', `${desde}T00:00:00-03:00`).order('quando', { ascending: false }).limit(200),
+    (todas ? sb.from('site_redes_metricas').select('*') : sb.from('site_redes_metricas').select('*').eq('rede', rede)).gte('dia', desde).order('dia'),
+    todas ? sb.from('site_redes_contas').select('rede, nome, atualizado_em') : sb.from('site_redes_contas').select('rede, nome, atualizado_em').eq('rede', rede).maybeSingle(),
+    (todas ? sb.from('site_posts').select('id, titulo, quando, status, resultado, redes').not('quando', 'is', null) : sb.from('site_posts').select('id, titulo, quando, status, resultado, redes').contains('redes', [rede])).gte('quando', `${desde}T00:00:00-03:00`).order('quando', { ascending: false }).limit(200),
   ])
   const erro = m.error || p.error
   if (erro) {
