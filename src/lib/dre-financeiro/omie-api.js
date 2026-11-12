@@ -512,6 +512,7 @@ async function aplicarBaixas(conta, dePagBR, atePagBR) {
 // =============================================================================
 const {
   diffPendentes, janelasPorEmissao, ehBloqueioOmie, ehListaVazia, patchDeTitulo, decidirPendentes,
+  candidatosExcluidos, excluidosSuspeitos,
   STATUS_ABERTO: STATUS_ABERTO_ESPELHO
 } = require('./abertos-reconciliacao');
 const RECONCILIAR_TETO = parseInt(process.env.RECONCILIAR_ABERTOS_TETO, 10) || 200;
@@ -667,6 +668,65 @@ async function reconciliarAbertosTipo(conta, tipo, mapas) {
   } finally {
     s.rodando = false;
   }
+}
+
+// Excluídos de QUALQUER status (12/11/2026). Chamado pelo sync COMPLETO depois de
+// listar a janela de emissão inteira (todos os status) sem falha: linha do espelho
+// com emissão na janela que a Omie não devolveu é candidata; antes de apagar, o mês
+// de emissão dela é listado DE NOVO (mesma confirmação da reconciliação dos abertos:
+// protege de página pulada pela Omie no meio da listagem longa). Muitos candidatos
+// de uma vez = listagem suspeita, não apaga nada. Antes só os títulos EM ABERTO eram
+// conferidos, então o título PAGO excluído na Omie ficava para sempre somando no DRE.
+async function limparExcluidosDaJanela(conta, cfg, contaLabel, deEmBR, ateEmBR, vistos) {
+  const resumo = { candidatos: 0, excluidos: [], atualizados: 0, indefinidos: 0, falhas: 0, suspeito: false };
+  const deISO = parseBR(deEmBR), ateISO = parseBR(ateEmBR);
+  const espelho = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabaseAdmin.from(cfg.tabela)
+      .select('codigo_lancamento, data_emissao')
+      .eq('conta_omie', contaLabel)
+      .gte('data_emissao', deISO).lte('data_emissao', ateISO)
+      .order('codigo_lancamento', { ascending: true })
+      .range(from, from + 999);
+    if (error) throw new Error(`Supabase select ${cfg.tabela}: ${error.message}`);
+    espelho.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  const cands = candidatosExcluidos(espelho, vistos, deISO, ateISO);
+  resumo.candidatos = cands.length;
+  if (!cands.length) return resumo;
+  if (excluidosSuspeitos(cands.length, vistos.size)) {
+    resumo.suspeito = true;
+    console.warn(`[sync ${cfg.tabela} ${conta}] ${cands.length} candidatos a excluído de ${vistos.size} listados — suspeito, nada apagado`);
+    return resumo;
+  }
+  const { janelas } = janelasPorEmissao(cands.slice(0, RECONCILIAR_TETO));
+  const encontrados = new Map();
+  for (const jan of janelas) {
+    if (resumo.falhas >= RECONCILIAR_MAX_FALHAS) { resumo.indefinidos += jan.ids.length; continue; }
+    let completa = true;
+    try {
+      const lista = await listarTitulosOmie(conta, cfg, { filtrar_por_emissao_de: jan.de, filtrar_por_emissao_ate: jan.ate, filtrar_apenas_titulos_em_aberto: 'N' }, null);
+      for (const t of lista) if (t.codigo_lancamento_omie) encontrados.set(Number(t.codigo_lancamento_omie), t);
+    } catch (e) {
+      if (e instanceof OmieBloqueadaError) throw e;
+      completa = false; resumo.falhas++;
+      console.warn(`[sync ${cfg.tabela} ${conta}] confirmação ${jan.mes} falhou: ${e.message}`);
+    }
+    const dec = decidirPendentes(jan.ids, encontrados, completa);
+    resumo.indefinidos += dec.indefinidos.length;
+    for (const { id, titulo } of dec.atualizar) {
+      const { error } = await supabaseAdmin.from(cfg.tabela).update(patchDeTitulo(titulo)).eq('conta_omie', contaLabel).eq('codigo_lancamento', id);
+      if (error) resumo.falhas++; else resumo.atualizados++;
+    }
+    for (const id of dec.excluir) {
+      const { error } = await supabaseAdmin.from(cfg.tabela).delete().eq('conta_omie', contaLabel).eq('codigo_lancamento', id);
+      if (error) resumo.falhas++; else resumo.excluidos.push(id);
+    }
+    await sleep(SLEEP_BETWEEN_PAGES);
+  }
+  console.log(`[sync ${cfg.tabela} ${conta}] excluídos na Omie: ${resumo.excluidos.length} apagados, ${resumo.atualizados} atualizados, ${resumo.indefinidos} indefinidos (candidatos ${resumo.candidatos})`);
+  return resumo;
 }
 
 // Reconcilia pagar E receber da conta, buscando os mapas (categorias,
@@ -1082,6 +1142,8 @@ async function sincronizarTitulos(conta, deStr, ateStr, tipo, opts = {}) {
 
     s.etapa = `paginando ${cfg.tabela}`;
     let pag = 1;
+    const vistos = new Set();
+    let listagemCompleta = false;
     while (true) {
       let r;
       try {
@@ -1094,6 +1156,9 @@ async function sincronizarTitulos(conta, deStr, ateStr, tipo, opts = {}) {
       } catch (e) {
         if (e.faultstring && /n[aã]o.*registros|ERROR/i.test(e.faultstring)) {
           console.log(`[sync ${tipo} ${conta}] sem mais registros pag ${pag}`);
+          // Só "não existem registros" prova o fim; outro ERROR no meio deixa a
+          // listagem incompleta e a limpeza de excluídos não roda.
+          listagemCompleta = ehListaVazia(e.faultstring);
           break;
         }
         throw e;
@@ -1103,7 +1168,8 @@ async function sincronizarTitulos(conta, deStr, ateStr, tipo, opts = {}) {
       s.paginaAtual = pag;
       s.totalPaginas = r.total_de_paginas || s.totalPaginas;
       console.log(`[sync ${tipo} ${conta}] pag ${pag}/${s.totalPaginas || '?'}: ${lista.length} titulos`);
-      if (lista.length === 0) break;
+      if (lista.length === 0) { listagemCompleta = true; break; }
+      for (const t of lista) if (t.codigo_lancamento_omie) vistos.add(Number(t.codigo_lancamento_omie));
 
       await completarContrapartes(conta, contrapartes, mapaContra, lista.map(t => t.codigo_cliente_fornecedor));
       const rows = lista
@@ -1122,12 +1188,24 @@ async function sincronizarTitulos(conta, deStr, ateStr, tipo, opts = {}) {
 
       const totalPag = r.total_de_paginas || 0;
       if (totalPag > 0) {
-        if (pag >= totalPag) break;
+        if (pag >= totalPag) { listagemCompleta = true; break; }
       } else if (lista.length < PAGE_SIZE) {
+        listagemCompleta = true;
         break;
       }
       pag++;
       await sleep(SLEEP_BETWEEN_PAGES);
+    }
+
+    let limpeza = null;
+    if (!leve && listagemCompleta) {
+      s.etapa = 'conferindo excluídos na Omie';
+      try {
+        limpeza = await limparExcluidosDaJanela(conta, cfg, contaLabel, filtroJanela.filtrar_por_emissao_de, filtroJanela.filtrar_por_emissao_ate, vistos);
+      } catch (e) {
+        console.warn(`[sync ${tipo} ${conta}] limpeza de excluídos: ${e.message}`);
+        limpeza = { erro: e.message };
+      }
     }
 
     s.etapa = 'concluido';
@@ -1136,11 +1214,12 @@ async function sincronizarTitulos(conta, deStr, ateStr, tipo, opts = {}) {
       await supabaseAdmin.from('cp_sync_log').update({
         status: 'ok',
         fim: s.fim,
-        registros: s.registrosSalvos
+        registros: s.registrosSalvos,
+        ...(leve ? {} : { parametros: { de: deStr, ate: ateStr, ...filtroJanela, listagem_completa: listagemCompleta, excluidos_omie: limpeza } })
       }).eq('id', logId);
     }
     console.log(`[sync ${tipo} ${conta}] ok - ${s.registrosSalvos} titulos salvos`);
-    return { ok: true, registros: s.registrosSalvos };
+    return { ok: true, registros: s.registrosSalvos, excluidos: limpeza?.excluidos?.length || 0 };
 
   } catch (e) {
     console.error(`[sync ${tipo} ${conta}] erro: ${e.message}`);

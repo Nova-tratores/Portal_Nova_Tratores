@@ -100,3 +100,31 @@ describe('decidirPendentes', () => {
     expect(r.indefinidos).toEqual([11]);
   });
 });
+
+import { candidatosExcluidos, excluidosSuspeitos } from '../abertos-reconciliacao.js';
+
+describe('candidatosExcluidos', () => {
+  const espelho = [
+    { codigo_lancamento: 1, data_emissao: '2026-03-10' }, // devolvido pela Omie
+    { codigo_lancamento: 2, data_emissao: '2026-03-04' }, // pago e excluído na Omie
+    { codigo_lancamento: 3, data_emissao: '2024-08-10' }, // na borda inicial: pode ter mudado de emissão
+    { codigo_lancamento: 4, data_emissao: '2023-01-01' }, // fora da janela: a listagem não o cobre
+    { codigo_lancamento: 5, data_emissao: null },         // sem emissão: nunca vira candidato
+    { codigo_lancamento: 2, data_emissao: '2026-03-04' }, // repetido
+  ];
+  it('aponta só o que está dentro da janela (com margem) e não veio da Omie', () => {
+    expect(candidatosExcluidos(espelho, new Set([1]), '2024-08-01', '2027-08-31')).toEqual([{ id: 2, emissao: '2026-03-04' }]);
+  });
+  it('margem zero inclui a borda', () => {
+    expect(candidatosExcluidos(espelho, new Set([1]), '2024-08-01', '2027-08-31', 0).map((c) => c.id)).toEqual([2, 3]);
+  });
+});
+
+describe('excluidosSuspeitos', () => {
+  it('poucos candidatos passam; muitos param', () => {
+    expect(excluidosSuspeitos(9, 10631)).toBe(false);
+    expect(excluidosSuspeitos(213, 10631)).toBe(false);
+    expect(excluidosSuspeitos(214, 10631)).toBe(true);
+    expect(excluidosSuspeitos(31, 100)).toBe(true);
+  });
+});

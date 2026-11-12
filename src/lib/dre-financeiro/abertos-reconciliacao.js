@@ -123,4 +123,45 @@ function decidirPendentes(ids, encontrados, janelaCompleta) {
   return { atualizar, excluir, indefinidos };
 }
 
-module.exports = { STATUS_ABERTO, diffPendentes, janelasPorEmissao, ehBloqueioOmie, ehListaVazia, patchDeTitulo, decidirPendentes };
+/**
+ * Excluídos de QUALQUER status (12/11/2026): o sync completo lista a janela de
+ * emissão inteira com todos os status. Linha do espelho com emissão DENTRO da
+ * janela que a Omie não devolveu é candidata a excluída — inclusive título já
+ * PAGO, que a reconciliação dos abertos nunca alcança (caso real: 9 títulos
+ * pagos da NOVA excluídos na Omie em 2026 seguiam somando nas despesas do DRE).
+ * Margem nas bordas da janela: título cuja emissão foi alterada para fora dela
+ * some da lista sem ter sido excluído. A confirmação (listagem do mês) é de quem
+ * chama; esta função só aponta os candidatos.
+ * @param {Array<{codigo_lancamento:number|string, data_emissao?:string|null, synced_at?:string|null}>} linhasEspelho
+ * @param {Set<number>} vistosOmie ids devolvidos pela listagem completa
+ * @param {string} deISO início da janela de emissão (YYYY-MM-DD)
+ * @param {string} ateISO fim da janela de emissão (YYYY-MM-DD)
+ * @param {number} [margemDias]
+ * @returns {Array<{id:number, emissao:string}>}
+ */
+function candidatosExcluidos(linhasEspelho, vistosOmie, deISO, ateISO, margemDias = 35) {
+  const soma = (iso, dias) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + dias); return d.toISOString().slice(0, 10); };
+  const de = soma(deISO, margemDias);
+  const ate = soma(ateISO, -margemDias);
+  const out = [];
+  const vistos = new Set();
+  for (const l of linhasEspelho || []) {
+    const id = Number(l.codigo_lancamento);
+    const em = l.data_emissao ? String(l.data_emissao).slice(0, 10) : null;
+    if (!id || !em || vistos.has(id) || vistosOmie.has(id)) continue;
+    if (em < de || em > ate) continue;
+    vistos.add(id);
+    out.push({ id, emissao: em });
+  }
+  return out;
+}
+
+/**
+ * Freio: muitos candidatos de uma vez cheira a listagem incompleta (página que a
+ * Omie pulou, filtro errado), não a exclusões reais — não apaga nada.
+ */
+function excluidosSuspeitos(nCandidatos, nListados) {
+  return nCandidatos > Math.max(30, Math.round(0.02 * (nListados || 0)));
+}
+
+module.exports = { STATUS_ABERTO, diffPendentes, janelasPorEmissao, ehBloqueioOmie, ehListaVazia, patchDeTitulo, decidirPendentes, candidatosExcluidos, excluidosSuspeitos };
