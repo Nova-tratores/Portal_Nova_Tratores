@@ -43,7 +43,21 @@ export const CODIGOS_INTERNOS: { codigo: string; quando: string }[] = [
 ];
 
 export interface ParcelaEspelho { n: number; dias: number; venc: string; valor: number }
-export interface ServicoExtra { id: string; codigo: string; nome: string; descricao: string; qtde: number; unit: number; cobrar: boolean }
+export interface ServicoExtra { id: string; codigo: string; nome: string; descricao: string; qtde: number; unit: number; cobrar: boolean;
+  /** código interno do serviço na Omie quando já é conhecido (reembolso de garantia: "Peças") — dispensa a busca pelo código */
+  nCod?: number }
+
+/** OS de reembolso de garantia (DRVG da montadora): de onde veio e quais garantias ela fatura */
+export interface ReembolsoOS {
+  montadoraId: string; montadora: string; drvg: string; pedidoCompra: string;
+  /** valor que a fábrica mandou faturar (cabeçalho da DRVG) */
+  valorDrvg: number;
+  garantias: { id: string; numero: string; sg: string }[];
+  criadoPor: string; criadoEm: string;
+}
+
+/** serviço "Peças" da Omie (Nova) — o mesmo das NFS-e de reembolso já emitidas (OS 5357–5359) */
+export const NCOD_SERV_PECAS_REEMBOLSO = 1980428095;
 
 export interface OmieEspelho {
   info: { categoria: string; conta: number; contrato: string; contato: string; cidade: string; dadosNF: string; competencia: string; obra: string; cei: string;
@@ -65,6 +79,8 @@ export interface OmieEspelho {
   obsPdf?: { mostrar: boolean; grifar: boolean };
   /** Motivo do desconto geral (José, 27/10/2026): pedido sempre que o desconto muda; valor = desconto quando foi explicado */
   descontoMotivo?: { texto: string; valor: number; por: string; em: string } | null;
+  /** só na OS de reembolso de garantia (criada pela DRVG em Garantias) */
+  reembolso?: ReembolsoOS | null;
 }
 
 export function espelhoPadrao(opts: { interna?: boolean; garantia?: boolean; email?: string } = {}): OmieEspelho {
@@ -95,6 +111,7 @@ export function normalizarEspelho(v: unknown, padrao: OmieEspelho): OmieEspelho 
     naoCobrar: { hr: !!o.naoCobrar?.hr, km: !!o.naoCobrar?.km },
     obsPdf: { mostrar: !!o.obsPdf?.mostrar, grifar: !!o.obsPdf?.grifar },
     descontoMotivo: o.descontoMotivo && typeof o.descontoMotivo.texto === "string" ? o.descontoMotivo : null,
+    reembolso: o.reembolso && typeof o.reembolso === "object" ? o.reembolso : null,
   };
 }
 

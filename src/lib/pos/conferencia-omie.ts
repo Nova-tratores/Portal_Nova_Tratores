@@ -66,7 +66,7 @@ async function esperadoDaOS(os: Rec, esp: OmieEspelho | null) {
   for (const x of esp?.extras || []) {
     // código → nCodServ guardado no processo (não muda); se a busca falhar, PARA a conferência — antes o item
     // era pulado e o "atualizar" apagava o serviço no Omie como se fosse sobra
-    let nCod = codServ.get(x.codigo) || 0;
+    let nCod = x.nCod || codServ.get(x.codigo) || 0;
     if (!nCod) {
       try {
         const c = await omiePorta<{ intListar?: { nCodServ?: number } }>(

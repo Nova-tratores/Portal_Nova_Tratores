@@ -1,7 +1,7 @@
 'use client';
 import { fetchAuth } from '@/lib/auth/client';
 import { useState, useEffect, useCallback } from 'react';
-import { ShieldCheck, Loader2, LayoutGrid, CheckSquare, BarChart3, Search, Factory, PlusCircle, QrCode } from 'lucide-react';
+import { ShieldCheck, Loader2, LayoutGrid, CheckSquare, BarChart3, Search, Factory, PlusCircle, QrCode, Receipt } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -16,9 +16,10 @@ import GarantiaBusca from '@/components/garantias/GarantiaBusca';
 import MontadorasConfig from '@/components/garantias/MontadorasConfig';
 import CriarGarantiaManualModal from '@/components/garantias/CriarGarantiaManualModal';
 import PaginaClientePainel from '@/components/garantias/PaginaClientePainel';
+import FaturarReembolso from '@/components/garantias/FaturarReembolso';
 import { gateBtn, estiloSemPermissao, MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui';
 
-type Aba = 'pipeline' | 'finalizadas' | 'relatorio' | 'buscar' | 'montadoras' | 'cliente';
+type Aba = 'pipeline' | 'finalizadas' | 'relatorio' | 'buscar' | 'montadoras' | 'cliente' | 'faturar';
 
 function GarantiasPageInner() {
   const isMobile = useIsMobile();
@@ -58,6 +59,7 @@ function GarantiasPageInner() {
     const id = sp.get('id');
     if (id) setDrawerId(id);
     if (sp.get('aba') === 'cliente') setAba('cliente');
+    if (sp.get('aba') === 'faturar') setAba('faturar');
   }, []);
 
   useEffect(() => {
@@ -79,6 +81,7 @@ function GarantiasPageInner() {
   const abas: { id: Aba; label: string; icone: React.ReactNode }[] = [
     { id: 'pipeline', label: 'Pipeline', icone: <LayoutGrid size={15} /> },
     { id: 'finalizadas', label: 'Finalizadas', icone: <CheckSquare size={15} /> },
+    ...(podeFinalizar ? [{ id: 'faturar' as Aba, label: 'Faturar reembolso', icone: <Receipt size={15} /> }] : []),
     { id: 'relatorio', label: 'Relatório', icone: <BarChart3 size={15} /> },
     { id: 'buscar', label: 'Buscar', icone: <Search size={15} /> },
     { id: 'cliente', label: 'Página do cliente (QR)', icone: <QrCode size={15} /> },
@@ -188,6 +191,7 @@ function GarantiasPageInner() {
       {aba === 'relatorio' && <GarantiasRelatorio refreshKey={refreshKey} />}
       {aba === 'buscar' && <GarantiaBusca onAbrir={setDrawerId} />}
       {aba === 'cliente' && <PaginaClientePainel />}
+      {aba === 'faturar' && podeFinalizar && <FaturarReembolso onAbrirGarantia={setDrawerId} />}
       {aba === 'montadoras' && podeMontadoras && <MontadorasConfig criadoPor={userProfile?.nome || ''} />}
 
       {/* Drawer */}

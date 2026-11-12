@@ -503,6 +503,13 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
       return { sucesso: false, erro: 'OS interna: escolha o "Nº do Contrato de Venda" (código interno) na aba Informações adicionais antes de enviar ao Omie.' };
     }
     const servicosBase = await montarServicosComReqs(os, idOrdem);
+    // OS de reembolso de garantia: a linha "Peças" (serviço incluído com o código já conhecido) vai
+    // na criação — nas outras OS os serviços incluídos à mão seguem como antes
+    if (esp.reembolso) {
+      for (const x of esp.extras) {
+        if (x.cobrar && x.nCod && x.qtde > 0 && x.unit > 0) servicosBase.push({ nCodServico: x.nCod, nQtde: x.qtde, nValUnit: x.unit, cDescServ: x.descricao || undefined });
+      }
+    }
     // "Não gerar conta a receber" (é o que faz o Omie faturar com RECIBO em vez
     // de NFS-e) sai da caixinha "Serviço interno" da OS — decisão do José
     // (21/10/2026) quando o padrão automático de garantia foi removido.
