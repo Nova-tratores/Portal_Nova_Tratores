@@ -1,10 +1,8 @@
 'use client';
-// Recebimentos de NF-e pendentes (Fase 2). Portado de recebimentos.ejs + public/recebimentos.js.
-// Lista NFs de fornecedor pendentes; destaca sinal de garantia/impacto no CMC; permite
-// "dar entrada" revisando/editando o CFOP de entrada por item (default = cfopEntradaSugerido).
-// SEM dropdown de categoria/departamento (adiado p/ Fase 3).
+// Recebimento de NF-e de fornecedor — TELA ÚNICA (juntou /estoque/recebimentos-omie, 10/11/2026).
+// A lista vem do espelho recebimentos_nfe (rápida, sem Omie); "Dar entrada" consulta só a
+// nota aberta na Omie (itens atuais + impacto no CMC se garantia) e abre o ModalEntrada.
 import { Fragment, useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
@@ -12,6 +10,8 @@ import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { supabase } from '@/lib/supabase';
 import { authHeaders, fetchAuth } from '@/lib/auth/client';
+import { casaBusca, diasDesde, type RecebNorm } from '@/lib/ajustes/recebimento-regras';
+import ProdutoPrecoModal from '@/components/estoque/ProdutoPrecoModal';
 
 interface Usuario { id: string; nome: string; funcao?: string | null }
 const TIPO_LABEL: Record<string, string> = { pecas: 'Peças', pecas_garantia: 'Peças (garantia)', almoxarifado: 'Almoxarifado', combustivel: 'Combustível', maquinas: 'Máquinas' };
@@ -62,11 +62,9 @@ interface Recebimento {
   responsavelUserId?: string | null;
   responsavelNome?: string | null;
   responsavelAutomatico?: boolean;
-}
-interface RecebPayload {
-  dataDeBR?: string; dataAteBR?: string; fonte?: string; cachedEm?: string; duracaoMs?: number;
-  totalRecebimentos?: number; totalNaoProcessados?: number; totalComSinalGarantia?: number;
-  totalItensRisco?: number; recebimentos?: Recebimento[]; erro?: string;
+  tipoAuto?: string | null;
+  tipoManual?: boolean;
+  recebidoEm?: string | null;
 }
 interface ResultadoCard { tipo: 'ok' | 'erro'; texto: string }
 // autocomplete de produto (/api/ajustes/movimentacao/buscar-produto)
@@ -116,11 +114,6 @@ function cfopEntradaEquiv(cfopSaida?: string | null): string {
 }
 function recKey(r: Recebimento): string {
   return String(r.idReceb != null ? r.idReceb : (r.chaveNFe || r.numeroNFe));
-}
-function isoDefault(offsetMeses: number): string {
-  const d = new Date();
-  d.setMonth(d.getMonth() + offsetMeses);
-  return d.toISOString().slice(0, 10);
 }
 
 const thStyle: React.CSSProperties = { background: '#f8fafc', color: '#475569', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: 600, whiteSpace: 'nowrap' };
@@ -207,12 +200,17 @@ function valSort(r: Recebimento, key: SortKey): number | string {
   if (key === 'emissao') return tsEmissao(r.dataEmissao);
   return valTexto(r, key).toLowerCase();
 }
-// filtro por coluna: termo so-digitos exige igualdade EXATA (num); senao substring.
+// filtro por coluna: termo so-digitos exige igualdade EXATA (num), ignorando zeros a
+// esquerda dos dois lados ("01234" acha a NF 1234 e vice-versa); senao substring.
+const semZerosEsq = (s: string) => s.replace(/^0+(?=\d)/, '');
 function casaFiltroColuna(valorCelula: string, termo: string): boolean {
   const t = termo.trim().toLowerCase();
   if (!t) return true;
   const v = String(valorCelula).toLowerCase();
-  if (/^\d+$/.test(t)) return v === t || v.replace(/\D/g, '') === t;
+  if (/^\d+$/.test(t)) {
+    const tn = semZerosEsq(t);
+    return semZerosEsq(v) === tn || semZerosEsq(v.replace(/\D/g, '')) === tn;
+  }
   return v.includes(t);
 }
 
@@ -223,29 +221,35 @@ const filtroInput: React.CSSProperties = { width: '100%', border: '1px solid #cb
 export default function RecebimentosPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
-  const { conta, contaParam } = useConta();
+  const { conta, setConta } = useConta();
   const criadoPor = userProfile?.nome || 'portal';
 
-  // janela padrão: pendentes desde 01/11/2022 (o cache guarda o histórico; só o recente
-  // é recomputado diariamente pelo cron). O usuário pode estreitar a janela nos filtros.
-  const [de, setDe] = useState('2022-11-01');
-  const [ate, setAte] = useState(isoDefault(0));
-  const [dados, setDados] = useState<RecebPayload | null>(null);
+  // aba: Pendentes (espelho, Faturada) · Concluídos (espelho, Recebida) · Entradas feitas (log do portal)
+  const [aba, setAba] = useState<'pendentes' | 'concluidos' | 'entradas'>('pendentes');
+  const [dados, setDados] = useState<{ recebimentos: Recebimento[]; atualizadoEm: string | null } | null>(null);
   const [carregando, setCarregando] = useState(false);
-  const [statusMsg, setStatusMsg] = useState('');
   const [erro, setErro] = useState('');
+  const [aviso, setAviso] = useState('');
   const [resultados, setResultados] = useState<Record<string, ResultadoCard>>({});
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+  const [busca, setBusca] = useState('');
   // atalhos rápidos de filtro (client-side)
   const [tipoFiltro, setTipoFiltro] = useState('');
   const [respFiltro, setRespFiltro] = useState<'todas' | 'me' | '__nenhum__'>('todas');
   const [soGarantia, setSoGarantia] = useState(false);
-  // modo da tela: pendentes (default) x "Entradas feitas" (histórico do log)
-  const [modo, setModo] = useState<'pendentes' | 'entradas'>('pendentes');
-
   // ordenacao/filtro por coluna (nivel NF)
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
   const [filtros, setFiltros] = useState<Record<string, string>>({});
+  // "não achei a nota": busca em todas as situações + atualizar da Omie
+  const [procurados, setProcurados] = useState<Recebimento[] | null>(null);
+  const [procurando, setProcurando] = useState(false);
+  const [atualizando, setAtualizando] = useState(false);
+  // abrir a nota = consulta só ela na Omie
+  const [abrindo, setAbrindo] = useState<string | null>(null);
+  const [modalReceb, setModalReceb] = useState<Recebimento | null>(null);
+  const [prodAlvo, setProdAlvo] = useState<number | null>(null);
+  const notaDoLink = useRef<string | null>(null);
+
   // mostrar/esconder a descricao dos produtos (default: compacto). Lembra no localStorage.
   const [mostrarProdutos, setMostrarProdutos] = useState(false);
   useEffect(() => {
@@ -257,23 +261,17 @@ export default function RecebimentosPage() {
   const ordenarPor = useCallback((key: SortKey) => {
     setSort((s) => (s && s.key === key ? { key, dir: (s.dir === 1 ? -1 : 1) as 1 | -1 } : { key, dir: 1 }));
   }, []);
-  const temFiltro = Object.values(filtros).some((v) => v && v.trim());
-  // atalhos rápidos (chips/toggle) — filtro client-side sobre o payload já carregado
-  const temAtalho = !!tipoFiltro || respFiltro !== 'todas' || soGarantia;
-  const contagens = useMemo(() => {
-    const recs = dados?.recebimentos || [];
-    const porTipo: Record<string, number> = {};
-    let garantia = 0;
-    for (const r of recs) {
-      const t = r.tipo || '';
-      if (t) porTipo[t] = (porTipo[t] || 0) + 1;
-      if (r.temSinalGarantia) garantia++;
-    }
-    return { total: recs.length, porTipo, garantia };
-  }, [dados]);
 
-  // modal "dar entrada"
-  const [modalReceb, setModalReceb] = useState<Recebimento | null>(null);
+  // link do sino: /estoque/recebimentos?conta=CASTRO&nota=<idReceb> (escolhe a empresa e abre a nota)
+  useEffect(() => {
+    try {
+      const sp = new URLSearchParams(window.location.search);
+      const c = (sp.get('conta') || '').toUpperCase();
+      if ((c === 'NOVA' || c === 'CASTRO') && c !== conta) setConta(c);
+      notaDoLink.current = sp.get('nota');
+    } catch { /* ignore */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // carrega usuarios reais do Portal (financeiro_usu) p/ atribuir/transferir
   useEffect(() => {
@@ -285,118 +283,247 @@ export default function RecebimentosPage() {
       .then(({ data }) => setUsuarios((data as Usuario[]) || []));
   }, []);
 
-  const buscar = useCallback(async (force: boolean) => {
-    if (!conta) return;
+  const carregar = useCallback(async () => {
+    if (!conta || aba === 'entradas') return;
     setCarregando(true);
     setErro('');
-    setStatusMsg('buscando recebimentos no Omie... (pode levar 1-2 min)');
     try {
-      let qs = contaParam.replace(/^&/, '');
-      if (de) qs += (qs ? '&' : '') + 'de=' + encodeURIComponent(de);
-      if (ate) qs += '&ate=' + encodeURIComponent(ate);
-      if (force) qs += '&force=1';
-      const r = await fetch(`/api/ajustes/recebimentos-pendentes?${qs}`, { headers: await authHeaders() });
-      // A resposta pode NAO ser JSON: numa carga fria/force o calculo ao vivo (~1-2 min)
-      // pode estourar o timeout do proxy do Railway, que devolve "upstream error" (texto).
-      // O calculo continua rodando no servidor e grava o snapshot; o proximo Buscar pega do cache.
-      const txt = await r.text();
-      let d: RecebPayload;
-      try { d = JSON.parse(txt) as RecebPayload; }
-      catch {
-        setErro('O servidor esta reprocessando os recebimentos na Omie (pode levar 1-2 min na primeira vez). O calculo continua em segundo plano — aguarde alguns segundos e clique em Buscar de novo.');
-        setStatusMsg('');
-        return;
-      }
-      if (!r.ok || d.erro) { setErro(d.erro || `Erro ${r.status} ao buscar recebimentos.`); setStatusMsg(''); return; }
-      setResultados({});
-      setDados(d);
-      const fonte = d.fonte === 'cache' ? `cache de ${d.cachedEm ? new Date(d.cachedEm).toLocaleTimeString('pt-BR') : '?'}` : 'consulta ao vivo';
-      const dur = d.duracaoMs ? ` · ${(d.duracaoMs / 1000).toFixed(1)}s` : '';
-      setStatusMsg(`Janela emissao ${d.dataDeBR || '?'} a ${d.dataAteBR || '?'} · ${fonte}${dur}`);
+      const r = await fetchAuth(`/api/ajustes/recebimentos/lista?conta=${encodeURIComponent(conta)}&status=${aba}`);
+      const d = await r.json();
+      if (!r.ok || d.erro) { setErro(d.erro || `Erro ${r.status} ao carregar as notas.`); return; }
+      setDados({ recebimentos: (d.recebimentos || []) as Recebimento[], atualizadoEm: d.atualizadoEm || null });
     } catch (ex) {
       setErro('Erro de rede: ' + (ex as Error).message);
-      setStatusMsg('');
     } finally {
       setCarregando(false);
     }
-  }, [conta, contaParam, de, ate]);
+  }, [conta, aba]);
 
   useEffect(() => {
-    if (conta) buscar(false);
-    else { setDados(null); setStatusMsg(''); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setDados(null);
+    setResultados({});
+    setProcurados(null);
+    if (conta) carregar();
+  }, [conta, aba, carregar]);
+
+  // abre a nota: consulta SÓ ela na Omie (itens atuais + impacto no CMC se garantia)
+  const abrirNota = useCallback(async (r: Recebimento) => {
+    if (!conta || r.idReceb == null) return;
+    const k = recKey(r);
+    setAbrindo(k);
+    setErro('');
+    try {
+      const resp = await fetchAuth(`/api/ajustes/recebimentos/${r.idReceb}?conta=${encodeURIComponent(conta)}`);
+      const d = await resp.json();
+      if (!resp.ok || d.erro) { setErro(`NF ${r.numeroNFe || ''}: ${d.erro || 'não foi possível consultar a nota na Omie.'}`); return; }
+      const full = d.recebimento as Recebimento & { recebido?: boolean; cancelada?: boolean };
+      if (full.recebido || full.cancelada) {
+        setResultados((s) => ({ ...s, [k]: { tipo: 'ok', texto: full.recebido ? 'Esta nota já entrou na Omie.' : 'Esta nota foi cancelada na Omie.' } }));
+        return;
+      }
+      setModalReceb(full);
+    } catch (ex) {
+      setErro('Erro de rede: ' + (ex as Error).message);
+    } finally {
+      setAbrindo(null);
+    }
   }, [conta]);
+
+  // abre a nota do link do sino quando a lista chega
+  useEffect(() => {
+    const alvo = notaDoLink.current;
+    if (!alvo || !dados) return;
+    notaDoLink.current = null;
+    const r = dados.recebimentos.find((x) => String(x.idReceb) === alvo);
+    if (r) { setBusca(String(r.numeroNFe || '').replace(/^0+(?=\d)/, '')); abrirNota(r); }
+  }, [dados, abrirNota]);
 
   const onEntradaConcluida = useCallback((reck: string, res: ResultadoCard) => {
     setResultados((s) => ({ ...s, [reck]: res }));
   }, []);
 
-  // transferencia de responsavel (persiste em recebimento_meta + atualiza UI)
+  // transferencia de responsavel (persiste em recebimento_meta + avisa no sino + atualiza UI)
   const onResponsavelChange = useCallback(async (r: Recebimento, userId: string | null) => {
     if (!conta || r.idReceb == null) return;
     const u = userId ? usuarios.find((x) => x.id === userId) || null : null;
     const nome = u ? u.nome : null;
-    // otimista
-    setDados((d) => {
-      if (!d) return d;
-      const recs = (d.recebimentos || []).map((x) =>
-        x.idReceb === r.idReceb ? { ...x, responsavelUserId: userId, responsavelNome: nome, responsavelAutomatico: false } : x,
-      );
-      return { ...d, recebimentos: recs };
-    });
+    setDados((d) => d && ({
+      ...d,
+      recebimentos: d.recebimentos.map((x) =>
+        x.idReceb === r.idReceb ? { ...x, responsavelUserId: userId, responsavelNome: nome, responsavelAutomatico: false } : x),
+    }));
     try {
-      await fetch(`/api/ajustes/recebimentos/${r.idReceb}/responsavel?conta=${encodeURIComponent(conta)}`, {
+      const resp = await fetch(`/api/ajustes/recebimentos/${r.idReceb}/responsavel?conta=${encodeURIComponent(conta)}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ userId, userNome: nome }),
       });
-    } catch { /* silencioso: a UI ja atualizou; recarregar reflete o estado real */ }
-  }, [conta, usuarios]);
+      if (!resp.ok) { setErro('Não foi possível trocar o responsável.'); carregar(); return; }
+      setAviso(nome && userId !== userProfile?.id ? `NF ${r.numeroNFe || ''} passada para ${nome} (avisado no sino).` : 'Responsável atualizado.');
+    } catch { setErro('Não foi possível trocar o responsável.'); carregar(); }
+  }, [conta, usuarios, carregar, userProfile?.id]);
 
-  if (!permLoading && userProfile && !pode('estoque', 'recebimentos') && !pode('ajustes', 'recebimentos')) return <SemPermissao />;
+  // tipo manual (muda também o responsável padrão)
+  const onTipoChange = useCallback(async (r: Recebimento, tipo: string) => {
+    if (!conta || r.idReceb == null) return;
+    try {
+      const resp = await fetchAuth(`/api/estoque/recebimentos/${r.idReceb}/tipo?conta=${encodeURIComponent(conta)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ tipo }),
+      });
+      const d = await resp.json();
+      if (d.erro) { setErro(d.erro); return; }
+      carregar();
+    } catch (ex) { setErro('Erro: ' + (ex as Error).message); }
+  }, [conta, carregar]);
+
+  // reabrir uma nota concluída (ESCREVE NA OMIE: ReverterRecebimento)
+  const onReabrir = useCallback(async (r: Recebimento) => {
+    if (!conta || r.idReceb == null) return;
+    if (!confirm(`Reabrir a NF ${r.numeroNFe || ''} na Omie? A Omie desfaz a entrada e APAGA a conta a pagar da nota; a nota volta para "pendente". Ao dar entrada de novo, a data de recebimento passa a ser a do dia e a conta a pagar é recriada com outro número. Uma correção de CMC feita na entrada não é desfeita.`)) return;
+    try {
+      const resp = await fetchAuth(`/api/estoque/recebimentos/${r.idReceb}/reabrir?conta=${encodeURIComponent(conta)}`, { method: 'POST' });
+      const d = await resp.json();
+      if (d.erro) { setErro(d.erro); return; }
+      setAviso(`NF ${r.numeroNFe || ''} reaberta na Omie.`);
+      carregar();
+    } catch (ex) { setErro('Erro: ' + (ex as Error).message); }
+  }, [conta, carregar]);
+
+  const atualizarDaOmie = useCallback(async () => {
+    if (!conta) return;
+    setAtualizando(true);
+    setErro('');
+    try {
+      const resp = await fetchAuth(`/api/ajustes/recebimentos/lista?conta=${encodeURIComponent(conta)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'atualizar' }),
+      });
+      const d = await resp.json();
+      if (!resp.ok || d.erro) { setErro(d.erro || 'Não foi possível atualizar da Omie.'); return; }
+      setAviso(d.pulado ? d.msg : `Notas dos últimos 45 dias relidas na Omie (${d.notas} notas).`);
+      setProcurados(null);
+      await carregar();
+    } catch (ex) {
+      setErro('Erro de rede: ' + (ex as Error).message);
+    } finally {
+      setAtualizando(false);
+    }
+  }, [conta, carregar]);
+
+  const procurar = useCallback(async () => {
+    if (!conta || !busca.trim()) return;
+    setProcurando(true);
+    try {
+      const resp = await fetchAuth(`/api/ajustes/recebimentos/lista?conta=${encodeURIComponent(conta)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao: 'procurar', termo: busca }),
+      });
+      const d = await resp.json();
+      setProcurados((d.encontrados || []) as Recebimento[]);
+    } catch { setProcurados([]); }
+    finally { setProcurando(false); }
+  }, [conta, busca]);
+
+  useEffect(() => { if (!aviso) return; const t = setTimeout(() => setAviso(''), 5000); return () => clearTimeout(t); }, [aviso]);
+  useEffect(() => { setProcurados(null); }, [busca]);
+
+  const recs = useMemo(() => dados?.recebimentos || [], [dados]);
+  const contagens = useMemo(() => {
+    const porTipo: Record<string, number> = {};
+    let garantia = 0, semResp = 0, minhas = 0, valor = 0, paradas = 0;
+    for (const r of recs) {
+      const t = r.tipo || '';
+      if (t) porTipo[t] = (porTipo[t] || 0) + 1;
+      if (r.temSinalGarantia) garantia++;
+      if (!r.responsavelUserId) semResp++;
+      if (userProfile?.id && r.responsavelUserId === userProfile.id) minhas++;
+      valor += Number(r.valorNFe) || 0;
+      if ((diasDesde(r.dataEmissao) || 0) > 30) paradas++;
+    }
+    return { total: recs.length, porTipo, garantia, semResp, minhas, valor, paradas };
+  }, [recs, userProfile?.id]);
+
+  const lista = useMemo(() => {
+    let l = recs.filter((r) => {
+      if (tipoFiltro && (r.tipo || '') !== tipoFiltro) return false;
+      if (respFiltro === 'me' && !(userProfile?.id && r.responsavelUserId === userProfile.id)) return false;
+      if (respFiltro === '__nenhum__' && r.responsavelUserId) return false;
+      if (soGarantia && !r.temSinalGarantia) return false;
+      if (busca.trim() && !casaBusca(r as unknown as RecebNorm, busca)) return false;
+      return true;
+    });
+    const ativos = COLS_RECEB.filter((c) => (filtros[c.key] || '').trim());
+    if (ativos.length) l = l.filter((r) => ativos.every((c) => casaFiltroColuna(valTexto(r, c.key), filtros[c.key])));
+    if (sort) {
+      const { key, dir } = sort;
+      l = [...l].sort((a, b) => {
+        const va = valSort(a, key), vb = valSort(b, key);
+        if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+        return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true, sensitivity: 'base' }) * dir;
+      });
+    } else {
+      // padrão: garantia com risco primeiro, depois a mais antiga (parada há mais tempo) no topo
+      l = [...l].sort((a, b) => (aba === 'pendentes' ? tsEmissao(a.dataEmissao) - tsEmissao(b.dataEmissao) : tsEmissao(b.dataEmissao) - tsEmissao(a.dataEmissao)));
+    }
+    return l;
+  }, [recs, tipoFiltro, respFiltro, soGarantia, busca, filtros, sort, userProfile?.id, aba]);
+
+  const temFiltro = Object.values(filtros).some((v) => v && v.trim());
+  const temAtalho = !!tipoFiltro || respFiltro !== 'todas' || soGarantia;
+
+  if (!permLoading && userProfile && !pode('estoque', 'recebimentos') && !pode('ajustes', 'recebimentos') && !pode('estoque', 'recebimentos-omie')) return <SemPermissao />;
+
+  const ABAS: Array<{ v: typeof aba; l: string }> = [
+    { v: 'pendentes', l: 'Pendentes' },
+    { v: 'concluidos', l: 'Concluídos' },
+    { v: 'entradas', l: 'Entradas feitas' },
+  ];
+  const horaAtualizacao = dados?.atualizadoEm ? new Date(dados.atualizadoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : null;
 
   return (
-    <div className="est-page" style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
-        <div>
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Recebimentos de NF-e pendentes</h1>
-          <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 760 }}>
-            Conta <b>{conta ? conta.toUpperCase() : '—'}</b> · NFs de fornecedor que ainda nao foram processadas. As com sinal de garantia/conserto aparecem destacadas, com o impacto no CMC. Voce pode <b>dar entrada</b> (= processar no Omie: gera estoque e contas a pagar) por aqui.
-          </p>
-        </div>
-        <div className="est-touch est-ml0" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Emissao de</label>
-            <input type="date" value={de} onChange={(e) => setDe(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && buscar(false)} style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem' }} />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Ate</label>
-            <input type="date" value={ate} onChange={(e) => setAte(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && buscar(false)} style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem' }} />
-          </div>
-          <button onClick={() => buscar(false)} disabled={carregando || !conta} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando || !conta ? 0.5 : 1 }}>Buscar</button>
+    <div className="est-page" style={{ padding: '14px 20px 28px' }}>
+      {/* abas estilo Chrome + empresa */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, borderBottom: `2px solid ${RED}`, marginBottom: 14, flexWrap: 'wrap' }}>
+        {ABAS.map((a) => {
+          const ativa = aba === a.v;
+          return (
+            <button key={a.v} onClick={() => setAba(a.v)} style={{
+              padding: '8px 18px', border: `1px solid ${ativa ? RED : '#e2e8f0'}`, borderBottom: 'none', borderRadius: '10px 10px 0 0',
+              background: ativa ? RED : '#f8fafc', color: ativa ? '#fff' : '#475569', fontWeight: 600, fontSize: '.84rem', cursor: 'pointer',
+            }}>
+              {a.l}{a.v === 'pendentes' && aba === 'pendentes' && dados ? ` (${contagens.total})` : ''}
+            </button>
+          );
+        })}
+        <span style={{ marginLeft: 'auto', paddingBottom: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <ComoLer />
           <ContaSelector />
-        </div>
-      </div>
-
-      <div style={{ margin: '6px 0 14px', display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: '.8rem' }}>
-        <Link href="/estoque" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>← Estoque</Link>
+        </span>
       </div>
 
       {conta === '' ? (
         <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: 16, fontSize: '.85rem' }}>
-          Esta tela precisa de uma conta especifica para listar os recebimentos. Selecione <b>NOVA</b> ou <b>CASTRO</b> no menu acima.
+          Escolha <b>NOVA</b> ou <b>CASTRO</b> no seletor acima para ver as notas.
         </div>
+      ) : aba === 'entradas' ? (
+        <EntradasView conta={conta} userId={userProfile?.id || null} />
       ) : (
         <>
-          {/* Alternância: Pendentes | Entradas feitas */}
-          <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-            <Toggle value={modo} onChange={(v) => setModo(v as 'pendentes' | 'entradas')}
-              options={[{ v: 'pendentes', l: 'Pendentes' }, { v: 'entradas', l: 'Entradas feitas' }]} />
+          {/* busca única + atualizar */}
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Nº da nota (com ou sem zeros), fornecedor, CNPJ, chave, produto ou valor"
+              style={{ flex: '1 1 360px', minWidth: 240, border: '1px solid #cbd5e1', borderRadius: 8, padding: '9px 12px', fontSize: '.88rem' }}
+            />
+            <span style={{ fontSize: '.74rem', color: '#64748b' }}>
+              {carregando ? 'Carregando…' : horaAtualizacao ? `Lista atualizada da Omie às ${horaAtualizacao} (sozinha a cada ~30 min)` : ''}
+            </span>
+            <button onClick={atualizarDaOmie} disabled={atualizando} title="Relê na Omie as notas emitidas nos últimos 45 dias (~30 s)"
+              style={{ padding: '7px 12px', background: '#fff', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: '.78rem', cursor: atualizando ? 'wait' : 'pointer', opacity: atualizando ? 0.6 : 1 }}>
+              {atualizando ? 'Atualizando… (~30 s)' : '↻ Atualizar da Omie'}
+            </button>
           </div>
-          {modo === 'entradas' && (
-            <EntradasView conta={conta} userId={userProfile?.id || null} />
-          )}
-          {modo === 'pendentes' && (<>
-          {/* Atalhos rápidos: chips por tipo */}
+
+          {/* atalhos */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
             {TIPOS_CHIP.map((t) => (
               <Chip key={t.v} label={t.label} active={tipoFiltro === t.v}
@@ -404,96 +531,63 @@ export default function RecebimentosPage() {
                 onClick={() => setTipoFiltro(t.v)} />
             ))}
           </div>
-          {/* Toggle responsável + chip garantia */}
           <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
             <Toggle value={respFiltro} onChange={(v) => setRespFiltro(v as typeof respFiltro)}
-              options={[{ v: 'todas', l: 'Todas' }, { v: 'me', l: 'Minhas' }, { v: '__nenhum__', l: 'Sem responsável' }]} />
+              options={[{ v: 'todas', l: 'Todas' }, { v: 'me', l: `Minhas (${contagens.minhas})` }, { v: '__nenhum__', l: `Sem responsável (${contagens.semResp})` }]} />
             <Chip label="Garantia" active={soGarantia} count={contagens.garantia} onClick={() => setSoGarantia((s) => !s)} />
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 14, fontSize: '.72rem' }}>
-            <span style={{ padding: '3px 8px', borderRadius: 6, background: '#f1f5f9', border: '1px solid #e2e8f0', color: '#475569' }}>Detecta natureza ~ garantia/conserto/reparo e CFOPs de garantia</span>
-            <button onClick={toggleProdutos} title="Mostra/esconde a descricao dos produtos em cada NF"
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: mostrarProdutos ? '#eef2ff' : '#fff', color: '#334155', cursor: 'pointer', fontSize: '.72rem' }}>
+            <button onClick={toggleProdutos} title="Mostra/esconde os produtos de cada NF"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: mostrarProdutos ? '#eef2ff' : '#fff', color: '#334155', cursor: 'pointer', fontSize: '.74rem' }}>
               {mostrarProdutos ? '▾ Esconder produtos' : '▸ Mostrar produtos'}
             </button>
             {temFiltro && (
-              <button onClick={() => setFiltros({})} style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontSize: '.72rem' }}>limpar filtros</button>
+              <button onClick={() => setFiltros({})} style={{ padding: '4px 10px', borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontSize: '.72rem' }}>limpar filtros</button>
             )}
-            <span style={{ marginLeft: 'auto', color: '#64748b' }}>{carregando ? 'Carregando…' : statusMsg}</span>
           </div>
 
           {erro && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.82rem' }}>{erro}</div>}
+          {aviso && <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.82rem' }}>{aviso}</div>}
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 12, marginBottom: 18 }}>
-            <Kpi label="Recebimentos no periodo" valor={fmtNum(dados?.totalRecebimentos)} />
-            <Kpi label="Pendentes (nao processados)" valor={fmtNum(dados?.totalNaoProcessados)} />
-            <Kpi label="Com sinal de garantia" valor={fmtNum(dados?.totalComSinalGarantia)} cor="#b45309" />
-            <Kpi label="Itens que vao baixar o CMC" valor={fmtNum(dados?.totalItensRisco)} cor="#b91c1c" />
-          </div>
-
-          {!dados ? (
-            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 40, textAlign: 'center', color: '#94a3b8' }}>Clique em <b>Buscar</b> para listar os recebimentos pendentes.</div>
-          ) : (
-            <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
-              <CabecalhoReceb
-                sort={sort}
-                filtros={filtros}
-                onSort={ordenarPor}
-                onFiltro={(k, v) => setFiltros((f) => ({ ...f, [k]: v }))}
-              />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {(() => {
-                  let lista = (dados.recebimentos || []).filter((r) => {
-                    if (tipoFiltro && (r.tipo || '') !== tipoFiltro) return false;
-                    if (respFiltro === 'me' && !(userProfile?.id && r.responsavelUserId === userProfile.id)) return false;
-                    if (respFiltro === '__nenhum__' && r.responsavelUserId) return false;
-                    if (soGarantia && !r.temSinalGarantia) return false;
-                    return true;
-                  });
-                  const ativos = COLS_RECEB.filter((c) => (filtros[c.key] || '').trim());
-                  if (ativos.length) {
-                    lista = lista.filter((r) => ativos.every((c) => casaFiltroColuna(valTexto(r, c.key), filtros[c.key])));
-                  }
-                  if (sort) {
-                    const { key, dir } = sort;
-                    lista = [...lista].sort((a, b) => {
-                      const va = valSort(a, key), vb = valSort(b, key);
-                      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
-                      return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true, sensitivity: 'base' }) * dir;
-                    });
-                  }
-                  if (lista.length === 0) {
-                    return <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 40, textAlign: 'center', color: (temFiltro || temAtalho) ? '#b45309' : '#059669' }}>{temFiltro ? 'Nenhuma NF-e bate com os filtros. Use "limpar filtros".' : (temAtalho ? 'Nenhuma NF-e bate com os atalhos selecionados.' : 'Nenhuma NF-e pendente nesse periodo. 🎉')}</div>;
-                  }
-                  return lista.map((r) => (
-                    <CardReceb
-                      key={recKey(r)}
-                      r={r}
-                      conta={conta}
-                      resultado={resultados[recKey(r)]}
-                      usuarios={usuarios}
-                      mostrarProdutos={mostrarProdutos}
-                      onAbrir={() => setModalReceb(r)}
-                      onResponsavelChange={(uid) => onResponsavelChange(r, uid)}
-                    />
-                  ));
-                })()}
-              </div>
+          {aba === 'pendentes' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
+              <Kpi label="Notas pendentes" valor={fmtNum(contagens.total)} />
+              <Kpi label="Valor das pendentes" valor={fmtBRL(contagens.valor)} />
+              <Kpi label="Com sinal de garantia" valor={fmtNum(contagens.garantia)} cor="#b45309" />
+              <Kpi label="Paradas há mais de 30 dias" valor={fmtNum(contagens.paradas)} cor="#b91c1c" />
             </div>
           )}
 
-          {/* Rodape: "Atualizar" fica AQUI embaixo (nao no topo) p/ nao ser clicado sem querer,
-              pois forca um recompute ao vivo na Omie (~1-2 min, ignora o cache). */}
-          <div style={{ marginTop: 24, paddingTop: 14, borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            <button onClick={() => buscar(true)} disabled={carregando || !conta} title="Ignora o cache e recalcula tudo na Omie (demora)"
-              style={{ padding: '7px 14px', background: '#fff', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando || !conta ? 0.5 : 1 }}>
-              ↻ Atualizar (recalcular ao vivo)
-            </button>
-            <span style={{ fontSize: '.72rem', color: '#94a3b8' }}>
-              Recalcula tudo na Omie ignorando o cache — leva ~1-2 min. Use só quando precisar do estado mais recente; a lista normal já vem do cache.
-            </span>
-          </div>
-          </>)}
+          {!dados ? (
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 40, textAlign: 'center', color: '#94a3b8' }}>{carregando ? 'Carregando as notas…' : ''}</div>
+          ) : (
+            <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
+              <CabecalhoReceb sort={sort} filtros={filtros} onSort={ordenarPor} onFiltro={(k, v) => setFiltros((f) => ({ ...f, [k]: v }))} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {lista.length === 0 ? (
+                  <NadaEncontrado
+                    busca={busca} temFiltro={temFiltro} temAtalho={temAtalho} aba={aba}
+                    procurados={procurados} procurando={procurando} atualizando={atualizando}
+                    onProcurar={procurar} onAtualizar={atualizarDaOmie}
+                  />
+                ) : lista.map((r) => (
+                  <CardReceb
+                    key={recKey(r)}
+                    r={r}
+                    conta={conta}
+                    modo={aba === 'concluidos' ? 'concluido' : 'pendente'}
+                    resultado={resultados[recKey(r)]}
+                    abrindo={abrindo === recKey(r)}
+                    usuarios={usuarios}
+                    mostrarProdutos={mostrarProdutos}
+                    onAbrir={() => abrirNota(r)}
+                    onReabrir={() => onReabrir(r)}
+                    onTipoChange={(t) => onTipoChange(r, t)}
+                    onResponsavelChange={(uid) => onResponsavelChange(r, uid)}
+                    onAbrirProduto={(id) => setProdAlvo(id)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
 
@@ -507,6 +601,68 @@ export default function RecebimentosPage() {
           onClose={() => setModalReceb(null)}
           onConcluido={onEntradaConcluida}
         />
+      )}
+      {prodAlvo != null && conta && (
+        <ProdutoPrecoModal idProd={String(prodAlvo)} contaUp={conta} onClose={() => setProdAlvo(null)} onMsg={(t, k) => (k === 'err' ? setErro(t) : setAviso(t))} />
+      )}
+    </div>
+  );
+}
+
+// "Como ler esta tela" (padrão de telas do portal)
+function ComoLer() {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <span style={{ position: 'relative' }}>
+      <button onClick={() => setAberto((v) => !v)} title="Como ler esta tela"
+        style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid #cbd5e1', background: '#fff', color: '#475569', fontWeight: 700, cursor: 'pointer' }}>?</button>
+      {aberto && (
+        <div style={{ position: 'absolute', right: 0, top: 32, zIndex: 50, width: 380, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.12)', padding: 14, fontSize: '.8rem', color: '#334155', lineHeight: 1.5 }}>
+          <b>Como ler esta tela</b>
+          <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
+            <li><b>Pendentes</b>: notas de fornecedor que ainda não entraram no estoque (na Omie estão em &quot;Faturada&quot;). A mais antiga fica no topo.</li>
+            <li>A lista vem da cópia das notas no portal, que se atualiza sozinha a cada ~30 min. Nota recém-lançada e ainda não aparece? <b>↻ Atualizar da Omie</b>.</li>
+            <li><b>Dar entrada</b> consulta só aquela nota na Omie, na hora, e mostra o impacto no custo (CMC) quando a nota é de garantia.</li>
+            <li><b>Responsável</b>: quem cuida da nota. Sem ninguém escolhido vale o padrão do tipo (&quot;automático&quot;). Ao passar a nota para alguém, a pessoa é avisada no sino.</li>
+            <li><b>Concluídos</b>: as 300 últimas que já entraram; dá para <b>reabrir</b> (desfaz a entrada na Omie).</li>
+          </ul>
+        </div>
+      )}
+    </span>
+  );
+}
+
+// lista vazia: explica por quê e oferece procurar a nota em todas as situações / atualizar da Omie
+function NadaEncontrado({ busca, temFiltro, temAtalho, aba, procurados, procurando, atualizando, onProcurar, onAtualizar }: {
+  busca: string; temFiltro: boolean; temAtalho: boolean; aba: string;
+  procurados: Recebimento[] | null; procurando: boolean; atualizando: boolean;
+  onProcurar: () => void; onAtualizar: () => void;
+}) {
+  const box: React.CSSProperties = { background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 24, textAlign: 'center', color: '#475569', fontSize: '.85rem' };
+  const btn: React.CSSProperties = { padding: '7px 14px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', cursor: 'pointer', fontSize: '.8rem', margin: '10px 4px 0' };
+  if (!busca.trim()) {
+    return <div style={{ ...box, color: (temFiltro || temAtalho) ? '#b45309' : '#059669' }}>{temFiltro ? 'Nenhuma NF-e bate com os filtros. Use "limpar filtros".' : temAtalho ? 'Nenhuma NF-e bate com os atalhos selecionados.' : aba === 'pendentes' ? 'Nenhuma nota pendente. 🎉' : 'Nenhuma nota.'}</div>;
+  }
+  const SIT: Record<string, string> = { Faturada: 'pendente (Faturada)', Recebida: 'já entrou (Recebida)', Cancelada: 'cancelada' };
+  return (
+    <div style={box}>
+      <div>Nenhuma nota {aba === 'pendentes' ? 'pendente' : 'concluída'} com <b>&quot;{busca}&quot;</b>{temAtalho || temFiltro ? ' (com os atalhos/filtros de agora)' : ''}.</div>
+      {procurados === null ? (
+        <button onClick={onProcurar} disabled={procurando} style={btn}>{procurando ? 'Procurando…' : 'Procurar em todas as notas (inclusive já recebidas e canceladas)'}</button>
+      ) : procurados.length > 0 ? (
+        <div style={{ marginTop: 12, textAlign: 'left', display: 'inline-block' }}>
+          {procurados.map((p) => (
+            <div key={String(p.idReceb)} style={{ padding: '4px 0' }}>
+              NF <b>{p.numeroNFe}</b>{p.serieNFe ? `/${p.serieNFe}` : ''} · {p.fornecedorNome} · {fmtBRL(p.valorNFe)} · emitida {p.dataEmissao} → <b>{SIT[String((p as { situacao?: string }).situacao || '')] || String((p as { situacao?: string }).situacao || '?')}</b>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div style={{ marginTop: 10, color: '#b45309' }}>
+          A nota não está na cópia do portal. Se ela foi lançada na Omie há pouco, atualize:
+          <div><button onClick={onAtualizar} disabled={atualizando} style={btn}>{atualizando ? 'Atualizando… (~30 s)' : '↻ Atualizar da Omie (notas dos últimos 45 dias)'}</button></div>
+          <div style={{ fontSize: '.74rem', color: '#64748b', marginTop: 6 }}>Nota emitida há mais de 45 dias entra pela atualização completa da noite.</div>
+        </div>
       )}
     </div>
   );
@@ -662,6 +818,7 @@ function EntradasView({ conta, userId }: { conta: string; userId: string | null 
             <tbody>
               {linhas.map((l) => {
                 const ehCorrecao = l.acao === 'correcao_cmc';
+                const ehReversao = l.acao === 'reversao';
                 return (
                   <tr key={l.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ ...tdStyle, fontWeight: 600, color: '#1e293b' }}>NF {l.numeroNFe || '?'}{l.serie ? `/${l.serie}` : ''}</td>
@@ -671,8 +828,8 @@ function EntradasView({ conta, userId }: { conta: string; userId: string | null 
                       {l.tipo ? <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#fff', border: `1px solid ${TIPO_COR[l.tipo] || '#cbd5e1'}`, color: TIPO_COR[l.tipo] || '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>{TIPO_LABEL[l.tipo] || l.tipo}</span> : <span style={{ color: '#cbd5e1' }}>—</span>}
                     </td>
                     <td style={tdStyle}>
-                      <span style={{ fontSize: '.68rem', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', background: ehCorrecao ? '#fef3c7' : '#dcfce7', color: ehCorrecao ? '#92400e' : '#166534' }}>
-                        {ehCorrecao ? 'correção de custo' : 'entrada'}
+                      <span style={{ fontSize: '.68rem', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', background: ehReversao ? '#fee2e2' : ehCorrecao ? '#fef3c7' : '#dcfce7', color: ehReversao ? '#b91c1c' : ehCorrecao ? '#92400e' : '#166534' }}>
+                        {ehReversao ? 'reversão (reaberta)' : ehCorrecao ? 'correção de custo' : 'entrada'}
                       </span>
                     </td>
                     <td style={{ ...tdStyle, whiteSpace: 'nowrap', fontSize: '.75rem', color: '#64748b' }}>{fmtDataHora(l.createdAt)}</td>
@@ -689,10 +846,12 @@ function EntradasView({ conta, userId }: { conta: string; userId: string | null 
   );
 }
 
-function CardReceb({ r, conta, resultado, usuarios, mostrarProdutos, onAbrir, onResponsavelChange }: {
-  r: Recebimento; conta: string; resultado?: ResultadoCard; usuarios: Usuario[]; mostrarProdutos: boolean;
-  onAbrir: () => void; onResponsavelChange: (userId: string | null) => void;
+function CardReceb({ r, conta, modo, resultado, abrindo, usuarios, mostrarProdutos, onAbrir, onReabrir, onTipoChange, onResponsavelChange, onAbrirProduto }: {
+  r: Recebimento; conta: string; modo: 'pendente' | 'concluido'; resultado?: ResultadoCard; abrindo: boolean; usuarios: Usuario[]; mostrarProdutos: boolean;
+  onAbrir: () => void; onReabrir: () => void; onTipoChange: (tipo: string) => void;
+  onResponsavelChange: (userId: string | null) => void; onAbrirProduto: (idProduto: number) => void;
 }) {
+  const dias = diasDesde(r.dataEmissao);
   const temSinal = !!r.temSinalGarantia;
   const borda = r.temItemRisco ? '#fca5a5' : (r.temItemNovo && temSinal ? '#fcd34d' : (temSinal ? '#fde68a' : '#e2e8f0'));
   const headerBg = r.temItemRisco ? '#fef2f2' : (temSinal ? '#fffbeb' : '#f8fafc');
@@ -711,9 +870,15 @@ function CardReceb({ r, conta, resultado, usuarios, mostrarProdutos, onAbrir, on
             {r.naturezaOperacao ? <span style={{ ...ellip, fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#e2e8f0', color: '#475569' }}>{r.naturezaOperacao}</span> : <span style={{ color: '#cbd5e1' }}>—</span>}
           </div>
           <div data-l="Tipo" style={cell}>
-            {r.tipo ? <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#fff', border: `1px solid ${TIPO_COR[r.tipo] || '#cbd5e1'}`, color: TIPO_COR[r.tipo] || '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>{TIPO_LABEL[r.tipo] || r.tipo}</span> : null}
+            <select value={r.tipo || ''} onChange={(e) => onTipoChange(e.target.value)} title={r.tipoManual ? 'Tipo escolhido à mão' : 'Tipo automático — troque se estiver errado'}
+              style={{ width: '100%', fontSize: '.7rem', padding: '2px 4px', borderRadius: 6, background: '#fff', border: `1px solid ${TIPO_COR[r.tipo || ''] || '#cbd5e1'}`, color: TIPO_COR[r.tipo || ''] || '#475569', fontWeight: 600 }}>
+              {TIPOS_CHIP.filter((t) => t.v).map((t) => <option key={t.v} value={t.v}>{t.label}</option>)}
+            </select>
           </div>
-          <div data-l="Emissão" style={{ ...cell, fontSize: '.72rem', color: '#64748b', whiteSpace: 'nowrap' }}>{r.dataEmissao || ''}</div>
+          <div data-l="Emissão" style={{ ...cell, fontSize: '.72rem', color: '#64748b', whiteSpace: 'nowrap' }}>
+            {r.dataEmissao || ''}
+            {modo === 'pendente' && dias != null && dias > 7 && <span title="dias desde a emissão" style={{ marginLeft: 4, fontSize: '.62rem', padding: '1px 5px', borderRadius: 4, background: dias > 30 ? '#fee2e2' : '#fef3c7', color: dias > 30 ? '#b91c1c' : '#92400e' }}>{dias} d</span>}
+          </div>
           <div data-l="Total" style={{ ...cell, fontSize: '.78rem', color: '#334155', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtBRL(r.valorNFe)}</div>
           <div data-l="Itens" style={{ ...cell, fontSize: '.75rem', color: '#64748b', textAlign: 'right' }}>{r.itens ? r.itens.length : 0}</div>
           <div data-l="Sinal" style={cell}>
@@ -743,14 +908,20 @@ function CardReceb({ r, conta, resultado, usuarios, mostrarProdutos, onAbrir, on
             <NotaFiscalAcoes chave={r.chaveNFe} idReceb={r.idReceb} conta={conta} />
             {resultado ? (
               <span style={{ fontSize: '.72rem', color: resultado.tipo === 'ok' ? '#047857' : '#dc2626' }}>{resultado.texto}</span>
+            ) : modo === 'concluido' ? (
+              <>
+                {r.recebidoEm && <span style={{ fontSize: '.68rem', color: '#64748b' }}>entrou em {String(r.recebidoEm).split('-').reverse().join('/')}</span>}
+                <button onClick={onReabrir} style={{ padding: '5px 12px', fontSize: '.75rem', background: '#fff', color: RED, border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer' }}>Reabrir</button>
+              </>
             ) : (
-              <button onClick={onAbrir} style={{ padding: '5px 12px', fontSize: '.75rem', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Dar entrada...</button>
+              <button onClick={onAbrir} disabled={abrindo} title="Consulta a nota na Omie e abre a entrada"
+                style={{ padding: '5px 12px', fontSize: '.75rem', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: abrindo ? 'wait' : 'pointer', opacity: abrindo ? 0.7 : 1 }}>{abrindo ? 'Consultando a Omie…' : 'Dar entrada...'}</button>
             )}
           </span>
         </div>
       </div>
 
-      {mostrarProdutos && (temSinal ? (
+      {mostrarProdutos && (temSinal && (r.itens || []).some((it) => it.cmcAtual != null) ? (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -805,9 +976,20 @@ function CardReceb({ r, conta, resultado, usuarios, mostrarProdutos, onAbrir, on
           </table>
         </div>
       ) : (
-        <div style={{ padding: '8px 16px', fontSize: '.72rem', color: '#64748b' }}>
-          {(r.itens || []).slice(0, 6).map((it) => `${it.descricaoProduto || it.codigoProdutoInt || '?'} (${fmtSaldo(it.qtde)} @ ${fmtBRL(it.precoUnit)})`).join(' · ') || '(sem itens)'}
-          {(r.itens || []).length > 6 ? ` · +${(r.itens || []).length - 6} itens` : ''}
+        <div style={{ padding: '8px 16px', fontSize: '.72rem', color: '#64748b', lineHeight: 1.7 }}>
+          {(r.itens || []).length === 0 ? '(sem itens)' : (r.itens || []).slice(0, 12).map((it, i) => (
+            <span key={i}>
+              {i > 0 ? ' · ' : ''}
+              {it.idProduto ? (
+                <button type="button" onClick={() => onAbrirProduto(it.idProduto as number)} title="Ver o produto e o preço de venda"
+                  style={{ background: 'none', border: 'none', padding: 0, color: '#2563eb', cursor: 'pointer', fontSize: 'inherit', textDecoration: 'underline dotted' }}>
+                  {it.descricaoProduto || it.codigoProdutoInt || '?'}
+                </button>
+              ) : <span>{it.descricaoProduto || it.codigoProdutoInt || '?'} <span style={{ color: '#b45309' }}>(novo)</span></span>}
+              {` (${fmtSaldo(it.qtde)} @ ${fmtBRL(it.precoUnit)})`}
+            </span>
+          ))}
+          {(r.itens || []).length > 12 ? ` · +${(r.itens || []).length - 12} itens` : ''}
         </div>
       ))}
     </div>

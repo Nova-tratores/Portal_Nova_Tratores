@@ -21,6 +21,8 @@ import {
   obterMovimentosProduto,
   listarNotasEntrada,
   listarRecebimentos,
+  normalizarRecebimento,
+  omieRequest,
   consultarProduto,
   labelConta,
   getContasOmie,
@@ -28,36 +30,10 @@ import {
   SLEEP_BETWEEN_PAGES,
 } from './omie';
 import { hoje, addMeses, addDias, fmtBR, parseAnyDate } from './dates';
+import { RE_NATUREZA_GARANTIA, classificarTipoReceb, prepararRecebimento, type RecebNorm } from './recebimento-regras';
 import type { Conta } from './conta';
 
-const RE_NATUREZA_GARANTIA = /garantia|conserto|reparo|assist[eê]ncia t[eé]cnica/i;
-// combustivel e' um tipo PROPRIO (responsavel distinto do almoxarifado geral).
-const RECEB_KW_COMBUSTIVEL = ['combust', 'diesel', 'gasolina', 'etanol', 'alcool', 'álcool', 'arla'];
-const RECEB_KW_ALMOX = ['almoxarif', 'lubrific', 'oleo', 'óleo', 'graxa', 'uso e consumo', 'expediente'];
-
-// Item de linha >= este valor (R$) classifica o recebimento como 'maquinas'.
-// Maquina = item caro (ignora o total da nota; pedidao de pecas baratas nao conta).
-const LIMIAR_ITEM_MAQUINA = 10000;
-
-// Classifica um recebimento (shape de lib/ajustes/omie.normalizarRecebimento) em 1
-// dos 5 tipos. Heuristica defensiva: na duvida 'pecas'.
-// Precedencia: garantia > combustivel > almoxarifado > maquinas(item >= 10k) > pecas.
-function classificarTipoReceb(rec: any, sinalGarantia: boolean): string {
-  if (sinalGarantia) return 'pecas_garantia';
-  const itens = Array.isArray(rec.itens) ? rec.itens : [];
-  let almox = false;
-  let maxItem = 0;
-  for (const it of itens) {
-    const desc = String(it.descricaoProduto || '').toLowerCase();
-    if (RECEB_KW_COMBUSTIVEL.some((k) => desc.includes(k))) return 'combustivel';
-    if (RECEB_KW_ALMOX.some((k) => desc.includes(k))) almox = true;
-    const v = num(it.valTotalItem) || num(it.precoUnit) * num(it.qtde);
-    if (v > maxItem) maxItem = v;
-  }
-  if (almox) return 'almoxarifado';
-  if (maxItem >= LIMIAR_ITEM_MAQUINA) return 'maquinas';
-  return 'pecas';
-}
+// Regras de tipo/sinal agora vivem em ./recebimento-regras (puras, testadas).
 
 function num(v: any): number { return Number(v == null ? 0 : v) || 0; }
 function ts(d: any): number { const x = parseAnyDate(d); return x ? x.getTime() : 0; }
@@ -556,6 +532,35 @@ export async function analisarRecebimentosPendentes(conta: Conta, opts: any = {}
   });
   const comSinal = pendentes.filter(r => r.temSinalGarantia);
 
+  const totalItensRisco = await enriquecerCmcRecebimentos(conta, comSinal, onProgress, cfg);
+
+  // ordena: com sinal de garantia primeiro (e os de risco no topo), depois por data de emissao desc
+  pendentes.sort((a, b) => {
+    if (a.temSinalGarantia !== b.temSinalGarantia) return a.temSinalGarantia ? -1 : 1;
+    if (!!a.temItemRisco !== !!b.temItemRisco) return a.temItemRisco ? -1 : 1;
+    return ts(b.dataEmissao) - ts(a.dataEmissao);
+  });
+
+  return {
+    conta,
+    contaLabel: labelConta(conta),
+    dataDeBR, dataAteBR,
+    geradoEm: new Date().toISOString(),
+    duracaoMs: Date.now() - t0,
+    totalRecebimentos,
+    totalNaoProcessados: naoProcessados.length,
+    totalComSinalGarantia: comSinal.length,
+    totalItensRisco,
+    recebimentos: pendentes
+  };
+}
+
+/**
+ * CMC + saldo atuais por produto (consolidado) e o impacto projetado da entrada,
+ * só nos recebimentos passados (os com sinal de garantia). Muta os recebimentos e
+ * devolve quantos itens vão baixar o CMC (> 3%).
+ */
+export async function enriquecerCmcRecebimentos(conta: Conta, comSinal: any[], onProgress: (m: string) => void = () => {}, cfg: AjustesConfig = getConfig()): Promise<number> {
   // enriquece SO os com sinal de garantia: CMC + saldo atuais (consolidado) por produto.
   // Consultas em LOTES concorrentes (produtos distintos nao disparam "Consumo
   // redundante" da Omie): corta o tempo ~Nx vs. o sequencial com sleep(1000) antigo.
@@ -600,25 +605,26 @@ export async function analisarRecebimentosPendentes(conta: Conta, opts: any = {}
     }
   }
 
-  // ordena: com sinal de garantia primeiro (e os de risco no topo), depois por data de emissao desc
-  pendentes.sort((a, b) => {
-    if (a.temSinalGarantia !== b.temSinalGarantia) return a.temSinalGarantia ? -1 : 1;
-    if (!!a.temItemRisco !== !!b.temItemRisco) return a.temItemRisco ? -1 : 1;
-    return ts(b.dataEmissao) - ts(a.dataEmissao);
-  });
+  return totalItensRisco;
+}
 
-  return {
-    conta,
-    contaLabel: labelConta(conta),
-    dataDeBR, dataAteBR,
-    geradoEm: new Date().toISOString(),
-    duracaoMs: Date.now() - t0,
-    totalRecebimentos,
-    totalNaoProcessados: naoProcessados.length,
-    totalComSinalGarantia: comSinal.length,
-    totalItensRisco,
-    recebimentos: pendentes
-  };
+/**
+ * UMA nota, ao vivo na Omie (ConsultarRecebimento), no mesmo formato da lista de
+ * pendentes: sinal de garantia, tipo e (se tiver sinal) o impacto no CMC de cada item.
+ * É o que a tela única chama ao abrir a nota para dar entrada.
+ */
+export async function analisarUmRecebimento(conta: Conta, idReceb: number | string, tipoManual?: string | null): Promise<any> {
+  const cfg = getConfig();
+  const data: any = await omieRequest('/produtos/recebimentonfe/', 'ConsultarRecebimento', { nIdReceb: Number(idReceb) || idReceb }, conta);
+  if (data && data.faultstring) throw new Error('Omie: ' + data.faultstring);
+  const bruto = data && (data.recebimento || data.recebimentos || data);
+  const rec = normalizarRecebimento(Array.isArray(bruto) ? bruto[0] : bruto) as RecebNorm | null;
+  if (!rec || rec.idReceb == null) throw new Error('A Omie não devolveu este recebimento.');
+  const { raw: _raw, ...semRaw } = rec as any;
+  void _raw;
+  const r: any = prepararRecebimento(semRaw as RecebNorm, cfg, tipoManual);
+  if (r.temSinalGarantia) await enriquecerCmcRecebimentos(conta, [r], () => {}, cfg);
+  return r;
 }
 
 // =============================================================================

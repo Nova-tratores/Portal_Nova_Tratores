@@ -52,8 +52,8 @@ export const CATALOGO: Record<string, DefKpi> = {
   propostas_abertas: { comodo: 'patio', rotulo: 'Propostas de máquina em aberto', sensivel: true, fonte: 'nativo', porConta: false, tela: '/propostas' },
   maq_pedido_fabrica: { comodo: 'patio', rotulo: 'Pedidos à fábrica em aberto', sensivel: false, fonte: 'nativo', porConta: false, tela: '/propostas' },
   maq_recebida_sem_faturar: { comodo: 'patio', rotulo: 'Máquina recebida sem faturar', sensivel: false, fonte: 'nativo', porConta: false, tela: '/propostas' },
-  maq_em_transito: { comodo: 'patio', rotulo: 'Máquinas a caminho (NF faturada)', sensivel: true, fonte: 'recebimentos', porConta: true, tela: '/estoque/recebimentos-omie' },
-  maq_receb_esquecido: { comodo: 'patio', rotulo: 'Recebimento de máquina esquecido', sensivel: true, fonte: 'recebimentos', porConta: true, tela: '/estoque/recebimentos-omie' },
+  maq_em_transito: { comodo: 'patio', rotulo: 'Máquinas a caminho (NF faturada)', sensivel: true, fonte: 'recebimentos', porConta: true, tela: '/estoque/recebimentos' },
+  maq_receb_esquecido: { comodo: 'patio', rotulo: 'Recebimento de máquina esquecido', sensivel: true, fonte: 'recebimentos', porConta: true, tela: '/estoque/recebimentos' },
   ppv_pedido_aberto: { comodo: 'balcao', rotulo: 'PPV em aberto — pedido', sensivel: false, fonte: 'nativo', porConta: false, tela: '/ppv' },
   ppv_remessa_aberta: { comodo: 'balcao', rotulo: 'PPV em aberto — remessa', sensivel: false, fonte: 'nativo', porConta: false, tela: '/ppv' },
   // Os dois abaixo vêm da Omie (tarefa planta-omie-abertos, a cada 2 h) com a mesma regra de
@@ -481,7 +481,7 @@ function paraItem(kpi: string, r: Row, f: Fontes): Omit<ItemKpi, 'criado_por'> {
     }
     case 'patio':
       if (kpi.startsWith('maq_em') || kpi.startsWith('maq_receb'))
-        return { chave: `nf-${r.conta_omie}-${r.id_receb}`, titulo: r.fornecedor || 'Fornecedor', sub: `NF ${String(r.numero_nfe || '').replace(/^0+/, '')} · ${r.qtd_maquinas} máquina(s) · emitida ${brData(isoDe(r.emissao_nfe))} · ${String(r.conta_omie).toUpperCase()}`, valor: Number(r.valor_maquinas) || 0, data: isoDe(r.emissao_nfe), href: '/estoque/recebimentos-omie' };
+        return { chave: `nf-${r.conta_omie}-${r.id_receb}`, titulo: r.fornecedor || 'Fornecedor', sub: `NF ${String(r.numero_nfe || '').replace(/^0+/, '')} · ${r.qtd_maquinas} máquina(s) · emitida ${brData(isoDe(r.emissao_nfe))} · ${String(r.conta_omie).toUpperCase()}`, valor: Number(r.valor_maquinas) || 0, data: isoDe(r.emissao_nfe), href: '/estoque/recebimentos' };
       if (kpi === 'propostas_abertas') return { chave: `pr-${r.id}`, titulo: r.Cliente || 'Sem cliente', sub: [`${r.Marca || ''} ${r.Modelo || ''}`.trim(), r.status, r.vendedor_nome, r.previsao_fechamento ? `fecha ${brData(String(r.previsao_fechamento).slice(0, 10))}` : 'sem previsão', r.dias_na_fase != null ? `${r.dias_na_fase} d na fase` : ''].filter(Boolean).join(' · '), valor: Number(r.valor) || 0, data: r.previsao_fechamento || null, href: '/propostas' };
       return { chave: `pf-${r.id}`, titulo: r.cliente || 'Sem cliente', sub: [`${r.marca || ''} ${r.modelo || ''}`.trim(), r.status, r.eta_fabrica ? `chega ${brData(r.eta_fabrica)}${Number(r.dias_atraso_eta) > 0 ? ` (atrasada ${r.dias_atraso_eta} d)` : ''}` : `${r.dias_na_fase ?? 0} d na fase`].filter(Boolean).join(' · '), valor: null, data: r.eta_fabrica || null, href: '/propostas' };
     case 'balcao': {

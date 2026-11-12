@@ -297,7 +297,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'dashboard-maquinas', label: 'Dashboard de Vendas — ver Máquinas' },
     { id: 'notas-entrada', label: 'Notas de Entrada' },
     { id: 'recebimentos', label: 'Recebimentos' },
-    { id: 'recebimentos-omie', label: 'Recebimentos (Omie)' },
+    { id: 'recebimentos-omie', label: 'Recebimentos (acesso antigo — mesma tela de Recebimentos)' },
     { id: 'movimentacao-produto', label: 'Movimentação de Produto' },
     { id: 'cadastro-produto', label: 'Cadastro de Produto' },
     { id: 'curva-abc', label: 'Curva ABC' },

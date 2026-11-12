@@ -26,7 +26,7 @@ import { sleep } from './utils';
 import { separarMaquinas, juntarItens } from './recebimento-maquina';
 
 export const URL_RECEBIMENTO = 'https://app.omie.com.br/api/v1/produtos/recebimentonfe/';
-export const RECEB_TIPOS = ['almoxarifado', 'maquinas', 'pecas', 'pecas_garantia'] as const;
+export const RECEB_TIPOS = ['almoxarifado', 'combustivel', 'maquinas', 'pecas', 'pecas_garantia'] as const;
 export type RecebTipo = (typeof RECEB_TIPOS)[number];
 
 // conta_omie em recebimentos_nfe é MINÚSCULO; Conta do Portal é MAIÚSCULO.
@@ -365,7 +365,8 @@ export async function concluirRecebimento(
   const r = rec as RecebRow;
   if (r.status === 'Recebida') return { ok: true, jaConcluido: true };
   const contaConcreta = contaUp(r.conta_omie); // conta DA LINHA
-  const baseParams: Record<string, unknown> = { nIdReceb: idReceb, cChaveNfe: r.chave_nfe || undefined };
+  // A Omie aceita SÓ um identificador: 'Preencha apenas a Tag [nIdReceb] ou a tag [cChaveNfe]!'
+  const baseParams: Record<string, unknown> = { nIdReceb: idReceb };
 
   // 1. (Opcional) aplica categoria escolhida antes de concluir (best-effort).
   if (codigoCategoria) {
@@ -406,7 +407,7 @@ export async function reabrirRecebimento(
   const rev = await omieRequest(
     URL_RECEBIMENTO,
     'ReverterRecebimento',
-    { nIdReceb: idReceb, cChaveNfe: r.chave_nfe || undefined },
+    { nIdReceb: idReceb }, // só um identificador (a Omie recusa id + chave juntos)
     { conta: contaConcreta },
   );
   if (rev && rev.faultstring) return { erro: 'Omie: ' + rev.faultstring };

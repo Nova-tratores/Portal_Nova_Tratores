@@ -48,7 +48,7 @@ export function logEntradaReceb(row: {
   idReceb?: number | string | null;
   numeroNFe?: string | null;
   tipo?: string | null;
-  acao: 'dar_entrada' | 'correcao_cmc';
+  acao: 'dar_entrada' | 'correcao_cmc' | 'reversao';
   userId?: string | null;
   userNome?: string | null;
   payload?: any;
@@ -89,7 +89,7 @@ export async function listarEntradasLog(args: {
     .from('recebimento_entrada_log')
     .select('id,id_receb,numero_nfe,tipo,acao,user_id,user_nome,resultado,created_at')
     .eq('conta_omie', low)
-    .in('acao', ['dar_entrada', 'correcao_cmc'])
+    .in('acao', ['dar_entrada', 'correcao_cmc', 'reversao'])
     .order('created_at', { ascending: false })
     .limit(500);
   if (args.userId) q = q.eq('user_id', args.userId);

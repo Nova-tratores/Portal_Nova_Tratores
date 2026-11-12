@@ -25,6 +25,8 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/estoque/notas", destination: "/financeiro/notas", permanent: false },
+      // Recebimentos (Omie) virou parte da tela única de Recebimentos (10/11/2026).
+      { source: "/estoque/recebimentos-omie", destination: "/estoque/recebimentos", permanent: false },
       // telas de contas que saíram do Ajustes para o Financeiro › Caixa (09/11/2026)
       { source: "/ajustes/correcao-contas", destination: "/financeiro/caixa/correcao-contas", permanent: false },
       { source: "/ajustes/baixa-contas", destination: "/financeiro/caixa/baixar-contas", permanent: false },

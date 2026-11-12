@@ -3,11 +3,13 @@ import { parseConta } from '@/lib/estoque/conta';
 import { consultarProdutoPorId } from '@/lib/estoque/recebimentos';
 import { consultarEstoque } from '@/lib/estoque/omie';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
+import { ACESSO_RECEBIMENTOS } from '@/lib/ajustes/recebimentos-espelho';
 
 export const dynamic = 'force-dynamic';
 
 // Mesmo gate da tela /estoque/recebimentos-omie (pode('estoque','recebimentos-omie')).
-const OPCOES = [{ modulo: 'estoque', acao: 'recebimentos-omie' }];
+// Tela única /estoque/recebimentos (Recebimentos ou Recebimentos (Omie)).
+const OPCOES = ACESSO_RECEBIMENTOS;
 export const maxDuration = 60;
 
 // Detalhe de produto por ID interno Omie (popup de item do recebimento).

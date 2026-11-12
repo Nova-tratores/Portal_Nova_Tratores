@@ -36,11 +36,13 @@ const SISTEMAS = [
   { value: 'propostas', label: 'Proposta Comercial' },
   { value: 'vendas-modelo', label: 'Vendas por Modelo' },
   { value: 'ajustes', label: 'Ajustes (estoque)' },
+  { value: 'recebimentos', label: 'Recebimentos (NF de entrada)' },
 ]
 
 const SISTEMA_ICONS: Record<string, React.ReactNode> = {
   'vendas-modelo': <Tags size={16} />,
   ajustes: <Package size={16} />,
+  recebimentos: <Package size={16} />,
   revisoes: <Wrench size={16} />,
   requisicoes: <ClipboardList size={16} />,
   pos: <Settings size={16} />,
@@ -71,6 +73,9 @@ const ACAO_COLORS: Record<string, { bg: string; text: string }> = {
   // Ajustes (estoque)
   'ajuste-estoque': { bg: 'bg-amber-50', text: 'text-amber-700' },
   'corrigir-estoque-negativo': { bg: 'bg-amber-50', text: 'text-amber-700' },
+  // Recebimentos
+  reverter_recebimento: { bg: 'bg-red-50', text: 'text-red-700' },
+  reverter_recebimento_recusado: { bg: 'bg-zinc-100', text: 'text-zinc-600' },
 }
 
 const PAGE_SIZE = 30
@@ -230,6 +235,8 @@ function AtividadesPageInner() {
       sincronizar: 'Sincronizou',
       'ajuste-estoque': 'Ajustou estoque',
       'corrigir-estoque-negativo': 'Corrigiu estoque negativo',
+      reverter_recebimento: 'Reverteu recebimento (reabriu a NF)',
+      reverter_recebimento_recusado: 'Tentou reverter recebimento (Omie recusou)',
     }
     return map[acao] || acao
   }

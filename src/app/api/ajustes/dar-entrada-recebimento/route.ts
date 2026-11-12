@@ -3,6 +3,7 @@ import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 import { darEntradaRecebimento, type DarEntradaArgs } from '@/lib/ajustes/recebimentos';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { verificarAlocacaoDepoisDaEntrada } from '@/lib/pecas/alocacao-rapido';
+import { supabase } from '@/lib/ajustes/supabase';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -18,7 +19,14 @@ export async function POST(req: NextRequest) {
     const r = await darEntradaRecebimento({ ...body, conta } as DarEntradaArgs);
     // Entrada concluída → em segundo plano, relê as notas recentes desta conta e abre a
     // demanda de ALOCAÇÃO das peças sem Prateleira/Andar/Caixa (não segura a resposta).
-    if ((r as { ok?: boolean })?.ok) verificarAlocacaoDepoisDaEntrada(conta);
+    if ((r as { ok?: boolean })?.ok) {
+      // a nota sai da lista de pendentes na hora (sem esperar o sync do espelho)
+      if (body.idReceb != null) {
+        await supabase.from('recebimentos_nfe').update({ status: 'Recebida', etapa: '60' })
+          .eq('conta_omie', conta.toLowerCase()).eq('id_receb', Number(body.idReceb));
+      }
+      verificarAlocacaoDepoisDaEntrada(conta);
+    }
     return NextResponse.json(r);
   } catch (e) {
     return NextResponse.json({ ok: false, erro: (e as Error).message }, { status: 502 });

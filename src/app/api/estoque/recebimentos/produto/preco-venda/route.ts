@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { alterarPrecoVenda } from '@/lib/estoque/recebimentos';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
+import { ACESSO_RECEBIMENTOS } from '@/lib/ajustes/recebimentos-espelho';
 
 export const dynamic = 'force-dynamic';
 
 // Mesmo gate da tela /estoque/recebimentos-omie (pode('estoque','recebimentos-omie')).
-const OPCOES = [{ modulo: 'estoque', acao: 'recebimentos-omie' }];
+// Tela única /estoque/recebimentos (Recebimentos ou Recebimentos (Omie)).
+const OPCOES = ACESSO_RECEBIMENTOS;
 export const maxDuration = 60;
 
 // Atualiza preço de venda no Omie (AlterarProduto) + espelha no Supabase.
