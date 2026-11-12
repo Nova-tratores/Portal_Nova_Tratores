@@ -103,7 +103,7 @@ export function EnviarVideo({ pasta, rotulo = 'Enviar vídeo', onEnviado }: { pa
   return (
     <span style={{ display: 'inline-grid', gap: 4 }}>
       <input ref={input} type="file" accept="video/mp4,video/quicktime" hidden onChange={(e) => enviar(e.target.files?.[0])} />
-      <button type="button" style={bt('#dc2626')} disabled={pct !== null} onClick={() => input.current?.click()}>
+      <button type="button" style={bt('#d97706')} disabled={pct !== null} onClick={() => input.current?.click()}>
         {ic('fa-video')}{pct !== null ? `Enviando ${pct}%…` : rotulo}
       </button>
       {erro && <span style={{ fontSize: 12, color: '#dc2626' }}>{erro}</span>}

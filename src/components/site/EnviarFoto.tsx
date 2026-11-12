@@ -20,7 +20,7 @@ async function diminuir(arq: File): Promise<Blob> {
   return new Promise((ok) => c.toBlob((b) => ok(b || arq), tipo, 0.86));
 }
 
-export default function EnviarFoto({ pasta, varias = false, rotulo = 'Enviar foto', onEnviada, cor = '#dc2626' }: {
+export default function EnviarFoto({ pasta, varias = false, rotulo = 'Enviar foto', onEnviada, cor = '#d97706' }: {
   pasta: string; varias?: boolean; rotulo?: string; onEnviada: (urls: string[]) => void; cor?: string;
 }) {
   const input = useRef<HTMLInputElement>(null);

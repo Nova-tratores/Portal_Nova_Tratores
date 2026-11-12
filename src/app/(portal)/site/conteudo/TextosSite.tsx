@@ -95,13 +95,6 @@ export default function TextosSite() {
       {erroSite && <Aviso>{erroSite} Os campos aparecem vazios até o portal conseguir ler o site (variável SITE_URL).</Aviso>}
       <PublicarBarra versao={versao} />
 
-      <section style={{ ...cartaoNP, display: 'flex', gap: 12, alignItems: 'center' }}>
-        <Quadradinho icone="fa-pen-ruler" cor="#2563eb" tam={40} />
-        <span style={{ display: 'grid', gap: 2 }}>
-          <span style={{ fontSize: 16, fontWeight: 500 }}>O que dá para mudar no site</span>
-          <span style={{ fontSize: 13, color: T3 }}>Toque numa parte para mudar. Embaixo de cada campo diz para que serve, e a prévia mostra como fica no computador e no celular.</span>
-        </span>
-      </section>
 
       <div style={grade(280)}>
         {ORDEM.map((g) => {
@@ -173,7 +166,7 @@ export default function TextosSite() {
           <section style={{ ...cartaoNP, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
             {msg && <span style={{ flexBasis: '100%', color: '#dc2626', fontSize: 13 }}>{ic('fa-circle-exclamation')} {msg}</span>}
             {podeEditar && (
-              <button style={{ ...bt('#dc2626', true), opacity: mexeu(aberto) ? 1 : 0.5 }} disabled={!mexeu(aberto) || salvando} onClick={() => gravar(aberto)}>
+              <button style={{ ...bt('#d97706', true), opacity: mexeu(aberto) ? 1 : 0.5 }} disabled={!mexeu(aberto) || salvando} onClick={() => gravar(aberto)}>
                 {ic('fa-floppy-disk')}{salvando ? 'Gravando…' : 'Gravar'}
               </button>
             )}

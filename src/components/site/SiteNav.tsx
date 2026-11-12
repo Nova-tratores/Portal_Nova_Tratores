@@ -5,7 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { ABAS_SITE, PAGINAS_SITE, podeTelaSite, slugDaPaginaSite, slugDaRotaSite } from '@/app/(portal)/site/paginas';
 
-// Guias estilo Chrome na faixa vermelha do Comercial (molde do IVNav).
+// Guias estilo Chrome na faixa amarela do Site (cor do módulo, 12/11) (molde do IVNav).
 export default function SiteNav() {
   const pathname = usePathname() ?? '';
   const { userProfile } = useAuth();
@@ -21,7 +21,7 @@ export default function SiteNav() {
       className="print:hidden"
       style={{
         display: 'flex', alignItems: 'flex-end', gap: 3, padding: '10px clamp(12px, 2vw, 28px) 0',
-        background: 'linear-gradient(135deg, #F87171, #991B1B)', overflowX: 'auto',
+        background: 'linear-gradient(135deg, #FBBF24, #B45309)', overflowX: 'auto',
         WebkitOverflowScrolling: 'touch', boxShadow: '0 1px 4px var(--portal-shadow)', flexWrap: 'nowrap',
       }}
     >

@@ -8,7 +8,6 @@ import { fetchAuth } from '@/lib/auth/client';
 import { Aviso, tela } from '@/components/site/ui';
 import SubAbas from '@/components/site/SubAbas';
 import { ABAS_ACESSOS } from '@/components/site/abasAcessos';
-import { IconeRede } from '@/components/site/Artes';
 import { REDE, STATUS_POST, ehRede, type RedeId, type StatusPost } from '@/lib/site/redes';
 import { T1, T2, T3, bt, cartaoNP, grade, ic } from '@/components/site/np';
 
@@ -63,21 +62,12 @@ export default function AcessosRede({ params }: { params: Promise<{ rede: string
     <div style={{ ...tela, color: T1 }}>
       <SubAbas abas={ABAS_ACESSOS} />
       {erro && <Aviso>{erro}</Aviso>}
-      <section style={{ ...cartaoNP, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ width: 44, height: 44, borderRadius: 12, display: 'grid', placeItems: 'center', background: `color-mix(in srgb, ${r.cor} 10%, var(--surface))` }}><IconeRede id={rede} tam={22} /></span>
-        <span style={{ flex: '1 1 240px', display: 'grid', gap: 2 }}>
-          <span style={{ fontSize: 16 }}>
-            {dados === null ? 'Carregando…'
-              : resumo.tem ? (resumo.alcanceAnt ? `Alcance ${resumo.alcance >= resumo.alcanceAnt ? 'subiu' : 'caiu'} ${Math.abs(Math.round((resumo.alcance / resumo.alcanceAnt - 1) * 100))}% nos últimos 30 dias` : `${n(resumo.alcance)} pessoas alcançadas em 30 dias`)
-              : `${resumo.postados} post${resumo.postados === 1 ? '' : 's'} no ${r.nome} nos últimos 90 dias`}
-          </span>
-          <span style={{ fontSize: 13, color: T3 }}>
-            {resumo.tem ? `Números de ${dados?.conta?.nome || 'conta da empresa'}, atualizados pelo robô.` : 'Os números da rede (alcance, visualizações, seguidores) chegam quando a conta for ligada.'}
-          </span>
+      {dados && !resumo.tem && (
+        <span style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', fontSize: 13, color: T3 }}>
+          Alcance, visualizações e seguidores aparecem quando a conta do {r.nome} for ligada.
+          <Link href="/site/conteudo/contas" style={{ ...bt(r.cor), textDecoration: 'none', minHeight: 34, padding: '4px 12px' }}>{ic('fa-link')}Ver como ligar</Link>
         </span>
-        {!resumo.tem && <Link href="/site/conteudo/contas" style={{ ...bt(r.cor), textDecoration: 'none' }}>{ic('fa-link')}Ver como ligar</Link>}
-      </section>
-
+      )}
       <div style={grade(200)}>
         {resumo.tem ? (
           <>

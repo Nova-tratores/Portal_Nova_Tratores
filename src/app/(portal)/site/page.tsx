@@ -93,7 +93,7 @@ function Pedidos() {
 
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {[['abertos', 'Em aberto'], ['todos', 'Todos'], ['perdido', 'Perdidos'], ['descartado', 'Descartados']].map(([id, r]) => (
-          <button key={id} style={botao('#dc2626', filtro === id)} onClick={() => setFiltro(id)}>{r}</button>
+          <button key={id} style={botao('#d97706', filtro === id)} onClick={() => setFiltro(id)}>{r}</button>
         ))}
       </div>
 
@@ -105,7 +105,7 @@ function Pedidos() {
             const s = st(p.status);
             return (
               <button key={p.id} onClick={() => setAberto(p.id)}
-                style={{ display: 'flex', gap: 12, alignItems: 'center', width: '100%', padding: '12px 16px', border: 0, borderBottom: '1px solid var(--border)', background: aberto === p.id ? 'color-mix(in srgb, #dc2626 6%, var(--surface))' : 'transparent', color: 'var(--portal-text)', font: 'inherit', textAlign: 'left', cursor: 'pointer' }}>
+                style={{ display: 'flex', gap: 12, alignItems: 'center', width: '100%', padding: '12px 16px', border: 0, borderBottom: '1px solid var(--border)', background: aberto === p.id ? 'color-mix(in srgb, #d97706 6%, var(--surface))' : 'transparent', color: 'var(--portal-text)', font: 'inherit', textAlign: 'left', cursor: 'pointer' }}>
                 <span style={{ flex: 'none', width: 36, height: 36, borderRadius: 10, display: 'grid', placeItems: 'center', background: `color-mix(in srgb, ${s.cor} 10%, transparent)`, color: s.cor }}>
                   <i className={`fa-solid ${s.icone}`} style={{ fontWeight: 900 }} />
                 </span>

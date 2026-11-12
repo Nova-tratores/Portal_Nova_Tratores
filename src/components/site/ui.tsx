@@ -71,7 +71,7 @@ export function ComoLer({ children }: { children: ReactNode }) {
   return (
     <details style={{ ...cartao, padding: '10px 16px' }}>
       <summary style={{ cursor: 'pointer', fontWeight: 500, color: 'var(--portal-text)' }}>
-        <i className="fa-solid fa-circle-question" style={{ fontWeight: 900, color: '#dc2626', marginRight: 8 }} />Como ler esta tela
+        <i className="fa-solid fa-circle-question" style={{ fontWeight: 900, color: '#d97706', marginRight: 8 }} />Como ler esta tela
       </summary>
       <div style={{ marginTop: 8, fontSize: 14, lineHeight: 1.6, color: 'var(--portal-text)' }}>{children}</div>
     </details>
@@ -87,7 +87,7 @@ export function Aviso({ children, tom = 'erro' }: { children: ReactNode; tom?: '
   );
 }
 
-export const botao = (cor = '#dc2626', cheio = true): React.CSSProperties => ({
+export const botao = (cor = '#d97706', cheio = true): React.CSSProperties => ({
   display: 'inline-flex', alignItems: 'center', gap: 6, minHeight: 40, padding: '8px 14px', borderRadius: 10,
   border: `1px solid ${cheio ? cor : 'var(--border)'}`, background: cheio ? cor : 'var(--surface)',
   color: cheio ? '#fefefe' : 'var(--portal-text)', font: 'inherit', fontSize: 14, fontWeight: 500, cursor: 'pointer', textDecoration: 'none',

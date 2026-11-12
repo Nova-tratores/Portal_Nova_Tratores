@@ -169,7 +169,7 @@ function Editor({ item, podeEditar, fechar, gravou, marcaInicial }: { item: Item
             <b style={{ fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{novo ? 'Nova máquina no site' : nome || item!.titulo}</b>
             <span style={ajuda}>{novo ? 'Aparece no site depois de publicar' : v.oculto ? 'Fora do site' : item!.aguardando ? 'Nova: aparece no site depois de publicar' : 'No site'}</span>
           </span>
-          {!novo && !item!.aguardando && <a href={item!.link} target="_blank" rel="noopener" style={{ ...botao('#dc2626', false), minHeight: 36 }}><i className="fa-solid fa-arrow-up-right-from-square" style={{ fontWeight: 900 }} />Ver no site</a>}
+          {!novo && !item!.aguardando && <a href={item!.link} target="_blank" rel="noopener" style={{ ...botao('#d97706', false), minHeight: 36 }}><i className="fa-solid fa-arrow-up-right-from-square" style={{ fontWeight: 900 }} />Ver no site</a>}
           <button onClick={fechar} aria-label="Fechar" style={{ width: 40, height: 40, border: 0, borderRadius: 10, background: 'var(--portal-bg)', color: 'var(--portal-text)', cursor: 'pointer' }}>
             <i className="fa-solid fa-xmark" style={{ fontWeight: 900 }} />
           </button>
@@ -198,12 +198,12 @@ function Editor({ item, podeEditar, fechar, gravou, marcaInicial }: { item: Item
               <span style={ajuda}>A primeira é a do cartão e do topo da página. Use as setas para mudar a ordem.</span>
               <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(min(150px, 100%), 1fr))' }}>
                 {f.fotos.map((foto, i) => (
-                  <div key={`${foto.src}-${i}`} style={{ ...cartao, padding: 8, display: 'grid', gap: 6, outline: i === 0 ? '2px solid #dc2626' : 'none' }}>
+                  <div key={`${foto.src}-${i}`} style={{ ...cartao, padding: 8, display: 'grid', gap: 6, outline: i === 0 ? '2px solid #d97706' : 'none' }}>
                     <span style={{ aspectRatio: '4 / 3', borderRadius: 8, background: '#fff', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       {fotoUrl(foto) ? <img src={fotoUrl(foto)} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} loading="lazy" /> : <i className="fa-solid fa-image" style={{ color: muted }} />}
                     </span>
-                    <span style={{ fontSize: 11, color: i === 0 ? '#dc2626' : muted }}>{i === 0 ? 'Principal' : `Foto ${i + 1}`}</span>
+                    <span style={{ fontSize: 11, color: i === 0 ? '#d97706' : muted }}>{i === 0 ? 'Principal' : `Foto ${i + 1}`}</span>
                     <input style={{ ...campo, minHeight: 34, fontSize: 12 }} value={foto.alt} placeholder="O que aparece na foto" onChange={(e) => set({ fotos: f.fotos.map((x, k) => (k === i ? { ...x, alt: e.target.value } : x)) })} />
                     <div style={{ display: 'flex', gap: 4 }}>
                       <button type="button" aria-label="Para a esquerda" style={{ ...botao('#6b7280', false), minHeight: 34, padding: '4px 10px' }} onClick={() => moverFoto(i, -1)} disabled={i === 0}><i className="fa-solid fa-arrow-left" style={{ fontWeight: 900 }} /></button>
@@ -243,7 +243,7 @@ function Editor({ item, podeEditar, fechar, gravou, marcaInicial }: { item: Item
                   <button type="button" aria-label="Tirar linha" style={{ ...botao('#dc2626', false), padding: '4px 12px' }} onClick={() => set({ specs: f.specs.filter((_, j) => j !== i) })}><i className="fa-solid fa-trash" style={{ fontWeight: 900 }} /></button>
                 </div>
               ))}
-              <button type="button" style={{ ...botao('#dc2626', false), justifySelf: 'start' }} onClick={() => set({ specs: [...f.specs, ['', '']] })}><i className="fa-solid fa-plus" style={{ fontWeight: 900 }} />Linha na ficha</button>
+              <button type="button" style={{ ...botao('#d97706', false), justifySelf: 'start' }} onClick={() => set({ specs: [...f.specs, ['', '']] })}><i className="fa-solid fa-plus" style={{ fontWeight: 900 }} />Linha na ficha</button>
             </Bloco>
 
             <Bloco titulo="Preço e selo" aberto={novo}>
@@ -259,7 +259,7 @@ function Editor({ item, podeEditar, fechar, gravou, marcaInicial }: { item: Item
               </div>
               {([['exibir_preco', 'Mostrar o preço no site'], ['pronta_entrega', 'Pronta entrega']] as const).map(([k, r]) => (
                 <label key={k} style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 14, minHeight: 32 }}>
-                  <input type="checkbox" checked={v[k]} onChange={(e) => setV({ ...v, [k]: e.target.checked })} style={{ width: 18, height: 18, accentColor: '#dc2626' }} />{r}
+                  <input type="checkbox" checked={v[k]} onChange={(e) => setV({ ...v, [k]: e.target.checked })} style={{ width: 18, height: 18, accentColor: '#d97706' }} />{r}
                 </label>
               ))}
               <label style={rotulo}>Nota interna (não aparece no site)
@@ -415,8 +415,8 @@ export default function CatalogoSitePage() {
       <SubAbas abas={ABAS_PEDIDOS_CATALOGO} />
       <PublicarBarra versao={versao} />
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <button style={botao('#dc2626', vista === 'maquinas')} onClick={() => setVista('maquinas')}><i className="fa-solid fa-tractor" style={{ fontWeight: 900 }} />Máquinas</button>
-        <button style={botao('#dc2626', vista === 'marcas')} onClick={() => setVista('marcas')}><i className="fa-solid fa-copyright" style={{ fontWeight: 900 }} />Marcas</button>
+        <button style={botao('#d97706', vista === 'maquinas')} onClick={() => setVista('maquinas')}><i className="fa-solid fa-tractor" style={{ fontWeight: 900 }} />Máquinas</button>
+        <button style={botao('#d97706', vista === 'marcas')} onClick={() => setVista('marcas')}><i className="fa-solid fa-copyright" style={{ fontWeight: 900 }} />Marcas</button>
       </div>
       {vista === 'marcas' ? (
         <MarcasVista
@@ -427,7 +427,7 @@ export default function CatalogoSitePage() {
         />
       ) : (<>
       <div style={grade(160)}>
-        <Numero icone="fa-tractor" cor="#dc2626" rotulo="Tratores no site" valor={<Conta valor={contagem.tratores} />} ativo={cat === 'tratores'} onClick={filtro('tratores')} />
+        <Numero icone="fa-tractor" cor="#d97706" rotulo="Tratores no site" valor={<Conta valor={contagem.tratores} />} ativo={cat === 'tratores'} onClick={filtro('tratores')} />
         <Numero icone="fa-gears" cor="#0284c7" rotulo="Implementos no site" valor={<Conta valor={contagem.implementos} />} ativo={cat === 'implementos'} onClick={filtro('implementos')} />
         <Numero icone="fa-tag" cor="#16a34a" rotulo="Com preço à mostra" valor={<Conta valor={contagem.comPreco} />} ativo={cat === 'com-preco'} onClick={filtro('com-preco')} />
         <Numero icone="fa-truck-fast" cor="#d97706" rotulo="Pronta entrega" valor={<Conta valor={contagem.pronta} />} ativo={cat === 'pronta'} onClick={filtro('pronta')} />

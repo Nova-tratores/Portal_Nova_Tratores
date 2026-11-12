@@ -88,7 +88,7 @@ function Cartao({ assunto, icone, cor, titulo, children, verTudo, largo }: {
       </div>
       {children}
       {verTudo && (
-        <button onClick={verTudo} style={{ justifySelf: 'start', border: 0, background: 'transparent', padding: '6px 0', minHeight: 32, color: '#dc2626', font: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
+        <button onClick={verTudo} style={{ justifySelf: 'start', border: 0, background: 'transparent', padding: '6px 0', minHeight: 32, color: '#d97706', font: 'inherit', fontSize: 13, fontWeight: 500, cursor: 'pointer' }}>
           Ver tudo <i className="fa-solid fa-arrow-right" style={{ fontWeight: 900, marginLeft: 4 }} />
         </button>
       )}
@@ -218,9 +218,9 @@ export default function AcessosSitePage() {
       {erro && <Aviso>{erro}</Aviso>}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {[[1, 'Hoje e ontem'], [7, '7 dias'], [30, '30 dias'], [90, '90 dias']].map(([d, rot]) => (
-          <button key={d} style={botao('#dc2626', !mes && dias === d)} onClick={() => { setMes(null); setDias(Number(d)); }}>{rot}</button>
+          <button key={d} style={botao('#d97706', !mes && dias === d)} onClick={() => { setMes(null); setDias(Number(d)); }}>{rot}</button>
         ))}
-        <label style={{ ...botao('#dc2626', !!mes), paddingBlock: 0, gap: 8 }}>
+        <label style={{ ...botao('#d97706', !!mes), paddingBlock: 0, gap: 8 }}>
           <i className="fa-regular fa-calendar" style={{ fontWeight: 400 }} />
           <select aria-label="Ver por mês" value={mes || ''} onChange={(e) => setMes(e.target.value || null)}
             style={{ minHeight: 38, border: 0, background: 'transparent', color: 'inherit', font: 'inherit', cursor: 'pointer', outline: 'none' }}>
@@ -252,7 +252,7 @@ export default function AcessosSitePage() {
       {r && L && dados && !vazioPeriodo && (
         <>
           <div style={grade(180)}>
-            <Numero icone="fa-users" cor="#dc2626" rotulo="Pessoas (aparelhos)" valor={<Conta valor={r.visitantes} />}
+            <Numero icone="fa-users" cor="#d97706" rotulo="Pessoas (aparelhos)" valor={<Conta valor={r.visitantes} />}
               detalhe={<><Comparado agora={r.visitantes} antes={antes!.visitantes} rotulo={rotuloAntes} /><br />{r.voltaram} voltaram mais de uma vez</>} />
             <Numero icone="fa-route" cor="#0f766e" rotulo="Visitas" valor={<Conta valor={r.visitas} />}
               detalhe={<><Comparado agora={r.visitas} antes={antes!.visitas} rotulo={rotuloAntes} /><br />{r.paginas.toLocaleString('pt-BR')} páginas vistas</>} />
@@ -286,12 +286,12 @@ export default function AcessosSitePage() {
               ]} />
             </Cartao>
 
-            <Cartao assunto="Visitas por dia" icone="fa-chart-column" cor="#dc2626" largo
+            <Cartao assunto="Visitas por dia" icone="fa-chart-column" cor="#d97706" largo
               titulo={(() => { const m = [...porDia].sort((a, b) => b.visitas - a.visitas)[0]; return m?.visitas ? <>Dia mais forte: {diaCurto(m.dia)}, com {m.visitas} visitas</> : 'Sem visitas no período'; })()}>
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 4, height: 120, overflowX: 'auto' }}>
                 {porDia.map((d) => (
                   <div key={d.dia} title={`${diaCurto(d.dia)}: ${d.visitas} visitas, ${d.conversoes} chamaram`} style={{ flex: '1 0 10px', display: 'grid', alignContent: 'end', height: '100%' }}>
-                    <div style={{ height: `${(d.visitas / maxDia) * 100}%`, minHeight: 2, borderRadius: '4px 4px 0 0', background: 'color-mix(in srgb, #dc2626 35%, transparent)', position: 'relative' }}>
+                    <div style={{ height: `${(d.visitas / maxDia) * 100}%`, minHeight: 2, borderRadius: '4px 4px 0 0', background: 'color-mix(in srgb, #d97706 35%, transparent)', position: 'relative' }}>
                       <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: `${d.visitas ? (d.conversoes / d.visitas) * 100 : 0}%`, background: '#16a34a', borderRadius: 2 }} />
                     </div>
                   </div>
@@ -305,10 +305,10 @@ export default function AcessosSitePage() {
               <span style={{ fontSize: 12, color: muted }}>Barra = visitas do dia; parte verde = as que chamaram. Passe o dedo ou o mouse para ver o número.</span>
             </Cartao>
 
-            <Cartao assunto="Máquinas mais vistas" icone="fa-tractor" cor="#dc2626"
+            <Cartao assunto="Máquinas mais vistas" icone="fa-tractor" cor="#d97706"
               titulo={L.produtos.length ? <>Mais procurado: {r.produtos[0].nome}</> : 'Ninguém abriu uma máquina ainda'}
-              verTudo={L.produtos.length > 6 ? ver('Máquinas mais vistas (visitas que abriram a página)', L.produtos, '#dc2626') : undefined}>
-              <Barras cor="#dc2626" linhas={L.produtos.slice(0, 6)} />
+              verTudo={L.produtos.length > 6 ? ver('Máquinas mais vistas (visitas que abriram a página)', L.produtos, '#d97706') : undefined}>
+              <Barras cor="#d97706" linhas={L.produtos.slice(0, 6)} />
             </Cartao>
 
             <Cartao assunto="Para que chamaram" icone="fa-comments" cor="#16a34a"
@@ -316,10 +316,10 @@ export default function AcessosSitePage() {
               <Barras cor="#16a34a" linhas={L.assuntos} />
             </Cartao>
 
-            <Cartao assunto="De onde vêm" icone="fa-signs-post" cor="#dc2626"
+            <Cartao assunto="De onde vêm" icone="fa-signs-post" cor="#d97706"
               titulo={L.origens.length ? <>{r.origens[0].nome} traz {parte(r.origens[0].visitas, r.visitas)} das visitas</> : '—'}
-              verTudo={L.origens.length > 6 ? ver('De onde vêm', L.origens, '#dc2626') : undefined}>
-              <Barras cor="#dc2626" linhas={L.origens.slice(0, 6)} />
+              verTudo={L.origens.length > 6 ? ver('De onde vêm', L.origens, '#d97706') : undefined}>
+              <Barras cor="#d97706" linhas={L.origens.slice(0, 6)} />
             </Cartao>
 
             <Cartao assunto="Por onde entram" icone="fa-right-to-bracket" cor="#0f766e"
@@ -393,7 +393,7 @@ export default function AcessosSitePage() {
               <Barras cor="#d97706" linhas={L.pecas.slice(0, 6)} />
               <span style={{ fontSize: 13, color: muted }}>
                 {r.pecasPedidas.reduce((s, p) => s + p.total, 0)} peças pedidas no WhatsApp{r.aberturas3d ? ` · catálogo 3D aberto ${r.aberturas3d}×` : ''}.
-                {L.pedidas.length > 0 && <> <button onClick={ver('Peças pedidas no WhatsApp (código)', L.pedidas, '#1f9d55')} style={{ border: 0, background: 'transparent', padding: 0, color: '#dc2626', font: 'inherit', cursor: 'pointer' }}>Ver códigos</button></>}
+                {L.pedidas.length > 0 && <> <button onClick={ver('Peças pedidas no WhatsApp (código)', L.pedidas, '#1f9d55')} style={{ border: 0, background: 'transparent', padding: 0, color: '#d97706', font: 'inherit', cursor: 'pointer' }}>Ver códigos</button></>}
               </span>
             </Cartao>
 
@@ -407,7 +407,7 @@ export default function AcessosSitePage() {
                       <div key={t} style={{ display: 'grid', gap: 8, alignContent: 'start' }}>
                         <span style={{ fontSize: 13, fontWeight: 500 }}>{t}</span>
                         <Barras cor="#7c3aed" linhas={l.slice(0, 5).map((x) => ({ rotulo: x.nome, valor: x.total }))} />
-                        {l.length > 5 && <button onClick={ver(`Pedidos por ${t.toLowerCase()}`, l.map((x) => ({ rotulo: x.nome, valor: x.total })), '#7c3aed')} style={{ justifySelf: 'start', border: 0, background: 'transparent', padding: 0, color: '#dc2626', font: 'inherit', fontSize: 13, cursor: 'pointer' }}>Ver todos</button>}
+                        {l.length > 5 && <button onClick={ver(`Pedidos por ${t.toLowerCase()}`, l.map((x) => ({ rotulo: x.nome, valor: x.total })), '#7c3aed')} style={{ justifySelf: 'start', border: 0, background: 'transparent', padding: 0, color: '#d97706', font: 'inherit', fontSize: 13, cursor: 'pointer' }}>Ver todos</button>}
                       </div>
                     ))}
                   </div>
@@ -431,7 +431,7 @@ export default function AcessosSitePage() {
 
           <div style={{ ...cartao, padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '12px 16px', fontWeight: 500, borderBottom: '1px solid var(--border)' }}>
-              Últimas visitas {so !== 'todas' && <button style={{ ...botao('#dc2626', false), minHeight: 28, padding: '2px 10px', marginLeft: 8 }} onClick={() => setSo('todas')}>mostrar todas</button>}
+              Últimas visitas {so !== 'todas' && <button style={{ ...botao('#d97706', false), minHeight: 28, padding: '2px 10px', marginLeft: 8 }} onClick={() => setSo('todas')}>mostrar todas</button>}
             </div>
             {visitas.map((v) => (
               <div key={v.sessao} style={{ borderBottom: '1px solid var(--border)' }}>

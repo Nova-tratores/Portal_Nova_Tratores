@@ -82,7 +82,7 @@ export const TEMPORADAS_AGRO: TemporadaAgro[] = [
   { mes: '2027-10', ate: '2027-12', nome: 'Plantio da soja', prior: 2, ideia: 'Máquina de cliente em ação' },
 ];
 
-export const COR_PRIOR = { 3: '#dc2626', 2: '#d97706', 1: '#94a3b8' } as const;
+export const COR_PRIOR = { 3: '#dc2626', 2: '#2563eb', 1: '#94a3b8' } as const;
 export const NOME_PRIOR = { 3: 'Obrigatória', 2: 'Boa', 1: 'Opcional' } as const;
 
 /** Datas que caem no dia (inclui feiras de vários dias). */

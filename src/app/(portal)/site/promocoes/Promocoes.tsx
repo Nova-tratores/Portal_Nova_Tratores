@@ -297,9 +297,9 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
                 return (
                   <button key={p.id} type="button" onClick={() => { setPassando(false); setSel(p.id); }}
                     style={{ ...cartaoNP, padding: 10, display: 'grid', gap: 8, textAlign: 'left', font: 'inherit', color: T1, cursor: 'pointer',
-                      borderColor: ativa ? '#dc2626' : 'var(--border)', boxShadow: ativa ? '0 0 0 1px #dc2626' : 'none' }}>
+                      borderColor: ativa ? '#d97706' : 'var(--border)', boxShadow: ativa ? '0 0 0 1px #d97706' : 'none' }}>
                     <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                      <span style={{ width: 24, height: 24, borderRadius: 999, display: 'grid', placeItems: 'center', fontSize: 12, background: ativa ? '#dc2626' : 'var(--portal-bg)', color: ativa ? '#fefefe' : T2 }}>{i + 1}</span>
+                      <span style={{ width: 24, height: 24, borderRadius: 999, display: 'grid', placeItems: 'center', fontSize: 12, background: ativa ? '#d97706' : 'var(--portal-bg)', color: ativa ? '#fefefe' : T2 }}>{i + 1}</span>
                       <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.titulo}</span>
                     </span>
                     <Mini p={previaDe(p)} />
@@ -372,7 +372,7 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
               return (
                 <button key={p.id} type="button" onClick={() => setSel(p.id)}
                   style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 12px', alignItems: 'center', padding: '8px 6px', border: 0, borderRadius: 10, font: 'inherit', color: T1, textAlign: 'left', cursor: 'pointer',
-                    background: ativa ? 'color-mix(in srgb, #dc2626 6%, var(--surface))' : 'transparent' }}>
+                    background: ativa ? 'color-mix(in srgb, #d97706 6%, var(--surface))' : 'transparent' }}>
                   <span style={{ flex: '0 1 230px', minWidth: 0, display: 'flex', gap: 8, alignItems: 'center' }}>
                     <span style={{ width: 84, flex: 'none' }}><Mini p={previaDe(p)} apagada={!s.noAr} /></span>
                     <span style={{ display: 'grid', minWidth: 0 }}>
@@ -384,7 +384,7 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
                     <span style={{ position: 'absolute', top: 4, bottom: 4, left: pos(a), width: `calc(${pos(b)} - ${pos(a)})`, minWidth: 6, borderRadius: 6,
                       background: p.ativo ? `color-mix(in srgb, ${s.cor} 70%, transparent)` : `repeating-linear-gradient(45deg, ${CINZA}55 0 6px, transparent 6px 12px)`,
                       ...(p.fim ? {} : { maskImage: 'linear-gradient(90deg, #000 85%, transparent)' }) }} />
-                    <span style={{ position: 'absolute', top: -2, bottom: -2, left: pos(h), width: 2, background: '#dc2626' }} />
+                    <span style={{ position: 'absolute', top: -2, bottom: -2, left: pos(h), width: 2, background: '#d97706' }} />
                   </span>
                 </button>
               );
@@ -503,8 +503,8 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
             ] as const).map(([id, icone, t, d]) => (
               <button key={id} type="button" onClick={() => setModo(id)}
                 style={{ ...cartaoNP, padding: 14, display: 'flex', gap: 12, alignItems: 'flex-start', textAlign: 'left', cursor: 'pointer', font: 'inherit', color: T1,
-                  borderColor: modo === id ? '#dc2626' : 'var(--border)', background: modo === id ? 'color-mix(in srgb, #dc2626 6%, var(--surface))' : 'var(--surface)' }}>
-                <Quadradinho icone={icone} cor={modo === id ? '#dc2626' : CINZA} />
+                  borderColor: modo === id ? '#d97706' : 'var(--border)', background: modo === id ? 'color-mix(in srgb, #d97706 6%, var(--surface))' : 'var(--surface)' }}>
+                <Quadradinho icone={icone} cor={modo === id ? '#d97706' : CINZA} />
                 <span style={{ display: 'grid', gap: 2 }}>
                   <span style={{ fontSize: 15, fontWeight: 500 }}>{t}</span>
                   <span style={{ fontSize: 13, color: T3, lineHeight: 1.45 }}>{d}</span>
@@ -547,13 +547,13 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
             </Campo>
           </Secao>
         ) : (
-          <Secao icone="fa-tractor" cor="#dc2626" titulo="Qual máquina" sub="Toque na máquina">
+          <Secao icone="fa-tractor" cor="#d97706" titulo="Qual máquina" sub="Toque na máquina">
             <input style={{ ...campoNP, maxWidth: 420 }} placeholder="Buscar máquina pelo nome ou marca" value={buscaMaq} onChange={(e) => setBuscaMaq(e.target.value)} />
             <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(min(150px, 100%), 1fr))', maxHeight: 380, overflowY: 'auto', padding: 2 }}>
               {achadas.map((m) => (
                 <button key={m.slug} type="button" onClick={() => setR({ ...r, produto_slug: m.slug, titulo: r.titulo || m.titulo })}
                   style={{ ...cartaoNP, padding: 8, display: 'grid', gap: 6, cursor: 'pointer', font: 'inherit', color: T1, textAlign: 'left',
-                    borderColor: r.produto_slug === m.slug ? '#dc2626' : 'var(--border)', boxShadow: r.produto_slug === m.slug ? '0 0 0 1px #dc2626' : 'none' }}>
+                    borderColor: r.produto_slug === m.slug ? '#d97706' : 'var(--border)', boxShadow: r.produto_slug === m.slug ? '0 0 0 1px #d97706' : 'none' }}>
                   <span style={{ aspectRatio: '4 / 3', borderRadius: 10, background: '#fefefe', display: 'grid', placeItems: 'center', overflow: 'hidden' }}>
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     {m.foto ? <img src={m.foto} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} loading="lazy" /> : ic('fa-image')}
@@ -613,7 +613,7 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
 
         <section style={{ ...cartaoNP, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
           {erroForm && <span style={{ flexBasis: '100%', color: '#dc2626', fontSize: 13 }}>{ic('fa-circle-exclamation')} {erroForm}</span>}
-          <button style={bt('#dc2626', true)} disabled={salvando} onClick={salvar}>{ic('fa-floppy-disk')}{salvando ? 'Gravando…' : r.id ? 'Gravar mudanças' : 'Criar promoção'}</button>
+          <button style={bt('#d97706', true)} disabled={salvando} onClick={salvar}>{ic('fa-floppy-disk')}{salvando ? 'Gravando…' : r.id ? 'Gravar mudanças' : 'Criar promoção'}</button>
           <button style={bt(CINZA)} onClick={fecharEditor}>Voltar sem gravar</button>
           <span style={{ fontSize: 12, color: T3, marginLeft: 'auto' }}>Depois de gravar, toque em Publicar site (no alto).</span>
         </section>
@@ -650,16 +650,7 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
       <PublicarBarra versao={versao} />
       {r ? editor() : (
         <>
-          <section style={{ ...cartaoNP, display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center' }}>
-            <Quadradinho icone="fa-bullhorn" cor="#dc2626" tam={40} />
-            <span style={{ flex: '1 1 240px', display: 'grid', gap: 2 }}>
-              <span style={{ fontSize: 16, fontWeight: 500 }}>
-                {noAr.length ? `${noAr.length} ${noAr.length === 1 ? 'promoção no ar' : 'promoções no ar'} na página inicial` : 'Nenhuma promoção no ar: o bloco não aparece no site'}
-              </span>
-              <span style={{ fontSize: 13, color: T3 }}>{fora.length ? `${fora.length} fora do site (desligada, vencida ou para depois)` : 'Todas as criadas estão no ar'}</span>
-            </span>
-            {podeEditar && <button style={bt('#dc2626', true)} onClick={() => abrir()}>{ic('fa-plus')}Nova promoção</button>}
-          </section>
+          {podeEditar && <button style={{ ...bt('#d97706', true), justifySelf: 'end', width: 'fit-content', marginLeft: 'auto' }} onClick={() => abrir()}>{ic('fa-plus')}Nova promoção</button>}
           {promos === null ? <p>Carregando…</p> : !lista.length ? <p style={{ color: T3 }}>Nenhuma promoção criada ainda.</p>
             : visual === 'vitrine' ? vitrine() : visual === 'tempo' ? tempo() : visual === 'cartoes' ? cartoes() : atualHoje()}
         </>

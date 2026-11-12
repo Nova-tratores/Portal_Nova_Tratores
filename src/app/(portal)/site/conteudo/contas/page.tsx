@@ -47,16 +47,11 @@ export default function ContasRedes() {
       setContas(j.contas || []); setMeta(!!j.metaConfigurada);
     });
   }, []);
-  const ligadas = (contas || []).length;
 
   return (
     <div style={{ ...tela, color: T1 }}>
       <SubAbas abas={ABAS_CONTEUDO} />
       {erro && <Aviso>{erro}</Aviso>}
-      <section style={{ ...cartaoNP, display: 'grid', gap: 4 }}>
-        <span style={{ fontSize: 16 }}>{contas === null ? 'Carregando…' : ligadas ? `${ligadas} de 4 redes postando sozinhas` : 'Nenhuma rede posta sozinha ainda: tudo sai pelo celular em 1 toque'}</span>
-        <span style={{ fontSize: 13, color: T3 }}>O calendário já funciona com todas. Ligar a conta só tira o passo do celular.</span>
-      </section>
       <div style={grade(280)}>
         {(['instagram', 'facebook', 'tiktok', 'youtube'] as const).map((id) => {
           const c = (contas || []).find((x) => x.rede === id);

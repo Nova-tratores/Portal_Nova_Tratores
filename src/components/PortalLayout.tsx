@@ -56,6 +56,8 @@ interface NavItem {
   gradient: string
   group: string
   external?: boolean
+  /** cor própria do módulo (Site = amarelo, 12/11/2026); sem ela, usa a do grupo */
+  cor?: { label?: string; color: string; gradient: string }
 }
 
 const GROUP_CONFIG: Record<string, { label: string; color: string; gradient: string }> = {
@@ -119,10 +121,8 @@ const navItems: NavItem[] = [
   { id: 'vendas-modelo', name: 'Vendas por Modelo', href: '/vendas-modelo', icon: <Tags size={18} />, tag: 'MODELOS', gradient: '', group: 'comercial' },
   { id: 'marketing', name: 'Marketing & Eventos', href: '/marketing', icon: <Megaphone size={18} />, tag: 'EVENTOS', gradient: '', group: 'comercial' },
   { id: 'inteligencia-vendas', name: 'Inteligência de Vendas', href: '/inteligencia-vendas', icon: <Radar size={18} />, tag: 'RADAR', gradient: '', group: 'comercial' },
-  // Site (10/11/2026): pedidos de proposta do site, catálogo do site (preço/selo/ocultar) e acessos.
-  { id: 'site', name: 'Site', href: '/site', icon: <Globe size={18} />, tag: 'SITE', gradient: '', group: 'comercial' },
-  // Site (10/11/2026): pedidos de proposta do site, catálogo do site (preço/selo/ocultar) e acessos.
-  { id: 'site', name: 'Site', href: '/site', icon: <Globe size={18} />, tag: 'SITE', gradient: '', group: 'comercial' },
+  // Site (10/11/2026): pedidos do site, catálogo, promoções, acessos e redes sociais. Cor própria amarela (José, 12/11).
+  { id: 'site', name: 'Site', href: '/site', icon: <Globe size={18} />, tag: 'SITE', gradient: '', group: 'comercial', cor: { color: '#D97706', gradient: 'linear-gradient(135deg, #F59E0B, #B45309)' } },
   // Tela mobile do estande: quem só captura lead não precisa do módulo inteiro.
   { id: 'lead', name: 'Captura de Leads', href: '/lead', icon: <UserPlus size={18} />, tag: 'FEIRA', gradient: '', group: 'comercial' },
 
@@ -845,7 +845,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             }}>
               {maisUsados.map(item => {
                 const ativo = pathname === item.href || pathname.startsWith(item.href + '/')
-                const cor = GROUP_CONFIG[item.group]?.color || '#dc2626'
+                const cor = item.cor?.color || GROUP_CONFIG[item.group]?.color || '#dc2626'
                 const curto = item.name.replace(/\s*\(.*?\)\s*/g, '').trim()
                 return (
                   <Link
@@ -1420,7 +1420,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               )}
               {group.items.map((item) => {
                 const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
-                const gc = group.config
+                const gc = item.cor || group.config
                 return (
                   <Link
                     key={item.id}

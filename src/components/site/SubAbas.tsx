@@ -16,7 +16,7 @@ export default function SubAbas({ abas }: { abas: SubAba[] }) {
         return (
           <Link key={a.href} href={a.href}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 38, padding: '7px 16px', borderRadius: 9, fontSize: 14, textDecoration: 'none', whiteSpace: 'nowrap',
-              background: on ? '#dc2626' : 'transparent', color: on ? '#fefefe' : T1 }}>
+              background: on ? '#d97706' : 'transparent', color: on ? '#fefefe' : T1 }}>
             <i className={a.icone} style={{ fontWeight: a.icone.startsWith('fa-solid') ? 900 : 400, color: on ? '#fefefe' : T3 }} />{a.label}
           </Link>
         );
