@@ -3,7 +3,7 @@
 // GET: marcas que o site conhece (catalogo.json → marcas) + as gravadas aqui. PUT grava uma marca. DELETE apaga a
 // gravação daqui (marca do código volta ao que era; marca nova some). Aparece no site depois do Publicar.
 import { NextResponse } from 'next/server'
-import { SITE_URL, guardarSite, sb } from '@/lib/site/server'
+import { SITE_URL, fotosDoSite, guardarSite, sb } from '@/lib/site/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,7 +21,7 @@ export async function GET(req: Request) {
   let doSite: MarcaSite[] = []
   try {
     const r = await fetch(`${SITE_URL}/catalogo.json`, { cache: 'no-store', signal: AbortSignal.timeout(20_000) })
-    if (r.ok) doSite = (((await r.json()) as { marcas?: MarcaSite[] }).marcas) || []
+    if (r.ok) doSite = ((JSON.parse(fotosDoSite(await r.text())) as { marcas?: MarcaSite[] }).marcas) || []
   } catch { /* site fora: só as daqui */ }
   const { data, error } = await sb.from('site_marcas').select('*').order('nome')
   if (error) return NextResponse.json({ ok: false, erro: falta(error.message) ? MSG_SQL : error.message, doSite }, { status: falta(error.message) ? 503 : 500 })

@@ -6,7 +6,7 @@
 // POST: máquina nova (José, 12/11: "incluir, excluir ou alterar"). DELETE: apaga máquina criada aqui.
 // Tudo o que não é preço/selo/ocultar só aparece no site depois do Publicar.
 import { NextResponse } from 'next/server'
-import { AVISO_MIGRATION, SITE_URL, guardarSite, sb, semMigration } from '@/lib/site/server'
+import { AVISO_MIGRATION, SITE_URL, fotosDoSite, guardarSite, sb, semMigration } from '@/lib/site/server'
 import { CAMPOS_EDITAVEIS, limparDados, produtoNovo, slugDe, type DadosProduto } from '@/lib/site/produtos'
 
 export const runtime = 'nodejs'
@@ -30,7 +30,7 @@ async function lerSite(): Promise<{ itens: ItemSite[]; erroSite: string }> {
   try {
     const r = await fetch(`${SITE_URL}/catalogo.json`, { cache: 'no-store', signal: AbortSignal.timeout(20_000) })
     if (!r.ok) throw new Error(`o site respondeu ${r.status}`)
-    return { itens: ((await r.json()) as { itens: ItemSite[] }).itens, erroSite: '' }
+    return { itens: (JSON.parse(fotosDoSite(await r.text())) as { itens: ItemSite[] }).itens, erroSite: '' }
   } catch (e) {
     return { itens: [], erroSite: `Não consegui ler ${SITE_URL}/catalogo.json (${e instanceof Error ? e.message : 'erro'}).` }
   }

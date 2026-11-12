@@ -75,3 +75,12 @@ export async function avisarPedido(ids: string[], titulo: string, descricao: str
 }
 
 export { sb }
+
+/**
+ * O catalogo.json do site escreve as fotos com o domínio oficial (site.url). Enquanto o site novo não está no ar
+ * (ou no teste local), as fotos otimizadas (/_image, /_astro) só existem no SITE_URL: troca o domínio no texto.
+ */
+export function fotosDoSite(txt: string): string {
+  const oficial = 'https://novatratores.com.br/_'
+  return SITE_URL === 'https://novatratores.com.br' ? txt : txt.split(oficial).join(`${SITE_URL}/_`)
+}
