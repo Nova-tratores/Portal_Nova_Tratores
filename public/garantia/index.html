@@ -884,6 +884,14 @@ footer{color:var(--muted)}
     function esc(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
     function mostrar(t){
       if(!t)return;
+      if(t.livre){
+        box.innerHTML='<div class="eyebrow">Adesivo ainda sem trator</div>'+
+          '<h2>Este adesivo ainda não foi ligado a um trator</h2>'+
+          '<p class="hint" style="margin:0 0 12px">Enquanto isso, você pode consultar toda a garantia Mahindra nesta página. Na entrega do trator, a Nova Tratores liga o adesivo a ele.</p>'+
+          '<a class="btn-trator" href="/garantias/vincular?c='+codigo+'">Sou da Nova Tratores: ligar a um trator</a>';
+        box.hidden=false;
+        return;
+      }
       var ent=t.entrega?t.entrega.split("-"):null, entTxt=ent?ent[2]+"/"+ent[1]+"/"+ent[0]:"—";
       var revs=(t.revisoesFeitas||[]);
       box.innerHTML='<div class="eyebrow">Este adesivo é do seu trator</div>'+
@@ -903,7 +911,7 @@ footer{color:var(--muted)}
     if(!API)return;
     fetch(API+"trator?c="+codigo).then(function(r){return r.ok?r.json():null;}).then(function(d){
       if(!d||!d.trator)return;
-      try{localStorage.setItem(chave,JSON.stringify(d.trator));}catch(e){}
+      try{if(d.trator.livre)localStorage.removeItem(chave);else localStorage.setItem(chave,JSON.stringify(d.trator));}catch(e){}
       mostrar(d.trator);
     }).catch(function(){});
   })();

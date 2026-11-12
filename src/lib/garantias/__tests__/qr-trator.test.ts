@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import QRCode from 'qrcode';
 import {
   ALFABETO_CODIGO, CORRECAO_QR, conteudoQR, finalPublico, gerarCodigo, limparBusca,
-  normalizarCodigo, revisoesFeitas, svgAdesivo,
+  nomeLote, normalizarCodigo, quantidadeLote, revisoesFeitas, svgAdesivo,
 } from '../qr-trator';
 
 describe('código do trator', () => {
@@ -53,5 +53,18 @@ describe('auxiliares', () => {
   });
   it('revisões únicas e ordenadas', () => {
     expect(revisoesFeitas(['300', '50', '300h', null, 'x'])).toEqual([50, 300]);
+  });
+});
+
+describe('lote', () => {
+  it('quantidade entre 1 e 500', () => {
+    expect(quantidadeLote(100)).toBe(100);
+    expect(quantidadeLote('100')).toBe(100);
+    expect(quantidadeLote(0)).toBeNull();
+    expect(quantidadeLote(501)).toBeNull();
+    expect(quantidadeLote(2.5)).toBeNull();
+  });
+  it('nome do lote no horário de Brasília', () => {
+    expect(nomeLote(new Date('2026-11-12T18:30:00Z'))).toBe('L-20261112-1530');
   });
 });

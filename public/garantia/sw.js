@@ -5,7 +5,7 @@
 // Escopo "/garantia" casa por prefixo também com "/garantias" (tela interna do
 // portal): por isso o fetch só responde às URLs desta página e deixa todo o
 // resto seguir direto para a rede, sem tocar.
-const VERSAO = 'garantia-v3';
+const VERSAO = 'garantia-v4';
 const PAGINA = '/garantia';
 const ARQUIVOS = [
   PAGINA,

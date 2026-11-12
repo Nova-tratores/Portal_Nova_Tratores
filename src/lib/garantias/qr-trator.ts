@@ -86,3 +86,21 @@ export function revisoesFeitas(horas: unknown[]): number[] {
   }
   return [...set].sort((a, b) => a - b);
 }
+
+/** Lote de adesivos impressos antes de ter trator. */
+export const LOTE_MAX = 500;
+
+/** Quantidade pedida para o lote: inteiro entre 1 e LOTE_MAX, senão null. */
+export function quantidadeLote(v: unknown): number | null {
+  const n = Number(v);
+  return Number.isInteger(n) && n >= 1 && n <= LOTE_MAX ? n : null;
+}
+
+/** Nome do lote pela hora de criação (fuso de Brasília): "L-20261112-1530". */
+export function nomeLote(agora: Date): string {
+  const p = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(agora);
+  const v = (t: string) => p.find((x) => x.type === t)?.value ?? '';
+  return `L-${v('year')}${v('month')}${v('day')}-${v('hour')}${v('minute')}`;
+}

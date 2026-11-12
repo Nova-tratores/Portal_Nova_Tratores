@@ -47,23 +47,123 @@ function baixar(blob: Blob, nome: string) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-async function pdfAdesivo(modulos: boolean[][]): Promise<Blob> {
+/** PDF com UM adesivo de 30 × 30 mm por página (o lote inteiro num arquivo só, para a gráfica). */
+async function pdfAdesivos(grades: boolean[][][]): Promise<Blob> {
   const { jsPDF } = await import('jspdf');
   const doc = new jsPDF({ unit: 'mm', format: [ADESIVO_MM, ADESIVO_MM], orientation: 'portrait' });
-  const n = modulos.length;
-  const margem = (ADESIVO_MM - n * MODULO_MM) / 2;
-  doc.setFillColor(0, 0, 0);
-  for (let l = 0; l < n; l++) {
-    let c = 0;
-    while (c < n) {
-      if (!modulos[l][c]) { c++; continue; }
-      let fim = c;
-      while (fim + 1 < n && modulos[l][fim + 1]) fim++;
-      doc.rect(margem + c * MODULO_MM, margem + l * MODULO_MM, (fim - c + 1) * MODULO_MM, MODULO_MM, 'F');
-      c = fim + 1;
+  grades.forEach((modulos, i) => {
+    if (i > 0) doc.addPage([ADESIVO_MM, ADESIVO_MM], 'portrait');
+    const n = modulos.length;
+    const margem = (ADESIVO_MM - n * MODULO_MM) / 2;
+    doc.setFillColor(0, 0, 0);
+    for (let l = 0; l < n; l++) {
+      let c = 0;
+      while (c < n) {
+        if (!modulos[l][c]) { c++; continue; }
+        let fim = c;
+        while (fim + 1 < n && modulos[l][fim + 1]) fim++;
+        doc.rect(margem + c * MODULO_MM, margem + l * MODULO_MM, (fim - c + 1) * MODULO_MM, MODULO_MM, 'F');
+        c = fim + 1;
+      }
+    }
+  });
+  return doc.output('blob');
+}
+
+type Lote = { lote: string; criadoEm: string; criadoPor: string | null; total: number; vinculados: number };
+
+async function chamar(url: string, corpo?: unknown) {
+  const r = await fetch(url, corpo === undefined
+    ? { headers: { ...(await authHeaders()) } }
+    : { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify(corpo) });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok || d.ok === false) throw new Error(d.erro || `Falha (${r.status})`);
+  return d;
+}
+
+async function baixarLote(lote: string, codigos: string[]) {
+  baixar(await pdfAdesivos(codigos.map(modulosDe)), `qr-garantia-${lote}-${codigos.length}-adesivos.pdf`);
+}
+
+/** Lotes de adesivos impressos antes de ter trator: gera, baixa o PDF e mostra quantos já foram ligados. */
+function LotesAdesivos() {
+  const [lotes, setLotes] = useState<Lote[] | null>(null);
+  const [quantidade, setQuantidade] = useState('100');
+  const [ocupado, setOcupado] = useState('');
+  const [erro, setErro] = useState('');
+
+  const carregar = useCallback(async () => {
+    try { setLotes((await chamar('/api/garantia-cliente/qr?lotes=1')).lotes); setErro(''); }
+    catch (e) { setErro(e instanceof Error ? e.message : 'Erro'); setLotes([]); }
+  }, []);
+  useEffect(() => { carregar(); }, [carregar]);
+
+  async function gerar() {
+    const n = Number(quantidade);
+    if (!Number.isInteger(n) || n < 1 || n > 500) { setErro('Quantidade entre 1 e 500.'); return; }
+    if (!confirm(`Gerar ${n} adesivos novos (códigos sem trator)? O PDF para a gráfica baixa em seguida.`)) return;
+    setOcupado('gerar');
+    setErro('');
+    try {
+      const d = await chamar('/api/garantia-cliente/qr', { acao: 'lote', quantidade: n });
+      await baixarLote(d.lote, d.codigos);
+      await carregar();
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Erro');
+    } finally {
+      setOcupado('');
     }
   }
-  return doc.output('blob');
+
+  async function rebaixar(lote: string) {
+    setOcupado(lote);
+    setErro('');
+    try {
+      const d = await chamar(`/api/garantia-cliente/qr?lote=${encodeURIComponent(lote)}`);
+      await baixarLote(lote, (d.codigos as { codigo: string }[]).map((x) => x.codigo));
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Erro');
+    } finally {
+      setOcupado('');
+    }
+  }
+
+  return (
+    <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, padding: 12, marginBottom: 14 }}>
+      <b style={{ fontSize: 15, color: 'var(--portal-text)' }}>Lotes de adesivos (para imprimir antes de ter o trator)</b>
+      <p style={{ margin: '4px 0 10px', fontSize: 13, color: 'var(--portal-text-muted)' }}>
+        Gere os códigos e mande o PDF para a gráfica (um adesivo de 30 × 30 mm por página). Na entrega, leia o adesivo
+        com o celular e toque em &quot;Sou da Nova Tratores: ligar a um trator&quot;. Também dá para ligar digitando o código em{' '}
+        <a href="/garantias/vincular" style={{ color: 'inherit', fontWeight: 700 }}>Ligar adesivo</a>.
+      </p>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <label style={{ fontSize: 13, color: 'var(--portal-text)' }}>
+          Quantidade{' '}
+          <input
+            type="number" min={1} max={500} inputMode="numeric" value={quantidade} onChange={(e) => setQuantidade(e.target.value)}
+            style={{ width: 90, minHeight: 40, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 15 }}
+          />
+        </label>
+        <button disabled={!!ocupado} onClick={gerar} style={botao(true)}>
+          {ocupado === 'gerar' ? <Loader2 size={14} className="spin" /> : <QrCode size={14} />} Gerar lote e baixar PDF
+        </button>
+      </div>
+      {erro && <p style={{ margin: '8px 0 0', color: VERMELHO, fontSize: 13 }}>{erro}</p>}
+      {lotes && lotes.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+          {lotes.map((l) => (
+            <div key={l.lote} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', fontSize: 13, color: 'var(--portal-text)', borderTop: '1px solid var(--portal-border)', paddingTop: 6 }}>
+              <b>{l.lote}</b>
+              <span style={{ color: 'var(--portal-text-muted)' }}>{l.total} adesivos · {l.vinculados} ligados a trator · {l.total - l.vinculados} livres</span>
+              <button disabled={!!ocupado} onClick={() => rebaixar(l.lote)} style={{ ...botao(false), marginLeft: 'auto' }}>
+                {ocupado === l.lote ? <Loader2 size={14} className="spin" /> : <Download size={14} />} PDF
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function data(iso: string | null, comHora = false) {
@@ -131,6 +231,8 @@ export default function QrTratores() {
         garantia já com o modelo, a data de entrega e as revisões daquele trator (sem nome do cliente). Para a gráfica,
         mande o SVG ou o PDF: os dois já estão no tamanho de 30 mm, sem cortar a borda branca.
       </p>
+
+      <LotesAdesivos />
 
       <label style={{ position: 'relative', display: 'block' }}>
         <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-muted)' }} />
@@ -219,7 +321,7 @@ function CartaoTrator({ t, gerar, contarDownload }: { t: TratorQR; gerar: (t: Tr
               </button>
               <button
                 disabled={ocupado}
-                onClick={() => acao(async () => { baixar(await pdfAdesivo(modulosDe(t.codigo!)), nomeArquivo(t, 'pdf')); contarDownload(t.codigo!); })}
+                onClick={() => acao(async () => { baixar(await pdfAdesivos([modulosDe(t.codigo!)]), nomeArquivo(t, 'pdf')); contarDownload(t.codigo!); })}
                 style={botao(false)}
               >
                 <Download size={14} /> PDF
