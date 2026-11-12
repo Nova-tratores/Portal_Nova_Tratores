@@ -366,6 +366,25 @@ export const TAREFAS: Record<string, Tarefa> = {
   },
 
   // Robô: produto recém-recebido sem família vira "Peças" + sugestão de Tipo + tarefa.
+  // Conserto da TELA da Omie (11/11/2026): características alteradas pela API não
+  // aparecem na tela; locações incluídas pelo portal sem "Onde será exibida". Regrava
+  // com o valor que a API já tem (excluir + incluir). Retoma sozinha no dia seguinte e
+  // SE DESLIGA quando uma rodada termina sem pendência. parametros { tipo: true } inclui "Tipo:".
+  'caract-tela-omie': async (p, ctx) => {
+    if (desligada('CARACT_TELA_OMIE')) return { pular: 'desligado (CARACT_TELA_OMIE=off)' };
+    const { consertarTelaOmie } = await import('@/lib/ajustes/caract-tela-omie');
+    const r = await consertarTelaOmie({ contas: ['NOVA', 'CASTRO'], incluirTipo: p.tipo === true, gravar: true, limiteMin: Number(p.limite_min) || 100 });
+    const progresso: Record<string, string> = Object.fromEntries(Object.entries(r).map(([c, x]) =>
+      [c, `${x.lidos} lidos · ${x.achados} achados · ${x.consertados} consertados · ${x.falhas} falhas${x.restantes ? ` · ${x.restantes} produtos para a próxima rodada` : ''}${x.bloqueio ? ` · BLOQUEIO: ${x.bloqueio}` : ''}`]));
+    const terminou = Object.values(r).every((x) => !x.restantes && !x.bloqueio && !x.falhas && !x.falhasLeitura);
+    if (terminou) {
+      const { supabaseAdmin } = await import('@/lib/server/supabase-admin');
+      await supabaseAdmin.from('agendamentos').update({ ativo: false }).eq('chave', ctx.chave);
+    }
+    const tot = Object.values(r).reduce((a, x) => ({ ach: a.ach + x.achados, ok: a.ok + x.consertados, f: a.f + x.falhas }), { ach: 0, ok: 0, f: 0 });
+    return { resumo: `${tot.ok} de ${tot.ach} consertadas · ${tot.f} falhas${terminou ? ' · tudo em dia: tarefa desligada' : ' · continua na próxima rodada'}`, progresso };
+  },
+
   'ajustes-classificar-recebidos': async () => {
     if (desligada('AJUSTES_CLASSIFICAR_RECEBIDOS')) return { pular: 'desligado (AJUSTES_CLASSIFICAR_RECEBIDOS=off)' };
     const { classificarRecebidosTodasContas } = await import('@/lib/ajustes/robo-recebidos');

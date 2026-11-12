@@ -9,7 +9,7 @@
 
 export type Exibicao = { cExibirItemNF: 'S' | 'N'; cExibirItemPedido: 'S' | 'N'; cExibirOrdemProd: 'S' | 'N' };
 
-const LOCACAO = new Set(['#prateleira', '#andar', '#caixa']);
+const LOCACAO = new Set(['#prateleira', '#andar', '#caixa', '#andar2', '#caixa2']);
 
 /** Padrão das locações cadastradas na Omie: sai no pedido e na ordem de produção, não na NF (decisão de 11/11/2026). */
 export const EXIBICAO_LOCACAO: Exibicao = { cExibirItemNF: 'N', cExibirItemPedido: 'S', cExibirOrdemProd: 'S' };
