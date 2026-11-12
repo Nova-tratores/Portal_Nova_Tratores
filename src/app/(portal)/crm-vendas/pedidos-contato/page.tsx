@@ -5,7 +5,7 @@
 // precisar, preenche celular/telefone/endereço/localização e salva. O vendedor
 // recebe um recado no app e o contato já aparece na quest.
 // API: /api/crm-vendas/pedidos-contato.
-import { Suspense, useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { fetchAuth } from '@/lib/auth/client'
 
@@ -48,6 +48,7 @@ function Tela() {
     if (!r.ok) { setErroLista(j.error || `Falha (${r.status})`); return }
     setErroLista(''); setAviso(j.aviso || ''); setLista(j.pedidos || [])
   }, [status])
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { carregarLista() }, [carregarLista])
 
   const abrir = (id: number | null) => router.replace(id ? `/crm-vendas/pedidos-contato?id=${id}` : '/crm-vendas/pedidos-contato')
@@ -62,7 +63,7 @@ function Tela() {
         </p>
         <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
           {(['aberto', 'respondido', 'todos'] as const).map((s) => (
-            <button key={s} type="button" onClick={() => setStatus(s)} style={{ ...botao(COR, status === s), padding: '5px 10px', fontSize: 12 }}>
+            <button key={s} type="button" onClick={() => setStatus(s)} style={{ ...botao(COR, status === s), padding: '0 12px', minHeight: 40, fontSize: 13 }}>
               {s === 'aberto' ? 'Em aberto' : s === 'respondido' ? 'Respondidos' : 'Todos'}
             </button>
           ))}
@@ -99,6 +100,13 @@ function Detalhe({ id, onFeito }: { id: number; onFeito: () => void }) {
   const [form, setForm] = useState({ celular: '', telefone: '', endereco: '', mapa: '', obs: '' })
   const [salvando, setSalvando] = useState(false)
   const [msg, setMsg] = useState('')
+  // no celular a lista fica em cima: ao abrir um pedido, rola até ele (uma vez)
+  const rolou = useRef(false)
+  const topoNoCelular = useCallback((el: HTMLDivElement | null) => {
+    if (!el || rolou.current || window.innerWidth > 860) return
+    rolou.current = true
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [])
 
   const carregar = useCallback(async () => {
     const r = await fetchAuth(`/api/crm-vendas/pedidos-contato?id=${id}`)
@@ -142,7 +150,7 @@ function Detalhe({ id, onFeito }: { id: number; onFeito: () => void }) {
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
+    <div ref={topoNoCelular} style={{ display: 'grid', gap: 16, scrollMarginTop: 96 }}>
       <div style={caixa}>
         <p style={{ fontSize: 12, fontWeight: 800, color: COR, margin: 0 }}>
           {pedido.status === 'aberto' ? 'EM ABERTO' : pedido.status === 'respondido' ? `RESPONDIDO por ${pedido.respondido_por} em ${quando(pedido.respondido_em)}` : `NÃO ENCONTRADO (${pedido.respondido_por})`}
@@ -152,7 +160,7 @@ function Detalhe({ id, onFeito }: { id: number; onFeito: () => void }) {
           <b>{pedido.pedido_por}</b> pediu em {quando(pedido.created_at)}: <b>{pedido.falta.map((f) => ROTULO_FALTA[f] || f).join(', ')}</b>
         </p>
         <p style={{ fontSize: 13, color: 'var(--portal-text-muted, #64748b)', margin: 0 }}>
-          {[pedido.cidade && `Cidade: ${pedido.cidade}`, pedido.chassis && `Trator: …${pedido.chassis.slice(-6)}`, pedido.alvo, pedido.quest_id && `Quest #${pedido.quest_id}`, pedido.negocio_id && `Negócio #${pedido.negocio_id}`].filter(Boolean).join(' · ')}
+          {[pedido.cidade && `Cidade: ${pedido.cidade}`, pedido.chassis && `Trator: …${pedido.chassis.slice(-6)}`, !pedido.cliente_nome && !pedido.chassis && pedido.alvo,pedido.quest_id && `Quest #${pedido.quest_id}`, pedido.negocio_id && `Negócio #${pedido.negocio_id}`].filter(Boolean).join(' · ')}
         </p>
         {pedido.obs && <p style={{ fontSize: 14, margin: '8px 0 0', padding: 8, borderRadius: 8, background: 'rgba(245,158,11,.12)' }}>Recado do vendedor: {pedido.obs}</p>}
         <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
@@ -189,7 +197,7 @@ function Detalhe({ id, onFeito }: { id: number; onFeito: () => void }) {
         </div>
         <label style={{ display: 'block', marginTop: 12 }}><span style={rotulo}>Endereço</span><input style={input} value={form.endereco} onChange={set('endereco')} placeholder="Sítio São José, estrada Piraju–Tejupá km 8, Tejupá" /></label>
         <label style={{ display: 'block', marginTop: 12 }}>
-          <span style={rotulo}>Localização: link do Google Maps ou "latitude, longitude"</span>
+          <span style={rotulo}>Localização: link do Google Maps ou “latitude, longitude”</span>
           <input style={input} value={form.mapa} onChange={set('mapa')} placeholder="https://maps.app.goo.gl/…  ou  -23.2085, -49.3709" />
         </label>
         <label style={{ display: 'block', marginTop: 12 }}><span style={rotulo}>Recado para o vendedor (opcional)</span><textarea style={{ ...input, minHeight: 60 }} value={form.obs} onChange={set('obs')} placeholder="Ex.: falar com o filho, Rogério" /></label>
