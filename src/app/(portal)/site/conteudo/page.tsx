@@ -11,8 +11,8 @@ import SubAbas from '@/components/site/SubAbas';
 import { ABAS_CONTEUDO } from '@/components/site/abasConteudo';
 import { ArtesDasRedes, EscolherRedes, IconeRede, LegendaRedes } from '@/components/site/Artes';
 import { REDE, STATUS_POST, faltas, type Arte, type Midia, type RedeId, type StatusPost } from '@/lib/site/redes';
-import { COR_PRIOR, NOME_PRIOR, DATAS_AGRO, datasDoDia, temporadasDoMes, type DataAgro } from '@/lib/site/datasAgro';
-import { AZUL, Campo, Secao, T1, T2, T3, bt, campoNP, cartaoNP, grade, ic } from '@/components/site/np';
+import { COR_PRIOR, NOME_PRIOR, DATAS_AGRO, datasDoDia, guiaDe, temporadasDoMes, type DataAgro } from '@/lib/site/datasAgro';
+import { AZUL, Campo, Secao, T1, T2, T3, Voltar, bt, campoNP, cartaoNP, grade, ic } from '@/components/site/np';
 
 type Resultado = Partial<Record<RedeId, { ok: boolean; link?: string | null; em?: string; manual?: boolean; erro?: string | null }>>;
 type Post = {
@@ -23,6 +23,11 @@ type Rascunho = { id?: string; titulo: string; legenda: string; redes: RedeId[];
 type Conta = { rede: RedeId; nome: string | null };
 
 const SOCIAIS: RedeId[] = ['instagram', 'facebook', 'tiktok', 'youtube'];
+/** Anotações iniciais de um post criado a partir de uma data do agro: a ideia, as sugestões e o que preparar. */
+const notasDe = (t: DataAgro) => {
+  const g = guiaDe(t);
+  return [`Ideia: ${t.ideia}`, ...(g ? g.ideias.map((i) => `- ${i}`) : []), g?.preparar ? `Preparar: ${g.preparar}` : ''].filter(Boolean).join(String.fromCharCode(10)).slice(0, 1000);
+};
 const FUSO = 'America/Sao_Paulo';
 const diaDe = (iso: string) => new Date(iso).toLocaleDateString('en-CA', { timeZone: FUSO });
 const horaDe = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { timeZone: FUSO, hour: '2-digit', minute: '2-digit' });
@@ -138,7 +143,7 @@ export default function CalendarioRedes() {
       // veio de uma data do agro: já entra com o tema, a ideia e o formato sugeridos
       const t = tema.current; tema.current = null;
       setR({ chave, titulo: t ? t.nome : '', legenda: '', redes: [...SOCIAIS], formato: t?.formato || 'feed', midia: {}, data: rota.novo === 'sem-data' ? '' : rota.novo || '', hora: '09:00',
-        notas: t ? `Ideia: ${t.ideia}` : '', promocao_id: null, status: 'ideia', resultado: {} });
+        notas: t ? notasDe(t) : '', promocao_id: null, status: 'ideia', resultado: {} });
     }
     /* eslint-enable react-hooks/set-state-in-effect */
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -214,6 +219,24 @@ export default function CalendarioRedes() {
   const proximasAgro = DATAS_AGRO.filter((x) => x.prior >= 2 && (x.ate || x.d) >= hoje() && x.d <= somaDias(hoje(), 60));
 
   // ---------------------------------------------------------------- peças
+  /** Ideias da data (arquivo do José, seção 8): o que fazer, o que as marcas fizeram e o que preparar antes. */
+  const guia = (x: DataAgro) => {
+    const g = guiaDe(x);
+    if (!g) return null;
+    const lista = (titulo: string, itens: string[], icone: string) => itens.length > 0 && (
+      <div style={{ display: 'grid', gap: 3 }}>
+        <span style={{ fontSize: 12.5, color: T3 }}>{titulo}</span>
+        {itens.map((t, i) => <span key={i} style={{ display: 'flex', gap: 8, fontSize: 13, color: T1, lineHeight: 1.4 }}><span style={{ color: T3, flexShrink: 0 }}>{ic(icone)}</span>{t}</span>)}
+      </div>
+    );
+    return (
+      <div style={{ display: 'grid', gap: 8, paddingTop: 4 }}>
+        {lista('Ideias para a Nova Tratores', g.ideias, 'fa-lightbulb')}
+        {lista('O que as marcas fizeram', g.fizeram, 'fa-eye')}
+        {g.preparar && <span style={{ fontSize: 13, color: '#b45309' }}>{ic('fa-clipboard-list')} Preparar: {g.preparar}</span>}
+      </div>
+    );
+  };
   const chipAgro = (x: DataAgro, d: string, compacto: boolean) => {
     const cor = COR_PRIOR[x.prior];
     const pode = podeEditar && d >= hoje();
@@ -374,11 +397,8 @@ export default function CalendarioRedes() {
     const conta = (id: RedeId) => contas.find((c) => c.rede === id);
     return (
       <div style={{ display: 'grid', gap: 14 }}>
-        <section style={{ ...cartaoNP, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button type="button" style={bt('#64748b')} onClick={fechar}>{ic('fa-arrow-left')}Voltar ao calendário</button>
-          <span style={{ fontSize: 16 }}>{r.id ? r.titulo || 'Post' : 'Novo post'}</span>
-          <span style={{ marginLeft: 'auto', fontSize: 12, padding: '3px 10px', borderRadius: 999, color: s.cor, background: `color-mix(in srgb, ${s.cor} 11%, transparent)` }}>{ic(s.icone)} {s.nome}</span>
-        </section>
+        <Voltar para="Calendário" atual={r.id ? r.titulo || 'Post' : 'Novo post'} onClick={fechar}
+          direita={<span style={{ fontSize: 12.5, padding: '4px 10px', borderRadius: 999, color: s.cor, background: `color-mix(in srgb, ${s.cor} 11%, transparent)` }}>{ic(s.icone)} {s.nome}</span>} />
 
         <Secao icone="fa-share-nodes" cor="#c13584" titulo="Onde vai sair" sub="Toque para ligar ou desligar cada rede. Pode ser uma só ou todas">
           <EscolherRedes so={SOCIAIS} valor={r.redes} onChange={(v) => setR({ ...r, redes: v })} />
@@ -402,6 +422,7 @@ export default function CalendarioRedes() {
             <div key={x.d + x.nome} style={{ display: 'grid', gap: 2, padding: '10px 12px', borderRadius: 12, background: `color-mix(in srgb, ${COR_PRIOR[x.prior]} 8%, var(--surface))`, border: `1px solid color-mix(in srgb, ${COR_PRIOR[x.prior]} 25%, transparent)` }}>
               <span style={{ fontSize: 13, color: COR_PRIOR[x.prior] }}>{ic('fa-wheat-awn')} {x.nome} · {NOME_PRIOR[x.prior]}{x.confirmar ? ' · confirmar a data' : ''}</span>
               <span style={{ fontSize: 13, color: T2 }}>{x.ideia}</span>
+              {guia(x)}
             </div>
           ))}
           <span style={{ fontSize: 12, color: T3 }}>Regra de ouro: mostrar gente real da região (cliente, técnico, operador). Sem material próprio, melhor não postar card genérico. Post de venda termina com o WhatsApp.</span>
@@ -524,6 +545,12 @@ export default function CalendarioRedes() {
                     <span style={{ display: 'grid', gap: 4 }}>
                       <span style={{ fontSize: 14 }}>{x.nome}{x.ate ? ` (até ${nomeDia(x.ate, { day: '2-digit', month: '2-digit' })})` : ''} <span style={{ fontSize: 12, color: COR_PRIOR[x.prior] }}>{NOME_PRIOR[x.prior]}{x.confirmar ? ' · confirmar a data' : ''}</span></span>
                       <span style={{ fontSize: 13, color: T2 }}>{x.ideia}</span>
+                      {guiaDe(x) && (
+                        <details>
+                          <summary style={{ fontSize: 13, color: AZUL, cursor: 'pointer', width: 'fit-content' }}>Ver ideias de post e o que preparar</summary>
+                          <div style={{ paddingTop: 6 }}>{guia(x)}</div>
+                        </details>
+                      )}
                       {tem.length ? tem.map((p) => chipPost(p, false))
                         : podeEditar && <button type="button" style={{ ...bt(COR_PRIOR[x.prior]), width: 'fit-content' }} onClick={() => novoPost(x.d, x)}>{ic('fa-plus')}Criar o post</button>}
                     </span>

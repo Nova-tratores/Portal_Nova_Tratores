@@ -57,3 +57,20 @@ export function Campo({ rotulo, ajuda, children }: { rotulo: string; ajuda?: Rea
 
 export const grade = (min: number): CSSProperties => ({ display: 'grid', gap: 14, gridTemplateColumns: `repeat(auto-fit, minmax(min(${min}px, 100%), 1fr))` });
 
+
+/** Voltar padrão do módulo Site (José, 12/11: "esse voltar está esquisito"): trilha "← Calendário › Novo post",
+ *  sem cartão em volta. O primeiro pedaço é um botão de verdade (borda visível); o segundo diz onde a pessoa está. */
+export function Voltar({ para, atual, onClick, direita }: { para: string; atual: string; onClick: () => void; direita?: ReactNode }) {
+  return (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', minWidth: 0 }}>
+      <button type="button" onClick={onClick}
+        style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 38, padding: '6px 14px 6px 10px', borderRadius: 10, font: 'inherit', fontSize: 14, cursor: 'pointer',
+          border: '1px solid color-mix(in srgb, var(--portal-text, #0f172a) 22%, transparent)', background: 'var(--portal-bg-secondary, #fff)', color: T1 }}>
+        <i className="fa-solid fa-chevron-left" style={{ fontWeight: 900, fontSize: 12 }} />{para}
+      </button>
+      <i className="fa-solid fa-chevron-right" style={{ fontWeight: 900, fontSize: 10, color: T3 }} />
+      <span style={{ fontSize: 16, color: T1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '0 1 auto' }}>{atual}</span>
+      {direita && <span style={{ marginLeft: 'auto' }}>{direita}</span>}
+    </div>
+  );
+}

@@ -14,7 +14,7 @@ import EnviarFoto from '@/components/site/EnviarFoto';
 import { Escala, FontesSite, PreviaPromocao, PromoSlide, type PromoPrevia } from '@/components/site/Previa';
 import { ArtesDasRedes, EscolherRedes, IconeRede, LegendaRedes } from '@/components/site/Artes';
 import { REDE, faltas, type RedeId } from '@/lib/site/redes';
-import { AZUL, Campo, Quadradinho, Secao, T1, T2, T3, bt, campoNP, cartaoNP, grade, ic } from '@/components/site/np';
+import { AZUL, Campo, Quadradinho, Secao, T1, T2, T3, Voltar, bt, campoNP, cartaoNP, grade, ic } from '@/components/site/np';
 
 type Promo = {
   id: string; titulo: string; texto: string | null; imagem: string | null; imagem_celular?: string | null; produto_slug: string | null; link: string | null
@@ -491,10 +491,7 @@ export default function Promocoes({ teste = false }: { teste?: boolean }) {
     if (!r) return null;
     return (
       <div style={{ display: 'grid', gap: 14 }}>
-        <section style={{ ...cartaoNP, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          <button type="button" style={bt(CINZA)} onClick={fecharEditor}>{ic('fa-arrow-left')}Voltar para as promoções</button>
-          <span style={{ fontSize: 16, fontWeight: 500 }}>{r.id ? `Mudar: ${r.titulo || 'promoção'}` : 'Nova promoção'}</span>
-        </section>
+        <Voltar para="Promoções" atual={r.id ? r.titulo || 'Promoção' : 'Nova promoção'} onClick={fecharEditor} />
         <Secao icone="fa-shapes" titulo="O que vai aparecer no quadro" sub="Escolha um dos dois">
           <div style={grade(260)}>
             {([

@@ -8,6 +8,7 @@ import { fetchAuth } from '@/lib/auth/client';
 import { Aviso, botao, campo, cartao, grade } from '@/components/site/ui';
 import EnviarFoto from '@/components/site/EnviarFoto';
 import { PreviaMarca, type CardPrevia } from '@/components/site/Previa';
+import { Voltar } from '@/components/site/np';
 
 type Modelo = { marca: string; categoria: string; cartao: CardPrevia; abrir: () => void };
 type MarcaSite = { nome: string; logo_url?: string | null; banner_url?: string | null; sobre?: string | null; sob_consulta?: string[]; modelos?: number; origem?: string };
@@ -113,12 +114,7 @@ export default function MarcasVista({ itens, podeEditar, versao, gravou, incluir
 
       {r && (
         <div style={{ ...cartao, display: 'grid', gap: 14 }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <button type="button" onClick={fecharMarca} style={{ ...botao('#6b7280', false), minHeight: 38 }}>
-              <i className="fa-solid fa-arrow-left" style={{ fontWeight: 900 }} />Voltar para as marcas
-            </button>
-            <b style={{ fontWeight: 500, fontSize: 16 }}>{r.nova && !atual ? 'Nova marca no site' : `Marca ${r.nome_antigo || r.nome}`}</b>
-          </div>
+          <Voltar para="Marcas" atual={r.nova && !atual ? 'Nova marca no site' : r.nome_antigo || r.nome} onClick={fecharMarca} />
           <fieldset disabled={!podeEditar || salvando} style={{ border: 0, padding: 0, margin: 0, display: 'grid', gap: 14, minWidth: 0 }}>
             <label style={rotulo}>Nome da marca
               <input style={{ ...campo, maxWidth: 360 }} maxLength={40} value={r.nome} placeholder="Ex.: Jumil" onChange={(e) => setR({ ...r, nome: e.target.value })} />
