@@ -40,7 +40,9 @@ const nextConfig: NextConfig = {
       { source: "/garantia", destination: "/garantia/index.html" },
       // QR por trator (adesivo de 30 mm): /garantia/K7P2QX abre a mesma página,
       // que lê o código do endereço. O middleware leva o /GARANTIA/ maiúsculo do QR para cá.
-      { source: "/garantia/:codigo([2-9A-Za-z]{6})", destination: "/garantia/index.html" },
+      // QUALQUER coisa depois de /garantia/ abre a página (endereço digitado errado não dá 404);
+      // as fotos, o manifest e o sw.js são arquivos de public/ e vêm antes desta regra.
+      { source: "/garantia/:resto+", destination: "/garantia/index.html" },
     ];
   },
   async headers() {

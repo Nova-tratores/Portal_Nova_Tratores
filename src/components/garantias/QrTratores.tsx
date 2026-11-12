@@ -5,7 +5,7 @@
 // no tamanho real). Quem ler o adesivo cai na página da garantia já com o trator.
 import { useCallback, useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { Loader2, Search, Download, QrCode, ExternalLink, Tractor } from 'lucide-react';
+import { Loader2, Search, Download, QrCode, ExternalLink, Tractor, Link2 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import {
   ADESIVO_MM, CORRECAO_QR, MODULO_MM, conteudoQR, svgAdesivo,
@@ -133,8 +133,8 @@ function LotesAdesivos() {
       <b style={{ fontSize: 15, color: 'var(--portal-text)' }}>Lotes de adesivos (para imprimir antes de ter o trator)</b>
       <p style={{ margin: '4px 0 10px', fontSize: 13, color: 'var(--portal-text-muted)' }}>
         Gere os códigos e mande o PDF para a gráfica (um adesivo de 30 × 30 mm por página). Na entrega, leia o adesivo
-        com o celular e toque em &quot;Sou da Nova Tratores: ligar a um trator&quot;. Também dá para ligar digitando o código em{' '}
-        <a href="/garantias/vincular" style={{ color: 'inherit', fontWeight: 700 }}>Ligar adesivo</a>.
+        com o celular e toque em &quot;Sou da Nova Tratores: ligar a um trator&quot;, ou use o botão &quot;Ligar adesivo a um
+        trator&quot; aqui e digite o código (as 6 letras do fim do endereço que o QR abre).
       </p>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <label style={{ fontSize: 13, color: 'var(--portal-text)' }}>
@@ -147,6 +147,9 @@ function LotesAdesivos() {
         <button disabled={!!ocupado} onClick={gerar} style={botao(true)}>
           {ocupado === 'gerar' ? <Loader2 size={14} className="spin" /> : <QrCode size={14} />} Gerar lote e baixar PDF
         </button>
+        <a href="/garantias/vincular" style={botao(false)}>
+          <Link2 size={14} /> Ligar adesivo a um trator
+        </a>
       </div>
       {erro && <p style={{ margin: '8px 0 0', color: VERMELHO, fontSize: 13 }}>{erro}</p>}
       {lotes && lotes.length > 0 && (

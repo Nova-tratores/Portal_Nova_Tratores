@@ -5,7 +5,7 @@
 // Escopo "/garantia" casa por prefixo também com "/garantias" (tela interna do
 // portal): por isso o fetch só responde às URLs desta página e deixa todo o
 // resto seguir direto para a rede, sem tocar.
-const VERSAO = 'garantia-v4';
+const VERSAO = 'garantia-v5';
 const PAGINA = '/garantia';
 const ARQUIVOS = [
   PAGINA,
@@ -18,10 +18,11 @@ const ARQUIVOS = [
   '/favicon.ico',
 ];
 
-// /garantia/K7P2QX = a mesma página aberta pelo QR do trator (adesivo de 30 mm)
-const RE_TRATOR = /^\/garantia\/[2-9A-Za-z]{6}$/;
-function ehNavegacaoDaPagina(url) {
-  return url.origin === self.location.origin && (url.pathname === PAGINA || RE_TRATOR.test(url.pathname));
+// /garantia/K7P2QX (QR do trator) e qualquer outro endereço aberto abaixo de
+// /garantia/ são a mesma página; fotos e manifest seguem como arquivo.
+function ehNavegacaoDaPagina(url, req) {
+  if (url.origin !== self.location.origin) return false;
+  return url.pathname === PAGINA || (url.pathname.startsWith('/garantia/') && req.mode === 'navigate');
 }
 
 function ehDaPagina(url) {
@@ -56,7 +57,7 @@ self.addEventListener('fetch', (e) => {
 
   // A página: rede primeiro (para receber atualizações), cópia salva sem internet.
   // Cada endereço guarda a sua cópia; sem internet e sem cópia daquele trator, a página geral.
-  if (ehNavegacaoDaPagina(url)) {
+  if (ehNavegacaoDaPagina(url, req)) {
     const chave = url.pathname;
     e.respondWith(
       fetch(req)

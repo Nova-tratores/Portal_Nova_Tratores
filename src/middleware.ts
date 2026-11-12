@@ -27,9 +27,9 @@ export function middleware(req: NextRequest) {
   // QR da garantia por trator (adesivo de 30 mm): o QR vai em MAIÚSCULAS para
   // caber em 29 × 29 (modo alfanumérico). /GARANTIA/K7P2QX → /garantia/K7P2QX,
   // onde mora a página (e o service worker que guarda ela sem internet).
-  if (pathname.startsWith('/GARANTIA/')) {
+  if (pathname === '/GARANTIA' || pathname.startsWith('/GARANTIA/')) {
     const url = req.nextUrl.clone()
-    url.pathname = `/garantia/${pathname.slice(10)}`
+    url.pathname = `/garantia${pathname.slice(9)}`
     return NextResponse.redirect(url)
   }
   return NextResponse.next()
