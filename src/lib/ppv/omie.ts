@@ -527,7 +527,7 @@ async function carregarVendedores(acc: OmieAccount): Promise<Array<{ codigo: num
   return lista;
 }
 
-async function buscarNcodVend(tecnico: string, acc: OmieAccount): Promise<number> {
+export async function buscarNcodVend(tecnico: string, acc: OmieAccount): Promise<number> {
   const t = (tecnico || "").trim();
   if (!t) return 0;
   const cacheKey = `${acc.name}:${t}`;
@@ -1417,7 +1417,7 @@ function brDataOffset(refISO: string | undefined, dias: number): string {
 // Acha a NF-e do pedido (por compl.nIdPedido). ATENÇÃO: o ListarNF devolve da NF
 // mais ANTIGA pra mais nova — sem filtro, a página 1 traz notas de anos atrás.
 // Por isso filtramos por uma JANELA de data (ao redor do faturamento) + cliente.
-async function buscarNFdoPedido(acc: OmieAccount, codigoPedido: number, codigoCliente?: number, refDataISO?: string): Promise<Record<string, unknown> | null> {
+export async function buscarNFdoPedido(acc: OmieAccount, codigoPedido: number, codigoCliente?: number, refDataISO?: string): Promise<Record<string, unknown> | null> {
   const param: Record<string, unknown> = {
     pagina: 1, registros_por_pagina: 100, tpNF: 1, apenas_importado_api: "N",
     dEmiInicial: brDataOffset(refDataISO, -7), dEmiFinal: brDataOffset(refDataISO, +3),

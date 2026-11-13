@@ -6,6 +6,9 @@ import QRCode from 'qrcode'
 import { Copy, Trash2, FileDown, X, History, Search, Link2, Unlink } from 'lucide-react'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import HistoricoProposta from './HistoricoProposta'
+import PagamentoProposta, { carregarPagamentoProposta, salvarPagamentoProposta, pagamentoVazio } from './PagamentoProposta'
+import PedidoMaquinaDaProposta from './PedidoMaquinaDaProposta'
+import { resumoCondicoes, PAGAMENTO_VAZIO } from '@/lib/propostas/pagamento'
 import { STATUS_PERDIDO } from './MotivoPerdaModal'
 import { dataExtenso, desenharBlocoAssinatura, desenharRodape, validarDadosAssinatura } from '@/lib/propostas/pdf-assinatura'
 import { desenharCampo, desenharBlocoTexto } from '@/lib/propostas/pdf-caber'
@@ -27,6 +30,10 @@ export default function EditModal({ proposal, onClose, soPdf = false, onPdf = nu
   const [showPed, setShowPed] = useState(false)
   const pedRef = useRef(null)
   const { log } = useAuditLog()
+  // Pagamento estruturado (proposta_pagamento) — o texto das Condições segue no Formulario.
+  const [pagamento, setPagamento] = useState(PAGAMENTO_VAZIO)
+  const [pagamentoInicial, setPagamentoInicial] = useState(null)
+  const [pagMigracao, setPagMigracao] = useState(false)
 
   // Tipo GUARDADO na proposta; propostas antigas (sem tipo) caem no palpite pelos campos preenchidos.
   const tipoProposta = formData.tipo || (
@@ -43,6 +50,11 @@ export default function EditModal({ proposal, onClose, soPdf = false, onPdf = nu
       setFormData({ ...proposal })
       setImagePreview(proposal.Imagem_Equipamento)
       fetchConfig()
+      carregarPagamentoProposta(proposal.id).then(({ pagamento: pg, migracaoFaltando }) => {
+        setPagMigracao(!!migracaoFaltando)
+        setPagamentoInicial(pg)
+        setPagamento(pg || PAGAMENTO_VAZIO)
+      })
     }
   }, [proposal])
 
@@ -363,7 +375,20 @@ export default function EditModal({ proposal, onClose, soPdf = false, onPdf = nu
     payload.concorrente_valor = formData.concorrente_valor ? Number(formData.concorrente_valor) : null  // numeric: '' quebra
     payload.termometro = (formData.termometro === '' || formData.termometro == null) ? null : Number(formData.termometro)  // smallint 0-100
     payload.tag_id = formData.tag_id ? Number(formData.tag_id) : null  // FK proposta_tags(id); '' quebra
+    // Pagamento estruturado: o resumo vira o texto das Condições quando o campo está
+    // vazio ou ainda é o resumo gerado antes (texto digitado à mão é respeitado).
+    const mudouPagamento = JSON.stringify(pagamento) !== JSON.stringify(pagamentoInicial || PAGAMENTO_VAZIO)
+    const salvarPag = !pagMigracao && mudouPagamento && !(pagamentoVazio(pagamento) && !pagamentoInicial)
+    if (salvarPag && !pagamentoVazio(pagamento)) {
+      const resumoAntigo = pagamentoInicial ? resumoCondicoes(pagamentoInicial) : ''
+      const atual = String(formData.Condicoes || '').trim()
+      if (!atual || atual === resumoAntigo) payload.Condicoes = resumoCondicoes(pagamento)
+    }
     const { error } = await supabase.from('Formulario').update(payload).eq('id', proposal.id)
+    if (!error && salvarPag) {
+      const r = await salvarPagamentoProposta(proposal.id, pagamento)
+      if (!r.ok) { alert('A proposta foi salva, mas o pagamento não: ' + r.erro); return }
+    }
     if (!error) {
       if (alteracoes.length) await log({ sistema: 'Proposta Comercial', acao: 'editar', entidade: 'proposta', entidade_id: String(proposal.id), entidade_label: formData.Cliente || proposal.Cliente, detalhes: { alteracoes } })
       alert("ATUALIZADO COM SUCESSO!"); window.location.reload()
@@ -532,9 +557,12 @@ export default function EditModal({ proposal, onClose, soPdf = false, onPdf = nu
                 <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>VALIDADE (DIAS)</label><input value={formData.validade || ''} onChange={e => setFormData({ ...formData, validade: e.target.value })} className={`${inputStyle} !text-amber-700`} /></div>
               </div>
               <div className="flex flex-wrap">
-                <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>CONDICOES DE PAGAMENTO</label><input value={formData.Condicoes || ''} onChange={e => setFormData({ ...formData, Condicoes: e.target.value })} className={inputStyle} /></div>
+                <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>CONDICOES DE PAGAMENTO</label><input value={formData.Condicoes || ''} onChange={e => setFormData({ ...formData, Condicoes: e.target.value })} className={inputStyle} placeholder="Preenchido sozinho pelo bloco Pagamento abaixo" /></div>
               </div>
             </div>
+            <div className="text-[12px] font-medium text-zinc-500 uppercase tracking-wide -mb-2">Pagamento (entrada e parcelas) — o Pedido de Máquinas importa daqui</div>
+            <PagamentoProposta valor={pagamento} onChange={setPagamento} valorTotal={formData.Valor_Total} migracaoFaltando={pagMigracao} />
+            <PedidoMaquinaDaProposta propostaId={proposal.id} />
 
             {/* IV. PEDIDO DE FÁBRICA — vincular/desvincular */}
             <div className="text-[14px] font-medium text-red-600 uppercase tracking-wide">IV. PEDIDO DE FÁBRICA</div>

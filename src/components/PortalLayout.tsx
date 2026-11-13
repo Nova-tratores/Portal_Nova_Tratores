@@ -19,7 +19,7 @@ import {
   LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle, Columns,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
-  LayoutGrid, List, CircleDot, Clock, Truck, Bot, Ticket, Cctv, GraduationCap, UserPlus, Tags,
+  LayoutGrid, List, CircleDot, Clock, Truck, Bot, Ticket, Cctv, GraduationCap, UserPlus, Tags, Tractor,
   ListPlus, CircleCheckBig, MessageSquarePlus, BadgeCheck
 } from 'lucide-react'
 import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias, CalendarClock, CalendarDays, LineChart, Radar, Search, EyeOff, Mail, Copy } from 'lucide-react'
@@ -118,6 +118,8 @@ const navItems: NavItem[] = [
   { id: 'crm-vendas', name: 'CRM Vendas', href: '/crm-vendas', icon: <LineChart size={18} />, tag: 'CRM', gradient: '', group: 'comercial' },
   // Mesma tela de /dre-financeiro/vendas-modelo; o id É o módulo (gate do menu usa item.id).
   { id: 'vendas-modelo', name: 'Vendas por Modelo', href: '/vendas-modelo', icon: <Tags size={18} />, tag: 'MODELOS', gradient: '', group: 'comercial' },
+  // o "PPV" das máquinas: pedido de venda montado no portal e mandado para a Omie (13/11/2026)
+  { id: 'pedidos-maquinas', name: 'Pedidos de Máquinas', href: '/pedidos-maquinas', icon: <Tractor size={18} />, tag: 'PEDIDOS', gradient: '', group: 'comercial' },
   { id: 'marketing', name: 'Marketing & Eventos', href: '/marketing', icon: <Megaphone size={18} />, tag: 'EVENTOS', gradient: '', group: 'comercial' },
   { id: 'inteligencia-vendas', name: 'Inteligência de Vendas', href: '/inteligencia-vendas', icon: <Radar size={18} />, tag: 'RADAR', gradient: '', group: 'comercial' },
   // Tela mobile do estande: quem só captura lead não precisa do módulo inteiro.

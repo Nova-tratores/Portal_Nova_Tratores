@@ -75,6 +75,7 @@ export const MODULOS_TELAS: { id: string; nome: string }[] = [
   { id: 'pendencias', nome: 'Pendências da frota' },
   { id: 'pops', nome: 'POPs (procedimentos)' },
   { id: 'pos', nome: 'Pós-Vendas (OS)' },
+  { id: 'pedidos-maquinas', nome: 'Pedidos de Máquinas' },
   { id: 'ppv', nome: 'Peças (PPV)' },
   { id: 'propostas', nome: 'Proposta Comercial' },
   { id: 'requisicoes', nome: 'Requisições' },
@@ -130,7 +131,7 @@ const RAIZ: Record<string, string> = {
   'fotos-tecnicos': '/fotos-tecnicos', lousa: '/lousa', ppv: '/ppv', orcamentos: '/orcamentos',
   requisicoes: '/requisicoes', financeiro: '/financeiro', dre: '/dre-financeiro', propostas: '/propostas',
   feedbacks: '/feedbacks', clientes: '/clientes', 'supervisor-vendas': '/supervisor-vendas',
-  'vendas-modelo': '/vendas-modelo', lead: '/lead', 'consulta-estoque': '/visual-estoque', estoque: '/estoque',
+  'vendas-modelo': '/vendas-modelo', 'pedidos-maquinas': '/pedidos-maquinas', lead: '/lead', 'consulta-estoque': '/visual-estoque', estoque: '/estoque',
   pendencias: '/pendencias', atividades: '/atividades', 'dashboard-agro': '/dashboard-agro', tickets: '/tickets',
   tarefas: '/tarefas', 'war-room': '/war-room', planta: '/planta', 'gestao-vendas': '/gestao-vendas',
 };

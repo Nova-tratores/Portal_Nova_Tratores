@@ -36,6 +36,8 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   'gestao-vendas': 'Comercial', marketing: 'Comercial', lead: 'Comercial', 'inteligencia-vendas': 'Comercial',
   // Mesma tela de /dre-financeiro/vendas-modelo, liberável sem o DRE.
   'vendas-modelo': 'Comercial',
+  // Pedidos de Máquinas (/pedidos-maquinas): o "PPV" do Comercial (13/11/2026).
+  'pedidos-maquinas': 'Comercial',
   // Estoque
   'consulta-estoque': 'Estoque', estoque: 'Estoque',
   frota: 'Frota', pendencias: 'Frota',
@@ -164,6 +166,14 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'observacoes', label: 'Observações (criar/resolver/excluir)' },
     { id: 'lembretes', label: 'Lembretes' },
     { id: 'destinatarios', label: 'Gerir destinatários' },
+  ],
+  'pedidos-maquinas': [
+    { id: 'criar', label: 'Criar pedido' },
+    { id: 'editar', label: 'Editar (itens, pagamento, proposta)' },
+    { id: 'mover_fase', label: 'Mudar a fase' },
+    { id: 'enviar_omie', label: 'Enviar para a Omie' },
+    { id: 'faturar', label: 'Faturar (emite NF-e)' },
+    { id: 'cancelar', label: 'Cancelar pedido' },
   ],
   propostas: [
     { id: 'criar', label: 'Cadastrar (cliente/trator/implemento/proposta)' },

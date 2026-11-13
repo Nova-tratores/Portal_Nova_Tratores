@@ -78,5 +78,7 @@ export const MODULOS_ADMIN: { id: string; label: string; color: string }[] = [
   // Vendas por Modelo (/vendas-modelo): mesma tela de /dre-financeiro/vendas-modelo,
   // liberável pelo grupo Comercial sem dar o DRE inteiro.
   { id: 'vendas-modelo', label: 'Vendas por Modelo', color: '#dc2626' },
+  // Pedidos de Máquinas (/pedidos-maquinas): monta o pedido de venda da máquina e manda para a Omie (13/11/2026).
+  { id: 'pedidos-maquinas', label: 'Pedidos de Máquinas', color: '#dc2626' },
   { id: 'war-room', label: 'War Room', color: '#b91c1c' },
 ]

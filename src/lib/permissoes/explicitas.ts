@@ -6,6 +6,7 @@
 // (navegador), pelas rotas (servidor) e pelo catálogo do Admin.
 export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
   'pos:faturar', // faturar a OS (emite NFS-e) — decisão do José, 10/10/2026
+  'pedidos-maquinas:faturar', // faturar o pedido de máquina (emite NF-e) — 13/11/2026
   'pos:cancelar_faturamento', // cancelar NFS-e/NF-e pelo portal (13/10/2026)
   'pos:substituir_omie', // trocar a OS/pedido do Omie (cancela o antigo) (13/10/2026)
   'pos:modelos_fiscais', // criar/editar modelos fiscais da NFS-e e vincular a clientes

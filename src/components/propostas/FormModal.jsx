@@ -3,10 +3,13 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { Search, X } from 'lucide-react'
+import PagamentoProposta, { salvarPagamentoProposta, pagamentoVazio } from './PagamentoProposta'
+import { resumoCondicoes, PAGAMENTO_VAZIO } from '@/lib/propostas/pagamento'
 
 export default function FormModal({ onClose, initialData }) {
   const { log } = useAuditLog()
   const [loading, setLoading] = useState(false)
+  const [pagamento, setPagamento] = useState(PAGAMENTO_VAZIO)
   const [tipoMaq, setTipoMaq] = useState('implemento')
   const [temValidade, setTemValidade] = useState(true)
   const [listaClientes, setListaClientes] = useState([])
@@ -232,8 +235,16 @@ export default function FormModal({ onClose, initialData }) {
       }
     })
 
+    // Pagamento estruturado: sem texto digitado, as Condições recebem o resumo.
+    const temPagamento = !pagamentoVazio(pagamento)
+    if (temPagamento && !String(payload.Condicoes || '').trim()) payload.Condicoes = resumoCondicoes(pagamento)
+
     const { data, error } = await supabase.from('Formulario').insert([payload]).select('id').single()
     if (!error) {
+      if (data?.id && temPagamento) {
+        const r = await salvarPagamentoProposta(data.id, pagamento)
+        if (!r.ok) alert('A proposta foi criada, mas o pagamento não foi salvo: ' + r.erro + '. Abra a proposta e salve o pagamento de novo.')
+      }
       if (data?.id) await log({ sistema: 'Proposta Comercial', acao: 'criar', entidade: 'proposta', entidade_id: String(data.id), entidade_label: payload.Cliente })
       alert("PROPOSTA GERADA COM SUCESSO!"); onClose(); window.location.reload()
     }
@@ -437,7 +448,11 @@ export default function FormModal({ onClose, initialData }) {
                 <div className="hidden md:block" />
                 <div className={`${fieldCls} md:col-span-3`}>
                   <span className={labelStyle}>Condições de pagamento / observações</span>
-                  <input value={formData.Condicoes} onChange={e => setFormData({ ...formData, Condicoes: e.target.value })} className={inputStyle} />
+                  <input value={formData.Condicoes} onChange={e => setFormData({ ...formData, Condicoes: e.target.value })} className={inputStyle} placeholder="Em branco = resumo do pagamento abaixo" />
+                </div>
+                <div className={`${fieldCls} md:col-span-3`}>
+                  <span className={labelStyle}>Pagamento (entrada e parcelas)</span>
+                  <PagamentoProposta valor={pagamento} onChange={setPagamento} valorTotal={formData.Valor_Total} />
                 </div>
               </div>
             </div>

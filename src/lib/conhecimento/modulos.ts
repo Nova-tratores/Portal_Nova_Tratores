@@ -27,7 +27,7 @@ export function rotuloModulo(id: string): string {
 const COR_EXTRA: Record<string, string> = {
   frota: "#1e40af", pendencias: "#1e40af", mapa: "#1e40af", financeiro: "#15803d", dre: "#15803d",
   estoque: "#64748b", "consulta-estoque": "#64748b", ajustes: "#64748b", clientes: "#7c3aed",
-  propostas: "#dc2626", "gestao-vendas": "#dc2626", "inteligencia-vendas": "#dc2626", "vendas-modelo": "#dc2626",
+  propostas: "#dc2626", "gestao-vendas": "#dc2626", "inteligencia-vendas": "#dc2626", "vendas-modelo": "#dc2626", "pedidos-maquinas": "#dc2626",
   marketing: "#db2777", lead: "#db2777", mecanicos: "#0369a1", "painel-mecanicos": "#0369a1", lousa: "#0369a1",
   "fotos-tecnicos": "#0369a1", orcamentos: "#ea580c", opa: "#ca8a04", "opa-pecas": "#ca8a04", patrimonio: "#ca8a04",
   tarefas: "#0e7490", cronograma: "#0e7490", "dashboard-agro": "#16a34a", tratorilson: "#2563eb",
@@ -40,7 +40,7 @@ const ICONE: Record<string, string> = {
   pops: "fa-book-open", geral: "fa-house", frota: "fa-truck", pendencias: "fa-triangle-exclamation",
   mapa: "fa-map-location-dot", financeiro: "fa-sack-dollar", dre: "fa-chart-line", estoque: "fa-boxes-stacked",
   "consulta-estoque": "fa-warehouse", ajustes: "fa-sliders", clientes: "fa-folder-open", propostas: "fa-file-signature",
-  "gestao-vendas": "fa-handshake", "inteligencia-vendas": "fa-lightbulb", "vendas-modelo": "fa-chart-column",
+  "gestao-vendas": "fa-handshake", "inteligencia-vendas": "fa-lightbulb", "vendas-modelo": "fa-chart-column", "pedidos-maquinas": "fa-tractor",
   marketing: "fa-bullhorn", lead: "fa-address-card", mecanicos: "fa-user-gear", "painel-mecanicos": "fa-user-gear",
   lousa: "fa-chalkboard", "fotos-tecnicos": "fa-camera", orcamentos: "fa-calculator", opa: "fa-circle-exclamation",
   "opa-pecas": "fa-box-open", patrimonio: "fa-tags", tarefas: "fa-square-check", cronograma: "fa-calendar-days",
