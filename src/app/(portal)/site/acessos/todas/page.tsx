@@ -3,7 +3,7 @@
 // 13/11: logos das redes, apresentação melhor e modo exemplo com números inventados (todas as redes misturadas).
 // Dados reais: contador do site (/api/site/acessos) + o que o robô grava de cada rede (site_redes_metricas via /api/site/redes?rede=todas).
 // Rede sem conta ligada aparece como "falta ligar" — número inventado só no modo exemplo, com aviso.
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { fetchAuth } from '@/lib/auth/client';
 import { Aviso, tela } from '@/components/site/ui';
@@ -22,10 +22,8 @@ type Bloco = { id: RedeId; ligada: boolean; atual: Tot; antes: Tot | null; dias:
 type TopPost = { titulo: string; rede: RedeId; dia: string; pessoas: number; interacoes: number; contatos: number; formato: string };
 
 const COR = '#d97706';
-// Ordem fixa e cores dos gráficos (conferidas no validador de cores, claro e escuro, inclusive daltonismo).
-// A cor segue a rede, nunca a posição; a logo vai junto em toda legenda.
+// Ordem fixa das redes.
 const ORDEM: RedeId[] = ['site', 'facebook', 'youtube', 'tiktok', 'instagram'];
-const CORG: Record<RedeId, string> = { site: '#d97706', facebook: '#2563eb', youtube: '#dc2626', tiktok: '#059669', instagram: '#9333ea' };
 const VERDE = '#15803d';
 const VERMELHO = '#b91c1c';
 
@@ -173,12 +171,10 @@ export default function AcessosTodas() {
   const { blocos, top } = useMemo(() => (ex ? exemplo(dias) : { blocos: reais(dias, site, redes?.metricas || [], redes?.posts || []), top: [] as TopPost[] }), [ex, dias, site, redes]);
   const carregando = !ex && (site === null || redes === null);
   const ligados = blocos.filter((b) => b.ligada);
-  const semConta = blocos.filter((b) => !b.ligada);
   const tot = somar(ligados.map((b) => b.atual));
   const temAntes = ligados.some((b) => b.antes);
   const totAntes = somar(ligados.map((b) => b.antes || ZERO));
   const novosSeg = ligados.reduce((s, b) => s + (b.novosSeg || 0), 0);
-  const posts = ligados.reduce((s, b) => s + b.posts, 0);
 
   // dia a dia, rede por rede (barras empilhadas)
   const porDia = (() => {
@@ -203,49 +199,202 @@ export default function AcessosTodas() {
   const quemMaisContato = [...ligados].sort((a, b) => b.atual.contatos - a.atual.contatos)[0];
   const vazio = !carregando && tot.pessoas === 0;
 
-  const seta = (v: number | null, inverso = false) => {
-    if (v == null) return <span style={{ fontSize: 12.5, color: T3 }}>sem período anterior</span>;
-    const bom = inverso ? v < 0 : v >= 0;
-    return (
-      <span style={{ fontSize: 12.5, color: bom ? VERDE : VERMELHO, display: 'inline-flex', gap: 4, alignItems: 'center' }}>
-        <i className={`fa-solid ${v >= 0 ? 'fa-arrow-trend-up' : 'fa-arrow-trend-down'}`} style={{ fontWeight: 900 }} />
-        {v >= 0 ? '+' : ''}{v}% <span style={{ color: T3 }}>que os {dias} dias antes</span>
-      </span>
-    );
-  };
+  // José 13/11: "ta ruim de entender" → jeito leigo: uma frase no topo, redes em ranking, cartões com uma conclusão cada; o detalhe abre numa janela.
+  type Janela = { tipo: 'rede'; id: RedeId } | { tipo: 'contato' | 'semana' | 'dias' | 'posts' | 'seguidores' };
+  const [janela, setJanela] = useState<Janela | null>(null);
+  useEffect(() => {
+    if (!janela) return;
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setJanela(null); };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [janela]);
 
-  const numero = (icone: string, rotulo: string, valor: number, antes: number | null, detalhe: string) => (
-    <section style={{ ...cartaoNP, display: 'grid', gap: 6, alignContent: 'start' }}>
-      <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: T2 }}><span style={{ color: COR }}>{ic(icone)}</span>{rotulo}</span>
-      <span style={{ fontSize: 28, color: T1, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{carregando ? '…' : curto(valor)}</span>
-      {!carregando && seta(variacao(valor, antes))}
-      <span style={{ fontSize: 12, color: T3 }}>{detalhe}</span>
-    </section>
+  const periodo = `Nos últimos ${dias} dias`;
+  const comparar = (a: number, b: number | null | undefined) => {
+    const v = variacao(a, b);
+    if (v == null) return null;
+    if (v === 0) return <span style={{ color: T2 }}>igual aos {dias} dias antes</span>;
+    return <span style={{ color: v > 0 ? VERDE : VERMELHO }}>{v > 0 ? '▲' : '▼'} {Math.abs(v)}% {v > 0 ? 'a mais' : 'a menos'} que nos {dias} dias antes</span>;
+  };
+  const ranking = [...blocos].sort((a, b) => (b.ligada ? 1 : 0) - (a.ligada ? 1 : 0) || b.atual.pessoas - a.atual.pessoas);
+  const maiorRede = Math.max(1, ...ligados.map((b) => b.atual.pessoas));
+  const maisSeg = [...ligados].filter((b) => b.novosSeg).sort((a, b) => (b.novosSeg || 0) - (a.novosSeg || 0));
+  const nomeSemana = (w: number) => `${SEMANA[w][0].toUpperCase()}${SEMANA[w].slice(1)}`;
+
+  const barra = (pct: number, cor = COR, alto = 12) => (
+    <span style={{ display: 'block', height: alto, background: 'color-mix(in srgb, var(--portal-text, #0f172a) 6%, transparent)', borderRadius: 4, overflow: 'hidden' }}>
+      <span style={{ display: 'block', height: '100%', width: `${Math.max(1.5, Math.min(100, pct))}%`, background: cor, borderRadius: 4 }} />
+    </span>
   );
 
-  const sparkline = (b: Bloco) => {
+  const linhaSimples = (b: Bloco) => {
     const v = b.dias.map((d) => d.pessoas);
     const mx = Math.max(1, ...v);
-    const W = 100, H = 30;
+    const W = 100, H = 40;
     const pts = v.map((y, i) => `${v.length < 2 ? 0 : (i / (v.length - 1)) * W},${H - (y / mx) * (H - 2) - 1}`).join(' ');
     return (
-      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: 34, display: 'block' }} aria-hidden>
-        <polyline points={`0,${H} ${pts} ${W},${H}`} fill={`color-mix(in srgb, ${CORG[b.id]} 14%, transparent)`} stroke="none" />
-        <polyline points={pts} fill="none" stroke={CORG[b.id]} strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
+      <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" style={{ width: '100%', height: 90, display: 'block' }} aria-hidden>
+        <polyline points={`0,${H} ${pts} ${W},${H}`} fill="color-mix(in srgb, #d97706 14%, transparent)" stroke="none" />
+        <polyline points={pts} fill="none" stroke={COR} strokeWidth={2} vectorEffect="non-scaling-stroke" strokeLinejoin="round" strokeLinecap="round" />
       </svg>
     );
   };
 
-  const legenda = (
-    <span style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12.5, color: T2 }}>
-      {ligados.map((b) => (
-        <span key={b.id} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-          <span style={{ width: 10, height: 10, borderRadius: 3, background: CORG[b.id] }} />
-          <LogoRede id={b.id} tam={16} />{REDE[b.id].nome}
-        </span>
-      ))}
-    </span>
+  // cartão de conclusão: título é a conclusão, uma frase embaixo, toque abre o detalhe
+  const conclusao = (icone: string, titulo: ReactNode, frase: ReactNode, abrir: Janela, logo?: RedeId) => (
+    <button type="button" onClick={() => setJanela(abrir)}
+      style={{ ...cartaoNP, display: 'grid', gap: 6, alignContent: 'start', textAlign: 'left', font: 'inherit', color: T1, cursor: 'pointer' }}>
+      <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: T3 }}>
+        {logo ? <LogoRede id={logo} tam={22} /> : <span style={{ color: COR }}>{ic(icone)}</span>}
+        <span style={{ marginLeft: 'auto', fontSize: 12.5 }}>ver mais {ic('fa-chevron-right')}</span>
+      </span>
+      <span style={{ fontSize: 17, lineHeight: 1.3 }}>{titulo}</span>
+      <span style={{ fontSize: 13, color: T2, lineHeight: 1.4 }}>{frase}</span>
+    </button>
   );
+
+  const quatro = (b: Bloco) => [
+    { rot: 'Pessoas que viram', v: b.atual.pessoas, a: b.antes?.pessoas },
+    { rot: 'Visualizações', v: b.atual.views, a: b.antes?.views },
+    ...(b.temInteracao ? [{ rot: 'Curtidas, comentários e salvos', v: b.atual.interacoes, a: b.antes?.interacoes }] : []),
+    { rot: b.id === 'site' ? 'Chamaram ou pediram proposta' : 'Clicaram no link / chamaram', v: b.atual.contatos, a: b.antes?.contatos },
+  ];
+
+  const conteudoJanela = () => {
+    if (!janela) return null;
+    if (janela.tipo === 'rede') {
+      const b = blocos.find((x) => x.id === janela.id)!;
+      return {
+        titulo: <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}><LogoRede id={b.id} tam={30} />{REDE[b.id].nome}</span>,
+        corpo: !b.ligada ? (
+          <span style={{ display: 'grid', gap: 10, justifyItems: 'start' }}>
+            <span style={{ fontSize: 14, color: T2 }}>A conta ainda não foi ligada, então não tem número. Depois de ligada, um robô busca os números todo dia.</span>
+            <Link href="/site/conteudo/contas" style={{ ...bt(COR, true), textDecoration: 'none' }}>{ic('fa-link')}Ver como ligar</Link>
+          </span>
+        ) : (
+          <>
+            <span style={{ fontSize: 13, color: T3 }}>{periodo}</span>
+            <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))' }}>
+              {quatro(b).map((q) => (
+                <span key={q.rot} style={{ display: 'grid', gap: 2, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 12 }}>
+                  <span style={{ fontSize: 12.5, color: T3 }}>{q.rot}</span>
+                  <span style={{ fontSize: 22, fontVariantNumeric: 'tabular-nums' }}>{fmt(q.v)}</span>
+                  <span style={{ fontSize: 12 }}>{comparar(q.v, q.a)}</span>
+                </span>
+              ))}
+            </div>
+            {b.seguidores != null && <span style={{ fontSize: 14, color: T2 }}>{fmt(b.seguidores)} seguidores{b.novosSeg ? `, ${fmt(b.novosSeg)} novos no período` : ''}.</span>}
+            <span style={{ fontSize: 13, color: T2 }}>Pessoas por dia</span>
+            {linhaSimples(b)}
+            <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: T3 }}><span>{b.dias[0] && ddmm(b.dias[0].dia)}</span><span>hoje</span></span>
+            <Link href={b.id === 'site' ? '/site/acessos' : `/site/acessos/${b.id}`} style={{ ...bt(COR), textDecoration: 'none', justifySelf: 'start' }}>Abrir a página {b.id === 'site' ? 'do site' : `do ${REDE[b.id].nome}`} {ic('fa-arrow-right')}</Link>
+          </>
+        ),
+      };
+    }
+    if (janela.tipo === 'contato') {
+      const l = [...ligados].sort((a, b) => b.atual.contatos - a.atual.contatos);
+      const mx = Math.max(1, ...l.map((b) => b.atual.contatos));
+      return {
+        titulo: `${fmt(tot.contatos)} contatos ${periodo.toLowerCase()}`,
+        corpo: (
+          <>
+            <span style={{ fontSize: 14, color: T2 }}>Contato é quem chamou no WhatsApp, ligou, pediu proposta no site ou clicou no link das redes. De cada 1.000 pessoas que viram, {tot.pessoas ? (tot.contatos / tot.pessoas * 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) : 0} viraram contato.</span>
+            {l.map((b) => (
+              <span key={b.id} style={{ display: 'grid', gridTemplateColumns: '28px 1fr', gap: 10, alignItems: 'center' }}>
+                <LogoRede id={b.id} tam={28} />
+                <span style={{ display: 'grid', gap: 4 }}>
+                  <span style={{ display: 'flex', fontSize: 13.5 }}>{REDE[b.id].nome}<span style={{ marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{fmt(b.atual.contatos)}</span></span>
+                  {barra((b.atual.contatos / mx) * 100)}
+                </span>
+              </span>
+            ))}
+          </>
+        ),
+      };
+    }
+    if (janela.tipo === 'semana') {
+      return {
+        titulo: `${nomeSemana(melhorSemana.w)} é o dia que mais gente vê`,
+        corpo: (
+          <>
+            <span style={{ fontSize: 14, color: T2 }}>Média de pessoas por dia da semana, somando todas as redes. Solte o post mais importante no dia mais forte.</span>
+            {[1, 2, 3, 4, 5, 6, 0].map((w) => (
+              <span key={w} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 60px', gap: 10, alignItems: 'center', fontSize: 13.5 }}>
+                <span style={{ color: w === melhorSemana.w ? T1 : T2 }}>{nomeSemana(w)}</span>
+                {barra((semana[w].media / maxSemana) * 100, w === melhorSemana.w ? COR : 'color-mix(in srgb, #d97706 45%, transparent)')}
+                <span style={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: T2 }}>{curto(semana[w].media)}</span>
+              </span>
+            ))}
+          </>
+        ),
+      };
+    }
+    if (janela.tipo === 'dias') {
+      return {
+        titulo: melhorDia ? `Melhor dia: ${SEMANA[semanaDe(melhorDia.dia)]}, ${ddmm(melhorDia.dia)}` : 'Pessoas por dia',
+        corpo: (
+          <>
+            <span style={{ fontSize: 14, color: T2 }}>Quantas pessoas viram a Nova Tratores em cada dia, todas as redes somadas. Toque numa barra para ver o número.</span>
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: dias > 30 ? 1 : 3, height: 170, borderBottom: '1px solid var(--border)' }}>
+              {porDia.map((d, i) => (
+                <div key={d.dia} onMouseEnter={() => setFoco(i)} onClick={() => setFoco(i)} style={{ flex: 1, height: '100%', display: 'flex', alignItems: 'flex-end', cursor: 'default' }}>
+                  <div style={{ width: '100%', height: `${(d.total / maxDia) * 100}%`, minHeight: d.total ? 2 : 0, background: foco === i || (foco == null && d === melhorDia) ? '#b45309' : COR, opacity: foco == null || foco === i ? 1 : 0.55, borderRadius: '3px 3px 0 0' }} />
+                </div>
+              ))}
+            </div>
+            <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: T3 }}><span>{porDia[0] && ddmm(porDia[0].dia)}</span><span>hoje</span></span>
+            {(() => {
+              const d = foco != null ? porDia[foco] : melhorDia;
+              if (!d) return null;
+              return (
+                <span style={{ display: 'grid', gap: 6, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 12 }}>
+                  <span style={{ fontSize: 14 }}>{nomeSemana(semanaDe(d.dia))}, {ddmm(d.dia)}: {fmt(d.total)} pessoas</span>
+                  <span style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 12.5, color: T2 }}>
+                    {[...d.partes].sort((a, b) => b.v - a.v).map((p) => <span key={p.id} style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><LogoRede id={p.id} tam={16} />{fmt(p.v)}</span>)}
+                  </span>
+                </span>
+              );
+            })()}
+          </>
+        ),
+      };
+    }
+    if (janela.tipo === 'seguidores') {
+      return {
+        titulo: `+${fmt(novosSeg)} seguidores novos`,
+        corpo: (
+          <>
+            <span style={{ fontSize: 14, color: T2 }}>{periodo}, somando as redes.</span>
+            {maisSeg.map((b) => (
+              <span key={b.id} style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 14 }}>
+                <LogoRede id={b.id} tam={28} />{REDE[b.id].nome}
+                <span style={{ marginLeft: 'auto', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>+{fmt(b.novosSeg || 0)}<span style={{ display: 'block', fontSize: 12, color: T3 }}>{fmt(b.seguidores || 0)} no total</span></span>
+              </span>
+            ))}
+          </>
+        ),
+      };
+    }
+    return {
+      titulo: 'Posts que mais deram resultado',
+      corpo: (
+        <>
+          {top.map((p, i) => (
+            <span key={i} style={{ display: 'grid', gridTemplateColumns: '28px minmax(0, 1fr)', gap: 10, alignItems: 'start', paddingTop: i ? 10 : 0, borderTop: i ? '1px solid var(--border)' : 0 }}>
+              <LogoRede id={p.rede} tam={28} />
+              <span style={{ display: 'grid', gap: 2 }}>
+                <span style={{ fontSize: 14 }}>{p.titulo}</span>
+                <span style={{ fontSize: 12.5, color: T3 }}>{REDE[p.rede].nome} · {p.formato} · {ddmm(p.dia)}</span>
+                <span style={{ fontSize: 13, color: T2 }}>{fmt(p.pessoas)} pessoas viram · {fmt(p.contatos)} viraram contato</span>
+              </span>
+            </span>
+          ))}
+        </>
+      ),
+    };
+  };
+  const j = conteudoJanela();
 
   return (
     <div style={{ ...tela, color: T1 }}>
@@ -254,7 +403,7 @@ export default function AcessosTodas() {
 
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
         {PERIODOS.map(([d, rot]) => <button key={d} style={{ ...bt(COR, dias === d), minHeight: 36 }} onClick={() => trocar(d)}>{rot}</button>)}
-        <span style={{ marginLeft: 'auto', display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <span style={{ marginLeft: 'auto' }}>
           {ex
             ? <button style={{ ...bt('#b45309'), minHeight: 36 }} onClick={() => trocarEx(false)}>{ic('fa-xmark')}Sair do exemplo</button>
             : <button style={{ ...bt('#b45309'), minHeight: 36 }} onClick={() => trocarEx(true)}>{ic('fa-eye')}Ver exemplo com dados</button>}
@@ -262,247 +411,93 @@ export default function AcessosTodas() {
       </div>
 
       {ex && (
-        <div style={{ ...cartaoNP, borderColor: '#f59e0b', background: 'color-mix(in srgb, #f59e0b 12%, var(--surface))', fontSize: 14, display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ ...cartaoNP, borderColor: '#f59e0b', background: 'color-mix(in srgb, #f59e0b 12%, var(--surface))', fontSize: 14, display: 'flex', gap: 10, alignItems: 'center', padding: '10px 16px' }}>
           <span style={{ color: '#b45309' }}>{ic('fa-flask')}</span>
-          <span><span style={{ color: T1 }}>Exemplo com números inventados.</span> <span style={{ color: T2 }}>Só para ver como a tela fica com todas as redes ligadas. Nada disto é real.</span></span>
+          <span style={{ color: T2 }}>Exemplo com números inventados, só para ver como fica. Nada disto é real.</span>
         </div>
       )}
 
-      {!ex && semConta.length > 0 && (
-        <div style={{ ...cartaoNP, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', padding: '12px 16px' }}>
-          <span style={{ display: 'inline-flex', gap: 4 }}>{semConta.map((b) => <span key={b.id} style={{ opacity: 0.45 }}><LogoRede id={b.id} tam={24} /></span>)}</span>
-          <span style={{ fontSize: 13.5, color: T2, flex: '1 1 220px' }}>Ainda sem conta ligada: {semConta.map((b) => REDE[b.id].nome).join(', ')}. Por enquanto só o site conta.</span>
-          <Link href="/site/conteudo/contas" style={{ ...bt(COR), textDecoration: 'none', minHeight: 34, padding: '4px 12px' }}>{ic('fa-link')}Ver como ligar</Link>
-        </div>
-      )}
-
-      {/* números do período */}
-      <div style={grade(180)}>
-        {numero('fa-users', 'Pessoas alcançadas', tot.pessoas, temAntes ? totAntes.pessoas : null, 'gente diferente que viu a Nova Tratores')}
-        {numero('fa-eye', 'Visualizações', tot.views, temAntes ? totAntes.views : null, 'páginas do site + vezes que os posts apareceram')}
-        {numero('fa-heart', 'Interações', tot.interacoes, temAntes ? totAntes.interacoes : null, 'curtidas, comentários, salvos e compartilhamentos')}
-        {numero('fa-comment-dots', 'Contatos gerados', tot.contatos, temAntes ? totAntes.contatos : null, 'WhatsApp, telefone e proposta + cliques no link')}
-        <section style={{ ...cartaoNP, display: 'grid', gap: 6, alignContent: 'start' }}>
-          <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 13, color: T2 }}><span style={{ color: COR }}>{ic('fa-user-plus')}</span>Seguidores novos</span>
-          <span style={{ fontSize: 28, color: T1, fontVariantNumeric: 'tabular-nums', lineHeight: 1.1 }}>{carregando ? '…' : `+${fmt(novosSeg)}`}</span>
-          <span style={{ fontSize: 12.5, color: T3 }}>{posts} posts saíram no período</span>
-        </section>
-      </div>
+      {carregando && <span style={{ color: T3 }}>Carregando…</span>}
 
       {vazio && !ex && (
         <div style={{ ...cartaoNP, display: 'grid', gap: 10, justifyItems: 'start' }}>
-          <span style={{ fontSize: 15 }}>Ainda não tem número para mostrar.</span>
-          <span style={{ fontSize: 13.5, color: T3 }}>O site novo ainda não está no ar e as redes ainda não foram ligadas. Quer ver como a tela fica cheia?</span>
+          <span style={{ fontSize: 16 }}>Ainda não tem número para mostrar.</span>
+          <span style={{ fontSize: 13.5, color: T3 }}>O site novo ainda não está no ar e as redes ainda não foram ligadas.</span>
           <button style={bt('#b45309', true)} onClick={() => trocarEx(true)}>{ic('fa-eye')}Ver exemplo com dados</button>
         </div>
       )}
 
       {!vazio && !carregando && (
         <>
-          {/* de onde vem o público */}
-          <section style={{ ...cartaoNP, display: 'grid', gap: 12 }}>
-            <span style={{ fontSize: 16 }}>{lider ? `${REDE[lider.id].nome} trouxe ${parte(lider)}% das pessoas` : 'De onde vem o público'}</span>
-            <div style={{ display: 'flex', height: 22, gap: 2, borderRadius: 6, overflow: 'hidden' }}>
-              {ligados.filter((b) => b.atual.pessoas > 0).map((b) => (
-                <div key={b.id} title={`${REDE[b.id].nome}: ${fmt(b.atual.pessoas)} pessoas (${parte(b)}%)`} style={{ flex: b.atual.pessoas, background: CORG[b.id], minWidth: 3 }} />
-              ))}
-            </div>
-            <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit, minmax(min(150px, 100%), 1fr))' }}>
-              {ligados.map((b) => (
-                <span key={b.id} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <LogoRede id={b.id} tam={26} />
-                  <span style={{ display: 'grid', lineHeight: 1.25 }}>
-                    <span style={{ fontSize: 13.5, color: T1 }}>{REDE[b.id].nome} <span style={{ color: T2, fontVariantNumeric: 'tabular-nums' }}>{parte(b)}%</span></span>
-                    <span style={{ fontSize: 12, color: T3, fontVariantNumeric: 'tabular-nums' }}>{fmt(b.atual.pessoas)} pessoas</span>
-                  </span>
-                </span>
-              ))}
-            </div>
-          </section>
-
-          {/* dia a dia empilhado */}
-          <section style={{ ...cartaoNP, display: 'grid', gap: 12 }}>
-            <span style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'baseline' }}>
-              <span style={{ fontSize: 16 }}>{melhorDia ? `Melhor dia: ${ddmm(melhorDia.dia)}, com ${fmt(melhorDia.total)} pessoas` : 'Pessoas por dia'}</span>
-              <span style={{ fontSize: 12.5, color: T3 }}>todas as redes somadas, dia a dia</span>
+          {/* 1. a frase do período */}
+          <section style={{ ...cartaoNP, display: 'grid', gap: 8, padding: '20px 22px' }}>
+            <span style={{ fontSize: 14, color: T3 }}>{periodo}</span>
+            <span style={{ fontSize: 'clamp(20px, 3.2vw, 28px)', lineHeight: 1.25 }}>
+              <span style={{ color: COR, fontVariantNumeric: 'tabular-nums' }}>{curto(tot.pessoas)} pessoas</span> viram a Nova Tratores
+              {tot.contatos > 0 && <> e <span style={{ color: COR, fontVariantNumeric: 'tabular-nums' }}>{fmt(tot.contatos)}</span> chamaram</>}
             </span>
-            {legenda}
-            <div style={{ position: 'relative' }} onMouseLeave={() => setFoco(null)}>
-              <span style={{ position: 'absolute', top: -2, left: 0, fontSize: 11, color: T3, fontVariantNumeric: 'tabular-nums' }}>{curto(maxDia)}</span>
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: dias > 30 ? 1 : 3, height: 190, paddingTop: 16, borderBottom: '1px solid var(--border)' }}>
-                {porDia.map((d, i) => (
-                  <div key={d.dia} onMouseEnter={() => setFoco(i)} onClick={() => setFoco(foco === i ? null : i)}
-                    style={{ flex: 1, height: '100%', display: 'flex', flexDirection: 'column-reverse', gap: 1, cursor: 'default', opacity: foco == null || foco === i ? 1 : 0.45 }}>
-                    {d.partes.map((p, k) => p.v > 0 && (
-                      <div key={p.id} style={{ height: `${(p.v / maxDia) * 100}%`, background: CORG[p.id], borderRadius: k === d.partes.length - 1 ? '3px 3px 0 0' : 0, minHeight: 1 }} />
-                    ))}
-                  </div>
-                ))}
-              </div>
-              {foco != null && porDia[foco] && (
-                <div style={{ position: 'absolute', top: 0, [foco > porDia.length / 2 ? 'right' : 'left']: `${foco > porDia.length / 2 ? ((porDia.length - foco - 1) / porDia.length) * 100 : (foco / porDia.length) * 100}%`,
-                  background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '10px 12px', boxShadow: '0 8px 24px rgba(0,0,0,.14)', fontSize: 12.5, display: 'grid', gap: 4, minWidth: 170, pointerEvents: 'none', zIndex: 2 }}>
-                  <span style={{ color: T1 }}>{SEMANA[semanaDe(porDia[foco].dia)]}, {ddmm(porDia[foco].dia)}</span>
-                  {[...porDia[foco].partes].reverse().map((p) => (
-                    <span key={p.id} style={{ display: 'flex', gap: 6, alignItems: 'center', color: T2 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: 2, background: CORG[p.id] }} />{REDE[p.id].nome}
-                      <span style={{ marginLeft: 'auto', color: T1, fontVariantNumeric: 'tabular-nums' }}>{fmt(p.v)}</span>
-                    </span>
-                  ))}
-                  <span style={{ display: 'flex', borderTop: '1px solid var(--border)', paddingTop: 4, color: T2 }}>Total<span style={{ marginLeft: 'auto', color: T1, fontVariantNumeric: 'tabular-nums' }}>{fmt(porDia[foco].total)}</span></span>
-                </div>
-              )}
-            </div>
-            <span style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: T3 }}>
-              <span>{porDia[0] && ddmm(porDia[0].dia)}</span>
-              <span>passe o dedo ou o mouse nas barras</span>
-              <span>hoje</span>
-            </span>
+            {temAntes && <span style={{ fontSize: 14 }}>{comparar(tot.pessoas, totAntes.pessoas)}</span>}
           </section>
 
-          {/* cartão por rede */}
-          <div style={grade(250)}>
-            {blocos.map((b) => {
-              const r = REDE[b.id];
-              const v = variacao(b.atual.pessoas, b.antes?.pessoas);
-              return (
-                <Link key={b.id} href={b.id === 'site' ? '/site/acessos' : `/site/acessos/${b.id}`}
-                  style={{ ...cartaoNP, display: 'grid', gap: 10, alignContent: 'start', textDecoration: 'none', color: T1, opacity: b.ligada ? 1 : 0.6 }}>
-                  <span style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                    <LogoRede id={b.id} tam={36} />
-                    <span style={{ display: 'grid', lineHeight: 1.25 }}>
-                      <span style={{ fontSize: 15 }}>{r.nome}</span>
-                      <span style={{ fontSize: 12, color: T3 }}>{b.seguidores != null ? `${fmt(b.seguidores)} seguidores${b.novosSeg ? ` · +${fmt(b.novosSeg)}` : ''}` : b.id === 'site' ? 'contador próprio' : 'conta não ligada'}</span>
+          {/* 2. redes em ranking */}
+          <section style={{ ...cartaoNP, display: 'grid', gap: 4 }}>
+            <span style={{ fontSize: 16, marginBottom: 6 }}>{lider ? `${REDE[lider.id].nome} é a rede que mais traz gente` : 'Rede por rede'}</span>
+            {ranking.map((b, i) => (
+              <button key={b.id} type="button" onClick={() => setJanela({ tipo: 'rede', id: b.id })}
+                style={{ display: 'grid', gridTemplateColumns: '40px minmax(0, 1fr) 16px', gap: 12, alignItems: 'center', padding: '10px 4px', border: 0, borderTop: i ? '1px solid var(--border)' : 0, background: 'transparent', font: 'inherit', color: T1, textAlign: 'left', cursor: 'pointer', opacity: b.ligada ? 1 : 0.55 }}>
+                <LogoRede id={b.id} tam={40} />
+                <span style={{ display: 'grid', gap: 5, minWidth: 0 }}>
+                  <span style={{ display: 'flex', gap: 8, alignItems: 'baseline', flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 15 }}>{REDE[b.id].nome}</span>
+                    <span style={{ fontSize: 13, color: T2 }}>
+                      {b.ligada ? <>{curto(b.atual.pessoas)} pessoas · {fmt(b.atual.contatos)} contatos{tot.pessoas ? ` · ${parte(b)}% do total` : ''}</> : 'conta ainda não ligada'}
                     </span>
-                    <span style={{ marginLeft: 'auto', color: T3, fontSize: 12 }}>{ic('fa-chevron-right')}</span>
                   </span>
-                  {b.ligada ? (
-                    <>
-                      <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 24, fontVariantNumeric: 'tabular-nums' }}>{curto(b.atual.pessoas)}</span>
-                        <span style={{ fontSize: 12.5, color: T3 }}>pessoas</span>
-                        {v != null && <span style={{ fontSize: 12.5, color: v >= 0 ? VERDE : VERMELHO, marginLeft: 'auto' }}>{v >= 0 ? '▲' : '▼'} {Math.abs(v)}%</span>}
-                      </span>
-                      {sparkline(b)}
-                      <span style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, fontSize: 12, color: T3 }}>
-                        <span style={{ display: 'grid' }}><span style={{ color: T1, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{curto(b.atual.views)}</span>visualizações</span>
-                        <span style={{ display: 'grid' }}><span style={{ color: T1, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{b.temInteracao ? curto(b.atual.interacoes) : '—'}</span>interações</span>
-                        <span style={{ display: 'grid' }}><span style={{ color: T1, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{fmt(b.atual.contatos)}</span>contatos</span>
-                      </span>
-                    </>
-                  ) : <span style={{ fontSize: 13, color: T3 }}>Os números aparecem aqui quando a conta for ligada.</span>}
-                </Link>
-              );
-            })}
-          </div>
-
-          <div style={grade(340)}>
-            {/* funil */}
-            <section style={{ ...cartaoNP, display: 'grid', gap: 12, alignContent: 'start' }}>
-              <span style={{ fontSize: 16 }}>De {curto(tot.pessoas)} pessoas, {fmt(tot.contatos)} viraram contato</span>
-              {[
-                { rot: 'Viram a Nova Tratores', v: tot.pessoas, ic: 'fa-users' },
-                { rot: 'Interagiram', v: tot.interacoes, ic: 'fa-heart' },
-                { rot: 'Chamaram ou pediram proposta', v: tot.contatos, ic: 'fa-comment-dots' },
-              ].map((e, i, a) => (
-                <div key={e.rot} style={{ display: 'grid', gap: 4 }}>
-                  <span style={{ display: 'flex', gap: 8, fontSize: 13, color: T2 }}>
-                    <span style={{ color: COR }}>{ic(e.ic)}</span>{e.rot}
-                    <span style={{ marginLeft: 'auto', color: T1, fontVariantNumeric: 'tabular-nums' }}>{fmt(e.v)}</span>
-                  </span>
-                  <span style={{ height: 14, background: 'color-mix(in srgb, var(--portal-text, #0f172a) 6%, transparent)', borderRadius: 4, overflow: 'hidden' }}>
-                    <span style={{ display: 'block', height: '100%', width: `${Math.max(1, tot.pessoas ? Math.sqrt(e.v / tot.pessoas) * 100 : 0)}%`, background: COR, borderRadius: 4 }} />
-                  </span>
-                  {i > 0 && <span style={{ fontSize: 11.5, color: T3 }}>{a[i - 1].v ? `${(e.v / a[i - 1].v * 100).toLocaleString('pt-BR', { maximumFractionDigits: 1 })}% do passo de cima` : ''}</span>}
-                </div>
-              ))}
-              {quemMaisContato && quemMaisContato.atual.contatos > 0 && (
-                <span style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5, color: T2 }}>
-                  <LogoRede id={quemMaisContato.id} tam={18} />{REDE[quemMaisContato.id].nome} é quem mais gera contato ({fmt(quemMaisContato.atual.contatos)}).
+                  {b.ligada && barra((b.atual.pessoas / maiorRede) * 100)}
                 </span>
-              )}
-              <span style={{ fontSize: 11.5, color: T3 }}>Barras em escala que mostra os passos pequenos; o número ao lado é o real.</span>
-            </section>
+                <span style={{ color: T3, fontSize: 12 }}>{ic('fa-chevron-right')}</span>
+              </button>
+            ))}
+          </section>
 
-            {/* dia da semana */}
-            <section style={{ ...cartaoNP, display: 'grid', gap: 12, alignContent: 'start' }}>
-              <span style={{ fontSize: 16 }}>{melhorSemana.media ? `${SEMANA[melhorSemana.w][0].toUpperCase()}${SEMANA[melhorSemana.w].slice(1)} é o dia que mais gente vê` : 'Melhor dia da semana'}</span>
-              <div style={{ display: 'grid', gap: 7 }}>
-                {[1, 2, 3, 4, 5, 6, 0].map((w) => {
-                  const s = semana[w];
-                  return (
-                    <div key={w} style={{ display: 'grid', gridTemplateColumns: '64px 1fr', gap: 10, alignItems: 'center' }} title={`${SEMANA[w]}: média de ${fmt(s.media)} pessoas`}>
-                      <span style={{ fontSize: 13, color: T2 }}>{SEMANA[w].slice(0, 3)}</span>
-                      <span style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                        <span style={{ height: 12, width: `${Math.max(1, (s.media / maxSemana) * 100)}%`, maxWidth: 'calc(100% - 60px)', background: w === melhorSemana.w ? COR : 'color-mix(in srgb, #d97706 40%, transparent)', borderRadius: '0 4px 4px 0' }} />
-                        <span style={{ fontSize: 12, color: T2, fontVariantNumeric: 'tabular-nums' }}>{curto(s.media)}</span>
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-              <span style={{ fontSize: 11.5, color: T3 }}>Média de pessoas por dia, todas as redes. Bom dia para soltar o post mais importante.</span>
-            </section>
+          {/* 3. conclusões, uma por cartão */}
+          <div style={grade(240)}>
+            {quemMaisContato && quemMaisContato.atual.contatos > 0 && conclusao('fa-comment-dots',
+              <>{REDE[quemMaisContato.id].nome} é quem mais traz contato</>,
+              <>{fmt(quemMaisContato.atual.contatos)} dos {fmt(tot.contatos)} contatos vieram {quemMaisContato.id === 'site' ? 'do site' : `do ${REDE[quemMaisContato.id].nome}`}.</>,
+              { tipo: 'contato' }, quemMaisContato.id)}
+            {melhorSemana.media > 0 && conclusao('fa-calendar-day',
+              <>{nomeSemana(melhorSemana.w)} é o melhor dia para postar</>,
+              <>Em média {curto(melhorSemana.media)} pessoas nesse dia.</>,
+              { tipo: 'semana' })}
+            {melhorDia && conclusao('fa-chart-column',
+              <>O dia mais forte foi {ddmm(melhorDia.dia)}</>,
+              <>{fmt(melhorDia.total)} pessoas num dia só. Toque para ver dia a dia.</>,
+              { tipo: 'dias' })}
+            {novosSeg > 0 && conclusao('fa-user-plus',
+              <>Ganhou {fmt(novosSeg)} seguidores</>,
+              <>{maisSeg[0] ? `${REDE[maisSeg[0].id].nome} foi a que mais cresceu.` : ''}</>,
+              { tipo: 'seguidores' })}
+            {top.length > 0 && conclusao('fa-trophy',
+              <>Post campeão: {top[0].titulo}</>,
+              <>{fmt(top[0].pessoas)} pessoas viram e {fmt(top[0].contatos)} chamaram.</>,
+              { tipo: 'posts' }, top[0].rede)}
           </div>
-
-          {/* posts campeões */}
-          <section style={{ ...cartaoNP, display: 'grid', gap: 10 }}>
-            <span style={{ fontSize: 16 }}>{top.length ? `Post campeão: "${top[0].titulo}"` : 'Posts que mais deram resultado'}</span>
-            {top.length === 0 ? (
-              <span style={{ fontSize: 13, color: T3 }}>Aparece quando as contas forem ligadas: o robô lê o resultado de cada post e mostra aqui os que mais trouxeram gente e contato.</span>
-            ) : (
-              <div style={{ display: 'grid' }}>
-                {top.map((p, i) => (
-                  <div key={i} style={{ display: 'grid', gridTemplateColumns: '22px 30px minmax(0, 1fr) auto', gap: 10, alignItems: 'center', padding: '10px 0', borderTop: i ? '1px solid var(--border)' : 0 }}>
-                    <span style={{ fontSize: 13, color: T3, textAlign: 'center' }}>{i + 1}</span>
-                    <LogoRede id={p.rede} tam={28} />
-                    <span style={{ display: 'grid', minWidth: 0 }}>
-                      <span style={{ fontSize: 14, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.titulo}</span>
-                      <span style={{ fontSize: 12, color: T3 }}>{REDE[p.rede].nome} · {p.formato} · {ddmm(p.dia)}</span>
-                    </span>
-                    <span style={{ display: 'flex', gap: 14, fontSize: 12, color: T3, textAlign: 'right' }}>
-                      <span style={{ display: 'grid' }}><span style={{ color: T1, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{curto(p.pessoas)}</span>pessoas</span>
-                      <span style={{ display: 'grid' }}><span style={{ color: T1, fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>{fmt(p.contatos)}</span>contatos</span>
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* tabela */}
-          <section style={{ ...cartaoNP, display: 'grid', gap: 10, overflowX: 'auto' }}>
-            <span style={{ fontSize: 16 }}>Rede por rede, em números</span>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13.5, minWidth: 640 }}>
-              <thead>
-                <tr style={{ color: T3, fontSize: 12.5, textAlign: 'right' }}>
-                  <th style={{ textAlign: 'left', fontWeight: 400, padding: '6px 8px' }}>Rede</th>
-                  {['Pessoas', 'Visualizações', 'Interações', 'Contatos', 'Seguidores', 'Posts'].map((t) => <th key={t} style={{ fontWeight: 400, padding: '6px 8px' }}>{t}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {blocos.map((b) => {
-                  const c = b.ligada ? [b.atual.pessoas, b.atual.views, b.temInteracao ? b.atual.interacoes : null, b.atual.contatos, b.seguidores, b.id === 'site' ? null : b.posts] : [null, null, null, null, null, null];
-                  return (
-                    <tr key={b.id} style={{ borderTop: '1px solid var(--border)', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
-                      <td style={{ textAlign: 'left', padding: '8px' }}>
-                        <Link href={b.id === 'site' ? '/site/acessos' : `/site/acessos/${b.id}`} style={{ display: 'inline-flex', gap: 8, alignItems: 'center', color: T1, textDecoration: 'none' }}>
-                          <LogoRede id={b.id} tam={20} />{REDE[b.id].nome}{!b.ligada && <span style={{ fontSize: 11.5, color: T3 }}>não ligada</span>}
-                        </Link>
-                      </td>
-                      {c.map((v, i) => <td key={i} style={{ padding: '8px', color: v == null ? T3 : T1 }}>{v == null ? '—' : fmt(v)}</td>)}
-                    </tr>
-                  );
-                })}
-                <tr style={{ borderTop: '1px solid var(--border)', textAlign: 'right', fontVariantNumeric: 'tabular-nums', color: T2 }}>
-                  <td style={{ textAlign: 'left', padding: '8px' }}>Total</td>
-                  {[tot.pessoas, tot.views, tot.interacoes, tot.contatos, null, posts].map((v, i) => <td key={i} style={{ padding: '8px' }}>{v == null ? '' : fmt(v)}</td>)}
-                </tr>
-              </tbody>
-            </table>
-            <span style={{ fontSize: 12, color: T3 }}>Site: pessoas = aparelhos diferentes, contatos = WhatsApp, telefone e pedido de proposta. Redes: números do robô depois que a conta é ligada (Instagram e Facebook pela Meta; TikTok e YouTube depois da aprovação deles). Toque numa rede para ver o detalhe.</span>
-          </section>
         </>
+      )}
+
+      {j && (
+        <div role="dialog" aria-modal="true" onClick={() => { setJanela(null); setFoco(null); }}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,23,42,0.55)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '6vh 12px', overflowY: 'auto' }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ width: '100%', maxWidth: 560, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: 20, display: 'grid', gap: 14, color: T1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 18, flex: 1, minWidth: 0 }}>{j.titulo}</span>
+              <button type="button" aria-label="Fechar" onClick={() => { setJanela(null); setFoco(null); }} style={{ ...bt('#64748b'), minHeight: 34, padding: '4px 10px' }}>{ic('fa-xmark')}</button>
+            </div>
+            {j.corpo}
+          </div>
+        </div>
       )}
     </div>
   );
