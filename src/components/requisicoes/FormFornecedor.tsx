@@ -10,6 +10,7 @@ import { anexosDaReq } from '@/lib/requisicoes/anexos';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import { parecencaNome } from '@/lib/requisicoes/casar-nota';
+import { mensagemErroFornecedor, normalizarSigla } from '@/lib/requisicoes/fornecedor-campos';
 
 // nome exato no ilike (sem % e _ virarem curinga)
 const ilikeExato = (s: string) => s.trim().replace(/[\\%_]/g, (c) => `\\${c}`);
@@ -75,10 +76,10 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
   const [copiado, setCopiado] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
-    nome: '', numero: '', 'cpf/cnpj': '', descricao: '', email: '',
+    sigla: '', nome: '', numero: '', 'cpf/cnpj': '', descricao: '', email: '',
     cep: '', endereco: '', endereco_numero: '', bairro: '', cidade: '', estado: '',
   });
-  const FORM_VAZIO = { nome: '', numero: '', 'cpf/cnpj': '', descricao: '', email: '', cep: '', endereco: '', endereco_numero: '', bairro: '', cidade: '', estado: '' };
+  const FORM_VAZIO = { sigla: '', nome: '', numero: '', 'cpf/cnpj': '', descricao: '', email: '', cep: '', endereco: '', endereco_numero: '', bairro: '', cidade: '', estado: '' };
   const [cepStatus, setCepStatus] = useState<'' | 'buscando' | 'ok' | 'erro'>('');
   const [cnpjStatus, setCnpjStatus] = useState<'' | 'buscando' | 'ok' | 'erro'>('');
   const [cnpjAviso, setCnpjAviso] = useState('');
@@ -129,6 +130,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
   const iniciarEdicao = (forn: any) => {
     setEditando(forn);
     setFormData({
+      sigla: forn.sigla || '',
       nome: forn.nome || '', numero: forn.numero || '', 'cpf/cnpj': forn['cpf/cnpj'] || '',
       descricao: forn.descricao || '', email: forn.email || '', cep: forn.cep || '',
       endereco: forn.endereco || '', endereco_numero: forn.endereco_numero || '', bairro: forn.bairro || '',
@@ -224,11 +226,15 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    // sigla em MAIÚSCULAS, vazia = null; o código é do banco e nunca vai no formulário
+    const dados = { ...formData, sigla: normalizarSigla(formData.sigla) };
     if (editando) {
-      const { error } = await supabase.from('Fornecedores').update(formData).eq('id', editando.id);
-      if (!error) { alert('Fornecedor atualizado com sucesso!'); cancelarEdicao(); carregarFornecedores(); }
+      const { error } = await supabase.from('Fornecedores').update(dados).eq('id', editando.id);
+      if (error) { alert('Não consegui salvar: ' + mensagemErroFornecedor(error, dados.sigla)); return; }
+      alert('Fornecedor atualizado com sucesso!'); cancelarEdicao(); carregarFornecedores();
     } else {
-      await onSave(formData);
+      const ok = await onSave(dados);
+      if (ok === false) return;
       setFormData(FORM_VAZIO); setCepStatus(''); setCnpjStatus(''); setCnpjAviso(''); ultimoCnpjRef.current = '';
       setView('lista'); await carregarFornecedores();
     }
@@ -284,6 +290,8 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     const kpiLbl: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: 'var(--portal-text-muted)' };
     // Todos os dados cadastrados, com botão de copiar em cada um
     const dadosForn: [string, string][] = [
+      ['Código', fichaForn.codigo != null ? String(fichaForn.codigo) : ''],
+      ['Sigla', String(fichaForn.sigla || '')],
       ['Razão social / Nome', String(fichaForn.nome || '')],
       ['CNPJ / CPF', String(fichaForn['cpf/cnpj'] || '')],
       ['Telefone / WhatsApp', String(fichaForn.numero || '')],
@@ -436,6 +444,16 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
           <div style={{ ...card, padding: isMobile ? '16px 14px' : '20px 22px', marginBottom: 16 }}>
             <div style={{ fontSize: 13.5, fontWeight: 500, color: '#EA580C', marginBottom: 16 }}>Identificação</div>
             <div style={grid}>
+              <div style={fg()}>
+                <span style={lbl}>Código</span>
+                <div style={{ ...inp, display: 'flex', alignItems: 'center', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-muted)' }}>
+                  {editando?.codigo != null ? <><b style={{ color: 'var(--portal-text)', marginRight: 6 }}>{editando.codigo}</b> automático</> : 'sai sozinho ao salvar'}
+                </div>
+              </div>
+              <div style={fg()}>
+                <span style={lbl}>Sigla <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--portal-text-muted)' }}>— opcional, não repete</span></span>
+                <input name="sigla" maxLength={10} value={formData.sigla} onChange={(e) => setFormData((p) => ({ ...p, sigla: e.target.value.toUpperCase().replace(/\s+/g, '') }))} style={inp} placeholder="Ex.: KOBA" />
+              </div>
               <div style={fg()}>
                 <span style={lbl}>CNPJ / CPF{statusTxt(cnpjStatus, cnpjAviso)}</span>
                 <input name="cpf/cnpj" required inputMode="numeric" maxLength={18} value={formData['cpf/cnpj']} onChange={(e) => { const v = formatarDoc(e.target.value); setFormData((p) => ({ ...p, 'cpf/cnpj': v })); buscarCnpj(v); }} style={inp} placeholder="00.000.000/0001-00" />

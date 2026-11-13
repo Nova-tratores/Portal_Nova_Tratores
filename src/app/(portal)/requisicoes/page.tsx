@@ -33,6 +33,7 @@ function lerRecusadas(): Set<string> { try { return new Set(JSON.parse(localStor
 import { ESTILO_REQ_VN } from '@/components/requisicoes/visualReq';
 import { normalizarStatus, normalizarTipo, ROTULO_FASE, type ItemAtencao } from '@/lib/requisicoes/inteligencia';
 
+import { mensagemErroFornecedor } from '@/lib/requisicoes/fornecedor-campos';
 /** Linha do banco → como a tela usa (colunas antigas do AppSheet + grafias diferentes juntadas). */
 function normalizarLinha(r: any) {
   return {
@@ -736,10 +737,11 @@ function RequisicoesPageInner() {
               editarId={editarFornecedorId}
               onSave={async (n: Record<string, unknown>) => {
                 const { error } = await supabase.from('Fornecedores').insert([n]);
-                if (error) { console.error('Erro ao criar fornecedor:', error); alert('Erro ao cadastrar: ' + error.message); return; }
+                if (error) { console.error('Erro ao criar fornecedor:', error); alert('Erro ao cadastrar: ' + mensagemErroFornecedor(error, n.sigla as string | null)); return false; }
                 auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'fornecedor', entidade_label: String(n.nome || '') });
               }}
             />
+                return true;
           )}
 
           {abaAtiva === 'relatorio' && (() => {
