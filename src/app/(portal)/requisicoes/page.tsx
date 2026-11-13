@@ -739,9 +739,9 @@ function RequisicoesPageInner() {
                 const { error } = await supabase.from('Fornecedores').insert([n]);
                 if (error) { console.error('Erro ao criar fornecedor:', error); alert('Erro ao cadastrar: ' + mensagemErroFornecedor(error, n.sigla as string | null)); return false; }
                 auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'fornecedor', entidade_label: String(n.nome || '') });
+                return true;
               }}
             />
-                return true;
           )}
 
           {abaAtiva === 'relatorio' && (() => {
