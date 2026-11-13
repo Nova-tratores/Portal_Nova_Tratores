@@ -22,8 +22,13 @@ export function camposEnvioOmie(texto: string | null | undefined) {
   };
 }
 
+/** OS de reembolso de garantia (criada pela DRVG em /garantias): o texto é o do
+ *  pedido de compra/DRVG/SGs, não tem solicitação do cliente nem serviço realizado. */
+export const TIPO_OS_REEMBOLSO = "Reembolso de garantia";
+
 /** O que falta para liberar o envio ao Omie ([] = pode enviar). */
-export function faltaParaEnviarOmie(texto: string | null | undefined): string[] {
+export function faltaParaEnviarOmie(texto: string | null | undefined, tipoServico?: string | null): string[] {
+  if (tipoServico === TIPO_OS_REEMBOLSO) return [];
   const c = camposEnvioOmie(texto);
   const falta: string[] = [];
   if (!c.solicitacao) falta.push("Solicitação do cliente");

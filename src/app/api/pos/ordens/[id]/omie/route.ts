@@ -16,8 +16,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const userName = autorDe(g.user);
 
   // Qualquer fase serve, desde que a descrição SALVA tenha solicitação + serviço realizado
-  const { data: osTexto } = await supabase.from(TBL_OS).select("Serv_Solicitado, Status").eq("Id_Ordem", idOs).maybeSingle();
-  const falta = faltaParaEnviarOmie(osTexto?.Serv_Solicitado as string | null);
+  const { data: osTexto } = await supabase.from(TBL_OS).select("Serv_Solicitado, Status, Tipo_Servico").eq("Id_Ordem", idOs).maybeSingle();
+  const falta = faltaParaEnviarOmie(osTexto?.Serv_Solicitado as string | null, osTexto?.Tipo_Servico as string | null);
   if (falta.length) {
     return NextResponse.json({ sucesso: false, erro: `Falta preencher ${falta.join(" e ")} na descrição da OS. Se você já escreveu, clique em Salvar antes de enviar.` });
   }

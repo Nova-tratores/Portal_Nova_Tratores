@@ -599,7 +599,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     if (linha) return linha.split(":").slice(1).join(":").trim().length > 0;
     return !!servSolicitado.trim() && servSolicitado !== TEXT_TEMPLATE;
   }, [servSolicitado]);
-  const faltaOmie = useMemo(() => faltaParaEnviarOmie(servSolicitado), [servSolicitado]);
+  const faltaOmie = useMemo(() => faltaParaEnviarOmie(servSolicitado, tipoServico), [servSolicitado, tipoServico]);
   const passosCriacao = [
     { n: 1, rotulo: "Cliente", icone: "fa-user", ok: !!clienteChave, alvo: "osc-cliente" },
     { n: 2, rotulo: "Máquina", icone: "fa-tractor", ok: !!projeto.trim(), alvo: "osc-cliente" },

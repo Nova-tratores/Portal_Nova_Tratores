@@ -17,7 +17,8 @@ import { TBL_OS } from '@/lib/pos/constants';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
 import { espelhoPadrao, CODIGOS_INTERNOS, NCOD_SERV_PECAS_REEMBOLSO, type ReembolsoOS } from '@/lib/pos/omie-espelho';
 
-export const TIPO_OS_REEMBOLSO = 'Reembolso de garantia';
+import { TIPO_OS_REEMBOLSO } from '@/lib/pos/envio-omie-regras';
+export { TIPO_OS_REEMBOLSO };
 
 export type AcaoSg = 'aprovar' | 'recusar' | 'ja_aprovada' | 'ja_recusada' | 'nao_encontrada' | 'fora_da_fabrica';
 

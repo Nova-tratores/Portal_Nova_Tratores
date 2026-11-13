@@ -18,4 +18,9 @@ describe("faltaParaEnviarOmie", () => {
   it("aceita sem acento", () => {
     expect(faltaParaEnviarOmie("Solicitacao do cliente: a\nServico realizado: b")).toEqual([]);
   });
+
+  it("OS de reembolso de garantia (DRVG) não precisa de solicitação/serviço realizado", () => {
+    expect(faltaParaEnviarOmie("PEDIDO DE COMPRA 1| VALOR: R$1,00| REFERENTE A DRVG 1", "Reembolso de garantia")).toEqual([]);
+    expect(faltaParaEnviarOmie("PEDIDO DE COMPRA 1", "Manutenção")).toEqual(["Solicitação do cliente", "Serviço Realizado"]);
+  });
 });
