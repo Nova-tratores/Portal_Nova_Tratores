@@ -5,6 +5,7 @@
 
 import { refOSNoPedido, ehCastro } from "@/lib/pos/pedido-cliente";
 import { impostoCst60, cfopPadrao, semCfop } from "./cst60";
+import { fiscalItemGarantia, divergenciasItemGarantia, freteCerto, FRETE_GARANTIA, type ItemRemessaLido } from "./remessa-garantia";
 import { supabaseFetch } from "./supabase";
 import { diasDoNumParcelas } from "@/lib/ppv/parcelas-condicao";
 import { resolverContaCorrente, resolverDepartamentos, type ContaDestino, type DeptoDestino } from "./conta-corrente";
@@ -26,6 +27,26 @@ async function numeroOSOmieDe(osId: string): Promise<string> {
   try {
     const res = await supabaseFetch<Record<string, unknown>[]>(`${TBL_OS}?Id_Ordem=eq.${encodeURIComponent(osId)}&select=Ordem_Omie&limit=1`);
     return String(res?.[0]?.Ordem_Omie || "").trim().replace(/^0+(?=\d)/, "");
+  } catch { return ""; }
+}
+
+/** OS de garantia: Tipo_Servico "Garantia" OU garantia vinculada (mesma regra do faturamento da OS). */
+async function osEhGarantia(osId: string): Promise<boolean> {
+  if (!osId) return false;
+  try {
+    const os = await supabaseFetch<Record<string, unknown>[]>(`${TBL_OS}?Id_Ordem=eq.${encodeURIComponent(osId)}&select=Tipo_Servico&limit=1`);
+    if (String(os?.[0]?.Tipo_Servico || "").toLowerCase().trim() === "garantia") return true;
+    const g = await supabaseFetch<Record<string, unknown>[]>(`garantias?id_ordem=eq.${encodeURIComponent(osId)}&select=id&limit=1`);
+    return !!g?.length;
+  } catch { return false; }
+}
+
+/** UF do cliente no Omie (decide 5.949 × 6.949). "" = não deu para ler (vale SP). */
+async function ufDoClienteOmie(nCodCli: number, acc: OmieAccount): Promise<string> {
+  if (!nCodCli) return "";
+  try {
+    const c = await omieCall<{ estado?: string }>("/geral/clientes/", "ConsultarCliente", { codigo_cliente_omie: nCodCli }, acc.key, acc.secret);
+    return String(c?.estado || "").trim().toUpperCase();
   } catch { return ""; }
 }
 
@@ -88,7 +109,7 @@ export async function alinharRemessaDaOS(idPPV: string): Promise<{ mudou: string
   const daOS = await dadosDaOSParaRemessa(osId, acc);
   if (!daOS) return { mudou: [] };
   const numOS = osId ? (await numeroOSOmieDe(osId)) || "" : "";
-  const rc = await omieCall<{ cabec?: { nCodRem?: number; nCodCli?: number; dPrevisao?: string }; infAdic?: { cNumCtr?: string; nCodProj?: number; cPedido?: string } }>(
+  const rc = await omieCall<{ cabec?: { nCodRem?: number; nCodCli?: number; dPrevisao?: string }; infAdic?: { cNumCtr?: string; nCodProj?: number; cPedido?: string }; frete?: { cTpFrete?: string }; produtos?: Array<ItemRemessaLido & { cCodItInt?: string }> }>(
     "/produtos/remessa/", "ConsultarRemessa", { cCodIntRem: `RM-${idPPV}` }, acc.key, acc.secret);
   const nCodRem = Number(rc.cabec?.nCodRem || 0);
   if (!nCodRem) return { mudou: [], aviso: `${idPPV}: não li a remessa no Omie.` };
@@ -106,9 +127,26 @@ export async function alinharRemessaDaOS(idPPV: string): Promise<{ mudou: string
   if (esperado.nCodProj && Number(rc.infAdic?.nCodProj || 0) !== esperado.nCodProj) { infAdic.nCodProj = esperado.nCodProj; mudou.push("projeto"); }
   if (esperado.cPedido && String(rc.infAdic?.cPedido || "") !== esperado.cPedido) { infAdic.cPedido = esperado.cPedido; mudou.push(`nº do pedido do cliente "${esperado.cPedido}"`); }
   if (esperado.dPrevisao && String(rc.cabec?.dPrevisao || "") !== esperado.dPrevisao) { cabec.dPrevisao = esperado.dPrevisao; mudou.push(`previsão ${esperado.dPrevisao}`); }
+  // garantia: CFOP 5.949/6.949, CST 60 sem benefício fiscal e frete por conta do remetente
+  let frete: Record<string, unknown> | null = null;
+  let produtos: Record<string, unknown>[] | null = null;
+  if (await osEhGarantia(osId)) {
+    const uf = await ufDoClienteOmie(Number(rc.cabec?.nCodCli || 0), acc);
+    if (!freteCerto(rc.frete?.cTpFrete)) { frete = { cTpFrete: FRETE_GARANTIA }; mudou.push("frete por conta do remetente"); }
+    const itens = rc.produtos || [];
+    if (itens.some((i) => divergenciasItemGarantia(i, uf).length)) {
+      const f = fiscalItemGarantia(uf);
+      // manda TODOS os itens (com o nCodIt) para nenhum sumir na alteração
+      produtos = itens.map((i) => ({
+        nCodIt: i.nCodIt, ...(i.cCodItInt ? { cCodItInt: i.cCodItInt } : {}), nCodProd: i.nCodProd, nQtde: i.nQtde, nValUnit: i.nValUnit,
+        cCFOP: f.cCFOP, ICMS: { ...(i.ICMS || {}), ...f.ICMS }, infAdicItem: { ...(i.infAdicItem || {}), ...f.infAdicItem },
+      }));
+      mudou.push(`peças de garantia em CFOP ${f.cCFOP} / CST 60`);
+    }
+  }
   if (!mudou.length) return { mudou };
   try {
-    await omieCall("/produtos/remessa/", "AlterarRemessa", { cabec, ...(Object.keys(infAdic).length ? { infAdic } : {}) }, acc.key, acc.secret);
+    await omieCall("/produtos/remessa/", "AlterarRemessa", { cabec, ...(Object.keys(infAdic).length ? { infAdic } : {}), ...(frete ? { frete } : {}), ...(produtos ? { produtos } : {}) }, acc.key, acc.secret);
   } catch (e) { return { mudou: [], aviso: `${idPPV}: o Omie não aceitou ajustar a remessa (${(e as Error).message}).` }; }
   await registrarLog(idPPV, `Remessa ajustada igual à OS: ${mudou.join(", ")}.`).catch(() => {});
   return { mudou };
@@ -137,9 +175,10 @@ async function faturarRemessaPPVSemPausa(idPPV: string, usuario = "Portal"): Pro
   if (st0.st.faturada === "S") { const nf = nfDe(st0.st); if (!cab.faturado_omie_em) await marcar(nf); return { ok: true, nf, jaFaturada: true }; }
   const acc = st0.acc;
   // dado fiscal faltando: avisa com o nome do produto antes de pedir a nota ao Omie
+  // contrato/projeto/previsão iguais à OS (e, na garantia, CFOP/CST/frete) ANTES de conferir
+  await alinharRemessaDaOS(idPPV).catch(() => null);
   const pend = await pendenciasFiscaisRemessa(idPPV).catch(() => [] as string[]);
   if (pend.length) return { ok: false, erro: pend.join(" ") };
-  await alinharRemessaDaOS(idPPV).catch(() => null); // contrato/projeto/previsão iguais à OS antes da nota
   const rc = await omieCall<{ cabec?: { nCodRem?: number } }>("/produtos/remessa/", "ConsultarRemessa", { cCodIntRem: `RM-${idPPV}` }, acc.key, acc.secret);
   const nCodRem = Number(rc.cabec?.nCodRem || 0);
   if (!nCodRem) return { ok: false, erro: "Não li a remessa no Omie." };
@@ -173,12 +212,17 @@ export async function pendenciasFiscaisRemessa(idPPV: string): Promise<string[]>
   if (!cab || String(cab.Tipo_Pedido || "") !== "Remessa") return [];
   const st = await statusRemessaPPV(idPPV, (cab.omie_empresa as string) || null).catch(() => null);
   if (!st || st.st.faturada === "S" || st.st.cancelada === "S") return [];
-  type ItemRem = { nCodProd?: number; cNCM?: string; cCFOP?: string; ICMS?: { cSitTrib?: string }; ICMS_SN?: { cSitTribSN?: string } };
+  type ItemRem = ItemRemessaLido & { cNCM?: string; ICMS_SN?: { cSitTribSN?: string } };
   let itens: ItemRem[] = [];
+  let nCodCli = 0, tpFrete: unknown = "";
   try {
-    const rc = await omieCall<{ produtos?: ItemRem[] }>("/produtos/remessa/", "ConsultarRemessa", { cCodIntRem: `RM-${idPPV}` }, st.acc.key, st.acc.secret);
+    const rc = await omieCall<{ produtos?: ItemRem[]; cabec?: { nCodCli?: number }; frete?: { cTpFrete?: string } }>("/produtos/remessa/", "ConsultarRemessa", { cCodIntRem: `RM-${idPPV}` }, st.acc.key, st.acc.secret);
     itens = rc.produtos || [];
+    nCodCli = Number(rc.cabec?.nCodCli || 0); tpFrete = rc.frete?.cTpFrete;
   } catch { return []; }
+  const osIdRem = String(cab.Id_Os || "");
+  const garantia = await osEhGarantia(osIdRem);
+  const ufCli = garantia ? await ufDoClienteOmie(nCodCli, st.acc) : "";
   const conta = /castro/i.test(st.acc.name) ? "castro" : "nova";
   const empresa = /castro/i.test(st.acc.name) ? "Castro" : "Nova";
   const nomes = new Map<number, string>();
@@ -197,7 +241,12 @@ export async function pendenciasFiscaisRemessa(idPPV: string): Promise<string[]>
     if (!String(i.cNCM || "").trim()) falta.push("o NCM");
     if (!String(i.cCFOP || "").trim()) falta.push("o CFOP");
     if (falta.length) problemas.push(`Remessa ${sem0Rem(st.st.cNumeroRemessa) || idPPV} (${empresa}), "${nome}": falta ${falta.join(", ")} no cadastro do produto no Omie.`);
+    else if (garantia) {
+      const d = divergenciasItemGarantia(i, ufCli);
+      if (d.length) problemas.push(`Remessa de garantia ${sem0Rem(st.st.cNumeroRemessa) || idPPV} (${empresa}), "${nome}": ${d.join(", ")} — o Omie não aceitou o ajuste automático; corrija o item na remessa do Omie.`);
+    }
   }
+  if (garantia && itens.length && !freteCerto(tpFrete)) problemas.push(`Remessa de garantia ${sem0Rem(st.st.cNumeroRemessa) || idPPV}: o frete deveria ser "Transporte próprio por conta do remetente".`);
   return problemas;
 }
 const sem0Rem = (x: unknown) => String(x || "").replace(/^0+(?=\d)/, "");
@@ -776,6 +825,9 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
     let numPedido = "";
     if (isRemessa) {
       const daOS = await dadosDaOSParaRemessa(String(detalhes.osId || ""), acc);
+      // garantia: CFOP 5.949 (SP) / 6.949 (fora), CST 60 sem benefício fiscal, frete por conta do remetente
+      const garantia = await osEhGarantia(String(detalhes.osId || ""));
+      const fiscalGar = garantia ? fiscalItemGarantia(await ufDoClienteOmie(nCodCli, acc)) : null;
       // ── REMESSA de verdade (/produtos/remessa/ IncluirRemessa) ──
       // Itens de remessa vão com CFOP 5.910 (Remessa em Bonificação/Doação/Brinde).
       const remessaPayload: Record<string, unknown> = {
@@ -796,12 +848,14 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
           ...(detalhes.dadosNF ? { cDadosAdic: detalhes.dadosNF } : {}),
         },
         obs: { cObs: obsVenda },
+        ...(fiscalGar ? { frete: { cTpFrete: FRETE_GARANTIA } } : {}),
         produtos: itens.map((it) => ({
           cCodItInt: it.codInt,
           nCodProd: it.codigoProdutoOmie,
           nQtde: it.qtde,
           nValUnit: it.preco,
           cCFOP: OMIE_CFOP_REMESSA,
+          ...(fiscalGar || {}),
         })),
       };
       const resp = await omieCall<Record<string, unknown>>("/produtos/remessa/", "IncluirRemessa", remessaPayload, acc.key, acc.secret);
@@ -1056,7 +1110,7 @@ export type { OmieAccount, OmiePedidoConsulta };
 // Lê o pedido do PPV no Supabase (id_pedido, pedido_omie, omie_empresa, faturado).
 async function lerCabecalhoPPV(idPPV: string): Promise<Record<string, unknown> | null> {
   const res = await supabaseFetch<Record<string, unknown>[]>(
-    `${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}&select=id_pedido,pedido_omie,omie_empresa,faturado_omie_em,Tipo_Pedido&limit=1`,
+    `${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}&select=id_pedido,pedido_omie,omie_empresa,faturado_omie_em,Tipo_Pedido,Id_Os&limit=1`,
   );
   return res && res.length ? res[0] : null;
 }
