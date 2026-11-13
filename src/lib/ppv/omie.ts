@@ -1035,6 +1035,12 @@ async function adotarPedidoJaCriado(
 // chave: { numero_pedido } / { codigo_pedido }). Devolve null se não existir
 // naquela conta (a Omie responde faultstring nesse caso).
 async function consultarPedidoOmie(codInt: string | Record<string, unknown>, acc: OmieAccount): Promise<OmiePedidoConsulta | null> {
+  return (await consultarPedidoDet(codInt, acc)).pedido;
+}
+
+/** "não cadastrado" (o pedido não está nesta conta) × falha passageira (pausa, consumo redundante, rede) */
+const ehNaoCadastrado = (msg: string) => /n[ãa]o\s+(cadastrad|encontrad|existe)|not\s+found/i.test(msg);
+async function consultarPedidoDet(codInt: string | Record<string, unknown>, acc: OmieAccount): Promise<{ pedido: OmiePedidoConsulta | null; falha?: string }> {
   try {
     const r = await omieCall<{ pedido_venda_produto?: OmiePedidoConsulta }>(
       "/produtos/pedido/",
@@ -1043,9 +1049,10 @@ async function consultarPedidoOmie(codInt: string | Record<string, unknown>, acc
       acc.key,
       acc.secret,
     );
-    return r?.pedido_venda_produto || null;
-  } catch {
-    return null;
+    return { pedido: r?.pedido_venda_produto || null };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { pedido: null, ...(ehNaoCadastrado(msg) ? {} : { falha: msg }) };
   }
 }
 
@@ -1078,25 +1085,40 @@ export async function resolverContaDoPedido(
     }
     return { acc, pedido };
   };
+  falhaAoResolver.delete(idPPV);
+  let falha = "";
   for (const acc of contas) {
     // "não cadastrado" é ERRO para a Omie (10 seguidos travam o ConsultarPedido por 30 min — CASTRO, 28/10/2026):
     // conta onde o pedido não estava há pouco não é perguntada de novo
     const marca = `${acc.name}|${idPPV}`;
     if ((naoEstaNaConta.get(marca) ?? 0) > Date.now()) continue;
+    // PPV-0570 (13/11/2026): uma pausa da Omie virava "não está na conta" por 10 min e a conferência dizia
+    // "Não achei este pedido no Omie" com o pedido lá. Só marca a conta quando a Omie disse "não cadastrado".
+    let passageira = "";
+    const consultar = async (p: string | Record<string, unknown>) => {
+      const r = await consultarPedidoDet(p, acc);
+      if (r.falha) passageira = r.falha;
+      return r.pedido;
+    };
     if (opts.porNumero && numero) {
-      const primeiro = await consultarPedidoOmie({ numero_pedido: numero }, acc);
+      const primeiro = await consultar({ numero_pedido: numero });
       if (primeiro) return achou(acc, primeiro);
     }
-    const pedido = await consultarPedidoOmie(codInt, acc);
+    const pedido = await consultar(codInt);
     if (pedido && (!numero || semZerosNum(pedido.cabecalho?.numero_pedido) === numero)) return achou(acc, pedido);
     if (numero) {
-      const porNumero = await consultarPedidoOmie({ numero_pedido: numero }, acc);
+      const porNumero = await consultar({ numero_pedido: numero });
       if (porNumero) return achou(acc, porNumero);
     }
-    naoEstaNaConta.set(marca, Date.now() + NAO_ESTA_NA_CONTA_MS);
+    if (passageira) falha = passageira;
+    else naoEstaNaConta.set(marca, Date.now() + NAO_ESTA_NA_CONTA_MS);
   }
+  if (falha) falhaAoResolver.set(idPPV, falha);
   return null;
 }
+/** a última busca do pedido não achou porque a Omie falhou (e não porque o pedido não existe) */
+const falhaAoResolver = new Map<string, string>();
+export function falhaAoResolverPedido(idPPV: string): string | null { return falhaAoResolver.get(idPPV) || null; }
 const NAO_ESTA_NA_CONTA_MS = 10 * 60_000;
 const naoEstaNaConta = new Map<string, number>();
 

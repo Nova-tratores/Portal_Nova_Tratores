@@ -3,7 +3,7 @@
 // o det INTEIRO (o Omie apaga o item que não vier) e confere de novo.
 import { buscarPPVPorId } from "@/lib/ppv/queries";
 import {
-  resolverContaDoPedido, omieNaConta, contaCorrenteDoPedido, departamentosDoPedido,
+  resolverContaDoPedido, falhaAoResolverPedido, omieNaConta, contaCorrenteDoPedido, departamentosDoPedido,
   buscarCodigoProdutoOmie, buscarNcodCli, montarParcelasOmie, isoParaBR, garantirCst60, CST_ICMS_PECAS, type OmieAccount, type OmieDetItem,
 } from "@/lib/ppv/omie";
 import {
@@ -60,7 +60,12 @@ export async function conferirPPV(idPPV: string, opts: { pronto?: { acc: OmieAcc
   const guardada = lidasPPV.get(idPPV);
   const achado = opts.pronto || (guardada && Date.now() - guardada.em < 50_000 ? guardada.achado : await resolverContaDoPedido(idPPV, d.omieEmpresa || null).catch(() => null));
   if (achado) lidasPPV.set(idPPV, { achado, em: Date.now() });
-  if (!achado) return { ...base, numeroOmie: String(d.pedidoOmie).replace(/^0+/, ""), erro: "Não achei este pedido no Omie." };
+  if (!achado) {
+    const falha = falhaAoResolverPedido(idPPV);
+    return { ...base, numeroOmie: String(d.pedidoOmie).replace(/^0+/, ""), erro: falha
+      ? "A Omie não respondeu agora (pediu uma pausa) — espere alguns segundos e clique em Conferir de novo."
+      : "Não achei este pedido no Omie." };
+  }
   const { acc } = achado;
   const pedido = achado.pedido as unknown as PedidoOmie;
   const num = String(pedido.cabecalho?.numero_pedido || d.pedidoOmie).replace(/^0+/, "");
