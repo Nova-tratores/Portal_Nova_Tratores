@@ -62,7 +62,23 @@ export default function TravasFaturar({ osId, documento, onOk, onCancelar, ajust
     if (ok) await carregar();
   };
 
-  if (!travas) return null; // carregando: rápido, sem piscar janela
+  // carregando: a janela aparece NA HORA do clique (OS-0871: ~25 s sem nada na tela parecia que o botão não funcionava)
+  if (!travas) return createPortal(
+    <div className="tvf-fundo" onMouseDown={(e) => { if (e.target === e.currentTarget) onCancelar(); }}>
+      <style>{ESTILO}</style>
+      <div className="tvf-janela" role="dialog" aria-label="Antes de faturar">
+        <div className="tvf-topo">
+          <span className="tvf-ico"><i className="fas fa-spinner fa-spin" /></span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="tvf-titulo">Antes de faturar</div>
+            <div className="tvf-sub">Conferindo previsão, máquina, localização e CEP do cliente na Omie…</div>
+          </div>
+          <button type="button" className="tvf-x" onClick={onCancelar} aria-label="Fechar"><i className="fas fa-xmark" /></button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
   if (!erro && travas.every((t) => t.ok)) return null;
   const faltam = travas.filter((t) => !t.ok).length;
 

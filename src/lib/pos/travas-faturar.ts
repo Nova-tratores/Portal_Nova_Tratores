@@ -23,6 +23,8 @@ export interface DadosTravas {
   projeto: string | null             // Ordem_Servico.Projeto
   documentoCliente: string | null    // Cnpj_Cliente
   localizacaoConfirmada: boolean
+  /** Ordem_Servico.Servico_Oficina: serviço feito na loja — não pede a localização do cliente */
+  servicoOficina?: boolean
   /** nomes das localizações (fazendas) do cliente */
   localizacoes?: string[]
   /** conferência do CEP do cliente (lib/clientes/viacep.ts); ausente = não entra (OS interna) */
@@ -49,7 +51,12 @@ export function avaliarTravas(d: DadosTravas): Trava[] {
       titulo: 'Projeto (máquina) preenchido',
       detalhe: String(d.projeto || '').trim() || 'a OS está sem projeto — escolha a máquina do cliente na OS e salve',
     },
-    {
+    d.servicoOficina ? {
+      chave: 'localizacao',
+      ok: true,
+      titulo: 'Localização do cliente confirmada',
+      detalhe: 'serviço na oficina — não precisa da localização do cliente',
+    } : {
       chave: 'localizacao',
       ok: !doc || d.localizacaoConfirmada,
       titulo: 'Localização do cliente confirmada',

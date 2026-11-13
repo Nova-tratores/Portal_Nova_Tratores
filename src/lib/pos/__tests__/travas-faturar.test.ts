@@ -23,3 +23,10 @@ describe('travas antes de faturar a OS', () => {
     expect(avaliarTravas({ ...base, documentoCliente: '', localizacaoConfirmada: false }).find((x) => x.chave === 'localizacao')!.ok).toBe(true)
   })
 })
+
+describe('serviço na oficina', () => {
+  it('não pede a localização do cliente (OS-0871)', () => {
+    const t = avaliarTravas({ hoje: '2026-11-13', previsaoFaturamento: '2026-11-13', projeto: 'X', documentoCliente: '08977003000191', localizacaoConfirmada: false, servicoOficina: true })
+    expect(t.find((x) => x.chave === 'localizacao')?.ok).toBe(true)
+  })
+})

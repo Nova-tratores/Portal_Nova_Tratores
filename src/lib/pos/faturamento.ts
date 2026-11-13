@@ -85,7 +85,7 @@ type Param = Record<string, unknown>;
  * → Error comum (= "pode ter feito"). Leitura: até 2 reenvios em "consumo
  * redundante"/429, esperando o que a Omie pedir (máx. 20 s).
  */
-async function omie<T>(endpoint: string, call: string, param: Param, opts: { escrita?: boolean; timeoutMs?: number } = {}): Promise<T> {
+async function omie<T>(endpoint: string, call: string, param: Param, opts: { escrita?: boolean; timeoutMs?: number; rapido?: boolean } = {}): Promise<T> {
   const acc = conta();
   if (!acc.key || !acc.secret) throw new ErroOmie('Credenciais do Omie (conta Nova) não configuradas.');
   let data: Record<string, unknown>;
@@ -94,9 +94,10 @@ async function omie<T>(endpoint: string, call: string, param: Param, opts: { esc
       { appKey: acc.key, appSecret: acc.secret, rotulo: EMPRESA }, endpoint, call, param,
       {
         gravacao: !!opts.escrita,
-        tentativas: opts.escrita ? 0 : 4, // leitura repetida ("consumo redundante") espera o que a Omie pede
-        maxEsperaMs: 65_000,
-        timeoutMs: opts.timeoutMs ?? (opts.escrita ? 60_000 : 30_000),
+        // leitura repetida ("consumo redundante") espera o que a Omie pede; a rápida (travas) não espera
+        tentativas: opts.escrita || opts.rapido ? 0 : 4,
+        maxEsperaMs: opts.rapido ? 0 : 65_000,
+        timeoutMs: opts.timeoutMs ?? (opts.escrita ? 60_000 : opts.rapido ? 8_000 : 30_000),
         lancarFault: false,
       },
     );
@@ -121,7 +122,7 @@ async function omie<T>(endpoint: string, call: string, param: Param, opts: { esc
 // ---------------------------------------------------------------- banco
 const COLS = 'Id_Ordem, Os_Cliente, Cnpj_Cliente, Status, Ordem_Omie, Servico_Interno, Tipo_Servico, ID_PPV, Valor_Total, '
   + 'forma_pagamento, omie_ncodos, omie_ccodint, faturando_desde, faturamento_status, faturamento_erro, faturamento_pecas, '
-  + 'faturado_omie_em, faturado_por, nfse_numero, nfse_link, Previsao_Faturamento, Projeto';
+  + 'faturado_omie_em, faturado_por, nfse_numero, nfse_link, Previsao_Faturamento, Projeto, Servico_Oficina';
 
 export interface PecaFaturada { id: string; pedidoOmie?: string; ok: boolean; erro?: string | null; nf?: string | null }
 
@@ -131,7 +132,7 @@ interface LinhaOS {
   forma_pagamento: string | null; omie_ncodos: number | null; omie_ccodint: string | null; faturando_desde: string | null;
   faturamento_status: StatusFaturamento | null; faturamento_erro: string | null; faturamento_pecas: PecaFaturada[] | null;
   faturado_omie_em: string | null; faturado_por: string | null; nfse_numero: string | null; nfse_link: string | null;
-  Previsao_Faturamento: string | null; Projeto: string | null;
+  Previsao_Faturamento: string | null; Projeto: string | null; Servico_Oficina?: boolean | null;
 }
 
 function ehColunaFaltando(err: { code?: string; message?: string } | null): boolean {
@@ -152,12 +153,19 @@ export async function travasDaOS(id: string): Promise<{ travas: Trava[]; semTabe
 }
 
 async function travasDe(os: LinhaOS): Promise<{ travas: Trava[]; semTabelaLocalizacao: boolean }> {
-  const { lista, semTabela } = await localizacoesDoDocumento(String(os.Cnpj_Cliente || ''));
+  // OS-0871 (13/11/2026): a conferência do CEP esperava a Omie ("consumo redundante") e o clique em
+  // Faturar ficava ~25 s sem resposta. Agora em paralelo, leitura rápida e teto de 12 s (passou = não trava).
+  const tetoCep = new Promise<{ ok: boolean; detalhe: string }>((r) => setTimeout(() => r({ ok: true, detalhe: 'a Omie demorou para responder — confira o CEP do cliente antes de faturar' }), 12_000));
+  const [{ lista, semTabela }, cep] = await Promise.all([
+    localizacoesDoDocumento(String(os.Cnpj_Cliente || '')),
+    os.Servico_Interno ? Promise.resolve(null) : Promise.race([cepParaTravas(os), tetoCep]),
+  ]);
   const travas = avaliarTravas({
     hoje: hojeSaoPaulo(), previsaoFaturamento: os.Previsao_Faturamento, projeto: os.Projeto,
     documentoCliente: os.Cnpj_Cliente, localizacaoConfirmada: lista.length > 0 || semTabela, localizacoes: lista.map((l) => l.nome),
+    servicoOficina: !!os.Servico_Oficina,
     // NFS-e: o CEP do cadastro do cliente no Omie vai como endereço do tomador (OS interna sai com recibo)
-    cep: os.Servico_Interno ? null : await cepParaTravas(os),
+    cep,
   });
   if (semTabela) { const t = travas.find((x) => x.chave === 'localizacao'); if (t) t.detalhe = 'falta rodar o SQL sql/clientes-localizacoes.sql — por enquanto não trava'; }
   return { travas, semTabelaLocalizacao: semTabela };
@@ -172,9 +180,9 @@ async function cepParaTravas(os: LinhaOS): Promise<{ ok: boolean; detalhe: strin
   let nCodCli = 0;
   let cli: { cep?: string; cidade?: string; estado?: string } = {};
   try {
-    const r = await resolverOSNoOmie(os);
+    const r = await resolverOSNoOmie(os, { rapido: true });
     nCodCli = Number((r.dados.Cabecalho as { nCodCli?: number } | undefined)?.nCodCli || 0);
-    if (nCodCli) cli = await omie<{ cep?: string; cidade?: string; estado?: string }>('/geral/clientes/', 'ConsultarCliente', { codigo_cliente_omie: nCodCli });
+    if (nCodCli) cli = await omie<{ cep?: string; cidade?: string; estado?: string }>('/geral/clientes/', 'ConsultarCliente', { codigo_cliente_omie: nCodCli }, { rapido: true });
   } catch {
     return { ok: true, detalhe: 'não deu para ler o cadastro do cliente no Omie agora — confira o CEP antes de faturar' };
   }
@@ -226,7 +234,7 @@ interface OSConsultada extends OSNoOmie {
 }
 
 /** Acha a OS no Omie e confere que é ESTA. Grava omie_ncodos/omie_ccodint se faltarem. */
-async function resolverOSNoOmie(os: LinhaOS): Promise<{ nCodOS: number; dados: OSConsultada; chave: Param }> {
+async function resolverOSNoOmie(os: LinhaOS, opts: { rapido?: boolean } = {}): Promise<{ nCodOS: number; dados: OSConsultada; chave: Param }> {
   const tentativas: Param[] = [];
   if (os.omie_ncodos) tentativas.push({ nCodOS: Number(os.omie_ncodos) });
   if (os.omie_ccodint) tentativas.push({ cCodIntOS: os.omie_ccodint });
@@ -235,7 +243,7 @@ async function resolverOSNoOmie(os: LinhaOS): Promise<{ nCodOS: number; dados: O
   let ultimoErro = 'OS não encontrada no Omie.';
   for (const p of tentativas) {
     let dados: OSConsultada;
-    try { dados = await omie<OSConsultada>('/servicos/os/', 'ConsultarOS', p); }
+    try { dados = await omie<OSConsultada>('/servicos/os/', 'ConsultarOS', p, opts); }
     catch (e) { ultimoErro = e instanceof Error ? e.message : String(e); continue; }
     const dif = conferirIdentidade({ idOrdem: os.Id_Ordem, ordemOmie: String(os.Ordem_Omie || ''), ccodintGravado: os.omie_ccodint }, dados.Cabecalho);
     if (dif) { ultimoErro = dif; continue; }
