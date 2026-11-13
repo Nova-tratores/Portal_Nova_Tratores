@@ -43,6 +43,9 @@ const nextConfig: NextConfig = {
       // QUALQUER coisa depois de /garantia/ abre a página (endereço digitado errado não dá 404);
       // as fotos, o manifest e o sw.js são arquivos de public/ e vêm antes desta regra.
       { source: "/garantia/:resto+", destination: "/garantia/index.html" },
+      // Roleta da Black Friday 2026 (13/11/2026): página pública em public/black-friday/, sem login.
+      // Um link por setor: /black-friday?setor=comercial | posvendas | pecas. Grava pelas funções do sql/campanhas.sql.
+      { source: "/black-friday", destination: "/black-friday/index.html" },
     ];
   },
   async headers() {

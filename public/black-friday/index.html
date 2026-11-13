@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Black Friday · Nova Tratores</title>
+<meta name="description" content="Black Friday Nova Tratores: preencha a ficha, mande a foto do seu Mahindra e gire a roleta.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#0d0d0d">
+<style>
+@font-face{font-family:"Quantum Rise";src:url(/black-friday/fonts/quantum-rise-bold.woff2) format("woff2");font-weight:700;font-display:swap}
+@font-face{font-family:"Georama SemiExpanded";src:url(/black-friday/fonts/georama-semiexpanded-regular.woff2) format("woff2");font-weight:400;font-display:swap}
+@font-face{font-family:"Georama SemiExpanded";src:url(/black-friday/fonts/georama-semiexpanded-semibold.woff2) format("woff2");font-weight:600;font-display:swap}
+@font-face{font-family:"Georama SemiExpanded";src:url(/black-friday/fonts/georama-semiexpanded-bold.woff2) format("woff2");font-weight:700;font-display:swap}
+
+:root{
+  --vermelho:#E31837; --vermelho-esc:#B5122B; --preto:#0d0d0d; --grafite:#1a1a1a; --linha:#2e2e2e;
+  --texto:#f4f4f4; --texto-2:#a9a9ab; --raio:14px; --dourado:#E5B94E; --dourado-esc:#9C7424;
+  --titulo:"Quantum Rise","Georama SemiExpanded",system-ui,sans-serif;
+  --fonte:"Georama SemiExpanded",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--preto);color:var(--texto);font-family:var(--fonte);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;min-height:100vh}
+button,input{font:inherit;color:inherit}
+.oculto{display:none!important}
+
+.faixa-teste{background:#f5c518;color:#111;text-align:center;font-size:.85rem;font-weight:600;padding:.45rem 1rem}
+
+header.topo{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1rem 16px;max-width:1120px;margin:0 auto}
+header.topo img{height:30px;width:auto;display:block}
+.relogio{font-size:.8rem;color:var(--texto-2);text-align:right;line-height:1.25}
+.relogio b{display:block;color:var(--texto);font-variant-numeric:tabular-nums;font-size:.95rem;letter-spacing:.02em}
+
+main{max-width:1120px;margin:0 auto;padding:0 16px 3rem}
+
+/* passos */
+.passos-barra{display:flex;gap:6px;margin:.25rem 0 1.5rem;list-style:none;padding:0}
+.passos-barra li{flex:1;min-width:0}
+.passos-barra i{display:block;height:4px;border-radius:2px;background:#333}
+.passos-barra span{display:block;font-size:.75rem;color:var(--texto-2);margin-top:.4rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.passos-barra li.feito i,.passos-barra li.agora i{background:var(--vermelho)}
+.passos-barra li.agora span{color:var(--texto);font-weight:600}
+
+.selo{display:inline-block;background:var(--vermelho);color:#fff;font-weight:700;font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;padding:.3rem .6rem;border-radius:4px}
+h1{font-family:var(--titulo);font-weight:700;font-size:clamp(2.6rem,9vw,5.2rem);line-height:.95;margin:.6rem 0 .6rem;letter-spacing:.01em}
+h1 span{color:var(--vermelho)}
+h2.titulo-passo{font-family:var(--titulo);font-weight:700;font-size:clamp(1.8rem,6vw,2.6rem);line-height:1;margin:0 0 .5rem}
+.sub{font-size:clamp(1.05rem,2.6vw,1.25rem);color:var(--texto-2);margin:0 0 1.5rem;max-width:36ch}
+.sub b{color:var(--texto)}
+
+.coluna{max-width:640px;margin:0 auto}
+.duas-col{display:grid;grid-template-columns:1fr;gap:2rem;align-items:center}
+.duas-col>*{min-width:0}
+@media (min-width:900px){.duas-col{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:3rem}}
+.palco{align-items:start}
+
+/* BLACK DA NOVA (svg) */
+.hero{display:block;width:min(100%,560px);height:auto;margin:.4rem 0 .8rem;transform-origin:30% 50%;animation:pulsa 1.8s ease-in-out infinite}
+@keyframes pulsa{0%,100%{transform:scale(1)}50%{transform:scale(1.03)}}
+.hero .brilho{animation:brilho 1.2s ease-in-out infinite}
+.hero .brilho.b{animation-delay:.4s}.hero .brilho.c{animation-delay:.8s}
+@keyframes brilho{0%,100%{opacity:.15;transform:scale(.6)}50%{opacity:1;transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){.hero,.hero .brilho{animation:none}}
+.selo.ouro{background:transparent;border:1px solid var(--dourado);color:var(--dourado)}
+
+/* como funciona */
+.como{list-style:none;margin:0 0 1.5rem;padding:0;display:grid;gap:.9rem}
+.como li{display:grid;grid-template-columns:2.6rem 1fr;gap:.9rem;align-items:start}
+.como .n{width:2.6rem;height:2.6rem;border-radius:50%;background:var(--vermelho);border:2px solid var(--dourado);display:grid;place-items:center;font-family:var(--titulo);font-size:1.1rem}
+.como b{display:block;font-size:1.05rem}
+.como small{color:var(--texto-2);font-size:.92rem;display:block}
+.concurso{display:flex;gap:.8rem;align-items:center;border:1px solid var(--dourado-esc);background:#1d1608;border-radius:var(--raio);padding:.9rem 1rem;margin-bottom:1.5rem;color:var(--dourado);font-size:.98rem;font-weight:600}
+.concurso svg{width:24px;height:24px;flex:none;margin-top:1px}
+
+/* roleta */
+.roda-caixa{position:relative;width:min(100%,520px);margin:0 auto;aspect-ratio:1}
+.roda-caixa.pequena{width:min(100%,420px)}
+.roda-caixa svg.roda{width:100%;height:100%;display:block;will-change:transform}
+.ponteiro{position:absolute;left:50%;top:-6px;transform:translateX(-50%);width:44px;height:54px;z-index:2;filter:drop-shadow(0 3px 4px rgba(0,0,0,.6))}
+.centro{position:absolute;inset:0;margin:auto;width:24%;height:24%;border-radius:50%;background:var(--preto);border:4px solid #fff;display:grid;place-items:center;z-index:2;
+  font-family:var(--titulo);font-size:clamp(.7rem,2.6vw,1rem);text-align:center;line-height:1;color:#fff;padding:0;transition:background .15s}
+.centro.pode{background:var(--vermelho);cursor:pointer}
+.centro.pode:hover{background:var(--vermelho-esc)}
+.lampada{animation:pisca 1.2s steps(1) infinite}
+.lampada.b{animation-delay:.6s}
+@keyframes pisca{0%{fill:#fff}50%{fill:#5a5a5a}}
+@media (prefers-reduced-motion:reduce){.lampada{animation:none}}
+
+/* cartões e campos */
+.cartao{background:var(--grafite);border:1px solid var(--linha);border-radius:var(--raio);padding:1.4rem}
+@media (min-width:600px){.cartao{padding:1.8rem}}
+.cartao h3{font-size:1.2rem;margin:0 0 .25rem;font-weight:700}
+.dica{color:var(--texto-2);margin:0 0 1.25rem;font-size:.95rem}
+.campo{margin-bottom:1.25rem}
+.campo>label,.campo>.rot{display:block;font-weight:600;margin-bottom:.45rem;font-size:.95rem}
+.campo .rot small{color:var(--texto-2);font-weight:400}
+input[type=text]{width:100%;height:3.1rem;border-radius:10px;border:1px solid #3b3b3b;background:#111;padding:0 .9rem;font-size:1rem;outline:none}
+input[type=text]:focus{border-color:var(--vermelho)}
+.btn-tracejado{width:100%;min-height:3.1rem;border-radius:10px;border:1px dashed #555;background:transparent;display:flex;align-items:center;justify-content:center;gap:.55rem;cursor:pointer;font-weight:600;margin-bottom:.6rem;padding:.4rem 1rem}
+.btn-tracejado:hover{border-color:#888}
+.btn-tracejado.ok{border-style:solid;border-color:#2e7d4f;background:#12291c;color:#9be3b6}
+.btn-tracejado svg{width:20px;height:20px;flex:none}
+.opcoes{display:flex;flex-wrap:wrap;gap:.5rem}
+.opcoes button{min-height:2.9rem;padding:0 1.05rem;border-radius:10px;border:1px solid #3b3b3b;background:#111;cursor:pointer;font-weight:600}
+.opcoes button[aria-pressed=true]{background:var(--vermelho);border-color:var(--vermelho);color:#fff}
+.opcoes.duas button{flex:1}
+.foto-previa{position:relative;border-radius:10px;overflow:hidden;background:#111;margin-bottom:.6rem}
+.foto-previa img{display:block;width:100%;max-height:340px;object-fit:cover}
+.erro{color:#ff8a9a;font-size:.88rem;margin:.6rem 0 0;min-height:1.1em}
+.acoes{display:flex;gap:.6rem;margin-top:1.25rem}
+.btn-principal{flex:1;min-height:3.5rem;border:0;border-radius:10px;background:var(--vermelho);color:#fff;font-weight:700;font-size:1.1rem;cursor:pointer;padding:0 1.2rem}
+.btn-principal:hover{background:var(--vermelho-esc)}
+.btn-principal:disabled{opacity:.55;cursor:default}
+.btn-voltar{min-height:3.5rem;border-radius:10px;border:1px solid #3b3b3b;background:transparent;cursor:pointer;font-weight:600;padding:0 1.1rem}
+.btn-voltar:hover{border-color:#777}
+
+/* regras */
+.regras{margin:0;padding:0;list-style:none;display:grid;gap:1rem}
+.regras li{display:grid;grid-template-columns:2.4rem 1fr;gap:.8rem;align-items:center;font-size:1.05rem}
+.regras .ico{width:2.4rem;height:2.4rem;border-radius:10px;background:#2a0a10;color:var(--vermelho);display:grid;place-items:center}
+.regras .ico svg{width:20px;height:20px}
+.regras li.ouro .ico{background:#2a2108;color:var(--dourado)}
+.regras b{color:#fff}
+.aceite{display:flex;gap:.65rem;align-items:center;font-size:.95rem;margin:1.5rem 0 0;cursor:pointer;color:var(--texto-2)}
+.aceite input{width:22px;height:22px;accent-color:var(--vermelho);margin:1px 0 0;flex:none}
+
+/* resultado */
+.premio-titulo{font-family:var(--titulo);font-size:clamp(1.8rem,6vw,2.6rem);line-height:1.05;margin:.35rem 0 .6rem;color:#fff}
+.codigo{display:flex;align-items:center;justify-content:space-between;gap:1rem;border:2px dashed var(--vermelho);border-radius:10px;padding:.8rem 1rem;margin:1rem 0}
+.codigo span{color:var(--texto-2);font-size:.85rem}
+.codigo b{font-family:ui-monospace,Consolas,monospace;font-size:1.5rem;letter-spacing:.08em}
+.lista-num{margin:0;padding-left:1.2rem;color:var(--texto-2);font-size:.95rem}
+.lista-num li{margin:.3rem 0}
+.btn-whats{display:flex;align-items:center;justify-content:center;gap:.55rem;width:100%;min-height:3.3rem;border-radius:10px;background:#25D366;color:#0b2914;font-weight:700;text-decoration:none;margin-top:1.1rem}
+.btn-whats svg{width:22px;height:22px}
+.lista-premios{list-style:none;margin:1rem 0 0;padding:0;display:grid;gap:.35rem}
+.lista-premios li{display:flex;gap:.6rem;align-items:baseline;color:var(--texto-2);font-size:.92rem}
+.lista-premios li::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--vermelho);flex:none;transform:translateY(-1px)}
+
+.setores{display:grid;gap:.75rem;margin-top:1rem}
+@media (min-width:600px){.setores{grid-template-columns:repeat(3,1fr)}}
+.setores a{display:block;background:var(--grafite);border:1px solid var(--linha);border-radius:var(--raio);padding:1.2rem;color:#fff;text-decoration:none;font-weight:700;font-size:1.1rem}
+.setores a:hover{border-color:var(--vermelho)}
+.setores a small{display:block;color:var(--texto-2);font-weight:400;font-size:.9rem;margin-top:.25rem}
+
+@media (max-width:599px){
+  header.topo{padding:.8rem 16px}
+  header.topo img{height:24px}
+  .relogio{font-size:.72rem}.relogio b{font-size:.85rem}
+  .passos-barra{margin-bottom:1rem}
+  h2.titulo-passo{font-size:1.9rem}
+  .sub{margin-bottom:1rem}
+  .como{gap:.7rem}
+  .cartao{padding:1.1rem}
+  .roda-caixa.pequena{width:min(86%,360px)}
+  .acoes{position:sticky;bottom:0;background:linear-gradient(transparent,var(--grafite) 30%);padding-top:.8rem;margin-left:-.2rem;margin-right:-.2rem}
+  #p-inicio .acoes{background:linear-gradient(transparent,var(--preto) 30%);padding-bottom:.8rem}
+}
+footer{max-width:1120px;margin:0 auto;padding:1.5rem 16px 2.5rem;color:var(--texto-2);font-size:.82rem;border-top:1px solid var(--linha)}
+</style>
+</head>
+<body>
+<div class="faixa-teste oculto" id="faixaTeste">Modo teste: nada é gravado e o prêmio é sorteado no aparelho.</div>
+
+<header class="topo">
+  <img src="/black-friday/logo-nova.png" alt="Nova Tratores" width="165" height="30">
+  <div class="relogio" id="relogio"></div>
+</header>
+
+<main>
+  <ol class="passos-barra oculto" id="barra">
+    <li data-p="inicio"><i></i><span>1 · Início</span></li>
+    <li data-p="regras"><i></i><span>2 · Regras</span></li>
+    <li data-p="ficha"><i></i><span>3 · Ficha</span></li>
+    <li data-p="roleta"><i></i><span>4 · Roleta</span></li>
+  </ol>
+
+  <!-- link sem setor -->
+  <section id="telaSetores" class="oculto">
+    <svg class="hero" viewBox="0 0 600 250" role="img" aria-label="Black da Nova">
+          <defs>
+            <linearGradient id="ouroA" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#9C7424"/><stop offset=".35" stop-color="#F6DC8A"/><stop offset=".55" stop-color="#E5B94E"/><stop offset="1" stop-color="#8A651C"/>
+              <animateTransform attributeName="gradientTransform" type="translate" values="-.6 0;.6 0;-.6 0" dur="4s" repeatCount="indefinite"/>
+            </linearGradient>
+          </defs>
+          <text x="300" y="140" text-anchor="middle" font-family="Quantum Rise, Georama SemiExpanded, sans-serif" font-weight="700" font-size="150" textLength="576" lengthAdjust="spacingAndGlyphs" fill="url(#ouroA)" stroke="#0d0d0d" stroke-width="2">BLACK</text>
+          <rect x="70" y="160" width="460" height="74" rx="10" fill="#E31837" stroke="url(#ouroA)" stroke-width="3"/>
+          <text x="300" y="214" text-anchor="middle" font-family="Quantum Rise, Georama SemiExpanded, sans-serif" font-weight="700" font-size="54" textLength="380" lengthAdjust="spacingAndGlyphs" fill="#0d0d0d">DA NOVA</text>
+          <g fill="#F6DC8A">
+            <path class="brilho" style="transform-origin:28px 30px" d="M28 14l4 12 12 4-12 4-4 12-4-12-12-4 12-4z"/>
+            <path class="brilho b" style="transform-origin:578px 150px" d="M578 138l3 9 9 3-9 3-3 9-3-9-9-3 9-3z"/>
+            <path class="brilho c" style="transform-origin:548px 22px" d="M548 12l2.5 7.5 7.5 2.5-7.5 2.5-2.5 7.5-2.5-7.5-7.5-2.5 7.5-2.5z"/>
+          </g>
+        </svg>
+    <p class="sub">Escolha a roleta:</p>
+    <div class="setores">
+      <a href="?setor=comercial">Comercial<small>Tratores e implementos</small></a>
+      <a href="?setor=posvendas">Pós-Vendas<small>Oficina e revisões</small></a>
+      <a href="?setor=pecas">Peças<small>Peças genuínas Mahindra</small></a>
+    </div>
+  </section>
+
+  <!-- encerrada -->
+  <section id="telaEncerrada" class="oculto coluna">
+    <h2 class="titulo-passo">A Black Friday terminou</h2>
+    <p class="sub">Obrigado por participar. Quem ganhou pode resgatar o prêmio com o código dentro da validade.</p>
+  </section>
+
+  <!-- 1. APRESENTAÇÃO -->
+  <section id="p-inicio" class="passo oculto">
+    <div class="duas-col">
+      <div>
+        <span class="selo ouro" id="seloSetor">Black Friday</span>
+        <svg class="hero" viewBox="0 0 600 250" role="img" aria-label="Black da Nova">
+          <defs>
+            <linearGradient id="ouroB" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#9C7424"/><stop offset=".35" stop-color="#F6DC8A"/><stop offset=".55" stop-color="#E5B94E"/><stop offset="1" stop-color="#8A651C"/>
+              <animateTransform attributeName="gradientTransform" type="translate" values="-.6 0;.6 0;-.6 0" dur="4s" repeatCount="indefinite"/>
+            </linearGradient>
+          </defs>
+          <text x="300" y="140" text-anchor="middle" font-family="Quantum Rise, Georama SemiExpanded, sans-serif" font-weight="700" font-size="150" textLength="576" lengthAdjust="spacingAndGlyphs" fill="url(#ouroB)" stroke="#0d0d0d" stroke-width="2">BLACK</text>
+          <rect x="70" y="160" width="460" height="74" rx="10" fill="#E31837" stroke="url(#ouroB)" stroke-width="3"/>
+          <text x="300" y="214" text-anchor="middle" font-family="Quantum Rise, Georama SemiExpanded, sans-serif" font-weight="700" font-size="54" textLength="380" lengthAdjust="spacingAndGlyphs" fill="#0d0d0d">DA NOVA</text>
+          <g fill="#F6DC8A">
+            <path class="brilho" style="transform-origin:28px 30px" d="M28 14l4 12 12 4-12 4-4 12-4-12-12-4 12-4z"/>
+            <path class="brilho b" style="transform-origin:578px 150px" d="M578 138l3 9 9 3-9 3-3 9-3-9-9-3 9-3z"/>
+            <path class="brilho c" style="transform-origin:548px 22px" d="M548 12l2.5 7.5 7.5 2.5-7.5 2.5-2.5 7.5-2.5-7.5-7.5-2.5 7.5-2.5z"/>
+          </g>
+        </svg>
+        <p class="sub" id="iniSub">Gire a roleta. <b>Todo giro ganha.</b></p>
+        <ol class="como" id="iniPassos">
+          <li><span class="n">1</span><span><b>Leia as regras</b></span></li>
+          <li><span class="n">2</span><span><b>Preencha a ficha</b></span></li>
+          <li><span class="n">3</span><span><b>Gire e ganhe na hora</b></span></li>
+        </ol>
+        <div class="concurso" id="iniConcurso">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>
+          <span id="textoConcurso">Tem Mahindra? A foto mais bonita ganha prêmio.</span>
+        </div>
+        <div class="acoes"><button class="btn-principal" type="button" data-ir="regras">Começar</button></div>
+      </div>
+      <div>
+        <div class="roda-caixa pequena">
+          <svg class="ponteiro" viewBox="0 0 44 54" aria-hidden="true"><path d="M22 52 3 14a20 20 0 1 1 38 0Z" fill="#fff"/><circle cx="22" cy="18" r="7" fill="#E31837"/></svg>
+          <svg class="roda" id="rodaPrevia" viewBox="-180 -180 360 360" aria-hidden="true"></svg>
+          <span class="centro" aria-hidden="true">BLACK</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. REGRAS -->
+  <section id="p-regras" class="passo oculto coluna">
+    <h2 class="titulo-passo">Regras</h2>
+    <div class="cartao">
+      <ul class="regras" id="listaRegras"></ul>
+      <label class="aceite"><input type="checkbox" id="aceite"> <span>Aceito as regras e que a Nova Tratores guarde meus dados.</span></label>
+      <p class="erro" id="erroRegras" role="alert"></p>
+      <div class="acoes">
+        <button class="btn-voltar" type="button" data-ir="inicio">Voltar</button>
+        <button class="btn-principal" type="button" id="btnAceitar">Continuar</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. FICHA + FOTO -->
+  <section id="p-ficha" class="passo oculto coluna">
+    <h2 class="titulo-passo">Sua ficha</h2>
+
+    <form class="cartao" id="form" novalidate>
+      <div class="campo">
+        <label for="nome">Nome</label>
+        <input type="text" id="nome" autocomplete="name" maxlength="120" placeholder="Seu nome completo">
+      </div>
+
+      <div class="campo" id="campoLocal">
+        <span class="rot">Onde você está</span>
+        <button type="button" class="btn-tracejado" id="btnLoc">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
+          <span id="btnLocTxt">Usar minha localização</span>
+        </button>
+        <input type="text" id="cidade" autocomplete="address-level2" maxlength="80" placeholder="Ou escreva sua cidade">
+      </div>
+
+      <div class="campo" id="campoTrator">
+        <span class="rot">Você tem trator Mahindra comprado na Nova Tratores?</span>
+        <div class="opcoes duas" id="temTrator">
+          <button type="button" data-v="sim" aria-pressed="false">Sim</button>
+          <button type="button" data-v="nao" aria-pressed="false">Não</button>
+        </div>
+      </div>
+
+      <div class="campo oculto" id="campoModelo">
+        <span class="rot">Qual modelo?</span>
+        <div class="opcoes" id="modelo"></div>
+      </div>
+
+      <div class="campo oculto" id="campoFoto">
+        <span class="rot">Foto do seu Mahindra <small>· concorre à mais bonita</small></span>
+        <div class="foto-previa oculto" id="fotoPrevia"><img id="fotoImg" alt="Sua foto"></div>
+        <button type="button" class="btn-tracejado" id="btnFoto">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          <span id="btnFotoTxt">Tirar ou escolher foto</span>
+        </button>
+        <input type="file" id="arquivoFoto" accept="image/*" class="oculto">
+        <small style="color:var(--texto-2);font-size:.82rem">Ao mandar, você deixa a Nova Tratores postar a foto.</small>
+      </div>
+
+      <p class="erro" id="erro" role="alert"></p>
+      <div class="acoes">
+        <button class="btn-voltar" type="button" data-ir="regras">Voltar</button>
+        <button class="btn-principal" type="submit" id="btnFicha">Ir para a roleta</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- 4. ROLETA -->
+  <section id="p-roleta" class="passo oculto">
+    <div class="duas-col palco">
+      <div>
+        <div class="roda-caixa">
+          <svg class="ponteiro" viewBox="0 0 44 54" aria-hidden="true"><path d="M22 52 3 14a20 20 0 1 1 38 0Z" fill="#fff"/><circle cx="22" cy="18" r="7" fill="#E31837"/></svg>
+          <svg class="roda" id="roda" viewBox="-180 -180 360 360" role="img" aria-label="Roleta de prêmios"></svg>
+          <button class="centro pode" id="centro" type="button" aria-label="Girar">GIRAR</button>
+        </div>
+      </div>
+      <div>
+        <div class="cartao" id="cartaoGirar">
+          <h3 id="olaNome">Pronto!</h3>
+
+          <div class="acoes" style="margin-top:0"><button class="btn-principal" type="button" id="btnGirar">Girar a roleta</button></div>
+          <p class="erro" id="erroGiro" role="alert"></p>
+          <ul class="lista-premios" id="listaPremios"></ul>
+        </div>
+
+        <div class="cartao oculto" id="cartaoResultado" aria-live="polite">
+          <span class="selo">Você ganhou</span>
+          <p class="premio-titulo" id="resPremio"></p>
+          <p class="dica" id="resDetalhe" style="margin:0"></p>
+          <div class="codigo"><span>Seu código</span><b id="resCodigo"></b></div>
+          <ol class="lista-num">
+            <li>Tire um print desta tela.</li>
+            <li id="resComo">Mostre o código na Nova Tratores para resgatar.</li>
+            <li id="resFoto" class="oculto">Sua foto já concorre à mais bonita.</li>
+          </ol>
+          <a class="btn-whats oculto" id="btnWhats" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm5.3 14.1c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.1-4.5-3.9-4.7-4.1-.1-.2-1.1-1.5-1.1-2.9s.7-2.1 1-2.4c.3-.3.6-.3.8-.3h.6c.2 0 .4 0 .6.5l.9 2.1c.1.2.1.4 0 .5l-.4.6-.4.4c-.1.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1c.2-.3.4-.2.6-.1l2 .9c.3.1.5.2.5.3.1.2.1.7-.1 1.3Z"/></svg>
+            Resgatar no WhatsApp
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>Nova Tratores · Concessionária Mahindra</footer>
+
+<script>
+/* ============ CONFIGURAÇÃO (editar aqui) ============ */
+const SUPABASE_URL = "https://citrhumdkfivdzbmayde.supabase.co";
+const SUPABASE_ANON = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNpdHJodW1ka2ZpdmR6Ym1heWRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjkxMDgyNzUsImV4cCI6MjA4NDY4NDI3NX0.83x3-NrKoJgtIuSE7Jjsaj0zH-b-XJ3Z8i3XkBkwVoU";
+const CAMPANHA = "black-friday-2026";                         // campanhas.slug no portal
+const SETORES = {
+  comercial: { nome: "Comercial", selo: "Roleta do Comercial", whats: "", como: "Mostre o código ao vendedor da Nova Tratores." },
+  posvendas: { nome: "Pós-Vendas", selo: "Roleta do Pós-Vendas", whats: "", como: "Mostre o código ao Pós-Vendas ao agendar o serviço." },
+  pecas:     { nome: "Peças", selo: "Roleta de Peças", whats: "5514997627413", como: "Mostre o código no balcão de peças ou mande no WhatsApp." }
+};
+const MODELOS = ["2025","5050","6060","6065","6075","6075E","6675F","7095","8110","OJA 3140","Retro VX90","Outro"];
+// Foto: só aparece (e é obrigatória) para quem tem Mahindra da Nova. Quem não tem não vê o campo.
+/* Usado no modo teste (sem o SQL do portal). No ar, campanha e prêmios vêm do portal (Site → Campanhas). */
+const PADRAO = {
+  nome: "Black Friday", ano: 2026, inicio: "2026-11-01", fim: "2026-11-30", aberta: true,
+  config: { premio_foto: "A foto mais bonita ganha um prêmio especial da Nova Tratores.", validade: "31/12/2026", whats: { pecas: "5514997627413" } },
+  premios: {
+    comercial: [["Revisão 50 h grátis","Revisão de 50 horas grátis","Na compra de um trator Mahindra novo até 31/12/2026.",2],["Boné Mahindra","Boné oficial Mahindra","Retirar na loja.",5],["Demonstração","Demonstração grátis na sua propriedade","Agendar com o vendedor.",4],["R$ 1.000 implemento","R$ 1.000 de desconto em implemento","Na compra do trator junto com o implemento até 31/12/2026.",2],["Camiseta Mahindra","Camiseta oficial Mahindra","Retirar na loja.",4],["Tanque cheio","Tanque cheio na entrega","Na compra de um trator Mahindra novo até 31/12/2026.",1]],
+    posvendas: [["10% mão de obra","10% de desconto na mão de obra","Na próxima revisão ou conserto até 31/12/2026.",5],["Check-up grátis","Check-up grátis do trator","Agendar com o Pós-Vendas.",3],["Deslocamento grátis","Deslocamento grátis até 50 km","Em um atendimento no campo até 31/12/2026.",3],["15% mão de obra","15% de desconto na mão de obra","Na próxima revisão ou conserto até 31/12/2026.",2],["Boné Mahindra","Boné oficial Mahindra","Retirar na loja.",4],["Revisão grátis","Mão de obra da revisão grátis","Uma revisão até 31/12/2026.",1]],
+    pecas: [["5% em peças","5% de desconto em peças","Uma compra até 31/12/2026.",6],["10% em peças","10% de desconto em peças","Uma compra até 31/12/2026.",4],["Frete grátis","Frete grátis","Em um pedido de peças até 31/12/2026.",3],["15% em peças","15% de desconto em peças","Uma compra até 31/12/2026.",2],["Filtro grátis","Filtro de óleo grátis","Na compra do kit de revisão até 31/12/2026.",2],["Boné Mahindra","Boné oficial Mahindra","Retirar na loja.",4]]
+  }
+};
+/* ==================================================== */
+
+const $ = id => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const setor = params.get("setor");
+let modoTeste = params.get("teste") === "1";
+let camp = null, premios = [], rotacao = 0, girando = false;
+let dados = null, foto = null;           // foto = { blob, url }
+const CHAVE = k => `camp_${CAMPANHA}_${setor}_${k}`;
+
+const guardar = {
+  ler(k){ try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  gravar(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch {} }
+};
+function idAparelho(){
+  let id = guardar.ler("camp_aparelho");
+  if (!id) { id = crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2); guardar.gravar("camp_aparelho", id); }
+  return id;
+}
+function esc(s){ return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+const dataBR = d => d.split("-").reverse().join("/");
+
+/* ---------- o que aparece (vem do portal: Site → Campanhas → O que aparece) ---------- */
+const CFG_PADRAO = {
+  inicio: { subtitulo: "Gire a roleta. Todo giro ganha.", passos: ["Leia as regras","Preencha a ficha","Gire e ganhe na hora"], concurso: "Tem Mahindra? A foto mais bonita ganha prêmio." },
+  regras: ["Vale até 30/11","1 giro por pessoa nesta roleta","Todo giro ganha prêmio","Mostre o código na loja até 31/12","Foto mais bonita do seu Mahindra ganha prêmio"],
+  ficha: { pedir_local: true, pedir_trator: true, pedir_foto: true, modelos: MODELOS },
+  whats: {}
+};
+let cfg = CFG_PADRAO;
+function lerConfig(){
+  const c = camp.config || {};
+  cfg = {
+    inicio: { ...CFG_PADRAO.inicio, ...(c.inicio || {}) },
+    regras: Array.isArray(c.regras) && c.regras.length ? c.regras : CFG_PADRAO.regras,
+    ficha: { ...CFG_PADRAO.ficha, ...(c.ficha || {}) },
+    whats: c.whats || {}
+  };
+  if (!Array.isArray(cfg.ficha.modelos) || !cfg.ficha.modelos.length) cfg.ficha.modelos = MODELOS;
+  if (cfg.whats[setor] !== undefined) SETORES[setor].whats = String(cfg.whats[setor] || "").replace(/\D/g, "");
+}
+function aplicarConfig(){
+  const i = cfg.inicio;
+  $("iniSub").textContent = i.subtitulo || "";
+  $("iniSub").classList.toggle("oculto", !i.subtitulo);
+  $("iniPassos").innerHTML = (i.passos || []).filter(Boolean).map((t,k) => `<li><span class="n">${k+1}</span><span><b>${esc(t)}</b></span></li>`).join("");
+  const temConcurso = cfg.ficha.pedir_trator && cfg.ficha.pedir_foto && i.concurso;
+  $("textoConcurso").textContent = i.concurso || "";
+  $("iniConcurso").classList.toggle("oculto", !temConcurso);
+  $("campoLocal").classList.toggle("oculto", !cfg.ficha.pedir_local);
+  $("campoTrator").classList.toggle("oculto", !cfg.ficha.pedir_trator);
+  $("modelo").innerHTML = cfg.ficha.modelos.map(m => `<button type="button" data-v="${esc(m)}" aria-pressed="false">${esc(m)}</button>`).join("");
+}
+
+/* ---------- relógio ---------- */
+function fimCampanha(){ return new Date(`${camp.fim}T23:59:59-03:00`); }
+function relogio(){
+  if (!camp) return;
+  const ms = fimCampanha() - Date.now();
+  if (ms <= 0) { $("relogio").innerHTML = "Campanha<b>encerrada</b>"; return; }
+  const d = Math.floor(ms/864e5), h = Math.floor(ms/36e5)%24, m = Math.floor(ms/6e4)%60, s = Math.floor(ms/1e3)%60;
+  const p = n => String(n).padStart(2,"0");
+  $("relogio").innerHTML = `Termina em<b>${d} ${d===1?"dia":"dias"} ${p(h)}:${p(m)}:${p(s)}</b>`;
+}
+
+/* ---------- passos (cada um com endereço #, o voltar do celular funciona) ---------- */
+const ORDEM = ["inicio","regras","ficha","roleta"];
+function irPara(p){ if (location.hash !== "#" + p) location.hash = p; else mostrar(); }
+function mostrar(){
+  let p = location.hash.slice(1);
+  if (!ORDEM.includes(p)) p = "inicio";
+  const aceitou = guardar.ler(CHAVE("aceite"));
+  const inscrito = guardar.ler(CHAVE("inscricao"));
+  const previa = params.get("previa") === "1";   // prévia do portal: abre direto no passo pedido
+  if (!previa && p === "ficha" && !aceitou) p = "regras";
+  if (!previa && p === "roleta" && !inscrito) p = aceitou ? "ficha" : "regras";
+  document.querySelectorAll(".passo").forEach(s => s.classList.toggle("oculto", s.id !== "p-" + p));
+  const i = ORDEM.indexOf(p);
+  document.querySelectorAll("#barra li").forEach((li,k) => { li.classList.toggle("feito", k < i); li.classList.toggle("agora", k === i); });
+  scrollTo({ top: 0 });
+}
+addEventListener("hashchange", mostrar);
+document.addEventListener("click", e => { const b = e.target.closest("[data-ir]"); if (b) irPara(b.dataset.ir); });
+
+/* ---------- roleta ---------- */
+function quebrar(t){
+  if (t.length <= 11 || !t.includes(" ")) return [t];
+  let melhor = [t], dif = 1e9;
+  t.split(" ").forEach((_,i,ps) => { if (!i) return; const a = ps.slice(0,i).join(" "), b = ps.slice(i).join(" "); const d = Math.abs(a.length-b.length); if (d < dif) { dif = d; melhor = [a,b]; } });
+  return melhor;
+}
+function svgRoda(){
+  const n = premios.length, seg = 360/n, R = 160;
+  const ponto = (r,a) => { const t = (a-90)*Math.PI/180; return [r*Math.cos(t), r*Math.sin(t)]; };
+  let h = `<circle r="178" fill="#fff"/><circle r="170" fill="#0d0d0d"/>`;
+  premios.forEach((p,i) => {
+    const a0 = i*seg, a1 = (i+1)*seg, [x0,y0] = ponto(R,a0), [x1,y1] = ponto(R,a1);
+    const cor = (n % 2 === 1 && i === n-1) ? "#4D4D4F" : (i % 2 ? "#161616" : "#E31837");
+    h += `<path d="M0 0L${x0.toFixed(2)} ${y0.toFixed(2)}A${R} ${R} 0 ${seg>180?1:0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}Z" fill="${cor}" stroke="#0d0d0d" stroke-width="1.5"/>`;
+    const meio = a0 + seg/2, linhas = quebrar(p.rotulo), maior = Math.max(...linhas.map(l => l.length));
+    const tam = Math.min(15, 92 / (maior * 0.6)).toFixed(1);
+    const vira = meio > 180, x = vira ? -(R-14) : R-14;   // lado esquerdo: texto não fica de cabeça para baixo
+    const tspans = linhas.map((l,k) => `<tspan x="${x}" dy="${k===0 ? (-(linhas.length-1)*0.55)+"em" : "1.1em"}">${esc(l)}</tspan>`).join("");
+    h += `<g transform="rotate(${vira ? meio+90 : meio-90})"><text y="0" text-anchor="${vira ? "start" : "end"}" dominant-baseline="central" fill="#fff" font-family="Georama SemiExpanded, system-ui, sans-serif" font-weight="700" font-size="${tam}">${tspans}</text></g>`;
+  });
+  for (let i=0;i<24;i++){ const [x,y] = ponto(174, i*15); h += `<circle class="lampada ${i%2?"b":""}" cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="3.4" fill="#fff"/>`; }
+  return h;
+}
+function girarAte(indice){
+  return new Promise(ok => {
+    const seg = 360/premios.length;
+    const alvo = 360 - (indice*seg + seg/2) + (Math.random()-.5) * seg * .6;
+    const reduzido = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const atual = ((rotacao % 360) + 360) % 360;
+    rotacao += (reduzido ? 1 : 6)*360 + ((alvo - atual + 360) % 360);
+    const roda = $("roda"), dur = reduzido ? 1.2 : 5.6;
+    roda.style.transition = `transform ${dur}s cubic-bezier(.12,.6,.1,1)`;
+    roda.style.transform = `rotate(${rotacao}deg)`;
+    let feito = false; const fim = () => { if (!feito) { feito = true; ok(); } };
+    roda.addEventListener("transitionend", fim, { once:true });
+    setTimeout(fim, dur*1000 + 250);  // segurança: o sinal do fim da animação às vezes não chega
+  });
+}
+function pararEm(indice){
+  rotacao = 360 - (indice*(360/premios.length) + 180/premios.length);
+  $("roda").style.transform = `rotate(${rotacao}deg)`;
+}
+
+/* ---------- servidor ---------- */
+async function rpc(nome, corpo){
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/rpc/${nome}`, {
+    method: "POST", body: JSON.stringify(corpo),
+    headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}`, "Content-Type": "application/json" }
+  });
+  const j = await r.json().catch(() => null);
+  if (!r.ok) throw new Error((j && (j.message || j.hint)) || `Erro ${r.status}`);
+  return j;
+}
+async function enviarFoto(blob){
+  const caminho = `${CAMPANHA}/${setor}/${idAparelho()}-${Date.now()}.jpg`;
+  const r = await fetch(`${SUPABASE_URL}/storage/v1/object/campanhas/${caminho}`, {
+    method: "POST", body: blob,
+    headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}`, "Content-Type": "image/jpeg", "x-upsert": "false" }
+  });
+  if (!r.ok) throw new Error("foto");
+  return caminho;
+}
+async function carregarCampanha(){
+  if (!modoTeste) {
+    try {
+      const c = await rpc("campanha_dados", { p_slug: CAMPANHA, p_setor: setor });
+      if (c && Array.isArray(c.premios) && c.premios.length >= 2) return c;
+    } catch {}
+    modoTeste = true;   // SQL do portal ainda não rodou: deixa testar sem gravar
+  }
+  return { ...PADRAO, premios: PADRAO.premios[setor].map(([rotulo,nome,detalhe,peso],i) => ({ id:"t"+i, rotulo, nome, detalhe, peso })) };
+}
+function sortearLocal(){
+  const total = premios.reduce((s,p) => s + p.peso, 0);
+  let x = Math.random()*total;
+  for (const p of premios) { x -= p.peso; if (x < 0) return p; }
+  return premios[0];
+}
+
+/* ---------- foto: reduz no celular antes de enviar (até 1600 px, JPG) ---------- */
+async function reduzir(arquivo){
+  const url = URL.createObjectURL(arquivo);
+  try {
+    const img = await new Promise((ok, falha) => { const i = new Image(); i.onload = () => ok(i); i.onerror = falha; i.src = url; });
+    const k = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight));
+    const c = document.createElement("canvas");
+    c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+    c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+    const blob = await new Promise(ok => c.toBlob(ok, "image/jpeg", 0.82));
+    if (!blob) throw new Error("foto");
+    return blob;
+  } finally { URL.revokeObjectURL(url); }
+}
+$("btnFoto").addEventListener("click", () => $("arquivoFoto").click());
+$("arquivoFoto").addEventListener("change", async e => {
+  const arq = e.target.files && e.target.files[0];
+  if (!arq) return;
+  $("btnFotoTxt").textContent = "Preparando foto…";
+  try {
+    const blob = await reduzir(arq);
+    if (foto) URL.revokeObjectURL(foto.url);
+    foto = { blob, url: URL.createObjectURL(blob), caminho: null };
+    $("fotoImg").src = foto.url;
+    $("fotoPrevia").classList.remove("oculto");
+    $("btnFoto").classList.add("ok");
+    $("btnFotoTxt").textContent = "Trocar foto";
+  } catch {
+    $("btnFotoTxt").textContent = "Não deu para abrir esta foto. Tente outra";
+  }
+  e.target.value = "";
+});
+
+/* ---------- ficha ---------- */
+const form = { lat:null, lng:null, precisao:null, temTrator:null, modelo:null };
+
+function grupo(el, aoEscolher){
+  el.addEventListener("click", e => {
+    const b = e.target.closest("button"); if (!b) return;
+    el.querySelectorAll("button").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+    aoEscolher(b.dataset.v);
+  });
+}
+function limparFoto(){
+  if (foto) URL.revokeObjectURL(foto.url);
+  foto = null;
+  $("fotoPrevia").classList.add("oculto"); $("btnFoto").classList.remove("ok"); $("btnFotoTxt").textContent = "Tirar ou escolher foto";
+}
+grupo($("temTrator"), v => {
+  form.temTrator = v === "sim";
+  $("campoModelo").classList.toggle("oculto", !form.temTrator);
+  $("campoFoto").classList.toggle("oculto", !(form.temTrator && cfg.ficha.pedir_foto));
+  if (!form.temTrator) limparFoto();
+});
+grupo($("modelo"), v => { form.modelo = v; });
+
+$("btnLoc").addEventListener("click", () => {
+  if (!navigator.geolocation) { $("btnLocTxt").textContent = "Sem localização no aparelho: escreva a cidade"; return; }
+  $("btnLocTxt").textContent = "Pegando localização…";
+  navigator.geolocation.getCurrentPosition(pos => {
+    form.lat = pos.coords.latitude; form.lng = pos.coords.longitude; form.precisao = Math.round(pos.coords.accuracy);
+    $("btnLoc").classList.add("ok");
+    $("btnLocTxt").textContent = "Localização recebida";
+    $("cidade").placeholder = "Cidade (opcional)";
+  }, () => {
+    $("btnLocTxt").textContent = "Sem permissão: escreva a cidade abaixo";
+    $("cidade").focus();
+  }, { enableHighAccuracy:true, timeout:15000, maximumAge:60000 });
+});
+
+$("btnAceitar").addEventListener("click", () => {
+  if (!$("aceite").checked) { $("erroRegras").textContent = "Marque que leu e aceita as regras para continuar."; return; }
+  $("erroRegras").textContent = "";
+  guardar.gravar(CHAVE("aceite"), true);
+  irPara("ficha");
+});
+
+$("form").addEventListener("submit", async e => {
+  e.preventDefault();
+  const nome = $("nome").value.trim().replace(/\s+/g," ");
+  const cidade = $("cidade").value.trim();
+  const erro = msg => { $("erro").textContent = msg; };
+  if (nome.length < 3) return erro("Escreva seu nome.");
+  if (cfg.ficha.pedir_local && form.lat === null && cidade.length < 2) return erro("Use sua localização ou escreva a cidade.");
+  if (!cfg.ficha.pedir_trator) form.temTrator = false;
+  if (form.temTrator === null) return erro("Diga se tem trator Mahindra da Nova Tratores.");
+  if (form.temTrator && !form.modelo) return erro("Escolha o modelo do seu trator.");
+  if (form.temTrator && cfg.ficha.pedir_foto && !foto) return erro("Mande uma foto do seu trator Mahindra.");
+  erro("");
+  dados = { nome, cidade, lat: form.lat, lng: form.lng, precisao: form.precisao, temTrator: form.temTrator, modelo: form.temTrator ? form.modelo : null };
+  const btn = $("btnFicha"); btn.disabled = true;
+  try {
+    let id = "teste";
+    if (!modoTeste) {
+      if (foto && !foto.caminho) { btn.textContent = "Enviando foto…"; foto.caminho = await enviarFoto(foto.blob); }
+      btn.textContent = "Salvando…";
+      const r = await rpc("campanha_inscrever", {
+        p_slug: CAMPANHA, p_setor: setor, p_nome: nome, p_cidade: cidade, p_lat: form.lat, p_lng: form.lng,
+        p_precisao: form.precisao, p_tem_trator: form.temTrator, p_modelo: dados.modelo,
+        p_foto: foto ? foto.caminho : null, p_aparelho: idAparelho(), p_extras: {}
+      });
+      id = r.id;
+      if (r.codigo) guardar.gravar(CHAVE("resultado"), r);
+    }
+    guardar.gravar(CHAVE("inscricao"), { id, nome: nome.split(" ")[0], foto: !!foto });
+    prepararRoleta();
+    irPara("roleta");
+  } catch (err) {
+    const m = String(err.message || "");
+    erro(m === "foto" ? "Não deu para enviar a foto. Confira a internet e tente de novo."
+       : m.includes("encerrada") ? "A campanha já terminou."
+       : "Não deu para salvar agora. Confira a internet e tente de novo.");
+  } finally { btn.disabled = false; btn.textContent = "Ir para a roleta"; }
+});
+
+/* ---------- giro e resultado ---------- */
+function prepararRoleta(){
+  const insc = guardar.ler(CHAVE("inscricao"));
+  if (insc) $("olaNome").textContent = `Pronto, ${insc.nome}!`;
+  const anterior = guardar.ler(CHAVE("resultado"));
+  if (anterior && anterior.codigo) {
+    const i = premios.findIndex(q => String(q.id) === String(anterior.premio_id));
+    if (i >= 0) pararEm(i);
+    mostrarResultado(anterior);
+  }
+}
+function mostrarResultado(res){
+  const p = premios.find(q => String(q.id) === String(res.premio_id)) || { nome: res.premio, detalhe: "" };
+  $("resPremio").textContent = p.nome;
+  $("resDetalhe").textContent = p.detalhe || "";
+  $("resCodigo").textContent = res.codigo;
+  $("resComo").textContent = SETORES[setor].como;
+  const insc = guardar.ler(CHAVE("inscricao"));
+  $("resFoto").classList.toggle("oculto", !(insc && insc.foto));
+  const w = SETORES[setor].whats;
+  if (w) {
+    const msg = `Olá! Ganhei na roleta da ${camp.nome} da Nova Tratores: ${p.nome}. Meu código é ${res.codigo}.`;
+    $("btnWhats").href = `https://wa.me/${w}?text=${encodeURIComponent(msg)}`;
+    $("btnWhats").classList.remove("oculto");
+  }
+  $("cartaoGirar").classList.add("oculto");
+  $("cartaoResultado").classList.remove("oculto");
+  $("centro").disabled = true; $("centro").classList.remove("pode");
+}
+async function girar(){
+  if (girando || $("centro").disabled) return;
+  const insc = guardar.ler(CHAVE("inscricao"));
+  if (!insc) return irPara("ficha");
+  girando = true;
+  $("btnGirar").disabled = true; $("centro").disabled = true; $("centro").classList.remove("pode");
+  $("erroGiro").textContent = "";
+  try {
+    let res;
+    if (modoTeste) {
+      const p = sortearLocal();
+      res = { premio_id: p.id, premio: p.nome, codigo: "TESTE-" + Math.random().toString(36).slice(2,7).toUpperCase() };
+    } else {
+      res = await rpc("campanha_girar", { p_id: insc.id, p_aparelho: idAparelho() });
+    }
+    let i = premios.findIndex(q => String(q.id) === String(res.premio_id));
+    if (i < 0) i = 0;
+    await girarAte(i);
+    if (!modoTeste) guardar.gravar(CHAVE("resultado"), res);
+    setTimeout(() => mostrarResultado(res), 350);
+  } catch (e) {
+    const m = String(e.message || "");
+    $("erroGiro").textContent = m.includes("encerrada") ? "A campanha já terminou."
+      : m.includes("sem prêmios") ? "Os prêmios desta roleta acabaram. Fale com a Nova Tratores."
+      : "Não deu para girar agora. Confira a internet e tente de novo.";
+    $("btnGirar").disabled = false; $("centro").disabled = false; $("centro").classList.add("pode");
+  } finally { girando = false; }
+}
+$("btnGirar").addEventListener("click", girar);
+$("centro").addEventListener("click", girar);
+
+/* ---------- regras ---------- */
+const ICO = {
+  data: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
+  um: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v18M3 12h18M5.6 5.6l12.8 12.8M18.4 5.6 5.6 18.4"/></svg>',
+  presente: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="5" rx="1"/><path d="M5 13v8h14v-8M12 8v13M12 8c-2-4-6-4-6-1.5S10 8 12 8c2 0 6-1 6-1.5S14 4 12 8"/></svg>',
+  codigo: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2M8 8v8M12 8v8M16 8v8"/></svg>',
+  trofeu: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4Z"/><path d="M17 5h3v2a3 3 0 0 1-3 3M7 5H4v2a3 3 0 0 0 3 3"/></svg>'
+};
+function iconeRegra(t){
+  const x = t.toLowerCase();
+  if (/foto|bonita/.test(x)) return [ICO.trofeu, "ouro"];
+  if (/c[óo]digo|resgat|loja/.test(x)) return [ICO.codigo, ""];
+  if (/ganha|pr[êe]mio/.test(x)) return [ICO.presente, ""];
+  if (/giro|vez|pessoa/.test(x)) return [ICO.um, ""];
+  return [ICO.data, ""];
+}
+function montarRegras(){
+  // **texto** fica em negrito
+  $("listaRegras").innerHTML = cfg.regras.filter(Boolean).map(t => {
+    const [i, c] = iconeRegra(t);
+    return `<li class="${c}"><span class="ico">${i}</span><span>${esc(t).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>")}</span></li>`;
+  }).join("");
+}
+
+/* ---------- início ---------- */
+(async function(){
+  if (!SETORES[setor]) { $("telaSetores").classList.remove("oculto"); return; }
+  camp = await carregarCampanha();
+  premios = camp.premios;
+  if (modoTeste) $("faixaTeste").classList.remove("oculto");
+  relogio(); setInterval(relogio, 1000);
+  if (!camp.aberta || Date.now() > fimCampanha()) { $("telaEncerrada").classList.remove("oculto"); return; }
+  const s = SETORES[setor];
+  $("seloSetor").textContent = `${s.selo} · ${camp.ano}`;
+  document.title = `${camp.nome} ${camp.ano} · ${s.selo} · Nova Tratores`;
+  lerConfig();
+  aplicarConfig();
+  montarRegras();
+  const h = svgRoda();
+  $("roda").innerHTML = h; $("rodaPrevia").innerHTML = h;
+  $("listaPremios").innerHTML = premios.map(p => `<li>${esc(p.nome)}</li>`).join("");
+  $("barra").classList.remove("oculto");
+  prepararRoleta();
+  mostrar();
+})();
+</script>
+</body>
+</html>
