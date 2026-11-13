@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/ajustes/conta';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { listarRecebimentosEspelho, procurarNoEspelho, atualizarDaOmie, ACESSO_RECEBIMENTOS } from '@/lib/ajustes/recebimentos-espelho';
+import { fichasPendentes } from '@/lib/estoque/reversao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
@@ -14,7 +15,11 @@ export async function GET(req: NextRequest) {
   if (!conta) return NextResponse.json({ erro: 'Escolha NOVA ou CASTRO.' }, { status: 400 });
   const status = req.nextUrl.searchParams.get('status') === 'concluidos' ? 'concluidos' : 'pendentes';
   try {
-    return NextResponse.json(await listarRecebimentosEspelho(conta, status));
+    const [lista, reversoes] = await Promise.all([
+      listarRecebimentosEspelho(conta, status),
+      fichasPendentes(conta).catch(() => []), // notas revertidas com pagamento a relançar
+    ]);
+    return NextResponse.json({ ...lista, reversoes });
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 });
   }

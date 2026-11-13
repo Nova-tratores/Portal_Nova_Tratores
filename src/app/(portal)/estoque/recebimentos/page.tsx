@@ -12,6 +12,11 @@ import { supabase } from '@/lib/supabase';
 import { authHeaders, fetchAuth } from '@/lib/auth/client';
 import { casaBusca, diasDesde, type RecebNorm } from '@/lib/ajustes/recebimento-regras';
 import ProdutoPrecoModal from '@/components/estoque/ProdutoPrecoModal';
+import ModalReabrir from '@/components/estoque/ModalReabrir';
+import ModalRelancar from '@/components/estoque/ModalRelancar';
+
+// nota revertida com pagamentos guardados para relançar (recebimento_reversoes)
+interface ReversaoPendente { id: string; idReceb: number; numeroNfe: string | null; fornecedor: string | null; status: string; criadoEm: string; quem: string | null; aRelancar: number; valorARelancar: number }
 
 interface Usuario { id: string; nome: string; funcao?: string | null }
 const TIPO_LABEL: Record<string, string> = { pecas: 'Peças', pecas_garantia: 'Peças (garantia)', almoxarifado: 'Almoxarifado', combustivel: 'Combustível', maquinas: 'Máquinas' };
@@ -226,7 +231,10 @@ export default function RecebimentosPage() {
 
   // aba: Pendentes (espelho, Faturada) · Concluídos (espelho, Recebida) · Entradas feitas (log do portal)
   const [aba, setAba] = useState<'pendentes' | 'concluidos' | 'entradas'>('pendentes');
-  const [dados, setDados] = useState<{ recebimentos: Recebimento[]; atualizadoEm: string | null } | null>(null);
+  const [dados, setDados] = useState<{ recebimentos: Recebimento[]; atualizadoEm: string | null; reversoes: ReversaoPendente[] } | null>(null);
+  const [reabrirAlvo, setReabrirAlvo] = useState<Recebimento | null>(null);
+  const [relancarAlvo, setRelancarAlvo] = useState<number | null>(null);
+  const podeBaixa = pode('financeiro', 'baixa-contas') || pode('ajustes', 'baixa-contas');
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
@@ -291,7 +299,7 @@ export default function RecebimentosPage() {
       const r = await fetchAuth(`/api/ajustes/recebimentos/lista?conta=${encodeURIComponent(conta)}&status=${aba}`);
       const d = await r.json();
       if (!r.ok || d.erro) { setErro(d.erro || `Erro ${r.status} ao carregar as notas.`); return; }
-      setDados({ recebimentos: (d.recebimentos || []) as Recebimento[], atualizadoEm: d.atualizadoEm || null });
+      setDados({ recebimentos: (d.recebimentos || []) as Recebimento[], atualizadoEm: d.atualizadoEm || null, reversoes: (d.reversoes || []) as ReversaoPendente[] });
     } catch (ex) {
       setErro('Erro de rede: ' + (ex as Error).message);
     } finally {
@@ -340,7 +348,9 @@ export default function RecebimentosPage() {
 
   const onEntradaConcluida = useCallback((reck: string, res: ResultadoCard) => {
     setResultados((s) => ({ ...s, [reck]: res }));
-  }, []);
+    // nota revertida com pagamentos guardados: já oferece relançar logo depois da nova entrada
+    if (res.tipo === 'ok' && dados?.reversoes.some((f) => String(f.idReceb) === reck)) setRelancarAlvo(Number(reck));
+  }, [dados]);
 
   // transferencia de responsavel (persiste em recebimento_meta + avisa no sino + atualiza UI)
   const onResponsavelChange = useCallback(async (r: Recebimento, userId: string | null) => {
@@ -375,18 +385,8 @@ export default function RecebimentosPage() {
     } catch (ex) { setErro('Erro: ' + (ex as Error).message); }
   }, [conta, carregar]);
 
-  // reabrir uma nota concluída (ESCREVE NA OMIE: ReverterRecebimento)
-  const onReabrir = useCallback(async (r: Recebimento) => {
-    if (!conta || r.idReceb == null) return;
-    if (!confirm(`Reabrir a NF ${r.numeroNFe || ''} na Omie? A Omie desfaz a entrada e APAGA a conta a pagar da nota; a nota volta para "pendente". Ao dar entrada de novo, a data de recebimento passa a ser a do dia e a conta a pagar é recriada com outro número. Uma correção de CMC feita na entrada não é desfeita.`)) return;
-    try {
-      const resp = await fetchAuth(`/api/estoque/recebimentos/${r.idReceb}/reabrir?conta=${encodeURIComponent(conta)}`, { method: 'POST' });
-      const d = await resp.json();
-      if (d.erro) { setErro(d.erro); return; }
-      setAviso(`NF ${r.numeroNFe || ''} reaberta na Omie.`);
-      carregar();
-    } catch (ex) { setErro('Erro: ' + (ex as Error).message); }
-  }, [conta, carregar]);
+  // reabrir uma nota concluída: a janela lê os pagamentos na Omie antes (ModalReabrir)
+  const onReabrir = useCallback((r: Recebimento) => { if (conta && r.idReceb != null) setReabrirAlvo(r); }, [conta]);
 
   const atualizarDaOmie = useCallback(async () => {
     if (!conta) return;
@@ -547,6 +547,20 @@ export default function RecebimentosPage() {
           {erro && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.82rem' }}>{erro}</div>}
           {aviso && <div style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.82rem' }}>{aviso}</div>}
 
+          {(dados?.reversoes || []).length > 0 && (
+            <div style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.82rem', color: '#7c2d12' }}>
+              <b>Pagamentos a relançar</b> — notas reabertas cujos pagamentos foram cancelados e guardados. Dê entrada de novo e relance:
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                {(dados?.reversoes || []).map((f) => (
+                  <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                    <span>NF <b>{String(f.numeroNfe || '').replace(/^0+(?=d)/, '')}</b> · {f.fornecedor} · {f.aRelancar} pagamento(s) · {fmtBRL(f.valorARelancar)} · reaberta por {f.quem || '?'} em {new Date(f.criadoEm).toLocaleDateString('pt-BR')}</span>
+                    <button onClick={() => setRelancarAlvo(f.idReceb)} style={{ minHeight: 34, padding: '4px 12px', borderRadius: 6, border: 'none', background: '#059669', color: '#fff', fontSize: '.76rem', fontWeight: 600, cursor: 'pointer' }}>Relançar pagamentos</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {aba === 'pendentes' && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
               <Kpi label="Notas pendentes" valor={fmtNum(contagens.total)} />
@@ -580,6 +594,7 @@ export default function RecebimentosPage() {
                     mostrarProdutos={mostrarProdutos}
                     onAbrir={() => abrirNota(r)}
                     onReabrir={() => onReabrir(r)}
+                    aRelancar={(dados?.reversoes || []).find((f) => String(f.idReceb) === String(r.idReceb))?.aRelancar || 0}
                     onTipoChange={(t) => onTipoChange(r, t)}
                     onResponsavelChange={(uid) => onResponsavelChange(r, uid)}
                     onAbrirProduto={(id) => setProdAlvo(id)}
@@ -600,6 +615,21 @@ export default function RecebimentosPage() {
           userNome={userProfile?.nome || null}
           onClose={() => setModalReceb(null)}
           onConcluido={onEntradaConcluida}
+        />
+      )}
+      {reabrirAlvo && conta && (
+        <ModalReabrir
+          conta={conta} idReceb={reabrirAlvo.idReceb as number} numero={String(reabrirAlvo.numeroNFe || '').replace(/^0+(?=d)/, '')}
+          podeBaixa={podeBaixa}
+          onClose={() => setReabrirAlvo(null)}
+          onFeito={(msg, tipo) => { setReabrirAlvo(null); if (tipo === 'ok') setAviso(msg); else setErro(msg); carregar(); }}
+        />
+      )}
+      {relancarAlvo != null && conta && (
+        <ModalRelancar
+          conta={conta} idReceb={relancarAlvo} podeBaixa={podeBaixa}
+          onClose={() => { setRelancarAlvo(null); carregar(); }}
+          onFeito={(msg, tipo) => { setRelancarAlvo(null); if (tipo === 'ok') setAviso(msg); else setErro(msg); carregar(); }}
         />
       )}
       {prodAlvo != null && conta && (
@@ -624,7 +654,7 @@ function ComoLer() {
             <li>A lista vem da cópia das notas no portal, que se atualiza sozinha a cada ~30 min. Nota recém-lançada e ainda não aparece? <b>↻ Atualizar da Omie</b>.</li>
             <li><b>Dar entrada</b> consulta só aquela nota na Omie, na hora, e mostra o impacto no custo (CMC) quando a nota é de garantia.</li>
             <li><b>Responsável</b>: quem cuida da nota. Sem ninguém escolhido vale o padrão do tipo (&quot;automático&quot;). Ao passar a nota para alguém, a pessoa é avisada no sino.</li>
-            <li><b>Concluídos</b>: as 300 últimas que já entraram; dá para <b>reabrir</b> (desfaz a entrada na Omie).</li>
+            <li><b>Concluídos</b>: as 300 últimas que já entraram; dá para <b>reabrir</b> (desfaz a entrada na Omie). Se a nota já tem pagamento, o portal cancela os pagamentos, guarda e mostra a faixa <b>Pagamentos a relançar</b>: depois de dar entrada de novo, é só conferir e relançar (precisa de Baixar contas).</li>
           </ul>
         </div>
       )}
@@ -846,10 +876,12 @@ function EntradasView({ conta, userId }: { conta: string; userId: string | null 
   );
 }
 
-function CardReceb({ r, conta, modo, resultado, abrindo, usuarios, mostrarProdutos, onAbrir, onReabrir, onTipoChange, onResponsavelChange, onAbrirProduto }: {
+function CardReceb({ r, conta, modo, resultado, abrindo, usuarios, mostrarProdutos, onAbrir, onReabrir, onTipoChange, onResponsavelChange, onAbrirProduto, aRelancar = 0 }: {
   r: Recebimento; conta: string; modo: 'pendente' | 'concluido'; resultado?: ResultadoCard; abrindo: boolean; usuarios: Usuario[]; mostrarProdutos: boolean;
   onAbrir: () => void; onReabrir: () => void; onTipoChange: (tipo: string) => void;
   onResponsavelChange: (userId: string | null) => void; onAbrirProduto: (idProduto: number) => void;
+  /** pagamentos guardados de uma reversão, ainda não relançados */
+  aRelancar?: number;
 }) {
   const dias = diasDesde(r.dataEmissao);
   const temSinal = !!r.temSinalGarantia;
@@ -904,6 +936,7 @@ function CardReceb({ r, conta, modo, resultado, abrindo, usuarios, mostrarProdut
             <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#fde68a', color: '#92400e' }}>vai criar produto novo</span>
           ) : null}
           {r.responsavelAutomatico && r.responsavelUserId && <span style={{ fontSize: '.6rem', color: '#94a3b8' }}>resp. automático</span>}
+          {aRelancar > 0 && <span title="A nota foi reaberta e os pagamentos foram guardados para relançar depois da nova entrada" style={{ fontSize: '.68rem', padding: '2px 8px', borderRadius: 6, background: '#ffedd5', color: '#9a3412', fontWeight: 600 }}>Reaberta · {aRelancar} pagamento(s) a relançar</span>}
           <span className="est-wrap" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
             <NotaFiscalAcoes chave={r.chaveNFe} idReceb={r.idReceb} conta={conta} />
             {resultado ? (
