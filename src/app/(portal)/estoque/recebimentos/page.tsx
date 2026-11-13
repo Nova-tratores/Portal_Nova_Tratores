@@ -786,6 +786,7 @@ interface EntradaLog {
   tipo: string | null; acao: string; userNome: string | null; createdAt: string;
   fornecedor: string | null; valor: number | null; emissao: string | null;
   chaveNFe: string | null; status: string | null; descStatus: string | null;
+  itens?: Array<{ codigo: string | null; descricao: string | null; qtdSaldo: number | null; cmcAnterior: number | null; cmcAplicado: number | null }>;
 }
 function fmtDataHora(iso?: string | null): string {
   if (!iso) return '-';
@@ -798,6 +799,7 @@ function EntradasView({ conta, userId }: { conta: string; userId: string | null 
   const [linhas, setLinhas] = useState<EntradaLog[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
+  const [aberta, setAberta] = useState<number | null>(null);
 
   useEffect(() => {
     if (!conta) return;
@@ -849,8 +851,11 @@ function EntradasView({ conta, userId }: { conta: string; userId: string | null 
               {linhas.map((l) => {
                 const ehCorrecao = l.acao === 'correcao_cmc';
                 const ehReversao = l.acao === 'reversao';
+                const nItens = l.itens?.length || 0;
+                const expandida = aberta === l.id;
                 return (
-                  <tr key={l.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                  <Fragment key={l.id}>
+                  <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ ...tdStyle, fontWeight: 600, color: '#1e293b' }}>NF {l.numeroNFe || '?'}{l.serie ? `/${l.serie}` : ''}</td>
                     <td style={tdStyle} title={l.fornecedor || ''}>{l.fornecedor || <span style={{ color: '#cbd5e1' }}>—</span>}</td>
                     <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtBRL(l.valor)}</td>
@@ -861,11 +866,42 @@ function EntradasView({ conta, userId }: { conta: string; userId: string | null 
                       <span style={{ fontSize: '.68rem', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', background: ehReversao ? '#fee2e2' : ehCorrecao ? '#fef3c7' : '#dcfce7', color: ehReversao ? '#b91c1c' : ehCorrecao ? '#92400e' : '#166534' }}>
                         {ehReversao ? 'reversão (reaberta)' : ehCorrecao ? 'correção de custo' : 'entrada'}
                       </span>
+                      {ehCorrecao && nItens > 0 && (
+                        <button type="button" onClick={() => setAberta(expandida ? null : l.id)}
+                          style={{ marginLeft: 6, minHeight: 32, padding: '2px 8px', fontSize: '.7rem', border: '1px solid #fcd34d', borderRadius: 6, background: '#fffbeb', color: '#92400e', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                          {nItens} {nItens === 1 ? 'peça' : 'peças'} {expandida ? '▲' : '▼'}
+                        </button>
+                      )}
                     </td>
                     <td style={{ ...tdStyle, whiteSpace: 'nowrap', fontSize: '.75rem', color: '#64748b' }}>{fmtDataHora(l.createdAt)}</td>
                     <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>{l.userNome || '—'}</td>
                     <td style={tdStyle}><NotaFiscalAcoes chave={l.chaveNFe} idReceb={l.idReceb} conta={conta} /></td>
                   </tr>
+                  {expandida && (
+                    <tr>
+                      <td colSpan={8} style={{ background: '#fffbeb', padding: '8px 12px' }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.76rem' }}>
+                          <thead><tr>
+                            <th style={{ textAlign: 'left', padding: '4px 6px', color: '#92400e' }}>Peça</th>
+                            <th style={{ textAlign: 'right', padding: '4px 6px', color: '#92400e' }}>Saldo</th>
+                            <th style={{ textAlign: 'right', padding: '4px 6px', color: '#92400e' }}>Custo antes</th>
+                            <th style={{ textAlign: 'right', padding: '4px 6px', color: '#92400e' }}>Custo depois</th>
+                          </tr></thead>
+                          <tbody>
+                            {(l.itens || []).map((i, k) => (
+                              <tr key={k} style={{ borderTop: '1px solid #fde68a' }}>
+                                <td style={{ padding: '4px 6px' }}><b>{i.codigo || '?'}</b>{i.descricao ? ` · ${i.descricao}` : ''}</td>
+                                <td style={{ padding: '4px 6px', textAlign: 'right' }}>{i.qtdSaldo ?? '—'}</td>
+                                <td style={{ padding: '4px 6px', textAlign: 'right' }}>{fmtBRL(i.cmcAnterior)}</td>
+                                <td style={{ padding: '4px 6px', textAlign: 'right', fontWeight: 600 }}>{fmtBRL(i.cmcAplicado)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 );
               })}
             </tbody>

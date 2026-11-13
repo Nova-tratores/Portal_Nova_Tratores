@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   classificarTipoReceb, sinalGarantia, prepararRecebimento, recebimentoDoEspelho,
-  casaBusca, semZerosEsq, diasDesde, dataBR,
+  casaBusca, semZerosEsq, diasDesde, dataBR, agruparCorrecoes,
 } from '../recebimento-regras';
 import type { AjustesConfig } from '../config';
 
@@ -91,5 +91,24 @@ describe('helpers', () => {
     expect(diasDesde('09/11/2026', new Date(2026, 10, 10, 15))).toBe(1);
     expect(diasDesde('2026-11-10', new Date(2026, 10, 10))).toBe(0);
     expect(diasDesde(null)).toBeNull();
+  });
+});
+
+describe("agruparCorrecoes", () => {
+  const l = (id: number, acao: string, receb: number, t: string, user = "u1") => ({ id, acao, id_receb: receb, user_id: user, created_at: t });
+  it("junta as correções seguidas da mesma nota e pessoa", () => {
+    const g = agruparCorrecoes([
+      l(5, "correcao_cmc", 1, "2026-07-20T18:50:28Z"), l(4, "correcao_cmc", 1, "2026-07-20T18:50:24Z"),
+      l(3, "correcao_cmc", 1, "2026-07-20T18:50:20Z"), l(2, "dar_entrada", 1, "2026-07-20T18:49:00Z"),
+      l(1, "correcao_cmc", 9, "2026-07-20T18:40:00Z"),
+    ]);
+    expect(g.map((x) => [x.linha.id, x.itens.length])).toEqual([[5, 3], [2, 0], [1, 1]]);
+  });
+  it("não junta nota, pessoa ou horário diferentes", () => {
+    const g = agruparCorrecoes([
+      l(3, "correcao_cmc", 1, "2026-07-20T18:50:00Z"), l(2, "correcao_cmc", 1, "2026-07-20T18:50:00Z", "u2"),
+      l(1, "correcao_cmc", 1, "2026-07-20T17:00:00Z", "u2"),
+    ]);
+    expect(g.length).toBe(3);
   });
 });

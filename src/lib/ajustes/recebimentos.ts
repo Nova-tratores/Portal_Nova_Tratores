@@ -16,6 +16,7 @@ import { analisarRecebimentosPendentes } from './analise';
 import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, obterPosicaoEstoqueProduto, listarRecebimentos, formatarCfopEntrada, consultarObservacaoReceb } from './omie';
 import type { AlterarCabecArgs } from './omie';
 import { hoje, addDias, fmtBR, parseAnyDate } from './dates';
+import { agruparCorrecoes } from './recebimento-regras';
 
 // Janela "grande" fixa: pendentes desde 01/11/2022 ate hoje (pedido do usuario).
 export const JANELA_INICIAL_BR = '01/11/2022';
@@ -80,6 +81,8 @@ export interface EntradaLogRow {
   tipo: string | null; acao: string; userNome: string | null; createdAt: string;
   fornecedor: string | null; valor: number | null; emissao: string | null;
   chaveNFe: string | null; status: string | null; descStatus: string | null;
+  /** correção de custo: as peças corrigidas juntas (antes era uma linha por peça) */
+  itens: Array<{ codigo: string | null; descricao: string | null; qtdSaldo: number | null; cmcAnterior: number | null; cmcAplicado: number | null }>;
 }
 export async function listarEntradasLog(args: {
   conta: Conta; userId?: string | null; de?: string | null; ate?: string | null;
@@ -87,7 +90,7 @@ export async function listarEntradasLog(args: {
   const low = contaLow(args.conta);
   let q = supabase
     .from('recebimento_entrada_log')
-    .select('id,id_receb,numero_nfe,tipo,acao,user_id,user_nome,resultado,created_at')
+    .select('id,id_receb,numero_nfe,tipo,acao,user_id,user_nome,payload,resultado,created_at')
     .eq('conta_omie', low)
     .in('acao', ['dar_entrada', 'correcao_cmc', 'reversao'])
     .order('created_at', { ascending: false })
@@ -111,7 +114,15 @@ export async function listarEntradasLog(args: {
     for (const r of (recs || []) as any[]) esp[String(r.id_receb)] = r;
   }
 
-  return logs.map((l) => {
+  // Peças das correções de custo (payload.codigoProduto = id do produto na Omie).
+  const idsProd = Array.from(new Set(logs.map((l) => Number(l.payload?.codigoProduto)).filter((x) => x > 0)));
+  const prod: Record<string, { codigo: string | null; descricao: string | null }> = {};
+  if (idsProd.length) {
+    const { data: ps } = await supabase.from('produtos').select('codigo_produto,codigo,descricao').in('codigo_produto', idsProd);
+    for (const p of (ps || []) as any[]) prod[String(p.codigo_produto)] = { codigo: p.codigo ?? null, descricao: p.descricao ?? null };
+  }
+
+  return agruparCorrecoes(logs).map(({ linha: l, itens }) => {
     const e = l.id_receb != null ? esp[String(l.id_receb)] : null;
     return {
       id: l.id,
@@ -128,6 +139,16 @@ export async function listarEntradasLog(args: {
       chaveNFe: e?.chave_nfe ?? null,
       status: e?.status ?? null,
       descStatus: l.resultado?.descStatus ?? null,
+      itens: itens.map((i: any) => {
+        const pr = prod[String(i.payload?.codigoProduto)] || null;
+        return {
+          codigo: pr?.codigo ?? (i.payload?.codigoProduto != null ? String(i.payload.codigoProduto) : null),
+          descricao: pr?.descricao ?? null,
+          qtdSaldo: i.resultado?.qtdSaldo ?? null,
+          cmcAnterior: i.resultado?.cmcAnterior ?? null,
+          cmcAplicado: i.resultado?.cmcAplicado ?? i.payload?.novoCMC ?? null,
+        };
+      }),
     };
   });
 }

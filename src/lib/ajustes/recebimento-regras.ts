@@ -196,3 +196,27 @@ export function diasDesde(dataBRouIso: string | null | undefined, hoje: Date = n
   const h = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
   return Math.max(0, Math.round((h.getTime() - d.getTime()) / 86400000));
 }
+
+// "Entradas feitas": a correção de custo grava UMA linha por peça no
+// recebimento_entrada_log, e a tela mostrava N linhas iguais (mesma NF, mesma ação,
+// segundos de diferença). Junta as correções seguidas da mesma nota, da mesma pessoa,
+// dentro da janela, numa linha só com as peças dentro. Logs vêm do mais novo ao mais velho.
+export interface LogEntradaBruto {
+  id: number; id_receb: number | null; acao: string; user_id: string | null; created_at: string;
+}
+export function agruparCorrecoes<T extends LogEntradaBruto>(logs: T[], janelaMs = 10 * 60 * 1000): Array<{ linha: T; itens: T[] }> {
+  const out: Array<{ linha: T; itens: T[] }> = [];
+  for (const l of logs) {
+    const ult = out[out.length - 1];
+    if (
+      l.acao === 'correcao_cmc' && ult && ult.linha.acao === 'correcao_cmc' &&
+      ult.linha.id_receb === l.id_receb && ult.linha.user_id === l.user_id &&
+      Math.abs(new Date(ult.linha.created_at).getTime() - new Date(l.created_at).getTime()) <= janelaMs
+    ) {
+      ult.itens.push(l);
+      continue;
+    }
+    out.push({ linha: l, itens: l.acao === 'correcao_cmc' ? [l] : [] });
+  }
+  return out;
+}
