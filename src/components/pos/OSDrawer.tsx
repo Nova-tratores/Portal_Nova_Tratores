@@ -38,6 +38,7 @@ import ChequeRevisaoBloco from "./ChequeRevisaoBloco";
 import AssinaturaClienteBloco from "./AssinaturaClienteBloco";
 import ChecklistsOSBloco from "./ChecklistsOSBloco";
 import { confirmarConclusaoOS } from "@/lib/pops/roteiros-client";
+import { pedirMotivoConcluir } from "@/lib/pos/trava-concluida-client";
 import ResservicoBloco from "./ResservicoBloco";
 import ComissaoOSBloco from "./ComissaoOSBloco";
 import TemparioOSBloco from "./TemparioOSBloco";
@@ -904,11 +905,19 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     if (!(await confirmarConclusaoOS(osId))) return;
     setConcluindo(true);
     try {
-      const res = await fetchAuth(`/api/pos/ordens/${osId}/fase`, {
+      const mudar = (motivoConcluir?: string) => fetchAuth(`/api/pos/ordens/${osId}/fase`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "Concluída", userName }),
+        body: JSON.stringify({ status: "Concluída", userName, motivoConcluir }),
       });
-      const result = await res.json();
+      let res = await mudar();
+      let result = await res.json();
+      // não faturada no Omie: pede o motivo e tenta de novo (até a pessoa desistir)
+      while (result.precisaMotivo) {
+        const motivo = pedirMotivoConcluir(result.erro);
+        if (!motivo) return;
+        res = await mudar(motivo);
+        result = await res.json();
+      }
       if (res.ok && result.success) {
         setStatusDoServidor("Concluída");
         setLogRefreshKey((k) => k + 1);
@@ -994,8 +1003,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     try {
       const url = mode === "create" ? "/api/pos/ordens" : `/api/pos/ordens/${osId}`;
       const method = mode === "create" ? "POST" : "PATCH";
-      const res = await fetchAuth(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) });
-      const result = await res.json();
+      let res = await fetchAuth(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) });
+      let result = await res.json();
+      // mudou para Concluída sem a OS estar faturada no Omie: pede o motivo e tenta de novo
+      while (result.precisaMotivo) {
+        const motivo = pedirMotivoConcluir(result.erro);
+        if (!motivo) break;
+        res = await fetchAuth(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...dados, motivoConcluir: motivo }) });
+        result = await res.json();
+      }
       if (!res.ok || result.erro) {
         janelaReq?.close();
         alert(result.erro || "Erro ao salvar a OS.");

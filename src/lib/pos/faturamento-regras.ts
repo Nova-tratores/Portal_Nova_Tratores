@@ -146,6 +146,27 @@ export function erroNfseTransitorio(msg: string | null | undefined): boolean {
   return !!msg && /\bE3741\b|aguarde alguns minutos|nenhuma resposta obtida|realize um novo envio|tempo (limite )?esgotado|time ?out|indispon[ií]vel|servi[cç]o fora do ar/i.test(msg);
 }
 
+/**
+ * Recusa DE VERDADE no meio das mensagens: item com situação ERRO cujo texto não é de
+ * comunicação. OS 5418 (06/11/2026): o Omie mandou o ALERTA A8214 "Aguarde alguns minutos
+ * e realize um novo envio" JUNTO com o ERRO E0240 do CEP — o texto todo casava com
+ * "aguarde alguns minutos" e a recusa passou 30 min calada. Devolve o texto do erro.
+ */
+export function erroNfseDefinitivo(m: unknown): string | null {
+  const itens = Array.isArray(m) ? m : m ? [m] : [];
+  for (const x of itens) {
+    if (!x || typeof x !== 'object') continue;
+    const o = x as Record<string, unknown>;
+    if (!/^erro$/i.test(String(o.cSituacao || '').trim())) continue;
+    const texto = textoMensagens([o]);
+    if (texto && !erroNfseTransitorio(texto)) {
+      const desc = String(o.cDescricao || '').trim();
+      return desc || texto;
+    }
+  }
+  return null;
+}
+
 export function situacaoNfse(lista: RpsNfse[] | null | undefined): { status: StatusFaturamento; numero: string | null; mensagem: string | null; transitorio?: string } {
   const rps = Array.isArray(lista) && lista.length ? lista[lista.length - 1] : null;
   if (!rps) return { status: 'nfse_aguardando', numero: null, mensagem: null };
@@ -154,9 +175,12 @@ export function situacaoNfse(lista: RpsNfse[] | null | undefined): { status: Sta
   if (st === '005') return { status: 'nfse_cancelada', numero, mensagem: textoMensagens(rps.mensagens) };
   if (st === '003') {
     const msg = textoMensagens(rps.mensagens);
-    // prefeitura não respondeu: segue "aguardando" (a reconciliação volta a olhar)
-    if (erroNfseTransitorio(msg)) return { status: 'nfse_aguardando', numero: null, mensagem: null, transitorio: msg || undefined };
-    return { status: 'nfse_rejeitada', numero: null, mensagem: msg || 'A prefeitura recusou a nota.' };
+    const definitivo = erroNfseDefinitivo(rps.mensagens);
+    // prefeitura não respondeu (e nenhum ERRO de verdade junto): segue "aguardando" (a reconciliação volta a olhar)
+    if (!definitivo && erroNfseTransitorio(msg)) return { status: 'nfse_aguardando', numero: null, mensagem: null, transitorio: msg || undefined };
+    // a recusa vem primeiro no aviso (o sino corta texto comprido)
+    const mensagem = definitivo ? `${definitivo}${msg && msg !== definitivo ? ` · ${msg}` : ''}`.slice(0, 500) : msg;
+    return { status: 'nfse_rejeitada', numero: null, mensagem: mensagem || 'A prefeitura recusou a nota.' };
   }
   if (st === '004' || numero) return { status: 'nfse_autorizada', numero, mensagem: null };
   return { status: 'nfse_aguardando', numero: null, mensagem: null };

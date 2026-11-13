@@ -1,6 +1,7 @@
 "use client";
 
 import { confirmarConclusaoOS } from "@/lib/pops/roteiros-client";
+import { pedirMotivoConcluir } from "@/lib/pos/trava-concluida-client";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
@@ -360,12 +361,20 @@ function PosPageInner() {
     // Atualiza localmente para feedback imediato
     setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: newPhase } : o));
     try {
-      const res = await fetchAuth(`/api/pos/ordens/${orderId}/fase`, {
+      const mudar = (motivoConcluir?: string) => fetchAuth(`/api/pos/ordens/${orderId}/fase`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newPhase, userName: atual.current.nome }),
+        body: JSON.stringify({ status: newPhase, userName: atual.current.nome, motivoConcluir }),
       });
-      const data = await res.json();
+      let res = await mudar();
+      let data = await res.json();
+      // Concluída sem faturar no Omie: pede o motivo e tenta de novo (até a pessoa desistir)
+      while (data.precisaMotivo) {
+        const motivo = pedirMotivoConcluir(data.erro);
+        if (!motivo) { fetchOrders(); return; }
+        res = await mudar(motivo);
+        data = await res.json();
+      }
       if (!res.ok || data.erro) {
         alert(data.erro || "Erro ao mudar fase");
       }

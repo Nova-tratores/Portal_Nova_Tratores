@@ -8,10 +8,11 @@ import { createPortal } from "react-dom";
 import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import type { Trava, ChaveTrava } from "@/lib/pos/travas-faturar";
 import LocalizacaoClienteModal from "./LocalizacaoClienteModal";
+import EditarClienteOmie from "@/components/clientes/EditarClienteOmie";
 
 export interface AjusteOS { previsaoFaturamento?: string; projeto?: string }
 
-const ICONE: Record<ChaveTrava, string> = { previsao: "fa-calendar-day", projeto: "fa-tractor", localizacao: "fa-location-dot" };
+const ICONE: Record<ChaveTrava, string> = { previsao: "fa-calendar-day", projeto: "fa-tractor", localizacao: "fa-location-dot", cep: "fa-envelope-open-text" };
 const hojeSP = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(new Date());
 
 async function lerTravas(osId: string): Promise<{ travas: Trava[]; ok: boolean; erro: string }> {
@@ -100,6 +101,9 @@ export default function TravasFaturar({ osId, documento, onOk, onCancelar, ajust
               {!t.ok && t.chave === "localizacao" && (
                 <button type="button" className="tvf-btn" onClick={() => setVerMapa(true)}>Ver no mapa</button>
               )}
+              {!t.ok && t.chave === "cep" && t.nCodCli ? (
+                <EditarClienteOmie cod={t.nCodCli} empresa="Nova Tratores" rotulo="Corrigir CEP" zIndex={100200} onSalvo={() => void carregar()} />
+              ) : null}
             </div>
           ))}
         </div>

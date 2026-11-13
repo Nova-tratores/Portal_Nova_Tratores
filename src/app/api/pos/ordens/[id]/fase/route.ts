@@ -9,7 +9,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const g = await protegerRota(req, [{ modulo: "pos" }, { modulo: "ppv", acao: "mover_fase" }, { modulo: "lousa" }]);
   if (g.resposta) return g.resposta;
   const { id: idOs } = await params;
-  const { status: newStatus, previsaoExecucao } = await req.json();
+  const { status: newStatus, previsaoExecucao, motivoConcluir } = await req.json();
   const userName = autorDe(g.user); // autoria do login, nunca do corpo
 
   // OS faturada não muda de fase (a coluna só existe com sql/pos-faturamento.sql)
@@ -18,10 +18,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ success: false, erro: "Esta OS já foi faturada: só pode ir para Concluída." }, { status: 409 });
   }
 
-  const r = await aplicarMudancaFase(idOs, newStatus, userName || "Sistema", { notificar: true });
+  const r = await aplicarMudancaFase(idOs, newStatus, userName || "Sistema", {
+    notificar: true,
+    motivoConcluir: typeof motivoConcluir === "string" ? motivoConcluir.slice(0, 500) : undefined,
+  });
 
   if (!r.success) {
-    return NextResponse.json({ success: false, erro: r.erro }, { status: 400 });
+    return NextResponse.json({ success: false, erro: r.erro, precisaMotivo: !!r.precisaMotivo }, { status: r.precisaMotivo ? 409 : 400 });
   }
 
   // Agendamento junto com a fase (checkbox "reservado/agendado"): grava a

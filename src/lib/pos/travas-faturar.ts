@@ -1,16 +1,20 @@
 // Travas ANTES de faturar a OS (José, 22/10/2026) — regras puras, testadas em __tests__/travas-faturar.test.ts.
 //  1. a previsão de faturamento tem que ser HOJE;
 //  2. o projeto (máquina) tem que estar preenchido;
-//  3. o cliente (CPF/CNPJ) tem que ter ao menos uma localização (fazenda) confirmada — tendo, não pede mais.
+//  3. o cliente (CPF/CNPJ) tem que ter ao menos uma localização (fazenda) confirmada — tendo, não pede mais;
+//  4. o CEP do cliente no Omie tem que existir nos Correios e ser da cidade dele (13/11/2026, OS-0864: 18800-000
+//     passou e a NFS-e voltou recusada com E0240). Só para NFS-e — OS interna (recibo) não confere.
 // Não desabilitam o botão: aparecem numa janela depois do clique em Faturar e o servidor recusa sem elas.
 
-export type ChaveTrava = 'previsao' | 'projeto' | 'localizacao'
+export type ChaveTrava = 'previsao' | 'projeto' | 'localizacao' | 'cep'
 
 export interface Trava {
   chave: ChaveTrava
   ok: boolean
   titulo: string
   detalhe: string
+  /** cep: código do cliente no Omie (a janela abre o cadastro para corrigir) */
+  nCodCli?: number
 }
 
 export interface DadosTravas {
@@ -21,6 +25,8 @@ export interface DadosTravas {
   localizacaoConfirmada: boolean
   /** nomes das localizações (fazendas) do cliente */
   localizacoes?: string[]
+  /** conferência do CEP do cliente (lib/clientes/viacep.ts); ausente = não entra (OS interna) */
+  cep?: { ok: boolean; detalhe: string; nCodCli?: number } | null
 }
 
 const dataBR = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`
@@ -28,7 +34,7 @@ const dataBR = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.sl
 export function avaliarTravas(d: DadosTravas): Trava[] {
   const prev = String(d.previsaoFaturamento || '').slice(0, 10)
   const doc = String(d.documentoCliente || '').replace(/\D/g, '')
-  return [
+  const lista: Trava[] = [
     {
       chave: 'previsao',
       ok: prev === d.hoje,
@@ -50,6 +56,8 @@ export function avaliarTravas(d: DadosTravas): Trava[] {
       detalhe: !doc ? 'cliente sem CPF/CNPJ na OS' : d.localizacaoConfirmada ? (d.localizacoes?.length ? d.localizacoes.join(', ') : 'já confirmada') : 'cadastre a fazenda do cliente (pelo GPS do carro do técnico no dia do serviço)',
     },
   ]
+  if (d.cep) lista.push({ chave: 'cep', ok: d.cep.ok, titulo: 'CEP do cliente aceito pela NFS-e', detalhe: d.cep.detalhe, ...(d.cep.nCodCli ? { nCodCli: d.cep.nCodCli } : {}) })
+  return lista
 }
 
 /** mensagem para o servidor recusar o faturamento; null = pode faturar */

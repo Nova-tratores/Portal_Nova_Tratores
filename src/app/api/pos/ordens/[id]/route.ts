@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS } from "@/lib/pos/constants";
+import { travaConcluida } from "@/lib/pos/trava-concluida";
 import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
@@ -235,12 +236,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const dados = await req.json();
   dados.userName = autorDe(g.user); // autoria do login, nunca do corpo
 
-  // Bloqueia mudança para Concluída se não foi enviada para Omie
+  // Concluída só com a OS faturada no Omie, serviço interno ou motivo escrito (trava-concluida.ts).
+  // OS que já está Concluída passa (editar uma concluída não trava).
+  let motivoConcluidaSemFaturar: string | undefined;
   if (dados.status === "Concluída") {
-    const { data: osCheck } = await supabase.from(TBL_OS).select("Ordem_Omie").eq("Id_Ordem", idOs).limit(1);
-    if (!osCheck?.[0]?.Ordem_Omie) {
-      return NextResponse.json({ success: false, erro: "A OS precisa ser enviada para o Omie antes de ser concluída." }, { status: 400 });
-    }
+    const t = await travaConcluida(idOs, typeof dados.motivoConcluir === "string" ? dados.motivoConcluir.slice(0, 500) : null);
+    if (!t.ok) return NextResponse.json({ success: false, erro: t.erro, precisaMotivo: t.precisaMotivo }, { status: t.precisaMotivo ? 409 : 400 });
+    motivoConcluidaSemFaturar = t.motivoLog;
   }
 
   // Log de mudanças
@@ -281,7 +283,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const logBase = { Id_ppo: idOs, Data_Acao: dataFmt, Hora_Acao: horaFmt, UsuEmail: dados.userName || "Sistema", Dias_Na_Fase: 0, Total_Dias_Aberto: 0 };
 
     if (stAt !== dados.status) {
-      await supabase.from(TBL_LOGS_PPO).insert({ ...logBase, acao: `Mudança para ${dados.status}`, Status_Anterior: stAt, Status_Atual: dados.status });
+      await supabase.from(TBL_LOGS_PPO).insert({ ...logBase, acao: dados.status === "Concluída" && motivoConcluidaSemFaturar ? `Concluída SEM faturar no Omie — motivo: ${motivoConcluidaSemFaturar}` : `Mudança para ${dados.status}`, Status_Anterior: stAt, Status_Atual: dados.status });
     }
     const campos = [
       { d: "tecnicoResponsavel", db: "Os_Tecnico", lbl: "Técnico" },

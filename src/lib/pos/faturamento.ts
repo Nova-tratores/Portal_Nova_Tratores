@@ -24,6 +24,7 @@ import { avaliarTravas, bloqueioTravas, type Trava } from './travas-faturar';
 import { localizacoesDoDocumento } from './localizacao-cliente-server';
 import { normalizarPagamento, OPCOES_PAGAMENTO } from './cobranca';
 import { alertaCepGeral } from '@/lib/clientes/novo-cliente';
+import { conferirCep, detalheCep } from '@/lib/clientes/viacep';
 import { CONTA_INTERNO, EMAIL_INTERNO } from './omie-espelho';
 import {
   bloqueioFaturar, conferirIdentidade, estadoNoOmie, faturamentoFantasma, situacaoNfse, statusPendente, travaAtiva,
@@ -155,9 +156,31 @@ async function travasDe(os: LinhaOS): Promise<{ travas: Trava[]; semTabelaLocali
   const travas = avaliarTravas({
     hoje: hojeSaoPaulo(), previsaoFaturamento: os.Previsao_Faturamento, projeto: os.Projeto,
     documentoCliente: os.Cnpj_Cliente, localizacaoConfirmada: lista.length > 0 || semTabela, localizacoes: lista.map((l) => l.nome),
+    // NFS-e: o CEP do cadastro do cliente no Omie vai como endereço do tomador (OS interna sai com recibo)
+    cep: os.Servico_Interno ? null : await cepParaTravas(os),
   });
   if (semTabela) { const t = travas.find((x) => x.chave === 'localizacao'); if (t) t.detalhe = 'falta rodar o SQL sql/clientes-localizacoes.sql — por enquanto não trava'; }
   return { travas, semTabelaLocalizacao: semTabela };
+}
+
+/**
+ * CEP do cliente DESTA OS no Omie (o que vai na NFS-e), conferido nos Correios.
+ * Não deu para ler o cadastro ou os Correios fora do ar = não trava (avisa no texto).
+ */
+async function cepParaTravas(os: LinhaOS): Promise<{ ok: boolean; detalhe: string; nCodCli?: number } | null> {
+  if (!os.Ordem_Omie) return null; // ainda não foi ao Omie: a trava de envio cuida
+  let nCodCli = 0;
+  let cli: { cep?: string; cidade?: string; estado?: string } = {};
+  try {
+    const r = await resolverOSNoOmie(os);
+    nCodCli = Number((r.dados.Cabecalho as { nCodCli?: number } | undefined)?.nCodCli || 0);
+    if (nCodCli) cli = await omie<{ cep?: string; cidade?: string; estado?: string }>('/geral/clientes/', 'ConsultarCliente', { codigo_cliente_omie: nCodCli });
+  } catch {
+    return { ok: true, detalhe: 'não deu para ler o cadastro do cliente no Omie agora — confira o CEP antes de faturar' };
+  }
+  if (!nCodCli) return null;
+  const v = await conferirCep(cli.cep, cli.cidade, cli.estado);
+  return { ok: v.valido !== false, detalhe: detalheCep(v, cli.cidade), nCodCli };
 }
 
 async function gravarOS(id: string, campos: Record<string, unknown>) {

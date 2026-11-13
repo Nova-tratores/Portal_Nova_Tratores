@@ -5,16 +5,19 @@ import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
 export { ultimoDiaServico } from "@/lib/pos/fase-auto";
 import { hojeBrasilia } from "@/lib/pos/fase-auto";
+import { travaConcluida } from "@/lib/pos/trava-concluida";
 
 export interface MudarFaseOpts {
   notificar?: boolean;   // notifica admins + audit (default true). Auto-transições usam false p/ não spammar.
   acaoLog?: string;      // texto do log na timeline da OS
+  motivoConcluir?: string; // concluir SEM faturar no Omie: motivo escrito pela pessoa
 }
 
 export interface MudarFaseResult {
   success: boolean;
   changed: boolean;
   erro?: string;
+  precisaMotivo?: boolean; // recusou Concluída: a tela pode pedir o motivo e tentar de novo
 }
 
 // Aplica a mudança de fase de uma OS com todos os efeitos colaterais (log, métricas de atraso,
@@ -32,12 +35,13 @@ export async function aplicarMudancaFase(
 
   if (statusAnterior === newStatus) return { success: true, changed: false };
 
-  // Bloqueia mudança para Concluída se não foi enviada para Omie
+  // Concluída só com a OS faturada no Omie, serviço interno ou motivo escrito (trava-concluida.ts)
+  let acaoConcluida: string | undefined;
   if (newStatus === "Concluída") {
-    const { data: osData } = await supabase.from(TBL_OS).select("Ordem_Omie").eq("Id_Ordem", idOs).limit(1);
-    if (!osData?.[0]?.Ordem_Omie) {
-      return { success: false, changed: false, erro: "A OS precisa ser enviada para o Omie antes de ser concluída." };
-    }
+    const t = await travaConcluida(idOs, opts.motivoConcluir);
+    if (!t.ok) return { success: false, changed: false, erro: t.erro, precisaMotivo: t.precisaMotivo };
+    if (t.jaConcluida) return { success: true, changed: true };
+    if (t.motivoLog) acaoConcluida = `Concluída SEM faturar no Omie — motivo: ${t.motivoLog}`;
   }
 
   await supabase.from(TBL_OS).update({ Status: newStatus }).eq("Id_Ordem", idOs);
@@ -51,7 +55,7 @@ export async function aplicarMudancaFase(
     Data_Acao: new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo" }).format(agora),
     Hora_Acao: agora.toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" }),
     UsuEmail: userName || "Sistema",
-    acao: acaoLog || `Mudança rápida para ${newStatus}`,
+    acao: acaoConcluida || acaoLog || `Mudança rápida para ${newStatus}`,
     Status_Anterior: statusAnterior, Status_Atual: newStatus,
     Dias_Na_Fase: 0, Total_Dias_Aberto: 0,
   });
