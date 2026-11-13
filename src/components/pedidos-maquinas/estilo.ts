@@ -3,6 +3,10 @@
 export const VERMELHO = '#dc2626';
 
 export const CSS_PM = `
+/* As variáveis --bg/--surface/... só existem dentro de outros módulos: aqui elas
+   apontam para as do portal, que já trocam entre claro e escuro. */
+.pm-tela { --bg: var(--portal-bg-secondary); --surface: var(--portal-bg-card); --border: var(--portal-border-strong, #e5e5e5); --text: var(--portal-text); --text-light: var(--portal-text-secondary); color: var(--portal-text); }
+[data-theme="dark"] .pm-tela { --border: #333333; }
 .pm-root { padding: clamp(12px, 2vw, 28px); display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .pm-faixa { display: flex; align-items: flex-end; gap: 3px; padding: 10px clamp(12px, 2vw, 24px) 0; background: linear-gradient(135deg, #f87171, #991b1b); overflow-x: auto; -webkit-overflow-scrolling: touch; box-shadow: 0 1px 4px var(--portal-shadow); }
 .pm-guia { display: flex; align-items: center; gap: 7px; padding: 11px 18px; font-size: 14px; font-weight: 500; color: #111111; background: rgba(255,255,255,0.30); border: none; border-radius: 11px 11px 0 0; cursor: pointer; white-space: nowrap; font-family: inherit; min-height: 40px; }

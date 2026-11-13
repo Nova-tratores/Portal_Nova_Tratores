@@ -89,7 +89,7 @@ export default function TelaPedidosMaquinas() {
   ];
 
   return (
-    <div>
+    <div className="pm-tela">
       <style>{CSS_PM}</style>
       <div className="pm-faixa print:hidden">
         {guias.map((g) => (
