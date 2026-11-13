@@ -1,16 +1,17 @@
 'use client'
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect, Suspense } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { supabase } from '@/lib/supabase'
 import { fetchAuth } from '@/lib/auth/client'
-import { Plus, Trash2, RefreshCw, Factory, Users, FileDown, Menu, ChevronDown, List, LayoutGrid, Check, BarChart3, Tag } from 'lucide-react'
+import { Plus, Trash2, RefreshCw, Factory, Users, FileDown, Menu, ChevronDown, List, LayoutGrid, Check, BarChart3, Tag, Tractor } from 'lucide-react'
 import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
 import dynamic from 'next/dynamic'
 
 const Kanban = dynamic(() => import('@/components/propostas/Kanban'), { ssr: false })
+const TelaPedidosMaquinas = dynamic(() => import('@/components/pedidos-maquinas/TelaPedidosMaquinas'), { ssr: false })
 const FactoryKanban = dynamic(() => import('@/components/propostas/FactoryKanban'), { ssr: false })
 const FormModal = dynamic(() => import('@/components/propostas/FormModal'), { ssr: false })
 const EditModal = dynamic(() => import('@/components/propostas/EditModal'), { ssr: false })
@@ -48,13 +49,28 @@ const STATUS_ABERTO_FAB = ['Proposta solicitada', 'Proposta Recebida', 'Pedido F
 
 function PropostaComercialPageInner() {
   const { userProfile } = useAuth()
-  const { pode } = usePermissoes(userProfile?.id)
+  const { pode, temAcesso } = usePermissoes(userProfile?.id)
+  // Pedidos de Máquinas é uma aba daqui (13/11/2026); quem só tem esse módulo vê só ela.
+  const vePropostas = temAcesso('propostas')
+  const vePedidos = temAcesso('pedidos-maquinas')
   const podeCriar = pode('propostas', 'criar')
   const podeEditar = pode('propostas', 'editar')
   const podeExcluir = pode('propostas', 'excluir')
   const podeSincronizar = pode('propostas', 'sincronizar')
   const { log } = useAuditLog()
-  const [view, setView] = useState('clientes')
+  const [view, setViewEstado] = useState(() => {
+    if (typeof window === 'undefined') return 'clientes'
+    return new URLSearchParams(window.location.search).get('aba') === 'pedidos' ? 'pedidos' : 'clientes'
+  })
+  // a aba vai na URL (?aba=pedidos) para o link do pedido de máquina abrir direto nela
+  const setView = (v) => {
+    setViewEstado(v)
+    const u = new URLSearchParams(window.location.search)
+    if (v === 'pedidos') u.set('aba', 'pedidos')
+    else { u.delete('aba'); u.delete('pvm'); u.delete('vista'); u.delete('proposta') }
+    window.history.replaceState(null, '', `${window.location.pathname}${u.toString() ? `?${u}` : ''}`)
+  }
+  useEffect(() => { if (!vePropostas && vePedidos && view !== 'pedidos') setViewEstado('pedidos') }, [vePropostas, vePedidos, view])
   const [modals, setModals] = useState({
     newFab: false, editFab: false, newCli: false, editCli: false,
     client: false, equip: false, trator: false, autopropelido: false,
@@ -243,10 +259,13 @@ function PropostaComercialPageInner() {
   }, [view, log])
 
   const tabs = [
-    { id: 'clientes', label: 'Propostas Cliente', icon: <Users size={14} /> },
-    { id: 'fabrica', label: 'Pedidos Fabrica', icon: <Factory size={14} /> },
-    { id: 'resumo', label: 'Resumo', icon: <BarChart3 size={14} /> },
-    ...(podeExcluir ? [{ id: 'lixeira', label: 'Lixeira', icon: <Trash2 size={14} /> }] : []),
+    ...(vePropostas ? [
+      { id: 'clientes', label: 'Propostas Cliente', icon: <Users size={14} /> },
+      { id: 'fabrica', label: 'Pedidos Fabrica', icon: <Factory size={14} /> },
+    ] : []),
+    ...(vePedidos ? [{ id: 'pedidos', label: 'Pedidos de Máquinas', icon: <Tractor size={14} /> }] : []),
+    ...(vePropostas ? [{ id: 'resumo', label: 'Resumo', icon: <BarChart3 size={14} /> }] : []),
+    ...(vePropostas && podeExcluir ? [{ id: 'lixeira', label: 'Lixeira', icon: <Trash2 size={14} /> }] : []),
   ]
 
   return (
@@ -299,7 +318,7 @@ function PropostaComercialPageInner() {
           </div>
 
           {/* BARRA DE ACOES */}
-          {view !== 'lixeira' && view !== 'resumo' && (
+          {view !== 'lixeira' && view !== 'resumo' && view !== 'pedidos' && (
           <div className="bg-white border border-zinc-200 p-3 rounded-xl">
             <div className="flex items-center gap-2 flex-wrap">
               {/* MENU (Cadastrar/Editar + utilitários) */}
@@ -377,7 +396,9 @@ function PropostaComercialPageInner() {
 
       {/* CONTEUDO */}
       <div className="px-3 md:px-6 mt-4 w-full">
-        {view === 'lixeira' ? (
+        {view === 'pedidos' ? (
+          <Suspense fallback={null}><TelaPedidosMaquinas embutida /></Suspense>
+        ) : view === 'lixeira' ? (
           <Lixeira embed />
         ) : view === 'resumo' ? (
           <ResumoPropostas />
@@ -409,6 +430,6 @@ function PropostaComercialPageInner() {
 export default function PropostaComercialPage() {
   const { userProfile } = useAuth();
   const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id);
-  if (!loadingPerm && userProfile && !temAcesso('propostas')) return <SemPermissao />;
+  if (!loadingPerm && userProfile && !temAcesso('propostas') && !temAcesso('pedidos-maquinas')) return <SemPermissao />;
   return <PropostaComercialPageInner />;
 }

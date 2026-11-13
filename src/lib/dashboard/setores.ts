@@ -48,7 +48,7 @@ export const MODULOS: ModuloDash[] = [
   { id: 'supervisor-vendas', nome: 'Equipe de Vendas', nomeAntigo: 'Supervisor Vendas', frase: 'Vendedores, visitas e mapa', href: '/supervisor-vendas', icon: TrendingUp, setor: 'comercial', modulo: 'supervisor-vendas' },
   { id: 'gestao-vendas', nome: 'Margem e Comissão', nomeAntigo: 'Gestão de Vendas', frase: 'Resultado do mês por vendedor', href: '/gestao-vendas', icon: BarChart3, setor: 'comercial', modulo: 'gestao-vendas' },
   { id: 'vendas-modelo', nome: 'Vendas por Modelo', frase: 'Quanto vendeu de cada modelo', href: '/vendas-modelo', icon: Tags, setor: 'comercial', modulo: 'vendas-modelo' },
-  { id: 'pedidos-maquinas', nome: 'Pedidos de Máquinas', frase: 'Pedido de venda da máquina, com as parcelas da proposta', href: '/pedidos-maquinas', icon: Tractor, setor: 'comercial', modulo: 'pedidos-maquinas' },
+  { id: 'pedidos-maquinas', nome: 'Pedidos de Máquinas', frase: 'Pedido de venda da máquina, com as parcelas da proposta', href: '/propostas?aba=pedidos', icon: Tractor, setor: 'comercial', modulo: 'pedidos-maquinas' },
   { id: 'marketing', nome: 'Feiras e Eventos', nomeAntigo: 'Marketing & Eventos', frase: 'Investimento, leads e retorno de cada evento', href: '/marketing', icon: Megaphone, setor: 'comercial', modulo: 'marketing' },
   { id: 'lead', nome: 'Anotar Lead', nomeAntigo: 'Captura de Leads', frase: 'Anotar o contato no estande, pelo celular', href: '/lead', icon: UserPlus, setor: 'comercial', modulo: 'lead' },
 

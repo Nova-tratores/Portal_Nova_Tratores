@@ -1,8 +1,9 @@
 'use client';
 // Pedidos de Máquinas: o "PPV" do Comercial. Quadro (arrasta de fase) · Relação · Painel.
-// ?id=PVM-0001 abre o pedido; ?proposta=<id> cria um pedido já importando a proposta.
+// Mora numa aba de /propostas (?aba=pedidos — pedido do usuário, 13/11/2026).
+// ?pvm=PVM-0001 abre o pedido; ?vista=relacao|painel; ?proposta=<id> cria um pedido já importando a proposta.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { LayoutGrid, Table2, BarChart3, Plus, HelpCircle, Search, Download, RefreshCw } from 'lucide-react';
 import { fetchAuth } from '@/lib/auth/client';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,19 +20,20 @@ import PedidoDrawer from './PedidoDrawer';
 type Aba = 'quadro' | 'relacao' | 'painel';
 const M = 'pedidos-maquinas';
 
-export default function TelaPedidosMaquinas() {
+export default function TelaPedidosMaquinas({ embutida = false }: { embutida?: boolean }) {
   const { userProfile } = useAuth();
   const { temAcesso, pode, loading } = usePermissoes(userProfile?.id);
   const router = useRouter();
+  const pathname = usePathname() || '/propostas';
   const sp = useSearchParams();
-  const [aba, setAba] = useState<Aba>((sp.get('aba') as Aba) || 'quadro');
+  const [aba, setAba] = useState<Aba>((sp.get('vista') as Aba) || 'quadro');
   const [lista, setLista] = useState<PedidoLista[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [migracao, setMigracao] = useState(false);
   const [busca, setBusca] = useState('');
   const [ajuda, setAjuda] = useState(false);
-  const [aberto, setAberto] = useState<string | null>(sp.get('id'));
+  const [aberto, setAberto] = useState<string | null>(sp.get('pvm'));
   const criandoDaProposta = useRef(false);
 
   const carregar = useCallback(async () => {
@@ -49,10 +51,10 @@ export default function TelaPedidosMaquinas() {
   const trocarUrl = useCallback((patch: Record<string, string | null>) => {
     const u = new URLSearchParams(sp.toString());
     for (const [k, v] of Object.entries(patch)) { if (v) u.set(k, v); else u.delete(k); }
-    router.replace(`/pedidos-maquinas${u.toString() ? `?${u}` : ''}`, { scroll: false });
-  }, [router, sp]);
+    router.replace(`${pathname}${u.toString() ? `?${u}` : ''}`, { scroll: false });
+  }, [router, sp, pathname]);
 
-  const abrir = (id: string | null) => { setAberto(id); trocarUrl({ id }); };
+  const abrir = (id: string | null) => { setAberto(id); trocarUrl({ pvm: id }); };
 
   const novo = useCallback(async (propostaId?: string) => {
     setErro('');
@@ -65,7 +67,7 @@ export default function TelaPedidosMaquinas() {
       if (!r.ok) throw new Error(j.error || `Erro ${r.status}`);
       await carregar();
       setAberto(j.id_pedido);
-      trocarUrl({ id: j.id_pedido, proposta: null });
+      trocarUrl({ pvm: j.id_pedido, proposta: null });
     } catch (e) { setErro((e as Error).message); trocarUrl({ proposta: null }); }
   }, [carregar, trocarUrl]);
 
@@ -89,11 +91,11 @@ export default function TelaPedidosMaquinas() {
   ];
 
   return (
-    <div className="pm-tela">
+    <div className={`pm-tela ${embutida ? 'embutida' : ''}`}>
       <style>{CSS_PM}</style>
-      <div className="pm-faixa print:hidden">
+      <div className={`pm-faixa print:hidden ${embutida ? 'leve' : ''}`}>
         {guias.map((g) => (
-          <button key={g.id} className={`pm-guia ${aba === g.id ? 'on' : ''}`} onClick={() => { setAba(g.id); trocarUrl({ aba: g.id === 'quadro' ? null : g.id }); }}>
+          <button key={g.id} className={`pm-guia ${aba === g.id ? 'on' : ''}`} onClick={() => { setAba(g.id); trocarUrl({ vista: g.id === 'quadro' ? null : g.id }); }}>
             <g.Ico size={16} color={aba === g.id ? '#dc2626' : '#111111'} /> {g.rotulo}
           </button>
         ))}

@@ -2,7 +2,8 @@
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { protegerRota, type UsuarioRota } from '@/lib/ajustes/permissao-server';
 import {
-  arrumarParcelas, totalItens, type ItemPedidoMaquina, type ParcelaPedidoMaquina,
+  arrumarParcelas, totalItens, categoriaDosItens, CATEGORIA_TRATOR, CATEGORIA_IMPLEMENTO,
+  type ItemPedidoMaquina, type ParcelaPedidoMaquina,
 } from './regras';
 
 export const MODULO = 'pedidos-maquinas';
@@ -133,6 +134,26 @@ export async function recalcularTotal(pedidoId: number): Promise<number> {
   const total = totalItens(itens.map((i) => ({ ...i, qtde: Number(i.qtde), preco: Number(i.preco), desconto: Number(i.desconto) })));
   ok(await supabaseAdmin.from(T.pedidos).update({ valor_total: total }).eq('id', pedidoId));
   return total;
+}
+
+/** Categoria automática pela família dos itens — só enquanto ela é uma das automáticas
+ *  (vazia, Venda de Tratores ou Venda de Implementos); escolha diferente na tela fica. */
+export async function ajustarCategoria(pedidoId: number) {
+  const p = ok(await supabaseAdmin.from(T.pedidos).select('categoria_pedido').eq('id', pedidoId).single()) as { categoria_pedido: string | null };
+  if (p.categoria_pedido && ![CATEGORIA_TRATOR, CATEGORIA_IMPLEMENTO].includes(p.categoria_pedido)) return;
+  const itens = (ok(await supabaseAdmin.from(T.itens).select('familia').eq('pedido_id', pedidoId)) || []) as { familia: string | null }[];
+  const cat = categoriaDosItens(itens);
+  if (cat !== p.categoria_pedido) ok(await supabaseAdmin.from(T.pedidos).update({ categoria_pedido: cat }).eq('id', pedidoId));
+}
+
+/** Projeto da Omie que já tem o chassi no nome (máquina é cadastrada como projeto "MARCA MODELO CHASSI"). */
+export async function projetoDoChassi(chassi: string, empresa: string): Promise<string | null> {
+  const c = chassi.replace(/[^A-Za-z0-9]/g, '');
+  if (c.length < 5) return null;
+  const emp = /castro/i.test(empresa) ? 'Castro Pecas' : 'Nova Tratores';
+  const { data } = await supabaseAdmin.from('portal_nt_projetos_PRINCIPAL').select('nome')
+    .eq('empresa', emp).neq('inativo', 'S').ilike('nome', `%${c.slice(-8)}%`).limit(1);
+  return (data?.[0] as { nome?: string } | undefined)?.nome || null;
 }
 
 /** Troca as parcelas inteiras (renumera e refaz percentuais sobre o total). */

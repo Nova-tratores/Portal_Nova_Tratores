@@ -16,7 +16,7 @@ import {
 import { statusOmieErro, descricaoOmie } from '@/lib/ppv/omie-status';
 import { hojeSaoPaulo } from '@/lib/pagamento/parcelas';
 import { T, ErroPedido, lerCompleto, log, type PedidoMaquina } from './server';
-import { parcelasParaOmie, validarParaOmie, totalItens, referenciaPedido } from './regras';
+import { parcelasParaOmie, validarParaOmie, totalItens, referenciaPedido, CONTA_PADRAO } from './regras';
 
 const ETAPA_FATURADO = 60;
 const PORTAL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://portal.novatratores.com').replace(/\/$/, '');
@@ -42,7 +42,7 @@ export async function montarPayload(id: number | string): Promise<{ acc: OmieAcc
 
   const total = totalItens(itens);
   const parc = parcelasParaOmie(parcelas, total, hoje);
-  const cc = await contaCorrenteDoPedido(acc, pedido.conta_corrente);
+  const cc = await contaCorrenteDoPedido(acc, pedido.conta_corrente || CONTA_PADRAO);
   if (cc.aviso) avisos.push(cc.aviso);
   const depR = await departamentosDoPedido(acc, (pedido.departamentos || []).map((d) => ({ codigo: String(d.codigo), perc: Number(d.perc) || 0 })));
   if (depR.aviso) avisos.push(depR.aviso);
@@ -51,7 +51,7 @@ export async function montarPayload(id: number | string): Promise<{ acc: OmieAcc
     try { nCodProj = await projetoNaConta(pedido.projeto, acc, true); } catch (e) { avisos.push(`Projeto não resolvido: ${e instanceof Error ? e.message : e}`); }
   }
 
-  const refs = [referenciaPedido(pedido.id_pedido, pedido.proposta_id), `Portal: ${PORTAL}/pedidos-maquinas?id=${pedido.id_pedido}`];
+  const refs = [referenciaPedido(pedido.id_pedido, pedido.proposta_id), `Portal: ${PORTAL}/propostas?aba=pedidos&pvm=${pedido.id_pedido}`];
   const chassis = itens.map((i) => i.chassi).filter(Boolean);
   if (chassis.length) refs.unshift(`Chassi: ${chassis.join(', ')}`);
   const obs = [pedido.dados_nf, refs.join('\n')].filter(Boolean).join('\n\n');
@@ -84,7 +84,6 @@ export async function montarPayload(id: number | string): Promise<{ acc: OmieAcc
       codigo_categoria: pedido.categoria_pedido,
       codigo_conta_corrente: cc.codigo,
       ...(nCodVend ? { codVend: nCodVend } : {}),
-      numero_contrato: (pedido.num_contrato || pedido.id_pedido).slice(0, 20),
       numero_pedido_cliente: pedido.proposta_id ? `PROP ${pedido.proposta_id}` : pedido.id_pedido,
       consumidor_final: pedido.consumo_final ? 'S' : 'N',
       ...(pedido.contato ? { contato: pedido.contato } : {}),

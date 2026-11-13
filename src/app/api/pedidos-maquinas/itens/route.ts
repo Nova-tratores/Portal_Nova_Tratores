@@ -6,6 +6,7 @@
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import {
   guardar, autor, respostaErro, lerPedido, exigirEditavel, recalcularTotal, log, T, ErroPedido,
+  ajustarCategoria, projetoDoChassi,
 } from '@/lib/pedidos-maquinas/server';
 
 export const runtime = 'nodejs';
@@ -53,6 +54,12 @@ export async function POST(req: Request) {
     });
     if (error) throw error;
     const total = await recalcularTotal(p.id);
+    await ajustarCategoria(p.id);
+    // projeto: o da Omie que já tem o chassi no nome (pode trocar/criar na tela)
+    if (!p.projeto && it.chassi) {
+      const proj = await projetoDoChassi(String(it.chassi), p.empresa);
+      if (proj) await supabaseAdmin.from(T.pedidos).update({ projeto: proj }).eq('id', p.id);
+    }
     await log(p.id, `Item incluído: ${it.descricao}`, autor(g.user));
     return Response.json({ ok: true, total });
   } catch (e) {
@@ -100,6 +107,7 @@ export async function DELETE(req: Request) {
     const { error } = await supabaseAdmin.from(T.itens).delete().eq('id', it.id);
     if (error) throw error;
     const total = await recalcularTotal(p.id);
+    await ajustarCategoria(p.id);
     await log(p.id, `Item retirado: ${it.descricao}`, autor(g.user));
     return Response.json({ ok: true, total });
   } catch (e) {

@@ -33,13 +33,13 @@ export default function PedidoMaquinaDaProposta({ propostaId }: { propostaId: nu
       <span className="text-[11px] font-medium text-zinc-500 uppercase tracking-wide">Pedido de máquina</span>
       {pedidos.map((p) => (
         abre
-          ? <a key={p.id} href={`/pedidos-maquinas?id=${p.id_pedido}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-3 min-h-[40px] rounded-lg bg-red-50 text-red-700 border border-red-200 text-sm font-semibold">
+          ? <a key={p.id} href={`/propostas?aba=pedidos&pvm=${p.id_pedido}`} target="_blank" rel="noreferrer" className="flex items-center gap-1 px-3 min-h-[40px] rounded-lg bg-red-50 text-red-700 border border-red-200 text-sm font-semibold">
               {p.id_pedido} · {p.fase}{p.pedido_omie ? ` · Omie ${p.pedido_omie}` : ''} <ExternalLink size={13} />
             </a>
           : <span key={p.id} className="px-3 py-2 rounded-lg bg-zinc-100 text-sm">{p.id_pedido} · {p.fase}</span>
       ))}
       {!pedidos.length && podeCriar && (
-        <a href={`/pedidos-maquinas?proposta=${propostaId}`} target="_blank" rel="noreferrer"
+        <a href={`/propostas?aba=pedidos&proposta=${propostaId}`} target="_blank" rel="noreferrer"
           className="ml-auto flex items-center gap-1.5 px-3 min-h-[40px] rounded-lg bg-red-600 text-white text-sm font-medium hover:bg-red-700">
           <Tractor size={15} /> Gerar pedido de máquina
         </a>

@@ -8,7 +8,7 @@ import {
   guardar, autor, respostaErro, lerCompleto, lerPedido, log, exigirEditavel, T,
   CAMPOS_EDITAVEIS, ErroPedido,
 } from '@/lib/pedidos-maquinas/server';
-import { podeMoverPara, faseInfo } from '@/lib/pedidos-maquinas/regras';
+import { podeMoverPara, faseInfo, CONTA_PADRAO } from '@/lib/pedidos-maquinas/regras';
 import { importarPropostaNoPedido } from '@/lib/pedidos-maquinas/importar-server';
 
 export const runtime = 'nodejs';
@@ -61,6 +61,8 @@ export async function POST(req: Request) {
       cliente_documento: b.cliente_documento ? String(b.cliente_documento).replace(/\D/g, '') : null,
       vendedor_id: b.vendedor_id ? Number(b.vendedor_id) : null,
       empresa: b.empresa === 'Castro Peças' ? 'Castro Peças' : 'Nova Tratores',
+      conta_corrente: CONTA_PADRAO, // Bradesco
+      consumo_final: true,
     }).select('id, id_pedido').single();
     if (error) throw error;
     await log(data.id, 'Pedido criado', quem);

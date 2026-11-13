@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  importarDaProposta, validarParaOmie, parcelasParaOmie, podeMoverPara, totalItens, arrumarParcelas,
+  importarDaProposta, validarParaOmie, categoriaDaFamilia, categoriaDosItens, parcelasParaOmie, podeMoverPara, totalItens, arrumarParcelas,
   type ParcelaPedidoMaquina, type ItemPedidoMaquina,
 } from '../regras';
 
@@ -65,6 +65,17 @@ describe('parcelasParaOmie', () => {
     const l = r.lista_parcelas!.parcela;
     expect(l.map((x) => x.percentual)).toEqual([33.33, 33.33, 33.34]);
     expect(l[0]).toMatchObject({ numero_parcela: 1, data_vencimento: '13/12/2026', quantidade_dias: 30 });
+  });
+});
+
+describe('categoria pela família', () => {
+  it('trator e autopropelido = 1.01.97; o resto = 1.01.98', () => {
+    expect(categoriaDaFamilia('Trator Novo')).toBe('1.01.97');
+    expect(categoriaDaFamilia('Trator Seminovo')).toBe('1.01.97');
+    expect(categoriaDaFamilia('Autopropelido')).toBe('1.01.97');
+    expect(categoriaDaFamilia('Roçadeira')).toBe('1.01.98');
+    expect(categoriaDosItens([{ familia: 'Grade' }, { familia: 'Trator Novo' }])).toBe('1.01.97');
+    expect(categoriaDosItens([])).toBeNull();
   });
 });
 

@@ -142,6 +142,8 @@ const ALTERNATIVAS_RAIZ: Record<string, string[]> = {
   lead: ['marketing'],
   dre: ['financeiro'],
   'vendas-modelo': ['financeiro', 'dre:vendas-modelo'],
+  // a aba Pedidos de Máquinas mora em /propostas: quem só tem esse módulo entra e vê só ela
+  propostas: ['pedidos-maquinas'],
 };
 
 const LIVRES: [string, string][] = [

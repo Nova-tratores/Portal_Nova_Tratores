@@ -39,6 +39,27 @@ export function podeMoverPara(de: string, para: string, opts: { enviado: boolean
 }
 
 // ---------------------------------------------------------------------------
+// Padrões da Omie para pedido de máquina (decisões de 13/11/2026)
+// ---------------------------------------------------------------------------
+/** Conta corrente padrão: Bradesco (código da lista da Nova; na Castro troca pela de mesmo nome). */
+export const CONTA_PADRAO = '1969919786';
+export const CATEGORIA_TRATOR = '1.01.97';     // Venda de Tratores
+export const CATEGORIA_IMPLEMENTO = '1.01.98'; // Venda de Implementos
+/** Categorias que aparecem no pedido de máquina. */
+export const CATEGORIAS_MAQUINA = [CATEGORIA_TRATOR, CATEGORIA_IMPLEMENTO, '1.01.89', '1.01.90'];
+
+/** Categoria pela família do produto: trator (novo/seminovo) e autopropelido = Venda de Tratores; o resto = Venda de Implementos. */
+export function categoriaDaFamilia(familia: string | null | undefined): string {
+  return /trator|autopropel/i.test(String(familia || '')) ? CATEGORIA_TRATOR : CATEGORIA_IMPLEMENTO;
+}
+
+/** Categoria do pedido pelos itens: tem trator → tratores; senão implementos; sem itens → null. */
+export function categoriaDosItens(itens: { familia?: string | null }[]): string | null {
+  if (!itens.length) return null;
+  return itens.some((i) => categoriaDaFamilia(i.familia) === CATEGORIA_TRATOR) ? CATEGORIA_TRATOR : CATEGORIA_IMPLEMENTO;
+}
+
+// ---------------------------------------------------------------------------
 // Itens e parcelas
 // ---------------------------------------------------------------------------
 export interface ItemPedidoMaquina {

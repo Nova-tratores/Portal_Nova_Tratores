@@ -9,7 +9,7 @@ import { fetchAuth } from '@/lib/auth/client';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { useAuth } from '@/hooks/useAuth';
 import {
-  faseInfo, FASES_PEDIDO_MAQUINA, totalItem, totalItens, somaParcelas, podeMoverPara,
+  faseInfo, FASES_PEDIDO_MAQUINA, totalItem, totalItens, somaParcelas, podeMoverPara, CONTA_PADRAO,
   type ParcelaPedidoMaquina, type ItemPedidoMaquina,
 } from '@/lib/pedidos-maquinas/regras';
 import { gerarParcelas, numeroBR, somarDiasISO, MEIOS } from '@/lib/propostas/pagamento';
@@ -199,7 +199,7 @@ export default function PedidoDrawer({ id, onFechar, onMudou }: { id: string | n
             <div className="pm-sec-tit">Omie</div>
             <div className="pm-card pm-grade">
               <div className="pm-campo">
-                <span className="pm-lbl">Categoria *</span>
+                <span className="pm-lbl">Categoria * <span style={{ textTransform: 'none', fontWeight: 500 }}>(pela máquina)</span></span>
                 <select className="pm-input" disabled={!podeEditar} value={p.categoria_pedido || ''} onChange={(e) => salvarCampo('categoria_pedido', e.target.value || null)}>
                   <option value="">— escolha —</option>
                   {(listas?.categorias || []).map((c) => <option key={c.codigo} value={c.codigo}>{c.codigo} · {c.descricao}</option>)}
@@ -207,8 +207,7 @@ export default function PedidoDrawer({ id, onFechar, onMudou }: { id: string | n
               </div>
               <div className="pm-campo">
                 <span className="pm-lbl">Conta corrente</span>
-                <select className="pm-input" disabled={!podeEditar} value={p.conta_corrente || ''} onChange={(e) => salvarCampo('conta_corrente', e.target.value || null)}>
-                  <option value="">Padrão da empresa</option>
+                <select className="pm-input" disabled={!podeEditar} value={p.conta_corrente || CONTA_PADRAO} onChange={(e) => salvarCampo('conta_corrente', e.target.value || null)}>
                   {(listas?.contasCorrentes || []).map((c) => <option key={c.codigo} value={c.codigo}>{c.descricao}</option>)}
                 </select>
               </div>
@@ -219,14 +218,9 @@ export default function PedidoDrawer({ id, onFechar, onMudou }: { id: string | n
                   {(listas?.cenarios || []).map((c) => <option key={c.codigo} value={c.codigo}>{c.descricao}</option>)}
                 </select>
               </div>
-              <div className="pm-campo">
-                <span className="pm-lbl">Projeto</span>
-                <input className="pm-input" disabled={!podeEditar} defaultValue={p.projeto || ''} key={`proj-${p.projeto}`} placeholder="Ex.: MAHINDRA 6075 CHASSI" onBlur={(e) => salvarCampo('projeto', e.target.value.trim() || null)} />
-              </div>
-              <div className="pm-campo">
-                <span className="pm-lbl">Nº do contrato</span>
-                <input className="pm-input" disabled={!podeEditar} defaultValue={p.num_contrato || ''} key={`ctr-${p.num_contrato}`} placeholder={p.id_pedido} onBlur={(e) => salvarCampo('num_contrato', e.target.value.trim() || null)} />
-              </div>
+              <CampoProjeto valor={p.projeto} empresa={p.empresa} disabled={!podeEditar}
+                sugestao={d.itens.find((i) => i.chassi) ? [d.itens.find((i) => i.chassi)!.marca, d.itens.find((i) => i.chassi)!.modelo, d.itens.find((i) => i.chassi)!.chassi].filter(Boolean).join(' ').toUpperCase() : ''}
+                onEscolher={(nome) => salvarCampo('projeto', nome)} />
               <div className="pm-campo">
                 <span className="pm-lbl">Contato</span>
                 <input className="pm-input" disabled={!podeEditar} defaultValue={p.contato || ''} key={`cont-${p.contato}`} onBlur={(e) => salvarCampo('contato', e.target.value.trim() || null)} />
@@ -296,15 +290,62 @@ function BuscaCliente({ nome, doc, disabled, onEscolher }: { nome: string | null
         <>
           <input autoFocus className="pm-input" placeholder="Nome, razão social ou CPF/CNPJ" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Escape' && setAberto(false)} />
           {res.length > 0 && q.trim().length >= 2 && (
-            <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 20, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, maxHeight: 260, overflowY: 'auto', boxShadow: '0 8px 20px rgba(0,0,0,.15)' }}>
+            <div className="pm-lista-flutuante">
               {res.map((c, i) => (
-                <button key={i} onClick={() => { onEscolher(c.nome, c.documento); setAberto(false); setQ(''); }}
-                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none', borderBottom: '1px solid var(--border)', background: 'transparent', color: 'var(--text)', cursor: 'pointer', fontFamily: 'inherit', minHeight: 40 }}>
+                <button key={i} className="pm-lista-item" onClick={() => { onEscolher(c.nome, c.documento); setAberto(false); setQ(''); }}>
                   <b>{c.nome}</b> <span style={{ fontSize: 12, color: 'var(--text-light)' }}>{c.documento} {c.cidade ? `· ${c.cidade}` : ''}</span>
                 </button>
               ))}
             </div>
           )}
+          <button className="pm-btn" style={{ alignSelf: 'flex-start' }} onClick={() => setAberto(false)}>Cancelar</button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+function CampoProjeto({ valor, empresa, disabled, sugestao, onEscolher }: { valor: string | null; empresa: string; disabled: boolean; sugestao: string; onEscolher: (nome: string | null) => void }) {
+  const [q, setQ] = useState('');
+  const [aberto, setAberto] = useState(false);
+  const [res, setRes] = useState<{ codigo: number; nome: string; cliente_nome_ultimo: string | null }[]>([]);
+  useEffect(() => {
+    if (!aberto) return;
+    const t = setTimeout(() => {
+      api(`/api/pedidos-maquinas/projetos?q=${encodeURIComponent(q.trim())}&empresa=${encodeURIComponent(empresa)}`)
+        .then((j) => setRes(j.projetos || [])).catch(() => setRes([]));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q, aberto, empresa]);
+  const novo = q.trim().toUpperCase();
+  const existe = res.some((r) => r.nome.trim().toUpperCase() === novo);
+  const escolher = (nome: string | null) => { onEscolher(nome); setAberto(false); setQ(''); };
+  return (
+    <div className="pm-campo" style={{ position: 'relative' }}>
+      <span className="pm-lbl">Projeto</span>
+      {!aberto ? (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', minHeight: 40, flexWrap: 'wrap' }}>
+          <span style={{ fontWeight: 600, overflowWrap: 'anywhere' }}>{valor || '—'}</span>
+          {!disabled && <button className="pm-btn" onClick={() => { setAberto(true); setQ(valor ? '' : sugestao); }}><Search size={14} /> {valor ? 'Trocar' : 'Escolher'}</button>}
+          {!disabled && valor && <button className="pm-btn perigo" aria-label="Tirar projeto" onClick={() => escolher(null)}><X size={14} /></button>}
+        </div>
+      ) : (
+        <>
+          <input autoFocus className="pm-input" placeholder="Buscar projeto (modelo, chassi…) ou digitar um novo" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Escape' && setAberto(false)} />
+          <div className="pm-lista-flutuante">
+            {novo.length >= 3 && !existe && (
+              <button className="pm-lista-item" onClick={() => escolher(novo.slice(0, 70))}>
+                <Plus size={14} /> Criar projeto <b>{novo.slice(0, 70)}</b> <span style={{ fontSize: 12, color: 'var(--text-light)' }}>(criado na Omie ao enviar)</span>
+              </button>
+            )}
+            {res.map((r) => (
+              <button key={r.codigo} className="pm-lista-item" onClick={() => escolher(r.nome)}>
+                <b>{r.nome}</b> {r.cliente_nome_ultimo && <span style={{ fontSize: 12, color: 'var(--text-light)' }}>· {r.cliente_nome_ultimo}</span>}
+              </button>
+            ))}
+            {!res.length && novo.length < 3 && <div style={{ padding: '9px 12px', fontSize: 13, color: 'var(--text-light)' }}>Digite para buscar.</div>}
+          </div>
           <button className="pm-btn" style={{ alignSelf: 'flex-start' }} onClick={() => setAberto(false)}>Cancelar</button>
         </>
       )}
