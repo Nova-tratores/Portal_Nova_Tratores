@@ -27,7 +27,7 @@ const ANOS_ATRAS = 3, QTD_MESES_OS = 13, QTD_SEMANAS = 12
 
 export async function montarPosVendas(): Promise<DadosPosVendas> {
   const hoje = hojeSP()
-  const [{ dados: base }, gar] = await Promise.all([baseComCache(false), garantiasPainelComCache(false).then((r) => r.dados as { garantias?: GarantiaModulo[] }).catch(() => ({ garantias: [] as GarantiaModulo[] }))])
+  const [{ dados: base }, gar] = await Promise.all([baseComCache(false), garantiasPainelComCache(false).then((r) => r.dados as unknown as { garantias?: GarantiaModulo[] }).catch(() => ({ garantias: [] as GarantiaModulo[] }))])
   const bb = base as unknown as BaseDados
 
   // ── faturamento por tipo (lista da Gestão) ──

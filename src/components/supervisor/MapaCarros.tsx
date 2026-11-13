@@ -566,7 +566,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
     if (!ready || !mapInstance.current) return
     const L = LRef.current
     if (!cliPosLayerRef.current) cliPosLayerRef.current = L.layerGroup().addTo(mapInstance.current)
-    const camada = cliPosLayerRef.current
+    const camada = cliPosLayerRef.current!
     camada.clearLayers()
     if (!mostrarCliPos) return
     if (!cliPos) {
@@ -1054,7 +1054,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
           ))}
           {!isMobile && atualizadoEm && (
             <span style={{ fontSize: 10.5, color: '#94a3b8', fontWeight: 500, marginTop: 2 }}>
-              atualizado às {fmtH(atualizadoEm)} · a cada 30 s
+              atualizado às {fmtH(atualizadoEm || '')} · a cada 30 s
             </span>
           )}
         </div>

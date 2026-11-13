@@ -738,7 +738,7 @@ export function TelaEstoque({ onFechar, depois, kpiExtra, localInicial }: { onFe
   const [listaEsc, setListaEsc] = useState<{ titulo: string; cor?: string; ms: MaqVE[]; ordem?: 'dias' | 'valor' | 'custo' | 'mes' } | null>(null)
   const [iniAberto, setIniAberto] = useState(!!localInicial)
   const lista = listaEsc ?? (iniAberto && d && localInicial && AMB[localInicial] ? { titulo: AMB[localInicial].nome, cor: AMB[localInicial].cor, ms: d.ambientes[localInicial] || [] } : null)
-  const setLista = (x: typeof listaEsc) => { setIniAberto(false); setListaEsc(x) }
+  const setLista = (x: typeof listaEsc | ((l: typeof listaEsc) => typeof listaEsc)) => { setIniAberto(false); setListaEsc(typeof x === 'function' ? x(lista) : x) }
   const setLocal = (k: string) => d && setLista({ titulo: AMB[k].nome, cor: AMB[k].cor, ms: d.ambientes[k] || [] })
   const [msg, setMsg] = useState<string | null>(null)
   const todas = d ? Object.values(d.ambientes).flat() : []

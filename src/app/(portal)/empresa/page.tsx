@@ -1022,7 +1022,7 @@ export default function ComoEstaAEmpresa() {
       <div className="op-foco-painel" key={foco}>
         {foco === 'financeiro' ? painelFinanceiro() : foco === 'patio' ? painelPatio() : foco === 'frota' ? <div className="fx-pad"><FrotaMapaCards /></div> /* só as abas novas; o painel antigo (parados, documentos…) saiu — José, 12/11 */
           : foco === 'requisicoes' ? <div className="fx-pad"><PainelRequisicoes /></div> /* cartões por assunto (José, 12/11) */
-          : foco === 'comercial' ? <PainelComercial d={com} setD={setCom} dreG={dreG} erro={comErro} />
+          : foco === 'comercial' ? <PainelComercial d={com} setD={setCom} dreG={dreG as unknown as Parameters<typeof PainelComercial>[0]['dreG']} erro={comErro} />
           // Pós-Vendas no mesmo jeito do Comercial: cartões por assunto (José, 12/11)
           : foco === 'posvendas' ? <PainelPosVendas dreG={dreG} oficina={OPER_POS.flatMap((o) => { const x = kv(o.id); return x ? [{ id: o.id, nome: o.nome, n: x.contagem, onClick: () => nova({ tipo: 'kpi', id: o.id, nome: o.nome }) }] : [] })} />
           // Peças no mesmo jeito (José, 12/11)

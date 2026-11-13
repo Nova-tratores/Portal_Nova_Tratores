@@ -76,7 +76,7 @@ export async function montarPecas(): Promise<DadosPecas> {
   // estoque de hoje de cada código (para a janela do tipo: "mostra os produtos com valor, quantidade no estoque")
   const estoqueDe = new Map(estoque.map((x) => [`${String(x.conta_omie || 'NOVA').toUpperCase()}|${x.codigo_produto}`, { estoque: Number(x.estoque) || 0, cmc: Number(x.cmc) || 0 }]))
   const mesesMap = new Map<string, MesPc & { _ped: Set<string>; _top: Map<string, { tipo: string; codigo: string; descricao: string; conta: string; qtd: number; venda: number; custo: number }> }>()
-  for (const k of chaves) mesesMap.set(k, { mes: k, parcial: k === mesAtual, venda: 0, custo: 0, pedidos: 0, porCanal: Object.fromEntries(CANAIS.map((c) => [c, vazio()])) as Record<Canal, SomaPc>, porConta: {}, topPecas: [], _ped: new Set(), _top: new Map() })
+  for (const k of chaves) mesesMap.set(k, { mes: k, parcial: k === mesAtual, venda: 0, custo: 0, pedidos: 0, porCanal: Object.fromEntries(CANAIS.map((c) => [c, vazio()])) as Record<Canal, SomaPc>, porConta: {}, tipos: [], _ped: new Set(), _top: new Map() })
   const pedidosMap = new Map<string, PedidoPc>()
   const ultimaVenda = new Map<string, string>()
   const codCliDe = new Map<string, string>() // pedido → código do cliente no Omie (para achar o nome quando o relatório ainda não tem)

@@ -498,7 +498,7 @@ export function PdfProposta({ id, onFechar }: { id: number; onFechar: () => void
   )
 }
 
-const EditModalProposta = dynamic(() => import('@/components/propostas/EditModal'), { ssr: false })
+const EditModalProposta = dynamic(() => import('@/components/propostas/EditModal'), { ssr: false }) as unknown as React.ComponentType<Record<string, unknown>>
 function ListaPropostas({ titulo, l, onFechar }: { titulo: string; l: PropostaCm[]; onFechar: () => void }) {
   const [pdf, setPdf] = useState<{ row: Record<string, unknown> } | null>(null)
   const [pdfUrl, setPdfUrl] = useState<{ url: string; titulo: string } | null>(null) // PDF aberto na janela
