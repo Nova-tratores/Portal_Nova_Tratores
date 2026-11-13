@@ -643,7 +643,6 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   // ── Grupos (coletivos) desta requisição ──
   const [grupoParaAdd, setGrupoParaAdd] = useState('');
   const [gruposAberto, setGruposAberto] = useState(false);
-  const [grupoVendo, setGrupoVendo] = useState<number | null>(null);
   const gruposDaReq = (grupos || []).filter((g: any) => (g.membros || []).map((x: any) => Number(x)).includes(Number(req.id)));
   const gruposDisponiveis = (grupos || []).filter((g: any) => g.status === 'aberto' && !gruposDaReq.some((d: any) => d.id === g.id));
   const alterarGrupoReq = async (grupoId: number, acao: 'add' | 'remove') => {
@@ -951,10 +950,22 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 </button>
               </div>
 
+              {/* ── OUTRAS REQUISIÇÕES DO MESMO GRUPO — sempre à vista quando a req está num grupo ── */}
+              {gruposDaReq.map((g: any) => (
+                <div key={`ver-${g.id}`} className="bg-orange-50/60 border border-orange-200 rounded-xl px-4 py-3">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Layers size={14} className="text-orange-600 shrink-0" />
+                    <span className="text-[13px] font-bold text-black">Requisições do grupo {g.nome}</span>
+                    {g.status !== 'aberto' && <span className="text-[10px] uppercase text-black">({g.status})</span>}
+                  </div>
+                  <ReqsDoGrupo membros={g.membros || []} reqAtual={Number(req.id)} />
+                </div>
+              ))}
+
               {/* ── GRUPOS (coletivos) — dropdown pra não poluir ── */}
               {/* Fechado mostra só o resumo (quantos grupos). Abre ao clicar. */}
               <div className="bg-zinc-50 border border-zinc-200 rounded-xl">
-                <button type="button" onClick={() => { setGruposAberto(o => !o); if (!gruposAberto && gruposDaReq.length === 1) setGrupoVendo(gruposDaReq[0].id); }}
+                <button type="button" onClick={() => setGruposAberto(o => !o)}
                   className="w-full flex items-center gap-2 px-4 py-3 text-left">
                   <FolderOpen size={14} className="text-orange-600 shrink-0" />
                   <span className="text-[13px] font-bold text-black">Grupos</span>
@@ -982,21 +993,6 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                         ))}
                       </div>
                     )}
-                    {gruposDaReq.map((g: any) => {
-                      const outras = (g.membros || []).map(Number).filter((n: number) => n !== Number(req.id)).length;
-                      const vendo = grupoVendo === g.id;
-                      return (
-                        <div key={`ver-${g.id}`} className="mb-2">
-                          <button type="button" onClick={() => setGrupoVendo(vendo ? null : g.id)}
-                            className="w-full flex items-center gap-2 min-h-[40px] px-3 rounded-lg border border-orange-200 bg-white text-[13px] text-black hover:bg-orange-50">
-                            <Layers size={13} className="text-orange-600" />
-                            <span className="flex-1 text-left">Ver requisições do grupo <b>{g.nome}</b> ({outras})</span>
-                            <ChevronDown size={14} className={`transition-transform ${vendo ? 'rotate-180' : ''}`} />
-                          </button>
-                          {vendo && <div className="mt-2"><ReqsDoGrupo membros={g.membros || []} reqAtual={Number(req.id)} /></div>}
-                        </div>
-                      );
-                    })}
                     {podeEditar && gruposDisponiveis.length > 0 ? (
                       <div className="flex items-center gap-2">
                         <select value={grupoParaAdd} onChange={e => setGrupoParaAdd(e.target.value)} className="text-[13px] bg-white border border-zinc-200 rounded-lg px-2 py-1.5 outline-none focus:border-orange-400 flex-1 max-w-[240px]">
