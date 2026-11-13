@@ -13,6 +13,7 @@ import {
   estadoModulo, acoesMarcadas, setTotal, setOff, toggleAcao, type EstadoModulo,
 } from '@/lib/permissoes/catalogo';
 import { acaoExplicita, acaoSoDev } from '@/lib/permissoes/explicitas';
+import type { Selo } from '@/lib/permissoes/origem-tela';
 
 export type ModoLista = 'pilulas' | 'sanfona' | 'painel';
 interface Props {
@@ -22,6 +23,8 @@ interface Props {
   disabled?: boolean;
   souDev?: boolean;
   modo?: ModoLista;
+  /** de onde vem cada tela (departamento/pacote, exceção, bloqueio) — janela da pessoa, 13/11/2026 */
+  selos?: Record<string, Selo[]>;
 }
 type Filtro = 'todos' | 'com' | 'sem';
 
@@ -34,7 +37,7 @@ function Caixa({ estado, travada, p }: { estado: 'on' | 'meio' | 'off'; travada?
   );
 }
 
-export default function PermissoesLista({ modulos, catalogo, onChange, disabled, souDev = false, modo = 'pilulas' }: Props) {
+export default function PermissoesLista({ modulos, catalogo, onChange, disabled, souDev = false, modo = 'pilulas', selos }: Props) {
   const [busca, setBusca] = useState('');
   const [filtro, setFiltro] = useState<Filtro>('todos');
   const [aberto, setAberto] = useState<string | null>(null);
@@ -90,6 +93,19 @@ export default function PermissoesLista({ modulos, catalogo, onChange, disabled,
     return `${n} de ${acoes.length} ações`;
   };
 
+  /** selos de origem: todos (caixinha/painel) ou só o 1º + "+N" (linha da lista) */
+  const mostraSelos = (tela: string, curto = false) => {
+    const l = selos?.[tela];
+    if (!l?.length) return null;
+    const ver = curto ? l.slice(0, 1) : l;
+    return (
+      <span className="pl-selos">
+        {ver.map((x) => <i key={x.tipo + x.texto} className={`pl-selo ${x.tipo}`} title={x.dica}>{x.texto}</i>)}
+        {curto && l.length > 1 && <i className="pl-selo mais" title={l.map((x) => x.dica).join(' · ')}>+{l.length - 1}</i>}
+      </span>
+    );
+  };
+
   /** ações em pílulas (modo 1) */
   const pilulas = (id: string) => {
     const { acoes, on } = infoMod(id);
@@ -127,6 +143,7 @@ export default function PermissoesLista({ modulos, catalogo, onChange, disabled,
               title={travada ? 'Só um Dev pode dar ou tirar esta permissão' : undefined}>
               <Caixa estado={ligada ? 'on' : 'off'} travada={travada} p />
               <span className="pl-rot">{a.label}</span>
+              {mostraSelos(`${id}:${a.id}`)}
               {travada && <Lock size={12} className="pl-cad" />}
               {aParte && !travada && <em className="pl-tag">à parte</em>}
             </button>
@@ -150,7 +167,7 @@ export default function PermissoesLista({ modulos, catalogo, onChange, disabled,
             <Caixa estado={caixa} />
           </button>
           <button type="button" className="pl-nome" onClick={() => modo === 'pilulas' ? handleModulo(m.id, estado) : setAberto(abre && modo === 'sanfona' ? null : m.id)} disabled={modo === 'pilulas' && disabled}>
-            <b>{m.label}</b>
+            <b>{m.label}{mostraSelos(m.id, true)}</b>
             <small className={estado !== 'off' ? 'ok' : ''}>{subtitulo(m.id)}</small>
           </button>
           {(modo === 'painel' || (modo === 'sanfona' && acoes.length > 0)) && (
@@ -219,6 +236,7 @@ export default function PermissoesLista({ modulos, catalogo, onChange, disabled,
                       {acoes.length > 0 && <em>{n} de {acoes.length} ações</em>}
                     </span>
                     <span className="pl-barrinha"><i style={{ width: `${pct}%` }} /></span>
+                    {selos?.[modSel.id]?.length ? <span className="pl-vem">Vem de: {mostraSelos(modSel.id)}</span> : null}
                     <div className="pl-seg">
                       <button type="button" className={estado === 'total' ? 'on' : ''} disabled={disabled || estado === 'total'} onClick={() => handleModulo(modSel.id, 'off')}><Check size={14} />Dar tudo</button>
                       <button type="button" className={estado === 'off' ? 'on' : ''} disabled={disabled || estado === 'off'} onClick={() => handleModulo(modSel.id, 'total')}>Tirar tudo</button>
@@ -237,6 +255,13 @@ export default function PermissoesLista({ modulos, catalogo, onChange, disabled,
 }
 
 const ESTILO_PL = `
+.pl-selos { display: inline-flex; flex-wrap: wrap; gap: 4px; margin-left: 6px; vertical-align: middle }
+.pl-selo { font-style: normal; font-size: 10.5px; font-weight: 600; line-height: 1; padding: 3px 7px; border-radius: 999px; white-space: nowrap; border: 1px solid; cursor: help }
+.pl-selo.conjunto { background: #eff6ff; color: #1d4ed8; border-color: #bfdbfe }
+.pl-selo.excecao { background: #fff7ed; color: #c2410c; border-color: #fed7aa }
+.pl-selo.bloqueio { background: #f1f5f9; color: #475569; border-color: #cbd5e1 }
+.pl-selo.mais { background: transparent; color: #64748b; border-color: #e2e8f0 }
+.pl-vem { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 12px; color: #64748b } .pl-vem .pl-selos { margin-left: 0 }
 .pl { container-type: inline-size; display: grid; gap: 14px; min-width: 0; font-family: inherit; color: var(--portal-text, #0f172a) }
 .pl button { font-family: inherit }
 .pl-barra { display: flex; flex-wrap: wrap; gap: 8px; align-items: center }

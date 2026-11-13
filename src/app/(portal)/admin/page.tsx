@@ -200,7 +200,7 @@ export default function AdminPage() {
     carregar()
   }, [podeEntrar])
 
-  const salvar = async (userId: string, updates: Partial<Permissao>) => {
+  const salvar = async (userId: string, updates: Partial<Permissao>, motivo?: string) => {
     setSaving(userId)
     const existing = permissoes[userId]
 
@@ -220,7 +220,7 @@ export default function AdminPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session?.access_token || ''}`,
         },
-        body: JSON.stringify({ user_id: userId, updates }),
+        body: JSON.stringify({ user_id: userId, updates, ...(motivo ? { motivo } : {}) }),
       })
       if (!res.ok) {
         const r = await res.json().catch(() => ({}))
@@ -797,7 +797,7 @@ export default function AdminPage() {
                   disabled={saving === user.id || (gestorAcessos && isMe)}
                   modulos={modulos}
                   catalogo={catalogoGestor}
-                  onModulos={(novo) => salvar(user.id, { modulos_permitidos: novo })}
+                  onModulos={(novo, motivo) => salvar(user.id, { modulos_permitidos: novo }, motivo)}
                   mecanicoRole={perm?.mecanico_role ?? null}
                   mecanicoNome={perm?.mecanico_tecnico_nome ?? null}
                   onMecanico={(role) => setMecanicoRole(user.id, role)}

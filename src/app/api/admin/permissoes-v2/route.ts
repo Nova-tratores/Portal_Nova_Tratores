@@ -1,6 +1,6 @@
 // /api/admin/permissoes-v2 — só admin/dev.
 // GET  sem parâmetro: usuários (com conjuntos e extras) + conjuntos (com telas e membros)
-//      ?user=<id>:    todas as telas com nível e origem daquele usuário + overrides
+//      ?user=<id>:    todas as telas com nível e origem daquele usuário + overrides + departamentos/pacotes
 // POST {acao}: previa | salvar (departamento/pacote) · repetidos | limpar (extras que
 //      o departamento/pacote já cobre). Gravar exige a v2 como fonte (PERM_FONTE).
 import { NextResponse } from 'next/server'
@@ -18,12 +18,13 @@ export async function GET(req: Request) {
   const userId = new URL(req.url).searchParams.get('user')
 
   if (userId) {
-    const [telas, ef, ov] = await Promise.all([
+    const [telas, ef, ov, cj] = await Promise.all([
       supabaseAdmin.from('perm_telas').select('id, nome, categoria_menu, explicita, so_dev').eq('ativo', true).limit(5000),
       supabaseAdmin.rpc('perm_efetivas', { p_user: userId }),
       supabaseAdmin.from('perm_usuario_overrides').select('tela_id, nivel, tipo, expira_em, motivo, criado_em').eq('user_id', userId).limit(2000),
+      supabaseAdmin.from('perm_usuario_conjuntos').select('perm_conjuntos(id, nome, tipo, ativo)').eq('user_id', userId).limit(200),
     ])
-    const erro = telas.error || ef.error || ov.error
+    const erro = telas.error || ef.error || ov.error || cj.error
     if (erro) return NextResponse.json({ error: erro.message }, { status: 500 })
     const efetivas = new Map(((ef.data ?? []) as { tela_id: string; nivel: string; origens: string[] }[]).map((e) => [e.tela_id, e]))
     return NextResponse.json({
@@ -31,6 +32,8 @@ export async function GET(req: Request) {
         ...t, nivel: efetivas.get(t.id)?.nivel ?? null, origens: efetivas.get(t.id)?.origens ?? [],
       })),
       overrides: ov.data ?? [],
+      conjuntos: ((cj.data ?? []) as unknown as { perm_conjuntos: { id: string; nome: string; tipo: string; ativo: boolean } | null }[])
+        .map((v) => v.perm_conjuntos).filter(Boolean),
     })
   }
 

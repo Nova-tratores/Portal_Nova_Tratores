@@ -4,17 +4,19 @@
 // Portal: cartões com interruptor por módulo, busca, grupos com contador, ações finas no painel ao lado,
 // e "copiar acessos de" outra pessoa. Usa as mesmas regras do catálogo (lib/permissoes/catalogo).
 import { setorComFuncao, funcaoNoSetor, trocarFuncaoSetor } from '@/lib/permissoes/funcoes-setor'
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { ShieldCheck, Copy, Smartphone, Wrench, LayoutGrid, Check, IdCard, Activity, Briefcase } from 'lucide-react';
 import FichaCadastral from './FichaCadastral';
 import AtividadesUsuario from './AtividadesUsuario';
 import PermissoesLista from './PermissoesLista';
+import { fetchAuth } from '@/lib/auth/client';
+import { MOTIVOS_RAPIDOS, selosPorTela, type Selo } from '@/lib/permissoes/origem-tela';
 
 type Mod = { id: string; label: string; color?: string };
 interface Props {
   nome: string; ehAdmin: boolean; souDev: boolean; disabled?: boolean
-  modulos: string[]; catalogo: Mod[]; onModulos: (novo: string[]) => void
+  modulos: string[]; catalogo: Mod[]; onModulos: (novo: string[], motivo?: string) => void
   mecanicoRole: 'tecnico' | 'observador' | null; mecanicoNome: string | null; onMecanico: (role: string, nome?: string) => void
   vendedor: boolean; salvandoVendedor?: boolean; onVendedor: (v: boolean) => void
   outros: { id: string; nome: string; modulos: string[] }[]
@@ -39,9 +41,45 @@ export default function DistribuirAcessos(p: Props) {
   const [aba, setAba] = useState<'portal' | 'funcao' | 'ficha' | 'atividades'>(verFicha ? 'ficha' : 'portal');
   const [copiar, setCopiar] = useState('');
 
+  // De onde vem cada tela + motivo das exceções (13/11/2026). A rota é só de Admin:
+  // para quem só tem o módulo Administração a leitura falha e a janela segue sem selos.
+  const [selos, setSelos] = useState<Record<string, Selo[]> | null>(null);
+  const [conjuntos, setConjuntos] = useState<{ nome: string; tipo: string }[] | null>(null);
+  const lerOrigem = useCallback(async () => {
+    if (!p.userId) return;
+    try {
+      const r = await fetchAuth(`/api/admin/permissoes-v2?user=${encodeURIComponent(p.userId)}`);
+      if (!r.ok) return;
+      const j = await r.json();
+      setSelos(selosPorTela(j.telas ?? [], j.overrides ?? []));
+      setConjuntos(((j.conjuntos ?? []) as { nome: string; tipo: string; ativo: boolean }[]).filter((c) => c.ativo));
+    } catch { /* sem selos */ }
+  }, [p.userId]);
+  // lê ao abrir e, depois de cada gravação (otimista), relê com folga para o servidor terminar
+  const primeira = useRef(true);
+  useEffect(() => {
+    const t = setTimeout(lerOrigem, primeira.current ? 0 : 1800);
+    primeira.current = false;
+    return () => clearTimeout(t);
+  }, [p.modulos, lerOrigem]);
+
+  // motivo: pedido na 1ª mudança da janela e reaproveitado nas seguintes
+  const [motivo, setMotivo] = useState('');
+  const [pendente, setPendente] = useState<string[] | null>(null);
+  const [rascunho, setRascunho] = useState('');
+  const mudar = (novo: string[]) => {
+    if (motivo.trim()) p.onModulos(novo, motivo.trim());
+    else { setRascunho(''); setPendente(novo); }
+  };
+  const confirmarMotivo = () => {
+    const m = rascunho.trim();
+    if (!m || !pendente) return;
+    setMotivo(m); p.onModulos(pendente, m); setPendente(null);
+  };
+
   const seletorCopiar = (
     <label className="da-copiar"><Copy size={14} />
-      <select value={copiar} disabled={p.disabled} onChange={(e) => { const o = p.outros.find((x) => x.id === e.target.value); setCopiar(''); if (o && confirm(`Copiar os acessos de ${o.nome} para ${p.nome}? Os acessos atuais de ${p.nome} serão trocados.`)) p.onModulos([...o.modulos]); }}>
+      <select value={copiar} disabled={p.disabled} onChange={(e) => { const o = p.outros.find((x) => x.id === e.target.value); setCopiar(''); if (o && confirm(`Copiar os acessos de ${o.nome} para ${p.nome}? Os acessos atuais de ${p.nome} serão trocados.`)) mudar([...o.modulos]); }}>
         <option value="">copiar acessos de…</option>
         {p.outros.filter((o) => o.modulos.length).map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
       </select>
@@ -58,6 +96,22 @@ export default function DistribuirAcessos(p: Props) {
         {setor && !p.soFicha && <button type="button" className={aba === 'funcao' ? 'on' : ''} onClick={() => setAba('funcao')}><Briefcase size={15} />{setor.nome}<em className={funcao ? 'ok' : ''}>{funcao?.rot.replace(' do Pós-Vendas', '') || 'sem função'}</em></button>}
         {verAtividades && <button type="button" className={aba === 'atividades' ? 'on' : ''} onClick={() => setAba('atividades')}><Activity size={15} />Atividades</button>}
       </div>
+
+      {pendente && (
+        <div className="da-pm-fundo" onMouseDown={(e) => { if (e.target === e.currentTarget) setPendente(null) }}>
+          <div className="da-pm" role="dialog" aria-label="Motivo da mudança">
+            <b>Por que mudar os acessos de {p.nome.split(' ')[0]}?</b>
+            <small>Fica guardado junto com a exceção. Vale para as próximas mudanças desta janela.</small>
+            <div className="da-pm-rap">{MOTIVOS_RAPIDOS.map((m) => <button key={m} type="button" className={rascunho === m ? 'on' : ''} onClick={() => setRascunho(m)}>{m}</button>)}</div>
+            <textarea autoFocus value={rascunho} maxLength={300} placeholder="Ou escreva o motivo…" onChange={(e) => setRascunho(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) confirmarMotivo() }} />
+            <div className="da-pm-bts">
+              <button type="button" className="sec" onClick={() => setPendente(null)}>Cancelar</button>
+              <button type="button" className="pri" disabled={!rascunho.trim()} onClick={confirmarMotivo}>Gravar a mudança</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* fica montada nas outras abas: trocar de aba não apaga o que foi digitado (10/11/2026) */}
       {verFicha && p.userId && <div hidden={aba !== 'ficha'}><FichaCadastral userId={p.userId} nome={p.nome} cargo={p.funcao} email={p.email} /></div>}
@@ -99,7 +153,15 @@ export default function DistribuirAcessos(p: Props) {
 
           <section className="da-mods">
             <div className="da-mods-cab"><h4>Portal</h4>{seletorCopiar}</div>
-            <PermissoesLista modo="painel" modulos={p.modulos} catalogo={p.catalogo} onChange={p.onModulos} disabled={p.disabled} souDev={p.souDev} />
+            {conjuntos && (
+              <p className="da-conj">
+                <b>Departamentos e pacotes:</b>{' '}
+                {conjuntos.length ? conjuntos.map((c) => <i key={c.nome} className={c.tipo}>{c.nome}</i>) : <span>nenhum — tudo o que está marcado é exceção desta pessoa.</span>}
+                <a href="/admin/permissoes">mudar em Permissões</a>
+              </p>
+            )}
+            {motivo && <p className="da-motivo">Motivo destas mudanças: <b>{motivo}</b> <button type="button" onClick={() => setMotivo('')}>trocar</button></p>}
+            <PermissoesLista modo="painel" modulos={p.modulos} catalogo={p.catalogo} onChange={mudar} selos={selos ?? undefined} disabled={p.disabled} souDev={p.souDev} />
           </section>
         </div>
       )}
@@ -110,7 +172,7 @@ export default function DistribuirAcessos(p: Props) {
           <p className="da-app-txt">A função de {p.nome.split(' ')[0]} dentro do {setor.nome}.{setor.categoria === 'Pós Vendas' ? ' Vale na comissão do escritório (Gestão Pós Vendas → Equipe → Comissões).' : ''}</p>
           <div className="da-opcoes">
             {[{ chave: '', rot: 'Sem função', txt: `não tem função no ${setor.nome}` }, ...setor.funcoes].map((f) => (
-              <button key={f.chave} type="button" disabled={p.disabled} className={`da-op ${(funcao?.chave || '') === f.chave ? 'on' : ''}`} onClick={() => p.onModulos(trocarFuncaoSetor(p.modulos, setor.categoria, f.chave || null))}>
+              <button key={f.chave} type="button" disabled={p.disabled} className={`da-op ${(funcao?.chave || '') === f.chave ? 'on' : ''}`} onClick={() => mudar(trocarFuncaoSetor(p.modulos, setor.categoria, f.chave || null))}>
                 <span className="da-radio">{(funcao?.chave || '') === f.chave && <Check size={13} />}</span><span><b>{f.rot}</b><small>{f.txt}</small></span>
               </button>
             ))}
@@ -122,6 +184,18 @@ export default function DistribuirAcessos(p: Props) {
 }
 
 const ESTILO_DA = `
+.da-conj { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 13px; color: #475569 } .da-conj b { font-weight: 600; color: #0f172a }
+.da-conj i { font-style: normal; font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe } .da-conj i.departamento { background: #fef2f2; color: #b91c1c; border-color: #fecaca }
+.da-conj a { margin-left: auto; font-size: 12.5px; color: #1d4ed8 }
+.da-motivo { margin: 0; font-size: 12.5px; color: #64748b } .da-motivo b { color: #0f172a; font-weight: 600 } .da-motivo button { border: none; background: none; color: #1d4ed8; cursor: pointer; font-size: 12.5px; padding: 6px 4px; font-family: inherit }
+.da-pm-fundo { position: fixed; inset: 0; z-index: 100200; background: rgba(15,23,42,.45); display: grid; place-items: center; padding: 16px }
+.da-pm { width: min(460px, 100%); background: #fefefe; border-radius: 16px; padding: 20px; display: grid; gap: 10px; box-shadow: 0 20px 60px rgba(15,23,42,.35); color: #0f172a }
+.da-pm b { font-size: 16px; font-weight: 600 } .da-pm small { font-size: 12.5px; color: #64748b }
+.da-pm-rap { display: flex; flex-wrap: wrap; gap: 6px } .da-pm-rap button { min-height: 40px; padding: 6px 12px; border-radius: 999px; border: 1px solid #e2e8f0; background: #fefefe; font-family: inherit; font-size: 13px; cursor: pointer; color: #334155 } .da-pm-rap button.on { border-color: #dc2626; background: #fef2f2; color: #b91c1c }
+.da-pm textarea { min-height: 72px; resize: vertical; border: 1px solid #e2e8f0; border-radius: 10px; padding: 8px 10px; font-family: inherit; font-size: 14px; color: #0f172a; background: #fefefe }
+.da-pm-bts { display: flex; justify-content: flex-end; gap: 8px } .da-pm-bts button { min-height: 42px; padding: 0 18px; border-radius: 999px; font-family: inherit; font-size: 14px; cursor: pointer }
+.da-pm-bts .sec { border: 1px solid #e2e8f0; background: #fefefe; color: #334155 } .da-pm-bts .pri { border: none; background: #dc2626; color: #fefefe } .da-pm-bts .pri:disabled { opacity: .5; cursor: not-allowed }
+@media (max-width: 640px) { .da-pm-fundo { padding: 0; place-items: stretch } .da-pm { border-radius: 0; align-content: start } .da-pm-bts button { flex: 1 } .da-conj a { margin-left: 0 } }
 @keyframes daEntra { from { opacity: 0; transform: translateY(6px) } }
 .da { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; animation: daEntra .25s both; font-family: inherit; min-width: 0 } .da > * { min-width: 0 }
 .da-abas { display: inline-flex; gap: 4px; background: #f1f5f9; border-radius: 999px; padding: 4px; justify-self: start; flex-wrap: wrap }
