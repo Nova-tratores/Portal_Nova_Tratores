@@ -53,6 +53,8 @@ export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
   // exportar relatórios das notas fiscais (todas as notas do filtro numa planilha/PDF) —
   // permissão especial, cada exportação fica no audit_log (José, 10/11/2026)
   'financeiro:notas-relatorios',
+  // aprovar a compra de uma requisição (grava quem aprovou) — o módulo Requisições não dá (12/11/2026)
+  'requisicoes:aprovar_compra',
 ]);
 
 // Ações FISCAIS de Dev (José, 13/10/2026): no começo só os Devs fazem; admin comum

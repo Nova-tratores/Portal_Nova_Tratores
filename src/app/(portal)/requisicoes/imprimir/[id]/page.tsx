@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import MapaCotacoesPDF from '@/components/requisicoes/MapaCotacoesPDF';
 
 const UNIDADES: any = {
   nova: {
@@ -112,7 +113,7 @@ export default function ImprimirRequisicao() {
             disabled={!cotacaoData?.fornecedor1}
             style={{ width: 16, height: 16, cursor: cotacaoData?.fornecedor1 ? 'pointer' : 'default' }}
           />
-          Incluir cotação no PDF {!cotacaoData?.fornecedor1 && '(sem cotação)'}
+          Incluir mapa de cotações (com valores) {!cotacaoData?.fornecedor1 && '(sem cotação)'}
         </label>
         <span style={{ fontSize: 12, color: '#64748b' }}>Requisição #{req.id} — {req.titulo}</span>
       </div>
@@ -213,34 +214,7 @@ export default function ImprimirRequisicao() {
         )}
 
         {/* COTAÇÕES */}
-        {mostrarCotacao !== false && cotacaoData && cotacaoData.fornecedor1 && (
-          <div style={{ border: '2px solid #000', borderRadius: 16, overflow: 'hidden', marginBottom: 16 }}>
-            <div style={{ background: '#f1f5f9', fontSize: 11, fontWeight: 900, textTransform: 'uppercase', padding: '8px 0', borderBottom: '2px solid #000', textAlign: 'center' }}>Mapa de Cotações</div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ fontSize: 10, fontWeight: 900, textTransform: 'uppercase', background: '#f8fafc' }}>
-                  <th style={{ padding: 8, borderRight: '2px solid #000', borderBottom: '2px solid #000', textAlign: 'left' }}>Fornecedor</th>
-                  <th style={{ padding: 8, borderRight: '2px solid #000', borderBottom: '2px solid #000', textAlign: 'left' }}>Material/Serviço</th>
-                  <th style={{ padding: 8, borderBottom: '2px solid #000', textAlign: 'right' }}>Valor</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[1, 2, 3, 4, 5].map(i => cotacaoData[`fornecedor${i}`] ? (
-                  <tr key={i} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: 8, borderRight: '2px solid #000', fontSize: 13, textTransform: 'uppercase' }}>
-                      {cotacaoData[`fornecedor${i}`]}
-                      {cotacaoData[`obs${i}`] && (
-                        <div style={{ fontSize: 10, fontWeight: 400, textTransform: 'none', color: '#475569', whiteSpace: 'pre-wrap' }}>{cotacaoData[`obs${i}`]}</div>
-                      )}
-                    </td>
-                    <td style={{ padding: 8, borderRight: '2px solid #000', fontSize: 13, textTransform: 'uppercase' }}>{cotacaoData[`servico_material${i}`]}</td>
-                    <td style={{ padding: 8, fontSize: 13, fontWeight: 700, textAlign: 'right' }}>R$ {cotacaoData[`valor${i}`]}</td>
-                  </tr>
-                ) : null)}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {mostrarCotacao !== false && cotacaoData && <MapaCotacoesPDF cotacao={cotacaoData} />}
 
         {/* DESCRIÇÃO */}
         <div style={{ border: '2px solid #000', borderRadius: 16, padding: 20, marginBottom: 16, minHeight: '5cm' }}>
@@ -263,6 +237,9 @@ export default function ImprimirRequisicao() {
             <label style={{ fontSize: 10, fontWeight: 900, color: '#9ca3af', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Fornecedor</label>
             <p style={{ fontSize: 14, fontWeight: 700, textTransform: 'uppercase', margin: 0 }}>{req.fornecedor || 'NÃO DEFINIDO'}</p>
             <p style={{ fontWeight: 900, marginTop: 8, fontSize: 11, borderTop: '1px solid #000', paddingTop: 4, margin: '8px 0 0' }}>DOC FISCAL (NF): {req.numero_nota || 'EM PROCESSAMENTO'}</p>
+            {req.compra_aprovada_por && (
+              <p style={{ fontWeight: 900, fontSize: 11, margin: '4px 0 0' }}>COMPRA APROVADA POR: {req.compra_aprovada_por}{req.compra_aprovada_em ? ` EM ${new Date(req.compra_aprovada_em).toLocaleDateString('pt-BR')}` : ''}</p>
+            )}
           </div>
           <div style={{ border: '2px solid #000', borderRadius: 16, padding: 16, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
             <label style={{ fontSize: 11, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', marginBottom: 4 }}>Valor Total</label>

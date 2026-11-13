@@ -8,7 +8,6 @@ import {
 } from 'lucide-react';
 import HistoricoModal from './HistoricoModal';
 import DialogoImprimirReq from './DialogoImprimirReq';
-import { anexosDaReq } from '@/lib/requisicoes/anexos';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { IconeQuadrado } from './visualReq';
 import { brl, diasAberta, FASES_ABERTAS, normalizarStatus, normalizarTipo, valorReq, visualTipo } from '@/lib/requisicoes/inteligencia';
@@ -77,15 +76,15 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
 
   // Igual ao botão do modal: se tiver anexo, pergunta o que entra; senão imprime direto.
   const [dlgImprimir, setDlgImprimir] = useState(false);
-  const imprimir = (folhas: { label: string; dataUrl: string }[] = []) => {
-    onPrint({ ...req, solicitante: nomeExibicao, impresso_por: 'MANUAL' }, folhas);
+  const imprimir = (folhas: { label: string; dataUrl: string }[] = [], comCotacao?: boolean) => {
+    onPrint({ ...req, solicitante: nomeExibicao, impresso_por: 'MANUAL', ...(comCotacao === undefined ? {} : { mostrar_cotacao_pdf: comCotacao }) }, folhas);
   };
   const handlePrintClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     // No celular abre a página dedicada /imprimir (o window.print() da página sai como
     // "print da tela" no mobile). No PC segue o fluxo normal (com diálogo de anexos).
     if (isMobile) { window.open(`/requisicoes/imprimir/${req.id}`, '_blank'); return; }
-    if (anexosDaReq(req).length === 0) { imprimir(); return; }
+    // Sempre abre a janela: anexos + "mapa de cotações (com valores)".
     setDlgImprimir(true);
   };
 
@@ -127,7 +126,7 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
           {req.fornecedor && <span title="Fornecedor"><i className="fa-solid fa-store" />{req.fornecedor}</span>}
         </div>
 
-        {(cobravel || notaAchada || veioDoApp || escolhidoParaComparar || dias != null && dias > 7 || (!req.fornecedor && aberta)) && (
+        {(cobravel || notaAchada || veioDoApp || req.compra_aprovada_por || escolhidoParaComparar || dias != null && dias > 7 || (!req.fornecedor && aberta)) && (
           <div className="rq-req-selos">
             {/* cobrança do cliente; o motivo do "Não cobrada" aparece ao passar o mouse e no cartão aberto (José, 26/10/2026) */}
             {cobravel && <SeloCobranca req={req} compacto />}
@@ -139,6 +138,12 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
               </button>
             )}
             {escolhidoParaComparar && <span className="rq-pilula" style={{ ['--c' as any]: '#D97706' }}>Escolhida</span>}
+            {req.compra_aprovada_por && (
+              <span className="rq-pilula" style={{ ['--c' as any]: '#059669' }}
+                title={`Compra aprovada por ${req.compra_aprovada_por}${req.compra_aprovada_em ? ' em ' + new Date(req.compra_aprovada_em).toLocaleString('pt-BR') : ''}`}>
+                <i className="fa-solid fa-circle-check" /> compra aprovada
+              </span>
+            )}
             {veioDoApp && <span className="rq-pilula" style={{ ['--c' as any]: '#2563EB' }} title="Criada pelo técnico no aplicativo"><HardHat size={11} /> Técnico (app)</span>}
             {dias != null && dias > 7 && (
               <span className="rq-pilula" style={{ ['--c' as any]: dias > 30 ? '#DC2626' : '#D97706' }} title="Há quantos dias está aberta">
@@ -191,7 +196,7 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
 
       <HistoricoModal reqId={req.id} titulo={req.titulo} open={histAberto} onClose={() => setHistAberto(false)} />
       {dlgImprimir && (
-        <DialogoImprimirReq req={req} onFechar={() => setDlgImprimir(false)} onImprimir={(folhas) => imprimir(folhas)} />
+        <DialogoImprimirReq req={req} onFechar={() => setDlgImprimir(false)} onImprimir={(folhas, opcoes) => imprimir(folhas, opcoes?.comCotacao)} />
       )}
     </>
   );

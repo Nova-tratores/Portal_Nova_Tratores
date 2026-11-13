@@ -3,7 +3,9 @@
 // anexos vêm todos marcados e é só desmarcar o que não quer. Ao confirmar,
 // converte os anexos em folhas e devolve pro pai imprimir (requisição + anexos
 // num documento só). Usado na capa do card E no modal completo.
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { cotacoesPreenchidas } from '@/lib/requisicoes/cotacoes';
 import { Printer, Check } from 'lucide-react';
 import { anexosDaReq, type AnexoDaReq } from '@/lib/requisicoes/anexos';
 import { folhasDosAnexos, type FolhaAnexo } from '@/lib/requisicoes/anexos-pdf';
@@ -11,7 +13,7 @@ import { folhasDosAnexos, type FolhaAnexo } from '@/lib/requisicoes/anexos-pdf';
 interface Props {
   req: any;                                   // dados da requisição (com foto_nf, etc.)
   onFechar: () => void;
-  onImprimir: (folhas: FolhaAnexo[]) => void; // pai dispara a impressão
+  onImprimir: (folhas: FolhaAnexo[], opcoes?: { comCotacao?: boolean }) => void; // pai dispara a impressão
 }
 
 export default function DialogoImprimirReq({ req, onFechar, onImprimir }: Props) {
@@ -20,6 +22,20 @@ export default function DialogoImprimirReq({ req, onFechar, onImprimir }: Props)
     Object.fromEntries(disponiveis.map(a => [a.field, true]))
   );
   const [preparando, setPreparando] = useState(false);
+  // Mapa de cotações (com valores): aparece só se a requisição tem cotação;
+  // começa como a caixinha "No PDF" do cartão (incluir_pdf).
+  const [qtdCotacoes, setQtdCotacoes] = useState(0);
+  const [comCotacao, setComCotacao] = useState(true);
+  useEffect(() => {
+    if (!req?.id || req.id === 'NOVA') return;
+    let vivo = true;
+    supabase.from('req_cotacao').select('*').eq('id', req.id).maybeSingle().then(({ data }) => {
+      if (!vivo || !data) return;
+      setQtdCotacoes(cotacoesPreenchidas(data).length);
+      setComCotacao(data.incluir_pdf !== false);
+    });
+    return () => { vivo = false; };
+  }, [req?.id]);
 
   const confirmar = async () => {
     const escolhidos = disponiveis.filter(a => marcados[a.field]);
@@ -29,7 +45,7 @@ export default function DialogoImprimirReq({ req, onFechar, onImprimir }: Props)
         ? await folhasDosAnexos(escolhidos.map(a => ({ label: a.label, url: a.url })))
         : { folhas: [], falhas: [] };
       if (falhas.length) alert('Estes anexos ficaram de fora:\n\n' + falhas.join('\n'));
-      onImprimir(folhas);
+      onImprimir(folhas, qtdCotacoes > 0 ? { comCotacao } : undefined);
       onFechar();
     } catch (e: any) {
       alert('Erro ao preparar os anexos: ' + (e?.message || e));
@@ -56,6 +72,14 @@ export default function DialogoImprimirReq({ req, onFechar, onImprimir }: Props)
             <span className="text-[14px] text-black flex-1">Folha da requisição</span>
             <span className="text-[12px] text-black">sempre</span>
           </div>
+          {qtdCotacoes > 0 && (
+            <label className="flex items-center gap-3 px-3 py-2.5 min-h-[44px] rounded-xl border border-orange-200 bg-orange-50/50 cursor-pointer hover:bg-orange-50">
+              <input type="checkbox" checked={comCotacao} onChange={e => setComCotacao(e.target.checked)}
+                className="w-4 h-4 accent-orange-600" />
+              <span className="text-[14px] text-black flex-1">Mapa de cotações (com valores)</span>
+              <span className="text-[12px] text-black">{qtdCotacoes} {qtdCotacoes === 1 ? 'cotação' : 'cotações'}</span>
+            </label>
+          )}
           {disponiveis.length === 0 ? (
             <div className="text-[13px] text-black px-1 py-1">Esta requisição não tem anexos.</div>
           ) : disponiveis.map(a => (

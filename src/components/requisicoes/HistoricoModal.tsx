@@ -47,6 +47,15 @@ export default function HistoricoModal({ reqId, titulo, open, onClose }: Props) 
       } else if (a.acao === 'mover_status') {
         const de = a.detalhes?.de, para = a.detalhes?.para;
         evs.push({ tipo: 'mover_status', quando: a.created_at, quem: a.user_nome || '—', descricao: 'Mudou de fase', detalhe: de && para ? `${de} → ${para}` : undefined });
+      } else if (a.acao === 'aprovar_compra') {
+        evs.push({ tipo: 'aprovado', quando: a.created_at, quem: a.user_nome || '—', descricao: 'Aprovou a compra' });
+      } else if (a.acao === 'retirar_aprovacao') {
+        evs.push({ tipo: 'recusado', quando: a.created_at, quem: a.user_nome || '—', descricao: 'Retirou a aprovação da compra', detalhe: a.detalhes?.antes ? `era de ${a.detalhes.antes}` : undefined });
+      } else if (a.acao === 'cotacao_indicada' || a.acao === 'cotacao_comprada') {
+        const n = a.detalhes?.numero;
+        const forn = a.detalhes?.fornecedor;
+        const oque = a.acao === 'cotacao_indicada' ? 'indicada' : 'comprada';
+        evs.push({ tipo: 'editar', quando: a.created_at, quem: a.user_nome || '—', descricao: n ? `Marcou a cotação ${oque}` : `Desmarcou a cotação ${oque}`, detalhe: n ? `${n}${forn ? ' · ' + forn : ''}` : undefined });
       } else if (a.acao === 'deletar') {
         evs.push({ tipo: 'deletar', quando: a.created_at, quem: a.user_nome || '—', descricao: 'Movida para a lixeira' });
       } else {

@@ -248,9 +248,11 @@ function RequisicoesPageInner() {
   // Rastreia quais cards foram editados enquanto estavam abertos
   const cardsEditadosRef = useRef<Set<number>>(new Set());
 
-  const handleUpdateReq = useCallback(async (id: number, dados: Record<string, unknown>) => {
+  const handleUpdateReq = useCallback(async (id: number, dados: Record<string, unknown>, opcoes?: { soLocal?: boolean }) => {
     setRequisicoes(prev => prev.map(r => r.id === id ? { ...r, ...dados } : r));
     const { error } = await supabase.from('Requisicao').update(dados).eq('id', id);
+    // soLocal: o servidor já gravou (ex.: "Aprovar compra"); só atualiza a lista
+    if (opcoes?.soLocal) return;
     if (error) { console.error('[Requisições] Erro ao atualizar:', error?.message, error?.code, error?.details, error?.hint); carregarDados(true); return }
     auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'requisicao', entidade_id: String(id), detalhes: dados });
     // Chegou ao financeiro: o motor da frota fecha na hora a pendência do carro

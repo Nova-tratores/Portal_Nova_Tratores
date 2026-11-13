@@ -102,6 +102,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     // a tinha é inofensiva (a aba não existe mais).
     { id: 'excluir', label: 'Excluir / lixeira' },
     { id: 'imprimir', label: 'Imprimir' },
+    { id: 'aprovar_compra', label: 'Aprovar compra (grava quem aprovou)' },
   ],
   orcamentos: [
     { id: 'criar', label: 'Criar orçamento' },

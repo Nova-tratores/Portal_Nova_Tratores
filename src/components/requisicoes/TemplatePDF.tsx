@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
+import MapaCotacoesPDF from './MapaCotacoesPDF';
 
 const UNIDADES = {
   nova: {
@@ -232,34 +233,9 @@ export default function TemplatePDF({ req, anexos = [] }: { req: any, anexos?: {
           );
         })()}
 
-        {/* BLOCO DE COTAÇÕES */}
-        {cotacaoData && cotacaoData.fornecedor1 && cotacaoData.incluir_pdf !== false && (
-          <div className="border-2 border-black rounded-2xl overflow-hidden mb-4 shadow-sm">
-            <div className="bg-slate-100 text-[11px] font-black uppercase py-2 border-b-2 border-black text-center">Mapa de Cotações Vinculado</div>
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b-2 border-black text-[10px] font-black uppercase bg-slate-50">
-                  <th className="p-2 border-r-2 border-black w-1/3">Fornecedor</th>
-                  <th className="p-2 border-r-2 border-black w-1/3">Material/Serviço</th>
-                  <th className="p-2 text-right">Valor Ofertado</th>
-                </tr>
-              </thead>
-              <tbody className="text-[13px]">
-                {[1, 2, 3, 4, 5].map(i => cotacaoData[`fornecedor${i}`] ? (
-                  <tr key={i} className="border-b border-slate-200 last:border-0">
-                    <td className="p-2 border-r-2 border-black uppercase">
-                      {cotacaoData[`fornecedor${i}`]}
-                      {cotacaoData[`obs${i}`] && (
-                        <div className="text-[10px] font-normal normal-case text-slate-600 whitespace-pre-wrap">{cotacaoData[`obs${i}`]}</div>
-                      )}
-                    </td>
-                    <td className="p-2 border-r-2 border-black uppercase">{cotacaoData[`servico_material${i}`]}</td>
-                    <td className="p-2 text-right font-bold">R$ {cotacaoData[`valor${i}`]}</td>
-                  </tr>
-                ) : null)}
-              </tbody>
-            </table>
-          </div>
+        {/* BLOCO DE COTAÇÕES — a janela de Imprimir decide (mostrar_cotacao_pdf); sem ela vale a caixinha "No PDF" */}
+        {cotacaoData && (req.mostrar_cotacao_pdf ?? (cotacaoData.incluir_pdf !== false)) && (
+          <MapaCotacoesPDF cotacao={cotacaoData} titulo="Mapa de Cotações Vinculado" />
         )}
 
         {/* MEMORIAL DESCRIÇÃO */}
@@ -285,6 +261,9 @@ export default function TemplatePDF({ req, anexos = [] }: { req: any, anexos?: {
             <label className="text-[10px] font-black text-zinc-400 uppercase block mb-1">Fornecedor / Origem Vinculada</label>
             <p className="text-[14px] font-bold uppercase text-black">{req.fornecedor || 'NÃO DEFINIDO'}</p>
             <p className="font-black mt-2 text-[11px] border-t pt-1">DOC FISCAL (NF): {req.numero_nota || 'EM PROCESSAMENTO'}</p>
+            {req.compra_aprovada_por && (
+              <p className="font-black mt-1 text-[11px]">COMPRA APROVADA POR: {req.compra_aprovada_por}{req.compra_aprovada_em ? ` EM ${new Date(req.compra_aprovada_em).toLocaleDateString('pt-BR')}` : ''}</p>
+            )}
           </div>
           <div className="col-span-5 border-2 border-black rounded-2xl p-4 h-full flex flex-col justify-center items-center bg-white shadow-sm">
             <label className="text-[11px] font-bold text-zinc-500 uppercase block leading-none mb-1">Valor Total Geral</label>

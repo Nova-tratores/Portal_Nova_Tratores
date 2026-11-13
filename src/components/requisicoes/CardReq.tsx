@@ -11,7 +11,7 @@ import {
   Store, ArrowRight, Gauge,
   Receipt, Eye, ExternalLink, Car,
   Plus, CheckCheck, Building2, User, Cpu,
-  Package, CreditCard, Upload, Check, Lock, ShieldCheck, ShieldAlert, Clock, FolderOpen, Link2, ChevronDown, Send
+  Package, CreditCard, Upload, Check, Lock, ShieldCheck, ShieldAlert, Clock, FolderOpen, Link2, ChevronDown, Send, Star, ShoppingCart
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -23,13 +23,17 @@ import DescontoTecnicoReq from './DescontoTecnicoReq';
 import RecorteAnexo from './RecorteAnexo';
 import DialogoImprimirReq from './DialogoImprimirReq';
 import LeituraNota from './LeituraNota';
-import { anexosDaReq, anexosNoDrive as anexosNoDriveDe, getUrlAnexo, CAMPOS_NF } from '@/lib/requisicoes/anexos';
+import { anexosNoDrive as anexosNoDriveDe, getUrlAnexo, CAMPOS_NF } from '@/lib/requisicoes/anexos';
 import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
 import { prontaParaFinanceiro, CAMPOS_COMPROVANTE } from '@/lib/requisicoes/lembretes';
 import { buscarContaDaReq, criarContaDaRequisicao, type ContaExistente } from '@/lib/financeiro/conta-da-requisicao';
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins';
 import { fetchAuth } from '@/lib/auth/client';
 import CobrancaRequisicao from '@/components/pos/CobrancaRequisicao';
+import EscolherCotacaoComprada from './EscolherCotacaoComprada';
+import ReqsDoGrupo from './ReqsDoGrupo';
+import { useAuditLog } from '@/hooks/useAuditLog';
+import { removerCotacaoShift, precisaMarcarComprada, linkSeguro, erroColunaFaltando, semColunasNovas, type Cotacao } from '@/lib/requisicoes/cotacoes';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIatVqhjdeBeo4PYNWr992vCsPpvEEjOxabWB7mz5JRJ7BroxnvR8CRIcXIgTfLSm/exec';
 const DEPARTAMENTOS = ["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"];
@@ -346,20 +350,77 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   const cotacaoRef = useRef<any>({});
   cotacaoRef.current = cotacaoData;
 
+  // Grava o mapa; sem a migration sql/req-cotacao-escolhas.sql (link/indicada/comprada)
+  // tenta de novo sem as colunas novas e avisa uma vez.
+  const avisouMigracaoCot = useRef(false);
+  const gravarCotacao = async (dados: Cotacao) => {
+    let { error } = await supabase.from('req_cotacao').upsert(dados);
+    if (error && erroColunaFaltando(error)) {
+      ({ error } = await supabase.from('req_cotacao').upsert(semColunasNovas(dados)));
+      if (!error && !avisouMigracaoCot.current) {
+        avisouMigracaoCot.current = true;
+        alert('Salvo, mas link, indicada e comprada ainda não ficam gravados: falta aplicar a migration sql/req-cotacao-escolhas.sql.');
+      }
+    }
+    return { error };
+  };
+
   const removerCotacao = (idx: number) => {
     if (confirm(`Remover o Fornecedor ${idx} e reorganizar a lista?`)) {
-      const newData = { ...cotacaoData };
-      for (let j = idx; j < 5; j++) {
-        newData[`fornecedor${j}`] = newData[`fornecedor${j + 1}`] || '';
-        newData[`servico_material${j}`] = newData[`servico_material${j + 1}`] || '';
-        newData[`valor${j}`] = newData[`valor${j + 1}`] || '';
-        newData[`obs${j}`] = newData[`obs${j + 1}`] || '';
-        newData[`anexo${j}`] = newData[`anexo${j + 1}`] || null;
-      }
-      newData.fornecedor5 = ''; newData.servico_material5 = ''; newData.valor5 = ''; newData.obs5 = ''; newData.anexo5 = null;
+      const newData = removerCotacaoShift(cotacaoData, idx);
       setCotacaoData(newData);
       setFornecedoresVisiveis(prev => Math.max(1, prev - 1));
-      supabase.from('req_cotacao').upsert({ id: req.id, ...newData });
+      gravarCotacao({ ...newData, id: req.id });
+    }
+  };
+
+  // Indicada (quem monta o mapa) e Comprada (quem lança a nota): grava na hora,
+  // com quem marcou e quando. Clicar de novo na mesma desmarca. (12/11/2026)
+  const { log: logAudit } = useAuditLog();
+  const marcarCotacao = async (tipo: 'indicada' | 'comprada', idx: number | null) => {
+    const atualCot = cotacaoRef.current || {};
+    const numero = idx && Number(atualCot[tipo]) === idx ? null : idx;
+    const novo = {
+      ...atualCot, id: req.id,
+      [tipo]: numero,
+      [`${tipo}_por`]: numero ? (userProfile?.nome || userEmail || null) : null,
+      [`${tipo}_em`]: numero ? new Date().toISOString() : null,
+    };
+    setCotacaoData(novo);
+    const { error } = await gravarCotacao(novo);
+    if (error) { alert('Erro ao marcar a cotação: ' + error.message); return; }
+    if (cotacaoSalvaRef.current) {
+      // a marca não deve aparecer como "rascunho não salvo"
+      try {
+        const salvo = JSON.parse(cotacaoSalvaRef.current);
+        cotacaoSalvaRef.current = JSON.stringify({ ...salvo, [tipo]: novo[tipo], [`${tipo}_por`]: novo[`${tipo}_por`], [`${tipo}_em`]: novo[`${tipo}_em`] });
+      } catch { /* ignore */ }
+    }
+    logAudit({
+      sistema: 'requisicoes', acao: tipo === 'indicada' ? 'cotacao_indicada' : 'cotacao_comprada',
+      entidade: 'requisicao', entidade_id: String(req.id), entidade_label: req.titulo || `Req #${req.id}`,
+      detalhes: { numero, fornecedor: numero ? atualCot[`fornecedor${numero}`] || null : null },
+    });
+  };
+  const [escolherComprada, setEscolherComprada] = useState(false);
+
+  // "Aprovar compra": grava quem está logado (pela rota, nunca pelo navegador).
+  const podeAprovarCompra = pode('requisicoes', 'aprovar_compra');
+  const [aprovando, setAprovando] = useState(false);
+  const aprovarCompra = async (acao: 'aprovar' | 'retirar') => {
+    if (acao === 'retirar' && !confirm('Retirar a aprovação desta compra?')) return;
+    setAprovando(true);
+    try {
+      const r = await fetchAuth(`/api/requisicoes/${req.id}/aprovar-compra`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ acao }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { alert(j.error || j.erro || 'Não consegui gravar a aprovação.'); return; }
+      const campos = { compra_aprovada_por: j.compra_aprovada_por ?? null, compra_aprovada_email: j.compra_aprovada_email ?? null, compra_aprovada_em: j.compra_aprovada_em ?? null };
+      setLocalData((prev: typeof localData) => ({ ...prev, ...campos }));
+      onUpdateRef.current?.(req.id, campos, { soLocal: true });
+    } finally {
+      setAprovando(false);
     }
   };
 
@@ -379,7 +440,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   });
 
   const salvarCotacao = async () => {
-    const { error } = await supabase.from('req_cotacao').upsert({ id: req.id, ...cotacaoData });
+    const { error } = await gravarCotacao({ ...cotacaoData, id: req.id });
     if (!error) { cotacaoSalvaRef.current = JSON.stringify(cotacaoData); rascunhoCotacao.limpar(); alert("Mapa de Cotação atualizado!"); }
     else alert('Erro ao salvar o mapa: ' + error.message);
   };
@@ -398,7 +459,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       if (uploadError) throw uploadError;
       const novo = { ...cotacaoRef.current, id: req.id, [`anexo${idx}`]: filePath };
       setCotacaoData(novo);
-      const { error } = await supabase.from('req_cotacao').upsert(novo);
+      const { error } = await gravarCotacao(novo);
       if (error) throw error;
       setUploadOk(chave);
       setTimeout(() => setUploadOk(null), 2000);
@@ -413,7 +474,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     if (!confirm(`Remover o anexo do Fornecedor ${idx}?`)) return;
     const novo = { ...cotacaoRef.current, id: req.id, [`anexo${idx}`]: null };
     setCotacaoData(novo);
-    const { error } = await supabase.from('req_cotacao').upsert(novo);
+    const { error } = await gravarCotacao(novo);
     if (error) alert('Erro ao remover o anexo: ' + error.message);
   };
 
@@ -513,6 +574,8 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       if (uploadError) throw uploadError;
       persist(fieldName, filePath);
       if (fieldName.startsWith('foto_nf')) setGatilhoNota({ campo: fieldName, em: Date.now() });
+      // Nota lançada e 2+ cotações sem a comprada marcada: pergunta qual foi (não trava nada).
+      if (fieldName.startsWith('foto_nf') && precisaMarcarComprada(cotacaoRef.current, { ...localData, [fieldName]: filePath })) setEscolherComprada(true);
       // Com a nota ou o recibo anexado (e valor + fornecedor preenchidos), a
       // requisição vai sozinha para "Enviado Financeiro" (10/11/2026; antes só a
       // Alimentação fazia isso). Boleto não conta. O robô das requisições faz o
@@ -541,8 +604,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   // devolve as folhas prontas; aqui só disparamos a impressão.
   const [dlgImprimir, setDlgImprimir] = useState(false);
 
-  const imprimir = (folhas: { label: string; dataUrl: string }[] = []) => {
-    onPrint({ ...localData, solicitante: nomeExibicao, veiculo: veiculoExibicao, impresso_por: userEmail }, folhas);
+  // comCotacao: escolhido na janela de Imprimir (undefined = segue a caixinha "No PDF")
+  const imprimir = (folhas: { label: string; dataUrl: string }[] = [], comCotacao?: boolean) => {
+    onPrint({ ...localData, solicitante: nomeExibicao, veiculo: veiculoExibicao, impresso_por: userEmail, ...(comCotacao === undefined ? {} : { mostrar_cotacao_pdf: comCotacao }) }, folhas);
   };
 
   const handlePrint = (e?: React.MouseEvent) => {
@@ -550,7 +614,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     // No celular o window.print() da página falha (o navegador "fotografa" a tela em vez
     // do documento). Então abrimos a página dedicada /imprimir, que é limpa e imprime certo.
     if (isMobile) { window.open(`/requisicoes/imprimir/${req.id}`, '_blank'); return; }
-    if (!anexosDisponiveis.length) { imprimir(); return; }   // sem anexo, não há o que perguntar
+    // Sempre abre a janela: ela pergunta os anexos e se vai o mapa de cotações (com valores).
     setDlgImprimir(true);
   };
 
@@ -579,6 +643,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   // ── Grupos (coletivos) desta requisição ──
   const [grupoParaAdd, setGrupoParaAdd] = useState('');
   const [gruposAberto, setGruposAberto] = useState(false);
+  const [grupoVendo, setGrupoVendo] = useState<number | null>(null);
   const gruposDaReq = (grupos || []).filter((g: any) => (g.membros || []).map((x: any) => Number(x)).includes(Number(req.id)));
   const gruposDisponiveis = (grupos || []).filter((g: any) => g.status === 'aberto' && !gruposDaReq.some((d: any) => d.id === g.id));
   const alterarGrupoReq = async (grupoId: number, acao: 'add' | 'remove') => {
@@ -604,8 +669,6 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     financeiro: 'bg-indigo-600',
   };
 
-  // Anexos com link utilizável (fora os do Drive antigo, que não têm URL direta).
-  const anexosDisponiveis = anexosDaReq(localData);
   const anexosNoDrive = anexosNoDriveDe(localData);
 
   const renderAnexo = (label: string, field: string, icon: React.ReactNode) => {
@@ -675,12 +738,38 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 onDescartar={() => { rascunhoCotacao.limpar(); if (cotacaoSalvaRef.current) setCotacaoData(JSON.parse(cotacaoSalvaRef.current)); }} />
               {[...Array(fornecedoresVisiveis)].map((_, i) => {
                 const idx = i + 1;
+                const ehIndicada = Number(cotacaoData.indicada) === idx;
+                const ehComprada = Number(cotacaoData.comprada) === idx;
+                const linkOk = linkSeguro(cotacaoData[`link${idx}`]);
+                const borda = ehComprada ? 'border-emerald-500 ring-1 ring-emerald-500/30' : ehIndicada ? 'border-amber-400 ring-1 ring-amber-400/30' : 'border-zinc-200';
+                const quemMarcou = (t: 'indicada' | 'comprada') => cotacaoData[`${t}_por`]
+                  ? `${cotacaoData[`${t}_por`]}${cotacaoData[`${t}_em`] ? ' · ' + new Date(cotacaoData[`${t}_em`]).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}`
+                  : '';
                 return (
-                  <div key={idx} className="bg-zinc-50 border border-zinc-200 rounded-xl p-3 md:p-5">
-                    <div className="flex items-center gap-2 mb-4">
+                  <div key={idx} className={`bg-zinc-50 border rounded-xl p-3 md:p-5 ${borda}`}>
+                    <div className="flex flex-wrap items-center gap-2 mb-4">
                       <div className="w-6 h-6 rounded-full bg-orange-600 text-white flex items-center justify-center text-[10px] font-bold">{idx}</div>
                       <span className="text-xs font-semibold text-black">Fornecedor {idx}</span>
-                      <button onClick={() => removerCotacao(idx)} className="ml-auto p-1.5 rounded-lg bg-zinc-50 text-black hover:bg-orange-500/20 hover:text-orange-400 transition-all"><X size={12}/></button>
+                      <div className="ml-auto flex items-center gap-2">
+                        <button type="button" onClick={() => marcarCotacao('indicada', idx)}
+                          title={ehIndicada ? `Indicada por ${quemMarcou('indicada')} — clique para desmarcar` : 'Marcar como a cotação indicada (quem montou o mapa)'}
+                          className={`min-h-[40px] px-3 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all ${ehIndicada ? 'bg-amber-400 border-amber-400 text-black' : 'bg-white border-zinc-200 text-black hover:border-amber-400'}`}>
+                          <Star size={13} fill={ehIndicada ? 'currentColor' : 'none'} /> Indicada
+                        </button>
+                        <button type="button" onClick={() => marcarCotacao('comprada', idx)}
+                          title={ehComprada ? `Comprada — marcada por ${quemMarcou('comprada')}; clique para desmarcar` : 'Marcar como a cotação comprada (quem lança a nota)'}
+                          className={`min-h-[40px] px-3 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition-all ${ehComprada ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-zinc-200 text-black hover:border-emerald-500'}`}>
+                          <ShoppingCart size={13} /> Comprada
+                        </button>
+                        <button onClick={() => removerCotacao(idx)} title="Remover este fornecedor" className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-black hover:bg-orange-500/20 hover:text-orange-400 transition-all"><X size={12}/></button>
+                      </div>
+                      {(ehIndicada || ehComprada) && (
+                        <div className="w-full text-[11px] text-black">
+                          {ehIndicada && <span>⭐ Indicada por {quemMarcou('indicada')}</span>}
+                          {ehIndicada && ehComprada && <span> · </span>}
+                          {ehComprada && <span>🛒 Comprada — marcada por {quemMarcou('comprada')}</span>}
+                        </div>
+                      )}
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
@@ -694,6 +783,19 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                       <div>
                         <label className={labelBase}><DollarSign size={11}/> Valor</label>
                         <input value={cotacaoData[`valor${idx}`] || ''} onChange={e => setCotacaoData({...cotacaoData, [`valor${idx}`]: e.target.value})} className={inputBase} placeholder="0,00" />
+                      </div>
+                    </div>
+                    <div className="mt-4">
+                      <label className={labelBase}><Link2 size={11}/> Link</label>
+                      <div className="flex items-center gap-2">
+                        <input value={cotacaoData[`link${idx}`] || ''} onChange={e => setCotacaoData({...cotacaoData, [`link${idx}`]: e.target.value.trim()})}
+                          className={inputBase} placeholder="https://… (site do produto, orçamento online)" inputMode="url" />
+                        {linkOk && (
+                          <a href={linkOk} target="_blank" rel="noopener noreferrer" title="Abrir o link"
+                            className="w-11 h-11 flex items-center justify-center rounded-xl bg-orange-600 text-white hover:bg-orange-500 transition-all shrink-0">
+                            <ExternalLink size={15} />
+                          </a>
+                        )}
                       </div>
                     </div>
                     {/* Observação (sai no PDF) + anexo da cotação (só na tela) */}
@@ -852,13 +954,17 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               {/* ── GRUPOS (coletivos) — dropdown pra não poluir ── */}
               {/* Fechado mostra só o resumo (quantos grupos). Abre ao clicar. */}
               <div className="bg-zinc-50 border border-zinc-200 rounded-xl">
-                <button type="button" onClick={() => setGruposAberto(o => !o)}
+                <button type="button" onClick={() => { setGruposAberto(o => !o); if (!gruposAberto && gruposDaReq.length === 1) setGrupoVendo(gruposDaReq[0].id); }}
                   className="w-full flex items-center gap-2 px-4 py-3 text-left">
                   <FolderOpen size={14} className="text-orange-600 shrink-0" />
                   <span className="text-[13px] font-bold text-black">Grupos</span>
                   <span className="text-[12px] text-black">
                     {gruposDaReq.length === 0 ? 'nenhum grupo' : gruposDaReq.length === 1 ? gruposDaReq[0].nome : `${gruposDaReq.length} grupos`}
                   </span>
+                  {gruposDaReq.length > 0 && (() => {
+                    const outras = new Set(gruposDaReq.flatMap((g: any) => (g.membros || []).map(Number)).filter((n: number) => n !== Number(req.id))).size;
+                    return outras > 0 ? <span className="text-[12px] font-semibold text-orange-700">· {outras} {outras === 1 ? 'outra requisição' : 'outras requisições'}</span> : null;
+                  })()}
                   <ChevronDown size={16} className={`ml-auto text-black transition-transform ${gruposAberto ? 'rotate-180' : ''}`} />
                 </button>
                 {gruposAberto && (
@@ -876,6 +982,21 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                         ))}
                       </div>
                     )}
+                    {gruposDaReq.map((g: any) => {
+                      const outras = (g.membros || []).map(Number).filter((n: number) => n !== Number(req.id)).length;
+                      const vendo = grupoVendo === g.id;
+                      return (
+                        <div key={`ver-${g.id}`} className="mb-2">
+                          <button type="button" onClick={() => setGrupoVendo(vendo ? null : g.id)}
+                            className="w-full flex items-center gap-2 min-h-[40px] px-3 rounded-lg border border-orange-200 bg-white text-[13px] text-black hover:bg-orange-50">
+                            <Layers size={13} className="text-orange-600" />
+                            <span className="flex-1 text-left">Ver requisições do grupo <b>{g.nome}</b> ({outras})</span>
+                            <ChevronDown size={14} className={`transition-transform ${vendo ? 'rotate-180' : ''}`} />
+                          </button>
+                          {vendo && <div className="mt-2"><ReqsDoGrupo membros={g.membros || []} reqAtual={Number(req.id)} /></div>}
+                        </div>
+                      );
+                    })}
                     {podeEditar && gruposDisponiveis.length > 0 ? (
                       <div className="flex items-center gap-2">
                         <select value={grupoParaAdd} onChange={e => setGrupoParaAdd(e.target.value)} className="text-[13px] bg-white border border-zinc-200 rounded-lg px-2 py-1.5 outline-none focus:border-orange-400 flex-1 max-w-[240px]">
@@ -1355,6 +1476,30 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                   </div>
                 </div>
 
+                {/* Aprovação da compra (12/11/2026) */}
+                <div className={`flex flex-wrap items-center gap-2 rounded-xl border p-3 mb-3 ${localData.compra_aprovada_por ? 'bg-emerald-50 border-emerald-200' : 'bg-zinc-50 border-zinc-200'}`}>
+                  <ShieldCheck size={16} className={localData.compra_aprovada_por ? 'text-emerald-600' : 'text-black'} />
+                  {localData.compra_aprovada_por ? (
+                    <span className="text-sm text-emerald-800 flex-1 min-w-0">
+                      Compra aprovada por <b>{localData.compra_aprovada_por}</b>
+                      {localData.compra_aprovada_em && <> em {new Date(localData.compra_aprovada_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</>}
+                    </span>
+                  ) : (
+                    <span className="text-sm text-black flex-1 min-w-0">Compra ainda não aprovada</span>
+                  )}
+                  {podeAprovarCompra && (localData.compra_aprovada_por ? (
+                    <button type="button" disabled={aprovando} onClick={() => aprovarCompra('retirar')}
+                      className="min-h-[40px] px-3 rounded-lg border border-zinc-300 bg-white text-sm text-black hover:bg-zinc-100 disabled:opacity-60">
+                      Retirar aprovação
+                    </button>
+                  ) : (
+                    <button type="button" disabled={aprovando} onClick={() => aprovarCompra('aprovar')}
+                      className="min-h-[40px] px-4 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-500 disabled:opacity-60 flex items-center gap-1.5">
+                      <Check size={14} /> {aprovando ? 'Gravando…' : 'Aprovar compra'}
+                    </button>
+                  ))}
+                </div>
+
                 {/* Cotação */}
                 <div className="flex items-center gap-3 mb-2">
                   <button
@@ -1372,13 +1517,32 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                         const val = e.target.checked;
                         const novo = { ...cotacaoData, id: req.id, incluir_pdf: val };
                         setCotacaoData(novo);
-                        await supabase.from('req_cotacao').upsert(novo);
+                        await gravarCotacao(novo);
                       }}
                       className="w-3.5 h-3.5 accent-orange-600 cursor-pointer"
                     />
                     <span className="text-xs text-black">No PDF</span>
                   </label>
                 </div>
+                {(() => {
+                  const fornDe = (n: unknown) => { const k = Number(n); return k ? (cotacaoData[`fornecedor${k}`] || `Cotação ${k}`) : ''; };
+                  const ind = fornDe(cotacaoData.indicada);
+                  const comp = fornDe(cotacaoData.comprada);
+                  const falta = precisaMarcarComprada(cotacaoData, localData);
+                  if (!ind && !comp && !falta) return null;
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 mb-2 text-[13px] text-black">
+                      {ind && <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-50 border border-amber-300"><Star size={12} fill="currentColor" className="text-amber-500" /> Indicada: <b>{ind}</b></span>}
+                      {comp && <span className="flex items-center gap-1 px-2 py-1 rounded-lg bg-emerald-50 border border-emerald-300"><ShoppingCart size={12} className="text-emerald-600" /> Comprada: <b>{comp}</b></span>}
+                      {falta && (
+                        <button type="button" onClick={() => setEscolherComprada(true)}
+                          className="min-h-[36px] px-3 rounded-lg bg-amber-100 border border-amber-400 text-amber-900 font-semibold hover:bg-amber-200">
+                          Falta marcar a cotação comprada
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {req.enviado_financeiro_data && (
                   <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 mt-2">
@@ -1419,11 +1583,18 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
         </div>
       )}
       <HistoricoModal reqId={req.id} titulo={req.titulo} open={histAberto} onClose={() => setHistAberto(false)} />
+      {escolherComprada && (
+        <EscolherCotacaoComprada
+          cotacao={cotacaoData}
+          onEscolher={async (n) => { await marcarCotacao('comprada', n); setEscolherComprada(false); }}
+          onFechar={() => setEscolherComprada(false)}
+        />
+      )}
       {dlgImprimir && (
         <DialogoImprimirReq
           req={{ ...localData, id: req.id }}
           onFechar={() => setDlgImprimir(false)}
-          onImprimir={(folhas) => imprimir(folhas)}
+          onImprimir={(folhas, opcoes) => imprimir(folhas, opcoes?.comCotacao)}
         />
       )}
 
