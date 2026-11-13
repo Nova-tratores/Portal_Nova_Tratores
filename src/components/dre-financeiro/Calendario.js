@@ -40,6 +40,7 @@ import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
 import { useEmpresaFinanceiro } from '@/components/financeiro/empresaFinanceiro'
 import { ESTILO_DRE_ESCURO } from '@/lib/dre-financeiro/escuro'
+import { gerarPdfLista } from '@/lib/propostas/pdf-lista'
 import { fetchAuth } from '@/lib/auth/client'
 
 // ---------------------------------------------------------------------------
@@ -170,6 +171,7 @@ export default function Calendario({ variante = 'dre' }) {
   const [listaCarregando, setListaCarregando] = useState(false)
   const [erroLista, setErroLista] = useState('')
   const [lSort, setLSort] = useState({ col: 'data', dir: 'asc' })
+  const [pdfGerando, setPdfGerando] = useState(false)
 
   // --- Drawer ---------------------------------------------------------------
   const [drawerAberto, setDrawerAberto] = useState(false)
@@ -606,6 +608,83 @@ export default function Calendario({ variante = 'dre' }) {
     URL.revokeObjectURL(url)
   }
 
+  // =========================================================================
+  // Export PDF da visao Lista (13/11/2026): a tabela como esta na tela, na
+  // mesma ordem, com o periodo, o tipo, a data de referencia e os filtros.
+  // =========================================================================
+  async function exportarListaPDF() {
+    const arr = listaOrdenada()
+    if (!arr.length || pdfGerando) return
+    setPdfGerando(true)
+    try {
+      const p = periodoLista()
+      const campo = eixo === 'emissao' ? 'data_emissao' : eixo === 'inclusao' ? 'data_inclusao' : 'data_vencimento'
+      const rotData = eixo === 'emissao' ? 'Emissão' : eixo === 'inclusao' ? 'Criação' : 'Vencimento'
+      const dataT = (t) => fmtBRdata(String(t[campo] || '').slice(0, 10))
+      const ambos = tipo === 'ambos'
+      const colunas = ['Empresa'].concat(ambos ? ['Tipo'] : [], ['Terceiro', 'Documento', rotData, 'Status', 'Valor'])
+      const linhas = arr.map((t) => {
+        const sub = [t.grupo_categoria, t.descricao_categoria].filter(Boolean).join(' · ')
+        return [empresaLabel(t.conta_omie)].concat(
+          ambos ? [t.tipo === 'receber' ? 'Receber' : 'Pagar'] : [],
+          [(t.nome_contraparte || 'Sem nome') + (sub ? '\n' + sub : ''), docDe(t), dataT(t),
+            statusBadgeInfo(t.status_derivado)[0], fmtBRLfull(t.valor_documento)],
+        )
+      })
+      const colStatus = colunas.length - 2
+      const CORES_STATUS = {
+        LIQUIDADO: { fill: [209, 250, 229], text: [6, 95, 70] },
+        VENCIDO: { fill: [254, 226, 226], text: [153, 27, 27] },
+        A_VENCER_PROXIMO: { fill: [219, 234, 254], text: [30, 64, 175] },
+        A_VENCER: { fill: [254, 243, 199], text: [146, 64, 14] },
+        PARCIAL: { fill: [255, 237, 213], text: [154, 52, 18] },
+      }
+      const nomeOpcao = (lista, cod) => (lista.find((o) => String(o.codigo) === String(cod)) || {}).nome || cod
+      const rotStatus = { A_VENCER: 'A vencer', A_VENCER_PROXIMO: 'Próximos 7 dias', VENCIDO: 'Vencido', LIQUIDADO: 'Liquidado', PARCIAL: 'Pagamento parcial' }
+      const filtrosResumo = [
+        'Empresa: ' + (conta === 'todas' ? 'Nova e Castro' : empresaLabel(conta)),
+        'Tipo: ' + (tipo === 'pagar' ? 'A pagar' : tipo === 'receber' ? 'A receber' : 'A pagar e a receber'),
+        'Período: ' + p.label + ' (por ' + rotData.toLowerCase() + ')',
+      ]
+      if (filtros.status) filtrosResumo.push('Status: ' + (rotStatus[filtros.status] || filtros.status))
+      if (filtros.fornecedor) filtrosResumo.push((tipo === 'receber' ? 'Cliente: ' : 'Terceiro: ') + nomeOpcao(opcoes.fornecedores, filtros.fornecedor))
+      if (filtros.grupo) filtrosResumo.push('Grupo: ' + nomeOpcao(opcoes.grupos, filtros.grupo))
+      if (filtros.categoria) filtrosResumo.push('Categoria: ' + nomeOpcao(opcoes.categorias, filtros.categoria))
+      if (filtros.departamento) filtrosResumo.push('Departamento: ' + nomeOpcao(opcoes.departamentos, filtros.departamento))
+
+      let total = 0, pago = 0, pagar = 0, receber = 0
+      for (const t of arr) {
+        const v = Number(t.valor_documento) || 0
+        total += v
+        pago += Number(t.valor_pago) || 0
+        if (t.tipo === 'receber') receber += v; else pagar += v
+      }
+      const rodape = []
+      if (ambos) rodape.push({ texto: 'A receber: ' + fmtBRLfull(receber) }, { texto: 'A pagar: ' + fmtBRLfull(pagar) })
+      rodape.push({ texto: 'Já pago: ' + fmtBRLfull(pago) }, { texto: 'Em aberto: ' + fmtBRLfull(total - pago) })
+      rodape.push({ texto: 'Total: ' + fmtBRLfull(total), destaque: true })
+
+      const ult = colunas.length - 1
+      await gerarPdfLista({
+        titulo: 'Calendário · ' + (tipo === 'pagar' ? 'Contas a pagar' : tipo === 'receber' ? 'Contas a receber' : 'A pagar e a receber') + ' · ' + p.label,
+        empresa: conta === 'castro' ? 'CASTRO PECAS E MAQUINAS AGRICOLAS LTDA' : conta === 'todas' ? 'NOVA TRATORES · CASTRO PECAS' : 'NOVA TRATORES MAQUINAS AGRICOLAS LTDA.',
+        colunas,
+        linhas,
+        filtrosResumo,
+        rodape,
+        cor: [5, 150, 105],
+        colStatus,
+        estiloLinha: (i) => CORES_STATUS[arr[i].status_derivado] || null,
+        columnStyles: { [ult]: { halign: 'right', fontStyle: 'bold', cellWidth: 32 }, [colStatus]: { cellWidth: 26 }, [colStatus - 1]: { cellWidth: 24 }, [colStatus - 2]: { cellWidth: 58 } },
+        arquivo: 'calendario_' + tipo + '_' + p.de + '_a_' + p.ate + '.pdf',
+      })
+    } catch (e) {
+      alert('Não foi possível gerar o PDF: ' + (e && e.message ? e.message : e))
+    } finally {
+      setPdfGerando(false)
+    }
+  }
+
   // --- Estado de gate de permissao (BRIEF item 1) ---------------------------
   if (!caixa && !loading && !loadingPerm && userProfile && (!temAcesso('financeiro') && !pode('dre', 'calendario'))) return <SemPermissao />
 
@@ -882,11 +961,20 @@ export default function Calendario({ variante = 'dre' }) {
             <span className="text-sm text-slate-600">
               <b>{listaArr.length}</b> titulo{listaArr.length !== 1 ? 's' : ''} {'·'} Total: <b className="text-slate-800">{fmtBRLfull(totalLista)}</b>
             </span>
-            <button
-              type="button"
-              onClick={exportarListaCSV}
-              className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition"
-            >{'↓'} Exportar CSV</button>
+            <div className="ml-auto flex gap-2 max-md:w-full">
+              <button
+                type="button"
+                onClick={exportarListaPDF}
+                disabled={pdfGerando || listaCarregando || listaArr.length === 0}
+                title="Baixa a lista como está na tela (mesma ordem e filtros) em PDF"
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 min-h-10 max-md:flex-1 rounded-md text-sm font-semibold bg-slate-800 text-white hover:bg-slate-900 disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >{'↓'} {pdfGerando ? 'Gerando PDF…' : 'Exportar PDF'}</button>
+              <button
+                type="button"
+                onClick={exportarListaCSV}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 min-h-10 max-md:flex-1 rounded-md text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition"
+              >{'↓'} Exportar CSV</button>
+            </div>
           </div>
           <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
             {listaCarregando ? (

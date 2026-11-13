@@ -15,8 +15,9 @@
  * @param {(i:number)=>({fill:number[], text:number[], linha?:number[]}|null)} [p.estiloLinha] Cor da etapa por linha (índice em `linhas`)
  * @param {number}   [p.colStatus]     Índice da coluna que recebe a cor forte (a célula de Status)
  * @param {number[]} [p.cor]           RGB da faixa do topo e do total em destaque (default vermelho)
+ * @param {string}   [p.empresa]       Nome no topo da faixa (default Nova Tratores; o Calendário passa a Castro)
  */
-export async function gerarPdfLista({ titulo, colunas, linhas, filtrosResumo = [], rodape = [], arquivo, columnStyles = {}, legenda = [], estiloLinha = null, colStatus = -1, cor = [220, 38, 38] }) {
+export async function gerarPdfLista({ titulo, colunas, linhas, filtrosResumo = [], rodape = [], arquivo, columnStyles = {}, legenda = [], estiloLinha = null, colStatus = -1, cor = [220, 38, 38], empresa = 'NOVA TRATORES MAQUINAS AGRICOLAS LTDA.' }) {
   const { default: JsPDF } = await import('jspdf')
   const { default: autoTable } = await import('jspdf-autotable')
 
@@ -30,7 +31,7 @@ export async function gerarPdfLista({ titulo, colunas, linhas, filtrosResumo = [
   doc.setTextColor(255, 255, 255)
   doc.setFontSize(13)
   doc.setFont('helvetica', 'bold')
-  doc.text('NOVA TRATORES MAQUINAS AGRICOLAS LTDA.', 14, 12)
+  doc.text(empresa, 14, 12)
   doc.setFontSize(8)
   doc.text(titulo, pageWidth - 14, 12, { align: 'right' })
 
