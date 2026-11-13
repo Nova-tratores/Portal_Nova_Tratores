@@ -54,6 +54,8 @@ export interface ReembolsoOS {
   valorDrvg: number;
   garantias: { id: string; numero: string; sg: string }[];
   criadoPor: string; criadoEm: string;
+  /** desconto por linha para bater com a DRVG (a fábrica errou pra mais) */
+  ajuste?: { hora: number; km: number; pecas: number } | null;
 }
 
 /** serviço "Peças" da Omie (Nova) — o mesmo das NFS-e de reembolso já emitidas (OS 5357–5359) */

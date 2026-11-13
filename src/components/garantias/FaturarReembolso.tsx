@@ -1,9 +1,9 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { fetchAuth } from '@/lib/auth/client';
-import { AlertTriangle, CheckCircle2, ExternalLink, FileSpreadsheet, Loader2, Receipt, Upload, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, ExternalLink, FileSpreadsheet, Loader2, Receipt, Scale, Undo2, Upload, XCircle } from 'lucide-react';
 import { fmtMoeda } from '@/lib/garantias/format';
-import { montarOsReembolso } from '@/lib/garantias/drvg';
+import { montarOsReembolso, sugerirAjuste } from '@/lib/garantias/drvg';
 import type { PreviaDrvg, LinhaPrevia, ResultadoSg, AcaoSg } from '@/lib/garantias/drvg-server';
 
 // Faturar o reembolso da montadora pela DRVG: anexa a planilha, confere SG a SG,
@@ -29,6 +29,7 @@ export default function FaturarReembolso({ onAbrirGarantia }: { onAbrirGarantia:
   const [arquivo, setArquivo] = useState<File | null>(null);
   const [previa, setPrevia] = useState<PreviaDrvg | null>(null);
   const [pedido, setPedido] = useState('');
+  const [ajustar, setAjustar] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [aplicando, setAplicando] = useState(false);
   const [erro, setErro] = useState('');
@@ -44,7 +45,7 @@ export default function FaturarReembolso({ onAbrirGarantia }: { onAbrirGarantia:
   }, []);
 
   const ler = async (f: File, mont = montadoraId) => {
-    setArquivo(f); setPrevia(null); setFeito(null); setErro('');
+    setArquivo(f); setPrevia(null); setFeito(null); setErro(''); setAjustar(false);
     if (!mont) { setErro('Escolha a montadora.'); return; }
     setCarregando(true);
     try {
@@ -61,13 +62,20 @@ export default function FaturarReembolso({ onAbrirGarantia }: { onAbrirGarantia:
   const linhas = previa?.linhas || [];
   const aFinalizar = linhas.filter((l) => l.acao === 'aprovar' || l.acao === 'recusar');
   const naOs = linhas.filter((l) => l.naOs);
-  const diferenca = previa ? Math.round((previa.os.total - previa.drvg.totais.total) * 100) / 100 : 0;
+  // a fábrica errou pra mais: dá para descontar o excesso nas linhas da OS
+  const sugestao = previa && !feito ? sugerirAjuste(previa.os, previa.drvg.totais) : null;
+  const ajusteAtivo = ajustar && sugestao ? sugestao : null;
+  const os = previa ? montarOsReembolso(naOs.map((l) => ({ ...l, negativa: false })), {
+    drvg: previa.drvg.numero, pedidoCompra: pedido.trim(), taxaHora: previa.montadora.taxaHora, taxaKm: previa.montadora.taxaKm, ajuste: ajusteAtivo,
+  }) : null;
+  const diferenca = previa && os ? Math.round((os.total - previa.drvg.totais.total) * 100) / 100 : 0;
+  const menosDesc = (d: number) => (d > 0 ? ` − ${fmtMoeda(d)} (ajuste)` : '');
 
   const aplicar = async () => {
     if (!previa || !arquivo) return;
     const partes = [
       aFinalizar.length ? `• ${aFinalizar.filter((l) => l.acao === 'aprovar').length} garantia(s) aprovada(s) e ${aFinalizar.filter((l) => l.acao === 'recusar').length} recusada(s) pela DRVG ${previa.drvg.numero}` : '',
-      naOs.length ? `• criar a OS de reembolso no POS: ${fmtMoeda(previa.os.total)} contra a ${previa.montadora.nome}` : '',
+      naOs.length ? `• criar a OS de reembolso no POS: ${fmtMoeda(os!.total)} contra a ${previa.montadora.nome}${ajusteAtivo ? ' (ajustada para bater com a DRVG)' : ''}` : '',
       Math.abs(diferenca) > 0.05 ? `\n⚠ A OS fica ${fmtMoeda(Math.abs(diferenca))} ${diferenca > 0 ? 'acima' : 'abaixo'} do total da DRVG (${fmtMoeda(previa.drvg.totais.total)}).` : '',
     ].filter(Boolean);
     if (!confirm(`Confirma?\n\n${partes.join('\n')}\n\nNada vai para a Omie agora: depois é só abrir a OS no POS, "Enviar Omie" e "Faturar".`)) return;
@@ -76,6 +84,7 @@ export default function FaturarReembolso({ onAbrirGarantia }: { onAbrirGarantia:
       const fd = new FormData();
       fd.append('file', arquivo); fd.append('montadora', montadoraId); fd.append('acao', 'aplicar');
       fd.append('pedidoCompra', pedido); fd.append('criarOs', naOs.length ? 'sim' : 'nao');
+      if (ajusteAtivo) fd.append('ajuste', JSON.stringify(ajusteAtivo));
       const r = await fetchAuth('/api/garantias/reembolso/drvg', { method: 'POST', body: fd });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setErro(j.error || 'Não consegui aplicar a DRVG.'); return; }
@@ -138,15 +147,31 @@ export default function FaturarReembolso({ onAbrirGarantia }: { onAbrirGarantia:
               <Info rotulo="DRVG" valor={previa.drvg.numero || '—'} />
               <Info rotulo="Taxa" valor={`${fmtMoeda(previa.montadora.taxaHora)}/h · ${fmtMoeda(previa.montadora.taxaKm)}/km`} />
               <Info rotulo="A fábrica manda faturar" valor={fmtMoeda(previa.drvg.totais.total)} />
-              <Info rotulo="A OS fica em" valor={fmtMoeda(previa.os.total)} cor={Math.abs(diferenca) > 0.05 ? '#dc2626' : '#16a34a'} />
+              <Info rotulo="A OS fica em" valor={fmtMoeda(os!.total)} cor={Math.abs(diferenca) > 0.05 ? '#dc2626' : '#16a34a'} />
             </div>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12, fontWeight: 700, maxWidth: 320 }}>
               Pedido de compra da montadora (vai no texto da nota)
               <input value={pedido} onChange={(e) => setPedido(e.target.value)} placeholder="Ex.: 3400885894" style={{ ...inp, fontWeight: 400 }} />
             </label>
-            {previa.avisos.map((a) => (
+            {previa.avisos.filter((a) => !(ajusteAtivo && a.startsWith('A OS fica em'))).map((a) => (
               <div key={a} style={aviso}><AlertTriangle size={15} style={{ flexShrink: 0 }} /> {a}</div>
             ))}
+            {sugestao && naOs.length > 0 && (
+              <div style={{ ...aviso, borderColor: ajusteAtivo ? '#16a34a' : '#b45309', color: 'var(--portal-text)', flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
+                <div style={{ fontSize: 13 }}>
+                  {ajusteAtivo
+                    ? <>Ajustado: a OS sai com <b>{fmtMoeda(os!.total)}</b>, igual à DRVG. Descontos: {[
+                        sugestao.hora > 0 ? `mão de obra ${fmtMoeda(sugestao.hora)}` : '',
+                        sugestao.km > 0 ? `km ${fmtMoeda(sugestao.km)}` : '',
+                        sugestao.pecas > 0 ? `peças ${fmtMoeda(sugestao.pecas)}` : '',
+                      ].filter(Boolean).join(' · ')}.</>
+                    : <>As SGs somam <b>{fmtMoeda(previa.os.total)}</b>, mas a DRVG manda faturar <b>{fmtMoeda(previa.drvg.totais.total)}</b> ({fmtMoeda(previa.os.total - previa.drvg.totais.total)} a mais). Se a fábrica errou, ajuste a OS para o valor da DRVG.</>}
+                </div>
+                <button onClick={() => setAjustar(!ajusteAtivo)} style={{ ...botao(ajusteAtivo ? '#64748b' : '#b45309'), alignSelf: 'flex-start' }}>
+                  {ajusteAtivo ? <><Undo2 size={16} /> Desfazer o ajuste</> : <><Scale size={16} /> Ajustar para bater com a DRVG</>}
+                </button>
+              </div>
+            )}
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 330px), 1fr))', gap: 10 }}>
@@ -158,16 +183,16 @@ export default function FaturarReembolso({ onAbrirGarantia }: { onAbrirGarantia:
             {naOs.length === 0 ? <p style={ajuda}>Nenhuma SG aprovada e ainda sem nota para faturar.</p> : (
               <>
                 <div style={{ fontSize: 13, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '8px 10px', wordBreak: 'break-word' }}>
-                  {montarOsReembolso(naOs.map((l) => ({ ...l, negativa: false })), { drvg: previa.drvg.numero, pedidoCompra: pedido.trim(), taxaHora: previa.montadora.taxaHora, taxaKm: previa.montadora.taxaKm }).texto}
+                  {os!.texto}
                 </div>
                 <div style={{ overflowX: 'auto' }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 320 }}>
                     <tbody>
                       <Linha rotulo="Cliente" valor={previa.cliente ? `${previa.cliente.nome} · ${previa.cliente.doc}` : 'não achado'} />
-                      <Linha rotulo="Hora Trabalhada" valor={`${n2(previa.os.horas)} h × ${fmtMoeda(previa.montadora.taxaHora)} = ${fmtMoeda(previa.os.valorHoras)}`} />
-                      <Linha rotulo="Deslocamento por KM" valor={`${n2(previa.os.km)} km × ${fmtMoeda(previa.montadora.taxaKm)} = ${fmtMoeda(previa.os.valorKm)}`} />
-                      {previa.os.pecas > 0 && <Linha rotulo="Peças" valor={fmtMoeda(previa.os.pecas)} />}
-                      <Linha rotulo="Total" valor={fmtMoeda(previa.os.total)} forte />
+                      <Linha rotulo="Hora Trabalhada" valor={`${n2(os!.horas)} h × ${fmtMoeda(previa.montadora.taxaHora)} = ${fmtMoeda(os!.valorHoras)}${menosDesc(os!.ajuste.hora)}`} />
+                      <Linha rotulo="Deslocamento por KM" valor={`${n2(os!.km)} km × ${fmtMoeda(previa.montadora.taxaKm)} = ${fmtMoeda(os!.valorKm)}${menosDesc(os!.ajuste.km)}`} />
+                      {(os!.pecas > 0 || os!.ajuste.pecas > 0) && <Linha rotulo="Peças" valor={`${fmtMoeda(os!.pecas + os!.ajuste.pecas)}${menosDesc(os!.ajuste.pecas)}`} />}
+                      <Linha rotulo="Total" valor={fmtMoeda(os!.total)} forte />
                     </tbody>
                   </table>
                 </div>

@@ -16,11 +16,17 @@ export async function POST(req: NextRequest) {
   if (!montadora) return NextResponse.json({ error: 'Escolha a montadora.' }, { status: 400 });
   if (!/\.xlsx?$/i.test(file.name)) return NextResponse.json({ error: 'A DRVG precisa ser a planilha (.xlsx) que a fábrica mandou.' }, { status: 400 });
   const buffer = Buffer.from(await file.arrayBuffer());
+  let ajuste: { hora: number; km: number; pecas: number } | null = null;
+  try {
+    const a = JSON.parse(String(form.get('ajuste') || 'null'));
+    if (a && typeof a === 'object') ajuste = { hora: Number(a.hora) || 0, km: Number(a.km) || 0, pecas: Number(a.pecas) || 0 };
+  } catch { ajuste = null; }
   try {
     if (acao === 'aplicar') {
       const r = await aplicarDrvg(buffer, file.name, montadora, {
         criarOs: form.get('criarOs') !== 'nao',
         pedidoCompra: String(form.get('pedidoCompra') || ''),
+        ajuste,
       }, autorDe(guarda.user));
       return NextResponse.json(r);
     }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { lerDrvg, lerValor, montarOsReembolso } from '../drvg';
+import { lerDrvg, lerValor, montarOsReembolso, sugerirAjuste } from '../drvg';
 import d7717 from './fixtures/drvg-7717.json';
 import d7654 from './fixtures/drvg-7654.json';
 
@@ -45,5 +45,25 @@ describe('DRVG da Mahindra', () => {
     expect(os.total).toBe(5892.3);
     expect(os.sgs).toEqual(['2026-051', '2026-053', '2026-054', '2026-055', '2026-061']);
     expect(os.texto).toBe('VALOR: R$5.892,30| REFERENTE A DRVG 7654 DA SOLICITAÇÃO DE GARANTIA SG 2026-051, 53, 54, 55 e 61');
+  });
+
+  it('ajusta a OS para bater com a DRVG quando a fábrica errou pra mais', () => {
+    const itens = [{ sg: '2026-090', horas: 10, km: 100, pecas: 500, negativa: false }];
+    const ref = { drvg: '9999', taxaHora: 121, taxaKm: 2.1 };
+    const os = montarOsReembolso(itens, ref); // 1210 + 210 + 500 = 1920
+    expect(os.total).toBe(1920);
+    // cabeçalho explica a diferença por linha: tira 121 da mão de obra e 10 das peças
+    const porLinha = sugerirAjuste(os, { maoObra: 1089, km: 210, pecas: 490, frete: 0, total: 1789 })!;
+    expect(porLinha).toEqual({ hora: 121, km: 0, pecas: 10 });
+    const aj = montarOsReembolso(itens, { ...ref, ajuste: porLinha });
+    expect([aj.total, aj.pecas, aj.valorHoras]).toEqual([1789, 490, 1210]);
+    expect(aj.texto).toBe('VALOR: R$1.789,00| REFERENTE A DRVG 9999 DA SOLICITAÇÃO DE GARANTIA SG 2026-090');
+    // cabeçalho não explica: tira da mão de obra primeiro
+    expect(sugerirAjuste(os, { maoObra: 0, km: 0, pecas: 0, frete: 0, total: 1900 })).toEqual({ hora: 20, km: 0, pecas: 0 });
+    // OS abaixo ou igual à DRVG: nada a ajustar
+    expect(sugerirAjuste(os, { maoObra: 0, km: 0, pecas: 0, frete: 0, total: 1920 })).toBeNull();
+    expect(sugerirAjuste(os, { maoObra: 0, km: 0, pecas: 0, frete: 0, total: 2000 })).toBeNull();
+    // desconto nunca passa da própria linha
+    expect(montarOsReembolso(itens, { ...ref, ajuste: { hora: 5000, km: -3, pecas: 0 } }).ajuste).toEqual({ hora: 1210, km: 0, pecas: 0 });
   });
 });

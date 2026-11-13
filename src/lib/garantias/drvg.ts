@@ -154,28 +154,43 @@ export interface ItemReembolso {
   negativa?: boolean;
 }
 
+/** desconto (R$) por linha da OS para o total bater com a DRVG quando a fábrica errou pra mais */
+export interface AjusteReembolso { hora: number; km: number; pecas: number }
+
 export interface OsReembolso {
   /** linha "Solicitação de Serviço" da OS (vira o texto da NFS-e) */
   texto: string;
   horas: number;
   km: number;
+  /** peças JÁ com o ajuste (é o valor da linha Peças na Omie) */
   pecas: number;
+  /** horas × taxa e km × taxa, ANTES do desconto */
   valorHoras: number;
   valorKm: number;
+  /** desconto aplicado em cada linha (zeros sem ajuste) */
+  ajuste: AjusteReembolso;
+  /** total LÍQUIDO (com o ajuste) */
   total: number;
   sgs: string[];
 }
 
+const SEM_AJUSTE: AjusteReembolso = { hora: 0, km: 0, pecas: 0 };
+const limitar = (v: unknown, max: number) => Math.min(Math.max(0, r2(Number(v) || 0)), Math.max(0, r2(max)));
+
 /** Junta as SGs pagas numa OS só, no texto que o faturista usa:
  *  "PEDIDO DE COMPRA 3400885894| VALOR: R$4.499,13| REFERENTE A DRVG 7642 DA SOLICITAÇÃO DE GARANTIA SG 2026-046, 48 e 71" */
-export function montarOsReembolso(itens: ItemReembolso[], ref: { drvg?: string; pedidoCompra?: string; taxaHora: number; taxaKm: number }): OsReembolso {
+export function montarOsReembolso(itens: ItemReembolso[], ref: { drvg?: string; pedidoCompra?: string; taxaHora: number; taxaKm: number; ajuste?: Partial<AjusteReembolso> | null }): OsReembolso {
   const pagos = itens.filter((i) => i.negativa === false || i.horas > 0 || i.km > 0 || i.pecas > 0);
   const horas = Math.round(pagos.reduce((t, i) => t + i.horas, 0) * 10000) / 10000;
   const km = Math.round(pagos.reduce((t, i) => t + i.km, 0) * 100) / 100;
-  const pecas = r2(pagos.reduce((t, i) => t + i.pecas, 0));
+  const pecasBruto = r2(pagos.reduce((t, i) => t + i.pecas, 0));
   const valorHoras = r2(horas * ref.taxaHora);
   const valorKm = r2(km * ref.taxaKm);
-  const total = r2(valorHoras + valorKm + pecas);
+  // só desconto (nunca acréscimo) e nunca maior que a própria linha
+  const a = ref.ajuste || SEM_AJUSTE;
+  const ajuste: AjusteReembolso = { hora: limitar(a.hora, valorHoras), km: limitar(a.km, valorKm), pecas: limitar(a.pecas, pecasBruto) };
+  const pecas = r2(pecasBruto - ajuste.pecas);
+  const total = r2(valorHoras - ajuste.hora + valorKm - ajuste.km + pecas);
   const sgs = pagos.map((i) => i.sg);
   const valor = total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const texto = [
@@ -183,5 +198,31 @@ export function montarOsReembolso(itens: ItemReembolso[], ref: { drvg?: string; 
     `VALOR: R$${valor}`,
     `REFERENTE A ${ref.drvg ? `DRVG ${ref.drvg} DA ` : ''}SOLICITAÇÃO DE GARANTIA ${textoSGs(sgs)}`,
   ].filter(Boolean).join('| ');
-  return { texto, horas, km, pecas, valorHoras, valorKm, total, sgs };
+  return { texto, horas, km, pecas, valorHoras, valorKm, ajuste, total, sgs };
+}
+
+/** Quanto tirar de cada linha para a OS bater com o total da DRVG — só quando a OS
+ *  ficou ACIMA (a fábrica errou pra mais). Se o cabeçalho da DRVG traz mão de obra,
+ *  km e peças que explicam a diferença, tira de cada linha o que passou do cabeçalho;
+ *  senão tira da mão de obra, depois do km, depois das peças. null = nada a ajustar. */
+export function sugerirAjuste(os: OsReembolso, totais: Drvg['totais']): AjusteReembolso | null {
+  const alvo = r2(totais.total);
+  const bruto = r2(os.valorHoras + os.valorKm + os.pecas + os.ajuste.pecas);
+  const dif = r2(bruto - alvo);
+  if (alvo <= 0 || dif <= 0.005) return null;
+  const pecasBruto = r2(os.pecas + os.ajuste.pecas);
+  const dh = r2(os.valorHoras - totais.maoObra), dk = r2(os.valorKm - totais.km), dp = r2(pecasBruto - totais.pecas);
+  if (dh >= 0 && dk >= 0 && dp >= 0 && Math.abs(r2(dh + dk + dp) - dif) <= 0.01) {
+    const aj = { hora: dh, km: dk, pecas: dp };
+    // sobra de centavo (arredondamento) vai na mão de obra
+    const resto = r2(dif - (dh + dk + dp));
+    if (resto) aj.hora = limitar(aj.hora + resto, os.valorHoras);
+    return aj;
+  }
+  let falta = dif;
+  const hora = Math.min(falta, os.valorHoras); falta = r2(falta - hora);
+  const km = Math.min(falta, os.valorKm); falta = r2(falta - km);
+  const pecas = Math.min(falta, pecasBruto); falta = r2(falta - pecas);
+  if (falta > 0.005) return null; // nem zerando tudo chega no valor da DRVG
+  return { hora: r2(hora), km: r2(km), pecas: r2(pecas) };
 }

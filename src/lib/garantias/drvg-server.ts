@@ -12,7 +12,7 @@ import { normSG } from './notas';
 import { nfseReembolsoDasGarantias } from './notas-server';
 import { finalizarGarantia } from './finalizar';
 import { definirPagoFabrica } from './pago-fabrica-server';
-import { lerDrvg, montarOsReembolso, type Drvg, type SgDrvg } from './drvg';
+import { lerDrvg, montarOsReembolso, type Drvg, type SgDrvg, type AjusteReembolso } from './drvg';
 import { TBL_OS } from '@/lib/pos/constants';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
 import { espelhoPadrao, CODIGOS_INTERNOS, NCOD_SERV_PECAS_REEMBOLSO, type ReembolsoOS } from '@/lib/pos/omie-espelho';
@@ -165,7 +165,7 @@ async function anexarDrvg(buffer: Buffer, nome: string, garantias: { id: string 
   }
 }
 
-export async function aplicarDrvg(buffer: Buffer, nomeArquivo: string, montadoraId: string, opts: { criarOs: boolean; pedidoCompra?: string }, ator: string): Promise<{
+export async function aplicarDrvg(buffer: Buffer, nomeArquivo: string, montadoraId: string, opts: { criarOs: boolean; pedidoCompra?: string; ajuste?: AjusteReembolso | null }, ator: string): Promise<{
   resultados: ResultadoSg[]; os: string | null; osErro: string | null; previa: PreviaDrvg;
 }> {
   const previa = await previaDrvg(buffer, montadoraId);
@@ -208,16 +208,17 @@ export async function aplicarDrvg(buffer: Buffer, nomeArquivo: string, montadora
     else if (previa.osMesmaDrvg) osErro = `A DRVG ${drvg.numero} já tem a ${previa.osMesmaDrvg}.`;
     else {
       try {
-        os = await criarOsReembolso(previa, entra, (opts.pedidoCompra || drvg.pedidoCompra || '').trim(), ator);
+        os = await criarOsReembolso(previa, entra, (opts.pedidoCompra || drvg.pedidoCompra || '').trim(), opts.ajuste || null, ator);
       } catch (e) { osErro = e instanceof Error ? e.message : String(e); }
     }
   }
   return { resultados, os, osErro, previa };
 }
 
-async function criarOsReembolso(previa: PreviaDrvg, entra: LinhaPrevia[], pedidoCompra: string, ator: string): Promise<string> {
+async function criarOsReembolso(previa: PreviaDrvg, entra: LinhaPrevia[], pedidoCompra: string, ajuste: AjusteReembolso | null, ator: string): Promise<string> {
   const { montadora, drvg, cliente } = previa;
-  const conta = montarOsReembolso(entra.map((l) => ({ ...l, negativa: false })), { drvg: drvg.numero, pedidoCompra, taxaHora: montadora.taxaHora, taxaKm: montadora.taxaKm });
+  const conta = montarOsReembolso(entra.map((l) => ({ ...l, negativa: false })), { drvg: drvg.numero, pedidoCompra, taxaHora: montadora.taxaHora, taxaKm: montadora.taxaKm, ajuste });
+  const ajustou = conta.ajuste.hora + conta.ajuste.km + conta.ajuste.pecas > 0;
 
   const { data: resId } = await supabase.from(TBL_OS).select('Id_Ordem').order('Id_Ordem', { ascending: false }).limit(1);
   const ultimo = resId?.length ? parseInt(String(resId[0].Id_Ordem).split('-')[1], 10) || 0 : 0;
@@ -234,6 +235,7 @@ async function criarOsReembolso(previa: PreviaDrvg, entra: LinhaPrevia[], pedido
     montadoraId: montadora.id, montadora: montadora.nome, drvg: drvg.numero, pedidoCompra, valorDrvg: drvg.totais.total,
     garantias: entra.map((l) => ({ id: l.garantia!.id, numero: l.garantia!.numero, sg: l.sg })),
     criadoPor: ator, criadoEm: new Date().toISOString(),
+    ajuste: ajustou ? conta.ajuste : null,
   };
 
   const { error } = await supabase.from(TBL_OS).insert({
@@ -243,7 +245,7 @@ async function criarOsReembolso(previa: PreviaDrvg, entra: LinhaPrevia[], pedido
     Tipo_Servico: TIPO_OS_REEMBOLSO, Revisao: '', Projeto: '',
     Serv_Solicitado: conta.texto,
     Qtd_HR: conta.horas, Valor_HR: montadora.taxaHora, Qtd_KM: conta.km, Valor_KM: montadora.taxaKm,
-    Valor_Total: conta.total, ID_PPV: '', Desconto: 0, Desconto_Hora: 0, Desconto_KM: 0,
+    Valor_Total: conta.total, ID_PPV: '', Desconto: 0, Desconto_Hora: conta.ajuste.hora, Desconto_KM: conta.ajuste.km,
     Previsao_Faturamento: hoje,
     Omie_Espelho: { ...esp, reembolso },
   });
@@ -252,12 +254,12 @@ async function criarOsReembolso(previa: PreviaDrvg, entra: LinhaPrevia[], pedido
   for (const l of entra) {
     await registrarEvento(l.garantia!.id, {
       tipo: 'reembolso_os', ator,
-      detalhe: `Na OS de reembolso ${idOs} (DRVG ${drvg.numero || '—'}) para faturar contra a ${montadora.nome}.`,
+      detalhe: `Na OS de reembolso ${idOs} (DRVG ${drvg.numero || '—'}) para faturar contra a ${montadora.nome}.${ajustou ? ` Valores ajustados para bater com a DRVG (${dinheiro(conta.total)}).` : ''}`,
     });
   }
   await registrarAuditLog({
     userName: ator, sistema: 'garantias', acao: 'reembolso_os', entidade: 'Ordem_Servico', entidadeId: idOs,
-    entidadeLabel: `${idOs} · DRVG ${drvg.numero}`, detalhes: { drvg: drvg.numero, total: conta.total, sgs: conta.sgs },
+    entidadeLabel: `${idOs} · DRVG ${drvg.numero}`, detalhes: { drvg: drvg.numero, total: conta.total, sgs: conta.sgs, ajuste: ajustou ? conta.ajuste : null },
   });
   return idOs;
 }
