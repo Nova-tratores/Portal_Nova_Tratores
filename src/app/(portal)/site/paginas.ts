@@ -7,6 +7,7 @@ export const PAGINAS_SITE: PaginaSite[] = [
   { key: 'site:promocoes', label: 'Promoções', href: '/site/promocoes' },
   { key: 'site:acessos', label: 'Acessos', href: '/site/acessos' },
   { key: 'site:conteudo', label: 'Conteúdo e publicar', href: '/site/conteudo' },
+  { key: 'site:campanhas', label: 'Campanhas', href: '/site/campanhas' },
 ]
 
 // Guias da faixa vermelha (12/11/2026, José: "pedidos do site e catálogo ficam no mesmo lugar"; o módulo controla
@@ -17,6 +18,8 @@ export const ABAS_SITE: AbaSite[] = [
   { label: 'Promoções', telas: ['site:promocoes'] },
   { label: 'Acessos', telas: ['site:acessos'] },
   { label: 'Conteúdo e publicar', telas: ['site:conteudo'] },
+  // 13/11/2026, José: campanhas (Black Friday 2026…) separadas por nome e ano, com os cadastros e fotos
+  { label: 'Campanhas', telas: ['site:campanhas'] },
 ]
 
 export const slugDaPaginaSite = (p: PaginaSite) => p.key.slice('site:'.length)

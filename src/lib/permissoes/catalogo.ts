@@ -325,6 +325,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'promocoes:editar', label: 'Promoções do site — criar, mudar e apagar' },
     { id: 'conteudo:editar', label: 'Conteúdo do site — editar telefones, horário, textos e aviso' },
     { id: 'conteudo:publicar', label: 'Conteúdo do site — publicar o site' },
+    { id: 'campanhas:editar', label: 'Campanhas — dar baixa no prêmio, escolher a foto vencedora e mudar os prêmios da roleta' },
   ],
   'inteligencia-vendas': [
     ...PAGINAS_IV.map((p) => ({ id: p.key.replace('inteligencia-vendas:', ''), label: p.label })),
