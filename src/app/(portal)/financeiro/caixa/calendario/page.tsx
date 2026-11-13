@@ -1,8 +1,9 @@
 'use client'
-// Calendário do Caixa: mesmas rotas do Calendário do DRE, interface NewPortal (no lugar da antiga Agenda).
+// Calendário do Caixa (13/11/2026): a mesma tela do Calendário do DRE (Mês / Ano / Lista), com a empresa do topo
+// do Financeiro. Substituiu o visual "um dia por vez" (CalendarioCaixa, no git).
 import CaixaTela from '@/components/financeiro/caixa/CaixaTela'
-import CalendarioCaixa from '@/components/financeiro/caixa/CalendarioCaixa'
+import Calendario from '@/components/dre-financeiro/Calendario'
 
 export default function CaixaCalendarioPage() {
-  return <CaixaTela aba="calendario"><CalendarioCaixa /></CaixaTela>
+  return <CaixaTela aba="calendario"><Calendario variante="caixa" /></CaixaTela>
 }
