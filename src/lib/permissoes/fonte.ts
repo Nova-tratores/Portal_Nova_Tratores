@@ -150,3 +150,49 @@ export function diferenca(antes: Set<string>, depois: Set<string>): { ganha: str
     perde: [...antes].filter((t) => !depois.has(t)).sort(),
   };
 }
+
+// ---------------------------------------------------------------------------
+// Departamentos e pacotes (edição no Admin, 13/11/2026)
+// ---------------------------------------------------------------------------
+
+export interface ConjuntoNovo { id: string; nome: string; telas: Override[]; ativo: boolean }
+
+/** Telas de um conjunto a partir das caixinhas (mesma leitura das chaves antigas). */
+export function telasDoConjunto(chaves: string[]): Override[] {
+  return [...new Set(chaves.map((k) => k.trim()).filter((k) => ID_OK.test(k)))].sort()
+    .map((tela) => ({ tela, nivel: nivelDaChaveAntiga(tela) }));
+}
+
+/**
+ * Prévia de mudar um departamento/pacote: quem ganha e quem perde o quê.
+ * `membros` = quem fica no conjunto depois; conjunto inativo não vale para ninguém.
+ */
+export function simularConjunto(
+  cat: TelaCat[], entradas: Map<string, EntradaPessoa>, novo: ConjuntoNovo, membros: Set<string>,
+): { user: string; ganha: string[]; perde: string[] }[] {
+  const usuarios = new Set([...entradas.keys(), ...membros]);
+  const out: { user: string; ganha: string[]; perde: string[] }[] = [];
+  for (const u of usuarios) {
+    const e = entradas.get(u) ?? { conjuntos: [], extras: [], bloqueios: [] };
+    const outros = e.conjuntos.filter((c) => c.id !== novo.id);
+    const depois: EntradaPessoa = {
+      ...e,
+      conjuntos: novo.ativo && membros.has(u) ? [...outros, { id: novo.id, nome: novo.nome, telas: novo.telas }] : outros,
+    };
+    const d = diferenca(telasDaPessoa(cat, e), telasDaPessoa(cat, depois));
+    if (d.ganha.length || d.perde.length) out.push({ user: u, ...d });
+  }
+  return out;
+}
+
+/** Extras que os departamentos/pacotes da pessoa já cobrem (tirar não muda nada). */
+export function extrasRepetidos(cat: TelaCat[], e: EntradaPessoa): string[] {
+  const alvo = telasDaPessoa(cat, e);
+  let atuais = [...e.extras];
+  const tirar: string[] = [];
+  for (const x of e.extras) {
+    const sem = atuais.filter((o) => o !== x);
+    if (mesmoConjunto(telasDaPessoa(cat, { ...e, extras: sem }), alvo)) { atuais = sem; tirar.push(x.tela); }
+  }
+  return tirar;
+}

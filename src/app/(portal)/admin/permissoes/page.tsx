@@ -1,16 +1,18 @@
 'use client'
-// Permissões v2 — consulta (Fase 4, 1ª parte). Explica por que cada pessoa tem ou não
-// cada tela. Não edita nada: quem concede acesso ainda é a tela Administração.
+// Permissões v2 (Fase 4). Por usuário: por que cada pessoa tem ou não cada tela.
+// Departamentos e pacotes: criar/editar com prévia de quem ganha e quem perde
+// (components/admin/DepartamentosPacotes). Exceções por pessoa ficam na Administração.
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { authHeaders } from '@/lib/auth/client'
+import DepartamentosPacotes from '@/components/admin/DepartamentosPacotes'
 import { agruparPorCategoria, explicarOrigem, profundidade, type TelaMatriz } from '@/lib/permissoes/explicar'
 
-interface Usuario { id: string; nome: string; ativo: boolean; categoria: string; admin: boolean; dev: boolean; conjuntos: string[]; extras: number; bloqueios: number }
-interface Conjunto { id: string; nome: string; tipo: string; descricao: string | null; ativo: boolean; telas: { tela: string; nivel: string }[]; membros: number }
+interface Usuario { id: string; nome: string; ativo: boolean; avatar?: string | null; funcao?: string | null; categoria: string; admin: boolean; dev: boolean; conjuntos: string[]; extras: number; bloqueios: number }
+interface Conjunto { id: string; nome: string; tipo: string; descricao: string | null; ativo: boolean; telas: { tela: string; nivel: string }[]; membros: number; membrosIds?: string[] }
 interface Override { tela_id: string; nivel: string; tipo: string; expira_em: string | null; motivo: string }
 type Aba = 'usuario' | 'conjuntos' | 'revisao'
 
@@ -26,8 +28,8 @@ async function ler<T>(url: string): Promise<T> {
 
 export default function PermissoesV2Page() {
   const { userProfile } = useAuth()
-  const { isAdmin, loading } = usePermissoes(userProfile?.id)
-  const [aba, setAba] = useState<Aba>('usuario')
+  const { isAdmin, isDev, loading } = usePermissoes(userProfile?.id)
+  const [aba, setAba] = useState<Aba>('conjuntos')
   const [dados, setDados] = useState<{ usuarios: Usuario[]; conjuntos: Conjunto[] } | null>(null)
   const [erro, setErro] = useState('')
   const [userId, setUserId] = useState('')
@@ -36,10 +38,10 @@ export default function PermissoesV2Page() {
   const [soComAcesso, setSoComAcesso] = useState(true)
   const [minimoExtras, setMinimoExtras] = useState(10)
 
-  useEffect(() => {
-    if (!isAdmin) return
+  const carregar = useCallback(() => {
     ler<{ usuarios: Usuario[]; conjuntos: Conjunto[] }>('/api/admin/permissoes-v2').then(setDados).catch((e) => setErro(e.message))
-  }, [isAdmin])
+  }, [])
+  useEffect(() => { if (isAdmin) carregar() }, [isAdmin, carregar])
 
   const abrirUsuario = useCallback((id: string) => {
     setUserId(id); setMatriz(null); setAba('usuario')
@@ -59,17 +61,17 @@ export default function PermissoesV2Page() {
   const revisao = (dados?.usuarios ?? []).filter((u) => u.extras >= minimoExtras).sort((a, b) => b.extras - a.extras)
 
   return (
-    <div style={{ padding: 24, maxWidth: 1100, margin: '0 auto', color: 'var(--portal-text)', fontFamily: 'Inter' }}>
+    <div style={{ padding: 'clamp(12px, 2vw, 24px)', color: 'var(--portal-text)', fontFamily: 'Inter' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Permissões: por que cada pessoa tem cada tela</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0 }}>Permissões</h1>
         <Link href="/admin" style={{ fontSize: 13 }}>← Administração</Link>
       </div>
       <p style={{ fontSize: 13, color: 'var(--portal-text-muted)', margin: '6px 0 16px' }}>
-        Só consulta. Para dar ou tirar acesso, continue usando a Administração: a mudança aparece aqui em seguida.
+        Departamentos e pacotes se editam aqui. Exceções de uma pessoa (uma tela a mais ou a menos) ficam na janela dela, na Administração.
       </p>
 
       <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap' }}>
-        {([['usuario', 'Por usuário'], ['conjuntos', 'Conjuntos'], ['revisao', 'Revisão de extras']] as [Aba, string][]).map(([id, txt]) => (
+        {([['conjuntos', 'Departamentos e pacotes'], ['usuario', 'Por usuário'], ['revisao', 'Revisão de exceções']] as [Aba, string][]).map(([id, txt]) => (
           <button key={id} onClick={() => setAba(id)} style={{ ...CAMPO, cursor: 'pointer', fontWeight: 600, background: aba === id ? 'var(--portal-text)' : 'var(--portal-bg)', color: aba === id ? 'var(--portal-bg)' : 'var(--portal-text)' }}>{txt}</button>
         ))}
       </div>
@@ -120,13 +122,9 @@ export default function PermissoesV2Page() {
         </>
       )}
 
-      {dados && aba === 'conjuntos' && dados.conjuntos.map((c) => (
-        <section key={c.id} style={{ ...CAIXA, marginBottom: 12, padding: 12 }}>
-          <h2 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>{c.nome} <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--portal-text-muted)' }}>{c.tipo} · {c.membros} pessoa(s) · {c.telas.length} tela(s)</span></h2>
-          {c.descricao && <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: '4px 0' }}>{c.descricao}</p>}
-          <p style={{ fontSize: 13, margin: '6px 0 0' }}>{c.telas.map((t) => `${t.tela} (${t.nivel})`).join(' · ') || 'Nenhuma tela.'}</p>
-        </section>
-      ))}
+      {dados && aba === 'conjuntos' && (
+        <DepartamentosPacotes usuarios={dados.usuarios} conjuntos={dados.conjuntos} souDev={isDev} aoMudar={carregar} />
+      )}
 
       {dados && aba === 'revisao' && (
         <>

@@ -32,7 +32,7 @@ export async function lerCatalogo(): Promise<TelaCat[]> {
 }
 
 /** Chave que só existe nos dados (ex.: 'patrimonio') nasce como tela "legado", senão o resolver a ignoraria. */
-async function garantirTelas(cat: TelaCat[], chaves: string[]): Promise<TelaCat[]> {
+export async function garantirTelas(cat: TelaCat[], chaves: string[]): Promise<TelaCat[]> {
   const ids = new Set(cat.map((t) => t.id));
   const faltam = chaves.filter((k) => ID_OK.test(k) && !ids.has(k));
   if (!faltam.length) return cat;

@@ -113,3 +113,28 @@ describe('chavesDaEntrada: lista a partir do que foi concedido', () => {
 it('diferenca lista quem ganha e quem perde', () => {
   expect(diferenca(new Set(['a', 'b']), new Set(['b', 'c']))).toEqual({ ganha: ['c'], perde: ['a'] });
 });
+
+import { extrasRepetidos, simularConjunto, telasDoConjunto } from '../fonte';
+
+describe('departamentos e pacotes', () => {
+  const ent = (conjuntos: ReturnType<typeof conj>[], extras: string[] = []): EntradaPessoa =>
+    ({ conjuntos, extras: extras.map((tela) => ({ tela, nivel: nivelDaChaveAntiga(tela) })), bloqueios: [] });
+
+  it('prévia: quem entra ganha, quem sai perde, quem tem por extra não muda', () => {
+    const entradas = new Map([['a', ent([conj('Peças', ['ppv'])])], ['b', ent([], ['orcamentos'])], ['c', ent([])]]);
+    const novo = { id: 'Peças', nome: 'Peças', telas: telasDoConjunto(['ppv', 'orcamentos']), ativo: true };
+    const r = simularConjunto(CAT, entradas, novo, new Set(['a', 'c']));
+    const de = (u: string) => r.find((x) => x.user === u);
+    expect(de('a')?.ganha).toContain('orcamentos');
+    expect(de('c')?.ganha).toEqual(expect.arrayContaining(['ppv', 'orcamentos']));
+    expect(de('b')).toBeUndefined();
+  });
+  it('arquivar tira de todos os membros', () => {
+    const entradas = new Map([['a', ent([conj('Peças', ['ppv'])])]]);
+    const r = simularConjunto(CAT, entradas, { id: 'Peças', nome: 'Peças', telas: telasDoConjunto(['ppv']), ativo: false }, new Set(['a']));
+    expect(r[0].perde).toContain('ppv');
+  });
+  it('extras repetidos: só os que o departamento cobre', () => {
+    expect(extrasRepetidos(CAT, ent([conj('Peças', ['ppv'])], ['ppv', 'pos', 'ppv:faturar']))).toEqual(['ppv', 'ppv:faturar']);
+  });
+});
