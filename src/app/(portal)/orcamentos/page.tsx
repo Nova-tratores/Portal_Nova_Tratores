@@ -6,7 +6,6 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import OrcamentoEditor from '@/components/orcamentos/OrcamentoEditor'
 import OrcamentoLista from '@/components/orcamentos/OrcamentoLista'
-import PecasNav from '@/components/ppv/PecasNav'
 
 export default function OrcamentosPage() {
   const { userProfile } = useAuth()
@@ -23,7 +22,6 @@ export default function OrcamentosPage() {
   if (view === 'lista') {
     return (
       <div className="pecas-skin">
-      <PecasNav />
       <OrcamentoLista
         onNovo={() => { if (podeCriar) { setEditarId(null); setView('novo') } }}
         onEditar={(id) => { setEditarId(id); setView('editar') }}
@@ -39,7 +37,6 @@ export default function OrcamentosPage() {
 
   return (
     <div className="pecas-skin">
-    <PecasNav />
     <OrcamentoEditor
       userName={userProfile?.nome || ''}
       editarId={view === 'editar' ? editarId : null}

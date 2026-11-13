@@ -1489,16 +1489,32 @@ async function consultarDREPorPeriodo(conta, anoMesIni, anoMesFim, cTipoData = '
   }
 
   // 2. Bulk check cache (1 query so)
+  // 11/11/2026: a copia de jul–nov/2026 ficou congelada com ~20 lancamentos (sem nenhuma venda) porque o cache era
+  // gravado UMA vez e nunca refeito. Agora o mes corrente e os 2 anteriores (que ainda recebem lancamentos no Omie)
+  // sao buscados de novo quando a copia tem mais de 6 h; e uma copia nova MENOR que a guardada nunca a substitui.
   const cacheMap = new Map();
-  if (!forceRefresh && supabaseAdmin) {
+  const tamanhoGuardado = new Map();
+  const agora = new Date();
+  const idxMes = (a, m) => a * 12 + (m - 1);
+  const idxHoje = idxMes(agora.getFullYear(), agora.getMonth() + 1);
+  const MES_RECENTE = 2, VALIDADE_RECENTE_MS = 6 * 3600 * 1000;
+  if (supabaseAdmin) {
     try {
       const anosDistintos = Array.from(new Set(meses.map(m => m.ano)));
       const { data, error } = await supabaseAdmin.from('dre_cache')
-        .select('ano,mes,movimentos')
+        .select('ano,mes,movimentos,atualizado_em')
         .eq('conta_omie', conta).eq('c_tipo_data', cTipoData)
         .in('ano', anosDistintos);
       if (!error && data) {
-        data.forEach(r => cacheMap.set(`${r.ano}-${r.mes}`, r.movimentos || []));
+        data.forEach(r => {
+          const movs = r.movimentos || [];
+          tamanhoGuardado.set(`${r.ano}-${r.mes}`, movs.length);
+          if (forceRefresh) return;
+          const recente = idxHoje - idxMes(r.ano, r.mes) <= MES_RECENTE;
+          const velho = !r.atualizado_em || (agora.getTime() - new Date(r.atualizado_em).getTime()) > VALIDADE_RECENTE_MS;
+          if (recente && velho) return; // busca de novo no Omie
+          cacheMap.set(`${r.ano}-${r.mes}`, movs);
+        });
       }
     } catch (e) {
       console.log(`[DRE ${conta}] cache check falhou: ${e.message}`);
@@ -1532,6 +1548,14 @@ async function consultarDREPorPeriodo(conta, anoMesIni, anoMesFim, cTipoData = '
       try {
         const movimentos = await consultarDREOmie(conta, dIni, dFim, cTipoData);
         const resumo = computeResumoDRE(movimentos, conta);
+        // Resposta MENOR que a copia guardada = Omie respondeu pela metade: nao grava por cima (11/11/2026).
+        const guardado = tamanhoGuardado.get(`${m.ano}-${m.mes}`) || 0;
+        if (guardado > 0 && movimentos.length < guardado) {
+          console.log(`[DRE ${conta} ${m.ano}-${m.mes}] Omie trouxe ${movimentos.length} lancamentos e a copia tem ${guardado}: mantida a copia`);
+          const { data: velho } = await supabaseAdmin.from('dre_cache').select('movimentos')
+            .eq('conta_omie', conta).eq('ano', m.ano).eq('mes', m.mes).eq('c_tipo_data', cTipoData).maybeSingle();
+          return (velho?.movimentos || movimentos).map(mov => ({ ...mov, _ano: m.ano, _mes: m.mes }));
+        }
         // Grava no cache (best-effort, nao falha o request)
         if (supabaseAdmin) {
           try {

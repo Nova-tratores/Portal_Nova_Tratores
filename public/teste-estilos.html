@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Estilos da Visão geral</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--fundo:#f4f6f9;--card:#fff;--borda:#e6e9ef;--txt:#0f172a;--sec:#64748b;--verde:#16a34a;--verm:#dc2626;--amar:#d97706}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--fundo);font-family:Inter,system-ui,sans-serif;color:var(--txt)}
+  .top{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--borda);padding:14px 24px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .top b{font-weight:600;margin-right:8px}
+  .mesbar{order:9;margin-left:auto;display:flex;align-items:center;gap:4px;background:#f1f5f9;border-radius:12px;padding:4px}
+  .mesbar>i{color:#64748b;padding:0 8px 0 6px}
+  .top .mesbar button{border:0;background:transparent;border-radius:9px;padding:6px 12px;font-size:13.5px;font-weight:500;color:#475569}
+  .top .mesbar button.on{background:#fff;color:#0f172a;box-shadow:0 1px 3px rgba(15,23,42,.15)}
+  .mesbar .nota{font-size:12px;color:#64748b;padding:0 8px}
+  .top button{border:1px solid var(--borda);background:#fff;border-radius:10px;padding:8px 14px;font:inherit;font-size:14px;cursor:pointer}
+  .top button.on{border-color:#dc2626;color:#dc2626;background:#fef2f2}
+  .estilo{display:none;padding:24px;max-width:1500px;margin:0 auto}
+  .estilo.on{display:block}
+  .desc{font-size:14px;color:var(--sec);margin:0 0 16px}
+  .grade{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  @media(max-width:1100px){.grade{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:640px){.grade{grid-template-columns:1fr}}
+  .ico{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:15px;color:var(--c);background:color-mix(in srgb,var(--c) 10%,#fff);border:1px solid color-mix(in srgb,var(--c) 20%,transparent)}
+  .nome{font-size:15px;font-weight:500}
+  .sec{color:var(--sec)}
+
+  /* A · KPI moderno */
+  .a{background:var(--card);border:1px solid var(--borda);border-radius:18px;padding:18px 18px 10px;display:flex;flex-direction:column;gap:6px;transition:transform .2s,box-shadow .2s;cursor:pointer}
+  .a:hover{transform:translateY(-2px);box-shadow:0 16px 30px -22px rgba(15,23,42,.5)}
+  .a .cab{display:flex;align-items:center;gap:10px}
+  .a .num{font-size:30px;font-weight:600;letter-spacing:-.02em;margin-top:8px}
+  .a .pill{display:inline-flex;align-items:center;gap:4px;font-size:12.5px;font-weight:500;padding:3px 8px;border-radius:99px;width:fit-content}
+  .a .pill.up{background:#dcfce7;color:#15803d}.a .pill.down{background:#fee2e2;color:#b91c1c}.a .pill.neu{background:#f1f5f9;color:#475569}
+  .a .rot{font-size:13px;color:var(--sec)}
+  .a svg{width:100%;height:64px;margin-top:4px}
+
+  /* B · Semáforo grande */
+  .b{background:var(--card);border:1px solid var(--borda);border-radius:20px;padding:22px;display:flex;flex-direction:column;align-items:center;text-align:center;gap:10px;cursor:pointer}
+  .b .anel{width:120px;height:120px;border-radius:50%;display:grid;place-items:center;position:relative}
+  .b .anel::before{content:"";position:absolute;inset:0;border-radius:50%;padding:9px;background:conic-gradient(var(--s) calc(var(--p)*1%),#eef1f5 0);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+  .b .anel i{font-size:30px;color:var(--s)}
+  .b .estado{font-size:13px;font-weight:600;padding:4px 12px;border-radius:99px;color:var(--s);background:color-mix(in srgb,var(--s) 12%,#fff)}
+  .b .num{font-size:24px;font-weight:600}
+  .b .rot{font-size:13px;color:var(--sec);max-width:220px}
+
+  /* C · Barras de comparação */
+  .c{background:var(--card);border:1px solid var(--borda);border-radius:18px;padding:18px;display:flex;flex-direction:column;gap:12px;cursor:pointer}
+  .c .cab{display:flex;align-items:center;gap:10px}
+  .c .num{font-size:28px;font-weight:600;letter-spacing:-.02em}
+  .c .linha{display:grid;grid-template-columns:90px 1fr 70px;align-items:center;gap:10px;font-size:13px}
+  .c .trilho{height:12px;border-radius:99px;background:#eef1f5;position:relative;overflow:hidden}
+  .c .trilho span{position:absolute;top:0;bottom:0;border-radius:99px}
+  .c .v{text-align:right;font-weight:500}
+
+  /* D · Lista executiva */
+  .d{background:var(--card);border:1px solid var(--borda);border-radius:20px;overflow:hidden}
+  .d .row{display:grid;grid-template-columns:44px 1.2fr 1fr 160px 120px 24px;align-items:center;gap:16px;padding:16px 22px;border-bottom:1px solid var(--borda);cursor:pointer;transition:background .15s}
+  .d .row:last-child{border-bottom:none}.d .row:hover{background:#f8fafc}
+  .d .row .num{font-size:22px;font-weight:600;text-align:right;letter-spacing:-.02em}
+  .d .row .det{font-size:13px;color:var(--sec)}
+  .d .row svg{width:160px;height:36px}
+  .d .tag{font-size:12.5px;font-weight:600;padding:4px 10px;border-radius:99px;text-align:center}
+  .tag.ok{background:#dcfce7;color:#15803d}.tag.at{background:#fef3c7;color:#b45309}.tag.pb{background:#fee2e2;color:#b91c1c}
+  @media(max-width:900px){.d .row{grid-template-columns:40px 1fr 110px;}.d .row svg,.d .row .det,.d .row>i{display:none}}
+
+  /* E · Bento */
+  .e-grade{display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:minmax(225px,auto);gap:14px;grid-template-areas:"fin fin com pos" "fin fin pec fro" "pat pat req req"}
+  .e{border-radius:22px;padding:20px;color:#fff;position:relative;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;gap:14px;transition:transform .25s}
+  .e:has(.ve){justify-content:flex-start}
+  .e:has(.ve)>div:last-child{flex:1;display:flex;flex-direction:column}
+  .e:has(.ve) svg{margin-top:auto;padding-top:12px}
+  .e.g2:has(.ve) svg{flex:1;min-height:140px;height:auto}
+  .e:hover{transform:scale(1.015)}
+  .e.g2 .ve{margin-top:28px}
+  .e .nome{font-size:14px;opacity:.9;display:flex;align-items:center;gap:8px}
+  .e .num{font-size:34px;font-weight:600;letter-spacing:-.02em}.e.g2 .num{font-size:52px}
+  .e .rot{font-size:13px;opacity:.85}
+  .e svg{display:block;width:100%;height:42px;margin-top:12px;opacity:.75}
+  .e .topo{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .e .sit{font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.95);color:var(--s);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .e .ve{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+  .e .ve small{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:500;color:rgba(255,255,255,.9)}
+  .e .ve small i{width:10px;height:10px;border-radius:3px;display:inline-block}
+  .e .ve b{display:block;font-size:26px;font-weight:700;letter-spacing:-.02em;color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.18)}
+  .e.g2 .ve b{font-size:46px}
+  .e .bar{display:flex;flex-direction:column;gap:5px;margin-top:10px}
+  .e .bar span{display:block;height:9px;border-radius:99px;animation:cresce .9s cubic-bezier(.22,1,.36,1) both;transform-origin:left}
+  .e .fat{background:#fff}.e .gas{background:rgba(255,255,255,.42)}
+  .e .bar{gap:6px}.e .bar span{height:10px}
+  .e .res{display:inline-flex;align-items:center;gap:6px;margin-top:12px;font-size:13px;font-weight:600;padding:5px 12px;border-radius:99px;background:#fff}
+  .e .det{font-size:13.5px;font-weight:500;color:#fff;margin-top:4px}
+  .e .z{position:relative;z-index:1}
+  @media(max-width:1100px){.e-grade{grid-template-columns:repeat(2,1fr);grid-template-areas:"fin fin" "com pos" "pec fro" "pat req"}}
+  @media(max-width:620px){.e-grade{grid-template-columns:1fr;grid-template-areas:"fin" "com" "pos" "pec" "fro" "pat" "req"}}
+
+  /* F · Escuro com brilho */
+  .f-fundo{background:radial-gradient(1200px 600px at 20% 0%,#1e293b,#0b1120 60%);border-radius:24px;padding:22px}
+  .f-grade{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .f{border-radius:18px;padding:18px;background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);color:#e2e8f0;cursor:pointer;position:relative;overflow:hidden;transition:border-color .2s}
+  .f:hover{border-color:color-mix(in srgb,var(--s) 60%,transparent)}
+  .f::after{content:"";position:absolute;width:160px;height:160px;border-radius:50%;right:-50px;top:-60px;background:var(--s);opacity:.18;filter:blur(30px)}
+  .f .nome{font-size:14px;color:#94a3b8;display:flex;align-items:center;gap:8px}
+  .f .num{font-size:30px;font-weight:600;color:#fff;margin:10px 0 2px;letter-spacing:-.02em}
+  .f .rot{font-size:12.5px;color:#94a3b8}
+  .f .st{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--s);margin-top:10px}
+  .f .st i{width:8px;height:8px;border-radius:50%;background:var(--s);box-shadow:0 0 10px var(--s);animation:pisca 1.6s infinite}
+  @keyframes pisca{50%{opacity:.35}}
+  .f svg{width:100%;height:50px;margin-top:8px;filter:drop-shadow(0 0 6px var(--s))}
+  @media(max-width:1100px){.f-grade{grid-template-columns:repeat(2,1fr)}}
+
+  /* K · Claro com a cor do setor */
+  .k-fundo{background:radial-gradient(1200px 600px at 15% 0%,#ffffff,#eef2f7 65%);border:1px solid #e2e8f0;border-radius:24px;padding:22px}
+  .k{border-radius:18px;padding:18px;background:linear-gradient(160deg,color-mix(in srgb,var(--m) 9%,#fff),#fff 55%);border:1px solid color-mix(in srgb,var(--m) 22%,#e2e8f0);color:#0f172a;cursor:pointer;position:relative;overflow:hidden;box-shadow:0 1px 2px rgba(15,23,42,.04),0 8px 24px -12px color-mix(in srgb,var(--m) 35%,transparent);transition:transform .2s,box-shadow .2s}
+  .k:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(15,23,42,.05),0 16px 32px -14px color-mix(in srgb,var(--m) 55%,transparent)}
+  .k::after{content:"";position:absolute;width:180px;height:180px;border-radius:50%;right:-60px;top:-70px;background:var(--m);opacity:.16;filter:blur(34px);pointer-events:none}
+  .k .nome{font-size:14px;font-weight:600;color:#334155;display:flex;align-items:center;gap:10px;position:relative;z-index:1}
+  .k .nome .ic{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--m) 14%,#fff);color:var(--m);font-size:14px}
+  .k .num{font-size:30px;font-weight:600;color:#0f172a;margin:12px 0 2px;letter-spacing:-.02em}
+  .k .rot{font-size:12.5px;color:#64748b}
+  .k .capa small{color:#64748b;opacity:1}
+  .k .capa b{color:#0f172a}
+  .k .st{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--s);margin-top:10px;font-weight:500}
+  .k .st i{width:8px;height:8px;border-radius:50%;background:var(--s);box-shadow:0 0 8px var(--s);animation:pisca 1.6s infinite}
+  .k svg{width:100%;height:50px;margin-top:8px}
+
+  /* E2 · Bento NewPortal (docs/estilo-pos-newportal.md) */
+  .np{--m:#64748b;background:linear-gradient(165deg,color-mix(in srgb,var(--m) 7%,#fefefe),#fefefe 50%);border:1px solid #e2e8f0;border-radius:16px;padding:18px 20px 16px;color:#0f172a;cursor:pointer;display:flex;flex-direction:column;gap:14px;transition:box-shadow .25s,transform .25s,border-color .25s;font-family:Inter,system-ui,sans-serif}
+  .np:hover{transform:translateY(-2px);box-shadow:0 14px 28px -20px rgba(15,23,42,.55);border-color:color-mix(in srgb,var(--m) 35%,#e2e8f0)}
+  .np *{font-weight:400;text-transform:none;letter-spacing:0}
+  .np i[class*="fa-"]{font-weight:900}
+  .np .topo{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .np .nome{display:flex;align-items:center;gap:10px;font-size:16px;font-weight:500;color:#0f172a}
+  .np .ic{width:40px;height:40px;border-radius:11px;display:grid;place-items:center;font-size:16px;color:var(--m);background:color-mix(in srgb,var(--m) 9%,#fefefe);border:1px solid color-mix(in srgb,var(--m) 18%,transparent)}
+  .np .sit{font-size:12.5px;font-weight:500;padding:4px 10px;border-radius:99px;color:var(--s);background:color-mix(in srgb,var(--s) 10%,#fefefe);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+  .np .ve{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .np .ve small{display:flex;align-items:center;gap:7px;font-size:13px;color:#475569}
+  .np .ve small i{width:10px;height:10px;border-radius:3px;display:inline-block}
+  .np .ve b{display:block;font-size:26px;font-weight:500;letter-spacing:-.01em;font-variant-numeric:tabular-nums;color:#0f172a;margin-top:2px}
+  .np.g2 .ve{margin-top:22px}.np.g2 .ve b{font-size:40px}
+  .np .bar{display:flex;flex-direction:column;gap:6px}
+  .np .bar span{display:block;height:10px;border-radius:99px;animation:cresce .9s cubic-bezier(.22,1,.36,1) both;transform-origin:left}
+  .np .res{align-self:flex-start;display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:500;padding:5px 12px;border-radius:99px}
+  .np .num{font-size:30px;font-weight:500;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+  .np .rot{font-size:13.5px;color:#475569;margin-top:2px}
+  .np .det{font-size:13.5px;color:#64748b;margin-top:6px}
+  .np .corpo{flex:1;display:flex;flex-direction:column;gap:12px}
+  .np .baixo{margin-top:auto}
+  .np svg{display:block;width:100%;height:46px;margin-top:auto}
+  .np.g2 svg{flex:1;min-height:140px;height:auto}
+  .np .fat-c{font-size:12px;color:#94a3b8;display:flex;justify-content:space-between;margin-top:-6px}
+
+  /* G · Medidor */
+  .g{background:var(--card);border:1px solid var(--borda);border-radius:20px;padding:18px;text-align:center;cursor:pointer}
+  .g svg{width:100%;max-width:220px;height:auto}
+  .g .num{font-size:24px;font-weight:600;margin-top:-6px}
+  .g .rot{font-size:12.5px;color:var(--sec)}
+  .g .agulha{transform-origin:100px 100px;transition:transform 1.4s cubic-bezier(.22,1.2,.36,1)}
+
+  /* H · Apresentação */
+  .h{background:var(--card);border:1px solid var(--borda);border-radius:28px;min-height:440px;display:grid;grid-template-columns:1fr 1.2fr;overflow:hidden}
+  .h .esq{padding:40px;display:flex;flex-direction:column;justify-content:center;gap:10px}
+  .h .esq .nome{font-size:16px;color:var(--sec);display:flex;align-items:center;gap:10px}
+  .h .esq .num{font-size:64px;font-weight:600;letter-spacing:-.03em;line-height:1}
+  .h .esq .frase{font-size:20px;line-height:1.4;max-width:460px}
+  .h .dir{background:color-mix(in srgb,var(--c) 7%,#fff);display:flex;align-items:center;justify-content:center;padding:30px}
+  .h .dir svg{width:100%;height:260px}
+  .h-nav{display:flex;justify-content:center;gap:8px;margin-top:16px}
+  .h-nav button{width:36px;height:6px;border-radius:99px;border:none;background:#cbd5e1;cursor:pointer;padding:0}
+  .h-nav button.on{background:#0f172a;width:56px}
+  .h .esq,.h .dir{animation:entra .5s ease both}
+  @keyframes entra{from{opacity:0;transform:translateY(12px)}}
+  @media(max-width:900px){.h{grid-template-columns:1fr}.h .esq .num{font-size:44px}}
+
+  /* I · Mapa de calor */
+  .i{background:var(--card);border:1px solid var(--borda);border-radius:20px;padding:20px;overflow-x:auto}
+  .i table{border-collapse:separate;border-spacing:6px;width:100%}
+  .i th{font-weight:500;font-size:13px;color:var(--sec)}
+  .i td.nm{font-size:14px;font-weight:500;white-space:nowrap;padding-right:10px}
+  .i td.cel{height:58px;border-radius:12px;text-align:center;font-size:15px;font-weight:600;min-width:80px;transition:transform .15s}
+  .i td.cel:hover{transform:scale(1.06)}
+  .i .leg{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sec);margin-top:10px}
+  .i .leg span{width:160px;height:10px;border-radius:99px;background:linear-gradient(90deg,#dc2626,#fecaca,#f1f5f9,#bbf7d0,#16a34a)}
+  .i .ops{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+  .i .op{display:flex;align-items:center;gap:10px;padding:10px 14px;border-radius:14px;border:1px solid var(--borda);font-size:14px}
+  .i .op b{font-size:18px}
+
+  /* J · Ranking */
+  .j{background:var(--card);border:1px solid var(--borda);border-radius:20px;padding:22px}
+  .j .lin{display:grid;grid-template-columns:150px 1fr 110px;align-items:center;gap:14px;padding:10px 0}
+  .j .nm{display:flex;align-items:center;gap:10px;font-size:15px;font-weight:500}
+  .j .eixo{position:relative;height:30px}
+  .j .eixo::before{content:"";position:absolute;left:50%;top:-6px;bottom:-6px;width:2px;background:#0f172a;opacity:.15}
+  .j .bar{position:absolute;top:0;bottom:0;border-radius:8px;transition:width 1.1s cubic-bezier(.22,1,.36,1)}
+  .j .v{text-align:right;font-size:18px;font-weight:600}
+  .j .mes{display:flex;gap:6px;margin-bottom:14px}
+  .j .mes button{border:1px solid var(--borda);background:#fff;border-radius:99px;padding:6px 14px;font:inherit;font-size:13px;cursor:pointer}
+  .j .mes button.on{background:#0f172a;color:#fff;border-color:#0f172a}
+  .capa{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}
+  .capa small{display:block;font-size:12px;opacity:.75}
+  .capa b{display:block;font-size:24px;font-weight:600;letter-spacing:-.02em}
+  .e.g2 .capa b{font-size:40px}
+  .capa-barras{display:flex;flex-direction:column;gap:4px;margin:8px 0 2px}
+  .capa-barras span{display:block;height:8px;border-radius:99px;animation:cresce .9s cubic-bezier(.22,1,.36,1) both;transform-origin:left}
+  @keyframes cresce{from{transform:scaleX(0)}}
+</style>
+</head>
+<body>
+<div class="top"><div class="mesbar"><i class="fas fa-calendar"></i></div><b>Visão geral: escolha o estilo</b>
+  <button data-e="n" class="on">E2 · Bento NewPortal</button>
+  <button data-e="k">K · Claro com a cor do setor</button>
+  <button data-e="a">A · KPI moderno</button>
+  <button data-e="b">B · Semáforo grande</button>
+  <button data-e="c">C · Barras de comparação</button>
+  <button data-e="d">D · Lista executiva</button>
+  <button data-e="e">E · Bento colorido</button>
+  <button data-e="f">F · Escuro com brilho</button>
+  <button data-e="g">G · Medidores</button>
+  <button data-e="h">H · Apresentação</button>
+  <button data-e="i">I · Mapa de calor</button>
+  <button data-e="j">J · Ranking animado</button>
+</div>
+
+<section class="estilo on" id="n"><p class="desc">O mesmo encaixe do E, no estilo NewPortal: cartões brancos, fonte Inter sem negrito, ícone em quadradinho na cor do módulo, fundo bem clarinho da cor e números alinhados. A cor do setor aparece no ícone, nas barras e na curva.</p><div class="e-grade np-grade" data-g="n"></div></section>
+<section class="estilo" id="k"><p class="desc">O F em versão clara: cartões brancos de vidro, cada um com o brilho, o ícone e a curva na cor do seu módulo (as mesmas cores da dashboard). A bolinha embaixo continua na cor da situação.</p><div class="k-fundo"><div class="f-grade" data-g="k"></div></div></section>
+<section class="estilo" id="a"><p class="desc">Número grande + quanto mudou em relação ao mês passado (pílula verde/vermelha) + a curva dos últimos 6 meses, cada uma na sua escala. Estilo de painel de banco/app moderno.</p><div class="grade" data-g="a"></div></section>
+<section class="estilo" id="b"><p class="desc">Um anel grande com a cor da situação (verde, amarelo, vermelho) e uma palavra. Bate o olho e sabe onde está o problema. O número vem embaixo.</p><div class="grade" data-g="b"></div></section>
+<section class="estilo" id="c"><p class="desc">Número grande + barras comparando com o mês passado e a média dos últimos meses. Mostra se está melhor ou pior sem precisar ler gráfico.</p><div class="grade" data-g="c"></div></section>
+<section class="estilo" id="d"><p class="desc">Uma linha por área, como extrato de banco: nome, o que aconteceu, a curva dos 6 meses, o número e a situação. Tudo alinhado, leitura de cima para baixo.</p><div class="d" data-g="d"></div></section>
+
+<section class="estilo" id="e"><p class="desc">Blocos de tamanhos diferentes, coloridos, com a curva ao fundo. O mais importante (a empresa) fica grande. Estilo dos painéis da Apple e de apps modernos.</p><div class="e-grade" data-g="e"></div></section>
+<section class="estilo" id="f"><p class="desc">Fundo escuro, cartões de vidro e um brilho na cor da situação. Visual de painel de controle; fica ótimo numa TV.</p><div class="f-fundo"><div class="f-grade" data-g="f"></div></div></section>
+<section class="estilo" id="g"><p class="desc">Um medidor por setor: a agulha mostra onde o mês está entre o pior e o melhor mês dos últimos 6. Lê como velocímetro.</p><div class="grade" data-g="g"></div></section>
+<section class="estilo" id="h"><p class="desc">Uma área por vez, em tela grande, passando sozinha a cada 6 segundos (ou clique nos traços). Uma frase, um número e um gráfico. Para reunião ou TV.</p><div data-g="h"></div><div class="h-nav" data-g="h-nav"></div></section>
+<section class="estilo" id="i"><p class="desc">Os setores nas linhas e os meses nas colunas: verde é lucro, vermelho é prejuízo, quanto mais forte, maior. Mostra o padrão dos meses de uma vez.</p><div class="i" data-g="i"></div></section>
+<section class="estilo" id="j"><p class="desc">Os setores em ordem do melhor para o pior, com barras que crescem. Clique no mês para ver as barras mudarem de lugar.</p><div class="j" data-g="j"></div></section>
+
+<script>
+// se der erro, mostra na tela (em vez de ficar em branco)
+window.onerror=(m,src,l)=>{const d=document.createElement("div");d.style.cssText="margin:20px;padding:14px;border-radius:12px;background:#fee2e2;color:#991b1b;font:14px Inter,sans-serif";d.textContent="Erro no script (linha "+l+"): "+m;document.body.prepend(d)}
+// números reais do portal (11/11/2026) — resultado gerencial em mil (jun..nov) e situação da operação.
+// Pátio, Frota e Requisições não têm histórico guardado no portal: sem curva (serie:null).
+const AREAS = [
+  { nome:'Financeiro', ic:'fa-sack-dollar', c:'#10B981', serie:[523,-7,-519,107,-6,-29], fat:308, gas:337, num:'−R$ 29 mil', rot:'resultado da empresa em nov', sit:'at', det:'clientes devem R$ 1,72 mi vencido' },
+  { nome:'Comercial', ic:'fa-tractor', c:'#DC2626', serie:[455,-42,-595,-24,-114,-43], fat:255, gas:298, num:'−R$ 43 mil', rot:'resultado do setor em nov', sit:'pb', det:'margem de 9% e descontos altos' },
+  { nome:'Pós-Vendas', ic:'fa-screwdriver-wrench', c:'#0EA5E9', serie:[39,30,45,65,75,8], fat:24, gas:16, num:'R$ 8 mil', rot:'resultado do setor em nov', sit:'at', det:'R$ 36 mil em serviço pronto sem nota' },
+  { nome:'Peças', ic:'fa-gears', c:'#F97316', serie:[29,5,31,66,33,5], fat:29, gas:24, num:'R$ 5 mil', rot:'resultado do setor em nov', sit:'ok', det:'243 itens com estoque negativo' },
+  { nome:'Pátio', ic:'fa-warehouse', c:'#7C3AED', serie:null, num:'R$ 1,64 mi', rot:'em 35 máquinas paradas no pátio', sit:'pb', det:'29 máquinas há mais de 180 dias' },
+  { nome:'Frota', ic:'fa-truck', c:'#0891B2', serie:null, num:'11 documentos', rot:'vencidos nos veículos', sit:'at', det:'21 veículos na frota' },
+  { nome:'Requisições', ic:'fa-clipboard-list', c:'#64748B', serie:null, num:'76', rot:'requisições abertas', sit:'at', det:'19 paradas há mais de 30 dias' },
+]
+const MESES = ['jun','jul','ago','set','out','nov']
+const MESES_LONGO = ['junho','julho','agosto','setembro','outubro','novembro (até dia 11)']
+// faturou × gastou por mês (jun..nov), DRE gerencial em R$ mil — "gastou" = custos + impostos/descontos + despesas + rateio
+const FG = {
+  'Financeiro': [[989,466],[818,825],[828,1347],[2499,2392],[1687,1693],[308,337]],
+  'Comercial':  [[857,402],[439,481],[572,1167],[2136,2160],[1393,1507],[255,298]],
+  'Pós-Vendas': [[57,18],[228,198],[118,73],[118,53],[156,81],[24,16]],
+  'Peças':      [[76,47],[150,145],[138,107],[245,179],[138,105],[29,24]],
+}
+let MI = 5 // mês escolhido (índice em MESES)
+const mil = (v) => v>=1000 ? (v/1000).toLocaleString('pt-BR',{maximumFractionDigits:2})+' mi' : v+' mil'
+const SIT = { ok:['#16a34a','Em dia','fa-circle-check',100], at:['#d97706','Atenção','fa-triangle-exclamation',60], pb:['#dc2626','Problema','fa-circle-exclamation',30] }
+const ehDinheiro = (a) => ['Financeiro','Comercial','Pós-Vendas','Peças'].includes(a.nome)
+const fmt = (v) => (v<0?'−':'') + Math.abs(v).toLocaleString('pt-BR')
+
+function curva(serie, cor, w=240, h=64, ponto=true){
+  if(!serie) return `<div style="height:${h}px;display:flex;align-items:center;font-size:12px;color:#94a3b8">sem histórico guardado</div>`
+  const min=Math.min(...serie,0), max=Math.max(...serie,0), amp=max-min||1
+  const xs=serie.map((_,i)=>i/(serie.length-1)*(w-8)+4), ys=serie.map(v=>h-6-((v-min)/amp)*(h-14))
+  const d='M'+xs.map((x,i)=>x+','+ys[i]).join(' L')
+  const zero=h-6-((0-min)/amp)*(h-14)
+  const id='g'+Math.random().toString(36).slice(2)
+  return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"><defs><linearGradient id="${id}" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="${cor}" stop-opacity=".25"/><stop offset="1" stop-color="${cor}" stop-opacity="0"/></linearGradient></defs>
+    <line x1="0" x2="${w}" y1="${zero}" y2="${zero}" stroke="#e2e8f0" stroke-dasharray="3 3"/>
+    <path d="${d} L${xs.at(-1)},${h} L${xs[0]},${h} Z" fill="url(#${id})"/>
+    <path d="${d}" fill="none" stroke="${cor}" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+    ${ponto?`<line x1="${xs[MI]}" x2="${xs[MI]}" y1="0" y2="${h}" stroke="${cor}" stroke-opacity=".35" stroke-dasharray="2 3"/><circle cx="${xs[MI]}" cy="${ys[MI]}" r="4.5" fill="${cor}" stroke="#fff" stroke-width="1.5"/>`:''}</svg>`
+}
+function capa(a, escuro){
+  if(a.fat==null) return `<div class="num">${a.num}</div><div class="rot">${a.rot}</div>`
+  const mx=Math.max(a.fat,a.gas,1), sobra=a.fat-a.gas
+  return `<div class="capa"><div><small>Faturou</small><b>R$ ${mil(a.fat)}</b></div><div><small>Gastou</small><b style="color:${escuro?"#fca5a5":"#b91c1c"}">R$ ${mil(a.gas)}</b></div></div>
+    <div class="capa-barras"><span style="width:${a.fat/mx*100}%;background:${escuro?"#4ade80":"#16a34a"}"></span><span style="width:${a.gas/mx*100}%;background:${escuro?"#f87171":"#ef4444"}"></span></div>
+    <div class="rot" style="color:${sobra>=0?(escuro?"#4ade80":"#15803d"):(escuro?"#fca5a5":"#b91c1c")}">${sobra>=0?"sobraram":"faltaram"} R$ ${mil(Math.abs(sobra))} em ${MESES[MI]}</div>`
+}
+function pilula(a){
+  if(!ehDinheiro(a) || !a.serie) return `<span class="pill neu">${a.det}</span>`
+  const s=a.serie, ant=s.at(-2), at=s.at(-1)
+  if(false) return `<span class="pill neu">${a.det}</span>`
+  const dif=at-ant, up=dif>=0
+  return `<span class="pill ${up?'up':'down'}"><i class="fas fa-arrow-${up?'up':'down'}"></i> ${fmt(dif)} mil vs out</span>`
+}
+function desenha_a(){ document.querySelector('[data-g=a]').innerHTML = AREAS.map(a=>`<div class="a"><div class="cab"><span class="ico" style="--c:${a.c}"><i class="fas ${a.ic}"></i></span><span class="nome">${a.nome}</span></div>
+  ${capa(a)}${curva(a.serie, a.serie&&a.serie.at(-1)<0?'#dc2626':a.c)}</div>`).join('') }
+desenha_a()
+document.querySelector('[data-g=b]').innerHTML = AREAS.map(a=>{const [cor,txt,ic,p]=SIT[a.sit];return `<div class="b"><span class="nome">${a.nome}</span>
+  <div class="anel" style="--s:${cor};--p:${p}"><i class="fas ${ic}"></i></div><span class="estado" style="--s:${cor}">${txt}</span><div class="num">${a.num}</div><div class="rot">${a.det}</div></div>`}).join('')
+document.querySelector('[data-g=c]').innerHTML = AREAS.map(a=>{if(!a.serie) return `<div class="c"><div class="cab"><span class="ico" style="--c:${a.c}"><i class="fas ${a.ic}"></i></span><span class="nome">${a.nome}</span></div><div class="num">${a.num}</div><div class="sec" style="font-size:13px">${a.rot}</div><div class="sec" style="font-size:13px">${a.det}</div></div>`;const s=a.serie, at=s.at(-1), ant=s.at(-2), med=Math.round(s.slice(0,-1).reduce((x,y)=>x+y,0)/(s.length-1)), mx=Math.max(...[at,ant,med].map(Math.abs),1)
+  const barra=(v,cor)=>`<span style="${v>=0?'left:50%':'right:50%'};width:${Math.abs(v)/mx*50}%;background:${cor}"></span>`
+  const corA = at<0?'#dc2626':a.c
+  return `<div class="c"><div class="cab"><span class="ico" style="--c:${a.c}"><i class="fas ${a.ic}"></i></span><span class="nome">${a.nome}</span></div><div class="num" style="color:${at<0&&ehDinheiro(a)?'#b91c1c':'inherit'}">${a.num}</div>
+  <div class="linha"><span>nov</span><span class="trilho">${barra(at,corA)}</span><span class="v">${fmt(at)}</span></div>
+  <div class="linha sec"><span>out</span><span class="trilho">${barra(ant,'#cbd5e1')}</span><span class="v">${fmt(ant)}</span></div>
+  <div class="linha sec"><span>média 5 meses</span><span class="trilho">${barra(med,'#e2e8f0')}</span><span class="v">${fmt(med)}</span></div>
+  <div class="sec" style="font-size:13px">${a.det}</div></div>`}).join('')
+document.querySelector('[data-g=d]').innerHTML = AREAS.map(a=>{const [cor,txt]=SIT[a.sit];return `<div class="row"><span class="ico" style="--c:${a.c}"><i class="fas ${a.ic}"></i></span>
+  <div><div class="nome">${a.nome}</div><div class="det">${a.rot}</div></div><div class="det">${a.det}</div>${curva(a.serie, a.serie&&a.serie.at(-1)<0?'#dc2626':a.c,160,36)}
+  <div class="num" style="color:${a.num.startsWith('−')?'#b91c1c':'inherit'}">${a.num}</div><span class="tag ${a.sit}">${txt}</span></div>`}).join('')
+// ── E · Bento
+const COR_SIT = { ok:'#16a34a', at:'#d97706', pb:'#dc2626' }
+const grad = (c) => `linear-gradient(140deg, ${c}, color-mix(in srgb, ${c} 65%, #000))`
+function desenha_e(){ document.querySelector('[data-g=e]').innerHTML = AREAS.map((a,i)=>{
+  const cls = i===0?'g2':''
+  const area = {'Financeiro':'fin','Comercial':'com','Pós-Vendas':'pos','Peças':'pec','Pátio':'pat','Frota':'fro','Requisições':'req'}[a.nome]
+  const sit = SIT[a.sit], corS = COR_SIT[a.sit]
+  const topo = `<div class="topo"><div class="nome"><i class="fas ${a.ic}"></i> ${a.nome}</div><span class="sit" style="--s:${corS}"><i class="fas ${sit[2]}"></i> ${sit[1]}</span></div>`
+  if(a.fat==null) return `<div class="e ${cls}" style="grid-area:${area};background:${grad(a.c)}">${topo}<div><div class="num">${a.num}</div><div class="rot">${a.rot}</div><div class="det">${a.det}</div></div></div>`
+  const mx=Math.max(a.fat,a.gas,1), sobra=a.fat-a.gas, ok=sobra>=0
+  const linha = a.serie ? curva(a.serie,'#ffffff',300,i===0?150:42,true).replace(/stroke="#e2e8f0"/,'stroke="rgba(255,255,255,.45)"') : ''
+  return `<div class="e ${cls}" style="grid-area:${area};background:${grad(a.c)}">${topo}<div>
+    <div class="ve"><div><small><i style="background:#fff"></i> Faturou</small><b>R$ ${mil(a.fat)}</b></div><div><small><i style="background:rgba(255,255,255,.42)"></i> Gastou</small><b>R$ ${mil(a.gas)}</b></div></div>
+    <div class="bar"><span class="fat" style="width:${a.fat/mx*100}%"></span><span class="gas" style="width:${a.gas/mx*100}%"></span></div>
+    <span class="res" style="color:${ok?'#15803d':'#b91c1c'}"><i class="fas ${ok?'fa-arrow-trend-up':'fa-arrow-trend-down'}"></i> ${ok?'Sobraram':'Faltaram'} R$ ${mil(Math.abs(sobra))} em ${MESES[MI]}</span>
+    ${linha}</div></div>`}).join('') }
+desenha_e()
+
+// ── F · Escuro com brilho
+function desenha_f(){ document.querySelector('[data-g=f]').innerHTML = AREAS.map(a=>{const s=COR_SIT[a.sit];return `<div class="f" style="--s:${s}"><div class="nome"><i class="fas ${a.ic}"></i> ${a.nome}</div>
+  ${capa(a,true)}${a.serie?curva(a.serie,s,240,50,true):''}<div class="st"><i></i> ${SIT[a.sit][1]} · ${a.det}</div></div>`}).join('') }
+desenha_f()
+
+// ── K · Claro com a cor do setor
+function desenha_k(){ document.querySelector('[data-g=k]').innerHTML = AREAS.map(a=>`<div class="k" style="--m:${a.c};--s:${COR_SIT[a.sit]}"><div class="nome"><span class="ic"><i class="fas ${a.ic}"></i></span> ${a.nome}</div>
+  ${capa(a)}${a.serie?curva(a.serie,a.c,240,50,true):''}<div class="st"><i></i> ${SIT[a.sit][1]} · ${a.det}</div></div>`).join('') }
+desenha_k()
+
+// ── E2 · Bento NewPortal
+function desenha_n(){ document.querySelector('[data-g=n]').innerHTML = AREAS.map((a,i)=>{
+  const cls = i===0?'g2':''
+  const area = {'Financeiro':'fin','Comercial':'com','Pós-Vendas':'pos','Peças':'pec','Pátio':'pat','Frota':'fro','Requisições':'req'}[a.nome]
+  const sit = SIT[a.sit], corS = COR_SIT[a.sit]
+  const topo = `<div class="topo"><div class="nome"><span class="ic"><i class="fas ${a.ic}"></i></span> ${a.nome}</div><span class="sit" style="--s:${corS}"><i class="fas ${sit[2]}"></i> ${sit[1]}</span></div>`
+  if(a.fat==null) return `<div class="np ${cls}" style="grid-area:${area};--m:${a.c}">${topo}<div class="corpo"><div class="baixo"><div class="num">${a.num}</div><div class="rot">${a.rot}</div><div class="det">${a.det}</div></div></div></div>`
+  const mx=Math.max(a.fat,a.gas,1), sobra=a.fat-a.gas, ok=sobra>=0
+  const linha = a.serie ? curva(a.serie,a.c,300,i===0?150:46,true) : ''
+  const cGas = 'color-mix(in srgb,'+a.c+' 30%,#e2e8f0)'
+  return `<div class="np ${cls}" style="grid-area:${area};--m:${a.c}">${topo}<div class="corpo">
+    <div class="ve"><div><small><i style="background:${a.c}"></i> Faturou</small><b>R$ ${mil(a.fat)}</b></div><div><small><i style="background:${cGas}"></i> Gastou</small><b>R$ ${mil(a.gas)}</b></div></div>
+    <div class="bar"><span style="width:${a.fat/mx*100}%;background:${a.c}"></span><span style="width:${a.gas/mx*100}%;background:${cGas}"></span></div>
+    <span class="res" style="color:${ok?'#15803d':'#b91c1c'};background:${ok?'#f0fdf4':'#fef2f2'}"><i class="fas ${ok?'fa-arrow-trend-up':'fa-arrow-trend-down'}"></i> ${ok?'Sobraram':'Faltaram'} R$ ${mil(Math.abs(sobra))} em ${MESES[MI]}</span>
+    ${linha}</div></div>`}).join('') }
+desenha_n()
+
+// ── troca de mês (vale para A, E, F e K)
+window.trocarMes = (i) => { MI = i
+  for (const a of AREAS) if (FG[a.nome]) { a.fat = FG[a.nome][i][0]; a.gas = FG[a.nome][i][1] }
+  desenha_a(); desenha_e(); desenha_f(); desenha_k(); desenha_n()
+  document.querySelectorAll('.mesbar button').forEach((b,k)=>b.classList.toggle('on',k===i))
+  document.querySelector('.mesbar .nota').textContent = i===5 ? 'novembro até dia 11' : MESES_LONGO[i]+' fechado'
+}
+document.querySelector('.mesbar').insertAdjacentHTML('beforeend', MESES.map((m,k)=>`<button class="${k===MI?'on':''}" onclick="trocarMes(${k})">${m}</button>`).join('') + '<span class="nota">novembro até dia 11</span>')
+
+// ── G · Medidores (só onde há histórico de resultado)
+document.querySelector('[data-g=g]').innerHTML = AREAS.filter(a=>a.serie).map((a,i)=>{
+  const s=a.serie, min=Math.min(...s), max=Math.max(...s), at=s.at(-1), frac=(at-min)/((max-min)||1), ang=-90+frac*180
+  const arco=(de,ate,cor)=>{const p=(t)=>{const r=(Math.PI*(1-t));return [100+80*Math.cos(r),100-80*Math.sin(r)]};const [x1,y1]=p(de),[x2,y2]=p(ate);return `<path d="M${x1} ${y1} A80 80 0 0 1 ${x2} ${y2}" stroke="${cor}" stroke-width="18" fill="none"/>`}
+  return `<div class="g"><div class="nome">${a.nome}</div><svg viewBox="0 0 200 120">${arco(0,.33,'#fecaca')}${arco(.335,.665,'#fde68a')}${arco(.67,1,'#bbf7d0')}
+    <g class="agulha" data-ang="${ang}" style="transform:rotate(-90deg)"><line x1="100" y1="100" x2="100" y2="32" stroke="#0f172a" stroke-width="4" stroke-linecap="round"/></g><circle cx="100" cy="100" r="8" fill="#0f172a"/>
+    <text x="20" y="116" font-size="10" fill="#64748b">${fmt(min)}</text><text x="180" y="116" font-size="10" fill="#64748b" text-anchor="end">${fmt(max)}</text></svg>
+    <div class="num" style="color:${at<0?'#b91c1c':'inherit'}">${a.num}</div><div class="rot">entre o pior (${fmt(min)} mil) e o melhor (${fmt(max)} mil) dos 6 meses</div></div>`}).join('') +
+  AREAS.filter(a=>!a.serie).map(a=>`<div class="g" style="display:flex;flex-direction:column;justify-content:center;gap:8px"><div class="nome">${a.nome}</div><div class="num">${a.num}</div><div class="rot">${a.det}</div><span class="tag ${a.sit}" style="align-self:center">${SIT[a.sit][1]}</span></div>`).join('')
+const girar=()=>document.querySelectorAll('.agulha').forEach(g=>g.style.transform=`rotate(${g.dataset.ang}deg)`)
+
+// ── H · Apresentação
+let hI=0, hT=null
+const FRASE = { Financeiro:'A empresa fechou o mês até agora no vermelho. O que mais pesa: clientes devendo R$ 1,72 mi vencido.', Comercial:'Venda de máquinas está dando prejuízo: margem baixa e muito desconto.', 'Pós-Vendas':'A oficina dá lucro todo mês. R$ 36 mil em serviço pronto esperando nota.', 'Peças':'Peças dá lucro, mas tem 243 itens com estoque negativo para conferir.', 'Pátio':'R$ 1,64 mi parados em 35 máquinas; 29 estão há mais de 180 dias.', Frota:'Nenhum veículo parado, mas 11 documentos vencidos.', 'Requisições':'76 requisições abertas; 19 paradas há mais de 30 dias.' }
+function desenharH(i){ hI=i; const a=AREAS[i]
+  document.querySelector('[data-g=h]').innerHTML = `<div class="h" style="--c:${a.c}"><div class="esq"><div class="nome"><span class="ico" style="--c:${a.c}"><i class="fas ${a.ic}"></i></span>${a.nome}</div>
+    <div class="num" style="color:${a.num.startsWith('−')?'#b91c1c':'inherit'}">${a.num}</div><div class="frase">${FRASE[a.nome]}</div></div>
+    <div class="dir">${a.serie?curva(a.serie,a.serie.at(-1)<0?'#dc2626':a.c,500,260,true):`<span class="tag ${a.sit}" style="font-size:22px;padding:14px 26px">${SIT[a.sit][1]}</span>`}</div></div>`
+  document.querySelector('[data-g=h-nav]').innerHTML = AREAS.map((_,k)=>`<button class="${k===i?'on':''}" onclick="mostrarH(${k})"></button>`).join('')
+}
+window.mostrarH = (i)=>{ desenharH(i); clearInterval(hT); hT=setInterval(()=>desenharH((hI+1)%AREAS.length),6000) }
+window.mostrarH(0)
+
+// ── I · Mapa de calor
+const comSerie = AREAS.filter(a=>a.serie), mxAbs = Math.max(...comSerie.flatMap(a=>a.serie.map(Math.abs)))
+const corCel=(v)=>{const t=Math.min(1,Math.abs(v)/mxAbs*1.6);const base=v>=0?[22,163,74]:[220,38,38];const mix=(c)=>Math.round(241+(c-241)*t);return `rgb(${mix(base[0])},${mix(base[1])},${mix(base[2])})`}
+document.querySelector('[data-g=i]').innerHTML = `<table><tr><th></th>${MESES.map(m=>`<th>${m}</th>`).join('')}</tr>${comSerie.map(a=>`<tr><td class="nm">${a.nome}</td>${a.serie.map(v=>`<td class="cel" style="background:${corCel(v)};color:${Math.abs(v)/mxAbs>.35?'#fff':'#0f172a'}">${fmt(v)}</td>`).join('')}</tr>`).join('')}</table>
+  <div class="leg">prejuízo <span></span> lucro · R$ mil</div>
+  <div class="ops">${AREAS.filter(a=>!a.serie).map(a=>`<div class="op"><span class="ico" style="--c:${a.c}"><i class="fas ${a.ic}"></i></span><div><b>${a.num}</b><div class="sec" style="font-size:12.5px">${a.det}</div></div><span class="tag ${a.sit}">${SIT[a.sit][1]}</span></div>`).join('')}</div>`
+
+// ── J · Ranking animado
+let jM = MESES.length-1
+function mostrarJ(){
+  const l = comSerie.map(a=>({a,v:a.serie[jM]})).sort((x,y)=>y.v-x.v), mx=Math.max(...l.map(x=>Math.abs(x.v)),1)
+  document.querySelector('[data-g=j]').innerHTML = `<div class="mes">${MESES.map((m,k)=>`<button class="${k===jM?'on':''}" onclick="jM=${k};mostrarJ()">${m}</button>`).join('')}</div>` +
+    l.map(({a,v})=>`<div class="lin"><div class="nm"><span class="ico" style="--c:${a.c}"><i class="fas ${a.ic}"></i></span>${a.nome}</div>
+    <div class="eixo"><div class="bar" style="${v>=0?'left:50%':'right:50%'};width:0;background:${v>=0?a.c:'#dc2626'}" data-w="${Math.abs(v)/mx*50}"></div></div>
+    <div class="v" style="color:${v<0?'#b91c1c':'inherit'}">${fmt(v)} mil</div></div>`).join('')
+  requestAnimationFrame(()=>requestAnimationFrame(()=>document.querySelectorAll('.j .bar').forEach(b=>b.style.width=b.dataset.w+'%')))
+}
+window.mostrarJ = mostrarJ; window.jM = jM
+Object.defineProperty(window,'jM',{get:()=>jM,set:(v)=>{jM=v}})
+mostrarJ()
+
+document.querySelectorAll('.top > button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.top > button').forEach(x=>x.classList.toggle('on',x===b));document.querySelectorAll('.estilo').forEach(s=>s.classList.toggle('on',s.id===b.dataset.e)); if(b.dataset.e==='g') setTimeout(girar,60); if(b.dataset.e==='j') mostrarJ()})
+</script>
+</body>
+</html>

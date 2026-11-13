@@ -22,7 +22,7 @@ import {
   LayoutGrid, List, CircleDot, Clock, Truck, Bot, Ticket, Cctv, GraduationCap, UserPlus, Tags,
   ListPlus, CircleCheckBig, MessageSquarePlus, BadgeCheck
 } from 'lucide-react'
-import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias, CalendarClock, CalendarDays, LineChart, Radar } from 'lucide-react'
+import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias, CalendarClock, CalendarDays, LineChart, Radar, Search, EyeOff, Mail, Copy } from 'lucide-react'
 import BotaoAjuda from '@/components/conhecimento/BotaoAjuda'
 import IlhaNotificacao, { AjustesIlha, type AvisoIlha } from '@/components/notif/IlhaNotificacao'
 import { AvisosAparelho } from '@/components/notif/AvisosAparelho'
@@ -35,6 +35,7 @@ import SatLembrete from './sat/SatLembrete'
 import JornadaQuery from './uso/JornadaQuery'
 import dynamic from 'next/dynamic'
 import MontaAoAbrir from './comum/MontaAoAbrir'
+import { MODULOS as MODULOS_DASH } from '@/lib/dashboard/setores'
 // 03/11/2026 (memória): painéis que só aparecem quando alguém abre (chat, lembretes, solicitações, preferências)
 // ou só para alguns (câmeras, dev) são baixados sob demanda, não em toda página do portal
 const VigiaCameras = dynamic(() => import('@/components/VigiaCameras'), { ssr: false })
@@ -138,6 +139,11 @@ const navItems: NavItem[] = [
   { id: 'planta', name: 'Planta Viva', href: '/planta', icon: <LayoutGrid size={18} />, tag: 'PLANTA', gradient: '', group: 'outros' },
   { id: 'dashboard-agro', name: 'Dashboard Agro', href: '/dashboard-agro', icon: <Wheat size={18} />, tag: 'AGRO', gradient: '', group: 'outros' },
 ]
+
+/** id do menu → rota: a dashboard usa para transformar a contagem de uso (portal-uso-<id>) em atalhos. */
+export const NAV_HREF_POR_ID: Record<string, string> = Object.fromEntries(navItems.map(i => [i.id, i.href]))
+// Nomes novos dos módulos (os mesmos da dashboard), por rota — o atalho do topo fala a mesma língua.
+const NOME_NOVO_POR_HREF: Record<string, string> = Object.fromEntries(MODULOS_DASH.map(m => [m.href, m.nome]))
 
 // Ícone por tipo de notificação (lucide — sem emojis)
 const NOTIF_ICONS: Record<string, import('react').ReactNode> = {
@@ -464,6 +470,11 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   }
   const [novaSenha, setNovaSenha] = useState('')
   const [novaSenha2, setNovaSenha2] = useState('')
+  const [verSenha, setVerSenha] = useState(false)
+  const [emailCopiado, setEmailCopiado] = useState(false)
+  // e-mail do login, para a aba Perfil mostrar com qual conta a pessoa entra
+  const [emailLogin, setEmailLogin] = useState<string | null>(null)
+  useEffect(() => { if (configOpen && configTab === 'perfil' && !emailLogin) supabase.auth.getUser().then(({ data }) => setEmailLogin(data.user?.email || null)).catch(() => {}) }, [configOpen, configTab, emailLogin])
   const [perfilBusy, setPerfilBusy] = useState(false)
   const [perfilMsg, setPerfilMsg] = useState<{ tipo: 'ok' | 'err'; texto: string } | null>(null)
   const avatarInputRef = useRef<HTMLInputElement>(null)
@@ -724,14 +735,20 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     .sort((a, b) => (uso[b.id] || 0) - (uso[a.id] || 0))
     .slice(0, 7), [filteredNavItems, uso])
 
+  const [navBusca, setNavBusca] = useState('')
   const groupedNav = useMemo(() => {
     const groups: { key: string; config: typeof GROUP_CONFIG[string]; items: NavItem[] }[] = []
+    const semAc = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    const q = semAc(navBusca.trim())
     for (const gk of GROUP_ORDER) {
-      const items = filteredNavItems.filter(i => i.group === gk)
+      // ordem alfabética dentro de cada setor; a busca acha pelo nome ou pela etiqueta
+      const items = filteredNavItems.filter(i => i.group === gk && (!q || semAc(`${i.name} ${i.tag || ''}`).includes(q)))
+        .sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'))
       if (items.length > 0) groups.push({ key: gk, config: GROUP_CONFIG[gk], items })
     }
     return groups
-  }, [filteredNavItems])
+  }, [filteredNavItems, navBusca])
+  const extraVisivel = (nome: string) => { const sa = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); return !navBusca.trim() || sa(nome).includes(sa(navBusca.trim())) }
 
   // Items mesclados para o dropdown do sino
   const bellItems = useMemo(() => [
@@ -832,7 +849,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               Só aparecem os que CABEM: a faixa tem a altura de uma linha e a quebra
               de linha fica escondida — o que não cabe some, do menos usado para
               o mais usado, em qualquer largura de tela. */}
-          {maisUsados.length > 0 && (
+          {/* Na dashboard os mesmos atalhos já aparecem em "Seus atalhos" — não repete no topo. */}
+          {maisUsados.length > 0 && pathname !== '/dashboard' && (
             <div className="topbar-atalhos" style={{
               display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap',
               flex: 1, minWidth: 0, height: 38, overflow: 'hidden',
@@ -841,7 +859,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               {maisUsados.map(item => {
                 const ativo = pathname === item.href || pathname.startsWith(item.href + '/')
                 const cor = GROUP_CONFIG[item.group]?.color || '#dc2626'
-                const curto = item.name.replace(/\s*\(.*?\)\s*/g, '').trim()
+                const curto = NOME_NOVO_POR_HREF[item.href] || item.name.replace(/\s*\(.*?\)\s*/g, '').trim()
                 return (
                   <Link
                     key={item.id}
@@ -1358,44 +1376,51 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {/* ===== SIDEBAR ===== */}
       <div style={{
         position: 'fixed', top: '84px', left: 0, bottom: 0,
-        width: sidebarOpen ? 'min(260px, 85vw)' : '0px', overflow: 'hidden',
+        width: sidebarOpen ? 'min(340px, 90vw)' : '0px', overflow: 'hidden',
         transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         zIndex: 40, background: 'var(--portal-sidebar-bg)',
         borderRight: sidebarOpen ? '1px solid var(--portal-border)' : 'none',
         boxShadow: sidebarOpen ? `4px 0 20px var(--portal-shadow)` : 'none'
       }}>
-        <div style={{ width: '260px', height: '100%', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ width: 'min(340px, 90vw)', height: '100%', display: 'flex', flexDirection: 'column' }}>
           {/* User card */}
           <div style={{ padding: '20px 16px 0 16px', flexShrink: 0 }}>
-          <div style={{
-            padding: '16px', borderRadius: '14px',
-            background: 'var(--portal-bg-hover)',
-            border: '1px solid var(--portal-border-hover)',
-            marginBottom: '20px'
-          }}>
-            <div style={{
-              width: '44px', height: '44px', borderRadius: '12px', overflow: 'hidden',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              marginBottom: '10px'
-            }}>
-              {userProfile.avatar_url ? (
-                <img src={userProfile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '12px' }} />
-              ) : (
-                <div style={{
-                  width: '100%', height: '100%', borderRadius: '12px',
-                  background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center'
-                }}>
-                  <UserIcon size={20} color="#fff" />
-                </div>
-              )}
+          <div style={{ position: 'relative', padding: '14px', borderRadius: '14px', background: 'var(--portal-bg-hover)', border: '1px solid var(--portal-border-hover)', marginBottom: '12px' }}>
+            <button onClick={() => handleLogout()} title="Sair do portal"
+              style={{ position: 'absolute', top: 10, right: 10, display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 10px', borderRadius: 9, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', fontSize: 12, fontWeight: 600, fontFamily: 'Inter', cursor: 'pointer' }}>
+              <LogOut size={13} /> Sair
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, paddingRight: 64 }}>
+              <div style={{ width: '46px', height: '46px', borderRadius: '12px', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--portal-bg-card)' }}>
+                {userProfile.avatar_url ? (
+                  <img src={userProfile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', background: 'linear-gradient(135deg, #dc2626, #b91c1c)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><UserIcon size={20} color="#fff" /></div>
+                )}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--portal-text)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userProfile.nome}</p>
+                <p style={{ fontSize: '11.5px', color: '#dc2626', fontWeight: 600, letterSpacing: '0.5px', margin: '2px 0 0' }}>{userProfile.funcao}</p>
+              </div>
             </div>
-            <p style={{ fontSize: '14px', fontWeight: '700', color: 'var(--portal-text)', marginBottom: '2px' }}>
-              {userProfile.nome}
-            </p>
-            <p style={{ fontSize: '11px', color: '#dc2626', fontWeight: '600', letterSpacing: '1px' }}>
-              {userProfile.funcao}
-            </p>
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              {([
+                [<UserIcon size={14} key="p" />, 'Meu perfil', () => { setConfigTab('perfil'); setConfigOpen(true); setSidebarOpen(false) }],
+                [<ClipboardList size={14} key="f" />, 'Minha ficha', () => { setConfigTab('ficha'); setConfigOpen(true); setSidebarOpen(false) }],
+              ] as [React.ReactNode, string, () => void][]).map(([ic, lab, fn]) => (
+                <button key={lab} onClick={fn}
+                  style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: '8px 10px', borderRadius: 9, cursor: 'pointer', fontFamily: 'Inter', fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap',
+                    border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)' }}>
+                  {ic}{lab}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div style={{ position: 'relative', marginBottom: 12 }}>
+            <Search size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-muted)' }} />
+            <input value={navBusca} onChange={(e) => setNavBusca(e.target.value)} placeholder="Buscar no menu…"
+              style={{ width: '100%', padding: '9px 30px 9px 32px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input, var(--portal-bg-card))', color: 'var(--portal-text)', fontSize: 13, fontFamily: 'Inter', outline: 'none' }} />
+            {navBusca && <button onClick={() => setNavBusca('')} title="Limpar" style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', display: 'flex', padding: 3 }}><X size={14} /></button>}
           </div>
           </div>
 
@@ -1460,42 +1485,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             </div>
           ))}
 
-          {/* Sincronizações (catálogo de crons) */}
-          {isAdmin && (
-            <Link
-              href="/agendamentos"
-              onClick={() => setSidebarOpen(false)}
-              style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
-                padding: '10px 12px', borderRadius: '10px', border: 'none',
-                background: pathname === '/agendamentos' ? 'var(--portal-bg-hover)' : 'transparent',
-                color: pathname === '/agendamentos' ? '#dc2626' : 'var(--portal-text-secondary)',
-                cursor: 'pointer', fontSize: '13px', fontWeight: pathname === '/agendamentos' ? '600' : '500',
-                fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const,
-                marginBottom: '2px', textDecoration: 'none', marginTop: '8px'
-              }}
-              onMouseEnter={(e) => {
-                if (pathname !== '/agendamentos') { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' }
-              }}
-              onMouseLeave={(e) => {
-                if (pathname !== '/agendamentos') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }
-              }}
-            >
-              <div style={{
-                width: '30px', height: '30px', borderRadius: '8px',
-                background: pathname === '/agendamentos' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'var(--portal-bg-secondary)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                flexShrink: 0, transition: 'all 0.2s'
-              }}>
-                <Clock size={14} style={{ color: pathname === '/agendamentos' ? '#fff' : 'var(--portal-text-muted)' }} />
-              </div>
-              <span style={{ flex: 1 }}>Sincronizações</span>
-              {pathname === '/agendamentos' && <ChevronRight size={14} style={{ color: '#dc2626' }} />}
-            </Link>
-          )}
+          {navBusca && !groupedNav.length && <p style={{ fontSize: 13, color: 'var(--portal-text-muted)', padding: '12px 4px' }}>Nada no menu com “{navBusca}”.</p>}
+
+          {/* atalhos fixos do fim do menu, em ordem alfabética e obedecendo a busca (José, 12/11) */}
 
           {/* Admin (ou quem tem o módulo Administração: só dar/tirar acessos — 10/11/2026) */}
-          {(isAdmin || temAcesso('administracao') || temAcesso('ficha-cadastral')) && (
+          {extraVisivel('Administração') && (isAdmin || temAcesso('administracao') || temAcesso('ficha-cadastral')) && (
             <Link
               href="/admin"
               onClick={() => setSidebarOpen(false)}
@@ -1529,7 +1524,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           )}
 
           {/* Dev: envios de e-mail (config dos relatórios por e-mail no banco) */}
-          {isDev && (
+          {extraVisivel('Envios de e-mail') && isDev && (
             <Link href="/dev/envios-email" onClick={() => setSidebarOpen(false)}
               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: pathname === '/dev/envios-email' ? 'var(--portal-bg-hover)' : 'transparent', color: pathname === '/dev/envios-email' ? '#dc2626' : 'var(--portal-text-secondary)', cursor: 'pointer', fontSize: '13px', fontWeight: pathname === '/dev/envios-email' ? '600' : '500', fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const, marginBottom: '2px', textDecoration: 'none' }}
               onMouseEnter={(e) => { if (pathname !== '/dev/envios-email') { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' } }}
@@ -1544,7 +1539,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           )}
 
           {/* Dev: ideias (bloco de notas: captar → agrupar → planejar vira ticket) */}
-          {isDev && (
+          {extraVisivel('Ideias') && isDev && (
             <Link href="/ideias" onClick={() => setSidebarOpen(false)}
               style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: pathname === '/ideias' ? 'var(--portal-bg-hover)' : 'transparent', color: pathname === '/ideias' ? '#dc2626' : 'var(--portal-text-secondary)', cursor: 'pointer', fontSize: '13px', fontWeight: pathname === '/ideias' ? '600' : '500', fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const, marginBottom: '2px', textDecoration: 'none' }}
               onMouseEnter={(e) => { if (pathname !== '/ideias') { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' } }}
@@ -1558,7 +1553,42 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             </Link>
           )}
 
-          {isAdmin && (
+          {/* Sincronizações (catálogo de crons) */}
+          {extraVisivel('Sincronizações') && isAdmin && (
+            <Link
+              href="/agendamentos"
+              onClick={() => setSidebarOpen(false)}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', gap: '10px',
+                padding: '10px 12px', borderRadius: '10px', border: 'none',
+                background: pathname === '/agendamentos' ? 'var(--portal-bg-hover)' : 'transparent',
+                color: pathname === '/agendamentos' ? '#dc2626' : 'var(--portal-text-secondary)',
+                cursor: 'pointer', fontSize: '13px', fontWeight: pathname === '/agendamentos' ? '600' : '500',
+                fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const,
+                marginBottom: '2px', textDecoration: 'none', marginTop: '8px'
+              }}
+              onMouseEnter={(e) => {
+                if (pathname !== '/agendamentos') { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' }
+              }}
+              onMouseLeave={(e) => {
+                if (pathname !== '/agendamentos') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }
+              }}
+            >
+              <div style={{
+                width: '30px', height: '30px', borderRadius: '8px',
+                background: pathname === '/agendamentos' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'var(--portal-bg-secondary)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0, transition: 'all 0.2s'
+              }}>
+                <Clock size={14} style={{ color: pathname === '/agendamentos' ? '#fff' : 'var(--portal-text-muted)' }} />
+              </div>
+              <span style={{ flex: 1 }}>Sincronizações</span>
+              {pathname === '/agendamentos' && <ChevronRight size={14} style={{ color: '#dc2626' }} />}
+            </Link>
+          )}
+
+          {/* Tratorilson */}
+          {extraVisivel('Tratorilson') && isAdmin && (
             <Link
               href="/tratorilson"
               onClick={() => setSidebarOpen(false)}
@@ -1632,7 +1662,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
       {/* ===== MAIN CONTENT ===== */}
       <main style={{
-        marginLeft: sidebarOpen && !sidebarSobrepoe ? '260px' : '0px',
+        marginLeft: sidebarOpen && !sidebarSobrepoe ? '340px' : '0px',
         transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         minHeight: 'calc(100vh - 84px)',
         background: 'var(--portal-bg)'
@@ -1793,58 +1823,61 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
             {/* ===== ABA PERFIL ===== */}
             {configTab === 'perfil' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                {/* Foto */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                  <div style={{ width: '72px', height: '72px', borderRadius: '50%', overflow: 'hidden', background: 'linear-gradient(135deg, #b91c1c, #991b1b)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    {userProfile?.avatar_url
-                      ? <img src={userProfile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : <UserIcon size={32} color="#fff" />}
-                  </div>
-                  <div>
-                    <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }}
-                      onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAvatar(f) }} />
-                    <button onClick={() => avatarInputRef.current?.click()} disabled={perfilBusy} style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '7px', padding: '9px 16px', borderRadius: '10px',
-                      border: '1.5px solid var(--portal-border)', background: 'var(--portal-bg-secondary)',
-                      color: 'var(--portal-text)', fontSize: '13px', fontWeight: 700, cursor: 'pointer'
-                    }}>
-                      <Camera size={15} /> Trocar foto
-                    </button>
-                    <div style={{ fontSize: '11px', color: 'var(--portal-text-muted)', marginTop: '6px' }}>{userProfile?.funcao || ''}</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '18px' }}>
+                {/* Quem é: foto grande com a câmera em cima, nome, função e o e-mail de login */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '18px', padding: '18px', borderRadius: 16, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)' }}>
+                  <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadAvatar(f) }} />
+                  <button onClick={() => avatarInputRef.current?.click()} disabled={perfilBusy} title="Trocar foto"
+                    style={{ position: 'relative', width: '84px', height: '84px', borderRadius: '50%', flexShrink: 0, padding: 0, border: '3px solid var(--portal-bg-card)', boxShadow: '0 6px 16px -8px rgba(0,0,0,.4)', cursor: 'pointer', background: 'linear-gradient(135deg, #b91c1c, #991b1b)', overflow: 'visible' }}>
+                    <span style={{ position: 'absolute', inset: 0, borderRadius: '50%', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {userProfile?.avatar_url ? <img src={userProfile.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={34} color="#fff" />}
+                    </span>
+                    <span style={{ position: 'absolute', right: -2, bottom: -2, width: 30, height: 30, borderRadius: '50%', background: '#dc2626', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '2px solid var(--portal-bg-card)' }}><Camera size={14} /></span>
+                  </button>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--portal-text)' }}>{userProfile?.nome}</div>
+                    <div style={{ fontSize: 12.5, color: '#dc2626', fontWeight: 600, letterSpacing: '.4px', marginTop: 2 }}>{userProfile?.funcao || ''}</div>
+                    {emailLogin && <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', wordBreak: 'break-all' }}><Mail size={13} /> {emailLogin}<button type="button" onClick={() => { void navigator.clipboard?.writeText(emailLogin).then(() => { setEmailCopiado(true); setTimeout(() => setEmailCopiado(false), 1800) }).catch(() => {}) }} title="Copiar o e-mail" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 8, border: '1px solid var(--portal-border)', background: emailCopiado ? '#f0fdf4' : 'var(--portal-bg-card)', color: emailCopiado ? '#16a34a' : 'var(--portal-text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter' }}>{emailCopiado ? <><Check size={12} /> copiado</> : <><Copy size={12} /> copiar</>}</button></div>}
+                    <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 4 }}>clique na foto para trocar</div>
                   </div>
                 </div>
 
                 {/* Nome */}
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--portal-text-secondary)', letterSpacing: '0.5px', display: 'block', marginBottom: '8px' }}>NOME</label>
+                <div style={{ padding: '16px 18px', borderRadius: 16, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--portal-text)', display: 'block', marginBottom: '8px' }}>Seu nome no portal</label>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input value={perfilNome} onChange={(e) => setPerfilNome(e.target.value)} style={{
-                      flex: 1, minWidth: 0, padding: '11px 14px', borderRadius: '10px', border: '1.5px solid var(--portal-border)',
+                      flex: 1, minWidth: 0, padding: '12px 14px', borderRadius: '10px', border: '1.5px solid var(--portal-border)',
                       background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: '14px', outline: 'none'
                     }} />
-                    <button onClick={salvarNome} disabled={perfilBusy || !perfilNome.trim()} style={{
-                      padding: '0 18px', borderRadius: '10px', border: 'none', background: '#dc2626', color: '#fff',
-                      fontSize: '13px', fontWeight: 700, cursor: (perfilBusy || !perfilNome.trim()) ? 'not-allowed' : 'pointer', opacity: (perfilBusy || !perfilNome.trim()) ? 0.6 : 1
+                    <button onClick={salvarNome} disabled={perfilBusy || !perfilNome.trim() || perfilNome.trim() === userProfile?.nome} style={{
+                      padding: '0 20px', borderRadius: '10px', border: 'none', background: '#dc2626', color: '#fff',
+                      fontSize: '13px', fontWeight: 700, cursor: 'pointer', opacity: (perfilBusy || !perfilNome.trim() || perfilNome.trim() === userProfile?.nome) ? 0.5 : 1
                     }}>Salvar</button>
                   </div>
                 </div>
 
-                {/* Trocar senha */}
-                <div>
-                  <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--portal-text-secondary)', letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '8px' }}><Lock size={13} /> ALTERAR SENHA</label>
-                  <input type="password" value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} placeholder="Nova senha (mín. 6)" style={{
-                    width: '100%', padding: '11px 14px', borderRadius: '10px', border: '1.5px solid var(--portal-border)',
-                    background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: '14px', outline: 'none', marginBottom: '8px'
-                  }} />
-                  <input type="password" value={novaSenha2} onChange={(e) => setNovaSenha2(e.target.value)} placeholder="Confirmar nova senha" style={{
-                    width: '100%', padding: '11px 14px', borderRadius: '10px', border: '1.5px solid var(--portal-border)',
-                    background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: '14px', outline: 'none', marginBottom: '10px'
-                  }} />
-                  <button onClick={trocarSenha} disabled={perfilBusy || !novaSenha || !novaSenha2} style={{
-                    width: '100%', padding: '11px', borderRadius: '10px', border: 'none', background: '#1a1a1a', color: '#fff',
-                    fontSize: '13px', fontWeight: 700, cursor: (perfilBusy || !novaSenha || !novaSenha2) ? 'not-allowed' : 'pointer', opacity: (perfilBusy || !novaSenha || !novaSenha2) ? 0.6 : 1
-                  }}>Alterar senha</button>
+                {/* Senha */}
+                <div style={{ padding: '16px 18px', borderRadius: 16, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)' }}>
+                  <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: '7px', marginBottom: '4px' }}><Lock size={14} /> Trocar a senha</label>
+                  <p style={{ fontSize: 12, color: 'var(--portal-text-muted)', margin: '0 0 12px', lineHeight: 1.45 }}>Por segurança, a senha atual não fica guardada de um jeito que dê para ver: se esqueceu, crie uma nova aqui. No olho dá para ver o que está digitando.</p>
+                  <div style={{ position: 'relative', marginBottom: 8 }}>
+                    <input type={verSenha ? 'text' : 'password'} value={novaSenha} onChange={(e) => setNovaSenha(e.target.value)} placeholder="Nova senha" autoComplete="new-password" style={{ width: '100%', padding: '12px 44px 12px 14px', borderRadius: '10px', border: '1.5px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: '14px', outline: 'none' }} />
+                    <button type="button" onClick={() => setVerSenha((x) => !x)} title={verSenha ? 'Esconder' : 'Mostrar o que estou digitando'} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', padding: 6, display: 'flex' }}>{verSenha ? <EyeOff size={17} /> : <Eye size={17} />}</button>
+                  </div>
+                  <div style={{ position: 'relative', marginBottom: 10 }}>
+                    <input type={verSenha ? 'text' : 'password'} value={novaSenha2} onChange={(e) => setNovaSenha2(e.target.value)} placeholder="Repita a nova senha" autoComplete="new-password" style={{ width: '100%', padding: '12px 44px 12px 14px', borderRadius: '10px', border: '1.5px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: '14px', outline: 'none' }} />
+                    <button type="button" onClick={() => setVerSenha((x) => !x)} title={verSenha ? 'Esconder' : 'Mostrar o que estou digitando'} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', padding: 6, display: 'flex' }}>{verSenha ? <EyeOff size={17} /> : <Eye size={17} />}</button>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 12, fontSize: 12.5 }}>
+                    <span style={{ color: novaSenha.length >= 6 ? '#16a34a' : 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>{novaSenha.length >= 6 ? <Check size={13} /> : <span style={{ width: 13, textAlign: 'center' }}>·</span>} pelo menos 6 caracteres</span>
+                    <span style={{ color: novaSenha && novaSenha === novaSenha2 ? '#16a34a' : novaSenha2 ? '#dc2626' : 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>{novaSenha && novaSenha === novaSenha2 ? <Check size={13} /> : <span style={{ width: 13, textAlign: 'center' }}>·</span>} {novaSenha2 && novaSenha !== novaSenha2 ? 'as duas estão diferentes' : 'as duas iguais'}</span>
+                  </div>
+                  <button onClick={trocarSenha} disabled={perfilBusy || novaSenha.length < 6 || novaSenha !== novaSenha2} style={{
+                    width: '100%', padding: '12px', borderRadius: '10px', border: 'none', background: '#dc2626', color: '#fff',
+                    fontSize: '13.5px', fontWeight: 700, cursor: 'pointer', opacity: (perfilBusy || novaSenha.length < 6 || novaSenha !== novaSenha2) ? 0.45 : 1
+                  }}>Trocar a senha</button>
                 </div>
               </div>
             )}

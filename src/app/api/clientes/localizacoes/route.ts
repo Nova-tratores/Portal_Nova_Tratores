@@ -7,6 +7,7 @@
 //      { doc, acao:'renomear'|'mover'|'remover', id, ... } → altera uma do mesmo cliente
 import { NextRequest, NextResponse } from 'next/server';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
+import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { localizacoesDoDocumento, adicionarLocalizacao, alterarLocalizacao } from '@/lib/pos/localizacao-cliente-server';
 import { coordenadaDoLink } from '@/lib/clientes/link-maps-server';
 
@@ -18,6 +19,13 @@ const soDigitos = (v: unknown) => String(v ?? '').replace(/\D/g, '');
 export async function GET(req: NextRequest) {
   const g = await protegerRota(req, [{ modulo: 'clientes' }, { modulo: 'pos' }]);
   if (g.resposta) return g.resposta;
+  // ?todas=1: todas as localizações salvas (camada "Clientes (POS)" do mapa da frota — José, 12/11)
+  if (req.nextUrl.searchParams.get('todas') === '1') {
+    const { data, error } = await supabaseAdmin.from('clientes_localizacoes')
+      .select('id, documento, nome, cliente_nome, lat, lng, origem, tecnico, os_id, confirmado_em, atualizado_em').limit(3000);
+    if (error) return NextResponse.json({ localizacoes: [], erro: error.message });
+    return NextResponse.json({ localizacoes: data || [] });
+  }
   const doc = soDigitos(req.nextUrl.searchParams.get('doc'));
   if (doc.length !== 11 && doc.length !== 14) return NextResponse.json({ localizacoes: [], semTabela: false });
   try {

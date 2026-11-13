@@ -4,6 +4,33 @@
 import { useEffect, useState } from 'react';
 import { authHeaders } from '@/lib/auth/client';
 
+/** Total de retiradas aguardando liberação (badge). */
+export function useRetiradasPendentes() {
+  const [pendentes, setPendentes] = useState(0);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/pecas/unidades?status=retirada_pendente&count=1', { headers: await authHeaders() });
+        const j = await r.json();
+        if (r.ok) setPendentes(j.total || 0);
+      } catch { /* badge fica em 0 */ }
+    })();
+  }, []);
+  return pendentes;
+}
+
+/** Bolinha vermelha com o número (usada na aba Retiradas). */
+export function BadgeRetiradas({ n }: { n: number }) {
+  if (n <= 0) return null;
+  return (
+    <span style={{
+      position: 'absolute', top: -6, right: -6, minWidth: 18, height: 18, borderRadius: 999,
+      background: '#dc2626', color: '#fff', fontSize: 11, fontWeight: 800,
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px',
+    }}>{n > 99 ? '99+' : n}</span>
+  );
+}
+
 export default function BotaoRetiradas() {
   const [pendentes, setPendentes] = useState(0);
 

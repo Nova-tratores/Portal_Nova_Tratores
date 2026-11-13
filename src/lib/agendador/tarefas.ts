@@ -601,6 +601,14 @@ export const TAREFAS: Record<string, Tarefa> = {
     return rodarSnapshot();
   },
 
+  // Tela do diretor (/empresa): recalcula as áreas pesadas e grava em empresa_painel (a tela só lê a tabela).
+  // parametros.area = só uma área ('comercial' | 'dre-gerencial'); sem = todas. EMPRESA_PAINEL=off desliga.
+  'empresa-snapshot': async (parametros) => {
+    if (desligada('EMPRESA_PAINEL')) return { pular: 'desligado (EMPRESA_PAINEL=off)' };
+    const { rodarSnapshotEmpresa } = await import('@/lib/empresa/painel-gravado');
+    return rodarSnapshotEmpresa(typeof parametros.area === 'string' ? parametros.area : undefined);
+  },
+
   // Planta Viva: PV e remessas abertos na Omie, com quem criou (Balcão de peças). Mesma
   // leitura de /ajustes/pedidos e /ajustes/remessas; a rodada leva ~7 min (as remessas paginam as OS).
   'planta-omie-abertos': async () => {

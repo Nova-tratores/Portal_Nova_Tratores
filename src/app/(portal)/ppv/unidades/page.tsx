@@ -12,7 +12,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
 import QRUnidadeModal from '@/components/ppv/QRUnidadeModal'
-import PecasNav from '@/components/ppv/PecasNav'
+import PecasNav, { subAbasPPV } from '@/components/ppv/PecasNav'
 import { htmlFolha, qrSvg, urlDaUnidade, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
 import { alvoDaUnidade, STATUS_LABEL, STATUS_COR, DESTINO_LABEL, EMPRESA_LABEL, EMPRESA_COR, type PecaUnidade, type UnidadeStatus } from '@/lib/pecas/unidades'
 import type { DivergenciaPPV } from '@/lib/pecas/ppv-vinculo'
@@ -227,7 +227,7 @@ export default function UnidadesRastreioPage() {
 
   return (
     <div className="pecas-skin">
-    <PecasNav />
+    <PecasNav sub={subAbasPPV({ ativo: 'retiradas', podeCatalogo: pode('ppv', 'catalogo'), podeEtiquetas: pode('ppv', 'etiquetas'), podeRetiradas: true })} />
     <style>{'@media (max-width: 768px) { .ppv-x-unid { padding: 12px 10px !important; } }'}</style>
     <div className="ppv-x-unid" style={{ padding: '18px 22px', maxWidth: 1200, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>

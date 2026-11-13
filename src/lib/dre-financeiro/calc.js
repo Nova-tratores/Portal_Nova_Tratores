@@ -1203,13 +1203,23 @@ async function calcularDREConsolidada(anoMesIni, anoMesFim, cTipoData, forceRefr
   // Caminho rapido: le so a coluna resumo do cache pra cada (conta, ano, mes)
   const anosDistintos = Array.from(new Set(meses.map(k => parseInt(k.split('-')[0], 10))));
   const { data: cacheRows } = await supabase.from('dre_cache')
-    .select('conta_omie,ano,mes,resumo')
+    .select('conta_omie,ano,mes,resumo,atualizado_em')
     .eq('c_tipo_data', cTipoData)
     .in('ano', anosDistintos);
 
-  // Identifica (conta, ano, mes) faltando no cache OU sem resumo (cache antigo)
+  // Identifica (conta, ano, mes) faltando no cache OU sem resumo (cache antigo).
+  // 11/11/2026: mes corrente e os 2 anteriores com copia de mais de 6 h tambem contam como faltando, para
+  // buscar de novo no Omie (a copia de jul-nov/2026 ficou congelada sem as vendas). O consultarDREPorPeriodo
+  // nunca troca uma copia por outra menor.
+  const hojeD = new Date(), idxHoje = hojeD.getFullYear() * 12 + hojeD.getMonth();
+  const velhos = new Set();
   const cacheMap = new Map();
-  (cacheRows || []).forEach(r => { if (r.resumo) cacheMap.set(`${r.conta_omie}|${r.ano}|${r.mes}`, r.resumo); });
+  (cacheRows || []).forEach(r => {
+    const recente = idxHoje - (r.ano * 12 + (r.mes - 1)) <= 2;
+    const velho = !r.atualizado_em || (Date.now() - new Date(r.atualizado_em).getTime()) > 6 * 3600 * 1000;
+    if (recente && velho) { velhos.add(`${r.conta_omie}|${r.ano}|${r.mes}`); return; }
+    if (r.resumo) cacheMap.set(`${r.conta_omie}|${r.ano}|${r.mes}`, r.resumo);
+  });
   const faltando = [];
   ['nova', 'castro'].forEach(c => {
     meses.forEach(k => {
@@ -1230,6 +1240,7 @@ async function calcularDREConsolidada(anoMesIni, anoMesFim, cTipoData, forceRefr
     const aindaSemNadaCached = new Set(faltando.map(f => `${f.conta}|${f.ano}|${f.mes}`));
     // Pra cada um que tem movimentos mas falta resumo: computa e UPDATE
     for (const r of (faltMovs || [])) {
+      if (velhos.has(`${r.conta_omie}|${r.ano}|${r.mes}`)) continue; // vai buscar de novo no Omie
       const resumo = computeResumoDRE(r.movimentos || [], r.conta_omie);
       cacheMap.set(`${r.conta_omie}|${r.ano}|${r.mes}`, resumo);
       aindaSemNadaCached.delete(`${r.conta_omie}|${r.ano}|${r.mes}`);

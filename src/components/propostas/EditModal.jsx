@@ -15,7 +15,7 @@ import { desenharCampo, desenharBlocoTexto } from '@/lib/propostas/pdf-caber'
 const COLS_VIEW = ['status_ui', 'dias_na_fase', 'dias_total', 'cor_hex', 'em_aberto', 'status_ordem', 'probabilidade', 'vendedor_nome', 'fabrica_custo', 'fabrica_pedido_id', 'tag_nome', 'tag_cor']
 const semColsView = (obj) => { const o = { ...obj }; for (const k of COLS_VIEW) delete o[k]; return o }
 
-export default function EditModal({ proposal, onClose }) {
+export default function EditModal({ proposal, onClose, soPdf = false, onPdf = null }) {
   const [formData, setFormData] = useState(proposal || {})
   const [imagePreview, setImagePreview] = useState(proposal?.Imagem_Equipamento || '')
   const [showHist, setShowHist] = useState(false)
@@ -339,6 +339,12 @@ export default function EditModal({ proposal, onClose }) {
     })
     desenharRodape(doc, { config: dadosAssinatura.config, propostaId: formData.id })
 
+    if (soPdf) {
+      // tela do diretor: o PDF abre numa janela ali mesmo (onPdf recebe o endereço)
+      const url = String(doc.output('bloburl'))
+      if (onPdf) onPdf(url); else window.open(url, '_blank')
+      return
+    }
     doc.save(`Proposta_${formData.Cliente || 'NovaTratores'}.pdf`)
   }
 
@@ -367,6 +373,15 @@ export default function EditModal({ proposal, onClose }) {
 
   const inputStyle = "w-full bg-white border-none outline-none text-[15px] font-normal text-zinc-900"
   const labelStyle = "text-[11px] font-medium text-zinc-500 uppercase tracking-wide"
+
+  // modo só o PDF: gera assim que a proposta carregar e fecha
+  const pdfFeito = useRef(false)
+  useEffect(() => {
+    if (!soPdf || pdfFeito.current || !formData?.id) return
+    pdfFeito.current = true
+    handlePrint().finally(() => onClose?.())
+  }, [soPdf, formData?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (soPdf) return null
 
   return (
     <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex justify-center items-center z-[9999]">

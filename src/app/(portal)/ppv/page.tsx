@@ -27,8 +27,8 @@ import ModalProdutosEstoque from "@/components/ppv/ModalProdutosEstoque";
 import ItemOrcamentoModal from "@/components/ppv/ItemOrcamentoModal";
 import ModalProdutoManual from "@/components/ppv/ModalProdutoManual";
 import ModalRevisoes from "@/components/ppv/ModalRevisoes";
-import BotaoRetiradas from "@/components/ppv/BotaoRetiradas";
-import { PECAS_TOPBAR_CSS } from "@/components/ppv/PecasNav";
+import { BadgeRetiradas, useRetiradasPendentes } from "@/components/ppv/BotaoRetiradas";
+import PecasNav, { subAbasPPV } from "@/components/ppv/PecasNav";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 import { fetchAuth } from "@/lib/auth/client";
@@ -36,13 +36,14 @@ import { fetchAuth } from "@/lib/auth/client";
 function PPVApp() {
   const { kanbanItems, carregarKanban, atualizarKanbanLocal, toast, hideToast, globalLoading, cacheProduct, showToast, recarregarRevisoes } = usePPV();
   const { userProfile } = useAuth();
-  const { pode, temAcesso } = usePermissoes(userProfile?.id);
+  const { pode } = usePermissoes(userProfile?.id);
   const isMobile = useIsMobile();
   const podeCriar = pode('ppv', 'criar');
   const podeMoverFase = pode('ppv', 'mover_fase');
   const podeCatalogo = pode('ppv', 'catalogo');
   const podeEtiquetas = pode('ppv', 'etiquetas');
   const podeRetiradas = pode('ppv', 'rastreio_liberar');
+  const retiradasPendentes = useRetiradasPendentes();
   const searchParams = useSearchParams();
   const pathname = usePathname();
 
@@ -397,41 +398,12 @@ function PPVApp() {
       <GlobalLoader visible={globalLoading} />
       <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={hideToast} />
 
-      {/* ===== TOP BAR ===== */}
-      <div className="ppv-topbar ppv-x-topbar">
-        <style>{PECAS_TOPBAR_CSS}</style>
-        {/* Abas (estilo Chrome) à direita: só Gestão e Catálogo */}
-        <div className="ppv-topbar-actions">
-          <button className={`ppv-topbar-nav-btn ${activeTab === "kanbanTab" ? "active" : ""}`} onClick={() => setActiveTab("kanbanTab")}>
-            <i className="fas fa-th-large" /> Pré-Pedido de Venda
-          </button>
-          <button className={`ppv-topbar-nav-btn ${activeTab === "dashTab" ? "active" : ""}`} onClick={() => setActiveTab("dashTab")} title="Valor e quantidade de pedidos por data, técnico, cliente, previsão de faturamento e fase">
-            <i className="fas fa-chart-simple" /> Dashboard
-          </button>
-          {podeCatalogo && (
-            <button className={`ppv-topbar-nav-btn ${activeTab === "catalogoTab" ? "active" : ""}`} onClick={() => setActiveTab("catalogoTab")}>
-              <i className="fas fa-cogs" /> Catálogo
-            </button>
-          )}
-          {podeEtiquetas && (
-            <button className={`ppv-topbar-nav-btn ${activeTab === "etiquetasTab" ? "active" : ""}`} onClick={() => setActiveTab("etiquetasTab")} title="Imprimir etiquetas de identificação de peças (código por empresa)">
-              <i className="fas fa-tags" /> Etiquetas
-            </button>
-          )}
-          {podeRetiradas && <BotaoRetiradas />}
-          {/* Sistema Peças: Orçamentos e Requisições como abas internas do PPV */}
-          {temAcesso('orcamentos') && (
-            <a href="/orcamentos" className="ppv-topbar-nav-btn" style={{ textDecoration: 'none' }}>
-              <i className="fas fa-calculator" /> Orçamentos
-            </a>
-          )}
-          {temAcesso('requisicoes') && (
-            <a href="/requisicoes" className="ppv-topbar-nav-btn" style={{ textDecoration: 'none' }}>
-              <i className="fas fa-clipboard-list" /> Requisições
-            </a>
-          )}
-        </div>
-      </div>
+      {/* ===== TOP BAR: módulos do setor Peças (iguais à dashboard) + telas do Pedidos de Peças na 2ª linha ===== */}
+      <PecasNav sub={subAbasPPV({
+        ativo: activeTab === 'dashTab' ? 'dash' : activeTab === 'catalogoTab' ? 'catalogo' : activeTab === 'etiquetasTab' ? 'etiquetas' : 'kanban',
+        podeCatalogo, podeEtiquetas, podeRetiradas, badgeRetiradas: <BadgeRetiradas n={retiradasPendentes} />,
+        ir: (aba) => setActiveTab(aba === 'dash' ? 'dashTab' : aba === 'catalogo' ? 'catalogoTab' : aba === 'etiquetas' ? 'etiquetasTab' : 'kanbanTab'),
+      })} />
 
       {/* ===== CONTENT ===== */}
       <main className={`relative flex min-w-0 flex-1 flex-col ${listaCelular ? "" : "overflow-hidden"}`}>

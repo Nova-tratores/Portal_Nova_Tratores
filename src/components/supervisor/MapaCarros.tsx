@@ -113,8 +113,15 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
   const [mostrarLocais, setMostrarLocais] = useState(!ehFrota)
   const [mostrarVisitas, setMostrarVisitas] = useState(!ehFrota)
   const [vivos, setVivos] = useState<VeiculoVivo[]>([])
+  const vivosRef = useRef<VeiculoVivo[]>([])
+  useEffect(() => { vivosRef.current = vivos }, [vivos])
+  const [filtroSt, setFiltroSt] = useState<StatusVivo | null>(null)
   const [vivosCarregados, setVivosCarregados] = useState(false)
   const [atualizadoEm, setAtualizadoEm] = useState<string | null>(null)
+  const [gravado, setGravado] = useState(false) // mostrando a foto gravada enquanto a ao vivo chega
+  const carregarLiveRef = useRef<() => Promise<void>>(async () => {})
+  // última posição desenhada de cada carro: a nova posição chega deslizando (José, 12/11: "animação do carro ao vivo")
+  const posDesenhada = useRef(new Map<string, { lat: number; lng: number }>())
   const [agoraMs, setAgoraMs] = useState(() => Date.now())
   const [avisoRota, setAvisoRota] = useState<string | null>(null)
   const [zoom, setZoom] = useState(10)
@@ -123,6 +130,11 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
   const carRendererRef = useRef<any>(null)
   const carCacheRef = useRef(new Map<number, any>())
   const [mostrarCar, setMostrarCar] = useState(false)
+  const [camadasAbertas, setCamadasAbertas] = useState(false)
+  // camada Clientes (POS): as localizações de cliente salvas no POS (clientes_localizacoes) — José, 12/11
+  const [mostrarCliPos, setMostrarCliPos] = useState(false)
+  const [cliPos, setCliPos] = useState<Array<{ id: string; nome: string | null; cliente_nome: string | null; lat: number; lng: number; tecnico: string | null; os_id: string | null; confirmado_em: string | null }> | null>(null)
+  const cliPosLayerRef = useRef<{ clearLayers: () => void } | null>(null)
   // camada Vias fora do mapa: trechos do GPS longe das vias do OpenStreetMap
   const [mostrarVias, setMostrarVias] = useState(false)
   const [carMunicipios, setCarMunicipios] = useState<{ ibge: number; nome: string; centro: [number, number] }[] | null>(null)
@@ -244,15 +256,21 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
 
   // Posições ao vivo. Supervisor: só quando a data é hoje (rota antiga).
   // Frota: sempre — cada carro na ÚLTIMA posição conhecida, com a situação.
+  const primeiraLeitura = useRef(true)
   const carregarLive = useCallback(async () => {
     if (typeof document !== 'undefined' && document.hidden) return // aba escondida não gasta API
     if (ehFrota) {
       try {
-        const res = await fetchAuth('/api/frota/mapa/vivo')
+        // 1ª vez: a última foto gravada aparece NA HORA (rapido=1) e logo em seguida vem a posição ao vivo
+        const rapido = primeiraLeitura.current
+        primeiraLeitura.current = false
+        const res = await fetchAuth(`/api/frota/mapa/vivo${rapido ? '?rapido=1' : ''}`)
         if (res.ok) {
           const d = await res.json()
           setVivos(Array.isArray(d.veiculos) ? d.veiculos : [])
           setAtualizadoEm(d.atualizado_em || null)
+          setGravado(!!d.gravado)
+          if (d.gravado) { setVivosCarregados(true); setTimeout(() => { void carregarLiveRef.current() }, 300) }
         }
       } catch { /* mantém a última leitura */ }
       setVivosCarregados(true)
@@ -266,6 +284,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
     } catch { /* */ }
   }, [data, fontePosicoes, ehFrota])
 
+  useEffect(() => { carregarLiveRef.current = carregarLive }, [carregarLive])
   useEffect(() => {
     carregarLive()
     const i = setInterval(carregarLive, 30000)
@@ -287,19 +306,23 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       // raio de ~44 px na tela no zoom atual: de longe junta, de perto separa
       const mPorPx = (156543.03 * Math.cos((-23.2 * Math.PI) / 180)) / 2 ** zoom
       const raioKm = Math.max(0.15, (44 * mPorPx) / 1000)
-      for (const grupo of agruparPorProximidade(vivos.filter((v) => v !== escolhidoV), raioKm)) {
+      const vis = filtroSt ? vivos.filter((v) => statusVivo(v, agoraMs) === filtroSt || v === escolhidoV) : vivos
+      for (const grupo of agruparPorProximidade(vis.filter((v) => v !== escolhidoV), raioKm)) {
         if (grupo.length === 1) { soltos.push(grupo[0]); continue }
         const sts = grupo.map((v) => statusVivo(v, agoraMs))
         const bolinhas = ORDEM_STATUS.filter((s) => sts.includes(s))
           .map((s) => `<span style="width:9px;height:9px;border-radius:50%;background:${STATUS_INFO[s].cor};border:1.5px solid #fff"></span>`).join('')
         // nome do lugar só quando todos estão nele (senão "3 carros" basta)
-        const lugar = grupo.every((v) => v.local && v.local === grupo[0].local) ? grupo[0].local || '' : ''
+        const lugar0 = grupo.every((v) => v.local && v.local === grupo[0].local) ? grupo[0].local || '' : ''
+        const cidadeG = grupo.every((v) => v.cidade && v.cidade === grupo[0].cidade) ? grupo[0].cidade || '' : ''
+        // cidade primeiro (José, 12/11: "coloca no mapa a cidade que eles estão"); o lugar só quando diz algo
+        const lugar = [cidadeG, lugar0 && lugar0 !== 'Sem cadastro de local' ? lugar0 : ''].filter(Boolean).join(' — ')
         const icon = L.divIcon({
           className: '',
           html: `<div style="display:inline-flex;align-items:center;gap:6px;background:#fff;border:2px solid #1e293b;border-radius:16px;padding:4px 9px 4px 6px;box-shadow:0 2px 8px rgba(0,0,0,0.35);white-space:nowrap;opacity:${carroSel ? 0.45 : 1};font:800 12px Inter,sans-serif;color:#0f172a">
-            <span style="display:inline-flex;gap:2px">${bolinhas}</span>${grupo.length} carros${lugar && lugar !== 'Sem cadastro de local' ? ` · ${esc(lugar)}` : ''}
+            <span style="display:inline-flex;gap:2px">${bolinhas}</span>${grupo.length} carros${lugar ? ` · ${esc(lugar)}` : ''}
           </div>`,
-          iconSize: [150, 28], iconAnchor: [20, 14],
+          iconSize: [220, 28], iconAnchor: [20, 14],
         })
         const linhas = grupo.map((v, i) => {
           const st = sts[i]
@@ -339,12 +362,27 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
           html: `<div style="display:flex;flex-direction:column;align-items:center;opacity:${apagado ? 0.35 : 1}">
             <div style="position:relative;width:30px;height:30px;border-radius:50%;background:${cor};border:3px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:${escolhido ? `0 0 0 5px ${cor}55,` : ''}0 2px 6px rgba(0,0,0,0.45)">${seta}${ICONE_CARRO}</div>
             <div style="margin-top:2px;background:rgba(15,23,42,0.9);color:#fff;font:700 10.5px Inter,sans-serif;padding:1px 6px;border-radius:4px;white-space:nowrap">${v.nome ? `${esc(primeiroNome(v.nome))} · ` : ''}${esc(v.placa_exibicao)}</div>
+            ${v.cidade ? `<div style="margin-top:1px;background:rgba(255,255,255,0.95);color:#0f172a;font:600 10.5px Inter,sans-serif;padding:0 6px;border-radius:4px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.25)">${esc(v.cidade)}</div>` : ''}
             ${st === 'andando' && v.retorno ? `<div style="margin-top:1px;background:#1d4ed8;color:#fff;font:700 9.5px Inter,sans-serif;padding:0 5px;border-radius:4px;white-space:nowrap">↩ Loja ~${horaBR(v.retorno.eta)}</div>` : ''}
             ${v.os_execucao?.length ? `<div style="margin-top:1px;background:#15803d;color:#fff;font:700 9.5px Inter,sans-serif;padding:0 5px;border-radius:4px;white-space:nowrap">${esc(v.os_execucao[0].id)}</div>` : ''}
           </div>`,
           iconSize: [140, 64], iconAnchor: [70, 18],
         })
-        const marker = L.marker([v.lat, v.lng], { icon, zIndexOffset: escolhido ? 6000 : 5000 })
+        // desliza da posição desenhada antes até a nova (só quando andou de verdade: 5 m a 30 km)
+        const antes = posDesenhada.current.get(v.placa)
+        posDesenhada.current.set(v.placa, { lat: v.lat, lng: v.lng })
+        const andou = antes ? Math.hypot(antes.lat - v.lat, (antes.lng - v.lng) * 0.92) : 0
+        const desliza = !!antes && andou > 0.00005 && andou < 0.3
+        const marker = L.marker(desliza ? [antes!.lat, antes!.lng] : [v.lat, v.lng], { icon, zIndexOffset: escolhido ? 6000 : 5000 })
+        if (desliza) {
+          const t0 = performance.now(), DUR = 4000, de = antes!, para = { lat: v.lat, lng: v.lng }
+          const passo = (t: number) => {
+            const k = Math.min(1, (t - t0) / DUR), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2
+            marker.setLatLng([de.lat + (para.lat - de.lat) * e, de.lng + (para.lng - de.lng) * e])
+            if (k < 1 && marker._map) requestAnimationFrame(passo)
+          }
+          requestAnimationFrame(passo)
+        }
         marker.bindTooltip(
           `<b>${esc(v.nome || v.placa_exibicao)}</b>${v.nome ? ` · ${esc(v.placa_exibicao)}` : ''}<br/>` +
           `<span style="color:${cor};font-weight:700">${STATUS_INFO[st].label}</span>${st === 'andando' && v.rumo != null ? ` para o ${nomeRumo(v.rumo)}` : ''} · ${esc(haQuanto(v.dt, agoraMs))}` +
@@ -373,7 +411,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       marker.on('click', () => selecionarCarroRef.current(v.placa, v.vendedor_nome || v.placa))
       marker.addTo(liveLayerRef.current)
     }
-  }, [live, ready, ehFrota, vivos, agoraMs, carroSel, zoom])
+  }, [live, ready, ehFrota, vivos, agoraMs, carroSel, zoom, filtroSt])
 
   // Frota: só as visitas do DIA escolhido (o histórico inteiro afogava os
   // carros em ~250 pins). Supervisor: todas, como sempre.
@@ -513,13 +551,41 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
   const fecharCarro = useCallback(() => {
     // cancela a rota que ainda estiver chegando (senão ela desenha depois do ✕)
     rotaReqRef.current++
+    tourRef.current++; setTourAtivo(false)
     rotaAbortRef.current?.abort()
     setLoading(false); setAvisoRota(null)
     setCarroSel(null); setHistorico([]); setPlacaSel(null); setResumo(null)
     setRotaSel(null); setMotoristaDia(null)
     setData(hojeStr())
     rotaLayerRef.current?.clearLayers()
+    const pts = vivosRef.current.filter((v) => v.lat != null && v.lng != null).map((v) => [v.lat as number, v.lng as number] as [number, number])
+    if (pts.length && mapInstance.current) mapInstance.current.fitBounds(pts, { padding: [60, 60], maxZoom: 12 })
   }, [])
+
+  useEffect(() => {
+    if (!ready || !mapInstance.current) return
+    const L = LRef.current
+    if (!cliPosLayerRef.current) cliPosLayerRef.current = L.layerGroup().addTo(mapInstance.current)
+    const camada = cliPosLayerRef.current
+    camada.clearLayers()
+    if (!mostrarCliPos) return
+    if (!cliPos) {
+      fetchAuth('/api/clientes/localizacoes?todas=1').then((r) => r.json()).then((j) => setCliPos(Array.isArray(j.localizacoes) ? j.localizacoes : [])).catch(() => setCliPos([]))
+      return
+    }
+    for (const c of cliPos) {
+      if (c.lat == null || c.lng == null) continue
+      const icon = L.divIcon({
+        className: '',
+        html: `<div style="display:flex;flex-direction:column;align-items:center"><div style="width:22px;height:22px;border-radius:50%;background:#0d9488;border:2px solid #fff;display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.35);color:#fff;font-size:11px"><i class="fas fa-house"></i></div><div style="margin-top:2px;background:rgba(255,255,255,.95);color:#0f172a;font:500 10.5px Inter,sans-serif;padding:0 6px;border-radius:4px;white-space:nowrap;max-width:160px;overflow:hidden;text-overflow:ellipsis;box-shadow:0 1px 3px rgba(0,0,0,.2)">${esc(c.nome || c.cliente_nome || 'Cliente')}</div></div>`,
+        iconSize: [160, 40], iconAnchor: [80, 11],
+      })
+      const quando = c.confirmado_em ? new Date(c.confirmado_em).toLocaleDateString('pt-BR') : ''
+      L.marker([c.lat, c.lng], { icon, zIndexOffset: 1000 })
+        .bindPopup(`<div style="font:14px Inter,sans-serif;color:#0f172a"><b style="font-weight:600">${esc(c.nome || 'Local do cliente')}</b><div style="font-size:12.5px;color:#475569;margin-top:2px">${esc(c.cliente_nome || '')}</div><div style="font-size:12px;color:#64748b;margin-top:4px">${[c.os_id, c.tecnico, quando ? 'salva em ' + quando : ''].filter(Boolean).map(esc).join(' · ')}</div><a href="https://www.google.com/maps?q=${c.lat},${c.lng}" target="_blank" rel="noreferrer" style="display:inline-block;margin-top:6px;font-size:12.5px;color:#2563eb">abrir no Google Maps</a></div>`, { maxWidth: 260 })
+        .addTo(camada)
+    }
+  }, [ready, mostrarCliPos, cliPos])
 
   // Ver rota de um carro numa data
   const verRota = useCallback(async (placa: string, dataParam: string) => {
@@ -696,6 +762,34 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
     return evs
   }, [rotaSel, locais])
 
+  const tourRef = useRef(0)
+  const [tourAtivo, setTourAtivo] = useState(false)
+  const passearParadas = useCallback(async () => {
+    const map = mapInstance.current, L = LRef.current
+    const ps = timeline.filter((e) => e.tipo === 'parada' && e.lat != null && e.lng != null)
+    if (!map || !L || !ps.length) return
+    const id = ++tourRef.current
+    setTourAtivo(true)
+    const espera = (ms: number) => new Promise((res) => setTimeout(res, ms))
+    for (let i = 0; i < ps.length; i++) {
+      if (tourRef.current !== id) return
+      const e = ps[i]
+      map.flyTo([e.lat, e.lng], 16, { duration: 1.6 })
+      await espera(1800)
+      if (tourRef.current !== id) return
+      L.popup({ closeButton: false, autoClose: true, offset: [0, -6] }).setLatLng([e.lat, e.lng])
+        .setContent(`<div style="font:14px Inter,sans-serif;color:#0f172a"><div style="font-size:12px;color:#d97706;font-weight:600">Parada ${i + 1} de ${ps.length}</div><b style="font-weight:600">${fmtH(e.hora)}${e.fim ? ' – ' + fmtH(e.fim) : ''}</b> · ${fmtT(e.dur)}<div style="font-size:12.5px;color:#475569;margin-top:2px">${esc(e.local || '')}</div></div>`)
+        .openOn(map)
+      await espera(2600)
+    }
+    if (tourRef.current !== id) return
+    map.closePopup()
+    const pts = rotaSel?.pontos?.map((x: { lat: number; lng: number }) => [x.lat, x.lng]) || ps.map((e) => [e.lat, e.lng])
+    if (pts.length) map.flyToBounds(pts, { padding: [50, 50], duration: 1.4 })
+    setTourAtivo(false)
+  }, [timeline, rotaSel])
+  const pararTour = useCallback(() => { tourRef.current++; setTourAtivo(false); mapInstance.current?.closePopup() }, [])
+
   const excessos = useMemo(
     () => timeline.filter((e) => e.tipo === 'trecho' && e.velMax > LIMITE_VEL_KMH).length,
     [timeline],
@@ -710,21 +804,23 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
 
       {/* Painel de controle */}
-      <div style={{ position: 'absolute', top: isMobile ? 52 : 10, left: 10, zIndex: 1000, background: 'rgba(255,255,255,0.97)', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', width: isMobile ? 'min(190px, calc(100% - 20px))' : 240, maxHeight: isMobile ? '45%' : 'calc(100% - 20px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: isMobile ? 52 : 10, left: 10, zIndex: 1000, background: 'rgba(255,255,255,0.97)', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', width: isMobile ? 'min(220px, calc(100% - 20px))' : 280, maxHeight: isMobile ? '45%' : 'calc(100% - 20px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {!carroSel ? (
           <>
-            <div style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontSize: 12, fontWeight: 700, color: '#64748B', letterSpacing: 0.3 }}>
-              {ehFrota ? `FROTA · ${vivos.length} ${vivos.length === 1 ? 'CARRO' : 'CARROS'}` : tituloPainel}
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid #eef2f7', fontSize: 12, fontWeight: 600, color: '#64748B', letterSpacing: ehFrota ? 0 : 0.3 }}>
+              {ehFrota ? <span style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}><span style={{ fontSize: 15, fontWeight: 600, color: '#0f172a' }}>Frota</span><span style={{ fontSize: 12.5, fontWeight: 400, color: '#64748b' }}>{vivos.length} {vivos.length === 1 ? 'carro' : 'carros'}</span></span> : tituloPainel}
               {ehFrota && vivos.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px', marginTop: 6, fontWeight: 600, letterSpacing: 0, fontSize: 11.5, color: '#334155' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8, fontWeight: 500, letterSpacing: 0, fontSize: 12, color: '#334155' }}>
                   {ORDEM_STATUS.map((s) => {
                     const n = contarPorStatus(vivos.map((v) => ({ status: statusVivo(v, agoraMs) })))[s]
                     if (!n) return null
                     return (
-                      <span key={s} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: STATUS_INFO[s].cor }} />
+                      <button key={s} onClick={() => setFiltroSt(filtroSt === s ? null : s)} title={filtroSt === s ? 'Mostrar todos' : `Mostrar só os ${STATUS_INFO[s].label.toLowerCase()}`}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 500,
+                          border: `1px solid ${filtroSt === s ? STATUS_INFO[s].cor : 'transparent'}`, background: filtroSt === s ? STATUS_INFO[s].cor : `${STATUS_INFO[s].cor}17`, color: filtroSt === s ? '#fff' : STATUS_INFO[s].cor }}>
+                        <span style={{ width: 7, height: 7, borderRadius: '50%', background: filtroSt === s ? '#fff' : STATUS_INFO[s].cor }} />
                         {n} {s === 'ligado_parado' ? 'parado ligado' : STATUS_INFO[s].label.toLowerCase()}
-                      </span>
+                      </button>
                     )
                   })}
                 </div>
@@ -736,28 +832,28 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                   <div style={{ padding: 16, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>Buscando a posição dos carros…</div>
                 ) : vivos.length === 0 ? (
                   <div style={{ padding: 16, fontSize: 12, color: '#94a3b8', textAlign: 'center' }}>Nenhum veículo ativo com rastreador</div>
-                ) : vivos.map((v) => {
+                ) : (filtroSt ? vivos.filter((v) => statusVivo(v, agoraMs) === filtroSt) : vivos).map((v) => {
                   const st = statusVivo(v, agoraMs)
                   return (
                     <button key={v.placa} onClick={() => abrirCarroNoMapa(v.placa, v.nome || v.placa_exibicao)}
                       title={STATUS_INFO[st].label}
-                      style={{ width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none', borderBottom: '1px solid #f1f5f9', background: 'transparent', cursor: 'pointer', display: 'flex', gap: 9, alignItems: 'flex-start' }}>
-                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: STATUS_INFO[st].cor, flexShrink: 0, marginTop: 4 }} />
+                      style={{ width: '100%', textAlign: 'left', padding: '11px 14px', border: 'none', borderBottom: '1px solid #f1f5f9', background: 'transparent', cursor: 'pointer', display: 'flex', gap: 10, alignItems: 'flex-start', fontFamily: 'inherit' }}>
+                      <span style={{ width: 9, height: 9, borderRadius: '50%', background: STATUS_INFO[st].cor, flexShrink: 0, marginTop: 6, boxShadow: `0 0 0 3px ${STATUS_INFO[st].cor}22` }} />
                       <span style={{ minWidth: 0, flex: 1 }}>
-                        <span style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.nome || v.placa_exibicao}</span>
-                        <span style={{ display: 'block', fontSize: 11, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ display: 'block', fontSize: 14, fontWeight: 500, color: '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{v.nome || v.placa_exibicao}</span>
+                        <span style={{ display: 'block', fontSize: 12, color: '#64748b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {v.placa_exibicao}{v.modelo ? ` · ${v.modelo}` : ''}
                         </span>
-                        <span style={{ display: 'block', fontSize: 11, color: st === 'sem_sinal' ? '#b91c1c' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {!v.tem_rastreador ? 'sem rastreador vinculado' : `${haQuanto(v.dt, agoraMs)}${v.local ? ` · ${v.local}` : ''}`}
+                        <span style={{ display: 'block', fontSize: 12, color: st === 'sem_sinal' ? '#b91c1c' : '#334155', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {!v.tem_rastreador ? 'sem rastreador vinculado' : <>{v.cidade ? <><i className="fas fa-location-dot" style={{ color: '#94a3b8', marginRight: 4 }} /><b style={{ fontWeight: 500 }}>{v.cidade}</b>{' · '}</> : null}{v.local && v.local !== 'Sem cadastro de local' ? `${v.local} · ` : ''}<span style={{ color: '#94a3b8' }}>{haQuanto(v.dt, agoraMs)}</span></>}
                         </span>
                         {st === 'andando' && v.retorno && (
-                          <span title={textoRetorno(v.retorno)} style={{ display: 'block', fontSize: 11, color: '#1d4ed8', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span title={textoRetorno(v.retorno)} style={{ display: 'block', fontSize: 11, color: '#1d4ed8', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             ↩ Voltando · chega ~{horaBR(v.retorno.eta)} · {kmBR(v.retorno.kmRestante)}
                           </span>
                         )}
                         {(v.os_execucao || []).map((o) => (
-                          <span key={o.id} style={{ display: 'block', fontSize: 11, color: '#15803d', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span key={o.id} style={{ display: 'block', fontSize: 11, color: '#15803d', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {o.id} em execução{o.cliente ? ` · ${o.cliente}` : ''}
                           </span>
                         ))}
@@ -774,7 +870,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                   width: '100%', textAlign: 'left', padding: '10px 12px', border: 'none', borderBottom: '1px solid #f1f5f9',
                   background: 'transparent', cursor: 'pointer',
                 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1e293b' }}>{c.pessoa_nome || c.placa}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>{c.pessoa_nome || c.placa}</div>
                   <div style={{ fontSize: 11, color: '#94a3b8' }}>{c.placa}{c.descricao ? ` · ${c.descricao}` : ''}</div>
                 </button>
               ))}
@@ -785,14 +881,13 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
             <div style={{ padding: '10px 12px', borderBottom: '1px solid #eee' }}>
               <button onClick={fecharCarro} style={{
                 width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                background: 'linear-gradient(135deg, #dc2626, #991b1b)', color: '#fff', border: 'none', borderRadius: 9,
-                padding: '9px 12px', fontSize: 12.5, fontWeight: 800, cursor: 'pointer', letterSpacing: 0.2,
-                boxShadow: '0 3px 10px rgba(220,38,38,0.4)',
+                background: '#fefefe', color: '#0f172a', border: '1px solid #e2e8f0', borderRadius: 10,
+                padding: '9px 12px', fontSize: 13, fontWeight: 500, cursor: 'pointer',
               }}>
-                ✕ Desselecionar carro
+                <i className="fas fa-arrow-left" style={{ fontSize: 12, color: '#64748b' }} /> Voltar para todos os carros
               </button>
               <div style={{ minWidth: 0, marginTop: 9 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{carroSel.nome}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{carroSel.nome}</div>
                 <div style={{ fontSize: 10, color: '#94a3b8' }}>{formatarPlaca(carroSel.placa)}</div>
               </div>
             </div>
@@ -802,7 +897,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                 width: '100%', textAlign: 'left', padding: '10px 12px', border: 'none', borderBottom: '1px solid #f1f5f9',
                 background: placaSel === hojeStr() ? '#eff6ff' : 'transparent', cursor: 'pointer',
               }}>
-                <div style={{ fontSize: 13, fontWeight: 700, color: placaSel === hojeStr() ? '#2563eb' : '#1e293b' }}>Hoje</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: placaSel === hojeStr() ? '#2563eb' : '#1e293b' }}>Hoje</div>
                 <div style={{ fontSize: 11, color: '#94a3b8' }}>ver rota de hoje</div>
               </button>
               {loadingHist ? (
@@ -816,7 +911,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                     width: '100%', textAlign: 'left', padding: '10px 12px', border: 'none', borderBottom: '1px solid #f1f5f9',
                     background: ativo ? '#eff6ff' : 'transparent', cursor: 'pointer',
                   }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: ativo ? '#2563eb' : '#1e293b' }}>{fmtData(h.data)}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: ativo ? '#2563eb' : '#1e293b' }}>{fmtData(h.data)}</div>
                     <div style={{ fontSize: 11, color: '#64748b', display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 2 }}>
                       <span style={{ color: '#2563eb', fontWeight: 600 }}>{h.km_total} km</span>
                       <span style={{ color: '#d97706', fontWeight: 600 }}>{h.paradas} paradas</span>
@@ -833,14 +928,19 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
 
       {/* Liga/desliga as camadas de contexto (aparecem quando a tela passou os dados) */}
       {(locais.length > 0 || visitas.length > 0 || ehFrota) && (
-        <div className="mapa-filtros" style={{ position: 'absolute', ...(isMobile ? { top: 8, left: 8, right: 8, flexWrap: 'nowrap', overflowX: 'auto', scrollbarWidth: 'none', paddingBottom: 2 } as React.CSSProperties : { bottom: 12, right: 12 }), zIndex: 1000, display: 'flex', gap: 6 }}>{/* celular: uma linha no topo que rola de lado (empilhados, cobriam o painel da frota; auditoria 06/11/2026) */}
+        <>
+        <button onClick={() => setCamadasAbertas((v) => !v)} title="Mostrar ou esconder camadas no mapa"
+          style={{ position: 'absolute', ...(isMobile ? { top: 8, right: 8 } : { bottom: 12, right: 12 }), zIndex: 1001, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: camadasAbertas ? '#eff6ff' : 'rgba(255,255,255,0.97)', color: camadasAbertas ? '#1d4ed8' : '#334155', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 6px 18px -10px rgba(15,23,42,.5)' }}>
+          <i className="fas fa-layer-group" /> Camadas{[mostrarVisitas && visitas.length > 0, mostrarLocais && locais.length > 0, mostrarCliPos].filter(Boolean).length ? ` (${[mostrarVisitas && visitas.length > 0, mostrarLocais && locais.length > 0, mostrarCliPos].filter(Boolean).length})` : ''}
+        </button>
+        {camadasAbertas && <div className="mapa-filtros" style={{ position: 'absolute', ...(isMobile ? { top: 52, right: 8 } : { bottom: 58, right: 12 }), zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 6, background: 'rgba(255,255,255,0.97)', border: '1px solid #e2e8f0', borderRadius: 12, padding: 8, boxShadow: '0 12px 30px -14px rgba(15,23,42,.5)' }}>{/* celular: uma linha no topo que rola de lado (empilhados, cobriam o painel da frota; auditoria 06/11/2026) */}
           {visitas.length > 0 && (
             <button
               onClick={() => setMostrarVisitas((v) => !v)}
               title={mostrarVisitas ? 'Ocultar as visitas dos vendedores' : 'Mostrar as visitas dos vendedores'}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
-                borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
                 background: mostrarVisitas ? '#1d4ed8' : 'rgba(255,255,255,0.97)',
                 color: mostrarVisitas ? '#fff' : '#475569',
                 boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
@@ -856,7 +956,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
               title={mostrarLocais ? 'Ocultar clientes e geocercas' : 'Mostrar clientes e geocercas'}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
-                borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
                 background: mostrarLocais ? '#0f766e' : 'rgba(255,255,255,0.97)',
                 color: mostrarLocais ? '#fff' : '#475569',
                 boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
@@ -868,11 +968,26 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
           )}
           {ehFrota && (
             <button
+              onClick={() => setMostrarCliPos((v) => !v)}
+              title={mostrarCliPos ? 'Ocultar os locais de cliente salvos no POS' : 'Mostrar os locais de cliente (fazendas) salvos no POS'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
+                borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 500, fontFamily: 'inherit',
+                background: mostrarCliPos ? '#0d9488' : 'rgba(255,255,255,0.97)',
+                color: mostrarCliPos ? '#fff' : '#475569',
+              }}
+            >
+              <i className="fas fa-house" style={{ fontSize: 11 }} />
+              Clientes (POS){cliPos ? ` (${cliPos.length})` : ''}
+            </button>
+          )}
+          {false && ehFrota && (
+            <button
               onClick={() => setMostrarCar((v) => !v)}
               title={mostrarCar ? 'Ocultar o contorno das propriedades rurais' : 'Mostrar o contorno das propriedades rurais (CAR) dos municípios na tela'}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
-                borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
                 background: mostrarCar ? '#7c3aed' : 'rgba(255,255,255,0.97)',
                 color: mostrarCar ? '#fff' : '#475569',
                 boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
@@ -882,13 +997,13 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
               {carCarregando ? 'Propriedades…' : 'Propriedades (CAR)'}
             </button>
           )}
-          {ehFrota && (
+          {false && ehFrota && (
             <button
               onClick={() => setMostrarVias((v) => !v)}
               title={mostrarVias ? 'Ocultar as vias fora do mapa' : 'Mostrar os caminhos que os carros fizeram fora das vias do mapa (estradas de fazenda, carreadores)'}
               style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
-                borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
                 background: mostrarVias ? '#b91c1c' : 'rgba(255,255,255,0.97)',
                 color: mostrarVias ? '#fff' : '#475569',
                 boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
@@ -898,7 +1013,8 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
               Vias fora do mapa
             </button>
           )}
-        </div>
+        </div>}
+        </>
       )}
 
       {ehFrota && mostrarVias && (
@@ -923,7 +1039,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       )}
 
       {/* Legenda das cores dos carros (frota) — some quando a timeline ocupa o canto */}
-      {ehFrota && !(timelineAberta && timeline.length > 0 && placaSel) && (
+      {false && ehFrota && !(timelineAberta && timeline.length > 0 && placaSel) && (
         <div style={{
           position: 'absolute', zIndex: 999, right: 12,
           ...(isMobile ? { bottom: 12, left: 12, flexWrap: 'wrap', justifyContent: 'center' } as React.CSSProperties : { bottom: (locais.length > 0 || visitas.length > 0) ? 56 : 12, flexDirection: 'column' } as React.CSSProperties),
@@ -944,6 +1060,19 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
         </div>
       )}
 
+      {ehFrota && carroSel && (
+        <button onClick={fecharCarro} style={{ position: 'absolute', top: 10, right: (timelineAberta && timeline.length > 0 && placaSel && !isMobile) ? 312 : 10, zIndex: 1001, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, border: '1px solid #e2e8f0', background: 'rgba(255,255,255,0.97)', color: '#0f172a', fontSize: 13, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 6px 18px -10px rgba(15,23,42,.5)' }}>
+          <i className="fas fa-expand" style={{ color: '#2563eb' }} /> Mapa geral
+        </button>
+      )}
+
+      {atualizadoEm && (
+        <div style={{ position: 'absolute', top: 10, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'rgba(255,255,255,0.97)', border: '1px solid #e2e8f0', borderRadius: 99, padding: '5px 14px', fontSize: 12.5, color: '#334155', boxShadow: '0 6px 18px -10px rgba(15,23,42,.5)', display: 'inline-flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap', pointerEvents: 'none' }}>
+          <span style={{ width: 8, height: 8, borderRadius: 99, background: gravado ? '#f59e0b' : '#16a34a', boxShadow: `0 0 0 3px ${gravado ? 'rgba(245,158,11,.2)' : 'rgba(22,163,74,.18)'}` }} />
+          {gravado ? <>Posição de <b style={{ fontWeight: 600, color: '#0f172a' }}>{fmtH(atualizadoEm)}</b> · buscando a de agora…</> : <>Ao vivo · atualizado às <b style={{ fontWeight: 600, color: '#0f172a' }}>{fmtH(atualizadoEm)}</b> · a cada 30 s</>}
+        </div>
+      )}
+
       {loading && (
         <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', zIndex: 1000, background: 'rgba(0,0,0,0.7)', color: '#fff', padding: '12px 20px', borderRadius: 10, fontSize: 13, fontWeight: 600 }}>Carregando rota...</div>
       )}
@@ -952,21 +1081,26 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       {avisoRota && !loading && (
         <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 1002, background: '#1E293B', color: '#fff', padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, display: 'flex', gap: 10, alignItems: 'center', boxShadow: '0 4px 14px rgba(0,0,0,0.3)', maxWidth: 'calc(100% - 24px)' }}>
           <span>{avisoRota}</span>
-          <button onClick={() => setAvisoRota(null)} aria-label="Fechar aviso" style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: 15, padding: 4 }}>✕</button>
+          <button onClick={() => setAvisoRota(null)} aria-label="Fechar aviso" style={{ background: 'none', border: 'none', color: '#cbd5e1', cursor: 'pointer', fontSize: 15, padding: 4 }}><i className="fas fa-xmark" /></button>
         </div>
       )}
 
       {resumo && placaSel && (
-        <div style={{ position: 'absolute', bottom: 12, ...(isMobile ? { left: 8, right: 8, flexWrap: 'wrap', justifyContent: 'center', gap: 8, padding: '8px 10px', fontSize: 12 } as React.CSSProperties : { left: '50%', transform: 'translateX(-50%)', gap: 14, padding: '8px 16px', fontSize: 13, whiteSpace: 'nowrap' } as React.CSSProperties), zIndex: 1000, background: '#1E293B', color: '#fff', borderRadius: 10, fontWeight: 700, display: 'flex', alignItems: 'center' }}>
+        <div style={{ position: 'absolute', bottom: 12, ...(isMobile ? { left: 8, right: 8, flexWrap: 'wrap', justifyContent: 'center', gap: 8, padding: '8px 10px', fontSize: 12 } as React.CSSProperties : { left: '50%', transform: 'translateX(-50%)', gap: 14, padding: '8px 16px', fontSize: 13, whiteSpace: 'nowrap' } as React.CSSProperties), zIndex: 1000, background: 'rgba(255,255,255,0.97)', color: '#0f172a', border: '1px solid #e2e8f0', boxShadow: '0 8px 24px -12px rgba(15,23,42,.45)', borderRadius: 12, fontWeight: 500, display: 'flex', alignItems: 'center' }}>
           <span>{fmtData(placaSel)}</span>
-          <span style={{ color: '#60a5fa' }}>{resumo.km} km</span>
-          <span style={{ color: '#fbbf24' }}>{resumo.paradas} paradas</span>
-          {resumo.visitas > 0 && <span style={{ color: '#818cf8' }}>{resumo.visitas} visita{resumo.visitas !== 1 ? 's' : ''}</span>}
-          <span style={{ color: '#34d399' }}>{fmtT(resumo.dirigindo)} dirigindo</span>
-          <span style={{ color: '#94a3b8', fontWeight: 500 }}>{fmtH(resumo.ini || '')} – {fmtH(resumo.fim || '')}</span>
+          <span style={{ color: '#2563eb' }}>{resumo.km} km</span>
+          {resumo.paradas > 0 && timeline.some((e) => e.tipo === 'parada') ? (
+            <button onClick={() => (tourAtivo ? pararTour() : void passearParadas())} title={tourAtivo ? 'Parar' : 'Passar por cada parada no mapa'}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, border: '1px solid #fcd34d', background: tourAtivo ? '#d97706' : '#fffbeb', color: tourAtivo ? '#fff' : '#b45309', borderRadius: 8, padding: '4px 10px', fontSize: 'inherit', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}>
+              <i className={`fas ${tourAtivo ? 'fa-stop' : 'fa-play'}`} style={{ fontSize: 10 }} /> {resumo.paradas} paradas
+            </button>
+          ) : <span style={{ color: '#d97706' }}>{resumo.paradas} paradas</span>}
+          {resumo.visitas > 0 && <span style={{ color: '#7c3aed' }}>{resumo.visitas} visita{resumo.visitas !== 1 ? 's' : ''}</span>}
+          <span style={{ color: '#059669' }}>{fmtT(resumo.dirigindo)} dirigindo</span>
+          <span style={{ color: '#64748b', fontWeight: 400 }}>{fmtH(resumo.ini || '')} – {fmtH(resumo.fim || '')}</span>
           {timeline.length > 0 && (
-            <button onClick={() => setTimelineAberta((v) => !v)} style={{ background: timelineAberta ? '#334155' : '#0d9488', border: 'none', color: '#fff', borderRadius: 7, padding: '4px 10px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer' }}>
-              🕒 timeline{excessos > 0 ? ` · ${excessos}⚠` : ''}
+            <button onClick={() => setTimelineAberta((v) => !v)} style={{ background: timelineAberta ? '#eff6ff' : '#2563eb', border: timelineAberta ? '1px solid #93c5fd' : 'none', color: timelineAberta ? '#1d4ed8' : '#fff', borderRadius: 8, padding: '5px 12px', fontSize: 12.5, fontWeight: 500, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <i className="fas fa-clock" /> linha do dia{excessos > 0 ? <> · {excessos} <i className="fas fa-triangle-exclamation" /></> : null}
             </button>
           )}
         </div>
@@ -977,15 +1111,15 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
         <div style={{ position: 'absolute', top: 10, right: 10, ...(isMobile ? { left: 10, zIndex: 1001, maxHeight: 'calc(100% - 110px)' } : { zIndex: 1000, width: 292, maxHeight: 'calc(100% - 20px)' }), background: 'rgba(255,255,255,0.98)', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '10px 12px', borderBottom: '1px solid #eee' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <span style={{ fontSize: 12, fontWeight: 800, color: '#334155', letterSpacing: 0.3 }}>🕒 TIMELINE — {fmtData(placaSel)}</span>
-              <button onClick={() => setTimelineAberta(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>✕</button>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#0f172a', display: 'inline-flex', alignItems: 'center', gap: 7 }}><i className="fas fa-clock" style={{ color: '#2563eb' }} /> Linha do dia · {fmtData(placaSel)}</span>
+              <button onClick={() => setTimelineAberta(false)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}><i className="fas fa-xmark" /></button>
             </div>
             <div style={{ fontSize: 11.5, color: '#475569', marginTop: 3 }}>
-              🧑‍🔧 Motorista do dia: <strong>{motoristaDia || 'não marcado no app'}</strong>
+              <i className="fas fa-user" style={{ color: '#94a3b8', marginRight: 5 }} />Motorista do dia: <strong>{motoristaDia || 'não marcado no app'}</strong>
             </div>
             {excessos > 0 && (
-              <div style={{ fontSize: 11, color: '#b91c1c', fontWeight: 700, marginTop: 2 }}>
-                ⚠ {excessos} trecho{excessos > 1 ? 's' : ''} acima de {LIMITE_VEL_KMH} km/h
+              <div style={{ fontSize: 11, color: '#b91c1c', fontWeight: 600, marginTop: 2 }}>
+                <i className="fas fa-triangle-exclamation" style={{ marginRight: 5 }} />{excessos} trecho{excessos > 1 ? 's' : ''} acima de {LIMITE_VEL_KMH} km/h
               </div>
             )}
           </div>
@@ -1011,7 +1145,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                     <div style={{ fontSize: 11.5, color: '#475569' }}>
                       {fmtH(e.de)}–{fmtH(e.ate)} · rodou <strong>{e.km} km</strong> em {fmtT(e.min)}
                       <span style={{ color: e.velMax > LIMITE_VEL_KMH ? '#dc2626' : '#64748b', fontWeight: e.velMax > LIMITE_VEL_KMH ? 800 : 500 }}>
-                        {' '}· máx {e.velMax} km/h{e.velMax > LIMITE_VEL_KMH ? ' ⚠' : ''}
+                        {' '}· máx {e.velMax} km/h{e.velMax > LIMITE_VEL_KMH ? <i className="fas fa-triangle-exclamation" style={{ color: '#dc2626', marginLeft: 4 }} /> : null}
                       </span>
                     </div>
                   )}

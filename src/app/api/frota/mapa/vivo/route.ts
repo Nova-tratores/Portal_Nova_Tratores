@@ -22,7 +22,8 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   if (!temAcessoMapa(auth)) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
   try {
-    return NextResponse.json(await carregarVivos(supabase));
+    // ?rapido=1: a última foto gravada na hora; a tela pede a posição ao vivo logo em seguida
+    return NextResponse.json(await carregarVivos(supabase, { rapido: req.nextUrl.searchParams.get('rapido') === '1' }));
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }

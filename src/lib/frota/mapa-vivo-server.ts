@@ -16,6 +16,7 @@ import { carregarPropriedades, propriedadesComoGeocercas } from '@/lib/frota/pro
 import { chaveNome, diaBR, limparNome, ordenarVivos, osDosTecnicos, rotuloLocal, rumoDosPontos, statusVivo, type OsExecucao, type StatusVivo } from '@/lib/frota/mapa-vivo';
 import { formatarPlaca, resolverPlaca } from '@/lib/frota/placa';
 import { carregarGeocercasAtivas } from '@/lib/frota/geocercas-server';
+import { cidadeGuardada } from '@/lib/frota/cidade-server';
 
 export interface VeiculoVivo {
   placa: string;
@@ -38,6 +39,8 @@ export interface VeiculoVivo {
   fonte: 'ao_vivo' | 'cache' | null;
   status: StatusVivo;
   local: string | null;
+  /** cidade onde o carro está (geocode_cache; null enquanto a busca não volta) — José, 12/11 */
+  cidade: string | null;
   /** para onde está indo (0° = norte), pelos últimos pontos; null parado/sem dado */
   rumo: number | null;
   /** andando de volta para a loja: hora estimada de chegada (lib/frota/retorno-loja) */
@@ -221,10 +224,13 @@ async function montar(supabase: SupabaseClient): Promise<VeiculoVivo[]> {
       fonte: pos?.fonte ?? null,
       status: statusVivo(pos, agora),
       local,
+      cidade: null,
       rumo: pos?.rumo ?? null,
       retorno: retornos.get(v.placa) ?? null,
     };
   });
+  // cidade: só a já guardada (não segura a tela); as novas entram na próxima leitura
+  await Promise.all(lista.map(async (x) => { if (x.lat != null && x.lng != null) x.cidade = await cidadeGuardada(supabase, x.lat, x.lng).catch(() => null); }));
   return ordenarVivos(lista);
 }
 
@@ -233,13 +239,30 @@ const TTL_MS = 30_000;
 let memo: { at: number; dados: VeiculoVivo[] } | null = null;
 let emAndamento: Promise<VeiculoVivo[]> | null = null;
 
-export async function carregarVivos(supabase: SupabaseClient): Promise<{ veiculos: VeiculoVivo[]; atualizado_em: string }> {
-  if (memo && Date.now() - memo.at < TTL_MS) return { veiculos: memo.dados, atualizado_em: new Date(memo.at).toISOString() };
+const AREA_FOTO = 'frota-vivo';
+/** grava a última foto da frota (para a próxima abertura não esperar a Rota Exata) */
+function gravarFoto(supabase: SupabaseClient, dados: VeiculoVivo[], at: number) {
+  void Promise.resolve(supabase.from('empresa_painel').upsert({ area: AREA_FOTO, dados: { veiculos: dados }, calculado_em: new Date(at).toISOString(), duracao_ms: null, erro: null }, { onConflict: 'area' })).catch(() => {});
+}
+function buscarAoVivo(supabase: SupabaseClient): Promise<VeiculoVivo[]> {
   if (!emAndamento) {
     emAndamento = montar(supabase)
-      .then((dados) => { memo = { at: Date.now(), dados }; return dados; })
+      .then((dados) => { const at = Date.now(); memo = { at, dados }; gravarFoto(supabase, dados, at); return dados; })
       .finally(() => { emAndamento = null; });
   }
-  const dados = await emAndamento;
+  return emAndamento;
+}
+
+/** rapido = devolve já a última foto gravada (memória ou tabela) e busca a posição ao vivo por trás.
+ *  Sem rapido = sempre a posição ao vivo (no máximo 30 s de memória), como antes. */
+export async function carregarVivos(supabase: SupabaseClient, op: { rapido?: boolean } = {}): Promise<{ veiculos: VeiculoVivo[]; atualizado_em: string; gravado?: boolean }> {
+  if (memo && Date.now() - memo.at < TTL_MS) return { veiculos: memo.dados, atualizado_em: new Date(memo.at).toISOString() };
+  if (op.rapido) {
+    if (memo) { void buscarAoVivo(supabase).catch(() => {}); return { veiculos: memo.dados, atualizado_em: new Date(memo.at).toISOString(), gravado: true }; }
+    const { data } = await supabase.from('empresa_painel').select('dados, calculado_em').eq('area', AREA_FOTO).maybeSingle();
+    const v = (data?.dados as { veiculos?: VeiculoVivo[] } | null)?.veiculos;
+    if (Array.isArray(v) && v.length) { void buscarAoVivo(supabase).catch(() => {}); return { veiculos: v, atualizado_em: String(data!.calculado_em), gravado: true }; }
+  }
+  const dados = await buscarAoVivo(supabase);
   return { veiculos: dados, atualizado_em: new Date(memo?.at || Date.now()).toISOString() };
 }

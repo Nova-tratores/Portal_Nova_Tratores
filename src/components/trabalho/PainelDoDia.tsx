@@ -90,7 +90,10 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
   const travado = faltaBloco && !criaBloco
   const mostrarDia = !pend && h.itens.length > 0 && ((h.hora >= '07:30' && !h.confirmado && !diaFechado) || verDia)
   const naDashboard = pathname === '/dashboard' || pathname === '/'
-  const atalho = naDashboard && h.preferencias.atalho_flutuante && !pend && !mostrarDia
+  // Atalho redondo da Central DESLIGADO no dashboard novo por setor (José, 10/11/2026: "está poluindo");
+  // a Central virou botão em Adicionais › Dia a dia. Para voltar, troque ATALHO_NA_DASHBOARD para true.
+  const ATALHO_NA_DASHBOARD = false
+  const atalho = ATALHO_NA_DASHBOARD && naDashboard && h.preferencias.atalho_flutuante && !pend && !mostrarDia
 
   const decidir = async (corpo: Record<string, unknown>) => {
     if (!pend) return

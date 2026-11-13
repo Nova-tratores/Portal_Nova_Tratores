@@ -20,7 +20,6 @@ import {
   Activity, Plus, X, Bell, CheckCheck, Printer
 } from 'lucide-react';
 import PainelDev from '@/components/requisicoes/PainelDev';
-import PecasNav from '@/components/ppv/PecasNav';
 import PainelAtencao from '@/components/requisicoes/PainelAtencao';
 import PainelGastos from '@/components/requisicoes/PainelGastos';
 import LixeiraReq from '@/components/requisicoes/LixeiraReq';
@@ -465,7 +464,6 @@ function RequisicoesPageInner() {
     <div className="req-vn">
     <style>{ESTILO_REQ_VN}</style>
     {/* Sistema Peças: barra padronizada do módulo */}
-    <div className="print:hidden"><PecasNav /></div>
     <div className="px-3 py-3 md:px-8 md:py-6">
       {reqParaImprimir && <TemplatePDF req={reqParaImprimir} anexos={anexosParaImprimir} onUpdate={() => {}} onPrint={() => {}} />}
 

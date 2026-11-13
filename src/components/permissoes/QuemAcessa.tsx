@@ -57,7 +57,7 @@ export default function QuemAcessa() {
         onClick={() => setAberto((a) => !a)}
         title="Quem acessa esta página? (só Dev)"
         style={{
-          position: 'fixed', left: 16, bottom: 16, zIndex: 900, display: 'flex', alignItems: 'center', gap: 6,
+          position: 'fixed', right: 16, bottom: 16, zIndex: 900, display: 'flex', alignItems: 'center', gap: 6,
           padding: '6px 10px', borderRadius: 999, border: '1px solid var(--portal-border)',
           background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-secondary)',
           fontSize: 12, fontWeight: 600, fontFamily: 'Inter', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,.12)',
