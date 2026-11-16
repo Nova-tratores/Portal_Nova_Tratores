@@ -71,6 +71,15 @@ export const PHASES = [
   "Cancelada",
 ];
 
+/** OS que ainda não foi executada (orçamento, aguardando cliente/agendamento, em execução): não existe atraso
+ *  do técnico — o contador "cobrar técnico" só vale depois da execução (José, 16/11/2026). Pelo nome porque
+ *  há fases criadas no controlador (ex.: "Aguardando Agendamento") que não estão em PHASES. */
+export function faseAntesDaExecucao(status: string | null | undefined): boolean {
+  const s = String(status || "").toLowerCase();
+  if (!s) return true;
+  return /or[çc]amento|aguardando cliente|agendamento|^execu[çc][ãa]o/.test(s);
+}
+
 // Fases que pausam o contador de métricas do técnico
 export const FASES_CONTADOR_PARADO = new Set([
   // o técnico foi e mandou o paliativo: não conta atraso dele (José, 05/11/2026)

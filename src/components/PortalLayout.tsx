@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo, Suspense } from 'react'
 import { useAuth, revalidarSessao } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { cargoExibicao } from '@/lib/permissoes/funcoes-setor'
 import { useChat } from '@/hooks/useChat'
 import { useNotificacoes } from '@/hooks/useNotificacoes'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
@@ -261,6 +262,8 @@ function jaMostrouAviso(id: string): boolean {
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const { userProfile, setUserProfile, loading, handleLogout, bloqueio } = useAuth()
   const { permissoes, isAdmin, isDev, temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  // texto embaixo do nome: setor + cargo; Diretor ganha ("Diretor Comercial") — José, 16/11/2026
+  const cargoTopo = cargoExibicao({ setor: userProfile?.funcao || permissoes?.categoria, modulos: permissoes?.modulos_permitidos, isDiretor: !!permissoes?.is_diretor })
   // Vigia das câmeras: SÓ dev ou quem recebeu o módulo `cameras` no Admin
   // (admin comum NÃO ganha de brinde — pedido do usuário, 26/08)
   const temVigia = isDev || (permissoes?.modulos_permitidos ?? []).includes('cameras')
@@ -1349,7 +1352,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 {userProfile.nome}
               </p>
               <p style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)', fontWeight: '400', margin: 0, marginTop: '2px' }}>
-                {userProfile.funcao}
+                {cargoTopo}
               </p>
             </div>
 
@@ -1407,7 +1410,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               </div>
               <div style={{ minWidth: 0 }}>
                 <p style={{ fontSize: '14.5px', fontWeight: 700, color: 'var(--portal-text)', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userProfile.nome}</p>
-                <p style={{ fontSize: '11.5px', color: '#dc2626', fontWeight: 600, letterSpacing: '0.5px', margin: '2px 0 0' }}>{userProfile.funcao}</p>
+                <p style={{ fontSize: '11.5px', color: '#dc2626', fontWeight: 600, letterSpacing: '0.5px', margin: '2px 0 0' }}>{cargoTopo}</p>
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
@@ -1844,7 +1847,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   </button>
                   <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--portal-text)' }}>{userProfile?.nome}</div>
-                    <div style={{ fontSize: 12.5, color: '#dc2626', fontWeight: 600, letterSpacing: '.4px', marginTop: 2 }}>{userProfile?.funcao || ''}</div>
+                    <div style={{ fontSize: 12.5, color: '#dc2626', fontWeight: 600, letterSpacing: '.4px', marginTop: 2 }}>{cargoTopo}</div>
                     {emailLogin && <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', wordBreak: 'break-all' }}><Mail size={13} /> {emailLogin}<button type="button" onClick={() => { void navigator.clipboard?.writeText(emailLogin).then(() => { setEmailCopiado(true); setTimeout(() => setEmailCopiado(false), 1800) }).catch(() => {}) }} title="Copiar o e-mail" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 8, border: '1px solid var(--portal-border)', background: emailCopiado ? '#f0fdf4' : 'var(--portal-bg-card)', color: emailCopiado ? '#16a34a' : 'var(--portal-text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer', fontFamily: 'Inter' }}>{emailCopiado ? <><Check size={12} /> copiado</> : <><Copy size={12} /> copiar</>}</button></div>}
                     <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 4 }}>clique na foto para trocar</div>
                   </div>

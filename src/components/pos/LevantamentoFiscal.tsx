@@ -61,16 +61,19 @@ export default function LevantamentoFiscal({ modelos, onCriarModelo, onVincular 
     return CAMPOS_FISCAIS.filter((f) => String(c.campos[f.chave] ?? "") !== String(base.campos[f.chave] ?? "")).map((f) => f.chave);
   };
 
-  const card: React.CSSProperties = { background: "var(--surface, #fff)", border: "1px solid var(--portal-border, #e2e8f0)", borderRadius: 6, padding: 14 };
-  const btn = (cor: string): React.CSSProperties => ({ padding: "6px 11px", borderRadius: 4, border: "none", background: cor, color: "#fff", fontWeight: 700, fontSize: 12, cursor: "pointer" });
-  const chip: React.CSSProperties = { display: "inline-block", padding: "2px 7px", borderRadius: 999, background: "#f1f5f9", color: "#334155", fontSize: 11.5, margin: "2px 4px 2px 0" };
+  const card: React.CSSProperties = { background: "var(--surface, #fff)", border: "1px solid var(--border, #e7e2da)", borderRadius: 16, padding: 18 };
+  const btn = (cor: string): React.CSSProperties => ({ display: "inline-flex", alignItems: "center", gap: 7, height: 34, padding: "0 13px", borderRadius: 9, border: "none", background: cor, color: cor === "#f1f5f9" ? "#334155" : "#fefefe", fontWeight: 500, fontSize: 13, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap" });
+  const chip: React.CSSProperties = { display: "inline-block", padding: "2px 9px", borderRadius: 999, background: "#f1f5f9", color: "#334155", fontSize: 12, margin: "2px 4px 2px 0" };
 
   return (
     <div style={card}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
         <div style={{ flex: 1, minWidth: 240 }}>
-          <div style={{ fontWeight: 800 }}>O que a Omie usa hoje</div>
-          <div style={{ fontSize: 12.5, color: "#64748b" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ width: 38, height: 38, borderRadius: 11, display: "grid", placeItems: "center", flexShrink: 0, color: "#B45309", background: "color-mix(in srgb, #B45309 11%, var(--surface, #fff))" }}><i className="fas fa-magnifying-glass-chart" /></span>
+            <span style={{ fontSize: 16 }}>O que o Omie usa hoje</span>
+          </div>
+          <div style={{ fontSize: 13, color: "#64748b", marginTop: 4, paddingLeft: 50 }}>
             Lê as últimas 1000 OS faturadas com NFS-e (só leitura na Omie) e agrupa os itens pelas combinações de impostos e códigos.
           </div>
         </div>
@@ -85,20 +88,20 @@ export default function LevantamentoFiscal({ modelos, onCriarModelo, onVincular 
       {res && !estado?.rodando && (
         <div style={{ marginTop: 12 }}>
           <div style={{ fontSize: 12.5, color: "#475569" }}>
-            <strong>{res.totalOS}</strong> OS · <strong>{res.totalItens}</strong> itens de serviço
+            <span style={{ color: "var(--portal-text, #0f172a)" }}>{res.totalOS}</span> OS · <span style={{ color: "var(--portal-text, #0f172a)" }}>{res.totalItens}</span> itens de serviço
             {res.periodo && <> · faturadas de {dataBR(res.periodo.de)} a {dataBR(res.periodo.ate)}</>}
-            {" · "}<strong>{res.combinacoes.length}</strong> combinação(ões) diferentes
+            {" · "}<span style={{ color: "var(--portal-text, #0f172a)" }}>{res.combinacoes.length}</span> combinação(ões) diferentes
             {estado?.terminadoEm && <span style={{ color: "#94a3b8" }}> · levantado em {new Date(estado.terminadoEm).toLocaleString("pt-BR")}{estado.por ? ` por ${estado.por}` : ""}</span>}
           </div>
 
           {/* distribuição por campo */}
           <details style={{ marginTop: 10 }}>
-            <summary style={{ cursor: "pointer", fontSize: 12.5, fontWeight: 700, color: "#334155" }}>Valores por campo</summary>
+            <summary style={{ cursor: "pointer", fontSize: 12.5, fontWeight: 500, color: "#334155" }}>Valores por campo</summary>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12, marginTop: 6 }}>
               <tbody>
                 {CAMPOS_FISCAIS.filter((c) => res.porCampo[c.chave]).map((c) => (
                   <tr key={c.chave} style={{ borderTop: "1px solid #f1f5f9" }}>
-                    <td style={{ padding: "4px 6px", fontWeight: 700, whiteSpace: "nowrap" }}>{c.rotulo}</td>
+                    <td style={{ padding: "4px 6px", fontWeight: 500, whiteSpace: "nowrap" }}>{c.rotulo}</td>
                     <td style={{ padding: "4px 6px" }}>
                       {res.porCampo[c.chave].slice(0, 6).map((v) => (
                         <span key={String(v.valor)} style={chip}>{mostrarValor(c.chave, v.valor)} · {pct(v.qtdItens, res.totalItens)}</span>
@@ -122,10 +125,10 @@ export default function LevantamentoFiscal({ modelos, onCriarModelo, onVincular 
               const difs = diferencas(c);
               const vinculaveis = c.clientes.filter((cl) => cl.documento.length === 11 || cl.documento.length === 14);
               return (
-                <div key={c.chave} style={{ border: "1px solid var(--portal-border, #e2e8f0)", borderLeft: `4px solid ${i === 0 ? "#0369A1" : "#f59e0b"}`, borderRadius: 4, padding: 10, fontSize: 12.5 }}>
-                  <div style={{ fontWeight: 800 }}>
+                <div key={c.chave} style={{ border: "1px solid var(--portal-border, #e2e8f0)", borderColor: i === 0 ? "color-mix(in srgb, #0369A1 35%, var(--border, #e2e8f0))" : undefined, borderRadius: 13, padding: 14, fontSize: 13 }}>
+                  <div style={{ fontWeight: 500 }}>
                     {i === 0 ? "A mais comum — candidata a modelo Padrão" : `Combinação ${i + 1}`}
-                    <span style={{ fontWeight: 600, color: "#64748b" }}> · {c.qtdOS} OS ({pct(c.qtdOS, res.totalOS)}) · {c.qtdItens} itens · {c.clientes.length} cliente(s) · {brl(c.valor)} · última {dataBR(c.ultimaFat)}</span>
+                    <span style={{ fontWeight: 500, color: "#64748b" }}> · {c.qtdOS} OS ({pct(c.qtdOS, res.totalOS)}) · {c.qtdItens} itens · {c.clientes.length} cliente(s) · {brl(c.valor)} · última {dataBR(c.ultimaFat)}</span>
                   </div>
                   <div style={{ marginTop: 4 }}>
                     {i > 0 && <span style={{ fontSize: 11.5, color: "#b45309", marginRight: 6 }}>Difere da mais comum em:</span>}
@@ -146,7 +149,7 @@ export default function LevantamentoFiscal({ modelos, onCriarModelo, onVincular 
                     {i > 0 && vinculaveis.length > 0 && (
                       <>
                         <select value={alvo[c.chave] || ""} onChange={(e) => setAlvo({ ...alvo, [c.chave]: e.target.value })}
-                          style={{ padding: "5px 7px", borderRadius: 4, border: "1px solid #cbd5e1", fontSize: 12, background: "#fff", color: "#1e293b" }}>
+                          style={{ height: 34, padding: "0 9px", borderRadius: 9, border: "1px solid #dfe3ea", fontSize: 13, fontFamily: "inherit", margin: 0, background: "#fff", color: "#1e293b" }}>
                           <option value="">Vincular os {vinculaveis.length} cliente(s) a…</option>
                           {modelos.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
                         </select>

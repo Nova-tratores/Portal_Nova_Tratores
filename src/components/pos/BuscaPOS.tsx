@@ -164,12 +164,18 @@ export default function BuscaPOS({ searchTerm, onSearch, ordens, onAbrirOS, onFo
 
 const ESTILO_BP = `
 /* campo: branco, borda fina, cantos 14, lupa azul; foco com anel azul clarinho (José, 21/10: "melhora o visual") */
-.bp .search-input { height: 46px; padding: 0 40px 0 48px !important; background: var(--surface, #fefefe) !important; border: 1px solid var(--border, #e2e8f0) !important; border-radius: 14px !important; font-size: 15px; color: var(--portal-text, #0f172a); box-shadow: 0 1px 2px rgba(15,23,42,.04); transition: border-color .15s, box-shadow .2s }
-.bp .search-input::placeholder { color: var(--portal-text-muted, #94a3b8) }
-.bp .search-input:hover { border-color: #cbd5e1 !important }
-.bp .search-input:focus { border-color: #38bdf8 !important; box-shadow: 0 0 0 4px rgba(14,165,233,.14); outline: none }
-.bp-lupa { position: absolute; left: 8px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; font-size: 13.5px; color: #0369A1; background: color-mix(in srgb, #0369A1 9%, var(--surface, #fefefe)); pointer-events: none }
-.bp-kbd { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); min-width: 22px; height: 22px; padding: 0 6px; border-radius: 6px; display: grid; place-items: center; font-family: inherit; font-size: 12px; color: var(--portal-text-muted, #64748b); background: var(--portal-bg-secondary, #f1f5f9); border: 1px solid var(--border, #e2e8f0); pointer-events: none }
+/* 16/11 (José: "arruma essa barra"): alinhada à esquerda com o conteúdo (sem a margem de 30px do globals),
+   borda cinza neutra (não bege), lupa solta sem quadradinho e o "/" discreto */
+.bp.search-box { margin: 0; flex: 1 1 380px; max-width: 560px; min-width: 0 }
+.bp .search-input { width: 100%; height: 44px; padding: 0 44px 0 44px !important; margin: 0 !important; background: var(--surface, #fefefe) !important; border: 1px solid #dfe3ea !important; border-radius: 12px !important; font-size: 15px; color: var(--portal-text, #0f172a); box-shadow: 0 1px 2px rgba(15,23,42,.05); transition: border-color .15s, box-shadow .2s }
+.bp .search-input::placeholder { color: #94a3b8 }
+.bp .search-input:hover { border-color: #c7cfda !important }
+.bp .search-input:focus { border-color: #0ea5e9 !important; box-shadow: 0 0 0 3px rgba(14,165,233,.15); outline: none }
+.bp-lupa { position: absolute; left: 0; top: 0; bottom: 0; width: 44px; display: grid; place-items: center; font-size: 15px; color: #64748b; pointer-events: none; transition: color .15s }
+.bp:focus-within .bp-lupa { color: #0369A1 }
+.bp-kbd { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); min-width: 20px; height: 20px; padding: 0 5px; border-radius: 5px; display: grid; place-items: center; font-family: inherit; font-size: 11.5px; line-height: 1; color: #94a3b8; background: transparent; border: 1px solid #e2e8f0; pointer-events: none }
+[data-theme="dark"] .bp .search-input { border-color: var(--border, #334155) !important }
+@media (max-width: 768px) { .bp.search-box { flex-basis: 100%; max-width: 100% } .bp-kbd { display: none } }
 .bp-limpar { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); width: 26px; height: 26px; border-radius: 50%; border: 0; background: var(--portal-bg-secondary, #eef2f6); color: var(--portal-text-muted, #64748b); font-size: 11px; cursor: pointer } .bp-limpar:hover { background: #fee2e2; color: #dc2626 }
 .bp-painel { position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 1200; min-width: 440px; background: var(--surface, #fefefe); border: 1px solid var(--border, #e2e8f0); border-radius: 16px; box-shadow: 0 24px 50px -20px rgba(15,23,42,.35); padding: 8px; display: grid; gap: 2px; max-height: 70vh; overflow-y: auto; animation: bpEntra .15s both }
 .bp-cab { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 6px 8px 8px; margin-bottom: 2px; border-bottom: 1px solid var(--border, #f1f5f9) }

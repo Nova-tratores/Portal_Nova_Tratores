@@ -218,23 +218,39 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
         <div className="flex-1 overflow-y-auto bg-[#FFFAF5] px-3 py-4 md:px-10 md:py-7">
           {/* Busca + atalhos com legenda (Catálogo × Kit) do lado */}
           <div className="mb-3 flex items-stretch gap-2.5">
-            <div className="relative flex-1">
-              <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-red-400" />
+            {/* 16/11/2026 (José: "arruma essa barra"): o CSS global dos inputs comia o recuo e a lupa ficava em cima
+                do texto; agora o estilo é próprio (.mbp), no mesmo jeito da busca do POS */}
+            <style>{`
+              .mbp { position: relative; flex: 1; min-width: 0; display: flex; align-items: center }
+              .mbp .mbp-lupa { position: absolute; left: 0; top: 0; bottom: 0; width: 48px; display: grid; place-items: center; color: #94a3b8; font-size: 16px; pointer-events: none; transition: color .15s }
+              .mbp:focus-within .mbp-lupa { color: #dc2626 }
+              .mbp input.mbp-campo { width: 100%; height: 54px; margin: 0 !important; padding: 0 112px 0 48px !important; border: 1px solid #e2d6c8 !important; border-radius: 13px !important; background: #fff !important; font-family: inherit; font-size: 15.5px; color: #0f172a; box-shadow: 0 1px 2px rgba(15,23,42,.05); transition: border-color .15s, box-shadow .2s }
+              .mbp input.mbp-campo::placeholder { color: #a3a9b3 }
+              .mbp input.mbp-campo:hover { border-color: #d4c3ae !important }
+              .mbp input.mbp-campo:focus { outline: none; border-color: #ef4444 !important; box-shadow: 0 0 0 4px rgba(239,68,68,.12) }
+              .mbp .mbp-botao { position: absolute; right: 7px; top: 50%; transform: translateY(-50%); height: 40px; min-width: 92px; padding: 0 16px; border: 0; border-radius: 10px; background: #dc2626; color: #fff; font-family: inherit; font-size: 14px; font-weight: 500; display: inline-flex; align-items: center; justify-content: center; gap: 7px; cursor: pointer; transition: background .15s, opacity .15s }
+              .mbp .mbp-botao:hover:not(:disabled) { background: #b91c1c }
+              .mbp .mbp-botao:disabled { opacity: .45; cursor: default }
+              .mbp .mbp-limpar { position: absolute; right: 108px; top: 50%; transform: translateY(-50%); width: 28px; height: 28px; border: 0; border-radius: 50%; background: #f1f5f9; color: #64748b; font-size: 11px; cursor: pointer }
+              .mbp .mbp-limpar:hover { background: #fee2e2; color: #dc2626 }
+              @media (max-width: 640px) { .mbp input.mbp-campo { height: 50px; font-size: 15px; padding-right: 64px !important } .mbp .mbp-botao { min-width: 0; width: 42px; padding: 0 } .mbp .mbp-botao span { display: none } .mbp .mbp-limpar { right: 56px } }
+            `}</style>
+            <div className="mbp">
+              <i className="fas fa-magnifying-glass mbp-lupa" aria-hidden />
               <input
                 ref={inputRef}
                 type="text"
+                className="mbp-campo"
                 value={termo}
                 onChange={(e) => handleChange(e.target.value)}
                 onKeyUp={(e) => e.key === "Enter" && buscar(termo)}
-                placeholder="Codigo ou nome do produto..."
-                className="w-full rounded-lg border-2 border-red-500 py-4 pl-11 pr-20 text-base font-[Poppins] focus:outline-none focus:ring-2 focus:ring-red-200"
+                placeholder="Código ou nome da peça"
               />
-              <button
-                onClick={() => buscar(termo)}
-                disabled={buscando || termo.trim().length < 2}
-                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md bg-red-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
-              >
-                {buscando ? <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" /> : "Buscar"}
+              {termo && (
+                <button type="button" className="mbp-limpar" title="Limpar" onClick={() => { handleChange(""); inputRef.current?.focus(); }}><i className="fas fa-times" /></button>
+              )}
+              <button type="button" className="mbp-botao" onClick={() => buscar(termo)} disabled={buscando || termo.trim().length < 2} title="Buscar (Enter)">
+                {buscando ? <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" /> : <><i className="fas fa-magnifying-glass" style={{ fontSize: 13 }} /><span>Buscar</span></>}
               </button>
             </div>
             {mode !== "edit" && (

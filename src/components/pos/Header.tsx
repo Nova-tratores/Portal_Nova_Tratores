@@ -13,6 +13,9 @@ import { BTN_BARRA } from "./botoes-barra";
 import BuscaPOS from "./BuscaPOS";
 import type { KanbanCard } from "@/lib/pos/types";
 import { fetchAuth } from "@/lib/auth/client";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
+import { usePermissoes } from "@/hooks/usePermissoes";
 
 export interface PerfilTecnico { nome: string; avatar: string; inativo?: boolean }
 
@@ -48,6 +51,12 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
   // Controlador de fases do POS e do PPV (José, 09/11/2026) — abre pelo menu de atalhos
   const [fasesAberto, setFasesAberto] = useState(false);
   const { podeEditar: podeEditarFases } = useFasesQuadro();
+  // Modelos fiscais no menu (José, 16/11/2026): só quem tem a permissão explícita pos:modelos_fiscais
+  // (Dev e o responsável do setor; o acesso total do POS não dá)
+  const router = useRouter();
+  const { userProfile } = useAuth();
+  const { pode, isDev } = usePermissoes(userProfile?.id);
+  const podeModelosFiscais = isDev || pode("pos", "modelos_fiscais");
   const contagemPOS = useMemo(() => {
     const c: Record<string, number> = {};
     for (const o of ordens) c[o.status] = (c[o.status] || 0) + 1;
@@ -218,6 +227,7 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
               { k: "lembretes", ...(tecnicosPerfil.length > 0 ? {} : { grupo: "Ver" }), t: "Lembretes", sub: "por cliente e máquina", ic: "fa-bell", cor: "#b45309", ir: () => onLembretes?.() },
               { k: "relatorio", t: "Gerar relatório", sub: "PDF por técnico e tipo", ic: "fa-file-invoice", cor: "#047857", ir: () => setShowFiltroRelatorio(true) },
               { k: "fases", grupo: "Ajustes", t: "Fases do POS e PPV", sub: podeEditarFases ? "renomear, criar, remover e ordenar" : "ver as fases dos quadros", ic: "fa-layer-group", cor: "#7c3aed", ir: () => setFasesAberto(true) },
+              ...(podeModelosFiscais ? [{ k: "fiscal", t: "Modelos fiscais", sub: "impostos e códigos da NFS-e", ic: "fa-file-invoice-dollar", cor: "#0369a1", ir: () => router.push("/pos/modelos-fiscais") }] : []),
               { k: "config", t: "Configurações", sub: "valor da hora e do km", ic: "fa-gear", cor: "#475569", ir: handleOpenConfig },
             ]} />
           <BotaoRedondo icone="fa-plus" titulo={podeCriar ? "Nova ordem de serviço" : "Sem permissão para criar OS"} onClick={onNewOS}

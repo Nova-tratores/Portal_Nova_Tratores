@@ -38,6 +38,28 @@ export function funcaoNoSetor(modulos: string[], categoria?: string | null): Fun
   const s = setorComFuncao(categoria)
   return s?.funcoes.find((f) => modulos.includes(f.chave)) || null
 }
+const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]/g, '')
+
+/**
+ * Texto embaixo do nome (cartão do usuário no topo). José, 16/11/2026: "se a pessoa tiver um cargo dentro do
+ * setor aparece o setor e o cargo; se tiver mais de um, como o Dougras (diretor, vendedor e comercial),
+ * coloca Diretor Comercial". Diretor (nível ou função) ganha de tudo → "Diretor <Setor>"; função do setor →
+ * "<função> · <setor>" (sem repetir quando a função já leva o setor, ex. "Gerente de Peças"); sem função = setor.
+ */
+export function cargoExibicao(p: { setor?: string | null; modulos?: string[] | null; isDiretor?: boolean }): string {
+  const setor = String(p.setor || '').trim()
+  const modulos = p.modulos || []
+  const marcadas = SETORES_COM_FUNCAO.flatMap((s) => s.funcoes.filter((f) => modulos.includes(f.chave)).map((f) => ({ ...f, setor: s })))
+  const nomeSetor = setor || marcadas[0]?.setor.nome || ''
+  if (p.isDiretor || marcadas.some((f) => f.chave.endsWith(':diretor'))) return nomeSetor ? `Diretor ${nomeSetor}` : 'Diretor'
+  // da mesma categoria primeiro; gerente antes das outras
+  const f = marcadas.sort((a, b) => Number(b.setor.categoria === setor) - Number(a.setor.categoria === setor)
+    || Number(b.chave.endsWith(':gerente')) - Number(a.chave.endsWith(':gerente')))[0]
+  if (!f) return setor
+  const s = f.setor.nome
+  return semAcento(f.rot).includes(semAcento(s)) || !s ? f.rot : `${f.rot} · ${s}`
+}
+
 /** troca a função do setor (null = sem função) */
 export function trocarFuncaoSetor(modulos: string[], categoria: string, chave: string | null): string[] {
   const s = setorComFuncao(categoria)

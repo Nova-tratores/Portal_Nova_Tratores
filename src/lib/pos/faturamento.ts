@@ -73,7 +73,8 @@ export function podeFaturarPPV(auth: Autenticado): boolean {
 }
 /** Criar/editar modelos fiscais e o vínculo com clientes (ação explícita). */
 export function podeGerenciarModelos(auth: Autenticado): boolean {
-  return permite(auth.modulos, auth.isAdmin, 'pos', 'modelos_fiscais');
+  // Dev sempre (José, 16/11/2026)
+  return !!auth.isDev || permite(auth.modulos, auth.isAdmin, 'pos', 'modelos_fiscais', auth.isDev);
 }
 
 // ---------------------------------------------------------------- Omie

@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/pos/supabase";
-import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, FASES_CONTADOR_PARADO } from "@/lib/pos/constants";
+import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, FASES_CONTADOR_PARADO, faseAntesDaExecucao } from "@/lib/pos/constants";
 import { safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
@@ -73,7 +73,8 @@ export async function aplicarMudancaFase(
     .catch((e) => console.error("[pos/fase] POP pela OS:", (e as Error).message));
 
   // ── Métricas de atraso ──
-  if (["Orçamento", "Aguardando Cliente"].includes(newStatus)) {
+  // voltou para antes da execução (orçamento, aguardando cliente/agendamento…): o contador fecha zerado (16/11/2026)
+  if (faseAntesDaExecucao(newStatus) && !/^execu/i.test(newStatus)) {
     const { data: abertas } = await supabase.from(TBL_METRICAS).select("id, data_inicio").eq("id_ordem", idOs).is("data_fim", null);
     if (abertas && abertas.length > 0) {
       const agr = new Date();

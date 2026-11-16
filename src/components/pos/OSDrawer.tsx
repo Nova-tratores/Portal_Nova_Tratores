@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment, type CSSProperties } from "react";
+import { faseOS } from "@/lib/pos/relacao";
 import { useMarcarCaso } from "@/lib/uso/caso";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
@@ -36,6 +37,7 @@ import AnexosModal from "@/components/ppv/AnexosModal";
 import TarefasModal from "@/components/ppv/TarefasModal";
 import ChequeRevisaoBloco from "./ChequeRevisaoBloco";
 import AssinaturaClienteBloco from "./AssinaturaClienteBloco";
+import ExecucaoAssinaturaLista from "./ExecucaoAssinaturaLista";
 import ChecklistsOSBloco from "./ChecklistsOSBloco";
 import { confirmarConclusaoOS } from "@/lib/pops/roteiros-client";
 import { pedirMotivoConcluir } from "@/lib/pos/trava-concluida-client";
@@ -102,12 +104,20 @@ const S_MR6 = { marginRight: 6 };
 const S_DISC_BADGE = { fontSize: 11, color: "#C41E2A", fontWeight: 700, marginLeft: "auto" };
 const S_REQ_BOLD = { fontWeight: 600 };
 
-const STATUS_BADGE_STYLE = (status: string) => ({
-  fontSize: 11, fontWeight: 700, textTransform: "uppercase" as const, letterSpacing: "0.5px",
-  padding: "4px 12px", borderRadius: 6,
-  background: status.includes("Exec") ? "#FEF3C7" : status === "Concluída" ? "#D1FAE5" : status === "Cancelada" ? "#FEE2E2" : "#E8E0D0",
-  color: status.includes("Exec") ? "#92400E" : status === "Concluída" ? "#065F46" : status === "Cancelada" ? "#991B1B" : "#1E3A5F",
-});
+// Selo da fase no topo da OS (16/11/2026, José: "melhora essa aba, tá esquisita"): cor da fase igual ao quadro,
+// pílula do tamanho do texto e a setinha colada nele (antes ficava solta lá no fim de um campo de 340px).
+const STATUS_BADGE_STYLE = (status: string) => {
+  const f = faseOS(status);
+  return {
+    fontSize: 13.5, fontWeight: 500, textTransform: "none" as const, letterSpacing: 0,
+    height: 34, padding: "0 34px 0 14px", borderRadius: 999, appearance: "none" as const, WebkitAppearance: "none" as const,
+    fieldSizing: "content", fontFamily: "inherit",
+    backgroundColor: f.bg, color: f.text,
+    backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='${encodeURIComponent(f.text)}' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")`,
+    backgroundRepeat: "no-repeat", backgroundPosition: "right 13px center", backgroundSize: "11px 8px",
+    boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${f.text} 18%, transparent)`,
+  } as CSSProperties;
+};
 
 const BOMBA_HORAS = ["600", "1200", "1800", "2400", "3000"];
 
@@ -601,6 +611,14 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     return !!servSolicitado.trim() && servSolicitado !== TEXT_TEMPLATE;
   }, [servSolicitado]);
   const faltaOmie = useMemo(() => faltaParaEnviarOmie(servSolicitado, tipoServico), [servSolicitado, tipoServico]);
+  // cliente para o "Novo lembrete" do sino (16/11/2026): OS aberta não guarda a chave, então acha pelo CPF/CNPJ
+  const clienteDoLembrete = useMemo(() => {
+    const nome = (clienteInfo?.nome || "").trim();
+    if (!nome || nome === "Não encontrado") return undefined;
+    const doc = (clienteInfo?.cpf || "").replace(/\D/g, "");
+    const achado = clienteChave ? null : clientes.find((c) => doc && !/^0+$/.test(doc) && (c.cnpj || "").replace(/\D/g, "") === doc);
+    return { chave: clienteChave || achado?.chave || "", nome, cnpj: doc };
+  }, [clienteInfo?.nome, clienteInfo?.cpf, clienteChave, clientes]);
   const passosCriacao = [
     { n: 1, rotulo: "Cliente", icone: "fa-user", ok: !!clienteChave, alvo: "osc-cliente" },
     { n: 2, rotulo: "Máquina", icone: "fa-tractor", ok: !!projeto.trim(), alvo: "osc-cliente" },
@@ -1573,7 +1591,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
               <div className="os-header-actions">
                 {/* Sino: lembretes do cliente + os ligados a esta OS, com cobrança em destaque (José, 26/10/2026) */}
                 {mode === "edit" && (
-                  <LembretesDaOS osId={osId} userName={userName || ""} lembretesCliente={lembretes} onLembretesCliente={setLembretes} />
+                  <LembretesDaOS osId={osId} userName={userName || ""} lembretesCliente={lembretes} onLembretesCliente={setLembretes} cliente={clienteDoLembrete} />
                 )}
                 <button className="os-btn-close" onClick={onClose} style={{ display: "inline-flex", alignItems: "center", gap: 8, width: "auto", padding: "6px 12px" }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>Fechar</span>
@@ -1777,10 +1795,22 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       for (const cur = new Date(a); cur <= b; cur.setDate(cur.getDate() + 1)) if (cur.getDay() !== 0) dias.push(cur.toISOString().slice(0, 10));
                       setDiasExecucao(dias);
                     };
+                    // 16/11/2026: lista de situação recolhida (opção A de /pos/teste-execucao), bolinha piscando quando falta algo
+                    const dBR = (d: string) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : "");
+                    const datasResumo = previsaoExecucao
+                      ? { titulo: `Serviço ${dataFimServico && dataFimServico !== previsaoExecucao ? `de ${dBR(previsaoExecucao)} a ${dBR(dataFimServico)}` : `em ${dBR(previsaoExecucao)}`}`,
+                          sub: [horaInicioServico ? `Começou às ${horaInicioServico}` : "", tecnico1 ? `técnico ${tecnico1}` : ""].filter(Boolean).join(" · ") || "Sem hora de início" }
+                      : { titulo: "Datas do serviço", sub: "Ainda sem data de início" };
+                    if (!osId) return null;
                     return (
-                      <div className="os-card os-aba os-aba-servicos">
-                        <div className="os-card-title"><i className="fas fa-calendar-check" /> Execução e assinatura</div>
-                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
+                      <ExecucaoAssinaturaLista osId={osId} podeEditar={podeEditar} revisao={tipoServico === "Revisão"} datasResumo={datasResumo}
+                        rodape={[
+                          { k: "check", rotulo: "Checklists", icone: "fa-list-check", conteudo: <ChecklistsOSBloco osId={osId} podeEditar={podeEditar} /> },
+                          { k: "ress", rotulo: "Resserviço", icone: "fa-rotate-left", conteudo: <ResservicoBloco key={osId} osId={osId} podeEditar={podeEditar} tecnicos={tecnicos} tecnicoAtual={tecnico1} /> },
+                          { k: "comissao", rotulo: "Comissão", icone: "fa-coins", conteudo: <ComissaoOSBloco osId={osId} podeEditar={podeEditar} /> },
+                        ]}
+                        datasEditor={
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
                           <div style={{ width: 135 }}>
                             <label style={L_DISC}>Data Início</label>
                             <input type="date" value={previsaoExecucao} disabled={!podeEditar} onChange={(e) => { setPrevisaoExecucao(e.target.value); diasEntreDatas(e.target.value, dataFimServico); }} style={I_DISC} />
@@ -1793,13 +1823,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                             <label style={L_DISC}>Hora Início</label>
                             <input type="time" value={horaInicioServico} disabled={!podeEditar} onChange={(e) => setHoraInicioServico(e.target.value)} style={I_DISC} />
                           </div>
-                        </div>
-                        {tipoServico === "Revisão" && osId && <ChequeRevisaoBloco osId={osId} podeEditar={podeEditar} />}
-                        {osId && <AssinaturaClienteBloco osId={osId} podeEditar={podeEditar} />}
-                        {osId && <ChecklistsOSBloco osId={osId} podeEditar={podeEditar} />}
-                        {osId && <ResservicoBloco key={osId} osId={osId} podeEditar={podeEditar} tecnicos={tecnicos} tecnicoAtual={tecnico1} />}
-                        {osId && <ComissaoOSBloco osId={osId} podeEditar={podeEditar} />}
-                      </div>
+                        </div>}
+                      />
                     );
                   })()}
                   {mode === "edit" && abaOmie === "servicos" && (
@@ -2859,7 +2884,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                                 <i className={`fas ${enviandoOmie ? "fa-spinner fa-spin" : "fa-paper-plane"}`} /> {enviandoOmie ? "Enviando ao Omie..." : "Enviar para o Omie"}
                               </button>
                             </>
-                          ) : (
+                          ) : (fasesQ.chaves.indexOf(status) >= fasesQ.chaves.indexOf("Enviar Omie") && fasesQ.chaves.includes("Enviar Omie") && status !== "Cancelada") && (
+                            // aviso "falta preencher" só da fase Enviar Omie em diante (José, 16/11/2026)
                             <div style={{ display: "flex", gap: 8, padding: "8px 10px", borderRadius: 9, background: "var(--surface)", border: "1px dashed color-mix(in srgb, #0BB7CD 50%, var(--border))" }}>
                               <i className="fas fa-lock" style={{ color: "#0891A8", fontSize: 12, marginTop: 2 }} />
                               <div style={{ fontSize: 11.5, lineHeight: 1.45, color: "var(--portal-text-secondary, #475569)" }}>

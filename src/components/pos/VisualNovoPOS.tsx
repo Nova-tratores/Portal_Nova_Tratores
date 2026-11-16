@@ -80,7 +80,13 @@ body.pos-vn .pos-osd :not(i):not([class*="fa-"]):is([style*="font-weight:6"], [s
 body.pos-vn .pos-osd [style*="uppercase"], body.pos-vn .pos-osd .os-rail-acoes-titulo { text-transform: none !important; letter-spacing: 0 !important }
 body.pos-vn .pos-osd i.fas, body.pos-vn .pos-osd i.fa-solid { font-weight: 900 !important }
 body.pos-vn .pos-osd .os-header-title { font-size: 21px; color: var(--portal-text, #0f172a) }
-body.pos-vn .pos-osd .os-header select { border-radius: 999px !important; padding: 6px 14px !important; font-size: 13px !important; text-transform: none !important; letter-spacing: 0 !important }
+body.pos-vn .pos-osd .os-header select { border-radius: 999px !important; padding: 0 34px 0 14px !important; font-size: 13.5px !important; text-transform: none !important; letter-spacing: 0 !important }
+/* 16/11: topo da OS alinhado — título, selo da fase, sino e Fechar na mesma altura; Fechar neutro (não bege) */
+body.pos-vn .pos-osd .os-header-left { gap: 14px }
+body.pos-vn .pos-osd .os-header-actions { display: flex; align-items: center; gap: 8px }
+body.pos-vn .pos-osd .os-header .os-btn-close { height: 38px; padding: 0 14px !important; border-radius: 10px; border: 1px solid var(--border, #e2e8f0); background: var(--surface, #fefefe); color: var(--portal-text-secondary, #475569) }
+body.pos-vn .pos-osd .os-header .os-btn-close:hover { background: var(--portal-bg-secondary, #f1f5f9); color: var(--portal-text, #0f172a) }
+body.pos-vn .pos-osd .os-header .os-btn-close span { font-weight: 500 !important }
 
 /* faixa colorida do lado esquerdo sai (padrão de telas) — o bloco fica com a borda normal e cantos 14 */
 body.pos-vn .pos-osd [style*="border-left:5px solid"], body.pos-vn .pos-osd [style*="border-left: 5px solid"] { border: 1px solid var(--border, #e2e8f0) !important; background: var(--surface) !important; border-radius: 14px !important }

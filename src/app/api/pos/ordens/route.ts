@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "crypto";
 import { supabase } from "@/lib/pos/supabase";
-import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS, FASES_CONTADOR_PARADO } from "@/lib/pos/constants";
+import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS, FASES_CONTADOR_PARADO, faseAntesDaExecucao } from "@/lib/pos/constants";
 import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { moverOSPorData } from "@/lib/pos/fase-auto-server";
@@ -41,6 +41,10 @@ async function atualizarMetricasAbertas() {
     if (FASES_CONTADOR_PARADO.has(statusAtual)) {
       // Fecha a métrica
       await supabase.from(TBL_METRICAS).update({ data_fim: agora.toISOString(), dias }).eq("id", m.id);
+    } else if (statusAtual && faseAntesDaExecucao(statusAtual)) {
+      // a OS voltou para antes da execução (ex.: Aguardando Agendamento): não há atraso do técnico (16/11/2026)
+      // (de volta à execução os dias valem, como na mudança de fase)
+      await supabase.from(TBL_METRICAS).update({ data_fim: agora.toISOString(), dias: /^execu/i.test(statusAtual) ? dias : 0 }).eq("id", m.id);
     } else if (Number(m.dias) !== dias) {
       // Atualiza dias — só quando mudou (antes regravava as ~30 abertas a cada 5 min,
       // e a Planta Viva via a tabela "mudando" sempre e nunca pulava a rodada).

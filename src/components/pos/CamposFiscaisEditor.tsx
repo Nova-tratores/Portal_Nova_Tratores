@@ -35,7 +35,7 @@ export default function CamposFiscaisEditor({ valores, onChange, base, atuais, a
   abertoInicial?: boolean;
 }) {
   const set = (k: string, v: string) => onChange({ ...valores, [k]: v });
-  const inp: React.CSSProperties = { width: "100%", padding: "6px 8px", borderRadius: 4, border: "1px solid #cbd5e1", fontSize: 12.5, background: "#fff", color: "#1e293b", boxSizing: "border-box" };
+  const inp: React.CSSProperties = { width: "100%", height: 36, padding: "0 10px", borderRadius: 9, border: "1px solid #cbd5e1", fontSize: 13.5, background: "var(--surface, #fff)", color: "var(--portal-text, #1e293b)", boxSizing: "border-box", fontFamily: "inherit", margin: 0 };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -43,17 +43,17 @@ export default function CamposFiscaisEditor({ valores, onChange, base, atuais, a
         const campos = CAMPOS_FISCAIS.filter((c) => c.grupo === g.id);
         const preenchidos = campos.filter((c) => String(valores[c.chave] ?? "").trim()).length;
         return (
-          <details key={g.id} open={abertoInicial || preenchidos > 0} style={{ border: "1px solid #e2e8f0", borderRadius: 4 }}>
-            <summary style={{ cursor: "pointer", padding: "7px 10px", fontSize: 12.5, fontWeight: 700, color: "#334155", background: "#f8fafc" }}>
-              {g.rotulo}{preenchidos ? <span style={{ fontWeight: 600, color: "#0369A1" }}> · {preenchidos} preenchido(s)</span> : <span style={{ fontWeight: 500, color: "#94a3b8" }}> · usa o cadastro da Omie</span>}
+          <details key={g.id} open={abertoInicial || preenchidos > 0} style={{ border: "1px solid var(--border, #e2e8f0)", borderRadius: 12, overflow: "hidden" }}>
+            <summary style={{ cursor: "pointer", padding: "10px 12px", fontSize: 13.5, fontWeight: 500, color: "#334155", background: "var(--portal-bg-secondary, #f8fafc)" }}>
+              {g.rotulo}{preenchidos ? <span style={{ fontWeight: 500, color: "#0369A1" }}> · {preenchidos} preenchido(s)</span> : <span style={{ fontWeight: 500, color: "#94a3b8" }}> · usa o cadastro da Omie</span>}
             </summary>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 8, padding: 10 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(200px, 100%), 1fr))", gap: 12, padding: 12, alignItems: "end" }}>
               {campos.map((c) => {
                 const v = valores[c.chave] ?? "";
                 const ajustado = !!base && !igual(c.chave, v, base[c.chave]);
                 return (
-                  <label key={c.chave} style={{ display: "flex", flexDirection: "column", gap: 3, fontSize: 11.5, color: "#475569" }} title={c.dica}>
-                    <span style={{ fontWeight: 700 }}>
+                  <label key={c.chave} style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 12.5, color: "#475569" }} title={c.dica}>
+                    <span style={{ fontWeight: 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                       {c.rotulo}{ajustado && <span style={{ color: "#b45309" }}> · ajustado</span>}
                     </span>
                     {c.tipo === "sn" ? (

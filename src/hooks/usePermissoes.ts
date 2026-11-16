@@ -12,6 +12,7 @@ interface Permissoes {
   user_id: string
   is_admin: boolean
   is_dev?: boolean
+  is_diretor?: boolean
   categoria: string
   mecanico_role?: string | null
   mecanico_tecnico_nome?: string | null

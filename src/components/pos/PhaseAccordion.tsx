@@ -10,6 +10,7 @@ import { diasEntre } from "@/lib/pos/utils";
 import { OPCOES_PAGAMENTO, normalizarPagamento, perguntaPagamento } from "@/lib/pos/cobranca";
 import type { KanbanCard } from "@/lib/pos/types";
 import { STATUS_COR, STATUS_LABEL } from "@/lib/garantias/constants";
+import { faseAntesDaExecucao } from "@/lib/pos/constants";
 import { authHeaders, fetchAuth } from "@/lib/auth/client";
 import { normName } from "@/lib/tecnico-utils";
 import type { GarantiaStatus } from "@/lib/garantias/types";
@@ -616,7 +617,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
           </div>
         )
       )}
-      {o.diasAtraso > 0 && !['execu', 'orçamento', 'orcamento', 'aguardando cliente'].some(s => (o.status || '').toLowerCase().includes(s)) && (
+      {o.diasAtraso > 0 && !faseAntesDaExecucao(o.status) && (
         <div className="mini-card-atraso" style={{ margin: 0 }}>
           <i className="fas fa-exclamation-circle" /> {o.diasAtraso}d atrasado — cobrar {o.tecnico}
         </div>

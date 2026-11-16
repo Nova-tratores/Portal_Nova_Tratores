@@ -52,7 +52,9 @@ const inp: React.CSSProperties = { width: "100%", padding: "5px 7px", fontSize: 
  * `horas` ausente = cheque PRINCIPAL da OS (cria na 1ª vez e mostra as
  * revisões anteriores). `horas` presente = cheque ATRASADO daquelas horas.
  */
-export default function ChequeRevisaoBloco({ osId, podeEditar, horas: horasAlvo, aoApagar }: { osId: string; podeEditar: boolean; horas?: number; aoApagar?: () => void }) {
+export default function ChequeRevisaoBloco({ osId, podeEditar, horas: horasAlvo, aoApagar, soCheque }: { osId: string; podeEditar: boolean; horas?: number; aoApagar?: () => void;
+  /** 16/11/2026: na lista da OS as revisões anteriores e o radar têm linha própria — aqui fica só o cheque */
+  soCheque?: boolean }) {
   const [r, setR] = useState<Resp | null>(null);
   const [erro, setErro] = useState("");
   const [codigo, setCodigo] = useState("");
@@ -186,14 +188,14 @@ export default function ChequeRevisaoBloco({ osId, podeEditar, horas: horasAlvo,
 
       {erro && <div style={{ color: "#991b1b", fontSize: 12, marginTop: 6 }}>{erro}</div>}
 
-      {!atrasado && <RevisoesAnteriores osId={osId} podeEditar={podeEditar} horasAtual={c.horas} />}
-      {!atrasado && <RadarTratorOS osId={osId} />}
+      {!atrasado && !soCheque && <RevisoesAnteriores osId={osId} podeEditar={podeEditar} horasAtual={c.horas} />}
+      {!atrasado && !soCheque && <RadarTratorOS osId={osId} />}
     </div>
   );
 }
 
 /** Revisões anteriores à da OS: enviada ✓ / cheque existente / feita sem cheque → "Gerar cheque" / não feita. */
-function RevisoesAnteriores({ osId, podeEditar, horasAtual }: { osId: string; podeEditar: boolean; horasAtual: number }) {
+export function RevisoesAnteriores({ osId, podeEditar, horasAtual, aoMudar }: { osId: string; podeEditar: boolean; horasAtual: number; aoMudar?: () => void }) {
   const [lista, setLista] = useState<RevisaoAnterior[] | null>(null);
   const [erro, setErro] = useState("");
   const [gerando, setGerando] = useState<number | null>(null);
@@ -216,7 +218,7 @@ function RevisoesAnteriores({ osId, podeEditar, horasAtual }: { osId: string; po
       const res = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/cheque`, { method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) }, body: JSON.stringify({ acao: "gerar_atrasado", horas: h }) });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || "falha ao gerar");
-      await carregar(); setVersao((v) => v + 1);
+      await carregar(); setVersao((v) => v + 1); aoMudar?.();
     } catch (e) { setErro(e instanceof Error ? e.message : "erro"); } finally { setGerando(null); }
   };
 

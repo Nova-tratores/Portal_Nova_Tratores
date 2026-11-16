@@ -243,52 +243,83 @@ function ItemModal({ l, listas, osOmie, interna, podeEditar, linhas, abrir, fech
   const editUnit = editQtd && (l.tipo === "extra" || l.tipo === "hora" || l.tipo === "km");
   const leit = (t: string, val: string, span = 1) => <Campo titulo={t} span={span} cinza><div style={{ ...inpOmie, textAlign: "right" }}>{val}</div></Campo>;
   const txt = (t: string, val: string, span = 1) => <Campo titulo={t} span={span} cinza><div style={inpOmie}>{val || "—"}</div></Campo>;
-  const ABAS: [typeof aba, string][] = [["serv", "Serviço"], ["pis", "PIS, COFINS e CSLL"], ["ir", "IR e INSS"], ["outras", "Outras Informações"], ["lei", "Lei da Transparência dos Impostos"], ["reforma", "Reforma Tributária"]];
+  const ABAS: [typeof aba, string][] = [["serv", "ISS"], ["pis", "PIS, COFINS e CSLL"], ["ir", "IR e INSS"], ["outras", "Outras informações"], ["lei", "Lei da Transparência"], ["reforma", "Reforma Tributária"]];
   const nbs = v(naOS?.cNbs, cc.nIdNBS), cst = v(im.cCST, ci.cCstIbsCbs);
-  const nav = (ativo: boolean): React.CSSProperties => ({ border: "none", background: "transparent", color: ativo ? TEAL_ESC : "#a8c9c9", textAlign: "left", cursor: ativo ? "pointer" : "default", fontSize: 14, fontFamily: "inherit", padding: 0 });
+  // 16/11/2026 (José: "vários blocos desalinhados e o texto para mudar fica lá embaixo"): o que dá para mudar vem
+  // primeiro e grande; códigos e impostos do Omie ficam embaixo, recolhidos, com um resumo de uma linha.
+  const [verImpostos, setVerImpostos] = useState(false);
+  const aliqISS = v(im.nAliqISS, ci.nAliqISS) || "0";
+  const resumoImpostos = [`ISS ${aliqISS}%${sim(naOS ? naOS.cRetemISS : ci.cRetISS) ? " retido" : ""}`, v(naOS?.cCodServLC116, cc.cCodLC116) && `LC116 ${v(naOS?.cCodServLC116, cc.cCodLC116)}`, v(naOS?.cCodServMun, cc.cCodServMun) && `município ${v(naOS?.cCodServMun, cc.cCodServMun)}`].filter(Boolean).join(" · ");
+  const navBtn = (ativo: boolean): React.CSSProperties => ({ width: 34, height: 34, borderRadius: 9, border: "1px solid var(--border, #e2e8f0)", background: "var(--surface, #fefefe)", color: ativo ? "var(--portal-text-secondary, #475569)" : "#cbd5e1", cursor: ativo ? "pointer" : "default", fontSize: 12 });
+  const titulo = l.tipo === "sol" ? "Descrição da OS" : (s?.nome || l.nome);
   return (
     <div onClick={fechar} style={{ position: "fixed", inset: 0, zIndex: 100010, background: "rgba(15,23,42,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 1240, maxWidth: "98vw", maxHeight: "92vh", overflowY: "auto", background: "var(--surface, #fefefe)", borderRadius: 10 }}>
+      <div onClick={(e) => e.stopPropagation()} className="im-janela" style={{ width: 920, maxWidth: "98vw", maxHeight: "92vh", overflowY: "auto", background: "var(--surface, #fefefe)", borderRadius: 16 }}>
         <EstilosOmie />
-        <div style={{ display: "flex", alignItems: "center", padding: "14px 22px", background: "var(--portal-bg-secondary, #f3f5f6)" }}>
-          <b style={{ flex: 1, fontSize: 18, fontWeight: 600, color: TEAL_ESC }}>Item da Ordem de Serviço</b>
-          <button type="button" onClick={fechar} style={{ border: "none", background: "transparent", color: TEAL_ESC, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>Fechar ✕</button>
-        </div>
-        <div style={{ display: "flex", gap: 16, padding: "22px 22px 24px" }}>
+        <style>{ESTILO_ITEM}</style>
+        <div className="im-topo">
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: "grid", gridTemplateColumns: "2.4fr 1fr 1fr 1fr", gap: 14 }}>
-              <Campo titulo="Descrição Resumida do Serviço" cinza={l.tipo !== "extra"}>
-                {l.tipo === "extra" && podeEditar && listas ? (
-                  <select style={inpOmie} value={l.codigo} onChange={(e) => onCodigo(e.target.value)}>
-                    {listas.servicos.map((x) => <option key={x.codigo} value={x.codigo}>{x.nome}</option>)}
-                  </select>
-                ) : <div style={inpOmie}>{s?.nome || l.nome}</div>}
-              </Campo>
-              {leit("Valor da Dedução", "0,00")}{leit("Base de Cálculo (ISS)", brl(base))}{leit("Valor Total do Item", brl(base))}
+            <div className="im-tit">{titulo}</div>
+            <div className="im-sub">Item {idx + 1} de {linhas.length}{l.tipo === "sol" ? " · vai na nota como texto, não é cobrado" : ""}</div>
+          </div>
+          <button type="button" title="Item anterior" disabled={idx <= 0} onClick={() => abrir(linhas[idx - 1].id)} style={navBtn(idx > 0)}><i className="fas fa-chevron-left" /></button>
+          <button type="button" title="Próximo item" disabled={idx >= linhas.length - 1} onClick={() => abrir(linhas[idx + 1].id)} style={navBtn(idx < linhas.length - 1)}><i className="fas fa-chevron-right" /></button>
+          <button type="button" onClick={fechar} className="im-pronto"><i className="fas fa-check" /> Pronto</button>
+        </div>
+        <div className="im-corpo">
+          {/* ── o que dá para mudar ── */}
+          {l.tipo === "extra" && podeEditar && listas && (
+            <Campo titulo="Serviço">
+              <select style={inpOmie} value={l.codigo} onChange={(e) => onCodigo(e.target.value)}>
+                {listas.servicos.map((x) => <option key={x.codigo} value={x.codigo}>{x.nome}</option>)}
+              </select>
+            </Campo>
+          )}
+          {(l.tipo === "sol" || l.tipo === "extra" || l.descricao) && (
+            <Campo titulo={l.tipo === "sol" ? "Texto da descrição (modelo, chassi, solicitação, serviço realizado)" : "Descrição detalhada"} cinza={!editDesc}>
+              {editDesc ? <textarea rows={l.tipo === "sol" ? 9 : 3} style={{ ...inpOmie, resize: "vertical", fontSize: 14, lineHeight: 1.55 }} value={l.descricao} onChange={(e) => onDescricao(e.target.value)} autoFocus={l.tipo === "sol"}
+                placeholder={l.tipo === "sol" ? "Modelo:\nChassis:\nSolicitação do Cliente:\nServiço realizado:" : ""} />
+                : <div style={{ ...inpOmie, whiteSpace: "pre-wrap", fontSize: 14 }}>{l.descricao || "—"}</div>}
+            </Campo>
+          )}
+          {l.tipo !== "sol" && (
+            <div className="im-grade4">
+              <Campo titulo="Quantidade" cinza={!editQtd}>{editQtd ? <input type="number" step="any" min={0} style={{ ...inpOmie, textAlign: "right" }} value={l.qtde} onChange={(e) => onQtde(Number(e.target.value))} /> : <div style={{ ...inpOmie, textAlign: "right" }}>{brl(l.qtde)}</div>}</Campo>
+              <Campo titulo="Valor unitário" cinza={!editUnit}>{editUnit ? <input type="number" step="any" min={0} style={{ ...inpOmie, textAlign: "right" }} value={l.unit} onChange={(e) => onUnit(Number(e.target.value))} /> : <div style={{ ...inpOmie, textAlign: "right" }}>{brl(l.unit)}</div>}</Campo>
+              {/* desconto fica fora da janela do item (José, 23/10/2026): só Hora/KM/geral, na tela da OS */}
+              {leit("Desconto", brl(l.desconto))}
+              {leit("Valor total", brl(base))}
             </div>
-            <div style={{ display: "flex", borderBottom: `1px solid ${BORDA}`, margin: "18px 0", overflowX: "auto" }}>
+          )}
+          {l.tipo !== "sol" && !interna && (l.tipo === "hora" || l.tipo === "km" || l.tipo === "extra") && podeEditar && <Chave ligada={!l.cobrar} onChange={onCobrar} rotulo="Não cobrar este serviço (vai com 100% de desconto)" />}
+          {(l.tipo === "hora" || l.tipo === "km") && <div style={{ fontSize: 12.5, color: CINZA, marginTop: -6 }}>O valor unitário vale só para esta OS (o padrão continua em Mais → Configurações).</div>}
+
+          {/* ── códigos e impostos do Omie (só leitura) ── */}
+          <div className={`im-imp${verImpostos ? " aberto" : ""}`}>
+            <button type="button" className="im-imp-cab" onClick={() => setVerImpostos((x) => !x)}>
+              <i className="fas fa-file-invoice" style={{ color: TEAL_ESC }} />
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span>Códigos e impostos</span>
+                <small>{resumoImpostos}{naOS ? " · como está no Omie" : " · do cadastro no Omie"}</small>
+              </span>
+              <i className={`fas fa-chevron-${verImpostos ? "up" : "down"}`} style={{ color: "#94a3b8" }} />
+            </button>
+            {verImpostos && (
+            <div className="im-imp-corpo">
+            <div style={{ display: "flex", borderBottom: `1px solid ${BORDA}`, margin: "0 0 16px", overflowX: "auto" }}>
               {ABAS.map(([k, t]) => (
                 <button key={k} type="button" onClick={() => setAba(k)} style={{ padding: "8px 15px", fontSize: 13, whiteSpace: "nowrap", cursor: "pointer", fontFamily: "inherit", color: "var(--portal-text, #1f2d3d)",
                   border: aba === k ? `1px solid ${BORDA}` : "1px solid transparent", borderTop: aba === k ? `2px solid ${TEAL}` : "2px solid transparent", borderBottom: "none", background: aba === k ? "var(--portal-bg-secondary, #f3f5f6)" : "transparent", marginBottom: -1, borderRadius: "4px 4px 0 0" }}>{t}</button>
               ))}
             </div>
             {aba === "serv" && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0,1fr))", gap: "20px 14px" }}>
-                {txt("Tipo de Tributação", v(naOS?.cTribServ, cc.cIdTrib) === "01" ? "Operação tributável / Tributado no município" : v(naOS?.cTribServ, cc.cIdTrib))}
-                {txt("Código do Serviço do Município", v(naOS?.cCodServMun, cc.cCodServMun))}{txt("Código da LC116", v(naOS?.cCodServLC116, cc.cCodLC116))}
-                {txt("% Alíquota do ISS", `${v(im.nAliqISS, ci.nAliqISS) || 0}%`)}
-                <div style={{ display: "flex", alignItems: "center" }}><Chave ligada={sim(naOS ? naOS.cRetemISS : ci.cRetISS)} desab rotulo="Retido" /></div>
-                <Campo titulo="Quantidade" cinza={!editQtd}>{editQtd ? <input type="number" step="any" min={0} style={{ ...inpOmie, textAlign: "right" }} value={l.qtde} onChange={(e) => onQtde(Number(e.target.value))} /> : <div style={{ ...inpOmie, textAlign: "right" }}>{brl(l.qtde)}</div>}</Campo>
-                <Campo titulo="Valor Unitário" cinza={!editUnit}>{editUnit ? <input type="number" step="any" min={0} style={{ ...inpOmie, textAlign: "right" }} value={l.unit} onChange={(e) => onUnit(Number(e.target.value))} /> : <div style={{ ...inpOmie, textAlign: "right" }}>{l.tipo === "sol" ? "0,000001" : brl(l.unit)}</div>}</Campo>
-                {/* desconto fica fora da janela do item (José, 23/10/2026): só Hora/KM/geral, na tela da OS */}
-                {leit("Valor do ISS", brl(base * n(v(im.nAliqISS, ci.nAliqISS)) / 100))}{leit("Valor Total do Item", brl(base))}
-                <Campo titulo="Descrição Detalhada do Serviço" span={5} cinza={!editDesc}>
-                  {editDesc ? <textarea rows={l.tipo === "sol" ? 8 : 4} style={{ ...inpOmie, resize: "vertical" }} value={l.descricao} onChange={(e) => onDescricao(e.target.value)}
-                    placeholder={l.tipo === "sol" ? "Modelo:\nChassis:\nSolicitação do Cliente:\nServiço realizado:" : ""} />
-                    : <div style={{ ...inpOmie, whiteSpace: "pre-wrap" }}>{l.descricao || "—"}</div>}
-                </Campo>
-                {!interna && (l.tipo === "hora" || l.tipo === "km" || l.tipo === "extra") && podeEditar && <div style={{ gridColumn: "span 5" }}><Chave ligada={!l.cobrar} onChange={onCobrar} rotulo="Não cobrar este serviço (vai com 100% de desconto)" /></div>}
-                {(l.tipo === "hora" || l.tipo === "km") && <div style={{ gridColumn: "span 5", fontSize: 12, color: CINZA }}>O valor unitário vale só para esta OS (o padrão continua em Mais → Configurações).</div>}
+              <div className="im-grade4">
+                {txt("Tipo de tributação", v(naOS?.cTribServ, cc.cIdTrib) === "01" ? "Tributado no município" : v(naOS?.cTribServ, cc.cIdTrib), 2)}
+                {txt("Código do serviço no município", v(naOS?.cCodServMun, cc.cCodServMun))}{txt("Código da LC116", v(naOS?.cCodServLC116, cc.cCodLC116))}
+                {txt("Alíquota do ISS", `${aliqISS}%`)}
+                {leit("Valor do ISS", brl(base * n(aliqISS) / 100))}
+                {leit("Base de cálculo (ISS)", brl(base))}
+                <div className="im-chave"><Chave ligada={sim(naOS ? naOS.cRetemISS : ci.cRetISS)} desab rotulo="ISS retido" /></div>
               </div>
             )}
             {aba === "pis" && (
@@ -338,20 +369,39 @@ function ItemModal({ l, listas, osOmie, interna, podeEditar, linhas, abrir, fech
                 <div />{leit("% Alíquota da CBS", `${n(v(im.nAliqCbs, ci.nAliqCbs))}`)}{leit("Valor da CBS", brl(base * n(v(im.nAliqCbs, ci.nAliqCbs)) / 100))}
               </div>
             )}
-            {nbs === "120015000" && cst !== "000" && <div style={{ marginTop: 18, fontSize: 14 }}><i className="fas fa-circle-exclamation" style={{ color: "#dc2626" }} /> Para o NBS <b>1.2001.50.00</b> é necessário informar o CST e o correto é <b>000</b>.</div>}
-            <div style={{ marginTop: 16, fontSize: 11.5, color: CINZA }}>{naOS ? "Códigos e impostos como estão nesta OS no Omie." : "Códigos e impostos do cadastro do serviço no Omie (a OS ainda não foi enviada)."}</div>
+            <div style={{ marginTop: 16, fontSize: 12, color: CINZA }}>{naOS ? "Como estão nesta OS no Omie." : "Do cadastro do serviço no Omie (a OS ainda não foi enviada)."} Só leitura.</div>
+            </div>
+            )}
           </div>
-          <div style={{ width: 210, flexShrink: 0, border: `1px solid ${BORDA}`, borderRadius: 8, padding: "16px 18px", display: "flex", flexDirection: "column", gap: 18, fontSize: 14 }}>
-            <button type="button" onClick={fechar} style={nav(true)}><i className="fas fa-check" /> Pronto</button>
-            <button type="button" disabled={idx <= 0} onClick={() => abrir(linhas[idx - 1].id)} style={nav(idx > 0)}><i className="fas fa-backward" /> Item Anterior</button>
-            <button type="button" disabled={idx >= linhas.length - 1} onClick={() => abrir(linhas[idx + 1].id)} style={nav(idx < linhas.length - 1)}><i className="fas fa-forward" /> Próximo Item</button>
-            <div style={{ fontSize: 11.5, color: CINZA }}>As alterações valem ao clicar em <b>Salvar</b> na coluna da OS.</div>
-          </div>
+          {nbs === "120015000" && cst !== "000" && <div style={{ fontSize: 13.5 }}><i className="fas fa-circle-exclamation" style={{ color: "#dc2626" }} /> Para o NBS <b>1.2001.50.00</b> é necessário informar o CST e o correto é <b>000</b>.</div>}
+          <div style={{ fontSize: 12.5, color: CINZA }}>As alterações valem ao clicar em <b>Salvar</b> na coluna da OS.</div>
         </div>
       </div>
     </div>
   );
 }
+
+const ESTILO_ITEM = `
+.im-janela { box-shadow: 0 24px 60px -20px rgba(15,23,42,.45) }
+.im-topo { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 8px; padding: 16px 20px; background: var(--surface, #fefefe); border-bottom: 1px solid var(--border, #eef1f3) }
+.im-tit { font-size: 18px; color: var(--portal-text, #0f172a); overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.im-sub { font-size: 12.5px; color: #64748b; margin-top: 2px }
+.im-pronto { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 16px; margin-left: 6px; border-radius: 9px; border: 0; background: ${TEAL}; color: #fefefe; font-family: inherit; font-size: 13.5px; cursor: pointer }
+.im-corpo { display: grid; gap: 16px; padding: 20px }
+.im-grade4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: end }
+.im-janela .omie-campo label { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: none; letter-spacing: 0 }
+.im-grade4 .omie-caixa > div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.im-chave { display: flex; align-items: center; min-height: 38px }
+.im-imp { border: 1px solid var(--border, #e6ebee); border-radius: 13px; overflow: hidden }
+.im-imp-cab { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border: 0; background: var(--portal-bg-secondary, #f8fafb); font-family: inherit; cursor: pointer; text-align: left; color: var(--portal-text, #0f172a) }
+.im-imp-cab > span { display: grid; line-height: 1.35 } .im-imp-cab > span > span { font-size: 14px } .im-imp-cab small { font-size: 12.5px; color: #64748b }
+.im-imp.aberto .im-imp-cab { border-bottom: 1px solid var(--border, #e6ebee) }
+.im-imp-corpo { padding: 14px }
+@media (max-width: 768px) {
+  .im-grade4 { grid-template-columns: repeat(2, minmax(0, 1fr)) }
+  .im-topo { padding: 12px 14px; flex-wrap: wrap } .im-corpo { padding: 14px }
+}
+`;
 
 // ───────────────────────── Departamentos ─────────────────────────
 export function AbaDepartamentos({ esp, setEsp, listas, total, podeEditar, erroListas, tentarListas }: { esp: OmieEspelho; setEsp: (f: (e: OmieEspelho) => OmieEspelho) => void; listas: ListasOmie | null; total: number; podeEditar: boolean; erroListas?: string; tentarListas?: () => void }) {
