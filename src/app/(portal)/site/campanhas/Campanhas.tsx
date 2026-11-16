@@ -6,14 +6,15 @@
 // bonita) e Prêmios (texto, chance e limite de cada fatia). ?exemplo=1 mostra dados inventados com aviso.
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
+import EnviarFoto from '@/components/site/EnviarFoto';
 import { fetchAuth } from '@/lib/auth/client';
 import { Aviso, Numero, tela, quando } from '@/components/site/ui';
 import { AZUL, Campo, Quadradinho, Secao, T1, T2, T3, bt, campoNP, cartaoNP, grade, ic } from '@/components/site/np';
 
 type Setor = 'comercial' | 'posvendas' | 'pecas';
 type Camp = { id: string; slug: string; nome: string; ano: number; inicio: string; fim: string; ativo: boolean; url?: string | null; config?: {
-  premio_foto?: string; validade?: string
+  capa?: string; premio_foto?: string; validade?: string
   inicio?: { subtitulo?: string; passos?: string[]; concurso?: string }; regras?: string[]
   ficha?: { pedir_local?: boolean; pedir_trator?: boolean; pedir_foto?: boolean; modelos?: string[] }; whats?: Partial<Record<Setor, string>>
 } };
@@ -109,39 +110,82 @@ function contar<T>(lista: T[], chave: (x: T) => string | null, max = 8) {
 }
 
 // ---------- tela ----------
+type Resumo1 = Camp & { capa?: string | null; respostas: number; giraram: number };
+
+/** Capa do cartão: a foto escolhida; sem foto, a Black Friday ganha o "BLACK DA NOVA" e as outras um quadro com o nome. */
+function Capa({ c, alto = false }: { c: Camp & { capa?: string | null }; alto?: boolean }) {
+  const capa = c.capa || (c.config as { capa?: string } | undefined)?.capa;
+  const box: React.CSSProperties = { aspectRatio: alto ? '16 / 7' : '4 / 3', width: '100%', borderRadius: alto ? 0 : 14, overflow: 'hidden', position: 'relative', background: '#0d0d0d' };
+  if (capa) return <div style={box}><img src={capa} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} /></div>;
+  if (/black/i.test(c.slug)) {
+    return (
+      <div style={{ ...box, display: 'grid', placeItems: 'center' }}>
+        <svg viewBox="0 0 600 250" style={{ width: '78%' }} aria-label="Black da Nova">
+          <defs><linearGradient id={`ouro-${c.slug}`} x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#9C7424" /><stop offset=".4" stopColor="#F6DC8A" /><stop offset=".6" stopColor="#E5B94E" /><stop offset="1" stopColor="#8A651C" /></linearGradient></defs>
+          <text x="300" y="140" textAnchor="middle" fontWeight="800" fontSize="150" textLength="576" lengthAdjust="spacingAndGlyphs" fill={`url(#ouro-${c.slug})`} fontFamily="system-ui, sans-serif">BLACK</text>
+          <rect x="70" y="160" width="460" height="74" rx="10" fill="#E31837" stroke={`url(#ouro-${c.slug})`} strokeWidth="3" />
+          <text x="300" y="214" textAnchor="middle" fontWeight="800" fontSize="54" textLength="380" lengthAdjust="spacingAndGlyphs" fill="#0d0d0d" fontFamily="system-ui, sans-serif">DA NOVA</text>
+        </svg>
+      </div>
+    );
+  }
+  return (
+    <div style={{ ...box, background: `color-mix(in srgb, ${AMBAR} 14%, var(--surface))`, display: 'grid', placeItems: 'center', color: AMBAR, fontSize: 40 }}>{ic('fa-bullhorn')}</div>
+  );
+}
+
 export default function Campanhas() {
   const sp = useSearchParams();
+  const router = useRouter();
   const ehExemplo = sp?.get('exemplo') === '1';
   const slug = sp?.get('campanha') || '';
   const ver = (VISOES.find((v) => v.id === sp?.get('ver'))?.id || 'resumo') as Ver;
+  const [lista, setLista] = useState<Resumo1[] | null>(null);
   const [d, setD] = useState<Dados | null>(null);
   const [erro, setErro] = useState('');
   const [semSql, setSemSql] = useState(false);
 
-  const carregar = useCallback(async () => {
-    if (ehExemplo) { setD(exemplo()); return; }
+  const carregarLista = useCallback(async () => {
+    if (ehExemplo) { const e = exemplo(); setLista([{ ...e.atual!, respostas: e.participantes.length, giraram: e.participantes.filter((p) => p.codigo).length }]); return; }
     try {
-      const r = await fetchAuth(`/api/site/campanhas${slug ? `?campanha=${encodeURIComponent(slug)}` : ''}`);
+      const r = await fetchAuth('/api/site/campanhas?lista=1');
       const j = await r.json();
       if (!j.ok) { setErro(j.erro || 'Erro ao carregar'); setSemSql(!!j.semSql); return; }
-      setErro(''); setD(j);
+      setErro(''); setLista(j.campanhas);
     } catch { setErro('Sem conexão com o portal.'); }
+  }, [ehExemplo]);
+  const carregar = useCallback(async () => {
+    if (!slug) { setD(null); return; }
+    if (ehExemplo) { setD(exemplo()); return; }
+    try {
+      const r = await fetchAuth(`/api/site/campanhas?campanha=${encodeURIComponent(slug)}`);
+      const j = await r.json();
+      if (j.ok) setD(j);
+    } catch { /* a janela mostra "Carregando…" */ }
   }, [ehExemplo, slug]);
+  useEffect(() => { carregarLista(); }, [carregarLista]);
   useEffect(() => { carregar(); }, [carregar]);
 
   const mudar = useCallback(async (corpo: Record<string, unknown>) => {
     if (ehExemplo) return { ok: false, erro: 'No exemplo nada é salvo.' };
     const r = await fetchAuth('/api/site/campanhas', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo) });
     const j = await r.json().catch(() => ({ ok: false, erro: 'Erro' }));
-    if (j.ok) await carregar();
+    if (j.ok) { await carregar(); carregarLista(); }
     return j as { ok: boolean; erro?: string };
-  }, [ehExemplo, carregar]);
+  }, [ehExemplo, carregar, carregarLista]);
 
-  const href = (mais: Record<string, string>) => {
-    const q = new URLSearchParams(sp?.toString() || '');
-    for (const [k, v] of Object.entries(mais)) q.set(k, v);
-    return `/site/campanhas?${q.toString()}`;
-  };
+  const base = ehExemplo ? '/site/campanhas?exemplo=1' : '/site/campanhas';
+  const abrir = (s: string, v: Ver = 'resumo') => `/site/campanhas?${new URLSearchParams({ ...(ehExemplo ? { exemplo: '1' } : {}), campanha: s, ver: v }).toString()}`;
+
+  // janela aberta: Esc fecha e a página de trás não rola
+  useEffect(() => {
+    if (!slug) return;
+    const tecla = (e: KeyboardEvent) => { if (e.key === 'Escape') router.push(base); };
+    const antes = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    addEventListener('keydown', tecla);
+    return () => { removeEventListener('keydown', tecla); document.body.style.overflow = antes; };
+  }, [slug, base, router]);
 
   if (erro) {
     return (
@@ -153,53 +197,78 @@ export default function Campanhas() {
       </div>
     );
   }
-  if (!d) return <div style={{ ...tela, color: T3 }}>Carregando…</div>;
-  if (!d.atual) return <div style={tela}><Aviso tom="info">Nenhuma campanha cadastrada ainda.</Aviso></div>;
+  if (!lista) return <div style={{ ...tela, color: T3 }}>Carregando…</div>;
 
-  const anos = [...new Set(d.campanhas.map((c) => c.ano))];
+  const anos = [...new Set(lista.map((c) => c.ano))].sort((a, b) => b - a);
+  const atual = d?.atual && d.atual.slug === slug ? d.atual : null;
+
   return (
     <div style={{ ...tela, maxWidth: 1400 }}>
       {ehExemplo && <Aviso tom="info"><b style={{ fontWeight: 500 }}>Dados de exemplo, inventados.</b> Servem só para ver como a tela fica. <Link href="/site/campanhas" style={{ color: AZUL }}>Ver os dados reais</Link></Aviso>}
+      {!lista.length && <Aviso tom="info">Nenhuma campanha cadastrada ainda.</Aviso>}
 
-      {/* escolha da campanha: por ano */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-        {anos.map((ano) => (
-          <div key={ano} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13, color: T3 }}>{ano}</span>
-            {d.campanhas.filter((c) => c.ano === ano).map((c) => {
-              const on = c.slug === d.atual!.slug;
-              return (
-                <Link key={c.slug} href={href({ campanha: c.slug })}
-                  style={{ ...bt(AMBAR, on), minHeight: 36, padding: '6px 14px' }}>
-                  {ic('fa-bullhorn')}{c.nome} {c.ano}
-                </Link>
-              );
-            })}
+      {/* cartões por ano */}
+      {anos.map((ano) => (
+        <section key={ano} style={{ display: 'grid', gap: 12 }}>
+          <span style={{ fontSize: 22, color: T1 }}>{ano}</span>
+          <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(min(240px, 100%), 1fr))' }}>
+            {lista.filter((c) => c.ano === ano).map((c) => (
+              <Link key={c.slug} href={abrir(c.slug)} style={{ ...cartaoNP, padding: 10, display: 'grid', gap: 10, textDecoration: 'none', color: T1 }}>
+                <Capa c={c} />
+                <span style={{ display: 'grid', gap: 2, padding: '0 4px 4px' }}>
+                  <span style={{ fontSize: 16 }}>{c.nome} {c.ano}</span>
+                  <span style={{ fontSize: 13, color: T3 }}>{n(c.respostas)} {c.respostas === 1 ? 'resposta' : 'respostas'} · {situacao(c)}</span>
+                </span>
+              </Link>
+            ))}
           </div>
-        ))}
-        <span style={{ marginLeft: 'auto', fontSize: 13, color: T3 }}>
-          {dataBR(d.atual.inicio)} a {dataBR(d.atual.fim)} · {situacao(d.atual)}
-        </span>
-      </div>
+        </section>
+      ))}
 
-      {/* visões */}
-      <nav style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 12, background: 'var(--surface)', border: '1px solid var(--border)', width: 'fit-content', maxWidth: '100%', overflowX: 'auto' }}>
-        {VISOES.map((v) => {
-          const on = v.id === ver;
-          return (
-            <Link key={v.id} href={href({ ver: v.id })}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 38, padding: '7px 16px', borderRadius: 9, fontSize: 14, textDecoration: 'none', whiteSpace: 'nowrap', background: on ? AMBAR : 'transparent', color: on ? '#fefefe' : T1 }}>
-              <i className={`fa-solid ${v.icone}`} style={{ fontWeight: 900, color: on ? '#fefefe' : T3 }} />{v.label}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* janela em tela cheia da campanha aberta (o endereço muda: ?campanha=&ver=) */}
+      {slug && (
+        <div role="dialog" aria-modal="true" aria-label={atual ? `${atual.nome} ${atual.ano}` : 'Campanha'}
+          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--portal-bg, #f8fafc)', overflowY: 'auto', overscrollBehavior: 'contain' }}>
+          <div style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ maxWidth: 1400, margin: '0 auto', padding: '10px clamp(12px, 2vw, 28px)', display: 'flex', gap: 12, alignItems: 'center' }}>
+              <Link href={base} aria-label="Fechar" style={{ ...bt(T1), minHeight: 40, padding: '8px 12px' }}>{ic('fa-xmark')}<span className="hide-sm">Fechar</span></Link>
+              <span style={{ display: 'grid', minWidth: 0 }}>
+                <span style={{ fontSize: 18, color: T1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{atual ? `${atual.nome} ${atual.ano}` : 'Carregando…'}</span>
+                {atual && <span style={{ fontSize: 12, color: T3 }}>{dataBR(atual.inicio)} a {dataBR(atual.fim)} · {situacao(atual)}</span>}
+              </span>
+              {atual && !ehExemplo && (
+                <span style={{ marginLeft: 'auto' }}>
+                  <EnviarFoto pasta="campanhas" rotulo="Foto da capa" onEnviada={([url]) => mudar({ acao: 'campanha', id: atual.id, capa: url })} />
+                </span>
+              )}
+            </div>
+            <nav style={{ maxWidth: 1400, margin: '0 auto', padding: '0 clamp(12px, 2vw, 28px) 10px', display: 'flex', gap: 4, overflowX: 'auto' }}>
+              {VISOES.map((v) => {
+                const on = v.id === ver;
+                return (
+                  <Link key={v.id} href={abrir(slug, v.id)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 38, padding: '7px 14px', borderRadius: 9, fontSize: 14, textDecoration: 'none', whiteSpace: 'nowrap', background: on ? AMBAR : 'transparent', color: on ? '#fefefe' : T1 }}>
+                    <i className={`fa-solid ${v.icone}`} style={{ fontWeight: 900, color: on ? '#fefefe' : T3 }} />{v.label}
+                  </Link>
+                );
+              })}
+            </nav>
+          </div>
 
-      {ver === 'resumo' && <Resumo d={d} mudar={mudar} exemplo={ehExemplo} />}
-      {ver === 'participantes' && <Participantes d={d} mudar={mudar} />}
-      {ver === 'fotos' && <Fotos d={d} mudar={mudar} />}
-      {ver === 'premios' && <Premios d={d} mudar={mudar} />}
-      {ver === 'pagina' && <OQueAparece key={d.atual.id} d={d} mudar={mudar} />}
+          <div style={{ ...tela, maxWidth: 1400, margin: '0 auto' }}>
+            {!atual || !d ? <span style={{ color: T3 }}>Carregando…</span> : (
+              <>
+                {ver === 'resumo' && <Resumo d={d} mudar={mudar} exemplo={ehExemplo} />}
+                {ver === 'participantes' && <Participantes d={d} mudar={mudar} />}
+                {ver === 'fotos' && <Fotos d={d} mudar={mudar} />}
+                {ver === 'premios' && <Premios d={d} mudar={mudar} />}
+                {ver === 'pagina' && <OQueAparece key={atual.id} d={d} mudar={mudar} />}
+              </>
+            )}
+          </div>
+          <style>{`@media (max-width: 599px){ .hide-sm{display:none} }`}</style>
+        </div>
+      )}
     </div>
   );
 }

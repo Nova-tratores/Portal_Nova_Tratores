@@ -8,7 +8,7 @@ export const runtime = 'nodejs'
 const TIPOS: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
 
 const VIDEOS: Record<string, string> = { 'video/mp4': 'mp4', 'video/quicktime': 'mov' }
-const telaDa = (pasta: string) => (pasta === 'promocoes' ? 'promocoes' : pasta === 'posts' ? 'conteudo' : 'catalogo') as 'promocoes' | 'conteudo' | 'catalogo'
+const telaDa = (pasta: string) => (pasta === 'promocoes' ? 'promocoes' : pasta === 'posts' ? 'conteudo' : pasta === 'campanhas' ? 'campanhas' : 'catalogo') as 'promocoes' | 'conteudo' | 'catalogo' | 'campanhas'
 
 /** Vídeo (TikTok/Shorts/Reels, 12/11): pesado demais para passar pelo portal. Recebe JSON { pasta, tipo, tamanho } e
  *  devolve um endereço assinado para o navegador mandar o arquivo direto para o Storage (PUT), mais a URL pública. */

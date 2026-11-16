@@ -20,6 +20,13 @@ export async function GET(req: Request) {
   const { data: campanhas, error } = await sb.from('campanhas').select('*').order('ano', { ascending: false }).order('inicio', { ascending: false })
   if (error) return NextResponse.json({ ok: false, erro: falta(error.message) ? MSG_SQL : error.message, semSql: falta(error.message) }, { status: falta(error.message) ? 503 : 500 })
   const lista = (campanhas || []) as Linha[]
+
+  // cartões da entrada (por ano, com capa): só o leve, sem participantes
+  if (new URL(req.url).searchParams.get('lista') === '1') {
+    const { data: ps } = await sb.from('campanha_participacoes').select('campanha_id, codigo').limit(50000)
+    const conta = (id: unknown, f: (x: Linha) => boolean) => ((ps || []) as Linha[]).filter((x) => x.campanha_id === id && f(x)).length
+    return NextResponse.json({ ok: true, campanhas: lista.map((c) => ({ id: c.id, slug: c.slug, nome: c.nome, ano: c.ano, inicio: c.inicio, fim: c.fim, ativo: c.ativo, capa: (c.config as Linha)?.capa || null, respostas: conta(c.id, () => true), giraram: conta(c.id, (x) => !!x.codigo) })) })
+  }
   const pedida = new URL(req.url).searchParams.get('campanha')
   const atual = lista.find((c) => c.slug === pedida) || lista[0]
   if (!atual) return NextResponse.json({ ok: true, campanhas: [], atual: null, premios: [], participantes: [] })
@@ -118,6 +125,12 @@ export async function PATCH(req: Request) {
   if (b.acao === 'campanha') {
     const v: Linha = {}
     if ('url' in b) { v.url = t(b.url, 300); if (v.url && !/^https?:\/\//.test(String(v.url))) return NextResponse.json({ ok: false, erro: 'O endereço começa com https://' }, { status: 400 }) }
+    if ('capa' in b) {
+      const capa = t(b.capa, 500)
+      if (capa && !capa.startsWith('https://')) return NextResponse.json({ ok: false, erro: 'Foto inválida' }, { status: 400 })
+      const { data: c } = await sb.from('campanhas').select('config').eq('id', String(b.id)).single()
+      v.config = { ...((c?.config as Linha) || {}), capa }
+    }
     if ('premio_foto' in b || 'validade' in b) {
       const { data: c } = await sb.from('campanhas').select('config').eq('id', String(b.id)).single()
       const config = { ...((c?.config as Linha) || {}) }
