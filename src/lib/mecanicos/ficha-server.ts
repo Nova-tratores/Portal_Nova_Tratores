@@ -43,7 +43,31 @@ const VALIDADE_FICHA = 15 * 60_000
  *  a cada 10 min (aquecerFichas) — abrir o card não espera cálculo (José, 20/10/2026). */
 export async function fichaTecnico(nome: string, mes: string, forcar = false) {
   const r = await comCache(chaveFicha(nome, mes), VALIDADE_FICHA, () => montarFicha(nome, mes), forcar)
-  return { ...r.dados, geradoEm: r.geradoEm }
+  const dados = r.deCache ? await rhAoVivo(nome, mes, r.dados) : r.dados
+  return { ...dados, geradoEm: r.geradoEm }
+}
+
+// O RH muda fora do portal (salário, % de comissão, admissão, férias…) e a ficha gravada só via a mudança
+// depois do robô — a 1ª abertura mostrava o antigo (José, 16/11/2026: Matheus Mello "não atualizou").
+// Agora a parte do RH é conferida ao vivo (no máx. 1x por minuto por técnico): mudou → troca na resposta
+// e regrava a ficha inteira por trás (as linhas de comissão também usam o RH).
+const rhConferido = new Map<string, number>()
+async function rhAoVivo(nome: string, mes: string, f: FichaTecnico): Promise<FichaTecnico> {
+  const k = `${nome}|${mes}`
+  if (Date.now() - (rhConferido.get(k) || 0) < 60_000) return f
+  rhConferido.set(k, Date.now())
+  try {
+    const [{ tecnicos }, dir] = await Promise.all([padronizadorOcorrencias(), carregarDiretorio()])
+    const pessoa = dir.pessoas.find((p) => p.nome === nome) || null
+    const rh = await dadosRH(nome, pessoa?.id || null, tecnicos)
+    const novo = rh ? { ...rh, ajustesOS: undefined } : null
+    if (JSON.stringify(novo) === JSON.stringify(f.rh)) return f
+    comCache(chaveFicha(nome, mes), VALIDADE_FICHA, () => montarFicha(nome, mes), true).catch((e) => console.error('[ficha] regravar após RH', nome, e))
+    return { ...f, rh: novo, comissao: { ...f.comissao, oficial: rh?.comissoes.find((c) => c.mes === mes) || null, historico: rh?.comissoes || [] } } as FichaTecnico
+  } catch (e) {
+    console.error('[ficha] RH ao vivo', nome, (e as Error).message)
+    return f
+  }
 }
 
 /** Robô: deixa gravada a ficha de cada mecânico do mês atual e do anterior (um por vez). */

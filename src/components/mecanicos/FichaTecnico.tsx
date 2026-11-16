@@ -639,11 +639,22 @@ function baixarFicha(nome: string, mes: string): Promise<Ficha> {
     const j = await r.json()
     if (!r.ok) throw new Error(j.error || 'Falha ao carregar a ficha')
     cache.set(chave, j)
+    baixadaEm.set(chave, Date.now())
     ouvintesFicha.forEach((f) => f())
     return j as Ficha
   })().finally(() => buscando.delete(chave))
   buscando.set(chave, p)
   return p
+}
+
+// A ficha guardada no navegador ficava até recarregar a página — mudança no RH só aparecia na 2ª abertura
+// (José, 16/11/2026). Ao abrir uma guardada há mais de 1 min, mostra ela e busca a nova por trás.
+const baixadaEm = new Map<string, number>()
+const fichaVelha = (chave: string) => Date.now() - (baixadaEm.get(chave) || 0) > 60_000
+function renovarFicha(nome: string, mes: string): Promise<Ficha> {
+  const chave = `${nome}|${mes}`, velha = cache.get(chave)
+  cache.delete(chave)
+  return baixarFicha(nome, mes).catch((e) => { if (velha && !cache.has(chave)) cache.set(chave, velha); throw e })
 }
 
 const fila: string[] = []
@@ -679,7 +690,13 @@ export function useFicha(nome: string | null, mes: string): { dados: Ficha | nul
     if (!nome) return
     let vivo = true
     const c = cache.get(chave)
-    if (c) { setEstado({ chave, dados: c, erro: null }); return }
+    if (c) {
+      setEstado({ chave, dados: c, erro: null })
+      if (fichaVelha(chave) && !buscando.has(chave)) {
+        renovarFicha(nome, mes).then((j) => { if (vivo) setEstado({ chave, dados: j, erro: null }) }).catch(() => { /* fica a guardada */ })
+      }
+      return () => { vivo = false }
+    }
     setEstado((e) => (e.chave === chave && e.dados ? e : { chave, dados: null, erro: null }))
     baixarFicha(nome, mes)
       .then((j) => { if (vivo) setEstado({ chave, dados: j, erro: null }) })

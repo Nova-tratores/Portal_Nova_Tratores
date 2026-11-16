@@ -10,6 +10,7 @@
 //    faturamento no espelho — a mesma régua do Dashboard de Vendas (José, 16/10/2026). O cálculo do
 //    portal (horas × valor da hora…) só vale para OS faturada pelo portal que ainda não está no espelho.
 //  - Peças: o pedido de venda das PPVs da OS como FATURADO (vendas_itens); sem nota ainda, o PPV. Custo de terceiros: requisições Trator-Cliente da OS não cobradas do cliente.
+import { chaveNomeCompleto, ehVendedor, ehComissaoDeVenda } from './vendedor-tecnico'
 import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
 import { TBL_OS } from '@/lib/pos/constants'
 import { getConfigPOS } from '@/lib/pos/config'
@@ -238,10 +239,14 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
   // Os técnicos do OMIE de toda OS também vão em `tecnicosOmie`: a comissão sai por eles (o painel do
   // Omie usa o "vendedor" da OS) e às vezes diferem do portal (OS 5293: Gabriel no portal, Danilo no Omie).
   const numsPasta = [...new Set([...omiePorNum.keys(), ...faturadas.map((o) => o.numeroOmie || '')].filter(Boolean))]
-  const daPasta = new Map<string, { cliente: string; tecnicos: string[] }>()
+  // O "vendedor" da OS no Omie pode ser um VENDEDOR de verdade (OS 5440: comissão do consórcio lançada com o
+  // Dougras de vendedor) — vendedor do comercial nunca vira técnico do pós-vendas (José, 16/11/2026).
+  const vendedores = await nomesDeVendedores()
+  const soTecnicos = (l: string[]) => l.filter((t) => tecnicos.includes(t) || !ehVendedor(t, vendedores))
+  const daPasta = new Map<string, { cliente: string; tecnicos: string[]; texto: string }>()
   for (let i = 0; i < numsPasta.length; i += 200) {
-    const { data } = await sb.from('portal_nt_clientes_os').select('num_os, cliente_nome, vendedor').eq('empresa', 'Nova Tratores').in('num_os', numsPasta.slice(i, i + 200))
-    for (const r of (data || []) as Rec[]) daPasta.set(semZeros(r.num_os), { cliente: String(r.cliente_nome || ''), tecnicos: tecnicosDoTexto(r.vendedor, padronizar, tecnicos) })
+    const { data } = await sb.from('portal_nt_clientes_os').select('num_os, cliente_nome, vendedor, obs, descricao').eq('empresa', 'Nova Tratores').in('num_os', numsPasta.slice(i, i + 200))
+    for (const r of (data || []) as Rec[]) daPasta.set(semZeros(r.num_os), { cliente: String(r.cliente_nome || ''), tecnicos: soTecnicos(tecnicosDoTexto(r.vendedor, padronizar, tecnicos)), texto: `${r.obs || ''} ${r.descricao || ''}` })
   }
   for (const f of faturadas) { const t = f.numeroOmie ? daPasta.get(f.numeroOmie)?.tecnicos : undefined; if (t?.length) f.tecnicosOmie = t }
   for (const [n, o] of omiePorNum) {
@@ -251,7 +256,8 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
     if (!(o.horas > 0 || o.km > 0 || o.outros > 0)) continue
     if (motivoInterna({ contratos: [o.contrato] }, CONTA_INTERNO, CODIGOS)) continue
     // comissão de venda de equipamento (ex.: GTM, venda direta) não é serviço do pós-vendas (José, 17/10/2026)
-    if (!(o.horas > 0 || o.km > 0) && /comiss[aã]o/i.test(o.texto)) continue
+    // A comissão às vezes só aparece na observação da OS ("COMISSÃO DOUGRAS") e o item diz "promoção de venda"
+    if (!(o.horas > 0 || o.km > 0) && ehComissaoDeVenda(`${o.texto} ${daPasta.get(n)?.texto || ''}`)) continue
     faturadas.push({
       os: `OMIE ${n}`, numeroOmie: n, cliente: daPasta.get(n)?.cliente || '', data: o.data, em: null, tecnicos: daPasta.get(n)?.tecnicos || [],
       horasCobradas: o.horas, km: o.km, servico: o.vh, kmValor: o.vk, pecas: 0, outros: o.outros,
@@ -287,6 +293,12 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
   }
 
   return { tecnicos, faturadas, diasTodos, dias: diasTodos.filter((d) => d.data >= de && d.data <= ate), osInternas, internasFechadas }
+}
+
+/** Vendedores do comercial (cargo VENDEDOR na régua de comissão) — nunca são técnicos. */
+async function nomesDeVendedores(): Promise<Set<string>> {
+  const { data } = await sb.from('config_vendedores_relatorio').select('nome, cargo')
+  return new Set(((data || []) as Rec[]).filter((c) => String(c.cargo || '').toUpperCase() === 'VENDEDOR').map((c) => chaveNomeCompleto(c.nome)).filter(Boolean))
 }
 
 /** "Técnicos: José Antonio de Oliveira // Gabriel Moraes" (vendedor da OS no Omie) → nomes do portal. */
