@@ -5,7 +5,7 @@ import { faseOS } from "@/lib/pos/relacao";
 import { useMarcarCaso } from "@/lib/uso/caso";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
-import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE } from "@/lib/pos/constants";
+import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE, faseAntesDaExecucao } from "@/lib/pos/constants";
 import { useFasesDo } from "@/hooks/useFasesQuadro";
 import { faltaParaEnviarOmie } from "@/lib/pos/envio-omie-regras";
 import { authHeaders, fetchAuth } from "@/lib/auth/client";
@@ -1863,7 +1863,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   )}
 
                   {/* ── Faixa amarela estilo Omie: faturamento atrasado ── */}
-                  {mode === "edit" && previsaoFaturamento && !["Concluída", "Cancelada"].includes(status) &&
+                  {/* antes da execução não há atraso para cobrar do técnico (José, 16/11/2026) */}
+                  {mode === "edit" && previsaoFaturamento && !["Concluída", "Cancelada"].includes(status) && !faseAntesDaExecucao(status) &&
                     new Date(`${previsaoFaturamento}T23:59:59`) < new Date() && (
                     <div className="os-aviso-atraso" style={{ order: -5.8 }}>
                       Faturamento atrasado — previsão era {previsaoFaturamento.split("-").reverse().join("/")}{tecnico1 ? `, cobrar ${tecnico1}` : ""}
