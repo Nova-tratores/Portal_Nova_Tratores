@@ -360,7 +360,7 @@ function LinksSetores({ c, ps, mudar }: { c: Camp; ps: Part[]; mudar: Mudar }) {
   const [copiado, setCopiado] = useState('');
   const base = (c.url || '').replace(/\/$/, '');
   const copiar = async (s: Setor) => {
-    try { await navigator.clipboard.writeText(`${base}/?setor=${s}`); setCopiado(s); setTimeout(() => setCopiado(''), 1800); } catch { setMsg('Não deu para copiar: selecione o link e copie.'); }
+    try { await navigator.clipboard.writeText(`${base}?setor=${s}`); setCopiado(s); setTimeout(() => setCopiado(''), 1800); } catch { setMsg('Não deu para copiar: selecione o link e copie.'); }
   };
   return (
     <div style={{ display: 'grid', gap: 12 }}>
@@ -379,9 +379,9 @@ function LinksSetores({ c, ps, mudar }: { c: Camp; ps: Part[]; mudar: Mudar }) {
               </div>
               {base ? (
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0 }}>
-                  <code style={{ flex: 1, minWidth: 0, fontSize: 12, color: T2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{base}/?setor={s}</code>
+                  <code style={{ flex: 1, minWidth: 0, fontSize: 12, color: T2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{base}?setor={s}</code>
                   <button type="button" onClick={() => copiar(s)} style={{ ...bt(SETOR[s].cor, copiado === s), minHeight: 34 }}>{ic(copiado === s ? 'fa-check' : 'fa-copy')}{copiado === s ? 'Copiado' : 'Copiar'}</button>
-                  <a href={`${base}/?setor=${s}`} target="_blank" rel="noreferrer" style={{ ...bt(SETOR[s].cor, true), minHeight: 34 }}>{ic('fa-arrow-up-right-from-square')}Abrir</a>
+                  <a href={`${base}?setor=${s}`} target="_blank" rel="noreferrer" style={{ ...bt(SETOR[s].cor, true), minHeight: 34 }}>{ic('fa-arrow-up-right-from-square')}Abrir</a>
                 </div>
               ) : <span style={{ fontSize: 13, color: T3 }}>O link aparece quando a página estiver publicada (endereço abaixo).</span>}
             </div>
@@ -666,7 +666,7 @@ function OQueAparece({ d, mudar }: { d: Dados; mudar: Mudar }) {
         </div>
         {base ? (
           <div style={{ width: 390, maxWidth: '100%', height: 720, border: '10px solid #1f1f22', borderRadius: 34, overflow: 'hidden', background: '#000' }}>
-            <iframe key={previa.n} title="Prévia no celular" src={`${base}/?setor=${previa.setor}&previa=1#${previa.passo}`} style={{ width: '100%', height: '100%', border: 0 }} />
+            <iframe key={previa.n} title="Prévia no celular" src={`${base}?setor=${previa.setor}&previa=1#${previa.passo}`} style={{ width: '100%', height: '100%', border: 0 }} />
           </div>
         ) : <Aviso tom="info">A prévia aparece quando o endereço da página estiver salvo (Resumo → Os 3 links).</Aviso>}
         <span style={{ fontSize: 12, color: T3, textAlign: 'center' }}>Prévia do jeito que está salvo. Depois de salvar, ela recarrega.</span>
