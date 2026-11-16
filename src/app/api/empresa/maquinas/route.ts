@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { guardarDre } from '@/lib/dre-financeiro/rota'
 import { autorDe } from '@/lib/ajustes/permissao-server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
-import { lerArea, recalcular } from '@/lib/empresa/painel-gravado'
+import { lerArea, recalcular, areaIgual } from '@/lib/empresa/painel-gravado'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -15,6 +15,8 @@ export async function GET(req: NextRequest) {
   const g = await guardarDre(req)
   if (g.resposta) return g.resposta
   try {
+    // a tela pergunta "mudou desde X?" a cada minuto: 204 = igual, não baixa de novo (16/11)
+    if (req.nextUrl.searchParams.get('recalcular') !== '1' && (await areaIgual('maquinas', req.nextUrl.searchParams.get('desde')))) return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
     const r = await lerArea('maquinas', req.nextUrl.searchParams.get('recalcular') === '1')
     return NextResponse.json({ ...(r.dados as object), calculadoEm: r.calculadoEm }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {

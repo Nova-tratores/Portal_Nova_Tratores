@@ -149,7 +149,26 @@ export async function montarComercial(nMeses = 12): Promise<DadosComercial> {
     })
     .filter((e) => e.valor >= 1000) // cabo, suporte e afins de GPS não são máquina parada
 
-  const propostas: PropostaCm[] = props.map((r) => {
+  const propostas = propostasDe(props, motivos)
+
+  const anos = Array.from({ length: hoje.getFullYear() - ANO_INICIO + 1 }, (_, i) => hoje.getFullYear() - i)
+  return { meses: meses.map((m) => `${m.ano}-${String(m.mes).padStart(2, '0')}`), anos, vendas, estoque, propostas, vendedores: [...new Set(cadVend)].filter((n) => !/teste/i.test(n)), ...metasR, geradoEm: new Date().toISOString() }
+}
+
+/** Propostas lidas NA HORA (José, 16/11: "vi propostas que não foram atualizadas, tudo tem que ficar realtime").
+ *  Consulta leve (~200 linhas): não espera o robô de 30 min como o resto do Comercial. */
+export async function montarPropostas(): Promise<PropostaCm[]> {
+  const [props, motivos] = await Promise.all([
+    todas<Record<string, unknown>>((de, ate) => supabaseAdmin.from('v_formulario')
+      .select('id,Cliente,Cidade,Marca,Modelo,tipo,Valor_Total,status_ui,em_aberto,dias_na_fase,vendedor_nome,criado_em,fechado_em,motivo_perda_id,deleted_at')
+      .is('deleted_at', null).order('id', { ascending: true }).range(de, ate)),
+    supabaseAdmin.from('motivo_perda').select('id,nome').then(({ data }) => new Map((data || []).map((m) => [m.id as number, m.nome as string]))),
+  ])
+  return propostasDe(props, motivos)
+}
+
+function propostasDe(props: Record<string, unknown>[], motivos: Map<number, string>): PropostaCm[] {
+  return props.map((r) => {
     const fase = String(r.status_ui || '').trim()
     const f = semAcento(fase)
     const vendida = /conclu/.test(f) && /vendid/.test(f) && !/nao vendid/.test(f)
@@ -163,9 +182,6 @@ export async function montarComercial(nMeses = 12): Promise<DadosComercial> {
       motivoPerda: r.motivo_perda_id ? motivos.get(Number(r.motivo_perda_id)) || null : null,
     }
   })
-
-  const anos = Array.from({ length: hoje.getFullYear() - ANO_INICIO + 1 }, (_, i) => hoje.getFullYear() - i)
-  return { meses: meses.map((m) => `${m.ano}-${String(m.mes).padStart(2, '0')}`), anos, vendas, estoque, propostas, vendedores: [...new Set(cadVend)].filter((n) => !/teste/i.test(n)), ...metasR, geradoEm: new Date().toISOString() }
 }
 
 /** Metas sempre lidas na hora (uma consulta leve), mesmo quando o resto vem da tabela gravada — senão a meta

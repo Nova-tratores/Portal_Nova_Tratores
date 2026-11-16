@@ -1497,7 +1497,9 @@ async function consultarDREPorPeriodo(conta, anoMesIni, anoMesFim, cTipoData = '
   const agora = new Date();
   const idxMes = (a, m) => a * 12 + (m - 1);
   const idxHoje = idxMes(agora.getFullYear(), agora.getMonth() + 1);
-  const MES_RECENTE = 2, VALIDADE_RECENTE_MS = 6 * 3600 * 1000;
+  // mês corrente: rebusca com 20 min (José, 16/11: Peças no DRE R$ 42 mil × R$ 62 mil no Omie — cópia de 6 h atrás);
+  // os 2 meses anteriores seguem com 6 h (quase não mudam)
+  const MES_RECENTE = 2, VALIDADE_RECENTE_MS = 6 * 3600 * 1000, VALIDADE_MES_ATUAL_MS = 20 * 60 * 1000;
   if (supabaseAdmin) {
     try {
       const anosDistintos = Array.from(new Set(meses.map(m => m.ano)));
@@ -1511,7 +1513,8 @@ async function consultarDREPorPeriodo(conta, anoMesIni, anoMesFim, cTipoData = '
           tamanhoGuardado.set(`${r.ano}-${r.mes}`, movs.length);
           if (forceRefresh) return;
           const recente = idxHoje - idxMes(r.ano, r.mes) <= MES_RECENTE;
-          const velho = !r.atualizado_em || (agora.getTime() - new Date(r.atualizado_em).getTime()) > VALIDADE_RECENTE_MS;
+          const validade = idxMes(r.ano, r.mes) === idxHoje ? VALIDADE_MES_ATUAL_MS : VALIDADE_RECENTE_MS;
+          const velho = !r.atualizado_em || (agora.getTime() - new Date(r.atualizado_em).getTime()) > validade;
           if (recente && velho) return; // busca de novo no Omie
           cacheMap.set(`${r.ano}-${r.mes}`, movs);
         });
@@ -1554,6 +1557,9 @@ async function consultarDREPorPeriodo(conta, anoMesIni, anoMesFim, cTipoData = '
           console.log(`[DRE ${conta} ${m.ano}-${m.mes}] Omie trouxe ${movimentos.length} lancamentos e a copia tem ${guardado}: mantida a copia`);
           const { data: velho } = await supabaseAdmin.from('dre_cache').select('movimentos')
             .eq('conta_omie', conta).eq('ano', m.ano).eq('mes', m.mes).eq('c_tipo_data', cTipoData).maybeSingle();
+          // marca a hora da conferência: senão, com a validade de 20 min, cada abertura do DRE chamaria o Omie de novo (16/11)
+          await supabaseAdmin.from('dre_cache').update({ atualizado_em: new Date().toISOString() })
+            .eq('conta_omie', conta).eq('ano', m.ano).eq('mes', m.mes).eq('c_tipo_data', cTipoData).then(() => {}, () => {});
           return (velho?.movimentos || movimentos).map(mov => ({ ...mov, _ano: m.ano, _mes: m.mes }));
         }
         // Grava no cache (best-effort, nao falha o request)

@@ -240,6 +240,8 @@ export default function ComoEstaAEmpresa() {
   const [dre, setDre] = useState<ArvDre | null>(null)
   const [dreG, setDreG] = useState<MesG[] | null>(null)
   const [com, setCom] = useState<DadosComercial | null>(null) // área Comercial: vendas de máquinas, estoque, propostas, vendedores
+  const comEmRef = useRef<string | null>(null) // hora da conta gravada do Comercial que a tela tem (para o "mudou desde?")
+  useEffect(() => { comEmRef.current = (com as { calculadoEm?: string } | null)?.calculadoEm || null }, [com])
   const [comErro, setComErro] = useState<string | null>(null)
   const [gravadoEm, setGravadoEm] = useState<{ com?: string | null; dre?: string | null }>({}) // quando o robô gravou cada área
   const [carregando, setCarregando] = useState(true)
@@ -309,6 +311,21 @@ export default function ComoEstaAEmpresa() {
     setAtualizado(new Date()); setCarregando(false)
   }, [])
   useEffect(() => { const t0 = setTimeout(() => carregar(), 0); const t = setInterval(() => carregar(), 300_000); return () => { clearTimeout(t0); clearInterval(t) } }, [carregar])
+  // Comercial ao vivo (José, 16/11): as propostas vêm na hora do servidor; a tela rebusca a cada minuto com a aba à vista
+  useEffect(() => {
+    const t = setInterval(async () => {
+      if (document.visibilityState !== 'visible') return
+      try {
+        // manda a hora da conta que já tem: se o resto não mudou, o servidor devolve só propostas e metas (~50 KB)
+        const em = comEmRef.current
+        const r = await fetch(`/api/empresa/comercial${em ? `?desde=${encodeURIComponent(em)}` : ''}`, { headers: await authHeaders(), cache: 'no-store' })
+        const j = r.ok ? await r.json() : null
+        if (j?.parcial && Array.isArray(j.propostas)) setCom((c) => (c ? { ...c, propostas: j.propostas, metas: j.metas, metasProntas: j.metasProntas } : c))
+        else if (Array.isArray(j?.vendas)) { setCom(j); setGravadoEm((g) => ({ ...g, com: j.calculadoEm || null })) }
+      } catch { /* fica o que já está na tela */ }
+    }, 60_000)
+    return () => clearInterval(t)
+  }, [])
   useEffect(() => { log({ sistema: 'empresa', acao: 'acesso' }) }, []) // eslint-disable-line react-hooks/exhaustive-deps
   const abrir = useCallback((j: Janela) => { setPilha((p) => [...p, j]); log({ sistema: 'empresa', acao: 'abrir', entidade: j.tipo }) }, [log])
   const nova = (j: Janela) => { setPilha([j]); log({ sistema: 'empresa', acao: 'abrir', entidade: j.tipo }) }
@@ -1561,7 +1578,7 @@ const CSS_BENTO = `
 .bt .bt-meses button{border:0;background:transparent;border-radius:9px;padding:6px 12px;font:inherit;font-size:13.5px;font-weight:500;color:#475569;cursor:pointer}
 .bt .bt-meses button.on{background:#fefefe;color:#0f172a;box-shadow:0 1px 3px rgba(15,23,42,.15)}
 .bt-meses span{font-size:12px;color:#64748b;padding:0 8px;white-space:nowrap}
-.bt-grade{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(225px,auto);gap:14px;grid-template-areas:"fin fin com pos" "fin fin pec fro" "pat pat req req"}
+.bt-grade{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(225px,auto);gap:14px;grid-template-areas:"fin fin com pos" "fin fin pec fro" "fin fin req req"}
 .bt .bt-card{all:unset;box-sizing:border-box;border-radius:22px;padding:20px;color:#fff;position:relative;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;gap:14px;transition:transform .25s,box-shadow .25s;animation:ceFade .35s both;font-family:inherit}
 .bt .bt-card:hover{transform:scale(1.012);box-shadow:0 18px 34px -22px rgba(15,23,42,.7)}
 .bt .bt-card:focus-visible{outline:3px solid #0f172a;outline-offset:2px}
@@ -1680,8 +1697,8 @@ const CSS_BENTO = `
 .bt-fin-lista>div{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:10px 14px}
 .bt-fin-lista b{display:block;font-size:22px;font-weight:700;letter-spacing:-.01em;font-variant-numeric:tabular-nums;margin:2px 0}
 @media (max-width:620px){.bt-fin-dest b{font-size:32px}.bt-fin-lista b{font-size:18px}}
-@media (max-width:1100px){.bt-grade{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"fin fin" "com pos" "pec fro" "pat req"}.bt-g .bt-ve b{font-size:36px}}
-@media (max-width:620px){.bt{padding:12px}.bt-grade{grid-template-columns:minmax(0,1fr);grid-template-areas:"fin" "com" "pos" "pec" "fro" "pat" "req";grid-auto-rows:auto}.bt .bt-card{min-height:190px}.bt-g .bt-ve b,.bt-ve b{font-size:26px}.bt-g .bt-curva{min-height:90px}}
+@media (max-width:1100px){.bt-grade{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"fin fin" "com pos" "pec fro" "req req"}.bt-g .bt-ve b{font-size:36px}}
+@media (max-width:620px){.bt{padding:12px}.bt-grade{grid-template-columns:minmax(0,1fr);grid-template-areas:"fin" "com" "pos" "pec" "fro" "req";grid-auto-rows:auto}.bt .bt-card{min-height:190px}.bt-g .bt-ve b,.bt-ve b{font-size:26px}.bt-g .bt-curva{min-height:90px}}
 `
 
 const CSS_IBCS = `

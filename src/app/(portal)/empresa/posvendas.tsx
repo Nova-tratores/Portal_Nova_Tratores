@@ -46,9 +46,12 @@ export function PainelPosVendas({ dreG, oficina }: { dreG: Array<{ mes: string; 
   }, [tela])
   const fechar = () => setTela(null)
   const m = d?.meses[d.meses.length - 1], ult6 = d?.meses.slice(-6) || []
-  const max6 = Math.max(1, ...ult6.map((x) => x.porGrupo.faturada.valor + x.porGrupo.garantia.valor))
+  const max6 = Math.max(1, ...ult6.map((x) => x.porGrupo.faturada.valor))
   const mesH = d?.equipeMeses[d.equipeMeses.length - 1]
-  const g = dreG?.[dreG.length - 1], lp = (g?.setores as Record<string, LinhasDre> | undefined)?.posvendas, x = lp ? contaMes(lp) : null
+  const g = dreG?.[dreG.length - 1], lp = (g?.setores as Record<string, LinhasDre> | undefined)?.posvendas, x0 = lp ? contaMes(lp) : null
+  // faturado = OS faturadas da Gestão (não a receita do DRE do Omie); gastos do DRE — José, 16/11
+  const fatMes: Record<string, number> = Object.fromEntries((d?.meses || []).map((q) => [q.mes, q.porGrupo.faturada.valor]))
+  const x = x0 && g && fatMes[g.mes] != null ? { ...x0, faturou: fatMes[g.mes], resultado: fatMes[g.mes] - x0.gastou } : x0
   const cartao = (t: TelaPv, cor: string, ic: string, nome: string, num: string, linha: ReactNode, extraEl?: ReactNode, cls = '') => (
     <button className={`cml-card ${cls}`} style={{ ['--c' as string]: cor }} onClick={() => setTela(t)}>
       <span className="cml-cab"><span className="pf-ic"><i className={`fas ${ic}`} /></span><span className="cml-nome">{nome}</span><i className="fas fa-arrow-right cml-seta" /></span>
@@ -61,11 +64,11 @@ export function PainelPosVendas({ dreG, oficina }: { dreG: Array<{ mes: string; 
     <div className="pf cml">
       {erro && <div className="cm-aviso">{erro}</div>}
       <div className="cml-grade">
-        {cartao('fat', '#2563eb', 'fa-sack-dollar', 'Faturamento', m ? compacto(m.porGrupo.faturada.valor + m.porGrupo.garantia.valor) : '—',
-          m ? <>entrou em {nomeMes(m.mes)} até hoje (cliente + garantia)</> : erro ? '' : 'carregando…',
+        {cartao('fat', '#2563eb', 'fa-sack-dollar', 'Faturamento', m ? compacto(m.porGrupo.faturada.valor) : '—',
+          m ? <>OS faturadas em {nomeMes(m.mes)} até hoje (igual à Gestão){m.porGrupo.garantia.valor ? <> · + {compacto(m.porGrupo.garantia.valor)} de garantia</> : null}</> : erro ? '' : 'carregando…',
           ult6.length ? (
             <span className="cml-mini">{ult6.map((q) => (
-              <span key={q.mes} className={q.mes === m?.mes ? 'on' : ''}><span style={{ height: `${((q.porGrupo.faturada.valor + q.porGrupo.garantia.valor) / max6) * 100}%` }} /><small>{mesCurto(q.mes)}</small></span>
+              <span key={q.mes} className={q.mes === m?.mes ? 'on' : ''}><span style={{ height: `${(q.porGrupo.faturada.valor / max6) * 100}%` }} /><small>{mesCurto(q.mes)}</small></span>
             ))}</span>
           ) : null, 'cml-g')}
         {cartao('tec', '#0f766e', 'fa-user-gear', 'Técnicos', mesH ? hrs(mesH.trabalhadas) : '—',
@@ -78,7 +81,7 @@ export function PainelPosVendas({ dreG, oficina }: { dreG: Array<{ mes: string; 
       </div>
       {tela === 'fat' && d && <TelaCheia titulo="Faturamento do Pós-Vendas" sub="OS faturadas, garantia, internas e as que esperam faturar" onFechar={fechar}><AbaFaturamento d={d} /></TelaCheia>}
       {tela === 'tec' && d && <TelaTecnicos d={d} onFechar={fechar} />}
-      {tela === 'desp' && <TelaDespesasNova mesesBase={dreG || []} setor="posvendas" onFechar={fechar} />}
+      {tela === 'desp' && <TelaDespesasNova mesesBase={dreG || []} setor="posvendas" onFechar={fechar} faturouPorMes={d ? fatMes : undefined} />}
       {tela === 'ofi' && (
         <TelaCheia titulo="Oficina agora" sub="clique para ver a lista" onFechar={fechar}>
           <div className="cpv-kpis">
@@ -115,13 +118,13 @@ function AbaFaturamento({ d }: { d: DadosPosVendas }) {
   const m = d.meses.find((x) => x.mes === mes)!
   const ant = d.meses[meses.indexOf(mes) - 1]
   const internas = Object.entries(m.internas).sort((a, b) => b[1].valor - a[1].valor)
-  const doCliente = m.porGrupo.faturada.valor + m.porGrupo.garantia.valor
+  const doCliente = m.porGrupo.faturada.valor // igual à Gestão Pós-Vendas (garantia separada) — José, 16/11
   const osMes = d.os.filter((o) => o.data.startsWith(mes))
   return (
     <div className="cpv-corpo">
       <div className="cpv-topo">
         <NavMes meses={meses} mes={mes} setMes={setMes} />
-        <span className="cpv-frase">{cap(nomeMes(mes))}{m.parcial ? ' até hoje' : ''}: <b>{compacto(doCliente)}</b> entraram (cliente + garantia){m.porGrupo.interna.valor ? <>, mais <b>{compacto(m.porGrupo.interna.valor)}</b> em internas</> : null}{m.porGrupo.aguardando.valor ? <> e <b>{compacto(m.porGrupo.aguardando.valor)}</b> esperando faturar</> : null}.</span>
+        <span className="cpv-frase">{cap(nomeMes(mes))}{m.parcial ? ' até hoje' : ''}: <b>{compacto(doCliente)}</b> em OS faturadas{m.porGrupo.garantia.valor ? <>, <b>{compacto(m.porGrupo.garantia.valor)}</b> de garantia</> : null}{m.porGrupo.interna.valor ? <>, mais <b>{compacto(m.porGrupo.interna.valor)}</b> em internas</> : null}{m.porGrupo.aguardando.valor ? <> e <b>{compacto(m.porGrupo.aguardando.valor)}</b> esperando faturar</> : null}.</span>
       </div>
       <div className="cpv-kpis">
         {TIPOS.map((t) => {

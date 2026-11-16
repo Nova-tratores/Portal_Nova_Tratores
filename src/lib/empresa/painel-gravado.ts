@@ -6,7 +6,7 @@
 //   calcula na hora e tenta gravar — a tela nunca fica vazia por falta do robô.
 // • "Atualizar agora" (?recalcular=1) refaz a conta e grava por cima.
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
-import { montarComercial, lerMetas } from './comercial'
+import { montarComercial, montarPropostas, lerMetas } from './comercial'
 import { montarVendedores } from './vendedores'
 import { montarMaquinas } from './maquinas'
 import { montarPosVendas } from './posvendas'
@@ -110,7 +110,9 @@ const VERSAO: Record<AreaGravada, number> = { comercial: 2, 'dre-gerencial': 1, 
 // Linha mais velha que isso = o robô não está gravando (parado ou código ainda não publicado): refaz na leitura.
 const VELHO_MS = 60 * 60_000
 // vendedores: conta leve (< 1 s) e a equipe muda (José, 12/11: "entra vendedor no portal, já entra aqui") → 5 min
-const VELHO_AREA: Partial<Record<AreaGravada, number>> = { vendedores: 5 * 60_000, 'dre-24': 6 * 60 * 60_000, posvendas: 10 * 60_000, pecas: 30 * 60_000 }
+// José, 16/11 "tudo tem que ficar realtime": Pós (conta < 1 s) refeito por trás a cada 2 min de uso. Comercial (11 s) e
+// Peças (7 s) seguem no ritmo do robô (30 min) — as propostas do Comercial já vêm na hora (lerComercial).
+const VELHO_AREA: Partial<Record<AreaGravada, number>> = { vendedores: 5 * 60_000, 'dre-24': 6 * 60 * 60_000, posvendas: 2 * 60_000, pecas: 30 * 60_000 }
 
 /** áreas sendo refeitas por trás neste processo (não dispara duas vezes a mesma) */
 const refazendo = new Set<AreaGravada>()
@@ -125,6 +127,20 @@ export async function recalcular(area: AreaGravada): Promise<{ dados: unknown; c
   const { error } = await supabaseAdmin.from('empresa_painel').upsert({ area, dados, calculado_em: calculadoEm, duracao_ms: ms, erro: null }, { onConflict: 'area' })
   if (error && !tabelaFalta(error)) console.warn(`[empresa-painel] gravar ${area}: ${error.message}`)
   return { dados, calculadoEm, ms, gravou: !error }
+}
+
+/** "Mudou desde X?" — lê só a hora da conta gravada (consulta leve). Devolve true quando a tela já tem a mesma conta:
+ *  a rota responde 204 e a tela não baixa tudo de novo a cada minuto (Peças tem 1,3 MB). Conta velha → refaz por trás. */
+export async function areaIgual(area: AreaGravada, desde: string | null): Promise<boolean> {
+  if (!desde) return false
+  const { data, error } = await supabaseAdmin.from('empresa_painel').select('calculado_em').eq('area', area).maybeSingle()
+  if (error || !data?.calculado_em) return false
+  const em = String(data.calculado_em)
+  if (Date.now() - new Date(em).getTime() > (VELHO_AREA[area] ?? VELHO_MS) && !refazendo.has(area)) {
+    refazendo.add(area)
+    void recalcular(area).catch(() => {}).finally(() => refazendo.delete(area))
+  }
+  return new Date(em).getTime() === new Date(desde).getTime()
 }
 
 /** Lê a área gravada; sem linha (ou sem tabela) calcula na hora. forcar = "Atualizar agora". */
@@ -145,9 +161,15 @@ export async function lerArea(area: AreaGravada, forcar = false): Promise<{ dado
 }
 
 /** Comercial: o grosso vem gravado; as metas vêm sempre na hora. */
-export async function lerComercial(forcar = false) {
-  const [a, m] = await Promise.all([lerArea('comercial', forcar), lerMetas()])
-  return { ...(a.dados as object), ...m, calculadoEm: a.calculadoEm }
+export async function lerComercial(forcar = false, desde: string | null = null) {
+  // a tela já tem a conta gravada: manda só o que muda na hora (propostas e metas, ~50 KB em vez de 300 KB)
+  if (!forcar && (await areaIgual('comercial', desde))) {
+    const [m, propostas] = await Promise.all([lerMetas(), montarPropostas()])
+    return { ...m, propostas, calculadoEm: desde, parcial: true }
+  }
+  // propostas sempre na hora (José, 16/11: proposta desatualizada na tela do diretor)
+  const [a, m, propostas] = await Promise.all([lerArea('comercial', forcar), lerMetas(), montarPropostas().catch(() => null)])
+  return { ...(a.dados as object), ...m, ...(propostas ? { propostas } : {}), calculadoEm: a.calculadoEm }
 }
 
 /** Tarefa do agendador: recalcula todas as áreas (ou só a pedida) e resume. */

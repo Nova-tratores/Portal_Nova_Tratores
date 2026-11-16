@@ -18,6 +18,7 @@ export async function notificarAdminsClient(
   descricao?: string,
   link?: string
 ) {
+  if (!String(titulo || '').trim()) return // aviso sem título não vai para o sino (16/11)
   try {
     // autor da ação (logado) — pra não notificar ele mesmo
     const { data: { session } } = await supabase.auth.getSession()

@@ -47,6 +47,8 @@ export async function notificarAdmins(params: {
   link?: string;
   excludeUserName?: string;
 }): Promise<void> {
+  // sem título = só registro (ex.: editar cliente na Pasta) — não vira aviso em branco no sino (José, 16/11)
+  if (!String(params.titulo || "").trim()) return;
   try {
     const { data: admins } = await supabase
       .from("portal_permissoes")

@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   const g = await guardarDre(req)
   if (g.resposta) return g.resposta
   try {
-    return NextResponse.json(await lerComercial(req.nextUrl.searchParams.get('recalcular') === '1'), { headers: { 'Cache-Control': 'no-store' } })
+    return NextResponse.json(await lerComercial(req.nextUrl.searchParams.get('recalcular') === '1', req.nextUrl.searchParams.get('desde')), { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 })
   }

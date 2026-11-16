@@ -5,7 +5,7 @@
 // Permissão: a mesma do DRE (guardarDre) — os valores são do financeiro.
 import { NextRequest, NextResponse } from 'next/server'
 import { guardarDre } from '@/lib/dre-financeiro/rota'
-import { lerArea } from '@/lib/empresa/painel-gravado'
+import { lerArea, areaIgual } from '@/lib/empresa/painel-gravado'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
@@ -16,6 +16,8 @@ export async function GET(req: NextRequest) {
   try {
     // ?meses=24 → os 24 meses (tela de Despesas compara anos); sem nada → os 6 da tela inicial
     const area = req.nextUrl.searchParams.get('meses') === '24' ? 'dre-24' : 'dre-gerencial'
+    // a tela pergunta "mudou desde X?" a cada minuto: 204 = igual, não baixa de novo (16/11)
+    if (req.nextUrl.searchParams.get('recalcular') !== '1' && (await areaIgual(area, req.nextUrl.searchParams.get('desde')))) return new NextResponse(null, { status: 204, headers: { 'Cache-Control': 'no-store' } })
     const r = await lerArea(area, req.nextUrl.searchParams.get('recalcular') === '1')
     return NextResponse.json({ ...(r.dados as object), calculadoEm: r.calculadoEm }, { headers: { 'Cache-Control': 'no-store' } })
   } catch (e) {

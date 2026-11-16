@@ -29,7 +29,13 @@ const partesDe = (S: SetorD): Record<string, { linha: LinhaLanc; cor: string; no
   gerais: { linha: 'geral', cor: '#64748b', nome: 'Parte das despesas gerais', explica: 'Despesas da empresa toda (administração, pessoal sem setor, banco…). Cada setor leva uma parte do tamanho do que vendeu.' },
 })
 
-export function TelaDespesasNova({ mesesBase, onFechar, setor: S = 'comercial' }: { mesesBase: Array<{ mes: string; parcial?: boolean; setores: object }>; onFechar: () => void; setor?: SetorD }) {
+/** faturouPorMes: o faturado que vale em vez da receita do DRE do Omie (Pós: OS faturadas da Gestão — José, 16/11:
+ *  "aparece um faturamento na Gestão e aqui outro"). Os gastos seguem do DRE; sobrou = faturado − gastos. */
+function contaCom(l: LinhasDre, fat: number | undefined) {
+  const x = contaMes(l)
+  return fat == null ? x : { ...x, faturou: fat, resultado: fat - x.gastou }
+}
+export function TelaDespesasNova({ mesesBase, onFechar, setor: S = 'comercial', faturouPorMes }: { mesesBase: Array<{ mes: string; parcial?: boolean; setores: object }>; onFechar: () => void; setor?: SetorD; faturouPorMes?: Record<string, number> }) {
   const PARTES = partesDe(S), NS = NOME_S[S]
   const { d: dre24 } = useJson<{ meses: MesG[] }>('/api/empresa/dre-gerencial?meses=24')
   const meses = (dre24?.meses?.length ? dre24.meses : mesesBase) as MesG[]
@@ -40,7 +46,7 @@ export function TelaDespesasNova({ mesesBase, onFechar, setor: S = 'comercial' }
   // as janelas do mês escolhido já ficam prontas antes do clique (lidas da tabela)
   useEffect(() => { if (mes) for (const ln of ['todas', 'custos', 'deducoes', 'despesas', 'geral']) adiantar(urlLanc(S, mes, ln)) }, [mes, S])
   if (!m) return <TelaCheia titulo={`Custos e despesas do ${NS}`} onFechar={onFechar}><div className="cma-vazio">Carregando o DRE…</div></TelaCheia>
-  const l = m.setores[S], x = contaMes(l)
+  const l = m.setores[S], x = contaCom(l, faturouPorMes?.[mes])
   const idx = meses.findIndex((q) => q.mes === mes)
   const geralTot = m.geral ? Math.max(0, -(m.geral.receita + m.geral.deducoes + m.geral.custos + m.geral.outrasReceitas + m.geral.despesas)) : null
   const parte = m.parteReceita?.[S] ?? null
@@ -83,7 +89,7 @@ export function TelaDespesasNova({ mesesBase, onFechar, setor: S = 'comercial' }
       </div>
 
       <Secao titulo="Faturou × despesas" sub="clique num mês para ver as despesas dele">
-        <GraficoAnos meses={meses} mes={mes} setMes={setMes} S={S} />
+        <GraficoAnos meses={meses} mes={mes} setMes={setMes} S={S} faturouPorMes={faturouPorMes} />
       </Secao>
 
       {jan && <JanelaLanc {...jan} onFechar={() => setJan(null)} />}
@@ -165,12 +171,12 @@ export function NavAno({ anos, ano, setAno }: { anos: string[]; ano: string; set
 }
 
 /** faturou × despesas por mês: escolhe o ano e compara com o ano anterior */
-function GraficoAnos({ meses, mes, setMes, S }: { meses: MesG[]; mes: string; setMes: (m: string) => void; S: SetorD }) {
+function GraficoAnos({ meses, mes, setMes, S, faturouPorMes }: { meses: MesG[]; mes: string; setMes: (m: string) => void; S: SetorD; faturouPorMes?: Record<string, number> }) {
   const anos = useMemo(() => [...new Set(meses.map((q) => q.mes.slice(0, 4)))].sort().reverse(), [meses])
   const [anoEsc, setAno] = useState('')
   const ano = anoEsc && anos.includes(anoEsc) ? anoEsc : anos[0] || ''
   const [comparar, setComparar] = useState(false)
-  const porMes = new Map(meses.map((q) => [q.mes, contaMes(q.setores[S])]))
+  const porMes = new Map(meses.map((q) => [q.mes, contaCom(q.setores[S], faturouPorMes?.[q.mes])]))
   const cols = Array.from({ length: 12 }, (_, i) => {
     const k = `${ano}-${String(i + 1).padStart(2, '0')}`, kAnt = `${Number(ano) - 1}-${String(i + 1).padStart(2, '0')}`
     return { k, atual: porMes.get(k), ant: porMes.get(kAnt) }

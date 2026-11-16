@@ -40,6 +40,25 @@ export function prepararDados() {
 /** busca já e guarda na memória (a janela abre sem esperar) */
 export function adiantar(url: string) { if (!memoria.has(url)) void buscarJson(url).catch(() => {}) }
 
+// Ao vivo (José, 16/11: "tudo tem que ficar realtime" — sem travar nada):
+//  • áreas gravadas (Pós, Peças, Máquinas, Vendedores, DRE): pergunta a cada minuto "mudou desde a conta que tenho?";
+//    o servidor responde 204 (vazio) quando é a mesma — só baixa de novo quando a conta muda
+//  • mapa da frota ao vivo: a cada minuto · listas da frota/requisições: a cada 5 min · janelas de detalhe: não rebuscam
+const AREA_GRAVADA = /^\/api\/empresa\/(posvendas|pecas|maquinas|vendedores|dre-gerencial)(\?|$)/
+function intervaloDe(url: string): number | null {
+  if (AREA_GRAVADA.test(url) || url.startsWith('/api/frota/mapa/vivo')) return 60_000
+  if (/^\/api\/(frota\/(veiculos|pendencias|preventivas)$|abastecimento\/dashboard|empresa\/(requisicoes|frota-manutencoes)$)/.test(url)) return 5 * 60_000
+  return null
+}
+async function rebuscar(url: string): Promise<unknown | null> {
+  const em = (memoria.get(url) as { calculadoEm?: string } | undefined)?.calculadoEm
+  if (!AREA_GRAVADA.test(url) || !em) return buscarJson(url)
+  const r = await fetch(`${url}${url.includes('?') ? '&' : '?'}desde=${encodeURIComponent(em)}`, { headers: await authHeaders(), cache: 'no-store' })
+  if (r.status === 204 || !r.ok) return null // igual (ou falhou): fica o que já está na tela
+  const j = await r.json()
+  memoria.set(url, j)
+  return j
+}
 export function useJson<T>(url: string) {
   const [d, setD] = useState<T | null>(() => (memoria.get(url) as T) ?? null), [erro, setErro] = useState<string | null>(null)
   useEffect(() => {
@@ -47,7 +66,12 @@ export function useJson<T>(url: string) {
     buscarJson(url)
       .then((j) => { if (vivo) setD(j as T) })
       .catch((e: { status?: number; message?: string }) => { if (vivo && !memoria.has(url)) setErro(e?.status === 403 ? 'Sem acesso a esses dados.' : e?.message || 'Não deu para carregar agora.') })
-    return () => { vivo = false }
+    const ms = intervaloDe(url)
+    const t = ms ? setInterval(() => {
+      if (document.visibilityState !== 'visible') return
+      rebuscar(url).then((j) => { if (vivo && j) setD(j as T) }).catch(() => {})
+    }, ms) : null
+    return () => { vivo = false; if (t) clearInterval(t) }
   }, [url])
   return { d, setD, erro }
 }

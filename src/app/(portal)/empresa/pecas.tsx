@@ -44,7 +44,10 @@ export function PainelPecas({ dreG, atencao }: { dreG: Array<{ mes: string; parc
   const fechar = () => setTela(null)
   const m = d?.meses[d.meses.length - 1], ult6 = d?.meses.slice(-6) || []
   const max6 = Math.max(1, ...ult6.map((x) => x.venda))
-  const g = dreG?.[dreG.length - 1], lp = (g?.setores as Record<string, LinhasDre> | undefined)?.pecas, x = lp ? contaMes(lp) : null
+  const g = dreG?.[dreG.length - 1], lp = (g?.setores as Record<string, LinhasDre> | undefined)?.pecas, x0 = lp ? contaMes(lp) : null
+  // faturado = venda de peças (o mesmo do cartão Faturamento), gastos do DRE — José, 16/11 (antes: receita do DRE do Omie)
+  const fatMes: Record<string, number> = Object.fromEntries((d?.meses || []).map((q) => [q.mes, q.venda]))
+  const x = x0 && g && fatMes[g.mes] != null ? { ...x0, faturou: fatMes[g.mes], resultado: fatMes[g.mes] - x0.gastou } : x0
   const velho = d ? d.estoque.faixas.slice(2).reduce((a, f) => a + f.valor, 0) : 0
   const cartao = (t: TelaPc, cor: string, ic: string, nome: string, num: string, linha: ReactNode, extraEl?: ReactNode, cls = '') => (
     <button className={`cml-card ${cls}`} style={{ ['--c' as string]: cor }} onClick={() => setTela(t)}>
@@ -74,7 +77,7 @@ export function PainelPecas({ dreG, atencao }: { dreG: Array<{ mes: string; parc
       </div>
       {tela === 'fat' && d && <TelaCheia titulo="Faturamento de Peças" sub="balcão, oficina e revisões" onFechar={fechar}><FatPecas d={d} /></TelaCheia>}
       {tela === 'est' && d && <TelaCheia titulo="Estoque de peças" sub="pelo preço de custo, e há quanto tempo cada peça não vende" onFechar={fechar}><EstoquePecas d={d} /></TelaCheia>}
-      {tela === 'desp' && <TelaDespesasNova mesesBase={dreG || []} setor="pecas" onFechar={fechar} />}
+      {tela === 'desp' && <TelaDespesasNova mesesBase={dreG || []} setor="pecas" onFechar={fechar} faturouPorMes={d ? fatMes : undefined} />}
       {tela === 'ate' && (
         <TelaCheia titulo="Pedidos em aberto e atenção" sub="do Planta Viva · clique para ver a lista" onFechar={fechar}>
           <div className="cpv-kpis">
