@@ -47,6 +47,7 @@ export const MODULOS_ADMIN: { id: string; label: string; color: string }[] = [
   { id: 'lead', label: 'Captura de Leads (celular)', color: '#DB2777' },
   { id: 'marketing', label: 'Marketing & Eventos', color: '#DB2777' },
   { id: 'inteligencia-vendas', label: 'Inteligência de Vendas', color: '#dc2626' },
+  { id: 'site', label: 'Site (pedidos, catálogo, acessos)', color: '#d97706' },
   { id: 'mecanicos', label: 'Gestão Pós Vendas', color: '#1d4ed8' },
   { id: 'mapa', label: 'Mapeamento Técnico', color: '#b91c1c' },
   // Lousa Virtual (agenda semanal dos técnicos; também lança na Agenda coletiva) — faltava aqui (16/10/2026)
