@@ -228,8 +228,8 @@ export default function Campanhas() {
       {/* janela em tela cheia da campanha aberta (o endereço muda: ?campanha=&ver=) */}
       {slug && (
         <div role="dialog" aria-modal="true" aria-label={atual ? `${atual.nome} ${atual.ano}` : 'Campanha'}
-          style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'var(--portal-bg, #f8fafc)', overflowY: 'auto', overscrollBehavior: 'contain' }}>
-          <div style={{ position: 'sticky', top: 0, zIndex: 2, background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
+          style={{ position: 'fixed', inset: 0, zIndex: 5000, background: 'var(--portal-bg, #f8fafc)', isolation: 'isolate', overflowY: 'auto', overscrollBehavior: 'contain' }}>
+          <div style={{ position: 'sticky', top: 0, zIndex: 20, background: 'var(--portal-bg, #f8fafc)', boxShadow: '0 2px 8px rgba(0,0,0,.08)', borderBottom: '1px solid var(--border)' }}>
             <div style={{ maxWidth: 1400, margin: '0 auto', padding: '10px clamp(12px, 2vw, 28px)', display: 'flex', gap: 12, alignItems: 'center' }}>
               <Link href={base} aria-label="Fechar" style={{ ...bt(T1), minHeight: 40, padding: '8px 12px' }}>{ic('fa-xmark')}<span className="hide-sm">Fechar</span></Link>
               <span style={{ display: 'grid', minWidth: 0 }}>
@@ -303,7 +303,7 @@ function ColunasDia({ ps, setores }: { ps: Part[]; setores: Setor[] }) {
           const tot = setores.reduce((s, k) => s + v[k], 0);
           return (
             <div key={dia} title={`${dataBR(dia)}: ${setores.map((k) => `${SETOR[k].nome} ${v[k]}`).join(', ')}`}
-              style={{ flex: '1 0 24px', display: 'grid', gridTemplateRows: 'auto 1fr auto', height: '100%', gap: 3 }}>
+              style={{ flex: '1 0 24px', maxWidth: 56, display: 'grid', gridTemplateRows: 'auto 1fr auto', height: '100%', gap: 3 }}>
               <span />
               <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', minHeight: 0 }}>
                 <span style={{ fontSize: 11, color: T2, textAlign: 'center', paddingBottom: 2 }}>{tot}</span>
