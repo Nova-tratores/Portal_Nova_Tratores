@@ -11,6 +11,7 @@
 //    portal (horas × valor da hora…) só vale para OS faturada pelo portal que ainda não está no espelho.
 //  - Peças: o pedido de venda das PPVs da OS como FATURADO (vendas_itens); sem nota ainda, o PPV. Custo de terceiros: requisições Trator-Cliente da OS não cobradas do cliente.
 import { chaveNomeCompleto, ehVendedor, ehComissaoDeVenda } from './vendedor-tecnico'
+import { CATEGORIA_CAMPANHA } from '@/lib/estoque/servicos-classe'
 import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
 import { TBL_OS } from '@/lib/pos/constants'
 import { getConfigPOS } from '@/lib/pos/config'
@@ -90,17 +91,18 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
   const itens: Rec[] = []
   for (const { mes, ano } of meses) {
     // valor_desconto (sql/descontos-omie.sql); sem a coluna, lê sem ela
-    const cols = 'numero_os, data, mes, ano, tipo, qtde, valor_total, descricao, contrato'
+    const cols = 'numero_os, data, mes, ano, tipo, qtde, valor_total, descricao, contrato, categoria'
     try { itens.push(...await paginar((x, y) => sb.from('os_servicos_itens').select(semDescOmie ? cols : cols + ', valor_desconto').eq('conta_omie', 'NOVA').eq('mes', mes).eq('ano', ano).range(x, y))) }
     catch (e) { if (semDescOmie || !/valor_desconto/.test((e as Error).message)) throw e; semDescOmie = true; itens.push(...await paginar((x, y) => sb.from('os_servicos_itens').select(cols).eq('conta_omie', 'NOVA').eq('mes', mes).eq('ano', ano).range(x, y))) }
   }
-  const omiePorNum = new Map<string, { data: string; horas: number; km: number; vh: number; vk: number; outros: number; contrato: string; texto: string; dh: number; dk: number; dg: number }>()
+  const omiePorNum = new Map<string, { data: string; horas: number; km: number; vh: number; vk: number; outros: number; contrato: string; texto: string; campanha: boolean; dh: number; dk: number; dg: number }>()
   for (const i of itens) {
     const d = dataFaturamento(dataIso(i.data), Number(i.mes), Number(i.ano))
     if (!d || d < de || d > ate) continue
     const n = semZeros(i.numero_os)
-    const o = omiePorNum.get(n) || { data: d, horas: 0, km: 0, vh: 0, vk: 0, outros: 0, contrato: '', texto: '', dh: 0, dk: 0, dg: 0 }
+    const o = omiePorNum.get(n) || { data: d, horas: 0, km: 0, vh: 0, vk: 0, outros: 0, contrato: '', texto: '', campanha: false, dh: 0, dk: 0, dg: 0 }
     if (i.contrato) o.contrato = String(i.contrato)
+    if (String(i.categoria ?? '').trim() === CATEGORIA_CAMPANHA) o.campanha = true
     if (i.descricao) o.texto += ` ${i.descricao}`
     if (i.tipo === 'HR') { o.horas += num(i.qtde); o.vh += num(i.valor_total); o.dh += num(i.valor_desconto) }
     else if (i.tipo === 'KM') { o.km += num(i.qtde); o.vk += num(i.valor_total); o.dk += num(i.valor_desconto) }
@@ -243,10 +245,10 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
   // Dougras de vendedor) — vendedor do comercial nunca vira técnico do pós-vendas (José, 16/11/2026).
   const vendedores = await nomesDeVendedores()
   const soTecnicos = (l: string[]) => l.filter((t) => tecnicos.includes(t) || !ehVendedor(t, vendedores))
-  const daPasta = new Map<string, { cliente: string; tecnicos: string[]; texto: string }>()
+  const daPasta = new Map<string, { cliente: string; tecnicos: string[] }>()
   for (let i = 0; i < numsPasta.length; i += 200) {
-    const { data } = await sb.from('portal_nt_clientes_os').select('num_os, cliente_nome, vendedor, obs, descricao').eq('empresa', 'Nova Tratores').in('num_os', numsPasta.slice(i, i + 200))
-    for (const r of (data || []) as Rec[]) daPasta.set(semZeros(r.num_os), { cliente: String(r.cliente_nome || ''), tecnicos: soTecnicos(tecnicosDoTexto(r.vendedor, padronizar, tecnicos)), texto: `${r.obs || ''} ${r.descricao || ''}` })
+    const { data } = await sb.from('portal_nt_clientes_os').select('num_os, cliente_nome, vendedor').eq('empresa', 'Nova Tratores').in('num_os', numsPasta.slice(i, i + 200))
+    for (const r of (data || []) as Rec[]) daPasta.set(semZeros(r.num_os), { cliente: String(r.cliente_nome || ''), tecnicos: soTecnicos(tecnicosDoTexto(r.vendedor, padronizar, tecnicos)) })
   }
   for (const f of faturadas) { const t = f.numeroOmie ? daPasta.get(f.numeroOmie)?.tecnicos : undefined; if (t?.length) f.tecnicosOmie = t }
   for (const [n, o] of omiePorNum) {
@@ -256,8 +258,11 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
     if (!(o.horas > 0 || o.km > 0 || o.outros > 0)) continue
     if (motivoInterna({ contratos: [o.contrato] }, CONTA_INTERNO, CODIGOS)) continue
     // comissão de venda de equipamento (ex.: GTM, venda direta) não é serviço do pós-vendas (José, 17/10/2026)
-    // A comissão às vezes só aparece na observação da OS ("COMISSÃO DOUGRAS") e o item diz "promoção de venda"
-    if (!(o.horas > 0 || o.km > 0) && ehComissaoDeVenda(`${o.texto} ${daPasta.get(n)?.texto || ''}`)) continue
+    if (!(o.horas > 0 || o.km > 0) && ehComissaoDeVenda(o.texto)) continue
+    // categoria 1.02.02 "Recebimento de Campanhas" (comissão de consórcio, repasse de banco/fábrica) é receita do
+    // COMERCIAL — o Dashboard de Vendas já a põe em "Campanhas e comissões" (OS 5440, José 16/11/2026).
+    // Com hora/km fica: é serviço de técnico pago por campanha (OS 5011, 3716).
+    if (o.campanha && !(o.horas > 0 || o.km > 0)) continue
     faturadas.push({
       os: `OMIE ${n}`, numeroOmie: n, cliente: daPasta.get(n)?.cliente || '', data: o.data, em: null, tecnicos: daPasta.get(n)?.tecnicos || [],
       horasCobradas: o.horas, km: o.km, servico: o.vh, kmValor: o.vk, pecas: 0, outros: o.outros,

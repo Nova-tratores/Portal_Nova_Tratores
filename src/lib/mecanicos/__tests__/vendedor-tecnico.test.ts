@@ -11,8 +11,8 @@ describe('vendedor não vira técnico', () => {
     expect(ehVendedor('Luiz Fernando', vend)).toBe(false)
     expect(ehVendedor('Gabriel Moraes', vend)).toBe(false)
   })
-  it('comissão na observação ou "promoção de venda" no item', () => {
-    expect(ehComissaoDeVenda('SERVIÇOS PRESTADOS COM PROMOÇÃO DE VENDA, NA CIDADE DE PIRAJU/SP')).toBe(true)
+  it('comissão no texto do item', () => {
+    expect(ehComissaoDeVenda('COMISSAO VENDA DIRETA GTM')).toBe(true)
     expect(ehComissaoDeVenda('COMISSÃO DOUGRAS')).toBe(true)
     expect(ehComissaoDeVenda('Revisão 500 horas trator 6075')).toBe(false)
   })

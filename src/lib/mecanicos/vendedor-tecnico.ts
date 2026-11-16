@@ -8,5 +8,5 @@ export const chaveNomeCompleto = (n: unknown) => String(n ?? '').normalize('NFD'
 /** Nome completo igual ao de um vendedor do comercial (nome parcial, ex. "Luiz Fernando", NÃO conta). */
 export const ehVendedor = (nome: string, vendedores: Set<string>) => vendedores.has(chaveNomeCompleto(nome))
 
-/** OS só do Omie que é comissão de venda (consórcio, venda direta), não serviço do pós-vendas. */
-export const ehComissaoDeVenda = (texto: string) => /comiss[aã]o|promo[cç][aã]o de venda/i.test(texto)
+/** Item de OS só do Omie que é comissão de venda (venda direta), não serviço do pós-vendas. */
+export const ehComissaoDeVenda = (texto: string) => /comiss[aã]o/i.test(texto)
