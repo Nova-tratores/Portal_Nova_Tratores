@@ -191,9 +191,17 @@ export async function GET(req: NextRequest) {
         .select("conta_omie, codigo, descricao, caracteristicas");
       for (const [chave, valor] of pares) {
         const path = `caracteristicas->>${chave}`;
+        // #ANDAR2/#CAIXA2 = reserva (36 peças da Castro guardam andar/caixa só nelas)
+        const reserva = chave === "#ANDAR" ? "#ANDAR2" : chave === "#CAIXA" ? "#CAIXA2" : "";
         if (/^\d+$/.test(valor)) {
           const semZeros = String(Number(valor));
-          qy = qy.in(path, [...new Set([valor, semZeros, semZeros.padStart(2, "0")])]);
+          const lista = [...new Set([valor, semZeros, semZeros.padStart(2, "0")])];
+          if (reserva) {
+            const vals = lista.map((v) => `"${v}"`).join(",");
+            qy = qy.or(`${path}.in.(${vals}),caracteristicas->>${reserva}.in.(${vals})`);
+          } else qy = qy.in(path, lista);
+        } else if (reserva) {
+          qy = qy.or(`${path}.ilike.${valor},caracteristicas->>${reserva}.ilike.${valor}`);
         } else {
           qy = qy.ilike(path, valor);
         }

@@ -13,7 +13,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
-import { norm, getCar, posDe, chaveProd, labelSeg, posInvalida, posLabel, cmpSeg, ocupantesDe, type ProdutoLoc as Produto, type Pos } from '@/lib/ajustes/posicao';
+import { norm, posDe, chaveProd, locacaoEtiqueta, labelSeg, posInvalida, posLabel, cmpSeg, ocupantesDe, type ProdutoLoc as Produto, type Pos } from '@/lib/ajustes/posicao';
 import { ModalMover, AvisoOcupado } from '@/components/ajustes/ModalMoverPeca';
 import { ChevronRight, ChevronDown, MapPin, AlertTriangle, Search, ArrowRightLeft, X, PackageOpen, Trash2, Plus, Tag, CheckCircle, ClipboardCheck, Hash, History } from 'lucide-react';
 
@@ -146,18 +146,13 @@ export default function LocalizacaoPage() {
   // Monta a linha no mesmo formato do EtiquetasPanel (conta/empresa/codigo/descricao/locacao).
   async function addEtiqueta(p: Produto) {
     const EMPRESA_LABEL: Record<string, string> = { NOVA: 'NOVA TRATORES', CASTRO: 'CASTRO PEÇAS' };
-    const ordem = ['#PRATELEIRA', '#ANDAR', '#CAIXA'];
-    const pares: string[] = [];
-    for (const k of ordem) {
-      const v = getCar(p.caracteristicas, k).trim();
-      if (v && !/^0+$/.test(v) && !/^x+$/i.test(v)) pares.push(`${k.slice(1)} ${v}`);
-    }
     const linha = {
       conta: p.empresa,
       empresa: EMPRESA_LABEL[p.empresa] || p.empresa,
       codigo: p.codigo || String(p.codigo_produto),
       descricao: (p.descricao || '').trim(),
-      locacao: pares.join(' · '),
+      // mesma posição que a tela mostra (inclui #ANDAR2/#CAIXA2)
+      locacao: locacaoEtiqueta(p.caracteristicas),
     };
     try {
       const r = await fetch('/api/ppv/etiquetas/fila', {

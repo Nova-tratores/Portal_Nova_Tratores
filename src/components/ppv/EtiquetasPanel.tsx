@@ -17,6 +17,7 @@ import { htmlFolha, qrSvg, urlDaUnidade, type BlocoEtiqueta } from '@/lib/ppv/et
 import { guardarAjusteTermica, lerAjusteTermica, layoutPadrao, locacaoAbreviada, normalizarLayout, TERMICA_PADRAO, type AjusteTermica, type ItemTermica, type LayoutCampo } from '@/lib/opa-pecas/etiqueta-termica'
 import { imprimirOuEnviar } from '@/lib/etiquetas/estacao-client'
 import { chaveMM, type MarcaModelo } from '@/lib/ppv/etiquetas-marca-modelo'
+import { locacaoEtiqueta } from '@/lib/ajustes/posicao'
 import EditorEtiquetaTermica from './EditorEtiquetaTermica'
 import ModelosEtiqueta, { lerModelosEtiqueta, type ModeloEtiqueta } from './ModelosEtiqueta'
 import AjustesTermica from '@/components/opa/pecas/AjustesTermica'
@@ -63,16 +64,17 @@ const EMPRESA_COR: Record<string, string> = {
 }
 
 // Locação = chaves prefixadas com # (#PRATELEIRA/#ANDAR/#CAIXA), nesta ordem
+// #ANDAR2/#CAIXA2 = reserva: entram como Andar/Caixa quando os principais estão vazios
+// (mesma regra da tela de Localização).
+const LOC_RESERVA = ['#ANDAR2', '#CAIXA2']
 function locacaoDe(car: Record<string, string> | null): string {
   if (!car) return ''
   const ordem = ['#PRATELEIRA', '#ANDAR', '#CAIXA']
   const pares: string[] = []
-  for (const k of ordem) {
-    const v = (car[k] || '').trim()
-    if (v && !/^0+$/.test(v) && !/^x+$/i.test(v)) pares.push(`${k.slice(1)} ${v}`)
-  }
+  const principal = locacaoEtiqueta(car)
+  if (principal) pares.push(principal)
   for (const [k, v] of Object.entries(car)) {
-    if (!k.startsWith('#') || ordem.includes(k)) continue
+    if (!k.startsWith('#') || ordem.includes(k) || LOC_RESERVA.includes(k)) continue
     const val = (v || '').trim()
     if (val) pares.push(`${k.slice(1)} ${val}`)
   }
@@ -95,7 +97,8 @@ function labelColEtiq(k: string): string { return LABELS_FIXOS[k] || k.replace(/
 
 // Valor "limpo" de uma característica (ignora vazio / só-zeros / só-x, como na locação).
 function valCarac(car: Record<string, string> | null, k: string): string {
-  const v = (car?.[k] || '').trim()
+  const reserva = k === '#ANDAR' ? '#ANDAR2' : k === '#CAIXA' ? '#CAIXA2' : ''
+  const v = ((car?.[k] || '').trim() || (reserva ? (car?.[reserva] || '').trim() : ''))
   if (!v || /^0+$/.test(v) || /^x+$/i.test(v)) return ''
   return v
 }
@@ -409,7 +412,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
     for (const i of listaMostrada) {
       if (!i.caracteristicas) continue
       for (const k of Object.keys(i.caracteristicas)) {
-        if (!LOC_KEYS.includes(k) && valCarac(i.caracteristicas, k)) extras.add(k)
+        if (!LOC_KEYS.includes(k) && !LOC_RESERVA.includes(k) && valCarac(i.caracteristicas, k)) extras.add(k)
       }
     }
     return [...base, ...[...extras].sort((a, b) => a.localeCompare(b, 'pt-BR'))]

@@ -101,10 +101,11 @@ export function ocupantesDe<T extends ProdutoLoc>(produtosEmpresa: T[], pos: Pos
 // Texto da locação na ETIQUETA ("PRATELEIRA 3 · ANDAR G · CAIXA 1"), mesmo formato
 // do EtiquetasPanel / addEtiqueta da Localização. Placeholder não entra.
 export function locacaoEtiqueta(car: Record<string, string> | undefined | null): string {
+  // mesma posição que a tela mostra: #ANDAR2/#CAIXA2 valem quando #ANDAR/#CAIXA estão vazios
+  const { prat, andar, caixa } = posDeCar(car);
   const pares: string[] = [];
-  for (const k of ['#PRATELEIRA', '#ANDAR', '#CAIXA']) {
-    const v = getCar(car, k).trim();
-    if (v && !segPlaceholder(v)) pares.push(`${k.slice(1)} ${v}`);
+  for (const [rot, v] of [['PRATELEIRA', prat], ['ANDAR', andar], ['CAIXA', caixa]] as const) {
+    if (v && !segPlaceholder(v)) pares.push(`${rot} ${v}`);
   }
   return pares.join(' · ');
 }
