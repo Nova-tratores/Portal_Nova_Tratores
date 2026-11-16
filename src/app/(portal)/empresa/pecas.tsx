@@ -11,6 +11,7 @@ import { TelaCheia, Secao } from './comercial-assuntos'
 import { useJson } from './comercial-telas'
 import { TelaDespesasNova, NavAno } from './comercial-despesas'
 import { NavMes, dataBR, type ItemOficina } from './posvendas'
+import { useEstadoUrl } from './url-estado'
 
 // cores do Peças: tons de laranja (José, 12/11: "tem que mudar a cor do gráfico")
 const CANAL: Record<Canal, { cor: string; explica: string }> = {
@@ -29,18 +30,8 @@ const margem = (venda: number, custo: number) => (venda > 0 ? Math.round(((venda
 type TelaPc = 'fat' | 'est' | 'desp' | 'ate'
 export function PainelPecas({ dreG, atencao }: { dreG: Array<{ mes: string; parcial?: boolean; setores: object }> | null; atencao: ItemOficina[] }) {
   const { d, erro } = useJson<DadosPecas>('/api/empresa/pecas')
-  const [tela, setTela] = useState<TelaPc | null>(() => {
-    if (typeof window === 'undefined') return null
-    const t = new URLSearchParams(window.location.search).get('tela')
-    return t === 'fat' || t === 'est' || t === 'desp' || t === 'ate' ? t : null
-  })
-  useEffect(() => {
-    try {
-      const u = new URL(window.location.href)
-      if (tela) u.searchParams.set('tela', tela); else u.searchParams.delete('tela')
-      if (u.toString() !== window.location.href) window.history.replaceState(null, '', u.toString())
-    } catch { /* sem URL */ }
-  }, [tela])
+  // ?tela= no endereço com passo no histórico: link/recarregar reabre e o "voltar" do celular fecha (auditoria 16/11)
+  const [tela, setTela] = useEstadoUrl<TelaPc>('tela', ['fat', 'est', 'desp', 'ate'])
   const fechar = () => setTela(null)
   const m = d?.meses[d.meses.length - 1], ult6 = d?.meses.slice(-6) || []
   const max6 = Math.max(1, ...ult6.map((x) => x.venda))

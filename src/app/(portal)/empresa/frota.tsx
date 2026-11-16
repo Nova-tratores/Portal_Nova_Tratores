@@ -3,7 +3,7 @@
 // cards; mas antes, o mapa da frota onde a gente vê a localização real de todos".
 //   • mapa  → o mesmo MapaCarros do Frota → Mapa (modo "frota": posição real de cada carro, atualiza sozinho)
 //   • cards → /api/frota/veiculos (a frota inteira, com foto, responsável, pendências) + /api/frota/mapa/vivo (onde está)
-import { useEffect, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { STATUS_INFO, type StatusVivo } from '@/lib/frota/mapa-vivo'
 import { useJson, JanelaFrame } from './comercial-telas'
@@ -11,6 +11,7 @@ import { plural, compacto, brl, mesCurto, nomeMes, cap } from './comercial'
 import { Secao, TelaCheia } from './comercial-assuntos'
 import { NavMes } from './posvendas'
 import type { DashboardAbastecimento, TransacoesResp } from '@/lib/abastecimento/tipos'
+import { useEstadoUrl } from './url-estado'
 
 const MapaCarros = dynamic(() => import('@/components/supervisor/MapaCarros'), { ssr: false })
 
@@ -116,18 +117,8 @@ type AbaFr = 'agora' | 'abast' | 'manut' | 'pend'
 /** a área Frota: cartões por assunto, cada um abre em tela cheia — igual ao Comercial, Pós-Vendas e Peças
  *  (José, 12/11: "aqui você faz os cartões, igual nos outros módulos") */
 export function FrotaMapaCards() {
-  const [tela, setTela] = useState<AbaFr | null>(() => {
-    if (typeof window === 'undefined') return null
-    const t = new URLSearchParams(window.location.search).get('tela')
-    return t === 'agora' || t === 'abast' || t === 'manut' || t === 'pend' ? t : null
-  })
-  useEffect(() => {
-    try {
-      const u = new URL(window.location.href)
-      if (tela) u.searchParams.set('tela', tela); else u.searchParams.delete('tela')
-      if (u.toString() !== window.location.href) window.history.replaceState(null, '', u.toString())
-    } catch { /* sem URL */ }
-  }, [tela])
+  // ?tela= no endereço com passo no histórico: link/recarregar reabre e o "voltar" do celular fecha (auditoria 16/11)
+  const [tela, setTela] = useEstadoUrl<AbaFr>('tela', ['agora', 'abast', 'manut', 'pend'])
   const hoje = hojeISO()
   const deAb = (() => { const d = new Date(Number(hoje.slice(0, 4)), Number(hoje.slice(5, 7)) - 12, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01` })()
   // os mesmos endereços das telas: o que o cartão busca já fica pronto para quando abrir

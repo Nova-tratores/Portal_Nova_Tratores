@@ -15,6 +15,7 @@ import {
 import { TelaDespesasNova } from './comercial-despesas'
 import { JanelaPropostas, FaseTrilha } from './comercial-propostas'
 import { TelaVendedores, TelaEstoque, TelaVitrine, prepararDados, useJson, resumoLoja, type Patio } from './comercial-telas'
+import { useEstadoUrl } from './url-estado'
 
 const COR_SAIU = '#be123c', COR_FICOU = '#15803d'
 type Tela = 'fat' | 'maq' | 'desp' | 'vend' | 'vit'
@@ -54,18 +55,8 @@ export function PainelAssuntos({ d, setD, dreG }: { d: DadosComercial | null; se
   const loja = patio ? resumoLoja(patio) : null
   const { d: vendApp } = useJson<{ vendedores: Array<{ nome: string }> }>('/api/empresa/vendedores') // equipe de hoje (portal + RH)
   const equipe = vendApp ? vendApp.vendedores.map((v) => v.nome) : null
-  const [tela, setTela] = useState<Tela | null>(() => {
-    if (typeof window === 'undefined') return null
-    const t = new URLSearchParams(window.location.search).get('tela')
-    return t === 'fat' || t === 'maq' || t === 'desp' || t === 'vend' || t === 'vit' ? t : null
-  })
-  useEffect(() => {
-    try {
-      const u = new URL(window.location.href)
-      if (tela) u.searchParams.set('tela', tela); else u.searchParams.delete('tela')
-      if (u.toString() !== window.location.href) window.history.replaceState(null, '', u.toString())
-    } catch { /* sem URL */ }
-  }, [tela])
+  // ?tela= no endereço com passo no histórico: link/recarregar reabre e o "voltar" do celular fecha (auditoria 16/11)
+  const [tela, setTela] = useEstadoUrl<Tela>('tela', ['fat', 'maq', 'desp', 'vend', 'vit'])
   const meses = dreG || []
   const ult = meses[meses.length - 1]
   const x = ult ? contaMes(ult.setores.comercial) : null
@@ -173,7 +164,7 @@ function Grafico12({ d, mes, temMes, setMes }: { d: DadosComercial; mes: string;
       <div className="g12-eixo">
         {cols.map((c) => (
           <button key={c.k} className={c.k === mes ? 'on' : ''} disabled={!temMes(c.k)} onClick={() => setMes(c.k)} title={temMes(c.k) ? `Ver ${nomeMes(c.k, true)}` : 'Sem o resultado gerencial deste mês'}>
-            <b>{rot(c.k)}</b>
+            <b><span className="g12-r-l">{rot(c.k)}</span><span className="g12-r-c">{mesCurto(c.k)}</span></b>
             <small>{c.nTr || c.nIm ? `${c.nTr} tr · ${c.nIm} im` : '—'}</small>
           </button>
         ))}
@@ -772,5 +763,15 @@ export const CSS_CML = `
   .cmt-corpo{padding:14px 12px 30px}.cmt-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.cmt-kpi b{font-size:22px}
   .cmt-sec{padding:14px}.cmt-barra-l{grid-template-columns:1fr auto;gap:4px 10px}.cmt-barra-l .cma-v-bar{grid-column:1/-1;grid-row:2}
   .cmt-g12,.cmt-cols{height:200px}
+  /* auditoria do celular, 16/11 */
+  .g12-r-l{display:none}.g12-r-c{display:inline!important}.g12-eixo small{display:none}.g12-eixo b{font-size:11px}
+  .cm-abas{display:flex!important;max-width:100%;overflow-x:auto;flex-wrap:nowrap!important;scrollbar-width:none}
+  .cm-abas::-webkit-scrollbar{display:none}.ce .cm-abas button{flex:none;white-space:nowrap;min-height:40px}
+  .cmt-kpi b{white-space:nowrap;font-size:clamp(18px,6vw,24px)!important}
+  .cmt-tit{flex-direction:column;align-items:flex-start;gap:2px;font-size:18px;min-width:0}
+  .cmt-tit small{font-size:12.5px}
+  .ce .cma-x{width:44px;height:44px}
+  .ce select,.ce input,.cma-raiz select,.cma-raiz input{font-size:16px!important}
 }
+.g12-r-c{display:none}
 `

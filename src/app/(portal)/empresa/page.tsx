@@ -37,6 +37,7 @@ import { PainelPosVendas, CSS_CPV } from './posvendas'
 import { PainelPecas, CSS_CPC } from './pecas'
 import { FrotaMapaCards, CSS_CFR } from './frota'
 import { PainelRequisicoes, CSS_CRQ } from './requisicoes'
+import { useEstadoUrl } from './url-estado'
 
 // ── fontes ─────────────────────────────────────────────────────────────────────
 type Sit = 'verde' | 'amarelo' | 'vermelho'
@@ -253,14 +254,17 @@ export default function ComoEstaAEmpresa() {
   const [opcao, setOpcao] = useState<Opcao>('foco')
   const [modoTeste, setModoTeste] = useState(false)
   type Area = 'geral' | 'financeiro' | K | 'patio' | 'frota' | 'requisicoes'
-  const [foco, setFoco] = useState<Area>('geral')
-  // a área aberta vai para o endereço (?area=comercial) — José, 12/11: "conforme entra nas abas, já muda a url"
+  // a área aberta vai para o endereço (?area=comercial) — José, 12/11: "conforme entra nas abas, já muda a url".
+  // Auditoria 16/11: o link/recarregar abre a mesma área (B2) e o "voltar" do celular volta para a Visão geral (B3);
+  // trocar de área tira a ?tela= da área anterior.
+  const [areaUrl, setAreaUrl] = useEstadoUrl<Area>('area', ['financeiro', 'comercial', 'posvendas', 'pecas', 'frota', 'requisicoes'], ['tela'])
+  const foco: Area = areaUrl ?? 'geral'
+  const setFoco = useCallback((a: Area) => setAreaUrl(a === 'geral' ? null : a), [setAreaUrl])
+  // B4 (auditoria 16/11): no celular a barra de abas não rolava e a aba ativa ficava escondida à direita
   useEffect(() => {
-    try {
-      const u = new URL(window.location.href)
-      if (foco === 'geral') u.searchParams.delete('area'); else u.searchParams.set('area', foco)
-      if (u.toString() !== window.location.href) window.history.replaceState(null, '', u.toString())
-    } catch { /* sem URL */ }
+    if (foco === 'geral') return
+    const t = setTimeout(() => document.querySelector('.op-foco-lista .op-foco-item.on')?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' }), 60)
+    return () => clearTimeout(t)
   }, [foco])
   const [capaOp, setCapaOp] = useState<'lista' | 'colunas' | 'bento' | 'grade'>('bento') // capa escolhida: 3 · Bento (José, 11/11); ?capa= ainda troca
   const [topoOp, setTopoOp] = useState<'lateral' | 'a' | 'b' | 'c' | 'd'>('c') // topo escolhido: C · cartões (José, 11/11); ?topo= ainda troca para comparar
@@ -269,8 +273,6 @@ export default function ComoEstaAEmpresa() {
       setModoTeste(new URLSearchParams(window.location.search).get('teste') === '1')
       const cp = new URLSearchParams(window.location.search).get('capa')
       if (cp === 'lista' || cp === 'colunas' || cp === 'bento' || cp === 'grade') setCapaOp(cp)
-      const ar = new URLSearchParams(window.location.search).get('area')
-      if (ar && ['financeiro', 'comercial', 'posvendas', 'pecas', 'frota', 'requisicoes'].includes(ar)) setFoco(ar as Area)
       const tp = new URLSearchParams(window.location.search).get('topo')
       if (tp === 'lateral' || tp === 'a' || tp === 'b' || tp === 'c' || tp === 'd') setTopoOp(tp)
       try { const o = localStorage.getItem('empresa-opcao'); if (o === 'atual' || o === 'exec' || o === 'foco' || o === 'semaforo') setOpcao(o) } catch { /* */ }
@@ -403,7 +405,9 @@ export default function ComoEstaAEmpresa() {
   // voltar + mês + atualizar (no lugar do título, que saiu — José, 11/11: "tira esse título")
   const controles = (
     <>
-      <Link href="/dashboard" className="ce-ico" aria-label="Voltar para a dashboard" title="Voltar para a dashboard"><ArrowLeft size={16} /></Link>
+      {foco === 'geral'
+        ? <Link href="/dashboard" className="ce-ico" aria-label="Voltar para a dashboard" title="Voltar para a dashboard"><ArrowLeft size={16} /></Link>
+        : <button className="ce-ico" onClick={() => setFoco('geral')} aria-label="Voltar para a Visão geral" title="Voltar para a Visão geral"><ArrowLeft size={16} /></button>}
     </>
   )
 
@@ -1024,7 +1028,7 @@ export default function ComoEstaAEmpresa() {
 
 
   const itensLista = LISTA.map((it) => (
-          <button key={it.k} className={`op-foco-item${foco === it.k ? ' on' : ''}`} onClick={() => setFoco(it.k)} style={{ ['--cor' as string]: it.cor }}>
+          <button key={it.k} role="tab" aria-selected={foco === it.k} className={`op-foco-item${foco === it.k ? ' on' : ''}`} onClick={() => setFoco(it.k)} style={{ ['--cor' as string]: it.cor }}>
             <span className="op-foco-ico"><i className={`fas ${ICONE_FA[it.k]}`} /></span>
             <span style={{ flex: 1, minWidth: 0 }}><span className="op-foco-nome">{it.nome}</span><span className="op-foco-val">{it.num}</span></span>
             <span className={`op-dot${it.sit === 'vermelho' ? ' op-pisca' : ''}`} style={{ background: COR[it.sit] }} />
@@ -1032,7 +1036,7 @@ export default function ComoEstaAEmpresa() {
   ))
   const layoutFoco = () => foco === 'geral' ? capaBento() : (
     <div className={`ce-painel op-foco${topoOp === 'lateral' ? '' : ` tp tp-${topoOp}`}`}>
-      <nav className="op-foco-lista">
+      <nav className="op-foco-lista" role="tablist" aria-label="Áreas da empresa">
         <div className="fx-ctrl">{controles}</div>
         {topoOp === 'b' ? <div className="op-foco-pista">{itensLista}</div> : itensLista}
       </nav>
@@ -1635,7 +1639,9 @@ const CSS_BENTO = `
 .bt-grade.cp-grade{grid-template-areas:none;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:150px;gap:12px}
 @media (max-width:1100px){.bt-grade.cp-bento{grid-template-rows:repeat(4,minmax(110px,1fr))}}
 @media (max-width:1100px){.bt-grade.cp-colunas,.bt-grade.cp-grade{grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:170px}}
-@media (max-width:620px){.bt-grade.cp-colunas,.bt-grade.cp-grade,.bt-grade.cp-bento{grid-template-areas:none;grid-template-rows:none;flex:none;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:110px}.bt-nome-g,.cp-bento .bt-card.bt-so-nome:first-child .bt-nome-g{font-size:19px}.bt-grade.cp-lista{grid-auto-rows:56px}}
+@media (max-width:620px){.bt-grade.cp-colunas,.bt-grade.cp-grade{grid-template-areas:none;grid-template-rows:none;flex:none;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:110px}
+/* B1 (auditoria 16/11): o bento tem grid-area em cada cartão — sem as áreas todos caíam na mesma célula */
+.bt-grade.cp-bento{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none;grid-template-areas:"fin fin" "com pos" "pec fro" "req req";grid-auto-rows:110px;flex:0 0 auto}.bt-nome-g{white-space:nowrap}.bt-nome-g,.cp-bento .bt-card.bt-so-nome:first-child .bt-nome-g{font-size:19px}.bt-grade.cp-lista{grid-auto-rows:56px}}
 /* OPÇÕES DE TOPO em teste (José, 11/11: "coloca no testes, opções para deixar no topo") — classe tp-a/b/c/d no .op-foco */
 .op-foco.tp{flex-direction:column}
 .tp .op-foco-lista{width:auto;flex-direction:row;align-items:center;gap:6px;padding:10px 16px;border-right:0;border-bottom:1px solid var(--portal-border);overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;flex-shrink:0}
@@ -1687,6 +1693,8 @@ const CSS_BENTO = `
 .tp-teste span{padding:0 8px;color:#94a3b8}
 .ce .tp-teste button{color:#cbd5e1;padding:6px 10px;border-radius:9px;cursor:pointer;font-size:13px}
 .ce .tp-teste button.on{background:#fefefe;color:#0f172a}
+/* M1 (auditoria 16/11): no celular a barra de áreas fica presa no topo, sem barra de rolagem cinza, abas mais baixas e sem ícone */
+@media (max-width:620px){.tp .op-foco-lista{position:sticky;top:0;z-index:6;background:var(--portal-bg);scrollbar-width:none;scroll-snap-type:x proximity;padding:8px 12px!important;gap:6px!important}.tp .op-foco-lista::-webkit-scrollbar{display:none}.ce .tp-c .op-foco-item{scroll-snap-align:center;min-height:38px;padding:7px 14px!important;flex:none}.tp-c .op-foco-ico{display:none!important}.tp-c .op-foco-nome{white-space:nowrap}.tp .op-foco-lista .fx-ctrl{position:sticky;left:0;z-index:1;background:var(--portal-bg);padding-right:6px}}
 @media (max-width:620px){.tp .op-foco-lista .fx-ctrl-mes{display:none}.tp-teste{left:12px;right:12px;bottom:12px;overflow-x:auto}}
 .bt .bt-card.bt-fin{justify-content:flex-start}
 .bt-fin-dest{margin-top:14px}

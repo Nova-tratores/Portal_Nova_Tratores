@@ -2,12 +2,13 @@
 // Requisições na tela do diretor (/empresa). José, 12/11/2026: "cartões com assuntos das requisições: quanto gastou, qual o
 // setor que mais gastou, dentro de cada setor quem mais gastou, e assim vai indo; quantas requisições estão paradas".
 // Mesmo jeito das outras áreas: cartões → tela cheia. Dados: /api/empresa/requisicoes (tabela Requisicao, 13 meses).
-import { useEffect, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { compacto, brl, cap, nomeMes, mesCurto, plural } from './comercial'
 import { TelaCheia, Secao } from './comercial-assuntos'
 import { useJson, JanelaFrame } from './comercial-telas'
 import { NavMes, dataBR } from './posvendas'
 import { NavAno } from './comercial-despesas'
+import { useEstadoUrl } from './url-estado'
 
 type Req = { id: number; titulo: string; tipo: string; pessoa: string; setor: string; data: string; status: string; valor: number; cobrado: number; fornecedor: string; os: string; veiculo: string; cliente: string; temNota: boolean }
 type Dados = { reqs: Req[]; hoje: string }
@@ -31,18 +32,8 @@ function agrupar(l: Req[], k: (r: Req) => string) {
 type TelaRq = 'gasto' | 'setor' | 'paradas' | 'abertas'
 export function PainelRequisicoes() {
   const { d, erro } = useJson<Dados>('/api/empresa/requisicoes')
-  const [tela, setTela] = useState<TelaRq | null>(() => {
-    if (typeof window === 'undefined') return null
-    const t = new URLSearchParams(window.location.search).get('tela')
-    return t === 'gasto' || t === 'setor' || t === 'paradas' || t === 'abertas' ? t : null
-  })
-  useEffect(() => {
-    try {
-      const u = new URL(window.location.href)
-      if (tela) u.searchParams.set('tela', tela); else u.searchParams.delete('tela')
-      if (u.toString() !== window.location.href) window.history.replaceState(null, '', u.toString())
-    } catch { /* sem URL */ }
-  }, [tela])
+  // ?tela= no endereço com passo no histórico: link/recarregar reabre e o "voltar" do celular fecha (auditoria 16/11)
+  const [tela, setTela] = useEstadoUrl<TelaRq>('tela', ['gasto', 'setor', 'paradas', 'abertas'])
   const fechar = () => setTela(null)
   const hoje = d?.hoje || ''
   const mes = hoje.slice(0, 7)

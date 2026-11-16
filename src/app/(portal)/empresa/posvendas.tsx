@@ -12,6 +12,7 @@ import { compacto, brl, cap, nomeMes, mesCurto, plural, contaMes } from './comer
 import { TelaCheia, Secao } from './comercial-assuntos'
 import { useJson, JanelaFrame } from './comercial-telas'
 import { TelaDespesasNova, NavAno } from './comercial-despesas'
+import { useEstadoUrl } from './url-estado'
 
 // os mesmos tipos e cores da Gestão do Pós-Vendas (FaturamentoPeriodo)
 const TIPOS: Array<{ g: Grupo; nome: string; cor: string; explica: string }> = [
@@ -32,18 +33,8 @@ export type ItemOficina = { id: string; nome: string; n: number; valor?: number 
  *  referência o estilo e a forma que foi distribuído no Comercial") */
 export function PainelPosVendas({ dreG, oficina }: { dreG: Array<{ mes: string; parcial?: boolean; setores: object }> | null; oficina: ItemOficina[] }) {
   const { d, erro } = useJson<DadosPosVendas>('/api/empresa/posvendas')
-  const [tela, setTela] = useState<TelaPv | null>(() => {
-    if (typeof window === 'undefined') return null
-    const t = new URLSearchParams(window.location.search).get('tela')
-    return t === 'fat' || t === 'tec' || t === 'desp' || t === 'ofi' ? t : null
-  })
-  useEffect(() => {
-    try {
-      const u = new URL(window.location.href)
-      if (tela) u.searchParams.set('tela', tela); else u.searchParams.delete('tela')
-      if (u.toString() !== window.location.href) window.history.replaceState(null, '', u.toString())
-    } catch { /* sem URL */ }
-  }, [tela])
+  // ?tela= no endereço com passo no histórico: link/recarregar reabre e o "voltar" do celular fecha (auditoria 16/11)
+  const [tela, setTela] = useEstadoUrl<TelaPv>('tela', ['fat', 'tec', 'desp', 'ofi'])
   const fechar = () => setTela(null)
   const m = d?.meses[d.meses.length - 1], ult6 = d?.meses.slice(-6) || []
   const max6 = Math.max(1, ...ult6.map((x) => x.porGrupo.faturada.valor))
