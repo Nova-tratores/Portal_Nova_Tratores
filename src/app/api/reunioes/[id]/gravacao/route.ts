@@ -4,6 +4,7 @@
 // POST { acao: 'pergunta', texto }                     → pergunta escrita de quem assiste (evento da reunião)
 // POST { acao: 'ingresso' }                           → { ingresso, nome }  prova de login p/ entrar na transmissão (30 min)
 // POST { acao: 'conferir', ingresso }                → { usuario_id, nome }  o PC da sala confere antes de aceitar
+// POST { acao: 'visibilidade', valor: 'participantes'|'todos' } → quem criou/conduz, depois de fechar a reunião
 // POST { acao: 'apagar', key }                        → só Dev: apaga a parte do bucket e da lista (fica no histórico)
 // GET  ?key=…[&baixar=1]                              → { url }  URL assinada p/ tocar ou BAIXAR (1 h); só até 60 dias
 import { NextRequest, NextResponse } from 'next/server'
@@ -12,8 +13,8 @@ import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { temModuloTickets, registrarEvento } from '@/lib/tickets/server'
 import { podeConduzir } from '@/lib/reunioes/regras'
-import { carregarReuniao, podeVerReuniao } from '@/lib/reunioes/server'
-import { BUCKET_GRAVACOES, DIAS_GUARDA, chaveGravacao, garantirBucket, type GravacaoParte } from '@/lib/reunioes/gravacoes'
+import { carregarReuniao, podeVerReuniao, criadorDaReuniao } from '@/lib/reunioes/server'
+import { BUCKET_GRAVACOES, DIAS_GUARDA, chaveGravacao, garantirBucket, visibilidadeGravacao, podeVerGravacao, type GravacaoParte } from '@/lib/reunioes/gravacoes'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -60,6 +61,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const lista = ((b.r.ticket.payload as { gravacoes?: GravacaoParte[] } | null)?.gravacoes || [])
   const g = lista.find((x) => x.key === key)
   if (!g) return erro('Gravação não encontrada', 404)
+  const vis = visibilidadeGravacao(b.r.ticket.payload)
+  const ok = podeVerGravacao(vis, {
+    participa: b.r.presencas.some((p) => p.usuario_id === b.auth.userId), conduz: podeConduzir(b.r.presencas, b.auth.userId, b.auth.isAdmin),
+    criador: vis === 'todos' ? false : (await criadorDaReuniao(id)) === b.auth.userId, admin: b.auth.isAdmin,
+  })
+  if (!ok) return erro('Esta gravação é só para quem participou da reunião.', 403)
   if (Date.now() - new Date(g.inicio).getTime() > DIAS_GUARDA * 86400_000) return erro(`A gravação passou de ${DIAS_GUARDA} dias e foi apagada.`, 410)
   const baixar = req.nextUrl.searchParams.get('baixar') === '1'
   const nomeArq = `reuniao-${b.r.ticket.numero}-${g.inicio.slice(0, 10)}-parte${g.parte}.webm`
@@ -86,6 +93,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // quem pode ver a reunião (já passou pelo login e por podeVerReuniao) ganha o ingresso
   if (acao === 'ingresso') return NextResponse.json({ ingresso: emitirIngresso(id, auth.userId), nome: await nomeDe(auth.userId) })
+
+  // quem vê a gravação: escolhido depois de fechar a reunião (José, 17/11/2026)
+  if (acao === 'visibilidade') {
+    const valor = body.valor === 'todos' ? 'todos' : body.valor === 'participantes' ? 'participantes' : null
+    if (!valor) return erro('Escolha: participantes ou todos.')
+    const pode = podeConduzir(r.presencas, auth.userId, auth.isAdmin) || (await criadorDaReuniao(id)) === auth.userId
+    if (!pode) return erro('Só quem criou ou quem conduz escolhe quem vê a gravação.', 403)
+    if (!['ata_rascunho', 'ata_publicada'].includes(r.ticket.reuniao_etapa || '')) return erro('Feche a reunião primeiro.', 409)
+    const { data: t } = await supabaseAdmin.from('tickets').select('payload').eq('id', id).single()
+    const payload = { ...((t?.payload as Record<string, unknown>) || {}), gravacao_visibilidade: valor }
+    const { error } = await supabaseAdmin.from('tickets').update({ payload }).eq('id', id)
+    if (error) return erro(error.message, 500)
+    await registrarEvento(id, auth.userId, 'edicao', { campo: 'gravacao_visibilidade', para: valor })
+    return NextResponse.json({ ok: true })
+  }
 
   // apagar gravação: só Dev (José, 17/11/2026)
   if (acao === 'apagar') {

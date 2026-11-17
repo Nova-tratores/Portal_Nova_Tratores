@@ -7,6 +7,16 @@ import { supabaseAdmin } from '@/lib/server/supabase-admin'
 export const BUCKET_GRAVACOES = 'reunioes-gravacoes'
 export const DIAS_GUARDA = 60
 
+/** Quem vê a gravação (José, 17/11/2026): 'participantes' (padrão) ou 'todos' (quem abre a reunião). Escolhida depois de fechar a reunião. */
+export type VisibilidadeGravacao = 'participantes' | 'todos'
+export function visibilidadeGravacao(payload: unknown): VisibilidadeGravacao {
+  return (payload as { gravacao_visibilidade?: string } | null)?.gravacao_visibilidade === 'todos' ? 'todos' : 'participantes'
+}
+/** Pode tocar/baixar: 'todos' = quem já pode ver a reunião; 'participantes' = presença, quem criou, conduz ou admin. */
+export function podeVerGravacao(vis: VisibilidadeGravacao, o: { participa: boolean; criador: boolean; conduz: boolean; admin: boolean }): boolean {
+  return vis === 'todos' || o.participa || o.criador || o.conduz || o.admin
+}
+
 export interface GravacaoParte { key: string; inicio: string; fim: string; bytes: number; parte: number; por: string }
 
 let bucketOk = false

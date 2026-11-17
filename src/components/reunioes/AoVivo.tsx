@@ -62,10 +62,14 @@ function VideoDe({ stream, mudo, className }: { stream: MediaStream | null; mudo
   return <video ref={ref} className={className} playsInline autoPlay muted={mudo} />
 }
 
-export default function AoVivo({ reuniaoId, podeTransmitir, podeApagar = false, meuNome, perguntasIniciais, gravacoes, encerrada, onGravou }: {
+export default function AoVivo({ reuniaoId, podeTransmitir, podeApagar = false, visibilidade = 'participantes', podeVerGravacoes = true, podeEscolherVisibilidade = false, meuNome, perguntasIniciais, gravacoes, encerrada, onGravou }: {
   reuniaoId: string
   /** só Dev apaga gravação (o servidor confere) */
   podeApagar?: boolean
+  /** quem vê a gravação (escolhido depois de fechar a reunião) */
+  visibilidade?: 'participantes' | 'todos'
+  podeVerGravacoes?: boolean
+  podeEscolherVisibilidade?: boolean
   podeTransmitir: boolean
   meuNome: string
   perguntasIniciais: Pergunta[]
@@ -375,6 +379,11 @@ export default function AoVivo({ reuniaoId, podeTransmitir, podeApagar = false, 
     }
   }
 
+  const escolherVisibilidade = async (valor: 'participantes' | 'todos') => {
+    try { await chamar(`/api/reunioes/${reuniaoId}/gravacao`, { json: { acao: 'visibilidade', valor } }); onGravou() }
+    catch (e) { setAviso((e as Error).message) }
+  }
+
   const apagar = async (gr: GrupoGravacao) => {
     if (!window.confirm(`Apagar a ${gr.titulo} (${gr.quando})? Não dá para desfazer.`)) return
     try {
@@ -553,7 +562,17 @@ export default function AoVivo({ reuniaoId, podeTransmitir, podeApagar = false, 
             <span style={{ fontSize: 12, padding: '1px 8px', borderRadius: 999, background: 'var(--portal-bg-secondary,#f1f5f9)', color: 'var(--portal-text-muted,#64748b)' }}>{grupos.length}</span>
             <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>· ficam 60 dias</span>
           </button>
-          {verGravacoes && <>
+          {podeEscolherVisibilidade && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13, color: 'var(--portal-text-secondary,#475569)' }}>
+              Quem vê a gravação:
+              {([['participantes', 'Só quem participou'], ['todos', 'Todos do portal']] as const).map(([v, t]) => (
+                <button key={v} className="av-btn peq" onClick={() => void escolherVisibilidade(v)}
+                  style={visibilidade === v ? { borderColor: '#2563eb', color: '#fefefe', background: '#2563eb' } : undefined}>{t}</button>
+              ))}
+            </div>
+          )}
+          {!podeVerGravacoes && verGravacoes && <div style={{ fontSize: 13.5, color: 'var(--portal-text-muted,#64748b)' }}>Esta gravação é só para quem participou da reunião.</div>}
+          {verGravacoes && podeVerGravacoes && <>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {grupos.map((gr) => {
               const tocandoAqui = !!tocando && gr.partes.some((g) => g.key === tocando.key)
