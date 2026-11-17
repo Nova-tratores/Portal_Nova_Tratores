@@ -153,6 +153,14 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: `abertas ${a.abertas} (${a.pecasNovas} peças) · fechadas ${a.fechadas}${erros.length ? ` · ${erros.join(' | ')}` : ''}` };
   },
 
+  // Reuniões: gravações ao vivo ficam 60 dias no bucket `reunioes-gravacoes` (José, 17/11/2026).
+  'reunioes-gravacoes-limpar': async () => {
+    if (desligada('REUNIOES_GRAVACOES_LIMPAR')) return { pular: 'desligado (REUNIOES_GRAVACOES_LIMPAR=off)' };
+    const { limparGravacoesAntigas } = await import('@/lib/reunioes/gravacoes');
+    const r = await limparGravacoesAntigas();
+    return { resumo: r.apagadas ? `${r.apagadas} partes apagadas de ${r.reunioes} reuniões (${Math.round(r.bytes / 1048576)} MB)` : 'nada com mais de 60 dias' };
+  },
+
   'ppv-precos-sync': async () => {
     if (desligada('PPV_PRECOS_SYNC')) return { pular: 'desligado (PPV_PRECOS_SYNC=off)' };
     const { sincronizarPrecosAlterados } = await import('@/lib/ppv/precos-sync');

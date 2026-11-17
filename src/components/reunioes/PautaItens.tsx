@@ -2,7 +2,7 @@
 // Itens da pauta (R5/R6/R7). Modo pauta: lista reordenável + campo de inclusão.
 // Modo condução: item a item com timer e botões de resultado por tipo.
 import { useState } from 'react'
-import { ChevronUp, ChevronDown, Trash2, Clock, Zap, CheckCircle2, PauseCircle, Shuffle, Info, MessageSquare, Plus, CornerDownRight } from 'lucide-react'
+import { ListOrdered, ChevronUp, ChevronDown, Trash2, Clock, Zap, CheckCircle2, PauseCircle, Shuffle, Info, MessageSquare, Plus, CornerDownRight } from 'lucide-react'
 import type { ItemPauta, ItemTipo, ItemResultado, ReuniaoRef } from '@/lib/reunioes/regras'
 import { ITEM_TIPO_INFO, RESULTADOS_POR_TIPO, somaTempo, ordenarItens, textoReagendamento } from '@/lib/reunioes/regras'
 import { cartao, botao, botaoClaro, campo, chip, Timer, primeiroNome } from './comum'
@@ -47,8 +47,8 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
   onAbrirReuniao?: (id: string) => void
 }) {
   const [pergunta, setPergunta] = useState('')
-  const [tipo, setTipo] = useState<ItemTipo>('decidir')
-  const [tempo, setTempo] = useState(5)
+  const [tipo] = useState<ItemTipo>('discutir')   // tipo e tempo saíram da tela (José, 17/11/2026)
+  const [tempo] = useState(5)
   const [incluindo, setIncluindo] = useState(false)
   const [erro, setErro] = useState('')
   const [decidindo, setDecidindo] = useState<string | null>(null)
@@ -83,14 +83,18 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
 
   return (
     <section style={cartao}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
-        <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text,#111)' }}>Pauta</span>
-        <span style={chip('#6b7280', 'rgba(107,114,128,.12)')}>{lista.length} {lista.length === 1 ? 'item' : 'itens'}</span>
-        <span title="Soma do tempo previsto × duração da reunião" style={chip(estourou ? '#dc2626' : '#059669', estourou ? 'rgba(220,38,38,.1)' : 'rgba(5,150,105,.1)')}><Clock size={12} /> {total} / {duracaoMin} min{estourou ? ' — estoura' : ''}</span>
-        {corteFechado && modo === 'pauta' && <span style={chip('#d97706', 'rgba(217,119,6,.12)')}>pauta fechada — só o condutor inclui (urgente)</span>}
+      {/* Pauta como título (José, 17/11/2026), sem os selos de corte */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+        <span style={{ flex: 'none', width: 32, height: 32, borderRadius: 9, display: 'grid', placeItems: 'center', color: '#2563eb', background: 'color-mix(in srgb,#2563eb 9%,var(--portal-surface,#fefefe))', border: '1px solid color-mix(in srgb,#2563eb 18%,transparent)' }}><ListOrdered size={16} /></span>
+        <span style={{ display: 'flex', flexDirection: 'column' }}>
+          <span style={{ fontSize: 17, fontWeight: 500, color: 'var(--portal-text,#0f172a)' }}>Pauta</span>
+          <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>O que vai ser falado nesta reunião{lista.length ? ` · ${lista.length} ${lista.length === 1 ? 'assunto' : 'assuntos'}` : ''}</span>
+        </span>
+        <span style={{ flex: 1 }} />
+        {lista.length > 0 && <span title="Tempo previsto dos assuntos × duração da reunião" style={chip(estourou ? '#dc2626' : '#64748b', estourou ? 'rgba(220,38,38,.1)' : 'rgba(100,116,139,.1)')}><Clock size={12} /> {total} de {duracaoMin} min</span>}
       </div>
 
-      {lista.length === 0 && <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)', padding: '6px 0 10px' }}>Nenhum item ainda. Cada item é uma pergunta que a reunião precisa responder.</div>}
+      {lista.length === 0 && <div style={{ fontSize: 13.5, color: 'var(--portal-text-muted,#64748b)', padding: '2px 0 10px' }}>Nenhum assunto ainda.</div>}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {lista.map((item, idx) => {
@@ -109,7 +113,7 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
               {modo !== 'pauta' && <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--portal-text-muted,#999)', marginTop: 2 }}>{idx + 1}.</span>}
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <span style={chip(t.cor, t.fundo)}>{t.label}</span>
+                  {item.tipo !== 'discutir' && <span style={chip(t.cor, t.fundo)}>{t.label}</span>}
                   {item.urgente && <span style={chip('#dc2626', 'rgba(220,38,38,.1)')}><Zap size={11} /> urgente</span>}
                   {item.origem !== 'manual' && (() => {
                     const de = item.item_origem_id ? origens?.[item.item_origem_id] : undefined
@@ -139,7 +143,7 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
                     </div>
                   )
                 })()}
-                {item.ticket_referencia_id && onAbrirTicket && <button onClick={() => onAbrirTicket(item.ticket_referencia_id!)} style={{ alignSelf: 'flex-start', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', fontSize: 12.5, color: '#2563eb', textDecoration: 'underline' }}>abrir a ação referida</button>}
+                {item.ticket_referencia_id && onAbrirTicket && <button onClick={() => onAbrirTicket(item.ticket_referencia_id!)} style={{ alignSelf: 'flex-start', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', fontSize: 12.5, color: '#2563eb', textDecoration: 'underline' }}>abrir a tarefa</button>}
                 {item.decisao_texto && (
                   <div style={{ fontSize: 13, padding: '8px 10px', borderRadius: 8, background: 'rgba(5,150,105,.08)', color: 'var(--portal-text,#111)' }}>
                     <b style={{ fontWeight: 500 }}>Decisão:</b> {item.decisao_texto}<br /><b style={{ fontWeight: 500 }}>Motivo:</b> {item.decisao_motivo}
@@ -163,7 +167,7 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
                   </div>
                 )}
                 {modo === 'conducao' && podeConduzir && r && onCriarAcao && item.resultado === 'decidido' && (
-                  <button onClick={() => onCriarAcao(item)} style={{ ...botao('#dc2626'), alignSelf: 'flex-start' }}><Plus size={14} /> Criar ação desta decisão</button>
+                  <button onClick={() => onCriarAcao(item)} style={{ ...botao('#dc2626'), alignSelf: 'flex-start' }}><Plus size={14} /> Criar tarefa desta decisão</button>
                 )}
               </div>
               {modo === 'pauta' && podeEditar && !r && onRemover && (
@@ -175,17 +179,10 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
       </div>
 
       {(modo === 'pauta' && podeEditar && onIncluir) && (
-        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input value={pergunta} onChange={(e) => setPergunta(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') incluir() }}
-            placeholder="Qual pergunta a reunião precisa responder?" style={{ ...campo, fontSize: 15, padding: '11px 14px' }} maxLength={500} />
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            {(['decidir', 'informar', 'discutir'] as ItemTipo[]).map((t) => (
-              <button key={t} onClick={() => setTipo(t)} style={{ ...chip(tipo === t ? '#fff' : ITEM_TIPO_INFO[t].cor, tipo === t ? ITEM_TIPO_INFO[t].cor : ITEM_TIPO_INFO[t].fundo), border: 'none', cursor: 'pointer', padding: '6px 12px', fontSize: 13 }}>{ITEM_TIPO_INFO[t].label}</button>
-            ))}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-muted,#888)' }}><Clock size={13} /><input type="number" min={1} max={240} value={tempo} onChange={(e) => setTempo(Number(e.target.value) || 5)} style={{ ...campo, width: 64, padding: '5px 8px' }} /> min</label>
-            <span style={{ flex: 1 }} />
-            <button onClick={incluir} disabled={!pergunta.trim() || incluindo} style={{ ...botao(), opacity: pergunta.trim() && !incluindo ? 1 : .5 }}><Plus size={14} /> Incluir na pauta</button>
-          </div>
+            placeholder="Escreva um assunto para a pauta e aperte Enter" style={{ ...campo, flex: '1 1 260px', fontSize: 15, height: 44 }} maxLength={500} />
+          <button onClick={incluir} disabled={!pergunta.trim() || incluindo} style={{ ...botao('#2563eb'), minHeight: 44, opacity: pergunta.trim() && !incluindo ? 1 : .5 }}><Plus size={15} /> Incluir</button>
         </div>
       )}
       {erro && <div style={{ marginTop: 8, color: '#dc2626', fontSize: 13, fontWeight: 500 }}>{erro}</div>}

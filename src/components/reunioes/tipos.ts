@@ -23,6 +23,12 @@ export interface ReuniaoUI {
   posso_conduzir: boolean
   criador_id?: string | null
   posso_reabrir?: boolean
+  /** muda dia/hora/duração antes de começar (quem conduz, quem criou ou admin) */
+  posso_remarcar?: boolean
+  /** reunião avulsa → série (quem conduz, quem criou ou admin) */
+  posso_virar_serie?: boolean
+  /** marcar reunião seguinte (ramificação) a partir desta */
+  posso_continuar?: boolean
   aviso: string | null
   tempo_previsto: number
   duracao_min: number

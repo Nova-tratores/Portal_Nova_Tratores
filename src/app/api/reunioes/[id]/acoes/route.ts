@@ -4,7 +4,11 @@
 //   presenca         { usuario_id, presente: boolean }                   quem conduz, ou a própria pessoa
 //   adicionar_participante { usuario_id }                                quem conduz, até a ata ser publicada (última hora)
 //   item_resultado   { item_id, resultado, decisao_texto?, decisao_motivo?, notas? }   quem conduz, em andamento
-//   criar_acao       { titulo, descricao?, responsavel_id, prazo, item_id?, categoria? }  quem conduz (R8)
+//   criar_acao       { titulo, descricao?, responsavel_id, prazo, item_id?, categoria? }  quem conduz ou participa, menos cancelada
+//   anotacoes        { texto }                                           quem conduz ou participa, até publicar (ata durante a reunião)
+//   virar_serie      { recorrencia }                                     quem conduz ou quem marcou; reunião avulsa vira série
+//   continuar        { dia, hora, titulo, participantes[] }              reunião seguinte (ramificação), uma vez
+//   remarcar         { dia, hora, duracao_min? }                         quem conduz, quem criou ou admin; antes de começar
 //   tratar_pendencia { ticket_id, saida: novo_prazo|reatribuir|escalar|cancelar, prazo?, para?, motivo? } (R3/R4)
 //   publicar_ata     {}                                                   quem conduz, em ata_rascunho (R7/R10)
 //   adendo           { texto }                                            quem conduz, depois da ata (R10)
@@ -24,7 +28,7 @@ import {
   type ReuniaoEtapa, type SaidaPendencia,
 } from '@/lib/reunioes/regras'
 import {
-  carregarReuniao, podeVerReuniao, mudarEtapa, criarAcao, reatribuirAcao, novoPrazoAcao, cancelarAcao, escalarAcao, publicarAta, criadorDaReuniao, reabrirReuniao,
+  carregarReuniao, podeVerReuniao, mudarEtapa, criarAcao, reatribuirAcao, novoPrazoAcao, cancelarAcao, escalarAcao, publicarAta, criadorDaReuniao, reabrirReuniao, remarcarReuniao, virarSerie, continuarReuniao,
   uuidValido, migrationFaltou, MSG_MIGRATION_REUNIOES,
 } from '@/lib/reunioes/server'
 
@@ -59,6 +63,71 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           para === 'em_andamento' ? `Reunião começou: ${r.ticket.titulo}` : `Reunião cancelada: ${r.ticket.titulo}`, body.motivo ? String(body.motivo) : undefined)
       }
       return NextResponse.json({ ok: true })
+    }
+
+    // -------------------------------------------------------- anotacoes
+    // { texto } — a ata escrita DURANTE a reunião (José, 17/11/2026: "espaço para a ata durante, não depois").
+    // Fica em tickets.payload.ata_texto; quem conduz ou participa escreve até a ata ser publicada (depois: adendo).
+    if (acao === 'anotacoes') {
+      const participa = r.presencas.some((p) => p.usuario_id === auth.userId)
+      if (!conduz && !participa) return erro('Só quem participa da reunião escreve a ata.', 403)
+      if (publicada) return erro('A ata já foi publicada — use um adendo.', 409)
+      if (etapa === 'cancelada') return erro('Reunião cancelada.', 409)
+      const texto = String(body.texto ?? '').slice(0, 20000)
+      const payload = { ...((r.ticket.payload as Record<string, unknown>) || {}), ata_texto: texto, ata_texto_em: new Date().toISOString(), ata_texto_por: auth.userId }
+      const { error } = await supabaseAdmin.from('tickets').update({ payload }).eq('id', id)
+      if (error) return erro(error.message, 500)
+      return NextResponse.json({ ok: true, em: payload.ata_texto_em })
+    }
+
+    // -------------------------------------------------------- virar_serie
+    // { recorrencia: semanal|quinzenal|mensal } — a reunião avulsa vira a 1ª de uma série; a próxima já é marcada.
+    if (acao === 'virar_serie') {
+      const criador = await criadorDaReuniao(id)
+      if (!conduz && criador !== auth.userId) return erro('Só quem conduz ou quem marcou a reunião faz dela uma série.', 403)
+      if (r.serie) return erro('Esta reunião já faz parte de uma série.', 409)
+      if (etapa === 'cancelada') return erro('Reunião cancelada.', 409)
+      const rec = String(body.recorrencia || '')
+      if (rec !== 'semanal' && rec !== 'quinzenal' && rec !== 'mensal') return erro('Escolha: toda semana, a cada 15 dias ou todo mês.')
+      const parts = Array.isArray(body.participantes) ? (body.participantes as unknown[]).filter((u): u is string => uuidValido(u)) : undefined
+      const res = await virarSerie(auth, r, rec, { nome: body.nome ? String(body.nome) : undefined, participantes: parts })
+      return NextResponse.json({ ok: true, serie_id: res.serie.id, proxima: res.proxima ? { id: res.proxima.id, inicio: res.proxima.reuniao_inicio } : null })
+    }
+
+    // -------------------------------------------------------- continuar
+    // { dia, hora, titulo, participantes[] } — marca UMA reunião seguinte a partir desta (outro assunto/pessoas).
+    if (acao === 'continuar') {
+      const criador = await criadorDaReuniao(id)
+      if (!conduz && criador !== auth.userId) return erro('Só quem conduz ou quem marcou a reunião marca a continuação.', 403)
+      const dia = String(body.dia || ''); const hora = String(body.hora || '').slice(0, 5)
+      if (!/^d{4}-d{2}-d{2}$/.test(dia)) return erro('Informe o dia.')
+      if (!/^d{2}:d{2}$/.test(hora)) return erro('Informe a hora (HH:MM).')
+      if (dia < hojeSP()) return erro('A data não pode ser no passado.')
+      const parts = Array.isArray(body.participantes) ? (body.participantes as unknown[]).filter((u): u is string => uuidValido(u)) : r.presencas.map((p) => p.usuario_id)
+      const res = await continuarReuniao(auth, r, { dia, hora, titulo: String(body.titulo || ''), participantes: parts })
+      return NextResponse.json({ ok: true, reuniao_id: res.ticket.id })
+    }
+
+    // ---------------------------------------------------------- remarcar
+    // { dia: YYYY-MM-DD, hora: HH:MM, duracao_min? } — quem conduz, quem criou ou admin; só antes de começar.
+    if (acao === 'remarcar') {
+      const criador = await criadorDaReuniao(id)
+      if (!conduz && criador !== auth.userId) return erro('Só quem conduz ou quem marcou a reunião muda a data.', 403)
+      if (etapa !== 'agendada' && etapa !== 'pauta_fechada') return erro('Só dá para remarcar reunião que ainda não começou.', 409)
+      const dia = String(body.dia || ''); const hora = String(body.hora || '').slice(0, 5)
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(dia)) return erro('Informe o novo dia.')
+      if (!/^\d{2}:\d{2}$/.test(hora)) return erro('Informe a nova hora (HH:MM).')
+      if (dia < hojeSP()) return erro('A nova data não pode ser no passado.')
+      const atual = Number((r.ticket.payload as { duracao_min?: unknown })?.duracao_min) || r.serie?.duracao_min || 30
+      const dur = body.duracao_min === undefined ? atual : Math.round(Number(body.duracao_min))
+      if (!(dur >= 5 && dur <= 480)) return erro('Duração: de 5 a 480 minutos.')
+      try {
+        const res = await remarcarReuniao(auth, r, { dia, hora, duracao_min: dur })
+        return NextResponse.json({ ok: true, aviso: res.aviso })
+      } catch (e) {
+        if ((e as { code?: string }).code === 'SALA_OCUPADA') return erro((e as Error).message, 409)
+        throw e
+      }
     }
 
     // ---------------------------------------------------------- presença
@@ -121,8 +190,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     // --------------------------------------------------------- criar_acao
     if (acao === 'criar_acao') {
-      if (!conduz) return erro('Só quem conduz cria ações da reunião.', 403)
-      if (publicada || etapa === 'cancelada') return erro('Reunião encerrada — abra um ticket comum.', 409)
+      // José, 17/11/2026 ("muito difícil"): qualquer participante cria, antes, durante ou depois da reunião.
+      const participa = r.presencas.some((p) => p.usuario_id === auth.userId)
+      if (!conduz && !participa) return erro('Só quem participa da reunião cria tarefas dela.', 403)
+      if (etapa === 'cancelada') return erro('Reunião cancelada — abra um ticket comum.', 409)
       const titulo = String(body.titulo || '').trim()
       const responsavel = String(body.responsavel_id || '')
       const prazo = String(body.prazo || '')

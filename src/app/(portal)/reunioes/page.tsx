@@ -4,20 +4,21 @@
 // lista agrupada por dia como a vista Programação da Agenda — data à esquerda, cartões à direita.
 export const dynamic = 'force-dynamic'
 
-import { useCallback, useEffect, useMemo, useState, Suspense } from 'react'
+import { useCallback, useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { CalendarClock, History, Repeat, Plus, RefreshCw, AlertTriangle, Users, Settings2, GraduationCap, MapPin, ListChecks, Clock } from 'lucide-react'
+import { CalendarClock, History, Repeat, Plus, RefreshCw, AlertTriangle, Settings2, GraduationCap } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import type { Ticket, UsuarioMin } from '@/lib/tickets/constantes'
-import { ETAPA_INFO, ETAPAS_PAUTA, type ReuniaoEtapa, type Serie } from '@/lib/reunioes/regras'
+import type { ReuniaoEtapa, Serie } from '@/lib/reunioes/regras'
 import type { PresencaRow } from '@/lib/reunioes/server'
 import FormReuniao from '@/components/reunioes/FormReuniao'
 import FormSerie from '@/components/reunioes/FormSerie'
 import AjudaAba from '@/components/reunioes/AjudaAba'
+import AgendaReunioes from '@/components/reunioes/AgendaReunioes'
 import TutorialReunioes, { useTutorialPrimeiraVez } from '@/components/reunioes/TutorialReunioes'
-import { chamar, EtapaChip, horaDe, primeiroNome, hojeISO } from '@/components/reunioes/comum'
+import { chamar, primeiroNome } from '@/components/reunioes/comum'
 
 type Aba = 'proximas' | 'historico' | 'series'
 type Resp = {
@@ -26,11 +27,6 @@ type Resp = {
 }
 
 const SEMANA = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
-const MESES = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez']
-const diaSP = (ts: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(ts))
-const somarDia = (iso: string, n: number) => { const d = new Date(`${iso}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
-// o título nasce "Série — 19/10/2026": a data já está na coluna da esquerda
-const semData = (t: string) => t.replace(/\s*[—–-]\s*\d{2}\/\d{2}(\/\d{2,4})?\s*$/, '') || t
 const iniciais = (n: string) => n.split(' ').filter(Boolean).map((x) => x[0]).slice(0, 2).join('').toUpperCase()
 
 const ESTILO_RN = `
@@ -44,8 +40,12 @@ const ESTILO_RN = `
 .rn-aba .n{font-size:12px;padding:1px 8px;border-radius:999px;background:color-mix(in srgb,var(--c) 12%,transparent);color:var(--c)}
 .rn-btn{display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 14px;border-radius:11px;font-size:13.5px;font-weight:500;cursor:pointer;border:1px solid var(--portal-border,#e2e8f0);background:var(--portal-surface,#fefefe);color:var(--portal-text-secondary,#475569);white-space:nowrap}
 .rn-btn:hover{background:var(--portal-bg-secondary,#f8fafc)}
-.rn-btn.cheio{border:none;color:#fefefe;background:var(--c)}
+.rn-btn.cheio{border:none;color:#fefefe;background:var(--c);box-shadow:0 6px 14px -8px var(--c)}
 .rn-btn.cheio:hover{filter:brightness(1.06)}
+.rn-btn.suave{color:var(--c);border-color:color-mix(in srgb,var(--c) 28%,var(--portal-border,#e2e8f0));background:color-mix(in srgb,var(--c) 7%,var(--portal-surface,#fefefe))}
+.rn-btn.suave:hover{background:color-mix(in srgb,var(--c) 13%,var(--portal-surface,#fefefe))}
+.rn-btn.suave.on{color:#fefefe;background:var(--c);border-color:var(--c)}
+.rn-btn.so-ic{width:40px;padding:0;justify-content:center}
 .rn-aviso{margin-bottom:12px;padding:10px 14px;border-radius:12px;font-size:13.5px}
 .rn-dia{display:grid;grid-template-columns:84px 1fr;gap:14px;padding:14px 0;border-top:1px solid var(--portal-border,#e2e8f0)}
 .rn-dia:first-of-type{border-top:none}
@@ -137,87 +137,10 @@ function ReunioesInner() {
 
   const nome = (id: string) => dados?.usuarios[id]?.nome || '—'
   const meuId = userProfile?.id || ''
-  const hoje = hojeISO()
   const abas: { id: Aba; label: string; icone: React.ReactNode; cor: string; n?: number }[] = [
     { id: 'proximas', label: 'Próximas', icone: <CalendarClock size={15} />, cor: '#dc2626', n: aba === 'proximas' ? dados?.reunioes.length : undefined },
-    { id: 'historico', label: 'Histórico', icone: <History size={15} />, cor: '#475569' },
     { id: 'series', label: 'Séries', icone: <Repeat size={15} />, cor: '#4f46e5', n: dados?.series.length },
   ]
-
-  // agrupa por dia (a ordem da API já é a certa: próximas ↑, histórico ↓)
-  const porDia = useMemo(() => {
-    const grupos: { dia: string; lista: Ticket[] }[] = []
-    for (const t of dados?.reunioes || []) {
-      const d = t.reuniao_inicio ? diaSP(t.reuniao_inicio) : 'sem-data'
-      const g = grupos[grupos.length - 1]
-      if (g && g.dia === d) g.lista.push(t); else grupos.push({ dia: d, lista: [t] })
-    }
-    return grupos
-  }, [dados])
-
-  const colunaData = (dia: string) => {
-    if (dia === 'sem-data') return <div className="rn-data"><span className="sem">Sem data</span></div>
-    const d = new Date(`${dia}T12:00:00Z`)
-    const rel = dia === hoje ? 'Hoje' : dia === somarDia(hoje, 1) ? 'Amanhã' : dia === somarDia(hoje, -1) ? 'Ontem' : ''
-    return (
-      <div className={`rn-data${dia === hoje ? ' hoje' : ''}`}>
-        <span className="sem">{SEMANA[d.getUTCDay()].slice(0, 3)}</span>
-        <span className="num">{d.getUTCDate()}</span>
-        <span className="mes">{MESES[d.getUTCMonth()]}{dia.slice(0, 4) !== hoje.slice(0, 4) ? ` ${dia.slice(0, 4)}` : ''}</span>
-        {rel && dia !== hoje && <span className="rel">{rel}</span>}
-      </div>
-    )
-  }
-
-  const cardReuniao = (t: Ticket) => {
-    const pres = dados?.presencas[t.id] || []
-    const condutor = pres.find((p) => p.papel === 'condutor')?.usuario_id || t.solicitante_id
-    const serie = dados?.series.find((s) => s.id === t.reuniao_serie_id)
-    const nItens = dados?.itens[t.id] || 0
-    const etapa = t.reuniao_etapa as ReuniaoEtapa
-    const cor = ETAPA_INFO[etapa]?.cor || '#64748b'
-    const souDela = pres.some((p) => p.usuario_id === meuId)
-    const dur = Math.max(5, Number((t.payload as { duracao_min?: number } | null)?.duracao_min) || 30)
-    const fim = t.reuniao_inicio ? new Date(new Date(t.reuniao_inicio).getTime() + dur * 60_000).toISOString() : null
-    const sala = dados?.salas?.[t.id]
-    const titulo = serie && semData(t.titulo) === serie.nome ? serie.nome : semData(t.titulo)
-    const outros = pres.filter((p) => p.usuario_id !== condutor)
-    // a hora passou e não foi encerrada: fica no Histórico como "não aconteceu" (José, 04/11/2026)
-    const passou = !!fim && fim < new Date().toISOString() && ETAPAS_PAUTA.includes(etapa)
-    return (
-      <button key={t.id} className={`rn-card${passou ? ' passou' : ''}`} style={{ ['--c' as string]: cor }} onClick={() => router.push(`/reunioes/${t.id}`)}>
-        <span className="rn-hora">
-          <b>{horaDe(t.reuniao_inicio)}</b>
-          <small>até {horaDe(fim)} · {dur} min</small>
-        </span>
-        <span className="rn-meio">
-          <span className="rn-ic"><Users size={18} /></span>
-          <span className="rn-txt">
-            <span className="rn-tit" title={t.titulo}>{titulo}</span>
-            <span className="rn-linha">
-              {serie && titulo !== serie.nome && <span className="rn-serie"><Repeat size={12} /> {serie.nome}</span>}
-              {serie && titulo === serie.nome && <span className="rn-serie"><Repeat size={12} /> série</span>}
-              <span><Avatar u={dados?.usuarios[condutor]} nome={nome(condutor)} /> conduz {primeiroNome(nome(condutor))}</span>
-              {sala && <span><MapPin size={13} /> {sala}</span>}
-              <span><ListChecks size={13} /> {nItens ? `${nItens} ${nItens === 1 ? 'item' : 'itens'} na pauta` : 'pauta vazia'}</span>
-            </span>
-          </span>
-        </span>
-        <span className="rn-dir">
-          {passou ? <span className="rn-nao">não aconteceu · {ETAPA_INFO[etapa]?.label?.toLowerCase() || etapa}</span> : <EtapaChip etapa={etapa} />}
-          <span className="rn-pilhas">
-            {outros.length > 0 && (
-              <span className="rn-pilha" title={outros.map((p) => nome(p.usuario_id)).join(', ')}>
-                {outros.slice(0, 4).map((p) => <Avatar key={p.usuario_id} u={dados?.usuarios[p.usuario_id]} nome={nome(p.usuario_id)} />)}
-              </span>
-            )}
-            <span>{pres.length} {pres.length === 1 ? 'pessoa' : 'pessoas'}</span>
-            {souDela && <span className="rn-voce">você participa</span>}
-          </span>
-        </span>
-      </button>
-    )
-  }
 
   return (
     <div className="rn">
@@ -234,8 +157,10 @@ function ReunioesInner() {
           </span>
         ))}
         <span style={{ flex: 1 }} />
-        <button className="rn-btn" onClick={() => setTutorial(true)} title="Rever o passo a passo das Reuniões"><GraduationCap size={15} />{!isMobile && ' Tutorial'}</button>
-        <button className="rn-btn" onClick={() => carregar()} title="Atualizar" style={{ padding: '0 11px' }}><RefreshCw size={15} className={carregando ? 'fa-spin' : undefined} /></button>
+        {/* Histórico fora das abas (José, 17/11/2026: "série depois de histórico confunde") */}
+        <button className={`rn-btn suave${aba === 'historico' ? ' on' : ''}`} style={{ ['--c' as string]: '#475569' }} onClick={() => router.push(aba === 'historico' ? '/reunioes' : '/reunioes?aba=historico')} title="Reuniões que já passaram"><History size={15} />{!isMobile && ' Histórico'}</button>
+        <button className="rn-btn so-ic" onClick={() => carregar()} title="Atualizar"><RefreshCw size={15} className={carregando ? 'fa-spin' : undefined} /></button>
+        <button className="rn-btn so-ic" onClick={() => setTutorial(true)} title="Como usar as Reuniões (tutorial)"><GraduationCap size={16} /></button>
         <button className="rn-btn cheio" style={{ ['--c' as string]: '#4f46e5' }} onClick={() => setSerieForm(null)}><Repeat size={15} /> Nova série</button>
         <button className="rn-btn cheio" style={{ ['--c' as string]: '#dc2626' }} onClick={() => setNovaReuniao(null)}><Plus size={16} /> Nova reunião</button>
       </div>
@@ -277,20 +202,9 @@ function ReunioesInner() {
             )
           })}
         </div>
-      ) : porDia.length === 0 ? (
-        <div className="rn-vazio">
-          <Clock size={22} style={{ display: 'block', margin: '0 auto 8px', opacity: .6 }} />
-          {aba === 'proximas' ? 'Nenhuma reunião marcada. Clique em "Nova reunião".' : 'Nenhuma reunião encerrada ainda.'}
-        </div>
       ) : (
-        <div>
-          {porDia.map((g) => (
-            <div key={g.dia} className="rn-dia">
-              {colunaData(g.dia)}
-              <div className="rn-cards">{g.lista.map(cardReuniao)}</div>
-            </div>
-          ))}
-        </div>
+        // Próximas e Histórico: dias lado a lado (José, 17/11/2026)
+        <AgendaReunioes key={aba} modo={aba} meuId={meuId} isAdmin={isAdmin} onNova={() => setNovaReuniao(null)} onAviso={setAviso} />
       )}
 
       {novaReuniao !== false && userProfile && (

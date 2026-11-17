@@ -1,8 +1,8 @@
 'use client'
 // Criar/editar uma série de reuniões ("Semanal Oficina").
 import { useState } from 'react'
-import { X } from 'lucide-react'
 import UserSelect from '@/components/tickets/UserSelect'
+import SeletorPessoas from './SeletorPessoas'
 import type { UsuarioMin } from '@/lib/tickets/constantes'
 import type { Serie, Recorrencia } from '@/lib/reunioes/regras'
 import { Modal, campo, rotulo, botao, botaoClaro, chamar } from './comum'
@@ -30,10 +30,9 @@ export default function FormSerie({ inicial, usuarios, meuId, onFechar, onSalvo 
   const [ativa, setAtiva] = useState(inicial?.ativa ?? true)
   const [sala, setSala] = useState<string | null>(inicial?.sala_id ?? null)
   const [salaMexida, setSalaMexida] = useState(false)
-  const [nomesLocais, setNomesLocais] = useState<Record<string, string>>({})
+  const [, setNomesLocais] = useState<Record<string, string>>({})
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
-  const nome_ = (id: string) => usuarios[id]?.nome || nomesLocais[id] || id.slice(0, 8)
 
   const salvar = async () => {
     setSalvando(true); setErro('')
@@ -49,20 +48,13 @@ export default function FormSerie({ inicial, usuarios, meuId, onFechar, onSalvo 
   const lista = (ids: string[], set: (v: string[]) => void, titulo: string, dica: string) => (
     <div>
       <label style={rotulo}>{titulo}</label>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
-        {ids.map((id) => (
-          <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 999, fontSize: 12.5, background: 'var(--portal-bg,#f3f4f6)', color: 'var(--portal-text,#111)' }}>
-            {nome_(id)} <button onClick={() => set(ids.filter((x) => x !== id))} style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', padding: 0, color: 'inherit' }}><X size={12} /></button>
-          </span>
-        ))}
-      </div>
-      <UserSelect value="" placeholder={dica} excluir={ids} autoFocus={false}
-        onChange={(id, u) => { if (u) setNomesLocais((m) => ({ ...m, [id]: u.nome })); set([...ids, id]) }} />
+      <SeletorPessoas valor={ids} placeholder={dica}
+        onChange={(novos, us) => { set(novos); setNomesLocais((m) => ({ ...m, ...Object.fromEntries(novos.map((i) => [i, us[i]?.nome || m[i]])) })) }} />
     </div>
   )
 
   return (
-    <Modal titulo={inicial ? 'Configurar série' : 'Nova série de reuniões'} onFechar={onFechar}>
+    <Modal titulo={inicial ? 'Configurar série' : 'Nova série de reuniões'} onFechar={onFechar} largura={780}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div><label style={rotulo}>Nome</label><input autoFocus value={nome} onChange={(e) => setNome(e.target.value)} placeholder='Ex.: "Semanal Oficina", "Comercial segunda"' style={campo} maxLength={120} /></div>
         <div>

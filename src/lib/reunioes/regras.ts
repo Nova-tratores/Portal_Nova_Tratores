@@ -484,11 +484,11 @@ const ddmm = (iso: string | null) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 
 export function textoWhatsApp(r: ResumoAta): string {
   const linhas: string[] = []
   linhas.push(`📋 *${r.serie || r.titulo} — ${ddmm(r.data)}*`)
-  linhas.push(`✅ Decidido: ${r.decididos} · 📌 Ações novas: ${r.acoes.length} · ⏰ Pendências atrasadas: ${r.atrasadas}`)
+  linhas.push(`✅ Decidido: ${r.decididos} · 📌 Tarefas novas: ${r.acoes.length} · ⏰ Pendências atrasadas: ${r.atrasadas}`)
   const MAX = 4
   for (const a of r.acoes.slice(0, MAX)) linhas.push(`• ${a.responsavel.split(' ')[0]}: ${a.titulo} — até ${ddmm(a.prazo)}`)
   if (r.acoes.length > MAX) linhas.push(`• e mais ${r.acoes.length - MAX} no portal`)
-  linhas.push(`Confirme suas ações no portal: ${r.link}`)
+  linhas.push(`Confirme suas tarefas no portal: ${r.link}`)
   return linhas.join('\n')
 }
 

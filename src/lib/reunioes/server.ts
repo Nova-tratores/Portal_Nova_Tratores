@@ -10,7 +10,7 @@ import {
 import { STATUS_FINAIS, type Ticket, type TicketParticipante, type TicketStatus } from '@/lib/tickets/constantes'
 import { hojeSP, moverEtapaDoTicket, sincronizarEtapaDoTicket } from '@/lib/trabalho/cronograma-server'
 import { diaSP } from '@/lib/trabalho/agenda-server'
-import { reservarParaReuniao, liberarSalaDaReuniao } from '@/lib/salas/server'
+import { reservarParaReuniao, liberarSalaDaReuniao, reservaDaReuniao, editarReserva } from '@/lib/salas/server'
 import { indisponiveis } from '@/lib/agenda/bloqueios-server'
 import { mensagemIndisponiveis } from '@/lib/agenda/bloqueios'
 import { isoDe, fimDaReuniao } from '@/lib/salas/regras'
@@ -75,6 +75,56 @@ export async function criarSerie(auth: Autenticado, campos: Partial<Serie>): Pro
     // sala: só quando veio (sem sql/salas-reserva.sql a coluna não existe)
     ...(campos.sala_id !== undefined ? { sala_id: campos.sala_id } : {}),
   }).select('*').single()) as Serie
+}
+
+/**
+ * "Fazer daquilo uma série" (José, 17/11/2026): a reunião avulsa vira a 1ª de uma série com o mesmo nome,
+ * condutor, secretário, participantes, dia da semana, hora, duração, sala e visibilidade. A reunião passa a
+ * pertencer à série e a próxima já é marcada (garantirProximaInstancia); as seguintes o robô gera.
+ */
+export async function virarSerie(auth: Autenticado, r: ReuniaoCarregada, recorrencia: 'semanal' | 'quinzenal' | 'mensal', opts: { nome?: string; participantes?: string[] } = {}): Promise<{ serie: Serie; proxima: Ticket | null }> {
+  const t = r.ticket
+  if (!t.reuniao_inicio) throw Object.assign(new Error('A reunião não tem data.'), { code: 'SEM_DATA' })
+  const dia = diaSP(t.reuniao_inicio)
+  const hora = new Date(t.reuniao_inicio).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
+  const condutor = condutorDe(r)
+  const secretario = secretarioDe(r)
+  const reserva = await reservaDaReuniao(t.id).catch(() => null)
+  const nome = (opts.nome || '').trim().slice(0, 120) || t.titulo.replace(/\s*[—–-]\s*\d{2}\/\d{2}(\/\d{2,4})?\s*$/, '').trim().slice(0, 120) || 'Reunião'
+  const serie = await criarSerie(auth, {
+    nome, condutor_id: condutor, secretarios_rodizio: secretario ? [secretario] : [],
+    participantes_padrao: (opts.participantes || r.presencas.map((p) => p.usuario_id)).filter((u) => u !== condutor && u !== secretario),
+    recorrencia, dia_semana: new Date(`${dia}T12:00:00Z`).getUTCDay(), hora,
+    duracao_min: Number((t.payload as { duracao_min?: unknown } | null)?.duracao_min) || 30,
+    visibilidade: (t.visibilidade as 'privado' | 'publico') || 'publico',
+    ...(reserva ? { sala_id: reserva.sala_id } : {}),
+  })
+  ok(await supabaseAdmin.from('reunioes_series').update({ instancias_geradas: 1 }).eq('id', serie.id).select('id'))
+  ok(await supabaseAdmin.from('tickets').update({ reuniao_serie_id: serie.id }).eq('id', t.id).select('id'))
+  await registrarEvento(t.id, auth.userId, 'edicao', { campo: 'virou_serie', serie_id: serie.id, recorrencia })
+  const proxima = await garantirProximaInstancia(auth, { ...serie, instancias_geradas: 1 }, t.reuniao_inicio)
+  return { serie, proxima }
+}
+
+/**
+ * Continuação ("ramificação", José 17/11/2026): marca UMA reunião seguinte a partir desta, com outro assunto e
+ * outras pessoas se quiser. Mesmo condutor, duração, sala e visibilidade; as duas ficam ligadas no histórico.
+ */
+export async function continuarReuniao(auth: Autenticado, r: ReuniaoCarregada, n: { dia: string; hora: string; titulo: string; participantes: string[] }): Promise<{ ticket: Ticket; aviso: string | null }> {
+  const condutor = condutorDe(r)
+  const reserva = await reservaDaReuniao(r.ticket.id).catch(() => null)
+  const nova = await criarReuniao(auth, {
+    dia: n.dia, hora: n.hora, titulo: n.titulo.trim().slice(0, 200) || r.ticket.titulo,
+    descricao: `Continuação da reunião "${r.ticket.titulo}".`,
+    condutor_id: condutor, secretario_id: secretarioDe(r),
+    participantes: n.participantes.filter((u) => u !== condutor),
+    visibilidade: (r.ticket.visibilidade as 'privado' | 'publico') || 'publico',
+    duracao_min: Number((r.ticket.payload as { duracao_min?: unknown } | null)?.duracao_min) || 30,
+    sala_id: reserva?.sala_id ?? null, salaObrigatoria: false, bloquearIndisponiveis: false,
+  })
+  await registrarEvento(r.ticket.id, auth.userId, 'edicao', { campo: 'continuacao', reuniao_id: nova.ticket.id, numero: nova.ticket.numero })
+  await registrarEvento(nova.ticket.id, auth.userId, 'edicao', { campo: 'continuacao_de', reuniao_id: r.ticket.id, numero: r.ticket.numero })
+  return { ticket: nova.ticket, aviso: null }
 }
 
 export async function editarSerie(id: string, campos: Partial<Serie>): Promise<Serie> {
@@ -227,6 +277,41 @@ export async function criarReuniao(auth: Autenticado, n: NovaReuniao): Promise<R
   if (ocupados.length) await notificarTicket(ticket, [condutor], null, `Participante indisponível: ${titulo}`, `${mensagemIndisponiveis(ocupados)} (bloqueou na agenda pessoal). Veja se dá para mudar o horário.`)
   if (avisoSala) await notificarTicket(ticket, [condutor], null, `Sala ocupada: ${titulo}`, `${avisoSala}. A reunião foi marcada sem sala — escolha outro horário ou local.`)
   return (await carregarReuniao(ticket.id))!
+}
+
+/**
+ * Remarcar (José, 17/11/2026: "não consigo editar a data"): muda dia/hora/duração de uma reunião ainda não
+ * iniciada. A sala reservada anda junto (ocupada no novo horário = erro SALA_OCUPADA e nada muda); a pauta
+ * volta a ficar aberta (o corte é recalculado na leitura); título "Série — dd/mm/aaaa" ganha a data nova;
+ * participante com horário bloqueado só gera aviso. Todos recebem o aviso no sino.
+ */
+export async function remarcarReuniao(auth: Autenticado, r: ReuniaoCarregada, n: { dia: string; hora: string; duracao_min: number }): Promise<{ aviso: string | null }> {
+  const t = r.ticket
+  const inicio = inicioISO(n.dia, n.hora)
+  const fim = isoDe(n.dia, fimDaReuniao(n.hora, n.duracao_min))
+  const diaAntigo = t.reuniao_inicio ? diaSP(t.reuniao_inicio) : null
+  const brA = diaAntigo ? diaAntigo.split('-').reverse().join('/') : ''
+  const brN = n.dia.split('-').reverse().join('/')
+  const titulo = brA && t.titulo.endsWith(brA) ? `${t.titulo.slice(0, -brA.length)}${brN}` : t.titulo
+
+  const reserva = await reservaDaReuniao(t.id)
+  if (reserva) {
+    const res = await editarReserva(auth, reserva, { inicio, fim, titulo, descricao: reserva.descricao ?? null })
+    if ('conflito' in res) throw Object.assign(new Error(`${res.mensagem}. Escolha outro horário.`), { code: 'SALA_OCUPADA' })
+  }
+  const payload = { ...((t.payload as Record<string, unknown>) || {}), duracao_min: n.duracao_min }
+  ok(await supabaseAdmin.from('tickets').update({
+    prazo: n.dia, reuniao_inicio: inicio, titulo, payload,
+    ...(t.reuniao_etapa === 'pauta_fechada' ? { reuniao_etapa: 'agendada', status: ETAPA_INFO.agendada.status } : {}),
+  }).eq('id', t.id).select('id'))
+
+  const pessoas = r.presencas.map((p) => p.usuario_id)
+  const ocupados = await indisponiveis(pessoas, inicio, fim)
+  const aviso = ocupados.length ? `${mensagemIndisponiveis(ocupados)} (bloqueou na agenda pessoal).` : null
+  const de = t.reuniao_inicio ? `${brA} às ${new Date(t.reuniao_inicio).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}` : '—'
+  await registrarEvento(t.id, auth.userId, 'edicao', { campo: 'remarcar', de: t.reuniao_inicio, para: inicio, duracao_min: n.duracao_min })
+  await notificarTicket({ ...t, titulo }, pessoas, auth.userId, `Reunião remarcada: ${titulo}`, `Era ${de}. Agora: ${brN} às ${n.hora}.`)
+  return { aviso }
 }
 
 /** Copia para esta reunião os itens parking/adiado da anterior que ainda não foram copiados (idempotente). */
@@ -453,14 +538,20 @@ export async function publicarAta(auth: Autenticado, r: ReuniaoCarregada, link: 
     decididos, atrasadas: pend.atrasadas.length, link,
     acoes: lista.map((a) => ({ responsavel: nome[a.responsavel_id] || '—', titulo: a.titulo, prazo: a.prazo })),
   })
+  // anotações escritas durante a reunião (payload.ata_texto) entram na ata e no texto do WhatsApp
+  const anotacoes = String((r.ticket.payload as { ata_texto?: unknown } | null)?.ata_texto || '').trim()
+  const textoFinal = anotacoes
+    ? (() => { const l = texto.split('\n'); const link = l.pop()!; return [...l, '', `*Anotações:* ${anotacoes.length > 700 ? `${anotacoes.slice(0, 700)}…` : anotacoes}`, '', link].join('\n') })()
+    : texto
   const snapshot = {
+    anotacoes,
     reuniao: { id: r.ticket.id, numero: r.ticket.numero, titulo: r.ticket.titulo, inicio: r.ticket.reuniao_inicio, serie: r.serie ? { id: r.serie.id, nome: r.serie.nome } : null },
     itens: r.itens.map((i) => ({ id: i.id, ordem: i.ordem, pergunta: i.pergunta, tipo: i.tipo, trazido_por: i.trazido_por, trazido_por_nome: nome[i.trazido_por] || null, origem: i.origem, resultado: i.resultado, decisao_texto: i.decisao_texto, decisao_motivo: i.decisao_motivo, notas: i.notas })),
     acoes: lista.map((a) => ({ ...a, responsavel_nome: nome[a.responsavel_id] || null })),
     presencas: r.presencas.map((p) => ({ usuario_id: p.usuario_id, nome: nome[p.usuario_id] || null, papel: p.papel, presente: p.presente })),
     pendencias: { atrasadas: pend.atrasadas.map((p) => ({ id: p.id, numero: p.numero, titulo: p.titulo, dias_atraso: p.dias_atraso })), concluidas: pend.concluidas },
   }
-  const ata = ok(await supabaseAdmin.from('reunioes_ata').insert({ reuniao_id: r.ticket.id, publicada_por: auth.userId, snapshot, texto_whatsapp: texto }).select('*').single()) as AtaRow
+  const ata = ok(await supabaseAdmin.from('reunioes_ata').insert({ reuniao_id: r.ticket.id, publicada_por: auth.userId, snapshot, texto_whatsapp: textoFinal }).select('*').single()) as AtaRow
   await mudarEtapa(auth, r, 'ata_publicada')
   await registrarEvento(r.ticket.id, auth.userId, 'ata_publicada', { decididos, acoes: lista.length, atrasadas: pend.atrasadas.length })
   // Sugestões para a próxima reunião, se ela já existe (senão a criação dela puxa).
@@ -469,6 +560,6 @@ export async function publicarAta(auth: Autenticado, r: ReuniaoCarregada, link: 
     if (prox) await puxarSugestoes(prox, r.serie, auth.userId)
   }
   const destinatarios = r.presencas.map((p) => p.usuario_id)
-  await notificarTicket(r.ticket, destinatarios, auth.userId, `Ata publicada: ${r.ticket.titulo}`, `${decididos} decisão(ões) · ${lista.length} ação(ões) · ${pend.atrasadas.length} pendência(s) atrasada(s).`)
+  await notificarTicket(r.ticket, destinatarios, auth.userId, `Ata publicada: ${r.ticket.titulo}`, `${decididos} decisão(ões) · ${lista.length} tarefa(s) · ${pend.atrasadas.length} pendência(s) atrasada(s).`)
   return ata
 }

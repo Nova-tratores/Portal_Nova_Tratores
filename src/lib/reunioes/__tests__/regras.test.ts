@@ -170,7 +170,7 @@ describe('texto WhatsApp', () => {
     const t = textoWhatsApp({ ...base, acoes: [] })
     expect(t.split('\n')).toHaveLength(3)
     expect(t).toContain('📋 *Semanal Oficina — 13/10*')
-    expect(t).toContain('Ações novas: 0')
+    expect(t).toContain('Tarefas novas: 0')
   })
   it('com 10 ações trunca em 4 + "e mais N no portal" (8 linhas)', () => {
     const acoes = Array.from({ length: 10 }, (_, i) => ({ responsavel: `Pessoa ${i}`, titulo: `Ação ${i}`, prazo: '2026-10-20' }))

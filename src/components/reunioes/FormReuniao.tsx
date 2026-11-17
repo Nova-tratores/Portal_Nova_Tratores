@@ -1,13 +1,13 @@
 'use client'
 // Marcar uma reunião: avulsa (quem marca conduz) ou instância de uma série.
 import { useState } from 'react'
-import { X } from 'lucide-react'
 import UserSelect from '@/components/tickets/UserSelect'
 import type { UsuarioMin, Ticket } from '@/lib/tickets/constantes'
 import type { Serie } from '@/lib/reunioes/regras'
 import { secretarioDaVez } from '@/lib/reunioes/regras'
 import { Modal, campo, rotulo, botao, botaoClaro, chamar, hojeISO } from './comum'
 import CampoSala from '@/components/salas/CampoSala'
+import SeletorPessoas from './SeletorPessoas'
 import AvisoAgenda from '@/components/agenda/AvisoAgenda'
 
 export default function FormReuniao({ series, usuarios, meuId, serieInicial, onFechar, onCriada }: {
@@ -54,7 +54,7 @@ export default function FormReuniao({ series, usuarios, meuId, serieInicial, onF
   }
 
   return (
-    <Modal titulo="Marcar reunião" onFechar={onFechar}>
+    <Modal titulo="Marcar reunião" onFechar={onFechar} largura={780}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div>
           <label style={rotulo}>Série</label>
@@ -81,15 +81,8 @@ export default function FormReuniao({ series, usuarios, meuId, serieInicial, onF
         </div>
         <div>
           <label style={rotulo}>Participantes{serie && serie.participantes_padrao.length ? ` (além dos ${serie.participantes_padrao.length} padrão da série)` : ''}</label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
-            {participantes.map((id) => (
-              <span key={id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 999, fontSize: 12.5, background: 'var(--portal-bg,#f3f4f6)', color: 'var(--portal-text,#111)' }}>
-                {nome_(id)} <button onClick={() => setParticipantes(participantes.filter((x) => x !== id))} style={{ border: 'none', background: 'transparent', cursor: 'pointer', display: 'flex', padding: 0, color: 'inherit' }}><X size={12} /></button>
-              </span>
-            ))}
-          </div>
-          <UserSelect value="" placeholder="Adicionar participante…" excluir={[...participantes, condutor]} autoFocus={false}
-            onChange={(id, u) => { if (u) setNomesLocais((m) => ({ ...m, [id]: u.nome })); setParticipantes([...participantes, id]) }} />
+          <SeletorPessoas valor={participantes} excluir={[condutor]} fixos={serie?.participantes_padrao || []} placeholder="Digite o nome de quem participa…"
+            onChange={(ids, us) => { setParticipantes(ids); setNomesLocais((m) => ({ ...m, ...Object.fromEntries(ids.map((i) => [i, us[i]?.nome || m[i]])) })) }} />
         </div>
         <div>
           <label style={rotulo}>Visibilidade</label>

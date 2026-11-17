@@ -37,11 +37,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (acao === 'incluir') {
       const v = validarItem(body, true)
       if (!v.ok) return erro(v.erro)
-      let urgente = false
-      if (corteFechado) {
-        if (!souCondutor) return erro('A pauta já fechou (corte). Depois do corte só o condutor inclui item, como urgente.', 409)
-        urgente = true
-      }
+      // José, 17/11/2026: a trava do corte confundia ("pauta fechada — só o condutor inclui").
+      // Qualquer participante inclui até a ata ser fechada; o que entra depois do corte só ganha o selo "urgente".
+      const urgente = corteFechado && souCondutor
       const trazidoPor = v.campos.trazido_por || auth.userId
       const { data: maxRow } = await supabaseAdmin.from('reunioes_itens').select('ordem').eq('reuniao_id', id).order('ordem', { ascending: false }).limit(1)
       const { data: item, error } = await supabaseAdmin.from('reunioes_itens').insert({

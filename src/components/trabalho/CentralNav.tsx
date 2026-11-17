@@ -93,8 +93,10 @@ export default function CentralNav() {
   // Avisa a página aberta (Quadros/Cronograma) que algo novo foi criado.
   const avisarMudanca = () => window.dispatchEvent(new Event('central-trabalho-mudou'))
   const botao = (cor: string): React.CSSProperties => ({
-    display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: 'none', flex: 'none',
-    background: cor, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+    // NewPortal (José, 17/11/2026): cheio, sem negrito, cantos 11 — o transparente "ficou feio"
+    display: 'flex', alignItems: 'center', gap: 7, height: 38, padding: '0 15px', borderRadius: 11, border: 'none', flex: 'none',
+    background: cor, color: '#fefefe', fontSize: 13.5, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap',
+    boxShadow: `0 6px 14px -8px ${cor}`,
   })
 
   return (
@@ -113,8 +115,9 @@ export default function CentralNav() {
         ))}
         </div>
         <span className="ct-nav-acoes" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12 }}>
-          <button onClick={abrirNovoTicket} style={botao('#dc2626')}><TicketIcon size={15} /> Novo ticket</button>
-          <button onClick={() => setNovaTarefa(true)} style={botao('#16a34a')}><SquareCheck size={15} /> Nova tarefa</button>
+          {/* só na aba Quadros (José, 17/11/2026) */}
+          {emQuadros && <button onClick={abrirNovoTicket} style={botao('#dc2626')}><TicketIcon size={15} /> Novo ticket</button>}
+          {emQuadros && <button onClick={() => setNovaTarefa(true)} style={botao('#16a34a')}><SquareCheck size={15} /> Nova tarefa</button>}
           <button className="ct-nav-ajuda" onClick={() => setAjuda(true)} title="Como funciona" aria-label="Como funciona a Central de Trabalho"
             style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>?</button>
         </span>

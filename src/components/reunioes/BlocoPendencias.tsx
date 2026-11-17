@@ -91,7 +91,7 @@ export default function BlocoPendencias({ pend, usuarios, modoConducao, onTratar
         <AlertTriangle size={16} color={total ? '#dc2626' : '#9ca3af'} />
         <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--portal-text,#111)' }}>Pendências primeiro</span>
         <span style={chip(total ? '#dc2626' : '#6b7280', total ? 'rgba(220,38,38,.1)' : 'rgba(107,114,128,.12)')}>{pend.atrasadas.length} atrasada{pend.atrasadas.length === 1 ? '' : 's'} · {pend.vencendo.length} vencendo até {brCurto(pend.limite)}</span>
-        {pend.concluidas.n > 0 && <span title={pend.concluidas.titulos.join('\n')} style={chip('#059669', 'rgba(5,150,105,.1)')}>✓ {pend.concluidas.n} concluída{pend.concluidas.n === 1 ? '' : 's'} desde a última</span>}
+        {pend.concluidas.n > 0 && <span title={pend.concluidas.titulos.join('\n')} style={chip('#059669', 'rgba(5,150,105,.1)')}><CheckCircle2 size={12} /> {pend.concluidas.n} concluída{pend.concluidas.n === 1 ? '' : 's'} desde a última</span>}
         <span style={{ flex: 1 }} />
         {modoConducao && total > 0 && <Timer chave="pend" limiteMin={PENDENCIAS_MINUTOS} ativo />}
       </div>

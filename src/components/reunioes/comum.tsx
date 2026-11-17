@@ -1,6 +1,7 @@
 'use client'
 // Reuniões — peças e estilos compartilhados pelas telas.
 import { useEffect, useState } from 'react'
+import { Timer as Relogio } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import type { ReuniaoEtapa } from '@/lib/reunioes/regras'
 import { ETAPA_INFO } from '@/lib/reunioes/regras'
@@ -82,7 +83,7 @@ function TimerInner({ limiteMin, ativo }: { limiteMin: number; ativo: boolean })
   const mm = String(Math.floor(seg / 60)).padStart(2, '0'); const ss = String(seg % 60).padStart(2, '0')
   return (
     <span title={`Sugerido: ${limiteMin} min`} style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 500, fontSize: 14, padding: '3px 10px', borderRadius: 999, color: passou ? '#dc2626' : 'var(--portal-text-secondary,#555)', background: passou ? 'rgba(220,38,38,.1)' : 'var(--portal-bg,#f3f4f6)' }}>
-      ⏱ {mm}:{ss} <span style={{ fontWeight: 400, opacity: .7 }}>/ {limiteMin} min</span>
+      <Relogio size={13} style={{ verticalAlign: -2 }} /> {mm}:{ss} <span style={{ fontWeight: 400, opacity: .7 }}>/ {limiteMin} min</span>
     </span>
   )
 }
