@@ -15,7 +15,10 @@ import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
 import { norm, posDe, chaveProd, locacaoEtiqueta, labelSeg, posInvalida, posLabel, cmpSeg, ocupantesDe, type ProdutoLoc as Produto, type Pos } from '@/lib/ajustes/posicao';
 import { ModalMover, AvisoOcupado } from '@/components/ajustes/ModalMoverPeca';
-import { ChevronRight, ChevronDown, MapPin, AlertTriangle, Search, ArrowRightLeft, X, PackageOpen, Trash2, Plus, Tag, CheckCircle, ClipboardCheck, Hash, History } from 'lucide-react';
+import { ChevronRight, ChevronDown, MapPin, AlertTriangle, Search, ArrowRightLeft, X, PackageOpen, Trash2, Plus, Tag, CheckCircle, ClipboardCheck, Hash, History, Printer } from 'lucide-react';
+import { guardarDestino, layoutPadrao, lerAjusteTermica, lerDestino, locacaoAbreviada, normalizarLayout, type DestinoTermica, type ItemTermica, type LayoutCampo } from '@/lib/opa-pecas/etiqueta-termica';
+import { imprimirOuEnviar, lerSituacaoEstacao } from '@/lib/etiquetas/estacao-client';
+import type { SituacaoEstacao } from '@/lib/etiquetas/estacao';
 
 // tipos e helpers de posição: src/lib/ajustes/posicao.ts (compartilhados com o painel "A alocar")
 
@@ -164,6 +167,37 @@ export default function LocalizacaoPage() {
       setFlash(`Etiqueta na fila: ${linha.codigo}`);
       setTimeout(() => setFlash(null), 2200);
     } catch (e) { alert('Erro ao adicionar à fila: ' + (e as Error).message); }
+  }
+
+  // Imprime NA HORA (térmica), sem passar pela fila: mesmas medidas do Opa
+  // (ajuste salvo neste aparelho) ou na estação da ROGERIA, que usa o ajuste de lá.
+  // Linhas, barra e layout = os mesmos escolhidos na aba Etiquetas do PPV.
+  async function imprimirAgora(p: Produto) {
+    const EMPRESA_LABEL: Record<string, string> = { NOVA: 'NOVA TRATORES', CASTRO: 'CASTRO PEÇAS' };
+    const linha = {
+      conta: p.empresa, empresa: EMPRESA_LABEL[p.empresa] || p.empresa,
+      codigo: p.codigo || String(p.codigo_produto), descricao: (p.descricao || '').trim(),
+      locacao: locacaoEtiqueta(p.caracteristicas),
+    };
+    let barra = false; let layout: LayoutCampo[] = layoutPadrao();
+    try {
+      barra = localStorage.getItem('etiquetas_com_barra') === '1';
+      layout = normalizarLayout(JSON.parse(localStorage.getItem('etiquetas_termica_layout') || 'null')) || layout;
+    } catch { /* padrão */ }
+    const item: ItemTermica = {
+      codigo: linha.codigo, descricao: linha.descricao, local: locacaoAbreviada(linha.locacao), locGrande: true,
+      topo: linha.empresa, semQr: true, barra, layout,
+    };
+    const r = await imprimirOuEnviar([item], lerAjusteTermica(), 'ppv');
+    if (!r.ok) { aviso(r.erro); return; }
+    if (!r.enviado) aviso(`Imprimindo ${linha.codigo}…`);
+    // histórico das etiquetas (aba Etiquetas do PPV → reimprimir); não trava a impressão
+    try {
+      await fetch('/api/ppv/etiquetas/folhas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ formato: 'termica', rastreado: false, usadas: [], itens: [{ linhas: [linha] }] }),
+      });
+    } catch { /* segue */ }
   }
 
   // produtos da empresa selecionada
@@ -489,7 +523,7 @@ export default function LocalizacaoPage() {
       {conferirDeck && (
         <ModalConferirPosicao deck={conferirDeck} daEmpresa={daEmpresa} conferidas={conferidas}
           emContagem={emContagem} onContar={pedirContagem}
-          onMarcar={marcarConferencia} onTrocar={setColocar} onEtiqueta={addEtiqueta}
+          onMarcar={marcarConferencia} onTrocar={setColocar} onEtiqueta={addEtiqueta} onImprimir={imprimirAgora}
           onClose={() => setConferirDeck(null)} />
       )}
     </div>
@@ -696,7 +730,7 @@ const modalCard: React.CSSProperties = { ...box, width: 'min(560px, 96vw)', maxH
 // `localizacao_conferida`; "Quantidade diferente" = conferido + manda pra contagem. Ordem CONGELADA ao abrir; ocupantes FRESCOS (refletem
 // movimentações feitas na conferência). z-index 45 → o "Trocar" (ModalColocar,
 // z50) empilha por cima.
-function ModalConferirPosicao({ deck, daEmpresa, conferidas, emContagem, onContar, onMarcar, onTrocar, onEtiqueta, onClose }: {
+function ModalConferirPosicao({ deck, daEmpresa, conferidas, emContagem, onContar, onMarcar, onTrocar, onEtiqueta, onImprimir, onClose }: {
   deck: Pos[];
   daEmpresa: Produto[];
   conferidas: Map<string, InfoConf>;
@@ -705,9 +739,21 @@ function ModalConferirPosicao({ deck, daEmpresa, conferidas, emContagem, onConta
   onMarcar: (p: Produto, status: 'conferido' | 'divergente') => void;
   onTrocar: (pos: Pos) => void;
   onEtiqueta: (p: Produto) => void;
+  onImprimir: (p: Produto) => Promise<void>;
   onClose: () => void;
 }) {
   const [ordem] = useState<Pos[]>(deck);          // ordem congelada ao abrir
+  // onde a etiqueta sai (mesma escolha dos ajustes da térmica, lembrada neste aparelho)
+  const [destino, setDestino] = useState<DestinoTermica>(() => lerDestino());
+  const [estacao, setEstacao] = useState<SituacaoEstacao | null>(null);
+  const [imprimindo, setImprimindo] = useState<string | null>(null);
+  useEffect(() => { let vivo = true; void lerSituacaoEstacao().then((s) => { if (vivo) setEstacao(s); }); return () => { vivo = false; }; }, []);
+  const escolherDestino = (d: DestinoTermica) => { setDestino(d); guardarDestino(d); };
+  const imprimir = async (p: Produto) => {
+    if (imprimindo) return;
+    setImprimindo(chaveProd(p));
+    try { await onImprimir(p); } finally { setImprimindo(null); }
+  };
   const [idx, setIdx] = useState(0);
   const total = ordem.length;
   const pos = total ? ordem[Math.min(idx, total - 1)] : null;
@@ -729,6 +775,19 @@ function ModalConferirPosicao({ deck, daEmpresa, conferidas, emContagem, onConta
           <b style={{ fontSize: '.92rem', color: '#1e293b' }}>Conferir por posição</b>
           <span style={{ fontSize: '.78rem', color: '#64748b' }}>{Math.min(idx + 1, total)} / {total}</span>
           <button onClick={onClose} title="Fechar (Esc)" style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: '1.5rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderBottom: '1px solid #f1f5f9', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '.74rem', fontWeight: 700, color: '#64748b' }}>Etiqueta sai:</span>
+          {([['estacao', `Na ${estacao?.nome || 'ROGERIA'}`], ['local', 'Neste aparelho']] as const).map(([d, rot]) => (
+            <button key={d} type="button" onClick={() => escolherDestino(d)} aria-pressed={destino === d}
+              style={{ ...btn, padding: '6px 10px', minHeight: 34, fontSize: '.76rem', background: destino === d ? '#0f172a' : '#fff', color: destino === d ? '#fff' : '#334155', border: '1px solid ' + (destino === d ? '#0f172a' : '#cbd5e1') }}>
+              {d === 'estacao' && <span aria-hidden style={{ width: 8, height: 8, borderRadius: 8, background: estacao?.online ? '#16a34a' : '#dc2626' }} />}
+              {rot}
+            </button>
+          ))}
+          {destino === 'estacao' && estacao && !estacao.online && (
+            <span style={{ fontSize: '.7rem', color: '#b91c1c' }}>desligada: sai quando ligar</span>
+          )}
         </div>
         <div style={{ overflow: 'auto', padding: 16, flex: 1 }}>
           {!pos ? (
@@ -778,8 +837,15 @@ function ModalConferirPosicao({ deck, daEmpresa, conferidas, emContagem, onConta
                         <div style={{ fontSize: '.74rem', color: '#9a3412', marginTop: 6 }}>Sabe onde ela está? Use <b>Trocar/colocar</b> (ou Mover na lista) para gravar a posição certa.</div>
                       )}
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                        <button onClick={() => onTrocar(pos)} style={{ ...btn, flex: 1, justifyContent: 'center' }}><ArrowRightLeft size={14} /> Trocar/colocar</button>
-                        <button onClick={() => onEtiqueta(p)} style={{ ...btn, flex: 1, justifyContent: 'center' }}><Tag size={14} /> Etiqueta</button>
+                        <button onClick={() => imprimir(p)} disabled={!!imprimindo}
+                          title={destino === 'estacao' ? `Manda a etiqueta para a ${estacao?.nome || 'ROGERIA'}` : 'Imprime neste aparelho com as medidas da térmica do Opa'}
+                          style={{ ...bigBtn, fontSize: '.9rem', background: '#0f172a', color: '#fff', opacity: imprimindo && imprimindo !== chaveProd(p) ? 0.6 : 1 }}>
+                          <Printer size={16} /> {imprimindo === chaveProd(p) ? 'Mandando…' : 'Imprimir etiqueta'}
+                        </button>
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+                        <button onClick={() => onTrocar(pos)} style={{ ...btn, flex: 1, justifyContent: 'center', minHeight: 40 }}><ArrowRightLeft size={14} /> Trocar/colocar</button>
+                        <button onClick={() => onEtiqueta(p)} title="Põe na fila da aba Etiquetas do PPV para imprimir depois" style={{ ...btn, flex: 1, justifyContent: 'center', minHeight: 40 }}><Tag size={14} /> Pôr na fila</button>
                       </div>
                     </div>
                   );

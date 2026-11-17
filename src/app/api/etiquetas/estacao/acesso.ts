@@ -4,7 +4,8 @@ import { EstacaoSemMigracao } from '@/lib/etiquetas/estacao-server'
 
 // Quem tem acesso a alguma tela de etiqueta (PPV, Opa Peças S/Estoque, Patrimônio)
 // manda para a estação — e a própria estação entra com um login desses.
-export const ACESSO_ETIQUETAS = [{ modulo: 'ppv', acao: 'etiquetas' }, { modulo: 'opa-pecas' }, { modulo: 'patrimonio' }]
+// + Localização física: a conferência por posição imprime direto (16/11/2026).
+export const ACESSO_ETIQUETAS = [{ modulo: 'ppv', acao: 'etiquetas' }, { modulo: 'opa-pecas' }, { modulo: 'patrimonio' }, { modulo: 'ajustes', acao: 'localizacao' }]
 
 // Nome com "guardar" de propósito: é a guarda que o teste de rotas (rotas-gate.ts) reconhece.
 export async function guardarEstacaoEtiquetas(req: Request) {
