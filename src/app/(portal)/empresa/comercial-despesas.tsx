@@ -92,7 +92,15 @@ export function TelaDespesasNova({ mesesBase, onFechar, setor: S = 'comercial', 
         <GraficoAnos meses={meses} mes={mes} setMes={setMes} S={S} faturouPorMes={faturouPorMes} />
       </Secao>
 
-      {jan && <JanelaLanc {...jan} onFechar={() => setJan(null)} />}
+      {/* as duas bases lado a lado, explicadas (auditoria 16/11, D5 — o Comercial já tinha a nota) */}
+      <p className="cma-nota">
+        {S === 'posvendas' ? <>&quot;Vendeu&quot; = OS faturadas, a mesma conta da Gestão do Pós-Vendas e do cartão de Faturamento (inclui as peças vendidas nas OS). </>
+          : S === 'pecas' ? <>&quot;Vendeu&quot; = pedidos de peças faturados, a mesma conta do Dashboard de Vendas e do cartão de Faturamento. </>
+          : <>&quot;Vendeu&quot; = a receita do Comercial na contabilidade (DRE do Omie). </>}
+        Custos e despesas vêm da contabilidade (DRE do Omie), conta por conta. Por isso a receita que aparece em &quot;Cada conta&quot; pode ser diferente do &quot;vendeu&quot;: lá ela segue as regras do contador (ex.: peças das OS caem no Pós-Vendas).
+      </p>
+
+      {jan &&<JanelaLanc {...jan} onFechar={() => setJan(null)} />}
     </TelaCheia>
   )
 }

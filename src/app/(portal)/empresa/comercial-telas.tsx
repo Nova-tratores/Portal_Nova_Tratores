@@ -644,11 +644,12 @@ export type MaqVE = { codigo_produto: number; descricao: string; familia_nome: s
 export type Patio = { ambientes: Record<string, MaqVE[]>; total: number }
 /** a conta do estoque, igual no cartão e na tela (José, 12/11: o cartão dizia 37 e a tela 42):
  *  "na loja" = tudo menos o que está em demonstração com cliente; unidades pela quantidade em estoque */
+/** unidades: uma linha do cadastro com estoque 2 são 2 máquinas (mapa, cartão e faixas contam igual — auditoria 16/11, D3) */
+export const un = (l: MaqVE[]) => l.reduce((a, m) => a + Math.max(1, Math.round(m.estoque || 1)), 0)
 export function resumoLoja(p: Patio) {
   const loja = Object.entries(p.ambientes).filter(([k]) => k !== 'demonstracao').flatMap(([, l]) => l).filter((m) => !/requisi|####/i.test(m.familia_nome || ''))
   const demo = (p.ambientes.demonstracao || [])
-  const un = (l: MaqVE[]) => l.reduce((a, m) => a + Math.max(1, Math.round(m.estoque || 1)), 0)
-  return { loja, demo, qtdLoja: un(loja), qtdDemo: un(demo), valorLoja: loja.reduce((a, m) => a + m.valor_estoque, 0), velhas: un(loja.filter((m) => m.dias_em_estoque > 365)) }
+  return { loja, demo, qtdLoja: un(loja), qtdDemo: un(demo), valorLoja: loja.reduce((a, m) => a + m.valor_estoque, 0), valorDemo: demo.reduce((a, m) => a + m.valor_estoque, 0), velhas: un(loja.filter((m) => m.dias_em_estoque > 365)) }
 }
 const AMB: Record<string, { nome: string; cor: string; zona?: { x: number; y: number; w: number; h: number } }> = {
   patio: { nome: 'Pátio', cor: '#2563eb', zona: { x: 0.3, y: 0.6, w: 44.7, h: 98.8 } },
@@ -722,11 +723,11 @@ export function MapaEstoque({ d, onLocal }: { d: Patio; onLocal: (k: string) => 
         <div className="cmz-loja">
           {(['patio', 'oficina', 'showroom', 'oficina2'] as const).map((k) => {
             const z = AMB[k].zona!, ms = d.ambientes[k] || []
-            const velhas = ms.filter((m) => m.dias_em_estoque > 365).length
+            const velhas = un(ms.filter((m) => m.dias_em_estoque > 365))
             return (
               <button key={k} className={`cmz-zona${ms.length ? '' : ' vazia'}`} disabled={!ms.length} style={{ left: `${z.x}%`, top: `${z.y}%`, width: `${z.w}%`, height: `${z.h}%` }} onClick={() => setLocal(k)}>
                 <span className="cmz-nome">{AMB[k].nome}</span>
-                <b>{ms.length}</b>
+                <b>{un(ms)}</b>
                 {ms.length ? <span className="cmz-val">{compacto(ms.reduce((a, m) => a + m.valor_estoque, 0))}</span> : null}
                 {velhas ? <small>{velhas} há +1 ano</small> : null}
               </button>
@@ -738,11 +739,11 @@ export function MapaEstoque({ d, onLocal }: { d: Patio; onLocal: (k: string) => 
       <div className="cmz-fora">
         {(['barracao', 'demonstracao'] as const).map((k) => {
           const ms = d.ambientes[k] || []
-          const velhas = ms.filter((m) => m.dias_em_estoque > 365).length
+          const velhas = un(ms.filter((m) => m.dias_em_estoque > 365))
           return (
             <button key={k} className={`cmz-zona cmz-solta${ms.length ? '' : ' vazia'}`} disabled={!ms.length} onClick={() => setLocal(k)}>
               <span className="cmz-nome">{AMB[k].nome}</span>
-              <b>{ms.length}</b>
+              <b>{un(ms)}</b>
               {ms.length ? <span className="cmz-val">{compacto(ms.reduce((a, m) => a + m.valor_estoque, 0))}</span> : null}
               {velhas ? <small>{velhas} há +1 ano</small> : null}
             </button>
@@ -766,10 +767,12 @@ export function TelaEstoque({ onFechar, depois, kpiExtra, localInicial }: { onFe
   const setLocal = (k: string) => d && setLista({ titulo: AMB[k].nome, cor: AMB[k].cor, ms: d.ambientes[k] || [] })
   const [msg, setMsg] = useState<string | null>(null)
   const todas = d ? Object.values(d.ambientes).flat() : []
-  const valor = todas.reduce((a, m) => a + m.valor_estoque, 0), custo = todas.reduce((a, m) => a + m.custo_capital, 0), mes = todas.reduce((a, m) => a + m.custo_capital_mes, 0)
-  const medio = todas.length ? Math.round(todas.reduce((a, m) => a + m.dias_em_estoque, 0) / todas.length) : 0
+  const custo = todas.reduce((a, m) => a + m.custo_capital, 0), mes = todas.reduce((a, m) => a + m.custo_capital_mes, 0)
+  const rl = d ? resumoLoja(d) : null, naLoja = rl?.loja || []
+  const valorLoja = rl?.valorLoja || 0
+  const medio = naLoja.length ? Math.round(naLoja.reduce((a, m) => a + m.dias_em_estoque, 0) / naLoja.length) : 0
   const faixas = [{ n: 'Até 6 meses', f: (x: number) => x <= 180, cor: '#22c55e' }, { n: '6 meses a 1 ano', f: (x: number) => x > 180 && x <= 365, cor: '#f59e0b' }, { n: 'Mais de 1 ano', f: (x: number) => x > 365, cor: '#dc2626' }]
-    .map((q) => { const l = todas.filter((m) => q.f(m.dias_em_estoque)); return { ...q, qtd: l.length, valor: l.reduce((a, m) => a + m.valor_estoque, 0) } })
+    .map((q) => { const l = naLoja.filter((m) => q.f(m.dias_em_estoque)); return { ...q, ms: l, qtd: un(l), valor: l.reduce((a, m) => a + m.valor_estoque, 0) } })
   const mudarLocal = async (m: MaqVE, ambiente: string) => {
     setMovendo(true); setMsg(null)
     try {
@@ -795,10 +798,10 @@ export function TelaEstoque({ onFechar, depois, kpiExtra, localInicial }: { onFe
         <div className="cmt-kpis">
           <button className="cmt-kpi cmt-kpi-bt" onClick={() => setLista({ titulo: 'Máquinas na loja', ms: resumoLoja(d).loja, ordem: 'dias' })}><small>Máquinas na loja</small><b>{resumoLoja(d).qtdLoja}</b><em>+ {resumoLoja(d).qtdDemo} em demonstração · parada em média {tempoParada(medio)}</em></button>
           {kpiExtra /* propostas em aberto, ao lado de Máquinas na loja (José, 12/11) */}
-          <button className="cmt-kpi cmt-kpi-bt" onClick={() => setLista({ titulo: 'Dinheiro parado', ms: todas, ordem: 'valor' })}><small>Dinheiro parado</small><b style={{ color: '#b45309' }}>{compacto(valor)}</b><em>pelo que pagamos nelas</em></button>
-          <button className="cmt-kpi cmt-kpi-bt" onClick={() => setLista({ titulo: 'Já custou ficar parado', ms: todas, ordem: 'custo' })}><small>Já custou ficar parado</small><b style={{ color: COR_SAIU }}>{compacto(custo)}</b><em>o que esse dinheiro teria rendido na SELIC</em></button>
-          <button className="cmt-kpi cmt-kpi-bt" onClick={() => setLista({ titulo: 'Custa por mês', ms: todas, ordem: 'mes' })}><small>Custa por mês</small><b style={{ color: COR_SAIU }}>{compacto(mes)}</b><em>somando todas as paradas</em></button>
-          {faixas.map((q) => <button key={q.n} className="cmt-kpi cmt-kpi-bt" disabled={!q.qtd} onClick={() => setLista({ titulo: `Paradas: ${q.n.toLowerCase()}`, cor: q.cor, ms: todas.filter((m) => q.f(m.dias_em_estoque)), ordem: 'dias' })}><small>{q.n}</small><b style={{ color: q.cor }}>{q.qtd}</b><em>{compacto(q.valor)}</em></button>)}
+          <button className="cmt-kpi cmt-kpi-bt" onClick={() => setLista({ titulo: 'Dinheiro parado na loja', ms: naLoja, ordem: 'valor' })}><small>Dinheiro parado na loja</small><b style={{ color: '#b45309' }}>{compacto(valorLoja)}</b><em>pelo que pagamos nelas{rl?.valorDemo ? ` · + ${compacto(rl.valorDemo)} em demonstração` : ''}</em></button>
+          <button className="cmt-kpi cmt-kpi-bt" onClick={() => setLista({ titulo: 'Já custou ficar parado', ms: todas, ordem: 'custo' })}><small>Já custou ficar parado</small><b style={{ color: COR_SAIU }}>{compacto(custo)}</b><em>o que esse dinheiro teria rendido na SELIC{rl?.qtdDemo ? ' · conta as em demonstração' : ''}</em></button>
+          <button className="cmt-kpi cmt-kpi-bt" onClick={() => setLista({ titulo: 'Custa por mês', ms: todas, ordem: 'mes' })}><small>Custa por mês</small><b style={{ color: COR_SAIU }}>{compacto(mes)}</b><em>somando todas{rl?.qtdDemo ? ', inclusive em demonstração' : ''}</em></button>
+          {faixas.map((q) => <button key={q.n} className="cmt-kpi cmt-kpi-bt" disabled={!q.qtd} onClick={() => setLista({ titulo: `Na loja: ${q.n.toLowerCase()}`, cor: q.cor, ms: q.ms, ordem: 'dias' })}><small>{q.n}</small><b style={{ color: q.cor }}>{q.qtd}</b><em>{compacto(q.valor)}</em></button>)}
         </div>
       )}
       {depois}

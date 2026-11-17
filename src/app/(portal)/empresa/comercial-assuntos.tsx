@@ -285,7 +285,7 @@ function TelaFaturamento({ d, meses, onFechar }: { d: DadosComercial | null; mes
               <thead><tr><th>Cliente</th><th>Máquina</th><th>Vendedor</th><th>Pedido</th><th>Valor</th><th>Nota</th></tr></thead>
               <tbody>{l.map((v, k) => (
                 <tr key={k}>
-                  <td>{v.cliente || 'cliente'}{v.conta === 'CASTRO' ? <small>Castro</small> : null}</td>
+                  <td>{v.cliente || 'pedido sem nome do cliente'}{v.conta === 'CASTRO' ? <small>Castro</small> : null}</td>
                   <td>{v.modelo}{v.qtd > 1 ? ` · ${v.qtd} unidades` : ''}<small>{TIPO_UM[v.tipo]}</small></td>
                   <td>{v.vendedor || '—'}</td>
                   <td>{v.pedido || '—'}</td>
@@ -319,7 +319,7 @@ function TelaFaturamento({ d, meses, onFechar }: { d: DadosComercial | null; mes
                   <div className="cmt-tab-wrap"><table className="cmt-tab cmfat-tab">
                     <thead><tr><th>Cliente</th><th>Máquina</th><th>Vendemos por</th><th>Pagamos</th><th>Margem</th></tr></thead>
                     <tbody>{ls.map((v, k) => (
-                      <tr key={k} className={v.mg == null ? '' : v.mg < 0 ? 'mg-ruim' : v.mg >= 0.15 ? 'mg-boa' : ''}><td>{v.cliente || 'cliente'}<small>{v.vendedor || 'sem vendedor'}{v.pedido ? ` · pedido ${v.pedido}` : ''}</small></td><td>{v.modelo}<small>{TIPO_UM[v.tipo]}</small></td>
+                      <tr key={k} className={v.mg == null ? '' : v.mg < 0 ? 'mg-ruim' : v.mg >= 0.15 ? 'mg-boa' : ''}><td>{v.cliente || 'pedido sem nome do cliente'}<small>{v.vendedor || 'sem vendedor'}{v.pedido ? ` · pedido ${v.pedido}` : ''}</small></td><td>{v.modelo}<small>{TIPO_UM[v.tipo]}</small></td>
                         <td className="val">{brl(v.valor)}</td><td className="val">{v.custo ? brl(v.custo) : '—'}</td>
                         <td className="val mg" style={{ color: v.mg == null ? '#64748b' : v.mg < 0 ? COR_SAIU : v.mg >= 0.15 ? COR_FICOU : '#0f172a' }}>{v.mg == null ? '—' : `${Math.round(v.mg * 100)}%`}</td></tr>
                     ))}</tbody>
@@ -401,7 +401,7 @@ function JanelaVendidas({ titulo, l, onFechar }: { titulo: string; l: VendaCal[]
                 <span className="cmv-jan-q">{x.qtd}</span><span className="cmv-jan-n">{x.mod}<small>{TIPO_UM[x.vs[0].tipo]}</small></span><b>{compacto(x.valor)}</b><i className={`fas fa-chevron-${aberto === x.mod ? 'up' : 'down'}`} />
               </button>
               {aberto === x.mod && x.vs.sort((a, b) => b.mes.localeCompare(a.mes)).map((v, k) => (
-                <div key={k} className="cmj-it cmv-jan-v"><span>{v.cliente || 'cliente'}<small>{[cap(nomeMes(v.mes)), v.vendedor || 'sem vendedor no pedido', v.pedido ? `pedido ${v.pedido}` : ''].filter(Boolean).join(' · ')}</small></span><b>{brl(v.valor)}</b></div>
+                <div key={k} className="cmj-it cmv-jan-v"><span>{v.cliente || 'pedido sem nome do cliente'}<small>{[cap(nomeMes(v.mes)), v.vendedor || 'sem vendedor no pedido', v.pedido ? `pedido ${v.pedido}` : ''].filter(Boolean).join(' · ')}</small></span><b>{brl(v.valor)}</b></div>
               ))}
             </div>
           ))}

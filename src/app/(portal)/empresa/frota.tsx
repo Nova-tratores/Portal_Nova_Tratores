@@ -36,10 +36,11 @@ function AbaAgora() {
   const [menu, setMenu] = useState<string | null>(null) // cartão com o menu aberto
   const [setor, setSetor] = useState<string>('todos')
   const vivoDe = useMemo(() => new Map((vv?.veiculos || []).map((v) => [v.placa, v])), [vv])
-  const lista = (vs?.veiculos || []).filter((v) => v.tipo_registro === 'veiculo' && v.ativo && v.status !== 'vendido' && v.status !== 'arquivado')
+  const lista = (vs?.veiculos || []).filter(naFrota)
     .sort((a, b) => (a.setor || 'z').localeCompare(b.setor || 'z') || a.placa.localeCompare(b.placa))
   const setores = [...new Set(lista.map((v) => v.setor || 'outros'))]
   const mostrados = lista.filter((v) => setor === 'todos' || (v.setor || 'outros') === setor)
+  const semMapa = lista.filter((v) => !vivoDe.has(v.placa)).length
   const contaStatus = (s: StatusVivo) => lista.filter((v) => vivoDe.get(v.placa)?.status === s).length
   // primeiro os carros com setor e pessoa vinculada; os outros num bloco fechado (José, 12/11)
   const temVinculo = (v: Veiculo) => !!v.setor && !!(vivoDe.get(v.placa)?.nome || v.responsavel_nome)
@@ -83,7 +84,7 @@ function AbaAgora() {
   return (
     <div className="cfr">
       <section className="cmt-sec">
-        <div className="cmt-sec-cab"><h3>Onde estão os carros agora</h3><span>{vv ? (['andando', 'ligado_parado', 'desligado', 'sem_sinal'] as StatusVivo[]).map((s) => `${contaStatus(s)} ${STATUS_INFO[s].label.toLowerCase()}`).join(' · ') : 'buscando a posição…'}</span></div>
+        <div className="cmt-sec-cab"><h3>Onde estão os carros agora</h3><span>{vv ? (['andando', 'ligado_parado', 'desligado', 'sem_sinal'] as StatusVivo[]).map((s) => `${contaStatus(s)} ${STATUS_INFO[s].label.toLowerCase()}`).join(' · ') + (semMapa ? ` · ${semMapa} sem rastreador (fora do mapa)` : '') : 'buscando a posição…'}</span></div>
         {/* o MapaCarros usa height:100%: precisa de um pai com altura; zIndex 0 prende os painéis do Leaflet dentro do mapa */}
         <div className="cfr-mapa"><MapaCarros carros={[]} modo="frota" foco={foco} /></div>
       </section>
@@ -132,10 +133,13 @@ export function FrotaMapaCards() {
   const manutMes = (mtC?.manutencoes || []).filter((x) => (x.data || '').startsWith(hoje.slice(0, 7))).reduce((a, x) => ({ v: a.v + (Number(x.valor_total) || 0), n: a.n + 1 }), { v: 0, n: 0 })
   const { d: vs } = useJson<{ veiculos: Veiculo[] }>('/api/frota/veiculos')
   const fechar = () => setTela(null)
-  const ativos = (vs?.veiculos || []).filter((v) => v.tipo_registro === 'veiculo' && v.ativo && v.status !== 'vendido' && v.status !== 'arquivado')
+  const ativos = (vs?.veiculos || []).filter(naFrota)
+  const veicC = new Map((vs?.veiculos || []).map((v) => [v.placa, v]))
+  const placasVivo = new Set((vv?.veiculos || []).map((v) => v.placa))
+  const foraDoMapa = ativos.filter((v) => !placasVivo.has(v.placa)).length
   const conta = (st: StatusVivo) => (vv?.veiculos || []).filter((v) => v.status === st).length
   const mAb = ab?.evolucaoMensal[ab.evolucaoMensal.length - 1]
-  const abertas = (pd?.pendencias || []).filter((x) => x.status === 'aberta')
+  const abertas = (pd?.pendencias || []).filter((x) => pendConta(x, veicC))
   const andando = (vv?.veiculos || []).filter((v) => v.status === 'andando')
   const cartao = (t: AbaFr, cor: string, ic: string, nome: string, num: string, linha: React.ReactNode, extra?: React.ReactNode, cls = '') => (
     <button className={`cml-card ${cls}`} style={{ ['--c' as string]: cor }} onClick={() => setTela(t)}>
@@ -149,14 +153,14 @@ export function FrotaMapaCards() {
     <div className="pf cml">
       <div className="cml-grade">
         {cartao('agora', '#0e7490', 'fa-location-dot', 'Onde estão agora', ativos.length ? plural(ativos.length, 'carro', 'carros') : '—',
-          vv ? <>{conta('andando')} andando · {conta('ligado_parado')} parado ligado · {conta('desligado')} desligado{conta('sem_sinal') ? ` · ${conta('sem_sinal')} sem sinal` : ''}</> : 'buscando a posição…',
+          vv ? <>{conta('andando')} andando · {conta('ligado_parado')} parado ligado · {conta('desligado')} desligado{conta('sem_sinal') ? ` · ${conta('sem_sinal')} sem sinal` : ''}{foraDoMapa ? ` · ${foraDoMapa} sem rastreador` : ''}</> : 'buscando a posição…',
           andando.length ? <span className="cml-extras">{andando.slice(0, 4).map((v) => <span key={v.placa}><i className="fas fa-car-side" /><b>{v.nome ? v.nome.split(' ')[0] : v.placa}</b> {v.cidade || ''}<small>{v.local || 'em deslocamento'}</small></span>)}</span> : null, 'cml-g')}
         {cartao('abast', '#0891b2', 'fa-gas-pump', 'Abastecimentos', mAb ? compacto(mAb.valor) : '—',
-          mAb ? <>gasto em {nomeMes(mAb.mes)}{mAb.mes === hoje.slice(0, 7) ? ' até hoje' : ''} · {Math.round(mAb.litros).toLocaleString('pt-BR')} litros</> : 'carregando…')}
+          mAb ? <>gasto em {nomeMes(mAb.mes)}{mAb.mes === hoje.slice(0, 7) ? ' até hoje' : ''} · {Math.round(mAb.litros).toLocaleString('pt-BR')} litros{cartaoAtrasado(ab?.ultimoCartao, hoje) ? <> · <span style={{ color: '#d97706' }}>cartão-frota só até {diaMes(ab!.ultimoCartao!)}</span></> : null}</> : 'carregando…')}
         {cartao('manut', '#7c3aed', 'fa-wrench', 'Manutenções e revisões', semPlanos ? (mtC ? compacto(manutMes.v) : '—') : pv ? String(pv.resumo.vencida) : '—',
           semPlanos ? <>manutenção em {nomeMes(hoje.slice(0, 7))} · {plural(manutMes.n, 'serviço', 'serviços')} · sem plano de revisão cadastrado</> : pv ? <>revisões vencidas · {pv.resumo.em_breve} vencem logo{pv.resumo.pctEmDia != null ? ` · ${pv.resumo.pctEmDia}% em dia` : ''}</> : 'carregando…')}
-        {cartao('pend', '#d97706', 'fa-screwdriver-wrench', 'Pendências', pd ? String(abertas.length) : '—',
-          pd ? <>abertas em {plural(new Set(abertas.map((x) => x.placa)).size, 'carro', 'carros')}</> : 'carregando…', null, 'cpv-oficina')}
+        {cartao('pend', '#d97706', 'fa-screwdriver-wrench', 'Pendências', pd && vs ? String(abertas.length) : '—',
+          pd && vs ? <>abertas em {plural(new Set(abertas.map((x) => x.placa)).size, 'carro', 'carros')}</> : 'carregando…', null, 'cpv-oficina')}
       </div>
       {tela === 'agora' && <TelaCheia titulo="Onde estão os carros agora" sub="posição real de cada carro e um cartão por veículo" onFechar={fechar}><AbaAgora /></TelaCheia>}
       {tela === 'abast' && <TelaCheia titulo="Abastecimentos" sub="cartão-frota + requisições, e os km do rastreador" onFechar={fechar}><AbaAbastecimentos /></TelaCheia>}
@@ -166,6 +170,16 @@ export function FrotaMapaCards() {
   )
 }
 
+/** carro que conta na frota: o mesmo corte no cartão e no detalhe (auditoria 16/11, D1/D2) */
+const naFrota = (v: Veiculo) => v.tipo_registro === 'veiculo' && v.ativo && v.status !== 'vendido' && v.status !== 'arquivado'
+/** pendência que conta: carro desconhecido conta; carro fora da frota (vendido, desligado) não */
+const pendConta = (x: Pend, veic: Map<string, Veiculo>) => x.status === 'aberta' && (!veic.has(x.placa) || naFrota(veic.get(x.placa)!))
+/** número com vírgula (9,2 km/l) e real com centavos para o que é por litro/por km — auditoria 16/11, D6 */
+const dec1 = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+const centavos = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+/** cartão-frota sem importação há mais de 7 dias: o mês fica só com as requisições (auditoria 16/11, D7) */
+const cartaoAtrasado = (ult: string | null | undefined, hoje: string) => !!ult && Date.parse(hoje + 'T12:00:00') - Date.parse(ult) > 7 * 86_400_000
+const diaMes = (iso: string) => iso.slice(0, 10).split('-').reverse().slice(0, 2).join('/')
 const motoristaDe = (v: Veiculo | undefined) => v?.responsavel_nome || 'sem motorista'
 /** placa + modelo + motorista, com a foto do carro */
 function CarroMini({ placa, veic, extra }: { placa: string; veic: Map<string, Veiculo>; extra?: string }) {
@@ -218,11 +232,12 @@ function AbaAbastecimentos() {
     <div className="cfr">
       {/* troca de mês (José, 12/11) */}
       <div className="cpv-topo"><NavMes meses={meses.map((x) => x.mes)} mes={mes} setMes={setMes} /><span className="cpv-frase">{cap(nomeMes(mes))}{parcial ? ' até hoje' : ''}: <b>{compacto(m?.valor || 0)}</b> em {Math.round(m?.litros || 0).toLocaleString('pt-BR')} litros.</span></div>
+      {cartaoAtrasado(d.ultimoCartao, hoje) && <div className="cm-aviso">O cartão-frota foi importado só até <b>{diaMes(d.ultimoCartao!)}</b>. Depois disso só entram as requisições de abastecimento, por isso os meses seguintes aparecem menores. Importe o arquivo do cartão em Frota → Abastecimento.</div>}
       <div className="cpv-kpis">
         <button className="cmt-kpi cmt-kpi-bt" onClick={() => setJan('gasto')}><small>Gasto em {nomeMes(mes)}{parcial ? ' até hoje' : ''}</small><b>{compacto(m?.valor || 0)}</b><em>{m?.varMes != null && !parcial ? <span style={{ color: m.varMes <= 0 ? '#15803d' : '#dc2626' }}>{m.varMes > 0 ? '+' : ''}{Math.round(m.varMes)}% que o mês anterior</span> : parcial && d.projecao ? `no ritmo, fecha em ${compacto(d.projecao.projetado)}` : ''}</em></button>
-        <button className="cmt-kpi cmt-kpi-bt" onClick={() => setJan('litros')}><small>Litros</small><b>{Math.round(m?.litros || 0).toLocaleString('pt-BR')} L</b><em>{m && m.litros ? `${brl(m.valor / m.litros)} por litro` : ''}</em></button>
+        <button className="cmt-kpi cmt-kpi-bt" onClick={() => setJan('litros')}><small>Litros</small><b>{Math.round(m?.litros || 0).toLocaleString('pt-BR')} L</b><em>{m && m.litros ? `${centavos(m.valor / m.litros)} por litro` : ''}</em></button>
         <button className="cmt-kpi cmt-kpi-bt" onClick={() => setJan('ano')}><small>12 meses</small><b>{compacto(meses.reduce((a, x) => a + x.valor, 0))}</b><em>{media != null ? `média de ${compacto(media)} por mês` : ''}</em></button>
-        <button className="cmt-kpi cmt-kpi-bt" onClick={() => setJan('consumo')}><small>Km rodados (rastreador)</small><b>{kmG ? `${kmTot.toLocaleString('pt-BR')} km` : '…'}</b><em>{kmlGps ? `${kmlGps.toFixed(1)} km/l pelo GPS · ` : ''}{kmTot && m?.valor ? `${brl(m.valor / kmTot)} por km` : ''}{alertas ? <> · <span style={{ color: '#d97706' }}>{plural(alertas, 'alerta', 'alertas')}</span></> : null}</em></button>
+        <button className="cmt-kpi cmt-kpi-bt" onClick={() => setJan('consumo')}><small>Km rodados (rastreador)</small><b>{kmG ? `${kmTot.toLocaleString('pt-BR')} km` : '…'}</b><em>{kmlGps ? `${dec1(kmlGps)} km/l pelo GPS · ` : ''}{kmTot && m?.valor ? `${centavos(m.valor / kmTot)} por km` : ''}{alertas ? <> · <span style={{ color: '#d97706' }}>{plural(alertas, 'alerta', 'alertas')}</span></> : null}</em></button>
       </div>
       <Secao titulo="Gasto por mês" sub="clique num mês para ver os carros">
         <div className="cpv-g-cols cfr-g">
@@ -245,7 +260,7 @@ function AbaAbastecimentos() {
             <div key={x.placa} className="cdp-conta cpv-linha cpv-fixa">
               <CarroMini placa={x.placa} veic={veic} />
               <span className="cdp-conta-bar"><span style={{ width: `${Math.max(3, (x.valor / maxV) * 100)}%`, background: '#0891b2' }} /></span>
-              <small>{Math.round(x.litros)} L{x.kml ? ` · ${x.kml.toFixed(1)} km/l` : ''}</small><b>{compacto(x.valor)}</b><i />
+              <small>{Math.round(x.litros)} L{x.kml ? ` · ${dec1(x.kml)} km/l` : ''}</small><b>{compacto(x.valor)}</b><i />
             </div>
           )) : <div className="ce-mudo">Nenhum abastecimento nesse mês.</div>}
         </Secao>
@@ -255,7 +270,7 @@ function AbaAbastecimentos() {
               <CarroMini placa={x.placa} veic={veic} />
               <span className="cfr-cruz-n"><b>{x.temGps ? (x.km != null ? `${x.km.toLocaleString('pt-BR')} km` : '0 km') : 'sem GPS'}</b><small>rodou</small></span>
               <span className="cfr-cruz-n"><b>{x.litros ? `${Math.round(x.litros)} L` : '—'}</b><small>abasteceu</small></span>
-              <span className="cfr-cruz-n"><b>{x.kml ? x.kml.toFixed(1) : '—'}</b><small>km/l</small></span>
+              <span className="cfr-cruz-n"><b>{x.kml ? dec1(x.kml) : '—'}</b><small>km/l</small></span>
               {x.alerta ? <em><i className="fas fa-triangle-exclamation" /> {x.alerta}</em> : <em className="ok" />}
             </div>
           )) : <div className="ce-mudo">Sem dados no mês.</div>}
@@ -271,7 +286,7 @@ function AbaAbastecimentos() {
             <tbody>{[...meses].reverse().map((x) => (
               <tr key={x.mes} className="cmm-l" style={{ cursor: 'pointer' }} onClick={() => { setMes(x.mes); setJan(null) }}>
                 <td>{cap(nomeMes(x.mes, true))}</td><td className="val"><b>{brl(x.valor)}</b></td><td className="val">{Math.round(x.litros).toLocaleString('pt-BR')} L</td>
-                <td className="val">{x.litros ? brl(x.valor / x.litros) : '—'}</td>
+                <td className="val">{x.litros ? centavos(x.valor / x.litros) : '—'}</td>
                 <td className="val" style={{ color: x.varMes == null ? undefined : x.varMes <= 0 ? '#15803d' : '#dc2626' }}>{x.varMes != null ? `${x.varMes > 0 ? '+' : ''}${Math.round(x.varMes)}%` : '—'}</td>
                 <td className="val" style={{ color: x.varAno == null ? undefined : x.varAno <= 0 ? '#15803d' : '#dc2626' }}>{x.varAno != null ? `${x.varAno > 0 ? '+' : ''}${Math.round(x.varAno)}%` : '—'}</td>
               </tr>
@@ -290,9 +305,9 @@ function AbaAbastecimentos() {
                   <td><CarroMini placa={c.placa} veic={veic} /></td>
                   <td className="val">{Math.round(c.kmRodado).toLocaleString('pt-BR')} km</td>
                   <td className="val">{Math.round(c.litrosConsiderados).toLocaleString('pt-BR')} L</td>
-                  <td className="val"><b>{c.kmPorLitro.toFixed(1)}</b></td>
-                  <td className="val">{brl(c.custoPorKm)}</td>
-                  <td className="val">{an ? <span className="cff-doc vencendo">{an.kmlRecente.toFixed(1)} km/l no último</span> : <span className="cff-doc ok">normal</span>}</td>
+                  <td className="val"><b>{dec1(c.kmPorLitro)}</b></td>
+                  <td className="val">{centavos(c.custoPorKm)}</td>
+                  <td className="val">{an ? <span className="cff-doc vencendo">{dec1(an.kmlRecente)} km/l no último</span> : <span className="cff-doc ok">normal</span>}</td>
                 </tr>
               )
             })}</tbody>
@@ -334,7 +349,7 @@ function JanelaAbast({ mes, porLitros, onFechar }: { mes: string; porLitros: boo
         <>
           {porLitros && comb.length > 0 && (
             <div className="cpv-kpis" style={{ marginBottom: 12 }}>
-              {comb.map(([k, y]) => <div key={k} className="cmt-kpi"><small>{k}</small><b>{Math.round(y.l).toLocaleString('pt-BR')} L</b><em>{compacto(y.v)}{y.l ? ` · ${brl(y.v / y.l)}/L` : ''}</em></div>)}
+              {comb.map(([k, y]) => <div key={k} className="cmt-kpi"><small>{k}</small><b>{Math.round(y.l).toLocaleString('pt-BR')} L</b><em>{compacto(y.v)}{y.l ? ` · ${centavos(y.v / y.l)}/L` : ''}</em></div>)}
             </div>
           )}
           {/* busca na esquerda (José, 12/11) */}
@@ -506,7 +521,7 @@ function AbaPendencias() {
   if (erro) return <div className="cm-aviso">{erro}</div>
   if (!d) return <div className="ce-mudo">Carregando as pendências…</div>
   const veic = new Map((vs?.veiculos || []).map((v) => [v.placa, v]))
-  const abertas = d.pendencias.filter((x) => x.status === 'aberta' && veic.get(x.placa)?.ativo !== false)
+  const abertas = d.pendencias.filter((x) => pendConta(x, veic))
   const origens = [...new Set(abertas.map((x) => x.origem || 'manual'))]
   const lista = abertas.filter((x) => !origem || (x.origem || 'manual') === origem)
   const porPlaca = [...lista.reduce((mp, x) => mp.set(x.placa, [...(mp.get(x.placa) || []), x]), new Map<string, Pend[]>()).entries()].sort((a, b) => b[1].length - a[1].length)

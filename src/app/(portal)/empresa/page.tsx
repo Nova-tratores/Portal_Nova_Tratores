@@ -1435,21 +1435,23 @@ function JanelaLancamentos({ tipoDre, grupo, conta }: { tipoDre: string; grupo: 
 function JanelaKpi({ id, nome }: { id: string; nome: string }) {
   const [itens, setItens] = useState<Registro[] | null>(null)
   const [total, setTotal] = useState(0)
+  const [somaTudo, setSomaTudo] = useState<number | null>(null) // soma de todos os registros (o servidor manda; os itens podem vir cortados)
+  const [lidoEm, setLidoEm] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   useEffect(() => {
     let vivo = true
     ;(async () => {
       try {
-        const r = await fetch(`/api/planta/kpi/${id}?conta=TODAS`, { headers: await authHeaders(), cache: 'no-store' })
+        const r = await fetch(`/api/planta/kpi/${id}?conta=TODAS&limite=2000`, { headers: await authHeaders(), cache: 'no-store' })
         const j = await r.json()
         if (!vivo) return
         if (!r.ok) { setErro(j.erro || `Erro ${r.status}`); return }
-        setItens(j.itens || []); setTotal(j.total || 0)
+        setItens(j.itens || []); setTotal(j.total || 0); setSomaTudo(typeof j.soma === 'number' ? j.soma : null); setLidoEm(j.lido_em || null)
       } catch { if (vivo) setErro('Não deu para carregar os registros agora.') }
     })()
     return () => { vivo = false }
   }, [id])
-  const soma = (itens || []).reduce((a, x) => a + (x.valor || 0), 0)
+  const soma = somaTudo ?? (itens || []).reduce((a, x) => a + (x.valor || 0), 0)
   // contas com data (vencimento/previsão): agrupa por dia, com o total do dia em destaque (José, 11/11: "destaca os dias e valores")
   const corVal = id.startsWith('receber') ? '#15803d' : id.startsWith('pagar') ? '#b91c1c' : '#0f172a'
   const DATA = /(\d{2})\/(\d{2})\/(\d{4})/
@@ -1477,7 +1479,7 @@ function JanelaKpi({ id, nome }: { id: string; nome: string }) {
   // nos 30 dias a lista mistura entra (+) e sai (−): a cor segue o sinal
   const corDe = (v: number) => (id === 'fluxo_30d' ? (v >= 0 ? '#15803d' : '#b91c1c') : corVal)
   return (
-    <><Cab titulo={nome} valor={soma ? brl(soma) : undefined} sub={itens ? (total > itens.length ? `${itens.length} de ${total} registros` : `${total} registros`) : 'Carregando…'} />
+    <><Cab titulo={nome} valor={soma ? brl(soma) : undefined} sub={itens ? `${total > itens.length ? `${itens.length} de ${total}` : total} registros · lido agora${lidoEm ? `, às ${new Date(lidoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}` : ''} (o cartão é a conta da última hora cheia)` : 'Carregando…'} />
       <div className="ce-m-corpo">
         {erro && <div className="ce-mudo">{erro}</div>}
         {itens && !itens.length && <div className="ce-mudo">Nada aqui agora.</div>}

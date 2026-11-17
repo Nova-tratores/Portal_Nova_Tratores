@@ -25,7 +25,9 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   const c = String(req.nextUrl.searchParams.get('conta') || 'TODAS').toUpperCase();
   const conta: ContaPlanta = def.porConta && (c === 'NOVA' || c === 'CASTRO') ? c : 'TODAS';
   try {
-    let lido: { itens: ItemKpi[]; total: number; por_criador: Array<[string, number]> | null };
+    // ?limite= (até 2000): a janela do /empresa pede tudo para o dia a dia não parar no 200º lançamento
+    const limite = Math.min(2000, Math.max(1, Number(req.nextUrl.searchParams.get('limite')) || 200));
+    let lido: { itens: ItemKpi[]; total: number; soma?: number; por_criador: Array<[string, number]> | null };
     if (def.fonte === 'omie') {
       const g2 = await lerItensGravados(id, conta);
       if (!g2) return NextResponse.json({ erro: 'ainda não houve leitura da Omie para este número' }, { status: 503 });
@@ -33,11 +35,11 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
     } else {
       const { fontes } = await carregarFontes([def.comodo]);
       if (fontes.falhas[def.comodo]) return NextResponse.json({ erro: `não deu para ler agora: ${fontes.falhas[def.comodo]}` }, { status: 503 });
-      lido = itensDoKpi(id, conta, fontes);
+      lido = itensDoKpi(id, conta, fontes, limite);
     }
-    const { itens, total, por_criador } = lido;
+    const { itens, total, soma, por_criador } = lido;
     registrarAuditLog({ userId: g.user.id, userName: autorDe(g.user), sistema: 'planta', acao: 'drill', entidade: 'kpi', entidadeId: id, entidadeLabel: def.rotulo, detalhes: { conta, total } });
-    return NextResponse.json({ kpi_id: id, conta, rotulo: def.rotulo, tela: def.tela, total, itens, por_criador }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ kpi_id: id, conta, rotulo: def.rotulo, tela: def.tela, total, soma: soma ?? null, itens, por_criador, lido_em: new Date().toISOString() }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 });
   }

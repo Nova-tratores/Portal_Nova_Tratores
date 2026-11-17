@@ -75,7 +75,7 @@ const diasDesde = (d: string | null | undefined) => {
   return Number.isFinite(t) ? Math.max(0, Math.floor((Date.now() - t) / 864e5)) : 0
 }
 
-type LinhaVenda = { codigo_produto: string | null; descricao: string | null; valor_total: number; quantidade: number; cmc_unitario: number | null; mes: number; ano: number; familia: string | null; conta_omie: string | null; numero_pedido: string | null; nome_cliente: string | null }
+type LinhaVenda = { codigo_produto: string | null; descricao: string | null; valor_total: number; quantidade: number; cmc_unitario: number | null; mes: number; ano: number; familia: string | null; conta_omie: string | null; numero_pedido: string | null; nome_cliente: string | null; codigo_cliente: string | null }
 
 export async function montarComercial(nMeses = 12): Promise<DadosComercial> {
   const hoje = new Date()
@@ -84,7 +84,7 @@ export async function montarComercial(nMeses = 12): Promise<DadosComercial> {
 
   const [linhas, invalidos, produtosEst, props, motivos, cadVend, metasR] = await Promise.all([
     todas<LinhaVenda>((de, ate) => supabaseAdmin.from('vendas_itens')
-      .select('codigo_produto,descricao,valor_total,quantidade,cmc_unitario,mes,ano,familia,conta_omie,numero_pedido,nome_cliente')
+      .select('codigo_produto,descricao,valor_total,quantidade,cmc_unitario,mes,ano,familia,conta_omie,numero_pedido,nome_cliente,codigo_cliente')
       .gte('ano', ANO_INICIO).order('id', { ascending: true }).range(de, ate)),
     supabaseAdmin.from('vendas_pedidos_invalidos').select('numero_pedido,conta_omie').then(({ data }) => new Set((data || []).map((r) => `${String(r.conta_omie || '').toLowerCase()}|${r.numero_pedido}`))),
     todas<{ descricao: string; modelo: string | null; familia_nome: string | null; estoque: number; cmc: number; data_inclusao: string | null; conta_omie: string }>((de, ate) => supabaseAdmin.from('produtos')
@@ -127,6 +127,14 @@ export async function montarComercial(nMeses = 12): Promise<DadosComercial> {
     }
   }
 
+  // pedido sem nome do cliente (nem na venda nem no relatório): o nome do cadastro do Omie pelo código (auditoria 16/11, D9)
+  const semNome = [...new Set(maq.filter((l) => !l.nome_cliente?.trim() && !(l.numero_pedido && clienteDe.has(`${String(l.conta_omie || '').toUpperCase()}|${l.numero_pedido}`)) && l.codigo_cliente).map((l) => String(l.codigo_cliente)))]
+  const cadastroDe = new Map<string, string>()
+  for (let i = 0; i < semNome.length; i += 200) {
+    const { data } = await supabaseAdmin.from('portal_nt_clientes_cadastro_omie').select('cod_cli,razao_social,nome_fantasia').in('cod_cli', semNome.slice(i, i + 200))
+    for (const c of data || []) { const n = String(c.razao_social || c.nome_fantasia || '').trim(); if (n) cadastroDe.set(String(c.cod_cli), n) }
+  }
+
   const vendas: VendaMaq[] = maq.filter((l) => !cancelado.has(`${String(l.conta_omie || '').toUpperCase()}|${l.numero_pedido}`)).map((l) => {
     const p = prod.get(String(l.codigo_produto))
     const familia = p?.familia || l.familia || ''
@@ -137,7 +145,7 @@ export async function montarComercial(nMeses = 12): Promise<DadosComercial> {
       modelo: nomeModelo(p?.modelo, l.descricao || '', tipo),
       qtd: Number(l.quantidade) || 0, valor: Number(l.valor_total) || 0, custo: (Number(l.cmc_unitario) || 0) * (Number(l.quantidade) || 0),
       vendedor: l.numero_pedido ? nomeVendedor(vendedorDe.get(`${conta}|${l.numero_pedido}`)) : null,
-      cliente: l.nome_cliente?.trim() || (l.numero_pedido ? clienteDe.get(`${conta}|${l.numero_pedido}`) : null) || null, pedido: l.numero_pedido, conta,
+      cliente: l.nome_cliente?.trim() || (l.numero_pedido ? clienteDe.get(`${conta}|${l.numero_pedido}`) : null) || (l.codigo_cliente ? cadastroDe.get(String(l.codigo_cliente)) : null) || null, pedido: l.numero_pedido, conta,
     }
   })
 

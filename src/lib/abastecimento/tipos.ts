@@ -259,6 +259,7 @@ export interface DashboardAbastecimento {
   porOS: OsGasto[];
   porVeiculoMes: VeiculoMes[];
   projecao: ProjecaoMes | null;
+  ultimoCartao?: string | null; // data do último abastecimento do cartão-frota (CSV)
   opcoesFiltro: {
     filiais: string[];
     placas: string[];

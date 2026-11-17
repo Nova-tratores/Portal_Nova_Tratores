@@ -503,13 +503,14 @@ function paraItem(kpi: string, r: Row, f: Fontes): Omit<ItemKpi, 'criado_por'> {
   }
 }
 
-/** Lista do detalhe: os mesmos registros de `selecionar`, mais graves/maiores primeiro, até 200. */
-export function itensDoKpi(kpi: string, conta: ContaPlanta, f: Fontes): { itens: ItemKpi[]; total: number; por_criador: Array<[string, number]> | null } {
+/** Lista do detalhe: os mesmos registros de `selecionar`, mais graves/maiores primeiro, até `limite` (padrão 200).
+ *  `soma` = soma de TODOS os registros, não só dos que vieram (a janela do /empresa mostrava a soma dos 200 — auditoria 16/11, B5/D4). */
+export function itensDoKpi(kpi: string, conta: ContaPlanta, f: Fontes, limite = LIMITE_ITENS): { itens: ItemKpi[]; total: number; soma: number; por_criador: Array<[string, number]> | null } {
   const rows = selecionar(kpi, conta, f);
   const itens: ItemKpi[] = rows.map((r) => { const it = paraItem(kpi, r, f); return { ...it, titulo: semEntidades(it.titulo), sub: semEntidades(it.sub), criado_por: criadorDe(kpi, r, f) }; });
   const venc = kpi.endsWith('vencido') || ['requisicoes_abertas', 'zap_sem_resposta', 'garantias_abertas'].includes(kpi); // mais antigos primeiro
   itens.sort((a, b) => venc ? String(a.data).localeCompare(String(b.data)) : Math.abs(b.valor || 0) - Math.abs(a.valor || 0) || String(a.data).localeCompare(String(b.data)));
-  return { itens: itens.slice(0, LIMITE_ITENS), total: itens.length, por_criador: porCriador(itens) };
+  return { itens: itens.slice(0, limite), total: itens.length, soma: itens.reduce((a, x) => a + (x.valor || 0), 0), por_criador: porCriador(itens) };
 }
 
 // ---------------------------------------------------------------- Omie (PV e remessas abertos)

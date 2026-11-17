@@ -60,7 +60,7 @@ export function PainelPecas({ dreG, atencao }: { dreG: Array<{ mes: string; parc
             ))}</span>
           ) : null, 'cml-g')}
         {cartao('est', '#15803d', 'fa-boxes-stacked', 'Estoque de peças', d ? compacto(d.estoque.valor) : '—',
-          d ? <>{d.estoque.itens.toLocaleString('pt-BR')} peças no estoque · <b>{compacto(velho)}</b> sem vender há mais de 1 ano</> : erro ? '' : 'carregando…')}
+          d ? <>{d.estoque.itens.toLocaleString('pt-BR')} códigos no estoque ·<b>{compacto(velho)}</b> sem vender há mais de 1 ano</> : erro ? '' : 'carregando…')}
         {cartao('desp', '#be123c', 'fa-receipt', 'Custos e despesas', x ? compacto(x.gastou) : '—',
           x ? <>{x.resultado >= 0 ? <>sobrou <b style={{ color: '#15803d' }}>{compacto(x.resultado)}</b></> : <>faltou <b style={{ color: '#be123c' }}>{compacto(-x.resultado)}</b></>} no mês</> : 'carregando o DRE…')}
         {cartao('ate', '#d97706', 'fa-file-invoice', 'Pedidos em aberto', atencao[0] ? String(atencao[0].n) : '—',

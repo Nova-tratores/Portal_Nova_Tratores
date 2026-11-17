@@ -533,6 +533,8 @@ export function montarDashboard(
     porOS: gastoPorOS(janela),
     porVeiculoMes: serieMensalPorPlaca(janela),
     projecao: projecaoMesAtual(ext, agora),
+    // último abastecimento do cartão-frota (importado por CSV): se parou, o mês fica só com as requisições
+    ultimoCartao: ext.reduce<string | null>((m, l) => (l.origem !== 'requisicao' && (!m || l.data_transacao > m) ? l.data_transacao : m), null),
     opcoesFiltro: {
       filiais: [...new Set(janela.map((l) => l.filial_nome).filter(Boolean) as string[])].sort(),
       placas: [...new Set(janela.map((l) => l.placa))].sort(),
