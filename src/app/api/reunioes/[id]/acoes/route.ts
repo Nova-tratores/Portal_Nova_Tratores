@@ -5,6 +5,7 @@
 //   adicionar_participante { usuario_id }                                quem conduz, até a ata ser publicada (última hora)
 //   item_resultado   { item_id, resultado, decisao_texto?, decisao_motivo?, notas? }   quem conduz, em andamento
 //   criar_acao       { titulo, descricao?, responsavel_id, prazo, item_id?, categoria? }  quem conduz ou participa, menos cancelada
+//   titulo           { titulo }                                          quem criou ou conduz, até publicar
 //   anotacoes        { texto }                                           quem conduz ou participa, até publicar (ata durante a reunião)
 //   virar_serie      { recorrencia }                                     quem conduz ou quem marcou; reunião avulsa vira série
 //   continuar        { dia, hora, titulo, participantes[] }              reunião seguinte (ramificação), uma vez
@@ -62,6 +63,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         await notificarTicket(r.ticket, r.presencas.map((p) => p.usuario_id), auth.userId,
           para === 'em_andamento' ? `Reunião começou: ${r.ticket.titulo}` : `Reunião cancelada: ${r.ticket.titulo}`, body.motivo ? String(body.motivo) : undefined)
       }
+      return NextResponse.json({ ok: true })
+    }
+
+    // ----------------------------------------------------------- titulo
+    // { titulo } — quem criou ou quem conduz renomeia, mesmo com a reunião aberta (José, 17/11/2026)
+    if (acao === 'titulo') {
+      const criador = await criadorDaReuniao(id)
+      if (!conduz && criador !== auth.userId) return erro('Só quem criou ou quem conduz muda o título.', 403)
+      if (publicada) return erro('A ata já foi publicada — use um adendo.', 409)
+      const titulo = String(body.titulo || '').trim().slice(0, 200)
+      if (!titulo) return erro('Escreva o título.')
+      const { error } = await supabaseAdmin.from('tickets').update({ titulo }).eq('id', id)
+      if (error) return erro(error.message, 500)
+      await registrarEvento(id, auth.userId, 'edicao', { mudancas: { titulo: { de: r.ticket.titulo, para: titulo } } })
       return NextResponse.json({ ok: true })
     }
 

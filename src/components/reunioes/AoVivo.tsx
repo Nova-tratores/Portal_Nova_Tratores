@@ -9,9 +9,10 @@
 //   `reunioes-gravacoes` do Supabase (o robô apaga depois de 60 dias). Cada parte pode ser baixada.
 // Ligação direta navegador↔navegador (WebRTC); o "aperto de mão" passa pelo canal em tempo real do Supabase.
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Video, VideoOff, Radio, Eye, Send, Circle, PlayCircle, Loader2, Download, Mic, Users, Trash2 } from 'lucide-react'
+import { Video, VideoOff, Radio, Eye, Send, Circle, PlayCircle, Loader2, Download, Mic, Users, Trash2, Maximize, ChevronRight } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { chamar } from './comum'
+import PlayerGravacao from './PlayerGravacao'
 
 const ICE: RTCIceServer[] = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }]
 const MAX_REMOTOS = 3                 // José: "no máximo 2 online"; 1 de folga
@@ -20,6 +21,7 @@ type Sinal = { to: string; from: string; tipo: 'offer' | 'answer' | 'ice' | 'lot
 export interface Pergunta { nome: string; texto: string; em: string }
 export interface Gravacao { key: string; inicio: string; fim: string; bytes: number; parte: number }
 interface Remoto { sid: string; nome: string; stream: MediaStream | null }
+interface GrupoGravacao { titulo: string; quando: string; duracao: string; partes: Gravacao[] }
 
 const hora = (iso: string) => new Date(iso).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })
 const mb = (b: number) => `${Math.max(1, Math.round(b / 1048576))} MB`
@@ -28,6 +30,10 @@ const primeiro = (n: string) => (n || '—').split(' ')[0]
 const CSS = `
 .av *{font-weight:inherit;box-sizing:border-box}
 .av-palco{position:relative;border-radius:12px;overflow:hidden;background:#0f172a}
+.av-cheia{position:absolute;top:10px;right:10px;z-index:2;display:grid;place-items:center;width:42px;height:42px;border-radius:11px;border:none;cursor:pointer;color:#fefefe;background:rgba(15,23,42,.55)}
+.av-palco:fullscreen{border-radius:0;display:flex;align-items:center;justify-content:center}
+.av-palco:fullscreen .av-video{height:100%;aspect-ratio:auto}
+.av-palco:fullscreen .av-mini > div{width:220px}
 .av-video{width:100%;aspect-ratio:16/9;background:#0f172a;object-fit:contain;display:block}
 .av-mini{position:absolute;right:10px;bottom:10px;display:flex;gap:8px}
 .av-mini > div{position:relative;width:150px;aspect-ratio:16/9;border-radius:9px;overflow:hidden;background:#1e293b;border:2px solid rgba(255,255,255,.35)}
@@ -80,7 +86,8 @@ export default function AoVivo({ reuniaoId, podeTransmitir, podeApagar = false, 
   const [enviando, setEnviando] = useState(0)
   const [perguntas, setPerguntas] = useState<Pergunta[]>(perguntasIniciais)
   const [texto, setTexto] = useState('')
-  const [tocando, setTocando] = useState<{ key: string; url: string } | null>(null)
+  const [tocando, setTocando] = useState<{ key: string } | null>(null)   // key da 1ª parte da gravação em tela
+  const [verGravacoes, setVerGravacoes] = useState(false)   // começa fechada (José, 17/11/2026)
   const [agora, setAgora] = useState(() => Date.now())
   // microfone/câmera escolhidos (lembrados neste PC) + medidor (17/11: gravação saiu muda — microfone errado)
   const [mics, setMics] = useState<MediaDeviceInfo[]>([])
@@ -355,8 +362,9 @@ export default function AoVivo({ reuniaoId, podeTransmitir, podeApagar = false, 
     setTexto(''); setPerguntas((l) => [...l, p]); enviar('pergunta', p)
     await chamar(`/api/reunioes/${reuniaoId}/gravacao`, { json: { acao: 'pergunta', texto: t } }).catch(() => setAviso('A pergunta apareceu na tela, mas não ficou salva.'))
   }
-  const linkGravacao = async (key: string, baixar: boolean) => (await chamar<{ url: string }>(`/api/reunioes/${reuniaoId}/gravacao?key=${encodeURIComponent(key)}${baixar ? '&baixar=1' : ''}`)).url
-  const tocar = async (key: string) => { try { setTocando({ key, url: await linkGravacao(key, false) }) } catch (e) { setAviso((e as Error).message) } }
+  const linkGravacao = useCallback(async (key: string, baixar: boolean) => (await chamar<{ url: string }>(`/api/reunioes/${reuniaoId}/gravacao?key=${encodeURIComponent(key)}${baixar ? '&baixar=1' : ''}`)).url, [reuniaoId])
+  const linkTocar = useCallback((key: string) => linkGravacao(key, false), [linkGravacao])
+  const tocar = (key: string) => setTocando({ key })
   const baixar = async (keys: string[]) => {
     for (const k of keys) {
       try {
@@ -367,17 +375,47 @@ export default function AoVivo({ reuniaoId, podeTransmitir, podeApagar = false, 
     }
   }
 
-  const apagar = async (g: Gravacao) => {
-    if (!window.confirm(`Apagar a parte ${g.parte} (${hora(g.inicio)}–${hora(g.fim)})? Não dá para desfazer.`)) return
+  const apagar = async (gr: GrupoGravacao) => {
+    if (!window.confirm(`Apagar a ${gr.titulo} (${gr.quando})? Não dá para desfazer.`)) return
     try {
-      await chamar(`/api/reunioes/${reuniaoId}/gravacao`, { json: { acao: 'apagar', key: g.key } })
-      if (tocando?.key === g.key) setTocando(null)
+      for (const g of gr.partes) await chamar(`/api/reunioes/${reuniaoId}/gravacao`, { json: { acao: 'apagar', key: g.key } })
+      if (tocando && gr.partes.some((g) => g.key === tocando.key)) setTocando(null)
       onGravou()
     } catch (e) { setAviso((e as Error).message) }
   }
 
+  // Tela cheia (José, 17/11/2026: "no celular, deixar o vídeo em tela cheia").
+  // Android/PC: o quadro inteiro (com os quadradinhos) e tenta virar o celular de lado.
+  // iPhone: o Safari só aceita o próprio vídeo em tela cheia (webkitEnterFullscreen).
+  const telaCheia = (el: HTMLElement | null) => {
+    if (!el) return
+    const v = (el.tagName === 'VIDEO' ? el : el.querySelector('video')) as (HTMLVideoElement & { webkitEnterFullscreen?: () => void }) | null
+    if (el.requestFullscreen) {
+      el.requestFullscreen().then(() => {
+        const o = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> }
+        void o?.lock?.('landscape').catch(() => {})
+      }).catch(() => v?.webkitEnterFullscreen?.())
+    } else v?.webkitEnterFullscreen?.()
+  }
+
   const alguemNoAr = !!noAr && agora - noAr.visto < 10_000 && papel !== 'transmitindo'
   const recentes = gravacoes.filter((g) => agora - new Date(g.inicio).getTime() < 60 * 86400_000)
+  // Cada transmissão = UMA gravação (a parte 1 abre uma nova) — José, 17/11/2026: "melhora os nomes, está confuso"
+  const grupos: GrupoGravacao[] = []
+  for (const g of [...recentes].sort((a, b) => a.inicio.localeCompare(b.inicio))) {
+    const ult = grupos[grupos.length - 1]
+    if (!ult || g.parte === 1 || g.parte <= ult.partes[ult.partes.length - 1].parte) grupos.push({ titulo: '', quando: '', duracao: '', partes: [g] })
+    else ult.partes.push(g)
+  }
+  grupos.forEach((gr, i) => {
+    const ini = gr.partes[0].inicio; const fim = gr.partes[gr.partes.length - 1].fim
+    const seg = Math.max(1, Math.round((new Date(fim).getTime() - new Date(ini).getTime()) / 1000))
+    const dia = new Date(ini).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' })
+    gr.titulo = `Gravação ${i + 1}`
+    gr.quando = hora(ini) === hora(fim) ? `${dia}, às ${hora(ini)}` : `${dia}, das ${hora(ini)} às ${hora(fim)}`
+    gr.duracao = seg < 60 ? `${seg} s` : seg < 3600 ? `${Math.round(seg / 60)} min` : `${Math.floor(seg / 3600)} h ${Math.round((seg % 3600) / 60)} min`
+  })
+  grupos.reverse()   // a mais nova em cima
   const naTransmissao = papel === 'transmitindo' ? remotos.map((r) => r.nome) : (noAr?.quem || [])
 
   return (
@@ -386,6 +424,7 @@ export default function AoVivo({ reuniaoId, podeTransmitir, podeApagar = false, 
 
       {papel === 'transmitindo' && (
         <div className="av-palco">
+          <button className="av-cheia" title="Tela cheia" aria-label="Tela cheia" onClick={(e) => telaCheia(e.currentTarget.parentElement)}><Maximize size={18} /></button>
           <VideoDe stream={meuStream} mudo className="av-video" />
           {remotos.length > 0 && (
             <div className="av-mini">
@@ -396,6 +435,7 @@ export default function AoVivo({ reuniaoId, podeTransmitir, podeApagar = false, 
       )}
       {papel === 'assistindo' && (
         <div className="av-palco">
+          <button className="av-cheia" title="Tela cheia" aria-label="Tela cheia" onClick={(e) => telaCheia(e.currentTarget.parentElement)}><Maximize size={18} /></button>
           <VideoDe stream={salaStream} className="av-video" />
           {meuStream && <div className="av-mini"><div><VideoDe stream={meuStream} mudo /><span>Você</span></div></div>}
         </div>
@@ -431,51 +471,59 @@ export default function AoVivo({ reuniaoId, podeTransmitir, podeApagar = false, 
         </div>
       )}
 
+      {/* Organizado (José, 17/11/2026: "desorganizado"): 1) situação  2) entrar  ou  quadro "Transmitir desta sala" */}
       {papel === 'nada' && !encerrada && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          {alguemNoAr ? (
-            <>
-              <button className="av-btn cheio" style={{ ['--c' as string]: '#dc2626' }} onClick={() => void assistir(true)}><Mic size={15} /> Entrar com câmera e microfone</button>
-              <button className="av-btn" onClick={() => void assistir(false)}><Eye size={15} /> Só assistir</button>
-            </>
-          ) : <span style={{ fontSize: 13.5, color: 'var(--portal-text-muted,#64748b)' }}>Ninguém transmitindo agora.</span>}
-          <span style={{ flex: 1 }} />
-          {podeTransmitir && !alguemNoAr && (
-            <>
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: 'var(--portal-text-secondary,#475569)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={gravar} onChange={(e) => setGravar(e.target.checked)} /> Gravar
-              </label>
-              <button className="av-btn cheio" style={{ ['--c' as string]: '#dc2626' }} onClick={() => void transmitir()}><Video size={15} /> Transmitir desta sala</button>
-            </>
-          )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13.5 }}>
+          {alguemNoAr
+            ? <span className="av-rec"><Radio size={13} /> Ao vivo · {primeiro(noAr!.nome)} está transmitindo da sala</span>
+            : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, color: 'var(--portal-text-muted,#64748b)' }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: '#cbd5e1' }} /> Ninguém transmitindo agora</span>}
         </div>
       )}
-      {papel === 'nada' && alguemNoAr && noAr?.gravando && <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>Esta reunião está sendo gravada. Quem entra com câmera e microfone aparece na gravação.</div>}
+      {papel === 'nada' && !encerrada && alguemNoAr && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="av-btn cheio" style={{ ['--c' as string]: '#dc2626' }} onClick={() => void assistir(true)}><Mic size={15} /> Entrar com câmera e microfone</button>
+            <button className="av-btn" onClick={() => void assistir(false)}><Eye size={15} /> Só assistir</button>
+          </div>
+          {noAr?.gravando && <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>Esta reunião está sendo gravada. Quem entra com câmera e microfone aparece na gravação.</span>}
+        </div>
+      )}
+      {papel === 'nada' && !encerrada && podeTransmitir && !alguemNoAr && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: 14, borderRadius: 14, border: '1px solid var(--portal-border,#e2e8f0)', background: 'var(--portal-bg-secondary,#f8fafc)' }}>
+          <span style={{ fontSize: 14.5, fontWeight: 500 }}>Transmitir desta sala</span>
+          {mics.length === 0 && cams.length === 0
+            ? <button className="av-btn" style={{ alignSelf: 'flex-start' }} onClick={() => void permitir()}><Mic size={15} /> Escolher microfone e câmera</button>
+            : (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))', gap: 10 }}>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12.5, color: 'var(--portal-text-secondary,#475569)' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Mic size={13} /> Microfone</span>
+                  <select className="av-campo" style={{ flex: 'none', width: '100%' }} value={micId} onChange={(e) => { setMicId(e.target.value); try { localStorage.setItem('reuniao-mic', e.target.value) } catch { /* */ } }}>
+                    <option value="">O que o computador usa normalmente</option>
+                    {mics.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Microfone'}</option>)}
+                  </select>
+                </label>
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: 12.5, color: 'var(--portal-text-secondary,#475569)' }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Video size={13} /> Câmera</span>
+                  <select className="av-campo" style={{ flex: 'none', width: '100%' }} value={camId} onChange={(e) => { setCamId(e.target.value); try { localStorage.setItem('reuniao-cam', e.target.value) } catch { /* */ } }}>
+                    <option value="">A que o computador usa normalmente</option>
+                    {cams.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Câmera'}</option>)}
+                  </select>
+                </label>
+              </div>
+            )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', flex: '1 1 240px', fontSize: 13.5, color: 'var(--portal-text,#0f172a)' }}>
+              <input type="checkbox" checked={gravar} onChange={(e) => setGravar(e.target.checked)} style={{ marginTop: 3 }} />
+              <span>Gravar esta reunião<span style={{ display: 'block', fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>Grava a sala e quem entrar. Fica 60 dias e pode ser baixada.</span></span>
+            </label>
+            <button className="av-btn cheio" style={{ ['--c' as string]: '#dc2626' }} onClick={() => void transmitir()}><Video size={15} /> Transmitir desta sala</button>
+          </div>
+        </div>
+      )}
       {papel === 'transmitindo' && mudo && (
         <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(220,38,38,.08)', color: '#b91c1c', fontSize: 13.5 }}>
-          O microfone não está captando som — a gravação vai sair muda. Pare a transmissão, escolha outro microfone abaixo e transmita de novo. Confira também se ele não está mudo no Windows (Configurações → Som → Entrada).
+          O microfone não está captando som — a gravação vai sair muda. Pare a transmissão, escolha outro microfone no quadro &quot;Transmitir desta sala&quot; e transmita de novo. Confira também se ele não está mudo no Windows (Configurações → Som → Entrada).
         </div>
-      )}
-      {papel === 'nada' && podeTransmitir && !alguemNoAr && !encerrada && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', fontSize: 13, color: 'var(--portal-text-secondary,#475569)' }}>
-          {mics.length === 0 && cams.length === 0
-            ? <button className="av-btn peq" onClick={() => void permitir()}><Mic size={14} /> Escolher microfone e câmera</button>
-            : <>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Mic size={14} />
-                  <select className="av-campo" style={{ height: 36, maxWidth: 260 }} value={micId} onChange={(e) => { setMicId(e.target.value); try { localStorage.setItem('reuniao-mic', e.target.value) } catch { /* */ } }}>
-                    <option value="">Microfone padrão do PC</option>
-                    {mics.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Microfone'}</option>)}
-                  </select></label>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Video size={14} />
-                  <select className="av-campo" style={{ height: 36, maxWidth: 260 }} value={camId} onChange={(e) => { setCamId(e.target.value); try { localStorage.setItem('reuniao-cam', e.target.value) } catch { /* */ } }}>
-                    <option value="">Câmera padrão do PC</option>
-                    {cams.map((d) => <option key={d.deviceId} value={d.deviceId}>{d.label || 'Câmera'}</option>)}
-                  </select></label>
-              </>}
-        </div>
-      )}
-      {papel === 'nada' && podeTransmitir && !alguemNoAr && !encerrada && gravar && (
-        <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>Grava a sala e quem entrar. Quem entra vê o aviso. A gravação fica 60 dias e pode ser baixada.</div>
       )}
 
       {aviso && <div style={{ fontSize: 13, color: '#b45309' }}>{aviso}</div>}
@@ -498,23 +546,37 @@ export default function AoVivo({ reuniaoId, podeTransmitir, podeApagar = false, 
 
       {recentes.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 14, fontWeight: 500 }}>
-            Gravações <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)', fontWeight: 400 }}>· ficam 60 dias</span>
-            <span style={{ flex: 1 }} />
-            {recentes.length > 1 && <button className="av-btn peq" onClick={() => void baixar(recentes.map((g) => g.key))}><Download size={14} /> Baixar todas ({recentes.length})</button>}
-          </span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            {recentes.map((g) => (
-              <div key={g.key} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <button className="av-btn peq" style={tocando?.key === g.key ? { borderColor: '#2563eb', color: '#2563eb' } : undefined} onClick={() => void tocar(g.key)}>
-                  <PlayCircle size={15} /> Parte {g.parte} · {hora(g.inicio)}–{hora(g.fim)} · {mb(g.bytes)}
-                </button>
-                <button className="av-btn peq" title="Baixar esta parte" onClick={() => void baixar([g.key])}><Download size={14} /> Baixar</button>
-                {podeApagar && <button className="av-btn peq" title="Apagar esta parte (só Dev)" style={{ color: '#dc2626' }} onClick={() => void apagar(g)}><Trash2 size={14} /> Apagar</button>}
-              </div>
-            ))}
+          <button onClick={() => { setVerGravacoes(!verGravacoes); if (verGravacoes) setTocando(null) }} aria-expanded={verGravacoes}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '10px 12px', borderRadius: 12, border: '1px solid var(--portal-border,#e2e8f0)', background: 'var(--portal-surface,#fefefe)', cursor: 'pointer', fontFamily: 'inherit', color: 'var(--portal-text,#0f172a)', textAlign: 'left' }}>
+            <ChevronRight size={16} style={{ transform: verGravacoes ? 'rotate(90deg)' : 'none', transition: 'transform .2s', color: 'var(--portal-text-muted,#64748b)' }} />
+            <span style={{ fontSize: 14.5, fontWeight: 500 }}>Gravações</span>
+            <span style={{ fontSize: 12, padding: '1px 8px', borderRadius: 999, background: 'var(--portal-bg-secondary,#f1f5f9)', color: 'var(--portal-text-muted,#64748b)' }}>{grupos.length}</span>
+            <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>· ficam 60 dias</span>
+          </button>
+          {verGravacoes && <>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {grupos.map((gr) => {
+              const tocandoAqui = !!tocando && gr.partes.some((g) => g.key === tocando.key)
+              return (
+                <div key={gr.partes[0].key} style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 12, border: `1px solid ${tocandoAqui ? '#2563eb' : 'var(--portal-border,#e2e8f0)'}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ display: 'flex', flexDirection: 'column', flex: '1 1 200px', minWidth: 0 }}>
+                      <span style={{ fontSize: 14.5, fontWeight: 500 }}>{gr.titulo}</span>
+                      <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#64748b)' }}>{gr.quando} · {gr.duracao} · {mb(gr.partes.reduce((t, g) => t + g.bytes, 0))}</span>
+                    </span>
+                    <button className="av-btn peq cheio" style={{ ['--c' as string]: '#2563eb' }} onClick={() => tocar(gr.partes[0].key)}><PlayCircle size={15} /> Assistir</button>
+                    <button className="av-btn peq" onClick={() => void baixar(gr.partes.map((g) => g.key))}><Download size={14} /> Baixar</button>
+                    {podeApagar && <button className="av-btn peq" title="Apagar esta gravação (só Dev)" style={{ color: '#dc2626' }} onClick={() => void apagar(gr)}><Trash2 size={14} /> Apagar</button>}
+                  </div>
+                </div>
+              )
+            })}
           </div>
-          {tocando && <video key={tocando.key} className="av-video" style={{ borderRadius: 12 }} src={tocando.url} controls autoPlay playsInline />}
+          {tocando && (() => {
+            const gr = grupos.find((x) => x.partes[0].key === tocando.key)
+            return gr ? <PlayerGravacao key={tocando.key} partes={gr.partes} linkDe={linkTocar} /> : null
+          })()}
+          </>}
         </div>
       )}
     </div>

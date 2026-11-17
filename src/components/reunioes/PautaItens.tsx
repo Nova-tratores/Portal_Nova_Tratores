@@ -103,14 +103,14 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
           const emDecisao = decidindo === item.id
           return (
             <div key={item.id} style={{ display: 'flex', gap: 10, padding: '10px 12px', borderRadius: 10, border: '1px solid var(--portal-border,#e5e7eb)', background: r ? 'var(--portal-bg,#f9fafb)' : 'var(--portal-surface,#fff)', opacity: r && modo === 'conducao' ? .75 : 1 }}>
-              {modo === 'pauta' && podeEditar && (
+              {modo !== 'leitura' && podeEditar && (
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', color: 'var(--portal-text-muted,#999)' }}>
                   <button onClick={() => mover(item.id, -1)} disabled={idx === 0} style={{ border: 'none', background: 'transparent', cursor: idx === 0 ? 'default' : 'pointer', padding: 2, color: 'inherit', opacity: idx === 0 ? .25 : .8 }}><ChevronUp size={14} /></button>
                   <span style={{ fontSize: 11, fontWeight: 500 }}>{idx + 1}</span>
                   <button onClick={() => mover(item.id, 1)} disabled={idx === lista.length - 1} style={{ border: 'none', background: 'transparent', cursor: idx === lista.length - 1 ? 'default' : 'pointer', padding: 2, color: 'inherit', opacity: idx === lista.length - 1 ? .25 : .8 }}><ChevronDown size={14} /></button>
                 </div>
               )}
-              {modo !== 'pauta' && <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--portal-text-muted,#999)', marginTop: 2 }}>{idx + 1}.</span>}
+              {(modo === 'leitura' || !podeEditar) && <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--portal-text-muted,#999)', marginTop: 2 }}>{idx + 1}.</span>}
               <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   {item.tipo !== 'discutir' && <span style={chip(t.cor, t.fundo)}>{t.label}</span>}
@@ -170,7 +170,7 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
                   <button onClick={() => onCriarAcao(item)} style={{ ...botao('#dc2626'), alignSelf: 'flex-start' }}><Plus size={14} /> Criar tarefa desta decisão</button>
                 )}
               </div>
-              {modo === 'pauta' && podeEditar && !r && onRemover && (
+              {modo !== 'leitura' && podeEditar && !r && onRemover && (
                 <button onClick={() => { if (window.confirm('Tirar este item da pauta?')) onRemover(item.id) }} title="Remover" style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted,#999)', alignSelf: 'flex-start', padding: 2 }}><Trash2 size={14} /></button>
               )}
             </div>
@@ -178,7 +178,7 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
         })}
       </div>
 
-      {(modo === 'pauta' && podeEditar && onIncluir) && (
+      {(modo !== 'leitura' && podeEditar && onIncluir) && (
         <div style={{ marginTop: 12, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input value={pergunta} onChange={(e) => setPergunta(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') incluir() }}
             placeholder="Escreva um assunto para a pauta e aperte Enter" style={{ ...campo, flex: '1 1 260px', fontSize: 15, height: 44 }} maxLength={500} />

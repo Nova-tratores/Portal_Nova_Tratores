@@ -6,7 +6,7 @@
 // Pendências de reuniões anteriores só aparecem quando existem. Dados de GET /api/reunioes/[id].
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Play, Square, FileCheck2, Copy, Repeat, AlertTriangle, Check, Ban, MessageSquarePlus, RotateCcw, MapPin, CalendarClock, NotebookPen, Users, CircleCheck, Video, CalendarPlus } from 'lucide-react'
+import { ArrowLeft, Play, Square, FileCheck2, Copy, Repeat, AlertTriangle, Check, Ban, MessageSquarePlus, RotateCcw, MapPin, CalendarClock, NotebookPen, Users, CircleCheck, Video, CalendarPlus, Pencil } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -110,6 +110,8 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
   const [copiado, setCopiado] = useState(false)
   const [remarcando, setRemarcando] = useState(false)
   const [repetindo, setRepetindo] = useState(false)
+  const [editandoTitulo, setEditandoTitulo] = useState(false)
+  const [novoTitulo, setNovoTitulo] = useState('')
   const [aviso, setAviso] = useState('')
 
   const carregar = useCallback(async () => {
@@ -195,7 +197,23 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
             <span className="rd-pill"><i />{sit.texto}</span>
             {d.serie && <span className="rd-pill" style={{ ['--c' as string]: '#4f46e5' }}><Repeat size={12} /> {d.serie.nome}</span>}
           </span>
-          <h1 style={{ margin: 0, fontSize: isMobile ? 20 : 24, fontWeight: 500, letterSpacing: '-.01em', lineHeight: 1.25 }}>{r.titulo}</h1>
+          {editandoTitulo ? (
+            <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <input autoFocus value={novoTitulo} maxLength={200} onChange={(e) => setNovoTitulo(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && novoTitulo.trim()) acao({ acao: 'titulo', titulo: novoTitulo }).then(() => setEditandoTitulo(false)).catch(() => {}); if (e.key === 'Escape') setEditandoTitulo(false) }}
+                style={{ flex: '1 1 260px', height: 44, padding: '0 12px', borderRadius: 10, border: '1px solid #2563eb', background: 'var(--portal-bg,#fefefe)', color: 'var(--portal-text,#111111)', fontSize: 18, fontFamily: 'inherit' }} />
+              <button className="rd-btn cheio" style={{ ['--c' as string]: '#2563eb' }} disabled={!novoTitulo.trim() || ocupado} onClick={() => acao({ acao: 'titulo', titulo: novoTitulo }).then(() => setEditandoTitulo(false)).catch(() => {})}><Check size={15} /> Salvar</button>
+              <button className="rd-btn" onClick={() => setEditandoTitulo(false)}>Cancelar</button>
+            </span>
+          ) : (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h1 style={{ margin: 0, fontSize: isMobile ? 20 : 24, fontWeight: 500, letterSpacing: '-.01em', lineHeight: 1.25 }}>{r.titulo}</h1>
+              {!publicada && (conduz || d.criador_id === userProfile?.id) && (
+                <button title="Editar o título" aria-label="Editar o título" onClick={() => { setNovoTitulo(r.titulo); setEditandoTitulo(true) }}
+                  style={{ flex: 'none', width: 34, height: 34, borderRadius: 9, border: '1px solid var(--portal-border,#e2e8f0)', background: 'var(--portal-surface,#fefefe)', color: 'var(--portal-text-muted,#64748b)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}><Pencil size={15} /></button>
+              )}
+            </span>
+          )}
           <span style={{ display: 'flex', alignItems: 'center', gap: '6px 16px', flexWrap: 'wrap', fontSize: 14, color: 'var(--portal-text-secondary,#475569)' }}>
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>{horaDe(r.reuniao_inicio)}{fim ? ` às ${horaDe(fim)}` : ''} · {d.duracao_min} min</span>
             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Av u={d.usuarios[condutor]} nome={nome(condutor)} /> {primeiroNome(nome(condutor))} conduz</span>
@@ -242,7 +260,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
           <PautaItens itens={d.itens} usuarios={d.usuarios} destinos={d.destinos} origens={d.origens} proxima={d.proxima} temSerie={!!d.serie}
             onAbrirReuniao={(rid) => router.push(`/reunioes/${rid}`)}
             modo={antes ? (cancelada ? 'leitura' : 'pauta') : publicada || cancelada ? 'leitura' : 'conducao'}
-            podeEditar={antes && !cancelada && (participo || conduz)} podeConduzir={conduz && !publicada} duracaoMin={d.duracao_min} corteFechado={false}
+            podeEditar={!cancelada && !publicada && !rascunho && (participo || conduz || d.criador_id === userProfile?.id)} podeConduzir={conduz && !publicada} duracaoMin={d.duracao_min} corteFechado={false}
             onIncluir={onIncluir} onReordenar={(ordem) => itemAcao({ acao: 'reordenar', ordem })} onRemover={(item_id) => itemAcao({ acao: 'remover', item_id })}
             onResultado={publicada ? undefined : onResultado} onCriarAcao={publicada ? undefined : (item) => setAcaoDe(item)} onAbrirTicket={setTicketAberto} />
 

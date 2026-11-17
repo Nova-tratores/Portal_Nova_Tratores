@@ -11,7 +11,7 @@ import { autenticar } from '@/lib/auth/server'
 import { temModuloTickets, registrarEvento } from '@/lib/tickets/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { validarItem, novaOrdem, podeConduzir, ETAPAS_ENCERRADAS, type ReuniaoEtapa } from '@/lib/reunioes/regras'
-import { carregarReuniao, podeVerReuniao, ehParticipanteDaReuniao, condutorDe, uuidValido, migrationFaltou, MSG_MIGRATION_REUNIOES } from '@/lib/reunioes/server'
+import { criadorDaReuniao, carregarReuniao, podeVerReuniao, ehParticipanteDaReuniao, condutorDe, uuidValido, migrationFaltou, MSG_MIGRATION_REUNIOES } from '@/lib/reunioes/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -29,7 +29,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!r || !(await podeVerReuniao(r, auth))) return erro('Reunião não encontrada', 404)
     const etapa = r.ticket.reuniao_etapa as ReuniaoEtapa
     if (ETAPAS_ENCERRADAS.includes(etapa) || etapa === 'ata_rascunho') return erro('A pauta desta reunião não muda mais — a ata está sendo fechada ou já foi publicada.', 409)
-    const conduz = podeConduzir(r.presencas, auth.userId, auth.isAdmin)
+    // quem CRIOU a reunião edita a pauta como quem conduz, mesmo com ela aberta (José, 17/11/2026)
+    const conduz = podeConduzir(r.presencas, auth.userId, auth.isAdmin) || (await criadorDaReuniao(id)) === auth.userId
     const souCondutor = condutorDe(r) === auth.userId || auth.isAdmin
     if (!conduz && !ehParticipanteDaReuniao(r, auth.userId)) return erro('Só quem participa da reunião mexe na pauta.', 403)
     const corteFechado = r.etapaEfetiva !== 'agendada'   // pauta_fechada (lida ou gravada) ou em_andamento
