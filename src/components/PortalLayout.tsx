@@ -13,6 +13,7 @@ import PainelDoDia from '@/components/trabalho/PainelDoDia'
 import PerguntaTratorilson from '@/components/trabalho/PerguntaTratorilson'
 import AvisoComissoesDiretor from '@/components/mecanicos/AvisoComissoesDiretor'
 import CaixaEmail from '@/components/CaixaEmail'
+import EmailConectadoPerfil from '@/components/perfil/EmailConectadoPerfil'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
@@ -1889,6 +1890,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                     fontSize: '13.5px', fontWeight: 700, cursor: 'pointer', opacity: (perfilBusy || novaSenha.length < 6 || novaSenha !== novaSenha2) ? 0.45 : 1
                   }}>Trocar a senha</button>
                 </div>
+
+                {/* E-mail de envio: desconectar mora aqui, não na caixa do topo */}
+                <EmailConectadoPerfil />
               </div>
             )}
 

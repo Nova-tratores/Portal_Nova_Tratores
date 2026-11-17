@@ -297,16 +297,14 @@ export default function CaixaEmail() {
     setMarcando(false)
   }
 
-  // Desvincula o e-mail do portal (apaga a config; envios/histórico ficam)
-  const desvincular = async () => {
-    if (!confirm(`Desvincular o e-mail ${conta} do portal?\n\nA caixa some do header e o envio de boletos pelo seu e-mail para de funcionar até conectar de novo. (No Google nada muda — a senha de app continua ativa lá.)`)) return
-    try {
-      const r = await fetch('/api/financeiro/config-envio', { method: 'DELETE', headers: { ...(await authHeaders()) } })
-      const j = await r.json().catch(() => ({}))
-      if (!r.ok || j.error) { alert(j.error || 'Falha ao desvincular.'); return }
-      setTemConfig(false); setConta(''); setEmails([]); setBadge(0); setOpen(false); setMsgAberta(null)
-    } catch { alert('Falha de conexão ao desvincular.') }
-  }
+  // Desconectar o e-mail mora no Meu perfil (EmailConectadoPerfil). O X daqui
+  // desconectava sem querer quem só queria fechar a janela (caso Danilo, 17/11).
+  // O perfil avisa por este evento para a caixa sumir do topo na hora.
+  useEffect(() => {
+    const fn = () => { setTemConfig(false); setConta(''); setEmails([]); setBadge(0); setOpen(false); setMsgAberta(null) }
+    window.addEventListener('portal-email-desconectado', fn)
+    return () => window.removeEventListener('portal-email-desconectado', fn)
+  }, [])
 
   const responder = async () => {
     if (!msgAberta || (!resposta.trim() && !anexosResp.length) || enviandoResp) return
@@ -383,8 +381,8 @@ export default function CaixaEmail() {
                 style={{ background: 'transparent', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '5px 9px', cursor: 'pointer', color: 'var(--portal-text-secondary)', display: 'flex' }}>
                 <RefreshCw size={14} className={carregando ? 'spin-envio' : ''} />
               </button>
-              <button onClick={desvincular} title="Desvincular meu e-mail do portal"
-                style={{ background: 'transparent', border: '1px solid #fca5a5', borderRadius: 8, padding: '5px 9px', cursor: 'pointer', color: '#dc2626', display: 'flex' }}>
+              <button onClick={() => setOpen(false)} title="Fechar" aria-label="Fechar"
+                style={{ background: 'transparent', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '5px 9px', cursor: 'pointer', color: 'var(--portal-text-secondary)', display: 'flex' }}>
                 <X size={14} />
               </button>
             </div>
