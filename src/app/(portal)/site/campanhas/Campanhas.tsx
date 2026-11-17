@@ -587,7 +587,7 @@ function Resumo({ d, exemplo: ehExemplo }: { d: Dados; exemplo: boolean }) {
 
 // ---------- CONFIGURAR › CAMPANHA: nome, ano, datas, ligada, capa e links ----------
 /** Cabeçalho do ano na lista: número grande em degradê âmbar, linha que se apaga e o resumo do ano. */
-function AnoCabecalho({ ano, campanhas }: { ano: number; campanhas: Camp[] }) {
+function AnoCabecalho({ ano, campanhas }: { ano: number; campanhas: (Camp & { respostas?: number })[] }) {
   const noAr = campanhas.filter((c) => situacao(c).startsWith('no ar')).length;
   const respostas = campanhas.reduce((t, c) => t + (c.respostas || 0), 0);
   return (
