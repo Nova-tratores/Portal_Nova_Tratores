@@ -3,13 +3,13 @@
 // cruzar quantos km ele rodou entre os abastecimentos?"). O km/l do módulo usa o hodômetro DIGITADO na bomba; este usa
 // o GPS, que não depende de ninguém digitar. Só lê tabela.
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'frota')
   if (g.resposta) return g.resposta
   const mes = String(req.nextUrl.searchParams.get('mes') || '')
   if (!/^\d{4}-\d{2}$/.test(mes)) return NextResponse.json({ erro: 'Mês inválido.' }, { status: 400 })

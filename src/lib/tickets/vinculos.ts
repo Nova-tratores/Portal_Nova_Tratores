@@ -55,8 +55,8 @@ export const COLS_REQ_RESUMO =
 // Colunas do Kanban de requisições (Kanban.tsx) + lixeira.
 export const STATUS_REQ_INFO: Record<string, { label: string; cor: string; fundo: string }> = {
   pedido:     { label: 'Pedido realizado',       cor: '#ea580c', fundo: 'rgba(234,88,12,.12)' },
-  completa:   { label: 'Atualizada por técnico', cor: '#2563eb', fundo: 'rgba(37,99,235,.12)' },
-  aguardando: { label: 'Aguardando fornecedor',  cor: '#7c3aed', fundo: 'rgba(124,58,237,.12)' },
+  completa:   { label: 'Aguardando autorização', cor: '#2563eb', fundo: 'rgba(37,99,235,.12)' },
+  aguardando: { label: 'Aguardando nota do fornecedor',  cor: '#7c3aed', fundo: 'rgba(124,58,237,.12)' },
   financeiro: { label: 'Enviado financeiro',     cor: '#059669', fundo: 'rgba(5,150,105,.12)' },
   lixeira:    { label: 'Lixeira',                cor: '#6b7280', fundo: 'rgba(107,114,128,.12)' },
 }

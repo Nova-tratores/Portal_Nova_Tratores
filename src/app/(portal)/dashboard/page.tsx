@@ -324,7 +324,7 @@ export default function DashboardPage() {
             background: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#fff', fontSize: isMobile ? 20 : 26, fontWeight: 800, letterSpacing: -.3, boxShadow: '0 16px 40px rgba(37,99,235,.45)' }}>
           <Database size={isMobile ? 24 : 30} /> Sistema Omie Completo <ExternalLink size={isMobile ? 18 : 22} />
         </a>
-      ) : ehDiretor && (
+      ) : (ehDiretor || temAcesso('empresa')) && ( /* quem recebeu a Visão da empresa no Admin também (17/11/2026) */
         <button onClick={() => router.push('/empresa')} className='ds-empresa'
           style={{ marginTop: 14, display: 'inline-flex', alignItems: 'center', gap: 9, padding: '10px 18px', borderRadius: 999, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
             background: 'linear-gradient(135deg,#dc2626,#991b1b)', color: '#fff', fontSize: 14.5, fontWeight: 700, boxShadow: '0 10px 26px rgba(220,38,38,.35)' }}>

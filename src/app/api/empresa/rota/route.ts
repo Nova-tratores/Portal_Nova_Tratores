@@ -4,7 +4,7 @@
 // mês e entre horas". Mesma função do Frota/Supervisor (computarESalvarRota): dia passado vem do cache em
 // rotas_vendedor; hoje busca no rastreador na hora (o último ponto é onde o carro está agora).
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { computarESalvarRota } from '@/lib/pos/rastreamento'
 
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'frota', 'comercial')
   if (g.resposta) return g.resposta
   const placa = (req.nextUrl.searchParams.get('placa') || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
   const data = req.nextUrl.searchParams.get('data') || ''

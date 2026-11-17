@@ -57,18 +57,18 @@ export default function QuemAcessa() {
         onClick={() => setAberto((a) => !a)}
         title="Quem acessa esta página? (só Dev)"
         style={{
-          position: 'fixed', right: 16, bottom: 16, zIndex: 900, display: 'flex', alignItems: 'center', gap: 6,
-          padding: '6px 10px', borderRadius: 999, border: '1px solid var(--portal-border)',
+          // 17/11/2026 (José: "está atrapalhando"): canto ESQUERDO, só a chave, meio apagado até passar o mouse
+          position: 'fixed', left: 12, bottom: 12, zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 32, height: 32, padding: 0, borderRadius: 999, border: '1px solid var(--portal-border)',
           background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-secondary)',
           fontSize: 12, fontWeight: 600, fontFamily: 'Inter', cursor: 'pointer', boxShadow: '0 2px 8px rgba(0,0,0,.12)',
         }}
       >
-        <KeyRound size={14} /> <span className="qa-txt">Quem acessa</span>
-        <span className="qa-txt" style={{ fontSize: 9, fontWeight: 800, background: '#111111', color: '#fefefe', padding: '1px 6px', borderRadius: 999 }}>DEV</span>
+        <KeyRound size={14} />
       </button>
       {/* celular: só a chave — o selo inteiro tapava o conteúdo no canto. O <style> fica FORA do botão
           (dentro dele o CSS entrava no texto do botão; auditoria 06/11/2026); meio transparente até tocar */}
-      <style>{`@media (max-width: 640px) { .quem-acessa-btn { padding: 8px !important; opacity: .55; } .quem-acessa-btn:active, .quem-acessa-btn:focus { opacity: 1; } .quem-acessa-btn .qa-txt { display: none; } }`}</style>
+      <style>{`.quem-acessa-btn { opacity: .4; transition: opacity .15s; } .quem-acessa-btn:hover, .quem-acessa-btn:focus-visible { opacity: 1; }`}</style>
 
       {aberto && (
         <aside

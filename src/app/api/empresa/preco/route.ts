@@ -4,7 +4,7 @@
 // mesma do recebimento de mercadorias) e a cópia do portal é atualizada junto. Só diretor, admin ou dev.
 // Fica registrado no audit_log (de → para, quem mudou).
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { autorDe } from '@/lib/ajustes/permissao-server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { alterarPrecoVenda } from '@/lib/estoque/recebimentos'
@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'pecas', 'comercial')
   if (g.resposta) return g.resposta
   const { data: perm } = await supabaseAdmin.from('portal_permissoes').select('is_diretor').eq('user_id', g.user.id).maybeSingle()
   if (!g.user.isAdmin && (perm as { is_diretor?: boolean } | null)?.is_diretor !== true) {

@@ -18,7 +18,8 @@ import { CATEGORIAS_CUSTO, rotulo, type Custo } from './tipos';
 export function parseValorMisto(v: unknown): number {
   if (v === null || v === undefined || v === '') return 0;
   if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
-  const s = String(v).trim();
+  // tira "R$", espaço e outras letras (#7039 tinha "R$190,00" e somava zero no quadro — 17/11/2026)
+  const s = String(v).replace(/[^\d,.-]/g, '');
   if (s === '') return 0;
   if (s.includes(',')) {
     // BR: ponto é milhar, vírgula é decimal.

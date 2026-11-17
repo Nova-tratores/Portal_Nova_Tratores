@@ -4,14 +4,14 @@
 // lê o resultado gravado pelo robô `empresa-snapshot` em empresa_painel (José: "salvar em tabelas para não demorar").
 // Permissão: a mesma do DRE (guardarDre) — os valores são do financeiro.
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { lerArea, areaIgual } from '@/lib/empresa/painel-gravado'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 120
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'financeiro')
   if (g.resposta) return g.resposta
   try {
     // ?meses=24 → os 24 meses (tela de Despesas compara anos); sem nada → os 6 da tela inicial

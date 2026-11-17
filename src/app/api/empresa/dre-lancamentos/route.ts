@@ -5,7 +5,7 @@
 // com o setor e a linha da mesma regra do DRE gerencial. José: "não pode ficar carregando, tem que ser em uma tabela".
 // linha=geral → as despesas gerais da empresa (o setor leva uma parte, pela receita).
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { lerLancamentos } from '@/lib/empresa/painel-gravado'
 import type { SetorG } from '@/lib/empresa/dre-gerencial'
 
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'financeiro')
   if (g.resposta) return g.resposta
   const sp = req.nextUrl.searchParams
   const mes = sp.get('mes') || ''

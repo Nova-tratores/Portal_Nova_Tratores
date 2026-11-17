@@ -38,6 +38,7 @@ import { PainelPecas, CSS_CPC } from './pecas'
 import { FrotaMapaCards, CSS_CFR } from './frota'
 import { PainelRequisicoes, CSS_CRQ } from './requisicoes'
 import { useEstadoUrl } from './url-estado'
+import { PainelAutorizacoes, useContaAutorizacoes } from './autorizacoes'
 
 // ── fontes ─────────────────────────────────────────────────────────────────────
 type Sit = 'verde' | 'amarelo' | 'vermelho'
@@ -228,8 +229,11 @@ export default function ComoEstaAEmpresa() {
   const isMobile = useIsMobile()
   const { log } = useAuditLog()
   const { userProfile } = useAuth()
-  const { permissoes, isAdmin, isDev, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { permissoes, isAdmin, isDev, pode, temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const ehDiretor = isAdmin || isDev || (permissoes as unknown as { is_diretor?: boolean } | null)?.is_diretor === true
+  // módulo "empresa" do Admin (17/11/2026): quem não é Diretor/Admin/Dev vê só os setores liberados
+  const setorLiberado = (k: string) => ehDiretor || pode('empresa', k) || (k === 'autorizacoes' && pode('empresa', 'autorizar-requisicoes'))
+  const podeEntrar = ehDiretor || temAcesso('empresa')
 
   const [home, setHome] = useState<Home | null>(null)
   const [painel, setPainel] = useState<Painel | null>(null)
@@ -253,12 +257,13 @@ export default function ComoEstaAEmpresa() {
   type Opcao = 'atual' | 'exec' | 'foco' | 'semaforo'
   const [opcao, setOpcao] = useState<Opcao>('foco')
   const [modoTeste, setModoTeste] = useState(false)
-  type Area = 'geral' | 'financeiro' | K | 'patio' | 'frota' | 'requisicoes'
+  type Area = 'geral' | 'financeiro' | K | 'patio' | 'frota' | 'requisicoes' | 'autorizacoes'
   // a área aberta vai para o endereço (?area=comercial) — José, 12/11: "conforme entra nas abas, já muda a url".
   // Auditoria 16/11: o link/recarregar abre a mesma área (B2) e o "voltar" do celular volta para a Visão geral (B3);
   // trocar de área tira a ?tela= da área anterior.
-  const [areaUrl, setAreaUrl] = useEstadoUrl<Area>('area', ['financeiro', 'comercial', 'posvendas', 'pecas', 'frota', 'requisicoes'], ['tela'])
+  const [areaUrl, setAreaUrl] = useEstadoUrl<Area>('area', ['financeiro', 'comercial', 'posvendas', 'pecas', 'frota', 'requisicoes', 'autorizacoes'], ['tela'])
   const foco: Area = areaUrl ?? 'geral'
+  const nAut = useContaAutorizacoes() // pendentes da aba Autorizações (null = sem acesso)
   const setFoco = useCallback((a: Area) => setAreaUrl(a === 'geral' ? null : a), [setAreaUrl])
   // B4 (auditoria 16/11): no celular a barra de abas não rolava e a aba ativa ficava escondida à direita
   useEffect(() => {
@@ -395,7 +400,7 @@ export default function ComoEstaAEmpresa() {
 
   const fatiasDe = useCallback((s: Setor): Fatia[] => [...s.fatias.filter((f) => f.valor > 0), ...(s.sobrou > 0 ? [{ id: 'lucro', nome: 'Sobrou', valor: s.sobrou, cor: LUCRO }] : [])], [])
 
-  if (!loadingPerm && userProfile && !ehDiretor) return <SemPermissao />
+  if (!loadingPerm && userProfile && !podeEntrar) return <SemPermissao />
 
   const r = home?.resultado_mes, ra = home?.resultado_mes_anterior
   const mesNome = new Date().toLocaleDateString('pt-BR', { month: 'long' })
@@ -628,7 +633,7 @@ export default function ComoEstaAEmpresa() {
   const pos = setorDe('posvendas')
 
   // situação + frase de cada área (a Visão geral só mostra isto)
-  const AREAS: Array<{ k: Area; nome: string; ic: ReactNode; cor: string; num: string; sit: Sit; frase: string }> = [
+  const AREAS_TODAS: Array<{ k: Area; nome: string; ic: ReactNode; cor: string; num: string; sit: Sit; frase: string }> = [
     // situação do Financeiro pelo resultado GERENCIAL (o do Omie vem distorcido — ver dre-gerencial.ts)
     { k: 'financeiro' as Area, nome: 'Financeiro', ic: <span className="op-letra">R$</span>, cor: '#10B981', num: rv ? compacto(rv.valor || 0) : '—',
       sit: (!rv && !pv ? 'amarelo' : (rv?.valor || 0) > 500000 || (pv?.valor || 0) > 100000 ? 'vermelho' : (rv?.valor || 0) > 0 || (pv?.valor || 0) > 0 ? 'amarelo' : 'verde') as Sit,
@@ -643,7 +648,11 @@ export default function ComoEstaAEmpresa() {
       frase: frota ? `${frota.ativos} veículos · ${frota.parados.length} parados · ${docVenc} documento(s) vencido(s)` : 'sem acesso à Frota' },
     { k: 'requisicoes', nome: 'Requisições', ic: <span className="op-letra">✎</span>, cor: '#64748B', num: rq ? num(rq.contagem) : '—', sit: !rq ? 'amarelo' : (rqd.paradas_30 || 0) > 0 ? 'amarelo' : 'verde',
       frase: rq ? `${num(rq.contagem)} em aberto${rqd.paradas_30 ? ` · ${rqd.paradas_30} paradas há mais de 30 dias` : ''}` : 'sem acesso' },
+    // Autorizações do Diretor por setor e assunto (José, 17/11/2026)
+    { k: 'autorizacoes', nome: nAut ? `Autorizações (${nAut})` : 'Autorizações', ic: <span className="op-letra">✓</span>, cor: nAut ? '#DC2626' : '#475569', num: nAut == null ? '—' : nAut ? `${nAut} para decidir` : 'nada pendente',
+      sit: (nAut ? 'vermelho' : 'verde') as Sit, frase: nAut ? `${nAut} ${nAut === 1 ? 'pedido espera' : 'pedidos esperam'} você` : 'nada esperando autorização' },
   ]
+  const AREAS = AREAS_TODAS.filter((x) => setorLiberado(x.k))
   const ruins = AREAS.filter((x) => x.sit !== 'verde')
   const LISTA = [{ k: 'geral' as Area, nome: 'Visão geral', ic: <span className="op-letra">◎</span>, cor: '#0f172a', num: ruins.length ? `${ruins.length} ${ruins.length === 1 ? 'área' : 'áreas'} com atenção` : 'tudo em dia', sit: (ruins.some((x) => x.sit === 'vermelho') ? 'vermelho' : ruins.length ? 'amarelo' : 'verde') as Sit }, ...AREAS]
 
@@ -657,7 +666,7 @@ export default function ComoEstaAEmpresa() {
 
   const ICONE_FA: Record<Area, string> = {
     geral: 'fa-compass', financeiro: 'fa-sack-dollar', comercial: 'fa-tractor', posvendas: 'fa-screwdriver-wrench',
-    pecas: 'fa-gears', patio: 'fa-warehouse', frota: 'fa-truck', requisicoes: 'fa-clipboard-list',
+    pecas: 'fa-gears', patio: 'fa-warehouse', frota: 'fa-truck', requisicoes: 'fa-clipboard-list', autorizacoes: 'fa-stamp',
   }
   // VISÃO GERAL: cada área é um gráfico grande + o número + 2 ou 3 palavras (José, 11/11: "mais visual e menos texto")
   const graficoArea = (k: Area): ReactNode => {
@@ -1008,7 +1017,7 @@ export default function ComoEstaAEmpresa() {
       </svg>
     )
   }
-  const GRADE_BENTO: Record<Area, string> = { geral: '', financeiro: 'fin', comercial: 'com', posvendas: 'pos', pecas: 'pec', frota: 'fro', patio: 'pat', requisicoes: 'req' }
+  const GRADE_BENTO: Record<Area, string> = { geral: '', financeiro: 'fin', comercial: 'com', posvendas: 'pos', pecas: 'pec', frota: 'fro', patio: 'pat', requisicoes: 'req', autorizacoes: 'aut' }
   const capaBento = () => (
     <div className="ce-painel bt">
       <div className="bt-topo"><div className="bt-ctrl">{controles}</div></div>
@@ -1034,7 +1043,7 @@ export default function ComoEstaAEmpresa() {
             <span className={`op-dot${it.sit === 'vermelho' ? ' op-pisca' : ''}`} style={{ background: COR[it.sit] }} />
           </button>
   ))
-  const layoutFoco = () => foco === 'geral' ? capaBento() : (
+  const layoutFoco = () => foco === 'geral' || !setorLiberado(foco) ? capaBento() : (
     <div className={`ce-painel op-foco${topoOp === 'lateral' ? '' : ` tp tp-${topoOp}`}`}>
       <nav className="op-foco-lista" role="tablist" aria-label="Áreas da empresa">
         <div className="fx-ctrl">{controles}</div>
@@ -1042,7 +1051,8 @@ export default function ComoEstaAEmpresa() {
       </nav>
       <div className="op-foco-painel" key={foco}>
         {foco === 'financeiro' ? painelFinanceiro() : foco === 'patio' ? painelPatio() : foco === 'frota' ? <div className="fx-pad"><FrotaMapaCards /></div> /* só as abas novas; o painel antigo (parados, documentos…) saiu — José, 12/11 */
-          : foco === 'requisicoes' ? <div className="fx-pad"><PainelRequisicoes /></div> /* cartões por assunto (José, 12/11) */
+          : foco === 'requisicoes' ? <div className="fx-pad"><PainelRequisicoes /></div>
+          : foco === 'autorizacoes' ? <PainelAutorizacoes /> /* cartões por assunto (José, 12/11) */
           : foco === 'comercial' ? <PainelComercial d={com} setD={setCom} dreG={dreG as unknown as Parameters<typeof PainelComercial>[0]['dreG']} erro={comErro} />
           // Pós-Vendas no mesmo jeito do Comercial: cartões por assunto (José, 12/11)
           : foco === 'posvendas' ? <PainelPosVendas dreG={dreG} oficina={OPER_POS.flatMap((o) => { const x = kv(o.id); return x ? [{ id: o.id, nome: o.nome, n: x.contagem, onClick: () => nova({ tipo: 'kpi', id: o.id, nome: o.nome }) }] : [] })} />
@@ -1584,7 +1594,7 @@ const CSS_BENTO = `
 .bt .bt-meses button{border:0;background:transparent;border-radius:9px;padding:6px 12px;font:inherit;font-size:13.5px;font-weight:500;color:#475569;cursor:pointer}
 .bt .bt-meses button.on{background:#fefefe;color:#0f172a;box-shadow:0 1px 3px rgba(15,23,42,.15)}
 .bt-meses span{font-size:12px;color:#64748b;padding:0 8px;white-space:nowrap}
-.bt-grade{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(225px,auto);gap:14px;grid-template-areas:"fin fin com pos" "fin fin pec fro" "fin fin req req"}
+.bt-grade{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(225px,auto);gap:14px;grid-template-areas:"fin fin com pos" "fin fin pec fro" "fin fin req aut"}
 .bt .bt-card{all:unset;box-sizing:border-box;border-radius:22px;padding:20px;color:#fff;position:relative;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;justify-content:space-between;gap:14px;transition:transform .25s,box-shadow .25s;animation:ceFade .35s both;font-family:inherit}
 .bt .bt-card:hover{transform:scale(1.012);box-shadow:0 18px 34px -22px rgba(15,23,42,.7)}
 .bt .bt-card:focus-visible{outline:3px solid #0f172a;outline-offset:2px}
@@ -1643,7 +1653,7 @@ const CSS_BENTO = `
 @media (max-width:1100px){.bt-grade.cp-colunas,.bt-grade.cp-grade{grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:170px}}
 @media (max-width:620px){.bt-grade.cp-colunas,.bt-grade.cp-grade{grid-template-areas:none;grid-template-rows:none;flex:none;grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:110px}
 /* B1 (auditoria 16/11): o bento tem grid-area em cada cartão — sem as áreas todos caíam na mesma célula */
-.bt-grade.cp-bento{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none;grid-template-areas:"fin fin" "com pos" "pec fro" "req req";grid-auto-rows:110px;flex:0 0 auto}.bt-nome-g{white-space:nowrap}.bt-nome-g,.cp-bento .bt-card.bt-so-nome:first-child .bt-nome-g{font-size:19px}.bt-grade.cp-lista{grid-auto-rows:56px}}
+.bt-grade.cp-bento{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:none;grid-template-areas:"fin fin" "com pos" "pec fro" "req aut";grid-auto-rows:110px;flex:0 0 auto}.bt-nome-g{white-space:nowrap}.bt-nome-g,.cp-bento .bt-card.bt-so-nome:first-child .bt-nome-g{font-size:19px}.bt-grade.cp-lista{grid-auto-rows:56px}}
 /* OPÇÕES DE TOPO em teste (José, 11/11: "coloca no testes, opções para deixar no topo") — classe tp-a/b/c/d no .op-foco */
 .op-foco.tp{flex-direction:column}
 .tp .op-foco-lista{width:auto;flex-direction:row;align-items:center;gap:6px;padding:10px 16px;border-right:0;border-bottom:1px solid var(--portal-border);overflow-x:auto;overflow-y:hidden;scrollbar-width:thin;flex-shrink:0}
@@ -1707,8 +1717,8 @@ const CSS_BENTO = `
 .bt-fin-lista>div{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:10px 14px}
 .bt-fin-lista b{display:block;font-size:22px;font-weight:700;letter-spacing:-.01em;font-variant-numeric:tabular-nums;margin:2px 0}
 @media (max-width:620px){.bt-fin-dest b{font-size:32px}.bt-fin-lista b{font-size:18px}}
-@media (max-width:1100px){.bt-grade{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"fin fin" "com pos" "pec fro" "req req"}.bt-g .bt-ve b{font-size:36px}}
-@media (max-width:620px){.bt{padding:12px}.bt-grade{grid-template-columns:minmax(0,1fr);grid-template-areas:"fin" "com" "pos" "pec" "fro" "req";grid-auto-rows:auto}.bt .bt-card{min-height:190px}.bt-g .bt-ve b,.bt-ve b{font-size:26px}.bt-g .bt-curva{min-height:90px}}
+@media (max-width:1100px){.bt-grade{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"fin fin" "com pos" "pec fro" "req aut"}.bt-g .bt-ve b{font-size:36px}}
+@media (max-width:620px){.bt{padding:12px}.bt-grade{grid-template-columns:minmax(0,1fr);grid-template-areas:"fin" "com" "pos" "pec" "fro" "req" "aut";grid-auto-rows:auto}.bt .bt-card{min-height:190px}.bt-g .bt-ve b,.bt-ve b{font-size:26px}.bt-g .bt-curva{min-height:90px}}
 `
 
 const CSS_IBCS = `

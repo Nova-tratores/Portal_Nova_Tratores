@@ -14,7 +14,8 @@ type Req = { id: number; titulo: string; tipo: string; pessoa: string; setor: st
 type Dados = { reqs: Req[]; hoje: string }
 const FASE: Record<string, { nome: string; cor: string; aberta: boolean }> = {
   pedido: { nome: 'Pedido realizado', cor: '#2563eb', aberta: true },
-  aguardando: { nome: 'Aguardando fornecedor', cor: '#d97706', aberta: true },
+  completa: { nome: 'Aguardando autorização', cor: '#dc2626', aberta: true },
+  aguardando: { nome: 'Aguardando nota do fornecedor', cor: '#d97706', aberta: true },
   financeiro: { nome: 'No financeiro', cor: '#16a34a', aberta: false },
 }
 const COR_TIPO = ['#0f766e', '#0891b2', '#6366f1', '#a855f7', '#f59e0b', '#f97316', '#84cc16', '#94a3b8', '#e11d48', '#64748b']

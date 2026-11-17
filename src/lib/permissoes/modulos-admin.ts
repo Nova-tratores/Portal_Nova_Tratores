@@ -7,11 +7,14 @@ export const MODULO_ADMINISTRACAO = 'administracao'
 // ficha dos colegas sem documentos, saúde e banco; mudança vira pedido ao Diretor. Só Admin dá.
 export const MODULO_FICHA_CADASTRAL = 'ficha-cadastral'
 /** módulos que só um Admin dá ou tira (quem tem Administração não mexe neles) */
-export const MODULOS_SO_ADMIN = [MODULO_ADMINISTRACAO, MODULO_FICHA_CADASTRAL]
+// Visão da empresa (17/11/2026): números da empresa inteira e quem autoriza compras — só Admin/Dev concede
+export const MODULO_EMPRESA = 'empresa'
+export const MODULOS_SO_ADMIN = [MODULO_ADMINISTRACAO, MODULO_FICHA_CADASTRAL, MODULO_EMPRESA]
 
 export const MODULOS_ADMIN: { id: string; label: string; color: string }[] = [
   { id: MODULO_ADMINISTRACAO, label: 'Administração (dar e tirar acessos)', color: '#0f172a' },
   { id: MODULO_FICHA_CADASTRAL, label: 'Ficha cadastral dos colaboradores (sem dados sensíveis)', color: '#0f172a' },
+  { id: MODULO_EMPRESA, label: 'Visão da empresa (por setor; só Admin/Dev concede)', color: '#b91c1c' },
   // Ajustes: módulo único que expande nas páginas (ações vêm de
   // ACOES_POR_MODULO['ajustes'], derivado de PAGINAS_AJUSTES).
   { id: 'ajustes', label: 'Ajustes', color: '#991b1b' },

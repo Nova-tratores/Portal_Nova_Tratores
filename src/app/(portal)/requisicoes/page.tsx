@@ -23,6 +23,7 @@ import PainelDev from '@/components/requisicoes/PainelDev';
 import PainelAtencao from '@/components/requisicoes/PainelAtencao';
 import PainelGastos from '@/components/requisicoes/PainelGastos';
 import LixeiraReq from '@/components/requisicoes/LixeiraReq';
+import MenuAbasReq from '@/components/requisicoes/MenuAbasReq';
 import ConfirmarNotas, { NotasEncontradasCartao } from '@/components/requisicoes/ConfirmarNotas';
 import type { SugestaoNota } from '@/lib/requisicoes/casar-nota-server';
 import { fetchAuth } from '@/lib/auth/client';
@@ -254,6 +255,8 @@ function RequisicoesPageInner() {
     const { error } = await supabase.from('Requisicao').update(dados).eq('id', id);
     // soLocal: o servidor já gravou (ex.: "Aprovar compra"); só atualiza a lista
     if (opcoes?.soLocal) return;
+    // trava da autorização do Diretor (gatilho no banco) volta com a explicação: mostra e recarrega
+    if (error && /autoriza/i.test(String(error.message || ''))) { alert(error.message); carregarDados(true); return }
     if (error) { console.error('[Requisições] Erro ao atualizar:', error?.message, error?.code, error?.details, error?.hint); carregarDados(true); return }
     auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'requisicao', entidade_id: String(id), detalhes: dados });
     // Chegou ao financeiro: o motor da frota fecha na hora a pendência do carro
@@ -467,7 +470,7 @@ function RequisicoesPageInner() {
     <div className="req-vn">
     <style>{ESTILO_REQ_VN}</style>
     {/* Sistema Peças: barra padronizada do módulo */}
-    <div className="px-3 py-3 md:px-8 md:py-6">
+    <div className="px-3 py-3 md:px-8 md:py-3">
       {reqParaImprimir && <TemplatePDF req={reqParaImprimir} anexos={anexosParaImprimir} onUpdate={() => {}} onPrint={() => {}} />}
 
       {/* Toasts */}
@@ -646,22 +649,13 @@ function RequisicoesPageInner() {
         </>
       )}
 
-      {/* Abas coloridas (Estilo POS NewPortal) + "Como ler esta tela" */}
-      <div style={{ marginBottom: 14, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', borderBottom: '1px solid var(--border, #e2e8f0)' }}>
-        <div className="rq-abas">
-          {tabs.map(tab => (
-            <button key={tab.id} type="button" onClick={() => setAbaAtiva(tab.id)}
-              className={`rq-aba ${abaAtiva === tab.id ? 'on' : ''}`} style={{ ['--c' as any]: tab.cor }}>
-              <span className="rq-aba-ico"><i className={`fa-solid ${tab.icone}`} /></span>
-              {tab.label}
-              {tab.conta ? <span className="rq-aba-conta">{tab.conta}</span> : null}
-            </button>
-          ))}
+      {/* Atenção (botão que abre a lista) à esquerda + abas num menu suspenso à direita (José, 17/11/2026) */}
+      {/* No Quadro, o botão de atenção e o menu das abas vão para a barra do Kanban (uma linha só); nas outras abas fica só o menu */}
+      {abaAtiva !== "kanban" && (
+        <div style={{ marginBottom: 10, display: "flex", justifyContent: "flex-end" }}>
+          <MenuAbasReq abas={tabs} ativa={abaAtiva} onTrocar={setAbaAtiva} />
         </div>
-        <button type="button" className="rq-btn" style={{ marginBottom: 6, ['--c' as any]: '#2563EB' }} onClick={() => setComoLer(true)}>
-          <i className="fa-regular fa-circle-question" style={{ color: '#2563EB' }} /> Como ler esta tela
-        </button>
-      </div>
+      )}
 
       {comoLer && (
         <div className="fixed inset-0 z-[10002] flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,.35)', backdropFilter: 'blur(6px)' }} onClick={() => setComoLer(false)}>
@@ -671,7 +665,7 @@ function RequisicoesPageInner() {
               <button className="rq-btn" style={{ height: 32 }} onClick={() => setComoLer(false)}><X size={14} /></button>
             </div>
             <div style={{ fontSize: 14, lineHeight: 1.6, color: 'var(--rq-sec)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <p><span style={{ fontWeight: 500, color: 'var(--rq-txt)' }}>Quadro</span> — cada coluna é uma fase: pedido → atualizada pelo técnico → aguardando fornecedor → financeiro. Arraste o cartão para mudar de fase. Em cima de cada coluna: quantas e quanto somam.</p>
+              <p><span style={{ fontWeight: 500, color: 'var(--rq-txt)' }}>Quadro</span> — cada coluna é uma fase: pedido → aguardando autorização (R$ 200 ou mais, o Diretor decide) → aguardando nota do fornecedor → financeiro. Arraste o cartão para mudar de fase. Em cima de cada coluna: quantas e quanto somam.</p>
               <p><span style={{ fontWeight: 500, color: 'var(--rq-txt)' }}>Precisa da sua atenção</span> — o que está travado: abertas paradas há muito tempo, que foram ao financeiro sem nota, acima de R$ 500, sem fornecedor ou que parecem duplicadas. Clique num número para ver só aquelas no quadro; clique de novo para tirar.</p>
               <p><span style={{ fontWeight: 500, color: 'var(--rq-txt)' }}>Cartão</span> — o ícone e a cor dizem o tipo (combustível, carro, alimentação…). Embaixo, o valor e se tem nota, boleto ou recibo (verde = anexado). &quot;Parada há N dias&quot; aparece depois de uma semana aberta.</p>
               <p><span style={{ fontWeight: 500, color: 'var(--rq-txt)' }}>Painel</span> — quanto se gastou no período, por mês, por tipo, fornecedor, veículo e pessoa, e quanto tempo leva até o financeiro. Clique numa barra para ver aquelas requisições no quadro.</p>
@@ -699,13 +693,6 @@ function RequisicoesPageInner() {
             <ConfirmarNotas sugestoes={sugestoesNota} requisicoes={requisicoes}
               foco={focoNota} onConfirmar={confirmarNota} onRecusar={recusarNota} onFechar={() => setVerNotas(false)} />
           )}
-          {abaAtiva === 'kanban' && (
-            <PainelAtencao
-              requisicoes={requisicoes}
-              filtroAtivo={filtroEspecial?.chave || null}
-              onFiltrar={(it: ItemAtencao | null) => setFiltroEspecial(it ? { chave: it.chave, ids: it.ids, titulo: it.titulo } : null)}
-            />
-          )}
           {abaAtiva === 'painel' && (
             <PainelGastos
               requisicoes={requisicoes}
@@ -716,6 +703,8 @@ function RequisicoesPageInner() {
           )}
           {abaAtiva === 'kanban' && (
             <Kanban
+              inicioBarra={<PainelAtencao requisicoes={requisicoes} filtroAtivo={filtroEspecial?.chave || null} onFiltrar={(it: ItemAtencao | null) => setFiltroEspecial(it ? { chave: it.chave, ids: it.ids, titulo: it.titulo } : null)} />}
+              fimBarra={<MenuAbasReq abas={tabs} ativa={abaAtiva} onTrocar={setAbaAtiva} />}
               filtroEspecial={filtroEspecial}
               onLimparEspecial={() => setFiltroEspecial(null)}
               notasAchadas={podeEditar ? reqsComNota : null}
@@ -754,8 +743,8 @@ function RequisicoesPageInner() {
             const getPlaca = (id: any) => { const v = veiculosList.find((x: any) => String(x.IdPlaca) === String(id)); return v?.NumPlaca || ''; };
             const fases = [
               { id: 'pedido', label: 'Pedido Realizado', cor: '#F97316' },
-              { id: 'completa', label: 'Atualizada por Técnico', cor: '#06b6d4' },
-              { id: 'aguardando', label: 'Aguardando Fornecedor', cor: '#f97316' },
+              { id: 'completa', label: 'Aguardando autorização', cor: '#DC2626' },
+              { id: 'aguardando', label: 'Aguardando nota do fornecedor', cor: '#f97316' },
             ];
             const getDetalhe = (r: any) => {
               const tipo = (r.tipo || r.ReqTipo || '').toLowerCase();

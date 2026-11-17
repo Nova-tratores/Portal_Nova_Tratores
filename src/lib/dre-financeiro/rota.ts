@@ -19,6 +19,12 @@ export function opcoesDre(...telas: string[]): OpcaoAcesso[] {
 /** Vendas por Modelo: DRE (financeiro | dre:vendas-modelo) OU o módulo do Comercial. */
 export const OPCOES_VENDAS_MODELO: OpcaoAcesso[] = [{ modulo: 'vendas-modelo' }, ...opcoesDre('vendas-modelo')]
 
+/** Rota da Visão da empresa (/api/empresa/*): quem já entrava (Financeiro/DRE) OU quem tem o módulo
+ *  "empresa" com o setor da rota (17/11/2026; lib/permissoes/empresa.ts). */
+export function guardarEmpresa(req: Request, ...setores: string[]) {
+  return protegerRota(req, [...opcoesDre(), ...setores.map((s) => ({ modulo: 'empresa', acao: s }))])
+}
+
 /** Rota chamada pela(s) tela(s) do DRE. */
 export function guardarDre(req: Request, ...telas: string[]) {
   return protegerRota(req, opcoesDre(...telas))

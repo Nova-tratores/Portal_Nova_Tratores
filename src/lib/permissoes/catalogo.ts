@@ -8,6 +8,7 @@
 
 import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas';
 import { CHAVES_ABAS_FINANCEIRO } from '@/components/financeiro/areasFinanceiro';
+import { SETORES_EMPRESA, ACAO_AUTORIZAR_REQUISICOES } from './empresa';
 import { PAGINAS_FROTA } from '@/app/(portal)/frota/paginas';
 import { PAGINAS_MARKETING } from '@/app/(portal)/marketing/paginas';
 import { PAGINAS_IV } from '@/app/(portal)/inteligencia-vendas/paginas';
@@ -24,7 +25,7 @@ export const GRUPOS_ORDEM = ['Administração', 'Serviços', 'Peças', 'Financei
 
 // módulo id → grupo (organiza os módulos na tela). Ids que não estão aqui caem em 'Outros'.
 const GRUPO_POR_MODULO: Record<string, string> = {
-  administracao: 'Administração', 'ficha-cadastral': 'Administração',
+  administracao: 'Administração', 'ficha-cadastral': 'Administração', empresa: 'Administração',
   // Serviços
   pos: 'Serviços', garantias: 'Serviços', revisoes: 'Serviços', mecanicos: 'Serviços',
   'painel-mecanicos': 'Serviços', sat: 'Serviços', mapa: 'Serviços', 'fotos-tecnicos': 'Serviços', lousa: 'Serviços',
@@ -67,6 +68,11 @@ export function grupoDoModulo(id: string): string {
 export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
   // Planta Viva: os números sensíveis (financeiro, R$, propostas, requisições…) ficam lacrados
   // para quem não é admin; esta ação libera ver o valor e o detalhe (29/10/2026, Larissa).
+  // Visão da empresa: um por setor + quem confirma requisições (lib/permissoes/empresa.ts; 17/11/2026)
+  empresa: [
+    ...SETORES_EMPRESA.map((s) => ({ id: s.id, label: `Setor › ${s.label}` })),
+    { id: ACAO_AUTORIZAR_REQUISICOES, label: 'Autorizações › Autorizar requisições de R$ 200 ou mais (junto com o Diretor)' },
+  ],
   planta: [
     { id: 'sensivel', label: 'Ver os números sensíveis (financeiro, valores em R$) e o detalhe deles' },
   ],

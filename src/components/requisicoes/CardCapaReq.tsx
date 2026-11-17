@@ -137,6 +137,11 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
                 <i className="fa-solid fa-file-invoice" /> Nota achada no Omie
               </button>
             )}
+            {/* autorização do Diretor (17/11/2026) */}
+            {req.autorizacao_status === 'falta_pedir' && <span className="rq-pilula" style={{ ['--c' as any]: '#D97706' }} title="De R$ 200 ou mais: abra e clique Pedir autorização"><i className="fa-solid fa-stamp" /> falta pedir autorização</span>}
+            {req.autorizacao_status === 'aguardando' && <span className="rq-pilula" style={{ ['--c' as any]: '#DC2626' }} title={req.autorizacao_motivo ? `Explicação: ${req.autorizacao_motivo}` : 'O Diretor ainda não decidiu'}><i className="fa-solid fa-stamp" /> esperando o Diretor</span>}
+            {req.autorizacao_status === 'recusada' && <span className="rq-pilula" style={{ ['--c' as any]: '#7F1D1D' }} title={req.autorizacao_obs ? `Motivo: ${req.autorizacao_obs}` : ''}><i className="fa-solid fa-ban" /> não autorizada{req.autorizacao_obs ? `: ${String(req.autorizacao_obs).slice(0, 40)}` : ''}</span>}
+            {req.autorizacao_status === 'autorizada' && <span className="rq-pilula" style={{ ['--c' as any]: '#059669' }} title={`Autorizada por ${req.autorizacao_por || ''}`}><i className="fa-solid fa-circle-check" /> Aprovada</span>}
             {escolhidoParaComparar && <span className="rq-pilula" style={{ ['--c' as any]: '#D97706' }}>Escolhida</span>}
             {req.compra_aprovada_por && (
               <span className="rq-pilula" style={{ ['--c' as any]: '#059669' }}

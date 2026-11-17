@@ -3,11 +3,16 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { formatarPlaca } from '@/lib/frota/placa';
 import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
-import { FolderOpen, ChevronDown, Check } from 'lucide-react';
+import { FolderOpen, ChevronDown } from 'lucide-react';
 import { useRascunho } from '@/lib/rascunho/useRascunho';
 import AvisoRascunho from '@/components/rascunho/AvisoRascunho';
 import { fetchAuth } from '@/lib/auth/client';
 import SugestaoHistorico from './SugestaoHistorico';
+import EscolherGrupoModal from './grupos/EscolherGrupoModal';
+import { faltaParaAutorizar, LIMITE_AUTORIZACAO } from '@/lib/requisicoes/autorizacao-requisitos';
+import { parseValorBR } from '@/lib/requisicoes/autorizacao';
+import MaisInformacoesReq, { MAIS_INFO_VAZIO, dadosDosItens, type MaisInfo } from './MaisInformacoesReq';
+import EscolherAutorizador from './EscolherAutorizador';
 import { parecidas } from '@/lib/requisicoes/inteligencia';
 
 /** Chave do rascunho da nova requisição (a página apaga depois de criar). */
@@ -30,6 +35,8 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
   const [usuarios, setUsuarios] = useState<any[]>([]);
   // valor na criação (a coluna é texto BR: "200,00")
   const [valorNovo, setValorNovo] = useState('');
+  const [mais, setMais] = useState<MaisInfo>(MAIS_INFO_VAZIO);
+  const [autorizarPara, setAutorizarPara] = useState<string[]>([]); // para quem pedir a autorização (vazio = todos)
   const [veiculos, setVeiculos] = useState<any[]>([]);
 
   const [ordensAbertas, setOrdensAbertas] = useState<any[]>([]);
@@ -238,6 +245,22 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
     }
     if (valorNovo.trim()) dados.valor_despeza = valorNovo.trim();
     if (gruposSel.length > 0) dados._grupos = gruposSel; // vínculo com grupos (a página processa e remove antes do insert)
+    // "O que vai comprar?" (17/11/2026): itens com link/qtd/valor — o total vale sobre a sugestão do histórico
+    // e a lista (com os links) vai para as observações
+    const itens = dadosDosItens(mais);
+    if (mais.fornecedor.trim()) dados.fornecedor = mais.fornecedor.trim();
+    if (itens.total > 0) dados.valor_despeza = itens.total.toFixed(2).replace('.', ',');
+    if (itens.linhasObs.length) dados.obs = [String(dados.obs || '').trim(), `Itens:\n${itens.linhasObs.join('\n')}`].filter(Boolean).join('\n\n');
+    // R$ 200 ou mais vai ao Diretor: precisa estar completa (o banco confere de novo) — José, 17/11/2026
+    if (parseValorBR(dados.valor_despeza) >= LIMITE_AUTORIZACAO) {
+      // não barra (José, 17/11/2026): completa → já pede a autorização; incompleta → cria e fica em
+      // "Aguardando autorização" até alguém completar e clicar "Pedir autorização" no cartão
+      if (autorizarPara.length) dados.autorizacao_para = autorizarPara;
+      const os = ordensAbertas.find((o: any) => String(o.Id_Ordem) === String(formData.ordem_servico));
+      const falta = faltaParaAutorizar(dados as never, os?.Cnpj_Cliente);
+      if (!falta.length) dados.autorizacao_status = 'aguardando';
+      else alert(`A requisição vai ser criada e fica em "Aguardando autorização".\n\nPara pedir a autorização ainda falta:\n• ${falta.join('\n• ')}\n\nComplete no cartão e clique "Pedir autorização".`);
+    }
     onSave(dados);
   };
 
@@ -273,7 +296,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="md:col-span-2">
               <label className={labelStyle}>Título do pedido</label>
-              <input required placeholder="Ex.: compra de peças para trator" spellCheck lang="pt-BR" onChange={e => setFormData({...formData, titulo: e.target.value.toUpperCase()})} className={inputStyle} />
+              <input required value={formData.titulo} placeholder="Ex.: compra de peças para trator" spellCheck lang="pt-BR" onChange={e => setFormData({...formData, titulo: e.target.value.toUpperCase()})} className={inputStyle} />
             </div>
             <div>
               <label className={labelStyle}>Data</label>
@@ -817,46 +840,43 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
             </div>
           )}
 
+          <MaisInformacoesReq valor={mais} onChange={setMais} inputStyle={inputStyle} labelStyle={labelStyle} />
+
+          {/* R$ 200 ou mais: escolhe para quem pedir a autorização (17/11/2026) */}
+          {(dadosDosItens(mais).total || parseValorBR(valorNovo)) >= LIMITE_AUTORIZACAO && (
+            <div className="rounded-2xl border border-red-200 bg-red-50/40 p-4">
+              <EscolherAutorizador valor={autorizarPara} onChange={setAutorizarPara} titulo="Esta requisição vai para autorização. Pedir para:" />
+            </div>
+          )}
+
           <div>
             <label className={labelStyle}>Observações</label>
             <textarea rows={4} spellCheck lang="pt-BR" onChange={e => setFormData({...formData, obs: e.target.value})} className={`${inputStyle} resize-none`} placeholder="Descreva os itens ou serviços necessários..." />
           </div>
 
-          {/* Grupos (coletivos) — opcional, em dropdown pra não poluir o form */}
-          {gruposDisp.length > 0 && (
-            <div>
-              <label className={labelStyle}>Adicionar a grupo(s) <span className="text-zinc-400">(opcional)</span></label>
-              <div className="relative">
-                <button type="button" onClick={() => setGruposFormAberto(o => !o)}
-                  className={`${inputStyle} flex items-center gap-2 text-left`}>
-                  <FolderOpen size={18} className="text-black shrink-0" />
-                  <span className={`flex-1 truncate ${gruposSel.length ? 'text-black' : 'text-black'}`}>
-                    {gruposSel.length === 0 ? 'Nenhum grupo'
-                      : gruposSel.length === 1 ? gruposDisp.find((g: any) => g.id === gruposSel[0])?.nome
-                      : `${gruposSel.length} grupos selecionados`}
-                  </span>
-                  <ChevronDown size={20} className={`text-black transition-transform ${gruposFormAberto ? 'rotate-180' : ''}`} />
-                </button>
-                {gruposFormAberto && (
-                  <div className="mt-2 w-full bg-white border border-zinc-200 rounded-xl max-h-64 overflow-y-auto p-1.5">
-                    {gruposDisp.map((g: any) => {
-                      const sel = gruposSel.includes(g.id);
-                      return (
-                        <button type="button" key={g.id}
-                          onClick={() => setGruposSel(prev => sel ? prev.filter(x => x !== g.id) : [...prev, g.id])}
-                          className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-base transition-all ${sel ? 'bg-orange-50 text-orange-700' : 'text-black hover:bg-zinc-50'}`}>
-                          <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${sel ? 'bg-orange-600 border-orange-600' : 'border-zinc-300'}`}>
-                            {sel && <Check size={14} className="text-white" />}
-                          </span>
-                          {g.nome}
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+          {/* Grupos (coletivos) — opcional. Abre uma janela com a lista e "criar grupo novo" (José, 17/11/2026) */}
+          <div>
+            <label className={labelStyle}>Adicionar a grupo(s) <span className="text-zinc-400">(opcional)</span></label>
+            <button type="button" onClick={() => setGruposFormAberto(true)}
+              className={`${inputStyle} flex items-center gap-2 text-left`}>
+              <FolderOpen size={18} className="text-black shrink-0" />
+              <span className="flex-1 truncate text-black">
+                {gruposSel.length === 0 ? (gruposDisp.length ? 'Nenhum grupo — escolher ou criar' : 'Nenhum grupo — criar um')
+                  : gruposSel.length === 1 ? gruposDisp.find((g: any) => g.id === gruposSel[0])?.nome
+                  : `${gruposSel.length} grupos selecionados`}
+              </span>
+              <ChevronDown size={20} className="text-black" />
+            </button>
+            {gruposFormAberto && (
+              <EscolherGrupoModal grupos={gruposDisp} selecionados={gruposSel}
+                onFechar={() => setGruposFormAberto(false)}
+                onConfirmar={(ids, criados) => {
+                  if (criados.length) setGruposDisp((d) => [...criados, ...d.filter((g: any) => !criados.some((c) => c.id === g.id))]);
+                  setGruposSel(ids);
+                  setGruposFormAberto(false);
+                }} />
+            )}
+          </div>
 
           <button type="submit" className="w-full bg-orange-600 text-white py-4 rounded-xl hover:bg-orange-700 transition-all text-[15px] flex items-center justify-center gap-2" style={{ fontWeight: 500 }}>
             <i className="fa-solid fa-paper-plane" /> Criar requisição

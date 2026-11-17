@@ -221,7 +221,7 @@ describe('requisições em aberto (pedido de 22/10/2026)', () => {
     const n = k(calcularKpis(f), 'requisicoes_abertas');
     expect(n.contagem).toBe(3);
     expect(n.valor).toBeNull();
-    expect(n.detalhe).toMatchObject({ valor_informado: 2034.5, com_valor: 2, paradas_30: 1, por_fase: { 'Pedido Realizado': 1, 'Aguardando Fornecedor': 2 } });
+    expect(n.detalhe).toMatchObject({ valor_informado: 2034.5, com_valor: 2, paradas_30: 1, por_fase: { 'Pedido Realizado': 1, 'Aguardando nota do fornecedor': 2 } });
   });
   it('lista da mais antiga para a mais nova, com link para o card', () => {
     const { itens, total } = itensDoKpi('requisicoes_abertas', 'TODAS', f);

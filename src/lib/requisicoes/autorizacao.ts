@@ -21,7 +21,7 @@ export interface Autorizacao {
 // Converte "1.550,00" / "1550,00" / "1550" / "1550.00" em número
 export function parseValorBR(v: any): number {
   if (v === null || v === undefined || v === '') return 0;
-  const s = String(v).trim();
+  const s = String(v).replace(/[^\d,.-]/g, ''); // "R$190,00" → "190,00"
   if (s.includes(',')) {
     // Formato BR: ponto = milhar, vírgula = decimal
     return parseFloat(s.replace(/\./g, '').replace(',', '.')) || 0;

@@ -12,6 +12,7 @@ import {
   STATUS_ABERTOS, REQ_LEMBRETES_DESDE_PADRAO, prontaParaFinanceiro, planejarLembretes, usuarioDoSolicitante,
   gestorDe, linhaReq, linkReq, tituloTarefa, juntarFalta, type ReqLembrete, type UsuarioPortal, type LembretePlanejado,
 } from './lembretes';
+import { ACAO_AVISO_PARADO, precisaAvisarParado, type GrupoParado } from './grupos-parados';
 
 const TBL = 'requisicao_lembretes';
 const COLS = 'id, titulo, tipo, status, origem, solicitante, fornecedor, valor_despeza, created_at, foto_nf, foto_nf2, foto_nf3, foto_nf4, foto_nf5, recibo_fornecedor';
@@ -73,6 +74,12 @@ export async function vigiarRequisicoes(opts: { gravar?: boolean; agora?: Date }
     }
   }
   if (movidas) partes.push(`${movidas} enviada(s) ao financeiro`);
+
+  // ── 1b. grupo aberto há 30 dias sem atualização: avisa quem criou (José, 17/11/2026) ──
+  if (gravar && horarioComercial(agora)) {
+    try { const n = await avisarGruposParados(agora); if (n) partes.push(`${n} grupo(s) parado(s) avisado(s)`); }
+    catch (e) { partes.push(`grupos parados: ${e instanceof Error ? e.message : String(e)}`); }
+  }
 
   // ── 3. tarefas de requisições que andaram ──
   const { data: comTarefa, error: errT } = await sb.from(TBL).select('req_id, tarefa_id').not('tarefa_id', 'is', null).is('fechado_em', null);
@@ -151,4 +158,29 @@ export async function vigiarRequisicoes(opts: { gravar?: boolean; agora?: Date }
   const n3 = plano.filter((l) => l.nivel === 3).length;
   partes.push(`lembretes: ${n1} aviso(s), ${tarefas} tarefa(s), ${n3} ao gestor${semDono ? `, ${semDono} sem dono` : ''}`);
   return { resumo: partes.join(' · ') };
+}
+
+/** grupos abertos sem atualização há 30+ dias → sino de quem criou (repete a cada 30 dias enquanto continuar parado) */
+async function avisarGruposParados(agora: Date): Promise<number> {
+  const { data, error } = await sb.from('requisicao_grupos').select('id, nome, status, criado_por, created_at, historico').eq('status', 'aberto');
+  if (error) throw new Error(error.message);
+  const grupos = (data || []) as GrupoParado[];
+  const alvo = grupos.map((g) => ({ g, ...precisaAvisarParado(g, agora) })).filter((x) => x.avisar);
+  if (!alvo.length) return 0;
+  const { data: us } = await sb.from('financeiro_usu').select('id, nome, email, ativo');
+  const usuarios = (us || []) as UsuarioPortal[];
+  let n = 0;
+  for (const { g, diasParado } of alvo) {
+    const dono = usuarioDoSolicitante(g.criado_por, usuarios);
+    if (dono) {
+      await notificar(String(dono.id), `Grupo "${g.nome}" está parado há ${diasParado} dias`,
+        `Ninguém mexeu no grupo de requisições "${g.nome}" há ${diasParado} dias. Se já terminou, conclua; se não vai mais usar, cancele com o motivo.`,
+        `/requisicoes?grupo=${g.id}`);
+      n++;
+    }
+    // marca o aviso no histórico (não conta como atualização) para só repetir daqui a 30 dias
+    const hist = [...(g.historico || []), { acao: ACAO_AVISO_PARADO, usuario: 'Robô das requisições', em: agora.toISOString(), detalhe: dono ? `avisou ${dono.nome}` : 'quem criou não tem login no portal' }];
+    await sb.from('requisicao_grupos').update({ historico: hist }).eq('id', g.id);
+  }
+  return n;
 }

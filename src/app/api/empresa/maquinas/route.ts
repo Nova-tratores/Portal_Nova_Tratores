@@ -3,7 +3,7 @@
 // POST { codigo_produto, conta, ambiente } — o diretor muda o LOCAL da máquina (o mesmo campo que o Visual Estoque →
 // Pátio grava ao arrastar: produtos.ambiente). Só diretor, admin ou dev; fica no audit_log.
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { autorDe } from '@/lib/ajustes/permissao-server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { lerArea, recalcular, areaIgual } from '@/lib/empresa/painel-gravado'
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'comercial')
   if (g.resposta) return g.resposta
   try {
     // a tela pergunta "mudou desde X?" a cada minuto: 204 = igual, não baixa de novo (16/11)
@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
 const LOCAIS = ['patio', 'showroom', 'oficina', 'oficina2', 'barracao']
 
 export async function POST(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'comercial')
   if (g.resposta) return g.resposta
   const { data: perm } = await supabaseAdmin.from('portal_permissoes').select('is_diretor').eq('user_id', g.user.id).maybeSingle()
   if (!g.user.isAdmin && (perm as { is_diretor?: boolean } | null)?.is_diretor !== true) return NextResponse.json({ erro: 'Só o diretor muda o local por aqui.' }, { status: 403 })

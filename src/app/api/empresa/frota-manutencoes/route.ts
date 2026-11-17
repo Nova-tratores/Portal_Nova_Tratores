@@ -2,13 +2,13 @@
 // Exata ∪ lançadas à mão ∪ requisições "Veicular Manutenção", a mesma visão do Frota → Manutenções), para a aba
 // Manutenções e revisões do /empresa (José, 12/11). Só lê.
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'frota')
   if (g.resposta) return g.resposta
   const de = new Date(); de.setMonth(de.getMonth() - 12); de.setDate(1)
   const linhas: Array<Record<string, unknown>> = []

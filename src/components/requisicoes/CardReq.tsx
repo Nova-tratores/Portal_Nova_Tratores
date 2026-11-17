@@ -26,12 +26,15 @@ import LeituraNota from './LeituraNota';
 import { anexosNoDrive as anexosNoDriveDe, getUrlAnexo, CAMPOS_NF } from '@/lib/requisicoes/anexos';
 import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
 import { prontaParaFinanceiro, CAMPOS_COMPROVANTE } from '@/lib/requisicoes/lembretes';
+import AutorizacaoReq from './AutorizacaoReq';
 import { buscarContaDaReq, criarContaDaRequisicao, type ContaExistente } from '@/lib/financeiro/conta-da-requisicao';
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins';
 import { fetchAuth } from '@/lib/auth/client';
 import CobrancaRequisicao from '@/components/pos/CobrancaRequisicao';
 import EscolherCotacaoComprada from './EscolherCotacaoComprada';
 import ReqsDoGrupo from './ReqsDoGrupo';
+import FornecedorBusca from './FornecedorBusca';
+import CampoLink, { LinkClicavel, linksDoTexto, linkComDominio } from './CampoLink';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import { removerCotacaoShift, precisaMarcarComprada, linkSeguro, erroColunaFaltando, semColunasNovas, type Cotacao } from '@/lib/requisicoes/cotacoes';
 
@@ -75,7 +78,11 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   const [motivoPedido, setMotivoPedido] = useState('');
   const [enviandoPedido, setEnviandoPedido] = useState(false);
   const valorAlto = isValorAlto(req);
-  const bloqueada = valorAlto && !isDev && !autoriz;
+  // Autorização do Diretor (R$ 200+, 17/11/2026 — sql/autorizacoes-requisicao.sql): esperando ou recusada = só ver e anexar.
+  // Quem entra nesse fluxo sai da trava antiga de R$ 500 (uma alteração por vez).
+  const autSt: string | null = req.autorizacao_status || null;
+  const travadaAut = autSt === 'aguardando' || autSt === 'recusada';
+  const bloqueada = valorAlto && !isDev && !autoriz && !autSt;
 
   useEffect(() => {
     if (!valorAlto || isDev) { setAutoriz(null); return; }
@@ -88,6 +95,36 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     quem_ferramenta: req.quem_ferramenta || req.ferramenta_quem || ""
   }));
   const [cotacaoData, setCotacaoData] = useState<any>({});
+  // Link da cotação → produto, preço e loja preenchidos sozinhos (só os campos vazios; José, 17/11/2026)
+  const [avisoLink, setAvisoLink] = useState<Record<number, { txt: string; ok: boolean }>>({});
+  const lidoLink = useRef<Record<number, string>>({});
+  const timerLink = useRef<Record<number, ReturnType<typeof setTimeout>>>({});
+  const lerLinkCotacao = useCallback((idx: number, url: string) => {
+    clearTimeout(timerLink.current[idx]);
+    const ok = linkComDominio(url);
+    if (!ok || lidoLink.current[idx] === ok) return;
+    timerLink.current[idx] = setTimeout(async () => {
+      lidoLink.current[idx] = ok;
+      setAvisoLink((m) => ({ ...m, [idx]: { txt: 'Lendo o link…', ok: true } }));
+      try {
+        const r = await fetchAuth(`/api/requisicoes/ler-link?url=${encodeURIComponent(ok)}`);
+        const d = await r.json().catch(() => ({}));
+        if (!d.produto && !d.preco) { setAvisoLink((m) => ({ ...m, [idx]: { txt: d.error || 'Não achei produto nem preço nessa página — preencha à mão.', ok: false } })); return; }
+        const preencheu: string[] = [];
+        setCotacaoData((c: any) => {
+          const n = { ...c };
+          if (!String(c[`servico_material${idx}`] || '').trim() && d.produto) { n[`servico_material${idx}`] = String(d.produto).toUpperCase().slice(0, 200); preencheu.push('produto'); }
+          if (!String(c[`valor${idx}`] || '').trim() && d.preco) { n[`valor${idx}`] = Number(d.preco).toFixed(2).replace('.', ','); preencheu.push('preço'); }
+          if (!String(c[`fornecedor${idx}`] || '').trim() && d.fornecedor) { n[`fornecedor${idx}`] = String(d.fornecedor).slice(0, 120); preencheu.push('loja'); }
+          return n;
+        });
+        setTimeout(() => setAvisoLink((m) => ({ ...m, [idx]: {
+          txt: preencheu.length ? `Preenchi pelo link: ${preencheu.join(', ')}. Confira antes de salvar.` : `Achei no link: ${[d.produto, d.preco ? 'R$ ' + Number(d.preco).toFixed(2).replace('.', ',') : '', d.fornecedor].filter(Boolean).join(' · ')} (os campos já estavam preenchidos).`,
+          ok: true,
+        } })), 0);
+      } catch { setAvisoLink((m) => ({ ...m, [idx]: { txt: 'Não consegui ler o link — preencha à mão.', ok: false } })); }
+    }, 500);
+  }, []);
   const [cotacaoCarregada, setCotacaoCarregada] = useState(false);
   const [fornecedoresVisiveis, setFornecedoresVisiveis] = useState(1);
   const [userEmail, setUserEmail] = useState('');
@@ -307,6 +344,11 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   const persist = useCallback((name: string, value: any) => {
     // Requisição de valor alto bloqueada: abre o pedido de permissão em vez de gravar
     if (bloqueada) { setPedirOpen(true); return; }
+    if (travadaAut) {
+      const livre = (CAMPOS_COMPROVANTE as readonly string[]).includes(name) || name === 'boleto_fornecedor' || name === 'autorizacao_motivo'
+        || (autSt === 'recusada' && name === 'valor_despeza');
+      if (!livre) { alert(autSt === 'aguardando' ? 'Esperando a autorização do Diretor: por enquanto só dá para anexar.' : 'Não autorizada: corrija o valor ou peça de novo (abaixo do valor).'); return; }
+    }
     setLocalData((prev: any) => {
       if (prev[name] === value) return prev;
       return { ...prev, [name]: value };
@@ -318,7 +360,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       consumirAutorizacao(autoriz.id);
       setAutoriz(null);
     }
-  }, [req.id, req, onUpdate, bloqueada, autoriz, valorAlto, isDev]);
+  }, [req.id, req, onUpdate, bloqueada, autoriz, valorAlto, isDev, travadaAut, autSt]);
 
   const enviarPedidoPermissao = useCallback(async () => {
     const motivo = motivoPedido.trim();
@@ -586,7 +628,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       const vai = tipoReq.startsWith('alimenta')
         ? fieldName.startsWith('foto_nf') && !['financeiro', 'lixeira'].includes(String(localData.status || ''))
         : (CAMPOS_COMPROVANTE as readonly string[]).includes(fieldName) && prontaParaFinanceiro(depois as never);
-      if (vai && !bloqueada) {
+      if (vai && !bloqueada && !travadaAut) {
         const hoje = new Date().toISOString().slice(0, 10);
         setLocalData((prev: any) => ({ ...prev, status: 'financeiro', enviado_financeiro_data: hoje }));
         onUpdate(req.id, { status: 'financeiro', enviado_financeiro_data: hoje });
@@ -739,7 +781,6 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 const idx = i + 1;
                 const ehIndicada = Number(cotacaoData.indicada) === idx;
                 const ehComprada = Number(cotacaoData.comprada) === idx;
-                const linkOk = linkSeguro(cotacaoData[`link${idx}`]);
                 const borda = ehComprada ? 'border-emerald-500 ring-1 ring-emerald-500/30' : ehIndicada ? 'border-amber-400 ring-1 ring-amber-400/30' : 'border-zinc-200';
                 const quemMarcou = (t: 'indicada' | 'comprada') => cotacaoData[`${t}_por`]
                   ? `${cotacaoData[`${t}_por`]}${cotacaoData[`${t}_em`] ? ' · ' + new Date(cotacaoData[`${t}_em`]).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : ''}`
@@ -770,10 +811,10 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                         </div>
                       )}
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <div>
+                    <div className="grid grid-cols-1 sm:grid-cols-[1.4fr_1fr_0.7fr] gap-4">
+                      <div className="min-w-0">
                         <label className={labelBase}><Store size={11}/> Empresa</label>
-                        <input value={cotacaoData[`fornecedor${idx}`] || ''} onChange={e => setCotacaoData({...cotacaoData, [`fornecedor${idx}`]: e.target.value.toUpperCase()})} className={inputBase} />
+                        <FornecedorBusca valor={cotacaoData[`fornecedor${idx}`] || ''} onChange={(nome) => setCotacaoData({...cotacaoData, [`fornecedor${idx}`]: nome})} />
                       </div>
                       <div>
                         <label className={labelBase}><Layers size={11}/> Material</label>
@@ -786,16 +827,8 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                     </div>
                     <div className="mt-4">
                       <label className={labelBase}><Link2 size={11}/> Link</label>
-                      <div className="flex items-center gap-2">
-                        <input value={cotacaoData[`link${idx}`] || ''} onChange={e => setCotacaoData({...cotacaoData, [`link${idx}`]: e.target.value.trim()})}
-                          className={inputBase} placeholder="https://… (site do produto, orçamento online)" inputMode="url" />
-                        {linkOk && (
-                          <a href={linkOk} target="_blank" rel="noopener noreferrer" title="Abrir o link"
-                            className="w-11 h-11 flex items-center justify-center rounded-xl bg-orange-600 text-white hover:bg-orange-500 transition-all shrink-0">
-                            <ExternalLink size={15} />
-                          </a>
-                        )}
-                      </div>
+                      <CampoLink valor={cotacaoData[`link${idx}`]} onChange={(v) => { setCotacaoData((c: any) => ({...c, [`link${idx}`]: v})); lerLinkCotacao(idx, v); }} className={inputBase} />
+                      {avisoLink[idx] && <p className={`mt-1.5 text-[12.5px] ${avisoLink[idx].ok ? 'text-sky-700' : 'text-amber-700'}`}>{avisoLink[idx].txt}</p>}
                     </div>
                     {/* Observação (sai no PDF) + anexo da cotação (só na tela) */}
                     {(() => {
@@ -812,6 +845,11 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                             <textarea rows={2} value={cotacaoData[`obs${idx}`] || ''}
                               onChange={e => setCotacaoData({...cotacaoData, [`obs${idx}`]: e.target.value})}
                               className={`${inputBase} resize-y min-h-[52px]`} placeholder="Prazo, frete, condição de pagamento..." />
+                            {linksDoTexto(cotacaoData[`obs${idx}`]).length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                                {linksDoTexto(cotacaoData[`obs${idx}`]).map((l) => <LinkClicavel key={l} url={l} compacto />)}
+                              </div>
+                            )}
                           </div>
                           <div>
                             <label className={labelBase}><Paperclip size={11}/> Anexo</label>
@@ -1016,6 +1054,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               {/* ── cobrada do técnico (desconto lançado com a comissão no Centro do Pós-Vendas) ── */}
               <DescontoTecnicoReq reqId={req.id} ativo={modalAberto} />
 
+
+              {/* ── AUTORIZAÇÃO DO DIRETOR (R$ 200+) ── */}
+              {autSt && <AutorizacaoReq req={req} onUpdate={onUpdate} />}
 
               {/* ── BLOQUEIO DE VALOR ALTO ── */}
               {valorAlto && (
@@ -1472,8 +1513,8 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                   </div>
                 </div>
 
-                {/* Aprovação da compra (12/11/2026) */}
-                <div className={`flex flex-wrap items-center gap-2 rounded-xl border p-3 mb-3 ${localData.compra_aprovada_por ? 'bg-emerald-50 border-emerald-200' : 'bg-zinc-50 border-zinc-200'}`}>
+                {/* Aprovação da compra (12/11/2026) — 17/11: só mostra quando já aprovada; o novo é a Autorização do Diretor */}
+                {localData.compra_aprovada_por && <div className={`flex flex-wrap items-center gap-2 rounded-xl border p-3 mb-3 ${localData.compra_aprovada_por ? 'bg-emerald-50 border-emerald-200' : 'bg-zinc-50 border-zinc-200'}`}>
                   <ShieldCheck size={16} className={localData.compra_aprovada_por ? 'text-emerald-600' : 'text-black'} />
                   {localData.compra_aprovada_por ? (
                     <span className="text-sm text-emerald-800 flex-1 min-w-0">
@@ -1494,7 +1535,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                       <Check size={14} /> {aprovando ? 'Gravando…' : 'Aprovar compra'}
                     </button>
                   ))}
-                </div>
+                </div>}
 
                 {/* Cotação */}
                 <div className="flex items-center gap-3 mb-2">

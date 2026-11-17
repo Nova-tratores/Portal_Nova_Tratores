@@ -4,7 +4,7 @@
 // José, 12/11: "as notas já estão todas no Supabase" → primeiro lê notas_fiscais_docs + bucket notas-fiscais (na hora);
 // só vai no Omie se a nota ainda não foi guardada. ?nome= ajuda a escolher quando o mesmo número existe em entrada e saída.
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { omieRequest } from '@/lib/estoque/omie'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { lerArquivo } from '@/lib/notas/cache-docs'
@@ -13,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'pecas', 'comercial', 'posvendas')
   if (g.resposta) return g.resposta
   const sp = req.nextUrl.searchParams
   const conta = (sp.get('conta') || 'nova').toUpperCase() === 'CASTRO' ? 'CASTRO' : 'NOVA'

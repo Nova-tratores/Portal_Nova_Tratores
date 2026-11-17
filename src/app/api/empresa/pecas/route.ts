@@ -2,14 +2,14 @@
 // pedidos dos últimos 13 meses e o estoque de peças parado. Conta em src/lib/empresa/pecas.ts, gravada em empresa_painel.
 // Permissão: a mesma das outras rotas do /empresa (guardarDre).
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { lerArea, areaIgual } from '@/lib/empresa/painel-gravado'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'pecas')
   if (g.resposta) return g.resposta
   try {
     // a tela pergunta "mudou desde X?" a cada minuto: 204 = igual, não baixa de novo (16/11)

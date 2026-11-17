@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { lerArquivo } from '@/lib/notas/cache-docs'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta'
 import { consultarPedido, normalizarPedido } from '@/lib/ajustes/omie'
 import { buscarNotasPorIdPedido, urlDanfe } from '@/lib/ajustes/notas'
@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'pecas', 'comercial', 'posvendas')
   if (g.resposta) return g.resposta
   const sp = req.nextUrl.searchParams
   const conta = parseConta(sp.get('conta')) ?? CONTA_DEFAULT

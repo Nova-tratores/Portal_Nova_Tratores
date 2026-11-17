@@ -20,8 +20,9 @@ export const FASES_ABERTAS: Fase[] = ['pedido', 'completa', 'aguardando'];
 
 export const ROTULO_FASE: Record<string, string> = {
   pedido: 'Pedido realizado',
-  completa: 'Atualizada pelo técnico',
-  aguardando: 'Aguardando fornecedor',
+  completa: 'Aguardando autorização', // era "Atualizada pelo técnico" (José, 17/11/2026: vira a fase da autorização do Diretor)
+  aguardando: 'Aguardando nota do fornecedor',
+  recusada: 'Não autorizadas', // fase oculta: o Diretor recusou (com o motivo)
   financeiro: 'Enviado ao financeiro',
   lixeira: 'Lixeira',
 };
@@ -29,7 +30,8 @@ export const ROTULO_FASE: Record<string, string> = {
 /** Cor de cada fase (ícone, pílula, coluna). */
 export const COR_FASE: Record<string, string> = {
   pedido: '#EA580C',
-  completa: '#0891B2',
+  completa: '#DC2626',
+  recusada: '#7F1D1D',
   aguardando: '#D97706',
   financeiro: '#4F46E5',
   lixeira: '#64748B',

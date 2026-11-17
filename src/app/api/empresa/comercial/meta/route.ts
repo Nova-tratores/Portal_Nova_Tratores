@@ -1,14 +1,14 @@
 // POST /api/empresa/comercial/meta { vendedor, valor } — o diretor define a meta do vendedor (R$ de máquinas por mês)
 // na tela /empresa → Comercial. Grava no mês atual; vale dali em diante até ser trocada. Só diretor, admin ou dev.
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { autorDe } from '@/lib/ajustes/permissao-server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 
 export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'comercial')
   if (g.resposta) return g.resposta
   const { data: perm } = await supabaseAdmin.from('portal_permissoes').select('is_diretor').eq('user_id', g.user.id).maybeSingle()
   if (!g.user.isAdmin && (perm as { is_diretor?: boolean } | null)?.is_diretor !== true) {

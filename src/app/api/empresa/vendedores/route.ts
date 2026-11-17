@@ -3,14 +3,14 @@
 // gravou em empresa_painel (src/lib/empresa/painel-gravado.ts; conta em src/lib/empresa/vendedores.ts).
 // Permissão: a mesma das outras rotas do /empresa (guardarDre).
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { lerArea, areaIgual } from '@/lib/empresa/painel-gravado'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'comercial')
   if (g.resposta) return g.resposta
   try {
     // a tela pergunta "mudou desde X?" a cada minuto: 204 = igual, não baixa de novo (16/11)

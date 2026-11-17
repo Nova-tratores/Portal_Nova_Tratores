@@ -19,6 +19,8 @@ export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
   'planta:sensivel',
   // desenhar o mapa do Opa (andares, blocos, lugares) — o módulo Opa não dá (05/11/2026)
   'opa:mapa',
+  // confirmar requisição de R$ 200 ou mais na Visão da empresa (17/11/2026): o módulo inteiro não dá
+  'empresa:autorizar-requisicoes',
   // abas do Financeiro novo, uma chave por aba (10/11/2026): o "acesso total" ao Financeiro NÃO dá — Pós-Vendas e
   // Peças têm o módulo para os kanbans deles e não podem passar a ver Folha, Banco etc. Lista conferida contra
   // areasFinanceiro.ts (permissoes/__tests__/financeiro-abas.test.ts).

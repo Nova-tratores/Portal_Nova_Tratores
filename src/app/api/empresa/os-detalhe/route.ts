@@ -2,7 +2,7 @@
 // lista de ordens do Faturamento do Pós-Vendas no /empresa (José, 12/11: "embaixo tem que ficar as ordens e as peças e
 // requisições que foram usadas nas ordens"). Só lê tabelas do portal (Ordem_Servico, movimentacoes, Requisicao): rápido.
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin as sb } from '@/lib/server/supabase-admin'
 
 export const dynamic = 'force-dynamic'
@@ -17,7 +17,7 @@ export interface ObsOs { fase: string; relatorio: { qtd: number; ultimo: string;
 export interface ReqOs { id: number; titulo: string; tipo: string; fornecedor: string; valor: number; cobrado: number; status: string; data: string; solicitante: string; temNota: boolean }
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'posvendas')
   if (g.resposta) return g.resposta
   const ids = [...new Set(String(req.nextUrl.searchParams.get('os') || '').split(',').map((s) => s.trim()).filter((s) => /^OS-\d+$/i.test(s)))].slice(0, 300)
   if (!ids.length) return NextResponse.json({ os: {} })

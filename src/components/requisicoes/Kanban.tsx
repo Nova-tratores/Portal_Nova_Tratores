@@ -5,8 +5,9 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { normalizarNomePessoa, paraBusca } from '@/lib/texto';
-import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info, Plus, FolderOpen, FolderPlus, RotateCcw, Car, Filter, ArrowLeft, Check, Tag, ArrowLeftRight, LayoutGrid, List } from 'lucide-react';
+import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info, Plus, FolderOpen, Car, Filter, ArrowLeft, Check, Tag, ArrowLeftRight, LayoutGrid, List } from 'lucide-react';
 import CompararReqs from './CompararReqs';
+import PainelGrupos from './grupos/PainelGrupos';
 import dynamic from 'next/dynamic';
 import { fetchAuth } from '@/lib/auth/client';
 import { brl, COR_FASE, diasAberta, normalizarTipo, valorReq, visualTipo } from '@/lib/requisicoes/inteligencia';
@@ -17,7 +18,7 @@ const CardReq = dynamic(() => import('./CardReq'), { ssr: false });
 
 const LISTA_FORNECEDORES_CADASTRADOS = ["Rodrigo Torneiro (Panda)"];
 
-export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, idDestaque = null, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true, extraControles = null, filtroEspecial = null, onLimparEspecial, notasAchadas = null, onVerNotaAchada }: any) {
+export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, idDestaque = null, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true, extraControles = null, inicioBarra = null, fimBarra = null, filtroEspecial = null, onLimparEspecial, notasAchadas = null, onVerNotaAchada }: any) {
   // filtroEspecial: { ids, titulo } vindo do "Precisa da sua atenção" ou do Painel
   const idsEspecial = useMemo(() => (filtroEspecial ? new Set((filtroEspecial.ids || []).map((x: any) => Number(x))) : null), [filtroEspecial]);
   const isMobile = useIsMobile();
@@ -68,12 +69,8 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
   const usuarioAtual = userProfile?.nome || '';
   const [grupos, setGrupos] = useState<any[]>([]);
   const [grupoFiltro, setGrupoFiltro] = useState<number | null>(null);
-  const [showCriar, setShowCriar] = useState(false);
-  const [showGerenciar, setShowGerenciar] = useState(false);
-  const [novoGrupoNome, setNovoGrupoNome] = useState('');
-  const [salvandoGrupo, setSalvandoGrupo] = useState(false);
-  const [renomeandoId, setRenomeandoId] = useState<number | null>(null);
-  const [renomeandoNome, setRenomeandoNome] = useState('');
+  // painel dos grupos em tela cheia: 'ver' = todos, 'criar' = já abre o "Novo grupo"
+  const [painelGrupos, setPainelGrupos] = useState<null | 'ver' | 'criar'>(null);
 
   // Deep-link: /requisicoes?grupo=<id> abre o kanban já filtrado por esse grupo.
   // 100% aditivo: só age uma vez, e apenas se o parâmetro existir na URL.
@@ -95,57 +92,42 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
   useEffect(() => { recarregarGrupos(); }, [recarregarGrupos]);
 
   const gruposAbertos = useMemo(() => grupos.filter((g: any) => g.status === 'aberto'), [grupos]);
-  const gruposFechados = useMemo(() => grupos.filter((g: any) => g.status !== 'aberto'), [grupos]);
   const grupoAtivo = useMemo(() => grupos.find((g: any) => g.id === grupoFiltro) || null, [grupos, grupoFiltro]);
 
-  const criarGrupo = useCallback(async () => {
-    const nome = novoGrupoNome.trim();
-    if (!nome) return;
-    setSalvandoGrupo(true);
-    try {
-      const res = await fetchAuth('/api/pos/requisicoes/grupos', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nome, criado_por: usuarioAtual }),
-      });
-      const j = await res.json().catch(() => ({}));
-      if (res.ok) { setNovoGrupoNome(''); setShowCriar(false); await recarregarGrupos(); }
-      else { alert('Não consegui criar o grupo: ' + (j.error || res.status) + '\n\nSe a mensagem falar de "relation ... does not exist", ainda falta rodar o SQL das tabelas.'); }
-    } catch (e) { alert('Erro ao criar o grupo: ' + (e instanceof Error ? e.message : String(e))); }
-    setSalvandoGrupo(false);
-  }, [novoGrupoNome, usuarioAtual, recarregarGrupos]);
-
   const mudarStatusGrupo = useCallback(async (id: number, status: string) => {
+    let motivo: string | undefined;
+    if (status === 'cancelado') {
+      motivo = (window.prompt('Por que este grupo está sendo cancelado?') || '').trim();
+      if (motivo.length < 3) { if (motivo) alert('Escreva o motivo do cancelamento.'); return; }
+    }
     try {
-      await fetchAuth('/api/pos/requisicoes/grupos', {
+      const r = await fetchAuth('/api/pos/requisicoes/grupos', {
         method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, status, usuario: usuarioAtual }),
+        body: JSON.stringify({ id, status, motivo, usuario: usuarioAtual }),
       });
+      if (!r.ok) { alert((await r.json().catch(() => ({}))).error || 'Não deu para mudar o grupo.'); return; }
       if (grupoFiltro === id && status !== 'aberto') setGrupoFiltro(null);
       await recarregarGrupos();
     } catch { /* ignore */ }
   }, [usuarioAtual, recarregarGrupos, grupoFiltro]);
 
-  const renomearGrupo = useCallback(async (id: number, nome: string) => {
-    if (!nome.trim()) return;
-    try {
-      await fetchAuth('/api/pos/requisicoes/grupos', {
-        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, nome: nome.trim(), usuario: usuarioAtual }),
-      });
-      setRenomeandoId(null); setRenomeandoNome('');
-      await recarregarGrupos();
-    } catch { /* ignore */ }
-  }, [usuarioAtual, recarregarGrupos]);
   const [colunaArrastando, setColunaArrastando] = useState<string | null>(null);
   const [limitesPorColuna, setLimitesPorColuna] = useState<Record<string, number>>({});
   const CARDS_POR_VEZ = 20;
 
   const colunas = [
     { id: 'pedido', titulo: 'Pedido realizado', cor: 'bg-orange-600', icone: 'fa-inbox' },
-    { id: 'completa', titulo: 'Atualizada pelo técnico', cor: 'bg-cyan-500', icone: 'fa-user-check' },
-    { id: 'aguardando', titulo: 'Aguardando fornecedor', cor: 'bg-orange-400', icone: 'fa-hourglass-half' },
+    { id: 'completa', titulo: 'Aguardando autorização', cor: 'bg-red-600', icone: 'fa-stamp' },
+    { id: 'aguardando', titulo: 'Aguardando nota do fornecedor', cor: 'bg-orange-400', icone: 'fa-hourglass-half' },
     { id: 'financeiro', titulo: 'Enviado ao financeiro', cor: 'bg-indigo-600', icone: 'fa-building-columns' },
   ];
+
+  // Fase oculta "Não autorizadas" (o Diretor recusou): só aparece quando a pessoa pede (José, 17/11/2026)
+  const [verRecusadas, setVerRecusadas] = useState(false);
+  const nRecusadas = useMemo(() => (requisicoes || []).filter((r: any) => r.status === 'recusada').length, [requisicoes]);
+  const colunasVisiveis = verRecusadas
+    ? [...colunas, { id: 'recusada', titulo: 'Não autorizadas', cor: 'bg-red-900', icone: 'fa-ban' }]
+    : colunas;
 
   const handleDragOver = (e: React.DragEvent, idColuna: string) => {
     e.preventDefault();
@@ -157,6 +139,14 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
     setColunaArrastando(null);
     if (!podeMoverFase) return; // sem permissão de mover de fase
     const idRequisicao = e.dataTransfer.getData("idRequisicao");
+    // autorização do Diretor: as fases dela são do sistema, e a travada não sai do lugar (o banco também barra)
+    const alvo = (requisicoes || []).find((r: any) => String(r.id) === String(idRequisicao));
+    if (alvo && alvo.status !== novoStatus) {
+      if (novoStatus === 'completa' || novoStatus === 'recusada') { alert('Essa fase é automática: a requisição entra nela sozinha quando passa do limite e precisa da autorização do Diretor.'); return; }
+      if (alvo.autorizacao_status === 'falta_pedir') { alert(`A requisição #${alvo.id} é de R$ 200 ou mais: abra o cartão e clique "Pedir autorização" — depois de autorizada ela segue.`); return; }
+      if (alvo.autorizacao_status === 'aguardando') { alert(`A requisição #${alvo.id} está esperando a autorização do Diretor e não pode mudar de fase.`); return; }
+      if (alvo.autorizacao_status === 'recusada') { alert(`A requisição #${alvo.id} não foi autorizada. Abra o cartão para ver o motivo e pedir de novo.`); return; }
+    }
     if (idRequisicao) {
       const updates: any = { status: novoStatus };
       if (novoStatus === 'financeiro') {
@@ -188,8 +178,8 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
   const veiculoLabel = useCallback((val: string) => placaPorId[String(val)] || val, [placaPorId]);
 
   const STATUS_LABEL: Record<string, string> = {
-    pedido: 'Pedido Realizado', completa: 'Atualizada por Técnico',
-    aguardando: 'Aguardando Fornecedor', financeiro: 'Enviado Financeiro',
+    pedido: 'Pedido Realizado', completa: 'Aguardando autorização',
+    aguardando: 'Aguardando nota do fornecedor', recusada: 'Não autorizada', financeiro: 'Enviado Financeiro',
   };
 
   const CAMPOS_FILTRO = useMemo(() => ([
@@ -430,34 +420,48 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
   const inputInline = "h-[38px] bg-white text-black text-[14px] rounded-[11px] px-4 outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 transition-all placeholder:text-zinc-400 border border-zinc-200";
   const selectInline = `${inputInline} appearance-none cursor-pointer pr-7`;
 
+  // Barra e títulos das colunas FIXOS ao rolar; as colunas rolam juntas com a página (José, 17/11/2026).
+  // topo = altura do cabeçalho do portal (0 dentro da tela dividida); alturaBarra = barra de filtros medida ao vivo.
+  const barraRef = useRef<HTMLDivElement>(null);
+  const [fixo, setFixo] = useState({ topo: 84, barra: 64 });
+  useEffect(() => {
+    const medir = () => {
+      const h = (document.querySelector(".portal-header") as HTMLElement | null)?.offsetHeight ?? 0;
+      const b = barraRef.current?.offsetHeight ?? 64;
+      setFixo((v) => (v.topo === h && v.barra === b ? v : { topo: h, barra: b }));
+    };
+    medir();
+    const ro = new ResizeObserver(medir);
+    if (barraRef.current) ro.observe(barraRef.current);
+    window.addEventListener("resize", medir);
+    return () => { ro.disconnect(); window.removeEventListener("resize", medir); };
+  }, []);
+
   return (
     <div className="w-full transition-all duration-700 pb-20">
 
       {/* BARRA DE FILTROS — inline compacta */}
-      <div className="w-full px-3 md:px-6 pt-3 md:pt-4 pb-2">
-        <div className="flex items-center gap-2 flex-wrap">
+      <div ref={barraRef} className="w-full px-3 md:px-6 pt-2 pb-2 md:sticky z-30" style={{ top: fixo.topo, background: "var(--portal-bg)" }}>
+        <div className="flex items-center gap-2 flex-wrap md:flex-nowrap">
+
+          {/* Atenção + menu das abas na MESMA linha da barra (José, 17/11/2026: "joga tudo para uma linha") */}
+          {inicioBarra}
 
           {/* BUSCA UNIFICADA (pesquisa em vários campos) — largura total no celular */}
-          <div className="relative w-full md:flex-1 md:w-auto min-w-0 md:min-w-[340px] md:max-w-[600px] group">
+          <div className="relative w-full md:flex-1 md:w-auto min-w-0 md:min-w-[150px]">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-orange-500 pointer-events-none"/>
             <input
               type="text"
-              placeholder="Pesquisar requisição..."
+              placeholder="Buscar nº, título, fornecedor, nota…"
+              title="Pesquisa por: Nº ID · Título · Fornecedor · Nº da Nota · Solicitante · Tipo"
               value={filtroBusca}
               onChange={e => setFiltroBusca(e.target.value)}
               className={`${inputInline} pl-9 pr-8 w-full ${filtroBusca ? '!border-orange-400 !bg-orange-50' : ''}`}
             />
             {filtroBusca
               ? <button onClick={() => setFiltroBusca('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-black hover:text-orange-500"><X size={13}/></button>
-              : <Info size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-300 pointer-events-none"/>
+              : null
             }
-            {/* Tooltip ao passar o rato — mostra os campos pesquisáveis */}
-            <div className="absolute left-0 top-full mt-1.5 z-30 hidden group-hover:block pointer-events-none">
-              <div className="bg-zinc-900 text-white text-[11px] leading-relaxed rounded-lg px-3 py-2 shadow-xl whitespace-nowrap">
-                <p className="font-bold text-orange-300 mb-0.5">Pesquise por:</p>
-                <p>Nº ID · Título · Fornecedor · Nº da Nota · Solicitante · Tipo</p>
-              </div>
-            </div>
           </div>
 
           {/* Botão "Filtros" — só no celular: abre/fecha o painel abaixo */}
@@ -483,7 +487,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
               type="date"
               value={filtroData}
               onChange={e => setFiltroData(e.target.value)}
-              className={`${inputInline} pl-7 pr-2 ${filtroData ? '!border-orange-400 !bg-orange-50 !text-orange-700' : ''}`}
+              className={`${inputInline} w-[150px] pl-7 pr-2 ${filtroData ? '!border-orange-400 !bg-orange-50 !text-orange-700' : ''}`}
             />
             {filtroData && <button onClick={() => setFiltroData('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-black hover:text-orange-500 bg-white"><X size={12}/></button>}
           </div>
@@ -581,7 +585,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             </button>
 
             {grupoMenu && (
-              <div className="absolute left-0 top-full mt-1.5 z-40 w-72 bg-white rounded-xl shadow-2xl border border-zinc-200 overflow-hidden">
+              <div className="absolute left-0 top-full mt-1.5 z-40 w-80 max-w-[calc(100vw-24px)] bg-white rounded-xl shadow-2xl border border-zinc-200 overflow-hidden">
                 <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-black">Filtrar por grupo</div>
                 <div className="max-h-[300px] overflow-y-auto pb-1">
                   {gruposAbertos.length === 0 ? (
@@ -599,14 +603,21 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                     );
                   })}
                 </div>
+                {grupoAtivo && grupoAtivo.status === 'aberto' && (
+                  <button onClick={() => { if (confirm(`Concluir o grupo "${grupoAtivo.nome}"? Dá para reabrir depois em Ver grupos.`)) { mudarStatusGrupo(grupoAtivo.id, 'concluido'); setGrupoMenu(false); } }}
+                    className="w-full flex items-center gap-2 px-3 py-2.5 text-[13px] text-emerald-700 border-t border-zinc-100 hover:bg-emerald-50">
+                    <i className="fas fa-circle-check" /> Concluir &quot;{grupoAtivo.nome}&quot;
+                  </button>
+                )}
                 <div className="flex items-center gap-2 p-2 border-t border-zinc-100 bg-zinc-50/60">
-                  <button onClick={() => { setGrupoMenu(false); setNovoGrupoNome(''); setShowCriar(true); }}
-                    className="flex-1 text-[12px] font-bold px-3 py-2 rounded-lg bg-orange-600 text-white hover:bg-orange-700 flex items-center justify-center gap-1.5">
+                  <button onClick={() => { setGrupoMenu(false); setPainelGrupos('criar'); }}
+                    className="flex-1 whitespace-nowrap text-[13px] font-semibold px-3 h-10 rounded-lg bg-orange-600 text-white hover:bg-orange-700 flex items-center justify-center gap-1.5">
                     <Plus size={14} /> Novo grupo
                   </button>
-                  <button onClick={() => { setGrupoMenu(false); setShowGerenciar(true); }}
-                    className="flex-1 text-[12px] font-semibold px-3 py-2 rounded-lg border border-zinc-300 text-black hover:border-zinc-500 flex items-center justify-center gap-1.5">
-                    <SlidersHorizontal size={13} /> Gerenciar{grupos.length > 0 ? ` (${grupos.length})` : ''}
+                  <button onClick={() => { setGrupoMenu(false); setPainelGrupos('ver'); }}
+                    className="flex-1 whitespace-nowrap text-[13px] font-semibold px-3 h-10 rounded-lg border border-zinc-300 bg-white text-black hover:border-zinc-500 flex items-center justify-center gap-1.5"
+                    title="Todos os grupos, inclusive os concluídos e cancelados">
+                    <LayoutGrid size={13} /> Ver todos{grupos.length > 0 ? ` (${grupos.length})` : ''}
                   </button>
                 </div>
               </div>
@@ -618,7 +629,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             title="Escolher duas requisições e ver lado a lado"
             className={`${pillBase} shrink-0 ${modoComparar ? pillActive : 'bg-white text-black border-zinc-200 hover:border-orange-300 hover:text-orange-600'}`}
           >
-            <ArrowLeftRight size={14} /> Comparar
+            <ArrowLeftRight size={14} /> <span className="hidden 2xl:inline">Comparar</span>
           </button>
 
           {/* Painel do Dev saiu da barra (José, 23/10/2026): os pedidos aparecem como cartão no topo, só quando existem */}
@@ -627,11 +638,11 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
           <div className="flex items-center shrink-0 border border-zinc-200 rounded-[11px] overflow-hidden bg-white h-[38px]">
             <button onClick={() => setVisao('kanban')} title="Ver em colunas (kanban)"
               className={`h-full px-3.5 text-[14px] flex items-center gap-1.5 transition-all ${visao === 'kanban' ? 'bg-orange-50 text-orange-700' : 'text-zinc-700 hover:text-orange-600'}`}>
-              <LayoutGrid size={14} /> Quadro
+              <LayoutGrid size={14} /> <span className="hidden 2xl:inline">Quadro</span>
             </button>
             <button onClick={() => setVisao('lista')} title="Ver em lista (todas as fases)"
               className={`h-full px-3.5 text-[14px] flex items-center gap-1.5 transition-all border-l border-zinc-200 ${visao === 'lista' ? 'bg-orange-50 text-orange-700' : 'text-zinc-700 hover:text-orange-600'}`}>
-              <List size={14} /> Lista
+              <List size={14} /> <span className="hidden 2xl:inline">Lista</span>
             </button>
           </div>
 
@@ -645,6 +656,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             </>
           )}
           </div>{/* fim fileira de controles secundários (mobile) */}
+          {fimBarra && <div className="ml-auto shrink-0">{fimBarra}</div>}
         </div>
 
         {/* Barra do modo comparação */}
@@ -693,79 +705,17 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
         )}
       </div>
 
-      {/* Modal CRIAR grupo */}
-      {showCriar && (
-        <div className="fixed inset-0 z-[9200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowCriar(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center gap-3 px-6 py-5 border-b border-zinc-100">
-              <div className="w-11 h-11 rounded-xl bg-orange-600 text-white flex items-center justify-center"><FolderPlus size={20} /></div>
-              <div>
-                <h3 className="text-lg font-bold text-black">Novo grupo</h3>
-                <p className="text-[12px] text-black">Junte requisições com o mesmo propósito</p>
-              </div>
-            </div>
-            <div className="p-6">
-              <label className="text-[12px] font-bold text-black uppercase tracking-wider mb-2 block">Nome do grupo</label>
-              <input autoFocus value={novoGrupoNome} onChange={e => setNovoGrupoNome(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') criarGrupo(); if (e.key === 'Escape') setShowCriar(false); }}
-                placeholder="Ex.: Peças da colheita 2026" className="w-full text-[15px] text-black bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 outline-none focus:border-orange-500 focus:bg-white" />
-              <div className="flex gap-3 mt-5">
-                <button onClick={() => setShowCriar(false)} className="flex-1 py-3 rounded-xl border border-zinc-200 text-black text-sm font-semibold hover:bg-zinc-50">Cancelar</button>
-                <button onClick={criarGrupo} disabled={!novoGrupoNome.trim() || salvandoGrupo} className="flex-1 py-3 rounded-xl bg-orange-600 text-white text-sm font-bold hover:bg-orange-700 disabled:opacity-40 flex items-center justify-center gap-2">
-                  {salvandoGrupo ? 'Criando...' : <><Plus size={16} /> Criar grupo</>}
-                </button>
-              </div>
-            </div>
+      {/* Painel dos grupos (opção B escolhida pelo José em 16/11/2026): ver, montar, juntar e concluir */}
+      {painelGrupos && (
+        <div className="fixed inset-0 z-[9200] bg-zinc-50 flex flex-col">
+          <div className="bg-orange-600 text-white px-3 sm:px-5 min-h-[56px] flex items-center gap-3">
+            <Layers size={18} />
+            <span className="text-[16px] font-medium flex-1">Grupos de requisições</span>
+            <button type="button" onClick={() => setPainelGrupos(null)} title="Fechar" className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-white/15"><X size={20} /></button>
           </div>
-        </div>
-      )}
-
-      {/* Modal GERENCIAR grupos (todos) */}
-      {showGerenciar && (
-        <div className="fixed inset-0 z-[9000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => { setShowGerenciar(false); setRenomeandoId(null); }}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-100">
-              <h3 className="text-lg font-bold text-black flex items-center gap-2"><SlidersHorizontal size={20} /> Gerenciar grupos</h3>
-              <div className="flex items-center gap-2">
-                <button onClick={() => { setNovoGrupoNome(''); setShowCriar(true); }} className="text-[13px] font-bold text-white bg-orange-600 px-3 py-1.5 rounded-lg hover:bg-orange-700 flex items-center gap-1.5"><Plus size={15} /> Novo grupo</button>
-                <button onClick={() => { setShowGerenciar(false); setRenomeandoId(null); }} className="text-black hover:text-orange-500"><X size={20} /></button>
-              </div>
-            </div>
-            <div className="overflow-y-auto p-4 flex flex-col gap-2.5">
-              {grupos.length === 0 ? (
-                <p className="text-sm text-black text-center py-10">Nenhum grupo ainda. Clique em <b>Novo grupo</b> pra criar o primeiro.</p>
-              ) : grupos.map((g: any) => (
-                <div key={g.id} className="flex items-center gap-3 border border-zinc-200 rounded-xl px-4 py-3">
-                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full shrink-0 ${g.status === 'aberto' ? 'bg-orange-50 text-orange-600' : g.status === 'concluido' ? 'bg-emerald-50 text-emerald-700' : 'bg-zinc-100 text-black'}`}>{g.status === 'aberto' ? 'Aberto' : g.status === 'concluido' ? 'Concluído' : 'Cancelado'}</span>
-                  <div className="flex-1 min-w-0">
-                    {renomeandoId === g.id ? (
-                      <input autoFocus value={renomeandoNome} onChange={e => setRenomeandoNome(e.target.value)}
-                        onKeyDown={e => { if (e.key === 'Enter') renomearGrupo(g.id, renomeandoNome); if (e.key === 'Escape') setRenomeandoId(null); }}
-                        onBlur={() => renomearGrupo(g.id, renomeandoNome)}
-                        className="w-full text-sm font-semibold text-black bg-zinc-50 border border-orange-300 rounded-lg px-2 py-1 outline-none" />
-                    ) : (
-                      <div className="text-[15px] font-semibold text-black truncate flex items-center gap-2">
-                        {g.nome}
-                        <button onClick={() => { setRenomeandoId(g.id); setRenomeandoNome(g.nome); }} title="Renomear" className="text-zinc-300 hover:text-orange-500"><SlidersHorizontal size={12} /></button>
-                      </div>
-                    )}
-                    <div className="text-[12px] text-black">{(g.membros || []).length} requisição(ões) · criado por {g.criado_por || '—'}</div>
-                  </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button onClick={() => { setGrupoFiltro(g.id); setShowGerenciar(false); }} title="Ver no kanban" className="text-[12px] font-semibold text-black bg-white border border-zinc-200 px-2.5 py-1.5 rounded-lg hover:border-orange-300 hover:text-orange-600 flex items-center gap-1"><FolderOpen size={13} /> Ver</button>
-                    <button onClick={() => setGrupoHist(g)} title="Histórico" className="text-[12px] font-semibold text-black bg-white border border-zinc-200 px-2.5 py-1.5 rounded-lg hover:border-zinc-400">Histórico</button>
-                    {g.status === 'aberto' ? (
-                      <>
-                        <button onClick={() => mudarStatusGrupo(g.id, 'concluido')} title="Concluir" className="text-[12px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg hover:bg-emerald-100">Concluir</button>
-                        <button onClick={() => mudarStatusGrupo(g.id, 'cancelado')} title="Cancelar" className="text-[12px] font-semibold text-black bg-white border border-zinc-200 px-2.5 py-1.5 rounded-lg hover:border-orange-300 hover:text-orange-600">Cancelar</button>
-                      </>
-                    ) : (
-                      <button onClick={() => mudarStatusGrupo(g.id, 'aberto')} title="Reabrir" className="text-[12px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-1.5 rounded-lg hover:bg-orange-100 flex items-center gap-1"><RotateCcw size={13} /> Reabrir</button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="flex-1 overflow-y-auto px-3 sm:px-5 py-4">
+            <PainelGrupos layout="cartoes" criarAoAbrir={painelGrupos === 'criar'} onMudou={recarregarGrupos}
+              onVerNoQuadro={(id) => { setGrupoFiltro(id); setPainelGrupos(null); }} />
           </div>
         </div>
       )}
@@ -809,7 +759,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
         {/* CELULAR: seletor de fase por botão (mostra uma fase por vez) */}
         {isMobile && (
           <div className="flex gap-2 overflow-x-auto scrollbar-hide pb-3 -mx-3 px-3">
-            {colunas.map((col) => {
+            {colunasVisiveis.map((col) => {
               const n = filtradas.filter((r: any) => r.status === col.id).length;
               const ativo = faseMobile === col.id;
               return (
@@ -824,10 +774,19 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             })}
           </div>
         )}
+        {(nRecusadas > 0 || verRecusadas) && (
+          <div className="flex justify-end -mt-1 mb-2">
+            <button onClick={() => { setVerRecusadas((v) => { if (v && faseMobile === 'recusada') setFaseMobile('pedido'); return !v; }); }}
+              className={`h-[36px] px-3 rounded-[11px] border text-[13px] flex items-center gap-1.5 ${verRecusadas ? 'border-red-300 bg-red-50 text-red-800' : 'border-zinc-200 bg-white text-zinc-700 hover:border-red-300'}`}>
+              <i className={`fa-solid ${verRecusadas ? 'fa-eye-slash' : 'fa-ban'} text-[12px]`} />
+              {verRecusadas ? 'Esconder as não autorizadas' : `Não autorizadas (${nRecusadas})`}
+            </button>
+          </div>
+        )}
         {/* No PC as colunas ficam lado a lado; no celular renderiza só a fase escolhida */}
         {/* Colunas esticam pra ocupar a tela inteira (sem teto de largura) */}
-        <div className="flex flex-col md:flex-row gap-4 md:overflow-x-auto md:snap-x pb-8 scrollbar-hide justify-start">
-          {(isMobile ? colunas.filter((c) => c.id === faseMobile) : colunas).map((col) => {
+        <div className="flex flex-col md:flex-row gap-4 md:overflow-x-auto xl:overflow-x-visible md:snap-x pb-8 scrollbar-hide justify-start">
+          {(isMobile ? colunasVisiveis.filter((c) => c.id === faseMobile) : colunasVisiveis).map((col) => {
             let items = filtradas.filter((r: any) => r.status === col.id);
             if (col.id === 'financeiro') {
               items = [...items].sort((a: any, b: any) => {
@@ -856,7 +815,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                 }`}
               >
                 {/* TÍTULO DA FASE: ícone na cor da fase, quantidade e valor */}
-                <div className="rq-col-cab" style={{ ['--c' as any]: COR_FASE[col.id], flexDirection: 'column', alignItems: 'stretch' }}>
+                <div className="rq-col-cab xl:sticky z-20" style={{ ['--c' as any]: COR_FASE[col.id], flexDirection: 'column', alignItems: 'stretch', top: fixo.topo + fixo.barra, boxShadow: '0 6px 10px -6px rgba(0,0,0,.08)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                     <IconeQuadrado icone={col.icone} cor={COR_FASE[col.id]} tamanho={34} />
                     <div style={{ minWidth: 0, flex: 1 }}>
@@ -864,28 +823,12 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                       <div className="rq-col-sub">{items.length} · {brl(items.reduce((s2: number, r: any) => s2 + valorReq(r), 0))}</div>
                     </div>
                   </div>
-                  {col.id === 'aguardando' && items.length > 0 && (() => {
-                    // Fornecedores atualmente no filtro único (se houver)
-                    const fornSel = filtros.filter(f => f.campo === 'fornecedor').map(f => f.label);
-                    const alvo = fornSel.length === 1 ? fornSel[0] : undefined;
-                    return (
-                      <div className="mt-3">
-                        <button
-                          onClick={() => gerarPdfCobranca(alvo)}
-                          className="w-full flex items-center justify-center gap-1.5 text-[12.5px] text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-[10px] h-[32px] px-3 transition-all cursor-pointer"
-                          title={alvo ? `Gerar cobrança para ${alvo}` : 'Gerar cobrança (usa o filtro de fornecedor, se houver)'}
-                        >
-                          <FileDown size={12} />
-                          Cobrar NF/Boleto {fornSel.length ? `(${fornSel.length === 1 ? fornSel[0] : `${fornSel.length} forn.`})` : '(todos)'}
-                        </button>
-                      </div>
-                    );
-                  })()}
+                  {/* "Cobrar NF/Boleto" saiu da coluna (José, 17/11/2026) */}
                 </div>
 
                 {/* ÁREA DOS CARDS — no celular SEM scroll próprio (rola a página inteira);
                     no PC cada coluna tem seu scroll de até 72vh. */}
-                <div className="px-1 pb-4 flex-1 md:max-h-[72vh] md:overflow-y-auto scrollbar-hide">
+                <div className="px-1 pb-4 flex-1 md:max-xl:max-h-[72vh] md:max-xl:overflow-y-auto scrollbar-hide">
                   {items.length > 0 ? (
                     <>
                       {priorizarDestaque(items).slice(0, limitesPorColuna[col.id] || CARDS_POR_VEZ).map((req: any) => (

@@ -2,7 +2,7 @@
 // Requisições do /empresa (José, 12/11: "cartões com assuntos das requisições: quanto gastou, qual setor mais gastou,
 // dentro de cada setor quem mais gastou, quantas estão paradas"). Só lê a tabela Requisicao; a lixeira fica de fora.
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 
 export const dynamic = 'force-dynamic'
@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic'
 const num = (v: unknown) => { const t = String(v ?? '').trim(); if (!t) return 0; return parseFloat(t.includes(',') ? t.replace(/\./g, '').replace(',', '.') : t) || 0 }
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'requisicoes')
   if (g.resposta) return g.resposta
   const cols = 'id, titulo, tipo, solicitante, setor, data, status, valor_despeza, valor_cobrado_cliente, fornecedor, ordem_servico, veiculo, cliente, created_at, foto_nf'
   const linhas: Array<Record<string, unknown>> = []

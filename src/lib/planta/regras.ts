@@ -122,7 +122,7 @@ export const FASES_FABRICA_ANTES = ['Proposta solicitada', 'Proposta Recebida', 
 export const FASES_FABRICA_CHEGOU = ['Proposta Concluida/ Maquina Recebida', 'Aguardando faturamento da fábrica'];
 /** Fases em que o serviço terminou e falta faturar (Executada → Cobrando Cliente). */
 /** Fases abertas do Kanban das Requisições (o resto é financeiro, lixeira ou cancelar). */
-export const FASES_REQUISICAO_ABERTA: Record<string, string> = { pedido: 'Pedido Realizado', completa: 'Atualizada por Técnico', aguardando: 'Aguardando Fornecedor' };
+export const FASES_REQUISICAO_ABERTA: Record<string, string> = { pedido: 'Pedido Realizado', completa: 'Aguardando autorização', aguardando: 'Aguardando nota do fornecedor' };
 /** valor_despeza é texto BR ou US, às vezes com "R$". */
 export const valorRequisicao = (v: unknown) => parseValorMisto(String(v ?? '').replace(/[^\d,.-]/g, ''));
 const faseRequisicao = (s: unknown) => String(s || '').trim().toLowerCase();

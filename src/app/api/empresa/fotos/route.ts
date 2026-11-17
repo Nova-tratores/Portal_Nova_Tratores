@@ -4,7 +4,7 @@
 // POST { codigo_produto, conta, url } → baixa a escolhida, guarda no armazenamento do portal (fotos-maquinas)
 //                                       e grava em produtos.imagem_url (vale também no Visual Estoque).
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { autorDe } from '@/lib/ajustes/permissao-server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { buscarOpcoesFoto, guardarFoto } from '@/lib/empresa/maquinas'
@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'comercial')
   if (g.resposta) return g.resposta
   const q = (req.nextUrl.searchParams.get('q') || '').trim().slice(0, 120)
   if (!q) return NextResponse.json({ opcoes: [] })
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'comercial')
   if (g.resposta) return g.resposta
   const b = await req.json().catch(() => ({})) as { codigo_produto?: unknown; conta?: unknown; url?: unknown }
   const codigo = Number(b.codigo_produto), conta = String(b.conta || '').toLowerCase(), url = String(b.url || '')

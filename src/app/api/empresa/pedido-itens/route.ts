@@ -1,13 +1,13 @@
 // GET /api/empresa/pedido-itens?conta=NOVA&pedido=7885 — as peças de um pedido de venda (vendas_itens), para abrir um
 // pedido na tela Peças do /empresa (José, 12/11). Só lê a tabela: rápido.
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'pecas', 'comercial')
   if (g.resposta) return g.resposta
   const conta = (req.nextUrl.searchParams.get('conta') || 'NOVA').toUpperCase() === 'CASTRO' ? 'CASTRO' : 'NOVA'
   const pedido = String(req.nextUrl.searchParams.get('pedido') || '').trim()

@@ -3,14 +3,14 @@
 // (src/lib/empresa/painel-gravado.ts); as metas vêm sempre na hora. ?recalcular=1 = "Atualizar agora".
 // Permissão: a mesma do DRE (guardarDre), como o /api/empresa/dre-gerencial — os valores são do financeiro.
 import { NextRequest, NextResponse } from 'next/server'
-import { guardarDre } from '@/lib/dre-financeiro/rota'
+import { guardarEmpresa } from '@/lib/dre-financeiro/rota'
 import { lerComercial } from '@/lib/empresa/painel-gravado'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 export async function GET(req: NextRequest) {
-  const g = await guardarDre(req)
+  const g = await guardarEmpresa(req, 'comercial')
   if (g.resposta) return g.resposta
   try {
     return NextResponse.json(await lerComercial(req.nextUrl.searchParams.get('recalcular') === '1', req.nextUrl.searchParams.get('desde')), { headers: { 'Cache-Control': 'no-store' } })
