@@ -744,13 +744,20 @@ function ModalConferirPosicao({ deck, daEmpresa, conferidas, emContagem, onConta
 }) {
   const [ordem] = useState<Pos[]>(deck);          // ordem congelada ao abrir
   // onde a etiqueta sai (mesma escolha dos ajustes da térmica, lembrada neste aparelho)
-  const [destino, setDestino] = useState<DestinoTermica>(() => lerDestino());
+  // celular/tablet nunca enxerga a térmica (USB no PC da ROGERIA): sem escolha salva, começa na estação
+  const [destino, setDestino] = useState<DestinoTermica>(() => {
+    try {
+      if (localStorage.getItem('pni_etiqueta_destino') === null && window.matchMedia('(pointer: coarse)').matches) return 'estacao';
+    } catch { /* segue */ }
+    return lerDestino();
+  });
   const [estacao, setEstacao] = useState<SituacaoEstacao | null>(null);
   const [imprimindo, setImprimindo] = useState<string | null>(null);
   useEffect(() => { let vivo = true; void lerSituacaoEstacao().then((s) => { if (vivo) setEstacao(s); }); return () => { vivo = false; }; }, []);
   const escolherDestino = (d: DestinoTermica) => { setDestino(d); guardarDestino(d); };
   const imprimir = async (p: Produto) => {
     if (imprimindo) return;
+    guardarDestino(destino); // imprimirOuEnviar lê o destino salvo
     setImprimindo(chaveProd(p));
     try { await onImprimir(p); } finally { setImprimindo(null); }
   };
