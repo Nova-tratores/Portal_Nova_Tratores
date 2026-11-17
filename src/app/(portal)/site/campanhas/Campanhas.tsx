@@ -9,17 +9,34 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useRouter, useSearchParams } from 'next/navigation';
 import EnviarFoto from '@/components/site/EnviarFoto';
 import { fetchAuth } from '@/lib/auth/client';
-import { Aviso, ComoLer, Numero, tela, quando } from '@/components/site/ui';
-import { AZUL, Campo, Quadradinho, Secao, T1, T2, T3, bt, campoNP, cartaoNP, grade, ic } from '@/components/site/np';
+import { Aviso, Conta, Numero, tela, quando } from '@/components/site/ui';
+import { AZUL, Campo, Secao, T1, T2, T3, bt, campoNP, cartaoNP, grade, ic } from '@/components/site/np';
 
 type Setor = 'comercial' | 'posvendas' | 'pecas';
 type Camp = { id: string; slug: string; nome: string; ano: number; inicio: string; fim: string; ativo: boolean; url?: string | null; config?: {
-  capa?: string; premio_foto?: string; validade?: string
+  capa?: string; premio_foto?: string; validade?: string; fisicos?: (string | number)[]
   inicio?: { subtitulo?: string; passos?: string[]; concurso?: string }; regras?: string[]
   ficha?: { pedir_local?: boolean; pedir_trator?: boolean; pedir_foto?: boolean; modelos?: string[]; campos?: CampoFicha[] }; whats?: Partial<Record<Setor, string>>
 } };
 /** Campo a mais da ficha (José, 17/11: "na ficha não consigo editar quais campos aparecem"); a resposta vai em extras[id]. */
-type CampoFicha = { id: string; tipo: 'telefone' | 'documento' | 'email' | 'texto' | 'opcoes'; rotulo: string; obrigatorio: boolean; opcoes?: string[] };
+type CampoFicha = { id: string; tipo: 'telefone' | 'documento' | 'email' | 'texto' | 'opcoes' | 'local' | 'nota'; rotulo: string; obrigatorio: boolean; opcoes?: string[] };
+// Ficha pedida pelo José em 17/11: é a que a página da roleta usa quando o portal não escolheu outros campos
+const CAMPOS_PADRAO: CampoFicha[] = [
+  { id: 'telefone', tipo: 'telefone', rotulo: 'Telefone (WhatsApp)', obrigatorio: true },
+  { id: 'atendente', tipo: 'texto', rotulo: 'Quem dos nossos colaboradores te atende?', obrigatorio: false },
+  { id: 'local', tipo: 'local', rotulo: 'Localização', obrigatorio: true },
+  { id: 'email', tipo: 'email', rotulo: 'E-mail', obrigatorio: false },
+  { id: 'documento', tipo: 'documento', rotulo: 'CPF ou CNPJ', obrigatorio: true },
+  { id: 'ultima_compra', tipo: 'texto', rotulo: 'Qual foi a última compra que você fez com a gente?', obrigatorio: false },
+  { id: 'avaliacao', tipo: 'nota', rotulo: 'Como você avalia o seu último atendimento?', obrigatorio: true },
+];
+const camposDa = (c?: Camp | null) => (c?.config?.ficha?.campos?.length ? c.config.ficha.campos : CAMPOS_PADRAO);
+// Brinde físico = retira na loja dia 15/12. Marcado prêmio por prêmio; sem marcação, vale pelo nome (igual à página da roleta).
+const FISICO_NOME = /bon[eé]|camiseta|t[aá]bua|faca|chaira|caneca|chaveiro|squeeze|garrafa|copo|brinde/i;
+const ehFisico = (c: Camp | null | undefined, id: number | string, nome: string) => {
+  const l = c?.config?.fisicos;
+  return Array.isArray(l) ? l.map(String).includes(String(id)) : FISICO_NOME.test(nome || '');
+};
 type Venda = { tipo: 'os' | 'ppv' | 'pedido' | 'balcao' | 'nenhuma'; numero: string | null; valor: number | null; por?: string; em?: string };
 type Premio = { id: number; campanha_id: string; setor: Setor; rotulo: string; nome: string; detalhe: string | null; peso: number; estoque: number | null; ordem: number; ativo: boolean; saidas: number };
 type Part = {
@@ -39,9 +56,9 @@ type Sub = 'campanha' | 'premios' | 'pagina';
 
 const AMBAR = '#d97706', VERDE = '#16a34a', ROXO = '#7c3aed';
 const SETOR: Record<Setor, { nome: string; cor: string; icone: string }> = {
-  comercial: { nome: 'Comercial', cor: AZUL, icone: 'fa-handshake' },
-  posvendas: { nome: 'Pós-Vendas', cor: VERDE, icone: 'fa-screwdriver-wrench' },
-  pecas: { nome: 'Peças', cor: ROXO, icone: 'fa-gears' },
+  comercial: { nome: 'Comercial', cor: '#dc2626', icone: 'fa-handshake' },
+  posvendas: { nome: 'Pós-Vendas', cor: '#0ea5e9', icone: 'fa-screwdriver-wrench' },
+  pecas: { nome: 'Peças', cor: '#f97316', icone: 'fa-gears' },
 };
 const SETORES = Object.keys(SETOR) as Setor[];
 const VISOES: { id: Ver; label: string; icone: string }[] = [
@@ -226,8 +243,8 @@ export default function Campanhas() {
 
       {/* cartões por ano */}
       {anos.map((ano) => (
-        <section key={ano} style={{ display: 'grid', gap: 12 }}>
-          <span style={{ fontSize: 22, color: T1 }}>{ano}</span>
+        <section key={ano} style={{ display: 'grid', gap: 14 }}>
+          <AnoCabecalho ano={ano} campanhas={lista.filter((c) => c.ano === ano)} />
           <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fill, minmax(min(240px, 100%), 1fr))' }}>
             {lista.filter((c) => c.ano === ano).map((c) => (
               <Link key={c.slug} href={abrir(c.slug)} style={{ ...cartaoNP, padding: 10, display: 'grid', gap: 10, textDecoration: 'none', color: T1 }}>
@@ -249,13 +266,18 @@ export default function Campanhas() {
           <div style={{ position: 'sticky', top: 0, zIndex: 20, background: 'var(--portal-bg, #f8fafc)' }}>
             <div style={{ padding: '10px clamp(12px, 2vw, 28px)', display: 'flex', gap: 12, alignItems: 'center' }}>
               <Link href={base} aria-label="Fechar" style={{ ...bt(T1), minHeight: 40, padding: '8px 12px' }}>{ic('fa-xmark')}<span className="hide-sm">Fechar</span></Link>
+              {atual && (
+                <Link href={abrir(slug, 'configurar', 'campanha')} aria-label="Editar nome, datas e foto" title="Editar nome, datas e foto" className="camp-editar"
+                  style={{ flex: 'none', width: 72, display: 'block', position: 'relative', borderRadius: 10, boxShadow: '0 4px 12px rgba(15,23,42,.18)' }}>
+                  <span style={{ display: 'block', borderRadius: 10, overflow: 'hidden' }}><Capa c={lista.find((c) => c.slug === slug) || atual} /></span>
+                  <span aria-hidden style={{ position: 'absolute', right: -6, bottom: -6, width: 26, height: 26, borderRadius: 999, display: 'grid', placeItems: 'center', background: '#d97706', color: '#fefefe', fontSize: 11, border: '2px solid var(--portal-bg, #f8fafc)' }}>{ic('fa-pen')}</span>
+                  <style>{'.camp-editar{transition:transform .15s}.camp-editar:hover{transform:scale(1.04)}'}</style>
+                </Link>
+              )}
               <span style={{ display: 'grid', minWidth: 0 }}>
                 <span style={{ fontSize: 18, color: T1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{atual ? `${atual.nome} ${atual.ano}` : 'Carregando…'}</span>
                 {atual && <span style={{ fontSize: 12, color: T3 }}>{dataBR(atual.inicio)} a {dataBR(atual.fim)} · {situacao(atual)}</span>}
               </span>
-              {atual && (
-                <Link href={abrir(slug, 'configurar', 'campanha')} style={{ ...bt(AMBAR), marginLeft: 'auto', minHeight: 40, textDecoration: 'none' }}>{ic('fa-pen')}<span className="hide-sm">Editar nome e datas</span></Link>
-              )}
             </div>
             {/* guias estilo Chrome (docs/padrao-telas.md) */}
             <nav style={{ background: `linear-gradient(135deg, ${AMBAR}, #b45309)`, padding: '8px clamp(12px, 2vw, 28px) 0', display: 'flex', gap: 4, overflowX: 'auto' }}>
@@ -275,7 +297,7 @@ export default function Campanhas() {
             {!atual || !d ? <span style={{ color: T3 }}>Carregando…</span> : (
               <>
                 {ver === 'acompanhar' && <Resumo d={d} exemplo={ehExemplo} />}
-                {ver === 'atender' && <Atender d={d} mudar={mudar} />}
+                {ver === 'atender' && <Atender d={d} mudar={mudar} recarregar={carregar} />}
                 {ver === 'configurar' && (
                   <>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -380,6 +402,128 @@ function FunilSetores({ ps }: { ps: Part[] }) {
   );
 }
 
+// ---------- ACOMPANHAR: números clicáveis que abrem uma janela com o detalhe ----------
+const ESTILO_IND = `
+@keyframes indEntra { from { opacity: 0; transform: translateY(10px) scale(.98) } to { opacity: 1; transform: none } }
+@keyframes indFundo { from { opacity: 0 } to { opacity: 1 } }
+.ind-card { animation: indEntra .45s cubic-bezier(.2,.8,.2,1) both; transition: transform .18s, box-shadow .18s }
+.ind-card:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(15,23,42,.12) }
+.ind-card:hover .ind-ver { opacity: 1; transform: none }
+.ind-ver { opacity: .55; transform: translateX(-4px); transition: opacity .18s, transform .18s }
+.ind-modal { animation: indEntra .28s cubic-bezier(.2,.8,.2,1) both }
+.ind-fundo { animation: indFundo .2s both }
+@media (prefers-reduced-motion: reduce) { .ind-card, .ind-modal, .ind-fundo { animation: none } }
+`;
+
+type Indicador = { id: string; icone: string; cor: string; rotulo: string; valor: ReactNode; detalhe: string; titulo: string; frase: string; corpo: () => ReactNode };
+
+function Janela({ ind, onFechar }: { ind: Indicador; onFechar: () => void }) {
+  useEffect(() => {
+    const t = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onFechar(); } };
+    window.addEventListener('keydown', t, true);
+    return () => window.removeEventListener('keydown', t, true);
+  }, [onFechar]);
+  return (
+    <div className="ind-fundo" onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 6000, background: 'rgba(15,23,42,.45)', display: 'grid', placeItems: 'center', padding: 16 }}>
+      <div role="dialog" aria-modal="true" aria-label={ind.titulo} className="ind-modal" onClick={(e) => e.stopPropagation()}
+        style={{ width: 'min(620px, 100%)', maxHeight: 'min(86vh, 760px)', display: 'grid', gridTemplateRows: 'auto 1fr', borderRadius: 18, overflow: 'hidden', background: 'var(--surface, #fefefe)', boxShadow: '0 30px 70px rgba(15,23,42,.35)' }}>
+        <div style={{ padding: '20px 22px', background: `linear-gradient(135deg, ${ind.cor}, color-mix(in srgb, ${ind.cor} 70%, #111111))`, color: '#fefefe', display: 'grid', gap: 6, position: 'relative' }}>
+          <button type="button" onClick={onFechar} aria-label="Fechar" style={{ position: 'absolute', top: 12, right: 12, width: 40, height: 40, borderRadius: 999, border: 0, background: 'rgba(255,255,255,.18)', color: '#fefefe', cursor: 'pointer', fontSize: 16 }}>{ic('fa-xmark')}</button>
+          <span style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 13, opacity: 0.9 }}>{ic(ind.icone)}{ind.rotulo}</span>
+          <span style={{ fontSize: 40, lineHeight: 1.05, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{ind.valor}</span>
+          <span style={{ fontSize: 15, paddingRight: 40 }}>{ind.frase}</span>
+        </div>
+        <div style={{ padding: 20, overflowY: 'auto', display: 'grid', gap: 14, alignContent: 'start' }}>{ind.corpo()}</div>
+      </div>
+    </div>
+  );
+}
+
+function ListaPessoas({ ps, extra, vazio }: { ps: Part[]; extra?: (p: Part) => ReactNode; vazio: string }) {
+  if (!ps.length) return <span style={{ fontSize: 14, color: T3 }}>{vazio}</span>;
+  return (
+    <div style={{ display: 'grid', gap: 6 }}>
+      {ps.slice(0, 200).map((p) => (
+        <div key={p.id} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '8px 10px', borderRadius: 10, background: 'color-mix(in srgb, var(--portal-text, #0f172a) 3%, transparent)' }}>
+          {p.foto_url
+            ? <img src={p.foto_url} alt="" style={{ width: 36, height: 36, borderRadius: 8, objectFit: 'cover', flex: 'none' }} />
+            : <span style={{ width: 36, height: 36, borderRadius: 8, flex: 'none', display: 'grid', placeItems: 'center', background: `color-mix(in srgb, ${SETOR[p.setor].cor} 12%, transparent)`, color: SETOR[p.setor].cor, fontSize: 13 }}>{p.nome.trim().charAt(0).toUpperCase()}</span>}
+          <span style={{ display: 'grid', minWidth: 0, flex: 1 }}>
+            <span style={{ fontSize: 14, color: T1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.nome}</span>
+            <span style={{ fontSize: 12, color: T3 }}>{SETOR[p.setor].nome} · {quando(p.criado_em)}{p.cidade ? ` · ${p.cidade}` : ''}</span>
+          </span>
+          {extra && <span style={{ fontSize: 12, color: T2, textAlign: 'right', flex: 'none', maxWidth: '45%' }}>{extra(p)}</span>}
+        </div>
+      ))}
+      {ps.length > 200 && <span style={{ fontSize: 12, color: T3 }}>Mostrando 200 de {n(ps.length)}. A lista completa está em Atender.</span>}
+    </div>
+  );
+}
+
+const Titulo = ({ children }: { children: ReactNode }) => <span style={{ fontSize: 13, color: T3, textTransform: 'uppercase', letterSpacing: '.04em' }}>{children}</span>;
+
+function Indicadores({ ps, ehExemplo }: { ps: Part[]; ehExemplo: boolean }) {
+  const [aberto, setAberto] = useState('');
+  const girou = ps.filter((p) => p.codigo);
+  const resg = ps.filter((p) => p.resgatado_em);
+  const trator = ps.filter((p) => p.tem_trator);
+  const fotos = ps.filter((p) => p.foto_url || (ehExemplo && p.tem_trator));
+  const vendasP = ps.filter((p) => p.extras?.venda && p.extras.venda.tipo !== 'nenhuma');
+  const totalVendas = vendasP.reduce((s, p) => s + (p.extras!.venda!.valor || 0), 0);
+  const porSetor = SETORES.map((s) => ({ rotulo: SETOR[s].nome, valor: ps.filter((p) => p.setor === s).length }));
+  const inds: Indicador[] = [
+    { id: 'resp', icone: 'fa-user-plus', cor: AMBAR, rotulo: 'Responderam', valor: <Conta valor={ps.length} />, detalhe: 'preencheram a ficha',
+      titulo: 'Quem respondeu', frase: `${n(ps.length)} ${ps.length === 1 ? 'pessoa preencheu' : 'pessoas preencheram'} a ficha da roleta.`,
+      corpo: () => <><Titulo>Por setor</Titulo><Barras itens={porSetor} cor={AMBAR} /><Titulo>Pessoas</Titulo><ListaPessoas ps={ps} vazio="Ninguém respondeu ainda." /></> },
+    { id: 'girou', icone: 'fa-dharmachakra', cor: AZUL, rotulo: 'Giraram a roleta', valor: <Conta valor={girou.length} />, detalhe: `${pct(girou.length, ps.length)}% de quem respondeu`,
+      titulo: 'Quem girou', frase: `${n(girou.length)} giraram e ganharam um código de prêmio.`,
+      corpo: () => <><Titulo>Prêmios que saíram</Titulo><Barras itens={contar(girou, (p) => p.premio_nome, 20)} cor={AZUL} /><Titulo>Pessoas</Titulo><ListaPessoas ps={girou} extra={(p) => <code>{p.codigo}</code>} vazio="Ninguém girou ainda." /></> },
+    { id: 'trator', icone: 'fa-tractor', cor: VERDE, rotulo: 'Têm Mahindra da Nova', valor: <Conta valor={trator.length} />, detalhe: `${n(ps.length - trator.length)} ainda não têm`,
+      titulo: 'Quem já tem Mahindra da Nova', frase: `${n(trator.length)} já têm. Os outros ${n(ps.length - trator.length)} são clientes para o Comercial procurar.`,
+      corpo: () => <><Titulo>Modelos</Titulo><Barras itens={contar(trator, (p) => p.modelo, 20)} cor={VERDE} /><Titulo>Ainda não têm (para o Comercial)</Titulo><ListaPessoas ps={ps.filter((p) => !p.tem_trator)} vazio="Todos já têm Mahindra da Nova." /></> },
+    { id: 'fotos', icone: 'fa-camera', cor: ROXO, rotulo: 'Fotos recebidas', valor: <Conta valor={fotos.length} />, detalhe: 'fotos de trator na ficha',
+      titulo: 'Fotos recebidas', frase: `${n(fotos.length)} ${fotos.length === 1 ? 'foto chegou' : 'fotos chegaram'}. A mais bonita é escolhida em Atender › Fotos.`,
+      corpo: () => fotos.some((p) => p.foto_url)
+        ? <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))' }}>{fotos.filter((p) => p.foto_url).map((p) => (
+            <a key={p.id} href={p.foto_url!} target="_blank" rel="noreferrer" style={{ display: 'grid', gap: 4, textDecoration: 'none', color: T2, fontSize: 12 }}>
+              <img src={p.foto_url!} alt={`Foto de ${p.nome}`} style={{ width: '100%', aspectRatio: '1', objectFit: 'cover', borderRadius: 10, outline: p.foto_vencedora ? `3px solid ${AMBAR}` : 'none' }} />{p.nome}
+            </a>))}</div>
+        : <span style={{ fontSize: 14, color: T3 }}>Nenhuma foto ainda.</span> },
+    { id: 'resg', icone: 'fa-circle-check', cor: VERDE, rotulo: 'Prêmios resgatados', valor: <Conta valor={resg.length} />, detalhe: `${n(girou.length - resg.length)} ainda não vieram buscar`,
+      titulo: 'Prêmios resgatados', frase: `${n(resg.length)} de ${n(girou.length)} prêmios já foram retirados na loja.`,
+      corpo: () => <><Titulo>Já retiraram</Titulo><ListaPessoas ps={resg} extra={(p) => <>{p.premio_nome}{p.resgatado_por ? <><br />baixa: {p.resgatado_por.split(' ')[0]}</> : null}</>} vazio="Ninguém retirou ainda." />
+        <Titulo>Ainda não vieram buscar</Titulo><ListaPessoas ps={girou.filter((p) => !p.resgatado_em)} extra={(p) => p.premio_nome} vazio="Todos já retiraram." /></> },
+    { id: 'venda', icone: 'fa-sack-dollar', cor: '#0f766e', rotulo: 'Vendido com o código', valor: <Conta valor={totalVendas} formato={(v) => real(v)} />, detalhe: `${n(vendasP.length)} ${vendasP.length === 1 ? 'venda anotada' : 'vendas anotadas'}`,
+      titulo: 'Vendas com o código da roleta', frase: `${real(totalVendas)} em ${n(vendasP.length)} ${vendasP.length === 1 ? 'venda anotada' : 'vendas anotadas'} na baixa do prêmio.`,
+      corpo: () => <><Titulo>Por tipo</Titulo><Barras itens={VENDA_TIPOS.filter((t) => t.id !== 'nenhuma').map((t) => ({ rotulo: t.nome, valor: vendasP.filter((p) => p.extras!.venda!.tipo === t.id).length })).filter((x) => x.valor)} cor="#0f766e" />
+        <Titulo>Vendas</Titulo><ListaPessoas ps={vendasP} extra={(p) => textoVenda(p.extras!.venda!)} vazio="Nenhuma venda anotada ainda. Anote em Atender, na hora de dar baixa." /></> },
+  ];
+  const atual = inds.find((i) => i.id === aberto);
+  return (
+    <>
+      <style>{ESTILO_IND}</style>
+      <div style={grade(200)}>
+        {inds.map((i, k) => (
+          <button key={i.id} type="button" className="ind-card" onClick={() => setAberto(i.id)}
+            style={{ animationDelay: `${k * 50}ms`, textAlign: 'left', font: 'inherit', cursor: 'pointer', border: `1px solid color-mix(in srgb, ${i.cor} 22%, var(--border, #e5e7eb))`, borderRadius: 16, padding: 16, display: 'grid', gap: 10,
+              background: `linear-gradient(160deg, color-mix(in srgb, ${i.cor} 10%, var(--surface, #fefefe)), var(--surface, #fefefe) 70%)`, color: T1 }}>
+            <span style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ width: 42, height: 42, borderRadius: 12, display: 'grid', placeItems: 'center', background: `linear-gradient(135deg, ${i.cor}, color-mix(in srgb, ${i.cor} 70%, #111111))`, color: '#fefefe', boxShadow: `0 6px 14px color-mix(in srgb, ${i.cor} 30%, transparent)` }}>{ic(i.icone)}</span>
+              <span className="ind-ver" style={{ fontSize: 12, color: i.cor, display: 'inline-flex', gap: 6, alignItems: 'center' }}>ver {ic('fa-arrow-right')}</span>
+            </span>
+            <span style={{ fontSize: 30, lineHeight: 1, fontWeight: 600, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>{i.valor}</span>
+            <span style={{ display: 'grid', gap: 2 }}>
+              <span style={{ fontSize: 14, color: T1 }}>{i.rotulo}</span>
+              <span style={{ fontSize: 12, color: T3 }}>{i.detalhe}</span>
+            </span>
+          </button>
+        ))}
+      </div>
+      {atual && <Janela ind={atual} onFechar={() => setAberto('')} />}
+    </>
+  );
+}
+
 function Resumo({ d, exemplo: ehExemplo }: { d: Dados; exemplo: boolean }) {
   const [filtro, setFiltro] = useState<Setor | ''>('');
   const todos = d.participantes;
@@ -387,9 +531,7 @@ function Resumo({ d, exemplo: ehExemplo }: { d: Dados; exemplo: boolean }) {
   const girou = ps.filter((p) => p.codigo).length;
   const resg = ps.filter((p) => p.resgatado_em).length;
   const comTrator = ps.filter((p) => p.tem_trator).length;
-  const fotos = ps.filter((p) => p.foto_url || (ehExemplo && p.tem_trator)).length;
   const vendas = ps.map((p) => p.extras?.venda).filter((v): v is Venda => !!v && v.tipo !== 'nenhuma');
-  const totalVendas = vendas.reduce((s, v) => s + (v.valor || 0), 0);
   const onde = filtro ? ` na roleta ${SETOR[filtro].nome}` : '';
   const titulo = ps.length
     ? `${n(ps.length)} ${ps.length === 1 ? 'pessoa respondeu' : 'pessoas responderam'}${onde}; ${n(comTrator)} já ${comTrator === 1 ? 'tem' : 'têm'} Mahindra da Nova`
@@ -399,12 +541,6 @@ function Resumo({ d, exemplo: ehExemplo }: { d: Dados; exemplo: boolean }) {
 
   return (
     <>
-      <ComoLer>
-        Cada setor (Comercial, Pós-Vendas, Peças) tem a sua roleta e o seu link; os botões abaixo filtram por setor.
-        <b style={{ fontWeight: 500 }}> Responderam</b> = preencheram a ficha; <b style={{ fontWeight: 500 }}>giraram</b> = ganharam um código;
-        <b style={{ fontWeight: 500 }}> resgataram</b> = vieram à loja e alguém deu baixa em Atender. O valor vendido só conta o que foi anotado na baixa.
-        Para mudar nome, datas, prêmios ou o que a página mostra, use Configurar.
-      </ComoLer>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <button type="button" onClick={() => setFiltro('')} style={{ ...bt(AMBAR, filtro === ''), minHeight: 40 }}>Todos os setores</button>
         {SETORES.map((s) => <button key={s} type="button" onClick={() => setFiltro(s)} style={{ ...bt(SETOR[s].cor, filtro === s), minHeight: 36 }}>{ic(SETOR[s].icone)}{SETOR[s].nome}</button>)}
@@ -419,14 +555,7 @@ function Resumo({ d, exemplo: ehExemplo }: { d: Dados; exemplo: boolean }) {
         </span>
       </div>
 
-      <div style={grade(180)}>
-        <Numero icone="fa-user-plus" cor={AMBAR} rotulo="Responderam" valor={n(ps.length)} />
-        <Numero icone="fa-dharmachakra" cor={AZUL} rotulo="Giraram a roleta" valor={n(girou)} detalhe={`${pct(girou, ps.length)}% de quem respondeu`} />
-        <Numero icone="fa-tractor" cor={VERDE} rotulo="Têm Mahindra da Nova" valor={n(comTrator)} detalhe={`${n(ps.length - comTrator)} ainda não têm: clientes para o Comercial`} />
-        <Numero icone="fa-camera" cor={ROXO} rotulo="Fotos recebidas" valor={n(fotos)} />
-        <Numero icone="fa-circle-check" cor={VERDE} rotulo="Prêmios resgatados" valor={n(resg)} detalhe={`${n(girou - resg)} ainda não vieram buscar`} />
-        <Numero icone="fa-sack-dollar" cor={AZUL} rotulo="Vendido com código da roleta" valor={real(totalVendas)} detalhe={`${n(vendas.length)} ${vendas.length === 1 ? 'venda anotada' : 'vendas anotadas'} na baixa do prêmio`} />
-      </div>
+      <Indicadores ps={ps} ehExemplo={ehExemplo} />
 
       <div style={grade(340)}>
         <Secao icone="fa-chart-column" cor={AMBAR} titulo="Respostas por dia" sub={filtro ? `Roleta ${SETOR[filtro].nome}` : 'Cada cor é um setor (passe o mouse na coluna)'}>
@@ -457,6 +586,28 @@ function Resumo({ d, exemplo: ehExemplo }: { d: Dados; exemplo: boolean }) {
 }
 
 // ---------- CONFIGURAR › CAMPANHA: nome, ano, datas, ligada, capa e links ----------
+/** Cabeçalho do ano na lista: número grande em degradê âmbar, linha que se apaga e o resumo do ano. */
+function AnoCabecalho({ ano, campanhas }: { ano: number; campanhas: Camp[] }) {
+  const noAr = campanhas.filter((c) => situacao(c).startsWith('no ar')).length;
+  const respostas = campanhas.reduce((t, c) => t + (c.respostas || 0), 0);
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+        <span aria-hidden style={{ width: 40, height: 40, borderRadius: 12, display: 'grid', placeItems: 'center', background: 'linear-gradient(135deg, #f59e0b, #b45309)', color: '#fefefe', boxShadow: '0 6px 16px rgba(217,119,6,.28)' }}>
+          {ic('fa-calendar-days')}
+        </span>
+        <span style={{ fontSize: 34, lineHeight: 1, fontWeight: 600, letterSpacing: '-0.02em', background: 'linear-gradient(135deg, #f59e0b, #b45309)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>{ano}</span>
+      </span>
+      <span style={{ display: 'inline-flex', gap: 6, flexWrap: 'wrap' }}>
+        <Chip cor={AMBAR}>{campanhas.length} {campanhas.length === 1 ? 'campanha' : 'campanhas'}</Chip>
+        {noAr > 0 && <Chip cor={VERDE}>{noAr} no ar</Chip>}
+        <Chip cor={T3}>{n(respostas)} {respostas === 1 ? 'resposta' : 'respostas'}</Chip>
+      </span>
+      <span aria-hidden style={{ flex: '1 1 80px', height: 2, borderRadius: 2, background: 'linear-gradient(90deg, rgba(217,119,6,.45), rgba(217,119,6,0))' }} />
+    </div>
+  );
+}
+
 function DadosCampanha({ d, mudar, exemplo: ehExemplo }: { d: Dados; mudar: Mudar; exemplo: boolean }) {
   const c = d.atual!;
   const [v, setV] = useState({ nome: c.nome, ano: String(c.ano), inicio: c.inicio.slice(0, 10), fim: c.fim.slice(0, 10), ativo: c.ativo });
@@ -506,63 +657,202 @@ function LinksSetores({ c, ps, mudar }: { c: Camp; ps: Part[]; mudar: Mudar }) {
   const [copiado, setCopiado] = useState('');
   const base = (c.url || '').replace(/\/$/, '');
   const copiar = async (s: Setor) => {
-    try { await navigator.clipboard.writeText(`${base}?setor=${s}`); setCopiado(s); setTimeout(() => setCopiado(''), 1800); } catch { setMsg('Não deu para copiar: selecione o link e copie.'); }
+    try { await navigator.clipboard.writeText(`${base}?setor=${s}`); setCopiado(s); setTimeout(() => setCopiado(''), 1800); } catch { setMsg('Não deu para copiar: abra a roleta e copie o endereço do navegador.'); }
   };
   return (
-    <div style={{ display: 'grid', gap: 12 }}>
-      <div style={grade(240)}>
+    <div style={{ display: 'grid', gap: 14 }}>
+      {!base && <Aviso tom="info">Os links aparecem depois que o endereço da página for salvo (logo abaixo, em &quot;Endereço da página&quot;).</Aviso>}
+      <div style={grade(230)}>
         {SETORES.map((s) => {
           const lista = ps.filter((p) => p.setor === s);
           const g = lista.filter((p) => p.codigo).length, r = lista.filter((p) => p.resgatado_em).length;
+          const cor = SETOR[s].cor;
           return (
-            <div key={s} style={{ ...cartaoNP, display: 'grid', gap: 10 }}>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                <Quadradinho icone={SETOR[s].icone} cor={SETOR[s].cor} />
-                <span style={{ display: 'grid' }}>
-                  <span style={{ fontSize: 15, color: T1 }}>Roleta {SETOR[s].nome}</span>
-                  <span style={{ fontSize: 13, color: T3 }}>{n(lista.length)} cadastros · {n(g)} giraram · {n(r)} resgataram</span>
-                </span>
+            <div key={s} style={{ borderRadius: 16, overflow: 'hidden', border: `1px solid color-mix(in srgb, ${cor} 25%, var(--border, #e5e7eb))`, background: 'var(--surface, #fefefe)', display: 'grid' }}>
+              <div style={{ padding: '14px 16px', background: `linear-gradient(135deg, ${cor}, color-mix(in srgb, ${cor} 65%, #111111))`, color: '#fefefe', display: 'flex', gap: 10, alignItems: 'center' }}>
+                <span style={{ width: 36, height: 36, borderRadius: 10, display: 'grid', placeItems: 'center', background: 'rgba(255,255,255,.2)' }}>{ic(SETOR[s].icone)}</span>
+                <span style={{ fontSize: 16 }}>Roleta {SETOR[s].nome}</span>
               </div>
-              {base ? (
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', minWidth: 0 }}>
-                  <code style={{ flex: 1, minWidth: 0, fontSize: 12, color: T2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{base}?setor={s}</code>
-                  <button type="button" onClick={() => copiar(s)} style={{ ...bt(SETOR[s].cor, copiado === s), minHeight: 34 }}>{ic(copiado === s ? 'fa-check' : 'fa-copy')}{copiado === s ? 'Copiado' : 'Copiar'}</button>
-                  <a href={`${base}?setor=${s}`} target="_blank" rel="noreferrer" style={{ ...bt(SETOR[s].cor, true), minHeight: 34 }}>{ic('fa-arrow-up-right-from-square')}Abrir</a>
-                </div>
-              ) : <span style={{ fontSize: 13, color: T3 }}>O link aparece quando a página estiver publicada (endereço abaixo).</span>}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', padding: '12px 8px 4px', textAlign: 'center' }}>
+                {([['Fichas', lista.length], ['Giraram', g], ['Retiraram', r]] as const).map(([rot, v]) => (
+                  <span key={rot} style={{ display: 'grid' }}>
+                    <span style={{ fontSize: 22, color: T1, fontVariantNumeric: 'tabular-nums' }}>{n(v)}</span>
+                    <span style={{ fontSize: 12, color: T3 }}>{rot}</span>
+                  </span>
+                ))}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: 12 }}>
+                <button type="button" disabled={!base} onClick={() => copiar(s)} title={base ? `${base}?setor=${s}` : undefined}
+                  style={{ ...bt(cor, copiado === s), minHeight: 44, justifyContent: 'center', opacity: base ? 1 : 0.4 }}>{ic(copiado === s ? 'fa-check' : 'fa-copy')}{copiado === s ? 'Copiado!' : 'Copiar link'}</button>
+                {base
+                  ? <a href={`${base}?setor=${s}`} target="_blank" rel="noreferrer" style={{ ...bt(cor, true), minHeight: 44, justifyContent: 'center', textDecoration: 'none' }}>{ic('fa-arrow-up-right-from-square')}Abrir</a>
+                  : <span style={{ ...bt(cor, true), minHeight: 44, justifyContent: 'center', opacity: 0.4 }}>{ic('fa-arrow-up-right-from-square')}Abrir</span>}
+              </div>
             </div>
           );
         })}
       </div>
-      <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        <div style={{ flex: '1 1 280px' }}>
-          <Campo rotulo="Endereço da página da campanha" ajuda="Onde a página foi publicada. Os links dos setores são este endereço com ?setor= no fim.">
-            <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" style={campoNP} />
-          </Campo>
+      <details style={{ fontSize: 13, color: T2 }}>
+        <summary style={{ cursor: 'pointer', minHeight: 40, display: 'flex', alignItems: 'center', gap: 8 }}>{ic('fa-gear')}Endereço da página (só mexer se a página mudar de lugar)</summary>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', paddingTop: 8 }}>
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" aria-label="Endereço da página da campanha" style={{ ...campoNP, flex: '1 1 260px' }} />
+          <button type="button" style={{ ...bt(AMBAR, true), minHeight: 44 }} onClick={async () => { const r = await mudar({ acao: 'campanha', id: c.id, url }); setMsg(r.ok ? 'Salvo.' : r.erro || 'Erro'); }}>{ic('fa-floppy-disk')}Salvar</button>
         </div>
-        <button type="button" style={{ ...bt(AMBAR, true), marginBottom: 22 }} onClick={async () => { const r = await mudar({ acao: 'campanha', id: c.id, url }); setMsg(r.ok ? 'Salvo.' : r.erro || 'Erro'); }}>{ic('fa-floppy-disk')}Salvar</button>
-      </div>
+      </details>
       {msg && <span style={{ fontSize: 13, color: T2 }}>{msg}</span>}
     </div>
   );
 }
 
 // ---------- ATENDER: lista (baixa do prêmio + venda) e fotos, na mesma aba ----------
-function Atender({ d, mudar }: { d: Dados; mudar: Mudar }) {
+type Situacao = '' | 'falta' | 'retirado' | 'hoje' | 'pizza';
+const SITUACOES: Record<Exclude<Situacao, ''>, string> = { falta: 'Falta buscar', retirado: 'Já retirados', hoje: 'Garantidos hoje', pizza: 'Concorrem à pizza' };
+const chavePremio = (setor: Setor, nome: string | null) => `${setor}|${nome || ''}`;
+const ehNovo = (p: Part) => !!p.girou_em && Date.now() - new Date(p.girou_em).getTime() < 24 * 3600 * 1000;
+const hojeSP = () => diaSP(new Date().toISOString());
+function casaSituacao(p: Part, s: Situacao) {
+  if (s === 'falta') return !!p.codigo && !p.resgatado_em;
+  if (s === 'retirado') return !!p.resgatado_em;
+  if (s === 'hoje') return !!p.girou_em && diaSP(p.girou_em) === hojeSP();
+  if (s === 'pizza') return !!p.foto_url;
+  return true;
+}
+
+/** Barras que crescem do zero quando a tela abre. */
+function useCresce() {
+  const [pronto, setPronto] = useState(false);
+  useEffect(() => { const r = requestAnimationFrame(() => setPronto(true)); return () => cancelAnimationFrame(r); }, []);
+  return pronto;
+}
+
+/** Rosca: quanto dos prêmios garantidos já foi retirado. */
+function Rosca({ feito, total, cor }: { feito: number; total: number; cor: string }) {
+  const pronto = useCresce();
+  const R = 34, C = 2 * Math.PI * R, k = total ? feito / total : 0;
+  return (
+    <svg width="92" height="92" viewBox="0 0 92 92" role="img" aria-label={`${feito} de ${total} retirados`} style={{ flex: 'none' }}>
+      <circle cx="46" cy="46" r={R} fill="none" stroke={`color-mix(in srgb, ${cor} 16%, transparent)`} strokeWidth="10" />
+      <circle cx="46" cy="46" r={R} fill="none" stroke={cor} strokeWidth="10" strokeLinecap="round" transform="rotate(-90 46 46)"
+        strokeDasharray={C} strokeDashoffset={pronto ? C * (1 - k) : C} style={{ transition: 'stroke-dashoffset 1s cubic-bezier(.2,.8,.2,1)' }} />
+      <text x="46" y="44" textAnchor="middle" fontSize="18" fontWeight="600" fill="var(--portal-text, #0f172a)">{pct(feito, total)}%</text>
+      <text x="46" y="60" textAnchor="middle" fontSize="10" fill="var(--portal-text-muted, #6b7280)">retirados</text>
+    </svg>
+  );
+}
+
+/** Placar: quantos de cada prêmio saíram (garantidos) e quantos já foram retirados, por roleta. Clicar filtra a lista. */
+function PlacarPremios({ d, premio, onPremio }: { d: Dados; premio?: string; onPremio?: (k: string) => void }) {
+  const pronto = useCresce();
+  const setores = SETORES.filter((s) => d.premios.some((p) => p.setor === s) || d.participantes.some((p) => p.setor === s && p.codigo));
+  return (
+    <div style={grade(320)}>
+      {setores.map((s) => {
+        const ganhos = d.participantes.filter((p) => p.setor === s && p.codigo);
+        const linhas = new Map<string, { nome: string; limite: number | null; ganhos: number; retirados: number }>();
+        for (const p of d.premios.filter((x) => x.setor === s && x.ativo)) linhas.set(p.nome, { nome: p.nome, limite: p.estoque, ganhos: 0, retirados: 0 });
+        for (const p of ganhos) {
+          const l = linhas.get(p.premio_nome || '') || { nome: p.premio_nome || 'Sem nome', limite: null, ganhos: 0, retirados: 0 };
+          l.ganhos++; if (p.resgatado_em) l.retirados++; linhas.set(l.nome, l);
+        }
+        const itens = [...linhas.values()].sort((a, b) => b.ganhos - a.ganhos);
+        const max = Math.max(1, ...itens.map((i) => i.ganhos));
+        const ret = ganhos.filter((p) => p.resgatado_em).length;
+        const cor = SETOR[s].cor;
+        return (
+          <section key={s} style={{ ...cartaoNP, display: 'grid', gap: 14, alignContent: 'start' }}>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+              <Rosca feito={ret} total={ganhos.length} cor={cor} />
+              <span style={{ display: 'grid', gap: 2, minWidth: 0 }}>
+                <span style={{ fontSize: 13, color: cor, display: 'inline-flex', gap: 6, alignItems: 'center' }}>{ic(SETOR[s].icone)}Roleta {SETOR[s].nome}</span>
+                <span style={{ fontSize: 22, color: T1, fontVariantNumeric: 'tabular-nums' }}><Conta valor={ganhos.length} /> {ganhos.length === 1 ? 'prêmio garantido' : 'prêmios garantidos'}</span>
+                <span style={{ fontSize: 13, color: T2 }}>{n(ret)} já {ret === 1 ? 'retirado' : 'retirados'} · {n(ganhos.length - ret)} falta buscar</span>
+              </span>
+            </div>
+            <div style={{ display: 'grid', gap: 10 }}>
+              {itens.map((it) => {
+                const k = chavePremio(s, it.nome);
+                const sel = premio === k;
+                const acabou = it.limite != null && it.ganhos >= it.limite;
+                const clica = !!onPremio && it.ganhos > 0;
+                return (
+                  <button key={it.nome} type="button" disabled={!clica} onClick={() => onPremio?.(sel ? '' : k)} title={clica ? 'Ver quem ganhou' : undefined}
+                    className="camp-barra" style={{ all: 'unset', boxSizing: 'border-box', display: 'grid', gap: 5, cursor: clica ? 'pointer' : 'default', padding: '6px 8px', margin: '0 -8px', borderRadius: 10, outline: sel ? `2px solid ${cor}` : 'none' }}>
+                    <span style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 13 }}>
+                      <span style={{ color: T1, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.nome}</span>
+                      <span style={{ color: T1, fontVariantNumeric: 'tabular-nums' }}>{n(it.ganhos)}{it.limite != null ? <span style={{ color: acabou ? '#b45309' : T3 }}> / {n(it.limite)}</span> : null}</span>
+                    </span>
+                    <span style={{ height: 12, borderRadius: 6, background: `color-mix(in srgb, ${cor} 9%, transparent)`, overflow: 'hidden', display: 'block' }}>
+                      <span style={{ display: 'flex', height: '100%', width: pronto ? `${(it.ganhos / max) * 100}%` : '0%', transition: 'width .9s cubic-bezier(.2,.8,.2,1)' }}>
+                        <span style={{ flex: it.retirados, background: cor }} />
+                        <span style={{ flex: it.ganhos - it.retirados, background: `color-mix(in srgb, ${cor} 40%, transparent)` }} />
+                      </span>
+                    </span>
+                    <span style={{ fontSize: 11, color: T3 }}>{it.ganhos ? `${n(it.retirados)} retirados · ${n(it.ganhos - it.retirados)} falta buscar` : 'Ainda não saiu'}{acabou ? ' · limite atingido' : ''}</span>
+                  </button>
+                );
+              })}
+              {!itens.length && <span style={{ fontSize: 13, color: T3 }}>Sem prêmios nesta roleta.</span>}
+            </div>
+            <span style={{ display: 'flex', gap: 14, fontSize: 11, color: T3 }}>
+              <span style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}><span style={{ width: 10, height: 10, borderRadius: 3, background: cor }} />Retirado</span>
+              <span style={{ display: 'inline-flex', gap: 5, alignItems: 'center' }}><span style={{ width: 10, height: 10, borderRadius: 3, background: `color-mix(in srgb, ${cor} 40%, transparent)` }} />Falta buscar</span>
+            </span>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+const ESTILO_ATENDER = `
+@keyframes campEntra { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+@keyframes campPulso { 0%,100% { box-shadow: 0 0 0 0 rgba(22,163,74,.45) } 70% { box-shadow: 0 0 0 7px rgba(22,163,74,0) } }
+.camp-linha { animation: campEntra .4s cubic-bezier(.2,.8,.2,1) both; transition: transform .15s, box-shadow .15s }
+.camp-linha:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(15,23,42,.08) }
+.camp-barra:not(:disabled):hover { background: color-mix(in srgb, var(--portal-text, #0f172a) 4%, transparent) }
+.camp-novo { font-size: 11px; color: #fefefe; background: #16a34a; padding: 2px 8px; border-radius: 999px; animation: campPulso 1.8s infinite }
+.camp-vivo { width: 8px; height: 8px; border-radius: 50%; background: #16a34a; animation: campPulso 1.8s infinite; display: inline-block }
+@media (prefers-reduced-motion: reduce) { .camp-linha, .camp-novo, .camp-vivo { animation: none } }
+`;
+
+// ---------- ATENDER: números, placar dos prêmios, lista (baixa do prêmio + venda) e fotos ----------
+function Atender({ d, mudar, recarregar }: { d: Dados; mudar: Mudar; recarregar?: () => Promise<void> }) {
   const [modo, setModo] = useState<'lista' | 'fotos'>('lista');
-  const nFotos = d.participantes.filter((p) => p.foto_url).length;
+  const [situacao, setSituacao] = useState<Situacao>('');
+  const [premio, setPremio] = useState('');
+  const [atualizado, setAtualizado] = useState(() => Date.now());
+  // atualiza sozinho a cada 30 s enquanto a aba está na tela (quem girou agora aparece sem F5)
+  useEffect(() => {
+    if (!recarregar) return;
+    const t = setInterval(async () => { if (document.visibilityState === 'visible') { await recarregar(); setAtualizado(Date.now()); } }, 30000);
+    return () => clearInterval(t);
+  }, [recarregar]);
+  const ps = d.participantes;
+  const ganhos = ps.filter((p) => p.codigo).length;
+  const ret = ps.filter((p) => p.resgatado_em).length;
+  const hoje = ps.filter((p) => casaSituacao(p, 'hoje')).length;
+  const nFotos = ps.filter((p) => p.foto_url).length;
+  const filtrar = (s: Situacao) => { setSituacao(situacao === s ? '' : s); setModo('lista'); };
   return (
     <>
-      <ComoLer>
-        O cliente chega na loja com o código: procure pelo código ou pelo nome e toque em <b style={{ fontWeight: 500 }}>Dar baixa</b>.
-        Na baixa, diga em qual venda o prêmio foi usado (OS, PPV, pedido ou balcão) e o valor. É isso que soma o
-        &quot;Vendido com código da roleta&quot; em Acompanhar. Em <b style={{ fontWeight: 500 }}>Fotos</b> você escolhe a foto mais bonita.
-      </ComoLer>
+      <style>{ESTILO_ATENDER}</style>
+      <div style={grade(200)}>
+        <Numero icone="fa-gift" cor={AMBAR} rotulo="Prêmios garantidos" valor={<Conta valor={ganhos} />} detalhe={`de ${n(ps.length)} que preencheram a ficha`} ativo={situacao === '' && !premio} onClick={() => { setSituacao(''); setPremio(''); setModo('lista'); }} />
+        <Numero icone="fa-hourglass-half" cor="#b45309" rotulo="Falta buscar" valor={<Conta valor={ganhos - ret} />} detalhe="Toque para ver quem" ativo={situacao === 'falta'} onClick={() => filtrar('falta')} />
+        <Numero icone="fa-circle-check" cor={VERDE} rotulo="Já retirados" valor={<Conta valor={ret} />} detalhe={`${pct(ret, ganhos)}% dos garantidos`} ativo={situacao === 'retirado'} onClick={() => filtrar('retirado')} />
+        <Numero icone="fa-pizza-slice" cor="#c2410c" rotulo="Concorrem à pizza" valor={<Conta valor={nFotos} />} detalhe="Mandaram foto · sorteio 15/12" ativo={situacao === 'pizza'} onClick={() => filtrar('pizza')} />
+        <Numero icone="fa-bolt" cor={AZUL} rotulo="Garantidos hoje" valor={<Conta valor={hoje} />} detalhe={<span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}><span className="camp-vivo" />ao vivo · {new Date(atualizado).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>} ativo={situacao === 'hoje'} onClick={() => filtrar('hoje')} />
+      </div>
+
+      <PlacarPremios d={d} premio={premio} onPremio={(k) => { setPremio(k); setModo('lista'); }} />
+
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
         <button type="button" onClick={() => setModo('lista')} style={{ ...bt(AMBAR, modo === 'lista'), minHeight: 40 }}>{ic('fa-list')}Pessoas e prêmios</button>
         <button type="button" onClick={() => setModo('fotos')} style={{ ...bt(AMBAR, modo === 'fotos'), minHeight: 40 }}>{ic('fa-camera')}Fotos ({n(nFotos)})</button>
       </div>
-      {modo === 'lista' ? <Participantes d={d} mudar={mudar} /> : <Fotos d={d} mudar={mudar} />}
+      {modo === 'lista'
+        ? <Participantes d={d} mudar={mudar} situacao={situacao} setSituacao={setSituacao} premio={premio} setPremio={setPremio} />
+        : <Fotos d={d} mudar={mudar} />}
     </>
   );
 }
@@ -593,19 +883,18 @@ function FormVenda({ inicial, rotulo, onSalvar, onCancelar }: { inicial?: Venda;
 
 const textoVenda = (v: Venda) => v.tipo === 'nenhuma' ? 'Usou sem venda' : `${VENDA_TIPOS.find((t) => t.id === v.tipo)?.nome}${v.numero ? ` ${v.numero}` : ''}${v.valor != null ? ` · ${real(v.valor)}` : ''}`;
 
-function Participantes({ d, mudar }: { d: Dados; mudar: Mudar }) {
+function Participantes({ d, mudar, situacao, setSituacao, premio, setPremio }: { d: Dados; mudar: Mudar; situacao: Situacao; setSituacao: (s: Situacao) => void; premio: string; setPremio: (p: string) => void }) {
   const [abertoBaixa, setAbertoBaixa] = useState('');
-  const campos = useMemo(() => d.atual?.config?.ficha?.campos || [], [d.atual]);
+  const campos = useMemo(() => camposDa(d.atual).filter((c) => c.tipo !== 'local'), [d.atual]);
   const [busca, setBusca] = useState('');
   const [setor, setSetor] = useState<Setor | ''>('');
-  const [soAbertos, setSoAbertos] = useState(false);
   const [ocupado, setOcupado] = useState('');
   const [erro, setErro] = useState('');
   const lista = useMemo(() => {
     const b = busca.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    return d.participantes.filter((p) => (!setor || p.setor === setor) && (!soAbertos || (p.codigo && !p.resgatado_em))
+    return d.participantes.filter((p) => (!setor || p.setor === setor) && casaSituacao(p, situacao) && (!premio || chavePremio(p.setor, p.premio_nome) === premio)
       && (!b || `${p.nome} ${p.codigo || ''} ${p.cidade || ''} ${p.modelo || ''} ${campos.map((c) => String(p.extras?.[c.id] ?? '')).join(' ')}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(b)));
-  }, [d.participantes, busca, setor, soAbertos, campos]);
+  }, [d.participantes, busca, setor, situacao, premio, campos]);
 
   const baixa = async (p: Part, venda?: { tipo: string; numero: string; valor: string }) => {
     setOcupado(p.id); setErro('');
@@ -624,15 +913,19 @@ function Participantes({ d, mudar }: { d: Dados; mudar: Mudar }) {
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           <button type="button" onClick={() => setSetor('')} style={{ ...bt(AMBAR, setor === ''), minHeight: 36 }}>Todos</button>
           {SETORES.map((s) => <button key={s} type="button" onClick={() => setSetor(s)} style={{ ...bt(SETOR[s].cor, setor === s), minHeight: 36 }}>{SETOR[s].nome}</button>)}
-          <button type="button" onClick={() => setSoAbertos((x) => !x)} style={{ ...bt(VERDE, soAbertos), minHeight: 36 }}>{ic('fa-hourglass-half')}Falta buscar</button>
+          <button type="button" onClick={() => setSituacao(situacao === 'falta' ? '' : 'falta')} style={{ ...bt(VERDE, situacao === 'falta'), minHeight: 36 }}>{ic('fa-hourglass-half')}Falta buscar</button>
         </div>
       </div>
-      <span style={{ fontSize: 13, color: T3 }}>{n(lista.length)} de {n(d.participantes.length)}</span>
+      <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', fontSize: 13, color: T3 }}>
+        {n(lista.length)} de {n(d.participantes.length)}
+        {premio && <button type="button" onClick={() => setPremio('')} style={{ ...bt(AMBAR, true), minHeight: 32, padding: '4px 10px', fontSize: 12 }}>{ic('fa-gift')}{premio.split('|')[1]}{ic('fa-xmark')}</button>}
+        {situacao && situacao !== 'falta' && <button type="button" onClick={() => setSituacao('')} style={{ ...bt(AZUL, true), minHeight: 32, padding: '4px 10px', fontSize: 12 }}>{SITUACOES[situacao]}{ic('fa-xmark')}</button>}
+      </span>
       {erro && <Aviso>{erro}</Aviso>}
 
       <div style={{ display: 'grid', gap: 8 }}>
-        {lista.slice(0, 300).map((p) => (
-          <div key={p.id} style={{ ...cartaoNP, display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: 14, alignItems: 'start', padding: 14 }}>
+        {lista.slice(0, 300).map((p, i) => (
+          <div key={p.id} className="camp-linha" style={{ ...cartaoNP, animationDelay: `${Math.min(i, 14) * 35}ms`, display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', gap: 14, alignItems: 'start', padding: 14 }}>
             {p.foto_url
               ? <a href={p.foto_url} target="_blank" rel="noreferrer"><img src={p.foto_url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 10, display: 'block' }} /></a>
               : <span style={{ width: 64, height: 64, borderRadius: 10, display: 'grid', placeItems: 'center', background: 'color-mix(in srgb, var(--portal-text, #0f172a) 5%, transparent)', color: T3 }}>{ic('fa-user')}</span>}
@@ -642,6 +935,8 @@ function Participantes({ d, mudar }: { d: Dados; mudar: Mudar }) {
                 <span style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                   <Chip cor={SETOR[p.setor].cor}>{SETOR[p.setor].nome}</Chip>
                   <span style={{ fontSize: 12, color: T3 }}>{quando(p.criado_em)}</span>
+                  {ehNovo(p) && <span className="camp-novo">novo</span>}
+                  {p.foto_url && <Chip cor="#c2410c">{ic('fa-pizza-slice')}Concorre à pizza</Chip>}
                 </span>
               </span>
               <span style={{ display: 'grid', gap: 3, fontSize: 13, color: T2, minWidth: 0 }}>
@@ -650,13 +945,14 @@ function Participantes({ d, mudar }: { d: Dados; mudar: Mudar }) {
                 </span>
                 <span>{ic('fa-tractor')} {p.tem_trator ? `Mahindra ${p.modelo || ''} da Nova` : 'Não tem Mahindra da Nova'}</span>
                 {campos.filter((c) => p.extras?.[c.id]).map((c) => (
-                  <span key={c.id} style={{ overflowWrap: 'anywhere' }}>{ic(c.tipo === 'telefone' ? 'fa-phone' : c.tipo === 'documento' ? 'fa-id-card' : c.tipo === 'email' ? 'fa-envelope' : 'fa-comment')} {c.rotulo}: {String(p.extras![c.id])}</span>
+                  <span key={c.id} style={{ overflowWrap: 'anywhere' }}>{ic(c.tipo === 'telefone' ? 'fa-phone' : c.tipo === 'documento' ? 'fa-id-card' : c.tipo === 'email' ? 'fa-envelope' : c.tipo === 'nota' ? 'fa-star' : 'fa-comment')} {c.rotulo}: {c.tipo === 'nota' ? `${'★'.repeat(Number(p.extras![c.id]) || 0)}${'☆'.repeat(5 - (Number(p.extras![c.id]) || 0))} (${String(p.extras![c.id])} de 5)` : String(p.extras![c.id])}</span>
                 ))}
               </span>
               <span style={{ display: 'grid', gap: 6, minWidth: 0 }}>
                 {p.codigo ? (
                   <>
-                    <span style={{ fontSize: 13, color: T1 }}>{p.premio_nome}</span>
+                    <span style={{ fontSize: 13, color: T1, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>{p.premio_nome}
+                      {ehFisico(d.atual, d.premios.find((q) => q.setor === p.setor && q.nome === p.premio_nome)?.id ?? '', p.premio_nome || '') && <Chip cor={AMBAR}>{ic('fa-box')}Brinde · retira 15/12</Chip>}</span>
                     <span style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                       <code style={{ fontSize: 13, padding: '2px 8px', borderRadius: 6, border: '1px dashed var(--border)', color: T1 }}>{p.codigo}</code>
                       {p.resgatado_em
@@ -726,7 +1022,7 @@ function Fotos({ d, mudar }: { d: Dados; mudar: Mudar }) {
 // ---------- PRÊMIOS ----------
 function Premios({ d, mudar }: { d: Dados; mudar: Mudar }) {
   const c = d.atual!;
-  return <>{SETORES.map((s) => <PremiosSetor key={s} setor={s} c={c} premios={d.premios.filter((p) => p.setor === s)} mudar={mudar} />)}</>;
+  return <><PlacarPremios d={d} />{SETORES.map((s) => <PremiosSetor key={s} setor={s} c={c} premios={d.premios.filter((p) => p.setor === s)} mudar={mudar} />)}</>;
 }
 
 // ---------- O QUE APARECE (José, 13/11: "controlar o que aparece em cada aba da roleta") ----------
@@ -743,7 +1039,7 @@ function cfgDe(c: Camp): Cfg {
   return {
     inicio: { subtitulo: k.inicio?.subtitulo ?? 'Gire a roleta. Todo giro ganha.', passos: k.inicio?.passos?.length ? [...k.inicio.passos] : ['Leia as regras', 'Preencha a ficha', 'Gire e ganhe na hora'], concurso: k.inicio?.concurso ?? 'Tem Mahindra? A foto mais bonita ganha prêmio.' },
     regras: k.regras?.length ? [...k.regras] : ['Vale até 30/11', '1 giro por pessoa nesta roleta', 'Todo giro ganha prêmio', 'Mostre o código na loja até 31/12', 'Foto mais bonita do seu Mahindra ganha prêmio'],
-    ficha: { pedir_local: k.ficha?.pedir_local !== false, pedir_trator: k.ficha?.pedir_trator !== false, pedir_foto: k.ficha?.pedir_foto !== false, modelos: k.ficha?.modelos?.length ? [...k.ficha.modelos] : MODELOS_PADRAO, campos: (k.ficha?.campos || []).map((c) => ({ ...c, ...(c.opcoes ? { opcoes: [...c.opcoes] } : {}) })) },
+    ficha: { pedir_local: k.ficha?.pedir_local !== false, pedir_trator: k.ficha?.pedir_trator !== false, pedir_foto: k.ficha?.pedir_foto !== false, modelos: k.ficha?.modelos?.length ? [...k.ficha.modelos] : MODELOS_PADRAO, campos: camposDa(c).map((x) => ({ ...x, ...(x.opcoes ? { opcoes: [...x.opcoes] } : {}) })) },
     whats: { comercial: k.whats?.comercial || '', posvendas: k.whats?.posvendas || '', pecas: k.whats?.pecas || '' },
     premio_foto: k.premio_foto || '', validade: k.validade || '',
   };
@@ -785,6 +1081,8 @@ const TIPOS_CAMPO: { tipo: CampoFicha['tipo']; nome: string; icone: string; rotu
   { tipo: 'email', nome: 'E-mail', icone: 'fa-envelope', rotulo: 'Seu e-mail' },
   { tipo: 'texto', nome: 'Pergunta escrita', icone: 'fa-pen', rotulo: '' },
   { tipo: 'opcoes', nome: 'Pergunta com opções', icone: 'fa-list-ul', rotulo: '' },
+  { tipo: 'local', nome: 'Localização', icone: 'fa-location-dot', rotulo: 'Localização' },
+  { tipo: 'nota', nome: 'Nota de 1 a 5 estrelas', icone: 'fa-star', rotulo: 'Como você avalia o seu último atendimento?' },
 ];
 
 /** Campos a mais da ficha: escolher quais aparecem, o texto e se é obrigatório. */
@@ -938,7 +1236,7 @@ function PremiosSetor({ setor, c, premios, mudar }: { setor: Setor; c: Camp; pre
     <Secao icone={SETOR[setor].icone} cor={SETOR[setor].cor} titulo={`Roleta ${SETOR[setor].nome}`}
       sub={`${premios.filter((p) => p.ativo).length} fatias ligadas. A chance é o peso de cada prêmio dividido pela soma dos pesos.`}>
       <div style={{ display: 'grid', gap: 8 }}>
-        {premios.map((p) => <LinhaPremio key={p.id} p={p} total={total} mudar={mudar} />)}
+        {premios.map((p) => <LinhaPremio key={p.id} p={p} total={total} mudar={mudar} fisico={ehFisico(c, p.id, p.nome)} />)}
         {novo
           ? <LinhaPremio p={{ id: 0, campanha_id: c.id, setor, rotulo: '', nome: '', detalhe: '', peso: 1, estoque: null, ordem: premios.length + 1, ativo: true, saidas: 0 }} total={total + 1} mudar={async (b) => { const r = await mudar(b); if (r.ok) setNovo(false); return r; }} />
           : <button type="button" onClick={() => setNovo(true)} style={{ ...bt(SETOR[setor].cor), width: 'fit-content' }}>{ic('fa-plus')}Prêmio</button>}
@@ -947,7 +1245,7 @@ function PremiosSetor({ setor, c, premios, mudar }: { setor: Setor; c: Camp; pre
   );
 }
 
-function LinhaPremio({ p, total, mudar }: { p: Premio; total: number; mudar: Mudar }) {
+function LinhaPremio({ p, total, mudar, fisico }: { p: Premio; total: number; mudar: Mudar; fisico?: boolean }) {
   const [v, setV] = useState({ rotulo: p.rotulo, nome: p.nome, detalhe: p.detalhe || '', peso: String(p.peso), estoque: p.estoque == null ? '' : String(p.estoque), ativo: p.ativo });
   const [msg, setMsg] = useState('');
   const mudou = v.rotulo !== p.rotulo || v.nome !== p.nome || v.detalhe !== (p.detalhe || '') || v.peso !== String(p.peso) || v.estoque !== (p.estoque == null ? '' : String(p.estoque)) || v.ativo !== p.ativo;
@@ -970,10 +1268,16 @@ function LinhaPremio({ p, total, mudar }: { p: Premio; total: number; mudar: Mud
         <span style={{ display: 'grid', gap: 4, paddingBottom: 22 }}>
           <span style={{ fontSize: 13, color: T2 }}>Saíram</span>
           <span style={{ fontSize: 15, color: acabou ? '#b45309' : T1 }}>{n(p.saidas)}{p.estoque != null ? ` de ${n(p.estoque)}` : ''}{acabou ? ' · acabou' : ''}</span>
+          {p.estoque != null && p.estoque > 0 && <span style={{ width: 110, height: 6, borderRadius: 3, background: 'color-mix(in srgb, var(--portal-text, #0f172a) 8%, transparent)' }}><span style={{ display: 'block', height: '100%', borderRadius: 3, width: `${Math.min(100, (p.saidas / p.estoque) * 100)}%`, background: acabou ? '#b45309' : AMBAR }} /></span>}
         </span>
         <label style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 14, color: T1, paddingBottom: 30, cursor: 'pointer' }}>
           <input type="checkbox" checked={v.ativo} onChange={(e) => setV({ ...v, ativo: e.target.checked })} style={{ width: 18, height: 18, accentColor: AMBAR }} />Na roleta
         </label>
+        {!!p.id && (
+          <label title="Quem ganhar vê que retira na loja dia 15/12, com o endereço e o mapa" style={{ display: 'inline-flex', gap: 8, alignItems: 'center', fontSize: 14, color: T1, paddingBottom: 30, cursor: 'pointer' }}>
+            <input type="checkbox" checked={!!fisico} onChange={async (e) => { const r = await mudar({ acao: 'fisico', id: p.campanha_id, premio: p.id, valor: e.target.checked }); setMsg(r.ok ? 'Salvo' : r.erro || 'Erro'); }} style={{ width: 18, height: 18, accentColor: AMBAR }} />Brinde físico (retirar na loja)
+          </label>
+        )}
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 10, alignItems: 'center', paddingBottom: 22 }}>
           {msg && <span style={{ fontSize: 13, color: msg === 'Salvo' ? VERDE : '#dc2626' }}>{msg}</span>}
           <button type="button" disabled={!mudou && !!p.id} onClick={salvar} style={{ ...bt(AMBAR, true), opacity: !mudou && p.id ? 0.45 : 1 }}>{ic('fa-floppy-disk')}{p.id ? 'Salvar' : 'Incluir'}</button>

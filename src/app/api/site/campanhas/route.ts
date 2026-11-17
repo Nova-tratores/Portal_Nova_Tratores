@@ -103,6 +103,25 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ ok: true })
   }
 
+  // brinde físico (José, 17/11): quem ganha vê "retire na loja dia 15/12" com o mapa. Lista em config.fisicos.
+  if (b.acao === 'fisico') {
+    const { data: c, error: e1 } = await sb.from('campanhas').select('config').eq('id', String(b.id)).single()
+    if (e1) return NextResponse.json({ ok: false, erro: e1.message }, { status: 500 })
+    const cfg = ((c?.config as Linha) || {})
+    let lista: string[]
+    if (Array.isArray(cfg.fisicos)) lista = (cfg.fisicos as unknown[]).map(String)
+    else {
+      // 1ª marcação: parte do que a página já considerava físico pelo nome
+      const { data: ps } = await sb.from('campanha_premios').select('id, nome').eq('campanha_id', String(b.id))
+      lista = (ps || []).filter((p) => /bon[eé]|camiseta|t[aá]bua|faca|chaira|caneca|chaveiro|squeeze|garrafa|copo|brinde/i.test(String(p.nome || ''))).map((p) => String(p.id))
+    }
+    const id = String(b.premio)
+    lista = b.valor === true ? [...new Set([...lista, id])] : lista.filter((x) => x !== id)
+    const { error } = await sb.from('campanhas').update({ config: { ...cfg, fisicos: lista } }).eq('id', String(b.id))
+    if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
+  }
+
   if (b.acao === 'vencedora') {
     const { data, error } = await sb.from('campanha_participacoes').update({ foto_vencedora: b.valor === true }).eq('id', String(b.id)).select('id, foto_vencedora').single()
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 })
@@ -146,7 +165,7 @@ export async function PATCH(req: Request) {
         // campos a mais escolhidos no portal (vão para campanha_participacoes.extras)
         campos: (Array.isArray(fi.campos) ? fi.campos : []).slice(0, 8).map((x: unknown) => {
           const c = (x || {}) as Linha
-          const tipo = ['telefone', 'documento', 'email', 'texto', 'opcoes'].includes(String(c.tipo)) ? String(c.tipo) : 'texto'
+          const tipo = ['telefone', 'documento', 'email', 'texto', 'opcoes', 'local', 'nota'].includes(String(c.tipo)) ? String(c.tipo) : 'texto'
           return { id: String(c.id || '').replace(/[^a-z0-9_]/gi, '').slice(0, 30) || `c${Math.random().toString(36).slice(2, 8)}`, tipo, rotulo: t(c.rotulo, 80), obrigatorio: c.obrigatorio === true, ...(tipo === 'opcoes' ? { opcoes: lista(c.opcoes, 12, 40) } : {}) }
         }).filter((c: Linha) => c.rotulo && (c.tipo !== 'opcoes' || (c.opcoes as string[]).length)),
       },
