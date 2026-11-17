@@ -8,6 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Play, Square, FileCheck2, Copy, Repeat, AlertTriangle, Check, Ban, MessageSquarePlus, RotateCcw, MapPin, CalendarClock, NotebookPen, Users, CircleCheck, Video, CalendarPlus } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import TicketModal from '@/components/tickets/TicketModal'
 import UserSelect from '@/components/tickets/UserSelect'
@@ -96,6 +97,7 @@ function AtaDuranteReuniao({ reuniaoId, inicial, podeEscrever }: { reuniaoId: st
 export default function ReuniaoDetalhe({ id }: { id: string }) {
   const router = useRouter()
   const { userProfile } = useAuth()
+  const { isDev } = usePermissoes(userProfile?.id)
   const isMobile = useIsMobile()
   const [d, setD] = useState<ReuniaoUI | null>(null)
   const [eventos, setEventos] = useState<{ id: string; tipo: string; payload: Record<string, unknown>; created_at: string; autor_id: string | null }[]>([])
@@ -232,7 +234,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
                 <span className="ic"><Video size={16} /></span>
                 <span><b>Ao vivo</b><small>O computador da sala transmite pela câmera; quem está fora assiste e pergunta por escrito</small></span>
               </div>
-              <AoVivo reuniaoId={id} podeTransmitir={conduz || participo} meuNome={userProfile ? nome(userProfile.id) : '—'} encerrada={publicada}
+              <AoVivo reuniaoId={id} podeTransmitir={conduz || participo} podeApagar={isDev} meuNome={userProfile ? nome(userProfile.id) : '—'} encerrada={publicada}
                 perguntasIniciais={eventos.filter((e) => e.tipo === 'comentario' && e.payload.ao_vivo === true).map((e) => ({ nome: e.autor_id ? nome(e.autor_id) : '—', texto: String(e.payload.texto || ''), em: e.created_at }))}
                 gravacoes={((r.payload as { gravacoes?: Gravacao[] } | null)?.gravacoes) || []} onGravou={() => carregar()} />
             </section>
