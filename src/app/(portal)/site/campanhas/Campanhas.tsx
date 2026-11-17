@@ -9,23 +9,33 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import { useRouter, useSearchParams } from 'next/navigation';
 import EnviarFoto from '@/components/site/EnviarFoto';
 import { fetchAuth } from '@/lib/auth/client';
-import { Aviso, Numero, tela, quando } from '@/components/site/ui';
+import { Aviso, ComoLer, Numero, tela, quando } from '@/components/site/ui';
 import { AZUL, Campo, Quadradinho, Secao, T1, T2, T3, bt, campoNP, cartaoNP, grade, ic } from '@/components/site/np';
 
 type Setor = 'comercial' | 'posvendas' | 'pecas';
 type Camp = { id: string; slug: string; nome: string; ano: number; inicio: string; fim: string; ativo: boolean; url?: string | null; config?: {
   capa?: string; premio_foto?: string; validade?: string
   inicio?: { subtitulo?: string; passos?: string[]; concurso?: string }; regras?: string[]
-  ficha?: { pedir_local?: boolean; pedir_trator?: boolean; pedir_foto?: boolean; modelos?: string[] }; whats?: Partial<Record<Setor, string>>
+  ficha?: { pedir_local?: boolean; pedir_trator?: boolean; pedir_foto?: boolean; modelos?: string[]; campos?: CampoFicha[] }; whats?: Partial<Record<Setor, string>>
 } };
+/** Campo a mais da ficha (José, 17/11: "na ficha não consigo editar quais campos aparecem"); a resposta vai em extras[id]. */
+type CampoFicha = { id: string; tipo: 'telefone' | 'documento' | 'email' | 'texto' | 'opcoes'; rotulo: string; obrigatorio: boolean; opcoes?: string[] };
+type Venda = { tipo: 'os' | 'ppv' | 'pedido' | 'balcao' | 'nenhuma'; numero: string | null; valor: number | null; por?: string; em?: string };
 type Premio = { id: number; campanha_id: string; setor: Setor; rotulo: string; nome: string; detalhe: string | null; peso: number; estoque: number | null; ordem: number; ativo: boolean; saidas: number };
 type Part = {
   id: string; setor: Setor; criado_em: string; nome: string; cidade: string | null; lat: number | null; lng: number | null
   tem_trator: boolean; modelo: string | null; foto_url: string | null; foto_vencedora: boolean; premio_nome: string | null
   codigo: string | null; girou_em: string | null; resgatado_em: string | null; resgatado_por: string | null
+  extras?: Record<string, unknown> & { venda?: Venda }
 };
+const VENDA_TIPOS: { id: Venda['tipo']; nome: string }[] = [
+  { id: 'os', nome: 'OS' }, { id: 'ppv', nome: 'PPV' }, { id: 'pedido', nome: 'Pedido de venda' }, { id: 'balcao', nome: 'Balcão' }, { id: 'nenhuma', nome: 'Sem venda' },
+];
+const real = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 type Dados = { campanhas: Camp[]; atual: Camp | null; premios: Premio[]; participantes: Part[] };
-type Ver = 'resumo' | 'participantes' | 'fotos' | 'premios' | 'pagina';
+// José, 17/11: "todas as abas da campanha está confusa demais" → 3 abas por tarefa (escolheu entre 3 opções).
+type Ver = 'acompanhar' | 'atender' | 'configurar';
+type Sub = 'campanha' | 'premios' | 'pagina';
 
 const AMBAR = '#d97706', VERDE = '#16a34a', ROXO = '#7c3aed';
 const SETOR: Record<Setor, { nome: string; cor: string; icone: string }> = {
@@ -35,12 +45,17 @@ const SETOR: Record<Setor, { nome: string; cor: string; icone: string }> = {
 };
 const SETORES = Object.keys(SETOR) as Setor[];
 const VISOES: { id: Ver; label: string; icone: string }[] = [
-  { id: 'resumo', label: 'Resumo', icone: 'fa-chart-simple' },
-  { id: 'participantes', label: 'Participantes', icone: 'fa-users' },
-  { id: 'fotos', label: 'Fotos', icone: 'fa-camera' },
-  { id: 'premios', label: 'Prêmios', icone: 'fa-gift' },
-  { id: 'pagina', label: 'O que aparece', icone: 'fa-mobile-screen' },
+  { id: 'acompanhar', label: 'Acompanhar', icone: 'fa-chart-simple' },
+  { id: 'atender', label: 'Atender', icone: 'fa-users' },
+  { id: 'configurar', label: 'Configurar', icone: 'fa-gear' },
 ];
+const SUBS: { id: Sub; label: string; icone: string }[] = [
+  { id: 'campanha', label: 'Campanha', icone: 'fa-bullhorn' },
+  { id: 'premios', label: 'Prêmios', icone: 'fa-gift' },
+  { id: 'pagina', label: 'Página', icone: 'fa-mobile-screen' },
+];
+/** Endereços antigos (?ver=resumo, participantes…) continuam abrindo no lugar certo. */
+const ANTIGO: Record<string, [Ver, Sub?]> = { resumo: ['acompanhar'], participantes: ['atender'], fotos: ['atender'], premios: ['configurar', 'premios'], pagina: ['configurar', 'pagina'] };
 const dataBR = (d: string) => d.slice(0, 10).split('-').reverse().join('/');
 const n = (x: number) => x.toLocaleString('pt-BR');
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
@@ -139,7 +154,9 @@ export default function Campanhas() {
   const router = useRouter();
   const ehExemplo = sp?.get('exemplo') === '1';
   const slug = sp?.get('campanha') || '';
-  const ver = (VISOES.find((v) => v.id === sp?.get('ver'))?.id || 'resumo') as Ver;
+  const verPedido = sp?.get('ver') || '';
+  const ver: Ver = VISOES.find((v) => v.id === verPedido)?.id || ANTIGO[verPedido]?.[0] || 'acompanhar';
+  const sub: Sub = SUBS.find((s) => s.id === sp?.get('sub'))?.id || ANTIGO[verPedido]?.[1] || 'campanha';
   const [lista, setLista] = useState<Resumo1[] | null>(null);
   const [d, setD] = useState<Dados | null>(null);
   const [erro, setErro] = useState('');
@@ -175,7 +192,7 @@ export default function Campanhas() {
   }, [ehExemplo, carregar, carregarLista]);
 
   const base = ehExemplo ? '/site/campanhas?exemplo=1' : '/site/campanhas';
-  const abrir = (s: string, v: Ver = 'resumo') => `/site/campanhas?${new URLSearchParams({ ...(ehExemplo ? { exemplo: '1' } : {}), campanha: s, ver: v }).toString()}`;
+  const abrir = (s: string, v: Ver = 'acompanhar', sb?: Sub) => `/site/campanhas?${new URLSearchParams({ ...(ehExemplo ? { exemplo: '1' } : {}), campanha: s, ver: v, ...(v === 'configurar' && sb ? { sub: sb } : {}) }).toString()}`;
 
   // janela aberta: Esc fecha e a página de trás não rola
   useEffect(() => {
@@ -203,7 +220,7 @@ export default function Campanhas() {
   const atual = d?.atual && d.atual.slug === slug ? d.atual : null;
 
   return (
-    <div style={{ ...tela, maxWidth: 1400 }}>
+    <div style={tela}>
       {ehExemplo && <Aviso tom="info"><b style={{ fontWeight: 500 }}>Dados de exemplo, inventados.</b> Servem só para ver como a tela fica. <Link href="/site/campanhas" style={{ color: AZUL }}>Ver os dados reais</Link></Aviso>}
       {!lista.length && <Aviso tom="info">Nenhuma campanha cadastrada ainda.</Aviso>}
 
@@ -229,40 +246,48 @@ export default function Campanhas() {
       {slug && (
         <div role="dialog" aria-modal="true" aria-label={atual ? `${atual.nome} ${atual.ano}` : 'Campanha'}
           style={{ position: 'fixed', inset: 0, zIndex: 5000, background: 'var(--portal-bg, #f8fafc)', isolation: 'isolate', overflowY: 'auto', overscrollBehavior: 'contain' }}>
-          <div style={{ position: 'sticky', top: 0, zIndex: 20, background: 'var(--portal-bg, #f8fafc)', boxShadow: '0 2px 8px rgba(0,0,0,.08)', borderBottom: '1px solid var(--border)' }}>
-            <div style={{ maxWidth: 1400, margin: '0 auto', padding: '10px clamp(12px, 2vw, 28px)', display: 'flex', gap: 12, alignItems: 'center' }}>
+          <div style={{ position: 'sticky', top: 0, zIndex: 20, background: 'var(--portal-bg, #f8fafc)' }}>
+            <div style={{ padding: '10px clamp(12px, 2vw, 28px)', display: 'flex', gap: 12, alignItems: 'center' }}>
               <Link href={base} aria-label="Fechar" style={{ ...bt(T1), minHeight: 40, padding: '8px 12px' }}>{ic('fa-xmark')}<span className="hide-sm">Fechar</span></Link>
               <span style={{ display: 'grid', minWidth: 0 }}>
                 <span style={{ fontSize: 18, color: T1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{atual ? `${atual.nome} ${atual.ano}` : 'Carregando…'}</span>
                 {atual && <span style={{ fontSize: 12, color: T3 }}>{dataBR(atual.inicio)} a {dataBR(atual.fim)} · {situacao(atual)}</span>}
               </span>
-              {atual && !ehExemplo && (
-                <span style={{ marginLeft: 'auto' }}>
-                  <EnviarFoto pasta="campanhas" rotulo="Foto da capa" onEnviada={([url]) => mudar({ acao: 'campanha', id: atual.id, capa: url })} />
-                </span>
+              {atual && (
+                <Link href={abrir(slug, 'configurar', 'campanha')} style={{ ...bt(AMBAR), marginLeft: 'auto', minHeight: 40, textDecoration: 'none' }}>{ic('fa-pen')}<span className="hide-sm">Editar nome e datas</span></Link>
               )}
             </div>
-            <nav style={{ maxWidth: 1400, margin: '0 auto', padding: '0 clamp(12px, 2vw, 28px) 10px', display: 'flex', gap: 4, overflowX: 'auto' }}>
+            {/* guias estilo Chrome (docs/padrao-telas.md) */}
+            <nav style={{ background: `linear-gradient(135deg, ${AMBAR}, #b45309)`, padding: '8px clamp(12px, 2vw, 28px) 0', display: 'flex', gap: 4, overflowX: 'auto' }}>
               {VISOES.map((v) => {
                 const on = v.id === ver;
                 return (
-                  <Link key={v.id} href={abrir(slug, v.id)}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 38, padding: '7px 14px', borderRadius: 9, fontSize: 14, textDecoration: 'none', whiteSpace: 'nowrap', background: on ? AMBAR : 'transparent', color: on ? '#fefefe' : T1 }}>
-                    <i className={`fa-solid ${v.icone}`} style={{ fontWeight: 900, color: on ? '#fefefe' : T3 }} />{v.label}
+                  <Link key={v.id} href={abrir(slug, v.id, sub)}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, minHeight: 40, padding: '8px 18px', borderRadius: '11px 11px 0 0', fontSize: 14, fontWeight: on ? 700 : 500, textDecoration: 'none', whiteSpace: 'nowrap', background: on ? '#fefefe' : 'rgba(255,255,255,0.30)', color: '#111111', boxShadow: on ? '0 -2px 6px rgba(0,0,0,0.15)' : 'none' }}>
+                    <i className={`fa-solid ${v.icone}`} style={{ fontWeight: 900 }} />{v.label}
                   </Link>
                 );
               })}
             </nav>
           </div>
 
-          <div style={{ ...tela, maxWidth: 1400, margin: '0 auto' }}>
+          <div style={tela}>
             {!atual || !d ? <span style={{ color: T3 }}>Carregando…</span> : (
               <>
-                {ver === 'resumo' && <Resumo d={d} mudar={mudar} exemplo={ehExemplo} />}
-                {ver === 'participantes' && <Participantes d={d} mudar={mudar} />}
-                {ver === 'fotos' && <Fotos d={d} mudar={mudar} />}
-                {ver === 'premios' && <Premios d={d} mudar={mudar} />}
-                {ver === 'pagina' && <OQueAparece key={atual.id} d={d} mudar={mudar} />}
+                {ver === 'acompanhar' && <Resumo d={d} exemplo={ehExemplo} />}
+                {ver === 'atender' && <Atender d={d} mudar={mudar} />}
+                {ver === 'configurar' && (
+                  <>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      {SUBS.map((s) => (
+                        <Link key={s.id} href={abrir(slug, 'configurar', s.id)} style={{ ...bt(AMBAR, s.id === sub), minHeight: 40, textDecoration: 'none' }}>{ic(s.icone)}{s.label}</Link>
+                      ))}
+                    </div>
+                    {sub === 'campanha' && <DadosCampanha key={`${atual.id}${atual.nome}${atual.ano}${atual.inicio}${atual.fim}${atual.ativo}`} d={d} mudar={mudar} exemplo={ehExemplo} />}
+                    {sub === 'premios' && <Premios d={d} mudar={mudar} />}
+                    {sub === 'pagina' && <OQueAparece key={atual.id} d={d} mudar={mudar} />}
+                  </>
+                )}
               </>
             )}
           </div>
@@ -355,7 +380,7 @@ function FunilSetores({ ps }: { ps: Part[] }) {
   );
 }
 
-function Resumo({ d, mudar, exemplo: ehExemplo }: { d: Dados; mudar: Mudar; exemplo: boolean }) {
+function Resumo({ d, exemplo: ehExemplo }: { d: Dados; exemplo: boolean }) {
   const [filtro, setFiltro] = useState<Setor | ''>('');
   const todos = d.participantes;
   const ps = filtro ? todos.filter((p) => p.setor === filtro) : todos;
@@ -363,7 +388,8 @@ function Resumo({ d, mudar, exemplo: ehExemplo }: { d: Dados; mudar: Mudar; exem
   const resg = ps.filter((p) => p.resgatado_em).length;
   const comTrator = ps.filter((p) => p.tem_trator).length;
   const fotos = ps.filter((p) => p.foto_url || (ehExemplo && p.tem_trator)).length;
-  const c = d.atual!;
+  const vendas = ps.map((p) => p.extras?.venda).filter((v): v is Venda => !!v && v.tipo !== 'nenhuma');
+  const totalVendas = vendas.reduce((s, v) => s + (v.valor || 0), 0);
   const onde = filtro ? ` na roleta ${SETOR[filtro].nome}` : '';
   const titulo = ps.length
     ? `${n(ps.length)} ${ps.length === 1 ? 'pessoa respondeu' : 'pessoas responderam'}${onde}; ${n(comTrator)} já ${comTrator === 1 ? 'tem' : 'têm'} Mahindra da Nova`
@@ -373,8 +399,14 @@ function Resumo({ d, mudar, exemplo: ehExemplo }: { d: Dados; mudar: Mudar; exem
 
   return (
     <>
+      <ComoLer>
+        Cada setor (Comercial, Pós-Vendas, Peças) tem a sua roleta e o seu link; os botões abaixo filtram por setor.
+        <b style={{ fontWeight: 500 }}> Responderam</b> = preencheram a ficha; <b style={{ fontWeight: 500 }}>giraram</b> = ganharam um código;
+        <b style={{ fontWeight: 500 }}> resgataram</b> = vieram à loja e alguém deu baixa em Atender. O valor vendido só conta o que foi anotado na baixa.
+        Para mudar nome, datas, prêmios ou o que a página mostra, use Configurar.
+      </ComoLer>
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-        <button type="button" onClick={() => setFiltro('')} style={{ ...bt(AMBAR, filtro === ''), minHeight: 36 }}>Todos os setores</button>
+        <button type="button" onClick={() => setFiltro('')} style={{ ...bt(AMBAR, filtro === ''), minHeight: 40 }}>Todos os setores</button>
         {SETORES.map((s) => <button key={s} type="button" onClick={() => setFiltro(s)} style={{ ...bt(SETOR[s].cor, filtro === s), minHeight: 36 }}>{ic(SETOR[s].icone)}{SETOR[s].nome}</button>)}
       </div>
 
@@ -393,6 +425,7 @@ function Resumo({ d, mudar, exemplo: ehExemplo }: { d: Dados; mudar: Mudar; exem
         <Numero icone="fa-tractor" cor={VERDE} rotulo="Têm Mahindra da Nova" valor={n(comTrator)} detalhe={`${n(ps.length - comTrator)} ainda não têm: clientes para o Comercial`} />
         <Numero icone="fa-camera" cor={ROXO} rotulo="Fotos recebidas" valor={n(fotos)} />
         <Numero icone="fa-circle-check" cor={VERDE} rotulo="Prêmios resgatados" valor={n(resg)} detalhe={`${n(girou - resg)} ainda não vieram buscar`} />
+        <Numero icone="fa-sack-dollar" cor={AZUL} rotulo="Vendido com código da roleta" valor={real(totalVendas)} detalhe={`${n(vendas.length)} ${vendas.length === 1 ? 'venda anotada' : 'vendas anotadas'} na baixa do prêmio`} />
       </div>
 
       <div style={grade(340)}>
@@ -404,9 +437,6 @@ function Resumo({ d, mudar, exemplo: ehExemplo }: { d: Dados; mudar: Mudar; exem
         </Secao>
       </div>
 
-      <Secao icone="fa-link" cor={AMBAR} titulo="Os 3 links, um por setor" sub="Cada setor manda o seu: o link abre direto a roleta dele e as respostas ficam separadas aqui.">
-        <LinksSetores c={c} ps={todos} mudar={mudar} />
-      </Secao>
 
       <div style={grade(300)}>
         <Secao icone="fa-tractor" cor={VERDE} titulo="Tem Mahindra comprado na Nova?" sub="Resposta da ficha">
@@ -415,11 +445,58 @@ function Resumo({ d, mudar, exemplo: ehExemplo }: { d: Dados; mudar: Mudar; exem
         <Secao icone="fa-tractor" cor={VERDE} titulo="Modelos que os clientes têm" sub="Quem disse que tem Mahindra comprado na Nova">
           <Barras itens={contar(ps.filter((p) => p.tem_trator), (p) => p.modelo)} cor={VERDE} />
         </Secao>
+        <Secao icone="fa-sack-dollar" cor={AZUL} titulo="Vendas com o código da roleta" sub="Anotadas em Atender, na hora de dar baixa no prêmio">
+          <Barras itens={VENDA_TIPOS.filter((t) => t.id !== 'nenhuma').map((t) => ({ rotulo: t.nome, valor: vendas.filter((v) => v.tipo === t.id).length })).filter((x) => x.valor)} cor={AZUL} />
+        </Secao>
         <Secao icone="fa-location-dot" cor={ROXO} titulo="De onde vieram" sub={semCidade ? `${n(semCidade)} mandaram só a localização do celular: veja no mapa em Participantes` : 'Cidade escrita na ficha'}>
           <Barras itens={contar(ps, (p) => p.cidade && p.cidade.trim().replace(/(^|\s)\S/g, (l) => l.toUpperCase()))} cor={ROXO} />
         </Secao>
       </div>
     </>
+  );
+}
+
+// ---------- CONFIGURAR › CAMPANHA: nome, ano, datas, ligada, capa e links ----------
+function DadosCampanha({ d, mudar, exemplo: ehExemplo }: { d: Dados; mudar: Mudar; exemplo: boolean }) {
+  const c = d.atual!;
+  const [v, setV] = useState({ nome: c.nome, ano: String(c.ano), inicio: c.inicio.slice(0, 10), fim: c.fim.slice(0, 10), ativo: c.ativo });
+  const [msg, setMsg] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const mudou = v.nome !== c.nome || v.ano !== String(c.ano) || v.inicio !== c.inicio.slice(0, 10) || v.fim !== c.fim.slice(0, 10) || v.ativo !== c.ativo;
+  const salvar = async () => {
+    setSalvando(true);
+    const r = await mudar({ acao: 'campanha', id: c.id, nome: v.nome, ano: Number(v.ano), inicio: v.inicio, fim: v.fim, ativo: v.ativo });
+    setSalvando(false);
+    setMsg(r.ok ? 'Salvo.' : r.erro || 'Erro');
+  };
+  const capa = (c.config as { capa?: string } | undefined)?.capa;
+  return (
+    <div style={{ display: 'grid', gap: 16, gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gap: 16, minWidth: 0 }}>
+        <Secao icone="fa-bullhorn" cor={AMBAR} titulo="Nome e período" sub="O endereço da página não muda: os links que já foram mandados continuam valendo.">
+          <div style={grade(200)}>
+            <Campo rotulo="Nome da campanha"><input value={v.nome} maxLength={80} onChange={(e) => setV({ ...v, nome: e.target.value })} style={campoNP} /></Campo>
+            <Campo rotulo="Ano"><input type="number" min={2020} max={2100} value={v.ano} onChange={(e) => setV({ ...v, ano: e.target.value })} style={campoNP} /></Campo>
+          </div>
+          <div style={grade(200)}>
+            <Campo rotulo="Começa em"><input type="date" value={v.inicio} onChange={(e) => setV({ ...v, inicio: e.target.value })} style={campoNP} /></Campo>
+            <Campo rotulo="Último dia" ajuda="Depois dele a roleta mostra que a campanha terminou"><input type="date" value={v.fim} onChange={(e) => setV({ ...v, fim: e.target.value })} style={campoNP} /></Campo>
+          </div>
+          <Liga on={v.ativo} rotulo={v.ativo ? 'Campanha ligada' : 'Campanha desligada'} ajuda="Desligada, ninguém consegue preencher a ficha nem girar" onChange={(x) => setV({ ...v, ativo: x })} />
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <button type="button" disabled={!mudou || salvando || ehExemplo} onClick={salvar} style={{ ...bt(AMBAR, true), minHeight: 40, opacity: !mudou || salvando ? 0.5 : 1 }}>{ic('fa-floppy-disk')}{salvando ? 'Salvando…' : 'Salvar'}</button>
+            {mudou ? <span style={{ fontSize: 13, color: '#b45309' }}>Tem mudança sem salvar</span> : msg && <span style={{ fontSize: 13, color: T2 }}>{msg}</span>}
+          </div>
+        </Secao>
+        <Secao icone="fa-link" cor={AMBAR} titulo="Links para mandar aos clientes" sub="Cada setor manda o seu: o link abre direto a roleta dele e as respostas ficam separadas.">
+          <LinksSetores c={c} ps={d.participantes} mudar={mudar} />
+        </Secao>
+      </div>
+      <Secao icone="fa-image" cor={AMBAR} titulo="Capa" sub="Aparece no cartão da campanha, na lista de campanhas">
+        <Capa c={c} />
+        {!ehExemplo && <EnviarFoto pasta="campanhas" rotulo={capa ? 'Trocar a capa' : 'Pôr uma capa'} onEnviada={([url]) => mudar({ acao: 'campanha', id: c.id, capa: url })} />}
+      </Secao>
+    </div>
   );
 }
 
@@ -470,8 +547,55 @@ function LinksSetores({ c, ps, mudar }: { c: Camp; ps: Part[]; mudar: Mudar }) {
   );
 }
 
-// ---------- PARTICIPANTES ----------
+// ---------- ATENDER: lista (baixa do prêmio + venda) e fotos, na mesma aba ----------
+function Atender({ d, mudar }: { d: Dados; mudar: Mudar }) {
+  const [modo, setModo] = useState<'lista' | 'fotos'>('lista');
+  const nFotos = d.participantes.filter((p) => p.foto_url).length;
+  return (
+    <>
+      <ComoLer>
+        O cliente chega na loja com o código: procure pelo código ou pelo nome e toque em <b style={{ fontWeight: 500 }}>Dar baixa</b>.
+        Na baixa, diga em qual venda o prêmio foi usado (OS, PPV, pedido ou balcão) e o valor. É isso que soma o
+        &quot;Vendido com código da roleta&quot; em Acompanhar. Em <b style={{ fontWeight: 500 }}>Fotos</b> você escolhe a foto mais bonita.
+      </ComoLer>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <button type="button" onClick={() => setModo('lista')} style={{ ...bt(AMBAR, modo === 'lista'), minHeight: 40 }}>{ic('fa-list')}Pessoas e prêmios</button>
+        <button type="button" onClick={() => setModo('fotos')} style={{ ...bt(AMBAR, modo === 'fotos'), minHeight: 40 }}>{ic('fa-camera')}Fotos ({n(nFotos)})</button>
+      </div>
+      {modo === 'lista' ? <Participantes d={d} mudar={mudar} /> : <Fotos d={d} mudar={mudar} />}
+    </>
+  );
+}
+
+/** Onde o prêmio foi usado: OS / PPV / pedido / balcão + nº + valor. */
+function FormVenda({ inicial, rotulo, onSalvar, onCancelar }: { inicial?: Venda; rotulo: string; onSalvar: (v: { tipo: string; numero: string; valor: string }) => Promise<void>; onCancelar: () => void }) {
+  const [v, setV] = useState({ tipo: inicial?.tipo || '', numero: inicial?.numero || '', valor: inicial?.valor != null ? String(inicial.valor).replace('.', ',') : '' });
+  const [salvando, setSalvando] = useState(false);
+  return (
+    <div style={{ display: 'grid', gap: 8, padding: 10, borderRadius: 10, border: '1px dashed var(--border)' }}>
+      <span style={{ fontSize: 13, color: T2 }}>Onde o prêmio foi usado?</span>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {VENDA_TIPOS.map((t) => <button key={t.id} type="button" onClick={() => setV({ ...v, tipo: t.id })} style={{ ...bt(AZUL, v.tipo === t.id), minHeight: 40, padding: '6px 10px' }}>{t.nome}</button>)}
+      </div>
+      {v.tipo && v.tipo !== 'nenhuma' && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input value={v.numero} onChange={(e) => setV({ ...v, numero: e.target.value })} placeholder={v.tipo === 'balcao' ? 'Nº da nota (se tiver)' : 'Número'} maxLength={30} style={{ ...campoNP, flex: '1 1 120px', minWidth: 0 }} />
+          <input value={v.valor} onChange={(e) => setV({ ...v, valor: e.target.value })} placeholder="Valor R$" inputMode="decimal" style={{ ...campoNP, flex: '1 1 110px', minWidth: 0 }} />
+        </div>
+      )}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" disabled={!v.tipo || salvando} onClick={async () => { setSalvando(true); await onSalvar(v); setSalvando(false); }} style={{ ...bt(VERDE, true), minHeight: 40, opacity: !v.tipo || salvando ? 0.5 : 1 }}>{ic('fa-check')}{salvando ? 'Salvando…' : rotulo}</button>
+        <button type="button" onClick={onCancelar} style={{ ...bt(T3), minHeight: 40 }}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+const textoVenda = (v: Venda) => v.tipo === 'nenhuma' ? 'Usou sem venda' : `${VENDA_TIPOS.find((t) => t.id === v.tipo)?.nome}${v.numero ? ` ${v.numero}` : ''}${v.valor != null ? ` · ${real(v.valor)}` : ''}`;
+
 function Participantes({ d, mudar }: { d: Dados; mudar: Mudar }) {
+  const [abertoBaixa, setAbertoBaixa] = useState('');
+  const campos = useMemo(() => d.atual?.config?.ficha?.campos || [], [d.atual]);
   const [busca, setBusca] = useState('');
   const [setor, setSetor] = useState<Setor | ''>('');
   const [soAbertos, setSoAbertos] = useState(false);
@@ -480,13 +604,13 @@ function Participantes({ d, mudar }: { d: Dados; mudar: Mudar }) {
   const lista = useMemo(() => {
     const b = busca.trim().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
     return d.participantes.filter((p) => (!setor || p.setor === setor) && (!soAbertos || (p.codigo && !p.resgatado_em))
-      && (!b || `${p.nome} ${p.codigo || ''} ${p.cidade || ''} ${p.modelo || ''}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(b)));
-  }, [d.participantes, busca, setor, soAbertos]);
+      && (!b || `${p.nome} ${p.codigo || ''} ${p.cidade || ''} ${p.modelo || ''} ${campos.map((c) => String(p.extras?.[c.id] ?? '')).join(' ')}`.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').includes(b)));
+  }, [d.participantes, busca, setor, soAbertos, campos]);
 
-  const baixa = async (p: Part) => {
+  const baixa = async (p: Part, venda?: { tipo: string; numero: string; valor: string }) => {
     setOcupado(p.id); setErro('');
-    const r = await mudar({ acao: p.resgatado_em ? 'desfazer' : 'resgatar', id: p.id });
-    if (!r.ok) setErro(r.erro || 'Erro');
+    const r = await mudar(p.resgatado_em && !venda ? { acao: 'desfazer', id: p.id } : { acao: p.resgatado_em ? 'venda' : 'resgatar', id: p.id, venda });
+    if (!r.ok) setErro(r.erro || 'Erro'); else setAbertoBaixa('');
     setOcupado('');
   };
 
@@ -525,6 +649,9 @@ function Participantes({ d, mudar }: { d: Dados; mudar: Mudar }) {
                   {p.lat != null && <> · <a href={mapa(p)} target="_blank" rel="noreferrer" style={{ color: AZUL }}>ver no mapa</a></>}
                 </span>
                 <span>{ic('fa-tractor')} {p.tem_trator ? `Mahindra ${p.modelo || ''} da Nova` : 'Não tem Mahindra da Nova'}</span>
+                {campos.filter((c) => p.extras?.[c.id]).map((c) => (
+                  <span key={c.id} style={{ overflowWrap: 'anywhere' }}>{ic(c.tipo === 'telefone' ? 'fa-phone' : c.tipo === 'documento' ? 'fa-id-card' : c.tipo === 'email' ? 'fa-envelope' : 'fa-comment')} {c.rotulo}: {String(p.extras![c.id])}</span>
+                ))}
               </span>
               <span style={{ display: 'grid', gap: 6, minWidth: 0 }}>
                 {p.codigo ? (
@@ -537,8 +664,17 @@ function Participantes({ d, mudar }: { d: Dados; mudar: Mudar }) {
                             <Chip cor={VERDE}>{ic('fa-circle-check')}Resgatado {new Date(p.resgatado_em).toLocaleDateString('pt-BR')}{p.resgatado_por ? ` · ${p.resgatado_por.split(' ')[0]}` : ''}</Chip>
                             <button type="button" disabled={ocupado === p.id} onClick={() => baixa(p)} style={{ background: 'none', border: 0, padding: 0, color: T3, fontSize: 12, cursor: 'pointer', textDecoration: 'underline', font: 'inherit' }}>desfazer</button>
                           </>
-                        : <button type="button" disabled={ocupado === p.id} onClick={() => baixa(p)} style={{ ...bt(VERDE, true), minHeight: 34 }}>{ic('fa-check')}{ocupado === p.id ? 'Salvando…' : 'Dar baixa'}</button>}
+                        : abertoBaixa !== p.id && <button type="button" onClick={() => setAbertoBaixa(p.id)} style={{ ...bt(VERDE, true), minHeight: 40 }}>{ic('fa-check')}Dar baixa</button>}
                     </span>
+                    {p.resgatado_em && abertoBaixa !== p.id && (
+                      p.extras?.venda
+                        ? <span style={{ fontSize: 13, color: T2, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>{ic('fa-sack-dollar')} {textoVenda(p.extras.venda)}
+                            <button type="button" onClick={() => setAbertoBaixa(p.id)} style={{ background: 'none', border: 0, padding: 0, color: AZUL, fontSize: 12, cursor: 'pointer', textDecoration: 'underline', font: 'inherit' }}>mudar</button></span>
+                        : <button type="button" onClick={() => setAbertoBaixa(p.id)} style={{ ...bt(AZUL), minHeight: 40, width: 'fit-content' }}>{ic('fa-sack-dollar')}Anotar a venda</button>
+                    )}
+                    {abertoBaixa === p.id && (
+                      <FormVenda inicial={p.extras?.venda} rotulo={p.resgatado_em ? 'Salvar venda' : 'Confirmar baixa'} onSalvar={(v) => baixa(p, v)} onCancelar={() => setAbertoBaixa('')} />
+                    )}
                   </>
                 ) : <span style={{ fontSize: 13, color: T3 }}>Preencheu a ficha e não girou</span>}
               </span>
@@ -598,7 +734,7 @@ const MODELOS_PADRAO = ['2025', '5050', '6060', '6065', '6075', '6075E', '6675F'
 type Cfg = {
   inicio: { subtitulo: string; passos: string[]; concurso: string }
   regras: string[]
-  ficha: { pedir_local: boolean; pedir_trator: boolean; pedir_foto: boolean; modelos: string[] }
+  ficha: { pedir_local: boolean; pedir_trator: boolean; pedir_foto: boolean; modelos: string[]; campos: CampoFicha[] }
   whats: Record<Setor, string>
   premio_foto: string; validade: string
 };
@@ -607,7 +743,7 @@ function cfgDe(c: Camp): Cfg {
   return {
     inicio: { subtitulo: k.inicio?.subtitulo ?? 'Gire a roleta. Todo giro ganha.', passos: k.inicio?.passos?.length ? [...k.inicio.passos] : ['Leia as regras', 'Preencha a ficha', 'Gire e ganhe na hora'], concurso: k.inicio?.concurso ?? 'Tem Mahindra? A foto mais bonita ganha prêmio.' },
     regras: k.regras?.length ? [...k.regras] : ['Vale até 30/11', '1 giro por pessoa nesta roleta', 'Todo giro ganha prêmio', 'Mostre o código na loja até 31/12', 'Foto mais bonita do seu Mahindra ganha prêmio'],
-    ficha: { pedir_local: k.ficha?.pedir_local !== false, pedir_trator: k.ficha?.pedir_trator !== false, pedir_foto: k.ficha?.pedir_foto !== false, modelos: k.ficha?.modelos?.length ? [...k.ficha.modelos] : MODELOS_PADRAO },
+    ficha: { pedir_local: k.ficha?.pedir_local !== false, pedir_trator: k.ficha?.pedir_trator !== false, pedir_foto: k.ficha?.pedir_foto !== false, modelos: k.ficha?.modelos?.length ? [...k.ficha.modelos] : MODELOS_PADRAO, campos: (k.ficha?.campos || []).map((c) => ({ ...c, ...(c.opcoes ? { opcoes: [...c.opcoes] } : {}) })) },
     whats: { comercial: k.whats?.comercial || '', posvendas: k.whats?.posvendas || '', pecas: k.whats?.pecas || '' },
     premio_foto: k.premio_foto || '', validade: k.validade || '',
   };
@@ -639,6 +775,56 @@ function ListaTextos({ itens, onChange, max, placeholder, rotulo }: { itens: str
         </div>
       ))}
       {itens.length < max && <button type="button" onClick={() => onChange([...itens, ''])} style={{ ...bt(AMBAR), width: 'fit-content' }}>{ic('fa-plus')}Linha</button>}
+    </div>
+  );
+}
+
+const TIPOS_CAMPO: { tipo: CampoFicha['tipo']; nome: string; icone: string; rotulo: string }[] = [
+  { tipo: 'telefone', nome: 'Telefone / WhatsApp', icone: 'fa-phone', rotulo: 'Seu WhatsApp' },
+  { tipo: 'documento', nome: 'CPF ou CNPJ', icone: 'fa-id-card', rotulo: 'CPF ou CNPJ' },
+  { tipo: 'email', nome: 'E-mail', icone: 'fa-envelope', rotulo: 'Seu e-mail' },
+  { tipo: 'texto', nome: 'Pergunta escrita', icone: 'fa-pen', rotulo: '' },
+  { tipo: 'opcoes', nome: 'Pergunta com opções', icone: 'fa-list-ul', rotulo: '' },
+];
+
+/** Campos a mais da ficha: escolher quais aparecem, o texto e se é obrigatório. */
+function CamposFicha({ campos, onChange }: { campos: CampoFicha[]; onChange: (c: CampoFicha[]) => void }) {
+  const muda = (i: number, x: Partial<CampoFicha>) => onChange(campos.map((c, k) => (k === i ? { ...c, ...x } : c)));
+  const mover = (i: number, d: number) => { const l = [...campos]; const [c] = l.splice(i, 1); l.splice(i + d, 0, c); onChange(l); };
+  return (
+    <div style={{ display: 'grid', gap: 10 }}>
+      <span style={{ fontSize: 13, color: T2 }}>Campos a mais (aparecem depois do nome, na ordem abaixo). Telefone e CPF/CNPJ ajudam a achar o cliente depois.</span>
+      {campos.map((c, i) => {
+        const t = TIPOS_CAMPO.find((x) => x.tipo === c.tipo)!;
+        return (
+          <div key={c.id} style={{ border: '1px solid var(--border)', borderRadius: 12, padding: 10, display: 'grid', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              <Chip cor={AMBAR}>{ic(t.icone)}{t.nome}</Chip>
+              <label style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 13, color: T1, cursor: 'pointer', minHeight: 40 }}>
+                <input type="checkbox" checked={c.obrigatorio} onChange={(e) => muda(i, { obrigatorio: e.target.checked })} style={{ width: 18, height: 18, accentColor: AMBAR }} />Obrigatório
+              </label>
+              <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                <button type="button" aria-label="Subir" disabled={i === 0} onClick={() => mover(i, -1)} style={{ ...bt(T3), minHeight: 40, padding: '8px 10px', opacity: i === 0 ? 0.4 : 1 }}>{ic('fa-arrow-up')}</button>
+                <button type="button" aria-label="Descer" disabled={i === campos.length - 1} onClick={() => mover(i, 1)} style={{ ...bt(T3), minHeight: 40, padding: '8px 10px', opacity: i === campos.length - 1 ? 0.4 : 1 }}>{ic('fa-arrow-down')}</button>
+                <button type="button" aria-label="Tirar" title="Tirar" onClick={() => onChange(campos.filter((_, k) => k !== i))} style={{ ...bt('#dc2626'), minHeight: 40, padding: '8px 12px' }}>{ic('fa-xmark')}</button>
+              </span>
+            </div>
+            <input value={c.rotulo} maxLength={80} placeholder="O que aparece para o cliente (ex.: Qual cultura você planta?)" onChange={(e) => muda(i, { rotulo: e.target.value })} style={campoNP} />
+            {c.tipo === 'opcoes' && (
+              <input value={(c.opcoes || []).join(', ')} placeholder="Opções separadas por vírgula (ex.: Soja, Milho, Café, Gado)"
+                onChange={(e) => muda(i, { opcoes: e.target.value.split(',').map((x) => x.trimStart()) })} style={campoNP} />
+            )}
+          </div>
+        );
+      })}
+      {campos.length < 8 && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {TIPOS_CAMPO.filter((t) => t.tipo === 'texto' || t.tipo === 'opcoes' || !campos.some((c) => c.tipo === t.tipo)).map((t) => (
+            <button key={t.tipo} type="button" onClick={() => onChange([...campos, { id: `${t.tipo}_${Date.now().toString(36)}`, tipo: t.tipo, rotulo: t.rotulo, obrigatorio: false, ...(t.tipo === 'opcoes' ? { opcoes: [] } : {}) }])}
+              style={{ ...bt(AMBAR), minHeight: 40 }}>{ic('fa-plus')}{t.nome}</button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -676,15 +862,16 @@ function OQueAparece({ d, mudar }: { d: Dados; mudar: Mudar }) {
           <ListaTextos itens={v.regras} max={8} placeholder="Ex.: Vale até 30/11" rotulo={(i) => `${i + 1}.`} onChange={(regras) => setV({ ...v, regras })} />
         </Secao>
 
-        <Secao icone="fa-id-card" cor={AMBAR} titulo="3 · Ficha" sub="O nome sempre é pedido">
+        <Secao icone="fa-id-card" cor={AMBAR} titulo="3 · Ficha" sub="O nome sempre é pedido. Ligue, desligue ou ponha campos a mais.">
           <div style={grade(220)}>
             <Liga on={v.ficha.pedir_local} rotulo="Pedir localização" ajuda="GPS do celular ou cidade escrita" onChange={(x) => setV({ ...v, ficha: { ...v.ficha, pedir_local: x } })} />
             <Liga on={v.ficha.pedir_trator} rotulo="Perguntar se tem Mahindra" ajuda="E qual modelo" onChange={(x) => setV({ ...v, ficha: { ...v.ficha, pedir_trator: x } })} />
             <Liga on={v.ficha.pedir_foto && v.ficha.pedir_trator} rotulo="Pedir foto do trator" ajuda="Só para quem tem Mahindra" onChange={(x) => setV({ ...v, ficha: { ...v.ficha, pedir_foto: x } })} />
           </div>
+          <CamposFicha campos={v.ficha.campos} onChange={(campos) => setV({ ...v, ficha: { ...v.ficha, campos } })} />
           {v.ficha.pedir_trator && (
             <div style={{ display: 'grid', gap: 8 }}>
-              <span style={{ fontSize: 13, color: T2 }}>Modelos para escolher</span>
+              <span style={{ fontSize: 13, color: T2 }}>Modelos de Mahindra para escolher</span>
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {v.ficha.modelos.map((m) => (
                   <span key={m} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 6px 5px 12px', borderRadius: 999, border: '1px solid var(--border)', fontSize: 13, color: T1 }}>
@@ -703,7 +890,7 @@ function OQueAparece({ d, mudar }: { d: Dados; mudar: Mudar }) {
           )}
         </Secao>
 
-        <Secao icone="fa-dharmachakra" cor={AMBAR} titulo="4 · Roleta" sub="Os prêmios de cada roleta ficam na aba Prêmios">
+        <Secao icone="fa-dharmachakra" cor={AMBAR} titulo="4 · Roleta" sub="Os prêmios de cada roleta ficam em Configurar → Prêmios">
           <div style={grade(200)}>
             {SETORES.map((s) => (
               <Campo key={s} rotulo={`WhatsApp ${SETOR[s].nome}`} ajuda="Botão de resgatar. Vazio = sem botão.">
@@ -712,7 +899,7 @@ function OQueAparece({ d, mudar }: { d: Dados; mudar: Mudar }) {
             ))}
           </div>
           <div style={grade(240)}>
-            <Campo rotulo="Prêmio da foto mais bonita" ajuda="Para você lembrar na hora de escolher (aba Fotos)"><input value={v.premio_foto} maxLength={200} onChange={(e) => setV({ ...v, premio_foto: e.target.value })} style={campoNP} /></Campo>
+            <Campo rotulo="Prêmio da foto mais bonita" ajuda="Para você lembrar na hora de escolher (Atender → Fotos)"><input value={v.premio_foto} maxLength={200} onChange={(e) => setV({ ...v, premio_foto: e.target.value })} style={campoNP} /></Campo>
             <Campo rotulo="Resgatar até"><input value={v.validade} maxLength={30} placeholder="31/12/2026" onChange={(e) => setV({ ...v, validade: e.target.value })} style={campoNP} /></Campo>
           </div>
         </Secao>
@@ -737,7 +924,7 @@ function OQueAparece({ d, mudar }: { d: Dados; mudar: Mudar }) {
           <div style={{ width: 390, maxWidth: '100%', height: 720, border: '10px solid #1f1f22', borderRadius: 34, overflow: 'hidden', background: '#000' }}>
             <iframe key={previa.n} title="Prévia no celular" src={`${base}?setor=${previa.setor}&previa=1#${previa.passo}`} style={{ width: '100%', height: '100%', border: 0 }} />
           </div>
-        ) : <Aviso tom="info">A prévia aparece quando o endereço da página estiver salvo (Resumo → Os 3 links).</Aviso>}
+        ) : <Aviso tom="info">A prévia aparece quando o endereço da página estiver salvo (Configurar → Campanha → Links).</Aviso>}
         <span style={{ fontSize: 12, color: T3, textAlign: 'center' }}>Prévia do jeito que está salvo. Depois de salvar, ela recarrega.</span>
       </div>
     </div>

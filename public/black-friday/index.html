@@ -78,9 +78,29 @@ h2.titulo-passo{font-family:var(--titulo);font-weight:700;font-size:clamp(1.8rem
 .roda-caixa.pequena{width:min(100%,420px)}
 .roda-caixa svg.roda{width:100%;height:100%;display:block;will-change:transform}
 .ponteiro{position:absolute;left:50%;top:-6px;transform:translateX(-50%);width:44px;height:54px;z-index:2;filter:drop-shadow(0 3px 4px rgba(0,0,0,.6))}
-.centro{position:absolute;inset:0;margin:auto;width:24%;height:24%;border-radius:50%;background:var(--preto);border:4px solid #fff;display:grid;place-items:center;z-index:2;
+.centro{position:absolute;inset:0;margin:auto;width:27%;height:27%;border-radius:50%;background:var(--preto);border:4px solid #fff;display:grid;place-items:center;z-index:2;
   font-family:var(--titulo);font-size:clamp(.7rem,2.6vw,1rem);text-align:center;line-height:1;color:#fff;padding:0;transition:background .15s}
-.centro.pode{background:var(--vermelho);cursor:pointer}
+.centro.pode{background:var(--vermelho);cursor:pointer;animation:chama 1.5s ease-in-out infinite}
+@keyframes chama{0%,100%{box-shadow:0 0 0 0 rgba(227,24,55,.75)}50%{box-shadow:0 0 0 16px rgba(227,24,55,0)}}
+.dica-girar{color:var(--texto-2);margin:.4rem 0 0;font-size:1rem}
+.dica-girar b{color:#fff}
+/* som */
+.btn-som{position:fixed;right:14px;bottom:14px;z-index:60;width:48px;height:48px;border-radius:50%;border:1px solid #3b3b3b;background:rgba(17,17,17,.92);color:#fff;display:grid;place-items:center;cursor:pointer;padding:0}
+.btn-som svg{width:22px;height:22px}
+/* prêmio no meio da tela */
+.ganhou{position:fixed;inset:0;z-index:80;display:grid;place-items:center;padding:16px;overflow:hidden;background:radial-gradient(circle at 50% 45%,rgba(120,10,28,.96),rgba(8,8,8,.98) 70%);animation:aparece .35s ease-out}
+.ganhou canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:2}
+.ganhou .caixa{position:relative;isolation:isolate;text-align:center;max-width:520px;width:100%;animation:salta .8s cubic-bezier(.2,1.6,.4,1) both;z-index:1}
+.ganhou .raios{position:absolute;left:50%;top:50%;width:900px;height:900px;margin:-450px 0 0 -450px;z-index:-1;border-radius:50%;pointer-events:none;
+  background:repeating-conic-gradient(rgba(246,220,138,.13) 0 10deg,transparent 10deg 20deg);-webkit-mask:radial-gradient(circle,#000 25%,transparent 65%);mask:radial-gradient(circle,#000 25%,transparent 65%);animation:roda-raios 20s linear infinite}
+.ganhou .selo-g{font-family:var(--titulo);color:var(--dourado);letter-spacing:.12em;font-size:clamp(1.1rem,4.5vw,1.5rem);animation:pulsa 1.2s ease-in-out infinite}
+.ganhou .nome-premio{font-family:var(--titulo);font-size:clamp(2.3rem,11vw,4.2rem);line-height:1;color:#fff;margin:.7rem 0 .8rem;text-shadow:0 4px 30px rgba(227,24,55,.9)}
+.ganhou .codigo{background:rgba(0,0,0,.55)}
+@keyframes aparece{from{opacity:0}to{opacity:1}}
+@keyframes salta{from{transform:scale(.25);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes roda-raios{to{transform:rotate(360deg)}}
+@keyframes pulsa{0%,100%{transform:scale(1)}50%{transform:scale(1.08)}}
+@media (prefers-reduced-motion:reduce){.centro.pode,.ganhou .raios,.ganhou .caixa,.ganhou .selo-g{animation:none}}
 .centro.pode:hover{background:var(--vermelho-esc)}
 .lampada{animation:pisca 1.2s steps(1) infinite}
 .lampada.b{animation-delay:.6s}
@@ -275,6 +295,9 @@ footer{max-width:1120px;margin:0 auto;padding:1.5rem 16px 2.5rem;color:var(--tex
         <input type="text" id="nome" autocomplete="name" maxlength="120" placeholder="Seu nome completo">
       </div>
 
+      <!-- campos a mais escolhidos no portal (Site → Campanhas → Configurar → Página) -->
+      <div id="camposExtras"></div>
+
       <div class="campo" id="campoLocal">
         <span class="rot">Onde você está</span>
         <button type="button" class="btn-tracejado" id="btnLoc">
@@ -329,8 +352,7 @@ footer{max-width:1120px;margin:0 auto;padding:1.5rem 16px 2.5rem;color:var(--tex
       <div>
         <div class="cartao" id="cartaoGirar">
           <h3 id="olaNome">Pronto!</h3>
-
-          <div class="acoes" style="margin-top:0"><button class="btn-principal" type="button" id="btnGirar">Girar a roleta</button></div>
+          <p class="dica-girar" id="dicaGirar">Toque em <b>GIRAR</b>, no meio da roleta.</p>
           <p class="erro" id="erroGiro" role="alert"></p>
           <ul class="lista-premios" id="listaPremios"></ul>
         </div>
@@ -356,6 +378,19 @@ footer{max-width:1120px;margin:0 auto;padding:1.5rem 16px 2.5rem;color:var(--tex
 </main>
 
 <footer>Nova Tratores · Concessionária Mahindra</footer>
+
+<button class="btn-som oculto" id="btnSom" type="button"></button>
+<div class="ganhou oculto" id="ganhou" role="dialog" aria-modal="true" aria-label="Seu prêmio">
+  <canvas id="confete"></canvas>
+  <div class="caixa">
+    <div class="raios"></div>
+    <div class="selo-g">VOCÊ GANHOU!</div>
+    <p class="nome-premio" id="gPremio"></p>
+    <p class="dica" id="gDetalhe" style="margin:0 0 .4rem"></p>
+    <div class="codigo"><span>Seu código</span><b id="gCodigo"></b></div>
+    <button class="btn-principal" type="button" id="gOk" style="width:100%">Pegar meu prêmio</button>
+  </div>
+</div>
 
 <script>
 /* ============ CONFIGURAÇÃO (editar aqui) ============ */
@@ -431,6 +466,40 @@ function aplicarConfig(){
   $("campoLocal").classList.toggle("oculto", !cfg.ficha.pedir_local);
   $("campoTrator").classList.toggle("oculto", !cfg.ficha.pedir_trator);
   $("modelo").innerHTML = cfg.ficha.modelos.map(m => `<button type="button" data-v="${esc(m)}" aria-pressed="false">${esc(m)}</button>`).join("");
+  montarCamposExtras();
+}
+function camposExtras(){ return Array.isArray(cfg.ficha.campos) ? cfg.ficha.campos.filter(c => c && c.id && c.rotulo) : []; }
+function montarCamposExtras(){
+  const ATR = {
+    telefone: 'inputmode="tel" autocomplete="tel" placeholder="(14) 99999-9999"',
+    documento: 'inputmode="numeric" placeholder="Só os números"',
+    email: 'inputmode="email" autocomplete="email" placeholder="voce@email.com"',
+    texto: ''
+  };
+  $("camposExtras").innerHTML = camposExtras().map(c => {
+    const talvez = c.obrigatorio ? "" : " <small>· se quiser</small>";
+    if (c.tipo === "opcoes") {
+      return `<div class="campo"><span class="rot">${esc(c.rotulo)}${talvez}</span><div class="opcoes" data-extra="${esc(c.id)}">${(c.opcoes || []).map(o => `<button type="button" data-v="${esc(o)}" aria-pressed="false">${esc(o)}</button>`).join("")}</div></div>`;
+    }
+    return `<div class="campo"><label class="rot" for="x_${esc(c.id)}">${esc(c.rotulo)}${talvez}</label><input type="text" id="x_${esc(c.id)}" data-extra="${esc(c.id)}" maxlength="120" ${ATR[c.tipo] || ""}></div>`;
+  }).join("");
+  $("camposExtras").querySelectorAll(".opcoes").forEach(el => grupo(el, v => { el.dataset.v = v; }));
+}
+/** Lê e confere os campos a mais; devolve {extras} ou {erro}. */
+function lerExtras(){
+  const extras = {};
+  for (const c of camposExtras()) {
+    const el = $("camposExtras").querySelector(`[data-extra="${CSS.escape(c.id)}"]`);
+    if (!el) continue;
+    let v = String(el.tagName === "INPUT" ? el.value : (el.dataset.v || "")).trim();
+    if (!v) { if (c.obrigatorio) return { erro: `Preencha: ${c.rotulo}` }; continue; }
+    const dig = v.replace(/\D/g, "");
+    if (c.tipo === "telefone") { if (dig.length < 10 || dig.length > 13) return { erro: "Confira o telefone, com o DDD." }; v = dig; }
+    if (c.tipo === "documento") { if (dig.length !== 11 && dig.length !== 14) return { erro: "O CPF tem 11 números e o CNPJ tem 14." }; v = dig; }
+    if (c.tipo === "email" && !/^\S+@\S+\.\S+$/.test(v)) return { erro: "Confira o e-mail." };
+    extras[c.id] = v.slice(0, 120);
+  }
+  return { extras };
 }
 
 /* ---------- relógio ---------- */
@@ -493,11 +562,26 @@ function girarAte(indice){
     const alvo = 360 - (indice*seg + seg/2) + (Math.random()-.5) * seg * .6;
     const reduzido = matchMedia("(prefers-reduced-motion: reduce)").matches;
     const atual = ((rotacao % 360) + 360) % 360;
-    rotacao += (reduzido ? 1 : 6)*360 + ((alvo - atual + 360) % 360);
-    const roda = $("roda"), dur = reduzido ? 1.2 : 5.6;
-    roda.style.transition = `transform ${dur}s cubic-bezier(.12,.6,.1,1)`;
+    // José, 17/11: animação mais longa, parando devagar
+    rotacao += (reduzido ? 1 : 11)*360 + ((alvo - atual + 360) % 360);
+    const roda = $("roda"), dur = reduzido ? 1.2 : 9.5;
+    roda.style.transition = `transform ${dur}s cubic-bezier(.06,.72,.1,1)`;
     roda.style.transform = `rotate(${rotacao}deg)`;
     let feito = false; const fim = () => { if (!feito) { feito = true; ok(); } };
+    // tique cada vez que uma fatia passa pelo ponteiro (vai ficando lento junto com a roda)
+    let ultimo = null;
+    const olhar = () => {
+      if (feito) return;
+      const m = getComputedStyle(roda).transform;
+      if (m && m !== "none") {
+        const [a, b] = m.slice(m.indexOf("(") + 1, -1).split(",").map(Number);
+        const fatia = Math.floor((((Math.atan2(b, a) * 180 / Math.PI) + 360) % 360) / seg);
+        if (ultimo !== null && fatia !== ultimo) som.tique();
+        ultimo = fatia;
+      }
+      requestAnimationFrame(olhar);
+    };
+    requestAnimationFrame(olhar);
     roda.addEventListener("transitionend", fim, { once:true });
     setTimeout(fim, dur*1000 + 250);  // segurança: o sinal do fim da animação às vezes não chega
   });
@@ -626,6 +710,8 @@ $("form").addEventListener("submit", async e => {
   const cidade = $("cidade").value.trim();
   const erro = msg => { $("erro").textContent = msg; };
   if (nome.length < 3) return erro("Escreva seu nome.");
+  const lidos = lerExtras();
+  if (lidos.erro) return erro(lidos.erro);
   if (cfg.ficha.pedir_local && form.lat === null && cidade.length < 2) return erro("Use sua localização ou escreva a cidade.");
   if (!cfg.ficha.pedir_trator) form.temTrator = false;
   if (form.temTrator === null) return erro("Diga se tem trator Mahindra da Nova Tratores.");
@@ -642,7 +728,7 @@ $("form").addEventListener("submit", async e => {
       const r = await rpc("campanha_inscrever", {
         p_slug: CAMPANHA, p_setor: setor, p_nome: nome, p_cidade: cidade, p_lat: form.lat, p_lng: form.lng,
         p_precisao: form.precisao, p_tem_trator: form.temTrator, p_modelo: dados.modelo,
-        p_foto: foto ? foto.caminho : null, p_aparelho: idAparelho(), p_extras: {}
+        p_foto: foto ? foto.caminho : null, p_aparelho: idAparelho(), p_extras: lidos.extras
       });
       id = r.id;
       if (r.codigo) guardar.gravar(CHAVE("resultado"), r);
@@ -692,8 +778,10 @@ async function girar(){
   const insc = guardar.ler(CHAVE("inscricao"));
   if (!insc) return irPara("ficha");
   girando = true;
-  $("btnGirar").disabled = true; $("centro").disabled = true; $("centro").classList.remove("pode");
+  $("centro").disabled = true; $("centro").classList.remove("pode");
+  $("dicaGirar").textContent = "Girando… boa sorte!";
   $("erroGiro").textContent = "";
+  som.comecar(); som.musicaBaixa(true);
   try {
     let res;
     if (modoTeste) {
@@ -706,17 +794,140 @@ async function girar(){
     if (i < 0) i = 0;
     await girarAte(i);
     if (!modoTeste) guardar.gravar(CHAVE("resultado"), res);
-    setTimeout(() => mostrarResultado(res), 350);
+    mostrarResultado(res);
+    setTimeout(() => mostrarGanhou(res), 300);
   } catch (e) {
     const m = String(e.message || "");
     $("erroGiro").textContent = m.includes("encerrada") ? "A campanha já terminou."
       : m.includes("sem prêmios") ? "Os prêmios desta roleta acabaram. Fale com a Nova Tratores."
       : "Não deu para girar agora. Confira a internet e tente de novo.";
-    $("btnGirar").disabled = false; $("centro").disabled = false; $("centro").classList.add("pode");
+    $("centro").disabled = false; $("centro").classList.add("pode");
+    $("dicaGirar").innerHTML = "Toque em <b>GIRAR</b>, no meio da roleta.";
+    som.musicaBaixa(false);
   } finally { girando = false; }
 }
-$("btnGirar").addEventListener("click", girar);
 $("centro").addEventListener("click", girar);
+
+/* ---------- prêmio no meio da tela (José, 17/11: "algo para chamar a atenção mesmo") ---------- */
+function mostrarGanhou(res){
+  const p = premios.find(q => String(q.id) === String(res.premio_id)) || { nome: res.premio, detalhe: "" };
+  $("gPremio").textContent = p.nome;
+  $("gDetalhe").textContent = p.detalhe || "";
+  $("gCodigo").textContent = res.codigo;
+  $("ganhou").classList.remove("oculto");
+  som.vitoria();
+  confete();
+  $("gOk").focus();
+}
+$("gOk").addEventListener("click", () => {
+  $("ganhou").classList.add("oculto");
+  som.musicaBaixa(false);
+  $("cartaoResultado").scrollIntoView({ behavior: "smooth", block: "center" });
+});
+function confete(){
+  const cv = $("confete"), ctx = cv.getContext("2d");
+  const reduzido = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const W = cv.width = innerWidth * devicePixelRatio, H = cv.height = innerHeight * devicePixelRatio;
+  const CORES = ["#E31837", "#F6DC8A", "#E5B94E", "#ffffff", "#9C7424"];
+  const ps = Array.from({ length: reduzido ? 40 : 180 }, () => ({
+    x: W / 2 + (Math.random() - .5) * W * .2, y: H * .45, vx: (Math.random() - .5) * 26 * devicePixelRatio, vy: (-Math.random() * 22 - 8) * devicePixelRatio,
+    r: (4 + Math.random() * 6) * devicePixelRatio, a: Math.random() * 6, va: (Math.random() - .5) * .4, cor: CORES[Math.floor(Math.random() * CORES.length)]
+  }));
+  const ini = performance.now();
+  (function quadro(t){
+    ctx.clearRect(0, 0, W, H);
+    for (const p of ps) {
+      p.vy += .55 * devicePixelRatio; p.vx *= .985; p.x += p.vx; p.y += p.vy; p.a += p.va;
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.fillStyle = p.cor; ctx.fillRect(-p.r, -p.r / 2.5, p.r * 2, p.r / 1.25); ctx.restore();
+    }
+    if (t - ini < 5000 && !$("ganhou").classList.contains("oculto")) requestAnimationFrame(quadro); else ctx.clearRect(0, 0, W, H);
+  })(ini);
+}
+
+/* ---------- som: musiquinha ao entrar, tique da roleta e fanfarra do prêmio (feitos aqui, sem arquivo) ---------- */
+const som = (() => {
+  const mudo = params.get("previa") === "1";   // na prévia do portal não toca
+  let ctx = null, mestre = null, musica = null;
+  let ligado = guardar.ler("camp_som") !== false;
+  function abrir(){
+    if (mudo) return null;
+    if (!ctx) {
+      const C = window.AudioContext || window.webkitAudioContext; if (!C) return null;
+      ctx = new C(); mestre = ctx.createGain(); mestre.gain.value = ligado ? 1 : 0; mestre.connect(ctx.destination);
+    }
+    if (ctx.state === "suspended") ctx.resume();
+    return ctx;
+  }
+  function nota(f, t, dur, tipo, vol, destino){
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = tipo; o.frequency.value = f;
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + .012); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
+    o.connect(g); g.connect(destino || mestre); o.start(t); o.stop(t + dur + .05);
+  }
+  function bumbo(t, destino){
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(42, t + .16);
+    g.gain.setValueAtTime(.35, t); g.gain.exponentialRampToValueAtTime(.001, t + .22);
+    o.connect(g); g.connect(destino); o.start(t); o.stop(t + .25);
+  }
+  // Lá menor · Fá · Dó · Sol, 124 batidas por minuto
+  const ACORDES = [[220, 261.63, 329.63], [174.61, 220, 261.63], [261.63, 329.63, 392], [196, 246.94, 293.66]];
+  const ARPEJO = [0, 1, 2, 1, 2, 1, 0, 2];
+  function tocarMusica(){
+    if (!abrir() || musica) return;
+    const g = ctx.createGain(); g.gain.value = .5; g.connect(mestre);
+    const e = 60 / 124 / 2; let t = ctx.currentTime + .1, passo = 0;
+    const timer = setInterval(() => {
+      while (t < ctx.currentTime + .5) {
+        const ac = ACORDES[Math.floor(passo / 8) % 4], k = passo % 8;
+        if (k % 2 === 0) nota(ac[0] / 2, t, e * 1.8, "triangle", .16, g);
+        nota(ac[ARPEJO[k]] * 2, t, e * .85, "square", .028, g);
+        if (k % 4 === 0) bumbo(t, g);
+        t += e; passo++;
+      }
+    }, 120);
+    musica = { g, timer };
+  }
+  function desenhar(){
+    const b = $("btnSom");
+    b.setAttribute("aria-label", ligado ? "Desligar o som" : "Ligar o som");
+    b.innerHTML = ligado
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="m22 9-6 6M16 9l6 6"/></svg>';
+  }
+  return {
+    preparar(){
+      if (mudo) return;
+      $("btnSom").classList.remove("oculto"); desenhar();
+      $("btnSom").addEventListener("click", e => {
+        e.stopPropagation();
+        ligado = !ligado; guardar.gravar("camp_som", ligado);
+        if (abrir()) mestre.gain.setTargetAtTime(ligado ? 1 : 0, ctx.currentTime, .05);
+        if (ligado) tocarMusica();
+        desenhar();
+      });
+      // o navegador só deixa tocar depois do primeiro toque na tela
+      const primeiro = () => { if (ligado) tocarMusica(); };
+      addEventListener("pointerdown", primeiro, { once: true });
+      addEventListener("keydown", primeiro, { once: true });
+    },
+    comecar(){ if (ligado) tocarMusica(); },
+    musicaBaixa(sim){ if (musica && ctx) musica.g.gain.setTargetAtTime(sim ? .12 : .5, ctx.currentTime, .3); },
+    tique(){
+      if (!ligado || !abrir()) return;
+      const t = ctx.currentTime;
+      nota(2100, t, .025, "square", .09); nota(700, t, .05, "triangle", .12);
+    },
+    vitoria(){
+      if (!ligado || !abrir()) return;
+      const t = ctx.currentTime + .05;
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => nota(f, t + i * .11, .22, "square", .08));
+      [1046.5, 1318.5, 1568].forEach(f => nota(f, t + .5, 1.6, "triangle", .09));
+      [523.25, 659.25, 783.99].forEach(f => nota(f / 2, t + .5, 1.6, "square", .035));
+      for (let i = 0; i < 10; i++) nota(2000 + Math.random() * 2500, t + .55 + i * .09, .12, "sine", .04);
+    }
+  };
+})();
 
 /* ---------- regras ---------- */
 const ICO = {
@@ -760,6 +971,7 @@ function montarRegras(){
   $("roda").innerHTML = h; $("rodaPrevia").innerHTML = h;
   $("listaPremios").innerHTML = premios.map(p => `<li>${esc(p.nome)}</li>`).join("");
   $("barra").classList.remove("oculto");
+  som.preparar();
   prepararRoleta();
   mostrar();
 })();

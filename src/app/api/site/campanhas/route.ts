@@ -65,11 +65,42 @@ export async function PATCH(req: Request) {
   const quem = g.user.nome || g.user.email || 'Portal'
   const t = (x: unknown, n: number) => { const s = String(x ?? '').replace(/\s+/g, ' ').trim().slice(0, n); return s || null }
 
+  // Venda em que o prêmio foi usado (José, 17/11: "ver os faturamentos que conseguimos a partir dos códigos da roleta").
+  // Fica em extras.venda (a página só regrava extras antes de girar; a baixa só existe depois do giro), sem SQL novo.
+  const lerVenda = (x: unknown) => {
+    const v = (x || {}) as Linha
+    const tipo = ['os', 'ppv', 'pedido', 'balcao', 'nenhuma'].includes(String(v.tipo)) ? String(v.tipo) : null
+    if (!tipo) return null
+    const valor = v.valor === '' || v.valor == null ? null : Number(String(v.valor).replace(/\./g, '').replace(',', '.'))
+    return { tipo, numero: tipo === 'nenhuma' ? null : t(v.numero, 30), valor: valor != null && Number.isFinite(valor) && valor >= 0 ? Math.round(valor * 100) / 100 : null, por: quem, em: new Date().toISOString() }
+  }
+  const gravarVenda = async (id: string, venda: ReturnType<typeof lerVenda> | 'apagar') => {
+    const { data: p, error: e1 } = await sb.from('campanha_participacoes').select('extras').eq('id', id).single()
+    if (e1) return e1
+    const extras = { ...((p?.extras as Linha) || {}) }
+    if (venda === 'apagar') delete extras.venda; else extras.venda = venda
+    const { error } = await sb.from('campanha_participacoes').update({ extras }).eq('id', id)
+    return error
+  }
+
   if (b.acao === 'resgatar' || b.acao === 'desfazer') {
     const muda = b.acao === 'resgatar' ? { resgatado_em: new Date().toISOString(), resgatado_por: quem } : { resgatado_em: null, resgatado_por: null }
     const { data, error } = await sb.from('campanha_participacoes').update(muda).eq('id', String(b.id)).not('codigo', 'is', null).select('id, resgatado_em, resgatado_por').single()
     if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 })
+    const venda = b.acao === 'resgatar' ? lerVenda(b.venda) : null
+    if (venda || b.acao === 'desfazer') {
+      const e2 = await gravarVenda(String(b.id), venda || 'apagar')
+      if (e2) return NextResponse.json({ ok: false, erro: e2.message }, { status: 500 })
+    }
     return NextResponse.json({ ok: true, participante: data })
+  }
+
+  if (b.acao === 'venda') {
+    const venda = lerVenda(b.venda)
+    if (!venda) return NextResponse.json({ ok: false, erro: 'Escolha onde o prêmio foi usado' }, { status: 400 })
+    const e = await gravarVenda(String(b.id), venda)
+    if (e) return NextResponse.json({ ok: false, erro: e.message }, { status: 500 })
+    return NextResponse.json({ ok: true })
   }
 
   if (b.acao === 'vencedora') {
@@ -110,7 +141,15 @@ export async function PATCH(req: Request) {
       ...((c?.config as Linha) || {}),
       inicio: { subtitulo: t(ini.subtitulo, 120), passos: lista(ini.passos, 4, 60), concurso: t(ini.concurso, 140) },
       regras: lista(e.regras, 8, 140),
-      ficha: { pedir_local: fi.pedir_local !== false, pedir_trator: fi.pedir_trator !== false, pedir_foto: fi.pedir_foto !== false, modelos: lista(fi.modelos, 30, 20) },
+      ficha: {
+        pedir_local: fi.pedir_local !== false, pedir_trator: fi.pedir_trator !== false, pedir_foto: fi.pedir_foto !== false, modelos: lista(fi.modelos, 30, 20),
+        // campos a mais escolhidos no portal (vão para campanha_participacoes.extras)
+        campos: (Array.isArray(fi.campos) ? fi.campos : []).slice(0, 8).map((x: unknown) => {
+          const c = (x || {}) as Linha
+          const tipo = ['telefone', 'documento', 'email', 'texto', 'opcoes'].includes(String(c.tipo)) ? String(c.tipo) : 'texto'
+          return { id: String(c.id || '').replace(/[^a-z0-9_]/gi, '').slice(0, 30) || `c${Math.random().toString(36).slice(2, 8)}`, tipo, rotulo: t(c.rotulo, 80), obrigatorio: c.obrigatorio === true, ...(tipo === 'opcoes' ? { opcoes: lista(c.opcoes, 12, 40) } : {}) }
+        }).filter((c: Linha) => c.rotulo && (c.tipo !== 'opcoes' || (c.opcoes as string[]).length)),
+      },
       whats: Object.fromEntries(SETORES.map((s) => [s, String(wh[s] ?? '').replace(/\D/g, '').slice(0, 15)])),
       ...(typeof e.premio_foto === 'string' ? { premio_foto: t(e.premio_foto, 200) } : {}),
       ...(typeof e.validade === 'string' ? { validade: t(e.validade, 30) } : {}),
@@ -124,6 +163,14 @@ export async function PATCH(req: Request) {
 
   if (b.acao === 'campanha') {
     const v: Linha = {}
+    // nome, ano, datas e liga/desliga (José, 17/11: "não consigo alterar o nome"). O slug NÃO muda: os links já mandados seguem valendo.
+    if ('nome' in b) { v.nome = t(b.nome, 80); if (!v.nome) return NextResponse.json({ ok: false, erro: 'Escreva o nome da campanha' }, { status: 400 }) }
+    if ('ano' in b) { const a = Math.round(Number(b.ano)); if (!(a >= 2020 && a <= 2100)) return NextResponse.json({ ok: false, erro: 'Ano inválido' }, { status: 400 }); v.ano = a }
+    const dataOk = (x: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(x || ''))
+    if ('inicio' in b) { if (!dataOk(b.inicio)) return NextResponse.json({ ok: false, erro: 'Data de início inválida' }, { status: 400 }); v.inicio = b.inicio }
+    if ('fim' in b) { if (!dataOk(b.fim)) return NextResponse.json({ ok: false, erro: 'Data de fim inválida' }, { status: 400 }); v.fim = b.fim }
+    if (v.inicio && v.fim && String(v.fim) < String(v.inicio)) return NextResponse.json({ ok: false, erro: 'O fim não pode ser antes do início' }, { status: 400 })
+    if ('ativo' in b) v.ativo = b.ativo === true
     if ('url' in b) { v.url = t(b.url, 300); if (v.url && !/^https?:\/\//.test(String(v.url))) return NextResponse.json({ ok: false, erro: 'O endereço começa com https://' }, { status: 400 }) }
     if ('capa' in b) {
       const capa = t(b.capa, 500)
