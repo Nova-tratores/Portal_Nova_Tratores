@@ -13,6 +13,8 @@ import { TelaCheia, Secao } from './comercial-assuntos'
 import { useJson, JanelaFrame } from './comercial-telas'
 import { TelaDespesasNova, NavAno } from './comercial-despesas'
 import { useEstadoUrl } from './url-estado'
+import { useBasePosVendas } from '@/components/mecanicos/useBasePosVendas'
+import { FaturamentoPeriodo, ESTILO_FP } from '@/components/mecanicos/FaturamentoPeriodo'
 
 // os mesmos tipos e cores da Gestão do Pós-Vendas (FaturamentoPeriodo)
 const TIPOS: Array<{ g: Grupo; nome: string; cor: string; explica: string }> = [
@@ -70,7 +72,7 @@ export function PainelPosVendas({ dreG, oficina }: { dreG: Array<{ mes: string; 
         {cartao('ofi', '#d97706', 'fa-screwdriver-wrench', 'Oficina agora', oficina[0] ? String(oficina[0].n) : '—',
           oficina[0] ? <>{oficina[0].nome.toLowerCase()}{oficina.length > 1 ? ` · e mais ${oficina.length - 1} pontos de atenção` : ''}</> : 'carregando…', null, 'cpv-oficina')}
       </div>
-      {tela === 'fat' && d && <TelaCheia titulo="Faturamento do Pós-Vendas" sub="OS faturadas, garantia, internas e as que esperam faturar" onFechar={fechar}><AbaFaturamento d={d} /></TelaCheia>}
+      {tela === 'fat' && d && <TelaCheia titulo="Faturamento do Pós-Vendas" sub="OS faturadas, garantia, internas e as que esperam faturar" onFechar={fechar}><FaturamentoGestao /></TelaCheia>}
       {tela === 'tec' && d && <TelaTecnicos d={d} onFechar={fechar} />}
       {tela === 'desp' && <TelaDespesasNova mesesBase={dreG || []} setor="posvendas" onFechar={fechar} faturouPorMes={d ? fatMes : undefined} />}
       {tela === 'ofi' && (
@@ -90,6 +92,22 @@ export function PainelPosVendas({ dreG, oficina }: { dreG: Array<{ mes: string; 
 }
 
 // ── FATURAMENTO ──────────────────────────────────────────────────────────────
+
+const hojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo'}).format(new Date())
+
+//Colocando os cards do perido que fiz em gestao pos vendas- Ortiz
+
+function FaturamentoGestao() {
+  const { base } = useBasePosVendas()
+  if (!base) return <div className="cma-vazio">Carregando...</div>
+  return (
+    <>
+    <style>{ESTILO_FP}</style>
+    <FaturamentoPeriodo base={base} hoje={hojeSP()} forma="escada" />
+    </>
+  )
+}
+
 export function NavMes({ meses, mes, setMes }: { meses: string[]; mes: string; setMes: (m: string) => void }) {
   const i = meses.indexOf(mes)
   return (

@@ -1978,7 +1978,7 @@ div.op-linha{cursor:default}
 
 const CSS = `
 .ce{display:flex;flex-direction:column;background:var(--portal-bg);color:var(--portal-text);overflow:hidden}
-.ce *{box-sizing:border-box}.ce button{font-family:inherit;color:inherit;background:none;border:none;padding:0;text-align:left}
+.ce *{box-sizing:border-box}.ce button:not(:where(.fp button)){font-family:inherit;color:inherit;background:none;border:none;padding:0;text-align:left}
 .ce-topo{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 24px 10px;flex-shrink:0}
 .ce-titulo{font-size:22px;font-weight:800;letter-spacing:-.4px}
 .ce-sub{font-size:13px;color:var(--portal-text-secondary)}
