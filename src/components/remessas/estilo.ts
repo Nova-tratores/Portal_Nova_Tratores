@@ -33,6 +33,8 @@ export const CSS_RM = `
 .rm-tabela { width: 100%; border-collapse: collapse; font-size: 13.5px; }
 .rm-tabela th { text-align: left; font-size: 11px; text-transform: uppercase; color: var(--text-light); background: var(--bg); padding: 8px 10px; white-space: nowrap; }
 .rm-tabela th.ord { cursor: pointer; user-select: none; }
+.rm-tabela .rm-filtros th { padding: 4px 6px 8px; text-transform: none; }
+.rm-fcol { min-height: 32px; padding: 4px 8px; font-size: 12.5px; min-width: 80px; }
 .rm-tabela td { padding: 8px 10px; border-top: 1px solid var(--border); vertical-align: middle; }
 .rm-tabela tbody tr { cursor: pointer; }
 .rm-tabela tbody tr:hover { background: var(--portal-bg-hover); }

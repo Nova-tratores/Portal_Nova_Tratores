@@ -9,7 +9,8 @@ describe('tipoDaRemessa', () => {
     expect(tipoDaRemessa('5.912')).toBe('demonstracao');
     expect(tipoDaRemessa('6912')).toBe('demonstracao');
     expect(tipoDaRemessa('6.913')).toBe('retorno_forn');
-    expect(tipoDaRemessa('5.949')).toBe('garantia');
+    expect(tipoDaRemessa('5.949')).toBe('garantia_cliente');
+    expect(tipoDaRemessa('6.949', null, true)).toBe('garantia_fabrica');
     expect(tipoDaRemessa('5.915')).toBe('conserto');
     expect(tipoDaRemessa('5.910')).toBe('os');
     expect(tipoDaRemessa('', 'rem_os_812')).toBe('os');
@@ -33,7 +34,7 @@ describe('situação e prazo', () => {
     expect(situacaoDe({ ...demo, status: 'Devolvida' }, '2027-01-01')).toBe('devolvida');
     expect(situacaoDe({ ...demo, status: 'Cancelada', manual: 'renovada' })).toBe('cancelada');
     expect(situacaoDe({ ...demo, status: 'Suspeita' })).toBe('conferir');
-    expect(situacaoDe({ tipo: 'garantia', status: 'Faturada', emissao: '01/01/2026' })).toBe('faturada');
+    expect(situacaoDe({ tipo: 'garantia_fabrica', status: 'Faturada', emissao: '01/01/2026' })).toBe('faturada');
     expect(situacaoDe({ tipo: 'os', status: 'Aberta', emissao: null })).toBe('sem_nota');
   });
   it('aviso só sobe de nível', () => {

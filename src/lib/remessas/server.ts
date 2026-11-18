@@ -77,8 +77,23 @@ async function lerControles(): Promise<{ mapa: Map<string, Controle>; migracaoFa
   return { mapa: new Map(((data || []) as Controle[]).map((c) => [`${c.conta_omie}|${c.id_remessa}`, c])), migracaoFaltando: false };
 }
 
-function linha(e: Espelho, c: Controle | undefined, portal: Set<string>, hoje: string): LinhaRemessa {
-  const tipo = tipoDaRemessa(e.cfop);
+/** CPF/CNPJ (só dígitos) de quem nos vende — destinatário fornecedor = garantia devolvida à fábrica. Cache 30 min. */
+let fornCache: { em: number; set: Set<string> } | null = null;
+async function cnpjsFornecedores(): Promise<Set<string>> {
+  if (fornCache && Date.now() - fornCache.em < 30 * 60 * 1000) return fornCache.set;
+  const set = new Set<string>();
+  for (let de = 0; de < 50000; de += 1000) {
+    const { data, error } = await sb.from('recebimentos_nfe').select('fornecedor_cnpj').not('fornecedor_cnpj', 'is', null).order('id_receb').range(de, de + 999);
+    if (error) break;
+    for (const r of (data || []) as Array<{ fornecedor_cnpj: string | null }>) { const d = String(r.fornecedor_cnpj || '').replace(/\D/g, ''); if (d) set.add(d); }
+    if (!data || data.length < 1000) break;
+  }
+  fornCache = { em: Date.now(), set };
+  return set;
+}
+
+function linha(e: Espelho, c: Controle | undefined, portal: Set<string>, hoje: string, forn: Set<string>): LinhaRemessa {
+  const tipo = tipoDaRemessa(e.cfop, null, forn.has(String(e.destinatario_cnpj || '').replace(/\D/g, '')));
   const emissao = dataISO(e.emissao);
   const situacao = situacaoDe({ tipo, status: e.status, emissao, prazoAte: c?.prazo_ate, manual: c?.situacao_manual }, hoje);
   const prazo = tipo === 'demonstracao' ? prazoDe({ emissao, prazoAte: c?.prazo_ate }) : null;
@@ -94,17 +109,18 @@ function linha(e: Espelho, c: Controle | undefined, portal: Set<string>, hoje: s
 
 export async function lerLista() {
   const cols = 'id_remessa,conta_omie,numero_nfe,emissao,natureza,cfop,status,destinatario,destinatario_cnpj,total_nfe,itens,atualizado_em';
-  const [esp, ctl, emis] = await Promise.all([
+  const [esp, ctl, emis, forn] = await Promise.all([
     todas<Espelho>('remessas', cols),
     lerControles(),
     sb.from('remessas_emissoes').select('conta_omie,n_cod,tipo').eq('tipo', 'demonstracao'),
+    cnpjsFornecedores(),
   ]);
   const castro = new Set(esp.filter((e) => e.conta_omie === 'castro').map((e) => e.id_remessa));
   // cópias antigas da CASTRO gravadas como 'nova' pelo app legado (sql/remessas-modulo.sql apaga)
   const validas = esp.filter((e) => !(e.conta_omie === 'nova' && castro.has(e.id_remessa) && String(e.atualizado_em || '') < '2026-04-09'));
   const portal = new Set(((emis.data || []) as Array<{ conta_omie: string; n_cod: number }>).map((x) => `${x.conta_omie}|${x.n_cod}`));
   const hoje = hojeISO();
-  const linhas = validas.map((e) => linha(e, ctl.mapa.get(`${e.conta_omie}|${e.id_remessa}`), portal, hoje))
+  const linhas = validas.map((e) => linha(e, ctl.mapa.get(`${e.conta_omie}|${e.id_remessa}`), portal, hoje, forn))
     .sort((a, b) => (b.emissao || '').localeCompare(a.emissao || '') || b.idRemessa - a.idRemessa);
   return { linhas, hoje, migracaoFaltando: ctl.migracaoFaltando };
 }
@@ -120,7 +136,7 @@ export async function lerFicha(conta: Low, idRemessa: number) {
     sb.from('remessas_emissoes').select('*').eq('conta_omie', conta).or(`n_cod.eq.${idRemessa},id_remessa_ref.eq.${idRemessa}`).order('criado_em', { ascending: true }),
   ]);
   const portal = new Set(((em.data || []) as Array<{ tipo: string; n_cod: number }>).filter((x) => x.tipo === 'demonstracao').map((x) => `${conta}|${x.n_cod}`));
-  const l = linha(e as Espelho, c, portal, hojeISO());
+  const l = linha(e as Espelho, c, portal, hojeISO(), await cnpjsFornecedores());
 
   // ao vivo na Omie: itens com impostos e a NF-e (não derruba a ficha se a Omie estiver fora)
   let omieDoc: Json | null = null; let nf: omie.StatusDoc['nf'] = null; let omieErro: string | null = null;

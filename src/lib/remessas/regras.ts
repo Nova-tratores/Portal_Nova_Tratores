@@ -8,7 +8,7 @@
 // Renovar (decisão do usuário 18/11/2026) = nota de entrada de retorno da original + remessa nova,
 // o que a CASTRO já fazia à mão todo mês (Joaquim Damasio: remessa 5.912 + entrada 1.913 no mesmo dia).
 
-export type TipoRemessa = 'demonstracao' | 'retorno_forn' | 'garantia' | 'os' | 'conserto' | 'outra';
+export type TipoRemessa = 'demonstracao' | 'retorno_forn' | 'garantia_fabrica' | 'garantia_cliente' | 'os' | 'conserto' | 'outra';
 export type Situacao =
   | 'sem_nota' | 'em_demonstracao' | 'vence_logo' | 'vencida' | 'conferir'
   | 'faturada' | 'devolvida' | 'renovada' | 'virou_venda' | 'cancelada';
@@ -22,7 +22,8 @@ export const CATEGORIA_DEMO = '1.01.98';
 export const TIPOS: Record<TipoRemessa, { rotulo: string; cor: string }> = {
   demonstracao: { rotulo: 'Demonstração', cor: '#7c3aed' },
   retorno_forn: { rotulo: 'Retorno ao fornecedor', cor: '#0f766e' },
-  garantia: { rotulo: 'Garantia', cor: '#b45309' },
+  garantia_fabrica: { rotulo: 'Garantia → fábrica', cor: '#b45309' },
+  garantia_cliente: { rotulo: 'Garantia → cliente', cor: '#ca8a04' },
   os: { rotulo: 'Peças / OS', cor: '#0369a1' },
   conserto: { rotulo: 'Conserto', cor: '#be185d' },
   outra: { rotulo: 'Outra', cor: '#64748b' },
@@ -43,11 +44,16 @@ export const SITUACOES: Record<Situacao, { rotulo: string; cor: string; aberta: 
 
 const dig = (s: unknown) => String(s ?? '').replace(/\D/g, '');
 
-export function tipoDaRemessa(cfop: string | null | undefined, codInt?: string | null): TipoRemessa {
+/**
+ * 5.949/6.949 serve aos dois lados da garantia: devolver peça à montadora (o destinatário é um
+ * FORNECEDOR — Mahindra, Kuhn, Marchesan…) ou mandar peça ao cliente em garantia (OS).
+ * `destinoFornecedor` = o CPF/CNPJ do destinatário aparece como fornecedor nas notas recebidas.
+ */
+export function tipoDaRemessa(cfop: string | null | undefined, codInt?: string | null, destinoFornecedor = false): TipoRemessa {
   const c = dig(cfop);
   if (c === '5912' || c === '6912') return 'demonstracao';
   if (c === '5913' || c === '6913') return 'retorno_forn';
-  if (c === '5949' || c === '6949') return 'garantia';
+  if (c === '5949' || c === '6949') return destinoFornecedor ? 'garantia_fabrica' : 'garantia_cliente';
   if (c === '5915' || c === '6915' || c === '5916' || c === '6916') return 'conserto';
   if (c === '5910' || c === '6910' || /^(rem_os_|RM-)/i.test(String(codInt || ''))) return 'os';
   return 'outra';

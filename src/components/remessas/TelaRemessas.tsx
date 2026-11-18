@@ -16,7 +16,23 @@ import FichaRemessa from './FichaRemessa';
 import NovaDemonstracao from './NovaDemonstracao';
 
 type Aba = 'abertas' | 'demos' | 'historico' | 'nova';
-type Col = 'numero' | 'emissao' | 'tipo' | 'situacao' | 'destinatario' | 'total' | 'prazo';
+type Col = 'numero' | 'emissao' | 'tipo' | 'situacao' | 'destinatario' | 'itens' | 'total' | 'prazo';
+/** demonstrações: por padrão só as que saíram de 2026 em diante (as antigas ficam atrás do filtro) */
+const DEMO_DESDE = '2026-01-01';
+const semAcento = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+/** texto de cada coluna (o mesmo que a tabela mostra) — base do filtro do cabeçalho */
+function textoCol(x: LinhaRemessa, col: Col): string {
+  switch (col) {
+    case 'numero': return `${x.numero} ${x.conta}`;
+    case 'emissao': return dataBR(x.emissao);
+    case 'tipo': return x.tipo;
+    case 'situacao': return x.situacao;
+    case 'destinatario': return `${x.destinatario} ${x.cnpj}`;
+    case 'itens': return x.itens.join(' ');
+    case 'total': return `${x.total.toFixed(2).replace('.', ',')} ${brl(x.total)}`;
+    case 'prazo': return dataBR(x.prazoAte);
+  }
+}
 const brl = (n: number) => n.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 export default function TelaRemessas() {
@@ -37,6 +53,10 @@ export default function TelaRemessas() {
   const [de, setDe] = useState('');
   const [ate, setAte] = useState('');
   const [ordem, setOrdem] = useState<{ col: Col; dir: 1 | -1 }>({ col: 'emissao', dir: -1 });
+  const [fcol, setFcol] = useState<Partial<Record<Col, string>>>({});
+  const [demoSits, setDemoSits] = useState<Set<Situacao>>(new Set());
+  const [demoAntigas, setDemoAntigas] = useState(false);
+  const [demoOrdem, setDemoOrdem] = useState<'prazo' | 'saida'>('prazo');
   const [ajuda, setAjuda] = useState(false);
   const [ficha, setFicha] = useState<string | null>(sp.get('ficha'));
   const [aviso, setAviso] = useState('');
@@ -68,8 +88,13 @@ export default function TelaRemessas() {
 
   const base = useMemo(() => linhas.filter((l) => (conta === 'todas' || l.conta === conta) && casaBusca(l, busca)), [linhas, conta, busca]);
   const abertas = useMemo(() => base.filter((l) => SITUACOES[l.situacao].aberta), [base]);
-  const demos = useMemo(() => abertas.filter((l) => l.tipo === 'demonstracao')
-    .sort((a, b) => (a.diasPrazo ?? 9999) - (b.diasPrazo ?? 9999)), [abertas]);
+  const demosTodas = useMemo(() => abertas.filter((l) => l.tipo === 'demonstracao'), [abertas]);
+  const demosAntigas = demosTodas.filter((l) => (l.emissao || '') < DEMO_DESDE).length;
+  const demos = useMemo(() => demosTodas
+    .filter((l) => demoAntigas || (l.emissao || '') >= DEMO_DESDE)
+    .filter((l) => !demoSits.size || demoSits.has(l.situacao))
+    .sort((a, b) => demoOrdem === 'saida' ? (b.emissao || '').localeCompare(a.emissao || '') : (a.diasPrazo ?? 9999) - (b.diasPrazo ?? 9999)),
+  [demosTodas, demoAntigas, demoSits, demoOrdem]);
   const atrasadas = demos.filter((d) => d.situacao === 'vencida').length;
 
   const tabela = useMemo(() => {
@@ -78,6 +103,12 @@ export default function TelaRemessas() {
     if (sits.size) l = l.filter((x) => sits.has(x.situacao));
     if (aba === 'historico' && de) l = l.filter((x) => (x.emissao || '') >= de);
     if (aba === 'historico' && ate) l = l.filter((x) => (x.emissao || '') <= ate);
+    for (const [c, v] of Object.entries(fcol) as [Col, string][]) {
+      if (!v) continue;
+      if (c === 'tipo' || c === 'situacao') { l = l.filter((x) => textoCol(x, c) === v); continue; }
+      const t = semAcento(v.trim());
+      l = l.filter((x) => semAcento(textoCol(x, c)).includes(t));
+    }
     const v = (x: LinhaRemessa): string | number => {
       switch (ordem.col) {
         case 'numero': return Number(x.numero) || 0;
@@ -85,12 +116,13 @@ export default function TelaRemessas() {
         case 'tipo': return TIPOS[x.tipo].rotulo;
         case 'situacao': return SITUACOES[x.situacao].rotulo;
         case 'destinatario': return x.destinatario;
+        case 'itens': return x.itens.join(' ');
         case 'total': return x.total;
         case 'prazo': return x.prazoAte || '9999';
       }
     };
     return [...l].sort((a, b) => { const A = v(a), B = v(b); return (A < B ? -1 : A > B ? 1 : 0) * ordem.dir; });
-  }, [aba, base, abertas, tipos, sits, de, ate, ordem]);
+  }, [aba, base, abertas, tipos, sits, de, ate, ordem, fcol]);
 
   if (loading) return <div style={{ padding: 24 }}>Carregando…</div>;
   if (!podeVer) return <SemPermissao />;
@@ -127,7 +159,7 @@ export default function TelaRemessas() {
         {ajuda && (
           <div className="rm-card" style={{ fontSize: 13.5, lineHeight: 1.6 }}>
             <b>Como ler esta tela.</b> Remessa é a nota de saída de produto que não é venda. O tipo sai do CFOP: <b>demonstração</b> (5.912/6.912 — a máquina sai do estoque e volta por uma nota de entrada 1.913/2.913),
-            garantia (5.949/6.949), peças de OS (5.910), conserto (5.915) e retorno ao fornecedor (5.913, máquina que um fornecedor nos mandou em demonstração).
+            garantia em dois tipos — <b>Garantia → fábrica</b> (devolução de peças à montadora: o destinatário é fornecedor; inclui as emitidas pelo portal em Garantias/Recebimentos) e <b>Garantia → cliente</b> (peças mandadas ao cliente em garantia pela OS), ambas 5.949/6.949 —, peças de OS (5.910), conserto (5.915) e retorno ao fornecedor (5.913, máquina que um fornecedor nos mandou em demonstração).
             <br /><b>Em aberto</b>: o que ainda está fora (demonstrações) ou sem nota emitida. <b>Demonstrações</b>: cada máquina na rua com o prazo de volta — padrão de 30 dias, verde em dia, âmbar a 5 dias, vermelho vencida.
             Na ficha dá para <b>renovar</b> (nota de volta + remessa nova, como já se fazia à mão), <b>registrar a volta</b> ou marcar que <b>virou venda</b>. <b>Histórico</b>: todas as remessas desde 2022, com filtro por período, tipo e situação.
             <br />As remessas vêm da Omie duas vezes por dia (03:15 e 13:15); o que é emitido aqui aparece na hora. O sino avisa quem acompanha a demonstração quando faltam 5 dias e quando vence.
@@ -159,7 +191,25 @@ export default function TelaRemessas() {
             {carregando && <div className="rm-card">Carregando as remessas…</div>}
 
             {!carregando && aba === 'demos' && (
-              demos.length === 0 ? <div className="rm-card">Nenhuma máquina em demonstração agora.</div> : (
+              <div className="rm-chips" style={{ alignItems: 'center' }}>
+                {(['em_demonstracao', 'vence_logo', 'vencida', 'conferir', 'sem_nota'] as Situacao[]).filter((x) => demosTodas.some((d) => d.situacao === x)).map((x) => (
+                  <button key={x} className={`rm-chip ${demoSits.has(x) ? 'on' : ''}`} onClick={() => setDemoSits((y) => alternar(y, x))}>
+                    <span style={{ width: 8, height: 8, borderRadius: 9, background: SITUACOES[x].cor }} />{SITUACOES[x].rotulo}
+                  </button>
+                ))}
+                <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--border)', margin: '0 4px' }} />
+                <button className={`rm-chip ${demoAntigas ? 'on' : ''}`} onClick={() => setDemoAntigas((v) => !v)} title="Por padrão ficam escondidas as que saíram até 2025">
+                  {demoAntigas ? 'Mostrando as de 2025 para trás' : `Mostrar as de 2025 para trás (${demosAntigas})`}
+                </button>
+                <select className="rm-input" style={{ width: 'auto', minHeight: 34 }} value={demoOrdem} onChange={(e) => setDemoOrdem(e.target.value as 'prazo' | 'saida')} aria-label="Ordenar">
+                  <option value="prazo">Ordenar: prazo mais perto</option>
+                  <option value="saida">Ordenar: saída mais recente</option>
+                </select>
+                {(demoSits.size > 0 || demoAntigas) && <button className="rm-chip" onClick={() => { setDemoSits(new Set()); setDemoAntigas(false); }}>Limpar filtros</button>}
+              </div>
+            )}
+            {!carregando && aba === 'demos' && (
+              demos.length === 0 ? <div className="rm-card">Nenhuma demonstração neste filtro{!demoAntigas && demosAntigas ? ` — há ${demosAntigas} de 2025 para trás escondida(s)` : ''}.</div> : (
                 <div className="rm-demos">
                   {demos.map((d) => <CartaoDemo key={`${d.conta}-${d.idRemessa}`} d={d} onAbrir={() => abrir(d)} />)}
                 </div>
@@ -184,17 +234,36 @@ export default function TelaRemessas() {
                       <input type="date" className="rm-input" style={{ width: 150, minHeight: 34 }} value={ate} onChange={(e) => setAte(e.target.value)} aria-label="Até" />
                     </>
                   )}
-                  {(tipos.size > 0 || sits.size > 0 || de || ate) && <button className="rm-chip" onClick={() => { setTipos(new Set()); setSits(new Set()); setDe(''); setAte(''); }}>Limpar filtros</button>}
+                  {(tipos.size > 0 || sits.size > 0 || de || ate || Object.values(fcol).some(Boolean)) && <button className="rm-chip" onClick={() => { setTipos(new Set()); setSits(new Set()); setDe(''); setAte(''); setFcol({}); }}>Limpar filtros</button>}
                 </div>
                 <div style={{ fontSize: 12.5, color: 'var(--text-light)' }}>
                   {tabela.length} remessa(s) · {brl(tabela.reduce((s, l) => s + l.total, 0))}
                 </div>
                 <div className="rm-tabela-wrap">
                   <table className="rm-tabela" style={{ minWidth: 860 }}>
-                    <thead><tr>
-                      {th('numero', 'Nº')}{th('emissao', 'Emissão')}{th('tipo', 'Tipo')}{th('situacao', 'Situação')}
-                      {th('destinatario', 'Destinatário')}<th>Itens</th>{th('total', 'Valor', 'right')}{th('prazo', 'Prazo')}
-                    </tr></thead>
+                    <thead>
+                      <tr>
+                        {th('numero', 'Nº')}{th('emissao', 'Emissão')}{th('tipo', 'Tipo')}{th('situacao', 'Situação')}
+                        {th('destinatario', 'Destinatário')}{th('itens', 'Itens')}{th('total', 'Valor', 'right')}{th('prazo', 'Prazo')}
+                      </tr>
+                      <tr className="rm-filtros">
+                        {(['numero', 'emissao', 'tipo', 'situacao', 'destinatario', 'itens', 'total', 'prazo'] as Col[]).map((c) => (
+                          <th key={c}>
+                            {c === 'tipo' || c === 'situacao' ? (
+                              <select className="rm-input rm-fcol" value={fcol[c] || ''} onChange={(e) => setFcol((f) => ({ ...f, [c]: e.target.value }))} aria-label={`Filtrar ${c}`}>
+                                <option value="">Todos</option>
+                                {(c === 'tipo' ? tiposPresentes : sitsPresentes).map((v) => (
+                                  <option key={v} value={v}>{c === 'tipo' ? TIPOS[v as TipoRemessa].rotulo : SITUACOES[v as Situacao].rotulo}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input className="rm-input rm-fcol" value={fcol[c] || ''} placeholder={c === 'emissao' || c === 'prazo' ? 'dd/mm/aaaa' : 'filtrar'}
+                                onChange={(e) => setFcol((f) => ({ ...f, [c]: e.target.value }))} aria-label={`Filtrar ${c}`} />
+                            )}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
                     <tbody>
                       {tabela.slice(0, 600).map((l) => (
                         <tr key={`${l.conta}-${l.idRemessa}`} onClick={() => abrir(l)}>
