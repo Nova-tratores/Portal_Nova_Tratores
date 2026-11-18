@@ -32,6 +32,8 @@ import {
 import { hoje, addMeses, addDias, fmtBR, parseAnyDate } from './dates';
 import { RE_NATUREZA_GARANTIA, classificarTipoReceb, prepararRecebimento, type RecebNorm } from './recebimento-regras';
 import type { Conta } from './conta';
+import { custosUnitarios } from '@/lib/estoque/preco-venda-entrada';
+import { supabase } from './supabase';
 
 // Regras de tipo/sinal agora vivem em ./recebimento-regras (puras, testadas).
 
@@ -624,6 +626,19 @@ export async function analisarUmRecebimento(conta: Conta, idReceb: number | stri
   void _raw;
   const r: any = prepararRecebimento(semRaw as RecebNorm, cfg, tipoManual);
   if (r.temSinalGarantia) await enriquecerCmcRecebimentos(conta, [r], () => {}, cfg);
+  // preço de venda sugerido (máquina ×1,20, peça ×2): custo com impostos/frete de cada item
+  // + o preço de venda atual (Produtos_Completos, que o sync de 10 min mantém em dia).
+  const custos = custosUnitarios(r.itens || [], r.totalNFe);
+  const ids = (r.itens || []).map((it: any) => Number(it.idProduto)).filter((x: number) => x > 0);
+  const precos: Record<string, number> = {};
+  if (ids.length) {
+    const { data } = await supabase.from('Produtos_Completos').select('id_omie,Preco_Venda').in('id_omie', ids); // id da Omie é único; conta_omie lá nem sempre bate
+    for (const p of (data || []) as any[]) precos[String(p.id_omie)] = Number(p.Preco_Venda) || 0;
+  }
+  for (const it of r.itens || []) {
+    it.custoEntrada = custos[String(it.nSequencia)] ?? null;
+    it.precoVendaAtual = it.idProduto ? (precos[String(it.idProduto)] ?? null) : null;
+  }
   return r;
 }
 

@@ -4,6 +4,7 @@ import { PackageOpen, Loader2, CheckCircle2, Truck, CalendarClock } from 'lucide
 import type { GarantiaDetalhe } from '@/lib/garantias/types';
 import { fmtDataHora, diasAte } from '@/lib/garantias/format';
 import GarantiaAnexos from './GarantiaAnexos';
+import ModalRetornoGarantia from './ModalRetornoGarantia';
 
 interface Props {
   garantia: GarantiaDetalhe;
@@ -35,6 +36,7 @@ export default function DevolucaoPecasSecao({ garantia: g, userName, busy, onAca
   const [obs, setObs] = useState(g.devolucao_obs || '');
   const [prazo, setPrazo] = useState(g.devolucao_prazo || '');
   const [editandoPrazo, setEditandoPrazo] = useState(false);
+  const [emitirOmie, setEmitirOmie] = useState(false);
 
   const anexos = g.anexos.filter((a) => a.categoria === 'devolucao_pecas');
   const pendente = g.devolucao_status === 'pendente';
@@ -107,6 +109,19 @@ export default function DevolucaoPecasSecao({ garantia: g, userName, busy, onAca
                 ajustar prazo
               </button>
             )}
+          </div>
+
+          {/* Emitir pela Omie: remessa de retorno 5.949/6.949 da nota da fábrica */}
+          <button
+            type="button"
+            onClick={() => setEmitirOmie(true)}
+            disabled={!!busy}
+            style={{ ...btn('linear-gradient(135deg,#0f766e,#115e59)', !!busy), minHeight: 42 }}
+          >
+            <Truck size={15} /> Emitir a NF de devolução pela Omie
+          </button>
+          <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: -4 }}>
+            Escolha a nota da fábrica e as peças; o portal cria e fatura a remessa em garantia e dá baixa aqui. Se a NF já foi emitida, registre abaixo.
           </div>
 
           {/* Dados do envio */}
@@ -213,6 +228,13 @@ export default function DevolucaoPecasSecao({ garantia: g, userName, busy, onAca
             {busy === 'devolucao_reabrir' ? 'Reabrindo…' : 'Reabrir (registrado por engano)'}
           </button>
         </>
+      )}
+      {emitirOmie && (
+        <ModalRetornoGarantia
+          garantiaId={g.id}
+          onClose={() => { setEmitirOmie(false); onAnexosChange(); }}
+          onFeito={() => onAnexosChange()}
+        />
       )}
     </div>
   );

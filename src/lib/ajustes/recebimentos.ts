@@ -17,6 +17,7 @@ import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, 
 import type { AlterarCabecArgs } from './omie';
 import { hoje, addDias, fmtBR, parseAnyDate } from './dates';
 import { agruparCorrecoes } from './recebimento-regras';
+import { aplicarPrecosVenda, type PrecoPedido, type PrecoResultado } from '@/lib/estoque/preco-venda-entrada-server';
 
 // Janela "grande" fixa: pendentes desde 01/11/2022 ate hoje (pedido do usuario).
 export const JANELA_INICIAL_BR = '01/11/2022';
@@ -603,6 +604,8 @@ export interface DarEntradaArgs {
   userId?: string | null;   // financeiro_usu.id de quem deu entrada (log interno)
   userNome?: string | null;
   tipo?: string | null;     // tipo do recebimento (log interno)
+  /** preço de venda escolhido na janela (máquina ×1,20, peça ×2); grava só se subir */
+  precosVenda?: PrecoPedido[] | null;
   numeroNFe?: string | null;
 }
 
@@ -779,6 +782,14 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
       if (error) console.warn('[cmc] cmc_sync_log:', error.message);
     });
 
+  // preço de venda (depois de concluir: o produto novo já existe). Não desfaz a entrada.
+  let precos: PrecoResultado[] = [];
+  let precosErro: string | null = null;
+  if (Array.isArray(b.precosVenda) && b.precosVenda.length && (r.idReceb ?? idReceb) != null) {
+    try { precos = await aplicarPrecosVenda(conta, (r.idReceb ?? idReceb) as number | string, b.precosVenda); }
+    catch (e: any) { precosErro = e?.message || String(e); }
+  }
+
   // log interno nosso (Supabase) da entrada
   logEntradaReceb({
     conta,
@@ -797,9 +808,11 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
         s: a.nSequencia, idProduto: a.idProduto, desc: a.descricaoProduto,
         cmcAtual: a.cmcAtual, cmcProjetado: a.cmcProjetado, alerta: a.alerta,
       })),
+      precosVenda: precos.length ? precos : undefined,
+      precosErro: precosErro || undefined,
     },
     resultado: { idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados: associados.length, cabec: cabecAlterado },
   });
 
-  return { ok: true, idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados, cabec: cabecAlterado };
+  return { ok: true, idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados, cabec: cabecAlterado, precos, precosErro };
 }

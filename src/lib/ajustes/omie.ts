@@ -635,6 +635,11 @@ export function normalizarRecebimento(rec: any): any {
       criarNovo: ca.cAdicionarNovo === 'S',
       associarExistente: ca.cAssociarExistente === 'S',
       qtde, precoUnit, valTotalItem,
+      // p/ o custo com impostos/frete (preço de venda sugerido na entrada)
+      qtdeEstoque: num(aj.nQtdeRecebida) || null,
+      vDesconto: num(ca.vDesconto),
+      valIPI: num(it.itensIPI?.nValIPI),
+      valST: num(it.itensICMSST?.nValorST),
       localEstoque: aj.codigo_local_estoque ?? null,
       naoGerarMovEstoque: aj.cNaoGerarMovEstoque === 'S',
       naoGerarFinanceiro: aj.cNaoGerarFinanceiro === 'S'
@@ -652,6 +657,7 @@ export function normalizarRecebimento(rec: any): any {
     idFornecedor: cab.nIdFornecedor ?? null,
     dataEmissao: cab.dEmissaoNFe ?? null,
     valorNFe: num(cab.nValorNFe),
+    totalNFe: num(rec.totais?.vTotalNFe) || num(cab.nValorNFe),
     recebido: ic.cRecebido === 'S',
     faturado: ic.cFaturado === 'S',
     cancelada: ic.cCancelada === 'S',

@@ -14,6 +14,8 @@ import { casaBusca, diasDesde, type RecebNorm } from '@/lib/ajustes/recebimento-
 import ProdutoPrecoModal from '@/components/estoque/ProdutoPrecoModal';
 import ModalReabrir from '@/components/estoque/ModalReabrir';
 import ModalRelancar from '@/components/estoque/ModalRelancar';
+import ModalRetornoGarantia from '@/components/garantias/ModalRetornoGarantia';
+import { fatorDoTipo, sugerirPreco } from '@/lib/estoque/preco-venda-entrada';
 
 // nota revertida com pagamentos guardados para relançar (recebimento_reversoes)
 interface ReversaoPendente { id: string; idReceb: number; numeroNfe: string | null; fornecedor: string | null; status: string; criadoEm: string; quem: string | null; aRelancar: number; valorARelancar: number }
@@ -46,6 +48,9 @@ interface ItemReceb {
   impactoCMC?: number | null;
   impactoPct?: number | null;
   alerta?: boolean;
+  // preço de venda sugerido na entrada (máquina ×1,20, peça ×2)
+  custoEntrada?: number | null;
+  precoVendaAtual?: number | null;
 }
 interface Recebimento {
   idReceb?: number | string | null;
@@ -233,6 +238,8 @@ export default function RecebimentosPage() {
   const [aba, setAba] = useState<'pendentes' | 'concluidos' | 'entradas'>('pendentes');
   const [dados, setDados] = useState<{ recebimentos: Recebimento[]; atualizadoEm: string | null; reversoes: ReversaoPendente[] } | null>(null);
   const [reabrirAlvo, setReabrirAlvo] = useState<Recebimento | null>(null);
+  // devolução em garantia (remessa de retorno 5.949/6.949 da nota da fábrica)
+  const [retornoAlvo, setRetornoAlvo] = useState<Recebimento | null>(null);
   const [relancarAlvo, setRelancarAlvo] = useState<number | null>(null);
   const podeBaixa = pode('financeiro', 'baixa-contas') || pode('ajustes', 'baixa-contas');
   const [carregando, setCarregando] = useState(false);
@@ -594,6 +601,7 @@ export default function RecebimentosPage() {
                     mostrarProdutos={mostrarProdutos}
                     onAbrir={() => abrirNota(r)}
                     onReabrir={() => onReabrir(r)}
+                    onDevolverGarantia={() => setRetornoAlvo(r)}
                     aRelancar={(dados?.reversoes || []).find((f) => String(f.idReceb) === String(r.idReceb))?.aRelancar || 0}
                     onTipoChange={(t) => onTipoChange(r, t)}
                     onResponsavelChange={(uid) => onResponsavelChange(r, uid)}
@@ -619,10 +627,17 @@ export default function RecebimentosPage() {
       )}
       {reabrirAlvo && conta && (
         <ModalReabrir
-          conta={conta} idReceb={reabrirAlvo.idReceb as number} numero={String(reabrirAlvo.numeroNFe || '').replace(/^0+(?=d)/, '')}
+          conta={conta} idReceb={reabrirAlvo.idReceb as number} numero={String(reabrirAlvo.numeroNFe || '').replace(/^0+(?=\d)/, '')}
           podeBaixa={podeBaixa}
           onClose={() => setReabrirAlvo(null)}
           onFeito={(msg, tipo) => { setReabrirAlvo(null); if (tipo === 'ok') setAviso(msg); else setErro(msg); carregar(); }}
+        />
+      )}
+      {retornoAlvo && conta && (
+        <ModalRetornoGarantia
+          conta={conta} idReceb={retornoAlvo.idReceb as number}
+          onClose={() => setRetornoAlvo(null)}
+          onFeito={(msg) => setAviso(msg)}
         />
       )}
       {relancarAlvo != null && conta && (
@@ -912,15 +927,17 @@ function EntradasView({ conta, userId }: { conta: string; userId: string | null 
   );
 }
 
-function CardReceb({ r, conta, modo, resultado, abrindo, usuarios, mostrarProdutos, onAbrir, onReabrir, onTipoChange, onResponsavelChange, onAbrirProduto, aRelancar = 0 }: {
+function CardReceb({ r, conta, modo, resultado, abrindo, usuarios, mostrarProdutos, onAbrir, onReabrir, onDevolverGarantia, onTipoChange, onResponsavelChange, onAbrirProduto, aRelancar = 0 }: {
   r: Recebimento; conta: string; modo: 'pendente' | 'concluido'; resultado?: ResultadoCard; abrindo: boolean; usuarios: Usuario[]; mostrarProdutos: boolean;
-  onAbrir: () => void; onReabrir: () => void; onTipoChange: (tipo: string) => void;
+  onAbrir: () => void; onReabrir: () => void; onDevolverGarantia?: () => void; onTipoChange: (tipo: string) => void;
   onResponsavelChange: (userId: string | null) => void; onAbrirProduto: (idProduto: number) => void;
   /** pagamentos guardados de uma reversão, ainda não relançados */
   aRelancar?: number;
 }) {
   const dias = diasDesde(r.dataEmissao);
   const temSinal = !!r.temSinalGarantia;
+  // nota da fábrica em garantia (item x.949): pode voltar como remessa de retorno
+  const devolvivel = (r.itens || []).some((it) => /^[56]\.?949$/.test(String(it.cfop || '').trim()));
   const borda = r.temItemRisco ? '#fca5a5' : (r.temItemNovo && temSinal ? '#fcd34d' : (temSinal ? '#fde68a' : '#e2e8f0'));
   const headerBg = r.temItemRisco ? '#fef2f2' : (temSinal ? '#fffbeb' : '#f8fafc');
   const concluido = resultado?.tipo === 'ok';
@@ -980,6 +997,9 @@ function CardReceb({ r, conta, modo, resultado, abrindo, usuarios, mostrarProdut
             ) : modo === 'concluido' ? (
               <>
                 {r.recebidoEm && <span style={{ fontSize: '.68rem', color: '#64748b' }}>entrou em {String(r.recebidoEm).split('-').reverse().join('/')}</span>}
+                {devolvivel && onDevolverGarantia && (
+                  <button onClick={onDevolverGarantia} title="Remessa de retorno em garantia (5.949/6.949) pela Omie" style={{ padding: '5px 12px', fontSize: '.75rem', background: '#fff', color: '#b45309', border: '1px solid #fcd34d', borderRadius: 6, cursor: 'pointer' }}>Devolver em garantia</button>
+                )}
                 <button onClick={onReabrir} style={{ padding: '5px 12px', fontSize: '.75rem', background: '#fff', color: RED, border: '1px solid #fca5a5', borderRadius: 6, cursor: 'pointer' }}>Reabrir</button>
               </>
             ) : (
@@ -1304,6 +1324,17 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
   // itens associados a um produto existente que baixaram o CMC entram na correcao
   // junto com os de garantia (o backend projeta o impacto ANTES de concluir).
   const [riscosExtra, setRiscosExtra] = useState<ItemReceb[]>([]);
+  // Preço de venda (13/11/2026): máquina = custo × 1,20, peça = custo × 2; marcado só
+  // quando sobe o preço atual. O servidor relê na Omie e também só grava se subir.
+  const fatorPreco = fatorDoTipo(r.tipo);
+  const [precos, setPrecos] = useState<Record<number, { marcado: boolean; valor: string }>>(() => {
+    const init: Record<number, { marcado: boolean; valor: string }> = {};
+    (r.itens || []).forEach((it, i) => {
+      const s = sugerirPreco(it.custoEntrada, fatorPreco, it.precoVendaAtual);
+      if (s) init[i] = { marcado: s.sobe, valor: s.novo.toFixed(2) };
+    });
+    return init;
+  });
   const riscosBase = useMemo(() => itensEmRisco(r), [r]);
   const riscos = useMemo(() => [...riscosBase, ...riscosExtra], [riscosBase, riscosExtra]);
   const [cmcAlvo, setCmcAlvo] = useState<Record<number, string>>(() => {
@@ -1476,10 +1507,17 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
       .map((it, i) => (it.criarNovo && acaoDe(it, i) === 'associar' && assoc[i] ? `\n  · "${it.descricaoProduto || it.codigoProdutoInt}" → ${assoc[i]!.codigo} ${assoc[i]!.descricao}` : ''))
       .join('');
     const ignTxt = (r.itens || []).filter((it, i) => acaoDe(it, i) === 'ignorar').length;
+    const precosVenda = fatorPreco ? (r.itens || []).flatMap((it, i) => {
+      const pr = precos[i];
+      const valor = pr ? Number(String(pr.valor).replace(',', '.')) : 0;
+      if (!pr?.marcado || acaoDe(it, i) === 'ignorar' || !(valor > 0) || it.nSequencia == null) return [];
+      return [{ nSequencia: it.nSequencia, valor }];
+    }) : [];
     if (!confirm(
       `Confirmar entrada da NF ${r.numeroNFe || '?'}?\n\nIsso PROCESSA a NF no Omie${naoFin ? ', SEM gerar contas a pagar' : ''}${naoMov ? ', SEM movimentar estoque' : ''}.`
       + (assocTxt ? `\n\nItens que serao ASSOCIADOS a produtos existentes (so' da p/ desfazer revertendo o recebimento):${assocTxt}` : '')
       + (ignTxt ? `\n\n${ignTxt} item(ns) serao IGNORADOS.` : '')
+      + (precosVenda.length ? `\n\n${precosVenda.length} preço(s) de venda serão atualizados na Omie (só se subirem).` : '')
       + '\n\nContinuar?',
     )) return;
     setEnviando(true);
@@ -1492,6 +1530,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
           itens, naoGerarFinanceiro: naoFin, naoGerarMovEstoque: naoMov,
           infoAdicionais, observacoes: observacoesPayload, parcelas: parcelasPayload,
           criadoPor, userId, userNome, tipo: r.tipo, numeroNFe: r.numeroNFe,
+          precosVenda,
         }),
       });
       const d = await resp.json();
@@ -1517,8 +1556,17 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
           });
         }
         const cabecFalhou = d.cabec && d.cabec.ok === false;
+        const precosRes = (d.precos || []) as Array<{ status: string; descricao: string | null; erro?: string }>;
+        const precosGravados = precosRes.filter((x) => x.status === 'gravado').length;
+        const precosProblema = precosRes.filter((x) => x.status === 'erro' || x.status === 'sem_produto');
+        if (d.precosErro || precosProblema.length) {
+          alert('A entrada foi processada, mas alguns preços de venda NÃO foram gravados:\n'
+            + (d.precosErro ? `\n• ${d.precosErro}` : '')
+            + precosProblema.map((x) => `\n• ${x.descricao || 'item'}: ${x.status === 'sem_produto' ? 'produto não encontrado na nota' : x.erro}`).join('')
+            + '\n\nAjuste pelo produto ou direto na Omie.');
+        }
         if (cabecFalhou) alert('A entrada foi processada, mas os campos financeiros (categoria/conta/data/parcelas) NÃO gravaram: ' + (d.cabec.erro || 'erro') + '\n\nAjuste direto na Omie se necessário.');
-        onConcluido(recKey(r), { tipo: 'ok', texto: `✔ entrada processada${d.ajustado ? ' (com ajustes)' : ''}${cabecFalhou ? ' · ⚠ financeiro não gravou' : ''}${d.descStatus ? ' · ' + d.descStatus : ''}` });
+        onConcluido(recKey(r), { tipo: 'ok', texto: `✔ entrada processada${d.ajustado ? ' (com ajustes)' : ''}${precosGravados ? ` · ${precosGravados} preço(s) de venda atualizado(s)` : ''}${cabecFalhou ? ' · ⚠ financeiro não gravou' : ''}${d.descStatus ? ' · ' + d.descStatus : ''}` });
         if (riscosBase.length + extras.length > 0) {
           // mantem o modal aberto p/ corrigir o CMC que acabou de baixar
           setEnviando(false);
@@ -1754,6 +1802,60 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
               <> Itens marcados como <b>novo</b> nao existem no cadastro: por padrao o Omie <b>cria o produto</b> ao concluir — escolha <b>associar</b> para ligar a um produto ja cadastrado (⚠ so' se desfaz revertendo o recebimento) ou <b>ignorar</b> para deixar o item de fora.</>
             )}
           </div>
+
+          {fatorPreco && (r.itens || []).length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <h3 style={{ fontWeight: 600, color: '#334155', marginBottom: 4, fontSize: '.82rem' }}>
+                Preço de venda <span style={{ fontWeight: 400, color: '#64748b' }}>({r.tipo === 'maquinas' ? 'máquina: custo × 1,20' : 'peça: custo × 2'})</span>
+              </h3>
+              <div style={{ fontSize: '.72rem', color: '#64748b', marginBottom: 8 }}>
+                Custo = total da nota (com IPI, ST, frete e despesas) repartido entre os itens, por unidade de estoque. Vem marcado só o que <b>sobe</b> o preço atual; o portal confere na Omie ao gravar e <b>nunca baixa</b> um preço.
+              </div>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', minWidth: 560 }}>
+                  <thead><tr>
+                    <th style={mTh}>Gravar</th>
+                    <th style={mTh}>Produto</th>
+                    <th style={{ ...mTh, textAlign: 'right' }}>Custo c/ impostos e frete</th>
+                    <th style={{ ...mTh, textAlign: 'right' }}>Preço atual</th>
+                    <th style={{ ...mTh, textAlign: 'right' }}>Novo preço</th>
+                  </tr></thead>
+                  <tbody>
+                    {(r.itens || []).map((it, i) => {
+                      const pr = precos[i];
+                      const acao = acaoDe(it, i);
+                      if (acao === 'ignorar') return null;
+                      const assocAtual = acao === 'associar';
+                      const atual = assocAtual ? null : it.precoVendaAtual;
+                      const valorNum = pr ? Number(String(pr.valor).replace(',', '.')) : 0;
+                      const naoSobe = !!pr && atual != null && valorNum > 0 && valorNum <= atual;
+                      return (
+                        <tr key={i} style={pr?.marcado ? undefined : { opacity: 0.6 }}>
+                          <td style={mTd}>
+                            <input type="checkbox" disabled={!pr} checked={!!pr?.marcado} style={{ width: 20, height: 20 }}
+                              onChange={(e) => setPrecos((s) => ({ ...s, [i]: { ...(s[i] || { valor: '' }), marcado: e.target.checked } }))} />
+                          </td>
+                          <td style={mTd}>{it.descricaoProduto || it.codigoProdutoInt || '?'}{it.criarNovo && !assocAtual ? <span style={{ marginLeft: 4, fontSize: '.6rem', padding: '0 5px', borderRadius: 4, background: '#fef3c7', color: '#92400e' }}>novo</span> : null}</td>
+                          <td style={{ ...mTd, textAlign: 'right' }}>{it.custoEntrada != null ? fmtBRL(it.custoEntrada) : '—'}</td>
+                          <td style={{ ...mTd, textAlign: 'right', color: '#64748b' }}>{assocAtual ? 'confere ao gravar' : atual != null ? fmtBRL(atual) : (it.criarNovo ? 'sem preço' : '—')}</td>
+                          <td style={{ ...mTd, textAlign: 'right' }}>
+                            {pr ? (
+                              <>
+                                <input type="number" step="0.01" min="0" value={pr.valor}
+                                  onChange={(e) => setPrecos((s) => ({ ...s, [i]: { ...s[i], valor: e.target.value } }))}
+                                  style={{ width: 110, minHeight: 36, border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', fontSize: '.78rem', textAlign: 'right' }} />
+                                {naoSobe && pr.marcado && <div style={{ fontSize: '.62rem', color: '#b45309' }}>não sobe: fica o atual</div>}
+                              </>
+                            ) : <span style={{ color: '#94a3b8' }}>sem custo</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
           </>)}
 
           {fase === 'correcao' && (<>
