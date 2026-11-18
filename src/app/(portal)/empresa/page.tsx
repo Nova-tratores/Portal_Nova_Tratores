@@ -74,6 +74,7 @@ type Janela =
   | { tipo: 'maquinas'; so90: boolean }
   | { tipo: 'termo'; id: keyof typeof TERMOS }
   | { tipo: 'empresa' }
+  | { tipo: 'empresaG'; m: MesG; dia: string }
   | { tipo: 'ajuste'; nome: string; explica: string; valor: number; qtd: number }
   | { tipo: 'dreGrupo'; tipoDre: string; grupo: string }
   | { tipo: 'dreConta'; tipoDre: string; grupo: string; conta: string }
@@ -871,8 +872,8 @@ export default function ComoEstaAEmpresa() {
         </div>
         <div className="fp-cards" style={{ ['--n' as string]: 5 }}>
           {CARTOES.map((c, i) => (
-            // clicar abre a conta da empresa (o DRE completo, com cada linha e os lançamentos)
-            <div key={c.campo} className="fp-card clica" role="button" tabIndex={0} style={{ ['--c' as string]: c.cor, animationDelay: `${i * 60}ms` }} onClick={() => nova({ tipo: 'empresa' })} onKeyDown={(ev) => { if (ev.key === 'Enter') nova({ tipo: 'empresa' }) }}>
+            // clicar abre a conta GERENCIAL da empresa (os mesmos números destes cartões) e a ponte até a conta oficial do Omie
+            <div key={c.campo} className="fp-card clica" role="button" tabIndex={0} style={{ ['--c' as string]: c.cor, animationDelay: `${i * 60}ms` }} onClick={() => nova({ tipo: 'empresaG', m: gAtual, dia: String(diaHoje) })} onKeyDown={(ev) => { if (ev.key === 'Enter') nova({ tipo: 'empresaG', m: gAtual, dia: String(diaHoje) }) }}>
               <div className="fp-card-t"><span className="fp-card-n" data-dica={`${c.titulo.toUpperCase()} — ${c.dica}`}><i className={`fas ${c.icone}`} aria-hidden />{c.titulo}</span></div>
               <b className="fp-card-v" style={c.campo === 'resultado' ? { color: c.cor } : undefined}>{compacto(Math.abs(total[c.campo]))}</b>
               <small className="fp-card-s">{c.sub}</small>
@@ -1234,6 +1235,7 @@ function tituloCurto(j: Janela): string {
     case 'maquinas': return j.so90 ? 'Máquinas paradas' : 'Máquinas'
     case 'termo': return `O que é: ${TERMOS[j.id].t}`
     case 'empresa': return 'Resultado da empresa'
+    case 'empresaG': return 'A conta da empresa'
     case 'ajuste': return j.nome
     case 'dreGrupo': return limparDre(j.grupo)
     case 'dreConta': return limparDre(j.conta)
@@ -1290,9 +1292,79 @@ function ConteudoJanela({ j, ...c }: { j: Janela } & Ctx) {
         <LinhaConta rot={x.resultado >= 0 ? 'Lucro' : 'Prejuízo'} val={x.resultado} forte cor={x.resultado >= 0 ? COR.verde : COR.vermelho} />
       </div>
     )
+    // as despesas do mês por grupo, do DRE (Ortiz, 18/11/2026: "será que não dá para mostrar essas despesas?")
+    // grupos do tipo "2…" do DRE = despesas; clicar abre as contas do grupo e, nelas, os lançamentos
+    const mk = mesChave()
+    const gruposDesp: Array<{ tipo: string; grupo: string; v: number; serie: number[] }> = []
+    if (c.dre) {
+      const meses = Object.keys(Object.values(c.dre)[0]?.por_mes || {}).sort()
+      for (const [tipo, no] of Object.entries(c.dre)) {
+        if (!tipo.startsWith('2')) continue
+        for (const [grupo, gn] of Object.entries(no.grupos)) {
+          const v = Math.abs(gn.por_mes[mk] || 0)
+          if (v > 0.5) gruposDesp.push({ tipo, grupo, v, serie: meses.map((m) => Math.abs(gn.por_mes[m] || 0)) })
+        }
+      }
+    }
+    gruposDesp.sort((a, b) => b.v - a.v)
+    const maxDesp = Math.max(1, ...gruposDesp.map((x) => x.v))
     return (
       <><Cab titulo="Resultado da empresa" valor={brl(r.resultado)} cor={r.resultado >= 0 ? COR.verde : COR.vermelho} sub="A conta oficial do Financeiro, com todas as despesas" termo="dre" abrir={abrir} />
-        <div className="ce-m-corpo"><div className="ce-m-cols">{col(r, `${c.mes} (até hoje)`)}{ra && col(ra, 'mês passado (fechado)')}</div></div></>
+        <div className="ce-m-corpo">
+          <div className="ce-m-cols">{col(r, `${c.mes} (até hoje)`)}{ra && col(ra, 'mês passado (fechado)')}</div>
+          {gruposDesp.length > 0 ? (
+            <>
+              <div className="ce-m-sec" style={{ marginTop: 18 }}>As despesas de {c.mes}, por grupo · clique para ver as contas e os lançamentos</div>
+              <div className="ce-lista">{gruposDesp.map((x) => (
+                <button key={`${x.tipo}|${x.grupo}`} className="fx-desp" onClick={() => abrir({ tipo: 'dreGrupo', tipoDre: x.tipo, grupo: x.grupo })}>
+                  <span className="fx-desp-nome">{limparDre(x.grupo)}</span>
+                  <span className="fx-trilho"><span style={{ width: `${(x.v / maxDesp) * 100}%`, background: '#ef4444' }} /></span>
+                  <Linhazinha serie={x.serie} cor="#ef4444" />
+                  <b>{compacto(x.v)}</b>
+                </button>
+              ))}</div>
+            </>
+          ) : <p className="ce-m-nota" style={{ marginTop: 14 }}>{c.dre ? 'Nenhuma despesa lançada neste mês ainda.' : 'Carregando as despesas…'}</p>}
+        </div></>
+    )
+  }
+  // a conta GERENCIAL da empresa (Ortiz, 18/11/2026): os mesmos números dos cartões "A empresa no mês" e, embaixo,
+  // a ponte da conta oficial do Omie até ela — o que o gerencial tirou e por quê (ver src/lib/empresa/dre-gerencial.ts)
+  if (j.tipo === 'empresaG') {
+    const e = j.m.empresa
+    const sobrou = e.resultado >= 0
+    // o que o gerencial tirou: o lançamento era custo/despesa (negativo) no Omie, então tirar SOMA no resultado
+    const ajustes = (j.m.ajustes || []).filter((a) => Math.abs(a.valor) > 0.5).sort((a, b) => Math.abs(b.valor) - Math.abs(a.valor))
+    let somaAjustes = 0
+    for (const a of ajustes) somaAjustes = somaAjustes - a.valor
+    // o que sobra da diferença (lançamentos que não entram em nenhuma linha, arredondamentos…)
+    const outros = e.resultado - j.m.omie - somaAjustes
+    return (
+      <><Cab titulo="A conta da empresa" valor={`${sobrou ? 'Sobrou' : 'Faltou'} ${brl(Math.abs(e.resultado))}`} cor={sobrou ? COR.verde : COR.vermelho}
+          sub={`${rotMes(j.m.mes)}${j.m.parcial ? ` até o dia ${j.dia}` : ''} · Comercial + Pós-Vendas + Peças, sem os lançamentos que o Omie classifica errado`} termo="gerencial" abrir={abrir} />
+        <div className="ce-m-corpo">
+          <div className="ce-m-cols">
+            <div className="ce-m-col"><div className="ce-m-sec">A conta do mês</div>
+              <LinhaConta rot="Entrou" val={e.receita} termo="faturou" abrir={abrir} />
+              <LinhaConta rot="Impostos, devoluções e descontos" val={e.deducoes} menos />
+              <LinhaConta rot="Custo do que foi vendido" val={e.custos} menos termo="custo_mercadoria" abrir={abrir} />
+              <LinhaConta rot="Despesas dos setores" val={e.despesas + e.outrasReceitas} menos />
+              <LinhaConta rot="Despesas gerais (administração, banco…)" val={e.rateio} menos onClick={() => abrir({ tipo: 'termo', id: 'rateio' })} />
+              <LinhaConta rot={sobrou ? 'Sobrou' : 'Faltou'} val={e.resultado} forte cor={sobrou ? COR.verde : COR.vermelho} />
+            </div>
+            <div className="ce-m-col"><div className="ce-m-sec">Da conta oficial do Omie até esta</div>
+              <LinhaConta rot="Resultado oficial do Omie" val={j.m.omie} cor={j.m.omie >= 0 ? COR.verde : COR.vermelho} onClick={() => abrir({ tipo: 'empresa' })} />
+              {ajustes.map((a) => (
+                <LinhaConta key={a.id} rot={`${-a.valor >= 0 ? '+' : '−'} tiramos: ${a.nome.toLowerCase()}`} val={a.valor}
+                  onClick={() => abrir({ tipo: 'ajuste', nome: a.nome, explica: a.explica, valor: Math.abs(a.valor), qtd: a.qtd })} />
+              ))}
+              {Math.abs(outros) >= 500 && <LinhaConta rot={`${outros >= 0 ? '+' : '−'} outros (vendas entre Nova e Castro e lançamentos sem linha)`} val={outros} />}
+              <LinhaConta rot="= Esta conta" val={e.resultado} forte cor={sobrou ? COR.verde : COR.vermelho} />
+            </div>
+          </div>
+          <p className="ce-m-nota" style={{ marginTop: 14 }}>O Omie lança algumas coisas como custo que não são custo (a compra de máquina e peça para revender é estoque; pagar a parcela de um empréstimo não é despesa — os juros sim). Esta conta tira esses lançamentos para mostrar o resultado real da operação. Clique em cada linha para ver o porquê.</p>
+          <button className="ce-oque" style={{ marginTop: 10 }} onClick={() => abrir({ tipo: 'empresa' })}>ver a conta oficial do Omie e as despesas por grupo <ChevronRight size={13} /></button>
+        </div></>
     )
   }
   if (j.tipo === 'setor') {
@@ -1659,6 +1731,8 @@ const CSS_PF = `
 .pf-tot{background:#fefefe;border:1px solid #e2e8f0;border-radius:20px;padding:20px 22px}
 .pf-tot-cab b{display:block;font-size:18px;font-weight:600;color:#0f172a}.pf-tot-cab small{font-size:13.5px;color:#475569}
 .pf-tot-nota{margin:0;font-size:13px;color:#475569}
+/* celular: os cartões ficam lado a lado numa faixa que arrasta para o lado, em vez de empilhar (Ortiz, 18/11/2026) */
+@media (max-width:760px){.pf-tot{padding:16px 14px}.pf-tot .fp-cards{display:flex;overflow-x:auto;gap:10px;scroll-snap-type:x mandatory;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -14px;padding:2px 14px 8px;scroll-padding:0 14px}.pf-tot .fp-cards::-webkit-scrollbar{display:none}.pf-tot .fp-cards>.fp-card{flex:0 0 76%;scroll-snap-align:start}.pf-tot .fp-cards>.fp-card .fp-card-v{font-size:26px}}
 @media (max-width:700px){.pf{padding:12px}.pf-dois{grid-template-columns:1fr}.pf-num{font-size:32px}.pf-leg{grid-template-columns:repeat(2,1fr)}}
 `
 // capa estilo E · Bento colorido (11/11) — mesmo visual de public/teste-estilos.html
