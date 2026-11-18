@@ -5,6 +5,7 @@
 // novo-cliente.ts) — valida antes de enviar pra não dar erro no Omie.
 // CNPJ preenche pela Receita (BrasilAPI); CEP preenche endereço + IBGE (ViaCEP).
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { X, Plus, Search, RefreshCw, AlertTriangle, CheckCircle, Pencil, Save } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
@@ -152,11 +153,14 @@ export default function ModalNovoCliente({ aberto, onFechar, onCriado, empresaPa
     }
   }
 
-  if (!aberto) return null
+  if (!aberto || typeof document === 'undefined') return null
   const doc = soDigitos(f.cnpj_cpf)
   const ehCnpj = doc.length === 14
 
-  return (
+  // Portal: desenha a janela direto no <body>. Sem isso, se o botão estiver dentro de um
+  // painel com z-index/transform (ex.: coluna da esquerda da tela Clientes), os cartões
+  // da direita passam na frente da janela, por maior que seja o zIndex dela.
+  return createPortal(
     <div onClick={e => { if (e.target === e.currentTarget && !enviando) onFechar() }}
       style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)', zIndex, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div style={{ background: 'var(--portal-bg-card, #fff)', borderRadius: 16, width: 640, maxWidth: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
@@ -282,6 +286,7 @@ export default function ModalNovoCliente({ aberto, onFechar, onCriado, empresaPa
         </div>
       </div>
       <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
-    </div>
+    </div>,
+    document.body,
   )
 }
