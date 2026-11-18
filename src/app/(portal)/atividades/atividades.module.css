@@ -1,0 +1,167 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   ATIVIDADES — visual da tela principal (/atividades)
+   Tudo de tamanho, espaço, alinhamento e cor desta tela fica AQUI.
+   O page.tsx só diz "esta caixa é o .filtros", "este botão é a .aba"...
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. CORES ──────────────────────────────────────────────────────────────
+   Mude aqui e muda a tela toda. A versão escura fica logo abaixo. */
+.root {
+  --vermelho: #dc2626;
+  --vermelho-claro: #fef2f2;
+  --vermelho-borda: #fecaca;
+  --fundo-cartao: #ffffff;
+  --fundo-cinza: #fafafa;      /* campos, cabeçalho da tabela, linha com o mouse em cima */
+  --borda: #e5e5e5;            /* campos e botões */
+  --borda-cartao: #f0f0f0;     /* contorno das caixas brancas */
+  --borda-linha: #f5f5f5;      /* entre uma linha e outra da tabela */
+  --texto: #1a1a1a;            /* nomes, títulos */
+  --texto-medio: #737373;      /* sistema, paginação */
+  --texto-fraco: #a3a3a3;      /* rótulos, datas, detalhes */
+  --texto-apagado: #d4d4d4;    /* "—" e botões desligados */
+}
+:global([data-theme="dark"]) .root {
+  --vermelho-claro: var(--portal-bg-hover);
+  --vermelho-borda: var(--portal-border-hover);
+  --fundo-cartao: var(--portal-bg-card);
+  --fundo-cinza: var(--portal-bg-secondary);
+  --borda: var(--portal-border);
+  --borda-cartao: var(--portal-border);
+  --borda-linha: var(--portal-border);
+  --texto: var(--portal-text);
+  --texto-medio: var(--portal-text-secondary);
+  --texto-fraco: var(--portal-text-muted);
+  --texto-apagado: var(--portal-text-faint);
+}
+
+/* ── 2. A PÁGINA ─────────────────────────────────────────────────────────── */
+.root { padding: 32px 40px; }
+
+/* ── 3. CABEÇALHO (título "Atividades" + contador de registros) ──────────── */
+.cabecalho { margin-bottom: 32px; display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; }
+.titulo { font-size: 28px; font-weight: 800; color: var(--texto); margin-bottom: 6px; }
+.subtitulo { font-size: 14px; color: var(--texto-fraco); }
+.contador {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 16px; border-radius: 12px;
+  background: var(--vermelho-claro); border: 1px solid var(--vermelho-borda);
+  font-size: 13px; font-weight: 600; color: var(--vermelho);
+}
+
+/* ── 4. ABAS (Atividades · Uso do portal · Padrões · Processos) ──────────── */
+.abas { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 20px; }
+.aba {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 16px; border-radius: 10px;
+  font-family: 'Inter'; font-size: 13px; font-weight: 600; cursor: pointer;
+  background: var(--fundo-cartao); color: var(--texto-medio); border: 1px solid var(--borda);
+}
+.aba.ativa { background: var(--vermelho); color: #fff; border-color: var(--vermelho); }
+
+/* ── 5. CAMPOS (busca, listas, datas) e botão cinza ──────────────────────── */
+.campo {
+  padding: 8px 14px; border-radius: 10px;
+  background: var(--fundo-cinza); border: 1px solid var(--borda);
+  color: var(--texto); font-size: 13px; font-family: 'Inter'; outline: none;
+}
+.campoLargo { width: 100%; }
+.campoData { padding: 8px 10px; }
+.select { cursor: pointer; max-width: 100%; }
+.rotulo { display: block; margin-bottom: 6px; font-size: 11px; font-weight: 600; letter-spacing: 1px; color: var(--texto-fraco); }
+
+/* ── 6. CAIXA DE FILTROS ─────────────────────────────────────────────────── */
+.cartao {
+  background: var(--fundo-cartao); border: 1px solid var(--borda-cartao); border-radius: 16px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+.filtros { margin-bottom: 24px; overflow: hidden; }
+.filtrosLinha { padding: 16px clamp(12px, 3vw, 24px); display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.busca { position: relative; flex: 1 1 220px; min-width: 0; }
+.buscaIcone { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--texto-fraco); }
+.buscaCampo { padding-left: 36px; }
+.botaoFiltros {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: 10px;
+  background: var(--fundo-cinza); border: 1px solid var(--borda); color: var(--texto-medio);
+  font-size: 13px; font-family: 'Inter'; font-weight: 500; cursor: pointer;
+}
+.botaoFiltros.aberto { background: var(--vermelho-claro); border-color: var(--vermelho-borda); color: var(--vermelho); }
+.seta { transition: transform 0.2s; }
+.botaoFiltros.aberto .seta { transform: rotate(180deg); }
+
+/* a parte que abre com "Filtros" */
+.filtrosMais { padding: 16px clamp(12px, 3vw, 24px); display: flex; flex-wrap: wrap; gap: 12px; border-top: 1px solid var(--borda-linha); }
+.filtroItem { flex: 1 1 200px; min-width: 0; }
+.periodo { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ate { font-size: 12px; color: var(--texto-fraco); }
+.limpar { background: none; border: none; color: var(--vermelho); font-size: 12px; font-weight: 600; cursor: pointer; }
+
+/* ── 7. TABELA DE REGISTROS ──────────────────────────────────────────────── */
+/* as 6 colunas: Usuário · Sistema · Ação · Entidade · Detalhes · Quando */
+.tabela { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.largura { min-width: 860px; }   /* no celular/tablet a tabela rola de lado DENTRO da caixa */
+.cab, .linha { display: grid; grid-template-columns: 1fr 140px 100px 1.2fr 200px 120px; }
+.cab { padding: 12px 24px; background: var(--fundo-cinza); border-bottom: 1px solid var(--borda-cartao); }
+.cab span { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--texto-fraco); }
+.linha { padding: 14px 24px; align-items: center; border-bottom: 1px solid var(--borda-linha); transition: background 0.15s; cursor: default; }
+.linha:last-child { border-bottom: none; }
+.linha:hover { background: var(--fundo-cinza); }
+
+/* coluna Usuário */
+.usuario { display: flex; align-items: center; gap: 10px; }
+.avatar {
+  width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0;
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  display: flex; align-items: center; justify-content: center;
+}
+.usuarioNome { font-size: 13px; font-weight: 600; color: var(--texto); }
+/* coluna Sistema */
+.sistema { display: flex; align-items: center; gap: 6px; }
+.sistemaIcone { display: flex; color: var(--vermelho); }
+.sistemaNome { font-size: 12px; font-weight: 500; color: var(--texto-medio); }
+/* coluna Ação (a cor de fundo/texto vem de ACAO_COLORS no page.tsx) */
+.acao { display: inline-block; width: fit-content; padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+/* coluna Entidade */
+.entidade { font-size: 13px; font-weight: 500; color: var(--texto); }
+.entidadeVazia { font-size: 13px; color: var(--texto-apagado); }
+.entidadeId { font-size: 11px; color: var(--texto-fraco); margin-top: 1px; }
+/* coluna Detalhes (uma linha só, corta com "…") */
+.detalhes { font-size: 12px; color: var(--texto-fraco); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* coluna Quando */
+.quando { display: flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; color: var(--texto-fraco); }
+.quando svg { color: var(--texto-apagado); }
+
+/* carregando / nada encontrado */
+.vazio { padding: 48px; text-align: center; }
+.vazioIcone { margin: 0 auto 12px; color: var(--borda); }
+.vazioTitulo { font-size: 14px; font-weight: 500; color: var(--texto-fraco); }
+.vazioTexto { font-size: 12px; color: var(--texto-apagado); margin-top: 4px; }
+.carregando { font-size: 13px; color: var(--texto-fraco); }
+
+/* ── 8. PAGINAÇÃO ────────────────────────────────────────────────────────── */
+.paginacao { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+.pagBotao {
+  display: flex; align-items: center; gap: 4px;
+  padding: 8px 14px; border-radius: 10px;
+  background: var(--fundo-cartao); border: 1px solid var(--borda); color: var(--texto-medio);
+  font-size: 13px; font-family: 'Inter'; cursor: pointer;
+}
+.pagBotao:disabled { color: var(--texto-apagado); cursor: default; }
+.pagTexto { font-size: 13px; font-weight: 500; color: var(--texto-medio); }
+
+/* ── 9. CELULAR (até 768px) ──────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .root { padding: 16px 12px; }
+  .titulo { font-size: 22px; }
+  /* cada registro vira cartão: quem/quando · sistema/ação · entidade · detalhes (sem rolar de lado) */
+  .largura { min-width: 0; }
+  .cab { display: none; }
+  .linha { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'u q' 's a' 'e e' 'd d'; gap: 6px 10px; padding: 12px 14px; }
+  .linha > * { min-width: 0; }
+  .linha > :nth-child(1) { grid-area: u; }
+  .linha > :nth-child(2) { grid-area: s; }
+  .linha > :nth-child(3) { grid-area: a; justify-self: end; }
+  .linha > :nth-child(4) { grid-area: e; }
+  .linha > :nth-child(5) { grid-area: d; }
+  .linha > :nth-child(6) { grid-area: q; }
+}

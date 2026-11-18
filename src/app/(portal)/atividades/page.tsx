@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import UsoAba from '@/components/atividades/UsoAba'
 import PadroesAba from '@/components/atividades/PadroesAba'
 import ProcessosAba from '@/components/atividades/ProcessosAba'
+import s from './atividades.module.css'
 import {
   Activity, Search, Filter, ChevronDown, ChevronLeft, ChevronRight,
   Clock, User, Settings, ClipboardList, Wrench, DollarSign, Shield, FileText, Tags, BarChart3, Puzzle, Package, Workflow
@@ -246,50 +247,23 @@ function AtividadesPageInner() {
   }
 
   return (
-    <div className="ativ-root" style={{ padding: '32px 40px' }}>
-      <style>{`
-        @media (max-width: 768px) {
-          .ativ-root { padding: 16px 12px !important; }
-          .ativ-root h2 { font-size: 22px !important; }
-          /* cada registro vira cartão: quem/quando · sistema/ação · entidade · detalhes (sem rolar de lado) */
-          .ativ-largura { min-width: 0 !important; }
-          .ativ-cab { display: none !important; }
-          .ativ-linha { grid-template-columns: minmax(0,1fr) auto !important; grid-template-areas: 'u q' 's a' 'e e' 'd d'; gap: 6px 10px; padding: 12px 14px !important; }
-          .ativ-linha > * { min-width: 0; }
-          .ativ-linha > :nth-child(1) { grid-area: u; } .ativ-linha > :nth-child(2) { grid-area: s; } .ativ-linha > :nth-child(3) { grid-area: a; justify-self: end; }
-          .ativ-linha > :nth-child(4) { grid-area: e; } .ativ-linha > :nth-child(5) { grid-area: d; } .ativ-linha > :nth-child(6) { grid-area: q; }
-        }
-      `}</style>
-      {/* Header */}
-      <div style={{ marginBottom: '32px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <h2 style={{ fontSize: '28px', fontWeight: '800', color: '#1a1a1a', marginBottom: '6px' }}>
-              Atividades
-            </h2>
-            <p style={{ color: '#a3a3a3', fontSize: '14px' }}>
-              Histórico de ações dos usuários nos sistemas
-            </p>
-          </div>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            padding: '8px 16px', borderRadius: '12px',
-            background: '#fef2f2', border: '1px solid #fecaca',
-            fontSize: '13px', color: '#dc2626', fontWeight: '600'
-          }}>
-            <Activity size={16} />
-            {totalCount} registros
-          </div>
+    <div className={s.root}>
+      {/* Cabeçalho */}
+      <div className={s.cabecalho}>
+        <div>
+          <h2 className={s.titulo}>Atividades</h2>
+          <p className={s.subtitulo}>Histórico de ações dos usuários nos sistemas</p>
+        </div>
+        <div className={s.contador}>
+          <Activity size={16} />
+          {totalCount} registros
         </div>
       </div>
 
       {/* Abas */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '20px' }}>
+      <div className={s.abas}>
         {([['atividades', 'Atividades', <Activity key="a" size={14} />], ['uso', 'Uso do portal', <BarChart3 key="u" size={14} />], ['padroes', 'Padrões', <Puzzle key="p" size={14} />], ['processos', 'Processos', <Workflow key="f" size={14} />]] as const).map(([k, label, icon]) => (
-          <button key={k} onClick={() => setAba(k)} style={{
-            display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', fontFamily: 'Inter', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-            background: aba === k ? '#dc2626' : '#ffffff', color: aba === k ? '#fff' : '#737373', border: aba === k ? '1px solid #dc2626' : '1px solid #e5e5e5',
-          }}>{icon}{label}</button>
+          <button key={k} onClick={() => setAba(k)} className={`${s.aba} ${aba === k ? s.ativa : ''}`}>{icon}{label}</button>
         ))}
       </div>
 
@@ -299,83 +273,37 @@ function AtividadesPageInner() {
 
       {aba === 'atividades' && (<>
       {/* Filtros */}
-      <div style={{
-        background: '#ffffff', borderRadius: '16px', border: '1px solid #f0f0f0',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: '24px', overflow: 'hidden'
-      }}>
-        <div style={{
-          padding: '16px clamp(12px, 3vw, 24px)', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px'
-        }}>
-          <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 0 }}>
-            <Search size={14} style={{
-              position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#a3a3a3'
-            }} />
+      <div className={`${s.cartao} ${s.filtros}`}>
+        <div className={s.filtrosLinha}>
+          <div className={s.busca}>
+            <Search size={14} className={s.buscaIcone} />
             <input
               type="text"
               placeholder="Buscar por card, ID, ação..."
               value={filtroBusca}
               onChange={(e) => setFiltroBusca(e.target.value)}
-              style={{
-                width: '100%', padding: '8px 14px 8px 36px', borderRadius: '10px',
-                background: '#fafafa', border: '1px solid #e5e5e5',
-                color: '#1a1a1a', fontSize: '13px', outline: 'none', fontFamily: 'Inter'
-              }}
+              className={`${s.campo} ${s.campoLargo} ${s.buscaCampo}`}
             />
           </div>
 
-          <select
-            value={filtroSistema}
-            onChange={(e) => setFiltroSistema(e.target.value)}
-            style={{
-              padding: '8px 14px', borderRadius: '10px',
-              background: '#fafafa', border: '1px solid #e5e5e5',
-              color: '#1a1a1a', fontSize: '13px', fontFamily: 'Inter',
-              outline: 'none', cursor: 'pointer', maxWidth: '100%'
-            }}
-          >
-            {SISTEMAS.map(s => (
-              <option key={s.value} value={s.value}>{s.label}</option>
+          <select value={filtroSistema} onChange={(e) => setFiltroSistema(e.target.value)} className={`${s.campo} ${s.select}`}>
+            {SISTEMAS.map(si => (
+              <option key={si.value} value={si.value}>{si.label}</option>
             ))}
           </select>
 
-          <button
-            onClick={() => setShowFiltros(!showFiltros)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '8px 14px', borderRadius: '10px',
-              background: showFiltros ? '#fef2f2' : '#fafafa',
-              border: showFiltros ? '1px solid #fecaca' : '1px solid #e5e5e5',
-              color: showFiltros ? '#dc2626' : '#737373',
-              fontSize: '13px', fontFamily: 'Inter', cursor: 'pointer', fontWeight: '500'
-            }}
-          >
+          <button onClick={() => setShowFiltros(!showFiltros)} className={`${s.botaoFiltros} ${showFiltros ? s.aberto : ''}`}>
             <Filter size={14} />
             Filtros
-            <ChevronDown size={12} style={{
-              transition: 'transform 0.2s',
-              transform: showFiltros ? 'rotate(180deg)' : 'rotate(0deg)'
-            }} />
+            <ChevronDown size={12} className={s.seta} />
           </button>
         </div>
 
         {showFiltros && (
-          <div style={{
-            padding: '0 clamp(12px, 3vw, 24px) 16px', display: 'flex', flexWrap: 'wrap', gap: '12px',
-            borderTop: '1px solid #f5f5f5', paddingTop: '16px'
-          }}>
-            <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-              <label style={{ fontSize: '11px', color: '#a3a3a3', fontWeight: '600', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
-                USUÁRIO
-              </label>
-              <select
-                value={filtroUsuario}
-                onChange={(e) => setFiltroUsuario(e.target.value)}
-                style={{
-                  width: '100%', padding: '8px 14px', borderRadius: '10px',
-                  background: '#fafafa', border: '1px solid #e5e5e5',
-                  color: '#1a1a1a', fontSize: '13px', fontFamily: 'Inter', outline: 'none'
-                }}
-              >
+          <div className={s.filtrosMais}>
+            <div className={s.filtroItem}>
+              <label className={s.rotulo}>USUÁRIO</label>
+              <select value={filtroUsuario} onChange={(e) => setFiltroUsuario(e.target.value)} className={`${s.campo} ${s.campoLargo}`}>
                 <option value="">Todos os usuários</option>
                 {usuarios.map(u => (
                   <option key={u.id} value={u.id}>{u.nome}</option>
@@ -383,35 +311,25 @@ function AtividadesPageInner() {
               </select>
             </div>
 
-            <div style={{ flex: '1 1 200px', minWidth: 0 }}>
-              <label style={{ fontSize: '11px', color: '#a3a3a3', fontWeight: '600', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
-                CARD / ENTIDADE
-              </label>
+            <div className={s.filtroItem}>
+              <label className={s.rotulo}>CARD / ENTIDADE</label>
               <input
                 type="text"
                 placeholder="Ex: Requisição #45, Trator MF8737..."
                 value={filtroEntidade}
                 onChange={(e) => setFiltroEntidade(e.target.value)}
-                style={{
-                  width: '100%', padding: '8px 14px', borderRadius: '10px',
-                  background: '#fafafa', border: '1px solid #e5e5e5',
-                  color: '#1a1a1a', fontSize: '13px', fontFamily: 'Inter', outline: 'none'
-                }}
+                className={`${s.campo} ${s.campoLargo}`}
               />
             </div>
 
             <div>
-              <label style={{ fontSize: '11px', color: '#a3a3a3', fontWeight: '600', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
-                PERÍODO
-              </label>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
-                <input type="date" value={filtroDe} max={filtroAte || undefined} onChange={(e) => setFiltroDe(e.target.value)}
-                  style={{ padding: '8px 10px', borderRadius: '10px', background: '#fafafa', border: '1px solid #e5e5e5', color: '#1a1a1a', fontSize: '13px', fontFamily: 'Inter', outline: 'none' }} />
-                <span style={{ fontSize: '12px', color: '#a3a3a3' }}>até</span>
-                <input type="date" value={filtroAte} min={filtroDe || undefined} onChange={(e) => setFiltroAte(e.target.value)}
-                  style={{ padding: '8px 10px', borderRadius: '10px', background: '#fafafa', border: '1px solid #e5e5e5', color: '#1a1a1a', fontSize: '13px', fontFamily: 'Inter', outline: 'none' }} />
+              <label className={s.rotulo}>PERÍODO</label>
+              <div className={s.periodo}>
+                <input type="date" value={filtroDe} max={filtroAte || undefined} onChange={(e) => setFiltroDe(e.target.value)} className={`${s.campo} ${s.campoData}`} />
+                <span className={s.ate}>até</span>
+                <input type="date" value={filtroAte} min={filtroDe || undefined} onChange={(e) => setFiltroAte(e.target.value)} className={`${s.campo} ${s.campoData}`} />
                 {(filtroDe || filtroAte) && (
-                  <button onClick={() => { setFiltroDe(''); setFiltroAte('') }} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>limpar</button>
+                  <button onClick={() => { setFiltroDe(''); setFiltroAte('') }} className={s.limpar}>limpar</button>
                 )}
               </div>
             </div>
@@ -419,136 +337,61 @@ function AtividadesPageInner() {
         )}
       </div>
 
-      {/* Tabela de logs */}
-      <div style={{
-        background: '#ffffff', borderRadius: '16px', border: '1px solid #f0f0f0',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflowX: 'auto', WebkitOverflowScrolling: 'touch'
-      }}>
-        {/* Largura mínima: no celular/tablet a tabela rola na horizontal DENTRO da caixa */}
-        <div className="ativ-largura" style={{ minWidth: 860 }}>
-        {/* Header da tabela */}
-        <div className="ativ-cab" style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 140px 100px 1.2fr 200px 120px',
-          padding: '12px 24px',
-          borderBottom: '1px solid #f0f0f0',
-          background: '#fafafa'
-        }}>
-          {['Usuário', 'Sistema', 'Ação', 'Entidade', 'Detalhes', 'Quando'].map(h => (
-            <span key={h} style={{
-              fontSize: '10px', fontWeight: '700', color: '#a3a3a3',
-              letterSpacing: '1.5px', textTransform: 'uppercase' as const
-            }}>
-              {h}
-            </span>
-          ))}
+      {/* Tabela de registros */}
+      <div className={`${s.cartao} ${s.tabela}`}>
+        <div className={s.largura}>
+        <div className={s.cab}>
+          {['Usuário', 'Sistema', 'Ação', 'Entidade', 'Detalhes', 'Quando'].map(h => <span key={h}>{h}</span>)}
         </div>
 
-        {/* Loading */}
         {loading && (
-          <div style={{ padding: '48px', textAlign: 'center' }}>
-            <p style={{ color: '#a3a3a3', fontSize: '13px' }}>Carregando...</p>
-          </div>
+          <div className={s.vazio}><p className={s.carregando}>Carregando...</p></div>
         )}
 
-        {/* Empty state */}
         {!loading && logs.length === 0 && (
-          <div style={{ padding: '48px', textAlign: 'center' }}>
-            <Activity size={32} color="#e5e5e5" style={{ margin: '0 auto 12px' }} />
-            <p style={{ color: '#a3a3a3', fontSize: '14px', fontWeight: '500' }}>
-              Nenhuma atividade encontrada
-            </p>
-            <p style={{ color: '#d4d4d4', fontSize: '12px', marginTop: '4px' }}>
-              As ações dos usuários aparecerão aqui
-            </p>
+          <div className={s.vazio}>
+            <Activity size={32} className={s.vazioIcone} />
+            <p className={s.vazioTitulo}>Nenhuma atividade encontrada</p>
+            <p className={s.vazioTexto}>As ações dos usuários aparecerão aqui</p>
           </div>
         )}
 
-        {/* Rows */}
-        {!loading && logs.map((entry, i) => {
+        {!loading && logs.map((entry) => {
           const acaoStyle = ACAO_COLORS[entry.acao] || ACAO_COLORS.acesso
           const detalhesStr = textoDetalhes(entry)
 
           return (
-            <div
-              key={entry.id}
-              className="ativ-linha"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: '1fr 140px 100px 1.2fr 200px 120px',
-                padding: '14px 24px',
-                borderBottom: i < logs.length - 1 ? '1px solid #f5f5f5' : 'none',
-                alignItems: 'center',
-                transition: 'background 0.15s',
-                cursor: 'default'
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = '#fafafa' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent' }}
-            >
+            <div key={entry.id} className={s.linha}>
               {/* Usuário */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div style={{
-                  width: '28px', height: '28px', borderRadius: '8px',
-                  background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  flexShrink: 0
-                }}>
-                  <User size={13} color="#fff" />
-                </div>
-                <span style={{ fontSize: '13px', fontWeight: '600', color: '#1a1a1a' }}>
-                  {entry.user_nome?.split(' ')[0] || 'Usuário'}
-                </span>
+              <div className={s.usuario}>
+                <div className={s.avatar}><User size={13} color="#fff" /></div>
+                <span className={s.usuarioNome}>{entry.user_nome?.split(' ')[0] || 'Usuário'}</span>
               </div>
 
               {/* Sistema */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ color: '#dc2626', display: 'flex' }}>
-                  {SISTEMA_ICONS[entry.sistema] || <Activity size={16} />}
-                </span>
-                <span style={{ fontSize: '12px', color: '#737373', fontWeight: '500' }}>
-                  {sistemaLabel(entry.sistema)}
-                </span>
+              <div className={s.sistema}>
+                <span className={s.sistemaIcone}>{SISTEMA_ICONS[entry.sistema] || <Activity size={16} />}</span>
+                <span className={s.sistemaNome}>{sistemaLabel(entry.sistema)}</span>
               </div>
 
               {/* Ação */}
-              <span style={{
-                fontSize: '11px', fontWeight: '600',
-                padding: '3px 10px', borderRadius: '6px',
-                display: 'inline-block', width: 'fit-content'
-              }} className={`${acaoStyle.bg} ${acaoStyle.text}`}>
-                {acaoLabel(entry.acao)}
-              </span>
+              <span className={`${s.acao} ${acaoStyle.bg} ${acaoStyle.text}`}>{acaoLabel(entry.acao)}</span>
 
               {/* Entidade */}
               <div>
-                {entry.entidade_label ? (
-                  <p style={{ fontSize: '13px', color: '#1a1a1a', fontWeight: '500' }}>
-                    {entry.entidade_label}
-                  </p>
-                ) : (
-                  <p style={{ fontSize: '13px', color: '#d4d4d4' }}>—</p>
-                )}
-                {entry.entidade_id && (
-                  <p style={{ fontSize: '11px', color: '#a3a3a3', marginTop: '1px' }}>
-                    ID: {entry.entidade_id}
-                  </p>
-                )}
+                {entry.entidade_label
+                  ? <p className={s.entidade}>{entry.entidade_label}</p>
+                  : <p className={s.entidadeVazia}>—</p>}
+                {entry.entidade_id && <p className={s.entidadeId}>ID: {entry.entidade_id}</p>}
               </div>
 
               {/* Detalhes */}
-              <p style={{
-                fontSize: '12px', color: '#a3a3a3',
-                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' as const
-              }} title={detalhesStr}>
-                {detalhesStr}
-              </p>
+              <p className={s.detalhes} title={detalhesStr}>{detalhesStr}</p>
 
               {/* Quando */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <Clock size={12} color="#d4d4d4" />
-                <span style={{ fontSize: '12px', color: '#a3a3a3', fontWeight: '500' }}>
-                  {formatDate(entry.created_at)}
-                </span>
+              <div className={s.quando}>
+                <Clock size={12} />
+                <span>{formatDate(entry.created_at)}</span>
               </div>
             </div>
           )
@@ -558,37 +401,12 @@ function AtividadesPageInner() {
 
       {/* Paginação */}
       {totalPages > 1 && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap',
-          gap: '12px', marginTop: '24px'
-        }}>
-          <button
-            onClick={() => setPage(p => Math.max(0, p - 1))}
-            disabled={page === 0}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '4px',
-              padding: '8px 14px', borderRadius: '10px',
-              background: '#ffffff', border: '1px solid #e5e5e5',
-              color: page === 0 ? '#d4d4d4' : '#737373',
-              fontSize: '13px', fontFamily: 'Inter', cursor: page === 0 ? 'default' : 'pointer'
-            }}
-          >
+        <div className={s.paginacao}>
+          <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className={s.pagBotao}>
             <ChevronLeft size={14} /> Anterior
           </button>
-          <span style={{ fontSize: '13px', color: '#737373', fontWeight: '500' }}>
-            Página {page + 1} de {totalPages}
-          </span>
-          <button
-            onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-            disabled={page >= totalPages - 1}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '4px',
-              padding: '8px 14px', borderRadius: '10px',
-              background: '#ffffff', border: '1px solid #e5e5e5',
-              color: page >= totalPages - 1 ? '#d4d4d4' : '#737373',
-              fontSize: '13px', fontFamily: 'Inter', cursor: page >= totalPages - 1 ? 'default' : 'pointer'
-            }}
-          >
+          <span className={s.pagTexto}>Página {page + 1} de {totalPages}</span>
+          <button onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))} disabled={page >= totalPages - 1} className={s.pagBotao}>
             Próxima <ChevronRight size={14} />
           </button>
         </div>

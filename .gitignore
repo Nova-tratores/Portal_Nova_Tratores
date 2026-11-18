@@ -53,3 +53,8 @@ catalogos/kuhn-urls.txt
 
 # screenshots/snapshots do Playwright MCP (verificação visual local)
 .playwright-mcp/
+
+# skills do Claude Code baixadas (39 MB; a lista fica no skills-lock.json, reinstala com npx skills add)
+.claude/skills/
+# logs/prints do playwright-cli (teste local)
+.playwright-cli/

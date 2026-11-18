@@ -263,8 +263,8 @@ function PropostaComercialPageInner() {
       { id: 'clientes', label: 'Propostas Cliente', icon: <Users size={14} /> },
       { id: 'fabrica', label: 'Pedidos Fabrica', icon: <Factory size={14} /> },
     ] : []),
-    ...(vePedidos ? [{ id: 'pedidos', label: 'Pedidos de Máquinas', icon: <Tractor size={14} /> }] : []),
-    ...(vePropostas ? [{ id: 'resumo', label: 'Resumo', icon: <BarChart3 size={14} /> }] : []),
+    ...(vePedidos ? [{ id: 'pedidos', label: 'Pedidos de Máquinas', icon: <Tractor size={10} /> }] : []),
+    ...(vePropostas ? [{ id: 'resumo', label: 'Resumo', icon: <BarChart3 size={10} /> }] : []),
     ...(vePropostas && podeExcluir ? [{ id: 'lixeira', label: 'Lixeira', icon: <Trash2 size={14} /> }] : []),
   ]
 
