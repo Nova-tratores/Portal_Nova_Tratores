@@ -33,6 +33,8 @@ const nextConfig: NextConfig = {
       { source: "/ajustes/boletos-fornecedor", destination: "/financeiro/caixa/boletos-fornecedor", permanent: false },
       { source: "/ajustes/notas", destination: "/financeiro/notas?tipo=saida", permanent: false },
       { source: "/visual-estoque/notas-entrada", destination: "/financeiro/notas?tipo=entrada", permanent: false },
+      // Remessas virou módulo próprio (18/11/2026); a tela de Ajustes (devolver em lote as de OS) continua
+      { source: "/visual-estoque/remessas", destination: "/remessas?aba=historico", permanent: false },
     ];
   },
   async rewrites() {

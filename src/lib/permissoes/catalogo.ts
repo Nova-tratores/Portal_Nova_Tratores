@@ -42,6 +42,8 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   'pedidos-maquinas': 'Comercial',
   // Estoque
   'consulta-estoque': 'Estoque', estoque: 'Estoque',
+  // Remessas (/remessas, 18/11/2026): lista, histórico e demonstração de máquina com prazo e renovação.
+  remessas: 'Estoque',
   frota: 'Frota', pendencias: 'Frota',
   // Outros
   // Opa Peças fica colado no Opa (antes estava em "Peças" e ninguém achava): cadastrar é de todos;
@@ -173,6 +175,14 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'observacoes', label: 'Observações (criar/resolver/excluir)' },
     { id: 'lembretes', label: 'Lembretes' },
     { id: 'destinatarios', label: 'Gerir destinatários' },
+  ],
+  // Remessas: ver = o módulo (ou as chaves das telas antigas). emitir/renovar/devolver escrevem
+  // na Omie (emitem NF-e) e são EXPLÍCITAS; acompanhar = prazo, observação, responsável, virou venda.
+  remessas: [
+    { id: 'acompanhar', label: 'Acompanhar (prazo, observação, responsável, virou venda)' },
+    { id: 'emitir', label: 'Emitir remessa de demonstração (NF-e)' },
+    { id: 'renovar', label: 'Renovar demonstração (volta + remessa nova)' },
+    { id: 'devolver', label: 'Registrar a volta (nota de entrada 1.913/2.913)' },
   ],
   'pedidos-maquinas': [
     { id: 'criar', label: 'Criar pedido' },

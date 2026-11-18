@@ -52,6 +52,7 @@ export const MODULOS_TELAS: { id: string; nome: string }[] = [
   { id: 'conhecimento', nome: 'Base de conhecimento (escrever/aprovar)' },
   { id: 'treinamento', nome: 'Treinamento (gerir trilhas)' },
   { id: 'consulta-estoque', nome: 'Visual Estoque' },
+  { id: 'remessas', nome: 'Remessas' },
   { id: 'cronograma', nome: 'Cronograma (Central de Trabalho)' },
   { id: 'dashboard-agro', nome: 'Dashboard Agro' },
   { id: 'dre', nome: 'DRE Financeiro' },
@@ -133,7 +134,7 @@ const RAIZ: Record<string, string> = {
   'fotos-tecnicos': '/fotos-tecnicos', lousa: '/lousa', ppv: '/ppv', orcamentos: '/orcamentos',
   requisicoes: '/requisicoes', financeiro: '/financeiro', dre: '/dre-financeiro', propostas: '/propostas',
   feedbacks: '/feedbacks', clientes: '/clientes', 'supervisor-vendas': '/supervisor-vendas',
-  'vendas-modelo': '/vendas-modelo', 'pedidos-maquinas': '/pedidos-maquinas', lead: '/lead', 'consulta-estoque': '/visual-estoque', estoque: '/estoque',
+  'vendas-modelo': '/vendas-modelo', 'pedidos-maquinas': '/pedidos-maquinas', lead: '/lead', 'consulta-estoque': '/visual-estoque', estoque: '/estoque', remessas: '/remessas',
   pendencias: '/pendencias', atividades: '/atividades', 'dashboard-agro': '/dashboard-agro', tickets: '/tickets',
   tarefas: '/tarefas', 'war-room': '/war-room', planta: '/planta', 'gestao-vendas': '/gestao-vendas', site: '/site',
 };
@@ -146,6 +147,8 @@ const ALTERNATIVAS_RAIZ: Record<string, string[]> = {
   'vendas-modelo': ['financeiro', 'dre:vendas-modelo'],
   // a aba Pedidos de Máquinas mora em /propostas: quem só tem esse módulo entra e vê só ela
   propostas: ['pedidos-maquinas'],
+  // quem tinha as telas antigas de remessas (Visual Estoque e Ajustes) continua entrando
+  remessas: ['consulta-estoque:remessas', 'ajustes:remessas'],
 };
 
 const LIVRES: [string, string][] = [

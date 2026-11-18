@@ -133,6 +133,7 @@ const navItems: NavItem[] = [
 
   // Estoque (vermelho)
   { id: 'consulta-estoque', name: 'Visual Estoque', href: '/visual-estoque', icon: <BarChart3 size={18} />, tag: 'VISUAL', gradient: '', group: 'estoque' },
+  { id: 'remessas', name: 'Remessas', href: '/remessas', icon: <Truck size={18} />, tag: 'REMESSAS', gradient: '', group: 'estoque' },
   { id: 'estoque', name: 'Consulta Estoque', href: '/estoque', icon: <Eye size={18} />, tag: 'CONSULTA', gradient: '', group: 'estoque' },
   { id: 'ajustes', name: 'Ajustes Estoque', href: '/ajustes', icon: <SlidersHorizontal size={18} />, tag: 'AJUSTES', gradient: '', group: 'estoque' },
   // Frota: o Abastecimento virou submódulo (/frota/abastecimento), então o item

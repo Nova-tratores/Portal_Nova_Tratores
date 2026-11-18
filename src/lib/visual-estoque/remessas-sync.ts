@@ -328,7 +328,7 @@ export async function cruzarDevolucoes(conta: Conta): Promise<{ ok: boolean; dev
     const { data: retornos } = await supabase.from('remessas').select('id_remessa').eq('conta_omie', low).in('cfop', cfopsRetorno).neq('status', 'Cancelada');
     if (retornos && retornos.length > 0) {
       const ids = retornos.map((r) => r.id_remessa);
-      await supabase.from('remessas').update({ status: 'Retorno' }).in('id_remessa', ids);
+      await supabase.from('remessas').update({ status: 'Retorno' }).eq('conta_omie', low).in('id_remessa', ids);
       retornosCount = ids.length;
     }
 
@@ -418,7 +418,7 @@ export async function cruzarDevolucoes(conta: Conta): Promise<{ ok: boolean; dev
         if (parseItensJson(rem.itens).some((i: any) => codsOp24.has(String(i.nCodProduto || '')))) devolvidas24.push(rem.id_remessa);
       }
       for (let i = 0; i < devolvidas24.length; i += 100) {
-        await supabase.from('remessas').update({ status: 'Devolvida' }).in('id_remessa', devolvidas24.slice(i, i + 100));
+        await supabase.from('remessas').update({ status: 'Devolvida' }).eq('conta_omie', low).in('id_remessa', devolvidas24.slice(i, i + 100));
       }
     }
 
@@ -431,7 +431,7 @@ export async function cruzarDevolucoes(conta: Conta): Promise<{ ok: boolean; dev
         if (parseItensJson(rem.itens).some((i: any) => codsEntrada.has(String(i.nCodProduto || '')))) devolvidasCfop.push(rem.id_remessa);
       }
       for (let i = 0; i < devolvidasCfop.length; i += 100) {
-        await supabase.from('remessas').update({ status: 'Devolvida' }).in('id_remessa', devolvidasCfop.slice(i, i + 100));
+        await supabase.from('remessas').update({ status: 'Devolvida' }).eq('conta_omie', low).in('id_remessa', devolvidasCfop.slice(i, i + 100));
       }
     }
 
@@ -573,7 +573,7 @@ export async function verificarSuspeitas(conta: Conta): Promise<{ ok: boolean; s
       const numNF = docNumeroMap[info.docId] || docNumeroMap[info.idPedido] || '';
       const direcao = codsEntradaLocal.includes(info.codOrig) ? 'ENTRADA' : codsSaidaLocal.includes(info.codOrig) ? 'SAIDA' : info.codOrig;
       const notaStr = numNF ? `[${direcao}] NF ${numNF} (${info.dtMov}) - ${info.desOrig}` : `[${direcao}] Doc ${info.docId} (${info.dtMov}) - ${info.desOrig}`;
-      await supabase.from('remessas').update({ status: 'Suspeita', nota_devolucao: notaStr }).eq('id_remessa', Number(id));
+      await supabase.from('remessas').update({ status: 'Suspeita', nota_devolucao: notaStr }).eq('conta_omie', low).eq('id_remessa', Number(id));
     }
 
     return { ok: true, suspeitas: idsSuspeitas.length };

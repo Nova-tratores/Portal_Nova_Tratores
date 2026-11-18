@@ -354,6 +354,13 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo: resumoJson(await cronSyncRemessas()) };
   },
 
+  // Remessas: aviso no sino das demonstrações que vencem em 5 dias / venceram (uma vez cada nível).
+  'remessas-avisos-prazo': async () => {
+    if (desligada('REMESSAS_AVISOS')) return { pular: 'desligado (REMESSAS_AVISOS=off)' };
+    const { avisarPrazos } = await import('@/lib/remessas/server');
+    return { resumo: await avisarPrazos() };
+  },
+
   // Emitente + categoria das notas_entrada em toda a história. parametros { ano (2022), mes (11) }.
   'estoque-enriquecer-notas': async (p) => {
     if (desligada('ESTOQUE_ENRIQUECER_NOTAS')) return { pular: 'desligado (ESTOQUE_ENRIQUECER_NOTAS=off)' };

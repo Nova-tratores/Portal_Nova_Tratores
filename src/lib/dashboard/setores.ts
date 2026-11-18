@@ -68,6 +68,7 @@ export const MODULOS: ModuloDash[] = [
   { id: 'ppv', nome: 'Peças (Pedido de Venda)', nomeAntigo: 'Pedidos de Peças', frase: 'Vender peça e acompanhar o pedido', href: '/ppv', icon: Package, setor: 'pecas', modulo: 'ppv' },
   { id: 'consulta-omie', nome: 'Consulta Estoque', nomeAntigo: 'Estoque', frase: 'Saldo, custo e curva ABC', href: '/estoque', icon: Eye, setor: 'pecas', modulo: 'estoque' },
   { id: 'consulta-estoque', nome: 'Visual Estoque', nomeAntigo: 'Vitrine do Estoque', frase: 'Ver as peças com foto, como numa loja', href: '/visual-estoque', icon: BarChart3, setor: 'pecas', modulo: 'consulta-estoque' },
+  { id: 'remessas', nome: 'Remessas', frase: 'Demonstração de máquina, prazo, renovação e histórico das remessas', href: '/remessas', icon: Truck, setor: 'pecas', modulo: 'remessas' },
   { id: 'estoque-recebimentos', nome: 'Recebimentos', frase: 'Conferir a mercadoria que chegou', href: '/estoque/recebimentos', icon: Package, setor: 'pecas', modulo: 'estoque', acao: 'recebimentos' },
   { id: 'estoque-notas-entrada', nome: 'Notas de Entrada', nomeAntigo: 'Notas de Compra', frase: 'Notas de entrada, DANFE e custo', href: '/estoque/notas-entrada', icon: FileText, setor: 'pecas', modulo: 'estoque', acao: 'notas-entrada' },
   { id: 'estoque-movimentacao', nome: 'Movimentação de Produto', nomeAntigo: 'Entradas e Saídas', frase: 'Tudo que entrou e saiu de um item', href: '/estoque/movimentacao-produto', icon: Activity, setor: 'pecas', modulo: 'estoque', acao: 'movimentacao-produto' },

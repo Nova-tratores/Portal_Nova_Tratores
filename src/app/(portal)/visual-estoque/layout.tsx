@@ -11,7 +11,7 @@ const tabs = [
   { href: '/visual-estoque/showroom', label: 'Showroom', icon: ShoppingBag },
   { href: '/visual-estoque/patio', label: 'Pátio', icon: MapPin },
   // A aba Frota foi absorvida pelo módulo Frota (/frota)
-  { href: '/visual-estoque/remessas', label: 'Remessas', icon: Send },
+  { href: '/remessas', label: 'Remessas', icon: Send },
   // Notas de Entrada (29/10/2026): aposentada — o arquivo /financeiro/notas?tipo=entrada cobre (o endereço antigo redireciona)
   { href: '/visual-estoque/margens', label: 'Margens', icon: Percent },
   { href: '/visual-estoque/alertas', label: 'Alertas', icon: AlertTriangle },
@@ -20,12 +20,13 @@ const tabs = [
 export default function VisualEstoqueLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { userProfile } = useAuth()
-  const { pode } = usePermissoes(userProfile?.id)
+  const { pode, temAcesso } = usePermissoes(userProfile?.id)
 
   // Esconde da sub-nav as telas que o usuário não pode ver. A Home
   // (/visual-estoque) é sempre visível; as sub-telas seguem pode('consulta-estoque', slug).
   const podeVerTela = (href: string) => {
     if (href === '/visual-estoque') return true
+    if (href === '/remessas') return temAcesso('remessas') || pode('consulta-estoque', 'remessas')
     return pode('consulta-estoque', href.slice('/visual-estoque/'.length))
   }
 

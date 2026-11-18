@@ -31,6 +31,7 @@ export const MODULOS_ADMIN: { id: string; label: string; color: string }[] = [
   { id: 'back-nova', label: 'Back Nova (externo)', color: '#6b7280' },
   { id: 'clientes', label: 'Clientes', color: '#dc2626' },
   { id: 'consulta-estoque', label: 'Visual Estoque', color: '#7f1d1d' },
+  { id: 'remessas', label: 'Remessas', color: '#7c3aed' },
   { id: 'revisoes', label: 'Controle de Revisões', color: '#b91c1c' },
   { id: 'dashboard-agro', label: 'Dashboard Agro', color: '#16a34a' },
   { id: 'dre', label: 'DRE Financeiro', color: '#dc2626' },
