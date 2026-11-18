@@ -255,16 +255,28 @@ export async function decidirRequisicao(id: number, acao: 'autorizar' | 'recusar
 }
 
 /** quem pode receber o pedido: Diretor(es) e quem tem "Autorizar requisições" (Devs decidem, mas não entram na lista) */
-export async function listarAutorizadores(): Promise<{ id: string; nome: string; papel: string }[]> {
+/** Para quem dá para pedir: Diretor(es), quem autoriza requisições e (18/11/2026) quem tem acesso ao módulo
+ *  Autorizações da Visão da empresa — esses só acompanham a fila (`decide: false`), quem decide continua sendo o quemAutoriza. */
+export async function listarAutorizadores(): Promise<{ id: string; nome: string; papel: string; decide: boolean; avatar: string | null }[]> {
   const { data } = await sb.from('portal_permissoes').select('user_id, is_diretor, modulos_permitidos');
+  const papelDe = (p: { is_diretor?: boolean; modulos_permitidos?: string[] | null }) => {
+    const m = p.modulos_permitidos || [];
+    if (p.is_diretor) return 'Diretor';
+    if (m.includes(`${MODULO_EMPRESA}:${ACAO_AUTORIZAR_REQUISICOES}`)) return 'Autoriza requisições';
+    if (m.includes(MODULO_EMPRESA) || m.includes(`${MODULO_EMPRESA}:autorizacoes`)) return 'Acompanha a fila';
+    return null;
+  };
   const alvo = ((data || []) as { user_id: string; is_diretor?: boolean; modulos_permitidos?: string[] | null }[])
-    .filter((p) => p.user_id && (p.is_diretor || (p.modulos_permitidos || []).includes(`${MODULO_EMPRESA}:${ACAO_AUTORIZAR_REQUISICOES}`)));
+    .map((p) => ({ id: String(p.user_id || ''), papel: papelDe(p) }))
+    .filter((p): p is { id: string; papel: string } => !!p.id && !!p.papel);
   if (!alvo.length) return [];
-  const { data: us } = await sb.from('financeiro_usu').select('id, nome, ativo').in('id', alvo.map((p) => p.user_id));
-  const nome = new Map(((us || []) as { id: string; nome: string; ativo?: boolean }[]).filter((u) => u.ativo !== false).map((u) => [String(u.id), u.nome]));
-  return alvo.filter((p) => nome.has(String(p.user_id)))
-    .map((p) => ({ id: String(p.user_id), nome: nome.get(String(p.user_id))!, papel: p.is_diretor ? 'Diretor' : 'Autoriza requisições' }))
-    .sort((a, b) => (a.papel === b.papel ? a.nome.localeCompare(b.nome) : a.papel === 'Diretor' ? -1 : 1));
+  const { data: us } = await sb.from('financeiro_usu').select('id, nome, ativo, avatar_url').in('id', alvo.map((p) => p.id));
+  const usu = new Map(((us || []) as { id: string; nome: string; ativo?: boolean; avatar_url?: string | null }[])
+    .filter((u) => u.ativo !== false).map((u) => [String(u.id), u]));
+  const ordem = ['Diretor', 'Autoriza requisições', 'Acompanha a fila'];
+  return alvo.filter((p) => usu.has(p.id))
+    .map((p) => ({ id: p.id, nome: usu.get(p.id)!.nome, papel: p.papel, decide: p.papel !== 'Acompanha a fila', avatar: usu.get(p.id)!.avatar_url || null }))
+    .sort((a, b) => ordem.indexOf(a.papel) - ordem.indexOf(b.papel) || a.nome.localeCompare(b.nome));
 }
 
 export async function salvarRegra(assunto: string, limite: number, ativo: boolean, autor: string) {

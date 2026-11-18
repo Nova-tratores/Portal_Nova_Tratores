@@ -252,7 +252,11 @@ function RequisicoesPageInner() {
 
   const handleUpdateReq = useCallback(async (id: number, dados: Record<string, unknown>, opcoes?: { soLocal?: boolean }) => {
     setRequisicoes(prev => prev.map(r => r.id === id ? { ...r, ...dados } : r));
-    const { error } = await supabase.from('Requisicao').update(dados).eq('id', id);
+    const { data: volta, error } = await supabase.from('Requisicao').update(dados).eq('id', id)
+      .select('status, autorizacao_status, autorizacao_pedida_em').maybeSingle();
+    // o gatilho da autorização muda a fase/status sozinho (ex.: valor chegou a R$ 200 → "falta pedir"):
+    // traz de volta para o cartão já reagir (abre a janela de pedir autorização)
+    if (!error && volta) setRequisicoes(prev => prev.map(r => r.id === id ? { ...r, ...volta } : r));
     // soLocal: o servidor já gravou (ex.: "Aprovar compra"); só atualiza a lista
     if (opcoes?.soLocal) return;
     // trava da autorização do Diretor (gatilho no banco) volta com a explicação: mostra e recarrega
@@ -920,11 +924,22 @@ function RequisicoesPageInner() {
               // Grupos escolhidos na criação (não é coluna — remove antes do insert)
               const gruposEscolhidos: number[] = Array.isArray(nova._grupos) ? (nova._grupos as number[]) : [];
               delete nova._grupos;
+              // Remuneração: nota/comprovante escolhido no formulário (não é coluna — remove antes do insert)
+              const anexo = nova._anexo as { arquivo: File | null; campo: string } | undefined;
+              delete nova._anexo;
               const { data: ins, error } = await supabase.from('Requisicao').insert([nova]).select('id').single();
               if (error) {
                 console.error('[Requisições] Erro ao criar:', error);
                 alert('Erro ao criar requisição: ' + error.message);
                 return;
+              }
+              // ...e sobe agora que a requisição tem número (mesmo caminho dos anexos do cartão)
+              if (ins?.id && anexo?.arquivo) {
+                const ext = anexo.arquivo.name.split('.').pop();
+                const caminho = `${ins.id}-${anexo.campo}-${Date.now()}.${ext}`;
+                const up = await supabase.storage.from('requisicoes').upload(caminho, anexo.arquivo);
+                const gravou = up.error ? up : await supabase.from('Requisicao').update({ [anexo.campo]: caminho }).eq('id', ins.id);
+                if (gravou.error) alert(`A requisição #${ins.id} foi criada, mas o anexo não subiu (${gravou.error.message}). Anexe pelo cartão.`);
               }
               // Vincula a nova requisição aos grupos escolhidos (best-effort)
               // Um de cada vez: a rota relê e regrava o histórico do grupo, e chamadas

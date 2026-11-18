@@ -4,7 +4,8 @@
 //   recusada   → motivo de quem negou + "Pedir de novo" (com explicação; volta para Aguardando autorização)
 //   autorizada → quem autorizou, quando e até que valor
 // Autorizar/recusar NÃO é aqui: é na Visão da empresa › Autorizações (só Diretor ou Dev).
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { parseValorBR } from '@/lib/requisicoes/autorizacao';
 import EscolherAutorizador, { useAutorizadores } from './EscolherAutorizador';
 import { faltaParaAutorizar } from '@/lib/requisicoes/autorizacao-requisitos';
@@ -12,7 +13,73 @@ import { faltaParaAutorizar } from '@/lib/requisicoes/autorizacao-requisitos';
 const brl = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const quando = (iso?: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
 
-export default function AutorizacaoReq({ req, onUpdate }: { req: Record<string, any>; onUpdate: (id: number, dados: Record<string, unknown>) => void }) {
+// Para quem + explicação + "Pedir autorização" — o mesmo no quadro amarelo e na janela que abre sozinha
+function FormPedir({ para, setPara, motivo, setMotivo, onPedir, extra }: {
+  para: string[]; setPara: (x: string[]) => void; motivo: string; setMotivo: (x: string) => void;
+  onPedir: () => void; extra?: React.ReactNode;
+}) {
+  return (<>
+    <EscolherAutorizador valor={para} onChange={setPara} />
+    <label className="flex flex-col gap-1.5">
+      <span className="text-[13px] text-zinc-700" style={{ fontWeight: 500 }}>Explicação para quem vai autorizar <span className="text-zinc-400 font-normal">(opcional)</span></span>
+      <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} maxLength={400}
+        placeholder="Por que precisa, para quando…"
+        className="w-full rounded-xl border border-zinc-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-red-400 focus:ring-4 focus:ring-red-500/10 resize-none" />
+    </label>
+    <div className="flex flex-wrap items-center gap-3">
+      <button type="button" onClick={onPedir}
+        className="min-h-[44px] px-5 rounded-xl bg-red-600 text-white text-sm font-semibold hover:bg-red-700 flex items-center gap-2 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-500">
+        <i className="fa-solid fa-paper-plane" /> Pedir autorização
+      </button>
+      {extra}
+    </div>
+  </>);
+}
+
+/** Janela que abre sozinha quando o valor chega ao limite (José, 18/11/2026): pedir já ou terminar de preencher antes. */
+function JanelaPedir({ valor, falta, onFechar, form }: { valor: number; falta: string[]; onFechar: () => void; form: (extra: React.ReactNode) => React.ReactNode }) {
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') onFechar(); };
+    document.addEventListener('keydown', esc);
+    return () => document.removeEventListener('keydown', esc);
+  }, [onFechar]);
+  const depois = (
+    <button type="button" onClick={onFechar}
+      className="min-h-[44px] px-4 rounded-xl border border-zinc-200 bg-white text-sm text-zinc-800 hover:bg-zinc-50">
+      Terminar de preencher antes
+    </button>
+  );
+  return createPortal(
+    <div className="fixed inset-0 z-[100095] bg-black/40 backdrop-blur-[2px] grid place-items-center p-3 overscroll-contain" onMouseDown={(e) => { if (e.target === e.currentTarget) onFechar(); }}>
+      <div role="dialog" aria-modal="true" aria-labelledby="jp-titulo" className="w-full max-w-lg bg-white rounded-2xl shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-start gap-3 px-5 py-4 bg-amber-50/70 border-b border-amber-100 rounded-t-2xl">
+          <span className="w-10 h-10 rounded-xl shrink-0 grid place-items-center text-amber-700 bg-amber-100 border border-amber-200"><i className="fa-solid fa-stamp" /></span>
+          <div className="flex-1 min-w-0">
+            <p id="jp-titulo" className="text-[15px] text-amber-950" style={{ fontWeight: 600 }}>Esta requisição precisa de autorização</p>
+            <p className="text-[12.5px] text-amber-800/90 mt-0.5">O valor chegou a <b className="tabular-nums">{brl(valor)}</b>. De R$ 200 ou mais, ela só segue para as outras fases depois de autorizada.</p>
+          </div>
+          <button type="button" onClick={onFechar} aria-label="Fechar" className="w-8 h-8 -mr-1 rounded-lg grid place-items-center text-amber-800 hover:bg-amber-100"><i className="fa-solid fa-xmark" /></button>
+        </div>
+        <div className="p-5 flex flex-col gap-4">
+          {falta.length > 0 ? (<>
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-3.5 py-2.5 text-[13px] text-zinc-800 flex gap-2">
+              <i className="fa-solid fa-circle-exclamation text-amber-600 mt-0.5" />
+              <span>Para pedir ainda falta: <b className="font-medium">{falta.join(' · ')}</b>. Complete no cartão e clique “Pedir autorização”.</span>
+            </div>
+            <button type="button" onClick={onFechar} className="self-start min-h-[44px] px-5 rounded-xl bg-zinc-900 text-white text-sm font-semibold hover:bg-zinc-800">Terminar de preencher</button>
+          </>) : form(depois)}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+export default function AutorizacaoReq({ req, onUpdate, avisar = false, onFecharAviso }: {
+  req: Record<string, any>; onUpdate: (id: number, dados: Record<string, unknown>) => void;
+  /** abre a janela "pedir já ou terminar antes" (o cartão liga quando o valor acabou de chegar ao limite) */
+  avisar?: boolean; onFecharAviso?: () => void;
+}) {
   const st = req.autorizacao_status as string | null;
   const [motivo, setMotivo] = useState<string>(req.autorizacao_motivo || '');
   const [pedindo, setPedindo] = useState(false);
@@ -25,27 +92,33 @@ export default function AutorizacaoReq({ req, onUpdate }: { req: Record<string, 
 
   if (st === 'falta_pedir') {
     const falta = faltaParaAutorizar(req);
+    const pedir = () => { onUpdate(req.id, { autorizacao_status: 'aguardando', autorizacao_motivo: motivo.trim() || null, autorizacao_para: novoPara.length ? novoPara : null }); onFecharAviso?.(); };
+    const form = (extra: React.ReactNode) => <FormPedir para={novoPara} setPara={setNovoPara} motivo={motivo} setMotivo={setMotivo} onPedir={pedir} extra={extra} />;
     return (
-      <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 flex flex-col gap-3">
-        <div className="flex items-start gap-3">
-          <i className="fa-solid fa-stamp text-amber-600 text-lg mt-0.5" />
+      <div className="rounded-2xl border border-amber-200 bg-white">
+        {avisar && <JanelaPedir valor={valor} falta={falta} onFechar={() => onFecharAviso?.()} form={form} />}
+        <div className="flex items-start gap-3 px-4 py-3.5 bg-amber-50/70 border-b border-amber-100 rounded-t-2xl">
+          <span className="w-10 h-10 rounded-xl shrink-0 grid place-items-center text-amber-700 bg-amber-100 border border-amber-200">
+            <i className="fa-solid fa-stamp" />
+          </span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-amber-900">Falta pedir a autorização — {brl(valor)}</p>
-            <p className="text-xs text-amber-800">De R$ 200 ou mais, a requisição só passa para as outras fases depois de autorizada. Pode editar à vontade; quando estiver completa, peça.</p>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+              <p className="text-[15px] text-amber-950" style={{ fontWeight: 600 }}>Falta pedir a autorização</p>
+              <p className="text-[17px] text-amber-950 tabular-nums" style={{ fontWeight: 600 }}>{brl(valor)}</p>
+            </div>
+            <p className="text-[12.5px] text-amber-800/90 mt-0.5 text-pretty">De R$ 200 ou mais, a requisição só passa para as outras fases depois de autorizada. Pode editar à vontade; quando estiver completa, peça.</p>
           </div>
         </div>
-        {falta.length > 0 ? (
-          <div className="rounded-lg bg-white border border-amber-200 px-3 py-2 text-[13px] text-zinc-800">
-            Para pedir ainda falta: <b className="font-medium">{falta.join(' · ')}</b>
-          </div>
-        ) : (<>
-          <EscolherAutorizador valor={novoPara} onChange={setNovoPara} />
-          <textarea value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={2} maxLength={400}
-            placeholder="Explique por que precisa (opcional)"
-            className="w-full rounded-lg border border-amber-200 bg-white px-3 py-2 text-sm outline-none focus:border-amber-400" />
-          <button type="button" onClick={() => onUpdate(req.id, { autorizacao_status: 'aguardando', autorizacao_motivo: motivo.trim() || null, autorizacao_para: novoPara.length ? novoPara : null })}
-            className="self-start min-h-[42px] px-5 rounded-lg bg-red-600 text-white text-sm font-semibold hover:bg-red-700">Pedir autorização</button>
-        </>)}
+        <div className="p-4 flex flex-col gap-4">
+          {falta.length > 0 ? (
+            <div className="rounded-xl bg-amber-50 border border-amber-200 px-3.5 py-2.5 text-[13px] text-zinc-800 flex gap-2">
+              <i className="fa-solid fa-circle-exclamation text-amber-600 mt-0.5" />
+              <span>Para pedir ainda falta: <b className="font-medium">{falta.join(' · ')}</b></span>
+            </div>
+          ) : !avisar && form(
+            <span className="text-[12px] text-zinc-500">{novoPara.length ? `Vai para ${novoPara.length} pessoa${novoPara.length > 1 ? 's' : ''}` : 'Vai para todos que autorizam'}</span>
+          )}
+        </div>
       </div>
     );
   }

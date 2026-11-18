@@ -40,7 +40,7 @@ import { removerCotacaoShift, precisaMarcarComprada, linkSeguro, erroColunaFalta
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIatVqhjdeBeo4PYNWr992vCsPpvEEjOxabWB7mz5JRJ7BroxnvR8CRIcXIgTfLSm/exec';
 const DEPARTAMENTOS = ["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"];
-const TIPOS_REQ = ["Peças", "Alimentação", "Ferramenta", "Serviço de Terceiros", "Almoxarifado", "Insumo Infra", "Veicular Abastecimento", "Veicular Manutenção", "Trator Abastecimento", "Quadri Abastecimento", "Hospedagem"];
+const TIPOS_REQ = ["Peças", "Alimentação", "Ferramenta", "Serviço de Terceiros", "Almoxarifado", "Insumo Infra", "Veicular Abastecimento", "Veicular Manutenção", "Trator Abastecimento", "Quadri Abastecimento", "Hospedagem", "Remuneração"];
 
 function formatarMoeda(valor: string): string {
   const nums = valor.replace(/\D/g, '');
@@ -83,6 +83,14 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   const autSt: string | null = req.autorizacao_status || null;
   const travadaAut = autSt === 'aguardando' || autSt === 'recusada';
   const bloqueada = valorAlto && !isDev && !autoriz && !autSt;
+  // Valor acabou de chegar ao limite (o banco virou para "falta_pedir") com o cartão aberto → abre a janela
+  // "pedir já ou terminar de preencher antes" (José, 18/11/2026). Só na virada, não ao abrir um cartão que já estava assim.
+  const [autVisto, setAutVisto] = useState(autSt);
+  const [avisoAut, setAvisoAut] = useState(false);
+  if (autSt !== autVisto) {
+    setAutVisto(autSt);
+    setAvisoAut(autSt === 'falta_pedir' && modalAberto);
+  }
 
   useEffect(() => {
     if (!valorAlto || isDev) { setAutoriz(null); return; }
@@ -1056,7 +1064,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
 
               {/* ── AUTORIZAÇÃO DO DIRETOR (R$ 200+) ── */}
-              {autSt && <AutorizacaoReq req={req} onUpdate={onUpdate} />}
+              {autSt && <AutorizacaoReq req={req} onUpdate={onUpdate} avisar={avisoAut} onFecharAviso={() => setAvisoAut(false)} />}
 
               {/* ── BLOQUEIO DE VALOR ALTO ── */}
               {valorAlto && (

@@ -38,6 +38,10 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
   const [mais, setMais] = useState<MaisInfo>(MAIS_INFO_VAZIO);
   const [autorizarPara, setAutorizarPara] = useState<string[]>([]); // para quem pedir a autorização (vazio = todos)
   const [veiculos, setVeiculos] = useState<any[]>([]);
+  // Remuneração (18/11/2026): a pessoa pagou do bolso uma despesa da empresa.
+  // Só pede o valor e a nota OU o comprovante — o arquivo sobe depois que a requisição ganha número (page.tsx).
+  const [anexoRem, setAnexoRem] = useState<File | null>(null);
+  const [campoAnexoRem, setCampoAnexoRem] = useState<'foto_nf' | 'recibo_fornecedor'>('foto_nf');
 
   const [ordensAbertas, setOrdensAbertas] = useState<any[]>([]);
   const [osBusca, setOsBusca] = useState('');
@@ -78,6 +82,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
     valor_cobrado_cliente: '', quem_ferramenta: '', Chassis_Modelo: '', litros_combustivel: '', combustivel: '', status: 'pedido',
     projeto_codigo: '', projeto_nome: ''
   });
+  const ehRemuneracao = formData.tipo === 'Remuneração';
 
   // Rascunho: o que foi digitado sobrevive a recarga da página, troca de aba e
   // atualização do portal. A página apaga depois que a requisição é criada.
@@ -233,6 +238,10 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
         return;
       }
     }
+    if (ehRemuneracao) {
+      if (!parseValorBR(valorNovo)) { alert('Informe quanto a pessoa pagou.'); return; }
+      if (!anexoRem) { alert('Anexe a nota fiscal ou o comprovante do que foi pago.'); return; }
+    }
     // Parecida aberta nos últimos 15 dias: confirma antes de criar outra
     const iguais = parecidas(historico, { tipo: formData.tipo, veiculo: formData.veiculo, titulo: formData.titulo }, new Date());
     if (iguais.length && !confirm(`Já existe requisição parecida (#${iguais.map(r => r.id).join(', #')}). Criar mesmo assim?`)) return;
@@ -251,6 +260,12 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
     if (mais.fornecedor.trim()) dados.fornecedor = mais.fornecedor.trim();
     if (itens.total > 0) dados.valor_despeza = itens.total.toFixed(2).replace('.', ',');
     if (itens.linhasObs.length) dados.obs = [String(dados.obs || '').trim(), `Itens:\n${itens.linhasObs.join('\n')}`].filter(Boolean).join('\n\n');
+    if (ehRemuneracao) {
+      // quem recebe o dinheiro de volta é a própria pessoa: ela entra como "fornecedor"
+      // (a autorização do Diretor e o envio ao financeiro exigem fornecedor preenchido)
+      if (!dados.fornecedor && formData.solicitante) dados.fornecedor = formData.solicitante;
+      dados._anexo = { arquivo: anexoRem, campo: campoAnexoRem }; // não é coluna: a página sobe e remove antes do insert
+    }
     // R$ 200 ou mais vai ao Diretor: precisa estar completa (o banco confere de novo) — José, 17/11/2026
     if (parseValorBR(dados.valor_despeza) >= LIMITE_AUTORIZACAO) {
       // não barra (José, 17/11/2026): completa → já pede a autorização; incompleta → cria e fica em
@@ -309,7 +324,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
               <label className={labelStyle}>Tipo</label>
               <select required onChange={e => setFormData({...formData, tipo: e.target.value})} className={inputStyle}>
                 <option value="" className="bg-white">Selecione...</option>
-                {["Peças", "Alimentação", "Serviço de Terceiros", "Almoxarifado", "Ferramenta", "Insumo Infra", "Veicular Abastecimento", "Veicular Manutenção", "Trator Abastecimento", "Quadri Abastecimento", "Hospedagem"].map(t => <option key={t} value={t} className="bg-white">{t}</option>)}
+                {["Peças", "Alimentação", "Serviço de Terceiros", "Almoxarifado", "Ferramenta", "Insumo Infra", "Veicular Abastecimento", "Veicular Manutenção", "Trator Abastecimento", "Quadri Abastecimento", "Hospedagem", "Remuneração"].map(t => <option key={t} value={t} className="bg-white">{t}</option>)}
               </select>
             </div>
             <div ref={solRef} className="relative">
@@ -385,8 +400,34 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
             </div>
           </div>
 
+          {/* REMUNERAÇÃO: só o valor e a nota ou o comprovante */}
+          {ehRemuneracao && (
+            <div className={secao}>
+              {secaoTitulo('fa-hand-holding-dollar', '#059669', 'Remuneração')}
+              <p className="text-[13px] text-zinc-500 -mt-2 mb-4">A pessoa pagou do próprio bolso uma despesa que era da empresa. Anexe a nota ou o comprovante para ela receber de volta.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <label className={labelStyle} htmlFor="rem-valor">Quanto foi pago</label>
+                  <input id="rem-valor" required placeholder="0,00" inputMode="decimal" autoComplete="off" value={valorNovo} onChange={e => setValorNovo(e.target.value)} className={inputStyle} />
+                </div>
+                <div>
+                  <label className={labelStyle} htmlFor="rem-tipo-anexo">O que vai anexar</label>
+                  <select id="rem-tipo-anexo" value={campoAnexoRem} onChange={e => setCampoAnexoRem(e.target.value as 'foto_nf' | 'recibo_fornecedor')} className={inputStyle}>
+                    <option value="foto_nf" className="bg-white">Nota fiscal</option>
+                    <option value="recibo_fornecedor" className="bg-white">Comprovante / recibo</option>
+                  </select>
+                </div>
+              </div>
+              <div className="mt-4">
+                <label className={labelStyle} htmlFor="rem-arquivo">Arquivo (foto ou PDF)</label>
+                <input id="rem-arquivo" type="file" required accept="image/*,application/pdf" onChange={e => setAnexoRem(e.target.files?.[0] || null)} className={inputStyle} />
+                {anexoRem && <p className="text-[12.5px] text-emerald-700 mt-1.5"><i className="fa-solid fa-paperclip" /> {anexoRem.name}</p>}
+              </div>
+            </div>
+          )}
+
           {/* Histórico: fornecedor/valor de costume e aviso de parecida */}
-          <SugestaoHistorico
+          {!ehRemuneracao && <SugestaoHistorico
             historico={historico}
             tipo={formData.tipo}
             veiculo={formData.veiculo}
@@ -395,7 +436,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
             valor={valorNovo}
             onFornecedor={(v) => setFormData(p => ({ ...p, fornecedor: v }))}
             onValor={setValorNovo}
-          />
+          />}
 
           {/* NOVO CAMPO: QUEM FERRAMENTA (Aparece apenas se tipo for Ferramenta) */}
           {formData.tipo === 'Ferramenta' && (
@@ -840,7 +881,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
             </div>
           )}
 
-          <MaisInformacoesReq valor={mais} onChange={setMais} inputStyle={inputStyle} labelStyle={labelStyle} />
+          {!ehRemuneracao && <MaisInformacoesReq valor={mais} onChange={setMais} inputStyle={inputStyle} labelStyle={labelStyle} />}
 
           {/* R$ 200 ou mais: escolhe para quem pedir a autorização (17/11/2026) */}
           {(dadosDosItens(mais).total || parseValorBR(valorNovo)) >= LIMITE_AUTORIZACAO && (
