@@ -192,6 +192,15 @@ export default function EditModal({ proposal, onClose, soPdf = false, onPdf = nu
       return
     }
 
+    // Observação do pagamento (troca, brinde...): vem da tabela de pagamento, não do Formulario.
+    // No modo "só PDF" o pagamento pode ainda não ter carregado, então busca direto.
+    let obsPagamento = String(pagamento?.obs || '').trim()
+    if (!obsPagamento && formData?.id) {
+      try { obsPagamento = String((await carregarPagamentoProposta(formData.id))?.pagamento?.obs || '').trim() } catch { /* sem obs */ }
+    }
+
+    // Monta o PDF inteiro; `reducaoFoto` (mm) encolhe a caixa da foto.
+    const montar = async (reducaoFoto) => {
     const doc = new jsPDF()
     const margin = 15
     const pageWidth = doc.internal.pageSize.getWidth()
@@ -239,7 +248,14 @@ export default function EditModal({ proposal, onClose, soPdf = false, onPdf = nu
     desenharCampo(doc, { ...simplesDir, rotulo: 'ENDERECO:', valor: formData.End_Entrega || '', y: y + 19, maxLinhas: 3 })
 
     y += 32
-    const imgBoxHeight = temSpecs ? 60 : 95
+    // Altura da faixa de OBSERVAÇÕES (desenhada lá embaixo, antes da assinatura)
+    let alturaObs = 0
+    if (obsPagamento) {
+      doc.setFont("helvetica", "normal"); doc.setFontSize(8.5)
+      const nLinhas = Math.min(8, doc.splitTextToSize(obsPagamento, innerWidth - 10).length)
+      alturaObs = 10 + nLinhas * 3.8
+    }
+    const imgBoxHeight = Math.max(FOTO_MIN, FOTO_MAX - reducaoFoto)
     doc.rect(margin, y, innerWidth, imgBoxHeight)
     if (formData.Imagem_Equipamento) {
       const dims = await getImageDimensions(formData.Imagem_Equipamento)
@@ -251,8 +267,9 @@ export default function EditModal({ proposal, onClose, soPdf = false, onPdf = nu
     }
 
     y += imgBoxHeight
+    // Trator/autopropelido: 80 é o MÁXIMO; a caixa encolhe até a última linha escrita (sem sobra embaixo).
     const techBoxHeight = temSpecs ? 80 : 45
-    doc.rect(margin, y, innerWidth, techBoxHeight)
+    let alturaTech = techBoxHeight
     doc.setFontSize(8.5); doc.setFont("helvetica", "bold")
     const cab = { x: xEsq, largura: largEsq, fonte: 8.5, minFonte: 6.5, negritoValor: true }
     desenharCampo(doc, { ...cab, rotulo: 'MARCA:', valor: formData.Marca || '', y: y + 7 })
@@ -280,35 +297,38 @@ export default function EditModal({ proposal, onClose, soPdf = false, onPdf = nu
         const r = desenharCampo(doc, { rotulo: `${rotulo}:`, valor: String(valor || '---'), x, y: yy, largura, fonte: 7.5, minFonte: 6, maxLinhas: cabe2 ? 2 : 1 })
         yy = r.yFinal + 5
       })
+      return yy - 5   // baseline da última linha escrita
     }
 
     if (isTrator) {
-      coluna([
+      const fim1 = coluna([
         ["MOTOR", formData.motor_trator], ["BOMBA INJE.", formData.bomb_inje_trator], ["BOMBA HIDRA.", formData.bomb_hidra_trator],
         ["EMBREAGEM", formData.embreagem_trator], ["CAPACIDADE COMB.", formData.capacit_comb_trator], ["DIANT. MIN/MAX", formData.diant_min_max_trator],
       ], xEsq, largTech1)
-      coluna([
+      const fim2 = coluna([
         ["CAMBIO", formData.cambio_trator], ["REVERSOR", formData.reversor_trator], ["TRANS. DIANT.", formData.transmissao_diant_trator],
         ["TRANS. TRAS.", formData.trasmissao_tras_trator], ["OLEO MOTOR", formData.oleo_motor_trator], ["OLEO TRANS.", formData.oleo_trasmissao_trator],
         ["TRAS. MIN/MAX", formData.tras_min_max_trator],
       ], colTech2, largTech2)
+      alturaTech = Math.min(techBoxHeight, Math.max(fim1, fim2) + 4 - y)
     } else if (isAuto) {
-      coluna([
+      const fim1 = coluna([
         ["MOTOR", formData.motor_auto], ["TRANSMISSAO", formData.transmissao_auto], ["TANQUE PULV. (L)", formData.tanque_pulv_auto],
         ["TECNOLOGIA", formData.tecnologia_auto], ["TELEMETRIA", formData.telemetria_auto], ["TANQUE COMB. (L)", formData.tanque_comb_auto],
       ], xEsq, largTech1)
-      coluna([
+      const fim2 = coluna([
         ["BARRA PULV. (M)", formData.barra_pulv_auto], ["N. SECOES", formData.num_secoes_auto], ["ESPAC. BICOS (CM)", formData.espac_bicos_auto],
         ["VAO LIVRE (M)", formData.vao_livre_auto], ["BITOLA (M)", formData.bitola_auto],
       ], colTech2, largTech2)
+      alturaTech = Math.min(techBoxHeight, Math.max(fim1, fim2) + 4 - y)
     } else {
       // Texto livre: cabe na largura E na altura da caixa (diminui a letra antes de cortar)
       desenharBlocoTexto(doc, { texto: formData.Configuracao || formData.Descricao || '', x: xEsq, y: y + 32, largura: innerWidth - 10, alturaMax: techBoxHeight - 32 - 3, fonte: 8.5, minFonte: 6 })
     }
 
-    y += techBoxHeight
+    doc.rect(margin, y, innerWidth, alturaTech)   // borda desenhada depois, já com a altura certa
+    y += alturaTech
     doc.setFillColor(250, 250, 210); doc.rect(margin, y, innerWidth, 8, 'F')
-    doc.rect(margin, y, innerWidth, 38)
     doc.line(margin, y + 8, margin + innerWidth, y + 8)
     doc.setFont("helvetica", "bold"); doc.setFontSize(7.5)
     doc.text("CASO SEJA FINANCIADO TAXA FLAT POR CONTA DO CLIENTE", pageWidth / 2, y + 5.5, { align: "center" })
@@ -329,18 +349,35 @@ export default function EditModal({ proposal, onClose, soPdf = false, onPdf = nu
     doc.setFontSize(9); doc.setFont("helvetica", "bold")
     doc.text(labelCond, col2X, y + 25)
     const condW = doc.getTextWidth(labelCond)
-    desenharBlocoTexto(doc, { texto: formData.Condicoes || '', x: col2X + condW, y: y + 25, largura: (pageWidth - margin - 3) - (col2X + condW), alturaMax: 11, fonte: 9, minFonte: 6 })
+    const cond = desenharBlocoTexto(doc, { texto: formData.Condicoes || '', x: col2X + condW, y: y + 25, largura: (pageWidth - margin - 3) - (col2X + condW), alturaMax: 11, fonte: 9, minFonte: 6 })
+    let ultimaLinha = Math.max(y + 25, cond.yFinal)
 
     if (formData.validade && formData.validade !== 'Sem validade') {
       doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(180, 83, 9)
       doc.text(`ESTA PROPOSTA E VALIDA POR ${formData.validade} DIAS.`, margin + 5, y + 31)
+      doc.setTextColor(0, 0, 0)
+      ultimaLinha = Math.max(ultimaLinha, y + 31)
     }
+
+    // Caixa fecha 4 mm abaixo da última linha (máx. 38, como antes)
+    const alturaCond = Math.min(38, ultimaLinha + 4 - y)
+    doc.rect(margin, y, innerWidth, alturaCond)
 
     // Bloco de assinatura (comprador × vendedor) logo abaixo da caixa de condições.
     // Texto (linha pra assinar no papel) ou a imagem de assinatura do vendedor, quebra por
     // largura; se não couber antes do rodapé vai pra página nova. Rodapé
     // (IE/endereço/tel + "página N de M") em todas as páginas.
-    y += 38
+    y += alturaCond
+
+    // Faixa de observações (largura toda), só quando o vendedor escreveu algo.
+    if (alturaObs) {
+      doc.rect(margin, y, innerWidth, alturaObs)
+      doc.setFont("helvetica", "bold"); doc.setFontSize(8)
+      doc.text("OBSERVAÇÕES:", xEsq, y + 5)
+      desenharBlocoTexto(doc, { texto: obsPagamento, x: xEsq, y: y + 9.5, largura: innerWidth - 10, alturaMax: alturaObs - 9.5 - 2, fonte: 8.5, minFonte: 6.5 })
+      y += alturaObs
+    }
+
     desenharBlocoAssinatura(doc, {
       proposta: formData,
       vendedor: dadosAssinatura.vendedor,
@@ -350,6 +387,17 @@ export default function EditModal({ proposal, onClose, soPdf = false, onPdf = nu
       y,
     })
     desenharRodape(doc, { config: dadosAssinatura.config, propostaId: formData.id })
+    return doc
+    }
+
+    // Foto grande por padrão; se a assinatura cair na página 2, encolhe a foto
+    // de 5 em 5 mm até tudo caber na página 1 (só o necessário, sem sobrar branco).
+    const FOTO_MAX = temSpecs ? 60 : 95
+    const FOTO_MIN = temSpecs ? 30 : 45
+    let doc = await montar(0)
+    for (let r = 5; doc.getNumberOfPages() > 1 && FOTO_MAX - r >= FOTO_MIN; r += 5) {
+      doc = await montar(r)
+    }
 
     if (soPdf) {
       // tela do diretor: o PDF abre numa janela ali mesmo (onPdf recebe o endereço)
