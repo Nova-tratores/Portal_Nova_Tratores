@@ -362,18 +362,30 @@ function NavEscada({ e, refDia: ref, hoje, itens, onE, onComparar, comparando }:
 /** Cartões Dia/Semana/Mês/Ano ocultos (José, 04/11/2026: "deixar se quer visualizar ou não… salvar por usuário").
  *  Guardado neste navegador com o id de quem está logado: cada usuário tem a sua escolha. */
 function useOcultosEscada(): [Escala[], (x: Escala[]) => void] {
-  const [ocultos, setO] = useState<Escala[]>([])
+  // o Ano começa oculto (Ortiz, 18/11/2026: "deixa oculto, mas para o usuário abrir se quiser")
+  return useOcultosSalvos<Escala>('fp-escada-ocultos', ['ano'], ['dia', 'semana', 'mes', 'ano'], 3)
+}
+
+/** Lista de coisas ocultas, salva neste navegador por usuário. `padrao` vale enquanto a pessoa não mexeu.
+ *  Usado nos cartões de período (Dia/Semana/Mês/Ano) e nos cartões de baixo (Revisões, Peças paradas…). */
+export function useOcultosSalvos<T extends string>(prefixo: string, padrao: T[], validos: readonly T[], max: number): [T[], (x: T[]) => void] {
+  const [ocultos, setO] = useState<T[]>(padrao)
   const chave = useRef('')
   useEffect(() => {
     let vivo = true
     void supabase.auth.getSession().then(({ data }) => {
       if (!vivo) return
-      chave.current = `fp-escada-ocultos:${data.session?.user.id || 'anon'}`
-      try { const v = JSON.parse(localStorage.getItem(chave.current) || '[]'); if (Array.isArray(v)) setO(v.filter((x): x is Escala => ['dia', 'semana', 'mes', 'ano'].includes(x)).slice(0, 3)) } catch { /* sem localStorage */ }
+      chave.current = `${prefixo}:${data.session?.user.id || 'anon'}`
+      try {
+        const salvo = localStorage.getItem(chave.current)
+        // nunca mexeu: fica o padrão; mexeu: vale a escolha dela
+        if (salvo != null) { const v = JSON.parse(salvo); if (Array.isArray(v)) setO(v.filter((x): x is T => validos.includes(x)).slice(0, max)) }
+      } catch { /* sem localStorage */ }
     })
     return () => { vivo = false }
-  }, [])
-  const salvar = (x: Escala[]) => {
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- lê uma vez ao abrir
+  }, [prefixo])
+  const salvar = (x: T[]) => {
     setO(x)
     try { if (chave.current) localStorage.setItem(chave.current, JSON.stringify(x)) } catch { /* sem localStorage */ }
   }
@@ -428,16 +440,29 @@ function Cartoes({ s, ant, serie, rev, revAnt, revSerie, nomeA, nomeB, onAbrir, 
     // no lugar do Ordens de serviço (José, 04/11/2026: "troca esse card de ordens de serviço pelas revisões")
     { k: 'rev', t: 'Revisões', n: rev.v, a: revAnt ? revAnt.v : 0, sub: `${rev.n} OS · ${s.bruto ? Math.round((rev.v / s.bruto) * 100) : 0}% do faturado${revAnt ? ` · antes ${revAnt.n} OS` : ''}`, cor: '#0f766e', dica: 'OS de revisão (tipo de serviço Revisão no portal, ou interna de revisão) que estão na conta: serviço + km + peças.', serie: revSerie, fmt: brl },
   ]
+  // Revisões começa oculto (Ortiz, 18/11/2026); cada um abre ou fecha o que quiser e fica salvo por usuário
+  const [ocultos, setOcultos] = useOcultosSalvos<string>('fp-cartoes-ocultos', ['rev'], ['fat', 'mo', 'km', 'pec', 'req', 'rev'], 5)
+  const visiveis = C.filter((c) => !ocultos.includes(c.k))
+  const escondidos = C.filter((c) => ocultos.includes(c.k))
   return (
-    <div className={`fp-cards ${req ? 'seis' : ''}`}>
-      {C.map((c, i) => {
+    <>
+    {escondidos.length > 0 && (
+      <div className="fp-esc-ocultos"><span><i className="fas fa-eye-slash" aria-hidden /> ocultos:</span>
+        {escondidos.map((c) => <button key={c.k} type="button" onClick={() => setOcultos(ocultos.filter((x) => x !== c.k))} style={{ '--c': c.cor } as React.CSSProperties} title="mostrar de novo">{c.t} <b>+</b></button>)}
+      </div>
+    )}
+    <div className={`fp-cards ${req ? 'seis' : ''}`} style={{ '--n': visiveis.length } as React.CSSProperties}>
+      {visiveis.map((c, i) => {
         const d = c.n - c.a, p = ant && c.a ? (d / c.a) * 100 : null, bom = d >= 0
         const mx = Math.max(c.n, c.a, 1)
         return (
           <div key={c.k} className="fp-card clica" style={{ '--c': c.cor, animationDelay: `${i * 60}ms` } as React.CSSProperties} role="button" tabIndex={0} onClick={() => (c.k === 'req' ? req?.onAbrir() : onAbrir(c.k as Metrica))} onKeyDown={(ev) => { if (ev.key !== 'Enter') return; if (c.k === 'req') req?.onAbrir(); else onAbrir(c.k as Metrica) }}>
             <div className="fp-card-t">
               <span className="fp-card-n" data-dica={`${c.t.toUpperCase()} — ${c.dica}`}><i className={`fas ${ICONE[c.k]}`} aria-hidden />{c.t}</span>
-              {p != null && Math.abs(d) >= 0.5 && <em className={`fp-pill ${bom ? 'bom' : 'ruim'}`}>{bom ? '▲' : '▼'} {Math.abs(Math.round(p))}%</em>}
+              <span className="fp-card-d">
+                {p != null && Math.abs(d) >= 0.5 && <em className={`fp-pill ${bom ? 'bom' : 'ruim'}`}>{bom ? '▲' : '▼'} {Math.abs(Math.round(p))}%</em>}
+                {visiveis.length > 1 && <button type="button" className="fp-card-oc" onClick={(ev) => { ev.stopPropagation(); setOcultos([...ocultos, c.k]) }} onKeyDown={(ev) => ev.stopPropagation()} aria-label={`ocultar ${c.t}`} data-dica={`Ocultar o cartão ${c.t}. Fica salvo para você; para voltar, clique nele em "ocultos".`}><i className="fas fa-eye-slash" aria-hidden /></button>}
+              </span>
             </div>
             <b className="fp-card-v"><Numero valor={c.n} formato={c.fmt} /></b>
             <small className="fp-card-s">{c.sub}</small>
@@ -453,6 +478,7 @@ function Cartoes({ s, ant, serie, rev, revAnt, revSerie, nomeA, nomeB, onAbrir, 
         )
       })}
     </div>
+    </>
   )
 }
 
@@ -569,7 +595,7 @@ function ModalLista({ met, periodo, lista, onFechar }: { met: Metrica; periodo: 
           <div><small>{periodo}</small><b>{NOME_MET[met]}: {met === 'os' ? `${linhas.length} OS` : brl(total)}</b><small>{linhas.length} ordens de serviço{met === 'pec' ? ' com pedido de peças' : ''} · clique numa OS para ver os pedidos de venda e os PDFs</small></div>
           <button type="button" className="fp-modal-x" onClick={onFechar} aria-label="fechar">×</button>
         </div>
-        <input className="fp-lista-busca" placeholder="buscar por OS, cliente ou técnico" value={busca} onChange={(ev) => setBusca(ev.target.value)} />
+        <input className="fp-lista-busca" placeholder="buscar por OS, cliente ou técnico…" aria-label="buscar por OS, cliente ou técnico" autoComplete="off" value={busca} onChange={(ev) => setBusca(ev.target.value)} />
         <div className="fp-lista-l">
           {/* todas as colunas; a do cartão clicado fica em destaque (José, 27/10/2026: "clicou em horas, abre dando
               destaque às horas; clicou em peças, às peças") */}
@@ -631,7 +657,7 @@ function ModalRequisicoes({ periodo, lista, onFechar }: { periodo: string; lista
             return <button key={k} type="button" className={sit === k ? 'on' : ''} style={{ '--c': SIT_REQ[k].cor } as React.CSSProperties} onClick={() => setSit(sit === k ? null : k)} disabled={!xs.length}><i />{SIT_REQ[k].rot} <small>{xs.length} · pago {brl(tot(xs).pago)}</small></button>
           })}
         </div>
-        <input className="fp-lista-busca" placeholder="buscar por requisição, OS, cliente, fornecedor ou tipo" value={busca} onChange={(ev) => setBusca(ev.target.value)} />
+        <input className="fp-lista-busca" placeholder="buscar por requisição, OS, cliente, fornecedor ou tipo…" aria-label="buscar por requisição, OS, cliente, fornecedor ou tipo" autoComplete="off" value={busca} onChange={(ev) => setBusca(ev.target.value)} />
         <div className="fp-lista-l">
           <div className="fp-lista-r cab fp-req-r"><span>Data</span><span>Req · OS</span><span>O que · fornecedor</span><span>Cliente</span><span>Situação</span><span className="n">Pago</span><span className="n">Cobrado</span><span className="n">Saldo</span></div>
           {linhas.map((r) => {
@@ -1023,7 +1049,7 @@ function ListaDoPeriodo({ aberta, onAbrir, periodo, de, ate, todos, ligados, qtd
             <div className="fp-lo-linha"><b>Datas</b><div className="fp-lo-chips">
               <label>de <input type="date" value={dDe} min={de} max={dAte} onChange={(ev) => setDDe(ev.target.value || de)} /></label>
               <label>até <input type="date" value={dAte} min={dDe} max={ate} onChange={(ev) => setDAte(ev.target.value || ate)} /></label>
-              <input className="fp-lo-busca" placeholder="buscar OS, cliente ou técnico" value={busca} onChange={(ev) => setBusca(ev.target.value)} />
+              <input className="fp-lo-busca" placeholder="buscar OS, cliente ou técnico…" aria-label="buscar OS, cliente ou técnico" autoComplete="off" value={busca} onChange={(ev) => setBusca(ev.target.value)} />
               <button type="button" className="fp-lo-imp" onClick={() => imprimirRelatorio(paraRelatorio, periodo, dDe, dAte)} disabled={!paraRelatorio.length} title="Todas as OS das datas escolhidas: faturadas, garantias e internas"><i className="fas fa-print" /> Imprimir relatório</button>
             </div></div>
           </div>
@@ -1045,9 +1071,10 @@ function ListaDoPeriodo({ aberta, onAbrir, periodo, de, ate, todos, ligados, qtd
           {linhas.length > 0 && <div className="fp-lo-tot"><div className="fp-os-r tot"><span /><span /><span>{linhas.length} OS</span><span /><span>Total</span><span>{brl2(total)}<i className="fas fa-chevron-right fp-lo-seta" style={{ visibility: 'hidden' }} /></span></div></div>}
         </div>
       )}
+      {/* fp-camada: a janela da OS sobe acima da tela cheia do diretor (lá ela abria por trás — 18/11/2026) */}
       {os && typeof document !== 'undefined' && createPortal(
-        <JanelaOSParada key={os.os} faturadaEm={os.grupo === 'aguardando' ? undefined : os.data} onFechar={() => setOs(null)}
-          p={{ os: os.os, tipo: 'preenchida', status: os.grupo === 'aguardando' ? 'Aguardando faturar' : 'Faturada', cliente: os.cliente, tecnicos: os.tecnicos, dataRef: os.data, dias: 0, maoDeObra: os.servico, deslocamento: os.kmValor, pecas: os.pecas, total: os.bruto, garantia: os.grupo === 'garantia' }} />,
+        <div className="fp-camada"><JanelaOSParada key={os.os} faturadaEm={os.grupo === 'aguardando' ? undefined : os.data} onFechar={() => setOs(null)}
+          p={{ os: os.os, tipo: 'preenchida', status: os.grupo === 'aguardando' ? 'Aguardando faturar' : 'Faturada', cliente: os.cliente, tecnicos: os.tecnicos, dataRef: os.data, dias: 0, maoDeObra: os.servico, deslocamento: os.kmValor, pecas: os.pecas, total: os.bruto, garantia: os.grupo === 'garantia' }} /></div>,
         document.body)}
     </div>
   )
@@ -1055,6 +1082,10 @@ function ListaDoPeriodo({ aberta, onAbrir, periodo, de, ate, todos, ligados, qtd
 
 export const ESTILO_FP = `
 .fp { display: grid; gap: 14px; color: ${TXT}; font-size: 15px; font-variant-numeric: tabular-nums }
+.fp-camada { position: relative; z-index: 100066 }
+.fp :is(button, [role="button"], input):focus-visible, .fp-modal :is(button, [role="button"], input):focus-visible { outline: 2px solid #2563eb; outline-offset: 2px }
+.fp-modal, .fp-modal-fundo, .fp-os-t, .fp-card, .fp-deg, .fp-chip { -webkit-tap-highlight-color: transparent; touch-action: manipulation }
+@media (prefers-reduced-motion: reduce) { .fp *, .fp-modal-fundo, .fp-modal-fundo * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important } }
 .fp b { font-weight: 700 } .fp .bom { color: #166534; font-style: normal } .fp .ruim { color: #991b1b; font-style: normal }
 .fp [data-dica] { position: relative }
 /* balão dentro de balão: com o mouse num filho que tem o seu, o do pai não aparece junto */
@@ -1063,9 +1094,9 @@ export const ESTILO_FP = `
 
 .fp-topo { display: flex; gap: 14px; align-items: center; flex-wrap: wrap }
 .fp-esc { display: inline-flex; gap: 2px; background: #eef2f6; border-radius: 12px; padding: 4px }
-.fp-esc button { border: 0; background: transparent; border-radius: 9px; padding: 8px 16px; font-family: inherit; font-size: 14.5px; font-weight: 500; color: ${SEG}; cursor: pointer; transition: all .2s } .fp-esc button.on { background: #fefefe; color: ${TXT}; font-weight: 700; box-shadow: 0 1px 3px rgba(15,23,42,.12) }
+.fp-esc button { border: 0; background: transparent; border-radius: 9px; padding: 8px 16px; font-family: inherit; font-size: 14.5px; font-weight: 500; color: ${SEG}; cursor: pointer; transition: background-color .2s, border-color .2s, color .2s, box-shadow .2s, transform .2s } .fp-esc button.on { background: #fefefe; color: ${TXT}; font-weight: 700; box-shadow: 0 1px 3px rgba(15,23,42,.12) }
 .fp-nav { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 280px }
-.fp-nav > button:not(.fp-hoje) { width: 40px; height: 40px; border-radius: 50%; border: 1px solid #cbd5e1; background: #fefefe; font-size: 22px; line-height: 1; color: ${TXT}; cursor: pointer; transition: all .2s } .fp-nav > button:not(.fp-hoje):hover:not(:disabled) { border-color: #2563eb; color: #2563eb } .fp-nav > button:disabled { opacity: .35; cursor: default }
+.fp-nav > button:not(.fp-hoje) { width: 40px; height: 40px; border-radius: 50%; border: 1px solid #cbd5e1; background: #fefefe; font-size: 22px; line-height: 1; color: ${TXT}; cursor: pointer; transition: background-color .2s, border-color .2s, color .2s, box-shadow .2s, transform .2s } .fp-nav > button:not(.fp-hoje):hover:not(:disabled) { border-color: #2563eb; color: #2563eb } .fp-nav > button:disabled { opacity: .35; cursor: default }
 .fp-nav > div { display: grid; min-width: 230px; text-align: center } .fp-nav > div b { font-size: 21px } .fp-nav > div small { font-size: 13.5px; color: ${SEG} }
 .fp-hoje { border: 1px solid #cbd5e1; background: #fefefe; border-radius: 99px; padding: 7px 14px; font-family: inherit; font-size: 13.5px; color: ${TXT}; cursor: pointer }
 
@@ -1083,7 +1114,7 @@ export const ESTILO_FP = `
 .fp-grade-cam button, .fp-grade-cam span { border: 0; background: transparent; font-family: inherit; font-size: 14.5px; color: #2563eb; cursor: pointer; padding: 2px 4px; border-radius: 6px } .fp-grade-cam .on { color: ${TXT}; font-weight: 700; cursor: default }
 .fp-grade-sobe { margin-left: auto; border: 1px solid #cbd5e1 !important; border-radius: 99px !important; padding: 5px 12px !important; color: ${TXT} !important; font-size: 13.5px !important }
 .fp-grade { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px } .fp-grade.n7 { grid-template-columns: repeat(7, minmax(0, 1fr)) } .fp-grade.n4, .fp-grade.n5, .fp-grade.n6 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) }
-.fp-q { position: relative; display: grid; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; transition: all .2s } .fp-q:hover:not(.futuro) { border-color: #93c5fd } .fp-q.on { background: #eff6ff; border-color: #2563eb; box-shadow: 0 0 0 1px #2563eb } .fp-q.futuro { opacity: .4 }
+.fp-q { position: relative; display: grid; border: 1px solid #e2e8f0; border-radius: 12px; background: #f8fafc; transition: background-color .2s, border-color .2s, color .2s, box-shadow .2s, transform .2s } .fp-q:hover:not(.futuro) { border-color: #93c5fd } .fp-q.on { background: #eff6ff; border-color: #2563eb; box-shadow: 0 0 0 1px #2563eb } .fp-q.futuro { opacity: .4 }
 .fp-q > button:first-child { display: grid; gap: 4px; text-align: left; border: 0; background: transparent; padding: 10px 12px 12px; font-family: inherit; color: ${TXT}; cursor: pointer } .fp-q small { font-size: 13px; color: ${SEG} } .fp-q b { font-size: 17px }
 .fp-q-barra { height: 6px; border-radius: 99px; background: #e2e8f0; overflow: hidden } .fp-q-barra i { display: block; height: 100%; background: #2563eb; border-radius: 99px; transition: width .5s }
 .fp-q-abre { position: absolute; top: 8px; right: 8px; border: 0; background: transparent; font-family: inherit; font-size: 12.5px; color: #2563eb; cursor: pointer; opacity: 0; transition: opacity .2s } .fp-q:hover .fp-q-abre, .fp-q.on .fp-q-abre { opacity: 1 }
@@ -1130,7 +1161,7 @@ export const ESTILO_FP = `
 .fp-chips { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px }
 .fp-chip { position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; border: 1.5px dashed #cbd5e1; background: #fefefe; border-radius: 14px; padding: 10px 14px; font-family: inherit; color: ${SEG}; cursor: pointer; text-align: left; transition: background .3s, border-color .3s, color .3s, box-shadow .3s, transform .2s }
 .fp-chip:hover:not(.fixo) { transform: translateY(-2px); border-color: var(--c); color: ${TXT}; box-shadow: 0 10px 22px -14px var(--c) }
-.fp-chip-ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 15px; font-weight: 700; background: #f1f5f9; color: ${SEG}; transition: all .3s }
+.fp-chip-ic { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 15px; font-weight: 700; background: #f1f5f9; color: ${SEG}; transition: background-color .3s, color .3s, transform .3s }
 .fp-chip-n { display: grid; font-size: 14.5px; font-weight: 600; line-height: 1.25 } .fp-chip-n small { font-size: 12.5px; font-weight: 400; opacity: .85 }
 .fp-chip-v { font-size: 16px; font-weight: 700; text-align: right; white-space: nowrap }
 .fp-chip.on { border: 1.5px solid color-mix(in srgb, var(--c) 35%, #e2e8f0); background: color-mix(in srgb, var(--c) 7%, #fefefe); color: ${TXT} }
@@ -1149,16 +1180,20 @@ export const ESTILO_FP = `
 .fp-meta-l > span { font-size: 13px; color: ${SEG} } .fp-meta-l > div { display: grid; gap: 4px } .fp-meta-l small { font-size: 13px; color: ${SEG} } .fp-meta-l small b { color: ${TXT} }
 .fp-meta-l i { height: 7px; border-radius: 99px; background: #eef2f6; overflow: hidden } .fp-meta-l u { display: block; height: 100%; border-radius: 99px; background: var(--c); transition: width .7s cubic-bezier(.2,.8,.2,1) }
 .fp-meta-l > b { text-align: right; font-size: 15px } .fp-meta-l > b.ok { color: #166534 }
-.fp-cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px }
+.fp-cards { display: grid; grid-template-columns: repeat(var(--n, 5), minmax(0, 1fr)); gap: 12px }
 .fp-card { position: relative; display: grid; gap: 2px; align-content: start; background: #fefefe; border: 1px solid #e2e8f0; border-radius: 16px; padding: 16px 18px 14px; animation: fpEntra .45s both; transition: box-shadow .25s, transform .25s, border-color .25s }
 .fp-card:hover { z-index: 5; transform: translateY(-2px); box-shadow: 0 14px 30px -18px rgba(15,23,42,.45); border-color: color-mix(in srgb, var(--c, #94a3b8) 40%, #e2e8f0) }
 .fp-card.largo { grid-column: 1 / -1 }
 .fp-card-t { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: ${SEG} }
-.fp-card-n { display: inline-flex; align-items: center; gap: 10px; font-size: 16.5px; font-weight: 500; color: ${TXT} }
+.fp-card-n { min-width: 0; line-height: 1.2; display: inline-flex; align-items: center; gap: 10px; font-size: 16.5px; font-weight: 500; color: ${TXT} }
 .fp .fp-card-v, .fp .fp-vs b, .fp .fp-card .fp-pill { font-weight: 500 }
 .fp-card-n > i { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; font-size: 16px; color: var(--c); background: color-mix(in srgb, var(--c) 12%, #fefefe); border: 1px solid color-mix(in srgb, var(--c) 22%, #fefefe) }
 .fp-card .fp-vs { margin-top: 10px }
-.fp-pill { font-style: normal; font-size: 12.5px; font-weight: 700; border-radius: 99px; padding: 3px 9px } .fp-pill.bom { color: #166534; background: #dcfce7 } .fp-pill.ruim { color: #991b1b; background: #fee2e2 }
+.fp-pill { white-space: nowrap; flex: none; font-style: normal; font-size: 12.5px; font-weight: 700; border-radius: 99px; padding: 3px 9px } .fp-pill.bom { color: #166534; background: #dcfce7 } .fp-pill.ruim { color: #991b1b; background: #fee2e2 }
+.fp-card-d { display: inline-flex; align-items: center; gap: 6px; flex: none }
+.fp-card-oc { width: 28px; height: 28px; border-radius: 50%; border: 1px solid #e2e8f0; background: #fefefe; color: #94a3b8; font-size: 11px; cursor: pointer; opacity: 0; transition: opacity .2s, color .2s }
+.fp-card:hover .fp-card-oc, .fp-card-oc:focus-visible { opacity: 1 } .fp-card-oc:hover { color: #b91c1c; border-color: #fca5a5 }
+@media (hover: none) { .fp-card-oc { opacity: .7 } }
 .fp-card-v { font-size: 30px; line-height: 1.15; margin-top: 12px; letter-spacing: -.01em }
 .fp-card-s { font-size: 13.5px; color: ${SEG} }
 .fp-area { position: relative; height: 56px; margin: 10px -2px 4px }
@@ -1177,7 +1212,7 @@ export const ESTILO_FP = `
 .fp-comp { display: flex; height: 26px; border-radius: 8px; overflow: hidden; gap: 2px; margin-top: 8px } .fp-comp i { display: flex; align-items: center; justify-content: center; font-style: normal; font-size: 12.5px; font-weight: 600; color: #fefefe; transition: flex-grow .5s }
 .fp-comp-leg { display: flex; gap: 8px 22px; flex-wrap: wrap; font-size: 14px; margin-top: 8px } .fp-comp-leg span { display: inline-flex; align-items: center; gap: 6px } .fp-comp-leg i { width: 10px; height: 10px; border-radius: 3px } .fp-comp-leg small { color: ${SEG} }
 .fp-b { cursor: pointer; font-family: inherit } .fp-b u { text-decoration: none; font-size: 12.5px; color: #c2410c; margin-left: 4px } .fp-b:hover { box-shadow: 0 4px 12px -6px rgba(234,88,12,.5) }
-.fp-modal-fundo { position: fixed; inset: 0; z-index: 9500; background: rgba(15,23,42,.45); backdrop-filter: blur(4px); display: grid; place-items: center; padding: 16px; animation: fpFundo .2s both }
+.fp-modal-fundo { position: fixed; inset: 0; z-index: 100066; overscroll-behavior: contain; background: rgba(15,23,42,.45); backdrop-filter: blur(4px); display: grid; place-items: center; padding: 16px; animation: fpFundo .2s both }
 .fp-modal { width: min(820px, 100%); max-height: calc(100vh - 32px); overflow: auto; background: #fefefe; border-radius: 20px; box-shadow: 0 30px 80px -20px rgba(15,23,42,.55); display: grid; gap: 16px; padding: 22px 24px; animation: fpModal .3s cubic-bezier(.2,.9,.3,1.1) both }
 .fp-modal-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px } .fp-modal-cab > div { display: grid } .fp-modal-cab small { font-size: 13.5px; color: ${SEG} } .fp-modal-cab b { font-size: 22px; color: #1d4ed8 }
 .fp-modal-x { width: 36px; height: 36px; border-radius: 50%; border: 1px solid #e2e8f0; background: #fefefe; font-size: 22px; line-height: 1; color: ${SEG}; cursor: pointer } .fp-modal-x:hover { background: #f1f5f9; color: ${TXT} }
@@ -1186,7 +1221,7 @@ export const ESTILO_FP = `
 .fp-modal-nav { display: flex; align-items: center; justify-content: center; gap: 14px; font-size: 15px; font-weight: 700 }
 .fp-modal-nav button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid #cbd5e1; background: #fefefe; font-size: 20px; line-height: 1; color: ${TXT}; cursor: pointer } .fp-modal-nav button:disabled { opacity: .35; cursor: default }
 .fp-modal-grade { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px } .fp-modal-grade.n14 { grid-template-columns: repeat(7, minmax(0, 1fr)) } .fp-modal-grade.n6 { grid-template-columns: repeat(3, minmax(0, 1fr)) }
-.fp-mq { position: relative; display: grid; gap: 4px; text-align: left; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 12px; padding: 10px 12px; font-family: inherit; color: ${TXT}; cursor: pointer; transition: all .2s }
+.fp-mq { position: relative; display: grid; gap: 4px; text-align: left; border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 12px; padding: 10px 12px; font-family: inherit; color: ${TXT}; cursor: pointer; transition: background-color .2s, border-color .2s, color .2s, box-shadow .2s, transform .2s }
 .fp-mq:hover:not(:disabled) { border-color: #fdba74; background: #fff7ed; transform: translateY(-1px) } .fp-mq:disabled { cursor: default } .fp-mq:disabled:not(.a) { opacity: .35 }
 .fp-mq small { font-size: 13px; color: ${SEG} } .fp-mq b { font-size: 16px } .fp-mq > span { height: 5px; border-radius: 99px; background: #e2e8f0; overflow: hidden } .fp-mq > span i { display: block; height: 100%; border-radius: 99px; background: #94a3b8 }
 .fp-mq.a { background: #eff6ff; border-color: #93c5fd } .fp-mq.a > span i { background: #2563eb }
@@ -1215,7 +1250,7 @@ export const ESTILO_FP = `
 .fp-lista-r .dest { background: color-mix(in srgb, #2563eb 8%, transparent); border-radius: 8px; padding: 4px 8px; margin: -4px -8px } .fp-lista-r .dest b { font-weight: 700 !important; color: #1d4ed8 }
 .fp-lista-r.cab .dest { color: #1d4ed8; font-weight: 700; padding: 2px 8px; margin: -2px -8px }
 @media (max-width: 900px) { .fp-lista-r.fp-lista-6 { grid-template-columns: 50px minmax(0, 1fr) 90px 90px; } .fp-lista-r.fp-lista-6 > span:nth-child(3), .fp-lista-r.fp-lista-6 > span:nth-child(4), .fp-lista-r.fp-lista-6 > span:nth-child(6), .fp-lista-r.fp-lista-6 > span:nth-child(9) { display: none } }
-@media (min-width: 1201px) { .fp-cards.seis { grid-template-columns: repeat(6, minmax(0, 1fr)) } }
+@media (min-width: 1201px) { .fp-cards.seis { grid-template-columns: repeat(var(--n, 6), minmax(0, 1fr)) } }
 .fp-card-alerta { display: flex; flex-wrap: wrap; gap: 4px 6px; margin-top: 2px }
 .fp-card-alerta > span { font-size: 12px; font-weight: 600; color: #be123c; background: #fff1f2; border-radius: 99px; padding: 2px 8px } .fp-card-alerta > span.cinza { color: #475569; background: #f1f5f9 }
 .fp-req-sits { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px }
@@ -1230,10 +1265,10 @@ export const ESTILO_FP = `
 .fp-lista-pdf { border: 1px solid #fca5a5; background: #fefefe; color: #b91c1c; border-radius: 99px; padding: 3px 10px; font-family: inherit; font-size: 12px; font-weight: 700; cursor: pointer } .fp-lista-pdf:hover { background: #fee2e2 }
 .fp-lista-pec { display: grid; justify-items: end; gap: 1px; border: none; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer } .fp-lista-pec small { font-size: 11px; color: #b91c1c } .fp-lista-pec:hover b { text-decoration: underline }
 .fp-lista-vazio { margin: 12px 0; color: ${SEG} }
-.fp-doc { position: fixed; inset: 0; z-index: 9700 }
+.fp-doc { position: fixed; inset: 0; z-index: 100090 }
 @media (max-width: 760px) { .fp-lista-r { grid-template-columns: 50px minmax(0, 1fr) 90px 50px } .fp-lista-r > span:nth-child(2), .fp-lista-r > span:nth-child(4) { display: none } }
 .fp-deg-d { display: inline-flex; align-items: center; gap: 6px }
-.fp-deg-cmp { width: 30px; height: 30px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--c) 35%, #e2e8f0); background: #fefefe; color: var(--c); font-size: 15px; font-weight: 700; line-height: 1; cursor: pointer; transition: all .2s }
+.fp-deg-cmp { width: 30px; height: 30px; border-radius: 50%; border: 1px solid color-mix(in srgb, var(--c) 35%, #e2e8f0); background: #fefefe; color: var(--c); font-size: 15px; font-weight: 700; line-height: 1; cursor: pointer; transition: background-color .2s, border-color .2s, color .2s, box-shadow .2s, transform .2s }
 .fp-deg-cmp:hover { background: var(--c); color: #fefefe } .fp-deg-cmp-i { display: inline-block; transition: transform .25s } .fp-deg-cmp:hover .fp-deg-cmp-i { transform: rotate(180deg) } .fp-deg-cmp.on { background: #ea580c; border-color: #ea580c; color: #fefefe }
 .fp-lados { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 0; align-items: stretch; animation: fpEntra .35s both }
 .fp-lados-vs { display: grid; place-items: center; width: 40px } .fp-lados-vs span { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: ${TXT}; color: #fefefe; font-size: 12.5px; font-weight: 700; box-shadow: 0 6px 16px -6px rgba(15,23,42,.5) }
@@ -1242,7 +1277,7 @@ export const ESTILO_FP = `
 .fp-pp-cab { display: flex; gap: 12px; align-items: center } .fp-pp-cab em { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-weight: 700; color: #fefefe; flex: none } .fp-pp.a .fp-pp-cab em { background: #2563eb } .fp-pp.b .fp-pp-cab em { background: #ea580c }
 .fp-pp-cab > div { display: grid } .fp-pp-cab b { font-size: 19px } .fp-pp-cab small { font-size: 13px; color: ${SEG} }
 .fp-pp-ctl { display: flex; gap: 6px; flex-wrap: wrap; align-items: center }
-.fp-pp-ctl button { border: 1px solid #fed7aa; background: #fefefe; color: ${TXT}; border-radius: 99px; padding: 6px 12px; font-family: inherit; font-size: 13px; cursor: pointer; transition: all .2s } .fp-pp-ctl button:hover:not(:disabled) { border-color: #ea580c } .fp-pp-ctl button.on { background: #ea580c; border-color: #ea580c; color: #fefefe } .fp-pp-ctl button:disabled { opacity: .35; cursor: default }
+.fp-pp-ctl button { border: 1px solid #fed7aa; background: #fefefe; color: ${TXT}; border-radius: 99px; padding: 6px 12px; font-family: inherit; font-size: 13px; cursor: pointer; transition: background-color .2s, border-color .2s, color .2s, box-shadow .2s, transform .2s } .fp-pp-ctl button:hover:not(:disabled) { border-color: #ea580c } .fp-pp-ctl button.on { background: #ea580c; border-color: #ea580c; color: #fefefe } .fp-pp-ctl button:disabled { opacity: .35; cursor: default }
 .fp-pp-ctl button[aria-label] { width: 32px; height: 32px; padding: 0; font-size: 18px; line-height: 1 }
 .fp-pp-sair { justify-self: end; border: 1px solid #cbd5e1; background: #fefefe; color: ${TXT}; border-radius: 99px; padding: 6px 12px; font-family: inherit; font-size: 13px; cursor: pointer; margin-top: -46px } .fp-pp-sair:hover { border-color: #b91c1c; color: #b91c1c }
 .fp-pp-g { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px }

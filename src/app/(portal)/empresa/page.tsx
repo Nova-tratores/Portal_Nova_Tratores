@@ -35,6 +35,7 @@ import { CSS_CDP } from './comercial-despesas'
 import { CSS_CPF } from './comercial-propostas'
 import { PainelPosVendas, CSS_CPV } from './posvendas'
 import { PainelPecas, CSS_CPC } from './pecas'
+import { ESTILO_FP } from '@/components/mecanicos/FaturamentoPeriodo'
 import { FrotaMapaCards, CSS_CFR } from './frota'
 import { PainelRequisicoes, CSS_CRQ } from './requisicoes'
 import { useEstadoUrl } from './url-estado'
@@ -833,8 +834,80 @@ export default function ComoEstaAEmpresa() {
   // ── FINANCEIRO: só o que a Planta Viva mostra, no "guia de apresentação para leigo" do José (11/11):
   // uma mensagem por cartão, o título é a conclusão, número grande arredondado, uma linha concreta e a ação.
   // O detalhe (conta por conta, dia por dia) fica na janela que abre ao clicar.
+  // Ortiz, 18/11/2026: "na visão da empresa, no Financeiro, juntar o faturamento do Comercial, Peças e Pós-Vendas
+  // para saber o faturamento total e o custo total". Base: DRE gerencial do mês (a mesma das contas de cada setor).
+  const empresaNoMes = () => {
+    if (!gAtual) return null
+    const setores: K[] = ['comercial', 'posvendas', 'pecas']
+    // para cada setor: quanto faturou, quanto custou o que vendeu, as despesas (do setor, parte das gerais e impostos) e o que sobrou
+    const linhas = setores.map((k) => {
+      const l = gAtual.setores[k]
+      const custo = Math.max(0, -l.custos)
+      const gastou = l.receita - l.resultado
+      return { k, faturou: l.receita, custo, despesas: gastou - custo, gastou, resultado: l.resultado }
+    })
+    // o total da empresa = a soma das 3 linhas
+    const total = { faturou: 0, custo: 0, despesas: 0, gastou: 0, resultado: 0 }
+    for (const x of linhas) {
+      total.faturou += x.faturou; total.custo += x.custo; total.despesas += x.despesas; total.gastou += x.gastou; total.resultado += x.resultado
+    }
+    const corSobra = (v: number) => (v >= 0 ? COR.verde : COR.vermelho)
+    const maior = Math.max(1, ...linhas.map((x) => Math.max(x.faturou, x.gastou)))
+    // os 5 cartões do total, no mesmo estilo dos cartões do Faturamento (Pós-Vendas e Peças — Ortiz, 18/11/2026)
+    type Campo = 'faturou' | 'custo' | 'despesas' | 'gastou' | 'resultado'
+    const sobrou = total.resultado >= 0
+    const CARTOES: { campo: Campo; titulo: string; icone: string; cor: string; dica: string; sub: string }[] = [
+      { campo: 'faturou', titulo: 'Faturamento total', icone: 'fa-sack-dollar', cor: '#2563eb', dica: 'Tudo o que os três setores venderam no mês (receita da contabilidade).', sub: 'Comercial + Pós-Vendas + Peças' },
+      { campo: 'custo', titulo: 'Custo do vendido', icone: 'fa-boxes-stacked', cor: '#dc2626', dica: 'O que a empresa pagou no que foi vendido: as máquinas, as peças e os serviços de terceiros.', sub: total.faturou ? `${Math.round((total.custo / total.faturou) * 100)}% do faturamento` : '' },
+      { campo: 'despesas', titulo: 'Despesas e impostos', icone: 'fa-receipt', cor: '#f97316', dica: 'Despesas de cada setor, a parte das despesas gerais da empresa e os impostos sobre as vendas.', sub: total.faturou ? `${Math.round((total.despesas / total.faturou) * 100)}% do faturamento` : '' },
+      { campo: 'gastou', titulo: 'Custo total', icone: 'fa-scale-unbalanced', cor: '#be123c', dica: 'Custo do vendido + despesas e impostos: tudo o que saiu.', sub: 'custo do vendido + despesas' },
+      { campo: 'resultado', titulo: sobrou ? 'Sobrou' : 'Faltou', icone: sobrou ? 'fa-piggy-bank' : 'fa-triangle-exclamation', cor: corSobra(total.resultado), dica: 'Faturamento total menos o custo total.', sub: total.faturou ? `${Math.round((Math.abs(total.resultado) / total.faturou) * 100)}% do faturamento` : '' },
+    ]
+    return (
+      <section className="pf-tot fp">
+        <style>{ESTILO_FP}</style>
+        <div className="pf-tot-cab">
+          <div><b>A empresa em {rotMes(gAtual.mes)}{gAtual.parcial ? ` até o dia ${diaHoje}` : ''}</b><small>Comercial + Pós-Vendas + Peças, pela contabilidade (DRE gerencial)</small></div>
+        </div>
+        <div className="fp-cards" style={{ ['--n' as string]: 5 }}>
+          {CARTOES.map((c, i) => (
+            // clicar abre a conta da empresa (o DRE completo, com cada linha e os lançamentos)
+            <div key={c.campo} className="fp-card clica" role="button" tabIndex={0} style={{ ['--c' as string]: c.cor, animationDelay: `${i * 60}ms` }} onClick={() => nova({ tipo: 'empresa' })} onKeyDown={(ev) => { if (ev.key === 'Enter') nova({ tipo: 'empresa' }) }}>
+              <div className="fp-card-t"><span className="fp-card-n" data-dica={`${c.titulo.toUpperCase()} — ${c.dica}`}><i className={`fas ${c.icone}`} aria-hidden />{c.titulo}</span></div>
+              <b className="fp-card-v" style={c.campo === 'resultado' ? { color: c.cor } : undefined}>{compacto(Math.abs(total[c.campo]))}</b>
+              <small className="fp-card-s">{c.sub}</small>
+              <span className="fp-card-ver">ver a conta da empresa ›</span>
+            </div>
+          ))}
+        </div>
+        {/* um cartão por setor: clicar abre o setor */}
+        <div className="fp-cards" style={{ ['--n' as string]: 3 }}>
+          {linhas.map((x, i) => {
+            const cor = corDoSetor(x.k)
+            return (
+              <div key={x.k} className="fp-card clica" role="button" tabIndex={0} style={{ ['--c' as string]: cor, animationDelay: `${(i + 5) * 60}ms` }} onClick={() => setFoco(x.k)} onKeyDown={(ev) => { if (ev.key === 'Enter') setFoco(x.k) }}>
+                <div className="fp-card-t">
+                  <span className="fp-card-n"><i className="fas fa-building" aria-hidden />{NOME[x.k]}</span>
+                  <em className={`fp-pill ${x.resultado >= 0 ? 'bom' : 'ruim'}`}>{x.resultado >= 0 ? 'sobrou' : 'faltou'} {compacto(Math.abs(x.resultado))}</em>
+                </div>
+                <b className="fp-card-v">{compacto(x.faturou)}</b>
+                <small className="fp-card-s">{total.faturou ? `${Math.round((x.faturou / total.faturou) * 100)}% do faturamento` : 'faturou'} · custo {compacto(x.custo)} · despesas {compacto(x.despesas)}</small>
+                <span className="fp-card-ver">abrir {NOME[x.k]} ›</span>
+                <div className="fp-vs">
+                  <div><span>Faturou</span><i><u style={{ width: `${(x.faturou / maior) * 100}%` }} /></i><b>{compacto(x.faturou)}</b></div>
+                  <div className="b"><span>Gastou</span><i><u style={{ width: `${(x.gastou / maior) * 100}%` }} /></i><b>{compacto(x.gastou)}</b></div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        <p className="pf-tot-nota">Os números vêm da contabilidade de cada setor. O cartão de Faturamento do Pós-Vendas e o de Peças contam pelas OS e pelos pedidos faturados, por isso podem mostrar um valor um pouco diferente.</p>
+      </section>
+    )
+  }
+
   const painelFinanceiro = () => {
-    if (!rv && !pv && !fluxo) return <div className="pf"><div className="ce-mudo">{carregando ? 'Carregando as contas…' : 'Sem acesso às contas do financeiro.'}</div></div>
+    if (!rv && !pv && !fluxo) return <div className="pf">{empresaNoMes()}<div className="ce-mudo">{carregando ? 'Carregando as contas…' : 'Sem acesso às contas do financeiro.'}</div></div>
     const v90 = (k: Kpi | null) => aging(k).find((x) => x.f === '90+')?.v || 0
     const ent30 = (fluxo || []).reduce((a2, w) => a2 + w.receber, 0), sai30 = (fluxo || []).reduce((a2, w) => a2 + w.pagar, 0), saldo = ent30 - sai30
     const fila = kv('fila_financeiro')
@@ -851,6 +924,7 @@ export default function ComoEstaAEmpresa() {
     ]
     return (
       <div className="pf">
+        {empresaNoMes()}
         <div className="pf-tres-g">
           {cards.filter(Boolean).map((c) => (
             <button key={c!.titulo} className="pf-card pf-g" style={{ ['--c' as string]: c!.cor }} onClick={() => nova(c!.abre)}>
@@ -1582,6 +1656,9 @@ const CSS_PF = `
 .pf-acao i{transition:transform .2s}
 .ce button.pf-g:hover .pf-acao i{transform:translateX(4px)}
 @media (max-width:1100px){.pf-tres-g{grid-template-columns:1fr}.pf-g .pf-num{font-size:38px}}
+.pf-tot{background:#fefefe;border:1px solid #e2e8f0;border-radius:20px;padding:20px 22px}
+.pf-tot-cab b{display:block;font-size:18px;font-weight:600;color:#0f172a}.pf-tot-cab small{font-size:13.5px;color:#475569}
+.pf-tot-nota{margin:0;font-size:13px;color:#475569}
 @media (max-width:700px){.pf{padding:12px}.pf-dois{grid-template-columns:1fr}.pf-num{font-size:32px}.pf-leg{grid-template-columns:repeat(2,1fr)}}
 `
 // capa estilo E · Bento colorido (11/11) — mesmo visual de public/teste-estilos.html
