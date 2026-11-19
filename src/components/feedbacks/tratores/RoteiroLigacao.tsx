@@ -151,7 +151,8 @@ export default function RoteiroLigacao({ lista, desde, onAbrir: abrirFicha }: { 
     setAtends((as) => as.filter((a) => a.chave !== c.chave));
     setAviso((a) => ({ id: (a?.id ?? 0) + 1, txt }));
     // a lista encolhe sozinha (o trator sai da fila); "não atendeu" fica, então avança
-    if (c.resultado === "nao_atendeu" && filtro !== "acao") setK((x) => x + 1);
+    // (com data para tentar de novo ele sai da fila sozinho — 19/11/2026)
+    if (c.resultado === "nao_atendeu" && !c.retornar_em && filtro !== "acao") setK((x) => x + 1);
   };
   const ctxDe = (t: TratorVendido, iniciar = false): CtxAtendimento | undefined => {
     const x = todos.find((y) => y.t.chave === t.chave);
@@ -231,7 +232,7 @@ export default function RoteiroLigacao({ lista, desde, onAbrir: abrirFicha }: { 
             <div className="rl-corpo">
               <span className="rl-quando">
                 {atual.red ? `${atual.t.entrega.dias} dias com o cliente · sem orçamento da 50 h`
-                  : atual.s.estado === "espera" ? `Falar de novo em ${dataBR(atual.s.retorno)}`
+                  : atual.s.estado === "espera" ? (atual.s.historico[0]?.resultado === "nao_atendeu" ? `Não atendeu · tentar de novo em ${dataBR(atual.s.retorno)}` : `Falar de novo em ${dataBR(atual.s.retorno)}`)
                   : atual.s.estado === "aguarda" ? `Ainda não deu as horas${atual.s.previsao ? ` · 50 h por volta de ${dataBR(atual.s.previsao.data50)}` : ""}`
                   : atual.s.estado === "justificado" ? `Sem a 50 h · ${atual.s.semRevisao?.motivo ? ROTULO_MOTIVO[atual.s.semRevisao.motivo] : "com motivo"}`
                   : atual.s.estado === "antes" ? `Faz 30 dias em ${diaMes(atual.t.marcos[0]?.data)}`
