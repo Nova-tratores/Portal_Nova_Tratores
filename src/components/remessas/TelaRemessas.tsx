@@ -136,7 +136,9 @@ export default function TelaRemessas() {
   const th = (col: Col, rot: string, alinhar?: 'right') => (
     <th className="ord" style={alinhar ? { textAlign: alinhar } : undefined} onClick={() => setOrdem((o) => ({ col, dir: o.col === col ? (o.dir === 1 ? -1 : 1) : 1 }))}
       aria-sort={ordem.col === col ? (ordem.dir === 1 ? 'ascending' : 'descending') : 'none'} title="Clique para ordenar A→Z / Z→A">
-      {rot} {ordem.col === col ? (ordem.dir === 1 ? <ArrowUp size={11} /> : <ArrowDown size={11} />) : <span style={{ opacity: .35 }}>⇅</span>}
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+        {rot} {ordem.col === col ? (ordem.dir === 1 ? <ArrowUp size={11} style={{ display: 'inline' }} /> : <ArrowDown size={11} style={{ display: 'inline' }} />) : <span style={{ opacity: .35 }}>⇅</span>}
+      </span>
     </th>
   );
   const tiposPresentes = [...new Set((aba === 'historico' ? base : abertas).map((l) => l.tipo))];

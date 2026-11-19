@@ -12,12 +12,13 @@ interface ItemPrevia {
   devolvidoNaOmie: boolean; disponivel: number; valorDisponivel: number; icmsCst: string | null; temST: boolean;
 }
 interface Historico { id: string; cod_int_rem: string; status: string; nf_numero: string | null; valor_total: number | null; erro: string | null; user_nome: string | null; criado_em: string }
+interface Tentativa { quando: string; quem: string | null; acao: 'emitir' | 'faturar'; ok: boolean; erro: string | null; nf: string | null; fichaId: string | null }
 interface Previa {
   nota: { idReceb: number; numero: string; emissao: string | null; chave: string | null; fornecedor: string | null; recebido: boolean;
     volumes: { qtd: number; especie: string | null; marca: string | null; pesoBruto: number; pesoLiq: number } };
-  itens: ItemPrevia[]; historico: Historico[];
+  itens: ItemPrevia[]; historico: Historico[]; tentativas?: Tentativa[];
   padroes: { categoria: string; frete: string; email: string | null; deRemessa: string | null };
-  texto: string; migracaoFaltando?: boolean; erro?: string;
+  texto: string; avisos?: string[]; migracaoFaltando?: boolean; erro?: string;
 }
 interface NotaGarantia { conta: string; idReceb: number; numero: string; data: string; fornecedor: string; valor: number; sugerida: boolean }
 
@@ -136,6 +137,7 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
               {previa.nota.chave && <div style={{ fontSize: '.7rem', color: '#64748b', wordBreak: 'break-all' }}>chave {previa.nota.chave}</div>}
             </div>
             {previa.migracaoFaltando && <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: '8px 12px', fontSize: '.8rem', marginBottom: 8 }}>Falta aplicar <code>sql/garantia-retorno-remessa.sql</code> no banco.</div>}
+            {(previa.avisos || []).map((a, i) => <div key={i} style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: '8px 12px', fontSize: '.8rem', marginBottom: 8 }}>{a}</div>)}
             {!previa.nota.recebido && <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: '8px 12px', fontSize: '.8rem', marginBottom: 8 }}>Dê entrada nesta nota antes de devolver.</div>}
 
             <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>
@@ -198,7 +200,24 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
                     {h.valor_total != null && <span>{brl(h.valor_total)}</span>}
                     <span style={{ color: '#64748b' }}>{h.user_nome}</span>
                     {h.erro && <span style={{ color: '#b91c1c', fontSize: '.72rem' }}>{h.erro}</span>}
-                    {h.status === 'criada' && <button type="button" disabled={enviando} onClick={() => post({ acao: 'faturar', fichaId: h.id })} style={{ ...btn('#b45309', !enviando), minHeight: 36, padding: '4px 12px' }}>Faturar de novo</button>}
+                    {h.status === 'criada' && <button type="button" disabled={enviando} onClick={() => post({ acao: 'faturar', fichaId: h.id })} title={h.nf_numero ? 'Lê na Omie se a NF-e foi autorizada (depois de corrigir e retransmitir lá)' : 'Acerta os itens e fatura a remessa'} style={{ ...btn('#b45309', !enviando), minHeight: 36, padding: '4px 12px' }}>{h.nf_numero ? 'Conferir de novo' : 'Faturar de novo'}</button>}
+                    {(() => {
+                      const ts = (previa.tentativas || []).filter((t) => t.fichaId === h.id);
+                      if (!ts.length) return null;
+                      return (
+                        <details style={{ width: '100%', fontSize: '.72rem', color: '#475569' }}>
+                          <summary style={{ cursor: 'pointer', minHeight: 28 }}>{ts.length} tentativa(s)</summary>
+                          {ts.map((t, k) => (
+                            <div key={k} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '3px 0 3px 12px', borderTop: '1px dashed #e2e8f0' }}>
+                              <span>{new Date(t.quando).toLocaleString('pt-BR')}</span>
+                              <span>{t.acao === 'emitir' ? 'emitir' : 'faturar/conferir'}</span>
+                              <span style={{ color: t.ok ? '#047857' : '#b91c1c' }}>{t.ok ? `ok${t.nf ? ` · NF ${t.nf}` : ''}` : (t.erro || 'falhou')}</span>
+                              <span style={{ color: '#64748b' }}>{t.quem}</span>
+                            </div>
+                          ))}
+                        </details>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>

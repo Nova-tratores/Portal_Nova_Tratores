@@ -60,6 +60,8 @@ export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
   // exportar relatórios das notas fiscais (todas as notas do filtro numa planilha/PDF) —
   // permissão especial, cada exportação fica no audit_log (José, 10/11/2026)
   'financeiro:notas-relatorios',
+  // abas Problemas e Envios ao Omie de /financeiro/notas (notas rejeitadas/presas + falhas de gravação na Omie) — 19/11/2026
+  'financeiro:notas-problemas',
   // aprovar a compra de uma requisição (grava quem aprovou) — o módulo Requisições não dá (12/11/2026)
   'requisicoes:aprovar_compra',
 ]);

@@ -1,7 +1,7 @@
 // GET  ?id=  -> prévia (o que está na Omie × portal)
 // POST {id}  -> fatura (emite a NF-e). Ação EXPLÍCITA pedidos-maquinas:faturar.
 // Liga/desliga: PEDIDOS_MAQUINAS_FATURAR = off (padrão) | dev | on.
-import { guardar, autor, respostaErro } from '@/lib/pedidos-maquinas/server';
+import { guardar, autor, respostaErro, registrarFalhaOmie } from '@/lib/pedidos-maquinas/server';
 import { simularFaturamento, faturarPedidoMaquina } from '@/lib/pedidos-maquinas/omie';
 import { autenticar } from '@/lib/auth/server';
 
@@ -34,12 +34,15 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   const g = await guardar(req, 'faturar');
   if (g.resposta) return g.resposta;
+  let id: unknown;
   try {
     const bloqueio = await bloqueioDoFaturamento(req);
     if (bloqueio) return Response.json({ error: bloqueio }, { status: 403 });
     const b = await req.json().catch(() => ({}));
+    id = b.id;
     return Response.json({ ok: true, ...(await faturarPedidoMaquina(b.id, autor(g.user))) });
   } catch (e) {
+    await registrarFalhaOmie('faturar_erro', id, g.user, e).catch(() => {});
     return respostaErro(e, 'faturar');
   }
 }

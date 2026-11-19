@@ -36,6 +36,19 @@ export function respostaErro(e: unknown, onde: string): Response {
   return Response.json({ error: err?.message || 'Erro interno' }, { status: 500 });
 }
 
+/** Recusa da Omie (ErroPedido 422) ou erro inesperado ao enviar/faturar: fica no audit_log
+ *  para a aba "Envios ao Omie" de /financeiro/notas. Erros de regra do portal (400/409) não entram. */
+export async function registrarFalhaOmie(acao: 'enviar_erro' | 'faturar_erro', id: unknown, u: UsuarioRota, e: unknown): Promise<void> {
+  if (e instanceof ErroPedido && e.status !== 422) return;
+  if (!(e instanceof ErroPedido) && faltaTabela(e as { code?: string })) return;
+  const { registrarAuditLog } = await import('@/lib/server/audit-notify');
+  await registrarAuditLog({
+    userId: u.id, userName: autor(u), sistema: MODULO, acao,
+    entidade: 'pedido_maquina', entidadeId: String(id ?? ''), entidadeLabel: `Pedido de máquina ${id ?? ''}`,
+    detalhes: { erro: e instanceof Error ? e.message : String(e) },
+  });
+}
+
 /** Guarda: `acao` = ação do módulo (criar/editar/enviar_omie/faturar/...); sem ação = ver. */
 export async function guardar(req: Request, acao?: string) {
   return protegerRota(req, [{ modulo: MODULO, ...(acao ? { acao } : {}) }]);

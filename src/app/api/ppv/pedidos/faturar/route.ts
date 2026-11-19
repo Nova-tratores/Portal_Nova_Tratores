@@ -7,7 +7,7 @@ import { conferirPPV } from "@/lib/ppv/conferencia-omie";
 import { avisarUsuarioPorEmail } from "@/lib/notif/avisar-usuario";
 import { autenticar } from "@/lib/auth/server";
 import { temModuloPPV } from "@/lib/ppv/server";
-import { logAndNotify } from "@/lib/server/audit-notify";
+import { logAndNotify, registrarAuditLog } from "@/lib/server/audit-notify";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +45,13 @@ export async function POST(req: NextRequest) {
     const link = `/ppv?id=${id}`;
     if (!resultado.sucesso) {
       // quem faturou fica sabendo mesmo com a janela fechada (José, 23/10/2026)
+      // a recusa/incerteza fica no audit_log (aba "Envios ao Omie" de /financeiro/notas) — antes não ficava em lugar nenhum
+      if (!resultado.jaFaturado) await registrarAuditLog({
+        userId: auth.userId, userName, sistema: "ppv",
+        acao: resultado.pendente ? "faturar_desconhecido" : "faturar_erro",
+        entidade: "pedido", entidadeId: id, entidadeLabel: `PPV ${id}`,
+        detalhes: { erro: String(resultado.erro || ""), numeroPedido: resultado.numeroPedido, empresa: resultado.empresa, jaFaturado: resultado.jaFaturado || false },
+      });
       await avisarUsuarioPorEmail(auth.email, "ppv", resultado.pendente ? `PPV ${id}: faturamento aguardando o Omie` : `PPV ${id}: o Omie recusou o faturamento`, String(resultado.erro || ""), link);
       // "pendente" (faturamento acionado, NF ainda não autorizada) NÃO é erro duro:
       // devolve 200 pra a UI mostrar "aguardando SEFAZ" em vez de erro vermelho.

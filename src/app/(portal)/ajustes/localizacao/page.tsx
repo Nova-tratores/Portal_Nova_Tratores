@@ -825,7 +825,7 @@ function ModalConferirPosicao({ deck, daEmpresa, conferidas, emContagem, onConta
                       )}
                       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                         <button onClick={() => imprimir(p)} disabled={!!imprimindo}
-                          title={destino === 'estacao' ? `Manda a etiqueta para a ${estacao?.nome || 'ROGERIA'}` : 'Imprime neste aparelho com as medidas da térmica do Opa'}
+                          title="Imprime na impressora escolhida em 'Etiqueta sai' (acima)"
                           style={{ ...bigBtn, fontSize: '.9rem', background: '#0f172a', color: '#fff', opacity: imprimindo && imprimindo !== chaveProd(p) ? 0.6 : 1 }}>
                           <Printer size={16} /> {imprimindo === chaveProd(p) ? 'Mandando…' : 'Imprimir etiqueta'}
                         </button>

@@ -226,6 +226,8 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'notas-xml', label: 'Notas fiscais — baixar XML' },
     // EXPLÍCITA (explicitas.ts): o acesso total ao Financeiro não dá; cada exportação vai pro audit_log
     { id: 'notas-relatorios', label: 'Notas fiscais — exportar relatórios (fica registrado)' },
+    // EXPLÍCITA: abas Problemas (notas rejeitadas/presas) e Envios ao Omie (falhas de gravação)
+    { id: 'notas-problemas', label: 'Notas fiscais — Problemas e Envios ao Omie' },
     // Só CONSULTA das notas de entrada no arquivo (quem dá entrada já vê pelo Recebimentos).
     // Herdeira da consulta-estoque:notas-entrada (tela aposentada 29/10/2026).
     { id: 'notas-entrada', label: 'Notas fiscais — ver também as de entrada (só consulta)' },

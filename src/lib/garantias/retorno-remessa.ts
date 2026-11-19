@@ -15,9 +15,9 @@ export const FRETE_PADRAO = '9';
 export const IBS_CBS_RETORNO = { cCstIbsCbs: '410', cClassTrib: '410029' };
 
 export interface ImpostosEntrada {
-  icms?: { cModBC?: string; cOrigem?: string; cSitTrib?: string; nAliq?: number; nBC?: number; nValor?: number } | null;
+  icms?: { cModBC?: string; cOrigem?: string; cSitTrib?: string; nAliq?: number; nBC?: number; nValor?: number; nRedBC?: number } | null;
   st?: { cModBCST?: string; nAliqOP?: number; nAliqST?: number; nBCST?: number; nMargVrAd?: number; nRedBCST?: number; nValorST?: number } | null;
-  ipi?: { cEnqIPI?: string; cSitTribIPI?: string; nValIPI?: number } | null;
+  ipi?: { cEnqIPI?: string; cSitTribIPI?: string; cTpCalcIPI?: string; nAliqIPI?: number; nBCIPI?: number; nValIPI?: number } | null;
   pisCst?: string | null;
   cofinsCst?: string | null;
 }
@@ -34,6 +34,8 @@ export interface ItemEntrada extends ImpostosEntrada {
   vTotalItem: number;
   /** a Omie já marcou o item como devolvido (devolução feita pela tela da Omie) */
   devolvidoNaOmie: boolean;
+  /** código de benefício fiscal do ICMS na nota da fábrica (cBenef do XML; ex. SP058811) */
+  cBenef?: string | null;
 }
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
@@ -71,9 +73,9 @@ export function itensDaEntrada(rec: { itensRecebimento?: Record<string, any>[] }
       precoUnit: num(ca.nPrecoUnit),
       vTotalItem: num(ca.vTotalItem),
       devolvidoNaOmie: ca.cItemDevolvido === 'S',
-      icms: { cModBC: icms.cModBC, cOrigem: icms.cOrigem, cSitTrib: icms.cSitTrib, nAliq: num(icms.nAliq), nBC: num(icms.nBC), nValor: num(icms.nValor) },
+      icms: { cModBC: icms.cModBC, cOrigem: icms.cOrigem, cSitTrib: icms.cSitTrib, nAliq: num(icms.nAliq), nBC: num(icms.nBC), nValor: num(icms.nValor), nRedBC: num(icms.nRedBC) },
       st: num(st.nValorST) > 0 ? { cModBCST: st.cModBCST, nAliqOP: num(st.nAliqOP), nAliqST: num(st.nAliqST), nBCST: num(st.nBCST), nMargVrAd: num(st.nMargVrAd), nRedBCST: num(st.nRedBCST), nValorST: num(st.nValorST) } : null,
-      ipi: { cEnqIPI: ipi.cEnqIPI, cSitTribIPI: ipi.cSitTribIPI, nValIPI: num(ipi.nValIPI) },
+      ipi: { cEnqIPI: ipi.cEnqIPI, cSitTribIPI: ipi.cSitTribIPI, cTpCalcIPI: ipi.cTpCalcIPI || '', nAliqIPI: num(ipi.nAliqIPI), nBCIPI: num(ipi.nBCIPI), nValIPI: num(ipi.nValIPI) },
       pisCst: it.itensPIS?.cSitTribPIS ?? null,
       cofinsCst: it.itensCOFINS?.cSitTribCOFINS ?? it.itensPIS?.cSitTribPIS ?? null,
     };
@@ -91,6 +93,8 @@ export function itemRemessa(item: ItemEntrada, qtd: number) {
   const p = item.qtdNF > 0 ? qtd / item.qtdNF : 0;
   const cfop = cfopRetorno(item.cfopForn);
   const out: Record<string, unknown> = {
+    // a Omie exige um código por item (nCodIt ou cCodItInt) — sem ele: "Tag [nCodIt] e tag [cCodItInt] não informados!"
+    cCodItInt: `RG${item.seq}`,
     nCodProd: item.nCodProd,
     nQtde: qtd,
     nValUnit: item.precoUnit,
@@ -102,12 +106,14 @@ export function itemRemessa(item: ItemEntrada, qtd: number) {
       nAliq: num(item.icms?.nAliq),
       nBC: r2(num(item.icms?.nBC) * p),
       nValor: r2(num(item.icms?.nValor) * p),
+      ...(num(item.icms?.nRedBC) ? { nRedBC: num(item.icms?.nRedBC) } : {}),
     },
-    IPI: { cSitTribIPI: item.ipi?.cSitTribIPI || '55', cEnqIPI: item.ipi?.cEnqIPI || '115' },
+    IPI: ipiRetorno(item, p),
     PIS: { cSitTribPIS: item.pisCst || '07' },
     COFINS: { cSitTribCOFINS: item.cofinsCst || item.pisCst || '07' },
     IBS_CBS: { ...IBS_CBS_RETORNO },
-    infAdicItem: { cNaoMovEstoque: 'S' },
+    // CST com benefício (ex.: 51 diferido) sem o código = SEFAZ rejeita (930) — NF 8577, 19/11/2026
+    infAdicItem: { cNaoMovEstoque: 'S', ...(item.cBenef ? { codigo_benef: item.cBenef } : {}) },
   };
   if (item.st) {
     out.ICMS_ST = {
@@ -118,6 +124,23 @@ export function itemRemessa(item: ItemEntrada, qtd: number) {
       nBCST: r2(num(item.st.nBCST) * p),
       nValorST: r2(num(item.st.nValorST) * p),
     };
+  }
+  return out;
+}
+
+/** CST do IPI que exige "tipo de cálculo" na NF-e (tributado): 00, 49, 50, 99 */
+const IPI_TRIBUTADO = new Set(['00', '49', '50', '99']);
+
+/** IPI da remessa = o da nota da fábrica. Tributado leva tipo de cálculo, alíquota, base e valor
+ *  (sem o tipo a Omie recusa: "falta preencher o Tipo de Cálculo do IPI" — NF 840225 Marchesan, CST 50). */
+export function ipiRetorno(item: ItemEntrada, p: number) {
+  const cst = item.ipi?.cSitTribIPI || '55';
+  const out: Record<string, unknown> = { cSitTribIPI: cst, cEnqIPI: item.ipi?.cEnqIPI || (IPI_TRIBUTADO.has(cst) ? '999' : '115') };
+  if (IPI_TRIBUTADO.has(cst)) {
+    out.cTpCalcIPI = item.ipi?.cTpCalcIPI || 'B';
+    out.nAliqIPI = num(item.ipi?.nAliqIPI);
+    out.nBCIPI = r2(num(item.ipi?.nBCIPI) * p);
+    out.nValIPI = r2(num(item.ipi?.nValIPI) * p);
   }
   return out;
 }
@@ -145,6 +168,34 @@ export function validarEscolha(itens: ItemEntrada[], escolha: Escolha[], jaDevol
     if (e.qtd > disp + 1e-9) erros.push(`${nome}: só ${disp} disponível para devolver.`);
   }
   return erros;
+}
+
+/** cBenef de cada item (<det nItem="N">) do XML da NF-e. Chave = nº do item = nSequencia do recebimento. */
+export function cBenefDoXml(xml: string | null | undefined): Record<number, string> {
+  const out: Record<number, string> = {};
+  const re = /<det\b[^>]*nItem="(\d+)"[^>]*>([\s\S]*?)<\/det>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(String(xml || '')))) {
+    const b = /<cBenef>\s*([^<\s]+)\s*<\/cBenef>/.exec(m[2]);
+    if (b) out[Number(m[1])] = b[1];
+  }
+  return out;
+}
+
+/** CST do ICMS que normalmente exige o código de benefício na NF-e de SP */
+export function cstPedeBeneficio(cst: string | null | undefined): boolean {
+  return ['20', '30', '40', '41', '50', '51', '70', '90'].includes(String(cst || '').trim());
+}
+
+export type SituacaoNfe = 'autorizada' | 'rejeitada' | 'aguardando';
+/** Situação da NF-e da remessa pelo StatusRemessa: 006 = autorizada; mensagem "Rejeição…"/009 = rejeitada. */
+export function situacaoNfe(nfe: { cStatusNFe?: string; mensagens?: Array<{ cCodigo?: string; cDescricao?: string }> } | null | undefined): { situacao: SituacaoNfe; mensagem: string | null } {
+  if (!nfe) return { situacao: 'aguardando', mensagem: null };
+  const msgs = (nfe.mensagens || []).map((x) => [x.cCodigo, x.cDescricao].filter(Boolean).join(' - ')).filter(Boolean);
+  const rej = (nfe.mensagens || []).some((x) => /rejei|deneg/i.test(String(x.cDescricao || '')));
+  if (rej || nfe.cStatusNFe === '009') return { situacao: 'rejeitada', mensagem: msgs.join(' · ') || 'A SEFAZ rejeitou a nota.' };
+  if (nfe.cStatusNFe === '006') return { situacao: 'autorizada', mensagem: null };
+  return { situacao: 'aguardando', mensagem: msgs.join(' · ') || null };
 }
 
 /** texto padrão dos dados adicionais (a pessoa pode editar na tela) */
