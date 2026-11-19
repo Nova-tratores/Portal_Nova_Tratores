@@ -90,6 +90,32 @@ describe('falar de novo (retorno combinado)', () => {
   });
 });
 
+describe('não atendeu com data para tentar de novo (19/11/2026)', () => {
+  const m = marcos('2026-09-01', '2026-10-05');
+  const na = (quando: string, retornar_em: string | null): Contato => ({ ...c(30, 'nao_atendeu', quando), retornar_em });
+  it('sai da fila até a data escolhida; no dia volta como "não atendeu"', () => {
+    const cs = [na('2026-10-03T12:00:00Z', '2026-10-08')];
+    expect(situacaoContato(m, cs, '2026-10-05')).toMatchObject({ estado: 'espera', retorno: '2026-10-08', tentativas: 1 });
+    expect(situacaoContato(m, cs, '2026-10-08')).toMatchObject({ estado: 'tentar', tentativas: 1 });
+  });
+  it('"ainda hoje" (sem data) continua na fila como antes', () => {
+    expect(situacaoContato(m, [na('2026-10-03T12:00:00Z', null)], '2026-10-05').estado).toBe('tentar');
+  });
+  it('de molho não fica vermelho', () => {
+    const s = situacaoContato(marcos('2026-06-01', '2026-10-01'), [na('2026-09-30T12:00:00Z', '2026-10-10')], '2026-10-01');
+    expect(s.estado).toBe('espera');
+    expect(vermelho(120, s)).toBe(false);
+  });
+  it('não mexe em quem não pedia ação (OS da 50 h aberta)', () => {
+    const rev = { os: '1', status: 'Aberta', feita: false, dataFeita: null, origem: 'os' as const };
+    expect(situacaoContato(m, [na('2026-10-03T12:00:00Z', '2026-10-08')], '2026-10-05', rev).estado).toBe('orcado');
+  });
+  it('a validação guarda a data no não atendeu e descarta no dispensado', () => {
+    expect(validarContato({ chave: 'k', marco: 30, resultado: 'nao_atendeu', retornar_em: '2026-10-08' })).toMatchObject({ ok: true, retornar_em: '2026-10-08' });
+    expect(validarContato({ chave: 'k', marco: 30, resultado: 'dispensado', nota: 'vendedor já falou', retornar_em: '2026-10-08' })).toMatchObject({ ok: true, retornar_em: null });
+  });
+});
+
 describe('ordemDaFila', () => {
   it('quem fez o marco agora vem antes; não atendeu vai pro fim', () => {
     const s = (estado: 'ligar' | 'tentar', atraso: number) => ({ s: { estado, atraso, marco: 30 as const, tentativas: 0, conversa: null, historico: [] } });

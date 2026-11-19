@@ -7,6 +7,7 @@
 // 3 Como foi em cima, e cada troca de passo fica guardada no atendimento (volta no mesmo passo ao reabrir).
 import { useState, type ReactNode } from "react";
 import { fetchAuth } from "@/lib/auth/client";
+import TentarDeNovo from "./TentarDeNovo";
 import type { TratorVendido } from "@/lib/revisoes/vendidos-server";
 import {
   ETAPAS_ATENDIMENTO, MOTIVOS_SEM_50, ROTULO_MOTIVO, ROTULO_RESULTADO, RESULTADOS, previsaoPorHorimetro, retornoSugerido,
@@ -17,8 +18,9 @@ const dataBR = (iso: string | null | undefined) => (iso ? new Date(iso.slice(0, 
 const hojeISO = () => { const d = new Date(Date.now() - 3 * 3_600_000); return d.toISOString().slice(0, 10); };
 const primeiroNome = (n: string | null | undefined) => { const p = (n || "").trim().split(/\s+/)[0] || ""; return p ? p[0] + p.slice(1).toLowerCase() : ""; };
 
-type Modo = "atendeu" | "liguei" | "dispensar" | "sem50";
-const PASSO_DO_MODO: Record<Modo, PassoAtendimento> = { atendeu: "atendeu", liguei: "conversa", sem50: "motivo", dispensar: "dispensar" };
+type Modo = "atendeu" | "naoAtendeu" | "liguei" | "dispensar" | "sem50";
+// "naoAtendeu" (escolher quando tentar de novo) ainda é o passo 2 "Atendeu?"
+const PASSO_DO_MODO: Record<Modo, PassoAtendimento> = { atendeu: "atendeu", naoAtendeu: "atendeu", liguei: "conversa", sem50: "motivo", dispensar: "dispensar" };
 const MODO_DO_PASSO: Record<PassoAtendimento, Modo> = { atendeu: "atendeu", conversa: "liguei", motivo: "sem50", dispensar: "dispensar" };
 
 /** 1 Iniciar · 2 Atendeu? · 3 Como foi — o passo atual aceso, os feitos com visto. */
@@ -82,7 +84,7 @@ export default function RegistroAtendimento({ t, s, atendimentoId, passoInicial,
       if (!r.ok || !j.ok) throw new Error(j.erro || "Não consegui gravar.");
       const quem = nome || "Cliente";
       const volta = extra.retornar_em ? ` Volta para a fila em ${dataBR(extra.retornar_em)}.` : "";
-      onGravado(j.contato as Contato, resultado === "nao_atendeu" ? `${quem}: tentativa anotada, foi para o fim da fila.`
+      onGravado(j.contato as Contato, resultado === "nao_atendeu" ? (extra.retornar_em ? `${quem}: não atendeu — sai da fila e volta em ${dataBR(extra.retornar_em)}.` : `${quem}: tentativa anotada, foi para o fim da fila.`)
         : resultado === "sem_revisao" && extra.motivo ? `${quem}: ${ROTULO_MOTIVO[extra.motivo].toLowerCase()} — registrado.${volta}`
         : `${quem}: ${ROTULO_RESULTADO[resultado].toLowerCase()} — registrado.${volta}`);
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
@@ -90,7 +92,7 @@ export default function RegistroAtendimento({ t, s, atendimentoId, passoInicial,
   };
 
   // dentro de um atendimento aberto (ficha), a faixa de passos vai em cima
-  const comEtapas = (el: ReactNode) => (atendimentoId !== undefined ? <div className="rl-reg"><EtapasAtendimento etapa={modo === "atendeu" ? 2 : 3} />{el}</div> : el);
+  const comEtapas = (el: ReactNode) => (atendimentoId !== undefined ? <div className="rl-reg"><EtapasAtendimento etapa={modo === "atendeu" || modo === "naoAtendeu" ? 2 : 3} />{el}</div> : el);
 
   if (modo === "atendeu") return comEtapas(
     <div className="rl-passo">
@@ -99,11 +101,26 @@ export default function RegistroAtendimento({ t, s, atendimentoId, passoInicial,
         <b>{nome || "O cliente"} atendeu?</b>
         <div className="rl-acoes">
           <button type="button" className="rl-btn ok grande" onClick={() => setModo("liguei")}><i className="fa-solid fa-comments" /> Sim, conversamos</button>
-          <button type="button" className="rl-btn grande" disabled={salvando} onClick={() => gravar("nao_atendeu", "")}>{salvando ? <i className="fa-solid fa-circle-notch fa-spin" /> : <i className="fa-solid fa-phone-slash" />} Não atendeu</button>
+          <button type="button" className="rl-btn grande" onClick={() => { setRetornar(null); setModoBruto("naoAtendeu"); }}><i className="fa-solid fa-phone-slash" /> Não atendeu</button>
           {onVoltar && <button type="button" className="rl-link" onClick={onVoltar}>Voltar</button>}
           {!["orcar", "aguarda", "justificado", "orcado", "feita"].includes(s.estado) && <button type="button" className="rl-link" onClick={() => setModo("dispensar")}>Não precisa ligar (dispensar)</button>}
         </div>
         {erro && <div className="rl-erro">{erro}</div>}
+      </div>
+    </div>
+  );
+
+  if (modo === "naoAtendeu") return comEtapas(
+    <div className="rl-painel">
+      <b>{nome || "O cliente"} não atendeu</b>
+      <TentarDeNovo hoje={hoje} valor={retornar} onMudar={setRetornar} />
+      <textarea rows={2} value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Anotação (opcional): caixa postal, número errado…" />
+      {erro && <div className="rl-erro">{erro}</div>}
+      <div className="rl-decide">
+        <button type="button" className="rl-btn grande ok" disabled={salvando} onClick={() => gravar("nao_atendeu", nota, { retornar_em: retornar })}>
+          {salvando ? <i className="fa-solid fa-circle-notch fa-spin" /> : <i className="fa-solid fa-floppy-disk" />} Anotar a tentativa
+        </button>
+        <button type="button" className="rl-link" onClick={() => { setModoBruto("atendeu"); setRetornar(null); setNota(""); setErro(""); }}>Voltar</button>
       </div>
     </div>
   );

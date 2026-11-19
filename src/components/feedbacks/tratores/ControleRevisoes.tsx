@@ -12,6 +12,7 @@ import ModalMaquina from "../ModalMaquina";
 import { Contador } from "../hoje/kit";
 import { ESTILO_RL, Resumo } from "./RoteiroLigacao";
 import { guardar, lerGuardado } from "./cacheTela";
+import TentarDeNovo from "./TentarDeNovo";
 
 type Guardado = { tratores: TratorRevisao[]; contatos: Record<string, ContatoRevisao>; tabela: boolean };
 import {
@@ -21,17 +22,21 @@ import {
 import type { MaquinaRef } from "@/lib/feedbacks/maquina-modal";
 import type { AtendimentoRadar } from "@/lib/revisoes/contatos-radar";
 
-type Filtro = "chegou" | "vence_30" | "parou" | "proxima" | "concluido" | "sem_entrega";
+type Filtro = "chegou" | "vence_30" | "parou" | "proxima" | "depois" | "concluido" | "sem_entrega";
 const FILTROS: { id: Filtro; rotulo: string; sub: string; cor: string; ico: string }[] = [
   { id: "chegou", rotulo: "Já chegou na revisão", sub: "passou da previsão", cor: "#dc2626", ico: "fa-circle-exclamation" },
   { id: "vence_30", rotulo: "Chega em 30 dias", sub: "ligar para agendar", cor: "#d97706", ico: "fa-calendar-day" },
   { id: "parou", rotulo: "Parou de fazer na loja", sub: "faz tempo sem leitura", cor: "#7c3aed", ico: "fa-person-walking-arrow-right" },
   { id: "proxima", rotulo: "Mais para frente", sub: "previsão depois de 30 dias", cor: "#0e7490", ico: "fa-hourglass-half" },
+  { id: "depois", rotulo: "Tentar de novo depois", sub: "não atendeu ou pediu outro dia", cor: "#0891b2", ico: "fa-clock-rotate-left" },
   { id: "concluido", rotulo: "Agendadas / não quer", sub: "já atendidas", cor: "#16a34a", ico: "fa-circle-check" },
   { id: "sem_entrega", rotulo: "Sem data de entrega", sub: "conferir no controle", cor: "#94a3b8", ico: "fa-circle-question" },
 ];
 const SIT_FILTRO: Record<Situacao, Filtro> = { atrasada: "chegou", vence_30: "vence_30", parou: "parou", proxima: "proxima", sem_entrega: "sem_entrega" };
-const filtroDe = (it: ItemRevisao): Filtro => (it.acao === "concluido" ? "concluido" : SIT_FILTRO[it.trator.previsao.situacao]);
+// "depois" = tem data marcada para falar de novo e ela ainda não chegou (19/11/2026: não atendeu → escolhe a data)
+const filtroDe = (it: ItemRevisao): Filtro => (it.acao === "concluido" ? "concluido"
+  : it.acao === "aguardar" && it.aPartirDe != null && it.aPartirDe === it.contato.proximo_contato_em ? "depois"
+  : SIT_FILTRO[it.trator.previsao.situacao]);
 const COR: Record<Filtro, string> = Object.fromEntries(FILTROS.map((f) => [f.id, f.cor])) as Record<Filtro, string>;
 const hojeISO = () => new Date(Date.now() - 3 * 3_600_000).toISOString().slice(0, 10);
 
@@ -203,7 +208,9 @@ function AtendimentoRevisao({ it, podeGravar, aberto, iniciar: iniciarJa, onGrav
   const [semTabela, setSemTabela] = useState(false);
   const [iniciando, setIniciando] = useState(false);
   const [feito, setFeito] = useState<string | null>(null);
-  const [modo, setModo] = useState<null | "agendar" | "nao_quer">(null);
+  const [modo, setModo] = useState<null | "agendar" | "nao_quer" | "nao_atendeu">(null);
+  /** "não atendeu": quando tentar de novo (null = ainda hoje, continua na fila) */
+  const [quando, setQuando] = useState<string | null>(null);
   const [data, setData] = useState("");
   const [motivo, setMotivo] = useState("");
   const [codigo, setCodigo] = useState<MotivoSemRevisao | null>(null);
@@ -287,8 +294,20 @@ function AtendimentoRevisao({ it, podeGravar, aberto, iniciar: iniciarJa, onGrav
             <div className="rl-decide cr-como">
               <small>Como foi?</small>
               <button type="button" className="rl-btn grande ok" disabled={!podeGravar} onClick={() => setModo("agendar")}><i className="fa-solid fa-calendar-check" /> Agendou a revisão</button>
-              <button type="button" className="rl-btn grande" disabled={!podeGravar || salvando} onClick={() => salvar((c) => ({ ...c, tentativas: [...c.tentativas, { data: agoraIso(), canal: "telefone" }] }), "não atendeu, tentativa anotada")}>{salvando ? <i className="fa-solid fa-circle-notch fa-spin" /> : <i className="fa-solid fa-phone-slash" />} Não atendeu</button>
+              <button type="button" className="rl-btn grande" disabled={!podeGravar} onClick={() => { setQuando(null); setModo("nao_atendeu"); }}><i className="fa-solid fa-phone-slash" /> Não atendeu</button>
               <button type="button" className="rl-link" disabled={!podeGravar} onClick={() => setModo("nao_quer")}>Não vai fazer agora</button>
+            </div>
+          )}
+          {modo === "nao_atendeu" && (
+            <div className="rl-painel">
+              <b>Não atendeu</b>
+              <TentarDeNovo hoje={hojeISO()} valor={quando} onMudar={setQuando} />
+              <div className="rl-decide">
+                <button type="button" className="rl-btn grande ok" disabled={!podeGravar || salvando} onClick={() => salvar((c) => ({ ...c, tentativas: [...c.tentativas, { data: agoraIso(), canal: "telefone" }], proximo_contato_em: quando }), quando ? `não atendeu, volta para a fila em ${fmtDataBR(quando)}` : "não atendeu, tentativa anotada")}>
+                  {salvando ? <i className="fa-solid fa-circle-notch fa-spin" /> : <i className="fa-solid fa-floppy-disk" />} Anotar a tentativa
+                </button>
+                <button type="button" className="rl-link" onClick={() => setModo(null)}>Voltar</button>
+              </div>
             </div>
           )}
           {modo === "agendar" && (

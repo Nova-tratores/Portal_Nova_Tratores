@@ -165,7 +165,19 @@ export interface Situacao {
 const DIA = 86_400_000;
 const diasEntre = (deISO: string, ateISO: string) => Math.round((Date.parse(ateISO.slice(0, 10)) - Date.parse(deISO.slice(0, 10))) / DIA);
 
+/** José, 19/11/2026: "não atendeu ir para um lugar e voltar para a fila depois de tanto tempo" — quem
+ *  ligou escolhe a data. Se o ÚLTIMO registro é um "não atendeu" com data no futuro, o trator que pedia
+ *  ação fica "de molho" (espera) até lá; no dia, volta como antes (com as tentativas contadas). */
 export function situacaoContato(marcos: MarcoVenda[], contatos: Contato[], hojeISO: string, rev: Revisao50 | null = null, entregaISO: string | null = null): Situacao {
+  const s = situacaoBase(marcos, contatos, hojeISO, rev, entregaISO);
+  const ultimo = s.historico[0];
+  if (ultimo?.resultado === 'nao_atendeu' && ultimo.retornar_em && hojeISO < ultimo.retornar_em && ESTADOS_PENDENTES.includes(s.estado)) {
+    return { ...s, estado: 'espera', atraso: 0, retorno: ultimo.retornar_em };
+  }
+  return s;
+}
+
+function situacaoBase(marcos: MarcoVenda[], contatos: Contato[], hojeISO: string, rev: Revisao50 | null, entregaISO: string | null): Situacao {
   const historico = [...contatos].sort((a, b) => (a.criado_em < b.criado_em ? 1 : -1));
   const passados = marcos.filter((m) => m.passou);
   const vale = passados[passados.length - 1];
@@ -250,5 +262,6 @@ export function validarContato(b: { chave?: unknown; marco?: unknown; resultado?
   }
   const ret = b.retornar_em == null || b.retornar_em === '' ? null : String(b.retornar_em);
   if (ret != null && !/^\d{4}-\d{2}-\d{2}$/.test(ret)) return { ok: false, erro: 'Data para falar de novo inválida.' };
-  return { ok: true, chave, marco: marco as Marco, resultado, nota, motivo, horimetro, retornar_em: resultado === 'nao_atendeu' || resultado === 'dispensado' ? null : ret };
+  // "Não atendeu" também aceita a data (19/11/2026): quem ligou escolhe quando tentar de novo.
+  return { ok: true, chave, marco: marco as Marco, resultado, nota, motivo, horimetro, retornar_em: resultado === 'dispensado' ? null : ret };
 }
