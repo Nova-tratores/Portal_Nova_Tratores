@@ -27,7 +27,7 @@ describe('devolução em garantia (remessa de retorno)', () => {
 
   it('espelha o item inteiro igual à remessa 3749 da Omie', () => {
     const r = itemRemessa(itens[0], 4) as any;
-    expect(r).toMatchObject({ nCodProd: 2528337067, nQtde: 4, nValUnit: 1.67, cCFOP: '6.949' });
+    expect(r).toMatchObject({ cCodItInt: 'RG1', nCodProd: 2528337067, nQtde: 4, nValUnit: 1.67, cCFOP: '6.949' });
     expect(r.ICMS).toEqual({ cModBC: '3', cOrigem: '3', cSitTrib: '00', nAliq: 4, nBC: 6.68, nValor: 0.27 });
     expect(r.IPI).toEqual({ cSitTribIPI: '55', cEnqIPI: '115' });
     expect(r.IBS_CBS).toEqual({ cCstIbsCbs: '410', cClassTrib: '410029' });

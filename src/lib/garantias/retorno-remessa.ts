@@ -91,6 +91,8 @@ export function itemRemessa(item: ItemEntrada, qtd: number) {
   const p = item.qtdNF > 0 ? qtd / item.qtdNF : 0;
   const cfop = cfopRetorno(item.cfopForn);
   const out: Record<string, unknown> = {
+    // a Omie exige um código por item (nCodIt ou cCodItInt) — sem ele: "Tag [nCodIt] e tag [cCodItInt] não informados!"
+    cCodItInt: `RG${item.seq}`,
     nCodProd: item.nCodProd,
     nQtde: qtd,
     nValUnit: item.precoUnit,
