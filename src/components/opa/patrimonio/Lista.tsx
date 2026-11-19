@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Inbox, Landmark, MapPin, Plus, Printer, Search, UserRound } from 'lucide-react'
 import { urlsMiniaturas } from '@/lib/opa-pecas/fotos'
 import { BUCKET_PATRIMONIO } from '@/lib/patrimonio/fotos-regra'
-import { ESTADOS, FILTROS_VAZIOS, filtrarItens, INFO_ESTADO, ROTULO_SITUACAO, textoOnde, totais, type FiltrosPat, type ItemPat } from '@/lib/patrimonio/tipos'
+import { ESTADOS, FILTROS_VAZIOS, filtrarItens, INFO_ESTADO, ROTULO_SITUACAO, textoOndeTodos, totais, type FiltrosPat, type ItemPat } from '@/lib/patrimonio/tipos'
 import { Aviso, botao, INP, SECAO, useTelaLarga } from '../pecas/comum'
 import { Janela } from '../pecas/Moldura'
 import EtiquetasPat from './Etiquetas'
@@ -79,7 +79,7 @@ export default function Lista({ base }: { base: BasePat }) {
         </select>
         <select value={f.local} onChange={(e) => muda('local', e.target.value)} style={sel}>
           <option value="">Todos os locais</option>
-          {base.locais.filter((l) => base.itens.some((i) => i.local_id === l.id)).map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
+          {base.locais.filter((l) => base.itens.some((i) => i.local_id === l.id || i.partes?.some((p) => p.local_id === l.id))).map((l) => <option key={l.id} value={l.id}>{l.nome}</option>)}
         </select>
         <select value={f.estado} onChange={(e) => muda('estado', e.target.value)} style={sel}>
           <option value="">Qualquer estado</option>
@@ -129,7 +129,7 @@ export default function Lista({ base }: { base: BasePat }) {
                   </div>
                   {(i.marca || i.modelo) && <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>{[i.marca, i.modelo].filter(Boolean).join(' · ')}</div>}
                   <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <MapPin size={12} /> {textoOnde(i.local_id, i.local_tecnico, base.nomeLocal)}
+                    <MapPin size={12} style={{ flexShrink: 0 }} /> {textoOndeTodos(i, base.nomeLocal)}
                   </div>
                   {i.responsavel && <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}><UserRound size={12} /> {i.responsavel}</div>}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 2 }}>
@@ -189,8 +189,8 @@ function useColunasPat(base: BasePat, minis: Record<string, string>): ColunaTabe
     { chave: 'serie', titulo: 'Nº série', ordem: (i) => i.numero_serie || '', render: (i) => <span style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{vazio(i.numero_serie)}</span> },
     { chave: 'estado', titulo: 'Estado', ordem: (i) => INFO_ESTADO[i.estado]?.rotulo || i.estado, render: (i) => <SeloEstado estado={i.estado} /> },
     { chave: 'situacao', titulo: 'Situação', ordem: (i) => ROTULO_SITUACAO[i.situacao] || i.situacao, render: (i) => <span style={{ whiteSpace: 'nowrap' }}>{ROTULO_SITUACAO[i.situacao] || i.situacao}</span> },
-    { chave: 'local', titulo: 'Onde está', maxLargura: 200, ordem: (i) => textoOnde(i.local_id, i.local_tecnico, nomeLocal),
-      render: (i) => <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--portal-text-secondary)' }}><MapPin size={12} style={{ flexShrink: 0 }} /> {textoOnde(i.local_id, i.local_tecnico, nomeLocal)}</span> },
+    { chave: 'local', titulo: 'Onde está', maxLargura: 260, ordem: (i) => textoOndeTodos(i, nomeLocal),
+      render: (i) => <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--portal-text-secondary)' }}><MapPin size={12} style={{ flexShrink: 0 }} /> {textoOndeTodos(i, nomeLocal)}</span> },
     { chave: 'responsavel', titulo: 'Responsável', ordem: (i) => i.responsavel || '', render: (i) => <span style={{ whiteSpace: 'nowrap' }}>{vazio(i.responsavel)}</span> },
     { chave: 'valor', titulo: 'Valor', direita: true, ordem: (i) => i.valor_atual ?? i.valor_compra,
       valores: (i) => ((i.valor_atual ?? i.valor_compra) == null ? [] : [fmtReal(i.valor_atual ?? i.valor_compra)]),

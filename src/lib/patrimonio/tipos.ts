@@ -64,10 +64,65 @@ export interface ItemPat {
   criado_em: string
   atualizado_em: string
   fotos: FotoPat[]
+  /** unidades separadas em OUTROS lugares (sql/patrimonio-03); o resto fica no lugar do item */
+  partes?: ParteLugar[]
+}
+
+/** N unidades do item num lugar diferente do principal (sql/patrimonio-03, 19/11/2026). */
+export interface ParteLugar {
+  id: string
+  quantidade: number
+  local_id: string | null
+  local_tecnico: string | null
+  responsavel: string | null
+  situacao: Situacao
+}
+
+/** Um lugar onde há unidades do item: o principal (o do próprio item) ou uma parte separada. */
+export interface LugarUnidades {
+  /** 'principal' ou o id da parte */
+  id: string
+  quantidade: number
+  local_id: string | null
+  local_tecnico: string | null
+  responsavel: string | null
+  situacao: Situacao
+}
+
+/** Destino de "Separar unidades". */
+export interface DestinoUnidades { local_id: string; local_tecnico: string; responsavel: string; situacao: Situacao }
+
+export function somaPartes(i: Pick<ItemPat, 'partes'>): number {
+  return (i.partes || []).reduce((s, p) => s + p.quantidade, 0)
+}
+
+/** Quantas unidades ficaram no lugar principal (o do item). */
+export function qtdPrincipal(i: Pick<ItemPat, 'quantidade' | 'partes'>): number {
+  return Math.max(0, (i.quantidade || 1) - somaPartes(i))
+}
+
+/** Todos os lugares com unidades: o principal primeiro (se sobrou alguma) e depois as partes. */
+export function lugaresDoItem(i: ItemPat): LugarUnidades[] {
+  const principal: LugarUnidades = { id: 'principal', quantidade: qtdPrincipal(i), local_id: i.local_id, local_tecnico: i.local_tecnico, responsavel: i.responsavel, situacao: i.situacao }
+  return [...(principal.quantidade > 0 ? [principal] : []), ...(i.partes || []).map((p) => ({ ...p }))]
+}
+
+/** Para a lista: "Pátio" ou, em vários lugares, "Pátio (1) · Peças (5) · Pós-Vendas (1)". */
+export function textoOndeTodos(i: ItemPat, nomeLocal: (id: string) => string): string {
+  if (!i.partes?.length) return textoOnde(i.local_id, i.local_tecnico, nomeLocal)
+  return lugaresDoItem(i).map((l) => `${textoOnde(l.local_id, l.local_tecnico, nomeLocal)} (${l.quantidade})`).join(' · ')
+}
+
+/** Mesmo lugar, mesma mão e mesma situação = juntam as unidades. */
+export function mesmoLugar(a: { local_id: string | null; local_tecnico: string | null; responsavel: string | null; situacao: string },
+                           b: { local_id: string | null; local_tecnico: string | null; responsavel: string | null; situacao: string }): boolean {
+  return !mudouOnde(a, b)
 }
 
 export interface Movimentacao {
   id: string
+  /** quantas unidades andaram (sql/patrimonio-03); null = o item inteiro */
+  quantidade?: number | null
   de_local_id: string | null
   de_local_tecnico: string | null
   de_responsavel: string | null
@@ -182,12 +237,15 @@ export function filtrarItens(itens: ItemPat[], f: FiltrosPat, nomeLocal: (id: st
   const termos = semAcento(f.texto).split(/\s+/).filter(Boolean)
   return itens.filter((i) => {
     if (f.categoria && (i.categoria || '') !== f.categoria) return false
-    if (f.local && i.local_id !== f.local) return false
+    // item em vários lugares: o filtro de lugar acha por qualquer um deles (sql/patrimonio-03)
+    const lugares = lugaresDoItem(i)
+    if (f.local && i.local_id !== f.local && !lugares.some((l) => l.local_id === f.local)) return false
     if (f.estado && i.estado !== f.estado) return false
     if (f.tag && !i.tags.includes(f.tag)) return false
     if (!termos.length) return true
     const alvo = semAcento([i.codigo, i.descricao, i.marca, i.modelo, i.numero_serie, i.categoria, i.responsavel, i.local_tecnico,
-      i.local_id ? nomeLocal(i.local_id) : '', ...i.tags].filter(Boolean).join(' '))
+      i.local_id ? nomeLocal(i.local_id) : '', ...i.tags,
+      ...(i.partes || []).flatMap((p) => [p.responsavel, p.local_tecnico, p.local_id ? nomeLocal(p.local_id) : ''])].filter(Boolean).join(' '))
     return termos.every((t) => alvo.includes(t))
   })
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { FORM_VAZIO, filtrarItens, juntarTags, lerValor, limparTag, mudouOnde, textoOnde, totais, validarForm, type ItemPat } from '../tipos'
+import { FORM_VAZIO, filtrarItens, juntarTags, lerValor, limparTag, lugaresDoItem, mudouOnde, qtdPrincipal, textoOnde, textoOndeTodos, totais, validarForm, FILTROS_VAZIOS, type ItemPat } from '../tipos'
 import { caminhoFotoValido } from '../fotos-regra'
 
 const item = (p: Partial<ItemPat>): ItemPat => ({
@@ -67,5 +67,39 @@ describe('patrimônio — regras', () => {
     expect(caminhoFotoValido(`${u}/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jpg`, u)).toBe(true)
     expect(caminhoFotoValido(`outro/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee.jpg`, u)).toBe(false)
     expect(caminhoFotoValido(`${u}/../x.jpg`, u)).toBe(false)
+  })
+})
+
+describe('patrimônio — um item, vários lugares (patrimonio-03)', () => {
+  const cadeiras = item({
+    quantidade: 7, descricao: 'Cadeira', local_id: 'patio',
+    partes: [
+      { id: 'p1', quantidade: 5, local_id: 'pecas', local_tecnico: null, responsavel: null, situacao: 'em_uso' },
+      { id: 'p2', quantidade: 1, local_id: 'pos_vendas', local_tecnico: null, responsavel: 'Gabriel', situacao: 'emprestado' },
+    ],
+  })
+  const nome = (id: string) => ({ patio: 'Pátio', pecas: 'Peças', pos_vendas: 'Pós-Vendas' }[id] || id)
+
+  it('o principal fica com o que não foi separado', () => {
+    expect(qtdPrincipal(cadeiras)).toBe(1)
+    expect(qtdPrincipal(item({ quantidade: 3 }))).toBe(3)
+    expect(qtdPrincipal(item({ quantidade: 2, partes: [{ id: 'x', quantidade: 2, local_id: 'pecas', local_tecnico: null, responsavel: null, situacao: 'em_uso' }] }))).toBe(0)
+  })
+
+  it('lista os lugares: principal primeiro, sem ele quando zerou', () => {
+    expect(lugaresDoItem(cadeiras).map((l) => [l.id, l.quantidade])).toEqual([['principal', 1], ['p1', 5], ['p2', 1]])
+    const tudoFora = item({ quantidade: 2, partes: [{ id: 'x', quantidade: 2, local_id: 'pecas', local_tecnico: null, responsavel: null, situacao: 'em_uso' }] })
+    expect(lugaresDoItem(tudoFora).map((l) => l.id)).toEqual(['x'])
+  })
+
+  it('texto da lista mostra cada lugar com a quantidade', () => {
+    expect(textoOndeTodos(cadeiras, nome)).toBe('Pátio (1) · Peças (5) · Pós-Vendas (1)')
+    expect(textoOndeTodos(item({}), nome)).toBe('Peças')
+  })
+
+  it('filtro por lugar e busca acham as unidades separadas', () => {
+    expect(filtrarItens([cadeiras], { ...FILTROS_VAZIOS, local: 'pos_vendas' }, nome)).toHaveLength(1)
+    expect(filtrarItens([cadeiras], { ...FILTROS_VAZIOS, local: 'oficina' }, nome)).toHaveLength(0)
+    expect(filtrarItens([cadeiras], { ...FILTROS_VAZIOS, texto: 'gabriel' }, nome)).toHaveLength(1)
   })
 })

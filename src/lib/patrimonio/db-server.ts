@@ -2,7 +2,7 @@
 // /api/patrimonio/* checam o módulo 'patrimonio' antes de chamar aqui.
 
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
-import { mudouOnde, type ItemPat, type Movimentacao } from './tipos'
+import { lugaresDoItem, mesmoLugar, mudouOnde, type DestinoUnidades, type ItemPat, type Movimentacao, type ParteLugar } from './tipos'
 
 /** Banco sem o sql/patrimonio-01.sql (tabela/coluna inexistente). */
 export function semMigracao(e: { code?: string; message?: string } | null | undefined): boolean {
@@ -43,6 +43,23 @@ function normalizar(l: Linha): ItemPat {
   }
 }
 
+/** Unidades separadas em outros lugares (sql/patrimonio-03). Sem a tabela ainda → nenhuma (a tela segue igual). */
+async function anexarPartes(itens: ItemPat[]): Promise<ItemPat[]> {
+  if (!itens.length) return itens
+  const por: Record<string, ParteLugar[]> = {}
+  const ids = itens.map((i) => i.id)
+  for (let k = 0; k < ids.length; k += 300) {
+    const { data, error } = await supabaseAdmin.from('patrimonio_partes')
+      .select('id, item_id, quantidade, local_id, local_tecnico, responsavel, situacao').in('item_id', ids.slice(k, k + 300)).order('criado_em')
+    if (error) { if (semMigracao(error)) return itens; throw error }
+    for (const p of (data || []) as (ParteLugar & { item_id: string })[]) {
+      const { item_id, ...parte } = p
+      ;(por[item_id] ||= []).push({ ...parte, quantidade: Number(parte.quantidade) || 0 })
+    }
+  }
+  return itens.map((i) => ({ ...i, partes: por[i.id] || [] }))
+}
+
 export async function listarItens(): Promise<ItemPat[]> {
   const out: ItemPat[] = []
   for (let de = 0; ; de += 1000) {
@@ -52,7 +69,7 @@ export async function listarItens(): Promise<ItemPat[]> {
     out.push(...((data || []) as Linha[]).map(normalizar))
     if (!data || data.length < 1000) break
   }
-  return out
+  return anexarPartes(out)
 }
 
 export async function buscarItem(idOuCodigo: string): Promise<ItemPat | null> {
@@ -60,7 +77,55 @@ export async function buscarItem(idOuCodigo: string): Promise<ItemPat | null> {
   const { data, error } = await supabaseAdmin.from('patrimonio_itens').select(SELECT_ITEM)
     .eq(porCodigo ? 'codigo' : 'id', porCodigo ? idOuCodigo.toUpperCase() : idOuCodigo).is('deleted_at', null).maybeSingle()
   if (error) throw error
-  return data ? normalizar(data as Linha) : null
+  return data ? (await anexarPartes([normalizar(data as Linha)]))[0] : null
+}
+
+/** Separar / mover unidades de um lugar do item (o principal ou uma parte) para outro (José, 19/11/2026).
+ *  Destino igual ao principal ou a uma parte = junta lá; parte que fica com 0 some. Registra no histórico. */
+export async function moverUnidades(itemId: string, de: string, quantidade: number, para: DestinoUnidades, motivo: string | null, quem: Quem): Promise<ItemPat> {
+  const item = await buscarItem(itemId)
+  if (!item) throw new Error('Item não encontrado.')
+  const qtd = Math.floor(quantidade)
+  if (!Number.isFinite(qtd) || qtd < 1) throw new Error('Diga quantas unidades.')
+  if (!para.local_id) throw new Error('Escolha para onde vão.')
+  const origem = lugaresDoItem(item).find((l) => l.id === de)
+  if (!origem) throw new Error('Esse lugar não tem mais unidades — recarregue a página.')
+  if (qtd > origem.quantidade) throw new Error(`Lá só tem ${origem.quantidade} unidade(s).`)
+  const destino = { local_id: para.local_id, local_tecnico: para.local_tecnico.trim() || null, responsavel: para.responsavel.trim() || null, situacao: para.situacao }
+  if (mesmoLugar(origem, destino)) throw new Error('A origem e o destino são o mesmo lugar.')
+
+  const agora = new Date().toISOString()
+  const partes = supabaseAdmin.from('patrimonio_partes')
+  const checar = (e: { code?: string; message?: string } | null) => {
+    if (!e) return
+    if (semMigracao(e) || e.code === '42703' || e.code === 'PGRST204') throw new Error('Falta rodar o sql/patrimonio-03.sql no banco.')
+    throw e
+  }
+  // 1) tira da origem (o principal diminui sozinho quando uma parte cresce)
+  if (origem.id !== 'principal') {
+    const resto = origem.quantidade - qtd
+    const { error } = resto > 0
+      ? await partes.update({ quantidade: resto, atualizado_em: agora }).eq('id', origem.id)
+      : await supabaseAdmin.from('patrimonio_partes').delete().eq('id', origem.id)
+    checar(error)
+  }
+  // 2) põe no destino: o principal (só devolve), uma parte igual (soma) ou uma parte nova
+  const principal = { local_id: item.local_id, local_tecnico: item.local_tecnico, responsavel: item.responsavel, situacao: item.situacao }
+  if (!mesmoLugar(principal, destino)) {
+    const igual = (item.partes || []).find((p) => p.id !== origem.id && mesmoLugar(p, destino))
+    const { error } = igual
+      ? await supabaseAdmin.from('patrimonio_partes').update({ quantidade: igual.quantidade + qtd, atualizado_em: agora }).eq('id', igual.id)
+      : await supabaseAdmin.from('patrimonio_partes').insert({ item_id: item.id, quantidade: qtd, ...destino })
+    checar(error)
+  }
+  const { error: em } = await supabaseAdmin.from('patrimonio_movimentacoes').insert({
+    item_id: item.id, quantidade: qtd,
+    de_local_id: origem.local_id, de_local_tecnico: origem.local_tecnico, de_responsavel: origem.responsavel,
+    para_local_id: destino.local_id, para_local_tecnico: destino.local_tecnico, para_responsavel: destino.responsavel,
+    situacao: destino.situacao, motivo: (motivo || '').trim().slice(0, 500) || null, por: quem.id, por_nome: nomeDe(quem),
+  })
+  checar(em)
+  return (await buscarItem(item.id))!
 }
 
 export async function listarMovimentacoes(itemId: string): Promise<Movimentacao[]> {
@@ -92,6 +157,10 @@ export async function criarItem(dados: Record<string, unknown>, fotos: string[],
 export async function atualizarItem(id: string, dados: Record<string, unknown>, quem: Quem, motivo?: string | null): Promise<ItemPat> {
   const antes = await buscarItem(id)
   if (!antes) throw new Error('Item não encontrado.')
+  const separadas = (antes.partes || []).reduce((s, p) => s + p.quantidade, 0)
+  if (separadas && typeof dados.quantidade === 'number' && dados.quantidade < separadas) {
+    throw new Error(`Tem ${separadas} unidade(s) em outros lugares — a quantidade total não pode ser menor que isso. Junte antes de diminuir.`)
+  }
   const { error } = await supabaseAdmin.from('patrimonio_itens')
     .update({ ...dados, atualizado_por: quem.id, atualizado_em: new Date().toISOString() }).eq('id', antes.id)
   if (error) throw error

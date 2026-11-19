@@ -5,10 +5,10 @@
 
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowRight, ArrowRightLeft, History, Loader2, MapPin, Pencil, Printer, Trash2, Truck, UserRound, X } from 'lucide-react'
+import { ArrowRight, ArrowRightLeft, History, Loader2, MapPin, Pencil, Printer, Split, Trash2, Truck, UserRound, X } from 'lucide-react'
 import { comprimir, enviarFoto, urlsAssinadas } from '@/lib/opa-pecas/fotos'
 import { BUCKET_PATRIMONIO } from '@/lib/patrimonio/fotos-regra'
-import { formDoItem, ROTULO_SITUACAO, SITUACOES, textoOnde, type ItemPat, type Movimentacao, type Situacao } from '@/lib/patrimonio/tipos'
+import { formDoItem, lugaresDoItem, qtdPrincipal, ROTULO_SITUACAO, SITUACOES, textoOnde, type ItemPat, type Movimentacao, type Situacao } from '@/lib/patrimonio/tipos'
 import { SeletorLocal } from '../pecas/Campos'
 import { Aviso, botao, INP, ROTULO, SECAO, TITULO_SECAO, useTelaLarga } from '../pecas/comum'
 import { Visualizador } from '../pecas/DetalheItem'
@@ -33,6 +33,8 @@ export default function Ficha({ base, id }: { base: BasePat; id: string }) {
   const [visor, setVisor] = useState<number | null>(null)
   const [editando, setEditando] = useState(false)
   const [movendo, setMovendo] = useState(false)
+  // "Separar unidades": de qual lugar saem ('principal' ou id da parte)
+  const [separando, setSeparando] = useState<string | null>(null)
   // logo depois de cadastrar a página abre com ?etiqueta=1 → janela da etiqueta já aberta
   const [etiqueta, setEtiqueta] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('etiqueta') === '1')
   const [ocupado, setOcupado] = useState(false)
@@ -136,7 +138,7 @@ export default function Ficha({ base, id }: { base: BasePat; id: string }) {
         {grupo('Onde e com quem', <>
           {dado('Situação', ROTULO_SITUACAO[item.situacao])}
           {dado('Estado', <SeloEstado estado={item.estado} />)}
-          {dado('Onde está', (item.local_id || item.local_tecnico) && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><MapPin size={13} /> {textoOnde(item.local_id, item.local_tecnico, base.nomeLocal)}</span>)}
+          {dado(item.partes?.length ? `Lugar principal (${qtdPrincipal(item)} un.)` : 'Onde está', (item.local_id || item.local_tecnico) && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><MapPin size={13} /> {textoOnde(item.local_id, item.local_tecnico, base.nomeLocal)}</span>)}
           {dado('Com quem está', item.responsavel && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><UserRound size={13} /> {item.responsavel}</span>)}
         </>)}
         {grupo('Valor', <>
@@ -157,6 +159,34 @@ export default function Ficha({ base, id }: { base: BasePat; id: string }) {
           {dado('Cadastrado em', fmtData(item.criado_em))}
         </>)}
       </div>
+
+      {/* Um item, vários lugares (José, 19/11/2026): onde está cada parte das unidades */}
+      {qtd > 1 && (
+        <section style={SECAO}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <h2 style={{ ...TITULO_SECAO, display: 'flex', alignItems: 'center', gap: 6, margin: 0 }}><Split size={16} /> Onde estão as {qtd} unidades</h2>
+            <button type="button" onClick={() => setSeparando('principal')} disabled={qtdPrincipal(item) < 1}
+              style={{ ...botao(COR_PAT, { desab: qtdPrincipal(item) < 1 }), marginLeft: 'auto' }}><Split size={14} /> Separar unidades</button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {lugaresDoItem(item).map((l) => (
+              <div key={l.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '10px 12px', borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)' }}>
+                <span style={{ minWidth: 48, fontSize: 20, fontWeight: 500, fontVariantNumeric: 'tabular-nums', color: 'var(--portal-text)' }}>{l.quantidade}</span>
+                <div style={{ flex: 1, minWidth: 180, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 14.5, color: 'var(--portal-text)' }}><MapPin size={13} /> {textoOnde(l.local_id, l.local_tecnico, base.nomeLocal)}</span>
+                  <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>
+                    {ROTULO_SITUACAO[l.situacao]}{l.responsavel ? ` · com ${l.responsavel}` : ''}{l.id === 'principal' && item.partes?.length ? ' · lugar principal' : ''}
+                  </span>
+                </div>
+                <button type="button" onClick={() => setSeparando(l.id)} style={botao('#52525B', { contorno: true })}><Truck size={14} /> Mover daqui</button>
+              </div>
+            ))}
+          </div>
+          {!item.partes?.length && <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>Todas no mesmo lugar. Para deixar algumas em outro lugar, use “Separar unidades”.</div>}
+        </section>
+      )}
+      {separando && <SepararUnidades base={base} item={item} de={separando} onFechar={() => setSeparando(null)}
+        onSalvo={() => { setSeparando(null); carregar(); base.recarregar() }} />}
 
       <section style={SECAO}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -192,6 +222,7 @@ export default function Ficha({ base, id }: { base: BasePat; id: string }) {
                       <ArrowRight size={14} style={{ color: 'var(--portal-text-muted)' }} />
                     </>
                   ) : <span style={{ fontWeight: 700 }}>Cadastrado em</span>}
+                  {m.quantidade != null && <span style={{ order: -1, fontSize: 12.5, color: '#334155', background: '#F1F5F9', borderRadius: 999, padding: '1px 8px' }}>{m.quantidade} un.</span>}
                   <b>{textoOnde(m.para_local_id, m.para_local_tecnico, base.nomeLocal)}{m.para_responsavel ? ` (${m.para_responsavel})` : ''}</b>
                   {m.situacao && <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>· {ROTULO_SITUACAO[m.situacao as Situacao] || m.situacao}</span>}
                 </div>
@@ -206,6 +237,76 @@ export default function Ficha({ base, id }: { base: BasePat; id: string }) {
       {etiqueta && <EtiquetasPat itens={[item]} nomeLocal={base.nomeLocal} onFechar={() => setEtiqueta(false)} onImpresso={carregar} />}
       {visor != null && <Visualizador fotos={item.fotos.map((f) => urls[f.storage_path]).filter(Boolean)} inicio={visor} onFechar={() => setVisor(null)} />}
     </div>
+  )
+}
+
+/** Um item, vários lugares: leva N unidades de um lugar (principal ou parte) para outro. Se o destino já
+ *  tem unidades do item (mesmo lugar, mesma pessoa, mesma situação), elas se juntam lá. */
+function SepararUnidades({ base, item, de, onFechar, onSalvo }: { base: BasePat; item: ItemPat; de: string; onFechar: () => void; onSalvo: () => void }) {
+  const lugares = lugaresDoItem(item)
+  const [origem, setOrigem] = useState(lugares.some((l) => l.id === de) ? de : lugares[0]?.id || 'principal')
+  const daOrigem = lugares.find((l) => l.id === origem)
+  const max = daOrigem?.quantidade || 0
+  const [qtd, setQtd] = useState('1')
+  const [local, setLocal] = useState('')
+  const [tecnico, setTecnico] = useState('')
+  const [responsavel, setResponsavel] = useState('')
+  const [situacao, setSituacao] = useState<Situacao>(daOrigem?.situacao === 'baixado' ? 'em_uso' : daOrigem?.situacao || 'em_uso')
+  const [motivo, setMotivo] = useState('')
+  const [salvando, setSalvando] = useState(false)
+  const [erro, setErro] = useState<string | null>(null)
+  const n = Math.floor(Number(qtd.replace(',', '.')))
+
+  const salvar = async () => {
+    if (!Number.isFinite(n) || n < 1 || n > max) { setErro(`Quantas? De 1 a ${max}.`); return }
+    if (!local) { setErro('Escolha para onde vão.'); return }
+    setSalvando(true)
+    setErro(null)
+    try {
+      await api(`/api/patrimonio/${item.id}/unidades`, { method: 'POST', body: { de: origem, quantidade: n, para: { local_id: local, local_tecnico: tecnico, responsavel, situacao }, motivo } })
+      onSalvo()
+    } catch (e) { setErro(e instanceof Error ? e.message : String(e)) } finally { setSalvando(false) }
+  }
+
+  return (
+    <section style={{ ...SECAO, border: `1.5px solid ${COR_PAT}` }}>
+      <h2 style={{ ...TITULO_SECAO, display: 'flex', alignItems: 'center', gap: 6 }}><Split size={16} /> Separar unidades</h2>
+      <div>
+        <label style={ROTULO}>De onde saem</label>
+        <select value={origem} onChange={(e) => setOrigem(e.target.value)} style={INP}>
+          {lugares.map((l) => <option key={l.id} value={l.id}>{l.quantidade} un. · {textoOnde(l.local_id, l.local_tecnico, base.nomeLocal)}{l.responsavel ? ` · com ${l.responsavel}` : ''}</option>)}
+        </select>
+      </div>
+      <div>
+        <label style={ROTULO}>Quantas (de {max})</label>
+        <input value={qtd} onChange={(e) => setQtd(e.target.value.replace(/[^\d]/g, '').slice(0, 6))} inputMode="numeric" style={{ ...INP, maxWidth: 140 }} />
+      </div>
+      <div>
+        <label style={ROTULO}>Para onde vão</label>
+        <SeletorLocal locais={base.locais} local={local} tecnico={tecnico} onChange={(l, t) => { setLocal(l); setTecnico(t) }} onLocalCriado={base.recarregar} />
+      </div>
+      <div>
+        <label style={ROTULO}>Com quem ficam</label>
+        <input value={responsavel} onChange={(e) => setResponsavel(e.target.value.slice(0, 120))} placeholder="Pessoa responsável (opcional)" style={INP} />
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {SITUACOES.map((s) => (
+          <button key={s} type="button" aria-pressed={situacao === s} onClick={() => setSituacao(s)} style={{
+            padding: '7px 12px', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', cursor: 'pointer',
+            border: '1.5px solid ' + (situacao === s ? COR_PAT : 'var(--portal-border)'), background: situacao === s ? COR_PAT : 'var(--portal-bg-card)', color: situacao === s ? '#fefefe' : 'var(--portal-text)',
+          }}>{ROTULO_SITUACAO[s]}</button>
+        ))}
+      </div>
+      <div>
+        <label style={ROTULO}>Por quê?</label>
+        <input value={motivo} onChange={(e) => setMotivo(e.target.value.slice(0, 500))} placeholder="Ex.: 5 cadeiras foram para o setor de Peças (opcional)" style={INP} />
+      </div>
+      {erro && <Aviso>{erro}</Aviso>}
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" onClick={salvar} disabled={salvando} style={botao(COR_PAT, { desab: salvando })}>{salvando ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Split size={15} />} Separar {Number.isFinite(n) && n > 0 ? n : ''} unidade{n === 1 ? '' : 's'}</button>
+        <button type="button" onClick={onFechar} style={botao('#52525B', { contorno: true })}>Cancelar</button>
+      </div>
+    </section>
   )
 }
 
