@@ -368,10 +368,13 @@ export function daAuditoria(a: AuditRow): LinhaPainel | null {
   else if (sistema === 'localizacao') { documento = eid.split(':')[1] || eid; }
 
   const incerta = /_desconhecido$/.test(acao);
+  // o rótulo do audit às vezes é só o nº do caso ("OS OS-0908") ou o nome da ação — aí não é cliente
+  let cliente = String(a.entidade_label || '').replace(/^(Pagar #\d+ - |NF #\d+ - |OS |PPV )/, '').trim();
+  if (!cliente || cliente === documento || cliente === eid || cliente === origem) cliente = '';
   return {
     id: `audit:${a.id}`,
     origem, empresa, tipo, documento,
-    cliente: String(a.entidade_label || '').replace(/^(Pagar #\d+ - |OS |PPV )/, ''),
+    cliente,
     valor: numero(d.valor ?? d.valorTotal),
     situacao: incerta ? 'incerta' : 'falhou',
     motivo: textoErro(d) || (incerta ? 'A Omie não respondeu com certeza.' : 'Falhou (sem mensagem).'),
@@ -428,7 +431,7 @@ export function marcarResolvidas(linhas: LinhaPainel[], atual: Map<string, strin
   return linhas.map((l) => {
     const chave = l.id.startsWith('audit:') ? `${l.origem}|${l.documento}` : '';
     const hoje = chave ? atual.get(chave) : undefined;
-    return hoje ? { ...l, situacao: 'resolvida' as const, motivo: `${l.motivo} — Hoje: ${hoje}.` } : l;
+    return hoje ? { ...l, situacao: 'resolvida' as const, motivo: `Hoje: ${hoje}. Na hora, ${l.situacao === 'incerta' ? 'a Omie não confirmou' : 'falhou'}.` } : l;
   });
 }
 

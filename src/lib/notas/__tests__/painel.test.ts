@@ -97,6 +97,8 @@ describe('audit_log', () => {
     const [r] = marcarResolvidas([l], new Map([[chaveResolucao(l.origem, l.documento), 'NFS-e autorizada']]));
     expect(r.situacao).toBe('resolvida');
     expect(r.motivo).toContain('Hoje: NFS-e autorizada');
+    expect(r.motivo).toBe('Hoje: NFS-e autorizada. Na hora, a Omie não confirmou.');
+    expect(l.cliente).toBe('');
   });
 });
 

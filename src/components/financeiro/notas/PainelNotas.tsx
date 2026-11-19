@@ -269,7 +269,7 @@ function CartaoPorta({ porta }: { porta: Porta }) {
 
 // ── tela ──────────────────────────────────────────────────────────────────
 
-export default function PainelNotas({ podeXml, isAdmin, podeEntrada, podeProblemas }: { podeXml: boolean; isAdmin: boolean; podeEntrada: boolean; podeProblemas: boolean }) {
+export default function PainelNotas({ podeXml, isAdmin, podeEntrada, podeProblemas, carregandoPermissoes = false }: { podeXml: boolean; isAdmin: boolean; podeEntrada: boolean; podeProblemas: boolean; carregandoPermissoes?: boolean }) {
   const sp = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -291,6 +291,11 @@ export default function PainelNotas({ podeXml, isAdmin, podeEntrada, podeProblem
   // contador da aba: o que precisa de alguém (sem "resolvida depois" nem robôs)
   const nProb = problemas.dados ? problemas.dados.linhas.length : null;
   const nEnv = envios.dados ? envios.dados.linhas.filter((l) => l.situacao !== 'resolvida' && l.situacao !== 'robo').length : null;
+
+  // link direto ?aba=problemas|envios: espera as permissões; senão a aba Notas monta e reescreve a URL sem o ?aba
+  if (carregandoPermissoes && (pedida === 'problemas' || pedida === 'envios')) {
+    return <div style={{ padding: 24, color: '#888', fontSize: '.85rem' }}>Carregando…</div>;
+  }
 
   return (
     <>
