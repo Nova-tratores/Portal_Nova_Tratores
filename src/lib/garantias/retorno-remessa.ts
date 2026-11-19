@@ -15,9 +15,9 @@ export const FRETE_PADRAO = '9';
 export const IBS_CBS_RETORNO = { cCstIbsCbs: '410', cClassTrib: '410029' };
 
 export interface ImpostosEntrada {
-  icms?: { cModBC?: string; cOrigem?: string; cSitTrib?: string; nAliq?: number; nBC?: number; nValor?: number } | null;
+  icms?: { cModBC?: string; cOrigem?: string; cSitTrib?: string; nAliq?: number; nBC?: number; nValor?: number; nRedBC?: number } | null;
   st?: { cModBCST?: string; nAliqOP?: number; nAliqST?: number; nBCST?: number; nMargVrAd?: number; nRedBCST?: number; nValorST?: number } | null;
-  ipi?: { cEnqIPI?: string; cSitTribIPI?: string; nValIPI?: number } | null;
+  ipi?: { cEnqIPI?: string; cSitTribIPI?: string; cTpCalcIPI?: string; nAliqIPI?: number; nBCIPI?: number; nValIPI?: number } | null;
   pisCst?: string | null;
   cofinsCst?: string | null;
 }
@@ -71,9 +71,9 @@ export function itensDaEntrada(rec: { itensRecebimento?: Record<string, any>[] }
       precoUnit: num(ca.nPrecoUnit),
       vTotalItem: num(ca.vTotalItem),
       devolvidoNaOmie: ca.cItemDevolvido === 'S',
-      icms: { cModBC: icms.cModBC, cOrigem: icms.cOrigem, cSitTrib: icms.cSitTrib, nAliq: num(icms.nAliq), nBC: num(icms.nBC), nValor: num(icms.nValor) },
+      icms: { cModBC: icms.cModBC, cOrigem: icms.cOrigem, cSitTrib: icms.cSitTrib, nAliq: num(icms.nAliq), nBC: num(icms.nBC), nValor: num(icms.nValor), nRedBC: num(icms.nRedBC) },
       st: num(st.nValorST) > 0 ? { cModBCST: st.cModBCST, nAliqOP: num(st.nAliqOP), nAliqST: num(st.nAliqST), nBCST: num(st.nBCST), nMargVrAd: num(st.nMargVrAd), nRedBCST: num(st.nRedBCST), nValorST: num(st.nValorST) } : null,
-      ipi: { cEnqIPI: ipi.cEnqIPI, cSitTribIPI: ipi.cSitTribIPI, nValIPI: num(ipi.nValIPI) },
+      ipi: { cEnqIPI: ipi.cEnqIPI, cSitTribIPI: ipi.cSitTribIPI, cTpCalcIPI: ipi.cTpCalcIPI || '', nAliqIPI: num(ipi.nAliqIPI), nBCIPI: num(ipi.nBCIPI), nValIPI: num(ipi.nValIPI) },
       pisCst: it.itensPIS?.cSitTribPIS ?? null,
       cofinsCst: it.itensCOFINS?.cSitTribCOFINS ?? it.itensPIS?.cSitTribPIS ?? null,
     };
@@ -104,8 +104,9 @@ export function itemRemessa(item: ItemEntrada, qtd: number) {
       nAliq: num(item.icms?.nAliq),
       nBC: r2(num(item.icms?.nBC) * p),
       nValor: r2(num(item.icms?.nValor) * p),
+      ...(num(item.icms?.nRedBC) ? { nRedBC: num(item.icms?.nRedBC) } : {}),
     },
-    IPI: { cSitTribIPI: item.ipi?.cSitTribIPI || '55', cEnqIPI: item.ipi?.cEnqIPI || '115' },
+    IPI: ipiRetorno(item, p),
     PIS: { cSitTribPIS: item.pisCst || '07' },
     COFINS: { cSitTribCOFINS: item.cofinsCst || item.pisCst || '07' },
     IBS_CBS: { ...IBS_CBS_RETORNO },
@@ -120,6 +121,23 @@ export function itemRemessa(item: ItemEntrada, qtd: number) {
       nBCST: r2(num(item.st.nBCST) * p),
       nValorST: r2(num(item.st.nValorST) * p),
     };
+  }
+  return out;
+}
+
+/** CST do IPI que exige "tipo de cálculo" na NF-e (tributado): 00, 49, 50, 99 */
+const IPI_TRIBUTADO = new Set(['00', '49', '50', '99']);
+
+/** IPI da remessa = o da nota da fábrica. Tributado leva tipo de cálculo, alíquota, base e valor
+ *  (sem o tipo a Omie recusa: "falta preencher o Tipo de Cálculo do IPI" — NF 840225 Marchesan, CST 50). */
+export function ipiRetorno(item: ItemEntrada, p: number) {
+  const cst = item.ipi?.cSitTribIPI || '55';
+  const out: Record<string, unknown> = { cSitTribIPI: cst, cEnqIPI: item.ipi?.cEnqIPI || (IPI_TRIBUTADO.has(cst) ? '999' : '115') };
+  if (IPI_TRIBUTADO.has(cst)) {
+    out.cTpCalcIPI = item.ipi?.cTpCalcIPI || 'B';
+    out.nAliqIPI = num(item.ipi?.nAliqIPI);
+    out.nBCIPI = r2(num(item.ipi?.nBCIPI) * p);
+    out.nValIPI = r2(num(item.ipi?.nValIPI) * p);
   }
   return out;
 }

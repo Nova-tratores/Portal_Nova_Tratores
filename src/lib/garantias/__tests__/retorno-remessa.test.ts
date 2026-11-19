@@ -47,6 +47,20 @@ describe('devolução em garantia (remessa de retorno)', () => {
     expect(r.ICMS.nValor).toBe(0.14);
   });
 
+  it('IPI tributado (CST 50) leva tipo de cálculo, alíquota, base e valor; ICMS 51 leva a redução', () => {
+    // caso real NF 840225 Marchesan: a Omie recusou sem o tipo de cálculo do IPI
+    const [m] = itensDaEntrada({ itensRecebimento: [{
+      itensCabec: { nSequencia: 1, nIdProduto: 9, cCFOP: '5.949', nQtdeNFe: 3, nPrecoUnit: 37.34, vTotalItem: 115.66 },
+      itensICMS: { cModBC: '3', cOrigem: '0', cSitTrib: '51', nRedBC: 100 },
+      itensIPI: { cEnqIPI: '999', cSitTribIPI: '50', cTpCalcIPI: 'B', nAliqIPI: 3.25, nBCIPI: 112.02, nValIPI: 3.64 },
+      itensPIS: { cSitTribPIS: '07' },
+    }] });
+    const r = itemRemessa(m, 3) as any;
+    expect(r.IPI).toEqual({ cSitTribIPI: '50', cEnqIPI: '999', cTpCalcIPI: 'B', nAliqIPI: 3.25, nBCIPI: 112.02, nValIPI: 3.64 });
+    expect(r.ICMS).toMatchObject({ cSitTrib: '51', nRedBC: 100 });
+    expect(valorItem(m, 3)).toBe(115.66);
+  });
+
   it('valida quantidade, CFOP de garantia e o que já voltou', () => {
     expect(validarEscolha(itens, [], {})).toEqual(['Escolha ao menos um item com quantidade.']);
     expect(validarEscolha(itens, [{ seq: 1, qtd: 3 }], { 1: 2 })[0]).toMatch(/só 2 disponível/);

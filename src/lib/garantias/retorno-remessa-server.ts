@@ -230,6 +230,9 @@ export async function faturarRetorno(fichaId: string, userNome: string) {
     return { ok: false, erro: 'A remessa está cancelada na Omie.' };
   }
   if (st0?.faturada !== 'S') {
+    // acerta os itens da remessa já criada com a regra atual (ex.: IPI que faltava) antes de faturar
+    const al = await alinharItens(conta, f, nCodRem);
+    if (al) return marcarErro(al);
     try { await omieRequest('/produtos/remessafat/', 'ConferirRemessa', { nCodRem }, conta); }
     catch (e) { return marcarErro(`A Omie não validou a remessa: ${(e as { faultstring?: string }).faultstring || (e as Error).message}`); }
     try {
@@ -251,6 +254,28 @@ export async function faturarRetorno(fichaId: string, userNome: string) {
   }).eq('id', fichaId);
   if (f.garantia_id) await baixarNaGarantia(f.garantia_id, nf?.numero || null, f.numero_nfe, userNome).catch(() => {});
   return { ok: true, nf: nf?.numero || null, nCodRem };
+}
+
+/** Regrava os itens da remessa com a regra de hoje (mesmos itens e quantidades da ficha). Devolve o erro ou null. */
+async function alinharItens(conta: Conta, f: { id_receb: number; itens: unknown }, nCodRem: number): Promise<string | null> {
+  try {
+    const nota = await lerNota(conta, Number(f.id_receb));
+    const rc = await omieRequest('/produtos/remessa/', 'ConsultarRemessa', { nCodRem }, conta);
+    const atuais = (rc?.produtos || []) as Array<{ nCodIt?: number; cCodItInt?: string; nCodProd?: number }>;
+    const produtos = ((f.itens as Array<{ seq: number; qtd: number }>) || []).map((fi) => {
+      const it = nota.itens.find((i) => i.seq === Number(fi.seq));
+      if (!it) throw new Error(`item ${fi.seq} não está mais na nota`);
+      const esp = itemRemessa(it, Number(fi.qtd));
+      const atual = atuais.find((a) => a.cCodItInt === esp.cCodItInt) || atuais.find((a) => Number(a.nCodProd) === Number(it.nCodProd));
+      return { ...esp, ...(atual?.nCodIt ? { nCodIt: atual.nCodIt } : {}) };
+    });
+    if (!produtos.length) return null;
+    // a Omie exige o cliente na alteração (mesma regra do PPV)
+    await omieRequest('/produtos/remessa/', 'AlterarRemessa', { cabec: { nCodRem, nCodCli: Number(rc?.cabec?.nCodCli) || undefined }, produtos }, conta);
+    return null;
+  } catch (e) {
+    return `A Omie não aceitou acertar os itens da remessa: ${(e as { faultstring?: string }).faultstring || (e as Error).message}`;
+  }
 }
 
 /** dá baixa na pendência "Devolução de peças" da garantia com a NF-e emitida */
