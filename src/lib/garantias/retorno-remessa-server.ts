@@ -13,6 +13,7 @@ import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
 import {
   itensDaEntrada, itemRemessa, valorItem, validarEscolha, disponivel, textoRetorno, codIntRem,
   limparTexto, ehItemGarantia, cfopRetorno, CATEGORIA_PADRAO, FRETE_PADRAO, type ItemEntrada, type Escolha,
+  cBenefDoXml, cstPedeBeneficio, situacaoNfe,
 } from './retorno-remessa';
 
 const TBL = 'garantia_retornos';
@@ -28,7 +29,7 @@ export interface Padroes { categoria: string; projeto: number | null; vendedor: 
 
 interface Nota {
   idReceb: number; numero: string | null; emissao: string | null; chave: string | null; fornecedor: string | null;
-  cnpj: string | null; nCodCli: number | null; recebido: boolean; itens: ItemEntrada[];
+  cnpj: string | null; nCodCli: number | null; recebido: boolean; itens: ItemEntrada[]; xmlLido: boolean;
   volumes: { qtd: number; especie: string | null; marca: string | null; pesoBruto: number; pesoLiq: number };
 }
 
@@ -37,6 +38,10 @@ async function lerNota(conta: Conta, idReceb: number): Promise<Nota> {
   if (d?.faultstring) throw new Error('Omie: ' + d.faultstring);
   const cab = d?.cabec || {};
   const tr = d?.transporte || {};
+  const itens = itensDaEntrada(d);
+  // código de benefício fiscal de cada item: vem do XML da nota (guardado em notas-fiscais)
+  const benef = cab.cChaveNFe ? await beneficiosDoXml(String(cab.cChaveNFe)) : null;
+  for (const it of itens) it.cBenef = benef?.[it.seq] ?? null;
   return {
     idReceb,
     numero: cab.cNumeroNFe ?? null,
@@ -46,12 +51,25 @@ async function lerNota(conta: Conta, idReceb: number): Promise<Nota> {
     cnpj: cab.cCNPJ_CPF ?? null,
     nCodCli: Number(cab.nIdFornecedor) || null,
     recebido: d?.infoCadastro?.cRecebido === 'S',
-    itens: itensDaEntrada(d),
+    itens,
+    xmlLido: benef != null,
     volumes: {
       qtd: Number(tr.nQtdeVolume) || 0, especie: tr.cEspecieVolume || null, marca: tr.cMarcaVolume || null,
       pesoBruto: Number(tr.nPesoBruto) || 0, pesoLiq: Number(tr.nPesoLiquido) || 0,
     },
   };
+}
+
+/** cBenef por item a partir do XML guardado da nota de entrada (null = sem XML no portal) */
+async function beneficiosDoXml(chave: string): Promise<Record<number, string> | null> {
+  try {
+    const { data } = await supabase.from('notas_fiscais_docs').select('xml_path')
+      .eq('tipo', 'entrada').eq('chave_nfe', chave).not('xml_path', 'is', null).limit(1).maybeSingle();
+    if (!data?.xml_path) return null;
+    const { data: arq } = await supabase.storage.from('notas-fiscais').download(data.xml_path);
+    if (!arq) return null;
+    return cBenefDoXml(await arq.text());
+  } catch { return null; }
 }
 
 /** retornos já gravados desta nota + quanto de cada item já voltou (remessas não canceladas/falhas) */
@@ -117,6 +135,9 @@ export async function previaRetorno(conta: Conta, idReceb: number) {
     historico: h.linhas,
     padroes: pad,
     texto: textoRetorno({ numero: nota.numero, emissao: nota.emissao, chave: nota.chave }),
+    avisos: !nota.xmlLido && nota.itens.some((i) => cstPedeBeneficio(i.icms?.cSitTrib))
+      ? ['O XML desta nota ainda não está guardado no portal: o código de benefício fiscal do ICMS não será copiado e a SEFAZ pode rejeitar. Abra "ver DANFE" da nota uma vez e tente de novo.']
+      : [],
     migracaoFaltando: h.migracaoFaltando,
   };
 }
@@ -204,10 +225,12 @@ function hojeBR(): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 }
 
-type StatusRem = { faturada?: string; cancelada?: string; ListaNfe?: Array<{ cNumNFe?: string; cChaveNFe?: string }> };
+type StatusRem = { faturada?: string; cancelada?: string; ListaNfe?: Array<{ cNumNFe?: string; cChaveNFe?: string; cStatusNFe?: string; mensagens?: Array<{ cCodigo?: string; cDescricao?: string }> }> };
 async function statusRem(conta: Conta, nCodRem: number): Promise<StatusRem | null> {
   try { return await omieRequest('/produtos/remessa/', 'StatusRemessa', { nCodRem }, conta); } catch { return null; }
 }
+type NfeStatus = { cNumNFe?: string; cChaveNFe?: string; cStatusNFe?: string; mensagens?: Array<{ cCodigo?: string; cDescricao?: string }> };
+const ultimaNfe = (st: StatusRem | null): NfeStatus | null => { const l = (st?.ListaNfe || []) as NfeStatus[]; return l[l.length - 1] || null; };
 const nfDe = (st: StatusRem | null) => { const l = st?.ListaNfe || []; const n = l[l.length - 1]; return n?.cNumNFe ? { numero: sem0(n.cNumNFe), chave: n.cChaveNFe || null } : null; };
 
 /** fatura (emite a NF-e) a remessa de uma ficha já criada. Serve também para "tentar de novo". */
@@ -229,8 +252,10 @@ export async function faturarRetorno(fichaId: string, userNome: string) {
     await supabase.from(TBL).update({ status: 'cancelada', erro: 'Remessa cancelada na Omie.', atualizado_em: new Date().toISOString() }).eq('id', fichaId);
     return { ok: false, erro: 'A remessa está cancelada na Omie.' };
   }
-  if (st0?.faturada !== 'S') {
-    // acerta os itens da remessa já criada com a regra atual (ex.: IPI que faltava) antes de faturar
+  const sit0 = situacaoNfe(ultimaNfe(st0));
+  const reenviar = st0?.faturada === 'S' && sit0.situacao === 'rejeitada';
+  if (st0?.faturada !== 'S' || reenviar) {
+    // acerta os itens da remessa já criada com a regra atual (ex.: IPI, código de benefício) antes de faturar
     const al = await alinharItens(conta, f, nCodRem);
     if (al) return marcarErro(al);
     try { await omieRequest('/produtos/remessafat/', 'ConferirRemessa', { nCodRem }, conta); }
@@ -244,9 +269,19 @@ export async function faturarRetorno(fichaId: string, userNome: string) {
       if (st?.faturada !== 'S') return marcarErro(`A Omie não faturou a remessa: ${(e as { faultstring?: string }).faultstring || (e as Error).message}`);
     }
   }
-  // a NF-e leva alguns segundos para aparecer
-  let nf = nfDe(st0);
-  for (let i = 0; i < 6 && !nf; i++) { await espera(4000); nf = nfDe(await statusRem(conta, nCodRem)); }
+  // a NF-e leva alguns segundos para aparecer e a SEFAZ responde depois: espera autorizar ou rejeitar
+  let st = reenviar ? null : st0;
+  let sit = reenviar ? { situacao: 'aguardando' as const, mensagem: null } : situacaoNfe(ultimaNfe(st0));
+  for (let i = 0; i < 8 && (!st || sit.situacao === 'aguardando'); i++) {
+    await espera(4000);
+    st = await statusRem(conta, nCodRem);
+    sit = situacaoNfe(ultimaNfe(st));
+  }
+  const nf = nfDe(st);
+  if (sit.situacao === 'rejeitada') {
+    await supabase.from(TBL).update({ status: 'criada', n_cod_rem: nCodRem, nf_numero: nf?.numero || null, nf_chave: nf?.chave || null, erro: `A SEFAZ rejeitou a NF-e${nf ? ` ${nf.numero}` : ''}: ${sit.mensagem}`, atualizado_em: new Date().toISOString() }).eq('id', fichaId);
+    return { ok: false, erro: `A SEFAZ rejeitou a NF-e${nf ? ` ${nf.numero}` : ''}: ${sit.mensagem}`, podeTentarDeNovo: true };
+  }
   const agora = new Date().toISOString();
   await supabase.from(TBL).update({
     status: 'faturada', n_cod_rem: nCodRem, nf_numero: nf?.numero || null, nf_chave: nf?.chave || null,

@@ -17,7 +17,7 @@ interface Previa {
     volumes: { qtd: number; especie: string | null; marca: string | null; pesoBruto: number; pesoLiq: number } };
   itens: ItemPrevia[]; historico: Historico[];
   padroes: { categoria: string; frete: string; email: string | null; deRemessa: string | null };
-  texto: string; migracaoFaltando?: boolean; erro?: string;
+  texto: string; avisos?: string[]; migracaoFaltando?: boolean; erro?: string;
 }
 interface NotaGarantia { conta: string; idReceb: number; numero: string; data: string; fornecedor: string; valor: number; sugerida: boolean }
 
@@ -136,6 +136,7 @@ export default function ModalRetornoGarantia({ conta: contaIni, idReceb: idIni, 
               {previa.nota.chave && <div style={{ fontSize: '.7rem', color: '#64748b', wordBreak: 'break-all' }}>chave {previa.nota.chave}</div>}
             </div>
             {previa.migracaoFaltando && <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: '8px 12px', fontSize: '.8rem', marginBottom: 8 }}>Falta aplicar <code>sql/garantia-retorno-remessa.sql</code> no banco.</div>}
+            {(previa.avisos || []).map((a, i) => <div key={i} style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: '8px 12px', fontSize: '.8rem', marginBottom: 8 }}>{a}</div>)}
             {!previa.nota.recebido && <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', borderRadius: 8, padding: '8px 12px', fontSize: '.8rem', marginBottom: 8 }}>Dê entrada nesta nota antes de devolver.</div>}
 
             <div style={{ overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: 8 }}>

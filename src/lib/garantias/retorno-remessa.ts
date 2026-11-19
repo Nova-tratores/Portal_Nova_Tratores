@@ -34,6 +34,8 @@ export interface ItemEntrada extends ImpostosEntrada {
   vTotalItem: number;
   /** a Omie já marcou o item como devolvido (devolução feita pela tela da Omie) */
   devolvidoNaOmie: boolean;
+  /** código de benefício fiscal do ICMS na nota da fábrica (cBenef do XML; ex. SP058811) */
+  cBenef?: string | null;
 }
 
 const r2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
@@ -110,7 +112,8 @@ export function itemRemessa(item: ItemEntrada, qtd: number) {
     PIS: { cSitTribPIS: item.pisCst || '07' },
     COFINS: { cSitTribCOFINS: item.cofinsCst || item.pisCst || '07' },
     IBS_CBS: { ...IBS_CBS_RETORNO },
-    infAdicItem: { cNaoMovEstoque: 'S' },
+    // CST com benefício (ex.: 51 diferido) sem o código = SEFAZ rejeita (930) — NF 8577, 19/11/2026
+    infAdicItem: { cNaoMovEstoque: 'S', ...(item.cBenef ? { codigo_benef: item.cBenef } : {}) },
   };
   if (item.st) {
     out.ICMS_ST = {
@@ -165,6 +168,34 @@ export function validarEscolha(itens: ItemEntrada[], escolha: Escolha[], jaDevol
     if (e.qtd > disp + 1e-9) erros.push(`${nome}: só ${disp} disponível para devolver.`);
   }
   return erros;
+}
+
+/** cBenef de cada item (<det nItem="N">) do XML da NF-e. Chave = nº do item = nSequencia do recebimento. */
+export function cBenefDoXml(xml: string | null | undefined): Record<number, string> {
+  const out: Record<number, string> = {};
+  const re = /<det\b[^>]*nItem="(\d+)"[^>]*>([\s\S]*?)<\/det>/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(String(xml || '')))) {
+    const b = /<cBenef>\s*([^<\s]+)\s*<\/cBenef>/.exec(m[2]);
+    if (b) out[Number(m[1])] = b[1];
+  }
+  return out;
+}
+
+/** CST do ICMS que normalmente exige o código de benefício na NF-e de SP */
+export function cstPedeBeneficio(cst: string | null | undefined): boolean {
+  return ['20', '30', '40', '41', '50', '51', '70', '90'].includes(String(cst || '').trim());
+}
+
+export type SituacaoNfe = 'autorizada' | 'rejeitada' | 'aguardando';
+/** Situação da NF-e da remessa pelo StatusRemessa: 006 = autorizada; mensagem "Rejeição…"/009 = rejeitada. */
+export function situacaoNfe(nfe: { cStatusNFe?: string; mensagens?: Array<{ cCodigo?: string; cDescricao?: string }> } | null | undefined): { situacao: SituacaoNfe; mensagem: string | null } {
+  if (!nfe) return { situacao: 'aguardando', mensagem: null };
+  const msgs = (nfe.mensagens || []).map((x) => [x.cCodigo, x.cDescricao].filter(Boolean).join(' - ')).filter(Boolean);
+  const rej = (nfe.mensagens || []).some((x) => /rejei|deneg/i.test(String(x.cDescricao || '')));
+  if (rej || nfe.cStatusNFe === '009') return { situacao: 'rejeitada', mensagem: msgs.join(' · ') || 'A SEFAZ rejeitou a nota.' };
+  if (nfe.cStatusNFe === '006') return { situacao: 'autorizada', mensagem: null };
+  return { situacao: 'aguardando', mensagem: msgs.join(' · ') || null };
 }
 
 /** texto padrão dos dados adicionais (a pessoa pode editar na tela) */

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { itensDaEntrada, itemRemessa, valorItem, validarEscolha, disponivel, cfopRetorno, ehItemGarantia, textoRetorno, codIntRem, limparTexto } from '../retorno-remessa';
+import { itensDaEntrada, itemRemessa, valorItem, validarEscolha, disponivel, cfopRetorno, ehItemGarantia, textoRetorno, codIntRem, limparTexto, cBenefDoXml, situacaoNfe } from '../retorno-remessa';
 
 // Itens reais da NF 222028 da Kuhn (NOVA, recebimento 2526470642) — a Omie gerou a remessa 3749.
 const rec = {
@@ -59,6 +59,23 @@ describe('devolução em garantia (remessa de retorno)', () => {
     expect(r.IPI).toEqual({ cSitTribIPI: '50', cEnqIPI: '999', cTpCalcIPI: 'B', nAliqIPI: 3.25, nBCIPI: 112.02, nValIPI: 3.64 });
     expect(r.ICMS).toMatchObject({ cSitTrib: '51', nRedBC: 100 });
     expect(valorItem(m, 3)).toBe(115.66);
+  });
+
+  it('código de benefício vem do XML da nota e vai no item (SEFAZ 930 sem ele)', () => {
+    const xml = '<det nItem="1"><prod/><imposto><ICMS><ICMS51><CST>51</CST><pRedBC>100.00</pRedBC></ICMS51></ICMS><cBenef>SP058811</cBenef></imposto></det><det nItem="2"><prod/></det>';
+    expect(cBenefDoXml(xml)).toEqual({ 1: 'SP058811' });
+    const [m] = itensDaEntrada({ itensRecebimento: [{ itensCabec: { nSequencia: 1, nIdProduto: 9, cCFOP: '5.949', nQtdeNFe: 3, nPrecoUnit: 37.34 }, itensICMS: { cSitTrib: '51' }, itensIPI: {}, itensPIS: {} }] });
+    m.cBenef = 'SP058811';
+    expect((itemRemessa(m, 3) as any).infAdicItem).toEqual({ cNaoMovEstoque: 'S', codigo_benef: 'SP058811' });
+  });
+
+  it('situação da NF-e: 006 autorizada, 009/Rejeição rejeitada, resto aguardando', () => {
+    expect(situacaoNfe({ cStatusNFe: '006', mensagens: [] }).situacao).toBe('autorizada');
+    const r = situacaoNfe({ cStatusNFe: '009', mensagens: [{ cCodigo: '930', cDescricao: 'Rejeição: CST com benefício fiscal e não informado o código de benefício fiscal [nItem: 1]' }] });
+    expect(r.situacao).toBe('rejeitada');
+    expect(r.mensagem).toContain('930');
+    expect(situacaoNfe({ cStatusNFe: '001' }).situacao).toBe('aguardando');
+    expect(situacaoNfe(null).situacao).toBe('aguardando');
   });
 
   it('valida quantidade, CFOP de garantia e o que já voltou', () => {
