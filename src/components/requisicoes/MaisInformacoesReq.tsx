@@ -10,6 +10,7 @@ import { fetchAuth } from '@/lib/auth/client';
 import FornecedorBusca from './FornecedorBusca';
 import CampoLink, { linkComDominio } from './CampoLink';
 
+import { mascaraDinheiro } from '@/lib/requisicoes/campos';
 import { ITEM_VAZIO, num, brl, itemUsado, totalItens, type ItemCompra, type MaisInfo } from '@/lib/requisicoes/itens-compra';
 export { MAIS_INFO_VAZIO, dadosDosItens, type MaisInfo } from '@/lib/requisicoes/itens-compra';
 
@@ -57,7 +58,7 @@ function LinhaItem({ item, n, podeTirar, onMudar, onTirar, onLoja, inputStyle }:
       <div className="grid grid-cols-[1fr_72px_120px] gap-2">
         <input value={item.produto} onChange={(e) => onMudar({ produto: e.target.value.toUpperCase() })} placeholder="Produto ou serviço" className={inputStyle} />
         <input value={item.qtd} onChange={(e) => onMudar({ qtd: e.target.value.replace(/[^\d,.]/g, '') })} inputMode="decimal" placeholder="Qtd" title="Quantidade" className={`${inputStyle} text-center`} />
-        <input value={item.valor} onChange={(e) => onMudar({ valor: e.target.value.replace(/[^\d,.]/g, '') })} inputMode="decimal" placeholder="R$ cada" title="Valor de cada um" className={inputStyle} />
+        <input value={item.valor} onChange={(e) => onMudar({ valor: mascaraDinheiro(e.target.value) })} inputMode="numeric" placeholder="R$ cada" title="Valor de cada um" className={inputStyle} />
       </div>
       {subtotal > 0 && (num(item.qtd) || 1) > 1 && <div className="text-[12.5px] text-zinc-600 text-right">{item.qtd} × {brl(num(item.valor))} = <b className="font-medium text-black">{brl(subtotal)}</b></div>}
     </div>

@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useMarcarCaso } from '@/lib/uso/caso';
 import { useRascunho } from '@/lib/rascunho/useRascunho';
 import AvisoRascunho from '@/components/rascunho/AvisoRascunho';
@@ -24,7 +25,7 @@ import RecorteAnexo from './RecorteAnexo';
 import DialogoImprimirReq from './DialogoImprimirReq';
 import LeituraNota from './LeituraNota';
 import { anexosNoDrive as anexosNoDriveDe, getUrlAnexo, CAMPOS_NF } from '@/lib/requisicoes/anexos';
-import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
+import { formatarLitros, formatarHodometro, mascaraDinheiro } from '@/lib/requisicoes/campos';
 import { prontaParaFinanceiro, CAMPOS_COMPROVANTE } from '@/lib/requisicoes/lembretes';
 import AutorizacaoReq from './AutorizacaoReq';
 import { buscarContaDaReq, criarContaDaRequisicao, type ContaExistente } from '@/lib/financeiro/conta-da-requisicao';
@@ -42,12 +43,7 @@ const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIatVqhjdeBeo
 const DEPARTAMENTOS = ["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"];
 const TIPOS_REQ = ["Peças", "Alimentação", "Ferramenta", "Serviço de Terceiros", "Almoxarifado", "Insumo Infra", "Veicular Abastecimento", "Veicular Manutenção", "Trator Abastecimento", "Quadri Abastecimento", "Hospedagem", "Remuneração"];
 
-function formatarMoeda(valor: string): string {
-  const nums = valor.replace(/\D/g, '');
-  if (!nums) return '';
-  const centavos = parseInt(nums, 10);
-  return (centavos / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
+const formatarMoeda = mascaraDinheiro; // máscara de dinheiro enquanto digita (lib/requisicoes/campos.ts)
 
 function parseMoeda(valorFmt: string): string {
   if (!valorFmt) return '';
@@ -643,11 +639,40 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       }
       setUploadOk(fieldName);
       setTimeout(() => setUploadOk(null), 2000);
+      return true;
     } catch (error: any) {
       alert('Erro ao realizar upload: ' + error.message);
+      return false;
     } finally {
       setUploading(null);
     }
+  };
+
+  // Trocar o tipo para Remuneração (José, 19/11/2026): só com a nota ou o recibo que comprova o que vai ser
+  // remunerado. Sem comprovante ainda → abre a janela pedindo o arquivo; o tipo só troca depois que ele sobe.
+  const [remJanela, setRemJanela] = useState(false);
+  const [remArq, setRemArq] = useState<File | null>(null);
+  const [remCampo, setRemCampo] = useState<'foto_nf' | 'recibo_fornecedor'>('foto_nf');
+  const [remEnviando, setRemEnviando] = useState(false);
+  const virarRemuneracao = () => {
+    // quem recebe de volta é a própria pessoa: entra como fornecedor (igual na criação)
+    if (!String(localData.fornecedor || '').trim() && localData.solicitante) persist('fornecedor', localData.solicitante);
+    persist('tipo', 'Remuneração');
+  };
+  const trocarTipo = (t: string) => {
+    if (t !== 'Remuneração') { persist('tipo', t); return; }
+    const temComprovante = (CAMPOS_COMPROVANTE as readonly string[]).some((c) => String(localData[c] || '').trim());
+    if (temComprovante) { virarRemuneracao(); return; }
+    setRemArq(null); setRemCampo('foto_nf'); setRemJanela(true);
+  };
+  const confirmarRemuneracao = async () => {
+    if (!remArq) return;
+    setRemEnviando(true);
+    const ok = await enviarAnexo(remArq, remCampo);
+    setRemEnviando(false);
+    if (!ok) return;
+    virarRemuneracao();
+    setRemJanela(false);
   };
 
   // Impressão: o diálogo (DialogoImprimirReq) pergunta quais anexos entram e
@@ -830,7 +855,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                       </div>
                       <div>
                         <label className={labelBase}><DollarSign size={11}/> Valor</label>
-                        <input value={cotacaoData[`valor${idx}`] || ''} onChange={e => setCotacaoData({...cotacaoData, [`valor${idx}`]: e.target.value})} className={inputBase} placeholder="0,00" />
+                        <input value={cotacaoData[`valor${idx}`] || ''} onChange={e => setCotacaoData({...cotacaoData, [`valor${idx}`]: formatarMoeda(e.target.value)})} inputMode="numeric" className={inputBase} placeholder="0,00" />
                       </div>
                     </div>
                     <div className="mt-4">
@@ -1108,10 +1133,45 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className={labelBase}><Layers size={11}/> Tipo</label>
-                  <select value={localData.tipo || ""} onChange={e => persist('tipo', e.target.value)} className={selectBase}>
+                  <select value={localData.tipo || ""} onChange={e => trocarTipo(e.target.value)} className={selectBase}>
                     <option value="">Selecionar...</option>
                     {TIPOS_REQ.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
+                  {remJanela && createPortal(
+                    <div className="fixed inset-0 z-[100095] bg-black/40 backdrop-blur-[2px] grid place-items-center p-3" onMouseDown={(e) => { if (e.target === e.currentTarget && !remEnviando) setRemJanela(false); }}>
+                      <div role="dialog" aria-modal="true" aria-labelledby="rem-titulo" className="w-full max-w-md bg-white rounded-2xl shadow-2xl">
+                        <div className="flex items-start gap-3 px-5 py-4 bg-emerald-50/70 border-b border-emerald-100 rounded-t-2xl">
+                          <span className="w-10 h-10 rounded-xl shrink-0 grid place-items-center text-emerald-700 bg-emerald-100 border border-emerald-200"><i className="fa-solid fa-hand-holding-dollar" /></span>
+                          <div className="flex-1 min-w-0">
+                            <p id="rem-titulo" className="text-[15px] text-emerald-950" style={{ fontWeight: 600 }}>Anexe o comprovante</p>
+                            <p className="text-[12.5px] text-emerald-800/90 mt-0.5">Para virar Remuneração, a requisição precisa da nota ou do recibo que comprova o que vai ser remunerado.</p>
+                          </div>
+                        </div>
+                        <div className="p-5 flex flex-col gap-4">
+                          <label className="flex flex-col gap-1.5">
+                            <span className="text-[13px] text-zinc-700">O que vai anexar</span>
+                            <select value={remCampo} onChange={(e) => setRemCampo(e.target.value as 'foto_nf' | 'recibo_fornecedor')} className="w-full min-h-[44px] rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none focus:border-emerald-500">
+                              <option value="foto_nf">Nota fiscal</option>
+                              <option value="recibo_fornecedor">Comprovante / recibo</option>
+                            </select>
+                          </label>
+                          <label className="flex flex-col gap-1.5">
+                            <span className="text-[13px] text-zinc-700">Arquivo (foto ou PDF)</span>
+                            <input type="file" accept="image/*,application/pdf" onChange={(e) => setRemArq(e.target.files?.[0] || null)}
+                              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm" />
+                          </label>
+                          <div className="flex flex-wrap justify-end gap-2">
+                            <button type="button" disabled={remEnviando} onClick={() => setRemJanela(false)} className="min-h-[44px] px-4 rounded-xl border border-zinc-200 text-sm text-zinc-800 hover:bg-zinc-50">Cancelar</button>
+                            <button type="button" disabled={!remArq || remEnviando} onClick={confirmarRemuneracao}
+                              className="min-h-[44px] px-5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 flex items-center gap-2">
+                              <i className={`fa-solid ${remEnviando ? 'fa-spinner fa-spin' : 'fa-paperclip'}`} /> {remEnviando ? 'Enviando…' : 'Anexar e trocar'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>,
+                    document.body,
+                  )}
                 </div>
                 <div ref={solDropdownRef} className="relative">
                   <label className={labelBase}><UserCircle size={11}/> Solicitante</label>
@@ -1411,7 +1471,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                     </div>
                     <div>
                       <label className={labelBase}><Gauge size={11}/> Hodômetro</label>
-                      <input inputMode="numeric" value={localData.hodometro || ''} onChange={e => setField('hodometro', e.target.value)} onBlur={e => { const v = formatarHodometro(e.target.value); setField('hodometro', v); persist('hodometro', v); }} className={inputBase} />
+                      <input inputMode="numeric" value={localData.hodometro || ''} onChange={e => setField('hodometro', formatarHodometro(e.target.value))} onBlur={e => { const v = formatarHodometro(e.target.value); setField('hodometro', v); persist('hodometro', v); }} className={inputBase} />
                     </div>
                   </div>
                 </div>

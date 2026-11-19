@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { formatarPlaca } from '@/lib/frota/placa';
-import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
+import { formatarLitros, formatarHodometro, mascaraDinheiro } from '@/lib/requisicoes/campos';
 import { FolderOpen, ChevronDown } from 'lucide-react';
 import { useRascunho } from '@/lib/rascunho/useRascunho';
 import AvisoRascunho from '@/components/rascunho/AvisoRascunho';
@@ -408,7 +408,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className={labelStyle} htmlFor="rem-valor">Quanto foi pago</label>
-                  <input id="rem-valor" required placeholder="0,00" inputMode="decimal" autoComplete="off" value={valorNovo} onChange={e => setValorNovo(e.target.value)} className={inputStyle} />
+                  <input id="rem-valor" required placeholder="0,00" inputMode="numeric" autoComplete="off" value={valorNovo} onChange={e => setValorNovo(mascaraDinheiro(e.target.value))} className={inputStyle} />
                 </div>
                 <div>
                   <label className={labelStyle} htmlFor="rem-tipo-anexo">O que vai anexar</label>
@@ -470,7 +470,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
                 </div>
                 <div>
                   <label className={labelStyle}>Hodômetro / horímetro</label>
-                  <input placeholder="Ex: 12.500 km" inputMode="numeric" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} onBlur={e => setFormData({...formData, hodometro: formatarHodometro(e.target.value)})} className={`${inputStyle}`} />
+                  <input placeholder="Ex: 12.500 km" inputMode="numeric" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: formatarHodometro(e.target.value)})} className={`${inputStyle}`} />
                 </div>
               </div>
             </div>
@@ -687,7 +687,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
               </div>
               <div className="mt-3">
                 <label className={labelStyle}>Hodômetro / horímetro</label>
-                <input placeholder="Ex: 12.500 km / 3.400 h" inputMode="numeric" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} onBlur={e => setFormData({...formData, hodometro: formatarHodometro(e.target.value)})} className={inputStyle} />
+                <input placeholder="Ex: 12.500 km / 3.400 h" inputMode="numeric" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: formatarHodometro(e.target.value)})} className={inputStyle} />
               </div>
             </div>
           )}
@@ -875,7 +875,7 @@ export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRa
                 </div>
                 <div>
                   <label className={labelStyle}>Valor cobrado do cliente</label>
-                  <input placeholder="0,00" onChange={e => setFormData({...formData, valor_cobrado_cliente: e.target.value})} className={inputStyle} />
+                  <input placeholder="0,00" inputMode="numeric" value={formData.valor_cobrado_cliente} onChange={e => setFormData({...formData, valor_cobrado_cliente: mascaraDinheiro(e.target.value)})} className={inputStyle} />
                 </div>
               </div>
             </div>
