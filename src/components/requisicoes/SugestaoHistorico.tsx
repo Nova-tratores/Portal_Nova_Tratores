@@ -4,6 +4,7 @@
 //  - campos de fornecedor e valor já na criação (antes só dava para pôr depois, por isso 46% ficavam sem fornecedor)
 //  - aviso de requisição parecida aberta nos últimos 15 dias
 import React, { useMemo } from 'react';
+import { mascaraDinheiro } from '@/lib/requisicoes/campos';
 import { brl, normalizarTipo, parecidas, ROTULO_FASE, sugerir, valorReq, type Req } from '@/lib/requisicoes/inteligencia';
 
 const fmtBR = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -80,9 +81,8 @@ export default function SugestaoHistorico({ historico, tipo, veiculo, titulo, fo
             <input list="req-fornecedores-hist" value={fornecedor} onChange={(e) => onFornecedor(e.target.value)} placeholder="Fornecedor" className={campo} />
             <datalist id="req-fornecedores-hist">{nomes.map((n) => <option key={n} value={n} />)}</datalist>
           </div>
-          <input value={valor} inputMode="decimal" placeholder="Valor (R$)" className={campo}
-            onChange={(e) => onValor(e.target.value)}
-            onBlur={(e) => { const n = Number(e.target.value.replace(/\./g, '').replace(',', '.')); if (e.target.value && Number.isFinite(n)) onValor(fmtBR(n)); }} />
+          <input value={valor} inputMode="numeric" placeholder="Valor (R$)" className={campo}
+            onChange={(e) => onValor(mascaraDinheiro(e.target.value))} />
         </div>
       </div>
     </div>

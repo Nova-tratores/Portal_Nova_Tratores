@@ -27,7 +27,15 @@ export function formatarLitros(v: string | number | null | undefined): string {
   return n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// "12500" → "12.500" · "12.500 km" → "12.500" (quilometragem/horímetro inteiro)
+// Dinheiro enquanto digita, como máquina de cartão (José, 19/11/2026: "sem precisar colocar vírgula"):
+// só os dígitos contam e os 2 últimos são os centavos → "1" = "0,01" · "12345" = "123,45" · "123456" = "1.234,56"
+export function mascaraDinheiro(v: string | number | null | undefined): string {
+  const nums = String(v ?? '').replace(/\D/g, '').replace(/^0+/, '');
+  if (!nums) return '';
+  return (parseInt(nums, 10) / 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// "12500" → "12.500" · "12.500 km" → "12.500" (quilometragem/horímetro inteiro) — serve também enquanto digita
 export function formatarHodometro(v: string | number | null | undefined): string {
   const digitos = String(v ?? '').replace(/\D/g, '');
   if (!digitos) return '';
