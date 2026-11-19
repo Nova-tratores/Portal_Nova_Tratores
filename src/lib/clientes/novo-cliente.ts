@@ -77,6 +77,14 @@ export function separarTelefone(tel?: string): { ddd: string; numero: string } {
 const limpar = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim();
 
 /** Erros que impedem criar (mensagens prontas pra tela). Lista vazia = pode enviar. */
+const EMAIL_OK = /^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/;
+
+/** "a@x.com; b@y.com  c@z.com" → ["a@x.com","b@y.com","c@z.com"] (aceita vírgula, ponto e vírgula ou espaço; tira repetidos). */
+export function listaEmails(bruto: string | null | undefined): string[] {
+  const vistos = new Set<string>();
+  return String(bruto ?? "").split(/[,;\s]+/).map((e) => e.trim().toLowerCase()).filter((e) => e && !vistos.has(e) && (vistos.add(e), true));
+}
+
 export function validarNovoCliente(f: FormNovoCliente): string[] {
   const erros: string[] = [];
   if (!empresaCanonica(f.empresa)) erros.push("Escolha a empresa (Nova Tratores ou Castro Peças).");
@@ -87,8 +95,12 @@ export function validarNovoCliente(f: FormNovoCliente): string[] {
   if (!razao) erros.push("Razão social / nome é obrigatório.");
   else if (razao.length > LIMITES.razao_social) erros.push(`Razão social com ${razao.length} letras — o Omie aceita no máximo ${LIMITES.razao_social}. Abrevie (ex.: LTDA, CIA, AGRIC.).`);
   if (limpar(f.nome_fantasia).length > LIMITES.nome_fantasia) erros.push(`Nome fantasia passa de ${LIMITES.nome_fantasia} letras.`);
-  const email = limpar(f.email);
-  if (email && !/^[^\s@,;]+@[^\s@,;]+\.[^\s@,;]+$/.test(email)) erros.push("E-mail inválido (use um só, no formato nome@dominio.com).");
+  // Mais de um e-mail vale (José, 19/11/2026): o Omie aceita vários separados por vírgula
+  // (ajuda do Omie: "separe-os por uma vírgula simples"; campo de até 500 letras).
+  const emails = listaEmails(f.email);
+  const ruins = emails.filter((e) => !EMAIL_OK.test(e));
+  if (ruins.length) erros.push(`E-mail inválido: ${ruins.join(", ")} — use o formato nome@dominio.com (para mais de um, separe por vírgula).`);
+  else if (emails.join(",").length > LIMITES.email) erros.push(`E-mails passam de ${LIMITES.email} letras no total.`);
   const tel = soDigitos(f.telefone);
   if (tel && separarTelefone(f.telefone).numero === "") erros.push("Telefone incompleto — informe DDD + número.");
   const cep = soDigitos(f.cep);
@@ -139,7 +151,7 @@ export function paramIncluirCliente(f: FormNovoCliente): Record<string, unknown>
   if (limpar(f.bairro)) p.bairro = limpar(f.bairro);
   if (limpar(f.complemento)) p.complemento = limpar(f.complemento);
   if (ddd) { p.telefone1_ddd = ddd; p.telefone1_numero = numero; }
-  if (limpar(f.email)) p.email = limpar(f.email);
+  if (listaEmails(f.email).length) p.email = listaEmails(f.email).join(","); // formato do Omie: vírgula simples
   if (ie && !f.isento_ie) { p.inscricao_estadual = ie; p.contribuinte = "S"; }
   else { p.inscricao_estadual = "ISENTO"; p.contribuinte = "N"; }
   if (doc.length === 11 && !ie) { delete p.inscricao_estadual; p.contribuinte = "N"; }

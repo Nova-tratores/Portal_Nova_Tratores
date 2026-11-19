@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { validarNovoCliente, paramIncluirCliente, empresaCanonica, separarTelefone, type FormNovoCliente } from './novo-cliente'
+import { validarNovoCliente, paramIncluirCliente, empresaCanonica, separarTelefone, listaEmails, type FormNovoCliente } from './novo-cliente'
 
 const base: FormNovoCliente = {
   empresa: 'Nova Tratores', cnpj_cpf: '46.223.699/0001-50', razao_social: 'MUNICIPIO DE PIRAJU',
@@ -54,6 +54,16 @@ describe('paramIncluirCliente', () => {
     expect(p.contribuinte).toBe('S')
     expect(p.inscricao_estadual).toBe('537.082.005.117')
     expect(p.endereco_numero).toBe('S/N')
+  })
+  it('aceita mais de um e-mail e manda pro Omie separado por vírgula', () => {
+    const f = { ...base, email: 'Compras@piraju.sp.gov.br; financeiro@piraju.sp.gov.br  compras@piraju.sp.gov.br' }
+    expect(validarNovoCliente(f)).toEqual([])
+    expect(paramIncluirCliente(f).email).toBe('compras@piraju.sp.gov.br,financeiro@piraju.sp.gov.br')
+    expect(listaEmails('a@x.com,, b@y.com ;')).toEqual(['a@x.com', 'b@y.com'])
+  })
+  it('aponta qual dos e-mails está errado', () => {
+    const e = validarNovoCliente({ ...base, email: 'ok@piraju.sp.gov.br, errado@gmail' })
+    expect(e.join(' ')).toMatch(/E-mail inválido: errado@gmail/)
   })
   it('telefone com +55', () => {
     expect(separarTelefone('+55 14 99813-2198')).toEqual({ ddd: '14', numero: '998132198' })
