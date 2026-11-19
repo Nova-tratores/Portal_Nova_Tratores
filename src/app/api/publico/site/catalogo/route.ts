@@ -1,7 +1,7 @@
 // O que o comercial mudou no catálogo do site (aberto, sem login): o site aplica por cima dos arquivos.
 // Só produtos com alguma mudança; campos públicos (sem notas nem quem mudou). Cache de 1 min.
 import { NextResponse } from 'next/server'
-import { corsSite, sb } from '@/lib/site/server'
+import { corsSite, sb } from '@/lib/marketing/redes/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

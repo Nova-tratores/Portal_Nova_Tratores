@@ -1,7 +1,7 @@
 'use client';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // =============================================================================
-// /marketing/[id] — ficha da ação de marketing.
+// /marketing/[id] — ficha da campanha de marketing (era "ação" até 18/11/2026).
 //
 // As abas são estado local, não rotas: o gate do módulo já rodou no layout, e
 // abrir uma aba não deve recarregar a ficha inteira nem multiplicar arquivos de
@@ -20,8 +20,10 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui';
 import { STATUS_ACAO, TIPOS_ACAO, rotulo, cor } from '@/lib/marketing/tipos';
 import AcaoForm from '@/components/marketing/AcaoForm';
+import CapaCampanha from '@/components/marketing/CapaCampanha';
 import Modal from '@/components/marketing/Modal';
 import ResumoAba from '@/components/marketing/abas/ResumoAba';
+import LinhaDoTempoAba from '@/components/marketing/abas/LinhaDoTempoAba';
 import ApoiosAba from '@/components/marketing/abas/ApoiosAba';
 import CustosAba from '@/components/marketing/abas/CustosAba';
 import LeadsAba from '@/components/marketing/abas/LeadsAba';
@@ -35,7 +37,7 @@ import {
 } from '@/components/marketing/ui';
 
 const ABAS = [
-  'Resumo', 'Apoio de fábrica', 'Investimento', 'Leads', 'Propostas',
+  'Resumo', 'Linha do tempo', 'Apoio de fábrica', 'Investimento', 'Leads', 'Propostas',
   'Equipe', 'Itens expostos', 'Ações realizadas', 'Concorrentes', 'Mídia',
   'Avaliação', 'Questionário', 'Relatório',
 ] as const;
@@ -65,7 +67,7 @@ export default function FichaAcaoPage() {
       setErro(null);
     } catch (e: any) {
       if (e?.corpo?.migracaoFaltando) setMigracao(true);
-      else setErro(e?.message || 'Não foi possível carregar a ação.');
+      else setErro(e?.message || 'Não foi possível carregar a campanha.');
     } finally {
       setCarregando(false);
     }
@@ -115,7 +117,7 @@ export default function FichaAcaoPage() {
         href="/marketing"
         style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 13, color: '#2563eb', textDecoration: 'none', marginBottom: 10 }}
       >
-        <ArrowLeft size={15} /> Todas as ações
+        <ArrowLeft size={15} /> Todas as campanhas
       </Link>
 
       {/* Cabeçalho */}
@@ -123,9 +125,13 @@ export default function FichaAcaoPage() {
         style={{
           background: 'var(--portal-bg-card)',
           border: '1px solid var(--portal-border)',
-          borderRadius: 16, padding: '16px 18px', marginBottom: 14,
+          borderRadius: 16, marginBottom: 14, overflow: 'hidden',
         }}
       >
+        <div style={{ maxHeight: 260, overflow: 'hidden' }}>
+          <CapaCampanha acao={acao} roleta={ficha.roleta} proporcao="16 / 5" />
+        </div>
+        <div style={{ padding: '16px 18px' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-start', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start', minWidth: 0, flex: '1 1 300px' }}>
           <IconeTipoAcao tipo={acao.tipo} cor={cor(STATUS_ACAO, acao.status)} tamanho={48} />
@@ -142,8 +148,17 @@ export default function FichaAcaoPage() {
             </div>
           </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <Selo texto={rotulo(STATUS_ACAO, acao.status)} cor={cor(STATUS_ACAO, acao.status)} />
+            {/* A roleta do site é uma ferramenta DENTRO da campanha (campanhas.acao_id) */}
+            {ficha.roleta && (
+              <Link
+                href={`/marketing/campanhas?campanha=${encodeURIComponent(ficha.roleta.slug)}`}
+                style={{ ...estiloBotaoContorno, textDecoration: 'none' }}
+              >
+                <i className="fa-solid fa-dharmachakra" /> Abrir a roleta
+              </Link>
+            )}
             <button
               onClick={() => { setErroForm(null); setEditando(true); }}
               {...gateBtn(podeEditar)}
@@ -157,9 +172,10 @@ export default function FichaAcaoPage() {
         {semDono && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 12, padding: 10, borderRadius: 10, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 13, fontWeight: 500, color: '#111111' }}>
             <UserX size={16} color="#dc2626" />
-            O responsável desta ação não está mais ativo no portal. Reatribua antes que o histórico fique sem dono.
+            O responsável desta campanha não está mais ativo no portal. Reatribua antes que o histórico fique sem dono.
           </div>
         )}
+        </div>
       </div>
 
       {/* Abas */}
@@ -202,6 +218,7 @@ export default function FichaAcaoPage() {
       </div>
 
       {aba === 'Resumo' && <ResumoAba ficha={ficha} roi={roi} />}
+      {aba === 'Linha do tempo' && <LinhaDoTempoAba acaoId={id} />}
       {aba === 'Apoio de fábrica' && <ApoiosAba acaoId={id} apoios={ficha.apoios} inativos={ficha.inativos} onMudou={carregar} />}
       {aba === 'Investimento' && <CustosAba acaoId={id} custos={ficha.custos} onMudou={carregar} />}
       {aba === 'Leads' && <LeadsAba acaoId={id} leads={ficha.leads} onMudou={carregar} />}
@@ -215,7 +232,7 @@ export default function FichaAcaoPage() {
       {aba === 'Questionário' && <QuestionarioAba acaoId={id} acaoNome={acao.nome} onMudou={carregar} />}
       {aba === 'Relatório' && <RelatorioAba apoios={ficha.apoios} onMudou={carregar} />}
 
-      <Modal titulo="Editar ação" aberto={editando} onFechar={() => setEditando(false)}>
+      <Modal titulo="Editar campanha" aberto={editando} onFechar={() => setEditando(false)}>
         <AcaoForm
           inicial={acao}
           salvando={salvando}

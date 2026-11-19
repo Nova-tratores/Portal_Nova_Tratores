@@ -35,6 +35,10 @@ const nextConfig: NextConfig = {
       { source: "/visual-estoque/notas-entrada", destination: "/financeiro/notas?tipo=entrada", permanent: false },
       // Remessas virou módulo próprio (18/11/2026); a tela de Ajustes (devolver em lote as de OS) continua
       { source: "/visual-estoque/remessas", destination: "/remessas?aba=historico", permanent: false },
+      // O módulo Site virou parte do Controle Marketing (18/11/2026). Links e avisos
+      // antigos (/site?id=... dos pedidos) seguem valendo — a query vai junto.
+      { source: "/site", destination: "/marketing/pedidos", permanent: false },
+      { source: "/site/:caminho*", destination: "/marketing/:caminho*", permanent: false },
     ];
   },
   async rewrites() {

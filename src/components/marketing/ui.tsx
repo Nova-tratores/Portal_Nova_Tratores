@@ -13,7 +13,7 @@
 // =============================================================================
 import {
   AlertTriangle, BarChart3, CalendarDays, ClipboardCheck, FileText, Gift, HandCoins, Handshake, Megaphone,
-  Percent, Sprout, Store, Tent, TrendingUp, Users, Wallet, type LucideIcon,
+  BadgePercent, Percent, Sprout, Store, Tent, TrendingUp, Users, Wallet, type LucideIcon,
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 
@@ -197,7 +197,7 @@ export function Selo({ texto, cor, titulo }: { texto: string; cor: string; titul
 }
 
 const ICONE_TIPO: Record<string, LucideIcon> = {
-  feira: Tent, dia_de_campo: Sprout, acao_loja: Store, patrocinio: Handshake,
+  campanha: BadgePercent, feira: Tent, dia_de_campo: Sprout, acao_loja: Store, patrocinio: Handshake,
   midia: Megaphone, brinde: Gift, outro: CalendarDays,
 };
 

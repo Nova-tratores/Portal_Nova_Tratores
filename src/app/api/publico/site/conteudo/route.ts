@@ -1,7 +1,7 @@
 // Conteúdo editado no portal, lido pelo SITE na hora de gerar as páginas (build). Aberto, sem login: só texto público
 // (telefones, horário, textos de banner, aviso). Quem mudou e o histórico não saem daqui.
 import { NextResponse } from 'next/server'
-import { corsSite, sb } from '@/lib/site/server'
+import { corsSite, sb } from '@/lib/marketing/redes/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

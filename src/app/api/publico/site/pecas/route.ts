@@ -3,10 +3,10 @@
 // Cada peça: foto (bucket "site-pecas", se houver), nome, "serve em" (modelos) e o desenho da fábrica (Mahindra).
 // Memória para não pesar no banco: estoque e lista de fotos 10 min; catálogo (modelos/desenhos) 6 h.
 import { NextResponse } from 'next/server'
-import { corsSite, passouLimite, sb } from '@/lib/site/server'
-import { buscarPecas, montarPecas, type GrupoPeca, type PecaSite, type ProdutoEstoque } from '@/lib/site/pecas'
-import { chaveCodigo, lerCatalogo, lerFotos, type DoCatalogo } from '@/lib/site/desenhos'
-import { modeloDaDescricao, servem } from '@/lib/site/modelos'
+import { corsSite, passouLimite, sb } from '@/lib/marketing/redes/server'
+import { buscarPecas, montarPecas, type GrupoPeca, type PecaSite, type ProdutoEstoque } from '@/lib/marketing/redes/pecas'
+import { chaveCodigo, lerCatalogo, lerFotos, type DoCatalogo } from '@/lib/marketing/redes/desenhos'
+import { modeloDaDescricao, servem } from '@/lib/marketing/redes/modelos'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

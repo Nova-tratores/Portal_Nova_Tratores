@@ -3,7 +3,7 @@
 // POST /api/marketing/acoes   — cria ação
 import { NextResponse } from 'next/server';
 import { guardar, erroResposta, apenas, num, dataOuNull } from '@/lib/marketing/rota';
-import { db, listarAcoes, lerOuVazio, idsInativos } from '@/lib/marketing/db';
+import { db, listarAcoes, lerOuVazio, idsInativos, roletasDas } from '@/lib/marketing/db';
 import { logMarketing, nomeDoUsuario } from '@/lib/marketing/server';
 import type { Acao } from '@/lib/marketing/tipos';
 
@@ -17,7 +17,7 @@ const CAMPOS = [
   'orcamento_previsto', 'meta_leads', 'meta_vendas', 'meta_receita',
   'responsavel_id', 'responsavel_nome', 'responsavel_email',
   'publico_estimado', 'publico_total_evento', 'dias_participacao', 'stand_descricao',
-  'leads_declarados', 'observacoes',
+  'leads_declarados', 'observacoes', 'capa_url',
 ] as const;
 
 /** Normaliza o que vem do formulário: número é número, data é data. */
@@ -101,7 +101,9 @@ export async function GET(req: Request) {
     // Responsáveis que saíram da empresa (o caso IRRIGASHOW).
     const inativos = await idsInativos(acoes.map((a) => a.responsavel_id));
 
-    return NextResponse.json({ acoes, resumos, inativos: [...inativos] });
+    const roletas = await roletasDas(ids);
+
+    return NextResponse.json({ acoes, resumos, inativos: [...inativos], roletas });
   } catch (e) {
     return erroResposta(e, 'GET /acoes');
   }

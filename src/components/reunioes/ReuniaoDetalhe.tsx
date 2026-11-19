@@ -15,7 +15,7 @@ import UserSelect from '@/components/tickets/UserSelect'
 import type { ItemPauta, ItemResultado, ItemTipo, SaidaPendencia } from '@/lib/reunioes/regras'
 import type { ReuniaoUI } from './tipos'
 import BlocoPendencias from './BlocoPendencias'
-import PautaItens from './PautaItens'
+import PautaItens, { type CampanhaPauta } from './PautaItens'
 import FormAcaoReuniao from './FormAcaoReuniao'
 import TarefasRapidas from './TarefasRapidas'
 import RemarcarReuniao from './RemarcarReuniao'
@@ -113,6 +113,12 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
   const [editandoTitulo, setEditandoTitulo] = useState(false)
   const [novoTitulo, setNovoTitulo] = useState('')
   const [aviso, setAviso] = useState('')
+  // campanhas de marketing para ligar os assuntos da pauta (linha do tempo da campanha, 18/11/2026)
+  const [campanhas, setCampanhas] = useState<CampanhaPauta[]>([])
+  useEffect(() => {
+    if (!userProfile) return
+    chamar<{ campanhas: CampanhaPauta[] }>('/api/reunioes/campanhas').then((j) => setCampanhas(j.campanhas || [])).catch(() => {})
+  }, [userProfile])
 
   const carregar = useCallback(async () => {
     try {
@@ -265,7 +271,8 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
             modo={antes ? (cancelada ? 'leitura' : 'pauta') : publicada || cancelada ? 'leitura' : 'conducao'}
             podeEditar={!cancelada && !publicada && !rascunho && (participo || conduz || d.criador_id === userProfile?.id)} podeConduzir={conduz && !publicada} duracaoMin={d.duracao_min} corteFechado={false}
             onIncluir={onIncluir} onReordenar={(ordem) => itemAcao({ acao: 'reordenar', ordem })} onRemover={(item_id) => itemAcao({ acao: 'remover', item_id })}
-            onResultado={publicada ? undefined : onResultado} onCriarAcao={publicada ? undefined : (item) => setAcaoDe(item)} onAbrirTicket={setTicketAberto} />
+            onResultado={publicada ? undefined : onResultado} onCriarAcao={publicada ? undefined : (item) => setAcaoDe(item)} onAbrirTicket={setTicketAberto}
+            campanhas={campanhas} onCampanha={!cancelada && (participo || conduz || d.criador_id === userProfile?.id || isAdmin) ? (item_id, campanha_id) => itemAcao({ acao: 'campanha', item_id, campanha_id }) : undefined} />
 
           {!cancelada && (
             <section className="rd-card">

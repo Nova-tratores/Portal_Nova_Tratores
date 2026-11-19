@@ -108,7 +108,7 @@ export const TELAS: Tela[] = [
   ...t('Comercial', 'vendas-modelo', 'vendas-modelo', [['Vendas por Modelo', '/vendas-modelo']]),
   ...t('Comercial', 'pedidos-maquinas', 'pedidos-maquinas', [['Pedidos de Máquinas', '/propostas?aba=pedidos', ['pedido de venda', 'trator', 'faturar máquina', 'pvm']]]),
   ...t('Comercial', 'lead', 'lead', [['Captura de Leads', '/lead', ['lead']]]),
-  ...PAGINAS_MARKETING.map((p) => ({ nome: p.label === 'Ações' ? 'Ações de marketing' : p.label, href: p.href, area: 'Marketing', sistema: 'marketing', modulo: 'marketing' })),
+  ...PAGINAS_MARKETING.map((p) => ({ nome: p.label === 'Campanhas' ? 'Campanhas de marketing' : p.label, href: p.href, area: 'Marketing', sistema: 'marketing', modulo: 'marketing' })),
   // ── Estoque
   ...t('Visual Estoque', 'consulta-estoque', 'consulta-estoque', [
     ['Visual Estoque', '/visual-estoque'],

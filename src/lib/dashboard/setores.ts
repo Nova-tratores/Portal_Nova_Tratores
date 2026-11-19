@@ -8,7 +8,7 @@ import {
   Settings, ClipboardList, ListChecks, Wrench, FileText, DollarSign, Activity,
   BarChart3, Users, Package, ClipboardCheck, Map, Calculator, Eye, Camera, Wheat, Megaphone,
   TrendingUp, Server, MapPin, ShieldCheck, Building, LayoutGrid, AlertCircle, Headset,
-  Truck, UserPlus, Tags, Tractor, BookOpen, CalendarClock, CalendarDays, Radar, Layers, GraduationCap, SlidersHorizontal, Globe,
+  Truck, UserPlus, Tags, Tractor, BookOpen, CalendarClock, CalendarDays, Radar, Layers, GraduationCap, SlidersHorizontal,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -49,8 +49,7 @@ export const MODULOS: ModuloDash[] = [
   { id: 'gestao-vendas', nome: 'Gestão de Vendas', nomeAntigo: 'Margem e Comissão', frase: 'Resultado do mês por vendedor', href: '/gestao-vendas', icon: BarChart3, setor: 'comercial', modulo: 'gestao-vendas' },
   { id: 'vendas-modelo', nome: 'Vendas por Modelo', frase: 'Quanto vendeu de cada modelo', href: '/vendas-modelo', icon: Tags, setor: 'comercial', modulo: 'vendas-modelo' },
   { id: 'pedidos-maquinas', nome: 'Pedidos de Máquinas', frase: 'Pedido de venda da máquina, com as parcelas da proposta', href: '/propostas?aba=pedidos', icon: Tractor, setor: 'comercial', modulo: 'pedidos-maquinas' },
-  { id: 'marketing', nome: 'Marketing & Eventos', nomeAntigo: 'Feiras e Eventos', frase: 'Investimento, leads e retorno de cada evento', href: '/marketing', icon: Megaphone, setor: 'comercial', modulo: 'marketing' },
-  { id: 'site', nome: 'Site', frase: 'Pedidos do site, campanhas e roleta, promoções e redes', href: '/site', icon: Globe, setor: 'comercial', modulo: 'site' },
+  { id: 'marketing', nome: 'Controle Marketing', nomeAntigo: 'Marketing & Eventos', frase: 'Site, redes sociais, campanhas e eventos: investimento, leads e retorno', href: '/marketing', icon: Megaphone, setor: 'comercial', modulo: 'marketing' },
   { id: 'lead', nome: 'Captura de Leads', nomeAntigo: 'Anotar Lead', frase: 'Anotar o contato no estande, pelo celular', href: '/lead', icon: UserPlus, setor: 'comercial', modulo: 'lead' },
 
   // ── Pós-Vendas

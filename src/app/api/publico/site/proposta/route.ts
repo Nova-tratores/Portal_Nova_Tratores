@@ -1,7 +1,7 @@
 // Pedido de proposta da página de crédito do site (aberto, sem login). Grava em site_pedidos e avisa no sino
 // (e no celular, pelo push do portal) quem tem o módulo Site. O WhatsApp o site já abriu antes; isto é o registro.
 import { NextResponse } from 'next/server'
-import { avisarPedido, corsSite, lerCorpo, passouLimite, sb, semMigration, usuariosDoSite } from '@/lib/site/server'
+import { avisarPedido, corsSite, lerCorpo, passouLimite, sb, semMigration, usuariosDoSite } from '@/lib/marketing/redes/server'
 
 export const runtime = 'nodejs'
 
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
     await usuariosDoSite(),
     `Pedido de proposta pelo site — ${nome}`,
     `${registro.interesse || 'Máquina não escolhida'}${dinheiro} · ${registro.cidade || 'cidade não informada'} · ${telefone}`,
-    `/site?id=${data.id}`,
+    `/marketing/pedidos?id=${data.id}`,
   )
   return NextResponse.json({ ok: true }, { headers: cors })
 }

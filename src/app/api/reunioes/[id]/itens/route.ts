@@ -4,6 +4,7 @@
 //   editar    { item_id, pergunta?, tipo?, trazido_por?, tempo_min?, notas? }
 //   reordenar { ordem: uuid[] }
 //   remover   { item_id }
+//   campanha  { item_id, campanha_id | null }  — liga o assunto a uma campanha de marketing
 // R6: depois do corte (ou com a pauta fechada) só o condutor inclui, e o item
 // nasce marcado como urgente. Depois da ata publicada nada muda (R10).
 import { NextRequest, NextResponse } from 'next/server'
@@ -28,9 +29,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const r = await carregarReuniao(id)
     if (!r || !(await podeVerReuniao(r, auth))) return erro('Reunião não encontrada', 404)
     const etapa = r.ticket.reuniao_etapa as ReuniaoEtapa
-    if (ETAPAS_ENCERRADAS.includes(etapa) || etapa === 'ata_rascunho') return erro('A pauta desta reunião não muda mais — a ata está sendo fechada ou já foi publicada.', 409)
     // quem CRIOU a reunião edita a pauta como quem conduz, mesmo com ela aberta (José, 17/11/2026)
     const conduz = podeConduzir(r.presencas, auth.userId, auth.isAdmin) || (await criadorDaReuniao(id)) === auth.userId
+
+    // Ligar o assunto a uma campanha de marketing (18/11/2026 — linha do tempo da campanha).
+    // Vale até depois da ata publicada: não muda o que foi decidido, só diz de QUAL campanha era.
+    if (acao === 'campanha') {
+      if (!uuidValido(body.item_id)) return erro('item_id inválido')
+      const item = r.itens.find((i) => i.id === body.item_id)
+      if (!item) return erro('Item não encontrado', 404)
+      if (!conduz && !ehParticipanteDaReuniao(r, auth.userId)) return erro('Só quem participa da reunião liga o assunto a uma campanha.', 403)
+      const campanhaId = body.campanha_id == null || body.campanha_id === '' ? null : body.campanha_id
+      if (campanhaId !== null && !uuidValido(campanhaId)) return erro('campanha inválida')
+      const { error } = await supabaseAdmin.from('reunioes_itens').update({ campanha_id: campanhaId }).eq('id', item.id).eq('reuniao_id', id)
+      if (error) return erro(/campanha_id/.test(error.message) ? 'Rode sql/marketing-campanhas-unificar.sql no Supabase (liga a pauta às campanhas).' : error.message, 500)
+      await registrarEvento(id, auth.userId, 'edicao', { campo: 'pauta', campanha: campanhaId, item: item.id })
+      return NextResponse.json({ ok: true })
+    }
+
+    if (ETAPAS_ENCERRADAS.includes(etapa) || etapa === 'ata_rascunho') return erro('A pauta desta reunião não muda mais — a ata está sendo fechada ou já foi publicada.', 409)
     const souCondutor = condutorDe(r) === auth.userId || auth.isAdmin
     if (!conduz && !ehParticipanteDaReuniao(r, auth.userId)) return erro('Só quem participa da reunião mexe na pauta.', 403)
     const corteFechado = r.etapaEfetiva !== 'agendada'   // pauta_fechada (lida ou gravada) ou em_andamento
@@ -46,6 +63,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const { data: item, error } = await supabaseAdmin.from('reunioes_itens').insert({
         reuniao_id: id, ordem: (maxRow?.[0]?.ordem ?? -1) + 1, pergunta: v.campos.pergunta, tipo: v.campos.tipo,
         trazido_por: trazidoPor, tempo_min: v.campos.tempo_min, notas: v.campos.notas ?? null, urgente,
+        ...(uuidValido(body.campanha_id) ? { campanha_id: body.campanha_id } : {}),
         origem: etapa === 'em_andamento' && body.parking === true ? 'parking' : 'manual', criado_por: auth.userId,
         // "Anotar p/ próxima" na condução: o assunto não é tratado hoje — já nasce como fora do tema
         // para entrar na pauta da próxima reunião da série (antes ficava sem resultado e não ia).
