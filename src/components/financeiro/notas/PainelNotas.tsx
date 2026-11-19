@@ -8,7 +8,6 @@ import Link from 'next/link';
 import { RefreshCw, ExternalLink } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
-import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 import {
   ROTULO_SITUACAO, ROTULO_GRUPO, haQuanto,
@@ -322,7 +321,6 @@ export default function PainelNotas({ podeXml, isAdmin, podeEntrada, podeProblem
         </>
       ) : (
         <div className="pn-corpo">
-          <div style={{ display: 'flex', justifyContent: 'flex-end' }}><ContaSelector /></div>
           {aba === 'problemas'
             ? <ListaPainel aba="problemas" resp={problemas.dados} carregando={problemas.carregando} erro={problemas.erro} recarregar={problemas.recarregar} dias={dias} setDias={setDias} />
             : <ListaPainel aba="envios" resp={envios.dados} carregando={envios.carregando} erro={envios.erro} recarregar={envios.recarregar} dias={dias} setDias={setDias} />}

@@ -8,14 +8,17 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav';
 import { ContaProvider } from '@/components/estoque/ContaProvider';
+import { useEmpresaFinanceiro } from '@/components/financeiro/empresaFinanceiro';
 import PainelNotas from '@/components/financeiro/notas/PainelNotas';
 
 export default function NotasFiscaisPage() {
   const { userProfile } = useAuth();
   const { pode, isAdmin, loading } = usePermissoes(userProfile?.id);
+  // empresa = o NOVA/CASTRO da faixa do Financeiro (19/11/2026: antes havia também o "Conta: Todas" das notas)
+  const [empresa] = useEmpresaFinanceiro();
   if (!loading && userProfile && !pode('financeiro', 'notas')) return <SemPermissao />;
   return (
-    <ContaProvider>
+    <ContaProvider fixa={empresa === 'castro' ? 'CASTRO' : 'NOVA'}>
       <FinanceiroNav />
       <Suspense fallback={<div style={{ padding: 24, color: '#888', fontSize: '.85rem' }}>Carregando…</div>}>
         {/* nota de ENTRADA só para quem tem Recebimentos (mesmo gate de /estoque/recebimentos); o servidor também filtra.
