@@ -1,19 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { concluir, sinalEPegar } from '@/lib/etiquetas/estacao-server'
+import { ESTACAO_ID, idEstacaoValido, limparNomeEstacao } from '@/lib/etiquetas/estacao'
 import { guardarEstacaoEtiquetas, erroEstacao } from '../acesso'
 
 export const dynamic = 'force-dynamic'
 
-// Usada SÓ pela página /estacao-impressao (o Chrome do PC da ROGERIA).
-// GET  ?versao=&ua= → sinal de vida + pega os pedidos pendentes (já ficam "imprimindo")
+// Usada SÓ pela página /estacao-impressao (o Chrome de cada PC com impressora).
+// GET  ?estacao=&nome=&ua= → sinal de vida + pega os pedidos pendentes (já ficam "imprimindo")
 // POST { id, ok, erro? } → resultado da impressão
 
 export async function GET(req: NextRequest) {
   const a = await guardarEstacaoEtiquetas(req)
   if (a.resposta) return a.resposta
   const p = req.nextUrl.searchParams
+  // cada PC com impressora manda o id e o nome que deram a ele (19/11/2026); sem id = a antiga ('termica')
+  const id = p.get('estacao')
+  const estacao = { id: idEstacaoValido(id) ? id : ESTACAO_ID, nome: limparNomeEstacao(p.get('nome')) }
   try {
-    const trabalhos = await sinalEPegar(a.autor, { ua: (p.get('ua') || '').slice(0, 300), ajuste: (p.get('ajuste') || '').slice(0, 300) })
+    const trabalhos = await sinalEPegar(a.autor, { ua: (p.get('ua') || '').slice(0, 300), ajuste: (p.get('ajuste') || '').slice(0, 300) }, estacao)
     return NextResponse.json({ ok: true, trabalhos })
   } catch (e) { return erroEstacao(e) }
 }

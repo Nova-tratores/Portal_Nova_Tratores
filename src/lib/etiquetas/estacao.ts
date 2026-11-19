@@ -38,7 +38,19 @@ export interface Trabalho {
   impresso_em: string | null
 }
 
+/** id da estação: 'termica' (a primeira, ROGERIA) ou gerado no PC ("est-xxxxxxxx") */
+export function idEstacaoValido(v: unknown): v is string {
+  return typeof v === 'string' && /^[a-z0-9-]{1,40}$/.test(v)
+}
+/** nome que a pessoa deu à impressora (ex.: "Impressora do Felipe") */
+export function limparNomeEstacao(v: unknown): string | null {
+  const s = typeof v === 'string' ? v.replace(/[\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40) : ''
+  return s || null
+}
+
 export interface SituacaoEstacao {
+  /** id da estação (sql/etiquetas-estacoes-varias.sql) */
+  id?: string
   nome: string
   online: boolean
   ultimoSinal: string | null

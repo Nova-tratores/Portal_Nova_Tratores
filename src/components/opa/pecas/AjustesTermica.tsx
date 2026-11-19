@@ -3,11 +3,10 @@
 // altura, intervalo, ajuste fino e girar — os mesmos para Peças e Patrimônio
 // (ficam salvos neste navegador a cada mudança, pelo dono do estado).
 
-import { useEffect, useState } from 'react'
-import { guardarDestino, lerDestino, LIMITES, TERMICA_PADRAO, type AjusteTermica, type DestinoTermica } from '@/lib/opa-pecas/etiqueta-termica'
-import { haQuanto, type SituacaoEstacao } from '@/lib/etiquetas/estacao'
-import { lerSituacaoEstacao } from '@/lib/etiquetas/estacao-client'
-import { INP, LARANJA } from './comum'
+import { useState } from 'react'
+import { lerDestino, LIMITES, TERMICA_PADRAO, type AjusteTermica } from '@/lib/opa-pecas/etiqueta-termica'
+import EscolhaImpressora from '@/components/etiquetas/EscolhaImpressora'
+import { INP, COR_OPA } from './comum'
 
 type CampoTerm = 'largura' | 'altura' | 'intervalo' | 'x' | 'y'
 
@@ -20,19 +19,9 @@ export default function AjustesTermica({ term, setTerm, n, exemplo, semDestino }
   /** a própria estação: só imprime ali, sem escolher destino */
   semDestino?: boolean
 }) {
-  // onde imprimir (lembrado neste navegador): aqui ou na estação da ROGERIA pela rede
-  const [destino, setDestino] = useState<DestinoTermica>(() => (semDestino ? 'local' : lerDestino()))
-  const [estacao, setEstacao] = useState<SituacaoEstacao | null>(null)
-  useEffect(() => {
-    if (semDestino) return
-    let vivo = true
-    const ler = () => { void lerSituacaoEstacao().then((s) => { if (vivo) setEstacao(s) }) }
-    ler()
-    const t = setInterval(ler, 30_000)
-    return () => { vivo = false; clearInterval(t) }
-  }, [semDestino])
-  const escolher = (d: DestinoTermica) => { setDestino(d); guardarDestino(d) }
-  const naEstacao = !semDestino && destino === 'estacao'
+  // onde imprimir: a escolha da pessoa (salva na conta, 19/11/2026) — EscolhaImpressora avisa qual é
+  const [destino, setDestino] = useState<string>(() => (semDestino ? 'local' : lerDestino() || 'local'))
+  const naEstacao = !semDestino && destino !== 'local'
   const mudaTerm = (k: CampoTerm, v: string) => setTerm((t) => ({ ...t, [k]: Number(String(v).replace(',', '.')) || 0 }))
   // ao sair do campo, volta para dentro dos limites (evita 120 × 130 por engano)
   const limitar = (k: CampoTerm) => setTerm((t) => ({ ...t, [k]: Math.min(LIMITES[k][1], Math.max(LIMITES[k][0], t[k])) }))
@@ -40,36 +29,7 @@ export default function AjustesTermica({ term, setTerm, n, exemplo, semDestino }
   const escala = Math.min(300 / Math.max(1, term.largura), 150 / Math.max(1, term.altura))
   return (
     <>
-          {!semDestino && (
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-secondary)', marginBottom: 5 }}>Onde imprimir:</div>
-              <div role="radiogroup" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                {([['local', 'Neste computador'], ['estacao', `Na ${estacao?.nome || 'ROGERIA'} (pela rede)`]] as const).map(([d, rot]) => (
-                  <button key={d} type="button" role="radio" aria-checked={destino === d} onClick={() => escolher(d)} style={{
-                    padding: '8px 8px', borderRadius: 10, fontSize: 12.5, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer',
-                    border: '1.5px solid ' + (destino === d ? '#111827' : 'var(--portal-border)'),
-                    background: destino === d ? '#111827' : 'var(--portal-bg-card)', color: destino === d ? '#fff' : 'var(--portal-text)',
-                    display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  }}>
-                    {d === 'estacao' && <span aria-hidden style={{ width: 9, height: 9, borderRadius: 9, flexShrink: 0, background: estacao?.online ? '#16a34a' : '#dc2626' }} />}
-                    {rot}
-                  </button>
-                ))}
-              </div>
-              {naEstacao && (
-                <div style={{ fontSize: 12.5, lineHeight: 1.5, padding: '8px 10px', borderRadius: 8, marginTop: 8,
-                  background: estacao?.online ? 'rgba(22,163,74,.10)' : 'rgba(220,38,38,.10)', color: 'var(--portal-text)' }}>
-                  {estacao?.migracaoFaltando
-                    ? <>A estação ainda não foi instalada no banco (falta o <b>sql/etiquetas-estacao.sql</b>).</>
-                    : !estacao
-                      ? <>Conferindo a estação…</>
-                      : estacao.online
-                        ? <>🟢 <b>Estação ligada</b>{estacao.pendentes ? ` · ${estacao.pendentes} na fila` : ''}. As etiquetas saem na {estacao.nome} com o tamanho e o ajuste configurados lá.</>
-                        : <>🔴 <b>Estação desligada</b> (último sinal {haQuanto(estacao.ultimoSinal)}). Pode mandar: as etiquetas ficam na fila e saem quando o computador da {estacao.nome} voltar.</>}
-                </div>
-              )}
-            </div>
-          )}
+          {!semDestino && <EscolhaImpressora onMudou={setDestino} />}
           {!naEstacao && <>
           {/* prévia na proporção real (QR à esquerda, texto à direita) */}
           <div style={{ display: 'flex', justifyContent: 'center', margin: '0 0 12px' }}>
@@ -99,7 +59,7 @@ export default function AjustesTermica({ term, setTerm, n, exemplo, semDestino }
                 background: term.rotacao === g ? '#111827' : 'var(--portal-bg-card)', color: term.rotacao === g ? '#fff' : 'var(--portal-text)',
               }}>{g}°</button>
             ))}
-            <button type="button" onClick={() => setTerm({ ...TERMICA_PADRAO })} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: LARANJA, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5 }}>
+            <button type="button" onClick={() => setTerm({ ...TERMICA_PADRAO })} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: COR_OPA, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5 }}>
               Voltar ao padrão (70 × 30, intervalo 5)
             </button>
           </div>

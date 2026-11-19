@@ -16,9 +16,9 @@ import { authHeaders } from '@/lib/auth/client';
 import { norm, posDe, chaveProd, locacaoEtiqueta, labelSeg, posInvalida, posLabel, cmpSeg, ocupantesDe, type ProdutoLoc as Produto, type Pos } from '@/lib/ajustes/posicao';
 import { ModalMover, AvisoOcupado } from '@/components/ajustes/ModalMoverPeca';
 import { ChevronRight, ChevronDown, MapPin, AlertTriangle, Search, ArrowRightLeft, X, PackageOpen, Trash2, Plus, Tag, CheckCircle, ClipboardCheck, Hash, History, Printer } from 'lucide-react';
-import { guardarDestino, layoutPadrao, lerAjusteTermica, lerDestino, locacaoAbreviada, normalizarLayout, type DestinoTermica, type ItemTermica, type LayoutCampo } from '@/lib/opa-pecas/etiqueta-termica';
-import { imprimirOuEnviar, lerSituacaoEstacao } from '@/lib/etiquetas/estacao-client';
-import type { SituacaoEstacao } from '@/lib/etiquetas/estacao';
+import { layoutPadrao, lerAjusteTermica, locacaoAbreviada, normalizarLayout, type ItemTermica, type LayoutCampo } from '@/lib/opa-pecas/etiqueta-termica';
+import { imprimirOuEnviar } from '@/lib/etiquetas/estacao-client';
+import EscolhaImpressora from '@/components/etiquetas/EscolhaImpressora';
 
 // tipos e helpers de posição: src/lib/ajustes/posicao.ts (compartilhados com o painel "A alocar")
 
@@ -743,21 +743,11 @@ function ModalConferirPosicao({ deck, daEmpresa, conferidas, emContagem, onConta
   onClose: () => void;
 }) {
   const [ordem] = useState<Pos[]>(deck);          // ordem congelada ao abrir
-  // onde a etiqueta sai (mesma escolha dos ajustes da térmica, lembrada neste aparelho)
-  // celular/tablet nunca enxerga a térmica (USB no PC da ROGERIA): sem escolha salva, começa na estação
-  const [destino, setDestino] = useState<DestinoTermica>(() => {
-    try {
-      if (localStorage.getItem('pni_etiqueta_destino') === null && window.matchMedia('(pointer: coarse)').matches) return 'estacao';
-    } catch { /* segue */ }
-    return lerDestino();
-  });
-  const [estacao, setEstacao] = useState<SituacaoEstacao | null>(null);
+  // onde a etiqueta sai: a escolha da pessoa, salva na conta (EscolhaImpressora, 19/11/2026) —
+  // marca no PC e o celular segue; imprimirOuEnviar lê essa mesma escolha
   const [imprimindo, setImprimindo] = useState<string | null>(null);
-  useEffect(() => { let vivo = true; void lerSituacaoEstacao().then((s) => { if (vivo) setEstacao(s); }); return () => { vivo = false; }; }, []);
-  const escolherDestino = (d: DestinoTermica) => { setDestino(d); guardarDestino(d); };
   const imprimir = async (p: Produto) => {
     if (imprimindo) return;
-    guardarDestino(destino); // imprimirOuEnviar lê o destino salvo
     setImprimindo(chaveProd(p));
     try { await onImprimir(p); } finally { setImprimindo(null); }
   };
@@ -784,17 +774,7 @@ function ModalConferirPosicao({ deck, daEmpresa, conferidas, emContagem, onConta
           <button onClick={onClose} title="Fechar (Esc)" style={{ marginLeft: 'auto', background: 'none', border: 'none', fontSize: '1.5rem', color: '#94a3b8', cursor: 'pointer', lineHeight: 1 }}>×</button>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderBottom: '1px solid #f1f5f9', flexWrap: 'wrap' }}>
-          <span style={{ fontSize: '.74rem', fontWeight: 700, color: '#64748b' }}>Etiqueta sai:</span>
-          {([['estacao', `Na ${estacao?.nome || 'ROGERIA'}`], ['local', 'Neste aparelho']] as const).map(([d, rot]) => (
-            <button key={d} type="button" onClick={() => escolherDestino(d)} aria-pressed={destino === d}
-              style={{ ...btn, padding: '6px 10px', minHeight: 34, fontSize: '.76rem', background: destino === d ? '#0f172a' : '#fff', color: destino === d ? '#fff' : '#334155', border: '1px solid ' + (destino === d ? '#0f172a' : '#cbd5e1') }}>
-              {d === 'estacao' && <span aria-hidden style={{ width: 8, height: 8, borderRadius: 8, background: estacao?.online ? '#16a34a' : '#dc2626' }} />}
-              {rot}
-            </button>
-          ))}
-          {destino === 'estacao' && estacao && !estacao.online && (
-            <span style={{ fontSize: '.7rem', color: '#b91c1c' }}>desligada: sai quando ligar</span>
-          )}
+          <EscolhaImpressora compacto />
         </div>
         <div style={{ overflow: 'auto', padding: 16, flex: 1 }}>
           {!pos ? (

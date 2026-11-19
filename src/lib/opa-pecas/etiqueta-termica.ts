@@ -55,10 +55,17 @@ export function guardarModo(m: ModoEtiqueta) {
   try { localStorage.setItem(CHAVE_MODO, m) } catch { /* sem storage */ }
 }
 
-/** Onde a térmica imprime: na impressora deste computador ou na estação da ROGERIA (pela rede). */
-export type DestinoTermica = 'local' | 'estacao'
-export function lerDestino(): DestinoTermica {
-  try { return localStorage.getItem(CHAVE_DESTINO) === 'estacao' ? 'estacao' : 'local' } catch { return 'local' }
+/** Onde a térmica imprime: 'local' (impressora deste aparelho) ou o id de uma estação pela rede.
+ *  Aqui é só a CÓPIA deste navegador — quem manda é a escolha da pessoa no servidor
+ *  (lib/etiquetas/estacao-client.ts, 19/11/2026). */
+export type DestinoTermica = string
+/** null = este navegador nunca escolheu */
+export function lerDestino(): DestinoTermica | null {
+  try {
+    const v = localStorage.getItem(CHAVE_DESTINO)
+    if (v === 'estacao') return 'termica' // valor antigo = a estação da ROGERIA
+    return v || null
+  } catch { return null }
 }
 export function guardarDestino(d: DestinoTermica) {
   try { localStorage.setItem(CHAVE_DESTINO, d) } catch { /* sem storage */ }
