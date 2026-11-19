@@ -9,6 +9,8 @@
 
 // ── Ação ─────────────────────────────────────────────────────────────────────
 export const TIPOS_ACAO = [
+  // 18/11/2026: Ação virou Campanha; a roleta da Black Friday é deste tipo
+  { id: 'campanha',     label: 'Campanha / promoção' },
   { id: 'feira',        label: 'Feira' },
   { id: 'dia_de_campo', label: 'Dia de campo' },
   { id: 'acao_loja',    label: 'Ação de loja' },
@@ -232,12 +234,17 @@ export interface Acao {
   /** Total de leads informado quando eles não estão cadastrados. */
   leads_declarados: number | null;
   observacoes: string | null;
+  /** Foto da capa (marketing-campanhas-unificar.sql). */
+  capa_url?: string | null;
   criado_por_id: string | null;
   criado_por_nome: string | null;
   criado_em: string;
   atualizado_em: string;
   deleted_at: string | null;
 }
+
+/** A roleta do site ligada a uma campanha (tabela `campanhas`, campanhas.acao_id). */
+export interface RoletaLigada { slug: string; capa: string | null }
 
 export interface Apoio {
   id: string;

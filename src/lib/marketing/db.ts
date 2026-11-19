@@ -12,7 +12,7 @@
 // =============================================================================
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { migrationFaltou } from './erros';
-import type { Acao, Apoio, Custo, Lead, PropostaVinculada } from './tipos';
+import type { Acao, Apoio, Custo, Lead, PropostaVinculada, RoletaLigada } from './tipos';
 
 export const db = supabaseAdmin;
 
@@ -76,13 +76,13 @@ export async function listarAcoes(f: FiltroAcoes = {}): Promise<Acao[]> {
     // Ação sem data não some do filtro por ano só porque não tem data: entra
     // pelo ano de criação. Filtrar em JS, que o OR do PostgREST com range de
     // data fica ilegível.
-    const acoes = ok<Acao[]>(await q.order('data_inicio', { ascending: false, nullsFirst: false }).order('criado_em', { ascending: false }));
+    const acoes = ok<Acao[]>(await q.order('data_inicio', { ascending: true, nullsFirst: false }).order('criado_em', { ascending: true }));
     return filtrarPorAnoEBusca(acoes, f);
   }
   const acoes = ok<Acao[]>(
     await q
-      .order('data_inicio', { ascending: false, nullsFirst: false })
-      .order('criado_em', { ascending: false }),
+      .order('data_inicio', { ascending: true, nullsFirst: false })
+      .order('criado_em', { ascending: true }),
   );
   return filtrarPorAnoEBusca(acoes, f);
 }
@@ -221,4 +221,19 @@ export async function idsInativos(ids: (string | null)[]): Promise<Set<string>> 
   } catch {
     return new Set();
   }
+}
+
+/**
+ * Roleta do site ligada a cada campanha (campanhas.acao_id — marketing-campanhas-unificar.sql).
+ * Sem a migração aplicada a coluna não existe: devolve vazio em vez de quebrar a lista.
+ */
+export async function roletasDas(ids: string[]): Promise<Record<string, RoletaLigada>> {
+  if (!ids.length) return {};
+  const { data, error } = await db.from('campanhas').select('acao_id, slug, config').in('acao_id', ids);
+  if (error) return {};
+  const r: Record<string, RoletaLigada> = {};
+  for (const c of (data ?? []) as { acao_id: string; slug: string; config: { capa?: string } | null }[]) {
+    r[c.acao_id] = { slug: c.slug, capa: c.config?.capa || null };
+  }
+  return r;
 }

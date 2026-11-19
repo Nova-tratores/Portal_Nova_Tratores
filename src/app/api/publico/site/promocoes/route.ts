@@ -1,7 +1,7 @@
 // Promoções ativas da página inicial (aberto, sem login), lidas pelo SITE no build. Só as ligadas e dentro da data;
 // o site também esconde no navegador a que vencer depois do build. Sem promoção, o site não mostra o bloco.
 import { NextResponse } from 'next/server'
-import { corsSite, sb } from '@/lib/site/server'
+import { corsSite, sb } from '@/lib/marketing/redes/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

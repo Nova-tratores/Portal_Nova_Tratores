@@ -13,7 +13,6 @@ import { PAGINAS_ESTOQUE } from '@/app/(portal)/estoque/paginas';
 import { PAGINAS_FROTA } from '@/app/(portal)/frota/paginas';
 import { PAGINAS_MARKETING } from '@/app/(portal)/marketing/paginas';
 import { PAGINAS_IV } from '@/app/(portal)/inteligencia-vendas/paginas';
-import { PAGINAS_SITE } from '@/app/(portal)/site/paginas';
 import { ACOES_POR_MODULO, grupoDoModulo } from './catalogo';
 import { ACOES_EXPLICITAS, ACOES_SO_DEV } from './explicitas';
 
@@ -65,9 +64,8 @@ export const MODULOS_TELAS: { id: string; nome: string }[] = [
   { id: 'lead', nome: 'Captura de Leads (celular)' },
   { id: 'lousa', nome: 'Lousa Virtual' },
   { id: 'mapa', nome: 'Mapeamento Técnico' },
-  { id: 'marketing', nome: 'Marketing & Eventos' },
+  { id: 'marketing', nome: 'Controle Marketing' },
   { id: 'inteligencia-vendas', nome: 'Inteligência de Vendas' },
-  { id: 'site', nome: 'Site' },
   { id: 'mecanicos', nome: 'Gestão Pós Vendas' },
   { id: 'opa', nome: 'Opa (Ocorrências)' },
   { id: 'opa-pecas', nome: 'Opa Peças — editar peças S/Estoque' },
@@ -135,7 +133,7 @@ const RAIZ: Record<string, string> = {
   feedbacks: '/feedbacks', clientes: '/clientes', 'supervisor-vendas': '/supervisor-vendas',
   'vendas-modelo': '/vendas-modelo', 'pedidos-maquinas': '/pedidos-maquinas', lead: '/lead', 'consulta-estoque': '/visual-estoque', estoque: '/estoque',
   pendencias: '/pendencias', atividades: '/atividades', 'dashboard-agro': '/dashboard-agro', tickets: '/tickets',
-  tarefas: '/tarefas', 'war-room': '/war-room', planta: '/planta', 'gestao-vendas': '/gestao-vendas', site: '/site',
+  tarefas: '/tarefas', 'war-room': '/war-room', planta: '/planta', 'gestao-vendas': '/gestao-vendas',
 };
 const ALTERNATIVAS_RAIZ: Record<string, string[]> = {
   tickets: ['tarefas', 'cronograma'],
@@ -176,7 +174,6 @@ export function catalogoRotas(): RotaDef[] {
   for (const p of PAGINAS_FROTA) tela(p.href, p.key);
   for (const p of PAGINAS_MARKETING) tela(p.href, p.key);
   for (const p of PAGINAS_IV) tela(p.href, p.key);
-  for (const p of PAGINAS_SITE) tela(p.href, p.key);
   for (const a of ACOES_POR_MODULO.dre) tela(`/dre-financeiro/${a.id}`, `dre:${a.id}`, ['financeiro']);
   for (const a of ACOES_POR_MODULO['consulta-estoque']) tela(`/visual-estoque/${a.id}`, `consulta-estoque:${a.id}`);
   for (const a of ACOES_POR_MODULO.feedbacks) tela(`/feedbacks/${a.id}`, `feedbacks:${a.id}`);

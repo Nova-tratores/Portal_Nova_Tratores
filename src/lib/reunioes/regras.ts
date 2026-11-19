@@ -112,6 +112,8 @@ export interface ItemPauta {
   decisao_texto: string | null
   decisao_motivo: string | null
   notas: string | null
+  /** campanha de marketing de que o assunto trata (marketing-campanhas-unificar.sql) — vai para a linha do tempo dela */
+  campanha_id?: string | null
   criado_por: string | null
   criado_em: string
   atualizado_em: string
@@ -239,13 +241,15 @@ export function textoReagendamento(
 }
 
 /** R13 + adiados: o que a próxima reunião da série recebe como sugestão. */
-export function sugestoesProximaReuniao(itens: ItemPauta[]): Array<{ pergunta: string; tipo: ItemTipo; trazido_por: string; tempo_min: number; origem: ItemOrigem; item_origem_id: string }> {
+export function sugestoesProximaReuniao(itens: ItemPauta[]): Array<{ pergunta: string; tipo: ItemTipo; trazido_por: string; tempo_min: number; origem: ItemOrigem; item_origem_id: string; campanha_id?: string }> {
   return ordenarItens(itens)
     .filter((i) => i.resultado === 'parking' || i.resultado === 'adiado')
     .map((i) => ({
       pergunta: i.pergunta, tipo: i.tipo, trazido_por: i.trazido_por, tempo_min: i.tempo_min,
       origem: i.resultado === 'adiado' ? 'adiado_anterior' : 'parking_anterior',
       item_origem_id: i.id,
+      // o assunto adiado continua sendo da mesma campanha (sem campanha, nem manda a coluna)
+      ...(i.campanha_id ? { campanha_id: i.campanha_id } : {}),
     }))
 }
 

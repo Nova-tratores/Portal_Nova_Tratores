@@ -2,7 +2,7 @@
 // Itens da pauta (R5/R6/R7). Modo pauta: lista reordenável + campo de inclusão.
 // Modo condução: item a item com timer e botões de resultado por tipo.
 import { useState } from 'react'
-import { ListOrdered, ChevronUp, ChevronDown, Trash2, Clock, Zap, CheckCircle2, PauseCircle, Shuffle, Info, MessageSquare, Plus, CornerDownRight } from 'lucide-react'
+import { ListOrdered, ChevronUp, ChevronDown, Trash2, Clock, Zap, CheckCircle2, PauseCircle, Shuffle, Info, MessageSquare, Plus, CornerDownRight, Megaphone } from 'lucide-react'
 import type { ItemPauta, ItemTipo, ItemResultado, ReuniaoRef } from '@/lib/reunioes/regras'
 import { ITEM_TIPO_INFO, RESULTADOS_POR_TIPO, somaTempo, ordenarItens, textoReagendamento } from '@/lib/reunioes/regras'
 import { cartao, botao, botaoClaro, campo, chip, Timer, primeiroNome } from './comum'
@@ -16,6 +16,33 @@ const ROTULO_RESULTADO: Record<ItemResultado, { label: string; selo: string; cor
   discutido: { label: 'Discutido', selo: 'Discutido', cor: '#7c3aed', icone: <MessageSquare size={15} />, dica: 'O assunto foi conversado. Fecha o item.' },
 }
 const ddmm = (iso: string | null | undefined) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '')
+
+/** Campanha de marketing que um assunto pode tratar (GET /api/reunioes/campanhas, 18/11/2026). */
+export interface CampanhaPauta { id: string; nome: string; data_inicio: string | null; data_fim: string | null }
+const ROSA = '#db2777'
+
+/** Selo "📣 Campanha" do assunto: mostra a campanha ligada e, para quem pode, troca ou desliga. */
+function SeloCampanha({ item, campanhas, onCampanha }: { item: ItemPauta; campanhas: CampanhaPauta[]; onCampanha?: (itemId: string, campanhaId: string | null) => Promise<void> }) {
+  const atual = campanhas.find((c) => c.id === item.campanha_id)
+  if (!onCampanha) {
+    if (!atual) return null
+    return <a href={`/marketing/${atual.id}`} title="Abrir a campanha" style={{ ...chip(ROSA, 'rgba(219,39,119,.1)'), textDecoration: 'none' }}><Megaphone size={11} /> {atual.nome}</a>
+  }
+  if (!campanhas.length) return null
+  return (
+    <label title="De qual campanha de marketing é este assunto? Ele entra na linha do tempo dela."
+      style={{ ...chip(atual ? ROSA : '#6b7280', atual ? 'rgba(219,39,119,.1)' : 'rgba(107,114,128,.08)'), cursor: 'pointer', position: 'relative' }}>
+      <Megaphone size={11} />
+      <span>{atual ? atual.nome : 'campanha?'}</span>
+      <select value={item.campanha_id || ''} onChange={(e) => { onCampanha(item.id, e.target.value || null).catch(() => { /* o erro já aparece embaixo da pauta */ }) }}
+        aria-label="Campanha deste assunto"
+        style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer', width: '100%' }}>
+        <option value="">Nenhuma campanha</option>
+        {campanhas.map((c) => <option key={c.id} value={c.id}>{c.nome}{c.data_inicio ? ` (${c.data_inicio.slice(0, 4)})` : ''}</option>)}
+      </select>
+    </label>
+  )
+}
 // Selo de origem: de onde o item veio (com a data da reunião anterior, quando se sabe).
 const rotuloOrigem = (origem: string, de?: ReuniaoRef) => {
   const veio = de ? ` · veio de ${ddmm(de.prazo)}` : ' da reunião anterior'
@@ -26,7 +53,7 @@ const rotuloOrigem = (origem: string, de?: ReuniaoRef) => {
   return origem
 }
 
-export default function PautaItens({ itens, usuarios, modo, podeEditar, podeConduzir, duracaoMin, corteFechado, onIncluir, onReordenar, onRemover, onResultado, onCriarAcao, onAbrirTicket, destinos, origens, proxima, temSerie, onAbrirReuniao }: {
+export default function PautaItens({ itens, usuarios, modo, podeEditar, podeConduzir, duracaoMin, corteFechado, onIncluir, onReordenar, onRemover, onResultado, onCriarAcao, onAbrirTicket, destinos, origens, proxima, temSerie, onAbrirReuniao, campanhas = [], onCampanha }: {
   itens: ItemPauta[]
   usuarios: Record<string, { nome: string }>
   modo: 'pauta' | 'conducao' | 'leitura'
@@ -45,6 +72,9 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
   proxima?: ReuniaoRef | null
   temSerie?: boolean
   onAbrirReuniao?: (id: string) => void
+  /** campanhas de marketing para ligar o assunto (linha do tempo da campanha) */
+  campanhas?: CampanhaPauta[]
+  onCampanha?: (itemId: string, campanhaId: string | null) => Promise<void>
 }) {
   const [pergunta, setPergunta] = useState('')
   const [tipo] = useState<ItemTipo>('discutir')   // tipo e tempo saíram da tela (José, 17/11/2026)
@@ -124,6 +154,7 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
                   })()}
                   <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>{primeiroNome(nome(item.trazido_por))} · {item.tempo_min} min</span>
                   {r && <span title={r.dica} style={chip(r.cor, r.cor + '1f')}>{r.icone} {r.selo}</span>}
+                  <SeloCampanha item={item} campanhas={campanhas} onCampanha={onCampanha} />
                   {modo === 'conducao' && !r && (
                     <button onClick={() => setAtivo(ativo === item.id ? null : item.id)} style={{ marginLeft: 'auto', ...botaoClaro(), padding: '4px 10px', minHeight: 30, fontSize: 12 }}>{ativo === item.id ? 'em discussão' : 'iniciar'}</button>
                   )}

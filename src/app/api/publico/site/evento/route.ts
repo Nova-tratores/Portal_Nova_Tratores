@@ -1,6 +1,6 @@
 // Contador anônimo de acessos do site (aberto, sem login). Recebe 1 evento por chamada (sendBeacon).
 // Nada pessoal: código aleatório do aparelho e da visita, página, de onde veio, tempo e cliques.
-import { corsSite, lerCorpo, passouLimite, sb } from '@/lib/site/server'
+import { corsSite, lerCorpo, passouLimite, sb } from '@/lib/marketing/redes/server'
 
 export const runtime = 'nodejs'
 

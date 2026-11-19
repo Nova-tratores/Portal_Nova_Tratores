@@ -33,6 +33,10 @@ const nextConfig: NextConfig = {
       { source: "/ajustes/boletos-fornecedor", destination: "/financeiro/caixa/boletos-fornecedor", permanent: false },
       { source: "/ajustes/notas", destination: "/financeiro/notas?tipo=saida", permanent: false },
       { source: "/visual-estoque/notas-entrada", destination: "/financeiro/notas?tipo=entrada", permanent: false },
+      // O módulo Site virou parte do Controle Marketing (18/11/2026). Links e avisos
+      // antigos (/site?id=... dos pedidos) seguem valendo — a query vai junto.
+      { source: "/site", destination: "/marketing/pedidos", permanent: false },
+      { source: "/site/:caminho*", destination: "/marketing/:caminho*", permanent: false },
     ];
   },
   async rewrites() {

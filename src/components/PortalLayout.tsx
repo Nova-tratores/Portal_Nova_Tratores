@@ -124,10 +124,9 @@ const navItems: NavItem[] = [
   { id: 'vendas-modelo', name: 'Vendas por Modelo', href: '/vendas-modelo', icon: <Tags size={18} />, tag: 'MODELOS', gradient: '', group: 'comercial' },
   // o "PPV" das máquinas: pedido de venda montado no portal e mandado para a Omie (13/11/2026)
   { id: 'pedidos-maquinas', name: 'Pedidos de Máquinas', href: '/propostas?aba=pedidos', icon: <Tractor size={18} />, tag: 'PEDIDOS', gradient: '', group: 'comercial' },
-  { id: 'marketing', name: 'Marketing & Eventos', href: '/marketing', icon: <Megaphone size={18} />, tag: 'EVENTOS', gradient: '', group: 'comercial' },
+  { id: 'marketing', name: 'Controle Marketing', href: '/marketing', icon: <Megaphone size={18} />, tag: 'MARKETING', gradient: '', group: 'comercial' },
   { id: 'inteligencia-vendas', name: 'Inteligência de Vendas', href: '/inteligencia-vendas', icon: <Radar size={18} />, tag: 'RADAR', gradient: '', group: 'comercial' },
   // Site (10/11/2026): pedidos do site, catálogo, promoções, acessos e redes sociais. Cor própria amarela (José, 12/11).
-  { id: 'site', name: 'Site', href: '/site', icon: <Globe size={18} />, tag: 'SITE', gradient: '', group: 'comercial', cor: { color: '#D97706', gradient: 'linear-gradient(135deg, #F59E0B, #B45309)' } },
   // Tela mobile do estande: quem só captura lead não precisa do módulo inteiro.
   { id: 'lead', name: 'Captura de Leads', href: '/lead', icon: <UserPlus size={18} />, tag: 'FEIRA', gradient: '', group: 'comercial' },
 

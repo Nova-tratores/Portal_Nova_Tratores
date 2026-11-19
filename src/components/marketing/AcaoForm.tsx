@@ -1,12 +1,13 @@
 'use client';
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// Formulário de ação de marketing — usado pra CRIAR (na lista) e pra EDITAR
+// Formulário da CAMPANHA (era "ação") — usado pra CRIAR (na lista) e pra EDITAR
 // (na ficha). Um só, pra os dois caminhos não divergirem.
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { TIPOS_ACAO, STATUS_ACAO, EMPRESAS } from '@/lib/marketing/tipos';
 import type { Acao } from '@/lib/marketing/tipos';
 import { Campo, estiloInput, BotaoRosa, ROSA } from './ui';
+import EnviarFoto from './redes/EnviarFoto';
 
 interface Usuario { id: string; nome: string; email: string | null; ativo: boolean | null }
 interface Projeto { codigo: number; nome: string; empresa: string }
@@ -76,7 +77,7 @@ export default function AcaoForm({
   return (
     <form onSubmit={submeter} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-        <Campo label="Nome da ação *" largura="2 1 320px">
+        <Campo label="Nome da campanha *" largura="2 1 320px">
           <input
             style={estiloInput}
             value={f.nome ?? ''}
@@ -89,6 +90,22 @@ export default function AcaoForm({
           <input style={estiloInput} value={f.codigo ?? ''} onChange={(e) => set('codigo', e.target.value)} />
         </Campo>
       </div>
+
+      {/* Capa (18/11/2026): a foto que aparece no cartão da lista e no topo da ficha */}
+      <Campo label="Capa" ajuda="Foto que aparece no cartão e no topo da campanha. Opcional.">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          {f.capa_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={f.capa_url} alt="" style={{ width: 140, aspectRatio: '16 / 7', objectFit: 'cover', borderRadius: 10, border: '1px solid var(--portal-border)' }} />
+          )}
+          <EnviarFoto pasta="campanhas" rotulo={f.capa_url ? 'Trocar a capa' : 'Enviar capa'} cor={ROSA} onEnviada={(urls) => urls[0] && set('capa_url', urls[0])} />
+          {f.capa_url && (
+            <button type="button" onClick={() => set('capa_url', null)} style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', fontSize: 13 }}>
+              Tirar a capa
+            </button>
+          )}
+        </div>
+      </Campo>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
         <Campo label="Tipo *" ajuda="Feira é um tipo — o módulo cobre também mídia, brinde e patrocínio.">

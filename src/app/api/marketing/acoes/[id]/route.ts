@@ -4,7 +4,7 @@
 // DELETE /api/marketing/acoes/[id]  — lixeira (soft delete); ?restaurar=1 volta
 import { NextResponse } from 'next/server';
 import { guardar, erroResposta, apenas, num, dataOuNull } from '@/lib/marketing/rota';
-import { db, carregarAcaoCompleta, idsInativos } from '@/lib/marketing/db';
+import { db, carregarAcaoCompleta, idsInativos, roletasDas } from '@/lib/marketing/db';
 import { logMarketing } from '@/lib/marketing/server';
 import { calcularROI } from '@/lib/marketing/roi';
 
@@ -18,7 +18,7 @@ const CAMPOS = [
   'orcamento_previsto', 'meta_leads', 'meta_vendas', 'meta_receita',
   'responsavel_id', 'responsavel_nome', 'responsavel_email',
   'publico_estimado', 'publico_total_evento', 'dias_participacao', 'stand_descricao',
-  'leads_declarados', 'observacoes',
+  'leads_declarados', 'observacoes', 'capa_url',
 ] as const;
 
 function normalizar(body: any) {
@@ -58,7 +58,9 @@ export async function GET(req: Request, ctx: { params: Promise<{ id: string }> }
       propostas: ficha.propostas,
     });
 
-    return NextResponse.json({ ...ficha, roi, inativos: [...inativos] });
+    const roleta = (await roletasDas([id]))[id] ?? null;
+
+    return NextResponse.json({ ...ficha, roi, inativos: [...inativos], roleta });
   } catch (e) {
     return erroResposta(e, 'GET /acoes/[id]');
   }

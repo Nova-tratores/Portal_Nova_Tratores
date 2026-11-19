@@ -1,6 +1,6 @@
 // Marcas gravadas no portal (aberto, sem login), lidas pelo SITE no build: logo, foto do banner, texto e itens sob consulta.
 import { NextResponse } from 'next/server'
-import { corsSite, sb } from '@/lib/site/server'
+import { corsSite, sb } from '@/lib/marketing/redes/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'

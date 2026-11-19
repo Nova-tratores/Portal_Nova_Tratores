@@ -1,7 +1,8 @@
 'use client';
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // =============================================================================
-// /marketing — lista das ações de marketing (feiras, dias de campo, mídia...).
+// /marketing — lista das CAMPANHAS de marketing (Black Friday, feiras, dias de campo, mídia...).
+// 18/11/2026 (José): "a ação vira campanha, entra da mais antiga para a mais nova e coloca capa".
 //
 // A lista existe pra responder três perguntas de relance:
 //   1. que ação está devendo relatório de contrapartida pra fábrica (dinheiro
@@ -17,7 +18,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui';
 import { STATUS_ACAO, TIPOS_ACAO, rotulo, cor } from '@/lib/marketing/tipos';
-import type { Acao } from '@/lib/marketing/tipos';
+import type { Acao, RoletaLigada } from '@/lib/marketing/tipos';
+import CapaCampanha from '@/components/marketing/CapaCampanha';
 import AcaoForm from '@/components/marketing/AcaoForm';
 import Modal from '@/components/marketing/Modal';
 import {
@@ -40,6 +42,7 @@ export default function MarketingPage() {
   const [acoes, setAcoes] = useState<Acao[]>([]);
   const [resumos, setResumos] = useState<Record<string, Resumo>>({});
   const [inativos, setInativos] = useState<Set<string>>(new Set());
+  const [roletas, setRoletas] = useState<Record<string, RoletaLigada>>({});
   const [carregando, setCarregando] = useState(true);
   const [migracaoFaltando, setMigracao] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -68,10 +71,11 @@ export default function MarketingPage() {
       setAcoes(r.acoes ?? []);
       setResumos(r.resumos ?? {});
       setInativos(new Set(r.inativos ?? []));
+      setRoletas(r.roletas ?? {});
       setMigracao(!!r.migracaoFaltando);
     } catch (e: any) {
       if (e?.corpo?.migracaoFaltando) setMigracao(true);
-      else setErro(e?.message || 'Não foi possível carregar as ações.');
+      else setErro(e?.message || 'Não foi possível carregar as campanhas.');
     } finally {
       setCarregando(false);
     }
@@ -161,7 +165,7 @@ export default function MarketingPage() {
         </select>
         <button
           onClick={() => setLixeira((v) => !v)}
-          title="Ações mandadas pra lixeira"
+          title="Campanhas mandadas pra lixeira"
           style={{
             ...estiloBotaoContorno, minHeight: 40,
             background: lixeira ? '#fee2e2' : 'var(--portal-bg-card)',
@@ -175,15 +179,15 @@ export default function MarketingPage() {
           {...gateBtn(podeCriar)}
           style={{ display: 'flex', alignItems: 'center', gap: 6, ...estiloSemPermissao(podeCriar) }}
         >
-          <Plus size={16} /> Nova ação
+          <Plus size={16} /> Nova campanha
         </BotaoRosa>
       </div>
 
       {/* Régua do período */}
       {acoes.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}>
-          <Kpi rotulo="Ações" valor={String(acoes.length)} />
-          <Kpi rotulo="Investido" valor={brl(totais.custo)} dica="Soma dos custos confirmados das ações listadas." />
+          <Kpi rotulo="Campanhas" valor={String(acoes.length)} />
+          <Kpi rotulo="Investido" valor={brl(totais.custo)} dica="Soma dos custos confirmados das campanhas listadas." />
           <Kpi rotulo="Apoio recebido" valor={brl(totais.apoio)} dica="Verba de fábrica que JÁ entrou. Aprovada e não recebida não conta aqui." cor="#16a34a" />
           <Kpi rotulo="Leads" valor={String(totais.leads)} />
           <Kpi
@@ -204,7 +208,7 @@ export default function MarketingPage() {
         <Vazio>
           {lixeira
             ? 'A lixeira está vazia.'
-            : 'Nenhuma ação cadastrada ainda. Comece pela feira que está devendo relatório.'}
+            : 'Nenhuma campanha cadastrada ainda. Comece pela feira que está devendo relatório.'}
         </Vazio>
       ) : (
         <div style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fill, minmax(min(330px, 100%), 1fr))' }}>
@@ -222,9 +226,12 @@ export default function MarketingPage() {
                 style={{
                   ['--c' as any]: corStatus,
                   background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-                  borderRadius: 16, display: 'flex', flexDirection: 'column',
+                  borderRadius: 16, display: 'flex', flexDirection: 'column', overflow: 'hidden',
                 }}
               >
+                <Link href={`/marketing/${a.id}`} aria-hidden tabIndex={-1} style={{ display: 'block' }}>
+                  <CapaCampanha acao={a} roleta={roletas[a.id]} />
+                </Link>
                 <Link
                   href={`/marketing/${a.id}`}
                   style={{ display: 'block', padding: '16px 18px 14px', textDecoration: 'none', color: 'inherit', flex: 1 }}
@@ -307,7 +314,7 @@ export default function MarketingPage() {
         </div>
       )}
 
-      <Modal titulo="Nova ação de marketing" aberto={modalAberto} onFechar={() => setModal(false)}>
+      <Modal titulo="Nova campanha" aberto={modalAberto} onFechar={() => setModal(false)}>
         <AcaoForm
           salvando={salvando}
           erro={erroForm}
@@ -317,7 +324,7 @@ export default function MarketingPage() {
       </Modal>
 
       <div style={{ marginTop: 20, fontSize: 12, color: 'var(--portal-text-muted, #64748b)', borderTop: '1px solid var(--portal-border)', paddingTop: 10 }}>
-        Feira, dia de campo, ação de loja, patrocínio, mídia e brinde ficam todos aqui — o tipo é que muda.
+        Campanha de vendas (com ou sem roleta), feira, dia de campo, ação de loja, patrocínio, mídia e brinde ficam todas aqui — o tipo é que muda. Da mais antiga para a mais nova.
       </div>
     </div>
   );

@@ -4,7 +4,7 @@
 //   removidos: slugs tirados do site ("Tirar do site")
 // Notas internas e quem mudou não saem daqui.
 import { NextResponse } from 'next/server'
-import { corsSite, sb } from '@/lib/site/server'
+import { corsSite, sb } from '@/lib/marketing/redes/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
